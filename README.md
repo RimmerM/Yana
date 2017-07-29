@@ -1,3 +1,27 @@
+# Expressions
+
+- typedexpr: infixexpr `as` type. Forces an expression to have a certain type, used for return type polymorphism. Does not cast existing types.
+- infixexpr: prefixexpr [op infixexpr]. Applies an operator function to two expressions.
+- prefixexpr: [op] leftexpr. Applies an operator function to one expression.
+- leftexpr: 
+   - `let` [`&`] varid [`=` expr]. Declare one or more variables (acts as a block).
+   - `match` expr`:` alts. Pattern match on a value.
+   - `if` expr `then` expr [`else` expr]. If expression or statement depending on whether the return value is used.
+   - `if:` cases. Multi-way if expression, used instead of repeating if-then-else.
+   - `while` expr`:` exprseq. Loop while a condition holds.
+   - `return` expr. Return from the function with the provided result.
+   - appexpr.
+- appexpr: baseexpr{`(`arg, ...`)`, `.`selexpr}. Call a function or field.
+- baseexpr:
+  - `{`expr, ...`}`. Tuple construction.
+  - `{`varid `=` expr, ...`}`. Tuple construction, named fields.
+  - `{`varid `|` varid `=` expr, ...`}`. Tuple construction, from existing value.
+  - `[`expr, ...`]`. Array construction.
+- selexpr:
+  - literal. Construct value from constant.
+  - varid. Read variable binding.
+  - `(`expr`)`. Nested expression.
+
 # Type system
 
 All type names start with a capital letter.
