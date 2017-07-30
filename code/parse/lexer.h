@@ -17,8 +17,8 @@ struct Token {
         ParenL = '(',
         ParenR = ')',
         Comma = ',',
-        EndOfStmt = Comma,
         Semicolon = ';',
+        EndOfStmt = Semicolon,
         BracketL = '[',
         BracketR = ']',
         Grave = '`',
@@ -26,10 +26,12 @@ struct Token {
         BraceR = '}',
 
         /* Literals */
-        Integer = 128,
+        FirstLiteral = 128,
+        Integer = FirstLiteral,
         Float,
         String,
         Char,
+        LastLiteral = Char,
 
         /* Identifiers */
         VarID,
@@ -82,9 +84,21 @@ struct Token {
         opArrowD,
     };
 
-    U32 sourceLine;
-    U32 sourceColumn;
-    U32 length;
+    // The token position including any whitespace preceding it.
+    U32 whitespaceLine = 0;
+    U32 whitespaceColumn = 0;
+    U32 whitespaceOffset = 0;
+
+    // The starting position of the actual token data.
+    U32 startLine = 0;
+    U32 startColumn = 0;
+    U32 startOffset = 0;
+
+    // The end position of the actual token data.
+    U32 endLine = 0;
+    U32 endColumn = 0;
+    U32 endOffset = 0;
+
     Type type;
 
     union {
@@ -122,6 +136,10 @@ private:
 
     void parseToken();
 
+    void startLocation();
+    void startWhitespace();
+    void endLocation();
+
     friend struct SaveLexer;
     friend struct IndentLevel;
 
@@ -146,7 +164,7 @@ private:
 
 struct IndentLevel {
     IndentLevel(Token& start, Lexer& lexer) : lexer(lexer), previous(lexer.indentation) {
-        lexer.indentation = start.sourceColumn;
+        lexer.indentation = start.startColumn;
         lexer.blockCount++;
     }
 

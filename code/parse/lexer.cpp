@@ -591,7 +591,7 @@ Id Lexer::parseStringLiteral() {
     }
 
     // Create a new buffer for this string.
-    auto buffer = (char*)context.astAlloc(chars.size());
+    auto buffer = (char*)context.stringArena.alloc(chars.size());
     memcpy(buffer, chars.pointer(), chars.size());
     return context.addUnqualifiedName(buffer, chars.size());
 }
@@ -802,7 +802,7 @@ void Lexer::parseSymbol() {
         token->singleMinus = count == 1 && *start == '-';
 
         // Save in the current qualified name.
-        auto name = (char*)context.astAlloc(count);
+        auto name = (char*)context.stringArena.alloc(count);
         memcpy(name, start, count);
 
         qualifier.name = name;
@@ -828,7 +828,7 @@ void Lexer::parseQualifier() {
     parseQ:
     while(isIdentifier(*(++p))) length++;
 
-    auto str = (char*)context.astAlloc(length);
+    auto str = (char*)context.stringArena.alloc(length);
     memcpy(str, start, length);
     auto strLength = length;
 
@@ -841,7 +841,7 @@ void Lexer::parseQualifier() {
         // we add this qualifier to the list and parse the remaining characters.
         // Otherwise, we parse as a ConID.
         if(u || l || s) {
-            *q = context.astNew<Qualified>();
+            *q = new (context.stringArena) Qualified;
             (*q)->name = str;
             (*q)->length = strLength;
             q = &(*q)->qualifier;
@@ -961,7 +961,7 @@ void Lexer::parseVariable() {
     auto start = p;
     while(isIdentifier(*(++p))) length++;
 
-    auto name = (char*)context.astAlloc(length);
+    auto name = (char*)context.stringArena.alloc(length);
     memcpy(name, start, length);
 
     qualifier.name = name;
@@ -974,19 +974,19 @@ void Lexer::parseToken() {
     parseT:
     // This needs to be reset manually.
     qualifier.qualifier = nullptr;
+    token->singleMinus = false;
+
+    startWhitespace();
 
     // Check if we are inside a string literal.
     if(formatting == 3) {
-        token->sourceColumn = (U32)(p - l) + tabs * (kTabWidth - 1);
-        token->sourceLine = line;
+        startLocation();
         formatting = 0;
         goto stringLit;
     } else {
         // Skip any whitespace and comments.
         skipWhitespace();
-
-        token->sourceColumn = (U32)(p - l) + tabs * (kTabWidth - 1);
-        token->sourceLine = line;
+        startLocation();
     }
 
     // Check for the end of the file.
@@ -996,14 +996,14 @@ void Lexer::parseToken() {
     }
 
     // Check if we need to insert a layout token.
-    else if(token->sourceColumn == indentation && !newItem) {
+    else if(token->startColumn == indentation && !newItem) {
         token->type = Token::EndOfStmt;
         newItem = true;
         goto newItem;
     }
 
     // Check if we need to end a layout block.
-    else if(token->sourceColumn < indentation) {
+    else if(token->startColumn < indentation) {
         token->type = Token::EndOfBlock;
     }
 
@@ -1035,7 +1035,7 @@ void Lexer::parseToken() {
     // Check for string literals.
     else if(*p == '\"') {
         stringLit:
-        // Since string literals can span multiple lines, this may update mLocation.line.
+        // Since string literals can span multiple lines, this may update location.line.
         token->type = Token::String;
         token->data.id = parseStringLiteral();
     }
@@ -1072,5 +1072,23 @@ void Lexer::parseToken() {
 
     newItem = false;
     newItem:
-    token->length = (U32)(p - b);
+    endLocation();
+}
+
+void Lexer::startLocation() {
+    token->startLine = line;
+    token->startColumn = (p - l) + tabs * (kTabWidth - 1);
+    token->startOffset = p - text;
+}
+
+void Lexer::startWhitespace() {
+    token->whitespaceLine = line;
+    token->whitespaceColumn = (p - l) + tabs * (kTabWidth - 1);
+    token->whitespaceOffset = p - text;
+}
+
+void Lexer::endLocation() {
+    token->endLine = line;
+    token->endColumn = (p - l) + tabs * (kTabWidth - 1);
+    token->startOffset = p - text;
 }

@@ -143,7 +143,7 @@ private:
 
     void toString(const InfixExpr& e) {
         stream << "InfixExpr ";
-        auto name = context.find(e.op).name;
+        auto name = context.find(e.op->name).name;
         stream << name;
         makeLevel();
         toString(*e.lhs,  false);
@@ -153,7 +153,7 @@ private:
 
     void toString(const PrefixExpr& e) {
         stream << "PrefixExpr ";
-        auto name = context.find(e.op).name;
+        auto name = context.find(e.op->name).name;
         stream << name;
         makeLevel();
         toString(*e.dst, true);
@@ -363,7 +363,7 @@ private:
         stream << "DataDecl ";
         toString(*e.type);
         makeLevel();
-        auto con = e.constrs;
+        auto con = e.cons;
         while(con) {
             toString(con->item, con->next == nullptr);
             con = con->next;

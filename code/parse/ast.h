@@ -252,16 +252,16 @@ struct AppExpr: Expr {
 };
 
 struct InfixExpr: Expr {
-    InfixExpr(Id op, Expr* lhs, Expr* rhs): Expr(Infix), lhs(lhs), rhs(rhs), op(op) {}
+    InfixExpr(VarExpr* op, Expr* lhs, Expr* rhs): Expr(Infix), lhs(lhs), rhs(rhs), op(op) {}
     Expr* lhs, *rhs;
-    Id op;
+    VarExpr* op;
     bool ordered = false;
 };
 
 struct PrefixExpr: Expr {
-    PrefixExpr(Id op, Expr* dst): Expr(Prefix), dst(dst), op(op) {}
+    PrefixExpr(VarExpr* op, Expr* dst): Expr(Prefix), dst(dst), op(op) {}
     Expr* dst;
-    Id op;
+    VarExpr* op;
 };
 
 struct IfExpr: Expr {
@@ -424,8 +424,8 @@ struct ForeignDecl: Decl {
 };
 
 struct DataDecl: Decl {
-    DataDecl(SimpleType* type, List<Con>* constrs): Decl(Data), constrs(constrs), type(type) {}
-    List<Con>* constrs;
+    DataDecl(SimpleType* type, List<Con>* cons): Decl(Data), cons(cons), type(type) {}
+    List<Con>* cons;
     SimpleType* type;
 };
 
