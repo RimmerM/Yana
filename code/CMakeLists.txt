@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.7)
 project(code)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 set(SOURCE_FILES)
 set(SOURCE_FILES ${SOURCE_FILES}
@@ -24,6 +24,8 @@ set(SOURCE_FILES ${SOURCE_FILES}
     parse/ast.h
     parse/parser.cpp
     parse/parser.h
+    parse/ast_print.cpp
+    parse/ast_print.h
 )
 
 add_executable(code ${SOURCE_FILES})
