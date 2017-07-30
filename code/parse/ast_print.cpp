@@ -5,6 +5,7 @@ struct Printer {
 
     void toString(const Expr& expr) {
         switch(expr.type) {
+            case Expr::Error: stream << "<parse error>"; break;
             case Expr::Unit: stream << "UnitExpr"; break;
             case Expr::Multi: toString((const MultiExpr&)expr); break;
             case Expr::Lit: toString((const LitExpr&)expr); break;
@@ -34,6 +35,7 @@ struct Printer {
 
     void toString(const Decl& decl) {
         switch(decl.kind) {
+            case Decl::Error: stream << "<parse error>"; break;
             case Decl::Fun: toString((const FunDecl&)decl); break;
             case Decl::Alias: toString((const AliasDecl&)decl); break;
             case Decl::Data: toString((const DataDecl&)decl); break;
@@ -452,6 +454,9 @@ private:
 
     void toString(const Type& type) {
         switch(type.kind) {
+            case Type::Error:
+                stream << "<parse error>";
+                break;
             case Type::Unit:
                 stream << "()";
                 break;

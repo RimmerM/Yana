@@ -10,15 +10,16 @@
 
 struct Type: Node {
     enum Kind {
-        Unit, // The empty unit type.
-        Con,  // A type name for a named type.
-        Ptr,  // A pointer to a type.
-        Gen,  // A generic or polymorphic named type.
-        Tup,  // A tuple type with optionally named fields.
-        Fun,  // A function type.
-        App,  // Application of higher-kinded type.
-        Arr,  // An array of a type.
-        Map,  // A map from one type to another.
+        Error, // Placeholder for parse errors.
+        Unit,  // The empty unit type.
+        Con,   // A type name for a named type.
+        Ptr,   // A pointer to a type.
+        Gen,   // A generic or polymorphic named type.
+        Tup,   // A tuple type with optionally named fields.
+        Fun,   // A function type.
+        App,   // Application of higher-kinded type.
+        Arr,   // An array of a type.
+        Map,   // A map from one type to another.
     } kind;
 
     Type(Kind k) : kind(k) {}
@@ -108,6 +109,7 @@ struct Literal {
 
 struct Pat: Node {
     enum Kind {
+        Error, // Placeholder for parse errors.
         Var,
         Lit,
         Any,
@@ -193,6 +195,7 @@ struct FormatChunk {
 
 struct Expr: Node {
     enum Type {
+        Error, // Placeholder for parse errors.
         Unit,
         Multi,
         Lit,
@@ -374,6 +377,7 @@ struct Con {
 
 struct Decl: Node {
     enum Kind {
+        Error, // Placeholder for parse errors.
         Fun,
         Alias,
         Data,
