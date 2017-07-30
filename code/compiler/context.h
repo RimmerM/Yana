@@ -25,9 +25,21 @@ struct CompileSettings {
 
 };
 
-struct Context {
+struct Arena {
     static const Size kChunkSize = 1024 * 1024;
 
+    void* alloc(Size size);
+    ~Arena();
+
+private:
+    Byte* buffer = nullptr;
+    Byte* max = nullptr;
+    Array<Byte*> buffers;
+};
+
+inline void* operator new (Size count, Arena& arena) {return arena.alloc(count);}
+
+struct Context {
     CompileSettings settings;
 
     void addOp(Id op, U16 prec = 9, Assoc assoc = Assoc::Left) {
@@ -48,57 +60,15 @@ struct Context {
         return names[id];
     }
 
-    Id addUnqualifiedName(const char* chars, Size count) {
-        Qualified q;
-        q.name = chars;
-        q.length = count;
-        return addName(&q);
-    }
-
-    Id addName(Qualified* q) {
-        Hasher h;
-
-        auto qu = q;
-        while(qu) {
-            h.addData(qu->name, (qu->length * sizeof(*qu->name)));
-            qu = qu->qualifier;
-        }
-
-        return addName(h.get(), q);
-    }
+    Id addUnqualifiedName(const char* chars, Size count);
+    Id addName(Qualified* q);
 
     Id addName(Id id, Qualified* q) {
         names.add(id, *q);
         return id;
     }
 
-    void* astAlloc(Size size) {
-        if(astBuffer + size > astMax) {
-            astBuffer = (Byte*)malloc(kChunkSize);
-            astMax = astBuffer + kChunkSize;
-            astBuffers.push(astBuffer);
-        }
-
-        auto it = astBuffer;
-        astBuffer += size;
-        return it;
-    }
-
-    template<class T, class... P>
-    T* astNew(P&&... p) {
-        auto obj = (T*)astAlloc(sizeof(T));
-        new (obj) T(p...);
-        return obj;
-    }
-
-    void releaseAst() {
-        for(auto buffer: astBuffers) {
-            free(buffer);
-        }
-        astBuffers.destroy();
-        astBuffer = nullptr;
-        astMax = nullptr;
-    }
+    Arena stringArena;
 
 private:
     Byte* astBuffer = nullptr;
@@ -108,19 +78,19 @@ private:
     HashMap<OpProperties, Id> ops;
 };
 
-struct ASTAllocator {
-    ASTAllocator(Context& context): context(context) {}
-    Context& context;
+struct ArenaAllocator {
+    ArenaAllocator(Arena& arena): arena(arena) {}
+    Arena& arena;
 
     void* alloc(Size size) {
-        return context.astAlloc(size);
+        return arena.alloc(size);
     }
 
     void free(void*) {}
 };
 
 template<class T>
-using ASTArray = ArrayT<T, ArrayAllocator<T, ASTAllocator>>;
+using ASTArray = ArrayT<T, ArrayAllocator<T, ArenaAllocator>>;
 
 template<class T>
 struct List {
