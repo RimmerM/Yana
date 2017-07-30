@@ -40,7 +40,7 @@ struct Token {
         ConSym,
 
         /* Keywords */
-        kwCase,
+        kwAlias,
         kwClass,
         kwData,
         kwDefault,
@@ -49,6 +49,7 @@ struct Token {
         kwElse,
         kwFor,
         kwForeign,
+        kwFn,
         kwIf,
         kwImport,
         kwIn,
@@ -58,12 +59,11 @@ struct Token {
         kwPrefix,
         kwInstance,
         kwLet,
+        kwMatch,
         kwModule,
         kwNewType,
-        kwOf,
+        kwReturn,
         kwThen,
-        kwType,
-        kwVar,
         kwWhere,
         kwWhile,
         kw_,
@@ -74,14 +74,14 @@ struct Token {
         opColon,
         opColonColon,
         opEquals,
-        opBackSlash, // also λ
+        opBackSlash,
         opBar,
-        opArrowL, // <- and ←
-        opArrowR, // -> and →
+        opArrowL, // <-
+        opArrowR, // ->
         opAt,
         opDollar,
         opTilde,
-        opArrowD,
+        opArrowD, // =>
     };
 
     // The token position including any whitespace preceding it.
@@ -102,7 +102,7 @@ struct Token {
     Type type;
 
     union {
-        uint64_t integer;
+        I64 integer;
         double floating;
         U32 character;
         Id id;

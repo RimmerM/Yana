@@ -1,4 +1,3 @@
-#include <cstdlib>
 #include "lexer.h"
 
 /**
@@ -890,9 +889,11 @@ void Lexer::parseVariable() {
         case '_':
             token->type = Token::kw_;
             break;
+        case 'a':
+            if(compareConstString(c, "lias")) token->type = Token::kwAlias;
+            break;
         case 'c':
-            if(compareConstString(c, "ase")) token->type = Token::kwCase;
-            else if(compareConstString(c, "lass")) token->type = Token::kwClass;
+            if(compareConstString(c, "lass")) token->type = Token::kwClass;
             break;
         case 'd':
             if(compareConstString(c, "ata")) token->type = Token::kwData;
@@ -904,7 +905,8 @@ void Lexer::parseVariable() {
             if(compareConstString(c, "lse")) token->type = Token::kwElse;
             break;
         case 'f':
-            if(compareConstString(c, "oreign")) token->type = Token::kwForeign;
+            if(*c == 'n') {c++; token->type = Token::kwFn;}
+            else if(compareConstString(c, "oreign")) token->type = Token::kwForeign;
             else if(*c == 'o' && c[1] == 'r') {c += 2; token->type = Token::kwFor;}
             break;
         case 'i':
@@ -921,23 +923,21 @@ void Lexer::parseVariable() {
             if(*c == 'e' && c[1] == 't') {c += 2; token->type = Token::kwLet;}
             break;
         case 'm':
-            if(compareConstString(c, "odule")) token->type = Token::kwModule;
+            if(compareConstString(c, "atch")) token->type = Token::kwMatch;
+            else if(compareConstString(c, "odule")) token->type = Token::kwModule;
             break;
         case 'n':
             if(compareConstString(c, "ewtype")) token->type = Token::kwNewType;
             break;
-        case 'o':
-            if(*c == 'f') {c++; token->type = Token::kwOf;}
-            break;
         case 'p':
             if(compareConstString(c, "refix")) token->type = Token::kwPrefix;
             break;
+        case 'r':
+            if(compareConstString(c, "eturn")) token->type = Token::kwReturn;
+            break;
         case 't':
             if(compareConstString(c, "hen")) token->type = Token::kwThen;
-            else if(compareConstString(c, "ype")) token->type = Token::kwType;
             break;
-        case 'v':
-            if(*c == 'a' && c[1] == 'r') {c += 2; token->type = Token::kwVar;}
         case 'w':
             if(compareConstString(c, "here")) token->type = Token::kwWhere;
             else if(compareConstString(c, "hile")) token->type = Token::kwWhile;
