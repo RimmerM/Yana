@@ -40,6 +40,7 @@ struct Printer {
             case Decl::Alias: toString((const AliasDecl&)decl); break;
             case Decl::Data: toString((const DataDecl&)decl); break;
             case Decl::Foreign: toString((const ForeignDecl&)decl); break;
+            case Decl::Stmt: toString((const StmtDecl&)decl); break;
         }
     }
 
@@ -379,6 +380,13 @@ private:
         stream.write(name.name, name.length);
         stream << " : ";
         toString(*e.type);
+    }
+
+    void toString(const StmtDecl& e) {
+        stream << "StmtDecl";
+        makeLevel();
+        toString(*e.expr, true);
+        removeLevel();
     }
 
     void toString(const FormatChunk& f, bool last) {

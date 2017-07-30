@@ -93,15 +93,13 @@ struct Literal {
         Int,
         Char,
         String,
-        Bool
     };
 
     union {
         double f;
-        U64 i;
+        I64 i;
         WChar32 c;
         Id s;
-        bool b;
     };
 
     Type type;
@@ -145,9 +143,9 @@ struct TupPat: Pat {
 };
 
 struct ConPat: Pat {
-    ConPat(Id constructor, List<Pat*>* patterns): Pat(Con), constructor(constructor), patterns(patterns) {}
+    ConPat(Id constructor, Pat* pattern): Pat(Con), constructor(constructor), pattern(pattern) {}
     Id constructor;
-    List<Pat*>* patterns;
+    Pat* pattern;
 };
 
 /*
@@ -280,10 +278,10 @@ struct MultiIfExpr: Expr {
 };
 
 struct DeclExpr: Expr {
-    DeclExpr(Id name, Expr* content, bool constant): Expr(Decl), name(name), content(content), constant(constant) {}
+    DeclExpr(Id name, Expr* content, bool isRef): Expr(Decl), name(name), content(content), isRef(isRef) {}
     Id name;
     Expr* content;
-    bool constant;
+    bool isRef;
 };
 
 struct WhileExpr: Expr {
@@ -383,7 +381,8 @@ struct Decl: Node {
         Data,
         Class,
         Instance,
-        Foreign
+        Foreign,
+        Stmt,
     } kind;
 
     bool exported;
@@ -428,9 +427,14 @@ struct ForeignDecl: Decl {
 };
 
 struct DataDecl: Decl {
-    DataDecl(SimpleType* type, List<Con>* cons): Decl(Data), cons(cons), type(type) {}
-    List<Con>* cons;
+    DataDecl(SimpleType* type, List<Con*>* cons): Decl(Data), cons(cons), type(type) {}
+    List<Con*>* cons;
     SimpleType* type;
+};
+
+struct StmtDecl: Decl {
+    StmtDecl(Expr* expr): Decl(Stmt), expr(expr) {}
+    Expr* expr;
 };
 
 /*
@@ -450,6 +454,7 @@ struct Fixity: Node {
         Left, Right
     };
 
+    Fixity(Id op, U32 precedence, Kind kind): op(op), precedence(precedence), kind(kind) {}
     Id op;
     U32 precedence;
     Kind kind;
