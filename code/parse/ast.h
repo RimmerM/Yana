@@ -66,6 +66,11 @@ struct FunType: Type {
     Type* ret;
 };
 
+struct PtrType: Type {
+    PtrType(Type* type): Type(Ptr), type(type) {}
+    Type* type;
+};
+
 struct ArrType: Type {
     ArrType(Type* type): Type(Arr), type(type) {}
     Type* type;
@@ -80,6 +85,26 @@ struct MapType: Type {
 /*
  * Pats
  */
+
+struct Literal {
+    enum Type {
+        Float,
+        Int,
+        Char,
+        String,
+        Bool
+    };
+
+    union {
+        double f;
+        U64 i;
+        WChar32 c;
+        Id s;
+        bool b;
+    };
+
+    Type type;
+};
 
 struct Pat: Node {
     enum Kind {
@@ -126,26 +151,6 @@ struct ConPat: Pat {
 /*
  * Exprs
  */
-
-struct Literal {
-    enum Type {
-        Float,
-        Int,
-        Char,
-        String,
-        Bool
-    };
-
-    union {
-        double f;
-        U64 i;
-        WChar32 c;
-        Id s;
-        bool b;
-    };
-
-    Type type;
-};
 
 struct Expr;
 
@@ -204,7 +209,7 @@ struct Expr: Node {
         Nested,
         Coerce,
         Field,
-        Construct,
+        Con,
         Tup,
         TupUpdate,
         Array,
@@ -291,9 +296,9 @@ struct AssignExpr: Expr {
 };
 
 struct CoerceExpr: Expr {
-    CoerceExpr(Expr* target, Type* kind): Expr(Coerce), target(target), kind(kind) {}
+    CoerceExpr(Expr* target, ::Type* kind): Expr(Coerce), target(target), kind(kind) {}
     Expr* target;
-    Type* kind;
+    ::Type* kind;
 };
 
 struct FieldExpr: Expr {
@@ -302,8 +307,8 @@ struct FieldExpr: Expr {
     Expr* field;  // Field to apply to.
 };
 
-struct ConstructExpr: Expr {
-    ConstructExpr(ConType* type, List<Expr*>* args): Expr(Construct), type(type), args(args) {}
+struct ConExpr: Expr {
+    ConExpr(ConType* type, List<Expr*>* args): Expr(Con), type(type), args(args) {}
     ConType* type;
     List<Expr*>* args;
 };
@@ -329,8 +334,8 @@ struct MapExpr: Expr {
     List<MapArg>* args;
 };
 
-struct LamExpr: Expr {
-    LamExpr(List<Arg>* args, Expr* body): Expr(Fun), args(args), body(body) {}
+struct FunExpr: Expr {
+    FunExpr(List<Arg>* args, Expr* body): Expr(Fun), args(args), body(body) {}
     List<Arg>* args;
     Expr* body;
 };

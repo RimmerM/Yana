@@ -176,7 +176,7 @@ static bool isHexit(char c) {
         true, true, true, true, true, true,							/* A..F */
         false,false,false,false,false,false,false,					/* G..` */
         false,false,false,false,false,false,false,
-        false,false,false,false,false,false,false,
+        false,false,false,false,false,false,
         false,false,false,false,false,false,
         true, true, true, true, true, true,							/* a..f */
     };
@@ -361,7 +361,7 @@ char* encodeCodePoint(U32 codePoint, char* buffer) {
 U32* convertNextPoint(const char*& string, U32* dest) {
     // Get the bytes from the first Char.
     U32 p;
-    uint8_t* s = (uint8_t*)string;
+    auto s = (Byte*)string;
     U32 c = s[0];
     string++;
 
@@ -398,8 +398,8 @@ U32* convertNextPoint(const char*& string, U32* dest) {
     }
 
     fail:
-    string = 0;
-    return 0;
+    string = nullptr;
+    return nullptr;
 
     _4bytes:
     {

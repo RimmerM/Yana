@@ -8,7 +8,7 @@ typedef U32 Id;
 struct Qualified {
     Qualified* qualifier = nullptr;
     const char* name;
-    Size length;
+    Size length = 0;
 };
 
 enum class Assoc : U8 {
@@ -120,7 +120,7 @@ struct ASTAllocator {
 };
 
 template<class T>
-using ASTArray = ArrayT<T, ASTAllocator>;
+using ASTArray = ArrayT<T, ArrayAllocator<T, ASTAllocator>>;
 
 template<class T>
 struct List {

@@ -2,7 +2,6 @@
 
 #include <cassert>
 #include "types.h"
-#include "initializer_list"
 
 template<class T, class Allocator> struct ArrayT : Allocator {
     template<class U>
@@ -26,8 +25,6 @@ template<class T, class Allocator> struct ArrayT : Allocator {
     explicit ArrayT(const Allocator& a, U32 reservedSize): Allocator(a) {this->alloc(reservedSize);}
     ArrayT(const ArrayT&);
     ArrayT(ArrayT&&);
-    ArrayT(std::initializer_list<T>);
-    ArrayT(const Allocator& a, std::initializer_list<T> l);
     ~ArrayT() {erase();}
     ArrayT& operator = (ArrayT<T, Allocator>);
 
@@ -182,18 +179,6 @@ ArrayT<T, A>::ArrayT(ArrayT&& a): A(forward<ArrayT<T, A>&&>(a)) {
         reserve(a.size());
         for(auto& i : a) {*this << i;}
     }
-}
-
-template<class T, class A>
-ArrayT<T, A>::ArrayT(std::initializer_list<T> items) {
-    reserve((U32)items.size());
-    for(auto& i : items) {*this << i;}
-}
-
-template<class T, class A>
-ArrayT<T, A>::ArrayT(const A& a, std::initializer_list<T> items): A(a) {
-    reserve((U32)items.size());
-    for(auto& i : items) {*this << i;}
 }
 
 template<class T, class A>
