@@ -4,11 +4,11 @@
 #include "ast.h"
 
 struct Parser {
-    static const char kRefSigil = '&';
-    static const char kPtrSigil = '#';
+    static const char kRefSigil;
+    static const char kPtrSigil;
 
     Parser(Context& context, Diagnostics& diag, Module& module, const char* text):
-        context(context), module(module), lexer(context, diag, text, &token) {
+        context(context), diag(diag), module(module), lexer(context, diag, text, &token) {
 
         qualifiedId = context.addUnqualifiedName("qualified", 9);
         hidingId = context.addUnqualifiedName("hiding", 6);
@@ -48,6 +48,7 @@ struct Parser {
     Expr* parseDeclExpr();
     Expr* parseTupleExpr();
     Expr* parseArrayExpr();
+    Expr* parseIfExpr();
 
     Arg parseArg(bool requireType);
     ArgDecl parseTypeArg();
@@ -152,7 +153,7 @@ struct Parser {
 
     template<class F, class Sep, class End>
     auto sepBy(F&& f, Sep&& sep, End&& end) -> List<decltype(f())>* {
-        if(!end()) return nullptr;
+        if(end()) return nullptr;
 
         auto n = list(f());
         auto p = n;
@@ -182,6 +183,7 @@ struct Parser {
     template<class F> auto sepBy(F&& f, Token::Type sep, Token::Type end) {return sepBy(f, tokenEat(sep), tokenCheck(end));}
 
     Context& context;
+    Diagnostics& diag;
     Module& module;
     Arena buffer;
     Token token;

@@ -31,9 +31,12 @@ inline Literal toStringLiteral(Id name) {
     return l;
 }
 
+const char Parser::kRefSigil = '&';
+const char Parser::kPtrSigil = '#';
+
 void Parser::parseModule() {
     withLevel([=] {
-        while(token.type == Token::EndOfStmt) {
+        do {
             while(token.type == Token::EndOfStmt) {
                 eat();
             }
@@ -45,7 +48,7 @@ void Parser::parseModule() {
             } else {
                 module.decls << parseDecl();
             }
-        }
+        } while(token.type == Token::EndOfStmt);
 
         // Dummy return value to withLevel.
         return true;
@@ -143,9 +146,7 @@ void Parser::parseFixity() {
         }
 
         auto op = parseQop();
-        auto id = op ? op->name : 0;
-
-        return new (buffer) Fixity{id, precedence, kind};
+        return new (buffer) Fixity{op->name, precedence, kind};
     });
 
     module.ops << *fixity;
@@ -376,14 +377,10 @@ Expr* Parser::parseExprSeq() {
      * 			|	expr0; …; exprn	(statements, n ≥ 2)
      */
     auto list = sepBy1([=] {return parseTypedExpr();}, Token::EndOfStmt);
-
-    if(!list) {
-        error("expected an expression");
-        return nullptr;
-    } else if(!list->next) {
-        return list->item;
-    } else {
+    if(list->next) {
         return new(buffer) MultiExpr(list);
+    } else {
+        return list->item;
     }
 }
 
@@ -398,15 +395,10 @@ Expr* Parser::parseTypedExpr() {
      */
 
     auto expr = parseInfixExpr();
-    if(!expr) return nullptr;
-
     if(token.type == Token::opColonColon) {
         eat();
-        if(auto type = parseType()) {
-            return new(buffer) CoerceExpr(expr, type);
-        } else {
-            return nullptr;
-        }
+        auto type = parseType();
+        return new(buffer) CoerceExpr(expr, type);
     } else {
         return expr;
     }
@@ -418,27 +410,23 @@ Expr* Parser::parseInfixExpr() {
      * 				|	pexp = infixexp				(assignment)
      *				|	pexp
      */
-    if(auto lhs = parsePrefixExpr()) {
-        if(token.type == Token::opEquals) {
-            eat();
-            auto rhs = parseExpr();
-            if(!rhs) error("Expected an expression after assignment.");
+    auto lhs = parsePrefixExpr();
+    if(token.type == Token::opEquals) {
+        eat();
+        auto rhs = parseExpr();
+        if(!rhs) error("Expected an expression after assignment.");
 
-            return new(buffer) AssignExpr(lhs, rhs);
-        } else if(token.type == Token::VarSym || token.type == Token::Grave) {
-            // Binary operator.
-            auto op = parseQop();
-            auto rhs = parseInfixExpr();
-            if(!rhs) error("Expected a right-hand side for a binary operator.");
+        return new(buffer) AssignExpr(lhs, rhs);
+    } else if(token.type == Token::VarSym || token.type == Token::Grave) {
+        // Binary operator.
+        auto op = parseQop();
+        auto rhs = parseInfixExpr();
+        if(!rhs) error("Expected a right-hand side for a binary operator.");
 
-            return new(buffer) InfixExpr(op, lhs, rhs);
-        } else {
-            // Single expression.
-            return lhs;
-        }
+        return new(buffer) InfixExpr(op, lhs, rhs);
     } else {
-        error("expected an expression.");
-        return nullptr;
+        // Single expression.
+        return lhs;
     }
 }
 
@@ -469,79 +457,12 @@ Expr* Parser::parseLeftExpr() {
         } else if(token.type == Token::kwMatch) {
             return parseCaseExpr();
         } else if(token.type == Token::kwIf) {
-            eat();
-            if(token.type == Token::opColon) {
-                eat();
-
-                // Multi-way if.
-                auto list = withLevel([=] {
-                    return sepBy1([=]() -> IfCase {
-                        Expr *cond;
-                        if(token.type == Token::kw_ || token.type == Token::kwElse) {
-                            eat();
-
-                            Literal lit;
-                            lit.type = Literal::Bool;
-                            lit.b = true;
-
-                            cond = new(buffer) LitExpr(lit);
-                        } else {
-                            cond = parseExpr();
-                        }
-
-                        if(token.type == Token::opArrowR) eat();
-                        else error("expected '->' after if condition");
-
-                        auto then = parseExpr();
-                        return IfCase(cond, then);
-                    }, Token::EndOfStmt);
-                });
-                return new(buffer) MultiIfExpr(list);
-            } else {
-                auto cond = parseExpr();
-
-                // Allow statement ends within an if-expression to allow then/else with the same indentation as if.
-                if(token.type == Token::EndOfStmt) eat();
-                if(token.type == Token::kwThen) {
-                    eat();
-
-                    Expr* expr;
-                    if(token.type == Token::opColon) {
-                        expr = parseBlock(false);
-                    } else {
-                        expr = parseExpr();
-                    }
-
-                    if(token.type == Token::EndOfStmt) eat();
-                    if(token.type == Token::kwElse) {
-                        eat();
-
-                        Expr* otherwise;
-                        if(token.type == Token::opColon) {
-                            otherwise = parseBlock(false);
-                        } else {
-                            otherwise = parseExpr();
-                        }
-
-                        return new (buffer) IfExpr(cond, expr, otherwise);
-                    } else {
-                        return new (buffer) IfExpr(cond, expr, nullptr);
-                    }
-                } else {
-                    error("Expected 'then' after if-expression.");
-                }
-            }
+            return parseIfExpr();
         } else if(token.type == Token::kwWhile) {
             eat();
-            if(auto cond = parseExpr()) {
-                if(auto loop = parseBlock(false)) {
-                    return new(buffer) WhileExpr(cond, loop);
-                } else {
-                    error("Expected expression after ':'");
-                }
-            } else {
-                error("Expected expression after 'while'");
-            }
+            auto cond = parseExpr();
+            auto loop = parseBlock(false);
+            return new(buffer) WhileExpr(cond, loop);
         } else if(token.type == Token::kwReturn) {
             eat();
             auto body = parseExpr();
@@ -549,8 +470,6 @@ Expr* Parser::parseLeftExpr() {
         } else {
             return parseAppExpr();
         }
-
-        return nullptr;
     });
 }
 
@@ -584,39 +503,159 @@ Expr* Parser::parseChain(Expr *base) {
 Expr* Parser::parseCaseExpr() {
     assert(token.type == Token::kwMatch);
     eat();
-    if(auto exp = parseExpr()) {
-        if(token.type == Token::opColon) {
-            eat();
-            auto alts = withLevel([=] {
-                return sepBy1([=] {
-                    return parseAlt();
-                }, Token::EndOfStmt);
-            });
-            return new(buffer) CaseExpr(exp, alts);
-        } else {
-            error("Expected ':' after match-expression.");
-        }
+
+    auto pivot = parseExpr();
+
+    List<Alt>* alts = nullptr;
+    if(token.type == Token::opColon) {
+        eat();
+        alts = withLevel([=] {
+            return sepBy1([=] {
+                return parseAlt();
+            }, Token::EndOfStmt);
+        });
     } else {
-        error("expected an expression after 'match'");
+        error("Expected ':' after match-expression.");
     }
 
-    return nullptr;
+    return new(buffer) CaseExpr(pivot, alts);
+}
+
+Expr* Parser::parseIfExpr() {
+    assert(token.type == Token::kwIf);
+    eat();
+
+    if(token.type == Token::opColon) {
+        eat();
+
+        // Multi-way if.
+        auto list = withLevel([=] {
+            return sepBy1([=]() -> IfCase {
+                Expr *cond;
+                if(token.type == Token::kw_ || token.type == Token::kwElse) {
+                    eat();
+
+                    Literal lit;
+                    lit.type = Literal::Bool;
+                    lit.b = true;
+
+                    cond = new(buffer) LitExpr(lit);
+                } else {
+                    cond = parseExpr();
+                }
+
+                if(token.type == Token::opArrowR) eat();
+                else error("expected '->' after if condition");
+
+                auto then = parseExpr();
+                return IfCase(cond, then);
+            }, Token::EndOfStmt);
+        });
+        return new(buffer) MultiIfExpr(list);
+    } else {
+        auto cond = parseExpr();
+
+        // Allow statement ends within an if-expression to allow then/else with the same indentation as if.
+        if(token.type == Token::EndOfStmt) eat();
+        if(token.type == Token::kwThen) {
+            eat();
+        } else {
+            error("Expected 'then' after if-expression.");
+        }
+
+        Expr* expr;
+        if(token.type == Token::opColon) {
+            expr = parseBlock(false);
+        } else {
+            expr = parseExpr();
+        }
+
+        // We should only eat the statement end if there is an else after.
+        SaveLexer save(lexer);
+        auto savedToken = token;
+
+        if(token.type == Token::EndOfStmt) eat();
+        if(token.type == Token::kwElse) {
+            eat();
+
+            Expr* otherwise;
+            if(token.type == Token::opColon) {
+                otherwise = parseBlock(false);
+            } else {
+                otherwise = parseExpr();
+            }
+
+            return new (buffer) IfExpr(cond, expr, otherwise);
+        } else {
+            save.restore();
+            token = savedToken;
+            return new (buffer) IfExpr(cond, expr, nullptr);
+        }
+    }
 }
 
 Expr* Parser::parseBaseExpr() {
     if(token.type == Token::ParenL) {
         return node([=]() -> Expr* {
             eat();
+
+            // Cases to handle:
+            // () block
+            // (expr)
+            // (varexpr) block
+            // (varexpr: type) block
+            // (varexpr, ...) block
+            // (varexpr: type, ...) block
             if(token.type == Token::ParenR) {
+                // () block
                 eat();
                 return new (buffer) FunExpr(nullptr, parseBlock(false));
             } else {
                 auto e = parseExpr();
                 if(token.type == Token::ParenR) {
+                    // Cases to handle:
+                    // (expr)
+                    // (varexpr) block
                     eat();
-                    return new (buffer) NestedExpr(e);
+                    if(e->type == Expr::Var && (token.type == Token::opColon || token.type == Token::opArrowR)) {
+                        auto arg = list(Arg{((VarExpr*)e)->name, nullptr, nullptr});
+                        return new (buffer) FunExpr(arg, parseBlock(false));
+                    } else {
+                        return new(buffer) NestedExpr(e);
+                    }
                 } else {
-                    return new (buffer) Expr(Expr::Error);
+                    // Cases to handle:
+                    // (varexpr: type) block
+                    // (varexpr: type, ...) block
+                    // (varexpr, ...) block
+                    Id firstName = 0;
+                    if(e->type == Expr::Var) {
+                        firstName = ((VarExpr*)e)->name;
+                    } else {
+                        error("expected argument name");
+                    }
+
+                    Type* firstType = nullptr;
+                    if(token.type == Token::opColon) {
+                        eat();
+                        firstType = parseType();
+                    }
+
+                    auto args = list(Arg{firstName, firstType, nullptr});
+                    if(token.type == Token::Comma) {
+                        eat();
+                        args->next = sepBy1([=] {
+                            return parseArg(false);
+                        }, Token::Comma);
+                    }
+
+                    if(token.type == Token::ParenR) {
+                        eat();
+                    } else {
+                        error("expected ',' or ')' in argument list");
+                    }
+
+                    return new (buffer) FunExpr(args, parseBlock(false));
                 }
             }
         });
@@ -710,21 +749,12 @@ Expr* Parser::parseStringExpr() {
 }
 
 TupArg Parser::parseTupArg() {
-    if(token.type == Token::VarID) {
-        auto varExpr = node([=]() -> VarExpr* {
-            auto id = token.data.id;
-            eat();
-            return new (buffer) VarExpr(id);
-        });
-
-        if(token.type == Token::opEquals) {
-            eat();
-            return TupArg(varExpr->name, parseExpr());
-        } else {
-            return TupArg(0, varExpr);
-        }
+    auto arg = parseExpr();
+    if(arg->type == Expr::Var && token.type == Token::opEquals) {
+        eat();
+        return TupArg(((VarExpr*)arg)->name, parseExpr());
     } else {
-        return TupArg{0, parseExpr()};
+        return TupArg{0, arg};
     }
 }
 
@@ -738,9 +768,11 @@ Arg Parser::parseArg(bool requireType) {
     }
 
     Type* type = nullptr;
-    if(requireType || token.type == Token::opColon) {
-        if(token.type == Token::opColon) eat();
+    if(token.type == Token::opColon) {
+        eat();
         type = parseType();
+    } else if(requireType) {
+        error("expected parameter type");
     }
 
     Expr* def = nullptr;
@@ -787,13 +819,10 @@ Expr* Parser::parseVarDecl() {
         }, Token::EndOfStmt);
     });
 
-    if(!list) {
-        error("expected declaration after 'let'");
-        return nullptr;
-    } else if(!list->next) {
-        return list->item;
-    } else {
+    if(list->next) {
         return new(buffer) MultiExpr(list);
+    } else {
+        return list->item;
     }
 }
 
@@ -804,24 +833,21 @@ Expr* Parser::parseDeclExpr() {
         isRef = true;
     }
 
+    Id id = 0;
     if(token.type == Token::VarID) {
-        auto id = token.data.id;
+        id = token.data.id;
         eat();
-        if(token.type == Token::opEquals) {
-            eat();
-            if(auto expr = parseExpr()) {
-                return new(buffer) DeclExpr(id, expr, isRef);
-            } else {
-                error("Expected expression.");
-            }
-        } else {
-            return new(buffer) DeclExpr(id, nullptr, isRef);
-        }
     } else {
         error("expected identifier");
     }
 
-    return nullptr;
+    if(token.type == Token::opEquals) {
+        eat();
+        auto expr = parseExpr();
+        return new(buffer) DeclExpr(id, expr, isRef);
+    } else {
+        return new(buffer) DeclExpr(id, nullptr, isRef);
+    }
 }
 
 Alt Parser::parseAlt() {
@@ -856,40 +882,49 @@ VarExpr* Parser::parseVar() {
             eat();
             if(token.type == Token::ParenR) {
                 eat();
-                return new (buffer) VarExpr(id);
+            } else {
+                error("expected ')'");
             }
-        }
-    }
 
-    return nullptr;
+            return new (buffer) VarExpr(id);
+        } else {
+            error("expected symbol");
+            return new (buffer) VarExpr(0);
+        }
+    } else {
+        error("expected identifier");
+        return new (buffer) VarExpr(0);
+    }
 }
 
 VarExpr* Parser::parseQop() {
     /*
      * qop	→	qvarsym | `qvarid`
      */
-    if(token.type == Token::VarSym) {
-        auto id = token.data.id;
-        eat();
-        return new (buffer) VarExpr(id);
-    } else if(token.type == Token::Grave) {
-        eat();
-        if(token.type == Token::VarID) {
+    return node([=]() -> VarExpr* {
+        if(token.type == Token::VarSym) {
             auto id = token.data.id;
             eat();
-
-            if(token.type == Token::Grave) {
-                eat();
-            } else {
-                error("Expected '`' after operator identifier");
-            }
-
             return new (buffer) VarExpr(id);
-        }
-    }
+        } else if(token.type == Token::Grave) {
+            eat();
+            if(token.type == Token::VarID) {
+                auto id = token.data.id;
+                eat();
 
-    error("Expected an operator");
-    return nullptr;
+                if(token.type == Token::Grave) {
+                    eat();
+                } else {
+                    error("Expected '`' after operator identifier");
+                }
+
+                return new (buffer) VarExpr(id);
+            }
+        }
+
+        error("expected an operator");
+        return new (buffer) VarExpr(0);
+    });
 }
 
 Type* Parser::parseType() {
@@ -922,9 +957,33 @@ Type* Parser::parseAType() {
         auto type = parseAType();
         return new (buffer) PtrType(type);
     } else if(token.type == Token::ConID) {
-        auto id = token.data.id;
-        eat();
-        return new(buffer) ConType(id);
+        auto base = node([=]() -> Type* {
+            auto id = token.data.id;
+            eat();
+            return new(buffer) ConType(id);
+        });
+
+        // For cases where it is easily visible what's going on, we allow omitting parentheses.
+        // This conveniently also prevents us from having to look too far ahead.
+        if(token.type == Token::ParenL) {
+            auto type = parens([=] {
+                return sepBy1([=] {
+                    return parseType();
+                }, Token::Comma);
+            });
+            return new (buffer) AppType(base, type);
+        } else if(token.type == Token::BraceL) {
+            return new (buffer) AppType(base, list(parseTupleType()));
+        } else if(token.type == Token::ConID) {
+            auto con = node([=]() -> Type* {
+                auto id = token.data.id;
+                eat();
+                return new(buffer) ConType(id);
+            });
+            return new (buffer) AppType(base, list(con));
+        } else {
+            return base;
+        }
     } else if(token.type == Token::VarID) {
         auto id = token.data.id;
         eat();
@@ -961,36 +1020,35 @@ Type* Parser::parseAType() {
         else error("expected ')'");
 
         return t;
+    } else {
+        error("expected a type");
+        return new (buffer) Type(Type::Error);
     }
-
-    error("Expected a type.");
-    return nullptr;
 }
 
 SimpleType* Parser::parseSimpleType() {
+    Id id = 0;
     if(token.type == Token::ConID) {
-        auto id = token.data.id;
+        id = token.data.id;
         eat();
-
-        auto kind = maybeParens([=] {
-            return sepBy1([=] {
-                if(token.type == Token::VarID) {
-                    auto n = token.data.id;
-                    eat();
-                    return n;
-                } else {
-                    error("expected an identifier");
-                    return Id(0);
-                }
-            }, Token::Comma);
-        });
-
-        return new(buffer) SimpleType(id, kind);
     } else {
         error("expected type name");
     }
 
-    return nullptr;
+    auto kind = maybeParens([=] {
+        return sepBy1([=] {
+            if(token.type == Token::VarID) {
+                auto n = token.data.id;
+                eat();
+                return n;
+            } else {
+                error("expected an identifier");
+                return Id(0);
+            }
+        }, Token::Comma);
+    });
+
+    return new(buffer) SimpleType(id, kind);
 }
 
 Type* Parser::parseTupleType() {
@@ -1247,7 +1305,11 @@ Pat* Parser::parsePattern() {
             return new(buffer) LitPat(lit);
         } else {
             error("expected integer or float literal");
-            return nullptr;
+
+            Literal lit;
+            lit.type = Literal::Int;
+            lit.i = 0;
+            return new (buffer) LitPat(lit);
         }
     } else if(token.type == Token::ConID) {
         auto id = token.data.id;
@@ -1261,5 +1323,5 @@ Pat* Parser::parsePattern() {
 }
 
 void Parser::error(const char* text) {
-
+    diag.error(text, nullptr);
 }
