@@ -90,7 +90,7 @@ U32 parseIntSequence(const char*& p, ParseAtom parseAtom, U32 numChars, U32 max,
         p++;
     }
 
-    if(res > max) diag.warning("character literal out of range", nullptr);
+    if(res > max) diag.warning("character literal out of range");
     return res;
 }
 
@@ -1090,5 +1090,5 @@ void Lexer::startWhitespace() {
 void Lexer::endLocation() {
     token->endLine = line;
     token->endColumn = (p - l) + tabs * (kTabWidth - 1);
-    token->startOffset = p - text;
+    token->endOffset = p - text;
 }

@@ -1323,5 +1323,14 @@ Pat* Parser::parsePattern() {
 }
 
 void Parser::error(const char* text) {
-    diag.error(text, nullptr);
+    Node where;
+    where.sourceStart.line = (U16)token.startLine;
+    where.sourceStart.column = (U16)token.startColumn;
+    where.sourceStart.offset = (U16)token.startOffset;
+    where.sourceEnd.line = (U16)token.endLine;
+    where.sourceEnd.column = (U16)token.endColumn;
+    where.sourceEnd.offset = (U16)token.endOffset;
+    where.sourceModule = module.name;
+
+    diag.error(text, &where, this->text);
 }

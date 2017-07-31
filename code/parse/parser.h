@@ -8,7 +8,7 @@ struct Parser {
     static const char kPtrSigil;
 
     Parser(Context& context, Diagnostics& diag, Module& module, const char* text):
-        context(context), diag(diag), module(module), lexer(context, diag, text, &token) {
+        text(text), context(context), diag(diag), module(module), lexer(context, diag, text, &token) {
 
         qualifiedId = context.addUnqualifiedName("qualified", 9);
         hidingId = context.addUnqualifiedName("hiding", 6);
@@ -182,9 +182,11 @@ struct Parser {
     template<class F> auto sepBy1(F&& f, Token::Type sep) {return sepBy1(f, tokenEat(sep));}
     template<class F> auto sepBy(F&& f, Token::Type sep, Token::Type end) {return sepBy(f, tokenEat(sep), tokenCheck(end));}
 
+    const char* text;
     Context& context;
     Diagnostics& diag;
     Module& module;
+
     Arena buffer;
     Token token;
     Lexer lexer;
