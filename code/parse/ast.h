@@ -1,6 +1,5 @@
 #pragma once
 
-#include <vector>
 #include "../compiler/context.h"
 #include "../compiler/diagnostics.h"
 
@@ -93,6 +92,7 @@ struct Literal {
         Int,
         Char,
         String,
+        Bool,
     };
 
     union {
@@ -100,6 +100,7 @@ struct Literal {
         I64 i;
         WChar32 c;
         Id s;
+        bool b;
     };
 
     Type type;
@@ -194,7 +195,6 @@ struct FormatChunk {
 struct Expr: Node {
     enum Type {
         Error, // Placeholder for parse errors.
-        Unit,
         Multi,
         Lit,
         Var,
@@ -367,10 +367,15 @@ struct SimpleType {
     List<Id>* kind;
 };
 
-struct Con {
+struct Con: Node {
     Con(Id name, Type* content) : name(name), content(content) {}
     Id name;
     Type* content;
+
+    // This is easier than trying to make a special template function for values.
+    Con* operator -> () {
+        return this;
+    }
 };
 
 struct Decl: Node {
@@ -427,8 +432,8 @@ struct ForeignDecl: Decl {
 };
 
 struct DataDecl: Decl {
-    DataDecl(SimpleType* type, List<Con*>* cons): Decl(Data), cons(cons), type(type) {}
-    List<Con*>* cons;
+    DataDecl(SimpleType* type, List<Con>* cons): Decl(Data), cons(cons), type(type) {}
+    List<Con>* cons;
     SimpleType* type;
 };
 
@@ -445,8 +450,8 @@ struct Import: Node {
     Id from;
     bool qualified;
     Id localName;
-    ASTArray<Id> include;
-    ASTArray<Id> exclude;
+    List<Id>* include;
+    List<Id>* exclude;
 };
 
 struct Fixity: Node {

@@ -4,17 +4,13 @@
 #include "context.h"
 
 struct Loc {
-    U32 line;
-    U32 column;
-    U32 offset;
+    U16 line;
+    U16 column;
+    U16 offset;
 };
 
-inline Qualified placeholderModule() {
-    return Qualified {nullptr, 0};
-}
-
 struct Node {
-    Qualified sourceModule = placeholderModule();
+    Id sourceModule = 0;
     Loc sourceStart = {0, 0, 0};
     Loc sourceEnd = {0, 0, 0};
 

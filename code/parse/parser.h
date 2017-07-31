@@ -4,39 +4,57 @@
 #include "ast.h"
 
 struct Parser {
+    static const char kRefSigil = '&';
+    static const char kPtrSigil = '#';
+
     Parser(Context& context, Diagnostics& diag, Module& module, const char* text):
         context(context), module(module), lexer(context, diag, text, &token) {
+
+        qualifiedId = context.addUnqualifiedName("qualified", 9);
+        hidingId = context.addUnqualifiedName("hiding", 6);
+        fromId = context.addUnqualifiedName("from", 4);
+        asId = context.addUnqualifiedName("as", 2);
+        refId = context.addUnqualifiedName(&kRefSigil, 1);
+        ptrId = context.addUnqualifiedName(&kPtrSigil, 1);
+
         lexer.next();
     }
 
     void parseModule();
-    void parseDecl();
+    void parseImport();
+    void parseFixity();
+    Decl* parseDecl();
     Decl* parseFunDecl();
-    void parseDataDecl();
-    void parseTypeDecl();
-    void parseForeignDecl();
+    Decl* parseDataDecl();
+    Decl* parseTypeDecl();
+    Decl* parseForeignDecl();
+    Decl* parseClassDecl();
+    Decl* parseInstanceDecl();
 
+    Expr* parseBlock(bool isFun);
     Expr* parseExprSeq();
     Expr* parseExpr();
     Expr* parseTypedExpr();
     Expr* parseInfixExpr();
     Expr* parsePrefixExpr();
     Expr* parseLeftExpr();
-    Expr* parseCallExpr();
     Expr* parseAppExpr();
-    Expr* parseCaseExpr();
+    Expr* parseChain(Expr* base);
     Expr* parseBaseExpr();
+    Expr* parseSelExpr();
 
-    /// Parses a literal token. The caller should ensure that the token is a literal.
-    Expr* parseLiteral();
+    Expr* parseCaseExpr();
+    Expr* parseStringExpr();
+    Expr* parseDeclExpr();
+    Expr* parseTupleExpr();
+    Expr* parseArrayExpr();
 
-    /// Parses a string literal token. The caller should ensure that the token is a string literal.
-    Expr* parseStringLiteral();
-
-    Expr* parseVarDecl(bool constant);
-    Expr* parseDeclExpr(bool constant);
-    void parseFixity();
-    Alt* parseAlt();
+    Arg parseArg(bool requireType);
+    ArgDecl parseTypeArg();
+    ArgDecl parseArgDecl();
+    TupArg parseTupArg();
+    Expr* parseVarDecl();
+    Alt parseAlt();
     VarExpr* parseVar();
     VarExpr* parseQop();
 
@@ -44,15 +62,12 @@ struct Parser {
     Type* parseAType();
     SimpleType* parseSimpleType();
     Type* parseTupleType();
-    Expr* parseTupleExpr();
-    Expr* parseElse();
-    Con* parseCon();
+    Con parseCon();
 
     Pat* parseLeftPattern();
     Pat* parsePattern();
 
-    void addFixity(Fixity f);
-    Expr* error(const char* text);
+    void error(const char* text);
 
     void eat() {lexer.next();}
 
@@ -124,19 +139,30 @@ struct Parser {
         return between(f, tokenRequire(start), tokenRequire(end));
     }
 
+    template<class F> auto maybeBetween(F&& f, Token::Type start, Token::Type end) {
+        return token.type == start ? between(f, start, end) : nullptr;
+    }
+
+    template<class F> auto parens(F&& f) {return between(f, Token::Type::ParenL, Token::Type::ParenR);}
+    template<class F> auto maybeParens(F&& f) {return maybeBetween(f, Token::Type::ParenL, Token::Type::ParenR);}
+    template<class F> auto braces(F&& f) {return between(f, Token::Type::BraceL, Token::Type::BraceR);}
+    template<class F> auto maybeBraces(F&& f) {return maybeBetween(f, Token::Type::BraceL, Token::Type::BraceR);}
+    template<class F> auto brackets(F&& f) {return between(f, Token::Type::BracketL, Token::Type::BracketR);}
+    template<class F> auto maybeBrackets(F&& f) {return maybeBetween(f, Token::Type::BracketL, Token::Type::BracketR);}
+
     template<class F, class Sep, class End>
     auto sepBy(F&& f, Sep&& sep, End&& end) -> List<decltype(f())>* {
         if(!end()) return nullptr;
 
-        auto list = list(f());
-        auto p = list;
+        auto n = list(f());
+        auto p = n;
         while(sep()) {
             auto l = list(f());
             p->next = l;
             p = l;
         }
 
-        return list;
+        return n;
     }
 
     template<class F, class Sep>
@@ -160,4 +186,11 @@ struct Parser {
     Arena buffer;
     Token token;
     Lexer lexer;
+
+    Id qualifiedId;
+    Id hidingId;
+    Id fromId;
+    Id asId;
+    Id refId;
+    Id ptrId;
 };

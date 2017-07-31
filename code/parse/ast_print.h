@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ast.h"
 #include <ostream>
+#include "ast.h"
 
 void printModule(std::ostream& stream, Context& context, const Module& module);
 void printDecl(std::ostream& stream, Context& context, const Decl& decl);

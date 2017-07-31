@@ -172,12 +172,6 @@ private:
     Size data[(sizeof(T) + sizeof(Size) - 1) / sizeof(Size)];
 };
 
-void* operator new (Size size);
-void* operator new[] (Size size);
-
-void operator delete (void* data) noexcept;
-void operator delete[] (void* data) noexcept;
-
 #if !defined(_NEW) && !defined(_LIBCPP_NEW)
 
 inline void* operator new (Size, void* data) throw() {return data;}

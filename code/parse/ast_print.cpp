@@ -6,7 +6,6 @@ struct Printer {
     void toString(const Expr& expr) {
         switch(expr.type) {
             case Expr::Error: stream << "<parse error>"; break;
-            case Expr::Unit: stream << "UnitExpr"; break;
             case Expr::Multi: toString((const MultiExpr&)expr); break;
             case Expr::Lit: toString((const LitExpr&)expr); break;
             case Expr::Var: toString((const VarExpr&)expr); break;
@@ -191,7 +190,7 @@ private:
         stream << "DeclExpr ";
         auto name = context.find(e.name).name;
         stream << name;
-        if(e.constant) stream << " <const> ";
+        if(e.isRef) stream << " <ref> ";
         if(e.content) {
             makeLevel();
             toString(*e.content, true);
