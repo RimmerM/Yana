@@ -30,4 +30,8 @@ set(SOURCE_FILES ${SOURCE_FILES}
     parse/ast_print.h
 )
 
+set(SOURCE_FILES ${SOURCE_FILES}
+    resolve/inst.h
+)
+
 add_executable(code ${SOURCE_FILES})
