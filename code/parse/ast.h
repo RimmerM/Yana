@@ -472,9 +472,11 @@ struct Export: Node {
 };
 
 struct Module {
+    Module(Id name): name(name) {}
+
     Id name;
-    ASTArray<Import> imports;
-    ASTArray<Decl*> decls;
-    ASTArray<Fixity> ops;
-    ASTArray<Export> exports;
+    Array<Import> imports;
+    Array<Decl*> decls;
+    Array<Fixity> ops;
+    Array<Export> exports;
 };

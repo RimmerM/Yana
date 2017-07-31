@@ -128,7 +128,7 @@ uint64_t parseIntLiteral(const char*& p, ParseAtom parseAtom) {
 double parseFloatLiteral(const char*& p) {
     auto start = p;
     char* end;
-    auto v = std::strtod(p, &end);
+    auto v = strtod(p, &end);
     p += (end - start);
     return v;
 }

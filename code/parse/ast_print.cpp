@@ -127,14 +127,14 @@ private:
 
     void toString(const VarExpr& e) {
         stream << "VarExpr ";
-        auto name = context.find(e.name).name;
-        stream << name;
+        auto name = context.find(e.name);
+        stream.write(name.name, name.length);
     };
 
     void toString(const AppExpr& e) {
         stream << "AppExpr ";
         makeLevel();
-        toString(*e.callee, false);
+        toString(*e.callee, e.args == nullptr);
         auto arg = e.args;
         while(arg) {
             toString(arg->item, arg->next == nullptr);
@@ -145,8 +145,8 @@ private:
 
     void toString(const InfixExpr& e) {
         stream << "InfixExpr ";
-        auto name = context.find(e.op->name).name;
-        stream << name;
+        auto name = context.find(e.op->name);
+        stream.write(name.name, name.length);
         makeLevel();
         toString(*e.lhs,  false);
         toString(*e.rhs, true);
@@ -155,8 +155,8 @@ private:
 
     void toString(const PrefixExpr& e) {
         stream << "PrefixExpr ";
-        auto name = context.find(e.op->name).name;
-        stream << name;
+        auto name = context.find(e.op->name);
+        stream.write(name.name, name.length);
         makeLevel();
         toString(*e.dst, true);
         removeLevel();
@@ -188,8 +188,8 @@ private:
 
     void toString(const DeclExpr& e) {
         stream << "DeclExpr ";
-        auto name = context.find(e.name).name;
-        stream << name;
+        auto name = context.find(e.name);
+        stream.write(name.name, name.length);
         if(e.isRef) stream << " <ref> ";
         if(e.content) {
             makeLevel();
@@ -302,7 +302,7 @@ private:
     void toString(const RetExpr& e) {
         stream << "RetExpr ";
         makeLevel();
-        toString(*e.value, false);
+        toString(*e.value, true);
         removeLevel();
     }
 
@@ -332,8 +332,8 @@ private:
 
     void toString(const FunDecl& e) {
         stream << "FunDecl ";
-        auto name = context.find(e.name).name;
-        stream << name;
+        auto name = context.find(e.name);
+        stream.write(name.name, name.length);
         stream << '(';
         if(e.args) {
             auto arg = e.args;
@@ -355,8 +355,8 @@ private:
 
     void toString(const AliasDecl& e) {
         stream << "AliasDecl ";
-        auto name = context.find(e.type->name).name;
-        stream << name;
+        auto name = context.find(e.type->name);
+        stream.write(name.name, name.length);
         stream << " = ";
         toString(*e.target);
     }
