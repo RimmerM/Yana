@@ -144,9 +144,9 @@ struct TupPat: Pat {
 };
 
 struct ConPat: Pat {
-    ConPat(Id constructor, Pat* pattern): Pat(Con), constructor(constructor), pattern(pattern) {}
+    ConPat(Id constructor, List<Pat*>* pats): Pat(Con), constructor(constructor), pats(pats) {}
     Id constructor;
-    Pat* pattern;
+    List<Pat*>* pats;
 };
 
 /*

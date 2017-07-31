@@ -17,6 +17,7 @@ set(SOURCE_FILES ${SOURCE_FILES}
     compiler/context.h
     compiler/context.cpp
     compiler/diagnostics.h
+    compiler/diagnostics.cpp
 )
 
 set(SOURCE_FILES ${SOURCE_FILES}

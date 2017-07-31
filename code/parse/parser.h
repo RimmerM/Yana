@@ -132,7 +132,7 @@ struct Parser {
     auto between(F&& f, Start&& start, End&& end) -> decltype(f()) {
         if(!start()) return nullptr;
         auto res = f();
-        if(!end()) return nullptr;
+        end(); // Don't fail the whole thing because the closing token is missing.
         return res;
     }
 

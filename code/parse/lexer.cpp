@@ -497,6 +497,8 @@ void Lexer::skipWhitespace() {
                     nextLine();
                     p++;
                 }
+
+                continue;
             }
 
             // Check for multi-line comments.
@@ -521,6 +523,8 @@ void Lexer::skipWhitespace() {
                             break;
                         }
                     }
+
+                    p++;
                 }
 
                 // p now points to the first character after the comment, or the file end.
@@ -528,6 +532,8 @@ void Lexer::skipWhitespace() {
                 if(level) {
                     diag.warning("Incorrectly nested comment: missing comment terminator(s).", nullptr);
                 }
+
+                continue;
             }
 
             // No comment or whitespace - we are done.
@@ -1065,7 +1071,7 @@ void Lexer::parseToken() {
 
     // Unknown token - issue an error and skip it.
     else {
-        diag.error("Unknown token", nullptr);
+        diag.error("unknown token", nullptr);
         p++;
         goto parseT;
     }

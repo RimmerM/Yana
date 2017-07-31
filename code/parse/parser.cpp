@@ -36,7 +36,7 @@ const char Parser::kPtrSigil = '#';
 
 void Parser::parseModule() {
     withLevel([=] {
-        do {
+        while(true) {
             while(token.type == Token::EndOfStmt) {
                 eat();
             }
@@ -48,7 +48,24 @@ void Parser::parseModule() {
             } else {
                 module.decls << parseDecl();
             }
-        } while(token.type == Token::EndOfStmt);
+
+            if(token.type == Token::EndOfStmt) {
+                continue;
+            } else if(token.type == Token::EndOfBlock && token.startColumn == 0) {
+                break;
+            } else {
+                // The previous declaration did not parse all tokens.
+                // Skip ahead until we are at the root level again, then continue parsing.
+                error("expected declaration end");
+                while(token.startColumn > 0) {
+                    eat();
+                }
+
+                if(token.type == Token::EndOfBlock) {
+                    break;
+                }
+            }
+        }
 
         // Dummy return value to withLevel.
         return true;
@@ -857,13 +874,7 @@ Alt Parser::parseAlt() {
      * 		|		    					(empty alternative)
      */
     auto pat = parsePattern();
-    if(token.type == Token::opArrowR) {
-        eat();
-    } else {
-        error("expected '->'");
-    }
-
-    auto exp = parseExpr();
+    auto exp = parseBlock(false);
     return Alt{pat, exp};
 }
 
@@ -1073,11 +1084,9 @@ Type* Parser::parseTupleType() {
                 }
             }, Token::Comma);
 
-            if(l) return new (buffer) TupType(l);
-            else return new (buffer) Type(Type::Unit);
+            return new (buffer) TupType(l);
         });
 
-        if(!type) error("expected one or more tuple fields");
         return type;
     });
 }
@@ -1099,7 +1108,7 @@ Expr* Parser::parseTupleExpr() {
                     auto target = ((AssignExpr*)first)->target;
                     Id name = 0;
                     if(target->type == Expr::Var) {
-                        name = ((VarExpr*)target->type)->name;
+                        name = ((VarExpr*)target)->name;
                     }
 
                     if(!name) {
@@ -1111,9 +1120,16 @@ Expr* Parser::parseTupleExpr() {
                     args = list(TupArg{0, first});
                 }
 
-                args->next = sepBy1([=] {
-                    return parseTupArg();
-                }, Token::Comma);
+                if(token.type == Token::Comma) {
+                    eat();
+                    args->next = sepBy1([=] {
+                        return parseTupArg();
+                    }, Token::Comma);
+                } else if(token.type == Token::BraceR) {
+                    eat();
+                } else {
+                    error("expected '}' after tuple expression");
+                }
 
                 return new (buffer) TupExpr(args);
             }
@@ -1227,6 +1243,9 @@ Con Parser::parseCon() {
         } else if(token.type == Token::BraceL) {
             auto content = parseTupleType();
             return Con(name, content);
+        } else if(token.type == Token::BracketL) {
+            auto content = parseAType();
+            return Con(name, content);
         } else {
             return Con(name, nullptr);
         }
@@ -1315,8 +1334,18 @@ Pat* Parser::parsePattern() {
         auto id = token.data.id;
         eat();
 
-        auto pat = parseLeftPattern();
-        return new(buffer) ConPat(id, pat);
+        List<Pat*>* pats = nullptr;
+        if(token.type == Token::ParenL) {
+            pats = parens([=] {
+                return sepBy1([=] {
+                    return parseLeftPattern();
+                }, Token::Comma);
+            });
+        } else if(token.type == Token::BraceL) {
+            pats = list(parseLeftPattern());
+        }
+
+        return new(buffer) ConPat(id, pats);
     } else {
         return parseLeftPattern();
     }
