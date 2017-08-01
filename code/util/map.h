@@ -168,9 +168,9 @@ struct HashMap : Allocator {
     }
 
 private:
-    template<class U> struct Object {
+    struct Object {
         Key key;
-        U data;
+        T data;
     };
 
     static Size roundupCount(Size count) {
@@ -184,7 +184,7 @@ private:
         return count;
     }
 
-    static Object<T>* lookup(Key key, Object<T>* objects, Size space) {
+    static Object* lookup(Key key, Object* objects, Size space) {
         if(space == 0) return nullptr;
 
         auto i = key;
@@ -198,11 +198,19 @@ private:
         }
     }
 
-    Object<T>* lookup(Key key) const {
+    Object* lookup(Key key) const {
         return lookup(key, objects, space);
     }
 
-    Object<T>* skip(Object<T>* objects) const {
+    Object* skip(Object* objects) {
+        auto end = this->objects + space;
+        while(objects < end && objects->key == emptyKey) {
+            objects++;
+        }
+        return objects;
+    }
+
+    const Object* skip(const Object* objects) const {
         auto end = this->objects + space;
         while(objects < end && objects->key == emptyKey) {
             objects++;
@@ -215,7 +223,7 @@ private:
         if(count < kMinBuckets) count = kMinBuckets;
 
         if(count > space) {
-            auto objects = (Object<T>*)Allocator::alloc(sizeof(Object<T>) * count);
+            auto objects = (Object*)Allocator::alloc(sizeof(Object) * count);
             for(auto i = 0; i < count; i++) {
                 objects[i].key = emptyKey;
             }
@@ -238,30 +246,47 @@ private:
     }
 
 public:
-    template<class M, class U>
-    struct ItT {
-        ItT(M& map, Object<U>* p) : map(map), p(p) {}
-        U& operator * () {return p->data;}
-        U* operator -> () {return &p->data;}
-        bool operator == (ItT a) {return p == a.p;}
-        bool operator != (ItT a) {return p != a.p;}
-        Size operator - (ItT a) const {return p - a.p;}
+    struct I {
+        I(HashMap& map, Object* p) : map(map), p(p) {}
+        T& operator * () {return p->data;}
+        T* operator -> () {return &p->data;}
+        bool operator == (I a) const {return p == a.p;}
+        bool operator != (I a) const {return p != a.p;}
+        Size operator - (I a) const {return p - a.p;}
 
         Key key() { return p->key; }
-        U* value() { return &p->data; }
+        T* value() { return &p->data; }
 
-        ItT operator ++ () {
+        I operator ++ () {
             p = map.skip(p + 1);
             return *this;
         }
 
     private:
-        M& map;
-        Object<U>* p;
+        HashMap& map;
+        Object* p;
     };
 
-    using I = ItT<HashMap<T, Key, emptyKey, Allocator>, T>;
-    using CI = ItT<const HashMap<T, Key, emptyKey, Allocator>, const T>;
+    struct CI {
+        CI(const HashMap& map, const Object* p) : map(map), p(p) {}
+        const T& operator * () {return p->data;}
+        const T* operator -> () {return &p->data;}
+        bool operator == (CI a) const {return p == a.p;}
+        bool operator != (CI a) const {return p != a.p;}
+        Size operator - (CI a) const {return p - a.p;}
+
+        Key key() { return p->key; }
+        const T* value() { return &p->data; }
+
+        CI operator ++ () {
+            p = map.skip(p + 1);
+            return *this;
+        }
+
+    private:
+        const HashMap& map;
+        const Object* p;
+    };
 
     I begin() {return {*this, objects ? skip(objects) : nullptr};}
     I end() {return {*this, objects + space};}
@@ -269,7 +294,7 @@ public:
     CI end() const {return {*this, objects + space};}
 
 private:
-    Object<T>* objects = nullptr;
+    Object* objects = nullptr;
     U32 count = 0;
     U32 space = 0;
 };
