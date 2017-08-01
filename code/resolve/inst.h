@@ -202,3 +202,36 @@ struct InstPhi: Inst {
 inline bool isTerminating(Inst::Kind kind) {
     return kind == Inst::InstRet || kind == Inst::InstJe || kind == Inst::InstJmp;
 }
+
+InstTrunc* trunc(Block* block, Id name, Value* from, Type* to);
+InstFTrunc* ftrunc(Block* block, Id name, Value* from, Type* to);
+InstZExt* zext(Block* block, Id name, Value* from, Type* to);
+InstSExt* sext(Block* block, Id name, Value* from, Type* to);
+InstFExt* fext(Block* block, Id name, Value* from, Type* to);
+
+InstAdd* add(Block* block, Id name, Value* lhs, Value* rhs);
+InstSub* sub(Block* block, Id name, Value* lhs, Value* rhs);
+InstMul* mul(Block* block, Id name, Value* lhs, Value* rhs);
+InstIMul* imul(Block* block, Id name, Value* lhs, Value* rhs);
+InstDiv* div(Block* block, Id name, Value* lhs, Value* rhs);
+InstIDiv* idiv(Block* block, Id name, Value* lhs, Value* rhs);
+InstRem* rem(Block* block, Id name, Value* lhs, Value* rhs);
+InstFAdd* fadd(Block* block, Id name, Value* lhs, Value* rhs);
+InstFSub* fsub(Block* block, Id name, Value* lhs, Value* rhs);
+InstFMul* fmul(Block* block, Id name, Value* lhs, Value* rhs);
+InstFDiv* fdiv(Block* block, Id name, Value* lhs, Value* rhs);
+
+InstICmp* icmp(Block* block, Id name, Value* lhs, Value* rhs, ICmp cmp);
+InstFCmp* fcmp(Block* block, Id name, Value* lhs, Value* rhs, FCmp cmp);
+
+InstShl* shl(Block* block, Id name, Value* arg, Value* amount);
+InstShr* shr(Block* block, Id name, Value* arg, Value* amount);
+InstSar* sar(Block* block, Id name, Value* arg, Value* amount);
+InstAnd* bitand_(Block* block, Id name, Value* lhs, Value* rhs);
+InstOr* or_(Block* block, Id name, Value* lhs, Value* rhs);
+InstXor* xor_(Block* block, Id name, Value* lhs, Value* rhs);
+
+InstJe* je(Block* block, Value* cond, Block* then, Block* otherwise);
+InstJmp* jmp(Block* block, Block* to);
+InstRet* ret(Block* block, Value* value);
+InstPhi* phi(Block* block, Id name, InstPhi::Alts alts);
