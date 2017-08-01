@@ -36,8 +36,11 @@ set(SOURCE_FILES ${SOURCE_FILES}
     resolve/block.h
     resolve/block.cpp
     resolve/module.h
+    resolve/module.cpp
     resolve/type.h
     resolve/type.cpp
+    resolve/print.cpp
+    resolve/print.h
 )
 
 add_executable(code ${SOURCE_FILES})
