@@ -1,5 +1,7 @@
 #include "parser.h"
 
+using namespace ast;
+
 inline Literal toLiteral(Token& tok) {
     Literal l;
     switch(tok.type) {

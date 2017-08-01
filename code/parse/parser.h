@@ -7,7 +7,7 @@ struct Parser {
     static const char kRefSigil;
     static const char kPtrSigil;
 
-    Parser(Context& context, Diagnostics& diag, Module& module, const char* text):
+    Parser(Context& context, Diagnostics& diag, ast::Module& module, const char* text):
         text(text), context(context), diag(diag), module(module), lexer(context, diag, text, &token) {
 
         qualifiedId = context.addUnqualifiedName("qualified", 9);
@@ -23,50 +23,50 @@ struct Parser {
     void parseModule();
     void parseImport();
     void parseFixity();
-    Decl* parseDecl();
-    Decl* parseFunDecl();
-    Decl* parseDataDecl();
-    Decl* parseTypeDecl();
-    Decl* parseForeignDecl();
-    Decl* parseClassDecl();
-    Decl* parseInstanceDecl();
+    ast::Decl* parseDecl();
+    ast::Decl* parseFunDecl();
+    ast::Decl* parseDataDecl();
+    ast::Decl* parseTypeDecl();
+    ast::Decl* parseForeignDecl();
+    ast::Decl* parseClassDecl();
+    ast::Decl* parseInstanceDecl();
 
-    Expr* parseBlock(bool isFun);
-    Expr* parseExprSeq();
-    Expr* parseExpr();
-    Expr* parseTypedExpr();
-    Expr* parseInfixExpr();
-    Expr* parsePrefixExpr();
-    Expr* parseLeftExpr();
-    Expr* parseAppExpr();
-    Expr* parseChain(Expr* base);
-    Expr* parseBaseExpr();
-    Expr* parseSelExpr();
+    ast::Expr* parseBlock(bool isFun);
+    ast::Expr* parseExprSeq();
+    ast::Expr* parseExpr();
+    ast::Expr* parseTypedExpr();
+    ast::Expr* parseInfixExpr();
+    ast::Expr* parsePrefixExpr();
+    ast::Expr* parseLeftExpr();
+    ast::Expr* parseAppExpr();
+    ast::Expr* parseChain(ast::Expr* base);
+    ast::Expr* parseBaseExpr();
+    ast::Expr* parseSelExpr();
 
-    Expr* parseCaseExpr();
-    Expr* parseStringExpr();
-    Expr* parseDeclExpr();
-    Expr* parseTupleExpr();
-    Expr* parseArrayExpr();
-    Expr* parseIfExpr();
+    ast::Expr* parseCaseExpr();
+    ast::Expr* parseStringExpr();
+    ast::Expr* parseDeclExpr();
+    ast::Expr* parseTupleExpr();
+    ast::Expr* parseArrayExpr();
+    ast::Expr* parseIfExpr();
 
-    Arg parseArg(bool requireType);
-    ArgDecl parseTypeArg();
-    ArgDecl parseArgDecl();
-    TupArg parseTupArg();
-    Expr* parseVarDecl();
-    Alt parseAlt();
-    VarExpr* parseVar();
-    VarExpr* parseQop();
+    ast::Arg parseArg(bool requireType);
+    ast::ArgDecl parseTypeArg();
+    ast::ArgDecl parseArgDecl();
+    ast::TupArg parseTupArg();
+    ast::Expr* parseVarDecl();
+    ast::Alt parseAlt();
+    ast::VarExpr* parseVar();
+    ast::VarExpr* parseQop();
 
-    Type* parseType();
-    Type* parseAType();
-    SimpleType* parseSimpleType();
-    Type* parseTupleType();
-    Con parseCon();
+    ast::Type* parseType();
+    ast::Type* parseAType();
+    ast::SimpleType* parseSimpleType();
+    ast::Type* parseTupleType();
+    ast::Con parseCon();
 
-    Pat* parseLeftPattern();
-    Pat* parsePattern();
+    ast::Pat* parseLeftPattern();
+    ast::Pat* parsePattern();
 
     void error(const char* text);
 
@@ -185,7 +185,7 @@ struct Parser {
     const char* text;
     Context& context;
     Diagnostics& diag;
-    Module& module;
+    ast::Module& module;
 
     Arena buffer;
     Token token;

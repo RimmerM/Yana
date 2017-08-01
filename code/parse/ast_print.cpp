@@ -1,5 +1,7 @@
 #include "ast_print.h"
 
+using namespace ast;
+
 struct Printer {
     Printer(Context& context, std::ostream& stream) : context(context), stream(stream) {}
 

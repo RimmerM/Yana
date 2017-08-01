@@ -3,6 +3,8 @@
 #include "../compiler/context.h"
 #include "../compiler/diagnostics.h"
 
+namespace ast {
+
 /*
  * Types
  */
@@ -297,9 +299,9 @@ struct AssignExpr: Expr {
 };
 
 struct CoerceExpr: Expr {
-    CoerceExpr(Expr* target, ::Type* kind): Expr(Coerce), target(target), kind(kind) {}
+    CoerceExpr(Expr* target, ::ast::Type* kind): Expr(Coerce), target(target), kind(kind) {}
     Expr* target;
-    ::Type* kind;
+    ::ast::Type* kind;
 };
 
 struct FieldExpr: Expr {
@@ -480,3 +482,5 @@ struct Module {
     Array<Fixity> ops;
     Array<Export> exports;
 };
+
+} // namespace ast

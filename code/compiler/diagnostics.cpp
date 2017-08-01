@@ -1,4 +1,4 @@
-#include <printf.h>
+#include <cstdio>
 #include "diagnostics.h"
 
 void PrintDiagnostics::message(Level level, const char* text, const Node* where, const char* source) {
