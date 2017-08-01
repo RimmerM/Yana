@@ -44,7 +44,6 @@ struct Value {
         InstFMul,
         InstFDiv,
 
-        InstCmp,
         InstICmp,
         InstFCmp,
 

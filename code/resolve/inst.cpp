@@ -1,7 +1,6 @@
 #include "inst.h"
 #include "block.h"
 #include "module.h"
-#include "type.h"
 #include <initializer_list>
 
 static void useValues(Inst* inst, Block* block, std::initializer_list<Value*> values) {

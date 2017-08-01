@@ -85,49 +85,44 @@ static void prepareImports(Module* module, ast::Import* imports, Size count) {
     }
 }
 
-static void resolveTypes(Module* module, ast::Decl** decls, Size count) {
-    // Prepare by adding all defined types.
+static void prepareSymbols(Module* module, ast::Decl** decls, Size count) {
+    // Prepare by adding all defined types, functions and statements.
     for(Size i = 0; i < count; i++) {
         auto decl = decls[i];
-        if(decl->kind == ast::Decl::Alias) {
-            auto ast = (ast::AliasDecl*)decl;
-            auto alias = defineAlias(module, ast->type->name, nullptr);
-            alias->ast = ast;
-            prepareGens(module, ast->type, alias->gens);
-        } else if(decl->kind == ast::Decl::Data) {
-            auto ast = (ast::DataDecl*)decl;
-            auto record = defineRecord(module, ast->type->name);
-            record->ast = ast;
-            prepareGens(module, ast->type, record->gens);
-            prepareCons(module, record, ast->cons);
-        } else if(decl->kind == ast::Decl::Class) {
-            auto ast = (ast::ClassDecl*)decl;
-            auto c = defineClass(module, ast->type->name);
-            c->ast = ast;
-            prepareGens(module, ast->type, c->parameters);
-        }
-    }
+        switch(decl->kind) {
+            case ast::Decl::Fun: {
+                auto ast = (ast::FunDecl*)decl;
+                auto fun = defineFun(module, ast->name);
+                break;
+            }
+            case ast::Decl::Foreign: {
+                break;
+            }
+            case ast::Decl::Stmt: {
 
-    // When all names are defined, start resolving the types.
-    for(auto type: module->types) {
-
-    }
-}
-
-static void resolveStatements(Module* module, ast::Decl** decls, Size count) {
-    for(Size i = 0; i < count; i++) {
-
-    }
-}
-
-static void resolveFunctions(Module* module, ast::Decl** decls, Size count) {
-    for(Size i = 0; i < count; i++) {
-        auto decl = decls[i];
-        if(decl->kind == ast::Decl::Fun) {
-            auto ast = (ast::FunDecl*)decl;
-            auto fun = defineFun(module, ast->name);
-        } else if(decl->kind == ast::Decl::Foreign) {
-
+            }
+            case ast::Decl::Alias: {
+                auto ast = (ast::AliasDecl*)decl;
+                auto alias = defineAlias(module, ast->type->name, nullptr);
+                alias->ast = ast;
+                prepareGens(module, ast->type, alias->gens);
+                break;
+            }
+            case ast::Decl::Data: {
+                auto ast = (ast::DataDecl*)decl;
+                auto record = defineRecord(module, ast->type->name);
+                record->ast = ast;
+                prepareGens(module, ast->type, record->gens);
+                prepareCons(module, record, ast->cons);
+                break;
+            }
+            case ast::Decl::Class: {
+                auto ast = (ast::ClassDecl*)decl;
+                auto c = defineClass(module, ast->type->name);
+                c->ast = ast;
+                prepareGens(module, ast->type, c->parameters);
+                break;
+            }
         }
     }
 }
@@ -141,7 +136,9 @@ Module* resolveModule(ast::Module* ast) {
     // Note that the initialization of globals is handled in the function pass,
     // since this requires knowledge of the whole module.
     prepareImports(module, ast->imports.pointer(), ast->imports.size());
-    resolveTypes(module, ast->decls.pointer(), ast->decls.size());
-    resolveFunctions(module, ast->decls.pointer(), ast->decls.size());
-    resolveStatements(module, ast->decls.pointer(), ast->decls.size());
+    prepareSymbols(module, ast->decls.pointer(), ast->decls.size());
+
+    for(auto type: module->types) {
+        resolveDefinition(module, type);
+    }
 }

@@ -2,6 +2,8 @@
 
 #include "../compiler/context.h"
 
+namespace ast { struct AliasDecl; struct DataDecl; struct ClassDecl; struct Type; }
+
 struct Module;
 struct Function;
 
@@ -29,8 +31,10 @@ struct Type {
 };
 
 struct TypeClass {
+    ast::ClassDecl* ast; // Set until the type is fully resolved.
+
     Id name;
-    Array<struct GenType*> parameters;
+    Array<Type*> parameters;
     Array<struct FunType*> functions;
 };
 
@@ -65,6 +69,7 @@ struct IntType: Type {
     };
 
     IntType(U16 bits, Width width): Type(Kind::Int), bits(bits), width(width) {}
+
     U16 bits;
     Width width;
 };
@@ -77,7 +82,9 @@ struct FloatType: Type {
         KindCount
     };
 
-    FloatType(Width width): Type{Float}, width(width) {}
+    FloatType(U16 bits, Width width): Type{Float}, bits(bits), width(width) {}
+
+    U16 bits;
     Width width;
 };
 
@@ -100,8 +107,9 @@ struct FunArg {
 struct FunType: Type {
     FunType(): Type(Fun) {}
 
-    ::Array<FunArg> args;
+    FunArg* args;
     Type* result;
+    Size argCount;
 };
 
 struct ArrayType: Type {
@@ -144,23 +152,30 @@ struct RecordType: Type {
 
     RecordType(): Type(Record) {}
 
-    struct DataDecl* ast; // Set until the type is fully resolved.
+    ast::DataDecl* ast; // Set until the type is fully resolved.
     ::Array<Con> cons;
     ::Array<Type*> gens;
     Id name;
-    Kind kind;
+    Kind kind = Multi;
 };
 
 struct AliasType: Type {
     AliasType(): Type(Alias) {}
 
-    struct TypeDecl* ast; // Set until the type is fully resolved.
+    ast::AliasDecl* ast; // Set until the type is fully resolved.
     ::Array<Type*> gens;
     Type* to;
     Id name;
 };
 
+// Global instances of the basic builtin types.
 extern Type unitType;
 extern FloatType floatTypes[FloatType::KindCount];
 extern IntType intTypes[IntType::KindCount];
 extern Type stringType;
+
+// Finishes the definition of a type defined in the module, if needed.
+Type* resolveDefinition(Module* module, Type* type);
+
+// Finds the matching type for the provided ast.
+Type* resolveType(Module* module, ast::Type* type);
