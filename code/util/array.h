@@ -35,6 +35,13 @@ template<class T, class Allocator> struct ArrayT : Allocator {
     CI end() const {return this->pointer() + count;}
     CI back() const {return this->pointer() + count - 1;}
 
+    bool contains(const T& value) {
+        for(auto& v: *this) {
+            if(value == v) return true;
+        }
+        return false;
+    }
+
     template<class... P>
     I push(P&&... p) {
         reserveSpace(count + 1);

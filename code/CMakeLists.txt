@@ -32,6 +32,12 @@ set(SOURCE_FILES ${SOURCE_FILES}
 
 set(SOURCE_FILES ${SOURCE_FILES}
     resolve/inst.h
+    resolve/inst.cpp
+    resolve/block.h
+    resolve/block.cpp
+    resolve/module.h
+    resolve/type.h
+    resolve/type.cpp
 )
 
 add_executable(code ${SOURCE_FILES})
