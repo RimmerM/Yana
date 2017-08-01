@@ -2,13 +2,18 @@
 
 #include "../compiler/context.h"
 #include "block.h"
+#include "type.h"
 
 struct Function;
 
 struct Module {
     Id name;
-    HashMap<Function*, Id> functions;
+
+    HashMap<Function, Id> functions;
+    HashMap<TypeClass, Id> typeClasses;
+
     HashMap<Type*, Id> types;
+    HashMap<Con*, Id> cons;
     HashMap<Value*, Id> globals;
 
     Function* staticInit = nullptr;
@@ -17,13 +22,21 @@ struct Module {
     void* codegen = nullptr;
 };
 
+AliasType* defineAlias(Module* in, Id name, Type* to);
+RecordType* defineRecord(Module* in, Id name);
+Con* defineCon(Module* in, RecordType* to, Id name, Type* content);
+TypeClass* defineClass(Module* in, Id name);
+Function* defineFun(Module* in, Id name);
+
 struct Function {
     Module* module;
     Id name;
-    Block* body;
+
+    Block* body = nullptr;
+    Type* returnType = nullptr;
+    Array<Arg> args;
+    Array<Block> blocks;
     Array<InstRet*> returnPoints;
-    Type* returnType;
-    Array<Arg*> args;
 
     void* codegen = nullptr;
 };
