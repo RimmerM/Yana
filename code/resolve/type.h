@@ -8,9 +8,11 @@ struct Function;
 struct Type {
     enum Kind {
         Error,
+        Unit,
         Gen,
         Int,
         Float,
+        String,
         Ref,
         Ptr,
         Fun,
@@ -22,6 +24,8 @@ struct Type {
     };
 
     Kind kind;
+
+    Type(Kind kind): kind(kind) {}
 };
 
 struct TypeClass {
@@ -34,7 +38,7 @@ struct ClassInstance {
     Module* module;
     TypeClass* typeClass;
     Type* forType;
-    HashMap<FunType*, Function*> implementations;
+    HashMap<FunType*, Function*, nullptr> implementations;
 };
 
 struct GenField {
@@ -45,39 +49,45 @@ struct GenField {
 };
 
 struct GenType: Type {
+    GenType(U32 index): Type(Gen), index(index) {}
+
     U32 index;
-    Array<GenField> fields;
-    Array<TypeClass*> classes;
+    ::Array<GenField> fields;
+    ::Array<TypeClass*> classes;
 };
 
 struct IntType: Type {
-    enum Kind: U8 {
+    enum Width: U8 {
         Bool,
         Int,
         Long,
         KindCount,
     };
 
-    U16 width;
-    U8 kind;
+    IntType(U16 bits, Width width): Type(Kind::Int), bits(bits), width(width) {}
+    U16 bits;
+    Width width;
 };
 
 struct FloatType: Type {
-    enum Kind {
+    enum Width: U8 {
         F16,
         F32,
         F64,
         KindCount
     };
 
-    Kind kind;
+    FloatType(Width width): Type{Float}, width(width) {}
+    Width width;
 };
 
 struct RefType: Type {
+    RefType(Type* to): Type(Ref), to(to) {}
     Type* to;
 };
 
 struct PtrType: Type {
+    PtrType(Type* to): Type(Ptr), to(to) {}
     Type* to;
 };
 
@@ -88,15 +98,19 @@ struct FunArg {
 };
 
 struct FunType: Type {
-    Array<FunArg> args;
+    FunType(): Type(Fun) {}
+
+    ::Array<FunArg> args;
     Type* result;
 };
 
 struct ArrayType: Type {
+    ArrayType(Type* content): Type(Array), content(content) {}
     Type* content;
 };
 
 struct MapType: Type {
+    MapType(Type* from, Type* to): Type(Map), from(from), to(to) {}
     Type* from, *to;
 };
 
@@ -109,8 +123,9 @@ struct Field {
 };
 
 struct TupType: Type {
-    Array<Field> fields;
-    Array<Type*> layout;
+    TupType(): Type(Tup) {}
+    ::Array<Field> fields;
+    ::Array<Type*> layout;
 };
 
 struct Con {
@@ -127,16 +142,20 @@ struct RecordType: Type {
         Multi,
     };
 
+    RecordType(): Type(Record) {}
+
     struct DataDecl* ast; // Set until the type is fully resolved.
-    Array<Con> cons;
-    Array<Type*> gens;
+    ::Array<Con> cons;
+    ::Array<Type*> gens;
     Id name;
     Kind kind;
 };
 
 struct AliasType: Type {
+    AliasType(): Type(Alias) {}
+
     struct TypeDecl* ast; // Set until the type is fully resolved.
-    Array<Type*> gens;
+    ::Array<Type*> gens;
     Type* to;
     Id name;
 };
