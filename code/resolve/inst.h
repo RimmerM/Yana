@@ -27,8 +27,10 @@ struct Value {
 
         FirstInst,
         InstTrunc,
+        InstFTrunc,
         InstZExt,
         InstSExt,
+        InstFExt,
 
         InstAdd,
         InstSub,
@@ -37,8 +39,14 @@ struct Value {
         InstDiv,
         InstIDiv,
         InstRem,
+        InstFAdd,
+        InstFSub,
+        InstFMul,
+        InstFDiv,
+
         InstCmp,
         InstICmp,
+        InstFCmp,
 
         InstShl,
         InstShr,
@@ -47,8 +55,8 @@ struct Value {
         InstOr,
         InstXor,
 
-        InstIf,
-        InstBr,
+        InstJe,
+        InstJmp,
         InstRet,
         InstPhi,
     };
@@ -57,10 +65,10 @@ struct Value {
     Type* type;
 
     // Each instruction that uses this value.
-    List<Use>* uses = nullptr;
+    Array<Use> uses;
 
     // Each block that uses this value.
-    List<Block*> blockUses = nullptr;
+    Array<Block*> blockUses;
 
     // Data for use by the code generator.
     void* codegen = nullptr;
@@ -94,6 +102,10 @@ struct Inst: Value {
     Size usedCount = 0;
 };
 
+struct InstCast: Inst {
+    Value* from;
+};
+
 struct InstBinary: Inst {
     Value* lhs, *rhs;
 };
@@ -101,9 +113,11 @@ struct InstBinary: Inst {
 /*
  * Conversion instructions
  */
-struct InstTrunc: Inst { Value* from; };
-struct InstZExt: Inst { Value* from; };
-struct InstSExt: Inst { Value* from; };
+struct InstTrunc: InstCast {};
+struct InstFTrunc: InstCast {};
+struct InstZExt: InstCast {};
+struct InstSExt: InstCast {};
+struct InstFExt: InstCast {};
 
 /*
  * Arithmetic instructions - these must be performed on two integers, float or vectors of the same type.
@@ -116,15 +130,26 @@ struct InstDiv: InstBinary {};
 struct InstIDiv: InstBinary {};
 struct InstRem: InstBinary {};
 
-enum class Cmp {
+struct InstFAdd: InstBinary {};
+struct InstFSub: InstBinary {};
+struct InstFMul: InstBinary {};
+struct InstFDiv: InstBinary {};
+
+enum class ICmp {
+    eq, neq, gt, ge, lt, le, igt, ige, ilt, ile,
+};
+
+struct InstICmp: InstBinary {
+    ICmp cmp;
+};
+
+enum class FCmp {
     eq, neq, gt, ge, lt, le,
 };
 
-class InstCmp: InstBinary {
-    Cmp cmp;
+struct InstFCmp: InstBinary {
+    FCmp cmp;
 };
-
-class InstICmp: InstCmp {};
 
 /*
  * Bitwise instructions - must be performed on integer types or integer vectors
@@ -146,14 +171,14 @@ struct InstXor: InstBinary {};
  */
 
 // Conditional branch to one of two blocks.
-struct InstIf: Inst {
+struct InstJe: Inst {
     Value* cond;
     Block* then;
     Block* otherwise;
 };
 
 // Unconditional branch to a different block.
-struct InstBr: Inst {
+struct InstJmp: Inst {
     Block* to;
 };
 
@@ -164,11 +189,16 @@ struct InstRet: Inst {
 
 // ϕ-node, like LLVM. If any are used, they must be the first instructions in the block.
 struct InstPhi: Inst {
-    Block** incoming;
-    Value** values;
-    Size count;
+    struct Alt {
+        Block* fromBlock;
+        Value* value;
+    };
+
+    // TODO: Find out the highest count that can be reached here in practice.
+    using Alts = ArrayF<Alt, 4>;
+    Alts alts;
 };
 
-inline bool isTerminating(Inst* inst) {
-    return inst->kind == Inst::InstRet || inst->kind == Inst::InstIf || inst->kind == Inst::InstBr;
+inline bool isTerminating(Inst::Kind kind) {
+    return kind == Inst::InstRet || kind == Inst::InstJe || kind == Inst::InstJmp;
 }
