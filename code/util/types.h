@@ -186,3 +186,6 @@ extern "C" void* memset(void* p, int v, Size count);
 extern "C" void* memcpy(void* dst, const void* src, Size count);
 extern "C" void* memmove(void* dst, const void* src, Size count);
 extern "C" int memcmp(const void* a, const void* b, Size count);
+extern "C" void* malloc(Size size);
+extern "C" void free(void*);
+extern "C" void* realloc(void*, Size);
