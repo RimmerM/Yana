@@ -88,11 +88,13 @@ struct FloatType: Type {
     Width width;
 };
 
+// A reference to a GC'd value on the heap.
 struct RefType: Type {
     RefType(Type* to): Type(Ref), to(to) {}
     Type* to;
 };
 
+// An untraced pointer to any value.
 struct PtrType: Type {
     PtrType(Type* to): Type(Ptr), to(to) {}
     Type* to;

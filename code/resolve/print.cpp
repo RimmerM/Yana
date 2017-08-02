@@ -181,9 +181,6 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         case Inst::InstMul:
             name = "mul";
             break;
-        case Inst::InstIMul:
-            name = "imul";
-            break;
         case Inst::InstDiv:
             name = "div";
             break;
@@ -192,6 +189,9 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
             break;
         case Inst::InstRem:
             name = "rem";
+            break;
+        case Inst::InstIRem:
+            name = "irem";
             break;
         case Inst::InstFAdd:
             name = "fadd";

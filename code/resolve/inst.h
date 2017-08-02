@@ -35,10 +35,10 @@ struct Value {
         InstAdd,
         InstSub,
         InstMul,
-        InstIMul,
         InstDiv,
         InstIDiv,
         InstRem,
+        InstIRem,
         InstFAdd,
         InstFSub,
         InstFMul,
@@ -124,10 +124,10 @@ struct InstFExt: InstCast {};
 struct InstAdd: InstBinary {};
 struct InstSub: InstBinary {};
 struct InstMul: InstBinary {};
-struct InstIMul: InstBinary {};
 struct InstDiv: InstBinary {};
 struct InstIDiv: InstBinary {};
 struct InstRem: InstBinary {};
+struct InstIRem: InstBinary {};
 
 struct InstFAdd: InstBinary {};
 struct InstFSub: InstBinary {};
@@ -183,6 +183,7 @@ struct InstJmp: Inst {
 
 // Return the provided value to the parent function.
 struct InstRet: Inst {
+    // This can be null if the instruction returns nothing.
     Value* value;
 };
 
@@ -211,10 +212,11 @@ InstFExt* fext(Block* block, Id name, Value* from, Type* to);
 InstAdd* add(Block* block, Id name, Value* lhs, Value* rhs);
 InstSub* sub(Block* block, Id name, Value* lhs, Value* rhs);
 InstMul* mul(Block* block, Id name, Value* lhs, Value* rhs);
-InstIMul* imul(Block* block, Id name, Value* lhs, Value* rhs);
 InstDiv* div(Block* block, Id name, Value* lhs, Value* rhs);
 InstIDiv* idiv(Block* block, Id name, Value* lhs, Value* rhs);
 InstRem* rem(Block* block, Id name, Value* lhs, Value* rhs);
+InstIRem* irem(Block* block, Id name, Value* lhs, Value* rhs);
+
 InstFAdd* fadd(Block* block, Id name, Value* lhs, Value* rhs);
 InstFSub* fsub(Block* block, Id name, Value* lhs, Value* rhs);
 InstFMul* fmul(Block* block, Id name, Value* lhs, Value* rhs);
@@ -232,5 +234,5 @@ InstXor* xor_(Block* block, Id name, Value* lhs, Value* rhs);
 
 InstJe* je(Block* block, Value* cond, Block* then, Block* otherwise);
 InstJmp* jmp(Block* block, Block* to);
-InstRet* ret(Block* block, Value* value);
+InstRet* ret(Block* block, Value* value = nullptr);
 InstPhi* phi(Block* block, Id name, InstPhi::Alts alts);

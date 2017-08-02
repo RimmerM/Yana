@@ -61,10 +61,6 @@ InstMul* mul(Block* block, Id name, Value* lhs, Value* rhs) {
     return (InstMul*)binary(block, Inst::InstMul, name, lhs, rhs, lhs->type);
 }
 
-InstIMul* imul(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstIMul*)binary(block, Inst::InstIMul, name, lhs, rhs, lhs->type);
-}
-
 InstDiv* div(Block* block, Id name, Value* lhs, Value* rhs) {
     return (InstDiv*)binary(block, Inst::InstDiv, name, lhs, rhs, lhs->type);
 }
@@ -75,6 +71,10 @@ InstIDiv* idiv(Block* block, Id name, Value* lhs, Value* rhs) {
 
 InstRem* rem(Block* block, Id name, Value* lhs, Value* rhs) {
     return (InstRem*)binary(block, Inst::InstRem, name, lhs, rhs, lhs->type);
+}
+
+InstIRem* irem(Block* block, Id name, Value* lhs, Value* rhs) {
+    return (InstIRem*)binary(block, Inst::InstIRem, name, lhs, rhs, lhs->type);
 }
 
 InstFAdd* fadd(Block* block, Id name, Value* lhs, Value* rhs) {

@@ -6,9 +6,18 @@
 
 struct Function;
 
+struct Import {
+    Module* module;
+    Array<Id> includedSymbols;
+    Array<Id> excludedSymbols;
+    Id qualifier;
+    bool qualified;
+};
+
 struct Module {
     Id name;
 
+    HashMap<Import, Id> imports;
     HashMap<Function, Id> functions;
     HashMap<TypeClass, Id> typeClasses;
 
