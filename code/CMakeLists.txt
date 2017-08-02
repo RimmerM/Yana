@@ -43,4 +43,13 @@ set(SOURCE_FILES ${SOURCE_FILES}
     resolve/print.h
 )
 
+set(SOURCE_FILES ${SOURCE_FILES}
+    codegen/llvm/gen.cpp
+    codegen/llvm/gen.h
+)
+
+if(APPLE)
+    include_directories(/usr/local/include)
+endif()
+
 add_executable(code ${SOURCE_FILES})
