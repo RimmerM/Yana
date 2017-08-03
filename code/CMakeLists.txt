@@ -41,6 +41,7 @@ set(SOURCE_FILES ${SOURCE_FILES}
     resolve/type.cpp
     resolve/print.cpp
     resolve/print.h
+    resolve/expr.cpp
 )
 
 set(SOURCE_FILES ${SOURCE_FILES}
