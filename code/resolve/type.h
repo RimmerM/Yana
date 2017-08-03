@@ -177,7 +177,7 @@ extern IntType intTypes[IntType::KindCount];
 extern Type stringType;
 
 // Finishes the definition of a type defined in the module, if needed.
-Type* resolveDefinition(Module* module, Type* type);
+Type* resolveDefinition(Context* context, Module* module, Type* type);
 
 // Finds the matching type for the provided ast.
-Type* resolveType(Module* module, ast::Type* type);
+Type* resolveType(Context* context, Module* module, ast::Type* type);

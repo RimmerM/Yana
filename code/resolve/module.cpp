@@ -1,7 +1,7 @@
 #include "module.h"
 #include "../parse/ast.h"
 
-AliasType* defineAlias(Module* in, Id name, Type* to) {
+AliasType* defineAlias(Context* context, Module* in, Id name, Type* to) {
     if(in->types.get(name)) {
         // TODO: Error
     }
@@ -14,7 +14,7 @@ AliasType* defineAlias(Module* in, Id name, Type* to) {
     return alias;
 }
 
-RecordType* defineRecord(Module* in, Id name) {
+RecordType* defineRecord(Context* context, Module* in, Id name) {
     if(in->types.get(name)) {
         // TODO: Error
     }
@@ -26,7 +26,7 @@ RecordType* defineRecord(Module* in, Id name) {
     return r;
 }
 
-Con* defineCon(Module* in, RecordType* to, Id name, Type* content) {
+Con* defineCon(Context* context, Module* in, RecordType* to, Id name, Type* content) {
     if(in->cons.get(name)) {
         // TODO: Error
     }
@@ -40,7 +40,7 @@ Con* defineCon(Module* in, RecordType* to, Id name, Type* content) {
     return con;
 }
 
-TypeClass* defineClass(Module* in, Id name) {
+TypeClass* defineClass(Context* context, Module* in, Id name) {
     if(in->typeClasses.get(name)) {
         // TODO: Error
     }
@@ -51,7 +51,7 @@ TypeClass* defineClass(Module* in, Id name) {
     return c;
 }
 
-Function* defineFun(Module* in, Id name) {
+Function* defineFun(Context* context, Module* in, Id name) {
     if(in->functions.get(name)) {
         // TODO: Error
     }
@@ -62,7 +62,61 @@ Function* defineFun(Module* in, Id name) {
     return f;
 }
 
-static void prepareGens(Module* module, ast::SimpleType* type, Array<Type*>& gens) {
+template<class T, class F>
+T* findHelper(Context* context, Module* module, F find, Id name) {
+    // Lookup:
+    // - If the name is unqualified, start by searching the current scope.
+    // - For qualified names, check if we have an import under that qualifier, then search that.
+    // - If nothing is found, search the parent scope while retaining any qualifiers.
+    auto n = context->find(name);
+    if(!n.qualifier) {
+        auto v = find(module, n.hash);
+        if(v) return v;
+    }
+
+    // Imports have equal weight, so multiple hits here is an error.
+    T* candidate = nullptr;
+
+    for(auto& import: module->imports) {
+        // TODO: Handle nested modules.
+        T* v = nullptr;
+        if(import.qualifier == n.qualifier->hash) {
+            v = find(module, n.hash);
+        }
+
+        if(v) {
+            if(candidate) {
+                // TODO: Error
+            }
+            candidate = v;
+        }
+    }
+
+    return candidate;
+}
+
+Type* findType(Context* context, Module* module, Id name) {
+    return findHelper<Type>(context, module, [=](Module* m, Id n) -> Type* {
+        auto type = m->types.get(n);
+        return type ? *type : nullptr;
+    }, name);
+}
+
+Con* findCon(Context* context, Module* module, Id name) {
+    return findHelper<Con>(context, module, [=](Module* m, Id n) -> Con* {
+        auto con = m->cons.get(n);
+        return con ? *con : nullptr;
+    }, name);
+}
+
+OpProperties* findOp(Context* context, Module* module, Id name) {
+    return findHelper<OpProperties>(context, module, [=](Module* m, Id n) -> OpProperties* {
+        auto op = m->ops.get(n);
+        return op ? op : nullptr;
+    }, name);
+}
+
+static void prepareGens(Context* context, Module* module, ast::SimpleType* type, Array<Type*>& gens) {
     auto kind = type->kind;
     U32 i = 0;
     while(kind) {
@@ -72,27 +126,27 @@ static void prepareGens(Module* module, ast::SimpleType* type, Array<Type*>& gen
     }
 }
 
-static void prepareCons(Module* module, RecordType* type, List<ast::Con>* con) {
+static void prepareCons(Context* context, Module* module, RecordType* type, List<ast::Con>* con) {
     while(con) {
-        defineCon(module, type, con->item.name, nullptr);
+        defineCon(context, module, type, con->item.name, nullptr);
         con = con->next;
     }
 }
 
-static void prepareImports(Module* module, ast::Import* imports, Size count) {
+static void prepareImports(Context* context, Module* module, ast::Import* imports, Size count) {
     for(Size i = 0; i < count; i++) {
 
     }
 }
 
-static void prepareSymbols(Module* module, ast::Decl** decls, Size count) {
+static void prepareSymbols(Context* context, Module* module, ast::Decl** decls, Size count) {
     // Prepare by adding all defined types, functions and statements.
     for(Size i = 0; i < count; i++) {
         auto decl = decls[i];
         switch(decl->kind) {
             case ast::Decl::Fun: {
                 auto ast = (ast::FunDecl*)decl;
-                auto fun = defineFun(module, ast->name);
+                auto fun = defineFun(context, module, ast->name);
                 break;
             }
             case ast::Decl::Foreign: {
@@ -103,31 +157,31 @@ static void prepareSymbols(Module* module, ast::Decl** decls, Size count) {
             }
             case ast::Decl::Alias: {
                 auto ast = (ast::AliasDecl*)decl;
-                auto alias = defineAlias(module, ast->type->name, nullptr);
+                auto alias = defineAlias(context, module, ast->type->name, nullptr);
                 alias->ast = ast;
-                prepareGens(module, ast->type, alias->gens);
+                prepareGens(context, module, ast->type, alias->gens);
                 break;
             }
             case ast::Decl::Data: {
                 auto ast = (ast::DataDecl*)decl;
-                auto record = defineRecord(module, ast->type->name);
+                auto record = defineRecord(context, module, ast->type->name);
                 record->ast = ast;
-                prepareGens(module, ast->type, record->gens);
-                prepareCons(module, record, ast->cons);
+                prepareGens(context, module, ast->type, record->gens);
+                prepareCons(context, module, record, ast->cons);
                 break;
             }
             case ast::Decl::Class: {
                 auto ast = (ast::ClassDecl*)decl;
-                auto c = defineClass(module, ast->type->name);
+                auto c = defineClass(context, module, ast->type->name);
                 c->ast = ast;
-                prepareGens(module, ast->type, c->parameters);
+                prepareGens(context, module, ast->type, c->parameters);
                 break;
             }
         }
     }
 }
 
-Module* resolveModule(ast::Module* ast) {
+Module* resolveModule(Context* context, ast::Module* ast) {
     auto module = new Module;
     module->name = ast->name;
 
@@ -135,10 +189,10 @@ Module* resolveModule(ast::Module* ast) {
     // Types use imports but nothing else, globals use types and imports, functions use everything.
     // Note that the initialization of globals is handled in the function pass,
     // since this requires knowledge of the whole module.
-    prepareImports(module, ast->imports.pointer(), ast->imports.size());
-    prepareSymbols(module, ast->decls.pointer(), ast->decls.size());
+    prepareImports(context, module, ast->imports.pointer(), ast->imports.size());
+    prepareSymbols(context, module, ast->decls.pointer(), ast->decls.size());
 
     for(auto type: module->types) {
-        resolveDefinition(module, type);
+        resolveDefinition(context, module, type);
     }
 }

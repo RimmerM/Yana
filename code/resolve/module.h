@@ -23,6 +23,7 @@ struct Module {
 
     HashMap<Type*, Id> types;
     HashMap<Con*, Id> cons;
+    HashMap<OpProperties, Id> ops;
     HashMap<Value*, Id> globals;
 
     Function* staticInit = nullptr;
@@ -31,11 +32,15 @@ struct Module {
     void* codegen = nullptr;
 };
 
-AliasType* defineAlias(Module* in, Id name, Type* to);
-RecordType* defineRecord(Module* in, Id name);
-Con* defineCon(Module* in, RecordType* to, Id name, Type* content);
-TypeClass* defineClass(Module* in, Id name);
-Function* defineFun(Module* in, Id name);
+AliasType* defineAlias(Context* context, Module* in, Id name, Type* to);
+RecordType* defineRecord(Context* context, Module* in, Id name);
+Con* defineCon(Context* context, Module* in, RecordType* to, Id name, Type* content);
+TypeClass* defineClass(Context* context, Module* in, Id name);
+Function* defineFun(Context* context, Module* in, Id name);
+
+Type* findType(Context* context, Module* module, Id name);
+Con* findCon(Context* context, Module* module, Id name);
+OpProperties* findOp(Context* context, Module* module, Id name);
 
 struct Function {
     Module* module;

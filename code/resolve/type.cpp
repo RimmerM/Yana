@@ -18,7 +18,7 @@ IntType intTypes[IntType::KindCount] = {
     {64, IntType::Long}
 };
 
-static Type* findType(Module* module, ast::Type* type) {
+static Type* findType(Context* context, Module* module, ast::Type* type) {
     switch(type->kind) {
         case ast::Type::Error:
             return &errorType;
@@ -26,7 +26,7 @@ static Type* findType(Module* module, ast::Type* type) {
             return &unitType;
         case ast::Type::Ptr: {
             auto ast = (ast::PtrType*)type;
-            auto content = resolveType(module, ast->type);
+            auto content = resolveType(context, module, ast->type);
             return new (module) PtrType(content);
         }
         case ast::Type::Tup:
@@ -39,7 +39,7 @@ static Type* findType(Module* module, ast::Type* type) {
             break;
         case ast::Type::Fun: {
             auto ast = (ast::FunType*)type;
-            auto ret = resolveType(module, ast->ret);
+            auto ret = resolveType(context, module, ast->ret);
             U32 argc = 0;
             auto arg = ast->args;
             while(arg) {
@@ -52,7 +52,7 @@ static Type* findType(Module* module, ast::Type* type) {
                 args = (FunArg*)module->memory.alloc(sizeof(FunArg) * argc);
                 arg = ast->args;
                 for(U32 i = 0; i < argc; i++) {
-                    args[i].type = resolveType(module, arg->item.type);
+                    args[i].type = resolveType(context, module, arg->item.type);
                     args[i].index = i;
                     args[i].name = arg->item.name;
                     arg = arg->next;
@@ -67,22 +67,22 @@ static Type* findType(Module* module, ast::Type* type) {
         }
         case ast::Type::Arr: {
             auto ast = (ast::ArrType*)type;
-            auto content = resolveType(module, ast->type);
+            auto content = resolveType(context, module, ast->type);
             return new (module->memory) ArrayType(content);
         }
         case ast::Type::Map:{
             auto ast = (ast::MapType*)type;
-            auto from = resolveType(module, ast->from);
-            auto to = resolveType(module, ast->to);
+            auto from = resolveType(context, module, ast->from);
+            auto to = resolveType(context, module, ast->to);
             return new (module->memory) MapType(from, to);
         }
     }
 }
 
-Type* resolveDefinition(Module* module, Type* type) {
+Type* resolveDefinition(Context* context, Module* module, Type* type) {
 
 }
 
-Type* resolveType(Module* module, ast::Type* type) {
+Type* resolveType(Context* context, Module* module, ast::Type* type) {
 
 }

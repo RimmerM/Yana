@@ -91,6 +91,7 @@ using I64 = long long;
 using U64 = unsigned long long;
 #endif //__X64__
 
+using Id = U32;
 using Char = char;
 using Nullptr = decltype(nullptr);
 using Handle = void*;

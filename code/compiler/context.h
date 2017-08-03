@@ -4,8 +4,6 @@
 #include "../util/hash.h"
 #include "diagnostics.h"
 
-typedef U32 Id;
-
 /*
  * An identifier consists of zero or more module names separated by dots, followed by the the identifier value.
  * In code, these are presented as a linked list of the identifier value followed by the module names.
