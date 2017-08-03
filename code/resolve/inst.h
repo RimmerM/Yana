@@ -203,6 +203,10 @@ inline bool isTerminating(Inst::Kind kind) {
     return kind == Inst::InstRet || kind == Inst::InstJe || kind == Inst::InstJmp;
 }
 
+ConstInt* constInt(Block* block, I64 value);
+ConstFloat* constFloat(Block* block, double value);
+ConstString* constString(Block* block, const char* value, Size length);
+
 InstTrunc* trunc(Block* block, Id name, Value* from, Type* to);
 InstFTrunc* ftrunc(Block* block, Id name, Value* from, Type* to);
 InstZExt* zext(Block* block, Id name, Value* from, Type* to);

@@ -29,6 +29,33 @@ static InstBinary* binary(Block* block, Inst::Kind kind, Id name, Value* lhs, Va
     return inst;
 }
 
+ConstInt* constInt(Block* block, I64 value) {
+    auto c = (ConstInt*)block->function->module->memory.alloc(sizeof(ConstInt));
+    c->block = block;
+    c->name = 0;
+    c->kind = Value::ConstInt;
+    c->type = &intTypes[IntType::Int];
+    return c;
+}
+
+ConstFloat* constFloat(Block* block, double value) {
+    auto c = (ConstFloat*)block->function->module->memory.alloc(sizeof(ConstFloat));
+    c->block = block;
+    c->name = 0;
+    c->kind = Value::ConstFloat;
+    c->type = &floatTypes[FloatType::F64];
+    return c;
+}
+
+ConstString* constString(Block* block, const char* value, Size length) {
+    auto c = (ConstString*)block->function->module->memory.alloc(sizeof(ConstString));
+    c->block = block;
+    c->name = 0;
+    c->kind = Value::ConstString;
+    c->type = &stringType;
+    return c;
+}
+
 InstTrunc* trunc(Block* block, Id name, Value* from, Type* to) {
     return (InstTrunc*)cast(block, Inst::InstTrunc, name, from, to);
 }

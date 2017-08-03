@@ -102,6 +102,10 @@ void printType(std::ostream& stream, Context& context, const Type* type) {
             printType(stream, context, fun->result);
             break;
         }
+        case Type::Alias: {
+            printType(stream, context, ((AliasType*)type)->to);
+            break;
+        }
     }
 }
 
