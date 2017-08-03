@@ -2,13 +2,22 @@
 
 #include "../util/map.h"
 #include "../util/hash.h"
+#include "diagnostics.h"
 
 typedef U32 Id;
 
+/*
+ * An identifier consists of zero or more module names separated by dots, followed by the the identifier value.
+ * In code, these are presented as a linked list of the identifier value followed by the module names.
+ * Each segment is stored and represented by its hash for fast comparisons.
+ * The lexer stores each found identifier as a mapping from the value hash to the value itself.
+ * Module name segments are not stored in the table.
+ */
 struct Qualified {
     Qualified* qualifier = nullptr;
     const char* name;
     Size length = 0;
+    Id hash = 0;
 };
 
 enum class Assoc : U8 {
@@ -16,6 +25,12 @@ enum class Assoc : U8 {
     Right
 };
 
+/*
+ * Operators can have an associated precedence and a associativity.
+ * This is used for the reordering of infix-expressions.
+ * TODO: What should happen if two modules define a different precedence for the same operator?
+ * Maybe we should not allow custom precedences for user-defined operators.
+ */
 struct OpProperties {
     U16 precedence;
     Assoc associativity;
@@ -40,6 +55,9 @@ private:
 inline void* operator new (Size count, Arena& arena) {return arena.alloc(count);}
 
 struct Context {
+    Context(Diagnostics& diagnostics): diagnostics(diagnostics) {}
+
+    Diagnostics& diagnostics;
     CompileSettings settings;
 
     void addOp(Id op, U16 prec = 9, Assoc assoc = Assoc::Left) {

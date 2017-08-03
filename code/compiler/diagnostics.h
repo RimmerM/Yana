@@ -1,7 +1,6 @@
 #pragma once
 
-#include <cstdint>
-#include "context.h"
+#include "../util/types.h"
 
 struct Loc {
     U16 line;

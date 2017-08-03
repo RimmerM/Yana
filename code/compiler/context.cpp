@@ -33,7 +33,12 @@ Id Context::addName(Qualified* q) {
 
     auto qu = q;
     while(qu) {
-        h.addData(qu->name, (qu->length * sizeof(*qu->name)));
+        h.addData(qu->name, qu->length * sizeof(*qu->name));
+
+        Hasher lh;
+        lh.addData(qu->name, qu->length * sizeof(*qu->name));
+        qu->hash = lh.get();
+
         qu = qu->qualifier;
     }
 

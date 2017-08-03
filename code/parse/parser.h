@@ -7,8 +7,8 @@ struct Parser {
     static const char kRefSigil;
     static const char kPtrSigil;
 
-    Parser(Context& context, Diagnostics& diag, ast::Module& module, const char* text):
-        text(text), context(context), diag(diag), module(module), lexer(context, diag, text, &token) {
+    Parser(Context& context, ast::Module& module, const char* text):
+        text(text), context(context), diag(context.diagnostics), module(module), lexer(context, diag, text, &token) {
 
         qualifiedId = context.addUnqualifiedName("qualified", 9);
         hidingId = context.addUnqualifiedName("hiding", 6);

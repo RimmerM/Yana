@@ -24,7 +24,7 @@ bool compareConstString(const char*& source, const char* constant) {
 
 // Parses the provided character as a hexit, to an integer in the range 0..15, or -1 if invalid.
 int parseHexit(char c) {
-    static const uint8_t table[] = {
+    static const U8 table[] = {
         0,  1,  2,  3,  4,  5,  6,  7,  8,  9,	/* 0..9 */
         255,255,255,255,255,255,255,			/* :..@ */
         10, 11, 12, 13, 14, 15,					/* A..F */
@@ -104,8 +104,8 @@ U32 parseIntSequence(const char*& p, ParseAtom parseAtom, U32 numChars, U32 max,
  * @return The parsed number.
  */
 template<U32 Base, class ParseAtom>
-uint64_t parseIntLiteral(const char*& p, ParseAtom parseAtom) {
-    uint64_t res = 0;
+U64 parseIntLiteral(const char*& p, ParseAtom parseAtom) {
+    U64 res = 0;
     auto num = parseAtom(*p);
     while(num >= 0) {
         res *= Base;
