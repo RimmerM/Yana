@@ -1,8 +1,6 @@
 #include "../parse/ast.h"
 #include "module.h"
 
-Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used);
-
 struct FunBuilder {
     Function* fun;
     Block* block;
@@ -10,6 +8,8 @@ struct FunBuilder {
     Arena& mem;
     Size funCounter = 0;
 };
+
+Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used);
 
 Value* resolveMulti(FunBuilder* b, ast::MultiExpr* expr, Id name, bool used) {
     auto e = expr->exprs;

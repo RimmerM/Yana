@@ -236,6 +236,30 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         case Inst::InstJe:
             name = "je";
             break;
+        case Inst::InstRecord:
+            name = "record";
+            break;
+        case Inst::InstTup:
+            name = "tup";
+            break;
+        case Inst::InstFun:
+            name = "fun";
+            break;
+        case Inst::InstCall:
+            name = "call";
+            break;
+        case Inst::InstCallGen:
+            name = "call gen";
+            break;
+        case Inst::InstCallDyn:
+            name = "call dyn";
+            break;
+        case Inst::InstCallDynGen:
+            name = "call dyn gen";
+            break;
+        case Inst::InstCallForeign:
+            name = "call foreign";
+            break;
         case Inst::InstJmp:
             name = "jmp";
             break;
@@ -250,6 +274,31 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
     printValue(stream, context, inst);
     stream << " = ";
     stream << name;
+    stream << ' ';
+
+    switch(inst->kind) {
+        case Inst::InstCall:
+        case Inst::InstCallGen: {
+            auto fun = context.find(((InstCall*)inst)->fun->name);
+            if(fun.length) {
+                stream.write(fun.name, fun.length);
+            } else {
+                stream << "<unnamed>";
+            }
+            stream << ", ";
+            break;
+        }
+        case Inst::InstCallForeign: {
+            auto fun = context.find(((InstCallForeign*)inst)->fun->name);
+            if(fun.length) {
+                stream.write(fun.name, fun.length);
+            } else {
+                stream << "<unnamed>";
+            }
+            stream << ", ";
+            break;
+        }
+    }
 
     for(Size i = 0; i < inst->usedCount; i++) {
         printValue(stream, context, inst->usedValues[i]);

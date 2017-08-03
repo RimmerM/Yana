@@ -49,3 +49,11 @@ struct Function {
 
     void* codegen = nullptr;
 };
+
+struct ForeignFunction {
+    Module* module;
+    Id name;
+    Id externalName;
+    Id from;
+    FunType* type;
+};

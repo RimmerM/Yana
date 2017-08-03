@@ -26,12 +26,15 @@ struct Value {
         LastConst = ConstString,
 
         FirstInst,
+
+        // Primitives: conversion.
         InstTrunc,
         InstFTrunc,
         InstZExt,
         InstSExt,
         InstFExt,
 
+        // Primitives: arithmetic.
         InstAdd,
         InstSub,
         InstMul,
@@ -54,6 +57,19 @@ struct Value {
         InstOr,
         InstXor,
 
+        // Construction.
+        InstRecord,
+        InstTup,
+        InstFun,
+
+        // Function calls.
+        InstCall,
+        InstCallGen,
+        InstCallDyn,
+        InstCallDynGen,
+        InstCallForeign,
+
+        // Control flow.
         InstJe,
         InstJmp,
         InstRet,
@@ -166,6 +182,50 @@ struct InstOr: InstBinary {};
 struct InstXor: InstBinary {};
 
 /*
+ * Value construction.
+ */
+struct InstRecord: Inst {
+    struct Con* con;
+    Value* arg;
+};
+
+struct InstTup: Inst {
+    Value** fields;
+    Size fieldCount;
+};
+
+struct InstFun: Inst {
+    struct Function* body;
+    Value** frame;
+    Size frameCount;
+};
+
+/*
+ * Function calls.
+ */
+struct InstCall: Inst {
+    struct Function* fun;
+    Value** args;
+    Size argCount;
+};
+
+struct InstCallGen: InstCall {};
+
+struct InstCallDyn: Inst {
+    Value* fun;
+    Value** args;
+    Size argCount;
+};
+
+struct InstCallDynGen: InstCallDyn {};
+
+struct InstCallForeign: Inst {
+    struct ForeignFunction* fun;
+    Value** args;
+    Size argCount;
+};
+
+/*
  * Control flow.
  */
 
@@ -235,6 +295,20 @@ InstSar* sar(Block* block, Id name, Value* arg, Value* amount);
 InstAnd* bitand_(Block* block, Id name, Value* lhs, Value* rhs);
 InstOr* or_(Block* block, Id name, Value* lhs, Value* rhs);
 InstXor* xor_(Block* block, Id name, Value* lhs, Value* rhs);
+
+InstRecord* record(Block* block, Id name, struct Con* con, Value* arg);
+InstTup* tup(Block* block, Id name, Type* type, Size fieldCount);
+InstFun* fun(Block* block, Id name, struct Function* body, Type* type, Size frameCount);
+
+InstCall* call(Block* block, Id name, struct Function* fun, Size argCount);
+InstCallGen* callGen(Block* block, Id name, struct Function* fun, Size argCount);
+InstCallDyn* callDyn(Block* block, Id name, Value* fun, Size argCount);
+InstCallDynGen* callDynGen(Block* block, Id name, Value* fun, Size argCount);
+InstCallForeign* callForeign(Block* block, Id name, struct ForeignFunction* fun, Size argCount);
+
+// Stores an argument into a function call instruction.
+// Must be called for each argument after creation.
+void setArg(Inst* inst, Value** args, Size index, Value* arg);
 
 InstJe* je(Block* block, Value* cond, Block* then, Block* otherwise);
 InstJmp* jmp(Block* block, Block* to);

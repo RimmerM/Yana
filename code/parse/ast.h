@@ -392,7 +392,7 @@ struct Decl: Node {
         Stmt,
     } kind;
 
-    bool exported;
+    bool exported = false;
 
     Decl(Kind t): kind(t) {}
 };

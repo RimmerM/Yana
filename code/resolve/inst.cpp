@@ -3,6 +3,12 @@
 #include "module.h"
 #include <initializer_list>
 
+void setArg(Inst* inst, Value** args, Size index, Value* arg) {
+    args[index] = arg;
+    inst->usedValues[index] = arg;
+    inst->block->use(arg, inst);
+}
+
 static void useValues(Inst* inst, Block* block, std::initializer_list<Value*> values) {
     auto v = (Value**)block->function->module->memory.alloc(sizeof(Value*) * values.size());
     inst->usedValues = v;
@@ -160,6 +166,93 @@ InstOr* or_(Block* block, Id name, Value* lhs, Value* rhs) {
 
 InstXor* xor_(Block* block, Id name, Value* lhs, Value* rhs) {
     return (InstXor*)binary(block, Inst::InstXor, name, lhs, rhs, lhs->type);
+}
+
+InstRecord* record(Block* block, Id name, struct Con* con, Value* arg) {
+    auto inst = (InstRecord*)block->inst(sizeof(InstRecord), 0, Inst::InstRecord, con->parent);
+    inst->con = con;
+    inst->arg = arg;
+    useValues(inst, block, {arg});
+    return inst;
+}
+
+InstTup* tup(Block* block, Id name, Type* type, Size fieldCount) {
+    auto inst = (InstTup*)block->inst(sizeof(InstTup), name, Inst::InstTup, type);
+    auto fields = (Value**)block->function->module->memory.alloc(sizeof(Value*) * fieldCount);
+    inst->fields = fields;
+    inst->fieldCount = fieldCount;
+
+    inst->usedValues = fields;
+    inst->usedCount = fieldCount;
+
+    return inst;
+}
+
+InstFun* fun(Block* block, Id name, struct Function* body, Type* type, Size frameCount) {
+    auto inst = (InstFun*)block->inst(sizeof(InstFun), name, Inst::InstFun, type);
+    auto frame = (Value**)block->function->module->memory.alloc(sizeof(Value*) * frameCount);
+    inst->body = body;
+    inst->frame = frame;
+    inst->frameCount = frameCount;
+
+    inst->usedValues = frame;
+    inst->usedCount = frameCount;
+
+    return inst;
+}
+
+InstCall* call(Block* block, Id name, struct Function* fun, Size argCount) {
+    auto inst = (InstCall*)block->inst(sizeof(InstCall), name, Inst::InstCall, fun->returnType);
+    auto args = (Value**)block->function->module->memory.alloc(sizeof(Value*) * argCount);
+    inst->fun = fun;
+    inst->args = args;
+    inst->argCount = argCount;
+
+    inst->usedValues = args;
+    inst->usedCount = argCount;
+
+    return inst;
+}
+
+InstCallGen* callGen(Block* block, Id name, struct Function* fun, Size argCount) {
+    auto inst = call(block, name, fun, argCount);
+    inst->kind = Inst::InstCallDyn;
+    return (InstCallGen*)inst;
+}
+
+InstCallDyn* callDyn(Block* block, Id name, Value* fun, Size argCount) {
+    auto type = (FunType*)fun->type;
+    auto inst = (InstCallDyn*)block->inst(sizeof(InstCallDyn), name, Inst::InstCallDyn, type->result);
+    auto args = (Value**)block->function->module->memory.alloc(sizeof(Value*) * (argCount + 1));
+    inst->fun = fun;
+    inst->args = args;
+    inst->argCount = argCount;
+
+    inst->usedValues = args;
+    inst->usedCount = argCount + 1;
+    inst->usedValues[argCount] = fun;
+    block->use(fun, inst);
+
+    return inst;
+}
+
+InstCallDynGen* callDynGen(Block* block, Id name, Value* fun, Size argCount) {
+    auto inst = callDyn(block, name, fun, argCount);
+    inst->kind = Inst::InstCallDynGen;
+    return (InstCallDynGen*)inst;
+}
+
+InstCallForeign* callForeign(Block* block, Id name, struct ForeignFunction* fun, Size argCount) {
+    auto inst = (InstCallForeign*)block->inst(sizeof(InstCallForeign), name, Inst::InstCallForeign, fun->type->result);
+    auto args = (Value**)block->function->module->memory.alloc(sizeof(Value*) * argCount);
+    inst->fun = fun;
+    inst->args = args;
+    inst->argCount = argCount;
+
+    inst->usedValues = args;
+    inst->usedCount = argCount;
+
+    return inst;
 }
 
 InstJe* je(Block* block, Value* cond, Block* then, Block* otherwise) {
