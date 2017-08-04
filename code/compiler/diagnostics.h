@@ -31,15 +31,17 @@ struct Diagnostics {
         ErrorLevel,
     };
 
-    void warning(const char* text, const Node* where = nullptr, const char* source = nullptr) {
-        message(WarningLevel, text, where, source);
+    template<class... T>
+    void warning(const char* text, const Node* where, const char* source, T&&... format) {
+        message(WarningLevel, text, where, source, forward<T>(format)...);
     }
 
-    void error(const char* text, const Node* where = nullptr, const char* source = nullptr) {
-        message(ErrorLevel, text, where, source);
+    template<class... T>
+    void error(const char* text, const Node* where, const char* source, T&&... format) {
+        message(ErrorLevel, text, where, source, forward<T>(format)...);
     }
 
-    virtual void message(Level level, const char* text, const Node* where = nullptr, const char* source = nullptr) {
+    virtual void message(Level level, const char* text, const Node* where, const char* source, ...) {
         if(level == WarningLevel) warnings++;
         else if(level == ErrorLevel) errors++;
     }
@@ -50,5 +52,5 @@ private:
 };
 
 struct PrintDiagnostics: Diagnostics {
-    void message(Level level, const char* text, const Node* where, const char* source) override;
+    void message(Level level, const char* text, const Node* where, const char* source, ...) override;
 };

@@ -1,7 +1,8 @@
 #include <cstdio>
+#include <cstdarg>
 #include "diagnostics.h"
 
-void PrintDiagnostics::message(Level level, const char* text, const Node* where, const char* source) {
+void PrintDiagnostics::message(Level level, const char* text, const Node* where, const char* source, ...) {
     U32 line = 0, column = 0;
     if(where) {
         line = where->sourceStart.line;
@@ -16,7 +17,13 @@ void PrintDiagnostics::message(Level level, const char* text, const Node* where,
         default: type = "";
     }
 
-    printf("%i:%i: %s: %s\n", line, column, type, text);
+    printf("%i:%i: %s: ", line, column, type);
+
+    va_list args;
+    va_start(args, source);
+    vprintf(text, args);
+    va_end(args);
+    printf("\n");
 
     if(source && where) {
         // Find the range of text to display.

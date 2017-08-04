@@ -91,7 +91,7 @@ U32 parseIntSequence(const char*& p, ParseAtom parseAtom, U32 numChars, U32 max,
         p++;
     }
 
-    if(res > max) diag.warning("character literal out of range");
+    if(res > max) diag.warning("character literal out of range: %i", nullptr, nullptr, res);
     return res;
 }
 
@@ -457,7 +457,7 @@ U32 Lexer::nextCodePoint() {
     if(convertNextPoint(p, &c)) {
         return c;
     } else {
-        diag.warning("Invalid UTF-8 sequence", nullptr);
+        diag.warning("Invalid UTF-8 sequence %i", nullptr, nullptr, c);
         return ' ';
     }
 }
@@ -531,7 +531,7 @@ void Lexer::skipWhitespace() {
                 // p now points to the first character after the comment, or the file end.
                 // Check if the comments were nested correctly.
                 if(level) {
-                    diag.warning("Incorrectly nested comment: missing comment terminator(s).", nullptr);
+                    diag.warning("Incorrectly nested comment: missing comment terminator(s).", nullptr, nullptr);
                 }
 
                 continue;
@@ -563,7 +563,7 @@ Id Lexer::parseStringLiteral() {
 
                 if(*p != '\\') {
                     // The first character after a gap must be '\'.
-                    diag.warning("Missing gap end in string literal", nullptr);
+                    diag.warning("Missing gap end in string literal", nullptr, nullptr);
                 }
 
                 // Continue parsing the string.
@@ -587,7 +587,7 @@ Id Lexer::parseStringLiteral() {
                 break;
             } else if(!*p || *p == '\n') {
                 // If the line ends without terminating the string, we issue a warning.
-                diag.warning("Missing terminating quote in string literal", nullptr);
+                diag.warning("Missing terminating quote in string literal", nullptr, nullptr);
                 break;
             } else {
                 chars.push(*p);
@@ -618,10 +618,10 @@ U32 Lexer::parseCharLiteral() {
     // Ignore any remaining characters in the literal.
     // It needs to end on this line.
     if(*p++ != '\'') {
-        diag.warning("Multi-character character constant", nullptr);
+        diag.warning("Multi-character character constant", nullptr, nullptr);
         while(*p != '\'') {
             if(*p == '\n' || *p == 0) {
-                diag.warning("Missing terminating ' character in char literal", nullptr);
+                diag.warning("Missing terminating ' character in char literal", nullptr, nullptr);
                 break;
             }
             p++;
@@ -662,14 +662,14 @@ U32 Lexer::parseEscapedLiteral() {
         case 'x':
             // Hexadecimal literal.
             if(!parseHexit(*p)) {
-                diag.error("\\x used with no following hex digits", nullptr);
+                diag.error("\\x used with no following hex digits", nullptr, nullptr);
                 return ' ';
             }
             return parseIntSequence<16>(p, parseHexit, 8, 0xffffffff, diag);
         case 'o':
             // Octal literal.
             if(!parseOctit(*p)) {
-                diag.error("\\o used with no following octal digits", nullptr);
+                diag.error("\\o used with no following octal digits", nullptr, nullptr);
                 return ' ';
             }
             return parseIntSequence<8>(p, parseOctit, 16, 0xffffffff, diag);
@@ -677,7 +677,7 @@ U32 Lexer::parseEscapedLiteral() {
             if(isDigit(c)) {
                 return parseIntSequence<10>(p, parseDigit, 10, 0xffffffff, diag);
             } else {
-                diag.warning("Unknown escape sequence", nullptr);
+                diag.warning("Unknown escape sequence", nullptr, nullptr);
                 return ' ';
             }
     }
@@ -1072,7 +1072,7 @@ void Lexer::parseToken() {
 
     // Unknown token - issue an error and skip it.
     else {
-        diag.error("unknown token", nullptr);
+        diag.error("unknown token '%c'", nullptr, nullptr, *p);
         p++;
         goto parseT;
     }
