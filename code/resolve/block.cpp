@@ -30,3 +30,9 @@ Inst* Block::inst(Size size, Id name, Inst::Kind kind, Type* type) {
 
     return inst;
 }
+
+Block* block(Function* fun) {
+    auto block = fun->blocks.push();
+    block->function = fun;
+    return &*block;
+}

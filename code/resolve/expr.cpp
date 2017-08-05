@@ -11,6 +11,49 @@ struct FunBuilder {
 
 Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used);
 
+template<class... T>
+static void error(FunBuilder* b, const char* message, const Node* node, T&&... p) {
+    b->context.diagnostics.error(message, node, nullptr, forward<T>(p)...);
+}
+
+static OpProperties opInfo(Context* context, Module* module, Id name) {
+    auto op = findOp(context, module, name);
+    if(op) return *op;
+
+    return OpProperties{9, Assoc::Left};
+}
+
+static ast::InfixExpr* reorder(Context* context, Module* module, ast::InfixExpr* ast, U32 min) {
+    auto lhs = ast;
+    while(lhs->rhs && lhs->rhs->type == ast::Expr::Infix && !lhs->ordered) {
+        auto first = opInfo(context, module, lhs->op->name);
+        if(first.precedence < min) break;
+
+        auto rhs = (ast::InfixExpr*)lhs->rhs;
+        auto second = opInfo(context, module, rhs->op->name);
+        if(second.precedence > first.precedence || (second.precedence == first.precedence && second.associativity == Assoc::Right)) {
+            lhs->rhs = reorder(context, module, rhs, second.precedence);
+            if(lhs->rhs == rhs) {
+                lhs->ordered = true;
+                break;
+            }
+        } else {
+            lhs->ordered = true;
+            lhs->rhs = rhs->lhs;
+            rhs->lhs = lhs;
+            lhs = rhs;
+        }
+    }
+
+    return lhs;
+}
+
+// Checks if the two provided types are the same. If not, it tries to implicitly convert to a common type.
+static bool generalizeTypes(FunBuilder* b, Value* lhs, Value* rhs) {
+    // TODO: Support implicit box/unbox, tuple conversions.
+    return compareTypes(&b->context, lhs->type, rhs->type);
+}
+
 Value* resolveMulti(FunBuilder* b, ast::MultiExpr* expr, Id name, bool used) {
     auto e = expr->exprs;
     if(used) {
@@ -41,7 +84,7 @@ Value* resolveLit(FunBuilder* b, ast::LitExpr* expr, Id name, bool used) {
             return nullptr;
         case ast::Literal::String: {
             auto string = b->context.find(expr->literal.s);
-            return constString(b->block, string.name, string.length);
+            return constString(b->block, string.content, string.length);
         }
         case ast::Literal::Bool: {
             auto c = constInt(b->block, expr->literal.b);
@@ -65,16 +108,87 @@ Value* resolveFun(FunBuilder* b, ast::FunExpr* expr, Id name, bool used) {
 
 }
 
-Value* resolveInfix(FunBuilder* b, ast::InfixExpr* expr, Id name, bool used) {
+Value* resolveInfix(FunBuilder* b, ast::InfixExpr* unordered, Id name, bool used) {
+    ast::InfixExpr* ast;
+    if(unordered->ordered) {
+        ast = unordered;
+    } else {
+        ast = reorder(&b->context, b->fun->module, unordered, 0);
+    }
 
+    // Create a temporary app-expression to resolve the operator as a function call.
+    List<ast::TupArg> lhs(ast::TupArg(0, ast->lhs));
+    List<ast::TupArg> rhs(ast::TupArg(0, ast->rhs));
+    lhs.next = &rhs;
+
+    ast::AppExpr app(ast->op, &lhs);
+    app.locationFrom(*ast);
+
+    return resolveApp(b, &app, name, used);
 }
 
 Value* resolvePrefix(FunBuilder* b, ast::PrefixExpr* expr, Id name, bool used) {
+    // Create a temporary app-expression to resolve the operator as a function call.
+    List<ast::TupArg> arg(ast::TupArg(0, expr->dst));
+    ast::AppExpr app(expr->op, &arg);
+    app.locationFrom(*expr);
 
+    return resolveApp(b, &app, name, used);
 }
 
 Value* resolveIf(FunBuilder* b, ast::IfExpr* expr, Id name, bool used) {
+    auto cond = resolveExpr(b, expr->cond, 0, true);
+    if(cond->type != &intTypes[IntType::Bool]) {
+        error(b, "if condition must be a boolean", expr);
+    }
 
+    auto then = block(b->fun);
+    auto otherwise = block(b->fun);
+
+    je(b->block, cond, then, otherwise);
+    b->block = then;
+
+    auto thenValue = resolveExpr(b, expr->then, 0, used);
+    auto thenBlock = b->block;
+
+    Value* elseValue = nullptr;
+    Block* elseBlock = nullptr;
+    if(expr->otherwise) {
+        b->block = otherwise;
+        elseValue = resolveExpr(b, expr->otherwise, 0, used);
+        elseBlock = b->block;
+    }
+
+    if(used) {
+        auto after = block(b->fun);
+        b->block = after;
+        jmp(thenBlock, after);
+
+        if(!elseValue || !elseBlock || elseBlock->complete || thenBlock->complete) {
+            error(b, "if expression doesn't produce a result in every case", expr);
+            return phi(after, name, {});
+        }
+
+        generalizeTypes(b, thenValue, elseValue);
+        jmp(elseBlock, after);
+
+        InstPhi::Alts alts;
+        alts.push({thenValue->block, thenValue});
+        alts.push({elseValue->block, elseValue});
+        return phi(after, name, alts);
+    } else {
+        if(!elseBlock) {
+            jmp(thenBlock, otherwise);
+            b->block = otherwise;
+        } else if(!(thenBlock->complete && elseBlock->complete)) {
+            auto after = block(b->fun);
+            b->block = after;
+            jmp(thenBlock, after);
+            jmp(elseBlock, after);
+        }
+
+        return nullptr;
+    }
 }
 
 Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used) {
@@ -86,7 +200,25 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
 }
 
 Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr, Id name, bool used) {
+    auto condBlock = block(b->fun);
+    jmp(b->block, condBlock);
+    b->block = condBlock;
 
+    auto cond = resolveExpr(b, expr->cond, 0, true);
+    if(cond->type != &intTypes[IntType::Bool]) {
+        error(b, "while condition must be a boolean", expr);
+    }
+
+    auto bodyBlock = block(b->fun);
+    auto exitBlock = block(b->fun);
+    je(b->block, cond, bodyBlock, exitBlock);
+    b->block = bodyBlock;
+
+    resolveExpr(b, expr->loop, 0, false);
+    jmp(b->block, condBlock);
+
+    b->block = exitBlock;
+    return nullptr;
 }
 
 Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr, Id name, bool used) {
@@ -94,7 +226,7 @@ Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr, Id name, bool used) {
 }
 
 Value* resolveNested(FunBuilder* b, ast::NestedExpr* expr, Id name, bool used) {
-
+    return resolveExpr(b, expr->expr, name, used);
 }
 
 Value* resolveCoerce(FunBuilder* b, ast::CoerceExpr* expr, Id name, bool used) {
@@ -134,7 +266,7 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
 }
 
 Value* resolveRet(FunBuilder* b, ast::RetExpr* expr, Id name, bool used) {
-
+    return ret(b->block, resolveExpr(b, expr->value, 0, true));
 }
 
 Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {

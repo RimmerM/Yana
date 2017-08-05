@@ -6,16 +6,21 @@
 
 /*
  * An identifier consists of zero or more module names separated by dots, followed by the the identifier value.
- * In code, these are presented as a linked list of the identifier value followed by the module names.
- * Each segment is stored and represented by its hash for fast comparisons.
- * The lexer stores each found identifier as a mapping from the value hash to the value itself.
- * Module name segments are not stored in the table.
+ * The lexer reads these and stores them in a map, after which each identifier is represented by a hash.
+ * We store multiple hashes in each identifier, in order to support these name lookups in (mostly) constant time:
+ *  - Module name (M1.M2).
+ *  - Single VarID or ConID that maps to a defined symbol.
+ *  - Module-qualified symbol (M1.M2.symbol).
+ *  - Instance function (Type.symbol).
+ *  - Qualified instance function (M1.M2.Type.symbol).
  */
-struct Qualified {
-    Qualified* qualifier = nullptr;
-    const char* name;
-    Size length = 0;
-    Id hash = 0;
+struct Identifier {
+    const char* content;
+    U32 length = 0;
+    U32 hashN = 0;   // The hash of the last segment in the identifier.
+    U32 hashN1 = 0;  // The hash of the next-to-last segment in the identifier.
+    U32 hash0N1 = 0; // The hash of each segment in the identifier, excluding the last one.
+    U32 hash0N2 = 0; // The hash of each segment in the identifier, excluding the last two ones.
 };
 
 enum class Assoc : U8 {
@@ -72,15 +77,15 @@ struct Context {
         }
     }
 
-    Qualified& find(Id id) {
-        return names[id];
+    Identifier& find(Id id) {
+        return identifiers[id];
     }
 
     Id addUnqualifiedName(const char* chars, Size count);
-    Id addName(Qualified* q);
+    Id addName(Identifier* q);
 
-    Id addName(Id id, Qualified* q) {
-        names.add(id, *q);
+    Id addName(Id id, Identifier* q) {
+        identifiers.add(id, *q);
         return id;
     }
 
@@ -90,7 +95,7 @@ private:
     Byte* astBuffer = nullptr;
     Byte* astMax = nullptr;
     Array<Byte*> astBuffers;
-    HashMap<Qualified, Id> names;
+    HashMap<Identifier, Id> identifiers;
     HashMap<OpProperties, Id> ops;
 };
 

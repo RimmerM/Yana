@@ -5,6 +5,7 @@
 #include "type.h"
 
 struct Function;
+struct ForeignFunction;
 
 struct Import {
     Module* module;
@@ -19,6 +20,7 @@ struct Module {
 
     HashMap<Import, Id> imports;
     HashMap<Function, Id> functions;
+    HashMap<ForeignFunction, Id> foreignFunctions;
     HashMap<TypeClass, Id> typeClasses;
 
     HashMap<Type*, Id> types;

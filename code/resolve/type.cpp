@@ -86,3 +86,37 @@ Type* resolveDefinition(Context* context, Module* module, Type* type) {
 Type* resolveType(Context* context, Module* module, ast::Type* type) {
 
 }
+
+bool compareTypes(Context* context, Type* lhs, Type* rhs) {
+    if(lhs->kind == Type::Alias) lhs = ((AliasType*)lhs)->to;
+    if(rhs->kind == Type::Alias) rhs = ((AliasType*)rhs)->to;
+    if(lhs == rhs) return true;
+
+    // TODO: Remaining type kinds.
+    switch(lhs->kind) {
+        case Type::Error:
+            // Error types are compatible with everything, in order to prevent a cascade of errors.
+            return true;
+        case Type::Unit:
+            return rhs->kind == Type::Unit;
+        case Type::Int:
+            return rhs->kind == Type::Int && ((IntType*)lhs)->width == ((IntType*)rhs)->width;
+        case Type::Float:
+            return rhs->kind == Type::Float && ((FloatType*)lhs)->width == ((FloatType*)rhs)->width;
+        case Type::String:
+            return rhs->kind == Type::String;
+        case Type::Ref:
+            return rhs->kind == Type::Ref && compareTypes(context, ((RefType*)lhs)->to, ((RefType*)rhs)->to);
+        case Type::Ptr:
+            return rhs->kind == Type::Ptr && compareTypes(context, ((PtrType*)lhs)->to, ((PtrType*)rhs)->to);
+        case Type::Array:
+            return rhs->kind == Type::Array && compareTypes(context, ((ArrayType*)lhs)->content, ((ArrayType*)rhs)->content);
+        case Type::Map: {
+            if(rhs->kind != Type::Map) return false;
+            auto a = (MapType*)lhs, b = (MapType*)rhs;
+            return compareTypes(context, a->from, b->from) && compareTypes(context, a->to, b->to);
+        }
+    }
+
+    return false;
+}
