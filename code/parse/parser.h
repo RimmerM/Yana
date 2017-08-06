@@ -4,21 +4,7 @@
 #include "ast.h"
 
 struct Parser {
-    static const char kRefSigil;
-    static const char kPtrSigil;
-
-    Parser(Context& context, ast::Module& module, const char* text):
-        text(text), context(context), diag(context.diagnostics), module(module), lexer(context, diag, text, &token) {
-
-        qualifiedId = context.addUnqualifiedName("qualified", 9);
-        hidingId = context.addUnqualifiedName("hiding", 6);
-        fromId = context.addUnqualifiedName("from", 4);
-        asId = context.addUnqualifiedName("as", 2);
-        refId = context.addUnqualifiedName(&kRefSigil, 1);
-        ptrId = context.addUnqualifiedName(&kPtrSigil, 1);
-
-        lexer.next();
-    }
+    Parser(Context& context, ast::Module& module, const char* text);
 
     void parseModule();
     void parseImport();
@@ -214,4 +200,5 @@ struct Parser {
     Id asId;
     Id refId;
     Id ptrId;
+    Id valId;
 };

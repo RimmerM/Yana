@@ -33,8 +33,23 @@ inline Literal toStringLiteral(Id name) {
     return l;
 }
 
-const char Parser::kRefSigil = '&';
-const char Parser::kPtrSigil = '#';
+static const char kRefSigil = '&';
+static const char kValSigil = '*';
+static const char kPtrSigil = '#';
+
+Parser::Parser(Context& context, ast::Module& module, const char* text):
+    text(text), context(context), diag(context.diagnostics), module(module), lexer(context, diag, text, &token) {
+
+    qualifiedId = context.addUnqualifiedName("qualified", 9);
+    hidingId = context.addUnqualifiedName("hiding", 6);
+    fromId = context.addUnqualifiedName("from", 4);
+    asId = context.addUnqualifiedName("as", 2);
+    refId = context.addUnqualifiedName(&kRefSigil, 1);
+    ptrId = context.addUnqualifiedName(&kPtrSigil, 1);
+    valId = context.addUnqualifiedName(&kValSigil, 1);
+
+    lexer.next();
+}
 
 void Parser::parseModule() {
     withLevel([=] {
@@ -778,7 +793,19 @@ TupArg Parser::parseTupArg() {
 }
 
 Arg Parser::parseArg(bool requireType) {
+    DeclExpr::Mutability m;
     Id name = 0;
+
+    if(token.type == Token::VarSym && token.data.id == refId) {
+        eat();
+        m = DeclExpr::Ref;
+    } else if(token.type == Token::VarSym && token.data.id == valId) {
+        eat();
+        m = DeclExpr::Val;
+    } else {
+        m = DeclExpr::Immutable;
+    }
+
     if(token.type == Token::VarID) {
         name = token.data.id;
         eat();
@@ -790,6 +817,12 @@ Arg Parser::parseArg(bool requireType) {
     if(token.type == Token::opColon) {
         eat();
         type = parseType();
+
+        if(m == DeclExpr::Ref) {
+            type = new (buffer) RefType(type);
+        } else if(m == DeclExpr::Val) {
+            type = new (buffer) ValType(type);
+        }
     } else if(requireType) {
         error("expected parameter type");
     }
@@ -846,10 +879,15 @@ Expr* Parser::parseVarDecl() {
 }
 
 Expr* Parser::parseDeclExpr() {
-    bool isRef = false;
+    DeclExpr::Mutability m;
     if(token.type == Token::VarSym && token.data.id == refId) {
         eat();
-        isRef = true;
+        m = DeclExpr::Ref;
+    } else if(token.type == Token::VarSym && token.data.id == valId) {
+        eat();
+        m = DeclExpr::Val;
+    } else {
+        m = DeclExpr::Immutable;
     }
 
     Id id = 0;
@@ -863,9 +901,9 @@ Expr* Parser::parseDeclExpr() {
     if(token.type == Token::opEquals) {
         eat();
         auto expr = parseExpr();
-        return new(buffer) DeclExpr(id, expr, isRef);
+        return new(buffer) DeclExpr(id, expr, m);
     } else {
-        return new(buffer) DeclExpr(id, nullptr, isRef);
+        return new(buffer) DeclExpr(id, nullptr, m);
     }
 }
 
@@ -967,8 +1005,17 @@ Type* Parser::parseType() {
 
 Type* Parser::parseAType() {
     if(token.type == Token::VarSym && token.data.id == ptrId) {
+        eat();
         auto type = parseAType();
         return new (buffer) PtrType(type);
+    } else if(token.type == Token::VarSym && token.data.id == refId) {
+        eat();
+        auto type = parseAType();
+        return new (buffer) RefType(type);
+    } else if(token.type == Token::VarSym && token.data.id == valId) {
+        eat();
+        auto type = parseAType();
+        return new (buffer) ValType(type);
     } else if(token.type == Token::ConID) {
         auto base = node([=]() -> Type* {
             auto id = token.data.id;
