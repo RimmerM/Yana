@@ -70,6 +70,8 @@ struct Context {
     OpProperties findOp(Id op);
 
     Id addUnqualifiedName(const char* chars, Size count);
+    Id addQualifiedName(const char* chars, Size count, Size segmentCount);
+    Id addQualifiedName(const char* chars, Size count);
     Id addIdentifier(const Identifier& q);
     Identifier& find(Id id);
 

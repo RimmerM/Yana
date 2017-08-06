@@ -887,52 +887,8 @@ void Lexer::parseQualifier() {
     }
 
     // Create the identifier.
-    Identifier id;
-
-    if(segments <= 1) {
-        auto text = (char*)context.stringArena.alloc(length);
-        id.text = text;
-        id.textLength = length;
-        memcpy(text, start, length);
-
-        Hasher hash;
-        hash.addBytes(start, length);
-
-        id.segmentCount = 1;
-        id.segments = nullptr;
-        id.segmentHash = hash.get();
-    } else {
-        // Put the indexes and hashes first to get the correct alignment.
-        auto data = (U32*)context.stringArena.alloc(length + 2 * (segments * sizeof(U32)));
-
-        id.segmentCount = segments;
-        id.segments = data;
-        id.segmentHashes = data + segments;
-
-        auto name = (char*)(data + segments * 2);
-        memcpy(name, start, length);
-        id.text = name;
-        id.textLength = length;
-
-        // Set the offsets and hashes.
-        auto p = start;
-        auto max = start + length;
-        for(U32 i = 0; i < segments; i++) {
-            id.segments[i] = (U32)(p - start);
-
-            Hasher hash;
-            U32 segmentLength = 0;
-            while(p < max && *p != '.') {
-                hash.addByte(*p);
-                p++;
-                segmentLength++;
-            }
-
-            id.segmentHashes[i] = hash.get();
-        }
-    }
-
-    token->data.id = context.addIdentifier(id);
+    auto id = context.addQualifiedName(start, length, segments);
+    token->data.id = id;
 }
 
 void Lexer::parseVariable(const char** start, U32* length) {

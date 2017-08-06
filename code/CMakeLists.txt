@@ -18,6 +18,7 @@ set(SOURCE_FILES ${SOURCE_FILES}
     compiler/context.cpp
     compiler/diagnostics.h
     compiler/diagnostics.cpp
+    compiler/driver.cpp
 )
 
 set(SOURCE_FILES ${SOURCE_FILES}

@@ -406,4 +406,6 @@ Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast
     for(Function& fun: module->functions) {
         resolveFun(context, &fun);
     }
+
+    return module;
 }
