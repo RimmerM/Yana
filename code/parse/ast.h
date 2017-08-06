@@ -14,7 +14,9 @@ struct Type: Node {
         Error, // Placeholder for parse errors.
         Unit,  // The empty unit type.
         Con,   // A type name for a named type.
-        Ptr,   // A pointer to a type.
+        Ptr,   // A raw pointer to a type.
+        Ref,   // A reference to a type.
+        Val,   // A flattened type.
         Gen,   // A generic or polymorphic named type.
         Tup,   // A tuple type with optionally named fields.
         Fun,   // A function type.
@@ -70,6 +72,16 @@ struct FunType: Type {
 
 struct PtrType: Type {
     PtrType(Type* type): Type(Ptr), type(type) {}
+    Type* type;
+};
+
+struct RefType: Type {
+    RefType(Type* type): Type(Ref), type(type) {}
+    Type* type;
+};
+
+struct ValType: Type {
+    ValType(Type* type): Type(Val), type(type) {}
     Type* type;
 };
 
@@ -280,10 +292,16 @@ struct MultiIfExpr: Expr {
 };
 
 struct DeclExpr: Expr {
-    DeclExpr(Id name, Expr* content, bool isRef): Expr(Decl), name(name), content(content), isRef(isRef) {}
+    enum Mutability {
+        Immutable,
+        Ref,
+        Val,
+    };
+
+    DeclExpr(Id name, Expr* content, Mutability mut): Expr(Decl), name(name), content(content), mut(mut) {}
     Id name;
     Expr* content;
-    bool isRef;
+    Mutability mut;
 };
 
 struct WhileExpr: Expr {

@@ -42,6 +42,8 @@ struct Printer {
             case Decl::Data: toString((const DataDecl&)decl); break;
             case Decl::Foreign: toString((const ForeignDecl&)decl); break;
             case Decl::Stmt: toString((const StmtDecl&)decl); break;
+            case Decl::Class: toString((const ClassDecl&)decl); break;
+            case Decl::Instance: toString((const InstanceDecl&)decl); break;
         }
     }
 
@@ -116,12 +118,12 @@ private:
             case Literal::String: {
                 stream << '"';
                 auto name = context.find(e.literal.s);
-                stream.write(name.name, name.length);
+                stream.write(name.text, name.textLength);
                 stream << '"';
                 break;
             }
             case Literal::Bool:
-                if(e.literal.i) stream << "True";
+                if(e.literal.i > 0) stream << "True";
                 else stream << "False";
                 break;
         }
@@ -130,7 +132,7 @@ private:
     void toString(const VarExpr& e) {
         stream << "VarExpr ";
         auto name = context.find(e.name);
-        stream.write(name.name, name.length);
+        stream.write(name.text, name.textLength);
     };
 
     void toString(const AppExpr& e) {
@@ -148,7 +150,7 @@ private:
     void toString(const InfixExpr& e) {
         stream << "InfixExpr ";
         auto name = context.find(e.op->name);
-        stream.write(name.name, name.length);
+        stream.write(name.text, name.textLength);
         makeLevel();
         toString(*e.lhs,  false);
         toString(*e.rhs, true);
@@ -158,7 +160,7 @@ private:
     void toString(const PrefixExpr& e) {
         stream << "PrefixExpr ";
         auto name = context.find(e.op->name);
-        stream.write(name.name, name.length);
+        stream.write(name.text, name.textLength);
         makeLevel();
         toString(*e.dst, true);
         removeLevel();
@@ -191,8 +193,19 @@ private:
     void toString(const DeclExpr& e) {
         stream << "DeclExpr ";
         auto name = context.find(e.name);
-        stream.write(name.name, name.length);
-        if(e.isRef) stream << " <ref> ";
+        stream.write(name.text, name.textLength);
+        switch(e.mut) {
+            case DeclExpr::Immutable:
+                stream << " <const> ";
+                break;
+            case DeclExpr::Ref:
+                stream << " <ref> ";
+                break;
+            case DeclExpr::Val:
+                stream << " <flatten> ";
+                break;
+        }
+
         if(e.content) {
             makeLevel();
             toString(*e.content, true);
@@ -246,7 +259,7 @@ private:
     void toString(const ConExpr& e) {
         stream << "ConExpr ";
         auto name = context.find(e.type->con);
-        stream.write(name.name, name.length);
+        stream.write(name.text, name.textLength);
     }
 
     void toString(const TupExpr& e) {
@@ -314,7 +327,7 @@ private:
             auto arg = e.args;
             while(arg) {
                 auto name = context.find(arg->item.name);
-                stream.write(name.name, name.length);
+                stream.write(name.text, name.textLength);
                 if(arg->next) stream << ", ";
                 arg = arg->next;
             }
@@ -335,13 +348,13 @@ private:
     void toString(const FunDecl& e) {
         stream << "FunDecl ";
         auto name = context.find(e.name);
-        stream.write(name.name, name.length);
+        stream.write(name.text, name.textLength);
         stream << '(';
         if(e.args) {
             auto arg = e.args;
             while(arg) {
                 auto argName = context.find(arg->item.name);
-                stream.write(argName.name, argName.length);
+                stream.write(argName.text, argName.textLength);
                 if(arg->next) stream << ", ";
                 arg = arg->next;
             }
@@ -358,7 +371,7 @@ private:
     void toString(const AliasDecl& e) {
         stream << "AliasDecl ";
         auto name = context.find(e.type->name);
-        stream.write(name.name, name.length);
+        stream.write(name.text, name.textLength);
         stream << " = ";
         toString(*e.target);
     }
@@ -378,7 +391,7 @@ private:
     void toString(const ForeignDecl& e) {
         stream << "ForeignDecl ";
         auto name = context.find(e.localName);
-        stream.write(name.name, name.length);
+        stream.write(name.text, name.textLength);
         stream << " : ";
         toString(*e.type);
     }
@@ -390,16 +403,38 @@ private:
         removeLevel();
     }
 
+    void toString(const ClassDecl& e) {
+        stream << "ClassDecl";
+        makeLevel();
+        auto d = e.decls;
+        while(d) {
+            toString(*d->item);
+            d = d->next;
+        }
+        removeLevel();
+    }
+
+    void toString(const InstanceDecl& e) {
+        stream << "InstanceDecl";
+        makeLevel();
+        auto d = e.decls;
+        while(d) {
+            toString(*d->item);
+            d = d->next;
+        }
+        removeLevel();
+    }
+
     void toString(const FormatChunk& f, bool last) {
         auto name = context.find(f.string);
         if(f.format) {
-            toString(*f.format, name.length ? false : last);
+            toString(*f.format, name.textLength > 0 ? false : last);
         }
 
-        if(name.length) {
+        if(name.textLength > 0) {
             toStringIntro(last);
             stream << "LitExpr \"";
-            stream.write(name.name, name.length);
+            stream.write(name.text, name.textLength);
             stream << '"';
         }
     }
@@ -417,8 +452,8 @@ private:
         toStringIntro(last);
         stream << "Field ";
         auto name = context.find(arg.name);
-        if(name.length) {
-            stream.write(name.name, name.length);
+        if(name.textLength > 0) {
+            stream.write(name.text, name.textLength);
         } else {
             stream << "<unnamed>";
         }
@@ -430,18 +465,18 @@ private:
 
     void toString(const SimpleType& t) {
         auto name = context.find(t.name);
-        if(name.length) {
-            stream.write(name.name, name.length);
+        if(name.textLength > 0) {
+            stream.write(name.text, name.textLength);
             stream << ' ';
         }
     }
 
     void toString(const Con& c, bool last) {
         auto name = context.find(c.name);
-        if(name.length) {
+        if(name.textLength > 0) {
             toStringIntro(last);
             stream << "Constructor ";
-            stream.write(name.name, name.length);
+            stream.write(name.text, name.textLength);
         }
     }
 
@@ -471,17 +506,25 @@ private:
                 break;
             case Type::Con: {
                 auto name = context.find(((const ConType&)type).con);
-                stream.write(name.name, name.length);
+                stream.write(name.text, name.textLength);
                 break;
             }
             case Type::Ptr:
                 stream << '#';
                 toString(*((const PtrType&)type).type);
                 break;
+            case Type::Ref:
+                stream << '&';
+                toString(*((const RefType&)type).type);
+                break;
+            case Type::Val:
+                stream << '*';
+                toString(*((const ValType&)type).type);
+                break;
             case Type::Gen: {
                 stream << "gen";
                 auto name = context.find(((const GenType&)type).con);
-                stream.write(name.name, name.length);
+                stream.write(name.text, name.textLength);
                 break;
             }
             case Type::Tup:
