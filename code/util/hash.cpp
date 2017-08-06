@@ -67,7 +67,7 @@ static const U32 SBox_Table[] = {
     0x3C034CBA, 0xACDA62FC, 0x11923B8B, 0x45EF170A,
 };
 
-void Hasher::addData(const void* data, Size count) {
+void Hasher::addBytes(const void* data, Size count) {
     U32 hash = this->hash;
     auto p = (const Byte*)data;
     auto limit = p + count;
@@ -80,8 +80,7 @@ void Hasher::addData(const void* data, Size count) {
     this->hash = hash;
 }
 
-void Hasher::addString(const Char* string)
-{
+void Hasher::addString(const Char* string) {
     U32 hash = this->hash;
     while(*string) {
         hash ^= SBox_Table[(Byte)(*string++)];
@@ -121,42 +120,7 @@ void Hasher::addString(const WChar32* string) {
     this->hash = hash;
 }
 
-void Hasher::add(U32 x) {
-    U32 hash = this->hash;
-    Byte* p = (Byte*)&x;
-
-    hash ^= SBox_Table[*p++];
+void Hasher::addByte(char x) {
+    hash ^= SBox_Table[x];
     hash *= 3;
-    hash ^= SBox_Table[*p++];
-    hash *= 3;
-    hash ^= SBox_Table[*p++];
-    hash *= 3;
-    hash ^= SBox_Table[*p];
-    hash *= 3;
-
-    this->hash = hash;
-}
-
-void Hasher::add(I32 x) {
-    add((U32)x);
-}
-
-void Hasher::add(F32 x) {
-    U32 hash = this->hash;
-    Byte* p = (Byte*)&x;
-
-    hash ^= SBox_Table[*p++];
-    hash *= 3;
-    hash ^= SBox_Table[*p++];
-    hash *= 3;
-    hash ^= SBox_Table[*p++];
-    hash *= 3;
-    hash ^= SBox_Table[*p];
-    hash *= 3;
-
-    this->hash = hash;
-}
-
-void Hasher::add(double x) {
-    addData(&x, sizeof(x));
 }

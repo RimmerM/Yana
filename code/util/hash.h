@@ -11,19 +11,14 @@ struct Hasher {
 
     U32 get() const {return hash;}
 
-    void addData(const void* data, Size count);
     void addString(const Char* string);
     void addString(const WChar* string);
     void addString(const WChar32* string);
 
-    void add(U32);
-    void add(I32);
-    void add(F32);
-    void add(F64);
+    void addBytes(const void* data, Size count);
+    void addByte(char);
 
-    template<typename T> void add(const T& data) {addData(&data, sizeof(T));}
-
-    explicit operator U32() const {return get();}
+    template<typename T> void add(const T& data) {addBytes(&data, sizeof(T));}
 
 private:
     U32 hash = 0;
@@ -41,5 +36,5 @@ template<class T>
 inline U32 hash(const T& t) {
     Hasher h;
     h.add(t);
-    return (U32)h;
+    return h.get();
 }
