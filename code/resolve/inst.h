@@ -254,9 +254,8 @@ struct InstPhi: Inst {
         Value* value;
     };
 
-    // TODO: Find out the highest count that can be reached here in practice.
-    using Alts = ArrayF<Alt, 4>;
-    Alts alts;
+    Alt* alts;
+    Size altCount;
 };
 
 inline bool isTerminating(Inst::Kind kind) {
@@ -313,4 +312,4 @@ void setArg(Inst* inst, Value** args, Size index, Value* arg);
 InstJe* je(Block* block, Value* cond, Block* then, Block* otherwise);
 InstJmp* jmp(Block* block, Block* to);
 InstRet* ret(Block* block, Value* value = nullptr);
-InstPhi* phi(Block* block, Id name, InstPhi::Alts alts);
+InstPhi* phi(Block* block, Id name, InstPhi::Alt* alts, Size altCount);

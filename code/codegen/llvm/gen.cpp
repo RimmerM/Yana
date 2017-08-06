@@ -243,8 +243,9 @@ llvm::Value* genRet(Gen* gen, InstRet* inst) {
 }
 
 llvm::Value* genPhi(Gen* gen, InstPhi* inst) {
-    auto phi = gen->builder->CreatePHI(genType(gen, inst->type), inst->alts.size());
-    for(auto& alt: inst->alts) {
+    auto phi = gen->builder->CreatePHI(genType(gen, inst->type), (U32)inst->altCount);
+    for(Size i = 0; i < inst->altCount; i++) {
+        auto& alt = inst->alts[i];
         phi->addIncoming(useValue(gen, alt.value), (llvm::BasicBlock*)alt.fromBlock->codegen);
     }
     return phi;

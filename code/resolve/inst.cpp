@@ -290,18 +290,18 @@ InstRet* ret(Block* block, Value* value) {
     return inst;
 }
 
-InstPhi* phi(Block* block, Id name, InstPhi::Alts alts) {
-    assert(alts.size() > 0);
+InstPhi* phi(Block* block, Id name, InstPhi::Alt* alts, Size altCount) {
     auto inst = (InstPhi*)block->inst(sizeof(InstPhi), name, Inst::InstPhi, alts[0].value->type);
     inst->alts = alts;
+    inst->altCount = altCount;
 
-    auto v = (Value**)block->function->module->memory.alloc(sizeof(Value*) * alts.size());
+    auto v = (Value**)block->function->module->memory.alloc(sizeof(Value*) * altCount);
     inst->usedValues = v;
-    inst->usedCount = alts.size();
+    inst->usedCount = altCount;
 
-    for(auto it: alts) {
-        *v++ = it.value;
-        block->use(it.value, inst);
+    for(Size i = 0; i < altCount; i++) {
+        *v++ = alts[i].value;
+        block->use(alts[i].value, inst);
     }
 
     return inst;

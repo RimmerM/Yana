@@ -166,16 +166,19 @@ Value* resolveIf(FunBuilder* b, ast::IfExpr* expr, Id name, bool used) {
 
         if(!elseValue || !elseBlock || elseBlock->complete || thenBlock->complete) {
             error(b, "if expression doesn't produce a result in every case", expr);
-            return phi(after, name, {});
+            return phi(after, name, nullptr, 0);
         }
 
         generalizeTypes(b, thenValue, elseValue);
         jmp(elseBlock, after);
 
-        InstPhi::Alts alts;
-        alts.push({thenValue->block, thenValue});
-        alts.push({elseValue->block, elseValue});
-        return phi(after, name, alts);
+        auto alts = (InstPhi::Alt*)b->mem.alloc(sizeof(InstPhi::Alt) * 2);
+        alts[0].value = thenValue;
+        alts[0].fromBlock = thenValue->block;
+        alts[1].value = elseValue;
+        alts[1].fromBlock = elseValue->block;
+
+        return phi(after, name, alts, 2);
     } else {
         if(!elseBlock) {
             jmp(thenBlock, otherwise);
