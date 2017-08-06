@@ -5,8 +5,8 @@ void printValue(std::ostream& stream, Context& context, const Value* value) {
         stream << '%';
 
         auto name = context.find(value->name);
-        if(name.length > 0) {
-            stream.write(name.name, name.length);
+        if(name.textLength > 0) {
+            stream.write(name.text, name.textLength);
         } else if(value->kind >= Value::FirstInst) {
             auto block = ((Inst*)value)->block;
             auto blockIndex = block - block->function->blocks.pointer();
@@ -77,8 +77,8 @@ void printType(std::ostream& stream, Context& context, const Type* type) {
             break;
         case Type::Record: {
             auto name = context.find(((RecordType*)type)->name);
-            if(name.length) {
-                stream.write(name.name, name.length);
+            if(name.textLength > 0) {
+                stream.write(name.text, name.textLength);
             }
             break;
         }
@@ -134,8 +134,8 @@ void printModule(std::ostream& stream, Context& context, const Module* module) {
 void printFunction(std::ostream& stream, Context& context, const Function* fun) {
     stream << "fn ";
     auto name = context.find(fun->name);
-    if(name.length) {
-        stream.write(name.name, name.length);
+    if(name.textLength > 0) {
+        stream.write(name.text, name.textLength);
     } else {
         stream << "<unnamed>";
     }
@@ -280,8 +280,8 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         case Inst::InstCall:
         case Inst::InstCallGen: {
             auto fun = context.find(((InstCall*)inst)->fun->name);
-            if(fun.length) {
-                stream.write(fun.name, fun.length);
+            if(fun.textLength > 0) {
+                stream.write(fun.text, fun.textLength);
             } else {
                 stream << "<unnamed>";
             }
@@ -290,8 +290,8 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         }
         case Inst::InstCallForeign: {
             auto fun = context.find(((InstCallForeign*)inst)->fun->name);
-            if(fun.length) {
-                stream.write(fun.name, fun.length);
+            if(fun.textLength > 0) {
+                stream.write(fun.text, fun.textLength);
             } else {
                 stream << "<unnamed>";
             }

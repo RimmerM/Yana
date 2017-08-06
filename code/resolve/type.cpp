@@ -29,14 +29,28 @@ static Type* findType(Context* context, Module* module, ast::Type* type) {
             auto content = resolveType(context, module, ast->type);
             return new (module) PtrType(content);
         }
+        case ast::Type::Ref: {
+            auto ast = (ast::RefType*)type;
+            auto content = resolveType(context, module, ast->type);
+            return new (module) RefType(content);
+        }
+        case ast::Type::Val:
+            break;
         case ast::Type::Tup:
             break;
         case ast::Type::Gen:
             break;
         case ast::Type::App:
             break;
-        case ast::Type::Con:
-            break;
+        case ast::Type::Con: {
+            auto found = findType(context, module, ((ast::ConType*)type)->con);
+            if(!found) {
+                context->diagnostics.error("unresolved type name", type, nullptr);
+                return &errorType;
+            }
+
+            return found;
+        }
         case ast::Type::Fun: {
             auto ast = (ast::FunType*)type;
             auto ret = resolveType(context, module, ast->ret);
@@ -70,7 +84,7 @@ static Type* findType(Context* context, Module* module, ast::Type* type) {
             auto content = resolveType(context, module, ast->type);
             return new (module->memory) ArrayType(content);
         }
-        case ast::Type::Map:{
+        case ast::Type::Map: {
             auto ast = (ast::MapType*)type;
             auto from = resolveType(context, module, ast->from);
             auto to = resolveType(context, module, ast->to);
@@ -79,12 +93,49 @@ static Type* findType(Context* context, Module* module, ast::Type* type) {
     }
 }
 
-Type* resolveDefinition(Context* context, Module* module, Type* type) {
+void resolveAlias(Context* context, Module* module, AliasType* type) {
+    auto ast = type->ast;
+    if(ast) {
+        type->ast = nullptr;
+        type->to = findType(context, module, ast->target);
+    }
+}
 
+void resolveRecord(Context* context, Module* module, RecordType* type) {
+    auto ast = type->ast;
+    if(ast) {
+        type->ast = nullptr;
+
+        auto conAst = ast->cons;
+        for(auto& con: type->cons) {
+            if(conAst->item.content) {
+                con.content = findType(context, module, conAst->item.content);
+            }
+            conAst = conAst->next;
+        }
+    }
+}
+
+Type* resolveDefinition(Context* context, Module* module, Type* type) {
+    if(type->kind == Type::Alias) {
+        resolveAlias(context, module, (AliasType*)type);
+    } else if(type->kind == Type::Record) {
+        resolveRecord(context, module, (RecordType*)type);
+    }
+
+    return type;
 }
 
 Type* resolveType(Context* context, Module* module, ast::Type* type) {
+    auto found = findType(context, module, type);
+    if(
+        (found->kind == Type::Alias && ((AliasType*)found)->gens.size() > 0) ||
+        (found->kind == Type::Record && ((RecordType*)found)->gens.size() > 0)
+    ) {
+        context->diagnostics.error("cannot use a generic type here", type, nullptr);
+    }
 
+    return found;
 }
 
 bool compareTypes(Context* context, Type* lhs, Type* rhs) {

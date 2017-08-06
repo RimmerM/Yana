@@ -84,7 +84,7 @@ Value* resolveLit(FunBuilder* b, ast::LitExpr* expr, Id name, bool used) {
             return nullptr;
         case ast::Literal::String: {
             auto string = b->context.find(expr->literal.s);
-            return constString(b->block, string.content, string.length);
+            return constString(b->block, string.text, string.textLength);
         }
         case ast::Literal::Bool: {
             auto c = constInt(b->block, expr->literal.b);
