@@ -159,6 +159,7 @@ struct RecordType: Type {
     ::Array<Type*> gens;
     Id name;
     Kind kind = Multi;
+    bool qualified; // Set if the type constructors are namespaced within the type.
 };
 
 struct AliasType: Type {

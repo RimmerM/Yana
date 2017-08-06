@@ -452,9 +452,10 @@ struct ForeignDecl: Decl {
 };
 
 struct DataDecl: Decl {
-    DataDecl(SimpleType* type, List<Con>* cons): Decl(Data), cons(cons), type(type) {}
+    DataDecl(SimpleType* type, List<Con>* cons, bool qualified): Decl(Data), cons(cons), type(type), qualified(qualified) {}
     List<Con>* cons;
     SimpleType* type;
+    bool qualified;
 };
 
 struct StmtDecl: Decl {

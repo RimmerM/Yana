@@ -14,7 +14,7 @@ AliasType* defineAlias(Context* context, Module* in, Id name, Type* to) {
     return alias;
 }
 
-RecordType* defineRecord(Context* context, Module* in, Id name) {
+RecordType* defineRecord(Context* context, Module* in, Id name, bool qualified) {
     if(in->types.get(name)) {
         // TODO: Error
     }
@@ -22,6 +22,7 @@ RecordType* defineRecord(Context* context, Module* in, Id name) {
     auto r = new (in->memory) RecordType;
     r->ast = nullptr;
     r->name = name;
+    r->qualified = qualified;
     in->types[name] = r;
     return r;
 }
@@ -36,7 +37,10 @@ Con* defineCon(Context* context, Module* in, RecordType* to, Id name, Type* cont
     con->content = content;
     con->index = (U32)(con - to->cons.pointer());
     con->parent = to;
-    in->cons.add(name, con);
+
+    if(!to->qualified) {
+        in->cons.add(name, con);
+    }
     return con;
 }
 
@@ -62,26 +66,40 @@ Function* defineFun(Context* context, Module* in, Id name) {
     return f;
 }
 
-template<class T, class F>
-T* findHelper(Context* context, Module* module, F find, Id name) {
-    // Lookup:
-    // - If the name is unqualified, start by searching the current scope.
-    // - For qualified names, check if we have an import under that qualifier, then search that.
-    // - If nothing is found, search the parent scope while retaining any qualifiers.
-    auto n = context->find(name);
-    if(!n.qualifier) {
-        auto v = find(module, n.hash);
-        if(v) return v;
+U32 testImport(Identifier* importName, Identifier* searchName) {
+    if(importName->segmentCount > searchName->segmentCount - 1) return 0;
+
+    U32 i = 0;
+    for(; i < importName->segmentCount; i++) {
+        if(importName->segmentHashes[i] != searchName->segmentHashes[i]) return 0;
     }
+
+    return i;
+}
+
+template<class T, class F>
+T* findHelper(Context* context, Module* module, F find, Identifier* name) {
+    auto v = find(module, name, 0);
+    if(v) return v;
 
     // Imports have equal weight, so multiple hits here is an error.
     T* candidate = nullptr;
 
-    for(auto& import: module->imports) {
-        // TODO: Handle nested modules.
-        T* v = nullptr;
-        if(import.qualifier == n.qualifier->hash) {
-            v = find(module, n.hash);
+    for(Import& import: module->imports) {
+        // Handle qualified names.
+        if(name->segmentCount >= 2) {
+            auto start = testImport(import.localName, name);
+            v = find(import.module, name, start);
+        }
+
+        // Handle unqualified names, if the module can be used without one.
+        if(!import.qualified) {
+            auto uv = find(import.module, name, 0);
+            if(!v) {
+                v = uv;
+            } else {
+                // TODO: Error
+            }
         }
 
         if(v) {
@@ -96,24 +114,47 @@ T* findHelper(Context* context, Module* module, F find, Id name) {
 }
 
 Type* findType(Context* context, Module* module, Id name) {
-    return findHelper<Type>(context, module, [=](Module* m, Id n) -> Type* {
-        auto type = m->types.get(n);
+    auto identifier = &context->find(name);
+    return findHelper<Type>(context, module, [=](Module* m, Identifier* id, U32 start) -> Type* {
+        if(id->segmentCount - 1 > start) return nullptr;
+
+        auto type = m->types.get(id->segmentHashes[start]);
         return type ? *type : nullptr;
-    }, name);
+    }, identifier);
 }
 
 Con* findCon(Context* context, Module* module, Id name) {
-    return findHelper<Con>(context, module, [=](Module* m, Id n) -> Con* {
-        auto con = m->cons.get(n);
-        return con ? *con : nullptr;
-    }, name);
+    auto identifier = &context->find(name);
+    return findHelper<Con>(context, module, [=](Module* m, Identifier* id, U32 start) -> Con* {
+        if(id->segmentCount - 1 == start) {
+            auto con = m->cons.get(id->segmentHashes[start]);
+            return con ? *con : nullptr;
+        } else if(id->segmentCount >= 2 && id->segmentCount - 2 == start) {
+            // For qualified identifiers, look up the corresponding type in case its constructors are qualified.
+            Type** type = m->types.get(id->segmentHashes[start]);
+            if(!type || (*type)->kind != Type::Record) return nullptr;
+
+            auto record = (RecordType*)*type;
+            auto conName = id->segmentHashes[start + 1];
+            for(Con& con: record->cons) {
+                if(con.name == conName) return &con;
+            }
+
+            return nullptr;
+        } else {
+            return nullptr;
+        }
+    }, identifier);
 }
 
 OpProperties* findOp(Context* context, Module* module, Id name) {
-    return findHelper<OpProperties>(context, module, [=](Module* m, Id n) -> OpProperties* {
-        auto op = m->ops.get(n);
+    auto identifier = &context->find(name);
+    return findHelper<OpProperties>(context, module, [=](Module* m, Identifier* id, U32 start) -> OpProperties* {
+        if(id->segmentCount - 1 > start) return nullptr;
+
+        auto op = m->ops.get(id->segmentHashes[start]);
         return op ? op : nullptr;
-    }, name);
+    }, identifier);
 }
 
 static void prepareGens(Context* context, Module* module, ast::SimpleType* type, Array<Type*>& gens) {
@@ -164,7 +205,7 @@ static void prepareSymbols(Context* context, Module* module, ast::Decl** decls, 
             }
             case ast::Decl::Data: {
                 auto ast = (ast::DataDecl*)decl;
-                auto record = defineRecord(context, module, ast->type->name);
+                auto record = defineRecord(context, module, ast->type->name, ast->qualified);
                 record->ast = ast;
                 prepareGens(context, module, ast->type, record->gens);
                 prepareCons(context, module, record, ast->cons);
@@ -183,7 +224,7 @@ static void prepareSymbols(Context* context, Module* module, ast::Decl** decls, 
 
 Module* resolveModule(Context* context, ast::Module* ast) {
     auto module = new Module;
-    module->name = ast->name;
+    module->name = &context->find(ast->name);
 
     // Resolve the module contents in usage order.
     // Types use imports but nothing else, globals use types and imports, functions use everything.

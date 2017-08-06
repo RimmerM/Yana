@@ -9,14 +9,14 @@ struct ForeignFunction;
 
 struct Import {
     Module* module;
+    Identifier* localName;
     Array<Id> includedSymbols;
     Array<Id> excludedSymbols;
-    Id qualifier;
     bool qualified;
 };
 
 struct Module {
-    Id name;
+    Identifier* name;
 
     HashMap<Import, Id> imports;
     HashMap<Function, Id> functions;
@@ -35,7 +35,7 @@ struct Module {
 };
 
 AliasType* defineAlias(Context* context, Module* in, Id name, Type* to);
-RecordType* defineRecord(Context* context, Module* in, Id name);
+RecordType* defineRecord(Context* context, Module* in, Id name, bool qualified);
 Con* defineCon(Context* context, Module* in, RecordType* to, Id name, Type* content);
 TypeClass* defineClass(Context* context, Module* in, Id name);
 Function* defineFun(Context* context, Module* in, Id name);

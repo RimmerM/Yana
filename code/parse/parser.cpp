@@ -268,7 +268,7 @@ Decl* Parser::parseDataDecl() {
             return node([=] {return parseCon();});
         }, Token::opBar);
 
-        return new (buffer) DataDecl(type, cons);
+        return new (buffer) DataDecl(type, cons, false);
     });
 }
 
