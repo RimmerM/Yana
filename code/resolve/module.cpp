@@ -123,6 +123,7 @@ T* findHelper(Context* context, Module* module, F find, Identifier* name) {
 
     for(Import& import: module->imports) {
         // Handle qualified names.
+        // TODO: Handle module import includes and excludes.
         if(name->segmentCount >= 2) {
             auto start = testImport(import.localName, name);
             v = find(import.module, name, start);
@@ -210,10 +211,52 @@ static void prepareCons(Context* context, Module* module, RecordType* type, List
     }
 }
 
-static void prepareImports(Context* context, Module* module, ast::Import* imports, Size count) {
+// Tries to load any imported modules.
+// Returns true if all modules were available; otherwise, compilation should pause until they are.
+static bool prepareImports(Context* context, Module* module, ModuleHandler* handler, ast::Import* imports, Size count) {
+    U32 missingImports = 0;
     for(Size i = 0; i < count; i++) {
+        auto& import = imports[i];
+        auto name = &context->find(import.from);
+        auto importModule = handler->require(context, module, name);
+        if(!importModule) {
+            missingImports++;
+            continue;
+        }
 
+        auto it = &module->imports[import.localName];
+        it->qualified = import.qualified;
+        it->localName = &context->find(import.localName);
+        it->module = importModule;
+
+        auto include = import.include;
+        while(include) {
+            it->includedSymbols.push(include->item);
+            include = include->next;
+        }
+
+        auto exclude = import.exclude;
+        while(exclude) {
+            it->excludedSymbols.push(exclude->item);
+            exclude = exclude->next;
+        }
     }
+
+    // Implicitly import Prelude if the module doesn't do so by itself.
+    auto preludeId = context->addUnqualifiedName("Prelude", 7);
+    auto hasPrelude = module->imports.get(preludeId) != nullptr;
+    if(!hasPrelude) {
+        auto preludeName = &context->find(preludeId);
+        auto prelude = handler->require(context, module, preludeName);
+        if(!prelude) return false;
+
+        auto import = &module->imports[preludeId];
+        import->module = prelude;
+        import->localName = preludeName;
+        import->qualified = false;
+    }
+
+    return missingImports == 0;
 }
 
 static void prepareSymbols(Context* context, Module* module, ast::Decl** decls, Size count) {
@@ -329,15 +372,20 @@ void resolveFun(Context* context, Function* fun) {
     fun->ast = nullptr;
 }
 
-Module* resolveModule(Context* context, ast::Module* ast) {
+Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast) {
     auto module = new Module;
     module->name = &context->find(ast->name);
+
+    // Load any imported modules.
+    // These are loaded asynchronously; this function will be called again when all are loaded.
+    if(!prepareImports(context, module, handler, ast->imports.pointer(), ast->imports.size())) {
+        return module;
+    }
 
     // Resolve the module contents in usage order.
     // Types use imports but nothing else, globals use types and imports, functions use everything.
     // Note that the initialization of globals is handled in the function pass,
     // since this requires knowledge of the whole module.
-    prepareImports(context, module, ast->imports.pointer(), ast->imports.size());
     prepareSymbols(context, module, ast->decls.pointer(), ast->decls.size());
 
     for(auto type: module->types) {

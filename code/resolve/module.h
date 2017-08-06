@@ -4,7 +4,7 @@
 #include "block.h"
 #include "type.h"
 
-namespace ast { struct FunDecl; struct DeclExpr; struct ForeignDecl; struct Expr; }
+namespace ast { struct FunDecl; struct DeclExpr; struct ForeignDecl; struct Expr; struct Module; }
 
 struct Module;
 struct Function;
@@ -52,6 +52,13 @@ struct Module {
     void* codegen = nullptr;
 };
 
+struct ModuleHandler {
+    // Returns a module for the provided identifier if it was available.
+    // If not, returns null and queues the module for loading and the caller for later completion.
+    // The resolver should only resolve imports and then stop if any require call returns null.
+    virtual Module* require(Context* context, Module* from, Identifier* id) = 0;
+};
+
 AliasType* defineAlias(Context* context, Module* in, Id name, Type* to);
 RecordType* defineRecord(Context* context, Module* in, Id name, bool qualified);
 Con* defineCon(Context* context, Module* in, RecordType* to, Id name, Type* content);
@@ -65,6 +72,7 @@ Type* findType(Context* context, Module* module, Id name);
 Con* findCon(Context* context, Module* module, Id name);
 OpProperties* findOp(Context* context, Module* module, Id name);
 
+Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast);
 void resolveFun(Context* context, Function* fun);
 Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used);
 
