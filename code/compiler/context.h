@@ -6,21 +6,24 @@
 
 /*
  * An identifier consists of zero or more module names separated by dots, followed by the the identifier value.
- * The lexer reads these and stores them in a map, after which each identifier is represented by a hash.
- * We store multiple hashes in each identifier, in order to support these name lookups in (mostly) constant time:
- *  - Module name (M1.M2).
- *  - Single VarID or ConID that maps to a defined symbol.
- *  - Module-qualified symbol (M1.M2.symbol).
- *  - Instance function (Type.symbol).
- *  - Qualified instance function (M1.M2.Type.symbol).
+ * We store the full identifier, as well as a pointer and hash to the start of each segment.
  */
 struct Identifier {
-    const char* content;
-    U32 length = 0;
-    U32 hashN = 0;   // The hash of the last segment in the identifier.
-    U32 hashN1 = 0;  // The hash of the next-to-last segment in the identifier.
-    U32 hash0N1 = 0; // The hash of each segment in the identifier, excluding the last one.
-    U32 hash0N2 = 0; // The hash of each segment in the identifier, excluding the last two ones.
+    Identifier(): textLength(0), segmentCount(0) {}
+
+    const char* text;
+
+    // If `segmentCount == 1`, this is set to nullptr.
+    U32* segments;
+
+    // If `segmentCount == 1`, this stores the first hash instead of a pointer.
+    union {
+        U32* segmentHashes;
+        U32 segmentHash;
+    };
+
+    U32 textLength: 24;
+    U32 segmentCount: 8;
 };
 
 enum class Assoc : U8 {
@@ -63,31 +66,12 @@ struct Context {
     Diagnostics& diagnostics;
     CompileSettings settings;
 
-    void addOp(Id op, U16 prec = 9, Assoc assoc = Assoc::Left) {
-        OpProperties prop{prec, assoc};
-        ops[op] = prop;
-    }
-
-    OpProperties findOp(Id op) {
-        auto res = ops.get(op);
-        if(res) {
-            return *res;
-        } else {
-            return {9, Assoc::Left};
-        }
-    }
-
-    Identifier& find(Id id) {
-        return identifiers[id];
-    }
+    void addOp(Id op, U16 prec = 9, Assoc assoc = Assoc::Left);
+    OpProperties findOp(Id op);
 
     Id addUnqualifiedName(const char* chars, Size count);
-    Id addName(Identifier* q);
-
-    Id addName(Id id, Identifier* q) {
-        identifiers.add(id, *q);
-        return id;
-    }
+    Id addIdentifier(const Identifier& q);
+    Identifier& find(Id id);
 
     Arena stringArena;
 

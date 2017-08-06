@@ -21,26 +21,47 @@ Arena::~Arena() {
     max = nullptr;
 }
 
-Id Context::addUnqualifiedName(const char* chars, Size count) {
-    Qualified q;
-    q.name = chars;
-    q.length = count;
-    return addName(&q);
+void Context::addOp(Id op, U16 prec, Assoc assoc) {
+    OpProperties prop{prec, assoc};
+    ops[op] = prop;
 }
 
-Id Context::addName(Qualified* q) {
-    Hasher h;
+OpProperties Context::findOp(Id op) {
+    auto res = ops.get(op);
+    if(res) {
+        return *res;
+    } else {
+        return {9, Assoc::Left};
+    }
+}
 
-    auto qu = q;
-    while(qu) {
-        h.addData(qu->name, qu->length * sizeof(*qu->name));
+Id Context::addUnqualifiedName(const char* chars, Size count) {
+    Hasher hash;
+    hash.addBytes(chars, count);
 
-        Hasher lh;
-        lh.addData(qu->name, qu->length * sizeof(*qu->name));
-        qu->hash = lh.get();
+    Identifier id;
+    id.text = chars;
+    id.textLength = (U32)count;
+    id.segmentCount = 1;
+    id.segments = nullptr;
+    id.segmentHash = hash.get();
+    return addIdentifier(id);
+}
 
-        qu = qu->qualifier;
+Id Context::addIdentifier(const Identifier& id) {
+    Id i;
+    if(id.segmentCount == 1) {
+        i = id.segmentHash;
+    } else {
+        Hasher hash;
+        hash.addBytes(id.text, id.textLength);
+        i = hash.get();
     }
 
-    return addName(h.get(), q);
+    identifiers.add(i, id);
+    return i;
+}
+
+Identifier& Context::find(Id id) {
+    return identifiers[id];
 }
