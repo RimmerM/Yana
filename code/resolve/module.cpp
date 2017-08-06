@@ -56,7 +56,7 @@ TypeClass* defineClass(Context* context, Module* in, Id name) {
 }
 
 Function* defineFun(Context* context, Module* in, Id name) {
-    if(in->functions.get(name)) {
+    if(in->functions.get(name) || in->foreignFunctions.get(name)) {
         // TODO: Error
     }
 
@@ -64,6 +64,42 @@ Function* defineFun(Context* context, Module* in, Id name) {
     f->module = in;
     f->name = name;
     return f;
+}
+
+ForeignFunction* defineForeignFun(Context* context, Module* in, Id name, FunType* type) {
+    if(in->functions.get(name) || in->foreignFunctions.get(name)) {
+        // TODO: Error
+    }
+
+    auto f = &in->foreignFunctions[name];
+    f->module = in;
+    f->name = name;
+    f->externalName = name;
+    f->from = 0;
+    f->type = type;
+    return f;
+}
+
+Global* defineGlobal(Context* context, Module* in, Id name) {
+    if(in->globals.get(name)) {
+        // TODO: Error
+    }
+
+    auto g = &in->globals[name];
+    g->module = in;
+    g->name = name;
+    return g;
+}
+
+Arg* defineArg(Context* context, Function* fun, Id name, Type* type) {
+    auto index = (U32)fun->args.size();
+    auto a = fun->args.push();
+    a->kind = Value::Arg;
+    a->type = type;
+    a->name = name;
+    a->block = nullptr;
+    a->index = index;
+    return &*a;
 }
 
 U32 testImport(Identifier* importName, Identifier* searchName) {
@@ -181,20 +217,35 @@ static void prepareImports(Context* context, Module* module, ast::Import* import
 }
 
 static void prepareSymbols(Context* context, Module* module, ast::Decl** decls, Size count) {
-    // Prepare by adding all defined types, functions and statements.
     for(Size i = 0; i < count; i++) {
         auto decl = decls[i];
         switch(decl->kind) {
             case ast::Decl::Fun: {
                 auto ast = (ast::FunDecl*)decl;
                 auto fun = defineFun(context, module, ast->name);
+                fun->ast = ast;
                 break;
             }
             case ast::Decl::Foreign: {
+                auto ast = (ast::ForeignDecl*)decl;
+                if(ast->type->kind == ast::Type::Fun) {
+                    auto fun = defineForeignFun(context, module, ast->localName, nullptr);
+                    fun->ast = ast;
+                    fun->externalName = ast->externName;
+                    fun->from = ast->from;
+                } else {
+                    context->diagnostics.error("not implemented: foreign globals", decl, nullptr);
+                }
                 break;
             }
             case ast::Decl::Stmt: {
-
+                auto ast = (ast::StmtDecl*)decl;
+                if(ast->expr->type == ast::Expr::Decl) {
+                    auto expr = (ast::DeclExpr*)ast->expr;
+                    auto global = defineGlobal(context, module, expr->name);
+                    global->ast = expr;
+                }
+                break;
             }
             case ast::Decl::Alias: {
                 auto ast = (ast::AliasDecl*)decl;
@@ -222,6 +273,62 @@ static void prepareSymbols(Context* context, Module* module, ast::Decl** decls, 
     }
 }
 
+void resolveFun(Context* context, Function* fun) {
+    // Check if the function was resolved already.
+    auto ast = fun->ast;
+    if(!ast) return;
+
+    // Set the flag for recursion detection.
+    fun->resolving = true;
+
+    // Add the function arguments.
+    auto arg = ast->args;
+    while(arg) {
+        auto a = arg->item;
+        auto type = resolveType(context, fun->module, a.type);
+        defineArg(context, fun, a.name, type);
+        arg = arg->next;
+    }
+
+    // Set the return type, if explicitly provided.
+    Type* expectedReturn = nullptr;
+    if(ast->ret) {
+        expectedReturn = resolveType(context, fun->module, ast->ret);
+    }
+
+    bool resultUsed = true;
+    if(ast->body->type == ast::Expr::Multi) {
+        resultUsed = false;
+    }
+
+    FunBuilder builder(fun, &*fun->blocks.push(), *context, fun->module->memory);
+    auto body = resolveExpr(&builder, ast->body, 0, resultUsed);
+    if(resultUsed && body->kind != Inst::InstRet) {
+        // The function is an expression - implicitly return the result if needed.
+        ret(body->block, body);
+    } else if(!body->block->complete) {
+        // The function is a block - implicitly return void if needed.
+        ret(body->block, nullptr);
+    }
+
+    Type* previous = nullptr;
+    for(InstRet* r: fun->returnPoints) {
+        if(previous && !compareTypes(context, previous, r->type)) {
+            context->diagnostics.error("types of return statements in function don't match", ast, nullptr);
+        }
+
+        previous = r->type;
+    }
+
+    if(expectedReturn && !compareTypes(context, expectedReturn, previous)) {
+        context->diagnostics.error("declared type and actual type of function don't match", ast, nullptr);
+    }
+
+    fun->returnType = previous;
+    fun->resolving = false;
+    fun->ast = nullptr;
+}
+
 Module* resolveModule(Context* context, ast::Module* ast) {
     auto module = new Module;
     module->name = &context->find(ast->name);
@@ -235,5 +342,20 @@ Module* resolveModule(Context* context, ast::Module* ast) {
 
     for(auto type: module->types) {
         resolveDefinition(context, module, type);
+    }
+
+    for(ForeignFunction& fun: module->foreignFunctions) {
+        auto type = resolveType(context, module, fun.ast->type);
+        if(type->kind != Type::Fun) {
+            context->diagnostics.error("internal error: foreign function doesn't have function type", fun.ast, nullptr);
+            return module;
+        }
+
+        fun.type = (FunType*)type;
+        fun.ast = nullptr;
+    }
+
+    for(Function& fun: module->functions) {
+        resolveFun(context, &fun);
     }
 }

@@ -280,9 +280,13 @@ InstJmp* jmp(Block* block, Block* to) {
 }
 
 InstRet* ret(Block* block, Value* value) {
-    auto inst = (InstRet*)block->inst(sizeof(InstRet), 0, Inst::InstRet, &unitType);
+    // Use the type of the returned value to simplify some analysis.
+    auto type = value ? value->type : &unitType;
+    auto inst = (InstRet*)block->inst(sizeof(InstRet), 0, Inst::InstRet, type);
     inst->value = value;
-    useValues(inst, block, {value});
+    if(value) {
+        useValues(inst, block, {value});
+    }
 
     block->returns = true;
     block->function->returnPoints.push(inst);

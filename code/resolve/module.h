@@ -4,8 +4,12 @@
 #include "block.h"
 #include "type.h"
 
+namespace ast { struct FunDecl; struct DeclExpr; struct ForeignDecl; struct Expr; }
+
+struct Module;
 struct Function;
 struct ForeignFunction;
+struct FunBuilder;
 
 struct Import {
     Module* module;
@@ -13,6 +17,20 @@ struct Import {
     Array<Id> includedSymbols;
     Array<Id> excludedSymbols;
     bool qualified;
+};
+
+struct Global {
+    Module* module;
+    Type* type = nullptr;
+    Id name;
+
+    ast::DeclExpr* ast = nullptr; // Set until the function is fully resolved.
+
+    // Globals and functions can be interdependent.
+    // This is no problem in most cases, except when their inferred types depend on each other,
+    // which could cause infinite recursion.
+    // We use this flag to detect that condition and throw an error.
+    bool resolving;
 };
 
 struct Module {
@@ -26,7 +44,7 @@ struct Module {
     HashMap<Type*, Id> types;
     HashMap<Con*, Id> cons;
     HashMap<OpProperties, Id> ops;
-    HashMap<Value*, Id> globals;
+    HashMap<Global, Id> globals;
 
     Function* staticInit = nullptr;
 
@@ -39,10 +57,16 @@ RecordType* defineRecord(Context* context, Module* in, Id name, bool qualified);
 Con* defineCon(Context* context, Module* in, RecordType* to, Id name, Type* content);
 TypeClass* defineClass(Context* context, Module* in, Id name);
 Function* defineFun(Context* context, Module* in, Id name);
+ForeignFunction* defineForeignFun(Context* context, Module* in, Id name, FunType* type);
+Global* defineGlobal(Context* context, Module* in, Id name);
+Arg* defineArg(Context* context, Function* fun, Id name, Type* type);
 
 Type* findType(Context* context, Module* module, Id name);
 Con* findCon(Context* context, Module* module, Id name);
 OpProperties* findOp(Context* context, Module* module, Id name);
+
+void resolveFun(Context* context, Function* fun);
+Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used);
 
 struct Function {
     Module* module;
@@ -54,7 +78,14 @@ struct Function {
     Array<Block> blocks;
     Array<InstRet*> returnPoints;
 
+    ast::FunDecl* ast = nullptr; // Set until the function is fully resolved.
     void* codegen = nullptr;
+
+    // Globals and functions can be interdependent.
+    // This is no problem in most cases, except when their inferred types depend on each other,
+    // which could cause infinite recursion.
+    // We use this flag to detect that condition and throw an error.
+    bool resolving = false;
 };
 
 struct ForeignFunction {
@@ -63,4 +94,17 @@ struct ForeignFunction {
     Id externalName;
     Id from;
     FunType* type;
+
+    ast::ForeignDecl* ast = nullptr; // Set until the type is fully resolved.
+    void* codegen = nullptr;
+};
+
+struct FunBuilder {
+    FunBuilder(Function* fun, Block* block, Context& context, Arena& mem): fun(fun), block(block), context(context), mem(mem) {}
+
+    Function* fun;
+    Block* block;
+    Context& context;
+    Arena& mem;
+    Size funCounter = 0;
 };

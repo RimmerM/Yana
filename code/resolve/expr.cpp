@@ -1,16 +1,6 @@
 #include "../parse/ast.h"
 #include "module.h"
 
-struct FunBuilder {
-    Function* fun;
-    Block* block;
-    Context& context;
-    Arena& mem;
-    Size funCounter = 0;
-};
-
-Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used);
-
 template<class... T>
 static void error(FunBuilder* b, const char* message, const Node* node, T&&... p) {
     b->context.diagnostics.error(message, node, nullptr, forward<T>(p)...);
