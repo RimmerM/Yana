@@ -737,7 +737,7 @@ void Lexer::parseNumericLiteral() {
     }
 }
 
-void Lexer::parseSymbol() {
+void Lexer::parseSymbol(const char** start, U32* length) {
     bool sym1 = isSymbol(p[1]);
     bool sym2 = sym1 && isSymbol(p[2]);
 
@@ -801,18 +801,15 @@ void Lexer::parseSymbol() {
         // Parse a symbol sequence.
         // Get the length of the sequence, we already know that the first one is a symbol.
         U32 count = 1;
-        auto start = p;
+        auto s = p;
         while(isSymbol(*(++p))) count++;
 
         // Check for a single minus operator - used for parser optimization.
-        token->singleMinus = count == 1 && *start == '-';
+        token->singleMinus = count == 1 && *s == '-';
 
-        // Save in the current qualified name.
-        auto name = (char*)context.stringArena.alloc(count);
-        memcpy(name, start, count);
-
-        qualifier.name = name;
-        qualifier.length = count;
+        // Store the identifier data.
+        *start = s;
+        *length = count;
     } else {
         // Skip to the next token.
         if(sym1) p += 2;
@@ -827,67 +824,118 @@ void Lexer::parseSpecial() {
 void Lexer::parseQualifier() {
     auto start = p;
     U32 length = 1;
+    U32 segments = 1;
     token->type = Token::ConID;
 
-    auto q = &qualifier.qualifier;
+    while(true) {
+        while(isIdentifier(*(++p))) {
+            length++;
+        }
 
-    parseQ:
-    while(isIdentifier(*(++p))) length++;
+        if(*p == '.') {
+            bool u = isUpperCase(p[1]);
+            bool l = isLowerCase(p[1]) || p[1] == '_';
+            bool s = isSymbol(p[1]);
 
-    auto str = (char*)context.stringArena.alloc(length);
-    memcpy(str, start, length);
-    auto strLength = length;
+            if(!(u || l || s)) break;
 
-    if(*p == '.') {
-        bool u = isUpperCase(p[1]);
-        bool l = isLowerCase(p[1]) || p[1] == '_';
-        bool s = isSymbol(p[1]);
-
-        // If the next character is a valid identifier or symbol,
-        // we add this qualifier to the list and parse the remaining characters.
-        // Otherwise, we parse as a ConID.
-        if(u || l || s) {
-            *q = new (context.stringArena) Qualified;
-            (*q)->name = str;
-            (*q)->length = strLength;
-            q = &(*q)->qualifier;
-
+            length++;
+            segments++;
             p++;
-            start = p;
-            length = 0;
-        } else {
-            goto makeCon;
-        }
 
-        // If the next character is upper case, we either have a ConID or another qualifier.
-        if(u) {
-            goto parseQ;
-        }
+            // If the next character is upper case, we either have a ConID or another qualifier.
+            if(u) continue;
 
-        // If the next character is lowercase, we either have a VarID or keyword.
-        else if(l) {
-            parseVariable();
+            // If the next character is lowercase, we either have a VarID or keyword.
+            if(l) {
+                const char* subStart;
+                U32 subLength;
+                parseVariable(&subStart, &subLength);
 
-            // If this was a keyword, we parse as a constructor and dot operator instead.
-            if(token->type != Token::VarID) {
-                p = start;
-                goto makeCon;
+                // If this was a keyword, we parse as a constructor and dot operator instead.
+                if(token->type == Token::VarID) {
+                    length += subLength;
+                } else {
+                    token->type = Token::ConID;
+                    length--;
+                    p = start + length;
+                }
+
+                break;
             }
-        }
 
-        // If the next character is a symbol, we have a VarSym or ConSym.
-        else if(s) {
-            parseSymbol();
+            // If the next character is a symbol, we have a VarSym or ConSym.
+            if(s) {
+                const char* subStart;
+                U32 subLength;
+                parseSymbol(&subStart, &subLength);
+
+                // If this was a builtin symbol, we parse as a constructor and dot operator instead.
+                if(token->type == Token::VarSym) {
+                    length += subLength;
+                } else {
+                    token->type = Token::ConID;
+                    length--;
+                    p = start + length;
+                }
+
+                break;
+            }
+        } else {
+            break;
         }
-    } else {
-        makeCon:
-        // We have a ConID.
-        qualifier.name = str;
-        qualifier.length = strLength;
     }
+
+    // Create the identifier.
+    Identifier id;
+
+    if(segments <= 1) {
+        auto text = (char*)context.stringArena.alloc(length);
+        id.text = text;
+        id.textLength = length;
+        memcpy(text, start, length);
+
+        Hasher hash;
+        hash.addBytes(start, length);
+
+        id.segmentCount = 1;
+        id.segments = nullptr;
+        id.segmentHash = hash.get();
+    } else {
+        // Put the indexes and hashes first to get the correct alignment.
+        auto data = (U32*)context.stringArena.alloc(length + 2 * (segments * sizeof(U32)));
+
+        id.segmentCount = segments;
+        id.segments = data;
+        id.segmentHashes = data + segments;
+
+        auto name = (char*)(data + segments * 2);
+        memcpy(name, start, length);
+        id.text = name;
+        id.textLength = length;
+
+        // Set the offsets and hashes.
+        auto p = start;
+        auto max = start + length;
+        for(U32 i = 0; i < segments; i++) {
+            id.segments[i] = (U32)(p - start);
+
+            Hasher hash;
+            U32 segmentLength = 0;
+            while(p < max && *p != '.') {
+                hash.addByte(*p);
+                p++;
+                segmentLength++;
+            }
+
+            id.segmentHashes[i] = hash.get();
+        }
+    }
+
+    token->data.id = context.addIdentifier(id);
 }
 
-void Lexer::parseVariable() {
+void Lexer::parseVariable(const char** start, U32* length) {
     token->type = Token::VarID;
 
     // First, check if we have a reserved keyword.
@@ -964,15 +1012,12 @@ void Lexer::parseVariable() {
     }
 
     // Read the identifier name.
-    U32 length = 1;
-    auto start = p;
+    U32 count = 1;
+    auto s = p;
     while(isIdentifier(*(++p))) length++;
 
-    auto name = (char*)context.stringArena.alloc(length);
-    memcpy(name, start, length);
-
-    qualifier.name = name;
-    qualifier.length = length;
+    *start = s;
+    *length = count;
 }
 
 void Lexer::parseToken() {
@@ -980,7 +1025,6 @@ void Lexer::parseToken() {
 
     parseT:
     // This needs to be reset manually.
-    qualifier.qualifier = nullptr;
     token->singleMinus = false;
 
     startWhitespace();
@@ -1054,20 +1098,33 @@ void Lexer::parseToken() {
 
     // Parse symbols.
     else if(isSymbol(*p)) {
-        parseSymbol();
-        token->data.id = context.addUnqualifiedName(qualifier.name, qualifier.length);
+        const char* start;
+        U32 length;
+        parseSymbol(&start, &length);
+
+        if(token->type == Token::VarSym) {
+            auto name = (char*)context.stringArena.alloc(length);
+            memcpy(name, start, length);
+            token->data.id = context.addUnqualifiedName(name, length);
+        }
     }
 
     // Parse ConIDs
     else if(isUpperCase(*p)) {
         parseQualifier();
-        token->data.id = context.addName(&qualifier);
     }
 
     // Parse variables and reserved ids.
     else if(isLowerCase(*p) || *p == '_') {
-        parseVariable();
-        token->data.id = context.addUnqualifiedName(qualifier.name, qualifier.length);
+        const char* start;
+        U32 length;
+        parseVariable(&start, &length);
+
+        if(token->type == Token::VarID) {
+            auto name = (char*)context.stringArena.alloc(length);
+            memcpy(name, start, length);
+            token->data.id = context.addUnqualifiedName(name, length);
+        }
     }
 
     // Unknown token - issue an error and skip it.

@@ -129,10 +129,10 @@ private:
     U32 parseEscapedLiteral();
     void parseNumericLiteral();
 
-    void parseSymbol();
+    void parseSymbol(const char** start, U32* length);
+    void parseVariable(const char** start, U32* length);
     void parseSpecial();
     void parseQualifier();
-    void parseVariable();
 
     void parseToken();
 
@@ -150,7 +150,6 @@ private:
     Token* token; // The token currently being parsed.
     Diagnostics& diag;
     Context& context;
-    Qualified qualifier; // The current qualified name being built up.
     const char* text; // The full source code.
     const char* p; // The current source pointer.
     const char* l; // The first character of the current line.
