@@ -18,6 +18,70 @@ IntType intTypes[IntType::KindCount] = {
     {64, IntType::Long}
 };
 
+template<class I>
+TupLookup* findTupLayout(Module* module, TupLookup* lookup, I fields) {
+    if(fields.has()) {
+        auto type = fields.get(module);
+
+        // If there already was a table for this type, continue in that one.
+        if(auto t = lookup->next.get((Size)type)) {
+            return findTupLayout(module, t, fields.next());
+        }
+
+        // Otherwise, create a new table first.
+        auto next = &lookup->next[(Size)type];
+        auto depth = lookup->depth + 1;
+        auto layout = (Type**)module->memory.alloc(sizeof(Type*) * depth);
+        next->depth = depth;
+        next->layout = layout;
+
+        memcpy(layout, lookup->layout, (depth - 1) * sizeof(Type*));
+        layout[depth - 1] = type;
+
+        return findTupLayout(module, next, fields.next());
+    } else {
+        return lookup;
+    }
+}
+
+static Type* findTuple(Context* context, Module* module, ast::TupType* type) {
+    struct Iterator {
+        Context* context;
+        List<ast::TupField>* current;
+
+        bool has() {
+            return current != nullptr;
+        }
+
+        Type* get(Module* m) {
+            auto ast = current->item.type;
+            return resolveType(context, m, ast);
+        }
+
+        Iterator next() {
+            return {context, current->next};
+        }
+    };
+
+    auto layout = findTupLayout(module, &module->usedTuples, Iterator{context, type->fields});
+    auto count = layout->depth;
+    auto fields = (Field*)module->memory.alloc(sizeof(Field) * count);
+    auto tuple = new (module->memory) TupType;
+    tuple->count = count;
+    tuple->layout = layout->layout;
+    tuple->fields = fields;
+
+    auto f = type->fields;
+    for(U32 i = 0; i < count; i++) {
+        fields[i].type = layout->layout[i];
+        fields[i].container = tuple;
+        fields[i].name = f->item.name;
+        fields[i].index = i;
+    }
+
+    return tuple;
+}
+
 static Type* findType(Context* context, Module* module, ast::Type* type) {
     switch(type->kind) {
         case ast::Type::Error:
@@ -27,21 +91,23 @@ static Type* findType(Context* context, Module* module, ast::Type* type) {
         case ast::Type::Ptr: {
             auto ast = (ast::PtrType*)type;
             auto content = resolveType(context, module, ast->type);
-            return new (module) PtrType(content);
+            return getPtr(module, content);
         }
         case ast::Type::Ref: {
             auto ast = (ast::RefType*)type;
             auto content = resolveType(context, module, ast->type);
-            return new (module) RefType(content);
+            return getRef(module, content);
         }
-        case ast::Type::Val:
-            break;
+        case ast::Type::Val: {
+            auto ast = (ast::ValType*)type;
+            return resolveType(context, module, ast->type);
+        }
         case ast::Type::Tup:
-            break;
+            return findTuple(context, module, (ast::TupType*)type);
         case ast::Type::Gen:
-            break;
+            return nullptr;
         case ast::Type::App:
-            break;
+            return nullptr;
         case ast::Type::Con: {
             auto found = findType(context, module, ((ast::ConType*)type)->con);
             if(!found) {
@@ -82,7 +148,7 @@ static Type* findType(Context* context, Module* module, ast::Type* type) {
         case ast::Type::Arr: {
             auto ast = (ast::ArrType*)type;
             auto content = resolveType(context, module, ast->type);
-            return new (module->memory) ArrayType(content);
+            return getArray(module, content);
         }
         case ast::Type::Map: {
             auto ast = (ast::MapType*)type;
@@ -114,6 +180,30 @@ void resolveRecord(Context* context, Module* module, RecordType* type) {
             conAst = conAst->next;
         }
     }
+}
+
+Type* getPtr(Module* module, Type* to) {
+    if(!to->ptrTo) {
+        to->ptrTo = new (module->memory) PtrType(to);
+    }
+
+    return to->ptrTo;
+}
+
+Type* getRef(Module* module, Type* to) {
+    if(!to->refTo) {
+        to->refTo = new (module->memory) RefType(to);
+    }
+
+    return to->refTo;
+}
+
+Type* getArray(Module* module, Type* to) {
+    if(!to->arrayTo) {
+        to->arrayTo = new (module->memory) ArrayType(to);
+    }
+
+    return to->arrayTo;
 }
 
 Type* resolveDefinition(Context* context, Module* module, Type* type) {

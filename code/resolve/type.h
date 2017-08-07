@@ -27,6 +27,12 @@ struct Type {
 
     Kind kind;
 
+    // We store a reference to some of the of types that reference a single type.
+    // This is an efficient way to make sure that only a single instance is created.
+    Type* refTo = nullptr;
+    Type* ptrTo = nullptr;
+    Type* arrayTo = nullptr;
+
     Type(Kind kind): kind(kind) {}
 };
 
@@ -125,17 +131,23 @@ struct MapType: Type {
 };
 
 struct Field {
-    Id name;
-    U32 index;
     Type* type;
     Type* container;
-    bool mut;
+    Id name;
+    U32 index;
+};
+
+struct TupLookup {
+    Type** layout = nullptr;
+    HashMap<TupLookup, Size> next;
+    U32 depth = 0;
 };
 
 struct TupType: Type {
     TupType(): Type(Tup) {}
-    ::Array<Field> fields;
-    ::Array<Type*> layout;
+    Field* fields;
+    Type** layout;
+    U32 count;
 };
 
 struct Con {
@@ -176,6 +188,15 @@ extern Type unitType;
 extern FloatType floatTypes[FloatType::KindCount];
 extern IntType intTypes[IntType::KindCount];
 extern Type stringType;
+
+// Returns a pointer to the provided type.
+Type* getPtr(Module* module, Type* to);
+
+// Returns a reference to the provided type.
+Type* getRef(Module* module, Type* to);
+
+// Returns an array type of the provided type.
+Type* getArray(Module* module, Type* to);
 
 // Finishes the definition of a type defined in the module, if needed.
 Type* resolveDefinition(Context* context, Module* module, Type* type);

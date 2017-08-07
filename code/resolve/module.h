@@ -46,6 +46,8 @@ struct Module {
     HashMap<OpProperties, Id> ops;
     HashMap<Global, Id> globals;
 
+    TupLookup usedTuples;
+
     Function* staticInit = nullptr;
 
     Arena memory;
