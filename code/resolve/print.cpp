@@ -245,6 +245,21 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         case Inst::InstFun:
             name = "fun";
             break;
+        case Inst::InstAlloc:
+            name = "alloc";
+            break;
+        case Inst::InstLoad:
+            name = "load";
+            break;
+        case Inst::InstLoadField:
+            name = "loadfield";
+            break;
+        case Inst::InstStore:
+            name = "store";
+            break;
+        case Inst::InstStoreField:
+            name = "storefield";
+            break;
         case Inst::InstCall:
             name = "call";
             break;
@@ -277,6 +292,9 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
     stream << ' ';
 
     switch(inst->kind) {
+        case Inst::InstAlloc:
+            if(((InstAlloc*)inst)->mut) stream << "<mut> ";
+            break;
         case Inst::InstCall:
         case Inst::InstCallGen: {
             auto fun = context.find(((InstCall*)inst)->fun->name);

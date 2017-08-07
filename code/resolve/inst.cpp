@@ -23,7 +23,11 @@ static void useValues(Inst* inst, Block* block, std::initializer_list<Value*> va
 static InstCast* cast(Block* block, Inst::Kind kind, Id name, Value* from, Type* to) {
     auto inst = (InstCast*)block->inst(sizeof(InstCast), name, kind, to);
     inst->from = from;
-    useValues(inst, block, {from});
+
+    inst->usedValues = &inst->from;
+    inst->usedCount = 1;
+    block->use(from, inst);
+
     return inst;
 }
 
@@ -31,7 +35,12 @@ static InstBinary* binary(Block* block, Inst::Kind kind, Id name, Value* lhs, Va
     auto inst = (InstBinary*)block->inst(sizeof(InstBinary), name, kind, to);
     inst->lhs = lhs;
     inst->rhs = rhs;
-    useValues(inst, block, {lhs, rhs});
+
+    inst->usedValues = &inst->lhs;
+    inst->usedCount = 2;
+    block->use(lhs, inst);
+    block->use(rhs, inst);
+
     return inst;
 }
 
@@ -131,7 +140,12 @@ InstICmp* icmp(Block* block, Id name, Value* lhs, Value* rhs, ICmp cmp) {
     inst->lhs = lhs;
     inst->rhs = rhs;
     inst->cmp = cmp;
-    useValues(inst, block, {lhs, rhs});
+
+    inst->usedValues = &inst->lhs;
+    inst->usedCount = 2;
+    block->use(lhs, inst);
+    block->use(rhs, inst);
+
     return inst;
 }
 
@@ -140,7 +154,12 @@ InstFCmp* fcmp(Block* block, Id name, Value* lhs, Value* rhs, FCmp cmp) {
     inst->lhs = lhs;
     inst->rhs = rhs;
     inst->cmp = cmp;
-    useValues(inst, block, {lhs, rhs});
+
+    inst->usedValues = &inst->lhs;
+    inst->usedCount = 2;
+    block->use(lhs, inst);
+    block->use(rhs, inst);
+
     return inst;
 }
 
@@ -172,7 +191,11 @@ InstRecord* record(Block* block, Id name, struct Con* con, Value* arg) {
     auto inst = (InstRecord*)block->inst(sizeof(InstRecord), 0, Inst::InstRecord, con->parent);
     inst->con = con;
     inst->arg = arg;
-    useValues(inst, block, {arg});
+
+    inst->usedValues = &inst->arg;
+    inst->usedCount = 1;
+    block->use(arg, inst);
+
     return inst;
 }
 
@@ -197,6 +220,70 @@ InstFun* fun(Block* block, Id name, struct Function* body, Type* type, Size fram
 
     inst->usedValues = frame;
     inst->usedCount = frameCount;
+
+    return inst;
+}
+
+InstAlloc* alloc(Block* block, Id name, Type* type, bool mut) {
+    auto instType = new (block->function->module->memory) RefType(type);
+    auto inst = (InstAlloc*)block->inst(sizeof(InstAlloc), name, Inst::InstAlloc, instType);
+    inst->valueType = type;
+    inst->mut = mut;
+    return inst;
+}
+
+InstLoad* load(Block* block, Id name, Value* from) {
+    assert(from->type->kind == Type::Ref);
+    auto inst = (InstLoad*)block->inst(sizeof(InstLoad), name, Inst::InstLoad, ((RefType*)from->type)->to);
+    inst->from = from;
+
+    inst->usedValues = &inst->from;
+    inst->usedCount = 1;
+    block->use(from, inst);
+
+    return inst;
+}
+
+InstLoadField* loadField(Block* block, Id name, Value* from, U32* indices, U32 count) {
+    assert(from->type->kind == Type::Ref);
+    auto inst = (InstLoadField*)block->inst(sizeof(InstLoadField), name, Inst::InstLoadField, ((RefType*)from->type)->to);
+    inst->from = from;
+    inst->indexChain = indices;
+    inst->chainLength = count;
+
+    inst->usedValues = &inst->from;
+    inst->usedCount = 1;
+    block->use(from, inst);
+
+    return inst;
+}
+
+InstStore* store(Block* block, Id name, Value* to, Value* value) {
+    assert(to->type->kind == Type::Ref);
+    auto inst = (InstStore*)block->inst(sizeof(InstStore), name, Inst::InstStore, ((RefType*)to->type)->to);
+    inst->to = to;
+    inst->value = value;
+
+    inst->usedValues = &inst->to;
+    inst->usedCount = 2;
+    block->use(to, inst);
+    block->use(value, inst);
+
+    return inst;
+}
+
+InstStoreField* storeField(Block* block, Id name, Value* to, Value* value, U32* indices, U32 count) {
+    assert(to->type->kind == Type::Ref);
+    auto inst = (InstStoreField*)block->inst(sizeof(InstStoreField), name, Inst::InstStoreField, ((RefType*)to->type)->to);
+    inst->to = to;
+    inst->value = value;
+    inst->indexChain = indices;
+    inst->chainLength = count;
+
+    inst->usedValues = &inst->to;
+    inst->usedCount = 2;
+    block->use(to, inst);
+    block->use(value, inst);
 
     return inst;
 }
@@ -260,6 +347,11 @@ InstJe* je(Block* block, Value* cond, Block* then, Block* otherwise) {
     inst->cond = cond;
     inst->then = then;
     inst->otherwise = otherwise;
+
+    inst->usedValues = &inst->cond;
+    inst->usedCount = 1;
+    block->use(cond, inst);
+
     useValues(inst, block, {cond});
 
     block->outgoing.push(then);
@@ -283,9 +375,12 @@ InstRet* ret(Block* block, Value* value) {
     // Use the type of the returned value to simplify some analysis.
     auto type = value ? value->type : &unitType;
     auto inst = (InstRet*)block->inst(sizeof(InstRet), 0, Inst::InstRet, type);
+
     inst->value = value;
     if(value) {
-        useValues(inst, block, {value});
+        inst->usedValues = &inst->value;
+        inst->usedCount = 1;
+        block->use(value, inst);
     }
 
     block->returns = true;

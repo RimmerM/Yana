@@ -62,6 +62,13 @@ struct Value {
         InstTup,
         InstFun,
 
+        // Memory.
+        InstAlloc,
+        InstLoad,
+        InstLoadField,
+        InstStore,
+        InstStoreField,
+
         // Function calls.
         InstCall,
         InstCallGen,
@@ -201,6 +208,50 @@ struct InstFun: Inst {
 };
 
 /*
+ * Memory.
+ */
+
+// Allocates space for one instance of a type.
+// The space is allocated on either the stack, GC heap or normal heap
+// depending on the returned reference type and mutability.
+struct InstAlloc: Inst {
+    Type* valueType; // The amount of space to allocate.
+    bool mut; // If disabled, the allocated value is guaranteed to not be modified after initialization.
+};
+
+// Loads a value from memory into a register.
+// The value must be a reference type.
+struct InstLoad: Inst {
+    Value* from;
+};
+
+// Loads a single field from an aggregate type in memory into a register.
+// The field to load is defined as a chain of field indices,
+// allowing the loading from a contained field in a single operation.
+struct InstLoadField: Inst {
+    Value* from;
+    U32* indexChain;
+    U32 chainLength;
+};
+
+// Stores a value from a register into memory.
+// The value stored into must be a reference type to the type stored.
+struct InstStore: Inst {
+    Value* to;
+    Value* value;
+};
+
+// Stores a single field from a register into an aggregate type.
+// The field to store into is defined as a chain of field indices,
+// allowing storing into a contained field in a single operation.
+struct InstStoreField: Inst {
+    Value* to;
+    Value* value;
+    U32* indexChain;
+    U32 chainLength;
+};
+
+/*
  * Function calls.
  */
 struct InstCall: Inst {
@@ -298,6 +349,12 @@ InstXor* xor_(Block* block, Id name, Value* lhs, Value* rhs);
 InstRecord* record(Block* block, Id name, struct Con* con, Value* arg);
 InstTup* tup(Block* block, Id name, Type* type, Size fieldCount);
 InstFun* fun(Block* block, Id name, struct Function* body, Type* type, Size frameCount);
+
+InstAlloc* alloc(Block* block, Id name, Type* type, bool mut);
+InstLoad* load(Block* block, Id name, Value* from);
+InstLoadField* loadField(Block* block, Id name, Value* from, U32* indices, U32 count);
+InstStore* store(Block* block, Id name, Value* to, Value* value);
+InstStoreField* storeField(Block* block, Id name, Value* to, Value* value, U32* indices, U32 count);
 
 InstCall* call(Block* block, Id name, struct Function* fun, Size argCount);
 InstCallGen* callGen(Block* block, Id name, struct Function* fun, Size argCount);
