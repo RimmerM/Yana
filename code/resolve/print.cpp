@@ -1,7 +1,7 @@
 #include "print.h"
 
 void printValue(std::ostream& stream, Context& context, const Value* value) {
-    if(value->kind == Value::Arg || value->kind >= Value::FirstInst) {
+    if(value->kind == Value::Arg || value->kind == Value::Global || value->kind >= Value::FirstInst) {
         stream << '%';
 
         auto name = context.find(value->name);
@@ -259,6 +259,12 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
             break;
         case Inst::InstStoreField:
             name = "storefield";
+            break;
+        case Inst::InstGetField:
+            name = "getfield";
+            break;
+        case Inst::InstUpdateField:
+            name ="updatefield";
             break;
         case Inst::InstCall:
             name = "call";

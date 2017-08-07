@@ -18,6 +18,7 @@ struct Use {
 struct Value {
     enum Kind {
         Arg,
+        Global,
 
         FirstConst,
         ConstInt = FirstConst,
@@ -66,8 +67,13 @@ struct Value {
         InstAlloc,
         InstLoad,
         InstLoadField,
+        InstLoadGlobal,
         InstStore,
         InstStoreField,
+        InstStoreGlobal,
+
+        InstGetField,
+        InstUpdateField,
 
         // Function calls.
         InstCall,
@@ -102,6 +108,19 @@ struct Value {
 // A value provided through a function parameter.
 struct Arg: Value {
     U32 index;
+};
+
+// A global value defined in a module.
+struct Global: Value {
+    // Used for lazy resolving of AST nodes.
+    // Set until the global is fully resolved.
+    void* ast = nullptr;
+
+    // Globals and functions can be interdependent.
+    // This is no problem in most cases, except when their inferred types depend on each other,
+    // which could cause infinite recursion.
+    // We use this flag to detect that condition and throw an error.
+    bool resolving = false;
 };
 
 // An immediate value that can be used by instructions.
@@ -251,6 +270,25 @@ struct InstStoreField: Inst {
     U32 chainLength;
 };
 
+// Takes a single field from an aggregate type in an existing register.
+struct InstGetField: Inst {
+    Value* from;
+    U32* indexChain;
+    U32 chainLength;
+};
+
+// Copies a register with an aggregate type while changing one or more fields.
+struct InstUpdateField: Inst {
+    struct Field {
+        Value* value;
+        U32 index;
+    };
+
+    Value* from;
+    Field* fields;
+    U32 fieldCount;
+};
+
 /*
  * Function calls.
  */
@@ -355,6 +393,9 @@ InstLoad* load(Block* block, Id name, Value* from);
 InstLoadField* loadField(Block* block, Id name, Value* from, U32* indices, U32 count);
 InstStore* store(Block* block, Id name, Value* to, Value* value);
 InstStoreField* storeField(Block* block, Id name, Value* to, Value* value, U32* indices, U32 count);
+
+InstGetField* getField(Block* block, Id name, Value* from, Type* type, U32* indices, U32 count);
+InstUpdateField* updateField(Block* block, Id name, Value* from, InstUpdateField::Field* fields, U32 count);
 
 InstCall* call(Block* block, Id name, struct Function* fun, Size argCount);
 InstCallGen* callGen(Block* block, Id name, struct Function* fun, Size argCount);

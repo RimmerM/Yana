@@ -287,6 +287,45 @@ InstStoreField* storeField(Block* block, Id name, Value* to, Value* value, U32* 
     return inst;
 }
 
+InstGetField* getField(Block* block, Id name, Value* from, Type* type, U32* indices, U32 count) {
+    auto inst = (InstGetField*)block->inst(sizeof(InstGetField), name, Inst::InstGetField, type);
+    inst->from = from;
+    inst->indexChain = indices;
+    inst->chainLength = count;
+
+    inst->usedValues = &inst->from;
+    inst->usedCount = 1;
+    block->use(from, inst);
+
+    return inst;
+}
+
+InstUpdateField* updateField(Block* block, Id name, Value* from, InstUpdateField::Field* fields, U32 count) {
+    auto inst = (InstUpdateField*)block->inst(sizeof(InstUpdateField), name, Inst::InstUpdateField, from->type);
+    inst->from = from;
+    inst->fields = fields;
+    inst->fieldCount = count;
+
+    inst->usedValues = &inst->from;
+    inst->usedCount = 1;
+    block->use(from, inst);
+
+    auto v = (Value**)block->function->module->memory.alloc(sizeof(Value*) * (count + 1));
+    inst->usedValues = v;
+    inst->usedCount = count + 1;
+
+    *v = from;
+    block->use(from, inst);
+    v++;
+
+    for(U32 i = 0; i < count; i++) {
+        *v++ = fields[i].value;
+        block->use(fields[i].value, inst);
+    }
+
+    return inst;
+}
+
 InstCall* call(Block* block, Id name, struct Function* fun, Size argCount) {
     auto inst = (InstCall*)block->inst(sizeof(InstCall), name, Inst::InstCall, fun->returnType);
     auto args = (Value**)block->function->module->memory.alloc(sizeof(Value*) * argCount);
