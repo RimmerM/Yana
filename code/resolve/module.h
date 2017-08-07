@@ -19,20 +19,6 @@ struct Import {
     bool qualified;
 };
 
-struct Global {
-    Module* module;
-    Type* type = nullptr;
-    Id name;
-
-    ast::DeclExpr* ast = nullptr; // Set until the function is fully resolved.
-
-    // Globals and functions can be interdependent.
-    // This is no problem in most cases, except when their inferred types depend on each other,
-    // which could cause infinite recursion.
-    // We use this flag to detect that condition and throw an error.
-    bool resolving;
-};
-
 struct Module {
     Identifier* name;
 
@@ -40,6 +26,7 @@ struct Module {
     HashMap<Function, Id> functions;
     HashMap<ForeignFunction, Id> foreignFunctions;
     HashMap<TypeClass, Id> typeClasses;
+    HashMap<InstanceLookup, Id> classInstances;
 
     HashMap<Type*, Id> types;
     HashMap<Con*, Id> cons;
@@ -62,9 +49,10 @@ struct ModuleHandler {
 };
 
 AliasType* defineAlias(Context* context, Module* in, Id name, Type* to);
-RecordType* defineRecord(Context* context, Module* in, Id name, bool qualified);
-Con* defineCon(Context* context, Module* in, RecordType* to, Id name, Type* content);
+RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bool qualified);
+Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index, Type* content);
 TypeClass* defineClass(Context* context, Module* in, Id name);
+ClassInstance* defineInstance(Context* context, Module* in, TypeClass* to, Type** args);
 Function* defineFun(Context* context, Module* in, Id name);
 ForeignFunction* defineForeignFun(Context* context, Module* in, Id name, FunType* type);
 Global* defineGlobal(Context* context, Module* in, Id name);
@@ -73,6 +61,7 @@ Arg* defineArg(Context* context, Function* fun, Id name, Type* type);
 Type* findType(Context* context, Module* module, Id name);
 Con* findCon(Context* context, Module* module, Id name);
 OpProperties* findOp(Context* context, Module* module, Id name);
+Global* findGlobal(Context* context, Module* module, Id name);
 
 Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast);
 void resolveFun(Context* context, Function* fun);

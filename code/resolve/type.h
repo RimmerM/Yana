@@ -6,6 +6,7 @@ namespace ast { struct AliasDecl; struct DataDecl; struct ClassDecl; struct Type
 
 struct Module;
 struct Function;
+struct TypeClass;
 
 struct Type {
     enum Kind {
@@ -36,21 +37,6 @@ struct Type {
     Type(Kind kind): kind(kind) {}
 };
 
-struct TypeClass {
-    ast::ClassDecl* ast; // Set until the type is fully resolved.
-
-    Id name;
-    Array<Type*> parameters;
-    Array<struct FunType*> functions;
-};
-
-struct ClassInstance {
-    Module* module;
-    TypeClass* typeClass;
-    Type* forType;
-    HashMap<FunType*, Function*, nullptr> implementations;
-};
-
 struct GenField {
     Type* type;
     struct GenType* gen;
@@ -61,9 +47,11 @@ struct GenField {
 struct GenType: Type {
     GenType(U32 index): Type(Gen), index(index) {}
 
+    GenField* fields; // A list of fields this type must contain.
+    TypeClass** classes; // A list of classes this type must implement.
     U32 index;
-    ::Array<GenField> fields;
-    ::Array<TypeClass*> classes;
+    U16 fieldCount = 0;
+    U16 classCount = 0;
 };
 
 struct IntType: Type {
@@ -164,23 +152,49 @@ struct RecordType: Type {
         Multi,
     };
 
-    RecordType(): Type(Record) {}
+    RecordType(): Type(Record), kind(Multi) {}
 
     ast::DataDecl* ast; // Set until the type is fully resolved.
-    ::Array<Con> cons;
-    ::Array<Type*> gens;
+    Con* cons;
+    Type** gens;
     Id name;
-    Kind kind = Multi;
-    bool qualified; // Set if the type constructors are namespaced within the type.
+    U16 conCount;
+    U16 genCount: 13;
+    Kind kind: 2;
+    bool qualified: 1; // Set if the type constructors are namespaced within the type.
 };
 
 struct AliasType: Type {
     AliasType(): Type(Alias) {}
 
     ast::AliasDecl* ast; // Set until the type is fully resolved.
-    ::Array<Type*> gens;
+    Type** gens;
     Type* to;
     Id name;
+    U32 genCount;
+};
+
+struct TypeClass {
+    ast::ClassDecl* ast; // Set until the type is fully resolved.
+
+    GenType** args; // A list of types this class will be instantiated on.
+    FunType** functions; // A list of function types this class implements.
+    Id name;
+    U16 argCount = 0;
+    U16 funCount = 0;
+};
+
+struct ClassInstance {
+    Module* module;
+    TypeClass* typeClass;
+    Type** forTypes; // A list of instance args for the class. Has the same length as typeClass->args.
+    Function** instances; // A list of function implementations. Corresponds to the list in typeClass->functions.
+};
+
+struct InstanceLookup {
+    ClassInstance instance;
+    HashMap<InstanceLookup, Size> next;
+    U32 depth = 0;
 };
 
 // Global instances of the basic builtin types.
@@ -206,3 +220,6 @@ Type* resolveType(Context* context, Module* module, ast::Type* type);
 
 // Checks if the two provided types are the same.
 bool compareTypes(Context* context, Type* lhs, Type* rhs);
+
+// Returns the canonical type of this type - the base type it acts like when used.
+Type* canonicalType(Type* type);

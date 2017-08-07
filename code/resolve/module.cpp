@@ -14,7 +14,7 @@ AliasType* defineAlias(Context* context, Module* in, Id name, Type* to) {
     return alias;
 }
 
-RecordType* defineRecord(Context* context, Module* in, Id name, bool qualified) {
+RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bool qualified) {
     if(in->types.get(name)) {
         // TODO: Error
     }
@@ -23,19 +23,25 @@ RecordType* defineRecord(Context* context, Module* in, Id name, bool qualified) 
     r->ast = nullptr;
     r->name = name;
     r->qualified = qualified;
+    r->genCount = 0;
+    r->conCount = (U16)conCount;
+    if(conCount > 0) {
+        r->cons = (Con*)in->memory.alloc(sizeof(Con) * conCount);
+    }
+
     in->types[name] = r;
     return r;
 }
 
-Con* defineCon(Context* context, Module* in, RecordType* to, Id name, Type* content) {
+Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index, Type* content) {
     if(in->cons.get(name)) {
         // TODO: Error
     }
 
-    auto con = &*to->cons.push();
+    auto con = to->cons + index;
     con->name = name;
     con->content = content;
-    con->index = (U32)(con - to->cons.pointer());
+    con->index = index;
     con->parent = to;
 
     if(!to->qualified) {
@@ -53,6 +59,38 @@ TypeClass* defineClass(Context* context, Module* in, Id name) {
     c->ast = nullptr;
     c->name = name;
     return c;
+}
+
+static InstanceLookup* findInstance(Module* module, TypeClass* to, InstanceLookup* lookup, Type** args, Size count) {
+    if(count > 0) {
+        auto type = args[0];
+
+        // If there already was a table for this type, continue in that one.
+        if(auto t = lookup->next.get((Size)type)) {
+            return findInstance(module, to, t, args + 1, count - 1);
+        }
+
+        // Otherwise, create a new table first.
+        auto next = &lookup->next[(Size)type];
+        auto depth = lookup->depth + 1;
+
+        next->depth = depth;
+        next->instance.module = module;
+        next->instance.forTypes = nullptr;
+        next->instance.typeClass = to;
+        next->instance.instances = nullptr;
+
+        return findInstance(module, to, next, args + 1, count - 1);
+    } else {
+        return lookup;
+    }
+}
+
+ClassInstance* defineInstance(Context* context, Module* in, TypeClass* to, Type** args) {
+    auto instance = findInstance(in, to, &in->classInstances[to->name], args, to->argCount);
+    instance->instance.forTypes = args;
+    instance->instance.instances = (Function**)in->memory.alloc(sizeof(Function*) * to->funCount);
+    return &instance->instance;
 }
 
 Function* defineFun(Context* context, Module* in, Id name) {
@@ -86,8 +124,10 @@ Global* defineGlobal(Context* context, Module* in, Id name) {
     }
 
     auto g = &in->globals[name];
-    g->module = in;
+    g->kind = Value::Global;
     g->name = name;
+    g->block = nullptr;
+    g->type = nullptr;
     return g;
 }
 
@@ -173,8 +213,10 @@ Con* findCon(Context* context, Module* module, Id name) {
 
             auto record = (RecordType*)*type;
             auto conName = id->segmentHashes[start + 1];
-            for(Con& con: record->cons) {
-                if(con.name == conName) return &con;
+            for(U32 i = 0; i < record->conCount; i++) {
+                if(record->cons[i].name == conName) {
+                    return record->cons + i;
+                }
             }
 
             return nullptr;
@@ -188,27 +230,32 @@ OpProperties* findOp(Context* context, Module* module, Id name) {
     auto identifier = &context->find(name);
     return findHelper<OpProperties>(context, module, [=](Module* m, Identifier* id, U32 start) -> OpProperties* {
         if(id->segmentCount - 1 > start) return nullptr;
-
-        auto op = m->ops.get(id->segmentHashes[start]);
-        return op ? op : nullptr;
+        return m->ops.get(id->segmentHashes[start]);
     }, identifier);
 }
 
-static void prepareGens(Context* context, Module* module, ast::SimpleType* type, Array<Type*>& gens) {
-    auto kind = type->kind;
-    U32 i = 0;
-    while(kind) {
-        gens.push(new (module->memory) GenType(i));
-        kind = kind->next;
-        i++;
-    }
+Global* findGlobal(Context* context, Module* module, Id name) {
+    auto identifier = &context->find(name);
+    return findHelper<Global>(context, module, [=](Module* m, Identifier* id, U32 start) -> Global* {
+        if(id->segmentCount - 1 > start) return nullptr;
+        return m->globals.get(id->segmentHashes[start]);
+    }, identifier);
 }
 
-static void prepareCons(Context* context, Module* module, RecordType* type, List<ast::Con>* con) {
-    while(con) {
-        defineCon(context, module, type, con->item.name, nullptr);
-        con = con->next;
+static U32 prepareGens(Context* context, Module* module, ast::SimpleType* type, Type**& gens) {
+    auto kind = type->kind;
+    U32 count = 0;
+    while(kind) {
+        kind = kind->next;
+        count++;
     }
+
+    gens = (Type**)module->memory.alloc(sizeof(Type*) * count);
+    for(U32 i = 0; i < count; i++) {
+        gens[i] = new (module->memory) GenType(i);
+    }
+
+    return count;
 }
 
 // Tries to load any imported modules.
@@ -294,22 +341,35 @@ static void prepareSymbols(Context* context, Module* module, ast::Decl** decls, 
                 auto ast = (ast::AliasDecl*)decl;
                 auto alias = defineAlias(context, module, ast->type->name, nullptr);
                 alias->ast = ast;
-                prepareGens(context, module, ast->type, alias->gens);
+                alias->genCount = prepareGens(context, module, ast->type, alias->gens);
                 break;
             }
             case ast::Decl::Data: {
                 auto ast = (ast::DataDecl*)decl;
-                auto record = defineRecord(context, module, ast->type->name, ast->qualified);
+                U32 conCount = 0;
+                auto con = ast->cons;
+                while(con) {
+                    conCount++;
+                    con = con->next;
+                }
+
+                auto record = defineRecord(context, module, ast->type->name, conCount, ast->qualified);
                 record->ast = ast;
-                prepareGens(context, module, ast->type, record->gens);
-                prepareCons(context, module, record, ast->cons);
+                record->genCount = (U16)prepareGens(context, module, ast->type, record->gens);
+
+                con = ast->cons;
+                for(U32 i = 0; i < conCount; i++) {
+                    defineCon(context, module, record, con->item.name, i, nullptr);
+                    con = con->next;
+                }
+
                 break;
             }
             case ast::Decl::Class: {
                 auto ast = (ast::ClassDecl*)decl;
                 auto c = defineClass(context, module, ast->type->name);
                 c->ast = ast;
-                prepareGens(context, module, ast->type, c->parameters);
+                c->argCount = (U16)prepareGens(context, module, ast->type, (Type**&)c->args);
                 break;
             }
         }

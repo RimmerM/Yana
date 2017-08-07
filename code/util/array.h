@@ -64,7 +64,7 @@ template<class T, class Allocator> struct ArrayT : Allocator {
     }
 
     void remove(Size index) {
-        assertTrue(index < size());
+        assert(index < size());
         auto p = this->pointer();
         (p + index)->~T();
         memmove(p + index, p + index + 1, (size() - 1 - index) * sizeof(T));
