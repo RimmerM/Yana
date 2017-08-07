@@ -172,12 +172,20 @@ void resolveRecord(Context* context, Module* module, RecordType* type) {
     if(ast) {
         type->ast = nullptr;
 
+        U32 filledCount = 0;
         auto conAst = ast->cons;
-        for(auto& con: type->cons) {
+        for(U32 i = 0; i < type->conCount; i++) {
             if(conAst->item.content) {
-                con.content = findType(context, module, conAst->item.content);
+                type->cons[i].content = findType(context, module, conAst->item.content);
+                filledCount++;
             }
             conAst = conAst->next;
+        }
+
+        if(filledCount == 0) {
+            type->kind = RecordType::Enum;
+        } else if(type->conCount == 1) {
+            type->kind = RecordType::Single;
         }
     }
 }
@@ -219,8 +227,8 @@ Type* resolveDefinition(Context* context, Module* module, Type* type) {
 Type* resolveType(Context* context, Module* module, ast::Type* type) {
     auto found = findType(context, module, type);
     if(
-        (found->kind == Type::Alias && ((AliasType*)found)->gens.size() > 0) ||
-        (found->kind == Type::Record && ((RecordType*)found)->gens.size() > 0)
+        (found->kind == Type::Alias && ((AliasType*)found)->genCount > 0) ||
+        (found->kind == Type::Record && ((RecordType*)found)->genCount > 0)
     ) {
         context->diagnostics.error("cannot use a generic type here", type, nullptr);
     }
@@ -260,4 +268,25 @@ bool compareTypes(Context* context, Type* lhs, Type* rhs) {
     }
 
     return false;
+}
+
+Type* canonicalType(Type* type) {
+    switch(type->kind) {
+        case Type::Ref:
+            return ((RefType*)type)->to;
+        case Type::Ptr:
+            return ((PtrType*)type)->to;
+        case Type::Record: {
+            auto t = (RecordType*)type;
+            if(t->conCount == 1 && t->cons[0].content) {
+                return t->cons[0].content;
+            } else {
+                return type;
+            }
+        }
+        case Type::Alias:
+            return ((AliasType*)type)->to;
+        default:
+            return type;
+    }
 }

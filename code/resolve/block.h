@@ -36,6 +36,7 @@ struct Block {
 
     Value* use(Value* value, Inst* user);
     Inst* inst(Size size, Id name, Inst::Kind kind, Type* type);
+    Value* findValue(Id name);
 };
 
 Block* block(Function* fun);

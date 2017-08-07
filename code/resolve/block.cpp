@@ -31,6 +31,22 @@ Inst* Block::inst(Size size, Id name, Inst::Kind kind, Type* type) {
     return inst;
 }
 
+Value* Block::findValue(Id name) {
+    auto n = namedValues.get(name);
+    if(n) return *n;
+
+    if(preceding) {
+        return preceding->findValue(name);
+    } else {
+        for(Arg& arg: function->args) {
+            if(arg.name == name) {
+                return &arg;
+            }
+        }
+        return nullptr;
+    }
+}
+
 Block* block(Function* fun) {
     auto block = fun->blocks.push();
     block->function = fun;
