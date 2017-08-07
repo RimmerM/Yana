@@ -44,6 +44,60 @@ static bool generalizeTypes(FunBuilder* b, Value* lhs, Value* rhs) {
     return compareTypes(&b->context, lhs->type, rhs->type);
 }
 
+static bool alwaysTrue(Value* v) {
+    return v->kind == Value::ConstInt && ((ConstInt*)v)->value != 0;
+}
+
+static Field* findStaticField(Type* type, Id stringField, U32 intField) {
+    if(type->kind == Type::Tup) {
+        auto tup = (TupType*)type;
+
+        if(stringField) {
+            for(U32 i = 0; i < tup->count; i++) {
+                if(tup->fields[i].name == stringField) {
+                    return tup->fields + i;
+                }
+            }
+        } else if(tup->count > intField) {
+            return tup->fields + intField;
+        }
+    }
+    return nullptr;
+}
+
+static Value* testStaticField(FunBuilder* b, Id name, Value* target, ast::Expr* ast) {
+    auto targetType = canonicalType(target->type);
+    Field* staticField = nullptr;
+
+    switch(ast->type) {
+        case ast::Expr::Var: {
+            auto n = ((ast::VarExpr*)ast)->name;
+            staticField = findStaticField(targetType, n, 0);
+            break;
+        }
+        case ast::Expr::Lit: {
+            auto lit = ((ast::LitExpr*)ast)->literal;
+            if(lit.type == ast::Literal::String) {
+                staticField = findStaticField(targetType, lit.s, 0);
+            } else if(lit.type == ast::Literal::Int) {
+                staticField = findStaticField(targetType, 0, (U32)lit.i);
+            }
+            break;
+        }
+    }
+
+    if(!staticField) return nullptr;
+
+    auto indices = (U32*)b->fun->module->memory.alloc(sizeof(U32));
+    indices[0] = staticField->index;
+
+    if(target->type->kind == Type::Ref || target->type->kind == Type::Ptr) {
+        return loadField(b->block, name, target, staticField->type, indices, 1);
+    } else {
+        return getField(b->block, name, target, staticField->type, indices, 1);
+    }
+}
+
 Value* resolveMulti(FunBuilder* b, ast::MultiExpr* expr, Id name, bool used) {
     auto e = expr->exprs;
     if(used) {
@@ -86,16 +140,46 @@ Value* resolveLit(FunBuilder* b, ast::LitExpr* expr, Id name, bool used) {
     return nullptr;
 }
 
-Value* resolveVar(FunBuilder* b, ast::VarExpr* expr, Id name, bool used) {
+Value* resolveVar(FunBuilder* b, ast::VarExpr* expr, bool asRV) {
+    // Try to find a local variable or argument.
+    auto value = b->block->findValue(expr->name);
+    if(!value) {
+        // Try to find a global variable.
+        value = findGlobal(&b->context, b->fun->module, expr->name);
+    }
 
+    if(!value) {
+        error(b, "identifier not found", expr);
+        return nullptr;
+    }
+
+    if(!asRV && (value->type->kind == Type::Ref || value->type->kind == Type::Ptr)) {
+        return load(b->block, 0, value);
+    } else {
+        return value;
+    }
 }
 
 Value* resolveApp(FunBuilder* b, ast::AppExpr* expr, Id name, bool used) {
+    // If the operand is a field expression we need special handling, since there are several options:
+    // - the field operand is an actual field of its target and has a function type, which we call.
+    // - the field operand is not a field, and we produce a function call with the target as first parameter.
+    if(expr->callee->type == ast::Expr::Field) {
+        auto callee = (ast::FieldExpr*)expr->callee;
+        auto target = resolveExpr(b, callee->target, 0, true);
+        auto staticField = testStaticField(b, 0, target, callee->field);
+        if(staticField) {
+            // TODO: Dynamic call.
+            return nullptr;
+        }
+    }
 
+    // TODO: Static or generic call.
+    return nullptr;
 }
 
 Value* resolveFun(FunBuilder* b, ast::FunExpr* expr, Id name, bool used) {
-
+    return nullptr;
 }
 
 Value* resolveInfix(FunBuilder* b, ast::InfixExpr* unordered, Id name, bool used) {
@@ -159,7 +243,10 @@ Value* resolveIf(FunBuilder* b, ast::IfExpr* expr, Id name, bool used) {
             return phi(after, name, nullptr, 0);
         }
 
-        generalizeTypes(b, thenValue, elseValue);
+        if(!generalizeTypes(b, thenValue, elseValue)) {
+            error(b, "if and else branches produce differing types", expr);
+        }
+
         jmp(elseBlock, after);
 
         auto alts = (InstPhi::Alt*)b->mem.alloc(sizeof(InstPhi::Alt) * 2);
@@ -185,11 +272,118 @@ Value* resolveIf(FunBuilder* b, ast::IfExpr* expr, Id name, bool used) {
 }
 
 Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used) {
+    // Calculate the number of cases.
+    U32 caseCount = 0;
+    auto c = expr->cases;
+    while(c) {
+        caseCount++;
+        c = c->next;
+    }
 
+    auto alts = (InstPhi::Alt*)b->fun->module->memory.alloc(sizeof(InstPhi::Alt) * caseCount);
+    bool hasElse = false;
+
+    c = expr->cases;
+    for(U32 i = 0; i < caseCount; i++) {
+        auto item = c->item;
+        auto cond = resolveExpr(b, item.cond, 0, true);
+        if(cond->type != &intTypes[IntType::Bool]) {
+            error(b, "if condition must be a boolean", expr);
+        }
+
+        if(alwaysTrue(cond)) {
+            auto result = resolveExpr(b, item.then, 0, used);
+            alts[i].value = result;
+            alts[i].fromBlock = b->block;
+
+            b->block = block(b->fun);
+            hasElse = true;
+            break;
+        } else {
+            auto then = block(b->fun);
+            auto next = block(b->fun);
+
+            je(b->block, cond, then, next);
+            b->block = then;
+
+            auto result = resolveExpr(b, item.then, 0, used);
+            alts[i].value = result;
+            alts[i].fromBlock = b->block;
+
+            b->block = next;
+        }
+
+        c = c->next;
+    }
+
+    auto next = b->block;
+    if(used) {
+        if(!hasElse) {
+            error(b, "if expression doesn't produce a result in every case", expr);
+        }
+
+        Value* prev = nullptr;
+        for(U32 i = 0; i < caseCount; i++) {
+            jmp(alts[i].fromBlock, next);
+            if(prev) {
+                if(!generalizeTypes(b, prev, alts[i].value)) {
+                    error(b, "if and else branches produce differing types", expr);
+                }
+            }
+            prev = alts[i].value;
+        }
+
+        if(prev) {
+            return phi(next, name, alts, caseCount);
+        } else {
+            error(b, "if expression doesn't produce a result in every case", expr);
+            return nullptr;
+        }
+    } else {
+        // If each case returns, we don't need a block afterwards.
+        U32 returnCount = 0;
+        for(U32 i = 0; i < caseCount; i++) {
+            if(alts[i].fromBlock->returns) {
+                returnCount++;
+            }
+        }
+
+        if(returnCount == caseCount) {
+            b->fun->blocks.remove(next - b->fun->blocks.pointer());
+            b->block = &*b->fun->blocks.back();
+        } else {
+            for(U32 i = 0; i < caseCount; i++) {
+                if(!alts[i].fromBlock->complete) {
+                    jmp(alts[i].fromBlock, next);
+                }
+            }
+        }
+
+        return nullptr;
+    }
 }
 
-Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
+Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr) {
+    auto content = expr->content;
+    if(!content) {
+        error(b, "variables must be initialized on declaration", expr);
+        return nullptr;
+    }
 
+    switch(expr->mut) {
+        case ast::DeclExpr::Immutable: {
+            // Immutable values are stored as registers, so we just have to resolve the creation expression.
+            resolveExpr(b, expr->content, expr->name, true);
+            return nullptr;
+        }
+        case ast::DeclExpr::Val:
+        case ast::DeclExpr::Ref: {
+            auto value = resolveExpr(b, expr->content, 0, true);
+            auto var = alloc(b->block, expr->name, value->type, true);
+            store(b->block, 0, var, value);
+            return var;
+        }
+    }
 }
 
 Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr, Id name, bool used) {
@@ -214,8 +408,27 @@ Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr, Id name, bool used) {
     return nullptr;
 }
 
-Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr, Id name, bool used) {
+Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr) {
+    auto target = expr->target;
+    switch(target->type) {
+        case ast::Expr::Var: {
+            auto var = resolveVar(b, (ast::VarExpr*)target, true);
+            if(var->type->kind != Type::Ref && var->type->kind != Type::Ptr) {
+                error(b, "type is not assignable", target);
+            }
 
+            auto val = resolveExpr(b, expr->value, 0, true);
+            store(b->block, 0, var, val);
+        }
+        case ast::Expr::Field: {
+
+        }
+        default: {
+            error(b, "assign target is not assignable", target);
+        }
+    }
+
+    return nullptr;
 }
 
 Value* resolveNested(FunBuilder* b, ast::NestedExpr* expr, Id name, bool used) {
@@ -223,39 +436,44 @@ Value* resolveNested(FunBuilder* b, ast::NestedExpr* expr, Id name, bool used) {
 }
 
 Value* resolveCoerce(FunBuilder* b, ast::CoerceExpr* expr, Id name, bool used) {
+    auto target = resolveExpr(b, expr->target, name, used);
+    if(!compareTypes(&b->context, target->type, resolveType(&b->context, b->fun->module, expr->kind))) {
+        error(b, "cannot cast type", expr);
+    }
 
+    return target;
 }
 
 Value* resolveField(FunBuilder* b, ast::FieldExpr* expr, Id name, bool used) {
-
+    return nullptr;
 }
 
 Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name, bool used) {
-
+    return nullptr;
 }
 
 Value* resolveTup(FunBuilder* b, ast::TupExpr* expr, Id name, bool used) {
-
+    return nullptr;
 }
 
 Value* resolveTupUpdate(FunBuilder* b, ast::TupUpdateExpr* expr, Id name, bool used) {
-
+    return nullptr;
 }
 
 Value* resolveArray(FunBuilder* b, ast::ArrayExpr* expr, Id name, bool used) {
-
+    return nullptr;
 }
 
 Value* resolveMap(FunBuilder* b, ast::MapExpr* expr, Id name, bool used) {
-
+    return nullptr;
 }
 
 Value* resolveFormat(FunBuilder* b, ast::FormatExpr* expr, Id name, bool used) {
-
+    return nullptr;
 }
 
 Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
-
+    return nullptr;
 }
 
 Value* resolveRet(FunBuilder* b, ast::RetExpr* expr, Id name, bool used) {
@@ -271,7 +489,7 @@ Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {
         case ast::Expr::Lit:
             return resolveLit(b, (ast::LitExpr*)expr, name, used);
         case ast::Expr::Var:
-            return resolveVar(b, (ast::VarExpr*)expr, name, used);
+            return resolveVar(b, (ast::VarExpr*)expr, false);
         case ast::Expr::App:
             return resolveApp(b, (ast::AppExpr*)expr, name, used);
         case ast::Expr::Fun:
@@ -285,11 +503,11 @@ Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {
         case ast::Expr::MultiIf:
             return resolveMultiIf(b, (ast::MultiIfExpr*)expr, name, used);
         case ast::Expr::Decl:
-            return resolveDecl(b, (ast::DeclExpr*)expr, name, used);
+            return resolveDecl(b, (ast::DeclExpr*)expr);
         case ast::Expr::While:
             return resolveWhile(b, (ast::WhileExpr*)expr, name, used);
         case ast::Expr::Assign:
-            return resolveAssign(b, (ast::AssignExpr*)expr, name, used);
+            return resolveAssign(b, (ast::AssignExpr*)expr);
         case ast::Expr::Nested:
             return resolveNested(b, (ast::NestedExpr*)expr, name, used);
         case ast::Expr::Coerce:

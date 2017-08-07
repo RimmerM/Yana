@@ -243,9 +243,9 @@ InstLoad* load(Block* block, Id name, Value* from) {
     return inst;
 }
 
-InstLoadField* loadField(Block* block, Id name, Value* from, U32* indices, U32 count) {
+InstLoadField* loadField(Block* block, Id name, Value* from, Type* type, U32* indices, U32 count) {
     assert(from->type->kind == Type::Ref || from->type->kind == Type::Ptr);
-    auto inst = (InstLoadField*)block->inst(sizeof(InstLoadField), name, Inst::InstLoadField, ((RefType*)from->type)->to);
+    auto inst = (InstLoadField*)block->inst(sizeof(InstLoadField), name, Inst::InstLoadField, type);
     inst->from = from;
     inst->indexChain = indices;
     inst->chainLength = count;

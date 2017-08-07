@@ -390,7 +390,7 @@ InstFun* fun(Block* block, Id name, struct Function* body, Type* type, Size fram
 
 InstAlloc* alloc(Block* block, Id name, Type* type, bool mut);
 InstLoad* load(Block* block, Id name, Value* from);
-InstLoadField* loadField(Block* block, Id name, Value* from, U32* indices, U32 count);
+InstLoadField* loadField(Block* block, Id name, Value* from, Type* type, U32* indices, U32 count);
 InstStore* store(Block* block, Id name, Value* to, Value* value);
 InstStoreField* storeField(Block* block, Id name, Value* to, Value* value, U32* indices, U32 count);
 
