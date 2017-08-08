@@ -172,6 +172,18 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         case Inst::InstFExt:
             name = "fext";
             break;
+        case Inst::InstFToI:
+            name = "ftoi";
+            break;
+        case Inst::InstFToUI:
+            name = "ftoui";
+            break;
+        case Inst::InstIToF:
+            name = "itof";
+            break;
+        case Inst::InstUIToF:
+            name = "uitof";
+            break;
         case Inst::InstAdd:
             name = "add";
             break;

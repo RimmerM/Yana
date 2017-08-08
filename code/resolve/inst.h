@@ -34,6 +34,10 @@ struct Value {
         InstZExt,
         InstSExt,
         InstFExt,
+        InstFToI,
+        InstFToUI,
+        InstIToF,
+        InstUIToF,
 
         // Primitives: arithmetic.
         InstAdd,
@@ -159,6 +163,10 @@ struct InstFTrunc: InstCast {};
 struct InstZExt: InstCast {};
 struct InstSExt: InstCast {};
 struct InstFExt: InstCast {};
+struct InstFToI: InstCast {};
+struct InstFToUI: InstCast {};
+struct InstIToF: InstCast {};
+struct InstUIToF: InstCast {};
 
 /*
  * Arithmetic instructions - these must be performed on two integers, float or vectors of the same type.
@@ -212,7 +220,8 @@ struct InstXor: InstBinary {};
  */
 struct InstRecord: Inst {
     struct Con* con;
-    Value* arg;
+    Value** fields;
+    Size fieldCount;
 };
 
 struct InstTup: Inst {
@@ -360,6 +369,10 @@ InstFTrunc* ftrunc(Block* block, Id name, Value* from, Type* to);
 InstZExt* zext(Block* block, Id name, Value* from, Type* to);
 InstSExt* sext(Block* block, Id name, Value* from, Type* to);
 InstFExt* fext(Block* block, Id name, Value* from, Type* to);
+InstIToF* itof(Block* block, Id name, Value* from, Type* to);
+InstUIToF* uitof(Block* block, Id name, Value* from, Type* to);
+InstFToI* ftoi(Block* block, Id name, Value* from, Type* to);
+InstFToUI* ftoui(Block* block, Id name, Value* from, Type* to);
 
 InstAdd* add(Block* block, Id name, Value* lhs, Value* rhs);
 InstSub* sub(Block* block, Id name, Value* lhs, Value* rhs);
@@ -384,11 +397,11 @@ InstAnd* bitand_(Block* block, Id name, Value* lhs, Value* rhs);
 InstOr* or_(Block* block, Id name, Value* lhs, Value* rhs);
 InstXor* xor_(Block* block, Id name, Value* lhs, Value* rhs);
 
-InstRecord* record(Block* block, Id name, struct Con* con, Value* arg);
-InstTup* tup(Block* block, Id name, Type* type, Size fieldCount);
+InstRecord* record(Block* block, Id name, struct Con* con, Value** fields, U32 count);
+InstTup* tup(Block* block, Id name, Type* type, Value** fields, U32 count);
 InstFun* fun(Block* block, Id name, struct Function* body, Type* type, Size frameCount);
 
-InstAlloc* alloc(Block* block, Id name, Type* type, bool mut);
+InstAlloc* alloc(Block* block, Id name, Type* type, bool mut, bool local);
 InstLoad* load(Block* block, Id name, Value* from);
 InstLoadField* loadField(Block* block, Id name, Value* from, Type* type, U32* indices, U32 count);
 InstStore* store(Block* block, Id name, Value* to, Value* value);
@@ -397,15 +410,11 @@ InstStoreField* storeField(Block* block, Id name, Value* to, Value* value, U32* 
 InstGetField* getField(Block* block, Id name, Value* from, Type* type, U32* indices, U32 count);
 InstUpdateField* updateField(Block* block, Id name, Value* from, InstUpdateField::Field* fields, U32 count);
 
-InstCall* call(Block* block, Id name, struct Function* fun, Size argCount);
-InstCallGen* callGen(Block* block, Id name, struct Function* fun, Size argCount);
-InstCallDyn* callDyn(Block* block, Id name, Value* fun, Size argCount);
-InstCallDynGen* callDynGen(Block* block, Id name, Value* fun, Size argCount);
-InstCallForeign* callForeign(Block* block, Id name, struct ForeignFunction* fun, Size argCount);
-
-// Stores an argument into a function call instruction.
-// Must be called for each argument after creation.
-void setArg(Inst* inst, Value** args, Size index, Value* arg);
+InstCall* call(Block* block, Id name, struct Function* fun, Value** args, U32 count);
+InstCallGen* callGen(Block* block, Id name, struct Function* fun, Value** args, U32 count);
+InstCallDyn* callDyn(Block* block, Id name, Value* fun, Value** args, U32 count);
+InstCallDynGen* callDynGen(Block* block, Id name, Value* fun, Value** args, U32 count);
+InstCallForeign* callForeign(Block* block, Id name, struct ForeignFunction* fun, Value** args, U32 count);
 
 InstJe* je(Block* block, Value* cond, Block* then, Block* otherwise);
 InstJmp* jmp(Block* block, Block* to);

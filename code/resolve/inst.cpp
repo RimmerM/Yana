@@ -3,12 +3,6 @@
 #include "module.h"
 #include <initializer_list>
 
-void setArg(Inst* inst, Value** args, Size index, Value* arg) {
-    args[index] = arg;
-    inst->usedValues[index] = arg;
-    inst->block->use(arg, inst);
-}
-
 static void useValues(Inst* inst, Block* block, std::initializer_list<Value*> values) {
     auto v = (Value**)block->function->module->memory.alloc(sizeof(Value*) * values.size());
     inst->usedValues = v;
@@ -89,6 +83,22 @@ InstSExt* sext(Block* block, Id name, Value* from, Type* to) {
 
 InstFExt* fext(Block* block, Id name, Value* from, Type* to) {
     return (InstFExt*)cast(block, Inst::InstFExt, name, from, to);
+}
+
+InstIToF* itof(Block* block, Id name, Value* from, Type* to) {
+    return (InstIToF*)cast(block, Inst::InstIToF, name, from, to);
+}
+
+InstUIToF* uitof(Block* block, Id name, Value* from, Type* to) {
+    return (InstUIToF*)cast(block, Inst::InstUIToF, name, from, to);
+}
+
+InstFToI* ftoi(Block* block, Id name, Value* from, Type* to) {
+    return (InstFToI*)cast(block, Inst::InstFToI, name, from, to);
+}
+
+InstFToUI* ftoui(Block* block, Id name, Value* from, Type* to) {
+    return (InstFToUI*)cast(block, Inst::InstFToUI, name, from, to);
 }
 
 InstAdd* add(Block* block, Id name, Value* lhs, Value* rhs) {
@@ -187,26 +197,35 @@ InstXor* xor_(Block* block, Id name, Value* lhs, Value* rhs) {
     return (InstXor*)binary(block, Inst::InstXor, name, lhs, rhs, lhs->type);
 }
 
-InstRecord* record(Block* block, Id name, struct Con* con, Value* arg) {
-    auto inst = (InstRecord*)block->inst(sizeof(InstRecord), 0, Inst::InstRecord, con->parent);
-    inst->con = con;
-    inst->arg = arg;
+InstRecord* record(Block* block, Id name, struct Con* con, Value** fields, U32 count) {
+    auto inst = (InstRecord*)block->inst(sizeof(InstRecord), name, Inst::InstRecord, con->parent);
 
-    inst->usedValues = &inst->arg;
-    inst->usedCount = 1;
-    block->use(arg, inst);
+    inst->con = con;
+    inst->fields = fields;
+    inst->fieldCount = count;
+
+    inst->usedValues = fields;
+    inst->usedCount = count;
+
+    for(U32 i = 0; i < count; i++) {
+        inst->block->use(fields[i], inst);
+    }
 
     return inst;
 }
 
-InstTup* tup(Block* block, Id name, Type* type, Size fieldCount) {
+InstTup* tup(Block* block, Id name, Type* type, Value** fields, U32 count) {
     auto inst = (InstTup*)block->inst(sizeof(InstTup), name, Inst::InstTup, type);
-    auto fields = (Value**)block->function->module->memory.alloc(sizeof(Value*) * fieldCount);
+
     inst->fields = fields;
-    inst->fieldCount = fieldCount;
+    inst->fieldCount = count;
 
     inst->usedValues = fields;
-    inst->usedCount = fieldCount;
+    inst->usedCount = count;
+
+    for(U32 i = 0; i < count; i++) {
+        inst->block->use(fields[i], inst);
+    }
 
     return inst;
 }
@@ -214,6 +233,7 @@ InstTup* tup(Block* block, Id name, Type* type, Size fieldCount) {
 InstFun* fun(Block* block, Id name, struct Function* body, Type* type, Size frameCount) {
     auto inst = (InstFun*)block->inst(sizeof(InstFun), name, Inst::InstFun, type);
     auto frame = (Value**)block->function->module->memory.alloc(sizeof(Value*) * frameCount);
+
     inst->body = body;
     inst->frame = frame;
     inst->frameCount = frameCount;
@@ -224,8 +244,8 @@ InstFun* fun(Block* block, Id name, struct Function* body, Type* type, Size fram
     return inst;
 }
 
-InstAlloc* alloc(Block* block, Id name, Type* type, bool mut) {
-    auto refType = getRef(block->function->module, type, true, false, mut);
+InstAlloc* alloc(Block* block, Id name, Type* type, bool mut, bool local) {
+    auto refType = getRef(block->function->module, type, !local, local, mut);
     auto inst = (InstAlloc*)block->inst(sizeof(InstAlloc), name, Inst::InstAlloc, refType);
     inst->valueType = type;
     inst->mut = mut;
@@ -327,43 +347,52 @@ InstUpdateField* updateField(Block* block, Id name, Value* from, InstUpdateField
     return inst;
 }
 
-InstCall* call(Block* block, Id name, struct Function* fun, Size argCount) {
+InstCall* call(Block* block, Id name, struct Function* fun, Value** args, U32 count) {
     auto inst = (InstCall*)block->inst(sizeof(InstCall), name, Inst::InstCall, fun->returnType);
-    auto args = (Value**)block->function->module->memory.alloc(sizeof(Value*) * argCount);
     inst->fun = fun;
     inst->args = args;
-    inst->argCount = argCount;
+    inst->argCount = count;
 
     inst->usedValues = args;
-    inst->usedCount = argCount;
+    inst->usedCount = count;
+
+    for(U32 i = 0; i < count; i++) {
+        inst->block->use(args[i], inst);
+    }
 
     return inst;
 }
 
-InstCallGen* callGen(Block* block, Id name, struct Function* fun, Size argCount) {
-    auto inst = call(block, name, fun, argCount);
+InstCallGen* callGen(Block* block, Id name, struct Function* fun, Value** args, U32 count) {
+    auto inst = call(block, name, fun, args, count);
     inst->kind = Inst::InstCallDyn;
     return (InstCallGen*)inst;
 }
 
-InstCallDyn* callDyn(Block* block, Id name, Value* fun, Size argCount) {
+InstCallDyn* callDyn(Block* block, Id name, Value* fun, Value** args, U32 count) {
     auto type = (FunType*)fun->type;
     auto inst = (InstCallDyn*)block->inst(sizeof(InstCallDyn), name, Inst::InstCallDyn, type->result);
-    auto args = (Value**)block->function->module->memory.alloc(sizeof(Value*) * (argCount + 1));
+    auto usedValues = (Value**)block->function->module->memory.alloc(sizeof(Value*) * (count + 1));
+
     inst->fun = fun;
     inst->args = args;
-    inst->argCount = argCount;
+    inst->argCount = count;
 
-    inst->usedValues = args;
-    inst->usedCount = argCount + 1;
-    inst->usedValues[argCount] = fun;
+    inst->usedValues = usedValues;
+    inst->usedCount = count + 1;
+    inst->usedValues[0] = fun;
     block->use(fun, inst);
+
+    for(U32 i = 0; i < count; i++) {
+        usedValues[i + 1] = args[i];
+        inst->block->use(args[i], inst);
+    }
 
     return inst;
 }
 
-InstCallDynGen* callDynGen(Block* block, Id name, Value* fun, Size argCount) {
-    auto inst = callDyn(block, name, fun, argCount);
+InstCallDynGen* callDynGen(Block* block, Id name, Value* fun, Value** args, U32 count) {
+    auto inst = callDyn(block, name, fun, args, count);
     inst->kind = Inst::InstCallDynGen;
     return (InstCallDynGen*)inst;
 }
