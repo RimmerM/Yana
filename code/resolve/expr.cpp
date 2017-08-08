@@ -234,24 +234,97 @@ Value* resolveLit(FunBuilder* b, ast::LitExpr* expr, Id name, bool used) {
     return nullptr;
 }
 
-Value* resolveVar(FunBuilder* b, ast::VarExpr* expr, bool asRV) {
+static Value* findVar(FunBuilder* b, Id name) {
     // Try to find a local variable or argument.
-    auto value = b->block->findValue(expr->name);
+    auto value = b->block->findValue(name);
     if(!value) {
         // Try to find a global variable.
-        value = findGlobal(&b->context, b->fun->module, expr->name);
+        value = findGlobal(&b->context, b->fun->module, name);
     }
 
-    if(!value) {
-        error(b, "identifier not found", expr);
-        return nullptr;
-    }
+    return value;
+}
 
+static Value* useValue(FunBuilder* b, Value* value, bool asRV) {
     if(!asRV && (value->type->kind == Type::Ref)) {
         return load(b->block, 0, value);
     } else {
         return value;
     }
+}
+
+Value* resolveVar(FunBuilder* b, ast::VarExpr* expr, bool asRV) {
+    auto value = findVar(b, expr->name);
+    if(!value) {
+        error(b, "identifier not found", expr);
+        return nullptr;
+    }
+
+    return useValue(b, value, asRV);
+}
+
+static Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* argList, Id name) {
+    auto funType = (FunType*)callee->type;
+    auto argCount = (U32)funType->argCount;
+
+    auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
+    memset(args, 0, sizeof(Value*) * argCount);
+
+    U32 i = 0;
+    while(argList) {
+        auto arg = argList->item;
+        auto argIndex = i;
+        bool found = true;
+
+        if(arg.name) {
+            found = false;
+            for(U32 a = 0; a < argCount; a++) {
+                auto fa = funType->args[a];
+                if(arg.name == fa.name) {
+                    argIndex = fa.index;
+                    found = true;
+                }
+            }
+
+            if(!found) {
+                error(b, "function has no argument with this name", arg.value);
+            }
+        }
+
+        if(found) {
+            if(args[argIndex]) {
+                error(b, "function argument specified more than once", arg.value);
+            }
+
+            args[argIndex] = resolveExpr(b, arg.value, 0, true);
+        }
+
+        i++;
+        argList = argList->next;
+    }
+
+    // If the call used incorrect argument names this error may not trigger.
+    // However, in that case we already have an error for the argument name.
+    if(i != argCount) {
+        error(b, "incorrect number of function arguments", nullptr);
+    }
+
+    // Check the argument types and perform implicit conversions if needed.
+    for(i = 0; i < argCount; i++) {
+        auto v = implicitConvert(b, args[i], funType->args[i].type, false);
+        if(!v) {
+            error(b, "incompatible type for function argument", nullptr);
+        }
+
+        args[i] = v;
+    }
+
+    return callDyn(b->block, name, callee, args, argCount);
+}
+
+static Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List<ast::TupArg>* args, Id name) {
+    auto fun = findFun(&b->context, b->fun->module, funName);
+
 }
 
 Value* resolveApp(FunBuilder* b, ast::AppExpr* expr, Id name, bool used) {
@@ -263,13 +336,48 @@ Value* resolveApp(FunBuilder* b, ast::AppExpr* expr, Id name, bool used) {
         auto target = resolveExpr(b, callee->target, 0, true);
         auto staticField = testStaticField(b, 0, target, callee->field);
         if(staticField) {
-            // TODO: Dynamic call.
+            Value* field = nullptr;
+            if(staticField->type->kind == Type::Fun) {
+                field = staticField;
+            } else if(staticField->type->kind == Type::Ref && ((RefType*)staticField->type)->to->kind == Type::Fun) {
+                field = useValue(b, field, false);
+            }
+
+            if(field) {
+                return resolveDynCall(b, staticField, expr->args, name);
+            }
+        }
+
+        // TODO: Handle array and maps field loads.
+        if(callee->field->type == ast::Expr::Var) {
+            return resolveStaticCall(b, ((ast::VarExpr*)callee->field)->name, target, expr->args, name);
+        } else {
+            error(b, "field is not a function type", callee->field);
+            return nullptr;
+        }
+    } else if(expr->callee->type == ast::Expr::Var) {
+        auto callee = (ast::VarExpr*)expr->callee;
+
+        // If this is a variable of function type, call it.
+        auto var = findVar(b, callee->name);
+        if(var && var->type->kind == Type::Fun) {
+            return resolveDynCall(b, var, expr->args, name);
+        } else if(var && var->type->kind == Type::Ref && ((RefType*)var->type)->to->kind == Type::Fun) {
+            var = useValue(b, var, false);
+            return resolveDynCall(b, var, expr->args, name);
+        }
+
+        // Otherwise, look for a globally defined function.
+        return resolveStaticCall(b, callee->name, nullptr, expr->args, name);
+    } else {
+        auto callee = resolveExpr(b, expr->callee, 0, true);
+        if(callee->type->kind == Type::Fun) {
+            return resolveDynCall(b, callee, expr->args, name);
+        } else {
+            error(b, "callee is not a function type", expr->callee);
             return nullptr;
         }
     }
-
-    // TODO: Static or generic call.
-    return nullptr;
 }
 
 Value* resolveFun(FunBuilder* b, ast::FunExpr* expr, Id name, bool used) {

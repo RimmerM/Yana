@@ -227,6 +227,23 @@ Con* findCon(Context* context, Module* module, Id name) {
     }, identifier);
 }
 
+Function* findFun(Context* context, Module* module, Id name) {
+    auto identifier = &context->find(name);
+    return findHelper<Function>(context, module, [=](Module* m, Identifier* id, U32 start) -> Function* {
+        if(id->segmentCount - 1 == start) {
+            // Handle free functions.
+            // findHelper will automatically make sure that there are no conflicts in imports.
+            return m->functions.get(id->segmentHashes[start]);
+        } else if(id->segmentCount >= 2 && id->segmentCount - 2 == start) {
+            // TODO: Handle qualified functions, such as type instances.
+            // Type instances have priority over classes (in case the resolver allows name conflicts between them).
+            return nullptr;
+        }
+
+        return nullptr;
+    }, identifier);
+}
+
 OpProperties* findOp(Context* context, Module* module, Id name) {
     auto identifier = &context->find(name);
     return findHelper<OpProperties>(context, module, [=](Module* m, Identifier* id, U32 start) -> OpProperties* {

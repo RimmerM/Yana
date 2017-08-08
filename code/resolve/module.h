@@ -60,6 +60,7 @@ Arg* defineArg(Context* context, Function* fun, Id name, Type* type);
 
 Type* findType(Context* context, Module* module, Id name);
 Con* findCon(Context* context, Module* module, Id name);
+Function* findFun(Context* context, Module* module, Id name);
 OpProperties* findOp(Context* context, Module* module, Id name);
 Global* findGlobal(Context* context, Module* module, Id name);
 
