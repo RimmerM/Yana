@@ -9,7 +9,13 @@ void printValue(std::ostream& stream, Context& context, const Value* value) {
             stream.write(name.text, name.textLength);
         } else if(value->kind >= Value::FirstInst) {
             auto block = ((Inst*)value)->block;
-            auto blockIndex = block - block->function->blocks.pointer();
+
+            Size blockIndex = 0;
+            for(Size i = 0; i < block->function->blocks.size(); i++) {
+                if(block->function->blocks[i] == block) break;
+                blockIndex++;
+            }
+
             Size index = 0;
             for(Size i = 0; i < block->instructions.size(); i++) {
                 if(block->instructions[i] == value) break;
@@ -23,10 +29,8 @@ void printValue(std::ostream& stream, Context& context, const Value* value) {
             stream << "<unnamed>";
         }
     } else if(value->kind == Value::ConstInt) {
-        stream << "i ";
         stream << ((ConstInt*)value)->value;
     } else if(value->kind == Value::ConstFloat) {
-        stream << "f ";
         stream << ((ConstFloat*)value)->value;
     } else if(value->kind == Value::ConstString) {
         auto string = ((ConstString*)value);
@@ -106,7 +110,12 @@ void printType(std::ostream& stream, Context& context, const Type* type) {
 }
 
 void printBlockName(std::ostream& stream, const Block* block) {
-    auto index = block - block->function->blocks.pointer();
+    Size index = 0;
+    for(Size i = 0; i < block->function->blocks.size(); i++) {
+        if(block->function->blocks[i] == block) break;
+        index++;
+    }
+
     stream << '#';
     stream << index;
 }
@@ -145,10 +154,12 @@ void printFunction(std::ostream& stream, Context& context, const Function* fun) 
             stream << ", ";
         }
     }
-    stream << "):\n";
+    stream << ") -> ";
+    printType(stream, context, fun->returnType);
+    stream << ":\n";
 
     for(auto& block : fun->blocks) {
-        printBlock(stream, context, &block);
+        printBlock(stream, context, block);
     }
 }
 
@@ -300,14 +311,17 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
             break;
     }
 
-    printValue(stream, context, inst);
-    stream << " = ";
+    if(inst->type->kind != Type::Unit && inst->kind != Inst::InstRet) {
+        printValue(stream, context, inst);
+        stream << " = ";
+    }
+
     stream << name;
     stream << ' ';
 
     switch(inst->kind) {
         case Inst::InstAlloc:
-            if(((InstAlloc*)inst)->mut) stream << "<mut> ";
+            if(((InstAlloc*)inst)->mut) stream << "<mut>";
             break;
         case Inst::InstCall:
         case Inst::InstCallGen: {
@@ -349,6 +363,22 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         case Inst::InstJmp:
             printBlockName(stream, ((const InstJmp*)inst)->to);
             break;
+        case Inst::InstGetField: {
+            auto get = (InstGetField*)inst;
+            for(Size i = 0; i < get->chainLength; i++) {
+                stream << ", ";
+                stream << get->indexChain[i];
+            }
+            break;
+        }
+        case Inst::InstLoadField: {
+            auto get = (InstLoadField*)inst;
+            for(Size i = 0; i < get->chainLength; i++) {
+                stream << ", ";
+                stream << get->indexChain[i];
+            }
+            break;
+        }
     }
 
     stream << " : ";

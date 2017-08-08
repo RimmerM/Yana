@@ -44,6 +44,7 @@ set(SOURCE_FILES ${SOURCE_FILES}
     resolve/print.h
     resolve/expr.cpp
     resolve/builtins.cpp
+    resolve/builtins.h
 )
 
 set(SOURCE_FILES ${SOURCE_FILES}
