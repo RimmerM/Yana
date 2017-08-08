@@ -94,6 +94,22 @@ llvm::Value* genFExt(Gen* gen, InstFExt* inst) {
     return gen->builder->CreateFPExt(useValue(gen, inst->from), genType(gen, inst->type));
 }
 
+llvm::Value* genFToI(Gen* gen, InstFToI* inst) {
+    return gen->builder->CreateFPToSI(useValue(gen, inst->from), genType(gen, inst->type));
+}
+
+llvm::Value* genFToUI(Gen* gen, InstFToUI* inst) {
+    return gen->builder->CreateFPToUI(useValue(gen, inst->from), genType(gen, inst->type));
+}
+
+llvm::Value* genIToF(Gen* gen, InstIToF* inst) {
+    return gen->builder->CreateSIToFP(useValue(gen, inst->from), genType(gen, inst->type));
+}
+
+llvm::Value* genUIToF(Gen* gen, InstUIToF* inst) {
+    return gen->builder->CreateUIToFP(useValue(gen, inst->from), genType(gen, inst->type));
+}
+
 llvm::Value* genAdd(Gen* gen, InstBinary* inst) {
     return gen->builder->CreateAdd(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
 }
@@ -261,6 +277,14 @@ llvm::Value* genInstValue(Gen* gen, Inst* inst) {
             return genSExt(gen, (InstSExt*)inst);
         case Inst::InstFExt:
             return genFExt(gen, (InstFExt*)inst);
+        case Inst::InstFToI:
+            return genFToI(gen, (InstFToI*)inst);
+        case Inst::InstFToUI:
+            return genFToUI(gen, (InstFToUI*)inst);
+        case Inst::InstIToF:
+            return genIToF(gen, (InstIToF*)inst);
+        case Inst::InstUIToF:
+            return genUIToF(gen, (InstUIToF*)inst);
         case Inst::InstAdd:
             return genAdd(gen, (InstAdd*)inst);
         case Inst::InstSub:

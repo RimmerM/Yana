@@ -589,18 +589,16 @@ Expr* Parser::parseIfExpr() {
     } else {
         auto cond = parseExpr();
 
-        // Allow statement ends within an if-expression to allow then/else with the same indentation as if.
-        if(token.type == Token::EndOfStmt) eat();
-        if(token.type == Token::kwThen) {
-            eat();
-        } else {
-            error("Expected 'then' after if-expression.");
-        }
-
         Expr* expr;
         if(token.type == Token::opColon) {
             expr = parseBlock(false);
         } else {
+            if(token.type == Token::kwThen) {
+                eat();
+            } else {
+                error("Expected 'then' after if-expression.");
+            }
+
             expr = parseExpr();
         }
 
