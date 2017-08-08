@@ -263,6 +263,10 @@ Value* resolveVar(FunBuilder* b, ast::VarExpr* expr, bool asRV) {
     return useValue(b, value, asRV);
 }
 
+static void createCallArgs(FunBuilder* b, Value* firstArg, List<ast::TupArg>* argList) {
+
+}
+
 static Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* argList, Id name) {
     auto funType = (FunType*)callee->type;
     auto argCount = (U32)funType->argCount;
@@ -322,9 +326,76 @@ static Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* ar
     return callDyn(b->block, name, callee, args, argCount);
 }
 
-static Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List<ast::TupArg>* args, Id name) {
+static Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List<ast::TupArg>* argList, Id name) {
     auto fun = findFun(&b->context, b->fun->module, funName);
+    if(!fun) {
+        error(b, "no function found for this name", nullptr);
+        return nullptr;
+    }
 
+    // Make sure the function definition is finished.
+    resolveFun(&b->context, fun);
+
+    auto argCount = (U32)fun->args.size();
+
+    auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
+    memset(args, 0, sizeof(Value*) * argCount);
+
+    U32 i = 0;
+    if(firstArg) {
+        args[0] = firstArg;
+        i++;
+    }
+
+    while(argList) {
+        auto arg = argList->item;
+        auto argIndex = i;
+        bool found = true;
+
+        if(arg.name) {
+            found = false;
+            for(U32 a = 0; a < argCount; a++) {
+                auto fa = &fun->args[a];
+                if(arg.name == fa->name) {
+                    argIndex = fa->index;
+                    found = true;
+                }
+            }
+
+            if(!found) {
+                error(b, "function has no argument with this name", arg.value);
+            }
+        }
+
+        if(found) {
+            if(args[argIndex]) {
+                error(b, "function argument specified more than once", arg.value);
+            }
+
+            args[argIndex] = resolveExpr(b, arg.value, 0, true);
+        }
+
+        i++;
+        argList = argList->next;
+    }
+
+    // If the call used incorrect argument names this error may not trigger.
+    // However, in that case we already have an error for the argument name.
+    if(i != argCount) {
+        error(b, "incorrect number of function arguments", nullptr);
+    }
+
+    // Check the argument types and perform implicit conversions if needed.
+    for(i = 0; i < argCount; i++) {
+        auto v = implicitConvert(b, args[i], fun->args[i].type, false);
+        if(!v) {
+            error(b, "incompatible type for function argument", nullptr);
+        }
+
+        args[i] = v;
+    }
+
+    return call(b->block, name, fun, args, argCount);
 }
 
 Value* resolveApp(FunBuilder* b, ast::AppExpr* expr, Id name, bool used) {

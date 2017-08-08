@@ -397,7 +397,7 @@ static void prepareSymbols(Context* context, Module* module, ast::Decl** decls, 
 void resolveFun(Context* context, Function* fun) {
     // Check if the function was resolved already.
     auto ast = fun->ast;
-    if(!ast) return;
+    if(!ast || fun->resolving) return;
 
     // Set the flag for recursion detection.
     fun->resolving = true;
