@@ -48,7 +48,9 @@ Value* Block::findValue(Id name) {
 }
 
 Block* block(Function* fun) {
-    auto block = fun->blocks.push();
+    auto block = new (fun->module->memory) Block;
     block->function = fun;
-    return &*block;
+    fun->blocks.push(block);
+
+    return block;
 }

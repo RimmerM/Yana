@@ -44,6 +44,7 @@ ConstInt* constInt(Block* block, I64 value) {
     c->name = 0;
     c->kind = Value::ConstInt;
     c->type = &intTypes[IntType::Int];
+    c->value = value;
     return c;
 }
 
@@ -53,6 +54,7 @@ ConstFloat* constFloat(Block* block, double value) {
     c->name = 0;
     c->kind = Value::ConstFloat;
     c->type = &floatTypes[FloatType::F64];
+    c->value = value;
     return c;
 }
 
@@ -62,6 +64,8 @@ ConstString* constString(Block* block, const char* value, Size length) {
     c->name = 0;
     c->kind = Value::ConstString;
     c->type = &stringType;
+    c->value = value;
+    c->length = length;
     return c;
 }
 
@@ -280,7 +284,7 @@ InstLoadField* loadField(Block* block, Id name, Value* from, Type* type, U32* in
 
 InstStore* store(Block* block, Id name, Value* to, Value* value) {
     assert(to->type->kind == Type::Ref);
-    auto inst = (InstStore*)block->inst(sizeof(InstStore), name, Inst::InstStore, ((RefType*)to->type)->to);
+    auto inst = (InstStore*)block->inst(sizeof(InstStore), name, Inst::InstStore, &unitType);
     inst->to = to;
     inst->value = value;
 
@@ -294,7 +298,7 @@ InstStore* store(Block* block, Id name, Value* to, Value* value) {
 
 InstStoreField* storeField(Block* block, Id name, Value* to, Value* value, U32* indices, U32 count) {
     assert(to->type->kind == Type::Ref);
-    auto inst = (InstStoreField*)block->inst(sizeof(InstStoreField), name, Inst::InstStoreField, ((RefType*)to->type)->to);
+    auto inst = (InstStoreField*)block->inst(sizeof(InstStoreField), name, Inst::InstStoreField, &unitType);
     inst->to = to;
     inst->value = value;
     inst->indexChain = indices;

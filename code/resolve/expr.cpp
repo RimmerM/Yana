@@ -622,8 +622,14 @@ Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used)
         }
 
         if(returnCount == caseCount) {
-            b->fun->blocks.remove(next - b->fun->blocks.pointer());
-            b->block = &*b->fun->blocks.back();
+            Size blockIndex = 0;
+            for(Size i = 0; i < b->fun->blocks.size(); i++) {
+                if(b->fun->blocks[i] == next) break;
+                blockIndex++;
+            }
+
+            b->fun->blocks.remove(blockIndex);
+            b->block = *b->fun->blocks.back();
         } else {
             for(U32 i = 0; i < caseCount; i++) {
                 if(!alts[i].fromBlock->complete) {
@@ -691,7 +697,7 @@ Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr) {
             }
 
             auto val = resolveExpr(b, expr->value, 0, true);
-            store(b->block, 0, var, val);
+            return store(b->block, 0, var, val);
         }
         case ast::Expr::Field: {
 

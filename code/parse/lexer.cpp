@@ -726,6 +726,7 @@ void Lexer::parseNumericLiteral() {
             } else if(!isDigit(*d)) {
                 // This wasn't a valid float.
                 token->data.integer = parseIntLiteral<10>(p, parseDigit);
+                return;
             }
 
             d++;
@@ -970,7 +971,7 @@ void Lexer::parseVariable(const char** start, U32* length) {
     // Read the identifier name.
     U32 count = 1;
     auto s = p;
-    while(isIdentifier(*(++p))) length++;
+    while(isIdentifier(*(++p))) count++;
 
     *start = s;
     *length = count;
