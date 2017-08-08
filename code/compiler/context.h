@@ -11,6 +11,14 @@
 struct Identifier {
     Identifier(): textLength(0), segmentCount(0) {}
 
+    U32 getHash(U32 index) {
+        if(segmentCount == 1) {
+            return segmentHash;
+        } else {
+            return segmentHashes[index];
+        }
+    }
+
     const char* text;
 
     // If `segmentCount == 1`, this is set to nullptr.

@@ -196,7 +196,7 @@ Type* findType(Context* context, Module* module, Id name) {
     return findHelper<Type>(context, module, [=](Module* m, Identifier* id, U32 start) -> Type* {
         if(id->segmentCount - 1 > start) return nullptr;
 
-        auto type = m->types.get(id->segmentHashes[start]);
+        auto type = m->types.get(id->getHash(start));
         return type ? *type : nullptr;
     }, identifier);
 }
@@ -205,15 +205,15 @@ Con* findCon(Context* context, Module* module, Id name) {
     auto identifier = &context->find(name);
     return findHelper<Con>(context, module, [=](Module* m, Identifier* id, U32 start) -> Con* {
         if(id->segmentCount - 1 == start) {
-            auto con = m->cons.get(id->segmentHashes[start]);
+            auto con = m->cons.get(id->getHash(start));
             return con ? *con : nullptr;
         } else if(id->segmentCount >= 2 && id->segmentCount - 2 == start) {
             // For qualified identifiers, look up the corresponding type in case its constructors are qualified.
-            Type** type = m->types.get(id->segmentHashes[start]);
+            Type** type = m->types.get(id->getHash(start));
             if(!type || (*type)->kind != Type::Record) return nullptr;
 
             auto record = (RecordType*)*type;
-            auto conName = id->segmentHashes[start + 1];
+            auto conName = id->getHash(start + 1);
             for(U32 i = 0; i < record->conCount; i++) {
                 if(record->cons[i].name == conName) {
                     return record->cons + i;
@@ -233,7 +233,7 @@ Function* findFun(Context* context, Module* module, Id name) {
         if(id->segmentCount - 1 == start) {
             // Handle free functions.
             // findHelper will automatically make sure that there are no conflicts in imports.
-            return m->functions.get(id->segmentHashes[start]);
+            return m->functions.get(id->getHash(start));
         } else if(id->segmentCount >= 2 && id->segmentCount - 2 == start) {
             // TODO: Handle qualified functions, such as type instances.
             // Type instances have priority over classes (in case the resolver allows name conflicts between them).
@@ -248,7 +248,7 @@ OpProperties* findOp(Context* context, Module* module, Id name) {
     auto identifier = &context->find(name);
     return findHelper<OpProperties>(context, module, [=](Module* m, Identifier* id, U32 start) -> OpProperties* {
         if(id->segmentCount - 1 > start) return nullptr;
-        return m->ops.get(id->segmentHashes[start]);
+        return m->ops.get(id->getHash(start));
     }, identifier);
 }
 
@@ -256,7 +256,7 @@ Global* findGlobal(Context* context, Module* module, Id name) {
     auto identifier = &context->find(name);
     return findHelper<Global>(context, module, [=](Module* m, Identifier* id, U32 start) -> Global* {
         if(id->segmentCount - 1 > start) return nullptr;
-        return m->globals.get(id->segmentHashes[start]);
+        return m->globals.get(id->getHash(start));
     }, identifier);
 }
 
@@ -282,8 +282,7 @@ static bool prepareImports(Context* context, Module* module, ModuleHandler* hand
     U32 missingImports = 0;
     for(Size i = 0; i < count; i++) {
         auto& import = imports[i];
-        auto name = &context->find(import.from);
-        auto importModule = handler->require(context, module, name);
+        auto importModule = handler->require(context, module, import.from);
         if(!importModule) {
             missingImports++;
             continue;
@@ -311,13 +310,12 @@ static bool prepareImports(Context* context, Module* module, ModuleHandler* hand
     auto preludeId = context->addUnqualifiedName("Prelude", 7);
     auto hasPrelude = module->imports.get(preludeId) != nullptr;
     if(!hasPrelude) {
-        auto preludeName = &context->find(preludeId);
-        auto prelude = handler->require(context, module, preludeName);
+        auto prelude = handler->require(context, module, preludeId);
         if(!prelude) return false;
 
         auto import = &module->imports[preludeId];
         import->module = prelude;
-        import->localName = preludeName;
+        import->localName = prelude->name;
         import->qualified = false;
     }
 
@@ -402,7 +400,7 @@ void resolveFun(Context* context, Function* fun) {
     // Set the flag for recursion detection.
     fun->resolving = true;
 
-    auto startBlock = &*fun->blocks.push();
+    auto startBlock = block(fun);
 
     // Add the function arguments.
     auto arg = ast->args;
@@ -426,14 +424,14 @@ void resolveFun(Context* context, Function* fun) {
         expectedReturn = resolveType(context, fun->module, ast->ret);
     }
 
-    bool resultUsed = true;
+    bool implicitReturn = true;
     if(ast->body->type == ast::Expr::Multi) {
-        resultUsed = false;
+        implicitReturn = false;
     }
 
     FunBuilder builder(fun, startBlock, *context, fun->module->memory);
-    auto body = resolveExpr(&builder, ast->body, 0, resultUsed);
-    if(resultUsed && body->kind != Inst::InstRet) {
+    auto body = resolveExpr(&builder, ast->body, 0, true);
+    if(implicitReturn && body->kind != Inst::InstRet) {
         // The function is an expression - implicitly return the result if needed.
         ret(body->block, body);
     } else if(!body->block->complete) {
@@ -461,6 +459,7 @@ void resolveFun(Context* context, Function* fun) {
 
 Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast) {
     auto module = new Module;
+    module->id = ast->name;
     module->name = &context->find(ast->name);
 
     // Load any imported modules.

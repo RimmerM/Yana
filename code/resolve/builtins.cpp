@@ -3,7 +3,8 @@
 
 Module* preludeModule(Context* context) {
     auto module = new Module;
-    module->name = &context->find(context->addUnqualifiedName("Prelude", 7));
+    module->id = context->addUnqualifiedName("Prelude", 7);
+    module->name = &context->find(module->id);
 
     // Define basic operators.
     auto opEq = context->addUnqualifiedName("==", 2);
@@ -69,8 +70,8 @@ Module* preludeModule(Context* context) {
 
 Module* unsafeModule(Context* context) {
     auto module = new Module;
-    module->name = &context->find(context->addUnqualifiedName("Unsafe", 6));
-
+    module->id = context->addUnqualifiedName("Unsafe", 6);
+    module->name = &context->find(module->id);
 
 
     return module;

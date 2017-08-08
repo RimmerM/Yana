@@ -20,6 +20,7 @@ struct Import {
 };
 
 struct Module {
+    Id id;
     Identifier* name;
 
     HashMap<Import, Id> imports;
@@ -45,7 +46,7 @@ struct ModuleHandler {
     // Returns a module for the provided identifier if it was available.
     // If not, returns null and queues the module for loading and the caller for later completion.
     // The resolver should only resolve imports and then stop if any require call returns null.
-    virtual Module* require(Context* context, Module* from, Identifier* id) = 0;
+    virtual Module* require(Context* context, Module* from, Id name) = 0;
 };
 
 AliasType* defineAlias(Context* context, Module* in, Id name, Type* to);
@@ -72,10 +73,9 @@ struct Function {
     Module* module;
     Id name;
 
-    Block* body = nullptr;
     Type* returnType = nullptr;
-    Array<Arg> args;
-    Array<Block> blocks;
+    Array<Arg> args; // Can contain values because all are created before we use them.
+    Array<Block*> blocks; // Can't contain values because we store the pointers to them.
     Array<InstRet*> returnPoints;
 
     ast::FunDecl* ast = nullptr; // Set until the function is fully resolved.
