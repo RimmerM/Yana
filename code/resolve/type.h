@@ -81,6 +81,10 @@ struct FloatType: Type {
 };
 
 // A reference to a value. A reference can be traced, untraced or local, as well as mutable/immutable.
+// The code generator should handle some implicit conversions that won't affect the generator code in most cases:
+//  - A mutable reference can be implicitly converted to an immutable one.
+//  - An untraced reference can be implicitly converted to a local one.
+// All other cases are handled explicitly in the IR.
 struct RefType: Type {
     RefType(Type* to, bool isTraced, bool isLocal, bool isMutable):
         Type(Ref), to(to), isTraced(isTraced), isLocal(isLocal), isMutable(isMutable) {}
@@ -149,16 +153,22 @@ struct TupType: Type {
 };
 
 struct Con {
+    struct RecordType* parent;
+    Field* fields;
     Id name;
     U32 index;
-    struct RecordType* parent;
-    Type* content;
+    U32 count;
 };
 
 struct RecordType: Type {
     enum Kind {
+        // An enum record acts as a single int type.
         Enum,
+
+        // A single constructor record acts as the type in its constructor.
         Single,
+
+        // A multi-constructor record acts as two fields - the constructor id and data.
         Multi,
     };
 
@@ -168,10 +178,10 @@ struct RecordType: Type {
     Con* cons;
     Type** gens;
     Id name;
-    U16 conCount;
-    U16 genCount: 13;
-    Kind kind: 2;
-    bool qualified: 1; // Set if the type constructors are namespaced within the type.
+    U32 conCount;
+    U32 genCount;
+    Kind kind;
+    bool qualified; // Set if the type constructors are namespaced within the type.
 };
 
 struct AliasType: Type {

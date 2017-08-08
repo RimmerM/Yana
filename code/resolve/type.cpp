@@ -176,7 +176,21 @@ void resolveRecord(Context* context, Module* module, RecordType* type) {
         auto conAst = ast->cons;
         for(U32 i = 0; i < type->conCount; i++) {
             if(conAst->item.content) {
-                type->cons[i].content = findType(context, module, conAst->item.content);
+                auto content = findType(context, module, conAst->item.content);
+                if(content->kind == Type::Tup) {
+                    auto tup = (TupType*)content;
+                    type->cons[i].fields = tup->fields;
+                    type->cons[i].count = tup->count;
+                } else {
+                    auto field = new (module->memory) Field;
+                    field->type = content;
+                    field->name = 0;
+                    field->index = 0;
+                    field->container = type;
+                    type->cons[i].fields = field;
+                    type->cons[i].count = 1;
+                }
+
                 filledCount++;
             }
             conAst = conAst->next;
@@ -285,8 +299,8 @@ Type* canonicalType(Type* type) {
             return ((RefType*)type)->to;
         case Type::Record: {
             auto t = (RecordType*)type;
-            if(t->conCount == 1 && t->cons[0].content) {
-                return t->cons[0].content;
+            if(t->conCount == 1 && t->cons[0].count == 1) {
+                return t->cons[0].fields[0].type;
             } else {
                 return type;
             }
