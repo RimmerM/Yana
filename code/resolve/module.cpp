@@ -24,7 +24,7 @@ RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bo
     r->name = name;
     r->qualified = qualified;
     r->genCount = 0;
-    r->conCount = (U16)conCount;
+    r->conCount = conCount;
     if(conCount > 0) {
         r->cons = (Con*)in->memory.alloc(sizeof(Con) * conCount);
     }
@@ -33,14 +33,15 @@ RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bo
     return r;
 }
 
-Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index, Type* content) {
+Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index, Field* fields, U32 count) {
     if(in->cons.get(name)) {
         // TODO: Error
     }
 
     auto con = to->cons + index;
     con->name = name;
-    con->content = content;
+    con->fields = fields;
+    con->count = count;
     con->index = index;
     con->parent = to;
 
@@ -355,11 +356,11 @@ static void prepareSymbols(Context* context, Module* module, ast::Decl** decls, 
 
                 auto record = defineRecord(context, module, ast->type->name, conCount, ast->qualified);
                 record->ast = ast;
-                record->genCount = (U16)prepareGens(context, module, ast->type, record->gens);
+                record->genCount = prepareGens(context, module, ast->type, record->gens);
 
                 con = ast->cons;
                 for(U32 i = 0; i < conCount; i++) {
-                    defineCon(context, module, record, con->item.name, i, nullptr);
+                    defineCon(context, module, record, con->item.name, i, nullptr, 0);
                     con = con->next;
                 }
 
@@ -384,12 +385,21 @@ void resolveFun(Context* context, Function* fun) {
     // Set the flag for recursion detection.
     fun->resolving = true;
 
+    auto startBlock = &*fun->blocks.push();
+
     // Add the function arguments.
     auto arg = ast->args;
     while(arg) {
         auto a = arg->item;
         auto type = resolveType(context, fun->module, a.type);
-        defineArg(context, fun, a.name, type);
+        auto v = defineArg(context, fun, a.name, type);
+
+        // A val-type argument is copied but can be mutated within the function.
+        if(a.type->kind == ast::Type::Val) {
+            auto p = alloc(startBlock, a.name, type, true, true);
+            store(startBlock, 0, p, v);
+        }
+
         arg = arg->next;
     }
 
@@ -404,7 +414,7 @@ void resolveFun(Context* context, Function* fun) {
         resultUsed = false;
     }
 
-    FunBuilder builder(fun, &*fun->blocks.push(), *context, fun->module->memory);
+    FunBuilder builder(fun, startBlock, *context, fun->module->memory);
     auto body = resolveExpr(&builder, ast->body, 0, resultUsed);
     if(resultUsed && body->kind != Inst::InstRet) {
         // The function is an expression - implicitly return the result if needed.
