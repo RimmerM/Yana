@@ -11,6 +11,8 @@ set(SOURCE_FILES ${SOURCE_FILES}
     util/hash.h
     util/hash.cpp
     util/map.h
+    util/string.cpp
+    util/string.h
 )
 
 set(SOURCE_FILES ${SOURCE_FILES}

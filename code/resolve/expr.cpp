@@ -1,5 +1,6 @@
 #include "../parse/ast.h"
 #include "module.h"
+#include "../util/string.h"
 
 template<class... T>
 static void error(FunBuilder* b, const char* message, const Node* node, T&&... p) {
@@ -117,6 +118,19 @@ static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool is
     } else if(isConstruct && kind == Type::Int && targetKind == Type::Float) {
         v->name = 0;
         return itof(v->block, name, v, targetType);
+    } else if(isConstruct && kind == Type::String && targetKind == Type::Int && v->kind == Value::ConstString) {
+        // A string literal with a single code point can be converted to an integer.
+        auto string = (ConstString*)v;
+        U32 codePoint = 0;
+        if(string->length > 0) {
+            auto bytes = string->value;
+            convertNextPoint(bytes, &codePoint);
+            if(string->length > (bytes - string->value)) {
+                error(b, "cannot convert a string with multiple characters to an int", nullptr);
+            }
+        }
+
+        return constInt(v->block, codePoint);
     }
 
     error(b, "cannot implicitly convert to type", nullptr);
