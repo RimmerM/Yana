@@ -708,13 +708,14 @@ Expr* Parser::parseBaseExpr() {
             if(token.type == Token::ParenL) {
                 auto args = parens([=] {
                     return sepBy([=] {
-                        return parseExpr();
+                        return parseTupArg();
                     }, Token::Comma, Token::ParenR);
                 });
 
                 return new (buffer) ConExpr(type, args);
             } else if(token.type == Token::BraceL) {
-                return new (buffer) ConExpr(type, list(parseTupleExpr()));
+                auto expr = (TupExpr*)parseTupleExpr();
+                return new (buffer) ConExpr(type, expr->args);
             } else {
                 return new (buffer) ConExpr(type, nullptr);
             }

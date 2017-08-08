@@ -329,9 +329,9 @@ struct FieldExpr: Expr {
 };
 
 struct ConExpr: Expr {
-    ConExpr(ConType* type, List<Expr*>* args): Expr(Con), type(type), args(args) {}
+    ConExpr(ConType* type, List<TupArg>* args): Expr(Con), type(type), args(args) {}
     ConType* type;
-    List<Expr*>* args;
+    List<TupArg>* args;
 };
 
 struct TupExpr: Expr {
