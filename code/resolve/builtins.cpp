@@ -68,7 +68,7 @@ Module* preludeModule(Context* context) {
     return module;
 }
 
-Module* unsafeModule(Context* context) {
+Module* unsafeModule(Context* context, Module* prelude) {
     auto module = new Module;
     module->id = context->addUnqualifiedName("Unsafe", 6);
     module->name = &context->find(module->id);

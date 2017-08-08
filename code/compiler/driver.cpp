@@ -7,6 +7,27 @@
 #include "../resolve/module.h"
 #include "../parse/parser.h"
 #include "../resolve/print.h"
+#include "../resolve/builtins.h"
+
+struct FileHandler: ModuleHandler {
+    Module* prelude;
+    Module* unsafe;
+
+    FileHandler(Context* context) {
+        prelude = preludeModule(context);
+        unsafe = unsafeModule(context, prelude);
+    }
+
+    virtual Module* require(Context* context, Module* from, Id name) override {
+        if(name == prelude->id) {
+            return prelude;
+        } else if(name == unsafe->id) {
+            return unsafe;
+        } else {
+            return nullptr;
+        }
+    }
+};
 
 bool isDirectory(const char* path) {
     struct stat type;
@@ -14,7 +35,7 @@ bool isDirectory(const char* path) {
     return S_ISDIR(type.st_mode);
 }
 
-Module* compileFile(Context& context, const char* path, U32 rootPath) {
+Module* compileFile(Context& context, ModuleHandler& handler, const char* path, U32 rootPath) {
     char nameBuffer[2048];
     Size length = 0;
     Size segments = 1;
@@ -43,13 +64,13 @@ Module* compileFile(Context& context, const char* path, U32 rootPath) {
     auto size = ftell(file);
     rewind(file);
     auto text = (char*)malloc(size + 1);
-    fread(text, size, size, file);
+    fread(text, size, 1, file);
     text[size] = 0;
 
     Parser parser(context, ast, text);
     parser.parseModule();
 
-    return resolveModule(&context, nullptr, &ast);
+    return resolveModule(&context, &handler, &ast);
 }
 
 int main(int argc, const char** argv) {
@@ -63,12 +84,13 @@ int main(int argc, const char** argv) {
 
     PrintDiagnostics diagnostics;
     Context context(diagnostics);
+    FileHandler handler(&context);
     Array<Module*> compiledModules;
 
     if(isDirectory(root)) {
         // TODO:
     } else {
-        auto module = compileFile(context, root, strlen(root));
+        auto module = compileFile(context, handler, root, strlen(root));
         if(module) {
             compiledModules.push(module);
         }
@@ -76,9 +98,14 @@ int main(int argc, const char** argv) {
 
     std::ofstream irFile(output, std::ios_base::out);
     for(auto module: compiledModules) {
-        irFile << "\nmodule ";
-        irFile.write(module->name->text, module->name->textLength);
-        irFile << '\n';
+        irFile << "module ";
+        if(module->name->textLength > 0) {
+            irFile.write(module->name->text, module->name->textLength);
+        } else {
+            irFile << "<unnamed>";
+        }
+
+        irFile << "\n\n";
         printModule(irFile, context, module);
     }
 }
