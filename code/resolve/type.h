@@ -7,6 +7,7 @@ namespace ast { struct AliasDecl; struct DataDecl; struct ClassDecl; struct Type
 struct Module;
 struct Function;
 struct TypeClass;
+struct DerivedTypes;
 
 struct Type {
     enum Kind {
@@ -17,7 +18,6 @@ struct Type {
         Float,
         String,
         Ref,
-        Ptr,
         Fun,
         Array,
         Map,
@@ -30,9 +30,7 @@ struct Type {
 
     // We store a reference to some of the of types that reference a single type.
     // This is an efficient way to make sure that only a single instance is created.
-    Type* refTo = nullptr;
-    Type* ptrTo = nullptr;
-    Type* arrayTo = nullptr;
+    DerivedTypes* derived = nullptr;
 
     Type(Kind kind): kind(kind) {}
 };
@@ -82,16 +80,28 @@ struct FloatType: Type {
     Width width;
 };
 
-// A reference to a GC'd value on the heap.
+// A reference to a value. A reference can be traced, untraced or local, as well as mutable/immutable.
 struct RefType: Type {
-    RefType(Type* to): Type(Ref), to(to) {}
-    Type* to;
-};
+    RefType(Type* to, bool isTraced, bool isLocal, bool isMutable):
+        Type(Ref), to(to), isTraced(isTraced), isLocal(isLocal), isMutable(isMutable) {}
 
-// An untraced pointer to any value.
-struct PtrType: Type {
-    PtrType(Type* to): Type(Ptr), to(to) {}
     Type* to;
+
+    // A traced reference points to the heap and is managed by the GC.
+    // Loads and stores may need a read/write barrier depending on the GC used.
+    // An untraced reference can point anywhere, but is considered unsafe if it is not also local.
+    // Unsafe references cannot be used when compiling to JS.
+    bool isTraced;
+
+    // Local references point to a value on the stack. They can be sent upwards on the stack,
+    // but cannot be returned or stored in non-local references.
+    // A local reference is never traced.
+    bool isLocal;
+
+    // If a reference is mutable, the location it points to can be stored into.
+    // Otherwise, if can only be loaded.
+    // This is more than just a flag, since mutable references may be stored in a different heap than immutable ones.
+    bool isMutable;
 };
 
 struct FunArg {
@@ -197,17 +207,31 @@ struct InstanceLookup {
     U32 depth = 0;
 };
 
+struct DerivedTypes {
+    explicit DerivedTypes(Type* type):
+        tracedMutableRef(type, true, false, true),
+        tracedImmutableRef(type, true, false, false),
+        localMutableRef(type, false, true, true),
+        localImmutableRef(type, false, true, false),
+        untracedRef(type, false, false, true),
+        arrayTo(type) {}
+
+    RefType tracedMutableRef;
+    RefType tracedImmutableRef;
+    RefType localMutableRef;
+    RefType localImmutableRef;
+    RefType untracedRef;
+    ArrayType arrayTo;
+};
+
 // Global instances of the basic builtin types.
 extern Type unitType;
 extern FloatType floatTypes[FloatType::KindCount];
 extern IntType intTypes[IntType::KindCount];
 extern Type stringType;
 
-// Returns a pointer to the provided type.
-Type* getPtr(Module* module, Type* to);
-
 // Returns a reference to the provided type.
-Type* getRef(Module* module, Type* to);
+Type* getRef(Module* module, Type* to, bool traced, bool local, bool mut);
 
 // Returns an array type of the provided type.
 Type* getArray(Module* module, Type* to);

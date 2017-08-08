@@ -56,12 +56,8 @@ void printType(std::ostream& stream, Context& context, const Type* type) {
             stream << 's';
             break;
         case Type::Ref:
-            stream << '&';
-            printType(stream, context, ((RefType*)type)->to);
-            break;
-        case Type::Ptr:
             stream << '*';
-            printType(stream, context, ((PtrType*)type)->to);
+            printType(stream, context, ((RefType*)type)->to);
             break;
         case Type::Array:
             stream << '[';

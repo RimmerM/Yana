@@ -91,12 +91,12 @@ static Type* findType(Context* context, Module* module, ast::Type* type) {
         case ast::Type::Ptr: {
             auto ast = (ast::PtrType*)type;
             auto content = resolveType(context, module, ast->type);
-            return getPtr(module, content);
+            return getRef(module, content, false, false, true);
         }
         case ast::Type::Ref: {
             auto ast = (ast::RefType*)type;
             auto content = resolveType(context, module, ast->type);
-            return getRef(module, content);
+            return getRef(module, content, true, false, true);
         }
         case ast::Type::Val: {
             auto ast = (ast::ValType*)type;
@@ -190,28 +190,30 @@ void resolveRecord(Context* context, Module* module, RecordType* type) {
     }
 }
 
-Type* getPtr(Module* module, Type* to) {
-    if(!to->ptrTo) {
-        to->ptrTo = new (module->memory) PtrType(to);
+Type* getRef(Module* module, Type* to, bool traced, bool local, bool mut) {
+    if(!to->derived) {
+        to->derived = new (module->memory) DerivedTypes(to);
     }
 
-    return to->ptrTo;
-}
-
-Type* getRef(Module* module, Type* to) {
-    if(!to->refTo) {
-        to->refTo = new (module->memory) RefType(to);
+    if(traced && mut) {
+        return &to->derived->tracedMutableRef;
+    } else if(traced) {
+        return &to->derived->tracedImmutableRef;
+    } else if(local && mut) {
+        return &to->derived->localMutableRef;
+    } else if(local) {
+        return &to->derived->localImmutableRef;
+    } else {
+        return &to->derived->untracedRef;
     }
-
-    return to->refTo;
 }
 
 Type* getArray(Module* module, Type* to) {
-    if(!to->arrayTo) {
-        to->arrayTo = new (module->memory) ArrayType(to);
+    if(!to->derived) {
+        to->derived = new (module->memory) DerivedTypes(to);
     }
 
-    return to->arrayTo;
+    return &to->derived->arrayTo;
 }
 
 Type* resolveDefinition(Context* context, Module* module, Type* type) {
@@ -254,10 +256,17 @@ bool compareTypes(Context* context, Type* lhs, Type* rhs) {
             return rhs->kind == Type::Float && ((FloatType*)lhs)->width == ((FloatType*)rhs)->width;
         case Type::String:
             return rhs->kind == Type::String;
-        case Type::Ref:
-            return rhs->kind == Type::Ref && compareTypes(context, ((RefType*)lhs)->to, ((RefType*)rhs)->to);
-        case Type::Ptr:
-            return rhs->kind == Type::Ptr && compareTypes(context, ((PtrType*)lhs)->to, ((PtrType*)rhs)->to);
+        case Type::Ref: {
+            if(rhs->kind != Type::Ref) return false;
+            auto a = (RefType*)lhs;
+            auto b = (RefType*)rhs;
+
+            if(a->isTraced != b->isTraced) return false;
+            if(a->isLocal != b->isLocal) return false;
+            if(a->isMutable != b->isMutable) return false;
+
+            return compareTypes(context, ((RefType*)lhs)->to, ((RefType*)rhs)->to);
+        }
         case Type::Array:
             return rhs->kind == Type::Array && compareTypes(context, ((ArrayType*)lhs)->content, ((ArrayType*)rhs)->content);
         case Type::Map: {
@@ -274,8 +283,6 @@ Type* canonicalType(Type* type) {
     switch(type->kind) {
         case Type::Ref:
             return ((RefType*)type)->to;
-        case Type::Ptr:
-            return ((PtrType*)type)->to;
         case Type::Record: {
             auto t = (RecordType*)type;
             if(t->conCount == 1 && t->cons[0].content) {

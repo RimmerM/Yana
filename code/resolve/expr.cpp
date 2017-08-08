@@ -91,7 +91,7 @@ static Value* testStaticField(FunBuilder* b, Id name, Value* target, ast::Expr* 
     auto indices = (U32*)b->fun->module->memory.alloc(sizeof(U32));
     indices[0] = staticField->index;
 
-    if(target->type->kind == Type::Ref || target->type->kind == Type::Ptr) {
+    if(target->type->kind == Type::Ref) {
         return loadField(b->block, name, target, staticField->type, indices, 1);
     } else {
         return getField(b->block, name, target, staticField->type, indices, 1);
@@ -153,7 +153,7 @@ Value* resolveVar(FunBuilder* b, ast::VarExpr* expr, bool asRV) {
         return nullptr;
     }
 
-    if(!asRV && (value->type->kind == Type::Ref || value->type->kind == Type::Ptr)) {
+    if(!asRV && (value->type->kind == Type::Ref)) {
         return load(b->block, 0, value);
     } else {
         return value;
@@ -413,7 +413,7 @@ Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr) {
     switch(target->type) {
         case ast::Expr::Var: {
             auto var = resolveVar(b, (ast::VarExpr*)target, true);
-            if(var->type->kind != Type::Ref && var->type->kind != Type::Ptr) {
+            if(var->type->kind != Type::Ref) {
                 error(b, "type is not assignable", target);
             }
 

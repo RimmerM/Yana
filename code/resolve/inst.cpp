@@ -225,14 +225,15 @@ InstFun* fun(Block* block, Id name, struct Function* body, Type* type, Size fram
 }
 
 InstAlloc* alloc(Block* block, Id name, Type* type, bool mut) {
-    auto inst = (InstAlloc*)block->inst(sizeof(InstAlloc), name, Inst::InstAlloc, getRef(block->function->module, type));
+    auto refType = getRef(block->function->module, type, true, false, mut);
+    auto inst = (InstAlloc*)block->inst(sizeof(InstAlloc), name, Inst::InstAlloc, refType);
     inst->valueType = type;
     inst->mut = mut;
     return inst;
 }
 
 InstLoad* load(Block* block, Id name, Value* from) {
-    assert(from->type->kind == Type::Ref || from->type->kind == Type::Ptr);
+    assert(from->type->kind == Type::Ref);
     auto inst = (InstLoad*)block->inst(sizeof(InstLoad), name, Inst::InstLoad, ((RefType*)from->type)->to);
     inst->from = from;
 
@@ -244,7 +245,7 @@ InstLoad* load(Block* block, Id name, Value* from) {
 }
 
 InstLoadField* loadField(Block* block, Id name, Value* from, Type* type, U32* indices, U32 count) {
-    assert(from->type->kind == Type::Ref || from->type->kind == Type::Ptr);
+    assert(from->type->kind == Type::Ref);
     auto inst = (InstLoadField*)block->inst(sizeof(InstLoadField), name, Inst::InstLoadField, type);
     inst->from = from;
     inst->indexChain = indices;
@@ -258,7 +259,7 @@ InstLoadField* loadField(Block* block, Id name, Value* from, Type* type, U32* in
 }
 
 InstStore* store(Block* block, Id name, Value* to, Value* value) {
-    assert(to->type->kind == Type::Ref || to->type->kind == Type::Ptr);
+    assert(to->type->kind == Type::Ref);
     auto inst = (InstStore*)block->inst(sizeof(InstStore), name, Inst::InstStore, ((RefType*)to->type)->to);
     inst->to = to;
     inst->value = value;
@@ -272,7 +273,7 @@ InstStore* store(Block* block, Id name, Value* to, Value* value) {
 }
 
 InstStoreField* storeField(Block* block, Id name, Value* to, Value* value, U32* indices, U32 count) {
-    assert(to->type->kind == Type::Ref || to->type->kind == Type::Ptr);
+    assert(to->type->kind == Type::Ref);
     auto inst = (InstStoreField*)block->inst(sizeof(InstStoreField), name, Inst::InstStoreField, ((RefType*)to->type)->to);
     inst->to = to;
     inst->value = value;

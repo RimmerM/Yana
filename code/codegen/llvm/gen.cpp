@@ -47,8 +47,6 @@ llvm::Type* genType(Gen* gen, Type* type) {
             return gen->builder->getInt8PtrTy(0);
         case Type::Ref:
             return llvm::PointerType::get(genType(gen, ((RefType*)type)->to), 0);
-        case Type::Ptr:
-            return llvm::PointerType::get(genType(gen, ((PtrType*)type)->to), 0);
         case Type::Fun:
         case Type::Array:
         case Type::Map:
