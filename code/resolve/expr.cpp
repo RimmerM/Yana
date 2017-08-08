@@ -38,10 +38,103 @@ static ast::InfixExpr* reorder(Context* context, Module* module, ast::InfixExpr*
     return lhs;
 }
 
+// Adds code to implicitly convert a value if possible.
+// This adds code in the block the value is defined in, not the current one.
+// If isConstruct is set, the conversion is less strict since the target type is explicitly defined.
+// Returns the new value or null if no conversion is possible.
+static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool isConstruct) {
+    auto type = v->type;
+    if(compareTypes(&b->context, type, targetType)) return v;
+
+    auto kind = type->kind;
+    auto targetKind = targetType->kind;
+    auto name = v->name;
+
+    // TODO: Support conversions between equivalent tuple types.
+    // TODO: Support conversions to generic types.
+    if(kind == Type::Ref && targetKind == Type::Ref) {
+        // Different reference kinds can be implicitly converted in some cases.
+        auto ref = (RefType*)type;
+        auto targetRef = (RefType*)targetType;
+
+        // This case is handled implicitly by the code generators.
+        if(ref->isMutable && !targetRef->isMutable) {
+            return v;
+        }
+
+        // A local reference can be implicitly converted to a traced one.
+        // Following the semantics of the language, the contained value is copied.
+        if(ref->isLocal && targetRef->isTraced) {
+            v->name = 0;
+            auto newRef = alloc(v->block, name, targetRef->to, targetRef->isMutable, false);
+            load(v->block, 0, v);
+            store(v->block, 0, newRef, v);
+            return newRef;
+        }
+
+        // All other cases are unsafe (traced to untraced)
+        // or would have unexpected side-effects (copying untraced to traced).
+    } else if(kind == Type::Ref) {
+        // A returned reference can be implicitly loaded to a register.
+        auto ref = (RefType*)type;
+        if(compareTypes(&b->context, ref->to, targetType)) {
+            v->name = 0;
+            return load(v->block, name, v);
+        }
+    } else if(kind == Type::Int && targetKind == Type::Int) {
+        // Integer types can be implicitly extended to a larger type.
+        auto intType = (IntType*)type;
+        auto targetInt = (IntType*)targetType;
+        if(intType->bits == targetInt->bits) {
+            return v;
+        } else if(intType->bits < targetInt->bits) {
+            v->name = 0;
+            return sext(v->block, name, v, targetType);
+        } else if(isConstruct) {
+            v->name = 0;
+            return trunc(v->block, name, v, targetType);
+        } else {
+            error(b, "cannot implicitly convert an integer to a smaller type", nullptr);
+        }
+    } else if(kind == Type::Float && targetKind == Type::Float) {
+        // Float types can be implicitly extended to a larger type.
+        auto floatType = (FloatType*)type;
+        auto targetFloat = (FloatType*)targetType;
+        if(floatType->bits == targetFloat->bits) {
+            return v;
+        } else if(floatType->bits < targetFloat->bits) {
+            v->name = 0;
+            return fext(v->block, name, v, targetType);
+        } else if(isConstruct) {
+            v->name = 0;
+            return ftrunc(v->block, name, v, targetType);
+        } else {
+            error(b, "cannot implicitly convert a float to a smaller type", nullptr);
+        }
+    } else if(isConstruct && kind == Type::Float && targetKind == Type::Int) {
+        v->name = 0;
+        return ftoi(v->block, name, v, targetType);
+    } else if(isConstruct && kind == Type::Int && targetKind == Type::Float) {
+        v->name = 0;
+        return itof(v->block, name, v, targetType);
+    }
+
+    error(b, "cannot implicitly convert to type", nullptr);
+    return nullptr;
+}
+
 // Checks if the two provided types are the same. If not, it tries to implicitly convert to a common type.
-static bool generalizeTypes(FunBuilder* b, Value* lhs, Value* rhs) {
-    // TODO: Support implicit box/unbox, tuple conversions.
-    return compareTypes(&b->context, lhs->type, rhs->type);
+static bool generalizeTypes(FunBuilder* b, Value*& lhs, Value*& rhs) {
+    // Try to do an implicit conversion each way.
+    if(auto v = implicitConvert(b, lhs, rhs->type, false)) {
+        lhs = v;
+        return true;
+    } else if(auto v = implicitConvert(b, rhs, lhs->type, false)) {
+        rhs = v;
+        return true;
+    }
+
+    return false;
 }
 
 static bool alwaysTrue(Value* v) {
@@ -62,6 +155,7 @@ static Field* findStaticField(Type* type, Id stringField, U32 intField) {
             return tup->fields + intField;
         }
     }
+
     return nullptr;
 }
 
@@ -236,17 +330,18 @@ Value* resolveIf(FunBuilder* b, ast::IfExpr* expr, Id name, bool used) {
     if(used) {
         auto after = block(b->fun);
         b->block = after;
-        jmp(thenBlock, after);
 
         if(!elseValue || !elseBlock || elseBlock->complete || thenBlock->complete) {
             error(b, "if expression doesn't produce a result in every case", expr);
             return phi(after, name, nullptr, 0);
         }
 
+        // This updates thenValue or elseValue if needed.
         if(!generalizeTypes(b, thenValue, elseValue)) {
             error(b, "if and else branches produce differing types", expr);
         }
 
+        jmp(thenBlock, after);
         jmp(elseBlock, after);
 
         auto alts = (InstPhi::Alt*)b->mem.alloc(sizeof(InstPhi::Alt) * 2);
@@ -322,23 +417,22 @@ Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used)
             error(b, "if expression doesn't produce a result in every case", expr);
         }
 
-        Value* prev = nullptr;
         for(U32 i = 0; i < caseCount; i++) {
-            jmp(alts[i].fromBlock, next);
-            if(prev) {
-                if(!generalizeTypes(b, prev, alts[i].value)) {
+            if(i > 0) {
+                // This will update the value stored in the alt if needed.
+                if(!generalizeTypes(b, alts[i - 1].value, alts[i].value)) {
                     error(b, "if and else branches produce differing types", expr);
                 }
             }
-            prev = alts[i].value;
+
+            if(!alts[i].value) {
+                error(b, "if expression doesn't produce a result in every case", expr);
+            }
+
+            jmp(alts[i].fromBlock, next);
         }
 
-        if(prev) {
-            return phi(next, name, alts, caseCount);
-        } else {
-            error(b, "if expression doesn't produce a result in every case", expr);
-            return nullptr;
-        }
+        return phi(next, name, alts, caseCount);
     } else {
         // If each case returns, we don't need a block afterwards.
         U32 returnCount = 0;
@@ -379,7 +473,7 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr) {
         case ast::DeclExpr::Val:
         case ast::DeclExpr::Ref: {
             auto value = resolveExpr(b, expr->content, 0, true);
-            auto var = alloc(b->block, expr->name, value->type, true);
+            auto var = alloc(b->block, expr->name, value->type, true, expr->mut == ast::DeclExpr::Val);
             store(b->block, 0, var, value);
             return var;
         }
@@ -437,23 +531,105 @@ Value* resolveNested(FunBuilder* b, ast::NestedExpr* expr, Id name, bool used) {
 
 Value* resolveCoerce(FunBuilder* b, ast::CoerceExpr* expr, Id name, bool used) {
     auto target = resolveExpr(b, expr->target, name, used);
-    if(!compareTypes(&b->context, target->type, resolveType(&b->context, b->fun->module, expr->kind))) {
-        error(b, "cannot cast type", expr);
-    }
-
-    return target;
+    auto type = resolveType(&b->context, b->fun->module, expr->kind);
+    return implicitConvert(b, target, type, true);
 }
 
 Value* resolveField(FunBuilder* b, ast::FieldExpr* expr, Id name, bool used) {
-    return nullptr;
-}
+    auto target = resolveExpr(b, expr->target, 0, true);
+    auto field = testStaticField(b, name, target, expr->field);
+    if(field) return field;
 
-Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name, bool used) {
+    // TODO: Handle array and map loads.
+    error(b, "type does not contain the requested field", expr->target);
     return nullptr;
 }
 
 Value* resolveTup(FunBuilder* b, ast::TupExpr* expr, Id name, bool used) {
     return nullptr;
+}
+
+static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, Id name) {
+    // There are a whole bunch of possible cases we could support here,
+    // but most can't even be created by the parser.
+    // For now we handle aliases and primitive types.
+    if(type->kind == Type::Int || type->kind == Type::Float) {
+        if(!expr->args || expr->args->next) {
+            error(b, "incorrect number of arguments to type constructor", expr);
+            return nullptr;
+        }
+
+        auto arg = resolveExpr(b, expr->args->item.value, name, true);
+        return implicitConvert(b, arg, type, true);
+    } else if(type->kind == Type::String) {
+        if(!expr->args || expr->args->next) {
+            error(b, "incorrect number of arguments to string constructor", expr);
+            return nullptr;
+        }
+
+        auto arg = resolveExpr(b, expr->args->item.value, name, true);
+        if(arg->type->kind != Type::String) {
+            error(b, "strings must be constructed with a string", expr);
+            return nullptr;
+        }
+
+        return arg;
+    } else if(type->kind == Type::Alias) {
+        // TODO: Handle generic instantiation here.
+        return explicitConstruct(b, ((AliasType*)type)->to, expr, name);
+    } else if(type->kind == Type::Tup) {
+        // TODO: Handle tuple types.
+    }
+
+    error(b, "cannot construct this type", expr->type);
+    return nullptr;
+}
+
+static Value* resolveMiscCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
+    auto type = findType(&b->context, b->fun->module, expr->type->con);
+    if(!type) {
+        error(b, "cannot find type", expr->type);
+        return nullptr;
+    }
+
+    return explicitConstruct(b, type, expr, name);
+}
+
+Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
+    auto con = findCon(&b->context, b->fun->module, expr->type->con);
+    if(!con) {
+        return resolveMiscCon(b, expr, name);
+    }
+
+    // If we have more than one argument, the constructor must contain a tuple type.
+    auto arg = expr->args;
+    if(!arg) {
+        if(con->count > 0) {
+            error(b, "incorrect number of arguments to constructor", expr);
+        }
+
+        return record(b->block, name, con, nullptr, 0);
+    }
+
+    U32 argCount = 0;
+    while(arg) {
+        argCount++;
+        arg = arg->next;
+    }
+
+    if(argCount != con->count) {
+        error(b, "incorrect number of arguments to constructor", expr);
+    }
+
+    auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
+    arg = expr->args;
+    for(U32 i = 0; i < argCount; i++) {
+        args[i] = resolveExpr(b, arg->item.value, arg->item.name, true);
+        arg = arg->next;
+    }
+
+    auto value = record(b->block, name, con, args, argCount);
+    return value;
 }
 
 Value* resolveTupUpdate(FunBuilder* b, ast::TupUpdateExpr* expr, Id name, bool used) {
@@ -515,7 +691,7 @@ Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {
         case ast::Expr::Field:
             return resolveField(b, (ast::FieldExpr*)expr, name, used);
         case ast::Expr::Con:
-            return resolveCon(b, (ast::ConExpr*)expr, name, used);
+            return resolveCon(b, (ast::ConExpr*)expr, name);
         case ast::Expr::Tup:
             return resolveTup(b, (ast::TupExpr*)expr, name, used);
         case ast::Expr::TupUpdate:
