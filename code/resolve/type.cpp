@@ -44,6 +44,28 @@ TupLookup* findTupLayout(Module* module, TupLookup* lookup, I fields) {
     }
 }
 
+Type** findTupLayout(Context* context, Module* module, Value** fields, U32 count) {
+    struct Iterator {
+        Context* context;
+        Value** fields;
+        Value** max;
+
+        bool has() {
+            return fields < max;
+        }
+
+        Type* get(Module* m) {
+            return fields[0]->type;
+        }
+
+        Iterator next() {
+            return {context, fields + 1, max};
+        }
+    };
+
+    return findTupLayout(module, &module->usedTuples, Iterator{context, fields, fields + count})->layout;
+}
+
 static Type* findTuple(Context* context, Module* module, ast::TupType* type) {
     struct Iterator {
         Context* context;

@@ -260,7 +260,7 @@ static Value* findVar(FunBuilder* b, Id name) {
 }
 
 static Value* useValue(FunBuilder* b, Value* value, bool asRV) {
-    if(!asRV && (value->type->kind == Type::Ref)) {
+    if(!asRV && (value->type->kind == Type::Ref) && ((RefType*)value->type)->isLocal) {
         return load(b->block, 0, value);
     } else {
         return value;
@@ -275,10 +275,6 @@ Value* resolveVar(FunBuilder* b, ast::VarExpr* expr, bool asRV) {
     }
 
     return useValue(b, value, asRV);
-}
-
-static void createCallArgs(FunBuilder* b, Value* firstArg, List<ast::TupArg>* argList) {
-
 }
 
 static Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* argList, Id name) {
@@ -744,8 +740,34 @@ Value* resolveField(FunBuilder* b, ast::FieldExpr* expr, Id name, bool used) {
     return nullptr;
 }
 
-Value* resolveTup(FunBuilder* b, ast::TupExpr* expr, Id name, bool used) {
-    return nullptr;
+Value* resolveTup(FunBuilder* b, ast::TupExpr* expr, Id name) {
+    U32 argCount = 0;
+    auto arg = expr->args;
+    while(arg) {
+        argCount++;
+        arg = arg->next;
+    }
+
+    auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
+    auto fields = (Field*)b->mem.alloc(sizeof(Field) * argCount);
+    auto type = new (b->mem) TupType;
+
+    arg = expr->args;
+    for(U32 i = 0; i < argCount; i++) {
+        args[i] = resolveExpr(b, arg->item.value, 0, true);
+        fields[i].type = args[i]->type;
+        fields[i].name = arg->item.name;
+        fields[i].index = i;
+        fields[i].container = type;
+
+        arg = arg->next;
+    }
+
+    type->fields = fields;
+    type->layout = findTupLayout(&b->context, b->fun->module, args, argCount);
+    type->count = argCount;
+
+    return tup(b->block, name, type, args, argCount);
 }
 
 static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, Id name) {
@@ -832,7 +854,43 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
 }
 
 Value* resolveTupUpdate(FunBuilder* b, ast::TupUpdateExpr* expr, Id name, bool used) {
-    return nullptr;
+    auto target = resolveExpr(b, expr->value, 0, true);
+    auto type = canonicalType(target->type);
+    if(type->kind != Type::Tup) {
+        error(b, "only tuples can update their fields", expr->value);
+    }
+
+    U32 argCount = 0;
+    auto arg = expr->args;
+    while(arg) {
+        argCount++;
+        arg = arg->next;
+    }
+
+    auto tup = (TupType*)type;
+    auto fields = (InstUpdateField::Field*)b->mem.alloc(sizeof(InstUpdateField::Field) * argCount);
+    arg = expr->args;
+    U32 fieldCount = 0;
+
+    for(U32 i = 0; i < argCount; i++) {
+        bool found = false;
+        for(U32 f = 0; f < tup->count; f++) {
+            if(tup->fields[f].name && tup->fields[f].name == arg->item.name) {
+                fields[fieldCount].index = f;
+                fields[fieldCount].value = resolveExpr(b, arg->item.value, 0, true);
+                fieldCount++;
+                found = true;
+                break;
+            }
+        }
+
+        if(!found) {
+            error(b, "field does not exist in this type", arg->item.value);
+        }
+        arg = arg->next;
+    }
+
+    return updateField(b->block, name, target, fields, fieldCount);
 }
 
 Value* resolveArray(FunBuilder* b, ast::ArrayExpr* expr, Id name, bool used) {
@@ -892,7 +950,7 @@ Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {
         case ast::Expr::Con:
             return resolveCon(b, (ast::ConExpr*)expr, name);
         case ast::Expr::Tup:
-            return resolveTup(b, (ast::TupExpr*)expr, name, used);
+            return resolveTup(b, (ast::TupExpr*)expr, name);
         case ast::Expr::TupUpdate:
             return resolveTupUpdate(b, (ast::TupUpdateExpr*)expr, name, used);
         case ast::Expr::Array:

@@ -252,6 +252,9 @@ Type* resolveDefinition(Context* context, Module* module, Type* type);
 // Finds the matching type for the provided ast.
 Type* resolveType(Context* context, Module* module, ast::Type* type);
 
+// Returns a tuple layout for the provided set of fields.
+Type** findTupLayout(Context* context, Module* module, struct Value** fields, U32 count);
+
 // Checks if the two provided types are the same.
 bool compareTypes(Context* context, Type* lhs, Type* rhs);
 
