@@ -1,6 +1,47 @@
 
 #include "module.h"
 
+typedef Value* (*BinIntrinsic)(Block*, Id, Value*, Value*);
+
+template<BinIntrinsic F>
+static Function* binaryFunction(Context* context, Module* module, Type* type, const char* name, U32 length, Type* returnType = nullptr) {
+    auto fun = defineFun(context, module, context->addUnqualifiedName(name, length));
+    auto lhs = defineArg(context, fun, 0, type);
+    auto rhs = defineArg(context, fun, 0, type);
+    fun->returnType = returnType ? returnType : type;
+
+    auto body = block(fun);
+    auto result = F(body, 0, lhs, rhs);
+    ret(body, result);
+
+    fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+        return F(b->block, instName, args[0], args[1]);
+    };
+
+    return fun;
+}
+
+template<class Cmp>
+using CmpIntrinsic = Value* (*)(Block*, Id, Value*, Value*, Cmp);
+
+template<class Cmp, CmpIntrinsic<Cmp> F, Cmp cmp>
+static Function* cmpFunction(Context* context, Module* module, Type* type, const char* name, U32 length) {
+    auto fun = defineFun(context, module, context->addUnqualifiedName(name, length));
+    auto lhs = defineArg(context, fun, 0, type);
+    auto rhs = defineArg(context, fun, 0, type);
+    fun->returnType = &intTypes[IntType::Bool];
+
+    auto body = block(fun);
+    auto result = F(body, 0, lhs, rhs, cmp);
+    ret(body, result);
+
+    fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+        return F(b->block, instName, args[0], args[1], cmp);
+    };
+
+    return fun;
+}
+
 Module* preludeModule(Context* context) {
     auto module = new Module;
     module->id = context->addUnqualifiedName("Prelude", 7);
@@ -8,7 +49,7 @@ Module* preludeModule(Context* context) {
 
     // Define basic operators.
     auto opEq = context->addUnqualifiedName("==", 2);
-    auto opNeq = context->addUnqualifiedName("/=", 2);
+    auto opNeq = context->addUnqualifiedName("!=", 2);
     auto opLt = context->addUnqualifiedName("<", 1);
     auto opLe = context->addUnqualifiedName("<=", 2);
     auto opGt = context->addUnqualifiedName(">", 1);
@@ -64,6 +105,27 @@ Module* preludeModule(Context* context) {
     {
         auto t = new (module->memory) GenType(0);
     }
+
+    cmpFunction<ICmp, icmp, ICmp::eq>(context, module, &intTypes[IntType::Long], "==", 2);
+    cmpFunction<ICmp, icmp, ICmp::neq>(context, module, &intTypes[IntType::Long], "!=", 2);
+    cmpFunction<ICmp, icmp, ICmp::gt>(context, module, &intTypes[IntType::Long], ">", 1);
+    cmpFunction<ICmp, icmp, ICmp::ge>(context, module, &intTypes[IntType::Long], ">=", 2);
+    cmpFunction<ICmp, icmp, ICmp::lt>(context, module, &intTypes[IntType::Long], "<", 1);
+    cmpFunction<ICmp, icmp, ICmp::le>(context, module, &intTypes[IntType::Long], "<=", 2);
+
+    binaryFunction<add>(context, module, &intTypes[IntType::Long], "+", 1);
+    binaryFunction<sub>(context, module, &intTypes[IntType::Long], "-", 1);
+    binaryFunction<mul>(context, module, &intTypes[IntType::Long], "*", 1);
+    binaryFunction<div>(context, module, &intTypes[IntType::Long], "/", 1);
+    binaryFunction<rem>(context, module, &intTypes[IntType::Long], "rem", 3);
+
+    binaryFunction<sar>(context, module, &intTypes[IntType::Long], "sar", 3);
+    binaryFunction<shr>(context, module, &intTypes[IntType::Long], "shr", 4);
+    binaryFunction<shl>(context, module, &intTypes[IntType::Long], "shl", 3);
+
+    binaryFunction<and_>(context, module, &intTypes[IntType::Long], "and", 2);
+    binaryFunction<or_>(context, module, &intTypes[IntType::Long], "or", 2);
+    binaryFunction<xor_>(context, module, &intTypes[IntType::Long], "xor", 2);
 
     return module;
 }
