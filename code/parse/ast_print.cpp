@@ -19,6 +19,7 @@ struct Printer {
             case Expr::MultiIf: toString((const MultiIfExpr&)expr); break;
             case Expr::Decl: toString((const DeclExpr&)expr); break;
             case Expr::While: toString((const WhileExpr&)expr); break;
+            case Expr::For: toString((const ForExpr&)expr); break;
             case Expr::Assign: toString((const AssignExpr&)expr); break;
             case Expr::Nested: toString((const NestedExpr&)expr); break;
             case Expr::Coerce: toString((const CoerceExpr&)expr); break;
@@ -197,6 +198,22 @@ private:
         makeLevel();
         toString(*e.cond, false);
         toString(*e.loop, true);
+        removeLevel();
+    }
+
+    void toString(const ForExpr& e) {
+        stream << "ForExpr ";
+        auto name = context.find(e.var);
+        stream.write(name.text, name.textLength);
+
+        if(e.reverse) {
+            stream << " <reverse>";
+        }
+
+        makeLevel();
+        toString(*e.from, false);
+        toString(*e.to, false);
+        toString(*e.body, true);
         removeLevel();
     }
 

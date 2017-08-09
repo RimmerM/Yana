@@ -47,6 +47,7 @@ Parser::Parser(Context& context, ast::Module& module, const char* text):
     refId = context.addUnqualifiedName(&kRefSigil, 1);
     ptrId = context.addUnqualifiedName(&kPtrSigil, 1);
     valId = context.addUnqualifiedName(&kValSigil, 1);
+    downtoId = context.addUnqualifiedName("downto", 6);
 
     lexer.next();
 }
@@ -527,7 +528,39 @@ Expr* Parser::parseLeftExpr() {
             eat();
             auto cond = parseExpr();
             auto loop = parseBlock(false);
-            return new(buffer) WhileExpr(cond, loop);
+            return new (buffer) WhileExpr(cond, loop);
+        } else if(token.type == Token::kwFor) {
+            eat();
+            Id var;
+            if(token.type == Token::VarID) {
+                var = token.data.id;
+                eat();
+            } else {
+                error("expected for loop variable");
+                var = 0;
+            }
+
+            if(token.type == Token::kwIn) {
+                eat();
+            } else {
+                error("expected 'in'");
+            }
+
+            auto from = parseSelExpr();
+
+            bool reverse = false;
+            if(token.type == Token::opDotDot) {
+                eat();
+            } else if(token.type == Token::VarID && token.data.id == downtoId) {
+                eat();
+                reverse = true;
+            } else {
+                error("expected '..'");
+            }
+
+            auto to = parseSelExpr();
+            auto body = parseBlock(false);
+            return new (buffer) ForExpr(var, from, to, body, reverse);
         } else if(token.type == Token::kwReturn) {
             eat();
             auto body = parseExpr();

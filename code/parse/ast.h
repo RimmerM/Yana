@@ -220,6 +220,7 @@ struct Expr: Node {
         MultiIf,
         Decl,
         While,
+        For,
         Assign,
         Nested,
         Coerce,
@@ -308,6 +309,17 @@ struct WhileExpr: Expr {
     WhileExpr(Expr* cond, Expr* loop): Expr(While), cond(cond), loop(loop) {}
     Expr* cond;
     Expr* loop;
+};
+
+struct ForExpr: Expr {
+    ForExpr(Id var, Expr* from, Expr* to, Expr* body, bool reverse):
+        Expr(For), var(var), from(from), to(to), body(body), reverse(reverse) {}
+
+    Id var;
+    Expr* from;
+    Expr* to;
+    Expr* body;
+    bool reverse;
 };
 
 struct AssignExpr: Expr {
