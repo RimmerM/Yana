@@ -244,6 +244,37 @@ Decl* Parser::parseFunDecl() {
                     return expr;
                 }
             });
+        } else if(token.type == Token::opBar) {
+            auto cases = withLevel([=] {
+                return sepBy1([=] {
+                    if(token.type == Token::opBar) {
+                        eat();
+                    } else {
+                        error("expected '|'");
+                    }
+                    return parseAlt();
+                }, Token::EndOfStmt);
+            });
+
+            Expr* pivot = nullptr;
+            if(args && args->next) {
+                auto arg = args;
+                auto tup = list(TupArg(0, new (buffer) VarExpr(arg->item.name)));
+                auto t = tup;
+
+                arg = arg->next;
+                while(arg) {
+                    t->next = list(TupArg(0, new (buffer) VarExpr(arg->item.name)));
+                    t = t->next;
+                    arg = arg->next;
+                }
+
+                pivot = new (buffer) TupExpr(tup);
+            } else if(args) {
+                pivot = new (buffer) VarExpr(args->item.name);
+            }
+
+            body = new (buffer) CaseExpr(pivot, cases);
         } else {
             body = parseBlock(true);
         }
