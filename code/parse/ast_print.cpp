@@ -103,30 +103,7 @@ private:
 
     void toString(const LitExpr& e) {
         stream << "LitExpr ";
-
-        char buffer[32];
-        switch(e.literal.type) {
-            case Literal::Int:
-                stream << e.literal.i;
-                break;
-            case Literal::Float:
-                stream << e.literal.f;
-                break;
-            case Literal::Char:
-                stream << e.literal.c;
-                break;
-            case Literal::String: {
-                stream << '"';
-                auto name = context.find(e.literal.s);
-                stream.write(name.text, name.textLength);
-                stream << '"';
-                break;
-            }
-            case Literal::Bool:
-                if(e.literal.i > 0) stream << "True";
-                else stream << "False";
-                break;
-        }
+        toString(e.literal);
     }
 
     void toString(const VarExpr& e) {
@@ -307,6 +284,8 @@ private:
         stream << "CaseExpr ";
         makeLevel();
         auto a = e.alts;
+        toString(*e.pivot, a == nullptr);
+
         while(a) {
             toString(a->item, a->next == nullptr);
             a = a->next;
@@ -341,8 +320,11 @@ private:
 
     void toString(const Alt& alt, bool last) {
         toStringIntro(last);
-        stream << "alt: ";
-        toString(*alt.expr);
+        stream << "Alt";
+        makeLevel();
+        toString(*alt.pat, false);
+        toString(*alt.expr, true);
+        removeLevel();
     }
 
     void toString(const FunDecl& e) {
@@ -408,7 +390,7 @@ private:
         makeLevel();
         auto d = e.decls;
         while(d) {
-            toString(*d->item);
+            toString(*d->item, d->next == nullptr);
             d = d->next;
         }
         removeLevel();
@@ -419,7 +401,7 @@ private:
         makeLevel();
         auto d = e.decls;
         while(d) {
-            toString(*d->item);
+            toString(*d->item, d->next == nullptr);
             d = d->next;
         }
         removeLevel();
@@ -496,6 +478,36 @@ private:
         toString(decl);
     }
 
+    void toString(const Pat& pat, bool last) {
+        toStringIntro(last);
+        toString(pat);
+    }
+
+    void toString(const Literal& literal) {
+        switch(literal.type) {
+            case Literal::Int:
+                stream << literal.i;
+                break;
+            case Literal::Float:
+                stream << literal.f;
+                break;
+            case Literal::Char:
+                stream << literal.c;
+                break;
+            case Literal::String: {
+                stream << '"';
+                auto name = context.find(literal.s);
+                stream.write(name.text, name.textLength);
+                stream << '"';
+                break;
+            }
+            case Literal::Bool:
+                if(literal.i > 0) stream << "True";
+                else stream << "False";
+                break;
+        }
+    }
+
     void toString(const Type& type) {
         switch(type.kind) {
             case Type::Error:
@@ -549,6 +561,62 @@ private:
                 toString(*((const MapType&)type).to);
                 stream << ")";
                 break;
+        }
+    }
+
+    void toString(const Pat& pat) {
+        switch(pat.kind) {
+            case Pat::Error:
+                stream << "<parse error>";
+                break;
+            case Pat::Var: {
+                stream << "VarPat ";
+                auto name = context.find(((const VarPat&)pat).var);
+                stream.write(name.text, name.textLength);
+                break;
+            }
+            case Pat::Lit:
+                stream << "LitPat ";
+                toString(((const LitPat&)pat).lit);
+                break;
+            case Pat::Any:
+                stream << "AnyPat";
+                break;
+            case Pat::Tup: {
+                stream << "TupPat";
+                auto fields = ((const TupPat&)pat).fields;
+                makeLevel();
+                while(fields) {
+                    toStringIntro(fields->next == nullptr);
+                    stream << "Field ";
+                    auto name = context.find(fields->item.field);
+                    if(name.textLength > 0) {
+                        stream.write(name.text, name.textLength);
+                    }
+
+                    makeLevel();
+                    toString(*fields->item.pat, true);
+                    removeLevel();
+
+                    fields = fields->next;
+                }
+                removeLevel();
+                break;
+            }
+            case Pat::Con: {
+                stream << "ConPat ";
+                auto& con = ((const ConPat&)pat);
+                auto name = context.find(con.constructor);
+                stream.write(name.text, name.textLength);
+                makeLevel();
+                auto p = con.pats;
+                while(p) {
+                    toString(*p->item, p->next == nullptr);
+                    p = p->next;
+                }
+                removeLevel();
+                break;
+            }
         }
     }
 
