@@ -27,9 +27,10 @@ struct Value {
         LastConst = ConstString,
 
         FirstInst,
+        InstNop = FirstInst,
 
         // Primitives: conversion.
-        InstTrunc = FirstInst,
+        InstTrunc,
         InstFTrunc,
         InstZExt,
         InstSExt,
@@ -361,19 +362,21 @@ inline bool isTerminating(Inst::Kind kind) {
     return kind == Inst::InstRet || kind == Inst::InstJe || kind == Inst::InstJmp;
 }
 
-ConstInt* constInt(Block* block, I64 value);
-ConstFloat* constFloat(Block* block, double value);
+Value* error(Block* block, Id name, Type* type);
+
+ConstInt* constInt(Block* block, I64 value, Type* type);
+ConstFloat* constFloat(Block* block, double value, Type* type);
 ConstString* constString(Block* block, const char* value, Size length);
 
-InstTrunc* trunc(Block* block, Id name, Value* from, Type* to);
-InstFTrunc* ftrunc(Block* block, Id name, Value* from, Type* to);
-InstZExt* zext(Block* block, Id name, Value* from, Type* to);
-InstSExt* sext(Block* block, Id name, Value* from, Type* to);
-InstFExt* fext(Block* block, Id name, Value* from, Type* to);
-InstIToF* itof(Block* block, Id name, Value* from, Type* to);
-InstUIToF* uitof(Block* block, Id name, Value* from, Type* to);
-InstFToI* ftoi(Block* block, Id name, Value* from, Type* to);
-InstFToUI* ftoui(Block* block, Id name, Value* from, Type* to);
+Value* trunc(Block* block, Id name, Value* from, Type* to);
+Value* ftrunc(Block* block, Id name, Value* from, Type* to);
+Value* zext(Block* block, Id name, Value* from, Type* to);
+Value* sext(Block* block, Id name, Value* from, Type* to);
+Value* fext(Block* block, Id name, Value* from, Type* to);
+Value* itof(Block* block, Id name, Value* from, Type* to);
+Value* uitof(Block* block, Id name, Value* from, Type* to);
+Value* ftoi(Block* block, Id name, Value* from, Type* to);
+Value* ftoui(Block* block, Id name, Value* from, Type* to);
 
 Value* add(Block* block, Id name, Value* lhs, Value* rhs);
 Value* sub(Block* block, Id name, Value* lhs, Value* rhs);

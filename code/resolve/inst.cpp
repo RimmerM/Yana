@@ -38,22 +38,29 @@ static InstBinary* binary(Block* block, Inst::Kind kind, Id name, Value* lhs, Va
     return inst;
 }
 
-ConstInt* constInt(Block* block, I64 value) {
+Value* error(Block* block, Id name, Type* type) {
+    auto v = block->inst(sizeof(InstBinary), name, Value::InstNop, type);
+    v->usedCount = 0;
+    v->usedValues = nullptr;
+    return v;
+}
+
+ConstInt* constInt(Block* block, I64 value, Type* type) {
     auto c = (ConstInt*)block->function->module->memory.alloc(sizeof(ConstInt));
     c->block = block;
     c->name = 0;
     c->kind = Value::ConstInt;
-    c->type = &intTypes[IntType::Int];
+    c->type = type;
     c->value = value;
     return c;
 }
 
-ConstFloat* constFloat(Block* block, double value) {
+ConstFloat* constFloat(Block* block, double value, Type* type) {
     auto c = (ConstFloat*)block->function->module->memory.alloc(sizeof(ConstFloat));
     c->block = block;
     c->name = 0;
     c->kind = Value::ConstFloat;
-    c->type = &floatTypes[FloatType::F64];
+    c->type = type;
     c->value = value;
     return c;
 }
@@ -69,40 +76,84 @@ ConstString* constString(Block* block, const char* value, Size length) {
     return c;
 }
 
-InstTrunc* trunc(Block* block, Id name, Value* from, Type* to) {
-    return (InstTrunc*)cast(block, Inst::InstTrunc, name, from, to);
+Value* trunc(Block* block, Id name, Value* from, Type* to) {
+    if(from->kind == Value::ConstInt) {
+        auto value = ((ConstInt*)from)->value;
+        auto toType = (IntType*)to;
+        switch(toType->width) {
+            case IntType::Bool:
+                value = value != 0 ? 1 : 0;
+                break;
+            case IntType::Int:
+                value = (I32)value;
+                break;
+            default: ;
+        }
+
+        return constInt(block, value, to);
+    } else {
+        return cast(block, Inst::InstTrunc, name, from, to);
+    }
 }
 
-InstFTrunc* ftrunc(Block* block, Id name, Value* from, Type* to) {
-    return (InstFTrunc*)cast(block, Inst::InstFTrunc, name, from, to);
+Value* ftrunc(Block* block, Id name, Value* from, Type* to) {
+    return cast(block, Inst::InstFTrunc, name, from, to);
 }
 
-InstZExt* zext(Block* block, Id name, Value* from, Type* to) {
-    return (InstZExt*)cast(block, Inst::InstZExt, name, from, to);
+Value* zext(Block* block, Id name, Value* from, Type* to) {
+    if(from->kind == Value::ConstInt) {
+        return constInt(block, ((ConstInt*)from)->value, to);
+    } else {
+        return cast(block, Inst::InstZExt, name, from, to);
+    }
 }
 
-InstSExt* sext(Block* block, Id name, Value* from, Type* to) {
-    return (InstSExt*)cast(block, Inst::InstSExt, name, from, to);
+Value* sext(Block* block, Id name, Value* from, Type* to) {
+    if(from->kind == Value::ConstInt) {
+        return constInt(block, ((ConstInt*)from)->value, to);
+    } else {
+        return cast(block, Inst::InstSExt, name, from, to);
+    }
 }
 
-InstFExt* fext(Block* block, Id name, Value* from, Type* to) {
-    return (InstFExt*)cast(block, Inst::InstFExt, name, from, to);
+Value* fext(Block* block, Id name, Value* from, Type* to) {
+    if(from->kind == Value::ConstFloat) {
+        return constFloat(block, ((ConstFloat*)from)->value, to);
+    } else {
+        return cast(block, Inst::InstFExt, name, from, to);
+    }
 }
 
-InstIToF* itof(Block* block, Id name, Value* from, Type* to) {
-    return (InstIToF*)cast(block, Inst::InstIToF, name, from, to);
+Value* itof(Block* block, Id name, Value* from, Type* to) {
+    if(from->kind == Value::ConstInt) {
+        return constFloat(block, (double)((I64)((ConstInt*)from)->value), to);
+    } else {
+        return cast(block, Inst::InstIToF, name, from, to);
+    }
 }
 
-InstUIToF* uitof(Block* block, Id name, Value* from, Type* to) {
-    return (InstUIToF*)cast(block, Inst::InstUIToF, name, from, to);
+Value* uitof(Block* block, Id name, Value* from, Type* to) {
+    if(from->kind == Value::ConstInt) {
+        return constFloat(block, (double)((U64)((ConstInt*)from)->value), to);
+    } else {
+        return cast(block, Inst::InstUIToF, name, from, to);
+    }
 }
 
-InstFToI* ftoi(Block* block, Id name, Value* from, Type* to) {
-    return (InstFToI*)cast(block, Inst::InstFToI, name, from, to);
+Value* ftoi(Block* block, Id name, Value* from, Type* to) {
+    if(from->kind == Value::ConstFloat) {
+        return constInt(block, (I64)((ConstFloat*)from)->value, to);
+    } else {
+        return cast(block, Inst::InstFToI, name, from, to);
+    }
 }
 
-InstFToUI* ftoui(Block* block, Id name, Value* from, Type* to) {
-    return (InstFToUI*)cast(block, Inst::InstFToUI, name, from, to);
+Value* ftoui(Block* block, Id name, Value* from, Type* to) {
+    if(from->kind == Value::ConstFloat) {
+        return constInt(block, (U64)((ConstFloat*)from)->value, to);
+    } else {
+        return cast(block, Inst::InstFToUI, name, from, to);
+    }
 }
 
 Value* add(Block* block, Id name, Value* lhs, Value* rhs) {
