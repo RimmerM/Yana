@@ -471,8 +471,14 @@ InstPhi* phi(Block* block, Id name, InstPhi::Alt* alts, Size altCount) {
     inst->usedCount = altCount;
 
     for(Size i = 0; i < altCount; i++) {
-        *v++ = alts[i].value;
-        block->use(alts[i].value, inst);
+        auto value = alts[i].value;
+        *v++ = value;
+
+        // Don't assume that each value exists, in order to support delayed creation of alts.
+        // This is needed when an alt depends on a value resolved later.
+        if(value) {
+            block->use(alts[i].value, inst);
+        }
     }
 
     return inst;

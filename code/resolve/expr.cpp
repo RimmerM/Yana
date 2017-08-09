@@ -675,7 +675,7 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr) {
     }
 }
 
-Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr, Id name, bool used) {
+Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr) {
     auto condBlock = block(b->fun);
     jmp(b->block, condBlock);
     b->block = condBlock;
@@ -694,6 +694,60 @@ Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr, Id name, bool used) {
     jmp(b->block, condBlock);
 
     b->block = exitBlock;
+    return nullptr;
+}
+
+Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
+    // The starting value is only evaluated once.
+    auto startBlock = b->block;
+    auto from = resolveExpr(b, expr->from, 0, true);
+
+    // Create the starting block for each loop part.
+    auto condBlock = block(b->fun);
+    auto loopBlock = block(b->fun);
+    auto endBlock = block(b->fun);
+
+    // Evaluate the loop condition.
+    jmp(startBlock, condBlock);
+    b->block = condBlock;
+
+    // The condition we look at here depends on the body block, but the body hasn't been resolved yet.
+    // We create a dummy instruction here and update the incoming blocks later.
+    auto alts = (InstPhi::Alt*)b->mem.alloc(sizeof(InstPhi::Alt) * 2);
+    alts[0].value = from;
+    alts[0].fromBlock = startBlock;
+    alts[1].value = nullptr;
+    alts[1].fromBlock = nullptr;
+
+    auto var = phi(b->block, expr->var, alts, 2);
+
+    // Evaluate the end for each iteration, since it could be changed inside the loop.
+    auto to = resolveExpr(b, expr->to, 0, true);
+
+    auto cmp = expr->reverse ? ICmp::gt : ICmp::lt;
+    auto comp = icmp(b->block, 0, var, to, cmp);
+    je(b->block, comp, loopBlock, endBlock);
+
+    // Evaluate the loop body. At the end we create the loop variable for the next iteration.
+    b->block = loopBlock;
+    resolveExpr(b, expr->body, 0, false);
+    auto loopEnd = b->block;
+
+    Value* nextVar;
+    if(expr->reverse) {
+        nextVar = sub(loopEnd, 0, var, constInt(loopEnd, 1));
+    } else {
+        nextVar = add(loopEnd, 0, var, constInt(loopEnd, 1));
+    }
+
+    jmp(loopEnd, condBlock);
+
+    // Update the phi-node we created earlier.
+    alts[1].value = nextVar;
+    alts[1].fromBlock = loopEnd;
+    var->usedValues[1] = nextVar;
+    condBlock->use(nextVar, var);
+
     return nullptr;
 }
 
@@ -938,7 +992,9 @@ Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {
         case ast::Expr::Decl:
             return resolveDecl(b, (ast::DeclExpr*)expr);
         case ast::Expr::While:
-            return resolveWhile(b, (ast::WhileExpr*)expr, name, used);
+            return resolveWhile(b, (ast::WhileExpr*)expr);
+        case ast::Expr::For:
+            return resolveFor(b, (ast::ForExpr*)expr);
         case ast::Expr::Assign:
             return resolveAssign(b, (ast::AssignExpr*)expr);
         case ast::Expr::Nested:
