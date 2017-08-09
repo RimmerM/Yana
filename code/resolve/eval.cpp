@@ -1,14 +1,26 @@
+#include <csetjmp>
 #include "module.h"
+
+enum Exception {
+    Exit = 1,
+    StackOverflow,
+    NoMemory,
+    InvalidOp,
+};
 
 struct Eval {
     U64* sp;
     U64* bp;
     U64* ap;
     Inst** pc;
+    Block* lb;
 
     Arena heap;
     U32 heapSize;
     U32 heapMax;
+
+    U64* sb;
+    jmp_buf* raise;
 };
 
 template<class T>
@@ -83,6 +95,10 @@ void funIntro(Eval* eval, Function* fun) {
     eval->ap = eval->sp - (3 + fun->args.size());
     eval->sp += fun->instCounter;
     setBlock(eval, fun->blocks[0]);
+}
+
+void raise(Eval* eval, Exception exception) {
+    longjmp(*eval->raise, exception);
 }
 
 U64 evalInt(Eval* eval, Value* v) {
@@ -304,7 +320,12 @@ U64 evalAlloc(Eval* eval, InstAlloc* inst) {
         eval->sp += size;
         return asReg(p);
     } else {
-        return asReg(eval->heap.alloc(size * sizeof(U64)));
+        auto allocSize = size * sizeof(U64);
+        eval->heapSize += allocSize;
+        if(eval->heapSize > eval->heapMax) {
+            raise(eval, NoMemory);
+        }
+        return asReg(eval->heap.alloc(allocSize));
     }
 }
 
@@ -340,19 +361,30 @@ U64 evalStore(Eval* eval, InstStore* inst) {
 U64 evalCall(Eval* eval, InstCall* call) {
     auto args = call->args;
     auto count = call->argCount;
+    auto fun = call->fun;
+    auto returnSize = fun->returnType->virtualSize;
+
+    if(returnSize > 1) {
+        eval->sp += returnSize;
+    }
+
+    pushp(eval, eval->bp + call->id);
+
     for(U32 i = 0; i < count; i++) {
         push64(eval, evalValue(eval, args[i]));
     }
 
-    funIntro(eval, call->fun);
+    funIntro(eval, fun);
     return 0;
 }
 
 U64 evalJmp(Eval* eval, InstJmp* inst) {
+    eval->lb = inst->block;
     setBlock(eval, inst->to);
 }
 
 U64 evalJe(Eval* eval, InstJe* inst) {
+    eval->lb = inst->block;
     auto v = evalInt(eval, inst->cond);
     if(v) {
         setBlock(eval, inst->then);
@@ -363,11 +395,41 @@ U64 evalJe(Eval* eval, InstJe* inst) {
 }
 
 U64 evalRet(Eval* eval, InstRet* inst) {
+    auto ap = eval->ap;
+    auto reg = *(U64**)(ap - 1);
+    auto value = evalValue(eval, inst->value);
+    auto size = inst->value->type->virtualSize;
+
+    if(size > 1) {
+        memcpy(ap - size - 1, (U64*)value, size * sizeof(U64));
+        *reg = (U64)(ap - size - 1);
+    } else {
+        *reg = value;
+    }
+
     eval->sp = eval->bp;
     eval->ap = popp(eval);
     eval->bp = popp(eval);
     eval->pc = (Inst**)popp(eval);
+    eval->sp = ap - 1;
+
+    if(eval->sp <= eval->sb) {
+        raise(eval, Exit);
+    }
+
     return 0;
+}
+
+U64 evalPhi(Eval* eval, InstPhi* inst) {
+    auto lb = eval->lb;
+    auto alts = inst->alts;
+    for(U32 i = 0; i < inst->altCount; i++) {
+        if(lb == alts[i].fromBlock) {
+            return evalValue(eval, alts[i].value);
+        }
+    }
+
+    raise(eval, InvalidOp);
 }
 
 typedef U64 (*inst)(Eval* eval, Inst* inst);
@@ -435,16 +497,40 @@ static const inst instructions[] = {
     (inst)evalJe, // InstJe,
     (inst)evalJmp, // InstJmp,
     (inst)evalRet, // InstRet,
-    nullptr, // InstPhi,
+    (inst)evalPhi, // InstPhi,
 };
 
 void evalInst(Eval* eval, Inst* i) {
     eval->bp[i->id] = instructions[i->kind - Value::FirstInst](eval, i);
 }
 
-void eval(Eval* eval) {
+void runEval(Eval* eval) {
     while(1) {
         evalInst(eval, *eval->pc);
         eval->pc++;
+    }
+}
+
+void evalFun(Function* fun) {
+    U64 stack[2 * 1024];
+
+    Eval eval;
+    eval.heapSize = 0;
+    eval.heapMax = 10 * 1024;
+    eval.sp = stack;
+    eval.sb = stack;
+    eval.bp = nullptr;
+    eval.ap = nullptr;
+    eval.lb = nullptr;
+    setBlock(&eval, fun->blocks[0]);
+
+    jmp_buf raiseBuffer;
+    if(auto exception = setjmp(raiseBuffer)) {
+        if(exception == Exit) {
+
+        }
+    } else {
+        eval.raise = &raiseBuffer;
+        runEval(&eval);
     }
 }
