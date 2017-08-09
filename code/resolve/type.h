@@ -26,13 +26,16 @@ struct Type {
         Alias,
     };
 
-    Kind kind;
-
     // We store a reference to some of the of types that reference a single type.
     // This is an efficient way to make sure that only a single instance is created.
     DerivedTypes* derived = nullptr;
 
-    Type(Kind kind): kind(kind) {}
+    // The amount of virtual space this type requires.
+    // This is used for compile-time evaluation and storing constants in a platform-independent way.
+    U32 virtualSize;
+    Kind kind;
+
+    Type(Kind kind, U32 virtualSize): kind(kind), virtualSize(virtualSize) {}
 };
 
 struct GenField {
@@ -43,7 +46,7 @@ struct GenField {
 };
 
 struct GenType: Type {
-    GenType(U32 index): Type(Gen), index(index) {}
+    GenType(U32 index): Type(Gen, 1), index(index) {}
 
     GenField* fields; // A list of fields this type must contain.
     TypeClass** classes; // A list of classes this type must implement.
@@ -60,7 +63,7 @@ struct IntType: Type {
         KindCount,
     };
 
-    IntType(U16 bits, Width width): Type(Kind::Int), bits(bits), width(width) {}
+    IntType(U16 bits, Width width): Type(Kind::Int, 1), bits(bits), width(width) {}
 
     U16 bits;
     Width width;
@@ -74,7 +77,7 @@ struct FloatType: Type {
         KindCount
     };
 
-    FloatType(U16 bits, Width width): Type{Float}, bits(bits), width(width) {}
+    FloatType(U16 bits, Width width): Type{Float, 1}, bits(bits), width(width) {}
 
     U16 bits;
     Width width;
@@ -87,7 +90,7 @@ struct FloatType: Type {
 // All other cases are handled explicitly in the IR.
 struct RefType: Type {
     RefType(Type* to, bool isTraced, bool isLocal, bool isMutable):
-        Type(Ref), to(to), isTraced(isTraced), isLocal(isLocal), isMutable(isMutable) {}
+        Type(Ref, 1), to(to), isTraced(isTraced), isLocal(isLocal), isMutable(isMutable) {}
 
     Type* to;
 
@@ -115,7 +118,7 @@ struct FunArg {
 };
 
 struct FunType: Type {
-    FunType(): Type(Fun) {}
+    FunType(): Type(Fun, 2) {}
 
     FunArg* args;
     Type* result;
@@ -123,12 +126,12 @@ struct FunType: Type {
 };
 
 struct ArrayType: Type {
-    ArrayType(Type* content): Type(Array), content(content) {}
+    ArrayType(Type* content): Type(Array, 2), content(content) {}
     Type* content;
 };
 
 struct MapType: Type {
-    MapType(Type* from, Type* to): Type(Map), from(from), to(to) {}
+    MapType(Type* from, Type* to): Type(Map, 2), from(from), to(to) {}
     Type* from, *to;
 };
 
@@ -143,10 +146,11 @@ struct TupLookup {
     Type** layout = nullptr;
     HashMap<TupLookup, Size> next;
     U32 depth = 0;
+    U32 virtualSize = 0;
 };
 
 struct TupType: Type {
-    TupType(): Type(Tup) {}
+    TupType(U32 virtualSize): Type(Tup, virtualSize) {}
     Field* fields;
     Type** layout;
     U32 count;
@@ -172,7 +176,7 @@ struct RecordType: Type {
         Multi,
     };
 
-    RecordType(): Type(Record), kind(Multi) {}
+    RecordType(): Type(Record, 0), kind(Multi) {}
 
     ast::DataDecl* ast; // Set until the type is fully resolved.
     Con* cons;
@@ -185,7 +189,7 @@ struct RecordType: Type {
 };
 
 struct AliasType: Type {
-    AliasType(): Type(Alias) {}
+    AliasType(): Type(Alias, 0) {}
 
     ast::AliasDecl* ast; // Set until the type is fully resolved.
     Type** gens;
@@ -253,7 +257,7 @@ Type* resolveDefinition(Context* context, Module* module, Type* type);
 Type* resolveType(Context* context, Module* module, ast::Type* type);
 
 // Returns a tuple layout for the provided set of fields.
-Type** findTupLayout(Context* context, Module* module, struct Value** fields, U32 count);
+TupLookup* findTupLayout(Context* context, Module* module, struct Value** fields, U32 count);
 
 // Checks if the two provided types are the same.
 bool compareTypes(Context* context, Type* lhs, Type* rhs);

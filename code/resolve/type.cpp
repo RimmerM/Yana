@@ -2,9 +2,9 @@
 #include "../parse/ast.h"
 #include "module.h"
 
-Type unitType{Type::Unit};
-Type errorType{Type::Error};
-Type stringType{Type::String};
+Type unitType{Type::Unit, 0};
+Type errorType{Type::Error, 0};
+Type stringType{Type::String, 1};
 
 FloatType floatTypes[FloatType::KindCount] = {
     {16, FloatType::F16},
@@ -34,6 +34,7 @@ TupLookup* findTupLayout(Module* module, TupLookup* lookup, I fields) {
         auto layout = (Type**)module->memory.alloc(sizeof(Type*) * depth);
         next->depth = depth;
         next->layout = layout;
+        next->virtualSize = lookup->virtualSize + type->virtualSize;
 
         memcpy(layout, lookup->layout, (depth - 1) * sizeof(Type*));
         layout[depth - 1] = type;
@@ -44,7 +45,7 @@ TupLookup* findTupLayout(Module* module, TupLookup* lookup, I fields) {
     }
 }
 
-Type** findTupLayout(Context* context, Module* module, Value** fields, U32 count) {
+TupLookup* findTupLayout(Context* context, Module* module, Value** fields, U32 count) {
     struct Iterator {
         Context* context;
         Value** fields;
@@ -63,7 +64,7 @@ Type** findTupLayout(Context* context, Module* module, Value** fields, U32 count
         }
     };
 
-    return findTupLayout(module, &module->usedTuples, Iterator{context, fields, fields + count})->layout;
+    return findTupLayout(module, &module->usedTuples, Iterator{context, fields, fields + count});
 }
 
 static Type* findTuple(Context* context, Module* module, ast::TupType* type) {
@@ -88,7 +89,7 @@ static Type* findTuple(Context* context, Module* module, ast::TupType* type) {
     auto layout = findTupLayout(module, &module->usedTuples, Iterator{context, type->fields});
     auto count = layout->depth;
     auto fields = (Field*)module->memory.alloc(sizeof(Field) * count);
-    auto tuple = new (module->memory) TupType;
+    auto tuple = new (module->memory) TupType(layout->virtualSize);
     tuple->count = count;
     tuple->layout = layout->layout;
     tuple->fields = fields;
@@ -186,6 +187,7 @@ void resolveAlias(Context* context, Module* module, AliasType* type) {
     if(ast) {
         type->ast = nullptr;
         type->to = findType(context, module, ast->target);
+        type->virtualSize = type->to->virtualSize;
     }
 }
 
@@ -195,6 +197,8 @@ void resolveRecord(Context* context, Module* module, RecordType* type) {
         type->ast = nullptr;
 
         U32 filledCount = 0;
+        U32 maxSize = 0;
+
         auto conAst = ast->cons;
         for(U32 i = 0; i < type->conCount; i++) {
             if(conAst->item.content) {
@@ -214,10 +218,14 @@ void resolveRecord(Context* context, Module* module, RecordType* type) {
                 }
 
                 filledCount++;
+                if(content->virtualSize > maxSize) {
+                    maxSize = content->virtualSize;
+                }
             }
             conAst = conAst->next;
         }
 
+        type->virtualSize = 1 + maxSize;
         if(filledCount == 0) {
             type->kind = RecordType::Enum;
         } else if(type->conCount == 1) {
