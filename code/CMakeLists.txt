@@ -47,6 +47,7 @@ set(SOURCE_FILES ${SOURCE_FILES}
     resolve/expr.cpp
     resolve/builtins.cpp
     resolve/builtins.h
+    resolve/eval.cpp
 )
 
 set(SOURCE_FILES ${SOURCE_FILES}
