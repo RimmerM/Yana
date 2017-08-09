@@ -155,6 +155,9 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
 
     const char* name = "";
     switch(inst->kind) {
+        case Inst::InstNop:
+            name = "nop";
+            break;
         case Inst::InstTrunc:
             name = "trunc";
             break;

@@ -240,6 +240,7 @@ struct DerivedTypes {
 
 // Global instances of the basic builtin types.
 extern Type unitType;
+extern Type errorType;
 extern FloatType floatTypes[FloatType::KindCount];
 extern IntType intTypes[IntType::KindCount];
 extern Type stringType;

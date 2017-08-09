@@ -1,3 +1,4 @@
+#include <climits>
 #include "../parse/ast.h"
 #include "module.h"
 #include "../util/string.h"
@@ -39,6 +40,38 @@ static ast::InfixExpr* reorder(Context* context, Module* module, ast::InfixExpr*
     return lhs;
 }
 
+static Value* implicitConvertInt(FunBuilder* b, Value* v, Type* targetType, bool isConstruct) {
+    // Integer types can be implicitly extended to a larger type.
+    auto intType = (IntType*)v->type;
+    auto targetInt = (IntType*)targetType;
+    if(intType->bits == targetInt->bits) {
+        return v;
+    } else if(intType->bits < targetInt->bits) {
+        return sext(b->block, 0, v, targetType);
+    } else if(isConstruct) {
+        return trunc(b->block, 0, v, targetType);
+    } else {
+        error(b, "cannot implicitly convert an integer to a smaller type", nullptr);
+        return v;
+    }
+}
+
+static Value* implicitConvertFloat(FunBuilder* b, Value* v, Type* targetType, bool isConstruct) {
+    // Float types can be implicitly extended to a larger type.
+    auto floatType = (FloatType*)v->type;
+    auto targetFloat = (FloatType*)targetType;
+    if(floatType->bits == targetFloat->bits) {
+        return v;
+    } else if(floatType->bits < targetFloat->bits) {
+        return fext(b->block, 0, v, targetType);
+    } else if(isConstruct) {
+        return ftrunc(b->block, 0, v, targetType);
+    } else {
+        error(b, "cannot implicitly convert a float to a smaller type", nullptr);
+        return v;
+    }
+}
+
 // Adds code to implicitly convert a value if possible.
 // If isConstruct is set, the conversion is less strict since the target type is explicitly defined.
 // Returns the new value or null if no conversion is possible.
@@ -48,7 +81,6 @@ static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool is
 
     auto kind = type->kind;
     auto targetKind = targetType->kind;
-    auto name = v->name;
 
     // TODO: Support conversions between equivalent tuple types.
     // TODO: Support conversions to generic types.
@@ -65,8 +97,7 @@ static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool is
         // A local reference can be implicitly converted to a traced one.
         // Following the semantics of the language, the contained value is copied.
         if(ref->isLocal && targetRef->isTraced) {
-            v->name = 0;
-            auto newRef = alloc(b->block, name, targetRef->to, targetRef->isMutable, false);
+            auto newRef = alloc(b->block, 0, targetRef->to, targetRef->isMutable, false);
             load(b->block, 0, v);
             store(b->block, 0, newRef, v);
             return newRef;
@@ -78,45 +109,28 @@ static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool is
         // A returned reference can be implicitly loaded to a register.
         auto ref = (RefType*)type;
         if(compareTypes(&b->context, ref->to, targetType)) {
-            v->name = 0;
-            return load(b->block, name, v);
+            return load(b->block, 0, v);
+        } else if(
+            (ref->to->kind == Type::Int && targetType->kind == Type::Int) &&
+            (((IntType*)ref->to)->bits <= ((IntType*)targetType)->bits || isConstruct)
+        ) {
+            v = load(b->block, 0, v);
+            return implicitConvertInt(b, v, targetType, isConstruct);
+        } else if(
+            (ref->to->kind == Type::Float && targetType->kind == Type::Float) &&
+            (((FloatType*)ref->to)->bits <= ((FloatType*)targetType)->bits || isConstruct)
+        ) {
+            v = load(b->block, 0, v);
+            return implicitConvertFloat(b, v, targetType, isConstruct);
         }
     } else if(kind == Type::Int && targetKind == Type::Int) {
-        // Integer types can be implicitly extended to a larger type.
-        auto intType = (IntType*)type;
-        auto targetInt = (IntType*)targetType;
-        if(intType->bits == targetInt->bits) {
-            return v;
-        } else if(intType->bits < targetInt->bits) {
-            v->name = 0;
-            return sext(b->block, name, v, targetType);
-        } else if(isConstruct) {
-            v->name = 0;
-            return trunc(b->block, name, v, targetType);
-        } else {
-            error(b, "cannot implicitly convert an integer to a smaller type", nullptr);
-        }
+        return implicitConvertInt(b, v, targetType, isConstruct);
     } else if(kind == Type::Float && targetKind == Type::Float) {
-        // Float types can be implicitly extended to a larger type.
-        auto floatType = (FloatType*)type;
-        auto targetFloat = (FloatType*)targetType;
-        if(floatType->bits == targetFloat->bits) {
-            return v;
-        } else if(floatType->bits < targetFloat->bits) {
-            v->name = 0;
-            return fext(b->block, name, v, targetType);
-        } else if(isConstruct) {
-            v->name = 0;
-            return ftrunc(b->block, name, v, targetType);
-        } else {
-            error(b, "cannot implicitly convert a float to a smaller type", nullptr);
-        }
+        return implicitConvertFloat(b, v, targetType, isConstruct);
     } else if(isConstruct && kind == Type::Float && targetKind == Type::Int) {
-        v->name = 0;
-        return ftoi(b->block, name, v, targetType);
+        return ftoi(b->block, 0, v, targetType);
     } else if(isConstruct && kind == Type::Int && targetKind == Type::Float) {
-        v->name = 0;
-        return itof(b->block, name, v, targetType);
+        return itof(b->block, 0, v, targetType);
     } else if(isConstruct && kind == Type::String && targetKind == Type::Int && v->kind == Value::ConstString) {
         // A string literal with a single code point can be converted to an integer.
         auto string = (ConstString*)v;
@@ -129,11 +143,11 @@ static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool is
             }
         }
 
-        return constInt(b->block, codePoint);
+        return constInt(b->block, codePoint, &intTypes[IntType::Int]);
     }
 
     error(b, "cannot implicitly convert to type", nullptr);
-    return nullptr;
+    return v;
 }
 
 // Checks if the two provided types are the same. If not, it tries to implicitly convert to a common type.
@@ -237,9 +251,9 @@ Value* resolveMulti(FunBuilder* b, ast::MultiExpr* expr, Id name, bool used) {
 Value* resolveLit(FunBuilder* b, ast::LitExpr* expr, Id name, bool used) {
     switch(expr->literal.type) {
         case ast::Literal::Int:
-            return constInt(b->block, expr->literal.i);
+            return constInt(b->block, expr->literal.i, expr->literal.i > INT_MAX ? &intTypes[IntType::Long] : &intTypes[IntType::Int]);
         case ast::Literal::Float:
-            return constFloat(b->block, expr->literal.f);
+            return constFloat(b->block, expr->literal.f, &floatTypes[FloatType::F64]);
         case ast::Literal::Char:
             return nullptr;
         case ast::Literal::String: {
@@ -247,7 +261,7 @@ Value* resolveLit(FunBuilder* b, ast::LitExpr* expr, Id name, bool used) {
             return constString(b->block, string.text, string.textLength);
         }
         case ast::Literal::Bool: {
-            auto c = constInt(b->block, expr->literal.b);
+            auto c = constInt(b->block, expr->literal.b, &intTypes[IntType::Bool]);
             c->type = &intTypes[IntType::Bool];
             return c;
         }
@@ -277,9 +291,11 @@ static Value* useValue(FunBuilder* b, Value* value, bool asRV) {
 
 Value* resolveVar(FunBuilder* b, ast::VarExpr* expr, bool asRV) {
     auto value = findVar(b, expr->name);
+
+    // If the value doesn't exist, we create a placeholder to allow the rest of the code to be resolved.
     if(!value) {
         error(b, "identifier not found", expr);
-        return nullptr;
+        value = error(b->block, 0, &errorType);
     }
 
     return useValue(b, value, asRV);
@@ -508,12 +524,16 @@ Value* resolvePrefix(FunBuilder* b, ast::PrefixExpr* expr, Id name, bool used) {
 
 Value* resolveIf(FunBuilder* b, ast::IfExpr* expr, Id name, bool used) {
     auto cond = resolveExpr(b, expr->cond, 0, true);
+    auto condBlock = b->block;
     if(cond->type != &intTypes[IntType::Bool]) {
         error(b, "if condition must be a boolean", expr);
     }
 
     auto then = block(b->fun);
+    then->preceding = condBlock;
+
     auto otherwise = block(b->fun);
+    otherwise->preceding = condBlock;
 
     je(b->block, cond, then, otherwise);
     b->block = then;
@@ -531,6 +551,7 @@ Value* resolveIf(FunBuilder* b, ast::IfExpr* expr, Id name, bool used) {
 
     if(used) {
         auto after = block(b->fun);
+        after->preceding = condBlock;
         b->block = after;
 
         if(!elseValue || !elseBlock || elseBlock->complete || thenBlock->complete) {
@@ -559,6 +580,7 @@ Value* resolveIf(FunBuilder* b, ast::IfExpr* expr, Id name, bool used) {
             b->block = otherwise;
         } else if(!(thenBlock->complete && elseBlock->complete)) {
             auto after = block(b->fun);
+            after->preceding = condBlock;
             b->block = after;
             jmp(thenBlock, after);
             jmp(elseBlock, after);
@@ -577,6 +599,7 @@ Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used)
         c = c->next;
     }
 
+    auto preceding = b->block;
     auto alts = (InstPhi::Alt*)b->fun->module->memory.alloc(sizeof(InstPhi::Alt) * caseCount);
     bool hasElse = false;
 
@@ -594,11 +617,14 @@ Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used)
             alts[i].fromBlock = b->block;
 
             b->block = block(b->fun);
+            b->block->preceding = preceding;
             hasElse = true;
             break;
         } else {
             auto then = block(b->fun);
             auto next = block(b->fun);
+            then->preceding = preceding;
+            next->preceding = preceding;
 
             je(b->block, cond, then, next);
             b->block = then;
@@ -689,8 +715,10 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr) {
 }
 
 Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr) {
+    auto preceding = b->block;
     auto condBlock = block(b->fun);
     jmp(b->block, condBlock);
+    condBlock->preceding = b->block;
     b->block = condBlock;
 
     auto cond = resolveExpr(b, expr->cond, 0, true);
@@ -700,6 +728,9 @@ Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr) {
 
     auto bodyBlock = block(b->fun);
     auto exitBlock = block(b->fun);
+    bodyBlock->preceding = b->block;
+    exitBlock->preceding = preceding;
+
     je(b->block, cond, bodyBlock, exitBlock);
     b->block = bodyBlock;
 
@@ -712,13 +743,16 @@ Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr) {
 
 Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
     // The starting value is only evaluated once.
-    auto startBlock = b->block;
     auto from = resolveExpr(b, expr->from, 0, true);
+    auto startBlock = b->block;
 
     // Create the starting block for each loop part.
     auto condBlock = block(b->fun);
     auto loopBlock = block(b->fun);
     auto endBlock = block(b->fun);
+    condBlock->preceding = startBlock;
+    loopBlock->preceding = condBlock;
+    endBlock->preceding = startBlock;
 
     // Evaluate the loop condition.
     jmp(startBlock, condBlock);
@@ -748,9 +782,9 @@ Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
 
     Value* nextVar;
     if(expr->reverse) {
-        nextVar = sub(loopEnd, 0, var, constInt(loopEnd, 1));
+        nextVar = sub(loopEnd, 0, var, constInt(loopEnd, 1, var->type));
     } else {
-        nextVar = add(loopEnd, 0, var, constInt(loopEnd, 1));
+        nextVar = add(loopEnd, 0, var, constInt(loopEnd, 1, var->type));
     }
 
     jmp(loopEnd, condBlock);
@@ -769,12 +803,14 @@ Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr) {
     switch(target->type) {
         case ast::Expr::Var: {
             auto var = resolveVar(b, (ast::VarExpr*)target, true);
-            if(var->type->kind != Type::Ref) {
-                error(b, "type is not assignable", target);
-            }
-
             auto val = resolveExpr(b, expr->value, 0, true);
-            return store(b->block, 0, var, val);
+
+            if(!var || var->type->kind != Type::Ref || !((RefType*)var->type)->isMutable) {
+                error(b, "type is not assignable", target);
+                return nullptr;
+            } else {
+                return store(b->block, 0, var, val);
+            }
         }
         case ast::Expr::Field: {
 
