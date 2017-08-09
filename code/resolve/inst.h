@@ -16,7 +16,7 @@ struct Use {
 
 // A local register containing the result of some operation.
 struct Value {
-    enum Kind {
+    enum Kind: U16 {
         Arg,
         Global,
 
@@ -29,7 +29,7 @@ struct Value {
         FirstInst,
 
         // Primitives: conversion.
-        InstTrunc,
+        InstTrunc = FirstInst,
         InstFTrunc,
         InstZExt,
         InstSExt,
@@ -107,6 +107,7 @@ struct Value {
 
     U32 name;
     Kind kind;
+    U16 id;
 };
 
 // A value provided through a function parameter.
@@ -374,28 +375,28 @@ InstUIToF* uitof(Block* block, Id name, Value* from, Type* to);
 InstFToI* ftoi(Block* block, Id name, Value* from, Type* to);
 InstFToUI* ftoui(Block* block, Id name, Value* from, Type* to);
 
-InstAdd* add(Block* block, Id name, Value* lhs, Value* rhs);
-InstSub* sub(Block* block, Id name, Value* lhs, Value* rhs);
-InstMul* mul(Block* block, Id name, Value* lhs, Value* rhs);
-InstDiv* div(Block* block, Id name, Value* lhs, Value* rhs);
-InstIDiv* idiv(Block* block, Id name, Value* lhs, Value* rhs);
-InstRem* rem(Block* block, Id name, Value* lhs, Value* rhs);
-InstIRem* irem(Block* block, Id name, Value* lhs, Value* rhs);
+Value* add(Block* block, Id name, Value* lhs, Value* rhs);
+Value* sub(Block* block, Id name, Value* lhs, Value* rhs);
+Value* mul(Block* block, Id name, Value* lhs, Value* rhs);
+Value* div(Block* block, Id name, Value* lhs, Value* rhs);
+Value* idiv(Block* block, Id name, Value* lhs, Value* rhs);
+Value* rem(Block* block, Id name, Value* lhs, Value* rhs);
+Value* irem(Block* block, Id name, Value* lhs, Value* rhs);
 
-InstFAdd* fadd(Block* block, Id name, Value* lhs, Value* rhs);
-InstFSub* fsub(Block* block, Id name, Value* lhs, Value* rhs);
-InstFMul* fmul(Block* block, Id name, Value* lhs, Value* rhs);
-InstFDiv* fdiv(Block* block, Id name, Value* lhs, Value* rhs);
+Value* fadd(Block* block, Id name, Value* lhs, Value* rhs);
+Value* fsub(Block* block, Id name, Value* lhs, Value* rhs);
+Value* fmul(Block* block, Id name, Value* lhs, Value* rhs);
+Value* fdiv(Block* block, Id name, Value* lhs, Value* rhs);
 
-InstICmp* icmp(Block* block, Id name, Value* lhs, Value* rhs, ICmp cmp);
-InstFCmp* fcmp(Block* block, Id name, Value* lhs, Value* rhs, FCmp cmp);
+Value* icmp(Block* block, Id name, Value* lhs, Value* rhs, ICmp cmp);
+Value* fcmp(Block* block, Id name, Value* lhs, Value* rhs, FCmp cmp);
 
-InstShl* shl(Block* block, Id name, Value* arg, Value* amount);
-InstShr* shr(Block* block, Id name, Value* arg, Value* amount);
-InstSar* sar(Block* block, Id name, Value* arg, Value* amount);
-InstAnd* bitand_(Block* block, Id name, Value* lhs, Value* rhs);
-InstOr* or_(Block* block, Id name, Value* lhs, Value* rhs);
-InstXor* xor_(Block* block, Id name, Value* lhs, Value* rhs);
+Value* shl(Block* block, Id name, Value* arg, Value* amount);
+Value* shr(Block* block, Id name, Value* arg, Value* amount);
+Value* sar(Block* block, Id name, Value* arg, Value* amount);
+Value* and_(Block* block, Id name, Value* lhs, Value* rhs);
+Value* or_(Block* block, Id name, Value* lhs, Value* rhs);
+Value* xor_(Block* block, Id name, Value* lhs, Value* rhs);
 
 InstRecord* record(Block* block, Id name, struct Con* con, Value** fields, U32 count);
 InstTup* tup(Block* block, Id name, Type* type, Value** fields, U32 count);

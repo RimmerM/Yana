@@ -105,51 +105,51 @@ InstFToUI* ftoui(Block* block, Id name, Value* from, Type* to) {
     return (InstFToUI*)cast(block, Inst::InstFToUI, name, from, to);
 }
 
-InstAdd* add(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstAdd*)binary(block, Inst::InstAdd, name, lhs, rhs, lhs->type);
+Value* add(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstAdd, name, lhs, rhs, lhs->type);
 }
 
-InstSub* sub(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstSub*)binary(block, Inst::InstSub, name, lhs, rhs, lhs->type);
+Value* sub(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstSub, name, lhs, rhs, lhs->type);
 }
 
-InstMul* mul(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstMul*)binary(block, Inst::InstMul, name, lhs, rhs, lhs->type);
+Value* mul(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstMul, name, lhs, rhs, lhs->type);
 }
 
-InstDiv* div(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstDiv*)binary(block, Inst::InstDiv, name, lhs, rhs, lhs->type);
+Value* div(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstDiv, name, lhs, rhs, lhs->type);
 }
 
-InstIDiv* idiv(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstIDiv*)binary(block, Inst::InstIDiv, name, lhs, rhs, lhs->type);
+Value* idiv(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstIDiv, name, lhs, rhs, lhs->type);
 }
 
-InstRem* rem(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstRem*)binary(block, Inst::InstRem, name, lhs, rhs, lhs->type);
+Value* rem(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstRem, name, lhs, rhs, lhs->type);
 }
 
-InstIRem* irem(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstIRem*)binary(block, Inst::InstIRem, name, lhs, rhs, lhs->type);
+Value* irem(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstIRem, name, lhs, rhs, lhs->type);
 }
 
-InstFAdd* fadd(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstFAdd*)binary(block, Inst::InstFAdd, name, lhs, rhs, lhs->type);
+Value* fadd(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstFAdd, name, lhs, rhs, lhs->type);
 }
 
-InstFSub* fsub(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstFSub*)binary(block, Inst::InstFSub, name, lhs, rhs, lhs->type);
+Value* fsub(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstFSub, name, lhs, rhs, lhs->type);
 }
 
-InstFMul* fmul(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstFMul*)binary(block, Inst::InstFMul, name, lhs, rhs, lhs->type);
+Value* fmul(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstFMul, name, lhs, rhs, lhs->type);
 }
 
-InstFDiv* fdiv(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstFDiv*)binary(block, Inst::InstFDiv, name, lhs, rhs, lhs->type);
+Value* fdiv(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstFDiv, name, lhs, rhs, lhs->type);
 }
 
-InstICmp* icmp(Block* block, Id name, Value* lhs, Value* rhs, ICmp cmp) {
+Value* icmp(Block* block, Id name, Value* lhs, Value* rhs, ICmp cmp) {
     auto inst = (InstICmp*)block->inst(sizeof(InstICmp), name, Inst::InstICmp, &intTypes[IntType::Bool]);
     inst->lhs = lhs;
     inst->rhs = rhs;
@@ -163,7 +163,7 @@ InstICmp* icmp(Block* block, Id name, Value* lhs, Value* rhs, ICmp cmp) {
     return inst;
 }
 
-InstFCmp* fcmp(Block* block, Id name, Value* lhs, Value* rhs, FCmp cmp) {
+Value* fcmp(Block* block, Id name, Value* lhs, Value* rhs, FCmp cmp) {
     auto inst = (InstFCmp*)block->inst(sizeof(InstFCmp), name, Inst::InstFCmp, &intTypes[IntType::Bool]);
     inst->lhs = lhs;
     inst->rhs = rhs;
@@ -177,28 +177,28 @@ InstFCmp* fcmp(Block* block, Id name, Value* lhs, Value* rhs, FCmp cmp) {
     return inst;
 }
 
-InstShl* shl(Block* block, Id name, Value* arg, Value* amount) {
-    return (InstShl*)binary(block, Inst::InstShl, name, arg, amount, arg->type);
+Value* shl(Block* block, Id name, Value* arg, Value* amount) {
+    return binary(block, Inst::InstShl, name, arg, amount, arg->type);
 }
 
-InstShr* shr(Block* block, Id name, Value* arg, Value* amount) {
-    return (InstShr*)binary(block, Inst::InstShr, name, arg, amount, arg->type);
+Value* shr(Block* block, Id name, Value* arg, Value* amount) {
+    return binary(block, Inst::InstShr, name, arg, amount, arg->type);
 }
 
-InstSar* sar(Block* block, Id name, Value* arg, Value* amount) {
-    return (InstSar*)binary(block, Inst::InstSar, name, arg, amount, arg->type);
+Value* sar(Block* block, Id name, Value* arg, Value* amount) {
+    return binary(block, Inst::InstSar, name, arg, amount, arg->type);
 }
 
-InstAnd* and_(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstAnd*)binary(block, Inst::InstAnd, name, lhs, rhs, lhs->type);
+Value* and_(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstAnd, name, lhs, rhs, lhs->type);
 }
 
-InstOr* or_(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstOr*)binary(block, Inst::InstOr, name, lhs, rhs, lhs->type);
+Value* or_(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstOr, name, lhs, rhs, lhs->type);
 }
 
-InstXor* xor_(Block* block, Id name, Value* lhs, Value* rhs) {
-    return (InstXor*)binary(block, Inst::InstXor, name, lhs, rhs, lhs->type);
+Value* xor_(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstXor, name, lhs, rhs, lhs->type);
 }
 
 InstRecord* record(Block* block, Id name, struct Con* con, Value** fields, U32 count) {
