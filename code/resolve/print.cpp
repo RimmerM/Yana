@@ -331,7 +331,10 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
             } else {
                 stream << "<unnamed>";
             }
-            stream << ", ";
+
+            if(inst->usedCount > 0) {
+                stream << ", ";
+            }
             break;
         }
         case Inst::InstCallForeign: {
@@ -341,7 +344,10 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
             } else {
                 stream << "<unnamed>";
             }
-            stream << ", ";
+
+            if(inst->usedCount > 0) {
+                stream << ", ";
+            }
             break;
         }
     }

@@ -40,7 +40,6 @@ static ast::InfixExpr* reorder(Context* context, Module* module, ast::InfixExpr*
 }
 
 // Adds code to implicitly convert a value if possible.
-// This adds code in the block the value is defined in, not the current one.
 // If isConstruct is set, the conversion is less strict since the target type is explicitly defined.
 // Returns the new value or null if no conversion is possible.
 static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool isConstruct) {
@@ -67,9 +66,9 @@ static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool is
         // Following the semantics of the language, the contained value is copied.
         if(ref->isLocal && targetRef->isTraced) {
             v->name = 0;
-            auto newRef = alloc(v->block, name, targetRef->to, targetRef->isMutable, false);
-            load(v->block, 0, v);
-            store(v->block, 0, newRef, v);
+            auto newRef = alloc(b->block, name, targetRef->to, targetRef->isMutable, false);
+            load(b->block, 0, v);
+            store(b->block, 0, newRef, v);
             return newRef;
         }
 
@@ -80,7 +79,7 @@ static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool is
         auto ref = (RefType*)type;
         if(compareTypes(&b->context, ref->to, targetType)) {
             v->name = 0;
-            return load(v->block, name, v);
+            return load(b->block, name, v);
         }
     } else if(kind == Type::Int && targetKind == Type::Int) {
         // Integer types can be implicitly extended to a larger type.
@@ -90,10 +89,10 @@ static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool is
             return v;
         } else if(intType->bits < targetInt->bits) {
             v->name = 0;
-            return sext(v->block, name, v, targetType);
+            return sext(b->block, name, v, targetType);
         } else if(isConstruct) {
             v->name = 0;
-            return trunc(v->block, name, v, targetType);
+            return trunc(b->block, name, v, targetType);
         } else {
             error(b, "cannot implicitly convert an integer to a smaller type", nullptr);
         }
@@ -105,19 +104,19 @@ static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool is
             return v;
         } else if(floatType->bits < targetFloat->bits) {
             v->name = 0;
-            return fext(v->block, name, v, targetType);
+            return fext(b->block, name, v, targetType);
         } else if(isConstruct) {
             v->name = 0;
-            return ftrunc(v->block, name, v, targetType);
+            return ftrunc(b->block, name, v, targetType);
         } else {
             error(b, "cannot implicitly convert a float to a smaller type", nullptr);
         }
     } else if(isConstruct && kind == Type::Float && targetKind == Type::Int) {
         v->name = 0;
-        return ftoi(v->block, name, v, targetType);
+        return ftoi(b->block, name, v, targetType);
     } else if(isConstruct && kind == Type::Int && targetKind == Type::Float) {
         v->name = 0;
-        return itof(v->block, name, v, targetType);
+        return itof(b->block, name, v, targetType);
     } else if(isConstruct && kind == Type::String && targetKind == Type::Int && v->kind == Value::ConstString) {
         // A string literal with a single code point can be converted to an integer.
         auto string = (ConstString*)v;
@@ -130,7 +129,7 @@ static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool is
             }
         }
 
-        return constInt(v->block, codePoint);
+        return constInt(b->block, codePoint);
     }
 
     error(b, "cannot implicitly convert to type", nullptr);
@@ -140,14 +139,23 @@ static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool is
 // Checks if the two provided types are the same. If not, it tries to implicitly convert to a common type.
 static bool generalizeTypes(FunBuilder* b, Value*& lhs, Value*& rhs) {
     // Try to do an implicit conversion each way.
+    auto prevBlock = b->block;
+    b->block = lhs->block;
+
     if(auto v = implicitConvert(b, lhs, rhs->type, false)) {
         lhs = v;
+        b->block = prevBlock;
         return true;
-    } else if(auto v = implicitConvert(b, rhs, lhs->type, false)) {
-        rhs = v;
-        return true;
+    } else {
+        b->block = rhs->block;
+        if(auto v = implicitConvert(b, rhs, lhs->type, false)) {
+            rhs = v;
+            b->block = prevBlock;
+            return true;
+        }
     }
 
+    b->block = prevBlock;
     return false;
 }
 

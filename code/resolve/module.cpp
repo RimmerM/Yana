@@ -431,12 +431,16 @@ void resolveFun(Context* context, Function* fun) {
 
     FunBuilder builder(fun, startBlock, *context, fun->module->memory);
     auto body = resolveExpr(&builder, ast->body, 0, true);
-    if(implicitReturn && body->kind != Inst::InstRet) {
+    if(implicitReturn && body && body->kind != Inst::InstRet) {
         // The function is an expression - implicitly return the result if needed.
         ret(body->block, body);
-    } else if(!body->block->complete) {
-        // The function is a block - implicitly return void if needed.
-        ret(body->block, nullptr);
+    } else {
+        // The function is a block - implicitly return void from any incomplete blocks if needed.
+        for(auto block: fun->blocks) {
+            if(!block->complete) {
+                ret(block, nullptr);
+            }
+        }
     }
 
     Type* previous = nullptr;
