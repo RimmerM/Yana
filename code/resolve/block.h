@@ -25,14 +25,17 @@ struct Block {
     // The closest block that always executes after this one.
     Block* succeeding = nullptr;
 
+    void* codegen = nullptr;
+
+    // Unique id of this block within the function.
+    U32 id;
+
     // Set if this block returns at the end.
     bool returns = false;
 
     // Set when the block contains a terminating instruction.
     // Appending instructions after this is set will have no effect.
     bool complete = false;
-
-    void* codegen = nullptr;
 
     Value* use(Value* value, Inst* user);
     Inst* inst(Size size, Id name, Inst::Kind kind, Type* type);

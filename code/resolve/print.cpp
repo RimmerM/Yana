@@ -8,23 +8,10 @@ void printValue(std::ostream& stream, Context& context, const Value* value) {
         if(name.textLength > 0) {
             stream.write(name.text, name.textLength);
         } else if(value->kind >= Value::FirstInst) {
-            auto block = ((Inst*)value)->block;
-
-            Size blockIndex = 0;
-            for(Size i = 0; i < block->function->blocks.size(); i++) {
-                if(block->function->blocks[i] == block) break;
-                blockIndex++;
-            }
-
-            Size index = 0;
-            for(Size i = 0; i < block->instructions.size(); i++) {
-                if(block->instructions[i] == value) break;
-                index++;
-            }
-
-            stream << blockIndex;
-            stream << '.';
-            stream << index;
+            stream << value->id;
+        } else if(value->kind == Value::Arg) {
+            stream << 'a';
+            stream << ((Arg*)value)->index;
         } else {
             stream << "<unnamed>";
         }

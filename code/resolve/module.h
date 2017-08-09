@@ -78,8 +78,19 @@ struct Function {
     Array<Block*> blocks; // Can't contain values because we store the pointers to them.
     Array<InstRet*> returnPoints;
 
+    // If this function can be used as an intrinsic, this builds an inline version in the current blocks.
+    Value* (*intrinsic)(FunBuilder* b, Value** args, U32 count, Id name) = nullptr;
+
     ast::FunDecl* ast = nullptr; // Set until the function is fully resolved.
     void* codegen = nullptr;
+
+    // Each instruction in a function has a unique id.
+    // This counter tracks how many we have created.
+    U32 instCounter = 0;
+
+    // Each block in a function has a unique id.
+    // This counter tracks how many we have created.
+    U32 blockCounter = 0;
 
     // Globals and functions can be interdependent.
     // This is no problem in most cases, except when their inferred types depend on each other,

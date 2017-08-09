@@ -413,7 +413,12 @@ static Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List
         args[i] = v;
     }
 
-    return call(b->block, name, fun, args, argCount);
+    // If the function is an intrinsic, we use that instead.
+    if(fun->intrinsic) {
+        return fun->intrinsic(b, args, argCount, name);
+    } else {
+        return call(b->block, name, fun, args, argCount);
+    }
 }
 
 Value* resolveApp(FunBuilder* b, ast::AppExpr* expr, Id name, bool used) {
@@ -812,7 +817,7 @@ Value* resolveTup(FunBuilder* b, ast::TupExpr* expr, Id name) {
 
     auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
     auto fields = (Field*)b->mem.alloc(sizeof(Field) * argCount);
-    auto type = new (b->mem) TupType;
+    auto type = new (b->mem) TupType(0);
 
     arg = expr->args;
     for(U32 i = 0; i < argCount; i++) {
@@ -825,9 +830,11 @@ Value* resolveTup(FunBuilder* b, ast::TupExpr* expr, Id name) {
         arg = arg->next;
     }
 
+    auto layout = findTupLayout(&b->context, b->fun->module, args, argCount);
     type->fields = fields;
-    type->layout = findTupLayout(&b->context, b->fun->module, args, argCount);
+    type->layout = layout->layout;
     type->count = argCount;
+    type->virtualSize = layout->virtualSize;
 
     return tup(b->block, name, type, args, argCount);
 }

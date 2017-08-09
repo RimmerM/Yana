@@ -15,6 +15,7 @@ Inst* Block::inst(Size size, Id name, Inst::Kind kind, Type* type) {
     inst->name = name;
     inst->kind = kind;
     inst->type = type;
+    inst->id = (U16)function->instCounter++;
 
     if(!complete) {
         instructions.push(inst);
@@ -50,6 +51,7 @@ Value* Block::findValue(Id name) {
 Block* block(Function* fun) {
     auto block = new (fun->module->memory) Block;
     block->function = fun;
+    block->id = fun->blockCounter++;
     fun->blocks.push(block);
 
     return block;
