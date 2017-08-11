@@ -4,7 +4,7 @@
 #include "block.h"
 #include "type.h"
 
-namespace ast { struct FunDecl; struct DeclExpr; struct ForeignDecl; struct Expr; struct Module; }
+namespace ast { struct FunDecl; struct DeclExpr; struct ForeignDecl; struct Expr; struct Pat; struct Module; }
 
 struct Module;
 struct Function;
@@ -67,6 +67,7 @@ Global* findGlobal(Context* context, Module* module, Id name);
 
 Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast);
 void resolveFun(Context* context, Function* fun);
+Value* resolvePat(FunBuilder* b, ast::Pat* pat);
 Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used);
 
 struct Function {

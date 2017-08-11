@@ -248,20 +248,20 @@ Value* resolveMulti(FunBuilder* b, ast::MultiExpr* expr, Id name, bool used) {
     }
 }
 
-Value* resolveLit(FunBuilder* b, ast::LitExpr* expr, Id name, bool used) {
-    switch(expr->literal.type) {
+Value* resolveLit(FunBuilder* b, ast::Literal* lit, Id name, bool used) {
+    switch(lit->type) {
         case ast::Literal::Int:
-            return constInt(b->block, expr->literal.i, expr->literal.i > INT_MAX ? &intTypes[IntType::Long] : &intTypes[IntType::Int]);
+            return constInt(b->block, lit->i, lit->i > INT_MAX ? &intTypes[IntType::Long] : &intTypes[IntType::Int]);
         case ast::Literal::Float:
-            return constFloat(b->block, expr->literal.f, &floatTypes[FloatType::F64]);
+            return constFloat(b->block, lit->f, &floatTypes[FloatType::F64]);
         case ast::Literal::Char:
             return nullptr;
         case ast::Literal::String: {
-            auto string = b->context.find(expr->literal.s);
+            auto string = b->context.find(lit->s);
             return constString(b->block, string.text, string.textLength);
         }
         case ast::Literal::Bool: {
-            auto c = constInt(b->block, expr->literal.b, &intTypes[IntType::Bool]);
+            auto c = constInt(b->block, lit->b, &intTypes[IntType::Bool]);
             c->type = &intTypes[IntType::Bool];
             return c;
         }
@@ -1025,7 +1025,7 @@ Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {
         case ast::Expr::Multi:
             return resolveMulti(b, (ast::MultiExpr*)expr, name, used);
         case ast::Expr::Lit:
-            return resolveLit(b, (ast::LitExpr*)expr, name, used);
+            return resolveLit(b, &((ast::LitExpr*)expr)->literal, name, used);
         case ast::Expr::Var:
             return resolveVar(b, (ast::VarExpr*)expr, false);
         case ast::Expr::App:
@@ -1073,4 +1073,61 @@ Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {
     }
 
     return nullptr;
+}
+
+Value* resolveVarPat(FunBuilder* b, ast::VarPat* pat) {
+    return constInt(b->block, 0, &intTypes[IntType::Bool]);
+}
+
+Value* resolveLitPat(FunBuilder* b, ast::LitPat* pat) {
+    return constInt(b->block, 0, &intTypes[IntType::Bool]);
+}
+
+Value* resolveAnyPat(FunBuilder* b, ast::Pat* pat) {
+    return constInt(b->block, 1, &intTypes[IntType::Bool]);
+}
+
+Value* resolveTupPat(FunBuilder* b, ast::TupPat* pat) {
+    return constInt(b->block, 0, &intTypes[IntType::Bool]);
+}
+
+Value* resolveConPat(FunBuilder* b, ast::ConPat* pat) {
+    return constInt(b->block, 0, &intTypes[IntType::Bool]);
+}
+
+Value* resolveArrPat(FunBuilder* b, ast::ArrayPat* pat) {
+    return constInt(b->block, 0, &intTypes[IntType::Bool]);
+}
+
+Value* resolveRestPat(FunBuilder* b, ast::RestPat* pat) {
+    return constInt(b->block, 0, &intTypes[IntType::Bool]);
+}
+
+Value* resolveRangePat(FunBuilder* b, ast::RangePat* pat) {
+    return constInt(b->block, 0, &intTypes[IntType::Bool]);
+}
+
+Value* resolvePat(FunBuilder* b, ast::Pat* pat) {
+    switch(pat->kind) {
+        case ast::Pat::Error:
+            return constInt(b->block, 0, &intTypes[IntType::Bool]);
+        case ast::Pat::Var:
+            return resolveVarPat(b, (ast::VarPat*)pat);
+        case ast::Pat::Lit:
+            return resolveLitPat(b, (ast::LitPat*)pat);
+        case ast::Pat::Any:
+            return resolveAnyPat(b, pat);
+        case ast::Pat::Tup:
+            return resolveTupPat(b, (ast::TupPat*)pat);
+        case ast::Pat::Con:
+            return resolveConPat(b, (ast::ConPat*)pat);
+        case ast::Pat::Array:
+            return resolveArrPat(b, (ast::ArrayPat*)pat);
+        case ast::Pat::Rest:
+            return resolveRestPat(b, (ast::RestPat*)pat);
+        case ast::Pat::Range:
+            return resolveRangePat(b, (ast::RangePat*)pat);
+        default:
+            return constInt(b->block, 0, &intTypes[IntType::Bool]);
+    }
 }
