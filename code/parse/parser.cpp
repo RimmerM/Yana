@@ -1418,6 +1418,26 @@ Pat* Parser::parseLeftPattern() {
                 }, Token::Comma);
             });
             return new(buffer) TupPat(expr);
+        } else if(token.type == Token::BracketL) {
+            auto expr = brackets([=] {
+                return sepBy([=] {
+                    return parsePattern();
+                }, Token::Comma, Token::BracketR);
+            });
+
+            return new(buffer) ArrayPat(expr);
+        } else if(token.type == Token::opDotDot) {
+            eat();
+            Id var;
+            if(token.type == Token::VarID) {
+                var = token.data.id;
+                eat();
+            } else {
+                var = 0;
+                error("expected variable name");
+            }
+
+            return new (buffer) RestPat(var);
         } else {
             error("expected pattern");
             return new (buffer) Pat(Pat::Error);
@@ -1450,16 +1470,23 @@ Pat* Parser::parsePattern() {
         if(token.type == Token::ParenL) {
             pats = parens([=] {
                 return sepBy1([=] {
-                    return parseLeftPattern();
+                    return parsePattern();
                 }, Token::Comma);
             });
         } else if(token.type == Token::BraceL) {
-            pats = list(parseLeftPattern());
+            pats = list(parsePattern());
         }
 
         return new(buffer) ConPat(id, pats);
     } else {
-        return parseLeftPattern();
+        auto pat = parseLeftPattern();
+        if(token.type == Token::opDotDot) {
+            eat();
+            auto to = parseLeftPattern();
+            return new (buffer) RangePat(pat, to);
+        } else {
+            return pat;
+        }
     }
 }
 

@@ -127,7 +127,10 @@ struct Pat: Node {
         Lit,
         Any,
         Tup,
-        Con
+        Con,
+        Array,
+        Rest,
+        Range
     };
 
     Id asVar;
@@ -161,6 +164,22 @@ struct ConPat: Pat {
     ConPat(Id constructor, List<Pat*>* pats): Pat(Con), constructor(constructor), pats(pats) {}
     Id constructor;
     List<Pat*>* pats;
+};
+
+struct ArrayPat: Pat {
+    ArrayPat(List<Pat*>* pats): Pat(Array), pats(pats) {}
+    List<Pat*>* pats;
+};
+
+struct RestPat: Pat {
+    RestPat(Id var, Id asVar = 0): Pat(Rest, asVar), var(var) {}
+    Id var;
+};
+
+struct RangePat: Pat {
+    RangePat(Pat* from, Pat* to): Pat(Range), from(from), to(to) {}
+    Pat* from;
+    Pat* to;
 };
 
 /*
