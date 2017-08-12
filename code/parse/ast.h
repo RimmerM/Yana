@@ -447,13 +447,14 @@ struct Decl: Node {
 };
 
 struct FunDecl: Decl {
-    FunDecl(Id name, Expr* body, List<Arg>* args, Type* ret) :
-        Decl(Fun), name(name), args(args), ret(ret), body(body) {}
+    FunDecl(Id name, Expr* body, List<Arg>* args, Type* ret, bool implicitReturn) :
+        Decl(Fun), name(name), args(args), ret(ret), body(body), implicitReturn(implicitReturn) {}
 
     Id name;
     List<Arg>* args;
     Type* ret; // If the function explicitly defines one.
     Expr* body;
+    bool implicitReturn;
 };
 
 struct AliasDecl: Decl {

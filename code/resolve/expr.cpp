@@ -1054,17 +1054,17 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
     alt = expr->alts;
     for(U32 i = 0; i < altCount; i++) {
         auto result = resolvePat(b, pivot, alt->item.pat);
-        auto then = block(b->fun);
-        then->preceding = preceding;
 
         if(alwaysTrue(result)) {
-            b->block = then;
             alts[i].value = resolveExpr(b, alt->item.expr, 0, true);
             alts[i].fromBlock = b->block;
 
             hasElse = true;
             break;
         } else {
+            auto then = block(b->fun);
+            then->preceding = preceding;
+
             auto otherwise = alt->next ? block(b->fun) : after;
             otherwise->preceding = preceding;
 
@@ -1101,6 +1101,7 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
             jmp(alts[i].fromBlock, after);
         }
 
+        b->block = after;
         return phi(after, name, alts, altCount);
     } else {
         // If each case returns, we don't need a block afterwards.
@@ -1128,12 +1129,15 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
             }
         }
 
+        b->block = after;
         return nullptr;
     }
 }
 
 Value* resolveRet(FunBuilder* b, ast::RetExpr* expr, Id name, bool used) {
-    return ret(b->block, resolveExpr(b, expr->value, 0, true));
+    // The expression needs to be resolved before the current block is loaded.
+    auto value = resolveExpr(b, expr->value, 0, true);
+    return ret(b->block, value);
 }
 
 Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {
@@ -1281,7 +1285,7 @@ Value* resolveRangePat(FunBuilder* b, Value* pivot, ast::RangePat* pat) {
         auto fromArgs = (Value**)b->mem.alloc(sizeof(Value) * 2);
         fromArgs[0] = pivot;
         fromArgs[1] = to;
-        auto fromCmp = genStaticCall(b, geHash, fromArgs, 2, 0);
+        auto fromCmp = genStaticCall(b, leHash, fromArgs, 2, 0);
 
         if(!fromCmp || fromCmp->type != &intTypes[IntType::Bool]) {
             if(!fromCmp || fromCmp->type->kind != Type::Error) {
@@ -1294,8 +1298,8 @@ Value* resolveRangePat(FunBuilder* b, Value* pivot, ast::RangePat* pat) {
     } else if(!to) {
         auto toArgs = (Value**)b->mem.alloc(sizeof(Value) * 2);
         toArgs[0] = pivot;
-        toArgs[1] = to;
-        auto toCmp = genStaticCall(b, leHash, toArgs, 2, 0);
+        toArgs[1] = from;
+        auto toCmp = genStaticCall(b, geHash, toArgs, 2, 0);
 
         if(!toCmp || toCmp->type != &intTypes[IntType::Bool]) {
             if(!toCmp || toCmp->type->kind != Type::Error) {

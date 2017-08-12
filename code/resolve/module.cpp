@@ -424,13 +424,10 @@ void resolveFun(Context* context, Function* fun) {
         expectedReturn = resolveType(context, fun->module, ast->ret);
     }
 
-    bool implicitReturn = true;
-    if(ast->body->type == ast::Expr::Multi) {
-        implicitReturn = false;
-    }
+    bool implicitReturn = ast->implicitReturn;
 
     FunBuilder builder(fun, startBlock, *context, fun->module->memory);
-    auto body = resolveExpr(&builder, ast->body, 0, true);
+    auto body = resolveExpr(&builder, ast->body, 0, implicitReturn);
     if(implicitReturn && body && body->kind != Inst::InstRet) {
         // The function is an expression - implicitly return the result if needed.
         ret(body->block, body);

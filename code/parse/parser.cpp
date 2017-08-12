@@ -231,8 +231,10 @@ Decl* Parser::parseFunDecl() {
             ret = parseType();
         }
 
+        bool implicitReturn;
         Expr *body;
         if(token.type == Token::opEquals) {
+            implicitReturn = true;
             body = node([=]() -> Expr* {
                 eat();
                 auto expr = parseExpr();
@@ -246,6 +248,7 @@ Decl* Parser::parseFunDecl() {
                 }
             });
         } else if(token.type == Token::opBar) {
+            implicitReturn = true;
             auto cases = withLevel([=] {
                 return sepBy1([=] {
                     if(token.type == Token::opBar) {
@@ -277,10 +280,11 @@ Decl* Parser::parseFunDecl() {
 
             body = new (buffer) CaseExpr(pivot, cases);
         } else {
+            implicitReturn = false;
             body = parseBlock(true);
         }
 
-        return new(buffer) FunDecl(name, body, args, ret);
+        return new(buffer) FunDecl(name, body, args, ret, implicitReturn);
     });
 }
 
