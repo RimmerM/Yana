@@ -45,34 +45,46 @@ Value* error(Block* block, Id name, Type* type) {
     return v;
 }
 
-ConstInt* constInt(Block* block, I64 value, Type* type) {
+ConstInt* constInt(Block* block, Id name, I64 value, Type* type) {
     auto c = (ConstInt*)block->function->module->memory.alloc(sizeof(ConstInt));
     c->block = block;
-    c->name = 0;
+    c->name = name;
     c->kind = Value::ConstInt;
     c->type = type;
     c->value = value;
+
+    if(name) {
+        block->namedValues[name] = c;
+    }
     return c;
 }
 
-ConstFloat* constFloat(Block* block, double value, Type* type) {
+ConstFloat* constFloat(Block* block, Id name, double value, Type* type) {
     auto c = (ConstFloat*)block->function->module->memory.alloc(sizeof(ConstFloat));
     c->block = block;
-    c->name = 0;
+    c->name = name;
     c->kind = Value::ConstFloat;
     c->type = type;
     c->value = value;
+
+    if(name) {
+        block->namedValues[name] = c;
+    }
     return c;
 }
 
-ConstString* constString(Block* block, const char* value, Size length) {
+ConstString* constString(Block* block, Id name, const char* value, Size length) {
     auto c = (ConstString*)block->function->module->memory.alloc(sizeof(ConstString));
     c->block = block;
-    c->name = 0;
+    c->name = name;
     c->kind = Value::ConstString;
     c->type = &stringType;
     c->value = value;
     c->length = length;
+
+    if(name) {
+        block->namedValues[name] = c;
+    }
     return c;
 }
 
@@ -90,7 +102,7 @@ Value* trunc(Block* block, Id name, Value* from, Type* to) {
             default: ;
         }
 
-        return constInt(block, value, to);
+        return constInt(block, name, value, to);
     } else {
         return cast(block, Inst::InstTrunc, name, from, to);
     }
@@ -102,7 +114,7 @@ Value* ftrunc(Block* block, Id name, Value* from, Type* to) {
 
 Value* zext(Block* block, Id name, Value* from, Type* to) {
     if(from->kind == Value::ConstInt) {
-        return constInt(block, ((ConstInt*)from)->value, to);
+        return constInt(block, name, ((ConstInt*)from)->value, to);
     } else {
         return cast(block, Inst::InstZExt, name, from, to);
     }
@@ -110,7 +122,7 @@ Value* zext(Block* block, Id name, Value* from, Type* to) {
 
 Value* sext(Block* block, Id name, Value* from, Type* to) {
     if(from->kind == Value::ConstInt) {
-        return constInt(block, ((ConstInt*)from)->value, to);
+        return constInt(block, name, ((ConstInt*)from)->value, to);
     } else {
         return cast(block, Inst::InstSExt, name, from, to);
     }
@@ -118,7 +130,7 @@ Value* sext(Block* block, Id name, Value* from, Type* to) {
 
 Value* fext(Block* block, Id name, Value* from, Type* to) {
     if(from->kind == Value::ConstFloat) {
-        return constFloat(block, ((ConstFloat*)from)->value, to);
+        return constFloat(block, name, ((ConstFloat*)from)->value, to);
     } else {
         return cast(block, Inst::InstFExt, name, from, to);
     }
@@ -126,7 +138,7 @@ Value* fext(Block* block, Id name, Value* from, Type* to) {
 
 Value* itof(Block* block, Id name, Value* from, Type* to) {
     if(from->kind == Value::ConstInt) {
-        return constFloat(block, (double)((I64)((ConstInt*)from)->value), to);
+        return constFloat(block, name, (double)((I64)((ConstInt*)from)->value), to);
     } else {
         return cast(block, Inst::InstIToF, name, from, to);
     }
@@ -134,7 +146,7 @@ Value* itof(Block* block, Id name, Value* from, Type* to) {
 
 Value* uitof(Block* block, Id name, Value* from, Type* to) {
     if(from->kind == Value::ConstInt) {
-        return constFloat(block, (double)((U64)((ConstInt*)from)->value), to);
+        return constFloat(block, name, (double)((U64)((ConstInt*)from)->value), to);
     } else {
         return cast(block, Inst::InstUIToF, name, from, to);
     }
@@ -142,7 +154,7 @@ Value* uitof(Block* block, Id name, Value* from, Type* to) {
 
 Value* ftoi(Block* block, Id name, Value* from, Type* to) {
     if(from->kind == Value::ConstFloat) {
-        return constInt(block, (I64)((ConstFloat*)from)->value, to);
+        return constInt(block, name, (I64)((ConstFloat*)from)->value, to);
     } else {
         return cast(block, Inst::InstFToI, name, from, to);
     }
@@ -150,7 +162,7 @@ Value* ftoi(Block* block, Id name, Value* from, Type* to) {
 
 Value* ftoui(Block* block, Id name, Value* from, Type* to) {
     if(from->kind == Value::ConstFloat) {
-        return constInt(block, (U64)((ConstFloat*)from)->value, to);
+        return constInt(block, name, (U64)((ConstFloat*)from)->value, to);
     } else {
         return cast(block, Inst::InstFToUI, name, from, to);
     }

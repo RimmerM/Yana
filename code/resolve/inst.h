@@ -364,9 +364,9 @@ inline bool isTerminating(Inst::Kind kind) {
 
 Value* error(Block* block, Id name, Type* type);
 
-ConstInt* constInt(Block* block, I64 value, Type* type);
-ConstFloat* constFloat(Block* block, double value, Type* type);
-ConstString* constString(Block* block, const char* value, Size length);
+ConstInt* constInt(Block* block, Id name, I64 value, Type* type);
+ConstFloat* constFloat(Block* block, Id name, double value, Type* type);
+ConstString* constString(Block* block, Id name, const char* value, Size length);
 
 Value* trunc(Block* block, Id name, Value* from, Type* to);
 Value* ftrunc(Block* block, Id name, Value* from, Type* to);
