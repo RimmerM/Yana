@@ -67,7 +67,7 @@ Global* findGlobal(Context* context, Module* module, Id name);
 
 Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast);
 void resolveFun(Context* context, Function* fun);
-Value* resolvePat(FunBuilder* b, ast::Pat* pat);
+Value* resolvePat(FunBuilder* b, Value* pivot, ast::Pat* pat);
 Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used);
 
 struct Function {

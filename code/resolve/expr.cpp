@@ -143,7 +143,7 @@ static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool is
             }
         }
 
-        return constInt(b->block, codePoint, &intTypes[IntType::Int]);
+        return constInt(b->block, 0, codePoint, &intTypes[IntType::Int]);
     }
 
     error(b, "cannot implicitly convert to type", nullptr);
@@ -251,17 +251,17 @@ Value* resolveMulti(FunBuilder* b, ast::MultiExpr* expr, Id name, bool used) {
 Value* resolveLit(FunBuilder* b, ast::Literal* lit, Id name, bool used) {
     switch(lit->type) {
         case ast::Literal::Int:
-            return constInt(b->block, lit->i, lit->i > INT_MAX ? &intTypes[IntType::Long] : &intTypes[IntType::Int]);
+            return constInt(b->block, name, lit->i, lit->i > INT_MAX ? &intTypes[IntType::Long] : &intTypes[IntType::Int]);
         case ast::Literal::Float:
-            return constFloat(b->block, lit->f, &floatTypes[FloatType::F64]);
+            return constFloat(b->block, name, lit->f, &floatTypes[FloatType::F64]);
         case ast::Literal::Char:
             return nullptr;
         case ast::Literal::String: {
             auto string = b->context.find(lit->s);
-            return constString(b->block, string.text, string.textLength);
+            return constString(b->block, name, string.text, string.textLength);
         }
         case ast::Literal::Bool: {
-            auto c = constInt(b->block, lit->b, &intTypes[IntType::Bool]);
+            auto c = constInt(b->block, name, lit->b, &intTypes[IntType::Bool]);
             c->type = &intTypes[IntType::Bool];
             return c;
         }
@@ -646,15 +646,15 @@ Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used)
         }
 
         for(U32 i = 0; i < caseCount; i++) {
+            if(!alts[i].value) {
+                error(b, "if expression doesn't produce a result in every case", expr);
+            }
+
             if(i > 0) {
                 // This will update the value stored in the alt if needed.
                 if(!generalizeTypes(b, alts[i - 1].value, alts[i].value)) {
                     error(b, "if and else branches produce differing types", expr);
                 }
-            }
-
-            if(!alts[i].value) {
-                error(b, "if expression doesn't produce a result in every case", expr);
             }
 
             jmp(alts[i].fromBlock, next);
@@ -782,9 +782,9 @@ Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
 
     Value* nextVar;
     if(expr->reverse) {
-        nextVar = sub(loopEnd, 0, var, constInt(loopEnd, 1, var->type));
+        nextVar = sub(loopEnd, 0, var, constInt(loopEnd, 0, 1, var->type));
     } else {
-        nextVar = add(loopEnd, 0, var, constInt(loopEnd, 1, var->type));
+        nextVar = add(loopEnd, 0, var, constInt(loopEnd, 0, 1, var->type));
     }
 
     jmp(loopEnd, condBlock);
@@ -1011,7 +1011,101 @@ Value* resolveFormat(FunBuilder* b, ast::FormatExpr* expr, Id name, bool used) {
 }
 
 Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
-    return nullptr;
+    auto pivot = resolveExpr(b, expr->pivot, 0, true);
+    auto alt = expr->alts;
+
+    auto preceding = b->block;
+    auto after = block(b->fun);
+    after->preceding = b->block;
+
+    U32 altCount = 0;
+    while(alt) {
+        altCount++;
+        alt = alt->next;
+    }
+
+    auto alts = (InstPhi::Alt*)b->fun->module->memory.alloc(sizeof(InstPhi::Alt) * altCount);
+    bool hasElse = false;
+
+    alt = expr->alts;
+    for(U32 i = 0; i < altCount; i++) {
+        auto result = resolvePat(b, pivot, alt->item.pat);
+        auto then = block(b->fun);
+        then->preceding = preceding;
+
+        if(alwaysTrue(result)) {
+            b->block = then;
+            alts[i].value = resolveExpr(b, alt->item.expr, 0, true);
+            alts[i].fromBlock = b->block;
+
+            hasElse = true;
+            break;
+        } else {
+            auto otherwise = alt->next ? block(b->fun) : after;
+            otherwise->preceding = preceding;
+
+            je(b->block, result, then, otherwise);
+
+            b->block = then;
+            alts[i].value = resolveExpr(b, alt->item.expr, 0, true);
+            alts[i].fromBlock = b->block;
+
+            b->block = otherwise;
+        }
+
+        alt = alt->next;
+    }
+
+    if(used) {
+        // TODO: If there is no else-case, we have to analyze the alts to make sure that every possibility is covered.
+        if(!hasElse) {
+            error(b, "match expression doesn't produce a result in every case", expr);
+        }
+
+        for(U32 i = 0; i < altCount; i++) {
+            if(!alts[i].value) {
+                error(b, "if expression doesn't produce a result in every case", expr);
+            }
+
+            if(i > 0) {
+                // This will update the value stored in the alt if needed.
+                if(!generalizeTypes(b, alts[i - 1].value, alts[i].value)) {
+                    error(b, "match cases produce differing types", expr);
+                }
+            }
+
+            jmp(alts[i].fromBlock, after);
+        }
+
+        return phi(after, name, alts, altCount);
+    } else {
+        // If each case returns, we don't need a block afterwards.
+        U32 returnCount = 0;
+        for(U32 i = 0; i < altCount; i++) {
+            if(alts[i].fromBlock->returns) {
+                returnCount++;
+            }
+        }
+
+        if(returnCount == altCount) {
+            Size blockIndex = 0;
+            for(Size i = 0; i < b->fun->blocks.size(); i++) {
+                if(b->fun->blocks[i] == after) break;
+                blockIndex++;
+            }
+
+            b->fun->blocks.remove(blockIndex);
+            b->block = *b->fun->blocks.back();
+        } else {
+            for(U32 i = 0; i < altCount; i++) {
+                if(!alts[i].fromBlock->complete) {
+                    jmp(alts[i].fromBlock, after);
+                }
+            }
+        }
+
+        return nullptr;
+    }
 }
 
 Value* resolveRet(FunBuilder* b, ast::RetExpr* expr, Id name, bool used) {
@@ -1075,59 +1169,60 @@ Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {
     return nullptr;
 }
 
-Value* resolveVarPat(FunBuilder* b, ast::VarPat* pat) {
-    return constInt(b->block, 0, &intTypes[IntType::Bool]);
+Value* resolveVarPat(FunBuilder* b, Value* pivot, ast::VarPat* pat) {
+    return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
 }
 
-Value* resolveLitPat(FunBuilder* b, ast::LitPat* pat) {
-    return constInt(b->block, 0, &intTypes[IntType::Bool]);
+Value* resolveLitPat(FunBuilder* b, Value* pivot, ast::LitPat* pat) {
+    return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
 }
 
-Value* resolveAnyPat(FunBuilder* b, ast::Pat* pat) {
-    return constInt(b->block, 1, &intTypes[IntType::Bool]);
+Value* resolveAnyPat(FunBuilder* b, Value* pivot, ast::Pat* pat) {
+    return constInt(b->block, 0, 1, &intTypes[IntType::Bool]);
 }
 
-Value* resolveTupPat(FunBuilder* b, ast::TupPat* pat) {
-    return constInt(b->block, 0, &intTypes[IntType::Bool]);
+Value* resolveTupPat(FunBuilder* b, Value* pivot, ast::TupPat* pat) {
+    return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
 }
 
-Value* resolveConPat(FunBuilder* b, ast::ConPat* pat) {
-    return constInt(b->block, 0, &intTypes[IntType::Bool]);
+Value* resolveConPat(FunBuilder* b, Value* pivot, ast::ConPat* pat) {
+    return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
 }
 
-Value* resolveArrPat(FunBuilder* b, ast::ArrayPat* pat) {
-    return constInt(b->block, 0, &intTypes[IntType::Bool]);
+Value* resolveArrPat(FunBuilder* b, Value* pivot, ast::ArrayPat* pat) {
+    return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
 }
 
-Value* resolveRestPat(FunBuilder* b, ast::RestPat* pat) {
-    return constInt(b->block, 0, &intTypes[IntType::Bool]);
+Value* resolveRestPat(FunBuilder* b, Value* pivot, ast::RestPat* pat) {
+    // Currently only used as part of an array pat.
+    return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
 }
 
-Value* resolveRangePat(FunBuilder* b, ast::RangePat* pat) {
-    return constInt(b->block, 0, &intTypes[IntType::Bool]);
+Value* resolveRangePat(FunBuilder* b, Value* pivot, ast::RangePat* pat) {
+    return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
 }
 
-Value* resolvePat(FunBuilder* b, ast::Pat* pat) {
+Value* resolvePat(FunBuilder* b, Value* pivot, ast::Pat* pat) {
     switch(pat->kind) {
         case ast::Pat::Error:
-            return constInt(b->block, 0, &intTypes[IntType::Bool]);
+            return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
         case ast::Pat::Var:
-            return resolveVarPat(b, (ast::VarPat*)pat);
+            return resolveVarPat(b, pivot, (ast::VarPat*)pat);
         case ast::Pat::Lit:
-            return resolveLitPat(b, (ast::LitPat*)pat);
+            return resolveLitPat(b, pivot, (ast::LitPat*)pat);
         case ast::Pat::Any:
-            return resolveAnyPat(b, pat);
+            return resolveAnyPat(b, pivot, pat);
         case ast::Pat::Tup:
-            return resolveTupPat(b, (ast::TupPat*)pat);
+            return resolveTupPat(b, pivot, (ast::TupPat*)pat);
         case ast::Pat::Con:
-            return resolveConPat(b, (ast::ConPat*)pat);
+            return resolveConPat(b, pivot, (ast::ConPat*)pat);
         case ast::Pat::Array:
-            return resolveArrPat(b, (ast::ArrayPat*)pat);
+            return resolveArrPat(b, pivot, (ast::ArrayPat*)pat);
         case ast::Pat::Rest:
-            return resolveRestPat(b, (ast::RestPat*)pat);
+            return resolveRestPat(b, pivot, (ast::RestPat*)pat);
         case ast::Pat::Range:
-            return resolveRangePat(b, (ast::RangePat*)pat);
+            return resolveRangePat(b, pivot, (ast::RangePat*)pat);
         default:
-            return constInt(b->block, 0, &intTypes[IntType::Bool]);
+            return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
     }
 }
