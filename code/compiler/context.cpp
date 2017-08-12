@@ -35,6 +35,12 @@ OpProperties Context::findOp(Id op) {
     }
 }
 
+Id Context::nameHash(const char* chars, Size count) {
+    Hasher hash;
+    hash.addBytes(chars, count);
+    return hash.get();
+}
+
 Id Context::addUnqualifiedName(const char* chars, Size count) {
     Hasher hash;
     hash.addBytes(chars, count);

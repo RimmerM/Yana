@@ -3,6 +3,10 @@
 #include "module.h"
 #include "../util/string.h"
 
+auto eqHash = Context::nameHash("==", 2);
+auto geHash = Context::nameHash(">=", 2);
+auto leHash = Context::nameHash("<=", 2);
+
 template<class... T>
 static void error(FunBuilder* b, const char* message, const Node* node, T&&... p) {
     b->context.diagnostics.error(message, node, nullptr, forward<T>(p)...);
@@ -360,7 +364,8 @@ static Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* ar
     return callDyn(b->block, name, callee, args, argCount);
 }
 
-static Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List<ast::TupArg>* argList, Id name) {
+static Function* resolveStaticFun(FunBuilder* b, Id funName, Value* fieldArg) {
+    // TODO: Use field argument to find an instance for that type.
     auto fun = findFun(&b->context, b->fun->module, funName);
     if(!fun) {
         error(b, "no function found for this name", nullptr);
@@ -369,6 +374,46 @@ static Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List
 
     // Make sure the function definition is finished.
     resolveFun(&b->context, fun);
+    return fun;
+}
+
+static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 count, Id name) {
+    auto argCount = (U32)fun->args.size();
+
+    // If the call used incorrect argument names this error may not trigger.
+    // However, in that case we already have an error for the argument name.
+    if(count != argCount) {
+        error(b, "incorrect number of function arguments", nullptr);
+    }
+
+    // Check the argument types and perform implicit conversions if needed.
+    for(U32 i = 0; i < argCount; i++) {
+        auto v = implicitConvert(b, args[i], fun->args[i].type, false);
+        if(!v) {
+            error(b, "incompatible type for function argument", nullptr);
+        }
+
+        args[i] = v;
+    }
+
+    // If the function is an intrinsic, we use that instead.
+    if(fun->intrinsic) {
+        return fun->intrinsic(b, args, argCount, name);
+    } else {
+        return call(b->block, name, fun, args, argCount);
+    }
+}
+
+static Value* genStaticCall(FunBuilder* b, Id funName, Value** args, U32 count, Id name) {
+    auto fun = resolveStaticFun(b, funName, nullptr);
+    if(!fun) return nullptr;
+
+    return finishStaticCall(b, fun, args, count, name);
+}
+
+static Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List<ast::TupArg>* argList, Id name) {
+    auto fun = resolveStaticFun(b, funName, firstArg);
+    if(!fun) return nullptr;
 
     auto argCount = (U32)fun->args.size();
 
@@ -401,7 +446,7 @@ static Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List
             }
         }
 
-        if(found) {
+        if(found && argIndex < argCount) {
             if(args[argIndex]) {
                 error(b, "function argument specified more than once", arg.value);
             }
@@ -413,28 +458,7 @@ static Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List
         argList = argList->next;
     }
 
-    // If the call used incorrect argument names this error may not trigger.
-    // However, in that case we already have an error for the argument name.
-    if(i != argCount) {
-        error(b, "incorrect number of function arguments", nullptr);
-    }
-
-    // Check the argument types and perform implicit conversions if needed.
-    for(i = 0; i < argCount; i++) {
-        auto v = implicitConvert(b, args[i], fun->args[i].type, false);
-        if(!v) {
-            error(b, "incompatible type for function argument", nullptr);
-        }
-
-        args[i] = v;
-    }
-
-    // If the function is an intrinsic, we use that instead.
-    if(fun->intrinsic) {
-        return fun->intrinsic(b, args, argCount, name);
-    } else {
-        return call(b->block, name, fun, args, argCount);
-    }
+    return finishStaticCall(b, fun, args, i, name);
 }
 
 Value* resolveApp(FunBuilder* b, ast::AppExpr* expr, Id name, bool used) {
@@ -1170,11 +1194,37 @@ Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {
 }
 
 Value* resolveVarPat(FunBuilder* b, Value* pivot, ast::VarPat* pat) {
-    return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+    auto var = findVar(b, pat->var);
+    if(var) {
+        ast::VarExpr cmp(pat->var);
+        List<ast::TupArg> arg(ast::TupArg(0, &cmp));
+        auto call = resolveStaticCall(b, eqHash, pivot, &arg, 0);
+        if(!call || call->type != &intTypes[IntType::Bool]) {
+            if(!call || call->type->kind != Type::Error) {
+                error(b, "result of a comparison must be a boolean", pat);
+            }
+            return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+        }
+
+        return call;
+    } else {
+        b->block->namedValues[pat->var] = pivot;
+        return constInt(b->block, 0, 1, &intTypes[IntType::Bool]);
+    }
 }
 
 Value* resolveLitPat(FunBuilder* b, Value* pivot, ast::LitPat* pat) {
-    return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+    ast::LitExpr lit(pat->lit);
+    List<ast::TupArg> arg(ast::TupArg(0, &lit));
+    auto call = resolveStaticCall(b, eqHash, pivot, &arg, 0);
+    if(!call || call->type != &intTypes[IntType::Bool]) {
+        if(!call || call->type->kind != Type::Error) {
+            error(b, "result of a comparison must be a boolean", pat);
+        }
+        return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+    }
+
+    return call;
 }
 
 Value* resolveAnyPat(FunBuilder* b, Value* pivot, ast::Pat* pat) {
@@ -1198,8 +1248,83 @@ Value* resolveRestPat(FunBuilder* b, Value* pivot, ast::RestPat* pat) {
     return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
 }
 
+static Value* getRangeArg(FunBuilder* b, ast::Pat* pat) {
+    if(pat->kind == ast::Pat::Any) {
+        return nullptr;
+    } else if(pat->kind == ast::Pat::Var) {
+        auto var = findVar(b, ((ast::VarPat*)pat)->var);
+        if(var) {
+            auto val = useValue(b, var, false);
+            auto type = canonicalType(val->type);
+            if(type->kind == Type::Int || type->kind == Type::Float) {
+                return val;
+            }
+        }
+    } else if(pat->kind == ast::Pat::Lit) {
+        auto value = resolveLit(b, &((ast::LitPat*)pat)->lit, 0, true);
+        if(value->type->kind == Type::Int || value->type->kind == Type::Float) {
+            return value;
+        }
+    }
+
+    error(b, "range patterns must use a variable or numeric literal", pat);
+    return nullptr;
+}
+
 Value* resolveRangePat(FunBuilder* b, Value* pivot, ast::RangePat* pat) {
-    return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+    auto from = getRangeArg(b, pat->from);
+    auto to = getRangeArg(b, pat->to);
+
+    if(!from && !to) {
+        return constInt(b->block, 0, 1, &intTypes[IntType::Bool]);
+    } else if(!from) {
+        auto fromArgs = (Value**)b->mem.alloc(sizeof(Value) * 2);
+        fromArgs[0] = pivot;
+        fromArgs[1] = to;
+        auto fromCmp = genStaticCall(b, geHash, fromArgs, 2, 0);
+
+        if(!fromCmp || fromCmp->type != &intTypes[IntType::Bool]) {
+            if(!fromCmp || fromCmp->type->kind != Type::Error) {
+                error(b, "result of a comparison must be a boolean", pat);
+            }
+            return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+        }
+
+        return fromCmp;
+    } else if(!to) {
+        auto toArgs = (Value**)b->mem.alloc(sizeof(Value) * 2);
+        toArgs[0] = pivot;
+        toArgs[1] = to;
+        auto toCmp = genStaticCall(b, leHash, toArgs, 2, 0);
+
+        if(!toCmp || toCmp->type != &intTypes[IntType::Bool]) {
+            if(!toCmp || toCmp->type->kind != Type::Error) {
+                error(b, "result of a comparison must be a boolean", pat);
+            }
+            return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+        }
+
+        return toCmp;
+    } else {
+        auto fromArgs = (Value**)b->mem.alloc(sizeof(Value) * 2);
+        fromArgs[0] = pivot;
+        fromArgs[1] = from;
+        auto fromCmp = genStaticCall(b, geHash, fromArgs, 2, 0);
+
+        auto toArgs = (Value**)b->mem.alloc(sizeof(Value) * 2);
+        toArgs[0] = pivot;
+        toArgs[1] = to;
+        auto toCmp = genStaticCall(b, leHash, toArgs, 2, 0);
+
+        if(!fromCmp || !toCmp || fromCmp->type != &intTypes[IntType::Bool] || toCmp->type != &intTypes[IntType::Bool]) {
+            if(!fromCmp || !toCmp || fromCmp->type->kind != Type::Error || toCmp->type->kind != Type::Error) {
+                error(b, "result of a comparison must be a boolean", pat);
+            }
+            return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+        }
+
+        return and_(b->block, 0, fromCmp, toCmp);
+    }
 }
 
 Value* resolvePat(FunBuilder* b, Value* pivot, ast::Pat* pat) {

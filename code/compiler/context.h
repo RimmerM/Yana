@@ -77,6 +77,8 @@ struct Context {
     void addOp(Id op, U16 prec = 9, Assoc assoc = Assoc::Left);
     OpProperties findOp(Id op);
 
+    static Id nameHash(const char* chars, Size count);
+
     Id addUnqualifiedName(const char* chars, Size count);
     Id addQualifiedName(const char* chars, Size count, Size segmentCount);
     Id addQualifiedName(const char* chars, Size count);
