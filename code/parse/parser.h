@@ -54,7 +54,7 @@ struct Parser {
     ast::Pat* parseLeftPattern();
     ast::Pat* parsePattern();
 
-    void error(const char* text);
+    void error(const char* text, Node* node = nullptr);
 
     void eat() {lexer.next();}
 

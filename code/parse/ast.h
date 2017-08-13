@@ -319,9 +319,11 @@ struct DeclExpr: Expr {
     };
 
     DeclExpr(Id name, Expr* content, Mutability mut): Expr(Decl), name(name), content(content), mut(mut) {}
+
     Id name;
     Expr* content;
     Mutability mut;
+    bool isGlobal = false; // Whether this variable was defined in a global scope.
 };
 
 struct WhileExpr: Expr {

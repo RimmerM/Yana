@@ -65,7 +65,16 @@ void Parser::parseModule() {
             } else if(token.type == Token::kwInfixL || token.type == Token::kwInfixR) {
                 parseFixity();
             } else {
-                module.decls << parseDecl();
+                bool exported = false;
+                if(token.type == Token::kwPub) {
+                    eat();
+                    exported = true;
+                }
+
+                auto decl = parseDecl();
+                decl->exported = exported;
+
+                module.decls << decl;
             }
 
             if(token.type == Token::EndOfStmt) {
@@ -202,7 +211,13 @@ Decl* Parser::parseDecl() {
     } else if(token.type == Token::kwInstance) {
         return parseInstanceDecl();
     } else {
-        return new (buffer) StmtDecl(parseExpr());
+        auto expr = parseExpr();
+        if(expr->type == Expr::Decl) {
+            ((DeclExpr*)expr)->isGlobal = true;
+        } else if(expr->type == Expr::Ret) {
+            error("return statements cannot be used in a global scope", expr);
+        }
+        return new (buffer) StmtDecl(expr);
     }
 }
 
@@ -1529,7 +1544,7 @@ Pat* Parser::parsePattern() {
     }
 }
 
-void Parser::error(const char* text) {
+void Parser::error(const char* text, Node* node) {
     Node where;
     where.sourceStart.line = (U16)token.startLine;
     where.sourceStart.column = (U16)token.startColumn;
@@ -1539,5 +1554,5 @@ void Parser::error(const char* text) {
     where.sourceEnd.offset = (U16)token.endOffset;
     where.sourceModule = module.name;
 
-    diag.error(text, &where, this->text);
+    diag.error(text, node ? node : &where, this->text);
 }
