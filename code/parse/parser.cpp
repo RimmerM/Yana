@@ -1269,12 +1269,9 @@ Expr* Parser::parseTupleExpr() {
                     args->next = sepBy1([=] {
                         return parseTupArg();
                     }, Token::Comma);
-                } else if(token.type == Token::BraceR) {
-                    eat();
-                } else {
-                    error("expected '}' after tuple expression");
                 }
 
+                // Parent call checks the terminating '}'.
                 return new (buffer) TupExpr(args);
             }
         });

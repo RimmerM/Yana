@@ -79,7 +79,7 @@ static Value* implicitConvertFloat(FunBuilder* b, Value* v, Type* targetType, bo
 // Adds code to implicitly convert a value if possible.
 // If isConstruct is set, the conversion is less strict since the target type is explicitly defined.
 // Returns the new value or null if no conversion is possible.
-static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool isConstruct) {
+static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool isConstruct, bool require) {
     auto type = v->type;
     if(compareTypes(&b->context, type, targetType)) return v;
 
@@ -150,8 +150,12 @@ static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool is
         return constInt(b->block, 0, codePoint, &intTypes[IntType::Int]);
     }
 
-    error(b, "cannot implicitly convert to type", nullptr);
-    return v;
+    if(require) {
+        error(b, "cannot implicitly convert to type", nullptr);
+        return error(b->block, 0, targetType);
+    } else {
+        return nullptr;
+    }
 }
 
 // Checks if the two provided types are the same. If not, it tries to implicitly convert to a common type.
@@ -160,13 +164,13 @@ static bool generalizeTypes(FunBuilder* b, Value*& lhs, Value*& rhs) {
     auto prevBlock = b->block;
     b->block = lhs->block;
 
-    if(auto v = implicitConvert(b, lhs, rhs->type, false)) {
+    if(auto v = implicitConvert(b, lhs, rhs->type, false, false)) {
         lhs = v;
         b->block = prevBlock;
         return true;
     } else {
         b->block = rhs->block;
-        if(auto v = implicitConvert(b, rhs, lhs->type, false)) {
+        if(auto v = implicitConvert(b, rhs, lhs->type, false, false)) {
             rhs = v;
             b->block = prevBlock;
             return true;
@@ -174,6 +178,8 @@ static bool generalizeTypes(FunBuilder* b, Value*& lhs, Value*& rhs) {
     }
 
     b->block = prevBlock;
+    error(b, "cannot implicitly convert values to the same type", nullptr);
+
     return false;
 }
 
@@ -353,7 +359,7 @@ static Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* ar
 
     // Check the argument types and perform implicit conversions if needed.
     for(i = 0; i < argCount; i++) {
-        auto v = implicitConvert(b, args[i], funType->args[i].type, false);
+        auto v = implicitConvert(b, args[i], funType->args[i].type, false, false);
         if(!v) {
             error(b, "incompatible type for function argument", nullptr);
         }
@@ -388,7 +394,7 @@ static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 c
 
     // Check the argument types and perform implicit conversions if needed.
     for(U32 i = 0; i < argCount; i++) {
-        auto v = implicitConvert(b, args[i], fun->args[i].type, false);
+        auto v = implicitConvert(b, args[i], fun->args[i].type, false, false);
         if(!v) {
             error(b, "incompatible type for function argument", nullptr);
         }
@@ -854,7 +860,7 @@ Value* resolveNested(FunBuilder* b, ast::NestedExpr* expr, Id name, bool used) {
 Value* resolveCoerce(FunBuilder* b, ast::CoerceExpr* expr, Id name, bool used) {
     auto target = resolveExpr(b, expr->target, name, used);
     auto type = resolveType(&b->context, b->fun->module, expr->kind);
-    return implicitConvert(b, target, type, true);
+    return implicitConvert(b, target, type, true, true);
 }
 
 Value* resolveField(FunBuilder* b, ast::FieldExpr* expr, Id name, bool used) {
@@ -910,7 +916,7 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
         }
 
         auto arg = resolveExpr(b, expr->args->item.value, name, true);
-        return implicitConvert(b, arg, type, true);
+        return implicitConvert(b, arg, type, true, true);
     } else if(type->kind == Type::String) {
         if(!expr->args || expr->args->next) {
             error(b, "incorrect number of arguments to string constructor", expr);
@@ -1022,8 +1028,37 @@ Value* resolveTupUpdate(FunBuilder* b, ast::TupUpdateExpr* expr, Id name, bool u
     return updateField(b->block, name, target, fields, fieldCount);
 }
 
-Value* resolveArray(FunBuilder* b, ast::ArrayExpr* expr, Id name, bool used) {
-    return nullptr;
+Value* resolveArray(FunBuilder* b, ast::ArrayExpr* expr, Id name) {
+    U32 length = 0;
+    auto arg = expr->args;
+    while(arg) {
+        length++;
+        arg = arg->next;
+    }
+
+    if(length == 0) {
+        error(b, "cannot infer type of array", expr);
+        return error(b->block, name, getArray(b->fun->module, &unitType));
+    }
+
+    auto values = (Value**)b->mem.alloc(sizeof(Value*) * length);
+
+    arg = expr->args;
+    for(U32 i = 0; i < length; i++) {
+        values[i] = resolveExpr(b, arg->item, 0, true);
+        if(i > 0) {
+            // This will update the value stored in the alt if needed.
+            if(!generalizeTypes(b, values[i - 1], values[i])) {
+                error(b, "array contents must have the same type", expr);
+            }
+        }
+
+        arg = arg->next;
+    }
+
+    auto array = allocArray(b->block, name, values[0]->type, constInt(b->block, 0, length, &intTypes[IntType::Int]), false, false);
+    storeArray(b->block, 0, array, constInt(b->block, 0, 0, &intTypes[IntType::Int]), values, length, false);
+    return array;
 }
 
 Value* resolveMap(FunBuilder* b, ast::MapExpr* expr, Id name, bool used) {
@@ -1183,7 +1218,7 @@ Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {
         case ast::Expr::TupUpdate:
             return resolveTupUpdate(b, (ast::TupUpdateExpr*)expr, name, used);
         case ast::Expr::Array:
-            return resolveArray(b, (ast::ArrayExpr*)expr, name, used);
+            return resolveArray(b, (ast::ArrayExpr*)expr, name);
         case ast::Expr::Map:
             return resolveMap(b, (ast::MapExpr*)expr, name, used);
         case ast::Expr::Format:

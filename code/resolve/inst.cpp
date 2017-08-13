@@ -323,8 +323,7 @@ InstAlloc* alloc(Block* block, Id name, Type* type, bool mut, bool local) {
 InstAllocArray* allocArray(Block* block, Id name, Type* type, Value* length, bool mut, bool local) {
     auto module = block->function->module;
     auto arrayType = getArray(module, type);
-    auto refType = getRef(module, arrayType, !local, local, mut);
-    auto inst = (InstAllocArray*)block->inst(sizeof(InstAllocArray), name, Inst::InstAllocArray, refType);
+    auto inst = (InstAllocArray*)block->inst(sizeof(InstAllocArray), name, Inst::InstAllocArray, arrayType);
 
     inst->length = length;
     inst->valueType = type;
@@ -407,18 +406,28 @@ InstStoreField* storeField(Block* block, Id name, Value* to, Value* value, U32* 
     return inst;
 }
 
-InstStoreArray* storeArray(Block* block, Id name, Value* to, Value* index, Value* value, bool checked) {
+InstStoreArray* storeArray(Block* block, Id name, Value* to, Value* index, Value** values, U32 count, bool checked) {
     auto inst = (InstStoreArray*)block->inst(sizeof(InstStoreArray), name, Inst::InstStoreArray, &unitType);
     inst->to = to;
     inst->index = index;
-    inst->value = value;
+    inst->values = values;
+    inst->count = count;
     inst->checked = checked;
 
-    inst->usedValues = &inst->to;
-    inst->usedCount = 3;
+    auto v = (Value**)block->function->module->memory.alloc(sizeof(Value*) * (count + 2));
+    inst->usedValues = v;
+    inst->usedCount = 2 + count;
+
+    *v++ = to;
     block->use(to, inst);
+
+    *v++ = index;
     block->use(index, inst);
-    block->use(value, inst);
+
+    for(U32 i = 0; i < count; i++) {
+        *v++ = values[i];
+        block->use(values[i], inst);
+    }
 
     return inst;
 }

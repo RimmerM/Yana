@@ -259,8 +259,6 @@ struct InstAlloc: Inst {
 // Allocates space for an array of instances of a type.
 // The space is allocated on either the stack, GC heap or normal heap
 // depending on the returned reference type and mutability.
-// Arrays are always represented in the IR as a reference to an array type,
-// and instructions always expect a reference to an array. The implementation is target-specific.
 struct InstAllocArray: Inst {
     Type* valueType; // The amount of space to allocate for each array slot.
     Value* length; // The number of slots to allocate.
@@ -312,7 +310,8 @@ struct InstStoreField: Inst {
 struct InstStoreArray: Inst {
     Value* to;
     Value* index;
-    Value* value;
+    Value** values;
+    U32 count;
     bool checked;
 };
 
@@ -473,7 +472,7 @@ InstLoadArray* loadArray(Block* block, Id name, Value* from, Value* index, Type*
 
 InstStore* store(Block* block, Id name, Value* to, Value* value);
 InstStoreField* storeField(Block* block, Id name, Value* to, Value* value, U32* indices, U32 count);
-InstStoreArray* storeArray(Block* block, Id name, Value* to, Value* index, Value* value, bool checked);
+InstStoreArray* storeArray(Block* block, Id name, Value* to, Value* index, Value** values, U32 count, bool checked);
 
 InstGetField* getField(Block* block, Id name, Value* from, Type* type, U32* indices, U32 count);
 InstUpdateField* updateField(Block* block, Id name, Value* from, InstUpdateField::Field* fields, U32 count);
