@@ -73,11 +73,9 @@ struct Value {
         InstAllocArray,
         InstLoad,
         InstLoadField,
-        InstLoadGlobal,
         InstLoadArray,
         InstStore,
         InstStoreField,
-        InstStoreGlobal,
         InstStoreArray,
 
         InstGetField,

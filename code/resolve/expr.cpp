@@ -728,18 +728,71 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr) {
         return nullptr;
     }
 
-    switch(expr->mut) {
-        case ast::DeclExpr::Immutable: {
-            // Immutable values are stored as registers, so we just have to resolve the creation expression.
-            resolveExpr(b, expr->content, expr->name, true);
+    // If the declaration is global, we simply never define the name in the current scope.
+    // That way, any uses will automatically use the global version, while local overrides, etc work normally.
+    // The declaration is instead resolved as a store into the global.
+    if(expr->isGlobal) {
+        // The globals for each module are defined before expressions are resolved.
+        Global* global = b->fun->module->globals.get(expr->name);
+        assert(global != nullptr);
+
+        // Resolve the contents - in case of an error below we want to do as much as possible.
+        auto value = resolveExpr(b, expr->content, 0, true);
+
+        // If the global has no ast set, it has been defined twice.
+        if(!global->ast) {
+            error(b, "duplicate definition of global variable", expr);
             return nullptr;
         }
-        case ast::DeclExpr::Val:
-        case ast::DeclExpr::Ref: {
-            auto value = resolveExpr(b, expr->content, 0, true);
-            auto var = alloc(b->block, expr->name, value->type, true, expr->mut == ast::DeclExpr::Val);
-            store(b->block, 0, var, value);
-            return var;
+
+        switch(expr->mut) {
+            case ast::DeclExpr::Immutable:
+            case ast::DeclExpr::Val: {
+                if(value->type->kind == Type::Ref) {
+                    global->type = getRef(b->fun->module, ((RefType*)value->type)->to, false, false, true);
+                    auto v = load(b->block, 0, value);
+                    store(b->block, 0, global, v);
+                } else {
+                    global->type = getRef(b->fun->module, value->type, false, false, true);
+                    store(b->block, 0, global, value);
+                }
+                break;
+            }
+            case ast::DeclExpr::Ref: {
+                global->type = getRef(b->fun->module, value->type, false, false, true);
+                store(b->block, 0, global, value);
+                break;
+            }
+        }
+
+        global->ast = nullptr;
+        return nullptr;
+    } else {
+        switch(expr->mut) {
+            case ast::DeclExpr::Immutable: {
+                // Immutable values are stored as registers, so we just have to resolve the creation expression.
+                resolveExpr(b, expr->content, expr->name, true);
+                return nullptr;
+            }
+            case ast::DeclExpr::Val: {
+                auto value = resolveExpr(b, expr->content, 0, true);
+                if(value->type->kind == Type::Ref) {
+                    auto var = alloc(b->block, expr->name, ((RefType*)value->type)->to, true, true);
+                    auto v = load(b->block, 0, value);
+                    store(b->block, 0, var, v);
+                    return var;
+                } else {
+                    auto var = alloc(b->block, expr->name, value->type, true, true);
+                    store(b->block, 0, var, value);
+                    return var;
+                }
+            }
+            case ast::DeclExpr::Ref: {
+                auto value = resolveExpr(b, expr->content, 0, true);
+                auto var = alloc(b->block, expr->name, value->type, true, false);
+                store(b->block, 0, var, value);
+                return var;
+            }
         }
     }
 }
@@ -1169,7 +1222,7 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
     }
 }
 
-Value* resolveRet(FunBuilder* b, ast::RetExpr* expr, Id name, bool used) {
+Value* resolveRet(FunBuilder* b, ast::RetExpr* expr) {
     // The expression needs to be resolved before the current block is loaded.
     auto value = resolveExpr(b, expr->value, 0, true);
     return ret(b->block, value);
@@ -1226,7 +1279,7 @@ Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {
         case ast::Expr::Case:
             return resolveCase(b, (ast::CaseExpr*)expr, name, used);
         case ast::Expr::Ret:
-            return resolveRet(b, (ast::RetExpr*)expr, name, used);
+            return resolveRet(b, (ast::RetExpr*)expr);
     }
 
     return nullptr;
