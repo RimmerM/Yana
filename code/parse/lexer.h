@@ -62,6 +62,7 @@ struct Token {
         kwMatch,
         kwModule,
         kwNewType,
+        kwPub,
         kwReturn,
         kwThen,
         kwWhere,

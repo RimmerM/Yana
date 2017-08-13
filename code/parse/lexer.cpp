@@ -603,14 +603,20 @@ void Lexer::parseNumericLiteral() {
         // Check for a dot or exponent to determine if this is a float.
         auto d = p + 1;
         while(1) {
-            if(*d == '.') {
+            if(*d == '.' && isDigit(d[1])) {
                 // The first char after the dot must be numeric, as well.
-                if(isDigit(d[1])) break;
+                break;
             } else if(*d == 'e' || *d == 'E') {
                 // This is an exponent. If it is valid, the next char needs to be a numeric,
                 // with an optional sign in-between.
                 if(d[1] == '+' || d[1] == '-') d++;
-                if(isDigit(d[1])) break;
+                if(isDigit(d[1])) {
+                    break;
+                } else {
+                    // This wasn't a valid float.
+                    token->data.integer = parseIntLiteral<10>(p, parseDigit);
+                    return;
+                }
             } else if(!isDigit(*d)) {
                 // This wasn't a valid float.
                 token->data.integer = parseIntLiteral<10>(p, parseDigit);
@@ -831,6 +837,7 @@ void Lexer::parseVariable(const char** start, U32* length) {
             break;
         case 'p':
             if(compareConstString(c, "refix")) token->type = Token::kwPrefix;
+            if(*c == 'u' && c[1] == 'p') {c += 2; token->type = Token::kwPub;}
             break;
         case 'r':
             if(compareConstString(c, "eturn")) token->type = Token::kwReturn;
