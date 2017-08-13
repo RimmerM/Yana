@@ -202,4 +202,5 @@ struct Parser {
     Id ptrId;
     Id valId;
     Id downtoId;
+    Id hashId;
 };

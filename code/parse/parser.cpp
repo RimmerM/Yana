@@ -40,14 +40,15 @@ static const char kPtrSigil = '#';
 Parser::Parser(Context& context, ast::Module& module, const char* text):
     text(text), context(context), diag(context.diagnostics), module(module), lexer(context, diag, text, &token) {
 
-    qualifiedId = context.addUnqualifiedName("qualified", 9);
-    hidingId = context.addUnqualifiedName("hiding", 6);
-    fromId = context.addUnqualifiedName("from", 4);
-    asId = context.addUnqualifiedName("as", 2);
-    refId = context.addUnqualifiedName(&kRefSigil, 1);
-    ptrId = context.addUnqualifiedName(&kPtrSigil, 1);
-    valId = context.addUnqualifiedName(&kValSigil, 1);
-    downtoId = context.addUnqualifiedName("downto", 6);
+    qualifiedId = Context::nameHash("qualified", 9);
+    hidingId = Context::nameHash("hiding", 6);
+    fromId = Context::nameHash("from", 4);
+    asId = Context::nameHash("as", 2);
+    refId = Context::nameHash(&kRefSigil, 1);
+    ptrId = Context::nameHash(&kPtrSigil, 1);
+    valId = Context::nameHash(&kValSigil, 1);
+    downtoId = Context::nameHash("downto", 6);
+    hashId = Context::nameHash("#", 1);
 
     lexer.next();
 }
@@ -850,10 +851,25 @@ Expr* Parser::parseStringExpr() {
 }
 
 TupArg Parser::parseTupArg() {
-    auto arg = parseExpr();
-    if(arg->type == Expr::Var && token.type == Token::opEquals) {
+    bool qualified = false;
+    if(token.type == Token::VarSym && token.data.id == hashId) {
         eat();
-        return TupArg(((VarExpr*)arg)->name, parseExpr());
+        qualified = true;
+    }
+
+    auto arg = parseExpr();
+    if(arg->type != Expr::Var && qualified) {
+        error("expected variable name");
+    }
+
+    if(arg->type == Expr::Var && (qualified || token.type == Token::opEquals)) {
+        auto name = ((VarExpr*)arg)->name;
+        if(token.type == Token::opEquals) {
+            eat();
+            return TupArg(name, parseExpr());
+        } else {
+            return TupArg(name, arg);
+        }
     } else {
         return TupArg{0, arg};
     }
@@ -1210,7 +1226,17 @@ Type* Parser::parseTupleType() {
 Expr* Parser::parseTupleExpr() {
     return node([=] {
         return braces([=]() -> Expr* {
+            bool firstQualified = false;
+            if(token.type == Token::VarSym && token.data.id == hashId) {
+                eat();
+                firstQualified = true;
+            }
+
             auto first = parseExpr();
+            if(first->type != Expr::Var && firstQualified) {
+                error("expected variable name");
+            }
+
             if(token.type == Token::opBar) {
                 eat();
                 auto args = sepBy1([=] {
@@ -1232,6 +1258,8 @@ Expr* Parser::parseTupleExpr() {
                     }
 
                     args = list(TupArg(name, ((AssignExpr*)first)->value));
+                } else if(firstQualified && first->type == Expr::Var) {
+                    args = list(TupArg(((VarExpr*)first)->name, first));
                 } else {
                     args = list(TupArg{0, first});
                 }
@@ -1403,6 +1431,16 @@ Pat* Parser::parseLeftPattern() {
         } else if(token.type == Token::BraceL) {
             auto expr = braces([=] {
                 return sepBy1([=]() -> FieldPat {
+                    bool qualified = false;
+                    if(token.type == Token::VarSym && token.data.id == hashId) {
+                        eat();
+                        qualified = true;
+                    }
+
+                    if(qualified && token.type != Token::VarID) {
+                        error("expected variable name");
+                    }
+
                     if(token.type == Token::VarID) {
                         auto varPat = node([=] {
                             auto it = new (buffer) VarPat(token.data.id);
@@ -1414,7 +1452,7 @@ Pat* Parser::parseLeftPattern() {
                             eat();
                             return FieldPat(varPat->var, parsePattern());
                         } else {
-                            return FieldPat(0, varPat);
+                            return FieldPat(qualified ? varPat->var : 0, varPat);
                         }
                     } else {
                         return FieldPat(0, parsePattern());
@@ -1474,11 +1512,11 @@ Pat* Parser::parsePattern() {
         if(token.type == Token::ParenL) {
             pats = parens([=] {
                 return sepBy1([=] {
-                    return parsePattern();
+                    return parseLeftPattern();
                 }, Token::Comma);
             });
         } else if(token.type == Token::BraceL) {
-            pats = list(parsePattern());
+            pats = list(parseLeftPattern());
         }
 
         return new(buffer) ConPat(id, pats);
