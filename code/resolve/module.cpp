@@ -322,7 +322,13 @@ static bool prepareImports(Context* context, Module* module, ModuleHandler* hand
     return missingImports == 0;
 }
 
-static void prepareSymbols(Context* context, Module* module, ast::Decl** decls, Size count) {
+struct SymbolCounts {
+    U32 statements; // The number of free statements in the module.
+};
+
+static SymbolCounts prepareSymbols(Context* context, Module* module, ast::Decl** decls, Size count) {
+    SymbolCounts counts = {0};
+
     for(Size i = 0; i < count; i++) {
         auto decl = decls[i];
         switch(decl->kind) {
@@ -348,9 +354,13 @@ static void prepareSymbols(Context* context, Module* module, ast::Decl** decls, 
                 auto ast = (ast::StmtDecl*)decl;
                 if(ast->expr->type == ast::Expr::Decl) {
                     auto expr = (ast::DeclExpr*)ast->expr;
-                    auto global = defineGlobal(context, module, expr->name);
-                    global->ast = expr;
+                    if(expr->isGlobal) {
+                        auto global = defineGlobal(context, module, expr->name);
+                        global->ast = expr;
+                    }
                 }
+
+                counts.statements++;
                 break;
             }
             case ast::Decl::Alias: {
@@ -390,6 +400,8 @@ static void prepareSymbols(Context* context, Module* module, ast::Decl** decls, 
             }
         }
     }
+
+    return counts;
 }
 
 void resolveFun(Context* context, Function* fun) {
@@ -458,6 +470,29 @@ void resolveFun(Context* context, Function* fun) {
     fun->ast = nullptr;
 }
 
+void resolveGlobals(Context* context, Module* module, ast::Decl** decls, Size count) {
+    auto staticInit = defineFun(context, module, context->addQualifiedName("$init", 5));
+    staticInit->returnType = &unitType;
+    auto startBlock = block(staticInit);
+
+    FunBuilder builder(staticInit, startBlock, *context, staticInit->module->memory);
+
+    for(Size i = 0; i < count; i++) {
+        if(decls[i]->kind == ast::Decl::Stmt) {
+            auto decl = (ast::StmtDecl*)decls[i];
+            resolveExpr(&builder, decl->expr, 0, false);
+        }
+    }
+
+    for(auto block: staticInit->blocks) {
+        if(!block->complete) {
+            ret(block, nullptr);
+        }
+    }
+
+    module->staticInit = staticInit;
+}
+
 Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast) {
     auto module = new Module;
     module->id = ast->name;
@@ -473,7 +508,7 @@ Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast
     // Types use imports but nothing else, globals use types and imports, functions use everything.
     // Note that the initialization of globals is handled in the function pass,
     // since this requires knowledge of the whole module.
-    prepareSymbols(context, module, ast->decls.pointer(), ast->decls.size());
+    auto counts = prepareSymbols(context, module, ast->decls.pointer(), ast->decls.size());
 
     for(auto type: module->types) {
         resolveDefinition(context, module, type);
@@ -488,6 +523,10 @@ Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast
 
         fun.type = (FunType*)type;
         fun.ast = nullptr;
+    }
+
+    if(counts.statements > 0) {
+        resolveGlobals(context, module, ast->decls.pointer(), ast->decls.size());
     }
 
     for(Function& fun: module->functions) {

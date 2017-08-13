@@ -116,7 +116,27 @@ void printBlock(std::ostream& stream, Context& context, const Block* block) {
     }
 }
 
+void printGlobal(std::ostream& stream, Context& context, const Global* global) {
+    stream << "global ";
+    auto name = context.find(global->name);
+    if(name.textLength > 0) {
+        stream << '%';
+        stream.write(name.text, name.textLength);
+    } else {
+        stream << "<unnamed>";
+    }
+
+    stream << " : ";
+    printType(stream, context, global->type);
+    stream << '\n';
+}
+
 void printModule(std::ostream& stream, Context& context, const Module* module) {
+    for(auto& global: module->globals) {
+        printGlobal(stream, context, &global);
+        stream << '\n';
+    }
+
     for(auto& fun: module->functions) {
         printFunction(stream, context, &fun);
         stream << '\n';
@@ -266,9 +286,6 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         case Inst::InstLoadField:
             name = "loadfield";
             break;
-        case Inst::InstLoadGlobal:
-            name = "loadglobal";
-            break;
         case Inst::InstLoadArray:
             name = "loadarray";
             break;
@@ -277,9 +294,6 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
             break;
         case Inst::InstStoreField:
             name = "storefield";
-            break;
-        case Inst::InstStoreGlobal:
-            name = "storeglobal";
             break;
         case Inst::InstStoreArray:
             name =  "storearray";

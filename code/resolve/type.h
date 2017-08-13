@@ -162,6 +162,7 @@ struct Con {
     Id name;
     U32 index;
     U32 count;
+    bool exported;
 };
 
 struct RecordType: Type {
