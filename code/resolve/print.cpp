@@ -257,11 +257,20 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         case Inst::InstAlloc:
             name = "alloc";
             break;
+        case Inst::InstAllocArray:
+            name = "allocarray";
+            break;
         case Inst::InstLoad:
             name = "load";
             break;
         case Inst::InstLoadField:
             name = "loadfield";
+            break;
+        case Inst::InstLoadGlobal:
+            name = "loadglobal";
+            break;
+        case Inst::InstLoadArray:
+            name = "loadarray";
             break;
         case Inst::InstStore:
             name = "store";
@@ -269,11 +278,26 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         case Inst::InstStoreField:
             name = "storefield";
             break;
+        case Inst::InstStoreGlobal:
+            name = "storeglobal";
+            break;
+        case Inst::InstStoreArray:
+            name =  "storearray";
+            break;
         case Inst::InstGetField:
             name = "getfield";
             break;
         case Inst::InstUpdateField:
-            name ="updatefield";
+            name = "updatefield";
+            break;
+        case Inst::InstArrayLength:
+            name = "arraylength";
+            break;
+        case Inst::InstArrayCopy:
+            name = "arraycopy";
+            break;
+        case Inst::InstArraySlice:
+            name = "arrayslice";
             break;
         case Inst::InstCall:
             name = "call";

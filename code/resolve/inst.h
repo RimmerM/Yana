@@ -70,15 +70,22 @@ struct Value {
 
         // Memory.
         InstAlloc,
+        InstAllocArray,
         InstLoad,
         InstLoadField,
         InstLoadGlobal,
+        InstLoadArray,
         InstStore,
         InstStoreField,
         InstStoreGlobal,
+        InstStoreArray,
 
         InstGetField,
         InstUpdateField,
+
+        InstArrayLength,
+        InstArrayCopy,
+        InstArraySlice,
 
         // Function calls.
         InstCall,
@@ -249,6 +256,17 @@ struct InstAlloc: Inst {
     bool mut; // If disabled, the allocated value is guaranteed to not be modified after initialization.
 };
 
+// Allocates space for an array of instances of a type.
+// The space is allocated on either the stack, GC heap or normal heap
+// depending on the returned reference type and mutability.
+// Arrays are always represented in the IR as a reference to an array type,
+// and instructions always expect a reference to an array. The implementation is target-specific.
+struct InstAllocArray: Inst {
+    Type* valueType; // The amount of space to allocate for each array slot.
+    Value* length; // The number of slots to allocate.
+    bool mut; // If disabled, the allocated value is guaranteed to not be modified after initialization.
+};
+
 // Loads a value from memory into a register.
 // The value must be a reference type.
 struct InstLoad: Inst {
@@ -262,6 +280,14 @@ struct InstLoadField: Inst {
     Value* from;
     U32* indexChain;
     U32 chainLength;
+};
+
+// Loads a single field from an array in memory into a register.
+// If the load is checked, the runtime fails if the index is out of bounds.
+struct InstLoadArray: Inst {
+    Value* from;
+    Value* index;
+    bool checked;
 };
 
 // Stores a value from a register into memory.
@@ -281,6 +307,15 @@ struct InstStoreField: Inst {
     U32 chainLength;
 };
 
+// Stores a single field from a register into an array.
+// If the store is checked, the runtime fails if the index is out of bounds.
+struct InstStoreArray: Inst {
+    Value* to;
+    Value* index;
+    Value* value;
+    bool checked;
+};
+
 // Takes a single field from an aggregate type in an existing register.
 struct InstGetField: Inst {
     Value* from;
@@ -298,6 +333,30 @@ struct InstUpdateField: Inst {
     Value* from;
     Field* fields;
     U32 fieldCount;
+};
+
+// Returns the number of items an array currently contains.
+struct InstArrayLength: Inst {
+    Value* from;
+};
+
+// Copies elements from one array to another.
+// The arrays must have the same type.
+// If the copy is checked, the runtime fails if the index is out of bounds.
+struct InstArrayCopy: Inst {
+    Value* from;
+    Value* to;
+    Value* startIndex;
+    Value* count;
+    bool checked;
+};
+
+// Creates an array representing a slice into an existing array, without copying if possible.
+// Slices are always represented as an immutable reference to an array.
+struct InstArraySlice: Inst {
+    Value* from;
+    Value* startIndex;
+    Value* count;
 };
 
 /*
@@ -406,13 +465,22 @@ InstTup* tup(Block* block, Id name, Type* type, Value** fields, U32 count);
 InstFun* fun(Block* block, Id name, struct Function* body, Type* type, Size frameCount);
 
 InstAlloc* alloc(Block* block, Id name, Type* type, bool mut, bool local);
+InstAllocArray* allocArray(Block* block, Id name, Type* type, Value* length, bool mut, bool local);
+
 InstLoad* load(Block* block, Id name, Value* from);
 InstLoadField* loadField(Block* block, Id name, Value* from, Type* type, U32* indices, U32 count);
+InstLoadArray* loadArray(Block* block, Id name, Value* from, Value* index, Type* type, bool checked);
+
 InstStore* store(Block* block, Id name, Value* to, Value* value);
 InstStoreField* storeField(Block* block, Id name, Value* to, Value* value, U32* indices, U32 count);
+InstStoreArray* storeArray(Block* block, Id name, Value* to, Value* index, Value* value, bool checked);
 
 InstGetField* getField(Block* block, Id name, Value* from, Type* type, U32* indices, U32 count);
 InstUpdateField* updateField(Block* block, Id name, Value* from, InstUpdateField::Field* fields, U32 count);
+
+InstArrayLength* arrayLength(Block* block, Id name, Value* from);
+InstArrayCopy* arrayCopy(Block* block, Id name, Value* from, Value* to, Value* offset, Value* count, bool checked);
+InstArraySlice* arraySlice(Block* block, Id name, Value* from, Value* start, Value* count);
 
 InstCall* call(Block* block, Id name, struct Function* fun, Value** args, U32 count);
 InstCallGen* callGen(Block* block, Id name, struct Function* fun, Value** args, U32 count);

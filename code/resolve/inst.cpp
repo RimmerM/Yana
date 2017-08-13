@@ -314,8 +314,26 @@ InstFun* fun(Block* block, Id name, struct Function* body, Type* type, Size fram
 InstAlloc* alloc(Block* block, Id name, Type* type, bool mut, bool local) {
     auto refType = getRef(block->function->module, type, !local, local, mut);
     auto inst = (InstAlloc*)block->inst(sizeof(InstAlloc), name, Inst::InstAlloc, refType);
+
     inst->valueType = type;
     inst->mut = mut;
+    return inst;
+}
+
+InstAllocArray* allocArray(Block* block, Id name, Type* type, Value* length, bool mut, bool local) {
+    auto module = block->function->module;
+    auto arrayType = getArray(module, type);
+    auto refType = getRef(module, arrayType, !local, local, mut);
+    auto inst = (InstAllocArray*)block->inst(sizeof(InstAllocArray), name, Inst::InstAllocArray, refType);
+
+    inst->length = length;
+    inst->valueType = type;
+    inst->mut = mut;
+
+    inst->usedValues = &inst->length;
+    inst->usedCount = 1;
+    block->use(length, inst);
+
     return inst;
 }
 
@@ -345,6 +363,20 @@ InstLoadField* loadField(Block* block, Id name, Value* from, Type* type, U32* in
     return inst;
 }
 
+InstLoadArray* loadArray(Block* block, Id name, Value* from, Value* index, Type* type, bool checked) {
+    auto inst = (InstLoadArray*)block->inst(sizeof(InstLoadArray), name, Inst::InstLoadArray, type);
+    inst->from = from;
+    inst->index = index;
+    inst->checked = checked;
+
+    inst->usedValues = &inst->from;
+    inst->usedCount = 2;
+    block->use(from, inst);
+    block->use(index, inst);
+
+    return inst;
+}
+
 InstStore* store(Block* block, Id name, Value* to, Value* value) {
     assert(to->type->kind == Type::Ref);
     auto inst = (InstStore*)block->inst(sizeof(InstStore), name, Inst::InstStore, &unitType);
@@ -370,6 +402,22 @@ InstStoreField* storeField(Block* block, Id name, Value* to, Value* value, U32* 
     inst->usedValues = &inst->to;
     inst->usedCount = 2;
     block->use(to, inst);
+    block->use(value, inst);
+
+    return inst;
+}
+
+InstStoreArray* storeArray(Block* block, Id name, Value* to, Value* index, Value* value, bool checked) {
+    auto inst = (InstStoreArray*)block->inst(sizeof(InstStoreArray), name, Inst::InstStoreArray, &unitType);
+    inst->to = to;
+    inst->index = index;
+    inst->value = value;
+    inst->checked = checked;
+
+    inst->usedValues = &inst->to;
+    inst->usedCount = 3;
+    block->use(to, inst);
+    block->use(index, inst);
     block->use(value, inst);
 
     return inst;
@@ -410,6 +458,50 @@ InstUpdateField* updateField(Block* block, Id name, Value* from, InstUpdateField
         *v++ = fields[i].value;
         block->use(fields[i].value, inst);
     }
+
+    return inst;
+}
+
+InstArrayLength* arrayLength(Block* block, Id name, Value* from) {
+    auto inst = (InstArrayLength*)block->inst(sizeof(InstArrayLength), name, Inst::InstArrayLength, &intTypes[IntType::Int]);
+    inst->from = from;
+
+    inst->usedValues = &inst->from;
+    inst->usedCount = 1;
+    block->use(from, inst);
+
+    return inst;
+}
+
+InstArrayCopy* arrayCopy(Block* block, Id name, Value* from, Value* to, Value* offset, Value* count, bool checked) {
+    auto inst = (InstArrayCopy*)block->inst(sizeof(InstArrayCopy), name, Inst::InstArrayCopy, from->type);
+    inst->from = from;
+    inst->to = to;
+    inst->startIndex = offset;
+    inst->count = count;
+    inst->checked = checked;
+
+    inst->usedValues = &inst->from;
+    inst->usedCount = 4;
+    block->use(from, inst);
+    block->use(to, inst);
+    block->use(offset, inst);
+    block->use(count, inst);
+
+    return inst;
+}
+
+InstArraySlice* arraySlice(Block* block, Id name, Value* from, Value* start, Value* count) {
+    auto inst = (InstArraySlice*)block->inst(sizeof(InstArraySlice), name, Inst::InstArraySlice, from->type);
+    inst->from = from;
+    inst->startIndex = start;
+    inst->count = count;
+
+    inst->usedValues = &inst->from;
+    inst->usedCount = 3;
+    block->use(from, inst);
+    block->use(start, inst);
+    block->use(count, inst);
 
     return inst;
 }

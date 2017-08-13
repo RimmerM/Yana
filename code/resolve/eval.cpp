@@ -476,15 +476,22 @@ static const inst instructions[] = {
 
     // Memory.
     (inst)evalAlloc, // InstAlloc,
+    nullptr, // InstAllocArray,
     (inst)evalLoad, // InstLoad,
     nullptr, // InstLoadField,
     nullptr, // InstLoadGlobal,
+    nullptr, // InstLoadArray,
     (inst)evalStore, // InstStore,
     nullptr, // InstStoreField,
     nullptr, // InstStoreGlobal,
+    nullptr, // InstStoreArray,
 
     nullptr, // InstGetField,
     nullptr, // InstUpdateField,
+
+    nullptr, // InstArrayLength,
+    nullptr, // InstArrayCopy,
+    nullptr, // InstArraySlice,
 
     // Function calls.
     (inst)evalCall, // InstCall,
