@@ -3,11 +3,15 @@
 #include <sys/stat.h>
 #include <cstring>
 #include <fstream>
+#include <llvm/IR/LLVMContext.h>
 #include "../util/types.h"
 #include "../resolve/module.h"
 #include "../parse/parser.h"
 #include "../resolve/print.h"
 #include "../resolve/builtins.h"
+#include "../codegen/llvm/gen.h"
+#include <llvm/IR/Module.h>
+#include <llvm/Support/raw_os_ostream.h>
 
 struct FileHandler: ModuleHandler {
     Module* prelude;
@@ -96,16 +100,33 @@ int main(int argc, const char** argv) {
         }
     }
 
-    std::ofstream irFile(output, std::ios_base::out);
-    for(auto module: compiledModules) {
-        irFile << "module ";
-        if(module->name->textLength > 0) {
-            irFile.write(module->name->text, module->name->textLength);
-        } else {
-            irFile << "<unnamed>";
-        }
+    auto outputLength = strlen(output);
+    if(outputLength > 3 && output[outputLength - 3] == '.' && output[outputLength - 2] == 'i' && output[outputLength - 1] == 'r') {
+        std::ofstream irFile(output, std::ios_base::out);
 
-        irFile << "\n\n";
-        printModule(irFile, context, module);
+        for(auto module: compiledModules) {
+            irFile << "module ";
+            if(module->name->textLength > 0) {
+                irFile.write(module->name->text, module->name->textLength);
+            } else {
+                irFile << "<unnamed>";
+            }
+
+            irFile << "\n\n";
+            printModule(irFile, context, module);
+        }
+    } else if(outputLength > 3 && output[outputLength - 3] == '.' && output[outputLength - 2] == 'l' && output[outputLength - 1] == 'l') {
+        std::ofstream llvmFile(output, std::ios_base::out);
+        llvm::LLVMContext llvmContext;
+
+        for(auto module: compiledModules) {
+            llvm::Module* code = genModule(&llvmContext, &context, module);
+            llvm::raw_os_ostream stream{llvmFile};
+            code->print(stream, nullptr);
+        }
+    } else if(outputLength > 3 && output[outputLength - 3] == '.' && output[outputLength - 2] == 'j' && output[outputLength - 1] == 's') {
+        // TODO: JS code generator.
+    } else {
+        // TODO: generate executable
     }
 }
