@@ -395,11 +395,12 @@ static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 c
     // Check the argument types and perform implicit conversions if needed.
     for(U32 i = 0; i < argCount; i++) {
         auto v = implicitConvert(b, args[i], fun->args[i].type, false, false);
-        if(!v) {
+        if(v) {
+            args[i] = v;
+        } else {
             error(b, "incompatible type for function argument", nullptr);
+            args[i] = error(b->block, 0, fun->args[i].type);
         }
-
-        args[i] = v;
     }
 
     // If the function is an intrinsic, we use that instead.
@@ -927,7 +928,7 @@ Value* resolveField(FunBuilder* b, ast::FieldExpr* expr, Id name, bool used) {
 
     // TODO: Handle array and map loads.
     error(b, "type does not contain the requested field", expr->target);
-    return nullptr;
+    return error(b->block, name, &errorType);
 }
 
 Value* resolveTup(FunBuilder* b, ast::TupExpr* expr, Id name) {

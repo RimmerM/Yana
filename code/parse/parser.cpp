@@ -889,14 +889,13 @@ TupArg Parser::parseTupArg() {
         error("expected variable name");
     }
 
-    if(arg->type == Expr::Var && (qualified || token.type == Token::opEquals)) {
-        auto name = ((VarExpr*)arg)->name;
-        if(token.type == Token::opEquals) {
-            eat();
-            return TupArg(name, parseExpr());
-        } else {
-            return TupArg(name, arg);
-        }
+    if(arg->type == Expr::Assign && ((AssignExpr*)arg)->target->type == Expr::Var) {
+        auto assign = (AssignExpr*)arg;
+        auto var = (VarExpr*)assign->target;
+        auto name = var->name;
+        return TupArg{name, assign->value};
+    } else if(qualified && arg->type == Expr::Var) {
+        return TupArg{((VarExpr*)arg)->name, arg};
     } else {
         return TupArg{0, arg};
     }
