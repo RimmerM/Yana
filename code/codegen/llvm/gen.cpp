@@ -419,8 +419,9 @@ llvm::Function* genFunction(Gen* gen, Function* fun) {
 
     U32 i = 0;
     for(auto it = f->arg_begin(); it != f->arg_end(); i++, it++) {
-        auto arg = fun->args[i];
-        it->setName(toRef(gen->context, arg.name));
+        auto arg = &fun->args[i];
+        it->setName(toRef(gen->context, arg->name));
+        arg->codegen = &*it;
     }
 
     genBlock(gen, fun->blocks[0]);

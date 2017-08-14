@@ -49,6 +49,7 @@ Parser::Parser(Context& context, ast::Module& module, const char* text):
     valId = Context::nameHash(&kValSigil, 1);
     downtoId = Context::nameHash("downto", 6);
     hashId = Context::nameHash("#", 1);
+    minusId = Context::nameHash("-", 1);
 
     lexer.next();
 }
@@ -529,6 +530,17 @@ Expr* Parser::parsePrefixExpr() {
         });
 
         auto expr = parsePrefixExpr();
+        if(expr->type == Expr::Lit && op->name == minusId) {
+            auto lit = &((LitExpr*)expr)->literal;
+            if(lit->type == Literal::Int) {
+                lit->i = -lit->i;
+                return expr;
+            } else if(lit->type == Literal::Float) {
+                lit->f = -lit->f;
+                return expr;
+            }
+        }
+
         return new (buffer) PrefixExpr(op, expr);
     } else {
         return parseLeftExpr();
