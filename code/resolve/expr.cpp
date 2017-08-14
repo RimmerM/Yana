@@ -891,9 +891,11 @@ Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr) {
             if(!var || var->type->kind != Type::Ref || !((RefType*)var->type)->isMutable) {
                 error(b, "type is not assignable", target);
                 return nullptr;
-            } else {
-                return store(b->block, 0, var, val);
             }
+
+            auto targetType = ((RefType*)var->type)->to;
+            auto v = implicitConvert(b, val, targetType, false, true);
+            return store(b->block, 0, var, v);
         }
         case ast::Expr::Field: {
 
@@ -911,9 +913,11 @@ Value* resolveNested(FunBuilder* b, ast::NestedExpr* expr, Id name, bool used) {
 }
 
 Value* resolveCoerce(FunBuilder* b, ast::CoerceExpr* expr, Id name, bool used) {
-    auto target = resolveExpr(b, expr->target, name, used);
+    auto target = resolveExpr(b, expr->target, 0, used);
     auto type = resolveType(&b->context, b->fun->module, expr->kind);
-    return implicitConvert(b, target, type, true, true);
+    auto result = implicitConvert(b, target, type, true, true);
+    setName(result, name);
+    return result;
 }
 
 Value* resolveField(FunBuilder* b, ast::FieldExpr* expr, Id name, bool used) {

@@ -43,3 +43,7 @@ struct Block {
 };
 
 Block* block(Function* fun);
+
+// Updates the name of an existing value.
+// Overrides any existing value with this name in its block.
+void setName(Value* v, Id name);

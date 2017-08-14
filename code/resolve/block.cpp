@@ -56,3 +56,10 @@ Block* block(Function* fun) {
 
     return block;
 }
+
+void setName(Value* v, Id name) {
+    v->name = name;
+    if(name) {
+        v->block->namedValues[name] = v;
+    }
+}
