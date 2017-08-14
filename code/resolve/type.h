@@ -9,6 +9,10 @@ struct Function;
 struct TypeClass;
 struct DerivedTypes;
 
+struct Limits {
+    static const U32 maxTypeDescriptor = 2048;
+};
+
 struct Type {
     enum Kind {
         Error,
@@ -26,13 +30,22 @@ struct Type {
         Alias,
     };
 
+    void* codegen = nullptr;
+
     // We store a reference to some of the of types that reference a single type.
     // This is an efficient way to make sure that only a single instance is created.
     DerivedTypes* derived = nullptr;
 
+    // The type descriptor. This is a globally unique descriptor for each type -
+    // if the descriptors are the same, the types are the same.
+    // Additionally, the descriptor can be reversed into the type it was created from,
+    // allowing for easy serialization.
+    const Byte* descriptor;
+    U16 descriptorLength = 0;
+
     // The amount of virtual space this type requires.
     // This is used for compile-time evaluation and storing constants in a platform-independent way.
-    U32 virtualSize;
+    U16 virtualSize;
     Kind kind;
 
     Type(Kind kind, U32 virtualSize): kind(kind), virtualSize(virtualSize) {}
@@ -122,7 +135,7 @@ struct FunType: Type {
 
     FunArg* args;
     Type* result;
-    Size argCount;
+    U32 argCount;
 };
 
 struct ArrayType: Type {
@@ -142,18 +155,11 @@ struct Field {
     U32 index;
 };
 
-struct TupLookup {
-    Type** layout = nullptr;
-    HashMap<TupLookup, Size> next;
-    U32 depth = 0;
-    U32 virtualSize = 0;
-};
-
 struct TupType: Type {
     TupType(U32 virtualSize): Type(Tup, virtualSize) {}
     Field* fields;
-    Type** layout;
     U32 count;
+    bool named;
 };
 
 struct Con {
@@ -223,13 +229,7 @@ struct InstanceLookup {
 };
 
 struct DerivedTypes {
-    explicit DerivedTypes(Type* type):
-        tracedMutableRef(type, true, false, true),
-        tracedImmutableRef(type, true, false, false),
-        localMutableRef(type, false, true, true),
-        localImmutableRef(type, false, true, false),
-        untracedRef(type, false, false, true),
-        arrayTo(type) {}
+    explicit DerivedTypes(Module* module, Type* type);
 
     RefType tracedMutableRef;
     RefType tracedImmutableRef;

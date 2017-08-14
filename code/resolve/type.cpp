@@ -18,6 +18,139 @@ IntType intTypes[IntType::KindCount] = {
     {64, IntType::Long}
 };
 
+void createDescriptor(Type* type, Arena* arena);
+
+auto descriptorBuilder = [] -> bool {
+    createDescriptor(&unitType, nullptr);
+    createDescriptor(&errorType, nullptr);
+    createDescriptor(&stringType, nullptr);
+
+    unitType.derived = new DerivedTypes(nullptr, &unitType);
+    errorType.derived = new DerivedTypes(nullptr, &errorType);
+    stringType.derived = new DerivedTypes(nullptr, &stringType);
+
+    for(U32 i = 0; i < IntType::KindCount; i++) {
+        createDescriptor(intTypes + i, nullptr);
+        intTypes[i].derived = new DerivedTypes(nullptr, &intTypes[i]);
+    }
+
+    for(U32 i = 0; i < FloatType::KindCount; i++) {
+        createDescriptor(floatTypes + i, nullptr);
+        floatTypes[i].derived = new DerivedTypes(nullptr, &floatTypes[i]);
+    }
+
+    return true;
+}();
+
+Byte* put16(Byte* buffer, Byte* max, U16 v) {
+    auto b = (U16*)buffer;
+    *b++ = v;
+    return (Byte*)b;
+}
+
+Byte* put32(Byte* buffer, Byte* max, U32 v) {
+    auto b = (U32*)buffer;
+    *b++ = v;
+    return (Byte*)b;
+}
+
+Byte* describeType(Type* type, Byte* buffer, Byte* max);
+
+Byte* describeFunType(FunType* type, Byte* buffer, Byte* max) {
+    put16(buffer, max, (U16)type->argCount);
+    for(U32 i = 0; i < type->argCount; i++) {
+        buffer = describeType(type->args[i].type, buffer, max);
+    }
+
+    buffer = describeType(type->result, buffer, max);
+    return buffer;
+}
+
+Byte* describeTupType(TupType* type, Byte* buffer, Byte* max, bool writeNames) {
+    put16(buffer, max, (U16)type->count);
+    if(writeNames && type->named) {
+        *buffer++ = 1;
+        for(U32 i = 0; i < type->count; i++) {
+            buffer = put32(buffer, max, type->fields[i].name);
+        }
+    } else {
+        *buffer++ = 0;
+    }
+
+    for(U32 i = 0; i < type->count; i++) {
+        auto field = type->fields[i];
+        buffer = describeType(field.type, buffer, max);
+    }
+
+    return buffer;
+}
+
+Byte* describeRecordType(RecordType* type, Byte* buffer, Byte* max) {
+    // TODO: Make sure that this contains the fully qualified name.
+    buffer = put32(buffer, max, type->name);
+    return buffer;
+}
+
+Byte* describeRefType(RefType* type, Byte* buffer, Byte* max) {
+    buffer = describeType(type->to, buffer, max);
+
+    Byte props = 0;
+    if(type->isTraced) props |= 1;
+    if(type->isLocal) props |= 2;
+    if(type->isMutable) props |= 4;
+    *buffer++ = props;
+
+    return buffer;
+}
+
+Byte* describeType(Type* type, Byte* buffer, Byte* max) {
+    if(type->kind == Type::Alias) {
+        return describeType(((AliasType*)type)->to, buffer, max);
+    }
+
+    *buffer++ = type->kind;
+
+    switch(type->kind) {
+        case Type::Int:
+            buffer = put16(buffer, max, ((IntType*)type)->bits);
+            break;
+        case Type::Float:
+            buffer = put16(buffer, max, ((FloatType*)type)->bits);
+            break;
+        case Type::Ref:
+            buffer = describeRefType((RefType*)type, buffer, max);
+            break;
+        case Type::Fun:
+            buffer = describeFunType((FunType*)type, buffer, max);
+            break;
+        case Type::Array:
+            buffer = describeType(((ArrayType*)type)->content, buffer, max);
+            break;
+        case Type::Map:
+            buffer = describeType(((MapType*)type)->from, buffer, max);
+            buffer = describeType(((MapType*)type)->to, buffer, max);
+            break;
+        case Type::Tup:
+            buffer = describeTupType((TupType*)type, buffer, max, true);
+            break;
+        case Type::Record:
+            buffer = describeRecordType((RecordType*)type, buffer, max);
+            break;
+    }
+
+    return buffer;
+}
+
+void createDescriptor(Type* type, Arena* arena) {
+    Byte buffer[Limits::maxTypeDescriptor];
+    auto length = describeType(type, buffer, buffer + Limits::maxTypeDescriptor) - buffer;
+
+    auto descriptor = (Byte*)(arena ? arena->alloc(length) : malloc(length));
+    memcpy(descriptor, buffer, length);
+    type->descriptor = descriptor;
+    type->descriptorLength = (U16)length;
+}
+
 template<class I>
 TupLookup* findTupLayout(Module* module, TupLookup* lookup, I fields) {
     if(fields.has()) {
@@ -100,6 +233,7 @@ static Type* findTuple(Context* context, Module* module, ast::TupType* type) {
         fields[i].container = tuple;
         fields[i].name = f->item.name;
         fields[i].index = i;
+        f = f->next;
     }
 
     return tuple;
@@ -236,7 +370,7 @@ void resolveRecord(Context* context, Module* module, RecordType* type) {
 
 Type* getRef(Module* module, Type* to, bool traced, bool local, bool mut) {
     if(!to->derived) {
-        to->derived = new (module->memory) DerivedTypes(to);
+        to->derived = new (module->memory) DerivedTypes(module, to);
     }
 
     if(traced && mut) {
@@ -254,7 +388,7 @@ Type* getRef(Module* module, Type* to, bool traced, bool local, bool mut) {
 
 Type* getArray(Module* module, Type* to) {
     if(!to->derived) {
-        to->derived = new (module->memory) DerivedTypes(to);
+        to->derived = new (module->memory) DerivedTypes(module, to);
     }
 
     return &to->derived->arrayTo;
@@ -340,4 +474,21 @@ Type* canonicalType(Type* type) {
         default:
             return type;
     }
+}
+
+DerivedTypes::DerivedTypes(Module* module, Type *type) :
+        tracedMutableRef(type, true, false, true),
+        tracedImmutableRef(type, true, false, false),
+        localMutableRef(type, false, true, true),
+        localImmutableRef(type, false, true, false),
+        untracedRef(type, false, false, true),
+        arrayTo(type) {
+    auto arena = module ? &module->memory : nullptr;
+
+    createDescriptor(&tracedMutableRef, arena);
+    createDescriptor(&tracedImmutableRef, arena);
+    createDescriptor(&localMutableRef, arena);
+    createDescriptor(&localImmutableRef, arena);
+    createDescriptor(&untracedRef, arena);
+    createDescriptor(&arrayTo, arena);
 }
