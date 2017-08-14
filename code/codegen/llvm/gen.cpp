@@ -3,10 +3,18 @@
 #define __STDC_LIMIT_MACROS
 
 #include "gen.h"
-#include "../../resolve/inst.h"
-#include "../../resolve/block.h"
-#include "../../resolve/type.h"
 #include <llvm/IR/Module.h>
+
+llvm::BasicBlock* genBlock(Gen* gen, Block* block);
+
+static llvm::StringRef toRef(Context* context, Id name) {
+    if(name == 0) return "";
+
+    auto& v = context->find(name);
+    if(v.textLength == 0) return "";
+
+    return {v.text, v.textLength};
+}
 
 llvm::Type* genIntType(Gen* gen, IntType* type) {
     switch(type->width) {
@@ -57,6 +65,13 @@ llvm::Type* genType(Gen* gen, Type* type) {
             return genType(gen, ((AliasType*)type)->to);
     }
     return nullptr;
+}
+
+llvm::BasicBlock* useBlock(Gen* gen, Block* block) {
+    auto v = (llvm::BasicBlock*)block->codegen;
+    if(v) return v;
+
+    return genBlock(gen, block);
 }
 
 llvm::Value* useValue(Gen* gen, Value* value) {
@@ -240,14 +255,32 @@ llvm::Value* genXor(Gen* gen, InstBinary* inst) {
     return gen->builder->CreateXor(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
 }
 
+llvm::Value* genAlloc(Gen* gen, InstAlloc* inst) {
+    auto type = (RefType*)inst->type;
+    if(type->isLocal) {
+        return gen->builder->CreateAlloca(genType(gen, type->to));
+    } else {
+        // TODO
+        return nullptr;
+    }
+}
+
+llvm::Value* genLoad(Gen* gen, InstLoad* inst) {
+    return gen->builder->CreateLoad(useValue(gen, inst->from));
+}
+
+llvm::Value* genStore(Gen* gen, InstStore* inst) {
+    return gen->builder->CreateStore(useValue(gen, inst->value), useValue(gen, inst->to));
+}
+
 llvm::Value* genJe(Gen* gen, InstJe* inst) {
-    auto then = (llvm::BasicBlock*)inst->then->codegen;
-    auto otherwise = (llvm::BasicBlock*)inst->otherwise->codegen;
+    auto then = useBlock(gen, inst->then);
+    auto otherwise = useBlock(gen, inst->otherwise);
     return gen->builder->CreateCondBr(useValue(gen, inst->cond), then, otherwise);
 }
 
 llvm::Value* genJmp(Gen* gen, InstJmp* inst) {
-    auto to = (llvm::BasicBlock*)inst->to->codegen;
+    auto to = useBlock(gen, inst->to);
     return gen->builder->CreateBr(to);
 }
 
@@ -258,9 +291,12 @@ llvm::Value* genRet(Gen* gen, InstRet* inst) {
 
 llvm::Value* genPhi(Gen* gen, InstPhi* inst) {
     auto phi = gen->builder->CreatePHI(genType(gen, inst->type), (U32)inst->altCount);
+    inst->codegen = phi;
+
     for(Size i = 0; i < inst->altCount; i++) {
         auto& alt = inst->alts[i];
-        phi->addIncoming(useValue(gen, alt.value), (llvm::BasicBlock*)alt.fromBlock->codegen);
+        auto block = useBlock(gen, alt.fromBlock);
+        phi->addIncoming(useValue(gen, alt.value), block);
     }
     return phi;
 }
@@ -323,6 +359,12 @@ llvm::Value* genInstValue(Gen* gen, Inst* inst) {
             return genOr(gen, (InstOr*)inst);
         case Inst::InstXor:
             return genXor(gen, (InstXor*)inst);
+        case Inst::InstAlloc:
+            return genAlloc(gen, (InstAlloc*)inst);
+        case Inst::InstLoad:
+            return genLoad(gen, (InstLoad*)inst);
+        case Inst::InstStore:
+            return genStore(gen, (InstStore*)inst);
         case Inst::InstJe:
             return genJe(gen, (InstJe*)inst);
         case Inst::InstJmp:
@@ -339,4 +381,76 @@ llvm::Value* genInst(Gen* gen, Inst* inst) {
     auto value = genInstValue(gen, inst);
     inst->codegen = value;
     return value;
+}
+
+llvm::BasicBlock* genBlock(Gen* gen, Block* block) {
+    auto b = llvm::BasicBlock::Create(*gen->llvm, "", (llvm::Function*)block->function->codegen);
+    block->codegen = b;
+
+    auto builder = gen->builder;
+    auto insertBlock = builder->GetInsertBlock();
+    auto insert = builder->GetInsertPoint();
+
+    builder->SetInsertPoint(b);
+    for(auto inst: block->instructions) {
+        genInst(gen, inst);
+    }
+
+    if(insertBlock) {
+        builder->SetInsertPoint(insertBlock, insert);
+    }
+    return b;
+}
+
+llvm::Function* genFunction(Gen* gen, Function* fun) {
+    auto ret = genType(gen, fun->returnType);
+    auto argCount = fun->args.size();
+    auto args = (llvm::Type**)alloca(argCount * sizeof(llvm::Type*));
+    for(U32 i = 0; i < argCount; i++) {
+        args[i] = genType(gen, fun->args[i].type);
+    }
+
+    auto sig = llvm::FunctionType::get(ret, llvm::ArrayRef<llvm::Type*>(args, argCount), false);
+    auto linkage = llvm::Function::ExternalLinkage;
+    auto f = llvm::Function::Create(sig, linkage, toRef(gen->context, fun->name), gen->module);
+
+    f->setCallingConv(llvm::CallingConv::Fast);
+    fun->codegen = f;
+
+    U32 i = 0;
+    for(auto it = f->arg_begin(); it != f->arg_end(); i++, it++) {
+        auto arg = fun->args[i];
+        it->setName(toRef(gen->context, arg.name));
+    }
+
+    genBlock(gen, fun->blocks[0]);
+    return f;
+}
+
+llvm::Value* genGlobal(Gen* gen, Global* global) {
+    auto name = toRef(gen->context, global->name);
+    auto type = genType(gen, ((RefType*)global->type)->to);
+    auto g = new llvm::GlobalVariable(*gen->module, type, false, llvm::GlobalVariable::CommonLinkage, nullptr, name);
+    global->codegen = g;
+    return g;
+}
+
+llvm::Module* genModule(llvm::LLVMContext* llvm, Context* context, Module* module) {
+    auto name = llvm::StringRef{module->name->text, module->name->textLength};
+    auto llvmModule = new llvm::Module(name, *llvm);
+    llvmModule->setDataLayout("e-S128");
+    llvmModule->setTargetTriple(LLVM_HOST_TRIPLE);
+
+    llvm::IRBuilder<> builder(*llvm);
+    Gen gen{llvm, llvmModule, &builder, context};
+
+    for(auto& global: module->globals) {
+        genGlobal(&gen, &global);
+    }
+
+    for(auto& fun: module->functions) {
+        genFunction(&gen, &fun);
+    }
+
+    return llvmModule;
 }

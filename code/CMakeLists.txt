@@ -3,6 +3,8 @@ project(code)
 
 set(CMAKE_CXX_STANDARD 17)
 
+find_package(LLVM REQUIRED CONFIG)
+
 set(SOURCE_FILES)
 set(SOURCE_FILES ${SOURCE_FILES}
     util/array.cpp
@@ -60,3 +62,8 @@ if(APPLE)
 endif()
 
 add_executable(code ${SOURCE_FILES})
+
+target_link_libraries(code
+    LLVMCore
+    LLVMSupport
+)

@@ -46,6 +46,9 @@ struct Diagnostics {
         else if(level == ErrorLevel) errors++;
     }
 
+    U32 warningCount() {return warnings;}
+    U32 errorCount() {return errors;}
+
 private:
     U32 warnings = 0;
     U32 errors = 0;
