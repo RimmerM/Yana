@@ -6,6 +6,8 @@
 #include <llvm/IR/Module.h>
 
 llvm::BasicBlock* genBlock(Gen* gen, Block* block);
+llvm::Function* genFunction(Gen* gen, Function* fun);
+llvm::Type* useType(Gen* gen, Type* type);
 
 static llvm::StringRef toRef(Context* context, Id name) {
     if(name == 0) return "";
@@ -40,6 +42,16 @@ llvm::Type* genFloatType(Gen* gen, FloatType* type) {
     }
 }
 
+llvm::Type* genTupType(Gen* gen, TupType* type) {
+    auto types = (llvm::Type**)alloca(sizeof(llvm::Type*) * type->count);
+    for(U32 i = 0; i < type->count; i++) {
+        types[i] = useType(gen, type->layout[i]);
+    }
+
+    auto t = llvm::StructType::get(*gen->llvm, {types, type->count}, false);
+    return t;
+}
+
 llvm::Type* genType(Gen* gen, Type* type) {
     switch(type->kind) {
         case Type::Error:
@@ -54,17 +66,35 @@ llvm::Type* genType(Gen* gen, Type* type) {
         case Type::String:
             return gen->builder->getInt8PtrTy(0);
         case Type::Ref:
-            return llvm::PointerType::get(genType(gen, ((RefType*)type)->to), 0);
+            return llvm::PointerType::get(useType(gen, ((RefType*)type)->to), 0);
         case Type::Fun:
         case Type::Array:
         case Type::Map:
+            return gen->builder->getInt8PtrTy(0);
         case Type::Tup:
+            return genTupType(gen, (TupType*)type);
         case Type::Record:
             return gen->builder->getInt8PtrTy(0);
         case Type::Alias:
-            return genType(gen, ((AliasType*)type)->to);
+            return useType(gen, ((AliasType*)type)->to);
     }
     return nullptr;
+}
+
+llvm::Type* useType(Gen* gen, Type* type) {
+    auto v = type->codegen;
+    if(v) return (llvm::Type*)v;
+
+    auto t = genType(gen, type);
+    type->codegen = t;
+    return t;
+}
+
+llvm::Function* useFunction(Gen* gen, Function* fun) {
+    auto v = (llvm::Function*)fun->codegen;
+    if(v) return v;
+
+    return genFunction(gen, fun);
 }
 
 llvm::BasicBlock* useBlock(Gen* gen, Block* block) {
@@ -80,9 +110,9 @@ llvm::Value* useValue(Gen* gen, Value* value) {
 
     switch(value->kind) {
         case Value::ConstInt:
-            return llvm::ConstantInt::get(genType(gen, value->type), ((ConstInt*)value)->value);
+            return llvm::ConstantInt::get(useType(gen, value->type), ((ConstInt*)value)->value);
         case Value::ConstFloat:
-            return llvm::ConstantFP::get(genType(gen, value->type), ((ConstFloat*)value)->value);
+            return llvm::ConstantFP::get(useType(gen, value->type), ((ConstFloat*)value)->value);
     }
 
     // If this happens, some instruction is not generated correctly.
@@ -90,39 +120,39 @@ llvm::Value* useValue(Gen* gen, Value* value) {
 }
 
 llvm::Value* genTrunc(Gen* gen, InstTrunc* inst) {
-    return gen->builder->CreateTrunc(useValue(gen, inst->from), genType(gen, inst->type));
+    return gen->builder->CreateTrunc(useValue(gen, inst->from), useType(gen, inst->type));
 }
 
 llvm::Value* genFTrunc(Gen* gen, InstFTrunc* inst) {
-    return gen->builder->CreateFPTrunc(useValue(gen, inst->from), genType(gen, inst->type));
+    return gen->builder->CreateFPTrunc(useValue(gen, inst->from), useType(gen, inst->type));
 }
 
 llvm::Value* genZExt(Gen* gen, InstZExt* inst) {
-    return gen->builder->CreateZExt(useValue(gen, inst->from), genType(gen, inst->type));
+    return gen->builder->CreateZExt(useValue(gen, inst->from), useType(gen, inst->type));
 }
 
 llvm::Value* genSExt(Gen* gen, InstSExt* inst) {
-    return gen->builder->CreateSExt(useValue(gen, inst->from), genType(gen, inst->type));
+    return gen->builder->CreateSExt(useValue(gen, inst->from), useType(gen, inst->type));
 }
 
 llvm::Value* genFExt(Gen* gen, InstFExt* inst) {
-    return gen->builder->CreateFPExt(useValue(gen, inst->from), genType(gen, inst->type));
+    return gen->builder->CreateFPExt(useValue(gen, inst->from), useType(gen, inst->type));
 }
 
 llvm::Value* genFToI(Gen* gen, InstFToI* inst) {
-    return gen->builder->CreateFPToSI(useValue(gen, inst->from), genType(gen, inst->type));
+    return gen->builder->CreateFPToSI(useValue(gen, inst->from), useType(gen, inst->type));
 }
 
 llvm::Value* genFToUI(Gen* gen, InstFToUI* inst) {
-    return gen->builder->CreateFPToUI(useValue(gen, inst->from), genType(gen, inst->type));
+    return gen->builder->CreateFPToUI(useValue(gen, inst->from), useType(gen, inst->type));
 }
 
 llvm::Value* genIToF(Gen* gen, InstIToF* inst) {
-    return gen->builder->CreateSIToFP(useValue(gen, inst->from), genType(gen, inst->type));
+    return gen->builder->CreateSIToFP(useValue(gen, inst->from), useType(gen, inst->type));
 }
 
 llvm::Value* genUIToF(Gen* gen, InstUIToF* inst) {
-    return gen->builder->CreateUIToFP(useValue(gen, inst->from), genType(gen, inst->type));
+    return gen->builder->CreateUIToFP(useValue(gen, inst->from), useType(gen, inst->type));
 }
 
 llvm::Value* genAdd(Gen* gen, InstBinary* inst) {
@@ -255,10 +285,21 @@ llvm::Value* genXor(Gen* gen, InstBinary* inst) {
     return gen->builder->CreateXor(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
 }
 
+llvm::Value* genTup(Gen* gen, InstTup* inst) {
+    auto type = useType(gen, inst->type);
+    llvm::Value* tup = llvm::UndefValue::get(type);
+
+    for(U32 i = 0; i < inst->fieldCount; i++) {
+        tup = gen->builder->CreateInsertValue(tup, useValue(gen, inst->fields[i]), i);
+    }
+
+    return tup;
+}
+
 llvm::Value* genAlloc(Gen* gen, InstAlloc* inst) {
     auto type = (RefType*)inst->type;
     if(type->isLocal) {
-        return gen->builder->CreateAlloca(genType(gen, type->to));
+        return gen->builder->CreateAlloca(useType(gen, type->to));
     } else {
         // TODO
         return nullptr;
@@ -271,6 +312,21 @@ llvm::Value* genLoad(Gen* gen, InstLoad* inst) {
 
 llvm::Value* genStore(Gen* gen, InstStore* inst) {
     return gen->builder->CreateStore(useValue(gen, inst->value), useValue(gen, inst->to));
+}
+
+llvm::Value* genGetField(Gen* gen, InstGetField* inst) {
+    return gen->builder->CreateExtractValue(useValue(gen, inst->from), {inst->indexChain, inst->chainLength});
+}
+
+llvm::Value* genCall(Gen* gen, InstCall* inst) {
+    auto args = (llvm::Value**)alloca(sizeof(llvm::Value*) * inst->argCount);
+    for(U32 i = 0; i < inst->argCount; i++) {
+        args[i] = useValue(gen, inst->args[i]);
+    }
+
+    auto call = gen->builder->CreateCall(useFunction(gen, inst->fun), {args, inst->argCount});
+    call->setCallingConv(llvm::CallingConv::Fast);
+    return call;
 }
 
 llvm::Value* genJe(Gen* gen, InstJe* inst) {
@@ -290,7 +346,7 @@ llvm::Value* genRet(Gen* gen, InstRet* inst) {
 }
 
 llvm::Value* genPhi(Gen* gen, InstPhi* inst) {
-    auto phi = gen->builder->CreatePHI(genType(gen, inst->type), (U32)inst->altCount);
+    auto phi = gen->builder->CreatePHI(useType(gen, inst->type), (U32)inst->altCount);
     inst->codegen = phi;
 
     for(Size i = 0; i < inst->altCount; i++) {
@@ -359,12 +415,18 @@ llvm::Value* genInstValue(Gen* gen, Inst* inst) {
             return genOr(gen, (InstOr*)inst);
         case Inst::InstXor:
             return genXor(gen, (InstXor*)inst);
+        case Inst::InstTup:
+            return genTup(gen, (InstTup*)inst);
         case Inst::InstAlloc:
             return genAlloc(gen, (InstAlloc*)inst);
         case Inst::InstLoad:
             return genLoad(gen, (InstLoad*)inst);
         case Inst::InstStore:
             return genStore(gen, (InstStore*)inst);
+        case Inst::InstGetField:
+            return genGetField(gen, (InstGetField*)inst);
+        case Inst::InstCall:
+            return genCall(gen, (InstCall*)inst);
         case Inst::InstJe:
             return genJe(gen, (InstJe*)inst);
         case Inst::InstJmp:
@@ -403,11 +465,11 @@ llvm::BasicBlock* genBlock(Gen* gen, Block* block) {
 }
 
 llvm::Function* genFunction(Gen* gen, Function* fun) {
-    auto ret = genType(gen, fun->returnType);
+    auto ret = useType(gen, fun->returnType);
     auto argCount = fun->args.size();
     auto args = (llvm::Type**)alloca(argCount * sizeof(llvm::Type*));
     for(U32 i = 0; i < argCount; i++) {
-        args[i] = genType(gen, fun->args[i].type);
+        args[i] = useType(gen, fun->args[i].type);
     }
 
     auto sig = llvm::FunctionType::get(ret, llvm::ArrayRef<llvm::Type*>(args, argCount), false);
@@ -430,8 +492,9 @@ llvm::Function* genFunction(Gen* gen, Function* fun) {
 
 llvm::Value* genGlobal(Gen* gen, Global* global) {
     auto name = toRef(gen->context, global->name);
-    auto type = genType(gen, ((RefType*)global->type)->to);
-    auto g = new llvm::GlobalVariable(*gen->module, type, false, llvm::GlobalVariable::CommonLinkage, nullptr, name);
+    auto type = useType(gen, ((RefType*)global->type)->to);
+    auto g = new llvm::GlobalVariable(*gen->module, type, false, llvm::GlobalVariable::ExternalLinkage, nullptr,
+                                      name, nullptr, llvm::GlobalVariable::NotThreadLocal, 0, true);
     global->codegen = g;
     return g;
 }
@@ -450,7 +513,8 @@ llvm::Module* genModule(llvm::LLVMContext* llvm, Context* context, Module* modul
     }
 
     for(auto& fun: module->functions) {
-        genFunction(&gen, &fun);
+        // Functions can be lazily generated depending on their usage order, so we only generate if needed.
+        useFunction(&gen, &fun);
     }
 
     return llvmModule;

@@ -272,6 +272,17 @@ struct InstLoad: Inst {
 // Loads a single field from an aggregate type in memory into a register.
 // The field to load is defined as a chain of field indices,
 // allowing the loading from a contained field in a single operation.
+// The field chain works as follows:
+// forEach(chain) {#element, #index}:
+//   if element is Record:
+//     if index == 0:
+//       get element constructor index
+//     else:
+//       cast element to element.cons.(index - 1)
+//     continue
+//   if element is Tuple:
+//     element.getfield(index)
+//     continue
 struct InstLoadField: Inst {
     Value* from;
     U32* indexChain;
@@ -296,6 +307,7 @@ struct InstStore: Inst {
 // Stores a single field from a register into an aggregate type.
 // The field to store into is defined as a chain of field indices,
 // allowing storing into a contained field in a single operation.
+// The chain works the same as for InstLoadField, but stores instead.
 struct InstStoreField: Inst {
     Value* to;
     Value* value;
