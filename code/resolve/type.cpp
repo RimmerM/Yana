@@ -20,7 +20,7 @@ IntType intTypes[IntType::KindCount] = {
 
 void createDescriptor(Type* type, Arena* arena);
 
-auto descriptorBuilder = [] -> bool {
+auto descriptorBuilder = []() -> bool {
     createDescriptor(&unitType, nullptr);
     createDescriptor(&errorType, nullptr);
     createDescriptor(&stringType, nullptr);
@@ -151,91 +151,82 @@ void createDescriptor(Type* type, Arena* arena) {
     type->descriptorLength = (U16)length;
 }
 
-template<class I>
-TupLookup* findTupLayout(Module* module, TupLookup* lookup, I fields) {
-    if(fields.has()) {
-        auto type = fields.get(module);
-
-        // If there already was a table for this type, continue in that one.
-        if(auto t = lookup->next.get((Size)type)) {
-            return findTupLayout(module, t, fields.next());
-        }
-
-        // Otherwise, create a new table first.
-        auto next = &lookup->next[(Size)type];
-        auto depth = lookup->depth + 1;
-        auto layout = (Type**)module->memory.alloc(sizeof(Type*) * depth);
-        next->depth = depth;
-        next->layout = layout;
-        next->virtualSize = lookup->virtualSize + type->virtualSize;
-
-        memcpy(layout, lookup->layout, (depth - 1) * sizeof(Type*));
-        layout[depth - 1] = type;
-
-        return findTupLayout(module, next, fields.next());
-    } else {
-        return lookup;
-    }
-}
-
-TupLookup* findTupLayout(Context* context, Module* module, Value** fields, U32 count) {
-    struct Iterator {
-        Context* context;
-        Value** fields;
-        Value** max;
-
-        bool has() {
-            return fields < max;
-        }
-
-        Type* get(Module* m) {
-            return fields[0]->type;
-        }
-
-        Iterator next() {
-            return {context, fields + 1, max};
-        }
-    };
-
-    return findTupLayout(module, &module->usedTuples, Iterator{context, fields, fields + count});
-}
-
 static Type* findTuple(Context* context, Module* module, ast::TupType* type) {
-    struct Iterator {
-        Context* context;
-        List<ast::TupField>* current;
+    Byte buffer[Limits::maxTypeDescriptor];
+    Byte* p = buffer;
+    Byte* max = buffer + Limits::maxTypeDescriptor;
+    U32 fieldCount = 0;
+    U32 virtualSize = 0;
+    bool named = false;
 
-        bool has() {
-            return current != nullptr;
+    // Generate the tuple descriptor.
+    *p++ = Type::Tup;
+
+    // Reserve space for the number of fields.
+    auto descriptorFieldCount = (U16*)p;
+    p = put16(p, max, 0);
+
+    // Describe the field names, if the tuple uses named fields.
+    auto field = type->fields;
+
+    if(field->item.name) {
+        *p++ = 1;
+        named = true;
+
+        while(field) {
+            put32(p, max, field->item.name);
+            fieldCount++;
+            field = field->next;
         }
-
-        Type* get(Module* m) {
-            auto ast = current->item.type;
-            return resolveType(context, m, ast);
+    } else {
+        *p++ = 0;
+        while(field) {
+            fieldCount++;
+            field = field->next;
         }
-
-        Iterator next() {
-            return {context, current->next};
-        }
-    };
-
-    auto layout = findTupLayout(module, &module->usedTuples, Iterator{context, type->fields});
-    auto count = layout->depth;
-    auto fields = (Field*)module->memory.alloc(sizeof(Field) * count);
-    auto tuple = new (module->memory) TupType(layout->virtualSize);
-    tuple->count = count;
-    tuple->layout = layout->layout;
-    tuple->fields = fields;
-
-    auto f = type->fields;
-    for(U32 i = 0; i < count; i++) {
-        fields[i].type = layout->layout[i];
-        fields[i].container = tuple;
-        fields[i].name = f->item.name;
-        fields[i].index = i;
-        f = f->next;
     }
 
+    auto fields = (Field*)module->memory.alloc(sizeof(Field) * fieldCount);
+
+    // Describe the field types.
+    U32 i = 0;
+    field = type->fields;
+    while(field) {
+        auto fieldType = resolveType(context, module, field->item.type);
+        memcpy(p, fieldType->descriptor, fieldType->descriptorLength);
+        p += fieldType->descriptorLength;
+
+        fields[i].name = field->item.name;
+        fields[i].type = fieldType;
+        fields[i].index = i;
+
+        i++;
+        virtualSize += fieldType->virtualSize;
+        field = field->next;
+    }
+
+    // Update the number of fields to the final value.
+    *descriptorFieldCount = (U16)fieldCount;
+
+    // Check if the tuple was defined already.
+    Hasher hasher;
+    hasher.addBytes(buffer, p - buffer);
+    auto hash = hasher.get();
+
+    if(auto tuple = module->usedTuples.get(hash)) {
+        return *tuple;
+    }
+
+    auto tuple = new (module->memory) TupType(virtualSize);
+    tuple->count = fieldCount;
+    tuple->fields = fields;
+    tuple->named = named;
+
+    for(i = 0; i < fieldCount; i++) {
+        fields[i].container = tuple;
+    }
+
+    module->usedTuples.add(hash, tuple);
     return tuple;
 }
 

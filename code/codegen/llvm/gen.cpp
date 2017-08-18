@@ -45,7 +45,7 @@ llvm::Type* genFloatType(Gen* gen, FloatType* type) {
 llvm::Type* genTupType(Gen* gen, TupType* type) {
     auto types = (llvm::Type**)alloca(sizeof(llvm::Type*) * type->count);
     for(U32 i = 0; i < type->count; i++) {
-        types[i] = useType(gen, type->layout[i]);
+        types[i] = useType(gen, type->fields[i].type);
     }
 
     auto t = llvm::StructType::get(*gen->llvm, {types, type->count}, false);

@@ -34,7 +34,7 @@ struct Module {
     HashMap<OpProperties, Id> ops;
     HashMap<Global, Id> globals;
 
-    TupLookup usedTuples;
+    HashMap<TupType*, Id> usedTuples;
 
     Function* staticInit = nullptr;
 
