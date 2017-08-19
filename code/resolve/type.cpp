@@ -448,6 +448,65 @@ bool compareTypes(Context* context, Type* lhs, Type* rhs) {
     return false;
 }
 
+TupType* resolveTupType(Context* context, Module* module, Field* sourceFields, U32 count) {
+    Byte buffer[Limits::maxTypeDescriptor];
+    Byte* p = buffer;
+    Byte* max = buffer + Limits::maxTypeDescriptor;
+    U32 virtualSize = 0;
+    bool named = false;
+
+    // Generate the tuple descriptor.
+    *p++ = Type::Tup;
+    p = put16(p, max, (U16)count);
+
+    // Describe the field names, if the tuple uses named fields.
+    if(sourceFields->name) {
+        *p++ = 1;
+        named = true;
+        for(U32 i = 0; i < count; i++) {
+            put32(p, max, sourceFields[i].name);
+        }
+    } else {
+        *p++ = 0;
+    }
+
+    auto fields = (Field*)module->memory.alloc(sizeof(Field) * count);
+
+    // Describe the field types.
+    for(U32 i = 0; i < count; i++) {
+        auto fieldType = sourceFields[i].type;
+        memcpy(p, fieldType->descriptor, fieldType->descriptorLength);
+        p += fieldType->descriptorLength;
+
+        fields[i].name = sourceFields[i].name;
+        fields[i].type = fieldType;
+        fields[i].index = i;
+
+        virtualSize += fieldType->virtualSize;
+    }
+
+    // Check if the tuple was defined already.
+    Hasher hasher;
+    hasher.addBytes(buffer, p - buffer);
+    auto hash = hasher.get();
+
+    if(auto tuple = module->usedTuples.get(hash)) {
+        return *tuple;
+    }
+
+    auto tuple = new (module->memory) TupType(virtualSize);
+    tuple->count = count;
+    tuple->fields = fields;
+    tuple->named = named;
+
+    for(U32 i = 0; i < count; i++) {
+        fields[i].container = tuple;
+    }
+
+    module->usedTuples.add(hash, tuple);
+    return tuple;
+}
+
 Type* canonicalType(Type* type) {
     switch(type->kind) {
         case Type::Ref:

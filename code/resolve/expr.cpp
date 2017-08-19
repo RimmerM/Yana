@@ -940,26 +940,17 @@ Value* resolveTup(FunBuilder* b, ast::TupExpr* expr, Id name) {
     }
 
     auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
-    auto fields = (Field*)b->mem.alloc(sizeof(Field) * argCount);
-    auto type = new (b->mem) TupType(0);
+    auto fields = (Field*)alloca(sizeof(Field) * argCount);
 
     arg = expr->args;
     for(U32 i = 0; i < argCount; i++) {
         args[i] = resolveExpr(b, arg->item.value, 0, true);
         fields[i].type = args[i]->type;
         fields[i].name = arg->item.name;
-        fields[i].index = i;
-        fields[i].container = type;
-
         arg = arg->next;
     }
 
-    auto layout = findTupLayout(&b->context, b->fun->module, args, argCount);
-    type->fields = fields;
-    type->layout = layout->layout;
-    type->count = argCount;
-    type->virtualSize = layout->virtualSize;
-
+    auto type = resolveTupType(&b->context, b->fun->module, fields, argCount);
     return tup(b->block, name, type, args, argCount);
 }
 
