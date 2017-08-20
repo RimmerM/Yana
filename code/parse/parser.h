@@ -10,7 +10,7 @@ struct Parser {
     void parseImport();
     void parseFixity();
     ast::Decl* parseDecl();
-    ast::Decl* parseFunDecl();
+    ast::Decl* parseFunDecl(bool requireBody);
     ast::Decl* parseDataDecl();
     ast::Decl* parseTypeDecl();
     ast::Decl* parseForeignDecl();

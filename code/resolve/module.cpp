@@ -404,6 +404,32 @@ static SymbolCounts prepareSymbols(Context* context, Module* module, ast::Decl**
     return counts;
 }
 
+static U32 resolveClass(Context* context, Module* module, TypeClass* c) {
+    auto ast = c->ast;
+    U32 funCount = 0;
+
+    auto decl = ast->decls;
+    while(decl) {
+        funCount++;
+        decl = decl->next;
+    }
+
+    auto funNames = (Id*)module->memory.alloc(sizeof(Id) * funCount);
+    auto functions = (FunType**)module->memory.alloc(sizeof(FunType*) * funCount);
+
+    decl = ast->decls;
+    for(U32 i = 0; i < funCount; i++) {
+        auto f = decl->item;
+        funNames[i] = f->name;
+        decl = decl->next;
+    }
+
+    c->funCount = funCount;
+    c->funNames = funNames;
+    c->functions = functions;
+    c->ast = nullptr;
+}
+
 void resolveFun(Context* context, Function* fun) {
     // Check if the function was resolved already.
     auto ast = fun->ast;
@@ -512,6 +538,10 @@ Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast
 
     for(auto type: module->types) {
         resolveDefinition(context, module, type);
+    }
+
+    for(auto c: module->typeClasses) {
+        resolveClass(context, module, c);
     }
 
     for(ForeignFunction& fun: module->foreignFunctions) {

@@ -466,9 +466,9 @@ struct AliasDecl: Decl {
 };
 
 struct ClassDecl: Decl {
-    ClassDecl(SimpleType* type, List<Decl*>* decls): Decl(Class), type(type), decls(decls) {}
+    ClassDecl(SimpleType* type, List<FunDecl*>* decls): Decl(Class), type(type), decls(decls) {}
     SimpleType* type;
-    List<Decl*>* decls;
+    List<FunDecl*>* decls;
 };
 
 struct InstanceDecl: Decl {

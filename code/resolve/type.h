@@ -210,6 +210,8 @@ struct TypeClass {
 
     GenType** args; // A list of types this class will be instantiated on.
     FunType** functions; // A list of function types this class implements.
+    Id* funNames; // The name of each class function, in order.
+
     Id name;
     U16 argCount = 0;
     U16 funCount = 0;

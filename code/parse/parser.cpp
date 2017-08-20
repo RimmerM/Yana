@@ -206,7 +206,7 @@ Decl* Parser::parseDecl() {
     } else if(token.type == Token::kwForeign) {
         return parseForeignDecl();
     } else if(token.type == Token::kwFn) {
-        return parseFunDecl();
+        return parseFunDecl(true);
     } else if(token.type == Token::kwClass) {
         return parseClassDecl();
     } else if(token.type == Token::kwInstance) {
@@ -222,7 +222,7 @@ Decl* Parser::parseDecl() {
     }
 }
 
-Decl* Parser::parseFunDecl() {
+Decl* Parser::parseFunDecl(bool requireBody) {
     return node([=]() -> Decl* {
         assert(token.type == Token::kwFn);
         eat();
@@ -296,9 +296,16 @@ Decl* Parser::parseFunDecl() {
             }
 
             body = new (buffer) CaseExpr(pivot, cases);
-        } else {
+        } else if(token.type == Token::opColon) {
             implicitReturn = false;
             body = parseBlock(true);
+        } else {
+            body = nullptr;
+            implicitReturn = false;
+
+            if(requireBody) {
+                error("expected function body");
+            }
         }
 
         return new(buffer) FunDecl(name, body, args, ret, implicitReturn);
@@ -410,7 +417,7 @@ Decl* Parser::parseClassDecl() {
 
         auto decls = withLevel([=] {
             return sepBy([=] {
-                return parseDecl();
+                return (FunDecl*)parseFunDecl(false);
             }, Token::EndOfStmt, Token::EndOfBlock);
         });
 
