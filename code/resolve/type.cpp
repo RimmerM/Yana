@@ -57,7 +57,7 @@ Byte* put32(Byte* buffer, Byte* max, U32 v) {
 Byte* describeType(Type* type, Byte* buffer, Byte* max);
 
 Byte* describeFunType(FunType* type, Byte* buffer, Byte* max) {
-    put16(buffer, max, (U16)type->argCount);
+    buffer = put16(buffer, max, (U16)type->argCount);
     for(U32 i = 0; i < type->argCount; i++) {
         buffer = describeType(type->args[i].type, buffer, max);
     }
@@ -67,7 +67,7 @@ Byte* describeFunType(FunType* type, Byte* buffer, Byte* max) {
 }
 
 Byte* describeTupType(TupType* type, Byte* buffer, Byte* max, bool writeNames) {
-    put16(buffer, max, (U16)type->count);
+    buffer = put16(buffer, max, (U16)type->count);
     if(writeNames && type->named) {
         *buffer++ = 1;
         for(U32 i = 0; i < type->count; i++) {
@@ -104,6 +104,11 @@ Byte* describeRefType(RefType* type, Byte* buffer, Byte* max) {
 }
 
 Byte* describeType(Type* type, Byte* buffer, Byte* max) {
+    if(type->descriptorLength > 0) {
+        memcpy(buffer, type->descriptor, type->descriptorLength);
+        return buffer + type->descriptorLength;
+    }
+
     if(type->kind == Type::Alias) {
         return describeType(((AliasType*)type)->to, buffer, max);
     }
@@ -174,7 +179,7 @@ static Type* findTuple(Context* context, Module* module, ast::TupType* type) {
         named = true;
 
         while(field) {
-            put32(p, max, field->item.name);
+            p = put32(p, max, field->item.name);
             fieldCount++;
             field = field->next;
         }
@@ -209,8 +214,10 @@ static Type* findTuple(Context* context, Module* module, ast::TupType* type) {
     *descriptorFieldCount = (U16)fieldCount;
 
     // Check if the tuple was defined already.
+    auto descriptorLength = p - buffer;
+
     Hasher hasher;
-    hasher.addBytes(buffer, p - buffer);
+    hasher.addBytes(buffer, descriptorLength);
     auto hash = hasher.get();
 
     if(auto tuple = module->usedTuples.get(hash)) {
@@ -225,6 +232,11 @@ static Type* findTuple(Context* context, Module* module, ast::TupType* type) {
     for(i = 0; i < fieldCount; i++) {
         fields[i].container = tuple;
     }
+
+    auto descriptor = (Byte*)module->memory.alloc(descriptorLength);
+    memcpy(descriptor, buffer, descriptorLength);
+    tuple->descriptor = descriptor;
+    tuple->descriptorLength = (U16)descriptorLength;
 
     module->usedTuples.add(hash, tuple);
     return tuple;
@@ -291,6 +303,7 @@ static Type* findType(Context* context, Module* module, ast::Type* type) {
             fun->args = args;
             fun->result = ret;
             fun->argCount = argc;
+            createDescriptor(fun, &module->memory);
             return fun;
         }
         case ast::Type::Arr: {
@@ -302,7 +315,9 @@ static Type* findType(Context* context, Module* module, ast::Type* type) {
             auto ast = (ast::MapType*)type;
             auto from = resolveType(context, module, ast->from);
             auto to = resolveType(context, module, ast->to);
-            return new (module->memory) MapType(from, to);
+            auto map = new (module->memory) MapType(from, to);
+            createDescriptor(map, &module->memory);
+            return map;
         }
     }
 }
@@ -311,8 +326,12 @@ void resolveAlias(Context* context, Module* module, AliasType* type) {
     auto ast = type->ast;
     if(ast) {
         type->ast = nullptr;
-        type->to = findType(context, module, ast->target);
-        type->virtualSize = type->to->virtualSize;
+
+        auto to = findType(context, module, ast->target);
+        type->to = to;
+        type->virtualSize = to->virtualSize;
+        type->descriptorLength = to->descriptorLength;
+        type->descriptor = to->descriptor;
     }
 }
 
@@ -464,7 +483,7 @@ TupType* resolveTupType(Context* context, Module* module, Field* sourceFields, U
         *p++ = 1;
         named = true;
         for(U32 i = 0; i < count; i++) {
-            put32(p, max, sourceFields[i].name);
+            p = put32(p, max, sourceFields[i].name);
         }
     } else {
         *p++ = 0;
@@ -486,8 +505,10 @@ TupType* resolveTupType(Context* context, Module* module, Field* sourceFields, U
     }
 
     // Check if the tuple was defined already.
+    auto descriptorLength = p - buffer;
+
     Hasher hasher;
-    hasher.addBytes(buffer, p - buffer);
+    hasher.addBytes(buffer, descriptorLength);
     auto hash = hasher.get();
 
     if(auto tuple = module->usedTuples.get(hash)) {
@@ -502,6 +523,11 @@ TupType* resolveTupType(Context* context, Module* module, Field* sourceFields, U
     for(U32 i = 0; i < count; i++) {
         fields[i].container = tuple;
     }
+
+    auto descriptor = (Byte*)module->memory.alloc(descriptorLength);
+    memcpy(descriptor, buffer, descriptorLength);
+    tuple->descriptor = descriptor;
+    tuple->descriptorLength = (U16)descriptorLength;
 
     module->usedTuples.add(hash, tuple);
     return tuple;

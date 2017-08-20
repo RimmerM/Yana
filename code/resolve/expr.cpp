@@ -1,4 +1,5 @@
 #include <climits>
+#include <alloca.h>
 #include "../parse/ast.h"
 #include "module.h"
 #include "../util/string.h"
@@ -294,9 +295,13 @@ static Value* findVar(FunBuilder* b, Id name) {
 static Value* useValue(FunBuilder* b, Value* value, bool asRV) {
     if(!asRV && (value->type->kind == Type::Ref) && ((RefType*)value->type)->isLocal) {
         return load(b->block, 0, value);
-    } else {
-        return value;
     }
+
+    if(!asRV && value->kind == Value::Global) {
+        return load(b->block, 0, value);
+    }
+
+    return value;
 }
 
 Value* resolveVar(FunBuilder* b, ast::VarExpr* expr, bool asRV) {
@@ -445,6 +450,7 @@ static Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List
                 if(arg.name == fa->name) {
                     argIndex = fa->index;
                     found = true;
+                    break;
                 }
             }
 
