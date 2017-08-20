@@ -42,6 +42,31 @@ static Function* cmpFunction(Context* context, Module* module, Type* type, const
     return fun;
 }
 
+GenType* setClassType(Module* module, TypeClass* type) {
+    auto t = new (module->memory) GenType(0);
+    type->args = (GenType**)module->memory.alloc(sizeof(GenType*));
+    type->argCount = 1;
+    type->args[0] = t;
+    return t;
+}
+
+FunType* binaryFunType(Module* module, Type* lhs, Type* rhs, Type* result) {
+    auto type = new (module->memory) FunType;
+    type->result = result;
+    type->argCount = 2;
+    type->args = (FunArg*)module->memory.alloc(sizeof(FunArg) * 2);
+
+    type->args[0].name = 0;
+    type->args[0].type = lhs;
+    type->args[0].index = 0;
+
+    type->args[1].name = 0;
+    type->args[1].type = rhs;
+    type->args[1].index = 1;
+
+    return type;
+}
+
 Module* preludeModule(Context* context) {
     auto module = new Module;
     module->id = context->addUnqualifiedName("Prelude", 7);
@@ -103,7 +128,43 @@ Module* preludeModule(Context* context) {
 
     auto eqClass = defineClass(context, module, context->addUnqualifiedName("Eq", 2));
     {
-        auto t = new (module->memory) GenType(0);
+        auto t = setClassType(module, eqClass);
+        eqClass->funCount = 2;
+        eqClass->funNames = (Id*)module->memory.alloc(sizeof(Id) * 2);
+        eqClass->funNames[0] = opEq;
+        eqClass->funNames[1] = opNeq;
+
+        eqClass->functions = (FunType**)module->memory.alloc(sizeof(FunType*) * 2);
+        eqClass->functions[0] = binaryFunType(module, t, t, &intTypes[IntType::Bool]); // ==
+        eqClass->functions[1] = binaryFunType(module, t, t, &intTypes[IntType::Bool]); // /=
+    }
+
+    auto ordClass = defineClass(context, module, context->addUnqualifiedName("Ord", 3));
+    {
+        auto t = setClassType(module, ordClass);
+        eqClass->funCount = 7;
+        eqClass->funNames = (Id*)module->memory.alloc(sizeof(Id) * 7);
+        eqClass->funNames[0] = opLt;
+        eqClass->funNames[1] = opLe;
+        eqClass->funNames[2] = opGt;
+        eqClass->funNames[3] = opGe;
+        eqClass->funNames[4] = context->addUnqualifiedName("compare", 7);
+        eqClass->funNames[5] = context->addUnqualifiedName("min", 3);
+        eqClass->funNames[6] = context->addUnqualifiedName("max", 3);
+
+        eqClass->functions = (FunType**)module->memory.alloc(sizeof(FunType*) * 7);
+        eqClass->functions[0] = binaryFunType(module, t, t, &intTypes[IntType::Bool]); // <
+        eqClass->functions[1] = binaryFunType(module, t, t, &intTypes[IntType::Bool]); // <=
+        eqClass->functions[2] = binaryFunType(module, t, t, &intTypes[IntType::Bool]); // >
+        eqClass->functions[3] = binaryFunType(module, t, t, &intTypes[IntType::Bool]); // >=
+        eqClass->functions[4] = binaryFunType(module, t, t, orderingType); // compare
+        eqClass->functions[5] = binaryFunType(module, t, t, t); // min
+        eqClass->functions[6] = binaryFunType(module, t, t, t); // max
+    }
+
+    auto numClass = defineClass(context, module, context->addUnqualifiedName("Num", 3));
+    {
+        auto t = setClassType(module, numClass);
     }
 
     cmpFunction<ICmp, icmp, ICmp::eq>(context, module, &intTypes[IntType::Long], "==", 2);
