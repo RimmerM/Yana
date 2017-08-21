@@ -63,15 +63,36 @@ void printType(std::ostream& stream, Context& context, const Type* type) {
             stream << ']';
             break;
         case Type::Record: {
-            auto name = context.find(((RecordType*)type)->name);
+            auto record = (RecordType*)type;
+            auto name = context.find(record->name);
             if(name.textLength > 0) {
                 stream.write(name.text, name.textLength);
             }
+
+            if(record->instanceOf) {
+                stream << '(';
+                for(Size i = 0; i < record->genCount; i++) {
+                    printType(stream, context, record->instance[i]);
+                    if(i < record->genCount - 1) {
+                        stream << ", ";
+                    }
+                }
+                stream << ')';
+            }
             break;
         }
-        case Type::Tup:
-            stream << "<tup>";
+        case Type::Tup: {
+            auto tup = (TupType*)type;
+            stream << '{';
+            for(Size i = 0; i < tup->count; i++) {
+                printType(stream, context, tup->fields[i].type);
+                if(i < tup->count - 1) {
+                    stream << ", ";
+                }
+            }
+            stream << '}';
             break;
+        }
         case Type::Gen:
             stream << "gen ";
             stream << ((GenType*)type)->index;
