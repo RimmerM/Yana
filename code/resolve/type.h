@@ -190,6 +190,7 @@ struct RecordType: Type {
     Con* cons;
     GenType* gens;
     RecordType* instanceOf;
+    Type** instance; // if instanceOf is set, this contains a list Type*[genCount].
     Id name;
     U32 conCount;
     U32 genCount;
@@ -281,3 +282,8 @@ Type* canonicalType(Type* type);
 
 // Generates the descriptor for a newly built type.
 void createDescriptor(Type* type, Arena* arena);
+
+// Instantiates a higher-order type for a specific set of arguments.
+// Returns a new type which is distinct from but references the original.
+AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count);
+RecordType* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count);

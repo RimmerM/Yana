@@ -257,8 +257,6 @@ static Type* findGen(Context* context, ast::GenType* type, GenContext* gen) {
 }
 
 static Type* findType(Context* context, Module* module, ast::Type* type, GenContext* gen);
-static Type* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count);
-static Type* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count);
 
 static Type* instantiateType(Context* context, Module* module, Type* type, Type** args, U32 count) {
     switch(type->kind) {
@@ -365,7 +363,7 @@ static Type* instantiateType(Context* context, Module* module, Type* type, Type*
     }
 }
 
-static Type* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count) {
+AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count) {
     if(count != type->genCount) {
         context->diagnostics.error("incorrect number of arguments to type", nullptr, nullptr);
         return type;
@@ -386,7 +384,7 @@ static Type* instantiateAlias(Context* context, Module* module, AliasType* type,
     return alias;
 }
 
-static Type* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count) {
+RecordType* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count) {
     if(count != type->genCount) {
         context->diagnostics.error("incorrect number of arguments to type", nullptr, nullptr);
         return type;
@@ -400,6 +398,11 @@ static Type* instantiateRecord(Context* context, Module* module, RecordType* typ
     record->genCount = 0;
     record->kind = type->kind;
     record->qualified = type->qualified;
+
+    auto instance = (Type**)module->memory.alloc(sizeof(Type*) * count);
+    memcpy(instance, args, sizeof(Type*) * count);
+    record->instance = instance;
+    record->genCount = count;
 
     auto cons = (Con*)module->memory.alloc(sizeof(Con) * type->conCount);
     record->cons = cons;
@@ -634,7 +637,7 @@ Type* resolveType(Context* context, Module* module, ast::Type* type, GenContext*
     auto found = findType(context, module, type, gen);
     if(
         (found->kind == Type::Alias && ((AliasType*)found)->genCount > 0) ||
-        (found->kind == Type::Record && ((RecordType*)found)->genCount > 0)
+        (found->kind == Type::Record && ((RecordType*)found)->genCount > 0 && ((RecordType*)found)->instance == nullptr)
     ) {
         context->diagnostics.error("cannot use a generic type here", type, nullptr);
     }

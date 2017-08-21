@@ -1047,11 +1047,33 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
         error(b, "incorrect number of arguments to constructor", expr);
     }
 
+    // TODO: Handle named fields.
     auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
     arg = expr->args;
     for(U32 i = 0; i < argCount; i++) {
         args[i] = resolveExpr(b, arg->item.value, arg->item.name, true);
         arg = arg->next;
+    }
+
+    // If the constructed type is a generic type, we instantiate it.
+    if(con->parent->genCount && !con->parent->instance) {
+        auto instanceArgs = (Type**)alloca(sizeof(Type*) * con->parent->genCount);
+        for(U32 i = 0; i < argCount; i++) {
+            // TODO: Handle higher-kinded type fields.
+            auto t = con->fields[i].type;
+            if(t->kind == Type::Gen) {
+                auto g = (GenType*)t;
+                instanceArgs[g->index] = args[i]->type;
+            }
+        }
+
+        auto record = instantiateRecord(&b->context, b->fun->module, con->parent, instanceArgs, con->parent->genCount);
+        con = &record->cons[con->index];
+    }
+
+    // Make sure each field gets the correct type.
+    for(U32 i = 0; i < argCount; i++) {
+        args[i] = implicitConvert(b, args[i], con->fields[i].type, false, true);
     }
 
     auto value = record(b->block, name, con, args, argCount);

@@ -22,6 +22,7 @@ RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bo
 
     auto r = new (in->memory) RecordType;
     r->instanceOf = nullptr;
+    r->instance = nullptr;
     r->ast = nullptr;
     r->name = name;
     r->qualified = qualified;
