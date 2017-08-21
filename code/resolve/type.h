@@ -59,10 +59,11 @@ struct GenField {
 };
 
 struct GenType: Type {
-    GenType(U32 index): Type(Gen, 1), index(index) {}
+    GenType(Id name, U32 index): Type(Gen, 1), name(name), index(index) {}
 
     GenField* fields; // A list of fields this type must contain.
     TypeClass** classes; // A list of classes this type must implement.
+    Id name;
     U32 index;
     U16 fieldCount = 0;
     U16 classCount = 0;
@@ -187,7 +188,8 @@ struct RecordType: Type {
 
     ast::DataDecl* ast; // Set until the type is fully resolved.
     Con* cons;
-    Type** gens;
+    GenType* gens;
+    RecordType* instanceOf;
     Id name;
     U32 conCount;
     U32 genCount;
@@ -199,8 +201,9 @@ struct AliasType: Type {
     AliasType(): Type(Alias, 0) {}
 
     ast::AliasDecl* ast; // Set until the type is fully resolved.
-    Type** gens;
+    GenType* gens;
     Type* to;
+    AliasType* instanceOf;
     Id name;
     U32 genCount;
 };
@@ -208,8 +211,8 @@ struct AliasType: Type {
 struct TypeClass {
     ast::ClassDecl* ast; // Set until the type is fully resolved.
 
-    GenType** args; // A list of types this class will be instantiated on.
-    FunType** functions; // A list of function types this class implements.
+    GenType* args; // A list of types this class will be instantiated on.
+    FunType* functions; // A list of function types this class implements.
     Id* funNames; // The name of each class function, in order.
 
     Id name;
@@ -241,6 +244,12 @@ struct DerivedTypes {
     ArrayType arrayTo;
 };
 
+struct GenContext {
+    GenContext* parent;
+    GenType* types;
+    U32 count;
+};
+
 // Global instances of the basic builtin types.
 extern Type unitType;
 extern Type errorType;
@@ -258,7 +267,7 @@ Type* getArray(Module* module, Type* to);
 Type* resolveDefinition(Context* context, Module* module, Type* type);
 
 // Finds the matching type for the provided ast.
-Type* resolveType(Context* context, Module* module, ast::Type* type);
+Type* resolveType(Context* context, Module* module, ast::Type* type, GenContext* gen);
 
 // Finds a tuple type with these field types and names.
 // If none existed, a type is created with the fields copied.

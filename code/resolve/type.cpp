@@ -156,7 +156,7 @@ void createDescriptor(Type* type, Arena* arena) {
     type->descriptorLength = (U16)length;
 }
 
-static Type* findTuple(Context* context, Module* module, ast::TupType* type) {
+static Type* findTuple(Context* context, Module* module, ast::TupType* type, GenContext* gen) {
     Byte buffer[Limits::maxTypeDescriptor];
     Byte* p = buffer;
     Byte* max = buffer + Limits::maxTypeDescriptor;
@@ -197,7 +197,7 @@ static Type* findTuple(Context* context, Module* module, ast::TupType* type) {
     U32 i = 0;
     field = type->fields;
     while(field) {
-        auto fieldType = resolveType(context, module, field->item.type);
+        auto fieldType = resolveType(context, module, field->item.type, gen);
         memcpy(p, fieldType->descriptor, fieldType->descriptorLength);
         p += fieldType->descriptorLength;
 
@@ -242,7 +242,221 @@ static Type* findTuple(Context* context, Module* module, ast::TupType* type) {
     return tuple;
 }
 
-static Type* findType(Context* context, Module* module, ast::Type* type) {
+static Type* findGen(Context* context, ast::GenType* type, GenContext* gen) {
+    auto searchName = type->con;
+    while(gen) {
+        for(U32 i = 0; i < gen->count; i++) {
+            if(gen->types[i].name == searchName) {
+                return gen->types + i;
+            }
+        }
+
+        gen = gen->parent;
+    }
+
+    return nullptr;
+}
+
+Type* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count);
+Type* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count);
+
+static Type* instantiateType(Context* context, Module* module, Type* type, Type** args, U32 count) {
+    switch(type->kind) {
+        case Type::Error:
+        case Type::Unit:
+        case Type::Int:
+        case Type::Float:
+        case Type::String:
+            return type;
+        case Type::Gen:
+            return args[((GenType*)type)->index];
+        case Type::Ref: {
+            auto ref = (RefType*)type;
+            auto instantiated = instantiateType(context, module, ref->to, args, count);
+            if(instantiated == ref->to) {
+                return ref;
+            } else {
+                return getRef(module, instantiated, ref->isTraced, ref->isLocal, ref->isMutable);
+            }
+        }
+        case Type::Alias:
+            return instantiateAlias(context, module, (AliasType*)type, args, count);
+        case Type::Record:
+            return instantiateRecord(context, module, (RecordType*)type, args, count);
+        case Type::Array: {
+            auto content = ((ArrayType*)type)->content;
+            auto instantiated = instantiateType(context, module, content, args, count);
+
+            if(instantiated == content) {
+                return type;
+            } else {
+                return getArray(module, instantiated);
+            }
+        }
+        case Type::Map: {
+            auto map = (MapType*)type;
+            auto from = instantiateType(context, module, map->from, args, count);
+            auto to = instantiateType(context, module, map->to, args, count);
+
+            if(from == map->from && to == map->to) {
+                return map;
+            } else {
+                auto instantiated = new (module->memory) MapType(from, to);
+                createDescriptor(instantiated, &module->memory);
+                return instantiated;
+            }
+        }
+        case Type::Tup: {
+            auto tup = (TupType*)type;
+            auto fields = tup->fields;
+            auto fieldCount = tup->count;
+            auto instanceFields = (Field*)alloca(sizeof(Field) * fieldCount);
+
+            U32 changedCount = 0;
+            for(U32 i = 0; i < fieldCount; i++) {
+                auto t = instantiateType(context, module, fields[i].type, args, count);
+                instanceFields[i].type = t;
+                instanceFields[i].name = fields[i].name;
+
+                if(t != fields[i].type) {
+                    changedCount++;
+                }
+            }
+
+            if(changedCount == 0) {
+                return tup;
+            } else {
+                return resolveTupType(context, module, instanceFields, fieldCount);
+            }
+        }
+        case Type::Fun: {
+            auto fun = (FunType*)type;
+            auto funArgs = fun->args;
+            auto funCount = fun->argCount;
+
+            auto instanceReturn = instantiateType(context, module, fun->result, args, count);
+            auto instanceArgs = (FunArg*)alloca(sizeof(FunArg) * funCount);
+
+            U32 changedCount = 0;
+            for(U32 i = 0; i < funCount; i++) {
+                instanceArgs[i].index = i;
+                instanceArgs[i].name = funArgs[i].name;
+                instanceArgs[i].type = instantiateType(context, module, funArgs[i].type, args, count);
+
+                if(instanceArgs[i].type != funArgs[i].type) {
+                    changedCount++;
+                }
+            }
+
+            if(changedCount == 0 && instanceReturn == fun->result) {
+                return fun;
+            } else {
+                auto finalArgs = (FunArg*)module->memory.alloc(sizeof(FunArg) * funCount);
+                memcpy(finalArgs, instanceArgs, sizeof(FunArg) * funCount);
+
+                auto instance = new (module->memory) FunType();
+                instance->args = finalArgs;
+                instance->result = instanceReturn;
+                instance->argCount = funCount;
+                createDescriptor(instance, &module->memory);
+                return instance;
+            }
+        }
+    }
+}
+
+static Type* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count) {
+    if(count != type->genCount) {
+        context->diagnostics.error("incorrect number of arguments to type", nullptr, nullptr);
+        return type;
+    }
+
+    auto to = instantiateType(context, module, type->to, args, count);
+    auto alias = new (module->memory) AliasType;
+
+    alias->instanceOf = type;
+    alias->ast = nullptr;
+    alias->genCount = 0;
+    alias->name = type->name;
+    alias->to = to;
+    alias->virtualSize = to->virtualSize;
+    alias->descriptor = to->descriptor;
+    alias->descriptorLength = to->descriptorLength;
+
+    return alias;
+}
+
+static Type* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count) {
+    if(count != type->genCount) {
+        context->diagnostics.error("incorrect number of arguments to type", nullptr, nullptr);
+        return type;
+    }
+
+    auto record = new (module->memory) RecordType;
+    record->ast = nullptr;
+    record->instanceOf = type;
+    record->conCount = type->conCount;
+    record->name = type->name;
+    record->genCount = 0;
+    record->kind = type->kind;
+    record->qualified = type->qualified;
+
+    auto cons = (Con*)module->memory.alloc(sizeof(Con) * type->conCount);
+    record->cons = cons;
+
+    for(U32 i = 0; i < type->conCount; i++) {
+        auto& con = type->cons[i];
+        auto instanceCon = new (module->memory) Con;
+        instanceCon->parent = record;
+        instanceCon->count = con.count;
+        instanceCon->name = con.name;
+        instanceCon->index = con.index;
+        instanceCon->exported = con.exported;
+
+        auto fields = (Field*)module->memory.alloc(sizeof(Field) * con.count);
+        instanceCon->fields = fields;
+
+        for(U32 f = 0; f < con.count; f++) {
+            fields[f].index = con.fields[f].index;
+            fields[f].name = con.fields[f].name;
+            fields[f].container = record;
+            fields[f].type = instantiateType(context, module, con.fields[f].type, args, count);
+        }
+    }
+
+    return record;
+}
+
+static Type* resolveApp(Context* context, Module* module, ast::AppType* type, GenContext* gen) {
+    // Find the base type and instantiate it for these arguments.
+    auto base = findType(context, module, type->base, gen);
+    if(!base) return nullptr;
+
+    U32 argCount = 0;
+    auto arg = type->apps;
+    while(arg) {
+        argCount++;
+        arg = arg->next;
+    }
+
+    auto args = (Type**)alloca(sizeof(Type*) * argCount);
+    arg = type->apps;
+    for(U32 i = 0; i < argCount++; i++) {
+        args[i] = resolveType(context, module, arg->item, gen);
+        arg = arg->next;
+    }
+
+    if(base->kind == Type::Alias) {
+        return instantiateAlias(context, module, (AliasType*)base, args, argCount);
+    } else if(base->kind == Type::Record) {
+        return instantiateRecord(context, module, (RecordType*)base, args, argCount);
+    } else {
+        context->diagnostics.error("type is not a higher order type", type->base, nullptr);
+        return nullptr;
+    }
+}
+
+static Type* findType(Context* context, Module* module, ast::Type* type, GenContext* gen) {
     switch(type->kind) {
         case ast::Type::Error:
             return &errorType;
@@ -250,24 +464,24 @@ static Type* findType(Context* context, Module* module, ast::Type* type) {
             return &unitType;
         case ast::Type::Ptr: {
             auto ast = (ast::PtrType*)type;
-            auto content = resolveType(context, module, ast->type);
+            auto content = resolveType(context, module, ast->type, gen);
             return getRef(module, content, false, false, true);
         }
         case ast::Type::Ref: {
             auto ast = (ast::RefType*)type;
-            auto content = resolveType(context, module, ast->type);
+            auto content = resolveType(context, module, ast->type, gen);
             return getRef(module, content, true, false, true);
         }
         case ast::Type::Val: {
             auto ast = (ast::ValType*)type;
-            return resolveType(context, module, ast->type);
+            return resolveType(context, module, ast->type, gen);
         }
         case ast::Type::Tup:
-            return findTuple(context, module, (ast::TupType*)type);
+            return findTuple(context, module, (ast::TupType*)type, gen);
         case ast::Type::Gen:
-            return nullptr;
+            return findGen(context, (ast::GenType*)type, gen);
         case ast::Type::App:
-            return nullptr;
+            return resolveApp(context, module, (ast::AppType*)type, gen);
         case ast::Type::Con: {
             auto found = findType(context, module, ((ast::ConType*)type)->con);
             if(!found) {
@@ -279,7 +493,7 @@ static Type* findType(Context* context, Module* module, ast::Type* type) {
         }
         case ast::Type::Fun: {
             auto ast = (ast::FunType*)type;
-            auto ret = resolveType(context, module, ast->ret);
+            auto ret = resolveType(context, module, ast->ret, gen);
             U32 argc = 0;
             auto arg = ast->args;
             while(arg) {
@@ -292,7 +506,7 @@ static Type* findType(Context* context, Module* module, ast::Type* type) {
                 args = (FunArg*)module->memory.alloc(sizeof(FunArg) * argc);
                 arg = ast->args;
                 for(U32 i = 0; i < argc; i++) {
-                    args[i].type = resolveType(context, module, arg->item.type);
+                    args[i].type = resolveType(context, module, arg->item.type, gen);
                     args[i].index = i;
                     args[i].name = arg->item.name;
                     arg = arg->next;
@@ -308,13 +522,13 @@ static Type* findType(Context* context, Module* module, ast::Type* type) {
         }
         case ast::Type::Arr: {
             auto ast = (ast::ArrType*)type;
-            auto content = resolveType(context, module, ast->type);
+            auto content = resolveType(context, module, ast->type, gen);
             return getArray(module, content);
         }
         case ast::Type::Map: {
             auto ast = (ast::MapType*)type;
-            auto from = resolveType(context, module, ast->from);
-            auto to = resolveType(context, module, ast->to);
+            auto from = resolveType(context, module, ast->from, gen);
+            auto to = resolveType(context, module, ast->to, gen);
             auto map = new (module->memory) MapType(from, to);
             createDescriptor(map, &module->memory);
             return map;
@@ -327,7 +541,8 @@ void resolveAlias(Context* context, Module* module, AliasType* type) {
     if(ast) {
         type->ast = nullptr;
 
-        auto to = findType(context, module, ast->target);
+        GenContext gen{nullptr, type->gens, type->genCount};
+        auto to = findType(context, module, ast->target, &gen);
         type->to = to;
         type->virtualSize = to->virtualSize;
         type->descriptorLength = to->descriptorLength;
@@ -343,10 +558,11 @@ void resolveRecord(Context* context, Module* module, RecordType* type) {
         U32 filledCount = 0;
         U32 maxSize = 0;
 
+        GenContext gen{nullptr, type->gens, type->genCount};
         auto conAst = ast->cons;
         for(U32 i = 0; i < type->conCount; i++) {
             if(conAst->item.content) {
-                auto content = findType(context, module, conAst->item.content);
+                auto content = findType(context, module, conAst->item.content, &gen);
                 if(content->kind == Type::Tup) {
                     auto tup = (TupType*)content;
                     type->cons[i].fields = tup->fields;
@@ -414,8 +630,8 @@ Type* resolveDefinition(Context* context, Module* module, Type* type) {
     return type;
 }
 
-Type* resolveType(Context* context, Module* module, ast::Type* type) {
-    auto found = findType(context, module, type);
+Type* resolveType(Context* context, Module* module, ast::Type* type, GenContext* gen) {
+    auto found = findType(context, module, type, gen);
     if(
         (found->kind == Type::Alias && ((AliasType*)found)->genCount > 0) ||
         (found->kind == Type::Record && ((RecordType*)found)->genCount > 0)
