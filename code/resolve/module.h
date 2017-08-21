@@ -19,6 +19,12 @@ struct Import {
     bool qualified;
 };
 
+struct ClassFun {
+    TypeClass* typeClass;
+    U32 index;
+    Id name;
+};
+
 struct Module {
     Id id;
     Identifier* name;
@@ -28,6 +34,7 @@ struct Module {
     HashMap<ForeignFunction, Id> foreignFunctions;
     HashMap<TypeClass, Id> typeClasses;
     HashMap<InstanceLookup, Id> classInstances;
+    HashMap<ClassFun, Id> classFunctions;
 
     HashMap<Type*, Id> types;
     HashMap<Con*, Id> cons;

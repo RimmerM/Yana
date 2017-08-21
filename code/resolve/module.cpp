@@ -7,6 +7,7 @@ AliasType* defineAlias(Context* context, Module* in, Id name, Type* to) {
     }
 
     auto alias = new (in->memory) AliasType;
+    alias->instanceOf = nullptr;
     alias->ast = nullptr;
     alias->name = name;
     alias->to = to;
@@ -20,6 +21,7 @@ RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bo
     }
 
     auto r = new (in->memory) RecordType;
+    r->instanceOf = nullptr;
     r->ast = nullptr;
     r->name = name;
     r->qualified = qualified;
@@ -260,7 +262,7 @@ Global* findGlobal(Context* context, Module* module, Id name) {
     }, identifier);
 }
 
-static U32 prepareGens(Context* context, Module* module, ast::SimpleType* type, Type**& gens) {
+static U32 prepareGens(Context* context, Module* module, ast::SimpleType* type, GenType*& gens) {
     auto kind = type->kind;
     U32 count = 0;
     while(kind) {
@@ -268,9 +270,11 @@ static U32 prepareGens(Context* context, Module* module, ast::SimpleType* type, 
         count++;
     }
 
-    gens = (Type**)module->memory.alloc(sizeof(Type*) * count);
+    kind = type->kind;
+    gens = (GenType*)module->memory.alloc(sizeof(GenType) * count);
     for(U32 i = 0; i < count; i++) {
-        gens[i] = new (module->memory) GenType(i);
+        new (gens + i) GenType(kind->item, i);
+        kind = kind->next;
     }
 
     return count;
@@ -395,7 +399,7 @@ static SymbolCounts prepareSymbols(Context* context, Module* module, ast::Decl**
                 auto ast = (ast::ClassDecl*)decl;
                 auto c = defineClass(context, module, ast->type->name);
                 c->ast = ast;
-                c->argCount = (U16)prepareGens(context, module, ast->type, (Type**&)c->args);
+                c->argCount = (U16)prepareGens(context, module, ast->type, c->args);
                 break;
             }
         }
@@ -404,7 +408,44 @@ static SymbolCounts prepareSymbols(Context* context, Module* module, ast::Decl**
     return counts;
 }
 
-static U32 resolveClass(Context* context, Module* module, TypeClass* c) {
+static void resolveClassFun(Context* context, Module* m, TypeClass* c, U32 index, ast::FunDecl* ast) {
+    auto type = new (c->functions + index) FunType;
+
+    U32 argCount = 0;
+    auto arg = ast->args;
+    while(arg) {
+        argCount++;
+        arg = arg->next;
+    }
+
+    GenContext gen{nullptr, c->args, c->argCount};
+
+    auto args = (FunArg*)m->memory.alloc(sizeof(FunArg) * argCount);
+    arg = ast->args;
+    for(U32 i = 0; i < argCount; i++) {
+        args[i].name = arg->item.name;
+        args[i].index = i;
+        args[i].type = resolveType(context, m, arg->item.type, &gen);
+        arg = arg->next;
+    }
+
+    Type* expectedReturn = nullptr;
+    if(ast->ret) {
+        // Set the return type, if explicitly provided.
+        expectedReturn = resolveType(context, m, ast->ret, &gen);
+        type->result = expectedReturn;
+    } else if(!ast->body) {
+        // If not, the function must have a default implementation.
+        context->diagnostics.error("class functions must have either an explicit type or a default implementation", ast, nullptr);
+    }
+
+    // TODO: Resolve default implementation.
+    type->args = args;
+    type->argCount = argCount;
+    createDescriptor(type, &m->memory);
+}
+
+static void resolveClass(Context* context, Module* module, TypeClass* c) {
     auto ast = c->ast;
     U32 funCount = 0;
 
@@ -415,18 +456,24 @@ static U32 resolveClass(Context* context, Module* module, TypeClass* c) {
     }
 
     auto funNames = (Id*)module->memory.alloc(sizeof(Id) * funCount);
-    auto functions = (FunType**)module->memory.alloc(sizeof(FunType*) * funCount);
+    auto functions = (FunType*)module->memory.alloc(sizeof(FunType) * funCount);
+
+    c->funCount = funCount;
+    c->funNames = funNames;
+    c->functions = functions;
 
     decl = ast->decls;
     for(U32 i = 0; i < funCount; i++) {
         auto f = decl->item;
         funNames[i] = f->name;
+        resolveClassFun(context, module, c, i, f);
+
+        if(module->classFunctions.add(f->name, ClassFun{c, i, f->name})) {
+            context->diagnostics.error("redefinition of class function", f, nullptr);
+        }
         decl = decl->next;
     }
 
-    c->funCount = funCount;
-    c->funNames = funNames;
-    c->functions = functions;
     c->ast = nullptr;
 }
 
@@ -441,10 +488,11 @@ void resolveFun(Context* context, Function* fun) {
     auto startBlock = block(fun);
 
     // Add the function arguments.
+    // TODO: Handle the GenContext for function arguments.
     auto arg = ast->args;
     while(arg) {
         auto a = arg->item;
-        auto type = resolveType(context, fun->module, a.type);
+        auto type = resolveType(context, fun->module, a.type, nullptr);
         auto v = defineArg(context, fun, a.name, type);
 
         // A val-type argument is copied but can be mutated within the function.
@@ -459,7 +507,7 @@ void resolveFun(Context* context, Function* fun) {
     // Set the return type, if explicitly provided.
     Type* expectedReturn = nullptr;
     if(ast->ret) {
-        expectedReturn = resolveType(context, fun->module, ast->ret);
+        expectedReturn = resolveType(context, fun->module, ast->ret, nullptr);
     }
 
     bool implicitReturn = ast->implicitReturn;
@@ -540,12 +588,12 @@ Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast
         resolveDefinition(context, module, type);
     }
 
-    for(auto c: module->typeClasses) {
-        resolveClass(context, module, c);
+    for(TypeClass& c: module->typeClasses) {
+        resolveClass(context, module, &c);
     }
 
     for(ForeignFunction& fun: module->foreignFunctions) {
-        auto type = resolveType(context, module, fun.ast->type);
+        auto type = resolveType(context, module, fun.ast->type, nullptr);
         if(type->kind != Type::Fun) {
             context->diagnostics.error("internal error: foreign function doesn't have function type", fun.ast, nullptr);
             return module;
