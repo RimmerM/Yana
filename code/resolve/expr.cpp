@@ -728,7 +728,7 @@ Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used)
     }
 }
 
-Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr) {
+Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
     auto content = expr->content;
     if(!content) {
         error(b, "variables must be initialized on declaration", expr);
@@ -772,14 +772,19 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr) {
             }
         }
 
+        if(expr->in) {
+            resolveExpr(b, expr->in, 0, false);
+        }
+
         global->ast = nullptr;
         return nullptr;
     } else {
+        Value* result;
         switch(expr->mut) {
             case ast::DeclExpr::Immutable: {
                 // Immutable values are stored as registers, so we just have to resolve the creation expression.
-                resolveExpr(b, expr->content, expr->name, true);
-                return nullptr;
+                result = resolveExpr(b, expr->content, expr->name, true);
+                break;
             }
             case ast::DeclExpr::Val: {
                 auto value = resolveExpr(b, expr->content, 0, true);
@@ -787,19 +792,28 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr) {
                     auto var = alloc(b->block, expr->name, ((RefType*)value->type)->to, true, true);
                     auto v = load(b->block, 0, value);
                     store(b->block, 0, var, v);
-                    return var;
+                    result = var;
+                    break;
                 } else {
                     auto var = alloc(b->block, expr->name, value->type, true, true);
                     store(b->block, 0, var, value);
-                    return var;
+                    result = var;
+                    break;
                 }
             }
             case ast::DeclExpr::Ref: {
                 auto value = resolveExpr(b, expr->content, 0, true);
                 auto var = alloc(b->block, expr->name, value->type, true, false);
                 store(b->block, 0, var, value);
-                return var;
+                result = var;
+                break;
             }
+        }
+
+        if(expr->in) {
+            return resolveExpr(b, expr->in, name, used);
+        } else {
+            return result;
         }
     }
 }
@@ -1254,7 +1268,7 @@ Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {
         case ast::Expr::MultiIf:
             return resolveMultiIf(b, (ast::MultiIfExpr*)expr, name, used);
         case ast::Expr::Decl:
-            return resolveDecl(b, (ast::DeclExpr*)expr);
+            return resolveDecl(b, (ast::DeclExpr*)expr, name, used);
         case ast::Expr::While:
             return resolveWhile(b, (ast::WhileExpr*)expr);
         case ast::Expr::For:

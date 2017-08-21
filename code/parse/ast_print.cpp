@@ -186,7 +186,8 @@ private:
 
         if(e.content) {
             makeLevel();
-            toString(*e.content, true);
+            toString(*e.content, e.in == nullptr);
+            if(e.in) toString(*e.in, true);
             removeLevel();
         } else {
             stream << " <empty> ";

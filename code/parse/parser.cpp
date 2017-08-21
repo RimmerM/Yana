@@ -1017,9 +1017,18 @@ Expr* Parser::parseDeclExpr() {
     if(token.type == Token::opEquals) {
         eat();
         auto expr = parseExpr();
-        return new(buffer) DeclExpr(id, expr, m);
+
+        Expr* in;
+        if(token.type == Token::kwIn) {
+            eat();
+            in = parseExpr();
+        } else {
+            in = nullptr;
+        }
+
+        return new(buffer) DeclExpr(id, expr, in, m);
     } else {
-        return new(buffer) DeclExpr(id, nullptr, m);
+        return new(buffer) DeclExpr(id, nullptr, nullptr, m);
     }
 }
 

@@ -318,10 +318,11 @@ struct DeclExpr: Expr {
         Val,
     };
 
-    DeclExpr(Id name, Expr* content, Mutability mut): Expr(Decl), name(name), content(content), mut(mut) {}
+    DeclExpr(Id name, Expr* content, Expr* in, Mutability mut): Expr(Decl), name(name), content(content), in(in), mut(mut) {}
 
     Id name;
     Expr* content;
+    Expr* in; // if this is set, content must also be set.
     Mutability mut;
     bool isGlobal = false; // Whether this variable was defined in a global scope.
 };
