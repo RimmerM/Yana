@@ -1,3 +1,4 @@
+#include <alloca.h>
 #include "type.h"
 #include "../parse/ast.h"
 #include "module.h"
@@ -405,7 +406,7 @@ static Type* instantiateRecord(Context* context, Module* module, RecordType* typ
 
     for(U32 i = 0; i < type->conCount; i++) {
         auto& con = type->cons[i];
-        auto instanceCon = new (module->memory) Con;
+        auto instanceCon = &cons[i];
         instanceCon->parent = record;
         instanceCon->count = con.count;
         instanceCon->name = con.name;
@@ -440,7 +441,7 @@ static Type* resolveApp(Context* context, Module* module, ast::AppType* type, Ge
 
     auto args = (Type**)alloca(sizeof(Type*) * argCount);
     arg = type->apps;
-    for(U32 i = 0; i < argCount++; i++) {
+    for(U32 i = 0; i < argCount; i++) {
         args[i] = resolveType(context, module, arg->item, gen);
         arg = arg->next;
     }
