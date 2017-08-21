@@ -921,7 +921,8 @@ Value* resolveNested(FunBuilder* b, ast::NestedExpr* expr, Id name, bool used) {
 
 Value* resolveCoerce(FunBuilder* b, ast::CoerceExpr* expr, Id name, bool used) {
     auto target = resolveExpr(b, expr->target, 0, used);
-    auto type = resolveType(&b->context, b->fun->module, expr->kind);
+    // TODO: Use function GenContext.
+    auto type = resolveType(&b->context, b->fun->module, expr->kind, nullptr);
     auto result = implicitConvert(b, target, type, true, true);
     setName(result, name);
     return result;

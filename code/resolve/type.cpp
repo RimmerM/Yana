@@ -18,8 +18,6 @@ IntType intTypes[IntType::KindCount] = {
     {64, IntType::Long}
 };
 
-void createDescriptor(Type* type, Arena* arena);
-
 auto descriptorBuilder = []() -> bool {
     createDescriptor(&unitType, nullptr);
     createDescriptor(&errorType, nullptr);
@@ -257,8 +255,9 @@ static Type* findGen(Context* context, ast::GenType* type, GenContext* gen) {
     return nullptr;
 }
 
-Type* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count);
-Type* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count);
+static Type* findType(Context* context, Module* module, ast::Type* type, GenContext* gen);
+static Type* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count);
+static Type* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count);
 
 static Type* instantiateType(Context* context, Module* module, Type* type, Type** args, U32 count) {
     switch(type->kind) {

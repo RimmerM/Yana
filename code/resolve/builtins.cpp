@@ -43,15 +43,12 @@ static Function* cmpFunction(Context* context, Module* module, Type* type, const
 }
 
 GenType* setClassType(Module* module, TypeClass* type) {
-    auto t = new (module->memory) GenType(0);
-    type->args = (GenType**)module->memory.alloc(sizeof(GenType*));
+    type->args = new (module->memory) GenType(0, 0);
     type->argCount = 1;
-    type->args[0] = t;
-    return t;
+    return type->args;
 }
 
-FunType* binaryFunType(Module* module, Type* lhs, Type* rhs, Type* result) {
-    auto type = new (module->memory) FunType;
+FunType* binaryFunType(FunType* type, Module* module, Type* lhs, Type* rhs, Type* result) {
     type->result = result;
     type->argCount = 2;
     type->args = (FunArg*)module->memory.alloc(sizeof(FunArg) * 2);
@@ -134,9 +131,9 @@ Module* preludeModule(Context* context) {
         eqClass->funNames[0] = opEq;
         eqClass->funNames[1] = opNeq;
 
-        eqClass->functions = (FunType**)module->memory.alloc(sizeof(FunType*) * 2);
-        eqClass->functions[0] = binaryFunType(module, t, t, &intTypes[IntType::Bool]); // ==
-        eqClass->functions[1] = binaryFunType(module, t, t, &intTypes[IntType::Bool]); // /=
+        eqClass->functions = (FunType*)module->memory.alloc(sizeof(FunType) * 2);
+        binaryFunType(&eqClass->functions[0], module, t, t, &intTypes[IntType::Bool]); // ==
+        binaryFunType(&eqClass->functions[1], module, t, t, &intTypes[IntType::Bool]); // /=
     }
 
     auto ordClass = defineClass(context, module, context->addUnqualifiedName("Ord", 3));
@@ -152,14 +149,14 @@ Module* preludeModule(Context* context) {
         eqClass->funNames[5] = context->addUnqualifiedName("min", 3);
         eqClass->funNames[6] = context->addUnqualifiedName("max", 3);
 
-        eqClass->functions = (FunType**)module->memory.alloc(sizeof(FunType*) * 7);
-        eqClass->functions[0] = binaryFunType(module, t, t, &intTypes[IntType::Bool]); // <
-        eqClass->functions[1] = binaryFunType(module, t, t, &intTypes[IntType::Bool]); // <=
-        eqClass->functions[2] = binaryFunType(module, t, t, &intTypes[IntType::Bool]); // >
-        eqClass->functions[3] = binaryFunType(module, t, t, &intTypes[IntType::Bool]); // >=
-        eqClass->functions[4] = binaryFunType(module, t, t, orderingType); // compare
-        eqClass->functions[5] = binaryFunType(module, t, t, t); // min
-        eqClass->functions[6] = binaryFunType(module, t, t, t); // max
+        eqClass->functions = (FunType*)module->memory.alloc(sizeof(FunType) * 7);
+        binaryFunType(&eqClass->functions[0], module, t, t, &intTypes[IntType::Bool]); // <
+        binaryFunType(&eqClass->functions[1], module, t, t, &intTypes[IntType::Bool]); // <=
+        binaryFunType(&eqClass->functions[2], module, t, t, &intTypes[IntType::Bool]); // >
+        binaryFunType(&eqClass->functions[3], module, t, t, &intTypes[IntType::Bool]); // >=
+        binaryFunType(&eqClass->functions[4], module, t, t, orderingType); // compare
+        binaryFunType(&eqClass->functions[5], module, t, t, t); // min
+        binaryFunType(&eqClass->functions[6], module, t, t, t); // max
     }
 
     auto numClass = defineClass(context, module, context->addUnqualifiedName("Num", 3));

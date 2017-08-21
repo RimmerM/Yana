@@ -278,3 +278,6 @@ bool compareTypes(Context* context, Type* lhs, Type* rhs);
 
 // Returns the canonical type of this type - the base type it acts like when used.
 Type* canonicalType(Type* type);
+
+// Generates the descriptor for a newly built type.
+void createDescriptor(Type* type, Arena* arena);
