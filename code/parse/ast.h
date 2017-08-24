@@ -334,13 +334,14 @@ struct WhileExpr: Expr {
 };
 
 struct ForExpr: Expr {
-    ForExpr(Id var, Expr* from, Expr* to, Expr* body, bool reverse):
-        Expr(For), var(var), from(from), to(to), body(body), reverse(reverse) {}
+    ForExpr(Id var, Expr* from, Expr* to, Expr* body, Expr* step, bool reverse):
+        Expr(For), var(var), from(from), to(to), body(body), step(step), reverse(reverse) {}
 
     Id var;
     Expr* from;
     Expr* to;
     Expr* body;
+    Expr* step;
     bool reverse;
 };
 

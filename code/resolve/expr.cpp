@@ -848,6 +848,16 @@ Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr) {
 Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
     // The starting value is only evaluated once.
     auto from = resolveExpr(b, expr->from, 0, true);
+    Value* step = implicitConvert(b, expr->step ? (
+        resolveExpr(b, expr->step, 0, true)
+    ) : (
+        constInt(b->block, 0, 1, from->type)
+    ), from->type, false, true);
+
+    if(from->type->kind != Type::Int || step->type->kind != Type::Int) {
+        error(b, "only integer arguments are implemented for for loops", expr->from);
+    }
+
     auto startBlock = b->block;
 
     // Create the starting block for each loop part.
@@ -873,7 +883,10 @@ Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
     auto var = phi(b->block, expr->var, alts, 2);
 
     // Evaluate the end for each iteration, since it could be changed inside the loop.
-    auto to = resolveExpr(b, expr->to, 0, true);
+    auto to = implicitConvert(b, resolveExpr(b, expr->to, 0, true), from->type, false, true);
+    if(to->type->kind != Type::Int) {
+        error(b, "only integer arguments are implemented for for loops", expr->from);
+    }
 
     auto cmp = expr->reverse ? ICmp::gt : ICmp::lt;
     auto comp = icmp(b->block, 0, var, to, cmp);
@@ -886,9 +899,9 @@ Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
 
     Value* nextVar;
     if(expr->reverse) {
-        nextVar = sub(loopEnd, 0, var, constInt(loopEnd, 0, 1, var->type));
+        nextVar = sub(loopEnd, 0, var, step);
     } else {
-        nextVar = add(loopEnd, 0, var, constInt(loopEnd, 0, 1, var->type));
+        nextVar = add(loopEnd, 0, var, step);
     }
 
     jmp(loopEnd, condBlock);
@@ -898,6 +911,7 @@ Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
     alts[1].fromBlock = loopEnd;
     var->usedValues[1] = nextVar;
     condBlock->use(nextVar, var);
+    b->block = endBlock;
 
     return nullptr;
 }

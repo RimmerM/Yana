@@ -214,6 +214,7 @@ private:
         makeLevel();
         toString(*e.from, false);
         toString(*e.to, false);
+        if(e.step) toString(*e.step, false);
         toString(*e.body, true);
         removeLevel();
     }

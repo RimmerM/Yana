@@ -50,6 +50,7 @@ Parser::Parser(Context& context, ast::Module& module, const char* text):
     downtoId = Context::nameHash("downto", 6);
     hashId = Context::nameHash("#", 1);
     minusId = Context::nameHash("-", 1);
+    stepId = Context::nameHash("step", 4);
 
     lexer.next();
 }
@@ -598,8 +599,17 @@ Expr* Parser::parseLeftExpr() {
             }
 
             auto to = parseSelExpr();
+
+            Expr* step;
+            if(token.type == Token::VarID && token.data.id == stepId) {
+                eat();
+                step = parseSelExpr();
+            } else {
+                step = nullptr;
+            }
+
             auto body = parseBlock(false);
-            return new (buffer) ForExpr(var, from, to, body, reverse);
+            return new (buffer) ForExpr(var, from, to, body, step, reverse);
         } else if(token.type == Token::kwReturn) {
             eat();
             auto body = parseExpr();
