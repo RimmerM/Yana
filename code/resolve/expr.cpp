@@ -1041,14 +1041,21 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
         return resolveMiscCon(b, expr, name);
     }
 
+    auto content = con->content;
+
     // If we have more than one argument, the constructor must contain a tuple type.
     auto arg = expr->args;
     if(!arg) {
-        if(con->count > 0) {
+        if(content != nullptr) {
             error(b, "incorrect number of arguments to constructor", expr);
         }
 
-        return record(b->block, name, con, nullptr, 0);
+        return record(b->block, name, con, nullptr);
+    }
+
+    if(!content) {
+        error(b, "incorrect number of arguments to constructor", expr);
+        return error(b->block, name, con->parent);
     }
 
     U32 argCount = 0;
@@ -1057,15 +1064,60 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
         arg = arg->next;
     }
 
-    if(argCount != con->count) {
-        error(b, "incorrect number of arguments to constructor", expr);
+    U32 contentArgs = 0;
+    TupType* targetTuple = nullptr;
+    if(content->kind == Type::Tup) {
+        targetTuple = (TupType*)content;
+        contentArgs = targetTuple->count;
+    } else if(content->kind == Type::Alias) {
+        auto alias = (AliasType*)content;
+        if(alias->to->kind == Type::Tup) {
+            targetTuple = (TupType*)alias->to;
+            contentArgs = targetTuple->count;
+        } else {
+            contentArgs = 1;
+        }
     }
 
-    // TODO: Handle named fields.
+    if(contentArgs != argCount) {
+        error(b, "incorrect number of arguments to constructor", expr);
+        return error(b->block, name, con->parent);
+    }
+
     auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
+    memset(args, 0, sizeof(Value*) * argCount);
+
     arg = expr->args;
     for(U32 i = 0; i < argCount; i++) {
-        args[i] = resolveExpr(b, arg->item.value, arg->item.name, true);
+        auto argIndex = i;
+        bool found = true;
+
+        if(arg->item.name) {
+            if(targetTuple) {
+                found = false;
+                for(U32 a = 0; a < contentArgs; a++) {
+                    auto ta = &targetTuple->fields[a];
+                    if(arg->item.name == ta->name) {
+                        argIndex = ta->index;
+                        found = true;
+                        break;
+                    }
+                }
+            } else {
+                error(b, "constructed type has no field with this name", arg->item.value);
+            }
+        }
+
+        if(found) {
+            if(args[argIndex]) {
+                error(b, "tuple value specified more than once", arg->item.value);
+            }
+
+            args[argIndex] = resolveExpr(b, arg->item.value, 0, true);
+        } else {
+            error(b, "constructed type has no field with this name", arg->item.value);
+        }
+
         arg = arg->next;
     }
 
@@ -1086,11 +1138,18 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
     }
 
     // Make sure each field gets the correct type.
-    for(U32 i = 0; i < argCount; i++) {
-        args[i] = implicitConvert(b, args[i], con->fields[i].type, false, true);
+    Value* targetContent;
+    if(targetTuple) {
+        for(U32 i = 0; i < argCount; i++) {
+            args[i] = implicitConvert(b, args[i], targetTuple->fields[i].type, false, true);
+        }
+
+        targetContent = tup(b->block, 0, content, args, argCount);
+    } else {
+        targetContent = implicitConvert(b, args[0], con->content, false, true);
     }
 
-    auto value = record(b->block, name, con, args, argCount);
+    auto value = record(b->block, name, con, targetContent);
     return value;
 }
 
@@ -1381,7 +1440,25 @@ Value* resolveTupPat(FunBuilder* b, Value* pivot, ast::TupPat* pat) {
 }
 
 Value* resolveConPat(FunBuilder* b, Value* pivot, ast::ConPat* pat) {
-    return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+    auto con = findCon(&b->context, b->fun->module, pat->constructor);
+    if(!compareTypes(&b->context, con->parent, pivot->type)) {
+        error(b, "constructor type is incompatible with pivot type", pat);
+        return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+    }
+
+    auto intType = &intTypes[IntType::Int];
+    auto indices = (U32*)b->mem.alloc(sizeof(U32) * 1);
+    indices[0] = 0;
+
+    Value* pivotCon;
+    if(pivot->type->kind == Type::Ref) {
+        pivotCon = loadField(b->block, 0, pivot, intType, indices, 1);
+    } else {
+        pivotCon = getField(b->block, 0, pivot, intType, indices, 1);
+    }
+
+    auto equal = icmp(b->block, 0, pivotCon, constInt(b->block, 0, con->index, intType), ICmp::eq);
+    return equal;
 }
 
 Value* resolveArrPat(FunBuilder* b, Value* pivot, ast::ArrayPat* pat) {

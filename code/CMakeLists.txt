@@ -3,7 +3,10 @@ project(code)
 
 set(CMAKE_CXX_STANDARD 17)
 
+if(APPLE)
+else()
 find_package(LLVM REQUIRED CONFIG)
+endif()
 
 set(SOURCE_FILES)
 set(SOURCE_FILES ${SOURCE_FILES}
@@ -59,6 +62,7 @@ set(SOURCE_FILES ${SOURCE_FILES}
 
 if(APPLE)
     include_directories(/usr/local/include)
+    link_directories(/usr/local/opt/llvm/lib)
 endif()
 
 add_executable(code ${SOURCE_FILES})
@@ -67,3 +71,7 @@ target_link_libraries(code
     LLVMCore
     LLVMSupport
 )
+
+if(APPLE)
+    target_link_libraries(code ncurses LLVMDemangle)
+endif()
