@@ -227,8 +227,7 @@ struct InstXor: InstBinary {};
  */
 struct InstRecord: Inst {
     struct Con* con;
-    Value** fields;
-    Size fieldCount;
+    Value* content;
 };
 
 struct InstTup: Inst {
@@ -326,6 +325,7 @@ struct InstStoreArray: Inst {
 };
 
 // Takes a single field from an aggregate type in an existing register.
+// The fields work the same way as for InstLoadField.
 struct InstGetField: Inst {
     Value* from;
     U32* indexChain;
@@ -469,7 +469,7 @@ Value* and_(Block* block, Id name, Value* lhs, Value* rhs);
 Value* or_(Block* block, Id name, Value* lhs, Value* rhs);
 Value* xor_(Block* block, Id name, Value* lhs, Value* rhs);
 
-InstRecord* record(Block* block, Id name, struct Con* con, Value** fields, U32 count);
+InstRecord* record(Block* block, Id name, struct Con* con, Value* content);
 InstTup* tup(Block* block, Id name, Type* type, Value** fields, U32 count);
 InstFun* fun(Block* block, Id name, struct Function* body, Type* type, Size frameCount);
 

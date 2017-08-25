@@ -165,10 +165,9 @@ struct TupType: Type {
 
 struct Con {
     struct RecordType* parent;
-    Field* fields;
+    Type* content;
     Id name;
     U32 index;
-    U32 count;
     bool exported;
 };
 

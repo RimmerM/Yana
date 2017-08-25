@@ -264,18 +264,17 @@ Value* xor_(Block* block, Id name, Value* lhs, Value* rhs) {
     return binary(block, Inst::InstXor, name, lhs, rhs, lhs->type);
 }
 
-InstRecord* record(Block* block, Id name, struct Con* con, Value** fields, U32 count) {
+InstRecord* record(Block* block, Id name, struct Con* con, Value* content) {
     auto inst = (InstRecord*)block->inst(sizeof(InstRecord), name, Inst::InstRecord, con->parent);
 
     inst->con = con;
-    inst->fields = fields;
-    inst->fieldCount = count;
+    inst->content = content;
 
-    inst->usedValues = fields;
-    inst->usedCount = count;
+    inst->usedValues = &inst->content;
+    inst->usedCount = 1;
 
-    for(U32 i = 0; i < count; i++) {
-        inst->block->use(fields[i], inst);
+    if(content) {
+        inst->block->use(content, inst);
     }
 
     return inst;

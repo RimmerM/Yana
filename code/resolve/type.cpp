@@ -411,20 +411,10 @@ RecordType* instantiateRecord(Context* context, Module* module, RecordType* type
         auto& con = type->cons[i];
         auto instanceCon = &cons[i];
         instanceCon->parent = record;
-        instanceCon->count = con.count;
+        instanceCon->content = instantiateType(context, module, con.content, args, count);
         instanceCon->name = con.name;
         instanceCon->index = con.index;
         instanceCon->exported = con.exported;
-
-        auto fields = (Field*)module->memory.alloc(sizeof(Field) * con.count);
-        instanceCon->fields = fields;
-
-        for(U32 f = 0; f < con.count; f++) {
-            fields[f].index = con.fields[f].index;
-            fields[f].name = con.fields[f].name;
-            fields[f].container = record;
-            fields[f].type = instantiateType(context, module, con.fields[f].type, args, count);
-        }
     }
 
     return record;
@@ -566,19 +556,7 @@ void resolveRecord(Context* context, Module* module, RecordType* type) {
         for(U32 i = 0; i < type->conCount; i++) {
             if(conAst->item.content) {
                 auto content = findType(context, module, conAst->item.content, &gen);
-                if(content->kind == Type::Tup) {
-                    auto tup = (TupType*)content;
-                    type->cons[i].fields = tup->fields;
-                    type->cons[i].count = tup->count;
-                } else {
-                    auto field = new (module->memory) Field;
-                    field->type = content;
-                    field->name = 0;
-                    field->index = 0;
-                    field->container = type;
-                    type->cons[i].fields = field;
-                    type->cons[i].count = 1;
-                }
+                type->cons[i].content = content;
 
                 filledCount++;
                 if(content->virtualSize > maxSize) {
@@ -758,8 +736,8 @@ Type* canonicalType(Type* type) {
             return ((RefType*)type)->to;
         case Type::Record: {
             auto t = (RecordType*)type;
-            if(t->conCount == 1 && t->cons[0].count == 1) {
-                return t->cons[0].fields[0].type;
+            if(t->conCount == 1) {
+                return t->cons[0].content;
             } else {
                 return type;
             }

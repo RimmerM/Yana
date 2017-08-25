@@ -36,15 +36,14 @@ RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bo
     return r;
 }
 
-Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index, Field* fields, U32 count) {
+Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index) {
     if(in->cons.get(name)) {
         // TODO: Error
     }
 
     auto con = to->cons + index;
     con->name = name;
-    con->fields = fields;
-    con->count = count;
+    con->content = nullptr;
     con->index = index;
     con->parent = to;
 
@@ -390,7 +389,7 @@ static SymbolCounts prepareSymbols(Context* context, Module* module, ast::Decl**
 
                 con = ast->cons;
                 for(U32 i = 0; i < conCount; i++) {
-                    defineCon(context, module, record, con->item.name, i, nullptr, 0);
+                    defineCon(context, module, record, con->item.name, i);
                     con = con->next;
                 }
 

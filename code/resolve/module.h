@@ -58,7 +58,7 @@ struct ModuleHandler {
 
 AliasType* defineAlias(Context* context, Module* in, Id name, Type* to);
 RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bool qualified);
-Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index, Field* fields, U32 count);
+Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index);
 TypeClass* defineClass(Context* context, Module* in, Id name);
 ClassInstance* defineInstance(Context* context, Module* in, TypeClass* to, Type** args);
 Function* defineFun(Context* context, Module* in, Id name);

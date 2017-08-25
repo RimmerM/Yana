@@ -119,9 +119,9 @@ Module* preludeModule(Context* context) {
     auto orderingType = defineRecord(context, module, context->addUnqualifiedName("Ordering", 8), 3, false);
     orderingType->kind = RecordType::Enum;
 
-    auto ltCon = defineCon(context, module, orderingType, context->addUnqualifiedName("LT", 2), 0, nullptr, 0);
-    auto eqCon = defineCon(context, module, orderingType, context->addUnqualifiedName("EQ", 2), 1, nullptr, 0);
-    auto gtCon = defineCon(context, module, orderingType, context->addUnqualifiedName("GT", 2), 2, nullptr, 0);
+    auto ltCon = defineCon(context, module, orderingType, context->addUnqualifiedName("LT", 2), 0);
+    auto eqCon = defineCon(context, module, orderingType, context->addUnqualifiedName("EQ", 2), 1);
+    auto gtCon = defineCon(context, module, orderingType, context->addUnqualifiedName("GT", 2), 2);
 
     auto eqClass = defineClass(context, module, context->addUnqualifiedName("Eq", 2));
     {
