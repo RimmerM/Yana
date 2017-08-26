@@ -12,6 +12,70 @@
  *    The resulting type is constructed like a named primitive.
  */
 
+struct Args {
+    Value** values;
+    U32 count;
+};
+
+static Args buildArgs(FunBuilder* b, List<ast::TupArg>* arg) {
+    U32 argCount = 0;
+    while(arg) {
+        argCount++;
+        arg = arg->next;
+    }
+
+    auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
+    memset(args, 0, sizeof(Value*) * argCount);
+
+    return {args, argCount};
+}
+
+template<class F>
+static void matchArgs(FunBuilder* b, List<ast::TupArg>* arg, Args args, F f) {
+    for(U32 i = 0; i < args.count; i++) {
+        auto argIndex = i;
+        bool found = true;
+
+        if(arg->item.name) {
+            auto foundIndex = f(i, arg->item.name);
+            if(foundIndex >= 0) {
+                argIndex = foundIndex;
+            } else {
+                found = false;
+            }
+        }
+
+        if(found) {
+            if(args.values[argIndex]) {
+                error(b, "argument specified more than once", arg->item.value);
+            }
+
+            args.values[argIndex] = resolveExpr(b, arg->item.value, 0, true);
+        } else {
+            error(b, "constructed type has no field with this name", arg->item.value);
+        }
+
+        arg = arg->next;
+    }
+}
+
+static auto tupleArgFinder(Field* fields, U32 count) {
+    return [=](U32 i, Id fieldName) -> int {
+        if(!fieldName) return i;
+
+        int index = -1;
+        for(U32 a = 0; a < count; a++) {
+            auto ta = &fields[a];
+            if(fieldName == ta->name) {
+                index = ta->index;
+                break;
+            }
+        }
+
+        return index;
+    };
+}
+
 static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, Id name) {
     // There are a whole bunch of possible cases we could support here,
     // but most can't even be created by the parser.
@@ -38,10 +102,61 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
 
         return arg;
     } else if(type->kind == Type::Alias) {
+        // This won't handle aliases to record types.
+        // Constructing a record using the alias name is impossible,
+        // since record construction requires a constructor name instead of a type name.
         // TODO: Handle generic instantiation here.
         return explicitConstruct(b, ((AliasType*)type)->to, expr, name);
     } else if(type->kind == Type::Tup) {
-        // TODO: Handle tuple types.
+        auto tup = (TupType*)type;
+        auto args = buildArgs(b, expr->args);
+        matchArgs(b, expr->args, args, tupleArgFinder(tup->fields, tup->count));
+
+        if(args.count < tup->count) {
+            error(b, "missing fields for tuple type", expr->type);
+        } else if(args.count > tup->count) {
+            error(b, "too many fields for tuple type", expr->type);
+        }
+
+        // Implicitly convert each field to the correct type.
+        // Generic fields are automatically instantiated to the actual type from the arguments.
+        // If any generic fields were instantiated, we have to generate a new TupType for this expression.
+        U32 genCount = 0;
+        for(U32 i = 0; i < args.count; i++) {
+            auto fieldType = tup->fields[i].type;
+            if(fieldType->kind == Type::Gen) {
+                genCount++;
+            } else {
+                args.values[i] = implicitConvert(b, args.values[i], fieldType, true, true);
+            }
+        }
+
+        auto finalType = tup;
+        if(genCount > 0) {
+            auto finalFields = (Field*)alloca(sizeof(Field) * args.count);
+            for(U32 i = 0; i < args.count; i++) {
+                finalFields[i].type = args.values[i]->type;
+                finalFields[i].name = tup->fields[i].name;
+            }
+
+            finalType = resolveTupType(&b->context, b->fun->module, finalFields, args.count);
+        }
+
+        return ::tup(b->block, name, finalType, args.values, args.count);
+    } else if(type->kind == Type::Array) {
+        // TODO
+        error(b, "not implemented", expr);
+        return nullptr;
+    } else if(type->kind == Type::Map) {
+        // TODO
+        error(b, "not implemented", expr);
+        return nullptr;
+    } else if(type->kind == Type::Fun) {
+        // TODO
+        error(b, "not implemented", expr);
+        return nullptr;
+    } else if(type->kind == Type::Unit || type->kind == Type::Error) {
+        return nullptr;
     }
 
     error(b, "cannot construct this type", expr->type);
@@ -81,11 +196,7 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
         return error(b->block, name, con->parent);
     }
 
-    U32 argCount = 0;
-    while(arg) {
-        argCount++;
-        arg = arg->next;
-    }
+    auto args = buildArgs(b, expr->args);
 
     U32 contentArgs = 0;
     TupType* targetTuple = nullptr;
@@ -102,58 +213,37 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
         }
     }
 
-    if(contentArgs != argCount) {
+    if(contentArgs != args.count) {
         error(b, "incorrect number of arguments to constructor", expr);
         return error(b->block, name, con->parent);
     }
 
-    auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
-    memset(args, 0, sizeof(Value*) * argCount);
-
-    arg = expr->args;
-    for(U32 i = 0; i < argCount; i++) {
-        auto argIndex = i;
-        bool found = true;
-
-        if(arg->item.name) {
-            if(targetTuple) {
-                found = false;
-                for(U32 a = 0; a < contentArgs; a++) {
-                    auto ta = &targetTuple->fields[a];
-                    if(arg->item.name == ta->name) {
-                        argIndex = ta->index;
-                        found = true;
-                        break;
-                    }
-                }
-            } else {
-                error(b, "constructed type has no field with this name", arg->item.value);
-            }
-        }
-
-        if(found) {
-            if(args[argIndex]) {
-                error(b, "tuple value specified more than once", arg->item.value);
-            }
-
-            args[argIndex] = resolveExpr(b, arg->item.value, 0, true);
-        } else {
-            error(b, "constructed type has no field with this name", arg->item.value);
-        }
-
-        arg = arg->next;
+    if(targetTuple) {
+        matchArgs(b, expr->args, args, tupleArgFinder(targetTuple->fields, targetTuple->count));
+    } else {
+        matchArgs(b, expr->args, args, [=](U32 i, Id fieldName) -> int {
+            if(fieldName) return -1;
+            return i;
+        });
     }
 
     // If the constructed type is a generic type, we instantiate it.
     if(con->parent->genCount && !con->parent->instance) {
         auto instanceArgs = (Type**)alloca(sizeof(Type*) * con->parent->genCount);
-        for(U32 i = 0; i < argCount; i++) {
-            // TODO: Handle higher-kinded type fields.
-            auto t = con->fields[i].type;
-            if(t->kind == Type::Gen) {
-                auto g = (GenType*)t;
-                instanceArgs[g->index] = args[i]->type;
+
+        // TODO: Handle GenTypes not used in the constructor.
+        if(targetTuple) {
+            for(U32 i = 0; i < args.count; i++) {
+                // TODO: Handle higher-kinded type fields.
+                auto t = targetTuple->fields[i].type;
+                if(t->kind == Type::Gen) {
+                    auto g = (GenType*)t;
+                    instanceArgs[g->index] = args.values[i]->type;
+                }
             }
+        } else if(content->kind == Type::Gen) {
+            auto g = (GenType*)content;
+            instanceArgs[g->index] = args.values[0]->type;
         }
 
         auto record = instantiateRecord(&b->context, b->fun->module, con->parent, instanceArgs, con->parent->genCount);
@@ -163,13 +253,13 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
     // Make sure each field gets the correct type.
     Value* targetContent;
     if(targetTuple) {
-        for(U32 i = 0; i < argCount; i++) {
-            args[i] = implicitConvert(b, args[i], targetTuple->fields[i].type, false, true);
+        for(U32 i = 0; i < args.count; i++) {
+            args.values[i] = implicitConvert(b, args.values[i], targetTuple->fields[i].type, true, true);
         }
 
-        targetContent = tup(b->block, 0, content, args, argCount);
+        targetContent = tup(b->block, 0, content, args.values, args.count);
     } else {
-        targetContent = implicitConvert(b, args[0], con->content, false, true);
+        targetContent = implicitConvert(b, args.values[0], con->content, true, true);
     }
 
     auto value = record(b->block, name, con, targetContent);
