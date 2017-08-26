@@ -50,6 +50,9 @@ set(SOURCE_FILES ${SOURCE_FILES}
     resolve/print.cpp
     resolve/print.h
     resolve/expr.cpp
+    resolve/expr.h
+    resolve/expr_construct.cpp
+    resolve/expr_convert.cpp
     resolve/builtins.cpp
     resolve/builtins.h
     resolve/eval.cpp

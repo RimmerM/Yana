@@ -1,17 +1,12 @@
-#include <climits>
 #include <alloca.h>
 #include "../parse/ast.h"
-#include "module.h"
-#include "../util/string.h"
+#include "expr.h"
+
+static const int kIntMax = 2147483647;
 
 auto eqHash = Context::nameHash("==", 2);
 auto geHash = Context::nameHash(">=", 2);
 auto leHash = Context::nameHash("<=", 2);
-
-template<class... T>
-static void error(FunBuilder* b, const char* message, const Node* node, T&&... p) {
-    b->context.diagnostics.error(message, node, nullptr, forward<T>(p)...);
-}
 
 static OpProperties opInfo(Context* context, Module* module, Id name) {
     auto op = findOp(context, module, name);
@@ -43,120 +38,6 @@ static ast::InfixExpr* reorder(Context* context, Module* module, ast::InfixExpr*
     }
 
     return lhs;
-}
-
-static Value* implicitConvertInt(FunBuilder* b, Value* v, Type* targetType, bool isConstruct) {
-    // Integer types can be implicitly extended to a larger type.
-    auto intType = (IntType*)v->type;
-    auto targetInt = (IntType*)targetType;
-    if(intType->bits == targetInt->bits) {
-        return v;
-    } else if(intType->bits < targetInt->bits) {
-        return sext(b->block, 0, v, targetType);
-    } else if(isConstruct) {
-        return trunc(b->block, 0, v, targetType);
-    } else {
-        error(b, "cannot implicitly convert an integer to a smaller type", nullptr);
-        return v;
-    }
-}
-
-static Value* implicitConvertFloat(FunBuilder* b, Value* v, Type* targetType, bool isConstruct) {
-    // Float types can be implicitly extended to a larger type.
-    auto floatType = (FloatType*)v->type;
-    auto targetFloat = (FloatType*)targetType;
-    if(floatType->bits == targetFloat->bits) {
-        return v;
-    } else if(floatType->bits < targetFloat->bits) {
-        return fext(b->block, 0, v, targetType);
-    } else if(isConstruct) {
-        return ftrunc(b->block, 0, v, targetType);
-    } else {
-        error(b, "cannot implicitly convert a float to a smaller type", nullptr);
-        return v;
-    }
-}
-
-// Adds code to implicitly convert a value if possible.
-// If isConstruct is set, the conversion is less strict since the target type is explicitly defined.
-// Returns the new value or null if no conversion is possible.
-static Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool isConstruct, bool require) {
-    auto type = v->type;
-    if(compareTypes(&b->context, type, targetType)) return v;
-
-    auto kind = type->kind;
-    auto targetKind = targetType->kind;
-
-    // TODO: Support conversions between equivalent tuple types.
-    // TODO: Support conversions to generic types.
-    if(kind == Type::Ref && targetKind == Type::Ref) {
-        // Different reference kinds can be implicitly converted in some cases.
-        auto ref = (RefType*)type;
-        auto targetRef = (RefType*)targetType;
-
-        // This case is handled implicitly by the code generators.
-        if(ref->isMutable && !targetRef->isMutable) {
-            return v;
-        }
-
-        // A local reference can be implicitly converted to a traced one.
-        // Following the semantics of the language, the contained value is copied.
-        if(ref->isLocal && targetRef->isTraced) {
-            auto newRef = alloc(b->block, 0, targetRef->to, targetRef->isMutable, false);
-            load(b->block, 0, v);
-            store(b->block, 0, newRef, v);
-            return newRef;
-        }
-
-        // All other cases are unsafe (traced to untraced)
-        // or would have unexpected side-effects (copying untraced to traced).
-    } else if(kind == Type::Ref) {
-        // A returned reference can be implicitly loaded to a register.
-        auto ref = (RefType*)type;
-        if(compareTypes(&b->context, ref->to, targetType)) {
-            return load(b->block, 0, v);
-        } else if(
-            (ref->to->kind == Type::Int && targetType->kind == Type::Int) &&
-            (((IntType*)ref->to)->bits <= ((IntType*)targetType)->bits || isConstruct)
-        ) {
-            v = load(b->block, 0, v);
-            return implicitConvertInt(b, v, targetType, isConstruct);
-        } else if(
-            (ref->to->kind == Type::Float && targetType->kind == Type::Float) &&
-            (((FloatType*)ref->to)->bits <= ((FloatType*)targetType)->bits || isConstruct)
-        ) {
-            v = load(b->block, 0, v);
-            return implicitConvertFloat(b, v, targetType, isConstruct);
-        }
-    } else if(kind == Type::Int && targetKind == Type::Int) {
-        return implicitConvertInt(b, v, targetType, isConstruct);
-    } else if(kind == Type::Float && targetKind == Type::Float) {
-        return implicitConvertFloat(b, v, targetType, isConstruct);
-    } else if(isConstruct && kind == Type::Float && targetKind == Type::Int) {
-        return ftoi(b->block, 0, v, targetType);
-    } else if(isConstruct && kind == Type::Int && targetKind == Type::Float) {
-        return itof(b->block, 0, v, targetType);
-    } else if(isConstruct && kind == Type::String && targetKind == Type::Int && v->kind == Value::ConstString) {
-        // A string literal with a single code point can be converted to an integer.
-        auto string = (ConstString*)v;
-        U32 codePoint = 0;
-        if(string->length > 0) {
-            auto bytes = string->value;
-            convertNextPoint(bytes, &codePoint);
-            if(string->length > (bytes - string->value)) {
-                error(b, "cannot convert a string with multiple characters to an int", nullptr);
-            }
-        }
-
-        return constInt(b->block, 0, codePoint, &intTypes[IntType::Int]);
-    }
-
-    if(require) {
-        error(b, "cannot implicitly convert to type", nullptr);
-        return error(b->block, 0, targetType);
-    } else {
-        return nullptr;
-    }
 }
 
 // Checks if the two provided types are the same. If not, it tries to implicitly convert to a common type.
@@ -262,7 +143,7 @@ Value* resolveMulti(FunBuilder* b, ast::MultiExpr* expr, Id name, bool used) {
 Value* resolveLit(FunBuilder* b, ast::Literal* lit, Id name, bool used) {
     switch(lit->type) {
         case ast::Literal::Int:
-            return constInt(b->block, name, lit->i, lit->i > INT_MAX ? &intTypes[IntType::Long] : &intTypes[IntType::Int]);
+            return constInt(b->block, name, lit->i, lit->i > kIntMax ? &intTypes[IntType::Long] : &intTypes[IntType::Int]);
         case ast::Literal::Float:
             return constFloat(b->block, name, lit->f, &floatTypes[FloatType::F64]);
         case ast::Literal::Char:
@@ -987,170 +868,6 @@ Value* resolveTup(FunBuilder* b, ast::TupExpr* expr, Id name) {
 
     auto type = resolveTupType(&b->context, b->fun->module, fields, argCount);
     return tup(b->block, name, type, args, argCount);
-}
-
-static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, Id name) {
-    // There are a whole bunch of possible cases we could support here,
-    // but most can't even be created by the parser.
-    // For now we handle aliases and primitive types.
-    if(type->kind == Type::Int || type->kind == Type::Float) {
-        if(!expr->args || expr->args->next) {
-            error(b, "incorrect number of arguments to type constructor", expr);
-            return nullptr;
-        }
-
-        auto arg = resolveExpr(b, expr->args->item.value, name, true);
-        return implicitConvert(b, arg, type, true, true);
-    } else if(type->kind == Type::String) {
-        if(!expr->args || expr->args->next) {
-            error(b, "incorrect number of arguments to string constructor", expr);
-            return nullptr;
-        }
-
-        auto arg = resolveExpr(b, expr->args->item.value, name, true);
-        if(arg->type->kind != Type::String) {
-            error(b, "strings must be constructed with a string", expr);
-            return nullptr;
-        }
-
-        return arg;
-    } else if(type->kind == Type::Alias) {
-        // TODO: Handle generic instantiation here.
-        return explicitConstruct(b, ((AliasType*)type)->to, expr, name);
-    } else if(type->kind == Type::Tup) {
-        // TODO: Handle tuple types.
-    }
-
-    error(b, "cannot construct this type", expr->type);
-    return nullptr;
-}
-
-static Value* resolveMiscCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
-    auto type = findType(&b->context, b->fun->module, expr->type->con);
-    if(!type) {
-        error(b, "cannot find type", expr->type);
-        return nullptr;
-    }
-
-    return explicitConstruct(b, type, expr, name);
-}
-
-Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
-    auto con = findCon(&b->context, b->fun->module, expr->type->con);
-    if(!con) {
-        return resolveMiscCon(b, expr, name);
-    }
-
-    auto content = con->content;
-
-    // If we have more than one argument, the constructor must contain a tuple type.
-    auto arg = expr->args;
-    if(!arg) {
-        if(content != nullptr) {
-            error(b, "incorrect number of arguments to constructor", expr);
-        }
-
-        return record(b->block, name, con, nullptr);
-    }
-
-    if(!content) {
-        error(b, "incorrect number of arguments to constructor", expr);
-        return error(b->block, name, con->parent);
-    }
-
-    U32 argCount = 0;
-    while(arg) {
-        argCount++;
-        arg = arg->next;
-    }
-
-    U32 contentArgs = 0;
-    TupType* targetTuple = nullptr;
-    if(content->kind == Type::Tup) {
-        targetTuple = (TupType*)content;
-        contentArgs = targetTuple->count;
-    } else if(content->kind == Type::Alias) {
-        auto alias = (AliasType*)content;
-        if(alias->to->kind == Type::Tup) {
-            targetTuple = (TupType*)alias->to;
-            contentArgs = targetTuple->count;
-        } else {
-            contentArgs = 1;
-        }
-    }
-
-    if(contentArgs != argCount) {
-        error(b, "incorrect number of arguments to constructor", expr);
-        return error(b->block, name, con->parent);
-    }
-
-    auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
-    memset(args, 0, sizeof(Value*) * argCount);
-
-    arg = expr->args;
-    for(U32 i = 0; i < argCount; i++) {
-        auto argIndex = i;
-        bool found = true;
-
-        if(arg->item.name) {
-            if(targetTuple) {
-                found = false;
-                for(U32 a = 0; a < contentArgs; a++) {
-                    auto ta = &targetTuple->fields[a];
-                    if(arg->item.name == ta->name) {
-                        argIndex = ta->index;
-                        found = true;
-                        break;
-                    }
-                }
-            } else {
-                error(b, "constructed type has no field with this name", arg->item.value);
-            }
-        }
-
-        if(found) {
-            if(args[argIndex]) {
-                error(b, "tuple value specified more than once", arg->item.value);
-            }
-
-            args[argIndex] = resolveExpr(b, arg->item.value, 0, true);
-        } else {
-            error(b, "constructed type has no field with this name", arg->item.value);
-        }
-
-        arg = arg->next;
-    }
-
-    // If the constructed type is a generic type, we instantiate it.
-    if(con->parent->genCount && !con->parent->instance) {
-        auto instanceArgs = (Type**)alloca(sizeof(Type*) * con->parent->genCount);
-        for(U32 i = 0; i < argCount; i++) {
-            // TODO: Handle higher-kinded type fields.
-            auto t = con->fields[i].type;
-            if(t->kind == Type::Gen) {
-                auto g = (GenType*)t;
-                instanceArgs[g->index] = args[i]->type;
-            }
-        }
-
-        auto record = instantiateRecord(&b->context, b->fun->module, con->parent, instanceArgs, con->parent->genCount);
-        con = &record->cons[con->index];
-    }
-
-    // Make sure each field gets the correct type.
-    Value* targetContent;
-    if(targetTuple) {
-        for(U32 i = 0; i < argCount; i++) {
-            args[i] = implicitConvert(b, args[i], targetTuple->fields[i].type, false, true);
-        }
-
-        targetContent = tup(b->block, 0, content, args, argCount);
-    } else {
-        targetContent = implicitConvert(b, args[0], con->content, false, true);
-    }
-
-    auto value = record(b->block, name, con, targetContent);
-    return value;
 }
 
 Value* resolveTupUpdate(FunBuilder* b, ast::TupUpdateExpr* expr, Id name, bool used) {
