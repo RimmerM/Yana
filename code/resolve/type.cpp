@@ -559,8 +559,23 @@ void resolveRecord(Context* context, Module* module, RecordType* type) {
         GenContext gen{nullptr, type->gens, type->genCount};
         auto conAst = ast->cons;
         for(U32 i = 0; i < type->conCount; i++) {
-            if(conAst->item.content) {
-                auto content = findType(context, module, conAst->item.content, &gen);
+            auto contentAst = conAst->item.content;
+            if(contentAst) {
+                Type* content = nullptr;
+
+                // For tuples with a single element, we inline the contents into the record.
+                // This is also needed to generate the correct type for the single-constructor shorthand syntax.
+                if(contentAst->kind == ast::Type::Tup) {
+                    auto tup = (ast::TupType*)contentAst;
+                    if(tup->fields && !tup->fields->next && !tup->fields->item.name) {
+                        content = findType(context, module, tup->fields->item.type, &gen);
+                    }
+                }
+
+                if(!content) {
+                    content = findType(context, module, contentAst, &gen);
+                }
+
                 type->cons[i].content = content;
 
                 filledCount++;
