@@ -166,6 +166,9 @@ struct TupType: Type {
 struct Con {
     struct RecordType* parent;
     Type* content;
+
+    void* codegen = nullptr;
+
     Id name;
     U32 index;
     bool exported;

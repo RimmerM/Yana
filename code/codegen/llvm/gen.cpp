@@ -9,6 +9,23 @@ llvm::BasicBlock* genBlock(Gen* gen, Block* block);
 llvm::Function* genFunction(Gen* gen, Function* fun);
 llvm::Type* useType(Gen* gen, Type* type);
 
+struct RecordGen {
+    llvm::Type* selectorType;
+    llvm::Type* opaqueType;
+    U32 selectorSize;
+    U32 selectorAlignment;
+    U32 maxSize;
+    U32 maxAlignment;
+    bool indirect;
+};
+
+struct ConGen {
+    llvm::Type* memType;
+    llvm::Type* regType;
+    U32 size;
+    U32 alignment;
+};
+
 static llvm::StringRef toRef(Context* context, Id name) {
     if(name == 0) return "";
 
@@ -16,6 +33,11 @@ static llvm::StringRef toRef(Context* context, Id name) {
     if(v.textLength == 0) return "";
 
     return {v.text, v.textLength};
+}
+
+static bool isIndirect(Type* type) {
+    type = canonicalType(type);
+    return type->kind == Type::Record && ((RecordGen*)type->codegen)->indirect;
 }
 
 llvm::Type* genIntType(Gen* gen, IntType* type) {
@@ -52,6 +74,132 @@ llvm::Type* genTupType(Gen* gen, TupType* type) {
     return t;
 }
 
+RecordGen* genRecordType(Gen* gen, RecordType* type) {
+    auto& layout = gen->module->getDataLayout();
+    auto conCount = type->conCount;
+    auto cons = type->cons;
+    auto record = new (*gen->mem) RecordGen;
+    record->indirect = false;
+
+    if(conCount > 1) {
+        if(conCount <= 255) {
+            record->selectorType = gen->builder->getInt8Ty();
+        } else if(conCount <= 65535) {
+            record->selectorType = gen->builder->getInt16Ty();
+        } else {
+            record->selectorType = gen->builder->getInt32Ty();
+        }
+
+        record->selectorSize = (U32)layout.getTypeAllocSize(record->selectorType);
+        record->selectorAlignment = layout.getPrefTypeAlignment(record->selectorType);
+    } else {
+        record->selectorType = nullptr;
+        record->selectorSize = 0;
+        record->selectorAlignment = 0;
+    }
+
+    if(type->kind == RecordType::Enum) {
+        record->maxSize = record->selectorSize;
+        record->maxAlignment = record->selectorAlignment;
+        record->opaqueType = record->selectorType;
+
+        auto conGen = new (*gen->mem) ConGen;
+        conGen->regType = record->selectorType;
+        conGen->memType = record->selectorType;
+        conGen->alignment = record->selectorAlignment;
+        conGen->size = record->selectorSize;
+
+        for(U32 i = 0; i < conCount; i++) {
+            cons[i].codegen = conGen;
+        }
+    } else if(type->kind == RecordType::Single) {
+        auto conGen = new (*gen->mem) ConGen;
+        cons[0].codegen = conGen;
+
+        llvm::Type* con = useType(gen, cons[0].content);
+        conGen->memType = con;
+        conGen->regType = con;
+
+        auto s = (U32)layout.getTypeAllocSize(con);
+        auto a = layout.getPrefTypeAlignment(con);
+        conGen->size = s;
+        conGen->alignment = a;
+
+        record->opaqueType = con;
+        record->maxAlignment = a;
+        record->maxSize = s;
+    } else {
+        U32 maxSize = 0;
+        U32 maxAlignment = 0;
+
+        for(U32 i = 0; i < conCount; i++) {
+            auto conGen = new (*gen->mem) ConGen;
+            cons[i].codegen = conGen;
+
+            if(cons[i].content) {
+                llvm::Type* con = useType(gen, cons[i].content);
+
+                llvm::Type* memTypes[2];
+                memTypes[0] = record->selectorType;
+                memTypes[1] = con;
+                auto t = llvm::StructType::get(*gen->llvm, {memTypes, 2});
+                conGen->memType = t;
+
+                auto s = (U32)layout.getTypeAllocSize(t);
+                auto a = layout.getPrefTypeAlignment(t);
+                conGen->size = s;
+                conGen->alignment = a;
+
+                maxSize = std::max(maxSize, s);
+                maxAlignment = std::max(maxAlignment, a);
+            } else {
+                conGen->regType = record->selectorType;
+                conGen->memType = record->selectorType;
+                conGen->size = record->selectorSize;
+                conGen->alignment = record->selectorAlignment;
+            }
+        }
+
+        record->maxAlignment = maxAlignment;
+        record->maxSize = maxSize;
+
+        if(conCount > 1) {
+            for(U32 i = 0; i < conCount; i++) {
+                auto conGen = (ConGen*)cons[i].codegen;
+
+                if(conGen->size < maxSize) {
+                    if(conGen->memType == record->selectorType) {
+                        llvm::Type* regTypes[2];
+                        regTypes[0] = record->selectorType;
+                        regTypes[1] = llvm::ArrayType::get(gen->builder->getInt8Ty(), maxSize - conGen->size);
+                        conGen->regType = llvm::StructType::get(*gen->llvm, {regTypes, 2});
+                    } else {
+                        llvm::Type* regTypes[3];
+                        regTypes[0] = record->selectorType;
+                        regTypes[1] = conGen->memType;
+                        regTypes[2] = llvm::ArrayType::get(gen->builder->getInt8Ty(), maxSize - conGen->size);
+                        conGen->regType = llvm::StructType::get(*gen->llvm, {regTypes, 3});
+                    }
+                } else {
+                    conGen->regType = conGen->memType;
+                }
+
+                if(i > 0 && conGen->regType != ((ConGen*)cons[i - 1].codegen)->regType) {
+                    record->indirect = true;
+                }
+            }
+
+            record->opaqueType = ((ConGen*)cons[0].codegen)->regType;
+        } else {
+            auto conGen = (ConGen*)cons[0].codegen;
+            conGen->regType = conGen->memType;
+            record->opaqueType = conGen->memType;
+        }
+    }
+
+    return record;
+}
+
 llvm::Type* genType(Gen* gen, Type* type) {
     switch(type->kind) {
         case Type::Error:
@@ -73,8 +221,6 @@ llvm::Type* genType(Gen* gen, Type* type) {
             return gen->builder->getInt8PtrTy(0);
         case Type::Tup:
             return genTupType(gen, (TupType*)type);
-        case Type::Record:
-            return gen->builder->getInt8PtrTy(0);
         case Type::Alias:
             return useType(gen, ((AliasType*)type)->to);
     }
@@ -83,11 +229,23 @@ llvm::Type* genType(Gen* gen, Type* type) {
 
 llvm::Type* useType(Gen* gen, Type* type) {
     auto v = type->codegen;
-    if(v) return (llvm::Type*)v;
+    if(v) {
+        if(type->kind == Type::Record) {
+            return ((RecordGen*)v)->opaqueType;
+        } else {
+            return (llvm::Type*)v;
+        }
+    }
 
-    auto t = genType(gen, type);
-    type->codegen = t;
-    return t;
+    if(type->kind == Type::Record) {
+        auto t = genRecordType(gen, (RecordType*)type);
+        type->codegen = t;
+        return t->opaqueType;
+    } else {
+        auto t = genType(gen, type);
+        type->codegen = t;
+        return t;
+    }
 }
 
 llvm::Function* useFunction(Gen* gen, Function* fun) {
@@ -285,19 +443,64 @@ llvm::Value* genXor(Gen* gen, InstBinary* inst) {
     return gen->builder->CreateXor(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
 }
 
+llvm::Value* genRecord(Gen* gen, InstRecord* inst) {
+    useType(gen, inst->type);
+    auto type = (RecordGen*)inst->type->codegen;
+    auto con = (ConGen*)inst->con->codegen;
+
+    if(type->selectorType && type->selectorType == type->opaqueType) {
+        return llvm::ConstantInt::get(type->selectorType, inst->con->index);
+    } else if(type->selectorType) {
+        auto conIndex = llvm::ConstantInt::get(type->selectorType, inst->con->index);
+        auto v = useValue(gen, inst->content);
+        if(isIndirect(inst->content->type)) {
+            v = gen->builder->CreateLoad(v);
+        }
+
+        if(type->indirect) {
+            llvm::Value* record = gen->builder->CreateAlloca(con->regType);
+
+            llvm::Value* indices[2];
+            indices[0] = gen->builder->getInt32(0);
+            indices[1] = indices[0];
+            auto selector = gen->builder->CreateGEP(record, {indices, 2});
+            gen->builder->CreateStore(conIndex, selector);
+
+            indices[1] = gen->builder->getInt32(1);
+            auto content = gen->builder->CreateGEP(record, {indices, 2});
+            gen->builder->CreateStore(v, content);
+
+            return record;
+        } else {
+            llvm::Value* record = llvm::UndefValue::get(con->regType);
+            record = gen->builder->CreateInsertValue(record, conIndex, 0);
+            record = gen->builder->CreateInsertValue(record, v, 1);
+            return record;
+        }
+    } else {
+        // If the content type is indirect, we continue using the same value when possible.
+        // The IR will contain an explicit alloc + store if the copied value is mutable.
+        return useValue(gen, inst->content);
+    }
+}
+
 llvm::Value* genTup(Gen* gen, InstTup* inst) {
     auto type = useType(gen, inst->type);
     llvm::Value* tup = llvm::UndefValue::get(type);
 
     for(U32 i = 0; i < inst->fieldCount; i++) {
-        tup = gen->builder->CreateInsertValue(tup, useValue(gen, inst->fields[i]), i);
+        auto v = useValue(gen, inst->fields[i]);
+        if(isIndirect(inst->fields[i]->type)) {
+            v = gen->builder->CreateLoad(v);
+        }
+        tup = gen->builder->CreateInsertValue(tup, v, i);
     }
 
     return tup;
 }
 
 llvm::Value* genAlloc(Gen* gen, InstAlloc* inst) {
-    auto type = (RefType*)inst->type;
+    auto type = (RefType*)canonicalType(inst->type);
     if(type->isLocal) {
         return gen->builder->CreateAlloca(useType(gen, type->to));
     } else {
@@ -307,15 +510,133 @@ llvm::Value* genAlloc(Gen* gen, InstAlloc* inst) {
 }
 
 llvm::Value* genLoad(Gen* gen, InstLoad* inst) {
-    return gen->builder->CreateLoad(useValue(gen, inst->from));
+    // TODO: For records - load from mem form into reg form.
+    if(isIndirect(inst->from->type)) {
+        return useValue(gen, inst->from);
+    } else {
+        return gen->builder->CreateLoad(useValue(gen, inst->from));
+    }
 }
 
 llvm::Value* genStore(Gen* gen, InstStore* inst) {
-    return gen->builder->CreateStore(useValue(gen, inst->value), useValue(gen, inst->to));
+    // TODO: For records - store from reg form into mem form.
+    if(isIndirect(inst->value->type)) {
+        auto v = gen->builder->CreateLoad(useValue(gen, inst->value));
+        return gen->builder->CreateStore(v, useValue(gen, inst->to));
+    } else {
+        return gen->builder->CreateStore(useValue(gen, inst->value), useValue(gen, inst->to));
+    }
+}
+
+static llvm::Value* buildChain(Gen* gen, llvm::Value* from, U32* chain, U32& chainLength) {
+    auto v = gen->builder->CreateExtractValue(from, {chain, chainLength});
+    chainLength = 0;
+    return v;
 }
 
 llvm::Value* genGetField(Gen* gen, InstGetField* inst) {
-    return gen->builder->CreateExtractValue(useValue(gen, inst->from), {inst->indexChain, inst->chainLength});
+    auto currentChain = (U32*)alloca(sizeof(U32) * inst->chainLength);
+    U32 chainLength = 0;
+
+    auto from = canonicalType(inst->from->type);
+    llvm::Value* result = useValue(gen, inst->from);
+
+    for(U32 i = 0; i < inst->chainLength; i++) {
+        U32 index = inst->indexChain[i];
+        if(from->kind == Type::Record) {
+            // Record type: either get the constructor id or cast to a specific constructor.
+            // Start with lazily generating any previous tuple chain.
+            if(chainLength) {
+                result = buildChain(gen, result, currentChain, chainLength);
+            }
+
+            useType(gen, from);
+            auto recordType = (RecordType*)from;
+            auto recordGen = (RecordGen*)recordType->codegen;
+
+            if(index == 0) {
+                if(recordGen->indirect) {
+                    if(recordGen->selectorType && recordGen->selectorType == recordGen->opaqueType) {
+                        result = gen->builder->CreateLoad(result);
+                    } else if(recordGen->selectorType) {
+                        llvm::Value* indices[2];
+                        indices[0] = gen->builder->getInt32(0);
+                        indices[1] = indices[0];
+                        auto p = gen->builder->CreateGEP(result, {indices, 2});
+
+                        result = gen->builder->CreateLoad(p);
+                    } else {
+                        result = gen->builder->getInt32(0);
+                    }
+                } else {
+                    if(recordGen->selectorType && recordGen->selectorType == recordGen->opaqueType) {
+                        // Do nothing - result already has the correct type.
+                    } else if(recordGen->selectorType) {
+                        result = gen->builder->CreateExtractValue(result, {&index, 1});
+                    } else {
+                        result = gen->builder->getInt32(0);
+                    }
+                }
+
+                auto targetType = gen->builder->getInt32Ty();
+                if(result->getType() != targetType) {
+                    result = gen->builder->CreateZExt(result, targetType);
+                }
+            } else {
+                auto con = &recordType->cons[index - 1];
+                auto conGen = (ConGen*)con->codegen;
+
+                if(recordGen->indirect) {
+                    if(recordType->conCount == 1) {
+                        if(isIndirect(con->content)) {
+                            // Do nothing - the result is a pointer to the correct type already.
+                        } else {
+                            result = gen->builder->CreateLoad(result);
+                        }
+                    } else {
+                        auto p = gen->builder->CreateBitCast(result, llvm::PointerType::get(conGen->regType, 0));
+
+                        llvm::Value* indices[2];
+                        indices[0] = gen->builder->getInt32(0);
+                        indices[1] = gen->builder->getInt32(1);
+                        auto e = gen->builder->CreateGEP(p, {indices, 2});
+
+                        if(isIndirect(con->content)) {
+                            result = e;
+                        } else {
+                            result = gen->builder->CreateLoad(e);
+                        }
+                    }
+                } else if(isIndirect(con->content)) {
+                    auto p = gen->builder->CreateAlloca(useType(gen, con->content));
+
+                    llvm::Value* indices[2];
+                    indices[0] = gen->builder->getInt32(0);
+                    indices[1] = gen->builder->getInt32(recordType->conCount == 1 ? 0 : 1);
+                    auto e = gen->builder->CreateGEP(result, {indices, 2});
+
+                    auto v = gen->builder->CreateLoad(e);
+                    gen->builder->CreateStore(v, p);
+                    result = p;
+                } else {
+                    // Do nothing - result either already has the correct type, or this case is not supported.
+                }
+
+                from = canonicalType(con->content);
+            }
+        } else {
+            // Tuple type: simply return the field at the provided index.
+            currentChain[chainLength] = inst->indexChain[i];
+            chainLength++;
+            from = canonicalType(((TupType*)from)->fields[index].type);
+        }
+    }
+
+    if(chainLength) {
+        return buildChain(gen, result, currentChain, chainLength);
+    } else {
+        return result;
+    }
 }
 
 llvm::Value* genCall(Gen* gen, InstCall* inst) {
@@ -324,6 +645,8 @@ llvm::Value* genCall(Gen* gen, InstCall* inst) {
         args[i] = useValue(gen, inst->args[i]);
     }
 
+    // Indirect values are handled automatically - they are a pointers inside the function,
+    // and they are pointers in the argument type.
     auto call = gen->builder->CreateCall(useFunction(gen, inst->fun), {args, inst->argCount});
     call->setCallingConv(llvm::CallingConv::Fast);
     return call;
@@ -341,12 +664,18 @@ llvm::Value* genJmp(Gen* gen, InstJmp* inst) {
 }
 
 llvm::Value* genRet(Gen* gen, InstRet* inst) {
+    // TODO: Handle returning indirect values.
     auto value = inst->value ? useValue(gen, inst->value) : nullptr;
     return gen->builder->CreateRet(value);
 }
 
 llvm::Value* genPhi(Gen* gen, InstPhi* inst) {
-    auto phi = gen->builder->CreatePHI(useType(gen, inst->type), (U32)inst->altCount);
+    auto type = useType(gen, inst->type);
+    if(isIndirect(inst->type)) {
+        type = llvm::PointerType::get(type, 0);
+    }
+
+    auto phi = gen->builder->CreatePHI(type, (U32)inst->altCount);
     inst->codegen = phi;
 
     for(Size i = 0; i < inst->altCount; i++) {
@@ -415,6 +744,8 @@ llvm::Value* genInstValue(Gen* gen, Inst* inst) {
             return genOr(gen, (InstOr*)inst);
         case Inst::InstXor:
             return genXor(gen, (InstXor*)inst);
+        case Inst::InstRecord:
+            return genRecord(gen, (InstRecord*)inst);
         case Inst::InstTup:
             return genTup(gen, (InstTup*)inst);
         case Inst::InstAlloc:
@@ -469,7 +800,12 @@ llvm::Function* genFunction(Gen* gen, Function* fun) {
     auto argCount = fun->args.size();
     auto args = (llvm::Type**)alloca(argCount * sizeof(llvm::Type*));
     for(U32 i = 0; i < argCount; i++) {
-        args[i] = useType(gen, fun->args[i].type);
+        auto t = useType(gen, fun->args[i].type);
+        if(isIndirect(fun->args[i].type)) {
+            args[i] = llvm::PointerType::get(t, 0);
+        } else {
+            args[i] = t;
+        }
     }
 
     auto sig = llvm::FunctionType::get(ret, llvm::ArrayRef<llvm::Type*>(args, argCount), false);
@@ -506,7 +842,7 @@ llvm::Module* genModule(llvm::LLVMContext* llvm, Context* context, Module* modul
     llvmModule->setTargetTriple(LLVM_HOST_TRIPLE);
 
     llvm::IRBuilder<> builder(*llvm);
-    Gen gen{llvm, llvmModule, &builder, context};
+    Gen gen{llvm, llvmModule, &builder, &context->exprArena, context};
 
     for(auto& global: module->globals) {
         genGlobal(&gen, &global);

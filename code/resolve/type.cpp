@@ -416,6 +416,7 @@ RecordType* instantiateRecord(Context* context, Module* module, RecordType* type
         instanceCon->name = con.name;
         instanceCon->index = con.index;
         instanceCon->exported = con.exported;
+        instanceCon->codegen = nullptr;
 
         if(con.content) {
             instanceCon->content = instantiateType(context, module, con.content, args, count);

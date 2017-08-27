@@ -9,6 +9,7 @@ struct Gen {
     llvm::LLVMContext* llvm;
     llvm::Module* module;
     llvm::IRBuilder<>* builder;
+    Arena* mem;
 
     Context* context;
 };

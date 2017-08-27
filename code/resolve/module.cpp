@@ -46,6 +46,7 @@ Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index)
     con->content = nullptr;
     con->index = index;
     con->parent = to;
+    con->codegen = nullptr;
 
     if(!to->qualified) {
         in->cons.add(name, con);
