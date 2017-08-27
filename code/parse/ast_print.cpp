@@ -629,13 +629,11 @@ private:
                 auto& con = ((const ConPat&)pat);
                 auto name = context.find(con.constructor);
                 stream.write(name.text, name.textLength);
-                makeLevel();
-                auto p = con.pats;
-                while(p) {
-                    toString(*p->item, p->next == nullptr);
-                    p = p->next;
+                if(con.pats) {
+                    makeLevel();
+                    toString(*con.pats, true);
+                    removeLevel();
                 }
-                removeLevel();
                 break;
             }
         }

@@ -161,9 +161,9 @@ struct TupPat: Pat {
 };
 
 struct ConPat: Pat {
-    ConPat(Id constructor, List<Pat*>* pats): Pat(Con), constructor(constructor), pats(pats) {}
+    ConPat(Id constructor, Pat* pats): Pat(Con), constructor(constructor), pats(pats) {}
     Id constructor;
-    List<Pat*>* pats;
+    Pat* pats;
 };
 
 struct ArrayPat: Pat {

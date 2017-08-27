@@ -1456,6 +1456,35 @@ Con Parser::parseCon() {
     });
 }
 
+FieldPat Parser::parseFieldPat() {
+    bool qualified = false;
+    if(token.type == Token::VarSym && token.data.id == hashId) {
+        eat();
+        qualified = true;
+    }
+
+    if(qualified && token.type != Token::VarID) {
+        error("expected variable name");
+    }
+
+    if(token.type == Token::VarID) {
+        auto varPat = node([=] {
+            auto it = new (buffer) VarPat(token.data.id);
+            eat();
+            return it;
+        });
+
+        if(token.type == Token::opEquals) {
+            eat();
+            return FieldPat(varPat->var, parsePattern());
+        } else {
+            return FieldPat(qualified ? varPat->var : 0, varPat);
+        }
+    } else {
+        return FieldPat(0, parsePattern());
+    }
+}
+
 Pat* Parser::parseLeftPattern() {
     return node([=]() -> Pat* {
         if(token.type >= Token::FirstLiteral && token.type <= Token::LastLiteral) {
@@ -1490,33 +1519,8 @@ Pat* Parser::parseLeftPattern() {
             return new(buffer) ConPat(id, nullptr);
         } else if(token.type == Token::BraceL) {
             auto expr = braces([=] {
-                return sepBy1([=]() -> FieldPat {
-                    bool qualified = false;
-                    if(token.type == Token::VarSym && token.data.id == hashId) {
-                        eat();
-                        qualified = true;
-                    }
-
-                    if(qualified && token.type != Token::VarID) {
-                        error("expected variable name");
-                    }
-
-                    if(token.type == Token::VarID) {
-                        auto varPat = node([=] {
-                            auto it = new (buffer) VarPat(token.data.id);
-                            eat();
-                            return it;
-                        });
-
-                        if(token.type == Token::opEquals) {
-                            eat();
-                            return FieldPat(varPat->var, parsePattern());
-                        } else {
-                            return FieldPat(qualified ? varPat->var : 0, varPat);
-                        }
-                    } else {
-                        return FieldPat(0, parsePattern());
-                    }
+                return sepBy1([=] {
+                    return parseFieldPat();
                 }, Token::Comma);
             });
             return new(buffer) TupPat(expr);
@@ -1568,18 +1572,29 @@ Pat* Parser::parsePattern() {
         auto id = token.data.id;
         eat();
 
-        List<Pat*>* pats = nullptr;
+        Pat* pats = nullptr;
         if(token.type == Token::ParenL) {
-            pats = parens([=] {
+            auto fields = parens([=] {
                 return sepBy1([=] {
-                    return parseLeftPattern();
+                    return parseFieldPat();
                 }, Token::Comma);
             });
+
+            if(!fields || fields->next || fields->item.field) {
+                pats = new (buffer) TupPat(fields);
+            } else {
+                pats = fields->item.pat;
+            }
         } else if(token.type == Token::BraceL) {
-            pats = list(parseLeftPattern());
+            auto p = (TupPat*)parseLeftPattern();
+            if(!p->fields || p->fields->next || p->fields->item.field) {
+                pats = p;
+            } else {
+                pats = p->fields->item.pat;
+            }
         }
 
-        return new(buffer) ConPat(id, pats);
+        return new (buffer) ConPat(id, pats);
     } else {
         auto pat = parseLeftPattern();
         if(token.type == Token::opDotDot) {

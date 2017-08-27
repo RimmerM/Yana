@@ -51,6 +51,7 @@ struct Parser {
     ast::Type* parseTupleType();
     ast::Con parseCon();
 
+    ast::FieldPat parseFieldPat();
     ast::Pat* parseLeftPattern();
     ast::Pat* parsePattern();
 
