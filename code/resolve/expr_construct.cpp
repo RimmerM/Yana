@@ -198,7 +198,7 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
 
     auto args = buildArgs(b, expr->args);
 
-    U32 contentArgs = 0;
+    U32 contentArgs = 1;
     TupType* targetTuple = nullptr;
     if(content->kind == Type::Tup) {
         targetTuple = (TupType*)content;
@@ -208,8 +208,6 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
         if(alias->to->kind == Type::Tup) {
             targetTuple = (TupType*)alias->to;
             contentArgs = targetTuple->count;
-        } else {
-            contentArgs = 1;
         }
     }
 

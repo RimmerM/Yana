@@ -42,7 +42,7 @@ struct Block {
     Value* findValue(Id name);
 };
 
-Block* block(Function* fun);
+Block* block(Function* fun, bool deferAdd = false);
 
 // Updates the name of an existing value.
 // Overrides any existing value with this name in its block.

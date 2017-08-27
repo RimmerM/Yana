@@ -411,10 +411,15 @@ RecordType* instantiateRecord(Context* context, Module* module, RecordType* type
         auto& con = type->cons[i];
         auto instanceCon = &cons[i];
         instanceCon->parent = record;
-        instanceCon->content = instantiateType(context, module, con.content, args, count);
         instanceCon->name = con.name;
         instanceCon->index = con.index;
         instanceCon->exported = con.exported;
+
+        if(con.content) {
+            instanceCon->content = instantiateType(context, module, con.content, args, count);
+        } else {
+            instanceCon->content = nullptr;
+        }
     }
 
     return record;
@@ -732,16 +737,6 @@ TupType* resolveTupType(Context* context, Module* module, Field* sourceFields, U
 
 Type* canonicalType(Type* type) {
     switch(type->kind) {
-        case Type::Ref:
-            return ((RefType*)type)->to;
-        case Type::Record: {
-            auto t = (RecordType*)type;
-            if(t->conCount == 1) {
-                return t->cons[0].content;
-            } else {
-                return type;
-            }
-        }
         case Type::Alias:
             return ((AliasType*)type)->to;
         default:

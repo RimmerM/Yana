@@ -61,8 +61,12 @@ static bool generalizeTypes(FunBuilder* b, Value*& lhs, Value*& rhs) {
     return false;
 }
 
-static bool alwaysTrue(Value* v) {
+bool alwaysTrue(Value* v) {
     return v->kind == Value::ConstInt && ((ConstInt*)v)->value != 0;
+}
+
+bool alwaysFalse(Value* v) {
+    return v->kind == Value::ConstInt && ((ConstInt*)v)->value == 0;
 }
 
 static Field* findStaticField(Type* type, Id stringField, U32 intField) {
@@ -106,14 +110,7 @@ static Value* testStaticField(FunBuilder* b, Id name, Value* target, ast::Expr* 
 
     if(!staticField) return nullptr;
 
-    auto indices = (U32*)b->fun->module->memory.alloc(sizeof(U32));
-    indices[0] = staticField->index;
-
-    if(target->type->kind == Type::Ref) {
-        return loadField(b->block, name, target, staticField->type, indices, 1);
-    } else {
-        return getField(b->block, name, target, staticField->type, indices, 1);
-    }
+    return getField(b, target, name, staticField->index, staticField->type);
 }
 
 Value* resolveMulti(FunBuilder* b, ast::MultiExpr* expr, Id name, bool used) {
@@ -179,6 +176,17 @@ Value* useValue(FunBuilder* b, Value* value, bool asRV) {
     }
 
     return value;
+}
+
+Value* getField(FunBuilder* b, Value* value, Id name, U32 field, Type* type) {
+    auto indices = (U32*)b->mem.alloc(sizeof(U32));
+    indices[0] = field;
+
+    if(value->type->kind == Type::Ref || value->kind == Value::Global) {
+        return loadField(b->block, name, value, type, indices, 1);
+    } else {
+        return getField(b->block, name, value, type, indices, 1);
+    }
 }
 
 Value* resolveVar(FunBuilder* b, ast::VarExpr* expr, bool asRV) {
@@ -792,10 +800,7 @@ Value* resolveFormat(FunBuilder* b, ast::FormatExpr* expr, Id name, bool used) {
 Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
     auto pivot = resolveExpr(b, expr->pivot, 0, true);
     auto alt = expr->alts;
-
     auto preceding = b->block;
-    auto after = block(b->fun);
-    after->preceding = b->block;
 
     U32 altCount = 0;
     while(alt) {
@@ -808,28 +813,29 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
 
     alt = expr->alts;
     for(U32 i = 0; i < altCount; i++) {
-        auto result = resolvePat(b, pivot, alt->item.pat);
+        auto otherwise = block(b->fun, true);
+        otherwise->preceding = b->block;
 
-        if(alwaysTrue(result)) {
+        auto result = resolvePat(b, otherwise, pivot, alt->item.pat);
+        if(result == 0) {
+            // Default case: resolve the expression for this match into the matching block.
+            // Continue with other matches in the failing block.
+            alts[i].value = resolveExpr(b, alt->item.expr, 0, true);
+            alts[i].fromBlock = b->block;
+
+            b->fun->blocks.push(otherwise);
+            b->block = otherwise;
+        } else if(result == 1) {
+            // Pattern always matches. Resolve in the matching block, don't add the failing block.
             alts[i].value = resolveExpr(b, alt->item.expr, 0, true);
             alts[i].fromBlock = b->block;
 
             hasElse = true;
             break;
         } else {
-            auto then = block(b->fun);
-            then->preceding = preceding;
-
-            auto otherwise = alt->next ? block(b->fun) : after;
-            otherwise->preceding = preceding;
-
-            je(b->block, result, then, otherwise);
-
-            b->block = then;
-            alts[i].value = resolveExpr(b, alt->item.expr, 0, true);
-            alts[i].fromBlock = b->block;
-
+            // Pattern never matches. Continue with other matches in the failing block.
             b->block = otherwise;
+            b->fun->blocks.push(otherwise);
         }
 
         alt = alt->next;
@@ -840,6 +846,9 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
         if(!hasElse) {
             error(b, "match expression doesn't produce a result in every case", expr);
         }
+
+        auto after = block(b->fun);
+        after->preceding = preceding;
 
         for(U32 i = 0; i < altCount; i++) {
             if(!alts[i].value) {
@@ -868,19 +877,15 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
         }
 
         if(returnCount == altCount) {
-            Size blockIndex = 0;
-            for(Size i = 0; i < b->fun->blocks.size(); i++) {
-                if(b->fun->blocks[i] == after) break;
-                blockIndex++;
-            }
+            return nullptr;
+        }
 
-            b->fun->blocks.remove(blockIndex);
-            b->block = *b->fun->blocks.back();
-        } else {
-            for(U32 i = 0; i < altCount; i++) {
-                if(!alts[i].fromBlock->complete) {
-                    jmp(alts[i].fromBlock, after);
-                }
+        auto after = block(b->fun);
+        after->preceding = preceding;
+
+        for(U32 i = 0; i < altCount; i++) {
+            if(!alts[i].fromBlock->complete) {
+                jmp(alts[i].fromBlock, after);
             }
         }
 

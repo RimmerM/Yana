@@ -59,6 +59,8 @@ struct Printer {
             toString(*mod.decls[max-1], true);
             removeLevel();
         }
+
+        stream << '\n';
     }
 
 private:

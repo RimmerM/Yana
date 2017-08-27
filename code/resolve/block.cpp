@@ -48,11 +48,14 @@ Value* Block::findValue(Id name) {
     }
 }
 
-Block* block(Function* fun) {
+Block* block(Function* fun, bool deferAdd) {
     auto block = new (fun->module->memory) Block;
     block->function = fun;
     block->id = fun->blockCounter++;
-    fun->blocks.push(block);
+
+    if(!deferAdd) {
+        fun->blocks.push(block);
+    }
 
     return block;
 }
