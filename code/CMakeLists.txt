@@ -51,8 +51,10 @@ set(SOURCE_FILES ${SOURCE_FILES}
     resolve/print.h
     resolve/expr.cpp
     resolve/expr.h
+    resolve/expr_call.cpp
     resolve/expr_construct.cpp
     resolve/expr_convert.cpp
+    resolve/expr_pat.cpp
     resolve/builtins.cpp
     resolve/builtins.h
     resolve/eval.cpp
