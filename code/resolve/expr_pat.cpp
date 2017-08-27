@@ -166,6 +166,12 @@ int resolveConPat(FunBuilder* b, MatchContext** match, Block* onFail, Value* piv
         return -1;
     }
 
+    // If the record is an instance of a generic type, we use the instantiated constructor instead of the generic one.
+    auto record = (RecordType*)pivot->type;
+    if(record->instanceOf) {
+        con = &record->cons[con->index];
+    }
+
     // Constructor patterns are a bit complicated.
     // We first want to know two things:
     //  - Will the child pattern always succeed.

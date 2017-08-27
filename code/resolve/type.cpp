@@ -398,6 +398,8 @@ RecordType* instantiateRecord(Context* context, Module* module, RecordType* type
     record->genCount = 0;
     record->kind = type->kind;
     record->qualified = type->qualified;
+    record->descriptor = type->descriptor;
+    record->descriptorLength = type->descriptorLength;
 
     auto instance = (Type**)module->memory.alloc(sizeof(Type*) * count);
     memcpy(instance, args, sizeof(Type*) * count);
@@ -648,40 +650,8 @@ bool compareTypes(Context* context, Type* lhs, Type* rhs) {
     if(rhs->kind == Type::Alias) rhs = ((AliasType*)rhs)->to;
     if(lhs == rhs) return true;
 
-    // TODO: Remaining type kinds.
-    switch(lhs->kind) {
-        case Type::Error:
-            // Error types are compatible with everything, in order to prevent a cascade of errors.
-            return true;
-        case Type::Unit:
-            return rhs->kind == Type::Unit;
-        case Type::Int:
-            return rhs->kind == Type::Int && ((IntType*)lhs)->width == ((IntType*)rhs)->width;
-        case Type::Float:
-            return rhs->kind == Type::Float && ((FloatType*)lhs)->width == ((FloatType*)rhs)->width;
-        case Type::String:
-            return rhs->kind == Type::String;
-        case Type::Ref: {
-            if(rhs->kind != Type::Ref) return false;
-            auto a = (RefType*)lhs;
-            auto b = (RefType*)rhs;
-
-            if(a->isTraced != b->isTraced) return false;
-            if(a->isLocal != b->isLocal) return false;
-            if(a->isMutable != b->isMutable) return false;
-
-            return compareTypes(context, ((RefType*)lhs)->to, ((RefType*)rhs)->to);
-        }
-        case Type::Array:
-            return rhs->kind == Type::Array && compareTypes(context, ((ArrayType*)lhs)->content, ((ArrayType*)rhs)->content);
-        case Type::Map: {
-            if(rhs->kind != Type::Map) return false;
-            auto a = (MapType*)lhs, b = (MapType*)rhs;
-            return compareTypes(context, a->from, b->from) && compareTypes(context, a->to, b->to);
-        }
-    }
-
-    return false;
+    if(lhs->descriptorLength != rhs->descriptorLength) return false;
+    return memcmp(lhs->descriptor, rhs->descriptor, lhs->descriptorLength) == 0;
 }
 
 TupType* resolveTupType(Context* context, Module* module, Field* sourceFields, U32 count) {
