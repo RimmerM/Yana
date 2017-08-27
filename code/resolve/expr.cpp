@@ -809,27 +809,33 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
     }
 
     auto alts = (InstPhi::Alt*)b->fun->module->memory.alloc(sizeof(InstPhi::Alt) * altCount);
+    U32 usedAlts = 0;
     bool hasElse = false;
+
+    MatchContext* context = nullptr;
 
     alt = expr->alts;
     for(U32 i = 0; i < altCount; i++) {
         auto otherwise = block(b->fun, true);
         otherwise->preceding = b->block;
 
-        auto result = resolvePat(b, otherwise, pivot, alt->item.pat);
+        auto result = resolvePat(b, &context, otherwise, pivot, alt->item.pat);
         if(result == 0) {
             // Default case: resolve the expression for this match into the matching block.
             // Continue with other matches in the failing block.
-            alts[i].value = resolveExpr(b, alt->item.expr, 0, true);
-            alts[i].fromBlock = b->block;
+            alts[usedAlts].value = resolveExpr(b, alt->item.expr, 0, true);
+            alts[usedAlts].fromBlock = b->block;
 
             b->fun->blocks.push(otherwise);
             b->block = otherwise;
+
+            usedAlts++;
         } else if(result == 1) {
             // Pattern always matches. Resolve in the matching block, don't add the failing block.
-            alts[i].value = resolveExpr(b, alt->item.expr, 0, true);
-            alts[i].fromBlock = b->block;
+            alts[usedAlts].value = resolveExpr(b, alt->item.expr, 0, true);
+            alts[usedAlts].fromBlock = b->block;
 
+            usedAlts++;
             hasElse = true;
             break;
         } else {
@@ -842,17 +848,26 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
     }
 
     if(used) {
-        // TODO: If there is no else-case, we have to analyze the alts to make sure that every possibility is covered.
         if(!hasElse) {
             error(b, "match expression doesn't produce a result in every case", expr);
         }
 
+        // If the very first match always succeeds we can use that value immediately and continue in the same block.
+        if(usedAlts <= 1) {
+            b->block = alts[0].fromBlock;
+            return alts[0].value;
+        }
+
+        // Create an after-block that each non-complete match block continues in.
+        // This block selects the result from the match that succeeded.
         auto after = block(b->fun);
         after->preceding = preceding;
 
-        for(U32 i = 0; i < altCount; i++) {
+        for(U32 i = 0; i < usedAlts; i++) {
             if(!alts[i].value) {
-                error(b, "if expression doesn't produce a result in every case", expr);
+                error(b, "match expression doesn't produce a result in every case", expr);
+                b->block = after;
+                return error(after, name, &errorType);
             }
 
             if(i > 0) {
@@ -866,24 +881,28 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
         }
 
         b->block = after;
-        return phi(after, name, alts, altCount);
+        return phi(after, name, alts, usedAlts);
     } else {
-        // If each case returns, we don't need a block afterwards.
+        // We don't need a succeeding block if:
+        //  - Every match always returns. Each block is already complete.
+        // or
+        //  - The very first match always succeeds. We can continue in the current block without branching.
         U32 returnCount = 0;
-        for(U32 i = 0; i < altCount; i++) {
+        for(U32 i = 0; i < usedAlts; i++) {
             if(alts[i].fromBlock->returns) {
                 returnCount++;
             }
         }
 
-        if(returnCount == altCount) {
+        if(returnCount == usedAlts || usedAlts <= 1) {
             return nullptr;
         }
 
+        // Create an after-block that each non-complete match block continues in.
         auto after = block(b->fun);
         after->preceding = preceding;
 
-        for(U32 i = 0; i < altCount; i++) {
+        for(U32 i = 0; i < usedAlts; i++) {
             if(!alts[i].fromBlock->complete) {
                 jmp(alts[i].fromBlock, after);
             }
