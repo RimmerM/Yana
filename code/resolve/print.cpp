@@ -401,10 +401,25 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         }
     }
 
-    for(Size i = 0; i < inst->usedCount; i++) {
-        printValue(stream, context, inst->usedValues[i]);
-        if(i < inst->usedCount - 1) {
+    if(inst->kind == Inst::InstPhi) {
+        auto phi = (InstPhi*)inst;
+        for(U32 i = 0; i < phi->altCount; i++) {
+            stream << '[';
+            printValue(stream, context, phi->alts[i].value);
             stream << ", ";
+            printBlockName(stream, phi->alts[i].fromBlock);
+            stream << ']';
+
+            if(i < phi->altCount - 1) {
+                stream << ", ";
+            }
+        }
+    } else {
+        for(U32 i = 0; i < inst->usedCount; i++) {
+            printValue(stream, context, inst->usedValues[i]);
+            if(i < inst->usedCount - 1) {
+                stream << ", ";
+            }
         }
     }
 
