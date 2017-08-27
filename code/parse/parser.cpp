@@ -257,8 +257,9 @@ Decl* Parser::parseFunDecl(bool requireBody) {
                 eat();
                 auto expr = parseExpr();
                 if(token.type == Token::kwWhere) {
+                    auto l = token.endLine;
                     eat();
-                    auto decls = list(parseVarDecl());
+                    auto decls = list(parseVarDecl(l));
                     decls->next = list(expr);
                     return new(buffer) MultiExpr(decls);
                 } else {
@@ -319,15 +320,20 @@ Decl* Parser::parseDataDecl() {
         eat();
 
         auto type = parseSimpleType();
+
+        List<Con>* cons;
         if(token.type == Token::opEquals) {
             eat();
-        } else {
-            error("expected '=' after type name");
-        }
 
-        auto cons = sepBy1([=] {
-            return node([=] {return parseCon();});
-        }, Token::opBar);
+            cons = sepBy1([=] {
+                return node([=] {return parseCon();});
+            }, Token::opBar);
+        } else if(token.type == Token::BraceL) {
+            cons = list(Con{type->name, parseTupleType()});
+        } else {
+            error("expected '=' or '{' after type name");
+            cons = nullptr;
+        }
 
         return new (buffer) DataDecl(type, cons, false);
     });
@@ -558,8 +564,9 @@ Expr* Parser::parsePrefixExpr() {
 Expr* Parser::parseLeftExpr() {
     return node([=]() -> Expr* {
         if(token.type == Token::kwLet) {
+            auto l = token.endLine;
             eat();
-            return parseVarDecl();
+            return parseVarDecl(l);
         } else if(token.type == Token::kwMatch) {
             return parseCaseExpr();
         } else if(token.type == Token::kwIf) {
@@ -989,7 +996,11 @@ ArgDecl Parser::parseArgDecl() {
     }
 }
 
-Expr* Parser::parseVarDecl() {
+Expr* Parser::parseVarDecl(U32 line) {
+    if(token.startLine == line) {
+        return parseDeclExpr();
+    }
+
     // Parse one or more declarations, separated as statements.
     auto list = withLevel([=] {
         return sepBy1([=] {

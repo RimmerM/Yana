@@ -40,7 +40,7 @@ struct Parser {
     ast::ArgDecl parseTypeArg();
     ast::ArgDecl parseArgDecl();
     ast::TupArg parseTupArg();
-    ast::Expr* parseVarDecl();
+    ast::Expr* parseVarDecl(U32 line);
     ast::Alt parseAlt();
     ast::VarExpr* parseVar();
     ast::VarExpr* parseQop();
