@@ -118,11 +118,13 @@ struct ForeignFunction {
 };
 
 struct FunBuilder {
-    FunBuilder(Function* fun, Block* block, Context& context, Arena& mem): fun(fun), block(block), context(context), mem(mem) {}
+    FunBuilder(Function* fun, Block* block, Context& context, Arena& mem, Arena& exprMem):
+        fun(fun), block(block), context(context), mem(mem), exprMem(exprMem) {}
 
     Function* fun;
     Block* block;
     Context& context;
-    Arena& mem;
+    Arena& mem; // Persistent memory for this module.
+    Arena& exprMem; // Temporary memory for expression resolving. Reset after each expression.
     Size funCounter = 0;
 };

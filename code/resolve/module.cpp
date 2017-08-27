@@ -512,7 +512,7 @@ void resolveFun(Context* context, Function* fun) {
 
     bool implicitReturn = ast->implicitReturn;
 
-    FunBuilder builder(fun, startBlock, *context, fun->module->memory);
+    FunBuilder builder(fun, startBlock, *context, fun->module->memory, context->exprArena);
     auto body = resolveExpr(&builder, ast->body, 0, implicitReturn);
     if(implicitReturn && body && body->kind != Inst::InstRet) {
         // The function is an expression - implicitly return the result if needed.
@@ -542,6 +542,8 @@ void resolveFun(Context* context, Function* fun) {
     fun->returnType = previous;
     fun->resolving = false;
     fun->ast = nullptr;
+
+    builder.exprMem.reset();
 }
 
 void resolveGlobals(Context* context, Module* module, ast::Decl** decls, Size count) {
@@ -549,12 +551,13 @@ void resolveGlobals(Context* context, Module* module, ast::Decl** decls, Size co
     staticInit->returnType = &unitType;
     auto startBlock = block(staticInit);
 
-    FunBuilder builder(staticInit, startBlock, *context, staticInit->module->memory);
+    FunBuilder builder(staticInit, startBlock, *context, module->memory, context->exprArena);
 
     for(Size i = 0; i < count; i++) {
         if(decls[i]->kind == ast::Decl::Stmt) {
             auto decl = (ast::StmtDecl*)decls[i];
             resolveExpr(&builder, decl->expr, 0, false);
+            builder.exprMem.reset();
         }
     }
 

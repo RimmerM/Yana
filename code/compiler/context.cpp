@@ -12,6 +12,21 @@ void* Arena::alloc(Size size) {
     return it;
 }
 
+void Arena::reset() {
+    if(buffers.size() == 0) return;
+
+    // Remove all but one buffer.
+    for(U32 i = 1; i < buffers.size(); i++) {
+        free(buffers[i]);
+    }
+
+    buffer = buffers[0];
+    max = buffer + kChunkSize;
+
+    buffers.clear();
+    buffers.push(buffer);
+}
+
 Arena::~Arena() {
     for(auto buffer: buffers) {
         free(buffer);

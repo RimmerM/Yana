@@ -58,6 +58,7 @@ struct Arena {
     static const Size kChunkSize = 1024 * 1024;
 
     void* alloc(Size size);
+    void reset();
     ~Arena();
 
 private:
@@ -86,6 +87,7 @@ struct Context {
     Identifier& find(Id id);
 
     Arena stringArena;
+    Arena exprArena;
 
 private:
     Byte* astBuffer = nullptr;
