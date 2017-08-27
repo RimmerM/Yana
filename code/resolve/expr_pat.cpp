@@ -5,8 +5,8 @@
  * Handles resolving of patterns.
  * Patterns are resolved recursively by generating code for a pivot (the base structure in the pattern),
  * and then generating code checking if each element in the pivot matches (which may create new pivots).
- * The end result of the match is a boolean indicating if it matched,
- * but any names introduced can be used by the succeeding block (the block that runs if each part matched).
+ * The end result of the match is a non-terminating block that runs if the match succeeds,
+ * as well as a non-terminating block that runs on failure. Any names introduced are visible in the succeeding block.
  * For example, the pattern `Just {x = 1, y = 2}` in a match on `a` would generate the following:
  *
  *   %0 = getfield 0, %a : i32
@@ -19,17 +19,25 @@
  * #2:
  *   %4 = getfield 1, 1, %a : i32
  *   %5 = icmp %4, 2        : i1
- *   <%5 now contains the match result. It is usually first checked with another je to #fail>
+ *   je %5, #3, #fail
+ * #3:
+ *   <returned as succeeding block>
  *
  * #fail:
- *   <rest of match expression here>
+ *   <returned as failure block>
  */
+
+struct Matcher {
+    bool alwaysTrue = false;
+    bool alwaysFalse = false;
+    Value* comparison = nullptr;
+};
 
 auto eqHash = Context::nameHash("==", 2);
 auto geHash = Context::nameHash(">=", 2);
 auto leHash = Context::nameHash("<=", 2);
 
-Value* resolveVarPat(FunBuilder* b, Value* pivot, ast::VarPat* pat) {
+void resolveVarPat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::VarPat* pat) {
     auto var = findVar(b, pat->var);
     if(var) {
         ast::VarExpr cmp(pat->var);
@@ -39,17 +47,18 @@ Value* resolveVarPat(FunBuilder* b, Value* pivot, ast::VarPat* pat) {
             if(!call || call->type->kind != Type::Error) {
                 error(b, "result of a comparison must be a boolean", pat);
             }
-            return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
-        }
 
-        return call;
+            matcher->alwaysFalse = true;
+        } else {
+            matcher->comparison = call;
+        }
     } else {
         b->block->namedValues[pat->var] = pivot;
-        return constInt(b->block, 0, 1, &intTypes[IntType::Bool]);
+        matcher->alwaysTrue = true;
     }
 }
 
-Value* resolveLitPat(FunBuilder* b, Value* pivot, ast::LitPat* pat) {
+void resolveLitPat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::LitPat* pat) {
     ast::LitExpr lit(pat->lit);
     List<ast::TupArg> arg(ast::TupArg(0, &lit));
     auto call = resolveStaticCall(b, eqHash, pivot, &arg, 0);
@@ -57,25 +66,71 @@ Value* resolveLitPat(FunBuilder* b, Value* pivot, ast::LitPat* pat) {
         if(!call || call->type->kind != Type::Error) {
             error(b, "result of a comparison must be a boolean", pat);
         }
-        return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+        matcher->alwaysFalse = true;
+    } else {
+        matcher->comparison = call;
+    }
+}
+
+int resolveTupPat(FunBuilder* b, Block* onFail, Value* pivot, ast::TupPat* pat) {
+    auto type = canonicalType(pivot->type);
+    if(type->kind != Type::Tup) {
+        error(b, "cannot match a tuple on this type", pat);
+        jmp(b->block, onFail);
+        return -1;
     }
 
-    return call;
+    bool alwaysSucceeds = true;
+    auto tup = (TupType*)type;
+
+    U32 i = 0;
+    auto field = pat->fields;
+    while(field) {
+        int index = -1;
+        if(field->item.field) {
+            for(U32 f = 0; f < tup->count; f++) {
+                if(tup->fields[f].name == field->item.field) {
+                    index = f;
+                    break;
+                }
+            }
+        } else if(i < tup->count) {
+            index = i;
+        }
+
+        if(index < 0) {
+            error(b, "cannot match field: the tuple doesn't contain this field", field->item.pat);
+            jmp(b->block, onFail);
+            return -1;
+        } else {
+            auto f = &tup->fields[index];
+            auto get = getField(b, pivot, 0, f->index, f->type);
+            auto result = resolvePat(b, onFail, get, field->item.pat);
+
+            // If the match always fails, the whole pattern fails.
+            // If the match may succeed or always succeeds, continue matching on the current block.
+            if(result == -1) {
+                return -1;
+            }
+
+            if(result != 1) {
+                alwaysSucceeds = false;
+            }
+        }
+
+        i++;
+        field = field->next;
+    }
+
+    return alwaysSucceeds ? 1 : 0;
 }
 
-Value* resolveAnyPat(FunBuilder* b, Value* pivot, ast::Pat* pat) {
-    return constInt(b->block, 0, 1, &intTypes[IntType::Bool]);
-}
-
-Value* resolveTupPat(FunBuilder* b, Value* pivot, ast::TupPat* pat) {
-    return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
-}
-
-Value* resolveConPat(FunBuilder* b, Value* pivot, ast::ConPat* pat) {
+int resolveConPat(FunBuilder* b, Block* onFail, Value* pivot, ast::ConPat* pat) {
     auto con = findCon(&b->context, b->fun->module, pat->constructor);
     if(!compareTypes(&b->context, con->parent, pivot->type)) {
         error(b, "constructor type is incompatible with pivot type", pat);
-        return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+        jmp(b->block, onFail);
+        return -1;
     }
 
     auto intType = &intTypes[IntType::Int];
@@ -90,16 +145,19 @@ Value* resolveConPat(FunBuilder* b, Value* pivot, ast::ConPat* pat) {
     }
 
     auto equal = icmp(b->block, 0, pivotCon, constInt(b->block, 0, con->index, intType), ICmp::eq);
-    return equal;
+
+    jmp(b->block, onFail);
+    return -1;
 }
 
-Value* resolveArrPat(FunBuilder* b, Value* pivot, ast::ArrayPat* pat) {
-    return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+int resolveArrPat(FunBuilder* b, Block* onFail, Value* pivot, ast::ArrayPat* pat) {
+    jmp(b->block, onFail);
+    return -1;
 }
 
-Value* resolveRestPat(FunBuilder* b, Value* pivot, ast::RestPat* pat) {
+void resolveRestPat(FunBuilder* b, Matcher* m, Value* pivot, ast::RestPat* pat) {
     // Currently only used as part of an array pat.
-    return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+    m->alwaysFalse = true;
 }
 
 static Value* getRangeArg(FunBuilder* b, ast::Pat* pat) {
@@ -125,12 +183,12 @@ static Value* getRangeArg(FunBuilder* b, ast::Pat* pat) {
     return nullptr;
 }
 
-Value* resolveRangePat(FunBuilder* b, Value* pivot, ast::RangePat* pat) {
+void resolveRangePat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::RangePat* pat) {
     auto from = getRangeArg(b, pat->from);
     auto to = getRangeArg(b, pat->to);
 
     if(!from && !to) {
-        return constInt(b->block, 0, 1, &intTypes[IntType::Bool]);
+        matcher->alwaysTrue = true;
     } else if(!from) {
         auto fromArgs = (Value**)b->mem.alloc(sizeof(Value) * 2);
         fromArgs[0] = pivot;
@@ -141,10 +199,10 @@ Value* resolveRangePat(FunBuilder* b, Value* pivot, ast::RangePat* pat) {
             if(!fromCmp || fromCmp->type->kind != Type::Error) {
                 error(b, "result of a comparison must be a boolean", pat);
             }
-            return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+            matcher->alwaysFalse = true;
+        } else {
+            matcher->comparison = fromCmp;
         }
-
-        return fromCmp;
     } else if(!to) {
         auto toArgs = (Value**)b->mem.alloc(sizeof(Value) * 2);
         toArgs[0] = pivot;
@@ -155,10 +213,10 @@ Value* resolveRangePat(FunBuilder* b, Value* pivot, ast::RangePat* pat) {
             if(!toCmp || toCmp->type->kind != Type::Error) {
                 error(b, "result of a comparison must be a boolean", pat);
             }
-            return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+            matcher->alwaysFalse = true;
+        } else {
+            matcher->comparison = toCmp;
         }
-
-        return toCmp;
     } else {
         auto fromArgs = (Value**)b->mem.alloc(sizeof(Value) * 2);
         fromArgs[0] = pivot;
@@ -174,34 +232,57 @@ Value* resolveRangePat(FunBuilder* b, Value* pivot, ast::RangePat* pat) {
             if(!fromCmp || !toCmp || fromCmp->type->kind != Type::Error || toCmp->type->kind != Type::Error) {
                 error(b, "result of a comparison must be a boolean", pat);
             }
-            return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+            matcher->alwaysFalse = true;
+        } else {
+            matcher->comparison = and_(b->block, 0, fromCmp, toCmp);
         }
-
-        return and_(b->block, 0, fromCmp, toCmp);
     }
 }
 
-Value* resolvePat(FunBuilder* b, Value* pivot, ast::Pat* pat) {
+int resolvePat(FunBuilder* b, Block* onFail, Value* pivot, ast::Pat* pat) {
+    Matcher m;
+
     switch(pat->kind) {
         case ast::Pat::Error:
-            return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+            m.alwaysFalse = true;
+            break;
         case ast::Pat::Var:
-            return resolveVarPat(b, pivot, (ast::VarPat*)pat);
+            resolveVarPat(b, &m, pivot, (ast::VarPat*)pat);
+            break;
         case ast::Pat::Lit:
-            return resolveLitPat(b, pivot, (ast::LitPat*)pat);
+            resolveLitPat(b, &m, pivot, (ast::LitPat*)pat);
+            break;
         case ast::Pat::Any:
-            return resolveAnyPat(b, pivot, pat);
+            m.alwaysTrue = true;
+            break;
         case ast::Pat::Tup:
-            return resolveTupPat(b, pivot, (ast::TupPat*)pat);
+            return resolveTupPat(b, onFail, pivot, (ast::TupPat*)pat);
         case ast::Pat::Con:
-            return resolveConPat(b, pivot, (ast::ConPat*)pat);
+            return resolveConPat(b, onFail, pivot, (ast::ConPat*)pat);
         case ast::Pat::Array:
-            return resolveArrPat(b, pivot, (ast::ArrayPat*)pat);
+            return resolveArrPat(b, onFail, pivot, (ast::ArrayPat*)pat);
         case ast::Pat::Rest:
-            return resolveRestPat(b, pivot, (ast::RestPat*)pat);
+            resolveRestPat(b, &m, pivot, (ast::RestPat*)pat);
+            break;
         case ast::Pat::Range:
-            return resolveRangePat(b, pivot, (ast::RangePat*)pat);
+            resolveRangePat(b, &m, pivot, (ast::RangePat*)pat);
+            break;
         default:
-            return constInt(b->block, 0, 0, &intTypes[IntType::Bool]);
+            m.alwaysFalse = true;
+    }
+
+    if(m.alwaysTrue || (m.comparison && alwaysTrue(m.comparison))) {
+        return 1;
+    } else if(m.alwaysFalse || (m.comparison && alwaysFalse(m.comparison))) {
+        jmp(b->block, onFail);
+        return -1;
+    } else {
+        auto then = block(b->fun);
+        then->preceding = b->block;
+
+        je(b->block, m.comparison, then, onFail);
+        b->block = then;
+
+        return 0;
     }
 }
