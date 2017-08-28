@@ -75,10 +75,29 @@ ClassFun* defineClassFun(Context* context, Module* module, TypeClass* typeClass,
 
 Type* findType(Context* context, Module* module, Id name);
 Con* findCon(Context* context, Module* module, Id name);
-Function* findFun(Context* context, Module* module, Id name);
 OpProperties* findOp(Context* context, Module* module, Id name);
 Global* findGlobal(Context* context, Module* module, Id name);
 TypeClass* findClass(Context* context, Module* module, Id name);
+ClassInstance* findInstance(Context* context, Module* module, TypeClass* typeClass, U32 index, Value** args);
+
+struct FoundFunction {
+    enum Kind {
+        Static,
+        Foreign,
+        Class,
+    };
+
+    union {
+        Function* function;
+        ForeignFunction* foreignFunction;
+        ClassFun classFun;
+    };
+
+    Kind kind;
+    bool found;
+};
+
+FoundFunction findFun(Context* context, Module* module, Id name);
 
 Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast);
 void resolveFun(Context* context, Function* fun);

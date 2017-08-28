@@ -268,21 +268,92 @@ Con* findCon(Context* context, Module* module, Id name) {
     }, identifier);
 }
 
-Function* findFun(Context* context, Module* module, Id name) {
+FoundFunction findFun(Context* context, Module* module, Id name) {
+    FoundFunction found;
+
     auto identifier = &context->find(name);
-    return findHelper<Function>(context, module, [=](Module* m, Identifier* id, U32 start) -> Function* {
+    auto find = [&](Module* m, Identifier* id, U32 start) -> bool {
         if(id->segmentCount - 1 == start) {
+            auto hash = id->getHash(start);
+
             // Handle free functions.
             // findHelper will automatically make sure that there are no conflicts in imports.
-            return m->functions.get(id->getHash(start));
+            auto f = m->functions.get(hash);
+            if(f) {
+                found.kind = FoundFunction::Static;
+                found.function = f;
+                return true;
+            }
+
+            auto fo = m->foreignFunctions.get(hash);
+            if(fo) {
+                found.kind = FoundFunction::Foreign;
+                found.foreignFunction = fo;
+                return true;
+            }
+
+            auto c = m->classFunctions.get(hash);
+            if(c) {
+                found.kind = FoundFunction::Class;
+                found.classFun = *c;
+                return true;
+            }
         } else if(id->segmentCount >= 2 && id->segmentCount - 2 == start) {
-            // TODO: Handle qualified functions, such as type instances.
+            // TODO: Handle type instances.
             // Type instances have priority over classes (in case the resolver allows name conflicts between them).
-            return nullptr;
+            TypeClass* c = m->typeClasses.get(id->getHash(start - 1));
+            if(c) {
+                auto src = id->getHash(start);
+                for(U32 i = 0; i < c->funCount; i++) {
+                    if(c->funNames[i] == src) {
+                        found.kind = FoundFunction::Class;
+                        found.classFun = ClassFun{c, i, src};
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
-        return nullptr;
-    }, identifier);
+        return false;
+    };
+
+    auto v = find(module, identifier, 0);
+    if(v) {
+        found.found = true;
+        return found;
+    }
+
+    // Imports have equal weight, so multiple hits here is an error.
+    for(Import& import: module->imports) {
+        // Handle qualified names.
+        // TODO: Handle module import includes and excludes.
+        auto f = false;
+        if(identifier->segmentCount >= 2) {
+            auto start = testImport(&context->find(import.localName), identifier);
+            f = find(import.module, identifier, start);
+        }
+
+        // Handle unqualified names, if the module can be used without one.
+        if(!import.qualified) {
+            auto uv = find(import.module, identifier, 0);
+            if(!f) {
+                f = uv;
+            } else {
+                // TODO: Error
+            }
+        }
+
+        if(f) {
+            if(found.found) {
+                // TODO: Error with current found contents.
+            }
+            found.found = true;
+        }
+    }
+
+    return found;
 }
 
 OpProperties* findOp(Context* context, Module* module, Id name) {
@@ -307,6 +378,10 @@ TypeClass* findClass(Context* context, Module* module, Id name) {
         if(id->segmentCount - 1 > start) return nullptr;
         return m->typeClasses.get(id->getHash(start));
     }, identifier);
+}
+
+ClassInstance* findInstance(Context* context, Module* module, TypeClass* typeClass, U32 index, Value** args) {
+
 }
 
 static U32 prepareGens(Context* context, Module* module, ast::SimpleType* type, GenType*& gens) {
