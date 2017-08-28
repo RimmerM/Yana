@@ -132,6 +132,13 @@ Function* defineFun(Context* context, Module* in, Id name) {
     return f;
 }
 
+Function* defineAnonymousFun(Context* context, Module* in) {
+    auto f = new (in->memory) Function;
+    f->module = in;
+    f->name = 0;
+    return f;
+}
+
 ForeignFunction* defineForeignFun(Context* context, Module* in, Id name, FunType* type) {
     if(in->functions.get(name) || in->foreignFunctions.get(name)) {
         // TODO: Error
@@ -168,6 +175,11 @@ Arg* defineArg(Context* context, Function* fun, Id name, Type* type) {
     a->block = nullptr;
     a->index = index;
     return &*a;
+}
+
+ClassFun* defineClassFun(Context* context, Module* module, TypeClass* typeClass, Id name, U32 index) {
+    typeClass->funNames[index] = name;
+    module->classFunctions.add(name, ClassFun{typeClass, index, name});
 }
 
 U32 testImport(Identifier* importName, Identifier* searchName) {

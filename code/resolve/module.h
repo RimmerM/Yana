@@ -68,9 +68,11 @@ Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index)
 TypeClass* defineClass(Context* context, Module* in, Id name);
 ClassInstance* defineInstance(Context* context, Module* in, TypeClass* to, Type** args);
 Function* defineFun(Context* context, Module* in, Id name);
+Function* defineAnonymousFun(Context* context, Module* in);
 ForeignFunction* defineForeignFun(Context* context, Module* in, Id name, FunType* type);
 Global* defineGlobal(Context* context, Module* in, Id name);
 Arg* defineArg(Context* context, Function* fun, Id name, Type* type);
+ClassFun* defineClassFun(Context* context, Module* module, TypeClass* typeClass, Id name, U32 index);
 
 Type* findType(Context* context, Module* module, Id name);
 Con* findCon(Context* context, Module* module, Id name);
