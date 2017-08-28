@@ -1,3 +1,4 @@
+#include <alloca.h>
 #include "module.h"
 #include "../parse/ast.h"
 
@@ -380,8 +381,65 @@ TypeClass* findClass(Context* context, Module* module, Id name) {
     }, identifier);
 }
 
-ClassInstance* findInstance(Context* context, Module* module, TypeClass* typeClass, U32 index, Value** args) {
+ClassInstance* findInstance(Context* context, Module* module, TypeClass* typeClass, U32 index, Type** args) {
+    auto find = [=](Module* m) -> ClassInstance* {
+        InstanceMap* instances = m->classInstances.get(typeClass->name);
+        if(!instances) return nullptr;
 
+        // TODO: Handle generic and higher-kinded types.
+        // TODO: Binary search.
+        for(U32 i = 0; i < instances->instances.size(); i++) {
+            auto it = instances->instances[i];
+            auto forTypes = it->forTypes;
+
+            bool equal = true;
+            for(U32 j = 0; j < instances->genCount; j++) {
+                auto lhs = forTypes[j];
+                auto rhs = args[j];
+                if(lhs->descriptorLength != rhs->descriptorLength) {
+                    equal = false;
+                    break;
+                }
+
+                if(memcmp(lhs->descriptor, rhs->descriptor, lhs->descriptorLength) != 0) {
+                    equal = false;
+                    break;
+                }
+            }
+
+            if(equal) {
+                return it;
+            }
+        }
+
+        return nullptr;
+    };
+
+    auto v = find(module);
+    if(v) return v;
+
+    // Imports have equal weight, so multiple hits here is an error.
+    ClassInstance* candidate = nullptr;
+
+    for(Import& import: module->imports) {
+        if(!import.qualified) {
+            auto uv = find(import.module);
+            if(!v) {
+                v = uv;
+            } else {
+                // TODO: Error
+            }
+        }
+
+        if(v) {
+            if(candidate) {
+                // TODO: Error
+            }
+            candidate = v;
+        }
+    }
+
+    return candidate;
 }
 
 static U32 prepareGens(Context* context, Module* module, ast::SimpleType* type, GenType*& gens) {
@@ -547,12 +605,25 @@ static void resolveClassFun(Context* context, Module* m, TypeClass* c, U32 index
 
     GenContext gen{nullptr, c->args, c->argCount};
 
+    auto usedArgs = (bool*)alloca(sizeof(bool) * c->argCount);
+    memset(usedArgs, 0, sizeof(bool) * c->argCount);
+    U32 usedArgCount = 0;
+
     auto args = (FunArg*)m->memory.alloc(sizeof(FunArg) * argCount);
     arg = ast->args;
     for(U32 i = 0; i < argCount; i++) {
+        auto t = resolveType(context, m, arg->item.type, &gen);
+        if(t->kind == Type::Gen) {
+            auto id = ((GenType*)t)->index;
+            if(!usedArgs[id]) {
+                usedArgs[id] = true;
+                usedArgCount++;
+            }
+        }
+
         args[i].name = arg->item.name;
         args[i].index = i;
-        args[i].type = resolveType(context, m, arg->item.type, &gen);
+        args[i].type = t;
         arg = arg->next;
     }
 
@@ -567,6 +638,18 @@ static void resolveClassFun(Context* context, Module* m, TypeClass* c, U32 index
     }
 
     // TODO: Resolve default implementation.
+
+    if(type->result->kind == Type::Gen) {
+        auto id = ((GenType*)type->result)->index;
+        if(!usedArgs[id]) {
+            usedArgCount++;
+        }
+    }
+
+    if(usedArgCount < c->argCount) {
+        context->diagnostics.error("class functions must use each class type argument in their implementation", ast, nullptr);
+    }
+
     type->args = args;
     type->argCount = argCount;
     createDescriptor(type, &m->memory);

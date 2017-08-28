@@ -1,3 +1,4 @@
+#include <alloca.h>
 #include "expr.h"
 #include "../parse/ast.h"
 
@@ -119,15 +120,28 @@ static Value* finishForeignCall(FunBuilder* b, ForeignFunction* fun, Value** arg
 }
 
 static Value* finishClassCall(FunBuilder* b, ClassFun fun, Value** args, U32 count, Id name) {
-    auto funType = fun.typeClass->functions[fun.index];
+    auto funType = &fun.typeClass->functions[fun.index];
 
     // If the call used incorrect argument names this error may not trigger.
     // However, in that case we already have an error for the argument name.
-    if(count != funType.argCount) {
+    if(count != funType->argCount) {
         error(b, "incorrect number of function arguments", nullptr);
     }
 
-    auto instance = findInstance(&b->context, b->fun->module, fun.typeClass, fun.index, args);
+    // Class functions must use each type argument in their signatures.
+    // This ensures that we always can infer what instance to use.
+    // TODO: Handle functions where the instance type depends solely on the return type.
+    auto classArgs = (Type**)alloca(sizeof(Type*) * fun.typeClass->argCount);
+    memset(classArgs, 0, sizeof(Type*) * fun.typeClass->argCount);
+
+    for(U32 i = 0; i < count; i++) {
+        auto a = funType->args[i].type;
+        if(a->kind == Type::Gen) {
+            classArgs[((GenType*)a)->index] = args[i]->type;
+        }
+    }
+
+    auto instance = findInstance(&b->context, b->fun->module, fun.typeClass, fun.index, classArgs);
     if(!instance) {
         error(b, "cannot find an implementation of class for these arguments", nullptr);
         return error(b->block, name, &errorType);

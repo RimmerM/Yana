@@ -78,7 +78,7 @@ Con* findCon(Context* context, Module* module, Id name);
 OpProperties* findOp(Context* context, Module* module, Id name);
 Global* findGlobal(Context* context, Module* module, Id name);
 TypeClass* findClass(Context* context, Module* module, Id name);
-ClassInstance* findInstance(Context* context, Module* module, TypeClass* typeClass, U32 index, Value** args);
+ClassInstance* findInstance(Context* context, Module* module, TypeClass* typeClass, U32 index, Type** args);
 
 struct FoundFunction {
     enum Kind {
