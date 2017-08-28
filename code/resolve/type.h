@@ -230,12 +230,6 @@ struct ClassInstance {
     Function** instances; // A list of function implementations. Corresponds to the list in typeClass->functions.
 };
 
-struct InstanceLookup {
-    ClassInstance instance;
-    HashMap<InstanceLookup, Size> next;
-    U32 depth = 0;
-};
-
 struct DerivedTypes {
     explicit DerivedTypes(Module* module, Type* type);
 

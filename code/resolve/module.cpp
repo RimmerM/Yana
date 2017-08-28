@@ -65,36 +65,60 @@ TypeClass* defineClass(Context* context, Module* in, Id name) {
     return c;
 }
 
-static InstanceLookup* findInstance(Module* module, TypeClass* to, InstanceLookup* lookup, Type** args, Size count) {
-    if(count > 0) {
-        auto type = args[0];
+ClassInstance* defineInstance(Context* context, Module* in, TypeClass* to, Type** args) {
+    auto a = in->classInstances.add(to->name);
+    auto map = a.value;
 
-        // If there already was a table for this type, continue in that one.
-        if(auto t = lookup->next.get((Size)type)) {
-            return findInstance(module, to, t, args + 1, count - 1);
+    if(!a.isExisting) {
+        new (map) InstanceMap;
+        map->forClass = to;
+        map->genCount = to->argCount;
+    }
+
+    U32 insertPosition = 0;
+    for(U32 i = 0; i < map->instances.size(); i++) {
+        Type** types = &*map->instances[i]->forTypes;
+
+        int cmp;
+        for(U32 j = 0; j < map->genCount; j++) {
+            auto lhs = types[j];
+            auto rhs = args[j];
+
+            if(lhs->descriptorLength < rhs->descriptorLength) {
+                cmp = -1;
+            } else if(lhs->descriptorLength > rhs->descriptorLength) {
+                cmp = 1;
+            } else {
+                cmp = memcmp(lhs->descriptor, rhs->descriptor, lhs->descriptorLength);
+            }
+
+            if(cmp != 0) {
+                break;
+            }
         }
 
-        // Otherwise, create a new table first.
-        auto next = &lookup->next[(Size)type];
-        auto depth = lookup->depth + 1;
-
-        next->depth = depth;
-        next->instance.module = module;
-        next->instance.forTypes = nullptr;
-        next->instance.typeClass = to;
-        next->instance.instances = nullptr;
-
-        return findInstance(module, to, next, args + 1, count - 1);
-    } else {
-        return lookup;
+        if(cmp > 0) {
+            insertPosition = i + 1;
+            break;
+        } else if(cmp == 0) {
+            context->diagnostics.error("an instance for this class has already been defined", nullptr, nullptr);
+        }
     }
-}
 
-ClassInstance* defineInstance(Context* context, Module* in, TypeClass* to, Type** args) {
-    auto instance = findInstance(in, to, &in->classInstances[to->name], args, to->argCount);
-    instance->instance.forTypes = args;
-    instance->instance.instances = (Function**)in->memory.alloc(sizeof(Function*) * to->funCount);
-    return &instance->instance;
+    auto instance = new (in->memory) ClassInstance;
+    instance->forTypes = args;
+    instance->typeClass = to;
+    instance->module = in;
+    instance->instances = (Function**)in->memory.alloc(sizeof(Function*) * to->funCount);
+    memset(instance->instances, 0, sizeof(Function*) * to->funCount);
+
+    if(insertPosition >= map->instances.size()) {
+        map->instances.push(instance);
+    } else {
+        map->instances.insert(insertPosition, instance);
+    }
+
+    return instance;
 }
 
 Function* defineFun(Context* context, Module* in, Id name) {
@@ -263,6 +287,14 @@ Global* findGlobal(Context* context, Module* module, Id name) {
     }, identifier);
 }
 
+TypeClass* findClass(Context* context, Module* module, Id name) {
+    auto identifier = &context->find(name);
+    return findHelper<TypeClass>(context, module, [=](Module* m, Identifier* id, U32 start) -> TypeClass* {
+        if(id->segmentCount - 1 > start) return nullptr;
+        return m->typeClasses.get(id->getHash(start));
+    }, identifier);
+}
+
 static U32 prepareGens(Context* context, Module* module, ast::SimpleType* type, GenType*& gens) {
     auto kind = type->kind;
     U32 count = 0;
@@ -329,10 +361,11 @@ static bool prepareImports(Context* context, Module* module, ModuleHandler* hand
 
 struct SymbolCounts {
     U32 statements; // The number of free statements in the module.
+    U32 instances; // The number of class instances in the module.
 };
 
 static SymbolCounts prepareSymbols(Context* context, Module* module, ast::Decl** decls, Size count) {
-    SymbolCounts counts = {0};
+    SymbolCounts counts = {0, 0};
 
     for(Size i = 0; i < count; i++) {
         auto decl = decls[i];
@@ -401,6 +434,10 @@ static SymbolCounts prepareSymbols(Context* context, Module* module, ast::Decl**
                 auto c = defineClass(context, module, ast->type->name);
                 c->ast = ast;
                 c->argCount = (U16)prepareGens(context, module, ast->type, c->args);
+                break;
+            }
+            case ast::Decl::Instance: {
+                counts.instances++;
                 break;
             }
         }
@@ -571,6 +608,99 @@ void resolveGlobals(Context* context, Module* module, ast::Decl** decls, Size co
     module->staticInit = staticInit;
 }
 
+void resolveTypeInstance(Context* context, Module* module, ast::InstanceDecl* decl) {
+
+}
+
+void resolveClassFunction(Context* context, Module* module, ClassInstance* instance, ast::FunDecl* decl) {
+    auto typeClass = instance->typeClass;
+    int index = -1;
+
+    for(U32 i = 0; i < typeClass->funCount; i++) {
+        if(typeClass->funNames[i] == decl->name) {
+            index = i;
+            break;
+        }
+    }
+
+    if(index < 0) {
+        context->diagnostics.error("instance function doesn't match any class function", decl, nullptr);
+        return;
+    }
+
+    auto fun = new (module->memory) Function;
+    fun->module = module;
+    fun->name = decl->name;
+    fun->ast = decl;
+    instance->instances[index] = fun;
+
+    resolveFun(context, fun);
+}
+
+void resolveClassInstance(Context* context, Module* module, ast::InstanceDecl* decl, TypeClass* forClass, List<ast::Type*>* types) {
+    U32 typeCount = 0;
+    auto t = types;
+    while(t) {
+        typeCount++;
+        t = t->next;
+    }
+
+    if(typeCount != forClass->argCount) {
+        context->diagnostics.error("class instances must have a type for each class argument", decl->type, nullptr);
+    }
+
+    auto args = (Type**)module->memory.alloc(sizeof(Type*) * typeCount);
+    t = types;
+    for(U32 i = 0; i < typeCount; i++) {
+        args[i] = resolveType(context, module, t->item, nullptr);
+        t = t->next;
+    }
+
+    auto instance = defineInstance(context, module, forClass, args);
+
+    auto d = decl->decls;
+    while(d) {
+        if(d->item->kind == ast::Decl::Fun) {
+            auto f = (ast::FunDecl*)d->item;
+            resolveClassFunction(context, module, instance, f);
+        }
+
+        d = d->next;
+    }
+
+    for(U32 i = 0; i < forClass->funCount; i++) {
+        if(!instance->instances[i]) {
+            context->diagnostics.error("class instance doesn't implement function", decl, nullptr);
+        }
+    }
+}
+
+void resolveInstances(Context* context, Module* module, ast::Decl** decls, Size count) {
+    for(Size i = 0; i < count; i++) {
+        if(decls[i]->kind == ast::Decl::Instance) {
+            auto decl = (ast::InstanceDecl*)decls[i];
+
+            bool wasClass = false;
+            if(decl->type->kind == ast::Type::App) {
+                auto a = (ast::AppType*)decl->type;
+                if(a->base->kind == ast::Type::Con) {
+                    auto con = (ast::ConType*)a->base;
+                    auto c = findClass(context, module, con->con);
+                    if(c) {
+                        resolveClassInstance(context, module, decl, c, a->apps);
+                        wasClass = true;
+                    }
+                }
+            }
+
+            if(!wasClass) {
+                resolveTypeInstance(context, module, decl);
+            }
+            context->exprArena.reset();
+        }
+    }
+}
+
 Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast) {
     auto module = new Module;
     module->id = ast->name;
@@ -605,6 +735,10 @@ Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast
 
         fun.type = (FunType*)type;
         fun.ast = nullptr;
+    }
+
+    if(counts.instances > 0) {
+        resolveInstances(context, module, ast->decls.pointer(), ast->decls.size());
     }
 
     if(counts.statements > 0) {

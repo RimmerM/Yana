@@ -25,6 +25,12 @@ struct ClassFun {
     Id name;
 };
 
+struct InstanceMap {
+    Array<ClassInstance*> instances; // List of implementations, sorted by descriptor.
+    TypeClass* forClass;
+    U32 genCount = 0; // Number of instances in each array element.
+};
+
 struct Module {
     Id id;
     Identifier* name;
@@ -33,7 +39,7 @@ struct Module {
     HashMap<Function, Id> functions;
     HashMap<ForeignFunction, Id> foreignFunctions;
     HashMap<TypeClass, Id> typeClasses;
-    HashMap<InstanceLookup, Id> classInstances;
+    HashMap<InstanceMap, Id> classInstances;
     HashMap<ClassFun, Id> classFunctions;
 
     HashMap<Type*, Id> types;
@@ -71,6 +77,7 @@ Con* findCon(Context* context, Module* module, Id name);
 Function* findFun(Context* context, Module* module, Id name);
 OpProperties* findOp(Context* context, Module* module, Id name);
 Global* findGlobal(Context* context, Module* module, Id name);
+TypeClass* findClass(Context* context, Module* module, Id name);
 
 Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast);
 void resolveFun(Context* context, Function* fun);

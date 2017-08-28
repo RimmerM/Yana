@@ -474,8 +474,8 @@ struct ClassDecl: Decl {
 };
 
 struct InstanceDecl: Decl {
-    InstanceDecl(SimpleType* type, List<Decl*>* decls): Decl(Instance), type(type), decls(decls) {}
-    SimpleType* type;
+    InstanceDecl(Type* type, List<Decl*>* decls): Decl(Instance), type(type), decls(decls) {}
+    Type* type;
     List<Decl*>* decls;
 };
 

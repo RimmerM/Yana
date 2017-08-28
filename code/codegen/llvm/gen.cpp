@@ -75,7 +75,7 @@ llvm::Type* genTupType(Gen* gen, TupType* type) {
 }
 
 RecordGen* genRecordType(Gen* gen, RecordType* type) {
-    auto& layout = gen->module->getDataLayout();
+    auto layout = gen->module->getDataLayout();
     auto conCount = type->conCount;
     auto cons = type->cons;
     auto record = new (*gen->mem) RecordGen;
@@ -90,8 +90,8 @@ RecordGen* genRecordType(Gen* gen, RecordType* type) {
             record->selectorType = gen->builder->getInt32Ty();
         }
 
-        record->selectorSize = (U32)layout.getTypeAllocSize(record->selectorType);
-        record->selectorAlignment = layout.getPrefTypeAlignment(record->selectorType);
+        record->selectorSize = (U32)layout->getTypeAllocSize(record->selectorType);
+        record->selectorAlignment = layout->getPrefTypeAlignment(record->selectorType);
     } else {
         record->selectorType = nullptr;
         record->selectorSize = 0;
@@ -120,8 +120,8 @@ RecordGen* genRecordType(Gen* gen, RecordType* type) {
         conGen->memType = con;
         conGen->regType = con;
 
-        auto s = (U32)layout.getTypeAllocSize(con);
-        auto a = layout.getPrefTypeAlignment(con);
+        auto s = (U32)layout->getTypeAllocSize(con);
+        auto a = layout->getPrefTypeAlignment(con);
         conGen->size = s;
         conGen->alignment = a;
 
@@ -145,8 +145,8 @@ RecordGen* genRecordType(Gen* gen, RecordType* type) {
                 auto t = llvm::StructType::get(*gen->llvm, {memTypes, 2});
                 conGen->memType = t;
 
-                auto s = (U32)layout.getTypeAllocSize(t);
-                auto a = layout.getPrefTypeAlignment(t);
+                auto s = (U32)layout->getTypeAllocSize(t);
+                auto a = layout->getPrefTypeAlignment(t);
                 conGen->size = s;
                 conGen->alignment = a;
 

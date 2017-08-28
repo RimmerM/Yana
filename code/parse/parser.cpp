@@ -437,7 +437,7 @@ Decl* Parser::parseInstanceDecl() {
         assert(token.type == Token::kwInstance);
         eat();
 
-        auto type = parseSimpleType();
+        auto type = parseType();
         if(token.type == Token::opColon) {
             eat();
         } else {
