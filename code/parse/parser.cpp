@@ -1180,11 +1180,20 @@ Type* Parser::parseAType() {
             return new (buffer) AppType(base, type);
         } else if(token.type == Token::BraceL) {
             return new (buffer) AppType(base, list(parseTupleType()));
+        } else if(token.type == Token::BracketL) {
+            return new (buffer) AppType(base, list(parseArrayType()));
         } else if(token.type == Token::ConID) {
             auto con = node([=]() -> Type* {
                 auto id = token.data.id;
                 eat();
                 return new(buffer) ConType(id);
+            });
+            return new (buffer) AppType(base, list(con));
+        } else if(token.type == Token::VarID) {
+            auto con = node([=]() -> Type* {
+                auto id = token.data.id;
+                eat();
+                return new(buffer) GenType(id);
             });
             return new (buffer) AppType(base, list(con));
         } else {
@@ -1198,27 +1207,7 @@ Type* Parser::parseAType() {
         // Also handles unit type.
         return parseTupleType();
     } else if(token.type == Token::BracketL) {
-        eat();
-        auto from = parseType();
-        if(token.type == Token::opArrowD) {
-            eat();
-            auto to = parseType();
-            if(token.type == Token::BracketR) {
-                eat();
-            } else {
-                error("expected ']' after array type");
-            }
-
-            return new (buffer) MapType(from, to);
-        } else {
-            if(token.type == Token::BracketR) {
-                eat();
-            } else {
-                error("expected ']' after array type");
-            }
-
-            return new (buffer) ArrType(from);
-        }
+        return parseArrayType();
     } else if(token.type == Token::ParenL) {
         eat();
         auto t = parseType();
@@ -1283,6 +1272,32 @@ Type* Parser::parseTupleType() {
         });
 
         return type;
+    });
+}
+
+Type* Parser::parseArrayType() {
+    return node([=]() -> Type* {
+        eat();
+        auto from = parseType();
+        if(token.type == Token::opArrowD) {
+            eat();
+            auto to = parseType();
+            if(token.type == Token::BracketR) {
+                eat();
+            } else {
+                error("expected ']' after array type");
+            }
+
+            return new(buffer) MapType(from, to);
+        } else {
+            if(token.type == Token::BracketR) {
+                eat();
+            } else {
+                error("expected ']' after array type");
+            }
+
+            return new(buffer) ArrType(from);
+        }
     });
 }
 
