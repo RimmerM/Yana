@@ -13,7 +13,7 @@ struct FunBuilder;
 
 struct Import {
     Module* module;
-    Identifier* localName;
+    Id localName;
     Array<Id> includedSymbols;
     Array<Id> excludedSymbols;
     bool qualified;
@@ -33,7 +33,6 @@ struct InstanceMap {
 
 struct Module {
     Id id;
-    Identifier* name;
 
     HashMap<Import, Id> imports;
     HashMap<Function, Id> functions;
@@ -90,8 +89,8 @@ struct Function {
     Id name;
 
     Type* returnType = nullptr;
-    Array<Arg> args; // Can contain values because all are created before we use them.
-    Array<Block*> blocks; // Can't contain values because we store the pointers to them.
+    Array<Arg*> args;
+    Array<Block*> blocks;
     Array<InstRet*> returnPoints;
 
     // If this function can be used as an intrinsic, this builds an inline version in the current blocks.

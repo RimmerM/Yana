@@ -213,9 +213,9 @@ void printFunction(std::ostream& stream, Context& context, const Function* fun, 
 
     stream << '(';
     for(Size i = 0; i < fun->args.size(); i++) {
-        printValue(stream, context, &fun->args[i]);
+        printValue(stream, context, fun->args[i]);
         stream << " : ";
-        printType(stream, context, fun->args[i].type);
+        printType(stream, context, fun->args[i]->type);
         if(i < fun->args.size() - 1) {
             stream << ", ";
         }

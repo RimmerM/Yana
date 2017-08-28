@@ -93,12 +93,12 @@ static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 c
 
     // Check the argument types and perform implicit conversions if needed.
     for(U32 i = 0; i < argCount; i++) {
-        auto v = implicitConvert(b, args[i], fun->args[i].type, false, false);
+        auto v = implicitConvert(b, args[i], fun->args[i]->type, false, false);
         if(v) {
             args[i] = v;
         } else {
             error(b, "incompatible type for function argument", nullptr);
-            args[i] = error(b->block, 0, fun->args[i].type);
+            args[i] = error(b->block, 0, fun->args[i]->type);
         }
     }
 
@@ -140,7 +140,7 @@ Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List<ast::T
         if(arg.name) {
             found = false;
             for(U32 a = 0; a < argCount; a++) {
-                auto fa = &fun->args[a];
+                auto fa = fun->args[a];
                 if(arg.name == fa->name) {
                     argIndex = fa->index;
                     found = true;

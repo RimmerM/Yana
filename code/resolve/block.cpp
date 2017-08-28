@@ -39,9 +39,9 @@ Value* Block::findValue(Id name) {
     if(preceding) {
         return preceding->findValue(name);
     } else {
-        for(Arg& arg: function->args) {
-            if(arg.name == name) {
-                return &arg;
+        for(Arg* arg: function->args) {
+            if(arg->name == name) {
+                return arg;
             }
         }
         return nullptr;

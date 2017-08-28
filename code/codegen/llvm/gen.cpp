@@ -75,7 +75,7 @@ llvm::Type* genTupType(Gen* gen, TupType* type) {
 }
 
 RecordGen* genRecordType(Gen* gen, RecordType* type) {
-    auto layout = gen->module->getDataLayout();
+    auto layout = &gen->module->getDataLayout();
     auto conCount = type->conCount;
     auto cons = type->cons;
     auto record = new (*gen->mem) RecordGen;
@@ -416,7 +416,7 @@ llvm::Value* genFCmp(Gen* gen, InstFCmp* inst) {
             p = llvm::CmpInst::FCMP_OLE;
             break;
     }
-    return gen->builder->CreateICmp(p, useValue(gen, inst->lhs), useValue(gen, inst->rhs));
+    return gen->builder->CreateFCmp(p, useValue(gen, inst->lhs), useValue(gen, inst->rhs));
 }
 
 llvm::Value* genShl(Gen* gen, InstShift* inst) {
@@ -800,8 +800,8 @@ llvm::Function* genFunction(Gen* gen, Function* fun) {
     auto argCount = fun->args.size();
     auto args = (llvm::Type**)alloca(argCount * sizeof(llvm::Type*));
     for(U32 i = 0; i < argCount; i++) {
-        auto t = useType(gen, fun->args[i].type);
-        if(isIndirect(fun->args[i].type)) {
+        auto t = useType(gen, fun->args[i]->type);
+        if(isIndirect(fun->args[i]->type)) {
             args[i] = llvm::PointerType::get(t, 0);
         } else {
             args[i] = t;
@@ -817,7 +817,7 @@ llvm::Function* genFunction(Gen* gen, Function* fun) {
 
     U32 i = 0;
     for(auto it = f->arg_begin(); it != f->arg_end(); i++, it++) {
-        auto arg = &fun->args[i];
+        auto arg = fun->args[i];
         it->setName(toRef(gen->context, arg->name));
         arg->codegen = &*it;
     }
@@ -836,7 +836,9 @@ llvm::Value* genGlobal(Gen* gen, Global* global) {
 }
 
 llvm::Module* genModule(llvm::LLVMContext* llvm, Context* context, Module* module) {
-    auto name = llvm::StringRef{module->name->text, module->name->textLength};
+    auto moduleName = &context->find(module->id);
+
+    auto name = llvm::StringRef{moduleName->text, moduleName->textLength};
     auto llvmModule = new llvm::Module(name, *llvm);
     llvmModule->setDataLayout("e-S128");
     llvmModule->setTargetTriple(LLVM_HOST_TRIPLE);
@@ -851,6 +853,18 @@ llvm::Module* genModule(llvm::LLVMContext* llvm, Context* context, Module* modul
     for(auto& fun: module->functions) {
         // Functions can be lazily generated depending on their usage order, so we only generate if needed.
         useFunction(&gen, &fun);
+    }
+
+    for(const InstanceMap& map: module->classInstances) {
+        for(U32 i = 0; i < map.instances.size(); i++) {
+            ClassInstance* instance = map.instances[i];
+            auto instances = instance->instances;
+            auto funCount = instance->typeClass->funCount;
+
+            for(U32 j = 0; j < funCount; j++) {
+                useFunction(&gen, instances[j]);
+            }
+        }
     }
 
     return llvmModule;

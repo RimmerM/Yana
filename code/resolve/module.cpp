@@ -168,13 +168,15 @@ Global* defineGlobal(Context* context, Module* in, Id name) {
 
 Arg* defineArg(Context* context, Function* fun, Id name, Type* type) {
     auto index = (U32)fun->args.size();
-    auto a = fun->args.push();
+    auto a = new (fun->module->memory) Arg;
     a->kind = Value::Arg;
     a->type = type;
     a->name = name;
     a->block = nullptr;
     a->index = index;
-    return &*a;
+
+    fun->args.push(a);
+    return a;
 }
 
 ClassFun* defineClassFun(Context* context, Module* module, TypeClass* typeClass, Id name, U32 index) {
@@ -205,7 +207,7 @@ T* findHelper(Context* context, Module* module, F find, Identifier* name) {
         // Handle qualified names.
         // TODO: Handle module import includes and excludes.
         if(name->segmentCount >= 2) {
-            auto start = testImport(import.localName, name);
+            auto start = testImport(&context->find(import.localName), name);
             v = find(import.module, name, start);
         }
 
@@ -339,7 +341,7 @@ static bool prepareImports(Context* context, Module* module, ModuleHandler* hand
 
         auto it = &module->imports[import.localName];
         it->qualified = import.qualified;
-        it->localName = &context->find(import.localName);
+        it->localName = import.localName;
         it->module = importModule;
 
         auto include = import.include;
@@ -364,7 +366,7 @@ static bool prepareImports(Context* context, Module* module, ModuleHandler* hand
 
         auto import = &module->imports[preludeId];
         import->module = prelude;
-        import->localName = prelude->name;
+        import->localName = prelude->id;
         import->qualified = false;
     }
 
@@ -716,7 +718,6 @@ void resolveInstances(Context* context, Module* module, ast::Decl** decls, Size 
 Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast) {
     auto module = new Module;
     module->id = ast->name;
-    module->name = &context->find(ast->name);
 
     // Load any imported modules.
     // These are loaded asynchronously; this function will be called again when all are loaded.

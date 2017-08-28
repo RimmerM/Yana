@@ -43,8 +43,8 @@ static Function* cmpFunction(Context* context, Module* module, Type* type, const
 }
 
 template<class Cmp, CmpIntrinsic<Cmp> cmp, Cmp Eq, Cmp Gt>
-static Function* ordCompare(Context* context, Module* module, Type* type, RecordType* orderingType) {
-    auto fun = defineFun(context, module, 0);
+static Function* ordCompare(Context* context, Module* module, Type* type, RecordType* orderingType, const char* name, U32 length) {
+    auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length)) : defineAnonymousFun(context, module);
     auto lhs = defineArg(context, fun, 0, type);
     auto rhs = defineArg(context, fun, 0, type);
     fun->returnType = orderingType;
@@ -74,8 +74,8 @@ static Function* ordCompare(Context* context, Module* module, Type* type, Record
 }
 
 template<class Cmp, CmpIntrinsic<Cmp> cmp, Cmp Gt>
-static Function* maxCompare(Context* context, Module* module, Type* type) {
-    auto fun = defineFun(context, module, 0);
+static Function* maxCompare(Context* context, Module* module, Type* type, const char* name, U32 length) {
+    auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length)) : defineAnonymousFun(context, module);
     auto lhs = defineArg(context, fun, 0, type);
     auto rhs = defineArg(context, fun, 0, type);
     fun->returnType = type;
@@ -122,7 +122,6 @@ FunType* binaryFunType(FunType* type, Module* module, Type* lhs, Type* rhs, Type
 Module* preludeModule(Context* context) {
     auto module = new Module;
     module->id = context->addUnqualifiedName("Prelude", 7);
-    module->name = &context->find(module->id);
 
     // Define basic operators.
     auto opEq = context->addUnqualifiedName("==", 2);
@@ -245,9 +244,9 @@ Module* preludeModule(Context* context) {
             instance->instances[1] = cmpFunction<ICmp, icmp, ICmp::ile>(context, module, type, nullptr, 0);
             instance->instances[2] = cmpFunction<ICmp, icmp, ICmp::igt>(context, module, type, nullptr, 0);
             instance->instances[3] = cmpFunction<ICmp, icmp, ICmp::ige>(context, module, type, nullptr, 0);
-            instance->instances[4] = ordCompare<ICmp, icmp, ICmp::eq, ICmp::igt>(context, module, type, orderingType);
-            instance->instances[5] = maxCompare<ICmp, icmp, ICmp::igt>(context, module, type);
-            instance->instances[6] = maxCompare<ICmp, icmp, ICmp::ilt>(context, module, type);
+            instance->instances[4] = ordCompare<ICmp, icmp, ICmp::eq, ICmp::igt>(context, module, type, orderingType, nullptr, 0);
+            instance->instances[5] = maxCompare<ICmp, icmp, ICmp::igt>(context, module, type, nullptr, 0);
+            instance->instances[6] = maxCompare<ICmp, icmp, ICmp::ilt>(context, module, type, nullptr, 0);
         };
 
         auto floatInstance = [=](FloatType* type) -> ClassInstance* {
@@ -259,9 +258,9 @@ Module* preludeModule(Context* context) {
             instance->instances[1] = cmpFunction<FCmp, fcmp, FCmp::le>(context, module, type, nullptr, 0);
             instance->instances[2] = cmpFunction<FCmp, fcmp, FCmp::gt>(context, module, type, nullptr, 0);
             instance->instances[3] = cmpFunction<FCmp, fcmp, FCmp::ge>(context, module, type, nullptr, 0);
-            instance->instances[4] = ordCompare<FCmp, fcmp, FCmp::eq, FCmp::gt>(context, module, type, orderingType);
-            instance->instances[5] = maxCompare<FCmp, fcmp, FCmp::gt>(context, module, type);
-            instance->instances[6] = maxCompare<FCmp, fcmp, FCmp::lt>(context, module, type);
+            instance->instances[4] = ordCompare<FCmp, fcmp, FCmp::eq, FCmp::gt>(context, module, type, orderingType, nullptr, 0);
+            instance->instances[5] = maxCompare<FCmp, fcmp, FCmp::gt>(context, module, type, nullptr, 0);
+            instance->instances[6] = maxCompare<FCmp, fcmp, FCmp::lt>(context, module, type, nullptr, 0);
         };
 
         intInstance(&intTypes[IntType::Bool]);
@@ -340,7 +339,7 @@ Module* preludeModule(Context* context) {
             auto args = (Type**)module->memory.alloc(sizeof(Type*));
             args[0] = type;
 
-            auto instance = defineInstance(context, module, numClass, args);
+            auto instance = defineInstance(context, module, integralClass, args);
             instance->instances[0] = binaryFunction<shl>(context, module, type, nullptr, 0);
             instance->instances[1] = binaryFunction<sar>(context, module, type, nullptr, 0);
             instance->instances[2] = binaryFunction<shr>(context, module, type, nullptr, 0);
@@ -361,8 +360,6 @@ Module* preludeModule(Context* context) {
 Module* unsafeModule(Context* context, Module* prelude) {
     auto module = new Module;
     module->id = context->addUnqualifiedName("Unsafe", 6);
-    module->name = &context->find(module->id);
-
 
     return module;
 }

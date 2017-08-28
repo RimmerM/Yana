@@ -90,9 +90,6 @@ struct Context {
     Arena exprArena;
 
 private:
-    Byte* astBuffer = nullptr;
-    Byte* astMax = nullptr;
-    Array<Byte*> astBuffers;
     HashMap<Identifier, Id> identifiers;
     HashMap<OpProperties, Id> ops;
 };
