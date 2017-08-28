@@ -152,6 +152,39 @@ void printGlobal(std::ostream& stream, Context& context, const Global* global) {
     stream << '\n';
 }
 
+void printTypeClass(std::ostream& stream, Context& context, const InstanceMap* map) {
+    for(U32 i = 0; i < map->instances.size(); i++) {
+        stream << "instance ";
+
+        ClassInstance* instance = map->instances[i];
+        auto argCount = instance->typeClass->argCount;
+        auto funCount = instance->typeClass->funCount;
+
+        auto name = context.find(instance->typeClass->name);
+        if(name.textLength > 0) {
+            stream.write(name.text, name.textLength);
+        } else {
+            stream << "<unnamed>";
+        }
+
+        stream << '(';
+        for(U32 j = 0; j < argCount; j++) {
+            printType(stream, context, instance->forTypes[j]);
+            if(j < argCount - 1) {
+                stream << ", ";
+            }
+        }
+        stream << ")\n";
+
+        for(U32 j = 0; j < funCount; j++) {
+            printFunction(stream, context, instance->instances[j], instance->typeClass->funNames[j]);
+            stream << '\n';
+        }
+
+        stream << "end instance\n";
+    }
+}
+
 void printModule(std::ostream& stream, Context& context, const Module* module) {
     for(auto& global: module->globals) {
         printGlobal(stream, context, &global);
@@ -162,11 +195,16 @@ void printModule(std::ostream& stream, Context& context, const Module* module) {
         printFunction(stream, context, &fun);
         stream << '\n';
     }
+
+    for(const InstanceMap& instance: module->classInstances) {
+        printTypeClass(stream, context, &instance);
+        stream << '\n';
+    }
 }
 
-void printFunction(std::ostream& stream, Context& context, const Function* fun) {
+void printFunction(std::ostream& stream, Context& context, const Function* fun, Id forceName) {
     stream << "fn ";
-    auto name = context.find(fun->name);
+    auto name = context.find(forceName ? forceName : fun->name);
     if(name.textLength > 0) {
         stream.write(name.text, name.textLength);
     } else {
