@@ -245,7 +245,8 @@ Value* resolveApp(FunBuilder* b, ast::AppExpr* expr, Id name, bool used) {
         return resolveStaticCall(b, callee->name, nullptr, expr->args, name);
     } else {
         auto callee = resolveExpr(b, expr->callee, 0, true);
-        if(callee->type->kind == Type::Fun) {
+        auto calleeType = canonicalType(callee->type);
+        if(calleeType->kind == Type::Fun) {
             return resolveDynCall(b, callee, expr->args, name);
         } else {
             error(b, "callee is not a function type", expr->callee);

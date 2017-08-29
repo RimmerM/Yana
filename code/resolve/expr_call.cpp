@@ -12,7 +12,7 @@
  */
 
 Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* argList, Id name) {
-    auto funType = (FunType*)callee->type;
+    auto funType = (FunType*)canonicalType(callee->type);
     auto argCount = (U32)funType->argCount;
 
     auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
@@ -67,7 +67,7 @@ Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* argList, 
         args[i] = v;
     }
 
-    return callDyn(b->block, name, callee, args, argCount);
+    return callDyn(b->block, name, callee, funType->result, args, argCount);
 }
 
 static FoundFunction resolveStaticFun(FunBuilder* b, Id funName, Value* fieldArg) {

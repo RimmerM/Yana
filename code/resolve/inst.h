@@ -81,9 +81,14 @@ struct Value {
         InstGetField,
         InstUpdateField,
 
+        // Arrays.
         InstArrayLength,
         InstArrayCopy,
         InstArraySlice,
+
+        // Strings.
+        InstStringLength,
+        InstStringData,
 
         // Function calls.
         InstCall,
@@ -344,6 +349,10 @@ struct InstUpdateField: Inst {
     U32 fieldCount;
 };
 
+/*
+ * Arrays.
+ */
+
 // Returns the number of items an array currently contains.
 struct InstArrayLength: Inst {
     Value* from;
@@ -369,6 +378,22 @@ struct InstArraySlice: Inst {
 };
 
 /*
+ * Strings.
+ */
+
+// Returns the string length as an integer.
+struct InstStringLength: Inst {
+    Value* from;
+};
+
+// Returns platform-specific a string data.
+// On native platforms, this returns a pointer to the actual string bytes.
+// On JS platforms, this returns a native value containing a string.
+struct InstStringData: Inst {
+    Value* from;
+};
+
+/*
  * Function calls.
  */
 struct InstCall: Inst {
@@ -382,7 +407,16 @@ struct InstCallGen: InstCall {};
 struct InstCallDyn: Inst {
     Value* fun;
     Value** args;
-    Size argCount;
+    U32 argCount;
+
+    // If this is set, the function call should be interpreted as an intrinsic.
+    // This can mean multiple things:
+    //  - For the native target:
+    //     - Calling an IntType value will generate a system call for that value.
+    //     - Calling a StringType value will generate an llvm intrinsic call.
+    //  - For the JS target:
+    //     - Calling a StringType value will generate a call to a native JS function.
+    bool isIntrinsic;
 };
 
 struct InstCallDynGen: InstCallDyn {};
@@ -491,10 +525,13 @@ InstArrayLength* arrayLength(Block* block, Id name, Value* from);
 InstArrayCopy* arrayCopy(Block* block, Id name, Value* from, Value* to, Value* offset, Value* count, bool checked);
 InstArraySlice* arraySlice(Block* block, Id name, Value* from, Value* start, Value* count);
 
+Value* stringLength(Block* block, Id name, Value* from);
+Value* stringData(Block* block, Id name, Value* from);
+
 InstCall* call(Block* block, Id name, struct Function* fun, Value** args, U32 count);
 InstCallGen* callGen(Block* block, Id name, struct Function* fun, Value** args, U32 count);
-InstCallDyn* callDyn(Block* block, Id name, Value* fun, Value** args, U32 count);
-InstCallDynGen* callDynGen(Block* block, Id name, Value* fun, Value** args, U32 count);
+InstCallDyn* callDyn(Block* block, Id name, Value* fun, Type* type, Value** args, U32 count, bool isIntrinsic = false);
+InstCallDynGen* callDynGen(Block* block, Id name, Value* fun, Type* type, Value** args, U32 count);
 InstCallForeign* callForeign(Block* block, Id name, struct ForeignFunction* fun, Value** args, U32 count);
 
 InstJe* je(Block* block, Value* cond, Block* then, Block* otherwise);

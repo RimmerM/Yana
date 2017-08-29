@@ -372,6 +372,12 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         case Inst::InstArraySlice:
             name = "arrayslice";
             break;
+        case Inst::InstStringLength:
+            name = "stringlength";
+            break;
+        case Inst::InstStringData:
+            name = "stringdata";
+            break;
         case Inst::InstCall:
             name = "call";
             break;
@@ -434,6 +440,12 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
 
             if(inst->usedCount > 0) {
                 stream << ", ";
+            }
+            break;
+        }
+        case Inst::InstCallDyn: {
+            if(((InstCallDyn*)inst)->isIntrinsic) {
+                stream << "<intrinsic> ";
             }
             break;
         }
