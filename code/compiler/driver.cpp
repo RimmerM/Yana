@@ -94,6 +94,8 @@ int main(int argc, const char** argv) {
     FileHandler handler(&context);
     Array<Module*> compiledModules;
 
+    compiledModules.push(handler.prelude);
+
     if(isDirectory(root)) {
         // TODO:
     } else {
@@ -109,8 +111,10 @@ int main(int argc, const char** argv) {
 
         for(auto module: compiledModules) {
             irFile << "module ";
-            if(module->name->textLength > 0) {
-                irFile.write(module->name->text, module->name->textLength);
+            auto name = &context.find(module->id);
+
+            if(name->textLength > 0) {
+                irFile.write(name->text, name->textLength);
             } else {
                 irFile << "<unnamed>";
             }

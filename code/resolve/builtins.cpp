@@ -354,6 +354,22 @@ Module* preludeModule(Context* context) {
         intInstance(&intTypes[IntType::Long]);
     }
 
+    auto printFunction = defineFun(context, module, context->addUnqualifiedName("print", 5));
+    {
+        printFunction->returnType = &unitType;
+
+        auto arg = defineArg(context, printFunction, 0, &stringType);
+        auto body = block(printFunction);
+
+        auto args = (Value**)module->memory.alloc(sizeof(Value*) * 3);
+        args[0] = constInt(body, 0, 1, &intTypes[IntType::Int]);
+        args[1] = stringData(body, 0, arg);
+        args[2] = stringLength(body, 0, arg);
+
+        auto result = callDyn(body, 0, constInt(body, 0, 0x2000004, &intTypes[IntType::Int]), &unitType, args, 3, true);
+        ret(body, result);
+    }
+
     return module;
 }
 
