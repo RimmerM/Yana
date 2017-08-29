@@ -44,7 +44,7 @@ void printType(std::ostream& stream, Context& context, const Type* type) {
             stream << ((FloatType*)type)->bits;
             break;
         case Type::String:
-            stream << 's';
+            stream << "String";
             break;
         case Type::Ref:
             stream << '*';
@@ -71,9 +71,9 @@ void printType(std::ostream& stream, Context& context, const Type* type) {
 
             if(record->instanceOf) {
                 stream << '(';
-                for(Size i = 0; i < record->genCount; i++) {
+                for(Size i = 0; i < record->instanceOf->genCount; i++) {
                     printType(stream, context, record->instance[i]);
-                    if(i < record->genCount - 1) {
+                    if(i < record->instanceOf->genCount - 1) {
                         stream << ", ";
                     }
                 }

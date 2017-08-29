@@ -385,6 +385,10 @@ AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, T
 }
 
 RecordType* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count) {
+    if(type->genCount == 0) {
+        return type;
+    }
+
     if(count != type->genCount) {
         context->diagnostics.error("incorrect number of arguments to type", nullptr, nullptr);
         return type;
@@ -392,19 +396,45 @@ RecordType* instantiateRecord(Context* context, Module* module, RecordType* type
 
     auto record = new (module->memory) RecordType;
     record->ast = nullptr;
-    record->instanceOf = type;
     record->conCount = type->conCount;
     record->name = type->name;
-    record->genCount = 0;
     record->kind = type->kind;
     record->qualified = type->qualified;
     record->descriptor = type->descriptor;
     record->descriptorLength = type->descriptorLength;
+    record->genCount = 0;
 
-    auto instance = (Type**)module->memory.alloc(sizeof(Type*) * count);
-    memcpy(instance, args, sizeof(Type*) * count);
-    record->instance = instance;
-    record->genCount = count;
+    // Make sure that each instantiated record has exactly one base type.
+    // Using generic aliases it is possible to produce instances of instantiated records.
+    if(type->instanceOf) {
+        auto baseInstance = type->instanceOf;
+        auto instance = (Type**)module->memory.alloc(sizeof(Type*) * baseInstance->genCount);
+        memcpy(instance, type->instance, sizeof(Type*) * baseInstance->genCount);
+
+        // Match the generics in the instance to the new arguments.
+        U32 argIndex = 0;
+        for(U32 i = 0; i < baseInstance->genCount; i++) {
+            if(type->instance[i]->kind == Type::Gen) {
+                instance[i] = args[argIndex];
+                argIndex++;
+            }
+        }
+
+        record->instanceOf = baseInstance;
+        record->instance = instance;
+    } else {
+        auto instance = (Type**)module->memory.alloc(sizeof(Type*) * count);
+        memcpy(instance, args, sizeof(Type*) * count);
+
+        record->instanceOf = type;
+        record->instance = instance;
+    }
+
+    for(U32 i = 0; i < count; i++) {
+        if(args[i]->kind == Type::Gen) {
+            record->genCount++;
+        }
+    }
 
     auto cons = (Con*)module->memory.alloc(sizeof(Con) * type->conCount);
     record->cons = cons;
@@ -638,7 +668,7 @@ Type* resolveType(Context* context, Module* module, ast::Type* type, GenContext*
     auto found = findType(context, module, type, gen);
     if(
         (found->kind == Type::Alias && ((AliasType*)found)->genCount > 0) ||
-        (found->kind == Type::Record && ((RecordType*)found)->genCount > 0 && ((RecordType*)found)->instance == nullptr)
+        (found->kind == Type::Record && ((RecordType*)found)->genCount > 0)
     ) {
         context->diagnostics.error("cannot use a generic type here", type, nullptr);
     }

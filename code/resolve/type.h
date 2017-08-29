@@ -192,10 +192,10 @@ struct RecordType: Type {
     Con* cons;
     GenType* gens;
     RecordType* instanceOf;
-    Type** instance; // if instanceOf is set, this contains a list Type*[genCount].
+    Type** instance; // if instanceOf is set, this contains a list Type*[instanceOf->genCount].
     Id name;
     U32 conCount;
-    U32 genCount;
+    U32 genCount; // The number of generic types in this particular instance.
     Kind kind;
     bool qualified; // Set if the type constructors are namespaced within the type.
 };

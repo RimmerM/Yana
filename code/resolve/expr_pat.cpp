@@ -160,14 +160,14 @@ int resolveTupPat(FunBuilder* b, MatchContext** match, Block* onFail, Value* piv
 
 int resolveConPat(FunBuilder* b, MatchContext** match, Block* onFail, Value* pivot, ast::ConPat* pat) {
     auto con = findCon(&b->context, b->fun->module, pat->constructor);
-    if(!compareTypes(&b->context, con->parent, pivot->type)) {
+    if(!con || !compareTypes(&b->context, con->parent, pivot->type)) {
         error(b, "constructor type is incompatible with pivot type", pat);
         jmp(b->block, onFail);
         return -1;
     }
 
     // If the record is an instance of a generic type, we use the instantiated constructor instead of the generic one.
-    auto record = (RecordType*)pivot->type;
+    auto record = (RecordType*)canonicalType(pivot->type);
     if(record->instanceOf) {
         con = &record->cons[con->index];
     }

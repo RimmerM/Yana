@@ -226,7 +226,7 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
     }
 
     // If the constructed type is a generic type, we instantiate it.
-    if(con->parent->genCount && !con->parent->instance) {
+    if(con->parent->genCount) {
         auto instanceArgs = (Type**)alloca(sizeof(Type*) * con->parent->genCount);
 
         // TODO: Handle GenTypes not used in the constructor.
