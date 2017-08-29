@@ -112,3 +112,20 @@ U32* convertNextPoint(const char*& string, U32* dest) {
     *dest = p;
     return dest + 1;
 }
+
+char* copyString(const char* string, char* buffer, U32 bufferSize) {
+    if(!bufferSize) return nullptr;
+
+    char* p = buffer;
+    while(bufferSize) {
+        *p = *string;
+        if(!*string) return p;
+        string++;
+        p++;
+        bufferSize--;
+    }
+
+    // No space, we make the string empty.
+    *buffer = 0;
+    return buffer;
+}

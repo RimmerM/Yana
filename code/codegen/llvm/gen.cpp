@@ -3,7 +3,9 @@
 #define __STDC_LIMIT_MACROS
 
 #include "gen.h"
+#include "../../util/string.h"
 #include <llvm/IR/Module.h>
+#include <llvm/IR/InlineAsm.h>
 
 llvm::BasicBlock* genBlock(Gen* gen, Block* block);
 llvm::Function* genFunction(Gen* gen, Function* fun);
@@ -200,6 +202,16 @@ RecordGen* genRecordType(Gen* gen, RecordType* type) {
     return record;
 }
 
+llvm::Type* genStringType(llvm::LLVMContext* context) {
+    auto length = llvm::IntegerType::getInt32Ty(*context);
+    auto data = llvm::ArrayType::get(llvm::IntegerType::getInt8Ty(*context), 0);
+    llvm::Type* fields[2];
+    fields[0] = length;
+    fields[1] = data;
+
+    return llvm::StructType::get(*context, {fields, 2});
+}
+
 llvm::Type* genType(Gen* gen, Type* type) {
     switch(type->kind) {
         case Type::Error:
@@ -212,7 +224,7 @@ llvm::Type* genType(Gen* gen, Type* type) {
         case Type::Float:
             return genFloatType(gen, (FloatType*)type);
         case Type::String:
-            return gen->builder->getInt8PtrTy(0);
+            return gen->types.stringRef;
         case Type::Ref:
             return llvm::PointerType::get(useType(gen, ((RefType*)type)->to), 0);
         case Type::Fun:
@@ -262,6 +274,22 @@ llvm::BasicBlock* useBlock(Gen* gen, Block* block) {
     return genBlock(gen, block);
 }
 
+llvm::Value* genStringLiteral(Gen* gen, const char* v, U32 l) {
+    auto type = gen->types.stringRef;
+    llvm::Constant* values[2];
+    values[0] = llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(*gen->llvm), l);
+    values[1] = llvm::ConstantDataArray::getString(*gen->llvm, {v, l}, false);
+
+    llvm::Type* types[2];
+    types[0] = values[0]->getType();
+    types[1] = values[1]->getType();
+
+    auto stringType = llvm::StructType::get(*gen->llvm, {types, 2});
+    auto initializer = llvm::ConstantStruct::get(stringType, {values, 2});
+    auto var = new llvm::GlobalVariable(*gen->module, stringType, true, llvm::GlobalValue::PrivateLinkage, initializer);
+    return gen->builder->CreateBitCast(var, type);
+}
+
 llvm::Value* useValue(Gen* gen, Value* value) {
     auto v = (llvm::Value*)value->codegen;
     if(v) return v;
@@ -271,6 +299,8 @@ llvm::Value* useValue(Gen* gen, Value* value) {
             return llvm::ConstantInt::get(useType(gen, value->type), ((ConstInt*)value)->value);
         case Value::ConstFloat:
             return llvm::ConstantFP::get(useType(gen, value->type), ((ConstFloat*)value)->value);
+        case Value::ConstString:
+            return genStringLiteral(gen, ((ConstString*)value)->value, ((ConstString*)value)->length);
     }
 
     // If this happens, some instruction is not generated correctly.
@@ -639,6 +669,22 @@ llvm::Value* genGetField(Gen* gen, InstGetField* inst) {
     }
 }
 
+llvm::Value* genStringLength(Gen* gen, InstStringLength* inst) {
+    llvm::Value* indices[2];
+    indices[0] = llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(*gen->llvm), 0);
+    indices[1] = indices[0];
+    auto p = gen->builder->CreateGEP(useValue(gen, inst->from), {indices, 2});
+    return gen->builder->CreateLoad(p);
+}
+
+llvm::Value* genStringData(Gen* gen, InstStringData* inst) {
+    llvm::Value* indices[3];
+    indices[0] = llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(*gen->llvm), 0);
+    indices[1] = llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(*gen->llvm), 1);
+    indices[2] = llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(*gen->llvm), 0);
+    return gen->builder->CreateGEP(useValue(gen, inst->from), {indices, 3});
+}
+
 llvm::Value* genCall(Gen* gen, InstCall* inst) {
     auto args = (llvm::Value**)alloca(sizeof(llvm::Value*) * inst->argCount);
     for(U32 i = 0; i < inst->argCount; i++) {
@@ -650,6 +696,76 @@ llvm::Value* genCall(Gen* gen, InstCall* inst) {
     auto call = gen->builder->CreateCall(useFunction(gen, inst->fun), {args, inst->argCount});
     call->setCallingConv(llvm::CallingConv::Fast);
     return call;
+}
+
+llvm::Value* genSysCall(Gen* gen, InstCallDyn* inst) {
+    llvm::Value* args[7];
+    llvm::Type* argTypes[7];
+
+    argTypes[0] = gen->builder->getInt32Ty();
+    args[0] = useValue(gen, inst->fun);
+
+    char asmBuffer[1024];
+    auto p = copyString("movl $0, %rax\n", asmBuffer, 1024);
+
+    switch(inst->argCount) {
+        case 6:
+            argTypes[6] = useType(gen, inst->args[5]->type);
+            args[6] = useValue(gen, inst->args[5]);
+            p = copyString("movl $6, %r9\n", p, (U32)(1024 - (p - asmBuffer)));
+        case 5:
+            argTypes[5] = useType(gen, inst->args[4]->type);
+            args[5] = useValue(gen, inst->args[4]);
+            p = copyString("movl $5, %r8\n", p, (U32)(1024 - (p - asmBuffer)));
+        case 4:
+            argTypes[4] = useType(gen, inst->args[3]->type);
+            args[4] = useValue(gen, inst->args[3]);
+            p = copyString("movl $4, %r10\n", p, (U32)(1024 - (p - asmBuffer)));
+        case 3:
+            argTypes[3] = useType(gen, inst->args[2]->type);
+            args[3] = useValue(gen, inst->args[2]);
+            p = copyString("movl $3, %rdx\n", p, (U32)(1024 - (p - asmBuffer)));
+        case 2:
+            argTypes[2] = useType(gen, inst->args[1]->type);
+            args[2] = useValue(gen, inst->args[1]);
+            p = copyString("movl $2, %rsi\n", p, (U32)(1024 - (p - asmBuffer)));
+        case 1:
+            argTypes[1] = useType(gen, inst->args[0]->type);
+            args[1] = useValue(gen, inst->args[0]);
+            p = copyString("movl $1, %rdi\n", p, (U32)(1024 - (p - asmBuffer)));
+        case 0:
+            break;
+        default:
+            gen->context->diagnostics.error("codegen: unsupported syscall argument count", nullptr, nullptr);
+            break;
+    }
+
+    U32 argCount = inst->argCount + 1;
+    auto funType = llvm::FunctionType::get(gen->builder->getInt8PtrTy(0), {argTypes, argCount}, false);
+    auto assembly = llvm::InlineAsm::get(funType, {asmBuffer, (U32)(p - asmBuffer)}, "=A,{si},~{dirflag},~{fpsr},~{flags}", true);
+    return gen->builder->CreateCall(assembly, {args, argCount});
+}
+
+llvm::Value* genCallIntrinsic(Gen* gen, InstCallDyn* inst) {
+    auto funType = canonicalType(inst->fun->type);
+    if(funType->kind == Type::Int) {
+        return genSysCall(gen, inst);
+    } else if(funType->kind == Type::String) {
+        // TODO: Implement LLVM intrinsics.
+        return nullptr;
+    } else {
+        // Unsupported type.
+        gen->context->diagnostics.error("codegen: unsupported intrinsic call type", nullptr, nullptr);
+        return nullptr;
+    }
+}
+
+llvm::Value* genCallDyn(Gen* gen, InstCallDyn* inst) {
+    if(inst->isIntrinsic) {
+        return genCallIntrinsic(gen, inst);
+    }
+
+    return nullptr;
 }
 
 llvm::Value* genJe(Gen* gen, InstJe* inst) {
@@ -756,8 +872,14 @@ llvm::Value* genInstValue(Gen* gen, Inst* inst) {
             return genStore(gen, (InstStore*)inst);
         case Inst::InstGetField:
             return genGetField(gen, (InstGetField*)inst);
+        case Inst::InstStringLength:
+            return genStringLength(gen, (InstStringLength*)inst);
+        case Inst::InstStringData:
+            return genStringData(gen, (InstStringData*)inst);
         case Inst::InstCall:
             return genCall(gen, (InstCall*)inst);
+        case Inst::InstCallDyn:
+            return genCallDyn(gen, (InstCallDyn*)inst);
         case Inst::InstJe:
             return genJe(gen, (InstJe*)inst);
         case Inst::InstJmp:
@@ -844,7 +966,12 @@ llvm::Module* genModule(llvm::LLVMContext* llvm, Context* context, Module* modul
     llvmModule->setTargetTriple(LLVM_HOST_TRIPLE);
 
     llvm::IRBuilder<> builder(*llvm);
-    Gen gen{llvm, llvmModule, &builder, &context->exprArena, context};
+
+    LLVMTypes types;
+    types.stringData = genStringType(llvm);
+    types.stringRef = llvm::PointerType::get(types.stringData, 0);
+
+    Gen gen{llvm, llvmModule, &builder, types, &context->exprArena, context};
 
     for(auto& global: module->globals) {
         genGlobal(&gen, &global);
