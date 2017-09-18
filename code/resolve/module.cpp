@@ -757,7 +757,7 @@ void resolveFun(Context* context, Function* fun) {
 }
 
 void resolveGlobals(Context* context, Module* module, ast::Decl** decls, Size count) {
-    auto staticInit = defineFun(context, module, context->addQualifiedName("$init", 5));
+    auto staticInit = defineFun(context, module, context->addQualifiedName("%init", 5));
     staticInit->returnType = &unitType;
     auto startBlock = block(staticInit);
 

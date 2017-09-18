@@ -705,45 +705,42 @@ llvm::Value* genSysCall(Gen* gen, InstCallDyn* inst) {
     argTypes[0] = gen->builder->getInt32Ty();
     args[0] = useValue(gen, inst->fun);
 
-    char asmBuffer[1024];
-    auto p = copyString("movl $0, %rax\n", asmBuffer, 1024);
+    char constraints[1024];
+    auto p = copyString("={rax},{rax},", constraints, 1024);
 
-    switch(inst->argCount) {
-        case 6:
-            argTypes[6] = useType(gen, inst->args[5]->type);
-            args[6] = useValue(gen, inst->args[5]);
-            p = copyString("movl $6, %r9\n", p, (U32)(1024 - (p - asmBuffer)));
-        case 5:
-            argTypes[5] = useType(gen, inst->args[4]->type);
-            args[5] = useValue(gen, inst->args[4]);
-            p = copyString("movl $5, %r8\n", p, (U32)(1024 - (p - asmBuffer)));
-        case 4:
-            argTypes[4] = useType(gen, inst->args[3]->type);
-            args[4] = useValue(gen, inst->args[3]);
-            p = copyString("movl $4, %r10\n", p, (U32)(1024 - (p - asmBuffer)));
-        case 3:
-            argTypes[3] = useType(gen, inst->args[2]->type);
-            args[3] = useValue(gen, inst->args[2]);
-            p = copyString("movl $3, %rdx\n", p, (U32)(1024 - (p - asmBuffer)));
-        case 2:
-            argTypes[2] = useType(gen, inst->args[1]->type);
-            args[2] = useValue(gen, inst->args[1]);
-            p = copyString("movl $2, %rsi\n", p, (U32)(1024 - (p - asmBuffer)));
-        case 1:
-            argTypes[1] = useType(gen, inst->args[0]->type);
-            args[1] = useValue(gen, inst->args[0]);
-            p = copyString("movl $1, %rdi\n", p, (U32)(1024 - (p - asmBuffer)));
-        case 0:
-            break;
-        default:
-            gen->context->diagnostics.error("codegen: unsupported syscall argument count", nullptr, nullptr);
-            break;
+    auto argCount = inst->argCount;
+    for(U32 i = 0; i < argCount; i++) {
+        argTypes[i + 1] = useType(gen, inst->args[i]->type);
+        args[i + 1] = useValue(gen, inst->args[i]);
     }
 
-    U32 argCount = inst->argCount + 1;
-    auto funType = llvm::FunctionType::get(gen->builder->getInt8PtrTy(0), {argTypes, argCount}, false);
-    auto assembly = llvm::InlineAsm::get(funType, {asmBuffer, (U32)(p - asmBuffer)}, "=A,{si},~{dirflag},~{fpsr},~{flags}", true);
-    return gen->builder->CreateCall(assembly, {args, argCount});
+    if(argCount >= 1) {
+        p = copyString("{rdi},", p, (U32)(1024 - (p - constraints)));
+        if(argCount >= 2) {
+            p = copyString("{rsi},", p, (U32)(1024 - (p - constraints)));
+            if(argCount >= 3) {
+                p = copyString("{rdx},", p, (U32)(1024 - (p - constraints)));
+                if(argCount >= 4) {
+                    p = copyString("{r10},", p, (U32)(1024 - (p - constraints)));
+                    if(argCount >= 5) {
+                        p = copyString("{r8},", p, (U32)(1024 - (p - constraints)));
+                        if(argCount >= 6) {
+                            p = copyString("{r9},", p, (U32)(1024 - (p - constraints)));
+                            if(argCount > 6) {
+                                gen->context->diagnostics.error("codegen: unsupported syscall argument count", nullptr, nullptr);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    p = copyString("~{dirflag},~{fpsr},~{flags},~{rcx},~{r11}", p, (U32)(1024 - (p - constraints)));
+
+    auto funType = llvm::FunctionType::get(gen->builder->getInt8PtrTy(0), {argTypes, argCount + 1}, false);
+    auto assembly = llvm::InlineAsm::get(funType, "syscall", {constraints, (U32)(p - constraints)}, true);
+    return gen->builder->CreateCall(assembly, {args, argCount + 1});
 }
 
 llvm::Value* genCallIntrinsic(Gen* gen, InstCallDyn* inst) {
@@ -951,8 +948,9 @@ llvm::Function* genFunction(Gen* gen, Function* fun) {
 llvm::Value* genGlobal(Gen* gen, Global* global) {
     auto name = toRef(gen->context, global->name);
     auto type = useType(gen, ((RefType*)global->type)->to);
-    auto g = new llvm::GlobalVariable(*gen->module, type, false, llvm::GlobalVariable::ExternalLinkage, nullptr,
-                                      name, nullptr, llvm::GlobalVariable::NotThreadLocal, 0, true);
+    auto initializer = llvm::ConstantAggregateZero::get(type);
+    auto g = new llvm::GlobalVariable(*gen->module, type, false, llvm::GlobalVariable::InternalLinkage, initializer,
+                                      name, nullptr, llvm::GlobalVariable::NotThreadLocal, 0, false);
     global->codegen = g;
     return g;
 }
