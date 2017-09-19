@@ -14,6 +14,20 @@ static void useValues(Inst* inst, Block* block, std::initializer_list<Value*> va
     }
 }
 
+static bool isConstant(Value* v) {
+    return v->kind >= Value::FirstConst && v->kind <= Value::LastConst;
+}
+
+template<class F>
+static Value* constantFold(Block* block, Id name, Value* lhs, Value* rhs, F&& f) {
+    if(isConstant(lhs) && isConstant(rhs)) {
+        auto result = f(((ConstInt*)lhs)->value, ((ConstInt*)rhs)->value);
+        return constInt(block, name, result, lhs->type);
+    } else {
+        return nullptr;
+    }
+}
+
 static InstCast* cast(Block* block, Inst::Kind kind, Id name, Value* from, Type* to) {
     auto inst = (InstCast*)block->inst(sizeof(InstCast), name, kind, to);
     inst->from = from;
@@ -169,46 +183,65 @@ Value* ftoui(Block* block, Id name, Value* from, Type* to) {
 }
 
 Value* add(Block* block, Id name, Value* lhs, Value* rhs) {
+    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a + b; })) return v;
     return binary(block, Inst::InstAdd, name, lhs, rhs, lhs->type);
 }
 
 Value* sub(Block* block, Id name, Value* lhs, Value* rhs) {
+    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a - b; })) return v;
     return binary(block, Inst::InstSub, name, lhs, rhs, lhs->type);
 }
 
 Value* mul(Block* block, Id name, Value* lhs, Value* rhs) {
+    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a * b; })) return v;
     return binary(block, Inst::InstMul, name, lhs, rhs, lhs->type);
 }
 
 Value* div(Block* block, Id name, Value* lhs, Value* rhs) {
+    if(rhs->kind == Value::ConstInt && ((ConstInt*)rhs)->value != 0) {
+        if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return U64(a) / U64(b); })) return v;
+    }
     return binary(block, Inst::InstDiv, name, lhs, rhs, lhs->type);
 }
 
 Value* idiv(Block* block, Id name, Value* lhs, Value* rhs) {
+    if(rhs->kind == Value::ConstInt && ((ConstInt*)rhs)->value != 0) {
+        if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a / b; })) return v;
+    }
     return binary(block, Inst::InstIDiv, name, lhs, rhs, lhs->type);
 }
 
 Value* rem(Block* block, Id name, Value* lhs, Value* rhs) {
+    if(rhs->kind == Value::ConstInt && ((ConstInt*)rhs)->value != 0) {
+        if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return U64(a) % U64(b); })) return v;
+    }
     return binary(block, Inst::InstRem, name, lhs, rhs, lhs->type);
 }
 
 Value* irem(Block* block, Id name, Value* lhs, Value* rhs) {
+    if(rhs->kind == Value::ConstInt && ((ConstInt*)rhs)->value != 0) {
+        if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a % b; })) return v;
+    }
     return binary(block, Inst::InstIRem, name, lhs, rhs, lhs->type);
 }
 
 Value* fadd(Block* block, Id name, Value* lhs, Value* rhs) {
+    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a + b; })) return v;
     return binary(block, Inst::InstFAdd, name, lhs, rhs, lhs->type);
 }
 
 Value* fsub(Block* block, Id name, Value* lhs, Value* rhs) {
+    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a - b; })) return v;
     return binary(block, Inst::InstFSub, name, lhs, rhs, lhs->type);
 }
 
 Value* fmul(Block* block, Id name, Value* lhs, Value* rhs) {
+    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a * b; })) return v;
     return binary(block, Inst::InstFMul, name, lhs, rhs, lhs->type);
 }
 
 Value* fdiv(Block* block, Id name, Value* lhs, Value* rhs) {
+    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a / b; })) return v;
     return binary(block, Inst::InstFDiv, name, lhs, rhs, lhs->type);
 }
 
