@@ -11,9 +11,9 @@
 #include "../resolve/module.h"
 #include "../parse/parser.h"
 #include "../resolve/print.h"
-#include "../resolve/builtins.h"
 #include "../codegen/llvm/gen.h"
-#include <llvm/IR/Module.h>
+#include "../codegen/js/gen.h"
+#include "../resolve/builtins.h"
 #include <llvm/Support/raw_os_ostream.h>
 
 struct FileHandler: ModuleHandler {
@@ -81,13 +81,14 @@ Module* compileFile(Context& context, ModuleHandler& handler, const char* path, 
 }
 
 int main(int argc, const char** argv) {
-    if(argc < 3) {
-        printf("Usage: compile <library root> <output file>\n");
+    if(argc < 4) {
+        printf("Usage: compile <mode> <library root> <output directory>\n");
         return 1;
     }
 
-    const char* root = argv[1];
-    const char* output = argv[2];
+    const char* mode = argv[1];
+    const char* root = argv[2];
+    const char* output = argv[3];
 
     PrintDiagnostics diagnostics;
     Context context(diagnostics);
@@ -96,7 +97,8 @@ int main(int argc, const char** argv) {
 
     compiledModules.push(handler.prelude);
 
-    if(isDirectory(root)) {
+    bool directory = isDirectory(root);
+    if(directory) {
         // TODO:
     } else {
         auto module = compileFile(context, handler, root, strlen(root));
@@ -105,8 +107,22 @@ int main(int argc, const char** argv) {
         }
     }
 
-    auto outputLength = strlen(output);
-    if(outputLength > 3 && output[outputLength - 3] == '.' && output[outputLength - 2] == 'i' && output[outputLength - 1] == 'r') {
+    if(strcmp(mode, "exe") == 0) {
+        llvm::LLVMContext llvmContext;
+        Array<llvm::Module*> llvmModules;
+
+        for(auto module: compiledModules) {
+            llvmModules.push(genModule(&llvmContext, &context, module));
+        }
+
+        auto result = linkModules(&llvmContext, &context, llvmModules.pointer(), llvmModules.size());
+    } else if(strcmp(mode, "js") == 0) {
+        std::ofstream jsFile(output, std::ios_base::out);
+        for(auto module: compiledModules) {
+            auto ast = js::genModule(&context, module);
+            js::formatFile(context, jsFile, ast, false);
+        }
+    } else if(strcmp(mode, "ir") == 0) {
         std::ofstream irFile(output, std::ios_base::out);
 
         for(auto module: compiledModules) {
@@ -122,18 +138,21 @@ int main(int argc, const char** argv) {
             irFile << "\n\n";
             printModule(irFile, context, module);
         }
-    } else if(outputLength > 3 && output[outputLength - 3] == '.' && output[outputLength - 2] == 'l' && output[outputLength - 1] == 'l') {
+    } else if(strcmp(mode, "lib") == 0) {
+        // TODO: Generate library.
+    } else if(strcmp(mode, "ll") == 0) {
         std::ofstream llvmFile(output, std::ios_base::out);
         llvm::LLVMContext llvmContext;
 
+        Array<llvm::Module*> llvmModules;
         for(auto module: compiledModules) {
-            llvm::Module* code = genModule(&llvmContext, &context, module);
-            llvm::raw_os_ostream stream{llvmFile};
-            code->print(stream, nullptr);
+            llvmModules.push(genModule(&llvmContext, &context, module));
         }
-    } else if(outputLength > 3 && output[outputLength - 3] == '.' && output[outputLength - 2] == 'j' && output[outputLength - 1] == 's') {
-        // TODO: JS code generator.
+
+        auto result = linkModules(&llvmContext, &context, llvmModules.pointer(), llvmModules.size());
+        llvm::raw_os_ostream stream{llvmFile};
+        result->print(stream, nullptr);
     } else {
-        // TODO: generate executable
+        printf("Unknown compilation mode '%s'. Valid modes are exe, js, ir, lib, ll.", mode);
     }
 }

@@ -63,6 +63,14 @@ set(SOURCE_FILES ${SOURCE_FILES}
 set(SOURCE_FILES ${SOURCE_FILES}
     codegen/llvm/gen.cpp
     codegen/llvm/gen.h
+    codegen/llvm/link.cpp
+)
+
+set(SOURCE_FILES ${SOURCE_FILES}
+    codegen/js/gen.h
+    codegen/js/gen.cpp
+    codegen/js/ast.h
+    codegen/js/format.cpp
 )
 
 if(APPLE)
@@ -75,6 +83,7 @@ add_executable(code ${SOURCE_FILES})
 target_link_libraries(code
     LLVMCore
     LLVMSupport
+    LLVMLinker
 )
 
 if(APPLE)

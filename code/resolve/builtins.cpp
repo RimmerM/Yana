@@ -366,8 +366,22 @@ Module* preludeModule(Context* context) {
         args[1] = stringData(body, 0, arg);
         args[2] = stringLength(body, 0, arg);
 
-        auto result = callDyn(body, 0, constInt(body, 0, 0x2000004, &intTypes[IntType::Int]), &unitType, args, 3, true);
-        ret(body, result);
+        callDyn(body, 0, constInt(body, 0, 1, &intTypes[IntType::Int]), &unitType, args, 3, true);
+        ret(body);
+    }
+
+    auto exitFunction = defineFun(context, module, context->addUnqualifiedName("exitProgram", 11));
+    {
+        exitFunction->returnType = &unitType;
+
+        auto code = defineArg(context, exitFunction, 0, &intTypes[IntType::Int]);
+        auto body = block(exitFunction);
+
+        auto args = (Value**)module->memory.alloc(sizeof(Value*));
+        args[0] = code;
+
+        callDyn(body, 0, constInt(body, 0, 60, &intTypes[IntType::Int]), &unitType, args, 1, true);
+        ret(body);
     }
 
     return module;

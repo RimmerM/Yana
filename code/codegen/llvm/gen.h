@@ -21,3 +21,4 @@ struct Gen {
 };
 
 llvm::Module* genModule(llvm::LLVMContext* llvm, Context* context, Module* module);
+llvm::Module* linkModules(llvm::LLVMContext* llvm, Context* context, llvm::Module** modules, U32 count);
