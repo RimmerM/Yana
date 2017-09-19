@@ -3,17 +3,15 @@
 #include "../../util/types.h"
 #include "../../util/array.h"
 
+namespace js {
+
 struct Expr;
 struct Stmt;
 
 struct Variable {
-    Id fullName;
-    U32 refCount;
-};
-
-struct VarDecl {
-    Variable* v;
-    Expr* value;
+    Id name; // The name this variable had in the source code. May not exist if it was created by a transformation.
+    U32 localId; // A unique number for this variable that doesn't conflict with other id's used in the scope.
+    U32 refCount; // Number of uses.
 };
 
 struct Expr {
@@ -127,12 +125,12 @@ struct CallExpr: Expr {
 };
 
 struct FunExpr: Expr {
-    FunExpr(Id name, Variable** args, U32 argCount, Stmt** body, U32 stmtCount): Expr(Fun), name(name), args(args), argCount(argCount), body(body), stmtCount(stmtCount) {}
+    FunExpr(Id name, Variable* args, U32 argCount, Stmt* body): Expr(Fun), name(name), args(args), argCount(argCount), body(body) {}
+    Variable* args;
+    Stmt* body;
     Id name;
-    Variable** args;
-    Stmt** body;
     U32 argCount;
-    U32 stmtCount;
+    U32 idCounter = 0;
 };
 
 struct Stmt {
@@ -146,6 +144,7 @@ struct Stmt {
         Continue,
         Labelled,
         Return,
+        Decl,
         Var,
         Fun,
     } type;
@@ -205,19 +204,26 @@ struct ReturnStmt: Stmt {
     Expr* value;
 };
 
+struct DeclStmt: Stmt {
+    DeclStmt(Variable* v, Expr* value): Stmt(Decl), v(v), value(value) {}
+    Variable* v;
+    Expr* value;
+};
+
 struct VarStmt: Stmt {
-    VarStmt(VarDecl* values, U32 count): Stmt(Var), values(values), count(count) {}
-    VarDecl* values;
+    VarStmt(DeclStmt* values, U32 count): Stmt(Var), values(values), count(count) {}
+    DeclStmt* values;
     U32 count;
 };
 
 struct FunStmt: Stmt {
-    FunStmt(Id name, Variable** args, U32 argCount, Stmt** body, U32 stmtCount): Stmt(Fun), name(name), args(args), argCount(argCount), body(body), stmtCount(stmtCount) {}
+    FunStmt(Id name, U32 localId, Variable* args, U32 argCount, Stmt* body): Stmt(Fun), name(name), localId(localId), args(args), argCount(argCount), body(body) {}
+    Variable* args;
+    Stmt* body;
     Id name;
-    Variable** args;
-    Stmt** body;
     U32 argCount;
-    U32 stmtCount;
+    U32 localId;
+    U32 idCounter = 0;
 };
 
 struct VarScope {
@@ -228,3 +234,9 @@ struct VarScope {
     U32 varCounter;
     U32 funCounter;
 };
+
+struct File {
+    Array<Stmt*> statements;
+};
+
+} // namespace js

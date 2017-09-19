@@ -2,6 +2,8 @@
 #include "ast.h"
 #include "../../compiler/context.h"
 
+using namespace js;
+
 struct StringSeg {
     const char* string;
     U32 length;
@@ -12,7 +14,7 @@ struct CodeBuilder {
     Context& context;
 
     bool minify;
-    U32 indentation;
+    U32 indentation = 0;
 
     StringSeg space;
     StringSeg comma;
@@ -142,7 +144,7 @@ struct CodeBuilder {
 };
 
 static void appendExpr(CodeBuilder& b, Expr* e);
-static void formatFun(CodeBuilder& b, Id name, Variable** args, U32 argCount, Stmt** body, U32 bodyCount);
+static void formatFun(CodeBuilder& b, Id name, U32 localId, bool named, Variable* args, U32 argCount, Stmt* body);
 
 static bool isFieldName(const char* string, U32 length) {
     for(U32 i = 0; i < length; i++) {
@@ -153,6 +155,35 @@ static bool isFieldName(const char* string, U32 length) {
         if(c == '_') continue;
 
         return false;
+    }
+}
+
+static void appendVarName(CodeBuilder& b, Id name, U32 localId) {
+    if(!b.minify && name) {
+        auto id = b.context.find(name);
+        b.writer.write(id.text, id.textLength);
+        b.writer << '_';
+    }
+
+    auto index = localId % 52;
+    if(index < 26) {
+        b.writer << char('a' + index);
+    } else {
+        b.writer << char('A' + (index - 26));
+    }
+
+    auto remaining = localId % 52;
+    while(remaining > 62) {
+        index = remaining % 62;
+        remaining /= 62;
+
+        if(index < 26) {
+            b.writer << char('a' + index);
+        } else if(index < 52) {
+            b.writer << char('A' + (index - 26));
+        } else {
+            b.writer << char('0' + (index - 52));
+        }
     }
 }
 
@@ -249,8 +280,8 @@ static void appendExpr(CodeBuilder& b, Expr* e) {
             break;
         }
         case Expr::Var: {
-            auto id = b.context.find(((VarExpr*)e)->var->fullName);
-            b.writer.write(id.text, id.textLength);
+            auto var = (VarExpr*)e;
+            appendVarName(b, var->var->name, var->var->localId);
             break;
         }
         case Expr::Field: {
@@ -342,15 +373,14 @@ static void appendExpr(CodeBuilder& b, Expr* e) {
         }
         case Expr::Fun: {
             auto f = (FunExpr*)e;
-            formatFun(b, f->name, f->args, f->argCount, f->body, f->stmtCount);
+            formatFun(b, f->name, 0, false, f->args, f->argCount, f->body);
             break;
         }
     }
 }
 
-static void appendVarDecl(CodeBuilder& b, VarDecl* v) {
-    auto id = b.context.find(v->v->fullName);
-    b.writer.write(id.text, id.textLength);
+static void appendVarDecl(CodeBuilder& b, DeclStmt* v) {
+    appendVarName(b, v->v->name, v->v->localId);
     if(v->value) {
         b.append(b.space);
         b.writer << '=';
@@ -372,6 +402,7 @@ static void formatStmt(CodeBuilder& b, Stmt* stmt) {
             b.line('}');
             break;
         case Stmt::Exp:
+            b.startLine();
             appendExpr(b, ((ExprStmt*)stmt)->expr);
             b.writer << ';';
             b.endLine();
@@ -449,8 +480,22 @@ static void formatStmt(CodeBuilder& b, Stmt* stmt) {
         case Stmt::Return: {
             auto c = (ReturnStmt*)stmt;
             b.startLine();
-            b.append({"return ", 7});
-            appendExpr(b, c->value);
+            if(c->value) {
+                b.append({"return ", 7});
+                appendExpr(b, c->value);
+                b.writer << ';';
+            } else {
+                b.append({"return;", 7});
+            }
+
+            b.endLine();
+            break;
+        }
+        case Stmt::Decl: {
+            auto c = (DeclStmt*)stmt;
+            b.startLine();
+            b.append({"var ", 4});
+            appendVarDecl(b, c);
             b.writer << ';';
             b.endLine();
             break;
@@ -475,19 +520,17 @@ static void formatStmt(CodeBuilder& b, Stmt* stmt) {
         }
         case Stmt::Fun: {
             auto c = (FunStmt*)stmt;
-            formatFun(b, c->name, c->args, c->argCount, c->body, c->stmtCount);
+            formatFun(b, c->name, c->localId, true, c->args, c->argCount, c->body);
             break;
         }
     }
 }
 
-static void formatFun(CodeBuilder& b, Id name, Variable** args, U32 argCount, Stmt** body, U32 bodyCount) {
-    if(name) {
+static void formatFun(CodeBuilder& b, Id name, U32 localId, bool named, Variable* args, U32 argCount, Stmt* body) {
+    if(named) {
         b.startLine();
         b.writer << "function ";
-
-        auto id = b.context.find(name);
-        b.writer.write(id.text, id.textLength);
+        appendVarName(b, name, localId);
         b.writer << '(';
     } else {
         b.writer << "function(";
@@ -498,25 +541,40 @@ static void formatFun(CodeBuilder& b, Id name, Variable** args, U32 argCount, St
         b.withLevel([&] {
             b.startLine();
             b.sepBy(argCount, {",\n", 2}, [&](U32 i) {
-                auto id = b.context.find(args[i]->fullName);
-                b.writer.write(id.text, id.textLength);
+                appendVarName(b, args[i].name, args[i].localId);
             });
         });
         b.endLine();
         b.startLine();
     } else if(argCount > 0) {
         b.sepBy(argCount, b.comma, [&](U32 i) {
-            auto id = b.context.find(args[i]->fullName);
-            b.writer.write(id.text, id.textLength);
+            appendVarName(b, args[i].name, args[i].localId);
         });
     }
 
     b.append(b.parenBlockStart);
     b.endLine();
     b.withLevel([&] {
-        for(U32 i = 0; i < bodyCount; i++) {
-            formatStmt(b, body[i]);
+        if(body->type == Stmt::Block) {
+            auto block = (BlockStmt*)body;
+            for(U32 i = 0; i < block->count; i++) {
+                formatStmt(b, block->stmts[i]);
+            }
+        } else {
+            formatStmt(b, body);
         }
     });
     b.line('}');
+    b.endLine();
+}
+
+namespace js {
+
+void formatFile(Context& context, std::ostream& to, File* file, bool minify) {
+    CodeBuilder builder(to, context, {"  ", 2}, minify);
+    for(auto stmt: file->statements) {
+        formatStmt(builder, stmt);
+    }
+}
+
 }
