@@ -74,7 +74,7 @@ set(SOURCE_FILES ${SOURCE_FILES}
 )
 
 if(APPLE)
-    include_directories(/usr/local/include)
+    include_directories(/usr/local/opt/llvm/include)
     link_directories(/usr/local/opt/llvm/lib)
 elseif(WIN32)
     include_directories("C:/Program Files (x86)/LLVM/include")

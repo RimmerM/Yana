@@ -97,7 +97,7 @@ void funIntro(Eval* eval, Function* fun) {
     setBlock(eval, fun->blocks[0]);
 }
 
-void raise(Eval* eval, Exception exception) {
+[[noreturn]] void raise(Eval* eval, Exception exception) {
     longjmp(*eval->raise, exception);
 }
 
@@ -113,6 +113,7 @@ U64 evalInt(Eval* eval, Value* v) {
         return i->value;
     } else {
         // Unsupported.
+        return 0;
     }
 }
 
@@ -128,6 +129,7 @@ double evalFloat(Eval* eval, Value* v) {
         return f->value;
     } else {
         // Unsupported.
+        return 0;
     }
 }
 
@@ -146,6 +148,7 @@ U64 evalValue(Eval* eval, Value* v) {
         return asReg(f->value);
     } else {
         // Unsupported.
+        return 0;
     }
 }
 
@@ -338,6 +341,7 @@ U64 evalLoad(Eval* eval, InstLoad* inst) {
         auto p = eval->sp;
         eval->sp += size;
         memcpy(p, ptr, sizeof(U64) * size);
+        return 0;
     } else {
         return *ptr;
     }
@@ -381,6 +385,7 @@ U64 evalCall(Eval* eval, InstCall* call) {
 U64 evalJmp(Eval* eval, InstJmp* inst) {
     eval->lb = inst->block;
     setBlock(eval, inst->to);
+    return 0;
 }
 
 U64 evalJe(Eval* eval, InstJe* inst) {

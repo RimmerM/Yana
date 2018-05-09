@@ -82,7 +82,7 @@ Module* compileFile(Context& context, ModuleHandler& handler, const char* path, 
 
 int main(int argc, const char** argv) {
     if(argc < 4) {
-        printf("Usage: compile <mode> <library root> <output directory>\n");
+        printf("Usage: compile <mode> <library root> <output file/directory>\n");
         return 1;
     }
 

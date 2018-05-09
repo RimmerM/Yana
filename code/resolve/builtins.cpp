@@ -247,6 +247,7 @@ Module* preludeModule(Context* context) {
             instance->instances[4] = ordCompare<ICmp, icmp, ICmp::eq, ICmp::igt>(context, module, type, orderingType, nullptr, 0);
             instance->instances[5] = maxCompare<ICmp, icmp, ICmp::igt>(context, module, type, nullptr, 0);
             instance->instances[6] = maxCompare<ICmp, icmp, ICmp::ilt>(context, module, type, nullptr, 0);
+            return instance;
         };
 
         auto floatInstance = [=](FloatType* type) -> ClassInstance* {
@@ -261,6 +262,7 @@ Module* preludeModule(Context* context) {
             instance->instances[4] = ordCompare<FCmp, fcmp, FCmp::eq, FCmp::gt>(context, module, type, orderingType, nullptr, 0);
             instance->instances[5] = maxCompare<FCmp, fcmp, FCmp::gt>(context, module, type, nullptr, 0);
             instance->instances[6] = maxCompare<FCmp, fcmp, FCmp::lt>(context, module, type, nullptr, 0);
+            return instance;
         };
 
         intInstance(&intTypes[IntType::Bool]);
@@ -294,6 +296,7 @@ Module* preludeModule(Context* context) {
             instance->instances[1] = binaryFunction<sub>(context, module, type, nullptr, 0);
             instance->instances[2] = binaryFunction<mul>(context, module, type, nullptr, 0);
             instance->instances[3] = binaryFunction<div>(context, module, type, nullptr, 0);
+            return instance;
         };
 
         auto floatInstance = [=](FloatType* type) -> ClassInstance* {
@@ -305,6 +308,7 @@ Module* preludeModule(Context* context) {
             instance->instances[1] = binaryFunction<fsub>(context, module, type, nullptr, 0);
             instance->instances[2] = binaryFunction<fmul>(context, module, type, nullptr, 0);
             instance->instances[3] = binaryFunction<fdiv>(context, module, type, nullptr, 0);
+            return instance;
         };
 
         intInstance(&intTypes[IntType::Bool]);
@@ -347,6 +351,7 @@ Module* preludeModule(Context* context) {
             instance->instances[4] = binaryFunction<or_>(context, module, type, nullptr, 0);
             instance->instances[5] = binaryFunction<xor_>(context, module, type, nullptr, 0);
             instance->instances[6] = binaryFunction<rem>(context, module, type, nullptr, 0);
+            return instance;
         };
 
         intInstance(&intTypes[IntType::Bool]);

@@ -58,7 +58,7 @@ Examples:
 
 ## Compound types
 
-Compound types are implemented through tuples. The fields in a tuple can be either named or unnamed; if one field is named, all of them have to be.
+Compound types are implemented as tuples. The fields in a tuple can be either named or unnamed; if one field is named, all of them have to be.
 
 Examples:
  - `{True, "Yes"}` is of type `{Bool, String}`
@@ -66,7 +66,7 @@ Examples:
 
 ## Function types
 
-Functions are first-class types.
+Functions are first-class types and can store context data.
 
 Examples:
  - `(a: Int) -> a * 2` is of type `(Int) -> Int`
@@ -78,6 +78,7 @@ A record defines a new, distinct type that can be constructed. A record has one 
 Examples:
 - `data Vec2 {x: Float, y: Float}` defines a record `Vec2` with a single constructor `Vec2` which consists of a tuple with two floats. A record with a single constructor can be used as if it is an instance of its contents.
 - `data Lit = NumLit(Double) | StringLit(String) | BoolLit(Bool)` defines a record `Lit` with three constructors. Each constructor has its own associated data.
+- `data Result(a) = Ok(a) | Err { code: Int, reason: String }` defines a record `Result` with two constructors. The `Ok` constructor contains a parametric type defined on instantiation. The `Err` constructor contains a tuple with error data. Note that `Err { code: Int, reason: String }` is equivalent to `Err({ code: Int, reason: String })`.
 
 ## Type aliases
 
@@ -85,6 +86,7 @@ An alias acts exactly like its target type. This is useful for things like namin
 
 Examples:
 - `alias EventHandler = (Event, Date) -> Bool`
+- `alias Annotated(a) = {a, String}`
 
 ## Mutability
 
