@@ -367,8 +367,9 @@ Decl* Parser::parseForeignDecl() {
             isFun = true;
         }
 
+        bool stringName = token.type == Token::String;
         Id name = 0;
-        if(token.type == Token::VarID) {
+        if(token.type == Token::VarID || token.type == Token::String) {
             name = token.data.id;
             eat();
         } else {
@@ -404,6 +405,8 @@ Decl* Parser::parseForeignDecl() {
             } else {
                 error("expected an identifier");
             }
+        } else if(stringName) {
+            error("expected 'as' and foreign import name");
         }
 
         return new(buffer) ForeignDecl(name, importName, from, type);
