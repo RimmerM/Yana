@@ -894,8 +894,13 @@ void Lexer::parseToken() {
 
     // Check for the end of the file.
     if(!*p) {
-        if(blockCount) token->type = Token::EndOfBlock;
-        else token->type = Token::EndOfFile;
+        // Tokens past the file end never have indentation.
+        token->startColumn = 0;
+        if(blockCount) {
+            token->type = Token::EndOfBlock;
+        } else {
+            token->type = Token::EndOfFile;
+        }
     }
 
     // Check if we need to insert a layout token.
