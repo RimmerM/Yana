@@ -36,6 +36,15 @@ struct Printer {
     }
 
     void toString(const Decl& decl) {
+        if(decl.attributes) {
+            stream << "Decl ";
+            makeLevel();
+            toStringIntro(false);
+            stream << "<attributes>";
+            toString(decl.attributes);
+            toStringIntro(true);
+        }
+
         switch(decl.kind) {
             case Decl::Error: stream << "<parse error>"; break;
             case Decl::Fun: toString((const FunDecl&)decl); break;
@@ -45,6 +54,11 @@ struct Printer {
             case Decl::Stmt: toString((const StmtDecl&)decl); break;
             case Decl::Class: toString((const ClassDecl&)decl); break;
             case Decl::Instance: toString((const InstanceDecl&)decl); break;
+            case Decl::Attr: toString((const AttrDecl&)decl); break;
+        }
+
+        if(decl.attributes) {
+            removeLevel();
         }
     }
 
@@ -428,6 +442,18 @@ private:
         removeLevel();
     }
 
+    void toString(const AttrDecl& e) {
+        stream << "AttrDecl ";
+        auto name = context.find(e.name);
+        stream.write(name.text, name.textLength);
+
+        if(e.type) {
+            makeLevel();
+            toString(*e.type, true);
+            removeLevel();
+        }
+    }
+
     void toString(const FormatChunk& f, bool last) {
         auto name = context.find(f.string);
         if(f.format) {
@@ -483,6 +509,29 @@ private:
         }
     }
 
+    void toString(const Attribute& attribute, bool last) {
+        toStringIntro(last);
+        stream << "Attribute ";
+        auto name = context.find(attribute.name);
+        if(name.textLength > 0) {
+            stream.write(name.text, name.textLength);
+        }
+
+        toString(attribute.args);
+    }
+
+    template<class T>
+    void toString(List<T>* list) {
+        if(list) {
+            makeLevel();
+            while(list) {
+                toString(list->item, list->next == nullptr);
+                list = list->next;
+            }
+            removeLevel();
+        }
+    }
+
     void toStringIntro(bool last) {
         stream << '\n';
         makeIndent(last);
@@ -497,6 +546,11 @@ private:
     void toString(const Decl& decl, bool last) {
         toStringIntro(last);
         toString(decl);
+    }
+
+    void toString(const Type& type, bool last) {
+        toStringIntro(last);
+        toString(type);
     }
 
     void toString(const Pat& pat, bool last) {

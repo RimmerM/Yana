@@ -5,6 +5,19 @@
 
 namespace ast {
 
+struct TupArg;
+
+struct Attribute: Node {
+    Attribute(Id name, List<TupArg>* args): name(name), args(args) {}
+    Id name;
+    List<TupArg>* args;
+
+    // This is easier than trying to make a special template function for values.
+    Attribute* operator -> () {
+        return this;
+    }
+};
+
 /*
  * Types
  */
@@ -443,8 +456,10 @@ struct Decl: Node {
         Instance,
         Foreign,
         Stmt,
+        Attr,
     } kind;
 
+    List<Attribute>* attributes;
     bool exported = false;
 
     Decl(Kind t): kind(t) {}
@@ -497,6 +512,12 @@ struct DataDecl: Decl {
 struct StmtDecl: Decl {
     StmtDecl(Expr* expr): Decl(Stmt), expr(expr) {}
     Expr* expr;
+};
+
+struct AttrDecl: Decl {
+    AttrDecl(Id name, Type* type): Decl(Attr), name(name), type(type) {}
+    Id name;
+    Type* type;
 };
 
 /*

@@ -632,7 +632,7 @@ void Lexer::parseNumericLiteral() {
     }
 }
 
-void Lexer::parseSymbol(const char** start, U32* length) {
+void Lexer::parseSymbol(const char** start, U32* length, bool allowKeywords) {
     bool sym1 = isSymbol(p[1]);
     bool sym2 = sym1 && isSymbol(p[2]);
 
@@ -659,8 +659,16 @@ void Lexer::parseSymbol(const char** start, U32* length) {
             // This is the reserved dollar operator.
             token->type = Token::opDollar;
         } else if(*p == '@') {
-            // This is the reserved at operator.
-            token->type = Token::opAt;
+            // Handle some special keywords that start with @.
+            auto c = p + 1;
+            if(allowKeywords && compareConstString(c, "data")) {
+                token->type = Token::kwAtData;
+                p = c;
+                return;
+            } else {
+                // This is the reserved at operator.
+                token->type = Token::opAt;
+            }
         } else if(*p == '~') {
             // This is the reserved tilde operator.
             token->type = Token::opTilde;
@@ -763,7 +771,7 @@ void Lexer::parseQualifier() {
             if(s) {
                 const char* subStart;
                 U32 subLength;
-                parseSymbol(&subStart, &subLength);
+                parseSymbol(&subStart, &subLength, false);
 
                 // If this was a builtin symbol, we parse as a constructor and dot operator instead.
                 if(token->type == Token::VarSym) {
@@ -957,7 +965,7 @@ void Lexer::parseToken() {
     else if(isSymbol(*p)) {
         const char* start;
         U32 length;
-        parseSymbol(&start, &length);
+        parseSymbol(&start, &length, true);
 
         if(token->type == Token::VarSym) {
             auto name = (char*)context.stringArena.alloc(length);

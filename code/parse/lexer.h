@@ -41,6 +41,7 @@ struct Token {
 
         /* Keywords */
         kwAlias,
+        kwAtData,
         kwClass,
         kwData,
         kwDefault,
@@ -130,7 +131,7 @@ private:
     U32 parseEscapedLiteral();
     void parseNumericLiteral();
 
-    void parseSymbol(const char** start, U32* length);
+    void parseSymbol(const char** start, U32* length, bool allowKeywords);
     void parseVariable(const char** start, U32* length);
     void parseSpecial();
     void parseQualifier();

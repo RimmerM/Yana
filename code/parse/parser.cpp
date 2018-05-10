@@ -35,7 +35,7 @@ inline Literal toStringLiteral(Id name) {
 
 static const char kRefSigil = '&';
 static const char kValSigil = '*';
-static const char kPtrSigil = '#';
+static const char kPtrSigil = '%';
 
 Parser::Parser(Context& context, ast::Module& module, const char* text):
     text(text), context(context), diag(context.diagnostics), module(module), lexer(context, diag, text, &token) {
@@ -73,7 +73,9 @@ void Parser::parseModule() {
                     exported = true;
                 }
 
+                auto attributes = parseAttributes();
                 auto decl = parseDecl();
+                decl->attributes = attributes;
                 decl->exported = exported;
 
                 module.decls << decl;
@@ -212,6 +214,8 @@ Decl* Parser::parseDecl() {
         return parseClassDecl();
     } else if(token.type == Token::kwInstance) {
         return parseInstanceDecl();
+    } else if(token.type == Token::kwAtData) {
+        return parseAttrDecl();
     } else {
         auto expr = parseExpr();
         if(expr->type == Expr::Decl) {
@@ -319,6 +323,12 @@ Decl* Parser::parseDataDecl() {
         assert(token.type == Token::kwData);
         eat();
 
+        bool qualified = false;
+        if(token.type == Token::VarID && token.data.id == qualifiedId) {
+            qualified = true;
+            eat();
+        }
+
         auto type = parseSimpleType();
 
         List<Con>* cons;
@@ -335,7 +345,7 @@ Decl* Parser::parseDataDecl() {
             cons = nullptr;
         }
 
-        return new (buffer) DataDecl(type, cons, false);
+        return new (buffer) DataDecl(type, cons, qualified);
     });
 }
 
@@ -454,6 +464,28 @@ Decl* Parser::parseInstanceDecl() {
         });
 
         return new(buffer) InstanceDecl(type, decls);
+    });
+}
+
+ast::Decl* Parser::parseAttrDecl() {
+    return node([=]() -> Decl* {
+        assert(token.type == Token::kwAtData);
+        eat();
+
+        Id name = 0;
+        if(token.type == Token::VarID || token.type == Token::ConID) {
+            name = token.data.id;
+            eat();
+        } else {
+            error("expected identifier");
+        }
+
+        if(token.type == Token::ParenL || token.type == Token::BraceL || token.type == Token::BracketL) {
+            return new (buffer) AttrDecl(name, parseType());
+        } else {
+            error("expected attribute type");
+            return new (buffer) AttrDecl(name, new (buffer) Type(Type::Error));
+        }
     });
 }
 
@@ -1136,7 +1168,46 @@ Type* Parser::parseType() {
         });
 
         if(!args) {
-            return parseAType();
+            if(token.type == Token::ConID) {
+                auto base = node([=]() -> Type* {
+                    auto id = token.data.id;
+                    eat();
+                    return new(buffer) ConType(id);
+                });
+
+                // In full types for cases where it is easily visible what's going on, we allow omitting parentheses.
+                // This conveniently also prevents us from having to look too far ahead.
+                if(token.type == Token::ParenL) {
+                    auto type = parens([=] {
+                        return sepBy1([=] {
+                            return parseType();
+                        }, Token::Comma);
+                    });
+                    return new (buffer) AppType(base, type);
+                } else if(token.type == Token::BraceL) {
+                    return new (buffer) AppType(base, list(parseTupleType()));
+                } else if(token.type == Token::BracketL) {
+                    return new (buffer) AppType(base, list(parseArrayType()));
+                } else if(token.type == Token::ConID) {
+                    auto con = node([=]() -> Type* {
+                        auto id = token.data.id;
+                        eat();
+                        return new(buffer) ConType(id);
+                    });
+                    return new (buffer) AppType(base, list(con));
+                } else if(token.type == Token::VarID) {
+                    auto con = node([=]() -> Type* {
+                        auto id = token.data.id;
+                        eat();
+                        return new(buffer) GenType(id);
+                    });
+                    return new (buffer) AppType(base, list(con));
+                } else {
+                    return base;
+                }
+            } else {
+                return parseAType();
+            }
         } else if(token.type == Token::opArrowR) {
             eat();
             return new (buffer) FunType(args, parseAType());
@@ -1172,8 +1243,6 @@ Type* Parser::parseAType() {
             return new(buffer) ConType(id);
         });
 
-        // For cases where it is easily visible what's going on, we allow omitting parentheses.
-        // This conveniently also prevents us from having to look too far ahead.
         if(token.type == Token::ParenL) {
             auto type = parens([=] {
                 return sepBy1([=] {
@@ -1181,24 +1250,6 @@ Type* Parser::parseAType() {
                 }, Token::Comma);
             });
             return new (buffer) AppType(base, type);
-        } else if(token.type == Token::BraceL) {
-            return new (buffer) AppType(base, list(parseTupleType()));
-        } else if(token.type == Token::BracketL) {
-            return new (buffer) AppType(base, list(parseArrayType()));
-        } else if(token.type == Token::ConID) {
-            auto con = node([=]() -> Type* {
-                auto id = token.data.id;
-                eat();
-                return new(buffer) ConType(id);
-            });
-            return new (buffer) AppType(base, list(con));
-        } else if(token.type == Token::VarID) {
-            auto con = node([=]() -> Type* {
-                auto id = token.data.id;
-                eat();
-                return new(buffer) GenType(id);
-            });
-            return new (buffer) AppType(base, list(con));
         } else {
             return base;
         }
@@ -1623,6 +1674,54 @@ Pat* Parser::parsePattern() {
             return pat;
         }
     }
+}
+
+Attribute Parser::parseAttribute() {
+    return node([=] {
+        if(token.type == Token::opAt) {
+            eat();
+        } else {
+            error("expected '@'");
+        }
+
+        Id name = 0;
+        if(token.type == Token::VarID || token.type == Token::ConID) {
+            name = token.data.id;
+            eat();
+        } else {
+            error("expected identifier or type name");
+        }
+
+        if(token.type == Token::ParenL) {
+            auto args = parens([=] {
+                return sepBy([=] {
+                    return parseTupArg();
+                }, Token::Comma, Token::ParenR);
+            });
+
+            return Attribute{name, args};
+        } else if(token.type == Token::BraceL) {
+            auto expr = (TupExpr*)parseTupleExpr();
+            return Attribute{name, expr->args};
+        } else {
+            return Attribute{name, nullptr};
+        }
+    });
+}
+
+List<Attribute>* Parser::parseAttributes() {
+    List<Attribute>* attributes = nullptr;
+    while(token.type == Token::opAt) {
+        attributes = list(parseAttribute(), attributes);
+
+        if(token.type == Token::EndOfStmt) {
+            eat();
+        } else {
+            error("expected attribute end");
+        }
+    }
+
+    return attributes;
 }
 
 void Parser::error(const char* text, Node* node) {

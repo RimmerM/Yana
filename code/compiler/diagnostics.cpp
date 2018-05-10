@@ -17,7 +17,7 @@ void PrintDiagnostics::message(Level level, const char* text, const Node* where,
         default: type = "";
     }
 
-    printf("%i:%i: %s: ", line, column, type);
+    printf("%i:%i: %s: ", line + 1, column, type);
 
     va_list args;
     va_start(args, source);
@@ -58,6 +58,7 @@ void PrintDiagnostics::message(Level level, const char* text, const Node* where,
         memset(buffer, ' ', length);
         auto bufferStart = lineStart - source;
         buffer[offset - bufferStart] = '^';
+        buffer[offset - bufferStart + 1] = 0;
 
         auto tokenLength = where->sourceEnd.offset - offset;
         if(tokenLength > 1) {
@@ -65,6 +66,7 @@ void PrintDiagnostics::message(Level level, const char* text, const Node* where,
                 buffer[i] = '~';
             }
             buffer[offset - bufferStart + tokenLength] = '^';
+            buffer[offset - bufferStart + tokenLength + 1] = 0;
         }
 
         printf("%s\n", buffer);

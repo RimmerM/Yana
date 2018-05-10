@@ -16,6 +16,7 @@ struct Parser {
     ast::Decl* parseForeignDecl();
     ast::Decl* parseClassDecl();
     ast::Decl* parseInstanceDecl();
+    ast::Decl* parseAttrDecl();
 
     ast::Expr* parseBlock(bool isFun);
     ast::Expr* parseExprSeq();
@@ -56,11 +57,16 @@ struct Parser {
     ast::Pat* parseLeftPattern();
     ast::Pat* parsePattern();
 
+    ast::Attribute parseAttribute();
+    List<ast::Attribute>* parseAttributes();
+
     void error(const char* text, Node* node = nullptr);
 
     void eat() {lexer.next();}
 
-    template<class T> List<T>* list(const T& t) {return new(buffer) List<T>(t);}
+    template<class T> List<T>* list(const T& t, List<T>* next = nullptr) {
+        return new(buffer) List<T>(t, next);
+    }
 
     auto tokenEat(Token::Type type) {
         return [=] {
