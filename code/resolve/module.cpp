@@ -167,13 +167,13 @@ Global* defineGlobal(Context* context, Module* in, Id name) {
     return g;
 }
 
-Arg* defineArg(Context* context, Function* fun, Id name, Type* type) {
+Arg* defineArg(Context* context, Function* fun, Block* block, Id name, Type* type) {
     auto index = (U32)fun->args.size();
     auto a = new (fun->module->memory) Arg;
     a->kind = Value::Arg;
     a->type = type;
     a->name = name;
-    a->block = nullptr;
+    a->block = block;
     a->index = index;
 
     fun->args.push(a);
@@ -490,16 +490,16 @@ static bool prepareImports(Context* context, Module* module, ModuleHandler* hand
         }
     }
 
-    // Implicitly import Prelude if the module doesn't do so by itself.
-    auto preludeId = context->addUnqualifiedName("Prelude", 7);
-    auto hasPrelude = module->imports.get(preludeId) != nullptr;
-    if(!hasPrelude) {
-        auto prelude = handler->require(context, module, preludeId);
-        if(!prelude) return false;
+    // Implicitly import Core if the module doesn't do so by itself.
+    auto coreId = context->addUnqualifiedName("Core", 4);
+    auto hasCore = module->imports.get(coreId) != nullptr;
+    if(!hasCore) {
+        auto core = handler->require(context, module, coreId);
+        if(!core) return false;
 
-        auto import = &module->imports[preludeId];
-        import->module = prelude;
-        import->localName = prelude->id;
+        auto import = &module->imports[coreId];
+        import->module = core;
+        import->localName = core->id;
         import->qualified = false;
     }
 
@@ -695,6 +695,7 @@ void resolveFun(Context* context, Function* fun) {
     // Set the flag for recursion detection.
     fun->resolving = true;
 
+    GenContext gen{nullptr, c->args, c->argCount};
     auto startBlock = block(fun);
 
     // Add the function arguments.
@@ -703,7 +704,7 @@ void resolveFun(Context* context, Function* fun) {
     while(arg) {
         auto a = arg->item;
         auto type = resolveType(context, fun->module, a.type, nullptr);
-        auto v = defineArg(context, fun, a.name, type);
+        auto v = defineArg(context, fun, startBlock, a.name, type);
 
         // A val-type argument is copied but can be mutated within the function.
         if(a.type->kind == ast::Type::Val) {

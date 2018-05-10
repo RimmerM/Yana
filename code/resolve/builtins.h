@@ -2,5 +2,5 @@
 
 #include "module.h"
 
-Module* preludeModule(Context* context);
-Module* unsafeModule(Context* context, Module* prelude);
+Module* coreModule(Context* context);
+Module* nativeModule(Context* context, Module* core);

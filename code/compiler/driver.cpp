@@ -17,19 +17,19 @@
 #include <llvm/Support/raw_os_ostream.h>
 
 struct FileHandler: ModuleHandler {
-    Module* prelude;
-    Module* unsafe;
+    Module* core;
+    Module* native;
 
     FileHandler(Context* context) {
-        prelude = preludeModule(context);
-        unsafe = unsafeModule(context, prelude);
+        core = coreModule(context);
+        native = nativeModule(context, core);
     }
 
     virtual Module* require(Context* context, Module* from, Id name) override {
-        if(name == prelude->id) {
-            return prelude;
-        } else if(name == unsafe->id) {
-            return unsafe;
+        if(name == core->id) {
+            return core;
+        } else if(name == native->id) {
+            return native;
         } else {
             return nullptr;
         }
@@ -95,7 +95,7 @@ int main(int argc, const char** argv) {
     FileHandler handler(&context);
     Array<Module*> compiledModules;
 
-    compiledModules.push(handler.prelude);
+    compiledModules.push(handler.core);
 
     bool directory = isDirectory(root);
     if(directory) {

@@ -616,7 +616,7 @@ Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
         error(b, "only integer arguments are implemented for for loops", expr->from);
     }
 
-    auto cmp = expr->reverse ? ICmp::gt : ICmp::lt;
+    auto cmp = expr->reverse ? ICmp::igt : ICmp::ilt;
     auto comp = icmp(b->block, 0, var, to, cmp);
     je(b->block, comp, loopBlock, endBlock);
 

@@ -70,7 +70,7 @@ Function* defineFun(Context* context, Module* in, Id name);
 Function* defineAnonymousFun(Context* context, Module* in);
 ForeignFunction* defineForeignFun(Context* context, Module* in, Id name, FunType* type);
 Global* defineGlobal(Context* context, Module* in, Id name);
-Arg* defineArg(Context* context, Function* fun, Id name, Type* type);
+Arg* defineArg(Context* context, Function* fun, Block* block, Id name, Type* type);
 ClassFun* defineClassFun(Context* context, Module* module, TypeClass* typeClass, Id name, U32 index);
 
 Type* findType(Context* context, Module* module, Id name);
@@ -112,7 +112,7 @@ struct Function {
     Array<Block*> blocks;
     Array<InstRet*> returnPoints;
 
-    // If this function can be used as an intrinsic, this builds an inline version in the current blocks.
+    // If this function can be used as an intrinsic, this generates an inline version in the current block.
     Value* (*intrinsic)(FunBuilder* b, Value** args, U32 count, Id name) = nullptr;
 
     ast::FunDecl* ast = nullptr; // Set until the function is fully resolved.

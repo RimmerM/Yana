@@ -62,7 +62,7 @@ Block* block(Function* fun, bool deferAdd) {
 
 void setName(Value* v, Id name) {
     v->name = name;
-    if(name) {
+    if(name && v->block) {
         v->block->namedValues[name] = v;
     }
 }

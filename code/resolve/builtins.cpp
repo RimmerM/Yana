@@ -1,16 +1,19 @@
 
 #include "module.h"
 
+static IntType u8Type(8, IntType::Int);
+
 typedef Value* (*BinIntrinsic)(Block*, Id, Value*, Value*);
 
 template<BinIntrinsic F>
 static Function* binaryFunction(Context* context, Module* module, Type* type, const char* name, U32 length, Type* returnType = nullptr) {
     auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length)) : defineAnonymousFun(context, module);
-    auto lhs = defineArg(context, fun, 0, type);
-    auto rhs = defineArg(context, fun, 0, type);
+    auto body = block(fun);
+
+    auto lhs = defineArg(context, fun, body, 0, type);
+    auto rhs = defineArg(context, fun, body, 0, type);
     fun->returnType = returnType ? returnType : type;
 
-    auto body = block(fun);
     auto result = F(body, 0, lhs, rhs);
     ret(body, result);
 
@@ -27,11 +30,12 @@ using CmpIntrinsic = Value* (*)(Block*, Id, Value*, Value*, Cmp);
 template<class Cmp, CmpIntrinsic<Cmp> F, Cmp cmp>
 static Function* cmpFunction(Context* context, Module* module, Type* type, const char* name, U32 length) {
     auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length)) : defineAnonymousFun(context, module);
-    auto lhs = defineArg(context, fun, 0, type);
-    auto rhs = defineArg(context, fun, 0, type);
+    auto body = block(fun);
+
+    auto lhs = defineArg(context, fun, body, 0, type);
+    auto rhs = defineArg(context, fun, body, 0, type);
     fun->returnType = &intTypes[IntType::Bool];
 
-    auto body = block(fun);
     auto result = F(body, 0, lhs, rhs, cmp);
     ret(body, result);
 
@@ -45,11 +49,12 @@ static Function* cmpFunction(Context* context, Module* module, Type* type, const
 template<class Cmp, CmpIntrinsic<Cmp> cmp, Cmp Eq, Cmp Gt>
 static Function* ordCompare(Context* context, Module* module, Type* type, RecordType* orderingType, const char* name, U32 length) {
     auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length)) : defineAnonymousFun(context, module);
-    auto lhs = defineArg(context, fun, 0, type);
-    auto rhs = defineArg(context, fun, 0, type);
+    auto eqTest = block(fun);
+
+    auto lhs = defineArg(context, fun, eqTest, 0, type);
+    auto rhs = defineArg(context, fun, eqTest, 0, type);
     fun->returnType = orderingType;
 
-    auto eqTest = block(fun);
     auto eqBlock = block(fun);
     auto gtTest = block(fun);
     auto gtBlock = block(fun);
@@ -76,11 +81,12 @@ static Function* ordCompare(Context* context, Module* module, Type* type, Record
 template<class Cmp, CmpIntrinsic<Cmp> cmp, Cmp Gt>
 static Function* maxCompare(Context* context, Module* module, Type* type, const char* name, U32 length) {
     auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length)) : defineAnonymousFun(context, module);
-    auto lhs = defineArg(context, fun, 0, type);
-    auto rhs = defineArg(context, fun, 0, type);
+    auto gtTest = block(fun);
+
+    auto lhs = defineArg(context, fun, gtTest, 0, type);
+    auto rhs = defineArg(context, fun, gtTest, 0, type);
     fun->returnType = type;
 
-    auto gtTest = block(fun);
     auto gtBlock = block(fun);
     auto ltBlock = block(fun);
 
@@ -119,9 +125,9 @@ FunType* binaryFunType(FunType* type, Module* module, Type* lhs, Type* rhs, Type
     return type;
 }
 
-Module* preludeModule(Context* context) {
+Module* coreModule(Context* context) {
     auto module = new Module;
-    module->id = context->addUnqualifiedName("Prelude", 7);
+    module->id = context->addUnqualifiedName("Core", 4);
 
     // Define basic operators.
     auto opEq = context->addUnqualifiedName("==", 2);
@@ -363,8 +369,8 @@ Module* preludeModule(Context* context) {
     {
         printFunction->returnType = &unitType;
 
-        auto arg = defineArg(context, printFunction, 0, &stringType);
         auto body = block(printFunction);
+        auto arg = defineArg(context, printFunction, body, 0, &stringType);
 
         auto args = (Value**)module->memory.alloc(sizeof(Value*) * 3);
         args[0] = constInt(body, 0, 1, &intTypes[IntType::Int]);
@@ -379,8 +385,8 @@ Module* preludeModule(Context* context) {
     {
         exitFunction->returnType = &unitType;
 
-        auto code = defineArg(context, exitFunction, 0, &intTypes[IntType::Int]);
         auto body = block(exitFunction);
+        auto code = defineArg(context, exitFunction, body, 0, &intTypes[IntType::Int]);
 
         auto args = (Value**)module->memory.alloc(sizeof(Value*));
         args[0] = code;
@@ -392,9 +398,91 @@ Module* preludeModule(Context* context) {
     return module;
 }
 
-Module* unsafeModule(Context* context, Module* prelude) {
+Module* nativeModule(Context* context, Module* core) {
     auto module = new Module;
-    module->id = context->addUnqualifiedName("Unsafe", 6);
+    module->id = context->addUnqualifiedName("Native", 6);
+
+    // Additional integer types.
+    module->types.add(context->addUnqualifiedName("U8", 2), &u8Type);
+    module->types.add(context->addUnqualifiedName("I8", 2), new (module->memory) IntType(8, IntType::Int));
+    module->types.add(context->addUnqualifiedName("U16", 3), new (module->memory) IntType(16, IntType::Int));
+    module->types.add(context->addUnqualifiedName("I16", 3), new (module->memory) IntType(16, IntType::Int));
+    module->types.add(context->addUnqualifiedName("U32", 3), new (module->memory) IntType(32, IntType::Int));
+    module->types.add(context->addUnqualifiedName("I32", 3), &intTypes[IntType::Int]);
+    module->types.add(context->addUnqualifiedName("U64", 3), new (module->memory) IntType(64, IntType::Long));
+    module->types.add(context->addUnqualifiedName("I64", 3), &intTypes[IntType::Long]);
+
+    // Basic pointer operations.
+    auto opStore = context->addUnqualifiedName("<-", 2);
+    auto opLoad = context->addUnqualifiedName("%", 1);
+    module->ops.add(opStore, OpProperties{4, Assoc::Left});
+
+    auto storeFunction = defineFun(context, module, opStore);
+    {
+        auto type = new (module->memory) GenType(0, 0);
+        auto body = block(storeFunction);
+        auto lhs = defineArg(context, storeFunction, body, 0, getRef(module, type, false, false, true));
+        auto rhs = defineArg(context, storeFunction, body, 0, type);
+        storeFunction->returnType = &unitType;
+
+        store(body, 0, lhs, rhs);
+        ret(body);
+
+        storeFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+            return store(b->block, instName, args[0], args[1]);
+        };
+    }
+
+    auto loadFunction = defineFun(context, module, opLoad);
+    {
+        auto type = new (module->memory) GenType(0, 0);
+        auto body = block(loadFunction);
+        auto lhs = defineArg(context, loadFunction, body, 0, getRef(module, type, false, false, true));
+        loadFunction->returnType = type;
+
+        auto value = load(body, 0, lhs);
+        ret(body, value);
+
+        loadFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+            return load(b->block, instName, args[0]);
+        };
+    }
+
+    // Syscall wrappers.
+    Function* syscalls[7] = {
+        defineFun(context, module, context->addUnqualifiedName("syscall0", 8)),
+        defineFun(context, module, context->addUnqualifiedName("syscall1", 8)),
+        defineFun(context, module, context->addUnqualifiedName("syscall2", 8)),
+        defineFun(context, module, context->addUnqualifiedName("syscall3", 8)),
+        defineFun(context, module, context->addUnqualifiedName("syscall4", 8)),
+        defineFun(context, module, context->addUnqualifiedName("syscall5", 8)),
+        defineFun(context, module, context->addUnqualifiedName("syscall6", 8)),
+    };
+
+    auto bytePtrType = getRef(module, &u8Type, false, false, true);
+
+    for(U32 i = 0; i < 7; i++) {
+        auto fun = syscalls[i];
+        fun->returnType = bytePtrType;
+
+        auto body = block(fun);
+        auto index = defineArg(context, fun, body, 0, &intTypes[IntType::Int]);
+
+        auto args = (Value**)module->memory.alloc(sizeof(Value*) * (i + 1));
+        args[0] = index;
+
+        for(U32 j = 0; j < i; j++) {
+            args[j + 1] = defineArg(context, fun, body, 0, bytePtrType);
+        }
+
+        auto result = callDyn(body, 0, index, bytePtrType, args, i + 1, true);
+        ret(body, result);
+
+        fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+            auto type = getRef(b->fun->module, &u8Type, false, false, true);
+            return callDyn(b->block, instName, args[0], type, args + 1, count - 1, true);
+        };
+    }
 
     return module;
 }
