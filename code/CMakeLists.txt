@@ -1,25 +1,8 @@
-cmake_minimum_required(VERSION 3.7)
-project(code)
-
 set(CMAKE_CXX_STANDARD 17)
 
-if(APPLE OR WIN32)
-else()
 find_package(LLVM REQUIRED CONFIG)
-endif()
 
 set(SOURCE_FILES)
-set(SOURCE_FILES ${SOURCE_FILES}
-    util/array.cpp
-    util/array.h
-    util/types.h
-    util/hash.h
-    util/hash.cpp
-    util/map.h
-    util/string.cpp
-    util/string.h
-)
-
 set(SOURCE_FILES ${SOURCE_FILES}
     compiler/context.h
     compiler/context.cpp
@@ -73,17 +56,11 @@ set(SOURCE_FILES ${SOURCE_FILES}
     codegen/js/format.cpp
 )
 
-if(APPLE)
-    include_directories(/usr/local/opt/llvm/include)
-    link_directories(/usr/local/opt/llvm/lib)
-elseif(WIN32)
-    include_directories("C:/Program Files (x86)/LLVM/include")
-    link_directories("C:/Program Files (x86)/LLVM/lib")
-endif()
+include_directories(${LLVM_INCLUDE_DIR})
+add_executable(Yana ${SOURCE_FILES})
 
-add_executable(code ${SOURCE_FILES})
-
-target_link_libraries(code
+target_link_libraries(Yana
+    TritiumCore ${OTHER_LIBS}
     LLVMLinker
     LLVMTransformUtils
     LLVMCore
@@ -93,5 +70,5 @@ target_link_libraries(code
 )
 
 if(APPLE)
-    target_link_libraries(code ncurses)
+    target_link_libraries(Yana ncurses)
 endif()
