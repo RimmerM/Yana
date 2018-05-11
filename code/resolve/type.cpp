@@ -104,7 +104,7 @@ Byte* describeRefType(RefType* type, Byte* buffer, Byte* max) {
 
 Byte* describeType(Type* type, Byte* buffer, Byte* max) {
     if(type->descriptorLength > 0) {
-        memcpy(buffer, type->descriptor, type->descriptorLength);
+        copyMem(type->descriptor, buffer, type->descriptorLength);
         return buffer + type->descriptorLength;
     }
 
@@ -149,8 +149,8 @@ void createDescriptor(Type* type, Arena* arena) {
     Byte buffer[Limits::maxTypeDescriptor];
     auto length = describeType(type, buffer, buffer + Limits::maxTypeDescriptor) - buffer;
 
-    auto descriptor = (Byte*)(arena ? arena->alloc(length) : malloc(length));
-    memcpy(descriptor, buffer, length);
+    auto descriptor = (Byte*)(arena ? arena->alloc(length) : hAlloc(length));
+    copyMem(buffer, descriptor, length);
     type->descriptor = descriptor;
     type->descriptorLength = (U16)length;
 }
@@ -197,7 +197,7 @@ static Type* findTuple(Context* context, Module* module, ast::TupType* type, Gen
     field = type->fields;
     while(field) {
         auto fieldType = resolveType(context, module, field->item.type, gen);
-        memcpy(p, fieldType->descriptor, fieldType->descriptorLength);
+        copyMem(fieldType->descriptor, p, fieldType->descriptorLength);
         p += fieldType->descriptorLength;
 
         fields[i].name = field->item.name;
@@ -220,7 +220,7 @@ static Type* findTuple(Context* context, Module* module, ast::TupType* type, Gen
     auto hash = hasher.get();
 
     if(auto tuple = module->usedTuples.get(hash)) {
-        return *tuple;
+        return *tuple.unwrap();
     }
 
     auto tuple = new (module->memory) TupType(virtualSize);
@@ -233,7 +233,7 @@ static Type* findTuple(Context* context, Module* module, ast::TupType* type, Gen
     }
 
     auto descriptor = (Byte*)module->memory.alloc(descriptorLength);
-    memcpy(descriptor, buffer, descriptorLength);
+    copyMem(buffer, descriptor, descriptorLength);
     tuple->descriptor = descriptor;
     tuple->descriptorLength = (U16)descriptorLength;
 
@@ -350,7 +350,7 @@ static Type* instantiateType(Context* context, Module* module, Type* type, Type*
                 return fun;
             } else {
                 auto finalArgs = (FunArg*)module->memory.alloc(sizeof(FunArg) * funCount);
-                memcpy(finalArgs, instanceArgs, sizeof(FunArg) * funCount);
+                copy(instanceArgs, finalArgs, funCount);
 
                 auto instance = new (module->memory) FunType();
                 instance->args = finalArgs;
@@ -365,7 +365,7 @@ static Type* instantiateType(Context* context, Module* module, Type* type, Type*
 
 AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count) {
     if(count != type->genCount) {
-        context->diagnostics.error("incorrect number of arguments to type", nullptr, nullptr);
+        context->diagnostics.error("incorrect number of arguments to type"_buffer, nullptr, noSource);
         return type;
     }
 
@@ -390,7 +390,7 @@ RecordType* instantiateRecord(Context* context, Module* module, RecordType* type
     }
 
     if(count != type->genCount) {
-        context->diagnostics.error("incorrect number of arguments to type", nullptr, nullptr);
+        context->diagnostics.error("incorrect number of arguments to type"_buffer, nullptr, noSource);
         return type;
     }
 
@@ -409,7 +409,7 @@ RecordType* instantiateRecord(Context* context, Module* module, RecordType* type
     if(type->instanceOf) {
         auto baseInstance = type->instanceOf;
         auto instance = (Type**)module->memory.alloc(sizeof(Type*) * baseInstance->genCount);
-        memcpy(instance, type->instance, sizeof(Type*) * baseInstance->genCount);
+        copy(type->instance, instance, baseInstance->genCount);
 
         // Match the generics in the instance to the new arguments.
         U32 argIndex = 0;
@@ -424,7 +424,7 @@ RecordType* instantiateRecord(Context* context, Module* module, RecordType* type
         record->instance = instance;
     } else {
         auto instance = (Type**)module->memory.alloc(sizeof(Type*) * count);
-        memcpy(instance, args, sizeof(Type*) * count);
+        copy(args, instance, count);
 
         record->instanceOf = type;
         record->instance = instance;
@@ -482,7 +482,7 @@ static Type* resolveApp(Context* context, Module* module, ast::AppType* type, Ge
     } else if(base->kind == Type::Record) {
         return instantiateRecord(context, module, (RecordType*)base, args, argCount);
     } else {
-        context->diagnostics.error("type is not a higher order type", type->base, nullptr);
+        context->diagnostics.error("type is not a higher order type"_buffer, type->base, noSource);
         return nullptr;
     }
 }
@@ -516,7 +516,7 @@ static Type* findType(Context* context, Module* module, ast::Type* type, GenCont
         case ast::Type::Con: {
             auto found = findType(context, module, ((ast::ConType*)type)->con);
             if(!found) {
-                context->diagnostics.error("unresolved type name", type, nullptr);
+                context->diagnostics.error("unresolved type name"_buffer, type, noSource);
                 return &errorType;
             }
 
@@ -670,7 +670,7 @@ Type* resolveType(Context* context, Module* module, ast::Type* type, GenContext*
         (found->kind == Type::Alias && ((AliasType*)found)->genCount > 0) ||
         (found->kind == Type::Record && ((RecordType*)found)->genCount > 0)
     ) {
-        context->diagnostics.error("cannot use a generic type here", type, nullptr);
+        context->diagnostics.error("cannot use a generic type here"_buffer, type, noSource);
     }
 
     return found;
@@ -682,7 +682,7 @@ bool compareTypes(Context* context, Type* lhs, Type* rhs) {
     if(lhs == rhs) return true;
 
     if(lhs->descriptorLength != rhs->descriptorLength) return false;
-    return memcmp(lhs->descriptor, rhs->descriptor, lhs->descriptorLength) == 0;
+    return compareMem(lhs->descriptor, rhs->descriptor, lhs->descriptorLength) == 0;
 }
 
 TupType* resolveTupType(Context* context, Module* module, Field* sourceFields, U32 count) {
@@ -712,7 +712,7 @@ TupType* resolveTupType(Context* context, Module* module, Field* sourceFields, U
     // Describe the field types.
     for(U32 i = 0; i < count; i++) {
         auto fieldType = sourceFields[i].type;
-        memcpy(p, fieldType->descriptor, fieldType->descriptorLength);
+        copyMem(fieldType->descriptor, p, fieldType->descriptorLength);
         p += fieldType->descriptorLength;
 
         fields[i].name = sourceFields[i].name;
@@ -730,7 +730,7 @@ TupType* resolveTupType(Context* context, Module* module, Field* sourceFields, U
     auto hash = hasher.get();
 
     if(auto tuple = module->usedTuples.get(hash)) {
-        return *tuple;
+        return *tuple.unwrap();
     }
 
     auto tuple = new (module->memory) TupType(virtualSize);
@@ -743,7 +743,7 @@ TupType* resolveTupType(Context* context, Module* module, Field* sourceFields, U
     }
 
     auto descriptor = (Byte*)module->memory.alloc(descriptorLength);
-    memcpy(descriptor, buffer, descriptorLength);
+    copyMem(buffer, descriptor, descriptorLength);
     tuple->descriptor = descriptor;
     tuple->descriptorLength = (U16)descriptorLength;
 

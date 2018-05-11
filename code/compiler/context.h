@@ -1,8 +1,7 @@
 #pragma once
 
-#include "../util/map.h"
-#include "../util/hash.h"
 #include "diagnostics.h"
+#include <HashMap.h>
 
 /*
  * An identifier consists of zero or more module names separated by dots, followed by the the identifier value.
@@ -107,13 +106,3 @@ struct ArenaAllocator {
 
 template<class T>
 using ASTArray = ArrayT<T, ArrayAllocator<T, ArenaAllocator>>;
-
-template<class T>
-struct List {
-    List<T>* next = nullptr;
-    T item;
-
-    List() {}
-    List(const T& i) : item(i) {}
-    List(const T& i, List<T>* n) : item(i), next(n) {}
-};

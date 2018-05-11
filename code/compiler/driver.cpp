@@ -2,19 +2,14 @@
 #define __STDC_FORMAT_MACROS
 #define __STDC_LIMIT_MACROS
 
-#include <cstdio>
-#include <sys/stat.h>
-#include <cstring>
 #include <fstream>
-#include <llvm/IR/LLVMContext.h>
-#include "../util/types.h"
 #include "../resolve/module.h"
 #include "../parse/parser.h"
 #include "../resolve/print.h"
 #include "../codegen/llvm/gen.h"
 #include "../codegen/js/gen.h"
 #include "../resolve/builtins.h"
-#include <llvm/Support/raw_os_ostream.h>
+#include <File.h>
 
 struct FileHandler: ModuleHandler {
     Module* core;
@@ -25,7 +20,7 @@ struct FileHandler: ModuleHandler {
         native = nativeModule(context, core);
     }
 
-    virtual Module* require(Context* context, Module* from, Id name) override {
+    Module* require(Context* context, Module* from, Id name) override {
         if(name == core->id) {
             return core;
         } else if(name == native->id) {
@@ -36,17 +31,17 @@ struct FileHandler: ModuleHandler {
     }
 };
 
-bool isDirectory(const char* path) {
-    struct stat type;
-    stat(path, &type);
-    return S_ISDIR(type.st_mode);
+bool isDirectory(const String& path) {
+    auto info = File::info(path);
+    return info && info.unwrap().isDirectory;
 }
 
-Module* compileFile(Context& context, ModuleHandler& handler, const char* path, U32 rootPath) {
+Module* compileFile(Context& context, ModuleHandler& handler, const String& path, Size rootOffset) {
     char nameBuffer[2048];
     Size length = 0;
     Size segments = 1;
-    auto name = path + rootPath;
+    auto name = path.text() + rootOffset;
+
     while(*name) {
         if(*name == '/' || *name == '\\') {
             segments++;
@@ -61,17 +56,16 @@ Module* compileFile(Context& context, ModuleHandler& handler, const char* path, 
 
     ast::Module ast(context.addQualifiedName(nameBuffer, length, segments));
 
-    auto file = fopen(path, "r");
-    if(!file) {
-        context.diagnostics.error("cannot open file %s", nullptr, nullptr, path);
+    auto result = File::open(path, readAccess());
+    if(result.isErr()) {
+        context.diagnostics.error("cannot open file %@: error %@"_buffer, nullptr, noSource, path, (U32)result.unwrapErr());
         return nullptr;
     }
 
-    fseek(file, 0, SEEK_END);
-    auto size = ftell(file);
-    rewind(file);
-    auto text = (char*)malloc(size + 1);
-    fread(text, size, 1, file);
+    auto file = result.moveUnwrapOk();
+    auto size = file.size();
+    auto text = (char*)hAlloc(size + 1);
+    file.read({text, size});
     text[size] = 0;
 
     Parser parser(context, ast, text);
@@ -82,13 +76,13 @@ Module* compileFile(Context& context, ModuleHandler& handler, const char* path, 
 
 int main(int argc, const char** argv) {
     if(argc < 4) {
-        printf("Usage: compile <mode> <library root> <output file/directory>\n");
+        println("Usage: compile <mode> <library root> <output file/directory>");
         return 1;
     }
 
-    const char* mode = argv[1];
-    const char* root = argv[2];
-    const char* output = argv[3];
+    String mode(argv[1]);
+    String root(argv[2]);
+    String output(argv[3]);
 
     PrintDiagnostics diagnostics;
     Context context(diagnostics);
@@ -101,13 +95,13 @@ int main(int argc, const char** argv) {
     if(directory) {
         // TODO:
     } else {
-        auto module = compileFile(context, handler, root, strlen(root));
+        auto module = compileFile(context, handler, root, root.size());
         if(module) {
             compiledModules.push(module);
         }
     }
 
-    if(strcmp(mode, "exe") == 0) {
+    if(mode == "exe") {
         llvm::LLVMContext llvmContext;
         Array<llvm::Module*> llvmModules;
 
@@ -116,14 +110,14 @@ int main(int argc, const char** argv) {
         }
 
         auto result = linkModules(&llvmContext, &context, llvmModules.pointer(), llvmModules.size());
-    } else if(strcmp(mode, "js") == 0) {
-        std::ofstream jsFile(output, std::ios_base::out);
+    } else if(mode == "js") {
+        std::ofstream jsFile(std::string(output.text(), output.size()), std::ios_base::out);
         for(auto module: compiledModules) {
             auto ast = js::genModule(&context, module);
             js::formatFile(context, jsFile, ast, false);
         }
-    } else if(strcmp(mode, "ir") == 0) {
-        std::ofstream irFile(output, std::ios_base::out);
+    } else if(mode == "ir") {
+        std::ofstream irFile(std::string(output.text(), output.size()), std::ios_base::out);
 
         for(auto module: compiledModules) {
             irFile << "module ";
@@ -138,10 +132,10 @@ int main(int argc, const char** argv) {
             irFile << "\n\n";
             printModule(irFile, context, module);
         }
-    } else if(strcmp(mode, "lib") == 0) {
+    } else if(mode == "lib") {
         // TODO: Generate library.
-    } else if(strcmp(mode, "ll") == 0) {
-        std::ofstream llvmFile(output, std::ios_base::out);
+    } else if(mode == "ll") {
+        std::ofstream llvmFile(std::string(output.text(), output.size()), std::ios_base::out);
         llvm::LLVMContext llvmContext;
 
         Array<llvm::Module*> llvmModules;
@@ -153,6 +147,6 @@ int main(int argc, const char** argv) {
         llvm::raw_os_ostream stream{llvmFile};
         result->print(stream, nullptr);
     } else {
-        printf("Unknown compilation mode '%s'. Valid modes are exe, js, ir, lib, ll.", mode);
+        println("Unknown compilation mode '%@'. Valid modes are exe, js, ir, lib, ll.", mode);
     }
 }

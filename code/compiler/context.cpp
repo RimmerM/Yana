@@ -2,7 +2,7 @@
 
 void* Arena::alloc(Size size) {
     if(buffer + size > max) {
-        buffer = (Byte*)malloc(kChunkSize);
+        buffer = (Byte*)Tritium::hAlloc(kChunkSize);
         max = buffer + kChunkSize;
         buffers.push(buffer);
     }
@@ -17,7 +17,7 @@ void Arena::reset() {
 
     // Remove all but one buffer.
     for(U32 i = 1; i < buffers.size(); i++) {
-        free(buffers[i]);
+        Tritium::hFree(buffers[i]);
     }
 
     buffer = buffers[0];
@@ -29,7 +29,7 @@ void Arena::reset() {
 
 Arena::~Arena() {
     for(auto buffer: buffers) {
-        free(buffer);
+        Tritium::hFree(buffer);
     }
     buffers.destroy();
     buffer = nullptr;
@@ -44,7 +44,7 @@ void Context::addOp(Id op, U16 prec, Assoc assoc) {
 OpProperties Context::findOp(Id op) {
     auto res = ops.get(op);
     if(res) {
-        return *res;
+        return *res.unwrap();
     } else {
         return {9, Assoc::Left};
     }
@@ -76,7 +76,7 @@ Id Context::addQualifiedName(const char* chars, Size count, Size segmentCount) {
         auto text = (char*)stringArena.alloc(count);
         id.text = text;
         id.textLength = (U32)count;
-        memcpy(text, chars, count);
+        copy(chars, text, count);
 
         Hasher hash;
         hash.addBytes(chars, count);
@@ -93,7 +93,7 @@ Id Context::addQualifiedName(const char* chars, Size count, Size segmentCount) {
         id.segmentHashes = data + segmentCount;
 
         auto name = (char*)(data + segmentCount * 2);
-        memcpy(name, chars, count);
+        copy(chars, name, count);
         id.text = name;
         id.textLength = (U32)count;
 

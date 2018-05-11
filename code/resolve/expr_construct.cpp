@@ -25,7 +25,7 @@ static Args buildArgs(FunBuilder* b, List<ast::TupArg>* arg) {
     }
 
     auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
-    memset(args, 0, sizeof(Value*) * argCount);
+    set(args, argCount, 0);
 
     return {args, argCount};
 }
@@ -47,12 +47,12 @@ static void matchArgs(FunBuilder* b, List<ast::TupArg>* arg, Args args, F f) {
 
         if(found) {
             if(args.values[argIndex]) {
-                error(b, "argument specified more than once", arg->item.value);
+                error(b, "argument specified more than once"_buffer, arg->item.value);
             }
 
             args.values[argIndex] = resolveExpr(b, arg->item.value, 0, true);
         } else {
-            error(b, "constructed type has no field with this name", arg->item.value);
+            error(b, "constructed type has no field with this name"_buffer, arg->item.value);
         }
 
         arg = arg->next;
@@ -82,7 +82,7 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
     // For now we handle aliases and primitive types.
     if(type->kind == Type::Int || type->kind == Type::Float) {
         if(!expr->args || expr->args->next) {
-            error(b, "incorrect number of arguments to type constructor", expr);
+            error(b, "incorrect number of arguments to type constructor"_buffer, expr);
             return nullptr;
         }
 
@@ -90,13 +90,13 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
         return implicitConvert(b, arg, type, true, true);
     } else if(type->kind == Type::String) {
         if(!expr->args || expr->args->next) {
-            error(b, "incorrect number of arguments to string constructor", expr);
+            error(b, "incorrect number of arguments to string constructor"_buffer, expr);
             return nullptr;
         }
 
         auto arg = resolveExpr(b, expr->args->item.value, name, true);
         if(arg->type->kind != Type::String) {
-            error(b, "strings must be constructed with a string", expr);
+            error(b, "strings must be constructed with a string"_buffer, expr);
             return nullptr;
         }
 
@@ -113,9 +113,9 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
         matchArgs(b, expr->args, args, tupleArgFinder(tup->fields, tup->count));
 
         if(args.count < tup->count) {
-            error(b, "missing fields for tuple type", expr->type);
+            error(b, "missing fields for tuple type"_buffer, expr->type);
         } else if(args.count > tup->count) {
-            error(b, "too many fields for tuple type", expr->type);
+            error(b, "too many fields for tuple type"_buffer, expr->type);
         }
 
         // Implicitly convert each field to the correct type.
@@ -145,28 +145,28 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
         return ::tup(b->block, name, finalType, args.values, args.count);
     } else if(type->kind == Type::Array) {
         // TODO
-        error(b, "not implemented", expr);
+        error(b, "not implemented"_buffer, expr);
         return nullptr;
     } else if(type->kind == Type::Map) {
         // TODO
-        error(b, "not implemented", expr);
+        error(b, "not implemented"_buffer, expr);
         return nullptr;
     } else if(type->kind == Type::Fun) {
         // TODO
-        error(b, "not implemented", expr);
+        error(b, "not implemented"_buffer, expr);
         return nullptr;
     } else if(type->kind == Type::Unit || type->kind == Type::Error) {
         return nullptr;
     }
 
-    error(b, "cannot construct this type", expr->type);
+    error(b, "cannot construct this type"_buffer, expr->type);
     return nullptr;
 }
 
 static Value* resolveMiscCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
     auto type = findType(&b->context, b->fun->module, expr->type->con);
     if(!type) {
-        error(b, "cannot find type", expr->type);
+        error(b, "cannot find type"_buffer, expr->type);
         return nullptr;
     }
 
@@ -185,14 +185,14 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
     auto arg = expr->args;
     if(!arg) {
         if(content != nullptr) {
-            error(b, "incorrect number of arguments to constructor", expr);
+            error(b, "incorrect number of arguments to constructor"_buffer, expr);
         }
 
         return record(b->block, name, con, nullptr);
     }
 
     if(!content) {
-        error(b, "incorrect number of arguments to constructor", expr);
+        error(b, "incorrect number of arguments to constructor"_buffer, expr);
         return error(b->block, name, con->parent);
     }
 
@@ -212,7 +212,7 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
     }
 
     if(contentArgs != args.count) {
-        error(b, "incorrect number of arguments to constructor", expr);
+        error(b, "incorrect number of arguments to constructor"_buffer, expr);
         return error(b->block, name, con->parent);
     }
 

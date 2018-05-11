@@ -42,11 +42,11 @@ void resolveVarPat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::VarPat* p
     auto var = findVar(b, pat->var);
     if(var) {
         ast::VarExpr cmp(pat->var);
-        List<ast::TupArg> arg(ast::TupArg(0, &cmp));
+        List<ast::TupArg> arg(nullptr, ast::TupArg(0, &cmp));
         auto call = resolveStaticCall(b, eqHash, pivot, &arg, 0);
         if(!call || call->type != &intTypes[IntType::Bool]) {
             if(!call || call->type->kind != Type::Error) {
-                error(b, "result of a comparison must be a boolean", pat);
+                error(b, "result of a comparison must be a boolean"_buffer, pat);
             }
 
             matcher->alwaysFalse = true;
@@ -61,11 +61,11 @@ void resolveVarPat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::VarPat* p
 
 void resolveLitPat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::LitPat* pat) {
     ast::LitExpr lit(pat->lit);
-    List<ast::TupArg> arg(ast::TupArg(0, &lit));
+    List<ast::TupArg> arg(nullptr, ast::TupArg(0, &lit));
     auto call = resolveStaticCall(b, eqHash, pivot, &arg, 0);
     if(!call || call->type != &intTypes[IntType::Bool]) {
         if(!call || call->type->kind != Type::Error) {
-            error(b, "result of a comparison must be a boolean", pat);
+            error(b, "result of a comparison must be a boolean"_buffer, pat);
         }
         matcher->alwaysFalse = true;
     } else {
@@ -76,7 +76,7 @@ void resolveLitPat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::LitPat* p
 int resolveTupPat(FunBuilder* b, MatchContext** match, Block* onFail, Value* pivot, ast::TupPat* pat) {
     auto type = canonicalType(pivot->type);
     if(type->kind != Type::Tup) {
-        error(b, "cannot match a tuple on this type", pat);
+        error(b, "cannot match a tuple on this type"_buffer, pat);
         jmp(b->block, onFail);
         return -1;
     }
@@ -100,7 +100,7 @@ int resolveTupPat(FunBuilder* b, MatchContext** match, Block* onFail, Value* piv
         }
 
         if(index < 0) {
-            error(b, "cannot match field: the tuple doesn't contain this field", field->item.pat);
+            error(b, "cannot match field: the tuple doesn't contain this field"_buffer, field->item.pat);
             jmp(b->block, onFail);
             return -1;
         } else {
@@ -161,7 +161,7 @@ int resolveTupPat(FunBuilder* b, MatchContext** match, Block* onFail, Value* piv
 int resolveConPat(FunBuilder* b, MatchContext** match, Block* onFail, Value* pivot, ast::ConPat* pat) {
     auto con = findCon(&b->context, b->fun->module, pat->constructor);
     if(!con || !compareTypes(&b->context, con->parent, pivot->type)) {
-        error(b, "constructor type is incompatible with pivot type", pat);
+        error(b, "constructor type is incompatible with pivot type"_buffer, pat);
         jmp(b->block, onFail);
         return -1;
     }
@@ -195,7 +195,7 @@ int resolveConPat(FunBuilder* b, MatchContext** match, Block* onFail, Value* piv
         context = new (b->exprMem) MatchContext;
         context->conCount = con->parent->conCount;
         context->conChecked = (bool*)b->exprMem.alloc(sizeof(bool) * context->conCount);
-        memset(context->conChecked, 0, sizeof(bool) * context->conCount);
+        set(context->conChecked, context->conCount, 0);
 
         *match = context;
     }
@@ -270,7 +270,7 @@ static Value* getRangeArg(FunBuilder* b, ast::Pat* pat) {
         }
     }
 
-    error(b, "range patterns must use a variable or numeric literal", pat);
+    error(b, "range patterns must use a variable or numeric literal"_buffer, pat);
     return nullptr;
 }
 
@@ -288,7 +288,7 @@ void resolveRangePat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::RangePa
 
         if(!fromCmp || fromCmp->type != &intTypes[IntType::Bool]) {
             if(!fromCmp || fromCmp->type->kind != Type::Error) {
-                error(b, "result of a comparison must be a boolean", pat);
+                error(b, "result of a comparison must be a boolean"_buffer, pat);
             }
             matcher->alwaysFalse = true;
         } else {
@@ -302,7 +302,7 @@ void resolveRangePat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::RangePa
 
         if(!toCmp || toCmp->type != &intTypes[IntType::Bool]) {
             if(!toCmp || toCmp->type->kind != Type::Error) {
-                error(b, "result of a comparison must be a boolean", pat);
+                error(b, "result of a comparison must be a boolean"_buffer, pat);
             }
             matcher->alwaysFalse = true;
         } else {
@@ -321,7 +321,7 @@ void resolveRangePat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::RangePa
 
         if(!fromCmp || !toCmp || fromCmp->type != &intTypes[IntType::Bool] || toCmp->type != &intTypes[IntType::Bool]) {
             if(!fromCmp || !toCmp || fromCmp->type->kind != Type::Error || toCmp->type->kind != Type::Error) {
-                error(b, "result of a comparison must be a boolean", pat);
+                error(b, "result of a comparison must be a boolean"_buffer, pat);
             }
             matcher->alwaysFalse = true;
         } else {

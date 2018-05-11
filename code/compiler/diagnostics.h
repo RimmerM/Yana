@@ -1,6 +1,11 @@
 #pragma once
 
-#include "../util/types.h"
+#include <Core.h>
+
+using namespace Tritium;
+using Id = U32;
+
+static constexpr StringBuffer noSource{nullptr, 0};
 
 struct Loc {
     U16 line;
@@ -32,16 +37,23 @@ struct Diagnostics {
     };
 
     template<class... T>
-    void warning(const char* text, const Node* where, const char* source, T&&... format) {
+    void warning(StringBuffer text, const Node* where, StringBuffer source, T&&... format) {
         message(WarningLevel, text, where, source, forward<T>(format)...);
     }
 
     template<class... T>
-    void error(const char* text, const Node* where, const char* source, T&&... format) {
+    void error(StringBuffer text, const Node* where, StringBuffer source, T&&... format) {
         message(ErrorLevel, text, where, source, forward<T>(format)...);
     }
 
-    virtual void message(Level level, const char* text, const Node* where, const char* source, ...) {
+    template<class... T>
+    void message(Level level, StringBuffer text, const Node* where, StringBuffer source, T&&... format) {
+        char buffer[4000];
+        text = {buffer, Size(formatString(toBuffer(buffer), text, forward<T>(format)...) - buffer)};
+        message(level, text, where, source);
+    }
+
+    virtual void message(Level level, StringBuffer text, const Node* where, StringBuffer source) {
         if(level == WarningLevel) warnings++;
         else if(level == ErrorLevel) errors++;
     }
@@ -55,5 +67,5 @@ private:
 };
 
 struct PrintDiagnostics: Diagnostics {
-    void message(Level level, const char* text, const Node* where, const char* source, ...) override;
+    void message(Level level, StringBuffer text, const Node* where, StringBuffer source) override;
 };

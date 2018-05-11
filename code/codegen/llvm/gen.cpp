@@ -3,7 +3,6 @@
 #define __STDC_LIMIT_MACROS
 
 #include "gen.h"
-#include "../../util/string.h"
 #include <llvm/IR/Module.h>
 #include <llvm/IR/InlineAsm.h>
 
@@ -727,7 +726,7 @@ llvm::Value* genSysCall(Gen* gen, InstCallDyn* inst) {
                         if(argCount >= 6) {
                             p = copyString("{r9},", p, (U32)(1024 - (p - constraints)));
                             if(argCount > 6) {
-                                gen->context->diagnostics.error("codegen: unsupported syscall argument count", nullptr, nullptr);
+                                gen->context->diagnostics.error("codegen: unsupported syscall argument count"_buffer, nullptr, noSource);
                             }
                         }
                     }
@@ -752,7 +751,7 @@ llvm::Value* genCallIntrinsic(Gen* gen, InstCallDyn* inst) {
         return nullptr;
     } else {
         // Unsupported type.
-        gen->context->diagnostics.error("codegen: unsupported intrinsic call type", nullptr, nullptr);
+        gen->context->diagnostics.error("codegen: unsupported intrinsic call type"_buffer, nullptr, noSource);
         return nullptr;
     }
 }

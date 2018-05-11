@@ -56,7 +56,7 @@ static bool generalizeTypes(FunBuilder* b, Value*& lhs, Value*& rhs) {
     }
 
     b->block = prevBlock;
-    error(b, "cannot implicitly convert values to the same type", nullptr);
+    error(b, "cannot implicitly convert values to the same type"_buffer, nullptr);
 
     return false;
 }
@@ -194,7 +194,7 @@ Value* resolveVar(FunBuilder* b, ast::VarExpr* expr, bool asRV) {
 
     // If the value doesn't exist, we create a placeholder to allow the rest of the code to be resolved.
     if(!value) {
-        error(b, "identifier not found", expr);
+        error(b, "identifier not found"_buffer, expr);
         value = error(b->block, 0, &errorType);
     }
 
@@ -226,7 +226,7 @@ Value* resolveApp(FunBuilder* b, ast::AppExpr* expr, Id name, bool used) {
         if(callee->field->type == ast::Expr::Var) {
             return resolveStaticCall(b, ((ast::VarExpr*)callee->field)->name, target, expr->args, name);
         } else {
-            error(b, "field is not a function type", callee->field);
+            error(b, "field is not a function type"_buffer, callee->field);
             return nullptr;
         }
     } else if(expr->callee->type == ast::Expr::Var) {
@@ -249,7 +249,7 @@ Value* resolveApp(FunBuilder* b, ast::AppExpr* expr, Id name, bool used) {
         if(calleeType->kind == Type::Fun) {
             return resolveDynCall(b, callee, expr->args, name);
         } else {
-            error(b, "callee is not a function type", expr->callee);
+            error(b, "callee is not a function type"_buffer, expr->callee);
             return nullptr;
         }
     }
@@ -268,8 +268,8 @@ Value* resolveInfix(FunBuilder* b, ast::InfixExpr* unordered, Id name, bool used
     }
 
     // Create a temporary app-expression to resolve the operator as a function call.
-    List<ast::TupArg> lhs(ast::TupArg(0, ast->lhs));
-    List<ast::TupArg> rhs(ast::TupArg(0, ast->rhs));
+    List<ast::TupArg> lhs(nullptr, ast::TupArg(0, ast->lhs));
+    List<ast::TupArg> rhs(nullptr, ast::TupArg(0, ast->rhs));
     lhs.next = &rhs;
 
     ast::AppExpr app(ast->op, &lhs);
@@ -280,7 +280,7 @@ Value* resolveInfix(FunBuilder* b, ast::InfixExpr* unordered, Id name, bool used
 
 Value* resolvePrefix(FunBuilder* b, ast::PrefixExpr* expr, Id name, bool used) {
     // Create a temporary app-expression to resolve the operator as a function call.
-    List<ast::TupArg> arg(ast::TupArg(0, expr->dst));
+    List<ast::TupArg> arg(nullptr, ast::TupArg(0, expr->dst));
     ast::AppExpr app(expr->op, &arg);
     app.locationFrom(*expr);
 
@@ -291,7 +291,7 @@ Value* resolveIf(FunBuilder* b, ast::IfExpr* expr, Id name, bool used) {
     auto cond = resolveExpr(b, expr->cond, 0, true);
     auto condBlock = b->block;
     if(cond->type != &intTypes[IntType::Bool]) {
-        error(b, "if condition must be a boolean", expr);
+        error(b, "if condition must be a boolean"_buffer, expr);
     }
 
     auto then = block(b->fun);
@@ -320,13 +320,13 @@ Value* resolveIf(FunBuilder* b, ast::IfExpr* expr, Id name, bool used) {
         b->block = after;
 
         if(!elseValue || !elseBlock || elseBlock->complete || thenBlock->complete) {
-            error(b, "if expression doesn't produce a result in every case", expr);
+            error(b, "if expression doesn't produce a result in every case"_buffer, expr);
             return phi(after, name, nullptr, 0);
         }
 
         // This updates thenValue or elseValue if needed.
         if(!generalizeTypes(b, thenValue, elseValue)) {
-            error(b, "if and else branches produce differing types", expr);
+            error(b, "if and else branches produce differing types"_buffer, expr);
         }
 
         jmp(thenBlock, after);
@@ -373,7 +373,7 @@ Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used)
         auto item = c->item;
         auto cond = resolveExpr(b, item.cond, 0, true);
         if(cond->type != &intTypes[IntType::Bool]) {
-            error(b, "if condition must be a boolean", expr);
+            error(b, "if condition must be a boolean"_buffer, expr);
         }
 
         if(alwaysTrue(cond)) {
@@ -407,18 +407,18 @@ Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used)
     auto next = b->block;
     if(used) {
         if(!hasElse) {
-            error(b, "if expression doesn't produce a result in every case", expr);
+            error(b, "if expression doesn't produce a result in every case"_buffer, expr);
         }
 
         for(U32 i = 0; i < caseCount; i++) {
             if(!alts[i].value) {
-                error(b, "if expression doesn't produce a result in every case", expr);
+                error(b, "if expression doesn't produce a result in every case"_buffer, expr);
             }
 
             if(i > 0) {
                 // This will update the value stored in the alt if needed.
                 if(!generalizeTypes(b, alts[i - 1].value, alts[i].value)) {
-                    error(b, "if and else branches produce differing types", expr);
+                    error(b, "if and else branches produce differing types"_buffer, expr);
                 }
             }
 
@@ -459,7 +459,7 @@ Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used)
 Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
     auto content = expr->content;
     if(!content) {
-        error(b, "variables must be initialized on declaration", expr);
+        error(b, "variables must be initialized on declaration"_buffer, expr);
         return nullptr;
     }
 
@@ -468,15 +468,15 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
     // The declaration is instead resolved as a store into the global.
     if(expr->isGlobal) {
         // The globals for each module are defined before expressions are resolved.
-        Global* global = b->fun->module->globals.get(expr->name);
-        assert(global != nullptr);
+        Global* global = b->fun->module->globals.get(expr->name).unwrap();
+        assertTrue(global != nullptr);
 
         // Resolve the contents - in case of an error below we want to do as much as possible.
         auto value = resolveExpr(b, expr->content, 0, true);
 
         // If the global has no ast set, it has been defined twice.
         if(!global->ast) {
-            error(b, "duplicate definition of global variable", expr);
+            error(b, "duplicate definition of global variable"_buffer, expr);
             return nullptr;
         }
 
@@ -555,7 +555,7 @@ Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr) {
 
     auto cond = resolveExpr(b, expr->cond, 0, true);
     if(cond->type != &intTypes[IntType::Bool]) {
-        error(b, "while condition must be a boolean", expr);
+        error(b, "while condition must be a boolean"_buffer, expr);
     }
 
     auto bodyBlock = block(b->fun);
@@ -583,7 +583,7 @@ Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
     ), from->type, false, true);
 
     if(from->type->kind != Type::Int || step->type->kind != Type::Int) {
-        error(b, "only integer arguments are implemented for for loops", expr->from);
+        error(b, "only integer arguments are implemented for for loops"_buffer, expr->from);
     }
 
     auto startBlock = b->block;
@@ -613,7 +613,7 @@ Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
     // Evaluate the end for each iteration, since it could be changed inside the loop.
     auto to = implicitConvert(b, resolveExpr(b, expr->to, 0, true), from->type, false, true);
     if(to->type->kind != Type::Int) {
-        error(b, "only integer arguments are implemented for for loops", expr->from);
+        error(b, "only integer arguments are implemented for for loops"_buffer, expr->from);
     }
 
     auto cmp = expr->reverse ? ICmp::igt : ICmp::ilt;
@@ -652,7 +652,7 @@ Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr) {
             auto val = resolveExpr(b, expr->value, 0, true);
 
             if(!var || var->type->kind != Type::Ref || !((RefType*)var->type)->isMutable) {
-                error(b, "type is not assignable", target);
+                error(b, "type is not assignable"_buffer, target);
                 return nullptr;
             }
 
@@ -664,7 +664,7 @@ Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr) {
 
         }
         default: {
-            error(b, "assign target is not assignable", target);
+            error(b, "assign target is not assignable"_buffer, target);
         }
     }
 
@@ -690,7 +690,7 @@ Value* resolveField(FunBuilder* b, ast::FieldExpr* expr, Id name, bool used) {
     if(field) return field;
 
     // TODO: Handle array and map loads.
-    error(b, "type does not contain the requested field", expr->target);
+    error(b, "type does not contain the requested field"_buffer, expr->target);
     return error(b->block, name, &errorType);
 }
 
@@ -721,7 +721,7 @@ Value* resolveTupUpdate(FunBuilder* b, ast::TupUpdateExpr* expr, Id name, bool u
     auto target = resolveExpr(b, expr->value, 0, true);
     auto type = canonicalType(target->type);
     if(type->kind != Type::Tup) {
-        error(b, "only tuples can update their fields", expr->value);
+        error(b, "only tuples can update their fields"_buffer, expr->value);
     }
 
     U32 argCount = 0;
@@ -749,7 +749,7 @@ Value* resolveTupUpdate(FunBuilder* b, ast::TupUpdateExpr* expr, Id name, bool u
         }
 
         if(!found) {
-            error(b, "field does not exist in this type", arg->item.value);
+            error(b, "field does not exist in this type"_buffer, arg->item.value);
         }
         arg = arg->next;
     }
@@ -766,7 +766,7 @@ Value* resolveArray(FunBuilder* b, ast::ArrayExpr* expr, Id name) {
     }
 
     if(length == 0) {
-        error(b, "cannot infer type of array", expr);
+        error(b, "cannot infer type of array"_buffer, expr);
         return error(b->block, name, getArray(b->fun->module, &unitType));
     }
 
@@ -778,7 +778,7 @@ Value* resolveArray(FunBuilder* b, ast::ArrayExpr* expr, Id name) {
         if(i > 0) {
             // This will update the value stored in the alt if needed.
             if(!generalizeTypes(b, values[i - 1], values[i])) {
-                error(b, "array contents must have the same type", expr);
+                error(b, "array contents must have the same type"_buffer, expr);
             }
         }
 
@@ -850,7 +850,7 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
 
     if(used) {
         if(!hasElse) {
-            error(b, "match expression doesn't produce a result in every case", expr);
+            error(b, "match expression doesn't produce a result in every case"_buffer, expr);
         }
 
         // If the very first match always succeeds we can use that value immediately and continue in the same block.
@@ -866,7 +866,7 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
 
         for(U32 i = 0; i < usedAlts; i++) {
             if(!alts[i].value) {
-                error(b, "match expression doesn't produce a result in every case", expr);
+                error(b, "match expression doesn't produce a result in every case"_buffer, expr);
                 b->block = after;
                 return error(after, name, &errorType);
             }
@@ -874,7 +874,7 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
             if(i > 0) {
                 // This will update the value stored in the alt if needed.
                 if(!generalizeTypes(b, alts[i - 1].value, alts[i].value)) {
-                    error(b, "match cases produce differing types", expr);
+                    error(b, "match cases produce differing types"_buffer, expr);
                 }
             }
 

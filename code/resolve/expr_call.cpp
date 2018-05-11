@@ -16,7 +16,7 @@ Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* argList, 
     auto argCount = (U32)funType->argCount;
 
     auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
-    memset(args, 0, sizeof(Value*) * argCount);
+    set(args, argCount, 0);
 
     U32 i = 0;
     while(argList) {
@@ -35,13 +35,13 @@ Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* argList, 
             }
 
             if(!found) {
-                error(b, "function has no argument with this name", arg.value);
+                error(b, "function has no argument with this name"_buffer, arg.value);
             }
         }
 
         if(found) {
             if(args[argIndex]) {
-                error(b, "function argument specified more than once", arg.value);
+                error(b, "function argument specified more than once"_buffer, arg.value);
             }
 
             args[argIndex] = resolveExpr(b, arg.value, 0, true);
@@ -54,14 +54,14 @@ Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* argList, 
     // If the call used incorrect argument names this error may not trigger.
     // However, in that case we already have an error for the argument name.
     if(i != argCount) {
-        error(b, "incorrect number of function arguments", nullptr);
+        error(b, "incorrect number of function arguments"_buffer, nullptr);
     }
 
     // Check the argument types and perform implicit conversions if needed.
     for(i = 0; i < argCount; i++) {
         auto v = implicitConvert(b, args[i], funType->args[i].type, false, false);
         if(!v) {
-            error(b, "incompatible type for function argument", nullptr);
+            error(b, "incompatible type for function argument"_buffer, nullptr);
         }
 
         args[i] = v;
@@ -74,7 +74,7 @@ static FoundFunction resolveStaticFun(FunBuilder* b, Id funName, Value* fieldArg
     // TODO: Use field argument to find an instance for that type.
     auto fun = findFun(&b->context, b->fun->module, funName);
     if(!fun.found) {
-        error(b, "no function found for this name", nullptr);
+        error(b, "no function found for this name"_buffer, nullptr);
         return fun;
     }
 
@@ -92,7 +92,7 @@ static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 c
     // If the call used incorrect argument names this error may not trigger.
     // However, in that case we already have an error for the argument name.
     if(count != argCount) {
-        error(b, "incorrect number of function arguments", nullptr);
+        error(b, "incorrect number of function arguments"_buffer, nullptr);
     }
 
     // Check the argument types and perform implicit conversions if needed.
@@ -101,7 +101,7 @@ static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 c
         if(v) {
             args[i] = v;
         } else {
-            error(b, "incompatible type for function argument", nullptr);
+            error(b, "incompatible type for function argument"_buffer, nullptr);
             args[i] = error(b->block, 0, fun->args[i]->type);
         }
     }
@@ -125,14 +125,14 @@ static Value* finishClassCall(FunBuilder* b, ClassFun fun, Value** args, U32 cou
     // If the call used incorrect argument names this error may not trigger.
     // However, in that case we already have an error for the argument name.
     if(count != funType->argCount) {
-        error(b, "incorrect number of function arguments", nullptr);
+        error(b, "incorrect number of function arguments"_buffer, nullptr);
     }
 
     // Class functions must use each type argument in their signatures.
     // This ensures that we always can infer what instance to use.
     // TODO: Handle functions where the instance type depends solely on the return type.
     auto classArgs = (Type**)alloca(sizeof(Type*) * fun.typeClass->argCount);
-    memset(classArgs, 0, sizeof(Type*) * fun.typeClass->argCount);
+    set(classArgs, fun.typeClass->argCount, 0);
 
     for(U32 i = 0; i < count; i++) {
         auto a = funType->args[i].type;
@@ -143,7 +143,7 @@ static Value* finishClassCall(FunBuilder* b, ClassFun fun, Value** args, U32 cou
 
     auto instance = findInstance(&b->context, b->fun->module, fun.typeClass, fun.index, classArgs);
     if(!instance) {
-        error(b, "cannot find an implementation of class for these arguments", nullptr);
+        error(b, "cannot find an implementation of class for these arguments"_buffer, nullptr);
         return error(b->block, name, &errorType);
     }
 
@@ -189,7 +189,7 @@ Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List<ast::T
     }
 
     auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
-    memset(args, 0, sizeof(Value*) * argCount);
+    set(args, argCount, 0);
 
     U32 i = 0;
     if(firstArg) {
@@ -225,13 +225,13 @@ Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List<ast::T
             }
 
             if(!found) {
-                error(b, "function has no argument with this name", arg.value);
+                error(b, "function has no argument with this name"_buffer, arg.value);
             }
         }
 
         if(found && argIndex < argCount) {
             if(args[argIndex]) {
-                error(b, "function argument specified more than once", arg.value);
+                error(b, "function argument specified more than once"_buffer, arg.value);
             }
 
             args[argIndex] = resolveExpr(b, arg.value, 0, true);

@@ -1,4 +1,4 @@
-#include <ostream>
+#include <fstream>
 #include "ast.h"
 #include "../../compiler/context.h"
 
@@ -241,7 +241,7 @@ static void appendExpr(CodeBuilder& b, Expr* e) {
             b.writer << ((IntExpr*)e)->i;
             break;
         case Expr::Bool:
-            b.writer << ((BoolExpr*)e)->b ? "true" : "false";
+            b.writer << (((BoolExpr*)e)->b ? "true" : "false");
             break;
         case Expr::Null:
             b.writer << "null";

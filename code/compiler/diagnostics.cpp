@@ -1,8 +1,6 @@
-#include <cstdio>
-#include <cstdarg>
 #include "diagnostics.h"
 
-void PrintDiagnostics::message(Level level, const char* text, const Node* where, const char* source, ...) {
+void PrintDiagnostics::message(Level level, StringBuffer text, const Node* where, StringBuffer source) {
     U32 line = 0, column = 0;
     if(where) {
         line = where->sourceStart.line;
@@ -17,19 +15,14 @@ void PrintDiagnostics::message(Level level, const char* text, const Node* where,
         default: type = "";
     }
 
-    printf("%i:%i: %s: ", line + 1, column, type);
+    print("%@:%@: %@: ", line + 1, column, type);
+    println(text);
 
-    va_list args;
-    va_start(args, source);
-    vprintf(text, args);
-    va_end(args);
-    printf("\n");
-
-    if(source && where) {
+    if(source.length > 0 && where) {
         // Find the range of text to display.
         auto offset = where->sourceStart.offset;
-        auto lineStart = source + offset;
-        while(lineStart > source && *lineStart != '\n' && (offset - (lineStart - source) < 50)) {
+        auto lineStart = source.ptr + offset;
+        while(lineStart > source.ptr && *lineStart != '\n' && (offset - (lineStart - source.ptr) < 50)) {
             lineStart--;
         }
 
@@ -37,8 +30,8 @@ void PrintDiagnostics::message(Level level, const char* text, const Node* where,
             lineStart++;
         }
 
-        auto lineEnd = source + offset;
-        while(*lineEnd && *lineEnd != '\n' && ((lineStart - source) - offset < 50)) {
+        auto lineEnd = source.ptr + offset;
+        while(*lineEnd && *lineEnd != '\n' && ((lineStart - source.ptr) - offset < 50)) {
             lineEnd++;
         }
 
@@ -48,17 +41,14 @@ void PrintDiagnostics::message(Level level, const char* text, const Node* where,
         }
 
         // Print the line the diagnostic occurred at.
-        char buffer[128];
-        auto length = lineEnd - lineStart;
-        memcpy(buffer, lineStart, length);
-        buffer[length] = 0;
-        printf("%s\n", buffer);
+        auto length = Size(lineEnd - lineStart);
+        println({lineStart, length});
 
         // Print the location within the line.
-        memset(buffer, ' ', length);
-        auto bufferStart = lineStart - source;
+        char buffer[128];
+        setMem(buffer, 128, ' ');
+        auto bufferStart = lineStart - source.ptr;
         buffer[offset - bufferStart] = '^';
-        buffer[offset - bufferStart + 1] = 0;
 
         auto tokenLength = where->sourceEnd.offset - offset;
         if(tokenLength > 1) {
@@ -66,9 +56,8 @@ void PrintDiagnostics::message(Level level, const char* text, const Node* where,
                 buffer[i] = '~';
             }
             buffer[offset - bufferStart + tokenLength] = '^';
-            buffer[offset - bufferStart + tokenLength + 1] = 0;
         }
 
-        printf("%s\n", buffer);
+        println({buffer, 128});
     }
 }

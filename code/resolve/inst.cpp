@@ -60,7 +60,7 @@ Value* error(Block* block, Id name, Type* type) {
 }
 
 ConstInt* constInt(Block* block, Id name, I64 value, Type* type) {
-    auto c = (ConstInt*)block->function->module->memory.alloc(sizeof(ConstInt));
+    auto c = new (block->function->module->memory) ConstInt;
     c->block = block;
     c->name = name;
     c->kind = Value::ConstInt;
@@ -74,7 +74,7 @@ ConstInt* constInt(Block* block, Id name, I64 value, Type* type) {
 }
 
 ConstFloat* constFloat(Block* block, Id name, double value, Type* type) {
-    auto c = (ConstFloat*)block->function->module->memory.alloc(sizeof(ConstFloat));
+    auto c = new (block->function->module->memory) ConstFloat;
     c->block = block;
     c->name = name;
     c->kind = Value::ConstFloat;
@@ -88,7 +88,7 @@ ConstFloat* constFloat(Block* block, Id name, double value, Type* type) {
 }
 
 ConstString* constString(Block* block, Id name, const char* value, Size length) {
-    auto c = (ConstString*)block->function->module->memory.alloc(sizeof(ConstString));
+    auto c = new (block->function->module->memory) ConstString;
     c->block = block;
     c->name = name;
     c->kind = Value::ConstString;
@@ -370,7 +370,7 @@ InstAllocArray* allocArray(Block* block, Id name, Type* type, Value* length, boo
 }
 
 InstLoad* load(Block* block, Id name, Value* from) {
-    assert(from->type->kind == Type::Ref);
+    assertTrue(from->type->kind == Type::Ref);
     auto inst = (InstLoad*)block->inst(sizeof(InstLoad), name, Inst::InstLoad, ((RefType*)from->type)->to);
     inst->from = from;
 
@@ -382,7 +382,7 @@ InstLoad* load(Block* block, Id name, Value* from) {
 }
 
 InstLoadField* loadField(Block* block, Id name, Value* from, Type* type, U32* indices, U32 count) {
-    assert(from->type->kind == Type::Ref);
+    assertTrue(from->type->kind == Type::Ref);
     auto inst = (InstLoadField*)block->inst(sizeof(InstLoadField), name, Inst::InstLoadField, type);
     inst->from = from;
     inst->indexChain = indices;
@@ -410,7 +410,7 @@ InstLoadArray* loadArray(Block* block, Id name, Value* from, Value* index, Type*
 }
 
 InstStore* store(Block* block, Id name, Value* to, Value* value) {
-    assert(to->type->kind == Type::Ref);
+    assertTrue(to->type->kind == Type::Ref);
     auto inst = (InstStore*)block->inst(sizeof(InstStore), name, Inst::InstStore, &unitType);
     inst->to = to;
     inst->value = value;
@@ -424,7 +424,7 @@ InstStore* store(Block* block, Id name, Value* to, Value* value) {
 }
 
 InstStoreField* storeField(Block* block, Id name, Value* to, Value* value, U32* indices, U32 count) {
-    assert(to->type->kind == Type::Ref);
+    assertTrue(to->type->kind == Type::Ref);
     auto inst = (InstStoreField*)block->inst(sizeof(InstStoreField), name, Inst::InstStoreField, &unitType);
     inst->to = to;
     inst->value = value;

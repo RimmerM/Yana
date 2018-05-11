@@ -11,6 +11,8 @@ Value* Block::use(Value* value, Inst* user) {
 
 Inst* Block::inst(Size size, Id name, Inst::Kind kind, Type* type) {
     auto inst = (Inst*)function->module->memory.alloc(size);
+    new (inst) Inst;
+
     inst->block = this;
     inst->name = name;
     inst->kind = kind;
@@ -34,7 +36,7 @@ Inst* Block::inst(Size size, Id name, Inst::Kind kind, Type* type) {
 
 Value* Block::findValue(Id name) {
     auto n = namedValues.get(name);
-    if(n) return *n;
+    if(n) return *n.unwrap();
 
     if(preceding) {
         return preceding->findValue(name);

@@ -340,7 +340,7 @@ U64 evalLoad(Eval* eval, InstLoad* inst) {
     if(size > 1) {
         auto p = eval->sp;
         eval->sp += size;
-        memcpy(p, ptr, sizeof(U64) * size);
+        copyMem(ptr, p, sizeof(U64) * size);
         return 0;
     } else {
         return *ptr;
@@ -354,7 +354,7 @@ U64 evalStore(Eval* eval, InstStore* inst) {
     auto size = type->virtualSize;
 
     if(size > 1) {
-        memcpy(ptr, (U64*)value, sizeof(U64) * size);
+        copyMem((U64*)value, ptr, sizeof(U64) * size);
     } else {
         *ptr = value;
     }
@@ -406,7 +406,7 @@ U64 evalRet(Eval* eval, InstRet* inst) {
     auto size = inst->value->type->virtualSize;
 
     if(size > 1) {
-        memcpy(ap - size - 1, (U64*)value, size * sizeof(U64));
+        copyMem((U64*)value, ap - size - 1, size * sizeof(U64));
         *reg = (U64)(ap - size - 1);
     } else {
         *reg = value;

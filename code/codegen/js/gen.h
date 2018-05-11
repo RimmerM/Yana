@@ -1,6 +1,5 @@
 #pragma once
 
-#include <ostream>
 #include "ast.h"
 #include "../../resolve/module.h"
 

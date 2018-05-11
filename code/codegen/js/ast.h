@@ -1,7 +1,6 @@
 #pragma once
 
-#include "../../util/types.h"
-#include "../../util/array.h"
+#include "../../compiler/context.h"
 
 namespace js {
 
