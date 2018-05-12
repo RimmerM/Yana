@@ -5,6 +5,10 @@ find_package(LLVM REQUIRED CONFIG)
 set(SOURCE_FILES)
 set(SOURCE_FILES ${SOURCE_FILES}
     compiler/context.h
+    compiler/settings.h
+    compiler/settings.cpp
+    compiler/source.h
+    compiler/source.cpp
     compiler/context.cpp
     compiler/diagnostics.h
     compiler/diagnostics.cpp
