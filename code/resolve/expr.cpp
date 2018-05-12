@@ -69,48 +69,69 @@ bool alwaysFalse(Value* v) {
     return v->kind == Value::ConstInt && ((ConstInt*)v)->value == 0;
 }
 
-static Field* findStaticField(Type* type, Id stringField, U32 intField) {
-    if(type->kind == Type::Tup) {
-        auto tup = (TupType*)type;
+struct FieldResult {
+    Field* field;
+    Con* con;
+};
 
-        if(stringField) {
-            for(U32 i = 0; i < tup->count; i++) {
-                if(tup->fields[i].name == stringField) {
-                    return tup->fields + i;
-                }
+static Field* findTupleField(TupType* type, Id stringField, U32 intField) {
+    if(stringField) {
+        for(U32 i = 0; i < type->count; i++) {
+            if(type->fields[i].name == stringField) {
+                return type->fields + i;
             }
-        } else if(tup->count > intField) {
-            return tup->fields + intField;
         }
+    } else if(type->count > intField) {
+        return type->fields + intField;
     }
 
     return nullptr;
 }
 
+static FieldResult findStaticField(Type* type, Id stringField, U32 intField) {
+    if(type->kind == Type::Tup) {
+        return {findTupleField((TupType*)type, stringField, intField), nullptr};
+    } else if(type->kind == Type::Record) {
+        auto record = (RecordType*)type;
+        if(record->kind == RecordType::Single) {
+            auto con = &record->cons[0];
+            if(con->content->kind == Type::Tup) {
+                return {findTupleField((TupType*)con->content, stringField, intField), con};
+            }
+        }
+    }
+
+    return {nullptr, nullptr};
+}
+
 static Value* testStaticField(FunBuilder* b, Id name, Value* target, ast::Expr* ast) {
     auto targetType = canonicalType(target->type);
-    Field* staticField = nullptr;
+    FieldResult result = {nullptr, nullptr};
 
     switch(ast->type) {
         case ast::Expr::Var: {
             auto n = ((ast::VarExpr*)ast)->name;
-            staticField = findStaticField(targetType, n, 0);
+            result = findStaticField(targetType, n, 0);
             break;
         }
         case ast::Expr::Lit: {
             auto lit = ((ast::LitExpr*)ast)->literal;
             if(lit.type == ast::Literal::String) {
-                staticField = findStaticField(targetType, lit.s, 0);
+                result = findStaticField(targetType, lit.s, 0);
             } else if(lit.type == ast::Literal::Int) {
-                staticField = findStaticField(targetType, 0, (U32)lit.i);
+                result = findStaticField(targetType, 0, (U32)lit.i);
             }
             break;
         }
     }
 
-    if(!staticField) return nullptr;
+    if(!result.field) return nullptr;
 
-    return getField(b, target, name, staticField->index, staticField->type);
+    if(result.con) {
+        return getNestedField(b, target, name, result.con->index + 1, result.field->index, result.field->type);
+    } else {
+        return getField(b, target, name, result.field->index, result.field->type);
+    }
 }
 
 Value* resolveMulti(FunBuilder* b, ast::MultiExpr* expr, Id name, bool used) {
@@ -178,15 +199,25 @@ Value* useValue(FunBuilder* b, Value* value, bool asRV) {
     return value;
 }
 
+static Value* getField(FunBuilder* b, Value* value, Id name, Type* type, U32* indices, U32 count) {
+    if(value->type->kind == Type::Ref || value->kind == Value::Global) {
+        return loadField(b->block, name, value, type, indices, count);
+    } else {
+        return getField(b->block, name, value, type, indices, count);
+    }
+}
+
 Value* getField(FunBuilder* b, Value* value, Id name, U32 field, Type* type) {
     auto indices = (U32*)b->mem.alloc(sizeof(U32));
     indices[0] = field;
+    return getField(b, value, name, type, indices, 1);
+}
 
-    if(value->type->kind == Type::Ref || value->kind == Value::Global) {
-        return loadField(b->block, name, value, type, indices, 1);
-    } else {
-        return getField(b->block, name, value, type, indices, 1);
-    }
+Value* getNestedField(FunBuilder* b, Value* value, Id name, U32 firstField, U32 secondField, Type* type) {
+    auto indices = (U32*)b->mem.alloc(sizeof(U32) * 2);
+    indices[0] = firstField;
+    indices[1] = secondField;
+    return getField(b, value, name, type, indices, 2);
 }
 
 Value* resolveVar(FunBuilder* b, ast::VarExpr* expr, bool asRV) {

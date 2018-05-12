@@ -190,7 +190,7 @@ U32 testImport(Identifier* importName, Identifier* searchName) {
 
     U32 i = 0;
     for(; i < importName->segmentCount; i++) {
-        if(importName->segmentHashes[i] != searchName->segmentHashes[i]) return 0;
+        if(importName->getHash(i) != searchName->getHash(i)) return 0;
     }
 
     return i;

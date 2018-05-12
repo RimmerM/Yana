@@ -25,6 +25,7 @@ bool alwaysFalse(Value* v);
 Value* findVar(FunBuilder* b, Id name);
 Value* useValue(FunBuilder* b, Value* value, bool asRV);
 Value* getField(FunBuilder* b, Value* value, Id name, U32 field, Type* type);
+Value* getNestedField(FunBuilder* b, Value* value, Id name, U32 firstField, U32 secondField, Type* type);
 
 Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List<ast::TupArg>* argList, Id name);
 Value* genStaticCall(FunBuilder* b, Id funName, Value** args, U32 count, Id name);

@@ -233,8 +233,11 @@ Decl* Parser::parseDecl() {
 
 Decl* Parser::parseFunDecl(bool requireBody) {
     return node([=]() -> Decl* {
-        assert(token.type == Token::kwFn);
-        eat();
+        if(token.type == Token::kwFn) {
+            eat();
+        } else {
+            error("expected function declaration"_buffer);
+        }
 
         Id name;
         if(token.type == Token::VarID) {
