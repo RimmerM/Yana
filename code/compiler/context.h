@@ -1,6 +1,7 @@
 #pragma once
 
 #include "diagnostics.h"
+#include "settings.h"
 #include <HashMap.h>
 
 /*
@@ -47,10 +48,6 @@ enum class Assoc : U8 {
 struct OpProperties {
     U16 precedence;
     Assoc associativity;
-};
-
-struct CompileSettings {
-
 };
 
 struct Arena {
