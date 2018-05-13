@@ -9,53 +9,11 @@
 #include "../codegen/llvm/gen.h"
 #include "../codegen/js/gen.h"
 #include "../resolve/builtins.h"
+#include "settings.h"
+#include "source.h"
 #include <File.h>
 
-struct FileHandler: ModuleHandler {
-    Module* core;
-    Module* native;
-
-    FileHandler(Context* context) {
-        core = coreModule(context);
-        native = nativeModule(context, core);
-    }
-
-    Module* require(Context* context, Module* from, Id name) override {
-        if(name == core->id) {
-            return core;
-        } else if(name == native->id) {
-            return native;
-        } else {
-            return nullptr;
-        }
-    }
-};
-
-bool isDirectory(const String& path) {
-    auto info = File::info(path);
-    return info && info.unwrap().isDirectory;
-}
-
-Module* compileFile(Context& context, ModuleHandler& handler, const String& path, Size rootOffset) {
-    char nameBuffer[2048];
-    Size length = 0;
-    Size segments = 1;
-    auto name = path.text() + rootOffset;
-
-    while(*name) {
-        if(*name == '/' || *name == '\\') {
-            segments++;
-            nameBuffer[length] = '.';
-        } else {
-            nameBuffer[length] = *name;
-        }
-
-        length++;
-        name++;
-    }
-
-    ast::Module ast(context.addQualifiedName(nameBuffer, length, segments));
-
+Module* compileFile(Context& context, ModuleHandler& handler, const String& path, const Identifier& id) {
     auto result = File::open(path, readAccess());
     if(result.isErr()) {
         context.diagnostics.error("cannot open file %@: error %@"_buffer, nullptr, noSource, path, (U32)result.unwrapErr());
@@ -68,6 +26,7 @@ Module* compileFile(Context& context, ModuleHandler& handler, const String& path
     file.read({text, size});
     text[size] = 0;
 
+    ast::Module ast(context.addIdentifier(id));
     Parser parser(context, ast, text);
     parser.parseModule();
 
@@ -75,78 +34,110 @@ Module* compileFile(Context& context, ModuleHandler& handler, const String& path
 }
 
 int main(int argc, const char** argv) {
-    if(argc < 4) {
-        println("Usage: compile <mode> <library root> <output file/directory>");
+    auto result = parseCommandLine(argv, argc);
+    if(result.isErr()) {
+        print("Argument error: ");
+        println(stringBuffer(result.unwrapErr()));
         return 1;
     }
 
-    String mode(argv[1]);
-    String root(argv[2]);
-    String output(argv[3]);
+    auto settings = result.moveUnwrapOk();
+
+    SourceMap sourceMap;
+    auto sourceResult = buildSourceMap(sourceMap, settings);
+    if(sourceResult.isErr()) {
+        print("File error: ");
+        println(stringBuffer(sourceResult.unwrapErr()));
+        return 1;
+    }
+
+    for(auto& source: sourceMap.entries) {
+        println("Found module %@ at location %@", String{source.id.text, source.id.textLength}, source.path);
+    }
 
     PrintDiagnostics diagnostics;
     Context context(diagnostics);
     FileHandler handler(&context);
-    Array<Module*> compiledModules;
 
+    Array<Module*> compiledModules;
     compiledModules.push(handler.core);
 
-    bool directory = isDirectory(root);
-    if(directory) {
-        // TODO:
-    } else {
-        auto module = compileFile(context, handler, root, root.size());
+    for(auto& source: sourceMap.entries) {
+        auto module = compileFile(context, handler, source.path, source.id);
         if(module) {
             compiledModules.push(module);
         }
     }
 
-    if(mode == "exe") {
-        llvm::LLVMContext llvmContext;
-        Array<llvm::Module*> llvmModules;
+    auto outputDir = std::string(settings.outputDir.text(), settings.outputDir.size());
 
-        for(auto module: compiledModules) {
-            llvmModules.push(genModule(&llvmContext, &context, module));
+    switch(settings.mode) {
+        case CompileMode::Library: {
+            diagnostics.error("Library generation is not implemented yet."_buffer, nullptr, noSource);
+            break;
         }
+        case CompileMode::NativeExecutable: {
+            llvm::LLVMContext llvmContext;
+            Array<llvm::Module*> llvmModules;
 
-        auto result = linkModules(&llvmContext, &context, llvmModules.pointer(), llvmModules.size());
-    } else if(mode == "js") {
-        std::ofstream jsFile(std::string(output.text(), output.size()), std::ios_base::out);
-        for(auto module: compiledModules) {
-            auto ast = js::genModule(&context, module);
-            js::formatFile(context, jsFile, ast, false);
-        }
-    } else if(mode == "ir") {
-        std::ofstream irFile(std::string(output.text(), output.size()), std::ios_base::out);
-
-        for(auto module: compiledModules) {
-            irFile << "module ";
-            auto name = &context.find(module->id);
-
-            if(name->textLength > 0) {
-                irFile.write(name->text, name->textLength);
-            } else {
-                irFile << "<unnamed>";
+            for(auto module: compiledModules) {
+                llvmModules.push(genModule(&llvmContext, &context, module));
             }
 
-            irFile << "\n\n";
-            printModule(irFile, context, module);
-        }
-    } else if(mode == "lib") {
-        // TODO: Generate library.
-    } else if(mode == "ll") {
-        std::ofstream llvmFile(std::string(output.text(), output.size()), std::ios_base::out);
-        llvm::LLVMContext llvmContext;
+            auto result = linkModules(&llvmContext, &context, llvmModules.pointer(), llvmModules.size());
 
-        Array<llvm::Module*> llvmModules;
-        for(auto module: compiledModules) {
-            llvmModules.push(genModule(&llvmContext, &context, module));
+            diagnostics.error("Native executable generation is not implemented yet."_buffer, nullptr, noSource);
+            break;
         }
+        case CompileMode::NativeShared: {
+            diagnostics.error("Native shared library generation is not implemented yet."_buffer, nullptr, noSource);
+            break;
+        }
+        case CompileMode::JsExecutable: {
+            std::ofstream jsFile(outputDir + "/module.js", std::ios_base::out);
+            for(auto module: compiledModules) {
+                auto ast = js::genModule(&context, module);
+                js::formatFile(context, jsFile, ast, false);
+            }
+            break;
+        }
+        case CompileMode::JsLibrary: {
+            diagnostics.error("JS library generation is not implemented yet."_buffer, nullptr, noSource);
+            break;
+        }
+        case CompileMode::Ir: {
+            std::ofstream irFile(outputDir + "/module.ir", std::ios_base::out);
 
-        auto result = linkModules(&llvmContext, &context, llvmModules.pointer(), llvmModules.size());
-        llvm::raw_os_ostream stream{llvmFile};
-        result->print(stream, nullptr);
-    } else {
-        println("Unknown compilation mode '%@'. Valid modes are exe, js, ir, lib, ll.", mode);
+            for(auto module: compiledModules) {
+                irFile << "module ";
+                auto name = &context.find(module->id);
+
+                if(name->textLength > 0) {
+                    irFile.write(name->text, name->textLength);
+                } else {
+                    irFile << "<unnamed>";
+                }
+
+                irFile << "\n\n";
+                printModule(irFile, context, module);
+            }
+
+            break;
+        }
+        case CompileMode::Llvm: {
+            std::ofstream llvmFile(outputDir + "/module.ll", std::ios_base::out);
+            llvm::LLVMContext llvmContext;
+
+            Array<llvm::Module*> llvmModules;
+            for(auto module: compiledModules) {
+                llvmModules.push(genModule(&llvmContext, &context, module));
+            }
+
+            auto result = linkModules(&llvmContext, &context, llvmModules.pointer(), llvmModules.size());
+            llvm::raw_os_ostream stream{llvmFile};
+            result->print(stream, nullptr);
+
+            break;
+        }
     }
 }
