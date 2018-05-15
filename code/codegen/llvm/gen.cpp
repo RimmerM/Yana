@@ -1,7 +1,3 @@
-#define __STDC_CONSTANT_MACROS
-#define __STDC_FORMAT_MACROS
-#define __STDC_LIMIT_MACROS
-
 #include "gen.h"
 #include <llvm/IR/Module.h>
 #include <llvm/IR/InlineAsm.h>

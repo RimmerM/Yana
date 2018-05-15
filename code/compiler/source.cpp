@@ -2,7 +2,7 @@
 #include "../resolve/builtins.h"
 #include <File.h>
 
-FileHandler::FileHandler(Context* context) {
+FileHandler::FileHandler(SourceMap& map, Context* context): map(map) {
     core = coreModule(context);
     native = nativeModule(context, core);
 }
@@ -172,7 +172,7 @@ static void mapFile(SourceMap& map, const String& root, const String& file) {
         id.segmentHash = hash.get();
     }
 
-    map.entries.push(SourceMap::Entry{String(pathBuffer, file.size()), id, buffer});
+    map.entries.push(SourceEntry{String(pathBuffer, file.size()), id, buffer});
 }
 
 static Result<void, String> mapDirectory(SourceMap& map, const String& root, const String& dir) {

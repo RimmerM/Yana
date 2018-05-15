@@ -156,6 +156,8 @@ static bool isFieldName(const char* string, U32 length) {
 
         return false;
     }
+
+    return true;
 }
 
 static void appendVarName(CodeBuilder& b, Id name, U32 localId) {

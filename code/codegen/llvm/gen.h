@@ -1,5 +1,9 @@
 #pragma once
 
+#define __STDC_CONSTANT_MACROS
+#define __STDC_FORMAT_MACROS
+#define __STDC_LIMIT_MACROS
+
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/IRBuilder.h>
 #include "../../compiler/context.h"
@@ -44,3 +48,5 @@ struct FileStream: llvm::raw_ostream {
 
 llvm::Module* genModule(llvm::LLVMContext* llvm, Context* context, Module* module);
 llvm::Module* linkModules(llvm::LLVMContext* llvm, Context* context, llvm::Module** modules, U32 count);
+
+void printModules(llvm::LLVMContext* llvm, Context* context, Buffer<Module*> modules, const String& path);

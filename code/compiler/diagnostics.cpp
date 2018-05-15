@@ -1,6 +1,8 @@
 #include "diagnostics.h"
 
 void PrintDiagnostics::message(Level level, StringBuffer text, const Node* where, StringBuffer source) {
+    Diagnostics::message(level, text, where, source);
+
     U32 line = 0, column = 0;
     if(where) {
         line = where->sourceStart.line;

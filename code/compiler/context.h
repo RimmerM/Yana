@@ -11,11 +11,21 @@
 struct Identifier {
     Identifier(): textLength(0), segmentCount(0) {}
 
-    U32 getHash(U32 index) {
+    U32 getHash(U32 index) const {
         if(segmentCount == 1) {
             return segmentHash;
         } else {
             return segmentHashes[index];
+        }
+    }
+
+    U32 getSegmentOffset(U32 index) const {
+        if(segmentCount == 0) {
+            return 0;
+        } else if(index == segmentCount) {
+            return textLength;
+        } else {
+            return segments[index];
         }
     }
 
