@@ -1,5 +1,3 @@
-set(CMAKE_CXX_STANDARD 17)
-
 find_package(LLVM REQUIRED CONFIG)
 
 set(SOURCE_FILES)
@@ -61,6 +59,7 @@ set(SOURCE_FILES ${SOURCE_FILES}
 )
 
 include_directories(${LLVM_INCLUDE_DIR})
+add_library(YanaLib ${SOURCE_FILES})
 add_executable(Yana ${SOURCE_FILES})
 
 target_link_libraries(Yana
