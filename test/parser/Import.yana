@@ -1,0 +1,87 @@
+-- Normal import.
+import Module
+import Module.Submodule
+import Module.Submodule.Subsubmodule
+
+-- Normal import, specific symbols only.
+import Module (Type0, symbol0, Type1, Type2, symbol1, symbol2)
+import Module (Type0)
+import Module ()
+
+-- Normal import, hiding specific symbols.
+import Module hiding (Type0, symbol0, Type1, Type2, symbol1, symbol2)
+import Module hiding (Type0)
+import Module hiding ()
+
+-- Normal import, both specific imports and hiding.
+-- (This isn't necessarily valid, but should be parsed correctly).
+import Module (Type0, symbol0, Type1, Type2, symbol1, symbol2) hiding (Type3, symbol3, Type4, Type5, symbol4, symbol5)
+import Module (Type0) hiding (Type1)
+import Module () hiding (Type1)
+import Module () hiding ()
+
+-- Named import.
+import Module as X
+import Module.Submodule as X
+import Module.Submodule.Subsubmodule as X
+
+-- Named import, specific symbols only.
+import Module (Type0, symbol0, Type1, Type2, symbol1, symbol2) as X
+import Module (Type0) as X
+import Module () as X
+
+-- Named import, hiding specific symbols.
+import Module hiding (Type0, symbol0, Type1, Type2, symbol1, symbol2) as X
+import Module hiding (Type0) as X
+import Module hiding () as X
+
+-- Named import, both specific imports and hiding.
+-- (This isn't necessarily valid, but should be parsed correctly).
+import Module (Type0, symbol0, Type1, Type2, symbol1, symbol2) hiding (Type3, symbol3, Type4, Type5, symbol4, symbol5) as X
+import Module (Type0) hiding (Type1) as X
+import Module () hiding (Type1) as X
+import Module () hiding () as X
+
+-- Qualified import.
+import qualified Module
+import qualified Module.Submodule
+import qualified Module.Submodule.Subsubmodule
+
+-- Qualified import, specific symbols only.
+import qualified Module (Type0, symbol0, Type1, Type2, symbol1, symbol2)
+import qualified Module (Type0)
+import qualified Module ()
+
+-- Qualified import, hiding specific symbols.
+import qualified Module hiding (Type0, symbol0, Type1, Type2, symbol1, symbol2)
+import qualified Module hiding (Type0)
+import qualified Module hiding ()
+
+-- Qualified import, both specific imports and hiding.
+-- (This isn't necessarily valid, but should be parsed correctly).
+import qualified Module (Type0, symbol0, Type1, Type2, symbol1, symbol2) hiding (Type3, symbol3, Type4, Type5, symbol4, symbol5)
+import qualified Module (Type0) hiding (Type1)
+import qualified Module () hiding (Type1)
+import qualified Module () hiding ()
+
+-- Qualified named import.
+import qualified Module as X
+import qualified Module.Submodule as X
+import qualified Module.Submodule.Subsubmodule as X
+
+-- Qualified named import, specific symbols only.
+import qualified Module (Type0, symbol0, Type1, Type2, symbol1, symbol2) as X
+import qualified Module (Type0) as X
+import qualified Module () as X
+
+-- Qualified named import, hiding specific symbols.
+import qualified Module hiding (Type0, symbol0, Type1, Type2, symbol1, symbol2) as X
+import qualified Module hiding (Type0) as X
+import qualified Module hiding () as X
+
+-- Qualified named import, both specific imports and hiding.
+-- (This isn't necessarily valid, but should be parsed correctly).
+import qualified Module (Type0, symbol0, Type1, Type2, symbol1, symbol2) hiding (Type3, symbol3, Type4, Type5, symbol4, symbol5) as X
+import qualified Module (Type0) hiding (Type1) as X
+import qualified Module () hiding (Type1) as X
+import qualified Module () hiding () as X

@@ -1,0 +1,43 @@
+Module 
+|-AliasDecl A 
+| `-ConType B
+|-AliasDecl A 
+| `-AppType 
+|   |-ConType B
+|   `-ConType C
+|-AliasDecl A (a)
+| `-AppType 
+|   |-ConType B
+|   |-ConType C
+|   `-GenType a
+|-AliasDecl A (a, b)
+| `-AppType 
+|   |-ConType B
+|   `-TupType 
+|     |-Field <anonymous>
+|     | `-GenType a
+|     |-Field <anonymous>
+|     | `-GenType b
+|     `-Field <anonymous>
+|       `-ConType Int
+|-AliasDecl A 
+| `-ArrType 
+|   `-ConType Int
+|-AliasDecl A (a)
+| `-ArrType 
+|   `-GenType a
+|-AliasDecl A (a, b, c)
+| `-FunType 
+|   |-Arg <anonymous>
+|   | `-GenType a
+|   |-Arg <anonymous>
+|   | `-GenType b
+|   `-GenType c
+`-AliasDecl A 
+  `-FunType 
+    |-Arg <anonymous>
+    | `-ArrType 
+    |   `-ConType B
+    `-MapType 
+      |-ConType C
+      `-ConType D

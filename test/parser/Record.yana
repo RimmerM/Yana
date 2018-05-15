@@ -1,0 +1,38 @@
+-- Single constructor.
+data X {Y}
+data X {Y, Z}
+data X {a: Y, b: Z}
+data X {a: [Y], b: {Z, W}}
+
+data X = X {Y}
+data X = X(Y)
+data X = X {Y, Z}
+data X = X {a: Y, b: Z}
+data X = X {a: [Y], b: {Z, W}}
+
+data X(a) {a}
+data X(a) {a, Z}
+data X(a, b) {a: a, b: b}
+data X(a, b, c) {a: [a], b: {b, c}}
+
+data X(a) = X {a}
+data X(a) = X(a)
+data X(a, b) = X {a, b}
+data X(a, b) = X {a: a, b: b}
+data X(a, b, c) = X {a: [a], b: {b, {c}}}
+data X(a) = X [a]
+data X(a) = X(Int)
+
+-- Multiple constructors.
+data X = X | Y | Z
+data X = X(Int) | Y {Int, Int} | Z [Int]
+
+data X
+  = X
+  | Y
+  | Z
+  
+data X 
+  = X(Int) 
+  | Y {Int, Int} 
+  | Z [Int]
