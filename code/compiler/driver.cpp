@@ -1,19 +1,15 @@
-#define __STDC_CONSTANT_MACROS
-#define __STDC_FORMAT_MACROS
-#define __STDC_LIMIT_MACROS
-
 #include <fstream>
 #include "../resolve/module.h"
 #include "../parse/parser.h"
+#include "../parse/ast_print.h"
 #include "../resolve/print.h"
 #include "../codegen/llvm/gen.h"
 #include "../codegen/js/gen.h"
-#include "../resolve/builtins.h"
 #include "settings.h"
 #include "source.h"
 #include <File.h>
 
-Module* compileFile(Context& context, ModuleHandler& handler, const String& path, const Identifier& id) {
+static ast::Module* parseFile(Context& context, const String& path, const Identifier& id) {
     auto result = File::open(path, readAccess());
     if(result.isErr()) {
         context.diagnostics.error("cannot open file %@: error %@"_buffer, nullptr, noSource, path, (U32)result.unwrapErr());
@@ -23,17 +19,89 @@ Module* compileFile(Context& context, ModuleHandler& handler, const String& path
     auto file = result.moveUnwrapOk();
     auto size = file.size();
     auto text = (char*)hAlloc(size + 1);
-    file.read({text, size});
+
+    auto read = file.read({text, size});
+    if(read.isErr()) {
+        context.diagnostics.error("cannot read file %@: error %@"_buffer, nullptr, noSource, path, (U32)read.unwrapErr());
+        return nullptr;
+    }
+
     text[size] = 0;
 
-    ast::Module ast(context.addIdentifier(id));
-    Parser parser(context, ast, text);
+    auto ast = new ast::Module(context.addIdentifier(id));
+    Parser parser(context, *ast, text);
     parser.parseModule();
 
-    return resolveModule(&context, &handler, &ast);
+    return ast;
+}
+
+static Module* compileEntry(Context& context, ModuleHandler& handler, SourceEntry& entry) {
+    if(entry.ir) return entry.ir;
+
+    auto ast = entry.ast;
+    if(!ast) {
+        ast = parseFile(context, entry.path, entry.id);
+        entry.ast = ast;
+    }
+
+    if(!ast || ast->errorCount > 0) return nullptr;
+
+    auto module = resolveModule(&context, &handler, ast);
+    entry.ir = module;
+    return module;
+}
+
+static String generatePath(StringBuffer root, const Identifier& id, StringBuffer extension) {
+    StringBuilder path(root.length + id.textLength + 1 + extension.length);
+    path.append(root.ptr, root.length);
+
+    for(Size i = 0; i < id.segmentCount; i++) {
+        auto start = id.getSegmentOffset(i);
+        path.append(id.text + start, id.getSegmentOffset(i + 1) - start);
+        path.append("/");
+    }
+
+    path.append(".");
+    path.append(extension.ptr, extension.length);
+
+    return path.string();
+}
+
+static String replaceExtension(const String& path, const String& extension) {
+    auto p = findLastChar(stringBuffer(path), '.');
+    if(!p) return path + extension;
+
+    p++;
+    auto extensionLength = path.size() - (p - path.text());
+    auto oldExtension = StringBuffer{p, extensionLength};
+    if(findChar(oldExtension, '/')) return path + extension;
+
+    auto length = path.size() - extensionLength + extension.size();
+    auto buffer = (char*)hAlloc(length);
+    copy(path.text(), buffer, path.size() - extensionLength);
+    copy(extension.text(), buffer + path.size() - extensionLength, extension.size());
+
+    return String(buffer, length);
+}
+
+static void astToFile(Context& context, ast::Module& module, const SourceEntry& entry) {
+    auto path = replaceExtension(entry.path, "ast");
+    auto file = std::ofstream();
+    file.open(std::string(path.text(), path.size()));
+
+    printModule(file, context, module);
+}
+
+static void irToFile(Context& context, Module& module, const SourceEntry& entry) {
+    auto path = replaceExtension(entry.path, "ir");
+    auto file = std::ofstream();
+    file.open(std::string(path.text(), path.size()));
+
+    printModule(file, context, &module);
 }
 
 int main(int argc, const char** argv) {
+    // Parse the provided arguments into a settings structure.
     auto result = parseCommandLine(argv, argc);
     if(result.isErr()) {
         print("Argument error: ");
@@ -43,6 +111,7 @@ int main(int argc, const char** argv) {
 
     auto settings = result.moveUnwrapOk();
 
+    // Walk the input directory tree to create a map with each module we will compile.
     SourceMap sourceMap;
     auto sourceResult = buildSourceMap(sourceMap, settings);
     if(sourceResult.isErr()) {
@@ -51,22 +120,75 @@ int main(int argc, const char** argv) {
         return 1;
     }
 
-    for(auto& source: sourceMap.entries) {
-        println("Found module %@ at location %@", String{source.id.text, source.id.textLength}, source.path);
+    // Print a module listing if needed.
+    if(settings.printModules) {
+        for(auto& source: sourceMap.entries) {
+            println("Found module %@ at location %@", String{source.id.text, source.id.textLength}, source.path);
+        }
     }
 
+    // Match any root modules to the source map.
+    Array<SourceEntry*> roots(settings.rootObjects.size());
+    for(auto& root: settings.rootObjects) {
+        auto found = false;
+        for(auto& entry: sourceMap.entries) {
+            if(String(entry.id.text, entry.id.textLength) == root) {
+                roots.push(&entry);
+                found = true;
+                break;
+            }
+        }
+
+        if(!found) {
+            println("Error: Cannot find root module %@", root);
+        }
+    }
+
+    if(roots.size() != settings.rootObjects.size()) {
+        return 1;
+    }
+
+    if(sourceMap.entries.size() == 0) {
+        println("Error: No modules to compile found");
+        return 1;
+    }
+
+    // Create compilation context.
     PrintDiagnostics diagnostics;
     Context context(diagnostics);
-    FileHandler handler(&context);
+    FileHandler handler(sourceMap, &context);
 
+    // Add standard library to the compilation set.
     Array<Module*> compiledModules;
     compiledModules.push(handler.core);
 
-    for(auto& source: sourceMap.entries) {
-        auto module = compileFile(context, handler, source.path, source.id);
+    auto onEntry = [&](SourceEntry& entry) {
+        auto module = compileEntry(context, handler, entry);
+
+        if(entry.ast && settings.printAst) {
+            astToFile(context, *entry.ast, entry);
+        }
+
+        if(module && settings.printIr) {
+            irToFile(context, *module, entry);
+        }
+
         if(module) {
             compiledModules.push(module);
         }
+    };
+
+    // If any roots were provided, we initially parse only those. Any other modules are parsed on-demand.
+    // Otherwise, simply parse every entry in the source map.
+    if(roots.size() > 0) {
+        for(auto root: roots) onEntry(*root);
+    } else {
+        for(auto& entry: sourceMap.entries) onEntry(entry);
+    }
+
+    // Stop compiling if any parse errors occurred.
+    if(diagnostics.errorCount() > 0) {
+        return 1;
     }
 
     auto outputDir = std::string(settings.outputDir.text(), settings.outputDir.size());
@@ -103,25 +225,6 @@ int main(int argc, const char** argv) {
         }
         case CompileMode::JsLibrary: {
             diagnostics.error("JS library generation is not implemented yet."_buffer, nullptr, noSource);
-            break;
-        }
-        case CompileMode::Ir: {
-            std::ofstream irFile(outputDir + "/module.ir", std::ios_base::out);
-
-            for(auto module: compiledModules) {
-                irFile << "module ";
-                auto name = &context.find(module->id);
-
-                if(name->textLength > 0) {
-                    irFile.write(name->text, name->textLength);
-                } else {
-                    irFile << "<unnamed>";
-                }
-
-                irFile << "\n\n";
-                printModule(irFile, context, module);
-            }
-
             break;
         }
         case CompileMode::Llvm: {
