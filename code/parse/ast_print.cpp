@@ -62,15 +62,105 @@ struct Printer {
         }
     }
 
+    void toString(const Import& import) {
+        stream << "Import ";
+
+        if(import.qualified) {
+            stream << "<qualified> ";
+        }
+
+        auto name = context.find(import.from);
+        stream.write(name.text, name.textLength);
+        stream << ' ';
+
+        auto localName = context.find(import.localName);
+        if(localName.textLength > 0) {
+            stream << "<as> ";
+            stream.write(localName.text, localName.textLength);
+        }
+
+        if(import.exclude || import.include) {
+            makeLevel();
+
+            if(import.include) {
+                toStringIntro(import.exclude == nullptr);
+                stream << "<include>";
+
+                makeLevel();
+                auto v = import.include;
+                while(v) {
+                    toStringIntro(v->next == nullptr);
+                    stream << "Symbol ";
+                    auto n = context.find(v->item);
+                    stream.write(n.text, n.textLength);
+                    v = v->next;
+                }
+
+                removeLevel();
+            }
+
+            if(import.exclude) {
+                toStringIntro(true);
+                stream << "<hide>";
+
+                makeLevel();
+                auto v = import.exclude;
+                while(v) {
+                    toStringIntro(v->next == nullptr);
+                    stream << "Symbol ";
+                    auto n = context.find(v->item);
+                    stream.write(n.text, n.textLength);
+                    v = v->next;
+                }
+
+                removeLevel();
+            }
+
+            removeLevel();
+        }
+    }
+
+    void toString(const Fixity& fixity) {
+        stream << "Fixity ";
+
+        auto name = context.find(fixity.op);
+        stream.write(name.text, name.textLength);
+
+        stream << ' ';
+        stream << (fixity.kind == Fixity::Left ? "infixl" : "infixr");
+        stream << ' ';
+        stream << fixity.precedence;
+    }
+
     void toString(const Module& mod) {
         stream << "Module ";
-        Size max = mod.decls.size();
+        Size max = mod.imports.size();
+        if(max) {
+            makeLevel();
+            for(Size i = 0; i < max - 1; i++) {
+                toString(mod.imports[i], false);
+            }
+            toString(mod.imports[max-1], true);
+            removeLevel();
+        }
+
+        max = mod.decls.size();
         if(max) {
             makeLevel();
             for(Size i = 0; i < max - 1; i++) {
                 toString(*mod.decls[i], false);
             }
             toString(*mod.decls[max-1], true);
+            removeLevel();
+        }
+
+        max = mod.ops.size();
+        if(max) {
+            makeLevel();
+            for(Size i = 0; i < max - 1; i++) {
+                toString(mod.ops[i], false);
+            }
+            toString(mod.ops[max-1], true);
             removeLevel();
         }
 
@@ -518,6 +608,12 @@ private:
             toStringIntro(last);
             stream << "Constructor ";
             stream.write(name.text, name.textLength);
+
+            if(c.content) {
+                makeLevel();
+                toString(*c.content, true);
+                removeLevel();
+            }
         }
     }
 
@@ -560,6 +656,11 @@ private:
         toString(decl);
     }
 
+    void toString(const Fixity& fixity, bool last) {
+        toStringIntro(last);
+        toString(fixity);
+    }
+
     void toString(const Type& type, bool last) {
         toStringIntro(last);
         toString(type);
@@ -578,6 +679,11 @@ private:
     void toString(const ArgDecl& arg, bool last) {
         toStringIntro(last);
         toString(arg);
+    }
+
+    void toString(const Import& import, bool last) {
+        toStringIntro(last);
+        toString(import);
     }
 
     void toString(const Literal& literal) {
