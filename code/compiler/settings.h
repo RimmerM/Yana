@@ -9,7 +9,6 @@ enum class CompileMode {
     NativeShared,     /// Compiles into a native shared library for dynamic linking (.dll, .so, .dylib).
     JsExecutable,     /// Compiles into an executable javascript file, including all dependencies.
     JsLibrary,        /// Compiles into a javascript file as a library that can be included in a larger project.
-    Ir,               /// Compiles into a set of Yana IR files, using the same module structure as the source.
     Llvm,             /// Compiles into a native program, but outputs LLVM IR files rather than object files.
 };
 
@@ -77,6 +76,7 @@ struct TargetExtensions {
 
 struct CompileSettings {
     Array<String> compileObjects;
+    Array<String> rootObjects;
     String outputDir;
 
     CompileMode mode;
@@ -84,6 +84,10 @@ struct CompileSettings {
     TargetType target;
     TargetArch arch;
     TargetExtensions extensions;
+
+    bool printModules = false; /// Debug flag: Print a list of modules found in the input.
+    bool printAst = false;     /// Debug flag: Create .ast files for each source file.
+    bool printIr = false;      /// Debug flag: Create .ir files for each source file.
 };
 
 /// Parses the provided command line into a set of compiler options.

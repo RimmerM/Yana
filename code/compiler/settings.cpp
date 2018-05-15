@@ -4,13 +4,62 @@
 #include <cpuid.h>
 #endif
 
+struct Flag {
+    enum Type {
+        /*
+         * Additive flags.
+         */
+
+        add,
+        root,
+        enableInst,
+
+        /*
+         * Value flags.
+         */
+
+        to,
+        mode,
+        target,
+        arch,
+        format,
+
+        /*
+         * Boolean flags.
+         */
+
+        printModules,
+        printAst,
+        printIr,
+    };
+
+    StringBuffer name;
+    U32 argCount;
+    Type type;
+};
+
+Flag flagTable[] = {
+    { "add"_buffer, 1, Flag::add },
+    { "root"_buffer, 1, Flag::root },
+    { "enable-inst"_buffer, 1, Flag::enableInst },
+
+    { "to"_buffer, 1, Flag::to },
+    { "mode"_buffer, 1, Flag::mode },
+    { "target"_buffer, 1, Flag::target },
+    { "arch"_buffer, 1, Flag::arch },
+    { "format"_buffer, 1, Flag::format },
+
+    { "print-modules"_buffer, 0, Flag::printModules },
+    { "print-ast"_buffer, 0, Flag::printAst },
+    { "print-ir"_buffer, 0, Flag::printIr },
+};
+
 StringBuffer modeTable[] = {
     "lib"_buffer,       // Library
     "exe"_buffer,       // NativeExecutable
     "shared"_buffer,    // NativeShared
     "js"_buffer,        // JsExecutable
     "jslib"_buffer,     // JsLibrary
-    "ir"_buffer,        // Ir
     "llvm"_buffer,      // Llvm
 };
 
@@ -234,19 +283,45 @@ static void applyDefaults(CompileSettings& settings, bool hasArch, bool hasTarge
 }
 
 template<class F>
-void parsePairs(const char** argv, Size argc, F&& onPair) {
-    for(Size i = 0; i < argc; i += 2) {
+void parseFlags(const char** argv, Size argc, String& error, F&& onFlag) {
+    for(Size i = 0; i < argc; i++) {
         auto k = argv[i];
         if(k[0] == '-') k++;
 
-        auto v = argv[i + 1];
-        if(!onPair(String(k), String(v))) break;
+        bool found = false;
+        String key(k);
+
+        for(auto flag: flagTable) {
+            if(key == toString(flag.name)) {
+                if(argc - i <= flag.argCount) {
+                    char buffer[256];
+                    auto end = Tritium::formatString(toBuffer(buffer), "Not enough arguments to flag \"%@\""_buffer, key);
+                    error = ownedString(buffer, end - buffer);
+                    return;
+                }
+
+                String arg;
+                if(flag.argCount) {
+                    arg = String(argv[i + 1]);
+                    i += flag.argCount;
+                }
+
+                if(!onFlag(flag.type, move(arg))) return;
+                found = true;
+            }
+        }
+
+        if(!found) {
+            char buffer[256];
+            error = ownedString(buffer, Tritium::formatString(toBuffer(buffer), "Unknown argument \"%@\""_buffer, key) - buffer);
+            return;
+        }
     }
 }
 
 Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
     if(argc == 0) {
-        return Err(String("No command invocation line provided"));
+        return Err(String("No arguments provided"));
     }
 
     CompileSettings settings;
@@ -258,99 +333,96 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
     bool hasFormat = false;
     bool hasExtensions = false;
 
-    parsePairs(argv + 1, argc - 1, [&](String&& key, String&& value) -> bool {
-        if(key == "add") {
-            settings.compileObjects.push(value);
-            return true;
-        }
-
-        if(key == "to") {
-            if(settings.outputDir != "") {
-                error = "Only one output directory can be provided";
-                return false;
-            } else {
-                settings.outputDir = value;
+    parseFlags(argv + 1, argc - 1, error, [&](Flag::Type type, String&& value) -> bool {
+        switch(type) {
+            case Flag::add:
+                settings.compileObjects.push(move(value));
                 return true;
-            }
-        }
-
-        if(key == "mode") {
-            hasMode = true;
-            if(auto mode = matchString(modeTable, sizeof(modeTable) / sizeof(StringBuffer), value)) {
-                settings.mode = (CompileMode)mode.unwrap();
+            case Flag::root:
+                settings.rootObjects.push(move(value));
                 return true;
-            } else {
-                error = "Unrecognized compilation mode. Valid modes are: lib|exe|shared|js|jslib|ir|llvm.";
-                return false;
-            }
-        }
+            case Flag::enableInst:
+                hasExtensions = true;
+                if(auto v = matchString(sseTable, sizeof(sseTable) / sizeof(StringBuffer), value)) {
+                    auto sse = (TargetExtensions::SSEMode)(v.unwrap() + 1);
+                    if(settings.extensions.sse < sse) settings.extensions.sse = sse;
 
-        if(key == "target") {
-            hasTarget = true;
-            if(auto target = matchString(targetTable, sizeof(targetTable) / sizeof(StringBuffer), value)) {
-                settings.target = (TargetType)target.unwrap();
-                return true;
-            } else {
-                error = "Unrecognized platform target. Valid targets are: linux|mac|win32.";
-                return false;
-            }
-        }
+                    // All targets that support SSE4.2 also support popcnt.
+                    if(sse >= TargetExtensions::SSE4_2) settings.extensions.popcnt = true;
 
-        if(key == "arch") {
-            hasArch = true;
-            if(auto arch = matchString(archTable, sizeof(archTable) / sizeof(StringBuffer), value)) {
-                settings.arch = (TargetArch)arch.unwrap();
-                return true;
-            } else {
-                error = "Unrecognized target instruction set. Valid archs are: x64|x86|arm|arm64.";
-                return false;
-            }
-        }
-
-        if(key == "format") {
-            hasFormat = true;
-            if(auto format = matchString(formatTable, sizeof(formatTable) / sizeof(StringBuffer), value)) {
-                settings.format = (ExecutableFormat)format.unwrap();
-                return true;
-            } else {
-                error = "Unrecognized executable format. Valid formats are: elf|mach|pe.";
-                return false;
-            }
-        }
-
-        if(key == "inst") {
-            hasExtensions = true;
-            if(auto v = matchString(sseTable, sizeof(sseTable) / sizeof(StringBuffer), value)) {
-                auto sse = (TargetExtensions::SSEMode)(v.unwrap() + 1);
-                if(settings.extensions.sse < sse) settings.extensions.sse = sse;
-
-                // All targets that support SSE4.2 also support popcnt.
-                if(sse >= TargetExtensions::SSE4_2) settings.extensions.popcnt = true;
-
-                // All targets that support AVX2 also support lzcnt and fma3.
-                if(sse >= TargetExtensions::AVX2) {
+                    // All targets that support AVX2 also support lzcnt and fma3.
+                    if(sse >= TargetExtensions::AVX2) {
+                        settings.extensions.lzcnt = true;
+                        settings.extensions.fma3 = true;
+                    }
+                    return true;
+                } else if(value == "popcnt") {
+                    settings.extensions.popcnt = true;
+                    return true;
+                } else if(value == "lzcnt") {
                     settings.extensions.lzcnt = true;
-                    settings.extensions.fma3 = true;
+                    return true;
+                } else if(value == "neon") {
+                    settings.extensions.neon = true;
+                    return true;
+                } else {
+                    error = "Unrecognized instruction set extension.";
+                    return false;
                 }
+            case Flag::to:
+                if(settings.outputDir != "") {
+                    error = "Only one output directory can be provided";
+                    return false;
+                } else {
+                    settings.outputDir = move(value);
+                    return true;
+                }
+            case Flag::mode:
+                hasMode = true;
+                if(auto mode = matchString(modeTable, sizeof(modeTable) / sizeof(StringBuffer), value)) {
+                    settings.mode = (CompileMode)mode.unwrap();
+                    return true;
+                } else {
+                    error = "Unrecognized compilation mode. Valid modes are: lib|exe|shared|js|jslib|llvm.";
+                    return false;
+                }
+            case Flag::target:
+                hasTarget = true;
+                if(auto target = matchString(targetTable, sizeof(targetTable) / sizeof(StringBuffer), value)) {
+                    settings.target = (TargetType)target.unwrap();
+                    return true;
+                } else {
+                    error = "Unrecognized platform target. Valid targets are: linux|mac|win32.";
+                    return false;
+                }
+            case Flag::arch:
+                hasArch = true;
+                if(auto arch = matchString(archTable, sizeof(archTable) / sizeof(StringBuffer), value)) {
+                    settings.arch = (TargetArch)arch.unwrap();
+                    return true;
+                } else {
+                    error = "Unrecognized target instruction set. Valid archs are: x64|x86|arm|arm64.";
+                    return false;
+                }
+            case Flag::format:
+                hasFormat = true;
+                if(auto format = matchString(formatTable, sizeof(formatTable) / sizeof(StringBuffer), value)) {
+                    settings.format = (ExecutableFormat)format.unwrap();
+                    return true;
+                } else {
+                    error = "Unrecognized executable format. Valid formats are: elf|mach|pe.";
+                    return false;
+                }
+            case Flag::printModules:
+                settings.printModules = true;
                 return true;
-            } else if(value == "popcnt") {
-                settings.extensions.popcnt = true;
+            case Flag::printAst:
+                settings.printAst = true;
                 return true;
-            } else if(value == "lzcnt") {
-                settings.extensions.lzcnt = true;
+            case Flag::printIr:
+                settings.printIr = true;
                 return true;
-            } else if(value == "neon") {
-                settings.extensions.neon = true;
-                return true;
-            } else {
-                error = "Unrecognized instruction set extension.";
-                return false;
-            }
         }
-
-        char buffer[256];
-        error = ownedString(buffer, Tritium::formatString(toBuffer(buffer), "Unknown argument \"%@\""_buffer, value) - buffer);
-        return false;
     });
 
     if(settings.outputDir == "") {
