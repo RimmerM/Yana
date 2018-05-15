@@ -387,10 +387,10 @@ private:
 
     void toString(const AliasDecl& e) {
         stream << "AliasDecl ";
-        auto name = context.find(e.type->name);
-        stream.write(name.text, name.textLength);
-        stream << " = ";
-        toString(*e.target);
+        toString(*e.type);
+        makeLevel();
+        toString(*e.target, true);
+        removeLevel();
     }
 
     void toString(const DataDecl& e) {
@@ -484,7 +484,7 @@ private:
         if(name.textLength > 0) {
             stream.write(name.text, name.textLength);
         } else {
-            stream << "<unnamed>";
+            stream << "<anonymous>";
         }
 
         makeLevel();
@@ -497,6 +497,18 @@ private:
         if(name.textLength > 0) {
             stream.write(name.text, name.textLength);
             stream << ' ';
+        }
+
+        if(t.kind) {
+            stream << '(';
+            auto k = t.kind;
+            while(k) {
+                auto name = context.find(k->item);
+                stream.write(name.text, name.textLength);
+                if(k->next) stream << ", ";
+                k = k->next;
+            }
+            stream << ')';
         }
     }
 
@@ -558,6 +570,16 @@ private:
         toString(pat);
     }
 
+    void toString(const TupField& field, bool last) {
+        toStringIntro(last);
+        toString(field);
+    }
+
+    void toString(const ArgDecl& arg, bool last) {
+        toStringIntro(last);
+        toString(arg);
+    }
+
     void toString(const Literal& literal) {
         switch(literal.type) {
             case Literal::Int:
@@ -589,54 +611,132 @@ private:
                 stream << "<parse error>";
                 break;
             case Type::Unit:
-                stream << "()";
+                stream << "UnitType";
                 break;
             case Type::Con: {
                 auto name = context.find(((const ConType&)type).con);
+                stream << "ConType ";
                 stream.write(name.text, name.textLength);
                 break;
             }
             case Type::Ptr:
-                stream << '#';
-                toString(*((const PtrType&)type).type);
+                stream << "PtrType ";
+                makeLevel();
+                toString(*((const PtrType&)type).type, true);
+                removeLevel();
                 break;
             case Type::Ref:
-                stream << '&';
-                toString(*((const RefType&)type).type);
+                stream << "RefType ";
+                makeLevel();
+                toString(*((const RefType&)type).type, true);
+                removeLevel();
                 break;
             case Type::Val:
-                stream << '*';
-                toString(*((const ValType&)type).type);
+                stream << "ValType ";
+                makeLevel();
+                toString(*((const ValType&)type).type, true);
+                removeLevel();
                 break;
             case Type::Gen: {
-                stream << "gen";
+                stream << "GenType ";
                 auto name = context.find(((const GenType&)type).con);
                 stream.write(name.text, name.textLength);
                 break;
             }
             case Type::Tup:
-                stream << "tuple";
+                toString((const TupType&)type);
                 break;
             case Type::Fun:
-                stream << "fun";
+                toString((const FunType&)type);
                 break;
             case Type::App:
-                stream << "app ";
-                toString(*((const AppType&)type).base);
+                toString((const AppType&)type);
                 break;
             case Type::Arr:
-                stream << "array(";
-                toString(*((const ArrType&)type).type);
-                stream << ")";
+                stream << "ArrType ";
+                makeLevel();
+                toString(*((const ArrType&)type).type, true);
+                removeLevel();
                 break;
             case Type::Map:
-                stream << "map(";
-                toString(*((const MapType&)type).from);
-                stream << " -> ";
-                toString(*((const MapType&)type).to);
-                stream << ")";
+                stream << "MapType ";
+                makeLevel();
+                toString(*((const MapType&)type).from, false);
+                toString(*((const MapType&)type).to, true);
+                removeLevel();
                 break;
         }
+    }
+
+    void toString(const AppType& type) {
+        stream << "AppType ";
+        makeLevel();
+        toString(*type.base, false);
+        auto a = type.apps;
+        while(a) {
+            toString(*a->item, a->next == nullptr);
+            a = a->next;
+        }
+        removeLevel();
+    }
+
+    void toString(const TupField& field) {
+        stream << "Field ";
+        if(field.name) {
+            auto name = context.find(field.name);
+            stream.write(name.text, name.textLength);
+        } else {
+            stream << "<anonymous>";
+        }
+
+        makeLevel();
+        toString(*field.type, true);
+        removeLevel();
+    }
+
+    void toString(const TupType& type) {
+        stream << "TupType ";
+        makeLevel();
+        auto a = type.fields;
+        while(a) {
+            toString(a->item, a->next == nullptr);
+            a = a->next;
+        }
+        removeLevel();
+    }
+
+    void toString(const ArgDecl& arg) {
+        stream << "Arg ";
+        auto name = context.find(arg.name);
+        if(name.textLength > 0) {
+            stream.write(name.text, name.textLength);
+        } else {
+            stream << "<anonymous>";
+        }
+
+        makeLevel();
+        toString(*arg.type, true);
+        removeLevel();
+    }
+
+    void toString(const FunType& type) {
+        stream << "FunType ";
+        makeLevel();
+
+        auto arg = type.args;
+        while(arg) {
+            toString(arg->item, false);
+            arg = arg->next;
+        }
+
+        if(type.ret) {
+            toString(*type.ret, true);
+        } else {
+            toStringIntro(true);
+            stream << "UnitType";
+        }
+
+        removeLevel();
     }
 
     void toString(const Pat& pat) {
