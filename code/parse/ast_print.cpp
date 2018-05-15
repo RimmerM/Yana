@@ -497,10 +497,20 @@ private:
 
     void toString(const ForeignDecl& e) {
         stream << "ForeignDecl ";
-        auto name = context.find(e.localName);
+        auto name = context.find(e.externName);
         stream.write(name.text, name.textLength);
-        stream << " : ";
-        toString(*e.type);
+        stream << ' ';
+
+        auto localName = context.find(e.localName);
+        if(localName.textLength > 0) {
+            stream.write(localName.text, localName.textLength);
+        } else {
+            stream.write(name.text, name.textLength);
+        }
+
+        makeLevel();
+        toString(*e.type, true);
+        removeLevel();
     }
 
     void toString(const StmtDecl& e) {

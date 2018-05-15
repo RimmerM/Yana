@@ -139,7 +139,7 @@ void Parser::parseImport() {
     }
 
     List<Id>* include = maybeParens([=] {
-        return sepBy1([=] {
+        return sepBy([=] {
             Id included;
             if(token.type == Token::VarID || token.type == Token::ConID) {
                 included = token.data.id;
@@ -149,14 +149,14 @@ void Parser::parseImport() {
                 included = 0;
             }
             return included;
-        }, Token::Comma);
+        }, Token::Comma, Token::ParenR);
     });
 
     List<Id>* exclude = nullptr;
     if(token.type == Token::VarID && token.data.id == hidingId) {
         eat();
         exclude = parens([=] {
-            return sepBy1([=] {
+            return sepBy([=] {
                 Id hiddenName;
                 if(token.type == Token::VarID || token.type == Token::ConID) {
                     hiddenName = token.data.id;
@@ -166,7 +166,7 @@ void Parser::parseImport() {
                     hiddenName = 0;
                 }
                 return hiddenName;
-            }, Token::Comma);
+            }, Token::Comma, Token::ParenR);
         });
     }
 
@@ -404,6 +404,19 @@ Decl* Parser::parseForeignDecl() {
             error("expected identifier"_buffer);
         }
 
+        Id importName = 0;
+        if(token.type == Token::VarID && token.data.id == asId) {
+            eat();
+            if(token.type == Token::VarID) {
+                importName = token.data.id;
+                eat();
+            } else {
+                error("expected an identifier"_buffer);
+            }
+        } else if(stringName) {
+            error("expected 'as' and foreign import name"_buffer);
+        }
+
         // A normal function type looks exactly like a function declaration when directly after the name.
         if(token.type == Token::opColon) {
             eat();
@@ -422,19 +435,6 @@ Decl* Parser::parseForeignDecl() {
             } else {
                 error("expected a string"_buffer);
             }
-        }
-
-        Id importName = 0;
-        if(token.type == Token::VarID && token.data.id == asId) {
-            eat();
-            if(token.type == Token::VarID) {
-                importName = token.data.id;
-                eat();
-            } else {
-                error("expected an identifier"_buffer);
-            }
-        } else if(stringName) {
-            error("expected 'as' and foreign import name"_buffer);
         }
 
         return new(buffer) ForeignDecl(name, importName, from, type);

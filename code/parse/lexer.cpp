@@ -746,7 +746,10 @@ void Lexer::parseQualifier() {
             p++;
 
             // If the next character is upper case, we either have a ConID or another qualifier.
-            if(u) continue;
+            if(u) {
+                length++;
+                continue;
+            }
 
             // If the next character is lowercase, we either have a VarID or keyword.
             if(l) {
