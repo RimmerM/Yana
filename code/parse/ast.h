@@ -459,7 +459,7 @@ struct Decl: Node {
         Attr,
     } kind;
 
-    List<Attribute>* attributes;
+    List<Attribute>* attributes = nullptr;
     bool exported = false;
 
     Decl(Kind t): kind(t) {}
@@ -557,6 +557,11 @@ struct Module {
     Array<Decl*> decls;
     Array<Fixity> ops;
     Array<Export> exports;
+
+    Arena buffer;
+
+    U32 errorCount = 0;
+    U32 warningCount = 0;
 };
 
 } // namespace ast

@@ -38,7 +38,12 @@ static const char kValSigil = '*';
 static const char kPtrSigil = '%';
 
 Parser::Parser(Context& context, ast::Module& module, const char* text):
-    text(text), context(context), diag(context.diagnostics), module(module), lexer(context, diag, text, &token) {
+    text(text),
+    context(context),
+    diag(context.diagnostics),
+    module(module),
+    buffer(module.buffer),
+    lexer(context, diag, text, &token) {
 
     qualifiedId = Context::nameHash("qualified", 9);
     hidingId = Context::nameHash("hiding", 6);
@@ -56,6 +61,9 @@ Parser::Parser(Context& context, ast::Module& module, const char* text):
 }
 
 void Parser::parseModule() {
+    auto errorCount = context.diagnostics.errorCount();
+    auto warningCount = context.diagnostics.warningCount();
+
     withLevel([=] {
         while(true) {
             if(token.type == Token::EndOfFile) {
@@ -106,6 +114,9 @@ void Parser::parseModule() {
         // Dummy return value to withLevel.
         return true;
     });
+
+    module.errorCount = context.diagnostics.errorCount() - errorCount;
+    module.warningCount = context.diagnostics.warningCount() - warningCount;
 }
 
 void Parser::parseImport() {
@@ -1168,18 +1179,21 @@ VarExpr* Parser::parseQop() {
 
 Type* Parser::parseType() {
     return node([=]() -> Type* {
-        List<ArgDecl>* args = maybeParens([=] {
+        bool hasArgs = false;
+        List<ArgDecl>* args = maybeParens([&] {
+            hasArgs = true;
             return sepBy([=] {
                 return parseTypeArg();
             }, Token::Comma, Token::ParenR);
         });
 
-        if(!args) {
-            if(token.type == Token::ConID) {
+        if(!hasArgs) {
+            if(token.type == Token::ConID || token.type == Token::VarID) {
                 auto base = node([=]() -> Type* {
+                    auto isVar = token.type == Token::VarID;
                     auto id = token.data.id;
                     eat();
-                    return new(buffer) ConType(id);
+                    return isVar ? (Type*)(new (buffer) GenType(id)) : (Type*)(new(buffer) ConType(id));
                 });
 
                 // In full types for cases where it is easily visible what's going on, we allow omitting parentheses.
@@ -1223,7 +1237,7 @@ Type* Parser::parseType() {
             if(arg && !arg->name) {
                 return arg->type;
             } else {
-                error("expected '=>' after function type args"_buffer);
+                error("expected '->' after function type args"_buffer);
                 return new (buffer) Type(Type::Error);
             }
         }
@@ -1243,11 +1257,12 @@ Type* Parser::parseAType() {
         eat();
         auto type = parseAType();
         return new (buffer) ValType(type);
-    } else if(token.type == Token::ConID) {
+    } else if(token.type == Token::ConID || token.type == Token::VarID) {
         auto base = node([=]() -> Type* {
+            auto isVar = token.type == Token::VarID;
             auto id = token.data.id;
             eat();
-            return new(buffer) ConType(id);
+            return isVar ? (Type*)(new (buffer) GenType(id)) : (Type*)(new(buffer) ConType(id));
         });
 
         if(token.type == Token::ParenL) {
@@ -1260,10 +1275,6 @@ Type* Parser::parseAType() {
         } else {
             return base;
         }
-    } else if(token.type == Token::VarID) {
-        auto id = token.data.id;
-        eat();
-        return new(buffer) GenType(id);
     } else if(token.type == Token::BraceL) {
         // Also handles unit type.
         return parseTupleType();
@@ -1310,7 +1321,7 @@ SimpleType* Parser::parseSimpleType() {
 Type* Parser::parseTupleType() {
     return node([=] {
         auto type = braces([=]() -> Type* {
-            auto l = sepBy1([=]() -> TupField {
+            auto l = sepBy([=]() -> TupField {
                 if(token.type == Token::VarID) {
                     auto gen = node([=]() -> GenType* {
                         auto name = token.data.id;
@@ -1327,9 +1338,13 @@ Type* Parser::parseTupleType() {
                 } else {
                     return TupField(parseType(), 0, nullptr);
                 }
-            }, Token::Comma);
+            }, Token::Comma, Token::BraceR);
 
-            return new (buffer) TupType(l);
+            if(l) {
+                return new (buffer) TupType(l);
+            } else {
+                return new (buffer) Type(Type::Unit);
+            }
         });
 
         return type;

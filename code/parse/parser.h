@@ -197,8 +197,8 @@ struct Parser {
     Context& context;
     Diagnostics& diag;
     ast::Module& module;
+    Arena& buffer;
 
-    Arena buffer;
     Token token;
     Lexer lexer;
 
