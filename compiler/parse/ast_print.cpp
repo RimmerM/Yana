@@ -456,23 +456,46 @@ private:
         stream << "FunDecl ";
         auto name = context.find(e.name);
         stream.write(name.text, name.textLength);
-        stream << '(';
+
+        if(e.implicitReturn) {
+            stream << " <implicit return>";
+        }
+
+        makeLevel();
         if(e.args) {
             auto arg = e.args;
             while(arg) {
+                toStringIntro(arg->next == nullptr && e.ret == nullptr && e.body == nullptr);
+
+                stream << "Arg ";
                 auto argName = context.find(arg->item.name);
                 stream.write(argName.text, argName.textLength);
-                if(arg->next) stream << ", ";
+
+                makeLevel();
+                if(arg->item.type) toString(*arg->item.type, arg->item.def == nullptr);
+                if(arg->item.def) toString(*arg->item.def, true);
+                removeLevel();
+
                 arg = arg->next;
             }
         }
-        stream << ')';
+
+        if(e.ret) {
+            toStringIntro(e.body == nullptr);
+            stream << "Result";
+            makeLevel();
+            toString(*e.ret, true);
+            removeLevel();
+        }
 
         if(e.body) {
+            toStringIntro(true);
+            stream << "Body";
             makeLevel();
             toString(*e.body, true);
             removeLevel();
         }
+        removeLevel();
     }
 
     void toString(const AliasDecl& e) {

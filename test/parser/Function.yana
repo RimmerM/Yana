@@ -1,0 +1,56 @@
+-- No arguments.
+fn f() = 0
+fn f() -> Int = 0
+fn f() -> A B = 0
+fn f() -> [A(B C)] = 0
+
+-- Single argument.
+fn f(a: Int) = 0
+fn f(a: A B) = 0
+fn f(a: [A(B C)]) = 0
+fn f(a: Int) -> Int = 0
+fn f(a: A B) -> A B = 0
+fn f(a: [A(B C)]) -> [A(B C)] = 0
+
+-- Multiple arguments.
+fn f(a: Int, b: Bool, c: Float) = 0
+fn f(a: Int, b: Bool, c: Float) -> Int = 0
+fn f(a: A B, b: Bool, c: [A(B C)]) -> A B = 0
+fn f(a: [A(B C)], b: [A(B C)], c: [A(B C)]) -> [A(B C)] = 0
+
+-- Mutable arguments.
+fn f(&a: Int, *b: Bool, c: Float) = 0
+fn f(a: Int, &b: Bool, *c: Float) -> Int = 0
+fn f(&a: A B, &b: Bool, &c: [A(B C)]) -> A B = 0
+fn f(*a: [A(B C)], *b: [A(B C)], *c: [A(B C)]) -> [A(B C)] = 0
+
+-- Default arguments.
+fn f(&a: Int = 0, b: Bool = False, *c: Float = 1) = 0
+fn f(a: Int = 6 * f(a, b), b: Bool = if a then b else A {x = 0, y = 1}, c: Float) -> Int = 0
+fn f(a: A B, b: Bool, &c: [A(B C)] = [A(v), A {x, y}]) -> A B = 0
+
+-- Implicit return.
+fn f(a: Int) = if a > 0 then g(a) * f(a - 1) else 0
+
+-- Explicit return.
+fn f(a: Int):
+  if a > 0:
+    return g(a) * f(a - 1)
+  else:
+    return 0
+
+-- Guards.
+fn f(a: Int)
+  | -1 -> 0
+  | -2 -> 0
+  | else -> a
+
+fn f(a: Int)
+  | 0 -> Class.Zero
+  | else -> if a > 0 then Class.Positive else Class.Negative
+
+fn f(a: Int, b: Int, c: Bool)
+  | { 0, 0, False } -> Class.Zero
+  | { a, b, False }:
+    return if a > 0 && b > 0 then Class.Positive else Class.Negative
+  | else -> Class.Positive
