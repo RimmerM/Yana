@@ -544,7 +544,9 @@ private:
     }
 
     void toString(const ClassDecl& e) {
-        stream << "ClassDecl";
+        stream << "ClassDecl ";
+        toString(*e.type);
+
         makeLevel();
         auto d = e.decls;
         while(d) {
@@ -555,8 +557,10 @@ private:
     }
 
     void toString(const InstanceDecl& e) {
-        stream << "InstanceDecl";
+        stream << "InstanceDecl ";
         makeLevel();
+        toString(*e.type, e.decls == nullptr);
+
         auto d = e.decls;
         while(d) {
             toString(*d->item, d->next == nullptr);

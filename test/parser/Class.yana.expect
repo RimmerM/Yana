@@ -1,0 +1,130 @@
+Module 
+|-ClassDecl A (a)
+| |-FunDecl f
+| | |-Arg x
+| | | `-GenType a
+| | `-Result
+| |   `-GenType a
+| |-FunDecl g
+| | |-Arg x
+| | | `-GenType a
+| | |-Arg y
+| | | `-ConType Int
+| | `-Result
+| |   `-TupType 
+| |     |-Field <anonymous>
+| |     | `-GenType a
+| |     `-Field <anonymous>
+| |       `-ConType Int
+| |-FunDecl h
+| | |-Arg x
+| | | `-GenType a
+| | |-Arg y
+| | | |-RefType 
+| | | | `-ConType Int
+| | | `-LitExpr 0
+| | `-Result
+| |   `-ArrType 
+| |     `-TupType 
+| |       |-Field <anonymous>
+| |       | `-GenType a
+| |       `-Field <anonymous>
+| |         `-ConType Int
+| |-FunDecl i <implicit return>
+| | |-Arg x
+| | | `-GenType a
+| | `-Body
+| |   `-VarExpr x
+| `-FunDecl j <implicit return>
+|   |-Arg x
+|   | `-GenType a
+|   |-Arg y
+|   | `-ConType Int
+|   `-Body
+|     `-TupExpr
+|       |-Field x
+|       | `-VarExpr x
+|       `-Field y
+|         `-InfixExpr *
+|           |-VarExpr y
+|           `-LitExpr 2
+|-ClassDecl B (a, b)
+| |-FunDecl f
+| | |-Arg x
+| | | `-GenType a
+| | `-Result
+| |   `-GenType a
+| |-FunDecl g
+| | |-Arg x
+| | | `-GenType a
+| | |-Arg y
+| | | `-GenType b
+| | `-Result
+| |   `-TupType 
+| |     |-Field <anonymous>
+| |     | `-GenType a
+| |     `-Field <anonymous>
+| |       `-GenType b
+| |-FunDecl h
+| | |-Arg x
+| | | `-GenType a
+| | |-Arg y
+| | | |-RefType 
+| | | | `-GenType b
+| | | `-LitExpr 0
+| | `-Result
+| |   `-ArrType 
+| |     `-TupType 
+| |       |-Field <anonymous>
+| |       | `-GenType a
+| |       `-Field <anonymous>
+| |         `-GenType b
+| |-FunDecl i <implicit return>
+| | |-Arg x
+| | | `-GenType a
+| | `-Body
+| |   `-VarExpr x
+| `-FunDecl j <implicit return>
+|   |-Arg x
+|   | `-GenType a
+|   |-Arg y
+|   | `-GenType b
+|   `-Body
+|     `-TupExpr
+|       |-Field x
+|       | `-VarExpr x
+|       `-Field y
+|         `-InfixExpr *
+|           |-VarExpr y
+|           `-LitExpr 2
+|-InstanceDecl 
+| |-AppType 
+| | |-ConType A
+| | `-ConType B
+| `-FunDecl f <implicit return>
+|   |-Arg x
+|   | `-ConType B
+|   `-Body
+|     `-VarExpr x
+`-InstanceDecl 
+  |-ConType B
+  |-FunDecl g <implicit return>
+  | `-Body
+  |   `-LitExpr 0
+  |-FunDecl h <implicit return>
+  | |-Arg this
+  | | `-ConType B
+  | `-Body
+  |   `-FieldExpr 
+  |     |-VarExpr x
+  |     `-VarExpr this
+  `-FunDecl i
+    |-Arg this
+    | `-ValType 
+    |   `-ConType B
+    `-Body
+      `-AssignExpr 
+        |-FieldExpr 
+        | |-VarExpr x
+        | `-VarExpr this
+        `-LitExpr 5
