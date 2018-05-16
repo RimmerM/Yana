@@ -1080,13 +1080,7 @@ Expr* Parser::parseDeclExpr() {
         m = DeclExpr::Immutable;
     }
 
-    Id id = 0;
-    if(token.type == Token::VarID) {
-        id = token.data.id;
-        eat();
-    } else {
-        error("expected identifier"_buffer);
-    }
+    auto pat = parsePattern();
 
     if(token.type == Token::opEquals) {
         eat();
@@ -1100,9 +1094,9 @@ Expr* Parser::parseDeclExpr() {
             in = nullptr;
         }
 
-        return new(buffer) DeclExpr(id, expr, in, m);
+        return new(buffer) DeclExpr(pat, expr, in, m);
     } else {
-        return new(buffer) DeclExpr(id, nullptr, nullptr, m);
+        return new(buffer) DeclExpr(pat, nullptr, nullptr, m);
     }
 }
 
@@ -1659,36 +1653,42 @@ Pat* Parser::parsePattern() {
             lit.i = 0;
             return new (buffer) LitPat(lit);
         }
-    } else if(token.type == Token::ConID) {
-        auto id = token.data.id;
-        eat();
+    } else {
+        bool allowRange = true;
+        Pat* pat;
+        if(token.type == Token::ConID) {
+            auto id = token.data.id;
+            eat();
 
-        Pat* pats = nullptr;
-        if(token.type == Token::ParenL) {
-            auto fields = parens([=] {
-                return sepBy1([=] {
-                    return parseFieldPat();
-                }, Token::Comma);
-            });
+            Pat* pats = nullptr;
+            if(token.type == Token::ParenL) {
+                auto fields = parens([=] {
+                    return sepBy1([=] {
+                        return parseFieldPat();
+                    }, Token::Comma);
+                });
 
-            if(!fields || fields->next || fields->item.field) {
-                pats = new (buffer) TupPat(fields);
-            } else {
-                pats = fields->item.pat;
+                if(!fields || fields->next || fields->item.field) {
+                    pats = new (buffer) TupPat(fields);
+                } else {
+                    pats = fields->item.pat;
+                }
+            } else if(token.type == Token::BraceL) {
+                auto p = (TupPat*)parseLeftPattern();
+                if(!p->fields || p->fields->next || p->fields->item.field) {
+                    pats = p;
+                } else {
+                    pats = p->fields->item.pat;
+                }
             }
-        } else if(token.type == Token::BraceL) {
-            auto p = (TupPat*)parseLeftPattern();
-            if(!p->fields || p->fields->next || p->fields->item.field) {
-                pats = p;
-            } else {
-                pats = p->fields->item.pat;
-            }
+
+            allowRange = pats == nullptr;
+            pat = new (buffer) ConPat(id, pats);
+        } else {
+            pat = parseLeftPattern();
         }
 
-        return new (buffer) ConPat(id, pats);
-    } else {
-        auto pat = parseLeftPattern();
-        if(token.type == Token::opDotDot) {
+        if(allowRange && token.type == Token::opDotDot) {
             eat();
             auto to = parseLeftPattern();
             return new (buffer) RangePat(pat, to);

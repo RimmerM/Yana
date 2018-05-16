@@ -103,6 +103,8 @@ Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast
 void resolveFun(Context* context, Function* fun);
 Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used);
 
+Id getDeclName(ast::DeclExpr* expr);
+
 struct Function {
     Module* module;
     Id name;

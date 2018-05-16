@@ -494,12 +494,14 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
         return nullptr;
     }
 
+    auto declName = getDeclName(expr);
+
     // If the declaration is global, we simply never define the name in the current scope.
     // That way, any uses will automatically use the global version, while local overrides, etc work normally.
     // The declaration is instead resolved as a store into the global.
-    if(expr->isGlobal) {
+    if(expr->isGlobal && declName) {
         // The globals for each module are defined before expressions are resolved.
-        Global* global = b->fun->module->globals.get(expr->name).unwrap();
+        Global* global = b->fun->module->globals.get(declName).unwrap();
         assertTrue(global != nullptr);
 
         // Resolve the contents - in case of an error below we want to do as much as possible.
@@ -542,19 +544,19 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
         switch(expr->mut) {
             case ast::DeclExpr::Immutable: {
                 // Immutable values are stored as registers, so we just have to resolve the creation expression.
-                result = resolveExpr(b, expr->content, expr->name, true);
+                result = resolveExpr(b, expr->content, declName, true);
                 break;
             }
             case ast::DeclExpr::Val: {
                 auto value = resolveExpr(b, expr->content, 0, true);
                 if(value->type->kind == Type::Ref) {
-                    auto var = alloc(b->block, expr->name, ((RefType*)value->type)->to, true, true);
+                    auto var = alloc(b->block, declName, ((RefType*)value->type)->to, true, true);
                     auto v = load(b->block, 0, value);
                     store(b->block, 0, var, v);
                     result = var;
                     break;
                 } else {
-                    auto var = alloc(b->block, expr->name, value->type, true, true);
+                    auto var = alloc(b->block, declName, value->type, true, true);
                     store(b->block, 0, var, value);
                     result = var;
                     break;
@@ -562,7 +564,7 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
             }
             case ast::DeclExpr::Ref: {
                 auto value = resolveExpr(b, expr->content, 0, true);
-                auto var = alloc(b->block, expr->name, value->type, true, false);
+                auto var = alloc(b->block, declName, value->type, true, false);
                 store(b->block, 0, var, value);
                 result = var;
                 break;
