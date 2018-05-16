@@ -276,8 +276,11 @@ private:
 
     void toString(const DeclExpr& e) {
         stream << "DeclExpr ";
-        auto name = context.find(e.name);
-        stream.write(name.text, name.textLength);
+        if(e.pat->kind == Pat::Var) {
+            auto name = context.find(((const VarPat*)e.pat)->var);
+            stream.write(name.text, name.textLength);
+        }
+
         switch(e.mut) {
             case DeclExpr::Immutable:
                 stream << " <const> ";
@@ -290,14 +293,11 @@ private:
                 break;
         }
 
-        if(e.content) {
-            makeLevel();
-            toString(*e.content, e.in == nullptr);
-            if(e.in) toString(*e.in, true);
-            removeLevel();
-        } else {
-            stream << " <empty> ";
-        }
+        makeLevel();
+        toString(*e.pat, false);
+        toString(*e.content, e.in == nullptr);
+        if(e.in) toString(*e.in, true);
+        removeLevel();
     }
 
     void toString(const WhileExpr& e) {
@@ -931,6 +931,36 @@ private:
                     toString(*con.pats, true);
                     removeLevel();
                 }
+                break;
+            }
+            case Pat::Array: {
+                stream << "ArrayPat ";
+                auto& array = ((const ArrayPat&)pat);
+                auto p = array.pats;
+
+                makeLevel();
+                while(p) {
+                    toString(*p->item, p->next == nullptr);
+                    p = p->next;
+                }
+                removeLevel();
+                break;
+            }
+            case Pat::Rest: {
+                stream << "RestPat ";
+                auto& rest = ((const RestPat&)pat);
+                auto name = context.find(rest.var);
+                stream.write(name.text, name.textLength);
+                break;
+            }
+            case Pat::Range: {
+                stream << "RangePat ";
+                auto& range = ((const RangePat&)pat);
+
+                makeLevel();
+                toString(*range.from, false);
+                toString(*range.to, true);
+                removeLevel();
                 break;
             }
         }
