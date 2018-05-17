@@ -1,0 +1,84 @@
+@inline
+fn x() = 0
+
+@cc(stdcall)
+fn x() = 0
+
+@platform(mode = js)
+fn x() = 0
+
+@platform(target = linux, arch = x64, extensions = [sse4_1, popcnt])
+fn x() = 0
+
+@inline fn x() = 0
+
+@cc(stdcall) fn x() = 0
+
+@platform(mode = js) fn x() = 0
+
+@platform(target = linux, arch = x64, extensions = [sse4_1, popcnt]) fn x() = 0
+
+@cc { stdcall }
+fn x() = 0
+
+@platform { mode = js }
+fn x() = 0
+
+@platform { target = linux, arch = x64, extensions = [sse4_1, popcnt] }
+fn x() = 0
+
+@Inline
+fn x() = 0
+
+@CC(stdcall)
+fn x() = 0
+
+@Platform(mode = js)
+fn x() = 0
+
+@Platform(target = linux, arch = [x64, avx2, popcnt])
+fn x() = 0
+
+@inline @cc(stdcall) @platform(arch = [x64, avx2, popcnt])
+fn x() = 0
+
+@inline
+@cc(c)
+@platform(arch = [x64, avx2, popcnt])
+fn x() = 0
+
+@platform(target = win32):
+  fn x() = 0
+  fn y() = 0
+  let z = 0
+
+@inline @cc(thiscall) @platform(arch = [x64, avx2, popcnt]):
+  fn x() = 0
+  fn y() = 0
+  let z = 0
+
+@inline
+@cc(fastcall)
+@platform(arch = [x64, avx2, popcnt]):
+  fn x() = 0
+  fn y() = 0
+  let z = 0
+
+fn w() = 0
+
+@platform(target = win32):
+  @a
+  fn x() = 0
+  @b(d)
+  fn y() = 0
+  @c(e)
+  let z = 0
+  let w = 0
+
+@inline @cc(thiscall) @platform(arch = [x64, avx2, popcnt]):
+  @a @b(d, e) @c
+  fn x() = 0
+  fn y() = 0
+  @f let z = 0
+
+fn w() = 0
