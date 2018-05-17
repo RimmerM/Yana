@@ -331,7 +331,8 @@ struct DeclExpr: Expr {
         Val,
     };
 
-    DeclExpr(Pat* pat, Expr* content, Expr* in, Mutability mut): Expr(Decl), pat(pat), content(content), in(in), mut(mut) {}
+    DeclExpr(Pat* pat, Expr* content, Expr* in, Expr* otherwise, Mutability mut):
+        Expr(Decl), pat(pat), content(content), in(in), otherwise(otherwise), mut(mut) {}
 
     Pat* pat;
     Expr* content;

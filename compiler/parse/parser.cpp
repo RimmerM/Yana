@@ -1112,17 +1112,21 @@ Expr* Parser::parseDeclExpr() {
         eat();
         auto expr = parseExpr();
 
-        Expr* in;
+        Expr* otherwise = nullptr;
+        if(token.type == Token::kwElse) {
+            eat();
+            otherwise = parseExpr();
+        }
+
+        Expr* in = nullptr;
         if(token.type == Token::kwIn) {
             eat();
             in = parseExpr();
-        } else {
-            in = nullptr;
         }
 
-        return new(buffer) DeclExpr(pat, expr, in, m);
+        return new(buffer) DeclExpr(pat, expr, in, otherwise, m);
     } else {
-        return new(buffer) DeclExpr(pat, nullptr, nullptr, m);
+        return new(buffer) DeclExpr(pat, nullptr, nullptr, nullptr, m);
     }
 }
 

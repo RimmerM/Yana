@@ -295,8 +295,22 @@ private:
 
         makeLevel();
         toString(*e.pat, false);
-        toString(*e.content, e.in == nullptr);
-        if(e.in) toString(*e.in, true);
+        toString(*e.content, e.in == nullptr && e.otherwise == nullptr);
+        if(e.otherwise) {
+            toStringIntro(e.in == nullptr);
+            stream << "Else";
+            makeLevel();
+            toString(*e.otherwise, true);
+            removeLevel();
+        }
+
+        if(e.in) {
+            toStringIntro(true);
+            stream << "In";
+            makeLevel();
+            toString(*e.in, true);
+            removeLevel();
+        }
         removeLevel();
     }
 
