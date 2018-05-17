@@ -966,11 +966,12 @@ Expr* Parser::parseStringExpr() {
                 error("expected end of string format after this expression."_buffer);
             }
 
+            assertTrue(token.type == Token::String);
+            auto endString = token.data.id;
+
             eat();
-            assert(token.type == Token::String);
-            p->next = list(FormatChunk{token.data.id, expr});
+            p->next = list(FormatChunk{endString, expr});
             p = p->next;
-            eat();
         }
 
         return new(buffer) FormatExpr(l);

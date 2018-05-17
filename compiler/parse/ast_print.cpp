@@ -342,10 +342,8 @@ private:
 
     void toString(const CoerceExpr& e) {
         stream << "CoerceExpr ";
-        stream << '(';
-        toString(*e.kind);
-        stream << ')';
         makeLevel();
+        toString(*e.kind, false);
         toString(*e.target, true);
         removeLevel();
     }
