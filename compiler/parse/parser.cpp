@@ -79,18 +79,43 @@ void Parser::parseModule() {
             } else if(token.type == Token::kwInfixL || token.type == Token::kwInfixR) {
                 parseFixity();
             } else {
-                bool exported = false;
-                if(token.type == Token::kwPub) {
-                    eat();
-                    exported = true;
-                }
+                auto nextDecl = [&](List<Attribute>* attributes) {
+                    bool exported = false;
+                    if(token.type == Token::kwPub) {
+                        eat();
+                        exported = true;
+                    }
+
+                    auto decl = parseDecl();
+                    decl->attributes = attributes;
+                    decl->exported = exported;
+
+                    module.decls << decl;
+                };
 
                 auto attributes = parseAttributes();
-                auto decl = parseDecl();
-                decl->attributes = attributes;
-                decl->exported = exported;
+                if(attributes != nullptr && token.type == Token::opColon) {
+                    eat();
+                    withLevel([&] {
+                        sepBy([&] {
+                            auto localAttributes = parseAttributes();
+                            if(localAttributes) {
+                                auto end = localAttributes;
+                                while(end->next) end = end->next;
 
-                module.decls << decl;
+                                end->next = attributes;
+                            } else {
+                                localAttributes = attributes;
+                            }
+
+                            nextDecl(localAttributes);
+                            return true;
+                        }, Token::EndOfStmt, Token::EndOfBlock);
+                        return true;
+                    });
+                } else {
+                    nextDecl(attributes);
+                }
             }
 
             if(token.type == Token::EndOfStmt) {
@@ -1738,8 +1763,6 @@ List<Attribute>* Parser::parseAttributes() {
 
         if(token.type == Token::EndOfStmt) {
             eat();
-        } else {
-            error("expected attribute end"_buffer);
         }
     }
 
