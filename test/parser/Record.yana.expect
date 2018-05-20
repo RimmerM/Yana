@@ -158,15 +158,24 @@ Module
 | |-Constructor X
 | |-Constructor Y
 | `-Constructor Z
-`-DataDecl X 
-  |-Constructor X
-  | `-ConType Int
-  |-Constructor Y
-  | `-TupType 
-  |   |-Field <anonymous>
-  |   | `-ConType Int
-  |   `-Field <anonymous>
-  |     `-ConType Int
-  `-Constructor Z
-    `-ArrType 
-      `-ConType Int
+|-DataDecl X 
+| |-Constructor X
+| | `-ConType Int
+| |-Constructor Y
+| | `-TupType 
+| |   |-Field <anonymous>
+| |   | `-ConType Int
+| |   `-Field <anonymous>
+| |     `-ConType Int
+| `-Constructor Z
+|   `-ArrType 
+|     `-ConType Int
+`-DataDecl A 
+  |-<constraints>
+  | `-ClassConstraint Eq (a)
+  `-Constructor A
+    `-TupType 
+      |-Field x
+      | `-GenType a
+      `-Field y
+        `-GenType a

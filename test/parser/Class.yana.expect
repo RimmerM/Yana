@@ -30,12 +30,12 @@ Module
 | |       | `-GenType a
 | |       `-Field <anonymous>
 | |         `-ConType Int
-| |-FunDecl i <implicit return>
+| |-FunDecl i <implicit return> 
 | | |-Arg x
 | | | `-GenType a
 | | `-Body
 | |   `-VarExpr x
-| `-FunDecl j <implicit return>
+| `-FunDecl j <implicit return> 
 |   |-Arg x
 |   | `-GenType a
 |   |-Arg y
@@ -79,12 +79,12 @@ Module
 | |       | `-GenType a
 | |       `-Field <anonymous>
 | |         `-GenType b
-| |-FunDecl i <implicit return>
+| |-FunDecl i <implicit return> 
 | | |-Arg x
 | | | `-GenType a
 | | `-Body
 | |   `-VarExpr x
-| `-FunDecl j <implicit return>
+| `-FunDecl j <implicit return> 
 |   |-Arg x
 |   | `-GenType a
 |   |-Arg y
@@ -101,30 +101,47 @@ Module
 | |-AppType 
 | | |-ConType A
 | | `-ConType B
-| `-FunDecl f <implicit return>
+| `-FunDecl f <implicit return> 
 |   |-Arg x
 |   | `-ConType B
 |   `-Body
 |     `-VarExpr x
-`-InstanceDecl 
-  |-ConType B
-  |-FunDecl g <implicit return>
-  | `-Body
-  |   `-LitExpr 0
-  |-FunDecl h <implicit return>
-  | |-Arg this
-  | | `-ConType B
-  | `-Body
-  |   `-FieldExpr 
-  |     |-VarExpr x
-  |     `-VarExpr this
-  `-FunDecl i
-    |-Arg this
-    | `-ValType 
-    |   `-ConType B
-    `-Body
-      `-AssignExpr 
-        |-FieldExpr 
-        | |-VarExpr x
-        | `-VarExpr this
-        `-LitExpr 5
+|-InstanceDecl 
+| |-ConType B
+| |-FunDecl g <implicit return> 
+| | `-Body
+| |   `-LitExpr 0
+| |-FunDecl h <implicit return> 
+| | |-Arg this
+| | | `-ConType B
+| | `-Body
+| |   `-FieldExpr 
+| |     |-VarExpr x
+| |     `-VarExpr this
+| `-FunDecl i
+|   |-Arg this
+|   | `-ValType 
+|   |   `-ConType B
+|   `-Body
+|     `-AssignExpr 
+|       |-FieldExpr 
+|       | |-VarExpr x
+|       | `-VarExpr this
+|       `-LitExpr 5
+`-ClassDecl Num (a)
+  |-<constraints>
+  | `-ClassConstraint Ord (a)
+  |-FunDecl +
+  | |-Arg lhs
+  | | `-GenType a
+  | |-Arg rhs
+  | | `-GenType a
+  | `-Result
+  |   `-GenType a
+  `-FunDecl -
+    |-Arg lhs
+    | `-GenType a
+    |-Arg rhs
+    | `-GenType a
+    `-Result
+      `-GenType a

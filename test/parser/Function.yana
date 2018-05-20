@@ -54,3 +54,24 @@ fn f(a: Int, b: Int, c: Bool)
   | { a, b, False }:
     return if a > 0 && b > 0 then Class.Positive else Class.Negative
   | else -> Class.Positive
+
+-- Type constraints.
+fn (a) showTuple(it: {a, a}) = ""
+fn (a, b) showTuple(it: {a, a}) = ""
+
+fn (Show(a)) showTuple(it: {a, a}) = ""
+fn (Show(a), Show(b)) showTuple(it: {a, a}) = ""
+
+fn (Show a) showTuple(it: {a, a}) = ""
+fn (Show a, Show b) showTuple(it: {a, a}) = ""
+
+fn (Show(a, b)) showTuple(it: {a, a}) = ""
+fn (Show(a, b), Show(b)) showTuple(it: {a, a}) = ""
+
+fn (a.x: b, a.y: b, Num(b)) f(v: a) = v.x * v.y
+
+fn (stuff: (a, Int) -> b)
+  f() = 0
+
+fn (foo: (a, {Bool, Bool}) -> {x: [Int], y: Int}, bar: () -> Int)
+  f() = 0
