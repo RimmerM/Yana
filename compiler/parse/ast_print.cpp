@@ -472,10 +472,12 @@ private:
         stream.write(name.text, name.textLength);
 
         if(e.implicitReturn) {
-            stream << " <implicit return>";
+            stream << " <implicit return> ";
         }
 
         makeLevel();
+        toString(e.constraints, !e.args && !e.ret && !e.body);
+
         if(e.args) {
             auto arg = e.args;
             while(arg) {
@@ -524,6 +526,8 @@ private:
         stream << "DataDecl ";
         toString(*e.type);
         makeLevel();
+        toString(e.constraints, false);
+
         auto con = e.cons;
         while(con) {
             toString(con->item, con->next == nullptr);
@@ -562,6 +566,8 @@ private:
         toString(*e.type);
 
         makeLevel();
+        toString(e.constraints, e.decls == nullptr);
+
         auto d = e.decls;
         while(d) {
             toString(*d->item, d->next == nullptr);
@@ -735,6 +741,11 @@ private:
     void toString(const Import& import, bool last) {
         toStringIntro(last);
         toString(import);
+    }
+
+    void toString(const Constraint& constraint, bool last) {
+        toStringIntro(last);
+        toString(constraint);
     }
 
     void toString(const Literal& literal) {
@@ -977,6 +988,67 @@ private:
                 removeLevel();
                 break;
             }
+        }
+    }
+
+    void toString(const Constraint& constraint) {
+        switch(constraint.kind) {
+            case Constraint::Error:
+                stream << "<parse error>";
+                break;
+            case Constraint::Any: {
+                stream << "AnyConstraint ";
+                auto name = context.find(((const AnyConstraint&)constraint).name);
+                stream.write(name.text, name.textLength);
+                break;
+            }
+            case Constraint::Class: {
+                auto& c = (const ClassConstraint&)constraint;
+                stream << "ClassConstraint ";
+                toString(*c.type);
+                break;
+            }
+            case Constraint::Field: {
+                auto& c = (const FieldConstraint&)constraint;
+                stream << "FieldConstraint ";
+
+                auto& typeName = context.find(c.typeName);
+                stream.write(typeName.text, typeName.textLength);
+                stream << '.';
+
+                auto& fieldName = context.find(c.fieldName);
+                stream.write(fieldName.text, fieldName.textLength);
+
+                makeLevel();
+                toString(*c.type, true);
+                removeLevel();
+                break;
+            }
+            case Constraint::Function: {
+                auto& c = (const FunctionConstraint&)constraint;
+                stream << "FunctionConstraint ";
+
+                auto& name = context.find(c.name);
+                stream.write(name.text, name.textLength);
+
+                makeLevel();
+                toString(c.type, true);
+                removeLevel();
+                break;
+            }
+        }
+    }
+
+    void toString(List<Constraint*>* constraints, bool last) {
+        if(constraints) {
+            toStringIntro(last);
+            stream << "<constraints>";
+            makeLevel();
+            while(constraints) {
+                toString(*constraints->item, constraints->next == nullptr);
+                constraints = constraints->next;
+            }
+            removeLevel();
         }
     }
 
