@@ -60,6 +60,9 @@ struct Parser {
     ast::Attribute parseAttribute();
     List<ast::Attribute>* parseAttributes();
 
+    ast::Constraint* parseConstraint();
+    List<ast::Constraint*>* parseConstraints();
+
     void error(StringBuffer text, Node* node = nullptr);
 
     void eat() {lexer.next();}

@@ -275,8 +275,13 @@ Decl* Parser::parseFunDecl(bool requireBody) {
             error("expected function declaration"_buffer);
         }
 
+        List<Constraint*>* constraints = nullptr;
+        if(token.type == Token::ParenL) {
+            constraints = parseConstraints();
+        }
+
         Id name;
-        if(token.type == Token::VarID) {
+        if(token.type == Token::VarID || token.type == Token::VarSym) {
             name = token.data.id;
             eat();
         } else {
@@ -357,7 +362,7 @@ Decl* Parser::parseFunDecl(bool requireBody) {
             }
         }
 
-        return new(buffer) FunDecl(name, body, args, ret, implicitReturn);
+        return new(buffer) FunDecl(name, constraints, body, args, ret, implicitReturn);
     });
 }
 
@@ -370,6 +375,11 @@ Decl* Parser::parseDataDecl() {
         if(token.type == Token::VarID && token.data.id == qualifiedId) {
             qualified = true;
             eat();
+        }
+
+        List<Constraint*>* constraints = nullptr;
+        if(token.type == Token::ParenL) {
+            constraints = parseConstraints();
         }
 
         auto type = parseSimpleType();
@@ -388,7 +398,7 @@ Decl* Parser::parseDataDecl() {
             cons = nullptr;
         }
 
-        return new (buffer) DataDecl(type, cons, qualified);
+        return new (buffer) DataDecl(type, cons, constraints, qualified);
     });
 }
 
@@ -471,6 +481,11 @@ Decl* Parser::parseClassDecl() {
         assert(token.type == Token::kwClass);
         eat();
 
+        List<Constraint*>* constraints = nullptr;
+        if(token.type == Token::ParenL) {
+            constraints = parseConstraints();
+        }
+
         auto type = parseSimpleType();
         if(token.type == Token::opColon) {
             eat();
@@ -484,7 +499,7 @@ Decl* Parser::parseClassDecl() {
             }, Token::EndOfStmt, Token::EndOfBlock);
         });
 
-        return new(buffer) ClassDecl(type, decls);
+        return new(buffer) ClassDecl(type, constraints, decls);
     });
 }
 
@@ -1327,18 +1342,24 @@ SimpleType* Parser::parseSimpleType() {
         error("expected type name"_buffer);
     }
 
-    auto kind = maybeParens([=] {
-        return sepBy1([=] {
-            if(token.type == Token::VarID) {
-                auto n = token.data.id;
-                eat();
-                return n;
-            } else {
-                error("expected an identifier"_buffer);
-                return Id(0);
-            }
-        }, Token::Comma);
-    });
+    List<Id>* kind = nullptr;
+    if(token.type == Token::VarID) {
+        kind = list(token.data.id);
+        eat();
+    } else {
+        kind = maybeParens([=] {
+            return sepBy1([=] {
+                if(token.type == Token::VarID) {
+                    auto n = token.data.id;
+                    eat();
+                    return n;
+                } else {
+                    error("expected an identifier"_buffer);
+                    return Id(0);
+                }
+            }, Token::Comma);
+        });
+    }
 
     return new(buffer) SimpleType(id, kind);
 }
@@ -1773,6 +1794,60 @@ List<Attribute>* Parser::parseAttributes() {
     }
 
     return attributes;
+}
+
+Constraint* Parser::parseConstraint() {
+    return node([this]() -> Constraint* {
+        if(token.type == Token::VarID) {
+            auto name = token.data.id;
+            eat();
+
+            if(token.type == Token::opDot) {
+                eat();
+                if(token.type == Token::VarID) {
+                    auto arg = parseArgDecl();
+                    return new (buffer) FieldConstraint(name, arg.name, arg.type);
+                } else {
+                    error("expected constraint field name"_buffer);
+                }
+            } else if(token.type == Token::opColon) {
+                eat();
+                if(token.type == Token::ParenL) {
+                    List<ArgDecl>* args = parens([=] {
+                        return sepBy([=] {
+                            return parseTypeArg();
+                        }, Token::Comma, Token::ParenR);
+                    });
+
+                    if(token.type == Token::opArrowR) {
+                        eat();
+                        return new (buffer) FunctionConstraint(FunType(args, parseAType()), name);
+                    } else {
+                        error("expected function return type"_buffer);
+                    }
+                } else {
+                    error("expected function constraint"_buffer);
+                }
+            } else {
+                return new (buffer) AnyConstraint(name);
+            }
+        } else if(token.type == Token::ConID) {
+            auto type = parseSimpleType();
+            return new (buffer) ClassConstraint(type);
+        } else {
+            error("expected type constraint"_buffer);
+        }
+
+        return new (buffer) Constraint(Constraint::Error);
+    });
+}
+
+List<Constraint*>* Parser::parseConstraints() {
+    return parens([&] {
+        return sepBy([&] {
+            return parseConstraint();
+        }, Token::Comma, Token::ParenR);
+    });
 }
 
 void Parser::error(StringBuffer text, Node* node) {

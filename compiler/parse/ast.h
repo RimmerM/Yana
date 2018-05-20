@@ -6,6 +6,7 @@
 namespace ast {
 
 struct TupArg;
+struct Constraint;
 
 struct Attribute: Node {
     Attribute(Id name, List<TupArg>* args): name(name), args(args) {}
@@ -468,10 +469,11 @@ struct Decl: Node {
 };
 
 struct FunDecl: Decl {
-    FunDecl(Id name, Expr* body, List<Arg>* args, Type* ret, bool implicitReturn) :
-        Decl(Fun), name(name), args(args), ret(ret), body(body), implicitReturn(implicitReturn) {}
+    FunDecl(Id name, List<Constraint*>* constraints, Expr* body, List<Arg>* args, Type* ret, bool implicitReturn) :
+        Decl(Fun), name(name), constraints(constraints), args(args), ret(ret), body(body), implicitReturn(implicitReturn) {}
 
     Id name;
+    List<Constraint*>* constraints;
     List<Arg>* args;
     Type* ret; // If the function explicitly defines one.
     Expr* body;
@@ -485,8 +487,11 @@ struct AliasDecl: Decl {
 };
 
 struct ClassDecl: Decl {
-    ClassDecl(SimpleType* type, List<FunDecl*>* decls): Decl(Class), type(type), decls(decls) {}
+    ClassDecl(SimpleType* type, List<Constraint*>* constraints, List<FunDecl*>* decls):
+        Decl(Class), type(type), constraints(constraints), decls(decls) {}
+
     SimpleType* type;
+    List<Constraint*>* constraints;
     List<FunDecl*>* decls;
 };
 
@@ -505,9 +510,12 @@ struct ForeignDecl: Decl {
 };
 
 struct DataDecl: Decl {
-    DataDecl(SimpleType* type, List<Con>* cons, bool qualified): Decl(Data), cons(cons), type(type), qualified(qualified) {}
+    DataDecl(SimpleType* type, List<Con>* cons, List<Constraint*>* constraints, bool qualified):
+        Decl(Data), cons(cons), type(type), constraints(constraints), qualified(qualified) {}
+
     List<Con>* cons;
     SimpleType* type;
+    List<Constraint*>* constraints;
     bool qualified;
 };
 
@@ -520,6 +528,47 @@ struct AttrDecl: Decl {
     AttrDecl(Id name, Type* type): Decl(Attr), name(name), type(type) {}
     Id name;
     Type* type;
+};
+
+/*
+ * Type constraints.
+ */
+
+struct Constraint: Node {
+    enum Kind {
+        Error,     // Placeholder for parse errors.
+        Any,       // Any type allowed.
+        Class,     // Type must implement this class.
+        Field,     // Type must have a field with this name and type.
+        Function,  // There must exist a function with this signature.
+    } kind;
+
+    Constraint(Kind k) : kind(k) {}
+};
+
+struct AnyConstraint: Constraint {
+    AnyConstraint(Id name): Constraint(Any), name(name) {}
+    Id name;
+};
+
+struct ClassConstraint: Constraint {
+    ClassConstraint(SimpleType* type) : Constraint(Class), type(type) {}
+    SimpleType* type;
+};
+
+struct FieldConstraint: Constraint {
+    FieldConstraint(Id typeName, Id fieldName, Type* type):
+        Constraint(Field), typeName(typeName), fieldName(fieldName), type(type) {}
+
+    Id typeName;
+    Id fieldName;
+    Type* type;
+};
+
+struct FunctionConstraint: Constraint {
+    FunctionConstraint(FunType type, Id name): Constraint(Function), name(name), type(type) {}
+    Id name;
+    FunType type;
 };
 
 /*
