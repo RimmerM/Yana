@@ -949,7 +949,10 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
 
 Value* resolveRet(FunBuilder* b, ast::RetExpr* expr) {
     // The expression needs to be resolved before the current block is loaded.
-    auto value = resolveExpr(b, expr->value, 0, true);
+    Value* value = nullptr;
+    if(expr->value) {
+        value = resolveExpr(b, expr->value, 0, true);
+    }
     return ret(b->block, value);
 }
 

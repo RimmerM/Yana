@@ -54,10 +54,10 @@ void PrintDiagnostics::message(Level level, StringBuffer text, const Node* where
 
         auto tokenLength = where->sourceEnd.offset - offset;
         if(tokenLength > 1) {
-            for(auto i = offset - bufferStart + 1; i < offset - bufferStart + tokenLength; i++) {
+            for(auto i = offset - bufferStart + 1; i < offset - bufferStart + tokenLength - 1; i++) {
                 buffer[i] = '~';
             }
-            buffer[offset - bufferStart + tokenLength] = '^';
+            buffer[offset - bufferStart + tokenLength - 1] = '^';
         }
 
         println({buffer, 128});

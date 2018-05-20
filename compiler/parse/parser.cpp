@@ -697,7 +697,8 @@ Expr* Parser::parseLeftExpr() {
             return new (buffer) ForExpr(var, from, to, body, step, reverse);
         } else if(token.type == Token::kwReturn) {
             eat();
-            auto body = parseExpr();
+            Expr* body = nullptr;
+            if(token.type != Token::EndOfStmt && token.type != Token::EndOfBlock) body = parseExpr();
             return new (buffer) RetExpr(body);
         } else {
             return parseAppExpr();

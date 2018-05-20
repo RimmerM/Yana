@@ -432,9 +432,11 @@ private:
 
     void toString(const RetExpr& e) {
         stream << "RetExpr ";
-        makeLevel();
-        toString(*e.value, true);
-        removeLevel();
+        if(e.value) {
+            makeLevel();
+            toString(*e.value, true);
+            removeLevel();
+        }
     }
 
     void toString(const FunExpr& e) {
