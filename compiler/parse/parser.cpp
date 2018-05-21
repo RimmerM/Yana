@@ -1128,10 +1128,27 @@ Expr* Parser::parseDeclExpr() {
         eat();
         auto expr = parseExpr();
 
-        Expr* otherwise = nullptr;
-        if(token.type == Token::kwElse) {
+        List<Alt>* alts = nullptr;
+        if(token.type == Token::opBar) {
             eat();
-            otherwise = parseExpr();
+            if(token.type == Token::opArrowR || token.type == Token::opColon) {
+                alts = list(Alt { new (buffer) Pat(Pat::Any), parseBlock(false) });
+            } else if(token.type == Token::kwMatch) {
+                eat();
+                if(token.type == Token::opColon) {
+                    eat();
+                } else {
+                    error("expected ':' after 'match'"_buffer);
+                }
+
+                alts = withLevel([=] {
+                    return sepBy1([=] {
+                        return parseAlt();
+                    }, Token::EndOfStmt);
+                });
+            } else {
+                alts = list(parseAlt());
+            }
         }
 
         Expr* in = nullptr;
@@ -1140,7 +1157,7 @@ Expr* Parser::parseDeclExpr() {
             in = parseExpr();
         }
 
-        return new(buffer) DeclExpr(pat, expr, in, otherwise, m);
+        return new(buffer) DeclExpr(pat, expr, in, alts, m);
     } else {
         return new(buffer) DeclExpr(pat, nullptr, nullptr, nullptr, m);
     }

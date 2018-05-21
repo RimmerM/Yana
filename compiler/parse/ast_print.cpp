@@ -284,12 +284,16 @@ private:
 
         makeLevel();
         toString(*e.pat, false);
-        toString(*e.content, e.in == nullptr && e.otherwise == nullptr);
-        if(e.otherwise) {
+        toString(*e.content, e.in == nullptr && e.alts == nullptr);
+        if(e.alts) {
             toStringIntro(e.in == nullptr);
             stream << "Else";
             makeLevel();
-            toString(*e.otherwise, true);
+            auto a = e.alts;
+            while(a) {
+                toString(a->item, a->next == nullptr);
+                a = a->next;
+            }
             removeLevel();
         }
 

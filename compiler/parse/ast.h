@@ -334,13 +334,13 @@ struct DeclExpr: Expr {
         Val,
     };
 
-    DeclExpr(Pat* pat, Expr* content, Expr* in, Expr* otherwise, Mutability mut):
-        Expr(Decl), pat(pat), content(content), in(in), otherwise(otherwise), mut(mut) {}
+    DeclExpr(Pat* pat, Expr* content, Expr* in, List<Alt>* alts, Mutability mut):
+        Expr(Decl), pat(pat), content(content), in(in), alts(alts), mut(mut) {}
 
     Pat* pat;
     Expr* content;
     Expr* in; // if this is set, content must also be set.
-    Expr* otherwise; // if this is set, content must also be set.
+    List<Alt>* alts; // if this is set, content must also be set.
     Mutability mut;
     bool isGlobal = false; // Whether this variable was defined in a global scope.
 };
