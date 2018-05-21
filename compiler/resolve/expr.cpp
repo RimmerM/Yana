@@ -540,7 +540,7 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
         global->ast = nullptr;
         return nullptr;
     } else {
-        Value* result;
+        Value* result = nullptr;
         switch(expr->mut) {
             case ast::DeclExpr::Immutable: {
                 // Immutable values are stored as registers, so we just have to resolve the creation expression.
@@ -569,6 +569,61 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
                 result = var;
                 break;
             }
+        }
+
+        auto otherwise = block(b->fun, true);
+        MatchContext* context = nullptr;
+
+        auto patResult = resolvePat(b, &context, otherwise, result, expr->pat);
+        if(patResult <= 0) {
+            if(patResult < 0) {
+                b->context.diagnostics.warning("this pattern can never match"_buffer, nullptr, noSource);
+            }
+
+            if(expr->alts) {
+                auto then = b->block;
+                auto alt = expr->alts;
+
+                bool isComplete = false;
+                while(alt) {
+                    b->block = otherwise;
+                    b->fun->blocks.push(otherwise);
+                    otherwise = block(b->fun, true);
+
+                    patResult = resolvePat(b, &context, otherwise, result, alt->item.pat);
+                    if(patResult == 0) {
+                        // Default case: resolve the expression for this match into the matching block.
+                        // Continue with other matches in the failing block.
+                        resolveExpr(b, alt->item.expr, 0, true);
+                        if(!b->block->complete) {
+                            b->context.diagnostics.error("declaration alternatives are not implemented yet"_buffer, nullptr, noSource);
+                        }
+                    } else if(patResult == 1) {
+                        // Pattern always matches. Resolve in the matching block, don't add the failing block.
+                        resolveExpr(b, alt->item.expr, 0, true);
+                        if(!b->block->complete) {
+                            b->context.diagnostics.error("declaration alternatives are not implemented yet"_buffer, nullptr, noSource);
+                        }
+
+                        isComplete = true;
+                        break;
+                    } else {
+                        // Pattern never matches. Continue with other matches in the failing block.
+                    }
+
+                    alt = alt->next;
+                }
+
+                if(!isComplete) {
+                    error(b, "declaration doesn't produce a result in every case"_buffer, expr);
+                }
+
+                b->block = then;
+            } else {
+                b->context.diagnostics.error("this pattern may not succeed, but no alternative patterns were provided"_buffer, nullptr, noSource);
+            }
+        } else if(expr->alts) {
+            b->context.diagnostics.warning("this pattern will always match"_buffer, nullptr, noSource);
         }
 
         if(expr->in) {
