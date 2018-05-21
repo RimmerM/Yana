@@ -544,19 +544,19 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
         switch(expr->mut) {
             case ast::DeclExpr::Immutable: {
                 // Immutable values are stored as registers, so we just have to resolve the creation expression.
-                result = resolveExpr(b, expr->content, declName, true);
+                result = resolveExpr(b, expr->content, 0, true);
                 break;
             }
             case ast::DeclExpr::Val: {
                 auto value = resolveExpr(b, expr->content, 0, true);
                 if(value->type->kind == Type::Ref) {
-                    auto var = alloc(b->block, declName, ((RefType*)value->type)->to, true, true);
+                    auto var = alloc(b->block, 0, ((RefType*)value->type)->to, true, true);
                     auto v = load(b->block, 0, value);
                     store(b->block, 0, var, v);
                     result = var;
                     break;
                 } else {
-                    auto var = alloc(b->block, declName, value->type, true, true);
+                    auto var = alloc(b->block, 0, value->type, true, true);
                     store(b->block, 0, var, value);
                     result = var;
                     break;
@@ -564,7 +564,7 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
             }
             case ast::DeclExpr::Ref: {
                 auto value = resolveExpr(b, expr->content, 0, true);
-                auto var = alloc(b->block, declName, value->type, true, false);
+                auto var = alloc(b->block, 0, value->type, true, false);
                 store(b->block, 0, var, value);
                 result = var;
                 break;

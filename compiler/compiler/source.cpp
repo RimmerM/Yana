@@ -156,6 +156,7 @@ static void mapFile(SourceMap& map, const String& root, const String& file) {
                 segmentLength++;
             }
 
+            if(p < max && *p == '.') p++;
             id.segmentHashes[i] = hash.get();
         }
 

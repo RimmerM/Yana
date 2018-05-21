@@ -105,6 +105,7 @@ struct FoundFunction {
 };
 
 FoundFunction findFun(Context* context, Module* module, Id name);
+Function* findInstanceFun(Context* context, Module* module, Type* fieldType, Id name);
 
 Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast);
 void resolveFun(Context* context, Function* fun);

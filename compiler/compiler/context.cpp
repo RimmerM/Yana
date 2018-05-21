@@ -111,6 +111,7 @@ Id Context::addQualifiedName(const char* chars, Size count, Size segmentCount) {
                 segmentLength++;
             }
 
+            if(p < max && *p == '.') p++;
             id.segmentHashes[i] = hash.get();
         }
     }

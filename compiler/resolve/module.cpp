@@ -387,6 +387,28 @@ FoundFunction findFun(Context* context, Module* module, Id name) {
     return found;
 }
 
+Function* findInstanceFun(Context* context, Module* module, Type* fieldType, Id name) {
+    Hasher hasher;
+    hasher.addBytes(fieldType->descriptor, fieldType->descriptorLength);
+    auto hash = hasher.get();
+    auto identifier = &context->find(name);
+
+    return findHelper<Function>(context, module, [=](Module* m, Identifier* id, U32 start) -> Function* {
+        if(id->segmentCount -1 > start) return nullptr;
+        InstanceList** list = m->typeInstances.get(hash).unwrap();
+        if(!list) return nullptr;
+
+        auto src = id->getHash(start);
+        for(Function& fun: (*list)->functions) {
+            if(fun.name == src) {
+                return &fun;
+            }
+        }
+
+        return nullptr;
+    }, identifier);
+}
+
 OpProperties* findOp(Context* context, Module* module, Id name) {
     auto identifier = &context->find(name);
     return findHelper<OpProperties>(context, module, [=](Module* m, Identifier* id, U32 start) -> OpProperties* {

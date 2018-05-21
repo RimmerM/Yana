@@ -71,19 +71,34 @@ Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* argList, 
 }
 
 static FoundFunction resolveStaticFun(FunBuilder* b, Id funName, Value* fieldArg) {
-    // TODO: Use field argument to find an instance for that type.
-    auto fun = findFun(&b->context, b->fun->module, funName);
-    if(!fun.found) {
-        error(b, "no function found for this name"_buffer, nullptr);
-        return fun;
+    FoundFunction f;
+    f.found = false;
+
+    if(fieldArg) {
+        auto fun = findInstanceFun(&b->context, b->fun->module, fieldArg->type, funName);
+        if(fun) {
+            f.function = fun;
+            f.kind = FoundFunction::Static;
+            f.found = true;
+        }
+    }
+
+    if(!f.found) {
+        auto fun = findFun(&b->context, b->fun->module, funName);
+        if(!fun.found) {
+            error(b, "no function found for this name"_buffer, nullptr);
+            return fun;
+        }
+
+        f = fun;
     }
 
     // Make sure the function definition is finished.
-    if(fun.kind == FoundFunction::Static) {
-        resolveFun(&b->context, fun.function);
+    if(f.kind == FoundFunction::Static) {
+        resolveFun(&b->context, f.function);
     }
 
-    return fun;
+    return f;
 }
 
 static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 count, Id name) {
