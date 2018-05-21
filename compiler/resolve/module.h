@@ -122,6 +122,11 @@ struct Function {
     Array<Block*> blocks;
     Array<InstRet*> returnPoints;
 
+    GenType* gens = nullptr;
+    Function* instanceOf = nullptr;
+    Type** instance = nullptr; // if instanceOf is set, this contains a list Type*[instanceOf->genCount].
+    U32 genCount = 0; // The number of generic types in this particular instance.
+
     // If this function can be used as an intrinsic, this generates an inline version in the current block.
     Value* (*intrinsic)(FunBuilder* b, Value** args, U32 count, Id name) = nullptr;
 

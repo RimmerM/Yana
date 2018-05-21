@@ -494,7 +494,7 @@ ClassInstance* findInstance(Context* context, Module* module, TypeClass* typeCla
     return candidate;
 }
 
-static U32 prepareGens(Context* context, Module* module, ast::SimpleType* type, GenType*& gens) {
+static U32 prepareGens(Module* module, ast::SimpleType* type, void* parent, GenType::Kind genKind, GenType*& gens) {
     auto kind = type->kind;
     U32 count = 0;
     while(kind) {
@@ -505,7 +505,7 @@ static U32 prepareGens(Context* context, Module* module, ast::SimpleType* type, 
     kind = type->kind;
     gens = (GenType*)module->memory.alloc(sizeof(GenType) * count);
     for(U32 i = 0; i < count; i++) {
-        new (gens + i) GenType(kind->item, i);
+        new (gens + i) GenType(kind->item, i, genKind, parent);
         kind = kind->next;
     }
 
@@ -606,7 +606,7 @@ static SymbolCounts prepareSymbols(Context* context, Module* module, ast::Decl**
                 auto ast = (ast::AliasDecl*)decl;
                 auto alias = defineAlias(context, module, ast->type->name, nullptr);
                 alias->ast = ast;
-                alias->genCount = prepareGens(context, module, ast->type, alias->gens);
+                alias->genCount = prepareGens(module, ast->type, alias, GenType::Alias, alias->gens);
                 break;
             }
             case ast::Decl::Data: {
@@ -620,7 +620,7 @@ static SymbolCounts prepareSymbols(Context* context, Module* module, ast::Decl**
 
                 auto record = defineRecord(context, module, ast->type->name, conCount, ast->qualified);
                 record->ast = ast;
-                record->genCount = prepareGens(context, module, ast->type, record->gens);
+                record->genCount = prepareGens(module, ast->type, record, GenType::Record, record->gens);
 
                 con = ast->cons;
                 for(U32 i = 0; i < conCount; i++) {
@@ -634,7 +634,7 @@ static SymbolCounts prepareSymbols(Context* context, Module* module, ast::Decl**
                 auto ast = (ast::ClassDecl*)decl;
                 auto c = defineClass(context, module, ast->type->name);
                 c->ast = ast;
-                c->argCount = (U16)prepareGens(context, module, ast->type, c->args);
+                c->argCount = (U16)prepareGens(module, ast->type, c, GenType::Class, c->args);
                 break;
             }
             case ast::Decl::Instance: {
@@ -657,7 +657,7 @@ static void resolveClassFun(Context* context, Module* m, TypeClass* c, U32 index
         arg = arg->next;
     }
 
-    GenContext gen{nullptr, c->args, c->argCount};
+    GenContext gen{nullptr, c->args, c->argCount, c, GenType::Class};
 
     auto usedArgs = (bool*)alloca(sizeof(bool) * c->argCount);
     set(usedArgs, c->argCount, 0);
@@ -751,12 +751,15 @@ void resolveFun(Context* context, Function* fun) {
 
     auto startBlock = block(fun);
 
+    // Generate the generic type context.
+    GenContext gen{nullptr, nullptr, 0, fun, GenType::Function};
+    findFunGenerics(context, fun, &gen, ast->args, ast->ret);
+
     // Add the function arguments.
-    // TODO: Handle the GenContext for function arguments.
     auto arg = ast->args;
     while(arg) {
         auto a = arg->item;
-        auto type = resolveType(context, fun->module, a.type, nullptr);
+        auto type = resolveType(context, fun->module, a.type, &gen);
         auto v = defineArg(context, fun, startBlock, a.name, type);
 
         // A val-type argument is copied but can be mutated within the function.
@@ -771,7 +774,7 @@ void resolveFun(Context* context, Function* fun) {
     // Set the return type, if explicitly provided.
     Type* expectedReturn = nullptr;
     if(ast->ret) {
-        expectedReturn = resolveType(context, fun->module, ast->ret, nullptr);
+        expectedReturn = resolveType(context, fun->module, ast->ret, &gen);
     }
 
     bool implicitReturn = ast->implicitReturn;

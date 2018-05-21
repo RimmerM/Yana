@@ -2,12 +2,13 @@
 
 #include "../compiler/context.h"
 
-namespace ast { struct AliasDecl; struct DataDecl; struct ClassDecl; struct Type; }
+namespace ast { struct AliasDecl; struct DataDecl; struct ClassDecl; struct Type; struct Arg; }
 
 struct Module;
 struct Function;
 struct TypeClass;
 struct DerivedTypes;
+struct FunType;
 
 struct Limits {
     static const U32 maxTypeDescriptor = 2048;
@@ -59,14 +60,29 @@ struct GenField {
 };
 
 struct GenType: Type {
-    GenType(Id name, U32 index): Type(Gen, 1), name(name), index(index) {}
+    enum Kind: U8 {
+        Record,
+        Class,
+        Instance,
+        Function,
+        Alias,
+    };
+
+    GenType(Id name, U32 index, Kind kind, void* parent):
+        Type(Gen, 1), parent(parent), name(name), index(index), kind(kind) {}
 
     GenField* fields; // A list of fields this type must contain.
     TypeClass** classes; // A list of classes this type must implement.
+    FunType** funs; // A list of functions related to this type that must exist.
+
+    void* parent; // Type is defined by `context`.
+
     Id name;
     U32 index;
-    U16 fieldCount = 0;
-    U16 classCount = 0;
+    U8 fieldCount = 0;
+    U8 classCount = 0;
+    U8 funCount = 0;
+    Kind kind;
 };
 
 struct IntType: Type {
@@ -242,9 +258,14 @@ struct DerivedTypes {
 };
 
 struct GenContext {
+    GenContext(GenContext* parent, GenType* types, U32 count, void* context, GenType::Kind kind):
+        parent(parent), types(types), context(context), count(count), kind(kind) {}
+
     GenContext* parent;
     GenType* types;
+    void* context;
     U32 count;
+    GenType::Kind kind;
 };
 
 // Global instances of the basic builtin types.
@@ -282,6 +303,9 @@ void createDescriptor(Type* type, Arena* arena);
 // Returns the symbol name of a type. Returns 0 if the type is not named.
 // Named types are explicitly defined in some module and can be found by that name.
 Id typeName(Type* type);
+
+// Prepares the provided generic context by adding all generic identifiers found in the provided AST.
+void findFunGenerics(Context* context, Function* function, GenContext* gen, List<ast::Arg>* types, ast::Type* last);
 
 // Instantiates a higher-order type for a specific set of arguments.
 // Returns a new type which is distinct from but references the original.

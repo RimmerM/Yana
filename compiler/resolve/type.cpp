@@ -102,6 +102,23 @@ Byte* describeRefType(RefType* type, Byte* buffer, Byte* max) {
     return buffer;
 }
 
+Byte* describeGenType(GenType* type, Byte* buffer, Byte* max) {
+    buffer = put16(buffer, max, (U16)type->fieldCount);
+    for(U32 i = 0; i < type->fieldCount; i++) {
+        buffer = put32(buffer, max, type->fields[i].name);
+        buffer = describeType(type->fields[i].type, buffer, max);
+    }
+
+    buffer = put16(buffer, max, (U16)type->classCount);
+    for(U32 i = 0; i < type->classCount; i++) {
+        // TODO: Make sure that this contains the fully qualified name.
+        buffer = put32(buffer, max, type->classes[i]->name);
+    }
+
+    // TODO: Add function constraints.
+    return buffer;
+}
+
 Byte* describeType(Type* type, Byte* buffer, Byte* max) {
     if(type->descriptorLength > 0) {
         copyMem(type->descriptor, buffer, type->descriptorLength);
@@ -115,6 +132,9 @@ Byte* describeType(Type* type, Byte* buffer, Byte* max) {
     *buffer++ = type->kind;
 
     switch(type->kind) {
+        case Type::Gen:
+            buffer = describeGenType((GenType*)type, buffer, max);
+            break;
         case Type::Int:
             buffer = put16(buffer, max, ((IntType*)type)->bits);
             break;
@@ -163,6 +183,94 @@ Id typeName(Type* type) {
     }
 
     return 0;
+}
+
+static void addGeneric(Array<Id>& ids, Id id) {
+    if(!ids.contains(id)) {
+        ids.push(id);
+    }
+}
+
+static void findGenerics(Array<Id>& ids, ast::Type* type) {
+    switch(type->kind) {
+        case ast::Type::Error:
+            break;
+        case ast::Type::Unit:
+            break;
+        case ast::Type::Ptr:
+            return findGenerics(ids, ((ast::PtrType*)type)->type);
+        case ast::Type::Ref:
+            return findGenerics(ids, ((ast::RefType*)type)->type);
+        case ast::Type::Val:
+            return findGenerics(ids, ((ast::ValType*)type)->type);
+        case ast::Type::Tup: {
+            auto ast = (ast::TupType*)type;
+            auto field = ast->fields;
+            while(field) {
+                findGenerics(ids, field->item.type);
+                field = field->next;
+            }
+            break;
+        }
+        case ast::Type::Gen:
+            addGeneric(ids, ((ast::GenType*)type)->con);
+            break;
+        case ast::Type::App: {
+            auto ast = (ast::AppType*)type;
+            auto app = ast->apps;
+            findGenerics(ids, ((ast::AppType*)type)->base);
+            while(app) {
+                findGenerics(ids, app->item);
+                app = app->next;
+            }
+            break;
+        }
+        case ast::Type::Con:
+            break;
+        case ast::Type::Fun: {
+            auto ast = (ast::FunType*)type;
+            findGenerics(ids, ast->ret);
+            auto arg = ast->args;
+            while(arg) {
+                findGenerics(ids, arg->item.type);
+                arg = arg->next;
+            }
+            break;
+        }
+        case ast::Type::Arr:
+            findGenerics(ids, ((ast::ArrType*)type)->type);
+            break;
+        case ast::Type::Map:
+            findGenerics(ids, ((ast::MapType*)type)->from);
+            findGenerics(ids, ((ast::MapType*)type)->to);
+            break;
+    }
+}
+
+void findFunGenerics(Context* context, Function* function, GenContext* gen, List<ast::Arg>* types, ast::Type* last) {
+    Array<Id> ids;
+
+    while(types) {
+        findGenerics(ids, types->item.type);
+        types = types->next;
+    }
+
+    if(last) {
+        findGenerics(ids, last);
+    }
+
+    gen->parent = nullptr;
+    gen->count = (U32)ids.size();
+
+    if(ids.size() > 0) {
+        gen->types = (GenType*)function->module->memory.alloc(sizeof(GenType) * ids.size());
+        for(U32 i = 0; i < ids.size(); i++) {
+            new (gen->types + i) GenType(ids[i], i, GenType::Function, function);
+        }
+    }
+
+    function->gens = gen->types;
+    function->genCount = gen->count;
 }
 
 static Type* findTuple(Context* context, Module* module, ast::TupType* type, GenContext* gen) {
@@ -251,7 +359,8 @@ static Type* findTuple(Context* context, Module* module, ast::TupType* type, Gen
     return tuple;
 }
 
-static Type* findGen(Context* context, ast::GenType* type, GenContext* gen) {
+static Type* findGen(Context* context, ast::GenType* type, GenContext* sourceGen) {
+    auto gen = sourceGen;
     auto searchName = type->con;
     while(gen) {
         for(U32 i = 0; i < gen->count; i++) {
@@ -446,6 +555,17 @@ RecordType* instantiateRecord(Context* context, Module* module, RecordType* type
         }
     }
 
+    if(record->genCount > 0) {
+        U32 index = 0;
+        record->gens = (GenType*)module->memory.alloc(sizeof(GenType) * record->genCount);
+
+        for(U32 i = 0; i < count; i++) {
+            if(args[i]->kind == Type::Gen) {
+                record->gens[index++] = *(GenType*)args[i];
+            }
+        }
+    }
+
     auto cons = (Con*)module->memory.alloc(sizeof(Con) * type->conCount);
     record->cons = cons;
 
@@ -582,7 +702,7 @@ void resolveAlias(Context* context, Module* module, AliasType* type) {
     if(ast) {
         type->ast = nullptr;
 
-        GenContext gen{nullptr, type->gens, type->genCount};
+        GenContext gen{nullptr, type->gens, type->genCount, type, GenType::Alias};
         auto to = findType(context, module, ast->target, &gen);
         type->to = to;
         type->virtualSize = to->virtualSize;
@@ -599,7 +719,7 @@ void resolveRecord(Context* context, Module* module, RecordType* type) {
         U32 filledCount = 0;
         U32 maxSize = 0;
 
-        GenContext gen{nullptr, type->gens, type->genCount};
+        GenContext gen{nullptr, type->gens, type->genCount, type, GenType::Record};
         auto conAst = ast->cons;
         for(U32 i = 0; i < type->conCount; i++) {
             auto contentAst = conAst->item.content;
@@ -676,11 +796,21 @@ Type* resolveDefinition(Context* context, Module* module, Type* type) {
 
 Type* resolveType(Context* context, Module* module, ast::Type* type, GenContext* gen) {
     auto found = findType(context, module, type, gen);
-    if(
-        (found->kind == Type::Alias && ((AliasType*)found)->genCount > 0) ||
-        (found->kind == Type::Record && ((RecordType*)found)->genCount > 0)
-    ) {
-        context->diagnostics.error("cannot use a generic type here"_buffer, type, noSource);
+
+    Buffer<GenType> gens;
+    if(found->kind == Type::Alias) {
+        auto a = (AliasType*)found;
+        gens = { a->gens, a->genCount };
+    } else if(found->kind == Type::Record) {
+        auto r = (RecordType*)found;
+        gens = { r->gens, r->genCount };
+    }
+
+    for(auto& g: gens) {
+        if(!gen || g.kind != gen->kind || g.parent != gen->context) {
+            context->diagnostics.error("cannot use a generic type here"_buffer, type, noSource);
+            break;
+        }
     }
 
     return found;

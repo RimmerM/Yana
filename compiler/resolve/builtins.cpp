@@ -99,7 +99,7 @@ static Function* maxCompare(Context* context, Module* module, Type* type, const 
 }
 
 GenType* setClassType(Module* module, TypeClass* type, U32 funCount) {
-    type->args = new (module->memory) GenType(0, 0);
+    type->args = new (module->memory) GenType(0, 0, GenType::Class, type);
     type->argCount = 1;
 
     type->funCount = (U16)funCount;
@@ -413,16 +413,19 @@ Module* nativeModule(Context* context, Module* core) {
     module->types.add(context->addUnqualifiedName("I64", 3), &intTypes[IntType::Long]);
 
     // Basic pointer operations.
-    auto opStore = context->addUnqualifiedName("<-", 2);
+    auto opStore = context->addUnqualifiedName("%>", 2);
     auto opLoad = context->addUnqualifiedName("%", 1);
     module->ops.add(opStore, OpProperties{4, Assoc::Left});
 
     auto storeFunction = defineFun(context, module, opStore);
     {
-        auto type = new (module->memory) GenType(0, 0);
+        auto type = new (module->memory) GenType(0, 0, GenType::Function, storeFunction);
+        storeFunction->gens = type;
+        storeFunction->genCount = 1;
+
         auto body = block(storeFunction);
-        auto lhs = defineArg(context, storeFunction, body, 0, getRef(module, type, false, false, true));
-        auto rhs = defineArg(context, storeFunction, body, 0, type);
+        auto lhs = defineArg(context, storeFunction, body, 0, type);
+        auto rhs = defineArg(context, storeFunction, body, 0, getRef(module, type, false, false, true));
         storeFunction->returnType = &unitType;
 
         store(body, 0, lhs, rhs);
@@ -435,7 +438,10 @@ Module* nativeModule(Context* context, Module* core) {
 
     auto loadFunction = defineFun(context, module, opLoad);
     {
-        auto type = new (module->memory) GenType(0, 0);
+        auto type = new (module->memory) GenType(0, 0, GenType::Function, loadFunction);
+        loadFunction->gens = type;
+        loadFunction->genCount = 1;
+
         auto body = block(loadFunction);
         auto lhs = defineArg(context, loadFunction, body, 0, getRef(module, type, false, false, true));
         loadFunction->returnType = type;
