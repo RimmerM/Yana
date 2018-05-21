@@ -36,30 +36,19 @@ struct Printer {
     }
 
     void toString(const Decl& decl) {
-        if(decl.attributes) {
-            stream << "Decl ";
-            makeLevel();
-            toStringIntro(false);
-            stream << "<attributes>";
-            toString(decl.attributes);
-            toStringIntro(true);
-        }
-
-        switch(decl.kind) {
-            case Decl::Error: stream << "<parse error>"; break;
-            case Decl::Fun: toString((const FunDecl&)decl); break;
-            case Decl::Alias: toString((const AliasDecl&)decl); break;
-            case Decl::Data: toString((const DataDecl&)decl); break;
-            case Decl::Foreign: toString((const ForeignDecl&)decl); break;
-            case Decl::Stmt: toString((const StmtDecl&)decl); break;
-            case Decl::Class: toString((const ClassDecl&)decl); break;
-            case Decl::Instance: toString((const InstanceDecl&)decl); break;
-            case Decl::Attr: toString((const AttrDecl&)decl); break;
-        }
-
-        if(decl.attributes) {
-            removeLevel();
-        }
+        toString(decl.attributes, "Decl", [&] {
+            switch(decl.kind) {
+                case Decl::Error: stream << "<parse error>"; break;
+                case Decl::Fun: toString((const FunDecl&)decl); break;
+                case Decl::Alias: toString((const AliasDecl&)decl); break;
+                case Decl::Data: toString((const DataDecl&)decl); break;
+                case Decl::Foreign: toString((const ForeignDecl&)decl); break;
+                case Decl::Stmt: toString((const StmtDecl&)decl); break;
+                case Decl::Class: toString((const ClassDecl&)decl); break;
+                case Decl::Instance: toString((const InstanceDecl&)decl); break;
+                case Decl::Attr: toString((const AttrDecl&)decl); break;
+            }
+        });
     }
 
     void toString(const Import& import) {
@@ -666,11 +655,18 @@ private:
             stream << "Constructor ";
             stream.write(name.text, name.textLength);
 
-            if(c.content) {
-                makeLevel();
-                toString(*c.content, true);
-                removeLevel();
+            makeLevel();
+            if(c.attributes) {
+                toStringIntro(c.content == nullptr);
+                stream << "<attributes>";
+                toString(c.attributes);
             }
+
+            if(c.content) {
+                toString(*c.content, true);
+            }
+
+            removeLevel();
         }
     }
 
@@ -774,66 +770,68 @@ private:
     }
 
     void toString(const Type& type) {
-        switch(type.kind) {
-            case Type::Error:
-                stream << "<parse error>";
-                break;
-            case Type::Unit:
-                stream << "UnitType";
-                break;
-            case Type::Con: {
-                auto name = context.find(((const ConType&)type).con);
-                stream << "ConType ";
-                stream.write(name.text, name.textLength);
-                break;
+        toString(type.attributes, "Type", [&] {
+            switch(type.kind) {
+                case Type::Error:
+                    stream << "<parse error>";
+                    break;
+                case Type::Unit:
+                    stream << "UnitType";
+                    break;
+                case Type::Con: {
+                    auto name = context.find(((const ConType&)type).con);
+                    stream << "ConType ";
+                    stream.write(name.text, name.textLength);
+                    break;
+                }
+                case Type::Ptr:
+                    stream << "PtrType ";
+                    makeLevel();
+                    toString(*((const PtrType&)type).type, true);
+                    removeLevel();
+                    break;
+                case Type::Ref:
+                    stream << "RefType ";
+                    makeLevel();
+                    toString(*((const RefType&)type).type, true);
+                    removeLevel();
+                    break;
+                case Type::Val:
+                    stream << "ValType ";
+                    makeLevel();
+                    toString(*((const ValType&)type).type, true);
+                    removeLevel();
+                    break;
+                case Type::Gen: {
+                    stream << "GenType ";
+                    auto name = context.find(((const GenType&)type).con);
+                    stream.write(name.text, name.textLength);
+                    break;
+                }
+                case Type::Tup:
+                    toString((const TupType&)type);
+                    break;
+                case Type::Fun:
+                    toString((const FunType&)type);
+                    break;
+                case Type::App:
+                    toString((const AppType&)type);
+                    break;
+                case Type::Arr:
+                    stream << "ArrType ";
+                    makeLevel();
+                    toString(*((const ArrType&)type).type, true);
+                    removeLevel();
+                    break;
+                case Type::Map:
+                    stream << "MapType ";
+                    makeLevel();
+                    toString(*((const MapType&)type).from, false);
+                    toString(*((const MapType&)type).to, true);
+                    removeLevel();
+                    break;
             }
-            case Type::Ptr:
-                stream << "PtrType ";
-                makeLevel();
-                toString(*((const PtrType&)type).type, true);
-                removeLevel();
-                break;
-            case Type::Ref:
-                stream << "RefType ";
-                makeLevel();
-                toString(*((const RefType&)type).type, true);
-                removeLevel();
-                break;
-            case Type::Val:
-                stream << "ValType ";
-                makeLevel();
-                toString(*((const ValType&)type).type, true);
-                removeLevel();
-                break;
-            case Type::Gen: {
-                stream << "GenType ";
-                auto name = context.find(((const GenType&)type).con);
-                stream.write(name.text, name.textLength);
-                break;
-            }
-            case Type::Tup:
-                toString((const TupType&)type);
-                break;
-            case Type::Fun:
-                toString((const FunType&)type);
-                break;
-            case Type::App:
-                toString((const AppType&)type);
-                break;
-            case Type::Arr:
-                stream << "ArrType ";
-                makeLevel();
-                toString(*((const ArrType&)type).type, true);
-                removeLevel();
-                break;
-            case Type::Map:
-                stream << "MapType ";
-                makeLevel();
-                toString(*((const MapType&)type).from, false);
-                toString(*((const MapType&)type).to, true);
-                removeLevel();
-                break;
-        }
+        });
     }
 
     void toString(const AppType& type) {
@@ -1049,6 +1047,29 @@ private:
                 constraints = constraints->next;
             }
             removeLevel();
+        }
+    }
+
+    template<class F>
+    void toString(List<Attribute>* attributes, const char* name, F&& f) {
+        if(attributes) {
+            stream << name;
+            makeLevel();
+            toStringIntro(false);
+
+            stream << "<attributes>";
+            makeLevel();
+            while(attributes) {
+                toString(attributes->item, attributes->next == nullptr);
+                attributes = attributes->next;
+            }
+            removeLevel();
+
+            toStringIntro(true);
+            f();
+            removeLevel();
+        } else {
+            f();
         }
     }
 

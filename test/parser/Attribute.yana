@@ -82,3 +82,13 @@ fn w() = 0
   @f let z = 0
 
 fn w() = 0
+
+fn x(x: @local (Int) -> Int = id, y: @lifetime(local) @a @b [Int]) = 0
+
+data X(a) = @a @b X {Float, Float} | @c Y {Int, Int}
+
+fn x():
+  let x = [0, 1, 2] :: @local [Float]
+
+alias X = @layout(c) { a: Int, b: Bool, c: [Ptr] }
+alias X = @layout{v = c} { a: Int, b: Bool, c: [Ptr] }

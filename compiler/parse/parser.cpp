@@ -1767,6 +1767,7 @@ Attribute Parser::parseAttribute() {
             error("expected '@'"_buffer);
         }
 
+        U32 end = token.endColumn;
         Id name = 0;
         if(token.type == Token::VarID || token.type == Token::ConID) {
             name = token.data.id;
@@ -1775,7 +1776,10 @@ Attribute Parser::parseAttribute() {
             error("expected identifier or type name"_buffer);
         }
 
-        if(token.type == Token::ParenL) {
+        // In this case we use significant whitespace. Since attributes can be added in many contexts,
+        // we have to use whitespace to differentiate between an attribute argument list and other types of nodes.
+        bool hasGap = token.startColumn != end;
+        if(!hasGap && token.type == Token::ParenL) {
             auto args = parens([=] {
                 return sepBy([=] {
                     return parseTupArg();
@@ -1783,7 +1787,7 @@ Attribute Parser::parseAttribute() {
             });
 
             return Attribute{name, args};
-        } else if(token.type == Token::BraceL) {
+        } else if(!hasGap && token.type == Token::BraceL) {
             auto expr = (TupExpr*)parseTupleExpr();
             return Attribute{name, expr->args};
         } else {
