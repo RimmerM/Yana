@@ -20,15 +20,21 @@ struct Block {
     ArrayF<Block*, 2> outgoing;
 
     // The closest block that always executes before this one.
+    // Set to null if this is the entry point.
     Block* preceding = nullptr;
 
     // The closest block that always executes after this one.
+    // Set to null if the block returns.
     Block* succeeding = nullptr;
 
     void* codegen = nullptr;
 
     // Unique id of this block within the function.
     U32 id;
+
+    // Set if this block is the target of a loop.
+    // Backward branches are only allowed to loop targets.
+    bool loop = false;
 
     // Set if this block returns at the end.
     bool returns = false;

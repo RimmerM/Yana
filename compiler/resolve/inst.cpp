@@ -657,6 +657,7 @@ InstJmp* jmp(Block* block, Block* to) {
     auto inst = (InstJmp*)block->inst(sizeof(InstJmp), 0, Inst::InstJmp, &unitType);
     inst->to = to;
     block->outgoing.push(to);
+    block->succeeding = to;
     to->incoming.push(block);
 
     return inst;
@@ -674,6 +675,7 @@ InstRet* ret(Block* block, Value* value) {
         block->use(value, inst);
     }
 
+    block->succeeding = nullptr;
     block->returns = true;
     block->function->returnPoints.push(inst);
 

@@ -577,7 +577,7 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
         auto patResult = resolvePat(b, &context, otherwise, result, expr->pat);
         if(patResult <= 0) {
             if(patResult < 0) {
-                b->context.diagnostics.warning("this pattern can never match"_buffer, nullptr, noSource);
+                b->context.diagnostics.warning("this pattern can never match"_buffer, expr->pat, noSource);
             }
 
             if(expr->alts) {
@@ -596,13 +596,13 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
                         // Continue with other matches in the failing block.
                         resolveExpr(b, alt->item.expr, 0, true);
                         if(!b->block->complete) {
-                            b->context.diagnostics.error("declaration alternatives are not implemented yet"_buffer, nullptr, noSource);
+                            error(b, "declaration alternatives are not implemented yet"_buffer, alt->item.expr);
                         }
                     } else if(patResult == 1) {
                         // Pattern always matches. Resolve in the matching block, don't add the failing block.
                         resolveExpr(b, alt->item.expr, 0, true);
                         if(!b->block->complete) {
-                            b->context.diagnostics.error("declaration alternatives are not implemented yet"_buffer, nullptr, noSource);
+                            error(b, "declaration alternatives are not implemented yet"_buffer, alt->item.expr);
                         }
 
                         isComplete = true;
@@ -620,10 +620,10 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
 
                 b->block = then;
             } else {
-                b->context.diagnostics.error("this pattern may not succeed, but no alternative patterns were provided"_buffer, nullptr, noSource);
+                error(b, "this pattern may not succeed, but no alternative patterns were provided"_buffer, expr->pat);
             }
         } else if(expr->alts) {
-            b->context.diagnostics.warning("this pattern will always match"_buffer, nullptr, noSource);
+            b->context.diagnostics.warning("this pattern will always match"_buffer, expr->pat, noSource);
         }
 
         if(expr->in) {
@@ -637,8 +637,13 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
 Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr) {
     auto preceding = b->block;
     auto condBlock = block(b->fun);
-    jmp(b->block, condBlock);
+    auto exitBlock = block(b->fun, true);
+
+    condBlock->loop = true;
     condBlock->preceding = b->block;
+    condBlock->succeeding = exitBlock;
+
+    jmp(b->block, condBlock);
     b->block = condBlock;
 
     auto cond = resolveExpr(b, expr->cond, 0, true);
@@ -647,7 +652,7 @@ Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr) {
     }
 
     auto bodyBlock = block(b->fun);
-    auto exitBlock = block(b->fun);
+
     bodyBlock->preceding = b->block;
     exitBlock->preceding = preceding;
 
@@ -657,6 +662,7 @@ Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr) {
     resolveExpr(b, expr->loop, 0, false);
     jmp(b->block, condBlock);
 
+    b->fun->blocks.push(exitBlock);
     b->block = exitBlock;
     return nullptr;
 }
@@ -680,7 +686,11 @@ Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
     auto condBlock = block(b->fun);
     auto loopBlock = block(b->fun);
     auto endBlock = block(b->fun);
+
+    condBlock->loop = true;
     condBlock->preceding = startBlock;
+    condBlock->succeeding = endBlock;
+
     loopBlock->preceding = condBlock;
     endBlock->preceding = startBlock;
 
