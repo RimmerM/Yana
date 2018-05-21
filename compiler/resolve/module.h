@@ -31,11 +31,18 @@ struct InstanceMap {
     U32 genCount = 0; // Number of instances in each array element.
 };
 
+struct InstanceList {
+    Type* type;
+    Array<Function> functions;
+};
+
 struct Module {
     Id id;
 
     HashMap<Import, Id> imports;
     HashMap<Function, Id> functions;
+    HashMap<InstanceList*, U32> typeInstances;
+    HashMap<InstanceList*, Id> namedTypeInstances;
     HashMap<ForeignFunction, Id> foreignFunctions;
     HashMap<TypeClass, Id> typeClasses;
     HashMap<InstanceMap, Id> classInstances;

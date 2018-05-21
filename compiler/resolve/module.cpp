@@ -122,6 +122,24 @@ ClassInstance* defineInstance(Context* context, Module* in, TypeClass* to, Type*
     return instance;
 }
 
+InstanceList* defineTypeInstance(Context* context, Module* in, Type* to) {
+    Hasher hasher;
+    hasher.addBytes(to->descriptor, to->descriptorLength);
+
+    auto a = in->typeInstances.add(hasher.get());
+    if(!a.existed) {
+        auto list = new (in->memory) InstanceList;
+        list->type = to;
+        *a.value = list;
+
+        if(auto name = typeName(to)) {
+            in->namedTypeInstances[name] = list;
+        }
+    }
+
+    return *a.value;
+}
+
 Function* defineFun(Context* context, Module* in, Id name) {
     if(in->functions.get(name) || in->foreignFunctions.get(name)) {
         // TODO: Error
@@ -300,11 +318,23 @@ FoundFunction findFun(Context* context, Module* module, Id name) {
                 return true;
             }
         } else if(id->segmentCount >= 2 && id->segmentCount - 2 == start) {
-            // TODO: Handle type instances.
             // Type instances have priority over classes (in case the resolver allows name conflicts between them).
-            TypeClass* c = m->typeClasses.get(id->getHash(start - 1)).unwrap();
+            auto segment = id->getHash(start);
+            auto src = id->getHash(start + 1);
+
+            InstanceList** list = m->namedTypeInstances.get(segment).unwrap();
+            if(list) {
+                for(Function& fun: (*list)->functions) {
+                    if(fun.name == src) {
+                        found.kind = FoundFunction::Static;
+                        found.function = &fun;
+                        return true;
+                    }
+                }
+            }
+
+            TypeClass* c = m->typeClasses.get(segment).unwrap();
             if(c) {
-                auto src = id->getHash(start);
                 for(U32 i = 0; i < c->funCount; i++) {
                     if(c->funNames[i] == src) {
                         found.kind = FoundFunction::Class;
@@ -783,7 +813,31 @@ void resolveGlobals(Context* context, Module* module, ast::Decl** decls, Size co
 }
 
 void resolveTypeInstance(Context* context, Module* module, ast::InstanceDecl* decl) {
+    auto type = resolveType(context, module, decl->type, nullptr);
+    auto list = defineTypeInstance(context, module, type);
 
+    auto f = decl->decls;
+    while(f) {
+        if(f->item->kind != ast::Decl::Fun) continue;
+        auto fun = (ast::FunDecl*)f->item;
+
+        bool found = false;
+        for(auto& existing: list->functions) {
+            if(existing.name == fun->name) {
+                context->diagnostics.error("redefinition of type instance function"_buffer, fun, noSource);
+                found = true;
+            }
+        }
+
+        if(!found) {
+            auto& function = *list->functions.push();
+            function.name = fun->name;
+            function.module = module;
+            function.ast = fun;
+        }
+
+        f = f->next;
+    }
 }
 
 void resolveClassFunction(Context* context, Module* module, ClassInstance* instance, ast::FunDecl* decl) {
@@ -916,6 +970,12 @@ Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast
 
     if(counts.statements > 0) {
         resolveGlobals(context, module, ast->decls.pointer(), ast->decls.size());
+    }
+
+    for(InstanceList* instance: module->typeInstances) {
+        for(auto& fun: instance->functions) {
+            resolveFun(context, &fun);
+        }
     }
 
     for(Function& fun: module->functions) {

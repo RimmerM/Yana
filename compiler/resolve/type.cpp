@@ -155,6 +155,16 @@ void createDescriptor(Type* type, Arena* arena) {
     type->descriptorLength = (U16)length;
 }
 
+Id typeName(Type* type) {
+    if(type->kind == Type::Alias) {
+        return ((AliasType*)type)->name;
+    } else if(type->kind == Type::Record) {
+        return ((RecordType*)type)->name;
+    }
+
+    return 0;
+}
+
 static Type* findTuple(Context* context, Module* module, ast::TupType* type, GenContext* gen) {
     Byte buffer[Limits::maxTypeDescriptor];
     Byte* p = buffer;

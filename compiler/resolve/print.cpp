@@ -196,6 +196,13 @@ void printModule(std::ostream& stream, Context& context, const Module* module) {
         stream << '\n';
     }
 
+    for(auto& list: module->typeInstances) {
+        for(auto& fun: list->functions) {
+            printFunction(stream, context, &fun);
+            stream << '\n';
+        }
+    }
+
     for(const InstanceMap& instance: module->classInstances) {
         printTypeClass(stream, context, &instance);
         stream << '\n';

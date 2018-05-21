@@ -279,6 +279,10 @@ Type* canonicalType(Type* type);
 // Generates the descriptor for a newly built type.
 void createDescriptor(Type* type, Arena* arena);
 
+// Returns the symbol name of a type. Returns 0 if the type is not named.
+// Named types are explicitly defined in some module and can be found by that name.
+Id typeName(Type* type);
+
 // Instantiates a higher-order type for a specific set of arguments.
 // Returns a new type which is distinct from but references the original.
 AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count);
