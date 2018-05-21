@@ -93,12 +93,12 @@ void Parser::parseModule() {
                     module.decls << decl;
                 };
 
-                auto attributes = parseAttributes();
+                auto attributes = parseAttributes(false);
                 if(attributes != nullptr && token.type == Token::opColon) {
                     eat();
                     withLevel([&] {
                         sepBy([&] {
-                            auto localAttributes = parseAttributes();
+                            auto localAttributes = parseAttributes(false);
                             if(localAttributes) {
                                 auto end = localAttributes;
                                 while(end->next) end = end->next;
@@ -1218,7 +1218,8 @@ VarExpr* Parser::parseQop() {
 }
 
 Type* Parser::parseType() {
-    return node([=]() -> Type* {
+    auto attributes = parseAttributes(true);
+    auto type = node([=]() -> Type* {
         bool hasArgs = false;
         List<ArgDecl>* args = maybeParens([&] {
             hasArgs = true;
@@ -1282,6 +1283,9 @@ Type* Parser::parseType() {
             }
         }
     });
+
+    type->attributes = attributes;
+    return type;
 }
 
 Type* Parser::parseAType() {
@@ -1563,12 +1567,14 @@ Expr* Parser::parseArrayExpr() {
 }
 
 Con Parser::parseCon() {
+    auto attributes = parseAttributes(true);
+
     /*
      * con	→	conid(type)
      *      |   conid tuptype
      *      |   conid
      */
-    return node([=] {
+    auto con = node([=] {
         Id name;
         if(token.type == Token::ConID) {
             name = token.data.id;
@@ -1591,6 +1597,9 @@ Con Parser::parseCon() {
             return Con(name, nullptr);
         }
     });
+
+    con->attributes = attributes;
+    return con;
 }
 
 FieldPat Parser::parseFieldPat() {
@@ -1783,12 +1792,12 @@ Attribute Parser::parseAttribute() {
     });
 }
 
-List<Attribute>* Parser::parseAttributes() {
+List<Attribute>* Parser::parseAttributes(bool isInline) {
     List<Attribute>* attributes = nullptr;
     while(token.type == Token::opAt) {
         attributes = list(parseAttribute(), attributes);
 
-        if(token.type == Token::EndOfStmt) {
+        if(!isInline && token.type == Token::EndOfStmt) {
             eat();
         }
     }

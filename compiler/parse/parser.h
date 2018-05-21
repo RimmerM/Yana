@@ -58,7 +58,7 @@ struct Parser {
     ast::Pat* parsePattern();
 
     ast::Attribute parseAttribute();
-    List<ast::Attribute>* parseAttributes();
+    List<ast::Attribute>* parseAttributes(bool isInline);
 
     ast::Constraint* parseConstraint();
     List<ast::Constraint*>* parseConstraints();

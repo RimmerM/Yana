@@ -39,6 +39,8 @@ struct Type: Node {
         Map,   // A map from one type to another.
     } kind;
 
+    List<Attribute>* attributes = nullptr;
+
     Type(Kind k) : kind(k) {}
     bool is(Kind kind) const {return this->kind == kind;}
 };
@@ -442,6 +444,7 @@ struct Con: Node {
     Con(Id name, Type* content) : name(name), content(content) {}
     Id name;
     Type* content;
+    List<Attribute>* attributes = nullptr;
 
     // This is easier than trying to make a special template function for values.
     Con* operator -> () {
