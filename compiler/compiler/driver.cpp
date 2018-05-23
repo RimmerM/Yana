@@ -192,6 +192,10 @@ int main(int argc, const char** argv) {
     }
 
     auto outputDir = std::string(settings.outputDir.text(), settings.outputDir.size());
+    auto dirResult = createDirectory(outputDir.c_str());
+    if(!dirResult) {
+        println("Cannot create directory: %@ to due error: ", outputDir.c_str(), (U32)dirResult.unwrapErr());
+    }
 
     switch(settings.mode) {
         case CompileMode::Library: {

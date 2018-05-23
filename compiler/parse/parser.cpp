@@ -1131,23 +1131,20 @@ Expr* Parser::parseDeclExpr() {
         List<Alt>* alts = nullptr;
         if(token.type == Token::opBar) {
             eat();
-            if(token.type == Token::opArrowR || token.type == Token::opColon) {
-                alts = list(Alt { new (buffer) Pat(Pat::Any), parseBlock(false) });
-            } else if(token.type == Token::kwMatch) {
+            if(token.type == Token::kwMatch) {
                 eat();
                 if(token.type == Token::opColon) {
                     eat();
+                    alts = withLevel([=] {
+                        return sepBy1([=] {
+                            return parseAlt();
+                        }, Token::EndOfStmt);
+                    });
                 } else {
-                    error("expected ':' after 'match'"_buffer);
+                    alts = list(parseAlt());
                 }
-
-                alts = withLevel([=] {
-                    return sepBy1([=] {
-                        return parseAlt();
-                    }, Token::EndOfStmt);
-                });
             } else {
-                alts = list(parseAlt());
+                alts = list(Alt { new (buffer) Pat(Pat::Any), parseExpr() });
             }
         }
 
