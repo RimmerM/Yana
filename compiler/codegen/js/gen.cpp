@@ -4,6 +4,13 @@
 
 namespace js {
 
+struct Loop {
+    Loop* parent;
+    Block* startBlock;
+    Block* endBlock;
+    U32 id;
+};
+
 struct Gen {
     Arena& mem;
     Context* context;
@@ -11,6 +18,7 @@ struct Gen {
 
     U32 localId = 0;
     Array<Stmt*>* block = nullptr;
+    Loop* loop = nullptr;
 
     Id lengthId;
     Id assignOp;
@@ -20,6 +28,7 @@ struct Gen {
     Id negOp, notOp;
 };
 
+Stmt* genBlock(Gen* gen, Block* block);
 Stmt* useFunction(Gen* gen, Function* fun);
 
 Expr* useValue(Gen* gen, Value* value) {
@@ -264,15 +273,72 @@ Variable* genCall(Gen* gen, InstCall* inst) {
     return nullptr;
 }
 
+Variable* genCallGen(Gen* gen, InstCallGen* inst) {
+    return nullptr;
+}
+
 Variable* genCallDyn(Gen* gen, InstCallDyn* inst) {
     return nullptr;
 }
 
+Variable* genCallDynGen(Gen* gen, InstCallDynGen* inst) {
+    return nullptr;
+}
+
 Variable* genJe(Gen* gen, InstJe* inst) {
+    auto success = inst->then;
+    auto fail = inst->otherwise;
+
+    if(success->loop || fail->loop) {
+
+        auto cond = new (gen->mem) IfStmt(useValue(gen, inst->cond), nullptr, nullptr);
+
+    }
+
+    if(success->succeeding == fail->succeeding) {
+
+    }
+
     return nullptr;
 }
 
 Variable* genJmp(Gen* gen, InstJmp* inst) {
+    if(inst->to->incoming.size() <= 1) {
+        auto block = genBlock(gen, inst->to);
+        if(block->type == Stmt::Block) {
+            auto list = (BlockStmt*)block;
+            for(U32 i = 0; i < list->count; i++) {
+                gen->block->push(list->stmts[i]);
+            }
+        } else {
+            gen->block->push(block);
+        }
+    } else if(inst->to->loop) {
+        // As long as the branches between blocks follow the requirements,
+        // the loop start will always be resolved before any jumps to it.
+        assertTrue(gen->loop != nullptr);
+
+        // If this jumps back into the current loop, we don't have to do anything
+        // as the corresponding while/for will just go to the next iteration.
+        // If this jumps back into a nested loop, we have to insert a continue to its label.
+        if(inst->to == gen->loop->startBlock) {
+            // Do nothing - the language semantics will loop automatically.
+        } else {
+            auto loop = gen->loop->parent;
+            while(loop) {
+                if(inst->to == loop->startBlock) break;
+                loop = loop->parent;
+            }
+
+            // This has to exist in valid source for the same reason as above.
+            assertTrue(loop != nullptr);
+
+            loop->startBlock->codegen;
+        }
+    } else {
+        gen->context->diagnostics.error("internal error: unsupported jump type"_buffer, nullptr, noSource);
+    }
+
     return nullptr;
 }
 
@@ -362,8 +428,12 @@ Variable* genInstValue(Gen* gen, Inst* inst) {
             return genStringData(gen, (InstStringData*)inst);
         case Inst::InstCall:
             return genCall(gen, (InstCall*)inst);
+        case Inst::InstCallGen:
+            return genCallGen(gen, (InstCallGen*)inst);
         case Inst::InstCallDyn:
             return genCallDyn(gen, (InstCallDyn*)inst);
+        case Inst::InstCallDynGen:
+            return genCallDynGen(gen, (InstCallDynGen*)inst);
         case Inst::InstJe:
             return genJe(gen, (InstJe*)inst);
         case Inst::InstJmp:
@@ -385,6 +455,15 @@ Variable* genInst(Gen* gen, Inst* inst) {
 Stmt* genBlock(Gen* gen, Block* block) {
     auto fun = (FunStmt*)block->function->codegen;
 
+    Loop loop;
+    if(block->loop) {
+        loop.parent = gen->loop;
+        loop.startBlock = block;
+        loop.endBlock = block->succeeding;
+
+        gen->loop = &loop;
+    }
+
     Array<Stmt*> statements;
     auto prevBlock = gen->block;
     auto prevId = gen->localId;
@@ -399,6 +478,10 @@ Stmt* genBlock(Gen* gen, Block* block) {
     fun->idCounter = gen->localId;
     gen->localId = prevId;
     gen->block = prevBlock;
+
+    if(block->loop) {
+        gen->loop = loop.parent;
+    }
 
     if(statements.size() == 1) {
         return statements[0];
