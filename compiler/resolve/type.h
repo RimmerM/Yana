@@ -9,6 +9,9 @@ struct Function;
 struct TypeClass;
 struct DerivedTypes;
 struct FunType;
+struct GenType;
+struct GenEnv;
+struct ClassInstance;
 
 struct Limits {
     static const U32 maxTypeDescriptor = 2048;
@@ -52,14 +55,35 @@ struct Type {
     Type(Kind kind, U32 virtualSize): kind(kind), virtualSize(virtualSize) {}
 };
 
+/*
+ * Generic type resolving.
+ * - Generic types are fully defined types owned by a specific generic environment.
+ *   Generic environments can be functions, typeclasses, records, etc.
+ * - Generic environments are used for both type checking and code generation.
+ *   The CallGen and CallDynGen instructions explicitly pass (parts of) these environments,
+ *   allowing code generation to use platform-specific representations.
+ * - A generic type is only valid if used inside the containing environment.
+ *   This means that passing generic types between functions requires explicit instructions to convert the type to that environment.
+ * - A generic type can be a generic instantiation of another type. This allows representing higher-kinded types.
+ */
+
 struct GenField {
     Type* type;
-    struct GenType* gen;
+    GenType* gen;
     Id name;
     bool mut;
 };
 
 struct GenType: Type {
+    GenType(GenEnv* env, Id name, U32 index):
+        Type(Gen, 1), env(env), name(name), index(index) {}
+
+    GenEnv* env;
+    Id name;
+    U32 index;
+};
+
+struct GenEnv {
     enum Kind: U8 {
         Record,
         Class,
@@ -68,20 +92,18 @@ struct GenType: Type {
         Alias,
     };
 
-    GenType(Id name, U32 index, Kind kind, void* parent):
-        Type(Gen, 1), parent(parent), name(name), index(index), kind(kind) {}
+    GenEnv(void* parent, Kind kind): parent(parent), kind(kind) {}
 
-    GenField* fields; // A list of fields this type must contain.
-    TypeClass** classes; // A list of classes this type must implement.
-    FunType** funs; // A list of functions related to this type that must exist.
+    void* parent; // Type is defined by `kind`.
+    GenType* types; // List of generic types used in this environment.
+    GenField* fields; // A list of fields used in this environment.
+    ClassInstance** classes; // A list of typeclass instances used in this environment.
+    FunType** funs; // A list of functions targeting generic types used in this environment.
 
-    void* parent; // Type is defined by `context`.
-
-    Id name;
-    U32 index;
-    U8 fieldCount = 0;
-    U8 classCount = 0;
-    U8 funCount = 0;
+    U16 typeCount = 0;
+    U16 fieldCount = 0;
+    U16 classCount = 0;
+    U16 funCount = 0;
     Kind kind;
 };
 
@@ -202,41 +224,36 @@ struct RecordType: Type {
         Multi,
     };
 
-    RecordType(): Type(Record, 0), kind(Multi) {}
+    RecordType(): Type(Record, 0), kind(Multi), gen(this, GenEnv::Record) {}
 
     ast::DataDecl* ast; // Set until the type is fully resolved.
     Con* cons;
-    GenType* gens;
+    GenEnv gen;
     RecordType* instanceOf;
     Type** instance; // if instanceOf is set, this contains a list Type*[instanceOf->genCount].
     Id name;
     U32 conCount;
-    U32 genCount; // The number of generic types in this particular instance.
     Kind kind;
     bool qualified; // Set if the type constructors are namespaced within the type.
 };
 
 struct AliasType: Type {
-    AliasType(): Type(Alias, 0) {}
+    AliasType(): Type(Alias, 0), gen(this, GenEnv::Alias) {}
 
     ast::AliasDecl* ast; // Set until the type is fully resolved.
-    GenType* gens;
     Type* to;
+    GenEnv gen;
     AliasType* instanceOf;
     Id name;
-    U32 genCount;
 };
 
 struct TypeClass {
+    TypeClass(): gen(this, GenEnv::Class) {}
+
     ast::ClassDecl* ast; // Set until the type is fully resolved.
-
-    GenType* args; // A list of types this class will be instantiated on.
-    FunType* functions; // A list of function types this class implements.
+    GenEnv gen; // The generic environment this class defines.
     Id* funNames; // The name of each class function, in order.
-
     Id name;
-    U16 argCount = 0;
-    U16 funCount = 0;
 };
 
 struct ClassInstance {
