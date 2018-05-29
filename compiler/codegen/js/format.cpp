@@ -4,11 +4,6 @@
 
 using namespace js;
 
-struct StringSeg {
-    const char* string;
-    U32 length;
-};
-
 struct CodeBuilder {
     std::ostream& writer;
     Context& context;
@@ -16,58 +11,32 @@ struct CodeBuilder {
     bool minify;
     U32 indentation = 0;
 
-    StringSeg space;
-    StringSeg comma;
-    StringSeg parenBlockStart;
-    StringSeg doBlockStart;
-    StringSeg doCondStart;
-    StringSeg elseHead;
-    StringSeg indent;
-    StringSeg colon;
+    StringBuffer space;
+    StringBuffer comma;
+    StringBuffer parenBlockStart;
+    StringBuffer doBlockStart;
+    StringBuffer doCondStart;
+    StringBuffer elseHead;
+    StringBuffer indent;
+    StringBuffer colon;
 
-    CodeBuilder(std::ostream& writer, Context& context, StringSeg indent, bool minify): writer(writer), context(context), minify(minify), indent(indent) {
+    CodeBuilder(std::ostream& writer, Context& context, StringBuffer indent, bool minify): writer(writer), context(context), minify(minify), indent(indent) {
         if(minify) {
-            space.string = "";
-            space.length = 0;
-
-            comma.string = ",";
-            comma.length = 1;
-
-            parenBlockStart.string = "){";
-            parenBlockStart.length = 2;
-
-            doBlockStart.string = "do{";
-            doBlockStart.length = 3;
-
-            doCondStart.string = "}while(";
-            doCondStart.length = 7;
-
-            elseHead.string = "}else{";
-            elseHead.length = 6;
-
-            colon.string = ":";
-            colon.length = 1;
+            space = ""_buffer;
+            comma = ","_buffer;
+            parenBlockStart = "){"_buffer;
+            doBlockStart = "do{"_buffer;
+            doCondStart = "}while("_buffer;
+            elseHead = "}else{"_buffer;
+            colon = ":"_buffer;
         } else {
-            space.string = " ";
-            space.length = 1;
-
-            comma.string = ", ";
-            comma.length = 2;
-
-            parenBlockStart.string = ") {";
-            parenBlockStart.length = 3;
-
-            doBlockStart.string = "do {";
-            doBlockStart.length = 4;
-
-            doCondStart.string = "} while(";
-            doCondStart.length = 8;
-
-            elseHead.string = "} else {";
-            elseHead.length = 8;
-
-            colon.string = ": ";
-            colon.length = 2;
+            space = " "_buffer;
+            comma = ", "_buffer;
+            parenBlockStart = ") {"_buffer;
+            doBlockStart = "do {"_buffer;
+            doCondStart = "} while("_buffer;
+            elseHead = "} else {"_buffer;
+            colon = ": "_buffer;
         }
     }
 
@@ -91,8 +60,8 @@ struct CodeBuilder {
         indentation--;
     }
 
-    template<class F> void sepBy(U32 count, StringSeg sep, F&& f) {
-        if(sep.length > 0 && sep.string[0] == '\n') {
+    template<class F> void sepBy(U32 count, StringBuffer sep, F&& f) {
+        if(sep.length > 0 && sep.ptr[0] == '\n') {
             for(U32 i = 0; i < count; i++) {
                 if(i == count - 1) {
                     f(i);
@@ -100,16 +69,16 @@ struct CodeBuilder {
                     f(i);
                     endLine();
                     startLine();
-                    writer.write(sep.string + 1, sep.length - 1);
+                    writer.write(sep.ptr + 1, sep.length - 1);
                 }
             }
-        } else if(sep.length > 0 && sep.string[sep.length - 1] == '\n') {
+        } else if(sep.length > 0 && sep.ptr[sep.length - 1] == '\n') {
             for(U32 i = 0; i < count; i++) {
                 if(i == count - 1) {
                     f(i);
                 } else {
                     f(i);
-                    writer.write(sep.string, sep.length - 1);
+                    writer.write(sep.ptr, sep.length - 1);
                     endLine();
                     startLine();
                 }
@@ -126,11 +95,11 @@ struct CodeBuilder {
         }
     }
 
-    void append(StringSeg seg) {
-        writer.write(seg.string, seg.length);
+    void append(StringBuffer seg) {
+        writer.write(seg.ptr, seg.length);
     }
 
-    void line(StringSeg seg) {
+    void line(StringBuffer seg) {
         startLine();
         append(seg);
         endLine();
@@ -579,4 +548,4 @@ void formatFile(Context& context, std::ostream& to, File* file, bool minify) {
     }
 }
 
-}
+} // namespace js
