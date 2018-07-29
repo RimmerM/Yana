@@ -156,22 +156,39 @@ Overloading based on namespaces and type classes only. This supports most cases 
  - Multiple related types that support a similar operation: supported through type classes.
  - TODO: Look into supporting splitting function names interleaved between parameters, like ObjC. This would support most remaining use cases of overloading.
 
-## Generics
+## Typeclasses, higher kinded types, etc
 
-- We don't want to have to generate a new version of each function that uses a generic type.
-- We *really* don't want to forcibly use references in generic containers.
+Yana supports many type system features normally only found in pure functional languages. Most notably, we implement type classes similar to Haskell with GHC extensions, as well as allowing for more limited higher-kinded types (mainly to support some standard library types). It is important to remember that the language is intended to be _easy to learn_ - we do not want to have to use complicated functional programming terms just to explain how Hello World is implemented. As such, the use of these type system features will be fairly limited in the standard library, instead using a more procedural approach.
 
-Possible solutions:
- - Send type info to generic functions. Size of each generic type to be able to handle them without knowing anything else.
+### Parsing
 
-Remaining design
-- There are still quite a few remaining questions regarding the design of generics, since we want to follow the first two constraints. We want the default case to be some form of type erasure, in order to support using generics inside non-generic contexts. However, the design must support specialization when useful.
+Parsing is handled in a fairly simple way. Any identifier inside a type is a concrete type if is starts with a capital letter, and an unknown type if not. Higher-order types are represented as type system-level function calls, and parsed in a similar way. We allow omitting parentheses for "type calls" in some cases to reduce syntax noise in the code.
 
-Sample cases:
-```
--- This function has no defined 
-fn (a) ()
-```
+### Resolving
+
+Resolving is by far the most complicated stage. We need to do several things here:
+
+ - Create generic contexts for all functions and type definitions. These contexts contain all unknown symbols known in that context.
+ - For each context, resolve any explicit constraints that were declared. Constraints can include typeclass implementations, function signatures and more. Note that constraints are per-context rather than per-type - while this increases complexity, it is also required to be able to express constraints such as `(type, target, Serialize(type, target))`.
+ - Recursively resolve constraint implementations where possible. This mainly means resolving referenced typeclasses and types.
+ - Resolve functions using the resolved generic contexts. This encodes the generic operations into the IR at current resolve level. Each context is implicitly available inside its function, with instructions for performing operations defined by the constraints. This gives targets flexibility in how they actually generate code for these operations.
+   - Whenever a value (generic or not) is sent to a generic argument slot in a function call, the special `CallGen` or `CallDynGen` instructions need to be used. These instructions include the creation of a runtime context corresponding to the called function's constraints. Each constraint needs to be satisfied. This context is then 'sent' (implementation defined) to the called function. Since the entry point of any program is a non-generic function, it follows that each generic function call has an explicitly defined generic context.
+ - In many cases, calls to generic functions will be both slower and result in larger code size than fully-defined ones. For this reason, an additional pass is performed which specializes generic functions for explicitly defined contexts, and replaces any generic calls with normal ones.
+
+### Native implementation
+
+The native implementation will require a bit of type metadata, given that we do not want to compromise stored value size when used generically. More specifically, generic functions should never require the use of indirection in input data. We use the following high-level approach:
+ 
+ - Generic functions include an extra implicit parameter, which is a pointer to the generic context with all required metadata.
+ - Generic arguments are always passed by reference, preventing having to conditionally copy values based on their runtime size. This also means all functions implementing typeclass instances generate two code-level functions - one with the final required signature following normal conventions, and a stub with the generic reference-based signature. This stub will dereference to SSA registers where possible and call the real implementation, and can be optimized away in many cases.
+ - The generic context includes type info about all unknown types visible in the context. This includes the size of the type, and a platform-specific store type. This allows performing structure reordering and limited value packing, while still supporting retrieving stored generic values.
+
+### JS implementation
+
+At present, the most straightforward implementation in JS would be to generate an array of operation handlers for each context in a `CallGen` instruction, merging any exactly equal contexts. Each constraint has a corresponding executor - typeclass constraints are pointers to a different context for that specific typeclass implementation, function constraints are function pointers, and field constraints are indices.
+
+It remains to be tested whether this simple approach will give acceptable performance and final code size, after aggressive specialization to remove tables. If not, we could try more complex implementations such as adding context data to object prototypes where possible (mainly for type classes with a single argument, which is also the most common case).
+
 ## Convenience feature ideas
  - `class Default(a): fn default() -> a`
    - When constructing a type, any fields that implement Default get that value if not provided.
@@ -224,13 +241,13 @@ fn (a) ()
 - Maps: immutable maps can be a single pointer to the length, then an array of keys, then an array of values. Mutable ones need a separate structure with pointers to a key and a value array. Small maps can just search the keys array, while large ones act as hash maps.
 
 ### Pointers
-Since the native target needs to be able to interface other native languages, we have to support raw pointers. This has the additional benefit of being able to use manual memory management for optimizations, although such code is obviously not portable.
+Since the native target needs to be able to interface other native languages, we have to support raw pointers. This has the additional benefit of being able to use manual memory management for optimizations, although such code is obviously not portable between native and other targets.
 
-Everything to do with pointers is hidden inside the `Unsafe` module, which, as the name suggests, is always unsafe to use (we should probably add a compiler flag to disable importing it entirely). The value pointed to is always mutable, since the underlying memory is always mutable. The following types and functions are exported (among others):
+Everything to do with pointers is hidden inside the `Native` module, which is mostly unsafe to use (we should probably add a compiler flag to disable importing it entirely). The value pointed to is always mutable, since the underlying memory is always mutable. This also simplifies the implementation, since immutable values are always referred to as SSA registers. The following types and functions are exported (among others):
 - The generic `*` type. This defines a pointer-to type, such as `*Int`.
 - Operators on the `*` type, such as `+`, `-`, `>`, `<`, `==`, etc.
 - Pointer creation functions:
-   - Unary operator `fn (a) *(it: *a) -> a`. Derefences a pointer.
+   - Unary operator `fn (a) *(it: *a) -> a`. Dereferences a pointer.
    - `fn (a) addressOf(it: a) -> *a`. Takes the address of a value.
 - `fn (a) sizeOf(it: a) -> Int`. Returns the size in memory of a specific type.
 - `fn allocate(type: TypeInfo) -> *U8`. Allocates an instance of a specific type.
@@ -242,7 +259,7 @@ Everything to do with pointers is hidden inside the `Unsafe` module, which, as t
 ### Interfacing the OS
 Obviously, the native target needs to call the outside world in order to be useful. The standard library can implement most common operations by using syscalls directly; this avoids linking in the large libc. The best way to do this would be adding a system call intrinsic; then, the OS calls can be implemented through a template using that. Example:
 ```
-import Unsafe
+import Native
 
 -- The intrinsic declaration.
 foreign import fn syscall(a: *U8, b: *U8, c: *U8, d: *U8, e: *U8, f: *U8) -> *U8
