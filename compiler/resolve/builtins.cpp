@@ -450,20 +450,13 @@ Module* nativeModule(Context* context, Module* core) {
     }
 
     // Syscall wrappers.
-    Function* syscalls[7] = {
-        defineFun(context, module, context->addUnqualifiedName("syscall0", 8)),
-        defineFun(context, module, context->addUnqualifiedName("syscall1", 8)),
-        defineFun(context, module, context->addUnqualifiedName("syscall2", 8)),
-        defineFun(context, module, context->addUnqualifiedName("syscall3", 8)),
-        defineFun(context, module, context->addUnqualifiedName("syscall4", 8)),
-        defineFun(context, module, context->addUnqualifiedName("syscall5", 8)),
-        defineFun(context, module, context->addUnqualifiedName("syscall6", 8)),
-    };
-
     auto bytePtrType = getRef(module, &u8Type, false, false, true);
-
     for(U32 i = 0; i < 7; i++) {
-        auto fun = syscalls[i];
+        char name[8];
+        copy("syscall", name, 7);
+        name[7] = char('0' + i);
+
+        auto fun = defineFun(context, module, context->addUnqualifiedName(name, 8));
         fun->returnType = bytePtrType;
 
         auto body = block(fun);
