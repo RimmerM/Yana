@@ -145,3 +145,12 @@ Id Context::addIdentifier(const Identifier& id) {
 Identifier& Context::find(Id id) {
     return identifiers[id];
 }
+
+String Context::findName(Id id) {
+    auto v = find(id);
+    if(v.textLength) {
+        return String(v.text, v.textLength);
+    } else {
+        return "";
+    }
+}

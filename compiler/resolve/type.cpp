@@ -347,8 +347,7 @@ static Type* findGen(Context* context, ast::GenType* type, GenEnv* sourceGen) {
         }
     }
 
-    auto typeName = context->find(type->con);
-    context->diagnostics.error("unresolved type name %@"_buffer, type, noSource, String{typeName.text, typeName.textLength});
+    context->diagnostics.error("unresolved type name %@"_buffer, type, noSource, context->findName(type->con));
     return &errorType;
 }
 
@@ -378,8 +377,7 @@ void resolveGens(Context* context, Module* module, GenEnv* env) {
             c->classType = findClass(context, module, c->ast);
 
             if(c->classType == nullptr) {
-                auto nameString = context->find(c->ast);
-                context->diagnostics.error("cannot find class named %@ in constraint"_buffer, nullptr, noSource, String{nameString.text, nameString.textLength});
+                context->diagnostics.error("cannot find class named %@ in constraint"_buffer, nullptr, noSource, context->findName(c->ast));
             }
 
             c->ast = 0;
@@ -636,8 +634,7 @@ static Type* findType(Context* context, Module* module, ast::Type* type, GenEnv*
             auto con = ((ast::ConType*)type)->con;
             auto found = findType(context, module, con);
             if(!found) {
-                auto typeName = context->find(con);
-                context->diagnostics.error("unresolved type name %@"_buffer, type, noSource, String{typeName.text, typeName.textLength});
+                context->diagnostics.error("unresolved type name %@"_buffer, type, noSource, context->findName(con));
                 return &errorType;
             }
 

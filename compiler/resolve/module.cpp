@@ -6,8 +6,7 @@ static constexpr U32 kMaxGens = 64;
 
 AliasType* defineAlias(Context* context, Module* in, Id name, Type* to) {
     if(in->types.get(name)) {
-        auto nameString = context->find(name);
-        context->diagnostics.error("redefinition of type %@"_buffer, nullptr, noSource, String{nameString.text, nameString.textLength});
+        context->diagnostics.error("redefinition of type %@"_buffer, nullptr, noSource, context->findName(name));
         return nullptr;
     }
 
@@ -22,8 +21,7 @@ AliasType* defineAlias(Context* context, Module* in, Id name, Type* to) {
 
 RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bool qualified) {
     if(in->types.get(name)) {
-        auto nameString = context->find(name);
-        context->diagnostics.error("redefinition of type %@"_buffer, nullptr, noSource, String{nameString.text, nameString.textLength});
+        context->diagnostics.error("redefinition of type %@"_buffer, nullptr, noSource, context->findName(name));
         return nullptr;
     }
 
@@ -44,8 +42,7 @@ RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bo
 
 Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index) {
     if(in->cons.get(name)) {
-        auto nameString = context->find(name);
-        context->diagnostics.error("redefinition of constructor %@"_buffer, nullptr, noSource, String{nameString.text, nameString.textLength});
+        context->diagnostics.error("redefinition of constructor %@"_buffer, nullptr, noSource, context->findName(name));
         return nullptr;
     }
 
@@ -64,8 +61,7 @@ Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index)
 
 TypeClass* defineClass(Context* context, Module* in, Id name, U32 funCount) {
     if(in->typeClasses.get(name)) {
-        auto nameString = context->find(name);
-        context->diagnostics.error("redefinition of class %@"_buffer, nullptr, noSource, String{nameString.text, nameString.textLength});
+        context->diagnostics.error("redefinition of class %@"_buffer, nullptr, noSource, context->findName(name));
         return nullptr;
     }
 
@@ -154,8 +150,7 @@ InstanceList* defineTypeInstance(Context* context, Module* in, Type* to) {
 
 Function* defineFun(Context* context, Module* in, Id name) {
     if(in->functions.get(name) || in->foreignFunctions.get(name)) {
-        auto nameString = context->find(name);
-        context->diagnostics.error("redefinition of function named %@"_buffer, nullptr, noSource, String{nameString.text, nameString.textLength});
+        context->diagnostics.error("redefinition of function named %@"_buffer, nullptr, noSource, context->findName(name));
         return nullptr;
     }
 
@@ -174,8 +169,7 @@ Function* defineAnonymousFun(Context* context, Module* in) {
 
 ForeignFunction* defineForeignFun(Context* context, Module* in, Id name, FunType* type) {
     if(in->functions.get(name) || in->foreignFunctions.get(name)) {
-        auto nameString = context->find(name);
-        context->diagnostics.error("redefinition of function named %@"_buffer, nullptr, noSource, String{nameString.text, nameString.textLength});
+        context->diagnostics.error("redefinition of function named %@"_buffer, nullptr, noSource, context->findName(name));
         return nullptr;
     }
 
@@ -190,8 +184,7 @@ ForeignFunction* defineForeignFun(Context* context, Module* in, Id name, FunType
 
 Global* defineGlobal(Context* context, Module* in, Id name) {
     if(in->globals.get(name)) {
-        auto nameString = context->find(name);
-        context->diagnostics.error("redefinition of identifier %@"_buffer, nullptr, noSource, String{nameString.text, nameString.textLength});
+        context->diagnostics.error("redefinition of identifier %@"_buffer, nullptr, noSource, context->findName(name));
         return nullptr;
     }
 
@@ -227,8 +220,7 @@ ClassFun* defineClassFun(Context* context, Module* module, TypeClass* typeClass,
     f->fun->ast = nullptr;
 
     if(module->classFunctions.get(name)) {
-        auto nameString = context->find(name);
-        context->diagnostics.error("redefinition of class function named %@"_buffer, nullptr, noSource, String{nameString.text, nameString.textLength});
+        context->diagnostics.error("redefinition of class function named %@"_buffer, nullptr, noSource, context->findName(name));
         return nullptr;
     } else {
         module->classFunctions.add(name, f);
@@ -604,8 +596,7 @@ static void prepareGens(Context* context, Module* module, GenEnv* env, Node* whe
         auto name = field->fieldName;
         for(U32 i = 0; i < fieldCount; i++) {
             if(name == fieldList[i].fieldName && field->typeName == fieldList[i].container->name) {
-                auto nameString = context->find(field->typeName);
-                context->diagnostics.error("duplicate field constraint on type %@"_buffer, field, noSource, String{nameString.text, nameString.textLength});
+                context->diagnostics.error("duplicate field constraint on type %@"_buffer, field, noSource, context->findName(field->typeName));
                 return;
             }
         }
@@ -630,8 +621,7 @@ static void prepareGens(Context* context, Module* module, GenEnv* env, Node* whe
         auto name = fun->name;
         for(U32 i = 0; i < fieldCount; i++) {
             if(name == funList[i].name) {
-                auto nameString = context->find(fun->name);
-                context->diagnostics.error("duplicate function constraint in this context %@"_buffer, fun, noSource, String{nameString.text, nameString.textLength});
+                context->diagnostics.error("duplicate function constraint in this context %@"_buffer, fun, noSource, context->findName(fun->name));
                 return;
             }
         }

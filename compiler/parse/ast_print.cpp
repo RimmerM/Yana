@@ -2,6 +2,10 @@
 
 using namespace ast;
 
+inline void write(std::ostream& stream, const String& string) {
+    stream.write(string.text(), string.size());
+}
+
 struct Printer {
     Printer(Context& context, std::ostream& stream) : context(context), stream(stream) {}
 
@@ -58,8 +62,7 @@ struct Printer {
             stream << "<qualified> ";
         }
 
-        auto name = context.find(import.from);
-        stream.write(name.text, name.textLength);
+        write(stream, context.findName(import.from));
         stream << ' ';
 
         auto localName = context.find(import.localName);
@@ -80,8 +83,7 @@ struct Printer {
                 while(v) {
                     toStringIntro(v->next == nullptr);
                     stream << "Symbol ";
-                    auto n = context.find(v->item);
-                    stream.write(n.text, n.textLength);
+                    write(stream, context.findName(v->item));
                     v = v->next;
                 }
 
@@ -97,8 +99,7 @@ struct Printer {
                 while(v) {
                     toStringIntro(v->next == nullptr);
                     stream << "Symbol ";
-                    auto n = context.find(v->item);
-                    stream.write(n.text, n.textLength);
+                    write(stream, context.findName(v->item));
                     v = v->next;
                 }
 
@@ -112,8 +113,7 @@ struct Printer {
     void toString(const Fixity& fixity) {
         stream << "Fixity ";
 
-        auto name = context.find(fixity.op);
-        stream.write(name.text, name.textLength);
+        write(stream, context.findName(fixity.op));
 
         stream << ' ';
         stream << (fixity.kind == Fixity::Left ? "infixl" : "infixr");
@@ -204,8 +204,7 @@ private:
 
     void toString(const VarExpr& e) {
         stream << "VarExpr ";
-        auto name = context.find(e.name);
-        stream.write(name.text, name.textLength);
+        write(stream, context.findName(e.name));
     };
 
     void toString(const AppExpr& e) {
@@ -222,8 +221,7 @@ private:
 
     void toString(const InfixExpr& e) {
         stream << "InfixExpr ";
-        auto name = context.find(e.op->name);
-        stream.write(name.text, name.textLength);
+        write(stream, context.findName(e.op->name));
         makeLevel();
         toString(*e.lhs,  false);
         toString(*e.rhs, true);
@@ -232,8 +230,7 @@ private:
 
     void toString(const PrefixExpr& e) {
         stream << "PrefixExpr ";
-        auto name = context.find(e.op->name);
-        stream.write(name.text, name.textLength);
+        write(stream, context.findName(e.op->name));
         makeLevel();
         toString(*e.dst, true);
         removeLevel();
@@ -266,8 +263,7 @@ private:
     void toString(const DeclExpr& e) {
         stream << "DeclExpr ";
         if(e.pat->kind == Pat::Var) {
-            auto name = context.find(((const VarPat*)e.pat)->var);
-            stream.write(name.text, name.textLength);
+            write(stream, context.findName(((const VarPat*)e.pat)->var));
         }
 
         switch(e.mut) {
@@ -317,8 +313,7 @@ private:
 
     void toString(const ForExpr& e) {
         stream << "ForExpr ";
-        auto name = context.find(e.var);
-        stream.write(name.text, name.textLength);
+        write(stream, context.findName(e.var));
 
         if(e.reverse) {
             stream << " <reverse>";
@@ -365,8 +360,7 @@ private:
 
     void toString(const ConExpr& e) {
         stream << "ConExpr ";
-        auto name = context.find(e.type->con);
-        stream.write(name.text, name.textLength);
+        write(stream, context.findName(e.type->con));
     }
 
     void toString(const TupExpr& e) {
@@ -437,8 +431,7 @@ private:
         if(e.args) {
             auto arg = e.args;
             while(arg) {
-                auto name = context.find(arg->item.name);
-                stream.write(name.text, name.textLength);
+                write(stream, context.findName(arg->item.name));
                 if(arg->next) stream << ", ";
                 arg = arg->next;
             }
@@ -461,8 +454,7 @@ private:
 
     void toString(const FunDecl& e) {
         stream << "FunDecl ";
-        auto name = context.find(e.name);
-        stream.write(name.text, name.textLength);
+        write(stream, context.findName(e.name));
 
         if(e.implicitReturn) {
             stream << " <implicit return> ";
@@ -477,8 +469,7 @@ private:
                 toStringIntro(arg->next == nullptr && e.ret == nullptr && e.body == nullptr);
 
                 stream << "Arg ";
-                auto argName = context.find(arg->item.name);
-                stream.write(argName.text, argName.textLength);
+                write(stream, context.findName(arg->item.name));
 
                 makeLevel();
                 if(arg->item.type) toString(*arg->item.type, arg->item.def == nullptr);
@@ -584,8 +575,7 @@ private:
 
     void toString(const AttrDecl& e) {
         stream << "AttrDecl ";
-        auto name = context.find(e.name);
-        stream.write(name.text, name.textLength);
+        write(stream, context.findName(e.name));
 
         if(e.type) {
             makeLevel();
@@ -643,8 +633,7 @@ private:
             stream << '(';
             auto k = t.kind;
             while(k) {
-                auto name = context.find(k->item);
-                stream.write(name.text, name.textLength);
+                write(stream, context.findName(k->item));
                 if(k->next) stream << ", ";
                 k = k->next;
             }
@@ -761,8 +750,7 @@ private:
                 break;
             case Literal::String: {
                 stream << '"';
-                auto name = context.find(literal.s);
-                stream.write(name.text, name.textLength);
+                write(stream, context.findName(literal.s));
                 stream << '"';
                 break;
             }
@@ -853,8 +841,7 @@ private:
     void toString(const TupField& field) {
         stream << "Field ";
         if(field.name) {
-            auto name = context.find(field.name);
-            stream.write(name.text, name.textLength);
+            write(stream, context.findName(field.name));
         } else {
             stream << "<anonymous>";
         }
@@ -951,8 +938,8 @@ private:
             case Pat::Con: {
                 stream << "ConPat ";
                 auto& con = ((const ConPat&)pat);
-                auto name = context.find(con.constructor);
-                stream.write(name.text, name.textLength);
+                write(stream, context.findName(con.constructor));
+
                 if(con.pats) {
                     makeLevel();
                     toString(*con.pats, true);
@@ -976,8 +963,7 @@ private:
             case Pat::Rest: {
                 stream << "RestPat ";
                 auto& rest = ((const RestPat&)pat);
-                auto name = context.find(rest.var);
-                stream.write(name.text, name.textLength);
+                write(stream, context.findName(rest.var));
                 break;
             }
             case Pat::Range: {
@@ -1014,12 +1000,9 @@ private:
                 auto& c = (const FieldConstraint&)constraint;
                 stream << "FieldConstraint ";
 
-                auto& typeName = context.find(c.typeName);
-                stream.write(typeName.text, typeName.textLength);
+                write(stream, context.findName(c.typeName));
                 stream << '.';
-
-                auto& fieldName = context.find(c.fieldName);
-                stream.write(fieldName.text, fieldName.textLength);
+                write(stream, context.findName(c.fieldName));
 
                 makeLevel();
                 toString(*c.type, true);
@@ -1029,9 +1012,7 @@ private:
             case Constraint::Function: {
                 auto& c = (const FunctionConstraint&)constraint;
                 stream << "FunctionConstraint ";
-
-                auto& name = context.find(c.name);
-                stream.write(name.text, name.textLength);
+                write(stream, context.findName(c.name));
 
                 makeLevel();
                 toString(c.type, true);

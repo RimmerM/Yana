@@ -91,6 +91,7 @@ struct Context {
     Id addQualifiedName(const char* chars, Size count);
     Id addIdentifier(const Identifier& q);
     Identifier& find(Id id);
+    String findName(Id id);
 
     Arena stringArena;
     Arena exprArena;
