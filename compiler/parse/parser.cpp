@@ -291,7 +291,7 @@ Decl* Parser::parseFunDecl(bool requireBody) {
 
         auto args = parens([=] {
             return sepBy([=] {
-                return parseArg(true);
+                return parseArg(false);
             }, Token::Comma, Token::ParenR);
         });
 
@@ -857,15 +857,19 @@ Expr* Parser::parseBaseExpr() {
                 eat();
                 return new (buffer) FunExpr(nullptr, parseBlock(false));
             } else {
-                auto e = parseExpr();
+                auto e = node([=] { return parseExpr(); });
                 if(token.type == Token::ParenR) {
                     // Cases to handle:
                     // (expr)
                     // (varexpr) block
                     eat();
                     if(e->type == Expr::Var && (token.type == Token::opColon || token.type == Token::opArrowR)) {
-                        auto arg = list(Arg{((VarExpr*)e)->name, nullptr, nullptr});
-                        return new (buffer) FunExpr(arg, parseBlock(false));
+                        Arg arg;
+                        arg.name = ((VarExpr*)e)->name;
+                        arg.type = nullptr;
+                        arg.def = nullptr;
+                        arg.locationFrom(*e);
+                        return new (buffer) FunExpr(list(arg), parseBlock(false));
                     } else {
                         return new(buffer) NestedExpr(e);
                     }
@@ -887,7 +891,13 @@ Expr* Parser::parseBaseExpr() {
                         firstType = parseType();
                     }
 
-                    auto args = list(Arg{firstName, firstType, nullptr});
+                    Arg arg;
+                    arg.name = firstName;
+                    arg.type = firstType;
+                    arg.def = nullptr;
+                    arg.locationFrom(*e);
+
+                    auto args = list(arg);
                     if(token.type == Token::Comma) {
                         eat();
                         args->next = sepBy1([=] {
@@ -1021,47 +1031,54 @@ TupArg Parser::parseTupArg() {
 }
 
 Arg Parser::parseArg(bool requireType) {
-    DeclExpr::Mutability m;
-    Id name = 0;
+    return node([=] {
+        DeclExpr::Mutability m;
+        Id name = 0;
 
-    if(token.type == Token::VarSym && token.data.id == refId) {
-        eat();
-        m = DeclExpr::Ref;
-    } else if(token.type == Token::VarSym && token.data.id == valId) {
-        eat();
-        m = DeclExpr::Val;
-    } else {
-        m = DeclExpr::Immutable;
-    }
-
-    if(token.type == Token::VarID) {
-        name = token.data.id;
-        eat();
-    } else {
-        error("expected parameter name"_buffer);
-    }
-
-    Type* type = nullptr;
-    if(token.type == Token::opColon) {
-        eat();
-        type = parseType();
-
-        if(m == DeclExpr::Ref) {
-            type = new (buffer) RefType(type);
-        } else if(m == DeclExpr::Val) {
-            type = new (buffer) ValType(type);
+        if(token.type == Token::VarSym && token.data.id == refId) {
+            eat();
+            m = DeclExpr::Ref;
+        } else if(token.type == Token::VarSym && token.data.id == valId) {
+            eat();
+            m = DeclExpr::Val;
+        } else {
+            m = DeclExpr::Immutable;
         }
-    } else if(requireType) {
-        error("expected parameter type"_buffer);
-    }
 
-    Expr* def = nullptr;
-    if(token.type == Token::opEquals) {
-        eat();
-        def = parseExpr();
-    }
+        if(token.type == Token::VarID) {
+            name = token.data.id;
+            eat();
+        } else {
+            error("expected parameter name"_buffer);
+        }
 
-    return Arg{name, type, def};
+        Type* type = nullptr;
+        if(token.type == Token::opColon) {
+            eat();
+            type = parseType();
+
+            if(m == DeclExpr::Ref) {
+                type = new (buffer) RefType(type);
+            } else if(m == DeclExpr::Val) {
+                type = new (buffer) ValType(type);
+            }
+        } else if(requireType) {
+            error("expected parameter type"_buffer);
+        }
+
+        Expr* def = nullptr;
+        if(token.type == Token::opEquals) {
+            eat();
+            def = parseExpr();
+        }
+
+        Arg arg;
+        arg.name = name;
+        arg.type = type;
+        arg.def = def;
+
+        return arg;
+    });
 }
 
 ArgDecl Parser::parseTypeArg() {

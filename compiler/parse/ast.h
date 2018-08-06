@@ -7,6 +7,7 @@ namespace ast {
 
 struct TupArg;
 struct Constraint;
+struct Expr;
 
 struct Attribute: Node {
     Attribute(Id name, List<TupArg>* args): name(name), args(args) {}
@@ -46,10 +47,10 @@ struct Type: Node {
 };
 
 struct TupField {
-    TupField(Type* type, Id name, struct Expr* def) : type(type), def(def), name(name) {}
+    TupField(Type* type, Id name, Expr* def) : type(type), def(def), name(name) {}
 
     Type* type;
-    struct Expr* def;
+    Expr* def;
     Id name;
 };
 
@@ -227,10 +228,14 @@ struct Alt {
     Expr* expr;
 };
 
-struct Arg {
+struct Arg: Node {
     Id name;
     Type* type;
     Expr* def;
+
+    Arg* operator -> () {
+        return this;
+    }
 };
 
 /// Formatted strings are divided into chunks.
