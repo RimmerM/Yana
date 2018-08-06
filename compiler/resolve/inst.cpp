@@ -19,10 +19,30 @@ static bool isConstant(Value* v) {
 }
 
 template<class F>
-static Value* constantFold(Block* block, Id name, Value* lhs, Value* rhs, F&& f) {
+static Value* constantFoldInt(Block* block, Id name, Value* lhs, Value* rhs, F&& f) {
     if(isConstant(lhs) && isConstant(rhs)) {
         auto result = f(((ConstInt*)lhs)->value, ((ConstInt*)rhs)->value);
         return constInt(block, name, result, lhs->type);
+    } else {
+        return nullptr;
+    }
+}
+
+template<class F>
+static Value* constantFoldFloat(Block* block, Id name, Value* lhs, Value* rhs, F&& f) {
+    if(isConstant(lhs) && isConstant(rhs)) {
+        auto result = f(((ConstFloat*)lhs)->value, ((ConstFloat*)rhs)->value);
+        return constFloat(block, name, result, lhs->type);
+    } else {
+        return nullptr;
+    }
+}
+
+template<class T, class F>
+static Value* constantFoldCmp(Block* block, Id name, Value* lhs, Value* rhs, F&& f) {
+    if(isConstant(lhs) && isConstant(rhs)) {
+        auto result = f(((T*)lhs)->value, ((T*)rhs)->value);
+        return constInt(block, name, result, &intTypes[IntType::Bool]);
     } else {
         return nullptr;
     }
@@ -183,70 +203,70 @@ Value* ftoui(Block* block, Id name, Value* from, Type* to) {
 }
 
 Value* add(Block* block, Id name, Value* lhs, Value* rhs) {
-    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a + b; })) return v;
+    if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a + b; })) return v;
     return binary(block, Inst::InstAdd, name, lhs, rhs, lhs->type);
 }
 
 Value* sub(Block* block, Id name, Value* lhs, Value* rhs) {
-    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a - b; })) return v;
+    if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a - b; })) return v;
     return binary(block, Inst::InstSub, name, lhs, rhs, lhs->type);
 }
 
 Value* mul(Block* block, Id name, Value* lhs, Value* rhs) {
-    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a * b; })) return v;
+    if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a * b; })) return v;
     return binary(block, Inst::InstMul, name, lhs, rhs, lhs->type);
 }
 
 Value* div(Block* block, Id name, Value* lhs, Value* rhs) {
     if(rhs->kind == Value::ConstInt && ((ConstInt*)rhs)->value != 0) {
-        if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return U64(a) / U64(b); })) return v;
+        if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return U64(a) / U64(b); })) return v;
     }
     return binary(block, Inst::InstDiv, name, lhs, rhs, lhs->type);
 }
 
 Value* idiv(Block* block, Id name, Value* lhs, Value* rhs) {
     if(rhs->kind == Value::ConstInt && ((ConstInt*)rhs)->value != 0) {
-        if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a / b; })) return v;
+        if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a / b; })) return v;
     }
     return binary(block, Inst::InstIDiv, name, lhs, rhs, lhs->type);
 }
 
 Value* rem(Block* block, Id name, Value* lhs, Value* rhs) {
     if(rhs->kind == Value::ConstInt && ((ConstInt*)rhs)->value != 0) {
-        if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return U64(a) % U64(b); })) return v;
+        if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return U64(a) % U64(b); })) return v;
     }
     return binary(block, Inst::InstRem, name, lhs, rhs, lhs->type);
 }
 
 Value* irem(Block* block, Id name, Value* lhs, Value* rhs) {
     if(rhs->kind == Value::ConstInt && ((ConstInt*)rhs)->value != 0) {
-        if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a % b; })) return v;
+        if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a % b; })) return v;
     }
     return binary(block, Inst::InstIRem, name, lhs, rhs, lhs->type);
 }
 
 Value* fadd(Block* block, Id name, Value* lhs, Value* rhs) {
-    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a + b; })) return v;
+    if(auto v = constantFoldFloat(block, name, lhs, rhs, [=](auto a, auto b) { return a + b; })) return v;
     return binary(block, Inst::InstFAdd, name, lhs, rhs, lhs->type);
 }
 
 Value* fsub(Block* block, Id name, Value* lhs, Value* rhs) {
-    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a - b; })) return v;
+    if(auto v = constantFoldFloat(block, name, lhs, rhs, [=](auto a, auto b) { return a - b; })) return v;
     return binary(block, Inst::InstFSub, name, lhs, rhs, lhs->type);
 }
 
 Value* fmul(Block* block, Id name, Value* lhs, Value* rhs) {
-    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a * b; })) return v;
+    if(auto v = constantFoldFloat(block, name, lhs, rhs, [=](auto a, auto b) { return a * b; })) return v;
     return binary(block, Inst::InstFMul, name, lhs, rhs, lhs->type);
 }
 
 Value* fdiv(Block* block, Id name, Value* lhs, Value* rhs) {
-    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a / b; })) return v;
+    if(auto v = constantFoldFloat(block, name, lhs, rhs, [=](auto a, auto b) { return a / b; })) return v;
     return binary(block, Inst::InstFDiv, name, lhs, rhs, lhs->type);
 }
 
 Value* icmp(Block* block, Id name, Value* lhs, Value* rhs, ICmp cmp) {
-    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) {
+    if(auto v = constantFoldCmp<ConstInt>(block, name, lhs, rhs, [=](auto a, auto b) {
         switch(cmp) {
             case ICmp::eq: return a == b;
             case ICmp::neq: return a != b;
@@ -275,7 +295,7 @@ Value* icmp(Block* block, Id name, Value* lhs, Value* rhs, ICmp cmp) {
 }
 
 Value* fcmp(Block* block, Id name, Value* lhs, Value* rhs, FCmp cmp) {
-    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) {
+    if(auto v = constantFoldCmp<ConstFloat>(block, name, lhs, rhs, [=](auto a, auto b) {
         switch(cmp) {
             case FCmp::eq: return a == b;
             case FCmp::neq: return a != b;
@@ -300,32 +320,32 @@ Value* fcmp(Block* block, Id name, Value* lhs, Value* rhs, FCmp cmp) {
 }
 
 Value* shl(Block* block, Id name, Value* arg, Value* amount) {
-    if(auto v = constantFold(block, name, arg, amount, [=](auto a, auto b) { return a << b; })) return v;
+    if(auto v = constantFoldInt(block, name, arg, amount, [=](auto a, auto b) { return a << b; })) return v;
     return binary(block, Inst::InstShl, name, arg, amount, arg->type);
 }
 
 Value* shr(Block* block, Id name, Value* arg, Value* amount) {
-    if(auto v = constantFold(block, name, arg, amount, [=](auto a, auto b) { return (U64)a >> b; })) return v;
+    if(auto v = constantFoldInt(block, name, arg, amount, [=](auto a, auto b) { return (U64)a >> b; })) return v;
     return binary(block, Inst::InstShr, name, arg, amount, arg->type);
 }
 
 Value* sar(Block* block, Id name, Value* arg, Value* amount) {
-    if(auto v = constantFold(block, name, arg, amount, [=](auto a, auto b) { return a >> b; })) return v;
+    if(auto v = constantFoldInt(block, name, arg, amount, [=](auto a, auto b) { return a >> b; })) return v;
     return binary(block, Inst::InstSar, name, arg, amount, arg->type);
 }
 
 Value* and_(Block* block, Id name, Value* lhs, Value* rhs) {
-    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a & b; })) return v;
+    if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a & b; })) return v;
     return binary(block, Inst::InstAnd, name, lhs, rhs, lhs->type);
 }
 
 Value* or_(Block* block, Id name, Value* lhs, Value* rhs) {
-    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a | b; })) return v;
+    if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a | b; })) return v;
     return binary(block, Inst::InstOr, name, lhs, rhs, lhs->type);
 }
 
 Value* xor_(Block* block, Id name, Value* lhs, Value* rhs) {
-    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a ^ b; })) return v;
+    if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a ^ b; })) return v;
     return binary(block, Inst::InstXor, name, lhs, rhs, lhs->type);
 }
 
