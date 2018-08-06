@@ -86,7 +86,7 @@ static FoundFunction resolveStaticFun(FunBuilder* b, Id funName, Value* fieldArg
     if(!f.found) {
         auto fun = findFun(&b->context, b->fun->module, funName);
         if(!fun.found) {
-            error(b, "no function found for this name"_buffer, nullptr);
+            error(b, "no function found with the name %@"_buffer, nullptr, b->context.findName(funName));
             return fun;
         }
 

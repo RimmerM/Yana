@@ -1032,17 +1032,17 @@ TupArg Parser::parseTupArg() {
 
 Arg Parser::parseArg(bool requireType) {
     return node([=] {
-        DeclExpr::Mutability m;
+        VarDecl::Mutability m;
         Id name = 0;
 
         if(token.type == Token::VarSym && token.data.id == refId) {
             eat();
-            m = DeclExpr::Ref;
+            m = VarDecl::Ref;
         } else if(token.type == Token::VarSym && token.data.id == valId) {
             eat();
-            m = DeclExpr::Val;
+            m = VarDecl::Val;
         } else {
-            m = DeclExpr::Immutable;
+            m = VarDecl::Immutable;
         }
 
         if(token.type == Token::VarID) {
@@ -1057,9 +1057,9 @@ Arg Parser::parseArg(bool requireType) {
             eat();
             type = parseType();
 
-            if(m == DeclExpr::Ref) {
+            if(m == VarDecl::Ref) {
                 type = new (buffer) RefType(type);
-            } else if(m == DeclExpr::Val) {
+            } else if(m == VarDecl::Val) {
                 type = new (buffer) ValType(type);
             }
         } else if(requireType) {
@@ -1110,7 +1110,7 @@ ArgDecl Parser::parseArgDecl() {
 
 Expr* Parser::parseVarDecl(U32 line) {
     if(token.startLine == line) {
-        return parseDeclExpr();
+        return new (buffer) DeclExpr(list(parseDeclExpr()));
     }
 
     // Parse one or more declarations, separated as statements.
@@ -1120,61 +1120,59 @@ Expr* Parser::parseVarDecl(U32 line) {
         }, Token::EndOfStmt);
     });
 
-    if(list->next) {
-        return new(buffer) MultiExpr(list);
-    } else {
-        return list->item;
-    }
+    return new (buffer) DeclExpr(list);
 }
 
-Expr* Parser::parseDeclExpr() {
-    DeclExpr::Mutability m;
-    if(token.type == Token::VarSym && token.data.id == refId) {
-        eat();
-        m = DeclExpr::Ref;
-    } else if(token.type == Token::VarSym && token.data.id == valId) {
-        eat();
-        m = DeclExpr::Val;
-    } else {
-        m = DeclExpr::Immutable;
-    }
-
-    auto pat = parsePattern();
-
-    if(token.type == Token::opEquals) {
-        eat();
-        auto expr = parseExpr();
-
-        List<Alt>* alts = nullptr;
-        if(token.type == Token::opBar) {
+VarDecl Parser::parseDeclExpr() {
+    return node([=] {
+        VarDecl::Mutability m;
+        if(token.type == Token::VarSym && token.data.id == refId) {
             eat();
-            if(token.type == Token::kwMatch) {
+            m = VarDecl::Ref;
+        } else if(token.type == Token::VarSym && token.data.id == valId) {
+            eat();
+            m = VarDecl::Val;
+        } else {
+            m = VarDecl::Immutable;
+        }
+
+        auto pat = parsePattern();
+
+        if(token.type == Token::opEquals) {
+            eat();
+            auto expr = parseExpr();
+
+            List<Alt>* alts = nullptr;
+            if(token.type == Token::opBar) {
                 eat();
-                if(token.type == Token::opColon) {
+                if(token.type == Token::kwMatch) {
                     eat();
-                    alts = withLevel([=] {
-                        return sepBy1([=] {
-                            return parseAlt();
-                        }, Token::EndOfStmt);
-                    });
+                    if(token.type == Token::opColon) {
+                        eat();
+                        alts = withLevel([=] {
+                            return sepBy1([=] {
+                                return parseAlt();
+                            }, Token::EndOfStmt);
+                        });
+                    } else {
+                        alts = list(parseAlt());
+                    }
                 } else {
-                    alts = list(parseAlt());
+                    alts = list(Alt { new (buffer) Pat(Pat::Any), parseExpr() });
                 }
-            } else {
-                alts = list(Alt { new (buffer) Pat(Pat::Any), parseExpr() });
             }
-        }
 
-        Expr* in = nullptr;
-        if(token.type == Token::kwIn) {
-            eat();
-            in = parseExpr();
-        }
+            Expr* in = nullptr;
+            if(token.type == Token::kwIn) {
+                eat();
+                in = parseExpr();
+            }
 
-        return new(buffer) DeclExpr(pat, expr, in, alts, m);
-    } else {
-        return new(buffer) DeclExpr(pat, nullptr, nullptr, nullptr, m);
-    }
+            return VarDecl{pat, expr, in, alts, m};
+        } else {
+            return VarDecl{pat, nullptr, nullptr, nullptr, m};
+        }
+    });
 }
 
 Alt Parser::parseAlt() {

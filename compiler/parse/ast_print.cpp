@@ -260,20 +260,20 @@ private:
         removeLevel();
     }
 
-    void toString(const DeclExpr& e) {
-        stream << "DeclExpr ";
+    void toString(const VarDecl& e) {
+        stream << "VarDecl ";
         if(e.pat->kind == Pat::Var) {
             write(stream, context.findName(((const VarPat*)e.pat)->var));
         }
 
         switch(e.mut) {
-            case DeclExpr::Immutable:
+            case VarDecl::Immutable:
                 stream << " <const> ";
                 break;
-            case DeclExpr::Ref:
+            case VarDecl::Ref:
                 stream << " <ref> ";
                 break;
-            case DeclExpr::Val:
+            case VarDecl::Val:
                 stream << " <flatten> ";
                 break;
         }
@@ -299,6 +299,17 @@ private:
             makeLevel();
             toString(*e.in, true);
             removeLevel();
+        }
+        removeLevel();
+    }
+
+    void toString(const DeclExpr& e) {
+        stream << "DeclExpr ";
+        makeLevel();
+        auto decl = e.decls;
+        while(decl) {
+            toString(decl->item, decl->next == nullptr);
+            decl = decl->next;
         }
         removeLevel();
     }
@@ -725,6 +736,11 @@ private:
     void toString(const ArgDecl& arg, bool last) {
         toStringIntro(last);
         toString(arg);
+    }
+
+    void toString(const VarDecl& decl, bool last) {
+        toStringIntro(last);
+        toString(decl);
     }
 
     void toString(const Import& import, bool last) {

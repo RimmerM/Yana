@@ -809,17 +809,23 @@ static SymbolCounts prepareSymbols(Context* context, Module* module, ast::Decl**
             }
             case ast::Decl::Stmt: {
                 auto ast = (ast::StmtDecl*)decl;
-                if(ast->expr->type == ast::Expr::Decl) {
-                    auto expr = (ast::DeclExpr*)ast->expr;
-                    auto name = getDeclName(expr);
 
-                    if(expr->isGlobal && name) {
-                        auto global = defineGlobal(context, module, name);
-                        global->ast = expr;
+                if(ast->expr->type == ast::Expr::Decl && ((ast::DeclExpr*)ast->expr)->isGlobal) {
+                    auto d = ((ast::DeclExpr*)ast->expr)->decls;
+                    while(d) {
+                        auto name = getDeclName(&d->item);
+                        if(name) {
+                            auto global = defineGlobal(context, module, name);
+                            global->ast = &d->item;
+                        }
+
+                        counts.statements++;
+                        d = d->next;
                     }
+                } else {
+                    counts.statements++;
                 }
 
-                counts.statements++;
                 break;
             }
             case ast::Decl::Alias: {
@@ -1218,7 +1224,7 @@ Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast
     return module;
 }
 
-Id getDeclName(ast::DeclExpr* expr) {
+Id getDeclName(ast::VarDecl* expr) {
     Id name = 0;
     if(expr->pat->kind == ast::Pat::Var) {
         name = ((ast::VarPat*)expr->pat)->var;

@@ -32,7 +32,7 @@ struct Parser {
 
     ast::Expr* parseCaseExpr();
     ast::Expr* parseStringExpr();
-    ast::Expr* parseDeclExpr();
+    ast::VarDecl parseDeclExpr();
     ast::Expr* parseTupleExpr();
     ast::Expr* parseArrayExpr();
     ast::Expr* parseIfExpr();

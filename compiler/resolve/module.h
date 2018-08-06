@@ -4,7 +4,7 @@
 #include "block.h"
 #include "type.h"
 
-namespace ast { struct FunDecl; struct DeclExpr; struct ForeignDecl; struct Expr; struct Pat; struct Module; }
+namespace ast { struct FunDecl; struct VarDecl; struct ForeignDecl; struct Expr; struct Pat; struct Module; }
 
 struct Module;
 struct Function;
@@ -105,7 +105,7 @@ Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast
 void resolveFun(Context* context, Function* fun, bool requireBody = true);
 Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used);
 
-Id getDeclName(ast::DeclExpr* expr);
+Id getDeclName(ast::VarDecl* expr);
 
 struct Function {
     Function(): gen(this, GenEnv::Function) {}

@@ -487,7 +487,7 @@ Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used)
     }
 }
 
-Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
+Value* resolveDecl(FunBuilder* b, ast::VarDecl* expr, Id name, bool used, bool isGlobal) {
     auto content = expr->content;
     if(!content) {
         error(b, "variables must be initialized on declaration"_buffer, expr);
@@ -499,7 +499,7 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
     // If the declaration is global, we simply never define the name in the current scope.
     // That way, any uses will automatically use the global version, while local overrides, etc work normally.
     // The declaration is instead resolved as a store into the global.
-    if(expr->isGlobal && declName) {
+    if(isGlobal && declName) {
         // The globals for each module are defined before expressions are resolved.
         Global* global = b->fun->module->globals.get(declName).unwrap();
         assertTrue(global != nullptr);
@@ -514,8 +514,8 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
         }
 
         switch(expr->mut) {
-            case ast::DeclExpr::Immutable:
-            case ast::DeclExpr::Val: {
+            case ast::VarDecl::Immutable:
+            case ast::VarDecl::Val: {
                 if(value->type->kind == Type::Ref) {
                     global->type = getRef(b->fun->module, ((RefType*)value->type)->to, false, false, true);
                     auto v = load(b->block, 0, value);
@@ -526,7 +526,7 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
                 }
                 break;
             }
-            case ast::DeclExpr::Ref: {
+            case ast::VarDecl::Ref: {
                 global->type = getRef(b->fun->module, value->type, false, false, true);
                 store(b->block, 0, global, value);
                 break;
@@ -542,12 +542,12 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
     } else {
         Value* result = nullptr;
         switch(expr->mut) {
-            case ast::DeclExpr::Immutable: {
+            case ast::VarDecl::Immutable: {
                 // Immutable values are stored as registers, so we just have to resolve the creation expression.
                 result = resolveExpr(b, expr->content, 0, true);
                 break;
             }
-            case ast::DeclExpr::Val: {
+            case ast::VarDecl::Val: {
                 auto value = resolveExpr(b, expr->content, 0, true);
                 if(value->type->kind == Type::Ref) {
                     auto var = alloc(b->block, 0, ((RefType*)value->type)->to, true, true);
@@ -562,7 +562,7 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
                     break;
                 }
             }
-            case ast::DeclExpr::Ref: {
+            case ast::VarDecl::Ref: {
                 auto value = resolveExpr(b, expr->content, 0, true);
                 auto var = alloc(b->block, 0, value->type, true, false);
                 store(b->block, 0, var, value);
@@ -631,6 +631,26 @@ Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
         } else {
             return result;
         }
+    }
+}
+
+Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
+    auto e = expr->decls;
+    if(used) {
+        // Expressions that are part of a statement list are never used, unless they are the last in the list.
+        Value* result = nullptr;
+        while(e) {
+            auto isLast = e->next == nullptr;
+            result = resolveDecl(b, &e->item, 0, isLast, expr->isGlobal);
+            e = e->next;
+        }
+        return result;
+    } else {
+        while(e) {
+            resolveDecl(b, &e->item, 0, false, expr->isGlobal);
+            e = e->next;
+        }
+        return nullptr;
     }
 }
 

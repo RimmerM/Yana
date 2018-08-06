@@ -332,21 +332,32 @@ struct MultiIfExpr: Expr {
     List<IfCase>* cases;
 };
 
-struct DeclExpr: Expr {
+struct VarDecl: Node {
     enum Mutability {
         Immutable,
         Ref,
         Val,
     };
 
-    DeclExpr(Pat* pat, Expr* content, Expr* in, List<Alt>* alts, Mutability mut):
-        Expr(Decl), pat(pat), content(content), in(in), alts(alts), mut(mut) {}
+    VarDecl(Pat* pat, Expr* content, Expr* in, List<Alt>* alts, Mutability mut):
+        pat(pat), content(content), in(in), alts(alts), mut(mut) {}
 
     Pat* pat;
     Expr* content;
     Expr* in; // if this is set, content must also be set.
     List<Alt>* alts; // if this is set, content must also be set.
     Mutability mut;
+
+    VarDecl* operator -> () {
+        return this;
+    }
+};
+
+struct DeclExpr: Expr {
+    DeclExpr(List<VarDecl>* decls):
+        Expr(Decl), decls(decls) {}
+
+    List<VarDecl>* decls;
     bool isGlobal = false; // Whether this variable was defined in a global scope.
 };
 
