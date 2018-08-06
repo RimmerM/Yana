@@ -204,6 +204,7 @@ Arg* defineArg(Context* context, Function* fun, Block* block, Id name, Type* typ
     a->name = name;
     a->block = block;
     a->index = index;
+    a->id = 0;
 
     fun->args.push(a);
     return a;

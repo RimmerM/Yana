@@ -246,6 +246,21 @@ Value* fdiv(Block* block, Id name, Value* lhs, Value* rhs) {
 }
 
 Value* icmp(Block* block, Id name, Value* lhs, Value* rhs, ICmp cmp) {
+    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) {
+        switch(cmp) {
+            case ICmp::eq: return a == b;
+            case ICmp::neq: return a != b;
+            case ICmp::gt: return (U64)a > (U64)b;
+            case ICmp::ge: return (U64)a >= (U64)b;
+            case ICmp::lt: return (U64)a < (U64)b;
+            case ICmp::le: return (U64)a <= (U64)b;
+            case ICmp::igt: return a > b;
+            case ICmp::ige: return a >= b;
+            case ICmp::ilt: return a < b;
+            case ICmp::ile: return a <= b;
+        }
+    })) return v;
+
     auto inst = (InstICmp*)block->inst(sizeof(InstICmp), name, Inst::InstICmp, &intTypes[IntType::Bool]);
     inst->lhs = lhs;
     inst->rhs = rhs;
@@ -260,6 +275,17 @@ Value* icmp(Block* block, Id name, Value* lhs, Value* rhs, ICmp cmp) {
 }
 
 Value* fcmp(Block* block, Id name, Value* lhs, Value* rhs, FCmp cmp) {
+    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) {
+        switch(cmp) {
+            case FCmp::eq: return a == b;
+            case FCmp::neq: return a != b;
+            case FCmp::gt: return a > b;
+            case FCmp::ge: return a >= b;
+            case FCmp::lt: return a < b;
+            case FCmp::le: return a <= b;
+        }
+    })) return v;
+
     auto inst = (InstFCmp*)block->inst(sizeof(InstFCmp), name, Inst::InstFCmp, &intTypes[IntType::Bool]);
     inst->lhs = lhs;
     inst->rhs = rhs;
@@ -274,26 +300,32 @@ Value* fcmp(Block* block, Id name, Value* lhs, Value* rhs, FCmp cmp) {
 }
 
 Value* shl(Block* block, Id name, Value* arg, Value* amount) {
+    if(auto v = constantFold(block, name, arg, amount, [=](auto a, auto b) { return a << b; })) return v;
     return binary(block, Inst::InstShl, name, arg, amount, arg->type);
 }
 
 Value* shr(Block* block, Id name, Value* arg, Value* amount) {
+    if(auto v = constantFold(block, name, arg, amount, [=](auto a, auto b) { return (U64)a >> b; })) return v;
     return binary(block, Inst::InstShr, name, arg, amount, arg->type);
 }
 
 Value* sar(Block* block, Id name, Value* arg, Value* amount) {
+    if(auto v = constantFold(block, name, arg, amount, [=](auto a, auto b) { return a >> b; })) return v;
     return binary(block, Inst::InstSar, name, arg, amount, arg->type);
 }
 
 Value* and_(Block* block, Id name, Value* lhs, Value* rhs) {
+    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a & b; })) return v;
     return binary(block, Inst::InstAnd, name, lhs, rhs, lhs->type);
 }
 
 Value* or_(Block* block, Id name, Value* lhs, Value* rhs) {
+    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a | b; })) return v;
     return binary(block, Inst::InstOr, name, lhs, rhs, lhs->type);
 }
 
 Value* xor_(Block* block, Id name, Value* lhs, Value* rhs) {
+    if(auto v = constantFold(block, name, lhs, rhs, [=](auto a, auto b) { return a ^ b; })) return v;
     return binary(block, Inst::InstXor, name, lhs, rhs, lhs->type);
 }
 
