@@ -226,8 +226,8 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
     }
 
     // If the constructed type is a generic type, we instantiate it.
-    if(con->parent->genCount) {
-        auto instanceArgs = (Type**)alloca(sizeof(Type*) * con->parent->genCount);
+    if(con->parent->argCount) {
+        auto instanceArgs = (Type**)alloca(sizeof(Type*) * con->parent->argCount);
 
         // TODO: Handle GenTypes not used in the constructor.
         if(targetTuple) {
@@ -244,7 +244,7 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
             instanceArgs[g->index] = args.values[0]->type;
         }
 
-        auto record = instantiateRecord(&b->context, b->fun->module, con->parent, instanceArgs, con->parent->genCount);
+        auto record = instantiateRecord(&b->context, b->fun->module, con->parent, instanceArgs, con->parent->argCount);
         con = &record->cons[con->index];
     }
 

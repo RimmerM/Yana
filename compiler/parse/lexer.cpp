@@ -1,5 +1,7 @@
 #include "lexer.h"
 
+extern "C" double strtod(const char* a, char** b);
+
 /**
  * Compares source code to a string constant.
  * @param source The source code to compare. Must point to the first character of the string.

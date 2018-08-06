@@ -19,12 +19,6 @@ struct Import {
     bool qualified;
 };
 
-struct ClassFun {
-    TypeClass* typeClass;
-    U32 index;
-    Id name;
-};
-
 struct InstanceMap {
     Array<ClassInstance*> instances; // List of implementations, sorted by descriptor.
     TypeClass* forClass;
@@ -46,7 +40,7 @@ struct Module {
     HashMap<ForeignFunction, Id> foreignFunctions;
     HashMap<TypeClass, Id> typeClasses;
     HashMap<InstanceMap, Id> classInstances;
-    HashMap<ClassFun, Id> classFunctions;
+    HashMap<ClassFun*, Id> classFunctions;
 
     HashMap<Type*, Id> types;
     HashMap<Con*, Id> cons;
@@ -71,7 +65,7 @@ struct ModuleHandler {
 AliasType* defineAlias(Context* context, Module* in, Id name, Type* to);
 RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bool qualified);
 Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index);
-TypeClass* defineClass(Context* context, Module* in, Id name);
+TypeClass* defineClass(Context* context, Module* in, Id name, U32 funCount);
 ClassInstance* defineInstance(Context* context, Module* in, TypeClass* to, Type** args);
 Function* defineFun(Context* context, Module* in, Id name);
 Function* defineAnonymousFun(Context* context, Module* in);
@@ -97,7 +91,7 @@ struct FoundFunction {
     union {
         Function* function;
         ForeignFunction* foreignFunction;
-        ClassFun classFun;
+        ClassFun* classFun;
     };
 
     Kind kind;
@@ -108,7 +102,7 @@ FoundFunction findFun(Context* context, Module* module, Id name);
 Function* findInstanceFun(Context* context, Module* module, Type* fieldType, Id name);
 
 Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast);
-void resolveFun(Context* context, Function* fun);
+void resolveFun(Context* context, Function* fun, bool requireBody = true);
 Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used);
 
 Id getDeclName(ast::DeclExpr* expr);

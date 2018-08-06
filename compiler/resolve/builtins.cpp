@@ -98,31 +98,24 @@ static Function* maxCompare(Context* context, Module* module, Type* type, const 
     return fun;
 }
 
-GenType* setClassType(Module* module, TypeClass* type, U32 funCount) {
-    type->args = new (module->memory) GenType(0, 0, GenType::Class, type);
-    type->argCount = 1;
+static GenType* setClassType(Module* module, TypeClass* type) {
+    type->gen.typeCount = 1;
+    type->gen.types = (GenType**)module->memory.alloc(sizeof(GenType*));
+    type->gen.types[0] = new (module->memory) GenType(&type->gen, 0, 0);
 
-    type->funCount = (U16)funCount;
-    type->funNames = (Id*)module->memory.alloc(sizeof(Id) * funCount);
-    type->functions = (FunType*)module->memory.alloc(sizeof(FunType) * funCount);
+    type->args = type->gen.types;
+    type->argCount = type->gen.typeCount;
 
-    return type->args;
+    return type->args[0];
 }
 
-FunType* binaryFunType(FunType* type, Module* module, Type* lhs, Type* rhs, Type* result) {
-    type->result = result;
-    type->argCount = 2;
-    type->args = (FunArg*)module->memory.alloc(sizeof(FunArg) * 2);
+Function* binaryFunType(Context* context, Function* fun, Type* lhs, Type* rhs, Type* result) {
+    fun->returnType = result;
+    fun->args.reserve(2);
 
-    type->args[0].name = 0;
-    type->args[0].type = lhs;
-    type->args[0].index = 0;
-
-    type->args[1].name = 0;
-    type->args[1].type = rhs;
-    type->args[1].index = 1;
-
-    return type;
+    defineArg(context, fun, nullptr, 0, lhs);
+    defineArg(context, fun, nullptr, 0, rhs);
+    return fun;
 }
 
 Module* coreModule(Context* context) {
@@ -184,14 +177,14 @@ Module* coreModule(Context* context) {
     defineCon(context, module, orderingType, context->addUnqualifiedName("EQ", 2), 1);
     defineCon(context, module, orderingType, context->addUnqualifiedName("GT", 2), 2);
 
-    auto eqClass = defineClass(context, module, context->addUnqualifiedName("Eq", 2));
+    auto eqClass = defineClass(context, module, context->addUnqualifiedName("Eq", 2), 2);
     {
-        auto t = setClassType(module, eqClass, 2);
+        auto t = setClassType(module, eqClass);
         defineClassFun(context, module, eqClass, opEq, 0);
         defineClassFun(context, module, eqClass, opNeq, 1);
 
-        binaryFunType(&eqClass->functions[0], module, t, t, &intTypes[IntType::Bool]); // ==
-        binaryFunType(&eqClass->functions[1], module, t, t, &intTypes[IntType::Bool]); // /=
+        binaryFunType(context, eqClass->functions[0].fun, t, t, &intTypes[IntType::Bool]); // ==
+        binaryFunType(context, eqClass->functions[1].fun, t, t, &intTypes[IntType::Bool]); // /=
 
         auto intInstance = [=](IntType* type) -> ClassInstance* {
             auto args = (Type**)module->memory.alloc(sizeof(Type*));
@@ -222,9 +215,9 @@ Module* coreModule(Context* context) {
         floatInstance(&floatTypes[FloatType::F64]);
     }
 
-    auto ordClass = defineClass(context, module, context->addUnqualifiedName("Ord", 3));
+    auto ordClass = defineClass(context, module, context->addUnqualifiedName("Ord", 3), 7);
     {
-        auto t = setClassType(module, ordClass, 7);
+        auto t = setClassType(module, ordClass);
         defineClassFun(context, module, ordClass, opLt, 0);
         defineClassFun(context, module, ordClass, opLe, 1);
         defineClassFun(context, module, ordClass, opGt, 2);
@@ -233,13 +226,13 @@ Module* coreModule(Context* context) {
         defineClassFun(context, module, ordClass, context->addUnqualifiedName("min", 3), 5);
         defineClassFun(context, module, ordClass, context->addUnqualifiedName("max", 3), 6);
 
-        binaryFunType(&ordClass->functions[0], module, t, t, &intTypes[IntType::Bool]); // <
-        binaryFunType(&ordClass->functions[1], module, t, t, &intTypes[IntType::Bool]); // <=
-        binaryFunType(&ordClass->functions[2], module, t, t, &intTypes[IntType::Bool]); // >
-        binaryFunType(&ordClass->functions[3], module, t, t, &intTypes[IntType::Bool]); // >=
-        binaryFunType(&ordClass->functions[4], module, t, t, orderingType); // compare
-        binaryFunType(&ordClass->functions[5], module, t, t, t); // min
-        binaryFunType(&ordClass->functions[6], module, t, t, t); // max
+        binaryFunType(context, ordClass->functions[0].fun, t, t, &intTypes[IntType::Bool]); // <
+        binaryFunType(context, ordClass->functions[1].fun, t, t, &intTypes[IntType::Bool]); // <=
+        binaryFunType(context, ordClass->functions[2].fun, t, t, &intTypes[IntType::Bool]); // >
+        binaryFunType(context, ordClass->functions[3].fun, t, t, &intTypes[IntType::Bool]); // >=
+        binaryFunType(context, ordClass->functions[4].fun, t, t, orderingType); // compare
+        binaryFunType(context, ordClass->functions[5].fun, t, t, t); // min
+        binaryFunType(context, ordClass->functions[6].fun, t, t, t); // max
 
         auto intInstance = [=](IntType* type) -> ClassInstance* {
             auto args = (Type**)module->memory.alloc(sizeof(Type*));
@@ -280,18 +273,18 @@ Module* coreModule(Context* context) {
         floatInstance(&floatTypes[FloatType::F64]);
     }
 
-    auto numClass = defineClass(context, module, context->addUnqualifiedName("Num", 3));
+    auto numClass = defineClass(context, module, context->addUnqualifiedName("Num", 3), 4);
     {
-        auto t = setClassType(module, numClass, 4);
+        auto t = setClassType(module, numClass);
         defineClassFun(context, module, numClass, opPlus, 0);
         defineClassFun(context, module, numClass, opMinus, 1);
         defineClassFun(context, module, numClass, opMul, 2);
         defineClassFun(context, module, numClass, opDiv, 3);
 
-        binaryFunType(&numClass->functions[0], module, t, t, t); // +
-        binaryFunType(&numClass->functions[1], module, t, t, t); // -
-        binaryFunType(&numClass->functions[2], module, t, t, t); // *
-        binaryFunType(&numClass->functions[3], module, t, t, t); // /
+        binaryFunType(context, numClass->functions[0].fun, t, t, t); // +
+        binaryFunType(context, numClass->functions[1].fun, t, t, t); // -
+        binaryFunType(context, numClass->functions[2].fun, t, t, t); // *
+        binaryFunType(context, numClass->functions[3].fun, t, t, t); // /
 
         auto intInstance = [=](IntType* type) -> ClassInstance* {
             auto args = (Type**)module->memory.alloc(sizeof(Type*));
@@ -326,9 +319,9 @@ Module* coreModule(Context* context) {
         floatInstance(&floatTypes[FloatType::F64]);
     }
 
-    auto integralClass = defineClass(context, module, context->addQualifiedName("Integral", 8));
+    auto integralClass = defineClass(context, module, context->addQualifiedName("Integral", 8), 7);
     {
-        auto t = setClassType(module, integralClass, 7);
+        auto t = setClassType(module, integralClass);
         defineClassFun(context, module, integralClass, opShl, 0);
         defineClassFun(context, module, integralClass, opSar, 1);
         defineClassFun(context, module, integralClass, opShr, 2);
@@ -337,13 +330,13 @@ Module* coreModule(Context* context) {
         defineClassFun(context, module, integralClass, opXor, 5);
         defineClassFun(context, module, integralClass, opRem, 6);
 
-        binaryFunType(&integralClass->functions[0], module, t, &intTypes[IntType::Int], t); // shl
-        binaryFunType(&integralClass->functions[1], module, t, &intTypes[IntType::Int], t); // sar
-        binaryFunType(&integralClass->functions[2], module, t, &intTypes[IntType::Int], t); // shr
-        binaryFunType(&integralClass->functions[3], module, t, t, t); // and
-        binaryFunType(&integralClass->functions[4], module, t, t, t); // or
-        binaryFunType(&integralClass->functions[5], module, t, t, t); // xor
-        binaryFunType(&integralClass->functions[6], module, t, t, t); // rem
+        binaryFunType(context, integralClass->functions[0].fun, t, &intTypes[IntType::Int], t); // shl
+        binaryFunType(context, integralClass->functions[1].fun, t, &intTypes[IntType::Int], t); // sar
+        binaryFunType(context, integralClass->functions[2].fun, t, &intTypes[IntType::Int], t); // shr
+        binaryFunType(context, integralClass->functions[3].fun, t, t, t); // and
+        binaryFunType(context, integralClass->functions[4].fun, t, t, t); // or
+        binaryFunType(context, integralClass->functions[5].fun, t, t, t); // xor
+        binaryFunType(context, integralClass->functions[6].fun, t, t, t); // rem
 
         auto intInstance = [=](IntType* type) -> ClassInstance* {
             auto args = (Type**)module->memory.alloc(sizeof(Type*));
@@ -419,9 +412,10 @@ Module* nativeModule(Context* context, Module* core) {
 
     auto storeFunction = defineFun(context, module, opStore);
     {
-        auto type = new (module->memory) GenType(0, 0, GenType::Function, storeFunction);
-        storeFunction->gens = type;
-        storeFunction->genCount = 1;
+        auto type = new (module->memory) GenType(&storeFunction->gen, 0, 0);
+        storeFunction->gen.types = (GenType**)module->memory.alloc(sizeof(GenType*));
+        storeFunction->gen.types[0] = type;
+        storeFunction->gen.typeCount = 1;
 
         auto body = block(storeFunction);
         auto lhs = defineArg(context, storeFunction, body, 0, type);
@@ -438,9 +432,10 @@ Module* nativeModule(Context* context, Module* core) {
 
     auto loadFunction = defineFun(context, module, opLoad);
     {
-        auto type = new (module->memory) GenType(0, 0, GenType::Function, loadFunction);
-        loadFunction->gens = type;
-        loadFunction->genCount = 1;
+        auto type = new (module->memory) GenType(&loadFunction->gen, 0, 0);
+        loadFunction->gen.types = (GenType**)module->memory.alloc(sizeof(GenType*));
+        loadFunction->gen.types[0] = type;
+        loadFunction->gen.typeCount = 1;
 
         auto body = block(loadFunction);
         auto lhs = defineArg(context, loadFunction, body, 0, getRef(module, type, false, false, true));

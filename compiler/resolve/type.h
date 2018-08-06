@@ -2,7 +2,15 @@
 
 #include "../compiler/context.h"
 
-namespace ast { struct AliasDecl; struct DataDecl; struct ClassDecl; struct Type; struct Arg; }
+namespace ast {
+    struct AliasDecl;
+    struct DataDecl;
+    struct ClassDecl;
+    struct FunDecl;
+    struct Type;
+    struct FunType;
+    struct Arg;
+}
 
 struct Module;
 struct Function;
@@ -12,6 +20,7 @@ struct FunType;
 struct GenType;
 struct GenEnv;
 struct ClassInstance;
+struct RecordType;
 
 struct Limits {
     static const U32 maxTypeDescriptor = 2048;
@@ -55,6 +64,18 @@ struct Type {
     Type(Kind kind, U32 virtualSize): kind(kind), virtualSize(virtualSize) {}
 };
 
+struct ErrorType: Type {
+    ErrorType(): Type(Error, 0) {}
+};
+
+struct UnitType: Type {
+    UnitType(): Type(Unit, 0) {}
+};
+
+struct StringType: Type {
+    StringType(): Type(String, 1) {}
+};
+
 /*
  * Generic type resolving.
  * - Generic types are fully defined types owned by a specific generic environment.
@@ -68,10 +89,19 @@ struct Type {
  */
 
 struct GenField {
-    Type* type;
-    GenType* gen;
-    Id name;
+    ast::Type* ast;
+
+    Type* fieldType;
+    GenType* container;
+    Id fieldName;
     bool mut;
+};
+
+struct GenFun {
+    ast::FunType* ast;
+
+    FunType* type;
+    Id name;
 };
 
 struct GenType: Type {
@@ -79,8 +109,16 @@ struct GenType: Type {
         Type(Gen, 1), env(env), name(name), index(index) {}
 
     GenEnv* env;
+    Type* orderType = nullptr; // Forms a list defining the order of this type.
     Id name;
-    U32 index;
+    U16 index;
+    U16 order = 0; // 0 indicates undetermined.
+};
+
+struct ClassConstraint {
+    Id ast;
+    TypeClass* classType;
+    Buffer<GenType*> forTypes;
 };
 
 struct GenEnv {
@@ -92,13 +130,14 @@ struct GenEnv {
         Alias,
     };
 
-    GenEnv(void* parent, Kind kind): parent(parent), kind(kind) {}
+    GenEnv(void* container, Kind kind): container(container), kind(kind) {}
 
-    void* parent; // Type is defined by `kind`.
-    GenType* types; // List of generic types used in this environment.
+    GenEnv* parent = nullptr;
+    void* container; // Type is defined by `kind`.
+    GenType** types; // List of generic types used in this environment.
     GenField* fields; // A list of fields used in this environment.
-    ClassInstance** classes; // A list of typeclass instances used in this environment.
-    FunType** funs; // A list of functions targeting generic types used in this environment.
+    ClassConstraint* classes; // A list of typeclass constraints that apply to this environment.
+    GenFun* funs; // A list of functions targeting generic types used in this environment.
 
     U16 typeCount = 0;
     U16 fieldCount = 0;
@@ -202,7 +241,7 @@ struct TupType: Type {
 };
 
 struct Con {
-    struct RecordType* parent;
+    RecordType* parent;
     Type* content;
 
     void* codegen = nullptr;
@@ -229,10 +268,12 @@ struct RecordType: Type {
     ast::DataDecl* ast; // Set until the type is fully resolved.
     Con* cons;
     GenEnv gen;
+    GenType** args;
     RecordType* instanceOf;
-    Type** instance; // if instanceOf is set, this contains a list Type*[instanceOf->genCount].
+    Type** instance; // if instanceOf is set, this contains a list Type*[instanceOf->argCount].
     Id name;
     U32 conCount;
+    U32 argCount;
     Kind kind;
     bool qualified; // Set if the type constructors are namespaced within the type.
 };
@@ -243,24 +284,74 @@ struct AliasType: Type {
     ast::AliasDecl* ast; // Set until the type is fully resolved.
     Type* to;
     GenEnv gen;
+    GenType** args;
     AliasType* instanceOf;
+    Id name;
+    U32 argCount;
+};
+
+struct ClassFun {
+    Function* fun;
+    TypeClass* typeClass;
+    U32 index;
     Id name;
 };
 
+/*
+ * Typeclasses support generic arguments on multiple levels, and as such need careful handling to prevent compiler bugs.
+ * Because of this we have decided to store and handle class arguments separately from the generic environment they are defined in.
+ * This prevents any confusion regarding what types are actually input arguments, both for current and any future features.
+ *
+ * Classes are generally quite complicated. Consider the following example:
+ *
+ * class Functor(f):
+ *   fn map(functor: f(a), apply: (a) -> b) -> f(b)
+ *
+ * In this case, the class argument _f_ is used as a second-order type in the class definition.
+ * However, the initial resolve pass only adds _f_ to the environment as an empty generic type.
+ * Once the function signatures are being resolved, the generic environment needs to be updated with the correct order.
+ * Additionally, once an order for the type argument is defined,
+ * it has to be ensured that any other uses are valid taking into account the type order.
+ *
+ * Now consider an additional example:
+ *
+ * instance Functor(Maybe):
+ *   fn map(maybe: Maybe(a), apply: (a) -> b) -> Maybe(b) = match maybe:
+ *     Just(v) -> Just(apply(v))
+ *     Nothing -> Nothing
+ *
+ * In this case, we have to implicitly map the _a_ argument from the _Maybe(a)_ environment, to the _a_ argument in the _Functor_ environment.
+ * Additionally, we have to make sure to correctly map f(a) to Maybe(a) in the function implementation.
+ * This get more complicated when we add an explicit specialization:
+ *
+ * instance Functor(Maybe(%a)):
+ *   fn map(maybe: Maybe(%a), apply: (%a) -> b) -> Maybe(b) = ...code...
+ *
+ * First of all, note that we cannot change the mapping function return type _b_ to some more-defined type like _%b_.
+ * This would violate the base Functor definition, which indicates that _map_ has to handle any return type _b_.
+ * This limits the usefulness of this particular specialization, and since _b_ is just a function argument rather
+ * than a class one, it is currently not possible to specialize any more.
+ *
+ * Secondly, supporting constructions like this one requires quite a sophisticated matching of class function class to implementations.
+ * We cannot just compare type signatures - we also have to handle matching any generic arguments to implementations.
+ */
 struct TypeClass {
     TypeClass(): gen(this, GenEnv::Class) {}
 
     ast::ClassDecl* ast; // Set until the type is fully resolved.
-    GenEnv gen; // The generic environment this class defines.
-    Id* funNames; // The name of each class function, in order.
+    GenEnv gen; // The generic environment for the type arguments of this class.
+    GenType** args; // The type arguments this class takes. Defined in the generic environment together with any constraints.
+    ClassFun* functions; // The function signatures defined in this class.
     Id name;
+    U16 argCount; // The number of arguments in _args_.
+    U16 funCount; // The number of functions in _functions_.
 };
 
 struct ClassInstance {
     Module* module;
     TypeClass* typeClass;
-    Type** forTypes; // A list of instance args for the class. Has the same length as typeClass->args.
-    Function** instances; // A list of function implementations. Corresponds to the list in typeClass->functions.
+    Type** forTypes; // A list of instance args for the class, corresponding to the types in its generic environment.
+    Function** instances; // A list of function implementations. Corresponds to the class function list.
 };
 
 struct DerivedTypes {
@@ -274,23 +365,12 @@ struct DerivedTypes {
     ArrayType arrayTo;
 };
 
-struct GenContext {
-    GenContext(GenContext* parent, GenType* types, U32 count, void* context, GenType::Kind kind):
-        parent(parent), types(types), context(context), count(count), kind(kind) {}
-
-    GenContext* parent;
-    GenType* types;
-    void* context;
-    U32 count;
-    GenType::Kind kind;
-};
-
 // Global instances of the basic builtin types.
-extern Type unitType;
-extern Type errorType;
+extern UnitType unitType;
+extern ErrorType errorType;
 extern FloatType floatTypes[FloatType::KindCount];
 extern IntType intTypes[IntType::KindCount];
-extern Type stringType;
+extern StringType stringType;
 
 // Returns a reference to the provided type.
 Type* getRef(Module* module, Type* to, bool traced, bool local, bool mut);
@@ -302,11 +382,14 @@ Type* getArray(Module* module, Type* to);
 Type* resolveDefinition(Context* context, Module* module, Type* type);
 
 // Finds the matching type for the provided ast.
-Type* resolveType(Context* context, Module* module, ast::Type* type, GenContext* gen);
+Type* resolveType(Context* context, Module* module, ast::Type* type, GenEnv* env);
 
 // Finds a tuple type with these field types and names.
 // If none existed, a type is created with the fields copied.
 TupType* resolveTupType(Context* context, Module* module, Field* fields, U32 count);
+
+// Performs final resolving of types on a prepared generic environment.
+void resolveGens(Context* context, Module* module, GenEnv* env);
 
 // Checks if the two provided types are the same.
 bool compareTypes(Context* context, Type* lhs, Type* rhs);
@@ -321,10 +404,78 @@ void createDescriptor(Type* type, Arena* arena);
 // Named types are explicitly defined in some module and can be found by that name.
 Id typeName(Type* type);
 
-// Prepares the provided generic context by adding all generic identifiers found in the provided AST.
-void findFunGenerics(Context* context, Function* function, GenContext* gen, List<ast::Arg>* types, ast::Type* last);
+// Creates a set of the generic type names used in a context.
+void findGenerics(Context* context, Buffer<Id> buffer, Size& offset, ast::Type* type);
 
 // Instantiates a higher-order type for a specific set of arguments.
 // Returns a new type which is distinct from but references the original.
 AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count);
 RecordType* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count);
+
+// Calls a visitor callback for each type referenced inside the provided one.
+template<class F> void visitType(Type* type, F&& f) {
+    switch(type->kind) {
+        case Type::Error:
+            f((ErrorType*)type);
+            break;
+        case Type::Unit:
+            f((UnitType*)type);
+            break;
+        case Type::Gen: {
+            auto gen = (GenType*)type;
+            f(gen);
+            if(gen->orderType) visitType(gen->orderType, forward<F>(f));
+            break;
+        }
+        case Type::Int:
+            f((IntType*)type);
+            break;
+        case Type::Float:
+            f((FloatType*)type);
+            break;
+        case Type::String:
+            f((StringType*)type);
+            break;
+        case Type::Ref:
+            f((RefType*)type);
+            visitType(((RefType*)type)->to, forward<F>(f));
+            break;
+        case Type::Fun: {
+            auto fun = (FunType*)type;
+            f(fun);
+            visitType(fun->result, f);
+            for(U32 i = 0; i < fun->argCount; i++) {
+                visitType(fun->args[i].type, f);
+            }
+            break;
+        }
+        case Type::Array:
+            f((ArrayType*)type);
+            visitType(((ArrayType*)type)->content, forward<F>(f));
+            break;
+        case Type::Map:
+            f((MapType*)type);
+            visitType(((MapType*)type)->from, forward<F>(f));
+            visitType(((MapType*)type)->to, forward<F>(f));
+            break;
+        case Type::Tup: {
+            auto tup = (TupType*)type;
+            f(tup);
+            for(U32 i = 0; i < tup->count; i++) {
+                visitType(tup->fields[i].type, forward<F>(f));
+            }
+            break;
+        }
+        case Type::Record: {
+            auto record = (RecordType*)type;
+            f(record);
+            for(U32 i = 0; i < record->conCount; i++) {
+                visitType(record->cons[i].content, forward<F>(f));
+            }
+            break;
+        }
+        case Type::Alias:
+            visitType(((AliasType*)type)->to, forward<F>(f));
+            break;
+    }
+}

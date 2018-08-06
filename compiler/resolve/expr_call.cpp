@@ -134,35 +134,33 @@ static Value* finishForeignCall(FunBuilder* b, ForeignFunction* fun, Value** arg
     return nullptr;
 }
 
-static Value* finishClassCall(FunBuilder* b, ClassFun fun, Value** args, U32 count, Id name) {
-    auto funType = &fun.typeClass->functions[fun.index];
-
+static Value* finishClassCall(FunBuilder* b, ClassFun* fun, Value** args, U32 count, Id name) {
     // If the call used incorrect argument names this error may not trigger.
     // However, in that case we already have an error for the argument name.
-    if(count != funType->argCount) {
+    if(count != fun->fun->args.size()) {
         error(b, "incorrect number of function arguments"_buffer, nullptr);
     }
 
     // Class functions must use each type argument in their signatures.
     // This ensures that we always can infer what instance to use.
     // TODO: Handle functions where the instance type depends solely on the return type.
-    auto classArgs = (Type**)alloca(sizeof(Type*) * fun.typeClass->argCount);
-    set(classArgs, fun.typeClass->argCount, 0);
+    auto classArgs = (Type**)alloca(sizeof(Type*) * fun->typeClass->argCount);
+    set(classArgs, fun->typeClass->argCount, 0);
 
     for(U32 i = 0; i < count; i++) {
-        auto a = funType->args[i].type;
+        auto a = fun->fun->args[i]->type;
         if(a->kind == Type::Gen) {
             classArgs[((GenType*)a)->index] = args[i]->type;
         }
     }
 
-    auto instance = findInstance(&b->context, b->fun->module, fun.typeClass, fun.index, classArgs);
+    auto instance = findInstance(&b->context, b->fun->module, fun->typeClass, fun->index, classArgs);
     if(!instance) {
         error(b, "cannot find an implementation of class for these arguments"_buffer, nullptr);
         return error(b->block, name, &errorType);
     }
 
-    auto f = instance->instances[fun.index];
+    auto f = instance->instances[fun->index];
     return finishStaticCall(b, f, args, count, name);
 }
 
@@ -184,7 +182,7 @@ Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List<ast::T
     auto fun = resolveStaticFun(b, funName, firstArg);
     if(!fun.found) return nullptr;
 
-    U32 argCount;
+    U32 argCount = 0;
     Arg** sourceArgs = nullptr;
     FunArg* sourceFunArgs = nullptr;
 
@@ -198,8 +196,8 @@ Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List<ast::T
             sourceFunArgs = fun.foreignFunction->type->args;
             break;
         case FoundFunction::Class:
-            argCount = fun.classFun.typeClass->functions[fun.classFun.index].argCount;
-            sourceFunArgs = fun.classFun.typeClass->functions[fun.classFun.index].args;
+            argCount = (U32)fun.classFun->fun->args.size();
+            sourceArgs = fun.classFun->fun->args.pointer();
             break;
     }
 

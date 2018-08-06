@@ -71,9 +71,9 @@ void printType(std::ostream& stream, Context& context, const Type* type) {
 
             if(record->instanceOf) {
                 stream << '(';
-                for(Size i = 0; i < record->instanceOf->genCount; i++) {
+                for(Size i = 0; i < record->instanceOf->argCount; i++) {
                     printType(stream, context, record->instance[i]);
-                    if(i < record->instanceOf->genCount - 1) {
+                    if(i < record->instanceOf->argCount - 1) {
                         stream << ", ";
                     }
                 }
@@ -177,7 +177,7 @@ void printTypeClass(std::ostream& stream, Context& context, const InstanceMap* m
         stream << ")\n";
 
         for(U32 j = 0; j < funCount; j++) {
-            printFunction(stream, context, instance->instances[j], instance->typeClass->funNames[j]);
+            printFunction(stream, context, instance->instances[j], instance->typeClass->functions[j].name);
             stream << '\n';
         }
 
