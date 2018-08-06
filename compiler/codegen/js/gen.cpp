@@ -273,15 +273,7 @@ Variable* genCall(Gen* gen, InstCall* inst) {
     return nullptr;
 }
 
-Variable* genCallGen(Gen* gen, InstCallGen* inst) {
-    return nullptr;
-}
-
 Variable* genCallDyn(Gen* gen, InstCallDyn* inst) {
-    return nullptr;
-}
-
-Variable* genCallDynGen(Gen* gen, InstCallDynGen* inst) {
     return nullptr;
 }
 
@@ -428,12 +420,8 @@ Variable* genInstValue(Gen* gen, Inst* inst) {
             return genStringData(gen, (InstStringData*)inst);
         case Inst::InstCall:
             return genCall(gen, (InstCall*)inst);
-        case Inst::InstCallGen:
-            return genCallGen(gen, (InstCallGen*)inst);
         case Inst::InstCallDyn:
             return genCallDyn(gen, (InstCallDyn*)inst);
-        case Inst::InstCallDynGen:
-            return genCallDynGen(gen, (InstCallDynGen*)inst);
         case Inst::InstJe:
             return genJe(gen, (InstJe*)inst);
         case Inst::InstJmp:
@@ -576,7 +564,7 @@ File* genModule(Context* context, Module* module) {
         for(U32 i = 0; i < map.instances.size(); i++) {
             ClassInstance* instance = map.instances[i];
             auto instances = instance->instances;
-            auto funCount = instance->typeClass->funCount;
+            auto funCount = instance->typeClass->gen.funCount;
 
             for(U32 j = 0; j < funCount; j++) {
                 file->statements.push(useFunction(&gen, instances[j]));

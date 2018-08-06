@@ -6,6 +6,8 @@ struct Value;
 struct Inst;
 struct Block;
 struct Type;
+struct GenInstance;
+struct Function;
 
 // A single usage of a value by an instruction.
 struct Use {
@@ -91,9 +93,7 @@ struct Value {
 
         // Function calls.
         InstCall,
-        InstCallGen,
         InstCallDyn,
-        InstCallDynGen,
         InstCallForeign,
 
         // Control flow.
@@ -240,7 +240,7 @@ struct InstTup: Inst {
 };
 
 struct InstFun: Inst {
-    struct Function* body;
+    Function* body;
     Value** frame;
     Size frameCount;
 };
@@ -396,16 +396,16 @@ struct InstStringData: Inst {
  * Function calls.
  */
 struct InstCall: Inst {
-    struct Function* fun;
+    Function* fun;
     Value** args;
-    Size argCount;
+    GenInstance* instance; // If set, this function call passes a generic environment.
+    U32 argCount;
 };
-
-struct InstCallGen: InstCall {};
 
 struct InstCallDyn: Inst {
     Value* fun;
     Value** args;
+    GenInstance* instance; // If set, this function call passes a generic environment.
     U32 argCount;
 
     // If this is set, the function call should be interpreted as an intrinsic.
@@ -417,8 +417,6 @@ struct InstCallDyn: Inst {
     //     - Calling a StringType value will generate a call to a native JS function.
     bool isIntrinsic;
 };
-
-struct InstCallDynGen: InstCallDyn {};
 
 struct InstCallForeign: Inst {
     struct ForeignFunction* fun;
@@ -504,7 +502,7 @@ Value* xor_(Block* block, Id name, Value* lhs, Value* rhs);
 
 InstRecord* record(Block* block, Id name, struct Con* con, Value* content);
 InstTup* tup(Block* block, Id name, Type* type, Value** fields, U32 count);
-InstFun* fun(Block* block, Id name, struct Function* body, Type* type, Size frameCount);
+InstFun* fun(Block* block, Id name, Function* body, Type* type, Size frameCount);
 
 InstAlloc* alloc(Block* block, Id name, Type* type, bool mut, bool local);
 InstAllocArray* allocArray(Block* block, Id name, Type* type, Value* length, bool mut, bool local);
@@ -527,10 +525,8 @@ InstArraySlice* arraySlice(Block* block, Id name, Value* from, Value* start, Val
 Value* stringLength(Block* block, Id name, Value* from);
 Value* stringData(Block* block, Id name, Value* from);
 
-InstCall* call(Block* block, Id name, struct Function* fun, Value** args, U32 count);
-InstCallGen* callGen(Block* block, Id name, struct Function* fun, Value** args, U32 count);
-InstCallDyn* callDyn(Block* block, Id name, Value* fun, Type* type, Value** args, U32 count, bool isIntrinsic = false);
-InstCallDynGen* callDynGen(Block* block, Id name, Value* fun, Type* type, Value** args, U32 count);
+InstCall* call(Block* block, Id name, Function* fun, Value** args, U32 count, GenInstance* gen);
+InstCallDyn* callDyn(Block* block, Id name, Value* fun, Type* type, Value** args, U32 count, GenInstance* gen, bool isIntrinsic);
 InstCallForeign* callForeign(Block* block, Id name, struct ForeignFunction* fun, Value** args, U32 count);
 
 InstJe* je(Block* block, Value* cond, Block* then, Block* otherwise);

@@ -622,11 +622,12 @@ Value* stringData(Block* block, Id name, Value* from) {
     return inst;
 }
 
-InstCall* call(Block* block, Id name, struct Function* fun, Value** args, U32 count) {
+InstCall* call(Block* block, Id name, struct Function* fun, Value** args, U32 count, GenInstance* instance) {
     auto inst = (InstCall*)block->inst(sizeof(InstCall), name, Inst::InstCall, fun->returnType);
     inst->fun = fun;
     inst->args = args;
     inst->argCount = count;
+    inst->instance = instance;
 
     inst->usedValues = args;
     inst->usedCount = count;
@@ -638,19 +639,14 @@ InstCall* call(Block* block, Id name, struct Function* fun, Value** args, U32 co
     return inst;
 }
 
-InstCallGen* callGen(Block* block, Id name, struct Function* fun, Value** args, U32 count) {
-    auto inst = call(block, name, fun, args, count);
-    inst->kind = Inst::InstCallGen;
-    return (InstCallGen*)inst;
-}
-
-InstCallDyn* callDyn(Block* block, Id name, Value* fun, Type* type, Value** args, U32 count, bool isIntrinsic) {
+InstCallDyn* callDyn(Block* block, Id name, Value* fun, Type* type, Value** args, U32 count, GenInstance* instance, bool isIntrinsic) {
     auto inst = (InstCallDyn*)block->inst(sizeof(InstCallDyn), name, Inst::InstCallDyn, type);
     auto usedValues = (Value**)block->function->module->memory.alloc(sizeof(Value*) * (count + 1));
 
     inst->fun = fun;
     inst->args = args;
     inst->argCount = count;
+    inst->instance = instance;
     inst->isIntrinsic = isIntrinsic;
 
     inst->usedValues = usedValues;
@@ -664,12 +660,6 @@ InstCallDyn* callDyn(Block* block, Id name, Value* fun, Type* type, Value** args
     }
 
     return inst;
-}
-
-InstCallDynGen* callDynGen(Block* block, Id name, Value* fun, Value** args, Type* type, U32 count) {
-    auto inst = callDyn(block, name, fun, type, args, count, false);
-    inst->kind = Inst::InstCallDynGen;
-    return (InstCallDynGen*)inst;
 }
 
 InstCallForeign* callForeign(Block* block, Id name, struct ForeignFunction* fun, Size argCount) {

@@ -395,14 +395,8 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         case Inst::InstCall:
             name = "call";
             break;
-        case Inst::InstCallGen:
-            name = "call gen";
-            break;
         case Inst::InstCallDyn:
             name = "call dyn";
-            break;
-        case Inst::InstCallDynGen:
-            name = "call dyn gen";
             break;
         case Inst::InstCallForeign:
             name = "call foreign";
@@ -431,7 +425,7 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
 
     stream << '(';
 
-    if(inst->kind == Inst::InstCall || inst->kind == Inst::InstCallGen) {
+    if(inst->kind == Inst::InstCall) {
         auto fun = context.find(((InstCall*)inst)->fun->name);
         if(fun.textLength > 0) {
             stream.write(fun.text, fun.textLength);

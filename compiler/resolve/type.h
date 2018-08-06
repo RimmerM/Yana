@@ -21,6 +21,7 @@ struct GenType;
 struct GenEnv;
 struct ClassInstance;
 struct RecordType;
+struct Field;
 
 struct Limits {
     static const U32 maxTypeDescriptor = 2048;
@@ -144,6 +145,53 @@ struct GenEnv {
     U16 classCount = 0;
     U16 funCount = 0;
     Kind kind;
+};
+
+struct GenInstance {
+    struct TypeInstance {
+        union {
+            Type* type;
+            GenType* gen;
+        };
+
+        bool isComplete;
+    };
+
+    struct FieldInstance {
+        union {
+            Field* field;
+            GenField* gen;
+        };
+
+        bool isComplete;
+    };
+
+    struct ConstraintInstance {
+        union {
+            ClassInstance* instance;
+            ClassConstraint* gen;
+        };
+
+        bool isComplete;
+    };
+
+    struct FunInstance {
+        union {
+            Function* fun;
+            GenFun* gen;
+        };
+
+        bool isComplete;
+    };
+
+    GenEnv* sourceEnv;
+    GenEnv* targetEnv;
+
+    // Each constraint from the target env is mapped to either a source env constraint or a complete implementation.
+    TypeInstance* types;
+    FieldInstance* fields;
+    ConstraintInstance* classes;
+    FunInstance* funs;
 };
 
 struct IntType: Type {

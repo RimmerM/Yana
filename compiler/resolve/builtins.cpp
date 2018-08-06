@@ -370,7 +370,7 @@ Module* coreModule(Context* context) {
         args[1] = stringData(body, 0, arg);
         args[2] = stringLength(body, 0, arg);
 
-        callDyn(body, 0, constInt(body, 0, 1, &intTypes[IntType::Int]), &unitType, args, 3, true);
+        callDyn(body, 0, constInt(body, 0, 1, &intTypes[IntType::Int]), &unitType, args, 3, nullptr, true);
         ret(body);
     }
 
@@ -384,7 +384,7 @@ Module* coreModule(Context* context) {
         auto args = (Value**)module->memory.alloc(sizeof(Value*));
         args[0] = code;
 
-        callDyn(body, 0, constInt(body, 0, 60, &intTypes[IntType::Int]), &unitType, args, 1, true);
+        callDyn(body, 0, constInt(body, 0, 60, &intTypes[IntType::Int]), &unitType, args, 1, nullptr, true);
         ret(body);
     }
 
@@ -469,12 +469,12 @@ Module* nativeModule(Context* context, Module* core) {
             args[j + 1] = defineArg(context, fun, body, 0, bytePtrType);
         }
 
-        auto result = callDyn(body, 0, index, bytePtrType, args, i + 1, true);
+        auto result = callDyn(body, 0, index, bytePtrType, args, i + 1, nullptr, true);
         ret(body, result);
 
         fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
             auto type = getRef(b->fun->module, &u8Type, false, false, true);
-            return callDyn(b->block, instName, args[0], type, args + 1, count - 1, true);
+            return callDyn(b->block, instName, args[0], type, args + 1, count - 1, nullptr, true);
         };
     }
 

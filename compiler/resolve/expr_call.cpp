@@ -67,7 +67,7 @@ Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* argList, 
         args[i] = v;
     }
 
-    return callDyn(b->block, name, callee, funType->result, args, argCount);
+    return callDyn(b->block, name, callee, funType->result, args, argCount, nullptr, false);
 }
 
 static FoundFunction resolveStaticFun(FunBuilder* b, Id funName, Value* fieldArg) {
@@ -125,7 +125,7 @@ static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 c
     if(fun->intrinsic) {
         return fun->intrinsic(b, args, argCount, name);
     } else {
-        return call(b->block, name, fun, args, argCount);
+        return call(b->block, name, fun, args, argCount, nullptr);
     }
 }
 
