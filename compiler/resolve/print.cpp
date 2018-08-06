@@ -17,8 +17,12 @@ void printValue(std::ostream& stream, Context& context, const Value* value) {
         }
     } else if(value->kind == Value::ConstInt) {
         stream << ((ConstInt*)value)->value;
+        stream << ": ";
+        printType(stream, context, value->type);
     } else if(value->kind == Value::ConstFloat) {
         stream << ((ConstFloat*)value)->value;
+        stream << ": ";
+        printType(stream, context, value->type);
     } else if(value->kind == Value::ConstString) {
         auto string = ((ConstString*)value);
         stream << '"';
@@ -147,7 +151,7 @@ void printGlobal(std::ostream& stream, Context& context, const Global* global) {
         stream << "<unnamed>";
     }
 
-    stream << " : ";
+    stream << ": ";
     printType(stream, context, global->type);
     stream << '\n';
 }
@@ -188,8 +192,9 @@ void printTypeClass(std::ostream& stream, Context& context, const InstanceMap* m
 void printModule(std::ostream& stream, Context& context, const Module* module) {
     for(auto& global: module->globals) {
         printGlobal(stream, context, &global);
-        stream << '\n';
     }
+
+    stream << '\n';
 
     for(auto& fun: module->functions) {
         printFunction(stream, context, &fun);
@@ -221,7 +226,7 @@ void printFunction(std::ostream& stream, Context& context, const Function* fun, 
     stream << '(';
     for(Size i = 0; i < fun->args.size(); i++) {
         printValue(stream, context, fun->args[i]);
-        stream << " : ";
+        stream << ": ";
         printType(stream, context, fun->args[i]->type);
         if(i < fun->args.size() - 1) {
             stream << ", ";
@@ -229,11 +234,13 @@ void printFunction(std::ostream& stream, Context& context, const Function* fun, 
     }
     stream << ") -> ";
     printType(stream, context, fun->returnType);
-    stream << ":\n";
+    stream << " {\n";
 
     for(auto& block : fun->blocks) {
         printBlock(stream, context, block);
     }
+
+    stream << "}\n";
 }
 
 void printInst(std::ostream& stream, Context& context, const Inst* inst) {
@@ -417,44 +424,38 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
     }
 
     stream << name;
-    stream << ' ';
 
-    switch(inst->kind) {
-        case Inst::InstAlloc:
-            if(((InstAlloc*)inst)->mut) stream << "<mut>";
-            break;
-        case Inst::InstCall:
-        case Inst::InstCallGen: {
-            auto fun = context.find(((InstCall*)inst)->fun->name);
-            if(fun.textLength > 0) {
-                stream.write(fun.text, fun.textLength);
-            } else {
-                stream << "<unnamed>";
-            }
+    if(inst->kind == Inst::InstAlloc) {
+        if(((InstAlloc*)inst)->mut) stream << "<mut>";
+    }
 
-            if(inst->usedCount > 0) {
-                stream << ", ";
-            }
-            break;
+    stream << '(';
+
+    if(inst->kind == Inst::InstCall || inst->kind == Inst::InstCallGen) {
+        auto fun = context.find(((InstCall*)inst)->fun->name);
+        if(fun.textLength > 0) {
+            stream.write(fun.text, fun.textLength);
+        } else {
+            stream << "<unnamed>";
         }
-        case Inst::InstCallForeign: {
-            auto fun = context.find(((InstCallForeign*)inst)->fun->name);
-            if(fun.textLength > 0) {
-                stream.write(fun.text, fun.textLength);
-            } else {
-                stream << "<unnamed>";
-            }
 
-            if(inst->usedCount > 0) {
-                stream << ", ";
-            }
-            break;
+        if(inst->usedCount > 0) {
+            stream << ", ";
         }
-        case Inst::InstCallDyn: {
-            if(((InstCallDyn*)inst)->isIntrinsic) {
-                stream << "<intrinsic> ";
-            }
-            break;
+    } else if(inst->kind == Inst::InstCallForeign) {
+        auto fun = context.find(((InstCallForeign*)inst)->fun->name);
+        if(fun.textLength > 0) {
+            stream.write(fun.text, fun.textLength);
+        } else {
+            stream << "<unnamed>";
+        }
+
+        if(inst->usedCount > 0) {
+            stream << ", ";
+        }
+    } else if(inst->kind == Inst::InstCallDyn) {
+        if(((InstCallDyn*)inst)->isIntrinsic) {
+            stream << "<intrinsic> ";
         }
     }
 
@@ -471,6 +472,15 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
                 stream << ", ";
             }
         }
+    } else if(inst->kind == Inst::InstJe) {
+        auto je = (InstJe*)inst;
+        stream << '[';
+        printValue(stream, context, je->cond);
+        stream << ", ";
+        printBlockName(stream, je->then);
+        stream << ", ";
+        printBlockName(stream, je->otherwise);
+        stream << ']';
     } else {
         for(U32 i = 0; i < inst->usedCount; i++) {
             printValue(stream, context, inst->usedValues[i]);
@@ -480,35 +490,23 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         }
     }
 
-    switch(inst->kind) {
-        case Inst::InstJe:
+    if(inst->kind == Inst::InstJmp) {
+        printBlockName(stream, ((const InstJmp*)inst)->to);
+    } else if(inst->kind == Inst::InstGetField) {
+        auto get = (InstGetField*)inst;
+        for(Size i = 0; i < get->chainLength; i++) {
             stream << ", ";
-            printBlockName(stream, ((const InstJe*)inst)->then);
-            stream << ", ";
-            printBlockName(stream, ((const InstJe*)inst)->otherwise);
-            break;
-        case Inst::InstJmp:
-            printBlockName(stream, ((const InstJmp*)inst)->to);
-            break;
-        case Inst::InstGetField: {
-            auto get = (InstGetField*)inst;
-            for(Size i = 0; i < get->chainLength; i++) {
-                stream << ", ";
-                stream << get->indexChain[i];
-            }
-            break;
+            stream << get->indexChain[i];
         }
-        case Inst::InstLoadField: {
-            auto get = (InstLoadField*)inst;
-            for(Size i = 0; i < get->chainLength; i++) {
-                stream << ", ";
-                stream << get->indexChain[i];
-            }
-            break;
+    } else if(inst->kind == Inst::InstLoadField) {
+        auto get = (InstLoadField*)inst;
+        for(Size i = 0; i < get->chainLength; i++) {
+            stream << ", ";
+            stream << get->indexChain[i];
         }
     }
 
-    stream << " : ";
+    stream << "): ";
     printType(stream, context, inst->type);
     stream << '\n';
 }
