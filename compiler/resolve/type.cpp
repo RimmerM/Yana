@@ -730,11 +730,14 @@ void resolveRecord(Context* context, Module* module, RecordType* type) {
                     content = findType(context, module, contentAst, &type->gen);
                 }
 
-                type->cons[i].content = content;
+                // The unit type as only content of a constructor is equivalent to an empty constructor.
+                if(content->kind != Type::Unit) {
+                    type->cons[i].content = content;
 
-                filledCount++;
-                if(content->virtualSize > maxSize) {
-                    maxSize = content->virtualSize;
+                    filledCount++;
+                    if(content->virtualSize > maxSize) {
+                        maxSize = content->virtualSize;
+                    }
                 }
             }
             conAst = conAst->next;

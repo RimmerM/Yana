@@ -1619,18 +1619,16 @@ Con Parser::parseCon() {
             name = 0;
         }
 
+        Type* content = nullptr;
         if(token.type == Token::ParenL) {
-            auto content = parens([=]{return parseType();});
-            return Con(name, content);
+            content = parens([=]{return parseType();});
         } else if(token.type == Token::BraceL) {
-            auto content = parseTupleType();
-            return Con(name, content);
+            content = parseTupleType();
         } else if(token.type == Token::BracketL) {
-            auto content = parseAType();
-            return Con(name, content);
-        } else {
-            return Con(name, nullptr);
+            content = parseAType();
         }
+
+        return Con(name, content);
     });
 
     con->attributes = attributes;
