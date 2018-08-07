@@ -133,23 +133,34 @@ Value* trunc(Block* block, Id name, Value* from, Type* to) {
     if(from->kind == Value::ConstInt) {
         auto value = ((ConstInt*)from)->value;
         auto toType = (IntType*)to;
+
         switch(toType->width) {
             case IntType::Bool:
-                value = value != 0 ? 1 : 0;
-                break;
+                return constInt(block, name, value != 0 ? 1 : 0, to);
             case IntType::Int:
-                value = (I32)value;
-                break;
-            default: ;
+                return constInt(block, name, (I32)value, to);
+            case IntType::Long:
+                return constInt(block, name, (I64)value, to);
         }
-
-        return constInt(block, name, value, to);
-    } else {
-        return cast(block, Inst::InstTrunc, name, from, to);
     }
+
+    return cast(block, Inst::InstTrunc, name, from, to);
 }
 
 Value* ftrunc(Block* block, Id name, Value* from, Type* to) {
+    if(from->kind == Value::ConstFloat) {
+        auto value = ((ConstFloat*)from)->value;
+        auto toType = (FloatType*)to;
+
+        if(toType->width == FloatType::F64) {
+            return constFloat(block, name, (double)value, to);
+        } else if(toType->width == FloatType::F32) {
+            return constFloat(block, name, (float)value, to);
+        }
+
+        // TODO: Support constant folding for remaining floating point types.
+    }
+
     return cast(block, Inst::InstFTrunc, name, from, to);
 }
 
