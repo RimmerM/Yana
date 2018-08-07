@@ -538,8 +538,7 @@ static void prepareGens(Context* context, Module* module, GenEnv* env, Node* whe
             if(genList[i]->name == name) return genList[i];
         }
 
-        auto type = (GenType*)module->memory.alloc(sizeof(GenType));
-        new (type) GenType(env, gen->item, genCount);
+        auto type = new (module->memory) GenType(env, name, genCount);
 
         if(genCount == kMaxGens) {
             context->diagnostics.error("too many generic types in this context. Maximum number allowed is %@"_buffer, where, noSource, kMaxGens);

@@ -186,8 +186,8 @@ Id typeName(Type* type) {
 }
 
 static void addGeneric(Context* context, Buffer<Id> buffer, Size& offset, ast::GenType* type) {
-    for(auto id: buffer) {
-        if(id == type->con) return;
+    for(auto i = 0u; i < offset; i++) {
+        if(buffer.ptr[i] == type->con) return;
     }
 
     if(offset < buffer.length) {
@@ -793,7 +793,7 @@ Type* resolveType(Context* context, Module* module, ast::Type* type, GenEnv* env
     }
 
     if(typeEnv && typeEnv->typeCount > 0) {
-        context->diagnostics.error("cannot use a generic type here"_buffer, type, noSource);
+        context->diagnostics.error("cannot use an incomplete type here"_buffer, type, noSource);
     }
 
     return found;
