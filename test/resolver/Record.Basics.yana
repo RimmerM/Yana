@@ -1,0 +1,72 @@
+-- Complete records.
+data A { Int }
+data B { Int, { Float, Float } }
+data C { a: Int }
+data D { a: Int, b: Float }
+data E {}
+data F = F
+data G = G1 | G2 | G3
+data H = H(Int)
+data I = I [Int]
+data J = J { Int, { x: Int, y: Int } }
+data K = K({ Int })
+data L = L1(Float) | L2(Bool) | L3(K) | L4 { F, G }
+data qualified M = M1 | M2 | M3(B)
+data qualified M_ = M1 | M2 | M3(B)
+
+-- Usage test functions.
+fn a(v: A) = let A(i) = v in i
+fn b(v: B) = let B { _, t } = v in t.1
+fn c(v: C) = v.a
+fn d(&v: D) = v.a
+fn e(&v: E) = v
+fn f(v: F) = v
+fn g(v: G)
+    | G1 -> 0
+    | G2 -> 2
+    | G3 -> 4
+fn h(v: H) = match v:
+    H(i) -> i
+fn i(v: I) = v
+fn j(v: J) = v.1.y
+fn k(v: K) = let K(i) = v in i
+fn l(v: L) = match v:
+    L4 { f, g } -> f
+    else        -> F()
+fn m(v: M) = match v:
+    M.M1 -> 0
+    else -> 1
+fn m_(v: M_) = match v:
+    M_.M1 -> 1
+    else  -> 0
+
+-- Construction test functions.
+fn ca() = A(5 * 5)
+fn ca_() = A { 4 * 4 }
+fn cb() = B(6 / 3, { 0.0 :: Float, 1.1 :: Float })
+fn cb_() = B { 4 / 2, { 1.2 :: Float, 1.3 :: Float } }
+fn cc() = C(1)
+fn cc_() = C(a = 2)
+fn cc__() = C { a = 3 }
+fn cd() = D(0, 0.0)
+fn cd_() = D(a = 0, b = 0.0)
+fn cd__() = D { a = 0, b = 0.0 }
+fn ce() = E()
+fn ce_() = E
+fn cf() = F()
+fn cf_() = F
+fn cg() = G1
+fn cg_() = G2
+fn cg__() = G3
+fn ch() = H(0)
+fn cj() = let H(i) = ch() in J { i, { x = 7, y = 8 } }
+fn ck() = K(6 * 6)
+fn ck_() = K {7 * 7}
+fn cl() = L1(4.4 * 5.5)
+fn cl_() = L2(0 == 1)
+fn cl__() = L3(K(0))
+fn cl___() = L4(F, G2)
+fn cm() = M.M1
+fn cm_() = M_.M2
+
+fn unit() = {}
