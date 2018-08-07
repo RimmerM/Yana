@@ -826,6 +826,10 @@ static SymbolCounts prepareSymbols(Context* context, Module* module, ast::Decl**
                 auto alias = defineAlias(context, module, ast->type->name, nullptr);
                 alias->ast = ast;
                 prepareGens(context, module, &alias->gen, ast, ast->type->kind, nullptr, nullptr);
+
+                auto args = prepareArgs(context, module, ast->type->kind, &alias->gen);
+                alias->argCount = (U16)args.length;
+                alias->args = args.ptr;
                 break;
             }
             case ast::Decl::Data: {
@@ -840,6 +844,10 @@ static SymbolCounts prepareSymbols(Context* context, Module* module, ast::Decl**
                 auto record = defineRecord(context, module, ast->type->name, conCount, ast->qualified);
                 record->ast = ast;
                 prepareGens(context, module, &record->gen, ast, ast->type->kind, nullptr, ast->constraints);
+
+                auto args = prepareArgs(context, module, ast->type->kind, &record->gen);
+                record->argCount = (U16)args.length;
+                record->args = args.ptr;
 
                 con = ast->cons;
                 for(U32 j = 0; j < conCount; j++) {

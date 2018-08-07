@@ -73,7 +73,7 @@ static InstBinary* binary(Block* block, Inst::Kind kind, Id name, Value* lhs, Va
 }
 
 Value* error(Block* block, Id name, Type* type) {
-    auto v = block->inst(sizeof(InstBinary), name, Value::InstNop, type);
+    auto v = block->inst(sizeof(Inst), name, Value::InstNop, type);
     v->usedCount = 0;
     v->usedValues = nullptr;
     return v;

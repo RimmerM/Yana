@@ -508,6 +508,7 @@ AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, T
     alias->virtualSize = to->virtualSize;
     alias->descriptor = to->descriptor;
     alias->descriptorLength = to->descriptorLength;
+    alias->argCount = 0;
 
     return alias;
 }
@@ -526,6 +527,7 @@ RecordType* instantiateRecord(Context* context, Module* module, RecordType* type
     record->qualified = type->qualified;
     record->descriptor = type->descriptor;
     record->descriptorLength = type->descriptorLength;
+    record->argCount = 0;
 
     // Make sure that each instantiated record has exactly one base type.
     // Using generic aliases it is possible to produce instances of instantiated records.
@@ -599,7 +601,7 @@ static Type* resolveApp(Context* context, Module* module, ast::AppType* type, Ge
     } else if(base->kind == Type::Record) {
         return instantiateRecord(context, module, (RecordType*)base, args, argCount);
     } else {
-        context->diagnostics.error("type is not a higher order type"_buffer, type->base, noSource);
+        context->diagnostics.error("type has no type arguments"_buffer, type->base, noSource);
         return nullptr;
     }
 }
@@ -638,6 +640,7 @@ static Type* findType(Context* context, Module* module, ast::Type* type, GenEnv*
                 return &errorType;
             }
 
+            resolveDefinition(context, module, found);
             return found;
         }
         case ast::Type::Fun: {
