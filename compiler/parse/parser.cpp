@@ -1459,6 +1459,12 @@ Type* Parser::parseArrayType() {
 Expr* Parser::parseTupleExpr() {
     return node([=] {
         return braces([=]() -> Expr* {
+            // An empty tuple is equivalent to an expression of unit type.
+            if(token.type == Token::BraceR) {
+                return new (buffer) TupExpr(nullptr);
+            }
+
+            // For non-empty tuples, parse the first value to check for update expressions.
             bool firstQualified = false;
             if(token.type == Token::VarSym && token.data.id == hashId) {
                 eat();

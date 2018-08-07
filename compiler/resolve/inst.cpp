@@ -79,6 +79,13 @@ Value* error(Block* block, Id name, Type* type) {
     return v;
 }
 
+Value* nop(Block* block, Id name) {
+    auto v = block->inst(sizeof(Inst), name, Value::InstNop, &unitType);
+    v->usedCount = 0;
+    v->usedValues = nullptr;
+    return v;
+}
+
 ConstInt* constInt(Block* block, Id name, I64 value, Type* type) {
     auto c = new (block->function->module->memory) ConstInt;
     c->block = block;
@@ -706,6 +713,10 @@ InstJmp* jmp(Block* block, Block* to) {
 }
 
 InstRet* ret(Block* block, Value* value) {
+    // Prevent weird edge cases where we try to explicitly use a void value.
+    // If the returned value is void, return nothing instead.
+    if(value && value->type->kind == Type::Unit) value = nullptr;
+
     // Use the type of the returned value to simplify some analysis.
     auto type = value ? value->type : &unitType;
     auto inst = (InstRet*)block->inst(sizeof(InstRet), 0, Inst::InstRet, type);

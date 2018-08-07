@@ -820,6 +820,12 @@ Value* resolveTup(FunBuilder* b, ast::TupExpr* expr, Id name) {
         arg = arg->next;
     }
 
+    // Convert empty tuples to nop instructions of unit type.
+    if(argCount == 0) {
+        return nop(b->block, name);
+    }
+
+    // Otherwise, resolve the argument types and instantiate a tuple.
     auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
     auto fields = (Field*)alloca(sizeof(Field) * argCount);
 

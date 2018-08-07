@@ -462,6 +462,7 @@ inline bool isTerminating(Inst::Kind kind) {
 }
 
 Value* error(Block* block, Id name, Type* type);
+Value* nop(Block* block, Id name);
 
 ConstInt* constInt(Block* block, Id name, I64 value, Type* type);
 ConstFloat* constFloat(Block* block, Id name, double value, Type* type);
