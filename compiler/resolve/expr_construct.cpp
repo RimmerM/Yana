@@ -83,7 +83,7 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
     if(type->kind == Type::Int || type->kind == Type::Float) {
         if(!expr->args || expr->args->next) {
             error(b, "incorrect number of arguments to type constructor"_buffer, expr);
-            return nullptr;
+            return type->kind == Type::Int ? (Value*)constInt(b->block, name, 0, type) : constFloat(b->block, name, 0, type);
         }
 
         auto arg = resolveExpr(b, expr->args->item.value, name, true);
@@ -91,13 +91,13 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
     } else if(type->kind == Type::String) {
         if(!expr->args || expr->args->next) {
             error(b, "incorrect number of arguments to string constructor"_buffer, expr);
-            return nullptr;
+            return constString(b->block, name, "", 0);
         }
 
         auto arg = resolveExpr(b, expr->args->item.value, name, true);
         if(arg->type->kind != Type::String) {
             error(b, "strings must be constructed with a string"_buffer, expr);
-            return nullptr;
+            return constString(b->block, name, "", 0);
         }
 
         return arg;
@@ -146,21 +146,21 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
     } else if(type->kind == Type::Array) {
         // TODO
         error(b, "not implemented"_buffer, expr);
-        return nullptr;
+        return error(b->block, name, type);
     } else if(type->kind == Type::Map) {
         // TODO
         error(b, "not implemented"_buffer, expr);
-        return nullptr;
+        return error(b->block, name, type);
     } else if(type->kind == Type::Fun) {
         // TODO
         error(b, "not implemented"_buffer, expr);
-        return nullptr;
+        return error(b->block, name, type);
     } else if(type->kind == Type::Unit || type->kind == Type::Error) {
         return nullptr;
     }
 
     error(b, "cannot construct this type"_buffer, expr->type);
-    return nullptr;
+    return error(b->block, name, type);
 }
 
 static Value* resolveMiscCon(FunBuilder* b, ast::ConExpr* expr, Id name) {

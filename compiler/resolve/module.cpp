@@ -7,7 +7,6 @@ static constexpr U32 kMaxGens = 64;
 AliasType* defineAlias(Context* context, Module* in, Id name, Type* to) {
     if(in->types.get(name)) {
         context->diagnostics.error("redefinition of type %@"_buffer, nullptr, noSource, context->findName(name));
-        return nullptr;
     }
 
     auto alias = new (in->memory) AliasType;
@@ -22,7 +21,6 @@ AliasType* defineAlias(Context* context, Module* in, Id name, Type* to) {
 RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bool qualified) {
     if(in->types.get(name)) {
         context->diagnostics.error("redefinition of type %@"_buffer, nullptr, noSource, context->findName(name));
-        return nullptr;
     }
 
     auto r = new (in->memory) RecordType;
@@ -43,7 +41,6 @@ RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bo
 Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index) {
     if(in->cons.get(name)) {
         context->diagnostics.error("redefinition of constructor %@"_buffer, nullptr, noSource, context->findName(name));
-        return nullptr;
     }
 
     auto con = to->cons + index;
@@ -62,7 +59,6 @@ Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index)
 TypeClass* defineClass(Context* context, Module* in, Id name, U32 funCount) {
     if(in->typeClasses.get(name)) {
         context->diagnostics.error("redefinition of class %@"_buffer, nullptr, noSource, context->findName(name));
-        return nullptr;
     }
 
     auto c = &in->typeClasses[name];
@@ -106,11 +102,13 @@ ClassInstance* defineInstance(Context* context, Module* in, TypeClass* to, Type*
             }
         }
 
-        if(cmp > 0) {
+        if(cmp > 0 || cmp == 0) {
+            if(cmp == 0) {
+                context->diagnostics.error("an instance for this class has already been defined"_buffer, nullptr, noSource);
+            }
+
             insertPosition = i + 1;
             break;
-        } else if(cmp == 0) {
-            context->diagnostics.error("an instance for this class has already been defined"_buffer, nullptr, noSource);
         }
     }
 
@@ -151,7 +149,6 @@ InstanceList* defineTypeInstance(Context* context, Module* in, Type* to) {
 Function* defineFun(Context* context, Module* in, Id name) {
     if(in->functions.get(name) || in->foreignFunctions.get(name)) {
         context->diagnostics.error("redefinition of function named %@"_buffer, nullptr, noSource, context->findName(name));
-        return nullptr;
     }
 
     auto f = &in->functions[name];
@@ -170,7 +167,6 @@ Function* defineAnonymousFun(Context* context, Module* in) {
 ForeignFunction* defineForeignFun(Context* context, Module* in, Id name, FunType* type) {
     if(in->functions.get(name) || in->foreignFunctions.get(name)) {
         context->diagnostics.error("redefinition of function named %@"_buffer, nullptr, noSource, context->findName(name));
-        return nullptr;
     }
 
     auto f = &in->foreignFunctions[name];
@@ -185,7 +181,6 @@ ForeignFunction* defineForeignFun(Context* context, Module* in, Id name, FunType
 Global* defineGlobal(Context* context, Module* in, Id name) {
     if(in->globals.get(name)) {
         context->diagnostics.error("redefinition of identifier %@"_buffer, nullptr, noSource, context->findName(name));
-        return nullptr;
     }
 
     auto g = &in->globals[name];
@@ -222,7 +217,6 @@ ClassFun* defineClassFun(Context* context, Module* module, TypeClass* typeClass,
 
     if(module->classFunctions.get(name)) {
         context->diagnostics.error("redefinition of class function named %@"_buffer, nullptr, noSource, context->findName(name));
-        return nullptr;
     } else {
         module->classFunctions.add(name, f);
     }
