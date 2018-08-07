@@ -466,7 +466,7 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
             name = "storefield";
             break;
         case Inst::InstStoreArray:
-            name =  "storearray";
+            name = "storearray";
             break;
         case Inst::InstGetField:
             name = "getfield";
@@ -547,6 +547,14 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
     } else if(inst->kind == Inst::InstCallDyn) {
         if(((InstCallDyn*)inst)->isIntrinsic) {
             stream << "<intrinsic> ";
+        }
+    } else if(inst->kind == Inst::InstRecord) {
+        auto record = (InstRecord*)inst;
+        auto con = context.findName(record->con->name);
+        stream.write(con.text(), con.size());
+
+        if(inst->usedCount > 0) {
+            stream << ", ";
         }
     }
 
