@@ -98,7 +98,7 @@ void printType(std::ostream& stream, Context& context, const Type* type) {
             break;
         }
         case Type::Gen:
-            stream << "gen ";
+            stream << '\'';
             stream << ((GenType*)type)->index;
             break;
         case Type::Fun: {
@@ -214,6 +214,101 @@ void printModule(std::ostream& stream, Context& context, const Module* module) {
     }
 }
 
+void printGenEnv(std::ostream& stream, Context& context, const GenEnv* env) {
+    if(env->typeCount > 0) {
+        stream << '[';
+        for(Size i = 0; i < env->typeCount; i++) {
+            printType(stream, context, env->types[i]);
+            if(i < env->typeCount - 1) {
+                stream << ", ";
+            }
+        }
+
+        if(env->classCount > 0) {
+            stream << ", ";
+            stream << '{';
+
+            for(Size i = 0; i < env->classCount; i++) {
+                auto c = env->classes[i];
+                auto name = context.find(c.classType->name);
+                if(name.textLength > 0) {
+                    stream.write(name.text, name.textLength);
+                } else {
+                    stream << "<unnamed>";
+                }
+
+                stream << '(';
+                for(Size j = 0; j < c.forTypes.length; j++) {
+                    printType(stream, context, c.forTypes.ptr[j]);
+                    if(j < c.forTypes.length - 1) {
+                        stream << ", ";
+                    }
+                }
+                stream << ')';
+
+                if(i < env->classCount - 1) {
+                    stream << ", ";
+                }
+            }
+
+            stream << '}';
+        }
+
+        if(env->funCount > 0) {
+            stream << ", ";
+            stream << '{';
+
+            for(Size i = 0; i < env->funCount; i++) {
+                auto fun = env->funs[i];
+                auto name = context.find(fun.name);
+                if(name.textLength > 0) {
+                    stream.write(name.text, name.textLength);
+                } else {
+                    stream << "<unnamed>";
+                }
+
+                stream << ": ";
+                printType(stream, context, fun.type);
+
+                if(i < env->funCount - 1) {
+                    stream << ", ";
+                }
+            }
+
+            stream << '}';
+        }
+
+        if(env->fieldCount > 0) {
+            stream << ", ";
+            stream << '{';
+
+            for(Size i = 0; i < env->fieldCount; i++) {
+                auto field = env->fields[i];
+                printType(stream, context, field.container);
+                stream << '.';
+
+                auto name = context.find(field.fieldName);
+                if(name.textLength > 0) {
+                    stream.write(name.text, name.textLength);
+                } else {
+                    stream << "<unnamed>";
+                }
+
+                stream << ": ";
+                printType(stream, context, field.fieldType);
+
+                if(i < env->fieldCount - 1) {
+                    stream << ", ";
+                }
+            }
+
+            stream << '}';
+        }
+
+        stream << ']';
+    }
+}
+
 void printFunction(std::ostream& stream, Context& context, const Function* fun, Id forceName) {
     stream << "fn ";
     auto name = context.find(forceName ? forceName : fun->name);
@@ -222,6 +317,8 @@ void printFunction(std::ostream& stream, Context& context, const Function* fun, 
     } else {
         stream << "<unnamed>";
     }
+
+    printGenEnv(stream, context, &fun->gen);
 
     stream << '(';
     for(Size i = 0; i < fun->args.size(); i++) {
