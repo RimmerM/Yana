@@ -105,7 +105,7 @@ static FieldResult findStaticField(Type* type, Id stringField, U32 intField) {
 }
 
 static Value* testStaticField(FunBuilder* b, Id name, Value* target, ast::Expr* ast) {
-    auto targetType = canonicalType(target->type);
+    auto targetType = rValueType(target->type);
     FieldResult result = {nullptr, nullptr};
 
     switch(ast->type) {

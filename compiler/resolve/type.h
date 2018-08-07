@@ -442,8 +442,11 @@ void resolveGens(Context* context, Module* module, GenEnv* env);
 // Checks if the two provided types are the same.
 bool compareTypes(Context* context, Type* lhs, Type* rhs);
 
-// Returns the canonical type of this type - the base type it acts like when used.
+// Returns the canonical type of this type - the IR-level when discarding alias information.
 Type* canonicalType(Type* type);
+
+// Returns the type this type acts as when used as an rvalue.
+Type* rValueType(Type* type);
 
 // Generates the descriptor for a newly built type.
 void createDescriptor(Type* type, Arena* arena);

@@ -877,7 +877,18 @@ TupType* resolveTupType(Context* context, Module* module, Field* sourceFields, U
 Type* canonicalType(Type* type) {
     switch(type->kind) {
         case Type::Alias:
-            return ((AliasType*)type)->to;
+            return canonicalType(((AliasType*)type)->to);
+        default:
+            return type;
+    }
+}
+
+Type* rValueType(Type* type) {
+    type = canonicalType(type);
+
+    switch(type->kind) {
+        case Type::Ref:
+            return ((RefType*)type)->to;
         default:
             return type;
     }

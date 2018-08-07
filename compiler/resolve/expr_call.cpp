@@ -150,7 +150,7 @@ static Value* finishClassCall(FunBuilder* b, ClassFun* fun, Value** args, U32 co
     for(U32 i = 0; i < count; i++) {
         auto a = fun->fun->args[i]->type;
         if(a->kind == Type::Gen) {
-            classArgs[((GenType*)a)->index] = args[i]->type;
+            classArgs[((GenType*)a)->index] = canonicalType(args[i]->type);
         }
     }
 
