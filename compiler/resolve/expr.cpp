@@ -1043,6 +1043,12 @@ Value* resolveRet(FunBuilder* b, ast::RetExpr* expr) {
     Value* value = nullptr;
     if(expr->value) {
         value = resolveExpr(b, expr->value, 0, true);
+        if(b->fun->returnType) {
+            // Try to implicitly convert to the target return type if one was provided.
+            // If the conversion fails (returns null), let the function resolving code handle it.
+            auto converted = implicitConvert(b, value, b->fun->returnType, false, false);
+            if(converted) value = converted;
+        }
     }
     return ret(b->block, value);
 }

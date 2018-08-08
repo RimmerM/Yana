@@ -945,7 +945,17 @@ static void resolveClass(Context* context, Module* module, TypeClass* c) {
 void resolveFun(Context* context, Function* fun, bool requireBody) {
     // Check if the function was resolved already.
     auto ast = fun->ast;
-    if(!ast || fun->resolving) return;
+    if(!ast || fun->resolving) {
+        if(!fun->returnType) {
+            // If the function has no explicit return type, this can happen if it is called recursively or mutually recursively.
+            // We cannot find out the type without implementing fully generic ML-style type inference.
+            // Currently, we just require the user to explicitly provide a return type for these cases.
+            assertTrue(fun->resolving);
+            context->diagnostics.error("function %@ is called recursively and needs an explicit return type"_buffer, nullptr, noSource, context->findName(fun->name));
+            fun->returnType = &errorType;
+        }
+        return;
+    }
 
     // Set the flag for recursion detection.
     fun->resolving = true;
@@ -980,9 +990,8 @@ void resolveFun(Context* context, Function* fun, bool requireBody) {
     }
 
     // Set the return type, if explicitly provided.
-    Type* expectedReturn = nullptr;
     if(ast->ret) {
-        expectedReturn = resolveType(context, fun->module, ast->ret, &fun->gen);
+        fun->returnType = resolveType(context, fun->module, ast->ret, &fun->gen);
     }
 
     if(ast->body) {
@@ -1011,14 +1020,20 @@ void resolveFun(Context* context, Function* fun, bool requireBody) {
             previous = r->type;
         }
 
-        if(expectedReturn && !compareTypes(context, expectedReturn, previous)) {
-            context->diagnostics.error("declared type and actual type of function don't match"_buffer, ast, noSource);
+        if(fun->returnType && fun->returnType->kind != Type::Error) {
+            if(!compareTypes(context, fun->returnType, previous)) {
+                context->diagnostics.error("declared type and actual type of function don't match"_buffer, ast, noSource);
+            }
+        } else {
+            fun->returnType = previous;
         }
 
-        fun->returnType = previous;
         builder.exprMem.reset();
     } else {
-        fun->returnType = expectedReturn ? expectedReturn : &unitType;
+        if(!fun->returnType) {
+            fun->returnType = &unitType;
+        }
+
         if(requireBody) {
             context->diagnostics.error("function has no body"_buffer, ast, noSource);
         }
