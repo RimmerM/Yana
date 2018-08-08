@@ -977,10 +977,13 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
             error(b, "match expression doesn't produce a result in every case"_buffer, expr);
         }
 
-        // If the very first match always succeeds we can use that value immediately and continue in the same block.
-        if(usedAlts <= 1) {
+        if(usedAlts == 1) {
+            // If the very first match always succeeds we can use that value immediately and continue in the same block.
             b->block = alts[0].fromBlock;
             return alts[0].value;
+        } else if(usedAlts == 0) {
+            // All matches will always fail - return an error in this case.
+            return error(b->block, name, &errorType);
         }
 
         // Create an after-block that each non-complete match block continues in.
