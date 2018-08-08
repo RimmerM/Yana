@@ -396,6 +396,7 @@ static Type* instantiateType(Context* context, Module* module, Type* type, Type*
         case Type::String:
             return type;
         case Type::Gen:
+            assertTrue(((GenType*)type)->index < count);
             return args[((GenType*)type)->index];
         case Type::Ref: {
             auto ref = (RefType*)type;
@@ -493,7 +494,7 @@ static Type* instantiateType(Context* context, Module* module, Type* type, Type*
 }
 
 AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count) {
-    if(count != type->argCount) {
+    if(!type->instanceOf && count != type->argCount) {
         context->diagnostics.error("incorrect number of arguments to type"_buffer, nullptr, noSource);
         return type;
     }
@@ -514,7 +515,7 @@ AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, T
 }
 
 RecordType* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count) {
-    if(count != type->argCount) {
+    if(!type->instanceOf && count != type->argCount) {
         context->diagnostics.error("incorrect number of arguments to type"_buffer, nullptr, noSource);
         return type;
     }
@@ -580,7 +581,7 @@ RecordType* instantiateRecord(Context* context, Module* module, RecordType* type
 static Type* resolveApp(Context* context, Module* module, ast::AppType* type, GenEnv* gen) {
     // Find the base type and instantiate it for these arguments.
     auto base = findType(context, module, type->base, gen);
-    if(!base) return nullptr;
+    if(base->kind == Type::Error) return &errorType;
 
     U32 argCount = 0;
     auto arg = type->apps;
@@ -602,7 +603,7 @@ static Type* resolveApp(Context* context, Module* module, ast::AppType* type, Ge
         return instantiateRecord(context, module, (RecordType*)base, args, argCount);
     } else {
         context->diagnostics.error("type has no type arguments"_buffer, type->base, noSource);
-        return nullptr;
+        return base;
     }
 }
 
@@ -792,14 +793,18 @@ Type* resolveType(Context* context, Module* module, ast::Type* type, GenEnv* env
     auto found = findType(context, module, type, env);
 
     GenEnv* typeEnv = nullptr;
+    Id name = 0;
     if(found->kind == Type::Alias) {
         typeEnv = &((AliasType*)found)->gen;
+        name = ((AliasType*)found)->name;
     } else if(found->kind == Type::Record) {
         typeEnv = &((RecordType*)found)->gen;
+        name = ((RecordType*)found)->name;
     }
 
     if(typeEnv && typeEnv->typeCount > 0) {
-        context->diagnostics.error("cannot use an incomplete type here"_buffer, type, noSource);
+        context->diagnostics.error("cannot use the incomplete type %@ here"_buffer, type, noSource, context->findName(name));
+        return &errorType;
     }
 
     return found;
