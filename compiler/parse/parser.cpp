@@ -53,7 +53,6 @@ Parser::Parser(Context& context, ast::Module& module, const char* text):
     ptrId = Context::nameHash(&kPtrSigil, 1);
     valId = Context::nameHash(&kValSigil, 1);
     downtoId = Context::nameHash("downto", 6);
-    hashId = Context::nameHash("#", 1);
     minusId = Context::nameHash("-", 1);
     stepId = Context::nameHash("step", 4);
 
@@ -1008,7 +1007,7 @@ Expr* Parser::parseStringExpr() {
 
 TupArg Parser::parseTupArg() {
     bool qualified = false;
-    if(token.type == Token::VarSym && token.data.id == hashId) {
+    if(token.type == Token::opTilde) {
         eat();
         qualified = true;
     }
@@ -1466,7 +1465,7 @@ Expr* Parser::parseTupleExpr() {
 
             // For non-empty tuples, parse the first value to check for update expressions.
             bool firstQualified = false;
-            if(token.type == Token::VarSym && token.data.id == hashId) {
+            if(token.type == Token::opTilde) {
                 eat();
                 firstQualified = true;
             }
@@ -1637,7 +1636,7 @@ Con Parser::parseCon() {
 
 FieldPat Parser::parseFieldPat() {
     bool qualified = false;
-    if(token.type == Token::VarSym && token.data.id == hashId) {
+    if(token.type == Token::opTilde) {
         eat();
         qualified = true;
     }

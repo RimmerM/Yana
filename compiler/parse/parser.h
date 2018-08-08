@@ -213,7 +213,6 @@ struct Parser {
     Id ptrId;
     Id valId;
     Id downtoId;
-    Id hashId;
     Id minusId;
     Id stepId;
 };
