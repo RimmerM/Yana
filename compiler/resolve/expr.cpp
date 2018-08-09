@@ -181,6 +181,7 @@ Value* resolveLit(FunBuilder* b, Type* targetType, ast::Literal* lit, Id name) {
     }
 
     if(targetType) {
+        targetType = canonicalType(targetType);
         auto v = implicitConvert(b, value, targetType, true, false);
         if(v) value = v;
     }
@@ -888,10 +889,13 @@ Value* resolveTup(FunBuilder* b, Type* targetType, ast::TupExpr* expr, Id name) 
     // Check if the tuple has to be typecast into a specific set of fields.
     // Only use the target information if the fields are compatible.
     Field* targetFields = nullptr;
-    if(targetType && targetType->kind == Type::Tup) {
-        auto tupType = (TupType*)targetType;
-        if(tupType->count == argCount) {
-            targetFields = tupType->fields;
+    if(targetType) {
+        targetType = canonicalType(targetType);
+        if(targetType->kind == Type::Tup) {
+            auto tupType = (TupType*)targetType;
+            if(tupType->count == argCount) {
+                targetFields = tupType->fields;
+            }
         }
     }
 
@@ -902,22 +906,26 @@ Value* resolveTup(FunBuilder* b, Type* targetType, ast::TupExpr* expr, Id name) 
         Type* fieldType = nullptr;
 
         // If we have a target type, try to match target field names.
-        if(targetFields && arg->item.name) {
-            for(U32 j = 0; j < argCount; j++) {
-                auto field = targetFields + j;
-                if(field->name && field->name == arg->item.name) {
-                    fieldIndex = j;
-                    fieldIndices[j] = i;
-                    fieldType = field->type;
-                    matchCount++;
-                    break;
+        if(targetFields) {
+            if(arg->item.name) {
+                for(U32 j = 0; j < argCount; j++) {
+                    auto field = targetFields + j;
+                    if(field->name && field->name == arg->item.name) {
+                        fieldIndex = j;
+                        fieldIndices[j] = i;
+                        fieldType = field->type;
+                        matchCount++;
+                        break;
+                    }
                 }
-            }
 
-            // Whenever we fail to match a field, stop trying and reset to use normal indices.
-            if(matchCount < i + 1) {
-                resetTupOrder(args, fields, fieldIndices, argCount);
-                targetFields = nullptr;
+                // Whenever we fail to match a field, stop trying and reset to use normal indices.
+                if(matchCount < i + 1) {
+                    resetTupOrder(args, fields, fieldIndices, argCount);
+                    targetFields = nullptr;
+                }
+            } else {
+                fieldType = targetFields[i].type;
             }
         }
 
@@ -996,8 +1004,11 @@ Value* resolveArray(FunBuilder* b, Type* targetType, ast::ArrayExpr* expr, Id na
     }
 
     Type* arrayType = nullptr;
-    if(targetType && targetType->kind == Type::Array) {
-        arrayType = ((ArrayType*)targetType)->content;
+    if(targetType) {
+        targetType = canonicalType(targetType);
+        if(targetType->kind == Type::Array) {
+            arrayType = ((ArrayType*)targetType)->content;
+        }
     }
 
     if(length == 0) {
