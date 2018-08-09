@@ -427,11 +427,11 @@ Module* nativeModule(Context* context, Module* core) {
         auto rhs = defineArg(context, storeFunction, body, 0, getRef(module, type, false, false, true));
         storeFunction->returnType = &unitType;
 
-        store(body, 0, lhs, rhs);
+        store(body, 0, rhs, lhs);
         ret(body);
 
         storeFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
-            return store(b->block, instName, args[0], args[1]);
+            return store(b->block, instName, args[1], args[0]);
         };
     }
 

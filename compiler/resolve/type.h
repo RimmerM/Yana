@@ -460,8 +460,10 @@ void findGenerics(Context* context, Buffer<Id> buffer, Size& offset, ast::Type* 
 
 // Instantiates a higher-order type for a specific set of arguments.
 // Returns a new type which is distinct from but references the original.
-AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count);
-RecordType* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count);
+// If direct is set, the action represents an explicit instantiation of this type.
+// If not, the action represents an implicit instantiation through a containing type.
+AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count, bool direct);
+RecordType* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count, bool direct);
 
 // Calls a visitor callback for each type referenced inside the provided one.
 template<class F> void visitType(Type* type, F&& f) {

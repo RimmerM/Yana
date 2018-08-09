@@ -244,7 +244,7 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
             instanceArgs[g->index] = args.values[0]->type;
         }
 
-        auto record = instantiateRecord(&b->context, b->fun->module, con->parent, instanceArgs, con->parent->argCount);
+        auto record = instantiateRecord(&b->context, b->fun->module, con->parent, instanceArgs, con->parent->argCount, true);
         con = &record->cons[con->index];
     }
 

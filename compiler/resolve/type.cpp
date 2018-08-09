@@ -395,9 +395,11 @@ static Type* instantiateType(Context* context, Module* module, Type* type, Type*
         case Type::Float:
         case Type::String:
             return type;
-        case Type::Gen:
-            assertTrue(((GenType*)type)->index < count);
-            return args[((GenType*)type)->index];
+        case Type::Gen: {
+            auto gen = (GenType*)type;
+            assertTrue(gen->index < count);
+            return args[gen->index];
+        }
         case Type::Ref: {
             auto ref = (RefType*)type;
             auto instantiated = instantiateType(context, module, ref->to, args, count);
@@ -408,9 +410,9 @@ static Type* instantiateType(Context* context, Module* module, Type* type, Type*
             }
         }
         case Type::Alias:
-            return instantiateAlias(context, module, (AliasType*)type, args, count);
+            return instantiateAlias(context, module, (AliasType*)type, args, count, false);
         case Type::Record:
-            return instantiateRecord(context, module, (RecordType*)type, args, count);
+            return instantiateRecord(context, module, (RecordType*)type, args, count, false);
         case Type::Array: {
             auto content = ((ArrayType*)type)->content;
             auto instantiated = instantiateType(context, module, content, args, count);
@@ -493,11 +495,23 @@ static Type* instantiateType(Context* context, Module* module, Type* type, Type*
     }
 }
 
-AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count) {
-    if(!type->instanceOf && count != type->argCount) {
-        context->diagnostics.error("incorrect number of arguments to type"_buffer, nullptr, noSource);
+template<class T>
+static T* checkInstantiation(Context* context, T* type, U32 count, bool direct) {
+    if(direct) {
+        if(count != type->argCount) {
+            context->diagnostics.error("incorrect number of arguments to type %@"_buffer, nullptr, noSource, context->findName(type->name));
+            return type;
+        }
+    } else if(type->argCount > 0) {
+        context->diagnostics.error("cannot use the incomplete type %@ here"_buffer, nullptr, noSource, context->findName(type->name));
         return type;
     }
+
+    return nullptr;
+}
+
+AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count, bool direct) {
+    if(auto result = checkInstantiation(context, type, count, direct)) return result;
 
     auto to = instantiateType(context, module, type->to, args, count);
     auto alias = new (module->memory) AliasType;
@@ -514,11 +528,8 @@ AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, T
     return alias;
 }
 
-RecordType* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count) {
-    if(!type->instanceOf && count != type->argCount) {
-        context->diagnostics.error("incorrect number of arguments to type"_buffer, nullptr, noSource);
-        return type;
-    }
+RecordType* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count, bool direct) {
+    if(auto result = checkInstantiation(context, type, count, direct)) return result;
 
     auto record = new (module->memory) RecordType;
     record->ast = nullptr;
@@ -535,19 +546,18 @@ RecordType* instantiateRecord(Context* context, Module* module, RecordType* type
     if(type->instanceOf) {
         auto baseInstance = type->instanceOf;
         auto instance = (Type**)module->memory.alloc(sizeof(Type*) * baseInstance->argCount);
-        copy(type->instance, instance, baseInstance->argCount);
 
         // Match the generics in the instance to the new arguments.
-        U32 argIndex = 0;
         for(U32 i = 0; i < baseInstance->argCount; i++) {
-            if(type->instance[i]->kind == Type::Gen) {
-                instance[i] = args[argIndex];
-                argIndex++;
-            }
+            instance[i] = instantiateType(context, module, type->instance[i], args, count);
         }
 
         record->instanceOf = baseInstance;
         record->instance = instance;
+
+        args = instance;
+        count = baseInstance->argCount;
+        type = baseInstance;
     } else {
         auto instance = (Type**)module->memory.alloc(sizeof(Type*) * count);
         copy(args, instance, count);
@@ -598,9 +608,9 @@ static Type* resolveApp(Context* context, Module* module, ast::AppType* type, Ge
     }
 
     if(base->kind == Type::Alias) {
-        return instantiateAlias(context, module, (AliasType*)base, args, argCount);
+        return instantiateAlias(context, module, (AliasType*)base, args, argCount, true);
     } else if(base->kind == Type::Record) {
-        return instantiateRecord(context, module, (RecordType*)base, args, argCount);
+        return instantiateRecord(context, module, (RecordType*)base, args, argCount, true);
     } else {
         context->diagnostics.error("type has no type arguments"_buffer, type->base, noSource);
         return base;
