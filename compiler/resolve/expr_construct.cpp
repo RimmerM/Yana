@@ -50,7 +50,7 @@ static void matchArgs(FunBuilder* b, List<ast::TupArg>* arg, Args args, F f) {
                 error(b, "argument specified more than once"_buffer, arg->item.value);
             }
 
-            args.values[argIndex] = resolveExpr(b, arg->item.value, 0, true);
+            args.values[argIndex] = resolveExpr(b, nullptr, arg->item.value, 0, true);
         } else {
             error(b, "constructed type has no field with this name"_buffer, arg->item.value);
         }
@@ -86,7 +86,7 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
             return type->kind == Type::Int ? (Value*)constInt(b->block, name, 0, type) : constFloat(b->block, name, 0, type);
         }
 
-        auto arg = resolveExpr(b, expr->args->item.value, name, true);
+        auto arg = resolveExpr(b, nullptr, expr->args->item.value, name, true);
         return implicitConvert(b, arg, type, true, true);
     } else if(type->kind == Type::String) {
         if(!expr->args || expr->args->next) {
@@ -94,7 +94,7 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
             return constString(b->block, name, "", 0);
         }
 
-        auto arg = resolveExpr(b, expr->args->item.value, name, true);
+        auto arg = resolveExpr(b, nullptr, expr->args->item.value, name, true);
         if(arg->type->kind != Type::String) {
             error(b, "strings must be constructed with a string"_buffer, expr);
             return constString(b->block, name, "", 0);
@@ -173,7 +173,7 @@ static Value* resolveMiscCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
     return explicitConstruct(b, type, expr, name);
 }
 
-Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
+Value* resolveCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr, Id name) {
     auto con = findCon(&b->context, b->fun->module, expr->type->con);
     if(!con) {
         return resolveMiscCon(b, expr, name);
@@ -196,6 +196,7 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
         return error(b->block, name, con->parent);
     }
 
+    content = canonicalType(content);
     auto args = buildArgs(b, expr->args);
 
     U32 contentArgs = 1;
@@ -203,12 +204,6 @@ Value* resolveCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
     if(content->kind == Type::Tup) {
         targetTuple = (TupType*)content;
         contentArgs = targetTuple->count;
-    } else if(content->kind == Type::Alias) {
-        auto alias = (AliasType*)content;
-        if(alias->to->kind == Type::Tup) {
-            targetTuple = (TupType*)alias->to;
-            contentArgs = targetTuple->count;
-        }
     }
 
     if(contentArgs != args.count) {

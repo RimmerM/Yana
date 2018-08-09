@@ -42,6 +42,8 @@ static Value* implicitConvertFloat(FunBuilder* b, Value* v, Type* targetType, bo
 // If isConstruct is set, the conversion is less strict since the target type is explicitly defined.
 // Returns the new value or null if no conversion is possible.
 Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool isConstruct, bool require) {
+    targetType = canonicalType(targetType);
+
     auto type = v->type;
     if(compareTypes(&b->context, type, targetType)) return v;
 

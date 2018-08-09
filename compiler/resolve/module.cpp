@@ -996,9 +996,10 @@ void resolveFun(Context* context, Function* fun, bool requireBody) {
 
     if(ast->body) {
         bool implicitReturn = ast->implicitReturn;
+        auto targetType = implicitReturn ? fun->returnType : nullptr;
 
         FunBuilder builder(fun, startBlock, *context, fun->module->memory, context->exprArena);
-        auto body = resolveExpr(&builder, ast->body, 0, implicitReturn);
+        auto body = resolveExpr(&builder, targetType, ast->body, 0, implicitReturn);
         if(implicitReturn && body && body->kind != Inst::InstRet) {
             // The function is an expression - implicitly return the result if needed.
             ret(body->block, body);
@@ -1053,7 +1054,7 @@ static void resolveGlobals(Context* context, Module* module, ast::Decl** decls, 
     for(Size i = 0; i < count; i++) {
         if(decls[i]->kind == ast::Decl::Stmt) {
             auto decl = (ast::StmtDecl*)decls[i];
-            resolveExpr(&builder, decl->expr, 0, false);
+            resolveExpr(&builder, nullptr, decl->expr, 0, false);
             builder.exprMem.reset();
         }
     }

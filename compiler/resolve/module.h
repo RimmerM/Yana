@@ -103,7 +103,7 @@ Function* findInstanceFun(Context* context, Module* module, Type* fieldType, Id 
 
 Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast);
 void resolveFun(Context* context, Function* fun, bool requireBody = true);
-Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used);
+Value* resolveExpr(FunBuilder* b, Type* targetType, ast::Expr* expr, Id name, bool used);
 
 Id getDeclName(ast::VarDecl* expr);
 

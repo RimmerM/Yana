@@ -134,46 +134,58 @@ static Value* testStaticField(FunBuilder* b, Id name, Value* target, ast::Expr* 
     }
 }
 
-Value* resolveMulti(FunBuilder* b, ast::MultiExpr* expr, Id name, bool used) {
+Value* resolveMulti(FunBuilder* b, Type* targetType, ast::MultiExpr* expr, Id name, bool used) {
     auto e = expr->exprs;
-    if(used) {
+    if(used || targetType) {
         // Expressions that are part of a statement list are never used, unless they are the last in the list.
         Value* result = nullptr;
         while(e) {
             auto isLast = e->next == nullptr;
-            result = resolveExpr(b, e->item, 0, isLast);
+            auto exprName = isLast ? name : 0;
+            auto exprType = isLast ? targetType : nullptr;
+
+            result = resolveExpr(b, exprType, e->item, exprName, used && isLast);
             e = e->next;
         }
         return result;
     } else {
         while(e) {
-            resolveExpr(b, e->item, 0, false);
+            resolveExpr(b, nullptr, e->item, 0, false);
             e = e->next;
         }
         return nullptr;
     }
 }
 
-Value* resolveLit(FunBuilder* b, ast::Literal* lit, Id name) {
+Value* resolveLit(FunBuilder* b, Type* targetType, ast::Literal* lit, Id name) {
+    Value* value;
+
     switch(lit->type) {
         case ast::Literal::Int:
-            return constInt(b->block, name, lit->i, lit->i > kIntMax ? &intTypes[IntType::Long] : &intTypes[IntType::Int]);
+            value = constInt(b->block, name, lit->i, lit->i > kIntMax ? &intTypes[IntType::Long] : &intTypes[IntType::Int]);
+            break;
         case ast::Literal::Float:
-            return constFloat(b->block, name, lit->f, &floatTypes[FloatType::F64]);
+            value = constFloat(b->block, name, lit->f, &floatTypes[FloatType::F64]);
+            break;
         case ast::Literal::Char:
-            return nullptr;
+            value = constInt(b->block, name, lit->c, &intTypes[IntType::Int]);
+            break;
         case ast::Literal::String: {
             auto string = b->context.find(lit->s);
-            return constString(b->block, name, string.text, string.textLength);
+            value = constString(b->block, name, string.text, string.textLength);
+            break;
         }
-        case ast::Literal::Bool: {
-            auto c = constInt(b->block, name, lit->b, &intTypes[IntType::Bool]);
-            c->type = &intTypes[IntType::Bool];
-            return c;
-        }
+        case ast::Literal::Bool:
+            value = constInt(b->block, name, lit->b, &intTypes[IntType::Bool]);
+            break;
     }
 
-    return nullptr;
+    if(targetType) {
+        auto v = implicitConvert(b, value, targetType, true, false);
+        if(v) value = v;
+    }
+
+    return value;
 }
 
 Value* findVar(FunBuilder* b, Id name) {
@@ -232,13 +244,13 @@ Value* resolveVar(FunBuilder* b, ast::VarExpr* expr, bool asRV) {
     return useValue(b, value, asRV);
 }
 
-Value* resolveApp(FunBuilder* b, ast::AppExpr* expr, Id name, bool used) {
+Value* resolveApp(FunBuilder* b, Type* targetType, ast::AppExpr* expr, Id name, bool used) {
     // If the operand is a field expression we need special handling, since there are several options:
     // - the field operand is an actual field of its target and has a function type, which we call.
     // - the field operand is not a field, and we produce a function call with the target as first parameter.
     if(expr->callee->type == ast::Expr::Field) {
         auto callee = (ast::FieldExpr*)expr->callee;
-        auto target = resolveExpr(b, callee->target, 0, true);
+        auto target = resolveExpr(b, nullptr, callee->target, 0, true);
         auto staticField = testStaticField(b, 0, target, callee->field);
         if(staticField) {
             Value* field = nullptr;
@@ -249,13 +261,13 @@ Value* resolveApp(FunBuilder* b, ast::AppExpr* expr, Id name, bool used) {
             }
 
             if(field) {
-                return resolveDynCall(b, staticField, expr->args, name);
+                return resolveDynCall(b, targetType, staticField, expr->args, name);
             }
         }
 
         // TODO: Handle array and maps field loads.
         if(callee->field->type == ast::Expr::Var) {
-            return resolveStaticCall(b, ((ast::VarExpr*)callee->field)->name, target, expr->args, name);
+            return resolveStaticCall(b, targetType, ((ast::VarExpr*)callee->field)->name, target, expr->args, name);
         } else {
             error(b, "field is not a function type"_buffer, callee->field);
             return nullptr;
@@ -266,19 +278,19 @@ Value* resolveApp(FunBuilder* b, ast::AppExpr* expr, Id name, bool used) {
         // If this is a variable of function type, call it.
         auto var = findVar(b, callee->name);
         if(var && var->type->kind == Type::Fun) {
-            return resolveDynCall(b, var, expr->args, name);
+            return resolveDynCall(b, targetType, var, expr->args, name);
         } else if(var && var->type->kind == Type::Ref && ((RefType*)var->type)->to->kind == Type::Fun) {
             var = useValue(b, var, false);
-            return resolveDynCall(b, var, expr->args, name);
+            return resolveDynCall(b, targetType, var, expr->args, name);
         }
 
         // Otherwise, look for a globally defined function.
-        return resolveStaticCall(b, callee->name, nullptr, expr->args, name);
+        return resolveStaticCall(b, targetType, callee->name, nullptr, expr->args, name);
     } else {
-        auto callee = resolveExpr(b, expr->callee, 0, true);
+        auto callee = resolveExpr(b, nullptr, expr->callee, 0, true);
         auto calleeType = canonicalType(callee->type);
         if(calleeType->kind == Type::Fun) {
-            return resolveDynCall(b, callee, expr->args, name);
+            return resolveDynCall(b, targetType, callee, expr->args, name);
         } else {
             error(b, "callee is not a function type"_buffer, expr->callee);
             return nullptr;
@@ -290,7 +302,7 @@ Value* resolveFun(FunBuilder* b, ast::FunExpr* expr, Id name, bool used) {
     return nullptr;
 }
 
-Value* resolveInfix(FunBuilder* b, ast::InfixExpr* unordered, Id name, bool used) {
+Value* resolveInfix(FunBuilder* b, Type* targetType, ast::InfixExpr* unordered, Id name, bool used) {
     ast::InfixExpr* ast;
     if(unordered->ordered) {
         ast = unordered;
@@ -306,20 +318,21 @@ Value* resolveInfix(FunBuilder* b, ast::InfixExpr* unordered, Id name, bool used
     ast::AppExpr app(ast->op, &lhs);
     app.locationFrom(*ast);
 
-    return resolveApp(b, &app, name, used);
+    return resolveApp(b, targetType, &app, name, used);
 }
 
-Value* resolvePrefix(FunBuilder* b, ast::PrefixExpr* expr, Id name, bool used) {
+Value* resolvePrefix(FunBuilder* b, Type* targetType, ast::PrefixExpr* expr, Id name, bool used) {
     // Create a temporary app-expression to resolve the operator as a function call.
     List<ast::TupArg> arg(nullptr, ast::TupArg(0, expr->dst));
     ast::AppExpr app(expr->op, &arg);
     app.locationFrom(*expr);
 
-    return resolveApp(b, &app, name, used);
+    return resolveApp(b, targetType, &app, name, used);
 }
 
-Value* resolveIf(FunBuilder* b, ast::IfExpr* expr, Id name, bool used) {
-    auto cond = resolveExpr(b, expr->cond, 0, true);
+Value* resolveIf(FunBuilder* b, Type* targetType, ast::IfExpr* expr, Id name, bool used) {
+    Value* cond = resolveExpr(b, &intTypes[IntType::Bool], expr->cond, 0, true);
+
     auto condBlock = b->block;
     if(cond->type != &intTypes[IntType::Bool]) {
         error(b, "if condition must be a boolean"_buffer, expr);
@@ -334,14 +347,14 @@ Value* resolveIf(FunBuilder* b, ast::IfExpr* expr, Id name, bool used) {
     je(b->block, cond, then, otherwise);
     b->block = then;
 
-    auto thenValue = resolveExpr(b, expr->then, 0, used);
+    auto thenValue = resolveExpr(b, targetType, expr->then, 0, used);
     auto thenBlock = b->block;
 
     Value* elseValue = nullptr;
     Block* elseBlock = nullptr;
     if(expr->otherwise) {
         b->block = otherwise;
-        elseValue = resolveExpr(b, expr->otherwise, 0, used);
+        elseValue = resolveExpr(b, targetType, expr->otherwise, 0, used);
         elseBlock = b->block;
     }
 
@@ -386,7 +399,7 @@ Value* resolveIf(FunBuilder* b, ast::IfExpr* expr, Id name, bool used) {
     }
 }
 
-Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used) {
+Value* resolveMultiIf(FunBuilder* b, Type* targetType, ast::MultiIfExpr* expr, Id name, bool used) {
     // Calculate the number of cases.
     U32 caseCount = 0;
     auto c = expr->cases;
@@ -402,13 +415,15 @@ Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used)
     c = expr->cases;
     for(U32 i = 0; i < caseCount; i++) {
         auto item = c->item;
-        auto cond = resolveExpr(b, item.cond, 0, true);
+
+        Value* cond = resolveExpr(b, &intTypes[IntType::Bool], item.cond, 0, true);
+
         if(cond->type != &intTypes[IntType::Bool]) {
             error(b, "if condition must be a boolean"_buffer, expr);
         }
 
         if(alwaysTrue(cond)) {
-            auto result = resolveExpr(b, item.then, 0, used);
+            auto result = resolveExpr(b, targetType, item.then, 0, used);
             alts[i].value = result;
             alts[i].fromBlock = b->block;
 
@@ -425,7 +440,7 @@ Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used)
             je(b->block, cond, then, next);
             b->block = then;
 
-            auto result = resolveExpr(b, item.then, 0, used);
+            auto result = resolveExpr(b, targetType, item.then, 0, used);
             alts[i].value = result;
             alts[i].fromBlock = b->block;
 
@@ -487,11 +502,11 @@ Value* resolveMultiIf(FunBuilder* b, ast::MultiIfExpr* expr, Id name, bool used)
     }
 }
 
-Value* resolveDecl(FunBuilder* b, ast::VarDecl* expr, Id name, bool used, bool isGlobal) {
+Value* resolveDecl(FunBuilder* b, Type* targetType, ast::VarDecl* expr, Id name, bool used, bool isGlobal) {
     auto content = expr->content;
     if(!content) {
         error(b, "variables must be initialized on declaration"_buffer, expr);
-        return nullptr;
+        return error(b->block, name, &unitType);
     }
 
     auto declName = getDeclName(expr);
@@ -505,7 +520,7 @@ Value* resolveDecl(FunBuilder* b, ast::VarDecl* expr, Id name, bool used, bool i
         assertTrue(global != nullptr);
 
         // Resolve the contents - in case of an error below we want to do as much as possible.
-        auto value = resolveExpr(b, expr->content, 0, true);
+        auto value = resolveExpr(b, nullptr, expr->content, 0, true);
 
         // If the global has no ast set, it has been defined twice.
         if(!global->ast) {
@@ -534,7 +549,7 @@ Value* resolveDecl(FunBuilder* b, ast::VarDecl* expr, Id name, bool used, bool i
         }
 
         if(expr->in) {
-            resolveExpr(b, expr->in, 0, false);
+            resolveExpr(b, nullptr, expr->in, 0, false);
         }
 
         global->ast = nullptr;
@@ -544,11 +559,11 @@ Value* resolveDecl(FunBuilder* b, ast::VarDecl* expr, Id name, bool used, bool i
         switch(expr->mut) {
             case ast::VarDecl::Immutable: {
                 // Immutable values are stored as registers, so we just have to resolve the creation expression.
-                result = resolveExpr(b, expr->content, 0, true);
+                result = resolveExpr(b, nullptr, expr->content, 0, true);
                 break;
             }
             case ast::VarDecl::Val: {
-                auto value = resolveExpr(b, expr->content, 0, true);
+                auto value = resolveExpr(b, nullptr, expr->content, 0, true);
                 if(value->type->kind == Type::Ref) {
                     auto var = alloc(b->block, 0, ((RefType*)value->type)->to, true, true);
                     auto v = load(b->block, 0, value);
@@ -563,7 +578,7 @@ Value* resolveDecl(FunBuilder* b, ast::VarDecl* expr, Id name, bool used, bool i
                 }
             }
             case ast::VarDecl::Ref: {
-                auto value = resolveExpr(b, expr->content, 0, true);
+                auto value = resolveExpr(b, nullptr, expr->content, 0, true);
                 auto var = alloc(b->block, 0, value->type, true, false);
                 store(b->block, 0, var, value);
                 result = var;
@@ -594,13 +609,13 @@ Value* resolveDecl(FunBuilder* b, ast::VarDecl* expr, Id name, bool used, bool i
                     if(patResult == 0) {
                         // Default case: resolve the expression for this match into the matching block.
                         // Continue with other matches in the failing block.
-                        resolveExpr(b, alt->item.expr, 0, true);
+                        resolveExpr(b, nullptr, alt->item.expr, 0, true);
                         if(!b->block->complete) {
                             error(b, "declaration alternatives are not implemented yet"_buffer, alt->item.expr);
                         }
                     } else if(patResult == 1) {
                         // Pattern always matches. Resolve in the matching block, don't add the failing block.
-                        resolveExpr(b, alt->item.expr, 0, true);
+                        resolveExpr(b, nullptr, alt->item.expr, 0, true);
                         if(!b->block->complete) {
                             error(b, "declaration alternatives are not implemented yet"_buffer, alt->item.expr);
                         }
@@ -627,34 +642,34 @@ Value* resolveDecl(FunBuilder* b, ast::VarDecl* expr, Id name, bool used, bool i
         }
 
         if(expr->in) {
-            return resolveExpr(b, expr->in, name, used);
+            return resolveExpr(b, targetType, expr->in, name, used);
         } else {
             return result;
         }
     }
 }
 
-Value* resolveDecl(FunBuilder* b, ast::DeclExpr* expr, Id name, bool used) {
+Value* resolveDecl(FunBuilder* b, Type* targetType, ast::DeclExpr* expr, Id name, bool used) {
     auto e = expr->decls;
     if(used) {
         // Expressions that are part of a statement list are never used, unless they are the last in the list.
         Value* result = nullptr;
         while(e) {
             auto isLast = e->next == nullptr;
-            result = resolveDecl(b, &e->item, 0, isLast, expr->isGlobal);
+            result = resolveDecl(b, targetType, &e->item, 0, isLast, expr->isGlobal);
             e = e->next;
         }
         return result;
     } else {
         while(e) {
-            resolveDecl(b, &e->item, 0, false, expr->isGlobal);
+            resolveDecl(b, targetType, &e->item, 0, false, expr->isGlobal);
             e = e->next;
         }
         return nullptr;
     }
 }
 
-Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr) {
+Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr, bool used) {
     auto preceding = b->block;
     auto condBlock = block(b->fun);
     auto exitBlock = block(b->fun, true);
@@ -666,7 +681,7 @@ Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr) {
     jmp(b->block, condBlock);
     b->block = condBlock;
 
-    auto cond = resolveExpr(b, expr->cond, 0, true);
+    Value* cond = resolveExpr(b, &intTypes[IntType::Bool], expr->cond, 0, true);
     if(cond->type != &intTypes[IntType::Bool]) {
         error(b, "while condition must be a boolean"_buffer, expr);
     }
@@ -679,19 +694,25 @@ Value* resolveWhile(FunBuilder* b, ast::WhileExpr* expr) {
     je(b->block, cond, bodyBlock, exitBlock);
     b->block = bodyBlock;
 
-    resolveExpr(b, expr->loop, 0, false);
+    resolveExpr(b, nullptr, expr->loop, 0, false);
     jmp(b->block, condBlock);
 
     b->fun->blocks.push(exitBlock);
     b->block = exitBlock;
-    return nullptr;
+
+    if(used) {
+        error(b, "while-blocks cannot be used as expressions"_buffer, expr);
+        return error(b->block, 0, &unitType);
+    } else {
+        return nullptr;
+    }
 }
 
-Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
+Value* resolveFor(FunBuilder* b, ast::ForExpr* expr, bool used) {
     // The starting value is only evaluated once.
-    auto from = resolveExpr(b, expr->from, 0, true);
+    auto from = resolveExpr(b, nullptr, expr->from, 0, true);
     Value* step = implicitConvert(b, expr->step ? (
-        resolveExpr(b, expr->step, 0, true)
+        resolveExpr(b, from->type, expr->step, 0, true)
     ) : (
         constInt(b->block, 0, 1, from->type)
     ), from->type, false, true);
@@ -729,7 +750,7 @@ Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
     auto var = phi(b->block, expr->var, alts, 2);
 
     // Evaluate the end for each iteration, since it could be changed inside the loop.
-    auto to = implicitConvert(b, resolveExpr(b, expr->to, 0, true), from->type, false, true);
+    auto to = implicitConvert(b, resolveExpr(b, from->type, expr->to, 0, true), from->type, false, true);
     if(to->type->kind != Type::Int) {
         error(b, "only integer arguments are implemented for for loops"_buffer, expr->from);
     }
@@ -740,7 +761,7 @@ Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
 
     // Evaluate the loop body. At the end we create the loop variable for the next iteration.
     b->block = loopBlock;
-    resolveExpr(b, expr->body, 0, false);
+    resolveExpr(b, nullptr, expr->body, 0, false);
     auto loopEnd = b->block;
 
     Value* nextVar;
@@ -759,19 +780,24 @@ Value* resolveFor(FunBuilder* b, ast::ForExpr* expr) {
     condBlock->use(nextVar, var);
     b->block = endBlock;
 
-    return nullptr;
+    if(used) {
+        error(b, "for-blocks cannot be used as expressions"_buffer, expr);
+        return error(b->block, 0, &unitType);
+    } else {
+        return nullptr;
+    }
 }
 
-Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr) {
+Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr, bool used) {
     auto target = expr->target;
     switch(target->type) {
         case ast::Expr::Var: {
             auto var = resolveVar(b, (ast::VarExpr*)target, true);
-            auto val = resolveExpr(b, expr->value, 0, true);
+            auto val = resolveExpr(b, var->type, expr->value, 0, true);
 
-            if(!var || var->type->kind != Type::Ref || !((RefType*)var->type)->isMutable) {
+            if(var->type->kind != Type::Ref || !((RefType*)var->type)->isMutable) {
                 error(b, "type is not assignable"_buffer, target);
-                return nullptr;
+                return error(b->block, 0, &unitType);
             }
 
             auto targetType = ((RefType*)var->type)->to;
@@ -779,31 +805,36 @@ Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr) {
             return store(b->block, 0, var, v);
         }
         case ast::Expr::Field: {
-
+            error(b, "field assignment is not implemented yet"_buffer, expr);
         }
         default: {
             error(b, "assign target is not assignable"_buffer, target);
         }
     }
 
-    return nullptr;
+    if(used) {
+        error(b, "assignments cannot be used as expressions"_buffer, expr);
+        return error(b->block, 0, &unitType);
+    } else {
+        return nullptr;
+    }
 }
 
-Value* resolveNested(FunBuilder* b, ast::NestedExpr* expr, Id name, bool used) {
-    return resolveExpr(b, expr->expr, name, used);
+Value* resolveNested(FunBuilder* b, Type* targetType, ast::NestedExpr* expr, Id name, bool used) {
+    return resolveExpr(b, targetType, expr->expr, name, used);
 }
 
 Value* resolveCoerce(FunBuilder* b, ast::CoerceExpr* expr, Id name, bool used) {
-    auto target = resolveExpr(b, expr->target, 0, used);
-    // TODO: Use function GenContext.
-    auto type = resolveType(&b->context, b->fun->module, expr->kind, nullptr);
+    auto type = resolveType(&b->context, b->fun->module, expr->kind, &b->fun->gen);
+    auto target = resolveExpr(b, type, expr->target, 0, used);
+
     auto result = implicitConvert(b, target, type, true, true);
     setName(result, name);
     return result;
 }
 
 Value* resolveField(FunBuilder* b, ast::FieldExpr* expr, Id name, bool used) {
-    auto target = resolveExpr(b, expr->target, 0, true);
+    auto target = resolveExpr(b, nullptr, expr->target, 0, true);
     auto field = testStaticField(b, name, target, expr->field);
     if(field) return field;
 
@@ -812,7 +843,25 @@ Value* resolveField(FunBuilder* b, ast::FieldExpr* expr, Id name, bool used) {
     return error(b->block, name, &errorType);
 }
 
-Value* resolveTup(FunBuilder* b, ast::TupExpr* expr, Id name) {
+static void resetTupOrder(Value** args, Field* fields, U32* fieldIndices, U32 argCount) {
+    auto orderedFields = (Field*)alloca(sizeof(Field) * argCount);
+    auto orderedArgs = (Value**)alloca(sizeof(Value*) * argCount);
+
+    for(U32 j = 0; j < argCount; j++) {
+        if(fieldIndices[j] != -1) {
+            orderedArgs[fieldIndices[j]] = args[j];
+            orderedFields[fieldIndices[j]] = fields[j];
+        } else {
+            orderedArgs[j] = args[j];
+            orderedFields[j] = fields[j];
+        }
+    }
+
+    copy(orderedArgs, args, argCount);
+    copy(orderedFields, fields, argCount);
+}
+
+Value* resolveTup(FunBuilder* b, Type* targetType, ast::TupExpr* expr, Id name) {
     U32 argCount = 0;
     auto arg = expr->args;
     while(arg) {
@@ -827,22 +876,77 @@ Value* resolveTup(FunBuilder* b, ast::TupExpr* expr, Id name) {
 
     // Otherwise, resolve the argument types and instantiate a tuple.
     auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
-    auto fields = (Field*)alloca(sizeof(Field) * argCount);
 
+    // In order to support resetting a partially matching tuple to use the initial order,
+    // we allocate an additional array to copy the correct order into.
+    // We also keep track of the initial indices.
+    auto fields = (Field*)alloca(sizeof(Field) * argCount);
+    auto fieldIndices = (U32*)alloca(sizeof(U32) * argCount);
+
+    set(fieldIndices, argCount, 0xff);
+
+    // Check if the tuple has to be typecast into a specific set of fields.
+    // Only use the target information if the fields are compatible.
+    Field* targetFields = nullptr;
+    if(targetType && targetType->kind == Type::Tup) {
+        auto tupType = (TupType*)targetType;
+        if(tupType->count == argCount) {
+            targetFields = tupType->fields;
+        }
+    }
+
+    U32 matchCount = 0;
     arg = expr->args;
     for(U32 i = 0; i < argCount; i++) {
-        args[i] = resolveExpr(b, arg->item.value, 0, true);
-        fields[i].type = args[i]->type;
-        fields[i].name = arg->item.name;
+        U32 fieldIndex = i;
+        Type* fieldType = nullptr;
+
+        // If we have a target type, try to match target field names.
+        if(targetFields && arg->item.name) {
+            for(U32 j = 0; j < argCount; j++) {
+                auto field = targetFields + j;
+                if(field->name && field->name == arg->item.name) {
+                    fieldIndex = j;
+                    fieldIndices[j] = i;
+                    fieldType = field->type;
+                    matchCount++;
+                    break;
+                }
+            }
+
+            // Whenever we fail to match a field, stop trying and reset to use normal indices.
+            if(matchCount < i + 1) {
+                resetTupOrder(args, fields, fieldIndices, argCount);
+                targetFields = nullptr;
+            }
+        }
+
+        args[fieldIndex] = resolveExpr(b, fieldType, arg->item.value, 0, true);
+
+        if(fieldType) {
+            auto c = implicitConvert(b, args[fieldIndex], fieldType, true, false);
+            if(c) args[fieldIndex] = c;
+        }
+
+        fields[fieldIndex].type = args[fieldIndex]->type;
+        fields[fieldIndex].name = arg->item.name;
+
         arg = arg->next;
+    }
+
+    // If the final match count is too low, reset to use the initial argument order.
+    if(targetFields && matchCount < argCount) {
+        resetTupOrder(args, fields, fieldIndices, argCount);
     }
 
     auto type = resolveTupType(&b->context, b->fun->module, fields, argCount);
     return tup(b->block, name, type, args, argCount);
 }
 
-Value* resolveTupUpdate(FunBuilder* b, ast::TupUpdateExpr* expr, Id name, bool used) {
-    auto target = resolveExpr(b, expr->value, 0, true);
+Value* resolveTupUpdate(FunBuilder* b, Type* targetType, ast::TupUpdateExpr* expr, Id name, bool used) {
+    // An update-expression only changes the content while the type stays the same.
+    // This means that we can just forward the target type to the source value.
+    auto target = resolveExpr(b, targetType, expr->value, 0, true);
     auto type = canonicalType(target->type);
     if(type->kind != Type::Tup) {
         error(b, "only tuples can update their fields"_buffer, expr->value);
@@ -864,8 +968,10 @@ Value* resolveTupUpdate(FunBuilder* b, ast::TupUpdateExpr* expr, Id name, bool u
         bool found = false;
         for(U32 f = 0; f < tup->count; f++) {
             if(tup->fields[f].name && tup->fields[f].name == arg->item.name) {
+                auto fieldType = tup->fields[f].type;
+
                 fields[fieldCount].index = f;
-                fields[fieldCount].value = resolveExpr(b, arg->item.value, 0, true);
+                fields[fieldCount].value = resolveExpr(b, fieldType, arg->item.value, 0, true);
                 fieldCount++;
                 found = true;
                 break;
@@ -873,7 +979,7 @@ Value* resolveTupUpdate(FunBuilder* b, ast::TupUpdateExpr* expr, Id name, bool u
         }
 
         if(!found) {
-            error(b, "field does not exist in this type"_buffer, arg->item.value);
+            error(b, "field %@ does not exist in this type"_buffer, arg->item.value, arg->item.name);
         }
         arg = arg->next;
     }
@@ -881,7 +987,7 @@ Value* resolveTupUpdate(FunBuilder* b, ast::TupUpdateExpr* expr, Id name, bool u
     return updateField(b->block, name, target, fields, fieldCount);
 }
 
-Value* resolveArray(FunBuilder* b, ast::ArrayExpr* expr, Id name) {
+Value* resolveArray(FunBuilder* b, Type* targetType, ast::ArrayExpr* expr, Id name) {
     U32 length = 0;
     auto arg = expr->args;
     while(arg) {
@@ -889,16 +995,25 @@ Value* resolveArray(FunBuilder* b, ast::ArrayExpr* expr, Id name) {
         arg = arg->next;
     }
 
+    Type* arrayType = nullptr;
+    if(targetType && targetType->kind == Type::Array) {
+        arrayType = ((ArrayType*)targetType)->content;
+    }
+
     if(length == 0) {
-        error(b, "cannot infer type of array"_buffer, expr);
-        return error(b->block, name, getArray(b->fun->module, &unitType));
+        if(arrayType) {
+            return allocArray(b->block, name, arrayType, constInt(b->block, 0, 0, &intTypes[IntType::Int]), false, false);
+        } else {
+            error(b, "cannot infer type of array"_buffer, expr);
+            return error(b->block, name, getArray(b->fun->module, &unitType));
+        }
     }
 
     auto values = (Value**)b->mem.alloc(sizeof(Value*) * length);
 
     arg = expr->args;
     for(U32 i = 0; i < length; i++) {
-        values[i] = resolveExpr(b, arg->item, 0, true);
+        values[i] = resolveExpr(b, arrayType, arg->item, 0, true);
         if(i > 0) {
             // This will update the value stored in the alt if needed.
             if(!generalizeTypes(b, values[i - 1], values[i])) {
@@ -922,8 +1037,8 @@ Value* resolveFormat(FunBuilder* b, ast::FormatExpr* expr, Id name, bool used) {
     return nullptr;
 }
 
-Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
-    auto pivot = resolveExpr(b, expr->pivot, 0, true);
+Value* resolveCase(FunBuilder* b, Type* targetType, ast::CaseExpr* expr, Id name, bool used) {
+    auto pivot = resolveExpr(b, nullptr, expr->pivot, 0, true);
     auto alt = expr->alts;
     auto preceding = b->block;
 
@@ -948,7 +1063,7 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
         if(result == 0) {
             // Default case: resolve the expression for this match into the matching block.
             // Continue with other matches in the failing block.
-            alts[usedAlts].value = resolveExpr(b, alt->item.expr, 0, true);
+            alts[usedAlts].value = resolveExpr(b, targetType, alt->item.expr, 0, true);
             alts[usedAlts].fromBlock = b->block;
 
             b->fun->blocks.push(otherwise);
@@ -957,7 +1072,7 @@ Value* resolveCase(FunBuilder* b, ast::CaseExpr* expr, Id name, bool used) {
             usedAlts++;
         } else if(result == 1) {
             // Pattern always matches. Resolve in the matching block, don't add the failing block.
-            alts[usedAlts].value = resolveExpr(b, alt->item.expr, 0, true);
+            alts[usedAlts].value = resolveExpr(b, targetType, alt->item.expr, 0, true);
             alts[usedAlts].fromBlock = b->block;
 
             usedAlts++;
@@ -1045,67 +1160,69 @@ Value* resolveRet(FunBuilder* b, ast::RetExpr* expr) {
     // The expression needs to be resolved before the current block is loaded.
     Value* value = nullptr;
     if(expr->value) {
-        value = resolveExpr(b, expr->value, 0, true);
-        if(b->fun->returnType) {
+        auto returnType = b->fun->returnType;
+        value = resolveExpr(b, returnType, expr->value, 0, true);
+
+        if(returnType && returnType->kind != Type::Error) {
             // Try to implicitly convert to the target return type if one was provided.
             // If the conversion fails (returns null), let the function resolving code handle it.
-            auto converted = implicitConvert(b, value, b->fun->returnType, false, false);
+            auto converted = implicitConvert(b, value, returnType, false, false);
             if(converted) value = converted;
         }
     }
     return ret(b->block, value);
 }
 
-Value* resolveExpr(FunBuilder* b, ast::Expr* expr, Id name, bool used) {
+Value* resolveExpr(FunBuilder* b, Type* targetType, ast::Expr* expr, Id name, bool used) {
     switch(expr->type) {
         case ast::Expr::Error:
             return nullptr;
         case ast::Expr::Multi:
-            return resolveMulti(b, (ast::MultiExpr*)expr, name, used);
+            return resolveMulti(b, targetType, (ast::MultiExpr*)expr, name, used);
         case ast::Expr::Lit:
-            return resolveLit(b, &((ast::LitExpr*)expr)->literal, name);
+            return resolveLit(b, targetType, &((ast::LitExpr*)expr)->literal, name);
         case ast::Expr::Var:
             return resolveVar(b, (ast::VarExpr*)expr, false);
         case ast::Expr::App:
-            return resolveApp(b, (ast::AppExpr*)expr, name, used);
+            return resolveApp(b, targetType, (ast::AppExpr*)expr, name, used);
         case ast::Expr::Fun:
             return resolveFun(b, (ast::FunExpr*)expr, name, used);
         case ast::Expr::Infix:
-            return resolveInfix(b, (ast::InfixExpr*)expr, name, used);
+            return resolveInfix(b, targetType, (ast::InfixExpr*)expr, name, used);
         case ast::Expr::Prefix:
-            return resolvePrefix(b, (ast::PrefixExpr*)expr, name, used);
+            return resolvePrefix(b, targetType, (ast::PrefixExpr*)expr, name, used);
         case ast::Expr::If:
-            return resolveIf(b, (ast::IfExpr*)expr, name, used);
+            return resolveIf(b, targetType, (ast::IfExpr*)expr, name, used);
         case ast::Expr::MultiIf:
-            return resolveMultiIf(b, (ast::MultiIfExpr*)expr, name, used);
+            return resolveMultiIf(b, targetType, (ast::MultiIfExpr*)expr, name, used);
         case ast::Expr::Decl:
-            return resolveDecl(b, (ast::DeclExpr*)expr, name, used);
+            return resolveDecl(b, targetType, (ast::DeclExpr*)expr, name, used);
         case ast::Expr::While:
-            return resolveWhile(b, (ast::WhileExpr*)expr);
+            return resolveWhile(b, (ast::WhileExpr*)expr, used);
         case ast::Expr::For:
-            return resolveFor(b, (ast::ForExpr*)expr);
+            return resolveFor(b, (ast::ForExpr*)expr, used);
         case ast::Expr::Assign:
-            return resolveAssign(b, (ast::AssignExpr*)expr);
+            return resolveAssign(b, (ast::AssignExpr*)expr, used);
         case ast::Expr::Nested:
-            return resolveNested(b, (ast::NestedExpr*)expr, name, used);
+            return resolveNested(b, targetType, (ast::NestedExpr*)expr, name, used);
         case ast::Expr::Coerce:
             return resolveCoerce(b, (ast::CoerceExpr*)expr, name, used);
         case ast::Expr::Field:
             return resolveField(b, (ast::FieldExpr*)expr, name, used);
         case ast::Expr::Con:
-            return resolveCon(b, (ast::ConExpr*)expr, name);
+            return resolveCon(b, targetType, (ast::ConExpr*)expr, name);
         case ast::Expr::Tup:
-            return resolveTup(b, (ast::TupExpr*)expr, name);
+            return resolveTup(b, targetType, (ast::TupExpr*)expr, name);
         case ast::Expr::TupUpdate:
-            return resolveTupUpdate(b, (ast::TupUpdateExpr*)expr, name, used);
+            return resolveTupUpdate(b, targetType, (ast::TupUpdateExpr*)expr, name, used);
         case ast::Expr::Array:
-            return resolveArray(b, (ast::ArrayExpr*)expr, name);
+            return resolveArray(b, targetType, (ast::ArrayExpr*)expr, name);
         case ast::Expr::Map:
             return resolveMap(b, (ast::MapExpr*)expr, name, used);
         case ast::Expr::Format:
             return resolveFormat(b, (ast::FormatExpr*)expr, name, used);
         case ast::Expr::Case:
-            return resolveCase(b, (ast::CaseExpr*)expr, name, used);
+            return resolveCase(b, targetType, (ast::CaseExpr*)expr, name, used);
         case ast::Expr::Ret:
             return resolveRet(b, (ast::RetExpr*)expr);
     }

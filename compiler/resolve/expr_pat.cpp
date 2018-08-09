@@ -42,7 +42,7 @@ void resolveVarPat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::VarPat* p
     if(var) {
         ast::VarExpr cmp(pat->var);
         List<ast::TupArg> arg(nullptr, ast::TupArg(0, &cmp));
-        auto call = resolveStaticCall(b, eqHash, pivot, &arg, 0);
+        auto call = resolveStaticCall(b, &intTypes[IntType::Bool], eqHash, pivot, &arg, 0);
         if(!call || call->type != &intTypes[IntType::Bool]) {
             if(!call || call->type->kind != Type::Error) {
                 error(b, "result of a comparison must be a boolean"_buffer, pat);
@@ -61,7 +61,7 @@ void resolveVarPat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::VarPat* p
 void resolveLitPat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::LitPat* pat) {
     ast::LitExpr lit(pat->lit);
     List<ast::TupArg> arg(nullptr, ast::TupArg(0, &lit));
-    auto call = resolveStaticCall(b, eqHash, pivot, &arg, 0);
+    auto call = resolveStaticCall(b, &intTypes[IntType::Bool], eqHash, pivot, &arg, 0);
     if(!call || call->type != &intTypes[IntType::Bool]) {
         if(!call || call->type->kind != Type::Error) {
             error(b, "result of a comparison must be a boolean"_buffer, pat);
@@ -263,7 +263,7 @@ static Value* getRangeArg(FunBuilder* b, ast::Pat* pat) {
             }
         }
     } else if(pat->kind == ast::Pat::Lit) {
-        auto value = resolveLit(b, &((ast::LitPat*)pat)->lit, 0);
+        auto value = resolveLit(b, nullptr, &((ast::LitPat*)pat)->lit, 0);
         if(value->type->kind == Type::Int || value->type->kind == Type::Float) {
             return value;
         }

@@ -11,7 +11,7 @@
  * so we represent it in an abstract way in the IR.
  */
 
-Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* argList, Id name) {
+Value* resolveDynCall(FunBuilder* b, Type* targetType, Value* callee, List<ast::TupArg>* argList, Id name) {
     auto funType = (FunType*)canonicalType(callee->type);
     auto argCount = (U32)funType->argCount;
 
@@ -44,7 +44,7 @@ Value* resolveDynCall(FunBuilder* b, Value* callee, List<ast::TupArg>* argList, 
                 error(b, "function argument specified more than once"_buffer, arg.value);
             }
 
-            args[argIndex] = resolveExpr(b, arg.value, 0, true);
+            args[argIndex] = resolveExpr(b, funType->args[argIndex].type, arg.value, 0, true);
         }
 
         i++;
@@ -178,7 +178,7 @@ Value* genStaticCall(FunBuilder* b, Id funName, Value** args, U32 count, Id name
     }
 }
 
-Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List<ast::TupArg>* argList, Id name) {
+Value* resolveStaticCall(FunBuilder* b, Type* targetType, Id funName, Value* firstArg, List<ast::TupArg>* argList, Id name) {
     auto fun = resolveStaticFun(b, funName, firstArg);
     if(!fun.found) return nullptr;
 
@@ -247,7 +247,7 @@ Value* resolveStaticCall(FunBuilder* b, Id funName, Value* firstArg, List<ast::T
                 error(b, "function argument specified more than once"_buffer, arg.value);
             }
 
-            args[argIndex] = resolveExpr(b, arg.value, 0, true);
+            args[argIndex] = resolveExpr(b, sourceArgs[argIndex]->type, arg.value, 0, true);
         }
 
         i++;
