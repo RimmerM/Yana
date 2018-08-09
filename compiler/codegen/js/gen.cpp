@@ -226,6 +226,10 @@ Variable* genXor(Gen* gen, InstXor* inst) {
     return store(gen, new (gen->mem) InfixExpr(gen->xorOp, useValue(gen, inst->lhs), useValue(gen, inst->rhs)));
 }
 
+Variable* genAddRef(Gen* gen, InstAddRef* inst) {
+    return store(gen, new (gen->mem) InfixExpr(gen->addOp, useValue(gen, inst->lhs), useValue(gen, inst->rhs)));
+}
+
 Variable* genRecord(Gen* gen, InstRecord* inst) {
     return nullptr;
 }
@@ -402,6 +406,8 @@ Variable* genInstValue(Gen* gen, Inst* inst) {
             return genOr(gen, (InstOr*)inst);
         case Inst::InstXor:
             return genXor(gen, (InstXor*)inst);
+        case Inst::InstAddRef:
+            return genAddRef(gen, (InstAddRef*)inst);
         case Inst::InstRecord:
             return genRecord(gen, (InstRecord*)inst);
         case Inst::InstTup:

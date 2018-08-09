@@ -432,6 +432,9 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         case Inst::InstXor:
             name = "xor";
             break;
+        case Inst::InstAddRef:
+            name = "addref";
+            break;
         case Inst::InstJe:
             name = "je";
             break;

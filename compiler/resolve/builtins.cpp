@@ -408,7 +408,12 @@ Module* nativeModule(Context* context, Module* core) {
     // Basic pointer operations.
     auto opStore = context->addUnqualifiedName("%>", 2);
     auto opLoad = context->addUnqualifiedName("%", 1);
+    auto opAdd = context->addUnqualifiedName("%+", 2);
+    auto opSub = context->addQualifiedName("%-", 2);
+
     module->ops.add(opStore, OpProperties{4, Assoc::Left});
+    module->ops.add(opAdd, OpProperties{6, Assoc::Left});
+    module->ops.add(opSub, OpProperties{6, Assoc::Left});
 
     auto storeFunction = defineFun(context, module, opStore);
     {
@@ -446,6 +451,48 @@ Module* nativeModule(Context* context, Module* core) {
 
         loadFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
             return load(b->block, instName, args[0]);
+        };
+    }
+
+    auto addFunction = defineFun(context, module, opAdd);
+    {
+        auto type = new (module->memory) GenType(&addFunction->gen, 0, 0);
+        addFunction->gen.types = (GenType**)module->memory.alloc(sizeof(GenType*));
+        addFunction->gen.types[0] = type;
+        addFunction->gen.typeCount = 1;
+
+        auto body = block(addFunction);
+        auto lhs = defineArg(context, addFunction, body, 0, getRef(module, type, false, false, true));
+        auto rhs = defineArg(context, addFunction, body, 0, &intTypes[IntType::Int]);
+        addFunction->returnType = lhs->type;
+
+        auto v = addref(body, 0, lhs, rhs);
+        ret(body, v);
+
+        addFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+            return addref(b->block, instName, args[0], args[1]);
+        };
+    }
+
+    auto subFunction = defineFun(context, module, opSub);
+    {
+        auto type = new (module->memory) GenType(&subFunction->gen, 0, 0);
+        subFunction->gen.types = (GenType**)module->memory.alloc(sizeof(GenType*));
+        subFunction->gen.types[0] = type;
+        subFunction->gen.typeCount = 1;
+
+        auto body = block(subFunction);
+        auto lhs = defineArg(context, subFunction, body, 0, getRef(module, type, false, false, true));
+        auto rhs = defineArg(context, subFunction, body, 0, &intTypes[IntType::Int]);
+        subFunction->returnType = lhs->type;
+
+        auto r = sub(body, 0, constInt(body, 0, 0, rhs->type), rhs);
+        auto v = addref(body, 0, lhs, r);
+        ret(body, v);
+
+        subFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+            auto rhs = sub(b->block, 0, constInt(b->block, 0, 0, args[1]->type), args[1]);
+            return addref(b->block, instName, args[0], rhs);
         };
     }
 

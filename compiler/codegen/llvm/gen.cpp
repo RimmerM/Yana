@@ -468,6 +468,10 @@ llvm::Value* genXor(Gen* gen, InstBinary* inst) {
     return gen->builder->CreateXor(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
 }
 
+llvm::Value* genAddRef(Gen* gen, InstBinary* inst) {
+    return gen->builder->CreateGEP(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
+}
+
 llvm::Value* genRecord(Gen* gen, InstRecord* inst) {
     useType(gen, inst->type);
     auto type = (RecordGen*)inst->type->codegen;
@@ -852,6 +856,8 @@ llvm::Value* genInstValue(Gen* gen, Inst* inst) {
             return genOr(gen, (InstOr*)inst);
         case Inst::InstXor:
             return genXor(gen, (InstXor*)inst);
+        case Inst::InstAddRef:
+            return genAddRef(gen, (InstAddRef*)inst);
         case Inst::InstRecord:
             return genRecord(gen, (InstRecord*)inst);
         case Inst::InstTup:

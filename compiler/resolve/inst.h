@@ -64,6 +64,9 @@ struct Value {
         InstOr,
         InstXor,
 
+        // Pointer arithmetic.
+        InstAddRef,
+
         // Construction.
         InstRecord,
         InstTup,
@@ -225,6 +228,11 @@ struct InstSar: InstShift {};
 struct InstAnd: InstBinary {};
 struct InstOr: InstBinary {};
 struct InstXor: InstBinary {};
+
+/*
+ * Reference instructions - must be performed on untraced reference types.
+ */
+struct InstAddRef: InstBinary {};
 
 /*
  * Value construction.
@@ -500,6 +508,8 @@ Value* sar(Block* block, Id name, Value* arg, Value* amount);
 Value* and_(Block* block, Id name, Value* lhs, Value* rhs);
 Value* or_(Block* block, Id name, Value* lhs, Value* rhs);
 Value* xor_(Block* block, Id name, Value* lhs, Value* rhs);
+
+Value* addref(Block* block, Id name, Value* lhs, Value* rhs);
 
 InstRecord* record(Block* block, Id name, struct Con* con, Value* content);
 InstTup* tup(Block* block, Id name, Type* type, Value** fields, U32 count);

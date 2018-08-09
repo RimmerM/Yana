@@ -367,6 +367,10 @@ Value* xor_(Block* block, Id name, Value* lhs, Value* rhs) {
     return binary(block, Inst::InstXor, name, lhs, rhs, lhs->type);
 }
 
+Value* addref(Block* block, Id name, Value* lhs, Value* rhs) {
+    return binary(block, Inst::InstAddRef, name, lhs, rhs, lhs->type);
+}
+
 InstRecord* record(Block* block, Id name, struct Con* con, Value* content) {
     auto inst = (InstRecord*)block->inst(sizeof(InstRecord), name, Inst::InstRecord, con->parent);
 
