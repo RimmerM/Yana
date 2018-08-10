@@ -118,6 +118,9 @@ struct Value {
     // Data for use by the code generator.
     void* codegen = nullptr;
 
+    // The source code location this value originates from. May be empty.
+    Node source;
+
     U32 name;
     Kind kind;
     U16 id;
@@ -143,7 +146,7 @@ struct Global: Value {
 
 // An immediate value that can be used by instructions.
 struct ConstInt: Value {
-    I64 value;
+    U64 value;
 };
 
 struct ConstFloat: Value {
@@ -472,7 +475,7 @@ inline bool isTerminating(Inst::Kind kind) {
 Value* error(Block* block, Id name, Type* type);
 Value* nop(Block* block, Id name);
 
-ConstInt* constInt(Block* block, Id name, I64 value, Type* type);
+ConstInt* constInt(Block* block, Id name, U64 value, Type* type);
 ConstFloat* constFloat(Block* block, Id name, double value, Type* type);
 ConstString* constString(Block* block, Id name, const char* value, Size length);
 

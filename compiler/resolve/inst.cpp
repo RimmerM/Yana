@@ -86,7 +86,7 @@ Value* nop(Block* block, Id name) {
     return v;
 }
 
-ConstInt* constInt(Block* block, Id name, I64 value, Type* type) {
+ConstInt* constInt(Block* block, Id name, U64 value, Type* type) {
     auto c = new (block->function->module->memory) ConstInt;
     c->block = block;
     c->name = name;
@@ -138,9 +138,9 @@ Value* trunc(Block* block, Id name, Value* from, Type* to) {
             case IntType::Bool:
                 return constInt(block, name, value != 0 ? 1 : 0, to);
             case IntType::Int:
-                return constInt(block, name, (I32)value, to);
+                return constInt(block, name, (U32)value, to);
             case IntType::Long:
-                return constInt(block, name, (I64)value, to);
+                return constInt(block, name, (U64)value, to);
         }
     }
 
@@ -206,7 +206,7 @@ Value* uitof(Block* block, Id name, Value* from, Type* to) {
 
 Value* ftoi(Block* block, Id name, Value* from, Type* to) {
     if(from->kind == Value::ConstFloat) {
-        return constInt(block, name, (I64)((ConstFloat*)from)->value, to);
+        return constInt(block, name, (U64)(I64)((ConstFloat*)from)->value, to);
     } else {
         return cast(block, Inst::InstFToI, name, from, to);
     }

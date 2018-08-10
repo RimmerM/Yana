@@ -110,7 +110,7 @@ struct GenType: Type {
         Type(Gen, 1), env(env), name(name), index(index) {}
 
     GenEnv* env;
-    Type* orderType = nullptr; // Forms a list defining the order of this type.
+    GenType* orderType = nullptr; // Forms a list defining the order of this type.
     Id name;
     U16 index;
     U16 order = 0; // 0 indicates undetermined.
@@ -202,6 +202,15 @@ struct IntType: Type {
         KindCount,
     };
 
+    static constexpr U32 bitsForWidth(Width w) {
+        switch(w) {
+            case Bool: return 1;
+            case Int: return 32;
+            case Long: return 64;
+            default: return 0;
+        }
+    }
+
     IntType(U16 bits, Width width): Type(Kind::Int, 1), bits(bits), width(width) {}
 
     U16 bits;
@@ -215,6 +224,15 @@ struct FloatType: Type {
         F64,
         KindCount
     };
+
+    static constexpr U32 bitsForWidth(Width w) {
+        switch(w) {
+            case F16: return 16;
+            case F32: return 32;
+            case F64: return 64;
+            default: return 0;
+        }
+    }
 
     FloatType(U16 bits, Width width): Type{Float, 1}, bits(bits), width(width) {}
 

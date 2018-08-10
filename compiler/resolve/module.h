@@ -112,6 +112,7 @@ struct Function {
 
     Module* module;
     Id name;
+    Node source;
 
     Type* returnType = nullptr;
     Array<Arg*> args;
