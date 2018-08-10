@@ -458,12 +458,20 @@ Id typeName(Type* type);
 // Creates a set of the generic type names used in a context.
 void findGenerics(Context* context, Buffer<Id> buffer, Size& offset, ast::Type* type);
 
+// When instantiating types, we add each alias and record to a stack.
+// If it turns out that the current type is already on the stack with the same arguments (the type is recursive),
+// we use the existing reference instead.
+struct RecordEntry {
+    RecordEntry* prev;
+    RecordType* type;
+};
+
 // Instantiates a higher-order type for a specific set of arguments.
 // Returns a new type which is distinct from but references the original.
 // If direct is set, the action represents an explicit instantiation of this type.
 // If not, the action represents an implicit instantiation through a containing type.
-AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count, bool direct);
-RecordType* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count, bool direct);
+AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count, RecordEntry* entries, bool direct);
+RecordType* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count, RecordEntry* entries, bool direct);
 
 // Calls a visitor callback for each type referenced inside the provided one.
 template<class F> void visitType(Type* type, F&& f) {

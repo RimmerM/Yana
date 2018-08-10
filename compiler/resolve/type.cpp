@@ -387,7 +387,7 @@ void resolveGens(Context* context, Module* module, GenEnv* env) {
 
 static Type* findType(Context* context, Module* module, ast::Type* type, GenEnv* gen);
 
-static Type* instantiateType(Context* context, Module* module, Type* type, Type** args, U32 count) {
+static Type* instantiateType(Context* context, Module* module, Type* type, Type** args, U32 count, RecordEntry* entries) {
     switch(type->kind) {
         case Type::Error:
         case Type::Unit:
@@ -402,7 +402,7 @@ static Type* instantiateType(Context* context, Module* module, Type* type, Type*
         }
         case Type::Ref: {
             auto ref = (RefType*)type;
-            auto instantiated = instantiateType(context, module, ref->to, args, count);
+            auto instantiated = instantiateType(context, module, ref->to, args, count, entries);
             if(instantiated == ref->to) {
                 return ref;
             } else {
@@ -410,12 +410,12 @@ static Type* instantiateType(Context* context, Module* module, Type* type, Type*
             }
         }
         case Type::Alias:
-            return instantiateAlias(context, module, (AliasType*)type, args, count, false);
+            return instantiateAlias(context, module, (AliasType*)type, args, count, entries, false);
         case Type::Record:
-            return instantiateRecord(context, module, (RecordType*)type, args, count, false);
+            return instantiateRecord(context, module, (RecordType*)type, args, count, entries, false);
         case Type::Array: {
             auto content = ((ArrayType*)type)->content;
-            auto instantiated = instantiateType(context, module, content, args, count);
+            auto instantiated = instantiateType(context, module, content, args, count, entries);
 
             if(instantiated == content) {
                 return type;
@@ -425,8 +425,8 @@ static Type* instantiateType(Context* context, Module* module, Type* type, Type*
         }
         case Type::Map: {
             auto map = (MapType*)type;
-            auto from = instantiateType(context, module, map->from, args, count);
-            auto to = instantiateType(context, module, map->to, args, count);
+            auto from = instantiateType(context, module, map->from, args, count, entries);
+            auto to = instantiateType(context, module, map->to, args, count, entries);
 
             if(from == map->from && to == map->to) {
                 return map;
@@ -444,7 +444,7 @@ static Type* instantiateType(Context* context, Module* module, Type* type, Type*
 
             U32 changedCount = 0;
             for(U32 i = 0; i < fieldCount; i++) {
-                auto t = instantiateType(context, module, fields[i].type, args, count);
+                auto t = instantiateType(context, module, fields[i].type, args, count, entries);
                 instanceFields[i].type = t;
                 instanceFields[i].name = fields[i].name;
 
@@ -464,14 +464,14 @@ static Type* instantiateType(Context* context, Module* module, Type* type, Type*
             auto funArgs = fun->args;
             auto funCount = fun->argCount;
 
-            auto instanceReturn = instantiateType(context, module, fun->result, args, count);
+            auto instanceReturn = instantiateType(context, module, fun->result, args, count, entries);
             auto instanceArgs = (FunArg*)alloca(sizeof(FunArg) * funCount);
 
             U32 changedCount = 0;
             for(U32 i = 0; i < funCount; i++) {
                 instanceArgs[i].index = i;
                 instanceArgs[i].name = funArgs[i].name;
-                instanceArgs[i].type = instantiateType(context, module, funArgs[i].type, args, count);
+                instanceArgs[i].type = instantiateType(context, module, funArgs[i].type, args, count, entries);
 
                 if(instanceArgs[i].type != funArgs[i].type) {
                     changedCount++;
@@ -510,10 +510,46 @@ static T* checkInstantiation(Context* context, T* type, U32 count, bool direct) 
     return nullptr;
 }
 
-AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count, bool direct) {
+inline Type* baseType(RecordType* type) {
+    auto base = type->instanceOf;
+    if(base) return base;
+    return type;
+}
+
+static Type* checkRecursiveInstantiation(RecordEntry* entries, RecordType* type, Type** args, U32 count) {
+    auto base = baseType(type);
+
+    auto entry = entries;
+    while(entry) {
+        Type* entryBase = baseType(entry->type);
+        Type** instance = entry->type->instance;
+
+        if(entryBase == entry->type) return nullptr;
+
+        if(entryBase == base) {
+            bool succeed = true;
+            for(U32 i = 0; i < count; i++) {
+                if(instance[i] != args[i]) {
+                    succeed = false;
+                    break;
+                }
+            }
+
+            if(succeed) {
+                return entry->type;
+            }
+        }
+
+        entry = entry->prev;
+    }
+
+    return nullptr;
+}
+
+AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, Type** args, U32 count, RecordEntry* entries, bool direct) {
     if(auto result = checkInstantiation(context, type, count, direct)) return result;
 
-    auto to = instantiateType(context, module, type->to, args, count);
+    auto to = instantiateType(context, module, type->to, args, count, entries);
     auto alias = new (module->memory) AliasType;
 
     alias->instanceOf = type;
@@ -528,8 +564,9 @@ AliasType* instantiateAlias(Context* context, Module* module, AliasType* type, T
     return alias;
 }
 
-RecordType* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count, bool direct) {
+RecordType* instantiateRecord(Context* context, Module* module, RecordType* type, Type** args, U32 count, RecordEntry* entries, bool direct) {
     if(auto result = checkInstantiation(context, type, count, direct)) return result;
+    if(auto result = checkRecursiveInstantiation(entries, type, args, count)) return (RecordType*)result;
 
     auto record = new (module->memory) RecordType;
     record->ast = nullptr;
@@ -549,7 +586,7 @@ RecordType* instantiateRecord(Context* context, Module* module, RecordType* type
 
         // Match the generics in the instance to the new arguments.
         for(U32 i = 0; i < baseInstance->argCount; i++) {
-            instance[i] = instantiateType(context, module, type->instance[i], args, count);
+            instance[i] = instantiateType(context, module, type->instance[i], args, count, entries);
         }
 
         record->instanceOf = baseInstance;
@@ -579,7 +616,11 @@ RecordType* instantiateRecord(Context* context, Module* module, RecordType* type
         instanceCon->codegen = nullptr;
 
         if(con.content) {
-            instanceCon->content = instantiateType(context, module, con.content, args, count);
+            RecordEntry entry;
+            entry.type = record;
+            entry.prev = entries;
+
+            instanceCon->content = instantiateType(context, module, con.content, args, count, &entry);
         } else {
             instanceCon->content = nullptr;
         }
@@ -608,9 +649,9 @@ static Type* resolveApp(Context* context, Module* module, ast::AppType* type, Ge
     }
 
     if(base->kind == Type::Alias) {
-        return instantiateAlias(context, module, (AliasType*)base, args, argCount, true);
+        return instantiateAlias(context, module, (AliasType*)base, args, argCount, nullptr, true);
     } else if(base->kind == Type::Record) {
-        return instantiateRecord(context, module, (RecordType*)base, args, argCount, true);
+        return instantiateRecord(context, module, (RecordType*)base, args, argCount, nullptr, true);
     } else {
         context->diagnostics.error("type has no type arguments"_buffer, type->base, noSource);
         return base;
