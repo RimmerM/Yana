@@ -30,50 +30,41 @@ static Args buildArgs(FunBuilder* b, List<ast::TupArg>* arg) {
     return {args, argCount};
 }
 
-template<class F>
-static void matchArgs(FunBuilder* b, List<ast::TupArg>* arg, Args args, F f) {
+static void matchArgs(FunBuilder* b, List<ast::TupArg>* arg, Field* fields, Args args) {
     for(U32 i = 0; i < args.count; i++) {
-        auto argIndex = i;
+        Field* field = fields + i;
         bool found = true;
+        auto argName = arg->item.name;
 
-        if(arg->item.name) {
-            auto foundIndex = f(i, arg->item.name);
-            if(foundIndex >= 0) {
-                argIndex = foundIndex;
+        if(argName) {
+            Field* f = nullptr;
+            for(U32 a = 0; a < args.count; a++) {
+                auto ta = &fields[a];
+                if(argName == ta->name) {
+                    f = ta;
+                    break;
+                }
+            }
+
+            if(f) {
+                field = f;
             } else {
                 found = false;
             }
         }
 
         if(found) {
-            if(args.values[argIndex]) {
+            if(args.values[field->index]) {
                 error(b, "argument specified more than once"_buffer, arg->item.value);
             }
 
-            args.values[argIndex] = resolveExpr(b, nullptr, arg->item.value, 0, true);
+            args.values[field->index] = resolveExpr(b, field->type, arg->item.value, 0, true);
         } else {
             error(b, "constructed type has no field with this name"_buffer, arg->item.value);
         }
 
         arg = arg->next;
     }
-}
-
-static auto tupleArgFinder(Field* fields, U32 count) {
-    return [=](U32 i, Id fieldName) -> int {
-        if(!fieldName) return i;
-
-        int index = -1;
-        for(U32 a = 0; a < count; a++) {
-            auto ta = &fields[a];
-            if(fieldName == ta->name) {
-                index = ta->index;
-                break;
-            }
-        }
-
-        return index;
-    };
 }
 
 static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, Id name) {
@@ -86,7 +77,7 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
             return type->kind == Type::Int ? (Value*)constInt(b->block, name, 0, type) : constFloat(b->block, name, 0, type);
         }
 
-        auto arg = resolveExpr(b, nullptr, expr->args->item.value, name, true);
+        auto arg = resolveExpr(b, type, expr->args->item.value, name, true);
         return implicitConvert(b, arg, type, true, true);
     } else if(type->kind == Type::String) {
         if(!expr->args || expr->args->next) {
@@ -94,7 +85,7 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
             return constString(b->block, name, "", 0);
         }
 
-        auto arg = resolveExpr(b, nullptr, expr->args->item.value, name, true);
+        auto arg = resolveExpr(b, type, expr->args->item.value, name, true);
         if(arg->type->kind != Type::String) {
             error(b, "strings must be constructed with a string"_buffer, expr);
             return constString(b->block, name, "", 0);
@@ -110,12 +101,20 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
     } else if(type->kind == Type::Tup) {
         auto tup = (TupType*)type;
         auto args = buildArgs(b, expr->args);
-        matchArgs(b, expr->args, args, tupleArgFinder(tup->fields, tup->count));
 
-        if(args.count < tup->count) {
-            error(b, "missing fields for tuple type"_buffer, expr->type);
-        } else if(args.count > tup->count) {
-            error(b, "too many fields for tuple type"_buffer, expr->type);
+        if(args.count != tup->count) {
+            error(b, "invalid field count for tuple type: %@ required, but %@ were provided"_buffer, expr->type, tup->count, args.count);
+        }
+
+        matchArgs(b, expr->args, tup->fields, args);
+
+        if(tup->named && args.count == tup->count) {
+            for(U32 i = 0; i < tup->count; i++) {
+                if(!args.values[i]) {
+                    error(b, "no value provided for field '%@'"_buffer, expr->type, b->context.findName(tup->fields[i].name));
+                    args.values[i] = error(b->block, 0, tup->fields[i].type);
+                }
+            }
         }
 
         // Implicitly convert each field to the correct type.
@@ -155,8 +154,14 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, ast::ConExpr* expr, I
         // TODO
         error(b, "not implemented"_buffer, expr);
         return error(b->block, name, type);
-    } else if(type->kind == Type::Unit || type->kind == Type::Error) {
-        return nullptr;
+    } else if(type->kind == Type::Unit) {
+        if(expr->args) {
+            error(b, "incorrect number of arguments to unit type constructor"_buffer, expr);
+        }
+
+        return nop(b->block, name);
+    } else if(type->kind == Type::Error) {
+        return error(b->block, name, type);
     }
 
     error(b, "cannot construct this type"_buffer, expr->type);
@@ -173,6 +178,75 @@ static Value* resolveMiscCon(FunBuilder* b, ast::ConExpr* expr, Id name) {
     return explicitConstruct(b, type, expr, name);
 }
 
+static Value* argumentCountError(FunBuilder* b, Con* con, U32 wantedCount, Node* source, Id name) {
+    error(b, "incorrect number of arguments to constructor. Constructor %@ requires %@ argument(s)"_buffer, source, b->context.findName(con->name), wantedCount);
+    return error(b->block, name, con->parent);
+}
+
+static Value* resolveEmptyCon(FunBuilder* b, Type* targetType, Con* con, Node* source, Id name) {
+    // If we have no arguments but the record contains type arguments, we need a target type to instantiate it.
+    if(con->parent->argCount > 0) {
+        auto conBase = con->parent;
+        if(conBase->instanceOf) conBase = conBase->instanceOf;
+
+        RecordType* targetBase = nullptr;
+        if(targetType->kind == Type::Record) {
+            targetBase = (RecordType*)targetType;
+            if(targetBase->instanceOf) targetBase = targetBase->instanceOf;
+        }
+
+        if(conBase == targetBase) {
+            con = &((RecordType*)targetType)->cons[con->index];
+        }
+    }
+
+    // Make sure the constructor is fully defined now.
+    if(con->parent->argCount > 0) {
+        error(b, "cannot infer type of constructor %@ in this context"_buffer, source, b->context.findName(con->name));
+    }
+
+    return record(b->block, name, con, nullptr);
+}
+
+static Value* resolveTupCon(FunBuilder* b, ast::ConExpr* expr, Con* con, TupType* content, Id name) {
+    auto args = buildArgs(b, expr->args);
+    if(args.count != content->count) {
+        return argumentCountError(b, con, content->count, expr, name);
+    }
+
+    matchArgs(b, expr->args, content->fields, args);
+
+    if(content->named) {
+        for(U32 i = 0; i < content->count; i++) {
+            if(!args.values[i]) {
+                error(b, "no value provided for field '%@'"_buffer, expr->type, b->context.findName(content->fields[i].name));
+                args.values[i] = error(b->block, 0, content->fields[i].type);
+            }
+        }
+    }
+
+    // TODO: Instantiate based on returned type.
+    for(U32 i = 0; i < args.count; i++) {
+        args.values[i] = implicitConvert(b, args.values[i], content->fields[i].type, true, true);
+    }
+
+    auto value = tup(b->block, 0, content, args.values, args.count);
+    return record(b->block, name, con, value);
+}
+
+static Value* resolveValueCon(FunBuilder* b, ast::ConExpr* expr, Con* con, Type* content, Id name) {
+    if(!expr->args || expr->args->next) {
+        return argumentCountError(b, con, 1, expr, name);
+    }
+
+    auto arg = resolveExpr(b, content, expr->args->item.value, 0, true);
+
+    // TODO: Instantiate based on returned type.
+    arg = implicitConvert(b, arg, con->content, true, true);
+
+    return record(b->block, name, con, arg);
+}
+
 Value* resolveCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr, Id name) {
     auto con = findCon(&b->context, b->fun->module, expr->type->con);
     if(!con) {
@@ -180,81 +254,20 @@ Value* resolveCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr, Id name) 
     }
 
     auto content = con->content;
-
-    // If we have more than one argument, the constructor must contain a tuple type.
     auto arg = expr->args;
-    if(!arg) {
-        if(content != nullptr) {
-            error(b, "incorrect number of arguments to constructor"_buffer, expr);
-        }
-
-        return record(b->block, name, con, nullptr);
-    }
 
     if(!content) {
-        error(b, "incorrect number of arguments to constructor"_buffer, expr);
-        return error(b->block, name, con->parent);
+        if(arg) {
+            error(b, "incorrect number of arguments to constructor. Constructor %@ requires 0 arguments, but one or more was provided."_buffer, expr, b->context.findName(con->name));
+        }
+
+        return resolveEmptyCon(b, targetType, con, expr, name);
     }
 
     content = canonicalType(content);
-    auto args = buildArgs(b, expr->args);
-
-    U32 contentArgs = 1;
-    TupType* targetTuple = nullptr;
     if(content->kind == Type::Tup) {
-        targetTuple = (TupType*)content;
-        contentArgs = targetTuple->count;
-    }
-
-    if(contentArgs != args.count) {
-        error(b, "incorrect number of arguments to constructor"_buffer, expr);
-        return error(b->block, name, con->parent);
-    }
-
-    if(targetTuple) {
-        matchArgs(b, expr->args, args, tupleArgFinder(targetTuple->fields, targetTuple->count));
+        return resolveTupCon(b, expr, con, (TupType*)content, name);
     } else {
-        matchArgs(b, expr->args, args, [=](U32 i, Id fieldName) -> int {
-            if(fieldName) return -1;
-            return i;
-        });
+        return resolveValueCon(b, expr, con, content, name);
     }
-
-    // If the constructed type is a generic type, we instantiate it.
-    if(con->parent->argCount) {
-        auto instanceArgs = (Type**)alloca(sizeof(Type*) * con->parent->argCount);
-
-        // TODO: Handle GenTypes not used in the constructor.
-        if(targetTuple) {
-            for(U32 i = 0; i < args.count; i++) {
-                // TODO: Handle higher-kinded type fields.
-                auto t = targetTuple->fields[i].type;
-                if(t->kind == Type::Gen) {
-                    auto g = (GenType*)t;
-                    instanceArgs[g->index] = args.values[i]->type;
-                }
-            }
-        } else if(content->kind == Type::Gen) {
-            auto g = (GenType*)content;
-            instanceArgs[g->index] = args.values[0]->type;
-        }
-
-        auto record = instantiateRecord(&b->context, b->fun->module, con->parent, instanceArgs, con->parent->argCount, nullptr, true);
-        con = &record->cons[con->index];
-    }
-
-    // Make sure each field gets the correct type.
-    Value* targetContent;
-    if(targetTuple) {
-        for(U32 i = 0; i < args.count; i++) {
-            args.values[i] = implicitConvert(b, args.values[i], targetTuple->fields[i].type, true, true);
-        }
-
-        targetContent = tup(b->block, 0, content, args.values, args.count);
-    } else {
-        targetContent = implicitConvert(b, args.values[0], con->content, true, true);
-    }
-
-    auto value = record(b->block, name, con, targetContent);
-    return value;
 }
