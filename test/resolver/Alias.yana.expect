@@ -1,0 +1,118 @@
+
+fn z(%v: i32) -> i32 {
+#0:
+  ret(%v): i32
+}
+
+fn y(%v: i32) -> i32 {
+#0:
+  ret(%v): i32
+}
+
+fn d(%v: *D) -> i32 {
+#0:
+  %0 = loadfield(%v, 1, 0): i32
+  %1 = call(x, %0): i32
+  %2 = loadfield(%v, 1, 1): i32
+  %3 = call(y, %2): i32
+  %4 = add(%1, %3): i32
+  %5 = loadfield(%v, 1, 2): i32
+  %6 = call(z, %5): i32
+  %7 = add(%4, %6): i32
+  ret(%7): i32
+}
+
+fn u(%v: i32) -> i32 {
+#0:
+  ret(%v): i32
+}
+
+fn cx() -> i32 {
+#0:
+  ret(0: i32): i32
+}
+
+fn ca() -> {f64, f64} {
+#0:
+  %0 = tup(0.1: f64, 0.2: f64): {f64, f64}
+  ret(%0): {f64, f64}
+}
+
+fn ca_() -> {f32, f32} {
+#0:
+  %0 = tup(0.1: f32, 0.2: f32): {f32, f32}
+  ret(%0): {f32, f32}
+}
+
+fn cw() -> i32 {
+#0:
+  %0 = call(cx): i32
+  %1 = call(cy): i32
+  %2 = add(%0, %1): i32
+  ret(%2): i32
+}
+
+fn b['0](%b: {[i32], '0}) -> '0 {
+#0:
+  %0 = getfield(%b, 1): '0
+  ret(%0): '0
+}
+
+fn cb(%array: [i32]) -> {[i32], {f64, f64}} {
+#0:
+  %0 = call(ca): {f64, f64}
+  %1 = tup(%array, %0): {[i32], {f64, f64}}
+  ret(%1): {[i32], {f64, f64}}
+}
+
+fn w(%v: i32) -> i32 {
+#0:
+  ret(%v): i32
+}
+
+fn a(%v: {i32, i1}) -> i1 {
+#0:
+  %0 = getfield(%v, 1): i1
+  ret(%0): i1
+}
+
+fn x(%v: i32) -> i32 {
+#0:
+  ret(%v): i32
+}
+
+fn cd() -> D {
+#0:
+  %0 = call(cx): i32
+  %1 = call(cy): i32
+  %2 = call(cz): i32
+  %3 = tup(%0, %1, %2): {i32, i32, i32}
+  %4 = record(D, %3): D
+  ret(%4): D
+}
+
+fn cz() -> i32 {
+#0:
+  %0 = call(cx): i32
+  ret(%0): i32
+}
+
+fn cy() -> i32 {
+#0:
+  %0 = call(cx): i32
+  ret(%0): i32
+}
+
+fn cu() -> i32 {
+#0:
+  %0 = call(cw): i32
+  ret(%0): i32
+}
+
+fn cb_(%array: [i32]) -> {[i32], {f32, f32}} {
+#0:
+  %0 = call(ca_): {f32, f32}
+  %1 = tup(%array, %0): {[i32], {f32, f32}}
+  ret(%1): {[i32], {f32, f32}}
+}
+

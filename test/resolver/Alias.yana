@@ -1,0 +1,31 @@
+alias X = Int
+alias Y = X
+alias Z = Y
+alias W(a) = a
+alias U = W(W(W(X)))
+alias A(a, b) = { W(W(a)), b }
+alias B(a) = A([Int], W(a))
+
+data D { X, Y, Z }
+
+fn x(v: X) = X(v)
+fn y(v: Y) = Y(v)
+fn z(v: Z) = Z(v)
+fn w(v: W(Int)) = W(v)
+fn u(v: U) = U(v)
+fn a(v: A(Int, Bool)) = v.1
+fn b(b: B(a)) = b.1
+
+fn d(&v: D) = x(v.0) + y(v.1) + z(v.2)
+
+fn cx() = X(0)
+fn cy() = Y(cx())
+fn cz() = Z(cx())
+fn cw() = W(cx() + cy())
+fn cu() = U(cw())
+fn ca() = A { 0.1, 0.2 }
+fn ca_() = { 0.1, 0.2 } :: A(Float, Float)
+fn cb(array: [Int]) = B { array, ca() }
+fn cb_(array: [Int]) = { array, ca_() } :: B(A(Float, Float))
+
+fn cd() = D { cx(), cy(), cz() }
