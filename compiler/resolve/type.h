@@ -110,10 +110,10 @@ struct GenType: Type {
         Type(Gen, 1), env(env), name(name), index(index) {}
 
     GenEnv* env;
-    GenType* orderType = nullptr; // Forms a list defining the order of this type.
+    Type** args;
+    Maybe<U32> argCount = Nothing(); // The number of arguments that should be applied to this type. Nothing if still undetermined.
     Id name;
-    U16 index;
-    U16 order = 0; // 0 indicates undetermined.
+    U32 index;
 };
 
 struct ClassConstraint {
@@ -148,15 +148,6 @@ struct GenEnv {
 };
 
 struct GenInstance {
-    struct TypeInstance {
-        union {
-            Type* type;
-            GenType* gen;
-        };
-
-        bool isComplete;
-    };
-
     struct FieldInstance {
         union {
             Field* field;
@@ -188,7 +179,7 @@ struct GenInstance {
     GenEnv* targetEnv;
 
     // Each constraint from the target env is mapped to either a source env constraint or a complete implementation.
-    TypeInstance* types;
+    Type* types;
     FieldInstance* fields;
     ConstraintInstance* classes;
     FunInstance* funs;
@@ -331,6 +322,11 @@ struct RecordType: Type {
 
     RecordType(): Type(Record, 0), kind(Multi), gen(this, GenEnv::Record) {}
 
+    RecordType* base() {
+        if(instanceOf) return instanceOf;
+        return this;
+    }
+
     ast::DataDecl* ast; // Set until the type is fully resolved.
     Con* cons;
     GenEnv gen;
@@ -346,6 +342,11 @@ struct RecordType: Type {
 
 struct AliasType: Type {
     AliasType(): Type(Alias, 0), gen(this, GenEnv::Alias) {}
+
+    AliasType* base() {
+        if(instanceOf) return instanceOf;
+        return this;
+    }
 
     ast::AliasDecl* ast; // Set until the type is fully resolved.
     Type* to;
@@ -503,7 +504,6 @@ template<class F> void visitType(Type* type, F&& f) {
         case Type::Gen: {
             auto gen = (GenType*)type;
             f(gen);
-            if(gen->orderType) visitType(gen->orderType, forward<F>(f));
             break;
         }
         case Type::Int:
@@ -522,9 +522,9 @@ template<class F> void visitType(Type* type, F&& f) {
         case Type::Fun: {
             auto fun = (FunType*)type;
             f(fun);
-            visitType(fun->result, f);
+            visitType(fun->result, forward<F>(f));
             for(U32 i = 0; i < fun->argCount; i++) {
-                visitType(fun->args[i].type, f);
+                visitType(fun->args[i].type, forward<F>(f));
             }
             break;
         }
@@ -555,6 +555,85 @@ template<class F> void visitType(Type* type, F&& f) {
         }
         case Type::Alias:
             visitType(((AliasType*)type)->to, forward<F>(f));
+            break;
+    }
+}
+
+// Matches the type `a` to the contents in `b`,
+// calling the provided callback for each generic type in `a` matched by a corresponding type in `b`.
+// Does not perform type checking for compatibility between the types; this has to be done separately.
+template<class F> void matchGens(Type* a, Type* b, F&& f) {
+    switch(a->kind) {
+        case Type::Error:
+            break;
+        case Type::Unit:
+            break;
+        case Type::Gen: {
+            auto gen = (GenType*)a;
+            f(gen, b);
+            break;
+        }
+        case Type::Int:
+            break;
+        case Type::Float:
+            break;
+        case Type::String:
+            break;
+        case Type::Ref:
+            if(b->kind == Type::Ref) {
+                matchGens(((RefType*)a)->to, ((RefType*)b)->to, forward<F>(f));
+            }
+            break;
+        case Type::Fun:
+            if(b->kind == Type::Fun) {
+                auto fun = (FunType*)a;
+                auto other = (FunType*)b;
+                if(fun->argCount == other->argCount) {
+                    matchGens(fun->result, other->result, forward<F>(f));
+                    for(U32 i = 0; i < fun->argCount; i++) {
+                        matchGens(fun->args[i].type, other->args[i].type, forward<F>(f));
+                    }
+                }
+            }
+            break;
+        case Type::Array:
+            if(b->kind == Type::Array) {
+                matchGens(((ArrayType*)a)->content, ((ArrayType*)b)->content, forward<F>(f));
+            }
+            break;
+        case Type::Map:
+            if(b->kind == Type::Map) {
+                matchGens(((MapType*)a)->from, ((MapType*)b)->from, forward<F>(f));
+                matchGens(((MapType*)a)->to, ((MapType*)b)->to, forward<F>(f));
+            }
+            break;
+        case Type::Tup:
+            if(b->kind == Type::Tup) {
+                auto tup = (TupType*)a;
+                auto other = (TupType*)b;
+                if(tup->count == other->count) {
+                    for(U32 i = 0; i < tup->count; i++) {
+                        matchGens(tup->fields[i].type, other->fields[i].type, forward<F>(f));
+                    }
+                }
+            }
+            break;
+        case Type::Record:
+            if(b->kind == Type::Record) {
+                auto record = (RecordType*)a;
+                auto base = record->base();
+                auto other = (RecordType*)b;
+
+                if(base == other->base() && base->argCount > 0) {
+                    assertTrue(record->instance != nullptr && other->instance != nullptr);
+                    for(U32 i = 0; i < base->argCount; i++) {
+                        matchGens(record->instance[i], other->instance[i], forward<F>(f));
+                    }
+                }
+            }
+            break;
+        case Type::Alias:
+            matchGens(((AliasType*)a)->to, canonicalType(b), forward<F>(f));
             break;
     }
 }

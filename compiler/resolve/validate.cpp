@@ -788,23 +788,10 @@ static bool validateGenType(Diagnostics* diagnostics, GenType* type, Node* sourc
         return false;
     }
 
-    if(type->order == 0 && type->orderType) {
-        diagnostics->error("generic type order is incorrect (order = 0 but orderType is set)"_buffer, source, noSource);
-        return false;
-    } else if(type->order > 0) {
-        auto count = 0u;
-        auto order = type->orderType;
-
-        while(order) {
-            if(!validateGenType(diagnostics, order, source, fun)) return false;
-
-            count++;
-            order = order->orderType;
-        }
-
-        if(count != type->order) {
-            diagnostics->error("generic type order is incorrect (order = %@ but orderType length is %@)"_buffer, source, noSource, type->order, count);
-            return false;
+    auto argCount = type->argCount.from(0);
+    if(argCount > 0) {
+        for(U32 i = 0; i < argCount; i++) {
+            if(!validateType(diagnostics, type->args[i], source, fun)) return false;
         }
     }
 

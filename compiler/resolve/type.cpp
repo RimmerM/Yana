@@ -510,18 +510,12 @@ static T* checkInstantiation(Context* context, T* type, U32 count, bool direct) 
     return nullptr;
 }
 
-inline Type* baseType(RecordType* type) {
-    auto base = type->instanceOf;
-    if(base) return base;
-    return type;
-}
-
 static Type* checkRecursiveInstantiation(RecordEntry* entries, RecordType* type, Type** args, U32 count) {
-    auto base = baseType(type);
+    auto base = type->base();
 
     auto entry = entries;
     while(entry) {
-        Type* entryBase = baseType(entry->type);
+        Type* entryBase = entry->type->base();
         Type** instance = entry->type->instance;
 
         if(entryBase == entry->type) return nullptr;
