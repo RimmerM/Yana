@@ -24,7 +24,7 @@ Prism.languages.yana = {
     pattern: /\B@(?:\w+:)?(?:[A-Z]\w*|\[[^\]]+\])/,
     alias: 'builtin'
   },
-	'keyword' : /\b(?:fn|match|for|while|class|deriving|do|else|if|in|infixl|infixr|instance|let|module|then|alias|where)\b/,
+	'keyword' : /\b(?:fn|match|for|while|class|deriving|do|else|if|in|infixl|infixr|instance|let|module|then|alias|where|return)\b/,
 	'import_statement' : {
 		pattern: /((?:\r?\n|\r|^)\s*)import\s+(?:qualified\s+)?(?:[A-Z][\w']*)(?:\.[A-Z][\w']*)*(?:\s+as\s+(?:[A-Z][_a-zA-Z0-9']*)(?:\.[A-Z][\w']*)*)?(?:\s+hiding\b)?/m,
 		lookbehind: true,
