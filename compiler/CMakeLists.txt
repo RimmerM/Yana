@@ -26,6 +26,8 @@ set(SOURCE_FILES ${SOURCE_FILES}
 set(SOURCE_FILES ${SOURCE_FILES}
     resolve/inst.h
     resolve/inst.cpp
+    resolve/validate.cpp
+    resolve/validate.h
     resolve/block.h
     resolve/block.cpp
     resolve/module.h
