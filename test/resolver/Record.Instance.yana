@@ -1,0 +1,70 @@
+-- Normal type application.
+data A(a) { a }
+data B(a) { a, a }
+data C(a) { x: a, y: a, z: Int }
+data D(a, b, c) = D(a)
+data E(a, b, c) = E { x: a, y: D(a, b, c), z: A(c) }
+data F = F(E(A(Int), B(Bool), C(Float)))
+data G(a, b, c) = G(a)
+
+alias H(a) = D(a, {}, {})
+alias I = H(A(Int))
+alias J(a, b) = E(a, b, I)
+
+data K { x: J(Int, Int), y: J(Float, Float) }
+data L(a) { v: B(a), u: D(a, {}, {}) }
+
+fn a(v: A(a)) = v
+fn b(v: B(Int)) = v.0
+fn c(v: C(a)) = v.z
+fn d(v: D(Int, Int, Int)) = let D(i) = v in i
+fn e(v: E(Int, a, Int)) = let A(i) = v.z in v.x * i
+fn g(v: G(Int, {}, [Int])) = let G(i) = v in i
+fn h(v: H(Int)) = let D(i) = v in i
+fn i(v: I) = let D(A(i)) = v in i
+fn j(v: J({}, {})) = v.z
+fn k(v: K) = v.x.y
+fn l(v: L(Int)) = let D(it) = v.u in v.v.0 * it
+
+fn ca() = A(0)
+fn cb() = B(0, 1.1)
+fn cc() = C(x = 5, y = 6, z = 0)
+fn cd() = D(77.77) :: D(Int, {}, {})
+fn ce() = E(x = 0, y = cd(), z = A({}))
+fn cf() = F(E { z = A(C(9.5, 8.5, 1)), x = ca(), y = D(ca()) })
+fn cg() = G(cd()) :: G(D(Int, {}, {}), A(C(Int)), B(A(Bool)))
+fn ch() = H(0)
+fn ci() = I(A(0))
+fn cj() = E { x = 0, y = D(0), z = ci() } :: J(Int, Bool)
+fn ck() = K { x = E(0, D(0), ci()), y = E(0, D(0), ci()) }
+fn cl() = L { v = B { 2, 3 }, u = D(4) }
+
+-- Recursive types.
+data Maybe(a) = Just(a) | Nothing
+
+data List(a) = Cons { item: a, next: List(a) } | Empty
+alias IntList = List(Int)
+
+data IntTree = Leaf(Int) | Node { left: IntTree, right: IntTree }
+
+fn length(list: List(a)) -> Int
+    | Cons { ~next } -> 1 + length(next)
+    | Empty          -> 0
+
+fn intLength(list: IntList) -> Int = match list:
+    Cons { ~next } -> 1 + intLength(next)
+    Empty          -> 0
+
+fn !!(list: List(a), index: Int) -> Maybe(a)
+    | { Cons { ~item }, 0 } -> Just(item)
+    | { Cons { ~next }, _ } -> next !! (index - 1)
+    | { Empty, _ }          -> Nothing
+
+fn or(lhs: Bool, rhs: Bool) -> Bool
+    | { 0, 0 } -> 0
+    | else     -> 1
+
+instance IntTree:
+    fn exists(tree: IntTree, value: Int) -> Bool
+        | { Leaf(v), _ }              -> value == v
+        | { Node { left, right }, _ } -> left.exists(value) `or` right.exists(value)
