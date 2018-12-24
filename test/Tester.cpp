@@ -10,31 +10,46 @@
 
 using namespace Tritium;
 
-struct TestHandler: ModuleHandler {
-    Module* core;
-    Module* native;
+struct TestProvider: ModuleProvider, SourceProvider {
+    StringBuffer source;
+    Context* context;
+    Module* core = nullptr;
+    Module* native = nullptr;
 
-    explicit TestHandler(Context* context) {
-        core = coreModule(context);
-        native = nativeModule(context, core);
-    }
-
-    Module* require(Context* context, Module* from, Id name) override {
+    Module* getModule(Module* from, Id name) override {
         if(name == core->id) {
-            return core;
+            return getCore();
         } else if(name == native->id) {
-            return native;
+            return getNative();
         } else {
             return nullptr;
         }
+    }
+
+    StringBuffer getSource(Id module) override {
+        return ""_buffer;
+    }
+
+    Module* getCore() {
+        if(!core) core = coreModule(context);
+        return core;
+    }
+
+    Module* getNative() {
+        if(!native) native = nativeModule(context, getCore());
+        return native;
     }
 };
 
 void parserTest(const String& path, StringBuffer content) {
     print("Running test \"%@\"...", path);
 
-    PrintDiagnostics diagnostics;
+    TestProvider provider;
+    provider.source = content;
+
+    PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
+    provider.context = &context;
 
     auto ast = new ast::Module(context.addUnqualifiedName("no_name", 7));
     Parser parser(context, *ast, content.ptr);
@@ -63,7 +78,7 @@ void parserTest(const String& path, StringBuffer content) {
         println("Fail. Got:");
         print(string.c_str());
         println("\n\n\nExpected:");
-        print({buffer, size});
+        print(StringBuffer{buffer, size});
         print("\n\n\n");
     }
 }
@@ -71,8 +86,12 @@ void parserTest(const String& path, StringBuffer content) {
 void generateParserTest(const String& path, StringBuffer content) {
     println("Generating expect file for test \"%@\"", path);
 
-    PrintDiagnostics diagnostics;
+    TestProvider provider;
+    provider.source = content;
+
+    PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
+    provider.context = &context;
 
     auto ast = new ast::Module(context.addUnqualifiedName("no_name", 7));
     Parser parser(context, *ast, content.ptr);
@@ -130,15 +149,18 @@ void testParser(bool generate) {
 void resolverTest(const String& path, StringBuffer content) {
     print("Running test \"%@\"...", path);
 
-    PrintDiagnostics diagnostics;
+    TestProvider provider;
+    provider.source = content;
+
+    PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
+    provider.context = &context;
 
     auto ast = new ast::Module(context.addUnqualifiedName("no_name", 7));
     Parser parser(context, *ast, content.ptr);
     parser.parseModule();
 
-    TestHandler handler(&context);
-    auto module = resolveModule(&context, &handler, ast);
+    auto module = resolveModule(&context, &provider, ast);
 
     std::stringstream stream;
     printModule(stream, context, module);
@@ -163,7 +185,7 @@ void resolverTest(const String& path, StringBuffer content) {
         println("Fail. Got:");
         print(string.c_str());
         println("\n\n\nExpected:");
-        print({buffer, size});
+        print(StringBuffer{buffer, size});
         print("\n\n\n");
     }
 }
@@ -171,15 +193,18 @@ void resolverTest(const String& path, StringBuffer content) {
 void generateResolverTest(const String& path, StringBuffer content) {
     println("Generating expect file for test \"%@\"", path);
 
-    PrintDiagnostics diagnostics;
+    TestProvider provider;
+    provider.source = content;
+
+    PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
+    provider.context = &context;
 
     auto ast = new ast::Module(context.addUnqualifiedName("no_name", 7));
     Parser parser(context, *ast, content.ptr);
     parser.parseModule();
 
-    TestHandler handler(&context);
-    auto module = resolveModule(&context, &handler, ast);
+    auto module = resolveModule(&context, &provider, ast);
 
     auto expectPath = path + String(".expect");
     std::ofstream stream(std::string(expectPath.text(), expectPath.size()), std::ofstream::out | std::ofstream::trunc);

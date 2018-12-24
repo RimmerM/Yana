@@ -332,7 +332,7 @@ Variable* genJmp(Gen* gen, InstJmp* inst) {
             loop->startBlock->codegen;
         }
     } else {
-        gen->context->diagnostics.error("internal error: unsupported jump type"_buffer, nullptr, noSource);
+        gen->context->diagnostics.error("internal error: unsupported jump type"_buffer, nullptr);
     }
 
     return nullptr;

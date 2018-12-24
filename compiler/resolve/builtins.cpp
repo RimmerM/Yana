@@ -7,11 +7,11 @@ typedef Value* (*BinIntrinsic)(Block*, Id, Value*, Value*);
 
 template<BinIntrinsic F>
 static Function* binaryFunction(Context* context, Module* module, Type* type, const char* name, U32 length, Type* returnType = nullptr) {
-    auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length)) : defineAnonymousFun(context, module);
+    auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length), nullptr) : defineAnonymousFun(context, module);
     auto body = block(fun);
 
-    auto lhs = defineArg(context, fun, body, 0, type);
-    auto rhs = defineArg(context, fun, body, 0, type);
+    auto lhs = defineArg(context, fun, body, 0, type, nullptr);
+    auto rhs = defineArg(context, fun, body, 0, type, nullptr);
     fun->returnType = returnType ? returnType : type;
 
     auto result = F(body, 0, lhs, rhs);
@@ -29,11 +29,11 @@ using CmpIntrinsic = Value* (*)(Block*, Id, Value*, Value*, Cmp);
 
 template<class Cmp, CmpIntrinsic<Cmp> F, Cmp cmp>
 static Function* cmpFunction(Context* context, Module* module, Type* type, const char* name, U32 length) {
-    auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length)) : defineAnonymousFun(context, module);
+    auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length), nullptr) : defineAnonymousFun(context, module);
     auto body = block(fun);
 
-    auto lhs = defineArg(context, fun, body, 0, type);
-    auto rhs = defineArg(context, fun, body, 0, type);
+    auto lhs = defineArg(context, fun, body, 0, type, nullptr);
+    auto rhs = defineArg(context, fun, body, 0, type, nullptr);
     fun->returnType = &intTypes[IntType::Bool];
 
     auto result = F(body, 0, lhs, rhs, cmp);
@@ -48,11 +48,11 @@ static Function* cmpFunction(Context* context, Module* module, Type* type, const
 
 template<class Cmp, CmpIntrinsic<Cmp> cmp, Cmp Eq, Cmp Gt>
 static Function* ordCompare(Context* context, Module* module, Type* type, RecordType* orderingType, const char* name, U32 length) {
-    auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length)) : defineAnonymousFun(context, module);
+    auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length), nullptr) : defineAnonymousFun(context, module);
     auto eqTest = block(fun);
 
-    auto lhs = defineArg(context, fun, eqTest, 0, type);
-    auto rhs = defineArg(context, fun, eqTest, 0, type);
+    auto lhs = defineArg(context, fun, eqTest, 0, type, nullptr);
+    auto rhs = defineArg(context, fun, eqTest, 0, type, nullptr);
     fun->returnType = orderingType;
 
     auto eqBlock = block(fun);
@@ -80,11 +80,11 @@ static Function* ordCompare(Context* context, Module* module, Type* type, Record
 
 template<class Cmp, CmpIntrinsic<Cmp> cmp, Cmp Gt>
 static Function* maxCompare(Context* context, Module* module, Type* type, const char* name, U32 length) {
-    auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length)) : defineAnonymousFun(context, module);
+    auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length), nullptr) : defineAnonymousFun(context, module);
     auto gtTest = block(fun);
 
-    auto lhs = defineArg(context, fun, gtTest, 0, type);
-    auto rhs = defineArg(context, fun, gtTest, 0, type);
+    auto lhs = defineArg(context, fun, gtTest, 0, type, nullptr);
+    auto rhs = defineArg(context, fun, gtTest, 0, type, nullptr);
     fun->returnType = type;
 
     auto gtBlock = block(fun);
@@ -113,8 +113,8 @@ Function* binaryFunType(Context* context, Function* fun, Type* lhs, Type* rhs, T
     fun->returnType = result;
     fun->args.reserve(2);
 
-    defineArg(context, fun, nullptr, 0, lhs);
-    defineArg(context, fun, nullptr, 0, rhs);
+    defineArg(context, fun, nullptr, 0, lhs, nullptr);
+    defineArg(context, fun, nullptr, 0, rhs, nullptr);
     return fun;
 }
 
@@ -170,18 +170,18 @@ Module* coreModule(Context* context) {
     module->types.add(context->addUnqualifiedName("Double", 6), &floatTypes[FloatType::F64]);
     module->types.add(context->addUnqualifiedName("String", 6), &stringType);
 
-    auto orderingType = defineRecord(context, module, context->addUnqualifiedName("Ordering", 8), 3, false);
+    auto orderingType = defineRecord(context, module, context->addUnqualifiedName("Ordering", 8), 3, false, nullptr);
     orderingType->kind = RecordType::Enum;
 
-    defineCon(context, module, orderingType, context->addUnqualifiedName("LT", 2), 0);
-    defineCon(context, module, orderingType, context->addUnqualifiedName("EQ", 2), 1);
-    defineCon(context, module, orderingType, context->addUnqualifiedName("GT", 2), 2);
+    defineCon(context, module, orderingType, context->addUnqualifiedName("LT", 2), 0, nullptr);
+    defineCon(context, module, orderingType, context->addUnqualifiedName("EQ", 2), 1, nullptr);
+    defineCon(context, module, orderingType, context->addUnqualifiedName("GT", 2), 2, nullptr);
 
-    auto eqClass = defineClass(context, module, context->addUnqualifiedName("Eq", 2), 2);
+    auto eqClass = defineClass(context, module, context->addUnqualifiedName("Eq", 2), 2, nullptr);
     {
         auto t = setClassType(module, eqClass);
-        defineClassFun(context, module, eqClass, opEq, 0);
-        defineClassFun(context, module, eqClass, opNeq, 1);
+        defineClassFun(context, module, eqClass, opEq, 0, nullptr);
+        defineClassFun(context, module, eqClass, opNeq, 1, nullptr);
 
         binaryFunType(context, eqClass->functions[0].fun, t, t, &intTypes[IntType::Bool]); // ==
         binaryFunType(context, eqClass->functions[1].fun, t, t, &intTypes[IntType::Bool]); // /=
@@ -190,7 +190,7 @@ Module* coreModule(Context* context) {
             auto args = (Type**)module->memory.alloc(sizeof(Type*));
             args[0] = type;
 
-            auto instance = defineInstance(context, module, eqClass, args);
+            auto instance = defineInstance(context, module, eqClass, args, nullptr);
             instance->instances[0] = cmpFunction<ICmp, icmp, ICmp::eq>(context, module, type, nullptr, 0);
             instance->instances[1] = cmpFunction<ICmp, icmp, ICmp::neq>(context, module, type, nullptr, 0);
             return instance;
@@ -200,7 +200,7 @@ Module* coreModule(Context* context) {
             auto args = (Type**)module->memory.alloc(sizeof(Type*));
             args[0] = type;
 
-            auto instance = defineInstance(context, module, eqClass, args);
+            auto instance = defineInstance(context, module, eqClass, args, nullptr);
             instance->instances[0] = cmpFunction<FCmp, fcmp, FCmp::eq>(context, module, type, nullptr, 0);
             instance->instances[1] = cmpFunction<FCmp, fcmp, FCmp::neq>(context, module, type, nullptr, 0);
             return instance;
@@ -215,16 +215,16 @@ Module* coreModule(Context* context) {
         floatInstance(&floatTypes[FloatType::F64]);
     }
 
-    auto ordClass = defineClass(context, module, context->addUnqualifiedName("Ord", 3), 7);
+    auto ordClass = defineClass(context, module, context->addUnqualifiedName("Ord", 3), 7, nullptr);
     {
         auto t = setClassType(module, ordClass);
-        defineClassFun(context, module, ordClass, opLt, 0);
-        defineClassFun(context, module, ordClass, opLe, 1);
-        defineClassFun(context, module, ordClass, opGt, 2);
-        defineClassFun(context, module, ordClass, opGe, 3);
-        defineClassFun(context, module, ordClass, context->addUnqualifiedName("compare", 7), 4);
-        defineClassFun(context, module, ordClass, context->addUnqualifiedName("min", 3), 5);
-        defineClassFun(context, module, ordClass, context->addUnqualifiedName("max", 3), 6);
+        defineClassFun(context, module, ordClass, opLt, 0, nullptr);
+        defineClassFun(context, module, ordClass, opLe, 1, nullptr);
+        defineClassFun(context, module, ordClass, opGt, 2, nullptr);
+        defineClassFun(context, module, ordClass, opGe, 3, nullptr);
+        defineClassFun(context, module, ordClass, context->addUnqualifiedName("compare", 7), 4, nullptr);
+        defineClassFun(context, module, ordClass, context->addUnqualifiedName("min", 3), 5, nullptr);
+        defineClassFun(context, module, ordClass, context->addUnqualifiedName("max", 3), 6, nullptr);
 
         binaryFunType(context, ordClass->functions[0].fun, t, t, &intTypes[IntType::Bool]); // <
         binaryFunType(context, ordClass->functions[1].fun, t, t, &intTypes[IntType::Bool]); // <=
@@ -238,7 +238,7 @@ Module* coreModule(Context* context) {
             auto args = (Type**)module->memory.alloc(sizeof(Type*));
             args[0] = type;
 
-            auto instance = defineInstance(context, module, ordClass, args);
+            auto instance = defineInstance(context, module, ordClass, args, nullptr);
             instance->instances[0] = cmpFunction<ICmp, icmp, ICmp::ilt>(context, module, type, nullptr, 0);
             instance->instances[1] = cmpFunction<ICmp, icmp, ICmp::ile>(context, module, type, nullptr, 0);
             instance->instances[2] = cmpFunction<ICmp, icmp, ICmp::igt>(context, module, type, nullptr, 0);
@@ -253,7 +253,7 @@ Module* coreModule(Context* context) {
             auto args = (Type**)module->memory.alloc(sizeof(Type*));
             args[0] = type;
 
-            auto instance = defineInstance(context, module, ordClass, args);
+            auto instance = defineInstance(context, module, ordClass, args, nullptr);
             instance->instances[0] = cmpFunction<FCmp, fcmp, FCmp::lt>(context, module, type, nullptr, 0);
             instance->instances[1] = cmpFunction<FCmp, fcmp, FCmp::le>(context, module, type, nullptr, 0);
             instance->instances[2] = cmpFunction<FCmp, fcmp, FCmp::gt>(context, module, type, nullptr, 0);
@@ -273,13 +273,13 @@ Module* coreModule(Context* context) {
         floatInstance(&floatTypes[FloatType::F64]);
     }
 
-    auto numClass = defineClass(context, module, context->addUnqualifiedName("Num", 3), 4);
+    auto numClass = defineClass(context, module, context->addUnqualifiedName("Num", 3), 4, nullptr);
     {
         auto t = setClassType(module, numClass);
-        defineClassFun(context, module, numClass, opPlus, 0);
-        defineClassFun(context, module, numClass, opMinus, 1);
-        defineClassFun(context, module, numClass, opMul, 2);
-        defineClassFun(context, module, numClass, opDiv, 3);
+        defineClassFun(context, module, numClass, opPlus, 0, nullptr);
+        defineClassFun(context, module, numClass, opMinus, 1, nullptr);
+        defineClassFun(context, module, numClass, opMul, 2, nullptr);
+        defineClassFun(context, module, numClass, opDiv, 3, nullptr);
 
         binaryFunType(context, numClass->functions[0].fun, t, t, t); // +
         binaryFunType(context, numClass->functions[1].fun, t, t, t); // -
@@ -290,7 +290,7 @@ Module* coreModule(Context* context) {
             auto args = (Type**)module->memory.alloc(sizeof(Type*));
             args[0] = type;
 
-            auto instance = defineInstance(context, module, numClass, args);
+            auto instance = defineInstance(context, module, numClass, args, nullptr);
             instance->instances[0] = binaryFunction<add>(context, module, type, nullptr, 0);
             instance->instances[1] = binaryFunction<sub>(context, module, type, nullptr, 0);
             instance->instances[2] = binaryFunction<mul>(context, module, type, nullptr, 0);
@@ -302,7 +302,7 @@ Module* coreModule(Context* context) {
             auto args = (Type**)module->memory.alloc(sizeof(Type*));
             args[0] = type;
 
-            auto instance = defineInstance(context, module, numClass, args);
+            auto instance = defineInstance(context, module, numClass, args, nullptr);
             instance->instances[0] = binaryFunction<fadd>(context, module, type, nullptr, 0);
             instance->instances[1] = binaryFunction<fsub>(context, module, type, nullptr, 0);
             instance->instances[2] = binaryFunction<fmul>(context, module, type, nullptr, 0);
@@ -319,16 +319,16 @@ Module* coreModule(Context* context) {
         floatInstance(&floatTypes[FloatType::F64]);
     }
 
-    auto integralClass = defineClass(context, module, context->addQualifiedName("Integral", 8), 7);
+    auto integralClass = defineClass(context, module, context->addQualifiedName("Integral", 8), 7, nullptr);
     {
         auto t = setClassType(module, integralClass);
-        defineClassFun(context, module, integralClass, opShl, 0);
-        defineClassFun(context, module, integralClass, opSar, 1);
-        defineClassFun(context, module, integralClass, opShr, 2);
-        defineClassFun(context, module, integralClass, opAnd, 3);
-        defineClassFun(context, module, integralClass, opOr, 4);
-        defineClassFun(context, module, integralClass, opXor, 5);
-        defineClassFun(context, module, integralClass, opRem, 6);
+        defineClassFun(context, module, integralClass, opShl, 0, nullptr);
+        defineClassFun(context, module, integralClass, opSar, 1, nullptr);
+        defineClassFun(context, module, integralClass, opShr, 2, nullptr);
+        defineClassFun(context, module, integralClass, opAnd, 3, nullptr);
+        defineClassFun(context, module, integralClass, opOr, 4, nullptr);
+        defineClassFun(context, module, integralClass, opXor, 5, nullptr);
+        defineClassFun(context, module, integralClass, opRem, 6, nullptr);
 
         binaryFunType(context, integralClass->functions[0].fun, t, &intTypes[IntType::Int], t); // shl
         binaryFunType(context, integralClass->functions[1].fun, t, &intTypes[IntType::Int], t); // sar
@@ -342,7 +342,7 @@ Module* coreModule(Context* context) {
             auto args = (Type**)module->memory.alloc(sizeof(Type*));
             args[0] = type;
 
-            auto instance = defineInstance(context, module, integralClass, args);
+            auto instance = defineInstance(context, module, integralClass, args, nullptr);
             instance->instances[0] = binaryFunction<shl>(context, module, type, nullptr, 0);
             instance->instances[1] = binaryFunction<sar>(context, module, type, nullptr, 0);
             instance->instances[2] = binaryFunction<shr>(context, module, type, nullptr, 0);
@@ -358,12 +358,12 @@ Module* coreModule(Context* context) {
         intInstance(&intTypes[IntType::Long]);
     }
 
-    auto printFunction = defineFun(context, module, context->addUnqualifiedName("print", 5));
+    auto printFunction = defineFun(context, module, context->addUnqualifiedName("print", 5), nullptr);
     {
         printFunction->returnType = &unitType;
 
         auto body = block(printFunction);
-        auto arg = defineArg(context, printFunction, body, 0, &stringType);
+        auto arg = defineArg(context, printFunction, body, 0, &stringType, nullptr);
 
         auto args = (Value**)module->memory.alloc(sizeof(Value*) * 3);
         args[0] = constInt(body, 0, 1, &intTypes[IntType::Int]);
@@ -374,12 +374,12 @@ Module* coreModule(Context* context) {
         ret(body);
     }
 
-    auto exitFunction = defineFun(context, module, context->addUnqualifiedName("exitProgram", 11));
+    auto exitFunction = defineFun(context, module, context->addUnqualifiedName("exitProgram", 11), nullptr);
     {
         exitFunction->returnType = &unitType;
 
         auto body = block(exitFunction);
-        auto code = defineArg(context, exitFunction, body, 0, &intTypes[IntType::Int]);
+        auto code = defineArg(context, exitFunction, body, 0, &intTypes[IntType::Int], nullptr);
 
         auto args = (Value**)module->memory.alloc(sizeof(Value*));
         args[0] = code;
@@ -415,7 +415,7 @@ Module* nativeModule(Context* context, Module* core) {
     module->ops.add(opAdd, OpProperties{6, Assoc::Left});
     module->ops.add(opSub, OpProperties{6, Assoc::Left});
 
-    auto storeFunction = defineFun(context, module, opStore);
+    auto storeFunction = defineFun(context, module, opStore, nullptr);
     {
         auto type = new (module->memory) GenType(&storeFunction->gen, 0, 0);
         storeFunction->gen.types = (GenType**)module->memory.alloc(sizeof(GenType*));
@@ -423,8 +423,8 @@ Module* nativeModule(Context* context, Module* core) {
         storeFunction->gen.typeCount = 1;
 
         auto body = block(storeFunction);
-        auto lhs = defineArg(context, storeFunction, body, 0, type);
-        auto rhs = defineArg(context, storeFunction, body, 0, getRef(module, type, false, false, true));
+        auto lhs = defineArg(context, storeFunction, body, 0, type, nullptr);
+        auto rhs = defineArg(context, storeFunction, body, 0, getRef(module, type, false, false, true), nullptr);
         storeFunction->returnType = &unitType;
 
         store(body, 0, rhs, lhs);
@@ -435,7 +435,7 @@ Module* nativeModule(Context* context, Module* core) {
         };
     }
 
-    auto loadFunction = defineFun(context, module, opLoad);
+    auto loadFunction = defineFun(context, module, opLoad, nullptr);
     {
         auto type = new (module->memory) GenType(&loadFunction->gen, 0, 0);
         loadFunction->gen.types = (GenType**)module->memory.alloc(sizeof(GenType*));
@@ -443,7 +443,7 @@ Module* nativeModule(Context* context, Module* core) {
         loadFunction->gen.typeCount = 1;
 
         auto body = block(loadFunction);
-        auto lhs = defineArg(context, loadFunction, body, 0, getRef(module, type, false, false, true));
+        auto lhs = defineArg(context, loadFunction, body, 0, getRef(module, type, false, false, true), nullptr);
         loadFunction->returnType = type;
 
         auto value = load(body, 0, lhs);
@@ -454,7 +454,7 @@ Module* nativeModule(Context* context, Module* core) {
         };
     }
 
-    auto addFunction = defineFun(context, module, opAdd);
+    auto addFunction = defineFun(context, module, opAdd, nullptr);
     {
         auto type = new (module->memory) GenType(&addFunction->gen, 0, 0);
         addFunction->gen.types = (GenType**)module->memory.alloc(sizeof(GenType*));
@@ -462,8 +462,8 @@ Module* nativeModule(Context* context, Module* core) {
         addFunction->gen.typeCount = 1;
 
         auto body = block(addFunction);
-        auto lhs = defineArg(context, addFunction, body, 0, getRef(module, type, false, false, true));
-        auto rhs = defineArg(context, addFunction, body, 0, &intTypes[IntType::Int]);
+        auto lhs = defineArg(context, addFunction, body, 0, getRef(module, type, false, false, true), nullptr);
+        auto rhs = defineArg(context, addFunction, body, 0, &intTypes[IntType::Int], nullptr);
         addFunction->returnType = lhs->type;
 
         auto v = addref(body, 0, lhs, rhs);
@@ -474,7 +474,7 @@ Module* nativeModule(Context* context, Module* core) {
         };
     }
 
-    auto subFunction = defineFun(context, module, opSub);
+    auto subFunction = defineFun(context, module, opSub, nullptr);
     {
         auto type = new (module->memory) GenType(&subFunction->gen, 0, 0);
         subFunction->gen.types = (GenType**)module->memory.alloc(sizeof(GenType*));
@@ -482,8 +482,8 @@ Module* nativeModule(Context* context, Module* core) {
         subFunction->gen.typeCount = 1;
 
         auto body = block(subFunction);
-        auto lhs = defineArg(context, subFunction, body, 0, getRef(module, type, false, false, true));
-        auto rhs = defineArg(context, subFunction, body, 0, &intTypes[IntType::Int]);
+        auto lhs = defineArg(context, subFunction, body, 0, getRef(module, type, false, false, true), nullptr);
+        auto rhs = defineArg(context, subFunction, body, 0, &intTypes[IntType::Int], nullptr);
         subFunction->returnType = lhs->type;
 
         auto r = sub(body, 0, constInt(body, 0, 0, rhs->type), rhs);
@@ -503,17 +503,17 @@ Module* nativeModule(Context* context, Module* core) {
         copy("syscall", name, 7);
         name[7] = char('0' + i);
 
-        auto fun = defineFun(context, module, context->addUnqualifiedName(name, 8));
+        auto fun = defineFun(context, module, context->addUnqualifiedName(name, 8), nullptr);
         fun->returnType = bytePtrType;
 
         auto body = block(fun);
-        auto index = defineArg(context, fun, body, 0, &intTypes[IntType::Int]);
+        auto index = defineArg(context, fun, body, 0, &intTypes[IntType::Int], nullptr);
 
         auto args = (Value**)module->memory.alloc(sizeof(Value*) * (i + 1));
         args[0] = index;
 
         for(U32 j = 0; j < i; j++) {
-            args[j + 1] = defineArg(context, fun, body, 0, bytePtrType);
+            args[j + 1] = defineArg(context, fun, body, 0, bytePtrType, nullptr);
         }
 
         auto result = callDyn(body, 0, index, bytePtrType, args, i + 1, nullptr, true);

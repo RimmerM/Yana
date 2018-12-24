@@ -12,7 +12,7 @@
 static ast::Module* parseFile(Context& context, const String& path, const Identifier& id) {
     auto result = File::open(path, readAccess());
     if(result.isErr()) {
-        context.diagnostics.error("cannot open file %@: error %@"_buffer, nullptr, noSource, path, (U32)result.unwrapErr());
+        context.diagnostics.error("cannot open file %@: error %@"_buffer, nullptr, path, (U32)result.unwrapErr());
         return nullptr;
     }
 
@@ -22,7 +22,7 @@ static ast::Module* parseFile(Context& context, const String& path, const Identi
 
     auto read = file.read({text, size});
     if(read.isErr()) {
-        context.diagnostics.error("cannot read file %@: error %@"_buffer, nullptr, noSource, path, (U32)read.unwrapErr());
+        context.diagnostics.error("cannot read file %@: error %@"_buffer, nullptr, path, (U32)read.unwrapErr());
         return nullptr;
     }
 
@@ -35,7 +35,7 @@ static ast::Module* parseFile(Context& context, const String& path, const Identi
     return ast;
 }
 
-static Module* compileEntry(Context& context, ModuleHandler& handler, SourceEntry& entry) {
+static Module* compileEntry(Context& context, ModuleProvider& provider, SourceEntry& entry) {
     if(entry.ir) return entry.ir;
 
     auto ast = entry.ast;
@@ -46,7 +46,7 @@ static Module* compileEntry(Context& context, ModuleHandler& handler, SourceEntr
 
     if(!ast || ast->errorCount > 0) return nullptr;
 
-    auto module = resolveModule(&context, &handler, ast);
+    auto module = resolveModule(&context, &provider, ast);
     entry.ir = module;
     return module;
 }
@@ -112,8 +112,8 @@ int main(int argc, const char** argv) {
     auto settings = result.moveUnwrapOk();
 
     // Walk the input directory tree to create a map with each module we will compile.
-    SourceMap sourceMap;
-    auto sourceResult = buildSourceMap(sourceMap, settings);
+    ModuleMap moduleMap;
+    auto sourceResult = buildModuleMap(moduleMap, settings);
     if(sourceResult.isErr()) {
         print("File error: ");
         println(stringBuffer(sourceResult.unwrapErr()));
@@ -122,7 +122,7 @@ int main(int argc, const char** argv) {
 
     // Print a module listing if needed.
     if(settings.printModules) {
-        for(auto& source: sourceMap.entries) {
+        for(auto& source: moduleMap.entries) {
             println("Found module %@ at location %@", String{source.id.text, source.id.textLength}, source.path);
         }
     }
@@ -131,7 +131,7 @@ int main(int argc, const char** argv) {
     Array<SourceEntry*> roots(settings.rootObjects.size());
     for(auto& root: settings.rootObjects) {
         auto found = false;
-        for(auto& entry: sourceMap.entries) {
+        for(auto& entry: moduleMap.entries) {
             if(String(entry.id.text, entry.id.textLength) == root) {
                 roots.push(&entry);
                 found = true;
@@ -148,22 +148,23 @@ int main(int argc, const char** argv) {
         return 1;
     }
 
-    if(sourceMap.entries.size() == 0) {
+    if(moduleMap.entries.size() == 0) {
         println("Error: No modules to compile found");
         return 1;
     }
 
     // Create compilation context.
-    PrintDiagnostics diagnostics;
+    FileProvider provider(moduleMap);
+    PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
-    FileHandler handler(sourceMap, &context);
+    provider.context = &context;
 
     // Add standard library to the compilation set.
     Array<Module*> compiledModules;
-    compiledModules.push(handler.core);
+    compiledModules.push(provider.core);
 
     auto onEntry = [&](SourceEntry& entry) {
-        auto module = compileEntry(context, handler, entry);
+        auto module = compileEntry(context, provider, entry);
 
         if(entry.ast && settings.printAst) {
             astToFile(context, *entry.ast, entry);
@@ -183,7 +184,7 @@ int main(int argc, const char** argv) {
     if(roots.size() > 0) {
         for(auto root: roots) onEntry(*root);
     } else {
-        for(auto& entry: sourceMap.entries) onEntry(entry);
+        for(auto& entry: moduleMap.entries) onEntry(entry);
     }
 
     // Stop compiling if any parse errors occurred.
@@ -199,7 +200,7 @@ int main(int argc, const char** argv) {
 
     switch(settings.mode) {
         case CompileMode::Library: {
-            diagnostics.error("Library generation is not implemented yet."_buffer, nullptr, noSource);
+            diagnostics.error("Library generation is not implemented yet."_buffer, nullptr);
             break;
         }
         case CompileMode::NativeExecutable: {
@@ -212,11 +213,11 @@ int main(int argc, const char** argv) {
 
             auto result = linkModules(&llvmContext, &context, llvmModules.pointer(), llvmModules.size());
 
-            diagnostics.error("Native executable generation is not implemented yet."_buffer, nullptr, noSource);
+            diagnostics.error("Native executable generation is not implemented yet."_buffer, nullptr);
             break;
         }
         case CompileMode::NativeShared: {
-            diagnostics.error("Native shared library generation is not implemented yet."_buffer, nullptr, noSource);
+            diagnostics.error("Native shared library generation is not implemented yet."_buffer, nullptr);
             break;
         }
         case CompileMode::JsExecutable: {
@@ -228,7 +229,7 @@ int main(int argc, const char** argv) {
             break;
         }
         case CompileMode::JsLibrary: {
-            diagnostics.error("JS library generation is not implemented yet."_buffer, nullptr, noSource);
+            diagnostics.error("JS library generation is not implemented yet."_buffer, nullptr);
             break;
         }
         case CompileMode::Llvm: {

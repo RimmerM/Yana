@@ -593,7 +593,7 @@ Value* resolveDecl(FunBuilder* b, Type* targetType, ast::VarDecl* expr, Id name,
         auto patResult = resolvePat(b, &context, otherwise, result, expr->pat);
         if(patResult <= 0) {
             if(patResult < 0) {
-                b->context.diagnostics.warning("this pattern can never match"_buffer, expr->pat, noSource);
+                b->context.diagnostics.warning("this pattern can never match"_buffer, expr->pat);
             }
 
             if(expr->alts) {
@@ -639,7 +639,7 @@ Value* resolveDecl(FunBuilder* b, Type* targetType, ast::VarDecl* expr, Id name,
                 error(b, "this pattern may not succeed, but no alternative patterns were provided"_buffer, expr->pat);
             }
         } else if(expr->alts) {
-            b->context.diagnostics.warning("this pattern will always match"_buffer, expr->pat, noSource);
+            b->context.diagnostics.warning("this pattern will always match"_buffer, expr->pat);
         }
 
         if(expr->in) {

@@ -15,7 +15,7 @@ static bool validateBaseValue(Diagnostics* diagnostics, Value* value) {
         }
 
         if(!found) {
-            diagnostics->error("uses list for value is out of sync"_buffer, &value->source, noSource);
+            diagnostics->error("uses list for value is out of sync"_buffer, &value->source);
             return false;
         }
     }
@@ -35,7 +35,7 @@ static bool validateOperand(Diagnostics* diagnostics, Value* source, Value* op) 
     }
 
     if(!found) {
-        diagnostics->error("instruction has dangling operand"_buffer, &source->source, noSource);
+        diagnostics->error("instruction has dangling operand"_buffer, &source->source);
         return false;
     }
 
@@ -49,7 +49,7 @@ static bool validateOperand(Diagnostics* diagnostics, Value* source, Value* op) 
     }
 
     if(!found) {
-        diagnostics->error("uses list for operand is out of sync"_buffer, &op->source, noSource);
+        diagnostics->error("uses list for operand is out of sync"_buffer, &op->source);
         return false;
     }
 
@@ -61,12 +61,12 @@ bool validateArg(Diagnostics* diagnostics, Arg* arg) {
 
     Function* fun = arg->block->function;
     if(arg->index >= fun->args.size()) {
-        diagnostics->error("argument index %@ is out of bounds for function %@"_buffer, &arg->source, noSource, arg->index, fun->name);
+        diagnostics->error("argument index %@ is out of bounds for function %@"_buffer, &arg->source, arg->index, fun->name);
         return false;
     }
 
     if(fun->args[arg->index] != arg) {
-        diagnostics->error("argument list for function %@ is out of sync"_buffer, &arg->source, noSource, fun->name);
+        diagnostics->error("argument list for function %@ is out of sync"_buffer, &arg->source, fun->name);
         return false;
     }
 
@@ -77,12 +77,12 @@ bool validateGlobal(Diagnostics* diagnostics, Global* global) {
     if(!validateBaseValue(diagnostics, global)) return false;
 
     if(global->ast || global->resolving) {
-        diagnostics->error("global is not fully resolved"_buffer, &global->source, noSource);
+        diagnostics->error("global is not fully resolved"_buffer, &global->source);
         return false;
     }
 
     if(global->type->kind != Type::Ref) {
-        diagnostics->error("global must be a reference type"_buffer, &global->source, noSource);
+        diagnostics->error("global must be a reference type"_buffer, &global->source);
         return false;
     }
 
@@ -93,7 +93,7 @@ bool validateInt(Diagnostics* diagnostics, ConstInt* i) {
     if(!validateBaseValue(diagnostics, i)) return false;
 
     if(i->type->kind != Type::Int) {
-        diagnostics->error("integer constant must have integer type"_buffer, &i->source, noSource);
+        diagnostics->error("integer constant must have integer type"_buffer, &i->source);
         return false;
     }
 
@@ -101,7 +101,7 @@ bool validateInt(Diagnostics* diagnostics, ConstInt* i) {
     auto max = U64(1) << type->bits;
 
     if(i->value > max) {
-        diagnostics->error("integer constant out of range for target type. Constant value: %@, max value: %@"_buffer, &i->source, noSource, i->value, max);
+        diagnostics->error("integer constant out of range for target type. Constant value: %@, max value: %@"_buffer, &i->source, i->value, max);
         return false;
     }
 
@@ -112,7 +112,7 @@ bool validateFloat(Diagnostics* diagnostics, ConstFloat* i) {
     if(!validateBaseValue(diagnostics, i)) return false;
 
     if(i->type->kind != Type::Float) {
-        diagnostics->error("floating point constant must have float type"_buffer, &i->source, noSource);
+        diagnostics->error("floating point constant must have float type"_buffer, &i->source);
         return false;
     }
 
@@ -120,7 +120,7 @@ bool validateFloat(Diagnostics* diagnostics, ConstFloat* i) {
     auto max = U64(1) << type->bits;
 
     if(i->value > max) {
-        diagnostics->error("integer constant out of range for target type. Constant value: %@, max value: %@"_buffer, &i->source, noSource, i->value, max);
+        diagnostics->error("integer constant out of range for target type. Constant value: %@, max value: %@"_buffer, &i->source, i->value, max);
         return false;
     }
 
@@ -147,7 +147,7 @@ bool validateTrunc(Diagnostics* diagnostics, InstTrunc* i) {
     }
 
     if(!valid) {
-        diagnostics->error("trunc instructions must truncate from an integer type to a smaller integer type"_buffer, &i->source, noSource);
+        diagnostics->error("trunc instructions must truncate from an integer type to a smaller integer type"_buffer, &i->source);
         return false;
     }
 
@@ -167,7 +167,7 @@ bool validateFTrunc(Diagnostics* diagnostics, InstFTrunc* i) {
     }
 
     if(!valid) {
-        diagnostics->error("ftrunc instructions must truncate from a floating point type to a smaller floating point type"_buffer, &i->source, noSource);
+        diagnostics->error("ftrunc instructions must truncate from a floating point type to a smaller floating point type"_buffer, &i->source);
         return false;
     }
 
@@ -187,7 +187,7 @@ static bool validateIntExt(Diagnostics* diagnostics, InstCast* i, const String& 
     }
 
     if(!valid) {
-        diagnostics->error("%@ instructions must widen from an integer type to a larger integer type"_buffer, &i->source, noSource, name);
+        diagnostics->error("%@ instructions must widen from an integer type to a larger integer type"_buffer, &i->source, name);
         return false;
     }
 
@@ -215,7 +215,7 @@ bool validateFExt(Diagnostics* diagnostics, InstFExt* i) {
     }
 
     if(!valid) {
-        diagnostics->error("fext instructions must widen from a floating point type to a larger floating point type"_buffer, &i->source, noSource);
+        diagnostics->error("fext instructions must widen from a floating point type to a larger floating point type"_buffer, &i->source);
         return false;
     }
 
@@ -228,7 +228,7 @@ static bool validateFloatToInt(Diagnostics* diagnostics, InstCast* i, const Stri
 
     auto valid = i->from->type->kind == Type::Float && i->type->kind == Type::Int;
     if(!valid) {
-        diagnostics->error("%@ instructions must convert from a floating point type to an integer type"_buffer, &i->source, noSource, name);
+        diagnostics->error("%@ instructions must convert from a floating point type to an integer type"_buffer, &i->source, name);
         return false;
     }
 
@@ -249,7 +249,7 @@ static bool validateIntToFloat(Diagnostics* diagnostics, InstCast* i, const Stri
 
     auto valid = i->from->type->kind == Type::Int && i->type->kind == Type::Float;
     if(!valid) {
-        diagnostics->error("%@ instructions must convert from an integer type to a floating point type"_buffer, &i->source, noSource, name);
+        diagnostics->error("%@ instructions must convert from an integer type to a floating point type"_buffer, &i->source, name);
         return false;
     }
 
@@ -278,7 +278,7 @@ static bool validateIntArithmetic(Diagnostics* diagnostics, InstBinary* i, const
     }
 
     if(!valid) {
-        diagnostics->error("%@ instructions must have register-sized integer inputs and output of the same width"_buffer, &i->source, noSource, name);
+        diagnostics->error("%@ instructions must have register-sized integer inputs and output of the same width"_buffer, &i->source, name);
         return false;
     }
 
@@ -327,7 +327,7 @@ static bool validateFloatArithmetic(Diagnostics* diagnostics, InstBinary* i, con
     }
 
     if(!valid) {
-        diagnostics->error("%@ instructions must have register-sized floating point inputs and output of the same width"_buffer, &i->source, noSource, name);
+        diagnostics->error("%@ instructions must have register-sized floating point inputs and output of the same width"_buffer, &i->source, name);
         return false;
     }
 
@@ -364,7 +364,7 @@ bool validateICmp(Diagnostics* diagnostics, InstICmp* i) {
     }
 
     if(!valid) {
-        diagnostics->error("icmp instructions must have register-sized integer inputs of the same width, as well as Bool output"_buffer, &i->source, noSource);
+        diagnostics->error("icmp instructions must have register-sized integer inputs of the same width, as well as Bool output"_buffer, &i->source);
         return false;
     }
 
@@ -385,7 +385,7 @@ bool validateFCmp(Diagnostics* diagnostics, InstFCmp* i) {
     }
 
     if(!valid) {
-        diagnostics->error("fcmp instructions must have register-sized floating point inputs of the same width, as well as Bool output"_buffer, &i->source, noSource);
+        diagnostics->error("fcmp instructions must have register-sized floating point inputs of the same width, as well as Bool output"_buffer, &i->source);
         return false;
     }
 
@@ -408,7 +408,7 @@ static bool validateIntShift(Diagnostics* diagnostics, InstShift* i, const Strin
     }
 
     if(!valid) {
-        diagnostics->error("%@ instructions must have register-sized integer source and output of the same width, as well as a register-sized integer amount"_buffer, &i->source, noSource, name);
+        diagnostics->error("%@ instructions must have register-sized integer source and output of the same width, as well as a register-sized integer amount"_buffer, &i->source, name);
         return false;
     }
 
@@ -452,7 +452,7 @@ bool validateAddRef(Diagnostics* diagnostics, InstAddRef* i) {
     }
 
     if(!valid) {
-        diagnostics->error("addref source and resulting type must be untraced references to the same type"_buffer, &i->source, noSource);
+        diagnostics->error("addref source and resulting type must be untraced references to the same type"_buffer, &i->source);
         return false;
     }
 
@@ -463,7 +463,7 @@ bool validateAddRef(Diagnostics* diagnostics, InstAddRef* i) {
     }
 
     if(!valid) {
-        diagnostics->error("addref addition operand must be an integer type of register size"_buffer, &i->source, noSource);
+        diagnostics->error("addref addition operand must be an integer type of register size"_buffer, &i->source);
         return false;
     }
 
@@ -724,7 +724,7 @@ bool validateValue(Diagnostics* diagnostics, Value* value) {
 
 bool validateBlock(Diagnostics* diagnostics, Block* block) {
     if(!block->complete) {
-        diagnostics->error("block is incomplete"_buffer, &block->function->source, noSource);
+        diagnostics->error("block is incomplete"_buffer, &block->function->source);
         return false;
     }
 
@@ -739,7 +739,7 @@ bool validateBlock(Diagnostics* diagnostics, Block* block) {
 
 bool validateFunction(Diagnostics* diagnostics, Function* function) {
     if(function->ast || function->resolving) {
-        diagnostics->error("function is not fully resolved"_buffer, &function->source, noSource);
+        diagnostics->error("function is not fully resolved"_buffer, &function->source);
         return false;
     }
 
@@ -774,17 +774,17 @@ bool validateModule(Diagnostics* diagnostics, Module* module) {
 static bool validateGenType(Diagnostics* diagnostics, GenType* type, Node* source, Function* fun) {
     auto env = type->env;
     if(env->kind != GenEnv::Function || env->container != fun) {
-        diagnostics->error("generic type is used outside of its environment"_buffer, source, noSource);
+        diagnostics->error("generic type is used outside of its environment"_buffer, source);
         return false;
     }
 
     if(type->index >= env->typeCount) {
-        diagnostics->error("generic type out of bounds in its environment"_buffer, source, noSource);
+        diagnostics->error("generic type out of bounds in its environment"_buffer, source);
         return false;
     }
 
     if(env->types[type->index] != type) {
-        diagnostics->error("generic environment type list is out of sync"_buffer, source, noSource);
+        diagnostics->error("generic environment type list is out of sync"_buffer, source);
         return false;
     }
 
@@ -800,17 +800,17 @@ static bool validateGenType(Diagnostics* diagnostics, GenType* type, Node* sourc
 
 static bool validateIntType(Diagnostics* diagnostics, IntType* type, Node* source, Function* fun) {
     if(type->width >= IntType::KindCount) {
-        diagnostics->error("invalid register width '%@' for integer"_buffer, source, noSource, (int)type->width);
+        diagnostics->error("invalid register width '%@' for integer"_buffer, source, (int)type->width);
         return false;
     }
 
     if(type->bits > IntType::bitsForWidth(type->width)) {
-        diagnostics->error("integer type is too large for its register width"_buffer, source, noSource);
+        diagnostics->error("integer type is too large for its register width"_buffer, source);
         return false;
     }
 
     if(type->bits < 1) {
-        diagnostics->error("integer type is too small; it must contain at least 1 bit"_buffer, source, noSource);
+        diagnostics->error("integer type is too small; it must contain at least 1 bit"_buffer, source);
         return false;
     }
 
@@ -819,12 +819,12 @@ static bool validateIntType(Diagnostics* diagnostics, IntType* type, Node* sourc
 
 static bool validateFloatType(Diagnostics* diagnostics, FloatType* type, Node* source, Function* fun) {
     if(type->width >= FloatType::KindCount) {
-        diagnostics->error("invalid register width '%@' for floating point"_buffer, source, noSource, (int)type->width);
+        diagnostics->error("invalid register width '%@' for floating point"_buffer, source, (int)type->width);
         return false;
     }
 
     if(type->bits != FloatType::bitsForWidth(type->width)) {
-        diagnostics->error("floating point size must be the same as its register width"_buffer, source, noSource);
+        diagnostics->error("floating point size must be the same as its register width"_buffer, source);
         return false;
     }
 
@@ -840,7 +840,7 @@ static bool validateFunType(Diagnostics* diagnostics, FunType* type, Node* sourc
         auto arg = type->args + i;
 
         if(arg->index != i) {
-            diagnostics->error("function argument list is out of sync"_buffer, source, noSource);
+            diagnostics->error("function argument list is out of sync"_buffer, source);
             return false;
         }
 
@@ -864,12 +864,12 @@ static bool validateTupType(Diagnostics* diagnostics, TupType* type, Node* sourc
         auto field = type->fields + i;
 
         if(field->container != type || field->index != i) {
-            diagnostics->error("tuple field list is out of sync"_buffer, source, noSource);
+            diagnostics->error("tuple field list is out of sync"_buffer, source);
             return false;
         }
 
         if((field->name != 0) != type->named) {
-            diagnostics->error("tuple field naming mode is different from the container naming mode"_buffer, source, noSource);
+            diagnostics->error("tuple field naming mode is different from the container naming mode"_buffer, source);
             return false;
         }
 
@@ -881,34 +881,34 @@ static bool validateTupType(Diagnostics* diagnostics, TupType* type, Node* sourc
 
 static bool validateRecordType(Diagnostics* diagnostics, RecordType* type, Node* source, Function* fun) {
     if(type->ast) {
-        diagnostics->error("record type is not fully resolved"_buffer, source, noSource);
+        diagnostics->error("record type is not fully resolved"_buffer, source);
         return false;
     }
 
     if(type->argCount) {
-        diagnostics->error("record type is incomplete due to having remaining type arguments"_buffer, source, noSource);
+        diagnostics->error("record type is incomplete due to having remaining type arguments"_buffer, source);
         return false;
     }
 
     if(type->kind == RecordType::Enum) {
         for(U32 i = 0; i < type->conCount; i++) {
             if(type->cons[i].content) {
-                diagnostics->error("record type is marked as Enum kind, but constructor %@ contains data"_buffer, source, noSource, i);
+                diagnostics->error("record type is marked as Enum kind, but constructor %@ contains data"_buffer, source, i);
                 return false;
             }
         }
     } else if(type->kind == RecordType::Single) {
         if(type->conCount != 1) {
-            diagnostics->error("record type is marked as Single kind, but number of constructors is %@"_buffer, source, noSource, type->conCount);
+            diagnostics->error("record type is marked as Single kind, but number of constructors is %@"_buffer, source, type->conCount);
             return false;
         }
     } else if(type->kind == RecordType::Multi) {
         if(type->conCount >= 1) {
-            diagnostics->error("record type is marked as Multi kind, but number of constructors is %@"_buffer, source, noSource, type->conCount);
+            diagnostics->error("record type is marked as Multi kind, but number of constructors is %@"_buffer, source, type->conCount);
             return false;
         }
     } else {
-        diagnostics->error("record type has unrecognized kind '%@'"_buffer, source, noSource, (int)type->kind);
+        diagnostics->error("record type has unrecognized kind '%@'"_buffer, source, (int)type->kind);
         return false;
     }
 
@@ -916,7 +916,7 @@ static bool validateRecordType(Diagnostics* diagnostics, RecordType* type, Node*
         auto con = type->cons + i;
 
         if(con->parent != type || con->index != i) {
-            diagnostics->error("record constructor list is out of sync"_buffer, source, noSource);
+            diagnostics->error("record constructor list is out of sync"_buffer, source);
             return false;
         }
 
@@ -928,12 +928,12 @@ static bool validateRecordType(Diagnostics* diagnostics, RecordType* type, Node*
 
 static bool validateAliasType(Diagnostics* diagnostics, AliasType* type, Node* source, Function* fun) {
     if(type->ast) {
-        diagnostics->error("alias type is not fully resolved"_buffer, source, noSource);
+        diagnostics->error("alias type is not fully resolved"_buffer, source);
         return false;
     }
 
     if(type->argCount) {
-        diagnostics->error("alias type is incomplete due to having remaining type arguments"_buffer, source, noSource);
+        diagnostics->error("alias type is incomplete due to having remaining type arguments"_buffer, source);
         return false;
     }
 
@@ -943,7 +943,7 @@ static bool validateAliasType(Diagnostics* diagnostics, AliasType* type, Node* s
 bool validateType(Diagnostics* diagnostics, Type* type, Node* source, Function* fun) {
     switch(type->kind) {
         case Type::Error:
-            diagnostics->error("error types can never be used in valid code"_buffer, source, noSource);
+            diagnostics->error("error types can never be used in valid code"_buffer, source);
             return false;
         case Type::Unit:
             // Unit types don't contain any type-specific data.

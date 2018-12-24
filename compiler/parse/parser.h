@@ -196,7 +196,6 @@ struct Parser {
     template<class F> auto sepBy1(F&& f, Token::Type sep) {return sepBy1(f, tokenEat(sep));}
     template<class F> auto sepBy(F&& f, Token::Type sep, Token::Type end) {return sepBy(f, tokenEat(sep), tokenCheck(end));}
 
-    const char* text;
     Context& context;
     Diagnostics& diag;
     ast::Module& module;

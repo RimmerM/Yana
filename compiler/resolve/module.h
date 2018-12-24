@@ -55,24 +55,24 @@ struct Module {
     void* codegen = nullptr;
 };
 
-struct ModuleHandler {
+struct ModuleProvider {
     // Returns a module for the provided identifier if it was available.
     // If not, returns null and queues the module for loading and the caller for later completion.
     // The resolver should only resolve imports and then stop if any require call returns null.
-    virtual Module* require(Context* context, Module* from, Id name) = 0;
+    virtual Module* getModule(Module* from, Id name) = 0;
 };
 
-AliasType* defineAlias(Context* context, Module* in, Id name, Type* to);
-RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bool qualified);
-Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index);
-TypeClass* defineClass(Context* context, Module* in, Id name, U32 funCount);
-ClassInstance* defineInstance(Context* context, Module* in, TypeClass* to, Type** args);
-Function* defineFun(Context* context, Module* in, Id name);
+AliasType* defineAlias(Context* context, Module* in, Id name, Type* to, const Node* where);
+RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bool qualified, const Node* where);
+Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index, const Node* where);
+TypeClass* defineClass(Context* context, Module* in, Id name, U32 funCount, const Node* where);
+ClassInstance* defineInstance(Context* context, Module* in, TypeClass* to, Type** args, const Node* where);
+Function* defineFun(Context* context, Module* in, Id name, const Node* where);
 Function* defineAnonymousFun(Context* context, Module* in);
-ForeignFunction* defineForeignFun(Context* context, Module* in, Id name, FunType* type);
-Global* defineGlobal(Context* context, Module* in, Id name);
-Arg* defineArg(Context* context, Function* fun, Block* block, Id name, Type* type);
-ClassFun* defineClassFun(Context* context, Module* module, TypeClass* typeClass, Id name, U32 index);
+ForeignFunction* defineForeignFun(Context* context, Module* in, Id name, FunType* type, const Node* where);
+Global* defineGlobal(Context* context, Module* in, Id name, const Node* where);
+Arg* defineArg(Context* context, Function* fun, Block* block, Id name, Type* type, const Node* where);
+ClassFun* defineClassFun(Context* context, Module* module, TypeClass* typeClass, Id name, U32 index, const Node* where);
 
 Type* findType(Context* context, Module* module, Id name);
 Con* findCon(Context* context, Module* module, Id name);
@@ -101,8 +101,14 @@ struct FoundFunction {
 FoundFunction findFun(Context* context, Module* module, Id name);
 Function* findInstanceFun(Context* context, Module* module, Type* fieldType, Id name);
 
-Module* resolveModule(Context* context, ModuleHandler* handler, ast::Module* ast);
+Module* resolveModule(Context* context, ModuleProvider* handler, ast::Module* ast);
 void resolveFun(Context* context, Function* fun, bool requireBody = true);
+
+struct TypeContext {
+    Type* targetType;
+    Buffer<Type*> genInstance;
+};
+
 Value* resolveExpr(FunBuilder* b, Type* targetType, ast::Expr* expr, Id name, bool used);
 
 Id getDeclName(ast::VarDecl* expr);

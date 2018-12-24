@@ -2,20 +2,31 @@
 #include "../resolve/builtins.h"
 #include <File.h>
 
-FileHandler::FileHandler(SourceMap& map, Context* context): map(map) {
-    core = coreModule(context);
-    native = nativeModule(context, core);
+FileProvider::FileProvider(ModuleMap& map): moduleMap(map) {}
+
+StringBuffer FileProvider::getSource(Id module) {
+    if(auto source = sourceMap.get(module)) {
+        return *source.get();
+    }
+
+    for(auto& e: moduleMap.entries) {
+
+    }
 }
 
-Module* FileHandler::require(Context* context, Module* from, Id name) {
+Module* FileProvider::getModule(Module* from, Id name) {
     if(name == core->id) {
+        if(!core) core = coreModule(context);
         return core;
     } else if(name == native->id) {
+        if(!core) core = coreModule(context);
+        if(!native) native = nativeModule(context, core);
         return native;
     } else {
         return nullptr;
     }
 }
+
 template<class... T>
 static String formatError(StringBuffer format, T&&... args) {
     char buffer[4000];
@@ -51,7 +62,7 @@ static bool isYanaSource(const String& path, Size& extensionLength) {
     return extension == "yana";
 }
 
-static void mapFile(SourceMap& map, const String& root, const String& file) {
+static void mapFile(ModuleMap& map, const String& root, const String& file) {
     // Only compile actual source files.
     Size extensionLength = 0;
     if(!isYanaSource(file, extensionLength)) return;
@@ -173,10 +184,10 @@ static void mapFile(SourceMap& map, const String& root, const String& file) {
         id.segmentHash = hash.get();
     }
 
-    map.entries.push(SourceEntry{String(pathBuffer, file.size()), id, buffer});
+    auto entry = map.entries.push(SourceEntry{String(pathBuffer, file.size()), id, buffer});
 }
 
-static Result<void, String> mapDirectory(SourceMap& map, const String& root, const String& dir) {
+static Result<void, String> mapDirectory(ModuleMap& map, const String& root, const String& dir) {
     Result<void, String> error = Ok();
 
     auto result = listDirectory(dir, [&](const String& name, bool isDirectory) {
@@ -200,7 +211,7 @@ static Result<void, String> mapDirectory(SourceMap& map, const String& root, con
     return move(error);
 }
 
-static Result<void, String> checkDuplicates(SourceMap& map) {
+static Result<void, String> checkDuplicates(ModuleMap& map) {
     for(auto& entry: map.entries) {
         auto id = String(entry.id.text, entry.id.textLength);
         for(auto& compare: map.entries) {
@@ -219,7 +230,7 @@ static Result<void, String> checkDuplicates(SourceMap& map) {
     return Ok();
 }
 
-Result<void, String> buildSourceMap(SourceMap& map, const String& root) {
+Result<void, String> buildModuleMap(ModuleMap& map, const String& root) {
     auto info = File::info(root);
     if(!info) return Err(formatError("Cannot open source file/directory %@"_buffer, root));
 
@@ -231,9 +242,9 @@ Result<void, String> buildSourceMap(SourceMap& map, const String& root) {
     }
 }
 
-Result<void, String> buildSourceMap(SourceMap& map, const CompileSettings& settings) {
+Result<void, String> buildModuleMap(ModuleMap& map, const CompileSettings& settings) {
     for(auto& root: settings.compileObjects) {
-        auto result = buildSourceMap(map, root);
+        auto result = buildModuleMap(map, root);
         if(result.isErr()) {
             return result;
         }

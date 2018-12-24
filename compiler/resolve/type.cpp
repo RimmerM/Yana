@@ -193,7 +193,7 @@ static void addGeneric(Context* context, Buffer<Id> buffer, Size& offset, ast::G
     if(offset < buffer.length) {
         buffer.ptr[offset++] = type->con;
     } else {
-        context->diagnostics.error("too many generic types in this context. Maximum supported number is %@"_buffer, type, noSource, buffer.length);
+        context->diagnostics.error("too many generic types in this context. Maximum supported number is %@"_buffer, type, buffer.length);
     }
 }
 

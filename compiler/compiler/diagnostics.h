@@ -5,8 +5,6 @@
 using namespace Tritium;
 using Id = U32;
 
-static constexpr StringBuffer noSource{nullptr, 0};
-
 struct Loc {
     U16 line;
     U16 column;
@@ -29,6 +27,10 @@ struct Node {
     }
 };
 
+struct SourceProvider {
+    virtual StringBuffer getSource(Id module) = 0;
+};
+
 struct Diagnostics {
     enum Level {
         MessageLevel,
@@ -36,24 +38,26 @@ struct Diagnostics {
         ErrorLevel,
     };
 
+    explicit Diagnostics(SourceProvider& provider): provider(provider) {}
+
     template<class... T>
-    void warning(StringBuffer text, const Node* where, StringBuffer source, T&&... format) {
-        message(WarningLevel, text, where, source, forward<T>(format)...);
+    void warning(StringBuffer text, const Node* where, T&&... format) {
+        message(WarningLevel, text, where, forward<T>(format)...);
     }
 
     template<class... T>
-    void error(StringBuffer text, const Node* where, StringBuffer source, T&&... format) {
-        message(ErrorLevel, text, where, source, forward<T>(format)...);
+    void error(StringBuffer text, const Node* where, T&&... format) {
+        message(ErrorLevel, text, where, forward<T>(format)...);
     }
 
     template<class... T>
-    void message(Level level, StringBuffer text, const Node* where, StringBuffer source, T&&... format) {
+    void message(Level level, StringBuffer text, const Node* where, T&&... format) {
         char buffer[4000];
         text = {buffer, Size(formatString(toBuffer(buffer), text, forward<T>(format)...) - buffer)};
-        message(level, text, where, source);
+        message(level, text, where);
     }
 
-    virtual void message(Level level, StringBuffer text, const Node* where, StringBuffer source) {
+    virtual void message(Level level, StringBuffer text, const Node* where) {
         if(level == WarningLevel) warnings++;
         else if(level == ErrorLevel) errors++;
     }
@@ -61,11 +65,13 @@ struct Diagnostics {
     U32 warningCount() {return warnings;}
     U32 errorCount() {return errors;}
 
-private:
+protected:
+    SourceProvider& provider;
     U32 warnings = 0;
     U32 errors = 0;
 };
 
 struct PrintDiagnostics: Diagnostics {
-    void message(Level level, StringBuffer text, const Node* where, StringBuffer source) override;
+    using Diagnostics::Diagnostics;
+    void message(Level level, StringBuffer text, const Node* where) override;
 };

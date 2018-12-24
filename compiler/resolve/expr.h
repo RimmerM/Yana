@@ -15,7 +15,7 @@ namespace ast {
 
 template<class... T>
 inline void error(FunBuilder* b, StringBuffer message, const Node* node, T&&... p) {
-    b->context.diagnostics.error(message, node, noSource, forward<T>(p)...);
+    b->context.diagnostics.error(message, node, forward<T>(p)...);
 }
 
 Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool isConstruct, bool require);

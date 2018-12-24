@@ -22,18 +22,21 @@ struct SourceEntry {
     Module* ir = nullptr;
 };
 
-struct SourceMap {
+struct ModuleMap {
     Array<SourceEntry> entries;
 };
 
-Result<void, String> buildSourceMap(SourceMap& map, const String& root);
-Result<void, String> buildSourceMap(SourceMap& map, const CompileSettings& settings);
+Result<void, String> buildModuleMap(ModuleMap& map, const String& root);
+Result<void, String> buildModuleMap(ModuleMap& map, const CompileSettings& settings);
 
-struct FileHandler: ModuleHandler {
-    SourceMap& map;
+struct FileProvider: ModuleProvider, SourceProvider {
+    ModuleMap& moduleMap;
+    Context* context;
     Module* core;
     Module* native;
+    HashMap<StringBuffer, Id> sourceMap;
 
-    FileHandler(SourceMap& map, Context* context);
-    Module* require(Context* context, Module* from, Id name) override;
+    explicit FileProvider(ModuleMap& map);
+    StringBuffer getSource(Id module) override;
+    Module* getModule(Module* from, Id name) override;
 };

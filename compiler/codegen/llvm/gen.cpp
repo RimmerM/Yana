@@ -726,7 +726,7 @@ llvm::Value* genSysCall(Gen* gen, InstCallDyn* inst) {
                         if(argCount >= 6) {
                             p = copyString("{r9},", p, (U32)(1024 - (p - constraints)));
                             if(argCount > 6) {
-                                gen->context->diagnostics.error("codegen: unsupported syscall argument count"_buffer, nullptr, noSource);
+                                gen->context->diagnostics.error("codegen: unsupported syscall argument count"_buffer, nullptr);
                             }
                         }
                     }
@@ -751,7 +751,7 @@ llvm::Value* genCallIntrinsic(Gen* gen, InstCallDyn* inst) {
         return nullptr;
     } else {
         // Unsupported type.
-        gen->context->diagnostics.error("codegen: unsupported intrinsic call type"_buffer, nullptr, noSource);
+        gen->context->diagnostics.error("codegen: unsupported intrinsic call type"_buffer, nullptr);
         return nullptr;
     }
 }

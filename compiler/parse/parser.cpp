@@ -38,7 +38,6 @@ static const char kValSigil = '*';
 static const char kPtrSigil = '%';
 
 Parser::Parser(Context& context, ast::Module& module, const char* text):
-    text(text),
     context(context),
     diag(context.diagnostics),
     module(module),
@@ -1905,5 +1904,5 @@ void Parser::error(StringBuffer text, Node* node) {
     where.sourceEnd.offset = (U16)token.endOffset;
     where.sourceModule = module.name;
 
-    diag.error(text, node ? node : &where, {this->text, stringLength(this->text)});
+    diag.error(text, node ? node : &where);
 }
