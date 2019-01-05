@@ -3,7 +3,7 @@
 
 Value* Block::use(Value* value, Inst* user) {
     value->uses.push(Use{value, user});
-    if(!value->blockUses.contains(this)) {
+    if(!value->blockUses.containsValue(this)) {
         value->blockUses.push(this);
     }
     return value;

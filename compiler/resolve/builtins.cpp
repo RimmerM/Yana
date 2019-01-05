@@ -24,6 +24,88 @@ static Function* binaryFunction(Context* context, Module* module, Type* type, co
     return fun;
 }
 
+typedef Value* (*ConvertIntrinsic)(Block*, Id, Value*);
+
+template<ConvertIntrinsic F>
+static Function* convertFunction(Context* context, Module* module, Type* type, const char* name, U32 length) {
+    auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length), nullptr) : defineAnonymousFun(context, module);
+    auto body = block(fun);
+
+    auto arg = defineArg(context, fun, body, 0, type, nullptr);
+    auto result = F(body, 0, arg);
+    ret(body, result);
+
+    fun->returnType = result->type;
+    fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+        return F(b->block, instName, args[0]);
+    };
+
+    return fun;
+}
+
+template<ConvertIntrinsic F>
+ClassInstance* convertInstance(Context* context, Module* module, Type* from, Type* to, TypeClass* c) {
+    auto args = (Type**)module->memory.alloc(sizeof(Type*) * 2);
+    args[0] = from;
+    args[1] = to;
+
+    auto instance = defineInstance(context, module, c, args, nullptr);
+    instance->instances[0] = convertFunction<F>(context, module, from, nullptr, 0);
+    return instance;
+}
+
+Value* sextToInt(Block* block, Id name, Value* arg) {
+    return sext(block, name, arg, &intTypes[IntType::Int]);
+}
+
+Value* sextToLong(Block* block, Id name, Value* arg) {
+    return sext(block, name, arg, &intTypes[IntType::Long]);
+}
+
+Value* fext32(Block* block, Id name, Value* arg) {
+    return fext(block, name, arg, &floatTypes[FloatType::F32]);
+}
+
+Value* fext64(Block* block, Id name, Value* arg) {
+    return fext(block, name, arg, &floatTypes[FloatType::F64]);
+}
+
+Value* itof32(Block* block, Id name, Value* arg) {
+    return itof(block, name, arg, &floatTypes[FloatType::F32]);
+}
+
+Value* itof64(Block* block, Id name, Value* arg) {
+    return itof(block, name, arg, &floatTypes[FloatType::F64]);
+}
+
+Value* truncToInt(Block* block, Id name, Value* arg) {
+    return trunc(block, name, arg, &intTypes[IntType::Int]);
+}
+
+Value* truncToBool(Block* block, Id name, Value* arg) {
+    return trunc(block, name, arg, &intTypes[IntType::Bool]);
+}
+
+Value* ftrunc16(Block* block, Id name, Value* arg) {
+    return ftrunc(block, name, arg, &floatTypes[FloatType::F16]);
+}
+
+Value* ftrunc32(Block* block, Id name, Value* arg) {
+    return ftrunc(block, name, arg, &floatTypes[FloatType::F32]);
+}
+
+Value* ftobool(Block* block, Id name, Value* arg) {
+    return ftoi(block, name, arg, &intTypes[IntType::Bool]);
+}
+
+Value* ftoint(Block* block, Id name, Value* arg) {
+    return ftoi(block, name, arg, &intTypes[IntType::Int]);
+}
+
+Value* ftolong(Block* block, Id name, Value* arg) {
+    return ftoi(block, name, arg, &intTypes[IntType::Long]);
+}
+
 template<class Cmp>
 using CmpIntrinsic = Value* (*)(Block*, Id, Value*, Value*, Cmp);
 
@@ -115,6 +197,14 @@ Function* binaryFunType(Context* context, Function* fun, Type* lhs, Type* rhs, T
 
     defineArg(context, fun, nullptr, 0, lhs, nullptr);
     defineArg(context, fun, nullptr, 0, rhs, nullptr);
+    return fun;
+}
+
+Function* unaryFunType(Context* context, Function* fun, Type* arg, Type* result) {
+    fun->returnType = result;
+    fun->args.reserve(1);
+
+    defineArg(context, fun, nullptr, 0, arg, nullptr);
     return fun;
 }
 
@@ -356,6 +446,67 @@ Module* coreModule(Context* context) {
         intInstance(&intTypes[IntType::Bool]);
         intInstance(&intTypes[IntType::Int]);
         intInstance(&intTypes[IntType::Long]);
+    }
+
+    auto extendClass = defineClass(context, module, context->addQualifiedName("Extend", 6), 1, nullptr);
+    {
+        auto fromType = new (module->memory) GenType(&extendClass->gen, 0, 0);
+        auto toType = new (module->memory) GenType(&extendClass->gen, 0, 1);
+
+        extendClass->gen.typeCount = 1;
+        extendClass->gen.types = (GenType**)module->memory.alloc(sizeof(GenType*) * 2);
+        extendClass->gen.types[0] = fromType;
+        extendClass->gen.types[1] = toType;
+
+        extendClass->args = extendClass->gen.types;
+        extendClass->argCount = extendClass->gen.typeCount;
+
+        defineClassFun(context, module, extendClass, context->addUnqualifiedName("extend", 6), 0, nullptr);
+        unaryFunType(context, extendClass->functions[0].fun, fromType, toType);
+
+        convertInstance<sextToInt>(context, module, &intTypes[IntType::Bool], &intTypes[IntType::Int], extendClass);
+        convertInstance<sextToLong>(context, module, &intTypes[IntType::Bool], &intTypes[IntType::Long], extendClass);
+        convertInstance<sextToLong>(context, module, &intTypes[IntType::Int], &intTypes[IntType::Long], extendClass);
+
+        convertInstance<fext32>(context, module, &floatTypes[FloatType::F16], &floatTypes[FloatType::F32], extendClass);
+        convertInstance<fext64>(context, module, &floatTypes[FloatType::F16], &floatTypes[FloatType::F64], extendClass);
+        convertInstance<fext64>(context, module, &floatTypes[FloatType::F32], &floatTypes[FloatType::F64], extendClass);
+
+        convertInstance<itof32>(context, module, &intTypes[IntType::Bool], &floatTypes[FloatType::F32], extendClass);
+        convertInstance<itof64>(context, module, &intTypes[IntType::Bool], &floatTypes[FloatType::F64], extendClass);
+        convertInstance<itof64>(context, module, &intTypes[IntType::Int], &floatTypes[FloatType::F64], extendClass);
+    }
+
+    auto truncClass = defineClass(context, module, context->addQualifiedName("Truncate", 8), 1, nullptr);
+    {
+        auto fromType = new (module->memory) GenType(&truncClass->gen, 0, 0);
+        auto toType = new (module->memory) GenType(&truncClass->gen, 0, 1);
+
+        truncClass->gen.typeCount = 1;
+        truncClass->gen.types = (GenType**)module->memory.alloc(sizeof(GenType*) * 2);
+        truncClass->gen.types[0] = fromType;
+        truncClass->gen.types[1] = toType;
+
+        truncClass->args = truncClass->gen.types;
+        truncClass->argCount = truncClass->gen.typeCount;
+
+        defineClassFun(context, module, truncClass, context->addUnqualifiedName("truncate", 6), 0, nullptr);
+        unaryFunType(context, truncClass->functions[0].fun, fromType, toType);
+
+        convertInstance<truncToBool>(context, module, &intTypes[IntType::Int], &intTypes[IntType::Bool], truncClass);
+        convertInstance<truncToBool>(context, module, &intTypes[IntType::Long], &intTypes[IntType::Bool], truncClass);
+        convertInstance<truncToInt>(context, module, &intTypes[IntType::Long], &intTypes[IntType::Int], truncClass);
+
+        convertInstance<ftrunc16>(context, module, &floatTypes[FloatType::F32], &floatTypes[FloatType::F16], truncClass);
+        convertInstance<ftrunc16>(context, module, &floatTypes[FloatType::F64], &floatTypes[FloatType::F16], truncClass);
+        convertInstance<ftrunc32>(context, module, &floatTypes[FloatType::F64], &floatTypes[FloatType::F32], truncClass);
+
+        convertInstance<ftobool>(context, module, &floatTypes[FloatType::F32], &intTypes[IntType::Bool], truncClass);
+        convertInstance<ftoint>(context, module, &floatTypes[FloatType::F32], &intTypes[IntType::Int], truncClass);
+        convertInstance<ftolong>(context, module, &floatTypes[FloatType::F32], &intTypes[IntType::Long], truncClass);
+        convertInstance<ftobool>(context, module, &floatTypes[FloatType::F64], &intTypes[IntType::Bool], truncClass);
+        convertInstance<ftoint>(context, module, &floatTypes[FloatType::F64], &intTypes[IntType::Int], truncClass);
+        convertInstance<ftolong>(context, module, &floatTypes[FloatType::F64], &intTypes[IntType::Long], truncClass);
     }
 
     auto printFunction = defineFun(context, module, context->addUnqualifiedName("print", 5), nullptr);
