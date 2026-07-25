@@ -534,36 +534,6 @@ static bool validateSetPattern(Diagnostics* diagnostics, LowerBase base, LowerIn
     return true;
 }
 
-static bool validatePushArg(Diagnostics* diagnostics, LowerBase base, LowerInstPushArg* inst) {
-    if(inst->usedCount != 1 || inst->createdCount != 1) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
-    if(inst->result.type != base[inst->arg]->type) {
-        diagnostics->error("push must return the type of its input"_v, inst->source);
-        return false;
-    }
-
-    if(inst->result.uses.size() != 1) {
-        diagnostics->error("push must be used by exactly one function call"_v, inst->source);
-        return false;
-    }
-
-    auto call = base[inst->result.uses.get(base, 0)];
-    if(!isCall(call)) {
-        diagnostics->error("push must be used by exactly one function call"_v, inst->source);
-        return false;
-    }
-
-    if(inst->getIndex() >= call->usedCount || base[call->used()[inst->getIndex()]] != &inst->result) {
-        diagnostics->error("push index must correspond to call argument"_v, inst->source);
-        return false;
-    }
-
-    return true;
-}
-
 bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* block, LowerInst* inst, const DominatorTree& dominators) {
     auto isPhi = inst->kind == LowerInst::Phi;
 
@@ -700,8 +670,6 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateCopy(diagnostics, base, (LowerInstCopy*)inst);
         case LowerInst::SetPattern:
             return validateSetPattern(diagnostics, base, (LowerInstSetPattern*)inst);
-        case LowerInst::PushArg:
-            return validatePushArg(diagnostics, base, (LowerInstPushArg*)inst);
         case LowerInst::Call:
             return validateCall(diagnostics, base, (LowerInstCall*)inst);
         case LowerInst::Je:
@@ -717,6 +685,7 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::X86Bswap:
         case LowerInst::X86Push:
         case LowerInst::X86Pop:
+        case LowerInst::X86PushArg:
             diagnostics->error("platform-lowered instruction in block"_v, inst->source);
             return false;
     }

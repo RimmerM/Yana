@@ -250,6 +250,126 @@ static void splitPhiEdges(LowerBase base, LowerFunction& fun) {
     }
 }
 
+/*
+ * Outgoing stack arguments.
+ *
+ * A call whose convention runs out of argument registers passes the rest in the argument area, and
+ * each of those becomes an explicit store ahead of the call.
+ *
+ * The store exists to break the argument's lifetime. Left as an ordinary operand of the call, a
+ * stack argument would have to sit in a register from wherever it was computed all the way to the
+ * call, competing for registers with every other argument being computed in between - which is
+ * precisely where a call with more arguments than registers is under the most pressure. Storing it
+ * early ends its live range at the store, and memory holds it from there on.
+ *
+ * That is also why the store has to be an instruction rather than a move hung off the call: liveness
+ * runs over instructions, so a store it cannot see shortens nothing.
+ *
+ * Which arguments these are is the convention's answer and never the author's, so the caller writes
+ * into exactly the offsets the callee reads back from.
+ */
+
+// Inserts `inst` into `block`'s instruction list at `at`, shifting what follows up one. The list has
+// no insert of its own, and the linear shift costs less than adding one would: this runs once per
+// stack argument, over a list every pass already walks end to end.
+static void insertInstAt(LowerBase base, LowerBlock* block, Size at, LowerInst* inst) {
+    auto& arena = base[block->fun]->arena;
+
+    inst->block = block - base;
+    for(auto use: inst->used()) base[use]->uses.push(arena, inst - base);
+
+    block->instructions.push(arena, inst - base);
+
+    for(auto i = block->instructions.size() - 1; i > at; i--) {
+        block->instructions.set(base, i, block->instructions.get(base, i - 1));
+    }
+
+    block->instructions.set(base, at, inst - base);
+}
+
+// Moves `user`'s use of `from` over to `to`. Both use lists have to reflect it: they are how every
+// later pass finds who consumes a value, and a stale entry would keep a dead value looking live.
+static void replaceUse(LowerBase base, LowerValue* from, LowerInst* user, LowerValue* to) {
+    auto uses = from->uses.contents(base);
+
+    for(Size i = 0; i < uses.size(); i++) {
+        if(base[uses[i]] == user) {
+            from->uses.remove(base, i);
+            break;
+        }
+    }
+
+    to->uses.push(base[base[user->block]->fun]->arena, user - base);
+}
+
+// Where the store for an argument can go, as an index into its block's instruction list. As early as
+// possible, since shortening the live range is the whole point: just after whichever comes last of
+// the value's own definition and the preceding call, and never later than the call it feeds.
+//
+// The preceding call matters because the argument area is shared between the calls of a function -
+// it is reserved once, sized for the largest - so a store hoisted above an earlier call would
+// overwrite an argument that call has not read yet.
+static Size stackArgPosition(LowerBase base, LowerBlock* block, LowerValue* value, Size callIndex) {
+    Size position = 0;
+    auto instructions = block->instructions.contents(base);
+
+    for(Size i = 0; i < callIndex; i++) {
+        auto inst = base[instructions[i]];
+
+        if(inst->kind == LowerInst::Call) position = i + 1;
+
+        for(auto& created: inst->created()) {
+            if(&created == value) position = i + 1;
+        }
+    }
+
+    return position;
+}
+
+static void insertStackArgs(LowerBase base, LowerFunction& fun, const Constraints& constraints) {
+    auto& arena = fun.arena;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        // Indexed rather than buffered, because inserting a store rewrites the list underneath.
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::Call) continue;
+
+            auto callType = ((LowerInstCall*)inst)->getCallType();
+            auto& convention = constraints.getConvention(callType);
+            auto used = inst->used();
+
+            // A syscall's first operand is its number, which the convention places like any other
+            // argument; every other call names its target there, and that is not an argument.
+            Size argStart = callType == LowerCallType::Syscall ? 0 : 1;
+
+            Array<ArgLocation> locations;
+            classifyArgs(convention, used.size() - argStart, [&](Size a) {
+                return base[used[a + argStart]]->type;
+            }, locations);
+
+            for(Size a = 0; a < locations.size(); a++) {
+                if(locations[a].kind != ArgLocation::Stack) continue;
+
+                auto operand = used[a + argStart];
+                auto value = base[operand];
+
+                auto push = new (arena) LowerInstX86PushArg(operand, locations[a].stackOffset, value->type);
+                insertInstAt(base, block, stackArgPosition(base, block, value, i), push);
+
+                // The call names the store's result from here on, so it still lists every argument
+                // in order while the value itself is dead from the store onwards.
+                replaceUse(base, value, inst, &push->result);
+                used[a + argStart] = &push->result - base;
+
+                i++; // the call has moved up one
+            }
+        }
+    }
+}
+
 // Rewrites the block list into reverse postorder, so that a block is (wherever the CFG allows it)
 // visited after the predecessors that define the values live on entry to it.
 //
@@ -309,6 +429,11 @@ void transformFunction(LowerBase base, LowerFunction& fun) {
 
         selectBlockOpEncoding(base, inst);
     });
+
+    // After the peepholes, so that an argument the passes above made implicit is already implicit
+    // when its location is decided, and before liveness runs, which is what lets the stores it
+    // inserts actually shorten the ranges they exist to shorten.
+    insertStackArgs(base, fun, targetConstraints());
 
     // Shape of the CFG last, once no pass that reasons about instruction positions is left to run.
     splitPhiEdges(base, fun);

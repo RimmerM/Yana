@@ -91,32 +91,87 @@ struct DominatorTree {
     BlockIndex startIndex;
 };
 
-// The stretch of the linear instruction numbering (see Liveness::instCount) over which a value
-// has to keep its assigned register. `start` is the first index at which the value's register is
-// written, `end` the last index at which it is read; the value is dead *after* `end`, so a value
-// defined at index i may reuse the register of an operand whose range ends at i - x86 reads every
-// source of an instruction before writing its destination.
+/*
+ * Program points.
+ *
+ * Each instruction owns two: `before`, where its operands are read, and `after`, where its results
+ * appear. Ranges are stated in these rather than in instruction indices, and half-open.
+ *
+ * The split is what lets a result take over the register of an operand that dies at the same
+ * instruction - x86 reads every source before writing the destination, so the operand's range ends
+ * exactly where the result's begins and the two never look like they overlap. With one point per
+ * instruction the two would share it, and every two-address operation would need a copy.
+ */
+inline U32 beforeInst(U32 index) { return index * 2; }
+inline U32 afterInst(U32 index) { return index * 2 + 1; }
+
+// One stretch over which a value is live, half-open: [from, to).
+struct Range {
+    U32 from = 0;
+    U32 to = 0;
+
+    bool covers(U32 point) const { return point >= from && point < to; }
+};
+
+// A value's whole live range, as a sorted list of disjoint sub-ranges.
 //
-// This is a single conservative interval with no holes: a value that is live in two blocks is
-// treated as live everywhere in between. That costs some allocation quality when blocks are not in
-// reverse postorder, but it is correct for any block order, because every point at which the value
-// is genuinely live falls inside [start, end].
-struct LiveRange {
-    U32 start = maxLimit<U32>;
-    U32 end = 0;
+// The holes are the point. Modelling a value as one interval from its first definition to its last
+// use makes it interfere with everything living in between, even where it is dead - and the worst
+// case is the one that matters most: a loop-carried phi is live at the loop header and again at each
+// predecessor's terminator, so one interval covers the entire loop body, and the value computed for
+// the next iteration can never share its register. Every loop paid two moves an iteration for that.
+//
+// Held as a view into Liveness::rangeStore rather than as a container of its own, so that all of a
+// function's ranges are one arena allocation and an interval is cheap to pass around.
+struct LiveInterval {
+    const Range* ranges = nullptr;
+    U32 count = 0;
 
-    // An empty range means the value never needs a register (it is implicit, or never defined).
-    bool isEmpty() const { return start > end; }
+    bool isEmpty() const { return count == 0; }
 
-    bool covers(U32 index) const { return index >= start && index <= end; }
+    // The first index at which the value is live, and one past the last. Everything between them is
+    // covered by some range or falls in a hole.
+    U32 first() const { return ranges[0].from; }
+    U32 last() const { return ranges[count - 1].to; }
 
-    // True if this value has to hold its register *across* `index`, rather than merely being
-    // defined or consumed there. Only these values need to dodge an instruction's clobbers.
-    bool crosses(U32 index) const { return index > start && index < end; }
+    bool covers(U32 point) const {
+        for(U32 i = 0; i < count; i++) {
+            if(ranges[i].covers(point)) return true;
+            if(ranges[i].from > point) break;
+        }
 
-    void extend(U32 index) {
-        if(index < start) start = index;
-        if(index > end) end = index;
+        return false;
+    }
+
+    // True if the value has to hold its location *across* the instruction at `index`, rather than
+    // merely being defined or consumed there. Only these have to dodge what the instruction writes:
+    // one defined there, or read there for the last time, has nothing left to protect afterwards.
+    bool crosses(U32 index) const {
+        auto before = beforeInst(index);
+
+        for(U32 i = 0; i < count; i++) {
+            if(ranges[i].from <= before && ranges[i].to > before + 1) return true;
+            if(ranges[i].from > before) break;
+        }
+
+        return false;
+    }
+
+    // Whether both values are live at any one index, and so cannot share a location. A merge walk
+    // over two sorted lists, so it costs the length of the two rather than their product.
+    bool overlaps(const LiveInterval& other) const {
+        U32 a = 0, b = 0;
+
+        while(a < count && b < other.count) {
+            auto& left = ranges[a];
+            auto& right = other.ranges[b];
+
+            if(left.to <= right.from) a++;
+            else if(right.to <= left.from) b++;
+            else return true;
+        }
+
+        return false;
     }
 };
 
@@ -134,8 +189,14 @@ struct LiveSet {
     U32 lastIndex = 0;
 };
 
+// Where one value's ranges sit in Liveness::rangeStore.
+struct RangeSpan {
+    U32 offset = 0;
+    U32 count = 0;
+};
+
 struct Liveness {
-    explicit Liveness(LinearArena& a): valueMap({ a }), blockMap({ a }), ranges({ a }) {}
+    explicit Liveness(LinearArena& a): valueMap({ a }), blockMap({ a }), spans({ a }), rangeStore({ a }) {}
 
     void allocateBlocks(LinearArena& a, Size blockCount, Size valueCount) {
         assertTrue(blockMap.isEmpty());
@@ -149,8 +210,11 @@ struct Liveness {
     LinearArenaArray<LowerValue*> valueMap;
     LinearArenaArray<LiveSet> blockMap;
 
-    // Live range of every value, indexed by LiveId (parallel to valueMap).
-    LinearArenaArray<LiveRange> ranges;
+    // Where each value's ranges are, indexed by LiveId (parallel to valueMap), and the ranges of
+    // every value in the function packed end to end. One allocation for all of them, since the
+    // total is known before any of it is written.
+    LinearArenaArray<RangeSpan> spans;
+    LinearArenaArray<Range> rangeStore;
 
     // Number of instruction indices assigned; every index in [0, instCount) names one instruction
     // or terminator, in the order the blocks appear in LowerFunction::blocks.
@@ -158,7 +222,11 @@ struct Liveness {
 
     LiveSet* getBlock(LowerBlock* b);
     LowerValue* getValue(LiveId id);
-    LiveRange& getRange(LiveId id);
+
+    LiveInterval getInterval(LiveId id) {
+        auto& span = spans[id];
+        return LiveInterval { rangeStore.pointer() + span.offset, span.count };
+    }
 };
 
 // A local register containing the result of some operation.

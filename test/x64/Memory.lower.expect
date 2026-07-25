@@ -71,13 +71,12 @@ block #1:
   ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
 
 --- codegen: blockOpsDynamic ---
-  prologue  => 53
 block #0:
-  jmp uses=[] creates=[] pre=[rdi->rax, rcx->rbx]  => 488bc7488bd9
+  jmp uses=[] creates=[] pre=[rdi->rax, rcx->r8]  => 488bc74c8bc1
 block #1:
   copy uses=[rdi, rsi, rcx] creates=[] pre=[rax->rdi, rdx->rcx]  => 488bf8488bcaf3a4
-  setpattern uses=[rdi, rcx, rax] creates=[] pre=[rax->rdi, rdx->rcx, rbx->rax]  => 488bf8488bca488bc3f3aa
-  ret uses=[] creates=[]  => 5bc3
+  setpattern uses=[rdi, rcx, rax] creates=[] pre=[rax->rdi, rdx->rcx, r8->rax]  => 488bf8488bca498bc0f3aa
+  ret uses=[] creates=[]  => c3
 
 --- codegen: narrow ---
 block #0:
@@ -100,6 +99,6 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  global uses=[] creates=[rax]  => 488d0510000000
+  global uses=[] creates=[rax]  => 488d0512000000
   load uses=[rax] creates=[rax]  => 8b00
   ret uses=[rax] creates=[]  => c3

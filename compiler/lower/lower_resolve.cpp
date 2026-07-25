@@ -352,21 +352,10 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         return Just(block.addInst(base, new (resolve.moduleArena) LowerInstSetPattern(to - base, count - base, pattern - base)));
     });
 
-    instructionSet.add(Context::nameHash("push"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
-        assertResultCount(ast.results, 1);
-        assertArgCount(ast.args, 2);
-
-        auto source = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
-        auto index = ast.args[1];
-
-        if(!index.isInt()) {
-            resolve.diag.error("expected argument index for push"_v, ast.source);
-            index.i = 0;
-        }
-
-        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstPushArg(getResultName(ast.results[0]), source - base, index.i, source->type)));
-    });
-
+    // There is deliberately no `push`: which arguments travel on the stack is the calling
+    // convention's answer, not the author's, and transformFunction derives the stores from it (see
+    // insertStackArgs in codegen/x64/transform.cpp). A hand-written one could disagree with the
+    // convention, and the callee would read its arguments from somewhere the caller never wrote.
     instructionSet.add(Context::nameHash("call"_v), handleCall<kDefaultCallType>());
     instructionSet.add(Context::nameHash("call_sysv"_v), handleCall<LowerCallType::Sysv>());
     instructionSet.add(Context::nameHash("call_win64"_v), handleCall<LowerCallType::Win64>());

@@ -188,8 +188,8 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "copy"_v;
         case LowerInst::SetPattern:
             return "setpattern"_v;
-        case LowerInst::PushArg:
-            return "push"_v;
+        case LowerInst::X86PushArg:
+            return "x86_pusharg"_v;
         case LowerInst::Call:
             return nameForCall(((LowerInstCall&)inst).getCallType());
         case LowerInst::Je:
@@ -388,7 +388,14 @@ void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst&
     writer.writeString(nameForInst(base, inst));
     writer.writeByte(' ');
 
-    if(isInlineInst(inst)) {
+    // Note: this checks the instruction *kind*, not isInlineInst() (which additionally requires
+    // exactly one use). An Imm/Global/Fun instruction stores its value/target in a dedicated field
+    // rather than in used(), so its own printed line must always go through printInlineInst() to
+    // show that value - regardless of how many uses it has. isInlineInst() only decides whether
+    // *other* references to this value get inlined at their use site instead of printed by name;
+    // when it's false (0 or 2+ uses), this instruction still gets its own printed line here, and
+    // that line must still show its target rather than leaving it blank.
+    if(isInlineKind(inst.kind)) {
         printInlineInst(writer, context, base, inst);
     } else if(inst.kind == LowerInst::Phi) {
         auto& phi = (LowerInstPhi&)inst;
@@ -426,9 +433,9 @@ void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst&
             printValueRef(writer, context, base, *base[use], print);
         }
 
-        if(inst.kind == LowerInst::PushArg) {
+        if(inst.kind == LowerInst::X86PushArg) {
             writer.writeString(", "_v);
-            printInt(writer, ((LowerInstPushArg&)inst).getIndex());
+            printInt(writer, ((LowerInstX86PushArg&)inst).stackOffset);
         } else if(inst.kind == LowerInst::Store) {
             writer.writeString(", "_v);
             printInt(writer, ((LowerInstStore&)inst).getWidth());

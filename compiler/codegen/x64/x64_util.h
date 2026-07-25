@@ -15,22 +15,105 @@ enum class XmmRegister: U8 {
 
 static constexpr Size kRegCount = 16;
 
-// rsp and rbp are never handed out: rsp is required for push/pop/call/ret to work at all, and rbp
-// is conventionally reserved for a frame pointer even though this MVP generates no prologue that
-// sets one up yet.
-static constexpr U64 kReservedRegs =
-    (U64(1) << (Size)IntRegister::rsp) | (U64(1) << (Size)IntRegister::rbp);
+// rsp is never handed out: push/pop/call/ret need it to be the stack pointer, in every function.
+static constexpr U64 kReservedGenRegs = U64(1) << (Size)IntRegister::rsp;
 
-// The general registers a value can be given. Anything outside this set is either reserved above or
-// does not exist, so a calling convention's preserved set is stated relative to it - the registers a
-// function has to give back are exactly the ones it could have taken in the first place.
-static constexpr U64 kAllocatableRegs = ((U64(1) << kRegCount) - 1) & ~kReservedRegs;
+// Every register of each class, and the ones a value can actually be given. Anything outside the
+// allocatable set either does not exist or is rsp, so a calling convention's preserved set is
+// stated relative to it: the registers a function has to give back are exactly the ones it could
+// have taken in the first place.
+inline RegSet allRegs() {
+    RegSet set;
+    set.classes[GenReg] = (U64(1) << kRegCount) - 1;
+    set.classes[XmmReg] = (U64(1) << kRegCount) - 1;
+    return set;
+}
 
-// The bit this register occupies in a general-register mask (a clobber set, an avoid set, a
-// convention's preserved set). Anything that isn't a general register - an xmm register, a stack
-// slot, kInvalidReg - contributes nothing: those masks describe general registers only.
-inline U64 regBit(RegId reg) {
-    return getRegClass(reg) == GenReg ? U64(1) << getRegIndex(reg) : 0;
+inline RegSet allocatableRegs() {
+    auto set = allRegs();
+    set.classes[GenReg] &= ~kReservedGenRegs;
+    return set;
+}
+
+/*
+ * The frame pointer.
+ *
+ * rbp is allocatable like any other register in a function that does not establish a frame pointer,
+ * and reserved for the whole function in one that does. Which it is is decided from the IR before
+ * allocation starts - see functionNeedsFramePointer - because both the allocator and frame layout
+ * have to be working from the same answer: a value living in rbp while the frame is addressed
+ * through it is silent memory corruption, not a missed optimization.
+ *
+ * Two consequences elsewhere follow from rbp being an ordinary register here.
+ *
+ * It is callee-saved under every convention, and has to be: a caller may be holding its frame
+ * pointer in rbp, and nothing in the IR represents that for the allocator to rescue at a call. The
+ * convention tables therefore leave rbp out of every clobber set, including Clobber's, and `finish`
+ * derives it into every preserved set from allocatableRegs above. A function that takes rbp pays a
+ * push and a pop for it, which is why it is the last register the allocator reaches for.
+ *
+ * And a function that keeps a value in rbp has no frame-pointer chain, so a backtracer that walks
+ * one cannot pass through it. That is the ordinary consequence of omitting a frame pointer at all,
+ * which `FramePointerMode::Needed` already does; `all` and `non-leaf` are the way to ask for the
+ * chain back, and they reserve rbp again as a side effect of asking.
+ */
+inline RegId framePointerReg() {
+    return makeRegId(GenReg, U16(IntRegister::rbp));
+}
+
+inline RegSet framePointerRegs() {
+    RegSet set;
+    set.add(framePointerReg());
+    return set;
+}
+
+/*
+ * Scratch registers.
+ *
+ * A value living in the frame cannot be read by any encoder, so it is brought into a register at
+ * each instruction that touches it. Those registers have to come from somewhere, and the simple,
+ * defensible answer for a lean compiler is to hold a few back - but only in a function that turned
+ * out to need them.
+ *
+ * A function is allocated once with nothing reserved. If nothing spilled, that is the answer and the
+ * common case has paid nothing. If something did, the whole function is allocated again with these
+ * held back. Two attempts, no heuristics, and the second cannot fail: whatever does not fit in a
+ * register goes to the frame, and the frame has no limit.
+ *
+ * Three operand temporaries is what the widest instruction can want - two unconstrained operands and
+ * a result that shares with neither - and a fixed-register operand needs none, since it is loaded
+ * straight into the register the instruction demands. Two more serve the parallel copies, which need
+ * somewhere to go through when a transfer has a frame slot at both ends or a cycle runs through one.
+ *
+ * They are taken from the top of the register file on purpose: r11-r15 are outside every described
+ * convention's argument and result registers, so a scratch can never collide with a fixed register
+ * the same instruction is also placing.
+ */
+static constexpr Size kMaxSpillTemps = 3;
+static constexpr Size kMoveTemps = 2;
+static constexpr Size kTotalSpillTemps = kMaxSpillTemps + kMoveTemps;
+
+// Scratch register `index` of a class. The operand temporaries come first, then the two the move
+// sequencer uses, so that the two pools cannot hand out the same register.
+inline RegId spillTemp(RegClass cls, Size index) {
+    assertTrue(index < kTotalSpillTemps);
+    return makeRegId(cls, U16(kRegCount - 1 - index));
+}
+
+inline RegId moveTemp(RegClass cls, Size index) {
+    assertTrue(index < kMoveTemps);
+    return spillTemp(cls, kMaxSpillTemps + index);
+}
+
+inline RegSet spillTempRegs() {
+    RegSet set;
+
+    for(Size i = 0; i < kTotalSpillTemps; i++) {
+        set.add(spillTemp(GenReg, i));
+        set.add(spillTemp(XmmReg, i));
+    }
+
+    return set;
 }
 
 inline bool isImm(LowerValue* v) {
@@ -45,9 +128,9 @@ inline bool isReg(LowerValue* v) {
     return !isImm(v) && !isMem(v);
 }
 
-// True for values that don't need a physical register/stack slot allocated at all:
-// embedded immediates, comparisons folded into flags, and pushed call arguments
-// (LowerInstPushArg's result, which only exists to record push ordering).
+// True for values that need no location at all: embedded immediates, comparisons folded into flags,
+// an elided direct callee, and the result of an argument store (which stands in for the argument in
+// the call's operand list and is never read).
 inline bool isImplicit(LowerValue* v) {
     return v->flags & LowerValue::Implicit;
 }

@@ -71,9 +71,6 @@ struct LowerInst {
         Copy,
         SetPattern,
 
-        // Pushes a stack argument for a call instruction.
-        // Reduces the number of simultaneously live values while moving call arguments into place.
-        PushArg,
         Call,
 
         // Control flow; must not exist in a block instruction list.
@@ -107,7 +104,12 @@ struct LowerInst {
         // Pop register from stack (no operands).
         // Always loads full register size.
         X86Pop,
-        LastInst = X86Pop,
+
+        // Stores one argument into the outgoing argument area, for a call whose convention passes
+        // it there rather than in a register. Created by transformFunction from the convention's
+        // own answer, never written by hand - see insertStackArgs in transform.cpp.
+        X86PushArg,
+        LastInst = X86PushArg,
     };
 
     explicit LowerInst(Kind kind): kind(kind) {}
@@ -418,24 +420,33 @@ struct LowerInstSetPattern: LowerInst {
     LowerPtr<LowerValue> to, count, pattern;
 };
 
-// Represents a function argument pushed to the stack ahead of the call.
-// This allows us to optimize and reorder the creation of call arguments, while lowering register pressure.
-// Creates a symbolic value of the same type, replacing the original argument value without being live.
-struct LowerInstPushArg: LowerInstSingle {
-    LowerInstPushArg(StringId name, LowerPtr<LowerValue> arg, U8 index, LowerType type):
-        LowerInstSingle(PushArg, name, type), arg(arg)
+// Stores one argument into the outgoing argument area, for a call whose convention passes it on the
+// stack rather than in a register.
+//
+// It exists to break the argument's lifetime. Written straight into the call's operand list, a stack
+// argument would have to stay in a register from wherever it was computed all the way to the call,
+// competing for registers with every other argument being computed in between - which is exactly
+// where a call with more arguments than registers is under the most pressure. Storing it early ends
+// its live range at the store, and only memory holds it from there on.
+//
+// That is also why this has to be an instruction rather than a move attached to some other one:
+// liveness runs over instructions, so the store has to be visible to it to shorten anything.
+//
+// The result stands in for the argument in the call's operand list so that the call still names all
+// of its arguments in order. It is implicit - nothing reads it, and it occupies no location.
+struct LowerInstX86PushArg: LowerInstSingle {
+    LowerInstX86PushArg(LowerPtr<LowerValue> arg, U32 stackOffset, LowerType type):
+        LowerInstSingle(X86PushArg, 0, type), arg(arg), stackOffset(stackOffset)
     {
         result.flags = LowerValue::Implicit;
-        flags = index;
         usedCount = 1;
-    }
-
-    U32 getIndex() const {
-        return flags;
     }
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> arg;
+
+    // Byte offset within the argument area, as the calling convention assigned it.
+    U32 stackOffset;
 };
 
 struct LowerInstCall: LowerInst {
@@ -519,11 +530,6 @@ inline LiveSet* Liveness::getBlock(LowerBlock* b) {
 inline LowerValue* Liveness::getValue(LiveId id) {
     assertTrue(id < kNullLive);
     return valueMap[id];
-}
-
-inline LiveRange& Liveness::getRange(LiveId id) {
-    assertTrue(id < kNullLive);
-    return ranges[id];
 }
 
 inline LiveId LowerValue::liveId() {

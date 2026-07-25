@@ -1,0 +1,244 @@
+# Spilling: what happens when there are more live values than registers.
+#
+# Fifteen general registers can be handed out - everything but rsp, since a function that needs no
+# frame pointer hands out rbp as well - and only six of those survive a call under the Complex
+# convention. Beyond either limit a value has to live in the frame instead, and be brought back into
+# a register at each instruction that touches it.
+#
+# A function that spills is allocated twice: once with every register available, and - because that
+# turned out to need the frame - again with a few held back as scratch. So these functions pay for
+# the reserved registers as well, which is why they spill somewhat earlier than the raw count of
+# fifteen would suggest.
+
+# Sixteen values live at once, more than there are registers to put them in. They are summed in the
+# reverse of the order they were computed, so none of them can die early.
+manyLive(%a: Int, %b: Int): Int {
+    {
+        %v0 = add %a, 0: Int
+        %v1 = add %a, 1: Int
+        %v2 = add %a, 2: Int
+        %v3 = add %a, 3: Int
+        %v4 = add %a, 4: Int
+        %v5 = add %a, 5: Int
+        %v6 = add %a, 6: Int
+        %v7 = add %a, 7: Int
+        %v8 = add %a, 8: Int
+        %v9 = add %a, 9: Int
+        %v10 = add %a, 10: Int
+        %v11 = add %a, 11: Int
+        %v12 = add %a, 12: Int
+        %v13 = add %a, 13: Int
+        %v14 = add %a, 14: Int
+        %v15 = add %a, 15: Int
+
+        %s15 = add %v15, %v14: Int
+        %s14 = add %s15, %v13: Int
+        %s13 = add %s14, %v12: Int
+        %s12 = add %s13, %v11: Int
+        %s11 = add %s12, %v10: Int
+        %s10 = add %s11, %v9: Int
+        %s9 = add %s10, %v8: Int
+        %s8 = add %s9, %v7: Int
+        %s7 = add %s8, %v6: Int
+        %s6 = add %s7, %v5: Int
+        %s5 = add %s6, %v4: Int
+        %s4 = add %s5, %v3: Int
+        %s3 = add %s4, %v2: Int
+        %s2 = add %s3, %v1: Int
+        %s1 = add %s2, %v0: Int
+        ret %s1
+    }
+}
+
+# Only six registers survive a call, so eight values held across one cannot all stay in registers
+# however few are live in total. This is the pressure that bites first in real code.
+liveAcrossCall(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int, %g: Int, %h: Int): Int {
+    {
+        %r = call_complex sink, %a: Int
+        %s1 = add %r, %b: Int
+        %s2 = add %s1, %c: Int
+        %s3 = add %s2, %d: Int
+        %s4 = add %s3, %e: Int
+        %s5 = add %s4, %f: Int
+        %s6 = add %s5, %g: Int
+        %s7 = add %s6, %h: Int
+        ret %s7
+    }
+}
+
+sink(%x: Int): Int {
+    { ret %x }
+}
+
+# Two groups of values whose lives do not overlap. The second group can reuse the frame slots the
+# first one left behind, so the frame is sized for the peak rather than for the total - the same
+# rule that lets two values share a register.
+slotReuse(%a: Int): Int {
+    {
+        %p0 = add %a, 0: Int
+        %p1 = add %a, 1: Int
+        %p2 = add %a, 2: Int
+        %p3 = add %a, 3: Int
+        %p4 = add %a, 4: Int
+        %p5 = add %a, 5: Int
+        %p6 = add %a, 6: Int
+        %p7 = add %a, 7: Int
+        %p8 = add %a, 8: Int
+        %p9 = add %a, 9: Int
+        %p10 = add %a, 10: Int
+        %p11 = add %a, 11: Int
+        %p12 = add %a, 12: Int
+        %p13 = add %a, 13: Int
+        %p14 = add %a, 14: Int
+        %p15 = add %a, 15: Int
+
+        %q0 = add %p15, %p14: Int
+        %q1 = add %q0, %p13: Int
+        %q2 = add %q1, %p12: Int
+        %q3 = add %q2, %p11: Int
+        %q4 = add %q3, %p10: Int
+        %q5 = add %q4, %p9: Int
+        %q6 = add %q5, %p8: Int
+        %q7 = add %q6, %p7: Int
+        %q8 = add %q7, %p6: Int
+        %q9 = add %q8, %p5: Int
+        %q10 = add %q9, %p4: Int
+        %q11 = add %q10, %p3: Int
+        %q12 = add %q11, %p2: Int
+        %q13 = add %q12, %p1: Int
+        %q14 = add %q13, %p0: Int
+
+        # Everything above is dead from here, so the pressure below reuses its slots.
+        %r0 = add %q14, 0: Int
+        %r1 = add %q14, 1: Int
+        %r2 = add %q14, 2: Int
+        %r3 = add %q14, 3: Int
+        %r4 = add %q14, 4: Int
+        %r5 = add %q14, 5: Int
+        %r6 = add %q14, 6: Int
+        %r7 = add %q14, 7: Int
+        %r8 = add %q14, 8: Int
+        %r9 = add %q14, 9: Int
+        %r10 = add %q14, 10: Int
+        %r11 = add %q14, 11: Int
+        %r12 = add %q14, 12: Int
+        %r13 = add %q14, 13: Int
+        %r14 = add %q14, 14: Int
+        %r15 = add %q14, 15: Int
+
+        %t0 = add %r15, %r14: Int
+        %t1 = add %t0, %r13: Int
+        %t2 = add %t1, %r12: Int
+        %t3 = add %t2, %r11: Int
+        %t4 = add %t3, %r10: Int
+        %t5 = add %t4, %r9: Int
+        %t6 = add %t5, %r8: Int
+        %t7 = add %t6, %r7: Int
+        %t8 = add %t7, %r6: Int
+        %t9 = add %t8, %r5: Int
+        %t10 = add %t9, %r4: Int
+        %t11 = add %t10, %r3: Int
+        %t12 = add %t11, %r2: Int
+        %t13 = add %t12, %r1: Int
+        %t14 = add %t13, %r0: Int
+        ret %t14
+    }
+}
+
+# A loop under enough pressure that its carried values cannot all stay in registers. The phi webs
+# still coalesce - a web that lives in the frame is one slot for the whole loop, not a store and a
+# reload per iteration - and the values that do keep registers keep them across the back edge.
+spilledLoop(%n: Int, %seed: Int): Int {
+    start {
+        %z = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [start, %z], [body, %i2]: Int
+        %a0 = phi [start, %z], [body, %b0]: Int
+        %a1 = phi [start, %z], [body, %b1]: Int
+        %a2 = phi [start, %z], [body, %b2]: Int
+        %a3 = phi [start, %z], [body, %b3]: Int
+        %a4 = phi [start, %z], [body, %b4]: Int
+        %a5 = phi [start, %z], [body, %b5]: Int
+        %a6 = phi [start, %z], [body, %b6]: Int
+        %a7 = phi [start, %z], [body, %b7]: Int
+        %a8 = phi [start, %z], [body, %b8]: Int
+        %a9 = phi [start, %z], [body, %b9]: Int
+        %a10 = phi [start, %z], [body, %b10]: Int
+        %a11 = phi [start, %z], [body, %b11]: Int
+        %a12 = phi [start, %z], [body, %b12]: Int
+        je (cmp_ilt %i, %n), body, out
+    }
+
+    body {
+        %b0 = add %a0, %seed: Int
+        %b1 = add %a1, %seed: Int
+        %b2 = add %a2, %seed: Int
+        %b3 = add %a3, %seed: Int
+        %b4 = add %a4, %seed: Int
+        %b5 = add %a5, %seed: Int
+        %b6 = add %a6, %seed: Int
+        %b7 = add %a7, %seed: Int
+        %b8 = add %a8, %seed: Int
+        %b9 = add %a9, %seed: Int
+        %b10 = add %a10, %seed: Int
+        %b11 = add %a11, %seed: Int
+        %b12 = add %a12, %seed: Int
+        %i2 = add %i, 1: Int
+        jmp head
+    }
+
+    out {
+        %sum = add %a0, %a12: Int
+        ret %sum
+    }
+}
+
+# rbp is the fifteenth register only in a function that does not need it as a frame pointer. A
+# dynamic alloca does need it - nothing else in the frame could be addressed once rsp has moved by
+# an amount known only at run time - so it is reserved here, and the same pressure that fits in
+# registers elsewhere has to reach the frame instead.
+#
+# The decision is made from the IR before allocation starts, which is what keeps these two uses of
+# rbp from ever being made at once: a value placed in rbp and a frame addressed through rbp are each
+# correct on their own, and their combination is silent memory corruption rather than wrong-looking
+# code. verifyAllocation checks it directly for that reason.
+framePointerPressure(%a: Int, %n: Int): Int {
+    {
+        %p = alloca %n: Ptr
+
+        %v0 = add %a, 0: Int
+        %v1 = add %a, 1: Int
+        %v2 = add %a, 2: Int
+        %v3 = add %a, 3: Int
+        %v4 = add %a, 4: Int
+        %v5 = add %a, 5: Int
+        %v6 = add %a, 6: Int
+        %v7 = add %a, 7: Int
+        %v8 = add %a, 8: Int
+        %v9 = add %a, 9: Int
+        %v10 = add %a, 10: Int
+        %v11 = add %a, 11: Int
+        %v12 = add %a, 12: Int
+        %v13 = add %a, 13: Int
+
+        store %p, %v13, 8
+
+        %s13 = add %v13, %v12: Int
+        %s12 = add %s13, %v11: Int
+        %s11 = add %s12, %v10: Int
+        %s10 = add %s11, %v9: Int
+        %s9 = add %s10, %v8: Int
+        %s8 = add %s9, %v7: Int
+        %s7 = add %s8, %v6: Int
+        %s6 = add %s7, %v5: Int
+        %s5 = add %s6, %v4: Int
+        %s4 = add %s5, %v3: Int
+        %s3 = add %s4, %v2: Int
+        %s2 = add %s3, %v1: Int
+        %s1 = add %s2, %v0: Int
+        ret %s1
+    }
+}

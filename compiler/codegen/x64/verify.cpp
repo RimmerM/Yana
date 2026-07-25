@@ -100,12 +100,14 @@ struct MachineState {
         slots[index] = value;
     }
 
-    // Whatever was in these general registers is gone once the instruction has run. Nothing is
-    // reported here: a clobbered value that was still needed shows up as a failed read at the
-    // instruction that needed it, which is where the useful diagnostic is.
-    void clobber(U64 mask) {
-        for(Size i = 0; i < kRegCount; i++) {
-            if(mask & (U64(1) << i)) regs[GenReg][i] = kNullLive;
+    // Whatever was in these registers is gone once the instruction has run. Nothing is reported
+    // here: a clobbered value that was still needed shows up as a failed read at the instruction
+    // that needed it, which is where the useful diagnostic is.
+    void clobber(const RegSet& mask) {
+        for(Size cls = 0; cls < kPhysRegClassCount; cls++) {
+            for(Size i = 0; i < kRegCount; i++) {
+                if(mask.has(makeRegId(RegClass(cls), U16(i)))) regs[cls][i] = kNullLive;
+            }
         }
     }
 };
@@ -202,7 +204,7 @@ struct Verifier {
                 continue;
             }
 
-            auto want = wantForUse(base, inst, shape, i);
+            auto want = wantForUse(shape, i);
             if(want != kInvalidReg && at != want) {
                 fail("%@: %@: operand %@ must be read from %@, but is read from %@",
                     funName, name, nameOf(v), locationName(want), locationName(at));
@@ -217,7 +219,7 @@ struct Verifier {
 
         // Before the results, so that an instruction producing its result in a register it also
         // clobbers (rem's remainder in rdx) ends up holding the result rather than nothing.
-        if(shape.c && !shape.isReturn) state.clobber(shape.c->clobber);
+        if(!shape.isReturn) state.clobber(shape.clobber);
 
         for(Size i = 0; i < created.size(); i++) {
             auto& v = created[i];
@@ -236,7 +238,7 @@ struct Verifier {
                 continue;
             }
 
-            auto want = wantForResult(inst, shape, i);
+            auto want = wantForResult(shape, i);
             if(want != kInvalidReg && at != want) {
                 fail("%@: %@: result %@ must be produced in %@, but is produced in %@",
                     funName, name, nameOf(&v), locationName(want), locationName(at));
@@ -280,44 +282,41 @@ struct Verifier {
     // convention tables (rather than reading it back off the allocation) is the point - it is the
     // one place where what the machine holds is not something the allocator got to choose.
     void buildArgState(MachineState& state) {
-        auto& call = constraints.getCall(fun.callType);
-        U32 index[kRegClassCount] = {};
+        auto args = fun.args.contents(base);
 
-        for(auto offset: fun.args.contents(base)) {
-            auto& result = base[offset]->result;
+        Array<ArgLocation> locations;
+        classifyArgs(constraints.getConvention(fun.callType), args.size(), [&](Size i) {
+            return base[args[i]]->result.type;
+        }, locations);
+
+        for(Size i = 0; i < args.size(); i++) {
+            auto& result = base[args[i]]->result;
             if(isImplicit(&result)) continue;
 
-            auto cls = classForType(result.type);
-            auto classIndex = index[cls];
-            auto incoming = classIndex < kMaxRegInputs ? call.constraints[cls].args[classIndex] : kInvalidReg;
+            auto incoming = locations[i].reg;
 
-            if(incoming == kInvalidReg) {
-                // Out of argument registers: the value arrives on the stack, in the frame object
-                // whose position among the incoming arguments matches this one's.
-                incoming = incomingArgSlot(index[StackReg]);
-                index[StackReg]++;
+            if(locations[i].kind == ArgLocation::Stack) {
+                incoming = incomingArgSlot(locations[i].stackOffset);
 
                 if(incoming == kInvalidReg) {
                     fail("%@: argument %@ arrives on the stack but has no frame object",
                         funName, nameOf(&result));
                     continue;
                 }
-            } else {
-                index[cls]++;
             }
 
             state.set(incoming, result.liveId());
         }
     }
 
-    // The frame object holding incoming stack argument `ordinal`. Found by searching the frame
+    // The frame object holding the incoming stack argument at `offset`. Found by searching the frame
     // rather than by assuming slot ids are handed out in argument order, so that the check does not
     // quietly agree with the allocator about a numbering neither of them is entitled to assume.
-    RegId incomingArgSlot(U32 ordinal) {
+    RegId incomingArgSlot(U32 offset) {
         auto& slots = regs.frame.slots;
 
         for(Size i = 0; i < slots.size(); i++) {
-            if(slots[i].kind == StackSlotKind::IncomingArg && slots[i].ordinal == ordinal) {
+            if(slots[i].kind == StackSlotKind::IncomingArg && slots[i].argOffset == offset) {
                 return makeRegId(StackReg, U16(i));
             }
         }
@@ -408,7 +407,7 @@ bool verifyFrameLayout(Context& ctx, LowerFunction& fun, const FrameObjects& obj
 
     U32 savedCount = 0;
     for(Size i = 0; i < kRegCount; i++) {
-        if(layout.savedRegs & (U64(1) << i)) savedCount++;
+        if(layout.savedRegs.has(makeRegId(GenReg, U16(i)))) savedCount++;
     }
 
     // Where the region the prologue reserved sits relative to the base register. Below the saved
@@ -430,8 +429,8 @@ bool verifyFrameLayout(Context& ctx, LowerFunction& fun, const FrameObjects& obj
             // In the caller's frame, above the return address - never in the region this function
             // reserved for itself.
             if(offset < 8) {
-                logError("%@: incoming argument %@ is at %@, inside this function's own frame",
-                    funName, slot.ordinal, offset);
+                logError("%@: incoming argument at %@ resolves to %@, inside this function's own frame",
+                    funName, slot.argOffset, offset);
                 ok = false;
             }
         } else if(offset < regionLow || offset + I32(slot.size) > regionHigh) {
@@ -440,9 +439,9 @@ bool verifyFrameLayout(Context& ctx, LowerFunction& fun, const FrameObjects& obj
             ok = false;
         }
 
-        // Nothing shares an address yet: a spill slot may be reused by values whose lives do not
-        // overlap, but nothing creates one, so any overlap here is a layout error rather than
-        // deliberate sharing.
+        // Two frame objects may never share bytes. Reuse of a spill slot between webs whose lives
+        // do not overlap happens a level up - they share one slot id, and so one address - so
+        // anything that overlaps here is a layout error rather than deliberate sharing.
         for(Size j = 0; j < i; j++) {
             auto& other = objects.slots[j];
             auto otherOffset = layout.slotOffset[j];
@@ -461,6 +460,18 @@ bool verifyFrameLayout(Context& ctx, LowerFunction& fun, const FrameObjects& obj
 bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness& live, const Constraints& constraints, const FunctionRegs& regs) {
     Verifier v(ctx, base, fun, live, constraints, regs);
     auto entry = base[fun.blocks.get(base, 0)];
+
+    // rbp is either the frame pointer or a register values live in, and which one is decided before
+    // allocation runs. A value found in it in a function that establishes a frame pointer means the
+    // two halves of that decision disagreed, which corrupts the frame rather than producing visibly
+    // wrong code, so it is checked here rather than left to show up in the emitted bytes.
+    if(regs.framePointer) {
+        for(Size i = 0; i < regs.allocation.locations.size(); i++) {
+            if(regs.allocation.locations[i] == framePointerReg()) {
+                v.fail("%@: %@ is allocated to the frame pointer", v.funName, v.nameOf(LiveId(i)));
+            }
+        }
+    }
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];

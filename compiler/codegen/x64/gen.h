@@ -14,6 +14,10 @@ enum RegClass {
 
 using RegId = I16;
 
+// The classes that name a physical machine register. StackReg is a location class but not a
+// physical one - a frame slot is not part of the register file - so it is excluded from everything
+// that describes what an operation does to the machine.
+static constexpr Size kPhysRegClassCount = 2;
 static constexpr Size kRegClassCount = 3;
 static constexpr RegId kInvalidReg = 0x7fff;
 
@@ -29,47 +33,236 @@ inline RegId makeRegId(RegClass c, U16 index) {
     return (I16(c) << 12) | I16(index);
 }
 
+inline RegClass classForType(LowerType type) {
+    return isIntLike(type) ? GenReg : XmmReg;
+}
+
+// A set of physical registers, one bitmask per class. Everything that describes what a machine
+// operation does to the register file is one of these: an instruction's clobbers, a calling
+// convention's preserved set, the registers a value has to stay out of while it is live.
+//
+// Being per class is what lets a convention state that a call destroys xmm0-15 as well as the
+// caller-saved integer registers. A single mask could only ever describe one class, which is why no
+// convention could describe a vector clobber before.
+//
+// A location that is not a physical register - a stack slot, or kInvalidReg - is never a member, and
+// adding one is a no-op rather than an error. That is what makes it safe to feed an operand's
+// location straight in without first asking whether the allocator gave it a register at all.
+struct RegSet {
+    U64 classes[kPhysRegClassCount] = {};
+
+    static bool isPhysical(RegId id) {
+        return Size(getRegClass(id)) < kPhysRegClassCount;
+    }
+
+    bool has(RegId id) const {
+        return isPhysical(id) && (classes[getRegClass(id)] & (U64(1) << getRegIndex(id))) != 0;
+    }
+
+    void add(RegId id) {
+        if(isPhysical(id)) classes[getRegClass(id)] |= U64(1) << getRegIndex(id);
+    }
+
+    void remove(RegId id) {
+        if(isPhysical(id)) classes[getRegClass(id)] &= ~(U64(1) << getRegIndex(id));
+    }
+
+    bool isEmpty() const {
+        for(auto c: classes) {
+            if(c) return false;
+        }
+
+        return true;
+    }
+
+    RegSet& operator |= (const RegSet& other) {
+        for(Size i = 0; i < kPhysRegClassCount; i++) classes[i] |= other.classes[i];
+        return *this;
+    }
+
+    RegSet operator | (const RegSet& other) const {
+        auto set = *this;
+        set |= other;
+        return set;
+    }
+
+    RegSet operator & (const RegSet& other) const {
+        RegSet set;
+        for(Size i = 0; i < kPhysRegClassCount; i++) set.classes[i] = classes[i] & other.classes[i];
+        return set;
+    }
+
+    // The registers of `within` that this set does not contain. A convention's preserved set is
+    // exactly this applied to its clobber set: a register a call leaves alone is one its callee
+    // owes back.
+    RegSet complement(const RegSet& within) const {
+        RegSet set;
+        for(Size i = 0; i < kPhysRegClassCount; i++) set.classes[i] = ~classes[i] & within.classes[i];
+        return set;
+    }
+
+    bool operator == (const RegSet& other) const {
+        for(Size i = 0; i < kPhysRegClassCount; i++) {
+            if(classes[i] != other.classes[i]) return false;
+        }
+
+        return true;
+    }
+};
+
 struct ClassConstraints {
     // Maps instruction argument index -> register id.
     RegId args[kMaxRegInputs];
     RegId results[kMaxRegInputs];
 };
 
-// Given an instruction, contains the register id (if any) required for each argument and result.
-// At most kMaxReg constraints are returned, as no more registers are available.
-// Instructions that generate additional results are presumed to handle them through the stack.
-// This only concerns special instructions that require a single specific register for some result.
-// General register classes are handled by the type system instead
+// The fixed-register behaviour of one instruction: which of its operands and results have to occupy
+// a particular register, and which registers it destroys along the way. Only instructions whose
+// encoding forces the issue have an entry - a division's rax/rdx protocol, a shift's count in rcx,
+// the string operations' rdi/rsi/rcx. Everything else takes whatever the allocator hands it.
+//
+// A calling convention is described by CallConvention below rather than here: a call's operand
+// locations depend on how many arguments of each class came before, which a flat table cannot say.
 struct InstConstraints {
     InstConstraints();
 
     // Argument and result constraints.
-    ClassConstraints constraints[kRegClassCount];
+    ClassConstraints constraints[kPhysRegClassCount];
 
-    // Bitmask of clobbered registers, indexed by register id.
-    U64 clobber = 0;
+    // Registers the instruction writes behind its operands' backs.
+    RegSet clobber;
 };
 
-// The half of a calling convention that concerns the function being compiled rather than its call
-// sites. InstConstraints above describes what a *call* does to registers where it appears; this
-// describes what a function compiled with the convention owes the caller it returns to, and is what
-// the prologue and epilogue are generated from.
+// Where one argument or result of a call is passed.
 //
-// The two halves are the same contract seen from opposite sides - a register a call does not
-// clobber is exactly a register the callee has to give back - so constraint.cpp states both and
-// checks them against each other rather than deriving either.
+// This is the single place the register-versus-stack decision is made. The caller writes a stack
+// argument into its outgoing area at `stackOffset`, the callee reads it from its incoming area at
+// the same offset, and both get the answer from classifyArgs rather than deciding for themselves -
+// which is what stops the two sides from disagreeing about where an argument went.
+struct ArgLocation {
+    enum Kind: U8 {
+        None,     // unconstrained: the operand stays wherever the allocator put it
+        Register, // a fixed register
+        Stack,    // the argument area, at `stackOffset` bytes from its base
+    };
+
+    Kind kind = None;
+    RegId reg = kInvalidReg;
+    U32 stackOffset = 0;
+
+    static ArgLocation inRegister(RegId reg) { return ArgLocation { Register, reg, 0 }; }
+    static ArgLocation onStack(U32 offset) { return ArgLocation { Stack, kInvalidReg, offset }; }
+};
+
+// A calling convention, stated once and used from both sides.
+//
+// InstConstraints above describes what a fixed-register *instruction* does. This describes what a
+// *call* does where it appears and what a function compiled with the convention owes the caller it
+// returns to - the same contract seen from opposite ends, which is why constraint.cpp states both
+// halves and checks them against each other rather than deriving either.
 struct CallConvention {
-    // Callee-saved general registers, restricted to kAllocatableRegs. rsp and rbp are preserved
-    // too, but they are reserved rather than handed out, so keeping them valid is the frame code's
-    // business rather than the prologue's.
-    U64 calleeSaved = 0;
+    // The registers arguments and results are assigned to, per class, in the order the convention
+    // hands them out. An argument that runs past the end of its class's list is passed in the
+    // argument area instead; a result that does would have to be returned through memory, which
+    // needs a hidden pointer argument the lowering does not produce, so classifyResults rejects it.
+    struct ClassRegs {
+        RegId regs[kMaxRegInputs];
+        Size count = 0;
+
+        void add(RegId reg) {
+            assertTrue(count < kMaxRegInputs);
+            regs[count++] = reg;
+        }
+    };
+
+    ClassRegs args[kPhysRegClassCount];
+    ClassRegs results[kPhysRegClassCount];
+
+    // What a call of this convention destroys, and what a function compiled with it has to give
+    // back. rsp is preserved too, but it is reserved rather than handed out, so keeping it valid is
+    // the frame code's business rather than the prologue's. rbp is in neither position: no
+    // convention may clobber it (a caller may be holding a frame pointer there), so it is preserved
+    // by every one of them and saved by the prologue of any function that takes it as a register.
+    RegSet clobber;
+    RegSet calleeSaved;
 
     // What rsp must be a multiple of at the point a call of this convention is executed, before the
     // call pushes its return address. A convention the compiler is on both sides of can leave this
     // at 8; an external one generally cannot, because its callees are entitled to assume the
     // alignment when they spill a vector register.
     U32 stackAlignment = 8;
+
+    // Bytes the caller reserves below the first stack argument, for a convention that requires the
+    // callee to have somewhere to spill its register arguments - Win64's shadow space. Zero
+    // everywhere else.
+    U32 shadowSpace = 0;
+
+    // Win64 assigns argument registers by position rather than per class: a float in argument
+    // position 2 takes xmm2 and leaves r8 unused, so a callee can find any argument without knowing
+    // the types of the ones before it. SysV and the compiler's own conventions count each class
+    // independently, filling rdi..r9 with integers however many floats came first.
+    bool positionalArgs = false;
+
+    // Set once the convention has tables to work from. A function or call using one that does not
+    // has to be rejected: with empty tables every argument would silently be classified onto the
+    // stack, which is a working compile of the wrong program.
+    bool defined = false;
 };
+
+// Assigns every argument of a call its location, by walking the argument list in order and handing
+// out registers of each class until the convention runs out. Both sides go through this - the caller
+// to place its operands, the callee to find where its arguments arrived, the verifier to check both.
+//
+// `typeOf` is asked for the type of argument `i`, so a caller can classify straight out of whatever
+// buffer it already has without building a type list first.
+template<class F>
+void classifyArgs(const CallConvention& convention, Size count, F&& typeOf, Array<ArgLocation>& out) {
+    assertTrue(convention.defined); // a call using an undescribed convention
+
+    Size taken[kPhysRegClassCount] = {};
+    auto stack = convention.shadowSpace;
+
+    for(Size i = 0; i < count; i++) {
+        auto cls = classForType(typeOf(i));
+        auto& table = convention.args[cls];
+
+        // A positional convention indexes the table by argument position, so an argument of one
+        // class consumes the slot of every class; a per-class one keeps an independent counter each.
+        auto index = convention.positionalArgs ? i : taken[cls];
+
+        if(index < table.count) {
+            out.push(ArgLocation::inRegister(table.regs[index]));
+            taken[cls]++;
+        } else {
+            // Every stack argument occupies one 8-byte slot, in declaration order and lowest first,
+            // which is what the callee's incoming offsets assume.
+            out.push(ArgLocation::onStack(stack));
+            stack += 8;
+        }
+    }
+}
+
+// The same for a call's results, which no described convention passes on the stack.
+template<class F>
+void classifyResults(const CallConvention& convention, Size count, F&& typeOf, Array<ArgLocation>& out) {
+    assertTrue(convention.defined); // a call using an undescribed convention
+
+    Size taken[kPhysRegClassCount] = {};
+
+    for(Size i = 0; i < count; i++) {
+        auto cls = classForType(typeOf(i));
+        auto& table = convention.results[cls];
+        auto index = taken[cls]++;
+
+        assertTrue(index < table.count); // more results than the calling convention can return
+        out.push(ArgLocation::inRegister(table.regs[index]));
+    }
+}
+
+// Bytes of argument area a call needs: enough for the highest stack argument, plus any shadow space
+// the convention asks for even when every argument fitted in a register, rounded up so that opening
+// the area cannot knock rsp off the boundary the callee is entitled to expect.
+U32 argAreaBytes(const CallConvention& convention, const Array<ArgLocation>& args);
 
 // Byte count above which a Copy/SetPattern with a compile-time size stops being straight-lined into
 // plain moves and takes the rep-prefixed string instruction instead. Chosen once, in
@@ -79,7 +272,6 @@ static constexpr U64 kMaxUnrolledMemOp = 32;
 struct Constraints {
     Constraints();
     const InstConstraints* getConstraints(LowerBase base, LowerInst* inst) const;
-    const InstConstraints& getCall(LowerCallType type) const;
     const CallConvention& getConvention(LowerCallType type) const;
 
 private:
@@ -89,55 +281,62 @@ private:
     // one applies is decided once by transformFunction and read back off the instruction, so this
     // table and genCopy/genSetPattern cannot disagree about it.
     InstConstraints mul, div, rem, shift, movsb, stosb, movsbImm, stosbImm;
-    InstConstraints call[(Size)LowerCallType::LastType + 1];
     CallConvention convention[(Size)LowerCallType::LastType + 1];
 };
 
+// The target's tables, built once. They are constant and the same for every function, and each of
+// the three passes that reads them used to construct its own copy.
+const Constraints& targetConstraints();
+
 /*
- * Instruction constraint queries.
+ * Instruction shapes.
  *
- * The tables above are indexed per register class and skip operands that don't occupy a register at
- * all, so the mapping from "operand N of this instruction" to "entry N of the table" is not the
- * identity. Resolving it in one place, from the instruction alone, keeps every caller from having
- * to thread a running per-class counter through its own loop - and keeps the allocator and the
- * verifier that checks it reading the same tables the same way.
+ * Where each operand and result of one instruction has to be is worked out once, into an InstShape,
+ * and then read back by index. The tables it comes from are indexed per register class and skip
+ * operands that occupy no register at all, so "operand N of this instruction" and "entry N of the
+ * table" are not the same thing - and every caller used to re-derive that mapping with its own copy
+ * of the counting rule, which is how the allocator and the verifier could disagree about it.
  */
 
-inline RegClass classForType(LowerType type) {
-    if(isIntLike(type)) {
-        return GenReg;
-    } else {
-        return XmmReg;
-    }
-}
-
 struct InstShape {
-    const InstConstraints* c = nullptr;
+    // Parallel to the instruction's own used()/created() buffers, so operand N is entry N.
+    Array<ArgLocation> uses;
+    Array<ArgLocation> creates;
 
-    // First used() index that is a constrained argument. Call's used()[0] is the callee, not an
-    // argument - except for a syscall, which has no callee at all: its used()[0] is the syscall
-    // number, and is the first constrained operand.
-    Size argStart = 0;
+    // Registers the instruction writes behind its operands' backs.
+    RegSet clobber;
 
-    // Set for a return, whose values are constrained like a call's *results* rather than its
-    // arguments. A return's clobber set is deliberately ignored throughout: nothing is live once
-    // the function has returned, so there is nothing left for it to protect.
+    // The convention a call, a syscall or a return follows, for the callers that need more of it
+    // than the operand locations: the argument area's size and alignment, and the preserved set.
+    const CallConvention* convention = nullptr;
+
+    // A return's operands are constrained like its convention's *results* rather than its
+    // arguments, and nothing is live once the function has returned - so a return neither clobbers
+    // anything nor has anything left to protect.
     bool isReturn = false;
 };
 
 InstShape shapeOf(LowerBase base, const Constraints& constraints, LowerFunction& fun, LowerInst* inst);
 
-// The fixed register operand `i` has to be in when the instruction executes, if any.
-RegId wantForUse(LowerBase base, LowerInst* inst, const InstShape& shape, Size i);
+// The fixed register operand `i` has to be in when the instruction executes, if any. A stack-passed
+// argument has no register and answers kInvalidReg here, so a caller that needs to tell the two
+// apart reads shape.uses[i] instead.
+inline RegId wantForUse(const InstShape& shape, Size i) {
+    auto& location = shape.uses[i];
+    return location.kind == ArgLocation::Register ? location.reg : kInvalidReg;
+}
 
 // The fixed register result `i` is produced in, if any.
-RegId wantForResult(LowerInst* inst, const InstShape& shape, Size i);
+inline RegId wantForResult(const InstShape& shape, Size i) {
+    auto& location = shape.creates[i];
+    return location.kind == ArgLocation::Register ? location.reg : kInvalidReg;
+}
 
-// Every general register this instruction writes behind the operands' backs: the ones it clobbers,
-// plus the ones the parallel copy in front of it writes to satisfy fixed-register constraints. A
-// value that has to survive the instruction, and an operand that isn't itself placed by that
-// parallel copy, both have to stay out of these.
-U64 writtenRegisters(LowerBase base, LowerInst* inst, const InstShape& shape);
+// Every register this instruction writes behind the operands' backs: the ones it clobbers, plus the
+// ones the parallel copy in front of it writes to satisfy fixed-register constraints. A value that
+// has to survive the instruction, and an operand that isn't itself placed by that parallel copy,
+// both have to stay out of these.
+RegSet writtenRegisters(const InstShape& shape);
 
 /*
  * Register allocation output.
@@ -227,9 +426,10 @@ struct StackSlot {
     U32 size = 8;
     U32 alignment = 8;
 
-    // Position among the slots of the same kind, in the order they were created. For an incoming
-    // argument this is what fixes its address: argument n sits 8n bytes above the return address.
-    U32 ordinal = 0;
+    // For an IncomingArg, its byte offset within the argument area, which is what fixes its
+    // address: the caller wrote it there and the convention decided where there is. Unused for the
+    // kinds this frame places itself.
+    U32 argOffset = 0;
 };
 
 // A reference to a frame object from an instruction, before frame layout has run. The addend allows
@@ -255,22 +455,20 @@ struct FrameObjects {
     // a frame pointer, whatever the frame-pointer mode asks for.
     bool hasDynamicAlloca = false;
 
-    // Set if any call passes arguments by pushing them. rsp then moves during the argument setup,
-    // so an rsp-relative reference to a fixed frame object taken in the middle of it would be wrong
-    // - which is the second reason a frame pointer can be forced.
-    bool hasPushedCallArgs = false;
+    // Bytes of outgoing argument area: enough for the call in this function that passes the most on
+    // the stack, and zero for a function whose calls all fit in registers.
+    //
+    // The area is reserved once by the prologue rather than opened and closed around each call, and
+    // it is always the lowest part of the frame - a callee looks for its stack arguments at the
+    // stack pointer, so nothing may sit between them and it. Reserving it once is what keeps rsp
+    // still for the whole body, which in turn is what lets a frame be addressed through rsp at all.
+    U32 argAreaSize = 0;
 
     // The largest alignment any call in this function requires of rsp. The frame is padded so that
     // the prologue leaves rsp on that boundary.
     U32 callAlignment = 8;
 
     StackSlotId add(StackSlot slot) {
-        // Slots of one kind are numbered in creation order, which is what gives an incoming
-        // argument its position in the caller's frame.
-        for(auto& s: slots) {
-            if(s.kind == slot.kind) slot.ordinal++;
-        }
-
         slots.push(slot);
         return StackSlotId(slots.size() - 1);
     }
@@ -312,7 +510,13 @@ struct FunctionRegs {
     // Callee-saved registers this function writes, and therefore has to save on entry and restore
     // before every return. Empty for a function that stayed inside its convention's clobber set,
     // which is the common case for a leaf function.
-    U64 usedCalleeSaved = 0;
+    RegSet usedCalleeSaved;
+
+    // Whether this function establishes rbp as a frame pointer, decided from the IR before
+    // allocation ran (functionNeedsFramePointer) and carried here so that frame layout uses the
+    // same answer the allocator did. False means rbp was allocatable and may hold a value; the two
+    // must never disagree, since the frame is addressed through rbp exactly when this is set.
+    bool framePointer = false;
 };
 
 /*
@@ -324,19 +528,25 @@ struct FunctionRegs {
  *
  * With a frame pointer the layout is
  *
- *     [rbp + 16 + 8n]  incoming stack argument n
+ *     [rbp + 16 + n]   incoming stack argument at offset n
  *     [rbp + 8]        return address
  *     [rbp]            caller's rbp
  *     [rbp - 8k]       saved callee-saved registers
- *     [rbp - ...]      locals and spill slots        <- rsp after the prologue
+ *     [rbp - ...]      locals and spill slots
+ *     [rsp + n]        outgoing argument area                <- rsp after the prologue
  *
- * and without one the same objects hang off rsp instead, which only works because rsp then stays
- * put for the whole body: pushed call arguments are popped again immediately, and a function that
- * moves rsp any other way (a dynamic alloca) is required to have a frame pointer.
+ * and without one the same objects hang off rsp instead, which works because rsp then stays put for
+ * the whole body - the argument area is reserved once by the prologue rather than opened around
+ * each call, and a function that moves rsp any other way (a dynamic alloca) has a frame pointer.
+ *
+ * The outgoing area is the one thing always addressed through rsp rather than through `base`: a
+ * callee finds its stack arguments at the stack pointer, so the area has to stay at the bottom even
+ * in a function whose rsp moves. A dynamic alloca therefore re-establishes it below the memory it
+ * allocated (see genAlloca).
  */
 struct FrameLayout {
     // Callee-saved registers the prologue pushes, in ascending register order.
-    U64 savedRegs = 0;
+    RegSet savedRegs;
 
     // Set when rbp is established as the base for fixed frame objects. Costs a push, a move and a
     // register; see FramePointerMode for when it is worth it.
@@ -346,9 +556,14 @@ struct FrameLayout {
     // there is not.
     RegId base = kInvalidReg;
 
-    // Bytes the prologue subtracts from rsp for locals and spill slots, including any padding
-    // needed to leave rsp on the boundary the calls in this function require.
+    // Bytes the prologue subtracts from rsp: the outgoing argument area, the locals and spill
+    // slots, and any padding needed to leave rsp on the boundary the calls in this function require.
     U32 fixedSize = 0;
+
+    // Bytes of that reserved for outgoing arguments, at the very bottom. An outgoing argument at
+    // convention offset n is at [rsp + n], and a dynamic allocation has to leave this much below
+    // itself so that the next call still finds it there.
+    U32 argAreaSize = 0;
 
     // The boundary a dynamic allocation has to round its size up to, so that moving rsp at run time
     // preserves the alignment the prologue established.
@@ -358,7 +573,7 @@ struct FrameLayout {
     Array<I32> slotOffset;
 
     // Whether the function needs any prologue at all.
-    bool isEmpty() const { return savedRegs == 0 && !framePointer && fixedSize == 0; }
+    bool isEmpty() const { return savedRegs.isEmpty() && !framePointer && fixedSize == 0; }
 
     I32 offsetOf(FrameReference ref) const {
         assertTrue(ref.slot < slotOffset.size());
@@ -367,6 +582,12 @@ struct FrameLayout {
 };
 
 FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun, const Constraints& constraints, const FunctionRegs& regs);
+
+// Whether this function establishes a frame pointer, which decides whether rbp is a register the
+// allocator may hand out. Answered from the IR and the settings alone, so that it can be asked
+// before allocation starts and its answer given to both the allocator and frame layout - see the
+// comment at the top of frame.cpp.
+bool functionNeedsFramePointer(Context& ctx, LowerBase base, LowerFunction& fun);
 
 // Checks that the offsets a layout produced describe a frame its objects fit in, and that no two of
 // them land on the same bytes. Both failures corrupt memory rather than producing a visibly wrong

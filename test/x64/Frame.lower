@@ -92,8 +92,8 @@ locals(%v: Int): Int {
     }
 }
 
-# Frame objects but no call that pushes arguments, so rsp stays where the prologue left it for the
-# whole body and the locals can be addressed through it. No frame pointer.
+# A frame object and a call, but no stack arguments. rsp stays where the prologue left it for the
+# whole body, so the local is addressed through it and no frame pointer is needed.
 localsAndCall(%v: Int): Int {
     {
         %a = alloca 8: Ptr
@@ -117,9 +117,10 @@ dynamicLocal(%n: Int, %v: Int): Int {
     }
 }
 
-# The ninth and tenth arguments arrive in the caller's frame, above the return address, eight bytes
-# apart and in argument order. Each is loaded into a register once on entry and read from there, so
-# no instruction below ever sees a memory operand.
+# The ninth and tenth arguments arrive in the caller's argument area, above the return address,
+# eight bytes apart and at the offsets the convention assigned them - the same offsets the caller
+# wrote to. Each is loaded into a register once on entry and read from there, so no instruction
+# below ever sees a memory operand.
 stackArg(%a0: Int, %a1: Int, %a2: Int, %a3: Int, %a4: Int, %a5: Int, %a6: Int, %a7: Int, %a8: Int, %a9: Int): Int {
     {
         %s = add %a8, %a9: Int
@@ -128,30 +129,26 @@ stackArg(%a0: Int, %a1: Int, %a2: Int, %a3: Int, %a4: Int, %a5: Int, %a6: Int, %
     }
 }
 
-# Both at once: a frame object *and* a call that pushes arguments. rsp moves across the argument
-# setup, so an rsp-relative reference taken in the middle of it would be wrong - this is the case
-# that needs a frame pointer under `needed`.
-pushedArgsAndLocals(%v: Int): Int {
+# A frame object *and* a call with stack arguments. The argument area is reserved by the prologue
+# rather than opened around the call, so rsp never moves and the local stays addressable through it:
+# this used to be the second case that forced a frame pointer, and no longer is.
+stackArgsAndLocals(%v: Int): Int {
     {
         %a = alloca 8: Ptr
         store %a, %v, 8
-        %p = push %v, 9
-        %q = push %v, 10
-        %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %p, %q: Int
+        %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v: Int
         %s = load %a, 8: Int
         %t = add %r, %s: Int
         ret %t
     }
 }
 
-# Pushed arguments with nothing in the frame to address: the pushes move rsp, but there is nothing
-# relative to it worth naming, so this still needs no frame pointer. The pushed argument is removed
-# by the caller after the call, which is what leaves rsp where the return expects it.
-pushedArgsOnly(%v: Int): Int {
+# Stack arguments with nothing else in the frame. The prologue reserves the argument area and the
+# epilogue gives it back, and the stores go straight to [rsp + offset] with no adjustment around the
+# call at all.
+stackArgsOnly(%v: Int): Int {
     {
-        %p = push %v, 9
-        %q = push %v, 10
-        %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %p, %q: Int
+        %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v: Int
         ret %r
     }
 }
@@ -171,5 +168,20 @@ sysvCaller<sysv>(%a: Int, %b: Int): Int {
         %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: Int
         %s = add %r, %b: Int
         ret %s
+    }
+}
+
+# The store that puts a stack argument in place is hoisted to just after the value is computed,
+# which is the point of having it be an instruction: %x is dead from the store onwards, so the eight
+# register arguments computed after it do not have to work around a ninth value sitting in a
+# register. Without the hoist %x would stay live all the way to the call.
+hoistedStackArg(%a: Int): Int {
+    {
+        %x = add %a, 1: Int
+        %b = add %a, 2: Int
+        %c = add %b, 3: Int
+        %d = add %c, 4: Int
+        %r = call_complex stackArg, %a, %b, %c, %d, %a, %b, %c, %d, %x, %x: Int
+        ret %r
     }
 }

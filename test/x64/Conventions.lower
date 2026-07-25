@@ -1,0 +1,75 @@
+# Calling conventions.
+#
+# A convention is a table, not code: which registers carry arguments and results, which a call
+# destroys, what it needs of the stack pointer, and how it runs out of registers. Both sides of a
+# call read the same table, so the caller writes stack arguments exactly where the callee looks for
+# them, and the frame pass saves exactly what the convention says the callee owes back.
+#
+# The point of these functions is that each convention differs from the others only in its table.
+
+# Win64 differs from every other described convention in two ways that are not just register names.
+#
+# Arguments take the slot of their *position* rather than of their class, so the fifth argument goes
+# on the stack even though only four registers were used - and the caller leaves 32 bytes of shadow
+# space below it, which is why the first stack argument is at offset 32 rather than 0.
+win64Callee<win64>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int): Int {
+    {
+        %s = add %a, %e: Int
+        ret %s
+    }
+}
+
+win64Caller<win64>(%x: Int): Int {
+    {
+        %r = call_win64 win64Callee, %x, %x, %x, %x, %x: Int
+        ret %r
+    }
+}
+
+# Simple keeps almost everything for the caller: three argument registers and one result, and
+# everything else preserved. A value held across such a call needs no saving, so the caller pays
+# nothing for having made it - which is the whole point of the convention.
+simpleCallee<simple>(%a: Int, %b: Int): Int {
+    {
+        %s = add %a, %b: Int
+        ret %s
+    }
+}
+
+simpleCaller<simple>(%a: Int, %b: Int): Int {
+    {
+        %r = call_simple simpleCallee, %a, %b: Int
+        %s = add %r, %b: Int
+        ret %s
+    }
+}
+
+# Clobber destroys everything it is allowed to, which is everything except rbp: no convention may
+# clobber the frame pointer, because a caller may be holding one there and nothing in the IR
+# represents it for the allocator to move out of the way.
+#
+# So a value outliving such a call has exactly one register to go to, and clobberCaller - a Clobber
+# function itself - shows both halves of that at once: %b crosses the call in rbp, and the push and
+# pop that save it are the whole prologue of a convention that otherwise owes its caller nothing.
+# A second value across the same call would have to go to the frame.
+clobberCallee<clobber>(%a: Int): Int {
+    { ret %a }
+}
+
+clobberCaller<clobber>(%a: Int, %b: Int): Int {
+    {
+        %r = call_clobber clobberCallee, %a: Int
+        %s = add %r, %b: Int
+        ret %s
+    }
+}
+
+# The compiler's own convention, for comparison: eight argument registers, and rbx and r12-r15
+# preserved.
+complexCaller<complex>(%a: Int, %b: Int): Int {
+    {
+        %r = call_complex clobberCallee, %a: Int
+        %s = add %r, %b: Int
+        ret %s
+    }
+}

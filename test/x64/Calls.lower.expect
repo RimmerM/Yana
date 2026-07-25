@@ -22,8 +22,7 @@ sysCall<complex>(%n: Int, %fd: Int, %buf: Int, %len: Int): Int {
 
 pushCall<complex>(%a: Int, %b: Int): Int {
   b_0 {
-    %p = push %b, 9: Int    # %p implicit
-    %r = call_complex many, %a, %a, %a, %a, %a, %a, %a, %a, %p: Int
+    %r = call_complex many, %a, %a, %a, %a, %a, %a, %a, %a, %b: Int
     ret %r
   }
 }
@@ -66,13 +65,14 @@ block #1:
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: pushCall ---
+  prologue  => 4883ec08
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  push uses=[rsi] creates=[-]  => 4883ec0848893424
+  x86_pusharg uses=[rsi] creates=[-]  => 48893424
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 488bf7488bd7488bcf4c8bc74c8bcf4c8bd74c8bdfe8050000004883c408
-  ret uses=[rax] creates=[]  => c3
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 488bf7488bd7488bcf4c8bc74c8bcf4c8bd74c8bdfe805000000
+  ret uses=[rax] creates=[]  => 4883c408c3
 
 --- codegen: many ---
 block #0:

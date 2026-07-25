@@ -33,12 +33,10 @@ convCalls<complex>(%a: Int, %b: Int) {
   }
 }
 
-pushCall<complex>(%a: Int, %b: Int): Int {
+manyArgs<complex>(%a: Int, %b: Int): Int {
   b_0 {
     # live-in: %a, %b
-    %p1 = push %a, 1: Int    # %p1 implicit
-    %p2 = push %b, 2: Int    # %p2 implicit
-    %r = call_complex callee, %p1, %p2: Int
+    %r = call_complex callee, %a, %b: Int
     ret %r
     # live-out: 
   }

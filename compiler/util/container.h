@@ -612,18 +612,19 @@ struct SmallList<Region, T, true> {
         list.reserved = nextCount;
     }
 
-    T remove(RegionBase<Region> base, Size index) {
+    // An embedded entry is present exactly when its high bit is set (see `mask`), so dropping one
+    // means shifting the rest down and clearing what was the last - which is what makes size()
+    // report one fewer.
+    void remove(RegionBase<Region> base, Size index) {
         if(isEmbedded()) {
-            assertTrue(index < embeddedCount);
             auto count = size();
+            assertTrue(index < count);
 
-            for(Size i = index; i < size(); i++) {
+            for(Size i = index; i + 1 < count; i++) {
                 embedded[i] = embedded[i + 1];
             }
 
-            for(Int i = embeddedCount; i >= count; i--) {
-                embedded[i - 1] = 0;
-            }
+            embedded[count - 1] = 0;
         } else {
             assertTrue(size() > index);
             auto p = getListHead(base);
@@ -739,7 +740,7 @@ struct SmallList<Region, T, false> {
         list.reserved = nextCount;
     }
 
-    T remove(RegionBase<Region> base, Size index) {
+    void remove(RegionBase<Region> base, Size index) {
         assertTrue(size() > index);
         auto p = base[list.p];
         Tritium::move(p + index + 1, p + index, list.count - 1 - index);
@@ -786,7 +787,10 @@ struct EmbedSet {
         if(isSmall(count)) {
             embedded = 0;
         } else {
-            list = (Size*)arena.alloc(alignSize<bits>(count) / bits);
+            // `alignSize<bits>(count) / bits` is a count of words, not of bytes - alloc takes bytes.
+            auto words = alignSize<bits>(count) / bits;
+            list = (Size*)arena.alloc(words * sizeof(Size));
+            for(Size i = 0; i < words; i++) list[i] = 0;
         }
     }
 

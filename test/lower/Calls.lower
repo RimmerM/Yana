@@ -15,11 +15,12 @@ namedRefs(): Int {
     }
 }
 
-pushCall(%a: Int, %b: Int): Int {
+# Which arguments travel on the stack is the calling convention's answer, so there is nothing to
+# write here: the x64 backend derives the stores from the convention (see insertStackArgs). At this
+# level a call simply names its arguments.
+manyArgs(%a: Int, %b: Int): Int {
     {
-        %p1 = push %a, 1
-        %p2 = push %b, 2
-        %r = call callee, %p1, %p2: Int
+        %r = call callee, %a, %b: Int
         ret %r
     }
 }
