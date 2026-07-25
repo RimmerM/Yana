@@ -4,19 +4,22 @@
 
 using namespace Tritium;
 using StringId = U32;
+using LocationId = U32;
+
+static constexpr LocationId kNullLocation = maxLimit<LocationId>;
 
 struct Loc {
+    U32 offset;
     U16 line;
     U16 column;
-    U16 offset;
 };
 
-struct Node {
+struct Location {
     StringId sourceModule = 0;
     Loc sourceStart = {0, 0, 0};
     Loc sourceEnd = {0, 0, 0};
 
-    void locationFrom(const Node& n) {
+    void locationFrom(const Location& n) {
         sourceStart.offset = n.sourceStart.offset;
         sourceStart.column = n.sourceStart.column;
         sourceStart.line = n.sourceStart.line;
@@ -27,8 +30,13 @@ struct Node {
     }
 };
 
+struct SourceManager {
+
+};
+
 struct SourceProvider {
     virtual StringView getSource(StringId module) = 0;
+    virtual const Location* getNode(LocationId node) = 0;
 };
 
 struct Diagnostics {
@@ -41,23 +49,44 @@ struct Diagnostics {
     explicit Diagnostics(SourceProvider& provider): provider(provider) {}
 
     template<class... T>
-    void warning(StringView text, const Node* where, T&&... format) {
+    void warning(StringView text, LocationId where, T&&... format) {
         message(WarningLevel, text, where, forward<T>(format)...);
     }
 
     template<class... T>
-    void error(StringView text, const Node* where, T&&... format) {
+    void warning(StringView text, const Location* where, T&&... format) {
+        message(WarningLevel, text, where, forward<T>(format)...);
+    }
+
+    template<class... T>
+    void error(StringView text, LocationId where, T&&... format) {
         message(ErrorLevel, text, where, forward<T>(format)...);
     }
 
     template<class... T>
-    void message(Level level, StringView text, const Node* where, T&&... format) {
+    void error(StringView text, const Location* where, T&&... format) {
+        message(ErrorLevel, text, where, forward<T>(format)...);
+    }
+
+    template<class... T>
+    void message(Level level, StringView text, LocationId where, T&&... format) {
         char buffer[4000];
         text = {buffer, Tritium::format(toBuffer(buffer), toString(text), forward<T>(format)...)};
         message(level, text, where);
     }
 
-    virtual void message(Level level, StringView text, const Node* where) {
+    template<class... T>
+    void message(Level level, StringView text, const Location* where, T&&... format) {
+        char buffer[4000];
+        text = {buffer, Tritium::format(toBuffer(buffer), toString(text), forward<T>(format)...)};
+        message(level, text, where);
+    }
+
+    void message(Level level, StringView text, LocationId where) {
+        message(level, text, provider.getNode(where));
+    }
+
+    virtual void message(Level level, StringView text, const Location* where) {
         if(level == WarningLevel) warnings++;
         else if(level == ErrorLevel) errors++;
     }
@@ -73,5 +102,5 @@ protected:
 
 struct PrintDiagnostics: Diagnostics {
     using Diagnostics::Diagnostics;
-    void message(Level level, StringView text, const Node* where) override;
+    void message(Level level, StringView text, const Location* where) override;
 };

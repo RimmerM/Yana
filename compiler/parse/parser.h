@@ -1,144 +1,77 @@
 #pragma once
 
-#include "lexer.h"
 #include "ast.h"
+#include "lexer.h"
+#include "../util/parser_util.h"
 
-struct Parser {
-    Parser(Context& context, ast::Module& module, const char* text);
+struct Parser: BasicParser<Lexer, Token> {
+    Parser(Context& context, Lexer& lexer, StringId moduleName);
 
-    void parseModule();
-    void parseImport();
-    void parseFixity();
-    ast::Decl* parseDecl();
-    ast::Decl* parseFunDecl(bool requireBody);
-    ast::Decl* parseDataDecl();
-    ast::Decl* parseTypeDecl();
-    ast::Decl* parseForeignDecl();
-    ast::Decl* parseClassDecl();
-    ast::Decl* parseInstanceDecl();
-    ast::Decl* parseAttrDecl();
+    ast::Module parseModule();
+    ast::Import parseImport();
+    ast::Fixity parseFixity();
+    void parseDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
+    void parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported, bool requireBody);
+    void parseDataDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
+    void parseTypeDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
+    void parseForeignDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
+    void parseTraitDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
+    void parseInstanceDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
+    void parseAttrDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
 
-    ast::Expr* parseBlock(bool isFun);
-    ast::Expr* parseExprSeq();
-    ast::Expr* parseExpr();
-    ast::Expr* parseTypedExpr();
-    ast::Expr* parseInfixExpr();
-    ast::Expr* parsePrefixExpr();
-    ast::Expr* parseLeftExpr();
-    ast::Expr* parseAppExpr();
-    ast::Expr* parseChain(ast::Expr* base);
-    ast::Expr* parseBaseExpr();
-    ast::Expr* parseSelExpr();
+    ast::Expr parseBlock(bool isFun);
+    ast::Expr parseExprSeq();
+    ast::Expr parseExpr();
+    ast::Expr parseTypedExpr();
+    ast::Expr parseInfixExpr(const WithLocation& location);
+    ast::Expr parsePrefixExpr(const WithLocation& location);
+    ast::Expr parseLeftExpr(const WithLocation& location);
+    ast::Expr parseAppExpr();
+    ast::Expr parseChain(ast::Expr base, const WithLocation& startLocation);
+    ast::Expr parseBaseExpr();
+    ast::Expr parseSelExpr(const WithLocation& location);
 
-    ast::Expr* parseCaseExpr();
-    ast::Expr* parseStringExpr();
+    ast::Expr parseMatchExpr(const WithLocation& location);
+    ast::Expr parseStringExpr(const WithLocation& location);
     ast::VarDecl parseDeclExpr();
-    ast::Expr* parseTupleExpr();
-    ast::Expr* parseArrayExpr();
-    ast::Expr* parseIfExpr();
+    ast::Expr parseTupleExpr(const WithLocation& location);
+    ast::Expr parseArrayExpr(const WithLocation& location);
+    ast::Expr parseIfExpr();
 
-    ast::Arg parseArg(bool requireType);
-    ast::ArgDecl parseTypeArg();
-    ast::ArgDecl parseArgDecl();
-    ast::TupArg parseTupArg();
-    ast::Expr* parseVarDecl(U32 line);
-    ast::Alt parseAlt();
-    ast::VarExpr* parseVar();
-    ast::VarExpr* parseQop();
+    void parseArg(ast::ParseList<ast::Arg>& list, bool requireType);
+    void parseTypeArg(ast::ParseList<ast::ArgDecl>& list);
+    void parseArgDecl(ast::ParseList<ast::ArgDecl>& list);
+    void parseTupArg(ast::ParseList<ast::TupArg>& list);
+    ast::Expr parseVarDecl(const WithLocation& location, U32 line);
+    void parseAlt(ast::ParseList<ast::Alt>& list);
+    ast::Expr parseQop();
 
-    ast::Type* parseType();
-    ast::Type* parseAType();
-    ast::SimpleType* parseSimpleType();
-    ast::Type* parseTupleType();
-    ast::Type* parseArrayType();
-    ast::Con parseCon();
+    ast::SimpleType parseSimpleType();
+    ast::Type parseType();
+    ast::Type parseAType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes);
+    ast::Type parseTupleType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes);
+    ast::Type parseArrayType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes);
+    void parseCon(ast::ParseList<ast::Con>& list);
 
     ast::FieldPat parseFieldPat();
-    ast::Pat* parseLeftPattern();
-    ast::Pat* parsePattern();
+    ast::Pat parseLeftPattern();
+    ast::Pat parsePattern();
 
-    ast::Attribute parseAttribute();
-    List<ast::Attribute>* parseAttributes(bool isInline);
+    void parseAttribute(ast::AttrList& list);
+    void parseAttributes(ast::AttrList& list, bool isInline);
 
-    ast::Constraint* parseConstraint();
-    List<ast::Constraint*>* parseConstraints();
+    ast::Constraint parseConstraint();
+    void parseConstraints(ast::ConstraintList& list);
 
-    void error(StringView text, Node* node = nullptr);
-
-    void eat() {lexer.next();}
-
-    template<class T> List<T>* list(const T& t, List<T>* next = nullptr) {
-        return new(buffer) List<T>(next, t);
-    }
-
-    auto tokenEat(Token::Type type) {
-        return [=] {
-            if(token.type == type) {
-                eat();
-                return true;
-            } else {
-                return false;
-            }
-        };
-    }
-
-    auto tokenCheck(Token::Type type) {
-        return [=] {
-            return token.type == type;
-        };
-    }
-
-    auto tokenRequire(Token::Type type, StringView errorText) {
-        return [=] {
-            if(token.type == type) {
-                eat();
-                return true;
-            } else {
-                error(errorText);
-                return false;
-            }
-        };
-    }
+    ast::Expr toLiteral(const Token::Payload& payload, Token::Type type, const WithLocation& source);
+    ast::Expr toLiteral(const WithLocation& source);
 
     template<class F>
-    auto node(F&& f) {
-        auto startLine = token.startLine;
-        auto startColumn = token.startColumn;
-        auto startOffset = token.startOffset;
-        auto result = f();
-        result->sourceModule = module.name;
-        result->sourceStart.line = startLine;
-        result->sourceStart.column = startColumn;
-        result->sourceStart.offset = startOffset;
-        result->sourceEnd.line = token.whitespaceLine;
-        result->sourceEnd.column = token.whitespaceColumn;
-        result->sourceEnd.offset = token.whitespaceOffset;
-        return result;
-    }
-
-    template<class F>
-    auto withLevel(F&& f) {
-        IndentLevel level{token, lexer};
-        auto r = f();
+    void withLevel(F&& f) {
+        IndentLevel level{ token, lexer };
+        f();
         level.end();
         if(token.type == Token::EndOfBlock) eat();
-        return r;
-    }
-
-    template<class F, class Start, class End>
-    auto between(F&& f, Start&& start, End&& end) -> decltype(f()) {
-        if(!start()) return nullptr;
-        auto res = f();
-        end(); // Don't fail the whole thing because the closing token is missing.
-        return res;
-    }
-
-    template<class F> auto between(F&& f, Token::Type start, Token::Type end, StringView startError, StringView endError) {
-        return between(f, tokenRequire(start, startError), tokenRequire(end, endError));
-    }
-
-    template<class F> auto maybeBetween(F&& f, Token::Type start, Token::Type end, StringView startError, StringView endError) {
-        return token.type == start ? between(f, start, end, startError, endError) : nullptr;
     }
 
     template<class F> auto parens(F&& f) {
@@ -165,53 +98,32 @@ struct Parser {
         return maybeBetween(f, Token::Type::BracketL, Token::Type::BracketR, "expected '['"_v, "expected ']'"_v);
     }
 
-    template<class F, class Sep, class End>
-    auto sepBy(F&& f, Sep&& sep, End&& end) -> List<decltype(f())>* {
-        if(end()) return nullptr;
-
-        auto n = list(f());
-        auto p = n;
-        while(sep()) {
-            auto l = list(f());
-            p->next = l;
-            p = l;
-        }
-
-        return n;
+    auto maybeVar(StringId var) {
+        return maybe(Token::VarID, [&](Token& t) { return t.data.id == var; });
     }
 
-    template<class F, class Sep>
-    auto sepBy1(F&& f, Sep&& sep) -> List<decltype(f())>* {
-        auto expr = list(f());
-        auto p = expr;
-        while(sep()) {
-            auto l = list(f());
-            p->next = l;
-            p = l;
-        }
-
-        return expr;
+    auto expectVarOrCon(StringView error = "expected symbol name"_v) {
+        return expect(error, [&](Token& t) {
+            return t.type == Token::VarID || t.type == Token::ConID;
+        });
     }
 
-    template<class F> auto sepBy1(F&& f, Token::Type sep) {return sepBy1(f, tokenEat(sep));}
-    template<class F> auto sepBy(F&& f, Token::Type sep, Token::Type end) {return sepBy(f, tokenEat(sep), tokenCheck(end));}
+    template<class T>
+    ast::ParsePtr<T> heap(const T& v) {
+        return new (arena) T(v) - *arena;
+    }
 
     Context& context;
-    Diagnostics& diag;
-    ast::Module& module;
-    Arena& buffer;
-
-    Token token;
-    Lexer lexer;
+    Region<ast::ParseRegion> arena;
 
     StringId qualifiedId;
     StringId hidingId;
     StringId fromId;
     StringId asId;
-    StringId refId;
     StringId ptrId;
-    StringId valId;
+    StringId refId;
     StringId downtoId;
-    StringId minusId;
     StringId stepId;
+    StringId setId;
+    StringId arraySizeId;
 };

@@ -15,6 +15,10 @@ StringView FileProvider::getSource(StringId module) {
     }
 }
 
+const Location* FileProvider::getNode(LocationId id) {
+    return context->getLocation(id);
+}
+
 Module* FileProvider::getModule(Module* from, StringId name) {
     if(name == core->id) {
         if(!core) core = coreModule(context);
@@ -125,10 +129,10 @@ static void mapFile(ModuleMap& map, const String& root, const String& file) {
     }
 
     // Copy the full path and file identifier into a new buffer.
-    auto buffer = (char*)hAlloc(file.size() + idLength + 2 * sizeof(U32) * segmentCount);
+    Ptr<char> buffer { (char*)hAlloc(file.size() + idLength + 2 * sizeof(U32) * segmentCount) };
 
     // Put the indexes and hashes first to get the correct alignment.
-    auto indexBuffer = (U32*)buffer;
+    auto indexBuffer = (U32*)buffer.get();
     auto hashBuffer = indexBuffer + segmentCount;
 
     // Copy the full path.
@@ -185,7 +189,7 @@ static void mapFile(ModuleMap& map, const String& root, const String& file) {
         id.segmentHash = hash.get();
     }
 
-    auto entry = map.entries.push(SourceEntry{String(pathBuffer, file.size()), id, buffer});
+    auto entry = map.entries.push(SourceEntry { StringView { pathBuffer, file.size() }, id, ::move(buffer) });
 }
 
 static Result<void, String> mapDirectory(ModuleMap& map, const String& root, const String& dir) {

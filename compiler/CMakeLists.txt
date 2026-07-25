@@ -14,6 +14,13 @@ set(SOURCE_FILES ${SOURCE_FILES}
 )
 
 set(SOURCE_FILES ${SOURCE_FILES}
+    util/lexer_util.h
+    util/lexer_util.cpp
+    util/parser_util.h
+    util/container.h
+)
+
+set(SOURCE_FILES ${SOURCE_FILES}
     parse/lexer.cpp
     parse/lexer.h
     parse/ast.h

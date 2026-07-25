@@ -4,22 +4,15 @@
 #include "settings.h"
 
 struct SourceEntry {
-    SourceEntry(String path, Identifier id, void* buffer): path(move(path)), id(id), buffer(buffer) {}
+    SourceEntry(StringView path, Identifier id, Ptr<char> buffer): path(path), id(id), buffer(::move(buffer)) {}
+    SourceEntry(SourceEntry&& other) noexcept: path(other.path), id(other.id), buffer(::move(other.buffer)) {}
 
-    SourceEntry(SourceEntry&& other): path(other.path), id(other.id), buffer(other.buffer) {
-        other.buffer = nullptr;
-    }
-
-    ~SourceEntry() {
-        hFree(buffer);
-    }
-
-    String path;
+    StringView path;
     Identifier id;
-    void* buffer;
+    Ptr<char> buffer;
 
-    ast::Module* ast = nullptr;
-    Module* ir = nullptr;
+    Ptr<ast::Module> ast = nullptr;
+    Ptr<Module> ir = nullptr;
 };
 
 struct ModuleMap {
@@ -38,5 +31,6 @@ struct FileProvider: ModuleProvider, SourceProvider {
 
     explicit FileProvider(ModuleMap& map);
     StringView getSource(StringId module) override;
+    const Location* getNode(LocationId id) override;
     Module* getModule(Module* from, StringId name) override;
 };

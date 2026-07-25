@@ -2,105 +2,119 @@
 
 using namespace ast;
 
-inline void write(std::ostream& stream, const String& string) {
-    stream.write(string.text(), string.size());
+inline void write(Net::Writer& stream, const String& string) {
+    stream.writeString(string);
+}
+
+template<class T>
+inline void printValue(Net::Writer& writer, const T& i) {
+    writer.writeBytes(128, [&](Byte* c) {
+        return show(i, (char*)c, 128);
+    });
 }
 
 struct Printer {
-    Printer(Context& context, std::ostream& stream) : context(context), stream(stream) {}
+    Printer(Context& context, Net::Writer& stream, ParseBase base) : context(context), stream(stream), base(base) {}
 
-    void toString(const Expr& expr) {
-        switch(expr.type) {
-            case Expr::Error: stream << "<parse error>"; break;
-            case Expr::Multi: toString((const MultiExpr&)expr); break;
-            case Expr::Lit: toString((const LitExpr&)expr); break;
-            case Expr::Var: toString((const VarExpr&)expr); break;
-            case Expr::App: toString((const AppExpr&)expr); break;
-            case Expr::Fun: toString((const FunExpr&)expr); break;
-            case Expr::Infix: toString((const InfixExpr&)expr); break;
-            case Expr::Prefix: toString((const PrefixExpr&)expr); break;
-            case Expr::If: toString((const IfExpr&)expr); break;
-            case Expr::MultiIf: toString((const MultiIfExpr&)expr); break;
-            case Expr::Decl: toString((const DeclExpr&)expr); break;
-            case Expr::While: toString((const WhileExpr&)expr); break;
-            case Expr::For: toString((const ForExpr&)expr); break;
-            case Expr::Assign: toString((const AssignExpr&)expr); break;
-            case Expr::Nested: toString((const NestedExpr&)expr); break;
-            case Expr::Coerce: toString((const CoerceExpr&)expr); break;
-            case Expr::Field: toString((const FieldExpr&)expr); break;
-            case Expr::Con: toString((const ConExpr&)expr); break;
-            case Expr::Tup: toString((const TupExpr&)expr); break;
-            case Expr::TupUpdate: toString((const TupUpdateExpr&)expr); break;
-            case Expr::Array: toString((const ArrayExpr&)expr); break;
-            case Expr::Map: toString((const MapExpr&)expr); break;
-            case Expr::Format: toString((const FormatExpr&)expr); break;
-            case Expr::Case: toString((const CaseExpr&)expr); break;
-            case Expr::Ret: toString((const RetExpr&)expr); break;
+    void toString(Expr& expr) {
+        if(expr.kind >= Expr::Lit) {
+            printLitExpr(expr);
+            return;
+        }
+
+        switch(expr.kind) {
+            case Expr::Error: stream.writeString("<parse error>"_v); break;
+            case Expr::Multi: printMultiExpr(expr); break;
+            case Expr::Lit: printLitExpr(expr); break;
+            case Expr::Var: printVarExpr(expr); break;
+            case Expr::App: printAppExpr(expr); break;
+            case Expr::Sub: printSubExpr(expr); break;
+            case Expr::Fun: printFunExpr(expr); break;
+            case Expr::Infix: printInfixExpr(expr); break;
+            case Expr::Prefix: printPrefixExpr(expr); break;
+            case Expr::If: printIfExpr(expr); break;
+            case Expr::MultiIf: printMultiIfExpr(expr); break;
+            case Expr::Decl: printDeclExpr(expr); break;
+            case Expr::While: printWhileExpr(expr); break;
+            case Expr::For: printForExpr(expr); break;
+            case Expr::Assign: printAssignExpr(expr); break;
+            case Expr::Nested: printNestedExpr(expr); break;
+            case Expr::Coerce: printCoerceExpr(expr); break;
+            case Expr::Field: printFieldExpr(expr); break;
+            case Expr::Con: printConExpr(expr); break;
+            case Expr::Tup: printTupExpr(expr); break;
+            case Expr::TupUpdate: printTupUpdateExpr(expr); break;
+            case Expr::Array: printArrayExpr(expr); break;
+            case Expr::Map: printMapExpr(expr); break;
+            case Expr::Format: printFormatExpr(expr); break;
+            case Expr::Range: printRangeExpr(expr); break;
+            case Expr::Match: printMatchExpr(expr); break;
+            case Expr::Ret: printRetExpr(expr); break;
         }
     }
 
-    void toString(const Decl& decl) {
-        toString(decl.attributes, "Decl", [&] {
+    void toString(Decl& decl) {
+        toString(&decl.attributes, "Decl"_v, [&] {
             switch(decl.kind) {
-                case Decl::Error: stream << "<parse error>"; break;
-                case Decl::Fun: toString((const FunDecl&)decl); break;
-                case Decl::Alias: toString((const AliasDecl&)decl); break;
-                case Decl::Data: toString((const DataDecl&)decl); break;
-                case Decl::Foreign: toString((const ForeignDecl&)decl); break;
-                case Decl::Stmt: toString((const StmtDecl&)decl); break;
-                case Decl::Class: toString((const ClassDecl&)decl); break;
-                case Decl::Instance: toString((const InstanceDecl&)decl); break;
-                case Decl::Attr: toString((const AttrDecl&)decl); break;
+                case Decl::Error: stream.writeString("<parse error>"_v); break;
+                case Decl::Fun: printFunDecl(decl); break;
+                case Decl::Alias: printAliasDecl(decl); break;
+                case Decl::Data: printDataDecl(decl); break;
+                case Decl::Foreign: printForeignDecl(decl); break;
+                case Decl::Stmt: printStmtDecl(decl); break;
+                case Decl::Trait: printTraitDecl(decl); break;
+                case Decl::Instance: printInstanceDecl(decl); break;
+                case Decl::Attr: printAttrDecl(decl); break;
             }
         });
     }
 
-    void toString(const Import& import) {
-        stream << "Import ";
+    void toString(Import& import) {
+        stream.writeString("Import "_v);
 
         if(import.qualified) {
-            stream << "<qualified> ";
+            stream.writeString("<qualified> "_v);
         }
 
         write(stream, context.findName(import.from));
-        stream << ' ';
+        stream.writeByte(' ');
 
         auto localName = context.find(import.localName);
         if(localName.textLength > 0) {
-            stream << "<as> ";
-            stream.write(localName.text, localName.textLength);
+            stream.writeString("<as> "_v);
+            stream.writeBytes((const Byte*)localName.text, localName.textLength);
         }
 
-        if(import.exclude || import.include) {
+        if(import.exclude.isNotEmpty() || import.include.isNotEmpty()) {
             makeLevel();
 
-            if(import.include) {
-                toStringIntro(import.exclude == nullptr);
-                stream << "<include>";
+            if(import.include.isNotEmpty()) {
+                toStringIntro(import.exclude.isEmpty());
+                stream.writeString("<include>"_v);
 
                 makeLevel();
-                auto v = import.include;
-                while(v) {
-                    toStringIntro(v->next == nullptr);
-                    stream << "Symbol ";
-                    write(stream, context.findName(v->item));
-                    v = v->next;
+                auto v = import.include.contents(base);
+
+                for(auto i = v.begin(); i != v.end(); ++i) {
+                    toStringIntro(i == v.back());
+                    stream.writeString("Symbol "_v);
+                    write(stream, context.findName(*i));
                 }
 
                 removeLevel();
             }
 
-            if(import.exclude) {
+            if(import.exclude.isNotEmpty()) {
                 toStringIntro(true);
-                stream << "<hide>";
+                stream.writeString("<hide>"_v);
 
                 makeLevel();
-                auto v = import.exclude;
-                while(v) {
-                    toStringIntro(v->next == nullptr);
-                    stream << "Symbol ";
-                    write(stream, context.findName(v->item));
-                    v = v->next;
+                auto v = import.exclude.contents(base);
+
+                for(auto i = v.begin(); i != v.end(); ++i) {
+                    toStringIntro(i == v.back());
+                    stream.writeString("Symbol "_v);
+                    write(stream, context.findName(*i));
                 }
 
                 removeLevel();
@@ -110,50 +124,51 @@ struct Printer {
         }
     }
 
-    void toString(const Fixity& fixity) {
-        stream << "Fixity ";
+    void toString(Fixity& fixity) {
+        stream.writeString("Fixity "_v);
 
         write(stream, context.findName(fixity.op));
 
-        stream << ' ';
-        stream << (fixity.kind == Fixity::Left ? "infixl" : "infixr");
-        stream << ' ';
-        stream << fixity.precedence;
+        stream.writeByte(' ');
+        stream.writeString(fixity.kind == Fixity::Left ? "infixl"_v : "infixr"_v);
+        stream.writeByte(' ');
+        printValue(stream, fixity.precedence);
     }
 
-    void toString(const Module& mod) {
-        stream << "Module ";
-        Size max = mod.imports.size();
-        if(max) {
+    void toString(Module& mod) {
+        stream.writeString("Module "_v);
+
+        auto imports = mod.imports.contents(base);
+        if(imports.size() > 0) {
             makeLevel();
-            for(Size i = 0; i < max - 1; i++) {
-                toString(mod.imports[i], false);
+            for(auto i = imports.begin(); i != imports.end(); ++i) {
+                auto it = *i;
+                toString(it, i == imports.back());
             }
-            toString(mod.imports[max-1], true);
             removeLevel();
         }
 
-        max = mod.decls.size();
-        if(max) {
+        auto decls = mod.decls.contents(base);
+        if(decls.size() > 0) {
             makeLevel();
-            for(Size i = 0; i < max - 1; i++) {
-                toString(*mod.decls[i], false);
+            for(auto i = decls.begin(); i != decls.end(); ++i) {
+                auto it = *i;
+                toString(it, i == decls.back());
             }
-            toString(*mod.decls[max-1], true);
             removeLevel();
         }
 
-        max = mod.ops.size();
-        if(max) {
+        auto ops = mod.ops.contents(base);
+        if(ops.size() > 0) {
             makeLevel();
-            for(Size i = 0; i < max - 1; i++) {
-                toString(mod.ops[i], false);
+            for(auto i = ops.begin(); i != ops.end(); ++i) {
+                auto it = *i;
+                toString(it, i == ops.back());
             }
-            toString(mod.ops[max-1], true);
             removeLevel();
         }
 
-        stream << '\n';
+        stream.writeByte('\n');
     }
 
 private:
@@ -186,884 +201,824 @@ private:
         indentStart -= 2;
     }
 
-    void toString(const MultiExpr& e) {
-        stream << "MultiExpr ";
+    void printMultiExpr(Expr& e) {
+        stream.writeString("MultiExpr "_v);
         makeLevel();
-        auto expr = e.exprs;
-        while(expr) {
-            toString(*expr->item, expr->next == nullptr);
-            expr = expr->next;
-        }
+        printList(e.multi);
         removeLevel();
     }
 
-    void toString(const LitExpr& e) {
-        stream << "LitExpr ";
-        toString(e.literal);
+    void printLitExpr(Expr& e) {
+        stream.writeString("LitExpr "_v);
+        printLiteral(e.lit, (Literal::Kind)(e.kind - Expr::Lit));
     }
 
-    void toString(const VarExpr& e) {
-        stream << "VarExpr ";
-        write(stream, context.findName(e.name));
+    void printVarExpr(Expr& e) {
+        stream.writeString("VarExpr "_v);
+        write(stream, context.findName(e.var));
     };
 
-    void toString(const AppExpr& e) {
-        stream << "AppExpr ";
+    void printAppExpr(Expr& e) {
+        auto app = base[e.app];
+
+        stream.writeString("AppExpr "_v);
         makeLevel();
-        toString(*e.callee, e.args == nullptr);
-        auto arg = e.args;
-        while(arg) {
-            toString(arg->item, arg->next == nullptr);
-            arg = arg->next;
-        }
+        toString(app->callee, app->args.isEmpty());
+        printList(app->args);
         removeLevel();
     }
 
-    void toString(const InfixExpr& e) {
-        stream << "InfixExpr ";
-        write(stream, context.findName(e.op->name));
+    void printSubExpr(Expr& e) {
+        auto app = base[e.sub];
+
+        stream.writeString("SubExpr "_v);
         makeLevel();
-        toString(*e.lhs,  false);
-        toString(*e.rhs, true);
+        toString(app->callee, app->args.isEmpty());
+        printList(app->args);
         removeLevel();
     }
 
-    void toString(const PrefixExpr& e) {
-        stream << "PrefixExpr ";
-        write(stream, context.findName(e.op->name));
+    void printInfixExpr(Expr& e) {
+        auto infix = base[e.infix];
+
+        stream.writeString("InfixExpr "_v);
         makeLevel();
-        toString(*e.dst, true);
+        toString(infix->op, false);
+        toString(infix->lhs,  false);
+        toString(infix->rhs, true);
         removeLevel();
     }
 
-    void toString(const IfExpr& e) {
-        stream << "IfExpr ";
+    void printPrefixExpr(Expr& e) {
+        auto prefix = base[e.prefix];
+
+        stream.writeString("PrefixExpr "_v);
         makeLevel();
-        toString(*e.cond, false);
-        if(e.otherwise) {
-            toString(*e.then, false);
-            toString(*e.otherwise, true);
+        toString(prefix->op, false);
+        toString(prefix->on, true);
+        removeLevel();
+    }
+
+    void printIfExpr(Expr& e) {
+        auto ifExpr = base[e.singleIf];
+
+        stream.writeString("IfExpr "_v);
+        makeLevel();
+        toString(ifExpr->cond, false);
+        if(ifExpr->otherwise) {
+            toString(ifExpr->then, false);
+            toString(ifExpr->otherwise.unwrap(), true);
         } else {
-            toString(*e.then, true);
+            toString(ifExpr->then, true);
         }
         removeLevel();
     }
 
-    void toString(const MultiIfExpr& e) {
-        stream << "MultiIfExpr ";
+    void printMultiIfExpr(Expr& e) {
+        stream.writeString("MultiIfExpr "_v);
         makeLevel();
-        auto a = e.cases;
-        while(a) {
-            toString(a->item, a->next == nullptr);
-            a = a->next;
-        }
+        printList(e.multiIf);
         removeLevel();
     }
 
-    void toString(const VarDecl& e) {
-        stream << "VarDecl ";
-        if(e.pat->kind == Pat::Var) {
-            write(stream, context.findName(((const VarPat*)e.pat)->var));
+    void toString(VarDecl& e) {
+        stream.writeString("VarDecl "_v);
+        if(e.pat.kind == Pat::Var) {
+            write(stream, context.findName(e.pat.var));
         }
 
-        switch(e.mut) {
-            case VarDecl::Immutable:
-                stream << " <const> ";
+        switch(e.bind) {
+            case BindType::Borrow:
+                stream.writeString(" <borrow> "_v);
                 break;
-            case VarDecl::Ref:
-                stream << " <ref> ";
+            case BindType::Ref:
+                stream.writeString(" <ref> "_v);
                 break;
-            case VarDecl::Val:
-                stream << " <flatten> ";
+            case BindType::Sink:
+                stream.writeString(" <sink> "_v);
+                break;
+            case BindType::Set:
+                stream.writeString(" <set> "_v);
                 break;
         }
 
         makeLevel();
-        toString(*e.pat, false);
-        toString(*e.content, e.in == nullptr && e.alts == nullptr);
-        if(e.alts) {
+        toString(e.pat, false);
+        if(e.content) toString(*base[e.content], e.in == nullptr && e.alts.isEmpty());
+        if(e.alts.isNotEmpty()) {
             toStringIntro(e.in == nullptr);
-            stream << "Else";
+            stream.writeString("Else"_v);
             makeLevel();
-            auto a = e.alts;
-            while(a) {
-                toString(a->item, a->next == nullptr);
-                a = a->next;
-            }
+            printList(e.alts);
             removeLevel();
         }
 
         if(e.in) {
             toStringIntro(true);
-            stream << "In";
+            stream.writeString("In"_v);
             makeLevel();
-            toString(*e.in, true);
+            toString(*base[e.in], true);
             removeLevel();
         }
         removeLevel();
     }
 
-    void toString(const DeclExpr& e) {
-        stream << "DeclExpr ";
+    void printDeclExpr(Expr& e) {
+        stream.writeString("DeclExpr "_v);
         makeLevel();
-        auto decl = e.decls;
-        while(decl) {
-            toString(decl->item, decl->next == nullptr);
-            decl = decl->next;
-        }
+        printList(e.decl);
         removeLevel();
     }
 
-    void toString(const WhileExpr& e) {
-        stream << "WhileExpr";
+    void printWhileExpr(Expr& e) {
+        auto w = base[e.whileLoop];
+
+        stream.writeString("WhileExpr"_v);
         makeLevel();
-        toString(*e.cond, false);
-        toString(*e.loop, true);
+        toString(w->cond, false);
+        toString(w->body, true);
         removeLevel();
     }
 
-    void toString(const ForExpr& e) {
-        stream << "ForExpr ";
+    void printForExpr(Expr& e) {
+        auto f = base[e.forLoop];
+
+        stream.writeString("ForExpr "_v);
         write(stream, context.findName(e.var));
 
-        if(e.reverse) {
-            stream << " <reverse>";
+        if(f->reverse) {
+            stream.writeString(" <reverse>"_v);
         }
 
         makeLevel();
-        toString(*e.from, false);
-        toString(*e.to, false);
-        if(e.step) toString(*e.step, false);
-        toString(*e.body, true);
+        toString(f->from, false);
+        if(f->to) toString(*base[f->to], false);
+        if(f->step) toString(*base[f->step], false);
+        toString(f->body, true);
         removeLevel();
     }
 
-    void toString(const AssignExpr& e) {
-        stream << "AssignExpr ";
+    void printAssignExpr(Expr& e) {
+        auto assign = base[e.assign];
+
+        stream.writeString("AssignExpr "_v);
         makeLevel();
-        toString(*e.target, false);
-        toString(*e.value, true);
+        toString(assign->target, false);
+        toString(assign->value, true);
         removeLevel();
     }
 
-    void toString(const NestedExpr& e) {
-        stream << "NestedExpr ";
+    void printNestedExpr(Expr& e) {
+        stream.writeString("NestedExpr "_v);
         makeLevel();
-        toString(*e.expr, true);
+        toString(*base[e.nested], true);
         removeLevel();
     }
 
-    void toString(const CoerceExpr& e) {
-        stream << "CoerceExpr ";
+    void printCoerceExpr(Expr& e) {
+        auto coerce = base[e.coerce];
+
+        stream.writeString("CoerceExpr "_v);
         makeLevel();
-        toString(*e.kind, false);
-        toString(*e.target, true);
+        toString(coerce->type, false);
+        toString(coerce->target, true);
         removeLevel();
     }
 
-    void toString(const FieldExpr& e) {
-        stream << "FieldExpr ";
+    void printFieldExpr(Expr& e) {
+        auto field = base[e.field];
+
+        stream.writeString("FieldExpr "_v);
         makeLevel();
-        toString(*e.field, false);
-        toString(*e.target, true);
+        toString(field->field, false);
+        toString(field->target, true);
         removeLevel();
     }
 
-    void toString(const ConExpr& e) {
-        stream << "ConExpr ";
-        write(stream, context.findName(e.type->con));
-    }
+    void printRangeExpr(Expr& e) {
+        auto range = base[e.range];
 
-    void toString(const TupExpr& e) {
-        stream << "TupExpr";
+        stream.writeString("RangeExpr "_v);
+        if(range->reverse) stream.writeString("<reverse> "_v);
+
         makeLevel();
-        auto arg = e.args;
-        while(arg) {
-            toString(arg->item, !arg->next);
-            arg = arg->next;
-        }
+        toString(range->from, false);
+        toString(range->to, true);
         removeLevel();
     }
 
-    void toString(const TupUpdateExpr& e) {
-        stream << "TupUpdateExpr ";
-    }
+    void printConExpr(Expr& e) {
+        auto con = base[e.con];
 
-    void toString(const ArrayExpr& e) {
-        stream << "ArrayExpr ";
+        stream.writeString("ConExpr "_v);
         makeLevel();
-        auto arg = e.args;
-        while(arg) {
-            toString(*arg->item, !arg->next);
-            arg = arg->next;
-        }
+        toString(con->type, false);
+        printList(con->args);
         removeLevel();
     }
 
-    void toString(const MapExpr& e) {
-        stream << "MapExpr ";
-    }
-
-    void toString(const FormatExpr& e) {
-        stream << "FormatExpr ";
+    void printTupExpr(Expr& e) {
+        stream.writeString("TupExpr"_v);
         makeLevel();
-        auto chunk = e.format;
-        while(chunk) {
-            toString(chunk->item, !chunk->next);
-            chunk = chunk->next;
-        }
+        printList(e.tup);
         removeLevel();
     }
 
-    void toString(const CaseExpr& e) {
-        stream << "CaseExpr ";
+    void printTupUpdateExpr(Expr& e) {
+        auto tup = base[e.tupUpdate];
+
+        stream.writeString("TupUpdateExpr "_v);
         makeLevel();
-        auto a = e.alts;
-        toString(*e.pivot, a == nullptr);
-
-        while(a) {
-            toString(a->item, a->next == nullptr);
-            a = a->next;
-        }
+        toString(tup->value, false);
+        printList(tup->args);
         removeLevel();
     }
 
-    void toString(const RetExpr& e) {
-        stream << "RetExpr ";
-        if(e.value) {
+    void printArrayExpr(Expr& e) {
+        stream.writeString("ArrayExpr "_v);
+        makeLevel();
+        printList(e.arr);
+        removeLevel();
+    }
+
+    void printMapExpr(Expr& e) {
+        stream.writeString("MapExpr "_v);
+        makeLevel();
+        printList(e.map);
+        removeLevel();
+    }
+
+    void printFormatExpr(Expr& e) {
+        stream.writeString("FormatExpr "_v);
+        makeLevel();
+        printList(e.format);
+        removeLevel();
+    }
+
+    void printMatchExpr(Expr& e) {
+        auto match = base[e.match];
+
+        stream.writeString("MatchExpr "_v);
+        makeLevel();
+        toString(match->pivot, match->alts.isEmpty());
+        printList(match->alts);
+        removeLevel();
+    }
+
+    void printRetExpr(Expr& e) {
+        stream.writeString("RetExpr "_v);
+        if(e.ret) {
             makeLevel();
-            toString(*e.value, true);
+            toString(*base[e.ret], true);
             removeLevel();
         }
     }
 
-    void toString(const FunExpr& e) {
-        stream << "FunExpr (";
-        if(e.args) {
-            auto arg = e.args;
-            while(arg) {
-                write(stream, context.findName(arg->item.name));
-                if(arg->next) stream << ", ";
-                arg = arg->next;
-            }
+    void printFunExpr(Expr& e) {
+        auto f = base[e.fun];
+        stream.writeString("FunExpr ("_v);
+
+        auto contents = f->args.contents(base);
+        for(auto a = contents.begin(); a != contents.end(); ++a) {
+            write(stream, context.findName((*a).name));
+            if(a != contents.back()) stream.writeString(", "_v);
         }
-        stream << ')';
+
+        stream.writeByte(')');
 
         makeLevel();
-        toString(*e.body, true);
+        toString(f->body, true);
         removeLevel();
     }
 
-    void toString(const Alt& alt, bool last) {
-        toStringIntro(last);
-        stream << "Alt";
+    void toString(Alt& alt) {
+        stream.writeString("Alt"_v);
+
         makeLevel();
-        toString(*alt.pat, false);
-        toString(*alt.expr, true);
+        toString(alt.pat, false);
+        toString(alt.expr, true);
         removeLevel();
     }
 
-    void toString(const FunDecl& e) {
-        stream << "FunDecl ";
-        write(stream, context.findName(e.name));
+    void printFunDecl(Decl& e) {
+        stream.writeString("FunDecl "_v);
+        write(stream, context.findName(e.fun.name));
 
-        if(e.implicitReturn) {
-            stream << " <implicit return> ";
+        if(e.fun.implicitReturn) {
+            stream.writeString(" <implicit return> "_v);
         }
 
         makeLevel();
-        toString(e.constraints, !e.args && !e.ret && !e.body);
+        toString(e.fun.constraints, e.fun.args.isEmpty() && !e.fun.ret && !e.fun.body);
 
-        if(e.args) {
-            auto arg = e.args;
-            while(arg) {
-                toStringIntro(arg->next == nullptr && e.ret == nullptr && e.body == nullptr);
+        if(e.fun.args.isNotEmpty()) {
+            auto args = e.fun.args.contents(base);
+            for(auto i = args.begin(); i != args.end(); ++i) {
+                auto arg = *i;
+                toStringIntro(i == args.back() && e.fun.ret == nullptr && e.fun.body == nullptr);
 
-                stream << "Arg ";
-                write(stream, context.findName(arg->item.name));
+                stream.writeString("Arg "_v);
+                write(stream, context.findName(arg.name));
 
                 makeLevel();
-                if(arg->item.type) toString(*arg->item.type, arg->item.def == nullptr);
-                if(arg->item.def) toString(*arg->item.def, true);
+                if(arg.type) toString(*base[arg.type], arg.def == nullptr);
+                if(arg.def) toString(*base[arg.def], true);
                 removeLevel();
-
-                arg = arg->next;
             }
         }
 
-        if(e.ret) {
-            toStringIntro(e.body == nullptr);
-            stream << "Result";
+        if(e.fun.ret) {
+            toStringIntro(e.fun.body == nullptr);
+            stream.writeString("Result"_v);
             makeLevel();
-            toString(*e.ret, true);
+            toString(*base[e.fun.ret], true);
             removeLevel();
         }
 
-        if(e.body) {
+        if(e.fun.body) {
             toStringIntro(true);
-            stream << "Body";
+            stream.writeString("Body"_v);
             makeLevel();
-            toString(*e.body, true);
+            toString(*base[e.fun.body], true);
             removeLevel();
         }
         removeLevel();
     }
 
-    void toString(const AliasDecl& e) {
-        stream << "AliasDecl ";
-        toString(*e.type);
+    void printAliasDecl(Decl& e) {
+        stream.writeString("AliasDecl "_v);
+        toString(e.alias.type);
         makeLevel();
-        toString(*e.target, true);
+        toString(e.alias.target, true);
         removeLevel();
     }
 
-    void toString(const DataDecl& e) {
-        stream << "DataDecl ";
-        toString(*e.type);
+    void printDataDecl(Decl& e) {
+        stream.writeString("DataDecl "_v);
+        toString(e.data.type);
         makeLevel();
-        toString(e.constraints, false);
-
-        auto con = e.cons;
-        while(con) {
-            toString(con->item, con->next == nullptr);
-            con = con->next;
-        }
+        toString(e.data.constraints, false);
+        printList(e.data.cons);
         removeLevel();
     }
 
-    void toString(const ForeignDecl& e) {
-        stream << "ForeignDecl ";
-        auto name = context.find(e.externName);
-        stream.write(name.text, name.textLength);
-        stream << ' ';
+    void printForeignDecl(Decl& e) {
+        stream.writeString("ForeignDecl "_v);
+        auto name = context.find(e.foreign.externName);
+        stream.writeBytes((const Byte*)name.text, name.textLength);
+        stream.writeByte(' ');
 
-        auto localName = context.find(e.localName);
+        auto localName = context.find(e.foreign.localName);
         if(localName.textLength > 0) {
-            stream.write(localName.text, localName.textLength);
+            stream.writeBytes((const Byte*)localName.text, localName.textLength);
         } else {
-            stream.write(name.text, name.textLength);
+            stream.writeBytes((const Byte*)name.text, name.textLength);
         }
 
         makeLevel();
-        toString(*e.type, true);
+        toString(e.foreign.type, true);
         removeLevel();
     }
 
-    void toString(const StmtDecl& e) {
-        stream << "StmtDecl";
+    void printStmtDecl(Decl& e) {
+        stream.writeString("StmtDecl"_v);
         makeLevel();
-        toString(*e.expr, true);
+        toString(e.stmt, true);
         removeLevel();
     }
 
-    void toString(const ClassDecl& e) {
-        stream << "ClassDecl ";
-        toString(*e.type);
+    void printTraitDecl(Decl& e) {
+        stream.writeString("TraitDecl "_v);
+        toString(e.trait.type);
 
         makeLevel();
-        toString(e.constraints, e.decls == nullptr);
-
-        auto d = e.decls;
-        while(d) {
-            toString(*d->item, d->next == nullptr);
-            d = d->next;
-        }
+        toString(e.trait.constraints, e.trait.decls.isEmpty());
+        printList(e.trait.decls);
         removeLevel();
     }
 
-    void toString(const InstanceDecl& e) {
-        stream << "InstanceDecl ";
+    void printInstanceDecl(Decl& e) {
+        stream.writeString("InstanceDecl "_v);
         makeLevel();
-        toString(*e.type, e.decls == nullptr);
-
-        auto d = e.decls;
-        while(d) {
-            toString(*d->item, d->next == nullptr);
-            d = d->next;
-        }
+        toString(e.instance.type, e.instance.decls.isEmpty());
+        printList(e.instance.decls);
         removeLevel();
     }
 
-    void toString(const AttrDecl& e) {
-        stream << "AttrDecl ";
-        write(stream, context.findName(e.name));
+    void printAttrDecl(Decl& e) {
+        stream.writeString("AttrDecl "_v);
+        write(stream, context.findName(e.attr.name));
 
-        if(e.type) {
-            makeLevel();
-            toString(*e.type, true);
-            removeLevel();
-        }
+        makeLevel();
+        toString(e.attr.type, true);
+        removeLevel();
     }
 
-    void toString(const FormatChunk& f, bool last) {
+    void toString(FormatChunk& f, bool last) {
         auto name = context.find(f.string);
         if(f.format) {
-            toString(*f.format, name.textLength > 0 ? false : last);
+            toString(*base[f.format], name.textLength > 0 ? false : last);
         }
 
         if(name.textLength > 0) {
             toStringIntro(last);
-            stream << "LitExpr \"";
-            stream.write(name.text, name.textLength);
-            stream << '"';
+            stream.writeString("LitExpr \""_v);
+            stream.writeBytes((const Byte*)name.text, name.textLength);
+            stream.writeByte('"');
         }
     }
 
-    void toString(const IfCase& c, bool last) {
-        toStringIntro(last);
-        stream << "IfCase ";
+    void toString(IfCase& c) {
+        stream.writeString("IfCase "_v);
+
         makeLevel();
-        toString(*c.cond, false);
-        toString(*c.then, true);
+        toString(c.cond, false);
+        toString(c.then, true);
         removeLevel();
     }
 
-    void toString(const TupArg& arg, bool last) {
-        toStringIntro(last);
-        stream << "Field ";
+    void toString(TupArg& arg) {
+        stream.writeString("Field "_v);
+
         auto name = context.find(arg.name);
         if(name.textLength > 0) {
-            stream.write(name.text, name.textLength);
+            stream.writeBytes((const Byte*)name.text, name.textLength);
         } else {
-            stream << "<anonymous>";
+            stream.writeString("<anonymous>"_v);
         }
 
         makeLevel();
-        toString(*arg.value, true);
+        toString(arg.value, true);
         removeLevel();
     }
 
-    void toString(const SimpleType& t) {
+    void toString(MapArg& arg) {
+        stream.writeString("Entry "_v);
+
+        makeLevel();
+        toString(arg.key, false);
+        toString(arg.value, true);
+        removeLevel();
+    }
+
+    void toString(SimpleType& t) {
         auto name = context.find(t.name);
         if(name.textLength > 0) {
-            stream.write(name.text, name.textLength);
-            stream << ' ';
+            stream.writeBytes((const Byte*)name.text, name.textLength);
+            stream.writeByte(' ');
         }
 
-        if(t.kind) {
-            stream << '(';
-            auto k = t.kind;
-            while(k) {
-                write(stream, context.findName(k->item));
-                if(k->next) stream << ", ";
-                k = k->next;
+        if(t.kind.isNotEmpty()) {
+            stream.writeByte('(');
+            auto k = t.kind.contents(base);
+
+            for(auto i = k.begin(); i != k.end(); ++i) {
+                write(stream, context.findName(*i));
+                if(i != k.back()) stream.writeString(", "_v);
             }
-            stream << ')';
+
+            stream.writeByte(')');
         }
     }
 
-    void toString(const Con& c, bool last) {
+    void toString(Con& c) {
         auto name = context.find(c.name);
         if(name.textLength > 0) {
-            toStringIntro(last);
-            stream << "Constructor ";
-            stream.write(name.text, name.textLength);
+            stream.writeString("Constructor "_v);
+            stream.writeBytes((const Byte*)name.text, name.textLength);
 
             makeLevel();
-            if(c.attributes) {
+            if(c.attributes.isNotEmpty()) {
                 toStringIntro(c.content == nullptr);
-                stream << "<attributes>";
-                toString(c.attributes);
+                stream.writeString("<attributes>"_v);
+                makeLevel();
+                printList(c.attributes);
+                removeLevel();
             }
 
             if(c.content) {
-                toString(*c.content, true);
+                toString(*base[c.content], true);
             }
 
             removeLevel();
+        } else {
+            stream.writeString("<invalid name>"_v);
         }
     }
 
-    void toString(const Attribute& attribute, bool last) {
-        toStringIntro(last);
-        stream << "Attribute ";
+    void toString(Attribute& attribute) {
+        stream.writeString("Attribute "_v);
         auto name = context.find(attribute.name);
         if(name.textLength > 0) {
-            stream.write(name.text, name.textLength);
+            stream.writeBytes((const Byte*)name.text, name.textLength);
         }
 
-        toString(attribute.args);
-    }
-
-    template<class T>
-    void toString(List<T>* list) {
-        if(list) {
-            makeLevel();
-            while(list) {
-                toString(list->item, list->next == nullptr);
-                list = list->next;
-            }
-            removeLevel();
-        }
+        printList(attribute.args);
     }
 
     void toStringIntro(bool last) {
-        stream << '\n';
+        stream.writeByte('\n');
         makeIndent(last);
-        stream.write(indentStack, indentStart);
+        stream.writeBytes((const Byte*)indentStack, indentStart);
     }
 
-    void toString(const Expr& expr, bool last) {
+    template<class T>
+    void toString(T&& t, bool last) {
         toStringIntro(last);
-        toString(expr);
+        toString(t);
     }
 
-    void toString(const Decl& decl, bool last) {
-        toStringIntro(last);
-        toString(decl);
-    }
-
-    void toString(const Fixity& fixity, bool last) {
-        toStringIntro(last);
-        toString(fixity);
-    }
-
-    void toString(const Type& type, bool last) {
-        toStringIntro(last);
-        toString(type);
-    }
-
-    void toString(const Pat& pat, bool last) {
-        toStringIntro(last);
-        toString(pat);
-    }
-
-    void toString(const TupField& field, bool last) {
-        toStringIntro(last);
-        toString(field);
-    }
-
-    void toString(const ArgDecl& arg, bool last) {
-        toStringIntro(last);
-        toString(arg);
-    }
-
-    void toString(const VarDecl& decl, bool last) {
-        toStringIntro(last);
-        toString(decl);
-    }
-
-    void toString(const Import& import, bool last) {
-        toStringIntro(last);
-        toString(import);
-    }
-
-    void toString(const Constraint& constraint, bool last) {
-        toStringIntro(last);
-        toString(constraint);
-    }
-
-    void toString(const Literal& literal) {
-        switch(literal.type) {
+    void printLiteral(const Literal& literal, Literal::Kind kind) {
+        switch(kind) {
             case Literal::Int:
-                stream << literal.i;
+                printValue(stream, literal.i());
+                break;
+            case Literal::Double:
+                printValue(stream, literal.d());
                 break;
             case Literal::Float:
-                stream << literal.f;
+                printValue(stream, literal.f);
                 break;
             case Literal::Char:
-                stream << literal.c;
+                printValue(stream, U32(literal.c));
                 break;
             case Literal::String: {
-                stream << '"';
+                stream.writeByte('"');
                 write(stream, context.findName(literal.s));
-                stream << '"';
+                stream.writeByte('"');
                 break;
             }
             case Literal::Bool:
-                if(literal.i > 0) stream << "True";
-                else stream << "False";
+                if(literal.b) stream.writeString("True"_v);
+                else stream.writeString("False"_v);
                 break;
         }
     }
 
-    void toString(const Type& type) {
-        toString(type.attributes, "Type", [&] {
+    void toString(Type& type) {
+        toString(type.attributes ? base[type.attributes] : nullptr, "Type"_v, [&] {
             switch(type.kind) {
                 case Type::Error:
-                    stream << "<parse error>";
+                    stream.writeString("<parse error>"_v);
                     break;
                 case Type::Unit:
-                    stream << "UnitType";
+                    stream.writeString("UnitType"_v);
                     break;
                 case Type::Con: {
-                    auto name = context.find(((const ConType&)type).con);
-                    stream << "ConType ";
-                    stream.write(name.text, name.textLength);
+                    auto name = context.find(type.name);
+                    stream.writeString("ConType "_v);
+                    stream.writeBytes((const Byte*)name.text, name.textLength);
                     break;
                 }
                 case Type::Ptr:
-                    stream << "PtrType ";
+                    stream.writeString("PtrType "_v);
                     makeLevel();
-                    toString(*((const PtrType&)type).type, true);
+                    toString(*base[type.to], true);
                     removeLevel();
                     break;
                 case Type::Ref:
-                    stream << "RefType ";
+                    stream.writeString("RefType "_v);
                     makeLevel();
-                    toString(*((const RefType&)type).type, true);
-                    removeLevel();
-                    break;
-                case Type::Val:
-                    stream << "ValType ";
-                    makeLevel();
-                    toString(*((const ValType&)type).type, true);
+                    toString(*base[type.to], true);
                     removeLevel();
                     break;
                 case Type::Gen: {
-                    stream << "GenType ";
-                    auto name = context.find(((const GenType&)type).con);
-                    stream.write(name.text, name.textLength);
+                    stream.writeString("GenType "_v);
+                    auto name = context.find(type.name);
+                    stream.writeBytes((const Byte*)name.text, name.textLength);
                     break;
                 }
                 case Type::Tup:
-                    toString((const TupType&)type);
+                    printTupType(type);
                     break;
                 case Type::Fun:
-                    toString((const FunType&)type);
+                    printFunType(type);
                     break;
                 case Type::App:
-                    toString((const AppType&)type);
+                    printAppType(type);
                     break;
                 case Type::Arr:
-                    stream << "ArrType ";
+                    stream.writeString("ArrType "_v);
                     makeLevel();
-                    toString(*((const ArrType&)type).type, true);
+                    toString(*base[type.arr.type], type.arr.length != nullptr);
+                    if(type.arr.length) toString(*base[type.arr.length], true);
                     removeLevel();
                     break;
                 case Type::Map:
-                    stream << "MapType ";
+                    stream.writeString("MapType "_v);
                     makeLevel();
-                    toString(*((const MapType&)type).from, false);
-                    toString(*((const MapType&)type).to, true);
+                    toString(*base[type.map.from], false);
+                    toString(*base[type.map.to], true);
                     removeLevel();
                     break;
             }
         });
     }
 
-    void toString(const AppType& type) {
-        stream << "AppType ";
-        makeLevel();
-        toString(*type.base, false);
-        auto a = type.apps;
-        while(a) {
-            toString(*a->item, a->next == nullptr);
-            a = a->next;
-        }
-        removeLevel();
-    }
-
-    void toString(const TupField& field) {
-        stream << "Field ";
+    void toString(TupField& field) {
+        stream.writeString("Field "_v);
         if(field.name) {
             write(stream, context.findName(field.name));
         } else {
-            stream << "<anonymous>";
+            stream.writeString("<anonymous>"_v);
         }
 
         makeLevel();
-        toString(*field.type, true);
+        toString(field.type, true);
         removeLevel();
     }
 
-    void toString(const TupType& type) {
-        stream << "TupType ";
+    void printTupType(Type& type) {
+        stream.writeString("TupType "_v);
         makeLevel();
-        auto a = type.fields;
-        while(a) {
-            toString(a->item, a->next == nullptr);
-            a = a->next;
-        }
+        printList(type.tup.fields);
         removeLevel();
     }
 
     void toString(const ArgDecl& arg) {
-        stream << "Arg ";
+        stream.writeString("Arg "_v);
         auto name = context.find(arg.name);
         if(name.textLength > 0) {
-            stream.write(name.text, name.textLength);
+            stream.writeBytes((const Byte*)name.text, name.textLength);
         } else {
-            stream << "<anonymous>";
+            stream.writeString("<anonymous>"_v);
         }
 
         makeLevel();
-        toString(*arg.type, true);
+        auto type = arg.type;
+        toString(type, true);
         removeLevel();
     }
 
-    void toString(const FunType& type) {
-        stream << "FunType ";
+    void printFunType(Type& type) {
+        auto fun = base[type.fun];
+
+        stream.writeString("FunType "_v);
         makeLevel();
 
-        auto arg = type.args;
-        while(arg) {
-            toString(arg->item, false);
-            arg = arg->next;
+        auto contents = fun->args.contents(base);
+        for(auto a = contents.begin(); a != contents.end(); ++a) {
+            toString(*a, false);
         }
 
-        if(type.ret) {
-            toString(*type.ret, true);
-        } else {
-            toStringIntro(true);
-            stream << "UnitType";
-        }
-
+        toString(fun->ret, true);
         removeLevel();
     }
 
-    void toString(const Pat& pat) {
+    void printAppType(Type& type) {
+        auto app = base[type.app];
+
+        stream.writeString("AppType "_v);
+        makeLevel();
+        printList(app->args);
+        removeLevel();
+    }
+
+    void toString(Pat& pat) {
         switch(pat.kind) {
             case Pat::Error:
-                stream << "<parse error>";
+                stream.writeString("<parse error>"_v);
                 break;
             case Pat::Var: {
-                stream << "VarPat ";
-                auto name = context.find(((const VarPat&)pat).var);
-                stream.write(name.text, name.textLength);
+                stream.writeString("VarPat "_v);
+                auto name = context.find(pat.var);
+                stream.writeBytes((const Byte*)name.text, name.textLength);
                 break;
             }
             case Pat::Lit:
-                stream << "LitPat ";
-                toString(((const LitPat&)pat).lit);
+                stream.writeString("LitPat "_v);
+                printLiteral(pat.lit, (Literal::Kind)(pat.kind - Pat::Lit));
                 break;
             case Pat::Any:
-                stream << "AnyPat";
+                stream.writeString("AnyPat"_v);
                 break;
             case Pat::Tup: {
-                stream << "TupPat";
-                auto fields = ((const TupPat&)pat).fields;
+                stream.writeString("TupPat"_v);
                 makeLevel();
-                while(fields) {
-                    toStringIntro(fields->next == nullptr);
-                    stream << "Field ";
-                    auto name = context.find(fields->item.field);
+
+                auto fields = pat.tup.contents(base);
+                for(auto i = fields.begin(); i != fields.end(); ++i) {
+                    toStringIntro(i == fields.back());
+                    stream.writeString("Field "_v);
+                    auto name = context.find((*i).field);
                     if(name.textLength > 0) {
-                        stream.write(name.text, name.textLength);
+                        stream.writeBytes((const Byte*)name.text, name.textLength);
                     }
 
-                    makeLevel();
-                    toString(*fields->item.pat, true);
-                    removeLevel();
-
-                    fields = fields->next;
+                    if((*i).pat) {
+                        makeLevel();
+                        toString(*base[(*i).pat], true);
+                        removeLevel();
+                    }
                 }
+
                 removeLevel();
                 break;
             }
             case Pat::Con: {
-                stream << "ConPat ";
-                auto& con = ((const ConPat&)pat);
-                write(stream, context.findName(con.constructor));
+                stream.writeString("ConPat "_v);
+                write(stream, context.findName(pat.con.name));
 
-                if(con.pats) {
+                if(pat.con.pats) {
                     makeLevel();
-                    toString(*con.pats, true);
+                    toString(*base[pat.con.pats], true);
                     removeLevel();
                 }
                 break;
             }
-            case Pat::Array: {
-                stream << "ArrayPat ";
-                auto& array = ((const ArrayPat&)pat);
-                auto p = array.pats;
-
+            case Pat::Arr: {
+                stream.writeString("ArrayPat "_v);
                 makeLevel();
-                while(p) {
-                    toString(*p->item, p->next == nullptr);
-                    p = p->next;
-                }
+                printList(pat.arr);
                 removeLevel();
                 break;
             }
             case Pat::Rest: {
-                stream << "RestPat ";
-                auto& rest = ((const RestPat&)pat);
-                write(stream, context.findName(rest.var));
+                stream.writeString("RestPat "_v);
+                write(stream, context.findName(pat.asVar));
                 break;
             }
             case Pat::Range: {
-                stream << "RangePat ";
-                auto& range = ((const RangePat&)pat);
+                stream.writeString("RangePat "_v);
 
                 makeLevel();
-                toString(*range.from, false);
-                toString(*range.to, true);
+                toString(*base[pat.range.from], false);
+                toString(*base[pat.range.to], true);
                 removeLevel();
                 break;
             }
         }
     }
 
-    void toString(const Constraint& constraint) {
+    void toString(Constraint& constraint) {
         switch(constraint.kind) {
             case Constraint::Error:
-                stream << "<parse error>";
+                stream.writeString("<parse error>"_v);
                 break;
             case Constraint::Any: {
-                stream << "AnyConstraint ";
-                auto name = context.find(((const AnyConstraint&)constraint).name);
-                stream.write(name.text, name.textLength);
+                stream.writeString("AnyConstraint "_v);
+                auto name = context.find(constraint.name);
+                stream.writeBytes((const Byte*)name.text, name.textLength);
                 break;
             }
             case Constraint::Class: {
-                auto& c = (const ClassConstraint&)constraint;
-                stream << "ClassConstraint ";
-                toString(*c.type);
+                stream.writeString("ClassConstraint "_v);
+                toString(constraint.type);
                 break;
             }
             case Constraint::Field: {
-                auto& c = (const FieldConstraint&)constraint;
-                stream << "FieldConstraint ";
+                stream.writeString("FieldConstraint "_v);
 
-                write(stream, context.findName(c.typeName));
-                stream << '.';
-                write(stream, context.findName(c.fieldName));
+                write(stream, context.findName(constraint.field.typeName));
+                stream.writeByte('.');
+                write(stream, context.findName(constraint.field.fieldName));
 
                 makeLevel();
-                toString(*c.type, true);
+                toString(*base[constraint.field.type], true);
                 removeLevel();
                 break;
             }
             case Constraint::Function: {
-                auto& c = (const FunctionConstraint&)constraint;
-                stream << "FunctionConstraint ";
-                write(stream, context.findName(c.name));
+                stream.writeString("FunctionConstraint "_v);
+                write(stream, context.findName(constraint.fun.name));
 
                 makeLevel();
-                toString(c.type, true);
+                toString(*base[constraint.fun.type], true);
                 removeLevel();
                 break;
             }
         }
     }
 
-    void toString(List<Constraint*>* constraints, bool last) {
-        if(constraints) {
+    void toString(ParseList<Constraint>& constraints, bool last) {
+        if(constraints.isNotEmpty()) {
             toStringIntro(last);
-            stream << "<constraints>";
+            stream.writeString("<constraints>"_v);
             makeLevel();
-            while(constraints) {
-                toString(*constraints->item, constraints->next == nullptr);
-                constraints = constraints->next;
-            }
+            printList(constraints);
             removeLevel();
         }
     }
 
+    template<class T>
+    void printList(ParseList<T>& list) {
+        auto contents = list.contents(base);
+        for(auto a = contents.begin(); a != contents.end(); ++a) {
+            auto it = *a;
+            toString(it, a == contents.back());
+        }
+    }
+
     template<class F>
-    void toString(List<Attribute>* attributes, const char* name, F&& f) {
-        if(attributes) {
-            stream << name;
+    void toString(ParseList<Attribute>* attributes, const StringView& name, F&& f) {
+        if(attributes->isNotEmpty()) {
+            stream.writeString(name);
             makeLevel();
             toStringIntro(false);
 
-            stream << "<attributes>";
+            stream.writeString("<attributes>"_v);
             makeLevel();
-            while(attributes) {
-                toString(attributes->item, attributes->next == nullptr);
-                attributes = attributes->next;
-            }
+            printList(*attributes);
             removeLevel();
 
             toStringIntro(true);
@@ -1074,21 +1029,25 @@ private:
         }
     }
 
-    char indentStack[1024];
-    U32 indentStart = 0;
-
     Context& context;
-    std::ostream& stream;
+    Net::Writer& stream;
+    ParseBase base;
+
+    U32 indentStart = 0;
+    char indentStack[1024];
 };
 
-void printModule(std::ostream& stream, Context& context, const Module& module) {
-    Printer{context, stream}.toString(module);
+void printModule(Net::Writer& stream, Context& context, ParseBase base, Module& module) {
+    Printer { context, stream, base }.toString(module);
+    stream.flush();
 }
 
-void printDecl(std::ostream& stream, Context& context, const Decl& decl) {
-    Printer{context, stream}.toString(decl);
+void printDecl(Net::Writer& stream, Context& context, ParseBase base, Decl& decl) {
+    Printer { context, stream, base }.toString(decl);
+    stream.flush();
 }
 
-void printExpr(std::ostream& stream, Context& context, const Expr& expr) {
-    Printer{context, stream}.toString(expr);
+void printExpr(Net::Writer& stream, Context& context, ParseBase base, Expr& expr) {
+    Printer { context, stream, base }.toString(expr);
+    stream.flush();
 }

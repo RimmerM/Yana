@@ -1,6 +1,6 @@
 #include "diagnostics.h"
 
-void PrintDiagnostics::message(Level level, StringView text, const Node* where) {
+void PrintDiagnostics::message(Level level, StringView text, const Location* where) {
     Diagnostics::message(level, text, where);
 
     U32 line = 0, column = 0;

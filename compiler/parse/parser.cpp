@@ -1,817 +1,722 @@
 #include "parser.h"
 
-using namespace ast;
+#define makeExpr(k, field, contents, location) \
+    ast::Expr { .field = contents, .source = context.addLocation(location), .kind = (ast::Expr::Kind)(ast::Expr::k) }
 
-inline Literal toLiteral(Token& tok) {
-    Literal l;
-    switch(tok.type) {
-        case Token::Integer:
-            l.i = tok.data.integer;
-            l.type = Literal::Int;
-            break;
-        case Token::Float:
-            l.f = tok.data.floating;
-            l.type = Literal::Float;
-            break;
-        case Token::Char:
-            l.c = tok.data.character;
-            l.type = Literal::Char;
-            break;
-        case Token::String:
-            l.s = tok.data.id;
-            l.type = Literal::String;
-            break;
-        default: assert("Invalid literal type." == 0);
-    }
-    return l;
-}
+#define makeType(k, field, contents, location, attr) \
+    ast::Type { .field = contents, .attributes = attr, .source = context.addLocation(location), .kind = ast::Type::k }
 
-inline Literal toStringLiteral(StringId name) {
-    Literal l;
-    l.s = name;
-    l.type = Literal::String;
-    return l;
-}
-
-static const char kRefSigil = '&';
-static const char kValSigil = '*';
-static const char kPtrSigil = '%';
-
-Parser::Parser(Context& context, ast::Module& module, const char* text):
-    context(context),
-    diag(context.diagnostics),
-    module(module),
-    buffer(module.buffer),
-    lexer(context, diag, text, &token) {
-
+Parser::Parser(Context& context, Lexer& lexer, StringId moduleName):
+    BasicParser<Lexer, Token>(context.diagnostics, lexer, moduleName), context(context), arena(2 * 1024 * 1024)
+{
     qualifiedId = Context::nameHash("qualified", 9);
     hidingId = Context::nameHash("hiding", 6);
     fromId = Context::nameHash("from", 4);
     asId = Context::nameHash("as", 2);
-    refId = Context::nameHash(&kRefSigil, 1);
-    ptrId = Context::nameHash(&kPtrSigil, 1);
-    valId = Context::nameHash(&kValSigil, 1);
+    ptrId = Context::nameHash("*", 1);
+    refId = Context::nameHash("%", 1);
     downtoId = Context::nameHash("downto", 6);
-    minusId = Context::nameHash("-", 1);
     stepId = Context::nameHash("step", 4);
+    setId = Context::nameHash("set", 3);
+    arraySizeId = Context::nameHash("*", 1);
 
-    lexer.next();
+    eat();
 }
 
-void Parser::parseModule() {
+ast::Module Parser::parseModule() {
     auto errorCount = context.diagnostics.errorCount();
     auto warningCount = context.diagnostics.warningCount();
 
-    withLevel([=] {
-        while(true) {
-            if(token.type == Token::EndOfFile) {
-                break;
-            }
+    ast::ParseList<ast::Import> imports;
+    ast::ParseList<ast::Fixity> ops;
+    ast::DeclList decls;
 
-            while(token.type == Token::EndOfStmt) {
-                eat();
-            }
+    withLevel([&] {
+        sepBy([&] {
+            // Skip empty declarations.
+            if(token.type == Token::EndOfStmt) return;
 
+            // Parse top-level declarations.
             if(token.type == Token::kwImport) {
-                parseImport();
+                imports.push(arena, parseImport());
             } else if(token.type == Token::kwInfixL || token.type == Token::kwInfixR) {
-                parseFixity();
-            } else {
-                auto nextDecl = [&](List<Attribute>* attributes) {
-                    bool exported = false;
-                    if(token.type == Token::kwPub) {
-                        eat();
-                        exported = true;
-                    }
-
-                    auto decl = parseDecl();
-                    decl->attributes = attributes;
-                    decl->exported = exported;
-
-                    module.decls << decl;
-                };
-
-                auto attributes = parseAttributes(false);
-                if(attributes != nullptr && token.type == Token::opColon) {
-                    eat();
-                    withLevel([&] {
-                        sepBy([&] {
-                            auto localAttributes = parseAttributes(false);
-                            if(localAttributes) {
-                                auto end = localAttributes;
-                                while(end->next) end = end->next;
-
-                                end->next = attributes;
-                            } else {
-                                localAttributes = attributes;
-                            }
-
-                            nextDecl(localAttributes);
-                            return true;
-                        }, Token::EndOfStmt, Token::EndOfBlock);
-                        return true;
-                    });
-                } else {
-                    nextDecl(attributes);
-                }
+                ops.push(arena, parseFixity());
             }
 
-            if(token.type == Token::EndOfStmt) {
-                continue;
-            } else if(token.type == Token::EndOfBlock && token.startColumn == 0) {
-                break;
+            auto nextDecl = [&](ast::AttrList attributes) {
+                auto exported = maybe(Token::kwPub).isJust();
+                parseDecl(decls, ::move(attributes), exported);
+            };
+
+            ast::AttrList attributes;
+            parseAttributes(attributes, false);
+
+            if(attributes.isNotEmpty() && maybe(Token::opColon)) {
+                withLevel([&] {
+                    sepBy([&] {
+                        ast::AttrList localAttributes;
+                        if(attributes.isNotEmpty()) {
+                            localAttributes.reserve(arena, attributes.size());
+                            for(auto a: attributes.contents(*arena)) localAttributes.push(arena, a);
+                        }
+
+                        parseAttributes(localAttributes, false);
+                        nextDecl(::move(localAttributes));
+                    }, Token::EndOfStmt, Token::EndOfBlock);
+                });
             } else {
+                nextDecl(::move(attributes));
+            }
+
+            if(token.type != Token::EndOfStmt && token.type != Token::EndOfFile) {
                 // The previous declaration did not parse all tokens.
                 // Skip ahead until we are at the root level again, then continue parsing.
                 error("expected declaration end"_v);
-                while(token.startColumn > 0) {
-                    eat();
-                }
-
-                if(token.type == Token::EndOfBlock) {
-                    break;
-                }
+                eat();
+                while(token.startColumn > 0) eat();
             }
-        }
-
-        // Dummy return value to withLevel.
-        return true;
+        }, Token::EndOfStmt, Token::EndOfFile);
     });
 
-    module.errorCount = context.diagnostics.errorCount() - errorCount;
-    module.warningCount = context.diagnostics.warningCount() - warningCount;
+    expect(Token::EndOfFile, "expected file end"_v);
+
+    return ast::Module {
+        .region = ::move(arena),
+        .name = moduleName,
+        .imports = imports,
+        .decls = decls,
+        .ops = ops,
+        .errorCount = context.diagnostics.errorCount() - errorCount,
+        .warningCount = context.diagnostics.warningCount() - warningCount,
+    };
 }
 
-void Parser::parseImport() {
-    assert(token.type == Token::kwImport);
-    eat();
+ast::Import Parser::parseImport() {
+    ast::Import import {};
+    WithLocation location(*this);
 
-    bool qualified = false;
-    if(token.type == Token::VarID && token.data.id == qualifiedId) {
-        eat();
-        qualified = true;
-    }
+    tryMaybe(expect(Token::kwImport, "expected module import"_v), return import);
 
-    StringId name;
-    if(token.type == Token::VarID || token.type == Token::ConID) {
-        name = token.data.id;
-        eat();
-    } else {
-        error("expected symbol name"_v);
-        name = 0;
-    }
+    import.qualified = maybeVar(qualifiedId).isJust();
+    import.from = expectVarOrCon().from({ .id = 0 }).id;
 
-    List<StringId>* include = maybeParens([=] {
-        return sepBy([=] {
-            StringId included;
-            if(token.type == Token::VarID || token.type == Token::ConID) {
-                included = token.data.id;
-                eat();
-            } else {
-                error("expected symbol name"_v);
-                included = 0;
-            }
-            return included;
+    maybeParens([&] {
+        sepBy([&] {
+            auto include = tryMaybe(expectVarOrCon(), return);
+            import.include.push(arena, include.id);
         }, Token::Comma, Token::ParenR);
     });
 
-    List<StringId>* exclude = nullptr;
-    if(token.type == Token::VarID && token.data.id == hidingId) {
-        eat();
-        exclude = parens([=] {
-            return sepBy([=] {
-                StringId hiddenName;
-                if(token.type == Token::VarID || token.type == Token::ConID) {
-                    hiddenName = token.data.id;
-                    eat();
-                } else {
-                    error("expected symbol name"_v);
-                    hiddenName = 0;
-                }
-                return hiddenName;
+    if(maybeVar(hidingId)) {
+        parens([&] {
+            sepBy([&] {
+                auto exclude = tryMaybe(expectVarOrCon(), return);
+                import.exclude.push(arena, exclude.id);
             }, Token::Comma, Token::ParenR);
         });
     }
 
-    StringId asName = 0;
-    if(token.type == Token::VarID && token.data.id == asId) {
-        eat();
-
-        if(token.type == Token::ConID) {
-            asName = token.data.id;
-            eat();
-        } else {
-            error("expected identifier"_v);
-        }
+    if(maybeVar(asId)) {
+        auto asName = tryMaybe(expect(Token::ConID, "expected identifier"_v), return import);
+        import.localName = asName.id;
     }
 
-    auto import = module.imports.push();
-    import->localName = asName ? asName : name;
-    import->from = name;
-    import->qualified = qualified;
-    import->include = include;
-    import->exclude = exclude;
+    import.source = context.addLocation(location);
+    return import;
 }
 
-void Parser::parseFixity() {
-    auto fixity = node([=]() -> Fixity* {
-        Fixity::Kind kind;
-        if(token.type == Token::kwInfixR) {
-            kind = Fixity::Right;
-        } else {
-            kind = Fixity::Left;
-        }
-        eat();
+ast::Fixity Parser::parseFixity() {
+    ast::Fixity fixity {};
+    WithLocation location(*this);
 
-        U32 precedence;
-        if(token.type == Token::Integer) {
-            precedence = (U32)token.data.integer;
-            eat();
-        } else {
-            error("expected operator precedence"_v);
-            precedence = 9;
-        }
+    if(maybe(Token::kwInfixR)) {
+        fixity.kind = ast::Fixity::Right;
+    } else {
+        expect("expected operator fixity"_v, [](auto& t) { return t.type == Token::kwInfixL; });
+        fixity.kind = ast::Fixity::Left;
+    }
 
-        auto op = parseQop();
-        return new (buffer) Fixity{op->name, precedence, kind};
-    });
+    fixity.precedence = expect(Token::Integer, "expected operator precedence"_v).from({ .integer = 9 }).integer;
+    fixity.op = parseQop().var;
+    fixity.source = context.addLocation(location);
 
-    module.ops << *fixity;
+    return fixity;
 }
 
-Decl* Parser::parseDecl() {
+void Parser::parseDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported) {
     if(token.type == Token::kwAlias) {
-        return parseTypeDecl();
+        return parseTypeDecl(decls, ::move(attributes), exported);
     } else if(token.type == Token::kwData) {
-        return parseDataDecl();
+        return parseDataDecl(decls, ::move(attributes), exported);
     } else if(token.type == Token::kwForeign) {
-        return parseForeignDecl();
+        return parseForeignDecl(decls, ::move(attributes), exported);
     } else if(token.type == Token::kwFn) {
-        return parseFunDecl(true);
+        return parseFunDecl(decls, ::move(attributes), exported, true);
     } else if(token.type == Token::kwClass) {
-        return parseClassDecl();
+        return parseTraitDecl(decls, ::move(attributes), exported);
     } else if(token.type == Token::kwInstance) {
-        return parseInstanceDecl();
+        return parseInstanceDecl(decls, ::move(attributes), exported);
     } else if(token.type == Token::kwAtData) {
-        return parseAttrDecl();
+        return parseAttrDecl(decls, ::move(attributes), exported);
     } else {
         auto expr = parseExpr();
-        if(expr->type == Expr::Decl) {
-            ((DeclExpr*)expr)->isGlobal = true;
-        } else if(expr->type == Expr::Ret) {
-            error("return statements cannot be used in a global scope"_v, expr);
+
+        if(ast::isTerminating(expr)) {
+            error("terminating statements cannot be used in a global scope"_v, expr.source);
         }
-        return new (buffer) StmtDecl(expr);
+
+        decls.push(arena, ast::Decl {
+            .stmt = expr,
+            .attributes = ::move(attributes),
+            .source = expr.source,
+            .kind = ast::Decl::Stmt,
+            .exported = exported,
+        });
     }
 }
 
-Decl* Parser::parseFunDecl(bool requireBody) {
-    return node([=]() -> Decl* {
-        if(token.type == Token::kwFn) {
+void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported, bool requireBody) {
+    WithLocation location(*this);
+    expect(Token::kwFn, "expected 'fn'"_v);
+
+    ast::ConstraintList constraints;
+    if(token.type == Token::ParenL) {
+        parseConstraints(constraints);
+    }
+
+    auto name = expect("expected function name"_v, [&](Token& t) {
+        return t.type == Token::VarID || t.type == Token::VarSym;
+    }).from({ .id = 0 }).id;
+
+    ast::ParseList<ast::Arg> args;
+
+    parens([&] {
+        sepBy([&] {
+            parseArg(args, false);
+        }, Token::Comma, Token::ParenR);
+    });
+
+    ast::ParsePtr<ast::Type> ret = nullptr;
+    if(maybe(Token::opArrowR)) {
+        ret = heap(parseType());
+    }
+
+    auto source = context.addLocation(location);
+    auto implicitReturn = false;
+
+    ast::ParsePtr<ast::Expr> body = nullptr;
+    if(maybe(Token::opEquals)) {
+        implicitReturn = true;
+        WithLocation bodyLocation(*this);
+
+        auto contents = parseExpr();
+
+        if(token.type == Token::kwWhere) {
+            auto line = token.endLine;
             eat();
+
+            ast::ParseList<ast::Expr> locals;
+            locals.push(arena, contents);
+            locals.push(arena, parseVarDecl(bodyLocation, line));
+
+            body = heap(makeExpr(Multi, multi, locals, bodyLocation));
         } else {
-            error("expected function declaration"_v);
+            body = heap(contents);
         }
+    } else if(token.type == Token::opBar) {
+        implicitReturn = true;
+        ast::ParseList<ast::Alt> alts;
 
-        List<Constraint*>* constraints = nullptr;
-        if(token.type == Token::ParenL) {
-            constraints = parseConstraints();
-        }
-
-        StringId name;
-        if(token.type == Token::VarID || token.type == Token::VarSym) {
-            name = token.data.id;
-            eat();
-        } else {
-            name = 0;
-            error("expected function name"_v);
-        }
-
-        auto args = parens([=] {
-            return sepBy([=] {
-                return parseArg(false);
-            }, Token::Comma, Token::ParenR);
+        withLevel([&] {
+            sepBy1([&] {
+                expect(Token::opBar, "expected '|' alternative"_v);
+                parseAlt(alts);
+            }, Token::EndOfStmt);
         });
 
-        Type *ret = nullptr;
-        if(token.type == Token::opArrowR) {
-            eat();
-            ret = parseType();
-        }
+        Maybe<ast::Expr> pivot;
 
-        bool implicitReturn;
-        Expr *body;
-        if(token.type == Token::opEquals) {
-            implicitReturn = true;
-            body = node([=]() -> Expr* {
-                eat();
-                auto expr = parseExpr();
-                if(token.type == Token::kwWhere) {
-                    auto l = token.endLine;
-                    eat();
-                    auto decls = list(parseVarDecl(l));
-                    decls->next = list(expr);
-                    return new(buffer) MultiExpr(decls);
-                } else {
-                    return expr;
-                }
-            });
-        } else if(token.type == Token::opBar) {
-            implicitReturn = true;
-            auto cases = withLevel([=] {
-                return sepBy1([=] {
-                    if(token.type == Token::opBar) {
-                        eat();
-                    } else {
-                        error("expected '|'"_v);
-                    }
-                    return parseAlt();
-                }, Token::EndOfStmt);
-            });
+        if(args.size() >= 2) {
+            ast::ParseList<ast::TupArg> pivotArgs;
+            pivotArgs.reserve(arena, args.size());
 
-            Expr* pivot = nullptr;
-            if(args && args->next) {
-                auto arg = args;
-                auto tup = list(TupArg(0, new (buffer) VarExpr(arg->item.name)));
-                auto t = tup;
-
-                arg = arg->next;
-                while(arg) {
-                    t->next = list(TupArg(0, new (buffer) VarExpr(arg->item.name)));
-                    t = t->next;
-                    arg = arg->next;
-                }
-
-                pivot = new (buffer) TupExpr(tup);
-            } else if(args) {
-                pivot = new (buffer) VarExpr(args->item.name);
+            for(auto a: args.contents(*arena)) {
+                pivotArgs.push(arena, ast::TupArg {
+                    .name = 0,
+                    .value = makeExpr(Var, var, a.name, currentNode()),
+                });
             }
 
-            body = new (buffer) CaseExpr(pivot, cases);
-        } else if(token.type == Token::opColon) {
-            implicitReturn = false;
-            body = parseBlock(true);
+            pivot = Just(makeExpr(Tup, tup, pivotArgs, currentNode()));
+        } else if(args.size() == 1) {
+            pivot = Just(makeExpr(Var, var, args.get(*arena, 0).name, currentNode()));
         } else {
-            body = nullptr;
-            implicitReturn = false;
-
-            if(requireBody) {
-                error("expected function body"_v);
-            }
+            pivot = Just(makeExpr(Tup, tup, {}, currentNode()));
         }
 
-        return new(buffer) FunDecl(name, constraints, body, args, ret, implicitReturn);
+        body = heap(makeExpr(Match, match, heap(ast::MatchExpr { pivot.unwrap(), alts }), currentNode()));
+    } else if(token.type == Token::opColon) {
+        body = heap(parseBlock(true));
+    } else if(requireBody) {
+        error("expected function body"_v);
+    }
+
+    decls.push(arena, ast::Decl {
+        .fun = {
+            .name = name,
+            .constraints = constraints,
+            .args = args,
+            .ret = ret,
+            .body = body,
+            .implicitReturn = implicitReturn,
+        },
+        .attributes = ::move(attributes),
+        .source = source,
+        .kind = ast::Decl::Fun,
+        .exported = exported,
     });
 }
 
-Decl* Parser::parseDataDecl() {
-    return node([=]() -> DataDecl* {
-        assert(token.type == Token::kwData);
-        eat();
+void Parser::parseDataDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported) {
+    WithLocation location(*this);
+    expect(Token::kwData, "expected 'data'"_v);
+    auto qualified = maybeVar(qualifiedId).isJust();
 
-        bool qualified = false;
-        if(token.type == Token::VarID && token.data.id == qualifiedId) {
-            qualified = true;
-            eat();
-        }
+    ast::ConstraintList constraints;
+    if(token.type == Token::ParenL) {
+        parseConstraints(constraints);
+    }
 
-        List<Constraint*>* constraints = nullptr;
-        if(token.type == Token::ParenL) {
-            constraints = parseConstraints();
-        }
+    auto type = parseSimpleType();
+    auto source = context.addLocation(location);
+    ast::ParseList<ast::Con> cons;
 
-        auto type = parseSimpleType();
-
-        List<Con>* cons;
-        if(token.type == Token::opEquals) {
-            eat();
-
-            cons = sepBy1([=] {
-                return node([=] {return parseCon();});
-            }, Token::opBar);
-        } else if(token.type == Token::BraceL) {
-            cons = list(Con{type->name, parseTupleType()});
-        } else {
-            error("expected '=' or '{' after type name"_v);
-            cons = nullptr;
-        }
-
-        return new (buffer) DataDecl(type, cons, constraints, qualified);
-    });
-}
-
-Decl* Parser::parseTypeDecl() {
-    return node([=]() -> Decl* {
-        assert(token.type == Token::kwAlias);
-        eat();
-
-        auto name = parseSimpleType();
-        if(token.type == Token::opEquals) {
-            eat();
-        } else {
-            error("expected '='"_v);
-        }
-
-        auto type = parseType();
-        return new (buffer) AliasDecl(name, type);
-    });
-}
-
-Decl* Parser::parseForeignDecl() {
-    return node([=]() -> Decl* {
-        assert(token.type == Token::kwForeign);
-        eat();
-
-        bool isFun = false;
-        if(token.type == Token::kwFn) {
-            eat();
-            isFun = true;
-        }
-
-        bool stringName = token.type == Token::String;
-        StringId name = 0;
-        if(token.type == Token::VarID || token.type == Token::String) {
-            name = token.data.id;
-            eat();
-        } else {
-            error("expected identifier"_v);
-        }
-
-        StringId importName = 0;
-        if(token.type == Token::VarID && token.data.id == asId) {
-            eat();
-            if(token.type == Token::VarID) {
-                importName = token.data.id;
-                eat();
-            } else {
-                error("expected an identifier"_v);
-            }
-        } else if(stringName) {
-            error("expected 'as' and foreign import name"_v);
-        }
-
-        // A normal function type looks exactly like a function declaration when directly after the name.
-        if(token.type == Token::opColon) {
-            eat();
-        } else if(!isFun) {
-            error("expected ':'"_v);
-        }
-
-        auto type = parseType();
-
-        StringId from = 0;
-        if(token.type == Token::VarID && token.data.id == fromId) {
-            eat();
-            if(token.type == Token::String) {
-                from = token.data.id;
-                eat();
-            } else {
-                error("expected a string"_v);
-            }
-        }
-
-        return new(buffer) ForeignDecl(name, importName, from, type);
-    });
-}
-
-Decl* Parser::parseClassDecl() {
-    return node([=]() -> Decl* {
-        assert(token.type == Token::kwClass);
-        eat();
-
-        List<Constraint*>* constraints = nullptr;
-        if(token.type == Token::ParenL) {
-            constraints = parseConstraints();
-        }
-
-        auto type = parseSimpleType();
-        if(token.type == Token::opColon) {
-            eat();
-        } else {
-            error("expected ':' after class declaration"_v);
-        }
-
-        auto decls = withLevel([=] {
-            return sepBy([=] {
-                return (FunDecl*)parseFunDecl(false);
-            }, Token::EndOfStmt, Token::EndOfBlock);
-        });
-
-        return new(buffer) ClassDecl(type, constraints, decls);
-    });
-}
-
-Decl* Parser::parseInstanceDecl() {
-    return node([=]() -> Decl* {
-        assert(token.type == Token::kwInstance);
-        eat();
-
-        auto type = parseType();
-        if(token.type == Token::opColon) {
-            eat();
-        } else {
-            error("expected ':' after instance declaration"_v);
-        }
-
-        auto decls = withLevel([=] {
-            return sepBy([=] {
-                return parseDecl();
-            }, Token::EndOfStmt, Token::EndOfBlock);
-        });
-
-        return new(buffer) InstanceDecl(type, decls);
-    });
-}
-
-ast::Decl* Parser::parseAttrDecl() {
-    return node([=]() -> Decl* {
-        assert(token.type == Token::kwAtData);
-        eat();
-
-        StringId name = 0;
-        if(token.type == Token::VarID || token.type == Token::ConID) {
-            name = token.data.id;
-            eat();
-        } else {
-            error("expected identifier"_v);
-        }
-
-        if(token.type == Token::ParenL || token.type == Token::BraceL || token.type == Token::BracketL) {
-            return new (buffer) AttrDecl(name, parseType());
-        } else {
-            error("expected attribute type"_v);
-            return new (buffer) AttrDecl(name, new (buffer) Type(Type::Error));
-        }
-    });
-}
-
-Expr* Parser::parseBlock(bool isFun) {
-    // To make the code more readable we avoid using '=' inside expressions, and use '->' instead.
-    if(token.type == (isFun ? Token::opEquals : Token::opArrowR)) {
-        eat();
-        return parseExpr();
+    if(maybe(Token::opEquals)) {
+        sepBy1([&] {
+            parseCon(cons);
+        }, Token::opBar);
+    } else if(token.type == Token::BraceL) {
+        WithLocation conLocation(*this);
+        auto conType = parseTupleType(conLocation, nullptr);
+        cons.push(arena, ast::Con { type.name, heap(conType), {}, conType.source });
     } else {
-        if(token.type == Token::opColon) {
-            eat();
-        } else {
-            error("expected ':'"_v);
-        }
-
-        return withLevel([=] {
-            return parseExprSeq();
-        });
+        error("expected '=' or '{' after type name"_v);
+        return;
     }
+
+    decls.push(arena, ast::Decl {
+        .data = { cons, type, constraints },
+        .attributes = ::move(attributes),
+        .source = source,
+        .kind = ast::Decl::Data,
+        .exported = exported,
+        .qualified = qualified,
+    });
 }
 
-Expr* Parser::parseExprSeq() {
+void Parser::parseTypeDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported) {
+    WithLocation location(*this);
+    expect(Token::kwAlias, "expected 'alias'"_v);
+
+    auto name = parseSimpleType();
+    expect(Token::opEquals, "expected '='"_v);
+    auto type = parseType();
+
+    decls.push(arena, ast::Decl {
+        .alias = { name, type },
+        .attributes = ::move(attributes),
+        .source = context.addLocation(location),
+        .kind = ast::Decl::Alias,
+        .exported = exported,
+    });
+}
+
+void Parser::parseForeignDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported) {
+    WithLocation location(*this);
+
+    expect(Token::kwForeign, "expected 'foreign'"_v);
+    auto isFun = maybe(Token::kwFn).isJust();
+    auto isStringName = token.type == Token::String;
+
+    auto externName = expect("expected identifier"_v, [&](Token& t) {
+        return t.type == Token::String || t.type == Token::VarID;
+    }).from({ .id = 0 }).id;
+
+    StringId localName = 0;
+    if(maybeVar(asId)) {
+        localName = expect(Token::VarID, "expected identifier"_v).from({ .id = 0 }).id;
+    } else if(isStringName) {
+        error("expected 'as' and foreign import name after string identifier"_v);
+    }
+
+    // A normal function type looks exactly like a function declaration when directly after the name.
+    if(!maybe(Token::opColon) && !isFun) {
+        error("expected ':'"_v);
+    }
+
+    auto type = parseType();
+
+    StringId from = 0;
+    if(maybeVar(fromId)) {
+        from = expect(Token::String, "expected string for imported library name"_v).from({ .id = 0 }).id;
+    }
+
+    decls.push(arena, ast::Decl {
+        .foreign = { .externName = externName, .localName = localName, .from = from, .type = type },
+        .attributes = ::move(attributes),
+        .source = context.addLocation(location),
+        .kind = ast::Decl::Foreign,
+        .exported = exported,
+    });
+}
+
+void Parser::parseTraitDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported) {
+    WithLocation location(*this);
+    expect(Token::kwClass, "expected 'class'"_v);
+
+    ast::ConstraintList constraints;
+    if(token.type == Token::ParenL) {
+        parseConstraints(constraints);
+    }
+
+    auto type = parseSimpleType();
+    expect(Token::opColon, "expected ':' after class declaration"_v);
+    auto source = context.addLocation(location);
+
+    ast::DeclList funs;
+    withLevel([&] {
+        sepBy([&] {
+            parseFunDecl(funs, {}, false, false);
+        }, Token::EndOfStmt, Token::EndOfBlock);
+    });
+
+    decls.push(arena, ast::Decl {
+        .trait = { type, constraints, funs },
+        .attributes = ::move(attributes),
+        .source = source,
+        .kind = ast::Decl::Trait,
+        .exported = exported,
+    });
+}
+
+void Parser::parseInstanceDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported) {
+    WithLocation location(*this);
+    expect(Token::kwInstance, "expected 'instance'"_v);
+
+    auto type = parseType();
+    expect(Token::opColon, "expected ':' after instance declaration"_v);
+
+    ast::Decl decl {
+        .instance = { .type = type, .decls = {} },
+        .attributes = ::move(attributes),
+        .source = context.addLocation(location),
+        .kind = ast::Decl::Instance,
+        .exported = exported,
+    };
+
+    withLevel([&] {
+        return sepBy([&] {
+            parseDecl(decl.instance.decls, {}, false);
+        }, Token::EndOfStmt, Token::EndOfBlock);
+    });
+
+    decls.push(arena, decl);
+}
+
+void Parser::parseAttrDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported) {
+    WithLocation location(*this);
+    expect(Token::kwAtData, "expected '@data'"_v);
+
+    auto name = tryMaybe(expectVarOrCon("expected identifier"_v), return).id;
+
+    tryMaybe(expect("expected attribute type"_v, [&](Token& t) {
+        return t.type == Token::ParenL || t.type == Token::BraceL || t.type == Token::BracketL;
+    }), return);
+
+    auto type = parseType();
+
+    decls.push(arena, ast::Decl {
+        .attr = { name, type },
+        .attributes = ::move(attributes),
+        .source = context.addLocation(location),
+        .kind = ast::Decl::Attr,
+        .exported = exported,
+    });
+}
+
+void Parser::parseCon(ast::ParseList<ast::Con>& list) {
+    ast::AttrList attributes;
+    parseAttributes(attributes, true);
+
+    /*
+     * con	→	conid(type)
+     *      |   conid tuptype
+     *      |   conid
+     */
+    WithLocation location(*this);
+    auto name = expect(Token::ConID, "expected constructor name"_v).from({ .id = 0 }).id;
+    Maybe<ast::Type> type;
+
+    if(token.type == Token::ParenL) {
+        parens([&] {
+            type = Just(parseType());
+        });
+    } else if(token.type == Token::BraceL) {
+        type = Just(parseTupleType(location, nullptr));
+    } else if(token.type == Token::BracketL) {
+        type = Just(parseAType(location, nullptr));
+    }
+
+    list.push(arena, ast::Con {
+        .name = name,
+        .content = type ? heap(type.unwrap()) : nullptr,
+        .attributes = attributes,
+        .source = context.addLocation(location),
+    });
+}
+
+ast::Expr Parser::parseBlock(bool isFun) {
+    // To make the code more readable we avoid using '=' inside expressions, and use '->' instead.
+    if(maybe(isFun ? Token::opEquals : Token::opArrowR)) {
+        return parseExpr();
+    }
+
+    expect(Token::opColon, "expected ':'"_v);
+    Maybe<ast::Expr> expr;
+
+    withLevel([&] {
+        expr = Just(parseExprSeq());
+    });
+
+    return expr.unwrap();
+}
+
+ast::Expr Parser::parseExprSeq() {
     /*
      * exprseq	→	expr
      * 			|	expr0; …; exprn	(statements, n ≥ 2)
      */
-    auto list = sepBy1([=] {return parseTypedExpr();}, Token::EndOfStmt);
-    if(list->next) {
-        return new(buffer) MultiExpr(list);
+    WithLocation location(*this);
+    ast::ParseList<ast::Expr> exprs;
+
+    sepBy1([&] {
+        exprs.push(arena, parseTypedExpr());
+    }, Token::EndOfStmt);
+
+    if(exprs.size() > 1) {
+        return makeExpr(Multi, multi, exprs, location);
+    } else if(exprs.size() == 0) {
+        return exprs.get(*arena, 0);
     } else {
-        return list->item;
+        return makeExpr(Error, var, 0, location);
     }
 }
 
-Expr* Parser::parseExpr() {
+ast::Expr Parser::parseExpr() {
     return parseTypedExpr();
 }
 
-Expr* Parser::parseTypedExpr() {
+ast::Expr Parser::parseTypedExpr() {
     /*
      * typedexpr	→	infixexpr :: type
      *				|	infixexpr
      */
 
-    auto expr = parseInfixExpr();
-    if(token.type == Token::opColonColon) {
-        eat();
+    WithLocation location(*this);
+    auto expr = parseInfixExpr(location);
+
+    if(maybe(Token::opColonColon)) {
         auto type = parseType();
-        return new(buffer) CoerceExpr(expr, type);
+        return makeExpr(Coerce, coerce, heap(ast::CoerceExpr { .target = expr, .type = type }), location);
     } else {
         return expr;
     }
 }
 
-Expr* Parser::parseInfixExpr() {
+ast::Expr Parser::parseInfixExpr(const WithLocation& location) {
     /*
      * infixexp		→	pexp qop infixexp			(infix operator application)
      * 				|	pexp = infixexp				(assignment)
      *				|	pexp
      */
-    auto lhs = parsePrefixExpr();
-    if(token.type == Token::opEquals) {
-        eat();
-        auto rhs = parseExpr();
-        if(!rhs) error("Expected an expression after assignment."_v);
+    auto lhs = parsePrefixExpr(location);
 
-        return new(buffer) AssignExpr(lhs, rhs);
+    if(maybe(Token::opEquals)) {
+        auto rhs = parseExpr();
+        return makeExpr(Assign, assign, heap(ast::AssignExpr { .target = lhs, .value = rhs }), location);
     } else if(token.type == Token::VarSym || token.type == Token::Grave) {
         // Binary operator.
         auto op = parseQop();
-        auto rhs = parseInfixExpr();
-        if(!rhs) error("Expected a right-hand side for a binary operator."_v);
 
-        return new(buffer) InfixExpr(op, lhs, rhs);
+        WithLocation rhsLocation(*this);
+        auto rhs = parseInfixExpr(rhsLocation);
+        return makeExpr(Infix, infix, heap(ast::InfixExpr { .lhs = lhs, .rhs = rhs, .op = op }), location);
     } else {
-        // Single expression.
         return lhs;
     }
 }
 
-Expr* Parser::parsePrefixExpr() {
+ast::Expr Parser::parsePrefixExpr(const WithLocation& location) {
     /*
      * pexp		→	varsym lexp				(prefix operator application)
      *			|	lexp
      */
-    if(token.type == Token::VarSym) {
-        auto op = node([=]() -> VarExpr* {
-            auto id = token.data.id;
-            eat();
-            return new (buffer) VarExpr(id);
-        });
+    if(auto sym = maybe(Token::VarSym)) {
+        auto op = makeExpr(Var, var, sym.unwrap().id, location);
 
-        auto expr = parsePrefixExpr();
-        if(expr->type == Expr::Lit && op->name == minusId) {
-            auto lit = &((LitExpr*)expr)->literal;
-            if(lit->type == Literal::Int) {
-                lit->i = -lit->i;
-                return expr;
-            } else if(lit->type == Literal::Float) {
-                lit->f = -lit->f;
-                return expr;
-            }
-        }
+        WithLocation onLocation(*this);
+        auto expr = parsePrefixExpr(onLocation);
 
-        return new (buffer) PrefixExpr(op, expr);
+        return makeExpr(Prefix, prefix, heap(ast::PrefixExpr { .on = expr, .op = op }), location);
     } else {
-        return parseLeftExpr();
+        return parseLeftExpr(location);
     }
 }
 
-Expr* Parser::parseLeftExpr() {
-    return node([=]() -> Expr* {
-        if(token.type == Token::kwLet) {
-            auto l = token.endLine;
+ast::Expr Parser::parseLeftExpr(const WithLocation& location) {
+    if(token.type == Token::kwLet) {
+        auto l = token.endLine;
+        eat();
+        return parseVarDecl(location, l);
+    } else if(token.type == Token::kwMatch) {
+        return parseMatchExpr(location);
+    } else if(token.type == Token::kwIf) {
+        return parseIfExpr();
+    } else if(maybe(Token::kwWhile)) {
+        auto cond = parseExpr();
+        auto source = location;
+        auto loop = parseBlock(false);
+        return makeExpr(While, whileLoop, heap(ast::WhileExpr { .cond = cond, .body = loop }), source);
+    } else if(maybe(Token::kwFor)) {
+        auto pat = parsePattern();
+        expect(Token::kwIn, "expected 'in'"_v);
+
+        WithLocation fromLocation(*this);
+        auto from = parseSelExpr(fromLocation);
+
+        ast::ParsePtr<ast::Expr> step = nullptr, to = nullptr;
+        bool reverse = false;
+        bool hasTo = false;
+
+        if(token.type == Token::opDotDot) {
             eat();
-            return parseVarDecl(l);
-        } else if(token.type == Token::kwMatch) {
-            return parseCaseExpr();
-        } else if(token.type == Token::kwIf) {
-            return parseIfExpr();
-        } else if(token.type == Token::kwWhile) {
+            hasTo = true;
+        } else if(token.type == Token::VarID && token.data.id == downtoId) {
             eat();
-            auto cond = parseExpr();
-            auto loop = parseBlock(false);
-            return new (buffer) WhileExpr(cond, loop);
-        } else if(token.type == Token::kwFor) {
-            eat();
-            StringId var;
-            if(token.type == Token::VarID) {
-                var = token.data.id;
-                eat();
-            } else {
-                error("expected for loop variable"_v);
-                var = 0;
-            }
-
-            if(token.type == Token::kwIn) {
-                eat();
-            } else {
-                error("expected 'in'"_v);
-            }
-
-            auto from = parseSelExpr();
-
-            bool reverse = false;
-            if(token.type == Token::opDotDot) {
-                eat();
-            } else if(token.type == Token::VarID && token.data.id == downtoId) {
-                eat();
-                reverse = true;
-            } else {
-                error("expected '..'"_v);
-            }
-
-            auto to = parseSelExpr();
-
-            Expr* step;
-            if(token.type == Token::VarID && token.data.id == stepId) {
-                eat();
-                step = parseSelExpr();
-            } else {
-                step = nullptr;
-            }
-
-            auto body = parseBlock(false);
-            return new (buffer) ForExpr(var, from, to, body, step, reverse);
-        } else if(token.type == Token::kwReturn) {
-            eat();
-            Expr* body = nullptr;
-            if(token.type != Token::EndOfStmt && token.type != Token::EndOfBlock) body = parseExpr();
-            return new (buffer) RetExpr(body);
-        } else {
-            return parseAppExpr();
+            reverse = true;
+            hasTo = true;
         }
-    });
-}
 
-Expr* Parser::parseAppExpr() {
-    return node([=] {
-        auto base = parseBaseExpr();
-        return parseChain(base);
-    });
-}
-
-Expr* Parser::parseChain(Expr *base) {
-    return node([=] {
-        if(token.type == Token::ParenL) {
-            auto args = parens([=] {
-                return sepBy([=] {
-                    return parseTupArg();
-                }, Token::Comma, Token::ParenR);
-            });
-
-            return parseChain(new (buffer) AppExpr(base, args));
-        } else if(token.type == Token::opDot) {
-            eat();
-            auto app = parseSelExpr();
-            return parseChain(new (buffer) FieldExpr(base, app));
-        } else {
-            return base;
+        if(hasTo) {
+            WithLocation toLocation(*this);
+            to = heap(parseSelExpr(toLocation));
         }
-    });
+
+        if(maybeVar(stepId)) {
+            WithLocation stepLocation(*this);
+            step = heap(parseSelExpr(stepLocation));
+        }
+
+        auto body = parseBlock(false);
+        return makeExpr(For, forLoop, heap(ast::ForExpr { pat, from, body, to, step, reverse }), location);
+    } else if(maybe(Token::kwReturn)) {
+        Maybe<ast::Expr> body;
+        if(token.type != Token::EndOfStmt && token.type != Token::EndOfBlock) body = Just(parseExpr());
+
+        return makeExpr(Ret, ret, body ? heap(body.unwrap()) : nullptr, location);
+    } else {
+        return parseAppExpr();
+    }
 }
 
-Expr* Parser::parseCaseExpr() {
-    assert(token.type == Token::kwMatch);
-    eat();
+ast::Expr Parser::parseAppExpr() {
+    WithLocation location(*this);
+    auto base = parseBaseExpr();
+    return parseChain(base, location);
+}
+
+ast::Expr Parser::parseChain(ast::Expr base, const WithLocation& startLocation) {
+    if(token.type == Token::ParenL) {
+        ast::ParseList<ast::TupArg> args;
+
+        parens([&] {
+            sepBy([&] {
+                parseTupArg(args);
+            }, Token::Comma, Token::ParenR);
+        });
+
+        return makeExpr(App, app, heap(ast::AppExpr { .callee = base, .args = args }), startLocation);
+    } else if(token.type == Token::BracketL) {
+        ast::ParseList<ast::TupArg> args;
+
+        brackets([&] {
+            sepBy([&] {
+                parseTupArg(args);
+            }, Token::Comma, Token::ParenR);
+        });
+
+        return makeExpr(Sub, sub, heap(ast::AppExpr { .callee = base, .args = args }), startLocation);
+    } else if(maybe(Token::opDot)) {
+        WithLocation location(*this);
+        auto app = parseSelExpr(location);
+        return parseChain(makeExpr(Field, field, heap(ast::FieldExpr { .target = base, .field = app }), startLocation), startLocation);
+    } else {
+        return base;
+    }
+}
+
+ast::Expr Parser::parseMatchExpr(const WithLocation& location) {
+    expect(Token::kwMatch, "expected 'match'"_v);
 
     auto pivot = parseExpr();
+    expect(Token::opColon, "expected ':' after match-expression"_v);
+    Location source(location);
 
-    List<Alt>* alts = nullptr;
-    if(token.type == Token::opColon) {
-        eat();
-        alts = withLevel([=] {
-            return sepBy1([=] {
-                return parseAlt();
-            }, Token::EndOfStmt);
-        });
-    } else {
-        error("Expected ':' after match-expression."_v);
-    }
+    ast::ParseList<ast::Alt> alts;
+    withLevel([&] {
+        sepBy1([&] {
+            parseAlt(alts);
+        }, Token::EndOfStmt);
+    });
 
-    return new(buffer) CaseExpr(pivot, alts);
+    return makeExpr(Match, match, heap(ast::MatchExpr { pivot, alts }), source);
 }
 
-Expr* Parser::parseIfExpr() {
-    assert(token.type == Token::kwIf);
-    eat();
+ast::Expr Parser::parseIfExpr() {
+    WithLocation location(*this);
+    expect(Token::kwIf, "expected 'if'"_v);
 
-    if(token.type == Token::opColon) {
-        eat();
+    if(maybe(Token::opColon)) {
+        Maybe<ast::Expr> cond;
+        ast::ParseList<ast::IfCase> cases;
 
         // Multi-way if.
-        auto list = withLevel([=] {
-            return sepBy1([=]() -> IfCase {
-                Expr *cond;
+        withLevel([&] {
+            sepBy1([&] {
                 if(token.type == Token::kw_ || token.type == Token::kwElse) {
+                    auto source = currentNode();
                     eat();
-
-                    Literal lit;
-                    lit.type = Literal::Bool;
-                    lit.b = true;
-
-                    cond = new(buffer) LitExpr(lit);
+                    cond = Just(makeExpr(Lit + ast::Literal::Bool, lit, { .b = true }, source));
                 } else {
-                    cond = parseExpr();
+                    cond = Just(parseExpr());
                 }
 
-                if(token.type == Token::opArrowR) eat();
-                else error("expected '->' after if condition"_v);
-
+                expect(Token::opArrowR, "expected '->' after if condition"_v);
                 auto then = parseExpr();
-                return IfCase(cond, then);
+                cases.push(arena, ast::IfCase { .cond = cond.unwrap(), .then = then });
             }, Token::EndOfStmt);
         });
-        return new(buffer) MultiIfExpr(list);
+
+        return makeExpr(MultiIf, multiIf, cases, location);
     } else {
         auto cond = parseExpr();
+        Maybe<ast::Expr> then, otherwise;
 
-        Expr* expr;
         if(token.type == Token::opColon) {
-            expr = parseBlock(false);
+            then = Just(parseBlock(false));
         } else {
-            if(token.type == Token::kwThen) {
-                eat();
-            } else {
-                error("Expected 'then' after if-expression."_v);
-            }
-
-            expr = parseExpr();
+            expect(Token::kwThen, "expected 'then' after if-expression"_v);
+            then = Just(parseExpr());
         }
 
         // We should only eat the statement end if there is an else after.
@@ -819,1090 +724,822 @@ Expr* Parser::parseIfExpr() {
         auto savedToken = token;
 
         if(token.type == Token::EndOfStmt) eat();
-        if(token.type == Token::kwElse) {
-            eat();
 
-            Expr* otherwise;
-            if(token.type == Token::opColon) {
-                otherwise = parseBlock(false);
-            } else {
-                otherwise = parseExpr();
-            }
-
-            return new (buffer) IfExpr(cond, expr, otherwise);
+        if(maybe(Token::kwElse)) {
+            otherwise = Just(token.type == Token::opColon ? parseBlock(false) : parseExpr());
         } else {
             save.restore();
             token = savedToken;
-            return new (buffer) IfExpr(cond, expr, nullptr);
         }
+
+        return makeExpr(If, singleIf, heap(ast::IfExpr { cond, then.unwrap(), otherwise }), location);
     }
 }
 
-Expr* Parser::parseBaseExpr() {
-    if(token.type == Token::ParenL) {
-        return node([=]() -> Expr* {
-            eat();
+ast::Expr Parser::parseBaseExpr() {
+    WithLocation location(*this);
 
-            // Cases to handle:
+    if(maybe(Token::ParenL)) {
+        // Cases to handle:
+        // () block
+        // (expr)
+        // (varexpr) block
+        // (varexpr: type) block
+        // (varexpr, ...) block
+        // (varexpr: type, ...) block
+        if(maybe(Token::ParenR)) {
             // () block
+            return makeExpr(Fun, fun, heap(ast::FunExpr { .body = parseBlock(false) }), location);
+        }
+
+        auto expr = parseExpr();
+
+        if(maybe(Token::ParenR)) {
+            // Cases to handle:
             // (expr)
             // (varexpr) block
-            // (varexpr: type) block
-            // (varexpr, ...) block
-            // (varexpr: type, ...) block
-            if(token.type == Token::ParenR) {
-                // () block
-                eat();
-                return new (buffer) FunExpr(nullptr, parseBlock(false));
+            if(expr.kind == ast::Expr::Var && (token.type == Token::opColon || token.type == Token::opArrowR)) {
+                ast::ParseList<ast::Arg> args;
+                args.push(arena, ast::Arg { .source = expr.source, .name = expr.var, .type = nullptr, .def = nullptr });
+
+                return makeExpr(Fun, fun, heap(ast::FunExpr { args, parseBlock(false) }), location);
             } else {
-                auto e = node([=] { return parseExpr(); });
-                if(token.type == Token::ParenR) {
-                    // Cases to handle:
-                    // (expr)
-                    // (varexpr) block
-                    eat();
-                    if(e->type == Expr::Var && (token.type == Token::opColon || token.type == Token::opArrowR)) {
-                        Arg arg;
-                        arg.name = ((VarExpr*)e)->name;
-                        arg.type = nullptr;
-                        arg.def = nullptr;
-                        arg.locationFrom(*e);
-                        return new (buffer) FunExpr(list(arg), parseBlock(false));
-                    } else {
-                        return new(buffer) NestedExpr(e);
-                    }
-                } else {
-                    // Cases to handle:
-                    // (varexpr: type) block
-                    // (varexpr: type, ...) block
-                    // (varexpr, ...) block
-                    StringId firstName = 0;
-                    if(e->type == Expr::Var) {
-                        firstName = ((VarExpr*)e)->name;
-                    } else {
-                        error("expected argument name"_v);
-                    }
-
-                    Type* firstType = nullptr;
-                    if(token.type == Token::opColon) {
-                        eat();
-                        firstType = parseType();
-                    }
-
-                    Arg arg;
-                    arg.name = firstName;
-                    arg.type = firstType;
-                    arg.def = nullptr;
-                    arg.locationFrom(*e);
-
-                    auto args = list(arg);
-                    if(token.type == Token::Comma) {
-                        eat();
-                        args->next = sepBy1([=] {
-                            return parseArg(false);
-                        }, Token::Comma);
-                    }
-
-                    if(token.type == Token::ParenR) {
-                        eat();
-                    } else {
-                        error("expected ',' or ')' in argument list"_v);
-                    }
-
-                    return new (buffer) FunExpr(args, parseBlock(false));
-                }
+                return makeExpr(Nested, nested, heap(expr), location);
             }
+        }
+
+        // Cases to handle:
+        // (varexpr: type) block
+        // (varexpr: type, ...) block
+        // (varexpr, ...) block
+        auto firstName = expr.kind == ast::Expr::Var ? expr.var : 0;
+        if(!firstName) error("expected argument name"_v);
+
+        Maybe<ast::Type> firstType;
+        if(maybe(Token::opColon)) {
+            firstType = Just(parseType());
+        }
+
+        ast::ParseList<ast::Arg> args;
+        args.push(arena, ast::Arg {
+            .source = context.addLocation(location),
+            .name = firstName,
+            .type = firstType ? heap(firstType.unwrap()) : nullptr,
+            .def = nullptr,
         });
+
+        if(maybe(Token::Comma)) {
+            sepBy1([&] {
+                parseArg(args, false);
+            }, Token::Comma);
+        }
+
+        expect(Token::ParenR, "expected ',' or ')' in argument list"_v);
+        return makeExpr(Fun, fun, heap(ast::FunExpr { args, parseBlock(false) }), location);
     } else if(token.type == Token::BraceL) {
-        return parseTupleExpr();
+        return parseTupleExpr(location);
     } else if(token.type == Token::BracketL) {
-        return parseArrayExpr();
-    } else if(token.type == Token::ConID) {
-        return node([=]() -> Expr* {
-            auto type = node([=]() -> ConType* {
-                auto name = token.data.id;
-                eat();
-                return new (buffer) ConType(name);
+        return parseArrayExpr(location);
+    } else if(auto con = maybe(Token::ConID)) {
+        auto type = ast::Type {
+            .name = con.unwrap().id,
+            .attributes = nullptr,
+            .source = context.addLocation(location),
+            .kind = ast::Type::Con,
+        };
+
+        if(token.type == Token::ParenL) {
+            ast::ParseList<ast::TupArg> args;
+
+            parens([&] {
+                sepBy([&] {
+                    parseTupArg(args);
+                }, Token::Comma, Token::ParenR);
             });
 
-            if(token.type == Token::ParenL) {
-                auto args = parens([=] {
-                    return sepBy([=] {
-                        return parseTupArg();
-                    }, Token::Comma, Token::ParenR);
-                });
-
-                return new (buffer) ConExpr(type, args);
-            } else if(token.type == Token::BraceL) {
-                auto expr = (TupExpr*)parseTupleExpr();
-                return new (buffer) ConExpr(type, expr->args);
-            } else {
-                return new (buffer) ConExpr(type, nullptr);
-            }
-        });
+            return makeExpr(Con, con, heap(ast::ConExpr { .type = type, .args = args }), location);
+        } else if(token.type == Token::BraceL) {
+            auto tup = parseTupleExpr(location);
+            return makeExpr(Con, con, heap(ast::ConExpr { .type = type, .args = tup.tup }), location);
+        } else {
+            return makeExpr(Con, con, heap(ast::ConExpr { .type = type }), location);
+        }
     } else {
-        return parseSelExpr();
+        return parseSelExpr(location);
     }
 }
 
-Expr* Parser::parseSelExpr() {
-    return node([=]() -> Expr* {
-        if(token.type >= Token::FirstLiteral && token.type <= Token::LastLiteral) {
-            if(token.type == Token::String) {
-                return parseStringExpr();
-            } else {
-                auto expr = new(buffer) LitExpr(toLiteral(token));
-                eat();
-                return expr;
-            }
-        } else if(token.type == Token::VarID) {
-            auto id = token.data.id;
-            eat();
-            return new (buffer) VarExpr(id);
-        } else if(token.type == Token::ParenL) {
-            return new (buffer) NestedExpr(parens([=] {return parseExpr();}));
+ast::Expr Parser::parseSelExpr(const WithLocation& location) {
+    if(token.type >= Token::FirstLiteral && token.type <= Token::LastLiteral) {
+        if(token.type == Token::String) {
+            return parseStringExpr(location);
         } else {
-            error("expected an expression"_v);
-            return new (buffer) Expr(Expr::Error);
+            return toLiteral(location);
         }
-    });
+    } else if(auto v = maybe(Token::VarID)) {
+        return makeExpr(Var, var, v.unwrap().id, location);
+    } else if(token.type == Token::ParenL) {
+        Maybe<ast::Expr> expr;
+        parens([&] { expr = Just(parseExpr()); });
+
+        return makeExpr(Nested, nested, heap(expr.unwrap()), location);
+    } else {
+        error("expected an expression"_v);
+        return makeExpr(Error, var, 0, location);
+    }
 }
 
-Expr* Parser::parseStringExpr() {
-    assert(token.type == Token::String);
-    auto string = token.data.id;
-    eat();
+ast::Expr Parser::parseStringExpr(const WithLocation& location) {
+    auto string = tryMaybe(expect(Token::String, "expected string literal"_v), return makeExpr(Error, var, 0, location)).id;
 
     // Check if the string contains formatting.
     if(token.type == Token::StartOfFormat) {
-        // Parse one or more formatting expressions.
-        // The first one consists of just the first string chunk.
-        auto l = list(FormatChunk{string, nullptr});
-        auto p = l;
+        ast::ParseList<ast::FormatChunk> chunks;
+        chunks.push(arena, { string, nullptr });
 
-        while(token.type == Token::StartOfFormat) {
-            eat();
+        while(maybe(Token::StartOfFormat)) {
             auto expr = parseExpr();
+            expect(Token::EndOfFormat, "expected end of string format after this expression"_v);
 
-            if(token.type == Token::EndOfFormat) {
-                eat();
-            } else {
-                error("expected end of string format after this expression."_v);
-            }
-
-            assertTrue(token.type == Token::String);
-            auto endString = token.data.id;
-
-            eat();
-            p->next = list(FormatChunk{endString, expr});
-            p = p->next;
+            auto part = expect(Token::String, "expected string part"_v).from({ .id = 0 }).id;
+            chunks.push(arena, ast::FormatChunk { part, heap(expr) });
         }
 
-        return new(buffer) FormatExpr(l);
+        return makeExpr(Format, format, chunks, location);
     } else {
-        return new(buffer) LitExpr(toStringLiteral(string));
+        return makeExpr(Lit + ast::Literal::String, lit, ast::Literal { .s = string }, location);
     }
 }
 
-TupArg Parser::parseTupArg() {
-    bool qualified = false;
-    if(token.type == Token::opTilde) {
-        eat();
-        qualified = true;
+ast::Expr Parser::parseVarDecl(const WithLocation& location, U32 line) {
+    ast::ParseList<ast::VarDecl> list;
+
+    if(token.startLine == line) {
+        list.push(arena, parseDeclExpr());
+    } else {
+        // Parse one or more declarations, separated as statements.
+        withLevel([&] {
+            sepBy1([&] {
+                list.push(arena, parseDeclExpr());
+            }, Token::EndOfStmt);
+        });
     }
 
-    auto arg = parseExpr();
-    if(arg->type != Expr::Var && qualified) {
+    return makeExpr(Decl, decl, list, location);
+}
+
+ast::VarDecl Parser::parseDeclExpr() {
+    auto pat = parsePattern();
+
+    if(maybe(Token::opEquals)) {
+        auto expr = parseExpr();
+        ast::ParseList<ast::Alt> alts;
+
+        if(auto node = maybeNode(Token::opBar)) {
+            if(maybe(Token::kwMatch)) {
+                if(maybe(Token::opColon)) {
+                    withLevel([&] {
+                        sepBy1([&] {
+                            parseAlt(alts);
+                        }, Token::EndOfStmt);
+                    });
+                } else {
+                    parseAlt(alts);
+                }
+            } else {
+                auto e = parseExpr();
+                alts.push(arena, { .pat = { .source = context.addLocation(node.unwrap().node), .kind = ast::Pat::Any }, .expr = e });
+            }
+        }
+
+        ast::ParsePtr<ast::Expr> in = nullptr;
+        if(maybe(Token::kwIn)) {
+            in = heap(parseExpr());
+        }
+
+        return { pat, heap(expr), in, alts, ast::BindType::Borrow };
+    } else {
+        return { pat, nullptr, nullptr, {}, ast::BindType::Borrow };
+    }
+}
+
+ast::Expr Parser::parseTupleExpr(const WithLocation& location) {
+    expect(Token::BraceL, "expected tuple expression"_v);
+
+    if(maybe(Token::BraceR)) {
+        // An empty tuple is equivalent to an expression of unit type.
+        return makeExpr(Tup, tup, {}, location);
+    }
+
+    // For non-empty tuples, parse the first value to check for update expressions.
+    auto firstQualified = maybe(Token::opTilde).isJust();
+
+    auto first = parseExpr();
+    if(firstQualified && first.kind != ast::Expr::Var) {
         error("expected variable name"_v);
     }
 
-    if(arg->type == Expr::Assign && ((AssignExpr*)arg)->target->type == Expr::Var) {
-        auto assign = (AssignExpr*)arg;
-        auto var = (VarExpr*)assign->target;
-        auto name = var->name;
-        return TupArg{name, assign->value};
-    } else if(qualified && arg->type == Expr::Var) {
-        return TupArg{((VarExpr*)arg)->name, arg};
-    } else {
-        return TupArg{0, arg};
-    }
-}
+    if(maybe(Token::opBar)) {
+        ast::TupUpdateExpr update { .value = first };
+        sepBy1([&] { parseTupArg(update.args); }, Token::Comma);
+        expect(Token::BraceR, "expected '}' after tuple expression"_v);
 
-Arg Parser::parseArg(bool requireType) {
-    return node([=] {
-        VarDecl::Mutability m;
-        StringId name = 0;
-
-        if(token.type == Token::VarSym && token.data.id == refId) {
-            eat();
-            m = VarDecl::Ref;
-        } else if(token.type == Token::VarSym && token.data.id == valId) {
-            eat();
-            m = VarDecl::Val;
-        } else {
-            m = VarDecl::Immutable;
-        }
-
-        if(token.type == Token::VarID) {
-            name = token.data.id;
-            eat();
-        } else {
-            error("expected parameter name"_v);
-        }
-
-        Type* type = nullptr;
-        if(token.type == Token::opColon) {
-            eat();
-            type = parseType();
-
-            if(m == VarDecl::Ref) {
-                type = new (buffer) RefType(type);
-            } else if(m == VarDecl::Val) {
-                type = new (buffer) ValType(type);
-            }
-        } else if(requireType) {
-            error("expected parameter type"_v);
-        }
-
-        Expr* def = nullptr;
-        if(token.type == Token::opEquals) {
-            eat();
-            def = parseExpr();
-        }
-
-        Arg arg;
-        arg.name = name;
-        arg.type = type;
-        arg.def = def;
-
-        return arg;
-    });
-}
-
-ArgDecl Parser::parseTypeArg() {
-    return parseArgDecl();
-}
-
-ArgDecl Parser::parseArgDecl() {
-    if(token.type == Token::VarID) {
-        auto gen = node([=]() -> GenType* {
-            if(token.type != Token::VarID) {
-                error("expected identifier"_v);
-            }
-
-            auto id = token.data.id;
-            eat();
-            return new (buffer) GenType(id);
-        });
-
-        if(token.type == Token::opColon) {
-            eat();
-            return ArgDecl(parseType(), gen->con);
-        } else {
-            return ArgDecl(gen, 0);
-        }
-    } else {
-        return ArgDecl(parseType(), 0);
-    }
-}
-
-Expr* Parser::parseVarDecl(U32 line) {
-    if(token.startLine == line) {
-        return new (buffer) DeclExpr(list(parseDeclExpr()));
+        return makeExpr(TupUpdate, tupUpdate, heap(update), location);
     }
 
-    // Parse one or more declarations, separated as statements.
-    auto list = withLevel([=] {
-        return sepBy1([=] {
-            return parseDeclExpr();
-        }, Token::EndOfStmt);
-    });
+    ast::ParseList<ast::TupArg> args;
 
-    return new (buffer) DeclExpr(list);
-}
-
-VarDecl Parser::parseDeclExpr() {
-    return node([=] {
-        VarDecl::Mutability m;
-        if(token.type == Token::VarSym && token.data.id == refId) {
-            eat();
-            m = VarDecl::Ref;
-        } else if(token.type == Token::VarSym && token.data.id == valId) {
-            eat();
-            m = VarDecl::Val;
-        } else {
-            m = VarDecl::Immutable;
+    if(maybe(Token::opColon)) {
+        if(first.kind != ast::Expr::Var) {
+            error("expected name before field contents"_v, first.source);
         }
 
-        auto pat = parsePattern();
-
-        if(token.type == Token::opEquals) {
-            eat();
-            auto expr = parseExpr();
-
-            List<Alt>* alts = nullptr;
-            if(token.type == Token::opBar) {
-                eat();
-                if(token.type == Token::kwMatch) {
-                    eat();
-                    if(token.type == Token::opColon) {
-                        eat();
-                        alts = withLevel([=] {
-                            return sepBy1([=] {
-                                return parseAlt();
-                            }, Token::EndOfStmt);
-                        });
-                    } else {
-                        alts = list(parseAlt());
-                    }
-                } else {
-                    alts = list(Alt { new (buffer) Pat(Pat::Any), parseExpr() });
-                }
-            }
-
-            Expr* in = nullptr;
-            if(token.type == Token::kwIn) {
-                eat();
-                in = parseExpr();
-            }
-
-            return VarDecl{pat, expr, in, alts, m};
-        } else {
-            return VarDecl{pat, nullptr, nullptr, nullptr, m};
-        }
-    });
-}
-
-Alt Parser::parseAlt() {
-    /*
-     * alt	→	pat -> exp [where decls]
-     * 		|	pat gdpat [where decls]
-     * 		|		    					(empty alternative)
-     */
-    auto pat = parsePattern();
-    auto exp = parseBlock(false);
-    return Alt{pat, exp};
-}
-
-VarExpr* Parser::parseVar() {
-    /*
-     * var	→	varid | ( varsym )
-     */
-    if(token.type == Token::VarID) {
-        auto id = token.data.id;
-        eat();
-        return new (buffer) VarExpr(id);
-    } else if(token.type == Token::ParenL) {
-        eat();
-        if(token.type == Token::VarSym) {
-            auto id = token.data.id;
-            eat();
-            if(token.type == Token::ParenR) {
-                eat();
-            } else {
-                error("expected ')'"_v);
-            }
-
-            return new (buffer) VarExpr(id);
-        } else {
-            error("expected symbol"_v);
-            return new (buffer) VarExpr(0);
-        }
+        args.push(arena, { first.kind == ast::Expr::Var ? first.var : 0, first });
     } else {
-        error("expected identifier"_v);
-        return new (buffer) VarExpr(0);
-    }
-}
-
-VarExpr* Parser::parseQop() {
-    /*
-     * qop	→	qvarsym | `qvarid`
-     */
-    return node([=]() -> VarExpr* {
-        if(token.type == Token::VarSym) {
-            auto id = token.data.id;
-            eat();
-            return new (buffer) VarExpr(id);
-        } else if(token.type == Token::Grave) {
-            eat();
-            if(token.type == Token::VarID) {
-                auto id = token.data.id;
-                eat();
-
-                if(token.type == Token::Grave) {
-                    eat();
-                } else {
-                    error("Expected '`' after operator identifier"_v);
-                }
-
-                return new (buffer) VarExpr(id);
-            }
-        }
-
-        error("expected an operator"_v);
-        return new (buffer) VarExpr(0);
-    });
-}
-
-Type* Parser::parseType() {
-    auto attributes = parseAttributes(true);
-    auto type = node([=]() -> Type* {
-        bool hasArgs = false;
-        List<ArgDecl>* args = maybeParens([&] {
-            hasArgs = true;
-            return sepBy([=] {
-                return parseTypeArg();
-            }, Token::Comma, Token::ParenR);
-        });
-
-        if(!hasArgs) {
-            if(token.type == Token::ConID || token.type == Token::VarID) {
-                auto base = node([=]() -> Type* {
-                    auto isVar = token.type == Token::VarID;
-                    auto id = token.data.id;
-                    eat();
-                    return isVar ? (Type*)(new (buffer) GenType(id)) : (Type*)(new(buffer) ConType(id));
-                });
-
-                // In full types for cases where it is easily visible what's going on, we allow omitting parentheses.
-                // This conveniently also prevents us from having to look too far ahead.
-                if(token.type == Token::ParenL) {
-                    auto type = parens([=] {
-                        return sepBy1([=] {
-                            return parseType();
-                        }, Token::Comma);
-                    });
-                    return new (buffer) AppType(base, type);
-                } else if(token.type == Token::BraceL) {
-                    return new (buffer) AppType(base, list(parseTupleType()));
-                } else if(token.type == Token::BracketL) {
-                    return new (buffer) AppType(base, list(parseArrayType()));
-                } else if(token.type == Token::ConID) {
-                    auto con = node([=]() -> Type* {
-                        auto id = token.data.id;
-                        eat();
-                        return new(buffer) ConType(id);
-                    });
-                    return new (buffer) AppType(base, list(con));
-                } else if(token.type == Token::VarID) {
-                    auto con = node([=]() -> Type* {
-                        auto id = token.data.id;
-                        eat();
-                        return new(buffer) GenType(id);
-                    });
-                    return new (buffer) AppType(base, list(con));
-                } else {
-                    return base;
-                }
-            } else {
-                return parseAType();
-            }
-        } else if(token.type == Token::opArrowR) {
-            eat();
-            return new (buffer) FunType(args, parseAType());
-        } else {
-            auto arg = args->next ? nullptr : &args->item;
-            if(arg && !arg->name) {
-                return arg->type;
-            } else {
-                error("expected '->' after function type args"_v);
-                return new (buffer) Type(Type::Error);
-            }
-        }
-    });
-
-    type->attributes = attributes;
-    return type;
-}
-
-Type* Parser::parseAType() {
-    if(token.type == Token::VarSym && token.data.id == ptrId) {
-        eat();
-        auto type = parseAType();
-        return new (buffer) PtrType(type);
-    } else if(token.type == Token::VarSym && token.data.id == refId) {
-        eat();
-        auto type = parseAType();
-        return new (buffer) RefType(type);
-    } else if(token.type == Token::VarSym && token.data.id == valId) {
-        eat();
-        auto type = parseAType();
-        return new (buffer) ValType(type);
-    } else if(token.type == Token::ConID || token.type == Token::VarID) {
-        auto base = node([=]() -> Type* {
-            auto isVar = token.type == Token::VarID;
-            auto id = token.data.id;
-            eat();
-            return isVar ? (Type*)(new (buffer) GenType(id)) : (Type*)(new(buffer) ConType(id));
-        });
-
-        if(token.type == Token::ParenL) {
-            auto type = parens([=] {
-                return sepBy1([=] {
-                    return parseType();
-                }, Token::Comma);
-            });
-            return new (buffer) AppType(base, type);
-        } else {
-            return base;
-        }
-    } else if(token.type == Token::BraceL) {
-        // Also handles unit type.
-        return parseTupleType();
-    } else if(token.type == Token::BracketL) {
-        return parseArrayType();
-    } else if(token.type == Token::ParenL) {
-        eat();
-        auto t = parseType();
-        if(token.type == Token::ParenR) eat();
-        else error("expected ')'"_v);
-
-        return t;
-    } else {
-        error("expected a type"_v);
-        return new (buffer) Type(Type::Error);
-    }
-}
-
-SimpleType* Parser::parseSimpleType() {
-    StringId id = 0;
-    if(token.type == Token::ConID) {
-        id = token.data.id;
-        eat();
-    } else {
-        error("expected type name"_v);
+        args.push(arena, ast::TupArg { 0, first });
     }
 
-    List<StringId>* kind = nullptr;
-    if(token.type == Token::VarID) {
-        kind = list(token.data.id);
-        eat();
-    } else {
-        kind = maybeParens([=] {
-            return sepBy1([=] {
-                if(token.type == Token::VarID) {
-                    auto n = token.data.id;
-                    eat();
-                    return n;
-                } else {
-                    error("expected an identifier"_v);
-                    return StringId(0);
-                }
+    if(maybe(Token::Comma)) {
+        sepBy1([&] {
+            parseTupArg(args);
+        }, Token::Comma);
+    }
+
+    expect(Token::BraceR, "expected '}' after tuple expression"_v);
+    return makeExpr(Tup, tup, args, location);
+}
+
+ast::Expr Parser::parseArrayExpr(const WithLocation& location) {
+    expect(Token::BracketL, "expected array expression"_v);
+
+    if(maybe(Token::BracketR)) {
+        return makeExpr(Array, arr, {}, location);
+    } else if(maybe(Token::opColon)) {
+        expect(Token::BracketR, "expected ']' after empty map"_v);
+        return makeExpr(Map, map, {}, location);
+    }
+
+    auto first = parseExpr();
+
+    if(maybe(Token::opColon)) {
+        auto firstValue = parseExpr();
+
+        ast::ParseList<ast::MapArg> contents;
+        contents.push(arena, ast::MapArg { first, firstValue });
+
+        if(maybe(Token::Comma)) {
+            sepBy1([&] {
+                auto key = parseExpr();
+                expect(Token::opColon, "expected ':' after map item key"_v);
+                auto value = parseExpr();
+                contents.push(arena, ast::MapArg { key, value });
             }, Token::Comma);
-        });
-    }
-
-    return new(buffer) SimpleType(id, kind);
-}
-
-Type* Parser::parseTupleType() {
-    return node([=] {
-        auto type = braces([=]() -> Type* {
-            auto l = sepBy([=]() -> TupField {
-                if(token.type == Token::VarID) {
-                    auto gen = node([=]() -> GenType* {
-                        auto name = token.data.id;
-                        eat();
-                        return new (buffer) GenType(name);
-                    });
-
-                    if(token.type == Token::opColon) {
-                        eat();
-                        return TupField(parseType(), gen->con, nullptr);
-                    } else {
-                        return TupField(gen, 0, nullptr);
-                    }
-                } else {
-                    return TupField(parseType(), 0, nullptr);
-                }
-            }, Token::Comma, Token::BraceR);
-
-            if(l) {
-                return new (buffer) TupType(l);
-            } else {
-                return new (buffer) Type(Type::Unit);
-            }
-        });
-
-        return type;
-    });
-}
-
-Type* Parser::parseArrayType() {
-    return node([=]() -> Type* {
-        eat();
-        auto from = parseType();
-        if(token.type == Token::opArrowD) {
-            eat();
-            auto to = parseType();
-            if(token.type == Token::BracketR) {
-                eat();
-            } else {
-                error("expected ']' after array type"_v);
-            }
-
-            return new(buffer) MapType(from, to);
-        } else {
-            if(token.type == Token::BracketR) {
-                eat();
-            } else {
-                error("expected ']' after array type"_v);
-            }
-
-            return new(buffer) ArrType(from);
-        }
-    });
-}
-
-Expr* Parser::parseTupleExpr() {
-    return node([=] {
-        return braces([=]() -> Expr* {
-            // An empty tuple is equivalent to an expression of unit type.
-            if(token.type == Token::BraceR) {
-                return new (buffer) TupExpr(nullptr);
-            }
-
-            // For non-empty tuples, parse the first value to check for update expressions.
-            bool firstQualified = false;
-            if(token.type == Token::opTilde) {
-                eat();
-                firstQualified = true;
-            }
-
-            auto first = parseExpr();
-            if(first->type != Expr::Var && firstQualified) {
-                error("expected variable name"_v);
-            }
-
-            if(token.type == Token::opBar) {
-                eat();
-                auto args = sepBy1([=] {
-                    return parseTupArg();
-                }, Token::Comma);
-
-                return new (buffer) TupUpdateExpr(first, args);
-            } else {
-                List<TupArg>* args;
-                if(first->type == Expr::Assign) {
-                    auto target = ((AssignExpr*)first)->target;
-                    StringId name = 0;
-                    if(target->type == Expr::Var) {
-                        name = ((VarExpr*)target)->name;
-                    }
-
-                    if(!name) {
-                        error("tuple fields must be identifiers"_v);
-                    }
-
-                    args = list(TupArg(name, ((AssignExpr*)first)->value));
-                } else if(firstQualified && first->type == Expr::Var) {
-                    args = list(TupArg(((VarExpr*)first)->name, first));
-                } else {
-                    args = list(TupArg{0, first});
-                }
-
-                if(token.type == Token::Comma) {
-                    eat();
-                    args->next = sepBy1([=] {
-                        return parseTupArg();
-                    }, Token::Comma);
-                }
-
-                // Parent call checks the terminating '}'.
-                return new (buffer) TupExpr(args);
-            }
-        });
-    });
-}
-
-Expr* Parser::parseArrayExpr() {
-    assert(token.type == Token::BracketL);
-    eat();
-
-    if(token.type == Token::BracketR) {
-        // Empty array.
-        eat();
-        return new (buffer) ArrayExpr(nullptr);
-    } else if(token.type == Token::opArrowD) {
-        // Empty map.
-        eat();
-        if(token.type == Token::BracketR) {
-            eat();
-        } else {
-            error("expected ']' after empty map"_v);
         }
 
-        return new (buffer) MapExpr(nullptr);
+        expect(Token::BracketR, "expected ']' after map end"_v);
+        return makeExpr(Map, map, contents, location);
     } else {
-        auto first = parseExpr();
-        if(token.type == Token::opArrowD) {
-            eat();
-            auto firstValue = parseExpr();
-            if(token.type == Token::Comma) {
-                eat();
-                auto content = sepBy1([=] {
-                    auto key = parseExpr();
-                    if(token.type == Token::opArrowD) {
-                        eat();
-                    } else {
-                        error("expected '=>' after map item key"_v);
-                    }
+        ast::ParseList<ast::Expr> contents;
+        contents.push(arena, first);
 
-                    auto value = parseExpr();
-                    return MapArg(key, value);
-                }, Token::Comma);
-
-                auto l = list(MapArg(first, firstValue));
-                l->next = content;
-
-                if(token.type == Token::BracketR) {
-                    eat();
-                } else {
-                    error("expected ']' after map end"_v);
-                }
-
-                return new (buffer) MapExpr(l);
-            } else {
-                if(token.type == Token::BracketR) {
-                    eat();
-                } else {
-                    error("expected ']' after map end"_v);
-                }
-
-                return new (buffer) MapExpr(list(MapArg(first, firstValue)));
-            }
-        } else if(token.type == Token::Comma) {
-            eat();
-            auto content = sepBy1([=] {
-                return parseExpr();
+        if(maybe(Token::Comma)) {
+            sepBy1([&] {
+                contents.push(arena, parseExpr());
             }, Token::Comma);
-
-            auto l = list(first);
-            l->next = content;
-
-            if(token.type == Token::BracketR) {
-                eat();
-            } else {
-                error("expected ']' after array end"_v);
-            }
-
-            return new (buffer) ArrayExpr(l);
-        } else {
-            if(token.type == Token::BracketR) {
-                eat();
-            } else {
-                error("expected ']' after array end"_v);
-            }
-
-            return new (buffer) ArrayExpr(list(first));
         }
+
+        expect(Token::BracketR, "expected ']' after array end"_v);
+        return makeExpr(Array, arr, contents, location);
     }
 }
 
-Con Parser::parseCon() {
-    auto attributes = parseAttributes(true);
+void Parser::parseTupArg(ast::ParseList<ast::TupArg>& list) {
+    auto qualified = maybe(Token::opTilde).isJust();
+    auto arg = parseExpr();
 
-    /*
-     * con	→	conid(type)
-     *      |   conid tuptype
-     *      |   conid
-     */
-    auto con = node([=] {
-        StringId name;
-        if(token.type == Token::ConID) {
-            name = token.data.id;
-            eat();
-        } else {
-            error("expected constructor name"_v);
-            name = 0;
+    if(qualified && arg.kind != ast::Expr::Var) {
+        error("expected variable name"_v);
+    }
+
+    if(maybe(Token::opColon)) {
+        if(arg.kind != ast::Expr::Var) {
+            error("expected name before field contents"_v, arg.source);
         }
 
-        Type* content = nullptr;
-        if(token.type == Token::ParenL) {
-            content = parens([=]{return parseType();});
-        } else if(token.type == Token::BraceL) {
-            content = parseTupleType();
-        } else if(token.type == Token::BracketL) {
-            content = parseAType();
-        }
+        list.push(arena, { arg.kind == ast::Expr::Var ? arg.var : 0, arg });
+    } else if(qualified && arg.kind == ast::Expr::Var) {
+        list.push(arena, { arg.var, arg });
+    } else {
+        list.push(arena, { 0, arg });
+    }
+}
 
-        return Con(name, content);
+void Parser::parseArg(ast::ParseList<ast::Arg>& list, bool requireType) {
+    WithLocation location(*this);
+
+    auto bind = ast::BindType::Borrow;
+    if(maybe(Token::opArrowR)) bind = ast::BindType::Sink;
+    else if(maybe(Token::opAmp)) bind = ast::BindType::Ref;
+    else if(maybeVar(setId)) bind = ast::BindType::Set;
+
+    auto name = tryMaybe(expect(Token::VarID, "expected parameter name"_v), return).id;
+    ast::ParsePtr<ast::Type> type = nullptr;
+    ast::ParsePtr<ast::Expr> def = nullptr;
+
+    if(requireType) {
+        expect(Token::opColon, "expected parameter type"_v);
+        type = heap(ast::Type(parseType()));
+    } else if(maybe(Token::opColon)) {
+        type = heap(ast::Type(parseType()));
+    }
+
+    if(maybe(Token::opEquals)) {
+        def = heap(ast::Expr(parseExpr()));
+    }
+
+    list.push(arena, ast::Arg {
+        .source = context.addLocation(location),
+        .name = name,
+        .type = type,
+        .def = def,
+        .bind = bind,
     });
-
-    con->attributes = attributes;
-    return con;
 }
 
-FieldPat Parser::parseFieldPat() {
-    bool qualified = false;
-    if(token.type == Token::opTilde) {
-        eat();
-        qualified = true;
-    }
+ast::FieldPat Parser::parseFieldPat() {
+    WithLocation location(*this);
 
+    auto qualified = maybe(Token::opTilde).isJust();
     if(qualified && token.type != Token::VarID) {
         error("expected variable name"_v);
     }
 
-    if(token.type == Token::VarID) {
-        auto varPat = node([=] {
-            auto it = new (buffer) VarPat(token.data.id);
-            eat();
-            return it;
-        });
-
-        if(token.type == Token::opEquals) {
-            eat();
-            return FieldPat(varPat->var, parsePattern());
+    if(auto data = maybe(Token::VarID)) {
+        if(maybe(Token::opColon)) {
+            return ast::FieldPat { data.unwrap().id, heap(ast::Pat(parsePattern())) };
         } else {
-            return FieldPat(qualified ? varPat->var : 0, varPat);
+            auto varPat = ast::Pat { .var = data.unwrap().id, .source = context.addLocation(location), .kind = ast::Pat::Var };
+            return ast::FieldPat { qualified ? data.unwrap().id : 0, heap(ast::Pat(varPat)) };
         }
     } else {
-        return FieldPat(0, parsePattern());
+        return ast::FieldPat { 0, heap(ast::Pat(parsePattern())) };
     }
 }
 
-Pat* Parser::parseLeftPattern() {
-    return node([=]() -> Pat* {
-        if(token.type >= Token::FirstLiteral && token.type <= Token::LastLiteral) {
-            auto p = new (buffer) LitPat(toLiteral(token));
-            eat();
-            return p;
-        } else if(token.type == Token::kw_ || token.type == Token::kwElse) {
-            eat();
-            return new(buffer) Pat(Pat::Any);
-        } else if(token.type == Token::VarID) {
-            StringId var = token.data.id;
-            eat();
-            if(token.type == Token::opAt) {
-                eat();
-                auto pat = parseLeftPattern();
-                pat->asVar = var;
-                return pat;
-            } else {
-                return new(buffer) VarPat(var);
-            }
-        } else if(token.type == Token::ParenL) {
-            eat();
-            auto pat = parsePattern();
-            if(token.type == Token::ParenR) eat();
-            else error("expected ')'"_v);
+ast::Pat Parser::parsePattern() {
+    WithLocation location(*this);
 
-            return pat;
-        } else if(token.type == Token::ConID) {
-            // lpat can only contain a single constructor name.
-            auto id = token.data.id;
-            eat();
-            return new(buffer) ConPat(id, nullptr);
-        } else if(token.type == Token::BraceL) {
-            auto expr = braces([=] {
-                return sepBy1([=] {
-                    return parseFieldPat();
-                }, Token::Comma);
-            });
-            return new(buffer) TupPat(expr);
-        } else if(token.type == Token::BracketL) {
-            auto expr = brackets([=] {
-                return sepBy([=] {
-                    return parsePattern();
-                }, Token::Comma, Token::BracketR);
-            });
-
-            return new(buffer) ArrayPat(expr);
-        } else if(token.type == Token::opDotDot) {
-            eat();
-            StringId var;
-            if(token.type == Token::VarID) {
-                var = token.data.id;
-                eat();
-            } else {
-                var = 0;
-                error("expected variable name"_v);
-            }
-
-            return new (buffer) RestPat(var);
-        } else {
-            error("expected pattern"_v);
-            return new (buffer) Pat(Pat::Error);
-        }
-    });
-}
-
-Pat* Parser::parsePattern() {
     if(token.singleMinus) {
         eat();
-        if(token.type == Token::Integer || token.type == Token::Float) {
-            auto lit = toLiteral(token);
-            if(token.type == Token::Integer) lit.i = -lit.i;
-            else lit.f = -lit.f;
-            eat();
-            return new(buffer) LitPat(lit);
-        } else {
+
+        auto lit = (token.type == Token::Integer || token.type == Token::Float) ? toLiteral(location) : ({
             error("expected integer or float literal"_v);
+            toLiteral({ .integer = 0 }, Token::Integer, location);
+        });
 
-            Literal lit;
-            lit.type = Literal::Int;
-            lit.i = 0;
-            return new (buffer) LitPat(lit);
-        }
-    } else {
-        bool allowRange = true;
-        Pat* pat;
-        if(token.type == Token::ConID) {
-            auto id = token.data.id;
-            eat();
-
-            Pat* pats = nullptr;
-            if(token.type == Token::ParenL) {
-                auto fields = parens([=] {
-                    return sepBy1([=] {
-                        return parseFieldPat();
-                    }, Token::Comma);
-                });
-
-                if(!fields || fields->next || fields->item.field) {
-                    pats = new (buffer) TupPat(fields);
-                } else {
-                    pats = fields->item.pat;
-                }
-            } else if(token.type == Token::BraceL) {
-                auto p = (TupPat*)parseLeftPattern();
-                if(!p->fields || p->fields->next || p->fields->item.field) {
-                    pats = p;
-                } else {
-                    pats = p->fields->item.pat;
-                }
-            }
-
-            allowRange = pats == nullptr;
-            pat = new (buffer) ConPat(id, pats);
-        } else {
-            pat = parseLeftPattern();
-        }
-
-        if(allowRange && token.type == Token::opDotDot) {
-            eat();
-            auto to = parseLeftPattern();
-            return new (buffer) RangePat(pat, to);
-        } else {
-            return pat;
-        }
+        return ast::Pat {
+            .lit = lit.lit,
+            .source = lit.source,
+            .kind = (ast::Pat::Kind)(ast::Pat::Lit + (lit.kind - ast::Expr::Lit)),
+        };
     }
-}
 
-Attribute Parser::parseAttribute() {
-    return node([=] {
-        if(token.type == Token::opAt) {
-            eat();
-        } else {
-            error("expected '@'"_v);
-        }
+    auto allowRange = true;
+    Maybe<ast::Pat> pat {};
 
-        U32 end = token.endColumn;
-        StringId name = 0;
-        if(token.type == Token::VarID || token.type == Token::ConID) {
-            name = token.data.id;
-            eat();
-        } else {
-            error("expected identifier or type name"_v);
-        }
+    if(auto con = maybe(Token::ConID)) {
+        if(token.type == Token::ParenL) {
+            ast::ParseList<ast::FieldPat> fields;
 
-        // In this case we use significant whitespace. Since attributes can be added in many contexts,
-        // we have to use whitespace to differentiate between an attribute argument list and other types of nodes.
-        bool hasGap = token.startColumn != end;
-        if(!hasGap && token.type == Token::ParenL) {
-            auto args = parens([=] {
-                return sepBy([=] {
-                    return parseTupArg();
-                }, Token::Comma, Token::ParenR);
+            parens([&] {
+                sepBy1([&] {
+                    fields.push(arena, parseFieldPat());
+                }, Token::Comma);
             });
 
-            return Attribute{name, args};
-        } else if(!hasGap && token.type == Token::BraceL) {
-            auto expr = (TupExpr*)parseTupleExpr();
-            return Attribute{name, expr->args};
-        } else {
-            return Attribute{name, nullptr};
-        }
-    });
-}
+            if(fields.size() == 1 && !fields.get(*arena, 0).field) {
+                pat = Just(*(*arena)[fields.get(*arena, 0).pat]);
+            } else {
+                pat = Just(ast::Pat { .tup = fields, .source = context.addLocation(location), .kind = ast::Pat::Tup });
+            }
+        } else if(token.type == Token::BraceL) {
+            auto p = parseLeftPattern();
+            assertTrue(p.kind == ast::Pat::Tup);
 
-List<Attribute>* Parser::parseAttributes(bool isInline) {
-    List<Attribute>* attributes = nullptr;
-    while(token.type == Token::opAt) {
-        attributes = list(parseAttribute(), attributes);
-
-        if(!isInline && token.type == Token::EndOfStmt) {
-            eat();
+            if(p.tup.size() == 1 && !p.tup.get(*arena, 0).field) {
+                pat = Just(*(*arena)[p.tup.get(*arena, 0).pat]);
+            } else {
+                pat = Just(ast::Pat { .tup = p.tup, .source = context.addLocation(location), .kind = ast::Pat::Tup });
+            }
         }
+
+        allowRange = pat.isNothing();
+        pat = Just(ast::Pat { .con = { con.unwrap().id, pat ? heap(pat.unwrap()) : nullptr }, .source = context.addLocation(location), .kind = ast::Pat::Con });
+    } else {
+        pat = Just(parseLeftPattern());
     }
 
-    return attributes;
+    if(allowRange && maybe(Token::opDotDot)) {
+        auto to = parseLeftPattern();
+        return ast::Pat { .range = { heap(pat.unwrap()), heap(to) }, .source = context.addLocation(location), .kind = ast::Pat::Range };
+    }
+
+    return pat.unwrap();
 }
 
-Constraint* Parser::parseConstraint() {
-    return node([this]() -> Constraint* {
-        if(token.type == Token::VarID) {
-            auto name = token.data.id;
-            eat();
+ast::Pat Parser::parseLeftPattern() {
+    WithLocation location(*this);
 
-            if(token.type == Token::opDot) {
-                eat();
-                if(token.type == Token::VarID) {
-                    auto arg = parseArgDecl();
-                    return new (buffer) FieldConstraint(name, arg.name, arg.type);
-                } else {
-                    error("expected constraint field name"_v);
-                }
-            } else if(token.type == Token::opColon) {
-                eat();
-                if(token.type == Token::ParenL) {
-                    List<ArgDecl>* args = parens([=] {
-                        return sepBy([=] {
-                            return parseTypeArg();
-                        }, Token::Comma, Token::ParenR);
-                    });
+    if(token.type >= Token::FirstLiteral && token.type <= Token::LastLiteral) {
+        auto lit = toLiteral(location);
 
-                    if(token.type == Token::opArrowR) {
-                        eat();
-                        return new (buffer) FunctionConstraint(FunType(args, parseAType()), name);
-                    } else {
-                        error("expected function return type"_v);
-                    }
-                } else {
-                    error("expected function constraint"_v);
-                }
-            } else {
-                return new (buffer) AnyConstraint(name);
-            }
-        } else if(token.type == Token::ConID) {
-            auto type = parseSimpleType();
-            return new (buffer) ClassConstraint(type);
+        return ast::Pat {
+            .lit = lit.lit,
+            .source = lit.source,
+            .kind = (ast::Pat::Kind)(ast::Pat::Lit + (lit.kind - ast::Expr::Lit)),
+        };
+    } else if(token.type == Token::kw_ || token.type == Token::kwElse) {
+        eat();
+        return ast::Pat { .source = context.addLocation(location), .kind = ast::Pat::Any };
+    } else if(auto var = maybe(Token::VarID)) {
+        if(maybe(Token::opAt)) {
+            auto pat = parseLeftPattern();
+            pat.asVar = var.unwrap().id;
+            return pat;
         } else {
-            error("expected type constraint"_v);
+            return ast::Pat { .var = var.unwrap().id, .source = context.addLocation(location), .kind = ast::Pat::Var };
         }
+    } else if(token.type == Token::ParenL) {
+        Maybe<ast::Pat> pat;
+        parens([&] { pat = Just(parsePattern()); });
+        return pat.unwrap();
+    } else if(auto con = maybe(Token::ConID)) {
+        // lpat can only contain a single constructor name.
+        return { .con = { .name = con.unwrap().id, .pats = nullptr }, .source = context.addLocation(location), .kind = ast::Pat::Con };
+    } else if(token.type == Token::BraceL) {
+        ast::ParseList<ast::FieldPat> fields;
+        braces([&] {
+            sepBy1([&] {
+                fields.push(arena, parseFieldPat());
+            }, Token::Comma);
+        });
 
-        return new (buffer) Constraint(Constraint::Error);
+        return { .tup = fields, .source = context.addLocation(location), .kind = ast::Pat::Tup };
+    } else if(token.type == Token::BracketL) {
+        ast::ParseList<ast::Pat> pats;
+        brackets([&] {
+            sepBy([&] {
+                pats.push(arena, parsePattern());
+            }, Token::Comma, Token::BracketR);
+        });
+
+        return { .arr = pats, .source = context.addLocation(location), .kind = ast::Pat::Arr };
+    } else if(maybe(Token::opDotDot)) {
+        auto name = expect(Token::VarID, "expected variable name"_v);
+        return { .asVar = name ? name.unwrap().id : 0, .source = context.addLocation(location), .kind = ast::Pat::Rest };
+    } else {
+        error("expected pattern"_v);
+        return { .source = context.addLocation(location), .kind = ast::Pat::Error };
+    }
+}
+
+void Parser::parseAlt(ast::ParseList<ast::Alt>& list) {
+    auto pat = parsePattern();
+    auto expr = parseBlock(false);
+    list.push(arena, { pat, expr });
+}
+
+ast::Expr Parser::parseQop() {
+    WithLocation location(*this);
+
+    if(auto t = maybe(Token::VarSym)) {
+        return makeExpr(Var, var, t.unwrap().id, location);
+    }
+
+    expect(Token::Grave, "expected an operator"_v);
+    auto op = expect(Token::VarID, "expected an operator"_v).from({ .id = 0 }).id;
+    expect(Token::Grave, "expected '`' after operator identifier"_v);
+
+    return makeExpr(Var, var, op, location);
+}
+
+void Parser::parseAttribute(ast::AttrList& list) {
+    WithLocation location(*this);
+    expect(Token::opAt, "expected '@'"_v);
+
+    auto end = token.endColumn;
+    auto name = tryMaybe(expectVarOrCon("expected identifier or type name"_v), return).id;
+    ast::ParseList<ast::TupArg> args;
+
+    // In this case we use significant whitespace. Since attributes can be added in many contexts,
+    // we have to use whitespace to differentiate between an attribute argument list and other types of nodes.
+    bool hasGap = token.startColumn != end;
+    if(!hasGap && token.type == Token::ParenL) {
+        parens([&] {
+            return sepBy([&] {
+                return parseTupArg(args);
+            }, Token::Comma, Token::ParenR);
+        });
+    } else if(!hasGap && token.type == Token::BraceL) {
+        WithLocation argsLocation(*this);
+        auto expr = parseTupleExpr(argsLocation);
+        args = ::move(expr.tup);
+    }
+
+    list.push(arena, ast::Attribute {
+        .source = context.addLocation(location),
+        .name = name,
+        .args = args,
     });
 }
 
-List<Constraint*>* Parser::parseConstraints() {
-    return parens([&] {
-        return sepBy([&] {
-            return parseConstraint();
+void Parser::parseAttributes(ast::AttrList& list, bool isInline) {
+    while(token.type == Token::opAt) {
+        parseAttribute(list);
+        if(!isInline) maybe(Token::EndOfStmt);
+    }
+}
+
+ast::Constraint Parser::parseConstraint() {
+    WithLocation location(*this);
+
+    if(auto con = maybe(Token::ConID)) {
+        auto type = parseSimpleType();
+        return { .type = type, .source = context.addLocation(location), .kind = ast::Constraint::Class };
+    }
+
+    auto name = expect(Token::VarID, "expected type constraint"_v).from({ .id = 0 }).id;
+
+    if(maybe(Token::opDot)) {
+        auto field = expect(Token::VarID, "expected constraint field name"_v).from({ .id = 0 }).id;
+        expect(Token::opColon, "expected ':' after field name"_v);
+        auto type = parseType();
+
+        return { .field = { name, field, heap(type) }, .source = context.addLocation(location), .kind = ast::Constraint::Field };
+    }
+
+    if(maybe(Token::opColon)) {
+        WithLocation funLocation(*this);
+
+        expect(Token::ParenL, "expected function constraint"_v);
+        ast::ParseList<ast::ArgDecl> args;
+
+        sepBy([&] {
+            parseTypeArg(args);
+        }, Token::Comma, Token::ParenR);
+
+        expect(Token::opArrowR, "expected function return type"_v);
+
+        WithLocation retLocation(*this);
+        auto ret = parseAType(retLocation, nullptr);
+        auto type = makeType(Fun, fun, heap(ast::FunType { args, ret }), funLocation, nullptr);
+
+        return { .fun = { name, heap(type) }, .source = context.addLocation(location), .kind = ast::Constraint::Function };
+    }
+
+    return { .source = context.addLocation(location), .kind = ast::Constraint::Any };
+}
+
+void Parser::parseConstraints(ast::ConstraintList& list) {
+    parens([&] {
+        sepBy([&] {
+            list.push(arena, parseConstraint());
         }, Token::Comma, Token::ParenR);
     });
 }
 
-void Parser::error(StringView text, Node* node) {
-    Node where;
-    where.sourceStart.line = (U16)token.startLine;
-    where.sourceStart.column = (U16)token.startColumn;
-    where.sourceStart.offset = (U16)token.startOffset;
-    where.sourceEnd.line = (U16)token.endLine;
-    where.sourceEnd.column = (U16)token.endColumn;
-    where.sourceEnd.offset = (U16)token.endOffset;
-    where.sourceModule = module.name;
+void Parser::parseArgDecl(ast::ParseList<ast::ArgDecl>& list) {
+    if(auto v = maybe(Token::VarID)) {
+        expect(Token::opColon, "expected ':' after parameter name"_v);
+        list.push(arena, ast::ArgDecl { parseType(), v.unwrap().id, ast::BindType::Borrow });
+    } else {
+        list.push(arena, ast::ArgDecl { parseType(), 0, ast::BindType::Borrow });
+    }
+}
 
-    diag.error(text, node ? node : &where);
+void Parser::parseTypeArg(ast::ParseList<ast::ArgDecl>& list) {
+    parseArgDecl(list);
+}
+
+ast::Type Parser::parseType() {
+    WithLocation location(*this);
+
+    ast::AttrList attributeList;
+    parseAttributes(attributeList, true);
+    auto attributes = attributeList.isNotEmpty() ? heap(attributeList) : nullptr;
+
+    auto hasArgs = false;
+    ast::ParseList<ast::ArgDecl> args;
+
+    if(token.type == Token::ParenL) {
+        hasArgs = true;
+
+        parens([&] {
+            sepBy([&] {
+                parseTypeArg(args);
+            }, Token::Comma, Token::ParenR);
+        });
+    }
+
+    if(!hasArgs) {
+        if(token.type == Token::ConID || token.type == Token::VarID) {
+            auto isVar = token.type == Token::VarID;
+            auto name = token.data.id;
+            eat();
+
+            auto base = isVar ? makeType(Gen, name, name, location, nullptr) : makeType(Con, name, name, location, nullptr);
+            ast::ParseList<ast::Type> app;
+
+            // In full types for cases where it is easily visible what's going on, we allow omitting parentheses.
+            // This conveniently also prevents us from having to look too far ahead.
+            if(token.type == Token::ParenL) {
+                parens([&] {
+                    sepBy1([&] {
+                        app.push(arena, parseType());
+                    }, Token::Comma);
+                });
+            } else if(token.type == Token::BraceL) {
+                WithLocation appLocation(*this);
+                app.push(arena, parseTupleType(appLocation, nullptr));
+            } else if(token.type == Token::BracketL) {
+                WithLocation appLocation(*this);
+                app.push(arena, parseArrayType(appLocation, nullptr));
+            } else if(token.type == Token::ConID || token.type == Token::VarID) {
+                WithLocation appLocation(*this);
+
+                auto isAppVar = token.type == Token::VarID;
+                auto appName = token.data.id;
+                eat();
+
+                app.push(arena, isAppVar ? makeType(Gen, name, appName, appLocation, nullptr) : makeType(Con, name, appName, appLocation, nullptr));
+            }
+
+            if(app.isEmpty()) {
+                base.attributes = attributes;
+                return base;
+            } else {
+                return makeType(App, app, heap(ast::AppType { base, app }), location, attributes);
+            }
+        } else {
+            return parseAType(location, attributes);
+        }
+    } else if(maybe(Token::opArrowR)) {
+        WithLocation retLocation(*this);
+        return makeType(Fun, fun, heap(ast::FunType { .args = args, .ret = parseAType(retLocation, nullptr) }), location, attributes);
+    } else {
+        Maybe<ast::ArgDecl> arg = args.isNotEmpty() ? Just(args.get(*arena, 0)) : Nothing();
+        if(arg && !arg.unwrap().name) {
+            auto t = arg.unwrap().type;
+            t.attributes = attributes;
+            return t;
+        } else {
+            error("expected '->' after function type args"_v);
+            return makeType(Error, name, 0, location, attributes);
+        }
+    }
+}
+
+ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes) {
+    if(maybe(Token::VarSym, [&](Token& t) { return t.data.id == ptrId; })) {
+        auto type = parseAType(location, nullptr);
+        return makeType(Ptr, to, heap(type), type.source, attributes);
+    } else if(maybe(Token::VarSym, [&](Token& t) { return t.data.id == refId; })) {
+        auto type = parseAType(location, nullptr);
+        return makeType(Ref, to, heap(type), type.source, attributes);
+    } else if(token.type == Token::ConID || token.type == Token::VarID) {
+        auto isVar = token.type == Token::VarID;
+        auto name = token.data.id;
+        eat();
+
+        auto base = isVar ? makeType(Gen, name, name, location, nullptr) : makeType(Con, name, name, location, nullptr);
+
+        if(token.type == Token::ParenL) {
+            ast::ParseList<ast::Type> args;
+
+            parens([&] {
+                sepBy1([&] {
+                    args.push(arena, parseType());
+                }, Token::Comma);
+            });
+
+            return makeType(App, app, heap(ast::AppType { base, args }), location, attributes);
+        } else {
+            base.attributes = attributes;
+            return base;
+        }
+    } else if(token.type == Token::BraceL) {
+        return parseTupleType(location, attributes);
+    } else if(token.type == Token::BracketL) {
+        return parseArrayType(location, attributes);
+    } else if(maybe(Token::ParenL)) {
+        auto t = parseType();
+        expect(Token::ParenR, "expected ')'"_v);
+        return t;
+    } else {
+        error("expected a type"_v);
+        return makeType(Error, name, 0, location, attributes);
+    }
+}
+
+ast::Type Parser::parseTupleType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes) {
+    Maybe<ast::Type> type;
+
+    braces([&] {
+        ast::ParseList<ast::TupField> fields;
+
+        sepBy([&] {
+            if(auto n = maybeNode(Token::VarID)) {
+                if(maybe(Token::opColon)) {
+                    fields.push(arena, ast::TupField { n.unwrap().payload.id, parseType(), nullptr });
+                } else {
+                    auto gen = makeType(Gen, name, n.unwrap().payload.id, n.unwrap().node, nullptr);
+                    fields.push(arena, ast::TupField { 0, gen, nullptr });
+                }
+            } else {
+                fields.push(arena, ast::TupField { 0, parseType(), nullptr });
+            }
+        }, Token::Comma, Token::BraceR);
+
+        if(fields.isEmpty()) {
+            type = Just(makeType(Unit, name, 0, location, attributes));
+        } else {
+            type = Just(makeType(Tup, tup, { fields }, location, attributes));
+        }
+    });
+
+    return type ? type.unwrap() : makeType(Error, name, 0, location, attributes);
+}
+
+ast::Type Parser::parseArrayType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes) {
+    Maybe<ast::Type> type;
+
+    brackets([&] {
+        auto from = parseType();
+        if(maybe(Token::opColon)) {
+            auto to = parseType();
+            auto map = ast::Type::MapPayload { heap(from), heap(to) };
+            type = Just(makeType(Map, map, map, location, attributes));
+        } else if(maybe(Token::VarSym, [&](Token& t) { return t.data.id == arraySizeId; })) {
+            auto size = parseExpr();
+            auto arr = ast::Type::ArrPayload { heap(from), heap(size) };
+            type = Just(makeType(Arr, arr, arr, location, attributes));
+        } else {
+            auto arr = ast::Type::ArrPayload { heap(from), nullptr };
+            type = Just(makeType(Arr, arr, arr, location, attributes));
+        }
+    });
+
+    return type ? type.unwrap() : makeType(Error, name, 0, location, attributes);
+}
+
+ast::SimpleType Parser::parseSimpleType() {
+    auto name = expect(Token::ConID, "expected type name"_v).from({ .id = 0 }).id;
+    ast::ParseList<StringId> kind;
+
+    if(auto v = maybe(Token::VarID)) {
+        kind.push(arena, v.unwrap().id);
+    } else {
+        maybeParens([&] {
+            sepBy1([&] {
+                auto n = expect(Token::VarID, "expected an identifier"_v).from({ .id = 0 }).id;
+                if(n) kind.push(arena, n);
+            }, Token::Comma);
+        });
+    }
+
+    return { name, kind };
+}
+
+ast::Expr Parser::toLiteral(const Token::Payload& payload, Token::Type type, const WithLocation& source) {
+    ast::Literal lit { .s = 0 };
+    U32 kind = 0;
+
+    switch(type) {
+        case Token::Integer:
+            lit.i(payload.integer);
+            kind = ast::Literal::Int;
+            break;
+        case Token::Float:
+            lit.d(payload.floating);
+            kind = ast::Literal::Double;
+            break;
+        case Token::Char:
+            lit.c = payload.character;
+            kind = ast::Literal::Char;
+            break;
+        case Token::String:
+            lit.s = payload.id;
+            kind = ast::Literal::String;
+            break;
+        default:
+            assertTrue("Invalid literal type." == nullptr);
+    }
+
+    return makeExpr(Lit + kind, lit, lit, source);
+}
+
+ast::Expr Parser::toLiteral(const WithLocation& location) {
+    auto lit = toLiteral(token.data, token.type, location);
+    eat();
+    return lit;
 }

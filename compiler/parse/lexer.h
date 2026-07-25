@@ -1,6 +1,5 @@
 #pragma once
 
-#include <assert.h>
 #include "../compiler/context.h"
 #include "../compiler/diagnostics.h"
 
@@ -54,10 +53,10 @@ struct Token {
         kwIf,
         kwImport,
         kwIn,
-        kwInfix,
         kwInfixL,
         kwInfixR,
-        kwPrefix,
+        kwPrefixR,
+        kwSuffixL,
         kwInstance,
         kwLet,
         kwMatch,
@@ -84,6 +83,7 @@ struct Token {
         opDollar,
         opTilde,
         opArrowD, // =>
+        opAmp,
     };
 
     // The token position including any whitespace preceding it.
@@ -103,7 +103,7 @@ struct Token {
 
     Type type;
 
-    union {
+    union Payload {
         I64 integer;
         double floating;
         U32 character;
@@ -116,45 +116,39 @@ struct Token {
 };
 
 struct Lexer {
-    Lexer(Context& context, Diagnostics& diag, const char* text, Token* tok);
+    Lexer(Context& context, Diagnostics& diag, const StringView& text);
+    void next(Token& token);
 
-    Token* next();
 private:
-
     void skipWhitespace();
     bool handleWhitespace();
-    U32 nextCodePoint();
     void nextLine();
 
     StringId parseStringLiteral();
-    U32 parseCharLiteral();
-    U32 parseEscapedLiteral();
-    void parseNumericLiteral();
 
-    void parseSymbol(const char** start, U32* length, bool allowKeywords);
-    void parseVariable(const char** start, U32* length);
-    void parseSpecial();
-    void parseQualifier();
+    void parseSymbol(Token& token, const char** start, U32* length, bool allowKeywords);
+    void parseVariable(Token& token, const char** start, U32* length);
+    void parseSpecial(Token& token);
+    void parseQualifier(Token& token);
 
-    void parseToken();
-
-    void startLocation();
-    void startWhitespace();
-    void endLocation();
+    void startLocation(Token& token);
+    void startWhitespace(Token& token);
+    void endLocation(Token& token);
 
     friend struct SaveLexer;
     friend struct IndentLevel;
 
-    static const U32 kTabWidth = 4;
-    static const char kFormatStart = '{';
-    static const char kFormatEnd = '}';
+    static constexpr U32 kTabWidth = 4;
+    static constexpr char kFormatStart = '{';
+    static constexpr char kFormatEnd = '}';
 
-    Token* token; // The token currently being parsed.
     Diagnostics& diag;
     Context& context;
+
     const char* text; // The full source code.
     const char* p; // The current source pointer.
     const char* l; // The first character of the current line.
+    const char* m; // The source end.
     U32 blockCount = 0; // The current number of indentation blocks.
     U32 indentation = 0; // The current indentation level.
     U32 line = 0; // The current source line.
@@ -171,7 +165,7 @@ struct IndentLevel {
 
     void end() {
         lexer.indentation = previous;
-        assert(lexer.blockCount > 0);
+        assertTrue(lexer.blockCount > 0);
         lexer.blockCount--;
     }
 
@@ -180,7 +174,7 @@ struct IndentLevel {
 };
 
 struct SaveLexer {
-    SaveLexer(Lexer& lexer) :
+    explicit SaveLexer(Lexer& lexer) :
         lexer(lexer),
         p(lexer.p),
         l(lexer.l),

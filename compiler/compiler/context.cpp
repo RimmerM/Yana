@@ -10,6 +10,7 @@ void* Arena::alloc(Size size) {
 
     auto it = buffer;
     buffer += size;
+
     return it;
 }
 
@@ -37,6 +38,55 @@ Arena::~Arena() {
     max = nullptr;
 }
 
+LinearArena::LinearArena(Size maxSize) {
+    reset(maxSize);
+}
+
+LinearArena::LinearArena(LinearArena&& l) noexcept: base(l.base), p(l.p), max(l.max) {
+    l.base = nullptr;
+    l.max = nullptr;
+    l.p = nullptr;
+}
+
+void* LinearArena::alloc(Size size) {
+    auto it = p;
+    if(it + size > max) return nullptr;
+
+    p += size;
+    return it;
+}
+
+void LinearArena::reset(Size maxSize) {
+    p = base;
+
+    if(max - base < maxSize) {
+        if(max > base) {
+            releaseMem(base, max - base);
+        }
+
+        auto pageSize = getPageSize();
+        if(maxSize < pageSize) maxSize = pageSize;
+
+        auto result = allocMem(maxSize);
+        if(!result) {
+            logError("Cannot allocate %@ bytes for arena", maxSize);
+            base = nullptr;
+            p = nullptr;
+            max = nullptr;
+        } else {
+            base = (Byte*)result.unwrapOk();
+
+            // Start at a small offset to make it easier to represent null pointers into the arena.
+            p = base + 16;
+            max = base + maxSize;
+        }
+    }
+}
+
+LinearArena::~LinearArena() {
+    if(max > base) releaseMem(base, max - base);
+}
+
 void Context::addOp(StringId op, U16 prec, Assoc assoc) {
     OpProperties prop{prec, assoc};
     ops[op] = prop;
@@ -54,6 +104,12 @@ OpProperties Context::findOp(StringId op) {
 StringId Context::nameHash(const char* chars, Size count) {
     Tritium::Hasher hash;
     hash.addBytes(chars, count);
+    return hash.get();
+}
+
+StringId Context::nameHash(const StringView& v) {
+    Tritium::Hasher hash;
+    hash.addBytes(v.ptr, v.length);
     return hash.get();
 }
 

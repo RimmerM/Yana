@@ -7,48 +7,36 @@
 #include "../codegen/js/gen.h"
 #include "settings.h"
 #include "source.h"
-#include <File.h>
+#include "Net/File.h"
 
-static ast::Module* parseFile(Context& context, const String& path, const Identifier& id) {
-    auto result = File::openFile(path, readAccess());
-    if(result.isErr()) {
-        context.diagnostics.error("cannot open file %@: error %@"_v, nullptr, path, (U32)result.unwrapErr());
+static Ptr<ast::Module> parseFile(Context& context, const StringView& path, const Identifier& id) {
+    auto file = tryResultOr(File::openFile(toString(path), readAccess(), File::OpenExisting), {
+        context.diagnostics.error("cannot open file %@: error %@"_v, nullptr, path, it.unwrapErr());
         return nullptr;
-    }
+    });
 
-    auto file = result.moveUnwrapOk();
     auto size = file.size();
-    auto text = (char*)hAlloc(size + 1);
+    Ptr<char> text { (char*)hAlloc(size) };
 
-    auto read = file.read({(Byte*)text, size});
-    if(read.isErr()) {
-        context.diagnostics.error("cannot read file %@: error %@"_v, nullptr, path, (U32)read.unwrapErr());
+    tryResultOr(file.read({ (Byte*)text.get(), size }), {
+        context.diagnostics.error("cannot read file %@: error %@"_v, nullptr, path, it.unwrapErr());
         return nullptr;
-    }
+    });
 
-    text[size] = 0;
+    Lexer lexer(context, context.diagnostics, { text.get(), size });
+    Parser parser(context, lexer, context.addIdentifier(id));
 
-    auto ast = new ast::Module(context.addIdentifier(id));
-    Parser parser(context, *ast, text);
-    parser.parseModule();
-
-    return ast;
+    return Ptr(new ast::Module(parser.parseModule()));
 }
 
 static Module* compileEntry(Context& context, ModuleProvider& provider, SourceEntry& entry) {
-    if(entry.ir) return entry.ir;
+    if(entry.ir) return entry.ir.get();
 
-    auto ast = entry.ast;
-    if(!ast) {
-        ast = parseFile(context, entry.path, entry.id);
-        entry.ast = ast;
-    }
+    if(!entry.ast) entry.ast = parseFile(context, entry.path, entry.id);
+    if(!entry.ast || entry.ast->errorCount > 0) return nullptr;
 
-    if(!ast || ast->errorCount > 0) return nullptr;
-
-    auto module = resolveModule(&context, &provider, ast);
-    entry.ir = module;
-    return module;
+    entry.ir = resolveModule(&context, &provider, entry.ast.get());
+    return entry.ir.get();
 }
 
 static String generatePath(StringView root, const Identifier& id, StringView extension) {
@@ -67,37 +55,47 @@ static String generatePath(StringView root, const Identifier& id, StringView ext
     return path.string();
 }
 
-static String replaceExtension(const String& path, const String& extension) {
-    auto p = findLastChar(stringView(path), '.');
-    if(!p) return path + extension;
+static String replaceExtension(const StringView& path, const String& extension) {
+    auto p = findLastChar(path, '.');
+    if(!p) return toString(path) + extension;
 
     p++;
-    auto extensionLength = path.size() - (p - path.text());
+    auto extensionLength = path.length - (p - path.ptr);
     auto oldExtension = StringView{p, extensionLength};
-    if(findChar(oldExtension, '/')) return path + extension;
+    if(findChar(oldExtension, '/')) return toString(path) + extension;
 
     auto length = path.size() - extensionLength + extension.size();
     auto buffer = (char*)hAlloc(length);
-    copy(path.text(), buffer, path.size() - extensionLength);
+    copy(path.ptr, buffer, path.size() - extensionLength);
     copy(extension.text(), buffer + path.size() - extensionLength, extension.size());
 
-    return String(buffer, length);
+    return { buffer, length, true };
 }
 
 static void astToFile(Context& context, ast::Module& module, const SourceEntry& entry) {
-    auto path = replaceExtension(entry.path, "ast");
-    auto file = std::ofstream();
-    file.open(std::string(path.text(), path.size()));
+    Net::FileStream file;
 
-    printModule(file, context, module);
+    try {
+        file.open(replaceExtension(entry.path, "ast"), writeAccess(), File::CreateAlways);
+        Net::StackWriter<2048> writer { Net::WriteStream(file) };
+
+        printModule(writer, context, *module.region, module);
+    } catch(const Net::Exception& e) {
+        context.diagnostics.error("Cannot print AST for module %@: %@"_v, nullptr, context.findName(module.name), e.description);
+    }
 }
 
 static void irToFile(Context& context, Module& module, const SourceEntry& entry) {
-    auto path = replaceExtension(entry.path, "ir");
-    auto file = std::ofstream();
-    file.open(std::string(path.text(), path.size()));
+    Net::FileStream file;
 
-    printModule(file, context, &module);
+    try {
+        file.open(replaceExtension(entry.path, "ir"), writeAccess(), File::CreateAlways);
+        Net::StackWriter<2048> writer { Net::WriteStream(file) };
+
+        printModule(writer, context, module);
+    } catch(const Net::Exception& e) {
+        context.diagnostics.error("Cannot print IR for module %@: %@"_v, nullptr, context.findName(module.id), e.description);
+    }
 }
 
 int main(int argc, const char** argv) {

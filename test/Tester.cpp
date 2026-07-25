@@ -1,5 +1,3 @@
-#include <fstream>
-#include <sstream>
 #include <Core.h>
 #include <File.h>
 #include "../compiler/parse/parser.h"
@@ -7,6 +5,9 @@
 #include "../compiler/resolve/module.h"
 #include "../compiler/resolve/print.h"
 #include "../compiler/resolve/builtins.h"
+#include "Net/Stream.h"
+#include "Net/File.h"
+#include "../compiler/codegen/x64/gen.h"
 
 using namespace Tritium;
 
@@ -27,7 +28,11 @@ struct TestProvider: ModuleProvider, SourceProvider {
     }
 
     StringView getSource(StringId module) override {
-        return ""_v;
+        return source;
+    }
+
+    const Location* getNode(LocationId id) override {
+        return context->getLocation(id);
     }
 
     Module* getCore() {
@@ -51,40 +56,38 @@ void parserTest(const String& path, StringView content) {
     Context context(diagnostics);
     provider.context = &context;
 
-    auto ast = new ast::Module(context.addUnqualifiedName("no_name", 7));
-    Parser parser(context, *ast, content.ptr);
-    parser.parseModule();
+    Lexer lexer(context, context.diagnostics, content);
+    Parser parser(context, lexer, context.addUnqualifiedName("no_name", 7));
+    auto ast = parser.parseModule();
 
-    std::stringstream stream;
-    printModule(stream, context, *ast);
-    auto string = stream.str();
+    Net::Writer writer(16384);
+    printModule(writer, context, *ast.region, ast);
 
     auto expectPath = path + String(".expect");
-    auto result = File::open(expectPath, readAccess());
-    if(result.isErr()) {
-        println("cannot open file %@: error %@", expectPath, (U32)result.unwrapErr());
+    auto file = tryResultOr(File::openFile(expectPath, readAccess()), {
+        logError("cannot open file %@: error %@", expectPath, it.unwrapErr());
         return;
-    }
+    });
 
-    auto file = result.moveUnwrapOk();
     auto size = file.size();
-    auto buffer = (char*)hAlloc(size);
-    file.read({buffer, size});
+    Ptr<char> buffer { (char*)hAlloc(size) };
+    file.read({ (Byte*)buffer.get(), size });
 
-    auto equal = size == string.length() && compareMem(buffer, string.begin().base(), size) == 0;
+    auto string = writer.getBuffered();
+    auto equal = size == string.length && compareMem(buffer.get(), string.ptr, size) == 0;
     if(equal) {
         println("Pass.");
     } else {
         println("Fail. Got:");
-        print(string.c_str());
+        print(StringView { (char*)string.ptr, string.length });
         println("\n\n\nExpected:");
-        print(StringView{buffer, size});
+        print(StringView { buffer.get(), size });
         print("\n\n\n");
     }
 }
 
 void generateParserTest(const String& path, StringView content) {
-    println("Generating expect file for test \"%@\"", path);
+    logInfo("Generating expect file for test \"%@\"", path);
 
     TestProvider provider;
     provider.source = content;
@@ -93,18 +96,19 @@ void generateParserTest(const String& path, StringView content) {
     Context context(diagnostics);
     provider.context = &context;
 
-    auto ast = new ast::Module(context.addUnqualifiedName("no_name", 7));
-    Parser parser(context, *ast, content.ptr);
-    parser.parseModule();
+    Lexer lexer(context, context.diagnostics, content);
+    Parser parser(context, lexer, context.addUnqualifiedName("no_name", 7));
+    auto ast = parser.parseModule();
 
-    auto expectPath = path + String(".expect");
-    std::ofstream stream(std::string(expectPath.text(), expectPath.size()), std::ofstream::out | std::ofstream::trunc);
-    if(!stream) {
-        println("Cannot create expect file \"%@\"", expectPath);
-        return;
+    try {
+        Net::FileStream file;
+        file.open(path + ".expect", writeAccess(), File::CreateAlways);
+
+        Net::Writer writer(Net::WriteStream(file), 16384);
+        printModule(writer, context, *ast.region, ast);
+    } catch(const Net::Exception& e) {
+        logError("Cannot create expect file for \"%@\": %@", path, e.description);
     }
-
-    printModule(stream, context, *ast);
 }
 
 void testParser(bool generate) {
@@ -112,7 +116,7 @@ void testParser(bool generate) {
 
     listDirectory("parser", [&](const String& name, bool isDirectory) {
         if(!isDirectory && name != ".." && name != ".") {
-            if(auto p = findLastChar(stringBuffer(name), '.')) {
+            if(auto p = findLastChar(stringView(name), '.')) {
                 String extension(p + 1, name.text() + name.size() - p - 1);
                 if(extension == "yana") {
                     tests.push(String("parser/") + name);
@@ -126,22 +130,22 @@ void testParser(bool generate) {
     }
 
     for(auto& test: tests) {
-        auto result = File::open(test, readAccess());
+        auto result = File::openFile(test, readAccess());
         if(result.isErr()) {
             println("cannot open file %@: error %@", test, (U32)result.unwrapErr());
             continue;
         }
 
         auto file = result.moveUnwrapOk();
-        auto size = file.size() + 1;
-        auto buffer = (char*)hAlloc(size);
-        file.read({buffer, size});
-        buffer[size - 1] = 0;
+        auto size = file.size();
+
+        Ptr<char> buffer { (char*)hAlloc(size) };
+        file.read({ (Byte*)buffer.get(), size });
 
         if(generate) {
-            generateParserTest(test, {buffer, size});
+            generateParserTest(test, { buffer.get(), size });
         } else {
-            parserTest(test, {buffer, size});
+            parserTest(test, { buffer.get(), size });
         }
     }
 }
@@ -156,18 +160,18 @@ void resolverTest(const String& path, StringView content) {
     Context context(diagnostics);
     provider.context = &context;
 
-    auto ast = new ast::Module(context.addUnqualifiedName("no_name", 7));
-    Parser parser(context, *ast, content.ptr);
-    parser.parseModule();
+    Lexer lexer(context, context.diagnostics, content);
+    Parser parser(context, lexer, context.addUnqualifiedName("no_name", 7));
 
-    auto module = resolveModule(&context, &provider, ast);
+    auto ast = parser.parseModule();
+    auto module = resolveModule(&context, &provider, &ast);
 
-    std::stringstream stream;
-    printModule(stream, context, module);
-    auto string = stream.str();
+    Net::Writer writer(16384);
+    printModule(writer, context, *module);
+    auto string = writer.getBuffered();
 
     auto expectPath = path + String(".expect");
-    auto result = File::open(expectPath, readAccess());
+    auto result = File::openFile(expectPath, readAccess());
     if(result.isErr()) {
         println("cannot open file %@: error %@", expectPath, (U32)result.unwrapErr());
         return;
@@ -175,17 +179,17 @@ void resolverTest(const String& path, StringView content) {
 
     auto file = result.moveUnwrapOk();
     auto size = file.size();
-    auto buffer = (char*)hAlloc(size);
-    file.read({buffer, size});
+    Ptr<char> buffer { (char*)hAlloc(size) };
+    file.read({ (Byte*)buffer.get(), size });
 
-    auto equal = size == string.length() && compareMem(buffer, string.begin().base(), size) == 0;
+    auto equal = size == string.length && compareMem(buffer.get(), string.ptr, size) == 0;
     if(equal) {
         println("Pass.");
     } else {
         println("Fail. Got:");
-        print(string.c_str());
+        print(StringView { (const char*)string.ptr, string.length });
         println("\n\n\nExpected:");
-        print(StringView{buffer, size});
+        print(StringView { buffer.get(), size });
         print("\n\n\n");
     }
 }
@@ -200,20 +204,21 @@ void generateResolverTest(const String& path, StringView content) {
     Context context(diagnostics);
     provider.context = &context;
 
-    auto ast = new ast::Module(context.addUnqualifiedName("no_name", 7));
-    Parser parser(context, *ast, content.ptr);
-    parser.parseModule();
+    Lexer lexer(context, context.diagnostics, content);
+    Parser parser(context, lexer, context.addUnqualifiedName("no_name", 7));
 
-    auto module = resolveModule(&context, &provider, ast);
+    auto ast = parser.parseModule();
+    auto module = resolveModule(&context, &provider, &ast);
 
-    auto expectPath = path + String(".expect");
-    std::ofstream stream(std::string(expectPath.text(), expectPath.size()), std::ofstream::out | std::ofstream::trunc);
-    if(!stream) {
-        println("Cannot create expect file \"%@\"", expectPath);
-        return;
+    try {
+        Net::FileStream file;
+        file.open(path + ".expect", writeAccess(), File::CreateAlways);
+
+        Net::Writer writer(Net::WriteStream(file), 16384);
+        printModule(writer, context, *module);
+    } catch(const Net::Exception& e) {
+        logError("Cannot create expect file for \"%@\": %@", path, e.description);
     }
-
-    printModule(stream, context, module);
 }
 
 void testResolver(bool generate) {
@@ -221,7 +226,7 @@ void testResolver(bool generate) {
 
     listDirectory("resolver", [&](const String& name, bool isDirectory) {
         if(!isDirectory && name != ".." && name != ".") {
-            if(auto p = findLastChar(stringBuffer(name), '.')) {
+            if(auto p = findLastChar(stringView(name), '.')) {
                 String extension(p + 1, name.text() + name.size() - p - 1);
                 if(extension == "yana") {
                     tests.push(String("resolver/") + name);
@@ -235,22 +240,21 @@ void testResolver(bool generate) {
     }
 
     for(auto& test: tests) {
-        auto result = File::open(test, readAccess());
+        auto result = File::openFile(test, readAccess());
         if(result.isErr()) {
             println("cannot open file %@: error %@", test, (U32)result.unwrapErr());
             continue;
         }
 
         auto file = result.moveUnwrapOk();
-        auto size = file.size() + 1;
-        auto buffer = (char*)hAlloc(size);
-        file.read({buffer, size});
-        buffer[size - 1] = 0;
+        auto size = file.size();
+        Ptr<char> buffer { (char*)hAlloc(size) };
+        file.read({ (Byte*)buffer.get(), size });
 
         if(generate) {
-            generateResolverTest(test, {buffer, size});
+            generateResolverTest(test, { buffer.get(), size });
         } else {
-            resolverTest(test, {buffer, size});
+            resolverTest(test, { buffer.get(), size });
         }
     }
 }

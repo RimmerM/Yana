@@ -1,8 +1,8 @@
 #pragma once
 
-#include <ostream>
 #include "ast.h"
+#include "Net/Stream.h"
 
-void printModule(std::ostream& stream, Context& context, const ast::Module& module);
-void printDecl(std::ostream& stream, Context& context, const ast::Decl& decl);
-void printExpr(std::ostream& stream, Context& context, const ast::Expr& expr);
+void printModule(Net::Writer& stream, Context& context, ast::ParseBase base, ast::Module& module);
+void printDecl(Net::Writer& stream, Context& context, ast::ParseBase base, ast::Decl& decl);
+void printExpr(Net::Writer& stream, Context& context, ast::ParseBase base, ast::Expr& expr);

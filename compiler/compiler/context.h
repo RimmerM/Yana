@@ -44,6 +44,17 @@ struct Identifier {
     U32 segmentCount: 8;
 };
 
+inline bool operator == (const Identifier& a, const Identifier& b) {
+    if(a.textLength != b.textLength) return false;
+    return Tritium::compareMem(a.text, b.text, a.textLength);
+}
+
+namespace Tritium {
+    inline U32 getHash(const Identifier& identifier) {
+        return getHash(StringView { identifier.text, identifier.textLength });
+    }
+}
+
 enum class Assoc : U8 {
     Left,
     Right
@@ -61,7 +72,10 @@ struct OpProperties {
 };
 
 struct Arena {
-    static const Size kChunkSize = 1024 * 1024;
+    static const Size kChunkSize = 4 * 1024 * 1024;
+
+    Arena() = default;
+    Arena(const Arena&) = delete;
 
     void* alloc(Size size);
     void reset();
@@ -73,7 +87,98 @@ private:
     Array<Byte*> buffers;
 };
 
-inline void* operator new (Size count, Arena& arena) {return arena.alloc(count);}
+inline void* operator new (Size count, Arena& arena) {
+    return arena.alloc(count);
+}
+
+struct LinearArena;
+
+template<class Region, class T>
+struct RegionPtr {
+    U32 offset;
+
+    explicit RegionPtr(U32 offset): offset(offset) {}
+    RegionPtr(decltype(nullptr)): offset(0) {}
+    RegionPtr(const RegionPtr&) = default;
+
+    RegionPtr& operator = (const RegionPtr& p) = default;
+
+    bool operator == (RegionPtr p) const {
+        return offset == p.offset;
+    }
+
+    bool operator != (RegionPtr p) const {
+        return offset != p.offset;
+    }
+
+    bool operator == (decltype(nullptr)) const {
+        return offset == 0;
+    }
+
+    bool operator != (decltype(nullptr)) const {
+        return offset != 0;
+    }
+
+    operator U32() const {
+        return offset;
+    }
+};
+
+template<class Region>
+struct RegionBase {
+    // The stored base is slightly smaller than the actual base.
+    // This allows us to handle null pointers without any special handling.
+    Byte* base;
+
+    explicit RegionBase(Byte* base): base(base - 16) {}
+    RegionBase(const RegionBase&) = default;
+
+    RegionBase& operator = (const RegionBase& p) {
+        base = p.base;
+        return *this;
+    }
+
+    template<class T>
+    T* operator[](RegionPtr<Region, T> p) {
+        return (T*)(base + p.offset);
+    }
+};
+
+template<class Region, class T>
+inline RegionPtr<Region, T> operator - (T* v, RegionBase<Region> base) {
+    assertTrue(((Byte*)v) - 16 >= base.base);
+    return RegionPtr<Region, T>(U32((Byte*)v - base.base));
+}
+
+struct LinearArena {
+    explicit LinearArena(Size maxSize);
+    LinearArena(LinearArena&&) noexcept;
+    LinearArena(const LinearArena&) = delete;
+
+    void* alloc(Size size);
+    void reset(Size maxSize);
+    Size used() { return p - base; }
+
+    ~LinearArena();
+
+protected:
+    Byte* base = nullptr;
+    Byte* p = nullptr;
+    Byte* max = nullptr;
+};
+
+template<class T>
+struct Region: LinearArena {
+    using LinearArena::LinearArena;
+
+    RegionBase<T> operator * () const {
+        return RegionBase<T>(base);
+    }
+};
+
+inline void* operator new (Size count, LinearArena& arena) {
+    return arena.alloc(count);
+}
 
 struct Context {
     Context(Diagnostics& diagnostics): diagnostics(diagnostics) {}
@@ -85,13 +190,33 @@ struct Context {
     OpProperties findOp(StringId op);
 
     static StringId nameHash(const char* chars, Size count);
+    static StringId nameHash(const StringView& v);
 
     StringId addUnqualifiedName(const char* chars, Size count);
     StringId addQualifiedName(const char* chars, Size count, Size segmentCount);
     StringId addQualifiedName(const char* chars, Size count);
     StringId addIdentifier(const Identifier& q);
+
     Identifier& find(StringId id);
     String findName(StringId id);
+
+    LocationId addLocation(const Location& node) {
+        return locations.push(node) - locations.begin();
+    }
+
+    LocationId addLocation(LocationId l) {
+        return l;
+    }
+
+    Location* prepareLocation(LocationId& target) {
+        auto v = locations.push();
+        target = v - locations.begin();
+        return &v;
+    }
+
+    const Location* getLocation(LocationId id) {
+        return locations.size() > id ? &locations[id] : nullptr;
+    }
 
     Arena stringArena;
     Arena exprArena;
@@ -99,8 +224,10 @@ struct Context {
 private:
     HashMap<StringId, Identifier> identifiers;
     HashMap<StringId, OpProperties> ops;
+    Array<Location> locations;
 };
 
+template<class Arena>
 struct ArenaAllocator {
     ArenaAllocator(Arena& arena): arena(arena) {}
     Arena& arena;
@@ -113,4 +240,7 @@ struct ArenaAllocator {
 };
 
 template<class T>
-using ASTArray = ArrayT<T, ArrayAllocator<T, ArenaAllocator>>;
+using ArenaArray = ArrayT<T, ArrayAllocator<T, ArenaAllocator<Arena>>>;
+
+template<class T>
+using LinearArenaArray = ArrayT<T, ArrayAllocator<T, ArenaAllocator<LinearArena>>>;
