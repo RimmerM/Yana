@@ -50,11 +50,15 @@ struct Printer {
             case Expr::Range: printRangeExpr(expr); break;
             case Expr::Match: printMatchExpr(expr); break;
             case Expr::Ret: printRetExpr(expr); break;
+            case Expr::Yield: printYieldExpr(expr); break;
+            case Expr::Break: printBreakExpr(expr); break;
+            case Expr::Continue: stream.writeString("ContinueExpr"_v); break;
         }
     }
 
     void toString(Decl& decl) {
         toString(&decl.attributes, "Decl"_v, [&] {
+            if(decl.exported) stream.writeString("<pub> "_v);
             switch(decl.kind) {
                 case Decl::Error: stream.writeString("<parse error>"_v); break;
                 case Decl::Fun: printFunDecl(decl); break;
@@ -343,14 +347,14 @@ private:
     void printForExpr(Expr& e) {
         auto f = base[e.forLoop];
 
-        stream.writeString("ForExpr "_v);
-        write(stream, context.findName(e.var));
+        stream.writeString("ForExpr"_v);
 
         if(f->reverse) {
             stream.writeString(" <reverse>"_v);
         }
 
         makeLevel();
+        toString(f->pat, false);
         toString(f->from, false);
         if(f->to) toString(*base[f->to], false);
         if(f->step) toString(*base[f->step], false);
@@ -474,13 +478,59 @@ private:
         }
     }
 
+    void printYieldExpr(Expr& e) {
+        stream.writeString("YieldExpr "_v);
+        if(e.yield) {
+            makeLevel();
+            toString(*base[e.yield], true);
+            removeLevel();
+        }
+    }
+
+    void printBreakExpr(Expr& e) {
+        stream.writeString("BreakExpr "_v);
+        if(e.breakValue) {
+            makeLevel();
+            toString(*base[e.breakValue], true);
+            removeLevel();
+        }
+    }
+
+    // Writes just the bare tag ("<lens>"/"<iter>", nothing for Plain) - callers are
+    // responsible for surrounding spacing, since it differs slightly by call site.
+    void printFunKind(FunKind kind) {
+        switch(kind) {
+            case FunKind::Plain: break;
+            case FunKind::Lens: stream.writeString("<lens>"_v); break;
+            case FunKind::Iter: stream.writeString("<iter>"_v); break;
+        }
+    }
+
     void printFunExpr(Expr& e) {
         auto f = base[e.fun];
-        stream.writeString("FunExpr ("_v);
+        stream.writeString("FunExpr "_v);
+        if(f->kind != FunKind::Plain) {
+            printFunKind(f->kind);
+            stream.writeByte(' ');
+        }
+        stream.writeByte('(');
 
         auto contents = f->args.contents(base);
         for(auto a = contents.begin(); a != contents.end(); ++a) {
+            switch((*a).bind) {
+                case BindType::Borrow: break;
+                case BindType::Ref: stream.writeString("&"_v); break;
+                case BindType::Sink: stream.writeString("->"_v); break;
+                case BindType::Set: stream.writeString("set "_v); break;
+            }
+
             write(stream, context.findName((*a).name));
+
+            if((*a).type) {
+                stream.writeString(": "_v);
+                toString(*base[(*a).type]);
+            }
+
             if(a != contents.back()) stream.writeString(", "_v);
         }
 
@@ -504,6 +554,11 @@ private:
         stream.writeString("FunDecl "_v);
         write(stream, context.findName(e.fun.name));
 
+        if(e.fun.kind != FunKind::Plain) {
+            stream.writeByte(' ');
+            printFunKind(e.fun.kind);
+        }
+
         if(e.fun.implicitReturn) {
             stream.writeString(" <implicit return> "_v);
         }
@@ -518,6 +573,12 @@ private:
                 toStringIntro(i == args.back() && e.fun.ret == nullptr && e.fun.body == nullptr);
 
                 stream.writeString("Arg "_v);
+                switch(arg.bind) {
+                    case BindType::Borrow: break;
+                    case BindType::Ref: stream.writeString("&"_v); break;
+                    case BindType::Sink: stream.writeString("->"_v); break;
+                    case BindType::Set: stream.writeString("set "_v); break;
+                }
                 write(stream, context.findName(arg.name));
 
                 makeLevel();
@@ -713,7 +774,11 @@ private:
             stream.writeBytes((const Byte*)name.text, name.textLength);
         }
 
-        printList(attribute.args);
+        if(attribute.args.isNotEmpty()) {
+            makeLevel();
+            printList(attribute.args);
+            removeLevel();
+        }
     }
 
     void toStringIntro(bool last) {
@@ -731,7 +796,7 @@ private:
     void printLiteral(const Literal& literal, Literal::Kind kind) {
         switch(kind) {
             case Literal::Int:
-                printValue(stream, literal.i());
+                printValue(stream, (I64)literal.i());
                 break;
             case Literal::Double:
                 printValue(stream, literal.d());
@@ -782,6 +847,12 @@ private:
                     toString(*base[type.to], true);
                     removeLevel();
                     break;
+                case Type::Borrow:
+                    stream.writeString("BorrowType "_v);
+                    makeLevel();
+                    toString(*base[type.to], true);
+                    removeLevel();
+                    break;
                 case Type::Gen: {
                     stream.writeString("GenType "_v);
                     auto name = context.find(type.name);
@@ -800,7 +871,7 @@ private:
                 case Type::Arr:
                     stream.writeString("ArrType "_v);
                     makeLevel();
-                    toString(*base[type.arr.type], type.arr.length != nullptr);
+                    toString(*base[type.arr.type], type.arr.length == nullptr);
                     if(type.arr.length) toString(*base[type.arr.length], true);
                     removeLevel();
                     break;
@@ -854,6 +925,10 @@ private:
         auto fun = base[type.fun];
 
         stream.writeString("FunType "_v);
+        if(fun->kind != FunKind::Plain) {
+            printFunKind(fun->kind);
+            stream.writeByte(' ');
+        }
         makeLevel();
 
         auto contents = fun->args.contents(base);
@@ -870,11 +945,18 @@ private:
 
         stream.writeString("AppType "_v);
         makeLevel();
+        toString(app->base, app->args.isEmpty());
         printList(app->args);
         removeLevel();
     }
 
     void toString(Pat& pat) {
+        if(pat.kind >= Pat::Lit) {
+            stream.writeString("LitPat "_v);
+            printLiteral(pat.lit, (Literal::Kind)(pat.kind - Pat::Lit));
+            return;
+        }
+
         switch(pat.kind) {
             case Pat::Error:
                 stream.writeString("<parse error>"_v);
@@ -885,10 +967,6 @@ private:
                 stream.writeBytes((const Byte*)name.text, name.textLength);
                 break;
             }
-            case Pat::Lit:
-                stream.writeString("LitPat "_v);
-                printLiteral(pat.lit, (Literal::Kind)(pat.kind - Pat::Lit));
-                break;
             case Pat::Any:
                 stream.writeString("AnyPat"_v);
                 break;
@@ -1011,7 +1089,7 @@ private:
 
     template<class F>
     void toString(ParseList<Attribute>* attributes, const StringView& name, F&& f) {
-        if(attributes->isNotEmpty()) {
+        if(attributes && attributes->isNotEmpty()) {
             stream.writeString(name);
             makeLevel();
             toStringIntro(false);

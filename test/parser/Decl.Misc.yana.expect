@@ -1,0 +1,40 @@
+Module 
+|-<pub> FunDecl f <implicit return> 
+| `-Body
+|   `-LitExpr 0
+|-<pub> DataDecl X 
+| `-Constructor X
+|   `-TupType 
+|     `-Field a
+|       `-ConType Int
+|-<pub> AliasDecl Y 
+| `-ConType Int
+|-FunDecl g <implicit return> 
+| `-Body
+|   `-LitExpr 0
+|-FunDecl h <implicit return> 
+| |-Arg x
+| | `-ConType Int
+| `-Body
+|   `-MultiExpr 
+|     |-VarExpr y
+|     `-DeclExpr 
+|       `-VarDecl y <borrow> 
+|         |-VarPat y
+|         `-InfixExpr 
+|           |-VarExpr +
+|           |-VarExpr x
+|           `-LitExpr 1
+`-FunDecl i <implicit return> 
+  |-Arg x
+  | `-ConType Int
+  `-Body
+    `-MultiExpr 
+      |-VarExpr z
+      `-DeclExpr 
+        `-VarDecl z <borrow> 
+          |-VarPat z
+          `-InfixExpr 
+            |-VarExpr *
+            |-VarExpr x
+            `-LitExpr 2

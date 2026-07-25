@@ -242,16 +242,16 @@ Module
 |     `-ConType Int
 |-AliasDecl X 
 | `-PtrType 
-|   `-RefType 
+|   `-BorrowType 
 |     `-ConType Int
 |-AliasDecl X 
 | `-PtrType 
-|   `-RefType 
-|     `-ValType 
+|   `-BorrowType 
+|     `-RefType 
 |       `-ConType Int
 |-AliasDecl X 
 | `-PtrType 
-|   `-RefType 
+|   `-BorrowType 
 |     `-ConType Int
 |-AliasDecl X 
 | `-PtrType 
@@ -259,7 +259,54 @@ Module
 |     `-ConType Int
 |-AliasDecl X 
 | `-PtrType 
-|   `-RefType 
+|   `-BorrowType 
+|     `-ArrType 
+|       `-ConType Int
+|-AliasDecl X 
+| `-BorrowType 
+|   `-ConType X
+|-AliasDecl X 
+| `-BorrowType 
+|   `-ArrType 
+|     `-ConType Int
+|-AliasDecl X 
+| `-BorrowType 
+|   `-TupType 
+|     |-Field <anonymous>
+|     | `-ConType Int
+|     `-Field <anonymous>
+|       `-ConType Int
+|-AliasDecl X 
+| `-BorrowType 
+|   `-FunType 
+|     `-ConType Int
+|-AliasDecl X 
+| `-BorrowType 
+|   `-ConType Int
+|-AliasDecl X 
+| `-BorrowType 
+|   `-BorrowType 
+|     `-ConType Int
+|-AliasDecl X 
+| `-BorrowType 
+|   `-PtrType 
+|     `-ConType Int
+|-AliasDecl X 
+| `-BorrowType 
+|   `-PtrType 
+|     `-RefType 
+|       `-ConType Int
+|-AliasDecl X 
+| `-BorrowType 
+|   `-PtrType 
+|     `-ConType Int
+|-AliasDecl X 
+| `-BorrowType 
+|   `-BorrowType 
+|     `-ConType Int
+|-AliasDecl X 
+| `-BorrowType 
+|   `-PtrType 
 |     `-ArrType 
 |       `-ConType Int
 |-AliasDecl X 
@@ -289,71 +336,24 @@ Module
 |     `-ConType Int
 |-AliasDecl X 
 | `-RefType 
-|   `-PtrType 
+|   `-BorrowType 
 |     `-ConType Int
 |-AliasDecl X 
 | `-RefType 
-|   `-PtrType 
-|     `-ValType 
-|       `-ConType Int
-|-AliasDecl X 
-| `-RefType 
-|   `-PtrType 
-|     `-ConType Int
-|-AliasDecl X 
-| `-RefType 
-|   `-RefType 
-|     `-ConType Int
-|-AliasDecl X 
-| `-RefType 
-|   `-PtrType 
-|     `-ArrType 
-|       `-ConType Int
-|-AliasDecl X 
-| `-ValType 
-|   `-ConType X
-|-AliasDecl X 
-| `-ValType 
-|   `-ArrType 
-|     `-ConType Int
-|-AliasDecl X 
-| `-ValType 
-|   `-TupType 
-|     |-Field <anonymous>
-|     | `-ConType Int
-|     `-Field <anonymous>
-|       `-ConType Int
-|-AliasDecl X 
-| `-ValType 
-|   `-FunType 
-|     `-ConType Int
-|-AliasDecl X 
-| `-ValType 
-|   `-ConType Int
-|-AliasDecl X 
-| `-ValType 
-|   `-ValType 
-|     `-ConType Int
-|-AliasDecl X 
-| `-ValType 
-|   `-RefType 
-|     `-ConType Int
-|-AliasDecl X 
-| `-ValType 
-|   `-RefType 
+|   `-BorrowType 
 |     `-PtrType 
 |       `-ConType Int
 |-AliasDecl X 
-| `-ValType 
+| `-RefType 
 |   `-PtrType 
 |     `-ConType Int
 |-AliasDecl X 
-| `-ValType 
-|   `-ValType 
+| `-RefType 
+|   `-RefType 
 |     `-ConType Int
 |-AliasDecl X 
-| `-ValType 
-|   `-RefType 
+| `-RefType 
+|   `-BorrowType 
 |     `-ArrType 
 |       `-ConType Int
 |-AliasDecl X 
@@ -521,14 +521,14 @@ Module
 |-AliasDecl X 
 | `-TupType 
 |   |-Field x
-|   | `-RefType 
+|   | `-BorrowType 
 |   |   `-ConType Int
 |   |-Field y
-|   | `-RefType 
+|   | `-BorrowType 
 |   |   `-ArrType 
 |   |     `-ConType Int
 |   `-Field z
-|     `-RefType 
+|     `-BorrowType 
 |       `-TupType 
 |         |-Field <anonymous>
 |         | `-ConType Int
@@ -540,30 +540,30 @@ Module
 |               `-ConType Int
 |-AliasDecl X 
 | `-ArrType 
-|   `-RefType 
+|   `-BorrowType 
 |     `-ConType Int
 |-AliasDecl X 
 | `-AppType 
 |   |-ConType Y
-|   `-RefType 
+|   `-BorrowType 
 |     `-ConType Int
 |-AliasDecl X 
 | `-TupType 
 |   |-Field x
-|   | `-ValType 
+|   | `-RefType 
 |   |   `-ConType Int
 |   |-Field y
-|   | `-ValType 
+|   | `-RefType 
 |   |   `-ArrType 
 |   |     `-ConType Int
 |   `-Field z
-|     `-ValType 
+|     `-RefType 
 |       `-TupType 
 |         |-Field <anonymous>
-|         | `-ValType 
+|         | `-RefType 
 |         |   `-ConType Int
 |         `-Field <anonymous>
-|           `-ValType 
+|           `-RefType 
 |             `-TupType 
 |               |-Field <anonymous>
 |               | `-ConType Int
@@ -571,12 +571,12 @@ Module
 |                 `-ConType Int
 |-AliasDecl X 
 | `-ArrType 
-|   `-ValType 
+|   `-RefType 
 |     `-ArrType 
-|       `-ValType 
+|       `-RefType 
 |         `-MapType 
 |           |-ConType Int
-|           `-ValType 
+|           `-RefType 
 |             `-TupType 
 |               |-Field <anonymous>
 |               | `-GenType a
@@ -585,5 +585,5 @@ Module
 `-AliasDecl X 
   `-AppType 
     |-ConType Y
-    `-ValType 
+    `-RefType 
       `-ConType Z

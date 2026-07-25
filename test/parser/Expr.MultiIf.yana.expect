@@ -1,0 +1,48 @@
+Module 
+|-FunDecl f <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| `-Body
+|   `-MultiIfExpr 
+|     |-IfCase 
+|     | |-InfixExpr 
+|     | | |-VarExpr >
+|     | | |-VarExpr a
+|     | | `-LitExpr 0
+|     | `-LitExpr 1
+|     |-IfCase 
+|     | |-InfixExpr 
+|     | | |-VarExpr <
+|     | | |-VarExpr a
+|     | | `-LitExpr 0
+|     | `-PrefixExpr 
+|     |   |-VarExpr -
+|     |   `-LitExpr 1
+|     `-IfCase 
+|       |-LitExpr True
+|       `-LitExpr 0
+|-FunDecl g <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| `-Body
+|   `-MultiIfExpr 
+|     |-IfCase 
+|     | |-InfixExpr 
+|     | | |-VarExpr ==
+|     | | |-VarExpr a
+|     | | `-LitExpr 0
+|     | `-LitExpr "zero"
+|     `-IfCase 
+|       |-LitExpr True
+|       `-LitExpr "nonzero"
+`-FunDecl h <implicit return> 
+  |-Arg a
+  | `-ConType Bool
+  `-Body
+    `-MultiIfExpr 
+      |-IfCase 
+      | |-VarExpr a
+      | `-LitExpr 1
+      `-IfCase 
+        |-LitExpr True
+        `-LitExpr 0

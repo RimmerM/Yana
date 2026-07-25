@@ -7,10 +7,10 @@ match x:
 match x:
   Int -> 0
   Int(0) -> 0
-  Int(x = 0, y = Int { a = b, c = d }) -> 0
+  Int(x: 0, y: Int { a: b, c: d }) -> 0
   Int(True, False) -> 0
   Int {0} -> 0
-  Int {x = 0, y = Int {a = b, c = d }} -> 0
+  Int {x: 0, y: Int {a: b, c: d }} -> 0
   Int { True, False } -> 0
 
 -- RangePat.
@@ -34,10 +34,10 @@ match x:
 -- TupPat.
 match x:
   { a } -> 0
-  { a = a } -> 0
+  { a: a } -> 0
   { 0..1, { a, b } } -> 0
-  { a = 0..1, b = { a, b } } -> 0
-  { a = Int(0), b = Int([ 0, 1, 2 ]), c = -1} -> 0
+  { a: 0..1, b: { a, b } } -> 0
+  { a: Int(0), b: Int([ 0, 1, 2 ]), c: -1} -> 0
 
 -- ArrayPat.
 match x:

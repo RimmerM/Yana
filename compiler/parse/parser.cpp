@@ -13,8 +13,8 @@ Parser::Parser(Context& context, Lexer& lexer, StringId moduleName):
     hidingId = Context::nameHash("hiding", 6);
     fromId = Context::nameHash("from", 4);
     asId = Context::nameHash("as", 2);
-    ptrId = Context::nameHash("*", 1);
-    refId = Context::nameHash("%", 1);
+    checkedRefId = Context::nameHash("*", 1);
+    rawPtrId = Context::nameHash("%", 1);
     downtoId = Context::nameHash("downto", 6);
     stepId = Context::nameHash("step", 4);
     setId = Context::nameHash("set", 3);
@@ -41,34 +41,34 @@ ast::Module Parser::parseModule() {
                 imports.push(arena, parseImport());
             } else if(token.type == Token::kwInfixL || token.type == Token::kwInfixR) {
                 ops.push(arena, parseFixity());
-            }
-
-            auto nextDecl = [&](ast::AttrList attributes) {
-                auto exported = maybe(Token::kwPub).isJust();
-                parseDecl(decls, ::move(attributes), exported);
-            };
-
-            ast::AttrList attributes;
-            parseAttributes(attributes, false);
-
-            if(attributes.isNotEmpty() && maybe(Token::opColon)) {
-                withLevel([&] {
-                    sepBy([&] {
-                        ast::AttrList localAttributes;
-                        if(attributes.isNotEmpty()) {
-                            localAttributes.reserve(arena, attributes.size());
-                            for(auto a: attributes.contents(*arena)) localAttributes.push(arena, a);
-                        }
-
-                        parseAttributes(localAttributes, false);
-                        nextDecl(::move(localAttributes));
-                    }, Token::EndOfStmt, Token::EndOfBlock);
-                });
             } else {
-                nextDecl(::move(attributes));
+                auto nextDecl = [&](ast::AttrList attributes) {
+                    auto exported = maybe(Token::kwPub).isJust();
+                    parseDecl(decls, ::move(attributes), exported);
+                };
+
+                ast::AttrList attributes;
+                parseAttributes(attributes, false);
+
+                if(attributes.isNotEmpty() && maybe(Token::opColon)) {
+                    withLevel([&] {
+                        sepBy([&] {
+                            ast::AttrList localAttributes;
+                            if(attributes.isNotEmpty()) {
+                                localAttributes.reserve(arena, attributes.size());
+                                for(auto a: attributes.contents(*arena)) localAttributes.push(arena, a);
+                            }
+
+                            parseAttributes(localAttributes, false);
+                            nextDecl(::move(localAttributes));
+                        }, Token::EndOfStmt, Token::EndOfBlock);
+                    });
+                } else {
+                    nextDecl(::move(attributes));
+                }
             }
 
-            if(token.type != Token::EndOfStmt && token.type != Token::EndOfFile) {
+            if(token.type != Token::EndOfStmt && token.type != Token::EndOfFile && token.type != Token::EndOfBlock) {
                 // The previous declaration did not parse all tokens.
                 // Skip ahead until we are at the root level again, then continue parsing.
                 error("expected declaration end"_v);
@@ -150,7 +150,7 @@ void Parser::parseDecl(ast::DeclList& decls, ast::AttrList attributes, bool expo
         return parseDataDecl(decls, ::move(attributes), exported);
     } else if(token.type == Token::kwForeign) {
         return parseForeignDecl(decls, ::move(attributes), exported);
-    } else if(token.type == Token::kwFn) {
+    } else if(token.type == Token::kwFn || token.type == Token::kwLens || token.type == Token::kwIter) {
         return parseFunDecl(decls, ::move(attributes), exported, true);
     } else if(token.type == Token::kwClass) {
         return parseTraitDecl(decls, ::move(attributes), exported);
@@ -177,6 +177,8 @@ void Parser::parseDecl(ast::DeclList& decls, ast::AttrList attributes, bool expo
 
 void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported, bool requireBody) {
     WithLocation location(*this);
+
+    auto funKind = parseFunKind();
     expect(Token::kwFn, "expected 'fn'"_v);
 
     ast::ConstraintList constraints;
@@ -269,6 +271,7 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
             .ret = ret,
             .body = body,
             .implicitReturn = implicitReturn,
+            .kind = funKind,
         },
         .attributes = ::move(attributes),
         .source = source,
@@ -301,6 +304,12 @@ void Parser::parseDataDecl(ast::DeclList& decls, ast::AttrList attributes, bool 
         cons.push(arena, ast::Con { type.name, heap(conType), {}, conType.source });
     } else {
         error("expected '=' or '{' after type name"_v);
+        decls.push(arena, ast::Decl {
+            .attributes = ::move(attributes),
+            .source = source,
+            .kind = ast::Decl::Error,
+            .exported = exported,
+        });
         return;
     }
 
@@ -427,11 +436,20 @@ void Parser::parseAttrDecl(ast::DeclList& decls, ast::AttrList attributes, bool 
     WithLocation location(*this);
     expect(Token::kwAtData, "expected '@data'"_v);
 
-    auto name = tryMaybe(expectVarOrCon("expected identifier"_v), return).id;
+    auto pushError = [&] {
+        decls.push(arena, ast::Decl {
+            .attributes = ::move(attributes),
+            .source = context.addLocation(location),
+            .kind = ast::Decl::Error,
+            .exported = exported,
+        });
+    };
+
+    auto name = tryMaybe(expectVarOrCon("expected identifier"_v), { pushError(); return; }).id;
 
     tryMaybe(expect("expected attribute type"_v, [&](Token& t) {
         return t.type == Token::ParenL || t.type == Token::BraceL || t.type == Token::BracketL;
-    }), return);
+    }), { pushError(); return; });
 
     auto type = parseType();
 
@@ -505,7 +523,7 @@ ast::Expr Parser::parseExprSeq() {
 
     if(exprs.size() > 1) {
         return makeExpr(Multi, multi, exprs, location);
-    } else if(exprs.size() == 0) {
+    } else if(exprs.size() == 1) {
         return exprs.get(*arena, 0);
     } else {
         return makeExpr(Error, var, 0, location);
@@ -624,6 +642,16 @@ ast::Expr Parser::parseLeftExpr(const WithLocation& location) {
         if(token.type != Token::EndOfStmt && token.type != Token::EndOfBlock) body = Just(parseExpr());
 
         return makeExpr(Ret, ret, body ? heap(body.unwrap()) : nullptr, location);
+    } else if(maybe(Token::kwYield)) {
+        auto value = parseExpr();
+        return makeExpr(Yield, yield, heap(value), location);
+    } else if(maybe(Token::kwBreak)) {
+        Maybe<ast::Expr> body;
+        if(token.type != Token::EndOfStmt && token.type != Token::EndOfBlock) body = Just(parseExpr());
+
+        return makeExpr(Break, breakValue, body ? heap(body.unwrap()) : nullptr, location);
+    } else if(maybe(Token::kwContinue)) {
+        return makeExpr(Continue, var, 0, location);
     } else {
         return parseAppExpr();
     }
@@ -645,17 +673,17 @@ ast::Expr Parser::parseChain(ast::Expr base, const WithLocation& startLocation) 
             }, Token::Comma, Token::ParenR);
         });
 
-        return makeExpr(App, app, heap(ast::AppExpr { .callee = base, .args = args }), startLocation);
+        return parseChain(makeExpr(App, app, heap(ast::AppExpr { .callee = base, .args = args }), startLocation), startLocation);
     } else if(token.type == Token::BracketL) {
         ast::ParseList<ast::TupArg> args;
 
         brackets([&] {
             sepBy([&] {
                 parseTupArg(args);
-            }, Token::Comma, Token::ParenR);
+            }, Token::Comma, Token::BracketR);
         });
 
-        return makeExpr(Sub, sub, heap(ast::AppExpr { .callee = base, .args = args }), startLocation);
+        return parseChain(makeExpr(Sub, sub, heap(ast::AppExpr { .callee = base, .args = args }), startLocation), startLocation);
     } else if(maybe(Token::opDot)) {
         WithLocation location(*this);
         auto app = parseSelExpr(location);
@@ -739,7 +767,15 @@ ast::Expr Parser::parseIfExpr() {
 ast::Expr Parser::parseBaseExpr() {
     WithLocation location(*this);
 
-    if(maybe(Token::ParenL)) {
+    auto funKind = parseFunKind();
+    auto hasParen = maybe(Token::ParenL).isJust();
+    
+    if(!hasParen && funKind != ast::FunKind::Plain) {
+        expect(Token::ParenL, "expected '(' after 'lens'/'iter'"_v);
+        hasParen = true;
+    }
+
+    if(hasParen) {
         // Cases to handle:
         // () block
         // (expr)
@@ -749,7 +785,7 @@ ast::Expr Parser::parseBaseExpr() {
         // (varexpr: type, ...) block
         if(maybe(Token::ParenR)) {
             // () block
-            return makeExpr(Fun, fun, heap(ast::FunExpr { .body = parseBlock(false) }), location);
+            return makeExpr(Fun, fun, heap(ast::FunExpr { .body = parseBlock(false), .kind = funKind }), location);
         }
 
         auto expr = parseExpr();
@@ -762,7 +798,10 @@ ast::Expr Parser::parseBaseExpr() {
                 ast::ParseList<ast::Arg> args;
                 args.push(arena, ast::Arg { .source = expr.source, .name = expr.var, .type = nullptr, .def = nullptr });
 
-                return makeExpr(Fun, fun, heap(ast::FunExpr { args, parseBlock(false) }), location);
+                return makeExpr(Fun, fun, heap(ast::FunExpr { args, parseBlock(false), funKind }), location);
+            } else if(funKind != ast::FunKind::Plain) {
+                error("expected a lambda argument list after 'lens'/'iter'"_v);
+                return makeExpr(Fun, fun, heap(ast::FunExpr { .body = expr, .kind = funKind }), location);
             } else {
                 return makeExpr(Nested, nested, heap(expr), location);
             }
@@ -795,7 +834,7 @@ ast::Expr Parser::parseBaseExpr() {
         }
 
         expect(Token::ParenR, "expected ',' or ')' in argument list"_v);
-        return makeExpr(Fun, fun, heap(ast::FunExpr { args, parseBlock(false) }), location);
+        return makeExpr(Fun, fun, heap(ast::FunExpr { args, parseBlock(false), funKind }), location);
     } else if(token.type == Token::BraceL) {
         return parseTupleExpr(location);
     } else if(token.type == Token::BracketL) {
@@ -1223,6 +1262,13 @@ ast::Expr Parser::parseQop() {
     return makeExpr(Var, var, op, location);
 }
 
+ast::FunKind Parser::parseFunKind() {
+    if(maybe(Token::kwLens)) return ast::FunKind::Lens;
+    if(maybe(Token::kwIter)) return ast::FunKind::Iter;
+
+    return ast::FunKind::Plain;
+}
+
 void Parser::parseAttribute(ast::AttrList& list) {
     WithLocation location(*this);
     expect(Token::opAt, "expected '@'"_v);
@@ -1263,7 +1309,7 @@ void Parser::parseAttributes(ast::AttrList& list, bool isInline) {
 ast::Constraint Parser::parseConstraint() {
     WithLocation location(*this);
 
-    if(auto con = maybe(Token::ConID)) {
+    if(token.type == Token::ConID) {
         auto type = parseSimpleType();
         return { .type = type, .source = context.addLocation(location), .kind = ast::Constraint::Class };
     }
@@ -1280,6 +1326,7 @@ ast::Constraint Parser::parseConstraint() {
 
     if(maybe(Token::opColon)) {
         WithLocation funLocation(*this);
+        auto funKind = parseFunKind();
 
         expect(Token::ParenL, "expected function constraint"_v);
         ast::ParseList<ast::ArgDecl> args;
@@ -1288,11 +1335,12 @@ ast::Constraint Parser::parseConstraint() {
             parseTypeArg(args);
         }, Token::Comma, Token::ParenR);
 
+        expect(Token::ParenR, "expected ')'"_v);
         expect(Token::opArrowR, "expected function return type"_v);
 
         WithLocation retLocation(*this);
         auto ret = parseAType(retLocation, nullptr);
-        auto type = makeType(Fun, fun, heap(ast::FunType { args, ret }), funLocation, nullptr);
+        auto type = makeType(Fun, fun, heap(ast::FunType { args, ret, funKind }), funLocation, nullptr);
 
         return { .fun = { name, heap(type) }, .source = context.addLocation(location), .kind = ast::Constraint::Function };
     }
@@ -1328,10 +1376,11 @@ ast::Type Parser::parseType() {
     parseAttributes(attributeList, true);
     auto attributes = attributeList.isNotEmpty() ? heap(attributeList) : nullptr;
 
+    auto funKind = parseFunKind();
     auto hasArgs = false;
     ast::ParseList<ast::ArgDecl> args;
 
-    if(token.type == Token::ParenL) {
+    if(token.type == Token::ParenL || funKind != ast::FunKind::Plain) {
         hasArgs = true;
 
         parens([&] {
@@ -1385,7 +1434,7 @@ ast::Type Parser::parseType() {
         }
     } else if(maybe(Token::opArrowR)) {
         WithLocation retLocation(*this);
-        return makeType(Fun, fun, heap(ast::FunType { .args = args, .ret = parseAType(retLocation, nullptr) }), location, attributes);
+        return makeType(Fun, fun, heap(ast::FunType { .args = args, .ret = parseAType(retLocation, nullptr), .kind = funKind }), location, attributes);
     } else {
         Maybe<ast::ArgDecl> arg = args.isNotEmpty() ? Just(args.get(*arena, 0)) : Nothing();
         if(arg && !arg.unwrap().name) {
@@ -1400,12 +1449,15 @@ ast::Type Parser::parseType() {
 }
 
 ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes) {
-    if(maybe(Token::VarSym, [&](Token& t) { return t.data.id == ptrId; })) {
-        auto type = parseAType(location, nullptr);
-        return makeType(Ptr, to, heap(type), type.source, attributes);
-    } else if(maybe(Token::VarSym, [&](Token& t) { return t.data.id == refId; })) {
+    if(maybe(Token::VarSym, [&](Token& t) { return t.data.id == checkedRefId; })) {
         auto type = parseAType(location, nullptr);
         return makeType(Ref, to, heap(type), type.source, attributes);
+    } else if(maybe(Token::VarSym, [&](Token& t) { return t.data.id == rawPtrId; })) {
+        auto type = parseAType(location, nullptr);
+        return makeType(Ptr, to, heap(type), type.source, attributes);
+    } else if(maybe(Token::opAmp)) {
+        auto type = parseAType(location, nullptr);
+        return makeType(Borrow, to, heap(type), type.source, attributes);
     } else if(token.type == Token::ConID || token.type == Token::VarID) {
         auto isVar = token.type == Token::VarID;
         auto name = token.data.id;

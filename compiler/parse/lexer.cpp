@@ -435,8 +435,12 @@ void Lexer::parseVariable(Token& token, const char** start, U32* length) {
         case 'a':
             if(compareConstString(c, m, "lias")) token.type = Token::kwAlias;
             break;
+        case 'b':
+            if(compareConstString(c, m, "reak")) token.type = Token::kwBreak;
+            break;
         case 'c':
             if(compareConstString(c, m, "lass")) token.type = Token::kwClass;
+            else if(compareConstString(c, m, "ontinue")) token.type = Token::kwContinue;
             break;
         case 'd':
             if(compareConstString(c, m, "ata")) token.type = Token::kwData;
@@ -460,9 +464,11 @@ void Lexer::parseVariable(Token& token, const char** start, U32* length) {
                 if(c < m && *c == 'l') {c++; token.type = Token::kwInfixL;}
                 else if(c < m && *c == 'r') {c++; token.type = Token::kwInfixR;}
             } else if(compareConstString(c, m, "nstance")) token.type = Token::kwInstance;
+            else if(compareConstString(c, m, "ter")) token.type = Token::kwIter;
             break;
         case 'l':
-            if(m - c >= 2 && *c == 'e' && c[1] == 't') {c += 2; token.type = Token::kwLet;}
+            if(compareConstString(c, m, "ens")) token.type = Token::kwLens;
+            else if(m - c >= 2 && *c == 'e' && c[1] == 't') {c += 2; token.type = Token::kwLet;}
             break;
         case 'm':
             if(compareConstString(c, m, "atch")) token.type = Token::kwMatch;
@@ -473,7 +479,7 @@ void Lexer::parseVariable(Token& token, const char** start, U32* length) {
             break;
         case 'p':
             if(compareConstString(c, m, "refixr")) token.type = Token::kwPrefixR;
-            if(m - c >= 2 && *c == 'u' && c[1] == 'p') {c += 2; token.type = Token::kwPub;}
+            else if(m - c >= 2 && *c == 'u' && c[1] == 'b') {c += 2; token.type = Token::kwPub;}
             break;
         case 'r':
             if(compareConstString(c, m, "eturn")) token.type = Token::kwReturn;
@@ -487,6 +493,9 @@ void Lexer::parseVariable(Token& token, const char** start, U32* length) {
         case 'w':
             if(compareConstString(c, m, "here")) token.type = Token::kwWhere;
             else if(compareConstString(c, m, "hile")) token.type = Token::kwWhile;
+            break;
+        case 'y':
+            if(compareConstString(c, m, "ield")) token.type = Token::kwYield;
             break;
         default: ;
     }

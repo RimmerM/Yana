@@ -33,6 +33,16 @@ enum class BindType: U8 {
     Set,
 };
 
+// Marks a function type, function declaration, or lambda literal as compiling
+// via the CPS/stack-sharing strategy instead of an ordinary call: `Lens` shares
+// the caller's stack for a single continuation invocation, `Iter` generalizes
+// this to a resumable, possibly-multi-yield coroutine.
+enum class FunKind: U8 {
+    Plain,
+    Lens,
+    Iter,
+};
+
 struct Attribute {
     LocationId source;
     StringId name;
@@ -51,7 +61,7 @@ struct Literal {
         Float,
         Char,
         String,
-        Bool,
+        Bool, // Unreachable from source today: True/False are ConIDs (nullary constructors), not literal tokens.
     };
 
     union Access {
@@ -100,17 +110,18 @@ struct AppType;
 
 struct Type {
     enum Kind: U8 {
-        Error, // Placeholder for parse errors.
-        Unit,  // The empty unit type.
-        Con,   // A type name for a named type.
-        Ptr,   // A raw pointer to a type.
-        Ref,   // A reference to a type.
-        Gen,   // A generic or polymorphic named type.
-        Tup,   // A tuple type with optionally named fields.
-        Fun,   // A function type.
-        App,   // Application of higher-kinded type.
-        Arr,   // An array of a type.
-        Map,   // A map from one type to another.
+        Error,  // Placeholder for parse errors.
+        Unit,   // The empty unit type.
+        Con,    // A type name for a named type.
+        Ptr,    // An unchecked raw pointer to a type (sigil '%', aliased Ptr(a)).
+        Ref,    // A checked reference to a type (sigil '*', aliased Ref(a)).
+        Borrow, // A borrow of a type (sigil '&').
+        Gen,    // A generic or polymorphic named type.
+        Tup,    // A tuple type with optionally named fields.
+        Fun,    // A function type.
+        App,    // Application of higher-kinded type.
+        Arr,    // An array of a type.
+        Map,    // A map from one type to another.
     };
 
     struct MapPayload {
@@ -145,6 +156,7 @@ struct Type {
 struct FunType {
     ParseList<ArgDecl> args;
     Type ret;
+    FunKind kind = FunKind::Plain;
 };
 
 struct AppType {
@@ -249,6 +261,9 @@ struct Expr {
         Match,
         Range,
         Ret,
+        Yield,
+        Break,
+        Continue,
         Lit, // Must be last; the literal type is (kind - Kind::Lit).
     };
 
@@ -265,6 +280,8 @@ struct Expr {
         ParseList<IfCase> multiIf;
         ParseList<FormatChunk> format;
         ParsePtr<Expr> ret;
+        ParsePtr<Expr> yield;
+        ParsePtr<Expr> breakValue; // nullable
         ParsePtr<FunExpr> fun;
         ParseList<MapArg> map;
         ParseList<Expr> arr;
@@ -366,6 +383,7 @@ struct IfExpr {
 struct FunExpr {
     ParseList<Arg> args;
     Expr body;
+    FunKind kind = FunKind::Plain;
 };
 
 struct TupUpdateExpr {
@@ -422,7 +440,7 @@ inline bool isLiteral(const Expr& e) {
 }
 
 inline bool isTerminating(const Expr& e) {
-    return e.kind == Expr::Ret;
+    return e.kind == Expr::Ret || e.kind == Expr::Break || e.kind == Expr::Continue;
 }
 
 /*
@@ -498,6 +516,7 @@ struct Decl {
             ParsePtr<Type> ret;  // nullable.
             ParsePtr<Expr> body; // nullable.
             bool implicitReturn;
+            FunKind kind;
         } fun;
     };
 

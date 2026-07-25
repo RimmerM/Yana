@@ -1,0 +1,44 @@
+-- while, compact form.
+fn f() = while a -> b()
+
+-- while, block form with multiple statements.
+fn g():
+  while a > 0:
+    a = a - 1
+    b()
+
+-- for, bare iterable, compact form.
+fn h() = for x in xs -> f(x)
+
+-- for, ascending range.
+fn i() = for x in 0..10 -> f(x)
+
+-- for, descending range.
+fn j() = for x in 10 downto 0 -> f(x)
+
+-- for, ascending range with step.
+fn k() = for x in 0..10 step 2 -> f(x)
+
+-- for, descending range with step, block form.
+fn l():
+  for x in 10 downto 0 step 2:
+    f(x)
+    g(x)
+
+-- for, parenthesized selexpr bounds.
+fn m() = for x in (a)..(b) step (c) -> f(x)
+
+-- while, compact break with a value.
+fn n() = while a -> break a
+
+-- while, compact bare continue.
+fn o() = while a -> continue
+
+-- for, block form with break and continue.
+fn p():
+  for x in xs:
+    if x < 0:
+      continue
+    if x > 100:
+      break
+    f(x)

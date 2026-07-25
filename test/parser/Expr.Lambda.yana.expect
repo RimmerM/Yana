@@ -1,0 +1,69 @@
+Module 
+|-FunDecl f <implicit return> 
+| `-Body
+|   `-FunExpr ()
+|     `-LitExpr 0
+|-FunDecl g <implicit return> 
+| `-Body
+|   `-FunExpr (x)
+|     `-VarExpr x
+|-FunDecl h <implicit return> 
+| `-Body
+|   `-FunExpr (x: ConType Int)
+|     `-VarExpr x
+|-FunDecl i <implicit return> 
+| `-Body
+|   `-FunExpr (x, y)
+|     `-InfixExpr 
+|       |-VarExpr +
+|       |-VarExpr x
+|       `-VarExpr y
+|-FunDecl j <implicit return> 
+| `-Body
+|   `-FunExpr (x: ConType Int, y: ConType Int)
+|     `-InfixExpr 
+|       |-VarExpr +
+|       |-VarExpr x
+|       `-VarExpr y
+|-FunDecl k <implicit return> 
+| `-Body
+|   `-FunExpr (x: ConType Int, y: ConType Int)
+|     `-MultiExpr 
+|       |-DeclExpr 
+|       | `-VarDecl z <borrow> 
+|       |   |-VarPat z
+|       |   `-InfixExpr 
+|       |     |-VarExpr +
+|       |     |-VarExpr x
+|       |     `-VarExpr y
+|       `-RetExpr 
+|         `-VarExpr z
+|-FunDecl l
+| `-Body
+|   `-MultiExpr 
+|     |-DeclExpr 
+|     | `-VarDecl add <borrow> 
+|     |   |-VarPat add
+|     |   `-FunExpr (x: ConType Int, y: ConType Int)
+|     |     `-InfixExpr 
+|     |       |-VarExpr +
+|     |       |-VarExpr x
+|     |       `-VarExpr y
+|     `-AppExpr 
+|       |-VarExpr add
+|       |-Field <anonymous>
+|       | `-LitExpr 1
+|       `-Field <anonymous>
+|         `-LitExpr 2
+`-FunDecl m <implicit return> 
+  `-Body
+    `-AppExpr 
+      |-VarExpr apply
+      |-Field <anonymous>
+      | `-LitExpr 1
+      `-Field <anonymous>
+        `-FunExpr (x: ConType Int)
+          `-InfixExpr 
+            |-VarExpr *
+            |-VarExpr x
+            `-LitExpr 2

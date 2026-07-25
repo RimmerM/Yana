@@ -153,12 +153,10 @@ Module
 | `-Body
 |   `-LitExpr 0
 |-FunDecl f <implicit return> 
-| |-Arg a
-| | `-RefType 
-| |   `-ConType Int
-| |-Arg b
-| | `-ValType 
-| |   `-ConType Bool
+| |-Arg &a
+| | `-ConType Int
+| |-Arg set b
+| | `-ConType Bool
 | |-Arg c
 | | `-ConType Float
 | `-Body
@@ -166,33 +164,28 @@ Module
 |-FunDecl f <implicit return> 
 | |-Arg a
 | | `-ConType Int
-| |-Arg b
-| | `-RefType 
-| |   `-ConType Bool
-| |-Arg c
-| | `-ValType 
-| |   `-ConType Float
+| |-Arg &b
+| | `-ConType Bool
+| |-Arg set c
+| | `-ConType Float
 | |-Result
 | | `-ConType Int
 | `-Body
 |   `-LitExpr 0
 |-FunDecl f <implicit return> 
-| |-Arg a
-| | `-RefType 
+| |-Arg &a
+| | `-AppType 
+| |   |-ConType A
+| |   `-ConType B
+| |-Arg &b
+| | `-ConType Bool
+| |-Arg &c
+| | `-ArrType 
 | |   `-AppType 
 | |     |-ConType A
-| |     `-ConType B
-| |-Arg b
-| | `-RefType 
-| |   `-ConType Bool
-| |-Arg c
-| | `-RefType 
-| |   `-ArrType 
 | |     `-AppType 
-| |       |-ConType A
-| |       `-AppType 
-| |         |-ConType B
-| |         `-ConType C
+| |       |-ConType B
+| |       `-ConType C
 | |-Result
 | | `-AppType 
 | |   |-ConType A
@@ -200,30 +193,27 @@ Module
 | `-Body
 |   `-LitExpr 0
 |-FunDecl f <implicit return> 
-| |-Arg a
-| | `-ValType 
-| |   `-ArrType 
+| |-Arg set a
+| | `-ArrType 
+| |   `-AppType 
+| |     |-ConType A
 | |     `-AppType 
-| |       |-ConType A
-| |       `-AppType 
-| |         |-ConType B
-| |         `-ConType C
-| |-Arg b
-| | `-ValType 
-| |   `-ArrType 
+| |       |-ConType B
+| |       `-ConType C
+| |-Arg set b
+| | `-ArrType 
+| |   `-AppType 
+| |     |-ConType A
 | |     `-AppType 
-| |       |-ConType A
-| |       `-AppType 
-| |         |-ConType B
-| |         `-ConType C
-| |-Arg c
-| | `-ValType 
-| |   `-ArrType 
+| |       |-ConType B
+| |       `-ConType C
+| |-Arg set c
+| | `-ArrType 
+| |   `-AppType 
+| |     |-ConType A
 | |     `-AppType 
-| |       |-ConType A
-| |       `-AppType 
-| |         |-ConType B
-| |         `-ConType C
+| |       |-ConType B
+| |       `-ConType C
 | |-Result
 | | `-ArrType 
 | |   `-AppType 
@@ -234,23 +224,23 @@ Module
 | `-Body
 |   `-LitExpr 0
 |-FunDecl f <implicit return> 
-| |-Arg a
-| | |-RefType 
-| | | `-ConType Int
+| |-Arg &a
+| | |-ConType Int
 | | `-LitExpr 0
 | |-Arg b
 | | |-ConType Bool
-| | `-ConExpr False
-| |-Arg c
-| | |-ValType 
-| | | `-ConType Float
+| | `-ConExpr 
+| |   |-ConType False
+| |-Arg set c
+| | |-ConType Float
 | | `-LitExpr 1
 | `-Body
 |   `-LitExpr 0
 |-FunDecl f <implicit return> 
 | |-Arg a
 | | |-ConType Int
-| | `-InfixExpr *
+| | `-InfixExpr 
+| |   |-VarExpr *
 | |   |-LitExpr 6
 | |   `-AppExpr 
 | |     |-VarExpr f
@@ -263,7 +253,12 @@ Module
 | | `-IfExpr 
 | |   |-VarExpr a
 | |   |-VarExpr b
-| |   `-ConExpr A
+| |   `-ConExpr 
+| |     |-ConType A
+| |     |-Field x
+| |     | `-LitExpr 0
+| |     `-Field y
+| |       `-LitExpr 1
 | |-Arg c
 | | `-ConType Float
 | |-Result
@@ -277,17 +272,24 @@ Module
 | |   `-ConType B
 | |-Arg b
 | | `-ConType Bool
-| |-Arg c
-| | |-RefType 
-| | | `-ArrType 
+| |-Arg &c
+| | |-ArrType 
+| | | `-AppType 
+| | |   |-ConType A
 | | |   `-AppType 
-| | |     |-ConType A
-| | |     `-AppType 
-| | |       |-ConType B
-| | |       `-ConType C
+| | |     |-ConType B
+| | |     `-ConType C
 | | `-ArrayExpr 
-| |   |-ConExpr A
-| |   `-ConExpr A
+| |   |-ConExpr 
+| |   | |-ConType A
+| |   | `-Field <anonymous>
+| |   |   `-VarExpr v
+| |   `-ConExpr 
+| |     |-ConType A
+| |     |-Field <anonymous>
+| |     | `-VarExpr x
+| |     `-Field <anonymous>
+| |       `-VarExpr y
 | |-Result
 | | `-AppType 
 | |   |-ConType A
@@ -299,10 +301,12 @@ Module
 | | `-ConType Int
 | `-Body
 |   `-IfExpr 
-|     |-InfixExpr >
+|     |-InfixExpr 
+|     | |-VarExpr >
 |     | |-VarExpr a
 |     | `-LitExpr 0
-|     |-InfixExpr *
+|     |-InfixExpr 
+|     | |-VarExpr *
 |     | |-AppExpr 
 |     | | |-VarExpr g
 |     | | `-Field <anonymous>
@@ -310,7 +314,8 @@ Module
 |     | `-AppExpr 
 |     |   |-VarExpr f
 |     |   `-Field <anonymous>
-|     |     `-InfixExpr -
+|     |     `-InfixExpr 
+|     |       |-VarExpr -
 |     |       |-VarExpr a
 |     |       `-LitExpr 1
 |     `-LitExpr 0
@@ -319,11 +324,13 @@ Module
 | | `-ConType Int
 | `-Body
 |   `-IfExpr 
-|     |-InfixExpr >
+|     |-InfixExpr 
+|     | |-VarExpr >
 |     | |-VarExpr a
 |     | `-LitExpr 0
 |     |-RetExpr 
-|     | `-InfixExpr *
+|     | `-InfixExpr 
+|     |   |-VarExpr *
 |     |   |-AppExpr 
 |     |   | |-VarExpr g
 |     |   | `-Field <anonymous>
@@ -331,7 +338,8 @@ Module
 |     |   `-AppExpr 
 |     |     |-VarExpr f
 |     |     `-Field <anonymous>
-|     |       `-InfixExpr -
+|     |       `-InfixExpr 
+|     |         |-VarExpr -
 |     |         |-VarExpr a
 |     |         `-LitExpr 1
 |     `-RetExpr 
@@ -340,7 +348,7 @@ Module
 | |-Arg a
 | | `-ConType Int
 | `-Body
-|   `-CaseExpr 
+|   `-MatchExpr 
 |     |-VarExpr a
 |     |-Alt
 |     | |-LitPat -1
@@ -355,19 +363,23 @@ Module
 | |-Arg a
 | | `-ConType Int
 | `-Body
-|   `-CaseExpr 
+|   `-MatchExpr 
 |     |-VarExpr a
 |     |-Alt
 |     | |-LitPat 0
-|     | `-ConExpr Class.Zero
+|     | `-ConExpr 
+|     |   |-ConType Class.Zero
 |     `-Alt
 |       |-AnyPat
 |       `-IfExpr 
-|         |-InfixExpr >
+|         |-InfixExpr 
+|         | |-VarExpr >
 |         | |-VarExpr a
 |         | `-LitExpr 0
-|         |-ConExpr Class.Positive
-|         `-ConExpr Class.Negative
+|         |-ConExpr 
+|         | |-ConType Class.Positive
+|         `-ConExpr 
+|           |-ConType Class.Negative
 |-FunDecl f <implicit return> 
 | |-Arg a
 | | `-ConType Int
@@ -376,7 +388,7 @@ Module
 | |-Arg c
 | | `-ConType Bool
 | `-Body
-|   `-CaseExpr 
+|   `-MatchExpr 
 |     |-TupExpr
 |     | |-Field <anonymous>
 |     | | `-VarExpr a
@@ -392,7 +404,8 @@ Module
 |     | | | `-LitPat 0
 |     | | `-Field 
 |     | |   `-ConPat False
-|     | `-ConExpr Class.Zero
+|     | `-ConExpr 
+|     |   |-ConType Class.Zero
 |     |-Alt
 |     | |-TupPat
 |     | | |-Field 
@@ -403,21 +416,27 @@ Module
 |     | |   `-ConPat False
 |     | `-RetExpr 
 |     |   `-IfExpr 
-|     |     |-InfixExpr >
+|     |     |-InfixExpr 
+|     |     | |-VarExpr >
 |     |     | |-VarExpr a
-|     |     | `-InfixExpr &&
+|     |     | `-InfixExpr 
+|     |     |   |-VarExpr &&
 |     |     |   |-LitExpr 0
-|     |     |   `-InfixExpr >
+|     |     |   `-InfixExpr 
+|     |     |     |-VarExpr >
 |     |     |     |-VarExpr b
 |     |     |     `-LitExpr 0
-|     |     |-ConExpr Class.Positive
-|     |     `-ConExpr Class.Negative
+|     |     |-ConExpr 
+|     |     | |-ConType Class.Positive
+|     |     `-ConExpr 
+|     |       |-ConType Class.Negative
 |     `-Alt
 |       |-AnyPat
-|       `-ConExpr Class.Positive
+|       `-ConExpr 
+|         |-ConType Class.Positive
 |-FunDecl showTuple <implicit return> 
 | |-<constraints>
-| | `-AnyConstraint a
+| | `-AnyConstraint 
 | |-Arg it
 | | `-TupType 
 | |   |-Field <anonymous>
@@ -428,8 +447,8 @@ Module
 |   `-LitExpr ""
 |-FunDecl showTuple <implicit return> 
 | |-<constraints>
-| | |-AnyConstraint a
-| | `-AnyConstraint b
+| | |-AnyConstraint 
+| | `-AnyConstraint 
 | |-Arg it
 | | `-TupType 
 | |   |-Field <anonymous>
@@ -517,7 +536,8 @@ Module
 | |-Arg v
 | | `-GenType a
 | `-Body
-|   `-InfixExpr *
+|   `-InfixExpr 
+|     |-VarExpr *
 |     |-FieldExpr 
 |     | |-VarExpr x
 |     | `-VarExpr v

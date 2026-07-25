@@ -1,0 +1,27 @@
+-- Zero arguments.
+fn f() = () -> 0
+
+-- Single argument, no type.
+fn g() = (x) -> x
+
+-- Single argument, with type.
+fn h() = (x: Int) -> x
+
+-- Multiple arguments, no types.
+fn i() = (x, y) -> x + y
+
+-- Multiple arguments, with types.
+fn j() = (x: Int, y: Int) -> x + y
+
+-- Block-form body with multiple statements.
+fn k() = (x: Int, y: Int):
+  let z = x + y
+  return z
+
+-- Assigned to a local and called.
+fn l():
+  let add = (x: Int, y: Int) -> x + y
+  add(1, 2)
+
+-- Passed as a call argument.
+fn m() = apply(1, (x: Int) -> x * 2)

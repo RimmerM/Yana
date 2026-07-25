@@ -1,0 +1,98 @@
+Module 
+|-AliasDecl SearchBody 
+| `-FunType <lens> 
+|   |-Arg before
+|   | `-ConType String
+|   |-Arg hit
+|   | `-ConType String
+|   |-Arg after
+|   | `-ConType String
+|   `-GenType a
+|-AliasDecl Source 
+| `-FunType <iter> 
+|   |-Arg <anonymous>
+|   | `-ConType Int
+|   `-ConType Int
+|-FunDecl f <implicit return> 
+| |-<constraints>
+| | `-FunctionConstraint stuff
+| |   `-FunType <lens> 
+| |     |-Arg <anonymous>
+| |     | `-GenType a
+| |     |-Arg <anonymous>
+| |     | `-ConType Int
+| |     `-GenType b
+| `-Body
+|   `-LitExpr 0
+|-FunDecl g <implicit return> 
+| |-<constraints>
+| | `-FunctionConstraint gen
+| |   `-FunType <iter> 
+| |     |-Arg <anonymous>
+| |     | `-ConType Int
+| |     `-GenType a
+| `-Body
+|   `-LitExpr 0
+|-FunDecl findChar <lens> <implicit return> 
+| |-Arg s
+| | `-ConType String
+| |-Arg target
+| | `-ConType Int
+| |-Arg body
+| | `-FunType 
+| |   |-Arg before
+| |   | `-ConType String
+| |   |-Arg hit
+| |   | `-ConType String
+| |   |-Arg after
+| |   | `-ConType String
+| |   `-GenType a
+| |-Result
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-GenType a
+| `-Body
+|   `-AppExpr 
+|     |-VarExpr body
+|     |-Field <anonymous>
+|     | `-VarExpr s
+|     |-Field <anonymous>
+|     | `-VarExpr s
+|     `-Field <anonymous>
+|       `-VarExpr s
+|-FunDecl codePoints <iter>
+| |-Arg s
+| | `-ConType String
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-MultiExpr 
+|     |-YieldExpr 
+|     | `-LitExpr 0
+|     `-YieldExpr 
+|       `-LitExpr 1
+|-FunDecl h <implicit return> 
+| `-Body
+|   `-FunExpr <lens> (before: ConType String, hit: ConType String, after: ConType String)
+|     `-VarExpr before
+|-FunDecl i <implicit return> 
+| `-Body
+|   `-FunExpr <iter> (n: ConType Int)
+|     `-YieldExpr 
+|       `-VarExpr n
+|-FunDecl j <implicit return> 
+| `-Body
+|   `-FunExpr <lens> ()
+|     `-LitExpr 0
+`-FunDecl k <implicit return> 
+  `-Body
+    `-AppExpr 
+      |-VarExpr apply
+      |-Field <anonymous>
+      | `-LitExpr 1
+      `-Field <anonymous>
+        `-FunExpr <lens> (x: ConType Int)
+          `-InfixExpr 
+            |-VarExpr *
+            |-VarExpr x
+            `-LitExpr 2

@@ -1,5 +1,5 @@
 Module 
-|-ClassDecl A (a)
+|-TraitDecl A (a)
 | |-FunDecl f
 | | |-Arg x
 | | | `-GenType a
@@ -19,9 +19,8 @@ Module
 | |-FunDecl h
 | | |-Arg x
 | | | `-GenType a
-| | |-Arg y
-| | | |-RefType 
-| | | | `-ConType Int
+| | |-Arg &y
+| | | |-ConType Int
 | | | `-LitExpr 0
 | | `-Result
 | |   `-ArrType 
@@ -45,10 +44,11 @@ Module
 |       |-Field x
 |       | `-VarExpr x
 |       `-Field y
-|         `-InfixExpr *
+|         `-InfixExpr 
+|           |-VarExpr *
 |           |-VarExpr y
 |           `-LitExpr 2
-|-ClassDecl B (a, b)
+|-TraitDecl B (a, b)
 | |-FunDecl f
 | | |-Arg x
 | | | `-GenType a
@@ -68,9 +68,8 @@ Module
 | |-FunDecl h
 | | |-Arg x
 | | | `-GenType a
-| | |-Arg y
-| | | |-RefType 
-| | | | `-GenType b
+| | |-Arg &y
+| | | |-GenType b
 | | | `-LitExpr 0
 | | `-Result
 | |   `-ArrType 
@@ -94,7 +93,8 @@ Module
 |       |-Field x
 |       | `-VarExpr x
 |       `-Field y
-|         `-InfixExpr *
+|         `-InfixExpr 
+|           |-VarExpr *
 |           |-VarExpr y
 |           `-LitExpr 2
 |-InstanceDecl 
@@ -119,16 +119,15 @@ Module
 | |     |-VarExpr x
 | |     `-VarExpr this
 | `-FunDecl i
-|   |-Arg this
-|   | `-ValType 
-|   |   `-ConType B
+|   |-Arg &this
+|   | `-ConType B
 |   `-Body
 |     `-AssignExpr 
 |       |-FieldExpr 
 |       | |-VarExpr x
 |       | `-VarExpr this
 |       `-LitExpr 5
-`-ClassDecl Num (a)
+`-TraitDecl Num (a)
   |-<constraints>
   | `-ClassConstraint Ord (a)
   |-FunDecl +

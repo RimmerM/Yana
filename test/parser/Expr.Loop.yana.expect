@@ -1,0 +1,126 @@
+Module 
+|-FunDecl f <implicit return> 
+| `-Body
+|   `-WhileExpr
+|     |-VarExpr a
+|     `-AppExpr 
+|       `-VarExpr b
+|-FunDecl g
+| `-Body
+|   `-WhileExpr
+|     |-InfixExpr 
+|     | |-VarExpr >
+|     | |-VarExpr a
+|     | `-LitExpr 0
+|     `-MultiExpr 
+|       |-AssignExpr 
+|       | |-VarExpr a
+|       | `-InfixExpr 
+|       |   |-VarExpr -
+|       |   |-VarExpr a
+|       |   `-LitExpr 1
+|       `-AppExpr 
+|         `-VarExpr b
+|-FunDecl h <implicit return> 
+| `-Body
+|   `-ForExpr
+|     |-VarPat x
+|     |-VarExpr xs
+|     `-AppExpr 
+|       |-VarExpr f
+|       `-Field <anonymous>
+|         `-VarExpr x
+|-FunDecl i <implicit return> 
+| `-Body
+|   `-ForExpr
+|     |-VarPat x
+|     |-LitExpr 0
+|     |-LitExpr 10
+|     `-AppExpr 
+|       |-VarExpr f
+|       `-Field <anonymous>
+|         `-VarExpr x
+|-FunDecl j <implicit return> 
+| `-Body
+|   `-ForExpr <reverse>
+|     |-VarPat x
+|     |-LitExpr 10
+|     |-LitExpr 0
+|     `-AppExpr 
+|       |-VarExpr f
+|       `-Field <anonymous>
+|         `-VarExpr x
+|-FunDecl k <implicit return> 
+| `-Body
+|   `-ForExpr
+|     |-VarPat x
+|     |-LitExpr 0
+|     |-LitExpr 10
+|     |-LitExpr 2
+|     `-AppExpr 
+|       |-VarExpr f
+|       `-Field <anonymous>
+|         `-VarExpr x
+|-FunDecl l
+| `-Body
+|   `-ForExpr <reverse>
+|     |-VarPat x
+|     |-LitExpr 10
+|     |-LitExpr 0
+|     |-LitExpr 2
+|     `-MultiExpr 
+|       |-AppExpr 
+|       | |-VarExpr f
+|       | `-Field <anonymous>
+|       |   `-VarExpr x
+|       `-AppExpr 
+|         |-VarExpr g
+|         `-Field <anonymous>
+|           `-VarExpr x
+|-FunDecl m <implicit return> 
+| `-Body
+|   `-ForExpr
+|     |-VarPat x
+|     |-NestedExpr 
+|     | `-VarExpr a
+|     |-NestedExpr 
+|     | `-VarExpr b
+|     |-NestedExpr 
+|     | `-VarExpr c
+|     `-AppExpr 
+|       |-VarExpr f
+|       `-Field <anonymous>
+|         `-VarExpr x
+|-FunDecl n <implicit return> 
+| `-Body
+|   `-WhileExpr
+|     |-VarExpr a
+|     `-BreakExpr 
+|       `-VarExpr a
+|-FunDecl o <implicit return> 
+| `-Body
+|   `-WhileExpr
+|     |-VarExpr a
+|     `-ContinueExpr
+`-FunDecl p
+  `-Body
+    `-ForExpr
+      |-VarPat x
+      |-VarExpr xs
+      `-MultiExpr 
+        |-IfExpr 
+        | |-InfixExpr 
+        | | |-VarExpr <
+        | | |-VarExpr x
+        | | `-LitExpr 0
+        | `-ContinueExpr
+        |-IfExpr 
+        | |-InfixExpr 
+        | | |-VarExpr >
+        | | |-VarExpr x
+        | | `-LitExpr 100
+        | `-BreakExpr 
+        `-AppExpr 
+          |-VarExpr f
+          `-Field <anonymous>
+            `-VarExpr x

@@ -45,6 +45,7 @@ struct Parser: BasicParser<Lexer, Token> {
     ast::Expr parseVarDecl(const WithLocation& location, U32 line);
     void parseAlt(ast::ParseList<ast::Alt>& list);
     ast::Expr parseQop();
+    ast::FunKind parseFunKind();
 
     ast::SimpleType parseSimpleType();
     ast::Type parseType();
@@ -120,8 +121,8 @@ struct Parser: BasicParser<Lexer, Token> {
     StringId hidingId;
     StringId fromId;
     StringId asId;
-    StringId ptrId;
-    StringId refId;
+    StringId checkedRefId; // sigil '*': checked reference (Type::Ref, aliased Ref(a)).
+    StringId rawPtrId;     // sigil '%': raw, unchecked pointer (Type::Ptr, aliased Ptr(a)).
     StringId downtoId;
     StringId stepId;
     StringId setId;

@@ -1,0 +1,31 @@
+-- Lens/iter as a function-type modifier, used as a plain alias.
+alias SearchBody = lens (before: String, hit: String, after: String) -> a
+alias Source = iter (Int) -> Int
+
+-- Lens/iter function types in constraint position.
+fn (stuff: lens (a, Int) -> b)
+  f() = 0
+
+fn (gen: iter (Int) -> a)
+  g() = 0
+
+-- Lens function declaration, implicit-return body.
+lens fn findChar(s: String, target: Int, body: (before: String, hit: String, after: String) -> a) -> Maybe(a) = body(s, s, s) -- illustrative only; not the actual findChar body
+
+-- Iterator function declaration, explicit-return body with yield.
+iter fn codePoints(s: String) -> Int:
+  yield 0
+  yield 1
+
+-- Lens lambda literal, implicit-return body.
+fn h() = lens (before: String, hit: String, after: String) -> before
+
+-- Iterator lambda literal, block body with yield.
+fn i() = iter (n: Int):
+  yield n
+
+-- Lens lambda literal with no arguments.
+fn j() = lens () -> 0
+
+-- Lens lambda literal passed as a call argument.
+fn k() = apply(1, lens (x: Int) -> x * 2)

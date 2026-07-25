@@ -41,7 +41,9 @@ struct Token {
         /* Keywords */
         kwAlias,
         kwAtData,
+        kwBreak,
         kwClass,
+        kwContinue,
         kwData,
         kwDefault,
         kwDeriving,
@@ -58,6 +60,8 @@ struct Token {
         kwPrefixR,
         kwSuffixL,
         kwInstance,
+        kwIter,
+        kwLens,
         kwLet,
         kwMatch,
         kwModule,
@@ -67,6 +71,7 @@ struct Token {
         kwThen,
         kwWhere,
         kwWhile,
+        kwYield,
         kw_,
 
         /* Reserved operators */

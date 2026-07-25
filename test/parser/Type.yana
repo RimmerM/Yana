@@ -10,8 +10,8 @@ alias X = Y a
 alias X = Y {Y, W}
 alias X = Y {a: Z, b: W}
 alias X = Y [Z]
-alias X = Y [Z => W]
-alias X = Y [a => b]
+alias X = Y [Z: W]
+alias X = Y [a: b]
 alias X = Y [Z(W)]
 alias X = Y [Z(a)]
 
@@ -27,8 +27,8 @@ alias X = a b
 alias X = a {Y, W}
 alias X = a {a: Z, b: W}
 alias X = a [Z]
-alias X = a [Z => W]
-alias X = a [b => c]
+alias X = a [Z: W]
+alias X = a [b: c]
 alias X = a [Z(W)]
 alias X = a [Z(b)]
 
@@ -54,7 +54,7 @@ alias X = %(&Int)
 alias X = %(%Int)
 alias X = %(&[Int])
 
--- RefType.
+-- BorrowType.
 alias X = &X
 alias X = &[Int]
 alias X = &{Int, Int}
@@ -67,7 +67,7 @@ alias X = &(%Int)
 alias X = &(&Int)
 alias X = &(%[Int])
 
--- ValType.
+-- RefType (checked reference).
 alias X = *X
 alias X = *[Int]
 alias X = *{Int, Int}
@@ -85,12 +85,12 @@ alias X = [Y]
 alias X = [a]
 alias X = [{x: Int, y: Int}]
 alias X = [[a]]
-alias X = [[[[Int => Int]]]]
-alias X = [Y => Z]
-alias X = [a => Z]
-alias X = [Y => a]
-alias X = [{x: Int, y: Int} => Y(Z(W))]
-alias X = [{Int, Int} => {Int, Int}]
+alias X = [[[[Int: Int]]]]
+alias X = [Y: Z]
+alias X = [a: Z]
+alias X = [Y: a]
+alias X = [{x: Int, y: Int}: Y(Z(W))]
+alias X = [{Int, Int}: {Int, Int}]
 
 -- Function types.
 alias X = () -> {}
@@ -100,7 +100,7 @@ alias X = (Int, Bool) -> Int
 alias X = (Int, Bool) -> {Int, Bool}
 alias X = (a: Int, b: Bool) -> {a: Int, b: Bool}
 alias X = (a: a, b: a) -> [a]
-alias X = (a: [a], b: [a => a]) -> Set(Bool)
+alias X = (a: [a], b: [a: a]) -> Set(Bool)
 alias X = (a: Module.Type) -> Module.Type({Bool, Bool})
 
 -- Parenthesized.
@@ -110,12 +110,12 @@ alias X = ({ [X], [Y], [Z] })
 alias X = ([a])
 alias X = ({ x: [X], y: Module.Type, z: { Type } })
 
--- Mutable types.
+-- Borrow types, nested.
 alias X = { x: &Int, y: &[Int], z: &{Int, {Int, Int}} }
 alias X = [&Int]
 alias X = Y(&Int)
 
--- Flattened types.
+-- Checked reference types, nested.
 alias X = { x: *Int, y: *[Int], z: *{*Int, *{Int, Int}} }
-alias X = [*[*[Int => *{a, b}]]]
+alias X = [*[*[Int: *{a, b}]]]
 alias X = Y(*Z)
