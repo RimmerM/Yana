@@ -42,10 +42,12 @@ struct Parser: BasicParser<Lexer, Token> {
     void parseTypeArg(ast::ParseList<ast::ArgDecl>& list);
     void parseArgDecl(ast::ParseList<ast::ArgDecl>& list);
     void parseTupArg(ast::ParseList<ast::TupArg>& list);
+    void parseTupUpdateArg(ast::ParseList<ast::TupArg>& list, const ast::Expr& source, ast::BindType bind);
     ast::Expr parseVarDecl(const WithLocation& location, U32 line);
     void parseAlt(ast::ParseList<ast::Alt>& list);
     ast::Expr parseQop();
     ast::FunKind parseFunKind();
+    ast::BindType parseBindType();
 
     ast::SimpleType parseSimpleType();
     ast::Type parseType();

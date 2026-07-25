@@ -55,15 +55,25 @@ Module
 |       | `-LitExpr 1
 |       `-Field <anonymous>
 |         `-LitExpr 2
-`-FunDecl m <implicit return> 
+|-FunDecl m <implicit return> 
+| `-Body
+|   `-AppExpr 
+|     |-VarExpr apply
+|     |-Field <anonymous>
+|     | `-LitExpr 1
+|     `-Field <anonymous>
+|       `-FunExpr (x: ConType Int)
+|         `-InfixExpr 
+|           |-VarExpr *
+|           |-VarExpr x
+|           `-LitExpr 2
+`-FunDecl n <implicit return> 
   `-Body
-    `-AppExpr 
-      |-VarExpr apply
-      |-Field <anonymous>
-      | `-LitExpr 1
-      `-Field <anonymous>
-        `-FunExpr (x: ConType Int)
-          `-InfixExpr 
-            |-VarExpr *
-            |-VarExpr x
-            `-LitExpr 2
+    `-FunExpr (&x: ConType Int, ->y: ConType Int, set z: ConType Int)
+      `-InfixExpr 
+        |-VarExpr +
+        |-VarExpr x
+        `-InfixExpr 
+          |-VarExpr +
+          |-VarExpr y
+          `-VarExpr z

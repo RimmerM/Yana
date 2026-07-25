@@ -144,7 +144,7 @@ void Lexer::skipWhitespace() {
             }
 
             // Check for multi-line comments.
-            else if(m - p > 2 && *p == '{' && p[1] == '-') {
+            else if(m - p > 2 && *p == '{' && p[1] == '-' && p[2] != '>') {
                 // The current nested comment depth.
                 U32 level = 1;
 
@@ -155,7 +155,7 @@ void Lexer::skipWhitespace() {
                     if(*p == '\n') nextLine();
 
                     // Check for nested comments.
-                    if(m - p > 2 && *p == '{' && p[1] == '-') level++;
+                    if(m - p > 2 && *p == '{' && p[1] == '-' && p[2] != '>') level++;
 
                     // Check for comment end.
                     if(m - p > 2 && *p == '-' && p[1] == '}') {

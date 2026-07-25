@@ -788,6 +788,21 @@ ast::Expr Parser::parseBaseExpr() {
             return makeExpr(Fun, fun, heap(ast::FunExpr { .body = parseBlock(false), .kind = funKind }), location);
         }
 
+        if(token.type == Token::opArrowR || token.type == Token::opAmp || (token.type == Token::VarID && token.data.id == setId)) {
+            ast::ParseList<ast::Arg> args;
+            sepBy1([&] {
+                parseArg(args, false);
+            }, Token::Comma);
+
+            expect(Token::ParenR, "expected ',' or ')' in argument list"_v);
+
+            return makeExpr(Fun, fun, heap(ast::FunExpr {
+                args,
+                parseBlock(false),
+                funKind,
+            }), location);
+        }
+
         auto expr = parseExpr();
 
         if(maybe(Token::ParenR)) {
@@ -970,6 +985,9 @@ ast::Expr Parser::parseTupleExpr(const WithLocation& location) {
         return makeExpr(Tup, tup, {}, location);
     }
 
+    auto updateBind = ast::BindType::Borrow;
+    if(maybe(Token::opArrowR)) updateBind = ast::BindType::Sink;
+
     // For non-empty tuples, parse the first value to check for update expressions.
     auto firstQualified = maybe(Token::opTilde).isJust();
 
@@ -979,11 +997,18 @@ ast::Expr Parser::parseTupleExpr(const WithLocation& location) {
     }
 
     if(maybe(Token::opBar)) {
-        ast::TupUpdateExpr update { .value = first };
-        sepBy1([&] { parseTupArg(update.args); }, Token::Comma);
-        expect(Token::BraceR, "expected '}' after tuple expression"_v);
+        ast::TupUpdateExpr update { .value = first, .bind = updateBind };
 
+        sepBy1([&] {
+            parseTupUpdateArg(update.args, first, updateBind);
+        }, Token::Comma);
+
+        expect(Token::BraceR, "expected '}' after tuple expression"_v);
         return makeExpr(TupUpdate, tupUpdate, heap(update), location);
+    }
+
+    if(updateBind == ast::BindType::Sink) {
+        error("expected '|' after move-update source"_v, first.source);
     }
 
     ast::ParseList<ast::TupArg> args;
@@ -1074,13 +1099,75 @@ void Parser::parseTupArg(ast::ParseList<ast::TupArg>& list) {
     }
 }
 
+void Parser::parseTupUpdateArg(ast::ParseList<ast::TupArg>& list, const ast::Expr& source, ast::BindType bind) {
+    if(!maybe(Token::opDot)) {
+        parseTupArg(list);
+        return;
+    }
+
+    ast::ParseList<StringId> path;
+
+    sepBy1([&] {
+        auto field = expect(Token::VarID, "expected field name in update path"_v);
+        if(field) path.push(arena, field.unwrap().id);
+    }, Token::opDot);
+
+    expect(Token::opColon, "expected ':' after update path"_v);
+    auto nestedValue = parseExpr();
+    if(path.isEmpty()) return;
+
+    ast::ParseList<ast::Expr> projectedSources;
+    projectedSources.push(arena, source);
+
+    auto projected = source;
+    for(Size i = 0; i + 1 < path.size(); i++) {
+        auto field = ast::Expr {
+            .var = path.get(*arena, i),
+            .source = source.source,
+            .kind = ast::Expr::Var,
+        };
+
+        projected = ast::Expr {
+            .field = heap(ast::FieldExpr {
+                .target = projected,
+                .field = field,
+            }),
+            .source = source.source,
+            .kind = ast::Expr::Field,
+        };
+
+        projectedSources.push(arena, projected);
+    }
+
+    for(Size i = path.size() - 1; i > 0; i--) {
+        ast::ParseList<ast::TupArg> args;
+        args.push(arena, ast::TupArg { path.get(*arena, i), nestedValue });
+
+        nestedValue = ast::Expr {
+            .tupUpdate = heap(ast::TupUpdateExpr {
+                .value = projectedSources.get(*arena, i),
+                .args = args,
+                .bind = bind,
+            }),
+            .source = source.source,
+            .kind = ast::Expr::TupUpdate,
+        };
+    }
+
+    list.push(arena, ast::TupArg { path.get(*arena, 0), nestedValue });
+}
+
+ast::BindType Parser::parseBindType() {
+    if(maybe(Token::opArrowR)) return ast::BindType::Sink;
+    if(maybe(Token::opAmp)) return ast::BindType::Ref;
+    if(maybeVar(setId)) return ast::BindType::Set;
+    return ast::BindType::Borrow;
+}
+
 void Parser::parseArg(ast::ParseList<ast::Arg>& list, bool requireType) {
     WithLocation location(*this);
 
-    auto bind = ast::BindType::Borrow;
-    if(maybe(Token::opArrowR)) bind = ast::BindType::Sink;
-    else if(maybe(Token::opAmp)) bind = ast::BindType::Ref;
-    else if(maybeVar(setId)) bind = ast::BindType::Set;
+    auto bind = parseBindType();
 
     auto name = tryMaybe(expect(Token::VarID, "expected parameter name"_v), return).id;
     ast::ParsePtr<ast::Type> type = nullptr;
@@ -1358,6 +1445,8 @@ void Parser::parseConstraints(ast::ConstraintList& list) {
 }
 
 void Parser::parseArgDecl(ast::ParseList<ast::ArgDecl>& list) {
+    auto bind = parseBindType();
+
     if(token.type == Token::VarID) {
         // A leading identifier is only a parameter name if it is followed by ':'.
         // Otherwise, it is a bare generic type used as an unnamed argument (e.g. `(a, b) -> c`).
@@ -1367,7 +1456,7 @@ void Parser::parseArgDecl(ast::ParseList<ast::ArgDecl>& list) {
         eat();
 
         if(maybe(Token::opColon)) {
-            list.push(arena, ast::ArgDecl { parseType(), name, ast::BindType::Borrow });
+            list.push(arena, ast::ArgDecl { parseType(), name, bind });
             return;
         }
 
@@ -1375,7 +1464,7 @@ void Parser::parseArgDecl(ast::ParseList<ast::ArgDecl>& list) {
         token = savedToken;
     }
 
-    list.push(arena, ast::ArgDecl { parseType(), 0, ast::BindType::Borrow });
+    list.push(arena, ast::ArgDecl { parseType(), 0, bind });
 }
 
 void Parser::parseTypeArg(ast::ParseList<ast::ArgDecl>& list) {

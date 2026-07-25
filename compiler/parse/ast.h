@@ -389,6 +389,7 @@ struct FunExpr {
 struct TupUpdateExpr {
     Expr value;
     ParseList<TupArg> args;
+    BindType bind = BindType::Borrow;
 };
 
 struct ConExpr {

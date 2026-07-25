@@ -432,6 +432,8 @@ private:
         auto tup = base[e.tupUpdate];
 
         stream.writeString("TupUpdateExpr "_v);
+        if(tup->bind == BindType::Sink) stream.writeString("<sink> "_v);
+
         makeLevel();
         toString(tup->value, false);
         printList(tup->args);
@@ -908,6 +910,14 @@ private:
 
     void toString(const ArgDecl& arg) {
         stream.writeString("Arg "_v);
+
+        switch(arg.bind) {
+            case BindType::Borrow: break;
+            case BindType::Ref: stream.writeString("&"_v); break;
+            case BindType::Sink: stream.writeString("->"_v); break;
+            case BindType::Set: stream.writeString("set "_v); break;
+        }
+
         auto name = context.find(arg.name);
         if(name.textLength > 0) {
             stream.writeBytes((const Byte*)name.text, name.textLength);

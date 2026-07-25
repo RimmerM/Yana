@@ -30,3 +30,19 @@ fn o(v) = *v
 
 -- Prefix expression on a chained access.
 fn p(v) = -v[0]
+
+-- Nested tuple update shorthand.
+{- Block comments still work alongside the reserved `{->` move-update prefix. -}
+fn q(v) = {v | .origin.x: 1}
+
+-- The fully expanded equivalent.
+fn r(v) = {v | origin: {v.origin | x: 1}}
+
+-- A move update sinks both the outer and synthesized nested update sources.
+fn s(v) = {->v | .origin.x: 1}
+
+-- Move update, direct field.
+fn t(v) = {->v | x: 1}
+
+-- The fully expanded move-update equivalent.
+fn u(v) = {->v | origin: {->v.origin | x: 1}}

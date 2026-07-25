@@ -72,12 +72,67 @@ Module
 |   `-PrefixExpr 
 |     |-VarExpr *
 |     `-VarExpr v
-`-FunDecl p <implicit return> 
+|-FunDecl p <implicit return> 
+| |-Arg v
+| `-Body
+|   `-PrefixExpr 
+|     |-VarExpr -
+|     `-SubExpr 
+|       |-VarExpr v
+|       `-Field <anonymous>
+|         `-LitExpr 0
+|-FunDecl q <implicit return> 
+| |-Arg v
+| `-Body
+|   `-TupUpdateExpr 
+|     |-VarExpr v
+|     `-Field origin
+|       `-TupUpdateExpr 
+|         |-FieldExpr 
+|         | |-VarExpr origin
+|         | `-VarExpr v
+|         `-Field x
+|           `-LitExpr 1
+|-FunDecl r <implicit return> 
+| |-Arg v
+| `-Body
+|   `-TupUpdateExpr 
+|     |-VarExpr v
+|     `-Field origin
+|       `-TupUpdateExpr 
+|         |-FieldExpr 
+|         | |-VarExpr origin
+|         | `-VarExpr v
+|         `-Field x
+|           `-LitExpr 1
+|-FunDecl s <implicit return> 
+| |-Arg v
+| `-Body
+|   `-TupUpdateExpr <sink> 
+|     |-VarExpr v
+|     `-Field origin
+|       `-TupUpdateExpr <sink> 
+|         |-FieldExpr 
+|         | |-VarExpr origin
+|         | `-VarExpr v
+|         `-Field x
+|           `-LitExpr 1
+|-FunDecl t <implicit return> 
+| |-Arg v
+| `-Body
+|   `-TupUpdateExpr <sink> 
+|     |-VarExpr v
+|     `-Field x
+|       `-LitExpr 1
+`-FunDecl u <implicit return> 
   |-Arg v
   `-Body
-    `-PrefixExpr 
-      |-VarExpr -
-      `-SubExpr 
-        |-VarExpr v
-        `-Field <anonymous>
-          `-LitExpr 0
+    `-TupUpdateExpr <sink> 
+      |-VarExpr v
+      `-Field origin
+        `-TupUpdateExpr <sink> 
+          |-FieldExpr 
+          | |-VarExpr origin
+          | `-VarExpr v
+          `-Field x
+            `-LitExpr 1
