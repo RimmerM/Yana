@@ -20,6 +20,8 @@ struct LowerToken {
         Equals = '=',
         Colon = ':',
         Minus = '-',
+        Less = '<',
+        Greater = '>',
 
         /* Literals */
         FirstLiteral = 128,

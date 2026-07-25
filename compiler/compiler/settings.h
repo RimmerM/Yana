@@ -74,6 +74,16 @@ struct TargetExtensions {
     bool neon = false;   /// Enabled ARM NEON SIMD instructions.
 };
 
+/// When a function should establish a frame pointer.
+/// A frame pointer costs a push, a move, a pop and one of the general registers for the whole
+/// function; what it buys is an address for fixed frame objects that stays valid while the stack
+/// pointer moves, and a frame that a debugger or profiler can walk without unwind tables.
+enum class FramePointerMode {
+    All,     /// Every function gets one, so every stack can be walked.
+    NonLeaf, /// Only functions that call something - a leaf's stack frame has nothing above it to walk to.
+    Needed,  /// Only functions that cannot address their frame objects through the stack pointer.
+};
+
 struct CompileSettings {
     Array<Tritium::String> compileObjects;
     Array<Tritium::String> rootObjects;
@@ -84,6 +94,8 @@ struct CompileSettings {
     TargetType target;
     TargetArch arch;
     TargetExtensions extensions;
+
+    FramePointerMode framePointer = FramePointerMode::Needed;
 
     bool printModules = false; /// Debug flag: Print a list of modules found in the input.
     bool printAst = false;     /// Debug flag: Create .ast files for each source file.

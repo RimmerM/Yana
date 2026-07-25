@@ -1,0 +1,78 @@
+
+callerWithLocal<complex>(%v: Int): Int {
+  b_0 {
+    %a = alloca 8: Ptr
+    store %a, %v, 8
+    %r = call_complex leafNoFrame, %v, %v: Int
+    %s = load %a, 8: Int
+    %t = add %r, %s: Int
+    ret %t
+  }
+}
+
+leafWithLocal<complex>(%v: Int): Int {
+  b_0 {
+    %a = alloca 8: Ptr
+    store %a, %v, 8
+    %r = load %a, 8: Int
+    ret %r
+  }
+}
+
+callerNoFrame<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %r = call_complex leafNoFrame, %a, %b: Int
+    %s = add %r, %b: Int
+    ret %s
+  }
+}
+
+leafNoFrame<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %s = add %a, %b: Int
+    ret %s
+  }
+}
+
+
+--- codegen: callerWithLocal ---
+  prologue  => 55488bec534883ec08
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rbx]  => 488d5df0
+  store uses=[rbx, rdi] creates=[]  => 48893b
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rdi->rsi]  => 488bf7e838000000
+  load uses=[rbx] creates=[rbx]  => 488b1b
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  ret uses=[rax] creates=[]  => 488d65f85b5dc3
+
+--- codegen: leafWithLocal ---
+  prologue  => 4883ec08
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rax]  => 488d0424
+  store uses=[rax, rdi] creates=[]  => 488938
+  load uses=[rax] creates=[rax]  => 488b00
+  ret uses=[rax] creates=[]  => 4883c408c3
+
+--- codegen: callerNoFrame ---
+  prologue  => 55488bec53
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rbx]  => 488bde
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rbx->rsi]  => 488bf3e809000000
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  ret uses=[rax] creates=[]  => 488d65f85b5dc3
+
+--- codegen: leafNoFrame ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[rdi, rsi] creates=[rdi]  => 01f7
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3

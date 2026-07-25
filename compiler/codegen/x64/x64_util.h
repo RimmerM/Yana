@@ -13,6 +13,26 @@ enum class XmmRegister: U8 {
     xmm8, xmm9, xmm10, xmm11, xmm12, xmm13, xmm14, xmm15,
 };
 
+static constexpr Size kRegCount = 16;
+
+// rsp and rbp are never handed out: rsp is required for push/pop/call/ret to work at all, and rbp
+// is conventionally reserved for a frame pointer even though this MVP generates no prologue that
+// sets one up yet.
+static constexpr U64 kReservedRegs =
+    (U64(1) << (Size)IntRegister::rsp) | (U64(1) << (Size)IntRegister::rbp);
+
+// The general registers a value can be given. Anything outside this set is either reserved above or
+// does not exist, so a calling convention's preserved set is stated relative to it - the registers a
+// function has to give back are exactly the ones it could have taken in the first place.
+static constexpr U64 kAllocatableRegs = ((U64(1) << kRegCount) - 1) & ~kReservedRegs;
+
+// The bit this register occupies in a general-register mask (a clobber set, an avoid set, a
+// convention's preserved set). Anything that isn't a general register - an xmm register, a stack
+// slot, kInvalidReg - contributes nothing: those masks describe general registers only.
+inline U64 regBit(RegId reg) {
+    return getRegClass(reg) == GenReg ? U64(1) << getRegIndex(reg) : 0;
+}
+
 inline bool isImm(LowerValue* v) {
     return v->inst()->kind == LowerInst::Imm && (v->flags & LowerValue::Implicit);
 }

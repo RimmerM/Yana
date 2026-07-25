@@ -22,6 +22,35 @@
 
 using namespace Tritium;
 
+// Codegen settings a test file selects for itself, written as a comment on any line:
+//
+//     # frame-pointer: all
+//
+// Only the frame-pointer mode is settable so far. Two test files with the same functions and
+// different directives is how the modes are compared, which keeps every golden an ordinary one.
+static void applyDirectives(CompileSettings& settings, StringView content) {
+    static const struct { StringView name; FramePointerMode mode; } modes[] = {
+        { "all"_v, FramePointerMode::All },
+        { "non-leaf"_v, FramePointerMode::NonLeaf },
+        { "needed"_v, FramePointerMode::Needed },
+    };
+
+    auto directive = "# frame-pointer: "_v;
+
+    for(Size i = 0; i + directive.length <= content.length; i++) {
+        if(compareMem(content.ptr + i, directive.ptr, directive.length) != 0) continue;
+
+        auto rest = content.ptr + i + directive.length;
+        auto left = content.length - i - directive.length;
+
+        for(auto& m: modes) {
+            if(m.name.length <= left && compareMem(rest, m.name.ptr, m.name.length) == 0) {
+                settings.framePointer = m.mode;
+            }
+        }
+    }
+}
+
 struct TestProvider: SourceProvider {
     StringView source;
 
@@ -165,6 +194,16 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
         LowerBlock* currentBlock = nullptr;
 
         for(auto& e: trace.entries) {
+            // The prologue belongs to the function rather than to any block, and is reported with a
+            // null instruction (see InstEmitCallback). Its counterpart falls inside the byte range
+            // of whichever `ret` it precedes, so there is no matching epilogue line.
+            if(!e.inst) {
+                writer.writeString("  prologue  => "_v);
+                for(auto off = e.start; off < e.end; off++) writeHex(writer, asm_.buffer.buffer[off]);
+                writer.writeByte('\n');
+                continue;
+            }
+
             auto block = base[e.inst->block];
             if(block != currentBlock) {
                 currentBlock = block;
@@ -241,6 +280,7 @@ void x64Test(const String& path, StringView content) {
 
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
+    applyDirectives(context.settings, content);
 
     LowerModule module(1024 * 1024);
     LowerLexer lexer(context, diagnostics, content);
@@ -265,6 +305,7 @@ void generateX64Test(const String& path, StringView content) {
 
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
+    applyDirectives(context.settings, content);
 
     LowerModule module(1024 * 1024);
     LowerLexer lexer(context, diagnostics, content);

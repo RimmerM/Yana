@@ -4,7 +4,8 @@
 static bool isSpecial(char c) {
     return
         c == '(' || c == ')' || c == '{' || c == '}' || c == '[' || c == ']' ||
-        c == ',' || c == ';' || c == '=' || c == ':' || c == '-';
+        c == ',' || c == ';' || c == '=' || c == ':' || c == '-' ||
+        c == '<' || c == '>';
 }
 
 LowerLexer::LowerLexer(Context& context, Diagnostics& diag, const StringView& text) :

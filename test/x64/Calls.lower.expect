@@ -43,13 +43,14 @@ simpleCall<complex>(%a: Int, %b: Int): Int {
 
 
 --- codegen: liveAcrossCall ---
+  prologue  => 53
 block #0:
   jmp uses=[] creates=[] pre=[rdi->rbx]  => 488bdf
 block #1:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rbx->rdi]  => 488bfbe803000000
+  call_complex uses=[-, rdi, rsi] creates=[rax] pre=[rbx->rdi]  => 488bfbe804000000
   add uses=[rax, rbx] creates=[rax]  => 01d8
-  ret uses=[rax] creates=[]  => c3
+  ret uses=[rax] creates=[]  => 5bc3
 
 --- codegen: callee ---
 block #0:
@@ -68,9 +69,9 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  push uses=[rsi] creates=[-]  => 56
+  push uses=[rsi] creates=[-]  => 4883ec0848893424
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 488bf7488bd7488bcf4c8bc74c8bcf4c8bd74c8bdfe801000000
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 488bf7488bd7488bcf4c8bc74c8bcf4c8bd74c8bdfe8050000004883c408
   ret uses=[rax] creates=[]  => c3
 
 --- codegen: many ---
@@ -84,5 +85,5 @@ block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi, rsi] creates=[rax]  => e8c8ffffff
+  call_complex uses=[-, rdi, rsi] creates=[rax]  => e8bdffffff
   ret uses=[rax] creates=[]  => c3

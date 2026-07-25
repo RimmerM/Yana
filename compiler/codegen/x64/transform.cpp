@@ -40,6 +40,12 @@ static bool canEmbedImm(LowerBase base, LowerInst* inst, LowerValue* op) {
     if(kind == LowerInst::Set) {
         assertTrue(op == base[((LowerInstUnary*)inst)->from]);
         return true;
+    } else if(kind == LowerInst::Alloca) {
+        // A compile-time size is consumed by frame layout rather than by any instruction: the
+        // alloca becomes the address of a frame object, and nothing ever reads the count. Leaving
+        // it explicit would cost a `mov r, imm32` and a register for a number that is already known.
+        assertTrue(op == base[((LowerInstAlloca*)inst)->byteCount]);
+        return true;
     } else if(kind == LowerInst::Cast || kind == LowerInst::Bitcast) {
         return isIntLike(((LowerInstUnary*)inst)->result.type);
     } else if(allowsImmRhs(kind)) {

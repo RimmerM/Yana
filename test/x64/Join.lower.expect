@@ -121,6 +121,7 @@ block end:
   ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
 
 --- codegen: earlyExit ---
+  prologue  => 53
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
@@ -128,12 +129,12 @@ block start:
   add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcf83c107
   imm uses=[] creates=[-]  => 
   cmp_eq uses=[rdx, -] creates=[-]  => 83fa00
-  je uses=[-] creates=[]  => 0f8417000000
+  je uses=[-] creates=[]  => 0f8418000000
 block slow:
   idiv uses=[rax, rsi] creates=[rax] pre=[rdi->rax] post=[rax->rbx]  => 488bc799f7fe488bd8
   irem uses=[rax, rsi] creates=[rdx] pre=[rdi->rax]  => 488bc799f7fe
   add uses=[rbx, rdx] creates=[rbx]  => 01d3
   add uses=[rbx, rcx] creates=[rbx]  => 01cb
-  ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc3c3
+  ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc35bc3
 block quick:
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc15bc3

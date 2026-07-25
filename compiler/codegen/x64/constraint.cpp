@@ -59,8 +59,33 @@ Constraints::Constraints() {
     stosb.clobber |= U64(1) << (Byte)IntRegister::rdi;
     stosb.clobber |= U64(1) << (Byte)IntRegister::rcx;
 
-    // TODO: Support other calling conventions (Sysv, Win64, Simple, Clobber) - only the custom
-    // Yana "Complex" convention and the Linux syscall ABI are implemented for now.
+    // The integer half of the System V AMD64 ABI. Vector arguments and results are not described
+    // here: InstConstraints::clobber is a general-register mask, so there is no way to say that a
+    // SysV call destroys xmm0-xmm15 (B9), and a float argument would be silently mishandled rather
+    // than rejected. Integer and pointer arguments beyond the sixth go on the stack, which the
+    // caller side does not implement yet either - see assignArgs.
+    auto& sysv = call[(Size)LowerCallType::Sysv].constraints[GenReg];
+
+    sysv.args[0] = (Byte)IntRegister::rdi;
+    sysv.args[1] = (Byte)IntRegister::rsi;
+    sysv.args[2] = (Byte)IntRegister::rdx;
+    sysv.args[3] = (Byte)IntRegister::rcx;
+    sysv.args[4] = (Byte)IntRegister::r8;
+    sysv.args[5] = (Byte)IntRegister::r9;
+    sysv.results[0] = (Byte)IntRegister::rax;
+    sysv.results[1] = (Byte)IntRegister::rdx;
+
+    // Stated in full rather than derived from the argument and result registers: r10 and r11 are
+    // caller-saved without appearing in either, and a callee is entitled to use them.
+    auto& sysvInst = call[(Size)LowerCallType::Sysv];
+    sysvInst.clobber =
+        (U64(1) << (Byte)IntRegister::rax) | (U64(1) << (Byte)IntRegister::rcx) |
+        (U64(1) << (Byte)IntRegister::rdx) | (U64(1) << (Byte)IntRegister::rsi) |
+        (U64(1) << (Byte)IntRegister::rdi) | (U64(1) << (Byte)IntRegister::r8) |
+        (U64(1) << (Byte)IntRegister::r9)  | (U64(1) << (Byte)IntRegister::r10) |
+        (U64(1) << (Byte)IntRegister::r11);
+
+    // TODO: Support the remaining calling conventions (Win64, Simple, Clobber).
     auto& complex = call[(Size)LowerCallType::Complex].constraints[GenReg];
 
     complex.args[0] = (Byte)IntRegister::rdi;
@@ -103,6 +128,43 @@ Constraints::Constraints() {
     auto& syscallInst = call[(Size)LowerCallType::Syscall];
     syscallInst.clobber |= U64(1) << (Byte)IntRegister::rcx;
     syscallInst.clobber |= U64(1) << (Byte)IntRegister::r11;
+
+    // What a function compiled with each convention has to give back, and what it may assume about
+    // rsp where it makes a call. Only the two described conventions have an entry: the others have
+    // no argument tables either (see the TODO above), so a function using one cannot be compiled at
+    // all yet, and a preserved set for it would be a guess.
+    //
+    // A syscall is never a function's own convention - the kernel is the callee - so its entry
+    // stays empty.
+    auto preserved =
+        (U64(1) << (Byte)IntRegister::rbx) |
+        (U64(1) << (Byte)IntRegister::r12) |
+        (U64(1) << (Byte)IntRegister::r13) |
+        (U64(1) << (Byte)IntRegister::r14) |
+        (U64(1) << (Byte)IntRegister::r15);
+
+    auto& complexConvention = convention[(Size)LowerCallType::Complex];
+    complexConvention.calleeSaved = preserved;
+
+    // The compiler is on both sides of its own convention and nothing it generates yet needs a
+    // 16-byte-aligned stack, so this one costs no padding. It has to become 16 as soon as a value
+    // is spilled to an aligned vector slot.
+    complexConvention.stackAlignment = 8;
+
+    auto& sysvConvention = convention[(Size)LowerCallType::Sysv];
+    sysvConvention.calleeSaved = preserved;
+
+    // Required by the ABI, and not negotiable: a SysV callee is entitled to use aligned vector
+    // stores against its own frame, which are only aligned if rsp was.
+    sysvConvention.stackAlignment = 16;
+
+    // The two halves of a convention describe one contract from opposite sides: a register a call
+    // leaves alone is exactly one its callee has to give back. Stating both and checking them
+    // against each other catches a convention that gains an argument or result register in one
+    // table and not the other - which would otherwise show up as a caller reading back a register
+    // the callee had quietly stopped preserving.
+    assertTrue(complexConvention.calleeSaved == (~complexInst.clobber & kAllocatableRegs));
+    assertTrue(sysvConvention.calleeSaved == (~sysvInst.clobber & kAllocatableRegs));
 }
 
 const InstConstraints* Constraints::getConstraints(LowerBase base, LowerInst* inst) const {
@@ -136,4 +198,89 @@ const InstConstraints* Constraints::getConstraints(LowerBase base, LowerInst* in
 const InstConstraints& Constraints::getCall(LowerCallType type) const {
     assertTrue(type <= LowerCallType::LastType);
     return call[(Size)type];
+}
+
+const CallConvention& Constraints::getConvention(LowerCallType type) const {
+    assertTrue(type <= LowerCallType::LastType);
+    return convention[(Size)type];
+}
+
+/*
+ * Instruction constraint queries. See the block comment on InstShape in gen.h.
+ */
+
+InstShape shapeOf(LowerBase base, const Constraints& constraints, LowerFunction& fun, LowerInst* inst) {
+    InstShape shape;
+
+    if(inst->kind == LowerInst::Ret) {
+        shape.c = &constraints.getCall(fun.callType);
+        shape.isReturn = true;
+        return shape;
+    }
+
+    shape.c = constraints.getConstraints(base, inst);
+
+    if(inst->kind == LowerInst::Call && ((LowerInstCall*)inst)->getCallType() != LowerCallType::Syscall) {
+        shape.argStart = 1;
+    }
+
+    return shape;
+}
+
+RegId wantForUse(LowerBase base, LowerInst* inst, const InstShape& shape, Size i) {
+    if(!shape.c || i < shape.argStart) return kInvalidReg;
+
+    auto used = inst->used();
+    auto value = base[used[i]];
+    if(isImplicit(value)) return kInvalidReg;
+
+    auto cls = classForType(value->type);
+    Size classIndex = 0;
+
+    for(Size j = shape.argStart; j < i; j++) {
+        auto other = base[used[j]];
+        if(isImplicit(other)) continue;
+        if(classForType(other->type) == cls) classIndex++;
+    }
+
+    if(classIndex >= kMaxRegInputs) return kInvalidReg;
+
+    auto& table = shape.c->constraints[cls];
+    return shape.isReturn ? table.results[classIndex] : table.args[classIndex];
+}
+
+RegId wantForResult(LowerInst* inst, const InstShape& shape, Size i) {
+    if(!shape.c || shape.isReturn) return kInvalidReg;
+
+    auto created = inst->created();
+    if(isImplicit(&created[i])) return kInvalidReg;
+
+    auto cls = classForType(created[i].type);
+    Size classIndex = 0;
+
+    for(Size j = 0; j < i; j++) {
+        if(isImplicit(&created[j])) continue;
+        if(classForType(created[j].type) == cls) classIndex++;
+    }
+
+    if(classIndex >= kMaxRegInputs) return kInvalidReg;
+    return shape.c->constraints[cls].results[classIndex];
+}
+
+U64 writtenRegisters(LowerBase base, LowerInst* inst, const InstShape& shape) {
+    if(!shape.c) return 0;
+
+    U64 mask = shape.isReturn ? 0 : shape.c->clobber;
+
+    auto used = inst->used();
+    for(Size i = 0; i < used.size(); i++) {
+        mask |= regBit(wantForUse(base, inst, shape, i));
+    }
+
+    auto created = inst->created();
+    for(Size i = 0; i < created.size(); i++) {
+        mask |= regBit(wantForResult(inst, shape, i));
+    }
+
+    return mask;
 }

@@ -1,0 +1,175 @@
+# Stack frames: saved registers, frame objects, and the frame pointer.
+#
+# The prologue and epilogue are generated last, from what the rest of the function turned out to
+# need, so the property under test throughout is that a function pays for exactly the frame it uses
+# and nothing more. Every case below should be read as "what does this function's prologue cost".
+#
+# Under the Complex convention a call clobbers everything except rbx and r12-r15, so any value that
+# has to survive a call ends up in one of those five - which makes a call the cheapest way to force
+# the prologue to do something.
+
+leaf(%x: Int): Int {
+    { ret %x }
+}
+
+# Nothing crosses a call and nothing is clobbered, so no register outside the clobber set is ever
+# written and the prologue is empty. The point of this one is that a function does not pay for a
+# frame it has no use for.
+noFrame(%a: Int, %b: Int): Int {
+    {
+        %s = add %a, %b: Int
+        ret %s
+    }
+}
+
+# Four values live across a call, so four callee-saved registers are used and all four have to be
+# saved and restored - in opposite orders, since they go on the stack.
+saveSeveral(%a: Int, %b: Int, %c: Int, %d: Int): Int {
+    {
+        %r = call_complex leaf, %a: Int
+        %s = add %r, %b: Int
+        %t = add %s, %c: Int
+        %u = add %t, %d: Int
+        ret %u
+    }
+}
+
+# Two returns, only one of which is on the path that needed the saved register. Both still have to
+# restore it: the caller cannot know which way control went.
+twoExits(%a: Int, %c: Int): Int {
+    start {
+        je %c, slow, quick
+    }
+
+    quick {
+        ret %a
+    }
+
+    slow {
+        %r = call_complex leaf, %a: Int
+        %s = add %r, %a: Int
+        ret %s
+    }
+}
+
+# A saved register held across a loop back edge. The prologue runs once, before the loop, and the
+# epilogue only on the way out.
+savedAcrossLoop(%n: Int, %seed: Int): Int {
+    start {
+        %z = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [start, %z], [body, %i2]: Int
+        %acc = phi [start, %z], [body, %acc2]: Int
+        je (cmp_ilt %i, %n), body, out
+    }
+
+    body {
+        %r = call_complex leaf, %seed: Int
+        %acc2 = add %acc, %r: Int
+        %i2 = add %i, 1: Int
+        jmp head
+    }
+
+    out {
+        ret %acc
+    }
+}
+
+# A compile-time alloca is a frame object, not a change to the stack pointer: the frame is sized for
+# it in the prologue and the instruction itself is one `lea` of its address. Two of them get
+# distinct, non-overlapping addresses.
+locals(%v: Int): Int {
+    {
+        %a = alloca 8: Ptr
+        %b = alloca 32: Ptr
+        store %a, %v, 8
+        store %b, %v, 8
+        %r = load %a, 8: Int
+        ret %r
+    }
+}
+
+# Frame objects but no call that pushes arguments, so rsp stays where the prologue left it for the
+# whole body and the locals can be addressed through it. No frame pointer.
+localsAndCall(%v: Int): Int {
+    {
+        %a = alloca 8: Ptr
+        store %a, %v, 8
+        %r = call_complex leaf, %v: Int
+        %s = load %a, 8: Int
+        %t = add %r, %s: Int
+        ret %t
+    }
+}
+
+# A size only known at run time has to move rsp, so this function gets a frame pointer whatever the
+# mode says - nothing else in the frame could be addressed otherwise - and its epilogue recovers rsp
+# from rbp rather than by undoing arithmetic it cannot know.
+dynamicLocal(%n: Int, %v: Int): Int {
+    {
+        %p = alloca %n: Ptr
+        store %p, %v, 8
+        %r = load %p, 8: Int
+        ret %r
+    }
+}
+
+# The ninth and tenth arguments arrive in the caller's frame, above the return address, eight bytes
+# apart and in argument order. Each is loaded into a register once on entry and read from there, so
+# no instruction below ever sees a memory operand.
+stackArg(%a0: Int, %a1: Int, %a2: Int, %a3: Int, %a4: Int, %a5: Int, %a6: Int, %a7: Int, %a8: Int, %a9: Int): Int {
+    {
+        %s = add %a8, %a9: Int
+        %t = add %s, %a0: Int
+        ret %t
+    }
+}
+
+# Both at once: a frame object *and* a call that pushes arguments. rsp moves across the argument
+# setup, so an rsp-relative reference taken in the middle of it would be wrong - this is the case
+# that needs a frame pointer under `needed`.
+pushedArgsAndLocals(%v: Int): Int {
+    {
+        %a = alloca 8: Ptr
+        store %a, %v, 8
+        %p = push %v, 9
+        %q = push %v, 10
+        %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %p, %q: Int
+        %s = load %a, 8: Int
+        %t = add %r, %s: Int
+        ret %t
+    }
+}
+
+# Pushed arguments with nothing in the frame to address: the pushes move rsp, but there is nothing
+# relative to it worth naming, so this still needs no frame pointer. The pushed argument is removed
+# by the caller after the call, which is what leaves rsp where the return expects it.
+pushedArgsOnly(%v: Int): Int {
+    {
+        %p = push %v, 9
+        %q = push %v, 10
+        %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %p, %q: Int
+        ret %r
+    }
+}
+
+# System V passes its arguments in different registers and, unlike the compiler's own convention,
+# requires rsp to be 16-byte aligned where a call happens. The frame is padded to put it there - a
+# function declared `<sysv>` may assume its own caller did the same for it.
+sysvCallee<sysv>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int): Int {
+    {
+        %s = add %a, %f: Int
+        ret %s
+    }
+}
+
+sysvCaller<sysv>(%a: Int, %b: Int): Int {
+    {
+        %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: Int
+        %s = add %r, %b: Int
+        ret %s
+    }
+}

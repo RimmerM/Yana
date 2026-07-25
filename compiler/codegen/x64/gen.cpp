@@ -23,6 +23,73 @@ inline U8 makeRex(bool is64, U8 rm, U8 regField, U8 index) {
     return 0b01000000 | (is64 ? 0b1000 : 0) | ((regField & 8) >> 1) | ((index & 8) >> 2) | ((rm & 8) >> 3);
 }
 
+/*
+ * Memory operands.
+ *
+ * Every instruction that touches memory ends the same way - a ModRM byte, then whatever SIB and
+ * displacement bytes the addressing mode called for - so the mode is computed once into an
+ * AddressMode and then written out.
+ */
+
+struct AddressMode {
+    U8 mod;
+    U8 rm;
+    bool hasSib = false;
+    U8 sib = 0;
+    U32 disp = 0;
+    bool hasDisp = false;
+    bool disp32 = false;
+    bool rexB = false;
+    bool rexX = false;
+};
+
+static void writeAddress(AsmModule& to, bool is64, U8 regField, const AddressMode& a) {
+    if(is64 || needsRex(regField) || a.rexB || a.rexX) {
+        to.buffer.writeByte(makeRex(is64, a.rexB ? 8 : 0, regField, a.rexX ? 8 : 0));
+    }
+}
+
+// Writes the ModRM byte, and the SIB/displacement bytes the addressing mode calls for, that
+// follow an opcode operating on `a`. Every memory-operand instruction ends the same way.
+static void writeAddressOperand(AsmModule& to, U8 regField, const AddressMode& a) {
+    to.buffer.writeByte(makeMod(a.mod, a.rm, regField));
+    if(a.hasSib) to.buffer.writeByte(a.sib);
+    if(a.hasDisp) {
+        if(a.disp32) to.buffer.writeInt<LittleEndian>(a.disp);
+        else to.buffer.writeByte(U8(a.disp));
+    }
+}
+
+// [base + displacement], where `base` is whichever register frame layout chose to hang the frame
+// off. This is the only way anything addresses a frame object: the layout owns the arithmetic and
+// the encoders only ever see the answer.
+static AddressMode frameAddress(U8 baseReg, I32 displacement) {
+    AddressMode a {};
+    auto fitsIn8 = displacement >= -128 && displacement <= 127;
+
+    // rbp-based addressing has no displacement-free form - mod=0 with rm=101 means RIP-relative -
+    // so a zero displacement there still has to be written out as a zero byte.
+    auto isBpLike = (baseReg & 7) == 5;
+    auto needsDisp = displacement != 0 || isBpLike;
+
+    a.mod = !needsDisp ? 0 : (fitsIn8 ? 1 : 2);
+    a.hasDisp = needsDisp;
+    a.disp = U32(displacement);
+    a.disp32 = needsDisp && !fitsIn8;
+    a.rexB = needsRex(baseReg);
+
+    if((baseReg & 7) == 4) {
+        // rsp/r12 can only be addressed through a SIB byte (rm=100 is reserved for it).
+        a.hasSib = true;
+        a.rm = 4;
+        a.sib = (0 << 6) | (4 << 3) | (baseReg & 7); // no index, scale is irrelevant
+    } else {
+        a.rm = baseReg & 7;
+    }
+
+    return a;
+}
+
 // Emits (if needed) a REX prefix, the opcode, and a register-direct ModRM byte for `op rm, reg`
 // (dest=rm field) or `op reg, rm` (dest=reg field) depending on which opcode variant is passed -
 // the direction is entirely determined by the caller's choice of opcode.
@@ -86,17 +153,51 @@ static void genZeroReg(AsmModule& to, U8 reg, LowerType type) {
     to.buffer.writeByte(makeMod(3, reg, reg));
 }
 
-// Emits a sequenced register permutation (fixed-register constraints, phi placement, or the copy
-// that feeds a destructive two-address encoding). The allocator has already ordered these, so they
-// are emitted exactly as given; a `swap` entry is one it could only satisfy with an exchange.
-static void genMoves(AsmModule& to, const Array<RegMove>& moves) {
+static AddressMode slotAddress(const FrameLayout& frame, RegId slot) {
+    assertTrue(getRegClass(slot) == StackReg);
+    return frameAddress(U8(getRegIndex(frame.base)), frame.slotOffset[getRegIndex(slot)]);
+}
+
+// Emits a sequenced permutation of locations (fixed-register constraints, phi placement, the copy
+// that feeds a destructive two-address encoding, a value moving between the frame and a register).
+// The allocator has already ordered these, so they are emitted exactly as given; a `swap` entry is
+// one it could only satisfy with an exchange.
+//
+// A frame slot at either end makes the move a load or a store, and this is the only place either is
+// produced: no encoder below ever sees a stack location, because a value that lives in the frame is
+// brought into a register by one of these before anything reads it. Everything moves a full 64 bits
+// - correct for every slot class that currently exists, and the thing to revisit when a value
+// narrower than its slot can be spilled.
+static void genMoves(AsmModule& to, const FrameLayout& frame, const Array<RegMove>& moves) {
     for(auto& m: moves) {
         if(m.from == m.to) continue;
 
-        assertTrue(getRegClass(m.from) == GenReg && getRegClass(m.to) == GenReg);
+        auto fromSlot = getRegClass(m.from) == StackReg;
+        auto toSlot = getRegClass(m.to) == StackReg;
 
-        // XCHG r/m64, r64 (0x87) - breaks a copy cycle without needing a scratch register.
-        genRegReg(to, LowerType::Int64, reg(m.from), reg(m.to), m.swap ? 0x87 : 0x8b);
+        // Only an exchange between two registers can be encoded without somewhere to put a third
+        // value, and only registers ever end up in a cycle - see sequenceMoves.
+        assertTrue(!m.swap || (!fromSlot && !toSlot));
+
+        if(fromSlot && toSlot) {
+            // Nothing produces one yet: every value has a single home, so no move can have a frame
+            // slot at both ends. Spilling two values that feed the same phi will, and it needs a
+            // register to go through - see the emergency-register note in the README.
+            assertTrue("stack-to-stack moves need a scratch register" == nullptr);
+        } else if(fromSlot) {
+            auto a = slotAddress(frame, m.from);       // MOV r64, r/m64
+            writeAddress(to, true, reg(m.to), a);
+            to.buffer.writeByte(0x8b);
+            writeAddressOperand(to, reg(m.to), a);
+        } else if(toSlot) {
+            auto a = slotAddress(frame, m.to);         // MOV r/m64, r64
+            writeAddress(to, true, reg(m.from), a);
+            to.buffer.writeByte(0x89);
+            writeAddressOperand(to, reg(m.from), a);
+        } else {
+            // XCHG r/m64, r64 (0x87) - breaks a copy cycle without needing a scratch register.
+            genRegReg(to, LowerType::Int64, reg(m.from), reg(m.to), m.swap ? 0x87 : 0x8b);
+        }
     }
 }
 
@@ -425,6 +526,108 @@ static void genRet(AsmModule& to) {
     to.buffer.writeByte(0xc3);
 }
 
+// PUSH r64 (0x50+r) / POP r64 (0x58+r). Both are fixed at 64-bit operand size in long mode, so a
+// REX prefix here only ever extends the register number - it never selects the width.
+static void genPushReg(AsmModule& to, U8 r) {
+    if(needsRex(r)) to.buffer.writeByte(makeRex(false, r, 0, 0));
+    to.buffer.writeByte(0x50 + (r & 7));
+}
+
+static void genPopReg(AsmModule& to, U8 r) {
+    if(needsRex(r)) to.buffer.writeByte(makeRex(false, r, 0, 0));
+    to.buffer.writeByte(0x58 + (r & 7));
+}
+
+// `op r/m64, imm` for the group-1 opcodes, by ModRM.reg extension: 0 add, 4 and, 5 sub. Unlike
+// genRegImm this takes a plain integer rather than a LowerImm, because the values here come from the
+// frame layout rather than from the program.
+static void genGroup1Imm(AsmModule& to, U8 dest, I32 value, U8 ext) {
+    to.buffer.writeByte(makeRex(true, dest, 0, 0));
+
+    if(value >= -128 && value <= 127) {
+        to.buffer.writeByte(0x83);
+        to.buffer.writeByte(makeMod(3, dest, ext));
+        to.buffer.writeByte(U8(value));
+    } else {
+        to.buffer.writeByte(0x81);
+        to.buffer.writeByte(makeMod(3, dest, ext));
+        to.buffer.writeInt<LittleEndian>(U32(value));
+    }
+}
+
+// The stack-pointer adjustments the prologue and epilogue are made of. A zero-sized frame emits
+// nothing rather than an `add rsp, 0`.
+static void genAddImm(AsmModule& to, U8 dest, I32 amount, bool sub) {
+    if(amount != 0) genGroup1Imm(to, dest, amount, sub ? 5 : 0);
+}
+
+static void genAndImm(AsmModule& to, U8 dest, I32 mask) {
+    genGroup1Imm(to, dest, mask, 4);
+}
+
+// LEA r64, [base + disp] - used by the epilogue to put rsp back where the saved registers are
+// without having to know how far it has wandered, and by an alloca to take a frame object's address.
+static void genLeaFrame(AsmModule& to, U8 dest, U8 baseReg, I32 displacement) {
+    auto a = frameAddress(baseReg, displacement);
+    writeAddress(to, true, dest, a);
+    to.buffer.writeByte(0x8d);
+    writeAddressOperand(to, dest, a);
+}
+
+// Establishes the frame the layout decided on: the caller's rbp is saved and rbp made to point at
+// it (so a stack walk can follow the chain), then the callee-saved registers this function actually
+// overwrites, then room for the locals and spill slots.
+//
+// Every part of this is skipped when the layout says it is not needed, so a leaf function that kept
+// everything in caller-saved registers still starts at its first real instruction.
+static void genPrologue(AsmModule& to, const FrameLayout& frame) {
+    auto rbp = U8(IntRegister::rbp);
+    auto rsp = U8(IntRegister::rsp);
+
+    if(frame.framePointer) {
+        genPushReg(to, rbp);
+        genRegReg(to, LowerType::Int64, rsp, rbp, 0x8b); // mov rbp, rsp (rm = source, reg = dest)
+    }
+
+    for(Size i = 0; i < kRegCount; i++) {
+        if(frame.savedRegs & (U64(1) << i)) genPushReg(to, U8(i));
+    }
+
+    genAddImm(to, rsp, I32(frame.fixedSize), true);
+}
+
+static void genEpilogue(AsmModule& to, const FrameLayout& frame) {
+    auto rbp = U8(IntRegister::rbp);
+    auto rsp = U8(IntRegister::rsp);
+
+    U32 savedCount = 0;
+    for(Size i = 0; i < kRegCount; i++) {
+        if(frame.savedRegs & (U64(1) << i)) savedCount++;
+    }
+
+    if(frame.framePointer) {
+        if(savedCount == 0) {
+            // LEAVE (0xc9) is `mov rsp, rbp ; pop rbp` in one byte, which is the whole epilogue
+            // when there is nothing below rbp to pop back first.
+            to.buffer.writeByte(0xc9);
+            return;
+        }
+
+        // Recovered from rbp rather than by undoing the prologue's arithmetic, which is the point
+        // of having a frame pointer: rsp may have been moved since by a dynamic alloca, and the
+        // epilogue has no way to know by how much.
+        genLeaFrame(to, rsp, rbp, -I32(8 * savedCount));
+    } else {
+        genAddImm(to, rsp, I32(frame.fixedSize), false);
+    }
+
+    for(Size i = kRegCount; i > 0; i--) {
+        if(frame.savedRegs & (U64(1) << (i - 1))) genPopReg(to, U8(i - 1));
+    }
+
+    if(frame.framePointer) genPopReg(to, rbp);
+}
+
 static void genPushValue(AsmModule& to, LowerValue* value, RegId valueReg) {
     if(isImm(value)) {
         if(auto imm8 = encodeImm8(value)) {
@@ -437,17 +640,86 @@ static void genPushValue(AsmModule& to, LowerValue* value, RegId valueReg) {
             assertTrue("invalid immediate value" == nullptr);
         }
     } else if(isReg(value)) {
-        auto r = reg(valueReg);
-        if(needsRex(r)) to.buffer.writeByte(makeRex(false, r, 0, 0));
-        to.buffer.writeByte(0x50 + (r & 7));
+        genPushReg(to, reg(valueReg));
     } else {
         assertTrue("unsupported operand to push instruction" == nullptr);
     }
 }
 
-// Pushes a call argument onto the stack ahead of the call, in argument order.
-static void genPushArg(AsmModule& to, LowerBase base, LowerInstPushArg& i, const InstRegs& regs) {
-    genPushValue(to, base[i.arg], regs.uses[0]);
+/*
+ * Outgoing stack arguments.
+ *
+ * Arguments that did not fit in registers go in an area the caller opens below its own frame,
+ * lowest argument first - which is what the callee's incoming-argument offsets assume (see
+ * frame.cpp). They are *written* into that area rather than pushed onto it, because pushing puts
+ * the first argument at the highest address: the order the arguments have to end up in is the
+ * opposite of the order the PushArg instructions appear in, and writing them by offset means the
+ * emitter does not have to reorder anything to get it right.
+ *
+ * The area is opened by the first PushArg of a call and closed by the caller right after the call
+ * returns, so rsp is back where the rest of the function expects it. It still moves in between,
+ * which is why a function with frame objects and pushed arguments needs a frame pointer.
+ */
+
+// Bytes of outgoing argument area this call needs, rounded up to the alignment its convention
+// requires of rsp so that the area cannot knock the stack pointer off that boundary.
+static U32 outgoingArgBytes(LowerBase base, const Constraints& constraints, LowerInstCall& i) {
+    U32 bytes = 0;
+
+    for(auto u: i.used()) {
+        if(base[u]->inst()->kind == LowerInst::PushArg) bytes += 8;
+    }
+
+    auto alignment = constraints.getConvention(i.getCallType()).stackAlignment;
+    return (bytes + alignment - 1) & ~(alignment - 1);
+}
+
+// Where in that area this argument goes: its position among the call's pushed arguments, counted in
+// the order they appear in the call's operand list, which is argument order.
+static U32 outgoingArgOffset(LowerBase base, LowerInstPushArg& i, LowerInstCall& call) {
+    U32 position = 0;
+
+    for(auto u: call.used()) {
+        auto value = base[u];
+        if(value == &i.result) return position * 8;
+        if(value->inst()->kind == LowerInst::PushArg) position++;
+    }
+
+    assertTrue("pushed argument does not belong to its call" == nullptr);
+    return 0;
+}
+
+static void genPushArg(AsmModule& to, LowerBase base, const Constraints& constraints, LowerInstPushArg& i, const InstRegs& regs, HashMap<LowerInst*, bool>& openedCalls) {
+    // Validated by lower_validate: a pushed argument is used by exactly one call.
+    auto call = (LowerInstCall*)base[i.result.uses.get(base, 0)];
+    auto rsp = U8(IntRegister::rsp);
+
+    if(!openedCalls.get(call).isJust()) {
+        openedCalls.add(call, true);
+        genAddImm(to, rsp, I32(outgoingArgBytes(base, constraints, *call)), true);
+    }
+
+    auto a = frameAddress(rsp, I32(outgoingArgOffset(base, i, *call)));
+    auto value = base[i.arg];
+
+    if(isImm(value)) {
+        // MOV r/m64, imm32 (REX.W c7 /0) - sign-extended, which is what a narrower argument
+        // occupying a full 8-byte slot wants anyway.
+        auto imm = encodeImm32(value);
+        assertTrue(imm.isJust()); // a wider constant has to be materialized into a register first
+
+        writeAddress(to, true, 0, a);
+        to.buffer.writeByte(0xc7);
+        writeAddressOperand(to, 0, a);
+        to.buffer.writeInt<LittleEndian>(imm.unwrap());
+    } else if(isReg(value)) {
+        auto src = reg(regs.uses[0]);   // MOV r/m64, r64
+        writeAddress(to, true, src, a);
+        to.buffer.writeByte(0x89);
+        writeAddressOperand(to, src, a);
+    } else {
+        assertTrue("unsupported operand to a stack-passed call argument" == nullptr);
+    }
 }
 
 // Pushes a callee-saved register's contents (used by prologue/epilogue code, none of which is
@@ -457,9 +729,7 @@ static void genPush(AsmModule& to, LowerBase base, LowerInstUnary& i, const Inst
 }
 
 static void genPop(AsmModule& to, RegId destReg) {
-    auto r = reg(destReg);
-    if(needsRex(r)) to.buffer.writeByte(makeRex(false, r, 0, 0));
-    to.buffer.writeByte(0x58 + (r & 7));
+    genPopReg(to, reg(destReg));
 }
 
 // CMP r/m, reg (0x39): computes rm - reg = lhs - rhs and discards the result, only setting
@@ -630,18 +900,6 @@ static void genSelect(AsmModule& to, LowerBase base, LowerInstSelect& i, const I
  * Memory addressing.
  */
 
-struct AddressMode {
-    U8 mod;
-    U8 rm;
-    bool hasSib = false;
-    U8 sib = 0;
-    U32 disp = 0;
-    bool hasDisp = false;
-    bool disp32 = false;
-    bool rexB = false;
-    bool rexX = false;
-};
-
 static AddressMode genDirectAddress(RegId baseReg) {
     AddressMode a {};
     auto r = reg(baseReg);
@@ -713,23 +971,6 @@ static AddressMode resolveAddress(LowerBase base, LowerValue* addrValue, RegId d
     }
 }
 
-static void writeAddress(AsmModule& to, bool is64, U8 regField, const AddressMode& a) {
-    if(is64 || needsRex(regField) || a.rexB || a.rexX) {
-        to.buffer.writeByte(makeRex(is64, a.rexB ? 8 : 0, regField, a.rexX ? 8 : 0));
-    }
-}
-
-// Writes the ModRM byte, and the SIB/displacement bytes the addressing mode calls for, that
-// follow an opcode operating on `a`. Every memory-operand instruction ends the same way.
-static void writeAddressOperand(AsmModule& to, U8 regField, const AddressMode& a) {
-    to.buffer.writeByte(makeMod(a.mod, a.rm, regField));
-    if(a.hasSib) to.buffer.writeByte(a.sib);
-    if(a.hasDisp) {
-        if(a.disp32) to.buffer.writeInt<LittleEndian>(a.disp);
-        else to.buffer.writeByte(U8(a.disp));
-    }
-}
-
 static void genLoad(AsmModule& to, LowerBase base, LowerInstLoad& i, const InstRegs& regs, const HashMap<LowerInst*, const InstRegs*>& addrRegs) {
     auto from = base[i.from];
     auto a = resolveAddress(base, from, regs.uses[0], addrRegs);
@@ -786,6 +1027,40 @@ static void genStore(AsmModule& to, LowerBase base, LowerInstStore& i, const Ins
     }
 
     writeAddressOperand(to, src, a);
+}
+
+// A stack allocation is one of two quite different things depending on whether its size is known.
+//
+// A compile-time size was turned into a frame object by the register allocator, so the frame is
+// already the right size and all that is left is to take the object's address - one `lea`, and no
+// change to the stack pointer at all.
+//
+// A size only known at run time has to move the stack pointer, which is why such a function is
+// required to have a frame pointer (see frame.cpp): everything else in the frame is addressed
+// through rbp and so does not care where rsp has ended up. The result register doubles as the
+// scratch for rounding the size up, so the count operand survives for whatever else reads it.
+static void genAlloca(AsmModule& to, LowerBase base, LowerInstAlloca& i, const InstRegs& regs, const FrameLayout& frame, const FrameObjects& objects) {
+    auto dest = reg(regs.creates[0]);
+    auto rsp = U8(IntRegister::rsp);
+
+    if(auto ref = objects.references.getValue(&i)) {
+        genLeaFrame(to, dest, U8(getRegIndex(frame.base)), frame.offsetOf(ref.unwrap()));
+        return;
+    }
+
+    assertTrue(frame.framePointer); // guaranteed by FrameObjects::hasDynamicAlloca
+
+    // The allocation has to keep the stack pointer on the boundary it was already on, so the size
+    // is rounded up before it is subtracted rather than the result being masked afterwards -
+    // masking would also undo any alignment the frame had established.
+    auto alignment = I32(frame.dynamicAlignment);
+
+    if(dest != reg(regs.uses[0])) genMovReg(to, LowerType::Pointer, regs.creates[0], regs.uses[0]);
+
+    genAddImm(to, dest, alignment - 1, false);
+    genAndImm(to, dest, -alignment);
+    genRegReg(to, LowerType::Int64, rsp, dest, 0x29);  // sub rsp, dest
+    genMovReg(to, LowerType::Pointer, regs.creates[0], makeRegId(GenReg, rsp));
 }
 
 // LEA reg, [address] (0x8d): materializes a computed address into a register without dereferencing it.
@@ -863,7 +1138,7 @@ static void genLoadAddress(AsmModule& to, RegId destReg, LowerGlobal* global, Lo
     else to.addRelocation(global);
 }
 
-static void genInst(AsmModule& to, LowerBase base, LowerInst* inst, const InstRegs& regs, HashMap<LowerInst*, const InstRegs*>& addrRegs) {
+static void genInst(AsmModule& to, LowerBase base, const Constraints& constraints, LowerInst* inst, const InstRegs& regs, HashMap<LowerInst*, const InstRegs*>& addrRegs, const FrameLayout& frame, const FrameObjects& objects, HashMap<LowerInst*, bool>& openedCalls) {
     switch(inst->kind) {
         case LowerInst::Arg:
             // No code generation needed - argument registers are already in place on entry.
@@ -952,7 +1227,7 @@ static void genInst(AsmModule& to, LowerBase base, LowerInst* inst, const InstRe
             genSelect(to, base, *(LowerInstSelect*)inst, regs);
             break;
         case LowerInst::Alloca:
-            // No code generation needed, this is done in the function prologue.
+            genAlloca(to, base, *(LowerInstAlloca*)inst, regs, frame, objects);
             break;
         case LowerInst::Load:
             genLoad(to, base, *(LowerInstLoad*)inst, regs, addrRegs);
@@ -968,7 +1243,7 @@ static void genInst(AsmModule& to, LowerBase base, LowerInst* inst, const InstRe
             break;
 
         case LowerInst::PushArg:
-            genPushArg(to, base, *(LowerInstPushArg*)inst, regs);
+            genPushArg(to, base, constraints, *(LowerInstPushArg*)inst, regs, openedCalls);
             break;
         case LowerInst::Call:
             // Handled by genControl-adjacent logic in genFunction (calls are ordinary
@@ -1031,7 +1306,7 @@ static void genCall(AsmModule& to, LowerBase base, LowerInstCall& i, const InstR
     }
 }
 
-static void genControl(AsmModule& to, LowerBase base, LowerInst* inst, const InstRegs& regs, LowerBlock* next) {
+static void genControl(AsmModule& to, LowerBase base, LowerInst* inst, const InstRegs& regs, LowerBlock* next, const FrameLayout& frame) {
     // Statically detect if new instruction were added that aren't being handled here.
     static_assert(LowerInst::LastTerminator - LowerInst::FirstTerminator == 2, "missing code generation for terminating instructions.");
     assertTrue(isTerminator(inst));
@@ -1076,6 +1351,11 @@ static void genControl(AsmModule& to, LowerBase base, LowerInst* inst, const Ins
             break;
         }
         case LowerInst::Ret:
+            // After the terminator's own moves, which have already placed the return values in the
+            // registers the convention returns them in. Those and the saved registers are disjoint
+            // by construction - a result register is one the call clobbers, and a saved register is
+            // one it doesn't - so restoring here cannot overwrite a value about to be returned.
+            genEpilogue(to, frame);
             genRet(to);
             break;
     }
@@ -1084,6 +1364,29 @@ static void genControl(AsmModule& to, LowerBase base, LowerInst* inst, const Ins
 void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction& fun, FunctionRegs& regs, InstEmitCallback onInst, void* onInstCtx) {
     auto blocks = fun.blocks.contents(base);
     to.startFunction(&fun);
+
+    // The stack is worked out in full before a byte is emitted: the prologue has to come first but
+    // depends on things only the whole function decides (which registers were saved, whether rsp is
+    // going to move, how much room the locals need), and every frame reference in the body needs
+    // the same answers. See frame.cpp.
+    Constraints constraints;
+    auto frame = computeFrameLayout(context, base, fun, constraints, regs);
+    assertTrue(verifyFrameLayout(context, fun, regs.frame, frame)); // debug builds only
+
+    // The prologue belongs to the function rather than to any instruction in it, so it is reported
+    // with a null instruction (see InstEmitCallback) and only when it emitted something. Its
+    // counterpart is emitted by genControl at each return, where it falls inside the terminator's
+    // byte range.
+    // Which calls have already had their outgoing argument area opened - see genPushArg.
+    HashMap<LowerInst*, bool> openedCalls;
+
+    auto prologueStart = U32(to.buffer.offset());
+    genPrologue(to, frame);
+
+    if(onInst && U32(to.buffer.offset()) != prologueStart) {
+        InstRegs none;
+        onInst(onInstCtx, nullptr, none, prologueStart, U32(to.buffer.offset()));
+    }
 
     for(Size i = 0; i < blocks.size(); i++) {
         auto b = base[blocks[i]];
@@ -1105,15 +1408,20 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
             auto& instRegs = blockRegs.insts[j];
             auto start = U32(to.buffer.offset());
 
-            genMoves(to, instRegs.moves);
+            genMoves(to, frame, instRegs.moves);
 
             if(inst->kind == LowerInst::Call) {
                 genCall(to, base, *(LowerInstCall*)inst, instRegs);
+
+                // The outgoing argument area is the caller's to remove, so that rsp is back where
+                // the rest of the function expects to find it before anything else runs.
+                auto outgoing = outgoingArgBytes(base, constraints, *(LowerInstCall*)inst);
+                genAddImm(to, U8(IntRegister::rsp), I32(outgoing), false);
             } else {
-                genInst(to, base, inst, instRegs, addrRegs);
+                genInst(to, base, constraints, inst, instRegs, addrRegs, frame, regs.frame, openedCalls);
             }
 
-            genMoves(to, instRegs.postMoves);
+            genMoves(to, frame, instRegs.postMoves);
 
             if(onInst) onInst(onInstCtx, inst, instRegs, start, U32(to.buffer.offset()));
         }
@@ -1127,9 +1435,9 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
 
         // A terminator's moves include the copies that feed the successor's phis, so they have to
         // land before the branch itself.
-        genMoves(to, termRegs.moves);
-        genControl(to, base, terminator, termRegs, next);
-        genMoves(to, termRegs.postMoves);
+        genMoves(to, frame, termRegs.moves);
+        genControl(to, base, terminator, termRegs, next, frame);
+        genMoves(to, frame, termRegs.postMoves);
 
         if(onInst) onInst(onInstCtx, terminator, termRegs, termStart, U32(to.buffer.offset()));
 

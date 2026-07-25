@@ -1,0 +1,38 @@
+# The default mode, `needed`: rbp only where a frame object cannot be reached through rsp. None of
+# these four qualify - the two with locals never move rsp, so the locals sit at a fixed offset from
+# it. Compare FramePointerAll.lower and FramePointerNonLeaf.lower, which have the same functions.
+
+leafNoFrame(%a: Int, %b: Int): Int {
+    {
+        %s = add %a, %b: Int
+        ret %s
+    }
+}
+
+leafWithLocal(%v: Int): Int {
+    {
+        %a = alloca 8: Ptr
+        store %a, %v, 8
+        %r = load %a, 8: Int
+        ret %r
+    }
+}
+
+callerNoFrame(%a: Int, %b: Int): Int {
+    {
+        %r = call_complex leafNoFrame, %a, %b: Int
+        %s = add %r, %b: Int
+        ret %s
+    }
+}
+
+callerWithLocal(%v: Int): Int {
+    {
+        %a = alloca 8: Ptr
+        store %a, %v, 8
+        %r = call_complex leafNoFrame, %v, %v: Int
+        %s = load %a, 8: Int
+        %t = add %r, %s: Int
+        ret %t
+    }
+}

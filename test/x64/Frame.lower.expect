@@ -1,0 +1,290 @@
+
+stackArg<complex>(%a0: Int, %a1: Int, %a2: Int, %a3: Int, %a4: Int, %a5: Int, %a6: Int, %a7: Int, %a8: Int, %a9: Int): Int {
+  b_0 {
+    %s = add %a8, %a9: Int
+    %t = add %s, %a0: Int
+    ret %t
+  }
+}
+
+sysvCaller<sysv>(%a: Int, %b: Int): Int {
+  b_0 {
+    %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: Int
+    %s = add %r, %b: Int
+    ret %s
+  }
+}
+
+pushedArgsOnly<complex>(%v: Int): Int {
+  b_0 {
+    %p = push %v, 9: Int    # %p implicit
+    %q = push %v, 10: Int    # %q implicit
+    %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %p, %q: Int
+    ret %r
+  }
+}
+
+pushedArgsAndLocals<complex>(%v: Int): Int {
+  b_0 {
+    %a = alloca 8: Ptr
+    store %a, %v, 8
+    %p = push %v, 9: Int    # %p implicit
+    %q = push %v, 10: Int    # %q implicit
+    %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %p, %q: Int
+    %s = load %a, 8: Int
+    %t = add %r, %s: Int
+    ret %t
+  }
+}
+
+dynamicLocal<complex>(%n: Int, %v: Int): Int {
+  b_0 {
+    %p = alloca %n: Ptr
+    store %p, %v, 8
+    %r = load %p, 8: Int
+    ret %r
+  }
+}
+
+sysvCallee<sysv>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int): Int {
+  b_0 {
+    %s = add %a, %f: Int
+    ret %s
+  }
+}
+
+localsAndCall<complex>(%v: Int): Int {
+  b_0 {
+    %a = alloca 8: Ptr
+    store %a, %v, 8
+    %r = call_complex leaf, %v: Int
+    %s = load %a, 8: Int
+    %t = add %r, %s: Int
+    ret %t
+  }
+}
+
+saveSeveral<complex>(%a: Int, %b: Int, %c: Int, %d: Int): Int {
+  b_0 {
+    %r = call_complex leaf, %a: Int
+    %s = add %r, %b: Int
+    %t = add %s, %c: Int
+    %u = add %t, %d: Int
+    ret %u
+  }
+}
+
+twoExits<complex>(%a: Int, %c: Int): Int {
+  start {
+    je %c, slow, quick
+  }
+
+  quick {
+    ret %a
+  }
+
+  slow {
+    %r = call_complex leaf, %a: Int
+    %s = add %r, %a: Int
+    ret %s
+  }
+}
+
+savedAcrossLoop<complex>(%n: Int, %seed: Int): Int {
+  start {
+    %z = cast 0: Int
+    jmp head
+  }
+
+  head {
+    %i = phi [start, %z], [body, %i2]: Int
+    %acc = phi [start, %z], [body, %acc2]: Int
+    %v_0 = cmp_ilt %i, %n: Int
+    je %v_0, body, out
+  }
+
+  body {
+    %r = call_complex leaf, %seed: Int
+    %acc2 = add %acc, %r: Int
+    %i2 = add %i, 1: Int
+    jmp head
+  }
+
+  out {
+    ret %acc
+  }
+}
+
+leaf<complex>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+locals<complex>(%v: Int): Int {
+  b_0 {
+    %a = alloca 8: Ptr
+    %b = alloca 32: Ptr
+    store %a, %v, 8
+    store %b, %v, 8
+    %r = load %a, 8: Int
+    ret %r
+  }
+}
+
+noFrame<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %s = add %a, %b: Int
+    ret %s
+  }
+}
+
+
+--- codegen: stackArg ---
+block #0:
+  jmp uses=[] creates=[] pre=[stack:0->rax, stack:1->rcx]  => 488b442408488b4c2410
+block #1:
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  add uses=[rax, rdi] creates=[rax]  => 01f8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: sysvCaller ---
+  prologue  => 53
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rbx]  => 488bde
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_sysv uses=[-, rdi, rsi, rdx, rcx, r8, r9] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9]  => 488bf7488bd7488bcf4c8bc74c8bcfe894000000
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  ret uses=[rax] creates=[]  => 5bc3
+
+--- codegen: pushedArgsOnly ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  push uses=[rdi] creates=[-]  => 4883ec1048893c24
+  push uses=[rdi] creates=[-]  => 48897c2408
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 488bf7488bd7488bcf4c8bc74c8bcf4c8bd74c8bdfe8aeffffff4883c410
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: pushedArgsAndLocals ---
+  prologue  => 55488bec534883ec08
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rbx]  => 488d5df0
+  store uses=[rbx, rdi] creates=[]  => 48893b
+  push uses=[rdi] creates=[-]  => 4883ec1048893c24
+  push uses=[rdi] creates=[-]  => 48897c2408
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi, rsi, rdx, rcx, r8, r9, r10, r11, -, -] creates=[rax] pre=[rdi->rsi, rdi->rdx, rdi->rcx, rdi->r8, rdi->r9, rdi->r10, rdi->r11]  => 488bf7488bd7488bcf4c8bc74c8bcf4c8bd74c8bdfe872ffffff4883c410
+  load uses=[rbx] creates=[rbx]  => 488b1b
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  ret uses=[rax] creates=[]  => 488d65f85b5dc3
+
+--- codegen: dynamicLocal ---
+  prologue  => 55488bec
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  alloca uses=[rdi] creates=[rdi]  => 4883c7074883e7f84829fc488bfc
+  store uses=[rdi, rsi] creates=[]  => 488937
+  load uses=[rdi] creates=[rdi]  => 488b3f
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c9c3
+
+--- codegen: sysvCallee ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[rdi, r9] creates=[rdi]  => 4401cf
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: localsAndCall ---
+  prologue  => 534883ec08
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rbx]  => 488d1c24
+  store uses=[rbx, rdi] creates=[]  => 48893b
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax]  => e892000000
+  load uses=[rbx] creates=[rbx]  => 488b1b
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  ret uses=[rax] creates=[]  => 4883c4085bc3
+
+--- codegen: saveSeveral ---
+  prologue  => 5341544155
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rbx, rdx->r12, rcx->r13]  => 488bde4c8be24c8be9
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax]  => e874000000
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  add uses=[rax, r12] creates=[rax]  => 4401e0
+  add uses=[rax, r13] creates=[rax]  => 4401e8
+  ret uses=[rax] creates=[]  => 415d415c5bc3
+
+--- codegen: twoExits ---
+  prologue  => 53
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rbx]  => 488bdf
+block start:
+  je uses=[rsi] creates=[]  => 85f60f8505000000
+block quick:
+  ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc35bc3
+block slow:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbx->rdi]  => 488bfbe84d000000
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  ret uses=[rax] creates=[]  => 5bc3
+
+--- codegen: savedAcrossLoop ---
+  prologue  => 53415441554156
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rbx, rsi->r12]  => 488bdf4c8be6
+block start:
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rax]  => b800000000
+  jmp uses=[] creates=[] pre=[rax->r13, rax->r14]  => 4c8be84c8bf0
+block head:
+  cmp_ilt uses=[r13, rbx] creates=[-]  => 4139dd
+  je uses=[-] creates=[]  => 0f8c0b000000
+block out:
+  ret uses=[rax] creates=[] pre=[r14->rax]  => 498bc6415e415d415c5bc3
+block body:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 498bfce815000000
+  add uses=[rcx, rax] creates=[rcx] pre=[r14->rcx]  => 498bce01c1
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[r13->rax]  => 498bc5ffc0
+  jmp uses=[] creates=[] pre=[rax->r13, rcx->r14]  => 4c8be84c8bf1e9cfffffff
+
+--- codegen: leaf ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: locals ---
+  prologue  => 4883ec38
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rax]  => 488d0424
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rcx]  => 488d4c2410
+  store uses=[rax, rdi] creates=[]  => 488938
+  store uses=[rcx, rdi] creates=[]  => 488939
+  load uses=[rax] creates=[rax]  => 488b00
+  ret uses=[rax] creates=[]  => 4883c438c3
+
+--- codegen: noFrame ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[rdi, rsi] creates=[rdi]  => 01f7
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3

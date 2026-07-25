@@ -31,29 +31,14 @@
  * the phi registers. transformFunction guarantees a block that needs such a copy has exactly one
  * successor, so the copy cannot run on a path that skips the phis.
  *
+ * The result is checked before it is returned: verify.cpp simulates what the emitted code will
+ * leave in each register and confirms every instruction reads a location that actually holds the
+ * value it wants. That runs in debug builds only, and it is the thing to reach for first when any
+ * of this changes - it turns "wrong code in a shape nothing tests" into an assertion.
+ *
  * Not implemented: spilling. Running out of registers asserts rather than falling back to memory,
  * and splitting a live range is the natural place to start (see the README).
  */
-
-inline RegClass classForType(LowerType type) {
-    if(isIntLike(type)) {
-        return GenReg;
-    } else {
-        return XmmReg;
-    }
-}
-
-static constexpr Size kRegCount = 16;
-
-// rsp and rbp are never handed out: rsp is required for push/pop/call/ret to work at all, and rbp
-// is conventionally reserved for a frame pointer even though this MVP generates no prologue that
-// sets one up yet.
-static constexpr U64 kReservedRegs =
-    (U64(1) << (Size)IntRegister::rsp) | (U64(1) << (Size)IntRegister::rbp);
-
-inline U64 regBit(RegId reg) {
-    return getRegClass(reg) == GenReg ? U64(1) << getRegIndex(reg) : 0;
-}
 
 // Instruction kinds whose x86 encoding is destructive two-address: the result is written over the
 // register holding used()[0]. Mul/Div/Rem are excluded - their result register is forced by
@@ -75,111 +60,6 @@ static bool isDestructive(LowerBase base, LowerInst* inst) {
         default:
             return false;
     }
-}
-
-/*
- * Instruction constraint queries.
- *
- * The tables in constraint.cpp are indexed per register class and skip operands that don't occupy
- * a register at all, so the mapping from "operand N of this instruction" to "entry N of the table"
- * is not the identity. Resolving it here, from the instruction alone, keeps every caller from
- * having to thread a running per-class counter through its own loop.
- */
-
-struct InstShape {
-    const InstConstraints* c = nullptr;
-
-    // First used() index that is a constrained argument. Call's used()[0] is the callee, not an
-    // argument - except for a syscall, which has no callee at all: its used()[0] is the syscall
-    // number, and is the first constrained operand.
-    Size argStart = 0;
-
-    // Set for a return, whose values are constrained like a call's *results* rather than its
-    // arguments. A return's clobber set is deliberately ignored throughout: nothing is live once
-    // the function has returned, so there is nothing left for it to protect.
-    bool isReturn = false;
-};
-
-static InstShape shapeOf(LowerBase base, const Constraints& constraints, LowerFunction& fun, LowerInst* inst) {
-    InstShape shape;
-
-    if(inst->kind == LowerInst::Ret) {
-        shape.c = &constraints.getCall(fun.callType);
-        shape.isReturn = true;
-        return shape;
-    }
-
-    shape.c = constraints.getConstraints(base, inst);
-
-    if(inst->kind == LowerInst::Call && ((LowerInstCall*)inst)->getCallType() != LowerCallType::Syscall) {
-        shape.argStart = 1;
-    }
-
-    return shape;
-}
-
-// The fixed register operand `i` has to be in when the instruction executes, if any.
-static RegId wantForUse(LowerBase base, LowerInst* inst, const InstShape& shape, Size i) {
-    if(!shape.c || i < shape.argStart) return kInvalidReg;
-
-    auto used = inst->used();
-    auto value = base[used[i]];
-    if(isImplicit(value)) return kInvalidReg;
-
-    auto cls = classForType(value->type);
-    Size classIndex = 0;
-
-    for(Size j = shape.argStart; j < i; j++) {
-        auto other = base[used[j]];
-        if(isImplicit(other)) continue;
-        if(classForType(other->type) == cls) classIndex++;
-    }
-
-    if(classIndex >= kMaxRegInputs) return kInvalidReg;
-
-    auto& table = shape.c->constraints[cls];
-    return shape.isReturn ? table.results[classIndex] : table.args[classIndex];
-}
-
-// The fixed register result `i` is produced in, if any.
-static RegId wantForResult(LowerInst* inst, const InstShape& shape, Size i) {
-    if(!shape.c || shape.isReturn) return kInvalidReg;
-
-    auto created = inst->created();
-    if(isImplicit(&created[i])) return kInvalidReg;
-
-    auto cls = classForType(created[i].type);
-    Size classIndex = 0;
-
-    for(Size j = 0; j < i; j++) {
-        if(isImplicit(&created[j])) continue;
-        if(classForType(created[j].type) == cls) classIndex++;
-    }
-
-    if(classIndex >= kMaxRegInputs) return kInvalidReg;
-    return shape.c->constraints[cls].results[classIndex];
-}
-
-// Every general register this instruction writes behind the operands' backs: the ones it clobbers,
-// plus the ones the parallel copy in front of it writes to satisfy fixed-register constraints. A
-// value that has to survive the instruction, and an operand that isn't itself placed by that
-// parallel copy, both have to stay out of these.
-static U64 writtenRegisters(LowerBase base, LowerInst* inst, const InstShape& shape) {
-    if(!shape.c) return 0;
-
-    U64 mask = shape.isReturn ? 0 : shape.c->clobber;
-
-    auto used = inst->used();
-    for(Size i = 0; i < used.size(); i++) {
-        mask |= regBit(wantForUse(base, inst, shape, i));
-    }
-
-    auto created = inst->created();
-    for(Size i = 0; i < created.size(); i++) {
-        mask |= regBit(wantForResult(inst, shape, i));
-    }
-
-    return mask;
 }
 
 /*
@@ -270,6 +150,18 @@ struct Allocator {
     Array<ValueInfo> values;              // indexed by LiveId
     LiveId occupant[kRegClassCount][kRegCount];
 
+    // Every general register the function writes: the ones handed out to values, plus the ones
+    // instructions clobber or are forced to write behind a value's back. The callee-saved ones
+    // among them are what the prologue has to save (see FunctionRegs::usedCalleeSaved) - a register
+    // that is clobbered is just as destroyed from the caller's point of view as one holding a
+    // value, so both sources count.
+    U64 written = 0;
+
+    // Everything the function needs stack space for. Filled in as the reasons appear - an argument
+    // the caller left on the stack, an alloca - and handed to frame layout, which is what turns any
+    // of it into an address.
+    FrameObjects frame;
+
     Allocator(LowerBase base, LowerFunction& fun, Liveness& live, const Constraints& constraints):
         base(base), fun(fun), live(live), constraints(constraints)
     {
@@ -338,6 +230,7 @@ struct Allocator {
 
         info.home = makeRegId(cls, chosen);
         occupant[cls][chosen] = id;
+        written |= regBit(info.home);
         return info.home;
     }
 };
@@ -356,6 +249,7 @@ static void computeAvoidSets(Allocator& a) {
         auto onInst = [&](LowerInst* inst) {
             auto shape = shapeOf(a.base, a.constraints, a.fun, inst);
             auto mask = writtenRegisters(a.base, inst, shape);
+            a.written |= mask;
 
             if(mask) {
                 // An operand that the parallel copy in front of this instruction does *not* place
@@ -525,10 +419,10 @@ struct Emitter {
     }
 };
 
-// Places the incoming arguments and produces the copies, if any, that move them out of the
-// registers the calling convention delivered them in. An argument that outlives a call can't stay
-// in a register the call clobbers, so it is given a safe one and copied there on entry - once,
-// rather than being shuffled at every call site.
+// Places the incoming arguments and produces the copies, if any, that move them out of the places
+// the calling convention delivered them in. An argument that outlives a call can't stay in a
+// register the call clobbers, so it is given a safe one and copied there on entry - once, rather
+// than being shuffled at every call site.
 static void assignArgs(Allocator& a, const InstConstraints& call, Array<RegMove>& entryMoves) {
     U32 index[kRegClassCount] = {};
 
@@ -541,16 +435,79 @@ static void assignArgs(Allocator& a, const InstConstraints& call, Array<RegMove>
         auto incoming = classIndex < kMaxRegInputs ? call.constraints[cls].args[classIndex] : kInvalidReg;
 
         if(incoming == kInvalidReg) {
-            // Out of argument registers: the value arrives on the stack. Nothing downstream can
-            // encode a stack operand yet, so this only gets as far as a clear failure there.
-            a.infoOf(&result).home = makeRegId(StackReg, index[StackReg]);
-            index[StackReg]++;
-            continue;
+            // Out of argument registers: the caller left this one on the stack. It gets a frame
+            // object at the position its argument index gives it - an address the caller decided,
+            // not one this frame is free to choose.
+            auto slot = a.frame.add(StackSlot {
+                .kind = StackSlotKind::IncomingArg,
+                .slotClass = StackSlotClass::Slot64,
+                .size = 8,
+                .alignment = 8,
+            });
+
+            // Nothing reads it: don't spend a register loading a value out of the frame that no
+            // instruction is going to ask for.
+            if(result.uses.isEmpty()) continue;
+
+            // Loaded into a register once on entry and read from there afterwards, exactly like a
+            // register argument that had to be moved somewhere safe. Leaving it in the frame and
+            // reading it from memory at each use is worth doing, but it is the same mechanism as
+            // reading a spilled value and belongs with spilling rather than ahead of it.
+            incoming = makeRegId(StackReg, slot);
+        } else {
+            index[cls]++;
         }
 
-        index[cls]++;
         auto home = a.assign(&result, 0, incoming);
         if(home != incoming) entryMoves.push(RegMove { incoming, home });
+    }
+}
+
+// Frame objects that come from the instructions rather than from the signature, plus the two facts
+// about the stack that decide whether the function can address its frame through rsp.
+static void collectFrameObjects(Allocator& a) {
+    for(auto offset: a.fun.blocks.contents(a.base)) {
+        for(auto i: a.base[offset]->instructions.contents(a.base)) {
+            auto inst = a.base[i];
+
+            if(inst->kind == LowerInst::Alloca) {
+                auto count = a.base[((LowerInstAlloca*)inst)->byteCount];
+
+                if(isImm(count)) {
+                    // A compile-time size is an ordinary fixed frame object, and the alloca becomes
+                    // an address computation rather than any change to the stack pointer.
+                    auto size = ((LowerImm*)count->inst())->i;
+                    assertTrue(size > 0 && size <= maxLimit<U32>);
+
+                    auto slot = a.frame.add(StackSlot {
+                        .kind = StackSlotKind::Local,
+                        .slotClass = StackSlotClass::Slot64,
+                        .size = U32(size),
+
+                        // Nothing in the IR says what the allocation is going to hold, so it gets
+                        // an alignment that suits any scalar or 128-bit vector stored into it.
+                        .alignment = size >= 16 ? 16u : 8u,
+                    });
+
+                    a.frame.references.add(inst, FrameReference { .slot = slot });
+                } else {
+                    a.frame.hasDynamicAlloca = true;
+                }
+            }
+
+            if(inst->kind == LowerInst::Call) {
+                auto callType = ((LowerInstCall*)inst)->getCallType();
+                auto alignment = a.constraints.getConvention(callType).stackAlignment;
+                if(alignment > a.frame.callAlignment) a.frame.callAlignment = alignment;
+
+                for(auto u: inst->used()) {
+                    if(a.base[u]->inst()->kind == LowerInst::PushArg) {
+                        a.frame.hasPushedCallArgs = true;
+                        break;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -559,6 +516,7 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun)
     auto live = fun.buildLiveness(base);
 
     Allocator a(base, fun, *live, constraints);
+    collectFrameObjects(a);
     computeAvoidSets(a);
 
     Emitter emitter(a);
@@ -568,6 +526,13 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun)
     // else can claim one. Their entry copies belong to the first thing the function executes.
     Array<RegMove> entryMoves;
     assignArgs(a, constraints.getCall(fun.callType), entryMoves);
+
+    // The entry copies are emitted at index 0 below, which is only the first thing the function
+    // executes because the implicit entry block holds no instructions - LowerFunction's constructor
+    // creates it empty and nothing may branch to it, so its terminator is index 0. An entry block
+    // with instructions would need them placed ahead of that instruction's own operand copies
+    // instead.
+    assertTrue(base[fun.blocks.get(base, 0)]->instructions.isEmpty());
 
     U32 index = 0;
 
@@ -605,5 +570,18 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun)
     }
 
     assertTrue(index == live->instCount); // the walk here and buildRanges' numbering must agree
+
+    for(auto& info: a.values) result.allocation.locations.push(info.home);
+    result.frame = ::move(a.frame);
+
+    // Which of the registers the function writes its caller expects to get back untouched. The
+    // prologue saves exactly these and the epilogue restores them; a function that never left its
+    // convention's clobber set saves nothing.
+    result.usedCalleeSaved = a.written & constraints.getConvention(fun.callType).calleeSaved;
+
+    // Debug builds only - assertTrue compiles away entirely in a release build, taking the call
+    // with it. The verifier walks the whole function symbolically, which is too expensive to pay
+    // for on every compile, and it can only ever fail on a bug in the code just above it.
+    assertTrue(verifyAllocation(ctx, base, fun, *live, constraints, result));
     return result;
 }

@@ -25,6 +25,7 @@ remLiveResult<complex>(%a: Int, %b: Int, %c: Int): Int {
 
 
 --- codegen: mulDivShift ---
+  prologue  => 53
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -40,7 +41,7 @@ block #1:
   sar uses=[rax, rcx] creates=[rax] pre=[rdi->rax, rsi->rcx]  => 488bc7488bced3f8
   imm uses=[] creates=[-]  => 
   shl uses=[rdi, -] creates=[rdi]  => c1e702
-  ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc3c3
+  ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc35bc3
 
 --- codegen: remLiveResult ---
 block #0:

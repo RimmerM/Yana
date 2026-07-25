@@ -25,6 +25,7 @@ struct Flag {
         target,
         arch,
         format,
+        framePointer,
 
         /*
          * Boolean flags.
@@ -50,6 +51,7 @@ Flag flagTable[] = {
     { "target"_v, 1, Flag::target },
     { "arch"_v, 1, Flag::arch },
     { "format"_v, 1, Flag::format },
+    { "frame-pointer"_v, 1, Flag::framePointer },
 
     { "print-modules"_v, 0, Flag::printModules },
     { "print-ast"_v, 0, Flag::printAst },
@@ -75,6 +77,12 @@ StringView targetTable[] = {
     "linux"_v, // Linux
     "mac"_v,   // MacOS
     "win32"_v, // Win32
+};
+
+StringView framePointerTable[] = {
+    "all"_v,      // All
+    "non-leaf"_v, // NonLeaf
+    "needed"_v,   // Needed
 };
 
 StringView archTable[] = {
@@ -413,6 +421,14 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     return true;
                 } else {
                     error = "Unrecognized executable format. Valid formats are: elf|mach|pe.";
+                    return false;
+                }
+            case Flag::framePointer:
+                if(auto fp = matchString(framePointerTable, sizeof(framePointerTable) / sizeof(StringView), value)) {
+                    settings.framePointer = (FramePointerMode)fp.unwrap();
+                    return true;
+                } else {
+                    error = "Unrecognized frame pointer mode. Valid modes are: all|non-leaf|needed.";
                     return false;
                 }
             case Flag::printModules:

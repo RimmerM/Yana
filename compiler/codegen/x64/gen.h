@@ -50,6 +50,27 @@ struct InstConstraints {
     U64 clobber = 0;
 };
 
+// The half of a calling convention that concerns the function being compiled rather than its call
+// sites. InstConstraints above describes what a *call* does to registers where it appears; this
+// describes what a function compiled with the convention owes the caller it returns to, and is what
+// the prologue and epilogue are generated from.
+//
+// The two halves are the same contract seen from opposite sides - a register a call does not
+// clobber is exactly a register the callee has to give back - so constraint.cpp states both and
+// checks them against each other rather than deriving either.
+struct CallConvention {
+    // Callee-saved general registers, restricted to kAllocatableRegs. rsp and rbp are preserved
+    // too, but they are reserved rather than handed out, so keeping them valid is the frame code's
+    // business rather than the prologue's.
+    U64 calleeSaved = 0;
+
+    // What rsp must be a multiple of at the point a call of this convention is executed, before the
+    // call pushes its return address. A convention the compiler is on both sides of can leave this
+    // at 8; an external one generally cannot, because its callees are entitled to assume the
+    // alignment when they spill a vector register.
+    U32 stackAlignment = 8;
+};
+
 // Byte count above which a Copy/SetPattern with a compile-time size stops being straight-lined into
 // plain moves and takes the rep-prefixed string instruction instead. Chosen once, in
 // transformFunction (see selectBlockOpEncoding), and recorded on the instruction.
@@ -59,6 +80,7 @@ struct Constraints {
     Constraints();
     const InstConstraints* getConstraints(LowerBase base, LowerInst* inst) const;
     const InstConstraints& getCall(LowerCallType type) const;
+    const CallConvention& getConvention(LowerCallType type) const;
 
 private:
     // Copy/SetPattern have two encodings with very different register requirements: `rep movsb`/
@@ -68,7 +90,54 @@ private:
     // table and genCopy/genSetPattern cannot disagree about it.
     InstConstraints mul, div, rem, shift, movsb, stosb, movsbImm, stosbImm;
     InstConstraints call[(Size)LowerCallType::LastType + 1];
+    CallConvention convention[(Size)LowerCallType::LastType + 1];
 };
+
+/*
+ * Instruction constraint queries.
+ *
+ * The tables above are indexed per register class and skip operands that don't occupy a register at
+ * all, so the mapping from "operand N of this instruction" to "entry N of the table" is not the
+ * identity. Resolving it in one place, from the instruction alone, keeps every caller from having
+ * to thread a running per-class counter through its own loop - and keeps the allocator and the
+ * verifier that checks it reading the same tables the same way.
+ */
+
+inline RegClass classForType(LowerType type) {
+    if(isIntLike(type)) {
+        return GenReg;
+    } else {
+        return XmmReg;
+    }
+}
+
+struct InstShape {
+    const InstConstraints* c = nullptr;
+
+    // First used() index that is a constrained argument. Call's used()[0] is the callee, not an
+    // argument - except for a syscall, which has no callee at all: its used()[0] is the syscall
+    // number, and is the first constrained operand.
+    Size argStart = 0;
+
+    // Set for a return, whose values are constrained like a call's *results* rather than its
+    // arguments. A return's clobber set is deliberately ignored throughout: nothing is live once
+    // the function has returned, so there is nothing left for it to protect.
+    bool isReturn = false;
+};
+
+InstShape shapeOf(LowerBase base, const Constraints& constraints, LowerFunction& fun, LowerInst* inst);
+
+// The fixed register operand `i` has to be in when the instruction executes, if any.
+RegId wantForUse(LowerBase base, LowerInst* inst, const InstShape& shape, Size i);
+
+// The fixed register result `i` is produced in, if any.
+RegId wantForResult(LowerInst* inst, const InstShape& shape, Size i);
+
+// Every general register this instruction writes behind the operands' backs: the ones it clobbers,
+// plus the ones the parallel copy in front of it writes to satisfy fixed-register constraints. A
+// value that has to survive the instruction, and an operand that isn't itself placed by that
+// parallel copy, both have to stay out of these.
+U64 writtenRegisters(LowerBase base, LowerInst* inst, const InstShape& shape);
 
 /*
  * Register allocation output.
@@ -114,11 +183,195 @@ struct BlockRegs {
     Array<InstRegs> insts;
 };
 
+/*
+ * Frame objects.
+ *
+ * Anything the function keeps on the stack is an *abstract* slot while the allocator is running:
+ * the allocator decides that a value needs stack space, and frame layout decides afterwards where
+ * that space is, because the answer depends on things the allocator does not know yet - how many
+ * registers ended up needing saving, whether a frame pointer is required, how much alignment the
+ * calls in the function demand.
+ *
+ * A slot is named by a `RegId` of class `StackReg` whose index is its `StackSlotId`, so a value
+ * living on the stack and a value living in a register are the same kind of thing everywhere the
+ * allocator handles locations.
+ */
+
+using StackSlotId = U16;
+static constexpr StackSlotId kInvalidSlot = 0xffff;
+
+// Spill slots are grouped by width so that a slot is reused only by values that fit it exactly,
+// which keeps first-fit reuse and alignment simple and stops a 4-byte value from pinning down
+// 64 bytes of frame. Sizes are 4, 8, 16, 32 and 64 bytes.
+enum class StackSlotClass: U8 {
+    Slot32, Slot64, Slot128, Slot256, Slot512,
+};
+
+static constexpr Size kStackSlotClassCount = 5;
+
+inline U32 stackSlotSize(StackSlotClass c) { return 4u << (Size)c; }
+
+// What a slot is for. Frame layout puts each kind in its own region, because they answer to
+// different rules: incoming arguments live in the *caller's* frame above the return address and
+// cannot be moved, locals have to keep their addresses for as long as the function runs, and spill
+// slots are the only ones that may be shared between values whose lives do not overlap.
+enum class StackSlotKind: U8 {
+    Spill,
+    Local,       // a fixed-size alloca
+    IncomingArg, // an argument the caller left on the stack
+};
+
+struct StackSlot {
+    StackSlotKind kind = StackSlotKind::Spill;
+    StackSlotClass slotClass = StackSlotClass::Slot64;
+    U32 size = 8;
+    U32 alignment = 8;
+
+    // Position among the slots of the same kind, in the order they were created. For an incoming
+    // argument this is what fixes its address: argument n sits 8n bytes above the return address.
+    U32 ordinal = 0;
+};
+
+// A reference to a frame object from an instruction, before frame layout has run. The addend allows
+// a reference into the middle of a slot - an element of a local array, the second half of a value
+// spilled as two words.
+struct FrameReference {
+    StackSlotId slot = kInvalidSlot;
+    I32 addend = 0;
+};
+
+// Everything the function puts on the stack, collected while registers are being allocated and
+// consumed by frame layout. Nothing here has an address yet.
+struct FrameObjects {
+    Array<StackSlot> slots;
+
+    // Frame objects individual instructions refer to: an alloca's local, and later a spilled
+    // operand's slot. Keyed by instruction because the reference belongs to the instruction rather
+    // than to any value it produces.
+    HashMap<LowerInst*, FrameReference> references;
+
+    // Set by an alloca whose size is not known until the function runs. Such a function has to move
+    // rsp at runtime, so every fixed frame object needs an address that survives that - which means
+    // a frame pointer, whatever the frame-pointer mode asks for.
+    bool hasDynamicAlloca = false;
+
+    // Set if any call passes arguments by pushing them. rsp then moves during the argument setup,
+    // so an rsp-relative reference to a fixed frame object taken in the middle of it would be wrong
+    // - which is the second reason a frame pointer can be forced.
+    bool hasPushedCallArgs = false;
+
+    // The largest alignment any call in this function requires of rsp. The frame is padded so that
+    // the prologue leaves rsp on that boundary.
+    U32 callAlignment = 8;
+
+    StackSlotId add(StackSlot slot) {
+        // Slots of one kind are numbered in creation order, which is what gives an incoming
+        // argument its position in the caller's frame.
+        for(auto& s: slots) {
+            if(s.kind == slot.kind) slot.ordinal++;
+        }
+
+        slots.push(slot);
+        return StackSlotId(slots.size() - 1);
+    }
+
+    bool isEmpty() const { return slots.isEmpty(); }
+};
+
+// Where each value lives between the instructions that touch it, indexed by the dense LiveId that
+// buildLiveness assigns. This is the allocation proper; the per-instruction InstRegs above are what
+// the encoder needs to emit it, and say where an operand sits *at one instruction*, which is not
+// always the same place.
+//
+// Keeping both on FunctionRegs is what lets the verifier check one against the other without
+// knowing anything about how the allocator arrived at either.
+struct Allocation {
+    // One location per LiveId, kInvalidReg for a value that never needed one.
+    Array<RegId> locations;
+
+    // The location holding `id` at instruction index `point`. Every value has a single location for
+    // the whole of its life today, so `point` is ignored - it is in the signature because that is
+    // the question callers should be asking, and the one that gets a different answer once a
+    // value's life is split into segments with a location each.
+    RegId locationOf(LiveId id, U32 point) const {
+        return id < locations.size() ? locations[id] : kInvalidReg;
+    }
+};
+
 // Register assignments for every block in a function, produced by allocateRegisters()
 // and consumed by genFunction().
 struct FunctionRegs {
     HashMap<LowerBlock*, BlockRegs> blocks;
+
+    // Where every value lives - see Allocation.
+    Allocation allocation;
+
+    // Everything the function needs stack space for - see FrameObjects.
+    FrameObjects frame;
+
+    // Callee-saved registers this function writes, and therefore has to save on entry and restore
+    // before every return. Empty for a function that stayed inside its convention's clobber set,
+    // which is the common case for a leaf function.
+    U64 usedCalleeSaved = 0;
 };
+
+/*
+ * Frame layout.
+ *
+ * Runs after allocation, once everything the frame has to hold is known, and turns the abstract
+ * slots above into concrete displacements from a base register. This is the only place that knows
+ * what the stack looks like; the encoders ask it for an address and emit one.
+ *
+ * With a frame pointer the layout is
+ *
+ *     [rbp + 16 + 8n]  incoming stack argument n
+ *     [rbp + 8]        return address
+ *     [rbp]            caller's rbp
+ *     [rbp - 8k]       saved callee-saved registers
+ *     [rbp - ...]      locals and spill slots        <- rsp after the prologue
+ *
+ * and without one the same objects hang off rsp instead, which only works because rsp then stays
+ * put for the whole body: pushed call arguments are popped again immediately, and a function that
+ * moves rsp any other way (a dynamic alloca) is required to have a frame pointer.
+ */
+struct FrameLayout {
+    // Callee-saved registers the prologue pushes, in ascending register order.
+    U64 savedRegs = 0;
+
+    // Set when rbp is established as the base for fixed frame objects. Costs a push, a move and a
+    // register; see FramePointerMode for when it is worth it.
+    bool framePointer = false;
+
+    // The register frame references are relative to: rbp when there is a frame pointer, rsp when
+    // there is not.
+    RegId base = kInvalidReg;
+
+    // Bytes the prologue subtracts from rsp for locals and spill slots, including any padding
+    // needed to leave rsp on the boundary the calls in this function require.
+    U32 fixedSize = 0;
+
+    // The boundary a dynamic allocation has to round its size up to, so that moving rsp at run time
+    // preserves the alignment the prologue established.
+    U32 dynamicAlignment = 8;
+
+    // Displacement from `base` for each slot, indexed by StackSlotId.
+    Array<I32> slotOffset;
+
+    // Whether the function needs any prologue at all.
+    bool isEmpty() const { return savedRegs == 0 && !framePointer && fixedSize == 0; }
+
+    I32 offsetOf(FrameReference ref) const {
+        assertTrue(ref.slot < slotOffset.size());
+        return slotOffset[ref.slot] + ref.addend;
+    }
+};
+
+FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun, const Constraints& constraints, const FunctionRegs& regs);
+
+// Checks that the offsets a layout produced describe a frame its objects fit in, and that no two of
+// them land on the same bytes. Both failures corrupt memory rather than producing a visibly wrong
+// register, so neither shows up in a golden; genFunction runs this in debug builds.
+bool verifyFrameLayout(Context& ctx, LowerFunction& fun, const FrameObjects& objects, const FrameLayout& layout);
 
 struct AsmBlock {
     LowerBlock* block;
@@ -242,9 +495,22 @@ struct LowerInstX86Address: LowerInstSingle {
 void transformFunction(LowerBase base, LowerFunction& fun);
 FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun);
 
+// Checks that an allocation actually delivers every value to every instruction that reads it, by
+// simulating the register and stack contents the emitted code will produce and comparing them
+// against what each instruction expects to find. Returns false and logs the first disagreement per
+// function; allocateRegisters runs it on its own result in debug builds.
+//
+// It knows nothing about how the allocation was arrived at - only about FunctionRegs, the liveness
+// sets and the constraint tables - so it stays a valid check as the allocator gains live intervals
+// with holes, phi webs, stack homes and split locations.
+bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness& live, const Constraints& constraints, const FunctionRegs& regs);
+
 // Called (if non-null) once for every instruction/terminator emitted, with the byte range it
 // occupies in `to.buffer` - used by test harnesses to build an annotated disassembly listing
 // without genFunction itself needing to know anything about how that listing is formatted.
+//
+// `inst` is null for the function prologue, which belongs to the function rather than to any one
+// instruction; `regs` is empty in that case.
 using InstEmitCallback = void (*)(void* ctx, LowerInst* inst, const InstRegs& regs, U32 startOffset, U32 endOffset);
 
 void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction& fun, FunctionRegs& regs, InstEmitCallback onInst = nullptr, void* onInstCtx = nullptr);

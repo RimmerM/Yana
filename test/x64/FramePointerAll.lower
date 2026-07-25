@@ -1,0 +1,41 @@
+# frame-pointer: all
+#
+# The same four functions appear in FramePointerNonLeaf.lower and at the end of Frame.lower, so the
+# three modes can be read side by side. Under `all` every one of them establishes rbp, including the
+# leaf that has nothing to put in a frame - which is the point: a stack walker can follow the chain
+# out of any function without needing unwind tables.
+
+leafNoFrame(%a: Int, %b: Int): Int {
+    {
+        %s = add %a, %b: Int
+        ret %s
+    }
+}
+
+leafWithLocal(%v: Int): Int {
+    {
+        %a = alloca 8: Ptr
+        store %a, %v, 8
+        %r = load %a, 8: Int
+        ret %r
+    }
+}
+
+callerNoFrame(%a: Int, %b: Int): Int {
+    {
+        %r = call_complex leafNoFrame, %a, %b: Int
+        %s = add %r, %b: Int
+        ret %s
+    }
+}
+
+callerWithLocal(%v: Int): Int {
+    {
+        %a = alloca 8: Ptr
+        store %a, %v, 8
+        %r = call_complex leafNoFrame, %v, %v: Int
+        %s = load %a, 8: Int
+        %t = add %r, %s: Int
+        ret %t
+    }
+}
