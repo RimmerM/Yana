@@ -1,0 +1,61 @@
+utf32PointToUtf8(%utf32: Ptr, %max: Ptr, %buffer: Ptr): Ptr {
+    {
+        %p = load %utf32, 8: Ptr
+        %codePoint = load %p, 4: Int
+        store %utf32, (add %p, 4), 8
+        je (cmp_le %codePoint, 0x7f), isOne, checkTwo
+    }
+
+    isOne {
+        store %buffer, %codePoint, 1
+        ret (add %buffer, 1)
+    }
+
+    checkTwo {
+        je (cmp_le %codePoint, 0x07ff), isTwo, checkThree
+    }
+
+    isTwo {
+        %c2_0 = or 0xc0, (shr %codePoint, 6)
+        %c2_1 = or 0x80, (and %codePoint, 0x3f)
+        store (add %buffer, 0), %c2_0, 1
+        store (add %buffer, 1), %c2_1, 1
+        ret (add %buffer, 2)
+    }
+
+    checkThree {
+        je (cmp_le %codePoint, 0xffff), isThree, checkFour
+    }
+
+    isThree {
+        %c3_0 = or 0xc0, (shr %codePoint, 12)
+        %c3_1 = or 0x80, (and (shr %codePoint, 6), 0x3f)
+        %c3_2 = or 0x80, (and %codePoint, 0x3f)
+        store (add %buffer, 0), %c3_0, 1
+        store (add %buffer, 1), %c3_1, 1
+        store (add %buffer, 2), %c3_2, 1
+        ret (add %buffer, 3)
+    }
+
+    checkFour {
+        je (cmp_le %codePoint, 0x10FFFF), isFour, else
+    }
+
+    isFour {
+        %c4_0 = or 0xf0, (shr %codePoint, 18)
+        %c4_1 = or 0x80, (and (shr %codePoint, 12), 0x3f)
+        %c4_2 = or 0x80, (and (shr %codePoint, 6), 0x3f)
+        %c4_3 = or 0x80, (and %codePoint, 0x3f)
+        store (add %buffer, 0), %c4_0, 1
+        store (add %buffer, 1), %c4_1, 1
+        store (add %buffer, 2), %c4_2, 1
+        store (add %buffer, 3), %c4_3, 1
+        ret (add %buffer, 4)
+    }
+
+    else {
+        # Restore the original pointer.
+        store %utf32, %p, 8
+        ret (bitcast 0: Ptr)
+    }
+}

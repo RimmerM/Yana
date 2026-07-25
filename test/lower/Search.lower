@@ -1,0 +1,42 @@
+
+search(%src: Int, %entries: Ptr, %count: Long): Long {
+    start {
+        %low = imm 0L
+        %high = sub %count, 1L
+        jmp loop_head
+    }
+
+    loop_head {
+        %low3 = phi [start, %low], [lower, %low2], [greater, %low3]: Long
+        %high3 = phi [start, %high], [greater, %high2], [lower, %high3]: Long
+        je (cmp_ile %low3, %high3), loop, end
+    }
+
+    loop {
+        %mid = sar (add %low3, %high3), 1
+        %entry = load (add %entries, (mul %mid, 8L)), 4: Int
+        je (cmp_lt %entry, %src), lower, check_greater
+    }
+
+    lower {
+        %low2 = add %mid, 1L
+        jmp loop_head
+    }
+
+    check_greater {
+        je (cmp_gt %entry, %src), greater, found
+    }
+
+    greater {
+        %high2 = sub %mid, 2L
+        jmp loop_head
+    }
+
+    found {
+        ret %mid
+    }
+
+    end {
+        ret (sub %low3, 1L)
+    }
+}

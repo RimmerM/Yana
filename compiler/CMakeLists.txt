@@ -55,6 +55,24 @@ set(SOURCE_FILES ${SOURCE_FILES}
 )
 
 set(SOURCE_FILES ${SOURCE_FILES}
+    lower/lower.h
+    lower/lower.cpp
+    lower/lower_inst.h
+    lower/lower_parser.h
+    lower/lower_parser.cpp
+    lower/lower_lexer.cpp
+    lower/lower_lexer.h
+    lower/lower_print.cpp
+    lower/lower_print.h
+    lower/lower_validate.cpp
+    lower/lower_validate.h
+    lower/lower_resolve.cpp
+    lower/lower_resolve.h
+    lower/lower_analyze.cpp
+    lower/lower_builder.h
+)
+
+set(SOURCE_FILES ${SOURCE_FILES}
     codegen/llvm/gen.cpp
     codegen/llvm/gen.h
     codegen/llvm/link.cpp

@@ -1,0 +1,71 @@
+@name = "hello world"
+
+print(%string: Ptr, %length: Long) {
+    {
+        %0 = syscall 1, 1, %string, %length: Int
+        ret
+    }
+}
+
+printInt(%number: Long) {
+    start {
+        %buffer = alloca 32: Ptr
+        %string = alloca 32: Ptr
+        jmp loop
+    }
+
+    loop {
+        %n = phi [start, %number], [loop, %2]: Long
+        %p = phi [start, %buffer], [loop, %p2]: Ptr
+        %1 = add (cast '0': Long), (rem %n, 10L): Long
+        store %p, %1, 1
+        %p2 = add %p, 1: Ptr
+        %2 = div %n, 10L: Long
+        je (cmp_gt %2, 0L: Int), loop, reverse
+    }
+
+    reverse {
+        %length = sub %p2, %buffer: Long
+        jmp reverse_loop
+    }
+
+    reverse_loop {
+        %p3 = phi [reverse, %p2], [reverse_loop, %p4]: Ptr
+        %b = phi [reverse, %string], [reverse_loop, %b2]: Ptr
+        %p4 = sub %p3, 1: Ptr
+        store %b, (load %p4, 1: Int), 1
+        %b2 = add %b, 1: Ptr
+        je (cmp_gt %p4, %buffer: Int), reverse_loop, print
+    }
+
+    print {
+        call print, %string, %length
+        ret
+    }
+}
+
+getCount(): Int {
+    { ret 10 }
+}
+
+main() {
+    start {
+        %space = alloca 1: Ptr
+        store %space, ' ', 1
+        %count = cast (call getCount: Int): Long
+        jmp loop
+    }
+
+    loop {
+        %i = phi [start, 0L], [loop, %i2]: Long
+        call print, @name, 11L
+        call print, %space, 1L
+        call printInt, %i
+        %i2 = add %i, 1L: Long
+        je (cmp_lt %i2, %count: Int), loop, end
+    }
+
+    end {
+        ret
+    }
+}

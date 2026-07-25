@@ -1,0 +1,111 @@
+
+utf32PointToUtf8<complex>(%utf32: Ptr, %max: Ptr, %buffer: Ptr): Ptr {
+  b_0 {
+    # live-in: %utf32, %buffer
+    %p = load %utf32, 8: Ptr
+    %codePoint = load %p, 4: Int
+    %v_1 = add %p, 4: Ptr
+    store %utf32, %v_1, 8
+    %v_2 = cmp_le %codePoint, 127: Int    # %v_2 implicit
+    je %v_2, isOne, checkTwo    # implicit cmp_le
+    # live-out: %utf32, %buffer, %p, %codePoint
+  }
+
+  isOne {
+    # live-in: %buffer, %codePoint
+    store %buffer, %codePoint, 1
+    %v_3 = add %buffer, 1: Ptr
+    ret %v_3
+    # live-out: 
+  }
+
+  checkTwo {
+    # live-in: %utf32, %buffer, %p, %codePoint
+    %v_4 = cmp_le %codePoint, 2047: Int    # %v_4 implicit
+    je %v_4, isTwo, checkThree    # implicit cmp_le
+    # live-out: %utf32, %buffer, %p, %codePoint
+  }
+
+  isTwo {
+    # live-in: %buffer, %codePoint
+    %v_5 = shr %codePoint, 6: Int
+    %c2_0 = or %v_5, 192: Int
+    %v_6 = and %codePoint, 63: Int
+    %c2_1 = or %v_6, 128: Int
+    %v_7 = add %buffer, 0: Ptr
+    store %v_7, %c2_0, 1
+    %v_8 = add %buffer, 1: Ptr
+    store %v_8, %c2_1, 1
+    %v_9 = add %buffer, 2: Ptr
+    ret %v_9
+    # live-out: 
+  }
+
+  checkThree {
+    # live-in: %utf32, %buffer, %p, %codePoint
+    %v_10 = cmp_le %codePoint, 65535: Int    # %v_10 implicit
+    je %v_10, isThree, checkFour    # implicit cmp_le
+    # live-out: %utf32, %buffer, %p, %codePoint
+  }
+
+  isThree {
+    # live-in: %buffer, %codePoint
+    %v_11 = shr %codePoint, 12: Int
+    %c3_0 = or %v_11, 192: Int
+    %v_12 = shr %codePoint, 6: Int
+    %v_13 = and %v_12, 63: Int
+    %c3_1 = or %v_13, 128: Int
+    %v_14 = and %codePoint, 63: Int
+    %c3_2 = or %v_14, 128: Int
+    %v_15 = add %buffer, 0: Ptr
+    store %v_15, %c3_0, 1
+    %v_16 = add %buffer, 1: Ptr
+    store %v_16, %c3_1, 1
+    %v_17 = add %buffer, 2: Ptr
+    store %v_17, %c3_2, 1
+    %v_18 = add %buffer, 3: Ptr
+    ret %v_18
+    # live-out: 
+  }
+
+  checkFour {
+    # live-in: %utf32, %buffer, %p, %codePoint
+    %v_19 = cmp_le %codePoint, 1114111: Int    # %v_19 implicit
+    je %v_19, isFour, else    # implicit cmp_le
+    # live-out: %utf32, %buffer, %p, %codePoint
+  }
+
+  isFour {
+    # live-in: %buffer, %codePoint
+    %v_20 = shr %codePoint, 18: Int
+    %c4_0 = or %v_20, 240: Int
+    %v_21 = shr %codePoint, 12: Int
+    %v_22 = and %v_21, 63: Int
+    %c4_1 = or %v_22, 128: Int
+    %v_23 = shr %codePoint, 6: Int
+    %v_24 = and %v_23, 63: Int
+    %c4_2 = or %v_24, 128: Int
+    %v_25 = and %codePoint, 63: Int
+    %c4_3 = or %v_25, 128: Int
+    %v_26 = add %buffer, 0: Ptr
+    store %v_26, %c4_0, 1
+    %v_27 = add %buffer, 1: Ptr
+    store %v_27, %c4_1, 1
+    %v_28 = add %buffer, 2: Ptr
+    store %v_28, %c4_2, 1
+    %v_29 = add %buffer, 3: Ptr
+    store %v_29, %c4_3, 1
+    %v_30 = add %buffer, 4: Ptr
+    ret %v_30
+    # live-out: 
+  }
+
+  else {
+    # live-in: %utf32, %p
+    store %utf32, %p, 8
+    %v_31 = bitcast 0: Ptr
+    ret %v_31
+    # live-out: 
+  }
+}
+

@@ -1,0 +1,12 @@
+
+flags<complex>(%v: Int): Int {
+  start {
+    # live-in: %v
+    %cmp = cmp_eq %v, 1: Int
+    %a = add %v, 1: Int
+    %b = select %v, %cmp, %a: Int
+    ret %b
+    # live-out: 
+  }
+}
+

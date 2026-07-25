@@ -5,6 +5,8 @@
 #include "../compiler/resolve/module.h"
 #include "../compiler/resolve/print.h"
 #include "../compiler/resolve/builtins.h"
+#include "../compiler/lower/lower_parser.h"
+#include "../compiler/lower/lower_print.h"
 #include "Net/Stream.h"
 #include "Net/File.h"
 #include "../compiler/codegen/x64/gen.h"
@@ -267,12 +269,138 @@ void testJs(bool generate) {
 
 }
 
+void lowerTest(const String& path, StringView content) {
+    print("Running test \"%@\"...", path);
+
+    TestProvider provider;
+    provider.source = content;
+
+    PrintDiagnostics diagnostics(provider);
+    Context context(diagnostics);
+    provider.context = &context;
+
+    LowerModule module(1024 * 1024);
+    LowerLexer lexer(context, diagnostics, content);
+    LowerParser parser(context, module, lexer);
+
+    if(!parser.parseModule()) {
+        println("Failed to parse test file.");
+        return;
+    }
+
+    Net::Writer writer(16384);
+    printModule(writer, context, *module.arena, module, false);
+    auto string = writer.getBuffered();
+
+    auto expectPath = path + String(".expect");
+    auto result = File::openFile(expectPath, readAccess());
+    if(result.isErr()) {
+        println("cannot open file %@: error %@", expectPath, (U32)result.unwrapErr());
+        return;
+    }
+
+    auto file = result.moveUnwrapOk();
+    auto size = file.size();
+    Ptr<char> buffer { (char*)hAlloc(size) };
+    file.read({ (Byte*)buffer.get(), size });
+
+    auto equal = size == string.length && compareMem(buffer.get(), string.ptr, size) == 0;
+    if(equal) {
+        println("Pass.");
+    } else {
+        println("Fail. Got:");
+        print(StringView { (char*)string.ptr, string.length });
+        println("\n\n\nExpected:");
+        print(StringView { buffer.get(), size });
+        print("\n\n\n");
+    }
+}
+
+void generateLowerTest(const String& path, StringView content) {
+    println("Generating expect file for test \"%@\"", path);
+
+    TestProvider provider;
+    provider.source = content;
+
+    PrintDiagnostics diagnostics(provider);
+    Context context(diagnostics);
+    provider.context = &context;
+
+    LowerModule module(1024 * 1024);
+    LowerLexer lexer(context, diagnostics, content);
+    LowerParser parser(context, module, lexer);
+
+    if(!parser.parseModule()) {
+        println("Failed to parse test file.");
+        return;
+    }
+
+    auto base = *module.arena;
+    for(auto& f: module.functions) {
+        transformFunction(base, *base[f]);
+    }
+
+    auto expectPath = path + String(".expect");
+
+    try {
+        Net::FileStream file;
+        file.open(expectPath, writeAccess(), File::CreateAlways);
+
+        Net::Writer writer(Net::WriteStream(file), 16384);
+        printModule(writer, context, *module.arena, module, true);
+
+        println("Created expect file \"%@\". Parse memory: %@ bytes, resolve memory: %@ bytes", expectPath, parser.buffer.used(), module.arena.used());
+        writer.flush();
+    } catch(...) {
+        println("Cannot create expect file \"%@\"", expectPath);
+    }
+}
+
+void testLower(bool generate) {
+    Array<String> tests;
+
+    listDirectory("lower", [&](const String& name, bool isDirectory) {
+        if(!isDirectory && name != ".." && name != ".") {
+            if(auto p = findLastChar(stringView(name), '.')) {
+                String extension(p + 1, name.text() + name.size() - p - 1);
+                if(extension == "lower") {
+                    tests.push(String("lower/") + name);
+                }
+            }
+        }
+    });
+
+    if(tests.size() == 0) {
+        println("no tests found");
+    }
+
+    for(auto& test: tests) {
+        auto result = File::openFile(test, readAccess());
+        if(result.isErr()) {
+            println("cannot open file %@: error %@", test, (U32)result.unwrapErr());
+            continue;
+        }
+
+        auto file = result.moveUnwrapOk();
+        auto size = file.size();
+        Ptr<char> buffer { (char*)hAlloc(size) };
+        file.read({ (Byte*)buffer.get(), size });
+
+        if(generate) {
+            generateLowerTest(test, { buffer.get(), size });
+        } else {
+            lowerTest(test, { buffer.get(), size });
+        }
+    }
+}
+
 int main(int argc, const char** argv) {
     bool generateExpects = false;
     bool parserTests = false;
     bool resolverTests = false;
     bool llvmTests = false;
     bool jsTests = false;
+    bool lowerTests = false;
 
     for(int i = 1; i < argc; i++) {
         auto arg = String(argv[i]);
@@ -281,10 +409,12 @@ int main(int argc, const char** argv) {
         else if(arg == "resolver") resolverTests = true;
         else if(arg == "llvm") llvmTests = true;
         else if(arg == "js") jsTests = true;
+        else if(arg == "lower") lowerTests = true;
     }
 
     if(parserTests) testParser(generateExpects);
     if(resolverTests) testResolver(generateExpects);
     if(llvmTests) testLlvm(generateExpects);
     if(jsTests) testJs(generateExpects);
+    if(lowerTests) testLower(generateExpects);
 }

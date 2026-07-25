@@ -1,0 +1,17 @@
+
+infinite<complex>(%v: Int): Int {
+  start {
+    # live-in: %v
+    jmp loop
+    # live-out: %v
+  }
+
+  loop {
+    # live-in: %v1
+    %v1 = phi [start, %v], [loop, %v2]: Int
+    %v2 = add %v1, 1: Int
+    jmp loop
+    # live-out: %v2
+  }
+}
+

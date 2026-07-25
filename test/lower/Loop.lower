@@ -1,0 +1,22 @@
+loop(%count: Int, %add: Int): Int {
+    start {
+        %v = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %v1 = phi [start, %v], [loop, %v2]: Int
+        %count1 = phi [start, %count], [loop, %count2]: Int
+        je (cmp_le %count1, 0), loop, end
+    }
+
+    loop {
+        %count2 = sub %count1, 1
+        %v2 = add %v1, %add
+        jmp head
+    }
+
+    end {
+        ret %v1
+    }
+}

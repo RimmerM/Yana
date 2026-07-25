@@ -1,0 +1,11 @@
+infinite(%v: Int): Int {
+    start {
+        jmp loop
+    }
+
+    loop {
+        %v1 = phi [start, %v], [loop, %v2]: Int
+        %v2 = add %v1, 1
+        jmp loop
+    }
+}
