@@ -11,32 +11,32 @@ struct CodeBuilder {
     bool minify;
     U32 indentation = 0;
 
-    StringBuffer space;
-    StringBuffer comma;
-    StringBuffer parenBlockStart;
-    StringBuffer doBlockStart;
-    StringBuffer doCondStart;
-    StringBuffer elseHead;
-    StringBuffer indent;
-    StringBuffer colon;
+    StringView space;
+    StringView comma;
+    StringView parenBlockStart;
+    StringView doBlockStart;
+    StringView doCondStart;
+    StringView elseHead;
+    StringView indent;
+    StringView colon;
 
-    CodeBuilder(std::ostream& writer, Context& context, StringBuffer indent, bool minify): writer(writer), context(context), minify(minify), indent(indent) {
+    CodeBuilder(std::ostream& writer, Context& context, StringView indent, bool minify): writer(writer), context(context), minify(minify), indent(indent) {
         if(minify) {
-            space = ""_buffer;
-            comma = ","_buffer;
-            parenBlockStart = "){"_buffer;
-            doBlockStart = "do{"_buffer;
-            doCondStart = "}while("_buffer;
-            elseHead = "}else{"_buffer;
-            colon = ":"_buffer;
+            space = ""_v;
+            comma = ","_v;
+            parenBlockStart = "){"_v;
+            doBlockStart = "do{"_v;
+            doCondStart = "}while("_v;
+            elseHead = "}else{"_v;
+            colon = ":"_v;
         } else {
-            space = " "_buffer;
-            comma = ", "_buffer;
-            parenBlockStart = ") {"_buffer;
-            doBlockStart = "do {"_buffer;
-            doCondStart = "} while("_buffer;
-            elseHead = "} else {"_buffer;
-            colon = ": "_buffer;
+            space = " "_v;
+            comma = ", "_v;
+            parenBlockStart = ") {"_v;
+            doBlockStart = "do {"_v;
+            doCondStart = "} while("_v;
+            elseHead = "} else {"_v;
+            colon = ": "_v;
         }
     }
 
@@ -60,7 +60,7 @@ struct CodeBuilder {
         indentation--;
     }
 
-    template<class F> void sepBy(U32 count, StringBuffer sep, F&& f) {
+    template<class F> void sepBy(U32 count, StringView sep, F&& f) {
         if(sep.length > 0 && sep.ptr[0] == '\n') {
             for(U32 i = 0; i < count; i++) {
                 if(i == count - 1) {
@@ -95,11 +95,11 @@ struct CodeBuilder {
         }
     }
 
-    void append(StringBuffer seg) {
+    void append(StringView seg) {
         writer.write(seg.ptr, seg.length);
     }
 
-    void line(StringBuffer seg) {
+    void line(StringView seg) {
         startLine();
         append(seg);
         endLine();

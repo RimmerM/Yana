@@ -1,6 +1,6 @@
 #include "diagnostics.h"
 
-void PrintDiagnostics::message(Level level, StringBuffer text, const Node* where) {
+void PrintDiagnostics::message(Level level, StringView text, const Node* where) {
     Diagnostics::message(level, text, where);
 
     U32 line = 0, column = 0;
@@ -48,7 +48,7 @@ void PrintDiagnostics::message(Level level, StringBuffer text, const Node* where
 
     // Print the line the diagnostic occurred at.
     auto length = Size(lineEnd - lineStart);
-    println(StringBuffer{lineStart, length});
+    println(StringView{lineStart, length});
 
     // Print the location within the line.
     char buffer[128];
@@ -64,5 +64,5 @@ void PrintDiagnostics::message(Level level, StringBuffer text, const Node* where
         buffer[offset - bufferStart + tokenLength - 1] = '^';
     }
 
-    println(StringBuffer{buffer, 128});
+    println(StringView{buffer, 128});
 }

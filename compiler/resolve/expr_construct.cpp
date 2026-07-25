@@ -55,12 +55,12 @@ static void matchArgs(FunBuilder* b, List<ast::TupArg>* arg, Field* fields, Args
 
         if(found) {
             if(args.values[field->index]) {
-                error(b, "argument specified more than once"_buffer, arg->item.value);
+                error(b, "argument specified more than once"_v, arg->item.value);
             }
 
             args.values[field->index] = resolveExpr(b, field->type, arg->item.value, 0, true);
         } else {
-            error(b, "constructed type has no field with this name"_buffer, arg->item.value);
+            error(b, "constructed type has no field with this name"_v, arg->item.value);
         }
 
         arg = arg->next;
@@ -101,7 +101,7 @@ static Value* constructAlias(FunBuilder* b, AliasType* alias, Type* targetType, 
         }
 
         if(failCount > 0) {
-            error(b, "cannot infer type of alias %@ in this context"_buffer, expr, b->context.findName(alias->name));
+            error(b, "cannot infer type of alias %@ in this context"_v, expr, b->context.findName(alias->name));
         }
 
         auto targetAlias = instantiateAlias(&b->context, b->fun->module, base, instance, argCount, nullptr, true);
@@ -115,7 +115,7 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, Type* targetType, ast
     // For now we handle aliases and primitive types.
     if(type->kind == Type::Int || type->kind == Type::Float) {
         if(!expr->args || expr->args->next) {
-            error(b, "incorrect number of arguments to type constructor"_buffer, expr);
+            error(b, "incorrect number of arguments to type constructor"_v, expr);
             return type->kind == Type::Int ? (Value*)constInt(b->block, name, 0, type) : constFloat(b->block, name, 0, type);
         }
 
@@ -124,13 +124,13 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, Type* targetType, ast
         return v ? v : arg;
     } else if(type->kind == Type::String) {
         if(!expr->args || expr->args->next) {
-            error(b, "incorrect number of arguments to string constructor"_buffer, expr);
+            error(b, "incorrect number of arguments to string constructor"_v, expr);
             return constString(b->block, name, "", 0);
         }
 
         auto arg = resolveExpr(b, type, expr->args->item.value, name, true);
         if(arg->type->kind != Type::String) {
-            error(b, "strings must be constructed with a string"_buffer, expr);
+            error(b, "strings must be constructed with a string"_v, expr);
             return constString(b->block, name, "", 0);
         }
 
@@ -145,7 +145,7 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, Type* targetType, ast
         auto args = buildArgs(b, expr->args);
 
         if(args.count != tup->count) {
-            error(b, "invalid field count for tuple type: %@ required, but %@ were provided"_buffer, expr->type, tup->count, args.count);
+            error(b, "invalid field count for tuple type: %@ required, but %@ were provided"_v, expr->type, tup->count, args.count);
         }
 
         matchArgs(b, expr->args, tup->fields, args);
@@ -153,7 +153,7 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, Type* targetType, ast
         if(tup->named && args.count == tup->count) {
             for(U32 i = 0; i < tup->count; i++) {
                 if(!args.values[i]) {
-                    error(b, "no value provided for field '%@'"_buffer, expr->type, b->context.findName(tup->fields[i].name));
+                    error(b, "no value provided for field '%@'"_v, expr->type, b->context.findName(tup->fields[i].name));
                     args.values[i] = error(b->block, 0, tup->fields[i].type);
                 }
             }
@@ -193,24 +193,24 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, Type* targetType, ast
         if(record->kind == RecordType::Single) {
             return resolveTupCon(b, expr, &record->cons[0], record->cons[0].content, name);
         } else {
-            error(b, "record %@ can only be constructed through a constructor name"_buffer, expr, b->context.findName(record->name));
+            error(b, "record %@ can only be constructed through a constructor name"_v, expr, b->context.findName(record->name));
             return error(b->block, name, type);
         }
     } else if(type->kind == Type::Array) {
         // TODO
-        error(b, "not implemented"_buffer, expr);
+        error(b, "not implemented"_v, expr);
         return error(b->block, name, type);
     } else if(type->kind == Type::Map) {
         // TODO
-        error(b, "not implemented"_buffer, expr);
+        error(b, "not implemented"_v, expr);
         return error(b->block, name, type);
     } else if(type->kind == Type::Fun) {
         // TODO
-        error(b, "not implemented"_buffer, expr);
+        error(b, "not implemented"_v, expr);
         return error(b->block, name, type);
     } else if(type->kind == Type::Unit) {
         if(expr->args) {
-            error(b, "incorrect number of arguments to unit type constructor"_buffer, expr);
+            error(b, "incorrect number of arguments to unit type constructor"_v, expr);
         }
 
         return nop(b->block, name);
@@ -218,21 +218,21 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, Type* targetType, ast
         return error(b->block, name, type);
     } else if(!required) {
         if(!expr->args || expr->args->next) {
-            error(b, "cannot convert multiple arguments to single type"_buffer, expr);
+            error(b, "cannot convert multiple arguments to single type"_v, expr);
             return error(b->block, name, type);
         } else {
             return resolveExpr(b, targetType, expr->args->item.value, name, true);
         }
     }
 
-    error(b, "cannot construct this type"_buffer, expr->type);
+    error(b, "cannot construct this type"_v, expr->type);
     return error(b->block, name, type);
 }
 
 static Value* resolveMiscCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr, Id name) {
     auto type = findType(&b->context, b->fun->module, expr->type->con);
     if(!type) {
-        error(b, "cannot find type"_buffer, expr->type);
+        error(b, "cannot find type"_v, expr->type);
         return nullptr;
     }
 
@@ -240,7 +240,7 @@ static Value* resolveMiscCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr
 }
 
 static Value* argumentCountError(FunBuilder* b, Con* con, U32 wantedCount, Node* source, Id name) {
-    error(b, "incorrect number of arguments to constructor. Constructor %@ requires %@ argument(s)"_buffer, source, b->context.findName(con->name), wantedCount);
+    error(b, "incorrect number of arguments to constructor. Constructor %@ requires %@ argument(s)"_v, source, b->context.findName(con->name), wantedCount);
     return error(b->block, name, con->parent);
 }
 
@@ -268,7 +268,7 @@ static Value* resolveEmptyCon(FunBuilder* b, Con* con, Node* source, Id name) {
     // Make sure the constructor is fully defined.
     // If it still contains type arguments, we don't have enough information to determine the final type.
     if(con->parent->argCount > 0) {
-        error(b, "cannot infer type of constructor %@ in this context"_buffer, source, b->context.findName(con->name));
+        error(b, "cannot infer type of constructor %@ in this context"_v, source, b->context.findName(con->name));
     }
 
     return record(b->block, name, con, nullptr);
@@ -295,7 +295,7 @@ static Value* resolveTupCon(FunBuilder* b, ast::ConExpr* expr, Con* con, Type* c
         if(tup->named) {
             for(U32 i = 0; i < tup->count; i++) {
                 if(!args.values[i]) {
-                    error(b, "no value provided for field '%@'"_buffer, expr->type, b->context.findName(tup->fields[i].name));
+                    error(b, "no value provided for field '%@'"_v, expr->type, b->context.findName(tup->fields[i].name));
                     args.values[i] = error(b->block, 0, tup->fields[i].type);
                 }
             }
@@ -360,7 +360,7 @@ static Value* resolveTupCon(FunBuilder* b, ast::ConExpr* expr, Con* con, Type* c
         }
 
         if(failCount > 0) {
-            error(b, "cannot infer type of constructor %@ in this context"_buffer, expr, b->context.findName(con->name));
+            error(b, "cannot infer type of constructor %@ in this context"_v, expr, b->context.findName(con->name));
         }
 
         if(changeCount > 0) {
@@ -407,7 +407,7 @@ Value* resolveCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr, Id name) 
 
     if(!content) {
         if(arg) {
-            error(b, "incorrect number of arguments to constructor. Constructor %@ requires 0 arguments, but one or more was provided."_buffer, expr, b->context.findName(con->name));
+            error(b, "incorrect number of arguments to constructor. Constructor %@ requires 0 arguments, but one or more was provided."_v, expr, b->context.findName(con->name));
         }
 
         return resolveEmptyCon(b, con, expr, name);

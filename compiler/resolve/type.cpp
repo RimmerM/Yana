@@ -2,6 +2,7 @@
 #include "type.h"
 #include "../parse/ast.h"
 #include "module.h"
+#include "Mem/Hash.h"
 
 UnitType unitType;
 ErrorType errorType;
@@ -193,7 +194,7 @@ static void addGeneric(Context* context, Buffer<Id> buffer, Size& offset, ast::G
     if(offset < buffer.length) {
         buffer.ptr[offset++] = type->con;
     } else {
-        context->diagnostics.error("too many generic types in this context. Maximum supported number is %@"_buffer, type, buffer.length);
+        context->diagnostics.error("too many generic types in this context. Maximum supported number is %@"_v, type, buffer.length);
     }
 }
 
@@ -317,8 +318,8 @@ static Type* findTuple(Context* context, Module* module, ast::TupType* type, Gen
     hasher.addBytes(buffer, descriptorLength);
     auto hash = hasher.get();
 
-    if(auto tuple = module->usedTuples.get(hash)) {
-        return *tuple.unwrap();
+    if(auto tuple = module->usedTuples.getValue(hash)) {
+        return tuple.unwrap();
     }
 
     auto tuple = new (module->memory) TupType(virtualSize);
@@ -347,7 +348,7 @@ static Type* findGen(Context* context, ast::GenType* type, GenEnv* sourceGen) {
         }
     }
 
-    context->diagnostics.error("unresolved type name %@"_buffer, type, noSource, context->findName(type->con));
+    context->diagnostics.error("unresolved type name %@"_v, type, context->findName(type->con));
     return &errorType;
 }
 
@@ -377,7 +378,7 @@ void resolveGens(Context* context, Module* module, GenEnv* env) {
             c->classType = findClass(context, module, c->ast);
 
             if(c->classType == nullptr) {
-                context->diagnostics.error("cannot find class named %@ in constraint"_buffer, nullptr, noSource, context->findName(c->ast));
+                context->diagnostics.error("cannot find class named %@ in constraint"_v, nullptr, context->findName(c->ast));
             }
 
             c->ast = 0;
@@ -499,11 +500,11 @@ template<class T>
 static T* checkInstantiation(Context* context, T* type, U32 count, bool direct) {
     if(direct) {
         if(count != type->argCount) {
-            context->diagnostics.error("incorrect number of arguments to type %@"_buffer, nullptr, noSource, context->findName(type->name));
+            context->diagnostics.error("incorrect number of arguments to type %@"_v, nullptr, context->findName(type->name));
             return type;
         }
     } else if(type->argCount > 0) {
-        context->diagnostics.error("cannot use the incomplete type %@ here"_buffer, nullptr, noSource, context->findName(type->name));
+        context->diagnostics.error("cannot use the incomplete type %@ here"_v, nullptr, context->findName(type->name));
         return type;
     }
 
@@ -647,7 +648,7 @@ static Type* resolveApp(Context* context, Module* module, ast::AppType* type, Ge
     } else if(base->kind == Type::Record) {
         return instantiateRecord(context, module, (RecordType*)base, args, argCount, nullptr, true);
     } else {
-        context->diagnostics.error("type has no type arguments"_buffer, type->base, noSource);
+        context->diagnostics.error("type has no type arguments"_v, type->base);
         return base;
     }
 }
@@ -682,7 +683,7 @@ static Type* findType(Context* context, Module* module, ast::Type* type, GenEnv*
             auto con = ((ast::ConType*)type)->con;
             auto found = findType(context, module, con);
             if(!found) {
-                context->diagnostics.error("unresolved type name %@"_buffer, type, noSource, context->findName(con));
+                context->diagnostics.error("unresolved type name %@"_v, type, context->findName(con));
                 return &errorType;
             }
 
@@ -848,7 +849,7 @@ Type* resolveType(Context* context, Module* module, ast::Type* type, GenEnv* env
     }
 
     if(typeEnv && typeEnv->typeCount > 0) {
-        context->diagnostics.error("cannot use the incomplete type %@ here"_buffer, type, noSource, context->findName(name));
+        context->diagnostics.error("cannot use the incomplete type %@ here"_v, type, context->findName(name));
         return &errorType;
     }
 
@@ -904,12 +905,12 @@ TupType* resolveTupType(Context* context, Module* module, Field* sourceFields, U
     // Check if the tuple was defined already.
     auto descriptorLength = p - buffer;
 
-    Hasher hasher;
+    Tritium::Hasher hasher;
     hasher.addBytes(buffer, descriptorLength);
     auto hash = hasher.get();
 
-    if(auto tuple = module->usedTuples.get(hash)) {
-        return *tuple.unwrap();
+    if(auto tuple = module->usedTuples.getValue(hash)) {
+        return tuple.unwrap();
     }
 
     auto tuple = new (module->memory) TupType(virtualSize);

@@ -75,9 +75,9 @@ struct TargetExtensions {
 };
 
 struct CompileSettings {
-    Array<String> compileObjects;
-    Array<String> rootObjects;
-    String outputDir;
+    Array<Tritium::String> compileObjects;
+    Array<Tritium::String> rootObjects;
+    Tritium::String outputDir;
 
     CompileMode mode;
     ExecutableFormat format;
@@ -92,4 +92,4 @@ struct CompileSettings {
 
 /// Parses the provided command line into a set of compiler options.
 /// If invalid arguments are provided, returns a human-readable error string.
-Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc);
+Result<CompileSettings, Tritium::String> parseCommandLine(const char** argv, Size argc);

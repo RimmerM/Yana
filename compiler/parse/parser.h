@@ -63,7 +63,7 @@ struct Parser {
     ast::Constraint* parseConstraint();
     List<ast::Constraint*>* parseConstraints();
 
-    void error(StringBuffer text, Node* node = nullptr);
+    void error(StringView text, Node* node = nullptr);
 
     void eat() {lexer.next();}
 
@@ -88,7 +88,7 @@ struct Parser {
         };
     }
 
-    auto tokenRequire(Token::Type type, StringBuffer errorText) {
+    auto tokenRequire(Token::Type type, StringView errorText) {
         return [=] {
             if(token.type == type) {
                 eat();
@@ -133,36 +133,36 @@ struct Parser {
         return res;
     }
 
-    template<class F> auto between(F&& f, Token::Type start, Token::Type end, StringBuffer startError, StringBuffer endError) {
+    template<class F> auto between(F&& f, Token::Type start, Token::Type end, StringView startError, StringView endError) {
         return between(f, tokenRequire(start, startError), tokenRequire(end, endError));
     }
 
-    template<class F> auto maybeBetween(F&& f, Token::Type start, Token::Type end, StringBuffer startError, StringBuffer endError) {
+    template<class F> auto maybeBetween(F&& f, Token::Type start, Token::Type end, StringView startError, StringView endError) {
         return token.type == start ? between(f, start, end, startError, endError) : nullptr;
     }
 
     template<class F> auto parens(F&& f) {
-        return between(f, Token::Type::ParenL, Token::Type::ParenR, "expected '('"_buffer, "expected ')'"_buffer);
+        return between(f, Token::Type::ParenL, Token::Type::ParenR, "expected '('"_v, "expected ')'"_v);
     }
 
     template<class F> auto maybeParens(F&& f) {
-        return maybeBetween(f, Token::Type::ParenL, Token::Type::ParenR, "expected '('"_buffer, "expected ')'"_buffer);
+        return maybeBetween(f, Token::Type::ParenL, Token::Type::ParenR, "expected '('"_v, "expected ')'"_v);
     }
 
     template<class F> auto braces(F&& f) {
-        return between(f, Token::Type::BraceL, Token::Type::BraceR, "expected '{'"_buffer, "expected '}'"_buffer);
+        return between(f, Token::Type::BraceL, Token::Type::BraceR, "expected '{'"_v, "expected '}'"_v);
     }
 
     template<class F> auto maybeBraces(F&& f) {
-        return maybeBetween(f, Token::Type::BraceL, Token::Type::BraceR, "expected '{'"_buffer, "expected '}'"_buffer);
+        return maybeBetween(f, Token::Type::BraceL, Token::Type::BraceR, "expected '{'"_v, "expected '}'"_v);
     }
 
     template<class F> auto brackets(F&& f) {
-        return between(f, Token::Type::BracketL, Token::Type::BracketR, "expected '['"_buffer, "expected ']'"_buffer);
+        return between(f, Token::Type::BracketL, Token::Type::BracketR, "expected '['"_v, "expected ']'"_v);
     }
 
     template<class F> auto maybeBrackets(F&& f) {
-        return maybeBetween(f, Token::Type::BracketL, Token::Type::BracketR, "expected '['"_buffer, "expected ']'"_buffer);
+        return maybeBetween(f, Token::Type::BracketL, Token::Type::BracketR, "expected '['"_v, "expected ']'"_v);
     }
 
     template<class F, class Sep, class End>

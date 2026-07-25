@@ -45,7 +45,7 @@ void resolveVarPat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::VarPat* p
         auto call = resolveStaticCall(b, &intTypes[IntType::Bool], eqHash, pivot, &arg, 0);
         if(!call || call->type != &intTypes[IntType::Bool]) {
             if(!call || call->type->kind != Type::Error) {
-                error(b, "result of a comparison must be a boolean"_buffer, pat);
+                error(b, "result of a comparison must be a boolean"_v, pat);
             }
 
             matcher->alwaysFalse = true;
@@ -64,7 +64,7 @@ void resolveLitPat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::LitPat* p
     auto call = resolveStaticCall(b, &intTypes[IntType::Bool], eqHash, pivot, &arg, 0);
     if(!call || call->type != &intTypes[IntType::Bool]) {
         if(!call || call->type->kind != Type::Error) {
-            error(b, "result of a comparison must be a boolean"_buffer, pat);
+            error(b, "result of a comparison must be a boolean"_v, pat);
         }
         matcher->alwaysFalse = true;
     } else {
@@ -75,7 +75,7 @@ void resolveLitPat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::LitPat* p
 int resolveTupPat(FunBuilder* b, MatchContext** match, Block* onFail, Value* pivot, ast::TupPat* pat) {
     auto type = canonicalType(pivot->type);
     if(type->kind != Type::Tup) {
-        error(b, "cannot match a tuple on this type"_buffer, pat);
+        error(b, "cannot match a tuple on this type"_v, pat);
         jmp(b->block, onFail);
         return -1;
     }
@@ -99,7 +99,7 @@ int resolveTupPat(FunBuilder* b, MatchContext** match, Block* onFail, Value* piv
         }
 
         if(index < 0) {
-            error(b, "cannot match field: the tuple doesn't contain this field"_buffer, field->item.pat);
+            error(b, "cannot match field: the tuple doesn't contain this field"_v, field->item.pat);
             jmp(b->block, onFail);
             return -1;
         } else {
@@ -160,7 +160,7 @@ int resolveTupPat(FunBuilder* b, MatchContext** match, Block* onFail, Value* piv
 int resolveConPat(FunBuilder* b, MatchContext** match, Block* onFail, Value* pivot, ast::ConPat* pat) {
     auto con = findCon(&b->context, b->fun->module, pat->constructor);
     if(!con || !compareTypes(&b->context, con->parent, pivot->type)) {
-        error(b, "constructor type is incompatible with pivot type"_buffer, pat);
+        error(b, "constructor type is incompatible with pivot type"_v, pat);
         jmp(b->block, onFail);
         return -1;
     }
@@ -269,7 +269,7 @@ static Value* getRangeArg(FunBuilder* b, ast::Pat* pat) {
         }
     }
 
-    error(b, "range patterns must use a variable or numeric literal"_buffer, pat);
+    error(b, "range patterns must use a variable or numeric literal"_v, pat);
     return nullptr;
 }
 
@@ -287,7 +287,7 @@ void resolveRangePat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::RangePa
 
         if(!fromCmp || fromCmp->type != &intTypes[IntType::Bool]) {
             if(!fromCmp || fromCmp->type->kind != Type::Error) {
-                error(b, "result of a comparison must be a boolean"_buffer, pat);
+                error(b, "result of a comparison must be a boolean"_v, pat);
             }
             matcher->alwaysFalse = true;
         } else {
@@ -301,7 +301,7 @@ void resolveRangePat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::RangePa
 
         if(!toCmp || toCmp->type != &intTypes[IntType::Bool]) {
             if(!toCmp || toCmp->type->kind != Type::Error) {
-                error(b, "result of a comparison must be a boolean"_buffer, pat);
+                error(b, "result of a comparison must be a boolean"_v, pat);
             }
             matcher->alwaysFalse = true;
         } else {
@@ -320,7 +320,7 @@ void resolveRangePat(FunBuilder* b, Matcher* matcher, Value* pivot, ast::RangePa
 
         if(!fromCmp || !toCmp || fromCmp->type != &intTypes[IntType::Bool] || toCmp->type != &intTypes[IntType::Bool]) {
             if(!fromCmp || !toCmp || fromCmp->type->kind != Type::Error || toCmp->type->kind != Type::Error) {
-                error(b, "result of a comparison must be a boolean"_buffer, pat);
+                error(b, "result of a comparison must be a boolean"_v, pat);
             }
             matcher->alwaysFalse = true;
         } else {

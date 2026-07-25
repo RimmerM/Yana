@@ -11,7 +11,7 @@
 using namespace Tritium;
 
 struct TestProvider: ModuleProvider, SourceProvider {
-    StringBuffer source;
+    StringView source;
     Context* context;
     Module* core = nullptr;
     Module* native = nullptr;
@@ -26,8 +26,8 @@ struct TestProvider: ModuleProvider, SourceProvider {
         }
     }
 
-    StringBuffer getSource(Id module) override {
-        return ""_buffer;
+    StringView getSource(Id module) override {
+        return ""_v;
     }
 
     Module* getCore() {
@@ -41,7 +41,7 @@ struct TestProvider: ModuleProvider, SourceProvider {
     }
 };
 
-void parserTest(const String& path, StringBuffer content) {
+void parserTest(const String& path, StringView content) {
     print("Running test \"%@\"...", path);
 
     TestProvider provider;
@@ -78,12 +78,12 @@ void parserTest(const String& path, StringBuffer content) {
         println("Fail. Got:");
         print(string.c_str());
         println("\n\n\nExpected:");
-        print(StringBuffer{buffer, size});
+        print(StringView{buffer, size});
         print("\n\n\n");
     }
 }
 
-void generateParserTest(const String& path, StringBuffer content) {
+void generateParserTest(const String& path, StringView content) {
     println("Generating expect file for test \"%@\"", path);
 
     TestProvider provider;
@@ -146,7 +146,7 @@ void testParser(bool generate) {
     }
 }
 
-void resolverTest(const String& path, StringBuffer content) {
+void resolverTest(const String& path, StringView content) {
     print("Running test \"%@\"...", path);
 
     TestProvider provider;
@@ -185,12 +185,12 @@ void resolverTest(const String& path, StringBuffer content) {
         println("Fail. Got:");
         print(string.c_str());
         println("\n\n\nExpected:");
-        print(StringBuffer{buffer, size});
+        print(StringView{buffer, size});
         print("\n\n\n");
     }
 }
 
-void generateResolverTest(const String& path, StringBuffer content) {
+void generateResolverTest(const String& path, StringView content) {
     println("Generating expect file for test \"%@\"", path);
 
     TestProvider provider;

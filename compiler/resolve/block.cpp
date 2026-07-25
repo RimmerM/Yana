@@ -35,8 +35,8 @@ Inst* Block::inst(Size size, Id name, Inst::Kind kind, Type* type) {
 }
 
 Value* Block::findValue(Id name) {
-    auto n = namedValues.get(name);
-    if(n) return *n.unwrap();
+    auto n = namedValues.getValue(name);
+    if(n) return n.unwrap();
 
     if(preceding) {
         return preceding->findValue(name);

@@ -97,8 +97,8 @@ struct Context {
     Arena exprArena;
 
 private:
-    HashMap<Identifier, Id> identifiers;
-    HashMap<OpProperties, Id> ops;
+    HashMap<Id, Identifier> identifiers;
+    HashMap<Id, OpProperties> ops;
 };
 
 struct ArenaAllocator {

@@ -10,9 +10,9 @@
 #include <File.h>
 
 static ast::Module* parseFile(Context& context, const String& path, const Identifier& id) {
-    auto result = File::open(path, readAccess());
+    auto result = File::openFile(path, readAccess());
     if(result.isErr()) {
-        context.diagnostics.error("cannot open file %@: error %@"_buffer, nullptr, path, (U32)result.unwrapErr());
+        context.diagnostics.error("cannot open file %@: error %@"_v, nullptr, path, (U32)result.unwrapErr());
         return nullptr;
     }
 
@@ -20,9 +20,9 @@ static ast::Module* parseFile(Context& context, const String& path, const Identi
     auto size = file.size();
     auto text = (char*)hAlloc(size + 1);
 
-    auto read = file.read({text, size});
+    auto read = file.read({(Byte*)text, size});
     if(read.isErr()) {
-        context.diagnostics.error("cannot read file %@: error %@"_buffer, nullptr, path, (U32)read.unwrapErr());
+        context.diagnostics.error("cannot read file %@: error %@"_v, nullptr, path, (U32)read.unwrapErr());
         return nullptr;
     }
 
@@ -51,7 +51,7 @@ static Module* compileEntry(Context& context, ModuleProvider& provider, SourceEn
     return module;
 }
 
-static String generatePath(StringBuffer root, const Identifier& id, StringBuffer extension) {
+static String generatePath(StringView root, const Identifier& id, StringView extension) {
     StringBuilder path(root.length + id.textLength + 1 + extension.length);
     path.append(root.ptr, root.length);
 
@@ -68,12 +68,12 @@ static String generatePath(StringBuffer root, const Identifier& id, StringBuffer
 }
 
 static String replaceExtension(const String& path, const String& extension) {
-    auto p = findLastChar(stringBuffer(path), '.');
+    auto p = findLastChar(stringView(path), '.');
     if(!p) return path + extension;
 
     p++;
     auto extensionLength = path.size() - (p - path.text());
-    auto oldExtension = StringBuffer{p, extensionLength};
+    auto oldExtension = StringView{p, extensionLength};
     if(findChar(oldExtension, '/')) return path + extension;
 
     auto length = path.size() - extensionLength + extension.size();
@@ -105,7 +105,7 @@ int main(int argc, const char** argv) {
     auto result = parseCommandLine(argv, argc);
     if(result.isErr()) {
         print("Argument error: ");
-        println(stringBuffer(result.unwrapErr()));
+        println(stringView(result.unwrapErr()));
         return 1;
     }
 
@@ -116,7 +116,7 @@ int main(int argc, const char** argv) {
     auto sourceResult = buildModuleMap(moduleMap, settings);
     if(sourceResult.isErr()) {
         print("File error: ");
-        println(stringBuffer(sourceResult.unwrapErr()));
+        println(stringView(sourceResult.unwrapErr()));
         return 1;
     }
 
@@ -200,7 +200,7 @@ int main(int argc, const char** argv) {
 
     switch(settings.mode) {
         case CompileMode::Library: {
-            diagnostics.error("Library generation is not implemented yet."_buffer, nullptr);
+            diagnostics.error("Library generation is not implemented yet."_v, nullptr);
             break;
         }
         case CompileMode::NativeExecutable: {
@@ -213,11 +213,11 @@ int main(int argc, const char** argv) {
 
             auto result = linkModules(&llvmContext, &context, llvmModules.pointer(), llvmModules.size());
 
-            diagnostics.error("Native executable generation is not implemented yet."_buffer, nullptr);
+            diagnostics.error("Native executable generation is not implemented yet."_v, nullptr);
             break;
         }
         case CompileMode::NativeShared: {
-            diagnostics.error("Native shared library generation is not implemented yet."_buffer, nullptr);
+            diagnostics.error("Native shared library generation is not implemented yet."_v, nullptr);
             break;
         }
         case CompileMode::JsExecutable: {
@@ -229,7 +229,7 @@ int main(int argc, const char** argv) {
             break;
         }
         case CompileMode::JsLibrary: {
-            diagnostics.error("JS library generation is not implemented yet."_buffer, nullptr);
+            diagnostics.error("JS library generation is not implemented yet."_v, nullptr);
             break;
         }
         case CompileMode::Llvm: {

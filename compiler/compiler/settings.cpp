@@ -4,6 +4,8 @@
 #include <cpuid.h>
 #endif
 
+using Tritium::String;
+
 struct Flag {
     enum Type {
         /*
@@ -33,70 +35,70 @@ struct Flag {
         printIr,
     };
 
-    StringBuffer name;
+    StringView name;
     U32 argCount;
     Type type;
 };
 
 Flag flagTable[] = {
-    { "add"_buffer, 1, Flag::add },
-    { "root"_buffer, 1, Flag::root },
-    { "enable-inst"_buffer, 1, Flag::enableInst },
+    { "add"_v, 1, Flag::add },
+    { "root"_v, 1, Flag::root },
+    { "enable-inst"_v, 1, Flag::enableInst },
 
-    { "to"_buffer, 1, Flag::to },
-    { "mode"_buffer, 1, Flag::mode },
-    { "target"_buffer, 1, Flag::target },
-    { "arch"_buffer, 1, Flag::arch },
-    { "format"_buffer, 1, Flag::format },
+    { "to"_v, 1, Flag::to },
+    { "mode"_v, 1, Flag::mode },
+    { "target"_v, 1, Flag::target },
+    { "arch"_v, 1, Flag::arch },
+    { "format"_v, 1, Flag::format },
 
-    { "print-modules"_buffer, 0, Flag::printModules },
-    { "print-ast"_buffer, 0, Flag::printAst },
-    { "print-ir"_buffer, 0, Flag::printIr },
+    { "print-modules"_v, 0, Flag::printModules },
+    { "print-ast"_v, 0, Flag::printAst },
+    { "print-ir"_v, 0, Flag::printIr },
 };
 
-StringBuffer modeTable[] = {
-    "lib"_buffer,       // Library
-    "exe"_buffer,       // NativeExecutable
-    "shared"_buffer,    // NativeShared
-    "js"_buffer,        // JsExecutable
-    "jslib"_buffer,     // JsLibrary
-    "llvm"_buffer,      // Llvm
+StringView modeTable[] = {
+    "lib"_v,       // Library
+    "exe"_v,       // NativeExecutable
+    "shared"_v,    // NativeShared
+    "js"_v,        // JsExecutable
+    "jslib"_v,     // JsLibrary
+    "llvm"_v,      // Llvm
 };
 
-StringBuffer formatTable[] = {
-    "elf"_buffer,   // ELF
-    "mach"_buffer,  // MachO
-    "pe"_buffer,  // PE
+StringView formatTable[] = {
+    "elf"_v,   // ELF
+    "mach"_v,  // MachO
+    "pe"_v,  // PE
 };
 
-StringBuffer targetTable[] = {
-    "linux"_buffer, // Linux
-    "mac"_buffer,   // MacOS
-    "win32"_buffer, // Win32
+StringView targetTable[] = {
+    "linux"_v, // Linux
+    "mac"_v,   // MacOS
+    "win32"_v, // Win32
 };
 
-StringBuffer archTable[] = {
-    "x64"_buffer,   // X64
-    "x86"_buffer,   // X86
-    "arm"_buffer,   // ARM
-    "arm64"_buffer, // ARM64
+StringView archTable[] = {
+    "x64"_v,   // X64
+    "x86"_v,   // X86
+    "arm"_v,   // ARM
+    "arm64"_v, // ARM64
 };
 
-StringBuffer sseTable[] = {
-    "sse"_buffer,
-    "sse2"_buffer,
-    "sse3"_buffer,
-    "ssse3"_buffer,
-    "sse4.1"_buffer,
-    "sse4.2"_buffer,
-    "avx"_buffer,
-    "avx2"_buffer,
-    "avx512"_buffer,
+StringView sseTable[] = {
+    "sse"_v,
+    "sse2"_v,
+    "sse3"_v,
+    "ssse3"_v,
+    "sse4.1"_v,
+    "sse4.2"_v,
+    "avx"_v,
+    "avx2"_v,
+    "avx512"_v,
 };
 
-static Maybe<U32> matchString(StringBuffer* table, Size count, const String& arg) {
+static Maybe<U32> matchString(StringView* table, Size count, const String& arg) {
     for(U32 i = 0; i < count; i++) {
-        if(toString(table[i]) == arg) {
+        if(Tritium::toString(table[i]) == arg) {
             return Just(i);
         }
     }
@@ -292,11 +294,11 @@ void parseFlags(const char** argv, Size argc, String& error, F&& onFlag) {
         String key(k);
 
         for(auto flag: flagTable) {
-            if(key == toString(flag.name)) {
+            if(key == Tritium::toString(flag.name)) {
                 if(argc - i <= flag.argCount) {
                     char buffer[256];
-                    auto end = Tritium::formatString(toBuffer(buffer), "Not enough arguments to flag \"%@\""_buffer, key);
-                    error = ownedString(buffer, end - buffer);
+                    auto size = Tritium::format(toBuffer(buffer), "Not enough arguments to flag \"%@\"", key);
+                    error = Tritium::ownedString(buffer, size);
                     return;
                 }
 
@@ -313,7 +315,7 @@ void parseFlags(const char** argv, Size argc, String& error, F&& onFlag) {
 
         if(!found) {
             char buffer[256];
-            error = ownedString(buffer, Tritium::formatString(toBuffer(buffer), "Unknown argument \"%@\""_buffer, key) - buffer);
+            error = Tritium::ownedString(buffer, Tritium::format(toBuffer(buffer), "Unknown argument \"%@\"", key));
             return;
         }
     }
@@ -343,7 +345,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 return true;
             case Flag::enableInst:
                 hasExtensions = true;
-                if(auto v = matchString(sseTable, sizeof(sseTable) / sizeof(StringBuffer), value)) {
+                if(auto v = matchString(sseTable, sizeof(sseTable) / sizeof(StringView), value)) {
                     auto sse = (TargetExtensions::SSEMode)(v.unwrap() + 1);
                     if(settings.extensions.sse < sse) settings.extensions.sse = sse;
 
@@ -379,7 +381,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 }
             case Flag::mode:
                 hasMode = true;
-                if(auto mode = matchString(modeTable, sizeof(modeTable) / sizeof(StringBuffer), value)) {
+                if(auto mode = matchString(modeTable, sizeof(modeTable) / sizeof(StringView), value)) {
                     settings.mode = (CompileMode)mode.unwrap();
                     return true;
                 } else {
@@ -388,7 +390,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 }
             case Flag::target:
                 hasTarget = true;
-                if(auto target = matchString(targetTable, sizeof(targetTable) / sizeof(StringBuffer), value)) {
+                if(auto target = matchString(targetTable, sizeof(targetTable) / sizeof(StringView), value)) {
                     settings.target = (TargetType)target.unwrap();
                     return true;
                 } else {
@@ -397,7 +399,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 }
             case Flag::arch:
                 hasArch = true;
-                if(auto arch = matchString(archTable, sizeof(archTable) / sizeof(StringBuffer), value)) {
+                if(auto arch = matchString(archTable, sizeof(archTable) / sizeof(StringView), value)) {
                     settings.arch = (TargetArch)arch.unwrap();
                     return true;
                 } else {
@@ -406,7 +408,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 }
             case Flag::format:
                 hasFormat = true;
-                if(auto format = matchString(formatTable, sizeof(formatTable) / sizeof(StringBuffer), value)) {
+                if(auto format = matchString(formatTable, sizeof(formatTable) / sizeof(StringView), value)) {
                     settings.format = (ExecutableFormat)format.unwrap();
                     return true;
                 } else {

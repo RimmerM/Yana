@@ -14,7 +14,7 @@ namespace ast {
  */
 
 template<class... T>
-inline void error(FunBuilder* b, StringBuffer message, const Node* node, T&&... p) {
+inline void error(FunBuilder* b, StringView message, const Node* node, T&&... p) {
     b->context.diagnostics.error(message, node, forward<T>(p)...);
 }
 

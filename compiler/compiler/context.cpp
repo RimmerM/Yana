@@ -1,4 +1,5 @@
 #include "context.h"
+#include "Mem/Hash.h"
 
 void* Arena::alloc(Size size) {
     if(buffer + size > max) {
@@ -44,20 +45,20 @@ void Context::addOp(Id op, U16 prec, Assoc assoc) {
 OpProperties Context::findOp(Id op) {
     auto res = ops.get(op);
     if(res) {
-        return *res.unwrap();
+        return res.unwrap();
     } else {
         return {9, Assoc::Left};
     }
 }
 
 Id Context::nameHash(const char* chars, Size count) {
-    Hasher hash;
+    Tritium::Hasher hash;
     hash.addBytes(chars, count);
     return hash.get();
 }
 
 Id Context::addUnqualifiedName(const char* chars, Size count) {
-    Hasher hash;
+    Tritium::Hasher hash;
     hash.addBytes(chars, count);
 
     Identifier id;

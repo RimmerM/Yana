@@ -35,13 +35,13 @@ Value* resolveDynCall(FunBuilder* b, Type* targetType, Value* callee, List<ast::
             }
 
             if(!found) {
-                error(b, "function has no argument with this name"_buffer, arg.value);
+                error(b, "function has no argument with this name"_v, arg.value);
             }
         }
 
         if(found) {
             if(args[argIndex]) {
-                error(b, "function argument specified more than once"_buffer, arg.value);
+                error(b, "function argument specified more than once"_v, arg.value);
             }
 
             args[argIndex] = resolveExpr(b, funType->args[argIndex].type, arg.value, 0, true);
@@ -54,14 +54,14 @@ Value* resolveDynCall(FunBuilder* b, Type* targetType, Value* callee, List<ast::
     // If the call used incorrect argument names this error may not trigger.
     // However, in that case we already have an error for the argument name.
     if(i != argCount) {
-        error(b, "incorrect number of function arguments"_buffer, nullptr);
+        error(b, "incorrect number of function arguments"_v, nullptr);
     }
 
     // Check the argument types and perform implicit conversions if needed.
     for(i = 0; i < argCount; i++) {
         auto v = implicitConvert(b, args[i], funType->args[i].type, false, false);
         if(!v) {
-            error(b, "incompatible type for function argument"_buffer, nullptr);
+            error(b, "incompatible type for function argument"_v, nullptr);
         }
 
         args[i] = v;
@@ -86,7 +86,7 @@ static FoundFunction resolveStaticFun(FunBuilder* b, Id funName, Value* fieldArg
     if(!f.found) {
         auto fun = findFun(&b->context, b->fun->module, funName);
         if(!fun.found) {
-            error(b, "no function found with the name %@"_buffer, nullptr, b->context.findName(funName));
+            error(b, "no function found with the name %@"_v, nullptr, b->context.findName(funName));
             return fun;
         }
 
@@ -107,7 +107,7 @@ static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 c
     // If the call used incorrect argument names this error may not trigger.
     // However, in that case we already have an error for the argument name.
     if(count != argCount) {
-        error(b, "incorrect number of function arguments"_buffer, nullptr);
+        error(b, "incorrect number of function arguments"_v, nullptr);
     }
 
     // Check the argument types and perform implicit conversions if needed.
@@ -116,7 +116,7 @@ static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 c
         if(v) {
             args[i] = v;
         } else {
-            error(b, "incompatible type for function argument"_buffer, nullptr);
+            error(b, "incompatible type for function argument"_v, nullptr);
             args[i] = error(b->block, 0, fun->args[i]->type);
         }
     }
@@ -138,7 +138,7 @@ static Value* finishClassCall(FunBuilder* b, ClassFun* fun, Value** args, U32 co
     // If the call used incorrect argument names this error may not trigger.
     // However, in that case we already have an error for the argument name.
     if(count != fun->fun->args.size()) {
-        error(b, "incorrect number of function arguments"_buffer, nullptr);
+        error(b, "incorrect number of function arguments"_v, nullptr);
     }
 
     // Class functions must use each type argument in their signatures.
@@ -156,7 +156,7 @@ static Value* finishClassCall(FunBuilder* b, ClassFun* fun, Value** args, U32 co
 
     auto instance = findInstance(&b->context, b->fun->module, fun->typeClass, fun->index, classArgs);
     if(!instance) {
-        error(b, "cannot find an implementation of class for these arguments"_buffer, nullptr);
+        error(b, "cannot find an implementation of class for these arguments"_v, nullptr);
         return error(b->block, name, &errorType);
     }
 
@@ -238,13 +238,13 @@ Value* resolveStaticCall(FunBuilder* b, Type* targetType, Id funName, Value* fir
             }
 
             if(!found) {
-                error(b, "function has no argument with this name"_buffer, arg.value);
+                error(b, "function has no argument with this name"_v, arg.value);
             }
         }
 
         if(found && argIndex < argCount) {
             if(args[argIndex]) {
-                error(b, "function argument specified more than once"_buffer, arg.value);
+                error(b, "function argument specified more than once"_v, arg.value);
             }
 
             args[argIndex] = resolveExpr(b, sourceArgs[argIndex]->type, arg.value, 0, true);

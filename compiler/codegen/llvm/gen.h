@@ -28,7 +28,7 @@ struct Gen {
 
 struct FileStream: llvm::raw_ostream {
     static Result<File, FileError> open(const String& path, File::CreateMode mode = File::CreateAlways) {
-        return File::open(path, writeAccess(), mode);
+        return File::openFile(path, writeAccess(), mode);
     }
 
     explicit FileStream(File&& file): file(forward<File>(file)) {}
@@ -37,7 +37,7 @@ struct FileStream: llvm::raw_ostream {
     U64 offset = 0;
 
     void write_impl(const char *ptr, size_t size) override {
-        file.write({ptr, size});
+        file.write({(const Byte*)ptr, size});
         offset += size;
     }
 

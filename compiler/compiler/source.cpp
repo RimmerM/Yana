@@ -1,10 +1,11 @@
 #include "source.h"
 #include "../resolve/builtins.h"
+#include "Mem/Hash.h"
 #include <File.h>
 
 FileProvider::FileProvider(ModuleMap& map): moduleMap(map) {}
 
-StringBuffer FileProvider::getSource(Id module) {
+StringView FileProvider::getSource(Id module) {
     if(auto source = sourceMap.get(module)) {
         return *source.get();
     }
@@ -28,10 +29,10 @@ Module* FileProvider::getModule(Module* from, Id name) {
 }
 
 template<class... T>
-static String formatError(StringBuffer format, T&&... args) {
+static String formatError(StringView format, T&&... args) {
     char buffer[4000];
-    auto end = formatString(toBuffer(buffer), format, forward<T>(args)...);
-    return ownedString(buffer, end - buffer);
+    auto length = Tritium::format(toBuffer(buffer), toString(format), forward<T>(args)...);
+    return ownedString(buffer, length);
 }
 
 static const char* findLast(const String& path, char search) {
@@ -159,7 +160,7 @@ static void mapFile(ModuleMap& map, const String& root, const String& file) {
             // Segments always start with an uppercase letter.
             *p = toUpper(*p);
 
-            Hasher hash;
+            Tritium::Hasher hash;
             U32 segmentLength = 0;
             while(p < max && *p != '.') {
                 hash.addByte(*p);
@@ -192,7 +193,7 @@ static Result<void, String> mapDirectory(ModuleMap& map, const String& root, con
 
     auto result = listDirectory(dir, [&](const String& name, bool isDirectory) {
         char pathBuffer[4000];
-        String path(pathBuffer, formatString(toBuffer(pathBuffer), "%@/%@"_buffer, dir, name) - pathBuffer);
+        String path(pathBuffer, format(toBuffer(pathBuffer), "%@/%@", dir, name));
 
         if(isDirectory) {
             if(name != "." && name != "..") {
@@ -205,7 +206,7 @@ static Result<void, String> mapDirectory(ModuleMap& map, const String& root, con
     });
 
     if(!result) {
-        return Err(formatError("Cannot list source directory %@"_buffer, dir));
+        return Err(formatError("Cannot list source directory %@"_v, dir));
     }
 
     return move(error);
@@ -220,7 +221,7 @@ static Result<void, String> checkDuplicates(ModuleMap& map) {
             if(id == String(compare.id.text, compare.id.textLength)) {
                 return Err(formatError(
                     "Duplicate modules found in %@ and %@. Each module needs to have a unique identifier. "
-                    "Consider changing the name of the file or the directory it resides in."_buffer,
+                    "Consider changing the name of the file or the directory it resides in."_v,
                     entry.path, compare.path
                 ));
             }
@@ -232,9 +233,9 @@ static Result<void, String> checkDuplicates(ModuleMap& map) {
 
 Result<void, String> buildModuleMap(ModuleMap& map, const String& root) {
     auto info = File::info(root);
-    if(!info) return Err(formatError("Cannot open source file/directory %@"_buffer, root));
+    if(!info) return Err(formatError("Cannot open source file/directory %@: %@"_v, root, describeError(info.unwrapErr())));
 
-    if(info.unwrap().isDirectory) {
+    if(info.unwrapOk().isDirectory) {
         return mapDirectory(map, root, root);
     } else {
         mapFile(map, root, root);

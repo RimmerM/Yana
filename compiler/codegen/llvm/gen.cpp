@@ -37,6 +37,12 @@ static bool isIndirect(Type* type) {
     return type->kind == Type::Record && ((RecordGen*)type->codegen)->indirect;
 }
 
+// Returns the pointee type of a typed pointer value.
+// Used to migrate calls that relied on the now-removed implicit-type overloads of CreateLoad/CreateGEP.
+static llvm::Type* elementType(llvm::Value* pointer) {
+    return pointer->getType()->getNonOpaquePointerElementType();
+}
+
 llvm::Type* genIntType(Gen* gen, IntType* type) {
     switch(type->width) {
         case IntType::Bool:
@@ -143,12 +149,12 @@ RecordGen* genRecordType(Gen* gen, RecordType* type) {
                 conGen->memType = t;
 
                 auto s = (U32)layout->getTypeAllocSize(t);
-                auto a = layout->getPrefTypeAlignment(t);
+                auto a = (U32)layout->getPrefTypeAlignment(t);
                 conGen->size = s;
                 conGen->alignment = a;
 
-                maxSize = std::max(maxSize, s);
-                maxAlignment = std::max(maxAlignment, a);
+                maxSize = max(maxSize, s);
+                maxAlignment = max(maxAlignment, a);
             } else {
                 conGen->regType = record->selectorType;
                 conGen->memType = record->selectorType;
@@ -469,7 +475,8 @@ llvm::Value* genXor(Gen* gen, InstBinary* inst) {
 }
 
 llvm::Value* genAddRef(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateGEP(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
+    auto refType = (RefType*)canonicalType(inst->lhs->type);
+    return gen->builder->CreateGEP(useType(gen, refType->to), useValue(gen, inst->lhs), useValue(gen, inst->rhs));
 }
 
 llvm::Value* genRecord(Gen* gen, InstRecord* inst) {
@@ -483,7 +490,7 @@ llvm::Value* genRecord(Gen* gen, InstRecord* inst) {
         auto conIndex = llvm::ConstantInt::get(type->selectorType, inst->con->index);
         auto v = useValue(gen, inst->content);
         if(isIndirect(inst->content->type)) {
-            v = gen->builder->CreateLoad(v);
+            v = gen->builder->CreateLoad(useType(gen, inst->content->type), v);
         }
 
         if(type->indirect) {
@@ -492,11 +499,11 @@ llvm::Value* genRecord(Gen* gen, InstRecord* inst) {
             llvm::Value* indices[2];
             indices[0] = gen->builder->getInt32(0);
             indices[1] = indices[0];
-            auto selector = gen->builder->CreateGEP(record, {indices, 2});
+            auto selector = gen->builder->CreateGEP(con->regType, record, {indices, 2});
             gen->builder->CreateStore(conIndex, selector);
 
             indices[1] = gen->builder->getInt32(1);
-            auto content = gen->builder->CreateGEP(record, {indices, 2});
+            auto content = gen->builder->CreateGEP(con->regType, record, {indices, 2});
             gen->builder->CreateStore(v, content);
 
             return record;
@@ -520,7 +527,7 @@ llvm::Value* genTup(Gen* gen, InstTup* inst) {
     for(U32 i = 0; i < inst->fieldCount; i++) {
         auto v = useValue(gen, inst->fields[i]);
         if(isIndirect(inst->fields[i]->type)) {
-            v = gen->builder->CreateLoad(v);
+            v = gen->builder->CreateLoad(useType(gen, inst->fields[i]->type), v);
         }
         tup = gen->builder->CreateInsertValue(tup, v, i);
     }
@@ -543,14 +550,14 @@ llvm::Value* genLoad(Gen* gen, InstLoad* inst) {
     if(isIndirect(inst->from->type)) {
         return useValue(gen, inst->from);
     } else {
-        return gen->builder->CreateLoad(useValue(gen, inst->from));
+        return gen->builder->CreateLoad(useType(gen, inst->type), useValue(gen, inst->from));
     }
 }
 
 llvm::Value* genStore(Gen* gen, InstStore* inst) {
     // TODO: For records - store from reg form into mem form.
     if(isIndirect(inst->value->type)) {
-        auto v = gen->builder->CreateLoad(useValue(gen, inst->value));
+        auto v = gen->builder->CreateLoad(useType(gen, inst->value->type), useValue(gen, inst->value));
         return gen->builder->CreateStore(v, useValue(gen, inst->to));
     } else {
         return gen->builder->CreateStore(useValue(gen, inst->value), useValue(gen, inst->to));
@@ -586,14 +593,14 @@ llvm::Value* genGetField(Gen* gen, InstGetField* inst) {
             if(index == 0) {
                 if(recordGen->indirect) {
                     if(recordGen->selectorType && recordGen->selectorType == recordGen->opaqueType) {
-                        result = gen->builder->CreateLoad(result);
+                        result = gen->builder->CreateLoad(recordGen->opaqueType, result);
                     } else if(recordGen->selectorType) {
                         llvm::Value* indices[2];
                         indices[0] = gen->builder->getInt32(0);
                         indices[1] = indices[0];
-                        auto p = gen->builder->CreateGEP(result, {indices, 2});
+                        auto p = gen->builder->CreateGEP(recordGen->opaqueType, result, {indices, 2});
 
-                        result = gen->builder->CreateLoad(p);
+                        result = gen->builder->CreateLoad(recordGen->selectorType, p);
                     } else {
                         result = gen->builder->getInt32(0);
                     }
@@ -620,7 +627,7 @@ llvm::Value* genGetField(Gen* gen, InstGetField* inst) {
                         if(isIndirect(con->content)) {
                             // Do nothing - the result is a pointer to the correct type already.
                         } else {
-                            result = gen->builder->CreateLoad(result);
+                            result = gen->builder->CreateLoad(recordGen->opaqueType, result);
                         }
                     } else {
                         auto p = gen->builder->CreateBitCast(result, llvm::PointerType::get(conGen->regType, 0));
@@ -628,12 +635,12 @@ llvm::Value* genGetField(Gen* gen, InstGetField* inst) {
                         llvm::Value* indices[2];
                         indices[0] = gen->builder->getInt32(0);
                         indices[1] = gen->builder->getInt32(1);
-                        auto e = gen->builder->CreateGEP(p, {indices, 2});
+                        auto e = gen->builder->CreateGEP(conGen->regType, p, {indices, 2});
 
                         if(isIndirect(con->content)) {
                             result = e;
                         } else {
-                            result = gen->builder->CreateLoad(e);
+                            result = gen->builder->CreateLoad(elementType(e), e);
                         }
                     }
                 } else if(isIndirect(con->content)) {
@@ -642,9 +649,9 @@ llvm::Value* genGetField(Gen* gen, InstGetField* inst) {
                     llvm::Value* indices[2];
                     indices[0] = gen->builder->getInt32(0);
                     indices[1] = gen->builder->getInt32(recordType->conCount == 1 ? 0 : 1);
-                    auto e = gen->builder->CreateGEP(result, {indices, 2});
+                    auto e = gen->builder->CreateGEP(elementType(result), result, {indices, 2});
 
-                    auto v = gen->builder->CreateLoad(e);
+                    auto v = gen->builder->CreateLoad(elementType(e), e);
                     gen->builder->CreateStore(v, p);
                     result = p;
                 } else {
@@ -672,8 +679,8 @@ llvm::Value* genStringLength(Gen* gen, InstStringLength* inst) {
     llvm::Value* indices[2];
     indices[0] = llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(*gen->llvm), 0);
     indices[1] = indices[0];
-    auto p = gen->builder->CreateGEP(useValue(gen, inst->from), {indices, 2});
-    return gen->builder->CreateLoad(p);
+    auto p = gen->builder->CreateGEP(gen->types.stringData, useValue(gen, inst->from), {indices, 2});
+    return gen->builder->CreateLoad(gen->builder->getInt32Ty(), p);
 }
 
 llvm::Value* genStringData(Gen* gen, InstStringData* inst) {
@@ -681,7 +688,7 @@ llvm::Value* genStringData(Gen* gen, InstStringData* inst) {
     indices[0] = llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(*gen->llvm), 0);
     indices[1] = llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(*gen->llvm), 1);
     indices[2] = llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(*gen->llvm), 0);
-    return gen->builder->CreateGEP(useValue(gen, inst->from), {indices, 3});
+    return gen->builder->CreateGEP(gen->types.stringData, useValue(gen, inst->from), {indices, 3});
 }
 
 llvm::Value* genCall(Gen* gen, InstCall* inst) {
@@ -726,7 +733,7 @@ llvm::Value* genSysCall(Gen* gen, InstCallDyn* inst) {
                         if(argCount >= 6) {
                             p = copyString("{r9},", p, (U32)(1024 - (p - constraints)));
                             if(argCount > 6) {
-                                gen->context->diagnostics.error("codegen: unsupported syscall argument count"_buffer, nullptr);
+                                gen->context->diagnostics.error("codegen: unsupported syscall argument count"_v, nullptr);
                             }
                         }
                     }
@@ -751,7 +758,7 @@ llvm::Value* genCallIntrinsic(Gen* gen, InstCallDyn* inst) {
         return nullptr;
     } else {
         // Unsupported type.
-        gen->context->diagnostics.error("codegen: unsupported intrinsic call type"_buffer, nullptr);
+        gen->context->diagnostics.error("codegen: unsupported intrinsic call type"_v, nullptr);
         return nullptr;
     }
 }

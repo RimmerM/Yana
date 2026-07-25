@@ -28,7 +28,7 @@ struct Node {
 };
 
 struct SourceProvider {
-    virtual StringBuffer getSource(Id module) = 0;
+    virtual StringView getSource(Id module) = 0;
 };
 
 struct Diagnostics {
@@ -41,23 +41,23 @@ struct Diagnostics {
     explicit Diagnostics(SourceProvider& provider): provider(provider) {}
 
     template<class... T>
-    void warning(StringBuffer text, const Node* where, T&&... format) {
+    void warning(StringView text, const Node* where, T&&... format) {
         message(WarningLevel, text, where, forward<T>(format)...);
     }
 
     template<class... T>
-    void error(StringBuffer text, const Node* where, T&&... format) {
+    void error(StringView text, const Node* where, T&&... format) {
         message(ErrorLevel, text, where, forward<T>(format)...);
     }
 
     template<class... T>
-    void message(Level level, StringBuffer text, const Node* where, T&&... format) {
+    void message(Level level, StringView text, const Node* where, T&&... format) {
         char buffer[4000];
-        text = {buffer, Size(formatString(toBuffer(buffer), text, forward<T>(format)...) - buffer)};
+        text = {buffer, Tritium::format(toBuffer(buffer), toString(text), forward<T>(format)...)};
         message(level, text, where);
     }
 
-    virtual void message(Level level, StringBuffer text, const Node* where) {
+    virtual void message(Level level, StringView text, const Node* where) {
         if(level == WarningLevel) warnings++;
         else if(level == ErrorLevel) errors++;
     }
@@ -73,5 +73,5 @@ protected:
 
 struct PrintDiagnostics: Diagnostics {
     using Diagnostics::Diagnostics;
-    void message(Level level, StringBuffer text, const Node* where) override;
+    void message(Level level, StringView text, const Node* where) override;
 };

@@ -33,21 +33,21 @@ struct InstanceList {
 struct Module {
     Id id;
 
-    HashMap<Import, Id> imports;
-    HashMap<Function, Id> functions;
-    HashMap<InstanceList*, U32> typeInstances;
-    HashMap<InstanceList*, Id> namedTypeInstances;
-    HashMap<ForeignFunction, Id> foreignFunctions;
-    HashMap<TypeClass, Id> typeClasses;
-    HashMap<InstanceMap, Id> classInstances;
-    HashMap<ClassFun*, Id> classFunctions;
+    HashMap<Id, Import> imports;
+    HashMap<Id, Function> functions;
+    HashMap<Id, InstanceList*> typeInstances;
+    HashMap<Id, InstanceList*> namedTypeInstances;
+    HashMap<Id, ForeignFunction> foreignFunctions;
+    HashMap<Id, TypeClass> typeClasses;
+    HashMap<Id, InstanceMap> classInstances;
+    HashMap<Id, ClassFun*> classFunctions;
 
-    HashMap<Type*, Id> types;
-    HashMap<Con*, Id> cons;
-    HashMap<OpProperties, Id> ops;
-    HashMap<Global, Id> globals;
+    HashMap<Id, Type*> types;
+    HashMap<Id, Con*> cons;
+    HashMap<Id, OpProperties> ops;
+    HashMap<Id, Global> globals;
 
-    HashMap<TupType*, Id> usedTuples;
+    HashMap<Id, TupType*> usedTuples;
 
     Function* staticInit = nullptr;
 

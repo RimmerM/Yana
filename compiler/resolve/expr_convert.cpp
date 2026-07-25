@@ -17,7 +17,7 @@ static Value* implicitConvertInt(FunBuilder* b, Value* v, Type* targetType, bool
     } else if(isConstruct) {
         return trunc(b->block, 0, v, targetType);
     } else {
-        error(b, "cannot implicitly convert an integer to a smaller type"_buffer, nullptr);
+        error(b, "cannot implicitly convert an integer to a smaller type"_v, nullptr);
         return v;
     }
 }
@@ -33,7 +33,7 @@ static Value* implicitConvertFloat(FunBuilder* b, Value* v, Type* targetType, bo
     } else if(isConstruct) {
         return ftrunc(b->block, 0, v, targetType);
     } else {
-        error(b, "cannot implicitly convert a float to a smaller type"_buffer, nullptr);
+        error(b, "cannot implicitly convert a float to a smaller type"_v, nullptr);
         return v;
     }
 }
@@ -102,12 +102,12 @@ Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool isConstru
     } else if(isConstruct && kind == Type::String && targetKind == Type::Int && v->kind == Value::ConstString) {
         // A string literal with a single code point can be converted to an integer.
         auto string = (ConstString*)v;
-        WChar32 codePoint = 0;
+        U32 codePoint = 0;
         if(string->length > 0) {
-            auto bytes = string->value;
-            Unicode::convertNextPoint(bytes, &codePoint);
-            if(string->length > (bytes - string->value)) {
-                error(b, "cannot convert a string with multiple characters to an int"_buffer, nullptr);
+            auto bytes = (const Byte*)string->value;
+            Unicode::utf8PointToUtf32(bytes, (const Byte*)string->value + string->length, &codePoint, &codePoint + 1);
+            if(string->length > (bytes - (const Byte*)string->value)) {
+                error(b, "cannot convert a string with multiple characters to an int"_v, nullptr);
             }
         }
 
@@ -115,7 +115,7 @@ Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool isConstru
     }
 
     if(require) {
-        error(b, "cannot implicitly convert to type"_buffer, nullptr);
+        error(b, "cannot implicitly convert to type"_v, nullptr);
         return error(b->block, 0, targetType);
     } else {
         return nullptr;

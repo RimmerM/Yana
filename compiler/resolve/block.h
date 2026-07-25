@@ -10,7 +10,7 @@ struct Block {
     Array<Inst*> instructions;
 
     // The defined values with a name in this block up to this point.
-    HashMap<Value*, Id> namedValues;
+    HashMap<Id, Value*> namedValues;
 
     // All blocks that can branch to this one.
     Array<Block*> incoming;
