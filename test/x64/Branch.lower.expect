@@ -1,0 +1,41 @@
+
+branch<complex>(%v: Int, %out: Int): Int, Int {
+  start {
+    %v_0 = cmp_le %v, 0: Int
+    je %v_0, a, b
+  }
+
+  a {
+    %v1 = add %v, 1: Int
+    jmp end
+  }
+
+  b {
+    %v2 = mul %v, 2: Int
+    jmp end
+  }
+
+  end {
+    %v_1 = phi [a, %v1], [b, %v2]: Int
+    ret %v_1, %out
+  }
+}
+
+
+--- codegen: branch ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  cmp_le uses=[rdi, -] creates=[-]  => 83ff00
+  je uses=[-] creates=[]  => 0f860f000000
+block b:
+  imm uses=[] creates=[rcx]  => b902000000
+  mul uses=[rax, rcx] creates=[rax] pre=[rdi->rax]  => 488bc7f7e1
+  jmp uses=[] creates=[]  => e905000000
+block a:
+  imm uses=[] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => ffc7
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
+block end:
+  ret uses=[rax, rdx] creates=[] pre=[rsi->rdx]  => 488bd6c3

@@ -1,0 +1,36 @@
+# Operand order is `select <condition>, <lhs>, <rhs>`, and the result is `condition ? lhs : rhs`.
+# The emitted code keeps lhs in the result register and conditionally moves rhs over it, so the
+# CMOV carries the negated condition code.
+#
+# Flags-producing comparisons: `merged` has nothing between the cmp and its use, so tryMergeCompare
+# folds it into the select's condition code; `materialized` has an interfering flags-clobbering add
+# in between, forcing the comparison into a real register and a test against it.
+
+merged(%v: Int, %a: Int, %b: Int): Int {
+    {
+        %cmp = cmp_eq %v, 1
+        %r = select %cmp, %a, %b: Int
+        ret %r
+    }
+}
+
+materialized(%v: Int, %a: Int, %b: Int): Int {
+    {
+        %cmp = cmp_ilt %v, 0
+        %x = add %a, 1: Int
+        %r = select %cmp, %x, %b: Int
+        ret %r
+    }
+}
+
+crossBlock(%v: Int, %a: Int, %b: Int): Int {
+    start {
+        %cmp = cmp_ige %v, 10
+        jmp next
+    }
+
+    next {
+        %r = select %cmp, %a, %b: Int
+        ret %r
+    }
+}

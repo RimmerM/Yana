@@ -1,0 +1,34 @@
+widen(%v: Int): Long {
+    {
+        %z = cast %v: Long
+        %s = sext %v: Long
+        %t = add %z, %s: Long
+        ret %t
+    }
+}
+
+narrowCast(%v: Long): Int {
+    {
+        %n = cast %v: Int
+        ret %n
+    }
+}
+
+bitcasts(%v: Long, %p: Ptr): Long {
+    {
+        %a = bitcast %v: Ptr
+        %b = bitcast %p: Long
+        %c = bitcast %b: Long
+        %d = add %b, %c: Long
+        ret %d
+    }
+}
+
+immCast(): Long {
+    {
+        %big = cast 4294967296L: Long
+        %neg = cast -1: Long
+        %t = add %big, %neg: Long
+        ret %t
+    }
+}

@@ -1,0 +1,117 @@
+# Phi hazards. Each of these used to break the register allocator, and each breaks it in a
+# different way, so they are kept as separate functions rather than folded together.
+#
+# The shared theme is that a phi's register is written by a move at the end of *every* predecessor,
+# including back edges reached long after the phi's own block. Any handling that assumes the value
+# flowing into a phi is consumed exactly once, or that a phi's register is free between its last
+# read and the back edge, gets one of these wrong.
+
+# The value feeding the phi is also read inside the successor. It cannot be treated as consumed by
+# the phi handoff, or the second read finds a register that has already been handed to something else.
+sourceUsedLater(%n: Int, %lim: Int): Int {
+    start {
+        %x = add %n, 1: Int
+        jmp head
+    }
+
+    head {
+        %p = phi [start, %x], [head, %q]: Int
+        %q = add %p, %x: Int
+        je (cmp_le %q, %lim), head, end
+    }
+
+    end {
+        ret %p
+    }
+}
+
+# Two phis in the same block take the same incoming value, so that value is handed off twice over
+# one edge.
+sharedSource(%n: Int): Int {
+    start {
+        %x = add %n, 1: Int
+        jmp join
+    }
+
+    join {
+        %p = phi [start, %x]: Int
+        %q = phi [start, %x]: Int
+        %r = add %p, %q: Int
+        ret %r
+    }
+}
+
+# Both successors of a branch have a phi fed by the same value. Their moves must not both land on
+# the branch's own terminator, where they would run on either path - the edges get split instead.
+branchedSource(%n: Int, %c: Int): Int {
+    start {
+        %x = add %n, 1: Int
+        je %c, a, b
+    }
+
+    a {
+        %p = phi [start, %x]: Int
+        ret %p
+    }
+
+    b {
+        %q = phi [start, %x]: Int
+        ret %q
+    }
+}
+
+# Two phis that feed each other across the back edge: the copies at the edge form a permutation
+# cycle, which is emitted as a single exchange rather than a sequence of moves that would clobber.
+swap(%n: Int, %m: Int, %k: Int): Int {
+    start {
+        jmp head
+    }
+
+    head {
+        %a = phi [start, %n], [head, %b]: Int
+        %b = phi [start, %m], [head, %a]: Int
+        je (cmp_le %a, %k), head, end
+    }
+
+    end {
+        ret %a
+    }
+}
+
+# A phi threaded through a second diamond, so the value arriving at `end` comes from a phi rather
+# than from an ordinary instruction.
+chain(%x: Int, %c: Int): Int {
+    start {
+        je %c, l, r
+    }
+
+    l {
+        %p = add %x, 1: Int
+        jmp mid
+    }
+
+    r {
+        %q = add %x, 2: Int
+        jmp mid
+    }
+
+    mid {
+        %m = phi [l, %p], [r, %q]: Int
+        je %c, l2, r2
+    }
+
+    l2 {
+        %s = add %m, 3: Int
+        jmp end
+    }
+
+    r2 {
+        %t = add %m, 4: Int
+        jmp end
+    }
+
+    end {
+        %z = phi [l2, %s], [r2, %t]: Int
+        ret %z
+    }
+}

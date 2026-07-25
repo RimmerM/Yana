@@ -91,16 +91,51 @@ struct DominatorTree {
     BlockIndex startIndex;
 };
 
+// The stretch of the linear instruction numbering (see Liveness::instCount) over which a value
+// has to keep its assigned register. `start` is the first index at which the value's register is
+// written, `end` the last index at which it is read; the value is dead *after* `end`, so a value
+// defined at index i may reuse the register of an operand whose range ends at i - x86 reads every
+// source of an instruction before writing its destination.
+//
+// This is a single conservative interval with no holes: a value that is live in two blocks is
+// treated as live everywhere in between. That costs some allocation quality when blocks are not in
+// reverse postorder, but it is correct for any block order, because every point at which the value
+// is genuinely live falls inside [start, end].
+struct LiveRange {
+    U32 start = maxLimit<U32>;
+    U32 end = 0;
+
+    // An empty range means the value never needs a register (it is implicit, or never defined).
+    bool isEmpty() const { return start > end; }
+
+    bool covers(U32 index) const { return index >= start && index <= end; }
+
+    // True if this value has to hold its register *across* `index`, rather than merely being
+    // defined or consumed there. Only these values need to dodge an instruction's clobbers.
+    bool crosses(U32 index) const { return index > start && index < end; }
+
+    void extend(U32 index) {
+        if(index < start) start = index;
+        if(index > end) end = index;
+    }
+};
+
 struct LiveSet {
     LiveSet(LinearArena& a, Size valueCount): liveIn(a, valueCount), liveOut(a, valueCount), valueCount(valueCount) {}
 
     EmbedSet liveIn;
     EmbedSet liveOut;
     Size valueCount;
+
+    // Range of the linear instruction numbering covered by this block: `firstIndex` is its first
+    // instruction (or its terminator, for an empty block), `lastIndex` its terminator. Phi moves
+    // for a successor's phis are emitted at `lastIndex`.
+    U32 firstIndex = 0;
+    U32 lastIndex = 0;
 };
 
 struct Liveness {
-    explicit Liveness(LinearArena& a): valueMap({ a }), blockMap({ a }) {}
+    explicit Liveness(LinearArena& a): valueMap({ a }), blockMap({ a }), ranges({ a }) {}
 
     void allocateBlocks(LinearArena& a, Size blockCount, Size valueCount) {
         assertTrue(blockMap.isEmpty());
@@ -114,8 +149,16 @@ struct Liveness {
     LinearArenaArray<LowerValue*> valueMap;
     LinearArenaArray<LiveSet> blockMap;
 
+    // Live range of every value, indexed by LiveId (parallel to valueMap).
+    LinearArenaArray<LiveRange> ranges;
+
+    // Number of instruction indices assigned; every index in [0, instCount) names one instruction
+    // or terminator, in the order the blocks appear in LowerFunction::blocks.
+    U32 instCount = 0;
+
     LiveSet* getBlock(LowerBlock* b);
     LowerValue* getValue(LiveId id);
+    LiveRange& getRange(LiveId id);
 };
 
 // A local register containing the result of some operation.
@@ -199,9 +242,6 @@ struct LowerBlock {
 
     // Temporary marker for use by tree traversals, to avoid external data structures.
     U32 marker = 0;
-
-    // Starting index into the register allocation operations list.
-    U32 ops = 0;
 
     // Index into the containing function's block list.
     // This always needs to be kept valid.

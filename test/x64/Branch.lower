@@ -1,0 +1,19 @@
+branch(%v: Int, %out: Int): Int, Int {
+    start {
+        je (cmp_le %v, 0), a, b
+    }
+
+    a {
+        %v1 = add %v, 1: Int
+        jmp end
+    }
+
+    b {
+        %v2 = mul %v, 2: Int
+        jmp end
+    }
+
+    end {
+        ret (phi [a, %v1], [b, %v2]: Int), %out
+    }
+}

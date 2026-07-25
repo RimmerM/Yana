@@ -1,0 +1,66 @@
+# Loops that put real pressure on the allocator: two nested levels of loop-carried phis, and a loop
+# whose body clobbers most of the register file.
+
+# Both levels carry phis, and the inner loop's accumulator is threaded back out to the outer one, so
+# every phi's register has to stay valid across a back edge that is numbered well after it.
+nested(%n: Int, %m: Int): Int {
+    start {
+        %z = cast 0: Int
+        jmp outer
+    }
+
+    outer {
+        %i = phi [start, %z], [outerEnd, %i2]: Int
+        %acc = phi [start, %z], [outerEnd, %acc2]: Int
+        je (cmp_ilt %i, %n), inner, done
+    }
+
+    inner {
+        %j = phi [outer, %z], [inner, %j2]: Int
+        %a = phi [outer, %acc], [inner, %a2]: Int
+        %a2 = add %a, %j: Int
+        %j2 = add %j, 1: Int
+        je (cmp_ilt %j2, %m), inner, outerEnd
+    }
+
+    outerEnd {
+        %acc2 = phi [inner, %a2]: Int
+        %i2 = add %i, 1: Int
+        jmp outer
+    }
+
+    done {
+        ret %acc
+    }
+}
+
+# The loop-carried values and the loop bound all cross a call, so none of them can live in a
+# register the calling convention clobbers. This is the shape that decides how many loop-carried
+# values a function can have before the allocator runs out of registers.
+loopCall(%n: Int): Int {
+    start {
+        %z = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [start, %z], [body, %i2]: Int
+        %s = phi [start, %z], [body, %s2]: Int
+        je (cmp_ilt %i, %n), body, out
+    }
+
+    body {
+        %r = call_complex helper, %i: Int
+        %s2 = add %s, %r: Int
+        %i2 = add %i, 1: Int
+        jmp head
+    }
+
+    out {
+        ret %s
+    }
+}
+
+helper(%x: Int): Int {
+    { ret %x }
+}

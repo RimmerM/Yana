@@ -1,0 +1,37 @@
+callee(%x: Int, %y: Int): Int {
+    { ret %x }
+}
+
+many(%a0: Int, %a1: Int, %a2: Int, %a3: Int, %a4: Int, %a5: Int, %a6: Int, %a7: Int, %a8: Int): Int {
+    { ret %a0 }
+}
+
+simpleCall(%a: Int, %b: Int): Int {
+    {
+        %r = call_complex callee, %a, %b: Int
+        ret %r
+    }
+}
+
+liveAcrossCall(%a: Int, %b: Int): Int {
+    {
+        %r = call_complex callee, %a, %b: Int
+        %s = add %r, %a: Int
+        ret %s
+    }
+}
+
+pushCall(%a: Int, %b: Int): Int {
+    {
+        %p = push %b, 9
+        %r = call_complex many, %a, %a, %a, %a, %a, %a, %a, %a, %p: Int
+        ret %r
+    }
+}
+
+sysCall(%n: Int, %fd: Int, %buf: Int, %len: Int): Int {
+    {
+        %r = syscall %n, %fd, %buf, %len: Int
+        ret %r
+    }
+}

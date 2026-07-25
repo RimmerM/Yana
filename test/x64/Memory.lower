@@ -1,0 +1,53 @@
+@g = 42
+
+loadStore(%p: Ptr, %v: Int): Int {
+    {
+        store %p, %v, 4
+        %l = load %p, 4: Int
+        %w = add %l, %v: Int
+        ret %w
+    }
+}
+
+narrow(%p: Ptr, %v: Int): Int {
+    {
+        store %p, %v, 1
+        store %p, %v, 2
+        store %p, %v, 8
+        %b = load %p, 1: Int
+        %h = loads %p, 2: Int
+        %q = load %p, 8: Long
+        %s = loads %p, 4: Long
+        %t = add %q, %s: Long
+        %c = cast %t: Int
+        %r = add %b, %h: Int
+        %r2 = add %r, %c: Int
+        ret %r2
+    }
+}
+
+globalLoad(): Int {
+    {
+        %gp = global @g
+        %gv = load %gp, 4: Int
+        ret %gv
+    }
+}
+
+blockOps(%dst: Ptr, %src: Ptr) {
+    {
+        copy %dst, %src, 12
+        setpattern %dst, 6, 0
+        ret
+    }
+}
+
+# A count that isn't an immediate can't be unrolled, so these take the `rep movsb`/`rep stosb`
+# encodings instead, which read their operands from fixed registers.
+blockOpsDynamic(%dst: Ptr, %src: Ptr, %n: Int, %pat: Int) {
+    {
+        copy %dst, %src, %n
+        setpattern %dst, %n, %pat
+        ret
+    }
+}

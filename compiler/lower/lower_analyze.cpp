@@ -92,39 +92,19 @@ DominatorTree LowerFunction::buildDominatorTree(LowerBase base) {
     };
 }
 
-static bool canContribute(LowerBase base, LowerInst* inst) {
-    if(isPhi(inst)) return true;
-    auto b = inst->block;
-
-    for(auto v: inst->created()) {
-        if(v.flags & LowerValue::Implicit) continue;
-
-        for(auto offset: v.uses.contents(base)) {
-            auto use = base[offset];
-
-            // If any use of the value is in a different block or a phi in the same block,
-            // it can escape the current block.
-            if(use->block != b || isPhi(use)) return true;
-        }
-    }
-
-    return false;
-}
-
+// Assigns a dense LiveId to every value the instruction creates. Unlike an escape-analysis-filtered
+// numbering, this covers block-local values too: the LiveId doubles as the index into
+// Liveness::ranges, and the register allocator needs a range for every value it has to place, not
+// only for the ones that cross a block boundary. Block-local values simply never appear in any
+// block's live-in/live-out set, so the extra ids cost bits in those sets and nothing else.
 static void addInst(Liveness& live, LowerInst* inst) {
-    assertTrue(live.valueMap.size() < kNullLive);
+    if(inst->createdCount == 0) return;
+
+    assertTrue(live.valueMap.size() + inst->createdCount < kNullLive);
     inst->liveId = live.valueMap.size();
 
     for(auto& v: inst->created()) {
         live.valueMap.push(&v);
-    }
-}
-
-static void checkInst(LowerBase base, Liveness& live, LowerInst* inst) {
-    if(canContribute(base, inst)) {
-        addInst(live, inst);
-    } else {
-        assertTrue(inst->liveId == kNullLive);
     }
 }
 
@@ -217,28 +197,126 @@ static void processBlocks(LowerBase base, Liveness& live, Container blockList) {
     }
 }
 
+/*
+ * Live ranges.
+ *
+ * The liveness sets above answer "is this value live at this block boundary". The register
+ * allocator needs the stronger "over which stretch of the program does this value need a register",
+ * so that it can hand a value one register for its whole lifetime instead of tracking remaining
+ * use counts as it walks. That stretch is derived here, once, from the sets plus a single linear
+ * numbering of the instructions.
+ *
+ * The numbering follows LowerFunction::blocks in order, so any consumer that walks the blocks in
+ * the same order sees exactly these indices without having to store them per instruction. Callers
+ * that want tight ranges should put the block list in reverse postorder first (see orderBlocks in
+ * codegen/x64/transform.cpp); the ranges stay correct in any order, just wider.
+ */
+
+static void extendRange(Liveness& live, LowerValue* v, U32 index) {
+    if(v->flags & LowerValue::Implicit) return;
+
+    auto id = v->liveId();
+    if(id == kNullLive) return;
+
+    live.ranges[id].extend(index);
+}
+
+static void buildRanges(LowerBase base, LowerFunction& fun, Liveness& live) {
+    for(Size i = 0; i < live.valueMap.size(); i++) live.ranges.push(LiveRange {});
+
+    auto blockList = fun.blocks.contents(base);
+
+    // Arguments occupy their incoming registers from the moment the function is entered, before
+    // any instruction has run, so their ranges have to start at the very first index rather than
+    // at whatever block first reports them live-in.
+    for(auto a: fun.args.contents(base)) {
+        extendRange(live, &base[a]->result, 0);
+    }
+
+    U32 index = 0;
+
+    for(auto offset: blockList) {
+        auto b = base[offset];
+        auto set = live.getBlock(b);
+        set->firstIndex = index;
+
+        // A phi is conceptually defined at the top of its block, before the first instruction.
+        for(auto p: b->phis.contents(base)) {
+            extendRange(live, &base[p]->result, index);
+        }
+
+        for(auto i: b->instructions.contents(base)) {
+            auto inst = base[i];
+
+            for(auto u: inst->used()) extendRange(live, base[u], index);
+            for(auto& v: inst->created()) extendRange(live, &v, index);
+
+            index++;
+        }
+
+        for(auto u: base[b->terminator]->used()) extendRange(live, base[u], index);
+
+        set->lastIndex = index;
+        index++;
+    }
+
+    live.instCount = index;
+
+    // A value that is live at a block boundary has to hold its register across that boundary, even
+    // where the block itself neither defines nor uses it.
+    for(auto offset: blockList) {
+        auto set = live.getBlock(base[offset]);
+
+        set->liveIn.iterate(set->valueCount, [&](LiveId id) {
+            live.ranges[id].extend(set->firstIndex);
+        });
+
+        set->liveOut.iterate(set->valueCount, [&](LiveId id) {
+            live.ranges[id].extend(set->lastIndex);
+        });
+    }
+
+    // A phi's register is written by a move at the end of *every* predecessor, including back-edge
+    // predecessors that are numbered long after the phi's own block. Its range has to reach those
+    // move sites, or something else could be handed its register in between and be overwritten.
+    for(auto offset: blockList) {
+        auto b = base[offset];
+
+        for(auto p: b->phis.contents(base)) {
+            auto& result = base[p]->result;
+            if(result.flags & LowerValue::Implicit) continue;
+
+            auto id = result.liveId();
+            if(id == kNullLive) continue;
+
+            for(auto in: b->incoming.contents(base)) {
+                live.ranges[id].extend(live.getBlock(base[in])->lastIndex);
+            }
+        }
+    }
+}
+
 Ptr<Liveness> LowerFunction::buildLiveness(LowerBase base) {
     Ptr<Liveness> live(new Liveness { arena });
 
-    // Generate the list of values that contribute to liveness.
-    // Values only contribute if they are used outside (or in a phi in) the block they are created in.
+    // Number every value in the function. Phis come first within a block, matching the order
+    // buildRanges walks them in.
     auto blockList = blocks.contents(base);
 
     for(auto a: args.contents(base)) {
-        checkInst(base, *live, base[a]);
+        addInst(*live, base[a]);
     }
 
     for(auto offset: blockList) {
         auto b = base[offset];
 
-        // Phis always potentially contribute to inter-block liveness.
         // No need to process the terminator, as it never produces any value.
         for(auto i: b->phis.contents(base)) {
             addInst(*live, base[i]);
         }
 
         for(auto i: b->instructions.contents(base)) {
-            checkInst(base, *live, base[i]);
+            addInst(*live, base[i]);
         }
     }
 
@@ -254,6 +332,8 @@ Ptr<Liveness> LowerFunction::buildLiveness(LowerBase base) {
     } else {
         processBlocks<false>(base, *live, blockList);
     }
+
+    buildRanges(base, *this, *live);
 
     return ::move(live);
 }

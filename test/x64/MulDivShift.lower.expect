@@ -1,0 +1,51 @@
+
+mulDivShift<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %m1 = mul %a, %b: Int
+    %m2 = imul %a, %b: Int
+    %m3 = imul %a, 3: Int
+    %dv = div %a, %b: Int
+    %iq = idiv %a, %b: Int
+    %ir = irem %a, %b: Int
+    %sl = shl %a, %b: Int
+    %sr = shr %a, %b: Int
+    %sa = sar %a, %b: Int
+    %sl2 = shl %a, 2: Int
+    ret %m1
+  }
+}
+
+remLiveResult<complex>(%a: Int, %b: Int, %c: Int): Int {
+  b_0 {
+    %r = rem %a, %b: Int
+    %s = add %r, %c: Int
+    ret %s
+  }
+}
+
+
+--- codegen: mulDivShift ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  mul uses=[rax, rsi] creates=[rax] pre=[rdi->rax] post=[rax->rbx]  => 488bc7f7e6488bd8
+  imul uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488bc70fafc6
+  imm uses=[] creates=[-]  => 
+  imul uses=[rdi, -] creates=[rax]  => 6bc703
+  div uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488bc731d2f7f6
+  idiv uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488bc799f7fe
+  irem uses=[rax, rsi] creates=[rdx] pre=[rdi->rax]  => 488bc799f7fe
+  shl uses=[rax, rcx] creates=[rax] pre=[rdi->rax, rsi->rcx]  => 488bc7488bced3e0
+  shr uses=[rax, rcx] creates=[rax] pre=[rdi->rax, rsi->rcx]  => 488bc7488bced3e8
+  sar uses=[rax, rcx] creates=[rax] pre=[rdi->rax, rsi->rcx]  => 488bc7488bced3f8
+  imm uses=[] creates=[-]  => 
+  shl uses=[rdi, -] creates=[rdi]  => c1e702
+  ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc3c3
+
+--- codegen: remLiveResult ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdx->rcx]  => 488bca
+block #1:
+  rem uses=[rax, rsi] creates=[rdx] pre=[rdi->rax]  => 488bc731d2f7f6
+  add uses=[rdx, rcx] creates=[rdx]  => 01ca
+  ret uses=[rax] creates=[] pre=[rdx->rax]  => 488bc2c3

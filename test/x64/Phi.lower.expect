@@ -1,0 +1,185 @@
+
+sharedSource<complex>(%n: Int): Int {
+  start {
+    %x = add %n, 1: Int
+    jmp join
+  }
+
+  join {
+    %p = phi [start, %x]: Int
+    %q = phi [start, %x]: Int
+    %r = add %p, %q: Int
+    ret %r
+  }
+}
+
+swap<complex>(%n: Int, %m: Int, %k: Int): Int {
+  start {
+    jmp head
+  }
+
+  head {
+    %a = phi [start, %n], [head, %b]: Int
+    %b = phi [start, %m], [head, %a]: Int
+    %v_0 = cmp_le %a, %k: Int
+    je %v_0, head, end
+  }
+
+  end {
+    ret %a
+  }
+}
+
+sourceUsedLater<complex>(%n: Int, %lim: Int): Int {
+  start {
+    %x = add %n, 1: Int
+    jmp head
+  }
+
+  head {
+    %p = phi [start, %x], [head, %q]: Int
+    %q = add %p, %x: Int
+    %v_0 = cmp_le %q, %lim: Int
+    je %v_0, head, end
+  }
+
+  end {
+    ret %p
+  }
+}
+
+branchedSource<complex>(%n: Int, %c: Int): Int {
+  start {
+    %x = add %n, 1: Int
+    je %c, a, b
+  }
+
+  a {
+    %p = phi [start, %x]: Int
+    ret %p
+  }
+
+  b {
+    %q = phi [start, %x]: Int
+    ret %q
+  }
+}
+
+chain<complex>(%x: Int, %c: Int): Int {
+  start {
+    je %c, l, r
+  }
+
+  l {
+    %p = add %x, 1: Int
+    jmp mid
+  }
+
+  r {
+    %q = add %x, 2: Int
+    jmp mid
+  }
+
+  mid {
+    %m = phi [l, %p], [r, %q]: Int
+    je %c, l2, r2
+  }
+
+  l2 {
+    %s = add %m, 3: Int
+    jmp end
+  }
+
+  r2 {
+    %t = add %m, 4: Int
+    jmp end
+  }
+
+  end {
+    %z = phi [l2, %s], [r2, %t]: Int
+    ret %z
+  }
+}
+
+
+--- codegen: sharedSource ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => ffc7
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
+block join:
+  add uses=[rdi, rax] creates=[rdi]  => 01c7
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: swap ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  jmp uses=[] creates=[]  => 
+block head:
+  cmp_le uses=[rdi, rdx] creates=[-]  => 39d7
+  je uses=[-] creates=[]  => 0f8604000000
+block end:
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+block #4:
+  jmp uses=[] creates=[] pre=[rsi<->rdi]  => 4887fee9ecffffff
+
+--- codegen: sourceUsedLater ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => ffc7
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
+block head:
+  add uses=[rcx, rdi] creates=[rcx] pre=[rax->rcx]  => 488bc801f9
+  cmp_le uses=[rcx, rsi] creates=[-]  => 39f1
+  je uses=[-] creates=[]  => 0f8601000000
+block end:
+  ret uses=[rax] creates=[]  => c3
+block #4:
+  jmp uses=[] creates=[] pre=[rcx->rax]  => 488bc1e9eaffffff
+
+--- codegen: branchedSource ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => ffc7
+  je uses=[rsi] creates=[]  => 85f60f8504000000
+block #2:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
+block b:
+  ret uses=[rax] creates=[]  => c3
+block #4:
+  jmp uses=[] creates=[]  => 
+block a:
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: chain ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  je uses=[rsi] creates=[]  => 85f60f850b000000
+block r:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc783c002
+  jmp uses=[] creates=[]  => e905000000
+block l:
+  imm uses=[] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => ffc7
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
+block mid:
+  je uses=[rsi] creates=[]  => 85f60f850b000000
+block r2:
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 488bc883c104
+  jmp uses=[] creates=[]  => e906000000
+block l2:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => 83c003
+  jmp uses=[] creates=[] pre=[rax->rcx]  => 488bc8
+block end:
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3

@@ -1,0 +1,26 @@
+mulDivShift(%a: Int, %b: Int): Int {
+    {
+        %m1 = mul %a, %b: Int
+        %m2 = imul %a, %b: Int
+        %m3 = imul %a, 3: Int
+        %dv = div %a, %b: Int
+        %iq = idiv %a, %b: Int
+        %ir = irem %a, %b: Int
+        %sl = shl %a, %b: Int
+        %sr = shr %a, %b: Int
+        %sa = sar %a, %b: Int
+        %sl2 = shl %a, 2: Int
+        ret %m1
+    }
+}
+
+# `rem` produces its result in rdx while reading its dividend from rax, so both have to be clear of
+# anything still live - including a value that only passes through, like %c here (the third argument,
+# which arrives in rdx).
+remLiveResult(%a: Int, %b: Int, %c: Int): Int {
+    {
+        %r = rem %a, %b: Int
+        %s = add %r, %c: Int
+        ret %s
+    }
+}

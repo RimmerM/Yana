@@ -1,0 +1,73 @@
+
+narrowCast<complex>(%v: Long): Int {
+  b_0 {
+    %n = cast %v: Int
+    ret %n
+  }
+}
+
+immCast<complex>(): Long {
+  b_0 {
+    %big = cast 4294967296: Long
+    %neg = cast 18446744073709551615: Long
+    %t = add %big, %neg: Long
+    ret %t
+  }
+}
+
+bitcasts<complex>(%v: Long, %p: Ptr): Long {
+  b_0 {
+    %a = bitcast %v: Ptr
+    %b = bitcast %p: Long
+    %c = bitcast %b: Long
+    %d = add %b, %c: Long
+    ret %d
+  }
+}
+
+widen<complex>(%v: Int): Long {
+  b_0 {
+    %z = cast %v: Long
+    %s = sext %v: Long
+    %t = add %z, %s: Long
+    ret %t
+  }
+}
+
+
+--- codegen: narrowCast ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[rdi] creates=[rdi]  => 8bff
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: immCast ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[rax]  => 48b80000000001000000
+  cast uses=[rax] creates=[rax]  => 488bc0
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rcx]  => 48c7c1ffffffff
+  add uses=[rax, rcx] creates=[rax]  => 4801c8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: bitcasts ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bitcast uses=[rdi] creates=[rdi]  => 
+  bitcast uses=[rsi] creates=[rsi]  => 
+  bitcast uses=[rsi] creates=[rax]  => 488bc6
+  add uses=[rsi, rax] creates=[rsi]  => 4801c6
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+
+--- codegen: widen ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[rdi] creates=[rax]  => 8bc7
+  sext uses=[rdi] creates=[rdi]  => 4863ff
+  add uses=[rax, rdi] creates=[rax]  => 4801f8
+  ret uses=[rax] creates=[]  => c3

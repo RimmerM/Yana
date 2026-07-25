@@ -1,0 +1,88 @@
+# Control flow that does not run straight down the block list: values live across a branch, blocks
+# declared in an order that isn't a walk of the CFG, and an arm that forces registers around.
+#
+# The property under test throughout is that a value is in the same register on every path reaching
+# a given instruction. An allocator that carries mutable state from one block to the next in
+# declaration order can get this wrong silently, without producing an invalid-looking listing.
+
+# %x is live across both arms; one arm needs rax and rdx for a division, the other does not. If
+# resolving the division relocated %x, the two arms would disagree about where it lives and `end`
+# would read whichever the last-processed arm happened to leave behind.
+diverge(%n: Int, %d: Int, %c: Int): Int {
+    start {
+        %x = add %n, 1: Int
+        je %c, a, b
+    }
+
+    a {
+        %q = div %d, %n: Int
+        jmp end
+    }
+
+    b {
+        %r = add %d, %n: Int
+        jmp end
+    }
+
+    end {
+        ret %x
+    }
+}
+
+# Distinct values feeding phis in both successors of a branch: the two sets of moves belong on
+# different edges and must not both be emitted ahead of the branch.
+critEdge(%n: Int, %m: Int, %c: Int): Int {
+    start {
+        je %c, a, b
+    }
+
+    a {
+        %p = phi [start, %n]: Int
+        ret %p
+    }
+
+    b {
+        %q = phi [start, %m]: Int
+        ret %q
+    }
+}
+
+# `a` is declared before `b` but is only reachable through it, so the declaration order is not a
+# valid walk of the CFG. %x has to survive the block that sits in between.
+outOfOrder(%n: Int): Int {
+    start {
+        %x = add %n, 1: Int
+        jmp b
+    }
+
+    a {
+        %y = add %x, 2: Int
+        ret %y
+    }
+
+    b {
+        %z = add %n, 3: Int
+        jmp a
+    }
+}
+
+# An early exit whose other arm runs two fixed-register instructions back to back. %keep has to stay
+# put across both, and idiv's result has to leave rax before irem overwrites it.
+earlyExit(%a: Int, %b: Int, %c: Int): Int {
+    start {
+        %keep = add %a, 7: Int
+        je (cmp_eq %c, 0), quick, slow
+    }
+
+    quick {
+        ret %keep
+    }
+
+    slow {
+        %d = idiv %a, %b: Int
+        %e = irem %a, %b: Int
+        %f = add %d, %e: Int
+        %g = add %f, %keep: Int
+        ret %g
+    }
+}

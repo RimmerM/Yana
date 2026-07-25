@@ -1,0 +1,33 @@
+
+arith<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %s1 = add %a, %b: Int
+    %s2 = add %a, 1: Int
+    %d1 = sub %a, %b: Int
+    %d2 = sub %a, 1: Int
+    %n1 = and %a, %b: Int
+    %o1 = or %a, %b: Int
+    %x1 = xor %a, %b: Int
+    %g1 = neg %a: Int
+    %t1 = not %a: Int
+    ret %s1
+  }
+}
+
+
+--- codegen: arith ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  add uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488bc701f0
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcfffc1
+  sub uses=[rcx, rsi] creates=[rcx] pre=[rdi->rcx]  => 488bcf29f1
+  imm uses=[] creates=[-]  => 
+  sub uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcfffc9
+  and uses=[rcx, rsi] creates=[rcx] pre=[rdi->rcx]  => 488bcf21f1
+  or uses=[rcx, rsi] creates=[rcx] pre=[rdi->rcx]  => 488bcf09f1
+  xor uses=[rcx, rsi] creates=[rcx] pre=[rdi->rcx]  => 488bcf31f1
+  neg uses=[rcx] creates=[rcx] pre=[rdi->rcx]  => 488bcff7d9
+  not uses=[rdi] creates=[rdi]  => f7d7
+  ret uses=[rax] creates=[]  => c3

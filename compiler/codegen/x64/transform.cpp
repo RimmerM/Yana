@@ -61,6 +61,29 @@ static bool tryEmbedImm(LowerBase base, LowerImm* imm) {
     return true;
 }
 
+// A call to a statically known function is encoded as a direct rel32 call, which never reads the
+// target address out of a register. Materializing it costs a `lea` that nothing reads, and - worse -
+// a register that has to survive the call's clobber set, of which there are only a handful. Mark the
+// address implicit unless something other than a direct callee position actually needs it.
+static bool tryElideDirectCallee(LowerBase base, LowerInstFun* fun) {
+    for(auto offset: fun->result.uses.contents(base)) {
+        auto use = base[offset];
+        if(use->kind != LowerInst::Call) return false;
+        if(((LowerInstCall*)use)->getCallType() == LowerCallType::Syscall) return false;
+
+        // used()[0] is the callee; anywhere else it is an ordinary argument and needs a register.
+        auto used = use->used();
+        if(base[used[0]] != &fun->result) return false;
+
+        for(Size i = 1; i < used.size(); i++) {
+            if(base[used[i]] == &fun->result) return false;
+        }
+    }
+
+    fun->result.flags |= LowerValue::Implicit;
+    return true;
+}
+
 // Tries to swap operands to the provided instruction in order to make it easier to perform further optimizations.
 // This needs to be done before register allocation,
 // since swapping and then embedding may reduce the number of registers needed.
@@ -136,6 +159,116 @@ static bool tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
     return true;
 }
 
+// Records, once, which of the two encodings a Copy/SetPattern will take, so that the register
+// constraints (constraint.cpp) and the encoder (genCopy/genSetPattern) read one field instead of
+// each re-deriving the choice and risking disagreement. The unrolled form is only viable for a
+// compile-time byte count small enough to be worth straight-lining; everything else takes the
+// rep-prefixed string instruction, which needs its operands in fixed registers.
+static bool isUnrolledCount(LowerBase base, LowerPtr<LowerValue> count) {
+    auto value = base[count];
+    if(value->inst()->kind != LowerInst::Imm) return false;
+
+    return ((LowerImm*)value->inst())->i <= kMaxUnrolledMemOp;
+}
+
+static void selectBlockOpEncoding(LowerBase base, LowerInst* inst) {
+    if(inst->kind == LowerInst::Copy) {
+        auto copy = (LowerInstCopy*)inst;
+        copy->setUnrolled(isUnrolledCount(base, copy->count));
+    } else if(inst->kind == LowerInst::SetPattern) {
+        auto set = (LowerInstSetPattern*)inst;
+        set->setUnrolled(isUnrolledCount(base, set->count));
+    }
+}
+
+// Inserts an empty block on the edge from `pred` (its `outgoing[edge]`) to `succ`, so that the
+// moves that feed `succ`'s phis have a block of their own to live in.
+//
+// Phi moves are emitted at the end of the predecessor, which is only sound if control reaching that
+// point is guaranteed to continue into the phi's block. When the predecessor ends in a conditional
+// branch, it is not: the moves would run on the way to *both* successors, writing phi registers on
+// a path where they hold something else. Splitting gives the edge a block whose only successor is
+// `succ`, which restores that guarantee.
+static void splitEdge(LowerBase base, LowerFunction& fun, LowerBlock* pred, Size edge) {
+    auto& arena = fun.arena;
+    auto succ = base[pred->outgoing[edge]];
+    auto predOffset = pred - base;
+
+    auto split = new (arena) LowerBlock(pred->fun, 0, BlockIndex(fun.blocks.size()));
+    fun.blocks.push(arena, split - base);
+
+    // Wired up by hand rather than through addInst, which would append the split block to `succ`'s
+    // incoming list instead of replacing the predecessor entry that the phis still refer to.
+    auto jmp = (LowerInst*)new (arena) LowerInstJmp(succ - base);
+    jmp->block = split - base;
+    split->terminator = jmp - base;
+    split->outgoing[0] = succ - base;
+    split->incoming.push(arena, predOffset);
+
+    auto je = (LowerInstJe*)base[pred->terminator];
+    assertTrue(je->kind == LowerInst::Je);
+    if(edge == 0) je->then = split - base;
+    else je->otherwise = split - base;
+    pred->outgoing[edge] = split - base;
+
+    for(Size i = 0; i < succ->incoming.size(); i++) {
+        if(succ->incoming.get(base, i) == predOffset) {
+            succ->incoming.set(base, i, split - base);
+            break;
+        }
+    }
+
+    for(auto p: succ->phis.contents(base)) {
+        auto sources = base[p]->sources();
+        for(Size i = 0; i < sources.size(); i++) {
+            if(sources.ptr[i] == predOffset) sources.ptr[i] = split - base;
+        }
+    }
+}
+
+static void splitPhiEdges(LowerBase base, LowerFunction& fun) {
+    // Snapshotted because splitting appends to the block list, and a freshly created split block
+    // has a single successor and so can never itself need splitting.
+    Array<LowerPtr<LowerBlock>> original;
+    for(auto b: fun.blocks.contents(base)) original.push(b);
+
+    for(auto offset: original) {
+        auto pred = base[offset];
+
+        // Only a block with two successors can reach a phi on a path it might not take.
+        if(!pred->outgoing[0] || !pred->outgoing[1]) continue;
+
+        for(Size edge = 0; edge < 2; edge++) {
+            if(base[pred->outgoing[edge]]->phis.isNotEmpty()) splitEdge(base, fun, pred, edge);
+        }
+    }
+}
+
+// Rewrites the block list into reverse postorder, so that a block is (wherever the CFG allows it)
+// visited after the predecessors that define the values live on entry to it.
+//
+// Both consumers depend on this: buildRanges numbers instructions in block-list order, and its
+// ranges are only tight when that order follows the control flow; genFunction emits in the same
+// order, so reverse postorder also turns more branches into fallthrough. Keeping one order for both
+// is what lets the allocator work in linear indices and the encoder walk in lockstep with it.
+static void orderBlocks(LowerBase base, LowerFunction& fun) {
+    auto postorder = fun.buildPostorder(base);
+
+    // A block that the entry point cannot reach has no place in the ordering, and nothing
+    // downstream is prepared to allocate registers for one.
+    assertTrue(postorder.size() == fun.blocks.size());
+
+    Array<LowerPtr<LowerBlock>> ordered;
+    for(Size i = postorder.size(); i > 0; i--) {
+        ordered.push(fun.blocks.get(base, postorder[i - 1]));
+    }
+
+    for(Size i = 0; i < ordered.size(); i++) {
+        fun.blocks.set(base, i, ordered[i]);
+        base[ordered[i]]->index = BlockIndex(i);
+    }
+}
+
 void transformFunction(LowerBase base, LowerFunction& fun) {
     auto pass = [&](auto onInst) {
         for(auto b: fun.blocks.contents(base)) {
@@ -163,5 +296,15 @@ void transformFunction(LowerBase base, LowerFunction& fun) {
         if(inst->kind == LowerInst::Cmp) {
             tryMergeCompare(base, (LowerInstCmp*)inst, i);
         }
+
+        if(inst->kind == LowerInst::Fun) {
+            tryElideDirectCallee(base, (LowerInstFun*)inst);
+        }
+
+        selectBlockOpEncoding(base, inst);
     });
+
+    // Shape of the CFG last, once no pass that reasons about instruction positions is left to run.
+    splitPhiEdges(base, fun);
+    orderBlocks(base, fun);
 }

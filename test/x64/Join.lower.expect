@@ -1,0 +1,139 @@
+
+critEdge<complex>(%n: Int, %m: Int, %c: Int): Int {
+  start {
+    je %c, a, b
+  }
+
+  a {
+    %p = phi [start, %n]: Int
+    ret %p
+  }
+
+  b {
+    %q = phi [start, %m]: Int
+    ret %q
+  }
+}
+
+outOfOrder<complex>(%n: Int): Int {
+  start {
+    %x = add %n, 1: Int
+    jmp b
+  }
+
+  a {
+    %y = add %x, 2: Int
+    ret %y
+  }
+
+  b {
+    %z = add %n, 3: Int
+    jmp a
+  }
+}
+
+diverge<complex>(%n: Int, %d: Int, %c: Int): Int {
+  start {
+    %x = add %n, 1: Int
+    je %c, a, b
+  }
+
+  a {
+    %q = div %d, %n: Int
+    jmp end
+  }
+
+  b {
+    %r = add %d, %n: Int
+    jmp end
+  }
+
+  end {
+    ret %x
+  }
+}
+
+earlyExit<complex>(%a: Int, %b: Int, %c: Int): Int {
+  start {
+    %keep = add %a, 7: Int
+    %v_0 = cmp_eq %c, 0: Int
+    je %v_0, quick, slow
+  }
+
+  quick {
+    ret %keep
+  }
+
+  slow {
+    %d = idiv %a, %b: Int
+    %e = irem %a, %b: Int
+    %f = add %d, %e: Int
+    %g = add %f, %keep: Int
+    ret %g
+  }
+}
+
+
+--- codegen: critEdge ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  je uses=[rdx] creates=[]  => 85d20f8504000000
+block #2:
+  jmp uses=[] creates=[]  => 
+block b:
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+block #4:
+  jmp uses=[] creates=[]  => 
+block a:
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: outOfOrder ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc7ffc0
+  jmp uses=[] creates=[]  => 
+block b:
+  imm uses=[] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => 83c703
+  jmp uses=[] creates=[]  => 
+block a:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => 83c002
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: diverge ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcfffc1
+  je uses=[rdx] creates=[]  => 85d20f850a000000
+block b:
+  add uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 488bc601f8
+  jmp uses=[] creates=[]  => e907000000
+block a:
+  div uses=[rax, rdi] creates=[rax] pre=[rsi->rax]  => 488bc631d2f7f7
+  jmp uses=[] creates=[]  => 
+block end:
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
+
+--- codegen: earlyExit ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcf83c107
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdx, -] creates=[-]  => 83fa00
+  je uses=[-] creates=[]  => 0f8417000000
+block slow:
+  idiv uses=[rax, rsi] creates=[rax] pre=[rdi->rax] post=[rax->rbx]  => 488bc799f7fe488bd8
+  irem uses=[rax, rsi] creates=[rdx] pre=[rdi->rax]  => 488bc799f7fe
+  add uses=[rbx, rdx] creates=[rbx]  => 01d3
+  add uses=[rbx, rcx] creates=[rbx]  => 01cb
+  ret uses=[rax] creates=[] pre=[rbx->rax]  => 488bc3c3
+block quick:
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3

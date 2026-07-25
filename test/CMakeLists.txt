@@ -8,3 +8,6 @@ target_link_libraries(YanaParseTest YanaParse)
 
 add_executable(YanaLowerTest LowerTester.cpp)
 target_link_libraries(YanaLowerTest YanaLower)
+
+add_executable(YanaX64Test X64Tester.cpp)
+target_link_libraries(YanaX64Test YanaX64)
