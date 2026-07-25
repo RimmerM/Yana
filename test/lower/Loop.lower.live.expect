@@ -1,25 +1,33 @@
 
 loop<complex>(%count: Int, %add: Int): Int {
   start {
+    # live-in: %count, %add
     %v = cast 0: Int
     jmp head
+    # live-out: %count, %add, %v
   }
 
   head {
+    # live-in: %add, %v1, %count1
     %v1 = phi [start, %v], [loop, %v2]: Int
     %count1 = phi [start, %count], [loop, %count2]: Int
     %v_0 = cmp_le %count1, 0: Int
     je %v_0, loop, end
+    # live-out: %add, %v1, %count1
   }
 
   loop {
+    # live-in: %add, %v1, %count1
     %count2 = sub %count1, 1: Int
     %v2 = add %v1, %add: Int
     jmp head
+    # live-out: %add, %count2, %v2
   }
 
   end {
+    # live-in: %v1
     ret %v1
+    # live-out: 
   }
 }
 

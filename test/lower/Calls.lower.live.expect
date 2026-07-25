@@ -1,0 +1,46 @@
+@number = [210, 4, 0, 0, 0, 0, 0, 0]
+@bytes = [1, 2, 3, 255]
+@g = [42, 0, 0, 0]
+
+callee<complex>(%x: Int, %y: Int): Int {
+  b_0 {
+    # live-in: %x
+    ret %x
+    # live-out: 
+  }
+}
+
+namedRefs<complex>(): Int {
+  b_0 {
+    # live-in: 
+    %f = fun callee: Ptr
+    %v = load @g, 4: Int
+    ret %v
+    # live-out: 
+  }
+}
+
+convCalls<complex>(%a: Int, %b: Int) {
+  b_0 {
+    # live-in: %a, %b
+    %r0 = call_sysv callee, %a, %b: Int
+    %r1 = call_win64 callee, %a, %b: Int
+    %r2 = call_simple callee, %a, %b: Int
+    %r3 = call_complex callee, %a, %b: Int
+    %r4 = call_clobber callee, %a, %b: Int
+    ret 
+    # live-out: 
+  }
+}
+
+pushCall<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    # live-in: %a, %b
+    %p1 = push %a, 1: Int    # %p1 implicit
+    %p2 = push %b, 2: Int    # %p2 implicit
+    %r = call_complex callee, %p1, %p2: Int
+    ret %r
+    # live-out: 
+  }
+}
+

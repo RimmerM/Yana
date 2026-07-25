@@ -1,18 +1,23 @@
 
 search<complex>(%src: Int, %entries: Ptr, %count: Long): Long {
   start {
+    # live-in: %src, %entries, %count
     %high = sub %count, 1: Long
     jmp loop_head
+    # live-out: %src, %entries, 0, %high
   }
 
   loop_head {
+    # live-in: %src, %entries, %low3, %high3
     %low3 = phi [start, 0], [lower, %low2], [greater, %low3]: Long
     %high3 = phi [start, %high], [greater, %high2], [lower, %high3]: Long
     %v_0 = cmp_ile %low3, %high3: Int
     je %v_0, loop, end
+    # live-out: %src, %entries, %low3, %high3
   }
 
   loop {
+    # live-in: %src, %entries, %low3, %high3
     %v_1 = add %low3, %high3: Long
     %mid = sar %v_1, 1: Long
     %v_2 = mul %mid, 8: Long
@@ -20,30 +25,41 @@ search<complex>(%src: Int, %entries: Ptr, %count: Long): Long {
     %entry = load %v_3, 4: Int
     %v_4 = cmp_lt %entry, %src: Int
     je %v_4, lower, check_greater
+    # live-out: %src, %entries, %low3, %high3, %mid, %entry
   }
 
   lower {
+    # live-in: %src, %entries, %high3, %mid
     %low2 = add %mid, 1: Long
     jmp loop_head
+    # live-out: %src, %entries, %high3, %low2
   }
 
   check_greater {
+    # live-in: %src, %entries, %low3, %mid, %entry
     %v_5 = cmp_gt %entry, %src: Int
     je %v_5, greater, found
+    # live-out: %src, %entries, %low3, %mid
   }
 
   greater {
+    # live-in: %src, %entries, %low3, %mid
     %high2 = sub %mid, 2: Long
     jmp loop_head
+    # live-out: %src, %entries, %low3, %high2
   }
 
   found {
+    # live-in: %mid
     ret %mid
+    # live-out: 
   }
 
   end {
+    # live-in: %low3
     %v_6 = sub %low3, 1: Long
     ret %v_6
+    # live-out: 
   }
 }
 

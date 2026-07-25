@@ -1,26 +1,33 @@
 
 utf32PointToUtf8<complex>(%utf32: Ptr, %max: Ptr, %buffer: Ptr): Ptr {
   b_0 {
+    # live-in: %utf32, %buffer
     %p = load %utf32, 8: Ptr
     %codePoint = load %p, 4: Int
     %v_1 = add %p, 4: Ptr
     store %utf32, %v_1, 8
     %v_2 = cmp_le %codePoint, 127: Int
     je %v_2, isOne, checkTwo
+    # live-out: %utf32, %buffer, %p, %codePoint
   }
 
   isOne {
+    # live-in: %buffer, %codePoint
     store %buffer, %codePoint, 1
     %v_3 = add %buffer, 1: Ptr
     ret %v_3
+    # live-out: 
   }
 
   checkTwo {
+    # live-in: %utf32, %buffer, %p, %codePoint
     %v_4 = cmp_le %codePoint, 2047: Int
     je %v_4, isTwo, checkThree
+    # live-out: %utf32, %buffer, %p, %codePoint
   }
 
   isTwo {
+    # live-in: %buffer, %codePoint
     %v_5 = shr %codePoint, 6: Int
     %c2_0 = or 192, %v_5: Int
     %v_6 = and %codePoint, 63: Int
@@ -31,14 +38,18 @@ utf32PointToUtf8<complex>(%utf32: Ptr, %max: Ptr, %buffer: Ptr): Ptr {
     store %v_8, %c2_1, 1
     %v_9 = add %buffer, 2: Ptr
     ret %v_9
+    # live-out: 
   }
 
   checkThree {
+    # live-in: %utf32, %buffer, %p, %codePoint
     %v_10 = cmp_le %codePoint, 65535: Int
     je %v_10, isThree, checkFour
+    # live-out: %utf32, %buffer, %p, %codePoint
   }
 
   isThree {
+    # live-in: %buffer, %codePoint
     %v_11 = shr %codePoint, 12: Int
     %c3_0 = or 192, %v_11: Int
     %v_12 = shr %codePoint, 6: Int
@@ -54,14 +65,18 @@ utf32PointToUtf8<complex>(%utf32: Ptr, %max: Ptr, %buffer: Ptr): Ptr {
     store %v_17, %c3_2, 1
     %v_18 = add %buffer, 3: Ptr
     ret %v_18
+    # live-out: 
   }
 
   checkFour {
+    # live-in: %utf32, %buffer, %p, %codePoint
     %v_19 = cmp_le %codePoint, 1114111: Int
     je %v_19, isFour, else
+    # live-out: %utf32, %buffer, %p, %codePoint
   }
 
   isFour {
+    # live-in: %buffer, %codePoint
     %v_20 = shr %codePoint, 18: Int
     %c4_0 = or 240, %v_20: Int
     %v_21 = shr %codePoint, 12: Int
@@ -82,12 +97,15 @@ utf32PointToUtf8<complex>(%utf32: Ptr, %max: Ptr, %buffer: Ptr): Ptr {
     store %v_29, %c4_3, 1
     %v_30 = add %buffer, 4: Ptr
     ret %v_30
+    # live-out: 
   }
 
   else {
+    # live-in: %utf32, %p
     store %utf32, %p, 8
     %v_31 = bitcast 0: Ptr
     ret %v_31
+    # live-out: 
   }
 }
 

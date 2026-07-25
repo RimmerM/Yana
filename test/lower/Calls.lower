@@ -1,0 +1,36 @@
+@bytes = [1, 2, 3, 255]
+@number = 1234: Long
+@g = 42
+
+callee(%x: Int, %y: Int): Int {
+    { ret %x }
+}
+
+namedRefs(): Int {
+    {
+        %f = fun callee
+        %gv = global @g
+        %v = load %gv, 4: Int
+        ret %v
+    }
+}
+
+pushCall(%a: Int, %b: Int): Int {
+    {
+        %p1 = push %a, 1
+        %p2 = push %b, 2
+        %r = call callee, %p1, %p2: Int
+        ret %r
+    }
+}
+
+convCalls(%a: Int, %b: Int) {
+    {
+        %r0 = call_sysv callee, %a, %b: Int
+        %r1 = call_win64 callee, %a, %b: Int
+        %r2 = call_simple callee, %a, %b: Int
+        %r3 = call_complex callee, %a, %b: Int
+        %r4 = call_clobber callee, %a, %b: Int
+        ret
+    }
+}

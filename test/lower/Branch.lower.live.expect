@@ -1,23 +1,31 @@
 
 branch<complex>(%v: Int, %out: Int): Int, Int {
   start {
+    # live-in: %v, %out
     %v_0 = cmp_le %v, 0: Int
     je %v_0, a, b
+    # live-out: %v, %out
   }
 
   a {
+    # live-in: %v, %out
     %v1 = add %v, 1: Int
     jmp end
+    # live-out: %out, %v1
   }
 
   b {
+    # live-in: %v, %out
     %v2 = mul %v, 2: Int
     jmp end
+    # live-out: %out, %v2
   }
 
   end {
+    # live-in: %out, %v_1
     %v_1 = phi [a, %v1], [b, %v2]: Int
     ret %v_1, %out
+    # live-out: 
   }
 }
 
