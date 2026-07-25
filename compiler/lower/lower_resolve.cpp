@@ -349,7 +349,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         auto count = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
         auto pattern = tryMaybe(findValue(resolve, base, block, ast.args[2], ast.source), return Nothing());
 
-        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstSetPattern(to - base, pattern - base, count - base)));
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstSetPattern(to - base, count - base, pattern - base)));
     });
 
     instructionSet.add(Context::nameHash("push"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {

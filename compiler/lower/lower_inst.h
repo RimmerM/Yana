@@ -394,14 +394,14 @@ struct LowerInstCopy: LowerInst {
 
 // Copies a pattern byte to the target pointer.
 struct LowerInstSetPattern: LowerInst {
-    LowerInstSetPattern(LowerPtr<LowerValue> to, LowerPtr<LowerValue> pattern, LowerPtr<LowerValue> count):
-        LowerInst(SetPattern), to(to), pattern(pattern), count(count)
+    LowerInstSetPattern(LowerPtr<LowerValue> to, LowerPtr<LowerValue> count, LowerPtr<LowerValue> pattern):
+        LowerInst(SetPattern), to(to), count(count), pattern(pattern)
     {
         usedCount = 3;
     }
 
     // Used values must be first after embedded values.
-    LowerPtr<LowerValue> to, pattern, count;
+    LowerPtr<LowerValue> to, count, pattern;
 };
 
 // Represents a function argument pushed to the stack ahead of the call.
