@@ -1,26 +1,23 @@
 find_package(LLVM REQUIRED CONFIG)
 
-set(SOURCE_FILES)
-set(SOURCE_FILES ${SOURCE_FILES}
+set(CORE_SOURCE_FILES
     compiler/context.h
+    compiler/context.cpp
     compiler/settings.h
     compiler/settings.cpp
-    compiler/source.h
-    compiler/source.cpp
-    compiler/context.cpp
     compiler/diagnostics.h
     compiler/diagnostics.cpp
-    compiler/driver.cpp
-)
 
-set(SOURCE_FILES ${SOURCE_FILES}
     util/lexer_util.h
     util/lexer_util.cpp
     util/parser_util.h
     util/container.h
 )
 
-set(SOURCE_FILES ${SOURCE_FILES}
+add_library(YanaCore ${CORE_SOURCE_FILES})
+target_link_libraries(YanaCore PUBLIC TritiumNet TritiumCore ${OTHER_LIBS})
+
+set(PARSE_SOURCE_FILES
     parse/lexer.cpp
     parse/lexer.h
     parse/ast.h
@@ -30,7 +27,10 @@ set(SOURCE_FILES ${SOURCE_FILES}
     parse/ast_print.h
 )
 
-set(SOURCE_FILES ${SOURCE_FILES}
+add_library(YanaParse ${PARSE_SOURCE_FILES})
+target_link_libraries(YanaParse PUBLIC YanaCore)
+
+set(RESOLVE_SOURCE_FILES
     resolve/inst.h
     resolve/inst.cpp
     resolve/validate.cpp
@@ -55,7 +55,10 @@ set(SOURCE_FILES ${SOURCE_FILES}
     resolve/lower.cpp
 )
 
-set(SOURCE_FILES ${SOURCE_FILES}
+add_library(YanaResolve ${RESOLVE_SOURCE_FILES})
+target_link_libraries(YanaResolve PUBLIC YanaCore)
+
+set(LOWER_SOURCE_FILES
     lower/lower.h
     lower/lower.cpp
     lower/lower_inst.h
@@ -73,20 +76,38 @@ set(SOURCE_FILES ${SOURCE_FILES}
     lower/lower_builder.h
 )
 
-set(SOURCE_FILES ${SOURCE_FILES}
+add_library(YanaLower ${LOWER_SOURCE_FILES})
+target_link_libraries(YanaLower PUBLIC YanaCore)
+
+set(LLVM_SOURCE_FILES
     codegen/llvm/gen.cpp
     codegen/llvm/gen.h
     codegen/llvm/link.cpp
 )
 
-set(SOURCE_FILES ${SOURCE_FILES}
+add_library(YanaLLVM ${LLVM_SOURCE_FILES})
+target_include_directories(YanaLLVM PUBLIC ${LLVM_INCLUDE_DIR})
+target_link_libraries(YanaLLVM PUBLIC
+    YanaCore
+    LLVMLinker
+    LLVMTransformUtils
+    LLVMCore
+    LLVMBinaryFormat
+    LLVMSupport
+    LLVMDemangle
+)
+
+set(JS_SOURCE_FILES
     codegen/js/gen.h
     codegen/js/gen.cpp
     codegen/js/ast.h
     codegen/js/format.cpp
 )
 
-set(SOURCE_FILES ${SOURCE_FILES}
+add_library(YanaJS ${JS_SOURCE_FILES})
+target_link_libraries(YanaJS PUBLIC YanaCore)
+
+set(X64_SOURCE_FILES
     codegen/x64/gen.h
     codegen/x64/gen.cpp
     codegen/x64/transform.cpp
@@ -95,19 +116,17 @@ set(SOURCE_FILES ${SOURCE_FILES}
     codegen/x64/x64_util.h
 )
 
-include_directories(${LLVM_INCLUDE_DIR})
-add_library(YanaLib ${SOURCE_FILES})
-add_executable(Yana ${SOURCE_FILES})
+add_library(YanaX64 ${X64_SOURCE_FILES})
+target_link_libraries(YanaX64 PUBLIC YanaCore YanaLower)
 
-target_link_libraries(Yana
-    TritiumCore ${OTHER_LIBS}
-    LLVMLinker
-    LLVMTransformUtils
-    LLVMCore
-    LLVMBinaryFormat
-    LLVMSupport
-    LLVMDemangle
+set(DRIVER_SOURCE_FILES
+    compiler/source.h
+    compiler/source.cpp
+    compiler/driver.cpp
 )
+
+add_executable(Yana ${DRIVER_SOURCE_FILES})
+target_link_libraries(Yana PUBLIC YanaCore YanaParse YanaResolve YanaLower YanaX64 YanaLLVM YanaJS)
 
 if(APPLE)
     target_link_libraries(Yana ncurses)

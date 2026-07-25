@@ -424,6 +424,9 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
             case Flag::printIr:
                 settings.printIr = true;
                 return true;
+            default:
+                error = Tritium::format("Unhandled argument type %@. This is an internal error.", (Size)type);
+                return false;
         }
     });
 
