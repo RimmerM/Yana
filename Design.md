@@ -277,3 +277,114 @@ Complicated, difficult to make fast. See Go discussions for trouble with pausing
   - Since these solutions require quite precise control over the generated code, it may be difficult to do in LLVM.
 - Arrays need special GC support. Only aggregate primitive type, so everything is based on them. We could store a number of GC flag bits in the object header instead of just one, to support a granular write barrier (instead of having to look through the while array after each change).
 - Like the stack, we can group all references in aggregate types and store them at the start (only con is a possible 8-byte padding when a type contains both references and SIMD values). We then store the number of references in the GC object header, to avoid having to write type info.
+
+
+
+
+### Type System
+
+- Single ownership. Values can be either borrowed, copied, or moved into a new scope. The default is immutable borrowing, but for the sake of convenience, POD (plain old data) structures, as well as any type implementing `TrivialCopy`, can be implicitly copied instead of borrowed/moved. For any type that needs to execute code (other than simple memory copies) to copy itself, all copies are explicit and immutably borrowing/moving is the default.
+- Example semantics for functions (borrow/trivial copy is the default):
+  - `fn borrow(a: String)` -- borrows 'a' immutably. Multiple immutable borrows can be created, but the object can't be modified while any are alive.
+  - `fn copy(a: Int)` -- copies an immutable integer 'a' into the scope of the function, as `Int` is trivially copyable.
+  - `fn borrow(&a: String)` -- borrows 'a' mutably. Only one mutable access point can exist at a time. Modifying `a` will modify the actual value located elsewhere.
+  - `fn sink(->a: String)` -- takes mutable ownership of 'a'. It can only be accessed through the binding in this function afterwards.
+  - `fn sink_copy(->a: Int)` -- copies a mutable integer 'a' into the scope of the function, as `Int` is trivially copyable. Modifying `a` only affects the local binding.
+  - `fn ref(a: *String)` -- copies an immutable unowned reference to a mutable String 'a' into the scope of the function, as the type `*(a)` is a trivially copyable type. References are fat pointers that contain information to verify at runtime that the object it references is still alive.
+  - `fn ref_mut(->a: *String)` -- copies a mutable unowned reference to a mutable String 'a' into the scope of the function. Since the reference itself is mutable, it can be reassigned to reference a different value.
+  - `fn ptr(a: Ptr(String)` -- copies an immutable unowned raw pointer to a mutable String 'a' into the scope of the function. Raw pointers have no overhead, and also no guarantees.
+  - `fn ptr_mut(->a: Ptr(String)` -- copies a mutable unowned raw pointer to a mutable String 'a' into the scope of the function. Since the pointer itself is mutable, it can be reassigned to point to a different value.
+  - `fn init(set a: CustomType)` -- special case for initializer functions; takes an uninitialized instance of `CustomType`, and cannot return until every member has been set to a valid value. Works similar to a mutable borrow otherwise.
+- Example semantics for types (move/trivial copy is the default):
+  - `let t = { a: 42, b: "hello world" }` -- `a` is copied into `t`, while `b` is moved. Everything in `t` is immutable.
+  - `let u = { &a: 42, &b: "hello world" }` 
+
+- Classes used to manage ownership
+  - `TrivialCopy` is implicitly implemented by any type where all members are `TrivialCopy`, and most primitive types (like `Int`, `Float`, `*(a)`, `Ptr(a)`, `[(a: TrivialCopy) * length]` but _not_ `String`).
+  - `TrivialSink` is implicitly implemented by any type that doesn't contain any references to its own address. Currently this is done automatically for any type that has no references or pointers to its own type - this is not strictly safe, but the only way to make this unsafe is by doing tricks with raw pointers and allocation, which is already inherently unsafe. For types that can reference themselves, but are known to be movable, `Sink` can be added manually.  
+  - `Sink` types implement `fn sink(set to: a, ->from: a)`, which takes an uninitialized instance of a type `a`, and initializes it from the moved source. It should make sure any internal data is moved over correctly (since that couldn't be done implicitly by `TrivialSink`).
+  - `Copy` types implement `fn copy(from: a) -> a`, which performs a full copy of the instance and associated data (though not necessarily a deep copy). `copy()` needs to be called manually in cases where a value shouldn't/can't be moved.
+  - `Drop` types implement `fn drop(->value: a)`, which is called when a live instance dies (goes out of scope). It is _not_ called on the original memory location after an instance is moved from.
+
+### Important considerations
+
+- Object lifetime is independent of any bindings referencing it; local bindings do not "contain" the object.
+- An object's lifetime ends after the last time it is used (not when any binding that may exist goes out of scope).
+  - RAII use cases where this would be an issue, such as `MutexLock(Mutex)`, are made explicit through linear types and `defer`.
+  - Need to consider interactions between this and exception handling, if exceptions are ever added.
+- This avoids issues like `auto x = ...` implicitly copying a returned reference, or `auto& x = ...` reading garbage memory if the return type ever changes to a non-reference type.
+- Function argument types work for locals too:
+  - `let x = 0` <- 0 is allocated locally, but is only borrowed by `x`. The underlying int is freed after the last use of `x`, unless it is re-borrowed, in which case it gets freed after the last use of both.
+  - `let &y = 0` <- 0 is allocated locally, and is borrowed mutably by `y`. If we created another binding such as `let z = y`, then `y` would be inaccessible until `z` dies, unless we copy it: `let z = y.copy()`.
+  - `let ->z = x` <- explicitly takes ownership from `x` over the value being bound. `x` stops existing after this point.
+  - This is relevant particularly when used in combination with lenses and iterators - by default, you take an immutable borrow of the returned values (instead of implicitly copying), and the source value stays alive as long as any borrow exists. Using a `->` binding explicitly takes the value (if this is allowed by the yielded type).
+
+### Random notes
+
+- Functions can be overloaded on return type (through classes). Example:
+  - ```
+    class DecimalConversion(a, b):
+      fn round(from: a) -> b
+      fn floor(from: a) -> b
+      fn ceil(from a) -> b
+    
+    instance DecimalConversion(F32, I32):
+      ... implementations
+    
+    instance DecimalConversion(F32, I64):
+      ... implementations
+    ```
+  - The specific instance called depends on the inferred return type (and potentially inferred source type). This could be a function argument (`fn f(value: Int)` can be called as `f(round(65.6))`). In cases where the return type isn't inferred, it can be specified explicitly: `round(65.5) :: U64`.
+  - Inference for a given statement is done bottom-up, left-to-right. When evaluating the expression tree, type requirements are gathered and passed up (such as the coerce operator above). If no types in a function call have enough requirements to determine the correct overload, the arguments are evaluated left-to-right to their default types. If no concrete type is found for a given argument even then, inference fails - we don't evaluate the rest of the arguments and then backtrack to find a final resolution. This is somewhat limited, but also intended, as going overboard with inferred types will make code harder to read.
+  - Inference for a function is done top-to-bottom. That is, the function arguments need to have known types, and the rest is inferred from there.
+
+- Linear types
+  - Make the destructor of a type explicit or private, which requires any function/type containing an instance to perform an action before going out of scope (such as explicitly calling close() or calling a function that takes an ->instance).
+  - Example uses: mutexes (make unlocking explicit rather than implicit, especially if we define object lifetime by its last use); connection pools (forced to give back the connection after using it); various other cases where a specific action must not be forgotten to be executed.
+- Lens functions
+  - Like do notation in Haskell - perform a linear function call in code, but transform it into continuation passing during compilation. 
+  - Implementing this correctly means that both the callee and called function can use the same stack, with no dynamic allocation or other inefficiencies. 
+  - Since the code after the lens call is actually a callback internally, we can use normal single ownership + value semantics for the passed arguments without any additional complexity.
+  - These have lots of use cases; for example, an http client request can be implemented as a lens, allowing it to allocate all its internal data on the stack without exposing it anywhere. It yields the final result, containing a `Reader` for the response body which can be read from without buffering the full response, and without worrying about the lifetimes of any data it uses.
+- Iterators
+  - Similar to lens functions, but can yield values multiple times, and support aborting. The implementation here needs some care - if done the same way as lenses, we can only have one "active" iterator at a time (since only the one at the top of the stack can be safely resumed). 
+  - Another option would be to require iterators to have a statically determinable max stack size, so we can allocate them independently on the same outer stack without risking them overwriting each other.
+  - A third option: implement iterators like lenses for simplicity, but if multiple iterators potentially overlap, one of them is allocated on a separate fiber stack owned by the caller. Note that "overlap" here means that they have intertwined usage - it's still safe to call an iterator within an outer iterator, as long as the inner iterator gets destroyed before the next iteration of the outer one.
+  - Example uses: normal iterators (arrays, maps, etc), but also common functionality like string splitting/tokenizing (allows the caller to process each substring as an immutable borrow without copying or creating a full list result first).
+- Checked references
+  - Heap/stack allocations that are potentially captured into a reference contain an additional generation word based on a random seed before the actual data.
+  - Checked references to objects (that is, outside the normal single ownership type system) are fat pointers, containing both the actual pointer, a potential offset within the allocation, and the value of the generation word at the time of capture.
+  - Deallocating memory overwrites the generation word.
+  - When accessing an object through a checked reference, the stored generation is compared to the current actual generation; a runtime error occurs if they don't match.
+  - In debug mode, the generation word can instead be an atomic reference count - if any references exist upon deallocation, throw a runtime error. This should deterministically detect stale pointers in the vast majority of cases (but we can't guarantee that all combinations of state will be hit during debugging).
+  - This is definitely not zero-cost, and wastes a lot of cache in pointer-heavy structures, but is a good and simple way to support safe, arbitrary references in less demanding parts of an application. The majority of references should still be owned ones in practice; where this is not the case, one of the other solutions provided by the language will likely work better.
+  - Example use: global state object in a web server (shared between threads), which provides access to various keys, resources, etc.
+  - This should work across threads and be faster than atomic reference counting, but we still need to test this.
+  - Does this mean that we can't release virtual memory to the system? But we should at least be able to do `madvise(DONTNEED)` or `mmap(MAP_FIXED)` to release the physical memory, while retaining + reusing the virtual address space later.
+  - Investigate pinning of objects - basically 1-bit reference counts (store the old value on the stack and restore it after finishing) that prevents it from being deallocated, so as long as the pin is alive, we can share and access a normal borrowed reference.
+- Regions
+  - Arena allocator that reserves a large amount of virtual memory, allowing for linear allocations.
+  - Regional pointers only store a 32-bit offset within the region, saving lots of memory for pointer-heavy structures.
+  - An instance of the region is required to access a regional pointer, so we automatically get memory safety as long as the region instance itself is safe.
+  - All objects allocated in the region are alive for as long as the region is, so no need to keep track of lifetimes.
+  - Region-allocated objects should be `TrivialCopy` or have reference semantics, otherwise it defeats the previous point by still having to keep track of lifetimes to call `drop()`. However, we could in principle have a stack of (pointer, drop) pairs in the region for any `Drop` objects allocated within it, which would be walked backwards when the region itself is dropped.
+  - Regions themselves should likely have the same semantics as other types (multiple immutable borrow, singular mutable borrow, passed between functions).
+  - Different regions (conceptually, from the application's perspective) should have different types in the type system, and regional pointers should be typed with them.
+  - There needs to be a way to implicitly pass regions along the call stack, and use that passed region to implicitly dereference regional pointers - otherwise, the code using them becomes far too verbose.
+  - There needs to be a way to use region objects as arguments to normal functions - otherwise, you get the same issue as with `async` in other languages. But depending on how flexible the standard library gets in the end, maybe normal typeclasses would be enough to implicitly generate a regional version of each function?
+  - To be useful as a general concept, there will need to be multiple instances of the same region type. How do we prevent dereferencing a region pointer with the wrong region of the same type? Will it be enough to do this in debug mode only, as any wrong use that happens in release mode will almost certainly happen in debug mode too?
+  - It will not be possible to turn a region pointer into a checked reference, but this shouldn't be much of an issue - there would be basically no common functions that take such a reference as input, since everything is built around single ownership.
+  - In general, we need to take great care that it is not possible (without clearly being marked as unsafe) to convert a region pointer to something that can outlive the region it belonged to - but without making region objects completely impossible to use together with normal functionality.
+  - This feature, if done right, would be a real USP - we get better performance, smaller working set, and simpler resource management, with hopefully very little added complexity. Actual memory usage depends on the specific use case - we save memory by using smaller pointers and no allocation tracking overhead, but objects may also stay alive for longer than is strictly needed.
+  - Example uses:
+    - Almost any operation or series of operations that allocates many small, simple objects will benefit a lot from this. 
+    - An http client could allocate all response-related data into a small region tied to the response object. 
+    - A server could have a region for all data tied to a specific request, ensuring any request handler can freely allocate small objects into the region, store them into other (regional) data structures, return them, etc - since the region isn't destroyed until the request handler has fully completed. We don't have to worry about regional pointers escaping, since there is no way to dereference them without access to the region (but again, need to somehow ensure that it is the _right_ instance of that region).
+    - Compiler: separate regions for parsed AST, generated IR, code generation.
+    - Parsing: parse complex objects into a small region (also limiting the max memory used, which is a _good_ thing when parsing untrusted data), returning a (region, parsed data) pair. It should also be possible to send in an existing region of a different type here.
+- Snapshot GC
+  - Useful in cases where use of data is temporal (requests in a server, frames in a game).
+  - Keep a snapshot instance on the stack that avoids shared data from being deallocated.
+  - Queue deallocations together with the time they were deleted at; run them once the last snapshot referencing that time is gone.
+  - Shapshot implementation has very little overhead (certainly compared to the alternatives); almost entirely done through thread-local data with only reads of shared data (except when locking to perform a GC cycle). 
+  - Relatively high cost for deallocation (at least compared to the other two techniques above) - use it for infrequently created data shared between threads, where normal borrowing is infeasible.
