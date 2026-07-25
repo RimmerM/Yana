@@ -75,7 +75,7 @@ let primes = [2, 3, 5, 7, 11, 13]
 let strings = ["Hello", "World", "!"]
 
 -- `even` has the type [{ value: Int, even: Bool }] and length 2.
-let even = [{ value = 1, even = false }, { value = 10, even = true }]
+let even = [{ value: 1, even: false }, { value: 10, even: true }]
 
 -- `empty` has no content. Since there is no way to infer what should be inside it,
 -- we have to to provide the type ourselves.

@@ -769,7 +769,7 @@ ast::Expr Parser::parseBaseExpr() {
 
     auto funKind = parseFunKind();
     auto hasParen = maybe(Token::ParenL).isJust();
-    
+
     if(!hasParen && funKind != ast::FunKind::Plain) {
         expect(Token::ParenL, "expected '(' after 'lens'/'iter'"_v);
         hasParen = true;
@@ -993,7 +993,7 @@ ast::Expr Parser::parseTupleExpr(const WithLocation& location) {
             error("expected name before field contents"_v, first.source);
         }
 
-        args.push(arena, { first.kind == ast::Expr::Var ? first.var : 0, first });
+        args.push(arena, ast::TupArg { first.kind == ast::Expr::Var ? first.var : 0, parseExpr() });
     } else {
         args.push(arena, ast::TupArg { 0, first });
     }
@@ -1054,6 +1054,7 @@ ast::Expr Parser::parseArrayExpr(const WithLocation& location) {
 
 void Parser::parseTupArg(ast::ParseList<ast::TupArg>& list) {
     auto qualified = maybe(Token::opTilde).isJust();
+
     auto arg = parseExpr();
 
     if(qualified && arg.kind != ast::Expr::Var) {
@@ -1065,7 +1066,7 @@ void Parser::parseTupArg(ast::ParseList<ast::TupArg>& list) {
             error("expected name before field contents"_v, arg.source);
         }
 
-        list.push(arena, { arg.kind == ast::Expr::Var ? arg.var : 0, arg });
+        list.push(arena, { arg.kind == ast::Expr::Var ? arg.var : 0, parseExpr() });
     } else if(qualified && arg.kind == ast::Expr::Var) {
         list.push(arena, { arg.var, arg });
     } else {
@@ -1357,12 +1358,24 @@ void Parser::parseConstraints(ast::ConstraintList& list) {
 }
 
 void Parser::parseArgDecl(ast::ParseList<ast::ArgDecl>& list) {
-    if(auto v = maybe(Token::VarID)) {
-        expect(Token::opColon, "expected ':' after parameter name"_v);
-        list.push(arena, ast::ArgDecl { parseType(), v.unwrap().id, ast::BindType::Borrow });
-    } else {
-        list.push(arena, ast::ArgDecl { parseType(), 0, ast::BindType::Borrow });
+    if(token.type == Token::VarID) {
+        // A leading identifier is only a parameter name if it is followed by ':'.
+        // Otherwise, it is a bare generic type used as an unnamed argument (e.g. `(a, b) -> c`).
+        SaveLexer save(lexer);
+        auto savedToken = token;
+        auto name = token.data.id;
+        eat();
+
+        if(maybe(Token::opColon)) {
+            list.push(arena, ast::ArgDecl { parseType(), name, ast::BindType::Borrow });
+            return;
+        }
+
+        save.restore();
+        token = savedToken;
     }
+
+    list.push(arena, ast::ArgDecl { parseType(), 0, ast::BindType::Borrow });
 }
 
 void Parser::parseTypeArg(ast::ParseList<ast::ArgDecl>& list) {

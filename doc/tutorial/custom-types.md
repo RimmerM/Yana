@@ -24,13 +24,13 @@ origin.0 = 1
 
 -- This creates a tuple of type { x: Int, y: Int }.
 -- It has the same contents as `origin`, but the fields have their own names.
-let position = { x = 3, y = 5 }
+let position = { x: 3, y: 5 }
 
 -- Since `position` was created immutable, we cannot change any fields.
 -- Instead, we can use an update expression to create a new tuple based on it.
 -- In an update expression, each field from the source is copied
 -- unless we provide a new value for it.
-let position2 = { position | y = 6 }
+let position2 = { position | y: 6 }
 
 -- `y` is now 6.
 let y = position2.y
@@ -59,7 +59,7 @@ let pos = Pos(5, 6)
 
 -- We can still use the same tuple operations as before.
 let y = pos.y
-let nextPos = { pos | x = 0 }
+let nextPos = { pos | x: 0 }
 ```
 
 ## Records
@@ -83,8 +83,8 @@ data User { id: Long, name: String, displayName: String, bio: String }
 
 -- Records that contain a tuple can be constructed with separate fields,
 -- or from an existing tuple.
-let john = User(id = 9834, name = "john", displayName = "John", bio = "The one")
-let evaContents = { id = 9835, name = "eva", displayName = "Eva!!", bio = "" }
+let john = User(id: 9834, name: "john", displayName: "John", bio: "The one")
+let evaContents = { id: 9835, name: "eva", displayName: "Eva!!", bio: "" }
 let eva = User(evaContents)
 ```
 
