@@ -492,25 +492,58 @@ static I32 memoryFormOperand(LowerBase base, LowerInst* inst) {
     }
 }
 
-I32 memoryUseOperand(LowerBase base, LowerInst* inst) {
-    auto index = memoryFormOperand(base, inst);
-    if(index == kNoMemoryOperand) return kNoMemoryOperand;
-
+// Whether operand `index` may occupy the r/m field at all: it has to be a real operand rather than
+// something already folded into the encoding, and the slot holding it has to be exactly as wide as
+// the access. Slots are packed by width, so an access of any other width would read or write a
+// neighbouring value along with this one.
+static bool operandFitsMemoryForm(LowerBase base, LowerInst* inst, I32 index) {
     auto used = inst->used();
     assertTrue(Size(index) < used.size());
 
     // An operand that was folded into the encoding has no location of any kind, in memory or
     // otherwise - an embedded immediate is already part of the instruction.
     auto value = base[used[index]];
-    if(isImplicit(value)) return kNoMemoryOperand;
+    if(isImplicit(value)) return false;
 
-    // A slot is exactly as wide as the value in it and slots are packed by width, so an access of
-    // any other width would read or write a neighbouring value along with this one.
-    if(stackSlotClassFor(value->type) != stackSlotClassFor(operationType(base, inst))) {
-        return kNoMemoryOperand;
+    return stackSlotClassFor(value->type) == stackSlotClassFor(operationType(base, inst));
+}
+
+I32 memoryUseOperand(LowerBase base, LowerInst* inst) {
+    auto index = memoryFormOperand(base, inst);
+    if(index == kNoMemoryOperand) return kNoMemoryOperand;
+
+    return operandFitsMemoryForm(base, inst, index) ? index : kNoMemoryOperand;
+}
+
+// Which operand the *encoding* can both read and write in place. Every entry is the r/m-destination
+// direction of a form the encoders already had - `add r/m, r`, `neg r/m`, `shl r/m, cl` - which is
+// the direction a two-address operation takes anyway when its destination is a register.
+//
+// Always operand zero: that is the operand a destructive encoding overwrites, and so the only one
+// whose slot the result could also be. CMOV and the IMUL forms are absent because their destination
+// has to be a register whichever way the operands are turned.
+static I32 memoryFormDefOperand(LowerInst* inst) {
+    switch(inst->kind) {
+        case LowerInst::Add: case LowerInst::Sub:
+        case LowerInst::And: case LowerInst::Or: case LowerInst::Xor:
+        case LowerInst::Neg: case LowerInst::Not:
+        case LowerInst::Shl: case LowerInst::Shr: case LowerInst::Sar:
+            return 0;
+
+        default:
+            return kNoMemoryOperand;
     }
+}
 
-    return index;
+I32 memoryDefOperand(LowerBase base, LowerInst* inst) {
+    auto index = memoryFormDefOperand(inst);
+    if(index == kNoMemoryOperand) return kNoMemoryOperand;
+
+    // The result is written through the same r/m field the operand is read from, so it has to be a
+    // value of its own rather than something the encoding swallowed.
+    if(inst->createdCount == 0 || isImplicit(&inst->created()[0])) return kNoMemoryOperand;
+
+    return operandFitsMemoryForm(base, inst, index) ? index : kNoMemoryOperand;
 }
 
 RegSet writtenRegisters(const InstShape& shape) {

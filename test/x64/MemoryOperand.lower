@@ -85,15 +85,21 @@ foldedSet(%arg: Int, %keep: Int, %target: Int): Int {
     }
 }
 
-# The first operand of a two-address operation is also its destination, so it can never be the
-# memory one however the encoding is turned around. A spilled first operand is still loaded into the
-# destination register, which is exactly the reload the second operand no longer needs.
+# The first operand of a two-address operation is also its destination, so it can never be the memory
+# *source* however the encoding is turned around. Where the operation has no memory destination form
+# either - `imul` writes its result through the register field whichever way its operands are put -
+# a spilled first operand is loaded into the destination register, which is exactly the reload the
+# second operand no longer needs.
+#
+# %keep is read twice in a position that needs a register and %target once, which is what decides
+# that %target is the one to leave in the frame.
 spilledFirstOperand(%arg: Int, %keep: Int, %target: Int): Int {
     {
         %r = call_clobber sink, %arg: Int
-        %s = add %target, %keep: Int
-        %t = add %s, %r: Int
-        ret %t
+        %s = imul %target, %r: Int
+        %t = add %keep, %s: Int
+        %u = add %keep, %t: Int
+        ret %u
     }
 }
 
@@ -136,9 +142,10 @@ spilledPointer(%arg: Int, %keep: Int, %p: Ptr): Int {
     {
         %r = call_clobber sink, %arg: Int
         %v = load %p, 4: Int
-        %s = add %v, %keep: Int
-        %t = add %s, %r: Int
-        ret %t
+        %s = add %keep, %v: Int
+        %t = add %keep, %s: Int
+        %u = add %t, %r: Int
+        ret %u
     }
 }
 
@@ -148,7 +155,89 @@ spilledCast(%arg: Int, %keep: Long, %target: Int): Long {
     {
         %r = call_clobber sink, %arg: Int
         %w = sext %target: Long
-        %s = add %w, %keep: Long
-        ret %s
+        %s = add %keep, %w: Long
+        %t = add %keep, %s: Long
+        ret %t
+    }
+}
+
+# The other half of the table: a memory *destination*.
+#
+# The first operand of a two-address operation is also where its result goes, so it is the one
+# operand an encoding can both read and write in the frame - `add [rsp+8], rcx` in place of a load,
+# an add and a store. The condition is that the operand and the result occupy the same slot, which
+# only the allocator can answer: their lives meet at the instruction rather than overlapping, so
+# first-fit hands them one slot whenever it can, and phi-web coalescing makes them literally one web
+# for a loop-carried accumulator (Spill.lower/spilledLoop is that case).
+#
+# It takes two calls to reach: the value has to be in the frame where it is read *and* still in the
+# frame where the result is written, which one clobbering call is not enough to force.
+#
+# `uses=[stack:N, ...] creates=[stack:N]` with nothing around it is the property under test.
+
+# %keep is read twice in a position that needs a register, so it takes the one preserved register.
+# %target and the result of the add it feeds both end up in the frame, and in the same slot.
+inPlaceAdd(%arg: Int, %keep: Int, %target: Int): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        %s = add %target, 7: Int
+        %q = call_clobber sink, %r: Int
+        %t = add %keep, %s: Int
+        %u = add %keep, %t: Int
+        %v = add %u, %q: Int
+        ret %v
+    }
+}
+
+# `inc [m]` rather than `add [m], 1`, the same one-byte-shorter form the register case already used.
+inPlaceIncrement(%arg: Int, %keep: Int, %target: Int): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        %s = add %target, 1: Int
+        %q = call_clobber sink, %r: Int
+        %t = add %keep, %s: Int
+        %u = add %keep, %t: Int
+        %v = add %u, %q: Int
+        ret %v
+    }
+}
+
+# The group-3 unary forms take their subject as r/m too, so a spilled value is negated where it lies.
+inPlaceNegate(%arg: Int, %keep: Int, %target: Int): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        %s = neg %target: Int
+        %q = call_clobber sink, %r: Int
+        %t = add %keep, %s: Int
+        %u = add %keep, %t: Int
+        %v = add %u, %q: Int
+        ret %v
+    }
+}
+
+# And so does every shift form.
+inPlaceShift(%arg: Int, %keep: Int, %target: Int): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        %s = shl %target, 3: Int
+        %q = call_clobber sink, %r: Int
+        %t = add %keep, %s: Int
+        %u = add %keep, %t: Int
+        %v = add %u, %q: Int
+        ret %v
+    }
+}
+
+# Two spilled operands and one r/m field. The destination keeps it, since it is the one that would
+# otherwise pay twice - a reload and a store - and the other operand is brought into a register.
+oneMemoryOperand(%arg: Int, %keep: Int, %target: Int, %b: Int): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        %s = add %target, %b: Int
+        %q = call_clobber sink, %r: Int
+        %t = add %keep, %s: Int
+        %u = add %keep, %t: Int
+        %v = add %u, %q: Int
+        ret %v
     }
 }

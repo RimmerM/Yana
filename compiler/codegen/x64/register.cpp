@@ -4,26 +4,33 @@
 /*
  * Register allocation.
  *
- * Every web is given one location - a register, or a slot in the frame - for the whole of its life,
- * and keeps it. Nothing is ever relocated mid-function, so a value is in the same place on every
- * path that reaches a given instruction, which is what makes the result independent of how the
- * blocks happen to be laid out.
+ * Every web is given one location - a register, a slot in the frame, or a recipe that recreates the
+ * value wherever it is needed - for the whole of its life, and keeps it. Nothing is ever relocated
+ * mid-function, so a value is in the same place on every path that reaches a given instruction,
+ * which is what makes the result independent of how the blocks happen to be laid out.
  *
  * The inputs both come from lower_analyze.cpp: a linear numbering of the instructions (in the order
  * LowerFunction::blocks lists the blocks, which transformFunction has put in reverse postorder), and
  * a live interval per value in that numbering. Two webs may share a location exactly when their
  * intervals never overlap.
  *
+ * A web that cannot be given a register does not get moved around to make one available. It is given
+ * one of the two homeless states instead - a slot in the frame, or a recipe that recreates it
+ * wherever it is read - and brought into a scratch register at the instructions that cannot work
+ * with it where it is.
+ *
  * The pipeline is four passes:
  *
- *   0. buildWebs        - phi-related values that provably never overlap become one web, so the
- *                         copy between them is an identity and disappears.
- *   1. computeAvoidSets - which registers each web has to stay out of, because something writes
- *                         them while the web is live.
- *   2. Emitter          - place each web and record, per instruction, where the encoder finds
- *                         every operand.
+ *   0. buildWebs         - phi-related values that provably never overlap become one web, so the
+ *                          copy between them is an identity and disappears.
+ *   1. computeAvoidSets  - which registers each web has to stay out of, because something writes
+ *                          them while the web is live.
+ *   1b. computeSpillCosts - what each web would cost in either homeless state, so that a register
+ *                          can be taken from whichever web values it least.
+ *   2. Emitter           - place each web and record, per instruction, where the encoder finds
+ *                          every operand.
  *
- * That leaves four things a location cannot simply be handed out for, all handled by *copying*
+ * That leaves five things a location cannot simply be handed out for, all handled by *copying*
  * around the awkward place rather than by moving a web's home:
  *
  *   - Fixed-register constraints (a divisor in rax, a call argument in rdi, ...). Operands are
@@ -34,9 +41,13 @@
  *   - Destructive two-address encodings, where the result overwrites its first operand's register.
  *     The result is allocated first, preferring that operand's register, and the operand is copied
  *     into the result's register when they differ.
- *   - A home in the frame. No encoder can read one, so the value is loaded into a scratch register
- *     before the instruction and stored back after it if the instruction wrote it. The scratch
- *     registers are reserved by a second allocation attempt - see kMaxSpillTemps.
+ *   - A home in the frame. Most encoders cannot read one, so the value is loaded into a scratch
+ *     register before the instruction and stored back after it if the instruction wrote it. Where
+ *     the encoding does have a memory form, it is used and neither exists.
+ *   - A home that is a recipe. Nothing holds the value at all, so it is recreated into a scratch
+ *     register wherever it is read, and the instruction that would have defined it emits nothing.
+ *
+ * The scratch registers are reserved by a second allocation attempt - see kMaxSpillTemps.
  *
  * Phis are ordinary values here. A phi that shares a web with the value arriving over an edge needs
  * nothing at all; otherwise its location is decided at the first predecessor edge that reaches it,
@@ -76,6 +87,17 @@ static bool isDestructive(LowerBase base, LowerInst* inst) {
  * Parallel copies.
  */
 
+// Whether some other transfer still to be emitted overwrites the source of transfer `i` - which is
+// what makes `i` part of a cycle rather than something merely blocked by one.
+static bool writesSource(const Array<RegMove>& pending, const Array<bool>& done, Size i) {
+    for(Size j = 0; j < pending.size(); j++) {
+        if(j == i || done[j]) continue;
+        if(pending[j].to == pending[i].from) return true;
+    }
+
+    return false;
+}
+
 // Sequences a set of simultaneous copies into an order that executes them one at a time without any
 // of them destroying a value another still has to read. A copy can be emitted as soon as nothing
 // left in the set reads its destination; when nothing qualifies, what remains is a permutation
@@ -87,7 +109,8 @@ static bool isDestructive(LowerBase base, LowerInst* inst) {
 // register first and whoever was waiting to read it reads the scratch instead.
 //
 // A transfer with a slot at both ends - two spilled webs feeding the same phi - is expanded
-// afterwards, since x86 has no memory-to-memory move.
+// afterwards, since x86 has no memory-to-memory move. So is one out of a recipe and into a slot,
+// for the same reason: the value has to exist in a register before anything can store it.
 static void sequenceMoves(Array<RegMove>& pending, Array<RegMove>& out) {
     Array<bool> done;
     for(Size i = 0; i < pending.size(); i++) done.push(pending[i].from == pending[i].to);
@@ -120,15 +143,22 @@ static void sequenceMoves(Array<RegMove>& pending, Array<RegMove>& out) {
         if(!remaining) break;
 
         if(!progress) {
+            // Break a transfer that is genuinely part of the cycle - one whose own source something
+            // else is going to overwrite. A transfer merely *pointing into* the cycle would be
+            // broken to no purpose, and would consume the scratch register the cycle itself needs.
+            // A recipe is never anyone's destination, so a move out of one is never picked here.
             Size i = 0;
-            while(done[i]) i++;
+            while(done[i] || !writesSource(pending, done, i)) {
+                i++;
+                if(i == pending.size()) { i = 0; while(done[i]) i++; break; }
+            }
 
             auto& move = pending[i];
             done[i] = true;
 
             RegId reads;
 
-            if(isSlot(move.from) || isSlot(move.to)) {
+            if(isSlot(move.from) || isSlot(move.to) || isRemat(move.from)) {
                 // No exchange to reach for: park the destination somewhere first.
                 auto scratch = moveTemp(GenReg, 0);
                 out.push(RegMove { move.to, scratch });
@@ -145,11 +175,12 @@ static void sequenceMoves(Array<RegMove>& pending, Array<RegMove>& out) {
         }
     }
 
-    // Expand any remaining memory-to-memory transfer into a load and a store. Done here rather than
-    // during sequencing so that the ordering above is decided on the transfers the caller asked for,
-    // and each expansion stays an adjacent pair - which is what lets them all share one scratch.
+    // Expand any remaining transfer that has to go through a register into a load (or a
+    // materialization) and a store. Done here rather than during sequencing so that the ordering
+    // above is decided on the transfers the caller asked for, and each expansion stays an adjacent
+    // pair - which is what lets them all share one scratch.
     for(auto i = begin; i < out.size(); i++) {
-        if(!isSlot(out[i].from) || !isSlot(out[i].to)) continue;
+        if(isPhysicalLocation(out[i].from) || !isSlot(out[i].to)) continue;
 
         auto scratch = moveTemp(GenReg, 1);
         auto to = out[i].to;
@@ -199,7 +230,22 @@ struct WebInfo {
 
     RegId home = kInvalidReg;
 
+    // What this web costs if it does not get a register, by either of the two ways of not having
+    // one - see computeSpillCosts. Both are in the same units, so they can be compared with each
+    // other and with another web's.
+    U32 spillCost = 0;
+    U32 rematCost = 0;
+
+    // Set when the web is one definition of a value cheap enough to recreate wherever it is read,
+    // and `recipe` is how - see Remat in gen.h.
+    bool canRemat = false;
+    Remat recipe;
+
     LiveInterval interval() const { return LiveInterval { ranges.pointer(), U32(ranges.size()) }; }
+
+    // What losing its register would actually cost this web, which is whichever of the two homeless
+    // states it would then choose. This is the number one web is weighed against another by.
+    U32 homelessCost() const { return canRemat && rematCost < spillCost ? rematCost : spillCost; }
 };
 
 /*
@@ -280,14 +326,28 @@ struct Allocator {
     // as the peak of simultaneously spilled values rather than as large as their total.
     Array<Array<LiveId>> slotOccupants;
 
-    // Set when any web ended up in the frame. The first attempt at a function reserves no scratch
-    // registers; if this comes back true, the whole function is allocated again with some held back,
-    // because a value in the frame has to be brought into a register at each instruction that
-    // touches it. See allocateRegisters.
-    bool spilled = false;
+    // The recipes for the webs that live nowhere at all - see Remat in gen.h. A web's home names
+    // its position here.
+    Array<Remat> remats;
 
-    Allocator(LowerBase base, LowerFunction& fun, Liveness& live, const Constraints& constraints, RegSet reserved):
-        base(base), fun(fun), live(live), constraints(constraints)
+    // Webs this attempt has to leave homeless whatever it would otherwise have done, because a
+    // previous attempt found something that wanted their register more. Indexed by web id; see the
+    // eviction comment on `assign` and the loop in allocateRegisters.
+    const Array<bool>& forceSpill;
+
+    // Webs *this* attempt would rather have displaced than the one it displaced instead. It cannot
+    // act on that itself - a web already placed has already been emitted into the instructions that
+    // read it - so the answer is carried out to allocateRegisters and applied to the next attempt.
+    Array<LiveId> evicted;
+
+    // Set when any web ended up without a register. The first attempt at a function reserves no
+    // scratch registers; if this comes back true, the whole function is allocated again with some
+    // held back, because a value that is not in a register has to be brought into one at each
+    // instruction that touches it. See allocateRegisters.
+    bool needsScratch = false;
+
+    Allocator(LowerBase base, LowerFunction& fun, Liveness& live, const Constraints& constraints, RegSet reserved, const Array<bool>& forceSpill):
+        base(base), fun(fun), live(live), constraints(constraints), forceSpill(forceSpill)
     {
         // Whatever is held back - the scratch registers, and rbp in a function that establishes a
         // frame pointer - is not available to hand out as a home.
@@ -352,6 +412,9 @@ struct Allocator {
         auto avoid = info.avoid | extraAvoid;
         auto interval = info.interval();
 
+        // A previous attempt found something that needed this web's register more than it did.
+        if(forceSpill[webId]) return assignHomeless(webId, v->type, interval);
+
         auto usable = [&](Size i) {
             auto reg = makeRegId(cls, U16(i));
             if(!allocatable.has(reg) || avoid.has(reg)) return false;
@@ -368,14 +431,67 @@ struct Allocator {
             }
         }
 
-        // No register is free for the whole of this web's life, so it lives in the frame instead and
-        // is brought into a scratch register at each instruction that touches it.
-        if(chosen == kRegCount) return assignSlot(webId, v->type, interval);
+        // No register is free for the whole of this web's life. Before settling for that, ask what
+        // the webs standing in the way are worth: a value read once outside a loop is a far better
+        // thing to displace than one read at every iteration inside one.
+        //
+        // The displaced web cannot be moved where it stands - it was placed while this same walk was
+        // emitting the instructions that read it, and its location is already written into them - so
+        // it is *recorded* instead, and the next attempt starts with it homeless, which leaves its
+        // register free at the point that wanted it. A function that gets this far is being
+        // allocated more than once regardless.
+        if(chosen == kRegCount) {
+            recordEviction(cls, avoid, interval, info.homelessCost());
+            return assignHomeless(webId, v->type, interval);
+        }
 
         info.home = makeRegId(cls, chosen);
         occupants[cls][chosen].push(webId);
         written.add(info.home);
         return info.home;
+    }
+
+    // Notes the register whose occupants would be cheapest to displace, if displacing them costs
+    // less than `budget` - what the web asking for a register is about to pay for not having one.
+    // Every occupant whose life overlaps has to go, since the register is only free for the new web
+    // when all of them have.
+    void recordEviction(RegClass cls, const RegSet& avoid, const LiveInterval& interval, U32 budget) {
+        Size best = kRegCount;
+        auto bestCost = budget;
+
+        for(auto i: order[cls]) {
+            auto reg = makeRegId(cls, U16(i));
+            if(!allocatable.has(reg) || avoid.has(reg)) continue;
+
+            U32 cost = 0;
+            for(auto id: occupants[cls][i]) {
+                if(webs[id].interval().overlaps(interval)) cost += webs[id].homelessCost();
+            }
+
+            if(cost < bestCost) { bestCost = cost; best = i; }
+        }
+
+        if(best == kRegCount) return;
+
+        for(auto id: occupants[cls][best]) {
+            if(webs[id].interval().overlaps(interval)) evicted.push(id);
+        }
+    }
+
+    // A web that is not getting a register. There are two ways to do without one and they cost
+    // differently: recreating the value wherever it is read, or keeping it in the frame and bringing
+    // it back at each instruction that cannot read a memory operand. computeSpillCosts priced both.
+    RegId assignHomeless(LiveId webId, LowerType type, const LiveInterval& interval) {
+        auto& info = webs[webId];
+        needsScratch = true;
+
+        if(info.canRemat && info.rematCost < info.spillCost) {
+            remats.push(info.recipe);
+            info.home = makeRegId(RematReg, U16(remats.size() - 1));
+            return info.home;
+        }
+
+        return assignSlot(webId, type, interval);
     }
 
     // Gives a web a slot in the frame, reusing one whose current occupants are never live at the
@@ -400,7 +516,6 @@ struct Allocator {
 
             slotOccupants[i].push(webId);
             info.home = makeRegId(StackReg, U16(i));
-            spilled = true;
             return info.home;
         }
 
@@ -416,7 +531,6 @@ struct Allocator {
         slotOccupants[slot].push(webId);
 
         info.home = makeRegId(StackReg, slot);
-        spilled = true;
         return info.home;
     }
 };
@@ -552,6 +666,155 @@ static void computeAvoidSets(Allocator& a) {
 }
 
 /*
+ * Pass 1b: what each web costs if it does not get a register.
+ *
+ * Two prices rather than one, because there are two ways to do without a register and they are not
+ * alike. A web in the frame pays a store where it is defined and a reload at every instruction that
+ * has no form reading a memory operand - but nothing at all where such a form exists, since
+ * `add rax, [slot]` is one instruction just as `add rax, rcx` is. A rematerialized web pays a
+ * materialization at every read and nothing anywhere else: no store, no slot, and no interference
+ * with anything, since it is not live between its uses.
+ *
+ * Both are stated in quarter-instructions, so that "a longer encoding" can be told apart from
+ * "free", and both are weighted by loop depth, since an instruction one loop deep runs some multiple
+ * of the times the code around it does. `orderBlocks` left that depth on each block for this.
+ */
+
+static constexpr U32 kReloadCost = 4;    // an operand that has to be brought into a register
+static constexpr U32 kStoreCost = 4;     // a result that has to be carried back to its slot
+static constexpr U32 kRematCost = 4;     // recreating the value where it is read
+static constexpr U32 kFoldedUseCost = 1; // an operand read straight out of the frame
+
+// How much more one execution of this block is worth than one execution of the function's entry.
+// Eight per loop level, capped so that a deeply nested block cannot overflow the sums these feed.
+static U32 blockWeight(LowerBlock* block) {
+    auto depth = block->loopDepth < 5 ? block->loopDepth : 5;
+    return U32(1) << (3 * depth);
+}
+
+// Whether this instruction reads and writes operand `index` in the same place - which it does when
+// the encoding has such a form and the operand and the result turn out to be one web, so that they
+// are certain to share whatever home that web gets. This is the shape phi-web coalescing produces
+// for a loop-carried accumulator, and the one case where a spilled result costs nothing to store.
+static bool isInPlace(Allocator& a, LowerInst* inst, I32 index) {
+    if(index == kNoMemoryOperand || inst->createdCount == 0) return false;
+
+    auto& result = inst->created()[0];
+    auto operand = a.base[inst->used()[index]];
+
+    if(isImplicit(&result) || isImplicit(operand)) return false;
+    return a.sameWeb(operand, &result);
+}
+
+// The recipe that recreates `v`, if it is cheap and reproducible enough to have one. Every kind here
+// is a constant in the sense that matters: it depends on nothing the program can write, so it
+// produces the same answer wherever it is placed.
+static bool recipeFor(Allocator& a, LowerValue* v, Remat& out) {
+    auto inst = v->inst();
+
+    switch(inst->kind) {
+        case LowerInst::Imm:
+            // A float constant would have to be loaded from a pool, which nothing builds yet.
+            if(!isIntLike(v->type)) return false;
+
+            out = Remat { .kind = Remat::Immediate, .type = v->type, .imm = ((LowerImm*)inst)->i };
+            return true;
+
+        case LowerInst::Global:
+            out = Remat { .kind = Remat::GlobalAddress, .type = v->type };
+            out.global = a.base[((LowerInstGlobal*)inst)->target];
+            return true;
+
+        case LowerInst::Fun:
+            out = Remat { .kind = Remat::FunctionAddress, .type = v->type };
+            out.function = a.base[((LowerInstFun*)inst)->target];
+            return true;
+
+        case LowerInst::Alloca: {
+            // Only a fixed-size one. A dynamic allocation moves the stack pointer, so its address is
+            // not a constant offset from anything, and running it again would hand out fresh memory
+            // rather than reproduce the same pointer.
+            auto ref = a.frame.references.getValue(inst);
+            if(!ref) return false;
+
+            out = Remat { .kind = Remat::FrameAddress, .type = v->type };
+            out.frame = ref.unwrap();
+            return true;
+        }
+
+        default:
+            return false;
+    }
+}
+
+static void computeSpillCosts(Allocator& a) {
+    // A recipe reproduces one definition, so only a web that has one can have a recipe. A web with
+    // several members is several definitions of a single location, and no one of them describes it.
+    Array<U16> members;
+    for(Size i = 0; i < a.webs.size(); i++) members.push(0);
+    for(auto web: a.webOf) members[web]++;
+
+    for(Size i = 0; i < a.webOf.size(); i++) {
+        auto& info = a.webs[a.webOf[i]];
+        if(members[a.webOf[i]] != 1 || info.canRemat) continue;
+
+        auto v = a.live.getValue(LiveId(i));
+        if(isImplicit(v)) continue;
+
+        info.canRemat = recipeFor(a, v, info.recipe);
+    }
+
+    for(auto offset: a.fun.blocks.contents(a.base)) {
+        auto block = a.base[offset];
+        auto weight = blockWeight(block);
+
+        auto onInst = [&](LowerInst* inst) {
+            auto shape = shapeOf(a.base, a.constraints, a.fun, inst);
+
+            // The one operand this instruction could leave in the frame, if any. A read-modify-write
+            // form takes precedence: it makes both the read and the write free, where a memory
+            // source only makes the read free, and the two want the same r/m field.
+            auto folded = memoryUseOperand(a.base, inst);
+            auto inPlace = isInPlace(a, inst, memoryDefOperand(a.base, inst));
+            if(inPlace) folded = memoryDefOperand(a.base, inst);
+
+            auto used = inst->used();
+            for(Size i = 0; i < used.size(); i++) {
+                auto v = a.base[used[i]];
+                if(isImplicit(v)) continue;
+
+                // An operand the encoding pins to a particular register is copied into it from
+                // wherever it lives, and that copy exists whether the home is a register, a slot or
+                // a recipe. Being homeless costs such an operand a longer encoding rather than an
+                // instruction, which is the same thing a memory operand costs.
+                auto constrained = shape.uses[i].kind == ArgLocation::Register;
+                auto free = constrained || I32(i) == folded;
+
+                auto& web = a.webFor(v);
+                web.spillCost += weight * (free ? kFoldedUseCost : kReloadCost);
+                web.rematCost += weight * (constrained ? kFoldedUseCost : kRematCost);
+            }
+
+            auto created = inst->created();
+            for(Size i = 0; i < created.size(); i++) {
+                if(isImplicit(&created[i])) continue;
+
+                // Written in place, so there is nothing to carry anywhere; or produced in a fixed
+                // register and carried out of it either way, in which case the carrying move simply
+                // becomes a store.
+                if(inPlace && i == 0) continue;
+
+                auto constrained = shape.creates[i].kind == ArgLocation::Register;
+                a.webFor(&created[i]).spillCost += weight * (constrained ? kFoldedUseCost : kStoreCost);
+            }
+        };
+
+        for(auto i: block->instructions.contents(a.base)) onInst(a.base[i]);
+        onInst(a.base[block->terminator]);
+    }
+}
+
+/*
  * Pass 2: place values and record, per instruction, where the encoder finds each operand.
  */
 
@@ -579,24 +842,29 @@ struct Emitter {
     // already been placed. Used both to report operands and to keep a destructive result off the
     // registers its sibling operands are read from.
     //
+    // `memoryDest` says that the result is being written straight into the frame slot operand zero
+    // occupies, which takes the one r/m field this instruction has - so no *other* operand may stay
+    // in memory, however good a form the encoding has for it.
+    //
     // `reserve` is false when the caller only wants to know where a sibling operand will be read
     // from, so that asking twice does not consume two scratch registers for one operand.
-    RegId useLocation(LowerInst* inst, const InstShape& shape, Size i, RegId destructiveReg, bool reserve) {
+    RegId useLocation(LowerInst* inst, const InstShape& shape, Size i, RegId destructiveReg, bool memoryDest, bool reserve) {
         auto v = base[inst->used()[i]];
         if(isImplicit(v)) return kInvalidReg;
 
         // A fixed-register operand is loaded straight into the register the instruction demands,
-        // whether it comes from another register or from the frame - no scratch needed either way.
+        // whether it comes from another register, from the frame or from a recipe - no scratch
+        // needed in any of the three.
         auto want = wantForUse(shape, i);
         if(want != kInvalidReg) return want;
         if(i == 0 && destructiveReg != kInvalidReg) return destructiveReg;
 
         auto home = a.homeOf(v);
-        if(!isSlot(home)) return home;
+        if(isPhysicalLocation(home)) return home;
 
         // A slot this instruction can address directly stays where it is: the encoder takes the
         // memory form of the operation and the reload never exists.
-        if(memoryUseOperand(base, inst) == I32(i)) return home;
+        if(isSlot(home) && !memoryDest && memoryUseOperand(base, inst) == I32(i)) return home;
 
         auto cls = classForType(v->type);
         return reserve ? takeTemp(cls) : spillTemp(cls, tempsUsed[cls]);
@@ -638,27 +906,40 @@ struct Emitter {
         // that puts used()[0] there runs before the instruction, and would otherwise overwrite a
         // sibling operand that the instruction has not read yet.
         RegId destructiveReg = kInvalidReg;
+        bool memoryDest = false;
 
         if(isDestructive(base, inst) && used.size() > 0 && created.size() > 0 && !isImplicit(&created[0])) {
             RegSet blocked;
             for(Size i = 1; i < used.size(); i++) {
-                blocked.add(useLocation(inst, shape, i, kInvalidReg, false));
+                blocked.add(useLocation(inst, shape, i, kInvalidReg, false, false));
             }
 
             destructiveReg = a.assign(&created[0], blocked, copyHint(inst, index));
 
-            // A destructive result that lives in the frame is computed in a scratch register and
-            // stored afterwards; the operand it overwrites has to be brought into that same one.
-            if(getRegClass(destructiveReg) == StackReg) {
-                auto slot = destructiveReg;
-                destructiveReg = takeTemp(classForType(created[0].type));
-                out.postMoves.push(RegMove { destructiveReg, slot });
+            if(isSlot(destructiveReg)) {
+                // The result lives in the frame. Where the encoding has a form that writes its
+                // destination through the r/m field and the operand it overwrites already occupies
+                // that very slot, the whole operation happens in place - `add [rsp+8], rcx` - and
+                // neither the reload nor the store exists. This is what a coalesced loop-carried
+                // accumulator looks like once it has been spilled.
+                auto memoryOperand = memoryDefOperand(base, inst);
+                auto first = base[used[0]];
+
+                memoryDest = memoryOperand == 0 && !isImplicit(first) && a.homeOf(first) == destructiveReg;
+
+                // Otherwise it is computed in a scratch register and stored afterwards, and the
+                // operand it overwrites has to be brought into that same one.
+                if(!memoryDest) {
+                    auto slot = destructiveReg;
+                    destructiveReg = takeTemp(classForType(created[0].type));
+                    out.postMoves.push(RegMove { destructiveReg, slot });
+                }
             }
         }
 
         for(Size i = 0; i < used.size(); i++) {
             auto v = base[used[i]];
-            auto location = useLocation(inst, shape, i, destructiveReg, true);
+            auto location = useLocation(inst, shape, i, destructiveReg, memoryDest, true);
 
             out.uses.push(location);
             if(location != kInvalidReg && location != a.homeOf(v)) {
@@ -683,10 +964,12 @@ struct Emitter {
             auto home = a.assign(&v, RegSet {}, want != kInvalidReg ? want : copyHint(inst, index));
 
             // Where the encoder has to write it, which is the home unless the home is a frame slot
-            // (no encoder emits a memory destination) or the encoding forces a particular register.
+            // this instruction has no destination form for, or the encoding forces a particular
+            // register. A recipe stays a recipe: nothing is written anywhere, and the instruction
+            // that would have defined the value emits nothing at all.
             auto at = home;
             if(want != kInvalidReg) at = want;
-            else if(getRegClass(home) == StackReg) at = takeTemp(classForType(v.type));
+            else if(isSlot(home)) at = takeTemp(classForType(v.type));
 
             out.creates.push(at);
 
@@ -839,19 +1122,22 @@ static void collectFrameObjects(Allocator& a) {
     }
 }
 
-// One complete allocation of a function, with `reserved` held back from every value. Run once with
-// only the frame pointer (if any) reserved and, if that turned out to need the frame, once more with
-// the scratch registers held back too - see the comment on kMaxSpillTemps.
+// One complete allocation of a function, with `reserved` held back from every value and `forceSpill`
+// naming the webs a previous attempt asked to be left homeless. See allocateRegisters for what makes
+// an attempt ask for another.
 static FunctionRegs allocateWith(Context& ctx, LowerBase base, LowerFunction& fun, Liveness& live,
-    const Constraints& constraints, RegSet reserved, bool framePointer, bool& spilled)
+    const Constraints& constraints, RegSet reserved, bool framePointer,
+    const Array<bool>& forceSpill, bool& needsScratch, Array<LiveId>& evicted)
 {
-    Allocator a(base, fun, live, constraints, reserved);
+    Allocator a(base, fun, live, constraints, reserved, forceSpill);
     collectFrameObjects(a);
 
     // Webs before avoid sets: a clobber that one member has to dodge is one the whole web has to
-    // dodge, since they share a location.
+    // dodge, since they share a location. Costs after both, since a web is what carries them and an
+    // in-place read-modify-write is a property of two values being one web.
     buildWebs(a);
     computeAvoidSets(a);
+    computeSpillCosts(a);
 
     Emitter emitter(a);
     FunctionRegs result;
@@ -907,6 +1193,7 @@ static FunctionRegs allocateWith(Context& ctx, LowerBase base, LowerFunction& fu
 
     for(Size i = 0; i < a.webOf.size(); i++) result.allocation.locations.push(a.webs[a.webOf[i]].home);
     result.frame = ::move(a.frame);
+    result.remats = ::move(a.remats);
     result.framePointer = framePointer;
 
     // The decision was made before allocation started, so this is only a check that it was made
@@ -919,9 +1206,16 @@ static FunctionRegs allocateWith(Context& ctx, LowerBase base, LowerFunction& fu
     result.usedCalleeSaved = a.written & constraints.getConvention(fun.callType).calleeSaved;
     assertTrue(result.usedCalleeSaved.classes[XmmReg] == 0); // no encoder saves a vector register yet
 
-    spilled = a.spilled;
+    needsScratch = a.needsScratch;
+    evicted = ::move(a.evicted);
     return result;
 }
+
+// How many webs an allocation may displace across all of its attempts. Every displacement costs one
+// more pass over the function, and the improvement from each is small and diminishing, so this
+// bounds what a pathological function can spend. Reaching it costs code quality and nothing else:
+// an attempt is a complete, correct allocation whether or not another one would have been better.
+static constexpr Size kMaxEvictions = 16;
 
 FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun) {
     auto& constraints = targetConstraints();
@@ -934,19 +1228,55 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun)
     auto framePointer = functionNeedsFramePointer(ctx, base, fun);
     auto reserved = framePointer ? framePointerRegs() : RegSet {};
 
-    // First attempt: every register that isn't the frame pointer is available to hold a value. Most
-    // functions end here, and pay nothing for the machinery below.
-    bool spilled = false;
-    auto result = allocateWith(ctx, base, fun, *live, constraints, reserved, framePointer, spilled);
+    Array<bool> forceSpill;
+    for(Size i = 0; i < live->valueMap.size(); i++) forceSpill.push(false);
 
-    if(spilled) {
-        // Something had to go to the frame, and a value in the frame has to be brought into a
-        // register at each instruction that touches it. Allocate the whole function again with
-        // those registers held back rather than trying to find them after the fact.
-        //
-        // This attempt cannot fail: whatever no longer fits in a register goes to the frame too, and
-        // the frame has no limit.
-        result = allocateWith(ctx, base, fun, *live, constraints, reserved | spillTempRegs(), framePointer, spilled);
+    /*
+     * Every attempt is a complete allocation of the function, and the first is the answer for a
+     * function that fitted in its registers - which is most of them, and which pays nothing for any
+     * of what follows.
+     *
+     * Two things an attempt can discover that it cannot act on itself make it ask for another:
+     *
+     *   - a web ended up without a register, and one that has no register has to be brought into a
+     *     scratch one at each instruction that touches it. Those are reserved for the whole
+     *     function rather than found after the fact, so the function is allocated again with them
+     *     held back. This can only happen once.
+     *   - a web would rather have taken a register from a cheaper occupant than gone without one.
+     *     The occupant cannot be moved where it stands, having already been emitted into the
+     *     instructions that read it, so it is spilled from the start of the next attempt instead.
+     *
+     * Neither can fail to converge: the reserved set is monotone and settles after one change, and
+     * the forced-spill set only grows and is bounded twice over - by kMaxEvictions and by there
+     * being finitely many webs. Whatever no longer fits in a register goes to the frame, and the
+     * frame has no limit.
+     */
+    FunctionRegs result;
+    bool scratchReserved = false;
+    Size evictions = 0;
+
+    for(;;) {
+        bool needsScratch = false;
+        Array<LiveId> evicted;
+
+        result = allocateWith(ctx, base, fun, *live, constraints, reserved, framePointer, forceSpill, needsScratch, evicted);
+        bool again = false;
+
+        if(needsScratch && !scratchReserved) {
+            reserved |= spillTempRegs();
+            scratchReserved = true;
+            again = true;
+        }
+
+        for(auto id: evicted) {
+            if(forceSpill[id] || evictions >= kMaxEvictions) continue;
+
+            forceSpill[id] = true;
+            evictions++;
+            again = true;
+        }
+
+        if(!again) break;
     }
 
     // Debug builds only - assertTrue compiles away entirely in a release build, taking the call

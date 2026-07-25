@@ -10,15 +10,17 @@ enum RegClass {
     GenReg,
     XmmReg,
     StackReg,
+    RematReg,
 };
 
 using RegId = I16;
 
-// The classes that name a physical machine register. StackReg is a location class but not a
-// physical one - a frame slot is not part of the register file - so it is excluded from everything
-// that describes what an operation does to the machine.
+// The classes that name a physical machine register. StackReg and RematReg are location classes but
+// not physical ones - a frame slot is not part of the register file, and a rematerializable value
+// occupies nothing at all - so both are excluded from everything that describes what an operation
+// does to the machine.
 static constexpr Size kPhysRegClassCount = 2;
-static constexpr Size kRegClassCount = 3;
+static constexpr Size kRegClassCount = 4;
 static constexpr RegId kInvalidReg = 0x7fff;
 
 inline RegClass getRegClass(RegId id) {
@@ -45,9 +47,10 @@ inline RegClass classForType(LowerType type) {
 // caller-saved integer registers. A single mask could only ever describe one class, which is why no
 // convention could describe a vector clobber before.
 //
-// A location that is not a physical register - a stack slot, or kInvalidReg - is never a member, and
-// adding one is a no-op rather than an error. That is what makes it safe to feed an operand's
-// location straight in without first asking whether the allocator gave it a register at all.
+// A location that is not a physical register - a stack slot, a rematerializable value, or
+// kInvalidReg - is never a member, and adding one is a no-op rather than an error. That is what
+// makes it safe to feed an operand's location straight in without first asking whether the allocator
+// gave it a register at all.
 struct RegSet {
     U64 classes[kPhysRegClassCount] = {};
 
@@ -361,6 +364,19 @@ static constexpr I32 kNoMemoryOperand = -1;
 // field, and there is one of those) and what keeps the answer a single index.
 I32 memoryUseOperand(LowerBase base, LowerInst* inst);
 
+// The one operand of `inst` that may be read *and written* in place, as an index into its used()
+// buffer, or kNoMemoryOperand. Answers only for the destructive two-address encodings whose r/m
+// operand is the destination - `add r/m, r` rather than `add r, r/m` - so it is always operand zero
+// where it answers at all.
+//
+// Unlike memoryUseOperand this is not enough on its own: the operand and the result have to occupy
+// the same slot, which the allocator is the only one that can say. What is stated here is the half
+// that depends on the instruction - that such a form exists, and that the slot is the width the
+// operation works at.
+//
+// The two are mutually exclusive at one instruction. Both want the r/m field, and there is one.
+I32 memoryDefOperand(LowerBase base, LowerInst* inst);
+
 /*
  * Register allocation output.
  *
@@ -512,6 +528,43 @@ struct FrameObjects {
     bool isEmpty() const { return slots.isEmpty(); }
 };
 
+/*
+ * Rematerialization.
+ *
+ * A value cheap enough to recompute does not need to be kept anywhere. Instead of a register or a
+ * frame slot, its web is given a *recipe*: the one instruction that recreates it, which is emitted
+ * afresh into a scratch register at each instruction that reads it. The definition itself then emits
+ * nothing at all, and the value occupies no location between its uses - which is the point, since
+ * the values this applies to are exactly the ones whose live ranges are long and whose contents
+ * never change.
+ *
+ * A recipe has to be reproducible at every point the value is live: side-effect free, independent of
+ * anything the program can write, and legal wherever it lands. All four kinds below are constants in
+ * that sense - an immediate, the address of a global or a function, and the address of a fixed frame
+ * object, which is a constant offset from a base register the frame keeps valid for the whole
+ * function.
+ *
+ * A recipe is named by a RegId of class RematReg whose index is its position in
+ * FunctionRegs::remats, so a rematerializable value, a value in a slot and a value in a register are
+ * the same kind of thing everywhere a location is handled.
+ */
+struct Remat {
+    enum Kind: U8 {
+        Immediate,       // mov r, imm
+        GlobalAddress,   // lea r, [rip + global]
+        FunctionAddress, // lea r, [rip + function]
+        FrameAddress,    // lea r, [base + slot]
+    };
+
+    Kind kind = Immediate;
+    LowerType type = LowerType::Int64;
+
+    U64 imm = 0;                        // Immediate
+    LowerGlobal* global = nullptr;      // GlobalAddress
+    LowerFunction* function = nullptr;  // FunctionAddress
+    FrameReference frame;               // FrameAddress
+};
+
 // Where each value lives between the instructions that touch it, indexed by the dense LiveId that
 // buildLiveness assigns. This is the allocation proper; the per-instruction InstRegs above are what
 // the encoder needs to emit it, and say where an operand sits *at one instruction*, which is not
@@ -542,6 +595,10 @@ struct FunctionRegs {
 
     // Everything the function needs stack space for - see FrameObjects.
     FrameObjects frame;
+
+    // The recipes for the webs that live nowhere - see Remat. A location of class RematReg indexes
+    // this, and every one of them is referenced by exactly one web.
+    Array<Remat> remats;
 
     // Callee-saved registers this function writes, and therefore has to save on entry and restore
     // before every return. Empty for a function that stayed inside its convention's clobber set,

@@ -123,6 +123,19 @@ inline bool isSlot(RegId id) {
     return getRegClass(id) == StackReg;
 }
 
+// Whether a location is a recipe rather than a place: the value is recreated wherever it is needed
+// and is not stored anywhere in between. See Remat in gen.h.
+inline bool isRemat(RegId id) {
+    return getRegClass(id) == RematReg;
+}
+
+// Whether a location is somewhere the encoders can read a value out of directly. A slot and a recipe
+// both answer no, and for the same reason from the allocator's point of view: an instruction that
+// cannot address one has to be given a scratch register with the value brought into it.
+inline bool isPhysicalLocation(RegId id) {
+    return id != kInvalidReg && !isSlot(id) && !isRemat(id);
+}
+
 inline bool isImm(LowerValue* v) {
     return v->inst()->kind == LowerInst::Imm && (v->flags & LowerValue::Implicit);
 }

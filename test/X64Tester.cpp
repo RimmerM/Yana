@@ -116,6 +116,11 @@ static void writeRegName(Net::Writer& w, RegId id) {
     } else if(cls == StackReg) {
         w.writeString("stack:"_v);
         writeInt(w, idx);
+    } else if(cls == RematReg) {
+        // Not a place at all: the value is recreated wherever it is read, and the index names the
+        // recipe in FunctionRegs::remats that does it.
+        w.writeString("remat:"_v);
+        writeInt(w, idx);
     } else {
         w.writeString("?"_v);
     }

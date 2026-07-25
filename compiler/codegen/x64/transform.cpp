@@ -3,6 +3,17 @@
 
 // Checks if the flags register can be modified by running this instruction.
 inline bool modifiesFlags(LowerInst* inst) {
+    // A zero immediate is materialized with `xor r, r` rather than `mov r, 0` - two bytes instead of
+    // five, at the cost of writing the flags, which the move does not (see genMovImm). Answered from
+    // the value alone rather than from whether the immediate ended up implicit, because this runs in
+    // the same walk that decides implicitness and reaches later instructions before that decision
+    // has been made for them. An embedded immediate emits nothing and so writes nothing; treating it
+    // as if it did costs one folded comparison in a shape where a constant zero sits between a
+    // comparison and its branch.
+    if(inst->kind == LowerInst::Imm) {
+        return ((LowerImm*)inst)->i == 0 && isIntLike(((LowerImm*)inst)->result.type);
+    }
+
     return isBinary(inst) || isCall(inst) || isUnaryArith(inst) || inst->kind == LowerInst::Alloca;
 }
 
@@ -507,13 +518,16 @@ static bool matchScaled(LowerBase base, LowerValue* v, LowerInst* user, LowerVal
     return true;
 }
 
-// Peels `base + index*scale + displacement` off the value a load or store takes its address from,
-// stopping as soon as what is left is not exclusively this address's own arithmetic. `folded`
-// collects the instructions that become dead, in the order they can be removed: an outer add before
-// the shift it absorbed, so that each is already unused by the time it goes.
-static bool matchAddress(LowerBase base, LowerValue* address, AddressPattern& out, Array<LowerInst*>& folded) {
+// Peels `base + index*scale + displacement` off `address`, stopping as soon as what is left is not
+// exclusively this address's own arithmetic. `folded` collects the instructions that become dead, in
+// the order they can be removed: an outer add before the shift it absorbed, so that each is already
+// unused by the time it goes.
+//
+// The caller decides what the peeled pattern becomes. An address every user reads as an address
+// becomes an X86Address folded into each of them; anything else becomes an X86Lea that computes it
+// into a register - see foldLeas.
+static bool peelAddress(LowerBase base, LowerValue* address, AddressPattern& out, Array<LowerInst*>& folded) {
     out.base = address;
-    if(!isOnlyUsedAsAddress(base, address)) return false;
 
     // Loop invariant: everything reading `out.base` is about to be rewritten to read the address
     // instead, so the instruction computing it can be removed.
@@ -577,6 +591,12 @@ static bool matchAddress(LowerBase base, LowerValue* address, AddressPattern& ou
     return folded.isNotEmpty();
 }
 
+static bool matchAddress(LowerBase base, LowerValue* address, AddressPattern& out, Array<LowerInst*>& folded) {
+    if(!isOnlyUsedAsAddress(base, address)) return false;
+
+    return peelAddress(base, address, out, folded);
+}
+
 // Where `inst` sits in its own block's instruction list.
 static Size indexOfInst(LowerBase base, LowerBlock* block, LowerInst* inst) {
     auto list = block->instructions.contents(base);
@@ -631,6 +651,93 @@ static void foldAddresses(LowerBase base, LowerFunction& fun) {
             // Both the insertions and the removals moved things around underneath the walk, so the
             // position to carry on from is wherever this access ended up.
             i = indexOfInst(base, block, inst);
+        }
+    }
+}
+
+/*
+ * `lea`.
+ *
+ * The fold above only fires for an address computation every user reads *as an address*, because
+ * that is the case where the arithmetic disappears entirely. An address that has to end up in a
+ * register - pointer arithmetic passed to a call, an element pointer written to memory, a base kept
+ * across a branch - still gets the same addressing unit, just with the answer materialized: that is
+ * what `lea` is.
+ *
+ * `lea` is worth reaching for in exactly two shapes, and neither is "every pointer add". It computes
+ * `base + index*{1,2,4,8} + disp` in one instruction where the lowering emitted two or three, and it
+ * writes its result somewhere other than its operands, where `add` overwrites the first of them and
+ * so needs a copy in front of it whenever that operand is still read afterwards. Where neither
+ * applies, `add` is one instruction of the same length and is left alone.
+ */
+
+// Whether replacing this chain with an `lea` costs fewer instructions than leaving it alone.
+//
+// The base's use list still counts the instruction about to be folded away, so "used more than once"
+// is what "read somewhere else as well, and therefore copied before an `add` could overwrite it"
+// looks like from here.
+static bool isLeaProfitable(const AddressPattern& pattern, const Array<LowerInst*>& folded) {
+    if(folded.size() > 1) return true;
+    return pattern.base->uses.size() > 1;
+}
+
+static void foldLeas(LowerBase base, LowerFunction& fun) {
+    auto& arena = fun.arena;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        // Backwards, so that the top of a chain is reached before the arithmetic feeding it. The
+        // other way round, `p + i*4` would become an `lea` of its own and leave the `+ 24` above it
+        // behind as a second instruction, where taking the outer add first absorbs both.
+        Size i = block->instructions.size();
+
+        while(i > 0) {
+            i--;
+
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::Add && inst->kind != LowerInst::Sub) continue;
+
+            // Pointer arithmetic only, for the reason the fold above gives: the address unit works
+            // at 64 bits and does not wrap where a narrower operation does.
+            auto& result = ((LowerInstBinary*)inst)->result;
+            if(!isPtr(result.type) || isImplicit(&result) || result.uses.isEmpty()) continue;
+
+            AddressPattern pattern;
+            Array<LowerInst*> folded;
+            if(!peelAddress(base, &result, pattern, folded)) continue;
+            if(!isLeaProfitable(pattern, folded)) continue;
+
+            auto lea = new (arena) LowerInstX86Address(
+                LowerInst::X86Lea, result.name, pattern.base - base,
+                pattern.index ? pattern.index - base : nullptr,
+                pattern.scale, U32(I32(pattern.displacement))
+            );
+
+            // In front of the instruction it replaces, which is where the value was already
+            // available to everything that reads it.
+            insertInstAt(base, block, i, lea);
+
+            // Snapshotted: the loop below rewrites the very list it is reading. A user that reads
+            // the value twice appears twice, and moves both of its use entries across.
+            Array<LowerInst*> users;
+            for(auto u: result.uses.contents(base)) users.push(base[u]);
+
+            for(auto user: users) {
+                replaceUse(base, &result, user, &lea->result);
+
+                auto used = user->used();
+                for(Size k = 0; k < used.size(); k++) {
+                    if(base[used[k]] == &result) used[k] = &lea->result - base;
+                }
+            }
+
+            for(auto dead: folded) removeInst(base, dead);
+
+            // Both the insertion and the removals moved things around underneath the walk, so the
+            // position to carry on from is wherever the new instruction ended up. Everything the
+            // fold consumed was at or before it, and the `lea` itself is not a candidate.
+            i = indexOfInst(base, block, lea);
         }
     }
 }
@@ -761,8 +868,16 @@ static void orderBlocks(LowerBase base, LowerFunction& fun) {
     }
 
     for(Size i = 0; i < ordered.size(); i++) {
+        auto b = base[ordered[i]];
+
+        // The depth the ordering was decided from is kept rather than thrown away: it is the only
+        // thing downstream that can say one part of a function runs more often than another, and the
+        // allocator weighs a spill by it. Read before the renumbering below, since `depth` is
+        // indexed by the numbering the traversal used.
+        b->loopDepth = U16(depth[b->index]);
+
         fun.blocks.set(base, i, ordered[i]);
-        base[ordered[i]]->index = BlockIndex(i);
+        b->index = BlockIndex(i);
     }
 }
 
@@ -786,7 +901,11 @@ void transformFunction(LowerBase base, LowerFunction& fun) {
     // Before the peepholes rather than after them: an immediate whose only use was an address
     // computation is left with none by the fold, and is then made implicit by the pass below rather
     // than being materialized into a register nothing reads.
+    //
+    // The `lea` pass runs second and takes what is left: the addresses the fold could not remove
+    // outright, because something reads them as a value rather than as an address.
     foldAddresses(base, fun);
+    foldLeas(base, fun);
 
     pass([&](LowerInst* inst, Size i) {
         // Make immediates implicit where possible.

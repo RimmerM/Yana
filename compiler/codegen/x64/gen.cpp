@@ -177,6 +177,30 @@ static void genSlotOperand(AsmModule& to, const FrameLayout& frame, LowerType ty
     writeAddressOperand(to, regField, a);
 }
 
+// `op r/m, imm8/imm32` against a frame slot, with ModRM.reg carrying an opcode extension. The
+// register counterpart is genRegImm; this is the same encoding with an address in the r/m field, and
+// exists for the read-modify-write forms where the slot is the destination as well as the source.
+static void genSlotImm(AsmModule& to, const FrameLayout& frame, LowerType type, RegId slot, LowerValue* imm, U8 opCode8, U8 opCode32, U8 ext) {
+    auto a = slotAddress(frame, slot);
+    writeAddress(to, is64Bit(type), ext, a);
+
+    if(auto imm8 = encodeImm8(imm)) {
+        to.buffer.writeByte(opCode8);
+        writeAddressOperand(to, ext, a);
+        to.buffer.writeByte(imm8.unwrap());
+    } else if(auto imm32 = encodeImm32(imm)) {
+        to.buffer.writeByte(opCode32);
+        writeAddressOperand(to, ext, a);
+        to.buffer.writeInt<LittleEndian>(imm32.unwrap());
+    } else {
+        assertTrue("invalid immediate value" == nullptr);
+    }
+}
+
+// Recreates a rematerialized value in `dest` - see Remat in gen.h. Defined below, next to the
+// encoders it is made of; declared here because a recipe reaches the machine through genMoves.
+static void genRemat(AsmModule& to, const FrameLayout& frame, const Remat& r, RegId dest);
+
 // Emits a sequenced permutation of locations (fixed-register constraints, phi placement, the copy
 // that feeds a destructive two-address encoding, a value moving between the frame and a register).
 // The allocator has already ordered these, so they are emitted exactly as given; a `swap` entry is
@@ -189,9 +213,18 @@ static void genSlotOperand(AsmModule& to, const FrameLayout& frame, LowerType ty
 // A load or store is exactly as wide as the slot it touches. Slots are packed by width, so a 4-byte
 // value sits 4 bytes from its neighbour and a 64-bit move would take the neighbour with it. A 32-bit
 // write also zeroes the rest of the register, which is what a 32-bit value wants anyway.
-static void genMoves(AsmModule& to, const FrameLayout& frame, const FrameObjects& objects, const Array<RegMove>& moves) {
+static void genMoves(AsmModule& to, const FrameLayout& frame, const FrameObjects& objects, const Array<Remat>& remats, const Array<RegMove>& moves) {
     for(auto& m: moves) {
         if(m.from == m.to) continue;
+
+        // A recipe as the source is not a copy at all: nothing holds the value anywhere, so it is
+        // recreated straight into the destination. It is never a destination - there is nothing to
+        // write to - and so can never be part of a cycle either.
+        if(isRemat(m.from)) {
+            assertTrue(!m.swap && !isSlot(m.to) && !isRemat(m.to));
+            genRemat(to, frame, remats[getRegIndex(m.from)], m.to);
+            continue;
+        }
 
         auto fromSlot = getRegClass(m.from) == StackReg;
         auto toSlot = getRegClass(m.to) == StackReg;
@@ -259,6 +292,18 @@ static void genMovImm(AsmModule& to, LowerImm& i, RegId destReg) {
     // whatever instruction uses them instead.
     if(isImplicit(&i.result)) return;
 
+    // `xor r, r` is two bytes where `mov r, 0` is five, and zeroing the 32-bit view clears the whole
+    // register whatever the value's declared width. It writes the flags, which a plain move does
+    // not, so transform.cpp's modifiesFlags has a matching case - a comparison cannot be folded into
+    // a branch across one of these. Nothing else may take the shortcut for that same reason: an
+    // immediate materialized anywhere but at its own instruction - a rematerialized one, in
+    // particular - sits in the middle of another instruction's operand set-up, where the flags may
+    // already be carrying a comparison the branch behind it is about to read.
+    if(i.i == 0 && isIntLike(i.result.type)) {
+        genZeroReg(to, reg(destReg), LowerType::Int32);
+        return;
+    }
+
     genMovImmValue(to, i.result.type, i.i, destReg);
 }
 
@@ -279,11 +324,23 @@ static void genMovRegS(AsmModule& to, LowerType type, RegId dest, RegId src) {
 // operand has to occupy the r/m field, so the register - which is also the destination - moves into
 // the reg field. `type` is the width the operation works at, which is not always the result's: a
 // comparison produces an Int32 whatever it compared.
+//
+// A destination in the frame takes the r/m-destination direction with an address in place of the
+// register, which is the read-modify-write form: `add [slot], rcx` reads the first operand out of
+// its slot and writes the result back into it, so neither a reload nor a store is emitted. It is
+// only reached when the allocator found that the operand and the result occupy the same slot - see
+// memoryDefOperand - and rules out a memory rhs at the same instruction, there being one r/m field.
 static void genCommonBinary(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, const FrameLayout& frame, LowerType type, U8 rmRegOp, U8 regRmOp, U8 immExt) {
     auto lhs = base[i.lhs];
     auto rhs = base[i.rhs];
 
-    if(isSlot(regs.uses[1])) {
+    if(isSlot(regs.creates[0])) {
+        if(isImm(rhs)) {
+            genSlotImm(to, frame, type, regs.creates[0], rhs, 0x83, 0x81, immExt);
+        } else {
+            genSlotOperand(to, frame, type, reg(regs.uses[1]), regs.creates[0], rmRegOp);
+        }
+    } else if(isSlot(regs.uses[1])) {
         genSlotOperand(to, frame, type, reg(regs.uses[0]), regs.uses[1], regRmOp);
     } else if(isReg(lhs) && isReg(rhs)) {
         genRegReg(to, type, reg(regs.uses[0]), reg(regs.uses[1]), rmRegOp);
@@ -298,12 +355,22 @@ static void genNop(AsmModule& to, LowerInst& i) {
     to.buffer.writeByte(0x90);
 }
 
+// INC/DEC against whichever of the two the result lives in: `inc r` (0xff /0 with a register in the
+// r/m field) or `inc [slot]` (the same opcode with an address there).
+static void genIncDest(AsmModule& to, const FrameLayout& frame, LowerType type, const InstRegs& regs, bool sub) {
+    if(isSlot(regs.creates[0])) {
+        genSlotOperand(to, frame, type, sub ? 1 : 0, regs.creates[0], 0xff);
+    } else {
+        genIncReg(to, type, reg(regs.uses[0]), sub);
+    }
+}
+
 static void genAdd(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, const FrameLayout& frame) {
     auto rhs = base[i.rhs];
     if(isReg(base[i.lhs]) && isImm(rhs)) {
         auto rhsImm = (LowerImm*)rhs->inst();
-        if(rhsImm->i == 1) return genIncReg(to, i.result.type, reg(regs.uses[0]), false);
-        if(rhsImm->i == (U64)I64(-1)) return genIncReg(to, i.result.type, reg(regs.uses[0]), true);
+        if(rhsImm->i == 1) return genIncDest(to, frame, i.result.type, regs, false);
+        if(rhsImm->i == (U64)I64(-1)) return genIncDest(to, frame, i.result.type, regs, true);
     }
 
     genCommonBinary(to, base, i, regs, frame, i.result.type, 0x01, 0x03, 0);
@@ -313,8 +380,8 @@ static void genSub(AsmModule& to, LowerBase base, LowerInstBinary& i, const Inst
     auto rhs = base[i.rhs];
     if(isReg(base[i.lhs]) && isImm(rhs)) {
         auto rhsImm = (LowerImm*)rhs->inst();
-        if(rhsImm->i == 1) return genIncReg(to, i.result.type, reg(regs.uses[0]), true);
-        if(rhsImm->i == (U64)I64(-1)) return genIncReg(to, i.result.type, reg(regs.uses[0]), false);
+        if(rhsImm->i == 1) return genIncDest(to, frame, i.result.type, regs, true);
+        if(rhsImm->i == (U64)I64(-1)) return genIncDest(to, frame, i.result.type, regs, false);
     }
 
     genCommonBinary(to, base, i, regs, frame, i.result.type, 0x29, 0x2b, 5);
@@ -332,11 +399,29 @@ static void genAnd(AsmModule& to, LowerBase base, LowerInstBinary& i, const Inst
     genCommonBinary(to, base, i, regs, frame, i.result.type, 0x21, 0x23, 4);
 }
 
-static void genShift(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, U8 onceOp, U8 immOp, U8 regOp, U8 ext) {
+static void genShift(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, const FrameLayout& frame, U8 onceOp, U8 immOp, U8 regOp, U8 ext) {
     auto lhs = base[i.lhs];
     auto rhs = base[i.rhs];
 
-    if(isReg(lhs) && isReg(rhs)) {
+    // A destination in the frame is shifted in place - every shift form takes its subject as r/m, so
+    // an address goes there as readily as a register does. The count is unaffected: it is either an
+    // immediate in the instruction or in cl, and never the memory operand.
+    if(isSlot(regs.creates[0])) {
+        if(isImm(rhs)) {
+            assertTrue(((LowerImm*)rhs->inst())->i <= 0x7f);
+
+            if(((LowerImm*)rhs->inst())->i == 1) {
+                genSlotOperand(to, frame, i.result.type, ext, regs.creates[0], onceOp);
+            } else {
+                genSlotImm(to, frame, i.result.type, regs.creates[0], rhs, immOp, immOp, ext);
+            }
+        } else if(isReg(rhs)) {
+            assertTrue(reg(regs.uses[1]) == (U8)IntRegister::rcx);
+            genSlotOperand(to, frame, i.result.type, ext, regs.creates[0], regOp);
+        } else {
+            assertTrue("unsupported operands to shift instruction" == nullptr);
+        }
+    } else if(isReg(lhs) && isReg(rhs)) {
         assertTrue(reg(regs.uses[1]) == (U8)IntRegister::rcx);
         genReg(to, i.result.type, reg(regs.uses[0]), regOp, ext);
     } else if(isReg(lhs) && isImm(rhs)) {
@@ -353,8 +438,8 @@ static void genShift(AsmModule& to, LowerBase base, LowerInstBinary& i, const In
     }
 }
 
-static void genShift(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, U8 ext) {
-    genShift(to, base, i, regs, 0xd1, 0xc1, 0xd3, ext);
+static void genShift(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, const FrameLayout& frame, U8 ext) {
+    genShift(to, base, i, regs, frame, 0xd1, 0xc1, 0xd3, ext);
 }
 
 // IMUL r, r/m (0x0faf): dest is the reg field and doubles as a source operand (2-address), so
@@ -449,13 +534,23 @@ static void genIDiv(AsmModule& to, LowerBase base, LowerInstBinary& i, const Ins
     genGroup3(to, i.result.type, regs, frame, 7);
 }
 
-static void genNeg(AsmModule& to, LowerInstUnary& i, const InstRegs& regs) {
-    genReg(to, i.result.type, reg(regs.uses[0]), 0xf7, 3);
+// NEG/NOT r/m (0xf7 /3 and /2). Both take their subject as r/m, so a value the allocator left in
+// the frame is negated or inverted in place rather than loaded, changed and stored back.
+static void genUnaryArith(AsmModule& to, const FrameLayout& frame, LowerType type, const InstRegs& regs, U8 ext) {
+    if(isSlot(regs.creates[0])) {
+        genSlotOperand(to, frame, type, ext, regs.creates[0], 0xf7);
+    } else {
+        genReg(to, type, reg(regs.uses[0]), 0xf7, ext);
+    }
 }
 
-static void genNot(AsmModule& to, LowerBase base, LowerInstUnary& i, const InstRegs& regs) {
+static void genNeg(AsmModule& to, LowerInstUnary& i, const InstRegs& regs, const FrameLayout& frame) {
+    genUnaryArith(to, frame, i.result.type, regs, 3);
+}
+
+static void genNot(AsmModule& to, LowerBase base, LowerInstUnary& i, const InstRegs& regs, const FrameLayout& frame) {
     assertTrue(isInt(base[i.from]->type));
-    genReg(to, i.result.type, reg(regs.uses[0]), 0xf7, 2);
+    genUnaryArith(to, frame, i.result.type, regs, 2);
 }
 
 static void genCopy(AsmModule& to, LowerBase base, LowerInstCopy& i, const InstRegs& regs) {
@@ -723,13 +818,30 @@ static void genPop(AsmModule& to, RegId destReg) {
     genPopReg(to, reg(destReg));
 }
 
+// TEST r/m, reg (0x85): computes rm & reg and discards the result, only setting flags.
+static void genTestReg(AsmModule& to, LowerType type, U8 a, U8 b) {
+    genRegReg(to, type, a, b, 0x85);
+}
+
 // CMP r/m, reg (0x39): computes rm - reg = lhs - rhs and discards the result, only setting
 // flags. This matches getCompareOp()'s condition codes, which assume flags = lhs - rhs.
 // A comparison works at the width of the values compared, not at the width of what it produces: its
 // result is an Int32 whatever went into it, so taking the width from the result would compare two
 // 64-bit values as 32-bit ones.
 static void genCmpToFlags(AsmModule& to, LowerBase base, LowerInstCmp& i, const InstRegs& regs, const FrameLayout& frame) {
-    genCommonBinary(to, base, i, regs, frame, base[i.lhs]->type, 0x39, 0x3b, 7);
+    auto type = base[i.lhs]->type;
+    auto rhs = base[i.rhs];
+
+    // A comparison against zero is a `test` of the value with itself, one byte shorter than the
+    // `cmp r, 0` it replaces. The two leave every condition code this backend reads in the same
+    // state: `test` clears CF and OF exactly as subtracting zero does, and sets SF, ZF and PF from
+    // the same bits. It needs the value in a register, so a spilled operand keeps the `cmp`.
+    if(isReg(base[i.lhs]) && isImm(rhs) && ((LowerImm*)rhs->inst())->i == 0 && !isSlot(regs.uses[0])) {
+        genTestReg(to, type, reg(regs.uses[0]), reg(regs.uses[0]));
+        return;
+    }
+
+    genCommonBinary(to, base, i, regs, frame, type, 0x39, 0x3b, 7);
 }
 
 static LowerCmp negateCmp(LowerCmp cmp) {
@@ -826,10 +938,6 @@ static void genCmp(AsmModule& to, LowerBase base, LowerInstCmp& i, const InstReg
     } else {
         assertTrue("invalid comparison operands" == nullptr);
     }
-}
-
-static void genTestReg(AsmModule& to, LowerType type, U8 a, U8 b) {
-    genRegReg(to, type, a, b, 0x85);
 }
 
 static U8 getSelectOp(LowerCmp cmp) {
@@ -1142,7 +1250,33 @@ static void genLoadAddress(AsmModule& to, RegId destReg, LowerGlobal* global, Lo
     else to.addRelocation(global);
 }
 
+// Recreates a rematerialized value in `dest`. This is the whole of what a recipe costs at the point
+// it is needed, and it stands in for two instructions rather than one: the definition that no longer
+// emits anything (see genInst) and the reload that a frame home would have needed here.
+static void genRemat(AsmModule& to, const FrameLayout& frame, const Remat& r, RegId dest) {
+    switch(r.kind) {
+        case Remat::Immediate:
+            genMovImmValue(to, r.type, r.imm, dest);
+            break;
+        case Remat::GlobalAddress:
+            genLoadAddress(to, dest, r.global, nullptr);
+            break;
+        case Remat::FunctionAddress:
+            genLoadAddress(to, dest, nullptr, r.function);
+            break;
+        case Remat::FrameAddress:
+            genLeaFrame(to, reg(dest), U8(getRegIndex(frame.base)), frame.offsetOf(r.frame));
+            break;
+    }
+}
+
 static void genInst(AsmModule& to, LowerBase base, LowerInst* inst, const InstRegs& regs, HashMap<LowerInst*, const InstRegs*>& addrRegs, const FrameLayout& frame, const FrameObjects& objects) {
+    // A rematerialized value is recreated wherever it is read and kept nowhere in between, so the
+    // instruction that would have defined it emits nothing at all. Only the recipe kinds ever reach
+    // this - an immediate, an address - and every one of them is free of side effects by the same
+    // rule that made it rematerializable.
+    if(inst->createdCount == 1 && isRemat(regs.creates[0])) return;
+
     switch(inst->kind) {
         case LowerInst::Arg:
             // No code generation needed - argument registers are already in place on entry.
@@ -1183,10 +1317,10 @@ static void genInst(AsmModule& to, LowerBase base, LowerInst* inst, const InstRe
             break;
         }
         case LowerInst::Neg:
-            genNeg(to, *(LowerInstUnary*)inst, regs);
+            genNeg(to, *(LowerInstUnary*)inst, regs, frame);
             break;
         case LowerInst::Not:
-            genNot(to, base, *(LowerInstUnary*)inst, regs);
+            genNot(to, base, *(LowerInstUnary*)inst, regs, frame);
             break;
 
         case LowerInst::Add:
@@ -1215,13 +1349,13 @@ static void genInst(AsmModule& to, LowerBase base, LowerInst* inst, const InstRe
             break;
 
         case LowerInst::Shl:
-            genShift(to, base, *(LowerInstBinary*)inst, regs, 4);
+            genShift(to, base, *(LowerInstBinary*)inst, regs, frame, 4);
             break;
         case LowerInst::Shr:
-            genShift(to, base, *(LowerInstBinary*)inst, regs, 5);
+            genShift(to, base, *(LowerInstBinary*)inst, regs, frame, 5);
             break;
         case LowerInst::Sar:
-            genShift(to, base, *(LowerInstBinary*)inst, regs, 7);
+            genShift(to, base, *(LowerInstBinary*)inst, regs, frame, 7);
             break;
         case LowerInst::And:
             genAnd(to, base, *(LowerInstBinary*)inst, regs, frame);
@@ -1417,7 +1551,7 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
             auto& instRegs = blockRegs.insts[j];
             auto start = U32(to.buffer.offset());
 
-            genMoves(to, frame, regs.frame, instRegs.moves);
+            genMoves(to, frame, regs.frame, regs.remats, instRegs.moves);
 
             if(inst->kind == LowerInst::Call) {
                 genCall(to, base, *(LowerInstCall*)inst, instRegs);
@@ -1425,7 +1559,7 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
                 genInst(to, base, inst, instRegs, addrRegs, frame, regs.frame);
             }
 
-            genMoves(to, frame, regs.frame, instRegs.postMoves);
+            genMoves(to, frame, regs.frame, regs.remats, instRegs.postMoves);
 
             if(onInst) onInst(onInstCtx, inst, instRegs, start, U32(to.buffer.offset()));
         }
@@ -1439,9 +1573,9 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
 
         // A terminator's moves include the copies that feed the successor's phis, so they have to
         // land before the branch itself.
-        genMoves(to, frame, regs.frame, termRegs.moves);
+        genMoves(to, frame, regs.frame, regs.remats, termRegs.moves);
         genControl(to, base, terminator, termRegs, next, frame);
-        genMoves(to, frame, regs.frame, termRegs.postMoves);
+        genMoves(to, frame, regs.frame, regs.remats, termRegs.postMoves);
 
         if(onInst) onInst(onInstCtx, terminator, termRegs, termStart, U32(to.buffer.offset()));
 

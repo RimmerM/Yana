@@ -232,36 +232,36 @@ block #1:
   ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
 
 --- codegen: spilledLoop ---
-  prologue  => 535541574883ec18
+  prologue  => 53554883ec18
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => b800000000
-  jmp uses=[] creates=[] pre=[rax->rcx, rax->rdx, rax->r8, rax->r9, rax->r10, rax->rbx, rax->rbp, rax->stack:0, rax->stack:1, rax->stack:2, rax->stack:3, rax->stack:4, rax->stack:5]  => 488bc8488bd04c8bc04c8bc84c8bd0488bd8488be889042489442404894424088944240c8944241089442414
+  jmp uses=[] creates=[] pre=[rax->rcx, rax->stack:0, rax->stack:1, rax->stack:2, rax->stack:3, rax->stack:4, rax->stack:5, rax->rdx, rax->r8, rax->r9, rax->r10, rax->rbx, rax->rbp]  => 488bc889042489442404894424088944240c8944241089442414488bd04c8bc04c8bc84c8bd0488bd8488be8
 block head:
   cmp_ilt uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8d64000000
+  je uses=[-] creates=[]  => 0f8d2f000000
 block body:
   add uses=[rcx, rsi] creates=[rcx]  => 01f1
+  add uses=[stack:0, rsi] creates=[stack:0]  => 013424
+  add uses=[stack:1, rsi] creates=[stack:1]  => 01742404
+  add uses=[stack:2, rsi] creates=[stack:2]  => 01742408
+  add uses=[stack:3, rsi] creates=[stack:3]  => 0174240c
+  add uses=[stack:4, rsi] creates=[stack:4]  => 01742410
+  add uses=[stack:5, rsi] creates=[stack:5]  => 01742414
   add uses=[rdx, rsi] creates=[rdx]  => 01f2
   add uses=[r8, rsi] creates=[r8]  => 4101f0
   add uses=[r9, rsi] creates=[r9]  => 4101f1
   add uses=[r10, rsi] creates=[r10]  => 4101f2
   add uses=[rbx, rsi] creates=[rbx]  => 01f3
   add uses=[rbp, rsi] creates=[rbp]  => 01f5
-  add uses=[r15, rsi] creates=[r15] pre=[stack:0->r15] post=[r15->stack:0]  => 448b3c244101f744893c24
-  add uses=[r15, rsi] creates=[r15] pre=[stack:1->r15] post=[r15->stack:1]  => 448b7c24044101f744897c2404
-  add uses=[r15, rsi] creates=[r15] pre=[stack:2->r15] post=[r15->stack:2]  => 448b7c24084101f744897c2408
-  add uses=[r15, rsi] creates=[r15] pre=[stack:3->r15] post=[r15->stack:3]  => 448b7c240c4101f744897c240c
-  add uses=[r15, rsi] creates=[r15] pre=[stack:4->r15] post=[r15->stack:4]  => 448b7c24104101f744897c2410
-  add uses=[r15, rsi] creates=[r15] pre=[stack:5->r15] post=[r15->stack:5]  => 448b7c24144101f744897c2414
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
-  jmp uses=[] creates=[]  => e994ffffff
+  jmp uses=[] creates=[]  => e9c9ffffff
 block out:
-  add uses=[rcx, stack:5] creates=[rcx]  => 034c2414
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc14883c418415f5d5bc3
+  add uses=[rcx, rbp] creates=[rcx]  => 01e9
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc14883c4185d5bc3
 
 --- codegen: framePointerPressure ---
   prologue  => 55488bec5341574883ec18

@@ -50,6 +50,8 @@ static String locationName(RegId id) {
             return format(String("xmm%@"), index);
         case StackReg:
             return format(String("stack:%@"), index);
+        case RematReg:
+            return format(String("remat:%@"), index);
         default:
             return format(String("<bad location %@>"), U32(id));
     }
@@ -123,8 +125,37 @@ struct Verifier {
     String funName;
     bool ok = true;
 
+    // Which value each recipe recreates, recovered from the allocation rather than taken on trust:
+    // a recipe describes one web and a web has one location, so the map back is a search for the
+    // location. It is what lets a materialization be checked like any other copy - what the machine
+    // ends up holding is the value whose recipe it was.
+    Array<LiveId> rematOwner;
+
     Verifier(Context& ctx, LowerBase base, LowerFunction& fun, Liveness& live, const Constraints& constraints, const FunctionRegs& regs):
-        ctx(ctx), base(base), fun(fun), live(live), constraints(constraints), regs(regs), funName(ctx.findName(fun.name)) {}
+        ctx(ctx), base(base), fun(fun), live(live), constraints(constraints), regs(regs), funName(ctx.findName(fun.name))
+    {
+        for(Size i = 0; i < regs.remats.size(); i++) rematOwner.push(kNullLive);
+
+        for(Size i = 0; i < regs.allocation.locations.size(); i++) {
+            auto at = regs.allocation.locations[i];
+            if(!isRemat(at)) continue;
+
+            auto index = getRegIndex(at);
+            if(index >= rematOwner.size()) {
+                fail("%@: %@ names recipe %@, of which there are %@",
+                    funName, nameOf(LiveId(i)), U32(index), U32(regs.remats.size()));
+                continue;
+            }
+
+            if(rematOwner[index] != kNullLive) {
+                fail("%@: %@ and %@ share recipe %@",
+                    funName, nameOf(rematOwner[index]), nameOf(LiveId(i)), U32(index));
+                continue;
+            }
+
+            rematOwner[index] = LiveId(i);
+        }
+    }
 
     template<Size length, class... Args>
     void fail(const char (&fmt)[length], Args&&... args) {
@@ -153,6 +184,26 @@ struct Verifier {
     void applyMoves(MachineState& state, const Array<RegMove>& moves, LowerInst* inst) {
         for(auto& m: moves) {
             if(m.from == m.to) continue;
+
+            // A recipe as the source reads nothing: the value is recreated, so the destination ends
+            // up holding it whatever was there before.
+            if(isRemat(m.from)) {
+                auto index = getRegIndex(m.from);
+                auto owner = index < rematOwner.size() ? rematOwner[index] : kNullLive;
+
+                if(owner == kNullLive) {
+                    fail("%@: %@: materializes recipe %@, which belongs to no value",
+                        funName, nameForInst(base, *inst), U32(index));
+                }
+
+                if(!MachineState::isRegister(m.to)) {
+                    fail("%@: %@: recipe %@ is materialized into %@, which is not a register",
+                        funName, nameForInst(base, *inst), U32(index), locationName(m.to));
+                }
+
+                state.set(m.to, owner);
+                continue;
+            }
 
             if(state.get(m.from) == kNullLive) {
                 fail("%@: %@: copy from %@ to %@ reads a location that holds nothing",
@@ -210,12 +261,26 @@ struct Verifier {
                     funName, name, nameOf(v), locationName(want), locationName(at));
             }
 
-            // An operand left in the frame has to be one the instruction has a memory form for.
-            // Otherwise it reaches an encoder with nothing but a slot to put in a ModRM byte, which
-            // is a failed assertion in gen.cpp rather than a wrong register anywhere visible here.
-            if(isSlot(at) && memoryUseOperand(base, inst) != I32(i)) {
+            // An operand left in the frame has to be one the instruction has a memory form for -
+            // either a memory source, or the read-modify-write destination, which is the same
+            // operand read and written through one r/m field and so has to be the result's location
+            // as well. Otherwise it reaches an encoder with nothing but a slot to put in a ModRM
+            // byte, which is a failed assertion in gen.cpp rather than a wrong register visible
+            // anywhere here.
+            auto inPlace = memoryDefOperand(base, inst) == I32(i)
+                && instRegs.creates.size() > 0 && instRegs.creates[0] == at;
+
+            if(isSlot(at) && !inPlace && memoryUseOperand(base, inst) != I32(i)) {
                 fail("%@: %@: operand %@ is read from %@, which no form of this instruction can address",
                     funName, name, nameOf(v), locationName(at));
+            }
+
+            // Nothing holds a rematerialized value, so nothing can read one in place: the recipe is
+            // materialized into a register by the copies in front of the instruction instead.
+            if(isRemat(at)) {
+                fail("%@: %@: operand %@ is read from %@, which holds nothing at any point",
+                    funName, name, nameOf(v), locationName(at));
+                continue;
             }
 
             auto found = state.get(at);
@@ -252,6 +317,28 @@ struct Verifier {
                     funName, name, nameOf(&v), locationName(want), locationName(at));
             }
 
+            // A result written straight into the frame is only legal in the one form that has a
+            // memory destination, and only when the operand that form reads through the same r/m
+            // field is in that very slot. Anywhere else the encoder has no address to write to.
+            if(isSlot(at)) {
+                auto operand = memoryDefOperand(base, inst);
+                auto inPlace = i == 0 && operand != kNoMemoryOperand
+                    && Size(operand) < instRegs.uses.size() && instRegs.uses[operand] == at;
+
+                if(!inPlace) {
+                    fail("%@: %@: result %@ is produced in %@, which no form of this instruction can write",
+                        funName, name, nameOf(&v), locationName(at));
+                }
+            }
+
+            // A rematerialized result is produced nowhere at all - the instruction emits nothing,
+            // and every reader recreates the value for itself. It has to be the value's own home:
+            // a recipe is not a place something can be put.
+            if(isRemat(at) && regs.allocation.locationOf(v.liveId(), index) != at) {
+                fail("%@: %@: result %@ is produced as %@, which is not its own recipe",
+                    funName, name, nameOf(&v), locationName(at));
+            }
+
             state.set(at, v.liveId());
         }
 
@@ -272,6 +359,10 @@ struct Verifier {
                     funName, nameOf(block), nameOf(id));
                 return;
             }
+
+            // A rematerialized value is available at every point it is live without occupying
+            // anything, so it neither has to arrive here nor can collide with what does.
+            if(isRemat(at)) return;
 
             auto existing = state.get(at);
             if(existing != kNullLive) {
@@ -349,6 +440,7 @@ struct Verifier {
 
             auto at = regs.allocation.locationOf(id, set->firstIndex);
             if(at == kInvalidReg) return; // already reported by buildEntryState
+            if(isRemat(at)) return;       // carried by nothing, so nothing has to carry it here
 
             auto found = state.get(at);
             if(found != id) {

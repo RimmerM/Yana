@@ -1,0 +1,116 @@
+# `lea`.
+#
+# The addressing-mode fold in Address.lower only fires for a computation every user reads *as an
+# address*, because that is the case where the arithmetic disappears into the access and costs
+# nothing. An address that has to end up in a register - passed to a call, written to memory, kept
+# across a branch - still gets the same addressing unit, just with the answer materialized. That is
+# `lea`, and x86 charges one instruction for the whole `base + index*{1,2,4,8} + disp` it computes.
+#
+# It is not worth reaching for on every pointer add, and the cases below are split along the two
+# reasons it ever is: it replaces more than one instruction, or the one it replaces would have had
+# to copy its operand first, since `add` writes over its first operand and `lea` does not.
+
+sink<complex>(%p: Ptr): Int {
+    { ret 0 }
+}
+
+take2<complex>(%p: Ptr, %q: Ptr): Int {
+    { ret 0 }
+}
+
+# A shift and an add become one `lea`. Nothing here is an address as far as the access folder is
+# concerned - the result is a call argument - but the address unit computes it all the same.
+scaledArgument(%p: Ptr, %i: Long): Int {
+    {
+        %o = shl %i, 3: Long
+        %q = add %p, %o: Ptr
+        %r = call_complex sink, %q: Int
+        ret %r
+    }
+}
+
+# Everything at once, over two adds: base, scaled index and displacement in a single instruction
+# where the lowering emitted three.
+fullArgument(%p: Ptr, %i: Long): Int {
+    {
+        %o = shl %i, 2: Long
+        %a = add %p, %o: Ptr
+        %q = add %a, 24: Ptr
+        %r = call_complex sink, %q: Int
+        ret %r
+    }
+}
+
+# One instruction against one instruction, and the base is dead afterwards - so `add` is free to
+# overwrite it and there is nothing for `lea` to save. This one is deliberately left alone.
+deadBase(%p: Ptr): Int {
+    {
+        %q = add %p, 16: Ptr
+        %r = call_complex sink, %q: Int
+        ret %r
+    }
+}
+
+# The same shape with the base still read afterwards. `add` would have to copy it out of the way
+# first, so the two instructions it costs are what the single `lea` replaces.
+liveBase(%p: Ptr): Int {
+    {
+        %q = add %p, 16: Ptr
+        %r = call_complex take2, %p, %q: Int
+        ret %r
+    }
+}
+
+# Two elements of the same array, each computed into a register of its own. The shift is the only
+# use of the index and folds into both scales.
+twoElements(%p: Ptr, %i: Long): Int {
+    {
+        %a = add %p, 8: Ptr
+        %b = add %p, 16: Ptr
+        %r = call_complex take2, %a, %b: Int
+        ret %r
+    }
+}
+
+# The computed address is stored rather than passed, which needs it in a register just the same.
+storedAddress(%p: Ptr, %i: Long, %out: Ptr) {
+    {
+        %o = shl %i, 2: Long
+        %q = add %p, %o: Ptr
+        store %out, %q, 8
+        ret
+    }
+}
+
+# Mixed: one user reads it as an address and another as a value. The access folder leaves it alone
+# because folding for one user would leave the arithmetic behind for the other, and `lea` picks it
+# up - the load then reads the pointer directly.
+addressAndValue(%p: Ptr, %i: Long): Int {
+    {
+        %o = shl %i, 2: Long
+        %q = add %p, %o: Ptr
+        %v = load %q, 4: Int
+        %r = call_complex sink, %q: Int
+        %s = add %v, %r: Int
+        ret %s
+    }
+}
+
+# Computed in one block and used in another. `lea` is placed where the arithmetic was, so what
+# crosses the branch is the pointer rather than the operands it was built from.
+acrossBlocks(%p: Ptr, %i: Long, %c: Int): Int {
+    start {
+        %o = shl %i, 2: Long
+        %q = add %p, %o: Ptr
+        je %c, hit, miss
+    }
+
+    hit {
+        %r = call_complex sink, %q: Int
+        ret %r
+    }
+
+    miss {
+        ret 0
+    }
+}

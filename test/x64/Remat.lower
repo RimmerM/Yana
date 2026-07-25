@@ -1,0 +1,179 @@
+# Rematerialization.
+#
+# A value cheap enough to recompute does not need to be kept anywhere. Instead of a register or a
+# frame slot its web gets a *recipe*, which is emitted afresh into a scratch register at each
+# instruction that reads it - and the instruction that would have defined it emits nothing at all,
+# since there is nothing left to define. Between its uses the value occupies no location and
+# interferes with nothing, which is the point: the values this applies to are exactly the ones whose
+# live ranges are long and whose contents never change.
+#
+# Four recipes: an immediate, the address of a global, the address of a function, and the address of
+# a fixed frame object - each a constant in the sense that matters, depending on nothing the program
+# can write. `creates=[remat:N]` marks the definition that emits nothing, and `pre=[remat:N->r15]`
+# the materialization that stands in for the reload.
+#
+# The Clobber convention destroys every register except rbp, so exactly one value can survive one of
+# its calls in a register. Every case below sends three across: %keep and %other, which are read
+# repeatedly in positions that need a register and are therefore worth keeping, and the one under
+# test, which is not. What each case asks is what the loser gets - a recipe, or a slot with a store
+# at the top and a read at every use.
+
+@table = 1024
+
+sink<clobber>(%x: Int): Int {
+    { ret %x }
+}
+
+indirect<complex>(%x: Long): Long {
+    { ret %x }
+}
+
+takePtr<complex>(%p: Ptr, %v: Long): Long {
+    { ret %v }
+}
+
+# A constant too wide to embed into an instruction has to be materialized somewhere, and
+# `mov r, imm64` is the same ten bytes wherever it is put. A slot would have cost those ten bytes at
+# the top, plus a store, plus a read at every use; the recipe costs them at the use and nothing else.
+constantAcrossCall(%arg: Int, %keep: Long, %other: Long): Long {
+    {
+        %k = imm 81985529216486895L: Long
+        %r = call_clobber sink, %arg: Int
+
+        %s1 = add %keep, %other: Long
+        %s2 = add %other, %s1: Long
+        %s3 = add %keep, %s2: Long
+        %s4 = add %other, %s3: Long
+        %s5 = add %keep, %s4: Long
+        %s6 = add %other, %s5: Long
+
+        %v = add %s6, %k: Long
+        ret %v
+    }
+}
+
+# A global's address is a RIP-relative `lea`, which produces the same answer wherever it is emitted.
+globalAcrossCall(%arg: Int, %keep: Long, %other: Long): Long {
+    {
+        %g = global @table
+        %r = call_clobber sink, %arg: Int
+
+        %s1 = add %keep, %other: Long
+        %s2 = add %other, %s1: Long
+        %s3 = add %keep, %s2: Long
+        %s4 = add %other, %s3: Long
+        %s5 = add %keep, %s4: Long
+        %s6 = add %other, %s5: Long
+
+        %v = load %g, 8: Long
+        %w = add %s6, %v: Long
+        ret %w
+    }
+}
+
+# A function's address is the same shape. It reaches the allocator at all only because something
+# other than a direct call reads it - here it is passed as an argument, where a direct call would
+# have encoded it as a rel32 and never looked at a register.
+functionAcrossCall(%arg: Int, %keep: Long, %other: Long): Long {
+    {
+        %f = fun indirect
+        %r = call_clobber sink, %arg: Int
+
+        %s1 = add %keep, %other: Long
+        %s2 = add %other, %s1: Long
+        %s3 = add %keep, %s2: Long
+        %s4 = add %other, %s3: Long
+        %s5 = add %keep, %s4: Long
+        %s6 = add %other, %s5: Long
+
+        %v = call_complex takePtr, %f, %s6: Long
+        ret %v
+    }
+}
+
+# A fixed-size alloca is a constant displacement from a base register the frame keeps valid for the
+# whole function, so its address is an `lea` that can be repeated. Spilling it would have meant
+# storing a frame address into the frame.
+localAcrossCall(%arg: Int, %keep: Long, %other: Long): Long {
+    {
+        %p = alloca 32: Ptr
+        %r = call_clobber sink, %arg: Int
+
+        %s1 = add %keep, %other: Long
+        %s2 = add %other, %s1: Long
+        %s3 = add %keep, %s2: Long
+        %s4 = add %other, %s3: Long
+        %s5 = add %keep, %s4: Long
+        %s6 = add %other, %s5: Long
+
+        store %p, %s6, 8
+        %v = load %p, 8: Long
+        ret %v
+    }
+}
+
+# The other way round, and the reason both prices are worked out rather than one. Every use of this
+# constant is an operand the instruction can read straight out of memory, which costs no instruction
+# at all - only a longer encoding - so four reads from a slot come to less than four `mov r, imm64`,
+# and the frame wins.
+foldedConstant(%arg: Int, %keep: Long, %other: Long): Long {
+    {
+        %k = imm 81985529216486895L: Long
+        %r = call_clobber sink, %arg: Int
+
+        %s1 = add %keep, %other: Long
+        %s2 = add %other, %s1: Long
+        %s3 = add %keep, %s2: Long
+        %s4 = add %other, %s3: Long
+        %s5 = add %keep, %s4: Long
+        %s6 = add %other, %s5: Long
+
+        %a = add %s6, %k: Long
+        %b = add %a, %k: Long
+        %c = add %b, %k: Long
+        %d = add %c, %k: Long
+        ret %d
+    }
+}
+
+# Under ordinary pressure rather than at a call boundary: sixteen values live at once, of which one
+# is a constant. It is the cheapest thing in the function to do without, so it is what gives up its
+# register - and it gives it up for a recipe rather than a slot.
+constantUnderPressure(%a: Long): Long {
+    {
+        %k = imm 81985529216486895L: Long
+
+        %v0 = add %a, 0L: Long
+        %v1 = add %a, 1L: Long
+        %v2 = add %a, 2L: Long
+        %v3 = add %a, 3L: Long
+        %v4 = add %a, 4L: Long
+        %v5 = add %a, 5L: Long
+        %v6 = add %a, 6L: Long
+        %v7 = add %a, 7L: Long
+        %v8 = add %a, 8L: Long
+        %v9 = add %a, 9L: Long
+        %v10 = add %a, 10L: Long
+        %v11 = add %a, 11L: Long
+        %v12 = add %a, 12L: Long
+        %v13 = add %a, 13L: Long
+        %v14 = add %a, 14L: Long
+
+        %s14 = add %v14, %v13: Long
+        %s13 = add %s14, %v12: Long
+        %s12 = add %s13, %v11: Long
+        %s11 = add %s12, %v10: Long
+        %s10 = add %s11, %v9: Long
+        %s9 = add %s10, %v8: Long
+        %s8 = add %s9, %v7: Long
+        %s7 = add %s8, %v6: Long
+        %s6 = add %s7, %v5: Long
+        %s5 = add %s6, %v4: Long
+        %s4 = add %s5, %v3: Long
+        %s3 = add %s4, %v2: Long
+        %s2 = add %s3, %v1: Long
+        %s1 = add %s2, %v0: Long
+        %s0 = imul %s1, %k: Long
+        ret %s0
+    }
+}

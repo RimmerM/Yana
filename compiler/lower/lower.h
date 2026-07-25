@@ -319,6 +319,12 @@ struct LowerBlock {
     // This is only valid between a call to LowerFunction::buildPostorder() and any transformations to the block tree.
     BlockIndex postIndex = kNullBlock;
 
+    // How many loops this block is inside, counted by the back edges whose natural loop contains it -
+    // so a block in two nested loops answers two. Written by whichever pass last ordered the blocks
+    // (the x64 backend's orderBlocks) and read by anything that has to weigh one part of a function
+    // against another, since a block one loop deep runs some multiple of the times its header does.
+    U16 loopDepth = 0;
+
     // Used while parsing blocks from source.
     RegionPtr<LowerParserRegion, LowerBlockAst> ast = nullptr;
 };
