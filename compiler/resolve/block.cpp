@@ -1,70 +1,66 @@
 #include "block.h"
 #include "module.h"
 
-Value* Block::use(Value* value, Inst* user) {
-    value->uses.push(Use{value, user});
-    if(!value->blockUses.containsValue(this)) {
-        value->blockUses.push(this);
-    }
+Value* Block::use(Module* module, Value* value, Inst* user) {
+    value->uses.push(module->memory, user - module->local);
     return value;
 }
 
-Inst* Block::inst(Size size, StringId name, Inst::Kind kind, Type* type) {
-    auto inst = (Inst*)function->module->memory.alloc(size);
-    new (inst) Inst;
+Value* Block::inst(Module* module, Size size, StringId name, Inst::Kind kind, Type* type) {
+    auto inst = (Value*)module->memory.alloc(size);
+    new (inst) Value(kind, this - module->local, type - module->global);
 
-    inst->block = this;
     inst->name = name;
-    inst->kind = kind;
-    inst->type = type;
-    inst->id = (U16)function->instCounter++;
+    inst->id = (U16)module->local[function]->instCounter++;
 
-    if(!complete) {
-        instructions.push(inst);
+    if(isTerminator(kind)) {
+        assertTrue(terminator == nullptr);
+        terminator = (Inst*)inst - module->local;
+    } else if(isPhi(kind)) {
+        phis.push(module->memory, (InstPhi*)inst - module->local);
+    } else {
+        instructions.push(module->memory, (Inst*)inst - module->local);
+    }
 
-        if(name) {
-            namedValues[name] = inst;
-        }
-
-        if(isTerminating(kind)) {
-            complete = true;
-        }
+    if(name) {
+        namedValues[name] = inst;
     }
 
     return inst;
 }
 
-Value* Block::findValue(StringId name) {
-    auto n = namedValues.getValue(name);
+Value* Block::findValue(Module* module, StringId name) {
+    auto n = namedValues.get(name);
     if(n) return n.unwrap();
 
     if(preceding) {
-        return preceding->findValue(name);
+        return module->local[preceding]->findValue(module, name);
     } else {
-        for(Arg* arg: function->args) {
-            if(arg->name == name) {
-                return arg;
+        auto fun = module->local[function];
+
+        for(auto arg: fun->args.contents(module->local)) {
+            auto a = module->local[arg];
+            if(a->name == name) {
+                return a;
             }
         }
         return nullptr;
     }
 }
 
-Block* block(Function* fun, bool deferAdd) {
-    auto block = new (fun->module->memory) Block;
-    block->function = fun;
-    block->id = fun->blockCounter++;
+Block* block(Module* module, Function* fun, bool deferAdd) {
+    auto block = new (module->memory) Block(fun - module->local, fun->blockCounter++);
 
     if(!deferAdd) {
-        fun->blocks.push(block);
+        fun->blocks.push(module->memory, block - module->local);
     }
 
     return block;
 }
 
-void setName(Value* v, StringId name) {
+void setName(Module* module, Value* v, StringId name) {
     v->name = name;
     if(name && v->block) {
-        v->block->namedValues[name] = v;
+        module->local[v->block]->namedValues[name] = v;
     }
 }

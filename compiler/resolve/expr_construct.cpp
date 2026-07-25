@@ -67,49 +67,15 @@ static void matchArgs(FunBuilder* b, List<ast::TupArg>* arg, Field* fields, Args
     }
 }
 
-static Value* resolveTupCon(FunBuilder* b, ast::ConExpr* expr, Con* con, Type* content, StringId name);
-static Value* explicitConstruct(FunBuilder* b, Type* type, Type* targetType, ast::ConExpr* expr, StringId name, bool required);
+static Value* resolveTupCon(FunBuilder* b, ast::ConExpr* expr, Con* con, Type* content, Id name);
+static Value* explicitConstruct(FunBuilder* b, Type* type, Type* targetType, ast::ConExpr* expr, Id name, bool required);
 
-static Value* constructAlias(FunBuilder* b, AliasType* alias, Type* targetType, ast::ConExpr* expr, StringId name) {
-    auto base = alias->base();
-    if(base->argCount == 0) {
-        // If the alias is complete, simply forward the arguments to its canonical type.
-        return explicitConstruct(b, alias->to, targetType, expr, name, true);
-    } else {
-        // If we have type arguments, instantiate the alias with the actual arguments, then perform any needed conversions.
-        auto v = explicitConstruct(b, base->to, targetType, expr, name, false);
-
-        auto argCount = base->argCount;
-        auto instance = (Type**)alloca(sizeof(Type*) * argCount);
-        set(instance, argCount, 0);
-
-        matchGens(base->to, v->type, [&](GenType* gen, Type* target) {
-            assertTrue(gen->env->container == base);
-            assertTrue(gen->index < base->gen.typeCount);
-            assertTrue(target->kind != Type::Gen || ((GenType*)target)->env->kind == GenEnv::Function);
-            instance[gen->index] = target;
-        });
-
-        // Make sure each type argument is defined.
-        // If there are remaining type arguments, we don't have enough information to determine the final type.
-        auto failCount = 0u;
-        for(U32 i = 0; i < argCount; i++) {
-            if(instance[i] == nullptr) {
-                instance[i] = &errorType;
-                failCount++;
-            }
-        }
-
-        if(failCount > 0) {
-            error(b, "cannot infer type of alias %@ in this context"_v, expr, b->context.findName(alias->name));
-        }
-
-        auto targetAlias = instantiateAlias(&b->context, b->fun->module, base, instance, argCount, nullptr, true);
-        return implicitConvert(b, v, targetAlias->to, true, true);
-    }
+static Value* constructAlias(FunBuilder* b, AliasType* alias, Type* targetType, ast::ConExpr* expr, Id name) {
+    // If the alias is complete, simply forward the arguments to its canonical type.
+    return explicitConstruct(b, alias->to, targetType, expr, name, true);
 }
 
-static Value* explicitConstruct(FunBuilder* b, Type* type, Type* targetType, ast::ConExpr* expr, StringId name, bool required) {
+static Value* explicitConstruct(FunBuilder* b, Type* type, Type* targetType, ast::ConExpr* expr, Id name, bool required) {
     // There are a whole bunch of possible cases we could support here,
     // but most can't even be created by the parser.
     // For now we handle aliases and primitive types.
@@ -196,14 +162,6 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, Type* targetType, ast
             error(b, "record %@ can only be constructed through a constructor name"_v, expr, b->context.findName(record->name));
             return error(b->block, name, type);
         }
-    } else if(type->kind == Type::Array) {
-        // TODO
-        error(b, "not implemented"_v, expr);
-        return error(b->block, name, type);
-    } else if(type->kind == Type::Map) {
-        // TODO
-        error(b, "not implemented"_v, expr);
-        return error(b->block, name, type);
     } else if(type->kind == Type::Fun) {
         // TODO
         error(b, "not implemented"_v, expr);
@@ -229,7 +187,7 @@ static Value* explicitConstruct(FunBuilder* b, Type* type, Type* targetType, ast
     return error(b->block, name, type);
 }
 
-static Value* resolveMiscCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr, StringId name) {
+static Value* resolveMiscCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr, Id name) {
     auto type = findType(&b->context, b->fun->module, expr->type->con);
     if(!type) {
         error(b, "cannot find type"_v, expr->type);
@@ -239,42 +197,20 @@ static Value* resolveMiscCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr
     return explicitConstruct(b, type, targetType, expr, name, true);
 }
 
-static Value* argumentCountError(FunBuilder* b, Con* con, U32 wantedCount, Node* source, StringId name) {
+static Value* argumentCountError(FunBuilder* b, Con* con, U32 wantedCount, Node* source, Id name) {
     error(b, "incorrect number of arguments to constructor. Constructor %@ requires %@ argument(s)"_v, source, b->context.findName(con->name), wantedCount);
     return error(b->block, name, con->parent);
 }
 
 static Con* targetCon(Con* con, Type* targetType) {
-    if(con->parent->argCount > 0) {
-        auto conBase = con->parent->base();
-
-        RecordType* targetBase = nullptr;
-        if(targetType) {
-            targetType = canonicalType(targetType);
-            if(targetType->kind == Type::Record) {
-                targetBase = ((RecordType *) targetType)->base();
-            }
-        }
-
-        if(conBase == targetBase) {
-            con = &((RecordType*)targetType)->cons[con->index];
-        }
-    }
-
     return con;
 }
 
-static Value* resolveEmptyCon(FunBuilder* b, Con* con, Node* source, StringId name) {
-    // Make sure the constructor is fully defined.
-    // If it still contains type arguments, we don't have enough information to determine the final type.
-    if(con->parent->argCount > 0) {
-        error(b, "cannot infer type of constructor %@ in this context"_v, source, b->context.findName(con->name));
-    }
-
+static Value* resolveEmptyCon(FunBuilder* b, Con* con, Node* source, Id name) {
     return record(b->block, name, con, nullptr);
 }
 
-static Value* resolveTupCon(FunBuilder* b, ast::ConExpr* expr, Con* con, Type* content, StringId name) {
+static Value* resolveTupCon(FunBuilder* b, ast::ConExpr* expr, Con* con, Type* content, Id name) {
     auto args = buildArgs(b, expr->args);
     Field* fields;
     U32 fieldCount;
@@ -391,7 +327,7 @@ static Value* resolveTupCon(FunBuilder* b, ast::ConExpr* expr, Con* con, Type* c
     return record(b->block, name, con, value);
 }
 
-Value* resolveCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr, StringId name) {
+Value* resolveCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr, Id name) {
     // Check if there is a record constructor for this name.
     // If not, try to explicitly construct the corresponding type instead.
     auto con = findCon(&b->context, b->fun->module, expr->type->con);

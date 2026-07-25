@@ -240,16 +240,6 @@ int resolveConPat(FunBuilder* b, MatchContext** match, Block* onFail, Value* piv
     return 0;
 }
 
-int resolveArrPat(FunBuilder* b, MatchContext** match, Block* onFail, Value* pivot, ast::ArrayPat* pat) {
-    jmp(b->block, onFail);
-    return -1;
-}
-
-void resolveRestPat(FunBuilder* b, Matcher* m, Value* pivot, ast::RestPat* pat) {
-    // Currently only used as part of an array pat.
-    m->alwaysFalse = true;
-}
-
 static Value* getRangeArg(FunBuilder* b, ast::Pat* pat) {
     if(pat->kind == ast::Pat::Any) {
         return nullptr;
@@ -349,11 +339,6 @@ int resolvePat(FunBuilder* b, MatchContext** match, Block* onFail, Value* pivot,
             return resolveTupPat(b, match, onFail, pivot, (ast::TupPat*)pat);
         case ast::Pat::Con:
             return resolveConPat(b, match, onFail, pivot, (ast::ConPat*)pat);
-        case ast::Pat::Array:
-            return resolveArrPat(b, match, onFail, pivot, (ast::ArrayPat*)pat);
-        case ast::Pat::Rest:
-            resolveRestPat(b, &m, pivot, (ast::RestPat*)pat);
-            break;
         case ast::Pat::Range:
             resolveRangePat(b, &m, pivot, (ast::RangePat*)pat);
             break;

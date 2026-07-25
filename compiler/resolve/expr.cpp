@@ -13,7 +13,7 @@ static OpProperties opInfo(Context* context, Module* module, StringId name) {
 
 static ast::InfixExpr* reorder(Context* context, Module* module, ast::InfixExpr* ast, U32 min) {
     auto lhs = ast;
-    while(lhs->rhs && lhs->rhs->type == ast::Expr::Infix && !lhs->ordered) {
+    while(lhs->rhs && lhs->rhs->kind == ast::Expr::Infix && !lhs->ordered) {
         auto first = opInfo(context, module, lhs->op->name);
         if(first.precedence < min) break;
 
@@ -40,15 +40,15 @@ static ast::InfixExpr* reorder(Context* context, Module* module, ast::InfixExpr*
 static bool generalizeTypes(FunBuilder* b, Value*& lhs, Value*& rhs) {
     // Try to do an implicit conversion each way.
     auto prevBlock = b->block;
-    b->block = lhs->block;
+    b->block = b->module[lhs->block];
 
-    if(auto v = implicitConvert(b, lhs, rhs->type, false, false)) {
+    if(auto v = implicitConvert(b, lhs, b->global[rhs->type], false, false)) {
         lhs = v;
         b->block = prevBlock;
         return true;
     } else {
-        b->block = rhs->block;
-        if(auto v = implicitConvert(b, rhs, lhs->type, false, false)) {
+        b->block = b->module[rhs->block];
+        if(auto v = implicitConvert(b, rhs, b->global[lhs->type], false, false)) {
             rhs = v;
             b->block = prevBlock;
             return true;
@@ -105,24 +105,20 @@ static FieldResult findStaticField(Type* type, StringId stringField, U32 intFiel
 }
 
 static Value* testStaticField(FunBuilder* b, StringId name, Value* target, ast::Expr* ast) {
-    auto targetType = rValueType(target->type);
+    auto targetType = rValueType(b->global[target->type]);
     FieldResult result = {nullptr, nullptr};
 
-    switch(ast->type) {
-        case ast::Expr::Var: {
-            auto n = ((ast::VarExpr*)ast)->name;
-            result = findStaticField(targetType, n, 0);
-            break;
+    if(ast->kind >= ast::Expr::Lit) {
+        auto lit = ast->lit;
+        auto type = (ast::Literal::Kind)(ast->kind - ast::Expr::Lit);
+
+        if(type == ast::Literal::String) {
+            result = findStaticField(targetType, lit.s, 0);
+        } else if(type == ast::Literal::Int) {
+            result = findStaticField(targetType, 0, (U32)lit.i());
         }
-        case ast::Expr::Lit: {
-            auto lit = ((ast::LitExpr*)ast)->literal;
-            if(lit.type == ast::Literal::String) {
-                result = findStaticField(targetType, lit.s, 0);
-            } else if(lit.type == ast::Literal::Int) {
-                result = findStaticField(targetType, 0, (U32)lit.i);
-            }
-            break;
-        }
+    } else if(ast->kind == ast::Expr::Var) {
+        result = findStaticField(targetType, ast->var, 0);
     }
 
     if(!result.field) return nullptr;
@@ -134,8 +130,8 @@ static Value* testStaticField(FunBuilder* b, StringId name, Value* target, ast::
     }
 }
 
-Value* resolveMulti(FunBuilder* b, Type* targetType, ast::MultiExpr* expr, StringId name, bool used) {
-    auto e = expr->exprs;
+Value* resolveMulti(FunBuilder* b, Type* targetType, ast::Expr* expr, StringId name, bool used) {
+    auto e = expr->multi;
     if(used || targetType) {
         // Expressions that are part of a statement list are never used, unless they are the last in the list.
         Value* result = nullptr;
@@ -157,15 +153,18 @@ Value* resolveMulti(FunBuilder* b, Type* targetType, ast::MultiExpr* expr, Strin
     }
 }
 
-Value* resolveLit(FunBuilder* b, Type* targetType, ast::Literal* lit, StringId name) {
+Value* resolveLit(FunBuilder* b, Type* targetType, ast::Literal* lit, ast::Literal::Kind kind, StringId name) {
     Value* value;
 
-    switch(lit->type) {
+    switch(kind) {
         case ast::Literal::Int:
             value = constInt(b->block, name, lit->i, lit->i > kIntMax ? &intTypes[IntType::Long] : &intTypes[IntType::Int]);
             break;
+        case ast::Literal::Double:
+            value = constDouble(b->block, name, lit->d(), &floatTypes[FloatType::F64]);
+            break;
         case ast::Literal::Float:
-            value = constFloat(b->block, name, lit->f, &floatTypes[FloatType::F64]);
+            value = constFloat(b->block, name, lit->f, &floatTypes[FloatType::F32]);
             break;
         case ast::Literal::Char:
             value = constInt(b->block, name, lit->c, &intTypes[IntType::Int]);
@@ -201,7 +200,7 @@ Value* findVar(FunBuilder* b, StringId name) {
 }
 
 Value* useValue(FunBuilder* b, Value* value, bool asRV) {
-    if(!asRV && (value->type->kind == Type::Ref) && ((RefType*)value->type)->isLocal) {
+    if(!asRV && (value->type->kind == Type::Ptr) && ((PtrType*)value->type)->isLocal) {
         return load(b->block, 0, value);
     }
 
@@ -213,7 +212,7 @@ Value* useValue(FunBuilder* b, Value* value, bool asRV) {
 }
 
 static Value* getField(FunBuilder* b, Value* value, StringId name, Type* type, U32* indices, U32 count) {
-    if(value->type->kind == Type::Ref || value->kind == Value::Global) {
+    if(value->type->kind == Type::Ptr || value->kind == Value::Global) {
         return loadField(b->block, name, value, type, indices, count);
     } else {
         return getField(b->block, name, value, type, indices, count);
@@ -257,7 +256,7 @@ Value* resolveApp(FunBuilder* b, Type* targetType, ast::AppExpr* expr, StringId 
             Value* field = nullptr;
             if(staticField->type->kind == Type::Fun) {
                 field = staticField;
-            } else if(staticField->type->kind == Type::Ref && ((RefType*)staticField->type)->to->kind == Type::Fun) {
+            } else if(staticField->type->kind == Type::Ptr && ((PtrType*)staticField->type)->to->kind == Type::Fun) {
                 field = useValue(b, field, false);
             }
 
@@ -280,7 +279,7 @@ Value* resolveApp(FunBuilder* b, Type* targetType, ast::AppExpr* expr, StringId 
         auto var = findVar(b, callee->name);
         if(var && var->type->kind == Type::Fun) {
             return resolveDynCall(b, targetType, var, expr->args, name);
-        } else if(var && var->type->kind == Type::Ref && ((RefType*)var->type)->to->kind == Type::Fun) {
+        } else if(var && var->type->kind == Type::Ptr && ((PtrType*)var->type)->to->kind == Type::Fun) {
             var = useValue(b, var, false);
             return resolveDynCall(b, targetType, var, expr->args, name);
         }
@@ -532,12 +531,12 @@ Value* resolveDecl(FunBuilder* b, Type* targetType, ast::VarDecl* expr, StringId
         switch(expr->mut) {
             case ast::VarDecl::Immutable:
             case ast::VarDecl::Val: {
-                if(value->type->kind == Type::Ref) {
-                    global->type = getRef(b->fun->module, ((RefType*)value->type)->to, false, false, true);
+                if(value->type->kind == Type::Ptr) {
+                    global->type = getPtr(b->fun->module, ((PtrType*)value->type)->to);
                     auto v = load(b->block, 0, value);
                     store(b->block, 0, global, v);
                 } else {
-                    global->type = getRef(b->fun->module, value->type, false, false, true);
+                    global->type = getPtr(b->fun->module, value->type);
                     store(b->block, 0, global, value);
                 }
                 break;
@@ -565,8 +564,8 @@ Value* resolveDecl(FunBuilder* b, Type* targetType, ast::VarDecl* expr, StringId
             }
             case ast::VarDecl::Val: {
                 auto value = resolveExpr(b, nullptr, expr->content, 0, true);
-                if(value->type->kind == Type::Ref) {
-                    auto var = alloc(b->block, 0, ((RefType*)value->type)->to, true, true);
+                if(value->type->kind == Type::Ptr) {
+                    auto var = alloc(b->block, 0, ((PtrType*)value->type)->to, true, true);
                     auto v = load(b->block, 0, value);
                     store(b->block, 0, var, v);
                     result = var;
@@ -796,12 +795,12 @@ Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr, bool used) {
             auto var = resolveVar(b, (ast::VarExpr*)target, true);
             auto val = resolveExpr(b, var->type, expr->value, 0, true);
 
-            if(var->type->kind != Type::Ref || !((RefType*)var->type)->isMutable) {
+            if(var->type->kind != Type::Ptr || !((PtrType*)var->type)->isMutable) {
                 error(b, "type is not assignable"_v, target);
                 return error(b->block, 0, &unitType);
             }
 
-            auto targetType = ((RefType*)var->type)->to;
+            auto targetType = ((PtrType*)var->type)->to;
             auto v = implicitConvert(b, val, targetType, false, true);
             return store(b->block, 0, var, v);
         }
@@ -826,7 +825,7 @@ Value* resolveNested(FunBuilder* b, Type* targetType, ast::NestedExpr* expr, Str
 }
 
 Value* resolveCoerce(FunBuilder* b, ast::CoerceExpr* expr, StringId name, bool used) {
-    auto type = resolveType(&b->context, b->fun->module, expr->kind, &b->fun->gen);
+    auto type = resolveType(&b->context, b->fun->module, expr->kind);
     auto target = resolveExpr(b, type, expr->target, 0, used);
 
     auto result = implicitConvert(b, target, type, true, true);
@@ -995,7 +994,7 @@ Value* resolveTupUpdate(FunBuilder* b, Type* targetType, ast::TupUpdateExpr* exp
     return updateField(b->block, name, target, fields, fieldCount);
 }
 
-Value* resolveArray(FunBuilder* b, Type* targetType, ast::ArrayExpr* expr, StringId name) {
+Value* resolveArray(FunBuilder* b, Type* targetType, ast::ArrayExpr* expr, Id name) {
     U32 length = 0;
     auto arg = expr->args;
     while(arg) {
@@ -1185,7 +1184,7 @@ Value* resolveRet(FunBuilder* b, ast::RetExpr* expr) {
 }
 
 Value* resolveExpr(FunBuilder* b, Type* targetType, ast::Expr* expr, StringId name, bool used) {
-    switch(expr->type) {
+    switch(expr->kind) {
         case ast::Expr::Error:
             return nullptr;
         case ast::Expr::Multi:
@@ -1232,7 +1231,7 @@ Value* resolveExpr(FunBuilder* b, Type* targetType, ast::Expr* expr, StringId na
             return resolveMap(b, (ast::MapExpr*)expr, name, used);
         case ast::Expr::Format:
             return resolveFormat(b, (ast::FormatExpr*)expr, name, used);
-        case ast::Expr::Case:
+        case ast::Expr::Match:
             return resolveCase(b, targetType, (ast::CaseExpr*)expr, name, used);
         case ast::Expr::Ret:
             return resolveRet(b, (ast::RetExpr*)expr);

@@ -1,326 +1,180 @@
 #include "print.h"
 
-void printValue(std::ostream& stream, Context& context, const Value* value) {
+void printValue(Net::Writer& stream, Context& context, Module& module, const Value* value) {
     if(value->kind == Value::Arg || value->kind == Value::Global || value->kind >= Value::FirstInst) {
-        stream << '%';
+        stream.writeByte('%');
 
         auto name = context.find(value->name);
         if(name.textLength > 0) {
-            stream.write(name.text, name.textLength);
+            stream.writeBytes((const Byte*)name.text, name.textLength);
         } else if(value->kind >= Value::FirstInst) {
             stream << value->id;
         } else if(value->kind == Value::Arg) {
-            stream << 'a';
+            stream.writeByte('a');
             stream << ((Arg*)value)->index;
         } else {
-            stream << "<unnamed>";
+            stream.writeString("<unnamed>"_v);
         }
     } else if(value->kind == Value::ConstInt) {
         stream << ((ConstInt*)value)->value;
-        stream << ": ";
-        printType(stream, context, value->type);
+        stream.writeString(": "_v);
+        printType(stream, context, module, module.global[value->type]);
     } else if(value->kind == Value::ConstFloat) {
         stream << ((ConstFloat*)value)->value;
-        stream << ": ";
-        printType(stream, context, value->type);
+        stream.writeString(": ");
+        printType(stream, context, module, module.global[value->type]);
     } else if(value->kind == Value::ConstString) {
-        auto string = ((ConstString*)value);
-        stream << '"';
-        stream.write(string->value, string->length);
-        stream << '"';
+        auto c = ((ConstString*)value);
+        auto string = context.findName(c->value);
+
+        stream.writeByte('"');
+        stream.writeString(string);
+        stream.writeByte('"');
     }
 }
 
-void printType(std::ostream& stream, Context& context, const Type* type) {
+void printType(Net::Writer& stream, Context& context, Module& module, const Type* type) {
     switch(type->kind) {
         case Type::Unit:
-            stream << "void";
+            stream.writeString("void"_v);
             break;
         case Type::Error:
-            stream << "<type error>";
+            stream.writeString("<type error>"_v);
             break;
         case Type::Int:
-            stream << 'i';
+            stream.writeByte('i');
             stream << ((IntType*)type)->bits;
             break;
         case Type::Float:
-            stream << 'f';
+            stream.writeByte('f');
             stream << ((FloatType*)type)->bits;
             break;
         case Type::String:
-            stream << "String";
+            stream.writeString("String"_v);
             break;
-        case Type::Ref:
-            stream << '*';
-            printType(stream, context, ((RefType*)type)->to);
+        case Type::Ptr:
+            stream.writeByte('*');
+            printType(stream, context, module, module.global[((PtrType*)type)->to]);
             break;
         case Type::Array:
-            stream << '[';
-            printType(stream, context, ((ArrayType*)type)->content);
-            stream << ']';
+            stream.writeByte('[');
+            printType(stream, context, module, module.global[((ArrayType*)type)->content]);
+            stream.writeByte(']');
             break;
         case Type::Map:
-            stream << '[';
-            printType(stream, context, ((MapType*)type)->from);
-            stream << " -> ";
-            printType(stream, context, ((MapType*)type)->to);
-            stream << ']';
+            stream.writeByte('[');
+            printType(stream, context, module, module.global[((MapType*)type)->from]);
+            stream.writeString(" -> "_v);
+            printType(stream, context, module, module.global[((MapType*)type)->to]);
+            stream.writeByte(']');
             break;
         case Type::Record: {
             auto record = (RecordType*)type;
             auto name = context.find(record->name);
             if(name.textLength > 0) {
-                stream.write(name.text, name.textLength);
+                stream.writeBytes((const Byte*)name.text, name.textLength);
             }
 
-            if(record->instanceOf) {
-                stream << '(';
-                for(Size i = 0; i < record->instanceOf->argCount; i++) {
-                    printType(stream, context, record->instance[i]);
-                    if(i < record->instanceOf->argCount - 1) {
-                        stream << ", ";
-                    }
-                }
-                stream << ')';
-            }
             break;
         }
         case Type::Tup: {
             auto tup = (TupType*)type;
-            stream << '{';
+            stream.writeByte('{');
             for(Size i = 0; i < tup->count; i++) {
                 printType(stream, context, tup->fields[i].type);
                 if(i < tup->count - 1) {
-                    stream << ", ";
+                    stream.writeString(", "_v);
                 }
             }
-            stream << '}';
+            stream.writeByte('}');
             break;
         }
-        case Type::Gen:
-            stream << '\'';
-            stream << ((GenType*)type)->index;
-            break;
         case Type::Fun: {
             auto fun = (FunType*)type;
-            stream << '(';
+            stream.writeByte('(');
             for(Size i = 0; i < fun->argCount; i++) {
                 printType(stream, context, fun->args[i].type);
                 if(i < fun->argCount - 1) {
-                    stream << ", ";
+                    stream.writeString(", "_v);
                 }
             }
-            stream << ") -> ";
-            printType(stream, context, fun->result);
+            stream.writeString(") -> "_v);
+            printType(stream, context, module, module.global[fun->result]);
             break;
         }
         case Type::Alias: {
-            printType(stream, context, ((AliasType*)type)->to);
+            printType(stream, context, module, module.global[((AliasType*)type)->to]);
             break;
         }
     }
 }
 
-void printBlockName(std::ostream& stream, const Block* block) {
+void printBlockName(Net::Writer& stream, Module& module, Block& block) {
     Size index = 0;
     for(Size i = 0; i < block->function->blocks.size(); i++) {
         if(block->function->blocks[i] == block) break;
         index++;
     }
 
-    stream << '#';
+    stream.writeByte('#');
     stream << index;
 }
 
-void printBlock(std::ostream& stream, Context& context, const Block* block) {
-    printBlockName(stream, block);
-    stream << ":\n";
+void printBlock(Net::Writer& stream, Context& context, Module& module, Block& block) {
+    printBlockName(stream, module, block);
+    stream.writeString(":\n"_v);
 
-    for(auto inst: block->instructions) {
-        printInst(stream, context, inst);
+    for(auto inst: block.phis.contents(module.local)) {
+        printInst(stream, context, module, module.local[inst]);
+    }
+
+    for(auto inst: block.instructions.contents(module.local)) {
+        printInst(stream, context, module, module.local[inst]);
+    }
+
+    if(block.terminator) {
+        printInst(stream, context, module, module.local[block.terminator]);
     }
 }
 
-void printGlobal(std::ostream& stream, Context& context, const Global* global) {
-    stream << "global ";
+void printGlobal(Net::Writer& stream, Context& context, Module& module, const Global* global) {
+    stream.writeString("global "_v);
     auto name = context.find(global->name);
     if(name.textLength > 0) {
-        stream << '%';
-        stream.write(name.text, name.textLength);
+        stream.writeByte('%');
+        stream.writeBytes((const Byte*)name.text, name.textLength);
     } else {
-        stream << "<unnamed>";
+        stream.writeString("<unnamed>"_v);
     }
 
-    stream << ": ";
-    printType(stream, context, global->type);
-    stream << '\n';
+    stream.writeString(": "_v);
+    printType(stream, context, module, module.global[global->type]);
+    stream.writeByte('\n');
 }
 
-void printTypeClass(std::ostream& stream, Context& context, const InstanceMap* map) {
-    for(U32 i = 0; i < map->instances.size(); i++) {
-        stream << "instance ";
+void printModule(Net::Writer& stream, Context& context, Module& module) {
+    for(auto& global: module.globals) {
+        printGlobal(stream, context, module, &global);
+    }
 
-        ClassInstance* instance = map->instances[i];
-        auto argCount = instance->typeClass->argCount;
-        auto funCount = instance->typeClass->funCount;
+    stream.writeByte('\n');
 
-        auto name = context.find(instance->typeClass->name);
-        if(name.textLength > 0) {
-            stream.write(name.text, name.textLength);
-        } else {
-            stream << "<unnamed>";
-        }
-
-        stream << '(';
-        for(U32 j = 0; j < argCount; j++) {
-            printType(stream, context, instance->forTypes[j]);
-            if(j < argCount - 1) {
-                stream << ", ";
-            }
-        }
-        stream << ")\n";
-
-        for(U32 j = 0; j < funCount; j++) {
-            printFunction(stream, context, instance->instances[j], instance->typeClass->functions[j].name);
-            stream << '\n';
-        }
-
-        stream << "end instance\n";
+    for(auto& fun: module.functions) {
+        printFunction(stream, context, module, &fun);
+        stream.writeByte('\n');
     }
 }
 
-void printModule(std::ostream& stream, Context& context, const Module* module) {
-    for(auto& global: module->globals) {
-        printGlobal(stream, context, &global);
-    }
-
-    stream << '\n';
-
-    for(auto& fun: module->functions) {
-        printFunction(stream, context, &fun);
-        stream << '\n';
-    }
-
-    for(auto& list: module->typeInstances) {
-        for(auto& fun: list->functions) {
-            printFunction(stream, context, &fun);
-            stream << '\n';
-        }
-    }
-
-    for(const InstanceMap& instance: module->classInstances) {
-        printTypeClass(stream, context, &instance);
-        stream << '\n';
-    }
-}
-
-void printGenEnv(std::ostream& stream, Context& context, const GenEnv* env) {
-    if(env->typeCount > 0) {
-        stream << '[';
-        for(Size i = 0; i < env->typeCount; i++) {
-            printType(stream, context, env->types[i]);
-            if(i < env->typeCount - 1) {
-                stream << ", ";
-            }
-        }
-
-        if(env->classCount > 0) {
-            stream << ", ";
-            stream << '{';
-
-            for(Size i = 0; i < env->classCount; i++) {
-                auto c = env->classes[i];
-                auto name = context.find(c.classType->name);
-                if(name.textLength > 0) {
-                    stream.write(name.text, name.textLength);
-                } else {
-                    stream << "<unnamed>";
-                }
-
-                stream << '(';
-                for(Size j = 0; j < c.forTypes.length; j++) {
-                    printType(stream, context, c.forTypes.ptr[j]);
-                    if(j < c.forTypes.length - 1) {
-                        stream << ", ";
-                    }
-                }
-                stream << ')';
-
-                if(i < env->classCount - 1) {
-                    stream << ", ";
-                }
-            }
-
-            stream << '}';
-        }
-
-        if(env->funCount > 0) {
-            stream << ", ";
-            stream << '{';
-
-            for(Size i = 0; i < env->funCount; i++) {
-                auto fun = env->funs[i];
-                auto name = context.find(fun.name);
-                if(name.textLength > 0) {
-                    stream.write(name.text, name.textLength);
-                } else {
-                    stream << "<unnamed>";
-                }
-
-                stream << ": ";
-                printType(stream, context, fun.type);
-
-                if(i < env->funCount - 1) {
-                    stream << ", ";
-                }
-            }
-
-            stream << '}';
-        }
-
-        if(env->fieldCount > 0) {
-            stream << ", ";
-            stream << '{';
-
-            for(Size i = 0; i < env->fieldCount; i++) {
-                auto field = env->fields[i];
-                printType(stream, context, field.container);
-                stream << '.';
-
-                auto name = context.find(field.fieldName);
-                if(name.textLength > 0) {
-                    stream.write(name.text, name.textLength);
-                } else {
-                    stream << "<unnamed>";
-                }
-
-                stream << ": ";
-                printType(stream, context, field.fieldType);
-
-                if(i < env->fieldCount - 1) {
-                    stream << ", ";
-                }
-            }
-
-            stream << '}';
-        }
-
-        stream << ']';
-    }
-}
-
-void printFunction(std::ostream& stream, Context& context, const Function* fun, StringId forceName) {
-    stream << "fn ";
+void printFunction(Net::Writer& stream, Context& context, Module& module, const Function* fun, StringId forceName) {
+    stream.writeString("fn "_v);
     auto name = context.find(forceName ? forceName : fun->name);
     if(name.textLength > 0) {
-        stream.write(name.text, name.textLength);
+        stream.writeBytes((const Byte*)name.text, name.textLength);
     } else {
-        stream << "<unnamed>";
+        stream.writeString("<unnamed>"_v);
     }
 
-    printGenEnv(stream, context, &fun->gen);
-
-    stream << '(';
+    stream.writeByte('(');
     for(Size i = 0; i < fun->args.size(); i++) {
         printValue(stream, context, fun->args[i]);
         stream << ": ";
@@ -329,208 +183,208 @@ void printFunction(std::ostream& stream, Context& context, const Function* fun, 
             stream << ", ";
         }
     }
-    stream << ") -> ";
-    printType(stream, context, fun->returnType);
-    stream << " {\n";
+    stream.writeString(") -> "_v);
+    printType(stream, context, module, module.global[fun->returnType]);
+    stream.writeString(" {\n"_v);
 
     for(auto& block : fun->blocks) {
         printBlock(stream, context, block);
     }
 
-    stream << "}\n";
+    stream.writeString("}\n"_v);
 }
 
-void printInst(std::ostream& stream, Context& context, const Inst* inst) {
-    stream << "  ";
+void printInst(Net::Writer& stream, Context& context, Module& module, const Inst* inst) {
+    stream.writeString("  "_v);
 
-    const char* name = "";
+    StringView name;
     switch(inst->kind) {
         case Inst::InstNop:
-            name = "nop";
+            name = "nop"_v;
             break;
         case Inst::InstTrunc:
-            name = "trunc";
+            name = "trunc"_v;
             break;
         case Inst::InstFTrunc:
-            name = "truncf";
+            name = "truncf"_v;
             break;
         case Inst::InstZExt:
-            name = "zext";
+            name = "zext"_v;
             break;
         case Inst::InstSExt:
-            name = "sext";
+            name = "sext"_v;
             break;
         case Inst::InstFExt:
-            name = "fext";
+            name = "fext"_v;
             break;
         case Inst::InstFToI:
-            name = "ftoi";
+            name = "ftoi"_v;
             break;
         case Inst::InstFToUI:
-            name = "ftoui";
+            name = "ftoui"_v;
             break;
         case Inst::InstIToF:
-            name = "itof";
+            name = "itof"_v;
             break;
         case Inst::InstUIToF:
-            name = "uitof";
+            name = "uitof"_v;
             break;
         case Inst::InstAdd:
-            name = "add";
+            name = "add"_v;
             break;
         case Inst::InstSub:
-            name = "sub";
+            name = "sub"_v;
             break;
         case Inst::InstMul:
-            name = "mul";
+            name = "mul"_v;
             break;
         case Inst::InstDiv:
-            name = "div";
+            name = "div"_v;
             break;
         case Inst::InstIDiv:
-            name = "idiv";
+            name = "idiv"_v;
             break;
         case Inst::InstRem:
-            name = "rem";
+            name = "rem"_v;
             break;
         case Inst::InstIRem:
-            name = "irem";
+            name = "irem"_v;
             break;
         case Inst::InstFAdd:
-            name = "fadd";
+            name = "fadd"_v;
             break;
         case Inst::InstFSub:
-            name = "fsub";
+            name = "fsub"_v;
             break;
         case Inst::InstFMul:
-            name = "fmul";
+            name = "fmul"_v;
             break;
         case Inst::InstFDiv:
-            name = "fdiv";
+            name = "fdiv"_v;
             break;
         case Inst::InstICmp:
-            name = "icmp";
+            name = "icmp"_v;
             break;
         case Inst::InstFCmp:
-            name = "fcmp";
+            name = "fcmp"_v;
             break;
         case Inst::InstShl:
-            name = "shl";
+            name = "shl"_v;
             break;
         case Inst::InstShr:
-            name = "shr";
+            name = "shr"_v;
             break;
         case Inst::InstSar:
-            name = "sar";
+            name = "sar"_v;
             break;
         case Inst::InstAnd:
-            name = "and";
+            name = "and"_v;
             break;
         case Inst::InstOr:
-            name = "or";
+            name = "or"_v;
             break;
         case Inst::InstXor:
-            name = "xor";
+            name = "xor"_v;
             break;
-        case Inst::InstAddRef:
-            name = "addref";
+        case Inst::InstAddPtr:
+            name = "addptr"_v;
             break;
         case Inst::InstJe:
-            name = "je";
+            name = "je"_v;
             break;
         case Inst::InstRecord:
-            name = "record";
+            name = "record"_v;
             break;
         case Inst::InstTup:
-            name = "tup";
+            name = "tup"_v;
             break;
         case Inst::InstFun:
-            name = "fun";
+            name = "fun"_v;
             break;
         case Inst::InstAlloc:
-            name = "alloc";
+            name = "alloc"_v;
             break;
         case Inst::InstAllocArray:
-            name = "allocarray";
+            name = "allocarray"_v;
             break;
         case Inst::InstLoad:
-            name = "load";
+            name = "load"_v;
             break;
         case Inst::InstLoadField:
-            name = "loadfield";
+            name = "loadfield"_v;
             break;
         case Inst::InstLoadArray:
-            name = "loadarray";
+            name = "loadarray"_v;
             break;
         case Inst::InstStore:
-            name = "store";
+            name = "store"_v;
             break;
         case Inst::InstStoreField:
-            name = "storefield";
+            name = "storefield"_v;
             break;
         case Inst::InstStoreArray:
-            name = "storearray";
+            name = "storearray"_v;
             break;
         case Inst::InstGetField:
-            name = "getfield";
+            name = "getfield"_v;
             break;
         case Inst::InstUpdateField:
-            name = "updatefield";
+            name = "updatefield"_v;
             break;
         case Inst::InstArrayLength:
-            name = "arraylength";
+            name = "arraylength"_v;
             break;
         case Inst::InstArrayCopy:
-            name = "arraycopy";
+            name = "arraycopy"_v;
             break;
         case Inst::InstArraySlice:
-            name = "arrayslice";
+            name = "arrayslice"_v;
             break;
         case Inst::InstStringLength:
-            name = "stringlength";
+            name = "stringlength"_v;
             break;
         case Inst::InstStringData:
-            name = "stringdata";
+            name = "stringdata"_v;
             break;
         case Inst::InstCall:
-            name = "call";
+            name = "call"_v;
             break;
         case Inst::InstCallDyn:
-            name = "call dyn";
+            name = "call dyn"_v;
             break;
         case Inst::InstCallForeign:
-            name = "call foreign";
+            name = "call foreign"_v;
             break;
         case Inst::InstJmp:
-            name = "jmp";
+            name = "jmp"_v;
             break;
         case Inst::InstRet:
-            name = "ret";
+            name = "ret"_v;
             break;
         case Inst::InstPhi:
-            name = "phi";
+            name = "phi"_v;
             break;
     }
 
-    if(inst->type->kind != Type::Unit && inst->kind != Inst::InstRet) {
+    if(module.global[inst->type]->kind != Type::Unit && inst->kind != Inst::InstRet) {
         printValue(stream, context, inst);
-        stream << " = ";
+        stream.writeString(" = "_v);
     }
 
-    stream << name;
+    stream.writeString(name);
 
     if(inst->kind == Inst::InstAlloc) {
-        if(((InstAlloc*)inst)->mut) stream << "<mut>";
+        if(((InstAlloc*)inst)->mut) stream.writeString("<mut>"_v);
     }
 
-    stream << '(';
+    stream.writeByte('(');
 
     if(inst->kind == Inst::InstCall) {
         auto fun = context.find(((InstCall*)inst)->fun->name);
         if(fun.textLength > 0) {
-            stream.write(fun.text, fun.textLength);
+            stream.writeBytes((const Byte*)fun.text, fun.textLength);
         } else {
-            stream << "<unnamed>";
+            stream.writeString("<unnamed>"_v);
         }
 
         if(inst->usedCount > 0) {
@@ -608,7 +462,7 @@ void printInst(std::ostream& stream, Context& context, const Inst* inst) {
         }
     }
 
-    stream << "): ";
-    printType(stream, context, inst->type);
-    stream << '\n';
+    stream.writeString("): "_v);
+    printType(stream, context, module.global[inst->type]);
+    stream.writeByte('\n');
 }

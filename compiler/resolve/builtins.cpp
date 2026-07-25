@@ -1,21 +1,19 @@
 
 #include "module.h"
 
-static IntType u8Type(8, IntType::Int);
-
 typedef Value* (*BinIntrinsic)(Block*, StringId, Value*, Value*);
 
 template<BinIntrinsic F>
 static Function* binaryFunction(Context* context, Module* module, Type* type, const char* name, U32 length, Type* returnType = nullptr) {
     auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length), nullptr) : defineAnonymousFun(context, module);
-    auto body = block(fun);
+    auto body = block(module, fun);
 
     auto lhs = defineArg(context, fun, body, 0, type, nullptr);
     auto rhs = defineArg(context, fun, body, 0, type, nullptr);
-    fun->returnType = returnType ? returnType : type;
+    fun->returnType = (returnType ? returnType : type) - module->global;
 
     auto result = F(body, 0, lhs, rhs);
-    ret(body, result);
+    ret(module, body, result);
 
     fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
         return F(b->block, instName, args[0], args[1]);
@@ -29,13 +27,13 @@ typedef Value* (*ConvertIntrinsic)(Block*, StringId, Value*);
 template<ConvertIntrinsic F>
 static Function* convertFunction(Context* context, Module* module, Type* type, const char* name, U32 length) {
     auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length), nullptr) : defineAnonymousFun(context, module);
-    auto body = block(fun);
+    auto body = block(module, fun);
 
     auto arg = defineArg(context, fun, body, 0, type, nullptr);
     auto result = F(body, 0, arg);
-    ret(body, result);
+    ret(module, body, result);
 
-    fun->returnType = result->type;
+    fun->returnType = module->global[result->type] - module->global;
     fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
         return F(b->block, instName, args[0]);
     };
@@ -107,12 +105,12 @@ Value* ftolong(Block* block, StringId name, Value* arg) {
 }
 
 template<class Cmp>
-using CmpIntrinsic = Value* (*)(Block*, StringId, Value*, Value*, Cmp);
+using CmpIntrinsic = Value* (*)(Module*, Block*, StringId, Value*, Value*, Cmp);
 
 template<class Cmp, CmpIntrinsic<Cmp> F, Cmp cmp>
 static Function* cmpFunction(Context* context, Module* module, Type* type, const char* name, U32 length) {
     auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length), nullptr) : defineAnonymousFun(context, module);
-    auto body = block(fun);
+    auto body = block(module, fun);
 
     auto lhs = defineArg(context, fun, body, 0, type, nullptr);
     auto rhs = defineArg(context, fun, body, 0, type, nullptr);
@@ -131,30 +129,30 @@ static Function* cmpFunction(Context* context, Module* module, Type* type, const
 template<class Cmp, CmpIntrinsic<Cmp> cmp, Cmp Eq, Cmp Gt>
 static Function* ordCompare(Context* context, Module* module, Type* type, RecordType* orderingType, const char* name, U32 length) {
     auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length), nullptr) : defineAnonymousFun(context, module);
-    auto eqTest = block(fun);
+    auto eqTest = block(module, fun);
 
     auto lhs = defineArg(context, fun, eqTest, 0, type, nullptr);
     auto rhs = defineArg(context, fun, eqTest, 0, type, nullptr);
-    fun->returnType = orderingType;
+    fun->returnType = (Type*)orderingType - module->global;
 
-    auto eqBlock = block(fun);
-    auto gtTest = block(fun);
-    auto gtBlock = block(fun);
-    auto ltBlock = block(fun);
+    auto eqBlock = block(module, fun);
+    auto gtTest = block(module, fun);
+    auto gtBlock = block(module, fun);
+    auto ltBlock = block(module, fun);
 
     auto eq = cmp(eqTest, 0, lhs, rhs, Eq);
-    je(eqTest, eq, eqBlock, gtTest);
+    je(module, eqTest, eq, eqBlock, gtTest);
 
-    auto eqResult = record(eqBlock, 0, &orderingType->cons[1], nullptr);
-    ret(eqBlock, eqResult);
+    auto eqResult = record(module, eqBlock, 0, &orderingType->cons.get(module->global, 1), nullptr);
+    ret(module, eqBlock, eqResult);
 
     auto gt = cmp(gtTest, 0, lhs, rhs, Gt);
-    je(gtTest, gt, gtBlock, ltBlock);
+    je(module, gtTest, gt, gtBlock, ltBlock);
 
-    auto gtResult = record(gtBlock, 0, &orderingType->cons[2], nullptr);
+    auto gtResult = record(module, gtBlock, 0, &orderingType->cons[2], nullptr);
     ret(gtBlock, gtResult);
 
-    auto ltResult = record(ltBlock, 0, &orderingType->cons[0], nullptr);
+    auto ltResult = record(module, ltBlock, 0, &orderingType->cons[0], nullptr);
     ret(ltBlock, ltResult);
 
     return fun;
@@ -163,19 +161,19 @@ static Function* ordCompare(Context* context, Module* module, Type* type, Record
 template<class Cmp, CmpIntrinsic<Cmp> cmp, Cmp Gt>
 static Function* maxCompare(Context* context, Module* module, Type* type, const char* name, U32 length) {
     auto fun = length ? defineFun(context, module, context->addUnqualifiedName(name, length), nullptr) : defineAnonymousFun(context, module);
-    auto gtTest = block(fun);
+    auto gtTest = block(module, fun);
 
     auto lhs = defineArg(context, fun, gtTest, 0, type, nullptr);
     auto rhs = defineArg(context, fun, gtTest, 0, type, nullptr);
-    fun->returnType = type;
+    fun->returnType = type - module->global;
 
-    auto gtBlock = block(fun);
-    auto ltBlock = block(fun);
+    auto gtBlock = block(module, fun);
+    auto ltBlock = block(module, fun);
 
-    auto gt = cmp(gtTest, 0, lhs, rhs, Gt);
-    je(gtTest, gt, gtBlock, ltBlock);
-    ret(gtBlock, lhs);
-    ret(ltBlock, rhs);
+    auto gt = cmp(module, gtTest, 0, lhs, rhs, Gt);
+    je(module, gtTest, gt, gtBlock, ltBlock);
+    ret(module, gtBlock, lhs);
+    ret(module, ltBlock, rhs);
 
     return fun;
 }
@@ -521,7 +519,7 @@ Module* coreModule(Context* context) {
         args[1] = stringData(body, 0, arg);
         args[2] = stringLength(body, 0, arg);
 
-        callDyn(body, 0, constInt(body, 0, 1, &intTypes[IntType::Int]), &unitType, args, 3, nullptr, true);
+        callDyn(body, 0, constInt(body, 0, 1, &intTypes[IntType::Int]), &unitType, args, 3, true);
         ret(body);
     }
 
@@ -535,7 +533,7 @@ Module* coreModule(Context* context) {
         auto args = (Value**)module->memory.alloc(sizeof(Value*));
         args[0] = code;
 
-        callDyn(body, 0, constInt(body, 0, 60, &intTypes[IntType::Int]), &unitType, args, 1, nullptr, true);
+        callDyn(body, 0, constInt(body, 0, 60, &intTypes[IntType::Int]), &unitType, args, 1, true);
         ret(body);
     }
 
@@ -581,7 +579,7 @@ Module* nativeModule(Context* context, Module* core) {
         store(body, 0, rhs, lhs);
         ret(body);
 
-        storeFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
+        storeFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
             return store(b->block, instName, args[1], args[0]);
         };
     }
@@ -600,7 +598,7 @@ Module* nativeModule(Context* context, Module* core) {
         auto value = load(body, 0, lhs);
         ret(body, value);
 
-        loadFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
+        loadFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
             return load(b->block, instName, args[0]);
         };
     }
@@ -620,7 +618,7 @@ Module* nativeModule(Context* context, Module* core) {
         auto v = addref(body, 0, lhs, rhs);
         ret(body, v);
 
-        addFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
+        addFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
             return addref(b->block, instName, args[0], args[1]);
         };
     }
@@ -641,7 +639,7 @@ Module* nativeModule(Context* context, Module* core) {
         auto v = addref(body, 0, lhs, r);
         ret(body, v);
 
-        subFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
+        subFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
             auto rhs = sub(b->block, 0, constInt(b->block, 0, 0, args[1]->type), args[1]);
             return addref(b->block, instName, args[0], rhs);
         };
@@ -667,12 +665,12 @@ Module* nativeModule(Context* context, Module* core) {
             args[j + 1] = defineArg(context, fun, body, 0, bytePtrType, nullptr);
         }
 
-        auto result = callDyn(body, 0, index, bytePtrType, args, i + 1, nullptr, true);
+        auto result = callDyn(body, 0, index, bytePtrType, args, i + 1, true);
         ret(body, result);
 
-        fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
+        fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
             auto type = getRef(b->fun->module, &u8Type, false, false, true);
-            return callDyn(b->block, instName, args[0], type, args + 1, count - 1, nullptr, true);
+            return callDyn(b->block, instName, args[0], type, args + 1, count - 1, true);
         };
     }
 

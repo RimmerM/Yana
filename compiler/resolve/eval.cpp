@@ -315,10 +315,9 @@ U64 evalXor(Eval* eval, InstXor* inst) {
 }
 
 U64 evalAlloc(Eval* eval, InstAlloc* inst) {
-    auto ref = (RefType*)inst->type;
     auto size = inst->valueType->virtualSize;
 
-    if(ref->isLocal) {
+    if(!inst->heap) {
         auto p = eval->sp;
         eval->sp += size;
         return asReg(p);
@@ -333,7 +332,7 @@ U64 evalAlloc(Eval* eval, InstAlloc* inst) {
 }
 
 U64 evalLoad(Eval* eval, InstLoad* inst) {
-    auto type = (RefType*)inst->type;
+    auto type = (PtrType*)inst->type;
     auto ptr = (U64*)evalValue(eval, inst->from);
     auto size = type->virtualSize;
 
@@ -348,7 +347,7 @@ U64 evalLoad(Eval* eval, InstLoad* inst) {
 }
 
 U64 evalStore(Eval* eval, InstStore* inst) {
-    auto type = (RefType*)inst->type;
+    auto type = (PtrType*)inst->type;
     auto value = evalValue(eval, inst->value);
     auto ptr = (U64*)evalValue(eval, inst->to);
     auto size = type->virtualSize;

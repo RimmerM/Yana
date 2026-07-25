@@ -1,9 +1,9 @@
 #pragma once
 
-#include <ostream>
 #include "module.h"
+#include "Net/Stream.h"
 
-void printModule(std::ostream& stream, Context& context, const Module* module);
-void printFunction(std::ostream& stream, Context& context, const Function* decl, StringId forceName = 0);
-void printInst(std::ostream& stream, Context& context, const Inst* inst);
-void printType(std::ostream& stream, Context& context, const Type* type);
+void printModule(Net::Writer& stream, Context& context, Module& module);
+void printFunction(Net::Writer& stream, Context& context, Module& module, const Function* decl, StringId forceName = 0);
+void printInst(Net::Writer& stream, Context& context, Module& module, const Inst* inst);
+void printType(Net::Writer& stream, Context& context, Module& module, const Type* type);

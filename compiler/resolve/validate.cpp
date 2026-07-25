@@ -81,8 +81,8 @@ bool validateGlobal(Diagnostics* diagnostics, Global* global) {
         return false;
     }
 
-    if(global->type->kind != Type::Ref) {
-        diagnostics->error("global must be a reference type"_v, &global->source);
+    if(global->type->kind != Type::Ptr) {
+        diagnostics->error("global must be a pointer type"_v, &global->source);
         return false;
     }
 
@@ -439,16 +439,16 @@ bool validateXor(Diagnostics* diagnostics, InstXor* i) {
     return validateIntArithmetic(diagnostics, i, "xor");
 }
 
-bool validateAddRef(Diagnostics* diagnostics, InstAddRef* i) {
+bool validateAddPtr(Diagnostics* diagnostics, InstAddPtr* i) {
     if(!validateBaseValue(diagnostics, i)) return false;
     if(!validateOperand(diagnostics, i, i->lhs)) return false;
     if(!validateOperand(diagnostics, i, i->rhs)) return false;
 
-    auto valid = i->lhs->type->kind == Type::Ref && i->type->kind == Type::Ref;
+    auto valid = i->lhs->type->kind == Type::Ptr && i->type->kind == Type::Ptr;
     if(valid) {
-        auto from = (RefType*)i->lhs->type;
-        auto to = (RefType*)i->type;
-        valid = !from->isTraced && !to->isTraced && from->to == to->to;
+        auto from = (PtrType*)i->lhs->type;
+        auto to = (PtrType*)i->type;
+        valid = from->to == to->to;
     }
 
     if(!valid) {
@@ -665,8 +665,8 @@ bool validateValue(Diagnostics* diagnostics, Value* value) {
             return validateOr(diagnostics, (InstOr*)value);
         case Inst::InstXor:
             return validateXor(diagnostics, (InstXor*)value);
-        case Inst::InstAddRef:
-            return validateAddRef(diagnostics, (InstAddRef*)value);
+        case Inst::InstAddPtr:
+            return validateAddPtr(diagnostics, (InstAddPtr*)value);
         case Inst::InstRecord:
             return validateRecord(diagnostics, (InstRecord*)value);
         case Inst::InstTup:
@@ -739,7 +739,7 @@ bool validateBlock(Diagnostics* diagnostics, Block* block) {
 
 bool validateFunction(Diagnostics* diagnostics, Function* function) {
     if(function->ast || function->resolving) {
-        diagnostics->error("function is not fully resolved"_v, &function->source);
+        diagnostics->error("function is not fully resolved"_v, function->source);
         return false;
     }
 
@@ -760,7 +760,7 @@ bool validateFunction(Diagnostics* diagnostics, Function* function) {
 
 bool validateModule(Diagnostics* diagnostics, Module* module) {
     for(auto type: module->types) {
-        if(!validateType(diagnostics, type, nullptr, nullptr)) return false;
+        if(!validateType(diagnostics, module->global[type], nullptr, nullptr)) return false;
     }
 
     for(Function& function: module->functions) {
@@ -771,34 +771,7 @@ bool validateModule(Diagnostics* diagnostics, Module* module) {
     return true;
 }
 
-static bool validateGenType(Diagnostics* diagnostics, GenType* type, Node* source, Function* fun) {
-    auto env = type->env;
-    if(env->kind != GenEnv::Function || env->container != fun) {
-        diagnostics->error("generic type is used outside of its environment"_v, source);
-        return false;
-    }
-
-    if(type->index >= env->typeCount) {
-        diagnostics->error("generic type out of bounds in its environment"_v, source);
-        return false;
-    }
-
-    if(env->types[type->index] != type) {
-        diagnostics->error("generic environment type list is out of sync"_v, source);
-        return false;
-    }
-
-    auto argCount = type->argCount.from(0);
-    if(argCount > 0) {
-        for(U32 i = 0; i < argCount; i++) {
-            if(!validateType(diagnostics, type->args[i], source, fun)) return false;
-        }
-    }
-
-    return true;
-}
-
-static bool validateIntType(Diagnostics* diagnostics, IntType* type, Node* source, Function* fun) {
+static bool validateIntType(Diagnostics* diagnostics, IntType* type, Location* source, Function* fun) {
     if(type->width >= IntType::KindCount) {
         diagnostics->error("invalid register width '%@' for integer"_v, source, (int)type->width);
         return false;
@@ -817,7 +790,7 @@ static bool validateIntType(Diagnostics* diagnostics, IntType* type, Node* sourc
     return true;
 }
 
-static bool validateFloatType(Diagnostics* diagnostics, FloatType* type, Node* source, Function* fun) {
+static bool validateFloatType(Diagnostics* diagnostics, FloatType* type, Location* source, Function* fun) {
     if(type->width >= FloatType::KindCount) {
         diagnostics->error("invalid register width '%@' for floating point"_v, source, (int)type->width);
         return false;
@@ -831,11 +804,11 @@ static bool validateFloatType(Diagnostics* diagnostics, FloatType* type, Node* s
     return true;
 }
 
-static bool validateRefType(Diagnostics* diagnostics, RefType* type, Node* source, Function* fun) {
+static bool validatePtrType(Diagnostics* diagnostics, PtrType* type, Location* source, Function* fun) {
     return validateType(diagnostics, type->to, source, fun);
 }
 
-static bool validateFunType(Diagnostics* diagnostics, FunType* type, Node* source, Function* fun) {
+static bool validateFunType(Diagnostics* diagnostics, FunType* type, Location* source, Function* fun) {
     for(U32 i = 0; i < type->argCount; i++) {
         auto arg = type->args + i;
 
@@ -850,16 +823,7 @@ static bool validateFunType(Diagnostics* diagnostics, FunType* type, Node* sourc
     return validateType(diagnostics, type->result, source, fun);
 }
 
-static bool validateArrayType(Diagnostics* diagnostics, ArrayType* type, Node* source, Function* fun) {
-    return validateType(diagnostics, type->content, source, fun);
-}
-
-static bool validateMapType(Diagnostics* diagnostics, MapType* type, Node* source, Function* fun) {
-    if(!validateType(diagnostics, type->from, source, fun)) return false;
-    return validateType(diagnostics, type->to, source, fun);
-}
-
-static bool validateTupType(Diagnostics* diagnostics, TupType* type, Node* source, Function* fun) {
+static bool validateTupType(Diagnostics* diagnostics, TupType* type, Location* source, Function* fun) {
     for(U32 i = 0; i < type->count; i++) {
         auto field = type->fields + i;
 
@@ -879,14 +843,9 @@ static bool validateTupType(Diagnostics* diagnostics, TupType* type, Node* sourc
     return true;
 }
 
-static bool validateRecordType(Diagnostics* diagnostics, RecordType* type, Node* source, Function* fun) {
+static bool validateRecordType(Diagnostics* diagnostics, RecordType* type, Location* source, Function* fun) {
     if(type->ast) {
         diagnostics->error("record type is not fully resolved"_v, source);
-        return false;
-    }
-
-    if(type->argCount) {
-        diagnostics->error("record type is incomplete due to having remaining type arguments"_v, source);
         return false;
     }
 
@@ -926,21 +885,16 @@ static bool validateRecordType(Diagnostics* diagnostics, RecordType* type, Node*
     return true;
 }
 
-static bool validateAliasType(Diagnostics* diagnostics, AliasType* type, Node* source, Function* fun) {
+static bool validateAliasType(Diagnostics* diagnostics, AliasType* type, Location* source, Function* fun) {
     if(type->ast) {
         diagnostics->error("alias type is not fully resolved"_v, source);
-        return false;
-    }
-
-    if(type->argCount) {
-        diagnostics->error("alias type is incomplete due to having remaining type arguments"_v, source);
         return false;
     }
 
     return validateType(diagnostics, type->to, source, fun);
 }
 
-bool validateType(Diagnostics* diagnostics, Type* type, Node* source, Function* fun) {
+bool validateType(Diagnostics* diagnostics, Type* type, Location* source, Function* fun) {
     switch(type->kind) {
         case Type::Error:
             diagnostics->error("error types can never be used in valid code"_v, source);
@@ -948,8 +902,6 @@ bool validateType(Diagnostics* diagnostics, Type* type, Node* source, Function* 
         case Type::Unit:
             // Unit types don't contain any type-specific data.
             return true;
-        case Type::Gen:
-            return validateGenType(diagnostics, (GenType*)type, source, fun);
         case Type::Int:
             return validateIntType(diagnostics, (IntType*)type, source, fun);
         case Type::Float:
@@ -957,14 +909,10 @@ bool validateType(Diagnostics* diagnostics, Type* type, Node* source, Function* 
         case Type::String:
             // String types don't contain any type-specific data.
             return true;
-        case Type::Ref:
-            return validateRefType(diagnostics, (RefType*)type, source, fun);
+        case Type::Ptr:
+            return validatePtrType(diagnostics, (PtrType*)type, source, fun);
         case Type::Fun:
             return validateFunType(diagnostics, (FunType*)type, source, fun);
-        case Type::Array:
-            return validateArrayType(diagnostics, (ArrayType*)type, source, fun);
-        case Type::Map:
-            return validateMapType(diagnostics, (MapType*)type, source, fun);
         case Type::Tup:
             return validateTupType(diagnostics, (TupType*)type, source, fun);
         case Type::Record:

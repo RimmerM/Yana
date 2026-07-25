@@ -70,7 +70,7 @@ Value* resolveDynCall(FunBuilder* b, Type* targetType, Value* callee, List<ast::
     return callDyn(b->block, name, callee, funType->result, args, argCount, nullptr, false);
 }
 
-static FoundFunction resolveStaticFun(FunBuilder* b, StringId funName, Value* fieldArg) {
+static FoundFunction resolveStaticFun(FunBuilder* b, Id funName, Value* fieldArg) {
     FoundFunction f;
     f.found = false;
 
@@ -101,7 +101,7 @@ static FoundFunction resolveStaticFun(FunBuilder* b, StringId funName, Value* fi
     return f;
 }
 
-static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 count, StringId name) {
+static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 count, Id name) {
     auto argCount = (U32)fun->args.size();
 
     // If the call used incorrect argument names this error may not trigger.
@@ -129,42 +129,12 @@ static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 c
     }
 }
 
-static Value* finishForeignCall(FunBuilder* b, ForeignFunction* fun, Value** args, U32 count, StringId name) {
+static Value* finishForeignCall(FunBuilder* b, ForeignFunction* fun, Value** args, U32 count, Id name) {
     // TODO
     return nullptr;
 }
 
-static Value* finishClassCall(FunBuilder* b, ClassFun* fun, Value** args, U32 count, StringId name) {
-    // If the call used incorrect argument names this error may not trigger.
-    // However, in that case we already have an error for the argument name.
-    if(count != fun->fun->args.size()) {
-        error(b, "incorrect number of function arguments"_v, nullptr);
-    }
-
-    // Class functions must use each type argument in their signatures.
-    // This ensures that we always can infer what instance to use.
-    // TODO: Handle functions where the instance type depends solely on the return type.
-    auto classArgs = (Type**)alloca(sizeof(Type*) * fun->typeClass->argCount);
-    set(classArgs, fun->typeClass->argCount, 0);
-
-    for(U32 i = 0; i < count; i++) {
-        auto a = fun->fun->args[i]->type;
-        if(a->kind == Type::Gen) {
-            classArgs[((GenType*)a)->index] = canonicalType(args[i]->type);
-        }
-    }
-
-    auto instance = findInstance(&b->context, b->fun->module, fun->typeClass, fun->index, classArgs);
-    if(!instance) {
-        error(b, "cannot find an implementation of class for these arguments"_v, nullptr);
-        return error(b->block, name, &errorType);
-    }
-
-    auto f = instance->instances[fun->index];
-    return finishStaticCall(b, f, args, count, name);
-}
-
-Value* genStaticCall(FunBuilder* b, StringId funName, Value** args, U32 count, StringId name) {
+Value* genStaticCall(FunBuilder* b, Id funName, Value** args, U32 count, Id name) {
     auto fun = resolveStaticFun(b, funName, nullptr);
     if(!fun.found) return nullptr;
 
@@ -173,12 +143,10 @@ Value* genStaticCall(FunBuilder* b, StringId funName, Value** args, U32 count, S
             return finishStaticCall(b, fun.function, args, count, name);
         case FoundFunction::Foreign:
             return finishForeignCall(b, fun.foreignFunction, args, count, name);
-        case FoundFunction::Class:
-            return finishClassCall(b, fun.classFun, args, count, name);
     }
 }
 
-Value* resolveStaticCall(FunBuilder* b, Type* targetType, StringId funName, Value* firstArg, List<ast::TupArg>* argList, StringId name) {
+Value* resolveStaticCall(FunBuilder* b, Type* targetType, Id funName, Value* firstArg, List<ast::TupArg>* argList, Id name) {
     auto fun = resolveStaticFun(b, funName, firstArg);
     if(!fun.found) return nullptr;
 
@@ -194,10 +162,6 @@ Value* resolveStaticCall(FunBuilder* b, Type* targetType, StringId funName, Valu
         case FoundFunction::Foreign:
             argCount = fun.foreignFunction->type->argCount;
             sourceFunArgs = fun.foreignFunction->type->args;
-            break;
-        case FoundFunction::Class:
-            argCount = (U32)fun.classFun->fun->args.size();
-            sourceArgs = fun.classFun->fun->args.pointer();
             break;
     }
 
@@ -259,7 +223,5 @@ Value* resolveStaticCall(FunBuilder* b, Type* targetType, StringId funName, Valu
             return finishStaticCall(b, fun.function, args, i, name);
         case FoundFunction::Foreign:
             return finishForeignCall(b, fun.foreignFunction, args, i, name);
-        case FoundFunction::Class:
-            return finishClassCall(b, fun.classFun, args, i, name);
     }
 }

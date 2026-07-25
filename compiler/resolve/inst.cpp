@@ -3,14 +3,14 @@
 #include "module.h"
 #include <initializer_list>
 
-static void useValues(Inst* inst, Block* block, std::initializer_list<Value*> values) {
-    auto v = (Value**)block->function->module->memory.alloc(sizeof(Value*) * values.size());
+static void useValues(Module* module, Inst* inst, Block* block, std::initializer_list<Value*> values) {
+    auto v = (Value**)module->memory.alloc(sizeof(Value*) * values.size());
     inst->usedValues = v;
     inst->usedCount = values.size();
 
     for(auto it: values) {
         *v++ = it;
-        block->use(it, inst);
+        block->use(module, it, inst);
     }
 }
 
@@ -19,36 +19,36 @@ static bool isConstant(Value* v) {
 }
 
 template<class F>
-static Value* constantFoldInt(Block* block, StringId name, Value* lhs, Value* rhs, F&& f) {
+static Value* constantFoldInt(Module* module, Block* block, StringId name, Value* lhs, Value* rhs, F&& f) {
     if(isConstant(lhs) && isConstant(rhs)) {
         auto result = f(((ConstInt*)lhs)->value, ((ConstInt*)rhs)->value);
-        return constInt(block, name, result, lhs->type);
+        return constInt(module, block, name, result, module->global[lhs->type]);
     } else {
         return nullptr;
     }
 }
 
 template<class F>
-static Value* constantFoldFloat(Block* block, StringId name, Value* lhs, Value* rhs, F&& f) {
+static Value* constantFoldFloat(Module* module, Block* block, StringId name, Value* lhs, Value* rhs, F&& f) {
     if(isConstant(lhs) && isConstant(rhs)) {
         auto result = f(((ConstFloat*)lhs)->value, ((ConstFloat*)rhs)->value);
-        return constFloat(block, name, result, lhs->type);
+        return constFloat(module, block, name, result, module->global[lhs->type]);
     } else {
         return nullptr;
     }
 }
 
 template<class T, class F>
-static Value* constantFoldCmp(Block* block, StringId name, Value* lhs, Value* rhs, F&& f) {
+static Value* constantFoldCmp(Module* module, Block* block, StringId name, Value* lhs, Value* rhs, F&& f) {
     if(isConstant(lhs) && isConstant(rhs)) {
         auto result = f(((T*)lhs)->value, ((T*)rhs)->value);
-        return constInt(block, name, result, &intTypes[IntType::Bool]);
+        return constInt(module, block, name, result, &intTypes[IntType::Bool]);
     } else {
         return nullptr;
     }
 }
 
-static InstCast* cast(Block* block, Inst::Kind kind, StringId name, Value* from, Type* to) {
+static InstCast* cast(Module* module, Block* block, Inst::Kind kind, StringId name, Value* from, Type* to) {
     auto inst = (InstCast*)block->inst(sizeof(InstCast), name, kind, to);
     inst->from = from;
 
@@ -59,7 +59,7 @@ static InstCast* cast(Block* block, Inst::Kind kind, StringId name, Value* from,
     return inst;
 }
 
-static InstBinary* binary(Block* block, Inst::Kind kind, StringId name, Value* lhs, Value* rhs, Type* to) {
+static InstBinary* binary(Module* module, Block* block, Inst::Kind kind, StringId name, Value* lhs, Value* rhs, Type* to) {
     auto inst = (InstBinary*)block->inst(sizeof(InstBinary), name, kind, to);
     inst->lhs = lhs;
     inst->rhs = rhs;
@@ -72,50 +72,49 @@ static InstBinary* binary(Block* block, Inst::Kind kind, StringId name, Value* l
     return inst;
 }
 
-Value* error(Block* block, StringId name, Type* type) {
+Value* error(Module* module, Block* block, StringId name, Type* type) {
     auto v = block->inst(sizeof(Inst), name, Value::InstNop, type);
     v->usedCount = 0;
     v->usedValues = nullptr;
     return v;
 }
 
-Value* nop(Block* block, StringId name) {
+Value* nop(Module* module, Block* block, StringId name) {
     auto v = block->inst(sizeof(Inst), name, Value::InstNop, &unitType);
     v->usedCount = 0;
     v->usedValues = nullptr;
     return v;
 }
 
-ConstInt* constInt(Block* block, StringId name, U64 value, Type* type) {
-    auto c = new (block->function->module->memory) ConstInt;
-    c->block = block;
+ConstInt* constInt(Module* module, Block* block, StringId name, U64 value, Type* type) {
+    auto c = new (module->memory) ConstInt(block - module->local, type - module->global);
     c->name = name;
-    c->kind = Value::ConstInt;
-    c->type = type;
     c->value = value;
 
-    if(name) {
-        block->namedValues[name] = c;
-    }
+    if(name) block->namedValues[name] = c;
     return c;
 }
 
-ConstFloat* constFloat(Block* block, StringId name, double value, Type* type) {
-    auto c = new (block->function->module->memory) ConstFloat;
-    c->block = block;
+ConstFloat* constFloat(Module* module, Block* block, StringId name, float value, Type* type) {
+    auto c = new (module->memory) ConstFloat(block - module->local, type - module->global);
     c->name = name;
-    c->kind = Value::ConstFloat;
-    c->type = type;
     c->value = value;
 
-    if(name) {
-        block->namedValues[name] = c;
-    }
+    if(name) block->namedValues[name] = c;
     return c;
 }
 
-ConstString* constString(Block* block, StringId name, const char* value, Size length) {
-    auto c = new (block->function->module->memory) ConstString;
+ConstDouble* constDouble(Module* module, Block* block, StringId name, double value, Type* type) {
+    auto c = new (module->memory) ConstDouble(block - module->local, type - module->global);
+    c->name = name;
+    c->value = value;
+
+    if(name) block->namedValues[name] = c;
+    return c;
+}
+
+ConstString* constString(Module* module, Block* block, StringId name, const char* value, Size length) {
+    auto c = new (module->memory) ConstString(block - module->local, &stringType - module->global);
     c->block = block;
     c->name = name;
     c->kind = Value::ConstString;
@@ -129,162 +128,162 @@ ConstString* constString(Block* block, StringId name, const char* value, Size le
     return c;
 }
 
-Value* trunc(Block* block, StringId name, Value* from, Type* to) {
+Value* trunc(Module* module, Block* block, StringId name, Value* from, Type* to) {
     if(from->kind == Value::ConstInt) {
         auto value = ((ConstInt*)from)->value;
         auto toType = (IntType*)to;
 
         switch(toType->width) {
             case IntType::Bool:
-                return constInt(block, name, value != 0 ? 1 : 0, to);
+                return constInt(module, block, name, value != 0 ? 1 : 0, to);
             case IntType::Int:
-                return constInt(block, name, (U32)value, to);
+                return constInt(module, block, name, (U32)value, to);
             case IntType::Long:
-                return constInt(block, name, (U64)value, to);
+                return constInt(module, block, name, (U64)value, to);
         }
     }
 
-    return cast(block, Inst::InstTrunc, name, from, to);
+    return cast(module, block, Inst::InstTrunc, name, from, to);
 }
 
-Value* ftrunc(Block* block, StringId name, Value* from, Type* to) {
+Value* ftrunc(Module* module, Block* block, StringId name, Value* from, Type* to) {
     if(from->kind == Value::ConstFloat) {
         auto value = ((ConstFloat*)from)->value;
         auto toType = (FloatType*)to;
 
         if(toType->width == FloatType::F64) {
-            return constFloat(block, name, (double)value, to);
+            return constFloat(module, block, name, (double)value, to);
         } else if(toType->width == FloatType::F32) {
-            return constFloat(block, name, (float)value, to);
+            return constFloat(module, block, name, (float)value, to);
         }
 
         // TODO: Support constant folding for remaining floating point types.
     }
 
-    return cast(block, Inst::InstFTrunc, name, from, to);
+    return cast(module, block, Inst::InstFTrunc, name, from, to);
 }
 
-Value* zext(Block* block, StringId name, Value* from, Type* to) {
+Value* zext(Module* module, Block* block, StringId name, Value* from, Type* to) {
     if(from->kind == Value::ConstInt) {
-        return constInt(block, name, ((ConstInt*)from)->value, to);
+        return constInt(module, block, name, ((ConstInt*)from)->value, to);
     } else {
-        return cast(block, Inst::InstZExt, name, from, to);
+        return cast(module, block, Inst::InstZExt, name, from, to);
     }
 }
 
-Value* sext(Block* block, StringId name, Value* from, Type* to) {
+Value* sext(Module* module, Block* block, StringId name, Value* from, Type* to) {
     if(from->kind == Value::ConstInt) {
-        return constInt(block, name, ((ConstInt*)from)->value, to);
+        return constInt(module, block, name, ((ConstInt*)from)->value, to);
     } else {
-        return cast(block, Inst::InstSExt, name, from, to);
+        return cast(module, block, Inst::InstSExt, name, from, to);
     }
 }
 
-Value* fext(Block* block, StringId name, Value* from, Type* to) {
+Value* fext(Module* module, Block* block, StringId name, Value* from, Type* to) {
     if(from->kind == Value::ConstFloat) {
-        return constFloat(block, name, ((ConstFloat*)from)->value, to);
+        return constFloat(module, block, name, ((ConstFloat*)from)->value, to);
     } else {
-        return cast(block, Inst::InstFExt, name, from, to);
+        return cast(module, block, Inst::InstFExt, name, from, to);
     }
 }
 
-Value* itof(Block* block, StringId name, Value* from, Type* to) {
+Value* itof(Module* module, Block* block, StringId name, Value* from, Type* to) {
     if(from->kind == Value::ConstInt) {
-        return constFloat(block, name, (double)((I64)((ConstInt*)from)->value), to);
+        return constFloat(module, block, name, (double)((I64)((ConstInt*)from)->value), to);
     } else {
-        return cast(block, Inst::InstIToF, name, from, to);
+        return cast(module, block, Inst::InstIToF, name, from, to);
     }
 }
 
-Value* uitof(Block* block, StringId name, Value* from, Type* to) {
+Value* uitof(Module* module, Block* block, StringId name, Value* from, Type* to) {
     if(from->kind == Value::ConstInt) {
-        return constFloat(block, name, (double)((U64)((ConstInt*)from)->value), to);
+        return constFloat(module, block, name, (double)((U64)((ConstInt*)from)->value), to);
     } else {
-        return cast(block, Inst::InstUIToF, name, from, to);
+        return cast(module, block, Inst::InstUIToF, name, from, to);
     }
 }
 
-Value* ftoi(Block* block, StringId name, Value* from, Type* to) {
+Value* ftoi(Module* module, Block* block, StringId name, Value* from, Type* to) {
     if(from->kind == Value::ConstFloat) {
-        return constInt(block, name, (U64)(I64)((ConstFloat*)from)->value, to);
+        return constInt(module, block, name, (U64)(I64)((ConstFloat*)from)->value, to);
     } else {
-        return cast(block, Inst::InstFToI, name, from, to);
+        return cast(module, block, Inst::InstFToI, name, from, to);
     }
 }
 
-Value* ftoui(Block* block, StringId name, Value* from, Type* to) {
+Value* ftoui(Module* module, Block* block, StringId name, Value* from, Type* to) {
     if(from->kind == Value::ConstFloat) {
-        return constInt(block, name, (U64)((ConstFloat*)from)->value, to);
+        return constInt(module, block, name, (U64)((ConstFloat*)from)->value, to);
     } else {
-        return cast(block, Inst::InstFToUI, name, from, to);
+        return cast(module, block, Inst::InstFToUI, name, from, to);
     }
 }
 
-Value* add(Block* block, StringId name, Value* lhs, Value* rhs) {
-    if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a + b; })) return v;
-    return binary(block, Inst::InstAdd, name, lhs, rhs, lhs->type);
+Value* add(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
+    if(auto v = constantFoldInt(module, block, name, lhs, rhs, [=](auto a, auto b) { return a + b; })) return v;
+    return binary(module, block, Inst::InstAdd, name, lhs, rhs, module->global[lhs->type]);
 }
 
-Value* sub(Block* block, StringId name, Value* lhs, Value* rhs) {
-    if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a - b; })) return v;
-    return binary(block, Inst::InstSub, name, lhs, rhs, lhs->type);
+Value* sub(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
+    if(auto v = constantFoldInt(module, block, name, lhs, rhs, [=](auto a, auto b) { return a - b; })) return v;
+    return binary(module, block, Inst::InstSub, name, lhs, rhs, module->global[lhs->type]);
 }
 
-Value* mul(Block* block, StringId name, Value* lhs, Value* rhs) {
-    if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a * b; })) return v;
-    return binary(block, Inst::InstMul, name, lhs, rhs, lhs->type);
+Value* mul(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
+    if(auto v = constantFoldInt(module, block, name, lhs, rhs, [=](auto a, auto b) { return a * b; })) return v;
+    return binary(module, block, Inst::InstMul, name, lhs, rhs, module->global[lhs->type]);
 }
 
-Value* div(Block* block, StringId name, Value* lhs, Value* rhs) {
+Value* div(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
     if(rhs->kind == Value::ConstInt && ((ConstInt*)rhs)->value != 0) {
-        if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return U64(a) / U64(b); })) return v;
+        if(auto v = constantFoldInt(module, block, name, lhs, rhs, [=](auto a, auto b) { return U64(a) / U64(b); })) return v;
     }
-    return binary(block, Inst::InstDiv, name, lhs, rhs, lhs->type);
+    return binary(module, block, Inst::InstDiv, name, lhs, rhs, module->global[lhs->type]);
 }
 
-Value* idiv(Block* block, StringId name, Value* lhs, Value* rhs) {
+Value* idiv(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
     if(rhs->kind == Value::ConstInt && ((ConstInt*)rhs)->value != 0) {
-        if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a / b; })) return v;
+        if(auto v = constantFoldInt(module, block, name, lhs, rhs, [=](auto a, auto b) { return a / b; })) return v;
     }
-    return binary(block, Inst::InstIDiv, name, lhs, rhs, lhs->type);
+    return binary(module, block, Inst::InstIDiv, name, lhs, rhs, module->global[lhs->type]);
 }
 
-Value* rem(Block* block, StringId name, Value* lhs, Value* rhs) {
+Value* rem(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
     if(rhs->kind == Value::ConstInt && ((ConstInt*)rhs)->value != 0) {
-        if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return U64(a) % U64(b); })) return v;
+        if(auto v = constantFoldInt(module, block, name, lhs, rhs, [=](auto a, auto b) { return U64(a) % U64(b); })) return v;
     }
-    return binary(block, Inst::InstRem, name, lhs, rhs, lhs->type);
+    return binary(module, block, Inst::InstRem, name, lhs, rhs, module->global[lhs->type]);
 }
 
-Value* irem(Block* block, StringId name, Value* lhs, Value* rhs) {
+Value* irem(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
     if(rhs->kind == Value::ConstInt && ((ConstInt*)rhs)->value != 0) {
-        if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a % b; })) return v;
+        if(auto v = constantFoldInt(module, block, name, lhs, rhs, [=](auto a, auto b) { return a % b; })) return v;
     }
-    return binary(block, Inst::InstIRem, name, lhs, rhs, lhs->type);
+    return binary(module, block, Inst::InstIRem, name, lhs, rhs, module->global[lhs->type]);
 }
 
-Value* fadd(Block* block, StringId name, Value* lhs, Value* rhs) {
-    if(auto v = constantFoldFloat(block, name, lhs, rhs, [=](auto a, auto b) { return a + b; })) return v;
-    return binary(block, Inst::InstFAdd, name, lhs, rhs, lhs->type);
+Value* fadd(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
+    if(auto v = constantFoldFloat(module, block, name, lhs, rhs, [=](auto a, auto b) { return a + b; })) return v;
+    return binary(module, block, Inst::InstFAdd, name, lhs, rhs, module->global[lhs->type]);
 }
 
-Value* fsub(Block* block, StringId name, Value* lhs, Value* rhs) {
-    if(auto v = constantFoldFloat(block, name, lhs, rhs, [=](auto a, auto b) { return a - b; })) return v;
-    return binary(block, Inst::InstFSub, name, lhs, rhs, lhs->type);
+Value* fsub(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
+    if(auto v = constantFoldFloat(module, block, name, lhs, rhs, [=](auto a, auto b) { return a - b; })) return v;
+    return binary(module, block, Inst::InstFSub, name, lhs, rhs, module->global[lhs->type]);
 }
 
-Value* fmul(Block* block, StringId name, Value* lhs, Value* rhs) {
-    if(auto v = constantFoldFloat(block, name, lhs, rhs, [=](auto a, auto b) { return a * b; })) return v;
-    return binary(block, Inst::InstFMul, name, lhs, rhs, lhs->type);
+Value* fmul(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
+    if(auto v = constantFoldFloat(module, block, name, lhs, rhs, [=](auto a, auto b) { return a * b; })) return v;
+    return binary(module, block, Inst::InstFMul, name, lhs, rhs, module->global[lhs->type]);
 }
 
-Value* fdiv(Block* block, StringId name, Value* lhs, Value* rhs) {
-    if(auto v = constantFoldFloat(block, name, lhs, rhs, [=](auto a, auto b) { return a / b; })) return v;
-    return binary(block, Inst::InstFDiv, name, lhs, rhs, lhs->type);
+Value* fdiv(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
+    if(auto v = constantFoldFloat(module, block, name, lhs, rhs, [=](auto a, auto b) { return a / b; })) return v;
+    return binary(module, block, Inst::InstFDiv, name, lhs, rhs, module->global[lhs->type]);
 }
 
-Value* icmp(Block* block, StringId name, Value* lhs, Value* rhs, ICmp cmp) {
-    if(auto v = constantFoldCmp<ConstInt>(block, name, lhs, rhs, [=](auto a, auto b) {
+Value* icmp(Module* module, Block* block, StringId name, Value* lhs, Value* rhs, ICmp cmp) {
+    if(auto v = constantFoldCmp<ConstInt>(module, block, name, lhs, rhs, [=](auto a, auto b) {
         switch(cmp) {
             case ICmp::eq: return a == b;
             case ICmp::neq: return a != b;
@@ -312,8 +311,8 @@ Value* icmp(Block* block, StringId name, Value* lhs, Value* rhs, ICmp cmp) {
     return inst;
 }
 
-Value* fcmp(Block* block, StringId name, Value* lhs, Value* rhs, FCmp cmp) {
-    if(auto v = constantFoldCmp<ConstFloat>(block, name, lhs, rhs, [=](auto a, auto b) {
+Value* fcmp(Module* module, Block* block, StringId name, Value* lhs, Value* rhs, FCmp cmp) {
+    if(auto v = constantFoldCmp<ConstFloat>(module, block, name, lhs, rhs, [=](auto a, auto b) {
         switch(cmp) {
             case FCmp::eq: return a == b;
             case FCmp::neq: return a != b;
@@ -337,41 +336,41 @@ Value* fcmp(Block* block, StringId name, Value* lhs, Value* rhs, FCmp cmp) {
     return inst;
 }
 
-Value* shl(Block* block, StringId name, Value* arg, Value* amount) {
-    if(auto v = constantFoldInt(block, name, arg, amount, [=](auto a, auto b) { return a << b; })) return v;
-    return binary(block, Inst::InstShl, name, arg, amount, arg->type);
+Value* shl(Module* module, Block* block, StringId name, Value* arg, Value* amount) {
+    if(auto v = constantFoldInt(module, block, name, arg, amount, [=](auto a, auto b) { return a << b; })) return v;
+    return binary(module, block, Inst::InstShl, name, arg, amount, module->global[arg->type]);
 }
 
-Value* shr(Block* block, StringId name, Value* arg, Value* amount) {
-    if(auto v = constantFoldInt(block, name, arg, amount, [=](auto a, auto b) { return (U64)a >> b; })) return v;
-    return binary(block, Inst::InstShr, name, arg, amount, arg->type);
+Value* shr(Module* module, Block* block, StringId name, Value* arg, Value* amount) {
+    if(auto v = constantFoldInt(module, block, name, arg, amount, [=](auto a, auto b) { return (U64)a >> b; })) return v;
+    return binary(module, block, Inst::InstShr, name, arg, amount, module->global[arg->type]);
 }
 
-Value* sar(Block* block, StringId name, Value* arg, Value* amount) {
-    if(auto v = constantFoldInt(block, name, arg, amount, [=](auto a, auto b) { return a >> b; })) return v;
-    return binary(block, Inst::InstSar, name, arg, amount, arg->type);
+Value* sar(Module* module, Block* block, StringId name, Value* arg, Value* amount) {
+    if(auto v = constantFoldInt(module, block, name, arg, amount, [=](auto a, auto b) { return a >> b; })) return v;
+    return binary(module, block, Inst::InstSar, name, arg, amount, module->global[arg->type]);
 }
 
-Value* and_(Block* block, StringId name, Value* lhs, Value* rhs) {
-    if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a & b; })) return v;
-    return binary(block, Inst::InstAnd, name, lhs, rhs, lhs->type);
+Value* and_(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
+    if(auto v = constantFoldInt(module, block, name, lhs, rhs, [=](auto a, auto b) { return a & b; })) return v;
+    return binary(module, block, Inst::InstAnd, name, lhs, rhs, module->global[lhs->type]);
 }
 
-Value* or_(Block* block, StringId name, Value* lhs, Value* rhs) {
-    if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a | b; })) return v;
-    return binary(block, Inst::InstOr, name, lhs, rhs, lhs->type);
+Value* or_(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
+    if(auto v = constantFoldInt(module, block, name, lhs, rhs, [=](auto a, auto b) { return a | b; })) return v;
+    return binary(module, block, Inst::InstOr, name, lhs, rhs, module->global[lhs->type]);
 }
 
-Value* xor_(Block* block, StringId name, Value* lhs, Value* rhs) {
-    if(auto v = constantFoldInt(block, name, lhs, rhs, [=](auto a, auto b) { return a ^ b; })) return v;
-    return binary(block, Inst::InstXor, name, lhs, rhs, lhs->type);
+Value* xor_(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
+    if(auto v = constantFoldInt(module, block, name, lhs, rhs, [=](auto a, auto b) { return a ^ b; })) return v;
+    return binary(module, block, Inst::InstXor, name, lhs, rhs, module->global[lhs->type]);
 }
 
-Value* addref(Block* block, StringId name, Value* lhs, Value* rhs) {
-    return binary(block, Inst::InstAddRef, name, lhs, rhs, lhs->type);
+Value* addptr(Module* module, Block* block, StringId name, Value* lhs, Value* rhs) {
+    return binary(module, block, Inst::InstAddPtr, name, lhs, rhs, module->global[lhs->type]);
 }
 
-InstRecord* record(Block* block, StringId name, struct Con* con, Value* content) {
+InstRecord* record(Module* module, Block* block, StringId name, struct Con* con, Value* content) {
     auto inst = (InstRecord*)block->inst(sizeof(InstRecord), name, Inst::InstRecord, con->parent);
 
     inst->con = con;
@@ -388,7 +387,7 @@ InstRecord* record(Block* block, StringId name, struct Con* con, Value* content)
     return inst;
 }
 
-InstTup* tup(Block* block, StringId name, Type* type, Value** fields, U32 count) {
+InstTup* tup(Module* module, Block* block, StringId name, Type* type, Value** fields, U32 count) {
     auto inst = (InstTup*)block->inst(sizeof(InstTup), name, Inst::InstTup, type);
 
     inst->fields = fields;
@@ -404,9 +403,9 @@ InstTup* tup(Block* block, StringId name, Type* type, Value** fields, U32 count)
     return inst;
 }
 
-InstFun* fun(Block* block, StringId name, struct Function* body, Type* type, Size frameCount) {
+InstFun* fun(Module* module, Block* block, StringId name, struct Function* body, Type* type, Size frameCount) {
     auto inst = (InstFun*)block->inst(sizeof(InstFun), name, Inst::InstFun, type);
-    auto frame = (Value**)block->function->module->memory.alloc(sizeof(Value*) * frameCount);
+    auto frame = (Value**)module->memory.alloc(sizeof(Value*) * frameCount);
 
     inst->body = body;
     inst->frame = frame;
@@ -418,23 +417,24 @@ InstFun* fun(Block* block, StringId name, struct Function* body, Type* type, Siz
     return inst;
 }
 
-InstAlloc* alloc(Block* block, StringId name, Type* type, bool mut, bool local) {
-    auto refType = getRef(block->function->module, type, !local, local, mut);
+InstAlloc* alloc(Module* module, Block* block, StringId name, Type* type, bool mut, bool local) {
+    auto refType = getPtr(module, type);
     auto inst = (InstAlloc*)block->inst(sizeof(InstAlloc), name, Inst::InstAlloc, refType);
 
     inst->valueType = type;
     inst->mut = mut;
+    inst->heap = !local;
     return inst;
 }
 
-InstAllocArray* allocArray(Block* block, StringId name, Type* type, Value* length, bool mut, bool local) {
-    auto module = block->function->module;
+InstAllocArray* allocArray(Module* module, Block* block, StringId name, Type* type, Value* length, bool mut, bool local) {
     auto arrayType = getArray(module, type);
     auto inst = (InstAllocArray*)block->inst(sizeof(InstAllocArray), name, Inst::InstAllocArray, arrayType);
 
     inst->length = length;
     inst->valueType = type;
     inst->mut = mut;
+    inst->heap = !local;
 
     inst->usedValues = &inst->length;
     inst->usedCount = 1;
@@ -443,9 +443,9 @@ InstAllocArray* allocArray(Block* block, StringId name, Type* type, Value* lengt
     return inst;
 }
 
-InstLoad* load(Block* block, StringId name, Value* from) {
-    assertTrue(from->type->kind == Type::Ref);
-    auto inst = (InstLoad*)block->inst(sizeof(InstLoad), name, Inst::InstLoad, ((RefType*)from->type)->to);
+InstLoad* load(Module* module, Block* block, StringId name, Value* from) {
+    assertTrue(from->type->kind == Type::Ptr);
+    auto inst = (InstLoad*)block->inst(sizeof(InstLoad), name, Inst::InstLoad, ((PtrType*)from->type)->to);
     inst->from = from;
 
     inst->usedValues = &inst->from;
@@ -455,8 +455,8 @@ InstLoad* load(Block* block, StringId name, Value* from) {
     return inst;
 }
 
-InstLoadField* loadField(Block* block, StringId name, Value* from, Type* type, U32* indices, U32 count) {
-    assertTrue(from->type->kind == Type::Ref);
+InstLoadField* loadField(Module* module, Block* block, StringId name, Value* from, Type* type, U32* indices, U32 count) {
+    assertTrue(from->type->kind == Type::Ptr);
     auto inst = (InstLoadField*)block->inst(sizeof(InstLoadField), name, Inst::InstLoadField, type);
     inst->from = from;
     inst->indexChain = indices;
@@ -469,7 +469,7 @@ InstLoadField* loadField(Block* block, StringId name, Value* from, Type* type, U
     return inst;
 }
 
-InstLoadArray* loadArray(Block* block, StringId name, Value* from, Value* index, Type* type, bool checked) {
+InstLoadArray* loadArray(Module* module, Block* block, StringId name, Value* from, Value* index, Type* type, bool checked) {
     auto inst = (InstLoadArray*)block->inst(sizeof(InstLoadArray), name, Inst::InstLoadArray, type);
     inst->from = from;
     inst->index = index;
@@ -483,8 +483,8 @@ InstLoadArray* loadArray(Block* block, StringId name, Value* from, Value* index,
     return inst;
 }
 
-InstStore* store(Block* block, StringId name, Value* to, Value* value) {
-    assertTrue(to->type->kind == Type::Ref);
+InstStore* store(Module* module, Block* block, StringId name, Value* to, Value* value) {
+    assertTrue(to->type->kind == Type::Ptr);
     auto inst = (InstStore*)block->inst(sizeof(InstStore), name, Inst::InstStore, &unitType);
     inst->to = to;
     inst->value = value;
@@ -497,8 +497,8 @@ InstStore* store(Block* block, StringId name, Value* to, Value* value) {
     return inst;
 }
 
-InstStoreField* storeField(Block* block, StringId name, Value* to, Value* value, U32* indices, U32 count) {
-    assertTrue(to->type->kind == Type::Ref);
+InstStoreField* storeField(Module* module, Block* block, StringId name, Value* to, Value* value, U32* indices, U32 count) {
+    assertTrue(to->type->kind == Type::Ptr);
     auto inst = (InstStoreField*)block->inst(sizeof(InstStoreField), name, Inst::InstStoreField, &unitType);
     inst->to = to;
     inst->value = value;
@@ -513,7 +513,7 @@ InstStoreField* storeField(Block* block, StringId name, Value* to, Value* value,
     return inst;
 }
 
-InstStoreArray* storeArray(Block* block, StringId name, Value* to, Value* index, Value** values, U32 count, bool checked) {
+InstStoreArray* storeArray(Module* module, Block* block, StringId name, Value* to, Value* index, Value** values, U32 count, bool checked) {
     auto inst = (InstStoreArray*)block->inst(sizeof(InstStoreArray), name, Inst::InstStoreArray, &unitType);
     inst->to = to;
     inst->index = index;
@@ -521,7 +521,7 @@ InstStoreArray* storeArray(Block* block, StringId name, Value* to, Value* index,
     inst->count = count;
     inst->checked = checked;
 
-    auto v = (Value**)block->function->module->memory.alloc(sizeof(Value*) * (count + 2));
+    auto v = (Value**)module->memory.alloc(sizeof(Value*) * (count + 2));
     inst->usedValues = v;
     inst->usedCount = 2 + count;
 
@@ -539,7 +539,7 @@ InstStoreArray* storeArray(Block* block, StringId name, Value* to, Value* index,
     return inst;
 }
 
-InstGetField* getField(Block* block, StringId name, Value* from, Type* type, U32* indices, U32 count) {
+InstGetField* getField(Module* module, Block* block, StringId name, Value* from, Type* type, U32* indices, U32 count) {
     auto inst = (InstGetField*)block->inst(sizeof(InstGetField), name, Inst::InstGetField, type);
     inst->from = from;
     inst->indexChain = indices;
@@ -552,7 +552,7 @@ InstGetField* getField(Block* block, StringId name, Value* from, Type* type, U32
     return inst;
 }
 
-InstUpdateField* updateField(Block* block, StringId name, Value* from, InstUpdateField::Field* fields, U32 count) {
+InstUpdateField* updateField(Module* module, Block* block, StringId name, Value* from, InstUpdateField::Field* fields, U32 count) {
     auto inst = (InstUpdateField*)block->inst(sizeof(InstUpdateField), name, Inst::InstUpdateField, from->type);
     inst->from = from;
     inst->fields = fields;
@@ -562,7 +562,7 @@ InstUpdateField* updateField(Block* block, StringId name, Value* from, InstUpdat
     inst->usedCount = 1;
     block->use(from, inst);
 
-    auto v = (Value**)block->function->module->memory.alloc(sizeof(Value*) * (count + 1));
+    auto v = (Value**)module->memory.alloc(sizeof(Value*) * (count + 1));
     inst->usedValues = v;
     inst->usedCount = count + 1;
 
@@ -578,7 +578,7 @@ InstUpdateField* updateField(Block* block, StringId name, Value* from, InstUpdat
     return inst;
 }
 
-InstArrayLength* arrayLength(Block* block, StringId name, Value* from) {
+InstArrayLength* arrayLength(Module* module, Block* block, StringId name, Value* from) {
     auto inst = (InstArrayLength*)block->inst(sizeof(InstArrayLength), name, Inst::InstArrayLength, &intTypes[IntType::Int]);
     inst->from = from;
 
@@ -589,7 +589,7 @@ InstArrayLength* arrayLength(Block* block, StringId name, Value* from) {
     return inst;
 }
 
-InstArrayCopy* arrayCopy(Block* block, StringId name, Value* from, Value* to, Value* offset, Value* count, bool checked) {
+InstArrayCopy* arrayCopy(Module* module, Block* block, StringId name, Value* from, Value* to, Value* offset, Value* count, bool checked) {
     auto inst = (InstArrayCopy*)block->inst(sizeof(InstArrayCopy), name, Inst::InstArrayCopy, from->type);
     inst->from = from;
     inst->to = to;
@@ -607,7 +607,7 @@ InstArrayCopy* arrayCopy(Block* block, StringId name, Value* from, Value* to, Va
     return inst;
 }
 
-InstArraySlice* arraySlice(Block* block, StringId name, Value* from, Value* start, Value* count) {
+InstArraySlice* arraySlice(Module* module, Block* block, StringId name, Value* from, Value* start, Value* count) {
     auto inst = (InstArraySlice*)block->inst(sizeof(InstArraySlice), name, Inst::InstArraySlice, from->type);
     inst->from = from;
     inst->startIndex = start;
@@ -622,7 +622,7 @@ InstArraySlice* arraySlice(Block* block, StringId name, Value* from, Value* star
     return inst;
 }
 
-Value* stringLength(Block* block, StringId name, Value* from) {
+Value* stringLength(Module* module, Block* block, StringId name, Value* from) {
     auto inst = (InstStringLength*)block->inst(sizeof(InstStringLength), name, Inst::InstStringLength, &intTypes[IntType::Int]);
     inst->from = from;
 
@@ -633,7 +633,7 @@ Value* stringLength(Block* block, StringId name, Value* from) {
     return inst;
 }
 
-Value* stringData(Block* block, StringId name, Value* from) {
+Value* stringData(Module* module, Block* block, StringId name, Value* from) {
     auto inst = (InstStringData*)block->inst(sizeof(InstStringData), name, Inst::InstStringData, from->type);
     inst->from = from;
 
@@ -644,12 +644,11 @@ Value* stringData(Block* block, StringId name, Value* from) {
     return inst;
 }
 
-InstCall* call(Block* block, StringId name, struct Function* fun, Value** args, U32 count, GenInstance* instance) {
+InstCall* call(Module* module, Block* block, StringId name, struct Function* fun, Value** args, U32 count) {
     auto inst = (InstCall*)block->inst(sizeof(InstCall), name, Inst::InstCall, fun->returnType);
     inst->fun = fun;
     inst->args = args;
     inst->argCount = count;
-    inst->instance = instance;
 
     inst->usedValues = args;
     inst->usedCount = count;
@@ -661,14 +660,13 @@ InstCall* call(Block* block, StringId name, struct Function* fun, Value** args, 
     return inst;
 }
 
-InstCallDyn* callDyn(Block* block, StringId name, Value* fun, Type* type, Value** args, U32 count, GenInstance* instance, bool isIntrinsic) {
+InstCallDyn* callDyn(Module* module, Block* block, StringId name, Value* fun, Type* type, Value** args, U32 count, bool isIntrinsic) {
     auto inst = (InstCallDyn*)block->inst(sizeof(InstCallDyn), name, Inst::InstCallDyn, type);
-    auto usedValues = (Value**)block->function->module->memory.alloc(sizeof(Value*) * (count + 1));
+    auto usedValues = (Value**)module->memory.alloc(sizeof(Value*) * (count + 1));
 
     inst->fun = fun;
     inst->args = args;
     inst->argCount = count;
-    inst->instance = instance;
     inst->isIntrinsic = isIntrinsic;
 
     inst->usedValues = usedValues;
@@ -684,9 +682,9 @@ InstCallDyn* callDyn(Block* block, StringId name, Value* fun, Type* type, Value*
     return inst;
 }
 
-InstCallForeign* callForeign(Block* block, StringId name, struct ForeignFunction* fun, Size argCount) {
+InstCallForeign* callForeign(Module* module, Block* block, StringId name, struct ForeignFunction* fun, Size argCount) {
     auto inst = (InstCallForeign*)block->inst(sizeof(InstCallForeign), name, Inst::InstCallForeign, fun->type->result);
-    auto args = (Value**)block->function->module->memory.alloc(sizeof(Value*) * argCount);
+    auto args = (Value**)module->memory.alloc(sizeof(Value*) * argCount);
     inst->fun = fun;
     inst->args = args;
     inst->argCount = argCount;
@@ -697,7 +695,7 @@ InstCallForeign* callForeign(Block* block, StringId name, struct ForeignFunction
     return inst;
 }
 
-InstJe* je(Block* block, Value* cond, Block* then, Block* otherwise) {
+InstJe* je(Module* module, Block* block, Value* cond, Block* then, Block* otherwise) {
     auto inst = (InstJe*)block->inst(sizeof(InstJe), 0, Inst::InstJe, &unitType);
     inst->cond = cond;
     inst->then = then;
@@ -717,7 +715,7 @@ InstJe* je(Block* block, Value* cond, Block* then, Block* otherwise) {
     return inst;
 }
 
-InstJmp* jmp(Block* block, Block* to) {
+InstJmp* jmp(Module* module, Block* block, Block* to) {
     auto inst = (InstJmp*)block->inst(sizeof(InstJmp), 0, Inst::InstJmp, &unitType);
     inst->to = to;
     block->outgoing.push(to);
@@ -727,7 +725,7 @@ InstJmp* jmp(Block* block, Block* to) {
     return inst;
 }
 
-InstRet* ret(Block* block, Value* value) {
+InstRet* ret(Module* module, Block* block, Value* value) {
     // Prevent weird edge cases where we try to explicitly use a void value.
     // If the returned value is void, return nothing instead.
     if(value && value->type->kind == Type::Unit) value = nullptr;
@@ -750,12 +748,12 @@ InstRet* ret(Block* block, Value* value) {
     return inst;
 }
 
-InstPhi* phi(Block* block, StringId name, InstPhi::Alt* alts, Size altCount) {
-    auto inst = (InstPhi*)block->inst(sizeof(InstPhi), name, Inst::InstPhi, alts[0].value->type);
+InstPhi* phi(Module* module, Block* block, StringId name, Size altCount) {
+    auto inst = (InstPhi*)block->inst(module, sizeof(InstPhi) + sizeof(ModulePtr<Value>) * altCount, name, Inst::InstPhi, alts[0].value->type);
     inst->alts = alts;
     inst->altCount = altCount;
 
-    auto v = (Value**)block->function->module->memory.alloc(sizeof(Value*) * altCount);
+    auto v = (Value**)module->memory.alloc(sizeof(Value*) * altCount);
     inst->usedValues = v;
     inst->usedCount = altCount;
 

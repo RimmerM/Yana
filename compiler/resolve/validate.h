@@ -35,7 +35,7 @@ bool validateSar(Diagnostics* diagnostics, InstSar* i);
 bool validateAnd(Diagnostics* diagnostics, InstAnd* i);
 bool validateOr(Diagnostics* diagnostics, InstOr* i);
 bool validateXor(Diagnostics* diagnostics, InstXor* i);
-bool validateAddRef(Diagnostics* diagnostics, InstAddRef* i);
+bool validateAddPtr(Diagnostics* diagnostics, InstAddPtr* i);
 bool validateRecord(Diagnostics* diagnostics, InstRecord* i);
 bool validateTup(Diagnostics* diagnostics, InstTup* i);
 bool validateFun(Diagnostics* diagnostics, InstFun* i);
@@ -62,7 +62,7 @@ bool validateJmp(Diagnostics* diagnostics, InstJmp* i);
 bool validateRet(Diagnostics* diagnostics, InstRet* i);
 bool validatePhi(Diagnostics* diagnostics, InstPhi* i);
 
-bool validateType(Diagnostics* diagnostics, Type* type, Node* source, Function* fun);
+bool validateType(Diagnostics* diagnostics, Type* type, Location* source, Function* fun);
 bool validateValue(Diagnostics* diagnostics, Value* value);
 bool validateBlock(Diagnostics* diagnostics, Block* block);
 bool validateFunction(Diagnostics* diagnostics, Function* function);

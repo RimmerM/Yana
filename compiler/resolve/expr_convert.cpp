@@ -105,7 +105,7 @@ Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool isConstru
         U32 codePoint = 0;
         if(string->length > 0) {
             auto bytes = (const Byte*)string->value;
-            Unicode::utf8PointToUtf32(bytes, (const Byte*)string->value + string->length, &codePoint, &codePoint + 1);
+            Unicode::utf8PointToUtf32(bytes, (const Byte*)string->value + string->length, &codePoint);
             if(string->length > (bytes - (const Byte*)string->value)) {
                 error(b, "cannot convert a string with multiple characters to an int"_v, nullptr);
             }

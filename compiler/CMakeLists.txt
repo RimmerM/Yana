@@ -52,6 +52,7 @@ set(SOURCE_FILES ${SOURCE_FILES}
     resolve/builtins.cpp
     resolve/builtins.h
     resolve/eval.cpp
+    resolve/lower.cpp
 )
 
 set(SOURCE_FILES ${SOURCE_FILES}
