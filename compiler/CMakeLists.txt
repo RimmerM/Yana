@@ -86,6 +86,15 @@ set(SOURCE_FILES ${SOURCE_FILES}
     codegen/js/format.cpp
 )
 
+set(SOURCE_FILES ${SOURCE_FILES}
+    codegen/x64/gen.h
+    codegen/x64/gen.cpp
+    codegen/x64/transform.cpp
+    codegen/x64/register.cpp
+    codegen/x64/constraint.cpp
+    codegen/x64/x64_util.h
+)
+
 include_directories(${LLVM_INCLUDE_DIR})
 add_library(YanaLib ${SOURCE_FILES})
 add_executable(Yana ${SOURCE_FILES})
