@@ -74,16 +74,16 @@ block start:
   jmp uses=[] creates=[] pre=[r12->r13]  => 4d8bec
 block head:
   cmp_ilt uses=[r12, rbx] creates=[-]  => 4139dc
-  je uses=[-] creates=[]  => 0f8c09000000
-block out:
-  ret uses=[rax] creates=[] pre=[r13->rax]  => 498bc5415d415c5bc3
+  je uses=[-] creates=[]  => 0f8d13000000
 block body:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 498bfce80b000000
+  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 498bfce814000000
   add uses=[r13, rax] creates=[r13]  => 4101c5
   imm uses=[] creates=[-]  => 
   add uses=[r12, -] creates=[r12]  => 41ffc4
-  jmp uses=[] creates=[]  => e9dbffffff
+  jmp uses=[] creates=[]  => e9e4ffffff
+block out:
+  ret uses=[rax] creates=[] pre=[r13->rax]  => 498bc5415d415c5bc3
 
 --- codegen: helper ---
 block #0:
@@ -100,22 +100,22 @@ block start:
   jmp uses=[] creates=[] pre=[rax->rcx, rax->rdx]  => 488bc8488bd0
 block outer:
   cmp_ilt uses=[rcx, rdi] creates=[-]  => 39f9
-  je uses=[-] creates=[]  => 0f8c04000000
-block done:
-  ret uses=[rax] creates=[] pre=[rdx->rax]  => 488bc2c3
-block #4:
+  je uses=[-] creates=[]  => 0f8d1e000000
+block #3:
   jmp uses=[] creates=[] pre=[rax->r8]  => 4c8bc0
 block inner:
   add uses=[rdx, r8] creates=[rdx]  => 4401c2
   imm uses=[] creates=[-]  => 
   add uses=[r8, -] creates=[r8]  => 41ffc0
   cmp_ilt uses=[r8, rsi] creates=[-]  => 4139f0
-  je uses=[-] creates=[]  => 0f8c07000000
+  je uses=[-] creates=[]  => 0f8d05000000
+block #5:
+  jmp uses=[] creates=[]  => e9ecffffff
 block #6:
   jmp uses=[] creates=[]  => 
 block outerEnd:
   imm uses=[] creates=[-]  => 
   add uses=[rcx, -] creates=[rcx]  => ffc1
-  jmp uses=[] creates=[]  => e9dbffffff
-block #8:
-  jmp uses=[] creates=[]  => e9e5ffffff
+  jmp uses=[] creates=[]  => e9daffffff
+block done:
+  ret uses=[rax] creates=[] pre=[rdx->rax]  => 488bc2c3

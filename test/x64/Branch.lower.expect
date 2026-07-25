@@ -21,6 +21,32 @@ branch<complex>(%v: Int, %out: Int): Int, Int {
   }
 }
 
+wideBranch<complex>(%v: Long, %w: Long): Long {
+  start {
+    %v_0 = cmp_ilt %v, %w: Int
+    je %v_0, a, b
+  }
+
+  a {
+    %s = add %v, %w: Long
+    ret %s
+  }
+
+  b {
+    %v_1 = cmp_ilt %w, 0: Int
+    je %v_1, c, d
+  }
+
+  c {
+    ret %w
+  }
+
+  d {
+    %e = sub %v, 1: Long
+    ret %e
+  }
+}
+
 
 --- codegen: branch ---
 block #0:
@@ -39,3 +65,23 @@ block a:
   jmp uses=[] creates=[]  => 
 block end:
   ret uses=[rax, rdx] creates=[] pre=[rsi->rdx]  => 488bd6c3
+
+--- codegen: wideBranch ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  cmp_ilt uses=[rdi, rsi] creates=[-]  => 4839f7
+  je uses=[-] creates=[]  => 0f8c15000000
+block b:
+  imm uses=[] creates=[-]  => 
+  cmp_ilt uses=[rsi, -] creates=[-]  => 4883fe00
+  je uses=[-] creates=[]  => 0f8c07000000
+block d:
+  imm uses=[] creates=[-]  => 
+  sub uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc748ffc8
+  ret uses=[rax] creates=[]  => c3
+block c:
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+block a:
+  add uses=[rdi, rsi] creates=[rdi]  => 4801f7
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3

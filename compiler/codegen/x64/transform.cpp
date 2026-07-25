@@ -287,6 +287,32 @@ static void insertInstAt(LowerBase base, LowerBlock* block, Size at, LowerInst* 
     block->instructions.set(base, at, inst - base);
 }
 
+// Takes an instruction nothing reads any more out of its block, and with it the uses it contributed.
+// Dropping those is what makes the next instruction of a folded address chain dead in turn, so the
+// whole chain comes out by removing its instructions in order.
+static void removeInst(LowerBase base, LowerInst* inst) {
+    for(auto offset: inst->used()) {
+        auto v = base[offset];
+        auto uses = v->uses.contents(base);
+
+        for(Size i = 0; i < uses.size(); i++) {
+            if(base[uses[i]] == inst) { v->uses.remove(base, i); break; }
+        }
+    }
+
+    auto block = base[inst->block];
+    auto list = block->instructions.contents(base);
+
+    for(Size i = 0; i < list.size(); i++) {
+        if(base[list[i]] == inst) {
+            block->instructions.remove(base, i);
+            return;
+        }
+    }
+
+    assertTrue("removing an instruction that is not in its own block" == nullptr);
+}
+
 // Moves `user`'s use of `from` over to `to`. Both use lists have to reflect it: they are how every
 // later pass finds who consumes a value, and a stale entry would keep a dead value looking live.
 static void replaceUse(LowerBase base, LowerValue* from, LowerInst* user, LowerValue* to) {
@@ -370,15 +396,360 @@ static void insertStackArgs(LowerBase base, LowerFunction& fun, const Constraint
     }
 }
 
-// Rewrites the block list into reverse postorder, so that a block is (wherever the CFG allows it)
-// visited after the predecessors that define the values live on entry to it.
+/*
+ * Addressing modes.
+ *
+ * x86 computes `base + index*{1,2,4,8} + disp32` as part of a memory access and charges nothing for
+ * it. The lowering has no notion of that - it produces the arithmetic as ordinary instructions - so
+ * the shape is recognized here and collapsed into the `X86Address` the encoder already knows how to
+ * embed into a load or a store.
+ *
+ * An X86Address emits no code and occupies no register of its own. It is placed immediately in front
+ * of the access that reads it, and genLoad/genStore fold it into their ModRM byte. The adjacency is
+ * required rather than incidental: the verifier checks an address's operand registers at the address
+ * instruction rather than at its user, which is only sound while nothing can come between them.
+ *
+ * A chain is only taken apart when every instruction in it exists solely to compute this address.
+ * Folding half of one would leave the arithmetic behind *and* repeat it inside the address, so the
+ * test is "every use is an address operand" at the top of the chain and "this is the only use"
+ * further in. The top may legitimately have several users - a pointer read and then written, an
+ * array element used twice - and each of them gets an address instruction of its own.
+ */
+
+struct AddressPattern {
+    LowerValue* base = nullptr;
+    LowerValue* index = nullptr;
+    U8 scale = 1;
+    I64 displacement = 0;
+};
+
+// Whether `user` reads `v` as the address of a memory access and nowhere else. The address is
+// operand zero of both a load and a store, and it is the only operand position an X86Address can
+// occupy - so `store %p, %p` reads the same value once as an address and once as a value, and
+// rewriting only the first would leave the second pointing at an instruction about to be removed.
+static bool isAddressOperand(LowerBase base, LowerInst* user, LowerValue* v) {
+    if(user->kind != LowerInst::Load && user->kind != LowerInst::Store) return false;
+
+    auto used = user->used();
+    if(base[used[0]] != v) return false;
+
+    for(Size i = 1; i < used.size(); i++) {
+        if(base[used[i]] == v) return false;
+    }
+
+    return true;
+}
+
+static bool isOnlyUsedAsAddress(LowerBase base, LowerValue* v) {
+    if(v->uses.isEmpty()) return false;
+
+    for(auto u: v->uses.contents(base)) {
+        if(!isAddressOperand(base, base[u], v)) return false;
+    }
+
+    return true;
+}
+
+// Whether `inst` is the one and only thing that reads `v`, and so whether folding `v` away leaves
+// nothing behind. This is the test at every level of the chain below the top one.
+static bool isOnlyUse(LowerBase base, LowerValue* v, LowerInst* inst) {
+    return v->uses.size() == 1 && base[v->uses.get(base, 0)] == inst;
+}
+
+// The signed displacement `v` contributes, if it is an immediate small enough to be one. x86 sign-
+// extends an address displacement from 32 bits, so the range it can hold is exactly what
+// encodeImm32 accepts - and whether the immediate was made implicit is irrelevant, since the value
+// is read here rather than encoded from a register.
+static Maybe<I64> addressDisplacement(LowerValue* v) {
+    if(v->inst()->kind != LowerInst::Imm) return Nothing();
+
+    auto imm = encodeImm32(v);
+    if(!imm) return Nothing();
+
+    return Just(I64(I32(imm.unwrap())));
+}
+
+// Matches `v` against `index * {1,2,4,8}`, the only scaling the SIB byte can encode.
 //
-// Both consumers depend on this: buildRanges numbers instructions in block-list order, and its
-// ranges are only tight when that order follows the control flow; genFunction emits in the same
-// order, so reverse postorder also turns more branches into fallthrough. Keeping one order for both
-// is what lets the allocator work in linear indices and the encoder walk in lockstep with it.
+// Only a 64-bit multiply qualifies. A 32-bit `shl %i, 2` wraps at 32 bits and the address unit does
+// not, so folding one would change what an index near the top of its range produces. A plain
+// unscaled index is not subject to that: it reaches the address in the same register the 64-bit add
+// would have read it from, whatever its declared width.
+static bool matchScaled(LowerBase base, LowerValue* v, LowerInst* user, LowerValue*& index, U8& scale) {
+    if(!is64Bit(v->type)) return false;
+    if(!isOnlyUse(base, v, user)) return false;
+
+    auto inst = v->inst();
+    if(!isBinary(inst)) return false;
+
+    auto binary = (LowerInstBinary*)inst;
+    auto factorValue = base[binary->rhs];
+    if(factorValue->inst()->kind != LowerInst::Imm) return false;
+
+    auto imm = ((LowerImm*)factorValue->inst())->i;
+    U64 factor;
+
+    if(inst->kind == LowerInst::Shl) {
+        if(imm > 3) return false;
+        factor = U64(1) << imm;
+    } else if(inst->kind == LowerInst::Mul || inst->kind == LowerInst::IMul) {
+        factor = imm;
+        if(factor != 1 && factor != 2 && factor != 4 && factor != 8) return false;
+    } else {
+        return false;
+    }
+
+    auto source = base[binary->lhs];
+    if(isImplicit(source)) return false;
+
+    index = source;
+    scale = U8(factor);
+    return true;
+}
+
+// Peels `base + index*scale + displacement` off the value a load or store takes its address from,
+// stopping as soon as what is left is not exclusively this address's own arithmetic. `folded`
+// collects the instructions that become dead, in the order they can be removed: an outer add before
+// the shift it absorbed, so that each is already unused by the time it goes.
+static bool matchAddress(LowerBase base, LowerValue* address, AddressPattern& out, Array<LowerInst*>& folded) {
+    out.base = address;
+    if(!isOnlyUsedAsAddress(base, address)) return false;
+
+    // Loop invariant: everything reading `out.base` is about to be rewritten to read the address
+    // instead, so the instruction computing it can be removed.
+    for(;;) {
+        auto v = out.base;
+        auto inst = v->inst();
+
+        // Pointer arithmetic only. A 32-bit add wraps where the address unit does not, and the
+        // lowering states the width in the result type of the operation itself.
+        if(!isPtr(v->type)) break;
+        if(inst->kind != LowerInst::Add && inst->kind != LowerInst::Sub) break;
+
+        auto binary = (LowerInstBinary*)inst;
+        auto lhs = base[binary->lhs];
+        auto rhs = base[binary->rhs];
+
+        // Decided in full before anything is committed, so that a step that turns out not to fit
+        // leaves the pattern as the previous one left it.
+        LowerValue* next = nullptr;
+        LowerValue* index = out.index;
+        U8 scale = out.scale;
+        auto displacement = out.displacement;
+        LowerInst* scaled = nullptr;
+
+        if(auto d = addressDisplacement(rhs)) {
+            displacement += inst->kind == LowerInst::Sub ? -d.unwrap() : d.unwrap();
+            if(displacement >= I64(minLimit<I32>) && displacement <= I64(maxLimit<I32>)) next = lhs;
+        } else if(inst->kind == LowerInst::Add && !out.index) {
+            // Add is commutative and the immediate peephole has already run, so either side may be
+            // the one carrying the index.
+            if(matchScaled(base, rhs, inst, index, scale)) {
+                scaled = rhs->inst();
+                next = lhs;
+            } else if(matchScaled(base, lhs, inst, index, scale)) {
+                scaled = lhs->inst();
+                next = rhs;
+            } else if(!isImplicit(rhs)) {
+                index = rhs;
+                scale = 1;
+                next = lhs;
+            }
+        }
+
+        // The base has to reach the address in a register of its own; an operand that was folded
+        // into some other instruction's encoding has none.
+        if(!next || isImplicit(next)) break;
+
+        out.index = index;
+        out.scale = scale;
+        out.displacement = displacement;
+        out.base = next;
+
+        folded.push(inst);
+        if(scaled) folded.push(scaled);
+
+        // Anything else reading what is left stops the chain here: that value stays materialized,
+        // and folding further would compute it twice rather than once.
+        if(!isOnlyUse(base, next, inst)) break;
+    }
+
+    return folded.isNotEmpty();
+}
+
+// Where `inst` sits in its own block's instruction list.
+static Size indexOfInst(LowerBase base, LowerBlock* block, LowerInst* inst) {
+    auto list = block->instructions.contents(base);
+
+    for(Size i = 0; i < list.size(); i++) {
+        if(base[list[i]] == inst) return i;
+    }
+
+    assertTrue("instruction is not in its own block" == nullptr);
+    return 0;
+}
+
+static void foldAddresses(LowerBase base, LowerFunction& fun) {
+    auto& arena = fun.arena;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::Load && inst->kind != LowerInst::Store) continue;
+
+            // The address is operand zero of both, and is already an X86Address when an earlier
+            // access on the same chain folded it for every user at once.
+            auto address = base[inst->used()[0]];
+            if(isMem(address)) continue;
+
+            AddressPattern pattern;
+            Array<LowerInst*> folded;
+            if(!matchAddress(base, address, pattern, folded)) continue;
+
+            // Snapshotted: the loop below rewrites the very list it is reading.
+            Array<LowerInst*> users;
+            for(auto u: address->uses.contents(base)) users.push(base[u]);
+
+            for(auto user: users) {
+                auto computed = new (arena) LowerInstX86Address(
+                    LowerInst::X86Address, 0, pattern.base - base,
+                    pattern.index ? pattern.index - base : nullptr,
+                    pattern.scale, U32(I32(pattern.displacement))
+                );
+
+                auto userBlock = base[user->block];
+                insertInstAt(base, userBlock, indexOfInst(base, userBlock, user), computed);
+
+                replaceUse(base, address, user, &computed->result);
+                user->used()[0] = &computed->result - base;
+            }
+
+            for(auto dead: folded) removeInst(base, dead);
+
+            // Both the insertions and the removals moved things around underneath the walk, so the
+            // position to carry on from is wherever this access ended up.
+            i = indexOfInst(base, block, inst);
+        }
+    }
+}
+
+/*
+ * Block order.
+ *
+ * The list is rewritten into reverse postorder, so that a block is - wherever the CFG allows it -
+ * visited after the predecessors that define the values live on entry to it. Both consumers depend
+ * on that: buildRanges numbers instructions in block-list order, and its ranges are only tight when
+ * that order follows the control flow; genFunction emits in the same order, so reverse postorder
+ * also turns more branches into fallthrough. Keeping one order for both is what lets the allocator
+ * work in linear indices and the encoder walk in lockstep with it.
+ *
+ * *Which* reverse postorder is a further choice, though, and taking the successors as declared is
+ * the wrong one around a loop. A header ending in `je body, exit` explores the body first, so the
+ * body is finished - and pushed onto the postorder - before the exit, and comes out *after* it once
+ * the postorder is reversed: the exit block lands between the header and the body it leaves. Every
+ * iteration then pays a taken branch into the body and a jump back, and every interval spanning the
+ * loop is split into two ranges around the intruding block.
+ *
+ * Exploring the successor that *leaves* the loop first fixes both, since it is finished first and so
+ * reversed last. That is all the loop analysis below is for: a depth per block, so that two
+ * successors can be told apart by which of them is further in.
+ */
+
+// A retreating edge found by the walk, from the block that closes a loop back to the one that opens
+// it. In a reducible CFG an edge to a block still on the walk's own stack is exactly an edge to a
+// block that dominates its source, which is what makes it a loop rather than a diamond.
+struct BackEdge {
+    LowerBlock* latch;
+    LowerBlock* header;
+};
+
+static constexpr U32 kOnStack = 1;
+static constexpr U32 kFinished = 2;
+
+static void findBackEdges(LowerBase base, LowerBlock* b, Array<BackEdge>& out) {
+    b->marker = kOnStack;
+
+    for(auto o: b->outgoing) {
+        if(!o) continue;
+        auto s = base[o];
+
+        if(s->marker == kOnStack) out.push(BackEdge { b, s });
+        else if(s->marker != kFinished) findBackEdges(base, s, out);
+    }
+
+    b->marker = kFinished;
+}
+
+// Counts one back edge's loop into `depth`: the header, plus everything the latch is reachable from
+// without passing back through the header, which is the natural loop of that edge. Nested loops
+// simply add on top of each other, so a block inside two of them is counted twice and compares as
+// deeper than one inside either alone.
+static void addLoopDepth(LowerBase base, LowerFunction& fun, const BackEdge& edge, Array<U32>& depth) {
+    Array<bool> inLoop;
+    for(Size i = 0; i < fun.blocks.size(); i++) inLoop.push(false);
+
+    // Marked before the walk starts rather than visited by it: the header bounds the loop, and a
+    // predecessor reached through it is outside.
+    inLoop[edge.header->index] = true;
+    depth[edge.header->index]++;
+
+    Array<LowerBlock*> body;
+
+    auto visit = [&](LowerBlock* b) {
+        if(inLoop[b->index]) return;
+
+        inLoop[b->index] = true;
+        depth[b->index]++;
+        body.push(b);
+    };
+
+    visit(edge.latch);
+
+    // Walked as a queue rather than popped, so that `body` doubles as the visited list.
+    for(Size i = 0; i < body.size(); i++) {
+        for(auto p: body[i]->incoming.contents(base)) visit(base[p]);
+    }
+}
+
+static void traverseOrdered(LowerBase base, LowerBlock* b, const Array<U32>& depth, BlockList& out) {
+    b->marker = 1;
+
+    auto first = b->outgoing[0] ? base[b->outgoing[0]] : nullptr;
+    auto second = b->outgoing[1] ? base[b->outgoing[1]] : nullptr;
+
+    // The deeper successor is explored last, so that it is pushed last and reversed to the front:
+    // the block continuing the loop follows its header directly, and whatever leaves is left for
+    // after the body. Successors at the same depth keep the order the branch declares them in.
+    if(first && second && depth[first->index] > depth[second->index]) ::swap(first, second);
+
+    if(first && !first->marker) traverseOrdered(base, first, depth, out);
+    if(second && !second->marker) traverseOrdered(base, second, depth, out);
+
+    out.push(b->index);
+}
+
 static void orderBlocks(LowerBase base, LowerFunction& fun) {
-    auto postorder = fun.buildPostorder(base);
+    auto blockList = fun.blocks.contents(base);
+    auto entry = base[fun.blocks.get(base, 0)];
+
+    Array<U32> depth;
+    for(Size i = 0; i < blockList.size(); i++) {
+        auto b = base[blockList[i]];
+        b->index = BlockIndex(i);
+        b->marker = 0;
+        depth.push(0);
+    }
+
+    Array<BackEdge> backEdges;
+    findBackEdges(base, entry, backEdges);
+    for(auto& e: backEdges) addLoopDepth(base, fun, e, depth);
+
+    for(auto o: blockList) base[o]->marker = 0;
+
+    BlockList postorder(blockList.size());
+    traverseOrdered(base, entry, depth, postorder);
 
     // A block that the entry point cannot reach has no place in the ordering, and nothing
     // downstream is prepared to allocate registers for one.
@@ -411,6 +782,11 @@ void transformFunction(LowerBase base, LowerFunction& fun) {
     pass([&](LowerInst* inst, Size i) {
         trySwapOperands(base, inst);
     });
+
+    // Before the peepholes rather than after them: an immediate whose only use was an address
+    // computation is left with none by the fold, and is then made implicit by the pass below rather
+    // than being materialized into a register nothing reads.
+    foldAddresses(base, fun);
 
     pass([&](LowerInst* inst, Size i) {
         // Make immediates implicit where possible.

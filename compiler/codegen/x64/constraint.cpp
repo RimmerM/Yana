@@ -439,6 +439,80 @@ InstShape shapeOf(LowerBase base, const Constraints& constraints, LowerFunction&
     return shape;
 }
 
+/*
+ * Memory operands. See the block comment on memoryUseOperand in gen.h.
+ */
+
+// The width the encoding works at, which is not always the operand's own. A comparison produces an
+// Int32 whatever it compared, and a pointer arithmetic instruction works at 64 bits however wide the
+// offset was declared.
+static LowerType operationType(LowerBase base, LowerInst* inst) {
+    if(inst->kind == LowerInst::Cmp) return base[((LowerInstCmp*)inst)->lhs]->type;
+
+    assertTrue(inst->createdCount > 0);
+    return inst->created()[0].type;
+}
+
+// Which operand the *encoding* can take from memory, before anything is asked about the value in it.
+//
+// Every entry here is the r/m operand of a two-operand form whose other operand is the register in
+// the ModRM.reg field: `add r, r/m` rather than `add r/m, r`. The destination is always the register
+// one, so the memory operand is never also a result - a read-modify-write form would need the
+// operand and the result to share a slot, which only happens once webs are coalesced across an
+// instruction.
+//
+// Casts are absent deliberately: their source and result widths differ by definition, and the width
+// rule below is exactly what a cast breaks. A spilled cast source is still reloaded.
+static I32 memoryFormOperand(LowerBase base, LowerInst* inst) {
+    switch(inst->kind) {
+        case LowerInst::Set:
+            // MOV r, r/m.
+            return 0;
+
+        case LowerInst::Add: case LowerInst::Sub:
+        case LowerInst::And: case LowerInst::Or: case LowerInst::Xor:
+        case LowerInst::Cmp:
+            // The reg-destination direction of each group-1 opcode.
+            return 1;
+
+        case LowerInst::IMul:
+            // IMUL r, r/m is the two-operand form; the three-operand one takes an immediate there
+            // instead, and genIMul chooses between them the same way.
+            return isImm(base[((LowerInstBinary*)inst)->rhs]) ? kNoMemoryOperand : 1;
+
+        case LowerInst::Mul: case LowerInst::Div: case LowerInst::IDiv:
+        case LowerInst::Rem: case LowerInst::IRem:
+            // The group-3 forms take their second operand as r/m; the first is forced into rax by
+            // InstConstraints and is loaded into it directly whether it comes from a register or
+            // from the frame.
+            return 1;
+
+        default:
+            return kNoMemoryOperand;
+    }
+}
+
+I32 memoryUseOperand(LowerBase base, LowerInst* inst) {
+    auto index = memoryFormOperand(base, inst);
+    if(index == kNoMemoryOperand) return kNoMemoryOperand;
+
+    auto used = inst->used();
+    assertTrue(Size(index) < used.size());
+
+    // An operand that was folded into the encoding has no location of any kind, in memory or
+    // otherwise - an embedded immediate is already part of the instruction.
+    auto value = base[used[index]];
+    if(isImplicit(value)) return kNoMemoryOperand;
+
+    // A slot is exactly as wide as the value in it and slots are packed by width, so an access of
+    // any other width would read or write a neighbouring value along with this one.
+    if(stackSlotClassFor(value->type) != stackSlotClassFor(operationType(base, inst))) {
+        return kNoMemoryOperand;
+    }
+
+    return index;
+}
+
 RegSet writtenRegisters(const InstShape& shape) {
     // A return ends the function: nothing is live afterwards, so there is nothing for its clobbers
     // to protect and no reason to keep anything out of the registers it writes.

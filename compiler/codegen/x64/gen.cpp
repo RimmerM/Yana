@@ -157,8 +157,24 @@ static void genZeroReg(AsmModule& to, U8 reg, LowerType type) {
 }
 
 static AddressMode slotAddress(const FrameLayout& frame, RegId slot) {
-    assertTrue(getRegClass(slot) == StackReg);
+    assertTrue(isSlot(slot));
     return frameAddress(U8(getRegIndex(frame.base)), frame.slotOffset[getRegIndex(slot)]);
+}
+
+// An instruction reading one operand straight out of the frame instead of out of a register: the
+// memory form of a two-operand encoding, with `regField` the other operand (or an opcode extension,
+// for the group-3 forms that have no second register).
+//
+// This is the whole of what a direct memory operand costs the encoder. Which operand may be one -
+// and whether the slot is the right width for the access - was settled by memoryUseOperand before
+// allocation, so an encoder that reaches here has already been told this form exists.
+static void genSlotOperand(AsmModule& to, const FrameLayout& frame, LowerType type, U8 regField, RegId slot, U8 opCode, U8 prefix = 0) {
+    auto a = slotAddress(frame, slot);
+
+    writeAddress(to, is64Bit(type), regField, a);
+    if(prefix) to.buffer.writeByte(prefix);
+    to.buffer.writeByte(opCode);
+    writeAddressOperand(to, regField, a);
 }
 
 // Emits a sequenced permutation of locations (fixed-register constraints, phi placement, the copy
@@ -256,16 +272,23 @@ static void genMovRegS(AsmModule& to, LowerType type, RegId dest, RegId src) {
 }
 
 // 2-address ALU op: dest = rm field = lhs (== regs.creates[0], guaranteed by the allocator),
-// src = reg field = rhs. `opCode` must be the r/m-destination variant (e.g. 0x01 ADD r/m,r,
+// src = reg field = rhs. `rmRegOp` must be the r/m-destination variant (e.g. 0x01 ADD r/m,r,
 // not 0x03 ADD r,r/m) so the result lands in lhs's register.
-static void genCommonBinary(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, U8 rmRegOp, U8 immExt) {
+//
+// `regRmOp` is the other direction of the same operation, for an rhs left in the frame: the memory
+// operand has to occupy the r/m field, so the register - which is also the destination - moves into
+// the reg field. `type` is the width the operation works at, which is not always the result's: a
+// comparison produces an Int32 whatever it compared.
+static void genCommonBinary(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, const FrameLayout& frame, LowerType type, U8 rmRegOp, U8 regRmOp, U8 immExt) {
     auto lhs = base[i.lhs];
     auto rhs = base[i.rhs];
 
-    if(isReg(lhs) && isReg(rhs)) {
-        genRegReg(to, i.result.type, reg(regs.uses[0]), reg(regs.uses[1]), rmRegOp);
+    if(isSlot(regs.uses[1])) {
+        genSlotOperand(to, frame, type, reg(regs.uses[0]), regs.uses[1], regRmOp);
+    } else if(isReg(lhs) && isReg(rhs)) {
+        genRegReg(to, type, reg(regs.uses[0]), reg(regs.uses[1]), rmRegOp);
     } else if(isReg(lhs) && isImm(rhs)) {
-        genRegImm(to, i.result.type, reg(regs.uses[0]), (LowerImm*)rhs->inst(), 0x83, 0x81, immExt);
+        genRegImm(to, type, reg(regs.uses[0]), (LowerImm*)rhs->inst(), 0x83, 0x81, immExt);
     } else {
         assertTrue("unsupported operands to binary instruction" == nullptr);
     }
@@ -275,7 +298,7 @@ static void genNop(AsmModule& to, LowerInst& i) {
     to.buffer.writeByte(0x90);
 }
 
-static void genAdd(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs) {
+static void genAdd(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, const FrameLayout& frame) {
     auto rhs = base[i.rhs];
     if(isReg(base[i.lhs]) && isImm(rhs)) {
         auto rhsImm = (LowerImm*)rhs->inst();
@@ -283,10 +306,10 @@ static void genAdd(AsmModule& to, LowerBase base, LowerInstBinary& i, const Inst
         if(rhsImm->i == (U64)I64(-1)) return genIncReg(to, i.result.type, reg(regs.uses[0]), true);
     }
 
-    genCommonBinary(to, base, i, regs, 0x01, 0);
+    genCommonBinary(to, base, i, regs, frame, i.result.type, 0x01, 0x03, 0);
 }
 
-static void genSub(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs) {
+static void genSub(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, const FrameLayout& frame) {
     auto rhs = base[i.rhs];
     if(isReg(base[i.lhs]) && isImm(rhs)) {
         auto rhsImm = (LowerImm*)rhs->inst();
@@ -294,19 +317,19 @@ static void genSub(AsmModule& to, LowerBase base, LowerInstBinary& i, const Inst
         if(rhsImm->i == (U64)I64(-1)) return genIncReg(to, i.result.type, reg(regs.uses[0]), false);
     }
 
-    genCommonBinary(to, base, i, regs, 0x29, 5);
+    genCommonBinary(to, base, i, regs, frame, i.result.type, 0x29, 0x2b, 5);
 }
 
-static void genOr(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs) {
-    genCommonBinary(to, base, i, regs, 0x09, 1);
+static void genOr(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, const FrameLayout& frame) {
+    genCommonBinary(to, base, i, regs, frame, i.result.type, 0x09, 0x0b, 1);
 }
 
-static void genXor(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs) {
-    genCommonBinary(to, base, i, regs, 0x31, 6);
+static void genXor(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, const FrameLayout& frame) {
+    genCommonBinary(to, base, i, regs, frame, i.result.type, 0x31, 0x33, 6);
 }
 
-static void genAnd(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs) {
-    genCommonBinary(to, base, i, regs, 0x21, 4);
+static void genAnd(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, const FrameLayout& frame) {
+    genCommonBinary(to, base, i, regs, frame, i.result.type, 0x21, 0x23, 4);
 }
 
 static void genShift(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, U8 onceOp, U8 immOp, U8 regOp, U8 ext) {
@@ -336,12 +359,15 @@ static void genShift(AsmModule& to, LowerBase base, LowerInstBinary& i, const In
 
 // IMUL r, r/m (0x0faf): dest is the reg field and doubles as a source operand (2-address), so
 // dest must be lhs's register (== regs.creates[0]); rhs is the rm-field source.
-static void genIMul(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs) {
+static void genIMul(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, const FrameLayout& frame) {
     assertTrue(isInt(i.result.type));
     auto lhs = base[i.lhs];
     auto rhs = base[i.rhs];
 
-    if(isReg(lhs) && isReg(rhs)) {
+    if(isSlot(regs.uses[1])) {
+        // Already the reg-destination direction, so a memory source needs nothing but the address.
+        genSlotOperand(to, frame, i.result.type, reg(regs.uses[0]), regs.uses[1], 0xaf, 0x0f);
+    } else if(isReg(lhs) && isReg(rhs)) {
         genRegReg(to, i.result.type, reg(regs.uses[1]), reg(regs.uses[0]), 0xaf, 0x0f);
     } else if(isReg(lhs) && isImm(rhs)) {
         // IMUL r, r/m, imm8/imm32 (0x6b/0x69) is a true 3-operand form: dest (reg field) can
@@ -370,21 +396,30 @@ static void genIMul(AsmModule& to, LowerBase base, LowerInstBinary& i, const Ins
     }
 }
 
-// Mul/Div/IDiv always have their dividend/multiplicand forced into rax (and, for div/idiv,
-// clobber rdx) by InstConstraints - see constraint.cpp - so we can read the operand registers
-// directly from regs.uses without re-checking here.
-static void genMul(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs) {
-    assertTrue(reg(regs.uses[0]) == (U8)IntRegister::rax);
-    assertTrue(isReg(base[i.rhs]));
+// The second operand of Mul/Div/IDiv, which the group-3 encoding (0xf7) takes as r/m with the
+// ModRM.reg field carrying an opcode extension rather than a register - so a divisor or
+// multiplicand can come straight out of the frame with no reload at all.
+//
+// The first operand needs no handling of its own: InstConstraints forces it into rax (and div/idiv
+// clobber rdx) - see constraint.cpp - so it has already been placed there by the time this runs.
+static void genGroup3(AsmModule& to, LowerType type, const InstRegs& regs, const FrameLayout& frame, U8 ext) {
+    if(isSlot(regs.uses[1])) {
+        genSlotOperand(to, frame, type, ext, regs.uses[1], 0xf7);
+        return;
+    }
 
     auto rhsReg = reg(regs.uses[1]);
-    auto type = i.result.type;
     if(is64Bit(type) || needsRex(rhsReg)) {
         to.buffer.writeByte(makeRex(is64Bit(type), rhsReg, 0, 0));
     }
 
     to.buffer.writeByte(0xf7);
-    to.buffer.writeByte(makeMod(3, rhsReg, 4));
+    to.buffer.writeByte(makeMod(3, rhsReg, ext));
+}
+
+static void genMul(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, const FrameLayout& frame) {
+    assertTrue(reg(regs.uses[0]) == (U8)IntRegister::rax);
+    genGroup3(to, i.result.type, regs, frame, 4);
 }
 
 static void genCqo(AsmModule& to, LowerType type) {
@@ -395,35 +430,23 @@ static void genCqo(AsmModule& to, LowerType type) {
     to.buffer.writeByte(0x99);
 }
 
-static void genDiv(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs) {
+static void genDiv(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, const FrameLayout& frame) {
     // div uses both rax and rdx, so we need to zero rdx first.
     // Since the division overwrites the flags anyway, it is safe to use xor here.
     assertTrue(isInt(i.result.type));
     assertTrue(reg(regs.uses[0]) == (U8)IntRegister::rax);
     genZeroReg(to, (U8)IntRegister::rdx, i.result.type);
 
-    auto rhsReg = reg(regs.uses[1]);
-    auto type = i.result.type;
-    if(is64Bit(type) || needsRex(rhsReg)) {
-        to.buffer.writeByte(makeRex(is64Bit(type), rhsReg, 0, 0));
-    }
-    to.buffer.writeByte(0xf7);
-    to.buffer.writeByte(makeMod(3, rhsReg, 6));
+    genGroup3(to, i.result.type, regs, frame, 6);
 }
 
-static void genIDiv(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs) {
+static void genIDiv(AsmModule& to, LowerBase base, LowerInstBinary& i, const InstRegs& regs, const FrameLayout& frame) {
     // idiv uses both rax and rdx, so we need to sign-extend rax into rdx first.
     assertTrue(isInt(i.result.type));
     assertTrue(reg(regs.uses[0]) == (U8)IntRegister::rax);
     genCqo(to, i.result.type);
 
-    auto rhsReg = reg(regs.uses[1]);
-    auto type = i.result.type;
-    if(is64Bit(type) || needsRex(rhsReg)) {
-        to.buffer.writeByte(makeRex(is64Bit(type), rhsReg, 0, 0));
-    }
-    to.buffer.writeByte(0xf7);
-    to.buffer.writeByte(makeMod(3, rhsReg, 7));
+    genGroup3(to, i.result.type, regs, frame, 7);
 }
 
 static void genNeg(AsmModule& to, LowerInstUnary& i, const InstRegs& regs) {
@@ -702,8 +725,11 @@ static void genPop(AsmModule& to, RegId destReg) {
 
 // CMP r/m, reg (0x39): computes rm - reg = lhs - rhs and discards the result, only setting
 // flags. This matches getCompareOp()'s condition codes, which assume flags = lhs - rhs.
-static void genCmpToFlags(AsmModule& to, LowerBase base, LowerInstCmp& i, const InstRegs& regs) {
-    genCommonBinary(to, base, i, regs, 0x39, 7);
+// A comparison works at the width of the values compared, not at the width of what it produces: its
+// result is an Int32 whatever went into it, so taking the width from the result would compare two
+// 64-bit values as 32-bit ones.
+static void genCmpToFlags(AsmModule& to, LowerBase base, LowerInstCmp& i, const InstRegs& regs, const FrameLayout& frame) {
+    genCommonBinary(to, base, i, regs, frame, base[i.lhs]->type, 0x39, 0x3b, 7);
 }
 
 static LowerCmp negateCmp(LowerCmp cmp) {
@@ -788,11 +814,11 @@ static void genFlagsToReg(AsmModule& to, U8 reg, LowerCmp cmp) {
     to.buffer.writeByte(makeMod(3, reg, reg));
 }
 
-static void genCmp(AsmModule& to, LowerBase base, LowerInstCmp& i, const InstRegs& regs) {
+static void genCmp(AsmModule& to, LowerBase base, LowerInstCmp& i, const InstRegs& regs, const FrameLayout& frame) {
     auto type = base[i.lhs]->type;
 
     if(isInt(type) || isPtr(type)) {
-        genCmpToFlags(to, base, i, regs);
+        genCmpToFlags(to, base, i, regs, frame);
         if(!isImplicit(&i.result)) genFlagsToReg(to, reg(regs.creates[0]), i.getCmp());
     } else if(isFloat(type)) {
         // TODO: float comparisons are not implemented (out of scope for the int/pointer MVP).
@@ -908,7 +934,9 @@ static AddressMode genComputedAddress(LowerInstX86Address& addr, const InstRegs&
     a.rexB = needsRex(baseReg);
 
     if(hasIndex || (baseReg & 7) == 4) {
-        assertTrue(!hasIndex || (reg(addrRegs.uses[1]) & 7) != 4); // rsp cannot be used as an index
+        // rsp cannot be used as an index: 100 in the SIB index field means "no index". r12 encodes
+        // the same three bits and *is* a legal index, because REX.X tells the two apart.
+        assertTrue(!hasIndex || reg(addrRegs.uses[1]) != U8(IntRegister::rsp));
 
         a.hasSib = true;
         a.rm = 4;
@@ -1142,9 +1170,18 @@ static void genInst(AsmModule& to, LowerBase base, LowerInst* inst, const InstRe
         case LowerInst::Bitcast:
             genBitcast(to, base, *(LowerInstUnary*)inst, regs);
             break;
-        case LowerInst::Set:
-            genMovReg(to, ((LowerInstUnary*)inst)->result.type, regs.creates[0], regs.uses[0]);
+        case LowerInst::Set: {
+            // MOV r, r/m either way: a source still in the frame is read in place rather than
+            // reloaded into a register the copy would then read again.
+            auto type = ((LowerInstUnary*)inst)->result.type;
+
+            if(isSlot(regs.uses[0])) {
+                genSlotOperand(to, frame, type, reg(regs.creates[0]), regs.uses[0], 0x8b);
+            } else {
+                genMovReg(to, type, regs.creates[0], regs.uses[0]);
+            }
             break;
+        }
         case LowerInst::Neg:
             genNeg(to, *(LowerInstUnary*)inst, regs);
             break;
@@ -1153,28 +1190,28 @@ static void genInst(AsmModule& to, LowerBase base, LowerInst* inst, const InstRe
             break;
 
         case LowerInst::Add:
-            genAdd(to, base, *(LowerInstBinary*)inst, regs);
+            genAdd(to, base, *(LowerInstBinary*)inst, regs, frame);
             break;
         case LowerInst::Sub:
-            genSub(to, base, *(LowerInstBinary*)inst, regs);
+            genSub(to, base, *(LowerInstBinary*)inst, regs, frame);
             break;
         case LowerInst::Mul:
-            genMul(to, base, *(LowerInstBinary*)inst, regs);
+            genMul(to, base, *(LowerInstBinary*)inst, regs, frame);
             break;
         case LowerInst::IMul:
-            genIMul(to, base, *(LowerInstBinary*)inst, regs);
+            genIMul(to, base, *(LowerInstBinary*)inst, regs, frame);
             break;
         case LowerInst::Div:
-            genDiv(to, base, *(LowerInstBinary*)inst, regs);
+            genDiv(to, base, *(LowerInstBinary*)inst, regs, frame);
             break;
         case LowerInst::IDiv:
-            genIDiv(to, base, *(LowerInstBinary*)inst, regs);
+            genIDiv(to, base, *(LowerInstBinary*)inst, regs, frame);
             break;
         case LowerInst::Rem:
-            genDiv(to, base, *(LowerInstBinary*)inst, regs);
+            genDiv(to, base, *(LowerInstBinary*)inst, regs, frame);
             break;
         case LowerInst::IRem:
-            genIDiv(to, base, *(LowerInstBinary*)inst, regs);
+            genIDiv(to, base, *(LowerInstBinary*)inst, regs, frame);
             break;
 
         case LowerInst::Shl:
@@ -1187,17 +1224,17 @@ static void genInst(AsmModule& to, LowerBase base, LowerInst* inst, const InstRe
             genShift(to, base, *(LowerInstBinary*)inst, regs, 7);
             break;
         case LowerInst::And:
-            genAnd(to, base, *(LowerInstBinary*)inst, regs);
+            genAnd(to, base, *(LowerInstBinary*)inst, regs, frame);
             break;
         case LowerInst::Or:
-            genOr(to, base, *(LowerInstBinary*)inst, regs);
+            genOr(to, base, *(LowerInstBinary*)inst, regs, frame);
             break;
         case LowerInst::Xor:
-            genXor(to, base, *(LowerInstBinary*)inst, regs);
+            genXor(to, base, *(LowerInstBinary*)inst, regs, frame);
             break;
 
         case LowerInst::Cmp:
-            genCmp(to, base, *(LowerInstCmp*)inst, regs);
+            genCmp(to, base, *(LowerInstCmp*)inst, regs, frame);
             break;
         case LowerInst::Select:
             genSelect(to, base, *(LowerInstSelect*)inst, regs);

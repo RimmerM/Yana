@@ -116,6 +116,13 @@ inline RegSet spillTempRegs() {
     return set;
 }
 
+// Whether a location is a frame slot rather than a physical register. Slots and registers are the
+// same kind of thing everywhere a location is handled, so this is the one question that separates
+// them - a slot has an address instead of a number, and only the frame layout knows what it is.
+inline bool isSlot(RegId id) {
+    return getRegClass(id) == StackReg;
+}
+
 inline bool isImm(LowerValue* v) {
     return v->inst()->kind == LowerInst::Imm && (v->flags & LowerValue::Implicit);
 }

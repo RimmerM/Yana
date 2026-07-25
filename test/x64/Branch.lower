@@ -17,3 +17,31 @@ branch(%v: Int, %out: Int): Int, Int {
         ret (phi [a, %v1], [b, %v2]: Int), %out
     }
 }
+
+# A comparison works at the width of what it compares, not at the width of what it produces: the
+# result of every comparison is an Int, so taking the operand size from it would compare two 64-bit
+# values by their low halves alone. Both comparisons here have to carry a REX.W prefix - the
+# register form and the immediate one are encoded by different paths and get the width the same way.
+wideBranch(%v: Long, %w: Long): Long {
+    start {
+        je (cmp_ilt %v, %w), a, b
+    }
+
+    a {
+        %s = add %v, %w: Long
+        ret %s
+    }
+
+    b {
+        je (cmp_ilt %w, 0L), c, d
+    }
+
+    c {
+        ret %w
+    }
+
+    d {
+        %e = sub %v, 1L: Long
+        ret %e
+    }
+}

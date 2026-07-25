@@ -1,0 +1,190 @@
+# Addressing modes.
+#
+# x86 computes `base + index*{1,2,4,8} + disp32` as part of a memory access and charges nothing for
+# it, so an address computation that exists only to feed a load or a store is folded into the access
+# rather than emitted. The instruction it becomes - x86_addr - produces no bytes of its own and no
+# register: it appears in the trace at its own position, holding the registers the access will read
+# it from, and the access that follows carries the whole thing in its ModRM byte.
+#
+# Read each case as "how many instructions does this memory access cost".
+
+sink<complex>(%p: Ptr): Int {
+    { ret 0 }
+}
+
+# The simplest fold: a constant offset becomes the displacement, and the add disappears.
+displacement(%p: Ptr): Int {
+    {
+        %q = add %p, 16: Ptr
+        %v = load %q, 4: Int
+        ret %v
+    }
+}
+
+# Subtraction is the same fold with the sign turned around.
+negativeDisplacement(%p: Ptr): Int {
+    {
+        %q = sub %p, 8: Ptr
+        %v = load %q, 4: Int
+        ret %v
+    }
+}
+
+# A register offset becomes the index, unscaled.
+index(%p: Ptr, %i: Long): Int {
+    {
+        %q = add %p, %i: Ptr
+        %v = load %q, 4: Int
+        ret %v
+    }
+}
+
+# A 64-bit shift by 0-3 is exactly what the SIB byte's scale encodes, so both the shift and the add
+# fold into the access.
+scaledIndex(%p: Ptr, %i: Long): Int {
+    {
+        %o = shl %i, 2: Long
+        %q = add %p, %o: Ptr
+        %v = load %q, 4: Int
+        ret %v
+    }
+}
+
+# The same through a multiply, which is the more expensive one to fold away: `mul` forces its
+# operand into rax and clobbers rdx, and folding it leaves neither constraint behind.
+multipliedIndex(%p: Ptr, %i: Long): Long {
+    {
+        %o = mul %i, 8L: Long
+        %q = add %p, %o: Ptr
+        %v = load %q, 8: Long
+        ret %v
+    }
+}
+
+# Everything at once, built up over two adds: one access, three operands, no arithmetic.
+full(%p: Ptr, %i: Long): Int {
+    {
+        %o = shl %i, 3: Long
+        %a = add %p, %o: Ptr
+        %q = add %a, 24: Ptr
+        %v = load %q, 4: Int
+        ret %v
+    }
+}
+
+# A store folds its destination the same way a load folds its source.
+storeAddress(%p: Ptr, %i: Long, %v: Int) {
+    {
+        %o = shl %i, 2: Long
+        %q = add %p, %o: Ptr
+        store %q, %v, 4
+        ret
+    }
+}
+
+# One computation, two accesses. The chain is folded for both users at once and each gets its own
+# x86_addr, which is what lets the add itself go: folding for only one of them would leave the
+# arithmetic behind and repeat it inside the address.
+readModifyWrite(%p: Ptr, %i: Long, %v: Int) {
+    {
+        %o = shl %i, 2: Long
+        %q = add %p, %o: Ptr
+        %old = load %q, 4: Int
+        %new = add %old, %v: Int
+        store %q, %new, 4
+        ret
+    }
+}
+
+# The address is also passed to a call, so it has to exist in a register regardless. Folding it
+# would compute it twice, so nothing is folded and the access reads the pointer directly.
+escapingAddress(%p: Ptr, %v: Int): Int {
+    {
+        %q = add %p, 16: Ptr
+        store %q, %v, 4
+        %r = call_complex sink, %q: Int
+        ret %r
+    }
+}
+
+# The shift result feeds two different addresses, so it stays materialized - but it can still be the
+# index of both, unscaled. Only the value that a fold makes dead may be taken apart.
+sharedIndex(%p: Ptr, %r: Ptr, %i: Long): Int {
+    {
+        %o = shl %i, 2: Long
+        %a = add %p, %o: Ptr
+        %b = add %r, %o: Ptr
+        %x = load %a, 4: Int
+        %y = load %b, 4: Int
+        %s = add %x, %y: Int
+        ret %s
+    }
+}
+
+# A 32-bit shift wraps at 32 bits and the address unit does not, so this one is not folded into the
+# scale: an index near the top of its range would come out of the two differently. The shift stays,
+# and its result becomes an unscaled index - which is what the 64-bit add would have read anyway.
+narrowScale(%p: Ptr, %i: Int): Int {
+    {
+        %o = shl %i, 2: Int
+        %q = add %p, %o: Ptr
+        %v = load %q, 4: Int
+        ret %v
+    }
+}
+
+# A frame object reached through an offset. The alloca is still one `lea`, and the element access
+# folds onto its result.
+localElement(%i: Long, %v: Int): Int {
+    {
+        %a = alloca 64: Ptr
+        %o = shl %i, 2: Long
+        %q = add %a, %o: Ptr
+        store %q, %v, 4
+        %r = load %q, 4: Int
+        ret %r
+    }
+}
+
+# The base is defined in one block and the access happens in another. Folding moves the arithmetic
+# into the block that uses it, so the operands - not the computed pointer - are what stays live
+# across the branch.
+acrossBlocks(%p: Ptr, %i: Long, %c: Int): Int {
+    start {
+        %o = shl %i, 2: Long
+        %q = add %p, %o: Ptr
+        je %c, hit, miss
+    }
+
+    hit {
+        %v = load %q, 4: Int
+        ret %v
+    }
+
+    miss {
+        ret 0
+    }
+}
+
+# The address is also the value being stored, so the same operand list reads it twice. Only the
+# address position can become an addressing mode, and rewriting one of the two would leave the other
+# pointing at an instruction that is about to be removed - so nothing is folded here.
+storedPointer(%p: Ptr) {
+    {
+        %q = add %p, 8: Ptr
+        store %q, %q, 8
+        ret
+    }
+}
+
+# Two displacements that fit individually and not together. A displacement is sign-extended from 32
+# bits, so the chain stops at the point where the sum stops fitting: the outer add folds and the
+# inner one stays as the base register.
+displacementOverflow(%p: Ptr): Int {
+    {
+        %a = add %p, 2147483647: Ptr
+        %q = add %a, 2147483647: Ptr
+        %v = load %q, 4: Int
+        ret %v
+    }
+}

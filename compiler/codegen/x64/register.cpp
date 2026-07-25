@@ -76,8 +76,6 @@ static bool isDestructive(LowerBase base, LowerInst* inst) {
  * Parallel copies.
  */
 
-static bool isSlot(RegId id) { return getRegClass(id) == StackReg; }
-
 // Sequences a set of simultaneous copies into an order that executes them one at a time without any
 // of them destroying a value another still has to read. A copy can be emitted as soon as nothing
 // left in the set reads its destination; when nothing qualifies, what remains is a permutation
@@ -380,21 +378,12 @@ struct Allocator {
         return info.home;
     }
 
-    // The stack slot class a value of this type needs. Every scalar the lowering produces is at most
-    // eight bytes wide; the wider classes exist for the vector values the register model already
-    // describes and the encoders do not produce yet.
-    static StackSlotClass slotClassFor(LowerType type) {
-        return type == LowerType::Int32 || type == LowerType::Float32
-            ? StackSlotClass::Slot32
-            : StackSlotClass::Slot64;
-    }
-
     // Gives a web a slot in the frame, reusing one whose current occupants are never live at the
     // same time. Slots are recycled by exactly the rule registers are, so the frame ends up as large
     // as the peak number of simultaneously spilled webs rather than as large as their total.
     RegId assignSlot(LiveId webId, LowerType type, const LiveInterval& interval) {
         auto& info = webs[webId];
-        auto slotClass = slotClassFor(type);
+        auto slotClass = stackSlotClassFor(type);
 
         while(slotOccupants.size() < frame.slots.size()) slotOccupants.push();
 
@@ -603,7 +592,11 @@ struct Emitter {
         if(i == 0 && destructiveReg != kInvalidReg) return destructiveReg;
 
         auto home = a.homeOf(v);
-        if(getRegClass(home) != StackReg) return home;
+        if(!isSlot(home)) return home;
+
+        // A slot this instruction can address directly stays where it is: the encoder takes the
+        // memory form of the operation and the reload never exists.
+        if(memoryUseOperand(base, inst) == I32(i)) return home;
 
         auto cls = classForType(v->type);
         return reserve ? takeTemp(cls) : spillTemp(cls, tempsUsed[cls]);

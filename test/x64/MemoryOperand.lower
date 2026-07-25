@@ -1,0 +1,154 @@
+# Direct memory operands.
+#
+# A value that lives in the frame normally has to be brought back into a register before anything can
+# read it. Most x86 ALU instructions have a form that reads one operand straight out of memory, and
+# where that form exists the reload is not emitted at all: `add rax, [rsp+8]` in place of a load and
+# an add.
+#
+# Which operand may be one is a table (memoryUseOperand), asked by the allocator when it decides
+# whether to leave a spilled operand where it is and by the encoder when it finds a slot there. The
+# property under test below is a `uses=[..., stack:N]` with no reload in front of it - or, for the
+# cases the table excludes, exactly the reload that was there before.
+#
+# The Clobber convention destroys every register except rbp, so a value that has to survive one of
+# its calls can only be in rbp, and a second one has nowhere left but the frame. That is the smallest
+# way to spill something deliberately, and every case here uses it: %arg is consumed by the call and
+# dies there, %keep is the first survivor and takes rbp, and %target is the second and takes a slot.
+
+sink<clobber>(%x: Int): Int {
+    { ret %x }
+}
+
+wide<clobber>(%x: Long): Long {
+    { ret %x }
+}
+
+# The first add reads an ordinary register and the second reads the frame. They are the same
+# instruction in the IR and different directions of the same opcode in the encoding: `add r, r/m`
+# where the memory operand has to occupy the r/m field, `add r/m, r` where it does not.
+foldedAdd(%arg: Int, %keep: Int, %target: Int): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        %s = add %r, %keep: Int
+        %t = add %s, %target: Int
+        ret %t
+    }
+}
+
+# The other group-1 opcodes, each of which has the same pair of directions.
+foldedBitwise(%arg: Int, %keep: Int, %t1: Int, %t2: Int): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        %s = and %r, %keep: Int
+        %t = or %s, %t1: Int
+        %u = xor %t, %t2: Int
+        ret %u
+    }
+}
+
+# A comparison, which needs no register at all for its own result when it is consumed as flags.
+foldedCompare(%arg: Int, %keep: Int, %target: Int): Int {
+    start {
+        %r = call_clobber sink, %arg: Int
+        je (cmp_ilt %r, %target), less, more
+    }
+
+    less {
+        ret %keep
+    }
+
+    more {
+        ret %r
+    }
+}
+
+# The group-3 forms take their operand as r/m too, so a divisor in the frame costs nothing either -
+# and this is where the reload was most awkward, since the division already occupies rax and rdx.
+foldedDivisor(%arg: Int, %keep: Int, %target: Int): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        %q = div %r, %target: Int
+        %t = add %q, %keep: Int
+        ret %t
+    }
+}
+
+# A copy is a MOV either way round, so a source in the frame is read in place rather than loaded into
+# a register the copy would then immediately read again.
+foldedSet(%arg: Int, %keep: Int, %target: Int): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        %s = set %target: Int
+        %t = add %s, %keep: Int
+        %u = add %t, %r: Int
+        ret %u
+    }
+}
+
+# The first operand of a two-address operation is also its destination, so it can never be the
+# memory one however the encoding is turned around. A spilled first operand is still loaded into the
+# destination register, which is exactly the reload the second operand no longer needs.
+spilledFirstOperand(%arg: Int, %keep: Int, %target: Int): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        %s = add %target, %keep: Int
+        %t = add %s, %r: Int
+        ret %t
+    }
+}
+
+# Pointer arithmetic works at 64 bits and a 32-bit offset's slot holds four bytes. Slots are packed
+# by width, so reading eight bytes out of a four-byte one would take the neighbouring value with it:
+# the operand is reloaded instead. This is the one thing the width rule exists to force.
+narrowOffset(%p: Ptr, %off: Int, %arg: Int): Ptr {
+    {
+        %r = call_clobber sink, %arg: Int
+        %q = add %p, %off: Ptr
+        ret %q
+    }
+}
+
+# The same shape at matching widths, for contrast: the value is 64 bits and so is the operation, so
+# the slot is exactly the right size and the operand stays where it is.
+wideOffset(%p: Long, %off: Long, %arg: Long): Long {
+    {
+        %r = call_clobber wide, %arg: Long
+        %q = add %p, %off: Long
+        ret %q
+    }
+}
+
+# A shift takes its count in rcx and has no form that reads it from memory. A fixed-register operand
+# is loaded straight into the register the encoding demands, out of the frame as readily as out of
+# another register - so it costs a load, but never a scratch register.
+shiftCount(%arg: Int, %keep: Int, %count: Int): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        %s = shl %r, %count: Int
+        %t = add %s, %keep: Int
+        ret %t
+    }
+}
+
+# A load's address is not an operand an addressing mode can hold - it *is* the addressing mode - so a
+# spilled pointer is brought into a register before the access.
+spilledPointer(%arg: Int, %keep: Int, %p: Ptr): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        %v = load %p, 4: Int
+        %s = add %v, %keep: Int
+        %t = add %s, %r: Int
+        ret %t
+    }
+}
+
+# A cast changes width by definition, so the width rule could never be satisfied and the table leaves
+# casts out entirely rather than stating a condition that is always false. The source is reloaded.
+spilledCast(%arg: Int, %keep: Long, %target: Int): Long {
+    {
+        %r = call_clobber sink, %arg: Int
+        %w = sext %target: Long
+        %s = add %w, %keep: Long
+        ret %s
+    }
+}

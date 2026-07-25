@@ -1,0 +1,189 @@
+# Block order around loops.
+#
+# The block list is reverse postorder, but *which* reverse postorder is a further choice, and taking
+# the successors as a branch declares them is the wrong one around a loop: the body gets explored
+# first, finishes first, and so comes out last - putting the exit block between the header and the
+# body it leaves. Every iteration then pays a taken branch into the body on top of the jump back,
+# and every live interval spanning the loop is cut in two by the intruding block.
+#
+# Exploring the successor that *leaves* the loop first fixes both. The property under test in each
+# case below is the block order in the trace: a loop's blocks should be contiguous, its header
+# immediately followed by the block that continues it, and everything it exits to placed after.
+
+# The exit is the first-named successor, so the declaration order and the useful order disagree.
+# `head` is followed by `body`, and `out` comes after both.
+exitDeclaredFirst(%n: Int): Int {
+    start {
+        %z = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [start, %z], [body, %i2]: Int
+        je (cmp_ige %i, %n), out, body
+    }
+
+    body {
+        %i2 = add %i, 1: Int
+        jmp head
+    }
+
+    out {
+        ret %i
+    }
+}
+
+# The same loop with the successors the other way round. Both orders have to produce the same
+# layout: the branch is inverted by the encoder either way, and the layout is decided by which
+# successor is deeper in the loop rather than by which one the branch names first.
+bodyDeclaredFirst(%n: Int): Int {
+    start {
+        %z = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [start, %z], [body, %i2]: Int
+        je (cmp_ilt %i, %n), body, out
+    }
+
+    body {
+        %i2 = add %i, 1: Int
+        jmp head
+    }
+
+    out {
+        ret %i
+    }
+}
+
+# Two latches: the body branches, and both arms jump back to the header. The loop is the union of
+# what reaches either of them, so both arms count as inside it and neither may be laid out after the
+# exit.
+twoBackEdges(%n: Int, %c: Int): Int {
+    start {
+        %z = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [start, %z], [left, %l], [right, %r]: Int
+        je (cmp_ige %i, %n), out, split
+    }
+
+    split {
+        je %c, left, right
+    }
+
+    left {
+        %l = add %i, 1: Int
+        jmp head
+    }
+
+    right {
+        %r = add %i, 2: Int
+        jmp head
+    }
+
+    out {
+        ret %i
+    }
+}
+
+# An inner loop inside an outer one. The inner body is deeper than the inner exit, and the inner
+# exit is still deeper than the outer exit, so the two loops nest in the layout the way they nest in
+# the CFG rather than interleaving.
+nested(%n: Int, %m: Int): Int {
+    start {
+        %z = cast 0: Int
+        jmp outer
+    }
+
+    outer {
+        %i = phi [start, %z], [outerEnd, %i2]: Int
+        %acc = phi [start, %z], [outerEnd, %acc2]: Int
+        je (cmp_ige %i, %n), done, innerHead
+    }
+
+    innerHead {
+        %j = phi [outer, %z], [innerBody, %j2]: Int
+        %a = phi [outer, %acc], [innerBody, %a2]: Int
+        je (cmp_ige %j, %m), outerEnd, innerBody
+    }
+
+    innerBody {
+        %a2 = add %a, %j: Int
+        %j2 = add %j, 1: Int
+        jmp innerHead
+    }
+
+    outerEnd {
+        %acc2 = add %a, 1: Int
+        %i2 = add %i, 1: Int
+        jmp outer
+    }
+
+    done {
+        ret %acc
+    }
+}
+
+# The block that leaves the loop is declared before the body it leaves. Declaration order decides
+# nothing: the walk starts at the entry block and follows the CFG from there.
+declaredOutOfOrder(%n: Int): Int {
+    start {
+        %z = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [start, %z], [body, %i2]: Int
+        je (cmp_ige %i, %n), out, body
+    }
+
+    out {
+        ret %i
+    }
+
+    body {
+        %i2 = add %i, 1: Int
+        jmp head
+    }
+}
+
+# A conditional inside the loop body. Both arms are part of the loop and both have to be laid out
+# before the exit, even though the exit is reachable from the header in fewer steps.
+branchInBody(%n: Int, %c: Int): Int {
+    start {
+        %z = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [start, %z], [join, %i2]: Int
+        je (cmp_ige %i, %n), out, test
+    }
+
+    test {
+        je %c, even, odd
+    }
+
+    even {
+        %e = add %i, 2: Int
+        jmp join
+    }
+
+    odd {
+        %o = add %i, 1: Int
+        jmp join
+    }
+
+    join {
+        %i2 = phi [even, %e], [odd, %o]: Int
+        jmp head
+    }
+
+    out {
+        ret %i
+    }
+}

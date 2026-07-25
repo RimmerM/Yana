@@ -210,6 +210,14 @@ struct Verifier {
                     funName, name, nameOf(v), locationName(want), locationName(at));
             }
 
+            // An operand left in the frame has to be one the instruction has a memory form for.
+            // Otherwise it reaches an encoder with nothing but a slot to put in a ModRM byte, which
+            // is a failed assertion in gen.cpp rather than a wrong register anywhere visible here.
+            if(isSlot(at) && memoryUseOperand(base, inst) != I32(i)) {
+                fail("%@: %@: operand %@ is read from %@, which no form of this instruction can address",
+                    funName, name, nameOf(v), locationName(at));
+            }
+
             auto found = state.get(at);
             if(found != v->liveId()) {
                 fail("%@: %@: operand %@ is read from %@, which holds %@",

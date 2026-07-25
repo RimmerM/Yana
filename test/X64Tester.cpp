@@ -75,6 +75,25 @@ static void writeInt(Net::Writer& w, Size v) {
     w.writeBytes((const Byte*)buf, len);
 }
 
+static void writeSigned(Net::Writer& w, I64 v) {
+    char buf[24];
+    auto len = snprintf(buf, sizeof(buf), "%lld", (long long)v);
+    w.writeBytes((const Byte*)buf, len);
+}
+
+// The parts of an address that live in the instruction rather than in a register. The base and index
+// are already visible in the operand list, but the scale and displacement are encoded straight into
+// the ModRM/SIB bytes of whatever folds this address in, and would otherwise only be readable as hex.
+static void writeAddressDetail(Net::Writer& w, LowerInst& inst) {
+    if(inst.kind != LowerInst::X86Address && inst.kind != LowerInst::X86Lea) return;
+
+    auto& address = (LowerInstX86Address&)inst;
+    w.writeString(" scale="_v);
+    writeInt(w, address.scale);
+    w.writeString(" disp="_v);
+    writeSigned(w, I64(I32(address.displacement)));
+}
+
 static void writeRegName(Net::Writer& w, RegId id) {
     if(id == kInvalidReg) {
         w.writeString("-"_v);
@@ -215,6 +234,7 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
 
             writer.writeString("  "_v);
             writer.writeString(nameForInst(base, *e.inst));
+            writeAddressDetail(writer, *e.inst);
             writer.writeString(" uses="_v);
             writeRegList(writer, e.regs.uses);
             writer.writeString(" creates="_v);

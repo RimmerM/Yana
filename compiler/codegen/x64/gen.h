@@ -339,6 +339,29 @@ inline RegId wantForResult(const InstShape& shape, Size i) {
 RegSet writtenRegisters(const InstShape& shape);
 
 /*
+ * Memory operands.
+ *
+ * A value that lives in the frame normally has to be brought into a register before anything can
+ * read it. Most x86 ALU instructions have a form that reads one operand straight out of memory
+ * instead, which removes the reload entirely - `add rax, [slot]` in place of a load and an add.
+ *
+ * Which operand that is, if any, is one table rather than a decision made twice: the allocator asks
+ * it to know whether to leave a spilled operand where it is, the encoder emits the memory form when
+ * it finds a slot there, and the verifier asks the same question to catch the case where a slot
+ * reaches an encoder that has no form for it.
+ */
+
+// Returned by memoryUseOperand for an instruction that has to have every operand in a register.
+static constexpr I32 kNoMemoryOperand = -1;
+
+// The one operand of `inst` that may be read directly out of a frame slot, as an index into its
+// used() buffer, or kNoMemoryOperand.
+//
+// At most one, which is both what the encodings allow (a general memory operand occupies the r/m
+// field, and there is one of those) and what keeps the answer a single index.
+I32 memoryUseOperand(LowerBase base, LowerInst* inst);
+
+/*
  * Register allocation output.
  *
  * `LowerValue` intentionally has no `.reg` field - the allocator's result is a whole-function
@@ -409,6 +432,19 @@ enum class StackSlotClass: U8 {
 static constexpr Size kStackSlotClassCount = 5;
 
 inline U32 stackSlotSize(StackSlotClass c) { return 4u << (Size)c; }
+
+// The slot class a value of this type needs. Every scalar the lowering produces is at most eight
+// bytes wide; the wider classes exist for the vector values the register model already describes and
+// the encoders do not produce yet.
+//
+// Asked by the allocator when it spills a value and by the memory-operand table when it decides
+// whether an instruction may read one in place, which have to agree: a slot is exactly as wide as
+// the value in it, and an access of any other width would take a neighbouring value with it.
+inline StackSlotClass stackSlotClassFor(LowerType type) {
+    return type == LowerType::Int32 || type == LowerType::Float32
+        ? StackSlotClass::Slot32
+        : StackSlotClass::Slot64;
+}
 
 // What a slot is for. Frame layout puts each kind in its own region, because they answer to
 // different rules: incoming arguments live in the *caller's* frame above the return address and

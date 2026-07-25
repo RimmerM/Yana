@@ -120,11 +120,11 @@ block start:
   jmp uses=[] creates=[]  => 
 block head:
   cmp_le uses=[rdi, rdx] creates=[-]  => 39d7
-  je uses=[-] creates=[]  => 0f8604000000
+  je uses=[-] creates=[]  => 0f8708000000
+block #3:
+  jmp uses=[] creates=[] pre=[rsi<->rdi]  => 4887fee9f0ffffff
 block end:
   ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
-block #4:
-  jmp uses=[] creates=[] pre=[rsi<->rdi]  => 4887fee9ecffffff
 
 --- codegen: sourceUsedLater ---
 block #0:
@@ -136,11 +136,11 @@ block start:
 block head:
   add uses=[rcx, rdi] creates=[rcx] pre=[rax->rcx]  => 488bc801f9
   cmp_le uses=[rcx, rsi] creates=[-]  => 39f1
-  je uses=[-] creates=[]  => 0f8601000000
+  je uses=[-] creates=[]  => 0f8708000000
+block #3:
+  jmp uses=[] creates=[] pre=[rcx->rax]  => 488bc1e9ebffffff
 block end:
   ret uses=[rax] creates=[]  => c3
-block #4:
-  jmp uses=[] creates=[] pre=[rcx->rax]  => 488bc1e9eaffffff
 
 --- codegen: branchedSource ---
 block #0:

@@ -251,16 +251,16 @@ block start:
   jmp uses=[] creates=[] pre=[r13->r14]  => 4d8bf5
 block head:
   cmp_ilt uses=[r13, rbx] creates=[-]  => 4139dd
-  je uses=[-] creates=[]  => 0f8c0b000000
-block out:
-  ret uses=[rax] creates=[] pre=[r14->rax]  => 498bc6415e415d415c5bc3
+  je uses=[-] creates=[]  => 0f8d13000000
 block body:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 498bfce80b000000
+  call_complex uses=[-, rdi] creates=[rax] pre=[r12->rdi]  => 498bfce816000000
   add uses=[r14, rax] creates=[r14]  => 4101c6
   imm uses=[] creates=[-]  => 
   add uses=[r13, -] creates=[r13]  => 41ffc5
-  jmp uses=[] creates=[]  => e9d9ffffff
+  jmp uses=[] creates=[]  => e9e4ffffff
+block out:
+  ret uses=[rax] creates=[] pre=[r14->rax]  => 498bc6415e415d415c5bc3
 
 --- codegen: leaf ---
 block #0:
