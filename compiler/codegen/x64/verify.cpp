@@ -20,7 +20,7 @@
  * two arms of a branch could quietly agree on being wrong.
  *
  * It knows nothing about how the allocation was arrived at - only FunctionRegs, the liveness sets
- * and the constraint tables - so it stays valid as the allocator gains live intervals with holes,
+ * and the selected machine forms - so it stays valid as the allocator gains live intervals with holes,
  * phi webs, stack homes and split locations. Allocation::locationOf is the seam: today it answers
  * from a single home per value, later from a segment list, and nothing here changes.
  *
@@ -33,28 +33,27 @@
  * sound only because the two are adjacent by construction.
  */
 
-static const char* const kIntRegNames[kRegCount] = {
+static const char* const kIntRegNames[kGprCount] = {
     "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
 };
 
-static String locationName(RegId id) {
-    if(id == kInvalidReg) return String("<nowhere>");
+static String locationName(MachineLocation at) {
+    auto index = U32(at.index);
 
-    auto index = U32(getRegIndex(id));
-
-    switch(getRegClass(id)) {
-        case GenReg:
-            return index < kRegCount ? String(kIntRegNames[index]) : format(String("gen%@"), index);
-        case XmmReg:
-            return format(String("xmm%@"), index);
-        case StackReg:
+    switch(at.kind) {
+        case LocationKind::Invalid:
+            return String("<nowhere>");
+        case LocationKind::Physical:
+            if(at.bank == BankVector) return format(String("xmm%@"), index);
+            return index < kGprCount ? String(kIntRegNames[index]) : format(String("gpr%@"), index);
+        case LocationKind::StackSlot:
             return format(String("stack:%@"), index);
-        case RematReg:
+        case LocationKind::Rematerializable:
             return format(String("remat:%@"), index);
-        default:
-            return format(String("<bad location %@>"), U32(id));
     }
+
+    return format(String("<bad location %@>"), index);
 }
 
 /*
@@ -65,52 +64,47 @@ static String locationName(RegId id) {
  * case into a failed lookup at the next read.
  */
 struct MachineState {
-    // Indexed by RegClass for the two classes that name physical registers. StackReg indices are
-    // unbounded (a frame is as large as it needs to be), so those live in `slots`.
-    LiveId regs[2][kRegCount];
+    // Indexed by bank for the physical registers. Slot ids are unbounded (a frame is as large as it
+    // needs to be), so those live in `slots`.
+    LiveId regs[kRegisterBankCount][kMaxRegistersPerBank];
     Array<LiveId> slots;
 
     MachineState() {
-        for(auto& cls: regs) {
-            for(auto& r: cls) r = kNullLive;
+        for(auto& bank: regs) {
+            for(auto& r: bank) r = kNullLive;
         }
     }
 
-    static bool isRegister(RegId id) {
-        auto cls = getRegClass(id);
-        return (cls == GenReg || cls == XmmReg) && getRegIndex(id) < kRegCount;
+    static bool isRegister(MachineLocation at) {
+        return at.isPhysical() && at.index < kMaxRegistersPerBank;
     }
 
-    LiveId get(RegId id) const {
-        if(isRegister(id)) return regs[getRegClass(id)][getRegIndex(id)];
-        if(getRegClass(id) != StackReg) return kNullLive;
+    LiveId get(MachineLocation at) const {
+        if(isRegister(at)) return regs[at.bank][at.index];
+        if(!at.isStack()) return kNullLive;
 
-        auto index = getRegIndex(id);
-        return index < slots.size() ? slots[index] : kNullLive;
+        return at.index < slots.size() ? slots[at.index] : kNullLive;
     }
 
-    void set(RegId id, LiveId value) {
-        if(isRegister(id)) {
-            regs[getRegClass(id)][getRegIndex(id)] = value;
+    void set(MachineLocation at, LiveId value) {
+        if(isRegister(at)) {
+            regs[at.bank][at.index] = value;
             return;
         }
 
-        if(getRegClass(id) != StackReg) return;
+        if(!at.isStack()) return;
 
-        auto index = getRegIndex(id);
-        while(slots.size() <= index) slots.push(kNullLive);
-        slots[index] = value;
+        while(slots.size() <= at.index) slots.push(kNullLive);
+        slots[at.index] = value;
     }
 
     // Whatever was in these registers is gone once the instruction has run. Nothing is reported
     // here: a clobbered value that was still needed shows up as a failed read at the instruction
     // that needed it, which is where the useful diagnostic is.
     void clobber(const RegSet& mask) {
-        for(Size cls = 0; cls < kPhysRegClassCount; cls++) {
-            for(Size i = 0; i < kRegCount; i++) {
-                if(mask.has(makeRegId(RegClass(cls), U16(i)))) regs[cls][i] = kNullLive;
-            }
-        }
+        mask.iterate([&](PhysicalReg reg) {
+            if(reg.index < kMaxRegistersPerBank) regs[reg.bank][reg.index] = kNullLive;
+        });
     }
 };
 
@@ -119,6 +113,7 @@ struct Verifier {
     LowerBase base;
     LowerFunction& fun;
     Liveness& live;
+    const MachineFunction& machine;
     const Constraints& constraints;
     const FunctionRegs& regs;
 
@@ -131,16 +126,18 @@ struct Verifier {
     // ends up holding is the value whose recipe it was.
     Array<LiveId> rematOwner;
 
-    Verifier(Context& ctx, LowerBase base, LowerFunction& fun, Liveness& live, const Constraints& constraints, const FunctionRegs& regs):
-        ctx(ctx), base(base), fun(fun), live(live), constraints(constraints), regs(regs), funName(ctx.findName(fun.name))
+    Verifier(Context& ctx, LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
+        const Constraints& constraints, const FunctionRegs& regs):
+        ctx(ctx), base(base), fun(fun), live(live), machine(machine), constraints(constraints), regs(regs),
+        funName(ctx.findName(fun.name))
     {
         for(Size i = 0; i < regs.remats.size(); i++) rematOwner.push(kNullLive);
 
         for(Size i = 0; i < regs.allocation.locations.size(); i++) {
             auto at = regs.allocation.locations[i];
-            if(!isRemat(at)) continue;
+            if(!at.isRemat()) continue;
 
-            auto index = getRegIndex(at);
+            auto index = at.rematId();
             if(index >= rematOwner.size()) {
                 fail("%@: %@ names recipe %@, of which there are %@",
                     funName, nameOf(LiveId(i)), U32(index), U32(regs.remats.size()));
@@ -187,8 +184,8 @@ struct Verifier {
 
             // A recipe as the source reads nothing: the value is recreated, so the destination ends
             // up holding it whatever was there before.
-            if(isRemat(m.from)) {
-                auto index = getRegIndex(m.from);
+            if(m.from.isRemat()) {
+                auto index = m.from.rematId();
                 auto owner = index < rematOwner.size() ? rematOwner[index] : kNullLive;
 
                 if(owner == kNullLive) {
@@ -222,7 +219,7 @@ struct Verifier {
     }
 
     void checkInst(MachineState& state, LowerInst* inst, const InstRegs& instRegs, U32 index) {
-        auto shape = shapeOf(base, constraints, fun, inst);
+        auto shape = shapeOf(base, machine, constraints, fun, inst);
         auto used = inst->used();
         auto created = inst->created();
         auto name = nameForInst(base, *inst);
@@ -243,20 +240,20 @@ struct Verifier {
             // An implicit operand is folded into the instruction's encoding (an embedded immediate,
             // a compare consumed as flags, a direct call's target) and must not be given a location.
             if(isImplicit(v)) {
-                if(at != kInvalidReg) {
+                if(at.isValid()) {
                     fail("%@: %@: implicit operand %@ was given location %@",
                         funName, name, nameOf(v), locationName(at));
                 }
                 continue;
             }
 
-            if(at == kInvalidReg) {
+            if(!at.isValid()) {
                 fail("%@: %@: operand %@ has no location", funName, name, nameOf(v));
                 continue;
             }
 
             auto want = wantForUse(shape, i);
-            if(want != kInvalidReg && at != want) {
+            if(want.isValid() && at != want) {
                 fail("%@: %@: operand %@ must be read from %@, but is read from %@",
                     funName, name, nameOf(v), locationName(want), locationName(at));
             }
@@ -267,17 +264,17 @@ struct Verifier {
             // as well. Otherwise it reaches an encoder with nothing but a slot to put in a ModRM
             // byte, which is a failed assertion in gen.cpp rather than a wrong register visible
             // anywhere here.
-            auto inPlace = memoryDefOperand(base, inst) == I32(i)
+            auto inPlace = memoryDefOperand(base, machine, inst) == I32(i)
                 && instRegs.creates.size() > 0 && instRegs.creates[0] == at;
 
-            if(isSlot(at) && !inPlace && memoryUseOperand(base, inst) != I32(i)) {
+            if(at.isStack() && !inPlace && memoryUseOperand(base, machine, inst) != I32(i)) {
                 fail("%@: %@: operand %@ is read from %@, which no form of this instruction can address",
                     funName, name, nameOf(v), locationName(at));
             }
 
             // Nothing holds a rematerialized value, so nothing can read one in place: the recipe is
             // materialized into a register by the copies in front of the instruction instead.
-            if(isRemat(at)) {
+            if(at.isRemat()) {
                 fail("%@: %@: operand %@ is read from %@, which holds nothing at any point",
                     funName, name, nameOf(v), locationName(at));
                 continue;
@@ -299,20 +296,20 @@ struct Verifier {
             auto at = instRegs.creates[i];
 
             if(isImplicit(&v)) {
-                if(at != kInvalidReg) {
+                if(at.isValid()) {
                     fail("%@: %@: implicit result %@ was given location %@",
                         funName, name, nameOf(&v), locationName(at));
                 }
                 continue;
             }
 
-            if(at == kInvalidReg) {
+            if(!at.isValid()) {
                 fail("%@: %@: result %@ has no location", funName, name, nameOf(&v));
                 continue;
             }
 
             auto want = wantForResult(shape, i);
-            if(want != kInvalidReg && at != want) {
+            if(want.isValid() && at != want) {
                 fail("%@: %@: result %@ must be produced in %@, but is produced in %@",
                     funName, name, nameOf(&v), locationName(want), locationName(at));
             }
@@ -320,8 +317,8 @@ struct Verifier {
             // A result written straight into the frame is only legal in the one form that has a
             // memory destination, and only when the operand that form reads through the same r/m
             // field is in that very slot. Anywhere else the encoder has no address to write to.
-            if(isSlot(at)) {
-                auto operand = memoryDefOperand(base, inst);
+            if(at.isStack()) {
+                auto operand = memoryDefOperand(base, machine, inst);
                 auto inPlace = i == 0 && operand != kNoMemoryOperand
                     && Size(operand) < instRegs.uses.size() && instRegs.uses[operand] == at;
 
@@ -334,7 +331,7 @@ struct Verifier {
             // A rematerialized result is produced nowhere at all - the instruction emits nothing,
             // and every reader recreates the value for itself. It has to be the value's own home:
             // a recipe is not a place something can be put.
-            if(isRemat(at) && regs.allocation.locationOf(v.liveId(), index) != at) {
+            if(at.isRemat() && regs.allocation.locationOf(v.liveId(), index) != at) {
                 fail("%@: %@: result %@ is produced as %@, which is not its own recipe",
                     funName, name, nameOf(&v), locationName(at));
             }
@@ -354,7 +351,7 @@ struct Verifier {
             auto id = LiveId(raw);
             auto at = regs.allocation.locationOf(id, set->firstIndex);
 
-            if(at == kInvalidReg) {
+            if(!at.isValid()) {
                 fail("%@: block %@: %@ is live on entry but has no location",
                     funName, nameOf(block), nameOf(id));
                 return;
@@ -362,7 +359,7 @@ struct Verifier {
 
             // A rematerialized value is available at every point it is live without occupying
             // anything, so it neither has to arrive here nor can collide with what does.
-            if(isRemat(at)) return;
+            if(at.isRemat()) return;
 
             auto existing = state.get(at);
             if(existing != kNullLive) {
@@ -392,12 +389,12 @@ struct Verifier {
             auto& result = base[args[i]]->result;
             if(isImplicit(&result)) continue;
 
-            auto incoming = locations[i].reg;
+            auto incoming = MachineLocation::physical(locations[i].reg);
 
             if(locations[i].kind == ArgLocation::Stack) {
                 incoming = incomingArgSlot(locations[i].stackOffset);
 
-                if(incoming == kInvalidReg) {
+                if(!incoming.isValid()) {
                     fail("%@: argument %@ arrives on the stack but has no frame object",
                         funName, nameOf(&result));
                     continue;
@@ -411,16 +408,16 @@ struct Verifier {
     // The frame object holding the incoming stack argument at `offset`. Found by searching the frame
     // rather than by assuming slot ids are handed out in argument order, so that the check does not
     // quietly agree with the allocator about a numbering neither of them is entitled to assume.
-    RegId incomingArgSlot(U32 offset) {
+    MachineLocation incomingArgSlot(U32 offset) {
         auto& slots = regs.frame.slots;
 
         for(Size i = 0; i < slots.size(); i++) {
             if(slots[i].kind == StackSlotKind::IncomingArg && slots[i].argOffset == offset) {
-                return makeRegId(StackReg, U16(i));
+                return MachineLocation::stack(StackSlotId(i));
             }
         }
 
-        return kInvalidReg;
+        return MachineLocation::invalid();
     }
 
     // Whether what `from` leaves behind is what `to` declared it would find. This is the check that
@@ -439,8 +436,8 @@ struct Verifier {
             if(isPhi(inst) && base[inst->block] == to) return;
 
             auto at = regs.allocation.locationOf(id, set->firstIndex);
-            if(at == kInvalidReg) return; // already reported by buildEntryState
-            if(isRemat(at)) return;       // carried by nothing, so nothing has to carry it here
+            if(!at.isValid()) return; // already reported by buildEntryState
+            if(at.isRemat()) return;  // carried by nothing, so nothing has to carry it here
 
             auto found = state.get(at);
             if(found != id) {
@@ -466,7 +463,7 @@ struct Verifier {
             if(!value || isImplicit(value)) continue;
 
             auto at = regs.allocation.locationOf(result.liveId(), set->firstIndex);
-            if(at == kInvalidReg) {
+            if(!at.isValid()) {
                 fail("%@: phi %@ in block %@ has no location", funName, nameOf(&result), nameOf(to));
                 continue;
             }
@@ -506,9 +503,7 @@ bool verifyFrameLayout(Context& ctx, LowerFunction& fun, const FrameObjects& obj
     }
 
     U32 savedCount = 0;
-    for(Size i = 0; i < kRegCount; i++) {
-        if(layout.savedRegs.has(makeRegId(GenReg, U16(i)))) savedCount++;
-    }
+    layout.savedRegs.iterate([&](PhysicalReg) { savedCount++; });
 
     // Where the region the prologue reserved sits relative to the base register. Below the saved
     // registers when the base is rbp, and directly at the stack pointer when it is not.
@@ -557,8 +552,8 @@ bool verifyFrameLayout(Context& ctx, LowerFunction& fun, const FrameObjects& obj
     return ok;
 }
 
-bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness& live, const Constraints& constraints, const FunctionRegs& regs) {
-    Verifier v(ctx, base, fun, live, constraints, regs);
+bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine, const Constraints& constraints, const FunctionRegs& regs) {
+    Verifier v(ctx, base, fun, live, machine, constraints, regs);
     auto entry = base[fun.blocks.get(base, 0)];
 
     // rbp is either the frame pointer or a register values live in, and which one is decided before
@@ -567,7 +562,7 @@ bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness
     // wrong code, so it is checked here rather than left to show up in the emitted bytes.
     if(regs.framePointer) {
         for(Size i = 0; i < regs.allocation.locations.size(); i++) {
-            if(regs.allocation.locations[i] == framePointerReg()) {
+            if(regs.allocation.locations[i] == MachineLocation::physical(framePointerReg())) {
                 v.fail("%@: %@ is allocated to the frame pointer", v.funName, v.nameOf(LiveId(i)));
             }
         }

@@ -1,0 +1,152 @@
+# Address encoding.
+#
+# Every memory reference this backend emits goes through one builder and one encoder (MachineAddress
+# and encodeAddress in gen.cpp). The reason it is one is that the awkward cases are not visible in
+# the lower IR and are all silent when written wrongly:
+#
+#   - rsp and r12 encode as rm=100, which the ModRM byte reserves for "a SIB byte follows", so
+#     neither can be a base without one;
+#   - rbp and r13 encode as rm=101, which with mod=00 means RIP-relative, so a zero displacement
+#     against either still has to be written out as an explicit zero byte;
+#   - a byte-sized register operand numbered 4-7 means ah/ch/dh/bh unless *some* REX prefix is
+#     present, which switches it to spl/bpl/sil/dil - the registers the allocator's numbering means;
+#   - REX.B and REX.X extend the base and the index independently.
+#
+# Nothing in the lower IR names a physical register, so every case below has to arrange for the one
+# it wants. The two levers are allocation order (the registers this function's convention destroys
+# come first, so a value has to be pushed past them) and avoid sets (a value crossing a call cannot
+# take anything the call clobbers).
+
+# Simple keeps almost everything for the caller: a value crossing one of these calls only has to
+# avoid rax, rdx, rsi and rdi, which leaves eleven registers - far enough to reach r12 and r13 in
+# allocation order without anything having to spill.
+sink<simple>(%x: Int): Int {
+    { ret %x }
+}
+
+# Clobber destroys everything a convention is allowed to, which is everything but rbp. A value
+# outliving one of these has exactly one register it can be in.
+clobberSink<clobber>(%p: Ptr): Ptr {
+    { ret %p }
+}
+
+# An unrolled copy between two extended bases. Both pointers are computed after five other values
+# and then cross a Simple call, which pushes them into r12 and r13 - and so exercises, in one
+# instruction, the SIB byte an r12 base needs, the explicit zero displacement an r13 base needs,
+# REX.B on both, and the nonzero displacements of every step after the first.
+copyExtendedBase(%p: Ptr, %x: Int): Int {
+    {
+        %a = add %x, 1: Int
+        %b = add %x, 2: Int
+        %c = add %x, 3: Int
+        %d = add %x, 4: Int
+        %e = add %x, 5: Int
+        %dst = add %p, 16: Ptr
+        %src = add %p, 64: Ptr
+
+        %r = call_simple sink, %x: Int
+        copy %dst, %src, 12
+
+        %s0 = add %a, %b: Int
+        %s1 = add %s0, %c: Int
+        %s2 = add %s1, %d: Int
+        %s3 = add %s2, %e: Int
+        %s5 = add %s3, %r: Int
+        ret %s5
+    }
+}
+
+# The same shape with the destination in rbp, which a function needing no frame pointer hands out
+# like any other register. Its low three bits are the RIP-relative encoding, so every step of the
+# copy has to write a displacement it did not ask for - including the first one, whose displacement
+# is zero.
+copyFramePointerBase(%p: Ptr, %q: Ptr): Ptr {
+    {
+        %r = call_clobber clobberSink, %q: Ptr
+        copy %p, %r, 12
+        ret %p
+    }
+}
+
+# A one-byte pattern store whose pattern arrives in rsi. Without a REX prefix that operand encodes
+# as dh; with an empty one it is sil, which is the register the allocator actually chose. The wider
+# steps of the same operation need no such prefix, so a count of 11 - eight bytes, then two, then
+# one - shows both in a single instruction.
+patternByteRex(%d: Ptr, %pat: Int) {
+    {
+        setpattern %d, 1, %pat
+        setpattern %d, 11, %pat
+        ret
+    }
+}
+
+# Displacements either side of the byte boundary and either side of zero. -8 fits the signed 8-bit
+# field, +-100000 does not and takes the 32-bit one; the encoder picks the shorter form, so a
+# mishandled sign shows up as a four-byte difference rather than as a plausible-looking address.
+loadDisplacements(%p: Ptr): Long {
+    {
+        %qa = sub %p, 8: Ptr
+        %a = load %qa, 8: Long
+        %qb = sub %p, 100000: Ptr
+        %b = load %qb, 8: Long
+        %qc = add %p, 100000: Ptr
+        %c = load %qc, 8: Long
+        %s0 = add %a, %b: Long
+        %s1 = add %s0, %c: Long
+        ret %s1
+    }
+}
+
+# A scaled index alongside an extended base, which is the case where REX.B and REX.X have to come
+# from different registers. `%base` is read twice, so the fold stops there and it stays in a
+# register of its own rather than collapsing back onto %p.
+loadScaledIndex(%p: Ptr, %i: Long, %x: Int): Long {
+    {
+        %a = add %x, 1: Int
+        %b = add %x, 2: Int
+        %c = add %x, 3: Int
+        %d = add %x, 4: Int
+        %e = add %x, 5: Int
+        %f = add %x, 6: Int
+        %base = add %p, 24: Ptr
+        %j = add %i, 1L: Long
+
+        %r = call_simple sink, %x: Int
+
+        %o = mul %j, 8L: Long
+        %q = add %base, %o: Ptr
+        %v = load %q, 8: Long
+        store %base, %v, 8
+
+        %s0 = add %a, %b: Int
+        %s1 = add %s0, %c: Int
+        %s2 = add %s1, %d: Int
+        %s3 = add %s2, %e: Int
+        %s4 = add %s3, %f: Int
+        %s5 = add %s4, %r: Int
+        %w = cast %s5: Long
+        %t = add %v, %w: Long
+        ret %t
+    }
+}
+
+# Outgoing stack arguments are the one place rsp is a base. Win64 assigns argument registers by
+# position and leaves 32 bytes of shadow space below the first stack argument, so its fifth and
+# sixth arguments land at [rsp + 32] and [rsp + 40]; SysV fills six integer registers first and puts
+# its seventh at [rsp + 0], which is the zero-displacement case for an rsp base.
+stackArgsRspBase<sysv>(%x: Int): Int {
+    {
+        %a = call_win64 win64Sink, %x, %x, %x, %x, %x, %x: Int
+        %b = call_sysv sysvSink, %x, %x, %x, %x, %x, %x, %x, %x: Int
+        %s = add %a, %b: Int
+        ret %s
+    }
+}
+
+win64Sink<win64>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int): Int {
+    { ret %a }
+}
+
+sysvSink<sysv>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int, %g: Int, %h: Int): Int {
+    { ret %a }
+}

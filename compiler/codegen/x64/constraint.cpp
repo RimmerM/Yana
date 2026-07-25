@@ -2,61 +2,46 @@
 #include "x64_util.h"
 
 /*
- * Fixed-register tables and calling conventions.
+ * Calling conventions, and the instruction shapes derived from them and from the selected forms.
  *
- * Two different things live here, and the split matters. An InstConstraints describes one
- * *instruction* whose encoding forces its operands into particular registers - a division's
- * rax/rdx protocol, a shift's count in rcx. A CallConvention describes a *contract* between two
- * functions, and is used from both sides: a call site places its arguments from it, and the
- * function it lands in finds them in the same places, because both ask classifyArgs rather than
- * deciding for themselves.
+ * A CallConvention describes a *contract* between two functions, and is used from both sides: a call
+ * site places its arguments from it, and the function it lands in finds them in the same places,
+ * because both ask classifyArgs rather than deciding for themselves. It is the one part of an
+ * instruction's register behaviour a machine form cannot state, because where an argument goes
+ * depends on how many of each bank came before it.
  *
  * A convention is stated as tables of registers rather than as code, so adding one is data. The
- * two axes that turned out to matter are how a convention runs out of registers (per class, as SysV
+ * two axes that turned out to matter are how a convention runs out of registers (per bank, as SysV
  * does, or by argument position, as Win64 does) and what it reserves below its stack arguments -
  * both are fields rather than special cases.
+ *
+ * Everything else an instruction does to the register file - which operands it forces into
+ * particular registers, what it clobbers, which result it writes over which operand, which operand
+ * may stay in a frame slot - comes from its selected MachineForm; see machine.cpp. shapeOf at the
+ * bottom of this file is where the two meet.
  */
-
-static void clearConstraints(ClassConstraints& c) {
-    for(Size i = 0; i < kMaxRegInputs; i++) {
-        c.args[i] = kInvalidReg;
-        c.results[i] = kInvalidReg;
-    }
-}
-
-InstConstraints::InstConstraints() {
-    for(auto& c: constraints) clearConstraints(c);
-}
-
-static RegId gen(IntRegister reg) {
-    return makeRegId(GenReg, U16(reg));
-}
-
-static RegId xmm(Size index) {
-    return makeRegId(XmmReg, U16(index));
-}
 
 // Appends general registers to an argument or result table, in the order the convention hands them
 // out. Taken by reference to the array so that the tables below state a register list once and
 // nothing has to repeat its length.
 template<Size count>
-static void addGenRegs(CallConvention::ClassRegs& table, const IntRegister (&regs)[count]) {
-    for(Size i = 0; i < count; i++) table.add(gen(regs[i]));
+static void addGenRegs(CallConvention::BankRegs& table, const IntRegister (&regs)[count]) {
+    for(Size i = 0; i < count; i++) table.add(gpr(regs[i]));
 }
 
 // Appends xmm0..xmm(count-1). Every convention that passes vector values uses them in order from
 // zero, so there is nothing to state beyond how many.
-static void addXmmRegs(CallConvention::ClassRegs& table, Size count) {
-    for(Size i = 0; i < count; i++) table.add(xmm(i));
+static void addXmmRegs(CallConvention::BankRegs& table, Size count) {
+    for(Size i = 0; i < count; i++) table.add(vectorReg(i));
 }
 
 template<Size count>
 static void addGenClobber(RegSet& set, const IntRegister (&regs)[count]) {
-    for(Size i = 0; i < count; i++) set.add(gen(regs[i]));
+    for(Size i = 0; i < count; i++) set.add(gpr(regs[i]));
 }
 
 static void addXmmClobber(RegSet& set, Size first, Size count) {
-    for(Size i = 0; i < count; i++) set.add(xmm(first + i));
+    for(Size i = 0; i < count; i++) set.add(vectorReg(first + i));
 }
 
 /*
@@ -125,16 +110,23 @@ static const IntRegister kSyscallResults[] = { IntRegister::rax };
 // an argument or result register without gaining the clobber that goes with it, which would show up
 // as a caller reading back a register the callee had quietly stopped preserving.
 static void finish(CallConvention& convention) {
-    for(auto& table: convention.args) {
-        for(Size i = 0; i < table.count; i++) {
-            assertTrue(convention.clobber.has(table.regs[i])); // argument register is not clobbered
-        }
-    }
+    auto& target = targetRegisters();
 
-    for(auto& table: convention.results) {
+    // Each table belongs to the bank it is indexed by, and names only registers a value of that
+    // bank could have been given in the first place - a convention that passed an argument in rsp,
+    // or in a vector register the bank does not have, would be describing a machine that does not
+    // exist. Checked here because the tables are written by hand.
+    auto checkTable = [&](RegisterBankId bank, const CallConvention::BankRegs& table) {
         for(Size i = 0; i < table.count; i++) {
-            assertTrue(convention.clobber.has(table.regs[i])); // result register is not clobbered
+            assertTrue(table.regs[i].bank == bank); // a convention table holds a register of another bank
+            assertTrue(target.bank(bank).allocatable.has(table.regs[i])); // ... that is not allocatable
+            assertTrue(convention.clobber.has(table.regs[i])); // argument or result register is not clobbered
         }
+    };
+
+    for(Size bank = 0; bank < kRegisterBankCount; bank++) {
+        checkTable(RegisterBankId(bank), convention.args[bank]);
+        checkTable(RegisterBankId(bank), convention.results[bank]);
     }
 
     // A convention that clobbered rbp would be saying that a call destroys its caller's frame
@@ -147,61 +139,15 @@ static void finish(CallConvention& convention) {
 }
 
 Constraints::Constraints() {
-    mul.constraints[GenReg].args[0] = gen(IntRegister::rax);
-    mul.constraints[GenReg].results[0] = gen(IntRegister::rax);
-    mul.clobber.add(gen(IntRegister::rdx));
-
-    div.constraints[GenReg].args[0] = gen(IntRegister::rax);
-    div.constraints[GenReg].results[0] = gen(IntRegister::rax);
-    div.clobber.add(gen(IntRegister::rdx));
-
-    // Swapped results compared to div. rdx is listed as clobbered even though it is also where the
-    // remainder is produced: the division writes it regardless, so anything else living there has
-    // to be out of the way first, and a result register is not by itself a signal to move an
-    // unrelated occupant (unlike an argument register, which the allocator has to clear anyway).
-    rem.constraints[GenReg].args[0] = gen(IntRegister::rax);
-    rem.constraints[GenReg].results[0] = gen(IntRegister::rdx);
-    rem.clobber.add(gen(IntRegister::rax));
-    rem.clobber.add(gen(IntRegister::rdx));
-
-    shift.constraints[GenReg].args[1] = gen(IntRegister::rcx);
-
-    movsb.constraints[GenReg].args[0] = gen(IntRegister::rdi);
-    movsb.constraints[GenReg].args[1] = gen(IntRegister::rsi);
-    movsb.constraints[GenReg].args[2] = gen(IntRegister::rcx);
-    // `rep movsb` consumes its own operands as it runs: rdi and rsi are left pointing past the
-    // copied region and rcx is counted down to zero. They must be listed as clobbered so that a
-    // value still live afterwards (e.g. a destination pointer reused by a following instruction)
-    // is copied somewhere safe first, instead of being read back advanced.
-    movsb.clobber.add(gen(IntRegister::rdi));
-    movsb.clobber.add(gen(IntRegister::rsi));
-    movsb.clobber.add(gen(IntRegister::rcx));
-
-    // The unrolled-mov encoding used for an immediate byte count reads its operands from wherever
-    // they already are and leaves them alone, so it constrains nothing - it only needs r11 free as
-    // a scratch register (see genCopy in gen.cpp). genSetPattern's unrolled form needs no scratch
-    // at all, so stosbImm constrains and clobbers nothing.
-    movsbImm.clobber.add(gen(IntRegister::r11));
-
-    // Positional, matching LowerInstSetPattern's used() order (to, count, pattern) - not the
-    // rdi/rax/rcx order `rep stosb` itself reads them in.
-    stosb.constraints[GenReg].args[0] = gen(IntRegister::rdi);
-    stosb.constraints[GenReg].args[1] = gen(IntRegister::rcx);
-    stosb.constraints[GenReg].args[2] = gen(IntRegister::rax);
-    // As with `rep movsb` above: rdi is advanced past the filled region and rcx is counted down
-    // to zero. rax (the pattern) is only read, so it survives intact.
-    stosb.clobber.add(gen(IntRegister::rdi));
-    stosb.clobber.add(gen(IntRegister::rcx));
-
     /*
      * System V AMD64.
      */
     {
         auto& sysv = convention[(Size)LowerCallType::Sysv];
-        addGenRegs(sysv.args[GenReg], kSysvArgs);
-        addXmmRegs(sysv.args[XmmReg], 8);
-        addGenRegs(sysv.results[GenReg], kSysvResults);
-        addXmmRegs(sysv.results[XmmReg], 2);
+        addGenRegs(sysv.args[BankGpr], kSysvArgs);
+        addXmmRegs(sysv.args[BankVector], 8);
+        addGenRegs(sysv.results[BankGpr], kSysvResults);
+        addXmmRegs(sysv.results[BankVector], 2);
 
         addGenClobber(sysv.clobber, kSysvClobber);
         addXmmClobber(sysv.clobber, 0, 16); // every vector register is caller-saved
@@ -217,10 +163,10 @@ Constraints::Constraints() {
      */
     {
         auto& win = convention[(Size)LowerCallType::Win64];
-        addGenRegs(win.args[GenReg], kWin64Args);
-        addXmmRegs(win.args[XmmReg], 4);
-        addGenRegs(win.results[GenReg], kWin64Results);
-        addXmmRegs(win.results[XmmReg], 1);
+        addGenRegs(win.args[BankGpr], kWin64Args);
+        addXmmRegs(win.args[BankVector], 4);
+        addGenRegs(win.results[BankGpr], kWin64Results);
+        addXmmRegs(win.results[BankVector], 1);
 
         addGenClobber(win.clobber, kWin64Clobber);
         addXmmClobber(win.clobber, 0, 6); // xmm6-15 are callee-saved here, unlike SysV
@@ -245,10 +191,10 @@ Constraints::Constraints() {
      */
     {
         auto& complex = convention[(Size)LowerCallType::Complex];
-        addGenRegs(complex.args[GenReg], kComplexArgs);
-        addXmmRegs(complex.args[XmmReg], 16);
-        addGenRegs(complex.results[GenReg], kComplexResults);
-        addXmmRegs(complex.results[XmmReg], 16);
+        addGenRegs(complex.args[BankGpr], kComplexArgs);
+        addXmmRegs(complex.args[BankVector], 16);
+        addGenRegs(complex.results[BankGpr], kComplexResults);
+        addXmmRegs(complex.results[BankVector], 16);
 
         addGenClobber(complex.clobber, kComplexArgs);
         addGenClobber(complex.clobber, kComplexResults);
@@ -263,10 +209,10 @@ Constraints::Constraints() {
 
     {
         auto& simple = convention[(Size)LowerCallType::Simple];
-        addGenRegs(simple.args[GenReg], kSimpleArgs);
-        addXmmRegs(simple.args[XmmReg], 3);
-        addGenRegs(simple.results[GenReg], kSimpleResults);
-        addXmmRegs(simple.results[XmmReg], 1);
+        addGenRegs(simple.args[BankGpr], kSimpleArgs);
+        addXmmRegs(simple.args[BankVector], 3);
+        addGenRegs(simple.results[BankGpr], kSimpleResults);
+        addXmmRegs(simple.results[BankVector], 1);
 
         addGenClobber(simple.clobber, kSimpleArgs);
         addGenClobber(simple.clobber, kSimpleResults);
@@ -276,10 +222,10 @@ Constraints::Constraints() {
 
     {
         auto& clobber = convention[(Size)LowerCallType::Clobber];
-        addGenRegs(clobber.args[GenReg], kComplexArgs);
-        addXmmRegs(clobber.args[XmmReg], 16);
-        addGenRegs(clobber.results[GenReg], kComplexResults);
-        addXmmRegs(clobber.results[XmmReg], 16);
+        addGenRegs(clobber.args[BankGpr], kComplexArgs);
+        addXmmRegs(clobber.args[BankVector], 16);
+        addGenRegs(clobber.results[BankGpr], kComplexResults);
+        addXmmRegs(clobber.results[BankVector], 16);
 
         // Everything the allocator could have handed out is gone across this call, so nothing can
         // be kept in a register over it - except rbp, which no convention may clobber. The caller
@@ -297,13 +243,13 @@ Constraints::Constraints() {
      */
     {
         auto& syscall = convention[(Size)LowerCallType::Syscall];
-        addGenRegs(syscall.args[GenReg], kSyscallArgs);
-        addGenRegs(syscall.results[GenReg], kSyscallResults);
+        addGenRegs(syscall.args[BankGpr], kSyscallArgs);
+        addGenRegs(syscall.results[BankGpr], kSyscallResults);
 
         addGenClobber(syscall.clobber, kSyscallArgs);
         addGenClobber(syscall.clobber, kSyscallResults);
-        syscall.clobber.add(gen(IntRegister::rcx));
-        syscall.clobber.add(gen(IntRegister::r11));
+        syscall.clobber.add(gpr(IntRegister::rcx));
+        syscall.clobber.add(gpr(IntRegister::r11));
         finish(syscall);
     }
 }
@@ -311,30 +257,6 @@ Constraints::Constraints() {
 const Constraints& targetConstraints() {
     static Constraints constraints;
     return constraints;
-}
-
-const InstConstraints* Constraints::getConstraints(LowerBase base, LowerInst* inst) const {
-    auto kind = inst->kind;
-
-    if(kind == LowerInst::Mul && isIntLike(((LowerInstBinary*)inst)->result.type)) {
-        return &mul;
-    } else if((kind == LowerInst::Div || kind == LowerInst::IDiv) && isIntLike(((LowerInstBinary*)inst)->result.type)) {
-        // Signed (IDiv) and unsigned (Div) division share the same rax/rdx register protocol -
-        // genIDiv/genDiv only differ in the opcode's reg-field extension, not in which registers
-        // are read/written.
-        return &div;
-    } else if((kind == LowerInst::Rem || kind == LowerInst::IRem) && isIntLike(((LowerInstBinary*)inst)->result.type)) {
-        return &rem;
-    } else if((kind == LowerInst::Shr || kind == LowerInst::Shl || kind == LowerInst::Sar) && isIntLike(((LowerInstBinary*)inst)->result.type)) {
-        return &shift;
-    } else if(kind == LowerInst::Copy) {
-        // Encoding chosen once by transformFunction; genCopy reads the same flag.
-        return ((LowerInstCopy*)inst)->isUnrolled() ? &movsbImm : &movsb;
-    } else if(kind == LowerInst::SetPattern) {
-        return ((LowerInstSetPattern*)inst)->isUnrolled() ? &stosbImm : &stosb;
-    } else {
-        return nullptr;
-    }
 }
 
 const CallConvention& Constraints::getConvention(LowerCallType type) const {
@@ -361,7 +283,7 @@ U32 argAreaBytes(const CallConvention& convention, const Array<ArgLocation>& arg
  * Instruction shapes. See the block comment on InstShape in gen.h.
  */
 
-InstShape shapeOf(LowerBase base, const Constraints& constraints, LowerFunction& fun, LowerInst* inst) {
+InstShape shapeOf(LowerBase base, const MachineFunction& machine, const Constraints& constraints, LowerFunction& fun, LowerInst* inst) {
     InstShape shape;
 
     auto used = inst->used();
@@ -402,38 +324,26 @@ InstShape shapeOf(LowerBase base, const Constraints& constraints, LowerFunction&
         return shape;
     }
 
-    auto c = constraints.getConstraints(base, inst);
+    // Everything else takes its shape from the form selection chose for it. An operand beyond the
+    // form's own list is unconstrained, which is what most operands of most instructions are.
+    auto& form = machine.formOf(inst);
+    shape.clobber = form.clobbers;
 
-    if(c) shape.clobber = c->clobber;
+    auto constraintFor = [&](const Array<MachineOperandConstraint>& list, Size i) {
+        if(i >= list.size()) return ArgLocation {};
+        if(list[i].kind != OperandConstraintKind::FixedRegister) return ArgLocation {};
+        return ArgLocation::inRegister(list[i].fixedReg);
+    };
 
-    Size taken[kPhysRegClassCount] = {};
     for(Size i = 0; i < used.size(); i++) {
+        // An operand the encoding swallowed occupies nothing, whatever the form says about the
+        // position it would otherwise have held.
         auto value = base[used[i]];
-
-        if(!c || isImplicit(value)) {
-            shape.uses.push(ArgLocation {});
-            continue;
-        }
-
-        auto cls = classForType(value->type);
-        auto index = taken[cls]++;
-        auto reg = index < kMaxRegInputs ? c->constraints[cls].args[index] : kInvalidReg;
-
-        shape.uses.push(reg == kInvalidReg ? ArgLocation {} : ArgLocation::inRegister(reg));
+        shape.uses.push(isImplicit(value) ? ArgLocation {} : constraintFor(form.uses, i));
     }
 
-    Size producing[kPhysRegClassCount] = {};
     for(Size i = 0; i < created.size(); i++) {
-        if(!c || isImplicit(&created[i])) {
-            shape.creates.push(ArgLocation {});
-            continue;
-        }
-
-        auto cls = classForType(created[i].type);
-        auto index = producing[cls]++;
-        auto reg = index < kMaxRegInputs ? c->constraints[cls].results[index] : kInvalidReg;
-
-        shape.creates.push(reg == kInvalidReg ? ArgLocation {} : ArgLocation::inRegister(reg));
+        shape.creates.push(isImplicit(&created[i]) ? ArgLocation {} : constraintFor(form.defs, i));
     }
 
     return shape;
@@ -441,109 +351,50 @@ InstShape shapeOf(LowerBase base, const Constraints& constraints, LowerFunction&
 
 /*
  * Memory operands. See the block comment on memoryUseOperand in gen.h.
+ *
+ * Which operand an encoding could take from memory is the form's answer. What is added here is the
+ * half that depends on the value in it rather than on the instruction: an operand the encoding
+ * already swallowed has no location at all, and a slot is exactly as wide as the value in it, so an
+ * access at any other width would take a neighbouring value with it.
  */
 
-// The width the encoding works at, which is not always the operand's own. A comparison produces an
-// Int32 whatever it compared, and a pointer arithmetic instruction works at 64 bits however wide the
-// offset was declared.
-static LowerType operationType(LowerBase base, LowerInst* inst) {
-    if(inst->kind == LowerInst::Cmp) return base[((LowerInstCmp*)inst)->lhs]->type;
+// The width the operation works at, which is not always the operand's own. A comparison produces an
+// Int32 whatever it compared, so its form points `widthFromUse` at the left-hand side.
+static LowerType operationType(LowerBase base, const MachineForm& form, LowerInst* inst) {
+    if(form.widthFromUse >= 0) return base[inst->used()[form.widthFromUse]]->type;
 
     assertTrue(inst->createdCount > 0);
     return inst->created()[0].type;
 }
 
-// Which operand the *encoding* can take from memory, before anything is asked about the value in it.
-//
-// Every entry here is the r/m operand of a two-operand form whose other operand is the register in
-// the ModRM.reg field: `add r, r/m` rather than `add r/m, r`. The destination is always the register
-// one, so the memory operand is never also a result - a read-modify-write form would need the
-// operand and the result to share a slot, which only happens once webs are coalesced across an
-// instruction.
-//
-// Casts are absent deliberately: their source and result widths differ by definition, and the width
-// rule below is exactly what a cast breaks. A spilled cast source is still reloaded.
-static I32 memoryFormOperand(LowerBase base, LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Set:
-            // MOV r, r/m.
-            return 0;
-
-        case LowerInst::Add: case LowerInst::Sub:
-        case LowerInst::And: case LowerInst::Or: case LowerInst::Xor:
-        case LowerInst::Cmp:
-            // The reg-destination direction of each group-1 opcode.
-            return 1;
-
-        case LowerInst::IMul:
-            // IMUL r, r/m is the two-operand form; the three-operand one takes an immediate there
-            // instead, and genIMul chooses between them the same way.
-            return isImm(base[((LowerInstBinary*)inst)->rhs]) ? kNoMemoryOperand : 1;
-
-        case LowerInst::Mul: case LowerInst::Div: case LowerInst::IDiv:
-        case LowerInst::Rem: case LowerInst::IRem:
-            // The group-3 forms take their second operand as r/m; the first is forced into rax by
-            // InstConstraints and is loaded into it directly whether it comes from a register or
-            // from the frame.
-            return 1;
-
-        default:
-            return kNoMemoryOperand;
-    }
-}
-
-// Whether operand `index` may occupy the r/m field at all: it has to be a real operand rather than
-// something already folded into the encoding, and the slot holding it has to be exactly as wide as
-// the access. Slots are packed by width, so an access of any other width would read or write a
-// neighbouring value along with this one.
-static bool operandFitsMemoryForm(LowerBase base, LowerInst* inst, I32 index) {
+static bool operandFitsMemoryForm(LowerBase base, const MachineForm& form, LowerInst* inst, I32 index) {
     auto used = inst->used();
     assertTrue(Size(index) < used.size());
 
-    // An operand that was folded into the encoding has no location of any kind, in memory or
-    // otherwise - an embedded immediate is already part of the instruction.
     auto value = base[used[index]];
     if(isImplicit(value)) return false;
 
-    return stackSlotClassFor(value->type) == stackSlotClassFor(operationType(base, inst));
+    return stackSlotClassFor(value->type) == stackSlotClassFor(operationType(base, form, inst));
 }
 
-I32 memoryUseOperand(LowerBase base, LowerInst* inst) {
-    auto index = memoryFormOperand(base, inst);
+I32 memoryUseOperand(LowerBase base, const MachineFunction& machine, LowerInst* inst) {
+    auto& form = machine.formOf(inst);
+    auto index = form.memoryUse();
     if(index == kNoMemoryOperand) return kNoMemoryOperand;
 
-    return operandFitsMemoryForm(base, inst, index) ? index : kNoMemoryOperand;
+    return operandFitsMemoryForm(base, form, inst, index) ? index : kNoMemoryOperand;
 }
 
-// Which operand the *encoding* can both read and write in place. Every entry is the r/m-destination
-// direction of a form the encoders already had - `add r/m, r`, `neg r/m`, `shl r/m, cl` - which is
-// the direction a two-address operation takes anyway when its destination is a register.
-//
-// Always operand zero: that is the operand a destructive encoding overwrites, and so the only one
-// whose slot the result could also be. CMOV and the IMUL forms are absent because their destination
-// has to be a register whichever way the operands are turned.
-static I32 memoryFormDefOperand(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Add: case LowerInst::Sub:
-        case LowerInst::And: case LowerInst::Or: case LowerInst::Xor:
-        case LowerInst::Neg: case LowerInst::Not:
-        case LowerInst::Shl: case LowerInst::Shr: case LowerInst::Sar:
-            return 0;
-
-        default:
-            return kNoMemoryOperand;
-    }
-}
-
-I32 memoryDefOperand(LowerBase base, LowerInst* inst) {
-    auto index = memoryFormDefOperand(inst);
+I32 memoryDefOperand(LowerBase base, const MachineFunction& machine, LowerInst* inst) {
+    auto& form = machine.formOf(inst);
+    auto index = form.memoryDef();
     if(index == kNoMemoryOperand) return kNoMemoryOperand;
 
     // The result is written through the same r/m field the operand is read from, so it has to be a
     // value of its own rather than something the encoding swallowed.
     if(inst->createdCount == 0 || isImplicit(&inst->created()[0])) return kNoMemoryOperand;
 
-    return operandFitsMemoryForm(base, inst, index) ? index : kNoMemoryOperand;
+    return operandFitsMemoryForm(base, form, inst, index) ? index : kNoMemoryOperand;
 }
 
 RegSet writtenRegisters(const InstShape& shape) {

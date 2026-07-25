@@ -91,15 +91,13 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
     // Taken from the allocation rather than decided here: the allocator was given the same answer
     // before it ran, and handed rbp out as an ordinary register if it was false.
     layout.framePointer = regs.framePointer;
-    layout.base = layout.framePointer ? framePointerReg() : makeRegId(GenReg, U16(IntRegister::rsp));
+    layout.base = layout.framePointer ? framePointerReg() : stackPointerReg();
 
     assertTrue(!frame.hasDynamicAlloca || layout.framePointer); // rsp moves, so rsp cannot be the base
     assertTrue(!layout.framePointer || !layout.savedRegs.has(framePointerReg())); // saved twice otherwise
 
     U32 savedCount = 0;
-    for(Size i = 0; i < kRegCount; i++) {
-        if(layout.savedRegs.has(makeRegId(GenReg, U16(i)))) savedCount++;
-    }
+    layout.savedRegs.iterate([&](PhysicalReg) { savedCount++; });
 
     // Locals first, then spill slots grouped widest-first so that each group lands on its own
     // alignment without padding between the slots inside it. Offsets here are measured upwards from

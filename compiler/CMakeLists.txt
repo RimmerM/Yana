@@ -108,6 +108,10 @@ add_library(YanaJS ${JS_SOURCE_FILES})
 target_link_libraries(YanaJS PUBLIC YanaCore)
 
 set(X64_SOURCE_FILES
+    codegen/x64/target.h
+    codegen/x64/target.cpp
+    codegen/x64/machine.h
+    codegen/x64/machine.cpp
     codegen/x64/gen.h
     codegen/x64/gen.cpp
     codegen/x64/transform.cpp

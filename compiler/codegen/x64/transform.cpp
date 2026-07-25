@@ -1,29 +1,18 @@
 #include "gen.h"
 #include "x64_util.h"
 
-// Checks if the flags register can be modified by running this instruction.
-inline bool modifiesFlags(LowerInst* inst) {
-    // A zero immediate is materialized with `xor r, r` rather than `mov r, 0` - two bytes instead of
-    // five, at the cost of writing the flags, which the move does not (see genMovImm). Answered from
-    // the value alone rather than from whether the immediate ended up implicit, because this runs in
-    // the same walk that decides implicitness and reaches later instructions before that decision
-    // has been made for them. An embedded immediate emits nothing and so writes nothing; treating it
-    // as if it did costs one folded comparison in a shape where a constant zero sits between a
-    // comparison and its branch.
-    if(inst->kind == LowerInst::Imm) {
-        return ((LowerImm*)inst)->i == 0 && isIntLike(((LowerImm*)inst)->result.type);
-    }
-
-    return isBinary(inst) || isCall(inst) || isUnaryArith(inst) || inst->kind == LowerInst::Alloca;
-}
-
-// Checks if this is a binary arithmetic instruction that supports an immediate right-hand operand.
-inline bool allowsImmRhs(U32 kind) {
-    return
-        kind == LowerInst::Add || kind == LowerInst::Sub || kind == LowerInst::IMul ||
-        kind == LowerInst::Shl || kind == LowerInst::Shr || kind == LowerInst::Sar ||
-        kind == LowerInst::And || kind == LowerInst::Or || kind == LowerInst::Xor ||
-        kind == LowerInst::Cmp;
+// Whether running this instruction can change the flags register.
+//
+// Answered from the form selection would give it, which is the same function the final selection
+// pass calls - so the two cannot drift apart. It runs here while the peepholes are still deciding
+// what is implicit, and a peephole can change which form an instruction takes: an immediate that
+// becomes embedded turns a register form into an immediate one. What it cannot change is whether
+// the form writes the flags, which validateMachineForms checks for every opcode that does not
+// explicitly declare its forms to differ - and the two that do (an immediate materialized with
+// `xor` rather than `mov`, and a branch or select on a register rather than on the flags) select
+// from the instruction alone rather than from anything a peephole decides.
+inline bool modifiesFlags(LowerBase base, LowerInst* inst) {
+    return writesFlags(machineTarget().form(selectForm(base, inst)).flagsEffect);
 }
 
 // Checks if this immediate value can possibly be embedded into any instruction.
@@ -44,26 +33,30 @@ static bool isEmbeddableImm(LowerImm* imm) {
 }
 
 // Checks if this specific instruction can embed the provided embeddable immediate operand.
+//
+// Which operands can swallow a constant is the form table's answer - every operand position the
+// value occupies has to have a form that accepts an immediate there. A value read twice by one
+// instruction, only one of whose positions takes an immediate, is not embeddable at all: embedding
+// it would leave the other position with no location to read.
 static bool canEmbedImm(LowerBase base, LowerInst* inst, LowerValue* op) {
-    // We only check if the instruction type can embed;
-    // register types have already been checked here.
+    // A cast produces a value of its own, so the constant has to be materializable at the target
+    // type - which for now means an integer one.
     auto kind = inst->kind;
-    if(kind == LowerInst::Set) {
-        assertTrue(op == base[((LowerInstUnary*)inst)->from]);
-        return true;
-    } else if(kind == LowerInst::Alloca) {
-        // A compile-time size is consumed by frame layout rather than by any instruction: the
-        // alloca becomes the address of a frame object, and nothing ever reads the count. Leaving
-        // it explicit would cost a `mov r, imm32` and a register for a number that is already known.
-        assertTrue(op == base[((LowerInstAlloca*)inst)->byteCount]);
-        return true;
-    } else if(kind == LowerInst::Cast || kind == LowerInst::Bitcast) {
-        return isIntLike(((LowerInstUnary*)inst)->result.type);
-    } else if(allowsImmRhs(kind)) {
-        return op == base[((LowerInstCmp*)inst)->rhs];
+    if(kind == LowerInst::Cast || kind == LowerInst::Bitcast) {
+        if(!isIntLike(((LowerInstUnary*)inst)->result.type)) return false;
     }
 
-    return false;
+    auto opcode = opcodeFor(inst);
+    auto used = inst->used();
+    bool found = false;
+
+    for(Size i = 0; i < used.size(); i++) {
+        if(base[used[i]] != op) continue;
+        if(immediateWidthFor(opcode, i) == ImmediateWidth::None) return false;
+        found = true;
+    }
+
+    return found;
 }
 
 // Tries to embed this immediate into any instructions that use it.
@@ -135,7 +128,7 @@ static bool hasFlagsInterference(LowerBase base, LowerInstCmp* cmp, LowerInst* u
     for(Size i = startIndex + 1; i < list.size(); i++) {
         auto inst = base[list[i]];
         if(inst == use) return false;
-        if(modifiesFlags(inst)) return true;
+        if(modifiesFlags(base, inst)) return true;
     }
 
     if(use == base[block->terminator]) return false;
@@ -177,7 +170,7 @@ static bool tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
 }
 
 // Records, once, which of the two encodings a Copy/SetPattern will take, so that the register
-// constraints (constraint.cpp) and the encoder (genCopy/genSetPattern) read one field instead of
+// constraints (the selected form) and the encoder (genCopy/genSetPattern) read one field instead of
 // each re-deriving the choice and risking disagreement. The unrolled form is only viable for a
 // compile-time byte count small enough to be worth straight-lining; everything else takes the
 // rep-prefixed string instruction, which needs its operands in fixed registers.
@@ -881,39 +874,99 @@ static void orderBlocks(LowerBase base, LowerFunction& fun) {
     }
 }
 
-void transformFunction(LowerBase base, LowerFunction& fun) {
-    auto pass = [&](auto onInst) {
-        for(auto b: fun.blocks.contents(base)) {
-            Size i = 0;
+/*
+ * The transform pipeline.
+ *
+ * The passes below used to be one function with the order expressed as the sequence of statements in
+ * it, and the reasons for that order as comments between them. They are named passes now, with the
+ * order stated once in kTransformPipeline and each pass's contract stated next to the pass.
+ *
+ * The order is not arbitrary and each step of it is load-bearing:
+ *
+ *   canonicalizeOperands       puts immediates where the later passes expect to find them, so that
+ *                              nothing downstream has to check both sides of a commutative operation
+ *   selectAddressesAndLeas     removes address arithmetic *before* liveness, which is the only point
+ *                              at which removing it actually shortens an interval - and before the
+ *                              immediate peephole, so that an immediate the fold leaves with no uses
+ *                              is made implicit rather than materialized into a register nothing reads
+ *   selectMachineInstructions  chooses the shape of each instruction: which immediates are embedded,
+ *                              which comparisons stay in the flags, which callees are elided, which
+ *                              encoding a block operation takes
+ *   lowerOutgoingStackArguments  turns a call's stack-passed arguments into explicit stores, which is
+ *                              only worth doing once the passes above have settled what is implicit
+ *   normalizePhiEdges          gives every phi transfer a block it can safely be emitted in
+ *   analyzeLoopsAndOrderBlocks lays the blocks out, last, since it invalidates every instruction
+ *                              index the passes above reasoned about
+ *
+ * A pass that changes any of this changes the pipeline table, not the reading order of one function.
+ */
 
-            for(auto inst: base[b]->instructions.contents(base)) {
-                onInst(base[inst], i);
-                i++;
-            }
+// Walks every instruction of every block in list order, with its index within its block. For passes
+// that only inspect and annotate: one that inserts or removes instructions has to iterate by index,
+// because the list is rewritten underneath it.
+template<class F>
+static void forEachInst(LowerBase base, LowerFunction& fun, F&& onInst) {
+    for(auto b: fun.blocks.contents(base)) {
+        Size i = 0;
+
+        for(auto inst: base[b]->instructions.contents(base)) {
+            onInst(base[inst], i);
+            i++;
         }
-    };
+    }
+}
 
-    // Move operands into place for later passes.
-    pass([&](LowerInst* inst, Size i) {
+/*
+ * The passes.
+ */
+
+// Moves operands into the canonical position for the passes below - today, an immediate onto the
+// right-hand side of a commutative operation, so that nothing downstream has to look at both sides.
+// Representation-neutral: no target register or encoding decision is made here.
+//
+// Expects: the lowering's output, unmodified.  Establishes: commutative immediates on the right.
+// Mutates: operand order within an instruction. Invalidates: nothing.
+static void canonicalizeOperands(LowerBase base, LowerFunction& fun) {
+    forEachInst(base, fun, [&](LowerInst* inst, Size i) {
         trySwapOperands(base, inst);
     });
+}
 
-    // Before the peepholes rather than after them: an immediate whose only use was an address
-    // computation is left with none by the fold, and is then made implicit by the pass below rather
-    // than being materialized into a register nothing reads.
-    //
-    // The `lea` pass runs second and takes what is left: the addresses the fold could not remove
-    // outright, because something reads them as a value rather than as an address.
+// Recognizes `base + index*scale + displacement` once, and turns each occurrence into either an
+// X86Address folded into the access that reads it (§3.1) or an X86Lea that materializes it (§3.3).
+//
+// Runs before the peepholes rather than after them: an immediate whose only use was an address
+// computation is left with none by the fold, and is then made implicit by the pass below rather than
+// being materialized into a register nothing reads. It also runs before liveness, which is what lets
+// the arithmetic it eliminates genuinely shorten intervals.
+//
+// Expects: canonical operands.  Establishes: no memory access reaches allocation with a foldable
+// address computation in front of it. Mutates: the instruction lists and every affected use list.
+// Invalidates: instruction positions within a block.
+static void selectAddressesAndLeas(LowerBase base, LowerFunction& fun) {
     foldAddresses(base, fun);
     foldLeas(base, fun);
+}
 
-    pass([&](LowerInst* inst, Size i) {
-        // Make immediates implicit where possible.
+// Chooses the shape of each instruction: which immediates are embedded into the encoding, which
+// comparisons stay in the flags, which direct callees need no register, and which of its two
+// encodings a block operation takes.
+//
+// This is where an instruction stops being purely semantic. Every decision here is recorded on the
+// instruction - as the Implicit flag, an embedded comparison, or the unrolled flag - so that the
+// allocator, the form selection below and the encoder all read one answer instead of each deriving it.
+//
+// Expects: addresses selected.  Establishes: every value that occupies no location is marked
+// Implicit, and every Copy/SetPattern has its encoding recorded. Mutates: value flags and
+// instruction annotations only. Invalidates: nothing.
+static void selectMachineInstructions(LowerBase base, LowerFunction& fun) {
+    forEachInst(base, fun, [&](LowerInst* inst, Size i) {
         if(inst->kind == LowerInst::Imm) {
             tryEmbedImm(base, (LowerImm*)inst);
         }
 
-        // Make comparisons implicit if flags aren't changed between the creation and any uses.
+        // Needs the instruction's index within its block, to walk forward from the comparison to its
+        // use looking for anything that writes the flags in between.
         if(inst->kind == LowerInst::Cmp) {
             tryMergeCompare(base, (LowerInstCmp*)inst, i);
         }
@@ -924,13 +977,253 @@ void transformFunction(LowerBase base, LowerFunction& fun) {
 
         selectBlockOpEncoding(base, inst);
     });
+}
 
-    // After the peepholes, so that an argument the passes above made implicit is already implicit
-    // when its location is decided, and before liveness runs, which is what lets the stores it
-    // inserts actually shorten the ranges they exist to shorten.
+// Turns a call's stack-passed arguments into explicit stores into the outgoing argument area, placed
+// as early as is safe - see the block comment on outgoing stack arguments above.
+//
+// Expects: machine instructions selected, so that an argument the passes above made implicit is
+// already implicit when its location is decided.  Establishes: no call operand is passed on the
+// stack; every one of them is an X86PushArg result instead. Mutates: the instruction lists and the
+// affected use lists. Invalidates: instruction positions within a block.
+static void lowerOutgoingStackArguments(LowerBase base, LowerFunction& fun) {
     insertStackArgs(base, fun, targetConstraints());
+}
 
-    // Shape of the CFG last, once no pass that reasons about instruction positions is left to run.
+// Splits every edge on which a phi transfer needs an insertion point of its own.
+//
+// Expects: no pass that reasons about instruction positions left to run.  Establishes: no block with
+// two successors has a successor with phis, so a phi copy at the end of a predecessor cannot run on
+// a path that skips the phis. Mutates: the block list and the CFG. Invalidates: block indices.
+static void normalizePhiEdges(LowerBase base, LowerFunction& fun) {
     splitPhiEdges(base, fun);
+}
+
+// Finds the loops, records a depth per block, and rewrites the block list into the reverse postorder
+// that follows them - see the block-order comment above.
+//
+// Expects: the CFG in its final shape.  Establishes: blocks in reverse postorder with `index` equal
+// to list position, and `loopDepth` set. Mutates: the block list order and block metadata.
+// Invalidates: nothing after it.
+static void analyzeLoopsAndOrderBlocks(LowerBase base, LowerFunction& fun) {
     orderBlocks(base, fun);
+}
+
+// Records, for every instruction, the machine opcode and the machine form it was selected into - see
+// machine.h. Everything downstream reads its facts from there: which operands are forced into
+// particular registers, what the instruction clobbers, which result is written over which operand,
+// which operand may stay in a frame slot, what it does to the flags.
+//
+// Last, and not where §4.3 of the plan puts it, for one reason: an instruction cannot be given a
+// form before it exists, and two passes above create instructions - the argument stores, and the
+// jumps in the blocks that phi-edge splitting inserts. The peepholes still make every decision the
+// form depends on; this pass only writes the answer down.
+//
+// Expects: no pass left that creates instructions or changes an instruction's shape.  Establishes: a
+// selected form for every instruction in the function. Mutates: nothing in the IR.
+static void selectMachineForms(LowerBase base, LowerFunction& fun, MachineFunction& machine) {
+    auto select = [&](LowerInst* inst) {
+        machine.select(inst, opcodeFor(inst), selectForm(base, inst));
+    };
+
+    for(auto a: fun.args.contents(base)) select((LowerInst*)base[a]);
+
+    for(auto b: fun.blocks.contents(base)) {
+        auto block = base[b];
+
+        for(auto p: block->phis.contents(base)) select(base[p]);
+        for(auto i: block->instructions.contents(base)) select(base[i]);
+        select(base[block->terminator]);
+    }
+}
+
+/*
+ * Pipeline invariants.
+ *
+ * Checked between passes in debug builds. The structural ones are what the mutating passes can
+ * actually break: inserting an instruction, removing a dead one, moving a use from one value to
+ * another and splitting an edge all have to keep four separate lists agreeing with each other, and a
+ * stale entry in any of them is invisible until the allocator reads it and concludes that a dead
+ * value is live - a wrong answer several passes away from its cause.
+ */
+
+enum TransformInvariant: U32 {
+    // Every pass establishes this one: instruction lists, use lists and CFG links agree.
+    InvariantStructure = 1 << 0,
+
+    // No block with two successors has a successor with phis.
+    InvariantPhiEdgesNormalized = 1 << 1,
+
+    // Block list position and BlockIndex agree.
+    InvariantBlocksOrdered = 1 << 2,
+};
+
+struct TransformPass {
+    StringView name;
+    void (*run)(LowerBase base, LowerFunction& fun);
+
+    // What holds once this pass has run, and holds for every pass after it.
+    U32 establishes;
+};
+
+static const TransformPass kTransformPipeline[] = {
+    { "canonicalizeOperands"_v,        canonicalizeOperands,        0 },
+    { "selectAddressesAndLeas"_v,      selectAddressesAndLeas,      0 },
+    { "selectMachineInstructions"_v,   selectMachineInstructions,   0 },
+    { "lowerOutgoingStackArguments"_v, lowerOutgoingStackArguments, 0 },
+    { "normalizePhiEdges"_v,           normalizePhiEdges,           InvariantPhiEdgesNormalized },
+    { "analyzeLoopsAndOrderBlocks"_v,  analyzeLoopsAndOrderBlocks,  InvariantBlocksOrdered },
+};
+
+// Every instruction the function owns, in no particular order: the arguments, then each block's
+// phis, instructions and terminator. Arguments and phis are not in any block's instruction list but
+// do contribute uses, so a check that ignored them would report every one of theirs as stale.
+template<class F>
+static void forEachOwnedInst(LowerBase base, LowerFunction& fun, F&& f) {
+    for(auto a: fun.args.contents(base)) f((LowerInst*)base[a]);
+
+    for(auto b: fun.blocks.contents(base)) {
+        auto block = base[b];
+
+        for(auto p: block->phis.contents(base)) f(base[p]);
+        for(auto i: block->instructions.contents(base)) f(base[i]);
+        if(block->terminator) f(base[block->terminator]);
+    }
+}
+
+static bool verifyTransformInvariants(Context& ctx, LowerBase base, LowerFunction& fun, U32 established) {
+    auto funName = ctx.findName(fun.name);
+    auto ok = true;
+
+    auto fail = [&](auto&& fmt, auto&&... args) {
+        ok = false;
+        logError(fmt, forward<decltype(args)>(args)...);
+    };
+
+    // How many times each value is read, counted from the operand lists. Compared afterwards against
+    // the value's own use list, which is the direction that catches a use entry left behind by a
+    // removed instruction.
+    HashMap<LowerValue*, U32> reads;
+
+    forEachOwnedInst(base, fun, [&](LowerInst* inst) {
+        for(auto offset: inst->used()) {
+            auto v = base[offset];
+            auto count = reads.get(v);
+            if(count.isJust()) count.unwrap()++;
+            else reads.add(v, 1);
+        }
+    });
+
+    for(auto b: fun.blocks.contents(base)) {
+        auto block = base[b];
+
+        if(!block->terminator) {
+            fail("%@: block %@ has no terminator", funName, U32(block->index));
+            continue;
+        }
+
+        // An instruction whose `block` names somewhere it is not listed is one that a move or an
+        // insertion left behind, and every later pass that walks from the block would miss it.
+        auto ownedBy = [&](LowerInst* inst) {
+            if(base[inst->block] != block) {
+                fail("%@: block %@ lists an instruction whose own block is %@",
+                    funName, U32(block->index), U32(base[inst->block]->index));
+            }
+        };
+
+        for(auto p: block->phis.contents(base)) ownedBy(base[p]);
+        for(auto i: block->instructions.contents(base)) ownedBy(base[i]);
+        ownedBy(base[block->terminator]);
+
+        // Successor and predecessor lists are two records of one edge, and a pass that updates only
+        // one of them produces a CFG the liveness and the layout disagree about.
+        for(auto o: block->outgoing) {
+            if(!o) continue;
+
+            bool found = false;
+            for(auto p: base[o]->incoming.contents(base)) {
+                if(base[p] == block) { found = true; break; }
+            }
+
+            if(!found) {
+                fail("%@: block %@ names block %@ as a successor, which does not name it back",
+                    funName, U32(block->index), U32(base[o]->index));
+            }
+
+            if((established & InvariantPhiEdgesNormalized) &&
+               block->outgoing[0] && block->outgoing[1] && base[o]->phis.isNotEmpty())
+            {
+                fail("%@: block %@ has two successors and block %@ has phis",
+                    funName, U32(block->index), U32(base[o]->index));
+            }
+        }
+
+        // A phi takes one value per predecessor, from a block that is actually one.
+        for(auto p: block->phis.contents(base)) {
+            auto phi = base[p];
+            auto sources = phi->sources();
+
+            if(sources.size() != phi->used().size()) {
+                fail("%@: phi in block %@ has %@ sources for %@ operands",
+                    funName, U32(block->index), U32(sources.size()), U32(phi->used().size()));
+            }
+
+            for(auto source: sources) {
+                bool found = false;
+                for(auto in: block->incoming.contents(base)) {
+                    if(in == source) { found = true; break; }
+                }
+
+                if(!found) {
+                    fail("%@: phi in block %@ takes a value from block %@, which is not a predecessor",
+                        funName, U32(block->index), U32(base[source]->index));
+                }
+            }
+        }
+    }
+
+    if(established & InvariantBlocksOrdered) {
+        auto blocks = fun.blocks.contents(base);
+
+        for(Size i = 0; i < blocks.size(); i++) {
+            if(base[blocks[i]]->index != BlockIndex(i)) {
+                fail("%@: block at position %@ is numbered %@",
+                    funName, U32(i), U32(base[blocks[i]]->index));
+            }
+        }
+    }
+
+    // The other direction: a use list that claims more or fewer readers than there are.
+    forEachOwnedInst(base, fun, [&](LowerInst* inst) {
+        for(auto& created: inst->created()) {
+            auto counted = reads.get(&created);
+            auto expected = counted.isJust() ? counted.unwrap() : 0;
+
+            if(created.uses.size() != expected) {
+                fail("%@: a value's use list has %@ entries for %@ actual readers",
+                    funName, U32(created.uses.size()), expected);
+            }
+        }
+    });
+
+    return ok;
+}
+
+void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, MachineFunction& machine) {
+    U32 established = 0;
+
+    for(auto& pass: kTransformPipeline) {
+        pass.run(base, fun);
+        established |= pass.establishes;
+
+        // Debug builds only - assertTrue compiles away entirely in a release build, taking the call
+        // with it. Running between passes rather than once at the end is the point: it names the
+        // pass that broke the invariant rather than the pipeline that ended up violating it.
+        assertTrue(verifyTransformInvariants(ctx, base, fun, established | InvariantStructure));
+    }
+
+    // Writes down what the passes above decided. Separate from the pipeline table because it
+    // produces the MachineFunction rather than mutating the IR, and because it has to see every
+    // instruction the passes above created.
+    selectMachineForms(base, fun, machine);
 }

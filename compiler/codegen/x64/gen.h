@@ -3,138 +3,10 @@
 #include "Net/Buffer.h"
 #include "Net/Stream.h"
 #include "../../lower/lower_inst.h"
+#include "target.h"
+#include "machine.h"
 
 static constexpr Size kMaxRegInputs = 16;
-
-enum RegClass {
-    GenReg,
-    XmmReg,
-    StackReg,
-    RematReg,
-};
-
-using RegId = I16;
-
-// The classes that name a physical machine register. StackReg and RematReg are location classes but
-// not physical ones - a frame slot is not part of the register file, and a rematerializable value
-// occupies nothing at all - so both are excluded from everything that describes what an operation
-// does to the machine.
-static constexpr Size kPhysRegClassCount = 2;
-static constexpr Size kRegClassCount = 4;
-static constexpr RegId kInvalidReg = 0x7fff;
-
-inline RegClass getRegClass(RegId id) {
-    return RegClass(id >> 12);
-}
-
-inline U16 getRegIndex(RegId id) {
-    return id & 0x0fff;
-}
-
-inline RegId makeRegId(RegClass c, U16 index) {
-    return (I16(c) << 12) | I16(index);
-}
-
-inline RegClass classForType(LowerType type) {
-    return isIntLike(type) ? GenReg : XmmReg;
-}
-
-// A set of physical registers, one bitmask per class. Everything that describes what a machine
-// operation does to the register file is one of these: an instruction's clobbers, a calling
-// convention's preserved set, the registers a value has to stay out of while it is live.
-//
-// Being per class is what lets a convention state that a call destroys xmm0-15 as well as the
-// caller-saved integer registers. A single mask could only ever describe one class, which is why no
-// convention could describe a vector clobber before.
-//
-// A location that is not a physical register - a stack slot, a rematerializable value, or
-// kInvalidReg - is never a member, and adding one is a no-op rather than an error. That is what
-// makes it safe to feed an operand's location straight in without first asking whether the allocator
-// gave it a register at all.
-struct RegSet {
-    U64 classes[kPhysRegClassCount] = {};
-
-    static bool isPhysical(RegId id) {
-        return Size(getRegClass(id)) < kPhysRegClassCount;
-    }
-
-    bool has(RegId id) const {
-        return isPhysical(id) && (classes[getRegClass(id)] & (U64(1) << getRegIndex(id))) != 0;
-    }
-
-    void add(RegId id) {
-        if(isPhysical(id)) classes[getRegClass(id)] |= U64(1) << getRegIndex(id);
-    }
-
-    void remove(RegId id) {
-        if(isPhysical(id)) classes[getRegClass(id)] &= ~(U64(1) << getRegIndex(id));
-    }
-
-    bool isEmpty() const {
-        for(auto c: classes) {
-            if(c) return false;
-        }
-
-        return true;
-    }
-
-    RegSet& operator |= (const RegSet& other) {
-        for(Size i = 0; i < kPhysRegClassCount; i++) classes[i] |= other.classes[i];
-        return *this;
-    }
-
-    RegSet operator | (const RegSet& other) const {
-        auto set = *this;
-        set |= other;
-        return set;
-    }
-
-    RegSet operator & (const RegSet& other) const {
-        RegSet set;
-        for(Size i = 0; i < kPhysRegClassCount; i++) set.classes[i] = classes[i] & other.classes[i];
-        return set;
-    }
-
-    // The registers of `within` that this set does not contain. A convention's preserved set is
-    // exactly this applied to its clobber set: a register a call leaves alone is one its callee
-    // owes back.
-    RegSet complement(const RegSet& within) const {
-        RegSet set;
-        for(Size i = 0; i < kPhysRegClassCount; i++) set.classes[i] = ~classes[i] & within.classes[i];
-        return set;
-    }
-
-    bool operator == (const RegSet& other) const {
-        for(Size i = 0; i < kPhysRegClassCount; i++) {
-            if(classes[i] != other.classes[i]) return false;
-        }
-
-        return true;
-    }
-};
-
-struct ClassConstraints {
-    // Maps instruction argument index -> register id.
-    RegId args[kMaxRegInputs];
-    RegId results[kMaxRegInputs];
-};
-
-// The fixed-register behaviour of one instruction: which of its operands and results have to occupy
-// a particular register, and which registers it destroys along the way. Only instructions whose
-// encoding forces the issue have an entry - a division's rax/rdx protocol, a shift's count in rcx,
-// the string operations' rdi/rsi/rcx. Everything else takes whatever the allocator hands it.
-//
-// A calling convention is described by CallConvention below rather than here: a call's operand
-// locations depend on how many arguments of each class came before, which a flat table cannot say.
-struct InstConstraints {
-    InstConstraints();
-
-    // Argument and result constraints.
-    ClassConstraints constraints[kPhysRegClassCount];
-
-    // Registers the instruction writes behind its operands' backs.
-    RegSet clobber;
-};
 
 // Where one argument or result of a call is passed.
 //
@@ -150,36 +22,36 @@ struct ArgLocation {
     };
 
     Kind kind = None;
-    RegId reg = kInvalidReg;
+    PhysicalReg reg;
     U32 stackOffset = 0;
 
-    static ArgLocation inRegister(RegId reg) { return ArgLocation { Register, reg, 0 }; }
-    static ArgLocation onStack(U32 offset) { return ArgLocation { Stack, kInvalidReg, offset }; }
+    static ArgLocation inRegister(PhysicalReg reg) { return ArgLocation { Register, reg, 0 }; }
+    static ArgLocation onStack(U32 offset) { return ArgLocation { Stack, PhysicalReg {}, offset }; }
 };
 
 // A calling convention, stated once and used from both sides.
 //
-// InstConstraints above describes what a fixed-register *instruction* does. This describes what a
+// A machine form describes what one *instruction* does to the register file. This describes what a
 // *call* does where it appears and what a function compiled with the convention owes the caller it
 // returns to - the same contract seen from opposite ends, which is why constraint.cpp states both
 // halves and checks them against each other rather than deriving either.
 struct CallConvention {
-    // The registers arguments and results are assigned to, per class, in the order the convention
-    // hands them out. An argument that runs past the end of its class's list is passed in the
+    // The registers arguments and results are assigned to, per bank, in the order the convention
+    // hands them out. An argument that runs past the end of its bank's list is passed in the
     // argument area instead; a result that does would have to be returned through memory, which
     // needs a hidden pointer argument the lowering does not produce, so classifyResults rejects it.
-    struct ClassRegs {
-        RegId regs[kMaxRegInputs];
+    struct BankRegs {
+        PhysicalReg regs[kMaxRegInputs];
         Size count = 0;
 
-        void add(RegId reg) {
+        void add(PhysicalReg reg) {
             assertTrue(count < kMaxRegInputs);
             regs[count++] = reg;
         }
     };
 
-    ClassRegs args[kPhysRegClassCount];
-    ClassRegs results[kPhysRegClassCount];
+    BankRegs args[kRegisterBankCount];
+    BankRegs results[kRegisterBankCount];
 
     // What a call of this convention destroys, and what a function compiled with it has to give
     // back. rsp is preserved too, but it is reserved rather than handed out, so keeping it valid is
@@ -200,9 +72,9 @@ struct CallConvention {
     // everywhere else.
     U32 shadowSpace = 0;
 
-    // Win64 assigns argument registers by position rather than per class: a float in argument
+    // Win64 assigns argument registers by position rather than per bank: a float in argument
     // position 2 takes xmm2 and leaves r8 unused, so a callee can find any argument without knowing
-    // the types of the ones before it. SysV and the compiler's own conventions count each class
+    // the types of the ones before it. SysV and the compiler's own conventions count each bank
     // independently, filling rdi..r9 with integers however many floats came first.
     bool positionalArgs = false;
 
@@ -222,20 +94,20 @@ template<class F>
 void classifyArgs(const CallConvention& convention, Size count, F&& typeOf, Array<ArgLocation>& out) {
     assertTrue(convention.defined); // a call using an undescribed convention
 
-    Size taken[kPhysRegClassCount] = {};
+    Size taken[kRegisterBankCount] = {};
     auto stack = convention.shadowSpace;
 
     for(Size i = 0; i < count; i++) {
-        auto cls = classForType(typeOf(i));
-        auto& table = convention.args[cls];
+        auto bank = bankForType(typeOf(i));
+        auto& table = convention.args[bank];
 
         // A positional convention indexes the table by argument position, so an argument of one
-        // class consumes the slot of every class; a per-class one keeps an independent counter each.
-        auto index = convention.positionalArgs ? i : taken[cls];
+        // bank consumes the slot of every bank; a per-bank one keeps an independent counter each.
+        auto index = convention.positionalArgs ? i : taken[bank];
 
         if(index < table.count) {
             out.push(ArgLocation::inRegister(table.regs[index]));
-            taken[cls]++;
+            taken[bank]++;
         } else {
             // Every stack argument occupies one 8-byte slot, in declaration order and lowest first,
             // which is what the callee's incoming offsets assume.
@@ -250,12 +122,12 @@ template<class F>
 void classifyResults(const CallConvention& convention, Size count, F&& typeOf, Array<ArgLocation>& out) {
     assertTrue(convention.defined); // a call using an undescribed convention
 
-    Size taken[kPhysRegClassCount] = {};
+    Size taken[kRegisterBankCount] = {};
 
     for(Size i = 0; i < count; i++) {
-        auto cls = classForType(typeOf(i));
-        auto& table = convention.results[cls];
-        auto index = taken[cls]++;
+        auto bank = bankForType(typeOf(i));
+        auto& table = convention.results[bank];
+        auto index = taken[bank]++;
 
         assertTrue(index < table.count); // more results than the calling convention can return
         out.push(ArgLocation::inRegister(table.regs[index]));
@@ -272,33 +144,35 @@ U32 argAreaBytes(const CallConvention& convention, const Array<ArgLocation>& arg
 // transformFunction (see selectBlockOpEncoding), and recorded on the instruction.
 static constexpr U64 kMaxUnrolledMemOp = 32;
 
+// The calling conventions, which are the one part of an instruction's register behaviour that a
+// machine form cannot state for itself: where a call's arguments go depends on how many of each bank
+// came before them, which a fixed operand list cannot say. Everything else - fixed registers, ties,
+// clobbers, memory alternatives, flags - is in the selected MachineForm.
 struct Constraints {
     Constraints();
-    const InstConstraints* getConstraints(LowerBase base, LowerInst* inst) const;
     const CallConvention& getConvention(LowerCallType type) const;
 
 private:
-    // Copy/SetPattern have two encodings with very different register requirements: `rep movsb`/
-    // `rep stosb` (movsb/stosb) demand fixed registers and consume them, while the unrolled-mov
-    // form (movsbImm/stosbImm) works out of whatever registers the operands already occupy. Which
-    // one applies is decided once by transformFunction and read back off the instruction, so this
-    // table and genCopy/genSetPattern cannot disagree about it.
-    InstConstraints mul, div, rem, shift, movsb, stosb, movsbImm, stosbImm;
     CallConvention convention[(Size)LowerCallType::LastType + 1];
 };
 
-// The target's tables, built once. They are constant and the same for every function, and each of
-// the three passes that reads them used to construct its own copy.
+// The conventions, built once. They are constant and the same for every function, and each of the
+// three passes that reads them used to construct its own copy.
 const Constraints& targetConstraints();
 
 /*
  * Instruction shapes.
  *
  * Where each operand and result of one instruction has to be is worked out once, into an InstShape,
- * and then read back by index. The tables it comes from are indexed per register class and skip
- * operands that occupy no register at all, so "operand N of this instruction" and "entry N of the
- * table" are not the same thing - and every caller used to re-derive that mapping with its own copy
- * of the counting rule, which is how the allocator and the verifier could disagree about it.
+ * and then read back by index. Two sources feed it, and neither is consulted anywhere else: the
+ * selected machine form, for an ordinary instruction whose encoding forces particular registers, and
+ * the calling convention, for a call, a syscall or a return, whose operand placement depends on how
+ * many arguments of each bank came before.
+ *
+ * Entry N is operand N, which the sources it comes from do not guarantee for themselves: a form
+ * states only the operands it has something to say about, and a convention skips the operands that
+ * are not arguments at all. Every caller used to re-derive that mapping with its own copy of the
+ * rule, which is how the allocator and the verifier could disagree about it.
  */
 
 struct InstShape {
@@ -319,20 +193,20 @@ struct InstShape {
     bool isReturn = false;
 };
 
-InstShape shapeOf(LowerBase base, const Constraints& constraints, LowerFunction& fun, LowerInst* inst);
+InstShape shapeOf(LowerBase base, const MachineFunction& machine, const Constraints& constraints, LowerFunction& fun, LowerInst* inst);
 
 // The fixed register operand `i` has to be in when the instruction executes, if any. A stack-passed
-// argument has no register and answers kInvalidReg here, so a caller that needs to tell the two
-// apart reads shape.uses[i] instead.
-inline RegId wantForUse(const InstShape& shape, Size i) {
+// argument has no register and answers an invalid location here, so a caller that needs to tell the
+// two apart reads shape.uses[i] instead.
+inline MachineLocation wantForUse(const InstShape& shape, Size i) {
     auto& location = shape.uses[i];
-    return location.kind == ArgLocation::Register ? location.reg : kInvalidReg;
+    return location.kind == ArgLocation::Register ? MachineLocation::physical(location.reg) : MachineLocation::invalid();
 }
 
 // The fixed register result `i` is produced in, if any.
-inline RegId wantForResult(const InstShape& shape, Size i) {
+inline MachineLocation wantForResult(const InstShape& shape, Size i) {
     auto& location = shape.creates[i];
-    return location.kind == ArgLocation::Register ? location.reg : kInvalidReg;
+    return location.kind == ArgLocation::Register ? MachineLocation::physical(location.reg) : MachineLocation::invalid();
 }
 
 // Every register this instruction writes behind the operands' backs: the ones it clobbers, plus the
@@ -348,10 +222,15 @@ RegSet writtenRegisters(const InstShape& shape);
  * read it. Most x86 ALU instructions have a form that reads one operand straight out of memory
  * instead, which removes the reload entirely - `add rax, [slot]` in place of a load and an add.
  *
- * Which operand that is, if any, is one table rather than a decision made twice: the allocator asks
- * it to know whether to leave a spilled operand where it is, the encoder emits the memory form when
- * it finds a slot there, and the verifier asks the same question to catch the case where a slot
- * reaches an encoder that has no form for it.
+ * Which operand that is, if any, is a property of the selected machine form rather than a decision
+ * made separately by each consumer: the allocator asks to know whether to leave a spilled operand
+ * where it is, the encoder emits the memory form when it finds a slot there, and the verifier asks
+ * the same question to catch the case where a slot reaches an encoder that has no form for it.
+ *
+ * The two functions below add to the form's answer the one thing the form cannot state: whether the
+ * *value* in that operand actually fits. A slot is exactly as wide as the value in it, so an access
+ * at any other width would take a neighbouring value with it, and an operand the encoding already
+ * swallowed has no location at all.
  */
 
 // Returned by memoryUseOperand for an instruction that has to have every operand in a register.
@@ -362,7 +241,7 @@ static constexpr I32 kNoMemoryOperand = -1;
 //
 // At most one, which is both what the encodings allow (a general memory operand occupies the r/m
 // field, and there is one of those) and what keeps the answer a single index.
-I32 memoryUseOperand(LowerBase base, LowerInst* inst);
+I32 memoryUseOperand(LowerBase base, const MachineFunction& machine, LowerInst* inst);
 
 // The one operand of `inst` that may be read *and written* in place, as an index into its used()
 // buffer, or kNoMemoryOperand. Answers only for the destructive two-address encodings whose r/m
@@ -375,7 +254,7 @@ I32 memoryUseOperand(LowerBase base, LowerInst* inst);
 // operation works at.
 //
 // The two are mutually exclusive at one instruction. Both want the r/m field, and there is one.
-I32 memoryDefOperand(LowerBase base, LowerInst* inst);
+I32 memoryDefOperand(LowerBase base, const MachineFunction& machine, LowerInst* inst);
 
 /*
  * Register allocation output.
@@ -391,18 +270,18 @@ I32 memoryDefOperand(LowerBase base, LowerInst* inst);
 // sequencing a parallel copy whose sources and destinations overlap cyclically needs one, and
 // x86's `xchg` provides it without having to find a free scratch register.
 struct RegMove {
-    RegId from;
-    RegId to;
+    MachineLocation from;
+    MachineLocation to;
     bool swap = false;
 };
 
-// Resolved physical registers (or stack slots, for RegClass::StackReg) for a single instruction.
-// `uses`/`creates` are parallel to that instruction's `used()`/`created()` buffers, in the same
-// order, and name where the encoder will find (or put) each operand *at this instruction* - which
-// is not necessarily where the value lives the rest of the time.
+// Resolved locations - physical registers, or frame slots where the encoding has a memory form -
+// for a single instruction. `uses`/`creates` are parallel to that instruction's `used()`/`created()`
+// buffers, in the same order, and name where the encoder will find (or put) each operand *at this
+// instruction*, which is not necessarily where the value lives the rest of the time.
 struct InstRegs {
-    Array<RegId> uses;
-    Array<RegId> creates;
+    Array<MachineLocation> uses;
+    Array<MachineLocation> creates;
 
     // Moves emitted immediately before the instruction: they bring operands from their home
     // registers into the places this instruction requires (fixed-register constraints, or the
@@ -430,37 +309,14 @@ struct BlockRegs {
  * registers ended up needing saving, whether a frame pointer is required, how much alignment the
  * calls in the function demand.
  *
- * A slot is named by a `RegId` of class `StackReg` whose index is its `StackSlotId`, so a value
+ * A slot is named by a `MachineLocation` of kind `StackSlot` whose index is its `StackSlotId`, so a value
  * living on the stack and a value living in a register are the same kind of thing everywhere the
- * allocator handles locations.
+ * allocator handles locations - and neither can be mistaken for the other, since the kind says which
+ * it is. `StackSlotId`, `StackSlotClass` and `stackSlotClassFor` are in target.h with the rest of
+ * the location model.
  */
 
-using StackSlotId = U16;
 static constexpr StackSlotId kInvalidSlot = 0xffff;
-
-// Spill slots are grouped by width so that a slot is reused only by values that fit it exactly,
-// which keeps first-fit reuse and alignment simple and stops a 4-byte value from pinning down
-// 64 bytes of frame. Sizes are 4, 8, 16, 32 and 64 bytes.
-enum class StackSlotClass: U8 {
-    Slot32, Slot64, Slot128, Slot256, Slot512,
-};
-
-static constexpr Size kStackSlotClassCount = 5;
-
-inline U32 stackSlotSize(StackSlotClass c) { return 4u << (Size)c; }
-
-// The slot class a value of this type needs. Every scalar the lowering produces is at most eight
-// bytes wide; the wider classes exist for the vector values the register model already describes and
-// the encoders do not produce yet.
-//
-// Asked by the allocator when it spills a value and by the memory-operand table when it decides
-// whether an instruction may read one in place, which have to agree: a slot is exactly as wide as
-// the value in it, and an access of any other width would take a neighbouring value with it.
-inline StackSlotClass stackSlotClassFor(LowerType type) {
-    return type == LowerType::Int32 || type == LowerType::Float32
-        ? StackSlotClass::Slot32
-        : StackSlotClass::Slot64;
-}
 
 // What a slot is for. Frame layout puts each kind in its own region, because they answer to
 // different rules: incoming arguments live in the *caller's* frame above the return address and
@@ -544,7 +400,7 @@ struct FrameObjects {
  * object, which is a constant offset from a base register the frame keeps valid for the whole
  * function.
  *
- * A recipe is named by a RegId of class RematReg whose index is its position in
+ * A recipe is named by a MachineLocation of kind Rematerializable whose index is its position in
  * FunctionRegs::remats, so a rematerializable value, a value in a slot and a value in a register are
  * the same kind of thing everywhere a location is handled.
  */
@@ -573,15 +429,15 @@ struct Remat {
 // Keeping both on FunctionRegs is what lets the verifier check one against the other without
 // knowing anything about how the allocator arrived at either.
 struct Allocation {
-    // One location per LiveId, kInvalidReg for a value that never needed one.
-    Array<RegId> locations;
+    // One location per LiveId, invalid for a value that never needed one.
+    Array<MachineLocation> locations;
 
     // The location holding `id` at instruction index `point`. Every value has a single location for
     // the whole of its life today, so `point` is ignored - it is in the signature because that is
     // the question callers should be asking, and the one that gets a different answer once a
     // value's life is split into segments with a location each.
-    RegId locationOf(LiveId id, U32 point) const {
-        return id < locations.size() ? locations[id] : kInvalidReg;
+    MachineLocation locationOf(LiveId id, U32 point) const {
+        return id < locations.size() ? locations[id] : MachineLocation::invalid();
     }
 };
 
@@ -647,7 +503,7 @@ struct FrameLayout {
 
     // The register frame references are relative to: rbp when there is a frame pointer, rsp when
     // there is not.
-    RegId base = kInvalidReg;
+    PhysicalReg base;
 
     // Bytes the prologue subtracts from rsp: the outgoing argument area, the locals and spill
     // slots, and any padding needed to leave rsp on the boundary the calls in this function require.
@@ -806,8 +662,11 @@ struct LowerInstX86Address: LowerInstSingle {
     U8 scale;
 };
 
-void transformFunction(LowerBase base, LowerFunction& fun);
-FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun);
+// Runs the target transform pipeline over `fun` in place - see the pipeline table at the bottom of
+// transform.cpp for the passes and the order. `ctx` is only used to name the function in the
+// between-pass invariant checks, which run in debug builds.
+void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, MachineFunction& machine);
+FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const MachineFunction& machine);
 
 // Checks that an allocation actually delivers every value to every instruction that reads it, by
 // simulating the register and stack contents the emitted code will produce and comparing them
@@ -815,9 +674,9 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun)
 // function; allocateRegisters runs it on its own result in debug builds.
 //
 // It knows nothing about how the allocation was arrived at - only about FunctionRegs, the liveness
-// sets and the constraint tables - so it stays a valid check as the allocator gains live intervals
+// sets and the selected machine forms - so it stays a valid check as the allocator gains live intervals
 // with holes, phi webs, stack homes and split locations.
-bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness& live, const Constraints& constraints, const FunctionRegs& regs);
+bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine, const Constraints& constraints, const FunctionRegs& regs);
 
 // Called (if non-null) once for every instruction/terminator emitted, with the byte range it
 // occupies in `to.buffer` - used by test harnesses to build an annotated disassembly listing
@@ -827,4 +686,4 @@ bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness
 // instruction; `regs` is empty in that case.
 using InstEmitCallback = void (*)(void* ctx, LowerInst* inst, const InstRegs& regs, U32 startOffset, U32 endOffset);
 
-void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction& fun, FunctionRegs& regs, InstEmitCallback onInst = nullptr, void* onInstCtx = nullptr);
+void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction& fun, const MachineFunction& machine, FunctionRegs& regs, InstEmitCallback onInst = nullptr, void* onInstCtx = nullptr);

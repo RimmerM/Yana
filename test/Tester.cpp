@@ -337,7 +337,8 @@ void generateLowerTest(const String& path, StringView content) {
 
     auto base = *module.arena;
     for(auto& f: module.functions) {
-        transformFunction(base, *base[f]);
+        MachineFunction machine;
+        transformFunction(context, base, *base[f], machine);
     }
 
     auto expectPath = path + String(".expect");

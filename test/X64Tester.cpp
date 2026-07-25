@@ -94,39 +94,42 @@ static void writeAddressDetail(Net::Writer& w, LowerInst& inst) {
     writeSigned(w, I64(I32(address.displacement)));
 }
 
-static void writeRegName(Net::Writer& w, RegId id) {
-    if(id == kInvalidReg) {
-        w.writeString("-"_v);
-        return;
-    }
-
+static void writeRegName(Net::Writer& w, MachineLocation at) {
     static const char* intNames[16] = {
         "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
         "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
     };
 
-    auto cls = getRegClass(id);
-    auto idx = getRegIndex(id);
+    auto idx = at.index;
 
-    if(cls == GenReg && idx < 16) {
-        w.writeString(StringView { intNames[idx], strlen(intNames[idx]) });
-    } else if(cls == XmmReg) {
-        w.writeString("xmm"_v);
-        writeInt(w, idx);
-    } else if(cls == StackReg) {
-        w.writeString("stack:"_v);
-        writeInt(w, idx);
-    } else if(cls == RematReg) {
-        // Not a place at all: the value is recreated wherever it is read, and the index names the
-        // recipe in FunctionRegs::remats that does it.
-        w.writeString("remat:"_v);
-        writeInt(w, idx);
-    } else {
-        w.writeString("?"_v);
+    switch(at.kind) {
+        case LocationKind::Invalid:
+            w.writeString("-"_v);
+            break;
+        case LocationKind::Physical:
+            if(at.bank == BankGpr && idx < 16) {
+                w.writeString(StringView { intNames[idx], strlen(intNames[idx]) });
+            } else if(at.bank == BankVector) {
+                w.writeString("xmm"_v);
+                writeInt(w, idx);
+            } else {
+                w.writeString("?"_v);
+            }
+            break;
+        case LocationKind::StackSlot:
+            w.writeString("stack:"_v);
+            writeInt(w, idx);
+            break;
+        case LocationKind::Rematerializable:
+            // Not a place at all: the value is recreated wherever it is read, and the index names
+            // the recipe in FunctionRegs::remats that does it.
+            w.writeString("remat:"_v);
+            writeInt(w, idx);
+            break;
     }
 }
 
-static void writeRegList(Net::Writer& w, const Array<RegId>& regs) {
+static void writeRegList(Net::Writer& w, const Array<MachineLocation>& regs) {
     w.writeByte('[');
     for(Size i = 0; i < regs.size(); i++) {
         if(i > 0) w.writeString(", "_v);
@@ -192,11 +195,12 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
     for(auto fo: module.functions) {
         auto fun = base[fo];
 
-        transformFunction(base, *fun);
-        auto regs = allocateRegisters(context, base, *fun);
+        MachineFunction machine;
+        transformFunction(context, base, *fun, machine);
+        auto regs = allocateRegisters(context, base, *fun, machine);
 
         traces.push();
-        genFunction(context, base, asm_, *fun, regs, &onEmitInst, &traces[traces.size() - 1]);
+        genFunction(context, base, asm_, *fun, machine, regs, &onEmitInst, &traces[traces.size() - 1]);
     }
 
     // After all code, so the two never interleave - see AsmModule::addGlobal.

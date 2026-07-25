@@ -61,26 +61,15 @@
  * this changes - it turns "wrong code in a shape nothing tests" into an assertion.
  */
 
-// Instruction kinds whose x86 encoding is destructive two-address: the result is written over the
-// register holding used()[0]. Mul/Div/Rem are excluded - their result register is forced by
-// InstConstraints instead, regardless of where the first operand sits.
+// Whether this instruction's selected encoding writes its result over one of its own operands - the
+// destructive two-address rule, which is the shape most of the AMD64 ALU takes.
 //
-// IMul is the one kind where this depends on the operands: `imul r, r/m, imm` is a true
-// three-operand form, so only the register-by-register encoding is destructive. genIMul picks the
-// same way round.
-static bool isDestructive(LowerBase base, LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Neg: case LowerInst::Not: case LowerInst::X86Bswap:
-        case LowerInst::Add: case LowerInst::Sub:
-        case LowerInst::Shl: case LowerInst::Shr: case LowerInst::Sar:
-        case LowerInst::And: case LowerInst::Or: case LowerInst::Xor:
-        case LowerInst::Select:
-            return true;
-        case LowerInst::IMul:
-            return !isImm(base[((LowerInstBinary*)inst)->rhs]);
-        default:
-            return false;
-    }
+// A property of the selected form rather than of the instruction kind, which is what lets the two
+// IMUL encodings differ: `imul r, r/m` reuses its destination as a source, while the three-operand
+// `imul r, r/m, imm` writes somewhere of its own. Division is not destructive at all - its result
+// register is fixed by the encoding regardless of where the first operand sits.
+static I32 tiedOperandOf(const MachineFunction& machine, LowerInst* inst) {
+    return machine.formOf(inst).tiedResult();
 }
 
 /*
@@ -156,11 +145,11 @@ static void sequenceMoves(Array<RegMove>& pending, Array<RegMove>& out) {
             auto& move = pending[i];
             done[i] = true;
 
-            RegId reads;
+            MachineLocation reads;
 
-            if(isSlot(move.from) || isSlot(move.to) || isRemat(move.from)) {
+            if(move.from.isStack() || move.to.isStack() || move.from.isRemat()) {
                 // No exchange to reach for: park the destination somewhere first.
-                auto scratch = moveTemp(GenReg, 0);
+                auto scratch = MachineLocation::physical(moveTemp(move.to.isPhysical() ? move.to.bank : BankGpr, 0));
                 out.push(RegMove { move.to, scratch });
                 out.push(RegMove { move.from, move.to });
                 reads = scratch;
@@ -180,9 +169,9 @@ static void sequenceMoves(Array<RegMove>& pending, Array<RegMove>& out) {
     // above is decided on the transfers the caller asked for, and each expansion stays an adjacent
     // pair - which is what lets them all share one scratch.
     for(auto i = begin; i < out.size(); i++) {
-        if(isPhysicalLocation(out[i].from) || !isSlot(out[i].to)) continue;
+        if(out[i].from.isPhysical() || !out[i].to.isStack()) continue;
 
-        auto scratch = moveTemp(GenReg, 1);
+        auto scratch = MachineLocation::physical(moveTemp(BankGpr, 1));
         auto to = out[i].to;
 
         out[i].to = scratch;
@@ -228,7 +217,7 @@ struct WebInfo {
     // is live.
     RegSet avoid;
 
-    RegId home = kInvalidReg;
+    MachineLocation home;
 
     // What this web costs if it does not get a register, by either of the two ways of not having
     // one - see computeSpillCosts. Both are in the same units, so they can be compared with each
@@ -265,31 +254,35 @@ struct WebInfo {
  * function that puts a value in it also gives up being walkable through the frame-pointer chain, so
  * it is worth having only when the alternative is a frame slot - which is what being last means.
  */
-static void buildOrder(const CallConvention& convention, RegClass cls, U16* out) {
+static void buildOrder(const CallConvention& convention, RegisterBankId bank, U16* out, Size& outCount) {
     Size count = 0;
     auto framePointer = framePointerReg();
+    auto registers = targetRegisters().bank(bank).physicalCount;
 
     auto append = [&](Size i) {
-        if(makeRegId(cls, U16(i)) == framePointer) return; // last, below
+        if(PhysicalReg { bank, U16(i) } == framePointer) return; // last, below
         out[count++] = U16(i);
     };
 
-    for(Size i = 0; i < kRegCount; i++) {
-        if(convention.clobber.has(makeRegId(cls, U16(i)))) append(i);
+    for(Size i = 0; i < registers; i++) {
+        if(convention.clobber.has(PhysicalReg { bank, U16(i) })) append(i);
     }
 
-    for(Size i = 0; i < kRegCount; i++) {
-        if(!convention.clobber.has(makeRegId(cls, U16(i)))) append(i);
+    for(Size i = 0; i < registers; i++) {
+        if(!convention.clobber.has(PhysicalReg { bank, U16(i) })) append(i);
     }
 
-    if(cls == getRegClass(framePointer)) out[count++] = getRegIndex(framePointer);
-    assertTrue(count == kRegCount); // every register is in the order exactly once
+    if(bank == framePointer.bank) out[count++] = framePointer.index;
+
+    assertTrue(count == registers); // every register is in the order exactly once
+    outCount = count;
 }
 
 struct Allocator {
     LowerBase base;
     LowerFunction& fun;
     Liveness& live;
+    const MachineFunction& machine;
     const Constraints& constraints;
 
     // Which web each value belongs to, indexed by LiveId, and the webs themselves. Union-find while
@@ -300,14 +293,15 @@ struct Allocator {
     // Everything already placed in each register. A list rather than a single occupant because
     // intervals have holes: several webs can share one register over the function as long as no two
     // of them are ever live at the same point.
-    Array<LiveId> occupants[kPhysRegClassCount][kRegCount];
+    Array<LiveId> occupants[kRegisterBankCount][kMaxRegistersPerBank];
 
     // The registers a value can be handed, held once rather than rebuilt at every assignment.
     RegSet allocatable = allocatableRegs();
 
-    // The order to try them in, per class - see buildOrder. Registers this function's own
+    // The order to try them in, per bank - see buildOrder. Registers this function's own
     // convention lets it destroy come first, since taking one of those costs nothing at all.
-    U16 order[kPhysRegClassCount][kRegCount] = {};
+    U16 order[kRegisterBankCount][kMaxRegistersPerBank] = {};
+    Size orderCount[kRegisterBankCount] = {};
 
     // Every register the function writes: the ones handed out to values, plus the ones instructions
     // clobber or are forced to write behind a value's back. The callee-saved ones among them are
@@ -346,15 +340,18 @@ struct Allocator {
     // instruction that touches it. See allocateRegisters.
     bool needsScratch = false;
 
-    Allocator(LowerBase base, LowerFunction& fun, Liveness& live, const Constraints& constraints, RegSet reserved, const Array<bool>& forceSpill):
-        base(base), fun(fun), live(live), constraints(constraints), forceSpill(forceSpill)
+    Allocator(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
+        const Constraints& constraints, RegSet reserved, const Array<bool>& forceSpill):
+        base(base), fun(fun), live(live), machine(machine), constraints(constraints), forceSpill(forceSpill)
     {
         // Whatever is held back - the scratch registers, and rbp in a function that establishes a
         // frame pointer - is not available to hand out as a home.
         allocatable = reserved.complement(allocatable);
 
         auto& convention = constraints.getConvention(fun.callType);
-        for(Size cls = 0; cls < kPhysRegClassCount; cls++) buildOrder(convention, RegClass(cls), order[cls]);
+        for(Size bank = 0; bank < kRegisterBankCount; bank++) {
+            buildOrder(convention, RegisterBankId(bank), order[bank], orderCount[bank]);
+        }
 
         for(Size i = 0; i < live.valueMap.size(); i++) {
             webOf.push(LiveId(i));
@@ -381,9 +378,9 @@ struct Allocator {
 
     // Where a value lives. Reading this before its web has been placed means the walk reached a use
     // before the definition, which the reverse-postorder block order rules out.
-    RegId homeOf(LowerValue* v) {
+    MachineLocation homeOf(LowerValue* v) {
         auto home = webFor(v).home;
-        assertTrue(home != kInvalidReg);
+        assertTrue(home.isValid());
         return home;
     }
 
@@ -391,24 +388,43 @@ struct Allocator {
     // Comparing whole intervals rather than an endpoint against the walk's current position is what
     // lets a phi be placed at whichever predecessor edge reaches it first, and what lets a register
     // be reused across a web's holes.
-    bool isFree(RegClass cls, Size index, const LiveInterval& interval) {
-        for(auto id: occupants[cls][index]) {
-            if(webs[id].interval().overlaps(interval)) return false;
+    //
+    // Occupancy is tracked per *unit* rather than per register name, because two views of one
+    // register are the same storage. Today every class covers its register completely and a unit is
+    // a register, so this is one iteration; the loop is what stops that from being an assumption.
+    bool isFree(RegisterClassId cls, PhysicalReg reg, const LiveInterval& interval) {
+        auto units = targetRegisters().viewOf(cls, reg).units;
+
+        for(Size i = 0; units; i++, units >>= 1) {
+            if(!(units & 1)) continue;
+
+            for(auto id: occupants[reg.bank][i]) {
+                if(webs[id].interval().overlaps(interval)) return false;
+            }
         }
 
         return true;
     }
 
+    void occupy(RegisterClassId cls, PhysicalReg reg, LiveId webId) {
+        auto units = targetRegisters().viewOf(cls, reg).units;
+
+        for(Size i = 0; units; i++, units >>= 1) {
+            if(units & 1) occupants[reg.bank][i].push(webId);
+        }
+    }
+
     // Places the web `v` belongs to, preferring `hint` so that a copy the encoder would otherwise
     // have to emit collapses into a no-op. A web that is already placed keeps what it has: every
     // value in it is one definition of a single quantity living in a single location.
-    RegId assign(LowerValue* v, RegSet extraAvoid, RegId hint) {
+    MachineLocation assign(LowerValue* v, RegSet extraAvoid, MachineLocation hint) {
         auto webId = webIdOf(v);
         auto& info = webs[webId];
 
-        if(info.home != kInvalidReg) return info.home;
+        if(info.home.isValid()) return info.home;
 
         auto cls = classForType(v->type);
+        auto bank = targetRegisters().regClass(cls).bank;
         auto avoid = info.avoid | extraAvoid;
         auto interval = info.interval();
 
@@ -416,18 +432,20 @@ struct Allocator {
         if(forceSpill[webId]) return assignHomeless(webId, v->type, interval);
 
         auto usable = [&](Size i) {
-            auto reg = makeRegId(cls, U16(i));
+            auto reg = PhysicalReg { bank, U16(i) };
             if(!allocatable.has(reg) || avoid.has(reg)) return false;
-            return isFree(cls, i, interval);
+            if(!targetRegisters().regClass(cls).allowedPhysical.has(reg)) return false;
+            return isFree(cls, reg, interval);
         };
 
-        Size chosen = kRegCount;
+        auto registers = orderCount[bank];
+        Size chosen = registers;
 
-        if(hint != kInvalidReg && getRegClass(hint) == cls && usable(getRegIndex(hint))) {
-            chosen = getRegIndex(hint);
+        if(hint.isPhysical() && hint.bank == bank && usable(hint.index)) {
+            chosen = hint.index;
         } else {
-            for(auto i: order[cls]) {
-                if(usable(i)) { chosen = i; break; }
+            for(Size i = 0; i < registers; i++) {
+                if(usable(order[bank][i])) { chosen = order[bank][i]; break; }
             }
         }
 
@@ -440,14 +458,15 @@ struct Allocator {
         // it is *recorded* instead, and the next attempt starts with it homeless, which leaves its
         // register free at the point that wanted it. A function that gets this far is being
         // allocated more than once regardless.
-        if(chosen == kRegCount) {
+        if(chosen == registers) {
             recordEviction(cls, avoid, interval, info.homelessCost());
             return assignHomeless(webId, v->type, interval);
         }
 
-        info.home = makeRegId(cls, chosen);
-        occupants[cls][chosen].push(webId);
-        written.add(info.home);
+        auto reg = PhysicalReg { bank, U16(chosen) };
+        info.home = MachineLocation::physical(reg);
+        occupy(cls, reg, webId);
+        written.add(reg);
         return info.home;
     }
 
@@ -455,25 +474,30 @@ struct Allocator {
     // less than `budget` - what the web asking for a register is about to pay for not having one.
     // Every occupant whose life overlaps has to go, since the register is only free for the new web
     // when all of them have.
-    void recordEviction(RegClass cls, const RegSet& avoid, const LiveInterval& interval, U32 budget) {
-        Size best = kRegCount;
+    void recordEviction(RegisterClassId cls, const RegSet& avoid, const LiveInterval& interval, U32 budget) {
+        auto bank = targetRegisters().regClass(cls).bank;
+        auto registers = orderCount[bank];
+
+        Size best = registers;
         auto bestCost = budget;
 
-        for(auto i: order[cls]) {
-            auto reg = makeRegId(cls, U16(i));
+        for(Size k = 0; k < registers; k++) {
+            auto i = order[bank][k];
+            auto reg = PhysicalReg { bank, U16(i) };
             if(!allocatable.has(reg) || avoid.has(reg)) continue;
+            if(!targetRegisters().regClass(cls).allowedPhysical.has(reg)) continue;
 
             U32 cost = 0;
-            for(auto id: occupants[cls][i]) {
+            for(auto id: occupants[bank][i]) {
                 if(webs[id].interval().overlaps(interval)) cost += webs[id].homelessCost();
             }
 
             if(cost < bestCost) { bestCost = cost; best = i; }
         }
 
-        if(best == kRegCount) return;
+        if(best == registers) return;
 
-        for(auto id: occupants[cls][best]) {
+        for(auto id: occupants[bank][best]) {
             if(webs[id].interval().overlaps(interval)) evicted.push(id);
         }
     }
@@ -481,13 +505,13 @@ struct Allocator {
     // A web that is not getting a register. There are two ways to do without one and they cost
     // differently: recreating the value wherever it is read, or keeping it in the frame and bringing
     // it back at each instruction that cannot read a memory operand. computeSpillCosts priced both.
-    RegId assignHomeless(LiveId webId, LowerType type, const LiveInterval& interval) {
+    MachineLocation assignHomeless(LiveId webId, LowerType type, const LiveInterval& interval) {
         auto& info = webs[webId];
         needsScratch = true;
 
         if(info.canRemat && info.rematCost < info.spillCost) {
             remats.push(info.recipe);
-            info.home = makeRegId(RematReg, U16(remats.size() - 1));
+            info.home = MachineLocation::remat(RematId(remats.size() - 1));
             return info.home;
         }
 
@@ -497,7 +521,7 @@ struct Allocator {
     // Gives a web a slot in the frame, reusing one whose current occupants are never live at the
     // same time. Slots are recycled by exactly the rule registers are, so the frame ends up as large
     // as the peak number of simultaneously spilled webs rather than as large as their total.
-    RegId assignSlot(LiveId webId, LowerType type, const LiveInterval& interval) {
+    MachineLocation assignSlot(LiveId webId, LowerType type, const LiveInterval& interval) {
         auto& info = webs[webId];
         auto slotClass = stackSlotClassFor(type);
 
@@ -515,7 +539,7 @@ struct Allocator {
             if(!free) continue;
 
             slotOccupants[i].push(webId);
-            info.home = makeRegId(StackReg, U16(i));
+            info.home = MachineLocation::stack(StackSlotId(i));
             return info.home;
         }
 
@@ -530,7 +554,7 @@ struct Allocator {
         while(slotOccupants.size() <= slot) slotOccupants.push();
         slotOccupants[slot].push(webId);
 
-        info.home = makeRegId(StackReg, slot);
+        info.home = MachineLocation::stack(slot);
         return info.home;
     }
 };
@@ -626,7 +650,7 @@ static void computeAvoidSets(Allocator& a) {
         auto block = a.base[offset];
 
         auto onInst = [&](LowerInst* inst) {
-            auto shape = shapeOf(a.base, a.constraints, a.fun, inst);
+            auto shape = shapeOf(a.base, a.machine, a.constraints, a.fun, inst);
             auto mask = writtenRegisters(shape);
             a.written |= mask;
 
@@ -769,14 +793,14 @@ static void computeSpillCosts(Allocator& a) {
         auto weight = blockWeight(block);
 
         auto onInst = [&](LowerInst* inst) {
-            auto shape = shapeOf(a.base, a.constraints, a.fun, inst);
+            auto shape = shapeOf(a.base, a.machine, a.constraints, a.fun, inst);
 
             // The one operand this instruction could leave in the frame, if any. A read-modify-write
             // form takes precedence: it makes both the read and the write free, where a memory
             // source only makes the read free, and the two want the same r/m field.
-            auto folded = memoryUseOperand(a.base, inst);
-            auto inPlace = isInPlace(a, inst, memoryDefOperand(a.base, inst));
-            if(inPlace) folded = memoryDefOperand(a.base, inst);
+            auto folded = memoryUseOperand(a.base, a.machine, inst);
+            auto inPlace = isInPlace(a, inst, memoryDefOperand(a.base, a.machine, inst));
+            if(inPlace) folded = memoryDefOperand(a.base, a.machine, inst);
 
             auto used = inst->used();
             for(Size i = 0; i < used.size(); i++) {
@@ -825,17 +849,17 @@ struct Emitter {
     // Scratch registers handed out within the instruction currently being resolved, reset for each
     // one. A value whose home is a frame slot cannot be read by an encoder, so it is brought into
     // one of these first - and taken back to the frame afterwards if the instruction wrote it.
-    Size tempsUsed[kPhysRegClassCount] = {};
+    Size tempsUsed[kRegisterBankCount] = {};
 
     explicit Emitter(Allocator& a): a(a), base(a.base) {}
 
-    RegId takeTemp(RegClass cls) {
-        auto index = tempsUsed[cls]++;
+    MachineLocation takeTemp(RegisterBankId bank) {
+        auto index = tempsUsed[bank]++;
         assertTrue(index < kMaxSpillTemps); // an instruction wanting more scratch than is reserved
 
-        auto reg = spillTemp(cls, index);
+        auto reg = spillTemp(bank, index);
         a.written.add(reg);
-        return reg;
+        return MachineLocation::physical(reg);
     }
 
     // Where the encoder reads operand `i`, given that the destructive destination (if any) has
@@ -848,44 +872,44 @@ struct Emitter {
     //
     // `reserve` is false when the caller only wants to know where a sibling operand will be read
     // from, so that asking twice does not consume two scratch registers for one operand.
-    RegId useLocation(LowerInst* inst, const InstShape& shape, Size i, RegId destructiveReg, bool memoryDest, bool reserve) {
+    MachineLocation useLocation(LowerInst* inst, const InstShape& shape, Size i, MachineLocation destructiveReg, bool memoryDest, bool reserve) {
         auto v = base[inst->used()[i]];
-        if(isImplicit(v)) return kInvalidReg;
+        if(isImplicit(v)) return MachineLocation::invalid();
 
         // A fixed-register operand is loaded straight into the register the instruction demands,
         // whether it comes from another register, from the frame or from a recipe - no scratch
         // needed in any of the three.
         auto want = wantForUse(shape, i);
-        if(want != kInvalidReg) return want;
-        if(i == 0 && destructiveReg != kInvalidReg) return destructiveReg;
+        if(want.isValid()) return want;
+        if(i == 0 && destructiveReg.isValid()) return destructiveReg;
 
         auto home = a.homeOf(v);
-        if(isPhysicalLocation(home)) return home;
+        if(home.isPhysical()) return home;
 
         // A slot this instruction can address directly stays where it is: the encoder takes the
         // memory form of the operation and the reload never exists.
-        if(isSlot(home) && !memoryDest && memoryUseOperand(base, inst) == I32(i)) return home;
+        if(home.isStack() && !memoryDest && memoryUseOperand(base, a.machine, inst) == I32(i)) return home;
 
-        auto cls = classForType(v->type);
-        return reserve ? takeTemp(cls) : spillTemp(cls, tempsUsed[cls]);
+        auto bank = bankForType(v->type);
+        return reserve ? takeTemp(bank) : MachineLocation::physical(spillTemp(bank, tempsUsed[bank]));
     }
 
     // The register a freshly defined value would rather have: the one its source operand is about
     // to vacate, so that the copy the encoder would emit becomes `mov r, r` and disappears.
-    RegId copyHint(LowerInst* inst, U32 index) {
+    MachineLocation copyHint(LowerInst* inst, U32 index) {
         auto used = inst->used();
-        if(used.size() == 0) return kInvalidReg;
+        if(used.size() == 0) return MachineLocation::invalid();
 
         auto source = base[used[0]];
-        if(isImplicit(source)) return kInvalidReg;
+        if(isImplicit(source)) return MachineLocation::invalid();
 
         auto& web = a.webFor(source);
         auto interval = web.interval();
-        if(web.home == kInvalidReg || interval.isEmpty()) return kInvalidReg;
+        if(!web.home.isValid() || interval.isEmpty()) return MachineLocation::invalid();
 
         // Only if the operand is genuinely finished with the register here: a value still live
         // after this instruction cannot hand its register to the result.
-        if(interval.last() > afterInst(index)) return kInvalidReg;
+        if(interval.last() > afterInst(index)) return MachineLocation::invalid();
 
         return web.home;
     }
@@ -896,7 +920,7 @@ struct Emitter {
 
         for(auto& used: tempsUsed) used = 0;
 
-        auto shape = shapeOf(base, a.constraints, a.fun, inst);
+        auto shape = shapeOf(base, a.machine, a.constraints, a.fun, inst);
         auto used = inst->used();
         auto created = inst->created();
 
@@ -905,24 +929,31 @@ struct Emitter {
         // the result. It must also avoid wherever the *other* operands are read from - the copy
         // that puts used()[0] there runs before the instruction, and would otherwise overwrite a
         // sibling operand that the instruction has not read yet.
-        RegId destructiveReg = kInvalidReg;
+        MachineLocation destructiveReg;
         bool memoryDest = false;
 
-        if(isDestructive(base, inst) && used.size() > 0 && created.size() > 0 && !isImplicit(&created[0])) {
+        // The form states which operand the result is written over, if any. Every one described so
+        // far ties to operand zero, which is what the code below assumes when it copies that operand
+        // into the result's register; a form tying to any other would need that copy to move.
+        auto tied = tiedOperandOf(a.machine, inst);
+        assertTrue(tied <= 0); // a result tied to an operand other than the first
+
+        if(tied == 0 && used.size() > 0 && created.size() > 0 && !isImplicit(&created[0])) {
             RegSet blocked;
             for(Size i = 1; i < used.size(); i++) {
-                blocked.add(useLocation(inst, shape, i, kInvalidReg, false, false));
+                auto at = useLocation(inst, shape, i, MachineLocation::invalid(), false, false);
+                if(at.isPhysical()) blocked.add(at.physicalReg());
             }
 
             destructiveReg = a.assign(&created[0], blocked, copyHint(inst, index));
 
-            if(isSlot(destructiveReg)) {
+            if(destructiveReg.isStack()) {
                 // The result lives in the frame. Where the encoding has a form that writes its
                 // destination through the r/m field and the operand it overwrites already occupies
                 // that very slot, the whole operation happens in place - `add [rsp+8], rcx` - and
                 // neither the reload nor the store exists. This is what a coalesced loop-carried
                 // accumulator looks like once it has been spilled.
-                auto memoryOperand = memoryDefOperand(base, inst);
+                auto memoryOperand = memoryDefOperand(base, a.machine, inst);
                 auto first = base[used[0]];
 
                 memoryDest = memoryOperand == 0 && !isImplicit(first) && a.homeOf(first) == destructiveReg;
@@ -931,7 +962,7 @@ struct Emitter {
                 // operand it overwrites has to be brought into that same one.
                 if(!memoryDest) {
                     auto slot = destructiveReg;
-                    destructiveReg = takeTemp(classForType(created[0].type));
+                    destructiveReg = takeTemp(bankForType(created[0].type));
                     out.postMoves.push(RegMove { destructiveReg, slot });
                 }
             }
@@ -942,7 +973,7 @@ struct Emitter {
             auto location = useLocation(inst, shape, i, destructiveReg, memoryDest, true);
 
             out.uses.push(location);
-            if(location != kInvalidReg && location != a.homeOf(v)) {
+            if(location.isValid() && location != a.homeOf(v)) {
                 pending.push(RegMove { a.homeOf(v), location });
             }
         }
@@ -951,25 +982,25 @@ struct Emitter {
             auto& v = created[i];
 
             if(isImplicit(&v)) {
-                out.creates.push(kInvalidReg);
+                out.creates.push(MachineLocation::invalid());
                 continue;
             }
 
-            if(i == 0 && destructiveReg != kInvalidReg) {
+            if(i == 0 && destructiveReg.isValid()) {
                 out.creates.push(destructiveReg);
                 continue;
             }
 
             auto want = wantForResult(shape, i);
-            auto home = a.assign(&v, RegSet {}, want != kInvalidReg ? want : copyHint(inst, index));
+            auto home = a.assign(&v, RegSet {}, want.isValid() ? want : copyHint(inst, index));
 
             // Where the encoder has to write it, which is the home unless the home is a frame slot
             // this instruction has no destination form for, or the encoding forces a particular
             // register. A recipe stays a recipe: nothing is written anywhere, and the instruction
             // that would have defined the value emits nothing at all.
             auto at = home;
-            if(want != kInvalidReg) at = want;
-            else if(isSlot(home)) at = takeTemp(classForType(v.type));
+            if(want.isValid()) at = want;
+            else if(home.isStack()) at = takeTemp(bankForType(v.type));
 
             out.creates.push(at);
 
@@ -1009,7 +1040,7 @@ struct Emitter {
             // Coalesced: the two are one location and the transfer is an identity that never has
             // to be emitted. The web is placed by whichever of its members the walk reaches first.
             if(a.sameWeb(value, &result)) {
-                a.assign(&result, RegSet {}, kInvalidReg);
+                a.assign(&result, RegSet {}, MachineLocation::invalid());
                 continue;
             }
 
@@ -1041,7 +1072,7 @@ static void assignArgs(Allocator& a, const CallConvention& convention, Array<Reg
         auto& result = a.base[args[i]]->result;
         if(isImplicit(&result)) continue;
 
-        auto incoming = locations[i].reg;
+        auto incoming = MachineLocation::physical(locations[i].reg);
 
         if(locations[i].kind == ArgLocation::Stack) {
             // The caller left this one in the argument area, at the offset the convention gave it -
@@ -1060,7 +1091,7 @@ static void assignArgs(Allocator& a, const CallConvention& convention, Array<Reg
             // register argument that had to be moved somewhere safe. Leaving it in the frame and
             // reading it from memory at each use is the same mechanism as reading a spilled value,
             // and arrives with the instruction-local legalization that spilling brings.
-            incoming = makeRegId(StackReg, slot);
+            incoming = MachineLocation::stack(slot);
         }
 
         // An argument nothing reads is dead the moment it arrives, so it gets no home. Giving it one
@@ -1106,7 +1137,7 @@ static void collectFrameObjects(Allocator& a) {
             }
 
             if(inst->kind == LowerInst::Call) {
-                auto shape = shapeOf(a.base, a.constraints, a.fun, inst);
+                auto shape = shapeOf(a.base, a.machine, a.constraints, a.fun, inst);
                 auto& convention = *shape.convention;
 
                 if(convention.stackAlignment > a.frame.callAlignment) {
@@ -1126,10 +1157,10 @@ static void collectFrameObjects(Allocator& a) {
 // naming the webs a previous attempt asked to be left homeless. See allocateRegisters for what makes
 // an attempt ask for another.
 static FunctionRegs allocateWith(Context& ctx, LowerBase base, LowerFunction& fun, Liveness& live,
-    const Constraints& constraints, RegSet reserved, bool framePointer,
+    const MachineFunction& machine, const Constraints& constraints, RegSet reserved, bool framePointer,
     const Array<bool>& forceSpill, bool& needsScratch, Array<LiveId>& evicted)
 {
-    Allocator a(base, fun, live, constraints, reserved, forceSpill);
+    Allocator a(base, fun, live, machine, constraints, reserved, forceSpill);
     collectFrameObjects(a);
 
     // Webs before avoid sets: a clobber that one member has to dodge is one the whole web has to
@@ -1204,7 +1235,15 @@ static FunctionRegs allocateWith(Context& ctx, LowerBase base, LowerFunction& fu
     // prologue saves exactly these and the epilogue restores them; a function that never left its
     // convention's clobber set saves nothing.
     result.usedCalleeSaved = a.written & constraints.getConvention(fun.callType).calleeSaved;
-    assertTrue(result.usedCalleeSaved.classes[XmmReg] == 0); // no encoder saves a vector register yet
+
+    // The register model already describes banks whose moves, spills and encodings do not exist -
+    // see the note on `reg` in gen.cpp. A location in one reaching emission would be written out as
+    // an integer instruction with a vector register number in it, which is wrong in a way nothing
+    // downstream can notice, so it is rejected here where the location was chosen.
+    assertTrue(result.usedCalleeSaved.banks[BankVector] == 0); // no encoder saves a vector register yet
+    for(auto home: result.allocation.locations) {
+        assertTrue(!home.isPhysical() || home.bank == BankGpr); // unimplemented register bank
+    }
 
     needsScratch = a.needsScratch;
     evicted = ::move(a.evicted);
@@ -1217,7 +1256,7 @@ static FunctionRegs allocateWith(Context& ctx, LowerBase base, LowerFunction& fu
 // an attempt is a complete, correct allocation whether or not another one would have been better.
 static constexpr Size kMaxEvictions = 16;
 
-FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun) {
+FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const MachineFunction& machine) {
     auto& constraints = targetConstraints();
     auto live = fun.buildLiveness(base);
 
@@ -1259,7 +1298,7 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun)
         bool needsScratch = false;
         Array<LiveId> evicted;
 
-        result = allocateWith(ctx, base, fun, *live, constraints, reserved, framePointer, forceSpill, needsScratch, evicted);
+        result = allocateWith(ctx, base, fun, *live, machine, constraints, reserved, framePointer, forceSpill, needsScratch, evicted);
         bool again = false;
 
         if(needsScratch && !scratchReserved) {
@@ -1282,6 +1321,6 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun)
     // Debug builds only - assertTrue compiles away entirely in a release build, taking the call
     // with it. The verifier walks the whole function symbolically, which is too expensive to pay
     // for on every compile, and it can only ever fail on a bug in the code just above it.
-    assertTrue(verifyAllocation(ctx, base, fun, *live, constraints, result));
+    assertTrue(verifyAllocation(ctx, base, fun, *live, machine, constraints, result));
     return result;
 }
