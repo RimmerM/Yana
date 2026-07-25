@@ -23,7 +23,7 @@ struct ConGen {
     U32 alignment;
 };
 
-static llvm::StringRef toRef(Context* context, Id name) {
+static llvm::StringRef toRef(Context* context, StringId name) {
     if(name == 0) return "";
 
     auto& v = context->find(name);

@@ -113,7 +113,7 @@ struct CodeBuilder {
 };
 
 static void appendExpr(CodeBuilder& b, Expr* e);
-static void formatFun(CodeBuilder& b, Id name, U32 localId, bool named, Variable* args, U32 argCount, Stmt* body);
+static void formatFun(CodeBuilder& b, StringId name, U32 localId, bool named, Variable* args, U32 argCount, Stmt* body);
 
 static bool isFieldName(const char* string, U32 length) {
     for(U32 i = 0; i < length; i++) {
@@ -129,7 +129,7 @@ static bool isFieldName(const char* string, U32 length) {
     return true;
 }
 
-static void appendVarName(CodeBuilder& b, Id name, U32 localId) {
+static void appendVarName(CodeBuilder& b, StringId name, U32 localId) {
     if(!b.minify && name) {
         auto id = b.context.find(name);
         b.writer.write(id.text, id.textLength);
@@ -158,7 +158,7 @@ static void appendVarName(CodeBuilder& b, Id name, U32 localId) {
     }
 }
 
-static void appendString(CodeBuilder& b, Id string) {
+static void appendString(CodeBuilder& b, StringId string) {
     b.writer << '"';
     auto id = b.context.find(string);
     for(U32 i = 0; i < id.textLength; i++) {
@@ -497,7 +497,7 @@ static void formatStmt(CodeBuilder& b, Stmt* stmt) {
     }
 }
 
-static void formatFun(CodeBuilder& b, Id name, U32 localId, bool named, Variable* args, U32 argCount, Stmt* body) {
+static void formatFun(CodeBuilder& b, StringId name, U32 localId, bool named, Variable* args, U32 argCount, Stmt* body) {
     if(named) {
         b.startLine();
         b.writer << "function ";

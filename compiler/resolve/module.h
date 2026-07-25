@@ -13,9 +13,9 @@ struct FunBuilder;
 
 struct Import {
     Module* module;
-    Id localName;
-    Array<Id> includedSymbols;
-    Array<Id> excludedSymbols;
+    StringId localName;
+    Array<StringId> includedSymbols;
+    Array<StringId> excludedSymbols;
     bool qualified;
 };
 
@@ -31,23 +31,23 @@ struct InstanceList {
 };
 
 struct Module {
-    Id id;
+    StringId id;
 
-    HashMap<Id, Import> imports;
-    HashMap<Id, Function> functions;
-    HashMap<Id, InstanceList*> typeInstances;
-    HashMap<Id, InstanceList*> namedTypeInstances;
-    HashMap<Id, ForeignFunction> foreignFunctions;
-    HashMap<Id, TypeClass> typeClasses;
-    HashMap<Id, InstanceMap> classInstances;
-    HashMap<Id, ClassFun*> classFunctions;
+    HashMap<StringId, Import> imports;
+    HashMap<StringId, Function> functions;
+    HashMap<StringId, InstanceList*> typeInstances;
+    HashMap<StringId, InstanceList*> namedTypeInstances;
+    HashMap<StringId, ForeignFunction> foreignFunctions;
+    HashMap<StringId, TypeClass> typeClasses;
+    HashMap<StringId, InstanceMap> classInstances;
+    HashMap<StringId, ClassFun*> classFunctions;
 
-    HashMap<Id, Type*> types;
-    HashMap<Id, Con*> cons;
-    HashMap<Id, OpProperties> ops;
-    HashMap<Id, Global> globals;
+    HashMap<StringId, Type*> types;
+    HashMap<StringId, Con*> cons;
+    HashMap<StringId, OpProperties> ops;
+    HashMap<StringId, Global> globals;
 
-    HashMap<Id, TupType*> usedTuples;
+    HashMap<StringId, TupType*> usedTuples;
 
     Function* staticInit = nullptr;
 
@@ -59,26 +59,26 @@ struct ModuleProvider {
     // Returns a module for the provided identifier if it was available.
     // If not, returns null and queues the module for loading and the caller for later completion.
     // The resolver should only resolve imports and then stop if any require call returns null.
-    virtual Module* getModule(Module* from, Id name) = 0;
+    virtual Module* getModule(Module* from, StringId name) = 0;
 };
 
-AliasType* defineAlias(Context* context, Module* in, Id name, Type* to, const Node* where);
-RecordType* defineRecord(Context* context, Module* in, Id name, U32 conCount, bool qualified, const Node* where);
-Con* defineCon(Context* context, Module* in, RecordType* to, Id name, U32 index, const Node* where);
-TypeClass* defineClass(Context* context, Module* in, Id name, U32 funCount, const Node* where);
+AliasType* defineAlias(Context* context, Module* in, StringId name, Type* to, const Node* where);
+RecordType* defineRecord(Context* context, Module* in, StringId name, U32 conCount, bool qualified, const Node* where);
+Con* defineCon(Context* context, Module* in, RecordType* to, StringId name, U32 index, const Node* where);
+TypeClass* defineClass(Context* context, Module* in, StringId name, U32 funCount, const Node* where);
 ClassInstance* defineInstance(Context* context, Module* in, TypeClass* to, Type** args, const Node* where);
-Function* defineFun(Context* context, Module* in, Id name, const Node* where);
+Function* defineFun(Context* context, Module* in, StringId name, const Node* where);
 Function* defineAnonymousFun(Context* context, Module* in);
-ForeignFunction* defineForeignFun(Context* context, Module* in, Id name, FunType* type, const Node* where);
-Global* defineGlobal(Context* context, Module* in, Id name, const Node* where);
-Arg* defineArg(Context* context, Function* fun, Block* block, Id name, Type* type, const Node* where);
-ClassFun* defineClassFun(Context* context, Module* module, TypeClass* typeClass, Id name, U32 index, const Node* where);
+ForeignFunction* defineForeignFun(Context* context, Module* in, StringId name, FunType* type, const Node* where);
+Global* defineGlobal(Context* context, Module* in, StringId name, const Node* where);
+Arg* defineArg(Context* context, Function* fun, Block* block, StringId name, Type* type, const Node* where);
+ClassFun* defineClassFun(Context* context, Module* module, TypeClass* typeClass, StringId name, U32 index, const Node* where);
 
-Type* findType(Context* context, Module* module, Id name);
-Con* findCon(Context* context, Module* module, Id name);
-OpProperties* findOp(Context* context, Module* module, Id name);
-Global* findGlobal(Context* context, Module* module, Id name);
-TypeClass* findClass(Context* context, Module* module, Id name);
+Type* findType(Context* context, Module* module, StringId name);
+Con* findCon(Context* context, Module* module, StringId name);
+OpProperties* findOp(Context* context, Module* module, StringId name);
+Global* findGlobal(Context* context, Module* module, StringId name);
+TypeClass* findClass(Context* context, Module* module, StringId name);
 ClassInstance* findInstance(Context* context, Module* module, TypeClass* typeClass, U32 index, Type** args);
 
 struct FoundFunction {
@@ -98,8 +98,8 @@ struct FoundFunction {
     bool found;
 };
 
-FoundFunction findFun(Context* context, Module* module, Id name);
-Function* findInstanceFun(Context* context, Module* module, Type* fieldType, Id name);
+FoundFunction findFun(Context* context, Module* module, StringId name);
+Function* findInstanceFun(Context* context, Module* module, Type* fieldType, StringId name);
 
 Module* resolveModule(Context* context, ModuleProvider* handler, ast::Module* ast);
 void resolveFun(Context* context, Function* fun, bool requireBody = true);
@@ -109,15 +109,15 @@ struct TypeContext {
     Buffer<Type*> genInstance;
 };
 
-Value* resolveExpr(FunBuilder* b, Type* targetType, ast::Expr* expr, Id name, bool used);
+Value* resolveExpr(FunBuilder* b, Type* targetType, ast::Expr* expr, StringId name, bool used);
 
-Id getDeclName(ast::VarDecl* expr);
+StringId getDeclName(ast::VarDecl* expr);
 
 struct Function {
     Function(): gen(this, GenEnv::Function) {}
 
     Module* module;
-    Id name;
+    StringId name;
     Node source;
 
     Type* returnType = nullptr;
@@ -130,7 +130,7 @@ struct Function {
     Type** instance = nullptr; // if instanceOf is set, this contains a list Type*[instanceOf->genCount].
 
     // If this function can be used as an intrinsic, this generates an inline version in the current block.
-    Value* (*intrinsic)(FunBuilder* b, Value** args, U32 count, Id name) = nullptr;
+    Value* (*intrinsic)(FunBuilder* b, Value** args, U32 count, StringId name) = nullptr;
 
     ast::FunDecl* ast = nullptr; // Set until the function is fully resolved.
     void* codegen = nullptr;
@@ -152,9 +152,9 @@ struct Function {
 
 struct ForeignFunction {
     Module* module;
-    Id name;
-    Id externalName;
-    Id from;
+    StringId name;
+    StringId externalName;
+    StringId from;
     FunType* type;
 
     ast::ForeignDecl* ast = nullptr; // Set until the type is fully resolved.

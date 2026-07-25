@@ -11,7 +11,7 @@
  * so we represent it in an abstract way in the IR.
  */
 
-Value* resolveDynCall(FunBuilder* b, Type* targetType, Value* callee, List<ast::TupArg>* argList, Id name) {
+Value* resolveDynCall(FunBuilder* b, Type* targetType, Value* callee, List<ast::TupArg>* argList, StringId name) {
     auto funType = (FunType*)canonicalType(callee->type);
     auto argCount = (U32)funType->argCount;
 
@@ -70,7 +70,7 @@ Value* resolveDynCall(FunBuilder* b, Type* targetType, Value* callee, List<ast::
     return callDyn(b->block, name, callee, funType->result, args, argCount, nullptr, false);
 }
 
-static FoundFunction resolveStaticFun(FunBuilder* b, Id funName, Value* fieldArg) {
+static FoundFunction resolveStaticFun(FunBuilder* b, StringId funName, Value* fieldArg) {
     FoundFunction f;
     f.found = false;
 
@@ -101,7 +101,7 @@ static FoundFunction resolveStaticFun(FunBuilder* b, Id funName, Value* fieldArg
     return f;
 }
 
-static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 count, Id name) {
+static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 count, StringId name) {
     auto argCount = (U32)fun->args.size();
 
     // If the call used incorrect argument names this error may not trigger.
@@ -129,12 +129,12 @@ static Value* finishStaticCall(FunBuilder* b, Function* fun, Value** args, U32 c
     }
 }
 
-static Value* finishForeignCall(FunBuilder* b, ForeignFunction* fun, Value** args, U32 count, Id name) {
+static Value* finishForeignCall(FunBuilder* b, ForeignFunction* fun, Value** args, U32 count, StringId name) {
     // TODO
     return nullptr;
 }
 
-static Value* finishClassCall(FunBuilder* b, ClassFun* fun, Value** args, U32 count, Id name) {
+static Value* finishClassCall(FunBuilder* b, ClassFun* fun, Value** args, U32 count, StringId name) {
     // If the call used incorrect argument names this error may not trigger.
     // However, in that case we already have an error for the argument name.
     if(count != fun->fun->args.size()) {
@@ -164,7 +164,7 @@ static Value* finishClassCall(FunBuilder* b, ClassFun* fun, Value** args, U32 co
     return finishStaticCall(b, f, args, count, name);
 }
 
-Value* genStaticCall(FunBuilder* b, Id funName, Value** args, U32 count, Id name) {
+Value* genStaticCall(FunBuilder* b, StringId funName, Value** args, U32 count, StringId name) {
     auto fun = resolveStaticFun(b, funName, nullptr);
     if(!fun.found) return nullptr;
 
@@ -178,7 +178,7 @@ Value* genStaticCall(FunBuilder* b, Id funName, Value** args, U32 count, Id name
     }
 }
 
-Value* resolveStaticCall(FunBuilder* b, Type* targetType, Id funName, Value* firstArg, List<ast::TupArg>* argList, Id name) {
+Value* resolveStaticCall(FunBuilder* b, Type* targetType, StringId funName, Value* firstArg, List<ast::TupArg>* argList, StringId name) {
     auto fun = resolveStaticFun(b, funName, firstArg);
     if(!fun.found) return nullptr;
 

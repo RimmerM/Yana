@@ -10,7 +10,7 @@ struct Block {
     Array<Inst*> instructions;
 
     // The defined values with a name in this block up to this point.
-    HashMap<Id, Value*> namedValues;
+    HashMap<StringId, Value*> namedValues;
 
     // All blocks that can branch to this one.
     Array<Block*> incoming;
@@ -44,12 +44,12 @@ struct Block {
     bool complete = false;
 
     Value* use(Value* value, Inst* user);
-    Inst* inst(Size size, Id name, Inst::Kind kind, Type* type);
-    Value* findValue(Id name);
+    Inst* inst(Size size, StringId name, Inst::Kind kind, Type* type);
+    Value* findValue(StringId name);
 };
 
 Block* block(Function* fun, bool deferAdd = false);
 
 // Updates the name of an existing value.
 // Overrides any existing value with this name in its block.
-void setName(Value* v, Id name);
+void setName(Value* v, StringId name);

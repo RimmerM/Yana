@@ -3,7 +3,7 @@
 #include <Core.h>
 
 using namespace Tritium;
-using Id = U32;
+using StringId = U32;
 
 struct Loc {
     U16 line;
@@ -12,7 +12,7 @@ struct Loc {
 };
 
 struct Node {
-    Id sourceModule = 0;
+    StringId sourceModule = 0;
     Loc sourceStart = {0, 0, 0};
     Loc sourceEnd = {0, 0, 0};
 
@@ -28,7 +28,7 @@ struct Node {
 };
 
 struct SourceProvider {
-    virtual StringView getSource(Id module) = 0;
+    virtual StringView getSource(StringId module) = 0;
 };
 
 struct Diagnostics {

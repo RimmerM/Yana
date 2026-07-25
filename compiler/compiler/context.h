@@ -81,24 +81,24 @@ struct Context {
     Diagnostics& diagnostics;
     CompileSettings settings;
 
-    void addOp(Id op, U16 prec = 9, Assoc assoc = Assoc::Left);
-    OpProperties findOp(Id op);
+    void addOp(StringId op, U16 prec = 9, Assoc assoc = Assoc::Left);
+    OpProperties findOp(StringId op);
 
-    static Id nameHash(const char* chars, Size count);
+    static StringId nameHash(const char* chars, Size count);
 
-    Id addUnqualifiedName(const char* chars, Size count);
-    Id addQualifiedName(const char* chars, Size count, Size segmentCount);
-    Id addQualifiedName(const char* chars, Size count);
-    Id addIdentifier(const Identifier& q);
-    Identifier& find(Id id);
-    String findName(Id id);
+    StringId addUnqualifiedName(const char* chars, Size count);
+    StringId addQualifiedName(const char* chars, Size count, Size segmentCount);
+    StringId addQualifiedName(const char* chars, Size count);
+    StringId addIdentifier(const Identifier& q);
+    Identifier& find(StringId id);
+    String findName(StringId id);
 
     Arena stringArena;
     Arena exprArena;
 
 private:
-    HashMap<Id, Identifier> identifiers;
-    HashMap<Id, OpProperties> ops;
+    HashMap<StringId, Identifier> identifiers;
+    HashMap<StringId, OpProperties> ops;
 };
 
 struct ArenaAllocator {

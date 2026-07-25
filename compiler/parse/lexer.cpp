@@ -438,7 +438,7 @@ void Lexer::skipWhitespace() {
     }
 }
 
-Id Lexer::parseStringLiteral() {
+StringId Lexer::parseStringLiteral() {
     // There is no real limit on the length of a string literal, so we use a dynamic array while parsing.
     Array<char> chars(128);
 

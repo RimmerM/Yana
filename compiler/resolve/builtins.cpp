@@ -3,7 +3,7 @@
 
 static IntType u8Type(8, IntType::Int);
 
-typedef Value* (*BinIntrinsic)(Block*, Id, Value*, Value*);
+typedef Value* (*BinIntrinsic)(Block*, StringId, Value*, Value*);
 
 template<BinIntrinsic F>
 static Function* binaryFunction(Context* context, Module* module, Type* type, const char* name, U32 length, Type* returnType = nullptr) {
@@ -17,14 +17,14 @@ static Function* binaryFunction(Context* context, Module* module, Type* type, co
     auto result = F(body, 0, lhs, rhs);
     ret(body, result);
 
-    fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+    fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
         return F(b->block, instName, args[0], args[1]);
     };
 
     return fun;
 }
 
-typedef Value* (*ConvertIntrinsic)(Block*, Id, Value*);
+typedef Value* (*ConvertIntrinsic)(Block*, StringId, Value*);
 
 template<ConvertIntrinsic F>
 static Function* convertFunction(Context* context, Module* module, Type* type, const char* name, U32 length) {
@@ -36,7 +36,7 @@ static Function* convertFunction(Context* context, Module* module, Type* type, c
     ret(body, result);
 
     fun->returnType = result->type;
-    fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+    fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
         return F(b->block, instName, args[0]);
     };
 
@@ -54,60 +54,60 @@ ClassInstance* convertInstance(Context* context, Module* module, Type* from, Typ
     return instance;
 }
 
-Value* sextToInt(Block* block, Id name, Value* arg) {
+Value* sextToInt(Block* block, StringId name, Value* arg) {
     return sext(block, name, arg, &intTypes[IntType::Int]);
 }
 
-Value* sextToLong(Block* block, Id name, Value* arg) {
+Value* sextToLong(Block* block, StringId name, Value* arg) {
     return sext(block, name, arg, &intTypes[IntType::Long]);
 }
 
-Value* fext32(Block* block, Id name, Value* arg) {
+Value* fext32(Block* block, StringId name, Value* arg) {
     return fext(block, name, arg, &floatTypes[FloatType::F32]);
 }
 
-Value* fext64(Block* block, Id name, Value* arg) {
+Value* fext64(Block* block, StringId name, Value* arg) {
     return fext(block, name, arg, &floatTypes[FloatType::F64]);
 }
 
-Value* itof32(Block* block, Id name, Value* arg) {
+Value* itof32(Block* block, StringId name, Value* arg) {
     return itof(block, name, arg, &floatTypes[FloatType::F32]);
 }
 
-Value* itof64(Block* block, Id name, Value* arg) {
+Value* itof64(Block* block, StringId name, Value* arg) {
     return itof(block, name, arg, &floatTypes[FloatType::F64]);
 }
 
-Value* truncToInt(Block* block, Id name, Value* arg) {
+Value* truncToInt(Block* block, StringId name, Value* arg) {
     return trunc(block, name, arg, &intTypes[IntType::Int]);
 }
 
-Value* truncToBool(Block* block, Id name, Value* arg) {
+Value* truncToBool(Block* block, StringId name, Value* arg) {
     return trunc(block, name, arg, &intTypes[IntType::Bool]);
 }
 
-Value* ftrunc16(Block* block, Id name, Value* arg) {
+Value* ftrunc16(Block* block, StringId name, Value* arg) {
     return ftrunc(block, name, arg, &floatTypes[FloatType::F16]);
 }
 
-Value* ftrunc32(Block* block, Id name, Value* arg) {
+Value* ftrunc32(Block* block, StringId name, Value* arg) {
     return ftrunc(block, name, arg, &floatTypes[FloatType::F32]);
 }
 
-Value* ftobool(Block* block, Id name, Value* arg) {
+Value* ftobool(Block* block, StringId name, Value* arg) {
     return ftoi(block, name, arg, &intTypes[IntType::Bool]);
 }
 
-Value* ftoint(Block* block, Id name, Value* arg) {
+Value* ftoint(Block* block, StringId name, Value* arg) {
     return ftoi(block, name, arg, &intTypes[IntType::Int]);
 }
 
-Value* ftolong(Block* block, Id name, Value* arg) {
+Value* ftolong(Block* block, StringId name, Value* arg) {
     return ftoi(block, name, arg, &intTypes[IntType::Long]);
 }
 
 template<class Cmp>
-using CmpIntrinsic = Value* (*)(Block*, Id, Value*, Value*, Cmp);
+using CmpIntrinsic = Value* (*)(Block*, StringId, Value*, Value*, Cmp);
 
 template<class Cmp, CmpIntrinsic<Cmp> F, Cmp cmp>
 static Function* cmpFunction(Context* context, Module* module, Type* type, const char* name, U32 length) {
@@ -121,7 +121,7 @@ static Function* cmpFunction(Context* context, Module* module, Type* type, const
     auto result = F(body, 0, lhs, rhs, cmp);
     ret(body, result);
 
-    fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+    fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
         return F(b->block, instName, args[0], args[1], cmp);
     };
 
@@ -581,7 +581,7 @@ Module* nativeModule(Context* context, Module* core) {
         store(body, 0, rhs, lhs);
         ret(body);
 
-        storeFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+        storeFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
             return store(b->block, instName, args[1], args[0]);
         };
     }
@@ -600,7 +600,7 @@ Module* nativeModule(Context* context, Module* core) {
         auto value = load(body, 0, lhs);
         ret(body, value);
 
-        loadFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+        loadFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
             return load(b->block, instName, args[0]);
         };
     }
@@ -620,7 +620,7 @@ Module* nativeModule(Context* context, Module* core) {
         auto v = addref(body, 0, lhs, rhs);
         ret(body, v);
 
-        addFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+        addFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
             return addref(b->block, instName, args[0], args[1]);
         };
     }
@@ -641,7 +641,7 @@ Module* nativeModule(Context* context, Module* core) {
         auto v = addref(body, 0, lhs, r);
         ret(body, v);
 
-        subFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+        subFunction->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
             auto rhs = sub(b->block, 0, constInt(b->block, 0, 0, args[1]->type), args[1]);
             return addref(b->block, instName, args[0], rhs);
         };
@@ -670,7 +670,7 @@ Module* nativeModule(Context* context, Module* core) {
         auto result = callDyn(body, 0, index, bytePtrType, args, i + 1, nullptr, true);
         ret(body, result);
 
-        fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, Id instName) -> Value* {
+        fun->intrinsic = [](FunBuilder* b, Value** args, U32 count, StringId instName) -> Value* {
             auto type = getRef(b->fun->module, &u8Type, false, false, true);
             return callDyn(b->block, instName, args[0], type, args + 1, count - 1, nullptr, true);
         };

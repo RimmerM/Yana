@@ -22,21 +22,21 @@ Value* implicitConvert(FunBuilder* b, Value* v, Type* targetType, bool isConstru
 bool alwaysTrue(Value* v);
 bool alwaysFalse(Value* v);
 
-Value* findVar(FunBuilder* b, Id name);
+Value* findVar(FunBuilder* b, StringId name);
 Value* useValue(FunBuilder* b, Value* value, bool asRV);
-Value* getField(FunBuilder* b, Value* value, Id name, U32 field, Type* type);
-Value* getNestedField(FunBuilder* b, Value* value, Id name, U32 firstField, U32 secondField, Type* type);
+Value* getField(FunBuilder* b, Value* value, StringId name, U32 field, Type* type);
+Value* getNestedField(FunBuilder* b, Value* value, StringId name, U32 firstField, U32 secondField, Type* type);
 
-Value* resolveStaticCall(FunBuilder* b, Type* targetType, Id funName, Value* firstArg, List<ast::TupArg>* argList, Id name);
-Value* resolveDynCall(FunBuilder* b, Type* targetType, Value* callee, List<ast::TupArg>* argList, Id name);
-Value* genStaticCall(FunBuilder* b, Id funName, Value** args, U32 count, Id name);
+Value* resolveStaticCall(FunBuilder* b, Type* targetType, StringId funName, Value* firstArg, List<ast::TupArg>* argList, StringId name);
+Value* resolveDynCall(FunBuilder* b, Type* targetType, Value* callee, List<ast::TupArg>* argList, StringId name);
+Value* genStaticCall(FunBuilder* b, StringId funName, Value** args, U32 count, StringId name);
 
 /*
  * AST-resolving functions.
  */
 
-Value* resolveLit(FunBuilder* b, Type* targetType, ast::Literal* lit, Id name);
-Value* resolveCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr, Id name);
+Value* resolveLit(FunBuilder* b, Type* targetType, ast::Literal* lit, StringId name);
+Value* resolveCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr, StringId name);
 
 // The matching context is used to determine whether a certain pattern will always succeed,
 // based on the other patterns that have been checked in the same context.

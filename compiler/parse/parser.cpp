@@ -26,7 +26,7 @@ inline Literal toLiteral(Token& tok) {
     return l;
 }
 
-inline Literal toStringLiteral(Id name) {
+inline Literal toStringLiteral(StringId name) {
     Literal l;
     l.s = name;
     l.type = Literal::String;
@@ -152,7 +152,7 @@ void Parser::parseImport() {
         qualified = true;
     }
 
-    Id name;
+    StringId name;
     if(token.type == Token::VarID || token.type == Token::ConID) {
         name = token.data.id;
         eat();
@@ -161,9 +161,9 @@ void Parser::parseImport() {
         name = 0;
     }
 
-    List<Id>* include = maybeParens([=] {
+    List<StringId>* include = maybeParens([=] {
         return sepBy([=] {
-            Id included;
+            StringId included;
             if(token.type == Token::VarID || token.type == Token::ConID) {
                 included = token.data.id;
                 eat();
@@ -175,12 +175,12 @@ void Parser::parseImport() {
         }, Token::Comma, Token::ParenR);
     });
 
-    List<Id>* exclude = nullptr;
+    List<StringId>* exclude = nullptr;
     if(token.type == Token::VarID && token.data.id == hidingId) {
         eat();
         exclude = parens([=] {
             return sepBy([=] {
-                Id hiddenName;
+                StringId hiddenName;
                 if(token.type == Token::VarID || token.type == Token::ConID) {
                     hiddenName = token.data.id;
                     eat();
@@ -193,7 +193,7 @@ void Parser::parseImport() {
         });
     }
 
-    Id asName = 0;
+    StringId asName = 0;
     if(token.type == Token::VarID && token.data.id == asId) {
         eat();
 
@@ -278,7 +278,7 @@ Decl* Parser::parseFunDecl(bool requireBody) {
             constraints = parseConstraints();
         }
 
-        Id name;
+        StringId name;
         if(token.type == Token::VarID || token.type == Token::VarSym) {
             name = token.data.id;
             eat();
@@ -429,7 +429,7 @@ Decl* Parser::parseForeignDecl() {
         }
 
         bool stringName = token.type == Token::String;
-        Id name = 0;
+        StringId name = 0;
         if(token.type == Token::VarID || token.type == Token::String) {
             name = token.data.id;
             eat();
@@ -437,7 +437,7 @@ Decl* Parser::parseForeignDecl() {
             error("expected identifier"_v);
         }
 
-        Id importName = 0;
+        StringId importName = 0;
         if(token.type == Token::VarID && token.data.id == asId) {
             eat();
             if(token.type == Token::VarID) {
@@ -459,7 +459,7 @@ Decl* Parser::parseForeignDecl() {
 
         auto type = parseType();
 
-        Id from = 0;
+        StringId from = 0;
         if(token.type == Token::VarID && token.data.id == fromId) {
             eat();
             if(token.type == Token::String) {
@@ -528,7 +528,7 @@ ast::Decl* Parser::parseAttrDecl() {
         assert(token.type == Token::kwAtData);
         eat();
 
-        Id name = 0;
+        StringId name = 0;
         if(token.type == Token::VarID || token.type == Token::ConID) {
             name = token.data.id;
             eat();
@@ -669,7 +669,7 @@ Expr* Parser::parseLeftExpr() {
             return new (buffer) WhileExpr(cond, loop);
         } else if(token.type == Token::kwFor) {
             eat();
-            Id var;
+            StringId var;
             if(token.type == Token::VarID) {
                 var = token.data.id;
                 eat();
@@ -876,7 +876,7 @@ Expr* Parser::parseBaseExpr() {
                     // (varexpr: type) block
                     // (varexpr: type, ...) block
                     // (varexpr, ...) block
-                    Id firstName = 0;
+                    StringId firstName = 0;
                     if(e->type == Expr::Var) {
                         firstName = ((VarExpr*)e)->name;
                     } else {
@@ -1031,7 +1031,7 @@ TupArg Parser::parseTupArg() {
 Arg Parser::parseArg(bool requireType) {
     return node([=] {
         VarDecl::Mutability m;
-        Id name = 0;
+        StringId name = 0;
 
         if(token.type == Token::VarSym && token.data.id == refId) {
             eat();
@@ -1365,7 +1365,7 @@ Type* Parser::parseAType() {
 }
 
 SimpleType* Parser::parseSimpleType() {
-    Id id = 0;
+    StringId id = 0;
     if(token.type == Token::ConID) {
         id = token.data.id;
         eat();
@@ -1373,7 +1373,7 @@ SimpleType* Parser::parseSimpleType() {
         error("expected type name"_v);
     }
 
-    List<Id>* kind = nullptr;
+    List<StringId>* kind = nullptr;
     if(token.type == Token::VarID) {
         kind = list(token.data.id);
         eat();
@@ -1386,7 +1386,7 @@ SimpleType* Parser::parseSimpleType() {
                     return n;
                 } else {
                     error("expected an identifier"_v);
-                    return Id(0);
+                    return StringId(0);
                 }
             }, Token::Comma);
         });
@@ -1485,7 +1485,7 @@ Expr* Parser::parseTupleExpr() {
                 List<TupArg>* args;
                 if(first->type == Expr::Assign) {
                     auto target = ((AssignExpr*)first)->target;
-                    Id name = 0;
+                    StringId name = 0;
                     if(target->type == Expr::Var) {
                         name = ((VarExpr*)target)->name;
                     }
@@ -1608,7 +1608,7 @@ Con Parser::parseCon() {
      *      |   conid
      */
     auto con = node([=] {
-        Id name;
+        StringId name;
         if(token.type == Token::ConID) {
             name = token.data.id;
             eat();
@@ -1672,7 +1672,7 @@ Pat* Parser::parseLeftPattern() {
             eat();
             return new(buffer) Pat(Pat::Any);
         } else if(token.type == Token::VarID) {
-            Id var = token.data.id;
+            StringId var = token.data.id;
             eat();
             if(token.type == Token::opAt) {
                 eat();
@@ -1711,7 +1711,7 @@ Pat* Parser::parseLeftPattern() {
             return new(buffer) ArrayPat(expr);
         } else if(token.type == Token::opDotDot) {
             eat();
-            Id var;
+            StringId var;
             if(token.type == Token::VarID) {
                 var = token.data.id;
                 eat();
@@ -1799,7 +1799,7 @@ Attribute Parser::parseAttribute() {
         }
 
         U32 end = token.endColumn;
-        Id name = 0;
+        StringId name = 0;
         if(token.type == Token::VarID || token.type == Token::ConID) {
             name = token.data.id;
             eat();

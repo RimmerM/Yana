@@ -34,9 +34,9 @@ struct FileProvider: ModuleProvider, SourceProvider {
     Context* context;
     Module* core;
     Module* native;
-    HashMap<Id, StringView> sourceMap;
+    HashMap<StringId, StringView> sourceMap;
 
     explicit FileProvider(ModuleMap& map);
-    StringView getSource(Id module) override;
-    Module* getModule(Module* from, Id name) override;
+    StringView getSource(StringId module) override;
+    Module* getModule(Module* from, StringId name) override;
 };

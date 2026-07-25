@@ -5,7 +5,7 @@
 
 FileProvider::FileProvider(ModuleMap& map): moduleMap(map) {}
 
-StringView FileProvider::getSource(Id module) {
+StringView FileProvider::getSource(StringId module) {
     if(auto source = sourceMap.get(module)) {
         return *source.get();
     }
@@ -15,7 +15,7 @@ StringView FileProvider::getSource(Id module) {
     }
 }
 
-Module* FileProvider::getModule(Module* from, Id name) {
+Module* FileProvider::getModule(Module* from, StringId name) {
     if(name == core->id) {
         if(!core) core = coreModule(context);
         return core;

@@ -4,7 +4,7 @@
 
 static const int kIntMax = 2147483647;
 
-static OpProperties opInfo(Context* context, Module* module, Id name) {
+static OpProperties opInfo(Context* context, Module* module, StringId name) {
     auto op = findOp(context, module, name);
     if(op) return *op;
 
@@ -74,7 +74,7 @@ struct FieldResult {
     Con* con;
 };
 
-static Field* findTupleField(TupType* type, Id stringField, U32 intField) {
+static Field* findTupleField(TupType* type, StringId stringField, U32 intField) {
     if(stringField) {
         for(U32 i = 0; i < type->count; i++) {
             if(type->fields[i].name == stringField) {
@@ -88,7 +88,7 @@ static Field* findTupleField(TupType* type, Id stringField, U32 intField) {
     return nullptr;
 }
 
-static FieldResult findStaticField(Type* type, Id stringField, U32 intField) {
+static FieldResult findStaticField(Type* type, StringId stringField, U32 intField) {
     if(type->kind == Type::Tup) {
         return {findTupleField((TupType*)type, stringField, intField), nullptr};
     } else if(type->kind == Type::Record) {
@@ -104,7 +104,7 @@ static FieldResult findStaticField(Type* type, Id stringField, U32 intField) {
     return {nullptr, nullptr};
 }
 
-static Value* testStaticField(FunBuilder* b, Id name, Value* target, ast::Expr* ast) {
+static Value* testStaticField(FunBuilder* b, StringId name, Value* target, ast::Expr* ast) {
     auto targetType = rValueType(target->type);
     FieldResult result = {nullptr, nullptr};
 
@@ -134,7 +134,7 @@ static Value* testStaticField(FunBuilder* b, Id name, Value* target, ast::Expr* 
     }
 }
 
-Value* resolveMulti(FunBuilder* b, Type* targetType, ast::MultiExpr* expr, Id name, bool used) {
+Value* resolveMulti(FunBuilder* b, Type* targetType, ast::MultiExpr* expr, StringId name, bool used) {
     auto e = expr->exprs;
     if(used || targetType) {
         // Expressions that are part of a statement list are never used, unless they are the last in the list.
@@ -157,7 +157,7 @@ Value* resolveMulti(FunBuilder* b, Type* targetType, ast::MultiExpr* expr, Id na
     }
 }
 
-Value* resolveLit(FunBuilder* b, Type* targetType, ast::Literal* lit, Id name) {
+Value* resolveLit(FunBuilder* b, Type* targetType, ast::Literal* lit, StringId name) {
     Value* value;
 
     switch(lit->type) {
@@ -189,7 +189,7 @@ Value* resolveLit(FunBuilder* b, Type* targetType, ast::Literal* lit, Id name) {
     return value;
 }
 
-Value* findVar(FunBuilder* b, Id name) {
+Value* findVar(FunBuilder* b, StringId name) {
     // Try to find a local variable or argument.
     auto value = b->block->findValue(name);
     if(!value) {
@@ -212,7 +212,7 @@ Value* useValue(FunBuilder* b, Value* value, bool asRV) {
     return value;
 }
 
-static Value* getField(FunBuilder* b, Value* value, Id name, Type* type, U32* indices, U32 count) {
+static Value* getField(FunBuilder* b, Value* value, StringId name, Type* type, U32* indices, U32 count) {
     if(value->type->kind == Type::Ref || value->kind == Value::Global) {
         return loadField(b->block, name, value, type, indices, count);
     } else {
@@ -220,13 +220,13 @@ static Value* getField(FunBuilder* b, Value* value, Id name, Type* type, U32* in
     }
 }
 
-Value* getField(FunBuilder* b, Value* value, Id name, U32 field, Type* type) {
+Value* getField(FunBuilder* b, Value* value, StringId name, U32 field, Type* type) {
     auto indices = (U32*)b->mem.alloc(sizeof(U32));
     indices[0] = field;
     return getField(b, value, name, type, indices, 1);
 }
 
-Value* getNestedField(FunBuilder* b, Value* value, Id name, U32 firstField, U32 secondField, Type* type) {
+Value* getNestedField(FunBuilder* b, Value* value, StringId name, U32 firstField, U32 secondField, Type* type) {
     auto indices = (U32*)b->mem.alloc(sizeof(U32) * 2);
     indices[0] = firstField;
     indices[1] = secondField;
@@ -245,7 +245,7 @@ Value* resolveVar(FunBuilder* b, ast::VarExpr* expr, bool asRV) {
     return useValue(b, value, asRV);
 }
 
-Value* resolveApp(FunBuilder* b, Type* targetType, ast::AppExpr* expr, Id name, bool used) {
+Value* resolveApp(FunBuilder* b, Type* targetType, ast::AppExpr* expr, StringId name, bool used) {
     // If the operand is a field expression we need special handling, since there are several options:
     // - the field operand is an actual field of its target and has a function type, which we call.
     // - the field operand is not a field, and we produce a function call with the target as first parameter.
@@ -299,11 +299,11 @@ Value* resolveApp(FunBuilder* b, Type* targetType, ast::AppExpr* expr, Id name, 
     }
 }
 
-Value* resolveFun(FunBuilder* b, ast::FunExpr* expr, Id name, bool used) {
+Value* resolveFun(FunBuilder* b, ast::FunExpr* expr, StringId name, bool used) {
     return nullptr;
 }
 
-Value* resolveInfix(FunBuilder* b, Type* targetType, ast::InfixExpr* unordered, Id name, bool used) {
+Value* resolveInfix(FunBuilder* b, Type* targetType, ast::InfixExpr* unordered, StringId name, bool used) {
     ast::InfixExpr* ast;
     if(unordered->ordered) {
         ast = unordered;
@@ -322,7 +322,7 @@ Value* resolveInfix(FunBuilder* b, Type* targetType, ast::InfixExpr* unordered, 
     return resolveApp(b, targetType, &app, name, used);
 }
 
-Value* resolvePrefix(FunBuilder* b, Type* targetType, ast::PrefixExpr* expr, Id name, bool used) {
+Value* resolvePrefix(FunBuilder* b, Type* targetType, ast::PrefixExpr* expr, StringId name, bool used) {
     // Create a temporary app-expression to resolve the operator as a function call.
     List<ast::TupArg> arg(nullptr, ast::TupArg(0, expr->dst));
     ast::AppExpr app(expr->op, &arg);
@@ -331,7 +331,7 @@ Value* resolvePrefix(FunBuilder* b, Type* targetType, ast::PrefixExpr* expr, Id 
     return resolveApp(b, targetType, &app, name, used);
 }
 
-Value* resolveIf(FunBuilder* b, Type* targetType, ast::IfExpr* expr, Id name, bool used) {
+Value* resolveIf(FunBuilder* b, Type* targetType, ast::IfExpr* expr, StringId name, bool used) {
     Value* cond = resolveExpr(b, &intTypes[IntType::Bool], expr->cond, 0, true);
 
     auto condBlock = b->block;
@@ -400,7 +400,7 @@ Value* resolveIf(FunBuilder* b, Type* targetType, ast::IfExpr* expr, Id name, bo
     }
 }
 
-Value* resolveMultiIf(FunBuilder* b, Type* targetType, ast::MultiIfExpr* expr, Id name, bool used) {
+Value* resolveMultiIf(FunBuilder* b, Type* targetType, ast::MultiIfExpr* expr, StringId name, bool used) {
     // Calculate the number of cases.
     U32 caseCount = 0;
     auto c = expr->cases;
@@ -503,7 +503,7 @@ Value* resolveMultiIf(FunBuilder* b, Type* targetType, ast::MultiIfExpr* expr, I
     }
 }
 
-Value* resolveDecl(FunBuilder* b, Type* targetType, ast::VarDecl* expr, Id name, bool used, bool isGlobal) {
+Value* resolveDecl(FunBuilder* b, Type* targetType, ast::VarDecl* expr, StringId name, bool used, bool isGlobal) {
     auto content = expr->content;
     if(!content) {
         error(b, "variables must be initialized on declaration"_v, expr);
@@ -650,7 +650,7 @@ Value* resolveDecl(FunBuilder* b, Type* targetType, ast::VarDecl* expr, Id name,
     }
 }
 
-Value* resolveDecl(FunBuilder* b, Type* targetType, ast::DeclExpr* expr, Id name, bool used) {
+Value* resolveDecl(FunBuilder* b, Type* targetType, ast::DeclExpr* expr, StringId name, bool used) {
     auto e = expr->decls;
     if(used) {
         // Expressions that are part of a statement list are never used, unless they are the last in the list.
@@ -821,11 +821,11 @@ Value* resolveAssign(FunBuilder* b, ast::AssignExpr* expr, bool used) {
     }
 }
 
-Value* resolveNested(FunBuilder* b, Type* targetType, ast::NestedExpr* expr, Id name, bool used) {
+Value* resolveNested(FunBuilder* b, Type* targetType, ast::NestedExpr* expr, StringId name, bool used) {
     return resolveExpr(b, targetType, expr->expr, name, used);
 }
 
-Value* resolveCoerce(FunBuilder* b, ast::CoerceExpr* expr, Id name, bool used) {
+Value* resolveCoerce(FunBuilder* b, ast::CoerceExpr* expr, StringId name, bool used) {
     auto type = resolveType(&b->context, b->fun->module, expr->kind, &b->fun->gen);
     auto target = resolveExpr(b, type, expr->target, 0, used);
 
@@ -834,7 +834,7 @@ Value* resolveCoerce(FunBuilder* b, ast::CoerceExpr* expr, Id name, bool used) {
     return result;
 }
 
-Value* resolveField(FunBuilder* b, ast::FieldExpr* expr, Id name, bool used) {
+Value* resolveField(FunBuilder* b, ast::FieldExpr* expr, StringId name, bool used) {
     auto target = resolveExpr(b, nullptr, expr->target, 0, true);
     auto field = testStaticField(b, name, target, expr->field);
     if(field) return field;
@@ -862,7 +862,7 @@ static void resetTupOrder(Value** args, Field* fields, U32* fieldIndices, U32 ar
     copy(orderedFields, fields, argCount);
 }
 
-Value* resolveTup(FunBuilder* b, Type* targetType, ast::TupExpr* expr, Id name) {
+Value* resolveTup(FunBuilder* b, Type* targetType, ast::TupExpr* expr, StringId name) {
     U32 argCount = 0;
     auto arg = expr->args;
     while(arg) {
@@ -951,7 +951,7 @@ Value* resolveTup(FunBuilder* b, Type* targetType, ast::TupExpr* expr, Id name) 
     return tup(b->block, name, type, args, argCount);
 }
 
-Value* resolveTupUpdate(FunBuilder* b, Type* targetType, ast::TupUpdateExpr* expr, Id name, bool used) {
+Value* resolveTupUpdate(FunBuilder* b, Type* targetType, ast::TupUpdateExpr* expr, StringId name, bool used) {
     // An update-expression only changes the content while the type stays the same.
     // This means that we can just forward the target type to the source value.
     auto target = resolveExpr(b, targetType, expr->value, 0, true);
@@ -995,7 +995,7 @@ Value* resolveTupUpdate(FunBuilder* b, Type* targetType, ast::TupUpdateExpr* exp
     return updateField(b->block, name, target, fields, fieldCount);
 }
 
-Value* resolveArray(FunBuilder* b, Type* targetType, ast::ArrayExpr* expr, Id name) {
+Value* resolveArray(FunBuilder* b, Type* targetType, ast::ArrayExpr* expr, StringId name) {
     U32 length = 0;
     auto arg = expr->args;
     while(arg) {
@@ -1040,15 +1040,15 @@ Value* resolveArray(FunBuilder* b, Type* targetType, ast::ArrayExpr* expr, Id na
     return array;
 }
 
-Value* resolveMap(FunBuilder* b, ast::MapExpr* expr, Id name, bool used) {
+Value* resolveMap(FunBuilder* b, ast::MapExpr* expr, StringId name, bool used) {
     return nullptr;
 }
 
-Value* resolveFormat(FunBuilder* b, ast::FormatExpr* expr, Id name, bool used) {
+Value* resolveFormat(FunBuilder* b, ast::FormatExpr* expr, StringId name, bool used) {
     return nullptr;
 }
 
-Value* resolveCase(FunBuilder* b, Type* targetType, ast::CaseExpr* expr, Id name, bool used) {
+Value* resolveCase(FunBuilder* b, Type* targetType, ast::CaseExpr* expr, StringId name, bool used) {
     auto pivot = resolveExpr(b, nullptr, expr->pivot, 0, true);
     auto alt = expr->alts;
     auto preceding = b->block;
@@ -1184,7 +1184,7 @@ Value* resolveRet(FunBuilder* b, ast::RetExpr* expr) {
     return ret(b->block, value);
 }
 
-Value* resolveExpr(FunBuilder* b, Type* targetType, ast::Expr* expr, Id name, bool used) {
+Value* resolveExpr(FunBuilder* b, Type* targetType, ast::Expr* expr, StringId name, bool used) {
     switch(expr->type) {
         case ast::Expr::Error:
             return nullptr;

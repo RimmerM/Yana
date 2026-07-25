@@ -20,12 +20,12 @@ struct Gen {
     Array<Stmt*>* block = nullptr;
     Loop* loop = nullptr;
 
-    Id lengthId;
-    Id assignOp;
-    Id addOp, subOp, mulOp, divOp, remOp;
-    Id shlOp, shrOp, sarOp, andOp, orOp, xorOp;
-    Id eqOp, neqOp, gtOp, geOp, ltOp, leOp;
-    Id negOp, notOp;
+    StringId lengthId;
+    StringId assignOp;
+    StringId addOp, subOp, mulOp, divOp, remOp;
+    StringId shlOp, shrOp, sarOp, andOp, orOp, xorOp;
+    StringId eqOp, neqOp, gtOp, geOp, ltOp, leOp;
+    StringId negOp, notOp;
 };
 
 Stmt* genBlock(Gen* gen, Block* block);
@@ -141,7 +141,7 @@ Variable* genFDiv(Gen* gen, InstFDiv* inst) {
 }
 
 Variable* genICmp(Gen* gen, InstICmp* inst) {
-    Id op;
+    StringId op;
     switch(inst->cmp) {
         case ICmp::eq:
             op = gen->eqOp;
@@ -178,7 +178,7 @@ Variable* genICmp(Gen* gen, InstICmp* inst) {
 }
 
 Variable* genFCmp(Gen* gen, InstFCmp* inst) {
-    Id op;
+    StringId op;
     switch(inst->cmp) {
         case FCmp::eq:
             op = gen->eqOp;

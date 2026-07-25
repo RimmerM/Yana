@@ -472,78 +472,78 @@ inline bool isTerminating(Inst::Kind kind) {
     return kind == Inst::InstRet || kind == Inst::InstJe || kind == Inst::InstJmp;
 }
 
-Value* error(Block* block, Id name, Type* type);
-Value* nop(Block* block, Id name);
+Value* error(Block* block, StringId name, Type* type);
+Value* nop(Block* block, StringId name);
 
-ConstInt* constInt(Block* block, Id name, U64 value, Type* type);
-ConstFloat* constFloat(Block* block, Id name, double value, Type* type);
-ConstString* constString(Block* block, Id name, const char* value, Size length);
+ConstInt* constInt(Block* block, StringId name, U64 value, Type* type);
+ConstFloat* constFloat(Block* block, StringId name, double value, Type* type);
+ConstString* constString(Block* block, StringId name, const char* value, Size length);
 
-Value* trunc(Block* block, Id name, Value* from, Type* to);
-Value* ftrunc(Block* block, Id name, Value* from, Type* to);
-Value* zext(Block* block, Id name, Value* from, Type* to);
-Value* sext(Block* block, Id name, Value* from, Type* to);
-Value* fext(Block* block, Id name, Value* from, Type* to);
-Value* itof(Block* block, Id name, Value* from, Type* to);
-Value* uitof(Block* block, Id name, Value* from, Type* to);
-Value* ftoi(Block* block, Id name, Value* from, Type* to);
-Value* ftoui(Block* block, Id name, Value* from, Type* to);
+Value* trunc(Block* block, StringId name, Value* from, Type* to);
+Value* ftrunc(Block* block, StringId name, Value* from, Type* to);
+Value* zext(Block* block, StringId name, Value* from, Type* to);
+Value* sext(Block* block, StringId name, Value* from, Type* to);
+Value* fext(Block* block, StringId name, Value* from, Type* to);
+Value* itof(Block* block, StringId name, Value* from, Type* to);
+Value* uitof(Block* block, StringId name, Value* from, Type* to);
+Value* ftoi(Block* block, StringId name, Value* from, Type* to);
+Value* ftoui(Block* block, StringId name, Value* from, Type* to);
 
-Value* add(Block* block, Id name, Value* lhs, Value* rhs);
-Value* sub(Block* block, Id name, Value* lhs, Value* rhs);
-Value* mul(Block* block, Id name, Value* lhs, Value* rhs);
-Value* div(Block* block, Id name, Value* lhs, Value* rhs);
-Value* idiv(Block* block, Id name, Value* lhs, Value* rhs);
-Value* rem(Block* block, Id name, Value* lhs, Value* rhs);
-Value* irem(Block* block, Id name, Value* lhs, Value* rhs);
+Value* add(Block* block, StringId name, Value* lhs, Value* rhs);
+Value* sub(Block* block, StringId name, Value* lhs, Value* rhs);
+Value* mul(Block* block, StringId name, Value* lhs, Value* rhs);
+Value* div(Block* block, StringId name, Value* lhs, Value* rhs);
+Value* idiv(Block* block, StringId name, Value* lhs, Value* rhs);
+Value* rem(Block* block, StringId name, Value* lhs, Value* rhs);
+Value* irem(Block* block, StringId name, Value* lhs, Value* rhs);
 
-Value* fadd(Block* block, Id name, Value* lhs, Value* rhs);
-Value* fsub(Block* block, Id name, Value* lhs, Value* rhs);
-Value* fmul(Block* block, Id name, Value* lhs, Value* rhs);
-Value* fdiv(Block* block, Id name, Value* lhs, Value* rhs);
+Value* fadd(Block* block, StringId name, Value* lhs, Value* rhs);
+Value* fsub(Block* block, StringId name, Value* lhs, Value* rhs);
+Value* fmul(Block* block, StringId name, Value* lhs, Value* rhs);
+Value* fdiv(Block* block, StringId name, Value* lhs, Value* rhs);
 
-Value* icmp(Block* block, Id name, Value* lhs, Value* rhs, ICmp cmp);
-Value* fcmp(Block* block, Id name, Value* lhs, Value* rhs, FCmp cmp);
+Value* icmp(Block* block, StringId name, Value* lhs, Value* rhs, ICmp cmp);
+Value* fcmp(Block* block, StringId name, Value* lhs, Value* rhs, FCmp cmp);
 
-Value* shl(Block* block, Id name, Value* arg, Value* amount);
-Value* shr(Block* block, Id name, Value* arg, Value* amount);
-Value* sar(Block* block, Id name, Value* arg, Value* amount);
-Value* and_(Block* block, Id name, Value* lhs, Value* rhs);
-Value* or_(Block* block, Id name, Value* lhs, Value* rhs);
-Value* xor_(Block* block, Id name, Value* lhs, Value* rhs);
+Value* shl(Block* block, StringId name, Value* arg, Value* amount);
+Value* shr(Block* block, StringId name, Value* arg, Value* amount);
+Value* sar(Block* block, StringId name, Value* arg, Value* amount);
+Value* and_(Block* block, StringId name, Value* lhs, Value* rhs);
+Value* or_(Block* block, StringId name, Value* lhs, Value* rhs);
+Value* xor_(Block* block, StringId name, Value* lhs, Value* rhs);
 
-Value* addref(Block* block, Id name, Value* lhs, Value* rhs);
+Value* addref(Block* block, StringId name, Value* lhs, Value* rhs);
 
-InstRecord* record(Block* block, Id name, struct Con* con, Value* content);
-InstTup* tup(Block* block, Id name, Type* type, Value** fields, U32 count);
-InstFun* fun(Block* block, Id name, Function* body, Type* type, Size frameCount);
+InstRecord* record(Block* block, StringId name, struct Con* con, Value* content);
+InstTup* tup(Block* block, StringId name, Type* type, Value** fields, U32 count);
+InstFun* fun(Block* block, StringId name, Function* body, Type* type, Size frameCount);
 
-InstAlloc* alloc(Block* block, Id name, Type* type, bool mut, bool local);
-InstAllocArray* allocArray(Block* block, Id name, Type* type, Value* length, bool mut, bool local);
+InstAlloc* alloc(Block* block, StringId name, Type* type, bool mut, bool local);
+InstAllocArray* allocArray(Block* block, StringId name, Type* type, Value* length, bool mut, bool local);
 
-InstLoad* load(Block* block, Id name, Value* from);
-InstLoadField* loadField(Block* block, Id name, Value* from, Type* type, U32* indices, U32 count);
-InstLoadArray* loadArray(Block* block, Id name, Value* from, Value* index, Type* type, bool checked);
+InstLoad* load(Block* block, StringId name, Value* from);
+InstLoadField* loadField(Block* block, StringId name, Value* from, Type* type, U32* indices, U32 count);
+InstLoadArray* loadArray(Block* block, StringId name, Value* from, Value* index, Type* type, bool checked);
 
-InstStore* store(Block* block, Id name, Value* to, Value* value);
-InstStoreField* storeField(Block* block, Id name, Value* to, Value* value, U32* indices, U32 count);
-InstStoreArray* storeArray(Block* block, Id name, Value* to, Value* index, Value** values, U32 count, bool checked);
+InstStore* store(Block* block, StringId name, Value* to, Value* value);
+InstStoreField* storeField(Block* block, StringId name, Value* to, Value* value, U32* indices, U32 count);
+InstStoreArray* storeArray(Block* block, StringId name, Value* to, Value* index, Value** values, U32 count, bool checked);
 
-InstGetField* getField(Block* block, Id name, Value* from, Type* type, U32* indices, U32 count);
-InstUpdateField* updateField(Block* block, Id name, Value* from, InstUpdateField::Field* fields, U32 count);
+InstGetField* getField(Block* block, StringId name, Value* from, Type* type, U32* indices, U32 count);
+InstUpdateField* updateField(Block* block, StringId name, Value* from, InstUpdateField::Field* fields, U32 count);
 
-InstArrayLength* arrayLength(Block* block, Id name, Value* from);
-InstArrayCopy* arrayCopy(Block* block, Id name, Value* from, Value* to, Value* offset, Value* count, bool checked);
-InstArraySlice* arraySlice(Block* block, Id name, Value* from, Value* start, Value* count);
+InstArrayLength* arrayLength(Block* block, StringId name, Value* from);
+InstArrayCopy* arrayCopy(Block* block, StringId name, Value* from, Value* to, Value* offset, Value* count, bool checked);
+InstArraySlice* arraySlice(Block* block, StringId name, Value* from, Value* start, Value* count);
 
-Value* stringLength(Block* block, Id name, Value* from);
-Value* stringData(Block* block, Id name, Value* from);
+Value* stringLength(Block* block, StringId name, Value* from);
+Value* stringData(Block* block, StringId name, Value* from);
 
-InstCall* call(Block* block, Id name, Function* fun, Value** args, U32 count, GenInstance* gen);
-InstCallDyn* callDyn(Block* block, Id name, Value* fun, Type* type, Value** args, U32 count, GenInstance* gen, bool isIntrinsic);
-InstCallForeign* callForeign(Block* block, Id name, struct ForeignFunction* fun, Value** args, U32 count);
+InstCall* call(Block* block, StringId name, Function* fun, Value** args, U32 count, GenInstance* gen);
+InstCallDyn* callDyn(Block* block, StringId name, Value* fun, Type* type, Value** args, U32 count, GenInstance* gen, bool isIntrinsic);
+InstCallForeign* callForeign(Block* block, StringId name, struct ForeignFunction* fun, Value** args, U32 count);
 
 InstJe* je(Block* block, Value* cond, Block* then, Block* otherwise);
 InstJmp* jmp(Block* block, Block* to);
 InstRet* ret(Block* block, Value* value = nullptr);
-InstPhi* phi(Block* block, Id name, InstPhi::Alt* alts, Size altCount);
+InstPhi* phi(Block* block, StringId name, InstPhi::Alt* alts, Size altCount);

@@ -107,7 +107,7 @@ struct Token {
         I64 integer;
         double floating;
         U32 character;
-        Id id;
+        StringId id;
     } data;
 
     // Special case for VarSym, used to find unary minus more easily.
@@ -126,7 +126,7 @@ private:
     U32 nextCodePoint();
     void nextLine();
 
-    Id parseStringLiteral();
+    StringId parseStringLiteral();
     U32 parseCharLiteral();
     U32 parseEscapedLiteral();
     void parseNumericLiteral();

@@ -10,8 +10,8 @@ struct Constraint;
 struct Expr;
 
 struct Attribute: Node {
-    Attribute(Id name, List<TupArg>* args): name(name), args(args) {}
-    Id name;
+    Attribute(StringId name, List<TupArg>* args): name(name), args(args) {}
+    StringId name;
     List<TupArg>* args;
 
     // This is easier than trying to make a special template function for values.
@@ -47,17 +47,17 @@ struct Type: Node {
 };
 
 struct TupField {
-    TupField(Type* type, Id name, Expr* def) : type(type), def(def), name(name) {}
+    TupField(Type* type, StringId name, Expr* def) : type(type), def(def), name(name) {}
 
     Type* type;
     Expr* def;
-    Id name;
+    StringId name;
 };
 
 struct ArgDecl {
-    ArgDecl(Type* type, Id name): type(type), name(name) {}
+    ArgDecl(Type* type, StringId name): type(type), name(name) {}
     Type* type;
-    Id name;
+    StringId name;
 };
 
 struct TupType: Type {
@@ -72,13 +72,13 @@ struct AppType: Type {
 };
 
 struct ConType: Type {
-    ConType(Id con): Type(Con), con(con) {}
-    Id con;
+    ConType(StringId con): Type(Con), con(con) {}
+    StringId con;
 };
 
 struct GenType: Type {
-    GenType(Id con): Type(Gen), con(con) {}
-    Id con;
+    GenType(StringId con): Type(Gen), con(con) {}
+    StringId con;
 };
 
 struct FunType: Type {
@@ -130,7 +130,7 @@ struct Literal {
         double f;
         I64 i;
         WChar32 c;
-        Id s;
+        StringId s;
         bool b;
     };
 
@@ -150,36 +150,36 @@ struct Pat: Node {
         Range
     };
 
-    Id asVar;
+    StringId asVar;
     Kind kind;
 
-    Pat(Kind k, Id asVar = 0) : asVar(asVar), kind(k) {}
+    Pat(Kind k, StringId asVar = 0) : asVar(asVar), kind(k) {}
 };
 
 struct VarPat: Pat {
-    VarPat(Id var, Id asVar = 0): Pat(Var, asVar), var(var) {}
-    Id var;
+    VarPat(StringId var, StringId asVar = 0): Pat(Var, asVar), var(var) {}
+    StringId var;
 };
 
 struct LitPat: Pat {
-    LitPat(Literal lit, Id asVar = 0): Pat(Lit, asVar), lit(lit) {}
+    LitPat(Literal lit, StringId asVar = 0): Pat(Lit, asVar), lit(lit) {}
     Literal lit;
 };
 
 struct FieldPat {
-    FieldPat(Id field, Pat* pat): field(field), pat(pat) {}
-    Id field;
+    FieldPat(StringId field, Pat* pat): field(field), pat(pat) {}
+    StringId field;
     Pat* pat;
 };
 
 struct TupPat: Pat {
-    TupPat(List<FieldPat>* fields, Id asVar = 0): Pat(Tup, asVar), fields(fields) {}
+    TupPat(List<FieldPat>* fields, StringId asVar = 0): Pat(Tup, asVar), fields(fields) {}
     List<FieldPat>* fields;
 };
 
 struct ConPat: Pat {
-    ConPat(Id constructor, Pat* pats): Pat(Con), constructor(constructor), pats(pats) {}
-    Id constructor;
+    ConPat(StringId constructor, Pat* pats): Pat(Con), constructor(constructor), pats(pats) {}
+    StringId constructor;
     Pat* pats;
 };
 
@@ -189,8 +189,8 @@ struct ArrayPat: Pat {
 };
 
 struct RestPat: Pat {
-    RestPat(Id var, Id asVar = 0): Pat(Rest, asVar), var(var) {}
-    Id var;
+    RestPat(StringId var, StringId asVar = 0): Pat(Rest, asVar), var(var) {}
+    StringId var;
 };
 
 struct RangePat: Pat {
@@ -206,8 +206,8 @@ struct RangePat: Pat {
 struct Expr;
 
 struct TupArg {
-    TupArg(Id name, Expr* value): name(name), value(value) {}
-    Id name;
+    TupArg(StringId name, Expr* value): name(name), value(value) {}
+    StringId name;
     Expr* value;
 };
 
@@ -229,7 +229,7 @@ struct Alt {
 };
 
 struct Arg: Node {
-    Id name;
+    StringId name;
     Type* type;
     Expr* def;
 
@@ -242,7 +242,7 @@ struct Arg: Node {
 /// Each chunk consists of a string part and an expression to format and insert after it.
 /// The expression may be null if this chunk is the first one in a literal.
 struct FormatChunk {
-    Id string;
+    StringId string;
     Expr* format;
 };
 
@@ -297,8 +297,8 @@ struct LitExpr: Expr {
 };
 
 struct VarExpr: Expr {
-    VarExpr(Id n): Expr(Var), name(n) {}
-    Id name;
+    VarExpr(StringId n): Expr(Var), name(n) {}
+    StringId name;
 };
 
 struct AppExpr: Expr {
@@ -368,10 +368,10 @@ struct WhileExpr: Expr {
 };
 
 struct ForExpr: Expr {
-    ForExpr(Id var, Expr* from, Expr* to, Expr* body, Expr* step, bool reverse):
+    ForExpr(StringId var, Expr* from, Expr* to, Expr* body, Expr* step, bool reverse):
         Expr(For), var(var), from(from), to(to), body(body), step(step), reverse(reverse) {}
 
-    Id var;
+    StringId var;
     Expr* from;
     Expr* to;
     Expr* body;
@@ -451,14 +451,14 @@ struct RetExpr: Expr {
  */
 
 struct SimpleType {
-    SimpleType(Id name, List<Id>* kind) : name(name), kind(kind) {}
-    Id name;
-    List<Id>* kind;
+    SimpleType(StringId name, List<StringId>* kind) : name(name), kind(kind) {}
+    StringId name;
+    List<StringId>* kind;
 };
 
 struct Con: Node {
-    Con(Id name, Type* content) : name(name), content(content) {}
-    Id name;
+    Con(StringId name, Type* content) : name(name), content(content) {}
+    StringId name;
     Type* content;
     List<Attribute>* attributes = nullptr;
 
@@ -488,10 +488,10 @@ struct Decl: Node {
 };
 
 struct FunDecl: Decl {
-    FunDecl(Id name, List<Constraint*>* constraints, Expr* body, List<Arg>* args, Type* ret, bool implicitReturn) :
+    FunDecl(StringId name, List<Constraint*>* constraints, Expr* body, List<Arg>* args, Type* ret, bool implicitReturn) :
         Decl(Fun), name(name), constraints(constraints), args(args), ret(ret), body(body), implicitReturn(implicitReturn) {}
 
-    Id name;
+    StringId name;
     List<Constraint*>* constraints;
     List<Arg>* args;
     Type* ret; // If the function explicitly defines one.
@@ -521,10 +521,10 @@ struct InstanceDecl: Decl {
 };
 
 struct ForeignDecl: Decl {
-    ForeignDecl(Id externName, Id localName, Id from, Type* type): Decl(Foreign), externName(externName), localName(localName), from(from), type(type) {}
-    Id externName;
-    Id localName;
-    Id from;
+    ForeignDecl(StringId externName, StringId localName, StringId from, Type* type): Decl(Foreign), externName(externName), localName(localName), from(from), type(type) {}
+    StringId externName;
+    StringId localName;
+    StringId from;
     Type* type;
 };
 
@@ -544,8 +544,8 @@ struct StmtDecl: Decl {
 };
 
 struct AttrDecl: Decl {
-    AttrDecl(Id name, Type* type): Decl(Attr), name(name), type(type) {}
-    Id name;
+    AttrDecl(StringId name, Type* type): Decl(Attr), name(name), type(type) {}
+    StringId name;
     Type* type;
 };
 
@@ -566,8 +566,8 @@ struct Constraint: Node {
 };
 
 struct AnyConstraint: Constraint {
-    AnyConstraint(Id name): Constraint(Any), name(name) {}
-    Id name;
+    AnyConstraint(StringId name): Constraint(Any), name(name) {}
+    StringId name;
 };
 
 struct ClassConstraint: Constraint {
@@ -576,17 +576,17 @@ struct ClassConstraint: Constraint {
 };
 
 struct FieldConstraint: Constraint {
-    FieldConstraint(Id typeName, Id fieldName, Type* type):
+    FieldConstraint(StringId typeName, StringId fieldName, Type* type):
         Constraint(Field), typeName(typeName), fieldName(fieldName), type(type) {}
 
-    Id typeName;
-    Id fieldName;
+    StringId typeName;
+    StringId fieldName;
     Type* type;
 };
 
 struct FunctionConstraint: Constraint {
-    FunctionConstraint(FunType type, Id name): Constraint(Function), name(name), type(type) {}
-    Id name;
+    FunctionConstraint(FunType type, StringId name): Constraint(Function), name(name), type(type) {}
+    StringId name;
     FunType type;
 };
 
@@ -595,11 +595,11 @@ struct FunctionConstraint: Constraint {
  */
 
 struct Import: Node {
-    Id from;
+    StringId from;
     bool qualified;
-    Id localName;
-    List<Id>* include;
-    List<Id>* exclude;
+    StringId localName;
+    List<StringId>* include;
+    List<StringId>* exclude;
 };
 
 struct Fixity: Node {
@@ -607,22 +607,22 @@ struct Fixity: Node {
         Left, Right
     };
 
-    Fixity(Id op, U32 precedence, Kind kind): op(op), precedence(precedence), kind(kind) {}
-    Id op;
+    Fixity(StringId op, U32 precedence, Kind kind): op(op), precedence(precedence), kind(kind) {}
+    StringId op;
     U32 precedence;
     Kind kind;
 };
 
 struct Export: Node {
-    Id name;
-    Id exportName;
+    StringId name;
+    StringId exportName;
     bool qualified;
 };
 
 struct Module {
-    Module(Id name): name(name) {}
+    Module(StringId name): name(name) {}
 
-    Id name;
+    StringId name;
     Array<Import> imports;
     Array<Decl*> decls;
     Array<Fixity> ops;

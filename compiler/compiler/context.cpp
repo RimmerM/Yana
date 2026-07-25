@@ -37,12 +37,12 @@ Arena::~Arena() {
     max = nullptr;
 }
 
-void Context::addOp(Id op, U16 prec, Assoc assoc) {
+void Context::addOp(StringId op, U16 prec, Assoc assoc) {
     OpProperties prop{prec, assoc};
     ops[op] = prop;
 }
 
-OpProperties Context::findOp(Id op) {
+OpProperties Context::findOp(StringId op) {
     auto res = ops.get(op);
     if(res) {
         return res.unwrap();
@@ -51,13 +51,13 @@ OpProperties Context::findOp(Id op) {
     }
 }
 
-Id Context::nameHash(const char* chars, Size count) {
+StringId Context::nameHash(const char* chars, Size count) {
     Tritium::Hasher hash;
     hash.addBytes(chars, count);
     return hash.get();
 }
 
-Id Context::addUnqualifiedName(const char* chars, Size count) {
+StringId Context::addUnqualifiedName(const char* chars, Size count) {
     Tritium::Hasher hash;
     hash.addBytes(chars, count);
 
@@ -70,7 +70,7 @@ Id Context::addUnqualifiedName(const char* chars, Size count) {
     return addIdentifier(id);
 }
 
-Id Context::addQualifiedName(const char* chars, Size count, Size segmentCount) {
+StringId Context::addQualifiedName(const char* chars, Size count, Size segmentCount) {
     Identifier id;
 
     if(segmentCount <= 1) {
@@ -120,7 +120,7 @@ Id Context::addQualifiedName(const char* chars, Size count, Size segmentCount) {
     return addIdentifier(id);
 }
 
-Id Context::addQualifiedName(const char* chars, Size count) {
+StringId Context::addQualifiedName(const char* chars, Size count) {
     Size segmentCount = 1;
     for(Size i = 0; i < count; i++) {
         if(chars[i] == '.') segmentCount++;
@@ -129,8 +129,8 @@ Id Context::addQualifiedName(const char* chars, Size count) {
     return addQualifiedName(chars, count, segmentCount);
 }
 
-Id Context::addIdentifier(const Identifier& id) {
-    Id i;
+StringId Context::addIdentifier(const Identifier& id) {
+    StringId i;
     if(id.segmentCount == 1) {
         i = id.segmentHash;
     } else {
@@ -143,11 +143,11 @@ Id Context::addIdentifier(const Identifier& id) {
     return i;
 }
 
-Identifier& Context::find(Id id) {
+Identifier& Context::find(StringId id) {
     return identifiers[id];
 }
 
-String Context::findName(Id id) {
+String Context::findName(StringId id) {
     auto v = find(id);
     if(v.textLength) {
         return String(v.text, v.textLength);

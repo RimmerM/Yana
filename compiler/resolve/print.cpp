@@ -309,7 +309,7 @@ void printGenEnv(std::ostream& stream, Context& context, const GenEnv* env) {
     }
 }
 
-void printFunction(std::ostream& stream, Context& context, const Function* fun, Id forceName) {
+void printFunction(std::ostream& stream, Context& context, const Function* fun, StringId forceName) {
     stream << "fn ";
     auto name = context.find(forceName ? forceName : fun->name);
     if(name.textLength > 0) {

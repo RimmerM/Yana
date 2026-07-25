@@ -16,7 +16,7 @@ struct TestProvider: ModuleProvider, SourceProvider {
     Module* core = nullptr;
     Module* native = nullptr;
 
-    Module* getModule(Module* from, Id name) override {
+    Module* getModule(Module* from, StringId name) override {
         if(name == core->id) {
             return getCore();
         } else if(name == native->id) {
@@ -26,7 +26,7 @@ struct TestProvider: ModuleProvider, SourceProvider {
         }
     }
 
-    StringView getSource(Id module) override {
+    StringView getSource(StringId module) override {
         return ""_v;
     }
 

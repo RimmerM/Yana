@@ -9,7 +9,7 @@ Value* Block::use(Value* value, Inst* user) {
     return value;
 }
 
-Inst* Block::inst(Size size, Id name, Inst::Kind kind, Type* type) {
+Inst* Block::inst(Size size, StringId name, Inst::Kind kind, Type* type) {
     auto inst = (Inst*)function->module->memory.alloc(size);
     new (inst) Inst;
 
@@ -34,7 +34,7 @@ Inst* Block::inst(Size size, Id name, Inst::Kind kind, Type* type) {
     return inst;
 }
 
-Value* Block::findValue(Id name) {
+Value* Block::findValue(StringId name) {
     auto n = namedValues.getValue(name);
     if(n) return n.unwrap();
 
@@ -62,7 +62,7 @@ Block* block(Function* fun, bool deferAdd) {
     return block;
 }
 
-void setName(Value* v, Id name) {
+void setName(Value* v, StringId name) {
     v->name = name;
     if(name && v->block) {
         v->block->namedValues[name] = v;

@@ -204,14 +204,14 @@ struct Parser {
     Token token;
     Lexer lexer;
 
-    Id qualifiedId;
-    Id hidingId;
-    Id fromId;
-    Id asId;
-    Id refId;
-    Id ptrId;
-    Id valId;
-    Id downtoId;
-    Id minusId;
-    Id stepId;
+    StringId qualifiedId;
+    StringId hidingId;
+    StringId fromId;
+    StringId asId;
+    StringId refId;
+    StringId ptrId;
+    StringId valId;
+    StringId downtoId;
+    StringId minusId;
+    StringId stepId;
 };

@@ -176,7 +176,7 @@ void createDescriptor(Type* type, Arena* arena) {
     type->descriptorLength = (U16)length;
 }
 
-Id typeName(Type* type) {
+StringId typeName(Type* type) {
     if(type->kind == Type::Alias) {
         return ((AliasType*)type)->name;
     } else if(type->kind == Type::Record) {
@@ -186,7 +186,7 @@ Id typeName(Type* type) {
     return 0;
 }
 
-static void addGeneric(Context* context, Buffer<Id> buffer, Size& offset, ast::GenType* type) {
+static void addGeneric(Context* context, Buffer<StringId> buffer, Size& offset, ast::GenType* type) {
     for(auto i = 0u; i < offset; i++) {
         if(buffer.ptr[i] == type->con) return;
     }
@@ -198,7 +198,7 @@ static void addGeneric(Context* context, Buffer<Id> buffer, Size& offset, ast::G
     }
 }
 
-void findGenerics(Context* context, Buffer<Id> buffer, Size& offset, ast::Type* type) {
+void findGenerics(Context* context, Buffer<StringId> buffer, Size& offset, ast::Type* type) {
     switch(type->kind) {
         case ast::Type::Error:
             break;
@@ -839,7 +839,7 @@ Type* resolveType(Context* context, Module* module, ast::Type* type, GenEnv* env
     auto found = findType(context, module, type, env);
 
     GenEnv* typeEnv = nullptr;
-    Id name = 0;
+    StringId name = 0;
     if(found->kind == Type::Alias) {
         typeEnv = &((AliasType*)found)->gen;
         name = ((AliasType*)found)->name;

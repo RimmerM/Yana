@@ -94,7 +94,7 @@ struct GenField {
 
     Type* fieldType;
     GenType* container;
-    Id fieldName;
+    StringId fieldName;
     bool mut;
 };
 
@@ -102,22 +102,22 @@ struct GenFun {
     ast::FunType* ast;
 
     FunType* type;
-    Id name;
+    StringId name;
 };
 
 struct GenType: Type {
-    GenType(GenEnv* env, Id name, U32 index):
+    GenType(GenEnv* env, StringId name, U32 index):
         Type(Gen, 1), env(env), name(name), index(index) {}
 
     GenEnv* env;
     Type** args;
     Maybe<U32> argCount = Nothing(); // The number of arguments that should be applied to this type. Nothing if still undetermined.
-    Id name;
+    StringId name;
     U32 index;
 };
 
 struct ClassConstraint {
-    Id ast;
+    StringId ast;
     TypeClass* classType;
     Buffer<GenType*> forTypes;
 };
@@ -261,7 +261,7 @@ struct RefType: Type {
 
 struct FunArg {
     Type* type;
-    Id name;
+    StringId name;
     U32 index;
 };
 
@@ -286,7 +286,7 @@ struct MapType: Type {
 struct Field {
     Type* type;
     Type* container;
-    Id name;
+    StringId name;
     U32 index;
 };
 
@@ -303,7 +303,7 @@ struct Con {
 
     void* codegen = nullptr;
 
-    Id name;
+    StringId name;
     U32 index;
     bool exported;
 };
@@ -333,7 +333,7 @@ struct RecordType: Type {
     GenType** args;
     RecordType* instanceOf;
     Type** instance; // if instanceOf is set, this contains a list Type*[instanceOf->argCount].
-    Id name;
+    StringId name;
     U32 conCount;
     U32 argCount;
     Kind kind;
@@ -353,7 +353,7 @@ struct AliasType: Type {
     GenEnv gen;
     GenType** args;
     AliasType* instanceOf;
-    Id name;
+    StringId name;
     U32 argCount;
 };
 
@@ -361,7 +361,7 @@ struct ClassFun {
     Function* fun;
     TypeClass* typeClass;
     U32 index;
-    Id name;
+    StringId name;
 };
 
 /*
@@ -409,7 +409,7 @@ struct TypeClass {
     GenEnv gen; // The generic environment for the type arguments of this class.
     GenType** args; // The type arguments this class takes. Defined in the generic environment together with any constraints.
     ClassFun* functions; // The function signatures defined in this class.
-    Id name;
+    StringId name;
     U16 argCount; // The number of arguments in _args_.
     U16 funCount; // The number of functions in _functions_.
 };
@@ -472,10 +472,10 @@ void createDescriptor(Type* type, Arena* arena);
 
 // Returns the symbol name of a type. Returns 0 if the type is not named.
 // Named types are explicitly defined in some module and can be found by that name.
-Id typeName(Type* type);
+StringId typeName(Type* type);
 
 // Creates a set of the generic type names used in a context.
-void findGenerics(Context* context, Buffer<Id> buffer, Size& offset, ast::Type* type);
+void findGenerics(Context* context, Buffer<StringId> buffer, Size& offset, ast::Type* type);
 
 // When instantiating types, we add each alias and record to a stack.
 // If it turns out that the current type is already on the stack with the same arguments (the type is recursive),

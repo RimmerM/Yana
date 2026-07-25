@@ -8,7 +8,7 @@ struct Expr;
 struct Stmt;
 
 struct Variable {
-    Id name; // The name this variable had in the source code. May not exist if it was created by a transformation.
+    StringId name; // The name this variable had in the source code. May not exist if it was created by a transformation.
     U32 localId; // A unique number for this variable that doesn't conflict with other id's used in the scope.
     U32 refCount; // Number of uses.
 };
@@ -38,13 +38,13 @@ struct Expr {
 };
 
 struct StringExpr: Expr {
-    StringExpr(Id string): Expr(String), string(string) {}
-    Id string;
+    StringExpr(StringId string): Expr(String), string(string) {}
+    StringId string;
 };
 
 struct FloatExpr: Expr {
     FloatExpr(double f): Expr(Float), f(f) {}
-    Id f;
+    StringId f;
 };
 
 struct IntExpr: Expr {
@@ -90,14 +90,14 @@ struct FieldExpr: Expr {
 };
 
 struct PrefixExpr: Expr {
-    PrefixExpr(Id op, Expr* arg): Expr(Prefix), op(op), arg(arg) {}
-    Id op;
+    PrefixExpr(StringId op, Expr* arg): Expr(Prefix), op(op), arg(arg) {}
+    StringId op;
     Expr* arg;
 };
 
 struct InfixExpr: Expr {
-    InfixExpr(Id op, Expr* lhs, Expr* rhs): Expr(Infix), op(op), lhs(lhs), rhs(rhs) {}
-    Id op;
+    InfixExpr(StringId op, Expr* lhs, Expr* rhs): Expr(Infix), op(op), lhs(lhs), rhs(rhs) {}
+    StringId op;
     Expr* lhs;
     Expr* rhs;
 };
@@ -110,8 +110,8 @@ struct IfExpr: Expr {
 };
 
 struct AssignExpr: Expr {
-    AssignExpr(Id op, Expr* target, Expr* value): Expr(Assign), op(op), target(target), value(value) {}
-    Id op;
+    AssignExpr(StringId op, Expr* target, Expr* value): Expr(Assign), op(op), target(target), value(value) {}
+    StringId op;
     Expr* target;
     Expr* value;
 };
@@ -124,10 +124,10 @@ struct CallExpr: Expr {
 };
 
 struct FunExpr: Expr {
-    FunExpr(Id name, Variable* args, U32 argCount, Stmt* body): Expr(Fun), name(name), args(args), argCount(argCount), body(body) {}
+    FunExpr(StringId name, Variable* args, U32 argCount, Stmt* body): Expr(Fun), name(name), args(args), argCount(argCount), body(body) {}
     Variable* args;
     Stmt* body;
-    Id name;
+    StringId name;
     U32 argCount;
     U32 idCounter = 0;
 };
@@ -183,18 +183,18 @@ struct DoWhileStmt: Stmt {
 };
 
 struct BreakStmt: Stmt {
-    BreakStmt(Id label): Stmt(Break), label(label) {}
-    Id label;
+    BreakStmt(StringId label): Stmt(Break), label(label) {}
+    StringId label;
 };
 
 struct ContinueStmt: Stmt {
-    ContinueStmt(Id label): Stmt(Continue), label(label) {}
-    Id label;
+    ContinueStmt(StringId label): Stmt(Continue), label(label) {}
+    StringId label;
 };
 
 struct LabelledStmt: Stmt {
-    LabelledStmt(Id name, Stmt* content): Stmt(Labelled), name(name), content(content) {}
-    Id name;
+    LabelledStmt(StringId name, Stmt* content): Stmt(Labelled), name(name), content(content) {}
+    StringId name;
     Stmt* content;
 };
 
@@ -216,20 +216,20 @@ struct VarStmt: Stmt {
 };
 
 struct FunStmt: Stmt {
-    FunStmt(Id name, U32 localId, Variable* args, U32 argCount, Stmt* body): Stmt(Fun), name(name), localId(localId), args(args), argCount(argCount), body(body) {}
+    FunStmt(StringId name, U32 localId, Variable* args, U32 argCount, Stmt* body): Stmt(Fun), name(name), localId(localId), args(args), argCount(argCount), body(body) {}
     Variable* args;
     Stmt* body;
-    Id name;
+    StringId name;
     U32 argCount;
     U32 localId;
     U32 idCounter = 0;
 };
 
 struct VarScope {
-    Id base;
+    StringId base;
     VarScope* parent;
 
-    Array<Id> definedNames;
+    Array<StringId> definedNames;
     U32 varCounter;
     U32 funCounter;
 };
