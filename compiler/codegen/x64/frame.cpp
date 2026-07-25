@@ -83,7 +83,7 @@ static U32 alignUp(U32 value, U32 alignment) {
 }
 
 FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun, const Constraints& constraints, const FunctionRegs& regs) {
-    auto& frame = regs.frame;
+    auto& frame = regs.placement.frame;
 
     FrameLayout layout;
     layout.savedRegs = regs.usedCalleeSaved;

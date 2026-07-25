@@ -257,13 +257,21 @@ I32 memoryUseOperand(LowerBase base, const MachineFunction& machine, LowerInst* 
 I32 memoryDefOperand(LowerBase base, const MachineFunction& machine, LowerInst* inst);
 
 /*
- * Register allocation output.
+ * Legalized instructions.
  *
- * `LowerValue` intentionally has no `.reg` field - the allocator's result is a whole-function
- * mapping that the encoder consumes positionally, and threading it through the IR would put
- * target-specific state on a target-independent structure. Instead, `allocateRegisters` produces
- * one `InstRegs` record per instruction (see below), which the encoder in gen.cpp consumes in
- * lockstep with its own instruction walk.
+ * What legalization decided each instruction does with the placement it was given: where every
+ * operand is read from, where every result is written, and the copies that bridge the difference
+ * between those and where the values live the rest of the time.
+ *
+ * `LowerValue` intentionally has no `.reg` field - the result is a whole-function mapping that the
+ * encoder consumes positionally, and threading it through the IR would put target-specific state on
+ * a target-independent structure. Instead there is one `InstRegs` record per instruction, which the
+ * encoder in gen.cpp consumes in lockstep with its own instruction walk.
+ *
+ * The locations here are already resolved: a physical register, or a frame slot where the selected
+ * form has a memory alternative for it. Making them a typed operand record - which immediate, which
+ * address, which register *view* - is checkpoint C6, and it changes this structure rather than
+ * anything that produces it.
  */
 
 // One step of a register permutation. `swap` marks the entry as an exchange rather than a copy:
@@ -421,40 +429,121 @@ struct Remat {
     FrameReference frame;               // FrameAddress
 };
 
-// Where each value lives between the instructions that touch it, indexed by the dense LiveId that
-// buildLiveness assigns. This is the allocation proper; the per-instruction InstRegs above are what
-// the encoder needs to emit it, and say where an operand sits *at one instruction*, which is not
-// always the same place.
-//
-// Keeping both on FunctionRegs is what lets the verifier check one against the other without
-// knowing anything about how the allocator arrived at either.
-struct Allocation {
-    // One location per LiveId, invalid for a value that never needed one.
-    Array<MachineLocation> locations;
+/*
+ * Placement.
+ *
+ * Where each value lives between the instructions that touch it, which is the allocation proper.
+ * The per-instruction InstRegs above are what the encoder needs in order to emit it, and say where
+ * an operand sits *at one instruction*, which is not always the same place.
+ *
+ * Placement is a pass of its own (place.cpp) and runs to completion over the whole function before
+ * any instruction record exists. That is what lets it think again about a web it has already
+ * placed: nothing has been published that would have to be rebuilt, so an eviction is a decision
+ * inside placement rather than a reason to start the function over.
+ *
+ * It is over *webs* rather than over values. A phi and the values that feed it are one quantity
+ * under several SSA names, and giving all of them one location makes the copy between them an
+ * identity that is never emitted. `webOf` says which web a value belongs to; the web holds the
+ * location.
+ *
+ * A web's location is a list of *segments* - a location and the stretch of program points over
+ * which it holds. Every web has exactly one segment today, covering the whole of its life, which is
+ * what makes the result independent of block layout: a value is in the same place on every path
+ * that reaches a given instruction. The list is what persistent splitting adds to, and it is here
+ * now so that splitting extends the allocation result rather than replacing it.
+ */
 
-    // The location holding `id` at instruction index `point`. Every value has a single location for
-    // the whole of its life today, so `point` is ignored - it is in the signature because that is
-    // the question callers should be asking, and the one that gets a different answer once a
-    // value's life is split into segments with a location each.
-    MachineLocation locationOf(LiveId id, U32 point) const {
-        return id < locations.size() ? locations[id] : MachineLocation::invalid();
+struct AllocationSegment {
+    // Program points, half-open - see beforeInst/afterInst in lower.h.
+    U32 from = 0;
+    U32 to = 0;
+
+    MachineLocation location;
+};
+
+struct WebAllocation {
+    // Sorted and disjoint, and together covering every point the web is live at. Empty for a web
+    // that never needed a location at all.
+    Array<AllocationSegment> segments;
+
+    // The location this web occupies at `point`. The point is not consulted while a web has a
+    // single segment - it is in the signature because that is the question callers should be
+    // asking, and the one that gets a different answer once a web's life is split.
+    MachineLocation locationAt(U32 point) const {
+        assertTrue(segments.size() <= 1); // a split web, which nothing produces yet
+        return segments.isEmpty() ? MachineLocation::invalid() : segments[0].location;
     }
 };
 
-// Register assignments for every block in a function, produced by allocateRegisters()
-// and consumed by genFunction().
-struct FunctionRegs {
-    HashMap<LowerBlock*, BlockRegs> blocks;
-
-    // Where every value lives - see Allocation.
-    Allocation allocation;
+struct Placement {
+    // Which web each value belongs to, indexed by the dense LiveId buildLiveness assigns, and the
+    // webs themselves. A web is named by the LiveId of its representative, so the two are indexed
+    // alike and a value's location is one lookup away.
+    Array<LiveId> webOf;
+    Array<WebAllocation> webs;
 
     // Everything the function needs stack space for - see FrameObjects.
     FrameObjects frame;
 
-    // The recipes for the webs that live nowhere - see Remat. A location of class RematReg indexes
-    // this, and every one of them is referenced by exactly one web.
+    // The recipes for the webs that live nowhere - see Remat. A location of kind Rematerializable
+    // indexes this, and every one of them belongs to exactly one web.
     Array<Remat> remats;
+
+    // Where each of the function's arguments arrives, in argument order: the register the
+    // convention delivered it in, or the incoming frame object the caller left it in. Invalid for
+    // an argument the encoding swallowed. Recorded here because the frame object is placement's to
+    // create, and legalization needs to name the same one when it emits the entry copies.
+    Array<MachineLocation> incomingArgs;
+
+    // Every register placement decided the function writes: the ones handed out to webs, and the
+    // ones instructions clobber or are forced to write behind a value's back. Legalization adds the
+    // scratch registers it hands out, and the two together are what the prologue has to save.
+    RegSet writtenPhysical;
+
+    // Set when a web ended up with no register at all. A value that is not in one has to be brought
+    // into a scratch register at each instruction that touches it, and those are reserved for the
+    // whole function rather than found after the fact - so this asks for one more placement pass
+    // with them held back. See allocateRegisters.
+    bool needsScratch = false;
+
+    // Webs this pass would rather have displaced than left the web that asked for their register
+    // homeless. Applied to the next placement pass; see `assign` in place.cpp.
+    Array<LiveId> evicted;
+
+    Size valueCount() const { return webOf.size(); }
+
+    // The location holding `id` at program point `point`, invalid for a value that never needed
+    // one.
+    MachineLocation locationOf(LiveId id, U32 point) const {
+        return id < webOf.size() ? webs[webOf[id]].locationAt(point) : MachineLocation::invalid();
+    }
+
+    MachineLocation locationOf(LowerValue* v, U32 point) const {
+        auto id = v->liveId();
+        assertTrue(id != kNullLive); // every non-implicit value is numbered by buildLiveness
+        return locationOf(id, point);
+    }
+};
+
+// The instruction records legalization produced: one InstRegs per instruction and terminator of
+// every block, in emission order. See legalize.cpp.
+struct LegalizedFunction {
+    HashMap<LowerBlock*, BlockRegs> blocks;
+
+    // The scratch registers legalization actually handed out. Placement does not know which of them
+    // an instruction will need - that is the question legalization answers - so the two halves of
+    // "what does this function write" are added together once both have run.
+    RegSet writtenPhysical;
+};
+
+// The whole allocation of one function: where every value lives, and what each instruction does
+// with that. Produced by allocateRegisters() and consumed by genFunction().
+struct FunctionRegs {
+    // Where every value lives - see Placement.
+    Placement placement;
+
+    // What each instruction reads and writes, given that - see LegalizedFunction.
+    LegalizedFunction legalized;
 
     // Callee-saved registers this function writes, and therefore has to save on entry and restore
     // before every return. Empty for a function that stayed inside its convention's clobber set,
@@ -666,7 +755,59 @@ struct LowerInstX86Address: LowerInstSingle {
 // transform.cpp for the passes and the order. `ctx` is only used to name the function in the
 // between-pass invariant checks, which run in debug builds.
 void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, MachineFunction& machine);
+
+/*
+ * The allocation pipeline.
+ *
+ * `allocateRegisters` (register.cpp) is the driver: it runs placement until it stops asking for
+ * another pass, and legalizes the result once.
+ *
+ *   computePlacement   where every web lives, and nothing else. Runs over the whole function
+ *                      without constructing a single instruction record, so a web it wants back can
+ *                      simply be placed again.
+ *   legalizeFunction   what each instruction does with that: which location every operand is read
+ *                      from, where every result is written, and the copies that bridge the two.
+ *
+ * The split is the point. Placement answers "where does this value persist", legalization answers
+ * "where must it be at this instruction", and neither answers the other's question.
+ */
+
+// One complete placement of a function, with `reserved` held back from every web and `forceSpill`
+// naming the webs a previous pass asked to be left homeless.
+Placement computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
+    const Constraints& constraints, RegSet reserved, const Array<bool>& forceSpill);
+
+// Resolves every instruction against a completed placement.
+LegalizedFunction legalizeFunction(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
+    const Constraints& constraints, const Placement& placement);
+
+// Where the encoder reads one operand, which is the question legalization exists to answer. It is
+// declared here because placement asks it too: a destructive result must not be placed in a
+// register one of its instruction's other operands is still to be read from, and where those are
+// read from is this same rule.
+//
+// The answer is a location, unless the operand has to be brought into a scratch register first - in
+// which case the caller says which one, since legalization is handing them out per instruction and
+// placement is only asking where a sibling operand will land.
+struct UseSite {
+    MachineLocation at;             // where the operand is read, if it is read where it lives
+    bool needsTemp = false;         // otherwise it has to be brought into a scratch register
+    RegisterBankId tempBank = BankGpr;
+};
+
+UseSite useSiteOf(LowerBase base, const MachineFunction& machine, const Placement& placement,
+    LowerInst* inst, const InstShape& shape, Size i, U32 index, MachineLocation destructiveReg, bool memoryDest);
+
 FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const MachineFunction& machine);
+
+// Checks a placement on its own terms, before any instruction has been resolved against it: that
+// every live web has a location, that no two values whose lives overlap were given the same one,
+// that each location is one a value of that type may occupy, and that nothing was placed in a
+// register something writes while it is live. These are the mistakes that produce a wrong location
+// rather than a wrong instruction, and catching them here names the web rather than the eventual
+// read. computePlacement's caller runs it in debug builds.
+bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness& live,
+    const MachineFunction& machine, const Constraints& constraints, const Placement& placement, bool framePointer);
 
 // Checks that an allocation actually delivers every value to every instruction that reads it, by
 // simulating the register and stack contents the emitted code will produce and comparing them

@@ -115,6 +115,8 @@ set(X64_SOURCE_FILES
     codegen/x64/gen.h
     codegen/x64/gen.cpp
     codegen/x64/transform.cpp
+    codegen/x64/place.cpp
+    codegen/x64/legalize.cpp
     codegen/x64/register.cpp
     codegen/x64/verify.cpp
     codegen/x64/frame.cpp

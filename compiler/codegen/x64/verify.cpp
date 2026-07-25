@@ -3,34 +3,12 @@
 #include "../../lower/lower_print.h"
 
 /*
- * Allocation verifier.
+ * The checks on the allocation, one per boundary the pipeline has: what placement decided
+ * (verifyPlacement), what legalization made of it (verifyAllocation), and what frame layout turned
+ * the frame objects into (verifyFrameLayout). All three run inside assertTrue, so they compile away
+ * entirely in a release build.
  *
- * An allocation is wrong in only one way that matters: an instruction reads a location that does
- * not contain the value it was supposed to read. Everything else - two live values in one register,
- * a clobber that ate something still needed, a phi copy that never happened, two arms of a branch
- * disagreeing about where a value lives - is that same failure seen at the point where it finally
- * bites. So rather than re-deriving the allocator's own reasoning and checking it agrees with
- * itself, this walks the function keeping track of which value the emitted code will actually have
- * left in each register and stack slot, and compares that against what each instruction expects.
- *
- * The one thing it does take on trust is where a value is *supposed* to live: FunctionRegs carries
- * that as Allocation, and each block declares its own entry state from it. Every predecessor then
- * has to produce exactly that state at its terminator. Deriving a block's entry state from its
- * predecessors instead would make the check path-dependent in the same way the bug class is, and
- * two arms of a branch could quietly agree on being wrong.
- *
- * It knows nothing about how the allocation was arrived at - only FunctionRegs, the liveness sets
- * and the selected machine forms - so it stays valid as the allocator gains live intervals with holes,
- * phi webs, stack homes and split locations. Allocation::locationOf is the seam: today it answers
- * from a single home per value, later from a segment list, and nothing here changes.
- *
- * Run from allocateRegisters in debug builds only (see the assertTrue there).
- *
- * Two things it does not model. An instruction's clobber mask is taken as a complete account of what
- * the encoder writes behind the operands' backs - an encoder that writes a register no mask mentions
- * is invisible here, exactly as it is to the allocator. And an X86Address's operand registers are
- * checked at the address instruction rather than at the load or store that folds it in, which is
- * sound only because the two are adjacent by construction.
+ * Naming a location is what the first two both need, so it comes first.
  */
 
 static const char* const kIntRegNames[kGprCount] = {
@@ -55,6 +33,205 @@ static String locationName(MachineLocation at) {
 
     return format(String("<bad location %@>"), index);
 }
+
+/*
+ * Placement verifier.
+ *
+ * The verifier below checks that the emitted code delivers every value to every instruction that
+ * reads it, which is the failure that matters - but it checks it through the instructions, so a
+ * placement mistake is reported at the read that finally bit rather than at the web that was placed
+ * wrongly. This checks the placement on its own terms, before a single instruction has been
+ * resolved against it, and so names the web.
+ *
+ * Four things have to hold, and each of them is a way for the allocation to be wrong that no golden
+ * would show:
+ *
+ *   - every value that is live anywhere has somewhere to live;
+ *   - no two values whose lives overlap share a location - which is over register *units*, since
+ *     two views of one register are the same storage, and over slot ids, since a spill slot is only
+ *     reused between webs that are never live at once;
+ *   - each location is one a value of that type may actually occupy: the right bank, a register of
+ *     its class, never the frame pointer in a function that has one, never a bank no encoder
+ *     implements;
+ *   - nothing is placed in a register something writes while it is live, which is the avoid-set
+ *     rule seen from the result rather than from the computation that produced it.
+ */
+
+bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness& live,
+    const MachineFunction& machine, const Constraints& constraints, const Placement& placement, bool framePointer)
+{
+    auto funName = ctx.findName(fun.name);
+    auto ok = true;
+
+    auto name = [&](LiveId id) {
+        auto v = live.getValue(id);
+        return v->name ? ctx.findName(v->name) : format(String("value#%@"), U32(id));
+    };
+
+    auto fail = [&](auto&&... args) {
+        ok = false;
+        logError(args...);
+    };
+
+    // Values in the order their ids run, so that a disagreement is reported the same way twice.
+    for(Size i = 0; i < placement.valueCount(); i++) {
+        auto id = LiveId(i);
+        auto v = live.getValue(id);
+        auto interval = live.getInterval(id);
+        auto at = placement.locationOf(id, interval.isEmpty() ? 0 : interval.first());
+
+        if(interval.isEmpty() || isImplicit(v)) continue;
+
+        if(!at.isValid()) {
+            // A value nothing reads needs no location, and is not given one: an argument the
+            // function ignores would otherwise hold a register across the entry copies, which is
+            // exactly where a function with more arguments than it uses has the least to spare.
+            if(v->uses.isEmpty()) continue;
+
+            fail("%@: %@ is live and read but has no location", funName, name(id));
+            continue;
+        }
+
+        if(at.isPhysical()) {
+            auto reg = at.physicalReg();
+            auto cls = classForType(v->type);
+
+            if(reg.bank != targetRegisters().regClass(cls).bank) {
+                fail("%@: %@ is placed in %@, which is not in the bank its type lives in",
+                    funName, name(id), locationName(at));
+            } else if(!targetRegisters().regClass(cls).allowedPhysical.has(reg)) {
+                fail("%@: %@ is placed in %@, which its register class cannot name",
+                    funName, name(id), locationName(at));
+            } else if(!allocatableRegs().has(reg)) {
+                fail("%@: %@ is placed in %@, which is never handed out",
+                    funName, name(id), locationName(at));
+            }
+
+            // A value in rbp in a function that addresses its frame through rbp is silent memory
+            // corruption rather than a visibly wrong register - see functionNeedsFramePointer.
+            if(framePointer && reg == framePointerReg()) {
+                fail("%@: %@ is placed in the frame pointer", funName, name(id));
+            }
+
+            // The register model describes banks whose moves, spills and encodings do not exist. A
+            // location in one would be written out as an integer instruction with a vector register
+            // number in it, which nothing downstream can notice.
+            if(reg.bank != BankGpr) {
+                fail("%@: %@ is placed in %@, which no encoder implements",
+                    funName, name(id), locationName(at));
+            }
+        } else if(at.isStack()) {
+            auto slot = at.stackSlot();
+
+            if(slot >= placement.frame.slots.size()) {
+                fail("%@: %@ is placed in %@, of which the frame has %@",
+                    funName, name(id), locationName(at), U32(placement.frame.slots.size()));
+            } else if(placement.frame.slots[slot].slotClass != stackSlotClassFor(v->type)) {
+                // Slots are packed by width, so a value in one of the wrong width would be read and
+                // written taking its neighbour with it.
+                fail("%@: %@ is placed in %@, which is not the width of its type",
+                    funName, name(id), locationName(at));
+            }
+        } else if(at.isRemat()) {
+            if(at.rematId() >= placement.remats.size()) {
+                fail("%@: %@ names recipe %@, of which there are %@",
+                    funName, name(id), U32(at.rematId()), U32(placement.remats.size()));
+            }
+        }
+
+        // Nothing else may be in the same place at the same time. Compared per value rather than per
+        // web, so that two values wrongly merged into one web are caught here as well.
+        for(Size j = 0; j < i; j++) {
+            auto other = LiveId(j);
+            auto otherAt = placement.locationOf(other, 0);
+            if(!otherAt.isValid() || isImplicit(live.getValue(other))) continue;
+
+            bool shares;
+            if(at.isPhysical() && otherAt.isPhysical()) {
+                // Over units rather than over names: writing eax destroys rax.
+                shares = at.physicalReg().bank == otherAt.physicalReg().bank
+                    && (unitsOf(at.physicalReg()) & unitsOf(otherAt.physicalReg())) != 0;
+            } else {
+                // A recipe is nowhere at all, so two values that share one are two definitions of
+                // one location - which is exactly what a recipe cannot describe.
+                shares = at == otherAt;
+            }
+
+            if(!shares) continue;
+            if(!interval.overlaps(live.getInterval(other))) continue;
+
+            fail("%@: %@ and %@ are both live and both placed in %@",
+                funName, name(other), name(id), locationName(at));
+        }
+    }
+
+    // A value that has to hold its location *across* an instruction cannot be in a register the
+    // instruction writes behind its back. This is what computeAvoidSets arranges; checking it here
+    // catches an avoid set that was built from a different shape than the one the instruction ends
+    // up having.
+    U32 index = 0;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        auto onInst = [&](LowerInst* inst) {
+            auto shape = shapeOf(base, machine, constraints, fun, inst);
+            auto mask = writtenRegisters(shape);
+
+            if(!mask.isEmpty()) {
+                for(Size i = 0; i < placement.valueCount(); i++) {
+                    auto id = LiveId(i);
+                    auto at = placement.locationOf(id, beforeInst(index));
+                    if(!at.isPhysical() || !mask.has(at.physicalReg())) continue;
+                    if(!live.getInterval(id).crosses(index)) continue;
+
+                    fail("%@: %@: %@ is live across this and placed in %@, which it writes",
+                        funName, nameForInst(base, *inst), name(id), locationName(at));
+                }
+            }
+
+            index++;
+        };
+
+        for(auto i: block->instructions.contents(base)) onInst(base[i]);
+        onInst(base[block->terminator]);
+    }
+
+    return ok;
+}
+
+/*
+ * Legalization verifier.
+ *
+ * A legalized function is wrong in only one way that matters: an instruction reads a location that
+ * does not contain the value it was supposed to read. Everything else - two live values in one
+ * register, a clobber that ate something still needed, a phi copy that never happened, two arms of a
+ * branch disagreeing about where a value lives - is that same failure seen at the point where it
+ * finally bites. So rather than re-deriving the allocator's own reasoning and checking it agrees
+ * with itself, this walks the function keeping track of which value the emitted code will actually
+ * have left in each register and stack slot, and compares that against what each instruction
+ * expects.
+ *
+ * The one thing it does take on trust is where a value is *supposed* to live: FunctionRegs carries
+ * that as its Placement, and each block declares its own entry state from it. Every predecessor then
+ * has to produce exactly that state at its terminator. Deriving a block's entry state from its
+ * predecessors instead would make the check path-dependent in the same way the bug class is, and
+ * two arms of a branch could quietly agree on being wrong. Whether the placement it trusts is itself
+ * consistent is verifyPlacement's question, above.
+ *
+ * It knows nothing about how the allocation was arrived at - only FunctionRegs, the liveness sets
+ * and the selected machine forms - so it stays valid as the allocator gains live intervals with
+ * holes, phi webs, stack homes and split locations. Placement::locationOf is the seam: today it
+ * answers from one segment per web, later from several, and nothing here changes.
+ *
+ * Run from allocateRegisters in debug builds only (see the assertTrue there).
+ *
+ * Two things it does not model. An instruction's clobber mask is taken as a complete account of what
+ * the encoder writes behind the operands' backs - an encoder that writes a register no mask mentions
+ * is invisible here, exactly as it is to the allocator. And an X86Address's operand registers are
+ * checked at the address instruction rather than at the load or store that folds it in, which is
+ * sound only because the two are adjacent by construction.
+ */
 
 /*
  * What the machine holds where.
@@ -131,16 +308,16 @@ struct Verifier {
         ctx(ctx), base(base), fun(fun), live(live), machine(machine), constraints(constraints), regs(regs),
         funName(ctx.findName(fun.name))
     {
-        for(Size i = 0; i < regs.remats.size(); i++) rematOwner.push(kNullLive);
+        for(Size i = 0; i < regs.placement.remats.size(); i++) rematOwner.push(kNullLive);
 
-        for(Size i = 0; i < regs.allocation.locations.size(); i++) {
-            auto at = regs.allocation.locations[i];
+        for(Size i = 0; i < regs.placement.valueCount(); i++) {
+            auto at = regs.placement.locationOf(LiveId(i), 0);
             if(!at.isRemat()) continue;
 
             auto index = at.rematId();
             if(index >= rematOwner.size()) {
                 fail("%@: %@ names recipe %@, of which there are %@",
-                    funName, nameOf(LiveId(i)), U32(index), U32(regs.remats.size()));
+                    funName, nameOf(LiveId(i)), U32(index), U32(regs.placement.remats.size()));
                 continue;
             }
 
@@ -331,7 +508,7 @@ struct Verifier {
             // A rematerialized result is produced nowhere at all - the instruction emits nothing,
             // and every reader recreates the value for itself. It has to be the value's own home:
             // a recipe is not a place something can be put.
-            if(at.isRemat() && regs.allocation.locationOf(v.liveId(), index) != at) {
+            if(at.isRemat() && regs.placement.locationOf(v.liveId(), index) != at) {
                 fail("%@: %@: result %@ is produced as %@, which is not its own recipe",
                     funName, name, nameOf(&v), locationName(at));
             }
@@ -349,7 +526,7 @@ struct Verifier {
 
         set->liveIn.iterate(set->valueCount, [&](Size raw) {
             auto id = LiveId(raw);
-            auto at = regs.allocation.locationOf(id, set->firstIndex);
+            auto at = regs.placement.locationOf(id, set->firstIndex);
 
             if(!at.isValid()) {
                 fail("%@: block %@: %@ is live on entry but has no location",
@@ -409,7 +586,7 @@ struct Verifier {
     // rather than by assuming slot ids are handed out in argument order, so that the check does not
     // quietly agree with the allocator about a numbering neither of them is entitled to assume.
     MachineLocation incomingArgSlot(U32 offset) {
-        auto& slots = regs.frame.slots;
+        auto& slots = regs.placement.frame.slots;
 
         for(Size i = 0; i < slots.size(); i++) {
             if(slots[i].kind == StackSlotKind::IncomingArg && slots[i].argOffset == offset) {
@@ -435,7 +612,7 @@ struct Verifier {
             auto inst = v->inst();
             if(isPhi(inst) && base[inst->block] == to) return;
 
-            auto at = regs.allocation.locationOf(id, set->firstIndex);
+            auto at = regs.placement.locationOf(id, set->firstIndex);
             if(!at.isValid()) return; // already reported by buildEntryState
             if(at.isRemat()) return;  // carried by nothing, so nothing has to carry it here
 
@@ -462,7 +639,7 @@ struct Verifier {
             // Not an edge this phi takes a value from.
             if(!value || isImplicit(value)) continue;
 
-            auto at = regs.allocation.locationOf(result.liveId(), set->firstIndex);
+            auto at = regs.placement.locationOf(result.liveId(), set->firstIndex);
             if(!at.isValid()) {
                 fail("%@: phi %@ in block %@ has no location", funName, nameOf(&result), nameOf(to));
                 continue;
@@ -561,8 +738,8 @@ bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness
     // two halves of that decision disagreed, which corrupts the frame rather than producing visibly
     // wrong code, so it is checked here rather than left to show up in the emitted bytes.
     if(regs.framePointer) {
-        for(Size i = 0; i < regs.allocation.locations.size(); i++) {
-            if(regs.allocation.locations[i] == MachineLocation::physical(framePointerReg())) {
+        for(Size i = 0; i < regs.placement.valueCount(); i++) {
+            if(regs.placement.locationOf(LiveId(i), 0) == MachineLocation::physical(framePointerReg())) {
                 v.fail("%@: %@ is allocated to the frame pointer", v.funName, v.nameOf(LiveId(i)));
             }
         }
@@ -571,7 +748,7 @@ bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];
 
-        auto found = regs.blocks.get(block);
+        auto found = regs.legalized.blocks.get(block);
         if(!found.isJust()) {
             v.fail("%@: block %@ has no allocation", v.funName, v.nameOf(block));
             continue;

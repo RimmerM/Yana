@@ -1616,12 +1616,17 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
     auto blocks = fun.blocks.contents(base);
     to.startFunction(&fun);
 
+    // The two halves of the allocation the encoders read: the abstract frame objects and recipes
+    // placement produced, and the resolved locations legalization produced against them.
+    auto& objects = regs.placement.frame;
+    auto& remats = regs.placement.remats;
+
     // The stack is worked out in full before a byte is emitted: the prologue has to come first but
     // depends on things only the whole function decides (which registers were saved, whether rsp is
     // going to move, how much room the locals need), and every frame reference in the body needs
     // the same answers. See frame.cpp.
     auto frame = computeFrameLayout(context, base, fun, targetConstraints(), regs);
-    assertTrue(verifyFrameLayout(context, fun, regs.frame, frame)); // debug builds only
+    assertTrue(verifyFrameLayout(context, fun, objects, frame)); // debug builds only
 
     // The prologue belongs to the function rather than to any instruction in it, so it is reported
     // with a null instruction (see InstEmitCallback) and only when it emitted something. Its
@@ -1639,7 +1644,7 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
         auto b = base[blocks[i]];
         to.startBlock(b);
 
-        auto found = regs.blocks.get(b);
+        auto found = regs.legalized.blocks.get(b);
         assertTrue(found.isJust());
         auto& blockRegs = found.unwrap();
         auto insts = b->instructions.contents(base);
@@ -1655,7 +1660,7 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
             auto& instRegs = blockRegs.insts[j];
             auto start = U32(to.buffer.offset());
 
-            genMoves(to, frame, regs.frame, regs.remats, instRegs.moves);
+            genMoves(to, frame, objects, remats, instRegs.moves);
 
             // Debug builds only: what the selected form required is what the allocator produced.
             assertTrue(checkFormOperands(machine.formOf(inst), instRegs));
@@ -1663,10 +1668,10 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
             if(inst->kind == LowerInst::Call) {
                 genCall(to, base, *(LowerInstCall*)inst, instRegs);
             } else {
-                genInst(to, base, inst, instRegs, addrRegs, frame, regs.frame);
+                genInst(to, base, inst, instRegs, addrRegs, frame, objects);
             }
 
-            genMoves(to, frame, regs.frame, regs.remats, instRegs.postMoves);
+            genMoves(to, frame, objects, remats, instRegs.postMoves);
 
             if(onInst) onInst(onInstCtx, inst, instRegs, start, U32(to.buffer.offset()));
         }
@@ -1680,10 +1685,10 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
 
         // A terminator's moves include the copies that feed the successor's phis, so they have to
         // land before the branch itself.
-        genMoves(to, frame, regs.frame, regs.remats, termRegs.moves);
+        genMoves(to, frame, objects, remats, termRegs.moves);
         assertTrue(checkFormOperands(machine.formOf(terminator), termRegs));
         genControl(to, base, terminator, termRegs, next, frame);
-        genMoves(to, frame, regs.frame, regs.remats, termRegs.postMoves);
+        genMoves(to, frame, objects, remats, termRegs.postMoves);
 
         if(onInst) onInst(onInstCtx, terminator, termRegs, termStart, U32(to.buffer.offset()));
 
