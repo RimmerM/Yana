@@ -358,15 +358,6 @@ InstShape shapeOf(LowerBase base, const MachineFunction& machine, const Constrai
  * access at any other width would take a neighbouring value with it.
  */
 
-// The width the operation works at, which is not always the operand's own. A comparison produces an
-// Int32 whatever it compared, so its form points `widthFromUse` at the left-hand side.
-static LowerType operationType(LowerBase base, const MachineForm& form, LowerInst* inst) {
-    if(form.widthFromUse >= 0) return base[inst->used()[form.widthFromUse]]->type;
-
-    assertTrue(inst->createdCount > 0);
-    return inst->created()[0].type;
-}
-
 static bool operandFitsMemoryForm(LowerBase base, const MachineForm& form, LowerInst* inst, I32 index) {
     auto used = inst->used();
     assertTrue(Size(index) < used.size());

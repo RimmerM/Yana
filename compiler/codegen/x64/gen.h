@@ -257,6 +257,59 @@ I32 memoryUseOperand(LowerBase base, const MachineFunction& machine, LowerInst* 
 I32 memoryDefOperand(LowerBase base, const MachineFunction& machine, LowerInst* inst);
 
 /*
+ * Addresses.
+ *
+ * One address representation, and one encoder for it. Every memory reference this backend emits - a
+ * folded X86Address, a pointer sitting in a register, an outgoing argument store, a RIP-relative
+ * global - is resolved into one of these by legalization and written out by the shared encoder in
+ * gen.cpp. Nothing else writes a ModRM byte for an address.
+ *
+ * That matters because the special cases are not obvious and are all silent when wrong: rsp and r12
+ * can only be a base through a SIB byte, rbp and r13 have no displacement-free encoding, a missing
+ * base is a SIB form of its own, and REX.B/REX.X extend the base and index independently.
+ *
+ * A frame slot is the one memory reference not described here: its address is not known until frame
+ * layout has run, so it stays a location and the encoder builds the address from the layout.
+ */
+
+// A complete AMD64 memory reference: `[base + index*scale + displacement]`, `[rip + displacement]`,
+// or any legal subset of that. Registers here are physical general-purpose register numbers -
+// allocation and legalization are both over by the time an address reaches emission.
+struct MachineAddress {
+    bool hasBase = false;
+    bool hasIndex = false;
+
+    // `[rip + disp32]`, whose displacement is only known once every function and global has been
+    // emitted, so it is written as a relocation rather than as bytes.
+    bool ripRelative = false;
+
+    U8 base = 0;
+    U8 index = 0;
+    U8 scale = 1; // 1, 2, 4 or 8 - the only scalings the SIB byte encodes
+    I32 displacement = 0;
+
+    // Set instead of `displacement` when the address names something whose offset is not known yet.
+    // Exactly one of the two may be set, and only on a RIP-relative address.
+    LowerFunction* relocFunction = nullptr;
+    LowerGlobal* relocGlobal = nullptr;
+
+    // `[reg]` - a pointer the allocator left in a register.
+    static MachineAddress atRegister(U8 base) {
+        return MachineAddress { .hasBase = true, .base = base };
+    }
+
+    // `[reg + displacement]` - a frame object, or a fixed offset inside one.
+    static MachineAddress atOffset(U8 base, I32 displacement) {
+        return MachineAddress { .hasBase = true, .base = base, .displacement = displacement };
+    }
+
+    // `[rip + symbol]`, resolved by AsmModule::resolveRelocations once everything has been emitted.
+    static MachineAddress atSymbol(LowerFunction* function, LowerGlobal* global) {
+        return MachineAddress { .ripRelative = true, .relocFunction = function, .relocGlobal = global };
+    }
+};
+
+/*
  * Legalized instructions.
  *
  * What legalization decided each instruction does with the placement it was given: where every
@@ -268,11 +321,41 @@ I32 memoryDefOperand(LowerBase base, const MachineFunction& machine, LowerInst* 
  * a target-independent structure. Instead there is one `InstRegs` record per instruction, which the
  * encoder in gen.cpp consumes in lockstep with its own instruction walk.
  *
- * The locations here are already resolved: a physical register, or a frame slot where the selected
- * form has a memory alternative for it. Making them a typed operand record - which immediate, which
- * address, which register *view* - is checkpoint C6, and it changes this structure rather than
- * anything that produces it.
+ * The operands here are resolved: a physical register, a frame slot the selected form has a memory
+ * alternative for, the value of an immediate the encoding carries, or nothing at all for one the
+ * encoding swallowed. The encoder reads these and the selected form and nothing else - it never
+ * looks at the instruction to work out what shape an operand has, because that question was
+ * answered by selection and by placement, each exactly once.
  */
+
+// One operand of one instruction, as emission sees it.
+struct ResolvedOperand {
+    // Where the operand is at this instruction: a physical register, a frame slot, or a recipe.
+    // Invalid for an operand that occupies no location - an immediate the encoding carries, an
+    // address folded into a ModRM byte, a comparison consumed as flags.
+    MachineLocation at;
+
+    // The value an immediate operand carries. Resolved here rather than read out of the IR by the
+    // encoder, which is what keeps "is this operand an immediate" a question the selected form
+    // already answered.
+    U64 immediate = 0;
+    bool isImmediate = false;
+
+    static ResolvedOperand none() { return ResolvedOperand {}; }
+    static ResolvedOperand location(MachineLocation at) { return ResolvedOperand { at }; }
+
+    static ResolvedOperand constant(U64 value) {
+        return ResolvedOperand { MachineLocation::invalid(), value, true };
+    }
+
+    bool isValid() const { return at.isValid(); }
+    bool isPhysical() const { return at.isPhysical(); }
+    bool isStack() const { return at.isStack(); }
+    bool isRemat() const { return at.isRemat(); }
+
+    // Deliberately no equality: two operands are compared through `at`, because "the same place" is
+    // the only sense in which two of them are ever the same thing.
+};
 
 // One step of a register permutation. `swap` marks the entry as an exchange rather than a copy:
 // sequencing a parallel copy whose sources and destinations overlap cyclically needs one, and
@@ -288,8 +371,15 @@ struct RegMove {
 // buffers, in the same order, and name where the encoder will find (or put) each operand *at this
 // instruction*, which is not necessarily where the value lives the rest of the time.
 struct InstRegs {
-    Array<MachineLocation> uses;
-    Array<MachineLocation> creates;
+    Array<ResolvedOperand> uses;
+    Array<ResolvedOperand> creates;
+
+    // The one memory address this instruction references, for the forms whose encoding has an
+    // address field. At most one: a ModRM byte addresses one thing, and a frame slot - the other
+    // kind of memory operand - is named by a location instead, since its address is not known until
+    // frame layout has run.
+    MachineAddress address;
+    bool hasAddress = false;
 
     // Moves emitted immediately before the instruction: they bring operands from their home
     // registers into the places this instruction requires (fixed-register constraints, or the
@@ -799,6 +889,13 @@ UseSite useSiteOf(LowerBase base, const MachineFunction& machine, const Placemen
     LowerInst* inst, const InstShape& shape, Size i, U32 index, MachineLocation destructiveReg, bool memoryDest);
 
 FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const MachineFunction& machine);
+
+// Checks the selected forms against the function they were selected for: that every instruction has
+// one, that it belongs to the opcode the instruction was selected into, that it describes no more
+// operands than the instruction has, that an operand it calls an immediate or folds away is one, and
+// that the target has the features its encoding needs. Run at the end of transformFunction in debug
+// builds, which is the boundary it checks.
+bool verifySelection(Context& ctx, LowerBase base, LowerFunction& fun, const MachineFunction& machine);
 
 // Checks a placement on its own terms, before any instruction has been resolved against it: that
 // every live web has a location, that no two values whose lives overlap were given the same one,

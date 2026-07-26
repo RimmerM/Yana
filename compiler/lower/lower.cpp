@@ -1,6 +1,35 @@
 #include "lower.h"
 #include "lower_inst.h"
 
+/*
+ * The intrinsics the IR can name. Everything about what one *does* is the target's, and lives in its
+ * registry; this is only enough to write one down and read it back - see LowerIntrinsic.
+ */
+static const LowerIntrinsicDesc kIntrinsics[kLowerIntrinsicCount] = {
+    [Size(LowerIntrinsic::Bswap)]  = { "bswap"_v, 1, 1 },
+    [Size(LowerIntrinsic::Popcnt)] = { "popcnt"_v, 1, 1 },
+
+    // Takes the leaf and subleaf, and returns the four information registers in their usual order.
+    [Size(LowerIntrinsic::Cpuid)]  = { "cpuid"_v, 4, 2 },
+
+    // Returns the counter as two halves, low then high, because that is how the machine hands it
+    // back: one register each, and combining them is the caller's arithmetic rather than ours.
+    [Size(LowerIntrinsic::Rdtscp)] = { "rdtscp"_v, 2, 0 },
+};
+
+const LowerIntrinsicDesc& lowerIntrinsicDesc(LowerIntrinsic id) {
+    assertTrue(Size(id) < kLowerIntrinsicCount);
+    return kIntrinsics[Size(id)];
+}
+
+Maybe<LowerIntrinsic> findLowerIntrinsic(StringId name) {
+    for(Size i = 0; i < kLowerIntrinsicCount; i++) {
+        if(Context::nameHash(kIntrinsics[i].name) == name) return Just(LowerIntrinsic(i));
+    }
+
+    return Nothing();
+}
+
 LowerArg* LowerFunction::addArg(LowerBase base, StringId argName, LowerType type) {
     assertTrue(blocks.isNotEmpty());
 

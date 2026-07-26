@@ -204,8 +204,8 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "x86_addr"_v;
         case LowerInst::X86Lea:
             return "x86_lea"_v;
-        case LowerInst::X86Bswap:
-            return "x86_bswap"_v;
+        case LowerInst::Intrinsic:
+            return lowerIntrinsicDesc(((LowerInstIntrinsic&)inst).getIntrinsic()).name;
         case LowerInst::X86Push:
             return "x86_push"_v;
         case LowerInst::X86Pop:

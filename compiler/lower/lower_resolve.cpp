@@ -199,6 +199,41 @@ InstResolver handleLoad() {
     };
 }
 
+static Maybe<LowerInst*> handleIntrinsic(LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) {
+    // Which intrinsic this is comes from the name rather than from a resolver of its own, so that
+    // adding one to the table in lower.cpp makes it parseable with no line here.
+    auto found = findLowerIntrinsic(ast.inst);
+    if(!found) {
+        resolve.diag.error("unknown intrinsic"_v, ast.source);
+        return Nothing();
+    }
+
+    auto& desc = lowerIntrinsicDesc(found.unwrap());
+    assertResultCount(ast.results, desc.results);
+    assertArgCount(ast.args, desc.args);
+
+    auto embeddedSize = sizeof(LowerValue) * desc.results + sizeof(LowerPtr<LowerValue>) * desc.args;
+    auto inst = (LowerInstIntrinsic*)resolve.moduleArena.alloc(sizeof(LowerInstIntrinsic) + embeddedSize);
+    new (inst) LowerInstIntrinsic(found.unwrap(), desc.results, desc.args);
+
+    for(Size i = 0; i < desc.args; i++) {
+        auto a = tryMaybe(findValue(resolve, base, block, ast.args[i], ast.source), return Nothing());
+        inst->used().ptr[i] = a - base;
+    }
+
+    // An undeclared result takes the type of the first operand, which is what a one-in-one-out
+    // intrinsic almost always means; one with no operands to take it from is an Int.
+    auto defaultType = desc.args > 0 ? base[inst->used().ptr[0]]->type : LowerType::Int32;
+    Size created = 0;
+
+    for(auto result: ast.results.contents()) {
+        auto type = getResultType(result);
+        new (inst->created().ptr + created++) LowerValue(inst, type ? type.unwrap() : defaultType, getResultName(result));
+    }
+
+    return Just(block.addInst(base, (LowerInst*)inst));
+}
+
 template<LowerCallType callType>
 InstResolver handleCall() {
     return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
@@ -363,6 +398,12 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
     instructionSet.add(Context::nameHash("call_complex"_v), handleCall<LowerCallType::Complex>());
     instructionSet.add(Context::nameHash("call_clobber"_v), handleCall<LowerCallType::Clobber>());
     instructionSet.add(Context::nameHash("syscall"_v), handleCall<LowerCallType::Syscall>());
+
+    // Every intrinsic the IR names, without a line of its own: the table in lower.cpp is the one
+    // statement of which exist, and this loop is what makes adding one there enough.
+    for(Size i = 0; i < kLowerIntrinsicCount; i++) {
+        instructionSet.add(Context::nameHash(lowerIntrinsicDesc(LowerIntrinsic(i)).name), handleIntrinsic);
+    }
 
     instructionSet.add(Context::nameHash("je"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);

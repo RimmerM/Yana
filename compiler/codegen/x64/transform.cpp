@@ -1023,7 +1023,7 @@ static void analyzeLoopsAndOrderBlocks(LowerBase base, LowerFunction& fun) {
 // selected form for every instruction in the function. Mutates: nothing in the IR.
 static void selectMachineForms(LowerBase base, LowerFunction& fun, MachineFunction& machine) {
     auto select = [&](LowerInst* inst) {
-        machine.select(inst, opcodeFor(inst), selectForm(base, inst));
+        machine.select(inst, opcodeFor(inst), selectForm(base, inst), selectCondition(inst));
     };
 
     for(auto a: fun.args.contents(base)) select((LowerInst*)base[a]);
@@ -1226,4 +1226,9 @@ void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, Machine
     // produces the MachineFunction rather than mutating the IR, and because it has to see every
     // instruction the passes above created.
     selectMachineForms(base, fun, machine);
+
+    // The first of the boundary checks, at the boundary it belongs to: everything after this reads
+    // the selection rather than the instructions, so a form that does not match the instruction it
+    // was chosen for is a wrong answer nothing downstream can notice.
+    assertTrue(verifySelection(ctx, base, fun, machine));
 }

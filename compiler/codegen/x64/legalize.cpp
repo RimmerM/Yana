@@ -183,6 +183,51 @@ UseSite useSiteOf(LowerBase base, const MachineFunction& machine, const Placemen
 }
 
 /*
+ * Addresses.
+ *
+ * The one memory address an instruction references is resolved here, from the same placement every
+ * other operand comes from - which is what leaves emission with an address object rather than a
+ * pointer value it has to work out the shape of. Four things produce one:
+ *
+ *   - a folded X86Address, whose base and index were resolved at its own position just above the
+ *     access that reads it;
+ *   - a pointer the allocator left in a register, which is the degenerate `[reg]` case;
+ *   - an outgoing argument store, at the offset in the argument area the convention assigned it;
+ *   - a global's or a function's address, which is RIP-relative against a symbol whose offset is
+ *     not known until everything has been emitted.
+ *
+ * A frame slot is deliberately not one of these: its address depends on a layout that has not run
+ * yet, so it stays a location and the encoder builds the address from the frame.
+ */
+
+// The address an X86Address or X86Lea computes, with its operands resolved. The base and index each
+// occupy one operand slot, in that order, and either may be absent.
+static MachineAddress computedAddress(LowerInstX86Address& addr, const Array<ResolvedOperand>& uses) {
+    MachineAddress out;
+    Size operand = 0;
+
+    auto physical = [&](Size i) {
+        auto at = uses[i].at;
+        assertTrue(at.isPhysical() && at.bank == BankGpr); // an address operand that is not a register
+        return U8(at.index);
+    };
+
+    if(addr.base) {
+        out.hasBase = true;
+        out.base = physical(operand++);
+    }
+
+    if(addr.index) {
+        out.hasIndex = true;
+        out.index = physical(operand++);
+        out.scale = addr.scale;
+    }
+
+    out.displacement = I32(addr.displacement);
+    return out;
+}
+
+/*
  * The walk.
  */
 
@@ -196,6 +241,11 @@ struct Legalizer {
     // The scratch registers this pass handed out, which the function has to save if any of them is
     // callee-saved. Placement counts the registers it gave to webs; these are the other half.
     RegSet written;
+
+    // The address each folded X86Address resolved to, so that the access it belongs to can name it
+    // rather than reconstructing it. Keyed by instruction because an address is placed immediately
+    // in front of its user and resolved just before it.
+    HashMap<LowerInst*, MachineAddress> addresses;
 
     // Scratch registers handed out within the instruction currently being resolved, reset for each
     // one. A value whose home is a frame slot cannot be read by an encoder, so it is brought into
@@ -241,9 +291,81 @@ struct Legalizer {
             : MachineLocation::physical(spillTemp(site.tempBank, tempsUsed[site.tempBank]));
     }
 
+    // The address of a memory operand: a folded X86Address resolved at its own position just above
+    // this instruction, or a pointer the allocator left in a register.
+    MachineAddress operandAddress(LowerValue* value, const ResolvedOperand& direct) {
+        if(isMem(value)) {
+            auto found = addresses.getValue(value->inst());
+            assertTrue(found.isJust()); // an addressing mode its user was resolved before
+            return found.unwrap();
+        }
+
+        auto at = direct.at;
+        assertTrue(at.isPhysical() && at.bank == BankGpr); // a pointer operand that is not a register
+        return MachineAddress::atRegister(U8(at.index));
+    }
+
+    // The one memory address this instruction references, if its encoding has an address field at
+    // all - see the block comment above.
+    void resolveAddress(LowerInst* inst, InstRegs& out) {
+        auto set = [&](MachineAddress address) {
+            out.address = address;
+            out.hasAddress = true;
+        };
+
+        switch(inst->kind) {
+            case LowerInst::X86Address:
+                // Emits nothing itself: it is resolved so that whichever access folds it in can name
+                // the answer rather than working it out again.
+                addresses.add(inst, computedAddress(*(LowerInstX86Address*)inst, out.uses));
+                break;
+
+            case LowerInst::X86Lea:
+                set(computedAddress(*(LowerInstX86Address*)inst, out.uses));
+                break;
+
+            case LowerInst::Load:
+                set(operandAddress(base[((LowerInstLoad*)inst)->from], out.uses[0]));
+                break;
+
+            case LowerInst::Store:
+                set(operandAddress(base[((LowerInstStore*)inst)->to], out.uses[0]));
+                break;
+
+            case LowerInst::X86PushArg:
+                // The outgoing argument area is always addressed through rsp: it is the lowest part
+                // of the frame and reserved once by the prologue, so it stays where the callee looks
+                // for it whatever else the function does to its stack.
+                set(MachineAddress::atOffset(U8(IntRegister::rsp), I32(((LowerInstX86PushArg*)inst)->stackOffset)));
+                break;
+
+            case LowerInst::Global:
+                set(MachineAddress::atSymbol(nullptr, base[((LowerInstGlobal*)inst)->target]));
+                break;
+
+            case LowerInst::Fun:
+                // Elided when every use is a direct call, which encodes the target as a rel32 and
+                // never reads the address out of a register.
+                if(!isImplicit(&((LowerInstFun*)inst)->result)) {
+                    set(MachineAddress::atSymbol(base[((LowerInstFun*)inst)->target], nullptr));
+                }
+                break;
+
+            default:
+                break;
+        }
+    }
+
     InstRegs resolveInst(LowerInst* inst, U32 index) {
         InstRegs out;
+
+        // The two parallel copies this instruction needs: the transfers that put its operands where
+        // it reads them, and the ones that carry its results from where it writes them to their
+        // homes. Both are *simultaneous* sets rather than sequences - an instruction with two
+        // results in fixed registers can perfectly well have the first one's home be the second
+        // one's register - so both are sequenced before they are emitted.
         Array<RegMove> pending;
+        Array<RegMove> pendingPost;
 
         for(auto& used: tempsUsed) used = 0;
 
@@ -284,16 +406,25 @@ struct Legalizer {
                 if(!memoryDest) {
                     auto slot = destructiveReg;
                     destructiveReg = takeTemp(bankForType(created[0].type));
-                    out.postMoves.push(RegMove { destructiveReg, slot });
+                    pendingPost.push(RegMove { destructiveReg, slot });
                 }
             }
         }
 
         for(Size i = 0; i < used.size(); i++) {
             auto v = base[used[i]];
+
+            // An operand the encoding carries as a constant occupies no location at all. Its value
+            // is resolved here so that emission reads it from the operand record rather than
+            // reaching back into the IR to find out that this operand was an immediate.
+            if(isImm(v)) {
+                out.uses.push(ResolvedOperand::constant(((LowerImm*)v->inst())->i));
+                continue;
+            }
+
             auto location = useLocation(inst, shape, i, index, destructiveReg, memoryDest, true);
 
-            out.uses.push(location);
+            out.uses.push(ResolvedOperand::location(location));
             if(location.isValid() && location != homeOf(v, index)) {
                 pending.push(RegMove { homeOf(v, index), location });
             }
@@ -303,12 +434,12 @@ struct Legalizer {
             auto& v = created[i];
 
             if(isImplicit(&v)) {
-                out.creates.push(MachineLocation::invalid());
+                out.creates.push(ResolvedOperand::none());
                 continue;
             }
 
             if(i == 0 && destructiveReg.isValid()) {
-                out.creates.push(destructiveReg);
+                out.creates.push(ResolvedOperand::location(destructiveReg));
                 continue;
             }
 
@@ -323,15 +454,26 @@ struct Legalizer {
             if(want.isValid()) at = want;
             else if(home.isStack()) at = takeTemp(bankForType(v.type));
 
-            out.creates.push(at);
+            out.creates.push(ResolvedOperand::location(at));
 
             // A result produced somewhere other than its home is carried there afterwards. For a
             // fixed register nothing live can be sitting in the way: it is part of this
             // instruction's written set, which every web crossing the instruction avoids.
-            if(at != home) out.postMoves.push(RegMove { at, home });
+            if(at != home) pendingPost.push(RegMove { at, home });
         }
 
+        // A constant materialization carries the value it defines rather than an operand of its
+        // own, which is what the form's immediate field naming a result says.
+        auto& immField = machine.formOf(inst).encoding.immField;
+        if(!immField.isNone() && immField.result) {
+            assertTrue(inst->kind == LowerInst::Imm); // a form defining a constant that is not one
+            out.creates[immField.index].immediate = ((LowerImm*)inst)->i;
+            out.creates[immField.index].isImmediate = true;
+        }
+
+        resolveAddress(inst, out);
         sequenceMoves(pending, out.moves);
+        sequenceMoves(pendingPost, out.postMoves);
         return out;
     }
 

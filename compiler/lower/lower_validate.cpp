@@ -200,6 +200,25 @@ static bool validatePhi(Diagnostics* diagnostics, LowerBase base, LowerInstPhi* 
     return true;
 }
 
+// An intrinsic's meaning is the target's, so what can be checked without one is its shape: that it
+// names an intrinsic that exists, and that as many values go in and come out as that intrinsic has.
+// Whether the target can actually select it is the form table's answer, not this one's.
+static bool validateIntrinsic(Diagnostics* diagnostics, LowerBase base, LowerInstIntrinsic* inst) {
+    if(Size(inst->getIntrinsic()) >= kLowerIntrinsicCount) {
+        diagnostics->error("unknown intrinsic"_v, inst->source);
+        return false;
+    }
+
+    auto& desc = lowerIntrinsicDesc(inst->getIntrinsic());
+
+    if(inst->usedCount != desc.args || inst->createdCount != desc.results) {
+        diagnostics->error("incorrect number of operands or results for intrinsic"_v, inst->source);
+        return false;
+    }
+
+    return true;
+}
+
 static bool validateCall(Diagnostics* diagnostics, LowerBase base, LowerInstCall* inst) {
     if(inst->usedCount < 1) {
         diagnostics->error("missing call target in call"_v, inst->source);
@@ -680,9 +699,10 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateRet(diagnostics, base, (LowerInstRet*)inst);
         case LowerInst::Phi:
             return validatePhi(diagnostics, base, (LowerInstPhi*)inst, dominators);
+        case LowerInst::Intrinsic:
+            return validateIntrinsic(diagnostics, base, (LowerInstIntrinsic*)inst);
         case LowerInst::X86Address:
         case LowerInst::X86Lea:
-        case LowerInst::X86Bswap:
         case LowerInst::X86Push:
         case LowerInst::X86Pop:
         case LowerInst::X86PushArg:

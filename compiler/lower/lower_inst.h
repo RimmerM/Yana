@@ -92,9 +92,8 @@ struct LowerInst {
         // LEA, which can combine some cases of multiply-add into a single instruction.
         X86Lea,
 
-        // Intrinsics for common operations.
-        // Unary byte swap on a register.
-        X86Bswap,
+        // A machine operation named directly rather than described - see LowerIntrinsic below.
+        Intrinsic,
 
         // X86 stack manipulation.
         // Unary push register contents to stack.
@@ -447,6 +446,66 @@ struct LowerInstX86PushArg: LowerInstSingle {
 
     // Byte offset within the argument area, as the calling convention assigned it.
     U32 stackOffset;
+};
+
+/*
+ * Intrinsics.
+ *
+ * A machine operation the program asked for by name, rather than one the lowering derived from
+ * something more abstract. The instructions above all mean something a target-independent optimizer
+ * could reason about; an intrinsic means "emit this operation", and what it does to the machine is
+ * the target's description of it rather than anything stated here.
+ *
+ * So this carries an identifier and its operands, and nothing else. Everything an intrinsic needs in
+ * order to be allocated and emitted - which registers it forces its operands into, what it clobbers,
+ * which of its results goes where, how it is encoded - is one row of the target's intrinsic registry
+ * (see codegen/x64/intrinsic.cpp). Adding one is that row plus a name here.
+ *
+ * The identifiers are named centrally, the way LowerCallType names conventions the lower IR does not
+ * itself implement: an intrinsic is meaningless without a target, but the IR still has to be able to
+ * write one down, print it and parse it back.
+ */
+enum class LowerIntrinsic: U16 {
+    Bswap,   // reverse the byte order of an integer
+    Popcnt,  // count the set bits of an integer
+    Cpuid,   // query the processor's feature information
+    Rdtscp,  // read the processor's timestamp counter and its id
+
+    LastIntrinsic = Rdtscp,
+};
+
+static constexpr Size kLowerIntrinsicCount = Size(LowerIntrinsic::LastIntrinsic) + 1;
+
+// What the IR itself knows about an intrinsic: how it is written, and how many values go in and come
+// out. The arity is here rather than in the target registry because it is what the parser and the
+// validator check, and both run before any target has been chosen.
+struct LowerIntrinsicDesc {
+    StringView name;
+    U8 results;
+    U8 args;
+};
+
+const LowerIntrinsicDesc& lowerIntrinsicDesc(LowerIntrinsic id);
+
+// Looks an intrinsic up by the name it is written as, hashed as every identifier is. Nothing if
+// there is no such intrinsic. This is what makes the table in lower.cpp the one statement of which
+// intrinsics exist: the parser registers a handler per name from it and recovers the identifier
+// through here, so adding a row makes an intrinsic writable with no line of its own anywhere.
+Maybe<LowerIntrinsic> findLowerIntrinsic(StringId name);
+
+struct LowerInstIntrinsic: LowerInst {
+    LowerInstIntrinsic(LowerIntrinsic intrinsic, Size createdCount, Size usedCount):
+        LowerInst(Intrinsic), intrinsic(intrinsic)
+    {
+        this->createdCount = createdCount;
+        this->usedCount = usedCount;
+    }
+
+    LowerIntrinsic getIntrinsic() const { return intrinsic; }
+
+    // LowerInst::used contains the operand list and LowerInst::created the results, both in the
+    // order the intrinsic's description states.
+    LowerIntrinsic intrinsic;
 };
 
 struct LowerInstCall: LowerInst {

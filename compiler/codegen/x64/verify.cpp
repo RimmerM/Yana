@@ -201,6 +201,105 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
 }
 
 /*
+ * Selected-machine verifier.
+ *
+ * The first boundary, and the one every later check depends on: that each instruction of the
+ * function was actually selected into a form, and that the form and the instruction agree about what
+ * it has. validateMachineForms checks the table itself, once; this checks the table against the
+ * program, per function, after the transform pipeline has run.
+ *
+ * The failures it catches are the ones a form table makes possible. A form describing more operands
+ * than the instruction has would have placement reading constraints past the end of the operand
+ * list; a form calling an operand an immediate when the peepholes did not embed one would have the
+ * encoder writing bytes for a value that is still in a register; a form needing an extension the
+ * target does not have would emit an instruction the machine faults on. None of these can be seen in
+ * a golden file, because the compiler that produced them was internally consistent - just wrong.
+ */
+
+bool verifySelection(Context& ctx, LowerBase base, LowerFunction& fun, const MachineFunction& machine) {
+    auto funName = ctx.findName(fun.name);
+    auto ok = true;
+
+    auto check = [&](LowerInst* inst) {
+        auto selected = machine.insts.get(inst);
+        auto name = nameForInst(base, *inst);
+
+        auto fail = [&](StringView what) {
+            ok = false;
+            logError("%@: %@: %@", funName, name, what);
+        };
+
+        // Everything downstream asks the form what an instruction does, so an instruction selection
+        // never reached is one the allocator would have to guess about.
+        if(selected.isNothing()) {
+            fail("was never given a machine form"_v);
+            return;
+        }
+
+        auto& form = machineTarget().form(selected.unwrap().form);
+        if(form.opcode != selected.unwrap().opcode) {
+            fail("was given a form belonging to another opcode"_v);
+            return;
+        }
+
+        if((form.requiredFeatures & ~targetFeatures()) != 0) {
+            fail("was given a form needing a target feature this build does not have"_v);
+        }
+
+        // A call, a syscall and a return take their operands from a convention rather than from the
+        // form, which states none of its own.
+        if(form.conventionOperands) return;
+
+        auto used = inst->used();
+        auto created = inst->created();
+
+        if(form.uses.size() > used.size() || form.defs.size() > created.size()) {
+            fail("was given a form describing more operands than it has"_v);
+            return;
+        }
+
+        for(Size i = 0; i < form.uses.size(); i++) {
+            auto value = base[used[i]];
+
+            switch(form.uses[i].kind) {
+                case OperandConstraintKind::Immediate:
+                    // The encoding carries this operand's value in its own bytes, so there has to be
+                    // a constant there to carry.
+                    if(value->inst()->kind != LowerInst::Imm) fail("carries an immediate that is not a constant"_v);
+                    break;
+
+                case OperandConstraintKind::Address:
+                    // Either a folded addressing mode or a pointer the allocator will leave in a
+                    // register; anything else has no address for the encoder to write.
+                    if(!isMem(value) && !isPtr(value->type)) fail("addresses an operand that is not a pointer"_v);
+                    break;
+
+                case OperandConstraintKind::None:
+                    // An operand the encoding swallowed occupies no location, which is what being
+                    // implicit means - and what stops the allocator from giving it one.
+                    if(!isImplicit(value)) fail("folds an operand that still needs a location"_v);
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    };
+
+    for(auto a: fun.args.contents(base)) check((LowerInst*)base[a]);
+
+    for(auto b: fun.blocks.contents(base)) {
+        auto block = base[b];
+
+        for(auto p: block->phis.contents(base)) check(base[p]);
+        for(auto i: block->instructions.contents(base)) check(base[i]);
+        check(base[block->terminator]);
+    }
+
+    return ok;
+}
+
+/*
  * Legalization verifier.
  *
  * A legalized function is wrong in only one way that matters: an instruction reads a location that
@@ -412,7 +511,7 @@ struct Verifier {
 
         for(Size i = 0; i < used.size(); i++) {
             auto v = base[used[i]];
-            auto at = instRegs.uses[i];
+            auto at = instRegs.uses[i].at;
 
             // An implicit operand is folded into the instruction's encoding (an embedded immediate,
             // a compare consumed as flags, a direct call's target) and must not be given a location.
@@ -442,7 +541,7 @@ struct Verifier {
             // byte, which is a failed assertion in gen.cpp rather than a wrong register visible
             // anywhere here.
             auto inPlace = memoryDefOperand(base, machine, inst) == I32(i)
-                && instRegs.creates.size() > 0 && instRegs.creates[0] == at;
+                && instRegs.creates.size() > 0 && instRegs.creates[0].at == at;
 
             if(at.isStack() && !inPlace && memoryUseOperand(base, machine, inst) != I32(i)) {
                 fail("%@: %@: operand %@ is read from %@, which no form of this instruction can address",
@@ -470,7 +569,7 @@ struct Verifier {
 
         for(Size i = 0; i < created.size(); i++) {
             auto& v = created[i];
-            auto at = instRegs.creates[i];
+            auto at = instRegs.creates[i].at;
 
             if(isImplicit(&v)) {
                 if(at.isValid()) {
@@ -497,7 +596,7 @@ struct Verifier {
             if(at.isStack()) {
                 auto operand = memoryDefOperand(base, machine, inst);
                 auto inPlace = i == 0 && operand != kNoMemoryOperand
-                    && Size(operand) < instRegs.uses.size() && instRegs.uses[operand] == at;
+                    && Size(operand) < instRegs.uses.size() && instRegs.uses[operand].at == at;
 
                 if(!inPlace) {
                     fail("%@: %@: result %@ is produced in %@, which no form of this instruction can write",
