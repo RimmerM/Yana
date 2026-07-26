@@ -1,0 +1,389 @@
+
+classify<complex>(%value: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %value, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    %v_4 = cmp_ige %value, 1: Int
+    %v_5 = cmp_ile %value, 10: Int
+    %v_6 = and %v_4, %v_5: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_2 {
+    jmp b_9
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_7 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_2, 0], [b_7, 1], [b_8, 2]: Int
+    ret %v_10
+  }
+}
+
+pairValue<complex>(%p: Ptr): Int {
+  b_0 {
+    %v_1 = load %p, 4: Int
+    %v_2 = cast %v_1: Int
+    %v_3 = cmp_eq %v_2, 0: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = load %p, 4: Int
+    %v_7 = cast %v_6: Int
+    %v_8 = cmp_eq %v_7, 0: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_4 {
+    %v_11 = add %p, 4: Ptr
+    %v_12 = load %v_11, 4: Int
+    %v_13 = cast %v_12: Int
+    %v_14 = cmp_eq %v_13, 1: Int
+    je %v_14, b_15, b_5
+  }
+
+  b_15 {
+    jmp b_16
+  }
+
+  b_10 {
+    %v_17 = load %p, 4: Int
+    %v_18 = cast %v_17: Int
+    %v_19 = cmp_eq %v_18, 1: Int
+    je %v_19, b_20, b_21
+  }
+
+  b_9 {
+    %v_22 = add %p, 4: Ptr
+    %v_23 = load %v_22, 4: Int
+    %v_24 = cast %v_23: Int
+    %v_25 = cmp_eq %v_24, 0: Int
+    je %v_25, b_26, b_10
+  }
+
+  b_26 {
+    jmp b_16
+  }
+
+  b_21 {
+    %v_27 = load %p, 4: Int
+    %v_28 = add %p, 4: Ptr
+    %v_29 = load %v_28, 4: Int
+    jmp b_16
+  }
+
+  b_20 {
+    %v_30 = add %p, 4: Ptr
+    %b = load %v_30, 4: Int
+    je %b, b_31, b_32
+  }
+
+  b_31 {
+    jmp b_33
+  }
+
+  b_32 {
+    jmp b_33
+  }
+
+  b_33 {
+    %v_34 = phi [b_31, 3], [b_32, 4]: Int
+    jmp b_16
+  }
+
+  b_16 {
+    %v_35 = phi [b_15, 1], [b_26, 2], [b_33, %v_34], [b_21, 5]: Int
+    ret %v_35
+  }
+}
+
+firstOrRest<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = loads %m, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = loads %m, 4: Int
+    %v_6 = cmp_eq %v_5, 1: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_3 {
+    %v_9 = add %m, 4: Ptr
+    %v_10 = load %v_9, 4: Int
+    %v_11 = cast %v_10: Int
+    %v_12 = cmp_eq %v_11, 0: Int
+    je %v_12, b_13, b_4
+  }
+
+  b_13 {
+    jmp b_14
+  }
+
+  b_8 {
+    jmp b_14
+  }
+
+  b_7 {
+    %v_15 = add %m, 4: Ptr
+    %rest = load %v_15, 4: Int
+    %v_16 = call_complex colorValue, %rest: Int
+    jmp b_14
+  }
+
+  b_14 {
+    %v_17 = phi [b_13, 10], [b_7, %v_16], [b_8, 0]: Int
+    ret %v_17
+  }
+}
+
+shapeValue<complex>(%s: Ptr): Int {
+  b_0 {
+    %v_1 = loads %s, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = add %s, 4: Ptr
+    %r = loads %v_5, 4: Int
+    %v_6 = add %r, 1: Int
+    jmp b_7
+  }
+
+  b_3 {
+    %v_8 = add %s, 4: Ptr
+    %v_9 = add %s, 4: Ptr
+    %width = loads %v_9, 4: Int
+    %v_10 = add %s, 8: Ptr
+    %height = loads %v_10, 4: Int
+    %v_11 = imul %width, %height: Int
+    jmp b_7
+  }
+
+  b_7 {
+    %v_12 = phi [b_3, %v_11], [b_4, %v_6]: Int
+    ret %v_12
+  }
+}
+
+nested<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = loads %m, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = loads %m, 4: Int
+    %v_6 = cmp_eq %v_5, 1: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_3 {
+    %v_9 = add %m, 4: Ptr
+    %v_10 = load %v_9, 4: Int
+    %v_11 = cast %v_10: Int
+    %v_12 = cmp_eq %v_11, 0: Int
+    je %v_12, b_13, b_4
+  }
+
+  b_13 {
+    jmp b_14
+  }
+
+  b_8 {
+    %v_15 = loads %m, 4: Int
+    %v_16 = cmp_eq %v_15, 1: Int
+    je %v_16, b_17, b_18
+  }
+
+  b_7 {
+    %v_19 = add %m, 4: Ptr
+    %v_20 = load %v_19, 4: Int
+    %v_21 = cast %v_20: Int
+    %v_22 = cmp_eq %v_21, 1: Int
+    je %v_22, b_23, b_8
+  }
+
+  b_23 {
+    jmp b_14
+  }
+
+  b_18 {
+    jmp b_14
+  }
+
+  b_17 {
+    %v_24 = add %m, 4: Ptr
+    %v_25 = load %v_24, 4: Int
+    %v_26 = cast %v_25: Int
+    %v_27 = cmp_eq %v_26, 2: Int
+    je %v_27, b_28, b_18
+  }
+
+  b_28 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_29 = phi [b_13, 1], [b_23, 2], [b_28, 3], [b_18, 0]: Int
+    ret %v_29
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex colorValue, 0: Int
+    %v_2 = call_complex colorValue, 1: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = call_complex colorValue, 2: Int
+    %v_5 = add %v_3, %v_4: Int
+    %v_6 = alloca 12, 4: Ptr
+    store %v_6, 1, 4
+    %v_7 = add %v_6, 4: Ptr
+    store %v_7, 2, 4
+    %v_8 = add %v_6, 8: Ptr
+    store %v_8, 3, 4
+    %v_9 = call_complex shapeValue, %v_6: Int
+    %v_10 = add %v_5, %v_9: Int
+    %v_11 = alloca 12, 4: Ptr
+    store %v_11, 0, 4
+    %v_12 = add %v_11, 4: Ptr
+    store %v_12, 4, 4
+    %v_13 = call_complex shapeValue, %v_11: Int
+    %v_14 = add %v_10, %v_13: Int
+    %v_15 = alloca 8, 4: Ptr
+    store %v_15, 1, 4
+    %v_16 = add %v_15, 4: Ptr
+    store %v_16, 0, 4
+    %v_17 = call_complex nested, %v_15: Int
+    %v_18 = add %v_14, %v_17: Int
+    %v_19 = alloca 8, 4: Ptr
+    store %v_19, 1, 4
+    %v_20 = add %v_19, 4: Ptr
+    store %v_20, 1, 4
+    %v_21 = call_complex nested, %v_19: Int
+    %v_22 = add %v_18, %v_21: Int
+    %v_23 = alloca 8, 4: Ptr
+    store %v_23, 1, 4
+    %v_24 = add %v_23, 4: Ptr
+    store %v_24, 2, 4
+    %v_25 = call_complex nested, %v_23: Int
+    %v_26 = add %v_22, %v_25: Int
+    %v_27 = alloca 8, 4: Ptr
+    store %v_27, 0, 4
+    %v_28 = call_complex nested, %v_27: Int
+    %v_29 = add %v_26, %v_28: Int
+    %v_30 = alloca 8, 4: Ptr
+    store %v_30, 0, 4
+    %v_31 = add %v_30, 4: Ptr
+    store %v_31, 1, 4
+    %v_32 = call_complex pairValue, %v_30: Int
+    %v_33 = add %v_29, %v_32: Int
+    %v_34 = alloca 8, 4: Ptr
+    store %v_34, 0, 4
+    %v_35 = add %v_34, 4: Ptr
+    store %v_35, 0, 4
+    %v_36 = call_complex pairValue, %v_34: Int
+    %v_37 = add %v_33, %v_36: Int
+    %v_38 = alloca 8, 4: Ptr
+    store %v_38, 1, 4
+    %v_39 = add %v_38, 4: Ptr
+    store %v_39, 1, 4
+    %v_40 = call_complex pairValue, %v_38: Int
+    %v_41 = add %v_37, %v_40: Int
+    %v_42 = alloca 8, 4: Ptr
+    store %v_42, 1, 4
+    %v_43 = add %v_42, 4: Ptr
+    store %v_43, 0, 4
+    %v_44 = call_complex pairValue, %v_42: Int
+    %v_45 = add %v_41, %v_44: Int
+    %v_46 = alloca 8, 4: Ptr
+    store %v_46, 2, 4
+    %v_47 = add %v_46, 4: Ptr
+    store %v_47, 1, 4
+    %v_48 = call_complex pairValue, %v_46: Int
+    %v_49 = add %v_45, %v_48: Int
+    %v_50 = alloca 8, 4: Ptr
+    store %v_50, 2, 4
+    %v_51 = add %v_50, 4: Ptr
+    store %v_51, 0, 4
+    %v_52 = call_complex pairValue, %v_50: Int
+    %v_53 = add %v_49, %v_52: Int
+    %v_54 = alloca 8, 4: Ptr
+    store %v_54, 1, 4
+    %v_55 = add %v_54, 4: Ptr
+    store %v_55, 0, 4
+    %v_56 = call_complex firstOrRest, %v_54: Int
+    %v_57 = add %v_53, %v_56: Int
+    %v_58 = alloca 8, 4: Ptr
+    store %v_58, 1, 4
+    %v_59 = add %v_58, 4: Ptr
+    store %v_59, 1, 4
+    %v_60 = call_complex firstOrRest, %v_58: Int
+    %v_61 = add %v_57, %v_60: Int
+    %v_62 = alloca 8, 4: Ptr
+    store %v_62, 1, 4
+    %v_63 = add %v_62, 4: Ptr
+    store %v_63, 2, 4
+    %v_64 = call_complex firstOrRest, %v_62: Int
+    %v_65 = add %v_61, %v_64: Int
+    %v_66 = alloca 8, 4: Ptr
+    store %v_66, 0, 4
+    %v_67 = call_complex firstOrRest, %v_66: Int
+    %v_68 = add %v_65, %v_67: Int
+    %v_69 = call_complex classify, 0: Int
+    %v_70 = add %v_68, %v_69: Int
+    %v_71 = call_complex classify, 7: Int
+    %v_72 = add %v_70, %v_71: Int
+    %v_73 = call_complex classify, 50: Int
+    %v_74 = add %v_72, %v_73: Int
+    ret %v_74
+  }
+}
+
+colorValue<complex>(%c: Int): Int {
+  b_0 {
+    %v_1 = cast %c: Int
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = cast %c: Int
+    %v_6 = cmp_eq %v_5, 1: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_3 {
+    jmp b_9
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_7 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_3, 1], [b_7, 2], [b_8, 3]: Int
+    ret %v_10
+  }
+}
+

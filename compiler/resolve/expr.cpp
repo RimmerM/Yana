@@ -439,10 +439,17 @@ void ExprResolver::resolveWhile(const ast::WhileExpr& loop) {
     auto cond = convert(resolve(loop.cond, module.scalar.bool_), module.scalar.bool_, loop.cond.source);
     terminate(emit<InstJe>(loop.cond.source, 0, module.scalar.unit, cond, bodyBlock, exitBlock));
 
+    // A name the body binds belongs to the body, the way it does in the arms of an `if` or a
+    // `match`. Letting one outlive the loop would also let it be read from the exit block, which
+    // the value it was bound to does not dominate - the loop may have run zero times.
+    auto bindingCount = bindings.size();
+
     loops.push(LoopTarget { conditionBlock, exitBlock });
     current = bodyBlock;
     resolve(loop.body, nullptr, false);
     loops.pop();
+
+    bindings.resize(bindingCount);
 
     if(current) terminate(emit<InstJmp>(loop.body.source, 0, module.scalar.unit, conditionBlock));
     current = exitBlock;
@@ -485,19 +492,8 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
         auto value = settle(resolve(*parse[decl.content]), decl.pat.source);
         if(!value) continue;
 
-        if(!irrefutable(decl.pat, valueType(value))) {
-            context.diagnostics.error(
-                decl.alts.isNotEmpty()
-                    ? "refutable declaration alternatives require ownership-aware initialization"_v
-                    : "refutable let pattern requires alternatives"_v,
-                decl.pat.source);
-
-            continue;
-        }
-
-        // The pattern is irrefutable, so it emits no test: `current` stands in for a failure
-        // block that is never branched to.
-        resolvePattern(decl.pat, value, current, nullptr);
+        resolveBinding(decl, value);
+        if(!current) break;
 
         if(decl.in) {
             result = resolve(*parse[decl.in], target, used);

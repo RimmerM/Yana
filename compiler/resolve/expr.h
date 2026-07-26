@@ -47,13 +47,15 @@ enum class PatternResult: I8 {
     Always = 1,
 };
 
-// Which constructors of one record a `match` has already tested. This is the whole of the
-// exhaustiveness model for Milestone 2: a bitmask is enough while a match pivots on a single
-// value, and it is what tells the last alternative that it needs no test of its own.
-struct RecordCoverage {
-    TypePtr type = nullptr;
-    U64 checked = 0;
-    U16 checkedCount = 0;
+// What a bare name in a pattern means.
+//
+// In `match` it is a test - `match x: y -> ...` asks whether `x` equals the `y` already in
+// scope - which is what makes a constant usable as an alternative without repeating its value.
+// In a declaration there is nothing to test against: `let y = y + 1` introduces a new `y` that
+// shadows the old one, the way every other binding form does.
+enum class PatternMode: U8 {
+    Match,
+    Bind,
 };
 
 // One alternative's contribution to a branching expression's result: the block control leaves
@@ -224,10 +226,21 @@ struct ExprResolver {
      */
 
     ModulePtr<Value> resolveMatch(const ast::Expr& expr, const ast::MatchExpr& match, TypePtr target, bool used);
-    PatternResult resolvePattern(const ast::Pat& pattern, ModulePtr<Value> pivot, ModulePtr<Block> onFail, RecordCoverage* coverage = nullptr);
+
+    // One declaration's pattern, bound to the value its initializer produced, together with the
+    // alternatives that cover what the pattern does not. Everything a `let` needs beyond
+    // evaluating its initializer, which is resolveDecl's half.
+    void resolveBinding(const ast::VarDecl& declaration, ModulePtr<Value> value);
+
+    // Emits the tests `pattern` needs and binds the names it introduces. A null `onFail` means
+    // the pattern is already known to match every value that can reach it - either because it is
+    // irrefutable, or because the alternatives before it ruled everything else out - so no test
+    // is emitted and there is no failure edge to take.
+    PatternResult resolvePattern(const ast::Pat& pattern, ModulePtr<Value> pivot, ModulePtr<Block> onFail,
+                                 PatternMode mode = PatternMode::Match);
+
     PatternResult branchPattern(ModulePtr<Value> condition, ModulePtr<Block> onFail, LocationId source);
     ModulePtr<Value> patternBound(const ast::Pat& pattern, TypePtr target);
-    bool irrefutable(const ast::Pat& pattern, TypePtr type);
 
     Context& context;
     Module& module;

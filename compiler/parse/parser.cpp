@@ -1049,6 +1049,11 @@ ast::VarDecl Parser::parseDeclExpr() {
                 } else {
                     parseAlt(alts);
                 }
+            } else if(token.type == Token::kw_ || token.type == Token::kwElse) {
+                // `| else -> expr` is the wildcard written out. It needs no lookahead to tell
+                // from the shorthand below, because neither `_` nor `else` can begin an
+                // expression; a fallback that tests something instead needs the `| match:` form.
+                parseAlt(alts);
             } else {
                 auto e = parseExpr();
                 alts.push(arena, { .pat = { .source = context.addLocation(node.unwrap().node), .kind = ast::Pat::Any }, .expr = e });

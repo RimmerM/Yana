@@ -1,0 +1,83 @@
+-- The guard form of `let`: a declaration whose pattern may fail, with alternatives that say
+-- what happens when it does. Every alternative has to leave the block, which is what lets the
+-- names the pattern bound stay in scope for the rest of it with no nesting level of their own.
+
+data Color = Red | Green | Blue
+
+-- `| expr` is the shorthand for a single wildcard alternative.
+fn orZero(m: Maybe(Int)) -> Int:
+    let Just(v) = m | return 0
+    return v + 1
+
+-- The same thing written out, which is the form a fallback that binds would need.
+fn orZeroElse(m: Maybe(Int)) -> Int:
+    let Just(v) = m | else -> return 0
+    return v + 2
+
+-- `| match:` takes one alternative per case, and they have to cover what the pattern does not.
+fn describe(m: Maybe(Color)) -> Int:
+    let Just(c) = m | match: Nothing -> return 0
+    return match c:
+        Red -> 1
+        Green -> 2
+        Blue -> 3
+
+-- The pattern and its alternatives are one space: `Just(Red)` leaves three cases, and these are
+-- them, so no alternative needs a wildcard either.
+fn onlyRed(m: Maybe(Color)) -> Int:
+    let Just(Red) = m | match:
+        Just(Green) -> return 20
+        Just(Blue) -> return 30
+        Nothing -> return 0
+
+    return 10
+
+-- `in` scopes the binding to one expression instead of the rest of the block.
+fn scoped(m: Maybe(Int)) -> Int = let Just(v) = m | return 0 in v * 3
+
+-- "Leaves the block" is read off the resolver's own control flow rather than off the syntax, so
+-- a `break` counts, and so does a `continue`.
+fn firstJust(a: Maybe(Int), b: Maybe(Int)) -> Int:
+    while True:
+        let Just(first) = a | break
+        return first
+
+    let Just(second) = b | return 0
+    return second
+
+-- `continue` from an alternative: the loop retries, and the binding is live for the rest of the
+-- body on the one path that reaches it. `c` decides how the loop is left, which is what makes
+-- the two exits distinguishable in the result.
+fn retry(m: Maybe(Int), c: Color) -> Int:
+    while True:
+        let Just(v) = m | match:
+            Nothing -> match c:
+                Red -> break
+                Green -> return 100
+                Blue -> continue
+
+        return v + 1
+
+    return 50
+
+-- A match whose arms leave through the loop instead of producing a value.
+fn scan(c: Color) -> Int:
+    while True:
+        match c:
+            Red -> break
+            Green -> return 7
+            Blue -> return 8
+
+    return 9
+
+-- Both paths of every declaration above, and every alternative of the ones that have more
+-- than one: an alternative emitted without a test is only shown right by reaching it.
+fn main() -> Int =
+    orZero(Just(1)) + orZero(Nothing) +
+    orZeroElse(Just(1)) + orZeroElse(Nothing) +
+    describe(Just(Red)) + describe(Just(Green)) + describe(Just(Blue)) + describe(Nothing) +
+    onlyRed(Just(Red)) + onlyRed(Just(Green)) + onlyRed(Just(Blue)) + onlyRed(Nothing) +
+    scoped(Just(4)) + scoped(Nothing) +
+    firstJust(Nothing, Just(7)) + firstJust(Just(3), Nothing) +
+    retry(Just(5), Red) + retry(Nothing, Red) + retry(Nothing, Green) +
+    scan(Red) + scan(Green) + scan(Blue)

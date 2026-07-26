@@ -2,13 +2,542 @@
 #include "name.h"
 
 /*
- * Patterns and `match`.
+ * Patterns, `match`, and the refutable half of `let`.
  *
  * Resolving a pattern emits the tests it needs into the current block and binds the names it
  * introduces, returning what it proved: an irrefutable pattern emits nothing, a refutable one
  * emits a branch to `onFail`. `match` chains those failure blocks together, so the alternatives
- * are tried in order and the last one - if the coverage tracking shows it must match - skips its
- * test entirely rather than branching to a trap.
+ * are tried in order.
+ *
+ * Which alternatives need a test at all is not decided while emitting them - it is decided by
+ * PatternSpace below, before any of them is emitted. That separation is what makes an exhaustive
+ * `match` need no wildcard: the alternative that completes the match is emitted with no failure
+ * block, because every value that failed the ones before it is one this alternative matches, all
+ * the way down through its nested patterns.
+ */
+
+/*
+ * Exhaustiveness.
+ *
+ * PatternSpace is Maranget's usefulness algorithm ("Warnings for pattern matching", JFP 2007)
+ * over the alternatives of one match. It answers three questions with one recursion:
+ *
+ *   - is this alternative useful, or does an earlier one already cover everything it matches?
+ *   - is the match complete once this alternative is added?
+ *   - if it is not, which value is left over?
+ *
+ * The third is what makes the diagnostic worth reading, and it costs nothing extra: a witness is
+ * what the search for one produces on its way to answering the second.
+ *
+ * The algorithm works on a matrix whose columns are the positions a value is taken apart into,
+ * which is how it sees through nesting that the pattern syntax keeps separate: after
+ * `Just(Red)`, `Just(Green)` and `Just(Blue)`, the `Just` column is complete even though no
+ * single alternative wrote a bare `Just`.
+ */
+
+// A pattern's head constructor, as the exhaustiveness algorithm sees it.
+//
+// `Opaque` is the escape hatch: a test the algorithm cannot relate to any other - a range, an
+// array pattern, a comparison against a value in scope, or a constructor that does not belong to
+// the type being matched. Each occurrence is its own constructor drawn from an inexhaustible
+// signature, so it can never complete a column and can never be shown to subsume another
+// pattern. Both of those err towards saying less, which is the safe direction: the worst an
+// Opaque can cause is a wildcard the author did not strictly need.
+struct PatternHead {
+    enum Kind: U8 {
+        Wildcard,
+        Con,
+        Tup,
+        Int,
+        Opaque,
+    };
+
+    bool operator == (const PatternHead& other) const {
+        if(kind != other.kind) return false;
+
+        switch(kind) {
+            case Con: return index == other.index;
+            case Int: return value == other.value;
+            case Opaque: return tag == other.tag;
+            default: return true;
+        }
+    }
+
+    // Con: the constructor's index in its record. Int: the literal's value. Opaque: the pattern
+    // itself, which is the only identity such a test has.
+    U32 index = 0;
+    U64 value = 0;
+    const ast::Pat* tag = nullptr;
+    Kind kind = Wildcard;
+};
+
+// One step of the recursion. Rows are stored flat, `types.size()` cells to a row, because every
+// step builds a whole new matrix from the previous one and a row is never edited in place. A
+// null cell is a wildcard.
+struct PatternMatrix {
+    Array<TypePtr> types;
+    Array<const ast::Pat*> cells;
+    Size rows = 0;
+
+    Size columns() const { return types.size(); }
+    const ast::Pat* cell(Size row, Size column) const { return cells[row * columns() + column]; }
+};
+
+struct PatternSpace {
+    PatternSpace(ExprResolver& resolver, TypePtr pivot, PatternMode mode):
+        resolver(resolver), context(resolver.context), module(resolver.module),
+        parse(resolver.parse), global(resolver.global), mode(mode)
+    {
+        covered.types.push(pivot);
+    }
+
+    // Whether `pattern` matches a value that none of the patterns added so far match. A pattern
+    // that does not is an alternative the program can never take.
+    //
+    // Every pattern handed to a PatternSpace has to outlive it and keep its address, because a
+    // pattern's identity here is its address: that is what tells two opaque tests apart, and what
+    // the head cache is keyed by. An alternative read out of a parse list is a copy, so the
+    // callers below keep the ones they hand over.
+    bool useful(const ast::Pat& pattern) {
+        classify(pattern);
+
+        Array<const ast::Pat*> row;
+        row.push(&pattern);
+        return useful(covered, row);
+    }
+
+    // Adds `pattern` to the space, and answers whether everything is now covered.
+    bool add(const ast::Pat& pattern) {
+        classify(pattern);
+        covered.cells.push(&pattern);
+        covered.rows++;
+
+        Array<String> witness;
+        return !missing(covered, witness);
+    }
+
+    // A value nothing added so far matches, written the way a pattern for it would be. Only
+    // meaningful when add() last answered false.
+    String gap() {
+        Array<String> witness;
+        if(!missing(covered, witness) || witness.isEmpty()) return String("_");
+        return witness[0];
+    }
+
+private:
+    /*
+     * Classification.
+     */
+
+    // Records which bare names in `pattern` are tests rather than bindings, walking it in the
+    // order resolvePattern() binds them so that the second `a` of `{a, a}` is seen as the
+    // comparison it compiles to.
+    void classify(const ast::Pat& pattern) {
+        Array<StringId> bound;
+        classify(pattern, bound);
+    }
+
+    void classify(const ast::Pat& pattern, Array<StringId>& bound) {
+        if(pattern.asVar) bound.push(pattern.asVar);
+
+        switch(pattern.kind) {
+            case ast::Pat::Var:
+                if(mode == PatternMode::Match && (bound.containsValue(pattern.var) || resolver.find(pattern.var))) {
+                    if(!tests.containsValue(&pattern)) tests.push(&pattern);
+                } else {
+                    bound.push(pattern.var);
+                }
+                return;
+            case ast::Pat::Tup: {
+                auto fieldList = pattern.tup;
+                for(auto field: fieldList.contents(parse)) classify(*parse[field.pat], bound);
+                return;
+            }
+            case ast::Pat::Con:
+                if(pattern.con.pats) classify(*parse[pattern.con.pats], bound);
+                return;
+            default:
+                // A range's bounds read values rather than binding them, and array patterns are
+                // opaque as a whole, so neither introduces a name.
+                return;
+        }
+    }
+
+    // The head of one cell. Cached by pattern rather than recomputed, both because the recursion
+    // asks for the same one repeatedly and because looking a constructor up can report ambiguity
+    // - which has to happen once, not once per column the pattern is looked at from.
+    PatternHead head(const ast::Pat* pattern, TypePtr type) {
+        if(!pattern) return {};
+
+        for(auto& entry: headCache) {
+            if(entry.pattern == pattern) return entry.head;
+        }
+
+        auto result = computeHead(*pattern, type);
+        headCache.push(CachedHead { pattern, result });
+        return result;
+    }
+
+    PatternHead computeHead(const ast::Pat& pattern, TypePtr type) {
+        auto opaque = [&]() { return PatternHead { 0, 0, &pattern, PatternHead::Opaque }; };
+
+        switch(pattern.kind) {
+            case ast::Pat::Error:
+            case ast::Pat::Any:
+                return {};
+            case ast::Pat::Var:
+                return tests.containsValue(&pattern) ? opaque() : PatternHead {};
+            case ast::Pat::Tup: {
+                if(!type || global[type]->kind != Type::Tup) return opaque();
+
+                // A field the pattern names but the type does not have is an error resolvePattern
+                // reports; here it only means the pattern's shape cannot be trusted.
+                auto tuple = (TupType*)global[type];
+                auto fieldList = pattern.tup;
+                Size positional = 0;
+
+                for(auto field: fieldList.contents(parse)) {
+                    if(fieldIndex(*tuple, field.field, positional) == maxLimit<Size>) return opaque();
+                }
+
+                return PatternHead { 0, 0, nullptr, PatternHead::Tup };
+            }
+            case ast::Pat::Con: {
+                auto found = findConstructor(module, pattern.con.name, pattern.source);
+                if(!found || !type || global[type]->kind != Type::Record) return opaque();
+
+                auto record = (RecordType*)global[type];
+                if(record->base(global) != found.unwrap().record) return opaque();
+
+                return PatternHead { found.unwrap().index, 0, nullptr, PatternHead::Con };
+            }
+            default:
+                break;
+        }
+
+        if(pattern.kind == ast::Pat::Kind(ast::Pat::Lit + ast::Literal::Int)) {
+            return PatternHead { 0, pattern.lit.i(), nullptr, PatternHead::Int };
+        }
+
+        return opaque();
+    }
+
+    // Which field of `tuple` a pattern field addresses, advancing the positional counter when it
+    // is not named. maxLimit<Size> when there is no such field.
+    Size fieldIndex(TupType& tuple, StringId name, Size& positional) {
+        if(name) {
+            for(Size i = 0; i < tuple.fields.size(); i++) {
+                if(tuple.fields.get(global, i).name == name) return i;
+            }
+
+            return maxLimit<Size>;
+        }
+
+        return positional < tuple.fields.size() ? positional++ : maxLimit<Size>;
+    }
+
+    /*
+     * The signature of one column.
+     */
+
+    Size arity(const PatternHead& head, TypePtr type) {
+        switch(head.kind) {
+            case PatternHead::Con: {
+                auto record = (RecordType*)global[type];
+                return isUnit(global, record->constructors.get(global, head.index).content) ? 0 : 1;
+            }
+            case PatternHead::Tup:
+                return ((TupType*)global[type])->fields.size();
+            default:
+                return 0;
+        }
+    }
+
+    TypePtr fieldType(const PatternHead& head, TypePtr type, Size index) {
+        if(head.kind == PatternHead::Con) return ((RecordType*)global[type])->constructors.get(global, head.index).content;
+        return ((TupType*)global[type])->fields.get(global, index).type;
+    }
+
+    // The sub-patterns `pattern` supplies to a head it matches. A null pattern is the wildcard
+    // case, which supplies a wildcard for each of the head's own positions.
+    void expand(const PatternHead& head, TypePtr type, const ast::Pat* pattern, Array<const ast::Pat*>& target) {
+        auto count = arity(head, type);
+
+        if(!pattern) {
+            for(Size i = 0; i < count; i++) target.push(nullptr);
+            return;
+        }
+
+        if(head.kind == PatternHead::Con) {
+            if(count) target.push(pattern->con.pats ? parse[pattern->con.pats] : nullptr);
+            return;
+        }
+
+        if(head.kind == PatternHead::Tup) {
+            auto start = target.size();
+            for(Size i = 0; i < count; i++) target.push(nullptr);
+
+            auto tuple = (TupType*)global[type];
+            auto fieldList = pattern->tup;
+            Size positional = 0;
+
+            for(auto field: fieldList.contents(parse)) {
+                auto index = fieldIndex(*tuple, field.field, positional);
+                if(index != maxLimit<Size>) target[start + index] = parse[field.pat];
+            }
+        }
+    }
+
+    // Every distinct head appearing in the matrix's first column.
+    void collectHeads(const PatternMatrix& matrix, Array<PatternHead>& target) {
+        for(Size row = 0; row < matrix.rows; row++) {
+            auto candidate = head(matrix.cell(row, 0), matrix.types[0]);
+            if(candidate.kind == PatternHead::Wildcard) continue;
+            if(!target.containsValue(candidate)) target.push(candidate);
+        }
+    }
+
+    // Whether `heads` names every value the column's type can hold. Only a record and a tuple
+    // have a signature that can be finished; an integer, a range or an opaque test leaves values
+    // no pattern in the column named, so a wildcard is the only thing that covers them.
+    bool complete(const Array<PatternHead>& heads, TypePtr type) {
+        if(!type) return false;
+
+        if(global[type]->kind == Type::Record) {
+            auto record = (RecordType*)global[type];
+
+            for(Size i = 0; i < record->constructors.size(); i++) {
+                auto present = heads.contains([&](const PatternHead& candidate) {
+                    return candidate.kind == PatternHead::Con && candidate.index == i;
+                });
+
+                if(!present) return false;
+            }
+
+            return true;
+        }
+
+        if(global[type]->kind == Type::Tup) {
+            return heads.contains([&](const PatternHead& candidate) { return candidate.kind == PatternHead::Tup; });
+        }
+
+        return false;
+    }
+
+    // The heads a complete column is taken apart by: the type's own constructors, rather than
+    // whatever the column happens to hold, so that an opaque test sitting beside a complete set
+    // of constructors does not add a case of its own.
+    void signature(TypePtr type, Array<PatternHead>& target) {
+        if(global[type]->kind == Type::Record) {
+            auto record = (RecordType*)global[type];
+            for(Size i = 0; i < record->constructors.size(); i++) {
+                target.push(PatternHead { U32(i), 0, nullptr, PatternHead::Con });
+            }
+
+            return;
+        }
+
+        target.push(PatternHead { 0, 0, nullptr, PatternHead::Tup });
+    }
+
+    /*
+     * The recursion.
+     */
+
+    // P specialized by one head: the rows that can still match once the first column is known to
+    // have it, with that column replaced by the head's own.
+    void specialize(const PatternMatrix& matrix, const PatternHead& by, PatternMatrix& target) {
+        auto type = matrix.types[0];
+        auto count = arity(by, type);
+
+        for(Size i = 0; i < count; i++) target.types.push(fieldType(by, type, i));
+        for(Size i = 1; i < matrix.columns(); i++) target.types.push(matrix.types[i]);
+
+        for(Size row = 0; row < matrix.rows; row++) {
+            auto pattern = matrix.cell(row, 0);
+            auto rowHead = head(pattern, type);
+
+            if(rowHead.kind != PatternHead::Wildcard && !(rowHead == by)) continue;
+
+            expand(by, type, rowHead.kind == PatternHead::Wildcard ? nullptr : pattern, target.cells);
+            for(Size i = 1; i < matrix.columns(); i++) target.cells.push(matrix.cell(row, i));
+            target.rows++;
+        }
+    }
+
+    // P defaulted: the rows whose first column matches whatever the others did not.
+    void defaults(const PatternMatrix& matrix, PatternMatrix& target) {
+        for(Size i = 1; i < matrix.columns(); i++) target.types.push(matrix.types[i]);
+
+        for(Size row = 0; row < matrix.rows; row++) {
+            if(head(matrix.cell(row, 0), matrix.types[0]).kind != PatternHead::Wildcard) continue;
+
+            for(Size i = 1; i < matrix.columns(); i++) target.cells.push(matrix.cell(row, i));
+            target.rows++;
+        }
+    }
+
+    static void tail(const Array<const ast::Pat*>& row, Array<const ast::Pat*>& target) {
+        for(Size i = 1; i < row.size(); i++) target.push(row[i]);
+    }
+
+    bool useful(const PatternMatrix& matrix, const Array<const ast::Pat*>& row) {
+        if(matrix.columns() == 0) return matrix.rows == 0;
+
+        auto type = matrix.types[0];
+        auto rowHead = head(row[0], type);
+
+        if(rowHead.kind != PatternHead::Wildcard) {
+            PatternMatrix next;
+            specialize(matrix, rowHead, next);
+
+            Array<const ast::Pat*> nextRow;
+            expand(rowHead, type, row[0], nextRow);
+            tail(row, nextRow);
+
+            return useful(next, nextRow);
+        }
+
+        Array<PatternHead> heads;
+        collectHeads(matrix, heads);
+
+        // A wildcard against a column that already names every case is only useful through one
+        // of those cases, so the question splits into one per constructor.
+        if(complete(heads, type)) {
+            Array<PatternHead> cases;
+            signature(type, cases);
+
+            for(auto& candidate: cases) {
+                PatternMatrix next;
+                specialize(matrix, candidate, next);
+
+                Array<const ast::Pat*> nextRow;
+                expand(candidate, type, nullptr, nextRow);
+                tail(row, nextRow);
+
+                if(useful(next, nextRow)) return true;
+            }
+
+            return false;
+        }
+
+        PatternMatrix next;
+        defaults(matrix, next);
+
+        Array<const ast::Pat*> nextRow;
+        tail(row, nextRow);
+
+        return useful(next, nextRow);
+    }
+
+    // Maranget's I(P, n): a value of the matrix's column types that no row matches, written one
+    // string per column. False when the matrix is exhaustive, which is the answer add() reports.
+    bool missing(const PatternMatrix& matrix, Array<String>& witness) {
+        if(matrix.columns() == 0) return matrix.rows == 0;
+
+        auto type = matrix.types[0];
+        Array<PatternHead> heads;
+        collectHeads(matrix, heads);
+
+        if(complete(heads, type)) {
+            Array<PatternHead> cases;
+            signature(type, cases);
+
+            for(auto& candidate: cases) {
+                PatternMatrix next;
+                specialize(matrix, candidate, next);
+
+                Array<String> sub;
+                if(!missing(next, sub)) continue;
+
+                auto count = arity(candidate, type);
+                witness.push(describe(candidate, type, sub, count));
+                for(Size i = count; i < sub.size(); i++) witness.push(sub[i]);
+                return true;
+            }
+
+            return false;
+        }
+
+        PatternMatrix next;
+        defaults(matrix, next);
+
+        Array<String> sub;
+        if(!missing(next, sub)) return false;
+
+        witness.push(absent(heads, type));
+        for(auto& entry: sub) witness.push(entry);
+        return true;
+    }
+
+    /*
+     * Witnesses.
+     */
+
+    String describe(const PatternHead& head, TypePtr type, const Array<String>& fields, Size count) {
+        StringBuilder text;
+
+        if(head.kind == PatternHead::Con) {
+            auto record = (RecordType*)global[type];
+            text << context.findName(record->constructors.get(global, head.index).name);
+
+            if(count) text << '(' << fields[0] << ')';
+            return text.string();
+        }
+
+        text << '{';
+        for(Size i = 0; i < count; i++) {
+            if(i) text << ", ";
+            text << fields[i];
+        }
+
+        text << '}';
+        return text.string();
+    }
+
+    // A value of `type` that none of `heads` names. Reached only where the column is incomplete,
+    // so a record always has a constructor left to point at; anything else can only be described
+    // as "some other value".
+    String absent(const Array<PatternHead>& heads, TypePtr type) {
+        if(type && global[type]->kind == Type::Record) {
+            auto record = (RecordType*)global[type];
+
+            for(Size i = 0; i < record->constructors.size(); i++) {
+                auto present = heads.contains([&](const PatternHead& candidate) {
+                    return candidate.kind == PatternHead::Con && candidate.index == i;
+                });
+
+                if(present) continue;
+
+                StringBuilder text;
+                text << context.findName(record->constructors.get(global, i).name);
+                if(!isUnit(global, record->constructors.get(global, i).content)) text << "(_)";
+                return text.string();
+            }
+        }
+
+        return String("_");
+    }
+
+    struct CachedHead {
+        const ast::Pat* pattern;
+        PatternHead head;
+    };
+
+    ExprResolver& resolver;
+    Context& context;
+    Module& module;
+    ast::ParseBase parse;
+    GlobalBase global;
+
+    PatternMatrix covered;
+    Array<const ast::Pat*> tests;
+    Array<CachedHead> headCache;
+    PatternMode mode;
+};
+
+/*
+ * Emitting patterns.
  */
 
 PatternResult ExprResolver::branchPattern(ModulePtr<Value> condition, ModulePtr<Block> onFail, LocationId source) {
@@ -50,59 +579,14 @@ ModulePtr<Value> ExprResolver::patternBound(const ast::Pat& pattern, TypePtr tar
     return nullptr;
 }
 
-// Whether this pattern matches every value of `type`, which is what decides both that a `let`
-// needs no alternatives and that a match alternative needs no test.
-bool ExprResolver::irrefutable(const ast::Pat& pattern, TypePtr type) {
-    if(pattern.kind == ast::Pat::Any || pattern.kind == ast::Pat::Var) return true;
+PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Value> pivot, ModulePtr<Block> onFail,
+                                           PatternMode mode) {
+    // A null failure block says the caller has already proved this pattern matches. Everything
+    // below then takes the value apart and binds it without asking any question about it.
+    auto tested = onFail != nullptr;
 
-    if(pattern.kind == ast::Pat::Tup) {
-        if(!type || global[type]->kind != Type::Tup) return false;
-
-        auto tuple = (TupType*)global[type];
-        auto fieldList = pattern.tup;
-        auto fields = fieldList.contents(parse);
-        Size positional = 0;
-
-        for(auto field: fields) {
-            Size index = maxLimit<Size>;
-
-            if(field.field) {
-                for(Size i = 0; i < tuple->fields.size(); i++) {
-                    if(tuple->fields.get(global, i).name == field.field) {
-                        index = i;
-                        break;
-                    }
-                }
-            } else if(positional < tuple->fields.size()) {
-                index = positional++;
-            }
-
-            if(index == maxLimit<Size> || !irrefutable(*parse[field.pat], tuple->fields.get(global, index).type)) return false;
-        }
-
-        return true;
-    }
-
-    if(pattern.kind == ast::Pat::Con) {
-        auto found = findConstructor(module, pattern.con.name, pattern.source);
-        if(!found || !type || global[type]->kind != Type::Record) return false;
-
-        // The constructor names a declaration; the pivot has one of its instantiations. The
-        // content type therefore comes from the pivot, where the type arguments are known.
-        auto record = (RecordType*)global[type];
-        if(record->base(global) != found.unwrap().record) return false;
-        if(record->constructors.size() != 1) return false;
-        if(!pattern.con.pats) return true;
-
-        return irrefutable(*parse[pattern.con.pats], record->constructors.get(global, found.unwrap().index).content);
-    }
-
-    return false;
-}
-
-PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Value> pivot, ModulePtr<Block> onFail, RecordCoverage* coverage) {
     if(pattern.asVar) {
-        if(find(pattern.asVar)) {
+        if(mode == PatternMode::Match && find(pattern.asVar)) {
             context.diagnostics.error("pattern name is already bound %@"_v, pattern.source, context.findName(pattern.asVar));
         } else {
             bindings.push(Binding { pattern.asVar, pivot });
@@ -115,11 +599,16 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
         case ast::Pat::Any:
             return PatternResult::Always;
         case ast::Pat::Var: {
-            // A name that is already bound is a test against that value rather than a new
-            // binding, which is what makes `match x: y -> ...` mean "equal to y".
-            if(auto existing = find(pattern.var)) {
-                ModulePtr<Value> args[] = { pivot, existing };
-                return branchPattern(emitCall(Context::nameHash("==", 2), { args, 2 }, pattern.source, module.scalar.bool_), onFail, pattern.source);
+            // In a match, a name that is already bound is a test against that value rather than a
+            // new binding, which is what makes `match x: y -> ...` mean "equal to y". A
+            // declaration has nothing to test against, so the same name shadows instead.
+            if(mode == PatternMode::Match) {
+                if(auto existing = find(pattern.var)) {
+                    if(!tested) return PatternResult::Always;
+
+                    ModulePtr<Value> args[] = { pivot, existing };
+                    return branchPattern(emitCall(Context::nameHash("==", 2), { args, 2 }, pattern.source, module.scalar.bool_), onFail, pattern.source);
+                }
             }
 
             if(local[pivot]->name == 0) local[pivot]->name = pattern.var;
@@ -160,7 +649,7 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
                 }
 
                 auto child = load(project(root, ProjectionKind::Field, U16(index)), parse[fieldPattern.pat]->source);
-                auto result = resolvePattern(*parse[fieldPattern.pat], child, onFail, nullptr);
+                auto result = resolvePattern(*parse[fieldPattern.pat], child, onFail, mode);
 
                 if(result == PatternResult::Never) return result;
                 if(result == PatternResult::Maybe) overall = result;
@@ -179,7 +668,6 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
 
             auto reference = found.unwrap();
             auto record = (RecordType*)global[pivotType];
-            auto recordType = pivotType;
 
             // A constructor belongs to a declaration, so `Just` matches any `Maybe(a)`; the
             // content it exposes is the pivot's own, with that pivot's type arguments in it.
@@ -191,24 +679,9 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
             }
 
             auto constructor = record->constructors.get(global, reference.index);
-            auto childAlways = !pattern.con.pats || irrefutable(*parse[pattern.con.pats], constructor.content);
-            auto lastConstructor = record->constructors.size() == 1;
-
-            // Once every other constructor has been tested and failed, this one is the only
-            // possibility left, so it needs no test of its own.
-            if(coverage && coverage->type == recordType && childAlways) {
-                auto already = (coverage->checked & (U64(1) << reference.index)) != 0;
-                lastConstructor = coverage->checkedCount + (already ? 0 : 1) == record->constructors.size();
-
-                if(!already) {
-                    coverage->checked |= U64(1) << reference.index;
-                    coverage->checkedCount++;
-                }
-            }
-
             auto testedConstructor = false;
 
-            if(record->constructors.size() > 1 && !lastConstructor) {
+            if(record->constructors.size() > 1 && tested) {
                 ModulePtr<Value> discriminant = pivot;
 
                 if(record->layout == RecordType::Enum) {
@@ -235,13 +708,15 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
                 }
 
                 auto content = load(project(placeFor(pivot, pattern.source), ProjectionKind::Downcast, reference.index), pattern.source);
-                childResult = resolvePattern(*parse[pattern.con.pats], content, onFail, nullptr);
+                childResult = resolvePattern(*parse[pattern.con.pats], content, onFail, mode);
             }
 
             if(childResult == PatternResult::Never) return childResult;
             return testedConstructor ? PatternResult::Maybe : childResult;
         }
         case ast::Pat::Range: {
+            if(!tested) return PatternResult::Always;
+
             auto from = patternBound(*parse[pattern.range.from], valueType(pivot));
             auto to = patternBound(*parse[pattern.range.to], valueType(pivot));
             if(!from && !to) return PatternResult::Always;
@@ -276,6 +751,8 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
     }
 
     if(pattern.kind >= ast::Pat::Lit) {
+        if(!tested) return PatternResult::Always;
+
         ModulePtr<Value> args[] = { pivot, patternBound(pattern, valueType(pivot)) };
         return branchPattern(emitCall(Context::nameHash("==", 2), { args, 2 }, pattern.source, module.scalar.bool_), onFail, pattern.source);
     }
@@ -296,43 +773,42 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
         return nullptr;
     }
 
-    RecordCoverage coverage;
-    if(global[valueType(pivot)]->kind == Type::Record) {
-        coverage.type = valueType(pivot);
+    // Reading an alternative out of the parse list copies it, so the patterns are collected into
+    // one array that outlives the space they are handed to - see PatternSpace::useful.
+    Array<ast::Pat> patterns;
+    patterns.reserve(U32(alternatives.size()));
+    for(auto alternative: alternatives) patterns.push(alternative.pat);
 
-        if(((RecordType*)global[coverage.type])->constructors.size() > 64) {
-            context.diagnostics.error("temporary exhaustiveness tracking supports at most 64 constructors"_v, expr.source);
-        }
-    }
-
+    PatternSpace space(*this, valueType(pivot), PatternMode::Match);
     auto bindingCount = bindings.size();
     Array<BranchArm> arms;
     auto exhaustive = false;
+    auto rejected = false;
 
-    for(auto alternative: alternatives) {
-        // An alternative that must match needs no failure block, and getting that wrong in
-        // either direction is a bug rather than a diagnostic - hence the cross-check below.
-        auto expectedAlways = irrefutable(alternative.pat, valueType(pivot));
+    for(Size i = 0; i < alternatives.size(); i++) {
+        auto& pattern = patterns[i];
+        auto body = alternatives[i].expr;
 
-        if(!expectedAlways && coverage.type && alternative.pat.kind == ast::Pat::Con) {
-            auto found = findConstructor(module, alternative.pat.con.name, alternative.pat.source);
-            auto record = (RecordType*)global[coverage.type];
-
-            // A constructor from another type leaves this false; resolvePattern reports it.
-            if(found && record->base(global) == found.unwrap().record) {
-                auto reference = found.unwrap();
-                auto constructor = record->constructors.get(global, reference.index);
-                auto childAlways = !alternative.pat.con.pats || irrefutable(*parse[alternative.pat.con.pats], constructor.content);
-                auto already = (coverage.checked & (U64(1) << reference.index)) != 0;
-
-                expectedAlways = childAlways && coverage.checkedCount + (already ? 0 : 1) == record->constructors.size();
-            }
+        if(exhaustive) {
+            context.diagnostics.warning("this alternative is unreachable - the ones before it already cover every value"_v,
+                                        pattern.source);
+            continue;
         }
 
-        auto failure = expectedAlways ? ModulePtr<Block>(nullptr) : addBlock();
-        auto patternResult = resolvePattern(alternative.pat, pivot, failure, coverage.type ? &coverage : nullptr);
+        if(!space.useful(pattern)) {
+            context.diagnostics.warning("this alternative is unreachable - an earlier one already covers it"_v,
+                                        pattern.source);
+        }
+
+        // The alternative that completes the match needs no test at all: everything that reached
+        // it failed every alternative before it, and those together with this one are every value
+        // the pivot can hold, so this one matches whatever is left.
+        exhaustive = space.add(pattern);
+        auto failure = exhaustive ? ModulePtr<Block>(nullptr) : addBlock();
+        auto patternResult = resolvePattern(pattern, pivot, failure);
 
         if(patternResult == PatternResult::Never) {
+            rejected = true;
             bindings.resize(bindingCount);
             if(!failure) return nullptr;
 
@@ -340,28 +816,124 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
             continue;
         }
 
-        auto value = resolve(alternative.expr, target, used);
-        if(current) arms.push(BranchArm { current, value, alternative.expr.source });
+        auto value = resolve(body, target, used);
+        if(current) arms.push(BranchArm { current, value, body.source });
         bindings.resize(bindingCount);
-
-        if(patternResult == PatternResult::Always) {
-            exhaustive = true;
-            current = nullptr;
-            break;
-        }
-
-        if(!failure) {
-            context.diagnostics.error("internal pattern exhaustiveness mismatch"_v, alternative.pat.source);
-            return nullptr;
-        }
 
         current = failure;
     }
 
     if(!exhaustive) {
-        context.diagnostics.error("match is not exhaustive"_v, expr.source);
+        // A pattern that could not be resolved at all has already been reported, and the space it
+        // would have covered is unknown, so there is nothing useful to say about what is missing.
+        // Neither is there when the pivot itself did not come out with a type.
+        if(!rejected && global[valueType(pivot)]->kind != Type::Error) {
+            context.diagnostics.error("match is not exhaustive - it needs a case for %@"_v, expr.source, space.gap());
+        }
+
         return nullptr;
     }
 
     return finishBranches(arms, expr.source, used);
+}
+
+/*
+ * The refutable declaration.
+ *
+ * `let Just(v) = lookup(key) | return Nothing` is the guard form: the pattern is allowed to fail,
+ * the alternatives say what happens when it does, and every one of them has to leave the block
+ * for good. That last rule is what makes the names the pattern binds usable for the rest of the
+ * block without a nesting level - there is only one way to reach the code after the declaration,
+ * and on that path the pattern matched.
+ */
+void ExprResolver::resolveBinding(const ast::VarDecl& declaration, ModulePtr<Value> value) {
+    PatternSpace space(*this, valueType(value), PatternMode::Bind);
+    auto alternativeList = declaration.alts;
+    auto alternatives = alternativeList.contents(parse);
+
+    // As in resolveMatch: the space keeps the patterns by address, so they are copied out of the
+    // parse list once rather than read per use.
+    Array<ast::Pat> patterns;
+    patterns.reserve(U32(alternatives.size()));
+    for(auto alternative: alternatives) patterns.push(alternative.pat);
+
+    if(space.add(declaration.pat)) {
+        if(alternatives.size()) {
+            context.diagnostics.warning("this pattern always matches, so its alternatives are unreachable"_v,
+                                        declaration.pat.source);
+        }
+
+        resolvePattern(declaration.pat, value, nullptr, PatternMode::Bind);
+        return;
+    }
+
+    if(alternatives.size() == 0) {
+        // An initializer that had no type of its own already said so; a pattern cannot be judged
+        // against it, and repeating that here would say nothing new.
+        if(global[valueType(value)]->kind != Type::Error) {
+            context.diagnostics.error("this pattern can fail - it does not match %@ - so the declaration needs alternatives, written `| return ...` or `| match:` with one per case"_v,
+                                      declaration.pat.source, space.gap());
+        }
+
+        // Bound anyway, and without its tests: the names are what the rest of the block was
+        // written against, and one diagnostic about the declaration is enough.
+        resolvePattern(declaration.pat, value, nullptr, PatternMode::Bind);
+        return;
+    }
+
+    auto checkpoint = bindings.size();
+    auto failure = addBlock();
+
+    if(resolvePattern(declaration.pat, value, failure, PatternMode::Bind) == PatternResult::Never) return;
+    auto success = current;
+
+    // What the pattern bound is live on the matching path only, so the alternatives are resolved
+    // with the scope the declaration started from and it is put back afterwards.
+    Array<Binding> declared;
+    while(bindings.size() > checkpoint) declared.push(bindings.pop().unwrap());
+
+    current = failure;
+    auto covered = false;
+
+    for(Size i = 0; i < alternatives.size(); i++) {
+        auto& pattern = patterns[i];
+        auto body = alternatives[i].expr;
+
+        if(covered) {
+            context.diagnostics.warning("this alternative is unreachable - the ones before it already cover every value"_v,
+                                        pattern.source);
+            continue;
+        }
+
+        if(!space.useful(pattern)) {
+            context.diagnostics.warning("this alternative is unreachable - an earlier one already covers it"_v,
+                                        pattern.source);
+        }
+
+        covered = space.add(pattern);
+        auto next = covered ? ModulePtr<Block>(nullptr) : addBlock();
+
+        if(resolvePattern(pattern, value, next, PatternMode::Bind) != PatternResult::Never) {
+            auto errors = context.diagnostics.errorCount();
+            resolve(body, nullptr, false);
+
+            // An alternative that failed to resolve at all did not leave the block either, and
+            // saying so as well would only repeat the first diagnostic in weaker terms.
+            if(current && errors == context.diagnostics.errorCount()) {
+                context.diagnostics.error("an alternative of a declaration has to leave the block - return, break, or continue"_v,
+                                          body.source);
+            }
+        }
+
+        bindings.resize(checkpoint);
+        current = next;
+    }
+
+    if(!covered) {
+        context.diagnostics.error("the alternatives of this declaration do not cover %@"_v,
+                                  declaration.pat.source, space.gap());
+    }
+
+    current = success;
+    for(Size i = declared.size(); i > 0; i--) bindings.push(declared[i - 1]);
 }

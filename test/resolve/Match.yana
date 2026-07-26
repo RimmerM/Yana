@@ -1,0 +1,57 @@
+-- Exhaustiveness. Nothing here writes a wildcard where the alternatives already name every
+-- case, which is the point: the alternative that completes a match is emitted with no test of
+-- its own, so an ADT matched constructor by constructor costs exactly the branches it needs.
+
+data Color = Red | Green | Blue
+data Shape = Circle(Int) | Square {width: Int, height: Int}
+
+-- Every constructor of a flat enum, and the last one needs no test.
+fn colorValue(c: Color) -> Int = match c:
+    Red -> 1
+    Green -> 2
+    Blue -> 3
+
+-- The alternatives are in a different order than the declaration, which the coverage of the
+-- column decides rather than the constructor index.
+fn shapeValue(s: Shape) -> Int = match s:
+    Square {width, height} -> width * height
+    Circle(r) -> r + 1
+
+-- Nesting: `Just` is never written on its own, and the column under it is still complete.
+fn nested(m: Maybe(Color)) -> Int = match m:
+    Just(Red) -> 1
+    Just(Green) -> 2
+    Just(Blue) -> 3
+    Nothing -> 0
+
+-- Two columns at once, one of them partly by wildcard.
+fn pairValue(p: {Color, Bool}) -> Int = match p:
+    {Red, True} -> 1
+    {Red, False} -> 2
+    {Green, b} -> if b then 3 else 4
+    {Blue, _} -> 5
+
+-- A binding covers the rest of its column, so `Just(rest)` finishes what `Just(Red)` started.
+fn firstOrRest(m: Maybe(Color)) -> Int = match m:
+    Just(Red) -> 10
+    Just(rest) -> colorValue(rest)
+    Nothing -> 0
+
+-- An integer has no signature to finish, so this one does need its `else`.
+fn classify(value: Int) -> Int = match value:
+    0 -> 0
+    1..10 -> 1
+    else -> 2
+
+-- Every alternative of every match above is taken at least once, because an alternative that
+-- was emitted without a test is only shown to be right by the values that reach it.
+fn main() -> Int =
+    colorValue(Red) + colorValue(Green) + colorValue(Blue) +
+    shapeValue(Square {width: 2, height: 3}) + shapeValue(Circle(4)) +
+    nested(Just(Red)) + nested(Just(Green)) + nested(Just(Blue)) + nested(Nothing) +
+    pairValue({Red, True}) + pairValue({Red, False}) +
+    pairValue({Green, True}) + pairValue({Green, False}) +
+    pairValue({Blue, True}) + pairValue({Blue, False}) +
+    firstOrRest(Just(Red)) + firstOrRest(Just(Green)) +
+    firstOrRest(Just(Blue)) + firstOrRest(Nothing) +
+    classify(0) + classify(7) + classify(50)
