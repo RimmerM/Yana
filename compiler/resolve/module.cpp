@@ -46,7 +46,7 @@ Module* Program::findModule(StringId name) {
 
 Module::Module(Program& program, StringId name, ast::ParseBase parse):
     program(program), context(program.context), types(program.types), arena(program.arena),
-    scalar(program.scalar), name(name), parse(parse) {}
+    scalar(program.scalar), coreClasses(program.coreClasses), name(name), parse(parse) {}
 
 Function* Module::addFunction(StringId functionName, LocationId source) {
     auto found = functions.add(functionName);
@@ -396,22 +396,11 @@ static void resolveClassSignatures(Module& module, TypeClass& typeClass) {
  * Instances.
  */
 
-// The printed name of one instance implementation: `Num(Int).+`. Instances are not addressable
-// by name in source, but every function reaching the backend needs a unique one.
-static StringId instanceFunctionName(Module& module, TypeClass& typeClass, Buffer<TypePtr> args, StringId method) {
-    Array<char> text;
-    auto className = module.context.findName(typeClass.name);
-    appendText(text, StringView { className.text(), className.size() });
-    text.push('(');
-
-    for(Size i = 0; i < args.length; i++) {
-        if(i) appendText(text, ", "_v);
-        describeType(module.context, *module.types, args[i], text);
-    }
-
-    appendText(text, ")."_v);
-    auto methodName = module.context.findName(method);
-    appendText(text, StringView { methodName.text(), methodName.size() });
+StringId instanceFunctionName(Module& module, TypeClass& typeClass, Buffer<TypePtr> args, StringId method) {
+    StringBuilder text;
+    text << module.context.findName(typeClass.name) << '(';
+    describeTypes(module.context, *module.types, args, text);
+    text << ")." << module.context.findName(method);
 
     return module.context.addQualifiedName(text.pointer(), text.size(), 1);
 }
@@ -475,19 +464,11 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
     findInstances(module, classPointer, existing);
 
     for(auto other: existing) {
-        auto equal = true;
-        for(Size i = 0; i < args.size(); i++) {
-            if((*module.arena)[other]->forTypes.get(*module.arena, i) != args[i]) {
-                equal = false;
-                break;
-            }
-        }
+        if(!sameTypes((*module.arena)[other]->forTypes, *module.arena, toBuffer(args))) continue;
 
-        if(equal) {
-            module.context.diagnostics.error("duplicate instance of %@ for these types"_v, decl.source,
-                                             module.context.findName(className));
-            return;
-        }
+        module.context.diagnostics.error("duplicate instance of %@ for these types"_v, decl.source,
+                                         module.context.findName(className));
+        return;
     }
 
     auto decls = decl.instance.decls;
@@ -590,6 +571,93 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
 }
 
 /*
+ * Defaults and superclasses.
+ */
+
+// `default Class = Type`. The type is checked here rather than where a literal settles on it, so
+// that a default which nothing implements is reported against the declaration that wrote it.
+static void resolveDefault(Module& module, ast::Decl& decl) {
+    auto& context = module.context;
+    auto classPointer = findClass(module, decl.defaultType.className, decl.source);
+
+    if(!classPointer) {
+        context.diagnostics.error("unknown class %@"_v, decl.source,
+                                  context.findName(decl.defaultType.className));
+        return;
+    }
+
+    auto typeClass = (*module.types)[classPointer];
+
+    // A default answers for the class everywhere it is used, so it has to be declared where the
+    // class is - the same coherence rule that keeps one instance per type from being a matter of
+    // which module you are looking from.
+    if(typeClass->module != &module) {
+        context.diagnostics.error("a default must be declared in the module that declares %@"_v, decl.source,
+                                  context.findName(decl.defaultType.className));
+        return;
+    }
+
+    if((*module.types)[typeClass->gen]->types.size() != 1) {
+        context.diagnostics.error("only a class with one type argument can have a default"_v, decl.source);
+        return;
+    }
+
+    if(typeClass->defaultType) {
+        context.diagnostics.error("duplicate default for %@"_v, decl.source,
+                                  context.findName(decl.defaultType.className));
+        return;
+    }
+
+    auto type = resolveType(module, decl.defaultType.target, nullptr);
+    if((*module.types)[type]->kind == Type::Error) return;
+
+    if(isGeneric(*module.types, type)) {
+        context.diagnostics.error("a default must name a concrete type"_v, decl.source);
+        return;
+    }
+
+    if(!findInstance(module, classPointer, { &type, 1 })) {
+        context.diagnostics.error("%@ is the default of %@ but has no instance of it"_v, decl.source,
+                                  describeType(context, *module.types, type),
+                                  context.findName(decl.defaultType.className));
+        return;
+    }
+
+    typeClass->defaultType = type;
+    typeClass->defaultSource = decl.source;
+}
+
+// Every superclass its class declares has to hold for the instance's own types. Without this,
+// `class (FromInt(a)) Num(a)` promises generic code something an `instance Num(Metres)` need not
+// have delivered, and the promise would only fail much later inside a body nobody wrote that way.
+static void checkSuperclasses(Module& module, ClassInstance& instance) {
+    auto& context = module.context;
+    auto global = *module.types;
+    auto typeClass = global[instance.typeClass];
+
+    Array<TypePtr> args;
+    for(auto arg: instance.forTypes.contents(*module.arena)) args.push(arg);
+
+    for(auto constraint: global[typeClass->gen]->classes.contents(global)) {
+        if(!constraint.typeClass) continue;
+
+        Array<TypePtr> concrete;
+        for(auto arg: constraint.args.contents(global)) {
+            concrete.push(substituteType(module, arg, toBuffer(args), instance.source));
+        }
+
+        if(findInstance(module, constraint.typeClass, toBuffer(concrete))) continue;
+
+        StringBuilder text;
+        describeTypes(context, global, toBuffer(concrete), text);
+
+        context.diagnostics.error("%@ requires %@, and there is no instance of it for (%@)"_v, instance.source,
+                                  context.findName(typeClass->name),
+                                  context.findName(global[constraint.typeClass]->name), text.view());
+    }
+}
+
+/*
  * Whole-module passes.
  */
 
@@ -621,6 +689,7 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
                 break;
             case ast::Decl::Fun:
             case ast::Decl::Instance:
+            case ast::Decl::Default:
                 break;
             default:
                 module.context.diagnostics.error("this declaration is not available yet"_v, decl.source);
@@ -675,7 +744,25 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
         if(decl.kind == ast::Decl::Instance) resolveInstance(module, decl);
     }
 
+    // Core's instances are generated after its source has been read, so it runs this pass itself
+    // once they exist rather than here (see defineCore).
+    if(&module != module.program.core) checkModuleClasses(module, ast);
+
     completePendingInstances(module);
+}
+
+void checkModuleClasses(Module& module, ast::Module& ast) {
+    // Superclasses and defaults are checked once every instance of the module exists, so that
+    // neither depends on the order the declarations were written in.
+    auto instanceCount = module.instances.size();
+    for(Size i = 0; i < instanceCount; i++) {
+        checkSuperclasses(module, *(*module.arena)[module.instances[i]]);
+    }
+
+    auto decls = ast.decls;
+    for(auto decl: decls.contents(module.parse)) {
+        if(decl.kind == ast::Decl::Default) resolveDefault(module, decl);
+    }
 }
 
 static void resolveImports(Module& module, ast::Module& ast, ModuleProvider* provider) {

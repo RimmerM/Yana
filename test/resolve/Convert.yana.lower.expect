@@ -48,6 +48,13 @@ implicitArgument<complex>(%value: Int): Long {
   }
 }
 
+explicitNarrowing<complex>(%value: Double): Int {
+  b_0 {
+    %v_1 = ftoi %value: Int
+    ret %v_1
+  }
+}
+
 ascribed<complex>(): Int {
   b_0 {
     %v_1 = ftoi 9.75: Int
@@ -75,7 +82,9 @@ main<complex>(): Int {
     %v_16 = call_complex implicitReturn, 8: Double
     %v_17 = ftoi %v_16: Int
     %v_18 = add %v_15, %v_17: Int
-    ret %v_18
+    %v_19 = call_complex explicitNarrowing, 9.5: Int
+    %v_20 = add %v_18, %v_19: Int
+    ret %v_20
   }
 }
 

@@ -158,6 +158,8 @@ void Parser::parseDecl(ast::DeclList& decls, ast::AttrList attributes, bool expo
         return parseInstanceDecl(decls, ::move(attributes), exported);
     } else if(token.type == Token::kwAtData) {
         return parseAttrDecl(decls, ::move(attributes), exported);
+    } else if(token.type == Token::kwDefault) {
+        return parseDefaultDecl(decls, ::move(attributes), exported);
     } else {
         auto expr = parseExpr();
 
@@ -336,6 +338,26 @@ void Parser::parseTypeDecl(ast::DeclList& decls, ast::AttrList attributes, bool 
         .attributes = ::move(attributes),
         .source = context.addLocation(location),
         .kind = ast::Decl::Alias,
+        .exported = exported,
+    });
+}
+
+// `default FromInt = Int`. The class is named on its own rather than applied to arguments: a
+// default answers "which type does this class produce when nothing else decides", which is a
+// property of the class and not of one of its instances.
+void Parser::parseDefaultDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported) {
+    WithLocation location(*this);
+    expect(Token::kwDefault, "expected 'default'"_v);
+
+    auto className = expect(Token::ConID, "expected a class name"_v).from({ .id = 0 }).id;
+    expect(Token::opEquals, "expected '='"_v);
+    auto type = parseType();
+
+    decls.push(arena, ast::Decl {
+        .defaultType = { className, type },
+        .attributes = ::move(attributes),
+        .source = context.addLocation(location),
+        .kind = ast::Decl::Default,
         .exported = exported,
     });
 }
@@ -1243,6 +1265,13 @@ ast::Pat Parser::parsePattern() {
             error("expected integer or float literal"_v);
             toLiteral({ .integer = 0 }, Token::Integer, location);
         });
+
+        // The lexer only ever produces the positive magnitude; apply the sign here.
+        if(lit.kind == (ast::Expr::Lit + ast::Literal::Int)) {
+            lit.lit.i((U64)(-(I64)lit.lit.i()));
+        } else if(lit.kind == (ast::Expr::Lit + ast::Literal::Double)) {
+            lit.lit.d(-lit.lit.d());
+        }
 
         return ast::Pat {
             .lit = lit.lit,

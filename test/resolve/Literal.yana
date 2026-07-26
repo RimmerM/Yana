@@ -1,0 +1,57 @@
+-- Literals are class-polymorphic values with a default: `1` is `FromInt.fromInt(1)` and `1.5` is
+-- `FromDecimal.fromDecimal(1.5)`. Nothing in the resolver knows what `1` means; Core's `default`
+-- declarations and its instances do.
+
+-- The case the whole mechanism exists for. `1` has no type yet when `+` is selected, so it
+-- survives the round trip as a literal variable and takes whatever the left operand decided.
+-- `FromInt(a)` is not written here because `Num`'s superclass already promises it.
+fn (Num(a)) inc(x: a) -> a = x + 1
+
+-- A literal in return position, with only the return type to go on.
+fn (FromInt(a)) two() -> a = 2
+
+-- An argument that is a literal decides nothing, so the expected type may still settle it: this
+-- is a Long increment of a Long literal, not an Int one widened afterwards.
+fn incLong() -> Long = inc(40) :: Long
+
+-- Nothing decides these, so each takes its class's default: Int for FromInt, Float for
+-- FromDecimal. `let` is a statement, which is the boundary the default applies at.
+fn defaulted() -> Int:
+    let i = 7
+    let f = 2.5
+    return i + (narrow(f) :: Int)
+
+-- Two literal variables of different classes meet in one call. Int has no FromDecimal instance
+-- and Float has a FromInt instance, so Float is the type that answers both.
+fn mixedLiterals() -> Float = 1 + 2.5
+
+-- A user type joins the same mechanism by writing an instance, and then integer literals are
+-- ordinary values of it. Nothing about Metres has to be known to the compiler.
+data Metres {value: Int}
+
+instance FromInt(Metres):
+  fn fromInt(value: Long) = Metres {value: narrow(value)}
+
+instance Eq(Metres):
+  fn ==(lhs: Metres, rhs: Metres) = lhs.value == rhs.value
+  fn !=(lhs: Metres, rhs: Metres) = lhs.value != rhs.value
+
+-- The declared return type is what the literal is built at, through Metres' own instance.
+fn oneMetre() -> Metres = 1
+
+-- The same through a parameter type, which is pushed down into the argument.
+fn measure(distance: Metres) -> Int = distance.value
+
+-- And through a comparison, where the class variable is decided by the other operand.
+fn isFive(distance: Metres) -> Bool = distance == 5
+
+fn main() -> Int =
+    inc(10) +
+    (inc(1.5) :: Int) +
+    (two() :: Int) +
+    defaulted() +
+    (narrow(mixedLiterals()) :: Int) +
+    measure(oneMetre()) +
+    measure(4) +
+    (if isFive(Metres {value: 5}) then 1 else 0) +
+    (narrow(incLong()) :: Int)

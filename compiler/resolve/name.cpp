@@ -205,18 +205,7 @@ ModulePtr<ClassInstance> findInstance(Module& module, GlobalPtr<TypeClass> typeC
     findInstances(module, typeClass, candidates);
 
     for(auto candidate: candidates) {
-        auto instance = local[candidate];
-        if(instance->forTypes.size() != args.length) continue;
-
-        auto equal = true;
-        for(Size i = 0; i < args.length; i++) {
-            if(instance->forTypes.get(local, i) != args[i]) {
-                equal = false;
-                break;
-            }
-        }
-
-        if(equal) return candidate;
+        if(sameTypes(local[candidate]->forTypes, local, args)) return candidate;
     }
 
     return nullptr;

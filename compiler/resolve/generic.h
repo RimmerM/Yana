@@ -37,6 +37,12 @@ void requireClass(Module& module, Function& function, GlobalPtr<TypeClass> typeC
 // Whether `function` already declares (or has already inferred) this exact requirement.
 bool hasClassRequirement(GlobalBase global, const GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
 
+// Whether the requirements in scope prove `typeClass(args)` - directly, or because one of them is
+// a class that declares it as a superclass. This is what makes `fn (Num(a)) inc(x: a) = x + 1`
+// compile as written: `Num(a)` is what the author declared, and `FromInt(a)` is what the literal
+// needs, and `class (FromInt(a)) Num(a)` is what connects them.
+bool provesClass(Module& module, const GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
+
 /*
  * Instantiates `generic` for one set of fully concrete type arguments, cloning its resolved body
  * and substituting. The result is interned per argument list, so a function called at the same

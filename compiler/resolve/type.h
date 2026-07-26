@@ -48,6 +48,7 @@ struct Type {
         Tup,
         Record,
         Gen,
+        Literal,
     };
 
     Type(Kind kind, U16 virtualSize, Repr repr = {}):
@@ -93,6 +94,31 @@ struct FloatType: Type {
         }), width(width) {}
 
     Width width;
+};
+
+/*
+ * A literal that has not been given a type yet.
+ *
+ * A literal is a class-polymorphic value (`1` is `FromInt.fromInt(1)`), so the type it ends up
+ * with is decided by where it flows rather than by how it is written. Resolving one with no
+ * expected type produces a fresh literal variable - printed `?n` - tagged with the classes it
+ * has to satisfy, and every position it reaches either binds it to a concrete type or leaves it
+ * open for the next one. Whatever is still open when the statement ends takes its class's
+ * `default`.
+ *
+ * `classes` is a list rather than a single class because two literal variables can meet: in
+ * `1 + 2.5` the integer literal's FromInt and the decimal literal's FromDecimal are both
+ * requirements on one type, and Float is the type that answers both.
+ *
+ * A literal variable exists only inside one function body's resolution. It never reaches the IR,
+ * has no Repr, and is deliberately not interned: two literals written in one expression are two
+ * variables even when they end up at the same type.
+ */
+struct LiteralType: Type {
+    explicit LiteralType(U32 index): Type(Type::Literal, 1), index(index) {}
+
+    GlobalList<GlobalPtr<TypeClass>> classes;
+    U32 index;
 };
 
 struct Field {
@@ -238,6 +264,18 @@ struct ScalarTypes {
     TypePtr ordering = nullptr;
 };
 
+// The four Core classes the resolver has to know by name rather than by lookup, because the
+// language's own syntax is written in terms of them: a literal is a call to one of the first
+// two, and an implicit conversion is a call to `widen`. They are ordinary classes in every
+// other respect - user types join them by writing an instance, and nothing about selection or
+// instance lookup treats them specially.
+struct CoreClasses {
+    GlobalPtr<TypeClass> fromInt = nullptr;
+    GlobalPtr<TypeClass> fromDecimal = nullptr;
+    GlobalPtr<TypeClass> widen = nullptr;
+    GlobalPtr<TypeClass> narrow = nullptr;
+};
+
 /*
  * Resolving types.
  *
@@ -276,7 +314,27 @@ bool finishTupleRepr(Module& module, TupType& tuple, LocationId source);
 bool finishRecordRepr(Module& module, RecordType& record, LocationId source);
 
 bool sameType(TypePtr lhs, TypePtr rhs);
+
+// Whether two type argument lists are the same one. Interning makes this pointer equality per
+// element, which is what instance selection, specialization caching and requirement matching all
+// key on - so they all ask it here rather than each writing the loop. The second form compares a
+// list where it is stored, without copying it out first.
+bool sameTypes(Buffer<TypePtr> lhs, Buffer<TypePtr> rhs);
+
+template<class List, class Base>
+inline bool sameTypes(List& list, Base base, Buffer<TypePtr> args) {
+    if(list.size() != args.length) return false;
+
+    Size index = 0;
+    for(auto type: list.contents(base)) {
+        if(!sameType(type, args[index++])) return false;
+    }
+
+    return true;
+}
+
 bool isUnit(GlobalBase base, TypePtr type);
+bool isLiteral(GlobalBase base, TypePtr type);
 bool isInteger(GlobalBase base, TypePtr type);
 bool isFloat(GlobalBase base, TypePtr type);
 bool isNumeric(GlobalBase base, TypePtr type);
@@ -287,8 +345,11 @@ bool isMemoryType(GlobalBase base, TypePtr type);
 U32 typeSize(GlobalBase base, TypePtr type);
 U32 typeAlign(GlobalBase base, TypePtr type);
 
-// How a type is written in a diagnostic or in printed IR. The buffer form is the one that
+// How a type is written in a diagnostic or in printed IR. The builder form is the one that
 // composes; the String form allocates a copy for a diagnostic argument.
-void describeType(Context& context, GlobalBase base, TypePtr type, Array<char>& target);
+void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder& target);
 String describeType(Context& context, GlobalBase base, TypePtr type);
-void appendText(Array<char>& target, StringView text);
+
+// A comma-separated list of types, as an argument list or an instance's types are written. Every
+// diagnostic that names more than one type at once goes through this, so they all read alike.
+void describeTypes(Context& context, GlobalBase base, Buffer<TypePtr> types, StringBuilder& target);

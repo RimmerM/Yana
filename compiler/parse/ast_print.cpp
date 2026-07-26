@@ -69,6 +69,7 @@ struct Printer {
                 case Decl::Trait: printTraitDecl(decl); break;
                 case Decl::Instance: printInstanceDecl(decl); break;
                 case Decl::Attr: printAttrDecl(decl); break;
+                case Decl::Default: printDefaultDecl(decl); break;
             }
         });
     }
@@ -615,6 +616,14 @@ private:
         toString(e.alias.type);
         makeLevel();
         toString(e.alias.target, true);
+        removeLevel();
+    }
+
+    void printDefaultDecl(Decl& e) {
+        stream.writeString("DefaultDecl "_v);
+        write(stream, context.findName(e.defaultType.className));
+        makeLevel();
+        toString(e.defaultType.target, true);
         removeLevel();
     }
 

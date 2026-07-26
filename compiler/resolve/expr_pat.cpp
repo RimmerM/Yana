@@ -284,7 +284,9 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
 }
 
 ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::MatchExpr& match, TypePtr target, bool used) {
-    auto pivot = resolve(match.pivot);
+    // Every pattern is matched against the pivot's type, so a pivot that is a bare literal has to
+    // have settled on one before the first alternative is read.
+    auto pivot = settle(resolve(match.pivot), match.pivot.source);
     if(!pivot) return nullptr;
 
     auto alternativeList = match.alts;

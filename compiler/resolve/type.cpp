@@ -28,11 +28,7 @@ bool isGeneric(GlobalBase base, TypePtr type) {
 }
 
 static bool anyGeneric(GlobalBase base, Buffer<TypePtr> types) {
-    for(auto type: types) {
-        if(isGeneric(base, type)) return true;
-    }
-
-    return false;
+    return types.contains([&](TypePtr type) { return isGeneric(base, type); });
 }
 
 // Fills an instantiation's constructors by substituting the declaration's contents. Deferred
@@ -560,8 +556,22 @@ bool sameType(TypePtr lhs, TypePtr rhs) {
     return lhs == rhs;
 }
 
+bool sameTypes(Buffer<TypePtr> lhs, Buffer<TypePtr> rhs) {
+    if(lhs.length != rhs.length) return false;
+
+    for(Size i = 0; i < lhs.length; i++) {
+        if(!sameType(lhs[i], rhs[i])) return false;
+    }
+
+    return true;
+}
+
 bool isUnit(GlobalBase base, TypePtr type) {
     return type && base[type]->kind == Type::Unit;
+}
+
+bool isLiteral(GlobalBase base, TypePtr type) {
+    return type && base[type]->kind == Type::Literal;
 }
 
 bool isInteger(GlobalBase base, TypePtr type) {
@@ -597,88 +607,95 @@ U32 typeAlign(GlobalBase base, TypePtr type) {
     return type ? base[type]->repr.align : 1;
 }
 
-void appendText(Array<char>& target, StringView text) {
-    for(Size i = 0; i < text.length; i++) target.push(text.ptr[i]);
-}
-
-static void appendName(Array<char>& target, String name) {
-    for(Size i = 0; i < name.size(); i++) target.push(name.text()[i]);
-}
-
-void describeType(Context& context, GlobalBase base, TypePtr type, Array<char>& target) {
+void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder& target) {
     if(!type) {
-        appendText(target, "<none>"_v);
+        target << "<none>";
         return;
     }
 
     switch(base[type]->kind) {
         case Type::Error:
-            appendText(target, "<error>"_v);
+            target << "<error>";
             return;
         case Type::Unit:
-            appendText(target, "()"_v);
+            target << "()";
             return;
         case Type::Int:
             switch(((IntType*)base[type])->width) {
-                case IntType::Bool: appendText(target, "Bool"_v); return;
-                case IntType::Int: appendText(target, "Int"_v); return;
-                case IntType::Long: appendText(target, "Long"_v); return;
+                case IntType::Bool: target << "Bool"; return;
+                case IntType::Int: target << "Int"; return;
+                case IntType::Long: target << "Long"; return;
             }
             return;
         case Type::Float:
-            appendText(target, ((FloatType*)base[type])->width == FloatType::Float ? "Float"_v : "Double"_v);
+            target << (((FloatType*)base[type])->width == FloatType::Float ? "Float" : "Double");
             return;
         case Type::Gen:
-            appendName(target, context.findName(((GenType*)base[type])->name));
+            target << context.findName(((GenType*)base[type])->name);
             return;
+        case Type::Literal: {
+            // A literal variable only ever appears in a diagnostic about a literal whose type
+            // nothing decided, so it says which classes it was waiting to be satisfied by.
+            auto literal = (LiteralType*)base[type];
+            target << '?';
+            target.appendValue(literal->index);
+
+            for(Size i = 0; i < literal->classes.size(); i++) {
+                target << (i ? ", " : " (");
+                target << context.findName(((TypeClass*)base[literal->classes.get(base, i)])->name);
+            }
+
+            if(literal->classes.size()) target << ')';
+            return;
+        }
         case Type::Tup: {
             auto tuple = (TupType*)base[type];
-            target.push('{');
+            target << '{';
 
             for(Size i = 0; i < tuple->fields.size(); i++) {
-                if(i) appendText(target, ", "_v);
+                if(i) target << ", ";
                 auto field = tuple->fields.get(base, i);
 
-                if(field.name) {
-                    appendName(target, context.findName(field.name));
-                    appendText(target, ": "_v);
-                }
-
+                if(field.name) target << context.findName(field.name) << ": ";
                 describeType(context, base, field.type, target);
             }
 
-            target.push('}');
+            target << '}';
             return;
         }
         case Type::Record: {
             auto record = (RecordType*)base[type];
-            appendName(target, context.findName(record->name));
+            target << context.findName(record->name);
 
             if(record->instanceArgs.isNotEmpty()) {
-                target.push('(');
+                target << '(';
                 Size index = 0;
 
                 for(auto arg: record->instanceArgs.contents(base)) {
-                    if(index++) appendText(target, ", "_v);
+                    if(index++) target << ", ";
                     describeType(context, base, arg, target);
                 }
 
-                target.push(')');
+                target << ')';
             }
 
             return;
         }
         default:
-            appendText(target, "<unsupported>"_v);
+            target << "<unsupported>";
             return;
     }
 }
 
-String describeType(Context& context, GlobalBase base, TypePtr type) {
-    Array<char> buffer;
-    describeType(context, base, type, buffer);
+void describeTypes(Context& context, GlobalBase base, Buffer<TypePtr> types, StringBuilder& target) {
+    for(Size i = 0; i < types.length; i++) {
+        if(i) target << ", ";
+        describeType(context, base, types[i], target);
+    }
+}
 
-    auto data = (char*)hAlloc(buffer.size());
-    copy(buffer.pointer(), data, buffer.size());
-    return String(data, buffer.size(), true);
+String describeType(Context& context, GlobalBase base, TypePtr type) {
+    StringBuilder buffer;
+    describeType(context, base, type, buffer);
+    return buffer.string();
 }

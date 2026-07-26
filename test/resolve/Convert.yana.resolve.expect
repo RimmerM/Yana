@@ -46,6 +46,12 @@ fn implicitReturn(%value: Int) -> Double {
     ret %v1
 }
 
+fn explicitNarrowing(%value: Double) -> Int {
+  b0:
+    %v1 = cast %value : Int
+    ret %v1
+}
+
 fn main() -> Int {
   b0:
     %v1 = call widened, 3 : Long
@@ -66,5 +72,7 @@ fn main() -> Int {
     %v21 = call implicitReturn, 8 : Double
     %v22 = cast %v21 : Int
     %v23 = add %v19, %v22 : Int
-    ret %v23
+    %v25 = call explicitNarrowing, 9.5 : Int
+    %v26 = add %v23, %v25 : Int
+    ret %v26
 }

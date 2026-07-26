@@ -477,6 +477,7 @@ struct Decl {
         Foreign,
         Stmt,
         Attr,
+        Default,
     };
 
     union {
@@ -486,6 +487,14 @@ struct Decl {
             SimpleType type;
             Type target;
         } alias;
+
+        // `default Class = Type`: which type a class-polymorphic value takes when nothing in
+        // the program says otherwise. Only the class name is written, so this is not a
+        // SimpleType - a default is declared for the class as a whole.
+        struct {
+            StringId className;
+            Type target;
+        } defaultType;
 
         struct {
             SimpleType type;

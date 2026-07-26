@@ -127,20 +127,22 @@ Module
 |       | |-VarExpr x
 |       | `-VarExpr this
 |       `-LitExpr 5
-`-TraitDecl Num (a)
-  |-<constraints>
-  | `-ClassConstraint Ord (a)
-  |-FunDecl +
-  | |-Arg lhs
-  | | `-GenType a
-  | |-Arg rhs
-  | | `-GenType a
-  | `-Result
-  |   `-GenType a
-  `-FunDecl -
-    |-Arg lhs
-    | `-GenType a
-    |-Arg rhs
-    | `-GenType a
-    `-Result
-      `-GenType a
+|-TraitDecl Num (a)
+| |-<constraints>
+| | `-ClassConstraint Ord (a)
+| |-FunDecl +
+| | |-Arg lhs
+| | | `-GenType a
+| | |-Arg rhs
+| | | `-GenType a
+| | `-Result
+| |   `-GenType a
+| `-FunDecl -
+|   |-Arg lhs
+|   | `-GenType a
+|   |-Arg rhs
+|   | `-GenType a
+|   `-Result
+|     `-GenType a
+`-DefaultDecl Num
+  `-ConType Int

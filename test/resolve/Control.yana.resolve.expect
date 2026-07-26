@@ -12,8 +12,8 @@ fn noop() -> () {
 fn local(%value: Int) -> Int {
   b0:
     %next = add %value, 1 : Int
-    %v4 = mul %next, 2 : Int
-    ret %v4
+    %v6 = mul %next, 2 : Int
+    ret %v6
 }
 
 fn choose(%a: Int, %b: Int) -> Int {
@@ -35,16 +35,16 @@ fn choose(%a: Int, %b: Int) -> Int {
 
 fn classify(%value: Int) -> Int {
   b0:
-    %v2 = cmp_lt %value, 0 : Bool
-    je %v2, b1, b2
+    %v3 = cmp_lt %value, 0 : Bool
+    je %v3, b1, b2
 
   b1:
-    %v5 = neg 1 : Int
+    %v6 = neg 1 : Int
     jmp b5
 
   b2:
-    %v7 = cmp_eq %value, 0 : Bool
-    je %v7, b3, b4
+    %v9 = cmp_eq %value, 0 : Bool
+    je %v9, b3, b4
 
   b3:
     jmp b5
@@ -53,8 +53,8 @@ fn classify(%value: Int) -> Int {
     jmp b5
 
   b5:
-    %v14 = phi [b1, %v5], [b3, 0], [b4, 1] : Int
-    ret %v14
+    %v16 = phi [b1, %v6], [b3, 0], [b4, 1] : Int
+    ret %v16
 }
 
 fn main() -> Int {
@@ -70,11 +70,11 @@ fn main() -> Int {
     ret 99
 
   b3:
-    %v10 = mul %value, 2 : Int
-    %v12 = call classify, 5 : Int
-    %v13 = add %v10, %v12 : Int
-    %v15 = call local, 0 : Int
-    %v16 = add %v13, %v15 : Int
-    %v18 = sub %v16, 2 : Int
-    ret %v18
+    %v11 = mul %value, 2 : Int
+    %v13 = call classify, 5 : Int
+    %v14 = add %v11, %v13 : Int
+    %v16 = call local, 0 : Int
+    %v17 = add %v14, %v16 : Int
+    %v20 = sub %v17, 2 : Int
+    ret %v20
 }

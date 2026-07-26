@@ -112,11 +112,52 @@ struct ExprResolver {
     // Whether convert() would succeed implicitly, without reporting anything if it wouldn't.
     bool convertible(ModulePtr<Value> value, TypePtr target, LocationId source);
 
-    U8 numericRank(TypePtr type);
-    TypePtr commonNumeric(TypePtr lhs, TypePtr rhs, LocationId source);
+    // One step of `typeClass`'s conversion, or null when no instance relates these two types.
+    // Never a chain: `A -> B -> C` is not searched for, which is what keeps conversion as
+    // predictable as the no-backtracking rule the rest of resolution follows.
+    ModulePtr<Value> emitConversion(GlobalPtr<TypeClass> typeClass, StringId method, ModulePtr<Value> value,
+                                    TypePtr target, LocationId source);
+
+    // The unique `Widen` upper bound of two types, or null when neither widens to the other.
+    // This is the one place a conversion may decide which overload matches: the positions bound
+    // to a single class variable are unified before the instance is looked for, which is what
+    // makes `1 + 2.5` reach Num(Float) rather than no instance at all.
+    TypePtr commonWiden(TypePtr lhs, TypePtr rhs);
+
+    /*
+     * Literals (expr.cpp).
+     */
+
+    // A fresh literal variable carrying one literal class.
+    TypePtr literalVariable(GlobalPtr<TypeClass> literalClass);
+
+    // The type a literal variable takes when nothing else decided one, or null when its classes
+    // have no default they agree on. Pure: speculative overload matching asks this too.
+    TypePtr literalDefault(TypePtr type);
+
+    // `type` with a literal variable replaced by its default. Applied wherever an inferred type
+    // is about to be committed to - a class's type argument, a specialization's, a branch join.
+    TypePtr settleType(TypePtr type);
+
+    // `value` built at the type its literal variable defaults to. Everything else passes through.
+    ModulePtr<Value> settle(ModulePtr<Value> value, LocationId source);
+
+    // Whether a literal variable may become `target`: it needs an instance of each of its classes,
+    // and a type variable needs the enclosing function to require them instead.
+    bool literalFits(TypePtr literal, TypePtr target);
+
+    // One literal variable carrying the classes of both. `1 + 2.5` is why this exists.
+    TypePtr mergeLiterals(TypePtr lhs, TypePtr rhs);
+
+    // Builds a literal at `target` by calling the class function that constructs it. Core's
+    // instances are intrinsics that fold a constant argument, so a literal at a primitive type is
+    // still one constant and the IR is what it always was.
+    ModulePtr<Value> materializeLiteral(ModulePtr<Value> value, TypePtr target, LocationId source);
 
     ModulePtr<Value> resolve(const ast::Expr& expr, TypePtr target = nullptr, bool used = true);
     ModulePtr<Value> resolveLiteral(const ast::Expr& expr, TypePtr target);
+    ModulePtr<Value> resolveInteger(LocationId source, TypePtr target, U64 value);
+    ModulePtr<Value> resolveDecimal(LocationId source, TypePtr target, F64 value);
     ModulePtr<Value> resolveIf(const ast::Expr& expr, const ast::IfExpr& branch, TypePtr target, bool used);
     ModulePtr<Value> resolveMultiIf(const ast::Expr& expr, ast::ParseList<ast::IfCase> cases, TypePtr target, bool used);
     void resolveWhile(const ast::WhileExpr& loop);

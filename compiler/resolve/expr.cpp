@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "generic.h"
 #include "name.h"
 
 void ExprResolver::terminate(Inst* inst) {
@@ -23,61 +24,181 @@ ModulePtr<Value> ExprResolver::makeFloat(LocationId source, TypePtr type, F64 va
     return constant<ConstDouble>(source, type, value);
 }
 
-// The numeric types in widening order. This is not the conversion rule - Extend and Truncate
-// are, and a user type may have instances of either - but it is the rule for which direction is
-// implicit, and the tie-break that lets `1 + 2.5` reach one Num instance rather than none.
-U8 ExprResolver::numericRank(TypePtr type) {
-    if(type == module.scalar.int_) return 0;
-    if(type == module.scalar.long_) return 1;
-    if(type == module.scalar.float_) return 2;
-    if(type == module.scalar.double_) return 3;
-    return 0;
+/*
+ * Literal variables.
+ *
+ * A literal is a class-polymorphic value: `1` means `FromInt.fromInt(1)` and `1.5` means
+ * `FromDecimal.fromDecimal(1.5)`, so which type it has is decided by where it flows. Where a
+ * position already says - an argument of a known parameter type, a declared return, an
+ * ascription - it is built there and then, which is the common case and costs nothing. Where
+ * nothing says, it becomes a literal variable that survives the round trip through overload
+ * selection and is settled afterwards, because the type `1` should have in `x + 1` is not known
+ * until the call is selected and selecting the call needs the operand types.
+ */
+
+TypePtr ExprResolver::literalVariable(GlobalPtr<TypeClass> literalClass) {
+    auto type = new (module.types) LiteralType(module.program.literalCounter++);
+    type->classes.push(module.types, literalClass);
+    return (Type*)type - global;
 }
 
-TypePtr ExprResolver::commonNumeric(TypePtr lhs, TypePtr rhs, LocationId source) {
-    if(!isNumeric(global, lhs) || !isNumeric(global, rhs)) {
-        context.diagnostics.error("operator requires numeric operands"_v, source);
-        return module.scalar.error;
+TypePtr ExprResolver::mergeLiterals(TypePtr lhs, TypePtr rhs) {
+    auto left = ((LiteralType*)global[lhs])->classes.contents(global);
+    auto right = ((LiteralType*)global[rhs])->classes.contents(global);
+
+    auto isNew = [&](GlobalPtr<TypeClass> candidate) { return !left.containsValue(candidate); };
+
+    // Two literals of the same class - `1 + 2` - are already one question, so the left one serves.
+    if(!right.contains(isNew)) return lhs;
+
+    auto merged = new (module.types) LiteralType(module.program.literalCounter++);
+    for(auto candidate: left) merged->classes.push(module.types, candidate);
+
+    for(auto candidate: right) {
+        if(isNew(candidate)) merged->classes.push(module.types, candidate);
     }
 
-    return numericRank(lhs) >= numericRank(rhs) ? lhs : rhs;
+    return (Type*)merged - global;
+}
+
+TypePtr ExprResolver::literalDefault(TypePtr type) {
+    auto classes = ((LiteralType*)global[type])->classes.contents(global);
+
+    // Each class offers its own default, and the one taken is the first that also satisfies every
+    // other class the variable collected. `1 + 2.5` is what needs the second half: FromInt's Int
+    // has no FromDecimal instance, FromDecimal's Float has a FromInt instance, so Float wins.
+    for(auto candidate: classes) {
+        auto declared = global[candidate]->defaultType;
+        if(!declared) continue;
+
+        auto unmet = classes.contains([&](GlobalPtr<TypeClass> other) {
+            return !findInstance(module, other, { &declared, 1 });
+        });
+
+        if(!unmet) return declared;
+    }
+
+    return nullptr;
+}
+
+TypePtr ExprResolver::settleType(TypePtr type) {
+    if(!isLiteral(global, type)) return type;
+    return literalDefault(type);
+}
+
+bool ExprResolver::literalFits(TypePtr literal, TypePtr target) {
+    if(!target) return false;
+    if(global[target]->kind == Type::Error) return true;
+
+    // A type variable has no instances to look at. What answers for it is a requirement of the
+    // enclosing function - declared, like the `FromInt(a)` that `Num(a)` implies through its
+    // superclass, or recorded by this call the way an undeclared `Ord(a)` is recorded by a
+    // comparison in the body. Anything else generic - `Maybe(a)` - cannot carry an instance at
+    // all, since selection matches an instance's types for equality.
+    if(isGeneric(global, target)) {
+        return global[target]->kind == Type::Gen && functionGen(global, function) != nullptr;
+    }
+
+    auto classes = ((LiteralType*)global[literal])->classes.contents(global);
+
+    return !classes.contains([&](GlobalPtr<TypeClass> candidate) {
+        return !findInstance(module, candidate, { &target, 1 });
+    });
+}
+
+ModulePtr<Value> ExprResolver::materializeLiteral(ModulePtr<Value> value, TypePtr target, LocationId source) {
+    // A literal variable can reach a position that has one of its own - `1 + 2`, where neither
+    // operand says anything the other did not - and then the default is what both take.
+    if(isLiteral(global, target)) target = literalDefault(target);
+
+    // A literal that could not be built is reported once, here, and then carries the error type so
+    // that the positions it flows through afterwards - an ascription's own conversion, a return -
+    // say nothing more about the same mistake.
+    auto failed = [&]() { return constant<ConstInt>(source, module.scalar.error, 0); };
+
+    if(!target) {
+        context.diagnostics.error("nothing decides the type of this literal, and its class has no default"_v, source);
+        return failed();
+    }
+
+    if(global[target]->kind == Type::Error) return failed();
+
+    auto integral = local[value]->kind == Value::ConstInt;
+
+    // A primitive target is the literal itself. Taking it directly rather than through the
+    // instance keeps the common path to one constant, and is the same shortcut a literal written
+    // where its type is already known takes.
+    if(integral) {
+        auto written = ((ConstInt*)local[value])->value;
+        if(isInteger(global, target)) return makeInt(source, target, written);
+        if(isFloat(global, target)) return makeFloat(source, target, F64(written));
+    } else if(isFloat(global, target)) {
+        return makeFloat(source, target, ((ConstDouble*)local[value])->value);
+    }
+
+    auto typeClass = integral ? module.coreClasses.fromInt : module.coreClasses.fromDecimal;
+    if(!typeClass || global[typeClass]->functions.isEmpty()) return failed();
+
+    // The class function takes the literal at its widest precision, so a `Long`/`Double` constant
+    // is what an instance is handed and what its type has to be able to represent.
+    ModulePtr<Value> args[] = {
+        integral ? makeInt(source, module.scalar.long_, ((ConstInt*)local[value])->value)
+                 : makeFloat(source, module.scalar.double_, ((ConstDouble*)local[value])->value),
+    };
+
+    // Selected against the class directly rather than by the name it happens to have: which
+    // function builds a literal is not something a module that defines its own `fromInt` gets to
+    // answer, and R5 would otherwise let a plain function of that name take over every literal in
+    // the module that wrote it.
+    ClassFunRef reference { typeClass, global[typeClass]->functions.get(global, 0).name, 0 };
+    ClassMatch match;
+
+    if(matchClassFun(reference, { args, 1 }, target, match)) {
+        if(match.instance) {
+            if(auto implementation = local[match.instance]->functions.get(local, match.index)) {
+                return emitDirectCall(implementation, { args, 1 }, source);
+            }
+        } else if(isGeneric(global, target)) {
+            // Inside a generic body the instance is the caller's to supply, exactly as it is for
+            // any other class call the body's own type variables decide.
+            return emitGenericDispatch(match, { args, 1 }, source, 0);
+        }
+    }
+
+    context.diagnostics.error("no instance of %@ for %@ - this literal cannot be written as that type"_v, source,
+                              context.findName(global[typeClass]->name), describeType(context, global, target));
+    return failed();
+}
+
+ModulePtr<Value> ExprResolver::settle(ModulePtr<Value> value, LocationId source) {
+    if(!value || !isLiteral(global, valueType(value))) return value;
+    return materializeLiteral(value, literalDefault(valueType(value)), source);
 }
 
 /*
  * Conversion is a class operation.
  *
- * `Extend(a, b)` widens and `Truncate(a, b)` narrows; an implicit conversion may only use the
- * first. Routing every conversion through instance selection rather than through a built-in
- * table of the five primitives is what will make a cast on a user-defined type work through the
- * same path, and what makes `x :: Long` on a type with a Truncate instance mean something.
+ * `Widen(a, b)` is lossless and applied implicitly; `Narrow(a, b)` is lossy and has to be
+ * written. Which of the two relates a pair of types is the whole of the rule - there is no table
+ * of the primitives anywhere - so a user type joins either ladder by writing an instance, and the
+ * precision diagnostic is derived from the pair of classes rather than special-cased.
+ *
+ * Two guardrails keep this from becoming a conversion soup: one step is tried, never a chain, and
+ * widening applies in conversion positions only. The single exception is commonWiden(), which
+ * unifies the positions bound to one class variable so that `1 + 2.5` has an instance to reach.
  *
  * The primitive instances are intrinsics, so this still produces exactly one `cast` in the IR.
  */
-ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, LocationId source, bool implicit) {
-    if(!value || !target) return value;
+ModulePtr<Value> ExprResolver::emitConversion(GlobalPtr<TypeClass> typeClass, StringId method,
+                                              ModulePtr<Value> value, TypePtr target, LocationId source) {
+    if(!typeClass) return nullptr;
 
-    auto from = local[value]->type;
-    if(sameType(from, target)) return value;
-
-    if(global[from]->kind == Type::Error || global[target]->kind == Type::Error) return value;
-
-    // A narrowing conversion has to be asked for. Checking the direction here rather than by the
-    // absence of an Extend instance keeps the diagnostic about precision instead of about a
-    // missing instance the user never mentioned.
-    auto widening = !isNumeric(global, from) || !isNumeric(global, target) ||
-                    numericRank(from) <= numericRank(target);
-
-    if(implicit && !widening) {
-        context.diagnostics.error("implicit conversion from %@ to %@ would lose precision"_v, source,
-                                  describeType(context, global, from), describeType(context, global, target));
-        return value;
-    }
-
-    auto name = widening ? context.addUnqualifiedName("extend", 6) : context.addUnqualifiedName("truncate", 8);
     Array<ClassFunRef> candidates;
-    findClassFunctions(module, name, source, candidates);
+    findClassFunctions(module, method, source, candidates);
 
     for(auto& candidate: candidates) {
+        if(candidate.typeClass != typeClass) continue;
+
         ModulePtr<Value> args[] = { value };
 
         ClassMatch match;
@@ -87,6 +208,55 @@ ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, L
         if(!implementation) continue;
 
         return emitDirectCall(implementation, { args, 1 }, source);
+    }
+
+    return nullptr;
+}
+
+TypePtr ExprResolver::commonWiden(TypePtr lhs, TypePtr rhs) {
+    if(!lhs || !rhs) return nullptr;
+    if(sameType(lhs, rhs)) return lhs;
+
+    TypePtr up[] = { lhs, rhs };
+    if(findInstance(module, module.coreClasses.widen, { up, 2 })) return rhs;
+
+    TypePtr down[] = { rhs, lhs };
+    if(findInstance(module, module.coreClasses.widen, { down, 2 })) return lhs;
+
+    return nullptr;
+}
+
+ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, LocationId source, bool implicit) {
+    if(!value || !target) return value;
+
+    auto from = local[value]->type;
+
+    // A literal has no type to convert from: it is built at whatever type this position asks for,
+    // through its own class, which is also how it reaches a user type that has an instance.
+    if(isLiteral(global, from)) return materializeLiteral(value, target, source);
+
+    if(sameType(from, target)) return value;
+    if(global[from]->kind == Type::Error || global[target]->kind == Type::Error) return value;
+
+    if(auto widened = emitConversion(module.coreClasses.widen, context.addUnqualifiedName("widen", 5),
+                                     value, target, source)) {
+        return widened;
+    }
+
+    // A narrowing conversion exists but has to be asked for. Asking the instance table rather
+    // than building the conversion first keeps the diagnostic about precision instead of about an
+    // instance the author never mentioned, and leaves no half-built conversion behind.
+    TypePtr pair[] = { from, target };
+
+    if(findInstance(module, module.coreClasses.narrow, { pair, 2 })) {
+        if(!implicit) {
+            return emitConversion(module.coreClasses.narrow, context.addUnqualifiedName("narrow", 6),
+                                  value, target, source);
+        }
+
+        context.diagnostics.error("implicit conversion from %@ to %@ would lose precision"_v, source,
+                                  describeType(context, global, from), describeType(context, global, target));
+        return value;
     }
 
     context.diagnostics.error("cannot convert %@ to %@"_v, source,
@@ -102,28 +272,15 @@ bool ExprResolver::convertible(ModulePtr<Value> value, TypePtr target, LocationI
     if(!value || !target) return false;
 
     auto from = valueType(value);
+    if(isLiteral(global, from)) return literalFits(from, target);
     if(sameType(from, target)) return true;
 
     // An error type has already been reported once, so it fits anything rather than producing a
     // second diagnostic about the same mistake.
     if(global[from]->kind == Type::Error || global[target]->kind == Type::Error) return true;
 
-    // Only widening is implicit, so a narrowing pair does not fit even though convert() would
-    // perform it when asked explicitly.
-    if(isNumeric(global, from) && isNumeric(global, target)) return numericRank(from) <= numericRank(target);
-
-    Array<ClassFunRef> candidates;
-    findClassFunctions(module, context.addUnqualifiedName("extend", 6), source, candidates);
-
-    for(auto& candidate: candidates) {
-        ModulePtr<Value> args[] = { value };
-
-        ClassMatch match;
-        if(!matchClassFun(candidate, { args, 1 }, target, match) || !match.instance) continue;
-        if(local[match.instance]->functions.get(local, match.index)) return true;
-    }
-
-    return false;
+    TypePtr args[] = { from, target };
+    return findInstance(module, module.coreClasses.widen, { args, 2 }) != nullptr;
 }
 
 ModulePtr<Value> ExprResolver::finishBranches(Array<BranchArm>& arms, LocationId source, bool used) {
@@ -146,12 +303,20 @@ ModulePtr<Value> ExprResolver::finishBranches(Array<BranchArm>& arms, LocationId
             break;
         }
 
-        auto type = valueType(arm.value);
-        if(!resultType) {
+        // An arm that is a bare literal has no type of its own to join with; it takes the default
+        // its class names, and the widening below then does what it would for any other pair. The
+        // value itself is built in the arm's own block by the conversion loop underneath.
+        auto type = settleType(valueType(arm.value));
+
+        if(!type) {
+            context.diagnostics.error("nothing decides the type of this literal, and its class has no default"_v,
+                                      arm.source);
+            values = false;
+        } else if(!resultType) {
             resultType = type;
         } else if(!sameType(resultType, type)) {
-            if(isNumeric(global, resultType) && isNumeric(global, type)) {
-                resultType = commonNumeric(resultType, type, arm.source);
+            if(auto common = commonWiden(resultType, type)) {
+                resultType = common;
             } else {
                 context.diagnostics.error("branches of this expression have different types"_v, arm.source);
                 values = false;
@@ -313,7 +478,11 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
         }
 
         auto checkpoint = bindings.size();
-        auto value = resolve(*parse[decl.content]);
+
+        // A `let` is a statement boundary, so a literal the initializer left open is settled to
+        // its default here: `let x = 1` binds an Int, and nothing later in the block can go back
+        // and make it a Long.
+        auto value = settle(resolve(*parse[decl.content]), decl.pat.source);
         if(!value) continue;
 
         if(!irrefutable(decl.pat, valueType(value))) {
@@ -341,20 +510,36 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
     return result;
 }
 
+// An integer-syntax literal can resolve to either kind of number, so a floating target takes it
+// as a float constant rather than as an Int that is then converted. Any other concrete target is
+// an ordinary FromInt instance - which is how a literal reaches a user type - and no target at
+// all leaves a literal variable behind for the surrounding expression to decide.
+ModulePtr<Value> ExprResolver::resolveInteger(LocationId source, TypePtr target, U64 value) {
+    if(target && isFloat(global, target)) return makeFloat(source, target, F64(value));
+    if(target && isInteger(global, target)) return makeInt(source, target, value);
+
+    auto literal = constant<ConstInt>(source, literalVariable(module.coreClasses.fromInt), value);
+    return target ? materializeLiteral(literal, target, source) : literal;
+}
+
+// Decimal syntax means FromDecimal, which no integer type has an instance of - that is what makes
+// `1.5 :: Int` a missing instance rather than a lossy conversion. The parser keeps every decimal
+// literal at F64 precision until a type is picked here.
+ModulePtr<Value> ExprResolver::resolveDecimal(LocationId source, TypePtr target, F64 value) {
+    if(target && isFloat(global, target)) return makeFloat(source, target, value);
+
+    auto literal = constant<ConstDouble>(source, literalVariable(module.coreClasses.fromDecimal), value);
+    return target ? materializeLiteral(literal, target, source) : literal;
+}
+
 ModulePtr<Value> ExprResolver::resolveLiteral(const ast::Expr& expr, TypePtr target) {
     switch(ast::Literal::Kind(expr.kind - ast::Expr::Lit)) {
-        case ast::Literal::Int: {
-            // An integer-syntax literal can resolve to either kind, so a floating target takes
-            // it as a float constant rather than as an Int that is then converted.
-            if(target && isFloat(global, target)) return makeFloat(expr.source, target, F64(expr.lit.i()));
-            return makeInt(expr.source, target && isInteger(global, target) ? target : module.scalar.int_, expr.lit.i());
-        }
+        case ast::Literal::Int:
+            return resolveInteger(expr.source, target, expr.lit.i());
         case ast::Literal::Float:
-            return makeFloat(expr.source, target && isFloat(global, target) ? target : module.scalar.float_, F64(expr.lit.f));
+            return resolveDecimal(expr.source, target, F64(expr.lit.f));
         case ast::Literal::Double:
-            // Decimal syntax defaults to Float and can only resolve to a floating type. The
-            // parser keeps every decimal literal at F64 precision until one is picked here.
-            return makeFloat(expr.source, target && isFloat(global, target) ? target : module.scalar.float_, expr.lit.d());
+            return resolveDecimal(expr.source, target, expr.lit.d());
         case ast::Literal::Bool:
             return makeInt(expr.source, module.scalar.bool_, expr.lit.b ? 1 : 0);
         default:
@@ -380,6 +565,10 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             for(Size i = 0; i < values.size() && current; i++) {
                 auto last = i + 1 == values.size();
                 result = resolve(values[i], last ? target : nullptr, used && last);
+
+                // Each element of a block is a statement of its own, which is the boundary a
+                // literal variable that nothing decided has to be settled at.
+                if(!last) result = settle(result, values[i].source);
             }
 
             return result;
@@ -498,13 +687,14 @@ bool resolveFunctionBody(Module& module, Function& function) {
     auto errors = context.diagnostics.errorCount();
 
     if(decl.fun.implicitReturn) {
-        auto result = resolver.resolve(*module.parse[decl.fun.body], function.returnType, true);
+        // A unit function's body produces nothing that survives, so it is resolved with no
+        // expected type rather than against `()` - which is not a type a literal or a class
+        // function could have been asked to produce.
+        auto unit = isUnit(*module.types, function.returnType);
+        auto result = resolver.resolve(*module.parse[decl.fun.body], unit ? nullptr : function.returnType, !unit);
 
         if(resolver.current) {
-            result = isUnit(*module.types, function.returnType)
-                ? nullptr
-                : resolver.convert(result, function.returnType, decl.source);
-
+            result = unit ? nullptr : resolver.convert(result, function.returnType, decl.source);
             resolver.terminate(resolver.emit<InstRet>(decl.source, 0, module.scalar.unit, result));
         }
     } else {

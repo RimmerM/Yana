@@ -18,6 +18,7 @@ struct Parser: BasicParser<Lexer, Token> {
     void parseTraitDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
     void parseInstanceDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
     void parseAttrDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
+    void parseDefaultDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
 
     ast::Expr parseBlock(bool isFun);
     ast::Expr parseExprSeq();

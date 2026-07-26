@@ -1,0 +1,136 @@
+(Num(a)) fn inc(%x: a) -> a {
+  b0:
+    %v4 = gencall FromInt(a).fromInt, 1 : a
+    %v2 = gencall Num(a).+, %x, %v4 : a
+    ret %v2
+}
+
+(FromInt(a)) fn two() -> a {
+  b0:
+    %v2 = gencall FromInt(a).fromInt, 2 : a
+    ret %v2
+}
+
+fn incLong() -> Long {
+  b0:
+    %v2 = call inc(Long), 40 : Long
+    ret %v2
+}
+
+fn defaulted() -> Int {
+  b0:
+    %v4 = cast %f : Int
+    %v5 = add %i, %v4 : Int
+    ret %v5
+}
+
+fn mixedLiterals() -> Float {
+  b0:
+    %v4 = add 1, 2.5 : Float
+    ret %v4
+}
+
+fn oneMetre() -> Metres {
+  b0:
+    %v2 = call FromInt(Metres).fromInt, 1 : Metres
+    ret %v2
+}
+
+fn measure(%distance: Metres) -> Int {
+  b0:
+    %v1 = load %distance@Metres.value : Int
+    ret %v1
+}
+
+fn isFive(%distance: Metres) -> Bool {
+  b0:
+    %v3 = call FromInt(Metres).fromInt, 5 : Metres
+    %v4 = call Eq(Metres).==, %distance, %v3 : Bool
+    ret %v4
+}
+
+fn main() -> Int {
+  b0:
+    %v2 = call inc(Int), 10 : Int
+    %v5 = call inc(Float), 1.5 : Float
+    %v6 = cast %v5 : Int
+    %v7 = add %v2, %v6 : Int
+    %v8 = call two(Int) : Int
+    %v9 = add %v7, %v8 : Int
+    %v10 = call defaulted : Int
+    %v11 = add %v9, %v10 : Int
+    %v12 = call mixedLiterals : Float
+    %v13 = cast %v12 : Int
+    %v14 = add %v11, %v13 : Int
+    %v15 = call oneMetre : Metres
+    %v16 = call measure, %v15 : Int
+    %v17 = add %v14, %v16 : Int
+    %v20 = call FromInt(Metres).fromInt, 4 : Metres
+    %v21 = call measure, %v20 : Int
+    %v22 = add %v17, %v21 : Int
+    %v23 = alloc : Metres
+    init %local2@Metres.value, 5
+    %v26 = call isFive, %v23 : Bool
+    je %v26, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v34 = phi [b1, 1], [b2, 0] : Int
+    %v35 = add %v22, %v34 : Int
+    %v36 = call incLong : Long
+    %v37 = cast %v36 : Int
+    %v38 = add %v35, %v37 : Int
+    ret %v38
+}
+
+fn FromInt(Metres).fromInt(%value: Long) -> Metres {
+  b0:
+    %v1 = alloc : Metres
+    %v2 = cast %value : Int
+    init %local0@Metres.value, %v2
+    ret %v1
+}
+
+fn Eq(Metres).==(%lhs: Metres, %rhs: Metres) -> Bool {
+  b0:
+    %v2 = load %lhs@Metres.value : Int
+    %v3 = load %rhs@Metres.value : Int
+    %v4 = cmp_eq %v2, %v3 : Bool
+    ret %v4
+}
+
+fn Eq(Metres).!=(%lhs: Metres, %rhs: Metres) -> Bool {
+  b0:
+    %v2 = load %lhs@Metres.value : Int
+    %v3 = load %rhs@Metres.value : Int
+    %v4 = cmp_ne %v2, %v3 : Bool
+    ret %v4
+}
+
+fn inc(Long)(%x: Long) -> Long {
+  b0:
+    %v3 = add %x, 1 : Long
+    ret %v3
+}
+
+fn inc(Int)(%x: Int) -> Int {
+  b0:
+    %v3 = add %x, 1 : Int
+    ret %v3
+}
+
+fn inc(Float)(%x: Float) -> Float {
+  b0:
+    %v3 = add %x, 1 : Float
+    ret %v3
+}
+
+fn two(Int)() -> Int {
+  b0:
+    ret 2
+}

@@ -39,6 +39,13 @@ struct TypeClass {
     ast::ParsePtr<ast::Decl> ast = nullptr;
     LocationId source = kNullLocation;
     bool ready = false;
+
+    // What `default Class = Type` declared, if anything. It is the type a value of this class
+    // takes when nothing in the program picked one, which today is what settles a literal whose
+    // type nothing decided. Declared in the class's own module so that a default is as coherent
+    // as the class itself.
+    TypePtr defaultType = nullptr;
+    LocationId defaultSource = kNullLocation;
 };
 
 struct ClassInstance {

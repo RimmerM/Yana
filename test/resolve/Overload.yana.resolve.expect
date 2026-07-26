@@ -74,14 +74,14 @@ fn main() -> Int {
     %v6 = add %v2, %v5 : Int
     %v9 = call maskQualified, 12, 10 : Int
     %v10 = add %v6, %v9 : Int
-    %v13 = call maskGeneric(Int), 5, 4 : Int
-    %v14 = add %v10, %v13 : Int
-    %v16 = call negated, 1 : Int
-    %v18 = add %v16, 10 : Int
-    %v20 = call difference, %v18, 2 : Int
-    %v21 = add %v14, %v20 : Int
-    %v24 = call bothTrue, True, False : Bool
-    je %v24, b1, b2
+    %v15 = call maskGeneric(Int), 5, 4 : Int
+    %v16 = add %v10, %v15 : Int
+    %v18 = call negated, 1 : Int
+    %v21 = add %v18, 10 : Int
+    %v23 = call difference, %v21, 2 : Int
+    %v24 = add %v16, %v23 : Int
+    %v27 = call bothTrue, True, False : Bool
+    je %v27, b1, b2
 
   b1:
     jmp b3
@@ -90,10 +90,10 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v30 = phi [b1, 100], [b2, 0] : Int
-    %v31 = add %v21, %v30 : Int
-    %v34 = call bothQualified, True, True : Bool
-    je %v34, b4, b5
+    %v35 = phi [b1, 100], [b2, 0] : Int
+    %v36 = add %v24, %v35 : Int
+    %v39 = call bothQualified, True, True : Bool
+    je %v39, b4, b5
 
   b4:
     jmp b6
@@ -102,10 +102,10 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v40 = phi [b4, 1000], [b5, 0] : Int
-    %v41 = add %v31, %v40 : Int
-    %v44 = call bothGeneric(Bool), True, False : Bool
-    je %v44, b7, b8
+    %v47 = phi [b4, 1000], [b5, 0] : Int
+    %v48 = add %v36, %v47 : Int
+    %v51 = call bothGeneric(Bool), True, False : Bool
+    je %v51, b7, b8
 
   b7:
     jmp b9
@@ -114,9 +114,9 @@ fn main() -> Int {
     jmp b9
 
   b9:
-    %v50 = phi [b7, 10000], [b8, 0] : Int
-    %v51 = add %v41, %v50 : Int
-    ret %v51
+    %v59 = phi [b7, 10000], [b8, 0] : Int
+    %v60 = add %v48, %v59 : Int
+    ret %v60
 }
 
 fn maskGeneric(Int)(%x: Int, %y: Int) -> Int {

@@ -16,6 +16,13 @@
  * ones Design.md names. Note that `and`/`or`/`not` appear in both Integral and Logic: an
  * integer's are bitwise and a Bool's are logical, and which is meant is decided by which class
  * has an instance for the operand type rather than by a special case anywhere in the resolver.
+ *
+ * The same is true of the two things the resolver used to do by itself. A literal is a call to
+ * `FromInt`/`FromDecimal` and an implicit conversion is a call to `Widen`, so "what does `1`
+ * mean" and "which conversions happen without being written" are answered by the declarations
+ * below rather than by a table of the primitives inside the resolver - and a user type answers
+ * them for itself by writing an instance. `default` names the type a literal takes when nothing
+ * else decided one.
  */
 static const char* kCoreSource = R"CORE(
 infixl 1 ||
@@ -45,6 +52,15 @@ data Ordering = LT | EQ | GT
 data Maybe(a) = Nothing | Just(a)
 data Result(e, a) = Err(e) | Ok(a)
 
+class FromInt(a):
+  fn fromInt(value: Long) -> a
+
+class FromDecimal(a):
+  fn fromDecimal(value: Double) -> a
+
+default FromInt = Int
+default FromDecimal = Float
+
 class Eq(a):
   fn ==(lhs: a, rhs: a) -> Bool
   fn !=(lhs: a, rhs: a) -> Bool
@@ -56,7 +72,11 @@ class (Eq(a)) Ord(a):
   fn >=(lhs: a, rhs: a) -> Bool
   fn compare(lhs: a, rhs: a) -> Ordering
 
-class Num(a):
+-- Anything that can be added can be counted from, so `fn (Num(a)) inc(x: a) = x + 1` compiles as
+-- written rather than making the author declare FromInt as well. FromInt stays its own class so
+-- that a Duration or a units newtype can be integer-literal-constructible without also claiming
+-- to support multiplication.
+class (FromInt(a)) Num(a):
   fn +(lhs: a, rhs: a) -> a
   fn -(lhs: a, rhs: a) -> a
   fn *(lhs: a, rhs: a) -> a
@@ -83,11 +103,14 @@ class Logic(a):
   fn not(value: a) -> a
   fn !(value: a) -> a
 
-class Extend(a, b):
-  fn extend(from: a) -> b
+-- A Widen instance is required to be lossless and total; that is a contract on whoever writes
+-- one, checked no more than Copy's is. Which of the two classes relates a pair of types is the
+-- whole of the rule for whether a conversion happens on its own or has to be written.
+class Widen(a, b):
+  fn widen(from: a) -> b
 
-class Truncate(a, b):
-  fn truncate(from: a) -> b
+class Narrow(a, b):
+  fn narrow(from: a) -> b
 )CORE";
 
 namespace {
@@ -142,6 +165,29 @@ static ModulePtr<Value> emitCast(ExprResolver& resolver, Buffer<ModulePtr<Value>
     return resolver.ref(resolver.emit<InstUnary>(source, resultName, type, Value::Cast, args[0]));
 }
 
+// `fromInt`/`fromDecimal` on a primitive is the literal itself, at the type that was asked for.
+// Folding the constant here rather than emitting a cast is what lets every literal go through a
+// class without concrete arithmetic generating anything it did not generate before: `1 :: Double`
+// is still one immediate, not a Long immediate and a conversion.
+//
+// A `fromInt(x)` written out with a runtime argument is an ordinary numeric conversion, and is
+// also what the generated body of the instance itself contains.
+static ModulePtr<Value> emitFromLiteral(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                        LocationId source, StringId resultName) {
+    auto value = resolver.local[args[0]];
+
+    if(value->kind == Value::ConstInt) {
+        auto literal = ((ConstInt*)value)->value;
+        return isFloat(resolver.global, type) ? resolver.makeFloat(source, type, F64(literal))
+                                              : resolver.makeInt(source, type, literal);
+    }
+
+    if(value->kind == Value::ConstDouble) return resolver.makeFloat(source, type, ((ConstDouble*)value)->value);
+    if(value->kind == Value::ConstFloat) return resolver.makeFloat(source, type, F64(((ConstFloat*)value)->value));
+
+    return emitCast(resolver, args, type, source, resultName);
+}
+
 // `not` on a Bool is the one bit operation that is correct for a two-constructor discriminant,
 // rather than an integer complement that would produce something outside the type.
 static ModulePtr<Value> emitLogicalNot(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
@@ -156,24 +202,6 @@ static ModulePtr<Value> emitLogicalNot(ExprResolver& resolver, Buffer<ModulePtr<
  * Generating an instance function.
  */
 
-static StringId instanceName(Module& module, TypeClass& typeClass, Buffer<TypePtr> args, StringId method) {
-    Array<char> text;
-    auto className = module.context.findName(typeClass.name);
-    appendText(text, StringView { className.text(), className.size() });
-    text.push('(');
-
-    for(Size i = 0; i < args.length; i++) {
-        if(i) appendText(text, ", "_v);
-        describeType(module.context, *module.types, args[i], text);
-    }
-
-    appendText(text, ")."_v);
-    auto methodName = module.context.findName(method);
-    appendText(text, StringView { methodName.text(), methodName.size() });
-
-    return module.context.addQualifiedName(text.pointer(), text.size(), 1);
-}
-
 // Emits `fn f(args...) = <emit>(args...)` as a real function, so the instance has something to
 // print, lower and eventually take the address of even though ordinary calls inline it.
 static ModulePtr<Function> generateInstanceFunction(CoreBuilder& builder, TypeClass& typeClass,
@@ -182,7 +210,7 @@ static ModulePtr<Function> generateInstanceFunction(CoreBuilder& builder, TypeCl
     auto signature = builder.local[typeClass.functions.get(builder.global, index).fun];
     auto method = typeClass.functions.get(builder.global, index).name;
 
-    auto function = addAnonymousFunction(module, instanceName(module, typeClass, args, method), kNullLocation);
+    auto function = addAnonymousFunction(module, instanceFunctionName(module, typeClass, args, method), kNullLocation);
     function->instanceOf = (TypeClass*)&typeClass - builder.global;
     for(auto arg: args) function->instanceArgs.push(module.arena, arg);
 
@@ -213,7 +241,7 @@ static ModulePtr<Function> generateCompare(CoreBuilder& builder, TypeClass& type
     TypePtr args[] = { type };
 
     auto function = addAnonymousFunction(
-        module, instanceName(module, typeClass, { args, 1 }, Context::nameHash("compare", 7)), kNullLocation);
+        module, instanceFunctionName(module, typeClass, { args, 1 }, Context::nameHash("compare", 7)), kNullLocation);
 
     function->instanceOf = (TypeClass*)&typeClass - builder.global;
     function->instanceArgs.push(module.arena, type);
@@ -305,6 +333,16 @@ static void generateInstance(CoreBuilder& builder, GlobalPtr<TypeClass> classPoi
 /*
  * The primitive instances.
  */
+
+static void defineFromInt(CoreBuilder& builder, TypePtr type) {
+    CoreMethod methods[] = { { "fromInt"_v, 1, emitFromLiteral } };
+    generateInstance(builder, builder.classNamed("FromInt"_v), { &type, 1 }, { methods, 1 });
+}
+
+static void defineFromDecimal(CoreBuilder& builder, TypePtr type) {
+    CoreMethod methods[] = { { "fromDecimal"_v, 1, emitFromLiteral } };
+    generateInstance(builder, builder.classNamed("FromDecimal"_v), { &type, 1 }, { methods, 1 });
+}
 
 static void defineEq(CoreBuilder& builder, TypePtr type) {
     CoreMethod methods[] = {
@@ -425,6 +463,13 @@ void defineCore(Program& program) {
         program.scalar.double_,
     };
 
+    // FromInt comes first because Num declares it as a superclass: `1` has to mean something for
+    // a type before `+` on that type can be told what `x + 1` is.
+    for(auto type: numeric) defineFromInt(builder, type);
+
+    defineFromDecimal(builder, program.scalar.float_);
+    defineFromDecimal(builder, program.scalar.double_);
+
     for(auto type: numeric) {
         defineEq(builder, type);
         defineOrd(builder, type);
@@ -439,16 +484,28 @@ void defineCore(Program& program) {
     defineEq(builder, program.scalar.ordering);
 
     // Widening and narrowing are ordinary class operations, so a user type can join either
-    // ladder later without the resolver learning anything new about conversion.
+    // ladder later without the resolver learning anything new about conversion. The ladder is
+    // written out rather than searched: one step, never a chain.
     for(Size from = 0; from < 4; from++) {
         for(Size to = 0; to < 4; to++) {
             if(from == to) continue;
 
             if(from < to) {
-                defineConversion(builder, "Extend"_v, "extend"_v, numeric[from], numeric[to]);
+                defineConversion(builder, "Widen"_v, "widen"_v, numeric[from], numeric[to]);
             } else {
-                defineConversion(builder, "Truncate"_v, "truncate"_v, numeric[from], numeric[to]);
+                defineConversion(builder, "Narrow"_v, "narrow"_v, numeric[from], numeric[to]);
             }
         }
     }
+
+    // The four classes the language's own syntax is written in terms of. Looked up by name once,
+    // here, so that nothing downstream has to search for them by string.
+    program.coreClasses.fromInt = builder.classNamed("FromInt"_v);
+    program.coreClasses.fromDecimal = builder.classNamed("FromDecimal"_v);
+    program.coreClasses.widen = builder.classNamed("Widen"_v);
+    program.coreClasses.narrow = builder.classNamed("Narrow"_v);
+
+    // Core's own instances exist only now, so its superclass checks and its `default`
+    // declarations run here rather than as part of reading its source.
+    checkModuleClasses(*module, *ast);
 }

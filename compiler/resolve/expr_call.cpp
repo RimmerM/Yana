@@ -6,9 +6,9 @@
  * Calls, operators, and typeclass instance selection.
  *
  * Every operator in the language is an ordinary call, and every arithmetic and comparison
- * operator is a class function: `+` is `Num.+`, `==` is `Eq.==`, and a cast is `Extend.extend`
- * or `Truncate.truncate`. Selecting one is two steps - work out what the class's type variables
- * must be here, then find the instance for them - and both steps run against the class
+ * operator is a class function: `+` is `Num.+`, `==` is `Eq.==`, and a conversion is
+ * `Widen.widen` or `Narrow.narrow`. Selecting one is two steps - work out what the class's type
+ * variables must be here, then find the instance for them - and both steps run against the class
  * signature, which is why a variable appearing only in the result type is inferable exactly like
  * one appearing in an argument. That is what makes `round(x) :: Long` pick an instance by its
  * return type.
@@ -17,7 +17,11 @@
  * first, and the expected result type only fills in variables the arguments left open. Design.md
  * asks for bottom-up, left-to-right inference with no backtracking, and this is that rule - it
  * keeps `1 + 2 :: Long` an Int addition widened afterwards rather than silently becoming a Long
- * addition, while still letting `extend(x) :: Long` work at all.
+ * addition, while still letting `widen(x) :: Long` work at all.
+ *
+ * A literal argument is the one thing that leaves a variable open without leaving it unbound. It
+ * binds a literal variable, which is not a decision, so the expected result may still refine it -
+ * `inc(1) :: Long` is a Long computation, while `inc(x) :: Long` on an Int `x` is not.
  *
  * A name may be declared by more than one class and by one class at more than one arity, so
  * emitCall selects out of an overload set rather than off a single signature. Design.md's
@@ -37,23 +41,20 @@ static U8 operatorPrecedence(Module& module, StringId op) {
 // author to go and find the classes themselves is the difference between a rule and a puzzle.
 static String describeQualified(Context& context, GlobalBase global, StringId name,
                                Buffer<GlobalPtr<TypeClass>> classes) {
-    Array<char> text;
+    StringBuilder text;
 
     for(Size i = 0; i < classes.length; i++) {
-        if(i) appendText(text, i + 1 == classes.length ? " or "_v : ", "_v);
-
-        auto qualified = context.findName(global[classes[i]]->name) + String(".") + context.findName(name);
-        for(Size c = 0; c < qualified.size(); c++) text.push(qualified.text()[c]);
+        if(i) text.append(i + 1 == classes.length ? " or "_v : ", "_v);
+        text << context.findName(global[classes[i]]->name) << '.' << context.findName(name);
     }
 
-    auto data = (char*)hAlloc(text.size());
-    copy(text.pointer(), data, text.size());
-    return String(data, text.size(), true);
+    return text.string();
 }
 
-// Binds the class type variables that one position of a signature constrains. Numeric widening
-// applies at the top level only: it is how `1 + 2.5` reaches Num(Double) without the class
-// machinery having to know anything about numbers below the outermost type.
+// Binds the class type variables that one position of a signature constrains. Widening applies at
+// the top level only: unifying the positions bound to one class variable to their common Widen
+// supertype is how `1 + 2.5` reaches Num(Float) without the class machinery having to know
+// anything about numbers below the outermost type.
 bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, Array<TypePtr>& bindings, bool widen) {
     if(!pattern || !actual) return false;
 
@@ -67,11 +68,36 @@ bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, Array<TypePtr>&
         }
 
         if(bindings[index] == actual) return true;
-        if(!widen || !isNumeric(global, bindings[index]) || !isNumeric(global, actual)) return false;
 
-        bindings[index] = numericRank(actual) > numericRank(bindings[index]) ? actual : bindings[index];
+        // A literal has no type yet, so meeting one is not a conflict. It takes whatever the
+        // other position decided if its class allows; two literals become one variable carrying
+        // both their classes, which is what leaves `1 + 2.5` a single question to answer.
+        if(isLiteral(global, actual)) {
+            if(!isLiteral(global, bindings[index])) return literalFits(actual, bindings[index]);
+
+            bindings[index] = mergeLiterals(bindings[index], actual);
+            return true;
+        }
+
+        if(isLiteral(global, bindings[index])) {
+            if(!literalFits(bindings[index], actual)) return false;
+
+            bindings[index] = actual;
+            return true;
+        }
+
+        if(!widen) return false;
+
+        auto common = commonWiden(bindings[index], actual);
+        if(!common) return false;
+
+        bindings[index] = common;
         return true;
     }
+
+    // A literal against a written type takes that type outright, since there is nothing below the
+    // outermost type of a literal for matchType to walk into.
+    if(isLiteral(global, actual)) return !isGeneric(global, pattern) && literalFits(actual, pattern);
 
     return matchType(global, pattern, actual, { bindings.pointer(), bindings.size() });
 }
@@ -103,27 +129,31 @@ bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<
     }
 
     // The expected result only fills in what the arguments left open, so an ascription can pick
-    // an instance but cannot re-pick one the arguments already determined.
+    // an instance but cannot re-pick one the arguments already determined. A literal argument
+    // determines nothing, so a binding it made is still open in this sense.
     if(target) {
-        Array<TypePtr> withTarget;
-        for(auto binding: bindings) withTarget.push(binding);
+        Array<TypePtr> withTarget = bindings;
 
         if(bindPosition(signature->returnType, target, withTarget, false)) {
             for(Size i = 0; i < bindings.size(); i++) {
-                if(!bindings[i]) bindings[i] = withTarget[i];
+                if(!bindings[i] || isLiteral(global, bindings[i])) bindings[i] = withTarget[i];
             }
         }
     }
 
-    for(auto binding: bindings) {
-        if(!binding) return false;
+    // A class's type argument has to be a real type before an instance can be looked for, so a
+    // literal variable that no position decided takes its class's default here. The end of the
+    // statement is the outer boundary for that; a call that needs an instance is the inner one,
+    // and it is the one that comes first.
+    for(Size i = 0; i < bindings.size(); i++) {
+        bindings[i] = settleType(bindings[i]);
+        if(!bindings[i]) return false;
     }
 
     resolved.typeClass = reference.typeClass;
     resolved.index = reference.index;
     resolved.instance = selectInstance(reference.typeClass, toBuffer(bindings));
-    resolved.args.clear();
-    for(auto binding: bindings) resolved.args.push(binding);
+    resolved.args = bindings;
 
     return true;
 }
@@ -148,18 +178,17 @@ bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Va
         }
 
         if(target) {
-            Array<TypePtr> withTarget;
-            for(auto binding: bindings) withTarget.push(binding);
+            Array<TypePtr> withTarget = bindings;
 
             if(bindPosition(callable->returnType, target, withTarget, false)) {
                 for(Size i = 0; i < bindings.size(); i++) {
-                    if(!bindings[i]) bindings[i] = withTarget[i];
+                    if(!bindings[i] || isLiteral(global, bindings[i])) bindings[i] = withTarget[i];
                 }
             }
         }
 
-        for(auto binding: bindings) {
-            if(!binding) return false;
+        for(Size i = 0; i < bindings.size(); i++) {
+            if(!settleType(bindings[i])) return false;
         }
 
         return true;
@@ -383,8 +412,7 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
         ClassMatch match;
         if(!matchClassFun(candidate, args, target, match)) continue;
 
-        auto isDeferred = false;
-        for(auto argument: match.args) isDeferred = isDeferred || isGeneric(global, argument);
+        auto isDeferred = match.args.contains([&](TypePtr argument) { return isGeneric(global, argument); });
 
         if(isDeferred) {
             applicable.push(match.typeClass);
@@ -437,25 +465,21 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
         // was declared as - says more than the list of types the classes would not take.
         if(direct) return emitPlain();
 
-        Array<char> types;
+        StringBuilder types;
 
         if(withoutInstanceCount) {
-            for(Size i = 0; i < withoutInstance.args.size(); i++) {
-                if(i) appendText(types, ", "_v);
-                describeType(context, global, withoutInstance.args[i], types);
-            }
+            describeTypes(context, global, toBuffer(withoutInstance.args), types);
 
             context.diagnostics.error("no instance of %@ for (%@), required by %@"_v, source,
                                       context.findName(global[withoutInstance.typeClass]->name),
-                                      String(types.pointer(), types.size()), context.findName(callName));
+                                      types.view(), context.findName(callName));
         } else {
-            for(Size i = 0; i < args.length; i++) {
-                if(i) appendText(types, ", "_v);
-                describeType(context, global, valueType(args[i]), types);
-            }
+            Array<TypePtr> given;
+            for(auto arg: args) given.push(valueType(arg));
+            describeTypes(context, global, toBuffer(given), types);
 
             context.diagnostics.error("no class function %@ accepts (%@)"_v, source, context.findName(callName),
-                                      String(types.pointer(), types.size()));
+                                      types.view());
         }
 
         return nullptr;
@@ -534,17 +558,19 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
     }
 
     if(target) {
-        Array<TypePtr> withTarget;
-        for(auto binding: bindings) withTarget.push(binding);
+        Array<TypePtr> withTarget = bindings;
 
         if(bindPosition(generic->returnType, target, withTarget, false)) {
             for(Size i = 0; i < bindings.size(); i++) {
-                if(!bindings[i]) bindings[i] = withTarget[i];
+                if(!bindings[i] || isLiteral(global, bindings[i])) bindings[i] = withTarget[i];
             }
         }
     }
 
     for(Size i = 0; i < bindings.size(); i++) {
+        // A specialization is made for concrete types, so a literal variable the call left open
+        // settles to its default before it becomes one of them.
+        bindings[i] = settleType(bindings[i]);
         if(bindings[i]) continue;
 
         context.diagnostics.error("cannot infer type argument %@ of %@ here - give the expected type"_v, source,
@@ -559,8 +585,7 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
         converted.push(convert(args[i], substituteType(module, declared, toBuffer(bindings), source), source));
     }
 
-    auto deferred = false;
-    for(auto binding: bindings) deferred = deferred || isGeneric(global, binding);
+    auto deferred = bindings.contains([&](TypePtr binding) { return isGeneric(global, binding); });
 
     if(!deferred) {
         auto specialized = instantiateFunction(module, callee, toBuffer(bindings), source);

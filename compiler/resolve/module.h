@@ -114,6 +114,7 @@ struct Module {
     Region<GlobalRegion>& types;
     Region<ModuleRegion>& arena;
     ScalarTypes& scalar;
+    CoreClasses& coreClasses;
 
     StringId name;
     ast::ParseBase parse;
@@ -157,6 +158,11 @@ struct Program {
     Region<GlobalRegion> types;
     Region<ModuleRegion> arena;
     ScalarTypes scalar;
+    CoreClasses coreClasses;
+
+    // Numbers the literal variables of the whole program, so that two `?n` in one diagnostic are
+    // never the same name for different literals.
+    U32 literalCounter = 0;
 
     Array<Module*> modules;
     GlobalList<GlobalPtr<TupType>> tupleTypes;
@@ -181,7 +187,17 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
 void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provider);
 bool resolveModuleBodies(Module& module);
 
+// Checks each instance against its class's superclasses and resolves the module's `default`
+// declarations. Both need every instance of the module to exist, so this runs after them - which
+// for Core means after the generated instances, not after its source.
+void checkModuleClasses(Module& module, ast::Module& ast);
+
 // Resolves one function's body if it has not been resolved yet. Exposed because instantiating a
 // generic function needs its body, which may belong to a module whose bodies have not been
 // reached in program order.
 bool resolveFunctionBody(Module& module, Function& function);
+
+// The printed name of one instance implementation: `Num(Int).+`. Instances are not addressable by
+// name in source, but every function reaching the backend needs a unique one - both the ones
+// resolved from source and the ones Core generates.
+StringId instanceFunctionName(Module& module, TypeClass& typeClass, Buffer<TypePtr> args, StringId method);

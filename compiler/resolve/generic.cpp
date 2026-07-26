@@ -14,17 +14,51 @@ bool hasClassRequirement(GlobalBase global, const GenEnv& env, GlobalPtr<TypeCla
 
     for(auto constraint: classes.contents(global)) {
         if(constraint.typeClass != typeClass) continue;
-        if(constraint.args.size() != args.length) continue;
+        if(sameTypes(constraint.args, global, args)) return true;
+    }
 
-        auto equal = true;
-        for(Size i = 0; i < args.length; i++) {
-            if(constraint.args.get(global, i) != args[i]) {
-                equal = false;
-                break;
-            }
+    return false;
+}
+
+// Whether `have(haveArgs)` proves `want(wantArgs)`, by walking `have` up its own superclasses.
+// `depth` bounds the walk rather than tracking what has been visited: a superclass cycle is a
+// declaration error, and the classes a real hierarchy stacks are few.
+static bool impliesClass(Module& module, GlobalPtr<TypeClass> have, Buffer<TypePtr> haveArgs,
+                         GlobalPtr<TypeClass> want, Buffer<TypePtr> wantArgs, U32 depth) {
+    auto global = *module.types;
+    if(!have) return false;
+
+    if(have == want && sameTypes(haveArgs, wantArgs)) return true;
+    if(!depth) return false;
+
+    auto env = global[global[have]->gen];
+    if(env->types.size() != haveArgs.length) return false;
+
+    for(auto superclass: env->classes.contents(global)) {
+        if(!superclass.typeClass) continue;
+
+        // A superclass is written in its own class's variables, so it is expressed in the types
+        // this requirement was declared with before being asked about.
+        Array<TypePtr> substituted;
+        for(auto arg: superclass.args.contents(global)) {
+            substituted.push(substituteType(module, arg, haveArgs, superclass.source));
         }
 
-        if(equal) return true;
+        if(impliesClass(module, superclass.typeClass, toBuffer(substituted), want, wantArgs, depth - 1)) return true;
+    }
+
+    return false;
+}
+
+bool provesClass(Module& module, const GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
+    auto global = *module.types;
+    auto classes = env.classes;
+
+    for(auto constraint: classes.contents(global)) {
+        Array<TypePtr> have;
+        for(auto arg: constraint.args.contents(global)) have.push(arg);
+
+        if(impliesClass(module, constraint.typeClass, toBuffer(have), typeClass, args, 8)) return true;
     }
 
     return false;
@@ -34,7 +68,11 @@ void requireClass(Module& module, Function& function, GlobalPtr<TypeClass> typeC
                   Buffer<TypePtr> args, LocationId source) {
     auto global = *module.types;
     auto env = functionGen(global, function);
-    if(!env || hasClassRequirement(global, *env, typeClass, args)) return;
+
+    // A requirement one already in scope implies is not recorded again, so `fn (Num(a)) inc(x: a)`
+    // carries the constraint its author wrote and not also the `FromInt(a)` that `Num`'s
+    // superclass already guarantees for every instance of it.
+    if(!env || provesClass(module, *env, typeClass, args)) return;
 
     ClassConstraint constraint;
     constraint.typeClass = typeClass;
@@ -344,17 +382,11 @@ static void cloneBody(Clone& clone, Function& to) {
 // The printed name of one specialization: `swap(Int, Bool)`. Like an instance implementation,
 // it is not addressable in source but everything downstream needs a unique name.
 static StringId specializationName(Module& module, Function& generic, Buffer<TypePtr> args) {
-    Array<char> text;
-    auto name = module.context.findName(generic.name);
-    appendText(text, StringView { name.text(), name.size() });
-    text.push('(');
+    StringBuilder text;
+    text << module.context.findName(generic.name) << '(';
+    describeTypes(module.context, *module.types, args, text);
+    text << ')';
 
-    for(Size i = 0; i < args.length; i++) {
-        if(i) appendText(text, ", "_v);
-        describeType(module.context, *module.types, args[i], text);
-    }
-
-    text.push(')');
     return module.context.addQualifiedName(text.pointer(), text.size(), 1);
 }
 
@@ -375,15 +407,12 @@ static bool proveRequirements(Module& from, Function& generic, GenEnv& env, Buff
 
         if(findInstance(from, constraint.typeClass, toBuffer(concrete))) continue;
 
-        Array<char> text;
-        for(Size i = 0; i < concrete.size(); i++) {
-            if(i) appendText(text, ", "_v);
-            describeType(context, *from.types, concrete[i], text);
-        }
+        StringBuilder text;
+        describeTypes(context, *from.types, toBuffer(concrete), text);
 
         context.diagnostics.error("no instance of %@ for (%@), required by %@"_v, source,
                                   context.findName((*from.types)[constraint.typeClass]->name),
-                                  String(text.pointer(), text.size()), context.findName(generic.name));
+                                  text.view(), context.findName(generic.name));
         ok = false;
     }
 
@@ -413,17 +442,7 @@ ModulePtr<Function> instantiateFunction(Module& from, ModulePtr<Function> pointe
     }
 
     for(auto existing: generic->specializations.contents(local)) {
-        auto candidate = local[existing];
-        auto equal = true;
-
-        for(Size i = 0; i < args.length; i++) {
-            if(candidate->genericArgs.get(local, i) != args[i]) {
-                equal = false;
-                break;
-            }
-        }
-
-        if(equal) return existing;
+        if(sameTypes(local[existing]->genericArgs, local, args)) return existing;
     }
 
     if(generic->resolving) {

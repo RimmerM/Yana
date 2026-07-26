@@ -178,7 +178,9 @@ ModulePtr<Value> ExprResolver::resolveTuple(const ast::Expr& expr, ast::ParseLis
         Array<Field> fields;
 
         for(auto arg: astArgs.contents(parse)) {
-            auto value = resolve(arg.value);
+            // The tuple's type is about to be interned from these, so a literal that nothing
+            // decided settles here rather than becoming a field type nothing can lay out.
+            auto value = settle(resolve(arg.value), arg.value.source);
             inferredValues.push(value);
             fields.push(Field { valueType(value), arg.name, 0 });
         }
@@ -236,7 +238,9 @@ TypePtr ExprResolver::constructedType(ConstructorRef reference, ast::ParseList<a
         auto perField = tuple && (contents.size() > 1 || tuple->fields.size() == contents.size());
 
         for(Size i = 0; i < contents.size(); i++) {
-            auto value = resolve(contents[i].value);
+            // The record's type arguments are inferred from these, so - as for a tuple - a
+            // literal has to have settled on a type before it can be one of them.
+            auto value = settle(resolve(contents[i].value), contents[i].value.source);
             resolved.push(value);
             if(!value) continue;
 
