@@ -154,8 +154,11 @@ static GlobalPtr<GenEnv> prepareGenEnv(Module& module, GenEnv::Kind kind,
             }
             case ast::Constraint::Field:
             case ast::Constraint::Function:
+                // Both need a witness passed at runtime rather than a type substituted at
+                // compile time, which is the erased half of the generic model.
                 module.context.diagnostics.error(
-                    "field and function constraints arrive with generic functions"_v, constraint.source);
+                    "field and function constraints require property witnesses, which are not available yet"_v,
+                    constraint.source);
                 break;
         }
     }
@@ -245,6 +248,7 @@ static void defineRecord(Module& module, ast::Decl& decl) {
     }
 
     record->resolvingRepr = false;
+    computeRecordLayout(*module.types, *record);
     record->definitionReady = true;
     if(!record->generic) finishRecordRepr(module, *record, decl.source);
 }
@@ -451,8 +455,11 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
 
     for(auto arg: args) {
         if(isGeneric(*module.types, arg)) {
+            // Selection matches an instance's types for equality, so `instance Eq(Maybe(a))` has
+            // nothing to be chosen by; it needs matching plus a recursive proof of `Eq(a)`.
             module.context.diagnostics.error(
-                "instances for generic types arrive with generic functions"_v, decl.source);
+                "an instance must name concrete types - instances over a type variable are not available yet"_v,
+                decl.source);
             return;
         }
     }
@@ -646,12 +653,22 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
         auto& decl = *parse[pointer];
         if(decl.kind != ast::Decl::Fun) continue;
 
-        if(decl.fun.constraints.isNotEmpty()) {
-            module.context.diagnostics.error("generic functions arrive in the next milestone"_v, decl.source);
-        }
+        // Every function is resolved in an open context: a type variable in the signature is what
+        // makes the function generic, and the constraints written in front of it are the ones the
+        // body does not have to prove. The context is dropped again when nothing used it.
+        auto env = prepareGenEnv(module, GenEnv::Function, {}, decl.fun.constraints);
+        (*module.types)[env]->open = true;
 
-        auto function = resolveSignature(module, decl, nullptr, decl.fun.name, false);
+        auto function = resolveSignature(module, decl, (*module.types)[env], decl.fun.name, false);
         function->ast = pointer;
+
+        if((*module.types)[env]->types.isNotEmpty()) {
+            function->gen = env;
+            resolveConstraintClasses(module, *(*module.types)[env]);
+        } else if((*module.types)[env]->classes.isNotEmpty()) {
+            module.context.diagnostics.error("%@ has constraints but no type variables"_v, decl.source,
+                                             module.context.findName(decl.fun.name));
+        }
     }
 
     for(auto decl: decls.contents(parse)) {

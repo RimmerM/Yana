@@ -1,0 +1,189 @@
+fn identity(%value: a) -> a {
+  b0:
+    ret %value
+}
+
+fn swap(%value: Pair(a, b)) -> Pair(b, a) {
+  b0:
+    %v1 = alloc : Pair(b, a)
+    %v2 = load %value@Pair.second : b
+    %v3 = load %value@Pair.first : a
+    init %local1@Pair.first, %v2
+    init %local1@Pair.second, %v3
+    ret %v1
+}
+
+fn leftOf(%value: Pair(a, b)) -> a {
+  b0:
+    %v1 = load %value@Pair.first : a
+    ret %v1
+}
+
+(Ord(a)) fn smaller(%x: a, %y: a) -> a {
+  b0:
+    %v2 = gencall Ord(a).<, %x, %y : Bool
+    je %v2, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %x], [b2, %y] : a
+    ret %v6
+}
+
+(Num(a)) fn twice(%x: a) -> a {
+  b0:
+    %v1 = gencall Num(a).+, %x, %x : a
+    ret %v1
+}
+
+(Ord(a)) fn middle(%x: a, %y: a, %z: a) -> a {
+  b0:
+    %v3 = gencall smaller(a), %x, %y : a
+    %v4 = gencall smaller(a), %v3, %z : a
+    ret %v4
+}
+
+fn orElse(%value: Maybe(a), %fallback: a) -> a {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %inner = load %value@Just : a
+    jmp b3
+
+  b3:
+    %v9 = phi [b2, %inner], [b1, %fallback] : a
+    ret %v9
+}
+
+fn wrap(%value: a) -> Maybe(a) {
+  b0:
+    %v1 = alloc : Maybe(a)
+    init %local1.discriminant, 1
+    init %local1@Just, %value
+    ret %v1
+}
+
+fn empty() -> Maybe(a) {
+  b0:
+    %v0 = alloc : Maybe(a)
+    init %local0.discriminant, 0
+    ret %v0
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call identity(Int), 1 : Int
+    %v4 = alloc : Pair(Bool, Int)
+    init %local0@Pair.first, True
+    init %local0@Pair.second, 20
+    %v7 = call swap(Int, Bool), %v4 : Pair(Int, Bool)
+    %v8 = call leftOf(Int, Bool), %v7 : Int
+    %v9 = add %v1, %v8 : Int
+    %v11 = call twice(Int), 3 : Int
+    %v12 = add %v9, %v11 : Int
+    %v15 = call smaller(Int), 9, 4 : Int
+    %v16 = add %v12, %v15 : Int
+    %v20 = call middle(Int), 30, 8, 12 : Int
+    %v21 = add %v16, %v20 : Int
+    %v23 = call wrap(Int), 5 : Maybe(Int)
+    %v25 = call orElse(Int), %v23, 0 : Int
+    %v26 = add %v21, %v25 : Int
+    %v27 = call empty(Int) : Maybe(Int)
+    %v29 = call orElse(Int), %v27, 7 : Int
+    %v30 = add %v26, %v29 : Int
+    ret %v30
+}
+
+fn identity(Int)(%value: Int) -> Int {
+  b0:
+    ret %value
+}
+
+fn swap(Int, Bool)(%value: Pair(Bool, Int)) -> Pair(Int, Bool) {
+  b0:
+    %v1 = alloc : Pair(Int, Bool)
+    %v2 = load %value@Pair.second : Int
+    %v3 = load %value@Pair.first : Bool
+    init %local1@Pair.first, %v2
+    init %local1@Pair.second, %v3
+    ret %v1
+}
+
+fn leftOf(Int, Bool)(%value: Pair(Int, Bool)) -> Int {
+  b0:
+    %v1 = load %value@Pair.first : Int
+    ret %v1
+}
+
+fn twice(Int)(%x: Int) -> Int {
+  b0:
+    %v1 = add %x, %x : Int
+    ret %v1
+}
+
+fn smaller(Int)(%x: Int, %y: Int) -> Int {
+  b0:
+    %v3 = cmp_lt %x, %y : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %x], [b2, %y] : Int
+    ret %v2
+}
+
+fn middle(Int)(%x: Int, %y: Int, %z: Int) -> Int {
+  b0:
+    %v3 = call smaller(Int), %x, %y : Int
+    %v4 = call smaller(Int), %v3, %z : Int
+    ret %v4
+}
+
+fn wrap(Int)(%value: Int) -> Maybe(Int) {
+  b0:
+    %v1 = alloc : Maybe(Int)
+    init %local1.discriminant, 1
+    init %local1@Just, %value
+    ret %v1
+}
+
+fn orElse(Int)(%value: Maybe(Int), %fallback: Int) -> Int {
+  b0:
+    %v3 = load %value.discriminant : Int
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %inner = load %value@Just : Int
+    jmp b3
+
+  b3:
+    %v2 = phi [b2, %inner], [b1, %fallback] : Int
+    ret %v2
+}
+
+fn empty(Int)() -> Maybe(Int) {
+  b0:
+    %v0 = alloc : Maybe(Int)
+    init %local0.discriminant, 0
+    ret %v0
+}

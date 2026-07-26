@@ -14,5 +14,19 @@ fn area2() -> Int = S.area(S.Point {x: 2, y: 5})
 
 fn qualifiedConstructor() -> Shapes.Point = Shapes.Point {x: 1, y: 1}
 
+-- A generic function declared in the imported module, instantiated from here. The requirement
+-- it collected there is proved against the instances visible here.
+fn twoAreas() -> Int = totalArea(Point {x: 1, y: 2}, Point {x: 3, y: 3})
+
+-- The same, for a type and an instance Shapes cannot see. Nothing about the specialization is
+-- decided in Shapes except the body it clones.
+data Square {side: Int}
+
+instance Area(Square):
+  fn area(value: Square) = value.side * value.side
+
+fn squareAreas() -> Int = tripleArea(Square {side: 2})
+
 -- Core is implicitly imported, so its operators work here without being named.
-fn main() -> Int = area1() + area2() + viaFunction() + area(qualifiedConstructor())
+fn main() -> Int =
+    area1() + area2() + viaFunction() + area(qualifiedConstructor()) + twoAreas() + squareAreas()

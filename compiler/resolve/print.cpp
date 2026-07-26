@@ -130,6 +130,7 @@ static StringView instructionName(Value& value, GlobalBase global) {
             break;
         }
         case Value::Call: return "call"_v;
+        case Value::GenCall: return "gencall"_v;
         case Value::Je: return "je"_v;
         case Value::Jmp: return "jmp"_v;
         case Value::Ret: return "ret"_v;
@@ -209,6 +210,41 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
 
             break;
         }
+        case Value::GenCall: {
+            auto& call = (InstGenCall&)inst;
+            print.writer.writeByte(' ');
+
+            // `Ord(a).<=` for a class dispatch, `swap(a, b)` for a generic function: in both
+            // cases what is printed is what specialization will substitute into.
+            if(call.typeClass) {
+                auto typeClass = print.global[call.typeClass];
+                print.writer.writeString(print.context.findName(typeClass->name));
+                print.writer.writeByte('(');
+            } else {
+                print.writer.writeString(print.context.findName(print.local[call.callee]->name));
+                print.writer.writeByte('(');
+            }
+
+            Size index = 0;
+            for(auto typeArg: call.typeArgs.contents(print.local)) {
+                if(index++) print.writer.writeString(", "_v);
+                printType(print, typeArg);
+            }
+
+            print.writer.writeByte(')');
+
+            if(call.typeClass) {
+                print.writer.writeByte('.');
+                print.writer.writeString(print.context.findName(print.local[call.callee]->name));
+            }
+
+            for(auto arg: call.args.contents(print.local)) {
+                print.writer.writeString(", "_v);
+                printValue(print, *print.local[arg]);
+            }
+
+            break;
+        }
         case Value::Je: {
             auto& branch = (InstJe&)inst;
             print.writer.writeByte(' ');
@@ -257,7 +293,38 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
     print.writer.writeByte('\n');
 }
 
+// A generic function's context, written the way source writes it: `(Ord(a)) fn max(...)`. The
+// list includes the requirements the body turned out to need as well as the ones the signature
+// declared, because they are the same thing by the time it is printed.
+static void printGenEnv(ResolvePrint& print, GenEnv& env) {
+    if(env.classes.isEmpty()) return;
+
+    print.writer.writeByte('(');
+    Size index = 0;
+
+    for(auto constraint: env.classes.contents(print.global)) {
+        if(index++) print.writer.writeString(", "_v);
+
+        print.writer.writeString(print.context.findName(
+            constraint.typeClass ? print.global[constraint.typeClass]->name : constraint.name));
+
+        print.writer.writeByte('(');
+        Size argIndex = 0;
+
+        for(auto arg: constraint.args.contents(print.global)) {
+            if(argIndex++) print.writer.writeString(", "_v);
+            printType(print, arg);
+        }
+
+        print.writer.writeByte(')');
+    }
+
+    print.writer.writeString(") "_v);
+}
+
 static void printFunction(ResolvePrint& print, Function& function) {
+    if(function.gen) printGenEnv(print, *print.global[function.gen]);
+
     print.writer.writeString("fn "_v);
     print.writer.writeString(print.context.findName(function.name));
     print.writer.writeByte('(');

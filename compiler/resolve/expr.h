@@ -137,6 +137,17 @@ struct ExprResolver {
     ModulePtr<Value> emitCall(StringId name, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0);
     ModulePtr<Value> emitDirectCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0);
 
+    // A call to a generic function: infers its type arguments from the call, then either
+    // instantiates it or - when this body is itself generic and the arguments are not concrete
+    // yet - defers the whole decision to the instantiation that will make them concrete.
+    ModulePtr<Value> emitGenericCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, LocationId source,
+                                     TypePtr target, StringId resultName);
+
+    // A class function whose instance cannot be chosen here, because the types it would be chosen
+    // by are this function's own type variables. Records the requirement and emits InstGenCall.
+    ModulePtr<Value> emitGenericDispatch(ClassMatch& match, Buffer<ModulePtr<Value>> args, LocationId source,
+                                         StringId resultName);
+
     bool bindPosition(TypePtr pattern, TypePtr actual, Array<TypePtr>& bindings, bool widen);
     bool matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<Value>> args, TypePtr target, ClassMatch& resolved);
     ModulePtr<ClassInstance> selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);

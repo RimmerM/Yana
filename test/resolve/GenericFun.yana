@@ -1,0 +1,44 @@
+-- Generic functions: one resolved body, one specialization per set of type arguments.
+
+-- A type variable in the signature is what makes a function generic; nothing has to declare it.
+fn identity(value: a) -> a = value
+
+data Pair(a, b) {first: a, second: b}
+
+-- Two variables and two specializations from one body. `swap` never learns what `a` and `b` are:
+-- it is resolved once against its own variables and cloned for each pair it is called with.
+fn swap(value: Pair(a, b)) -> Pair(b, a) = Pair {first: value.second, second: value.first}
+
+fn leftOf(value: Pair(a, b)) -> a = value.first
+
+-- A requirement the body needs and the signature never wrote. Resolving `x < y` records Ord(a)
+-- on this function's context, and instantiating it is what has to prove Ord(Int).
+fn smaller(x: a, y: a) -> a = if x < y then x else y
+
+-- The same requirement written out (constraints follow the keyword: `fn (Num(a)) twice`). It
+-- means the same to the instantiation; what it adds is that the signature says so on its own.
+fn (Num(a)) twice(x: a) -> a = x + x
+
+-- One generic function calling another. `middle` declares nothing, but it inherits `smaller`'s
+-- requirement: whoever instantiates `middle` is the only one who can prove Ord.
+fn middle(x: a, y: a, z: a) -> a = smaller(smaller(x, y), z)
+
+-- Generic functions over a Core generic type.
+fn orElse(value: Maybe(a), fallback: a) -> a = match value:
+    Just(inner) -> inner
+    Nothing -> fallback
+
+fn wrap(value: a) -> Maybe(a) = Just(value)
+
+-- Nothing in the call decides `a` here, so the expected type does - the same rule that picks a
+-- class instance by its result type picks a specialization by one.
+fn empty() -> Maybe(a) = Nothing
+
+fn main() -> Int =
+    identity(1) +
+    leftOf(swap(Pair {first: True, second: 20})) +
+    twice(3) +
+    smaller(9, 4) +
+    middle(30, 8, 12) +
+    orElse(wrap(5), 0) +
+    orElse(empty() :: Maybe(Int), 7)

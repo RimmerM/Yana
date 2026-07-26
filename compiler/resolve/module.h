@@ -58,10 +58,25 @@ struct Function {
     GlobalPtr<TypeClass> instanceOf = nullptr;
     ModuleList<TypePtr, false> instanceArgs;
 
+    // Set when the function is generic: its type variables, and the class requirements its
+    // signature declared or its body turned out to need. The body is resolved once against these
+    // and specialized by cloning - see generic.h.
+    GlobalPtr<GenEnv> gen = nullptr;
+    ModuleList<ModulePtr<Function>, false> specializations;
+
+    // Set on a specialization: the generic function it was cloned from, and for which types.
+    ModulePtr<Function> specializationOf = nullptr;
+    ModuleList<TypePtr, false> genericArgs;
+
     Intrinsic intrinsic = nullptr;
     U32 valueCounter = 0;
     bool resolving = false;
     bool used = false;
+
+    // Set while this function is being cloned for one set of type arguments, so that a request to
+    // clone it again for different ones is recognized as polymorphic recursion instead of
+    // instantiating forever.
+    bool instantiating = false;
 
     // A class function's declared signature. It has arguments and a return type but no body and
     // never will: it exists so that selection has something to match against, and is the one
@@ -165,3 +180,8 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
 // from both parsed source and directly generated definitions.
 void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provider);
 bool resolveModuleBodies(Module& module);
+
+// Resolves one function's body if it has not been resolved yet. Exposed because instantiating a
+// generic function needs its body, which may belong to a module whose bodies have not been
+// reached in program order.
+bool resolveFunctionBody(Module& module, Function& function);

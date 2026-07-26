@@ -13,3 +13,13 @@ instance Area(Point):
 fn origin() -> Point = Point {x: 0, y: 0}
 
 fn scale(value: Point, by: Int) -> Point = Point {x: value.x * by, y: value.y * by}
+
+-- A generic function in an imported module. It is resolved here, once, and the specialization a
+-- caller in another module asks for belongs here too - so two importers share one copy. Its
+-- requirement is proved where the call is written, which is how it reaches an instance declared
+-- in a module this one has never heard of.
+fn (Area(a)) totalArea(one: a, other: a) -> Int = area(one) + area(other)
+
+-- Nested, to check that the inner call is proved on the original caller's behalf rather than
+-- against what this module happens to see.
+fn (Area(a)) tripleArea(value: a) -> Int = totalArea(value, value) + area(value)

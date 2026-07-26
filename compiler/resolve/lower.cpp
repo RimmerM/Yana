@@ -463,6 +463,10 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
     for(auto module: program.modules) {
         for(auto functionPointer: module->functionOrder.contents(lower.local)) {
             if(lower.local[functionPointer]->signature) continue;
+
+            // A generic function has no machine code of its own: this milestone specializes every
+            // call, so what reaches the backend is its instantiations.
+            if(lower.local[functionPointer]->gen) continue;
             if(!module->root && !lower.local[functionPointer]->used) continue;
             emitted.push(functionPointer);
         }

@@ -32,6 +32,26 @@ fn qualifiedConstructor() -> Point {
     ret %v0
 }
 
+fn twoAreas() -> Int {
+  b0:
+    %v0 = alloc : Point
+    init %local0@Point.x, 1
+    init %local0@Point.y, 2
+    %v5 = alloc : Point
+    init %local1@Point.x, 3
+    init %local1@Point.y, 3
+    %v10 = call totalArea(Point), %v0, %v5 : Int
+    ret %v10
+}
+
+fn squareAreas() -> Int {
+  b0:
+    %v0 = alloc : Square
+    init %local0@Square.side, 2
+    %v3 = call tripleArea(Square), %v0 : Int
+    ret %v3
+}
+
 fn main() -> Int {
   b0:
     %v0 = call area1 : Int
@@ -42,7 +62,19 @@ fn main() -> Int {
     %v5 = call qualifiedConstructor : Point
     %v6 = call Area(Point).area, %v5 : Int
     %v7 = add %v4, %v6 : Int
-    ret %v7
+    %v8 = call twoAreas : Int
+    %v9 = add %v7, %v8 : Int
+    %v10 = call squareAreas : Int
+    %v11 = add %v9, %v10 : Int
+    ret %v11
+}
+
+fn Area(Square).area(%value: Square) -> Int {
+  b0:
+    %v1 = load %value@Square.side : Int
+    %v2 = load %value@Square.side : Int
+    %v3 = mul %v1, %v2 : Int
+    ret %v3
 }
 
 fn origin() -> Point {
@@ -71,4 +103,28 @@ fn Area(Point).area(%value: Point) -> Int {
     %v2 = load %value@Point.y : Int
     %v3 = mul %v1, %v2 : Int
     ret %v3
+}
+
+fn totalArea(Point)(%one: Point, %other: Point) -> Int {
+  b0:
+    %v2 = call Area(Point).area, %one : Int
+    %v3 = call Area(Point).area, %other : Int
+    %v4 = add %v2, %v3 : Int
+    ret %v4
+}
+
+fn tripleArea(Square)(%value: Square) -> Int {
+  b0:
+    %v1 = call totalArea(Square), %value, %value : Int
+    %v2 = call Area(Square).area, %value : Int
+    %v3 = add %v1, %v2 : Int
+    ret %v3
+}
+
+fn totalArea(Square)(%one: Square, %other: Square) -> Int {
+  b0:
+    %v2 = call Area(Square).area, %one : Int
+    %v3 = call Area(Square).area, %other : Int
+    %v4 = add %v2, %v3 : Int
+    ret %v4
 }

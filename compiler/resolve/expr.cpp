@@ -438,8 +438,9 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
     }
 }
 
-// Class signatures and generated functions have no AST and are already complete.
-static bool resolveFunction(Context& context, Module& module, Function& function) {
+// Class signatures, generated functions and specializations have no AST and are already complete.
+bool resolveFunctionBody(Module& module, Function& function) {
+    auto& context = module.context;
     if(!function.ast || function.resolving) return true;
 
     auto& decl = *module.parse[function.ast];
@@ -487,6 +488,7 @@ static bool resolveFunction(Context& context, Module& module, Function& function
     }
 
     function.ast = nullptr;
+    function.resolving = false;
     return errors == context.diagnostics.errorCount();
 }
 
@@ -494,10 +496,11 @@ bool resolveModuleBodies(Module& module) {
     auto success = true;
     auto local = *module.arena;
 
-    // Resolving one body can add a function to the module - none do yet, but specialization
-    // will - so the list is walked by index rather than by iterator.
+    // Resolving one body adds specialized functions to the module, so the list is walked by index
+    // rather than by iterator: a specialization created while resolving function 3 is reached
+    // when the loop gets to it.
     for(Size i = 0; i < module.functionOrder.size(); i++) {
-        success = resolveFunction(module.context, module, *local[module.functionOrder.get(local, i)]) && success;
+        success = resolveFunctionBody(module, *local[module.functionOrder.get(local, i)]) && success;
     }
 
     return success;

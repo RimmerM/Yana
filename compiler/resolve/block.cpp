@@ -82,6 +82,9 @@ Inst* Block::add(Module& module, Inst* inst) {
             case Value::Call:
                 for(auto arg: ((InstCall*)inst)->args.contents(base)) addUse(module, arg, inst);
                 break;
+            case Value::GenCall:
+                for(auto arg: ((InstGenCall*)inst)->args.contents(base)) addUse(module, arg, inst);
+                break;
             default:
                 break;
         }

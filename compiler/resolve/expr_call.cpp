@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "generic.h"
 #include "name.h"
 
 /*
@@ -51,25 +52,7 @@ bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, Array<TypePtr>&
 
 // The instance of `typeClass` whose types are exactly `args`, or null.
 ModulePtr<ClassInstance> ExprResolver::selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
-    Array<ModulePtr<ClassInstance>> candidates;
-    findInstances(module, typeClass, candidates);
-
-    for(auto candidate: candidates) {
-        auto instance = local[candidate];
-        if(instance->forTypes.size() != args.length) continue;
-
-        auto equal = true;
-        for(Size i = 0; i < args.length; i++) {
-            if(instance->forTypes.get(local, i) != args[i]) {
-                equal = false;
-                break;
-            }
-        }
-
-        if(equal) return candidate;
-    }
-
-    return nullptr;
+    return findInstance(module, typeClass, args);
 }
 
 // Works out whether one class function can serve this call, and if so which instance it selects.
@@ -201,11 +184,12 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
 
     // A plain function's parameter types are known before its arguments are resolved, so they
     // are pushed down as the expected type of each one. That is what lets `f(Nothing)` know
-    // which `Maybe` it is building - a class function cannot do the same, because which types
-    // its parameters have is exactly what the arguments are being resolved to decide.
+    // which `Maybe` it is building - neither a class function nor a generic function can do the
+    // same, because which types their parameters have is exactly what the arguments are being
+    // resolved to decide.
     auto direct = findFunction(module, call.callee.var, expr.source);
     auto callArgs = call.args;
-    auto declared = direct && local[direct]->args.size() == callArgs.size();
+    auto declared = direct && !local[direct]->gen && local[direct]->args.size() == callArgs.size();
 
     Array<ModulePtr<Value>> values;
     Size index = 0;
@@ -272,7 +256,8 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
     // definition shadowing an imported one.
     if(auto direct = findFunction(module, callName, source)) {
         if(local[direct]->args.size() == args.length) {
-            return emitDirectCall(direct, args, source, target, resultName);
+            return local[direct]->gen ? emitGenericCall(direct, args, source, target, resultName)
+                                      : emitDirectCall(direct, args, source, target, resultName);
         }
 
         context.diagnostics.error("%@ takes %@ arguments but was given %@"_v, source, context.findName(callName),
@@ -293,17 +278,51 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
     auto selectedCount = 0;
     auto withoutInstanceCount = 0;
 
+    // Matches on this function's own type variables. Which class a call is, and with which type
+    // arguments, is still decided here and once; only the instance has to wait until the types
+    // become concrete.
+    Array<ClassMatch> deferred;
+
     for(auto& candidate: candidates) {
         ClassMatch match;
         if(!matchClassFun(candidate, args, target, match)) continue;
 
-        if(match.instance) {
+        auto isDeferred = false;
+        for(auto argument: match.args) isDeferred = isDeferred || isGeneric(global, argument);
+
+        if(isDeferred) {
+            deferred.push(::move(match));
+        } else if(match.instance) {
             if(!selectedCount) selected = ::move(match);
             selectedCount++;
         } else {
             if(!withoutInstanceCount) withoutInstance = ::move(match);
             withoutInstanceCount++;
         }
+    }
+
+    if(!selectedCount && deferred.isNotEmpty()) {
+        // A requirement the signature already declared wins over one that would have to be
+        // inferred, so writing the constraint out is also how an overloaded name is settled.
+        auto env = functionGen(global, function);
+        Size chosen = 0;
+        Size declaredCount = 0;
+
+        for(Size i = 0; env && i < deferred.size(); i++) {
+            if(!hasClassRequirement(global, *env, deferred[i].typeClass, toBuffer(deferred[i].args))) continue;
+
+            chosen = i;
+            declaredCount++;
+        }
+
+        if(declaredCount > 1 || (!declaredCount && deferred.size() > 1)) {
+            context.diagnostics.error(
+                "ambiguous call to %@ - more than one class applies, and the types that would decide are not known here"_v,
+                source, context.findName(callName));
+            return nullptr;
+        }
+
+        return emitGenericDispatch(deferred[chosen], args, source, resultName);
     }
 
     if(selectedCount > 1) {
@@ -345,4 +364,138 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
     }
 
     return emitDirectCall(implementation, args, source, target, resultName);
+}
+
+/*
+ * Generic calls.
+ */
+
+ModulePtr<Value> ExprResolver::emitGenericDispatch(ClassMatch& match, Buffer<ModulePtr<Value>> args,
+                                                   LocationId source, StringId resultName) {
+    auto env = functionGen(global, function);
+    if(!env) {
+        // Nothing outside a generic body has a type variable to be undecided about.
+        context.diagnostics.error("internal: a class call was deferred outside a generic function"_v, source);
+        return nullptr;
+    }
+
+    requireClass(module, function, match.typeClass, toBuffer(match.args), source);
+
+    auto typeClass = global[match.typeClass];
+    auto entry = typeClass->functions.get(global, match.index);
+    auto signature = local[entry.fun];
+    auto resultType = substituteType(module, signature->returnType, toBuffer(match.args), source);
+
+    auto call = create<InstGenCall>(source, resultName, resultType, entry.fun, match.typeClass, match.index);
+    for(auto argument: match.args) call->typeArgs.push(module.arena, argument);
+
+    for(Size i = 0; i < args.length; i++) {
+        auto declared = local[signature->args.get(local, i)]->type;
+        auto expected = substituteType(module, declared, toBuffer(match.args), source);
+        call->args.push(module.arena, convert(args[i], expected, source));
+    }
+
+    append(call);
+    auto result = ref(call);
+    if(isMemoryType(global, resultType)) call->local = function.addLocal(module, resultType, resultName, result);
+
+    return result;
+}
+
+ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args,
+                                               LocationId source, TypePtr target, StringId resultName) {
+    auto generic = local[callee];
+    auto calleeEnv = functionGen(global, *generic);
+
+    if(!calleeEnv || generic->args.size() != args.length) {
+        return emitDirectCall(callee, args, source, target, resultName);
+    }
+
+    Array<TypePtr> bindings;
+    for(Size i = 0; i < calleeEnv->types.size(); i++) bindings.push(nullptr);
+
+    // The same one-directional rule the classes use: the arguments decide, and the expected
+    // result only fills in what they left open.
+    for(Size i = 0; i < args.length; i++) {
+        auto declared = local[generic->args.get(local, i)]->type;
+
+        if(!bindPosition(declared, valueType(args[i]), bindings, true)) {
+            context.diagnostics.error("argument %@ of %@ is %@, which does not fit %@"_v, source, U32(i + 1),
+                                      context.findName(generic->name),
+                                      describeType(context, global, valueType(args[i])),
+                                      describeType(context, global, declared));
+            return nullptr;
+        }
+    }
+
+    if(target) {
+        Array<TypePtr> withTarget;
+        for(auto binding: bindings) withTarget.push(binding);
+
+        if(bindPosition(generic->returnType, target, withTarget, false)) {
+            for(Size i = 0; i < bindings.size(); i++) {
+                if(!bindings[i]) bindings[i] = withTarget[i];
+            }
+        }
+    }
+
+    for(Size i = 0; i < bindings.size(); i++) {
+        if(bindings[i]) continue;
+
+        context.diagnostics.error("cannot infer type argument %@ of %@ here - give the expected type"_v, source,
+                                  context.findName(global[calleeEnv->types.get(global, i)]->name),
+                                  context.findName(generic->name));
+        return nullptr;
+    }
+
+    Array<ModulePtr<Value>> converted;
+    for(Size i = 0; i < args.length; i++) {
+        auto declared = local[generic->args.get(local, i)]->type;
+        converted.push(convert(args[i], substituteType(module, declared, toBuffer(bindings), source), source));
+    }
+
+    auto deferred = false;
+    for(auto binding: bindings) deferred = deferred || isGeneric(global, binding);
+
+    if(!deferred) {
+        auto specialized = instantiateFunction(module, callee, toBuffer(bindings), source);
+        if(!specialized) return nullptr;
+
+        return emitDirectCall(specialized, toBuffer(converted), source, target, resultName);
+    }
+
+    auto env = functionGen(global, function);
+    if(!env) {
+        context.diagnostics.error("internal: a generic call was deferred outside a generic function"_v, source);
+        return nullptr;
+    }
+
+    // The callee's requirements become this function's, expressed in this function's variables:
+    // whoever instantiates this one has to prove them, because nobody else can. Its body is
+    // resolved first, since that is what collects the ones its signature did not declare - a
+    // forward reference would otherwise inherit a shorter list than the callee really has.
+    resolveFunctionBody(*generic->module, *generic);
+
+    for(auto constraint: calleeEnv->classes.contents(global)) {
+        if(!constraint.typeClass) continue;
+
+        Array<TypePtr> forwarded;
+        for(auto argument: constraint.args.contents(global)) {
+            forwarded.push(substituteType(module, argument, toBuffer(bindings), source));
+        }
+
+        requireClass(module, function, constraint.typeClass, toBuffer(forwarded), source);
+    }
+
+    auto resultType = substituteType(module, generic->returnType, toBuffer(bindings), source);
+    auto call = create<InstGenCall>(source, resultName, resultType, callee, nullptr, 0);
+
+    for(auto binding: bindings) call->typeArgs.push(module.arena, binding);
+    for(auto value: converted) call->args.push(module.arena, value);
+
+    append(call);
+    auto result = ref(call);
+    if(isMemoryType(global, resultType)) call->local = function.addLocal(module, resultType, resultName, result);
+
+    return result;
 }

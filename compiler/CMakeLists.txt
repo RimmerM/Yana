@@ -44,6 +44,8 @@ set(RESOLVE_SOURCE_FILES
     resolve/core.cpp
     resolve/type.h
     resolve/type.cpp
+    resolve/generic.h
+    resolve/generic.cpp
     resolve/print.cpp
     resolve/print.h
     resolve/builder.h

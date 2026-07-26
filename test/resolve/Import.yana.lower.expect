@@ -1,15 +1,4 @@
 
-area2<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 2, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 5, 4
-    %v_3 = call_complex Area(Point).area, %v_1: Int
-    ret %v_3
-  }
-}
-
 origin<complex>(%v_0: Ptr) {
   b_1 {
     %v_2 = alloca 8, 4: Ptr
@@ -21,19 +10,21 @@ origin<complex>(%v_0: Ptr) {
   }
 }
 
-scale<complex>(%v_0: Ptr, %value: Ptr, %by: Int) {
-  b_1 {
-    %v_2 = alloca 8, 4: Ptr
-    %v_3 = loads %value, 4: Int
-    %v_4 = imul %v_3, %by: Int
-    %v_5 = add %value, 4: Ptr
-    %v_6 = loads %v_5, 4: Int
-    %v_7 = imul %v_6, %by: Int
-    store %v_2, %v_4, 4
-    %v_8 = add %v_2, 4: Ptr
-    store %v_8, %v_7, 4
-    copy %v_0, %v_2, 8
-    ret 
+tripleArea(Square)<complex>(%value: Ptr): Int {
+  b_0 {
+    %v_1 = call_complex totalArea(Square), %value, %value: Int
+    %v_2 = call_complex Area(Square).area, %value: Int
+    %v_3 = add %v_1, %v_2: Int
+    ret %v_3
+  }
+}
+
+totalArea(Square)<complex>(%one: Ptr, %other: Ptr): Int {
+  b_0 {
+    %v_1 = call_complex Area(Square).area, %one: Int
+    %v_2 = call_complex Area(Square).area, %other: Int
+    %v_3 = add %v_1, %v_2: Int
+    ret %v_3
   }
 }
 
@@ -69,18 +60,21 @@ area1<complex>(): Int {
   }
 }
 
-main<complex>(): Int {
+Area(Square).area<complex>(%value: Ptr): Int {
   b_0 {
-    %v_1 = call_complex area1: Int
-    %v_2 = call_complex area2: Int
+    %v_1 = loads %value, 4: Int
+    %v_2 = loads %value, 4: Int
+    %v_3 = imul %v_1, %v_2: Int
+    ret %v_3
+  }
+}
+
+totalArea(Point)<complex>(%one: Ptr, %other: Ptr): Int {
+  b_0 {
+    %v_1 = call_complex Area(Point).area, %one: Int
+    %v_2 = call_complex Area(Point).area, %other: Int
     %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex viaFunction: Int
-    %v_5 = add %v_3, %v_4: Int
-    %v_6 = alloca 8, 4: Ptr
-    call_complex qualifiedConstructor, %v_6
-    %v_7 = call_complex Area(Point).area, %v_6: Int
-    %v_8 = add %v_5, %v_7: Int
-    ret %v_8
+    ret %v_3
   }
 }
 
@@ -92,6 +86,76 @@ viaFunction<complex>(): Int {
     call_complex scale, %v_2, %v_1, 2
     %v_3 = call_complex Area(Point).area, %v_2: Int
     ret %v_3
+  }
+}
+
+area2<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 2, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 5, 4
+    %v_3 = call_complex Area(Point).area, %v_1: Int
+    ret %v_3
+  }
+}
+
+scale<complex>(%v_0: Ptr, %value: Ptr, %by: Int) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    %v_3 = loads %value, 4: Int
+    %v_4 = imul %v_3, %by: Int
+    %v_5 = add %value, 4: Ptr
+    %v_6 = loads %v_5, 4: Int
+    %v_7 = imul %v_6, %by: Int
+    store %v_2, %v_4, 4
+    %v_8 = add %v_2, 4: Ptr
+    store %v_8, %v_7, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+twoAreas<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 2, 4
+    %v_3 = alloca 8, 4: Ptr
+    store %v_3, 3, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 3, 4
+    %v_5 = call_complex totalArea(Point), %v_1, %v_3: Int
+    ret %v_5
+  }
+}
+
+squareAreas<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 2, 4
+    %v_2 = call_complex tripleArea(Square), %v_1: Int
+    ret %v_2
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex area1: Int
+    %v_2 = call_complex area2: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = call_complex viaFunction: Int
+    %v_5 = add %v_3, %v_4: Int
+    %v_6 = alloca 8, 4: Ptr
+    call_complex qualifiedConstructor, %v_6
+    %v_7 = call_complex Area(Point).area, %v_6: Int
+    %v_8 = add %v_5, %v_7: Int
+    %v_9 = call_complex twoAreas: Int
+    %v_10 = add %v_8, %v_9: Int
+    %v_11 = call_complex squareAreas: Int
+    %v_12 = add %v_10, %v_11: Int
+    ret %v_12
   }
 }
 

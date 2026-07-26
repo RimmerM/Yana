@@ -55,6 +55,7 @@ static void completeInstance(Module& module, RecordType& instance) {
         instance.constructors.set(global, i, constructor);
     }
 
+    instance.layout = declaration->layout;
     instance.definitionReady = true;
     if(!instance.generic) finishRecordRepr(module, instance, kNullLocation);
 }
@@ -236,6 +237,18 @@ static GlobalPtr<GenType> findGen(GlobalBase global, GenEnv* env, StringId name)
     return nullptr;
 }
 
+GlobalPtr<GenType> genVariable(Module& module, GenEnv& env, StringId name) {
+    auto global = *module.types;
+    if(auto existing = findGen(global, &env, name)) return existing;
+    if(!env.open) return nullptr;
+
+    auto type = new (module.types) GenType(&env - global, name, U16(env.types.size()));
+    auto pointer = type - global;
+    env.types.push(module.types, pointer);
+
+    return pointer;
+}
+
 static TypePtr resolveTupleAst(Module& module, const ast::Type& type, GenEnv* env) {
     auto parseBase = module.parse;
     Array<Field> fields;
@@ -347,7 +360,7 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
         case ast::Type::Con:
             return resolveNamed(module, type.name, type.source);
         case ast::Type::Gen: {
-            auto found = findGen(*module.types, env, type.name);
+            auto found = env ? genVariable(module, *env, type.name) : nullptr;
             if(!found) {
                 module.context.diagnostics.error("unknown type variable %@ - it is not declared in this context"_v,
                                                  type.source, module.context.findName(type.name));
@@ -442,6 +455,34 @@ bool finishTupleRepr(Module& module, TupType& tuple, LocationId source) {
     return true;
 }
 
+/*
+ * Layout is a property of the declaration, not of one instantiation.
+ *
+ * A generic body projects into `Maybe(a)` before any `a` is known, so the projection it emits has
+ * to be the one every instantiation uses. Deciding Enum/Single/Multi from the constructor list
+ * alone gives that: the answer does not move when the arguments are substituted.
+ *
+ * The one place this costs something is a type variable substituted by `()`. `Box(())` keeps its
+ * declaration's Multi layout and a zero-sized payload rather than collapsing to a discriminant,
+ * which is a slightly larger value in exchange for `Box(a)` meaning one thing everywhere.
+ */
+void computeRecordLayout(GlobalBase base, RecordType& record) {
+    if(record.constructors.size() == 1) {
+        record.layout = RecordType::Single;
+        return;
+    }
+
+    for(auto constructor: record.constructors.contents(base)) {
+        // A generic content counts as a payload: what it substitutes to cannot change the shape.
+        if(constructor.content && !isUnit(base, constructor.content)) {
+            record.layout = RecordType::Multi;
+            return;
+        }
+    }
+
+    record.layout = RecordType::Enum;
+}
+
 bool finishRecordRepr(Module& module, RecordType& record, LocationId source) {
     if(record.reprReady) return true;
     if(record.generic || !record.definitionReady) return false;
@@ -456,8 +497,14 @@ bool finishRecordRepr(Module& module, RecordType& record, LocationId source) {
     auto base = *module.types;
     auto constructors = record.constructors.contents(base);
 
-    if(constructors.size() == 1) {
-        record.layout = RecordType::Single;
+    // An instantiation inherits the declaration's layout rather than deciding its own.
+    if(record.instanceOf) {
+        record.layout = ((RecordType*)base[record.instanceOf])->layout;
+    } else {
+        computeRecordLayout(base, record);
+    }
+
+    if(record.layout == RecordType::Single) {
         auto content = constructors[0].content;
 
         if(content && base[content]->kind == Type::Record) {
@@ -477,7 +524,6 @@ bool finishRecordRepr(Module& module, RecordType& record, LocationId source) {
     } else {
         U32 payloadSize = 0;
         U32 payloadAlign = 1;
-        auto hasPayload = false;
 
         for(auto constructor: constructors) {
             if(!constructor.content || isUnit(base, constructor.content)) continue;
@@ -493,17 +539,15 @@ bool finishRecordRepr(Module& module, RecordType& record, LocationId source) {
                 }
             }
 
-            hasPayload = true;
             payloadSize = max(payloadSize, typeSize(base, constructor.content));
             payloadAlign = max(payloadAlign, typeAlign(base, constructor.content));
         }
 
-        record.layout = hasPayload ? RecordType::Multi : RecordType::Enum;
         record.payloadOffset = alignTo(4, payloadAlign);
         record.repr.align = max(4u, payloadAlign);
         record.repr.size = alignTo(record.payloadOffset + payloadSize, record.repr.align);
 
-        if(!hasPayload) record.repr.size = 4;
+        if(record.layout == RecordType::Enum) record.repr.size = 4;
     }
 
     record.virtualSize = U16(record.repr.size);

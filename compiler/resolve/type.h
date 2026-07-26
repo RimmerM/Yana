@@ -121,9 +121,9 @@ struct Constructor {
  *
  * A generic type variable belongs to exactly one context - the declaration that introduced it -
  * rather than being ambient, which is what lets `Serialize(type, target)`-shaped constraints
- * relate two variables of the same context (Design.md's "Resolving"). Milestone 1 builds these
- * contexts for `data`, `alias`, `class` and `instance` declarations; function contexts and the
- * requirement collection that goes with them are Milestone 2.
+ * relate two variables of the same context (Design.md's "Resolving"). `data`, `alias`, `class`
+ * and `instance` declarations each get one; a function gets an *open* one, because a function
+ * declares its variables by using them rather than in a list of its own.
  */
 
 struct GenType: Type {
@@ -158,7 +158,16 @@ struct GenEnv {
     GlobalList<GlobalPtr<GenType>> types;
     GlobalList<ClassConstraint> classes;
     Kind kind;
+
+    // A function context has no declared variable list: `fn id(x: a) -> a` introduces `a` by
+    // using it. An open context adds a variable the first time a type mentions one, which numbers
+    // them in order of appearance across the constraints and then the signature.
+    bool open = false;
 };
+
+// The type variable of `env` called `name`, adding it if the context is open. Null when the
+// context is closed and has no such variable.
+GlobalPtr<GenType> genVariable(Module& module, GenEnv& env, StringId name);
 
 struct RecordType: Type {
     enum Layout: U8 {
@@ -256,6 +265,12 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
 // variable that would have to bind to two different types. This is the whole of instance
 // selection's inference, and Milestone 2's call-site inference uses the same function.
 bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<TypePtr> bindings);
+
+// Decides how a record is laid out, from the shape of its constructor list alone. This is
+// deliberately independent of its type arguments: a generic body has to project into `Maybe(a)`
+// the same way every instantiation does, so the declaration decides once and each instantiation
+// inherits the answer.
+void computeRecordLayout(GlobalBase base, RecordType& record);
 
 bool finishTupleRepr(Module& module, TupType& tuple, LocationId source);
 bool finishRecordRepr(Module& module, RecordType& record, LocationId source);

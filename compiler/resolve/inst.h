@@ -61,6 +61,7 @@ struct Value {
         Xor,
         Cmp,
         Call,
+        GenCall,
         Je,
         Jmp,
         Ret,
@@ -173,6 +174,34 @@ struct InstCall: Inst {
 
     ModulePtr<Function> callee;
     ModuleList<ModulePtr<Value>, false> args;
+    U32 local = maxLimit<U32>;
+};
+
+/*
+ * A call whose callee is not decided yet, because deciding it needs types this function does not
+ * have. It appears only inside a generic body and never survives specialization: cloning
+ * substitutes `typeArgs`, and a concrete argument list turns the instruction into an ordinary
+ * InstCall to the class implementation or to the callee's specialization.
+ *
+ * Keeping the resolved decision here rather than re-deriving it later is what Implementation-
+ * Generics.md's first invariant asks for. The body has already decided *which class function*
+ * and *with which type arguments*; specialization only supplies the instance.
+ */
+struct InstGenCall: Inst {
+    InstGenCall(ModulePtr<Block> block, TypePtr type, ModulePtr<Function> callee,
+                GlobalPtr<TypeClass> typeClass, U16 index):
+        Inst(Value::GenCall, block, type), callee(callee), typeClass(typeClass), index(index) {}
+
+    // The class signature this dispatches to, or the generic function being called.
+    ModulePtr<Function> callee;
+
+    // Set for a class dispatch, with `index` naming the function within the class. Null when the
+    // callee is a generic function, whose `typeArgs` are its own context's instead.
+    GlobalPtr<TypeClass> typeClass;
+
+    ModuleList<TypePtr, false> typeArgs;
+    ModuleList<ModulePtr<Value>, false> args;
+    U16 index;
     U32 local = maxLimit<U32>;
 };
 

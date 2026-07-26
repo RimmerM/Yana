@@ -131,3 +131,7 @@ void findClassFunctions(Module& module, StringId name, LocationId source, Array<
 
 // Every instance of `typeClass` visible from this module, in declaration order.
 void findInstances(Module& module, GlobalPtr<TypeClass> typeClass, Array<ModulePtr<ClassInstance>>& target);
+
+// The one instance of `typeClass` for exactly these types, or null. Selection is by argument
+// types alone, so this is the single answer to "does this program implement this class here".
+ModulePtr<ClassInstance> findInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);

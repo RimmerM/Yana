@@ -1,0 +1,135 @@
+
+leftOf(Int, Bool)<complex>(%value: Ptr): Int {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    ret %v_1
+  }
+}
+
+middle(Int)<complex>(%x: Int, %y: Int, %z: Int): Int {
+  b_0 {
+    %v_1 = call_complex smaller(Int), %x, %y: Int
+    %v_2 = call_complex smaller(Int), %v_1, %z: Int
+    ret %v_2
+  }
+}
+
+smaller(Int)<complex>(%x: Int, %y: Int): Int {
+  b_0 {
+    %v_1 = cmp_ilt %x, %y: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_2, %x], [b_3, %y]: Int
+    ret %v_5
+  }
+}
+
+orElse(Int)<complex>(%value: Ptr, %fallback: Int): Int {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = add %value, 4: Ptr
+    %inner = loads %v_6, 4: Int
+    jmp b_5
+  }
+
+  b_5 {
+    %v_7 = phi [b_3, %inner], [b_4, %fallback]: Int
+    ret %v_7
+  }
+}
+
+wrap(Int)<complex>(%v_0: Ptr, %value: Int) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 1, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, %value, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+twice(Int)<complex>(%x: Int): Int {
+  b_0 {
+    %v_1 = add %x, %x: Int
+    ret %v_1
+  }
+}
+
+swap(Int, Bool)<complex>(%v_0: Ptr, %value: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    %v_3 = add %value, 4: Ptr
+    %v_4 = loads %v_3, 4: Int
+    %v_5 = load %value, 4: Int
+    store %v_2, %v_4, 4
+    %v_6 = add %v_2, 4: Ptr
+    store %v_6, %v_5, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+empty(Int)<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 0, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex identity(Int), 1: Int
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 1, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, 20, 4
+    %v_4 = alloca 8, 4: Ptr
+    call_complex swap(Int, Bool), %v_4, %v_2
+    %v_5 = call_complex leftOf(Int, Bool), %v_4: Int
+    %v_6 = add %v_1, %v_5: Int
+    %v_7 = call_complex twice(Int), 3: Int
+    %v_8 = add %v_6, %v_7: Int
+    %v_9 = call_complex smaller(Int), 9, 4: Int
+    %v_10 = add %v_8, %v_9: Int
+    %v_11 = call_complex middle(Int), 30, 8, 12: Int
+    %v_12 = add %v_10, %v_11: Int
+    %v_13 = alloca 8, 4: Ptr
+    call_complex wrap(Int), %v_13, 5
+    %v_14 = call_complex orElse(Int), %v_13, 0: Int
+    %v_15 = add %v_12, %v_14: Int
+    %v_16 = alloca 8, 4: Ptr
+    call_complex empty(Int), %v_16
+    %v_17 = call_complex orElse(Int), %v_16, 7: Int
+    %v_18 = add %v_15, %v_17: Int
+    ret %v_18
+  }
+}
+
+identity(Int)<complex>(%value: Int): Int {
+  b_0 {
+    ret %value
+  }
+}
+
