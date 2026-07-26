@@ -43,7 +43,7 @@ static bool canEmbedImm(LowerBase base, LowerInst* inst, LowerValue* op) {
         if(!isIntLike(((LowerInstUnary*)inst)->result.type)) return false;
     }
 
-    auto opcode = opcodeFor(inst);
+    auto opcode = opcodeFor(base, inst);
     auto value = immValue(op);
     auto used = inst->used();
     bool found = false;
@@ -330,6 +330,23 @@ static void replaceUse(LowerBase base, LowerValue* from, LowerInst* user, LowerV
     to->uses.push(base[base[user->block]->fun]->arena, user - base);
 }
 
+// The same for every reader at once, which is what replacing a value with an equivalent one takes.
+// The user list is snapshotted because moving a use rewrites the very list it is read from, and a
+// user that reads the value twice appears twice and moves both of its entries across.
+static void replaceAllUses(LowerBase base, LowerValue* from, LowerValue* to) {
+    Array<LowerInst*> users;
+    for(auto u: from->uses.contents(base)) users.push(base[u]);
+
+    for(auto user: users) {
+        replaceUse(base, from, user, to);
+
+        auto used = user->used();
+        for(Size i = 0; i < used.size(); i++) {
+            if(base[used[i]] == from) used[i] = to - base;
+        }
+    }
+}
+
 // Where the store for an argument can go, as an index into its block's instruction list. As early as
 // possible, since shortening the live range is the whole point: just after whichever comes last of
 // the value's own definition and the preceding call, and never later than the call it feeds.
@@ -394,6 +411,178 @@ static void insertStackArgs(LowerBase base, LowerFunction& fun, const Constraint
 
                 i++; // the call has moved up one
             }
+        }
+    }
+}
+
+/*
+ * Unsigned conversions.
+ *
+ * AMD64 converts between the two register banks in one instruction only where the integer side is
+ * *signed*: `cvtsi2sd` reads an i64 and `cvttsd2si` writes one, and neither has an unsigned form
+ * before AVX-512. So an unsigned conversion is a sequence rather than an instruction, which is
+ * exactly why it is expanded here instead of being given a machine form - a form describes one
+ * encoding with its operands, and there is no encoding to describe.
+ *
+ * Expanding into ordinary IR rather than into a pseudo is what keeps it cheap. Every instruction
+ * below is one the backend already allocates, folds and encodes: each comparison is folded into the
+ * select that reads it, each constant is embedded or materialized by the same peephole as any other,
+ * and the register pressure is priced by the same costing. A pseudo would have needed scratch
+ * registers nothing reserves, clobbers of its own, and an encoder that reproduced half of this file.
+ *
+ * The two 32-bit cases are exact rather than approximate, and for the same reason in both
+ * directions: every u32 fits in an i64, so widening the *other* side and converting signed is
+ * correct with nothing to correct afterwards.
+ */
+
+// The sequence replacing one conversion, built in front of it so that every value it produces is
+// available wherever the conversion's own result was.
+//
+// Each step is a statement of its own rather than an argument to the next, because emitting appends
+// to a list: nesting the calls would leave the order they run in up to the compiler's choice of
+// argument evaluation order, and the wrong choice is a use before its definition.
+struct Expansion {
+    LowerBase base;
+    LowerFunction& fun;
+    LowerBlock* block;
+
+    // Where the next instruction goes, which is the conversion's own position until the first one
+    // has been inserted and pushed it down.
+    Size at;
+
+    LowerValue* emit(LowerInstSingle* inst) {
+        insertInstAt(base, block, at++, inst);
+        return &inst->result;
+    }
+
+    LowerValue* integer(LowerType type, U64 value) {
+        return emit(new (fun.arena) LowerImm(0, type, value));
+    }
+
+    LowerValue* floating(LowerType type, F64 value) {
+        return emit(new (fun.arena) LowerImm(0, type, value));
+    }
+
+    LowerValue* binary(LowerInst::Kind kind, LowerType type, LowerValue* lhs, LowerValue* rhs, StringId name = 0) {
+        return emit(new (fun.arena) LowerInstBinary(name, type, lhs - base, rhs - base, kind));
+    }
+
+    LowerValue* convert(LowerType type, LowerValue* from, bool signedSource, bool signedResult, StringId name = 0) {
+        return emit(new (fun.arena) LowerInstCast(name, type, from - base, signedSource, signedResult));
+    }
+
+    LowerValue* compare(LowerCmp cmp, LowerValue* lhs, LowerValue* rhs) {
+        return emit(new (fun.arena) LowerInstCmp(0, lhs - base, rhs - base, cmp));
+    }
+
+    // `select` yields its first value when the condition holds, which is the order the machine form
+    // and the encoder both read it in.
+    LowerValue* select(LowerType type, LowerValue* condition, LowerValue* whenTrue, LowerValue* whenFalse, StringId name = 0) {
+        return emit(new (fun.arena) LowerInstSelect(name, whenTrue - base, whenFalse - base, condition - base, type));
+    }
+};
+
+// An unsigned integer widened into a float.
+static LowerValue* expandUnsignedToFloat(Expansion& e, LowerValue* value, LowerType to, StringId name) {
+    if(value->type == LowerType::Int32) {
+        auto wide = e.convert(LowerType::Int64, value, false, false);
+        return e.convert(to, wide, true, false, name);
+    }
+
+    // Only the top bit makes the signed conversion wrong, so a value that has it set is halved until
+    // it does not and the result doubled back. Halving with `(x >> 1) | (x & 1)` rather than with a
+    // plain shift keeps the bit that would have been shifted out where the rounding can still see
+    // it: dropping it would round a value that should have gone up to even instead.
+    //
+    // Both halves are computed and one is selected rather than branched over. Neither can trap - a
+    // conversion of a negative i64 is simply a negative float, which this path then discards - so
+    // the arm that is wrong on a given input costs an instruction rather than correctness.
+    auto one = e.integer(LowerType::Int64, 1);
+    auto half = e.binary(LowerInst::Shr, LowerType::Int64, value, one);
+    auto odd = e.binary(LowerInst::And, LowerType::Int64, value, one);
+    auto rounded = e.binary(LowerInst::Or, LowerType::Int64, half, odd);
+    auto halved = e.convert(to, rounded, true, false);
+    auto doubled = e.binary(LowerInst::Add, to, halved, halved);
+    auto direct = e.convert(to, value, true, false);
+
+    // Signed-less-than-zero is exactly "the top bit is set", which is the one case the direct
+    // conversion gets wrong. The comparison is emitted immediately in front of the select so that
+    // the folding leaves it in the flags rather than materializing it.
+    auto zero = e.integer(LowerType::Int64, 0);
+    auto negative = e.compare(LowerCmp::ilt, value, zero);
+    return e.select(to, negative, doubled, direct, name);
+}
+
+// A float truncated into an unsigned integer.
+static LowerValue* expandFloatToUnsigned(Expansion& e, LowerValue* value, LowerType to, StringId name) {
+    if(to == LowerType::Int32) {
+        auto wide = e.convert(LowerType::Int64, value, false, true);
+        return e.convert(to, wide, false, false, name);
+    }
+
+    // Everything below 2^63 converts signed exactly. Everything above it is brought into range by
+    // subtracting 2^63 - which is exact, both operands being of the same magnitude - and the bit
+    // that removes is put back into the integer afterwards.
+    //
+    // As above, both arms are computed and one selected. The comparison has the select as its only
+    // reader and sits directly in front of it, so it stays in the flags.
+    auto limit = e.floating(value->type, 9223372036854775808.0);
+    auto reduced = e.binary(LowerInst::Sub, value->type, value, limit);
+    auto big = e.convert(LowerType::Int64, reduced, false, true);
+    auto sign = e.integer(LowerType::Int64, 0x8000000000000000);
+    auto flipped = e.binary(LowerInst::Xor, LowerType::Int64, big, sign);
+    auto small = e.convert(LowerType::Int64, value, false, true);
+    auto isBig = e.compare(LowerCmp::ge, value, limit);
+    return e.select(LowerType::Int64, isBig, flipped, small, name);
+}
+
+static void expandUnsignedConversions(LowerBase base, LowerFunction& fun) {
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        // Indexed rather than buffered, and advanced by hand rather than by the loop, because both
+        // things this does to an instruction move the ones after it: an expansion inserts in front
+        // of the conversion and every removal closes the gap it leaves.
+        for(Size i = 0; i < block->instructions.size(); ) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::Cast) { i++; continue; }
+
+            auto cast = (LowerInstCast*)inst;
+            auto value = base[cast->from];
+            auto to = cast->result.type;
+
+            // A conversion is unsigned when the *integer* side is, which is whichever of the two
+            // flags the cast carries depending on the direction it goes in. A cast that crosses no
+            // bank boundary is not a conversion at all.
+            auto toFloat = isFloat(to) && !isFloat(value->type);
+            auto fromFloat = isFloat(value->type) && !isFloat(to);
+            auto unsignedConversion = (toFloat && !cast->isSignedSource())
+                || (fromFloat && !cast->isSignedResult());
+
+            if(!unsignedConversion) { i++; continue; }
+
+            // A conversion nothing reads is removed rather than expanded. It is dead either way -
+            // every instruction the expansion produces is side-effect free - but expanding it first
+            // would make ten dead instructions out of one, and no later pass would take them out.
+            // Whatever followed has moved into this position, so the walk stays where it is.
+            if(cast->result.uses.isEmpty()) {
+                removeInst(base, cast);
+                continue;
+            }
+
+            Expansion e { base, fun, block, i };
+            auto replacement = toFloat
+                ? expandUnsignedToFloat(e, value, to, cast->result.name)
+                : expandFloatToUnsigned(e, value, to, cast->result.name);
+
+            replaceAllUses(base, &cast->result, replacement);
+            removeInst(base, cast);
+
+            // Past the whole expansion. The insertions left it occupying the positions the
+            // conversion's own used to begin at, and removing the conversion from the end of it
+            // closed the gap - so `at` is where the walk carries on. Nothing in what was produced is
+            // an unsigned conversion, so there is nothing there to come back for.
+            i = e.at;
         }
     }
 }
@@ -772,20 +961,7 @@ static void foldLeas(LowerBase base, LowerFunction& fun) {
             // available to everything that reads it.
             insertInstAt(base, block, i, lea);
 
-            // Snapshotted: the loop below rewrites the very list it is reading. A user that reads
-            // the value twice appears twice, and moves both of its use entries across.
-            Array<LowerInst*> users;
-            for(auto u: result.uses.contents(base)) users.push(base[u]);
-
-            for(auto user: users) {
-                replaceUse(base, &result, user, &lea->result);
-
-                auto used = user->used();
-                for(Size k = 0; k < used.size(); k++) {
-                    if(base[used[k]] == &result) used[k] = &lea->result - base;
-                }
-            }
-
+            replaceAllUses(base, &result, &lea->result);
             for(auto dead: folded) removeInst(base, dead);
 
             // Both the insertion and the removals moved things around underneath the walk, so the
@@ -1030,7 +1206,7 @@ static void analyzeLoopsAndOrderBlocks(LowerBase base, LowerFunction& fun) {
 // selected form for every instruction in the function. Mutates: nothing in the IR.
 static void selectMachineForms(LowerBase base, LowerFunction& fun, MachineFunction& machine) {
     auto select = [&](LowerInst* inst) {
-        machine.select(inst, opcodeFor(inst), selectForm(base, inst), selectCondition(inst));
+        machine.select(inst, opcodeFor(base, inst), selectForm(base, inst), selectCondition(inst));
     };
 
     for(auto a: fun.args.contents(base)) select((LowerInst*)base[a]);
@@ -1074,6 +1250,7 @@ struct TransformPass {
 };
 
 static const TransformPass kTransformPipeline[] = {
+    { "expandUnsignedConversions"_v,   expandUnsignedConversions,   0 },
     { "canonicalizeOperands"_v,        canonicalizeOperands,        0 },
     { "selectAddressesAndLeas"_v,      selectAddressesAndLeas,      0 },
     { "selectMachineInstructions"_v,   selectMachineInstructions,   0 },

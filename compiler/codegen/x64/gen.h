@@ -635,10 +635,22 @@ struct Placement {
     // scratch registers it hands out, and the two together are what the prologue has to save.
     RegSet writtenPhysical;
 
-    // Set when a web ended up with no register at all. A value that is not in one has to be brought
-    // into a scratch register at each instruction that touches it, and those are reserved for the
-    // whole function rather than found after the fact - so this asks for the reserve to be measured
-    // and, if it grew, for one more placement pass with it held back. See allocateRegisters.
+    // Set when legalizing this placement could need scratch registers, which asks for the reserve to
+    // be measured and, if it grew, for one more placement pass with it held back. See
+    // allocateRegisters. It is a *may*, not a *will*: measuring a placement that turns out to need
+    // nothing costs one pass and holds nothing back, where guessing low leaves an instruction with
+    // nowhere to bring a value it cannot read where it is.
+    //
+    // Two things set it, and both are properties of the placement rather than of the function.
+    //
+    // A web with no register at all: a value that is not in one has to be brought into a scratch
+    // register at each instruction that touches it.
+    //
+    // And two or more webs in a class with no exchange instruction. A parallel copy whose sources
+    // and destinations permute cyclically has to break the cycle, and where the class *has* an
+    // exchange - the general registers - that costs no register at all. The vector file has none, so
+    // the break has to park one end somewhere, and a phi swap is exactly the shape that produces
+    // one. Nothing here knows whether a cycle will actually occur; that is what the measurement is.
     bool requiresLegalizationTemps = false;
 
     // Webs this pass would rather have displaced than left the web that asked for their register
@@ -750,9 +762,23 @@ struct FunctionRegs {
  * register held for the whole function. computeFrameLayout rejects it rather than emitting a frame
  * whose locals move.
  */
+// The bytes a whole vector register occupies when it is preserved. A callee-saved vector register
+// has to be given back entire whatever this function put in it - the caller may have been holding a
+// packed value there and nothing in the IR represents that - so preservation is the *bank's* width
+// rather than the class of whatever occupied it.
+static constexpr U32 kVectorSaveSize = 16;
+
 struct FrameLayout {
-    // Callee-saved registers the prologue pushes, in ascending register order.
+    // Callee-saved general registers the prologue pushes, in ascending register order.
     RegSet savedRegs;
+
+    // Callee-saved vector registers, which cannot be pushed - there is no PUSH for one - and take a
+    // region of the frame instead, kVectorSaveSize bytes each in ascending register order starting
+    // at `vectorSaveOffset` from `vectorSaveBase`. Empty under every convention that treats the
+    // whole vector file as caller-saved, which is most of them.
+    RegSet savedVectors;
+    I32 vectorSaveOffset = 0;
+    PhysicalReg vectorSaveBase;
 
     // Set when rbp is established as the base for fixed frame objects. Costs a push, a move and a
     // register; see FramePointerMode for when it is worth it.
@@ -791,7 +817,9 @@ struct FrameLayout {
     Array<PhysicalReg> slotBase;
 
     // Whether the function needs any prologue at all.
-    bool isEmpty() const { return savedRegs.isEmpty() && !framePointer && fixedSize == 0; }
+    bool isEmpty() const {
+        return savedRegs.isEmpty() && savedVectors.isEmpty() && !framePointer && fixedSize == 0;
+    }
 
     I32 offsetOf(FrameReference ref) const {
         assertTrue(ref.slot < slotOffset.size());

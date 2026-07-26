@@ -117,11 +117,12 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun,
     result.placement = ::move(placement);
     result.legalized = ::move(legalized);
 
-    // The register model already describes banks whose moves, spills and encodings do not exist -
-    // see the note on `reg` in gen.cpp. A location in one reaching emission would be written out as
-    // an integer instruction with a vector register number in it, which is wrong in a way nothing
-    // downstream can notice, so it is rejected here rather than left to a golden.
-    assertTrue(result.usedCalleeSaved.banks[BankVector] == 0); // no encoder saves a vector register yet
+    // The register model still describes one bank whose moves and encodings do not exist - every
+    // `kmov` is VEX-encoded, and see the note on `reg` in gen.cpp. A location in it reaching
+    // emission would be written out with a register number no legacy encoding can name, which is
+    // wrong in a way nothing downstream can notice, so it is rejected here rather than left to a
+    // golden.
+    assertTrue(result.usedCalleeSaved.banks[BankMask] == 0); // no encoder preserves a mask register
 
     assertTrue(verifyAllocation(ctx, base, fun, *live, machine, constraints, result));
     return result;

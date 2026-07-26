@@ -101,6 +101,32 @@ chain<complex>(%x: Int, %c: Int): Int {
   }
 }
 
+tiedSwap<complex>(%x: Long, %y: Long, %n: Int): Long {
+  start {
+    jmp head
+  }
+
+  head {
+    %a = phi [start, %x], [body, %b2]: Long
+    %b = phi [start, %y], [body, %a2]: Long
+    %i = phi [start, %n], [body, %i2]: Int
+    %v_0 = cmp_eq %i, 0: Int
+    je %v_0, done, body
+  }
+
+  body {
+    %a2 = add %a, %b: Long
+    %b2 = sub %b, %a: Long
+    %i2 = sub %i, 1: Int
+    jmp head
+  }
+
+  done {
+    %r = sub %a, %b: Long
+    ret %r
+  }
+}
+
 
 --- codegen: sharedSource ---
 block #0:
@@ -183,3 +209,22 @@ block l2:
   jmp uses=[] creates=[]  => 
 block end:
   ret uses=[rax] creates=[]  => c3
+
+--- codegen: tiedSwap ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  jmp uses=[] creates=[]  => 
+block head:
+  imm uses=[] creates=[-]  => 
+  cmp_eq uses=[rdx, -] creates=[-]  => 85d2
+  je uses=[-] creates=[]  => 0f8419000000
+block body:
+  add uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488bc74801f0
+  sub uses=[rcx, rdi] creates=[rcx] pre=[rsi->rcx]  => 488bce4829f9
+  imm uses=[] creates=[-]  => 
+  sub uses=[rdx, -] creates=[rdx]  => ffca
+  jmp uses=[] creates=[] pre=[rcx->rdi, rax->rsi]  => 488bf9488bf0e9dfffffff
+block done:
+  sub uses=[rdi, rsi] creates=[rdi]  => 4829f7
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3

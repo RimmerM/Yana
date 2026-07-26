@@ -1,0 +1,145 @@
+# Floating point against memory and across the banks.
+#
+# Three separate things that all end up as one instruction each: an access whose width is the value's
+# own rather than a choice between extensions, a conversion that keeps REX.W meaning the *integer*
+# operand's width while the prefix names the float, and a bitcast, which preserves the width by
+# definition and so has nothing for a prefix to select.
+
+# A load and a store are the value's own width - nothing extends into a vector register, so there is
+# no narrow form and no signed one.
+loadStore(%p: Ptr, %v: Double): Double {
+    {
+        store %p, %v, 8
+        %l = load %p, 8: Double
+        %s = add %l, %v: Double
+        ret %s
+    }
+}
+
+loadStore32(%p: Ptr, %v: Float): Float {
+    {
+        store %p, %v, 4
+        %l = load %p, 4: Float
+        %s = mul %l, %v: Float
+        ret %s
+    }
+}
+
+# A folded addressing mode reaches a float access exactly as it reaches an integer one: the address
+# arithmetic is the pointer bank's whatever the loaded value is.
+indexed(%p: Ptr, %i: Long): Double {
+    {
+        %o = mul %i, 8L: Long
+        %a = add %p, %o: Ptr
+        %l = load %a, 8: Double
+        ret %l
+    }
+}
+
+# Signed conversions, which are the ones AMD64 has an instruction for. The prefix says which float
+# the conversion works with and REX.W says how wide the integer is.
+convert(%i: Int, %l: Long): Double {
+    {
+        %a = itof %i: Double
+        %b = itof %l: Double
+        %c = add %a, %b: Double
+        ret %c
+    }
+}
+
+convert32(%i: Int, %l: Long): Float {
+    {
+        %a = itof %i: Float
+        %b = itof %l: Float
+        %c = sub %a, %b: Float
+        ret %c
+    }
+}
+
+# The other direction truncates towards zero, which is what a cast to an integer means everywhere
+# else in this compiler.
+truncate(%f: Float, %d: Double): Long {
+    {
+        %a = ftoi %f: Int
+        %b = ftoi %d: Long
+        %w = sext %a: Long
+        %s = add %w, %b: Long
+        ret %s
+    }
+}
+
+# Unsigned conversions have no instruction in either direction, so expandUnsignedConversions
+# replaces them with a sequence of ones that do - see transform.cpp. The two 32-bit cases are exact
+# without any correction: every u32 fits in an i64, so widening the other side and converting signed
+# is the whole of it.
+unsigned32(%u: Int, %f: Double): Int {
+    {
+        %a = cast %u: Double
+        %b = add %a, %f: Double
+        %r = cast %b: Int
+        ret %r
+    }
+}
+
+# The 64-bit ones do need correcting. Going up, a value with its top bit set is halved - keeping the
+# bit that falls off, so the rounding still sees it - converted, and doubled back. Going down, a
+# value at or above 2^63 has 2^63 subtracted before the conversion and the bit put back into the
+# integer afterwards. Both compute the two arms and select, rather than branching.
+unsigned64(%u: Long, %f: Double): Long {
+    {
+        %a = cast %u: Double
+        %b = add %a, %f: Double
+        %r = cast %b: Long
+        ret %r
+    }
+}
+
+unsigned64Float(%u: Long, %f: Float): Long {
+    {
+        %a = cast %u: Float
+        %b = mul %a, %f: Float
+        %r = cast %b: Long
+        ret %r
+    }
+}
+
+# A conversion nothing reads is dead either way, but expanding it first would make ten dead
+# instructions out of one and nothing afterwards would take them out again. So it emits nothing.
+unusedConversion(%u: Long, %v: Long): Long {
+    {
+        %dead = cast %u: Double
+        %r = add %u, %v: Long
+        ret %r
+    }
+}
+
+# Between the two float widths, where the prefix names the source.
+widen(%f: Float, %d: Double): Float {
+    {
+        %a = cast %f: Double
+        %b = add %a, %d: Double
+        %c = cast %b: Float
+        ret %c
+    }
+}
+
+# A bitcast crosses the banks without changing a bit, which is MOVD or MOVQ by the width alone.
+bits(%d: Double, %l: Long): Long {
+    {
+        %a = bitcast %d: Long
+        %b = bitcast %l: Double
+        %c = bitcast %b: Long
+        %s = add %a, %c: Long
+        ret %s
+    }
+}
+
+bits32(%f: Float, %i: Int): Int {
+    {
+        %a = bitcast %f: Int
+        %b = bitcast %i: Float
+        %c = bitcast %b: Int
+        %s = add %a, %c: Int
+        ret %s
+    }
+}

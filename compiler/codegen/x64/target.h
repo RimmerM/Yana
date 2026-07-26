@@ -33,6 +33,35 @@
  */
 
 /*
+ * Target features.
+ *
+ * Which extensions the machine being compiled for has. This is target description rather than
+ * instruction description, which is why it lives here: the *register file itself* depends on it -
+ * AVX-512 raises the vector bank from sixteen registers to thirty-two and adds the mask bank
+ * outright - and so do the forms an encoding may be selected into.
+ *
+ * A form whose features the target does not have is not selectable, which is checked where the
+ * selection is made rather than left to the encoder. See selectForm and verifySelection.
+ */
+
+using FeatureSet = U32;
+
+static constexpr FeatureSet kFeatureBaseline = 0;
+static constexpr FeatureSet kFeaturePopcnt = 1 << 0;
+static constexpr FeatureSet kFeatureRdtscp = 1 << 1;
+
+// VEX encoding: the 128- and 256-bit three-operand vector forms, and the ymm half of the vector bank.
+static constexpr FeatureSet kFeatureAvx = 1 << 2;
+
+// EVEX encoding: 512-bit operations, the upper sixteen vector registers, and the mask registers.
+static constexpr FeatureSet kFeatureAvx512f = 1 << 3;
+
+// The features this backend is compiling for. A configurable target description replaces this the
+// moment there is anything to configure; until then every extension the form table names is assumed
+// present, and the point of the check is that adding one that is not cannot be silent.
+FeatureSet targetFeatures();
+
+/*
  * Banks.
  */
 
@@ -41,8 +70,9 @@ using RegisterBankId = U8;
 enum : RegisterBankId {
     BankGpr = 0,
     BankVector = 1,
+    BankMask = 2,
 
-    kRegisterBankCount = 2,
+    kRegisterBankCount = 3,
 };
 
 // The widest bank the target describes, used only to size the fixed inline arrays that index by
@@ -75,11 +105,18 @@ enum class IntRegister: U8 {
 };
 
 static constexpr Size kGprCount = 16;
-static constexpr Size kVectorCount = 16; // SSE/AVX; 32 once EVEX encoding lands
+
+// The vector and mask files are the *ISA level's* rather than the target's, which is the whole
+// reason bank sizes are per bank: sixteen vector registers without AVX-512 and thirty-two with it,
+// and no mask registers at all until there are. Both are read from targetFeatures() once, when the
+// register description is built.
+Size vectorRegisterCount();
+Size maskRegisterCount();
 
 inline PhysicalReg gpr(IntRegister reg) { return PhysicalReg { BankGpr, U16(reg) }; }
 inline PhysicalReg gpr(Size index) { return PhysicalReg { BankGpr, U16(index) }; }
 inline PhysicalReg vectorReg(Size index) { return PhysicalReg { BankVector, U16(index) }; }
+inline PhysicalReg maskReg(Size index) { return PhysicalReg { BankMask, U16(index) }; }
 
 // The units one physical register occupies. One bit today: every described class covers its whole
 // register, so two values in one register always interfere and two in different ones never do.
@@ -207,9 +244,22 @@ using RegisterClassId = U8;
 enum : RegisterClassId {
     ClassGpr32 = 0,
     ClassGpr64,
+
+    // A scalar float in a vector register, which is a *view* of it exactly as eax is a view of rax:
+    // the class is four or eight bytes wide, the register underneath is sixteen, and the rest of it
+    // holds nothing this value cares about. They are classes of their own rather than a narrow use
+    // of ClassXmm128 because a class is what says which instruction a copy of it is - `movss`,
+    // `movsd` and `movups` differ in a mandatory prefix - and because a class's spill slot is then
+    // its own width with nothing to reconcile.
+    ClassFloat32,
+    ClassFloat64,
+
     ClassXmm128,
     ClassYmm256,
     ClassZmm512,
+
+    ClassMask32,
+    ClassMask64,
 
     kRegisterClassCount,
 };
@@ -223,10 +273,11 @@ struct RegisterClassDesc {
     // encoding limited to the legacy vector registers, or a mask operand that cannot be k0.
     RegSet allowedPhysical;
 
-    // The slot a *whole register* of this class needs. A scalar value narrower than its class -
-    // a 4-byte float in an XMM128 register - spills at its own width instead; see
-    // stackSlotClassFor. This is the width that matters when a register has to be preserved
-    // entire, which is what a callee-saved vector register needs.
+    // The slot a value of this class needs, which is the class's own width and not the underlying
+    // register's: a scalar double takes eight bytes of frame however wide the xmm register holding
+    // it is. Preserving a *register* entire - which is what a callee-saved vector register needs -
+    // is a separate question, and the frame answers it with the bank's full width rather than with
+    // the class of whatever happened to be in it.
     StackSlotClass spillClass = StackSlotClass::Slot64;
 };
 
@@ -283,18 +334,18 @@ inline RegisterBankId bankForType(LowerType type) {
 }
 
 // The class a value of this type occupies. Every scalar the lowering produces is at most eight bytes
-// wide; the wider classes exist for the vector values the register model already describes and the
-// encoders do not produce yet. A scalar float takes the narrowest vector class, since that is the
-// register file it lives in whatever its own width.
+// wide, so a float takes the scalar view of a vector register rather than the whole of one; the
+// packed classes exist for the vector values the register model describes and the IR has no type for
+// yet.
 inline RegisterClassId classForType(LowerType type) {
     if(isIntLike(type)) return type == LowerType::Int32 ? ClassGpr32 : ClassGpr64;
-    return ClassXmm128;
+    return type == LowerType::Float32 ? ClassFloat32 : ClassFloat64;
 }
 
-// The slot class a value of this type needs when it does not get a register - its own width, not its
-// register class's. Asked by the allocator when it spills a value and by the memory-operand rules
-// when they decide whether an instruction may read one in place, which have to agree: a slot is
-// exactly as wide as the value in it, and an access of any other width would take a neighbouring
+// The slot class a value of this type needs when it does not get a register - its own width, which
+// is its register class's. Asked by the allocator when it spills a value and by the memory-operand
+// rules when they decide whether an instruction may read one in place, which have to agree: a slot
+// is exactly as wide as the value in it, and an access of any other width would take a neighbouring
 // value with it.
 inline StackSlotClass stackSlotClassFor(LowerType type) {
     return type == LowerType::Int32 || type == LowerType::Float32

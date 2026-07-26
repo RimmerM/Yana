@@ -25,13 +25,6 @@
  * more than that, the thing to change is the descriptor, not the pass that noticed it was missing.
  */
 
-// The features this backend compiles for. Everything the table names is assumed present; the value
-// of stating it at all is that a form requiring something else cannot be selected by accident once
-// there is a target description to configure.
-FeatureSet targetFeatures() {
-    return kFeaturePopcnt | kFeatureRdtscp;
-}
-
 static IntrinsicOperandRule integerRule() {
     return IntrinsicOperandRule { IntrinsicOperandClass::Integer };
 }

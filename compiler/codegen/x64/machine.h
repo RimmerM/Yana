@@ -66,6 +66,19 @@ enum : MachineOpcodeId {
     OpOr,
     OpXor,
     OpCmp,
+
+    // Floating point. Opcodes of their own rather than forms of the integer ones, because a float
+    // add and an integer add are two target operations rather than two encodings of one: they read
+    // different register files, take different operands (no SSE form carries an immediate), and
+    // differ in what they do to the flags. Keeping them apart is what lets every opcode's forms
+    // agree about the flags without any of them having to declare itself selective.
+    OpFAdd,
+    OpFSub,
+    OpFMul,
+    OpFDiv,
+    OpFNeg,
+    OpFCmp,
+
     OpSelect,
     OpAlloca,
     OpLoad,
@@ -230,10 +243,10 @@ inline MachineOperandConstraint fixedReg(IntRegister reg) {
 // An operand the encoding can take from a frame slot: `add rax, [slot]` in place of a reload and an
 // add. `access` says whether the slot is only read, or read and written in place - the latter is the
 // read-modify-write direction, which removes the store as well.
-inline MachineOperandConstraint regOrMem(MemoryAccessKind access) {
+inline MachineOperandConstraint regOrMem(MemoryAccessKind access, RegisterClassId cls = ClassGpr64) {
     return MachineOperandConstraint {
         .kind = OperandConstraintKind::RegisterOrMemory,
-        .regClass = ClassGpr64,
+        .regClass = cls,
         .memoryAccess = access,
     };
 }
@@ -251,12 +264,12 @@ inline MachineOperandConstraint address() {
 
 // A result the encoding writes over one of its operands - the destructive two-address rule, which is
 // the shape most of the AMD64 ALU takes.
-inline MachineOperandConstraint tiedDef(U8 operand) {
+inline MachineOperandConstraint tiedDef(U8 operand, RegisterClassId cls = ClassGpr64) {
     return MachineOperandConstraint {
         .role = OperandRole::Def,
         .timing = OperandTiming::LateDef,
         .kind = OperandConstraintKind::ReuseOperand,
-        .regClass = ClassGpr64,
+        .regClass = cls,
         .tiedOperand = operand,
     };
 }
@@ -386,6 +399,13 @@ enum class PseudoKind: U8 {
     BlockCopyUnrolled,
     BlockSetRep,
     BlockSetUnrolled,
+
+    // The three floating-point operations AMD64 has no single scalar instruction for. Each expands
+    // into two or three, and each is here rather than in the form table's regular families because
+    // of that alone - what they read is still only their own resolved operands.
+    FloatImm,    // a constant materialized in a general register and moved across
+    FloatNeg,    // the sign bit toggled in a general register, for want of a vector sign mask
+    FloatSelect, // a conditional register copy, for want of a vector cmov
 };
 
 // The width an encoding operates at, which is not always the width of the value it produces: a
@@ -431,6 +451,16 @@ struct EncodingDescriptor {
     OperationWidth width = OperationWidth::FromResult;
     EncodingPrelude prelude = EncodingPrelude::None;
 
+    // The encoding states its own width in the mandatory prefix rather than in REX.W, which is what
+    // every SSE scalar form does: F3 is one float, F2 is one double, and no prefix at all is a
+    // packed register. REX.W there either means nothing or means something else entirely - on
+    // `cvtsi2sd` it is the *integer* operand's width - so the bit is not derived from the width.
+    //
+    // `width` above still answers how wide the data is, because the other thing it decides is
+    // unaffected: whether a frame slot is exactly the size of the access that would read it in
+    // place, which is a property of the value rather than of the prefix that names it.
+    bool widthInPrefix = false;
+
     bool byteRegField = false; // an 8-bit ModRM.reg operand, which needs REX to name spl/bpl/sil/dil
     bool omitWhenSame = false; // emits nothing when source and destination are already the same register
 
@@ -442,21 +472,6 @@ struct EncodingDescriptor {
     // zero-extension - for a comparison whose result could not be left in the flags.
     bool materializeFlags = false;
 };
-
-// The target features a form needs. Baseline AMD64 requires none; the ones named here are the
-// extensions the intrinsic registry already reaches for, and the vector work of the plan's stage C
-// adds its own. A form whose features the target does not have is not selectable, which is checked
-// where the selection is made rather than left to the encoder.
-using FeatureSet = U32;
-
-static constexpr FeatureSet kFeatureBaseline = 0;
-static constexpr FeatureSet kFeaturePopcnt = 1 << 0;
-static constexpr FeatureSet kFeatureRdtscp = 1 << 1;
-
-// The features this backend is compiling for. A configurable target description replaces this the
-// moment there is anything to configure; until then every extension the table names is assumed
-// present, and the point of the check is that adding one that is not cannot be silent.
-FeatureSet targetFeatures();
 
 // The scratch registers a form's expansion needs beyond its declared operands, by bank. `rep movsb`
 // needs none; the unrolled copy needs one general register to carry each word through.
@@ -710,8 +725,11 @@ LowerType operationType(LowerBase base, const MachineForm& form, LowerInst* inst
 // register however embeddable the position is.
 bool opcodeCanEmbedImmediate(MachineOpcodeId opcode, Size index, U64 value);
 
-// The opcode an instruction selects, independent of which form it ends up in.
-MachineOpcodeId opcodeFor(LowerInst* inst);
+// The opcode an instruction selects, independent of which form it ends up in. Takes the base because
+// an operation's opcode can depend on the type of an operand rather than of a result - a comparison
+// yields an Int32 whether it compared integers or floats, and only its operands say which machine
+// operation it is.
+MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst);
 
 // Checks the form table: that every operand index exists, every tie joins compatible roles, fixed
 // registers are allocatable members of their operand's class, at most one operand can occupy the

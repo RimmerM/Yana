@@ -88,15 +88,16 @@ static bool checkFormOperands(const MachineForm& form, const InstRegs& regs) {
 // cover the location's bank, where an index read straight out of the location is the same number
 // whichever register file it came from.
 //
-// Only the general-purpose bank has encoders. A vector or mask location reaching here is a
-// legalization that produced a location this backend cannot emit, and failing loudly is the point:
-// the register model already describes banks the encoders do not implement, and silently writing a
-// GPR instruction with an xmm number in it is the one way that can go wrong quietly.
+// The general and vector banks have encoders; the mask bank does not, since every `kmov` is
+// VEX-encoded. A mask location reaching here is a legalization that produced a location this backend
+// cannot emit, and failing loudly is the point: the register model describes banks the encoders do
+// not implement, and silently writing an instruction with an unnameable register number in it is the
+// one way that can go wrong quietly.
 static U8 reg(MachineLocation at, RegisterClassId regClass) {
     assertTrue(!at.isStack());            // an encoder was handed a frame slot
     assertTrue(!at.isRemat());            // an encoder was handed a rematerialization recipe
     assertTrue(at.isPhysical());          // an encoder was handed no location at all
-    assertTrue(at.bank == BankGpr);       // no encoder emits a non-integer register bank yet
+    assertTrue(at.bank != BankMask);      // no encoder emits the mask bank yet
     return targetRegisters().viewOf(regClass, at.physicalReg()).encoding;
 }
 
@@ -104,8 +105,9 @@ static U8 reg(const ResolvedOperand& operand) {
     return reg(operand.at, operand.regClass);
 }
 
-// The same for a location that is already known to be a physical register - the frame's base, a
-// scratch register the encoder chose for itself.
+// The same for a location that is already known to be a physical general register - the frame's
+// base, a scratch register the encoder chose for itself. Registers of the other banks never name a
+// base or a frame pointer, so the bank is part of what this asserts rather than a parameter.
 static U8 reg(PhysicalReg at) {
     assertTrue(at.bank == BankGpr);
     return U8(at.index);
@@ -504,25 +506,67 @@ struct ClassMoveEncoding {
     U8 store = 0;     // frame slot from a register
     U8 exchange = 0;  // the cycle break, for a class that has one
 
+    U8 escape = 0;      // 0x0f, for the two-byte vector opcodes
+    U8 copyPrefix = 0;  // the mandatory prefix a register copy needs
+    U8 memPrefix = 0;   // the mandatory prefix a frame transfer needs
+
     // REX.W on a register-to-register copy. Both GPR classes copy at 64 bits: the narrow one's upper
     // half is dead by construction (every 32-bit operation this backend emits clears it), and a byte
     // per copy is not worth a width the class table would then have to be trusted about.
     bool wide = false;
 
+    // The frame transfer's width is stated by `memPrefix` rather than by REX.W, which is how every
+    // SSE move states it. A class whose transfers are sized by REX.W takes the width from the
+    // *slot* instead - slots are packed by width, so a slot is exactly as wide as the value in it
+    // and an access of any other width would take a neighbour with it.
+    bool widthInPrefix = false;
+
     bool defined = false;
 };
 
+// One row per class rather than per bank, because two classes over one register file need not move
+// with the same instruction: `movss`, `movsd` and `movups` are the same operation at three widths,
+// and the width is in the prefix rather than in an operand-size bit.
+//
+// Ordered rather than designated, since the class ids run in this order and a compiler need not
+// accept a designated initializer out of it.
 static const ClassMoveEncoding kClassMoves[kRegisterClassCount] = {
-    // The general registers. MOV r, r/m either way, and XCHG r/m64, r64 to break a cycle without
+    // ClassGpr32, ClassGpr64. MOV r, r/m either way, and XCHG r/m64, r64 to break a cycle without
     // needing a scratch register at all.
-    [ClassGpr32] = { .regToReg = 0x8b, .load = 0x8b, .store = 0x89, .exchange = 0x87, .wide = true, .defined = true },
-    [ClassGpr64] = { .regToReg = 0x8b, .load = 0x8b, .store = 0x89, .exchange = 0x87, .wide = true, .defined = true },
+    { .regToReg = 0x8b, .load = 0x8b, .store = 0x89, .exchange = 0x87, .wide = true, .defined = true },
+    { .regToReg = 0x8b, .load = 0x8b, .store = 0x89, .exchange = 0x87, .wide = true, .defined = true },
 
-    // The vector classes, which no encoder produces yet - and which have no exchange instruction at
-    // all, so a cycle in one will have to go through a scratch register. See the plan's stage C.
-    [ClassXmm128] = {},
-    [ClassYmm256] = {},
-    [ClassZmm512] = {},
+    // ClassFloat32, ClassFloat64: a scalar float in a vector register. Copied whole with MOVAPS
+    // rather than with the scalar move, which would merge into the destination's upper bytes and
+    // make the copy depend on whatever was there; transferred to and from the frame at the class's
+    // own width, since that is all the slot holds.
+    //
+    // No exchange: the vector file has no XCHG, so a cycle in one goes through a scratch register.
+    // That is why the move pool exists per bank rather than once - see TemporaryReserve.
+    {
+        .regToReg = 0x28, .load = 0x10, .store = 0x11,
+        .escape = 0x0f, .memPrefix = 0xf3, .widthInPrefix = true, .defined = true,
+    },
+    {
+        .regToReg = 0x28, .load = 0x10, .store = 0x11,
+        .escape = 0x0f, .memPrefix = 0xf2, .widthInPrefix = true, .defined = true,
+    },
+
+    // ClassXmm128: a whole vector register, which is what a callee-saved one has to be preserved as
+    // whatever narrower value this function put in it. MOVUPS rather than MOVAPS for the frame
+    // transfer, because the region it lands in is only 8-byte aligned: the frame's alignment is
+    // settled before the allocator knows whether anything will be saved there, and the unaligned
+    // encoding is the same length.
+    {
+        .regToReg = 0x28, .load = 0x10, .store = 0x11,
+        .escape = 0x0f, .widthInPrefix = true, .defined = true,
+    },
+
+    // ClassYmm256, ClassZmm512, ClassMask32, ClassMask64. Every one of these moves with a VEX- or
+    // EVEX-encoded instruction, which this backend does not write - so a location in one reaches
+    // genMoves as a loud failure rather than as a legacy encoding with an unnameable register
+    // number in it. No IR type produces one; see the plan's stage C.
+    {}, {}, {}, {},
 };
 
 bool classHasExchange(RegisterClassId regClass) {
@@ -575,21 +619,28 @@ static void genMoves(AsmModule& to, const FrameLayout& frame, const FrameObjects
         // which owns the register it goes through, so none ever reaches an encoder.
         assertTrue(!(fromSlot && toSlot));
 
-        // A load or store is as wide as the *slot*, not as the class: slots are packed by width, so a
-        // 4-byte value sits 4 bytes from its neighbour and a wider access would take it along. The
-        // two agree for every integer value; a scalar float in a vector class is the case where the
-        // slot is the narrower of the two and is the one to believe.
+        // An integer transfer is as wide as the *slot*, not as the class: slots are packed by width,
+        // so a 4-byte value sits 4 bytes from its neighbour and a wider access would take it along.
+        // A vector one states its width in the prefix instead and REX.W means nothing there, so the
+        // class already decided and the slot has nothing left to say.
         auto slotIs64 = [&](MachineLocation slot) {
-            return objects.slots[slot.stackSlot()].size > 4;
+            return !encoding.widthInPrefix && objects.slots[slot.stackSlot()].size > 4;
         };
 
         if(fromSlot) {
-            genSlotOperand(to, frame, slotIs64(m.from), reg(m.to, m.regClass), m.from, encoding.load);
+            genSlotOperand(to, frame, slotIs64(m.from), reg(m.to, m.regClass), m.from,
+                encoding.load, encoding.escape, encoding.memPrefix);
         } else if(toSlot) {
-            genSlotOperand(to, frame, slotIs64(m.to), reg(m.from, m.regClass), m.to, encoding.store);
-        } else {
+            genSlotOperand(to, frame, slotIs64(m.to), reg(m.from, m.regClass), m.to,
+                encoding.store, encoding.escape, encoding.memPrefix);
+        } else if(m.swap) {
             genRegReg(to, encoding.wide, reg(m.from, m.regClass), reg(m.to, m.regClass),
-                m.swap ? encoding.exchange : encoding.regToReg);
+                encoding.exchange, encoding.escape, encoding.copyPrefix);
+        } else {
+            // A register copy names the destination in ModRM.reg for every class described: MOV and
+            // MOVAPS are both `op reg, r/m` with the source in r/m.
+            genRegReg(to, encoding.wide, reg(m.from, m.regClass), reg(m.to, m.regClass),
+                encoding.regToReg, encoding.escape, encoding.copyPrefix);
         }
     }
 }
@@ -604,6 +655,30 @@ static void genMoves(AsmModule& to, const FrameLayout& frame, const FrameObjects
 //
 // Every part of this is skipped when the layout says it is not needed, so a leaf function that kept
 // everything in caller-saved registers still starts at its first real instruction.
+// The callee-saved vector registers, stored into (or reloaded out of) their region of the frame in
+// ascending register order. Whole registers rather than the class of whatever this function put in
+// them: the caller may have been holding a packed value there, and giving back only the low half
+// would be silent corruption of a value nothing in this function ever named.
+static void genVectorSaves(AsmModule& to, const FrameLayout& frame, bool restore) {
+    auto& encoding = kClassMoves[ClassXmm128];
+    assertTrue(frame.savedVectors.isEmpty() || encoding.defined); // a bank with no way to preserve it
+
+    U32 offset = 0;
+
+    frame.savedVectors.iterate([&](PhysicalReg saved) {
+        auto address = MachineAddress::atOffset(reg(frame.vectorSaveBase),
+            frame.vectorSaveOffset + I32(offset));
+
+        genMemory(to, address, U8(saved.index), MemForm {
+            .opCode = restore ? encoding.load : encoding.store,
+            .escape = encoding.escape,
+            .prefix = encoding.memPrefix,
+        });
+
+        offset += kVectorSaveSize;
+    });
+}
+
 static void genPrologue(AsmModule& to, const FrameLayout& frame) {
     auto rbp = U8(IntRegister::rbp);
     auto rsp = U8(IntRegister::rsp);
@@ -622,6 +697,11 @@ static void genPrologue(AsmModule& to, const FrameLayout& frame) {
     if(frame.realignsStack) genAndImm(to, rsp, -I32(frame.dynamicAlignment));
 
     genAddImm(to, rsp, I32(frame.fixedSize), true);
+
+    // After the reservation, since the region they land in is part of it. A vector register cannot
+    // be pushed, so preserving one is a store into the frame like any other - through the same
+    // whole-register encoding a 128-bit spill would take.
+    genVectorSaves(to, frame, false);
 }
 
 static void genEpilogue(AsmModule& to, const FrameLayout& frame) {
@@ -629,6 +709,10 @@ static void genEpilogue(AsmModule& to, const FrameLayout& frame) {
     auto rsp = U8(IntRegister::rsp);
 
     auto savedCount = U32(frame.savedRegs.count());
+
+    // Before rsp moves. Without a frame pointer the region is addressed through rsp, so reloading
+    // after the reservation had been released would read whatever the next call wrote there.
+    genVectorSaves(to, frame, true);
 
     if(frame.framePointer) {
         if(savedCount == 0) {
@@ -967,6 +1051,87 @@ struct Emitter {
         }
     }
 
+    /*
+     * The floating-point expansions.
+     *
+     * Three operations AMD64 has no single scalar instruction for. Each reads only its own resolved
+     * operands and the width its form states; none of them looks at the IR.
+     */
+
+    // MOVD/MOVQ between a vector register and a general one. `toVector` picks the direction; the
+    // opcode is the only thing that differs, since both are `66 [REX.W] 0f xx /r` with the vector
+    // register in ModRM.reg and the general one in r/m.
+    void emitMoveAcrossBanks(U8 vectorReg, U8 generalReg, bool is64, bool toVector) {
+        genRegReg(to, is64, generalReg, vectorReg, toVector ? 0x6e : 0x7e, 0x0f, 0x66);
+    }
+
+    // A floating-point constant. No SSE encoding carries one and there is no constant pool to load
+    // it from, so the bit pattern is materialized in r11 - which the form declares as a clobber, so
+    // nothing live is in it here - and moved across.
+    void emitFloatImm(LowerInst* inst, const InstRegs& regs, bool is64) {
+        auto imm = (LowerImm*)inst;
+        auto scratch = U8(IntRegister::r11);
+
+        // The IR keeps every float constant as a double, so a single-precision one is rounded to
+        // what it will actually be before its bits are taken.
+        auto bits = U64(0);
+        if(is64) {
+            F64 value = imm->f;
+            copyMem(&value, &bits, sizeof(value));
+        } else {
+            float value = float(imm->f);
+            U32 narrow = 0;
+            copyMem(&value, &narrow, sizeof(value));
+            bits = narrow;
+        }
+
+        genMovImmValue(to, is64, bits, scratch);
+        emitMoveAcrossBanks(reg(regs.creates[0]), scratch, is64, true);
+    }
+
+    // Negation. The sign bit is toggled in a general register rather than exclusive-ored against a
+    // vector sign mask, which would need either a constant pool or a second vector register - see
+    // the form table. r11 is the form's declared clobber.
+    void emitFloatNeg(const InstRegs& regs, bool is64) {
+        auto value = reg(regs.creates[0]);
+        auto scratch = U8(IntRegister::r11);
+
+        emitMoveAcrossBanks(value, scratch, is64, false);
+
+        // BTC r/m, imm8 (0f ba /7 ib): complement one bit and leave the rest alone.
+        genRegExt(to, is64, scratch, 0xba, 7, 0x0f);
+        to.buffer.writeByte(is64 ? 63 : 31);
+
+        emitMoveAcrossBanks(value, scratch, is64, true);
+    }
+
+    // A select between two vector registers, for want of a CMOVcc that can name one. The tie has
+    // already put the first operand in the destination, so what is left is to skip the copy of the
+    // second when the condition holds - which is a forward jump over exactly that one instruction.
+    void emitFloatSelect(const EncodingDescriptor& e, const MachineInst& selected, const InstRegs& regs) {
+        assertTrue(selected.condition.isJust()); // a conditional form selected without a condition
+
+        auto dest = reg(field(regs, e.regField));
+        auto source = reg(field(regs, e.rmField));
+
+        // Nothing to choose between: both arms would write the register the value is already in.
+        if(dest == source) return;
+
+        // Jcc rel8 (0x70+cc), whose displacement is the length of the copy that follows it. Written
+        // as a placeholder and patched rather than predicted, so that the jump stays correct however
+        // the copy is encoded.
+        to.buffer.writeByte(0x70 + conditionCode(selected.condition.unwrap()));
+        to.buffer.writeByte(0);
+        auto afterJump = to.buffer.offset();
+
+        genRegReg(to, false, source, dest, e.opcode, e.escape, e.prefix);
+
+        auto end = to.buffer.offset();
+        to.buffer.offset(afterJump - 1);
+        to.buffer.writeByte(U8(end - afterJump));
+        to.buffer.offset(end);
+    }
+
     void emitBranch(LowerInst* inst, const MachineInst& selected, const InstRegs& regs) {
         auto je = (LowerInstJe*)inst;
         auto condition = selected.condition.unwrap();
@@ -992,6 +1157,11 @@ struct Emitter {
     }
 
     void emitPseudo(PseudoKind kind, LowerInst* inst, const MachineInst& selected, const InstRegs& regs) {
+        // A pseudo works out its own widths, but three of them are one operation at two widths and
+        // take it from the form like any family encoder would - see PseudoKind.
+        auto& form = machineTarget().form(selected.form);
+        auto pseudoIs64 = [&] { return is64Bit(operationType(base, form, inst)); };
+
         switch(kind) {
             case PseudoKind::None:
                 assertTrue("a pseudo form with no encoder" == nullptr);
@@ -1105,6 +1275,18 @@ struct Emitter {
                 }
                 break;
             }
+
+            case PseudoKind::FloatImm:
+                emitFloatImm(inst, regs, pseudoIs64());
+                break;
+
+            case PseudoKind::FloatNeg:
+                emitFloatNeg(regs, pseudoIs64());
+                break;
+
+            case PseudoKind::FloatSelect:
+                emitFloatSelect(machineTarget().form(selected.form).encoding, selected, regs);
+                break;
         }
     }
 
@@ -1156,8 +1338,13 @@ struct Emitter {
         // The operand size, for the families that have one. A form that emits nothing has no
         // operands to take it from, and a pseudo's expansion works out its own widths - a `ret`
         // would otherwise be asked about the width of a result it does not have.
+        //
+        // An SSE form states its width in the mandatory prefix, and REX.W there either means nothing
+        // or means the width of an *integer* operand, so the bit is not derived from the operation's
+        // type at all. What the type still decides for those forms is whether an operand may be read
+        // out of a frame slot, which is directMemoryOperands' question rather than this one.
         auto hasWidth = e.family != EncodingFamily::None && e.family != EncodingFamily::Pseudo;
-        auto is64 = hasWidth && is64Bit(operationType(base, form, inst));
+        auto is64 = hasWidth && !e.widthInPrefix && is64Bit(operationType(base, form, inst));
 
         emitPrelude(e, regs, is64);
 

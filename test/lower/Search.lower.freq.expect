@@ -1,0 +1,57 @@
+
+search<complex>(%src: Int, %entries: Ptr, %count: Long): Long {
+  start {
+    # frequency: 1.00
+    %high = sub %count, 1: Long
+    jmp loop_head
+  }
+
+  loop_head {
+    # frequency: 8.00
+    %low3 = phi [start, 0], [lower, %low2], [greater, %low3]: Long
+    %high3 = phi [start, %high], [greater, %high2], [lower, %high3]: Long
+    %v_0 = cmp_ile %low3, %high3: Int
+    je %v_0, loop, end
+  }
+
+  loop {
+    # frequency: 7.00
+    %v_1 = add %low3, %high3: Long
+    %mid = sar %v_1, 1: Long
+    %v_2 = mul %mid, 8: Long
+    %v_3 = add %entries, %v_2: Ptr
+    %entry = load %v_3, 4: Int
+    %v_4 = cmp_lt %entry, %src: Int
+    je %v_4, lower, check_greater
+  }
+
+  lower {
+    # frequency: 3.50
+    %low2 = add %mid, 1: Long
+    jmp loop_head
+  }
+
+  check_greater {
+    # frequency: 3.50
+    %v_5 = cmp_gt %entry, %src: Int
+    je %v_5, greater, found
+  }
+
+  greater {
+    # frequency: 3.06
+    %high2 = sub %mid, 2: Long
+    jmp loop_head
+  }
+
+  found {
+    # frequency: 0.43
+    ret %mid
+  }
+
+  end {
+    # frequency: 1.00
+    %v_6 = sub %low3, 1: Long
+    ret %v_6
+  }
+}
+

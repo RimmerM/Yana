@@ -1,0 +1,90 @@
+# Scalar floating point: every operation the lower IR can express on a Float or a Double, in the
+# forms the register model gives them - one bank over from the integer ones, with the width in the
+# instruction's prefix rather than in a REX bit.
+
+arith64(%a: Double, %b: Double): Double {
+    {
+        %s = add %a, %b: Double
+        %d = sub %s, %b: Double
+        %m = mul %d, %a: Double
+        %q = div %m, %b: Double
+        ret %q
+    }
+}
+
+arith32(%a: Float, %b: Float): Float {
+    {
+        %s = add %a, %b: Float
+        %d = sub %s, %b: Float
+        %m = mul %d, %a: Float
+        %q = div %m, %b: Float
+        ret %q
+    }
+}
+
+# No SSE encoding carries a float as an immediate, so a constant is materialized in a general
+# register and moved across the bank boundary rather than embedded.
+constants(): Double {
+    {
+        %one = add 1.5, 2.25: Double
+        ret %one
+    }
+}
+
+constant32(): Float {
+    {
+        %x = mul 3.5F, 2.0F: Float
+        ret %x
+    }
+}
+
+# Negation has no scalar instruction: the sign bit is toggled in a general register.
+negate(%a: Double, %b: Float): Double {
+    {
+        %n = neg %a: Double
+        %m = neg %b: Float
+        %w = cast %m: Double
+        %r = add %n, %w: Double
+        ret %r
+    }
+}
+
+# A comparison folded into the branch that reads it, which is what ucomisd leaving its answer in the
+# integer condition codes is for.
+compare(%a: Double, %b: Double): Int {
+    {
+        %c = cmp_gt %a, %b: Int
+        je %c, then, else
+    }
+  then {
+        ret 1
+    }
+  else {
+        ret 0
+    }
+}
+
+# And one that could not stay in the flags, so it is materialized with setcc.
+compareValue(%a: Float, %b: Float): Int {
+    {
+        %c = cmp_lt %a, %b: Int
+        %d = add %c, %c: Int
+        ret %d
+    }
+}
+
+# There is no CMOVcc for a vector register, so a select is a conditional branch over the copy.
+selectFloat(%c: Int, %a: Double, %b: Double): Double {
+    {
+        %r = select %c, %a, %b: Double
+        ret %r
+    }
+}
+
+selectOnCompare(%x: Float, %y: Float): Float {
+    {
+        %c = cmp_ge %x, %y: Int
+        %r = select %c, %x, %y: Float
+        ret %r
+    }
+}

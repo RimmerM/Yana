@@ -1,0 +1,15 @@
+
+infinite<complex>(%v: Int): Int {
+  start {
+    # frequency: 1.00
+    jmp loop
+  }
+
+  loop {
+    # frequency: 8.00
+    %v1 = phi [start, %v], [loop, %v2]: Int
+    %v2 = add %v1, 1: Int
+    jmp loop
+  }
+}
+

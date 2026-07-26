@@ -224,11 +224,16 @@ struct Placer {
     // out to allocateRegisters and applied to the next pass.
     Array<LiveId> displacementRequests;
 
-    // Set when any web ended up without a register. The first pass over a function reserves no
-    // scratch registers; if this comes back true, the reserve legalizing this placement would need is
-    // measured and the function placed again with it held back, because a value that is not in a
-    // register has to be brought into one at each instruction that touches it. See allocateRegisters.
+    // Set when legalizing this placement could need scratch registers - see the field of the same
+    // name on Placement for the two things that set it. The first pass over a function reserves
+    // none; if this comes back true, the reserve is measured and, if it grew, the function is placed
+    // again with it held back.
     bool requiresLegalizationTemps = false;
+
+    // How many webs have been placed in a register of a class the machine has no exchange for, per
+    // bank. The second one is where a copy cycle becomes possible at all, and so where the reserve
+    // has to be measured: one register cannot permute with itself.
+    Size exchangeless[kRegisterBankCount] = {};
 
     // The scratch registers held back for this function, which no web may be given - and which the
     // rule below has to know the identity of, since a copy into one of them at an instruction is a
@@ -380,6 +385,12 @@ struct Placer {
         auto reg = PhysicalReg { bank, U16(chosen) };
         occupy(cls, reg, webId);
         written.add(reg);
+
+        // A cycle in a class with an exchange costs no register to break; in one without, it costs
+        // a scratch register that has to have been held back before this pass ran. Two webs is where
+        // that becomes possible, so it is where the reserve has to be measured.
+        if(!classHasExchange(cls) && ++exchangeless[bank] == 2) requiresLegalizationTemps = true;
+
         return setHome(webId, MachineLocation::physical(reg));
     }
 
@@ -497,6 +508,51 @@ static void mergeRanges(Array<Range>& a, const Array<Range>& b) {
     a = ::move(out);
 }
 
+// The pairs of values a merge has to keep apart for a reason interval overlap does not state - see
+// buildWebs. Indexed by web representative, and merged onto the representative exactly as the ranges
+// are, so a web carries everything merged into it.
+using TieConflicts = Array<Array<LiveId>>;
+
+// A destructive encoding's result and the *other* operands of its instruction. The result is written
+// over operand zero by a copy emitted in front of the instruction, so any sibling operand sharing the
+// result's location is read after that copy has already overwritten it.
+//
+// Their intervals never overlap, which is exactly what a tie means: the operand's life ends at
+// `beforeInst` and the result's begins at `afterInst`. So the interference test below sees two webs
+// that are perfectly mergeable, and a loop that swaps two values asks for that merge at every latch -
+// the phi takes its incoming value from an operation whose other operand is the phi itself.
+//
+// Operand zero is deliberately not here, since the result sharing its location is the whole content
+// of the tie; and neither is an operand that *is* operand zero (`sub %a, %a`), where the copy in
+// front of the instruction is an identity and overwrites nothing.
+static void collectTieConflicts(Placer& a, TieConflicts& out) {
+    for(Size i = 0; i < a.out.webOf.size(); i++) out.push();
+
+    auto onInst = [&](LowerInst* inst) {
+        if(a.machine.formOf(inst).tiedResult() != 0) return;
+        if(inst->createdCount == 0 || isImplicit(&inst->created()[0])) return;
+
+        auto used = inst->used();
+        if(used.size() == 0) return;
+
+        auto result = inst->created()[0].liveId();
+
+        for(Size i = 1; i < used.size(); i++) {
+            auto value = a.base[used[i]];
+            if(isImplicit(value) || used[i] == used[0]) continue;
+
+            out[result].push(value->liveId());
+            out[value->liveId()].push(result);
+        }
+    };
+
+    for(auto offset: a.fun.blocks.contents(a.base)) {
+        auto block = a.base[offset];
+        for(auto i: block->instructions.contents(a.base)) onInst(a.base[i]);
+        onInst(a.base[block->terminator]);
+    }
+}
+
 static void buildWebs(Placer& a) {
     // Union-find over values, with the web's merged interval kept on the representative so that the
     // interference test is against everything already merged into it rather than against one member.
@@ -510,6 +566,21 @@ static void buildWebs(Placer& a) {
         }
 
         return id;
+    };
+
+    TieConflicts tieConflicts;
+    collectTieConflicts(a, tieConflicts);
+
+    auto tiesConflict = [&](LiveId left, LiveId right) {
+        for(auto id: tieConflicts[left]) {
+            if(find(id) == right) return true;
+        }
+
+        for(auto id: tieConflicts[right]) {
+            if(find(id) == left) return true;
+        }
+
+        return false;
     };
 
     // Hottest block first, because a merge can fail: two phis may each want to join a web, and only
@@ -560,8 +631,15 @@ static void buildWebs(Placer& a) {
                 // it may ever be live at once.
                 if(a.webs[left].interval().overlaps(a.webs[right].interval())) continue;
 
+                // And the one thing that does not follow from it - see collectTieConflicts.
+                if(tiesConflict(left, right)) continue;
+
                 mergeRanges(a.webs[left].ranges, a.webs[right].ranges);
                 a.webs[right].ranges.clear();
+
+                for(auto id: tieConflicts[right]) tieConflicts[left].push(id);
+                tieConflicts[right].clear();
+
                 parent[right] = left;
             }
         }

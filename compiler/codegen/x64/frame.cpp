@@ -129,7 +129,15 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
     auto& frame = regs.placement.frame;
 
     FrameLayout layout;
-    layout.savedRegs = regs.usedCalleeSaved;
+
+    // Split by bank, because the two are preserved by quite different means: a general register is
+    // pushed, and a vector one has no push at all and takes a region of the frame instead. Nothing
+    // else in this layout has to know which is which - the push accounting reads `savedRegs` and the
+    // region reads `savedVectors`.
+    regs.usedCalleeSaved.iterate([&](PhysicalReg saved) {
+        assertTrue(saved.bank == BankGpr || saved.bank == BankVector); // a bank with no way to save it
+        (saved.bank == BankGpr ? layout.savedRegs : layout.savedVectors).add(saved);
+    });
 
     // Taken from the allocation rather than decided here: the allocator was given the same answer
     // before it ran, and handed rbp out as an ordinary register if it was false.
@@ -171,6 +179,14 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
         place(StackSlotKind::Spill, StackSlotClass(c - 1), true);
     }
 
+    // The callee-saved vector registers go above the slots, in one region of their own. It is not
+    // aligned to the width it holds and does not ask the frame to be: raising the frame's alignment
+    // here is not possible - the decision was taken before the allocator ran and before anything
+    // knew a vector register would be saved - so the saves use the unaligned encoding instead, which
+    // is correct at any alignment and exactly as long. See kClassMoves in gen.cpp.
+    auto vectorSaveRegion = size;
+    size += kVectorSaveSize * U32(layout.savedVectors.count());
+
     // The boundary rsp has to be on for the whole body: whatever the calls in this function expect to
     // find at the call, and whatever the objects in its frame need of their addresses. The second is
     // not a property of rsp on its own - a local is an offset from a base, and an offset on its
@@ -180,8 +196,10 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
     // Whether the prologue has to establish that boundary itself. Answered before allocation ran,
     // because realigning needs a frame pointer and the allocator had to be told; what is checked here
     // is only that the answer covered everything the frame turned out to need. A spill slot wanting
-    // more than 8 is what would not have been visible from the IR - and cannot happen while no
-    // encoder spills a vector register.
+    // more than 8 is what would not have been visible from the IR - and cannot happen while every
+    // value the lowering produces is a scalar, since a scalar spills at its own width and no scalar
+    // is wider than eight bytes. A packed vector value would be the first to break that, which is
+    // why the saved vector registers above take unaligned stores rather than raising `maxAlign`.
     auto entryAlignment = constraints.getConvention(fun.callType).stackAlignment;
     layout.realignsStack = functionRealignsStack(base, fun, constraints);
 
@@ -228,6 +246,9 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
 
     auto localsBase = rspRelativeLocals ? stackPointerReg() : framePointerReg();
     auto regionBase = rspRelativeLocals ? I32(localBase) : -I32(8 * savedCount + localArea);
+
+    layout.vectorSaveBase = localsBase;
+    layout.vectorSaveOffset = regionBase + I32(vectorSaveRegion);
 
     // An incoming argument sits in the caller's frame, above the return address the call pushed.
     // With a frame pointer that is a fixed distance from rbp; without one it is measured from where

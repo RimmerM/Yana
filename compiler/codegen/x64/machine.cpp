@@ -24,16 +24,28 @@ enum: MachineFormId {
     FormImmMov,
     FormImmZero,
     FormImmImplicit,
+    FormImmFloat32,
+    FormImmFloat64,
     FormGlobalAddress,
     FormFunctionAddress,
     FormFunctionImplicit,
 
     FormMove,
+    FormMoveF32,
+    FormMoveF64,
     FormCastMov,
     FormCastSext,
     FormCastImm,
     FormBitcast,
     FormBitcastImm,
+
+    FormCastIToF32, FormCastIToF64,
+    FormCastF32ToI, FormCastF64ToI,
+    FormCastF32ToF64, FormCastF64ToF32,
+
+    FormBitcastF32ToI, FormBitcastF64ToI,
+    FormBitcastIToF32, FormBitcastIToF64,
+    FormBitcastF32,    FormBitcastF64,
 
     FormNeg,
     FormNot,
@@ -64,8 +76,19 @@ enum: MachineFormId {
     FormCmpImm,
     FormCmpImmSet,
 
+    FormFAdd32, FormFAdd64,
+    FormFSub32, FormFSub64,
+    FormFMul32, FormFMul64,
+    FormFDiv32, FormFDiv64,
+    FormFNeg32, FormFNeg64,
+
+    FormFCmp32, FormFCmp32Set,
+    FormFCmp64, FormFCmp64Set,
+
     FormSelectFlags,
     FormSelectReg,
+    FormSelectFloat32Flags, FormSelectFloat64Flags,
+    FormSelectFloat32Reg,   FormSelectFloat64Reg,
 
     FormAllocaFixed,
     FormAllocaDynamic,
@@ -74,8 +97,10 @@ enum: MachineFormId {
     FormLoad16, FormLoad16S,
     FormLoad32, FormLoad32S,
     FormLoad64,
+    FormLoadF32, FormLoadF64,
 
     FormStore8, FormStore16, FormStore32, FormStore64,
+    FormStoreF32, FormStoreF64,
 
     FormBlockCopyRep,
     FormBlockCopyUnrolled,
@@ -86,6 +111,8 @@ enum: MachineFormId {
     FormCallIndirect,
     FormSyscall,
     FormPushArgReg,
+    FormPushArgF32,
+    FormPushArgF64,
     FormPushArgImm,
 
     FormLea,
@@ -137,6 +164,21 @@ static EncodingDescriptor rmExtImm(U8 imm8, U8 imm32, U8 extension, OperandRef r
     };
 }
 
+// `op xmm, xmm/m` - the SSE two-byte shape, where the mandatory prefix is the width and there is no
+// direction bit: the destination is always the ModRM.reg field, so an operand left in the frame can
+// only ever be the one this puts in r/m. `prefix` is 0xf3 for the single-precision form, 0xf2 for
+// the double-precision one, 0x66 for a packed-double or integer one, and zero for packed single.
+static EncodingDescriptor sseRegRm(U8 prefix, U8 opcode, OperandRef reg, OperandRef rm, OperationWidth width) {
+    return EncodingDescriptor {
+        .family = EncodingFamily::RegRm,
+        .opcode = opcode,
+        .escape = 0x0f, .prefix = prefix,
+        .regField = reg, .rmField = rm,
+        .width = width,
+        .widthInPrefix = true,
+    };
+}
+
 /*
  * The table.
  */
@@ -182,6 +224,13 @@ MachineTarget::MachineTarget() {
     name(OpOr, "or"_v);
     name(OpXor, "xor"_v);
     name(OpCmp, "cmp"_v);
+
+    name(OpFAdd, "fadd"_v);
+    name(OpFSub, "fsub"_v);
+    name(OpFMul, "fmul"_v);
+    name(OpFDiv, "fdiv"_v);
+    name(OpFNeg, "fneg"_v);
+    name(OpFCmp, "fcmp"_v);
 
     // A select whose condition arrives in a register tests it first, and that test writes the flags;
     // one whose condition is already in the flags reads them and writes nothing.
@@ -265,6 +314,27 @@ MachineTarget::MachineTarget() {
 
     add(FormImmImplicit, OpImm, "imm (embedded)"_v).defs.push(noDef());
 
+    // A floating-point constant, which no SSE encoding carries as an immediate and which this
+    // backend has nowhere to put as a constant pool entry: it is materialized in a general register
+    // and moved across the bank boundary. r11 is stated as a clobber rather than as a declared
+    // expansion temporary for the reason the unrolled block copy states its scratch that way - a
+    // clobber keeps a live value out of the register at this one instruction, where a declared
+    // temporary would be held back from the whole function.
+    //
+    // The two forms differ only in the width the pair moves at, which the pseudo reads from the
+    // result's own type.
+    auto floatImm = [&](MachineFormId id, StringView formName, RegisterClassId cls) {
+        auto& form = add(id, OpImm, formName);
+        form.defs.push(def(cls));
+        form.clobbers.add(gpr(IntRegister::r11));
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::FloatImm,
+        };
+    };
+
+    floatImm(FormImmFloat32, "mov r, imm; movd xmm, r"_v, ClassFloat32);
+    floatImm(FormImmFloat64, "mov r, imm; movq xmm, r"_v, ClassFloat64);
+
     // RIP-relative, against a displacement that is only known once every function and global has
     // been emitted - so the address the legalizer resolves carries the symbol rather than bytes.
     auto symbolAddress = [&](MachineFormId id, MachineOpcodeId opcode, StringView formName) {
@@ -297,6 +367,26 @@ MachineTarget::MachineTarget() {
         form.defs.push(def());
         form.encoding = regRm(0x8b, defRef(0), useRef(0));
     }
+
+    // MOVSS/MOVSD xmm, xmm/m: the same shape one bank over. A register source merges into the
+    // destination's upper bytes rather than clearing them, which costs nothing here - the class is
+    // the scalar view, so those bytes hold nothing this value or any other is relying on.
+    //
+    // A bitcast between two float types of one width is the same copy, and is a form of its own for
+    // the same reason the integer bitcast is: it is a copy that emits nothing at all when the
+    // allocator has already put source and destination in one register.
+    auto floatMove = [&](MachineFormId id, MachineOpcodeId opcode, StringView formName, U8 prefix,
+                         RegisterClassId cls, bool omitWhenSame)
+    {
+        auto& form = add(id, opcode, formName);
+        form.uses.push(regOrMem(MemoryAccessKind::Read, cls));
+        form.defs.push(def(cls));
+        form.encoding = sseRegRm(prefix, 0x10, defRef(0), useRef(0), OperationWidth::FromResult);
+        form.encoding.omitWhenSame = omitWhenSame;
+    };
+
+    floatMove(FormMoveF32, OpMove, "movss xmm, xmm/m"_v, 0xf3, ClassFloat32, false);
+    floatMove(FormMoveF64, OpMove, "movsd xmm, xmm/m"_v, 0xf2, ClassFloat64, false);
 
     // Casts have no memory form: their source and result widths differ by definition, and a slot is
     // exactly as wide as the value in it, so an access at the other width would take a neighbour
@@ -353,6 +443,103 @@ MachineTarget::MachineTarget() {
             .regField = defRef(0), .immField = useRef(0),
         };
     }
+
+    /*
+     * Conversions between the banks.
+     *
+     * These are the one place REX.W keeps its ordinary meaning on an SSE encoding: the mandatory
+     * prefix states which *float* the instruction works with and REX.W states how wide the
+     * *integer* it converts to or from is. So they take their width from whichever operand is the
+     * integer one, and are the SSE forms that do not set `widthInPrefix`.
+     *
+     * Only the signed conversions exist. An unsigned one is not an encoding this instruction set
+     * has: 64-bit unsigned needs a halve-convert-double sequence, and 32-bit unsigned needs its
+     * source zero-extended into a register the 64-bit conversion can read - neither of which is a
+     * form, and both of which selection rejects rather than quietly emitting the signed instruction.
+     */
+
+    auto intToFloat = [&](MachineFormId id, StringView formName, U8 prefix, RegisterClassId cls) {
+        auto& form = add(id, OpCast, formName);
+        form.uses.push(regOrMem(MemoryAccessKind::Read));
+        form.defs.push(def(cls));
+        form.encoding = sseRegRm(prefix, 0x2a, defRef(0), useRef(0), OperationWidth::FromUse0);
+        form.encoding.widthInPrefix = false;
+    };
+
+    intToFloat(FormCastIToF32, "cvtsi2ss xmm, r/m"_v, 0xf3, ClassFloat32);
+    intToFloat(FormCastIToF64, "cvtsi2sd xmm, r/m"_v, 0xf2, ClassFloat64);
+
+    // Truncating towards zero, which is what a cast to an integer means everywhere else in this
+    // compiler; the rounding conversion is a different instruction and would be a different form.
+    auto floatToInt = [&](MachineFormId id, StringView formName, U8 prefix, RegisterClassId cls) {
+        auto& form = add(id, OpCast, formName);
+        form.uses.push(regOrMem(MemoryAccessKind::Read, cls));
+        form.defs.push(def());
+        form.encoding = sseRegRm(prefix, 0x2c, defRef(0), useRef(0), OperationWidth::FromResult);
+        form.encoding.widthInPrefix = false;
+    };
+
+    floatToInt(FormCastF32ToI, "cvttss2si r, xmm/m"_v, 0xf3, ClassFloat32);
+    floatToInt(FormCastF64ToI, "cvttsd2si r, xmm/m"_v, 0xf2, ClassFloat64);
+
+    // Between the two float widths, where the prefix is the whole of the width statement again: the
+    // one that names the *source*, since that is what the instruction is reading.
+    auto floatToFloat = [&](MachineFormId id, StringView formName, U8 prefix,
+                            RegisterClassId from, RegisterClassId to)
+    {
+        auto& form = add(id, OpCast, formName);
+        form.uses.push(regOrMem(MemoryAccessKind::Read, from));
+        form.defs.push(def(to));
+        form.encoding = sseRegRm(prefix, 0x5a, defRef(0), useRef(0), OperationWidth::FromUse0);
+    };
+
+    floatToFloat(FormCastF32ToF64, "cvtss2sd xmm, xmm/m"_v, 0xf3, ClassFloat32, ClassFloat64);
+    floatToFloat(FormCastF64ToF32, "cvtsd2ss xmm, xmm/m"_v, 0xf2, ClassFloat64, ClassFloat32);
+
+    /*
+     * Bitcasts across the banks.
+     *
+     * MOVD/MOVQ, which are one opcode each way and differ in REX.W alone - a bitcast preserves the
+     * width by definition, so there is nothing for a prefix to select and the width is fixed per
+     * form rather than read from an operand.
+     */
+
+    auto floatToIntBits = [&](MachineFormId id, StringView formName, RegisterClassId from,
+                              RegisterClassId to, OperationWidth width)
+    {
+        auto& form = add(id, OpBitcast, formName);
+        form.uses.push(anyReg(from));
+        form.defs.push(def(to));
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0x7e, .escape = 0x0f, .prefix = 0x66,
+            .regField = useRef(0), .rmField = defRef(0),
+            .width = width,
+        };
+    };
+
+    floatToIntBits(FormBitcastF32ToI, "movd r/m, xmm"_v, ClassFloat32, ClassGpr32, OperationWidth::Fixed32);
+    floatToIntBits(FormBitcastF64ToI, "movq r/m, xmm"_v, ClassFloat64, ClassGpr64, OperationWidth::Fixed64);
+
+    auto intToFloatBits = [&](MachineFormId id, StringView formName, RegisterClassId from,
+                              RegisterClassId to, OperationWidth width)
+    {
+        auto& form = add(id, OpBitcast, formName);
+        form.uses.push(regOrMem(MemoryAccessKind::Read, from));
+        form.defs.push(def(to));
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::RegRm,
+            .opcode = 0x6e, .escape = 0x0f, .prefix = 0x66,
+            .regField = defRef(0), .rmField = useRef(0),
+            .width = width,
+        };
+    };
+
+    intToFloatBits(FormBitcastIToF32, "movd xmm, r/m"_v, ClassGpr32, ClassFloat32, OperationWidth::Fixed32);
+    intToFloatBits(FormBitcastIToF64, "movq xmm, r/m"_v, ClassGpr64, ClassFloat64, OperationWidth::Fixed64);
+
+    floatMove(FormBitcastF32, OpBitcast, "movss xmm, xmm/m"_v, 0xf3, ClassFloat32, true);
+    floatMove(FormBitcastF64, OpBitcast, "movsd xmm, xmm/m"_v, 0xf2, ClassFloat64, true);
 
     /*
      * Unary arithmetic.
@@ -582,6 +769,112 @@ MachineTarget::MachineTarget() {
         immediate(ImmediateWidth::Imm8OrImm32), cmpImm);
 
     /*
+     * Scalar floating-point arithmetic.
+     *
+     * Destructive in the same way the group-1 integer operations are, and constrained rather more:
+     * there is only one direction, so the operand that may stay in the frame is always the
+     * right-hand side, and there is no immediate form at all - which is why a float constant is
+     * never embedded and always materialized (see isEmbeddableImm in transform.cpp).
+     *
+     * None of them touches the flags. That is a real difference from the integer opcodes rather
+     * than a convenience: it is what lets a comparison be folded across a stretch of floating-point
+     * arithmetic into the branch that reads it.
+     */
+
+    auto floatArith = [&](MachineFormId f32, MachineFormId f64, MachineOpcodeId opcode,
+                          StringView name32, StringView name64, U8 op)
+    {
+        auto build = [&](MachineFormId id, StringView formName, U8 prefix, RegisterClassId cls) {
+            auto& form = add(id, opcode, formName);
+            form.uses.push(anyReg(cls));
+            form.uses.push(regOrMem(MemoryAccessKind::Read, cls));
+            form.defs.push(tiedDef(0, cls));
+            form.encoding = sseRegRm(prefix, op, useRef(0), useRef(1), OperationWidth::FromResult);
+        };
+
+        build(f32, name32, 0xf3, ClassFloat32);
+        build(f64, name64, 0xf2, ClassFloat64);
+    };
+
+    floatArith(FormFAdd32, FormFAdd64, OpFAdd, "addss xmm, xmm/m"_v, "addsd xmm, xmm/m"_v, 0x58);
+    floatArith(FormFSub32, FormFSub64, OpFSub, "subss xmm, xmm/m"_v, "subsd xmm, xmm/m"_v, 0x5c);
+    floatArith(FormFMul32, FormFMul64, OpFMul, "mulss xmm, xmm/m"_v, "mulsd xmm, xmm/m"_v, 0x59);
+    floatArith(FormFDiv32, FormFDiv64, OpFDiv, "divss xmm, xmm/m"_v, "divsd xmm, xmm/m"_v, 0x5e);
+
+    /*
+     * Floating-point negation.
+     *
+     * AMD64 has no scalar float negate. The usual expansion exclusive-ors against a sign mask held
+     * in a second vector register, which would need either a constant pool this backend has no
+     * section for or a vector scratch register nothing reserves - so the sign bit is toggled in a
+     * general register instead, which needs one scratch this backend already knows how to hold back
+     * at a single instruction: three instructions and one clobber, against three instructions and a
+     * whole-function reservation.
+     *
+     * `btc` writes the carry flag, which is why these declare a flags effect at all where the rest
+     * of the floating-point arithmetic declares none.
+     */
+
+    auto floatNeg = [&](MachineFormId id, StringView formName, RegisterClassId cls, OperationWidth width) {
+        auto& form = add(id, OpFNeg, formName);
+        form.uses.push(anyReg(cls));
+        form.defs.push(tiedDef(0, cls));
+        form.clobbers.add(gpr(IntRegister::r11));
+        form.flagsEffect = FlagsEffect::Clobber;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::FloatNeg,
+            .width = width,
+        };
+    };
+
+    floatNeg(FormFNeg32, "movd r, xmm; btc r, 31; movd xmm, r"_v, ClassFloat32, OperationWidth::Fixed32);
+    floatNeg(FormFNeg64, "movq r, xmm; btc r, 63; movq xmm, r"_v, ClassFloat64, OperationWidth::Fixed64);
+
+    /*
+     * Floating-point comparison.
+     *
+     * UCOMISS/UCOMISD leave the result in the same flags an unsigned integer comparison does - CF
+     * for "below", ZF for "equal" - so every condition code the rest of this backend already writes
+     * reads correctly, and, crucially, so does the *negation* of each: `ja` and `jbe` remain exact
+     * opposites, which is what the branch and select forms rely on when they flip a condition to
+     * fall through the other way.
+     *
+     * The one thing that follows from that and is worth stating plainly: an operand that is NaN
+     * sets CF, ZF and PF together, so `gt`, `ge` and `neq` answer false and `lt`, `le` and `eq`
+     * answer true. That is the machine's own answer rather than IEEE's - IEEE makes every ordered
+     * comparison false and only `!=` true - and it is what the IR can express, since LowerCmp has
+     * no ordered/unordered distinction to carry one. Giving the ordered reading instead would take
+     * a parity test at every comparison and a pair of condition codes per branch, and it would take
+     * the IR saying which of the two it meant.
+     */
+
+    auto floatCompare = [&](MachineFormId flagsId, MachineFormId setId, StringView flagsName,
+                            StringView setName, U8 prefix, RegisterClassId cls)
+    {
+        auto encoding = sseRegRm(prefix, 0x2e, useRef(0), useRef(1), OperationWidth::FromUse0);
+
+        auto& flagsForm = add(flagsId, OpFCmp, flagsName);
+        flagsForm.uses.push(anyReg(cls));
+        flagsForm.uses.push(regOrMem(MemoryAccessKind::Read, cls));
+        flagsForm.defs.push(noDef());
+        flagsForm.flagsEffect = FlagsEffect::Def;
+        flagsForm.encoding = encoding;
+
+        auto& setForm = add(setId, OpFCmp, setName);
+        setForm.uses.push(anyReg(cls));
+        setForm.uses.push(regOrMem(MemoryAccessKind::Read, cls));
+        setForm.defs.push(def(ClassGpr32));
+        setForm.flagsEffect = FlagsEffect::Def;
+        setForm.encoding = encoding;
+        setForm.encoding.materializeFlags = true;
+    };
+
+    floatCompare(FormFCmp32, FormFCmp32Set, "ucomiss xmm, xmm/m"_v, "ucomiss xmm, xmm/m; setcc r"_v,
+        0, ClassFloat32);
+    floatCompare(FormFCmp64, FormFCmp64Set, "ucomisd xmm, xmm/m"_v, "ucomisd xmm, xmm/m; setcc r"_v,
+        0x66, ClassFloat64);
+
+    /*
      * Select.
      */
 
@@ -623,6 +916,45 @@ MachineTarget::MachineTarget() {
             .negateCondition = true,
         };
     }
+
+    /*
+     * Floating-point select.
+     *
+     * There is no CMOVcc for a vector register, so the conditional move is a conditional *branch*
+     * over an unconditional one: the tie has already put the first operand in the destination, so
+     * what is left is to skip the copy of the second when the condition holds. Two instructions and
+     * a forward jump of known length, against the shuffle-and-blend sequence the alternative would
+     * be - which would need a mask in a third vector register and SSE4.1 besides.
+     *
+     * The copy is MOVAPS rather than MOVSS/MOVSD: it moves the whole register, so one form serves
+     * both widths, and it needs no prefix to say which.
+     */
+
+    auto floatSelect = [&](MachineFormId id, StringView formName, RegisterClassId cls, bool testCondition) {
+        auto& form = add(id, OpSelect, formName);
+        form.uses.push(anyReg(cls));
+        form.uses.push(anyReg(cls));
+
+        // As for the integer select: a condition already in the flags was consumed by the
+        // comparison that set them, and one still in a register is tested here.
+        if(testCondition) form.uses.push(anyReg(ClassGpr32));
+        else form.uses.push(folded());
+
+        form.defs.push(tiedDef(0, cls));
+        form.flagsEffect = testCondition ? FlagsEffect::UseDef : FlagsEffect::Use;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::FloatSelect,
+            .opcode = 0x28, .escape = 0x0f,
+            .regField = defRef(0), .rmField = useRef(1),
+            .width = OperationWidth::Fixed32,
+            .prelude = testCondition ? EncodingPrelude::TestLastUse : EncodingPrelude::None,
+        };
+    };
+
+    floatSelect(FormSelectFloat32Flags, "jcc over; movaps xmm, xmm"_v, ClassFloat32, false);
+    floatSelect(FormSelectFloat64Flags, "jcc over; movaps xmm, xmm"_v, ClassFloat64, false);
+    floatSelect(FormSelectFloat32Reg, "test r, r; jcc over; movaps xmm, xmm"_v, ClassFloat32, true);
+    floatSelect(FormSelectFloat64Reg, "test r, r; jcc over; movaps xmm, xmm"_v, ClassFloat64, true);
 
     /*
      * Stack allocation.
@@ -683,6 +1015,24 @@ MachineTarget::MachineTarget() {
     load(FormLoad32S, "movsxd r64, [address]"_v, 0x63, 0, OperationWidth::Fixed64);
     load(FormLoad64, "mov r64, [address]"_v, 0x8b, 0, OperationWidth::Fixed64);
 
+    // The float loads say their width in the prefix like every other SSE form, so there is one per
+    // width rather than one per (width, signedness): a float is never sign- or zero-extended by
+    // being loaded, and a narrower one is a different type rather than a narrower access.
+    auto floatLoad = [&](MachineFormId id, StringView formName, U8 prefix, RegisterClassId cls) {
+        auto& form = add(id, OpLoad, formName);
+        form.uses.push(address());
+        form.defs.push(def(cls));
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::LoadStore,
+            .opcode = 0x10, .escape = 0x0f, .prefix = prefix,
+            .regField = defRef(0),
+            .widthInPrefix = true,
+        };
+    };
+
+    floatLoad(FormLoadF32, "movss xmm, [address]"_v, 0xf3, ClassFloat32);
+    floatLoad(FormLoadF64, "movsd xmm, [address]"_v, 0xf2, ClassFloat64);
+
     auto store = [&](MachineFormId id, StringView formName, U8 opcode, OperationWidth width) {
         auto& form = add(id, OpStore, formName);
         form.uses.push(address());
@@ -701,6 +1051,26 @@ MachineTarget::MachineTarget() {
     store(FormStore16, "mov word [address], r"_v, 0x89, OperationWidth::Fixed32)->encoding.prefix = 0x66;
     store(FormStore32, "mov dword [address], r"_v, 0x89, OperationWidth::Fixed32);
     store(FormStore64, "mov qword [address], r"_v, 0x89, OperationWidth::Fixed64);
+
+    // A store has no result to take its width from, so it states it - and states it as the width of
+    // the value rather than of the address, which is what the prefix already says in bytes.
+    auto floatStore = [&](MachineFormId id, StringView formName, U8 prefix, RegisterClassId cls,
+                          OperationWidth width)
+    {
+        auto& form = add(id, OpStore, formName);
+        form.uses.push(address());
+        form.uses.push(anyReg(cls));
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::LoadStore,
+            .opcode = 0x11, .escape = 0x0f, .prefix = prefix,
+            .regField = useRef(1),
+            .width = width,
+            .widthInPrefix = true,
+        };
+    };
+
+    floatStore(FormStoreF32, "movss [address], xmm"_v, 0xf3, ClassFloat32, OperationWidth::Fixed32);
+    floatStore(FormStoreF64, "movsd [address], xmm"_v, 0xf2, ClassFloat64, OperationWidth::Fixed64);
 
     /*
      * Block operations.
@@ -800,6 +1170,27 @@ MachineTarget::MachineTarget() {
             .width = OperationWidth::Fixed64,
         };
     }
+
+    // A float argument is stored by the instruction that owns its bank, at its own width: the slot
+    // is eight bytes wide whatever goes in it, and the callee reads back exactly the four or eight
+    // the convention put there.
+    auto floatPushArg = [&](MachineFormId id, StringView formName, U8 prefix, RegisterClassId cls,
+                            OperationWidth width)
+    {
+        auto& form = add(id, OpPushArg, formName);
+        form.uses.push(anyReg(cls));
+        form.defs.push(noDef());
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::LoadStore,
+            .opcode = 0x11, .escape = 0x0f, .prefix = prefix,
+            .regField = useRef(0),
+            .width = width,
+            .widthInPrefix = true,
+        };
+    };
+
+    floatPushArg(FormPushArgF32, "movss [rsp + n], xmm"_v, 0xf3, ClassFloat32, OperationWidth::Fixed32);
+    floatPushArg(FormPushArgF64, "movsd [rsp + n], xmm"_v, 0xf2, ClassFloat64, OperationWidth::Fixed64);
 
     {
         // MOV r/m64, imm32 sign-extends, which is what a narrower constant occupying a full 8-byte
@@ -1079,7 +1470,8 @@ bool validateMachineForms(const MachineTarget& target) {
 
         // Implicit effects and clobbers are physical registers by construction, but a clobber that
         // named a reserved register would be an instruction the allocator cannot work around.
-        auto reserved = registers.bank(BankGpr).reserved | registers.bank(BankVector).reserved;
+        RegSet reserved;
+        for(auto& bank: registers.banks) reserved |= bank.reserved;
         if(!(form.clobbers & reserved).isEmpty()) fail(form, "clobbers a reserved register"_v);
 
         // The other two halves of the same fence as the operand fields above. A register an
@@ -1139,7 +1531,15 @@ bool validateMachineForms(const MachineTarget& target) {
  * Selection.
  */
 
-MachineOpcodeId opcodeFor(LowerInst* inst) {
+MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
+    // Whether this instruction's operands live in the vector bank. Read from the operands rather
+    // than from the result, because the two disagree for exactly the operation whose opcode this
+    // most needs to decide: a comparison of two floats produces an integer.
+    auto isFloatOp = [&] {
+        if(inst->createdCount > 0 && isFloat(inst->created()[0].type)) return true;
+        return inst->usedCount > 0 && isFloat(base[inst->used()[0]]->type);
+    };
+
     switch(inst->kind) {
         case LowerInst::Arg:        return OpArg;
         case LowerInst::Global:     return OpGlobalAddress;
@@ -1149,13 +1549,8 @@ MachineOpcodeId opcodeFor(LowerInst* inst) {
         case LowerInst::Set:        return OpMove;
         case LowerInst::Cast:       return OpCast;
         case LowerInst::Bitcast:    return OpBitcast;
-        case LowerInst::Neg:        return OpNeg;
         case LowerInst::Not:        return OpNot;
-        case LowerInst::Add:        return OpAdd;
-        case LowerInst::Sub:        return OpSub;
-        case LowerInst::Mul:        return OpMul;
         case LowerInst::IMul:       return OpIMul;
-        case LowerInst::Div:        return OpDiv;
         case LowerInst::IDiv:       return OpIDiv;
         case LowerInst::Rem:        return OpRem;
         case LowerInst::IRem:       return OpIRem;
@@ -1165,7 +1560,15 @@ MachineOpcodeId opcodeFor(LowerInst* inst) {
         case LowerInst::And:        return OpAnd;
         case LowerInst::Or:         return OpOr;
         case LowerInst::Xor:        return OpXor;
-        case LowerInst::Cmp:        return OpCmp;
+
+        // The six the IR states once and the machine has twice, one operation per bank.
+        case LowerInst::Neg:        return isFloatOp() ? OpFNeg : OpNeg;
+        case LowerInst::Add:        return isFloatOp() ? OpFAdd : OpAdd;
+        case LowerInst::Sub:        return isFloatOp() ? OpFSub : OpSub;
+        case LowerInst::Mul:        return isFloatOp() ? OpFMul : OpMul;
+        case LowerInst::Div:        return isFloatOp() ? OpFDiv : OpDiv;
+        case LowerInst::Cmp:        return isFloatOp() ? OpFCmp : OpCmp;
+
         case LowerInst::Select:     return OpSelect;
         case LowerInst::Alloca:     return OpAlloca;
         case LowerInst::Load:       return OpLoad;
@@ -1250,15 +1653,35 @@ Maybe<LowerCmp> selectCondition(LowerInst* inst) {
     }
 }
 
-// The types this backend has forms for. Floating-point selection is the vector work of the plan's
-// stage C, and the rejection belongs here rather than in the encoder: a selector that returned an
-// integer form for a float operand would produce a working compile of the wrong program, and no
-// later stage could tell.
+// The rejections belong here rather than in the encoder: a selector that returned an integer form
+// for a float operand, or a signed conversion for an unsigned one, would produce a working compile
+// of the wrong program, and no later stage could tell.
 static void requireIntLike(LowerType type) {
-    assertTrue(isIntLike(type)); // no form for this operand type - floating point is not selected yet
+    assertTrue(isIntLike(type)); // an integer form asked for a floating-point operand
 }
 
+// One of the two scalar float forms an operation has, chosen by the width its operands work at.
+static MachineFormId byFloatWidth(LowerType type, MachineFormId f32, MachineFormId f64) {
+    assertTrue(isFloat(type)); // a floating-point form asked for an operand that is not one
+    return type == LowerType::Float32 ? f32 : f64;
+}
+
+// The form an instruction takes, before the target's own features are consulted.
+static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst);
+
 MachineFormId selectForm(LowerBase base, LowerInst* inst) {
+    auto id = selectFormForTarget(base, inst);
+
+    // A form whose encoding needs an extension this build does not have is not selectable, and the
+    // rejection belongs here rather than in the encoder: by then the operands have been allocated
+    // against the form's constraints and there is nothing left to choose instead. Checked for every
+    // form rather than for the intrinsics alone, which is what makes adding a VEX or EVEX
+    // alternative a question of listing it with its features rather than of remembering to guard it.
+    assertTrue((machineTarget().form(id).requiredFeatures & ~targetFeatures()) == 0);
+    return id;
+}
+
+static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
     switch(inst->kind) {
         case LowerInst::Nop:        return FormNop;
         case LowerInst::Arg:        return FormArg;
@@ -1283,8 +1706,12 @@ MachineFormId selectForm(LowerBase base, LowerInst* inst) {
 
         case LowerInst::Global:     return FormGlobalAddress;
 
-        case LowerInst::X86PushArg:
-            return isImm(base[((LowerInstX86PushArg*)inst)->arg]) ? FormPushArgImm : FormPushArgReg;
+        case LowerInst::X86PushArg: {
+            auto arg = base[((LowerInstX86PushArg*)inst)->arg];
+            if(isImm(arg)) return FormPushArgImm;
+            if(isFloat(arg->type)) return byFloatWidth(arg->type, FormPushArgF32, FormPushArgF64);
+            return FormPushArgReg;
+        }
 
         case LowerInst::Imm: {
             // Decided from the value alone. Whether the immediate is embedded is a peephole's
@@ -1292,18 +1719,51 @@ MachineFormId selectForm(LowerBase base, LowerInst* inst) {
             // `mov` is not, which is what lets the compare folding read the flags effect early.
             auto imm = (LowerImm*)inst;
             if(isImplicit(&imm->result)) return FormImmImplicit;
-            return imm->i == 0 && isIntLike(imm->result.type) ? FormImmZero : FormImmMov;
+
+            // No SSE encoding carries a float as an immediate, so a float constant is never
+            // embedded (isEmbeddableImm says so) and always takes the materializing pseudo.
+            auto type = imm->result.type;
+            if(isFloat(type)) return byFloatWidth(type, FormImmFloat32, FormImmFloat64);
+
+            return imm->i == 0 ? FormImmZero : FormImmMov;
         }
 
         case LowerInst::Fun:
             return isImplicit(&((LowerInstFun*)inst)->result) ? FormFunctionImplicit : FormFunctionAddress;
 
-        case LowerInst::Set: return FormMove;
+        case LowerInst::Set: {
+            auto type = ((LowerInstUnary*)inst)->result.type;
+            if(isFloat(type)) return byFloatWidth(type, FormMoveF32, FormMoveF64);
+            return FormMove;
+        }
 
         case LowerInst::Cast: {
             auto cast = (LowerInstCast*)inst;
-            requireIntLike(base[cast->from]->type);
-            requireIntLike(cast->result.type);
+            auto from = base[cast->from]->type;
+            auto to = cast->result.type;
+
+            // Between the banks, where only the signed direction has an encoding. An unsigned
+            // conversion never reaches here: it is a sequence rather than an instruction, and
+            // expandUnsignedConversions replaced it with one made of signed ones before selection
+            // ran. Emitting a signed instruction for it instead would be wrong for exactly the
+            // values that motivated asking for unsigned in the first place.
+            if(isFloat(from) != isFloat(to)) {
+                if(isFloat(to)) {
+                    assertTrue(cast->isSignedSource()); // an unsigned conversion the expansion missed
+                    return byFloatWidth(to, FormCastIToF32, FormCastIToF64);
+                }
+
+                assertTrue(cast->isSignedResult()); // an unsigned conversion the expansion missed
+                return byFloatWidth(from, FormCastF32ToI, FormCastF64ToI);
+            }
+
+            if(isFloat(from)) {
+                assertTrue(from != to); // a cast between one float type and itself
+                return from == LowerType::Float32 ? FormCastF32ToF64 : FormCastF64ToF32;
+            }
+
+            requireIntLike(from);
+            requireIntLike(to);
             if(isImm(base[cast->from])) return FormCastImm;
 
             // Only a signed value widened into a signed one has to carry its sign bit up; every
@@ -1313,37 +1773,40 @@ MachineFormId selectForm(LowerBase base, LowerInst* inst) {
 
         case LowerInst::Bitcast: {
             auto bitcast = (LowerInstUnary*)inst;
-            requireIntLike(base[bitcast->from]->type);
-            requireIntLike(bitcast->result.type);
+            auto from = base[bitcast->from]->type;
+            auto to = bitcast->result.type;
+
+            // A bitcast preserves the width, so crossing the banks is MOVD or MOVQ and which of the
+            // two is decided by that width alone.
+            if(isFloat(from) != isFloat(to)) {
+                assertTrue(is64Bit(from) == is64Bit(to)); // a bitcast between two different widths
+
+                return isFloat(to)
+                    ? byFloatWidth(to, FormBitcastIToF32, FormBitcastIToF64)
+                    : byFloatWidth(from, FormBitcastF32ToI, FormBitcastF64ToI);
+            }
+
+            // Within the vector bank a bitcast is a copy, and one between a register and itself is
+            // no instruction at all.
+            if(isFloat(from)) {
+                assertTrue(from == to); // a bitcast between two float types of different widths
+                return byFloatWidth(to, FormBitcastF32, FormBitcastF64);
+            }
+
+            requireIntLike(from);
+            requireIntLike(to);
             return isImm(base[bitcast->from]) ? FormBitcastImm : FormBitcast;
         }
 
-        case LowerInst::Neg: return FormNeg;
+        case LowerInst::Neg: {
+            auto type = ((LowerInstUnary*)inst)->result.type;
+            if(isFloat(type)) return byFloatWidth(type, FormFNeg32, FormFNeg64);
+            return FormNeg;
+        }
 
         case LowerInst::Not:
             requireIntLike(base[((LowerInstUnary*)inst)->from]->type);
             return FormNot;
-
-        // An addition or subtraction of one is a byte shorter as `inc`/`dec`, and which of the two
-        // it is depends only on the constant - so it is chosen here rather than noticed by the
-        // encoder. A subtraction of one decrements, and of minus one increments.
-        case LowerInst::Add: {
-            if(!hasEmbeddedRhs(base, inst)) return FormAddReg;
-
-            auto value = embeddedValue(base, ((LowerInstBinary*)inst)->rhs);
-            if(value == 1) return FormAddInc;
-            if(value == U64(I64(-1))) return FormAddDec;
-            return FormAddImm;
-        }
-
-        case LowerInst::Sub: {
-            if(!hasEmbeddedRhs(base, inst)) return FormSubReg;
-
-            auto value = embeddedValue(base, ((LowerInstBinary*)inst)->rhs);
-            if(value == 1) return FormSubDec;
-            if(value == U64(I64(-1))) return FormSubInc;
-            return FormSubImm;
-        }
 
         case LowerInst::And: return hasEmbeddedRhs(base, inst) ? FormAndImm : FormAndReg;
         case LowerInst::Or:  return hasEmbeddedRhs(base, inst) ? FormOrImm : FormOrReg;
@@ -1353,17 +1816,58 @@ MachineFormId selectForm(LowerBase base, LowerInst* inst) {
         // into a register afterwards, which is a form of its own rather than a tail the encoder
         // decides to add.
         case LowerInst::Cmp: {
-            requireIntLike(base[((LowerInstBinary*)inst)->lhs]->type);
+            auto type = base[((LowerInstBinary*)inst)->lhs]->type;
             auto materialize = !isImplicit(&((LowerInstCmp*)inst)->result);
 
+            if(isFloat(type)) {
+                return materialize
+                    ? byFloatWidth(type, FormFCmp32Set, FormFCmp64Set)
+                    : byFloatWidth(type, FormFCmp32, FormFCmp64);
+            }
+
+            requireIntLike(type);
             if(hasEmbeddedRhs(base, inst)) return materialize ? FormCmpImmSet : FormCmpImm;
             return materialize ? FormCmpRegSet : FormCmpReg;
         }
 
-        // The group-3 multiplies and divides read and write the rdx:rax pair, which only the integer
-        // encodings have.
+        // Add and subtract come through here too, since the two banks share their IR instruction.
+        case LowerInst::Add:
+        case LowerInst::Sub:
         case LowerInst::Mul:
-        case LowerInst::Div:
+        case LowerInst::Div: {
+            auto type = ((LowerInstBinary*)inst)->result.type;
+
+            if(isFloat(type)) {
+                switch(inst->kind) {
+                    case LowerInst::Add: return byFloatWidth(type, FormFAdd32, FormFAdd64);
+                    case LowerInst::Sub: return byFloatWidth(type, FormFSub32, FormFSub64);
+                    case LowerInst::Mul: return byFloatWidth(type, FormFMul32, FormFMul64);
+                    default:             return byFloatWidth(type, FormFDiv32, FormFDiv64);
+                }
+            }
+
+            // An addition or subtraction of one is a byte shorter as `inc`/`dec`, and which of the
+            // two it is depends only on the constant - so it is chosen here rather than noticed by
+            // the encoder. A subtraction of one decrements, and of minus one increments.
+            if(inst->kind == LowerInst::Add || inst->kind == LowerInst::Sub) {
+                auto reg = inst->kind == LowerInst::Add ? FormAddReg : FormSubReg;
+                if(!hasEmbeddedRhs(base, inst)) return reg;
+
+                auto value = embeddedValue(base, ((LowerInstBinary*)inst)->rhs);
+                auto up = inst->kind == LowerInst::Add ? FormAddInc : FormSubInc;
+                auto down = inst->kind == LowerInst::Add ? FormAddDec : FormSubDec;
+
+                if(value == 1) return inst->kind == LowerInst::Add ? up : down;
+                if(value == U64(I64(-1))) return inst->kind == LowerInst::Add ? down : up;
+                return inst->kind == LowerInst::Add ? FormAddImm : FormSubImm;
+            }
+
+            // The group-3 multiply and divide read and write the rdx:rax pair, which only the
+            // integer encodings have.
+            assertTrue(isInt(type)); // no integer form for this type
+            return inst->kind == LowerInst::Mul ? FormMul : FormDiv;
+        }
+
         case LowerInst::IDiv:
         case LowerInst::Rem:
         case LowerInst::IRem:
@@ -1371,8 +1875,6 @@ MachineFormId selectForm(LowerBase base, LowerInst* inst) {
             assertTrue(isInt(((LowerInstBinary*)inst)->result.type)); // no integer form for this type
 
             switch(inst->kind) {
-                case LowerInst::Mul:  return FormMul;
-                case LowerInst::Div:  return FormDiv;
                 case LowerInst::IDiv: return FormIDiv;
                 case LowerInst::Rem:  return FormRem;
                 case LowerInst::IRem: return FormIRem;
@@ -1395,8 +1897,19 @@ MachineFormId selectForm(LowerBase base, LowerInst* inst) {
             return embeddedValue(base, ((LowerInstBinary*)inst)->rhs) == 1 ? forms.one : forms.imm;
         }
 
-        case LowerInst::Select:
-            return ((LowerInstSelect*)inst)->getEmbeddedCmp() ? FormSelectFlags : FormSelectReg;
+        case LowerInst::Select: {
+            auto select = (LowerInstSelect*)inst;
+            auto onFlags = select->getEmbeddedCmp();
+            auto type = select->result.type;
+
+            if(isFloat(type)) {
+                return onFlags
+                    ? byFloatWidth(type, FormSelectFloat32Flags, FormSelectFloat64Flags)
+                    : byFloatWidth(type, FormSelectFloat32Reg, FormSelectFloat64Reg);
+            }
+
+            return onFlags ? FormSelectFlags : FormSelectReg;
+        }
 
         case LowerInst::Alloca:
             return isImm(base[((LowerInstAlloca*)inst)->byteCount]) ? FormAllocaFixed : FormAllocaDynamic;
@@ -1409,6 +1922,13 @@ MachineFormId selectForm(LowerBase base, LowerInst* inst) {
             auto load = (LowerInstLoad*)inst;
             auto isSigned = load->isSigned();
 
+            // A float is loaded by the instruction that owns its bank, at exactly its own width:
+            // nothing extends into a vector register, so there is no narrow form to choose between.
+            if(isFloat(load->result.type)) {
+                assertTrue(load->getWidth() == (load->result.type == LowerType::Float32 ? 4u : 8u));
+                return byFloatWidth(load->result.type, FormLoadF32, FormLoadF64);
+            }
+
             switch(load->getWidth()) {
                 case 1: return isSigned ? FormLoad8S : FormLoad8;
                 case 2: return isSigned ? FormLoad16S : FormLoad16;
@@ -1418,7 +1938,15 @@ MachineFormId selectForm(LowerBase base, LowerInst* inst) {
         }
 
         case LowerInst::Store: {
-            switch(((LowerInstStore*)inst)->getWidth()) {
+            auto store = (LowerInstStore*)inst;
+            auto type = base[store->value]->type;
+
+            if(isFloat(type)) {
+                assertTrue(store->getWidth() == (type == LowerType::Float32 ? 4u : 8u));
+                return byFloatWidth(type, FormStoreF32, FormStoreF64);
+            }
+
+            switch(store->getWidth()) {
                 case 1: return FormStore8;
                 case 2: return FormStore16;
                 case 4: return FormStore32;

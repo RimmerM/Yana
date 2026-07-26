@@ -1,0 +1,101 @@
+# Floating point across a call boundary.
+#
+# The conventions have listed their vector argument, result and clobber registers all along; what
+# was missing was a way to move a value into one, out of one, or out of the way of one. With those
+# in place the tables become operational, and the three things a call does to the vector bank are
+# the same three it does to the general one - place the arguments, take the result, and rescue
+# whatever crossed a clobber.
+
+# SysV hands out eight vector argument registers independently of the six integer ones, so an
+# argument list that alternates the two banks fills both counters at once rather than consuming
+# positions from a single sequence.
+sysvCallee<sysv>(%a: Double, %i: Int, %b: Double, %j: Int): Double {
+    {
+        %s = add %a, %b: Double
+        ret %s
+    }
+}
+
+sysvCaller<sysv>(%x: Double, %n: Int): Double {
+    {
+        %r = call_sysv sysvCallee, %x, %n, %x, %n: Double
+        ret %r
+    }
+}
+
+# Win64 counts by position instead, so a float in argument position 2 takes xmm2 and leaves r8
+# unused - and the fifth argument goes on the stack even though only four registers were spent.
+win64Callee<win64>(%i: Int, %a: Double, %j: Int, %b: Double, %c: Double): Double {
+    {
+        %s = add %a, %b: Double
+        %t = add %s, %c: Double
+        ret %t
+    }
+}
+
+win64Caller<win64>(%a: Double, %n: Int): Double {
+    {
+        %r = call_win64 win64Callee, %n, %a, %n, %a, %a: Double
+        ret %r
+    }
+}
+
+# More float arguments than the convention has registers, so the rest are written into the outgoing
+# argument area - by the instruction that owns their bank, at their own width rather than at the
+# eight bytes the slot holds.
+manyArgs<simple>(%a: Float, %b: Float, %c: Float, %d: Float, %e: Double): Float {
+    {
+        %s = add %a, %b: Float
+        %t = add %s, %c: Float
+        %u = add %t, %d: Float
+        ret %u
+    }
+}
+
+manyArgsCaller<simple>(%a: Float, %e: Double): Float {
+    {
+        %r = call_simple manyArgs, %a, %a, %a, %a, %e: Float
+        ret %r
+    }
+}
+
+# Every vector register is caller-saved under SysV, so a double that outlives a call has nowhere in
+# the bank to hide: it goes to the frame and comes back.
+acrossSysvCall<sysv>(%x: Double): Double {
+    {
+        %r = call_sysv sysvCallee, %x, 0, %x, 0: Double
+        %s = add %r, %x: Double
+        ret %s
+    }
+}
+
+# Simple preserves xmm3 upwards, so the same value crosses the same call in a register instead - and
+# the callee that takes one of those pays for it in the prologue. A vector register cannot be pushed,
+# so it is stored into a region of the frame and reloaded before the epilogue restores rsp.
+acrossSimpleCall<simple>(%x: Double, %y: Double): Double {
+    {
+        %r = call_simple simpleFloatCallee, %x: Double
+        %s = add %r, %y: Double
+        ret %s
+    }
+}
+
+# The callee side of that: enough live doubles to reach past xmm2, which is where the Simple
+# convention's caller-saved vector registers stop and the ones it owes back begin.
+simpleFloatCallee<simple>(%a: Double): Double {
+    {
+        %v0 = mul %a, %a: Double
+        %v1 = mul %a, %v0: Double
+        %v2 = mul %a, %v1: Double
+        %v3 = mul %a, %v2: Double
+        %v4 = mul %a, %v3: Double
+        %v5 = mul %a, %v4: Double
+
+        %s5 = add %v5, %v4: Double
+        %s4 = add %s5, %v3: Double
+        %s3 = add %s4, %v2: Double
+        %s2 = add %s3, %v1: Double
+        %s1 = add %s2, %v0: Double
+        ret %s1
+    }
+}

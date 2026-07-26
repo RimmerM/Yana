@@ -24,6 +24,7 @@ static String locationName(MachineLocation at) {
             return String("<nowhere>");
         case LocationKind::Physical:
             if(at.bank == BankVector) return format(String("xmm%@"), index);
+            if(at.bank == BankMask) return format(String("k%@"), index);
             return index < kGprCount ? String(kIntRegNames[index]) : format(String("gpr%@"), index);
         case LocationKind::StackSlot:
             return format(String("stack:%@"), index);
@@ -113,10 +114,10 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
                 fail("%@: %@ is placed in the frame pointer", funName, name(id));
             }
 
-            // The register model describes banks whose moves, spills and encodings do not exist. A
-            // location in one would be written out as an integer instruction with a vector register
-            // number in it, which nothing downstream can notice.
-            if(reg.bank != BankGpr) {
+            // The register model still describes one bank whose moves and encodings do not exist:
+            // every mask instruction is VEX-encoded. A location in it would be written out with a
+            // register number no legacy encoding can name, which nothing downstream can notice.
+            if(reg.bank == BankMask) {
                 fail("%@: %@ is placed in %@, which no encoder implements",
                     funName, name(id), locationName(at));
             }
@@ -187,6 +188,31 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
 
                     fail("%@: %@: %@ is live across this and placed in %@, which it writes",
                         funName, nameForInst(base, *inst), name(id), locationName(at));
+                }
+            }
+
+            // A destructive result must not share a location with any operand other than the one it
+            // is written over. The copy that puts operand zero there runs in front of the
+            // instruction, so a sibling operand in the same place is read after it has already gone.
+            //
+            // Nothing in the interval arithmetic rules this out: an operand's life ends exactly
+            // where the tied result's begins, which is what makes the two look mergeable and is why
+            // buildWebs has to keep them apart by name. Checking it here means a merge that stops
+            // doing so is reported against the web rather than against the read that finally bit.
+            auto used = inst->used();
+            auto tied = machine.formOf(inst).tiedResult();
+
+            if(tied == 0 && used.size() > 0 && inst->createdCount > 0 && !isImplicit(&inst->created()[0])) {
+                auto result = placement.locationOf(&inst->created()[0], beforeInst(index));
+                auto first = base[used[0]];
+
+                for(Size i = 1; result.isValid() && i < used.size(); i++) {
+                    auto value = base[used[i]];
+                    if(isImplicit(value) || value == first) continue;
+                    if(placement.locationOf(value, beforeInst(index)) != result) continue;
+
+                    fail("%@: %@: %@ is read from %@, which its result is written over",
+                        funName, nameForInst(base, *inst), name(value->liveId()), locationName(result));
                 }
             }
 

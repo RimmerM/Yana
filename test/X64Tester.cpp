@@ -112,6 +112,9 @@ static void writeRegName(Net::Writer& w, MachineLocation at) {
             } else if(at.bank == BankVector) {
                 w.writeString("xmm"_v);
                 writeInt(w, idx);
+            } else if(at.bank == BankMask) {
+                w.writeString("k"_v);
+                writeInt(w, idx);
             } else {
                 w.writeString("?"_v);
             }
