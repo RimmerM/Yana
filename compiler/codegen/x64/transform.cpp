@@ -616,18 +616,23 @@ struct AddressPattern {
     I64 displacement = 0;
 };
 
-// Whether `user` reads `v` as the address of a memory access and nowhere else. The address is
-// operand zero of both a load and a store, and it is the only operand position an X86Address can
-// occupy - so `store %p, %p` reads the same value once as an address and once as a value, and
-// rewriting only the first would leave the second pointing at an instruction about to be removed.
+// Whether `user` reads `v` as the address of a memory access and nowhere else. *Which* operand that
+// is comes from the opcode rather than from a list of instruction kinds here - a load, a store and a
+// cache-control intrinsic all name one - and an instruction whose opcode names none reads no address
+// at all.
+//
+// An X86Address can only occupy that one position, so `store %p, %p` reads the same value once as an
+// address and once as a value, and rewriting only the first would leave the second pointing at an
+// instruction about to be removed.
 static bool isAddressOperand(LowerBase base, LowerInst* user, LowerValue* v) {
-    if(user->kind != LowerInst::Load && user->kind != LowerInst::Store) return false;
+    auto index = opcodeAddressOperand(opcodeFor(base, user));
+    if(index < 0) return false;
 
     auto used = user->used();
-    if(base[used[0]] != v) return false;
+    if(base[used[index]] != v) return false;
 
-    for(Size i = 1; i < used.size(); i++) {
-        if(base[used[i]] == v) return false;
+    for(Size i = 0; i < used.size(); i++) {
+        if(I32(i) != index && base[used[i]] == v) return false;
     }
 
     return true;
@@ -853,11 +858,14 @@ static void foldAddresses(LowerBase base, LowerFunction& fun) {
 
         for(Size i = 0; i < block->instructions.size(); i++) {
             auto inst = base[block->instructions.get(base, i)];
-            if(inst->kind != LowerInst::Load && inst->kind != LowerInst::Store) continue;
 
-            // The address is operand zero of both, and is already an X86Address when an earlier
-            // access on the same chain folded it for every user at once.
-            auto address = base[inst->used()[0]];
+            // Every instruction that references memory, which is the ones whose opcode names an
+            // address operand - not a list of kinds. The operand is already an X86Address when an
+            // earlier access on the same chain folded it for every user at once.
+            auto operand = opcodeAddressOperand(opcodeFor(base, inst));
+            if(operand < 0) continue;
+
+            auto address = base[inst->used()[operand]];
             if(isMem(address)) continue;
 
             AddressPattern pattern;
@@ -879,8 +887,10 @@ static void foldAddresses(LowerBase base, LowerFunction& fun) {
                 auto userBlock = base[user->block];
                 insertInstAt(base, userBlock, indexOfInst(base, userBlock, user), computed);
 
+                // Each user's own address operand, which matchAddress already established every one
+                // of them has - the users of one folded chain need not all be the same instruction.
                 replaceUse(base, address, user, &computed->result);
-                user->used()[0] = &computed->result - base;
+                user->used()[opcodeAddressOperand(opcodeFor(base, user))] = &computed->result - base;
             }
 
             for(auto dead: folded) removeInst(base, dead);

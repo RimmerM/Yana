@@ -406,6 +406,13 @@ enum class PseudoKind: U8 {
     FloatImm,    // a constant materialized in a general register and moved across
     FloatNeg,    // the sign bit toggled in a general register, for want of a vector sign mask
     FloatSelect, // a conditional register copy, for want of a vector cmov
+
+    // The two intrinsics whose one operation is several instructions (§15.2 of the plan). Both
+    // expand after allocation, which is only safe because every register and flag their expansion
+    // touches is a fixed operand or a declared clobber of the form that names them - so nothing the
+    // expansion does can surprise a placement that has already happened.
+    RdTsc,   // the counter's two halves joined into the one value the intrinsic returns
+    PortIn8, // a byte read from a port, zero-extended into the whole result
 };
 
 // The width an encoding operates at, which is not always the width of the value it produces: a
@@ -515,6 +522,20 @@ struct MachineForm {
     I32 memoryUse() const { return findMemory(MemoryAccessKind::Read); }
     I32 memoryDef() const { return findMemory(MemoryAccessKind::ReadWrite); }
 
+    // The operand this form reads as a memory *address* - the pointer a load dereferences, the line
+    // a cache-control intrinsic names - as an index into `uses`, or -1 for a form that references
+    // no memory of its own. This is what makes "which operand is an address" a property of the form
+    // rather than of the instruction kind: the address folding, the legalizer's address resolution
+    // and the selection verifier all ask here, so an instruction that references memory does not
+    // have to be one of a handful of kinds each of them knows by name.
+    I32 addressOperand() const {
+        for(Size i = 0; i < uses.size(); i++) {
+            if(uses[i].kind == OperandConstraintKind::Address) return I32(i);
+        }
+
+        return -1;
+    }
+
     // How wide a constant this form's encoding can carry, or None for one that carries none. Taken
     // from the operand the encoding's immediate field names, so the width the encoder writes and the
     // width the allocator was promised are one statement - except for a constant materialization,
@@ -588,6 +609,7 @@ enum class IntrinsicOperandClass: U8 {
     Integer,    // any integer or pointer value
     Integer32,  // exactly a 32-bit integer, which is what the fixed-width machine registers take
     Integer64,
+    Pointer,    // an address, which is the operand the encoding puts in a ModRM memory field
     Immediate,  // a constant, within the range the encoding accepts
 };
 
@@ -717,6 +739,12 @@ Maybe<LowerCmp> selectCondition(LowerInst* inst);
 // choose the operand size, and by the memory-operand rules to decide whether a frame slot is exactly
 // as wide as the access that would read it in place.
 LowerType operationType(LowerBase base, const MachineForm& form, LowerInst* inst);
+
+// The operand every form of `opcode` reads as a memory address, or -1 where none does. The same
+// question MachineForm::addressOperand answers, asked where the final form is not settled yet: the
+// address folding runs before the peepholes, and the forms of one opcode are required to agree about
+// this (validateMachineForms) precisely so that it has an answer there.
+I32 opcodeAddressOperand(MachineOpcodeId opcode);
 
 // Whether some form of `opcode` can swallow `value` as operand `index`. Asked by the peephole that
 // embeds immediates, which runs before the final form is chosen and so has to consider every form

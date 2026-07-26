@@ -46,9 +46,17 @@
 
 using FeatureSet = U32;
 
+// Baseline is AMD64 itself, which is more than the 386 instruction set: SSE2 is architectural
+// here, so the fences, `pause`, `prefetch` and `clflush` need no feature of their own. What does
+// need one is anything added after the architecture was: the three below, and the vector
+// extensions.
 static constexpr FeatureSet kFeatureBaseline = 0;
 static constexpr FeatureSet kFeaturePopcnt = 1 << 0;
 static constexpr FeatureSet kFeatureRdtscp = 1 << 1;
+
+// XGETBV, and the extended-state registers it reads. Named for the enabling bit rather than for
+// the instruction: a processor with XSAVE has it, and one without it faults.
+static constexpr FeatureSet kFeatureXsave = 1 << 4;
 
 // VEX encoding: the 128- and 256-bit three-operand vector forms, and the ymm half of the vector bank.
 static constexpr FeatureSet kFeatureAvx = 1 << 2;

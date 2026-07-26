@@ -9,19 +9,27 @@
  * instruction's, the features its encoding needs, what its operands and results have to be, and what
  * it does beyond them.
  *
- * What is worth reading here is what is *not* anywhere else. Each of the four below exercises a
- * different thing an intrinsic can demand of the allocator, and none of them appears by name in
- * placement, in legalization or in the encoder:
+ * What is worth reading here is what is *not* anywhere else. Each shape below demands something
+ * different of the allocator, and none of them appears by name in placement, in legalization or in
+ * the encoder:
  *
- *   bswap   an ordinary destructive register operation, and the one existing target-specific
- *           instruction this path replaced.
- *   popcnt  reads one operand out of a frame slot where the allocator left it there, exactly as an
- *           `add` does, because it says so with the same constraint.
- *   cpuid   forces two operands into fixed registers and produces four results in fixed registers,
- *           one of which is callee-saved and so drags a save into the prologue.
- *   rdtscp  writes a register it does not name as a result at all, which is a clobber like a call's.
+ *   bswap    an ordinary destructive register operation, and the one existing target-specific
+ *            instruction this path replaced.
+ *   popcnt   reads one operand out of a frame slot where the allocator left it there, exactly as an
+ *            `add` does, because it says so with the same constraint.
+ *   cpuid    forces two operands into fixed registers and produces four results in fixed registers,
+ *            one of which is callee-saved and so drags a save into the prologue.
+ *   rdtscp   writes a register it does not name as a result at all, which is a clobber like a call's.
+ *   mfence   has no operands and no results, and exists entirely for its effect on everything else.
+ *   prefetch takes an *address*, which the address folding rewrites into a folded addressing mode
+ *            exactly as it does a load's, because the form says the operand is one.
+ *   readcr3  puts the number of the register it reads in the encoding's opcode extension, which is
+ *            why there is one intrinsic per control register rather than one taking a number.
+ *   rdtsc    is three instructions rather than one, and the only thing that makes expanding it
+ *            after allocation safe is that the form already declared the register and the flags it
+ *            uses on the way (§15.2 of the plan).
  *
- * Adding a fifth is a block below and a name in the IR's own table (lower.cpp). If it ever needs
+ * Adding another is a block below and a name in the IR's own table (lower.cpp). If it ever needs
  * more than that, the thing to change is the descriptor, not the pass that noticed it was missing.
  */
 
@@ -31,6 +39,14 @@ static IntrinsicOperandRule integerRule() {
 
 static IntrinsicOperandRule integer32Rule() {
     return IntrinsicOperandRule { IntrinsicOperandClass::Integer32 };
+}
+
+static IntrinsicOperandRule integer64Rule() {
+    return IntrinsicOperandRule { IntrinsicOperandClass::Integer64 };
+}
+
+static IntrinsicOperandRule pointerRule() {
+    return IntrinsicOperandRule { IntrinsicOperandClass::Pointer };
 }
 
 // One intrinsic being added: its form and its descriptor, which are written together because they
@@ -148,6 +164,326 @@ void addIntrinsics(MachineTarget& target) {
         b.desc.results.push(integer32Rule());
         b.desc.effects.ordered = true;
     }
+
+    {
+        // RDTSC (0f 31) answers in edx:eax like RDTSCP does, but this intrinsic returns the counter
+        // as the one number it is - so the two halves are joined by the expansion rather than by the
+        // program (PseudoKind::RdTsc). That makes it the multi-instruction case §15.2 of the plan
+        // describes, and the whole of what makes expanding it *after* allocation safe is the two
+        // lines below: the shift and the or touch rdx and the flags, and the form declares both
+        // before anything is placed. An expansion that needed a register the form had not named
+        // would have nowhere to get one from at this point, which is why it may not need one.
+        auto b = add(LowerIntrinsic::Rdtsc, "rdtsc (joined)"_v, kFeatureBaseline);
+        b.form.defs.push(fixedDef(IntRegister::rax));
+        b.form.clobbers.add(gpr(IntRegister::rdx));
+        b.form.flagsEffect = FlagsEffect::Clobber;
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::RdTsc,
+        };
+
+        b.desc.results.push(integer64Rule());
+        b.desc.effects.ordered = true;
+    }
+
+    /*
+     * Memory ordering.
+     *
+     * The first intrinsics here with no operands, no results and no register effect at all: what
+     * each of them does is entirely to the instructions around it. They are `ordered` for that
+     * reason, and they state which direction they order in the memory flags - which is the one
+     * thing about a fence that is worth writing down, since nothing in the register allocator will
+     * ever ask.
+     *
+     * None of them needs a feature: SSE2 is part of AMD64 rather than an extension to it.
+     */
+
+    {
+        auto fence = [&](LowerIntrinsic id, StringView formName, U8 opcodeAlt, bool reads, bool writes) {
+            auto b = add(id, formName, kFeatureBaseline);
+            b.form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::Opcode,
+                .opcode = 0xae, .opcodeAlt = opcodeAlt, .escape = 0x0f,
+                .width = OperationWidth::Fixed32,
+            };
+
+            b.desc.effects.ordered = true;
+            b.desc.effects.readsMemory = reads;
+            b.desc.effects.writesMemory = writes;
+        };
+
+        // The three group-15 forms, which differ only in the byte after the opcode.
+        fence(LowerIntrinsic::MFence, "mfence"_v, 0xf0, true, true);
+        fence(LowerIntrinsic::LFence, "lfence"_v, 0xe8, true, false);
+        fence(LowerIntrinsic::SFence, "sfence"_v, 0xf8, false, true);
+    }
+
+    {
+        // PAUSE (f3 90) is `rep nop`: architecturally nothing, and a hint to the processor that this
+        // is a spin loop. Ordered even though it fences nothing, because the one thing that would
+        // make it useless is being hoisted out of the loop it belongs to.
+        auto b = add(LowerIntrinsic::Pause, "pause"_v, kFeatureBaseline);
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Opcode,
+            .opcode = 0x90, .prefix = 0xf3,
+            .width = OperationWidth::Fixed32,
+        };
+
+        b.desc.effects.ordered = true;
+    }
+
+    /*
+     * Cache and translation control.
+     *
+     * Each of these takes the address it operates on and nothing else, which makes them the first
+     * intrinsics with a *memory* operand in the sense a load has one: the operand is an `address()`,
+     * so the address folding rewrites `p + i*8 + 16` into a folded addressing mode in front of it
+     * exactly as it does for the load beside it, and the encoder writes the ModRM and SIB bytes
+     * through the same shared encoder. What made that free was making "which operand is an address"
+     * a question about the form (MachineForm::addressOperand) rather than about the instruction
+     * kind, which is what the two passes that fold and resolve one now ask.
+     */
+
+    {
+        auto cacheOp = [&](LowerIntrinsic id, StringView formName, U8 opcode, U8 extension,
+                           IntrinsicEffects effects, FeatureSet features = kFeatureBaseline)
+        {
+            auto b = add(id, formName, features);
+            b.form.uses.push(address());
+            b.form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::LoadStore,
+                .opcode = opcode, .escape = 0x0f,
+                .extension = extension,
+                .width = OperationWidth::Fixed32,
+            };
+
+            b.desc.operands.push(pointerRule());
+            b.desc.effects = effects;
+        };
+
+        // PREFETCHT0 (0f 18 /1) and PREFETCHNTA (0f 18 /0) read a line towards the processor and
+        // have no architectural effect whatever - which is why neither is `ordered`: moving one, or
+        // dropping it, changes how fast the program runs and nothing else. That is the contrast the
+        // three below are worth reading against.
+        cacheOp(LowerIntrinsic::Prefetch, "prefetcht0 [address]"_v, 0x18, 1,
+            IntrinsicEffects { .readsMemory = true });
+        cacheOp(LowerIntrinsic::PrefetchNta, "prefetchnta [address]"_v, 0x18, 0,
+            IntrinsicEffects { .readsMemory = true });
+
+        // CLFLUSH (0f ae /7) writes the line back and evicts it from every cache in the coherence
+        // domain, which is a store as far as anything reasoning about memory is concerned.
+        cacheOp(LowerIntrinsic::Clflush, "clflush [address]"_v, 0xae, 7,
+            IntrinsicEffects { .readsMemory = true, .writesMemory = true, .ordered = true });
+
+        // INVLPG (0f 01 /7) drops one page's translation. It writes no memory but changes what every
+        // later access to that page means, so it is ordered against all of them.
+        cacheOp(LowerIntrinsic::Invlpg, "invlpg [address]"_v, 0x01, 7,
+            IntrinsicEffects { .writesMemory = true, .ordered = true, .privileged = true });
+    }
+
+    /*
+     * Interrupts and processor state.
+     *
+     * Four instructions that take nothing, answer nothing and cannot be reordered against anything.
+     * The flags are worth a word: CLI and STI write the interrupt flag, which lives in the same
+     * register as the condition flags and is no part of them - a comparison folded across one of
+     * these is still valid, so the form says FlagsEffect::None and means it.
+     */
+
+    {
+        auto systemOp = [&](LowerIntrinsic id, StringView formName, U8 opcode, U8 opcodeAlt, U8 escape) {
+            auto b = add(id, formName, kFeatureBaseline);
+            b.form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::Opcode,
+                .opcode = opcode, .opcodeAlt = opcodeAlt, .escape = escape,
+                .width = OperationWidth::Fixed32,
+            };
+
+            b.desc.effects.ordered = true;
+            b.desc.effects.privileged = true;
+        };
+
+        systemOp(LowerIntrinsic::Hlt, "hlt"_v, 0xf4, 0, 0);
+        systemOp(LowerIntrinsic::Cli, "cli"_v, 0xfa, 0, 0);
+        systemOp(LowerIntrinsic::Sti, "sti"_v, 0xfb, 0, 0);
+        systemOp(LowerIntrinsic::Swapgs, "swapgs"_v, 0x01, 0xf8, 0x0f);
+    }
+
+    /*
+     * Model-specific and extended-state registers.
+     *
+     * The same shape as CPUID: fixed registers on both sides, and the allocator copying values into
+     * and out of them. What is new is only that one of them writes nothing at all, so its form has
+     * defs to state and none to take a width from - which is why every form here says its width
+     * outright rather than deriving it from a result.
+     */
+
+    {
+        // RDMSR (0f 32) takes the register number in ecx and answers in edx:eax.
+        auto b = add(LowerIntrinsic::Rdmsr, "rdmsr"_v, kFeatureBaseline);
+        b.form.uses.push(fixedReg(IntRegister::rcx));
+        b.form.defs.push(fixedDef(IntRegister::rax));
+        b.form.defs.push(fixedDef(IntRegister::rdx));
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Opcode,
+            .opcode = 0x32, .escape = 0x0f,
+            .width = OperationWidth::Fixed32,
+        };
+
+        b.desc.operands.push(integer32Rule());
+        b.desc.results.push(integer32Rule());
+        b.desc.results.push(integer32Rule());
+        b.desc.effects.ordered = true;
+        b.desc.effects.privileged = true;
+    }
+
+    {
+        // WRMSR (0f 30), the other direction: the number in ecx and the two halves in edx:eax, with
+        // nothing coming back.
+        auto b = add(LowerIntrinsic::Wrmsr, "wrmsr"_v, kFeatureBaseline);
+        b.form.uses.push(fixedReg(IntRegister::rcx));
+        b.form.uses.push(fixedReg(IntRegister::rax));
+        b.form.uses.push(fixedReg(IntRegister::rdx));
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Opcode,
+            .opcode = 0x30, .escape = 0x0f,
+            .width = OperationWidth::Fixed32,
+        };
+
+        for(Size i = 0; i < 3; i++) b.desc.operands.push(integer32Rule());
+        b.desc.effects.ordered = true;
+        b.desc.effects.privileged = true;
+    }
+
+    {
+        // XGETBV (0f 01 d0) reads an extended-state register: the number in ecx, the answer in
+        // edx:eax. Unprivileged, and the one intrinsic here that needs a feature the architecture
+        // does not guarantee - a processor without XSAVE faults on it rather than ignoring it.
+        auto b = add(LowerIntrinsic::Xgetbv, "xgetbv"_v, kFeatureXsave);
+        b.form.uses.push(fixedReg(IntRegister::rcx));
+        b.form.defs.push(fixedDef(IntRegister::rax));
+        b.form.defs.push(fixedDef(IntRegister::rdx));
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Opcode,
+            .opcode = 0x01, .opcodeAlt = 0xd0, .escape = 0x0f,
+            .width = OperationWidth::Fixed32,
+        };
+
+        b.desc.operands.push(integer32Rule());
+        b.desc.results.push(integer32Rule());
+        b.desc.results.push(integer32Rule());
+        b.desc.effects.ordered = true;
+    }
+
+    /*
+     * Port I/O.
+     *
+     * The port goes in dx and the value in eax or al, both fixed by the encoding. AMD64 also encodes
+     * a constant port in an imm8, and these do not use it: an intrinsic has one form, and choosing
+     * between two on the strength of whether an operand became an embedded constant is a mechanism
+     * the registry does not have (see §15 of the plan). What that costs is one `mov edx, port` in
+     * front of a bus-speed instruction, which is the trade §15.3 of the plan describes.
+     */
+
+    {
+        auto portOp = [&](LowerIntrinsic id, StringView formName, U8 opcode, bool in) {
+            auto b = add(id, formName, kFeatureBaseline);
+            b.form.uses.push(fixedReg(IntRegister::rdx));
+
+            if(in) b.form.defs.push(fixedDef(IntRegister::rax));
+            else b.form.uses.push(fixedReg(IntRegister::rax));
+
+            b.form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::Opcode,
+                .opcode = opcode,
+                .width = OperationWidth::Fixed32,
+            };
+
+            b.desc.operands.push(integer32Rule());
+            if(in) b.desc.results.push(integer32Rule());
+            else b.desc.operands.push(integer32Rule());
+
+            b.desc.effects.ordered = true;
+            b.desc.effects.privileged = true;
+        };
+
+        // IN eax, dx (ed) and OUT dx, eax (ef), at the width the IR's own integers are.
+        portOp(LowerIntrinsic::In32, "in eax, dx"_v, 0xed, true);
+        portOp(LowerIntrinsic::Out32, "out dx, eax"_v, 0xef, false);
+
+        // OUT dx, al (ee) writes the low byte of the value and ignores the rest, so a byte port
+        // needs nothing said about the register beyond which one it is.
+        portOp(LowerIntrinsic::Out8, "out dx, al"_v, 0xee, false);
+
+        // IN al, dx (ec) is the one direction that cannot be a single instruction here: it writes
+        // *only* al and leaves the rest of eax holding whatever it held, where the result is a whole
+        // Int. So it is a pseudo that zero-extends the byte afterwards (PseudoKind::PortIn8), and it
+        // needs no clobber and no flags to do it - the extension writes the result's own register.
+        auto b = add(LowerIntrinsic::In8, "in al, dx"_v, kFeatureBaseline);
+        b.form.uses.push(fixedReg(IntRegister::rdx));
+        b.form.defs.push(fixedDef(IntRegister::rax));
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::PortIn8,
+        };
+
+        b.desc.operands.push(integer32Rule());
+        b.desc.results.push(integer32Rule());
+        b.desc.effects.ordered = true;
+        b.desc.effects.privileged = true;
+    }
+
+    /*
+     * Control registers.
+     *
+     * MOV r64, CRn (0f 20 /r) and MOV CRn, r64 (0f 22 /r) put the *number of the control register*
+     * in the ModRM.reg field, which is the same place an opcode extension goes - so each of these is
+     * an ordinary RmExt form with the register number as its extension, and the value's own register
+     * is whichever one the allocator chose. That is why there is one intrinsic per control register
+     * rather than one taking the number as an operand: the number is part of the encoding rather
+     * than a value, and an operand naming it would have nowhere to be encoded.
+     *
+     * Both directions are fixed at 64 bits in long mode and REX.W means nothing on them, so the
+     * forms say Fixed32 to keep the prefix off - the register is 64 bits either way.
+     */
+
+    {
+        struct ControlRegister {
+            LowerIntrinsic id;
+            U8 number;
+            StringView name;
+            bool write;
+        };
+
+        static const ControlRegister kControlRegisters[] = {
+            { LowerIntrinsic::ReadCr0,  0, "mov r, cr0"_v, false },
+            { LowerIntrinsic::ReadCr2,  2, "mov r, cr2"_v, false },
+            { LowerIntrinsic::ReadCr3,  3, "mov r, cr3"_v, false },
+            { LowerIntrinsic::ReadCr4,  4, "mov r, cr4"_v, false },
+            { LowerIntrinsic::WriteCr0, 0, "mov cr0, r"_v, true },
+            { LowerIntrinsic::WriteCr3, 3, "mov cr3, r"_v, true },
+            { LowerIntrinsic::WriteCr4, 4, "mov cr4, r"_v, true },
+        };
+
+        for(auto& cr: kControlRegisters) {
+            auto b = add(cr.id, cr.name, kFeatureBaseline);
+
+            if(cr.write) b.form.uses.push(anyReg());
+            else b.form.defs.push(def());
+
+            b.form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::RmExt,
+                .opcode = U8(cr.write ? 0x22 : 0x20), .escape = 0x0f,
+                .extension = cr.number,
+                .rmField = cr.write ? useRef(0) : defRef(0),
+                .width = OperationWidth::Fixed32,
+            };
+
+            if(cr.write) b.desc.operands.push(integer64Rule());
+            else b.desc.results.push(integer64Rule());
+
+            b.desc.effects.ordered = true;
+            b.desc.effects.privileged = true;
+        }
+    }
 }
 
 /*
@@ -194,6 +530,17 @@ bool validateIntrinsics(const MachineTarget& target) {
         // fault.
         if(form.uses.size() != ir.args) fail("and its form disagree about how many operands it has"_v);
         if(form.defs.size() != ir.results) fail("and its form disagree about how many results it has"_v);
+
+        // The operand a form reads as an address and the one the rules call a pointer have to be
+        // the same operand. A form dereferencing something a rule let through as a plain integer
+        // would read through whatever the program put there, and a rule demanding a pointer for an
+        // operand the encoding keeps in a register is a requirement nothing needed.
+        for(Size op = 0; op < desc.operands.size() && op < form.uses.size(); op++) {
+            auto address = form.uses[op].kind == OperandConstraintKind::Address;
+            auto pointer = desc.operands[op].kind == IntrinsicOperandClass::Pointer;
+
+            if(address != pointer) fail("and its form disagree about which operand is an address"_v);
+        }
     }
 
     return ok;
@@ -211,6 +558,12 @@ bool checkIntrinsicOperands(LowerBase base, const IntrinsicDescriptor& desc, Low
                 return type == LowerType::Int32;
             case IntrinsicOperandClass::Integer64:
                 return type == LowerType::Int64 || type == LowerType::Pointer;
+
+            // An address rather than a number that could be one: an operand the encoding puts in a
+            // ModRM memory field is read through, and a value that is not a pointer has not been
+            // through whatever established that reading it is safe.
+            case IntrinsicOperandClass::Pointer:
+                return isPtr(type);
 
             case IntrinsicOperandClass::Immediate: {
                 if(!value || value->inst()->kind != LowerInst::Imm) return false;

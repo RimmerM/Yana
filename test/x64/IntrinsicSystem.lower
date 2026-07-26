@@ -1,0 +1,188 @@
+# The operating-system and kernel intrinsics.
+#
+# Every one of them is a row of codegen/x64/intrinsic.cpp and a name in the IR's table, and none of
+# them appears by name in placement, in legalization or in the encoder. Intrinsic.lower covers what
+# an intrinsic can demand of the *allocator*; what these cover is the rest of what a machine
+# instruction can be - no operands at all, an address, an opcode extension that is not an operand,
+# and an operation that is more than one instruction.
+
+# Barriers, and the spin hint. Four instructions that take nothing, answer nothing and touch no
+# register: the whole of what each of them costs is its own bytes.
+fences() {
+    {
+        mfence
+        lfence
+        sfence
+        pause
+        ret
+    }
+}
+
+# Interrupts and processor state, which are the same shape and privileged. CLI and STI write the
+# interrupt flag, which shares a register with the condition flags and is no part of them: the
+# comparison here is made before both of them and consumed after, and it still stays in the flags -
+# `cmp_ilt ... creates=[-]` with no setcc - which is the property under test rather than an accident.
+interrupts(%x: Int, %y: Int): Int {
+    start {
+        %c = cmp_ilt %x, %y: Int
+        cli
+        swapgs
+        je %c, less, more
+    }
+
+    less {
+        sti
+        ret %x
+    }
+
+    more {
+        hlt
+        ret %y
+    }
+}
+
+# Cache and translation control, whose operand is an *address*: the same `address()` constraint a
+# load's has, so the arithmetic in front of one is folded into its ModRM and SIB bytes rather than
+# emitted. `x86_addr ... creates=[-]` in front of an instruction with no result at all is what that
+# looks like; the scaled index is there to make the SIB byte real.
+cacheOps(%p: Ptr, %i: Long) {
+    {
+        %o = shl %i, 3: Long
+        %q = add %p, %o: Ptr
+        prefetch %q
+        %r = add %p, 64: Ptr
+        prefetchnta %r
+        clflush %p
+        invlpg %p
+        ret
+    }
+}
+
+# The same address feeding a prefetch and the load it is prefetching for, which is the case the fold
+# has to get right for both: one x86_addr per user, and neither instruction left holding the
+# arithmetic.
+prefetchAndLoad(%p: Ptr, %i: Long): Long {
+    {
+        %q = add %p, %i: Ptr
+        prefetch %q
+        %v = load %q, 8: Long
+        ret %v
+    }
+}
+
+sink<clobber>(%x: Int): Int {
+    { ret %x }
+}
+
+# A pointer the allocator had to leave in the frame, feeding an instruction with no result to borrow
+# a register from: the legalizer brings it into a scratch register first, exactly as it does for a
+# load's address. The Clobber convention destroys every register but rbp, so %keep takes that one and
+# %p has nowhere left to live across the call.
+spilledAddress(%arg: Int, %keep: Int, %p: Ptr): Int {
+    {
+        %r = call_clobber sink, %arg: Int
+        clflush %p
+        %s = add %keep, %r: Int
+        %t = add %keep, %s: Int
+        ret %t
+    }
+}
+
+# Model-specific registers: the number in ecx, the value in edx:eax, and every one of those a fixed
+# register the allocator copies into and out of. The read's two results feed the write, so the
+# copies have to survive between them.
+copyMsr(%from: Int, %to: Int) {
+    {
+        %lo, %hi = rdmsr %from
+        wrmsr %to, %lo, %hi
+        ret
+    }
+}
+
+# The extended-state register read, which is the one intrinsic here needing a target feature.
+xcr0(): Int {
+    {
+        %lo, %hi = xgetbv 0
+        %r = add %lo, %hi: Int
+        ret %r
+    }
+}
+
+# Port I/O. The port is a value in dx and the data is in eax or al, so a constant port costs the
+# `mov edx, imm` in front of it - see the registry for why the imm8-port encoding is not used here.
+# in8 is the pseudo of the four: it zero-extends the byte it read, since the machine writes only al.
+ports(%port: Int, %v: Int): Int {
+    {
+        out8 %port, %v
+        out32 %port, %v
+        %a = in8 %port
+        %b = in32 %port
+        %r = add %a, %b: Int
+        ret %r
+    }
+}
+
+# Control registers. The register number is the encoding's ModRM.reg field rather than an operand,
+# which is why each one is an intrinsic of its own; the value's register is whichever the allocator
+# picked, and the fault address is read out of cr2 the same way.
+pageFault(): Long {
+    {
+        %cr2 = readcr2: Long
+        %cr3 = readcr3: Long
+        writecr3 %cr3
+        ret %cr2
+    }
+}
+
+# Reloading cr0 and cr4 around each other, so the two extensions appear in one function with two
+# different values in them.
+controlBits(%a: Long, %b: Long): Long {
+    {
+        %cr0 = readcr0: Long
+        writecr0 %a
+        %cr4 = readcr4: Long
+        writecr4 %b
+        %r = add %cr0, %cr4: Long
+        ret %r
+    }
+}
+
+# The multi-instruction intrinsic. rdtsc answers in edx:eax and this returns the whole counter, so
+# the form declares rdx as a clobber and the flags as written, and the expansion joins the halves
+# after allocation - three instructions where the trace shows one.
+#
+# %keep is live across it and arrives in rdx under this convention, which is what proves the clobber
+# is honoured: the entry copy moves it somewhere the expansion does not write.
+timestamp(%a: Long, %b: Long, %keep: Long): Long {
+    {
+        %t = rdtsc: Long
+        %r = add %keep, %t: Long
+        ret %r
+    }
+}
+
+# A timestamp taken twice around a spin loop, which is the shape all of this exists for: the counter
+# read, the pause in the loop body, and a fence keeping the two apart.
+spin(%limit: Long): Long {
+    start {
+        %t0 = rdtsc: Long
+        lfence
+        jmp test
+    }
+
+    test {
+        %t = phi [start, %t0], [body, %t1]: Long
+        %n = sub %t, %t0: Long
+        je (cmp_lt %n, %limit), body, done
+    }
+
+    body {
+        pause
+        %t1 = rdtsc: Long
+        jmp test
+    }
+
+    done {
+        ret %t
+    }
+}

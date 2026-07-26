@@ -1524,6 +1524,26 @@ bool validateMachineForms(const MachineTarget& target) {
         }
     }
 
+    // And the same for the address operand, for the same reason: the address folding runs before
+    // the form is settled and asks the *opcode* which operand is an address (opcodeAddressOperand),
+    // so a load whose narrow form named its address somewhere else would have the fold rewrite one
+    // operand and the encoder read another.
+    for(Size op = 1; op < kMachineOpcodeCount; op++) {
+        Maybe<I32> address;
+        for(auto& form: target.forms) {
+            if(form.opcode != op) continue;
+
+            auto formAddress = form.addressOperand();
+            if(address.isNothing()) address = Just(formAddress);
+            else if(address.unwrap() != formAddress) {
+                ok = false;
+                logError("machine opcode \"%@\" has forms that disagree about which operand is an address",
+                    target.opcodes[op].name);
+                break;
+            }
+        }
+    }
+
     return ok;
 }
 
@@ -1977,6 +1997,16 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
 
     assertTrue("no machine form for this instruction" == nullptr);
     return FormNop;
+}
+
+I32 opcodeAddressOperand(MachineOpcodeId opcode) {
+    // The first form of the opcode answers for all of them: validateMachineForms requires them to
+    // agree, which is what lets this be asked before selection has chosen between them.
+    for(auto& form: machineTarget().forms) {
+        if(form.opcode == opcode) return form.addressOperand();
+    }
+
+    return -1;
 }
 
 bool opcodeCanEmbedImmediate(MachineOpcodeId opcode, Size index, U64 value) {

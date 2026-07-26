@@ -18,7 +18,7 @@
 // AVX and AVX-512 are absent: their encodings are VEX and EVEX, which this backend does not write
 // yet, so a target claiming them would be a register file no encoder can name.
 FeatureSet targetFeatures() {
-    return kFeaturePopcnt | kFeatureRdtscp;
+    return kFeaturePopcnt | kFeatureRdtscp | kFeatureXsave;
 }
 
 // Every register of a bank, as a mask. Written from the count rather than register by register so

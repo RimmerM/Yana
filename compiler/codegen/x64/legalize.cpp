@@ -456,6 +456,18 @@ struct Legalizer {
             out.hasAddress = true;
         };
 
+        // An instruction that *references* memory says so by naming an address operand in its form,
+        // and every one of them resolves the same way: a folded X86Address, or a pointer left in a
+        // register. Which operand it is comes from the form, so a load, a store and a cache-control
+        // intrinsic need no case of their own here.
+        auto operand = machine.formOf(inst).addressOperand();
+        if(operand >= 0) {
+            set(operandAddress(base[inst->used()[operand]], out.uses[operand]));
+            return;
+        }
+
+        // What is left are the instructions that *compute* an address rather than reference one,
+        // and the two that name a place nothing in the IR points at.
         switch(inst->kind) {
             case LowerInst::X86Address:
                 // Emits nothing itself: it is resolved so that whichever access folds it in can name
@@ -465,14 +477,6 @@ struct Legalizer {
 
             case LowerInst::X86Lea:
                 set(computedAddress(*(LowerInstX86Address*)inst, out.uses));
-                break;
-
-            case LowerInst::Load:
-                set(operandAddress(base[((LowerInstLoad*)inst)->from], out.uses[0]));
-                break;
-
-            case LowerInst::Store:
-                set(operandAddress(base[((LowerInstStore*)inst)->to], out.uses[0]));
                 break;
 
             case LowerInst::X86PushArg:

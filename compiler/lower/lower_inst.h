@@ -468,8 +468,51 @@ enum class LowerIntrinsic: U16 {
     Popcnt,  // count the set bits of an integer
     Cpuid,   // query the processor's feature information
     Rdtscp,  // read the processor's timestamp counter and its id
+    Rdtsc,   // read the processor's timestamp counter
 
-    LastIntrinsic = Rdtscp,
+    // Memory ordering. Neither reads nor writes anything itself; each one constrains where the
+    // accesses around it may be moved to, which is why the IR has to be able to name them at all.
+    MFence,
+    LFence,
+    SFence,
+    Pause,   // a hint that this is a spin loop, not a barrier - see the registry
+
+    // Cache and translation control. Each takes the address it operates on, and only that.
+    Prefetch,     // fetch a line towards the processor, with no architectural effect
+    PrefetchNta,  // the same, without displacing what the caches already hold
+    Clflush,      // write a line back and evict it, everywhere it is held
+    Invlpg,       // drop the translation of one page
+
+    // Interrupts and processor state. The four below take nothing and answer nothing: what they do
+    // is to the processor rather than to any value.
+    Hlt,
+    Cli,
+    Sti,
+    Swapgs,
+
+    // Model-specific and extended-state registers.
+    Rdmsr,
+    Wrmsr,
+    Xgetbv,
+
+    // Port I/O, at the two widths a port is addressed at. The port number is a value rather than a
+    // constant here; see the registry for why that is not the shorter encoding's fault.
+    In8,
+    In32,
+    Out8,
+    Out32,
+
+    // Control registers. One intrinsic per register rather than one taking a number, because the
+    // number is part of the encoding rather than an operand of it.
+    ReadCr0,
+    ReadCr2,
+    ReadCr3,
+    ReadCr4,
+    WriteCr0,
+    WriteCr3,
+    WriteCr4,
+
+    LastIntrinsic = WriteCr4,
 };
 
 static constexpr Size kLowerIntrinsicCount = Size(LowerIntrinsic::LastIntrinsic) + 1;

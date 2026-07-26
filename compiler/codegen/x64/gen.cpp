@@ -1132,6 +1132,38 @@ struct Emitter {
         to.buffer.offset(end);
     }
 
+    /*
+     * The intrinsic expansions.
+     *
+     * The two intrinsics whose one operation is several instructions. Both are here for the same
+     * reason the floating-point expansions above are - there is no single instruction that does it -
+     * and both are safe to expand this late for the reason §15.2 of the plan gives: every register
+     * and flag they touch is a fixed operand or a declared clobber of the form that selected them,
+     * so placement had already been told about all of it.
+     */
+
+    // RDTSC (0f 31) answers in edx:eax, and the intrinsic's result is the whole counter - so the
+    // halves are joined here. rdx is the form's clobber and the shift is why it declares the flags;
+    // rax is its result, which the tie-free fixed def already put in place.
+    void emitRdTsc() {
+        to.buffer.writeByte(0x0f);
+        to.buffer.writeByte(0x31);
+
+        // SHL rdx, 32 (REX.W c1 /4 ib), then OR rax, rdx.
+        genRegExt(to, true, U8(IntRegister::rdx), 0xc1, 4);
+        to.buffer.writeByte(32);
+        genRegReg(to, true, U8(IntRegister::rax), U8(IntRegister::rdx), 0x09);
+    }
+
+    // IN al, dx (ec) writes only the low byte of eax and leaves the rest of it holding whatever it
+    // held, where the intrinsic's result is a whole Int. MOVZX eax, al (0f b6 c0) fills the rest,
+    // and touches no register but the one the result is already in - which is why this expansion
+    // needs neither a clobber nor a scratch register to be legal here.
+    void emitPortIn8() {
+        to.buffer.writeByte(0xec);
+        genRegReg(to, false, U8(IntRegister::rax), U8(IntRegister::rax), 0xb6, 0x0f);
+    }
+
     void emitBranch(LowerInst* inst, const MachineInst& selected, const InstRegs& regs) {
         auto je = (LowerInstJe*)inst;
         auto condition = selected.condition.unwrap();
@@ -1286,6 +1318,14 @@ struct Emitter {
 
             case PseudoKind::FloatSelect:
                 emitFloatSelect(machineTarget().form(selected.form).encoding, selected, regs);
+                break;
+
+            case PseudoKind::RdTsc:
+                emitRdTsc();
+                break;
+
+            case PseudoKind::PortIn8:
+                emitPortIn8();
                 break;
         }
     }
