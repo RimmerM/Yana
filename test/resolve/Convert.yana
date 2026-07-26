@@ -1,0 +1,31 @@
+-- Conversion is a class operation: `Extend` widens, `Truncate` narrows, and both are selected
+-- by their *result* type, which is the case that argument types alone cannot decide.
+
+fn widened(value: Int) -> Long = extend(value)
+
+fn narrowed(value: Long) -> Int = truncate(value)
+
+-- The same call with two different expected types picks two different instances.
+fn toFloat(value: Int) -> Float = extend(value)
+fn toDouble(value: Int) -> Double = extend(value)
+
+-- An ascription supplies the expected type where nothing else does.
+fn ascribed() -> Int = truncate(9.75 :: Double) :: Int
+
+-- Implicit widening at a call boundary and at a return goes through Extend too.
+fn takesLong(value: Long) -> Long = value
+
+fn implicitArgument(value: Int) -> Long = takesLong(value)
+
+fn implicitReturn(value: Int) -> Double = value
+
+-- Every `truncate` here is selected by the ascription that follows it: nothing about a Long
+-- argument says which of the narrowing instances was meant.
+fn main() -> Int =
+    (truncate(widened(3)) :: Int) +
+    narrowed(4) +
+    (truncate(toFloat(5)) :: Int) +
+    (truncate(toDouble(6)) :: Int) +
+    ascribed() +
+    (truncate(implicitArgument(7)) :: Int) +
+    (truncate(implicitReturn(8)) :: Int)

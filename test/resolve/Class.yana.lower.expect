@@ -1,0 +1,124 @@
+
+Describe(Metres).size<complex>(%value: Ptr): Int {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    ret %v_1
+  }
+}
+
+sameMetres<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %a, 4
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %b, 4
+    %v_3 = call_complex Eq(Metres).==, %v_1, %v_2: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    jmp b_6
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_4, 1], [b_5, 0]: Int
+    ret %v_7
+  }
+}
+
+Describe(Feet).doubled<complex>(%v_0: Ptr, %value: Ptr) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = loads %value, 4: Int
+    %v_4 = loads %value, 4: Int
+    %v_5 = add %v_3, %v_4: Int
+    store %v_2, %v_5, 4
+    copy %v_0, %v_2, 4
+    ret 
+  }
+}
+
+feetSize<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 5, 4
+    %v_2 = call_complex Describe(Feet).size, %v_1: Int
+    ret %v_2
+  }
+}
+
+metreSize<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 7, 4
+    %v_2 = call_complex Describe(Metres).size, %v_1: Int
+    ret %v_2
+  }
+}
+
+doubledMetres<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 3, 4
+    %v_2 = alloca 4, 4: Ptr
+    call_complex Describe(Metres).doubled, %v_2, %v_1
+    %v_3 = call_complex Describe(Metres).size, %v_2: Int
+    ret %v_3
+  }
+}
+
+Eq(Metres).!=<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+  b_0 {
+    %v_1 = loads %lhs, 4: Int
+    %v_2 = loads %rhs, 4: Int
+    %v_3 = cmp_neq %v_1, %v_2: Int
+    ret %v_3
+  }
+}
+
+Eq(Metres).==<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+  b_0 {
+    %v_1 = loads %lhs, 4: Int
+    %v_2 = loads %rhs, 4: Int
+    %v_3 = cmp_eq %v_1, %v_2: Int
+    ret %v_3
+  }
+}
+
+Describe(Feet).size<complex>(%value: Ptr): Int {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    ret %v_1
+  }
+}
+
+Describe(Metres).doubled<complex>(%v_0: Ptr, %value: Ptr) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = loads %value, 4: Int
+    %v_4 = imul %v_3, 2: Int
+    store %v_2, %v_4, 4
+    copy %v_0, %v_2, 4
+    ret 
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex metreSize: Int
+    %v_2 = call_complex feetSize: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = call_complex doubledMetres: Int
+    %v_5 = add %v_3, %v_4: Int
+    %v_6 = call_complex sameMetres, 4, 4: Int
+    %v_7 = add %v_5, %v_6: Int
+    %v_8 = call_complex sameMetres, 4, 5: Int
+    %v_9 = add %v_7, %v_8: Int
+    ret %v_9
+  }
+}
+

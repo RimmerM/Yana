@@ -1,88 +1,32 @@
 
-__builtin_i32_eq<complex>(%lhs: Int, %rhs: Int): Int {
-  b_0 {
-    %v_1 = cmp_eq %lhs, %rhs: Int
-    ret %v_1
-  }
-}
-
 add<complex>(%a: Int, %b: Int): Int {
   b_0 {
-    %v_1 = call_complex __builtin_i32_add, %a, %b: Int
+    %v_1 = add %a, %b: Int
     ret %v_1
-  }
-}
-
-__builtin_i32_gt<complex>(%lhs: Int, %rhs: Int): Int {
-  b_0 {
-    %v_1 = cmp_igt %lhs, %rhs: Int
-    ret %v_1
-  }
-}
-
-__builtin_i32_neg<complex>(%value: Int): Int {
-  b_0 {
-    %v_1 = neg %value: Int
-    ret %v_1
-  }
-}
-
-__builtin_i32_sub<complex>(%lhs: Int, %rhs: Int): Int {
-  b_0 {
-    %v_1 = sub %lhs, %rhs: Int
-    ret %v_1
-  }
-}
-
-choose<complex>(%a: Int, %b: Int): Int {
-  b_0 {
-    %v_1 = call_complex __builtin_i32_gt, %a, %b: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    %v_4 = call_complex add, %a, 1: Int
-    jmp b_5
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_2, %v_4], [b_3, %b]: Int
-    ret %v_6
   }
 }
 
 local<complex>(%value: Int): Int {
   b_0 {
-    %next = call_complex __builtin_i32_add, %value, 1: Int
-    %v_1 = call_complex __builtin_i32_mul, %next, 2: Int
-    ret %v_1
-  }
-}
-
-__builtin_i32_mul<complex>(%lhs: Int, %rhs: Int): Int {
-  b_0 {
-    %v_1 = imul %lhs, %rhs: Int
+    %next = add %value, 1: Int
+    %v_1 = imul %next, 2: Int
     ret %v_1
   }
 }
 
 classify<complex>(%value: Int): Int {
   b_0 {
-    %v_1 = call_complex __builtin_i32_lt, %value, 0: Int
+    %v_1 = cmp_ilt %value, 0: Int
     je %v_1, b_2, b_3
   }
 
   b_2 {
-    %v_4 = call_complex __builtin_i32_neg, 1: Int
+    %v_4 = neg 1: Int
     jmp b_5
   }
 
   b_3 {
-    %v_6 = call_complex __builtin_i32_eq, %value, 0: Int
+    %v_6 = cmp_eq %value, 0: Int
     je %v_6, b_7, b_8
   }
 
@@ -97,13 +41,6 @@ classify<complex>(%value: Int): Int {
   b_5 {
     %v_9 = phi [b_2, %v_4], [b_7, 0], [b_8, 1]: Int
     ret %v_9
-  }
-}
-
-__builtin_i32_lt<complex>(%lhs: Int, %rhs: Int): Int {
-  b_0 {
-    %v_1 = cmp_ilt %lhs, %rhs: Int
-    ret %v_1
   }
 }
 
@@ -123,12 +60,12 @@ main<complex>(): Int {
   }
 
   b_3 {
-    %v_4 = call_complex __builtin_i32_mul, %value, 2: Int
+    %v_4 = imul %value, 2: Int
     %v_5 = call_complex classify, 5: Int
-    %v_6 = call_complex __builtin_i32_add, %v_4, %v_5: Int
+    %v_6 = add %v_4, %v_5: Int
     %v_7 = call_complex local, 0: Int
-    %v_8 = call_complex __builtin_i32_add, %v_6, %v_7: Int
-    %v_9 = call_complex __builtin_i32_sub, %v_8, 2: Int
+    %v_8 = add %v_6, %v_7: Int
+    %v_9 = sub %v_8, 2: Int
     ret %v_9
   }
 }
@@ -139,10 +76,24 @@ noop<complex>() {
   }
 }
 
-__builtin_i32_add<complex>(%lhs: Int, %rhs: Int): Int {
+choose<complex>(%a: Int, %b: Int): Int {
   b_0 {
-    %v_1 = add %lhs, %rhs: Int
-    ret %v_1
+    %v_1 = cmp_igt %a, %b: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = call_complex add, %a, 1: Int
+    jmp b_5
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_2, %v_4], [b_3, %b]: Int
+    ret %v_6
   }
 }
 

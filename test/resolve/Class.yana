@@ -1,0 +1,37 @@
+-- User-declared classes and instances, selected exactly like Core's own.
+
+data Metres {value: Int}
+data Feet {value: Int}
+
+class Describe(a):
+  fn size(value: a) -> Int
+  fn doubled(value: a) -> a
+
+instance Describe(Metres):
+  fn size(value: Metres) = value.value
+  fn doubled(value: Metres) = Metres {value: value.value * 2}
+
+instance Describe(Feet):
+  -- The argument and result types are the class signature's with Feet substituted in, so an
+  -- instance body does not have to repeat what the class already fixed.
+  fn size(value) = value.value
+  fn doubled(value) = Feet {value: value.value + value.value}
+
+-- One name, two instances: which is meant is decided by the argument type.
+fn metreSize() -> Int = size(Metres {value: 7})
+fn feetSize() -> Int = size(Feet {value: 5})
+
+-- A class function whose result is the class variable, so the instance survives the round trip.
+fn doubledMetres() -> Int = size(doubled(Metres {value: 3}))
+
+-- Core's classes over a user type: this Eq instance is chosen by the same code that picks
+-- Eq(Int), and `==` needs no special case anywhere.
+instance Eq(Metres):
+  fn ==(lhs: Metres, rhs: Metres) = lhs.value == rhs.value
+  fn !=(lhs: Metres, rhs: Metres) = lhs.value != rhs.value
+
+fn sameMetres(a: Int, b: Int) -> Int =
+    if Metres {value: a} == Metres {value: b} then 1 else 0
+
+fn main() -> Int =
+    metreSize() + feetSize() + doubledMetres() + sameMetres(4, 4) + sameMetres(4, 5)

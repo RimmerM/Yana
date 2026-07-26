@@ -18,13 +18,57 @@
 
 using namespace Tritium;
 
-struct TestProvider: SourceProvider {
+// Supplies both the source text diagnostics quote and the modules an `import` names. An
+// imported module comes from `resolve/modules/<Name>.yana`, so a fixture can exercise real
+// cross-module name resolution without the driver needing a project file.
+struct TestProvider: SourceProvider, ModuleProvider {
+    struct Loaded {
+        StringId name;
+        Ptr<char, HeapDeleter> text;
+        Size length;
+        ast::Module* ast;
+    };
+
     StringView source;
     Context* context = nullptr;
+    Array<Loaded> loaded;
 
-    StringView getSource(StringId) override { return source; }
+    ~TestProvider() override {
+        for(auto& entry: loaded) delete entry.ast;
+    }
+
+    StringView getSource(StringId id) override {
+        for(auto& entry: loaded) {
+            if(entry.name == id) return StringView { entry.text.get(), entry.length };
+        }
+
+        return source;
+    }
+
     const Location* getNode(LocationId id) override {
         return context ? context->getLocation(id) : nullptr;
+    }
+
+    ast::Module* getModule(StringId name) override {
+        for(auto& entry: loaded) {
+            if(entry.name == name) return entry.ast;
+        }
+
+        auto path = String("resolve/modules/") + context->findName(name) + String(".yana");
+        auto opened = File::openFile(path, readAccess());
+        if(opened.isErr()) return nullptr;
+
+        auto file = opened.moveUnwrapOk();
+        auto size = file.size();
+        Ptr<char, HeapDeleter> text { (char*)hAlloc(size) };
+        file.read({ (Byte*)text.get(), size });
+
+        Lexer lexer(*context, context->diagnostics, StringView { text.get(), size });
+        Parser parser(*context, lexer, name);
+        auto ast = new ast::Module(parser.parseModule());
+
+        loaded.push(Loaded { name, ::move(text), size, ast });
+        return ast;
     }
 };
 
@@ -81,7 +125,7 @@ static Maybe<I64> readExpectedRun(const String& path) {
     return end == text.get() ? Nothing() : Just(I64(value));
 }
 
-static Maybe<I64> executeMain(Context& context, Module& resolved, LowerModule& module) {
+static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& module) {
 #if defined(__x86_64__) && (defined(__unix__) || defined(__APPLE__))
     auto base = *module.arena;
     AsmModule assembly;
@@ -115,7 +159,7 @@ static Maybe<I64> executeMain(Context& context, Module& resolved, LowerModule& m
         return Nothing();
     }
 
-    auto resolvedMain = resolved.functions.get(mainName);
+    auto resolvedMain = resolved.root->functions.get(mainName);
     if(!resolvedMain) {
         munmap(memory, allocationSize);
         return Nothing();
@@ -150,7 +194,7 @@ static bool runTest(const String& path, StringView source, bool generate) {
     Lexer lexer(context, diagnostics, source);
     Parser parser(context, lexer, context.addUnqualifiedName("ResolveTest", 11));
     auto ast = parser.parseModule();
-    auto module = resolveModule(context, ast);
+    auto module = resolveProgram(context, ast, &provider);
     if(diagnostics.errorCount()) {
         println("Fail (%@): resolver produced %@ diagnostics.", path, diagnostics.errorCount());
         return false;
@@ -161,15 +205,15 @@ static bool runTest(const String& path, StringView source, bool generate) {
 
     if(generate) {
         writeText(resolvePath, [&](Net::Writer& writer) {
-            printModule(writer, context, *module);
+            printProgram(writer, context, *module);
         });
     }
 
     Net::Writer resolveWriter(16384);
-    printModule(resolveWriter, context, *module);
+    printProgram(resolveWriter, context, *module);
     auto pass = compareText(resolvePath, resolveWriter.getBuffered());
 
-    auto lowered = lowerModule(context, *module);
+    auto lowered = lowerProgram(context, *module);
     if(!validateLowerModule(&diagnostics, lowered.get())) {
         println("Fail (%@): lowering produced invalid lower IR.", path);
         return false;

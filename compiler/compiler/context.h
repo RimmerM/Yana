@@ -97,6 +97,9 @@ template<class Region, class T>
 struct RegionPtr {
     U32 offset;
 
+    // Offset 0 is never a real object - every region starts allocating past it - so a
+    // default-constructed handle is the null handle.
+    RegionPtr(): offset(0) {}
     explicit RegionPtr(U32 offset): offset(offset) {}
     RegionPtr(decltype(nullptr)): offset(0) {}
     RegionPtr(const RegionPtr&) = default;

@@ -1,0 +1,15 @@
+-- An ordinary imported module. It is found by name through the same lookup a Core symbol uses,
+-- and everything it declares - a type, a class, an instance and a plain function - has to be
+-- reachable from the importing module through that one path.
+
+data Point {x: Int, y: Int}
+
+class Area(a):
+  fn area(value: a) -> Int
+
+instance Area(Point):
+  fn area(value: Point) = value.x * value.y
+
+fn origin() -> Point = Point {x: 0, y: 0}
+
+fn scale(value: Point, by: Int) -> Point = Point {x: value.x * by, y: value.y * by}

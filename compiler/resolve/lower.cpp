@@ -6,7 +6,7 @@
 // uses, and it stays meaningful in printed output.
 struct LowerContext {
     Context& context;
-    Module& from;
+    Program& from;
     LowerModule& to;
     GlobalBase global;
     ModuleBase local;
@@ -451,15 +451,25 @@ static void lowerPhi(LowerContext& lower, LowerBlock& block, ModulePtr<InstPhi> 
     lower.values.add((ModulePtr<Value>)pointer, result->created().ptr - lower.lower);
 }
 
-Ptr<LowerModule> lowerModule(Context& context, Module& module) {
+// Lowering covers the whole program: a call from the root module into Core has to reach a
+// LowerFunction, and the two live in the same arena precisely so that it can.
+Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
     auto result = Ptr<LowerModule>(new LowerModule(8 * 1024 * 1024));
     LowerContext lower {
-        context, module, *result, *module.types, *module.arena, *result->arena
+        context, program, *result, *program.types, *program.arena, *result->arena
     };
 
-    for(auto functionPointer: module.functionOrder.contents(lower.local)) {
+    Array<ModulePtr<Function>> emitted;
+    for(auto module: program.modules) {
+        for(auto functionPointer: module->functionOrder.contents(lower.local)) {
+            if(lower.local[functionPointer]->signature) continue;
+            if(!module->root && !lower.local[functionPointer]->used) continue;
+            emitted.push(functionPointer);
+        }
+    }
+
+    for(auto functionPointer: emitted) {
         auto function = lower.local[functionPointer];
-        if(function->builtin && !function->used) continue;
 
         auto target = result->addFunction(function->name);
         target->source = function->source;
@@ -471,10 +481,8 @@ Ptr<LowerModule> lowerModule(Context& context, Module& module) {
         lower.functions.add(functionPointer, target - lower.lower);
     }
 
-    for(auto functionPointer: module.functionOrder.contents(lower.local)) {
+    for(auto functionPointer: emitted) {
         auto function = lower.local[functionPointer];
-        if(function->builtin && !function->used) continue;
-
         auto target = lower.lower[lower.functions.getValue(functionPointer).unwrap()];
 
         // An aggregate result is returned through storage the caller passes in, so it becomes a

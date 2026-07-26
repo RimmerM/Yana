@@ -1,0 +1,105 @@
+fn metreSize() -> Int {
+  b0:
+    %v0 = alloc : Metres
+    init %local0@Metres.value, 7
+    %v3 = call Describe(Metres).size, %v0 : Int
+    ret %v3
+}
+
+fn feetSize() -> Int {
+  b0:
+    %v0 = alloc : Feet
+    init %local0@Feet.value, 5
+    %v3 = call Describe(Feet).size, %v0 : Int
+    ret %v3
+}
+
+fn doubledMetres() -> Int {
+  b0:
+    %v0 = alloc : Metres
+    init %local0@Metres.value, 3
+    %v3 = call Describe(Metres).doubled, %v0 : Metres
+    %v4 = call Describe(Metres).size, %v3 : Int
+    ret %v4
+}
+
+fn sameMetres(%a: Int, %b: Int) -> Int {
+  b0:
+    %v2 = alloc : Metres
+    init %local0@Metres.value, %a
+    %v4 = alloc : Metres
+    init %local1@Metres.value, %b
+    %v6 = call Eq(Metres).==, %v2, %v4 : Bool
+    je %v6, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = phi [b1, 1], [b2, 0] : Int
+    ret %v12
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call metreSize : Int
+    %v1 = call feetSize : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call doubledMetres : Int
+    %v4 = add %v2, %v3 : Int
+    %v7 = call sameMetres, 4, 4 : Int
+    %v8 = add %v4, %v7 : Int
+    %v11 = call sameMetres, 4, 5 : Int
+    %v12 = add %v8, %v11 : Int
+    ret %v12
+}
+
+fn Describe(Metres).size(%value: Metres) -> Int {
+  b0:
+    %v1 = load %value@Metres.value : Int
+    ret %v1
+}
+
+fn Describe(Metres).doubled(%value: Metres) -> Metres {
+  b0:
+    %v1 = alloc : Metres
+    %v2 = load %value@Metres.value : Int
+    %v4 = mul %v2, 2 : Int
+    init %local1@Metres.value, %v4
+    ret %v1
+}
+
+fn Describe(Feet).size(%value: Feet) -> Int {
+  b0:
+    %v1 = load %value@Feet.value : Int
+    ret %v1
+}
+
+fn Describe(Feet).doubled(%value: Feet) -> Feet {
+  b0:
+    %v1 = alloc : Feet
+    %v2 = load %value@Feet.value : Int
+    %v3 = load %value@Feet.value : Int
+    %v4 = add %v2, %v3 : Int
+    init %local1@Feet.value, %v4
+    ret %v1
+}
+
+fn Eq(Metres).==(%lhs: Metres, %rhs: Metres) -> Bool {
+  b0:
+    %v2 = load %lhs@Metres.value : Int
+    %v3 = load %rhs@Metres.value : Int
+    %v4 = cmp_eq %v2, %v3 : Bool
+    ret %v4
+}
+
+fn Eq(Metres).!=(%lhs: Metres, %rhs: Metres) -> Bool {
+  b0:
+    %v2 = load %lhs@Metres.value : Int
+    %v3 = load %rhs@Metres.value : Int
+    %v4 = cmp_ne %v2, %v3 : Bool
+    ret %v4
+}

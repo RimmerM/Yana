@@ -1,0 +1,74 @@
+fn area1() -> Int {
+  b0:
+    %v0 = alloc : Point
+    init %local0@Point.x, 3
+    init %local0@Point.y, 4
+    %v5 = call Area(Point).area, %v0 : Int
+    ret %v5
+}
+
+fn viaFunction() -> Int {
+  b0:
+    %v0 = call origin : Point
+    %v2 = call scale, %v0, 2 : Point
+    %v3 = call Area(Point).area, %v2 : Int
+    ret %v3
+}
+
+fn area2() -> Int {
+  b0:
+    %v0 = alloc : Point
+    init %local0@Point.x, 2
+    init %local0@Point.y, 5
+    %v5 = call Area(Point).area, %v0 : Int
+    ret %v5
+}
+
+fn qualifiedConstructor() -> Point {
+  b0:
+    %v0 = alloc : Point
+    init %local0@Point.x, 1
+    init %local0@Point.y, 1
+    ret %v0
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call area1 : Int
+    %v1 = call area2 : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call viaFunction : Int
+    %v4 = add %v2, %v3 : Int
+    %v5 = call qualifiedConstructor : Point
+    %v6 = call Area(Point).area, %v5 : Int
+    %v7 = add %v4, %v6 : Int
+    ret %v7
+}
+
+fn origin() -> Point {
+  b0:
+    %v0 = alloc : Point
+    init %local0@Point.x, 0
+    init %local0@Point.y, 0
+    ret %v0
+}
+
+fn scale(%value: Point, %by: Int) -> Point {
+  b0:
+    %v2 = alloc : Point
+    %v3 = load %value@Point.x : Int
+    %v4 = mul %v3, %by : Int
+    %v5 = load %value@Point.y : Int
+    %v6 = mul %v5, %by : Int
+    init %local1@Point.x, %v4
+    init %local1@Point.y, %v6
+    ret %v2
+}
+
+fn Area(Point).area(%value: Point) -> Int {
+  b0:
+    %v1 = load %value@Point.x : Int
+    %v2 = load %value@Point.y : Int
+    %v3 = mul %v1, %v2 : Int
+    ret %v3
+}

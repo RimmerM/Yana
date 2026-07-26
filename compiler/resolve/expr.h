@@ -23,6 +23,16 @@ struct Binding {
     ModulePtr<Value> value = nullptr;
 };
 
+// One class function that fits a call, together with what its class's type variables had to be
+// and the instance that supplies them. `instance` is null when the signature fits but nothing
+// implements it for these types, which is a different diagnostic from "wrong function".
+struct ClassMatch {
+    GlobalPtr<TypeClass> typeClass = nullptr;
+    ModulePtr<ClassInstance> instance = nullptr;
+    Array<TypePtr> args;
+    U16 index = 0;
+};
+
 struct LoopTarget {
     ModulePtr<Block> continueBlock;
     ModulePtr<Block> breakBlock;
@@ -121,10 +131,15 @@ struct ExprResolver {
      */
 
     ModulePtr<Value> resolveBinary(const ast::Expr& expr, const ast::InfixExpr& binary, TypePtr target);
-    ModulePtr<Value> resolvePrefix(const ast::Expr& expr, const ast::PrefixExpr& prefix, TypePtr target);
+    ModulePtr<Value> resolvePrefix(const ast::Expr& expr, const ast::PrefixExpr& prefix, TypePtr target, bool convertResult = true);
     ModulePtr<Value> resolvePrecedence(Array<const ast::Expr*>& operands, Array<StringId>& operators, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence);
-    ModulePtr<Value> resolveCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target);
+    ModulePtr<Value> resolveCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target, bool convertResult = true);
     ModulePtr<Value> emitCall(StringId name, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0);
+    ModulePtr<Value> emitDirectCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0);
+
+    bool bindPosition(TypePtr pattern, TypePtr actual, Array<TypePtr>& bindings, bool widen);
+    bool matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<Value>> args, TypePtr target, ClassMatch& resolved);
+    ModulePtr<ClassInstance> selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
 
     /*
      * Storage and aggregates (expr_construct.cpp).
@@ -139,6 +154,7 @@ struct ExprResolver {
 
     ModulePtr<Value> resolveTuple(const ast::Expr& expr, ast::ParseList<ast::TupArg> args, TypePtr target);
     ModulePtr<Value> resolveConstruct(const ast::Expr& expr, const ast::ConExpr& construct, TypePtr target);
+    TypePtr constructedType(ConstructorRef reference, ast::ParseList<ast::TupArg> args, TypePtr target, Array<ModulePtr<Value>>& resolved, LocationId source);
     ModulePtr<Value> resolveField(const ast::Expr& expr, const ast::FieldExpr& field);
     bool fillTuple(Place place, TupType& tuple, ast::ParseList<ast::TupArg> args, LocationId source);
 
@@ -169,5 +185,6 @@ struct ExprResolver {
     Array<LoopTarget> loops;
 };
 
-// Resolves all bodies after module.cpp has declared their signatures.
-bool resolveFunctions(Context& context, Module& module, ast::Module& ast);
+// Creates a function that is reached through something other than its own name - a class
+// instance's implementation - with a unique name for printing and lowering.
+Function* addAnonymousFunction(Module& module, StringId name, LocationId source);

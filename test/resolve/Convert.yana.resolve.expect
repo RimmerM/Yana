@@ -1,0 +1,70 @@
+fn widened(%value: Int) -> Long {
+  b0:
+    %v1 = cast %value : Long
+    ret %v1
+}
+
+fn narrowed(%value: Long) -> Int {
+  b0:
+    %v1 = cast %value : Int
+    ret %v1
+}
+
+fn toFloat(%value: Int) -> Float {
+  b0:
+    %v1 = cast %value : Float
+    ret %v1
+}
+
+fn toDouble(%value: Int) -> Double {
+  b0:
+    %v1 = cast %value : Double
+    ret %v1
+}
+
+fn ascribed() -> Int {
+  b0:
+    %v1 = cast 9.75 : Int
+    ret %v1
+}
+
+fn takesLong(%value: Long) -> Long {
+  b0:
+    ret %value
+}
+
+fn implicitArgument(%value: Int) -> Long {
+  b0:
+    %v1 = cast %value : Long
+    %v2 = call takesLong, %v1 : Long
+    ret %v2
+}
+
+fn implicitReturn(%value: Int) -> Double {
+  b0:
+    %v1 = cast %value : Double
+    ret %v1
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call widened, 3 : Long
+    %v2 = cast %v1 : Int
+    %v4 = call narrowed, 4 : Int
+    %v5 = add %v2, %v4 : Int
+    %v7 = call toFloat, 5 : Float
+    %v8 = cast %v7 : Int
+    %v9 = add %v5, %v8 : Int
+    %v11 = call toDouble, 6 : Double
+    %v12 = cast %v11 : Int
+    %v13 = add %v9, %v12 : Int
+    %v14 = call ascribed : Int
+    %v15 = add %v13, %v14 : Int
+    %v17 = call implicitArgument, 7 : Long
+    %v18 = cast %v17 : Int
+    %v19 = add %v15, %v18 : Int
+    %v21 = call implicitReturn, 8 : Double
+    %v22 = cast %v21 : Int
+    %v23 = add %v19, %v22 : Int
+    ret %v23
+}

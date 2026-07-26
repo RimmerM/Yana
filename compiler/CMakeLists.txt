@@ -37,6 +37,11 @@ set(RESOLVE_SOURCE_FILES
     resolve/block.cpp
     resolve/module.h
     resolve/module.cpp
+    resolve/name.h
+    resolve/name.cpp
+    resolve/class.h
+    resolve/core.h
+    resolve/core.cpp
     resolve/type.h
     resolve/type.cpp
     resolve/print.cpp
@@ -47,8 +52,6 @@ set(RESOLVE_SOURCE_FILES
     resolve/expr_call.cpp
     resolve/expr_construct.cpp
     resolve/expr_pat.cpp
-    resolve/builtins.cpp
-    resolve/builtins.h
     resolve/lower.h
     resolve/lower.cpp
 )

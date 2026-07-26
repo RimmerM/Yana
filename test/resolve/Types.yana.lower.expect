@@ -1,55 +1,13 @@
 
-floatProduct<complex>(%a: Float, %b: Float): Float {
-  b_0 {
-    %v_1 = call_complex __builtin_f32_mul, %a, %b: Float
-    ret %v_1
-  }
-}
-
-doubleSum<complex>(%a: Double, %b: Double): Double {
-  b_0 {
-    %v_1 = call_complex __builtin_f64_add, %a, %b: Double
-    ret %v_1
-  }
-}
-
-__builtin_f64_add<complex>(%lhs: Double, %rhs: Double): Double {
-  b_0 {
-    %v_1 = add %lhs, %rhs: Double
-    ret %v_1
-  }
-}
-
-widen<complex>(%value: Int): Long {
-  b_0 {
-    %v_1 = sext %value: Long
-    ret %v_1
-  }
-}
-
 longLiteral<complex>(): Long {
   b_0 {
     ret 9
   }
 }
 
-__builtin_f32_mul<complex>(%lhs: Float, %rhs: Float): Float {
-  b_0 {
-    %v_1 = mul %lhs, %rhs: Float
-    ret %v_1
-  }
-}
-
-__builtin_bool_and<complex>(%lhs: Int, %rhs: Int): Int {
-  b_0 {
-    %v_1 = and %lhs, %rhs: Int
-    ret %v_1
-  }
-}
-
 both<complex>(%a: Int, %b: Int): Int {
   b_0 {
-    %v_1 = call_complex __builtin_bool_and, %a, %b: Int
+    %v_1 = and %a, %b: Int
     ret %v_1
   }
 }
@@ -57,6 +15,20 @@ both<complex>(%a: Int, %b: Int): Int {
 floatLiteral<complex>(): Float {
   b_0 {
     ret 1.5
+  }
+}
+
+floatProduct<complex>(%a: Float, %b: Float): Float {
+  b_0 {
+    %v_1 = mul %a, %b: Float
+    ret %v_1
+  }
+}
+
+doubleSum<complex>(%a: Double, %b: Double): Double {
+  b_0 {
+    %v_1 = add %a, %b: Double
+    ret %v_1
   }
 }
 
@@ -85,6 +57,13 @@ main<complex>(): Int {
 doubleLiteral<complex>(): Double {
   b_0 {
     ret 1.5
+  }
+}
+
+widen<complex>(%value: Int): Long {
+  b_0 {
+    %v_1 = sext %value: Long
+    ret %v_1
   }
 }
 

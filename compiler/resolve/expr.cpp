@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "name.h"
 
 void ExprResolver::terminate(Inst* inst) {
     assertTrue(isTerminator(*inst));
@@ -22,10 +23,9 @@ ModulePtr<Value> ExprResolver::makeFloat(LocationId source, TypePtr type, F64 va
     return constant<ConstDouble>(source, type, value);
 }
 
-// The numeric types in widening order. An implicit conversion may only move up this ladder,
-// which is the whole of the conversion rule while the five primitives are compiler-internal;
-// once Num/Integral become real typeclasses (Implementation-IR.md part 6) this becomes their
-// job instead.
+// The numeric types in widening order. This is not the conversion rule - Extend and Truncate
+// are, and a user type may have instances of either - but it is the rule for which direction is
+// implicit, and the tie-break that lets `1 + 2.5` reach one Num instance rather than none.
 U8 ExprResolver::numericRank(TypePtr type) {
     if(type == module.scalar.int_) return 0;
     if(type == module.scalar.long_) return 1;
@@ -43,21 +43,55 @@ TypePtr ExprResolver::commonNumeric(TypePtr lhs, TypePtr rhs, LocationId source)
     return numericRank(lhs) >= numericRank(rhs) ? lhs : rhs;
 }
 
+/*
+ * Conversion is a class operation.
+ *
+ * `Extend(a, b)` widens and `Truncate(a, b)` narrows; an implicit conversion may only use the
+ * first. Routing every conversion through instance selection rather than through a built-in
+ * table of the five primitives is what will make a cast on a user-defined type work through the
+ * same path, and what makes `x :: Long` on a type with a Truncate instance mean something.
+ *
+ * The primitive instances are intrinsics, so this still produces exactly one `cast` in the IR.
+ */
 ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, LocationId source, bool implicit) {
-    if(!value || sameType(local[value]->type, target)) return value;
+    if(!value || !target) return value;
+
     auto from = local[value]->type;
+    if(sameType(from, target)) return value;
 
-    if(!isNumeric(global, from) || !isNumeric(global, target)) {
-        context.diagnostics.error("cannot convert %@ to %@"_v, source, describeType(context, global, from), describeType(context, global, target));
+    if(global[from]->kind == Type::Error || global[target]->kind == Type::Error) return value;
+
+    // A narrowing conversion has to be asked for. Checking the direction here rather than by the
+    // absence of an Extend instance keeps the diagnostic about precision instead of about a
+    // missing instance the user never mentioned.
+    auto widening = !isNumeric(global, from) || !isNumeric(global, target) ||
+                    numericRank(from) <= numericRank(target);
+
+    if(implicit && !widening) {
+        context.diagnostics.error("implicit conversion from %@ to %@ would lose precision"_v, source,
+                                  describeType(context, global, from), describeType(context, global, target));
         return value;
     }
 
-    if(implicit && numericRank(from) > numericRank(target)) {
-        context.diagnostics.error("implicit scalar conversion would lose precision"_v, source);
-        return value;
+    auto name = widening ? context.addUnqualifiedName("extend", 6) : context.addUnqualifiedName("truncate", 8);
+    Array<ClassFunRef> candidates;
+    findClassFunctions(module, name, source, candidates);
+
+    for(auto& candidate: candidates) {
+        ModulePtr<Value> args[] = { value };
+
+        ClassMatch match;
+        if(!matchClassFun(candidate, { args, 1 }, target, match) || !match.instance) continue;
+
+        auto implementation = local[match.instance]->functions.get(local, match.index);
+        if(!implementation) continue;
+
+        return emitDirectCall(implementation, { args, 1 }, source);
     }
 
-    return ref(emit<InstUnary>(source, 0, target, Value::Cast, value));
+    context.diagnostics.error("cannot convert %@ to %@"_v, source,
+                              describeType(context, global, from), describeType(context, global, target));
+    return value;
 }
 
 ModulePtr<Value> ExprResolver::finishBranches(Array<BranchArm>& arms, LocationId source, bool used) {
@@ -348,13 +382,28 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             return nullptr;
         case ast::Expr::Coerce: {
             auto& coerce = *parse[expr.coerce];
-            auto type = resolveType(context, module, coerce.type);
+            auto type = resolveType(module, coerce.type);
 
-            // `::` is where a literal gets its type when no context supplies one, so the
-            // ascription is passed down as a target there. On anything else it is a conversion
-            // applied to the result, and an explicit one, so it may also narrow.
-            auto value = ast::isLiteral(coerce.target) ? resolve(coerce.target, type) : resolve(coerce.target);
-            return convert(value, type, expr.source, false);
+            // `::` is what supplies the expected type where nothing else does, so it is pushed
+            // down into a literal (which has no type of its own) and into a call (whose class
+            // instance may be decided by its result type - `truncate(x) :: Int`). The call keeps
+            // its own result unconverted, because the ascription that selected the instance is
+            // also the explicit conversion, and an explicit one may narrow.
+            if(ast::isLiteral(coerce.target)) {
+                return convert(resolve(coerce.target, type), type, expr.source, false);
+            }
+
+            if(coerce.target.kind == ast::Expr::App) {
+                auto value = resolveCall(coerce.target, *parse[coerce.target.app], type, false);
+                return convert(value, type, expr.source, false);
+            }
+
+            if(coerce.target.kind == ast::Expr::Prefix) {
+                auto value = resolvePrefix(coerce.target, *parse[coerce.target.prefix], type, false);
+                return convert(value, type, expr.source, false);
+            }
+
+            return convert(resolve(coerce.target), type, expr.source, false);
         }
         case ast::Expr::Ret:
             resolveReturn(expr);
@@ -389,15 +438,17 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
     }
 }
 
+// Class signatures and generated functions have no AST and are already complete.
 static bool resolveFunction(Context& context, Module& module, Function& function) {
-    if(function.builtin) return true;
-    if(!function.ast) return false;
+    if(!function.ast || function.resolving) return true;
 
     auto& decl = *module.parse[function.ast];
     if(!decl.fun.body) {
-        context.diagnostics.error("scalar function requires a body"_v, decl.source);
+        context.diagnostics.error("function %@ requires a body"_v, decl.source, context.findName(function.name));
         return false;
     }
+
+    function.resolving = true;
 
     ExprResolver resolver(context, module, function);
     for(auto argPointer: function.args.contents(*module.arena)) {
@@ -435,15 +486,18 @@ static bool resolveFunction(Context& context, Module& module, Function& function
         }
     }
 
+    function.ast = nullptr;
     return errors == context.diagnostics.errorCount();
 }
 
-bool resolveFunctions(Context& context, Module& module, ast::Module& ast) {
+bool resolveModuleBodies(Module& module) {
     auto success = true;
     auto local = *module.arena;
 
-    for(auto function: module.functionOrder.contents(local)) {
-        success = resolveFunction(context, module, *local[function]) && success;
+    // Resolving one body can add a function to the module - none do yet, but specialization
+    // will - so the list is walked by index rather than by iterator.
+    for(Size i = 0; i < module.functionOrder.size(); i++) {
+        success = resolveFunction(module.context, module, *local[module.functionOrder.get(local, i)]) && success;
     }
 
     return success;

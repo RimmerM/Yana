@@ -3,4 +3,4 @@
 #include "module.h"
 #include "../lower/lower.h"
 
-Ptr<LowerModule> lowerModule(Context& context, Module& module);
+Ptr<LowerModule> lowerProgram(Context& context, Program& program);

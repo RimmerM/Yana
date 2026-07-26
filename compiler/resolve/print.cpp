@@ -3,7 +3,7 @@
 struct ResolvePrint {
     Net::Writer& writer;
     Context& context;
-    Module& module;
+    Program& program;
     GlobalBase global;
     ModuleBase local;
 };
@@ -21,32 +21,8 @@ static void writeFloat(Net::Writer& writer, F64 value) {
 }
 
 static void printType(ResolvePrint& print, TypePtr pointer) {
-    auto type = print.global[pointer];
-    if(type->kind == Type::Record) {
-        print.writer.writeString(print.context.findName(((RecordType*)type)->name));
-        return;
-    }
-
-    if(type->kind == Type::Tup) {
-        auto tuple = (TupType*)type;
-        print.writer.writeByte('{');
-
-        for(Size i = 0; i < tuple->fields.size(); i++) {
-            if(i) print.writer.writeString(", "_v);
-            auto field = tuple->fields.get(print.global, i);
-            if(field.name) {
-                print.writer.writeString(print.context.findName(field.name));
-                print.writer.writeString(": "_v);
-            }
-
-            printType(print, field.type);
-        }
-
-        print.writer.writeByte('}');
-        return;
-    }
-
-    print.writer.writeString(typeName(print.global, pointer));
+    auto text = describeType(print.context, print.global, pointer);
+    print.writer.writeString(stringView(text));
 }
 
 static void printPlace(ResolvePrint& print, Function& function, const Place& place) {
@@ -61,13 +37,13 @@ static void printPlace(ResolvePrint& print, Function& function, const Place& pla
         writeUInt(print.writer, place.local);
     }
 
-    auto type = known ? root.type : print.module.scalar.error;
+    auto type = known ? root.type : print.program.scalar.error;
     auto projections = place.projections;
 
     for(auto projection: projections.contents(print.local)) {
         if(projection.kind == ProjectionKind::Discriminant) {
             print.writer.writeString(".discriminant"_v);
-            type = print.module.scalar.int_;
+            type = print.program.scalar.int_;
         } else if(projection.kind == ProjectionKind::Downcast) {
             auto record = (RecordType*)print.global[type];
             print.writer.writeByte('@');
@@ -95,14 +71,21 @@ static void printValue(ResolvePrint& print, Value& value) {
     }
 
     switch(value.kind) {
-        case Value::ConstInt:
-            if(isBool(print.global, value.type)) {
-                print.writer.writeString(((ConstInt&)value).value ? "True"_v : "False"_v);
+        case Value::ConstInt: {
+            // A payload-free record is represented by its constructor index, so printing the
+            // index back as the constructor's name is what keeps `True` readable as `True`.
+            auto constant = ((ConstInt&)value).value;
+            auto type = print.global[value.type];
+
+            if(type->kind == Type::Record && constant < ((RecordType*)type)->constructors.size()) {
+                auto constructor = ((RecordType*)type)->constructors.get(print.global, Size(constant));
+                print.writer.writeString(print.context.findName(constructor.name));
             } else {
-                writeUInt(print.writer, ((ConstInt&)value).value);
+                writeUInt(print.writer, constant);
             }
 
             return;
+        }
         case Value::ConstFloat:
             writeFloat(print.writer, ((ConstFloat&)value).value);
             return;
@@ -313,13 +296,19 @@ static void printFunction(ResolvePrint& print, Function& function) {
     print.writer.writeString("}\n"_v);
 }
 
-void printModule(Net::Writer& writer, Context& context, Module& module) {
-    ResolvePrint print { writer, context, module, *module.types, *module.arena };
+// Only the root module is printed in full. An imported module contributes the functions
+// something actually reached: Core declares a few hundred instance implementations, and all but
+// the handful a program calls are dead weight in a fixture.
+void printProgram(Net::Writer& writer, Context& context, Program& program) {
+    ResolvePrint print { writer, context, program, *program.types, *program.arena };
     Size index = 0;
 
-    for(auto function: module.functionOrder.contents(print.local)) {
-        if(print.local[function]->builtin && !print.local[function]->used) continue;
-        if(index++) writer.writeByte('\n');
-        printFunction(print, *print.local[function]);
+    for(auto module: program.modules) {
+        for(auto function: module->functionOrder.contents(print.local)) {
+            if(print.local[function]->signature) continue;
+            if(!module->root && !print.local[function]->used) continue;
+            if(index++) writer.writeByte('\n');
+            printFunction(print, *print.local[function]);
+        }
     }
 }

@@ -1,11 +1,4 @@
 
-__builtin_i32_eq<complex>(%lhs: Int, %rhs: Int): Int {
-  b_0 {
-    %v_1 = cmp_eq %lhs, %rhs: Int
-    ret %v_1
-  }
-}
-
 floatDefault<complex>(): Float {
   b_0 {
     ret 1.5
@@ -79,7 +72,7 @@ floatFromInteger<complex>(): Float {
 mixedMatch<complex>(%c: Int, %a: Int, %b: Float): Float {
   b_0 {
     %v_1 = cast %c: Int
-    %v_2 = call_complex __builtin_i32_eq, %v_1, 1: Int
+    %v_2 = cmp_eq %v_1, 1: Int
     je %v_2, b_3, b_4
   }
 
@@ -128,53 +121,42 @@ main<complex>(): Int {
     %v_2 = ftoi %v_1: Int
     %v_3 = call_complex doubleFromContext: Double
     %v_4 = ftoi %v_3: Int
-    %v_5 = call_complex __builtin_i32_add, %v_2, %v_4: Int
+    %v_5 = add %v_2, %v_4: Int
     %v_6 = call_complex floatFromInteger: Float
     %v_7 = ftoi %v_6: Int
-    %v_8 = call_complex __builtin_i32_add, %v_5, %v_7: Int
+    %v_8 = add %v_5, %v_7: Int
     %v_9 = call_complex doubleFromInteger: Double
     %v_10 = ftoi %v_9: Int
-    %v_11 = call_complex __builtin_i32_add, %v_8, %v_10: Int
+    %v_11 = add %v_8, %v_10: Int
     %v_12 = call_complex ascribedDouble: Double
     %v_13 = ftoi %v_12: Int
-    %v_14 = call_complex __builtin_i32_add, %v_11, %v_13: Int
+    %v_14 = add %v_11, %v_13: Int
     %v_15 = call_complex ascribedFloat: Float
     %v_16 = ftoi %v_15: Int
-    %v_17 = call_complex __builtin_i32_add, %v_14, %v_16: Int
-    %v_18 = cast 4.5: Double
-    %v_19 = call_complex mixedIf, 1, 3, %v_18: Double
-    %v_20 = ftoi %v_19: Int
-    %v_21 = call_complex __builtin_i32_add, %v_17, %v_20: Int
-    %v_22 = cast 4.5: Double
-    %v_23 = call_complex mixedIf, 0, 3, %v_22: Double
-    %v_24 = ftoi %v_23: Int
-    %v_25 = call_complex __builtin_i32_add, %v_21, %v_24: Int
-    %v_26 = sext 6: Long
-    %v_27 = call_complex mixedMultiIf, 1, 5, %v_26: Long
+    %v_17 = add %v_14, %v_16: Int
+    %v_18 = call_complex mixedIf, 1, 3, 4.5: Double
+    %v_19 = ftoi %v_18: Int
+    %v_20 = add %v_17, %v_19: Int
+    %v_21 = call_complex mixedIf, 0, 3, 4.5: Double
+    %v_22 = ftoi %v_21: Int
+    %v_23 = add %v_20, %v_22: Int
+    %v_24 = call_complex mixedMultiIf, 1, 5, 6: Long
+    %v_25 = cast %v_24: Int
+    %v_26 = add %v_23, %v_25: Int
+    %v_27 = call_complex mixedMultiIf, 0, 5, 6: Long
     %v_28 = cast %v_27: Int
-    %v_29 = call_complex __builtin_i32_add, %v_25, %v_28: Int
-    %v_30 = sext 6: Long
-    %v_31 = call_complex mixedMultiIf, 0, 5, %v_30: Long
-    %v_32 = cast %v_31: Int
-    %v_33 = call_complex __builtin_i32_add, %v_29, %v_32: Int
-    %v_34 = call_complex mixedMatch, 1, 8, 9.25: Float
-    %v_35 = ftoi %v_34: Int
-    %v_36 = call_complex __builtin_i32_add, %v_33, %v_35: Int
-    %v_37 = call_complex mixedMatch, 0, 8, 9.25: Float
-    %v_38 = ftoi %v_37: Int
-    %v_39 = call_complex __builtin_i32_add, %v_36, %v_38: Int
-    %v_40 = call_complex divergingArm, 1, 1: Int
-    %v_41 = call_complex __builtin_i32_add, %v_39, %v_40: Int
-    %v_42 = call_complex divergingArm, 0, 2: Int
-    %v_43 = call_complex __builtin_i32_add, %v_41, %v_42: Int
-    ret %v_43
-  }
-}
-
-__builtin_i32_add<complex>(%lhs: Int, %rhs: Int): Int {
-  b_0 {
-    %v_1 = add %lhs, %rhs: Int
-    ret %v_1
+    %v_29 = add %v_26, %v_28: Int
+    %v_30 = call_complex mixedMatch, 1, 8, 9.25: Float
+    %v_31 = ftoi %v_30: Int
+    %v_32 = add %v_29, %v_31: Int
+    %v_33 = call_complex mixedMatch, 0, 8, 9.25: Float
+    %v_34 = ftoi %v_33: Int
+    %v_35 = add %v_32, %v_34: Int
+    %v_36 = call_complex divergingArm, 1, 1: Int
+    %v_37 = add %v_35, %v_36: Int
+    %v_38 = call_complex divergingArm, 0, 2: Int
+    %v_39 = add %v_37, %v_38: Int
+    ret %v_39
   }
 }
 

@@ -4,6 +4,7 @@
 #include "../parse/ast.h"
 #include "../util/container.h"
 
+struct Program;
 struct Module;
 struct GlobalRegion {};
 
@@ -16,6 +17,9 @@ template<class T>
 using GlobalList = SmallList<GlobalRegion, T, false>;
 
 struct Type;
+struct GenEnv;
+struct GenType;
+struct TypeClass;
 using TypePtr = GlobalPtr<Type>;
 
 struct Repr {
@@ -23,9 +27,10 @@ struct Repr {
     U32 align = 1;
 };
 
-// Resolve types are interned in a module's global region. Repr is deliberately limited
-// to the size/alignment/offset information needed by Milestone 2; packing and niches are
-// later passes.
+// Resolve types live in one region shared by every module of a program, so that a type
+// resolved in Core is the same TypePtr when a user module names it. Interning is what makes
+// that identity meaningful: sameType() is pointer equality, and instance selection, generic
+// instantiation caching and Repr all depend on it.
 struct Type {
     enum Kind: U8 {
         Error,
@@ -42,7 +47,6 @@ struct Type {
         Map,
         Tup,
         Record,
-        Alias,
         Gen,
     };
 
@@ -54,6 +58,10 @@ struct Type {
     U16 virtualSize;
     Repr repr;
     Kind kind;
+
+    // Set when a type variable is reachable inside this type. A generic type has no Repr and
+    // never reaches the IR; it exists to be substituted.
+    bool generic = false;
 };
 
 struct IntType: Type {
@@ -108,6 +116,50 @@ struct Constructor {
     U32 index = 0;
 };
 
+/*
+ * Generic contexts.
+ *
+ * A generic type variable belongs to exactly one context - the declaration that introduced it -
+ * rather than being ambient, which is what lets `Serialize(type, target)`-shaped constraints
+ * relate two variables of the same context (Design.md's "Resolving"). Milestone 1 builds these
+ * contexts for `data`, `alias`, `class` and `instance` declarations; function contexts and the
+ * requirement collection that goes with them are Milestone 2.
+ */
+
+struct GenType: Type {
+    GenType(GlobalPtr<GenEnv> env, StringId name, U16 index):
+        Type(Type::Gen, 1), env(env), name(name), index(index) { generic = true; }
+
+    GlobalPtr<GenEnv> env;
+    StringId name;
+    U16 index;
+};
+
+// One `Class(a, b)` requirement of a context. `args` are the context's own types (or concrete
+// types, for a partially applied constraint), in the class's argument order.
+struct ClassConstraint {
+    GlobalPtr<TypeClass> typeClass = nullptr;
+    GlobalList<TypePtr> args;
+    StringId name = 0;
+    LocationId source = kNullLocation;
+};
+
+struct GenEnv {
+    enum Kind: U8 {
+        Record,
+        Alias,
+        Class,
+        Instance,
+        Function,
+    };
+
+    explicit GenEnv(Kind kind): kind(kind) {}
+
+    GlobalList<GlobalPtr<GenType>> types;
+    GlobalList<ClassConstraint> classes;
+    Kind kind;
+};
+
 struct RecordType: Type {
     enum Layout: U8 {
         Enum,
@@ -118,8 +170,23 @@ struct RecordType: Type {
     explicit RecordType(StringId name):
         Type(Type::Record, 0), name(name) {}
 
+    // The declaration this type came from: itself for a plain or generic declaration, and the
+    // generic declaration for one of its instantiations.
+    GlobalPtr<RecordType> base(GlobalBase global) {
+        return instanceOf ? instanceOf : (RecordType*)this - global;
+    }
+
     GlobalList<Constructor> constructors;
     StringId name;
+
+    // Set on a generic declaration: its type variables, and the instantiations made from it.
+    GlobalPtr<GenEnv> gen = nullptr;
+    GlobalList<GlobalPtr<RecordType>> instances;
+
+    // Set on an instantiation: what it was made from, and with which concrete arguments.
+    GlobalPtr<RecordType> instanceOf = nullptr;
+    GlobalList<TypePtr> instanceArgs;
+
     U32 payloadOffset = 0;
     Layout layout = Multi;
     bool qualified = false;
@@ -131,6 +198,24 @@ struct RecordType: Type {
 struct ConstructorRef {
     GlobalPtr<RecordType> record = nullptr;
     U16 index = 0;
+
+    explicit operator bool() const { return record != nullptr; }
+};
+
+// A generic `alias` declaration. Aliases are transparent - resolving one substitutes straight
+// through to the target type - so they are not a Type kind and never reach the IR.
+//
+// The target is kept as AST and resolved on first use, so an alias may name a type declared
+// after it. `module` is where that resolution happens: an alias reached through an import
+// resolves its target in the module that wrote it, not in the one that named it.
+struct TypeAlias {
+    StringId name = 0;
+    Module* module = nullptr;
+    GlobalPtr<GenEnv> gen = nullptr;
+    ast::ParsePtr<ast::Decl> ast = nullptr;
+    TypePtr resolved = nullptr;
+    LocationId source = kNullLocation;
+    bool resolving = false;
 };
 
 struct ScalarTypes {
@@ -141,27 +226,54 @@ struct ScalarTypes {
     TypePtr long_ = nullptr;
     TypePtr float_ = nullptr;
     TypePtr double_ = nullptr;
+    TypePtr ordering = nullptr;
 };
 
-TypePtr resolveType(Context& context, Module& module, const ast::Type& type);
-TupType* resolveTupleType(Context& context, Module& module, Buffer<Field> fields, LocationId source);
+/*
+ * Resolving types.
+ *
+ * `env` is the generic context the type is written in, if any: it is what makes a lowercase
+ * name in a declaration resolve to that declaration's own type variable rather than being an
+ * error. A null env means no type variable is in scope.
+ */
+TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env = nullptr);
+TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId source);
 
-bool finishTupleRepr(Context& context, Module& module, TupType& tuple, LocationId source);
-bool finishRecordRepr(Context& context, Module& module, RecordType& record, LocationId source);
+// Instantiates a generic record for a set of fully concrete arguments, interning the result so
+// that `Maybe(Int)` names one type no matter how many places write it.
+TypePtr instantiateRecord(Module& module, GlobalPtr<RecordType> record, Buffer<TypePtr> args, LocationId source);
+
+// Fills in the constructors of every instantiation that was created before the declaration it
+// came from had been read. Runs once per module after its data declarations are complete.
+void completePendingInstances(Module& module);
+
+// Replaces every type variable of one context with the matching entry of `args`. Used to build
+// an instantiation's constructors and to specialize a class method's signature.
+TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, LocationId source);
+
+// Structural match of a type written against a generic context (`pattern`) with a concrete type,
+// binding each type variable it meets in `bindings`. Returns false on a mismatch, including a
+// variable that would have to bind to two different types. This is the whole of instance
+// selection's inference, and Milestone 2's call-site inference uses the same function.
+bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<TypePtr> bindings);
+
+bool finishTupleRepr(Module& module, TupType& tuple, LocationId source);
+bool finishRecordRepr(Module& module, RecordType& record, LocationId source);
 
 bool sameType(TypePtr lhs, TypePtr rhs);
 bool isUnit(GlobalBase base, TypePtr type);
-bool isBool(GlobalBase base, TypePtr type);
 bool isInteger(GlobalBase base, TypePtr type);
 bool isFloat(GlobalBase base, TypePtr type);
 bool isNumeric(GlobalBase base, TypePtr type);
+bool isGeneric(GlobalBase base, TypePtr type);
 bool isDirectType(GlobalBase base, TypePtr type);
 bool isMemoryType(GlobalBase base, TypePtr type);
 
 U32 typeSize(GlobalBase base, TypePtr type);
 U32 typeAlign(GlobalBase base, TypePtr type);
-StringView typeName(GlobalBase base, TypePtr type);
 
-// How a type is written in a diagnostic. Unlike typeName() this can name a record, which needs
-// the Context its name was interned in.
+// How a type is written in a diagnostic or in printed IR. The buffer form is the one that
+// composes; the String form allocates a copy for a diagnostic argument.
+void describeType(Context& context, GlobalBase base, TypePtr type, Array<char>& target);
 String describeType(Context& context, GlobalBase base, TypePtr type);
+void appendText(Array<char>& target, StringView text);

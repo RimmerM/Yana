@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "name.h"
 
 /*
  * Patterns and `match`.
@@ -83,17 +84,17 @@ bool ExprResolver::irrefutable(const ast::Pat& pattern, TypePtr type) {
     }
 
     if(pattern.kind == ast::Pat::Con) {
-        auto found = module.constructors.get(pattern.con.name);
+        auto found = findConstructor(module, pattern.con.name, pattern.source);
         if(!found || !type || global[type]->kind != Type::Record) return false;
 
-        auto reference = found.unwrap();
-        if((Type*)global[reference.record] - global != type) return false;
-
-        auto record = global[reference.record];
+        // The constructor names a declaration; the pivot has one of its instantiations. The
+        // content type therefore comes from the pivot, where the type arguments are known.
+        auto record = (RecordType*)global[type];
+        if(record->base(global) != found.unwrap().record) return false;
         if(record->constructors.size() != 1) return false;
         if(!pattern.con.pats) return true;
 
-        return irrefutable(*parse[pattern.con.pats], record->constructors.get(global, reference.index).content);
+        return irrefutable(*parse[pattern.con.pats], record->constructors.get(global, found.unwrap().index).content);
     }
 
     return false;
@@ -168,7 +169,7 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
             return overall;
         }
         case ast::Pat::Con: {
-            auto found = module.constructors.get(pattern.con.name);
+            auto found = findConstructor(module, pattern.con.name, pattern.source);
             auto pivotType = valueType(pivot);
 
             if(!found || global[pivotType]->kind != Type::Record) {
@@ -177,11 +178,15 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
             }
 
             auto reference = found.unwrap();
-            auto record = global[reference.record];
-            auto recordType = (Type*)record - global;
+            auto record = (RecordType*)global[pivotType];
+            auto recordType = pivotType;
 
-            if(!sameType(recordType, pivotType)) {
-                context.diagnostics.error("constructor pattern is incompatible with the pivot type"_v, pattern.source);
+            // A constructor belongs to a declaration, so `Just` matches any `Maybe(a)`; the
+            // content it exposes is the pivot's own, with that pivot's type arguments in it.
+            if(record->base(global) != reference.record) {
+                context.diagnostics.error("constructor %@ does not belong to %@"_v, pattern.source,
+                                          context.findName(pattern.con.name),
+                                          describeType(context, global, pivotType));
                 return PatternResult::Never;
             }
 
@@ -308,9 +313,12 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
         auto expectedAlways = irrefutable(alternative.pat, valueType(pivot));
 
         if(!expectedAlways && coverage.type && alternative.pat.kind == ast::Pat::Con) {
-            if(auto found = module.constructors.get(alternative.pat.con.name)) {
+            auto found = findConstructor(module, alternative.pat.con.name, alternative.pat.source);
+            auto record = (RecordType*)global[coverage.type];
+
+            // A constructor from another type leaves this false; resolvePattern reports it.
+            if(found && record->base(global) == found.unwrap().record) {
                 auto reference = found.unwrap();
-                auto record = global[reference.record];
                 auto constructor = record->constructors.get(global, reference.index);
                 auto childAlways = !alternative.pat.con.pats || irrefutable(*parse[alternative.pat.con.pats], constructor.content);
                 auto already = (coverage.checked & (U64(1) << reference.index)) != 0;

@@ -1,12 +1,16 @@
 #pragma once
 
 #include "block.h"
+#include "class.h"
 
 namespace ast {
 struct Module;
 struct Decl;
 struct Expr;
 }
+
+struct Program;
+struct ExprResolver;
 
 enum class StorageClass: U8 {
     Stack,
@@ -23,8 +27,16 @@ struct Local {
     StorageClass storage = StorageClass::Stack;
 };
 
+// A function whose body the resolver generates at the call site instead of calling. The
+// primitive operations are the only ones today: `+` on Int has a real Function with a real body
+// so that it can be printed, lowered and taken the address of, but an ordinary call to it
+// expands to the one instruction it contains rather than to a call the backend would have to
+// inline later.
+using Intrinsic = ModulePtr<Value> (*)(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
+                                       TypePtr type, LocationId source, StringId name);
+
 struct Function {
-    explicit Function(StringId name): name(name) {}
+    Function(Module* module, StringId name): module(module), name(name) {}
 
     Block* addBlock(Module& module, StringId name = 0);
     Arg* addArg(Module& module, StringId name, TypePtr type, LocationId source);
@@ -33,6 +45,7 @@ struct Function {
     Local localAt(ModuleBase base, U32 index) { return locals.get(base, index); }
     Size localCount() { return locals.size(); }
 
+    Module* module;
     StringId name;
     LocationId source = kNullLocation;
     TypePtr returnType = nullptr;
@@ -40,42 +53,115 @@ struct Function {
     ModuleList<ModulePtr<Block>, false> blocks;
     ModuleList<Local, false> locals;
     ast::ParsePtr<ast::Decl> ast = nullptr;
-    StringId exportedName = 0;
+
+    // Set when this function implements a class signature, for diagnostics and printing.
+    GlobalPtr<TypeClass> instanceOf = nullptr;
+    ModuleList<TypePtr, false> instanceArgs;
+
+    Intrinsic intrinsic = nullptr;
     U32 valueCounter = 0;
-    bool builtin = false;
+    bool resolving = false;
     bool used = false;
+
+    // A class function's declared signature. It has arguments and a return type but no body and
+    // never will: it exists so that selection has something to match against, and is the one
+    // kind of Function that must not reach printing or lowering.
+    bool signature = false;
 };
 
-// One name a function is reachable under besides its own. The builtins are the only source of
-// these today: they are declared under an internal name and called under an operator name, and
-// several of them share one (`rem` is also `%`). This is the temporary stand-in for typeclass
-// resolution described by Implementation-IR.md part 6.
-struct FunctionOverload {
-    StringId name = 0;
-    ModulePtr<Function> function = nullptr;
-    bool temporaryBuiltinResolver = false;
+// One module made visible in another. `include`/`exclude` are the parsed symbol lists; an empty
+// `include` means everything the module exports.
+struct Import {
+    Module* module = nullptr;
+    StringId localName = 0;
+    Array<StringId> include;
+    Array<StringId> exclude;
+    bool qualified = false;
 };
 
 struct Module {
-    Module(Context& context, StringId name, ast::ParseBase parse,
-           Size typeMemory = 1024 * 1024, Size irMemory = 4 * 1024 * 1024);
+    Module(Program& program, StringId name, ast::ParseBase parse);
 
     Function* addFunction(StringId name, LocationId source);
     Block* entry(Function& function);
 
+    // True when `name` may be looked up in this module from outside it, per one import's
+    // include/exclude lists. Symbol visibility is checked here so that every lookup path
+    // applies the same rule.
+    static bool visible(const Import& import, StringId name);
+
+    Program& program;
     Context& context;
+
+    // Both regions belong to the program rather than to one module: a type resolved in Core has
+    // to be the same TypePtr everywhere, and a call from a user module to a Core function has to
+    // name the same ModulePtr<Function> its own calls do.
+    Region<GlobalRegion>& types;
+    Region<ModuleRegion>& arena;
+    ScalarTypes& scalar;
+
     StringId name;
-    Region<GlobalRegion> types;
-    Region<ModuleRegion> arena;
     ast::ParseBase parse;
-    ScalarTypes scalar;
+    Array<Import> imports;
+
     HashMap<StringId, TypePtr> namedTypes;
+    HashMap<StringId, TypeAlias> aliases;
     HashMap<StringId, ConstructorRef> constructors;
     HashMap<StringId, ModulePtr<Function>> functions;
-    ModuleList<ModulePtr<Function>, false> functionOrder;
-    ModuleList<FunctionOverload, false> overloads;
-    GlobalList<GlobalPtr<TupType>> tupleTypes;
+    HashMap<StringId, GlobalPtr<TypeClass>> classes;
     HashMap<StringId, U8> operatorPrecedence;
+
+    // Class functions and instances are scanned rather than hashed: a name may belong to several
+    // classes, and an instance is found by class and argument types rather than by name. Both
+    // lists are small enough that the linear scan is not worth avoiding.
+    Array<ClassFunRef> classFunctions;
+    Array<ModulePtr<ClassInstance>> instances;
+
+    ModuleList<ModulePtr<Function>, false> functionOrder;
+
+    // The module the program was asked to compile. Its functions are emitted whether or not
+    // anything calls them; every other module contributes only what is reached.
+    bool root = false;
 };
 
-Ptr<Module> resolveModule(Context& context, ast::Module& ast);
+// Supplies the parsed source of an imported module. The resolver asks for a module the first
+// time an `import` names it and never twice.
+struct ModuleProvider {
+    virtual ~ModuleProvider() = default;
+    virtual ast::Module* getModule(StringId name) = 0;
+};
+
+struct Program {
+    explicit Program(Context& context, Size typeMemory = 4 * 1024 * 1024, Size irMemory = 16 * 1024 * 1024);
+    ~Program();
+
+    Module* addModule(StringId name, ast::ParseBase parse);
+    Module* findModule(StringId name);
+
+    Context& context;
+    Region<GlobalRegion> types;
+    Region<ModuleRegion> arena;
+    ScalarTypes scalar;
+
+    Array<Module*> modules;
+    GlobalList<GlobalPtr<TupType>> tupleTypes;
+
+    // Instantiations created before the declaration they came from had been read, waiting for
+    // their constructor contents. Drained by completePendingInstances().
+    Array<GlobalPtr<RecordType>> pendingInstances;
+
+    Module* core = nullptr;
+    Module* root = nullptr;
+
+    // Core is parsed from source embedded in the compiler, so the program owns that AST for as
+    // long as anything can still resolve against it.
+    ast::Module* coreAst = nullptr;
+};
+
+// Resolves `root` and everything it imports, with Core built and implicitly imported first.
+Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider* provider = nullptr);
+
+// Resolves the declarations of one already-registered module. Exposed because Core is assembled
+// from both parsed source and directly generated definitions.
+void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provider);
+bool resolveModuleBodies(Module& module);

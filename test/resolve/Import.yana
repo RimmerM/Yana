@@ -1,0 +1,18 @@
+-- Imports, and the one name lookup they share with everything else.
+
+import Shapes
+import qualified Shapes as S
+
+-- An unqualified import makes the module's types, functions, classes and instances visible
+-- under their own names.
+fn area1() -> Int = area(Point {x: 3, y: 4})
+
+fn viaFunction() -> Int = area(scale(origin(), 2))
+
+-- The same symbols are reachable through the qualified alias, and name the same things.
+fn area2() -> Int = S.area(S.Point {x: 2, y: 5})
+
+fn qualifiedConstructor() -> Shapes.Point = Shapes.Point {x: 1, y: 1}
+
+-- Core is implicitly imported, so its operators work here without being named.
+fn main() -> Int = area1() + area2() + viaFunction() + area(qualifiedConstructor())

@@ -1,66 +1,24 @@
-fn __builtin_i32_add(%lhs: Int, %rhs: Int) -> Int {
-  b0:
-    %v2 = add %lhs, %rhs : Int
-    ret %v2
-}
-
-fn __builtin_i32_sub(%lhs: Int, %rhs: Int) -> Int {
-  b0:
-    %v2 = sub %lhs, %rhs : Int
-    ret %v2
-}
-
-fn __builtin_i32_mul(%lhs: Int, %rhs: Int) -> Int {
-  b0:
-    %v2 = mul %lhs, %rhs : Int
-    ret %v2
-}
-
-fn __builtin_i32_eq(%lhs: Int, %rhs: Int) -> Bool {
-  b0:
-    %v2 = cmp_eq %lhs, %rhs : Bool
-    ret %v2
-}
-
-fn __builtin_i32_lt(%lhs: Int, %rhs: Int) -> Bool {
-  b0:
-    %v2 = cmp_lt %lhs, %rhs : Bool
-    ret %v2
-}
-
-fn __builtin_i32_gt(%lhs: Int, %rhs: Int) -> Bool {
-  b0:
-    %v2 = cmp_gt %lhs, %rhs : Bool
-    ret %v2
-}
-
-fn __builtin_i32_neg(%value: Int) -> Int {
-  b0:
-    %v1 = neg %value : Int
-    ret %v1
-}
-
 fn add(%a: Int, %b: Int) -> Int {
   b0:
-    %v2 = call __builtin_i32_add, %a, %b : Int
+    %v2 = add %a, %b : Int
     ret %v2
 }
 
-fn noop() -> Unit {
+fn noop() -> () {
   b0:
     ret
 }
 
 fn local(%value: Int) -> Int {
   b0:
-    %next = call __builtin_i32_add, %value, 1 : Int
-    %v4 = call __builtin_i32_mul, %next, 2 : Int
+    %next = add %value, 1 : Int
+    %v4 = mul %next, 2 : Int
     ret %v4
 }
 
 fn choose(%a: Int, %b: Int) -> Int {
   b0:
-    %v2 = call __builtin_i32_gt, %a, %b : Bool
+    %v2 = cmp_gt %a, %b : Bool
     je %v2, b1, b2
 
   b1:
@@ -77,15 +35,15 @@ fn choose(%a: Int, %b: Int) -> Int {
 
 fn classify(%value: Int) -> Int {
   b0:
-    %v2 = call __builtin_i32_lt, %value, 0 : Bool
+    %v2 = cmp_lt %value, 0 : Bool
     je %v2, b1, b2
 
   b1:
-    %v5 = call __builtin_i32_neg, 1 : Int
+    %v5 = neg 1 : Int
     jmp b5
 
   b2:
-    %v7 = call __builtin_i32_eq, %value, 0 : Bool
+    %v7 = cmp_eq %value, 0 : Bool
     je %v7, b3, b4
 
   b3:
@@ -112,11 +70,11 @@ fn main() -> Int {
     ret 99
 
   b3:
-    %v10 = call __builtin_i32_mul, %value, 2 : Int
+    %v10 = mul %value, 2 : Int
     %v12 = call classify, 5 : Int
-    %v13 = call __builtin_i32_add, %v10, %v12 : Int
+    %v13 = add %v10, %v12 : Int
     %v15 = call local, 0 : Int
-    %v16 = call __builtin_i32_add, %v13, %v15 : Int
-    %v18 = call __builtin_i32_sub, %v16, 2 : Int
+    %v16 = add %v13, %v15 : Int
+    %v18 = sub %v16, 2 : Int
     ret %v18
 }

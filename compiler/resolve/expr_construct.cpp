@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "name.h"
 
 /*
  * Storage, places and aggregates.
@@ -182,7 +183,7 @@ ModulePtr<Value> ExprResolver::resolveTuple(const ast::Expr& expr, ast::ParseLis
             fields.push(Field { valueType(value), arg.name, 0 });
         }
 
-        tuple = resolveTupleType(context, module, toBuffer(fields), expr.source);
+        tuple = resolveTupleType(module, toBuffer(fields), expr.source);
     }
 
     auto result = allocate((Type*)tuple - global, expr.source);
@@ -199,24 +200,91 @@ ModulePtr<Value> ExprResolver::resolveTuple(const ast::Expr& expr, ast::ParseLis
     return result;
 }
 
+/*
+ * Which type a constructor of a generic record produces here.
+ *
+ * Nothing about `Just` itself says what its element type is, so it comes from one of two places:
+ * the expected type, or the argument. The expected type is tried first because it is the only
+ * one that can also settle a constructor carrying no argument - `Nothing` on its own is not
+ * inferable and has to be told.
+ *
+ * Falling back to the argument means resolving it before the storage it will initialize exists.
+ * That is why the values are handed back in `resolved`: re-resolving them after the allocation
+ * would emit them twice.
+ */
+TypePtr ExprResolver::constructedType(ConstructorRef reference, ast::ParseList<ast::TupArg> args, TypePtr target,
+                                      Array<ModulePtr<Value>>& resolved, LocationId source) {
+    auto declaration = global[reference.record];
+    auto env = declaration->gen ? global[declaration->gen] : nullptr;
+    if(!env || env->types.isEmpty()) return (Type*)declaration - global;
+
+    if(target && global[target]->kind == Type::Record &&
+       ((RecordType*)global[target])->base(global) == reference.record) {
+        return target;
+    }
+
+    Array<TypePtr> bindings;
+    for(Size i = 0; i < env->types.size(); i++) bindings.push(nullptr);
+
+    auto content = declaration->constructors.get(global, reference.index).content;
+    auto contents = args.contents(parse);
+
+    if(content && !isUnit(global, content) && contents.size()) {
+        // A tuple content is matched field by field, so `Pair(1, 2.5)` can bind two variables
+        // from two arguments; anything else takes its one argument whole.
+        auto tuple = global[content]->kind == Type::Tup ? (TupType*)global[content] : nullptr;
+        auto perField = tuple && (contents.size() > 1 || tuple->fields.size() == contents.size());
+
+        for(Size i = 0; i < contents.size(); i++) {
+            auto value = resolve(contents[i].value);
+            resolved.push(value);
+            if(!value) continue;
+
+            auto pattern = content;
+            if(perField) {
+                if(i >= tuple->fields.size()) continue;
+                pattern = tuple->fields.get(global, i).type;
+            } else if(i) {
+                continue;
+            }
+
+            matchType(global, pattern, valueType(value), { bindings.pointer(), bindings.size() });
+        }
+    }
+
+    for(auto binding: bindings) {
+        if(binding) continue;
+
+        context.diagnostics.error("cannot infer the type arguments of %@ here - give the expected type"_v, source,
+                                  context.findName(declaration->name));
+        return module.scalar.error;
+    }
+
+    return instantiateRecord(module, reference.record, toBuffer(bindings), source);
+}
+
 ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast::ConExpr& construct, TypePtr target) {
     if(construct.type.kind != ast::Type::Con) {
         context.diagnostics.error("constructor must have a named type"_v, expr.source);
         return nullptr;
     }
 
-    auto found = module.constructors.get(construct.type.name);
+    auto found = findConstructor(module, construct.type.name, expr.source);
     if(!found) {
         context.diagnostics.error("unknown constructor %@"_v, expr.source, context.findName(construct.type.name));
         return nullptr;
     }
 
     auto reference = found.unwrap();
-    auto record = global[reference.record];
-    auto recordType = (Type*)record - global;
+    Array<ModulePtr<Value>> inferredValues;
+    auto recordType = constructedType(reference, construct.args, target, inferredValues, expr.source);
+    if(global[recordType]->kind != Type::Record) return nullptr;
+
+    auto record = (RecordType*)global[recordType];
 
     if(target && !sameType(target, recordType)) {
-        context.diagnostics.error("constructor does not produce the expected type"_v, expr.source);
+        context.diagnostics.error("constructor produces %@ but %@ is expected"_v, expr.source,
+                                  describeType(context, global, recordType), describeType(context, global, target));
     }
 
     auto constructor = record->constructors.get(global, reference.index);
@@ -243,6 +311,24 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
 
     if(!content || isUnit(global, content)) {
         if(args.size()) context.diagnostics.error("nullary constructor does not take arguments"_v, expr.source);
+    } else if(inferredValues.isNotEmpty()) {
+        // The arguments were already resolved to infer the type; only the writes are left.
+        if(global[content]->kind == Type::Tup && inferredValues.size() > 1) {
+            auto tuple = (TupType*)global[content];
+
+            for(Size i = 0; i < inferredValues.size() && i < tuple->fields.size(); i++) {
+                auto expected = tuple->fields.get(global, i).type;
+                auto value = isMemoryType(global, expected) ? inferredValues[i]
+                                                            : convert(inferredValues[i], expected, expr.source);
+
+                initialize(project(contentPlace, ProjectionKind::Field, U16(i)), value, expr.source);
+            }
+        } else {
+            auto value = isMemoryType(global, content) ? inferredValues[0]
+                                                       : convert(inferredValues[0], content, expr.source);
+
+            initialize(contentPlace, value, expr.source);
+        }
     } else if(global[content]->kind == Type::Tup) {
         fillTuple(contentPlace, *(TupType*)global[content], construct.args, expr.source);
     } else if(args.size() != 1 || args[0].name) {

@@ -1,0 +1,45 @@
+-- Generic data declarations instantiated for fully concrete arguments. `Maybe(Int)` and
+-- `Maybe(Bool)` are two interned types made from one declaration, and a constructor belongs to
+-- the declaration rather than to either of them.
+
+fn justInt() -> Maybe(Int) = Just(3)
+
+fn nothingInt() -> Maybe(Int) = Nothing
+
+-- The element type is inferred from the argument where there is one, and has to come from the
+-- expected type where there is not.
+fn unwrap(value: Maybe(Int), fallback: Int) -> Int = match value:
+    Just(inner) -> inner
+    Nothing -> fallback
+
+fn unwrapBool(value: Maybe(Bool)) -> Int = match value:
+    Just(inner) -> if inner then 1 else 0
+    Nothing -> 2
+
+fn okResult() -> Result(Int, Int) = Ok(11)
+fn errResult() -> Result(Int, Int) = Err(4)
+
+fn resultValue(value: Result(Int, Int)) -> Int = match value:
+    Ok(inner) -> inner
+    Err(code) -> 0 - code
+
+-- A user-declared generic type, including one nesting a Core generic.
+data Boxed(a) = Box(a)
+data Labelled(a) {label: Int, contents: Maybe(a)}
+
+fn unbox(value: Boxed(Int)) -> Int = match value:
+    Box(inner) -> inner
+
+fn labelled() -> Labelled(Int) = Labelled {label: 2, contents: Just(40)}
+
+fn labelSum(value: Labelled(Int)) -> Int = value.label + unwrap(value.contents, 0)
+
+fn main() -> Int =
+    unwrap(justInt(), 100) +
+    unwrap(nothingInt(), 5) +
+    unwrapBool(Just(True)) +
+    unwrapBool(Nothing) +
+    resultValue(okResult()) +
+    resultValue(errResult()) +
+    unbox(Box(6)) +
+    labelSum(labelled())

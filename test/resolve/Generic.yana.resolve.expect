@@ -1,0 +1,157 @@
+fn justInt() -> Maybe(Int) {
+  b0:
+    %v0 = alloc : Maybe(Int)
+    init %local0.discriminant, 1
+    init %local0@Just, 3
+    ret %v0
+}
+
+fn nothingInt() -> Maybe(Int) {
+  b0:
+    %v0 = alloc : Maybe(Int)
+    init %local0.discriminant, 0
+    ret %v0
+}
+
+fn unwrap(%value: Maybe(Int), %fallback: Int) -> Int {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %inner = load %value@Just : Int
+    jmp b3
+
+  b3:
+    %v9 = phi [b2, %inner], [b1, %fallback] : Int
+    ret %v9
+}
+
+fn unwrapBool(%value: Maybe(Bool)) -> Int {
+  b0:
+    %v1 = load %value.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    jmp b6
+
+  b2:
+    %inner = load %value@Just : Bool
+    je %inner, b3, b4
+
+  b3:
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v11 = phi [b3, 1], [b4, 0] : Int
+    jmp b6
+
+  b6:
+    %v15 = phi [b5, %v11], [b1, 2] : Int
+    ret %v15
+}
+
+fn okResult() -> Result(Int, Int) {
+  b0:
+    %v0 = alloc : Result(Int, Int)
+    init %local0.discriminant, 1
+    init %local0@Ok, 11
+    ret %v0
+}
+
+fn errResult() -> Result(Int, Int) {
+  b0:
+    %v0 = alloc : Result(Int, Int)
+    init %local0.discriminant, 0
+    init %local0@Err, 4
+    ret %v0
+}
+
+fn resultValue(%value: Result(Int, Int)) -> Int {
+  b0:
+    %v1 = load %value.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %code = load %value@Err : Int
+    %v8 = sub 0, %code : Int
+    jmp b3
+
+  b2:
+    %inner = load %value@Ok : Int
+    jmp b3
+
+  b3:
+    %v11 = phi [b2, %inner], [b1, %v8] : Int
+    ret %v11
+}
+
+fn unbox(%value: Boxed(Int)) -> Int {
+  b0:
+    %inner = load %value@Box : Int
+    jmp b1
+
+  b1:
+    ret %inner
+}
+
+fn labelled() -> Labelled(Int) {
+  b0:
+    %v0 = alloc : Labelled(Int)
+    %v2 = alloc : Maybe(Int)
+    init %local1.discriminant, 1
+    init %local1@Just, 40
+    init %local0@Labelled.label, 2
+    init %local0@Labelled.contents, %v2
+    ret %v0
+}
+
+fn labelSum(%value: Labelled(Int)) -> Int {
+  b0:
+    %v1 = load %value@Labelled.label : Int
+    %v2 = load %value@Labelled.contents : Maybe(Int)
+    %v4 = call unwrap, %v2, 0 : Int
+    %v5 = add %v1, %v4 : Int
+    ret %v5
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call justInt : Maybe(Int)
+    %v2 = call unwrap, %v0, 100 : Int
+    %v3 = call nothingInt : Maybe(Int)
+    %v5 = call unwrap, %v3, 5 : Int
+    %v6 = add %v2, %v5 : Int
+    %v7 = alloc : Maybe(Bool)
+    init %local2.discriminant, 1
+    init %local2@Just, True
+    %v12 = call unwrapBool, %v7 : Int
+    %v13 = add %v6, %v12 : Int
+    %v14 = alloc : Maybe(Bool)
+    init %local3.discriminant, 0
+    %v17 = call unwrapBool, %v14 : Int
+    %v18 = add %v13, %v17 : Int
+    %v19 = call okResult : Result(Int, Int)
+    %v20 = call resultValue, %v19 : Int
+    %v21 = add %v18, %v20 : Int
+    %v22 = call errResult : Result(Int, Int)
+    %v23 = call resultValue, %v22 : Int
+    %v24 = add %v21, %v23 : Int
+    %v25 = alloc : Boxed(Int)
+    init %local6@Box, 6
+    %v28 = call unbox, %v25 : Int
+    %v29 = add %v24, %v28 : Int
+    %v30 = call labelled : Labelled(Int)
+    %v31 = call labelSum, %v30 : Int
+    %v32 = add %v29, %v31 : Int
+    ret %v32
+}
