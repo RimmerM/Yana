@@ -180,6 +180,74 @@ static void sequenceMoves(MoveTemps& temps, Array<RegMove>& pending, Array<RegMo
 }
 
 /*
+ * Split transitions.
+ *
+ * A web whose life was split occupies one location over most of it and another over each window -
+ * see WebAllocation in gen.h. What that means here is one copy per segment boundary, and nothing
+ * else: every location this pass reports still comes out of `locationOf`, which now answers
+ * different things at different points.
+ *
+ * Where a boundary's copy goes follows from what a parallel copy means. The set of copies in front
+ * of an instruction all read the state at its `before` point and the set behind it all read the
+ * state at its `after` point, so a boundary belongs to whichever of the two straddles it: one at
+ * `afterInst(i)` joins instruction i's `moves`, one at `beforeInst(i)` joins instruction i-1's
+ * `postMoves`. Both are `(p - 1) / 2`, which is the rule below.
+ *
+ * Putting a reload in the *next* instruction's `moves` instead would be a copy that has to run
+ * before its neighbours rather than beside them - an operand of that instruction reading the web
+ * would be sequenced against a register the reload had not written yet - and a parallel copy has no
+ * way to say that. This has none of it: every source in each set holds its value before any of them
+ * runs, which is exactly what sequenceMoves assumes.
+ *
+ * A boundary never falls on a terminator, because a window may not cover one and verifyPlacement
+ * checks that it does not. That is what lets the phi transfers at a terminator be sequenced as a
+ * batch of their own below: they and a transition would have to be one simultaneous set, and they
+ * never meet.
+ */
+
+// One boundary, and the copy that crosses it.
+struct SegmentTransition {
+    U32 index;    // the instruction it is attached to
+    bool post;    // ... behind it rather than in front of it
+    RegMove move;
+};
+
+static void collectTransitions(const Placement& placement, Array<SegmentTransition>& out) {
+    for(auto& web: placement.webs) {
+        for(Size i = 1; i < web.segments.size(); i++) {
+            auto& previous = web.segments[i - 1];
+            auto& segment = web.segments[i];
+            if(segment.location == previous.location) continue;
+
+            // Nothing carries a value across a hole, so two segments with a hole between them are
+            // two stretches of one location and never a boundary. Placement builds them that way;
+            // reaching here with a gap would mean a value expected somewhere nothing put it.
+            assertTrue(segment.from == previous.to);
+
+            out.push(SegmentTransition {
+                .index = (segment.from - 1) / 2,
+                .post = (segment.from & 1) == 0,
+                .move = RegMove { previous.location, segment.location, web.regClass },
+            });
+        }
+    }
+
+    // In the order the walk below will ask for them. Insertion sort because there are two of these
+    // per split web and splitting is rare - most functions produce none at all.
+    for(Size i = 1; i < out.size(); i++) {
+        auto entry = out[i];
+        auto j = i;
+
+        while(j > 0 && out[j - 1].index > entry.index) {
+            out[j] = out[j - 1];
+            j--;
+        }
+
+        out[j] = entry;
+    }
+}
+
+/*
  * Where one operand is read.
  *
  * Placement asks this too, about the operands of an instruction whose destructive result it is about
@@ -299,10 +367,30 @@ struct Legalizer {
     // one of these first - and taken back to the frame afterwards if the instruction wrote it.
     Size tempsUsed[kRegisterBankCount] = {};
 
+    // The copies that cross a split web's segment boundaries, in instruction order, and how far the
+    // walk has read into them. One cursor serves the function because the walk visits every
+    // instruction index once and in order.
+    Array<SegmentTransition> transitions;
+    Size transitionCursor = 0;
+
     Legalizer(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
         const Constraints& constraints, const Placement& placement, const TemporaryReserve& reserve):
         base(base), fun(fun), machine(machine), constraints(constraints), placement(placement),
-        reserve(reserve) {}
+        reserve(reserve)
+    {
+        collectTransitions(placement, transitions);
+    }
+
+    // The boundaries this instruction carries, added to the parallel copy on the side each falls.
+    void appendTransitions(U32 index, Array<RegMove>& pending, Array<RegMove>& pendingPost) {
+        while(transitionCursor < transitions.size() && transitions[transitionCursor].index == index) {
+            auto& transition = transitions[transitionCursor++];
+            (transition.post ? pendingPost : pending).push(transition.move);
+        }
+
+        // Every index the walk passes is asked for, so nothing may be left behind one.
+        assertTrue(transitionCursor == transitions.size() || transitions[transitionCursor].index > index);
+    }
 
     // The scratch registers the move sequencer draws on, over the same reserve and the same
     // measurement this instruction's operands use.
@@ -529,6 +617,10 @@ struct Legalizer {
             out.creates[immField.index].immediate = ((LowerImm*)inst)->i;
             out.creates[immField.index].isImmediate = true;
         }
+
+        // The segment boundaries that fall here, which join the two sets rather than forming a third
+        // - a boundary and an operand copy are simultaneous, both reading the same state.
+        appendTransitions(index, pending, pendingPost);
 
         resolveAddress(inst, out);
         auto temps = moveTemps();

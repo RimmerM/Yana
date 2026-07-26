@@ -1,0 +1,210 @@
+# Persistent splitting.
+#
+# A web that is live across a call has to dodge everything the call destroys for the whole of its
+# life. Where the safe registers run out, the value ends up in the frame and pays a reload at every
+# read - however far from the call that read is, and however hot.
+#
+# A split buys that back. The web is given a register it could have had if the call were not there,
+# and steps out of it into the frame over a *window*: the run of clobbering instructions it crosses.
+# `pre=[rN->stack:k]` at the call is the store and `post=[stack:k->rN]` the reload, and between them
+# every read of the value is an ordinary register read.
+#
+# The Clobber convention destroys every register but rbp, so exactly one value can cross one of its
+# calls in a register. Each case below sends two pointers across a call and reads both the same
+# number of times, which is what makes the second one's position the one splitting exists for: the
+# first takes rbp, and displacing it would only move the problem, since it is worth exactly as much.
+#
+# What is being tested is the *decision* - both answers are correct code. A window costs a store and
+# a reload where the call stands; being homeless costs a reload at every read that needs a register,
+# and a load's address is one of those, since it cannot come out of a frame slot. Each cost is
+# weighted by how often its block runs, so the answer depends on how many reads there are and on
+# where they are, and both are varied below.
+
+sink<clobber>(%x: Int): Int {
+    { ret %x }
+}
+
+# Five reads each against one window. The reads win: %q keeps a caller-saved register for the whole
+# function and visits the frame once, at the call, where %p keeps the one preserved register.
+splitAcrossCall(%n: Int, %p: Ptr, %q: Ptr): Long {
+    {
+        %r = call_clobber sink, %n: Int
+
+        %a1 = load %p, 8: Long
+        %b1 = load %q, 8: Long
+        %s1 = add %a1, %b1: Long
+        %a2 = load %p, 8: Long
+        %s2 = add %s1, %a2: Long
+        %b2 = load %q, 8: Long
+        %s3 = add %s2, %b2: Long
+        %a3 = load %p, 8: Long
+        %s4 = add %s3, %a3: Long
+        %b3 = load %q, 8: Long
+        %s5 = add %s4, %b3: Long
+        %a4 = load %p, 8: Long
+        %s6 = add %s5, %a4: Long
+        %b4 = load %q, 8: Long
+        %s7 = add %s6, %b4: Long
+        %a5 = load %p, 8: Long
+        %s8 = add %s7, %a5: Long
+        %b5 = load %q, 8: Long
+        %s9 = add %s8, %b5: Long
+
+        ret %s9
+    }
+}
+
+# The same function with three of each pair of reads removed, which is enough to turn the answer
+# round: two reloads are what a store and a reload cost, so the window buys back exactly what it
+# spends and is refused. %q stays in the frame and is read out of it at each load, exactly as before
+# this existed.
+#
+# Two is where the line falls, and it falls there by arithmetic rather than by a tuned constant: a
+# window is two instructions and each read it saves is one, so the smallest split worth taking turns
+# three reads into two. See kSplitMargin in place.cpp.
+marginalAcrossCall(%n: Int, %p: Ptr, %q: Ptr): Long {
+    {
+        %r = call_clobber sink, %n: Int
+
+        %a1 = load %p, 8: Long
+        %b1 = load %q, 8: Long
+        %s1 = add %a1, %b1: Long
+        %a2 = load %p, 8: Long
+        %s2 = add %s1, %a2: Long
+        %b2 = load %q, 8: Long
+        %s3 = add %s2, %b2: Long
+
+        ret %s3
+    }
+}
+
+# Two calls, and so two windows out of one slot: the stretches a web spends away from home never
+# overlap each other, so one frame object serves all of them. The reads have to pay for both windows
+# before the split is worth taking, which is why there are more of them here.
+splitAcrossTwoCalls(%n: Int, %p: Ptr, %q: Ptr): Long {
+    {
+        %r1 = call_clobber sink, %n: Int
+
+        %a1 = load %p, 8: Long
+        %b1 = load %q, 8: Long
+        %s1 = add %a1, %b1: Long
+        %a2 = load %p, 8: Long
+        %s2 = add %s1, %a2: Long
+        %b2 = load %q, 8: Long
+        %s3 = add %s2, %b2: Long
+
+        %r2 = call_clobber sink, %r1: Int
+
+        %a3 = load %p, 8: Long
+        %s4 = add %s3, %a3: Long
+        %b3 = load %q, 8: Long
+        %s5 = add %s4, %b3: Long
+        %a4 = load %p, 8: Long
+        %s6 = add %s5, %a4: Long
+        %b4 = load %q, 8: Long
+        %s7 = add %s6, %b4: Long
+        %a5 = load %p, 8: Long
+        %s8 = add %s7, %a5: Long
+        %b5 = load %q, 8: Long
+        %s9 = add %s8, %b5: Long
+        %a6 = load %p, 8: Long
+        %s10 = add %s9, %a6: Long
+        %b6 = load %q, 8: Long
+        %s11 = add %s10, %b6: Long
+        %a7 = load %p, 8: Long
+        %s12 = add %s11, %a7: Long
+        %b7 = load %q, 8: Long
+        %s13 = add %s12, %b7: Long
+
+        ret %s13
+    }
+}
+
+# A call inside a loop. Both sides of the comparison are multiplied by the same weight, so the answer
+# is the one the straight-line case gives - what this adds is the shape. The window lives inside the
+# body block, both of its transitions are copies in the body's own parallel copies, and the
+# loop-carried accumulator is a phi web whose members share one location across the back edge while
+# the split value moves twice an iteration.
+loopWithCall(%n: Int, %p: Ptr, %q: Ptr): Long {
+    entry {
+        %zero = cast 0: Long
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [body, %i2]: Long
+        %acc = phi [entry, %zero], [body, %acc2]: Long
+        je %n, exit, body
+    }
+
+    body {
+        %r = call_clobber sink, %n: Int
+
+        %a1 = load %p, 8: Long
+        %b1 = load %q, 8: Long
+        %s1 = add %a1, %b1: Long
+        %a2 = load %p, 8: Long
+        %s2 = add %s1, %a2: Long
+        %b2 = load %q, 8: Long
+        %s3 = add %s2, %b2: Long
+        %a3 = load %p, 8: Long
+        %s4 = add %s3, %a3: Long
+        %b3 = load %q, 8: Long
+        %s5 = add %s4, %b3: Long
+
+        %acc2 = add %acc, %s5: Long
+        %i2 = add %i, 1L: Long
+        jmp head
+    }
+
+    exit {
+        ret %acc
+    }
+}
+
+# The case the frequencies exist for: the call is on an arm the IR says is almost never taken, and
+# the reads are in the loop that runs around it. The window costs what a cold block costs and buys
+# back what a hot one does, so this is the split with the most to gain - and the one a loop-depth
+# weighting would have priced as though the call ran every iteration.
+#
+# It is also the case where several webs split at once. Everything the hot part of the loop holds has
+# to survive the cold call and there is one preserved register between them, so the rest take
+# windows - and all of them share the cold block's two parallel copies.
+coldCallInLoop(%n: Int, %p: Ptr, %q: Ptr): Long {
+    entry {
+        %zero = cast 0: Long
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [rejoin, %i2]: Long
+        %acc = phi [entry, %zero], [rejoin, %acc2]: Long
+        je %n, exit, hot
+    }
+
+    hot {
+        %a1 = load %p, 8: Long
+        %b1 = load %q, 8: Long
+        %s1 = add %a1, %b1: Long
+        %a2 = load %p, 8: Long
+        %s2 = add %s1, %a2: Long
+        %b2 = load %q, 8: Long
+        %s3 = add %s2, %b2: Long
+        je %i, [rejoin, 999], [cold, 1]
+    }
+
+    cold {
+        %r = call_clobber sink, %n: Int
+        jmp rejoin
+    }
+
+    rejoin {
+        %acc2 = add %acc, %s3: Long
+        %i2 = add %i, 1L: Long
+        jmp head
+    }
+
+    exit {
+        ret %acc
+    }
+}

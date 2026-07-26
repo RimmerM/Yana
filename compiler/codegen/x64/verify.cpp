@@ -44,7 +44,7 @@ static String locationName(MachineLocation at) {
  * wrongly. This checks the placement on its own terms, before a single instruction has been
  * resolved against it, and so names the web.
  *
- * Four things have to hold, and each of them is a way for the allocation to be wrong that no golden
+ * Seven things have to hold, and each of them is a way for the allocation to be wrong that no golden
  * would show:
  *
  *   - every value that is live anywhere has somewhere to live;
@@ -55,8 +55,25 @@ static String locationName(MachineLocation at) {
  *     its class, never the frame pointer in a function that has one, never a bank no encoder
  *     implements;
  *   - nothing is placed in a register something writes while it is live, which is the avoid-set
- *     rule seen from the result rather than from the computation that produced it.
+ *     rule seen from the result rather than from the computation that produced it;
+ *   - a split web's segments are sorted, disjoint and cover its whole life, and each of them is
+ *     legal in the same sense a home is;
+ *   - a split web is in its *home* at every block entry and every block exit - the boundary
+ *     invariant of WebAllocation, and the one this whole file used to get for free from every web
+ *     having a single location. It is what rules out a location change straddling a CFG edge, so
+ *     nothing downstream has to reason about one;
+ *   - a window's location is held against everything else for as long as the window lasts.
  */
+
+// Whether two locations are the same storage. Over register *units* rather than over names, since
+// writing eax destroys rax; and by identity for a slot or a recipe, since two values sharing a
+// recipe are two definitions of one location, which is exactly what a recipe cannot describe.
+static bool sharesLocation(MachineLocation a, MachineLocation b) {
+    if(!a.isPhysical() || !b.isPhysical()) return a == b;
+
+    return a.physicalReg().bank == b.physicalReg().bank
+        && (unitsOf(a.physicalReg()) & unitsOf(b.physicalReg())) != 0;
+}
 
 bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness& live,
     const MachineFunction& machine, const Constraints& constraints, const Placement& placement, bool framePointer)
@@ -74,25 +91,9 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
         logError(args...);
     };
 
-    // Values in the order their ids run, so that a disagreement is reported the same way twice.
-    for(Size i = 0; i < placement.valueCount(); i++) {
-        auto id = LiveId(i);
-        auto v = live.getValue(id);
-        auto interval = live.getInterval(id);
-        auto at = placement.locationOf(id, interval.isEmpty() ? 0 : interval.first());
-
-        if(interval.isEmpty() || isImplicit(v)) continue;
-
-        if(!at.isValid()) {
-            // A value nothing reads needs no location, and is not given one: an argument the
-            // function ignores would otherwise hold a register across the entry copies, which is
-            // exactly where a function with more arguments than it uses has the least to spare.
-            if(v->uses.isEmpty()) continue;
-
-            fail("%@: %@ is live and read but has no location", funName, name(id));
-            continue;
-        }
-
+    // Whether a location is one a value of this type may occupy at all. Asked of a web's home and of
+    // every window it steps into, since a window is a place a value is and answers to the same rules.
+    auto checkLegal = [&](LiveId id, LowerValue* v, MachineLocation at) {
         if(at.isPhysical()) {
             auto reg = at.physicalReg();
             auto cls = classForType(v->type);
@@ -139,26 +140,76 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
                     funName, name(id), U32(at.rematId()), U32(placement.remats.size()));
             }
         }
+    };
+
+    // Values in the order their ids run, so that a disagreement is reported the same way twice.
+    for(Size i = 0; i < placement.valueCount(); i++) {
+        auto id = LiveId(i);
+        auto v = live.getValue(id);
+        auto interval = live.getInterval(id);
+        auto at = placement.homeOf(id);
+
+        if(interval.isEmpty() || isImplicit(v)) continue;
+
+        if(!at.isValid()) {
+            // A value nothing reads needs no location, and is not given one: an argument the
+            // function ignores would otherwise hold a register across the entry copies, which is
+            // exactly where a function with more arguments than it uses has the least to spare.
+            if(v->uses.isEmpty()) continue;
+
+            fail("%@: %@ is live and read but has no location", funName, name(id));
+            continue;
+        }
+
+        auto& web = placement.webs[placement.webOf[id]];
+
+        // Every place this value is put, home and windows alike.
+        for(auto& segment: web.segments) checkLegal(id, v, segment.location);
+
+        // What a copy of it is made of has to be what a copy of it is made of: legalization reads
+        // this off the web to emit a split transition, and reads the type at every other copy.
+        if(web.regClass != classForType(v->type)) {
+            fail("%@: %@ is in a web copied as class %@, and is of a type copied as class %@",
+                funName, name(id), U32(web.regClass), U32(classForType(v->type)));
+        }
+
+        // The segments have to be in order and disjoint, and a *change* of location has to be
+        // contiguous with what it changes from - there is nowhere to emit the copy otherwise, and
+        // nothing carries a value across a gap, so the far side would expect it somewhere nothing
+        // put it. Two stretches of one location either side of a gap are fine and are what a web
+        // with a hole looks like.
+        for(Size s = 1; s < web.segments.size(); s++) {
+            auto& previous = web.segments[s - 1];
+            auto& segment = web.segments[s];
+
+            if(segment.from < previous.to) {
+                fail("%@: %@ has segments %@..%@ and %@..%@, which overlap or run backwards",
+                    funName, name(id), previous.from, previous.to, segment.from, segment.to);
+            } else if(segment.from > previous.to && segment.location != previous.location) {
+                fail("%@: %@ is in %@ up to %@ and in %@ from %@, with nothing in between to move it",
+                    funName, name(id), locationName(previous.location), previous.to,
+                    locationName(segment.location), segment.from);
+            }
+        }
+
+        if(web.isSplit()) {
+            if(web.segments[0].from > interval.first()
+                || web.segments[web.segments.size() - 1].to < interval.last())
+            {
+                fail("%@: %@ is live over %@..%@ and its segments cover %@..%@",
+                    funName, name(id), interval.first(), interval.last(),
+                    web.segments[0].from, web.segments[web.segments.size() - 1].to);
+            }
+        }
 
         // Nothing else may be in the same place at the same time. Compared per value rather than per
         // web, so that two values wrongly merged into one web are caught here as well.
         for(Size j = 0; j < i; j++) {
             auto other = LiveId(j);
-            auto otherAt = placement.locationOf(other, 0);
+            auto otherAt = placement.homeOf(other);
             if(!otherAt.isValid() || isImplicit(live.getValue(other))) continue;
 
-            bool shares;
-            if(at.isPhysical() && otherAt.isPhysical()) {
-                // Over units rather than over names: writing eax destroys rax.
-                shares = at.physicalReg().bank == otherAt.physicalReg().bank
-                    && (unitsOf(at.physicalReg()) & unitsOf(otherAt.physicalReg())) != 0;
-            } else {
-                // A recipe is nowhere at all, so two values that share one are two definitions of
-                // one location - which is exactly what a recipe cannot describe.
-                shares = at == otherAt;
-            }
-
-            if(!shares) continue;
+            if(!sharesLocation(at, otherAt)) continue;
             if(!interval.overlaps(live.getInterval(other))) continue;
 
             fail("%@: %@ and %@ are both live and both placed in %@",
@@ -166,10 +217,92 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
         }
     }
 
+    /*
+     * Windows.
+     *
+     * A web that was split holds two locations at once for as long as a window lasts: the window's,
+     * which is where the value is, and its home, which the copies at either end of the window read
+     * and write and which nothing else may therefore be given. Both are checked here against every
+     * other web, since neither is what the per-value loop above compared.
+     */
+    for(Size w = 0; w < placement.webs.size(); w++) {
+        auto& web = placement.webs[w];
+        if(!web.isSplit()) continue;
+
+        for(auto& segment: web.segments) {
+            if(segment.location == web.home()) continue;
+
+            Range window { segment.from, segment.to };
+            auto windowInterval = LiveInterval { &window, 1 };
+
+            for(Size i = 0; i < placement.valueCount(); i++) {
+                auto id = LiveId(i);
+                if(placement.webOf[id] == LiveId(w)) continue;
+
+                auto other = placement.homeOf(id);
+                if(!other.isValid() || isImplicit(live.getValue(id))) continue;
+                if(!sharesLocation(segment.location, other)) continue;
+                if(!live.getInterval(id).overlaps(windowInterval)) continue;
+
+                fail("%@: %@ is live in %@ over %@..%@, where %@ steps out of its home into it",
+                    funName, name(id), locationName(other), window.from, window.to, name(LiveId(w)));
+            }
+
+            for(Size v = 0; v < placement.webs.size(); v++) {
+                if(v == w || !placement.webs[v].isSplit()) continue;
+
+                for(auto& theirs: placement.webs[v].segments) {
+                    if(theirs.location == placement.webs[v].home()) continue;
+                    if(!sharesLocation(segment.location, theirs.location)) continue;
+                    if(theirs.from >= window.to || window.from >= theirs.to) continue;
+
+                    fail("%@: %@ and %@ both step out of their homes into %@ over %@..%@",
+                        funName, name(LiveId(v)), name(LiveId(w)), locationName(segment.location),
+                        window.from, window.to);
+                }
+            }
+        }
+    }
+
+    /*
+     * The boundary invariant.
+     *
+     * A web is in its home wherever a block begins and wherever one ends. That is what makes a
+     * location change something that happens inside a block, between two instructions on one path,
+     * rather than something a CFG edge has to carry - and so what lets every consumer of a placement
+     * go on treating a block boundary as a place where nothing moves.
+     *
+     * It holds by construction (see planSplit), which is exactly why it is checked: a split that
+     * stopped honouring it would produce code that is correct on the path the allocator happened to
+     * walk and wrong on the others.
+     */
+    for(auto offset: fun.blocks.contents(base)) {
+        auto set = live.getBlock(base[offset]);
+
+        for(Size w = 0; w < placement.webs.size(); w++) {
+            auto& web = placement.webs[w];
+            if(!web.isSplit()) continue;
+
+            auto entry = web.locationAt(beforeInst(set->firstIndex));
+            auto exit = web.locationAt(afterInst(set->lastIndex));
+
+            if(entry != web.home() || exit != web.home()) {
+                fail("%@: %@ is split across a boundary of block %@: it is in %@ on entry and %@ on exit, and its home is %@",
+                    funName, name(LiveId(w)), U32(base[offset]->index),
+                    locationName(entry), locationName(exit), locationName(web.home()));
+            }
+        }
+    }
+
     // A value that has to hold its location *across* an instruction cannot be in a register the
     // instruction writes behind its back. This is what computeAvoidSets arranges; checking it here
     // catches an avoid set that was built from a different shape than the one the instruction ends
     // up having.
+    //
+    // Asked at the instruction's `after` point rather than its `before` one, because that is the
+    // location which has to survive: the operands are read before anything is written, and a split
+    // web has by then already stepped out of the register the instruction is about to destroy. For a
+    // web that was not split the two points answer the same thing, which is what this always was.
     U32 index = 0;
 
     for(auto offset: fun.blocks.contents(base)) {
@@ -182,7 +315,7 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
             if(!mask.isEmpty()) {
                 for(Size i = 0; i < placement.valueCount(); i++) {
                     auto id = LiveId(i);
-                    auto at = placement.locationOf(id, beforeInst(index));
+                    auto at = placement.locationOf(id, afterInst(index));
                     if(!at.isPhysical() || !mask.has(at.physicalReg())) continue;
                     if(!live.getInterval(id).crosses(index)) continue;
 
@@ -443,7 +576,7 @@ struct Verifier {
         for(Size i = 0; i < regs.placement.remats.size(); i++) rematOwner.push(kNullLive);
 
         for(Size i = 0; i < regs.placement.valueCount(); i++) {
-            auto at = regs.placement.locationOf(LiveId(i), 0);
+            auto at = regs.placement.homeOf(LiveId(i));
             if(!at.isRemat()) continue;
 
             auto index = at.rematId();
@@ -645,7 +778,7 @@ struct Verifier {
             // A rematerialized result is produced nowhere at all - the instruction emits nothing,
             // and every reader recreates the value for itself. It has to be the value's own home:
             // a recipe is not a place something can be put.
-            if(at.isRemat() && regs.placement.locationOf(v.liveId(), index) != at) {
+            if(at.isRemat() && regs.placement.locationOf(v.liveId(), afterInst(index)) != at) {
                 fail("%@: %@: result %@ is produced as %@, which is not its own recipe",
                     funName, name, nameOf(&v), locationName(at));
             }
@@ -658,12 +791,16 @@ struct Verifier {
 
     // The state the allocation claims holds at a block's first instruction. Every value live into
     // the block sits in the location the allocation gives it there, and no two of them share one.
+    //
+    // A split web is in its home here whatever else it does inside the block, which is the boundary
+    // invariant verifyPlacement checks - so this stays one question with one answer, and the state a
+    // predecessor has to produce is still something the successor declares on its own.
     void buildEntryState(MachineState& state, LowerBlock* block) {
         auto set = live.getBlock(block);
 
         set->liveIn.iterate(set->valueCount, [&](Size raw) {
             auto id = LiveId(raw);
-            auto at = regs.placement.locationOf(id, set->firstIndex);
+            auto at = regs.placement.locationOf(id, beforeInst(set->firstIndex));
 
             if(!at.isValid()) {
                 fail("%@: block %@: %@ is live on entry but has no location",
@@ -749,7 +886,7 @@ struct Verifier {
             auto inst = v->inst();
             if(isPhi(inst) && base[inst->block] == to) return;
 
-            auto at = regs.placement.locationOf(id, set->firstIndex);
+            auto at = regs.placement.locationOf(id, beforeInst(set->firstIndex));
             if(!at.isValid()) return; // already reported by buildEntryState
             if(at.isRemat()) return;  // carried by nothing, so nothing has to carry it here
 
@@ -776,7 +913,7 @@ struct Verifier {
             // Not an edge this phi takes a value from.
             if(!value || isImplicit(value)) continue;
 
-            auto at = regs.placement.locationOf(result.liveId(), set->firstIndex);
+            auto at = regs.placement.locationOf(result.liveId(), beforeInst(set->firstIndex));
             if(!at.isValid()) {
                 fail("%@: phi %@ in block %@ has no location", funName, nameOf(&result), nameOf(to));
                 continue;
@@ -921,7 +1058,11 @@ bool verifyAllocation(Context& ctx, LowerBase base, LowerFunction& fun, Liveness
     // wrong code, so it is checked here rather than left to show up in the emitted bytes.
     if(regs.framePointer) {
         for(Size i = 0; i < regs.placement.valueCount(); i++) {
-            if(regs.placement.locationOf(LiveId(i), 0) == MachineLocation::physical(framePointerReg())) {
+            auto& web = regs.placement.webs[regs.placement.webOf[LiveId(i)]];
+
+            // Every segment, not only the home: a window is a place a value is put too.
+            for(auto& segment: web.segments) {
+                if(segment.location != MachineLocation::physical(framePointerReg())) continue;
                 v.fail("%@: %@ is allocated to the frame pointer", v.funName, v.nameOf(LiveId(i)));
             }
         }

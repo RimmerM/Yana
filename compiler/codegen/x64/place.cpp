@@ -29,6 +29,12 @@
  * wherever it is read - and legalization brings it into a scratch register at the instructions that
  * cannot work with it where it is.
  *
+ * The one thing a web *is* moved for is a clobber it would otherwise have to dodge for the whole of
+ * its life. A web live across a call may keep a caller-saved register on either side of it and step
+ * into the frame just across the call, rather than paying for a register safe over its whole life -
+ * or, where there is no such register, for no register at all. That is the only split this produces,
+ * and §"Splitting" below is what decides when it is worth it.
+ *
  * The pipeline is four passes:
  *
  *   0. buildWebs         - phi-related values that provably never overlap become one web, so the
@@ -47,6 +53,44 @@
  * location and that no two values whose lives overlap were given the same one, and verify.cpp then
  * checks the legalized instructions against it. Both run in debug builds only.
  */
+
+/*
+ * Range sets.
+ *
+ * A live range, a web's merged ranges and the stretches one location has already been promised to
+ * are all the same thing - a sorted, disjoint list of program-point ranges - so they are all handled
+ * as one, and LiveInterval's overlap test serves all three.
+ */
+
+// Merges `b` into `a`, keeping the result sorted and disjoint. Both are already sorted, so this is
+// one merge walk with adjacent ranges folded together.
+static void mergeRanges(Array<Range>& a, const Range* b, Size count) {
+    Array<Range> out;
+    Size i = 0, j = 0;
+
+    auto append = [&](Range range) {
+        if(out.size() > 0 && range.from <= out[out.size() - 1].to) {
+            auto& last = out[out.size() - 1];
+            if(range.to > last.to) last.to = range.to;
+        } else {
+            out.push(range);
+        }
+    };
+
+    while(i < a.size() && j < count) {
+        if(a[i].from <= b[j].from) append(a[i++]);
+        else append(b[j++]);
+    }
+
+    while(i < a.size()) append(a[i++]);
+    while(j < count) append(b[j++]);
+
+    a = ::move(out);
+}
+
+static LiveInterval intervalOf(const Array<Range>& ranges) {
+    return LiveInterval { ranges.pointer(), U32(ranges.size()) };
+}
 
 /*
  * Webs.
@@ -73,6 +117,15 @@ struct WebInfo {
     // is live.
     RegSet avoid;
 
+    // The part of `avoid` a split cannot buy back: registers written at an instruction that reads a
+    // member of the web out of its home. Those have to survive the copy in front of the instruction
+    // and whatever its expansion writes before reading its sources, and no window can help - the web
+    // is read *there*, from wherever it lives, so wherever it lives has to be safe.
+    //
+    // Everything else in `avoid` comes from a clobber the web merely outlives, which is exactly what
+    // a window carries it past. See planSplit.
+    RegSet avoidFixed;
+
     // What this web costs if it does not get a register, by either of the two ways of not having
     // one - see computeSpillCosts. Both are in the same units, so they can be compared with each
     // other and with another web's.
@@ -84,7 +137,7 @@ struct WebInfo {
     bool canRemat = false;
     Remat recipe;
 
-    LiveInterval interval() const { return LiveInterval { ranges.pointer(), U32(ranges.size()) }; }
+    LiveInterval interval() const { return intervalOf(ranges); }
 
     // What losing its register would actually cost this web, which is whichever of the two homeless
     // states it would then choose. This is the number one web is weighed against another by.
@@ -97,9 +150,48 @@ struct WebInfo {
 struct ClobberSite {
     U32 index;
     RegSet mask;
+
+    // The instruction itself and how often it runs, both for splitting: a window may not cover a
+    // site that defines one of the web's own members, and what a window costs is two instructions
+    // where this one stands.
+    LowerInst* inst = nullptr;
+    U32 weight = 1;
+
+    // A terminator can be a site, and is never one a window may cover: the copy bringing the web
+    // home is emitted in the *next* instruction's parallel copy, and there is no next instruction
+    // in a block that has already branched.
+    bool terminator = false;
 };
 
-// "No register chosen", for the two searches below. A value of its own rather than the length of the
+/*
+ * What a homeless web costs, and what a split one does.
+ *
+ * Both are stated in quarter-instructions, so that "a longer encoding" can be told apart from
+ * "free", and both are weighted by how often the block they are in actually runs. computeSpillCosts
+ * prices the first; planSplit prices the second against it.
+ */
+
+static constexpr U32 kReloadCost = 4;    // an operand that has to be brought into a register
+static constexpr U32 kStoreCost = 4;     // a result that has to be carried back to its slot
+static constexpr U32 kRematCost = 4;     // recreating the value where it is read
+static constexpr U32 kFoldedUseCost = 1; // an operand read straight out of the frame
+
+// How much a split has to save before it is taken. Nothing beyond being cheaper, which is already a
+// margin of one whole instruction: a window costs two - a store and a reload - and buys back one per
+// read the web would otherwise have had to bring into a register, so the smallest split this accepts
+// is one that turns three reloads into two instructions. Two would break even and is refused.
+static constexpr U32 kSplitMargin = 0;
+
+// "No price", for the comparison in `assign`: larger than any cost a function can accumulate, so an
+// option that does not exist simply never wins.
+static constexpr U32 kNoCost = ~U32(0);
+
+// The most one block may be worth. Costs are summed over every read and write in a function in 32
+// bits, so the weight has to leave room for that; five loop levels is already further in than any
+// difference between two of them decides anything.
+static constexpr U64 kMaxBlockWeight = 32768;
+
+// "No register chosen", for the searches below. A value of its own rather than the length of the
 // order they walk: the order holds only the registers the target hands out, so its length is a
 // perfectly good register index and using it as a sentinel would read r15 as failure.
 static constexpr Size kNoRegister = ~Size(0);
@@ -199,10 +291,17 @@ struct Placer {
     // to frame layout, which is what turns any of it into an address.
     FrameObjects frame;
 
-    // The webs living in each spill slot, so that a slot can be reused by webs whose lives do not
-    // overlap - the same rule that lets two webs share a register, and what keeps the frame as small
-    // as the peak of simultaneously spilled values rather than as large as their total.
-    Array<Array<LiveId>> slotOccupants;
+    // What each spill slot has already been promised to, so that a slot can be reused whenever the
+    // stretches do not overlap - the same rule that lets two webs share a register, and what keeps
+    // the frame as small as the peak of simultaneously spilled values rather than as large as their
+    // total. Ranges rather than webs, because a split web occupies its slot over its windows alone
+    // and a homeless one over the whole of its life, and the slot cannot tell the two apart.
+    Array<Array<Range>> slotOccupants;
+
+    // Every instruction that writes registers behind its operands' backs, in index order - see
+    // ClobberSite. Kept because a split is a decision about which of them a web has to dodge and
+    // which it can step around.
+    Array<ClobberSite> clobberSites;
 
     // The recipes for the webs that live nowhere at all - see Remat in gen.h. A web's home names
     // its position here.
@@ -281,18 +380,33 @@ struct Placer {
     // identity that never has to be emitted.
     bool sameWeb(LowerValue* a, LowerValue* b) { return webIdOf(a) == webIdOf(b); }
 
+    // How much more one execution of this block is worth than one execution of the function's entry
+    // - the block frequency, in units of the entry's own. Every decision that trades one part of the
+    // function against another is weighed by it.
+    //
+    // Truncated to an integer rather than kept as a fraction, so a block that runs *less* often than
+    // the entry weighs one, the same as the entry does. That is the resolution the costs are stated
+    // at and there is nothing below it to distinguish: what matters is that a loop body outweighs
+    // the code around it, and that a cold arm inside that loop does not.
+    U32 weightOf(LowerBlock* block) const {
+        auto scaled = frequency.frequencyOf(block->index) / kEntryFrequency;
+        if(scaled < 1) return 1;
+
+        return U32(scaled < kMaxBlockWeight ? scaled : kMaxBlockWeight);
+    }
+
     // Where a web lives, and whether it has been given anywhere yet. Both read the result directly:
-    // a web's home is the one segment it has, so there is no second record of it to disagree. An
-    // unplaced web answers an invalid location rather than asserting, because a hint offered before
-    // its source has been reached is a hint that is simply not taken.
+    // a web's home is its first segment, so there is no second record of it to disagree. An unplaced
+    // web answers an invalid location rather than asserting, because a hint offered before its
+    // source has been reached is a hint that is simply not taken.
     bool placed(LiveId webId) const { return !out.webs[webId].segments.isEmpty(); }
-    MachineLocation homeOfWeb(LiveId webId) const { return out.webs[webId].locationAt(0); }
+    MachineLocation homeOfWeb(LiveId webId) const { return out.webs[webId].home(); }
 
     // Gives a web the location it will keep. One segment covering everything its interval does,
     // which is the whole of the persistent-location rule: a web is in one place wherever it is live.
-    // Splitting is what turns this into several.
-    MachineLocation setHome(LiveId webId, MachineLocation location) {
+    MachineLocation setHome(LiveId webId, RegisterClassId cls, MachineLocation location) {
         auto interval = webs[webId].interval();
+        out.webs[webId].regClass = cls;
 
         out.webs[webId].segments.push(AllocationSegment {
             .from = interval.isEmpty() ? 0 : interval.first(),
@@ -301,6 +415,34 @@ struct Placer {
         });
 
         return location;
+    }
+
+    // Gives a split web its home and the location it steps into over each window, as the alternating
+    // segment list the two describe. Windows are sorted, disjoint and strictly inside the interval -
+    // planSplit builds them from clobber sites the web is live *across*, so there is always a live
+    // point on either side of each - which is what makes every odd segment a home segment and the
+    // first and last of them home segments in particular.
+    MachineLocation setSplit(LiveId webId, RegisterClassId cls, MachineLocation home,
+        const Array<Range>& windows, MachineLocation windowLocation)
+    {
+        auto interval = webs[webId].interval();
+        assertTrue(!interval.isEmpty() && !windows.isEmpty());
+
+        auto& segments = out.webs[webId].segments;
+        out.webs[webId].regClass = cls;
+
+        auto at = interval.first();
+
+        for(auto& window: windows) {
+            assertTrue(window.from > at && window.to < interval.last()); // strictly inside
+
+            segments.push(AllocationSegment { .from = at, .to = window.from, .location = home });
+            segments.push(AllocationSegment { .from = window.from, .to = window.to, .location = windowLocation });
+            at = window.to;
+        }
+
+        segments.push(AllocationSegment { .from = at, .to = interval.last(), .location = home });
+        return home;
     }
 
     // A register is available to a web when nothing already in it is ever live at the same time.
@@ -325,6 +467,13 @@ struct Placer {
         return true;
     }
 
+    // A register a web has been given is held for the whole of that web's interval, windows
+    // included. A split web is not *in* its register over a window, but the copies at either end of
+    // one read and write it there, so it is not free to hold anything else either - and what could
+    // fit is nothing: a window is one instruction wide, and the only value whose whole life fits
+    // inside one is a result nothing reads. Handing a window's worth of register back is what a
+    // window in a *preserved register* rather than the frame would need, and what would make this
+    // per-segment.
     void occupy(RegisterClassId cls, PhysicalReg reg, LiveId webId) {
         auto units = targetRegisters().viewOf(cls, reg).units;
 
@@ -348,38 +497,60 @@ struct Placer {
         auto interval = info.interval();
 
         // A previous pass found something that needed this web's register more than it did.
-        if(forcedHomeless[webId]) return assignHomeless(webId, v->type, interval);
+        if(forcedHomeless[webId]) return assignHomeless(webId, v->type, cls, interval);
 
-        auto usable = [&](Size i) {
+        auto usable = [&](Size i, const RegSet& blocked) {
             auto reg = PhysicalReg { bank, U16(i) };
-            if(!allocatable.has(reg) || avoid.has(reg)) return false;
+            if(!allocatable.has(reg) || blocked.has(reg)) return false;
             if(!targetRegisters().regClass(cls).allowedPhysical.has(reg)) return false;
             return isFree(cls, reg, interval);
         };
 
         auto chosen = kNoRegister;
 
-        if(hint.isPhysical() && hint.bank == bank && usable(hint.index)) {
+        if(hint.isPhysical() && hint.bank == bank && usable(hint.index, avoid)) {
             chosen = hint.index;
         } else {
             for(Size i = 0; i < orderCount[bank]; i++) {
-                if(usable(order[bank][i])) { chosen = order[bank][i]; break; }
+                if(usable(order[bank][i], avoid)) { chosen = order[bank][i]; break; }
             }
         }
 
-        // No register is free for the whole of this web's life. Before settling for that, ask what
-        // the webs standing in the way are worth: a value read once outside a loop is a far better
-        // thing to displace than one read at every iteration inside one.
+        // No register is free for the whole of this web's life *and* safe across everything the web
+        // outlives. Three ways out, and they are compared rather than tried in turn, because the
+        // cheapest is a different one in each of the shapes that gets here:
         //
-        // The displaced web is not moved where it stands. This walk decides each web's location in
-        // the order the instructions read them, and a web already placed has been offered to
-        // everything that could have competed for its register, so taking it back now would leave
-        // the earlier decisions inconsistent with the later ones. It is *recorded* instead, and the
-        // next pass starts with it homeless, which leaves its register free at the point that
-        // wanted it. Nothing has been emitted either way, which is what makes another pass cheap.
+        //   - a window. Keep a register the clobbers made unusable, and step out of it across them.
+        //     Costs a store and a reload where each clobber stands, and takes nothing from anything
+        //     else: the registers it can use are exactly the ones nothing safe could have wanted.
+        //   - a displacement. Take a register from an occupant that values it less, which costs
+        //     whatever that occupant then pays. A safe register held by a value read once is worth
+        //     far more to a value read at every iteration of a loop.
+        //   - neither, and the web goes to the frame or to a recipe.
         if(chosen == kNoRegister) {
-            requestDisplacement(cls, avoid, interval, info.homelessCost());
-            return assignHomeless(webId, v->type, interval);
+            SplitPlan plan;
+            auto splitCost = planSplit(webId, cls, extraAvoid, interval, usable, plan)
+                ? plan.cost + kSplitMargin
+                : kNoCost;
+
+            auto homeless = info.homelessCost();
+            auto budget = splitCost < homeless ? splitCost : homeless;
+
+            // The displaced web is not moved where it stands. This walk decides each web's location
+            // in the order the instructions read them, and a web already placed has been offered to
+            // everything that could have competed for its register, so taking it back now would
+            // leave the earlier decisions inconsistent with the later ones. It is *recorded*
+            // instead, and the next pass starts with it homeless, which leaves its register free at
+            // the point that wanted it. Nothing has been emitted either way, which is what makes
+            // another pass cheap.
+            auto displaced = findDisplacement(cls, avoid, interval, budget);
+            if(displaced != kNoRegister) {
+                recordDisplacement(bank, displaced, interval);
+                return assignHomeless(webId, v->type, cls, interval);
+            }
+
+            if(splitCost < homeless) return takeSplit(webId, cls, v->type, plan);
+            return assignHomeless(webId, v->type, cls, interval);
         }
 
         auto reg = PhysicalReg { bank, U16(chosen) };
@@ -391,14 +562,165 @@ struct Placer {
         // that becomes possible, so it is where the reserve has to be measured.
         if(!classHasExchange(cls) && ++exchangeless[bank] == 2) requiresLegalizationTemps = true;
 
-        return setHome(webId, MachineLocation::physical(reg));
+        return setHome(webId, cls, MachineLocation::physical(reg));
     }
 
-    // Notes the register whose occupants would be cheapest to displace, if displacing them costs
-    // less than `budget` - what the web asking for a register is about to pay for not having one.
-    // Every occupant whose life overlaps has to go, since the register is only free for the new web
-    // when all of them have.
-    void requestDisplacement(RegisterClassId cls, const RegSet& avoid, const LiveInterval& interval, U32 budget) {
+    /*
+     * Splitting.
+     *
+     * A web that is live across a call has to dodge everything the call destroys for the whole of
+     * its life, which under most conventions leaves it the handful of preserved registers and
+     * nothing else. Where those run out - and they run out at the first function that keeps more
+     * than six things across a call - the web ends up in the frame and pays a reload at every one of
+     * its reads, however far from the call they are.
+     *
+     * A split buys that back. The web is given a register it could have had if the call were not
+     * there, and steps out of it into the frame over a *window*: the run of clobbering instructions
+     * it crosses, from `afterInst(lo)` to `afterInst(hi) + 1`. It is still in the register when
+     * instruction lo reads its operands, and back in it before instruction hi + 1 reads its own, so
+     * the store joins lo's parallel copy and the reload joins hi+1's and no new emission slot
+     * exists. That range is also why a window can never touch a block's entry or exit point - lo is
+     * never a terminator, so the earliest a window starts is one point past a block entry and the
+     * latest it ends is the terminator's own `before` - which is the boundary invariant WebAllocation
+     * describes, and what keeps a location change out of the CFG.
+     *
+     * What it costs is a store and a reload per window, where the window stands. What it saves is
+     * whatever the web would have paid for having no register - so a value read once next to the
+     * call gains nothing and a value read a dozen times, or read inside a loop, gains a great deal.
+     * kSplitMargin is what keeps the first case from being taken.
+     */
+
+    struct SplitPlan {
+        Size reg = kNoRegister;
+        Array<Range> windows; // sorted, disjoint, and strictly inside the web's interval
+        U32 cost = 0;         // what the windows cost, in computeSpillCosts' units
+    };
+
+    // Whether a window may cover this site at all. Two things say no. A terminator, because the copy
+    // that brings the web home is emitted in the next instruction's parallel copy and a block that
+    // has branched has no next instruction. And an instruction that defines one of the web's own
+    // members, because then the value on the far side of the window is not the value that went into
+    // it, and the reload would overwrite the definition with what the web held before.
+    bool coverable(const ClobberSite& site, LiveId webId) const {
+        if(site.terminator) return false;
+
+        for(auto& created: site.inst->created()) {
+            if(isImplicit(&created)) continue;
+
+            auto id = created.liveId();
+            if(id != kNullLive && out.webOf[id] == webId) return false;
+        }
+
+        return true;
+    }
+
+    // The windows `reg` needs if it is to hold this web: one per run of consecutive clobber sites
+    // that write it. Consecutive sites become one window rather than two adjacent ones because two
+    // would put a reload and a store in the same parallel copy, which is a cycle through the frame
+    // where nothing has to move at all.
+    void windowsFor(PhysicalReg reg, const Array<Size>& crossed, Array<Range>& windows, U32& cost) const {
+        auto open = kNoRegister; // the site index the run under construction started at
+        U32 last = 0;
+
+        auto close = [&]() {
+            auto& first = clobberSites[open];
+            windows.push(Range { afterInst(first.index), afterInst(last) + 1 });
+            cost += first.weight * (kStoreCost + kReloadCost);
+        };
+
+        for(auto i: crossed) {
+            auto& site = clobberSites[i];
+            if(!site.mask.has(reg)) continue;
+
+            if(open != kNoRegister && site.index != last + 1) close();
+            if(open == kNoRegister || site.index != last + 1) open = i;
+
+            last = site.index;
+        }
+
+        if(open != kNoRegister) close();
+    }
+
+    // The cheapest split of this web, if there is one at all. `usable` is assign's own test, so the
+    // register a split lands on is one the unsplit search would have accepted had the clobbers not
+    // been in the way. Whether the price is worth paying is assign's question, not this one's.
+    template<class Usable>
+    bool planSplit(LiveId webId, RegisterClassId cls, const RegSet& extraAvoid,
+        const LiveInterval& interval, Usable&& usable, SplitPlan& out_)
+    {
+        auto& info = webs[webId];
+        auto bank = targetRegisters().regClass(cls).bank;
+
+        // Every clobber site the web outlives, and the registers written by the ones no window may
+        // cover - which are simply more registers the web has to avoid, exactly as before.
+        Array<Size> crossed;
+        auto blocked = info.avoidFixed | extraAvoid;
+
+        for(Size i = 0; i < clobberSites.size(); i++) {
+            if(!interval.crosses(clobberSites[i].index)) continue;
+
+            if(coverable(clobberSites[i], webId)) crossed.push(i);
+            else blocked |= clobberSites[i].mask;
+        }
+
+        if(crossed.isEmpty()) return false;
+
+        auto best = kNoRegister;
+        U32 bestCost = 0;
+        Array<Range> bestWindows;
+
+        for(Size k = 0; k < orderCount[bank]; k++) {
+            auto i = order[bank][k];
+            if(!usable(i, blocked)) continue;
+
+            Array<Range> windows;
+            U32 cost = 0;
+            windowsFor(PhysicalReg { bank, U16(i) }, crossed, windows, cost);
+
+            // A register needing no window is one the unsplit search would already have taken.
+            assertTrue(!windows.isEmpty());
+
+            if(best == kNoRegister || cost < bestCost) {
+                best = i;
+                bestCost = cost;
+                bestWindows = ::move(windows);
+            }
+        }
+
+        if(best == kNoRegister) return false;
+
+        out_.reg = best;
+        out_.cost = bestCost;
+        out_.windows = ::move(bestWindows);
+        return true;
+    }
+
+    // Carries out a plan: the register for the whole interval, and one frame slot for every window.
+    // One slot rather than one per window, since the windows of a single web never overlap and the
+    // value in them is the same value.
+    MachineLocation takeSplit(LiveId webId, RegisterClassId cls, LowerType type, SplitPlan& plan) {
+        auto bank = targetRegisters().regClass(cls).bank;
+        auto reg = PhysicalReg { bank, U16(plan.reg) };
+
+        occupy(cls, reg, webId);
+        written.add(reg);
+        if(!classHasExchange(cls) && ++exchangeless[bank] == 2) requiresLegalizationTemps = true;
+
+        // A window wider than one instruction contains a `before` point, so something may read the
+        // web out of the slot there and need a scratch register to do it. A one-instruction window
+        // contains none, and asks for nothing.
+        for(auto& window: plan.windows) {
+            if(window.to > window.from + 1) requiresLegalizationTemps = true;
+        }
+
+        auto slot = takeSlot(stackSlotClassFor(type), intervalOf(plan.windows));
+        return setSplit(webId, cls, MachineLocation::physical(reg), plan.windows, MachineLocation::stack(slot));
+    }
+
+    // The register whose occupants would be cheapest to displace, if displacing them costs less than
+    // `budget` - what the web asking for a register would otherwise pay. Every occupant whose life
+    // overlaps has to go, since the register is only free for the new web when all of them have.
+    Size findDisplacement(RegisterClassId cls, const RegSet& avoid, const LiveInterval& interval, U32 budget) const {
         auto bank = targetRegisters().regClass(cls).bank;
 
         auto best = kNoRegister;
@@ -418,9 +740,11 @@ struct Placer {
             if(cost < bestCost) { bestCost = cost; best = i; }
         }
 
-        if(best == kNoRegister) return;
+        return best;
+    }
 
-        for(auto id: occupants[bank][best]) {
+    void recordDisplacement(RegisterBankId bank, Size reg, const LiveInterval& interval) {
+        for(auto id: occupants[bank][reg]) {
             if(webs[id].interval().overlaps(interval)) displacementRequests.push(id);
         }
     }
@@ -428,39 +752,36 @@ struct Placer {
     // A web that is not getting a register. There are two ways to do without one and they cost
     // differently: recreating the value wherever it is read, or keeping it in the frame and bringing
     // it back at each instruction that cannot read a memory operand. computeSpillCosts priced both.
-    MachineLocation assignHomeless(LiveId webId, LowerType type, const LiveInterval& interval) {
+    MachineLocation assignHomeless(LiveId webId, LowerType type, RegisterClassId cls, const LiveInterval& interval) {
         auto& info = webs[webId];
         requiresLegalizationTemps = true;
 
         if(info.canRemat && info.rematCost < info.spillCost) {
             remats.push(info.recipe);
-            return setHome(webId, MachineLocation::remat(RematId(remats.size() - 1)));
+            return setHome(webId, cls, MachineLocation::remat(RematId(remats.size() - 1)));
         }
 
-        return assignSlot(webId, type, interval);
+        return setHome(webId, cls, MachineLocation::stack(takeSlot(stackSlotClassFor(type), interval)));
     }
 
-    // Gives a web a slot in the frame, reusing one whose current occupants are never live at the
-    // same time. Slots are recycled by exactly the rule registers are, so the frame ends up as large
-    // as the peak number of simultaneously spilled webs rather than as large as their total.
-    MachineLocation assignSlot(LiveId webId, LowerType type, const LiveInterval& interval) {
-        auto slotClass = stackSlotClassFor(type);
-
+    // A slot in the frame for the stretches `ranges` covers, reusing one nothing is using over any of
+    // them. Slots are recycled by exactly the rule registers are, so the frame ends up as large as
+    // the peak number of simultaneously spilled webs rather than as large as their total - and a
+    // split web's window, being a stretch and not a life, shares slots with whatever is dead there.
+    StackSlotId takeSlot(StackSlotClass slotClass, const LiveInterval& ranges) {
         while(slotOccupants.size() < frame.slots.size()) slotOccupants.push();
+
+        auto claim = [&](StackSlotId slot) {
+            mergeRanges(slotOccupants[slot], ranges.ranges, ranges.count);
+            return slot;
+        };
 
         for(Size i = 0; i < frame.slots.size(); i++) {
             if(frame.slots[i].kind != StackSlotKind::Spill) continue;
             if(frame.slots[i].slotClass != slotClass) continue;
+            if(intervalOf(slotOccupants[i]).overlaps(ranges)) continue;
 
-            bool free = true;
-            for(auto id: slotOccupants[i]) {
-                if(webs[id].interval().overlaps(interval)) { free = false; break; }
-            }
-
-            if(!free) continue;
-
-            slotOccupants[i].push(webId);
-            return setHome(webId, MachineLocation::stack(StackSlotId(i)));
+            return claim(StackSlotId(i));
         }
 
         auto size = stackSlotSize(slotClass);
@@ -472,41 +793,13 @@ struct Placer {
         });
 
         while(slotOccupants.size() <= slot) slotOccupants.push();
-        slotOccupants[slot].push(webId);
-
-        return setHome(webId, MachineLocation::stack(slot));
+        return claim(slot);
     }
 };
 
 /*
  * Pass 0: build the webs.
  */
-
-// Merges `b`'s ranges into `a`'s, keeping the result sorted and disjoint. Both are already sorted,
-// so this is one merge walk with adjacent ranges folded together.
-static void mergeRanges(Array<Range>& a, const Array<Range>& b) {
-    Array<Range> out;
-    Size i = 0, j = 0;
-
-    auto append = [&](Range range) {
-        if(out.size() > 0 && range.from <= out[out.size() - 1].to) {
-            auto& last = out[out.size() - 1];
-            if(range.to > last.to) last.to = range.to;
-        } else {
-            out.push(range);
-        }
-    };
-
-    while(i < a.size() && j < b.size()) {
-        if(a[i].from <= b[j].from) append(a[i++]);
-        else append(b[j++]);
-    }
-
-    while(i < a.size()) append(a[i++]);
-    while(j < b.size()) append(b[j++]);
-
-    a = ::move(out);
-}
 
 // The pairs of values a merge has to keep apart for a reason interval overlap does not state - see
 // buildWebs. Indexed by web representative, and merged onto the representative exactly as the ranges
@@ -634,7 +927,7 @@ static void buildWebs(Placer& a) {
                 // And the one thing that does not follow from it - see collectTieConflicts.
                 if(tiesConflict(left, right)) continue;
 
-                mergeRanges(a.webs[left].ranges, a.webs[right].ranges);
+                mergeRanges(a.webs[left].ranges, a.webs[right].ranges.pointer(), a.webs[right].ranges.size());
                 a.webs[right].ranges.clear();
 
                 for(auto id: tieConflicts[right]) tieConflicts[left].push(id);
@@ -654,13 +947,13 @@ static void buildWebs(Placer& a) {
  */
 
 static void computeAvoidSets(Placer& a) {
-    Array<ClobberSite> sites;
     U32 index = 0;
 
     for(auto offset: a.fun.blocks.contents(a.base)) {
         auto block = a.base[offset];
+        auto weight = a.weightOf(block);
 
-        auto onInst = [&](LowerInst* inst) {
+        auto onInst = [&](LowerInst* inst, bool terminator) {
             auto shape = shapeOf(a.base, a.machine, a.constraints, a.fun, inst);
             auto mask = writtenRegisters(shape);
             a.written |= mask;
@@ -670,31 +963,46 @@ static void computeAvoidSets(Placer& a) {
                 // is read straight out of its own register, so that register has to survive both
                 // the copy and whatever the instruction's expansion writes before reading its
                 // sources (`xor rdx, rdx` ahead of a division, r11 as scratch in an unrolled copy).
+                //
+                // This half is `avoidFixed` as well: it is the operand's own instruction, so there
+                // is no window that could carry the web past it - it has to be readable *here*.
                 auto used = inst->used();
                 for(Size i = 0; i < used.size(); i++) {
                     auto v = a.base[used[i]];
                     if(isImplicit(v)) continue;
                     if(shape.uses[i].kind != ArgLocation::None) continue;
 
-                    a.webFor(v).avoid |= mask;
+                    auto& web = a.webFor(v);
+                    web.avoid |= mask;
+                    web.avoidFixed |= mask;
                 }
 
                 // A return ends the function, so nothing can be live across it.
-                if(!shape.isReturn) sites.push(ClobberSite { index, mask });
+                if(!shape.isReturn) {
+                    a.clobberSites.push(ClobberSite {
+                        .index = index,
+                        .mask = mask,
+                        .inst = inst,
+                        .weight = weight,
+                        .terminator = terminator,
+                    });
+                }
             }
 
             index++;
         };
 
-        for(auto i: block->instructions.contents(a.base)) onInst(a.base[i]);
-        onInst(a.base[block->terminator]);
+        for(auto i: block->instructions.contents(a.base)) onInst(a.base[i], false);
+        onInst(a.base[block->terminator], true);
     }
 
+    // The other half: a clobber a web merely outlives. This is the part a split can buy back, and
+    // the only part - which is why it lands in `avoid` alone and not in `avoidFixed`.
     for(auto& web: a.webs) {
         auto interval = web.interval();
         if(interval.isEmpty()) continue;
 
-        for(auto& site: sites) {
+        for(auto& site: a.clobberSites) {
             if(interval.crosses(site.index)) web.avoid |= site.mask;
         }
     }
@@ -711,32 +1019,9 @@ static void computeAvoidSets(Placer& a) {
  * with anything, since it is not live between its uses.
  *
  * Both are stated in quarter-instructions, so that "a longer encoding" can be told apart from
- * "free", and both are weighted by how often the block they are in actually runs.
+ * "free", and both are weighted by how often the block they are in actually runs - see the cost
+ * constants and Placer::weightOf above, which planSplit prices a window against.
  */
-
-static constexpr U32 kReloadCost = 4;    // an operand that has to be brought into a register
-static constexpr U32 kStoreCost = 4;     // a result that has to be carried back to its slot
-static constexpr U32 kRematCost = 4;     // recreating the value where it is read
-static constexpr U32 kFoldedUseCost = 1; // an operand read straight out of the frame
-
-// The most one block may be worth. Costs are summed over every read and write in a function in 32
-// bits, so the weight has to leave room for that; five loop levels is already further in than any
-// difference between two of them decides anything.
-static constexpr U64 kMaxBlockWeight = 32768;
-
-// How much more one execution of this block is worth than one execution of the function's entry -
-// the block frequency, in units of the entry's own.
-//
-// Truncated to an integer rather than kept as a fraction, so a block that runs *less* often than the
-// entry weighs one, the same as the entry does. That is the resolution the costs below are stated at
-// and there is nothing below it to distinguish: what matters is that a loop body outweighs the code
-// around it, and that a cold arm inside that loop does not.
-static U32 blockWeight(Placer& a, LowerBlock* block) {
-    auto scaled = a.frequency.frequencyOf(block->index) / kEntryFrequency;
-    if(scaled < 1) return 1;
-
-    return U32(scaled < kMaxBlockWeight ? scaled : kMaxBlockWeight);
-}
 
 // Whether this instruction reads and writes its read/write memory operand in the same place - which it
 // does when the operand and the result turn out to be one web, so that they are certain to share
@@ -816,7 +1101,7 @@ static void computeSpillCosts(Placer& a) {
 
     for(auto offset: a.fun.blocks.contents(a.base)) {
         auto block = a.base[offset];
-        auto weight = blockWeight(a, block);
+        auto weight = a.weightOf(block);
 
         auto onInst = [&](LowerInst* inst) {
             auto shape = shapeOf(a.base, a.machine, a.constraints, a.fun, inst);

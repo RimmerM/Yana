@@ -582,10 +582,9 @@ struct Remat {
  * location.
  *
  * A web's location is a list of *segments* - a location and the stretch of program points over
- * which it holds. Every web has exactly one segment today, covering the whole of its life, which is
- * what makes the result independent of block layout: a value is in the same place on every path
- * that reaches a given instruction. The list is what persistent splitting adds to, and it is here
- * now so that splitting extends the allocation result rather than replacing it.
+ * which it holds. Most webs have exactly one, covering the whole of their life. A web that was
+ * *split* has several: one location it keeps at every point but a few, and a different one over each
+ * short stretch that would otherwise have destroyed it - see the boundary invariant below.
  */
 
 struct AllocationSegment {
@@ -596,18 +595,66 @@ struct AllocationSegment {
     MachineLocation location;
 };
 
+/*
+ * Where one web lives, as a list of segments.
+ *
+ * The first segment's location is the web's *home*: the one it keeps everywhere the split segments
+ * do not say otherwise, and - this is the part everything else rests on - the one it is in at every
+ * block entry and every block exit.
+ *
+ * **The boundary invariant.** No split segment ever covers a block's entry point or its exit point.
+ * A web therefore arrives at every block and leaves it in its home, whatever it does in between, so
+ * a location change can never straddle a CFG edge and two arms of a branch cannot disagree about
+ * where a value is. That is the same guarantee the single-location rule used to give, kept while
+ * the location stops being single, and it is what makes the result still independent of how the
+ * blocks are laid out.
+ *
+ * It holds by construction rather than by inspection: a split segment runs from `afterInst(lo)` to
+ * `afterInst(hi) + 1` for instructions lo..hi of one block, neither of which may be that block's
+ * terminator - so the earliest point one can start at is one past a block's entry and the latest it
+ * can end at is the terminator's own `before`. `verifyPlacement` checks it anyway, because it is the
+ * assumption every consumer of a placement makes and the one whose violation would be silent.
+ *
+ * A boundary at point `p` is a copy attached to instruction `(p - 1) / 2` - to its `moves` when p is
+ * odd and to its `postMoves` when p is even, which are the two slots either side of the instruction
+ * and so the two program points a boundary can fall between. That is the whole of what legalization
+ * has to know about splitting; see collectTransitions in legalize.cpp.
+ */
 struct WebAllocation {
-    // Sorted and disjoint, and together covering every point the web is live at. Empty for a web
-    // that never needed a location at all.
+    // Sorted and disjoint, and together covering the whole stretch between the web's first and last
+    // live points - holes included, since a hole is a stretch the web is somewhere without needing
+    // to be. Empty for a web that never needed a location at all.
     Array<AllocationSegment> segments;
 
-    // The location this web occupies at `point`. The point is not consulted while a web has a
-    // single segment - it is in the signature because that is the question callers should be
-    // asking, and the one that gets a different answer once a web's life is split.
+    // What a copy of this web is made of. On the web rather than derived from a member's type for
+    // the same reason RegMove carries one: a bank does not say which instruction a transfer takes,
+    // and it is what lets a split transition be read off a placement without the IR beside it.
+    RegisterClassId regClass = ClassGpr64;
+
+    // The location this web occupies at `point`.
+    //
+    // A point the web is not live at answers with the location of the segment that begins next,
+    // which is what a *result* asks for: it is resolved at its instruction's `before` point but does
+    // not exist until the `after` one. A point inside a hole answers likewise, and unambiguously -
+    // nothing carries a value across a hole, so the segments on either side of one hold the same
+    // location.
     MachineLocation locationAt(U32 point) const {
-        assertTrue(segments.size() <= 1); // a split web, which nothing produces yet
+        if(segments.isEmpty()) return MachineLocation::invalid();
+
+        for(auto& segment: segments) {
+            if(segment.to > point) return segment.location;
+        }
+
+        return segments[segments.size() - 1].location;
+    }
+
+    // The location this web keeps everywhere a split segment does not say otherwise, and the one it
+    // is in at every block boundary - see the invariant above.
+    MachineLocation home() const {
         return segments.isEmpty() ? MachineLocation::invalid() : segments[0].location;
     }
+
+    bool isSplit() const { return segments.size() > 1; }
 };
 
 struct Placement {
@@ -671,6 +718,12 @@ struct Placement {
         auto id = v->liveId();
         assertTrue(id != kNullLive); // every non-implicit value is numbered by buildLiveness
         return locationOf(id, point);
+    }
+
+    // The location this value's web keeps everywhere its split segments do not say otherwise, and
+    // the one it is in at every block boundary - see WebAllocation.
+    MachineLocation homeOf(LiveId id) const {
+        return id < webOf.size() ? webs[webOf[id]].home() : MachineLocation::invalid();
     }
 };
 
