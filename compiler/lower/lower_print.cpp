@@ -206,10 +206,6 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "x86_lea"_v;
         case LowerInst::Intrinsic:
             return lowerIntrinsicDesc(((LowerInstIntrinsic&)inst).getIntrinsic()).name;
-        case LowerInst::X86Push:
-            return "x86_push"_v;
-        case LowerInst::X86Pop:
-            return "x86_pop"_v;
     }
 
     assertTrue(false);
@@ -442,6 +438,9 @@ void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst&
         } else if(inst.kind == LowerInst::Load) {
             writer.writeString(", "_v);
             printInt(writer, ((LowerInstLoad&)inst).getWidth());
+        } else if(inst.kind == LowerInst::Alloca) {
+            writer.writeString(", "_v);
+            printInt(writer, ((LowerInstAlloca&)inst).alignment);
         }
     }
 

@@ -76,8 +76,6 @@ enum : MachineOpcodeId {
     OpPushArg,
     OpAddress,          // an addressing mode, folded into the access that reads it
     OpLea,
-    OpPush,
-    OpPop,
     OpJmp,
     OpJcc,
     OpRet,
@@ -148,6 +146,37 @@ enum class ImmediateWidth: U8 {
     Imm32,
     Imm64,
 };
+
+// Whether a constant survives being written out as one byte, or as four, and read back
+// sign-extended - which is what decides whether an encoding can carry it at all.
+inline bool fitsImm8(U64 imm) {
+    return (imm & 0xffffffffffffff80) == 0xffffffffffffff80 || (imm & 0x7f) == imm;
+}
+
+inline bool fitsImm32(U64 imm) {
+    return (imm & 0xffffffff80000000) == 0xffffffff80000000 || (imm & 0x7fffffff) == imm;
+}
+
+// Whether `value` is a constant an operand of this width can actually carry. This is the one
+// statement of immediate legality, and every stage asks it rather than the generic byte tests
+// above: the peephole that decides to embed a constant, the query that says which forms could take
+// it there, the selection verifier, and the check that runs before each instruction is emitted.
+//
+// Asking the generic test instead is how a value that fits in four bytes ends up embedded into a
+// form that carries one - which is legal-looking everywhere until the encoder writes the bytes, by
+// which point the operand has been removed from allocation and there is no register left to put it
+// in.
+inline bool fitsImmediate(ImmediateWidth width, U64 value) {
+    switch(width) {
+        case ImmediateWidth::None:        return false;
+        case ImmediateWidth::Imm8:        return fitsImm8(value);
+        case ImmediateWidth::Imm8OrImm32: return fitsImm32(value);
+        case ImmediateWidth::Imm32:       return fitsImm32(value);
+        case ImmediateWidth::Imm64:       return true;
+    }
+
+    return false;
+}
 
 static constexpr U8 kNoTiedOperand = 0xff;
 
@@ -256,7 +285,11 @@ inline MachineOperandConstraint fixedDef(IntRegister reg) {
 // A result that occupies nothing: a comparison consumed as flags, an elided direct callee, the
 // result of an argument store that stands in for the argument and is never read.
 inline MachineOperandConstraint noDef() {
-    return MachineOperandConstraint { .role = OperandRole::Def, .kind = OperandConstraintKind::None };
+    return MachineOperandConstraint {
+        .role = OperandRole::Def,
+        .timing = OperandTiming::LateDef,
+        .kind = OperandConstraintKind::None,
+    };
 }
 
 // An operand the encoding swallowed: it occupies no location, and nothing is copied anywhere for it.
@@ -319,7 +352,7 @@ enum class EncodingFamily: U8 {
     Lea,         // an address materialized into a register
     LoadStore,   // a memory access, with the other operand in ModRM.reg
     Conditional, // an operation whose opcode carries a condition code: cmovcc
-    OpcodeReg,   // the register is part of the opcode byte: push, pop, bswap
+    OpcodeReg,   // the register is part of the opcode byte: bswap
     Pseudo,      // expanded by the dedicated encoder named below
 };
 
@@ -467,6 +500,18 @@ struct MachineForm {
     I32 memoryUse() const { return findMemory(MemoryAccessKind::Read); }
     I32 memoryDef() const { return findMemory(MemoryAccessKind::ReadWrite); }
 
+    // How wide a constant this form's encoding can carry, or None for one that carries none. Taken
+    // from the operand the encoding's immediate field names, so the width the encoder writes and the
+    // width the allocator was promised are one statement - except for a constant materialization,
+    // whose immediate is the value it *defines* rather than an operand, and which reproduces any
+    // 64-bit value by construction.
+    ImmediateWidth immediateWidth() const {
+        auto& field = encoding.immField;
+        if(field.isNone()) return ImmediateWidth::None;
+        if(field.result) return ImmediateWidth::Imm64;
+        return uses[field.index].immediate;
+    }
+
     // The use this form's first result is written over, or -1 for a form that writes its result
     // somewhere of its own. This is the destructive two-address rule, stated as a tie.
     I32 tiedResult() const {
@@ -490,10 +535,20 @@ struct MachineOpcodeDesc {
     MachineOpcodeId id = OpNone;
     StringView name;
 
-    // Set when which form is chosen changes whether the instruction writes the flags. Selection for
-    // such an opcode must not depend on anything the peephole passes decide, because the compare
-    // folding in transform.cpp asks the flags question while those passes are still running. Every
-    // other opcode's forms have to agree on their flags effect, which validateMachineForms checks.
+    // Set when which form is chosen changes whether the instruction writes the flags. Every other
+    // opcode's forms have to agree on it, which validateMachineForms checks - because the compare
+    // folding in transform.cpp asks what an instruction does to the flags while the peephole passes
+    // are still deciding which form it will take, and that question only has one answer if the forms
+    // all give the same one.
+    //
+    // An opcode that sets this owes one thing instead: **a peephole may only ever move its selection
+    // towards a form that writes fewer flags.** The folding walks forward from a comparison to its
+    // use asking each instruction in between whether it writes the flags, where "yes" is the answer
+    // that blocks the fold - so an answer that can still change has to be conservative while it can.
+    // All four opcodes that set this obey it. An immediate not yet embedded selects `xor r, r`
+    // (writes) and becomes implicit (writes nothing); a branch or a select not yet given its
+    // comparison tests a register (writes) and becomes a read of the flags; an alloca whose count is
+    // not yet embedded is the dynamic form (writes) and becomes the `lea`.
     bool flagsSelective = false;
 };
 
@@ -648,10 +703,12 @@ Maybe<LowerCmp> selectCondition(LowerInst* inst);
 // as wide as the access that would read it in place.
 LowerType operationType(LowerBase base, const MachineForm& form, LowerInst* inst);
 
-// Whether some form of `opcode` accepts an immediate as operand `index`, and if so how wide. This is
-// the one statement of which operands can swallow a constant: the peephole that embeds immediates
-// and the encoder that writes their bytes both read it.
-ImmediateWidth immediateWidthFor(MachineOpcodeId opcode, Size index);
+// Whether some form of `opcode` can swallow `value` as operand `index`. Asked by the peephole that
+// embeds immediates, which runs before the final form is chosen and so has to consider every form
+// the opcode has - and which has to consider the value, not merely the position: a shift accepts an
+// immediate count in an 8-bit field, so a count that only fits in four bytes has to stay in a
+// register however embeddable the position is.
+bool opcodeCanEmbedImmediate(MachineOpcodeId opcode, Size index, U64 value);
 
 // The opcode an instruction selects, independent of which form it ends up in.
 MachineOpcodeId opcodeFor(LowerInst* inst);

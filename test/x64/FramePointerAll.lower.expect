@@ -1,7 +1,7 @@
 
 callerWithLocal<complex>(%v: Int): Int {
   b_0 {
-    %a = alloca 8: Ptr
+    %a = alloca 8, 8: Ptr
     store %a, %v, 8
     %r = call_complex leafNoFrame, %v, %v: Int
     %s = load %a, 8: Int
@@ -12,7 +12,7 @@ callerWithLocal<complex>(%v: Int): Int {
 
 leafWithLocal<complex>(%v: Int): Int {
   b_0 {
-    %a = alloca 8: Ptr
+    %a = alloca 8, 8: Ptr
     store %a, %v, 8
     %r = load %a, 8: Int
     ret %r

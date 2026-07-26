@@ -117,6 +117,33 @@ dynamicLocal(%n: Int, %v: Int): Int {
     }
 }
 
+# An allocation says what its address has to be a multiple of, and it is the program's answer rather
+# than a guess from the byte count: 8 bytes wanting 32-byte alignment is a real request that no size
+# implies. A fixed object gets it from frame layout, which rounds the object up to it and raises the
+# whole frame's alignment to match - so the prologue leaves the local on the boundary and the
+# instruction itself is still one `lea`.
+overAlignedLocal(%v: Int): Int {
+    {
+        %a = alloca 8, 32: Ptr
+        store %a, %v, 8
+        %r = load %a, 8: Int
+        ret %r
+    }
+}
+
+# The same request with a run-time size, which cannot be answered by the layout. rsp is moved by the
+# rounded-up size *plus* what rounding the address up can cost, and the address is then rounded up
+# inside the region that paid for it - rather than by masking rsp, which would move the outgoing
+# argument area out from under the stack pointer where every callee looks for it.
+overAlignedDynamicLocal(%n: Int, %v: Int): Int {
+    {
+        %p = alloca %n, 64: Ptr
+        store %p, %v, 8
+        %r = load %p, 8: Int
+        ret %r
+    }
+}
+
 # The ninth and tenth arguments arrive in the caller's argument area, above the return address,
 # eight bytes apart and at the offsets the convention assigned them - the same offsets the caller
 # wrote to. Each is loaded into a register once on entry and read from there, so no instruction
@@ -168,6 +195,41 @@ sysvCaller<sysv>(%a: Int, %b: Int): Int {
         %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: Int
         %s = add %r, %b: Int
         ret %s
+    }
+}
+
+# The same call from a convention that only promises 8. Padding cannot get rsp onto 16 here - it would
+# preserve an offset from an entry that was never on 16 in the first place - so the prologue aligns rsp
+# itself and takes a frame pointer to find its way back, which is what makes the callee's guarantee
+# real rather than nominal. This used to be rejected outright.
+alignedCallFromWeakerConvention<complex>(%a: Int, %b: Int): Int {
+    {
+        %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: Int
+        %s = add %r, %b: Int
+        ret %s
+    }
+}
+
+# Realignment with values in the frame. More survives the call than there are preserved registers -
+# rbp is the frame pointer now, so there are four - and what does not fit goes to a spill slot. Those
+# slots go below the mask with everything else, so they are addressed through the aligned rsp rather
+# than through rbp: this is the half of the two-base frame a golden can actually show.
+alignedCallWithSpill<complex>(%a: Int): Int {
+    {
+        %v0 = add %a, 1: Int
+        %v1 = add %a, 2: Int
+        %v2 = add %a, 3: Int
+        %v3 = add %a, 4: Int
+        %v4 = add %a, 5: Int
+        %v5 = add %a, 6: Int
+        %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: Int
+        %s0 = add %r, %v0: Int
+        %s1 = add %s0, %v1: Int
+        %s2 = add %s1, %v2: Int
+        %s3 = add %s2, %v3: Int
+        %s4 = add %s3, %v4: Int
+        %s5 = add %s4, %v5: Int
+        ret %s5
     }
 }
 

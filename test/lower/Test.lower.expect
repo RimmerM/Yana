@@ -15,7 +15,7 @@ print<complex>(%string: Ptr, %length: Long) {
 
 main<complex>() {
   start {
-    %space = alloca 1: Ptr
+    %space = alloca 1, 8: Ptr
     store %space, 32, 1
     %v_0 = call_complex getCount: Int
     %count = cast %v_0: Long
@@ -39,8 +39,8 @@ main<complex>() {
 
 printInt<complex>(%number: Long) {
   start {
-    %buffer = alloca 32: Ptr
-    %string = alloca 32: Ptr
+    %buffer = alloca 32, 8: Ptr
+    %string = alloca 32, 8: Ptr
     jmp loop
   }
 

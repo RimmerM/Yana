@@ -31,7 +31,8 @@
  *     register wherever it is read, and the instruction that would have defined it emits nothing.
  *
  * The scratch registers are reserved by placement being run again with them held back - see
- * kMaxSpillTemps and allocateRegisters.
+ * TemporaryReserve and allocateRegisters - and how many of them a placement takes is measured by
+ * running this same pass over it, which is what measureTemporaryReserve at the bottom is for.
  *
  * The result is checked before it is returned: verify.cpp simulates what the emitted code will leave
  * in each register and slot and confirms every instruction reads a location that actually holds the
@@ -54,20 +55,46 @@ static bool writesSource(const Array<RegMove>& pending, const Array<bool>& done,
     return false;
 }
 
+// The scratch registers the move sequencer hands out, from the reserve held back for this function.
+// A view rather than a copy so that the pass measuring the demand and the pass spending it go through
+// one object: `used` is the measurement, and it is raised by the same call that returns the register.
+struct MoveTemps {
+    const TemporaryReserve& reserve;
+    TemporaryReserve& used;
+    RegSet& written;
+
+    // Set while the demand is being measured, when the reserve is the widest one any instruction
+    // could ask for rather than the one this function ended up with - see measureTemporaryReserve.
+    bool measuring = false;
+
+    MachineLocation take(RegisterClassId regClass, Size index) {
+        auto bank = targetRegisters().regClass(regClass).bank;
+
+        assertTrue(index < kMaxMoveTemps);                        // more than any sequence can want
+        if(!measuring) assertTrue(index < reserve.moveTemps[bank]); // ... than the reserve holds back
+        if(index + 1 > used.moveTemps[bank]) used.moveTemps[bank] = U8(index + 1);
+
+        auto reg = reserve.moveTemp(bank, index);
+        written.add(reg);
+        return MachineLocation::physical(reg);
+    }
+};
+
 // Sequences a set of simultaneous copies into an order that executes them one at a time without any
 // of them destroying a value another still has to read. A copy can be emitted as soon as nothing
 // left in the set reads its destination; when nothing qualifies, what remains is a permutation
 // cycle, and it has to be broken.
 //
-// Two ways to break one. Between registers, `xchg` does it in a single instruction and needs nothing
-// to go through, which is what makes cycle-breaking unable to fail for lack of a register. With a
-// frame slot at either end there is no exchange to use, so the destination is saved into a scratch
-// register first and whoever was waiting to read it reads the scratch instead.
+// Two ways to break one. Where both ends are registers and the class has an exchange instruction -
+// GPR `xchg` - it takes one instruction and needs nothing to go through, which is what makes
+// cycle-breaking unable to fail for lack of a register. With a frame slot at either end, or in a
+// class with no exchange at all, the destination is saved into a scratch register first and whoever
+// was waiting to read it reads the scratch instead.
 //
 // A transfer with a slot at both ends - two spilled webs feeding the same phi - is expanded
 // afterwards, since x86 has no memory-to-memory move. So is one out of a recipe and into a slot,
 // for the same reason: the value has to exist in a register before anything can store it.
-static void sequenceMoves(Array<RegMove>& pending, Array<RegMove>& out) {
+static void sequenceMoves(MoveTemps& temps, Array<RegMove>& pending, Array<RegMove>& out) {
     Array<bool> done;
     for(Size i = 0; i < pending.size(); i++) done.push(pending[i].from == pending[i].to);
 
@@ -114,15 +141,19 @@ static void sequenceMoves(Array<RegMove>& pending, Array<RegMove>& out) {
 
             MachineLocation reads;
 
-            if(move.from.isStack() || move.to.isStack() || move.from.isRemat()) {
-                // No exchange to reach for: park the destination somewhere first.
-                auto scratch = MachineLocation::physical(moveTemp(move.to.isPhysical() ? move.to.bank : BankGpr, 0));
-                out.push(RegMove { move.to, scratch });
-                out.push(RegMove { move.from, move.to });
-                reads = scratch;
-            } else {
-                out.push(RegMove { move.from, move.to, true });
+            auto exchangeable = move.from.isPhysical() && move.to.isPhysical()
+                && classHasExchange(move.regClass);
+
+            if(exchangeable) {
+                out.push(RegMove { move.from, move.to, move.regClass, true });
                 reads = move.from;
+            } else {
+                // No exchange to reach for - a slot at one end, or a class the machine has no
+                // exchange instruction for: park the destination somewhere first.
+                auto scratch = temps.take(move.regClass, 0);
+                out.push(RegMove { move.to, scratch, move.regClass });
+                out.push(RegMove { move.from, move.to, move.regClass });
+                reads = scratch;
             }
 
             for(Size j = 0; j < pending.size(); j++) {
@@ -138,11 +169,12 @@ static void sequenceMoves(Array<RegMove>& pending, Array<RegMove>& out) {
     for(auto i = begin; i < out.size(); i++) {
         if(out[i].from.isPhysical() || !out[i].to.isStack()) continue;
 
-        auto scratch = MachineLocation::physical(moveTemp(BankGpr, 1));
+        auto regClass = out[i].regClass;
+        auto scratch = temps.take(regClass, 1);
         auto to = out[i].to;
 
         out[i].to = scratch;
-        out.insert(i + 1, RegMove { scratch, to });
+        out.insert(i + 1, RegMove { scratch, to, regClass });
         i++;
     }
 }
@@ -177,7 +209,9 @@ UseSite useSiteOf(LowerBase base, const MachineFunction& machine, const Placemen
     // written straight into the slot operand zero occupies, which takes the one r/m field this
     // instruction has - so no *other* operand may stay in memory, however good a form there is for
     // it.
-    if(home.isStack() && !memoryDest && memoryUseOperand(base, machine, inst) == I32(i)) return UseSite { home };
+    if(home.isStack() && !memoryDest && directMemoryOperands(base, machine, inst).read == I32(i)) {
+        return UseSite { home };
+    }
 
     return UseSite { MachineLocation::invalid(), true, bankForType(v->type) };
 }
@@ -212,12 +246,12 @@ static MachineAddress computedAddress(LowerInstX86Address& addr, const Array<Res
         return U8(at.index);
     };
 
-    if(addr.base) {
+    if(addr.hasBase) {
         out.hasBase = true;
         out.base = physical(operand++);
     }
 
-    if(addr.index) {
+    if(addr.hasIndex) {
         out.hasIndex = true;
         out.index = physical(operand++);
         out.scale = addr.scale;
@@ -238,6 +272,19 @@ struct Legalizer {
     const Constraints& constraints;
     const Placement& placement;
 
+    // The scratch registers held back for this function, which this pass hands out from - see
+    // TemporaryReserve. Held by value because the measuring pass runs against the widest one rather
+    // than against whatever this function ended up with.
+    TemporaryReserve reserve;
+
+    // What this pass actually asked for, which is the measurement measureTemporaryReserve returns and
+    // which allocateRegisters holds back on the next placement pass.
+    TemporaryReserve used;
+
+    // Set while the demand is being measured rather than spent, in which case running past the
+    // reserve is the answer being looked for rather than a failure.
+    bool measuring = false;
+
     // The scratch registers this pass handed out, which the function has to save if any of them is
     // callee-saved. Placement counts the registers it gave to webs; these are the other half.
     RegSet written;
@@ -253,14 +300,22 @@ struct Legalizer {
     Size tempsUsed[kRegisterBankCount] = {};
 
     Legalizer(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
-        const Constraints& constraints, const Placement& placement):
-        base(base), fun(fun), machine(machine), constraints(constraints), placement(placement) {}
+        const Constraints& constraints, const Placement& placement, const TemporaryReserve& reserve):
+        base(base), fun(fun), machine(machine), constraints(constraints), placement(placement),
+        reserve(reserve) {}
+
+    // The scratch registers the move sequencer draws on, over the same reserve and the same
+    // measurement this instruction's operands use.
+    MoveTemps moveTemps() { return MoveTemps { reserve, used, written, measuring }; }
 
     MachineLocation takeTemp(RegisterBankId bank) {
         auto index = tempsUsed[bank]++;
-        assertTrue(index < kMaxSpillTemps); // an instruction wanting more scratch than is reserved
 
-        auto reg = spillTemp(bank, index);
+        assertTrue(index < kMaxOperandTemps);                          // more than any form can want
+        if(!measuring) assertTrue(index < reserve.operandTemps[bank]);  // ... than the reserve holds back
+        if(index + 1 > used.operandTemps[bank]) used.operandTemps[bank] = U8(index + 1);
+
+        auto reg = reserve.operandTemp(bank, index);
         written.add(reg);
         return MachineLocation::physical(reg);
     }
@@ -278,17 +333,17 @@ struct Legalizer {
     // Where the encoder reads operand `i`, given that the destructive destination (if any) has
     // already been resolved.
     //
-    // `reserve` is false when the caller only wants to know where a sibling operand will be read
-    // from, so that asking twice does not consume two scratch registers for one operand.
+    // `take` is false when the caller only wants to know where a sibling operand will be read from,
+    // so that asking twice does not consume two scratch registers for one operand.
     MachineLocation useLocation(LowerInst* inst, const InstShape& shape, Size i, U32 index,
-        MachineLocation destructiveReg, bool memoryDest, bool reserve)
+        MachineLocation destructiveReg, bool memoryDest, bool take)
     {
         auto site = useSiteOf(base, machine, placement, inst, shape, i, index, destructiveReg, memoryDest);
         if(!site.needsTemp) return site.at;
 
-        return reserve
+        return take
             ? takeTemp(site.tempBank)
-            : MachineLocation::physical(spillTemp(site.tempBank, tempsUsed[site.tempBank]));
+            : MachineLocation::physical(reserve.operandTemp(site.tempBank, tempsUsed[site.tempBank]));
     }
 
     // The address of a memory operand: a folded X86Address resolved at its own position just above
@@ -396,17 +451,19 @@ struct Legalizer {
                 // that very slot, the whole operation happens in place - `add [rsp+8], rcx` - and
                 // neither the reload nor the store exists. This is what a coalesced loop-carried
                 // accumulator looks like once it has been spilled.
-                auto memoryOperand = memoryDefOperand(base, machine, inst);
-                auto first = base[used[0]];
+                auto choice = directMemoryOperands(base, machine, inst);
+                auto operandHome = choice.hasReadWrite()
+                    ? homeOf(base[used[choice.readWrite]], index)
+                    : MachineLocation::invalid();
 
-                memoryDest = memoryOperand == 0 && !isImplicit(first) && homeOf(first, index) == destructiveReg;
+                memoryDest = takesInPlace(choice, operandHome, destructiveReg);
 
                 // Otherwise it is computed in a scratch register and stored afterwards, and the
                 // operand it overwrites has to be brought into that same one.
                 if(!memoryDest) {
                     auto slot = destructiveReg;
                     destructiveReg = takeTemp(bankForType(created[0].type));
-                    pendingPost.push(RegMove { destructiveReg, slot });
+                    pendingPost.push(RegMove { destructiveReg, slot, classForType(created[0].type) });
                 }
             }
         }
@@ -423,15 +480,17 @@ struct Legalizer {
             }
 
             auto location = useLocation(inst, shape, i, index, destructiveReg, memoryDest, true);
+            auto regClass = classForType(v->type);
 
-            out.uses.push(ResolvedOperand::location(location));
+            out.uses.push(ResolvedOperand::location(location, regClass));
             if(location.isValid() && location != homeOf(v, index)) {
-                pending.push(RegMove { homeOf(v, index), location });
+                pending.push(RegMove { homeOf(v, index), location, regClass });
             }
         }
 
         for(Size i = 0; i < created.size(); i++) {
             auto& v = created[i];
+            auto regClass = classForType(v.type);
 
             if(isImplicit(&v)) {
                 out.creates.push(ResolvedOperand::none());
@@ -439,7 +498,7 @@ struct Legalizer {
             }
 
             if(i == 0 && destructiveReg.isValid()) {
-                out.creates.push(ResolvedOperand::location(destructiveReg));
+                out.creates.push(ResolvedOperand::location(destructiveReg, regClass));
                 continue;
             }
 
@@ -454,12 +513,12 @@ struct Legalizer {
             if(want.isValid()) at = want;
             else if(home.isStack()) at = takeTemp(bankForType(v.type));
 
-            out.creates.push(ResolvedOperand::location(at));
+            out.creates.push(ResolvedOperand::location(at, regClass));
 
             // A result produced somewhere other than its home is carried there afterwards. For a
             // fixed register nothing live can be sitting in the way: it is part of this
             // instruction's written set, which every web crossing the instruction avoids.
-            if(at != home) pendingPost.push(RegMove { at, home });
+            if(at != home) pendingPost.push(RegMove { at, home, regClass });
         }
 
         // A constant materialization carries the value it defines rather than an operand of its
@@ -472,8 +531,9 @@ struct Legalizer {
         }
 
         resolveAddress(inst, out);
-        sequenceMoves(pending, out.moves);
-        sequenceMoves(pendingPost, out.postMoves);
+        auto temps = moveTemps();
+        sequenceMoves(temps, pending, out.moves);
+        sequenceMoves(temps, pendingPost, out.postMoves);
         return out;
     }
 
@@ -499,7 +559,7 @@ struct Legalizer {
 
             auto from = homeOf(value, index);
             auto to = homeOf(&result, index);
-            if(from != to) pending.push(RegMove { from, to });
+            if(from != to) pending.push(RegMove { from, to, classForType(result.type) });
         }
     }
 
@@ -518,15 +578,16 @@ struct Legalizer {
 
             // An argument nothing reads was never given a home: there is nothing to carry it to.
             if(!home.isValid()) continue;
-            if(home != incoming) entryMoves.push(RegMove { incoming, home });
+            if(home != incoming) entryMoves.push(RegMove { incoming, home, classForType(result.type) });
         }
     }
 };
 
-LegalizedFunction legalizeFunction(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
-    const Constraints& constraints, const Placement& placement)
-{
-    Legalizer l(base, fun, machine, constraints, placement);
+// The one walk, run either to produce the instruction records or to measure what producing them
+// costs in scratch registers - see measureTemporaryReserve. The two are the same pass because a
+// separate rule for the demand would be a second answer to one question, and the one that is wrong
+// is the one that leaves an instruction with nowhere to bring a spilled operand.
+static LegalizedFunction runLegalizer(Legalizer& l, LowerBase base, LowerFunction& fun) {
     LegalizedFunction result;
 
     // The entry copies are emitted at index 0 below, which is only the first thing the function
@@ -565,8 +626,9 @@ LegalizedFunction legalizeFunction(LowerBase base, LowerFunction& fun, const Mac
             l.resolvePhis(block, base[successor], index, pending);
         }
 
-        if(index == 0) sequenceMoves(entryMoves, terminatorRegs.moves);
-        sequenceMoves(pending, terminatorRegs.moves);
+        auto temps = l.moveTemps();
+        if(index == 0) sequenceMoves(temps, entryMoves, terminatorRegs.moves);
+        sequenceMoves(temps, pending, terminatorRegs.moves);
 
         blockRegs.insts.push(::move(terminatorRegs));
         index++;
@@ -576,4 +638,25 @@ LegalizedFunction legalizeFunction(LowerBase base, LowerFunction& fun, const Mac
 
     result.writtenPhysical = l.written;
     return result;
+}
+
+LegalizedFunction legalizeFunction(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
+    const Constraints& constraints, const Placement& placement, const TemporaryReserve& temporaries)
+{
+    Legalizer l(base, fun, machine, constraints, placement, temporaries);
+    return runLegalizer(l, base, fun);
+}
+
+TemporaryReserve measureTemporaryReserve(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
+    const Constraints& constraints, const Placement& placement)
+{
+    // Measured against the widest pools rather than against nothing, so that every temporary this
+    // walk hands out is a register of its own: two of them naming one register would look like a copy
+    // cycle the real pass does not have, and would be measured as a demand for a scratch register
+    // nothing needs. The records this produces are discarded - only the counts are read.
+    Legalizer l(base, fun, machine, constraints, placement, TemporaryReserve::widest());
+    l.measuring = true;
+
+    runLegalizer(l, base, fun);
+    return l.used;
 }

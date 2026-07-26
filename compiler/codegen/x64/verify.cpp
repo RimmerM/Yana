@@ -264,8 +264,15 @@ bool verifySelection(Context& ctx, LowerBase base, LowerFunction& fun, const Mac
             switch(form.uses[i].kind) {
                 case OperandConstraintKind::Immediate:
                     // The encoding carries this operand's value in its own bytes, so there has to be
-                    // a constant there to carry.
-                    if(value->inst()->kind != LowerInst::Imm) fail("carries an immediate that is not a constant"_v);
+                    // a constant there to carry - and one the immediate field is wide enough to
+                    // hold. The width is checked here rather than left to the encoder because by
+                    // then the operand has been taken out of allocation: there is no register left
+                    // to fall back to, and the only remaining outcome is an assertion.
+                    if(value->inst()->kind != LowerInst::Imm) {
+                        fail("carries an immediate that is not a constant"_v);
+                    } else if(!fitsImmediate(form.uses[i].immediate, immValue(value))) {
+                        fail("carries a constant wider than its immediate field"_v);
+                    }
                     break;
 
                 case OperandConstraintKind::Address:
@@ -507,6 +514,16 @@ struct Verifier {
             return;
         }
 
+        // Which operand could have stayed in the frame, and whether the read/write role was actually
+        // taken. Asked once for the instruction rather than per operand and again per result, so that
+        // the operand check and the result check cannot disagree about which of the two applied.
+        auto choice = directMemoryOperands(base, machine, inst);
+        auto readWriteAt = choice.hasReadWrite() && Size(choice.readWrite) < instRegs.uses.size()
+            ? instRegs.uses[choice.readWrite].at
+            : MachineLocation::invalid();
+        auto resultAt = instRegs.creates.size() > 0 ? instRegs.creates[0].at : MachineLocation::invalid();
+        auto inPlace = takesInPlace(choice, readWriteAt, resultAt);
+
         applyMoves(state, instRegs.moves, inst);
 
         for(Size i = 0; i < used.size(); i++) {
@@ -540,10 +557,9 @@ struct Verifier {
             // as well. Otherwise it reaches an encoder with nothing but a slot to put in a ModRM
             // byte, which is a failed assertion in gen.cpp rather than a wrong register visible
             // anywhere here.
-            auto inPlace = memoryDefOperand(base, machine, inst) == I32(i)
-                && instRegs.creates.size() > 0 && instRegs.creates[0].at == at;
+            auto addressable = choice.read == I32(i) || (inPlace && choice.readWrite == I32(i));
 
-            if(at.isStack() && !inPlace && memoryUseOperand(base, machine, inst) != I32(i)) {
+            if(at.isStack() && !addressable) {
                 fail("%@: %@: operand %@ is read from %@, which no form of this instruction can address",
                     funName, name, nameOf(v), locationName(at));
             }
@@ -592,16 +608,12 @@ struct Verifier {
 
             // A result written straight into the frame is only legal in the one form that has a
             // memory destination, and only when the operand that form reads through the same r/m
-            // field is in that very slot. Anywhere else the encoder has no address to write to.
-            if(at.isStack()) {
-                auto operand = memoryDefOperand(base, machine, inst);
-                auto inPlace = i == 0 && operand != kNoMemoryOperand
-                    && Size(operand) < instRegs.uses.size() && instRegs.uses[operand].at == at;
-
-                if(!inPlace) {
-                    fail("%@: %@: result %@ is produced in %@, which no form of this instruction can write",
-                        funName, name, nameOf(&v), locationName(at));
-                }
+            // field is in that very slot. Anywhere else the encoder has no address to write to. This
+            // is the same `inPlace` the operand check above used, which is the point of asking once:
+            // an operand left in memory and a result written to it are one decision.
+            if(at.isStack() && !(i == 0 && inPlace)) {
+                fail("%@: %@: result %@ is produced in %@, which no form of this instruction can write",
+                    funName, name, nameOf(&v), locationName(at));
             }
 
             // A rematerialized result is produced nowhere at all - the instruction emits nothing,
@@ -778,13 +790,50 @@ bool verifyFrameLayout(Context& ctx, LowerFunction& fun, const FrameObjects& obj
         ok = false;
     }
 
-    U32 savedCount = 0;
-    layout.savedRegs.iterate([&](PhysicalReg) { savedCount++; });
+    auto savedCount = U32(layout.savedRegs.count());
 
-    // Where the region the prologue reserved sits relative to the base register. Below the saved
-    // registers when the base is rbp, and directly at the stack pointer when it is not.
-    auto regionLow = layout.framePointer ? -I32(8 * savedCount + layout.fixedSize) : 0;
-    auto regionHigh = layout.framePointer ? -I32(8 * savedCount) : I32(layout.fixedSize);
+    // Where the region the prologue reserved sits, per base register: below the saved registers when
+    // measured from rbp, and directly at the stack pointer when measured from rsp. A realigning frame
+    // uses both, which is why this is asked per slot rather than once - see FrameLayout::slotBase.
+    auto regionOf = [&](PhysicalReg slotBase, I32& low, I32& high) {
+        if(slotBase == framePointerReg()) {
+            low = -I32(8 * savedCount + layout.fixedSize);
+            high = -I32(8 * savedCount);
+        } else {
+            low = 0;
+            high = I32(layout.fixedSize);
+        }
+    };
+
+    // The boundary rsp has to be on for the whole body, and whether the prologue actually leaves it
+    // there. Every frame object's own alignment counts as well as the calls': a local is addressed as
+    // an offset from a base, so an offset on its boundary is only on its boundary if the base is too,
+    // which is the half no per-object check can see.
+    auto required = objects.callAlignment;
+    for(auto& slot: objects.slots) {
+        if(slot.kind != StackSlotKind::IncomingArg && slot.alignment > required) required = slot.alignment;
+    }
+
+    if(layout.realignsStack) {
+        // The mask puts rsp on `dynamicAlignment`; what the prologue reserves below it has to be a
+        // whole number of those, or neither the argument area a callee finds at rsp nor the local
+        // region above it lands on the boundary the mask just established.
+        if(layout.dynamicAlignment < required || layout.fixedSize % layout.dynamicAlignment != 0) {
+            logError("%@: the prologue realigns to %@ and reserves %@ below it, which does not leave rsp on the %@ its body needs",
+                funName, layout.dynamicAlignment, layout.fixedSize, required);
+            ok = false;
+        }
+    } else {
+        // Nothing realigns, so rsp at every call is the entry value less everything the prologue
+        // moved it by - the return address included, since the call pushed it.
+        auto moved = 8 + (layout.framePointer ? 8u : 0u) + 8 * savedCount + layout.fixedSize;
+
+        if(moved % required != 0) {
+            logError("%@: the prologue moves rsp by %@ bytes, which does not leave it on the %@ its body needs",
+                funName, moved, required);
+            ok = false;
+        }
+    }
 
     for(Size i = 0; i < objects.slots.size(); i++) {
         auto& slot = objects.slots[i];
@@ -804,18 +853,26 @@ bool verifyFrameLayout(Context& ctx, LowerFunction& fun, const FrameObjects& obj
                     funName, slot.argOffset, offset);
                 ok = false;
             }
-        } else if(offset < regionLow || offset + I32(slot.size) > regionHigh) {
-            logError("%@: frame object %@ (%@ bytes at %@) falls outside the reserved region [%@, %@)",
-                funName, U32(i), slot.size, offset, regionLow, regionHigh);
-            ok = false;
+        } else {
+            I32 regionLow, regionHigh;
+            regionOf(layout.slotBase[i], regionLow, regionHigh);
+
+            if(offset < regionLow || offset + I32(slot.size) > regionHigh) {
+                logError("%@: frame object %@ (%@ bytes at %@) falls outside the reserved region [%@, %@)",
+                    funName, U32(i), slot.size, offset, regionLow, regionHigh);
+                ok = false;
+            }
         }
 
         // Two frame objects may never share bytes. Reuse of a spill slot between webs whose lives
         // do not overlap happens a level up - they share one slot id, and so one address - so
-        // anything that overlaps here is a layout error rather than deliberate sharing.
+        // anything that overlaps here is a layout error rather than deliberate sharing. Compared only
+        // within one base register: two offsets from different bases say nothing about each other.
         for(Size j = 0; j < i; j++) {
             auto& other = objects.slots[j];
             auto otherOffset = layout.slotOffset[j];
+
+            if(layout.slotBase[j] != layout.slotBase[i]) continue;
 
             if(offset < otherOffset + I32(other.size) && otherOffset < offset + I32(slot.size)) {
                 logError("%@: frame objects %@ and %@ overlap at %@ and %@",

@@ -61,10 +61,53 @@ static bool hasDynamicAlloca(LowerBase base, LowerFunction& fun) {
     return false;
 }
 
+// The strongest boundary anything in this function needs rsp to be on, read from the IR: what the
+// conventions of the calls it makes require of the stack pointer at the call, and what the fixed
+// objects it allocates require of their addresses.
+//
+// A dynamic allocation is not here. Its own alignment is satisfied by rounding the address it produces
+// (see emitAlloca), which is local to the instruction and costs the rest of the frame nothing.
+static U32 requiredStackAlignment(LowerBase base, LowerFunction& fun, const Constraints& constraints) {
+    U32 required = 8;
+
+    auto raise = [&](U32 alignment) {
+        if(alignment > required) required = alignment;
+    };
+
+    for(auto offset: fun.blocks.contents(base)) {
+        for(auto i: base[offset]->instructions.contents(base)) {
+            auto inst = base[i];
+
+            if(inst->kind == LowerInst::Call) {
+                auto type = ((LowerInstCall*)inst)->getCallType();
+                raise(constraints.getConvention(type).stackAlignment);
+            }
+
+            // Fixed only, which is the same test collectFrameObjects makes when it decides whether
+            // the allocation becomes a frame object at all.
+            if(inst->kind == LowerInst::Alloca) {
+                auto alloca = (LowerInstAlloca*)inst;
+                if(isImm(base[alloca->byteCount])) raise(alloca->alignment);
+            }
+        }
+    }
+
+    return required;
+}
+
+bool functionRealignsStack(LowerBase base, LowerFunction& fun, const Constraints& constraints) {
+    // A function is entered with rsp on whatever boundary its own convention promises, and padding
+    // can only preserve that - so anything stronger has to be established here.
+    return requiredStackAlignment(base, fun, constraints)
+        > constraints.getConvention(fun.callType).stackAlignment;
+}
+
 bool functionNeedsFramePointer(Context& ctx, LowerBase base, LowerFunction& fun) {
-    // Not a preference: after a dynamic alloca there is no fixed relationship between rsp and
-    // anything, so this overrides every mode below.
+    // Neither of these is a preference. After a dynamic alloca there is no fixed relationship between
+    // rsp and anything; after a realignment the distance from rsp back to the frame is only known at
+    // run time. Both override every mode below.
     if(hasDynamicAlloca(base, fun)) return true;
+    if(functionRealignsStack(base, fun, targetConstraints())) return true;
 
     switch(ctx.settings.framePointer) {
         case FramePointerMode::All:
@@ -96,8 +139,7 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
     assertTrue(!frame.hasDynamicAlloca || layout.framePointer); // rsp moves, so rsp cannot be the base
     assertTrue(!layout.framePointer || !layout.savedRegs.has(framePointerReg())); // saved twice otherwise
 
-    U32 savedCount = 0;
-    layout.savedRegs.iterate([&](PhysicalReg) { savedCount++; });
+    auto savedCount = U32(layout.savedRegs.count());
 
     // Locals first, then spill slots grouped widest-first so that each group lands on its own
     // alignment without padding between the slots inside it. Offsets here are measured upwards from
@@ -129,36 +171,63 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
         place(StackSlotKind::Spill, StackSlotClass(c - 1), true);
     }
 
-    // Everything the prologue moves rsp by, including the return address the call pushed, has to
-    // add up to a multiple of the alignment the calls in this function expect to find - that is
-    // what turns "rsp was aligned when we were called" into "rsp is aligned when we call".
-    //
-    // Which means the entry alignment has to be at least as good as anything the body asks for.
-    // A function whose own convention promises less than one of its callees demands would have to
-    // realign rsp at run time and keep a second base register to find its frame afterwards, which
-    // is not implemented: the two described conventions are 8 and 16, so this is the case of a
-    // Complex function calling a SysV one, and the fix is to declare it SysV as well.
-    auto entryAlignment = constraints.getConvention(fun.callType).stackAlignment;
-    assertTrue(frame.callAlignment <= entryAlignment); // caller cannot guarantee the alignment a callee needs
-
+    // The boundary rsp has to be on for the whole body: whatever the calls in this function expect to
+    // find at the call, and whatever the objects in its frame need of their addresses. The second is
+    // not a property of rsp on its own - a local is an offset from a base, and an offset on its
+    // boundary only lands on that boundary if the base does too.
     auto alignment = frame.callAlignment > maxAlign ? frame.callAlignment : maxAlign;
 
-    // The outgoing argument area is the lowest thing in the frame, so the local region starts above
-    // it - far enough above that the area's size cannot push a local off its own alignment.
-    auto localBase = alignUp(frame.argAreaSize, maxAlign);
+    // Whether the prologue has to establish that boundary itself. Answered before allocation ran,
+    // because realigning needs a frame pointer and the allocator had to be told; what is checked here
+    // is only that the answer covered everything the frame turned out to need. A spill slot wanting
+    // more than 8 is what would not have been visible from the IR - and cannot happen while no
+    // encoder spills a vector register.
+    auto entryAlignment = constraints.getConvention(fun.callType).stackAlignment;
+    layout.realignsStack = functionRealignsStack(base, fun, constraints);
 
-    auto prologueBytes = 8 + (layout.framePointer ? 8 : 0) + 8 * savedCount + localBase + size;
-    auto padding = alignUp(prologueBytes, alignment) - prologueBytes;
+    assertTrue(layout.realignsStack || alignment <= entryAlignment); // an alignment the pre-pass did not see
+    assertTrue(!layout.realignsStack || layout.framePointer);        // realigning loses the distance to rsp
+
+    // Not supported together: a realigning frame keeps its locals below the mask and addresses them
+    // through rsp, and a run-time allocation moves rsp out from under them. Supporting both would take
+    // a third base register held for the whole function, which nothing reserves.
+    assertTrue(!layout.realignsStack || !frame.hasDynamicAlloca);
+
+    // Locals and spill slots hang off rsp whenever there is no frame pointer, and also whenever the
+    // prologue realigns - that is where the aligned region is. Otherwise they sit directly below the
+    // saved registers, at a fixed distance from rbp.
+    auto rspRelativeLocals = layout.realignsStack || !layout.framePointer;
+
+    // The outgoing argument area is the lowest thing in the frame, so the local region starts above
+    // it - far enough above that the area's size cannot push a local off its own alignment. In a
+    // realigning frame the whole region below the mask is measured from an rsp the mask aligned, so
+    // both the area and the padding above it are whole numbers of boundaries.
+    auto localBase = alignUp(frame.argAreaSize, layout.realignsStack ? alignment : maxAlign);
+
+    U32 padding;
+
+    if(layout.realignsStack) {
+        // The mask leaves rsp on `alignment`; everything the prologue then reserves has to be a whole
+        // number of those, or rsp is off the boundary again by the time a call reads it.
+        padding = alignUp(size, alignment) - size;
+    } else {
+        // Everything the prologue moves rsp by, including the return address the call pushed, has to
+        // add up to a multiple of the alignment - that is what turns "rsp was aligned when we were
+        // called" into "rsp is aligned when we call".
+        auto prologueBytes = 8 + (layout.framePointer ? 8 : 0) + 8 * savedCount + localBase + size;
+        padding = alignUp(prologueBytes, alignment) - prologueBytes;
+    }
 
     // Padding goes at the top of the local region rather than the bottom of the frame, so that the
     // argument area stays exactly at rsp where a callee expects to find it.
-    layout.fixedSize = localBase + size + padding;
+    auto localArea = size + padding;
+
+    layout.fixedSize = localBase + localArea;
     layout.argAreaSize = frame.argAreaSize;
     layout.dynamicAlignment = alignment;
 
-    // The fixed region sits directly below the saved registers, so its bottom - which is where rsp
-    // ends up - is that far below the base. Locals start `localBase` above that.
-    auto regionBase = (layout.framePointer ? -I32(8 * savedCount + layout.fixedSize) : 0) + I32(localBase);
+    auto localsBase = rspRelativeLocals ? stackPointerReg() : framePointerReg();
+    auto regionBase = rspRelativeLocals ? I32(localBase) : -I32(8 * savedCount + localArea);
 
     // An incoming argument sits in the caller's frame, above the return address the call pushed.
     // With a frame pointer that is a fixed distance from rbp; without one it is measured from where
@@ -169,8 +238,10 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
         auto& slot = frame.slots[i];
 
         if(slot.kind == StackSlotKind::IncomingArg) {
+            layout.slotBase.push(layout.base);
             layout.slotOffset.push(incomingBase + I32(slot.argOffset));
         } else {
+            layout.slotBase.push(localsBase);
             layout.slotOffset.push(regionBase + I32(offsetInRegion[i]));
         }
     }

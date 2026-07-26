@@ -95,15 +95,6 @@ struct LowerInst {
         // A machine operation named directly rather than described - see LowerIntrinsic below.
         Intrinsic,
 
-        // X86 stack manipulation.
-        // Unary push register contents to stack.
-        // Always pushes full register size.
-        X86Push,
-
-        // Pop register from stack (no operands).
-        // Always loads full register size.
-        X86Pop,
-
         // Stores one argument into the outgoing argument area, for a call whose convention passes
         // it there rather than in a register. Created by transformFunction from the convention's
         // own answer, never written by hand - see insertStackArgs in transform.cpp.
@@ -316,14 +307,21 @@ struct LowerInstSelect: LowerInstSingle {
 
 // Allocates space on the stack.
 struct LowerInstAlloca: LowerInstSingle {
-    LowerInstAlloca(StringId name, LowerPtr<LowerValue> byteCount):
-        LowerInstSingle(Alloca, name, LowerType::Pointer), byteCount(byteCount)
+    LowerInstAlloca(StringId name, LowerPtr<LowerValue> byteCount, U32 alignment):
+        LowerInstSingle(Alloca, name, LowerType::Pointer), byteCount(byteCount), alignment(alignment)
     {
         usedCount = 1;
+        assertTrue(alignment != 0 && (alignment & (alignment - 1)) == 0); // a power of two
     }
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> byteCount;
+
+    // What the allocated address has to be a multiple of. Stated by whoever knows what the memory is
+    // going to hold rather than guessed from the byte count downstream: a 16-byte allocation of two
+    // pointers wants 8, and a 4-byte one of a vector lane wants 16, and the size does not say which.
+    // A power of two, and at least 1.
+    U32 alignment;
 };
 
 inline bool isSignedLoad(U8 memFlags) {

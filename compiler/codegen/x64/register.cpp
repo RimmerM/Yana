@@ -15,17 +15,18 @@
  * which costs one pass over the webs rather than a complete allocation and emission:
  *
  *   - a web ended up without a register, and one that has no register has to be brought into a
- *     scratch one at each instruction that touches it. Those are reserved for the whole function
- *     rather than found after the fact, so the function is placed again with them held back. This
- *     can only happen once.
+ *     scratch one at each instruction that cannot read it where it is. Those are reserved for the
+ *     whole function rather than found after the fact, so how many of them legalizing this placement
+ *     would take is measured - by legalizing it and recording what it asked for - and the function is
+ *     placed again with that much held back.
  *   - a web would rather have taken a register from a cheaper occupant than gone without one. The
  *     occupant was placed earlier in the same walk, and everything after it has been decided
  *     against that, so it is left homeless from the start of the next pass instead.
  *
- * Neither can fail to converge: the reserved set is monotone and settles after one change, and the
- * forced-spill set only grows and is bounded twice over - by kMaxEvictions and by there being
- * finitely many webs. Whatever no longer fits in a register goes to the frame, and the frame has no
- * limit.
+ * Neither can fail to converge: the reserve only ever grows and is bounded by the register file, and
+ * the forced-homeless set only grows and is bounded twice over - by kMaxDisplacements and by there
+ * being finitely many webs. Whatever no longer fits in a register goes to the frame, and the frame
+ * has no limit.
  *
  * The first pass is the answer for a function that fitted in its registers, which is most of them,
  * and which pays nothing for any of the above.
@@ -35,7 +36,7 @@
 // more placement pass, and the improvement from each is small and diminishing, so this bounds what a
 // pathological function can spend. Reaching it costs code quality and nothing else: a pass is a
 // complete, correct placement whether or not another one would have been better.
-static constexpr Size kMaxEvictions = 16;
+static constexpr Size kMaxDisplacements = 16;
 
 FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const MachineFunction& machine) {
     auto& constraints = targetConstraints();
@@ -47,30 +48,39 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun,
     // deciding it separately is the one way this can go wrong quietly, since a value placed in rbp
     // and a frame addressed through rbp are each individually correct.
     auto framePointer = functionNeedsFramePointer(ctx, base, fun);
-    auto reserved = framePointer ? framePointerRegs() : RegSet {};
 
-    Array<bool> forceSpill;
-    for(Size i = 0; i < live->valueMap.size(); i++) forceSpill.push(false);
+    Array<bool> forcedHomeless;
+    for(Size i = 0; i < live->valueMap.size(); i++) forcedHomeless.push(false);
 
     Placement placement;
-    bool scratchReserved = false;
-    Size evictions = 0;
+    Size displacements = 0;
+
+    // Nothing held back to begin with, which is the answer for a function that fitted in its
+    // registers. The reserve below only ever grows, which is half of what makes this loop terminate.
+    TemporaryReserve temporaries;
 
     for(;;) {
-        placement = computePlacement(base, fun, *live, machine, constraints, reserved, forceSpill);
+        placement = computePlacement(base, fun, *live, machine, constraints, framePointer, temporaries, forcedHomeless);
         bool again = false;
 
-        if(placement.needsScratch && !scratchReserved) {
-            reserved |= spillTempRegs();
-            scratchReserved = true;
-            again = true;
+        // A web with no register has to be brought into a scratch one at the instructions that cannot
+        // read it where it is. How many that takes, and in which banks, is not a property of the
+        // function but of this placement of it - so it is measured against this placement rather than
+        // guessed at, and the measurement is the pass that will spend the answer.
+        //
+        // The reserve is raised rather than replaced: holding more back changes where the next pass
+        // puts things, so the next measurement is a different question and not a correction of this
+        // one. Taking the larger of the two can over-reserve slightly and can never under-reserve.
+        if(placement.requiresLegalizationTemps) {
+            auto demand = measureTemporaryReserve(base, fun, machine, constraints, placement);
+            if(temporaries.growTo(demand)) again = true;
         }
 
-        for(auto id: placement.evicted) {
-            if(forceSpill[id] || evictions >= kMaxEvictions) continue;
+        for(auto id: placement.displacementRequests) {
+            if(forcedHomeless[id] || displacements >= kMaxDisplacements) continue;
 
-            forceSpill[id] = true;
-            evictions++;
+            forcedHomeless[id] = true;
+            displacements++;
             again = true;
         }
 
@@ -87,7 +97,7 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun,
     // eventually read it.
     assertTrue(verifyPlacement(ctx, base, fun, *live, machine, constraints, placement, framePointer));
 
-    auto legalized = legalizeFunction(base, fun, machine, constraints, placement);
+    auto legalized = legalizeFunction(base, fun, machine, constraints, placement, temporaries);
 
     FunctionRegs result;
 
@@ -97,6 +107,7 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun,
     // restores them; a function that never left its convention's clobber set saves nothing.
     result.usedCalleeSaved = (placement.writtenPhysical | legalized.writtenPhysical) & convention.calleeSaved;
     result.framePointer = framePointer;
+    result.temporaries = temporaries;
     result.placement = ::move(placement);
     result.legalized = ::move(legalized);
 

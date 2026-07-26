@@ -1,0 +1,103 @@
+# Intrinsics, which the backend describes entirely as data: one row of the registry in
+# codegen/x64/intrinsic.cpp each, naming a machine form like any other instruction's. None of the
+# four appears by name in placement, in legalization or in the encoder, and each of them exercises a
+# different thing an intrinsic can demand of the allocator.
+#
+# `swap` is the plain destructive case - bswap writes over its own operand, so the allocator has to
+# get the value into the result's register first, exactly as it does for an `add`.
+#
+# `bits` is the memory case: popcnt's operand is `regOrMem`, so a spilled source is read straight out
+# of the frame. `spilledBits` forces that by keeping enough values live across a clobbering call
+# that the operand it counts has nowhere to live but a slot.
+#
+# `features` is the fixed-register case: cpuid takes its leaf in eax and its subleaf in ecx and
+# answers in all four of eax/ebx/ecx/edx, so every operand and result is copied into or out of a
+# register the encoding names. ebx is callee-saved, which is why this function has a push and a pop
+# it never asked for.
+#
+# `stamp` is the implicit-clobber case: rdtscp writes ecx as well as edx:eax, and the form declares
+# that as a clobber. `stampAcrossValue` proves the allocator keeps a live value out of it: its fourth
+# argument *arrives* in rcx under this convention and is still needed after the intrinsic, so the
+# entry copy moves it somewhere the intrinsic does not write.
+
+swap(%x: Long): Long {
+    {
+        %r = bswap %x: Long
+        ret %r
+    }
+}
+
+bits(%x: Long): Int {
+    {
+        %r = popcnt %x: Int
+        ret %r
+    }
+}
+
+spilledBits(%p: Ptr, %x: Long): Int {
+    {
+        %a = load %p, 8: Long
+        %b = load %p, 8: Long
+        %c = load %p, 8: Long
+        %d = load %p, 8: Long
+        %e = load %p, 8: Long
+        %g = load %p, 8: Long
+        %h = load %p, 8: Long
+        %i = load %p, 8: Long
+        %j = load %p, 8: Long
+        %k = load %p, 8: Long
+        %l = load %p, 8: Long
+        %m = call_clobber sink, %x: Long
+        %n = popcnt %x: Int
+        %o = add %a, %b: Long
+        %q = add %o, %c: Long
+        %s = add %q, %d: Long
+        %t = add %s, %e: Long
+        %u = add %t, %g: Long
+        %v = add %u, %h: Long
+        %w = add %v, %i: Long
+        %y = add %w, %j: Long
+        %z = add %y, %k: Long
+        %aa = add %z, %l: Long
+        %ab = add %aa, %m: Long
+        %ac = cast %ab: Int
+        %ad = add %ac, %n: Int
+        ret %ad
+    }
+}
+
+features(%leaf: Int, %sub: Int): Int {
+    {
+        %a, %b, %c, %d = cpuid %leaf, %sub
+        %x = add %a, %b: Int
+        %y = add %c, %d: Int
+        %r = add %x, %y: Int
+        ret %r
+    }
+}
+
+stamp(): Long {
+    {
+        %lo, %hi = rdtscp
+        %l = cast %lo: Long
+        %h = cast %hi: Long
+        %s = shl %h, 32: Long
+        %r = or %l, %s: Long
+        ret %r
+    }
+}
+
+stampAcrossValue(%a: Long, %b: Long, %c: Long, %keep: Long): Long {
+    {
+        %lo, %hi = rdtscp
+        %l = cast %lo: Long
+        %r = add %keep, %l: Long
+        ret %r
+    }
+}
+
+sink(%v: Long): Long {
+    {
+        ret %v
+    }
+}

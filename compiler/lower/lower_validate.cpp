@@ -449,6 +449,13 @@ static bool validateAlloca(Diagnostics* diagnostics, LowerBase base, LowerInstAl
         return false;
     }
 
+    // The frame lays objects out by rounding up to this, and rounds a run-time allocation's size by
+    // it, so anything that is not a power of two would produce an address that satisfies nothing.
+    if(inst->alignment == 0 || (inst->alignment & (inst->alignment - 1)) != 0) {
+        diagnostics->error("allocation alignment is not a power of two"_v, inst->source);
+        return false;
+    }
+
     return true;
 }
 
@@ -703,8 +710,6 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateIntrinsic(diagnostics, base, (LowerInstIntrinsic*)inst);
         case LowerInst::X86Address:
         case LowerInst::X86Lea:
-        case LowerInst::X86Push:
-        case LowerInst::X86Pop:
         case LowerInst::X86PushArg:
             diagnostics->error("platform-lowered instruction in block"_v, inst->source);
             return false;

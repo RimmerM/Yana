@@ -15,29 +15,26 @@ inline bool modifiesFlags(LowerBase base, LowerInst* inst) {
     return writesFlags(machineTarget().form(selectForm(base, inst)).flagsEffect);
 }
 
-// Checks if this immediate value can possibly be embedded into any instruction.
+// Whether embedding this constant is worth doing at all, which is a size question rather than a
+// legality one - fitsImmediate answers legality, per form, in canEmbedImm below.
+//
+// A one-byte immediate is always cheaper embedded. A four-byte one is cheaper only while it is read
+// a couple of times; past that, one materialization into a register beats repeating four bytes at
+// every use.
 static bool isEmbeddableImm(LowerImm* imm) {
     // Floats can never be embedded.
     if(!isIntLike(imm->result.type)) return false;
 
-    // X86 can embed up to 4-byte immediates into instructions.
-    // For 1-byte ones, we always embed.
-    // For 4-byte ones, we embed for <= 2 uses; for higher use counts, it's better to save space instead.
-    if(encodeImm8(&imm->result)) {
-        return true;
-    } else if(encodeImm32(&imm->result) && imm->result.uses.size() <= 2) {
-        return true;
-    }
-
-    return false;
+    if(fitsImmediate(ImmediateWidth::Imm8, imm->i)) return true;
+    return fitsImmediate(ImmediateWidth::Imm32, imm->i) && imm->result.uses.size() <= 2;
 }
 
 // Checks if this specific instruction can embed the provided embeddable immediate operand.
 //
-// Which operands can swallow a constant is the form table's answer - every operand position the
-// value occupies has to have a form that accepts an immediate there. A value read twice by one
-// instruction, only one of whose positions takes an immediate, is not embeddable at all: embedding
-// it would leave the other position with no location to read.
+// Which operands can swallow which constant is the form table's answer - every operand position the
+// value occupies has to have a form that accepts an immediate *of this width* there. A value read
+// twice by one instruction, only one of whose positions takes an immediate, is not embeddable at
+// all: embedding it would leave the other position with no location to read.
 static bool canEmbedImm(LowerBase base, LowerInst* inst, LowerValue* op) {
     // A cast produces a value of its own, so the constant has to be materializable at the target
     // type - which for now means an integer one.
@@ -47,12 +44,13 @@ static bool canEmbedImm(LowerBase base, LowerInst* inst, LowerValue* op) {
     }
 
     auto opcode = opcodeFor(inst);
+    auto value = immValue(op);
     auto used = inst->used();
     bool found = false;
 
     for(Size i = 0; i < used.size(); i++) {
         if(base[used[i]] != op) continue;
-        if(immediateWidthFor(opcode, i) == ImmediateWidth::None) return false;
+        if(!opcodeCanEmbedImmediate(opcode, i, value)) return false;
         found = true;
     }
 
@@ -420,6 +418,8 @@ static void insertStackArgs(LowerBase base, LowerFunction& fun, const Constraint
  * array element used twice - and each of them gets an address instruction of its own.
  */
 
+// `base + index*scale + displacement`, with either register absent: x86 encodes a bare displacement,
+// a base alone, an index alone (the no-base SIB form) and both together.
 struct AddressPattern {
     LowerValue* base = nullptr;
     LowerValue* index = nullptr;
@@ -461,16 +461,16 @@ static bool isOnlyUse(LowerBase base, LowerValue* v, LowerInst* inst) {
 }
 
 // The signed displacement `v` contributes, if it is an immediate small enough to be one. x86 sign-
-// extends an address displacement from 32 bits, so the range it can hold is exactly what
-// encodeImm32 accepts - and whether the immediate was made implicit is irrelevant, since the value
-// is read here rather than encoded from a register.
+// extends an address displacement from 32 bits, so the range it can hold is exactly a four-byte
+// immediate's - and whether the immediate was made implicit is irrelevant, since the value is read
+// here rather than encoded from a register.
 static Maybe<I64> addressDisplacement(LowerValue* v) {
     if(v->inst()->kind != LowerInst::Imm) return Nothing();
 
-    auto imm = encodeImm32(v);
-    if(!imm) return Nothing();
+    auto imm = immValue(v);
+    if(!fitsImmediate(ImmediateWidth::Imm32, imm)) return Nothing();
 
-    return Just(I64(I32(imm.unwrap())));
+    return Just(I64(I32(U32(imm))));
 }
 
 // Matches `v` against `index * {1,2,4,8}`, the only scaling the SIB byte can encode.
@@ -522,6 +522,12 @@ static bool matchScaled(LowerBase base, LowerValue* v, LowerInst* user, LowerVal
 static bool peelAddress(LowerBase base, LowerValue* address, AddressPattern& out, Array<LowerInst*>& folded) {
     out.base = address;
 
+    // The folded instruction that reads whatever `out.base` ended up being, which is what the
+    // index-only step below needs in order to prove that nothing else reads it. Null while nothing
+    // has been peeled at all, since then the base is the address itself and its readers are the
+    // caller's business.
+    LowerInst* baseUser = nullptr;
+
     // Loop invariant: everything reading `out.base` is about to be rewritten to read the address
     // instead, so the instruction computing it can be removed.
     for(;;) {
@@ -572,6 +578,7 @@ static bool peelAddress(LowerBase base, LowerValue* address, AddressPattern& out
         out.scale = scale;
         out.displacement = displacement;
         out.base = next;
+        baseUser = inst;
 
         folded.push(inst);
         if(scaled) folded.push(scaled);
@@ -579,6 +586,53 @@ static bool peelAddress(LowerBase base, LowerValue* address, AddressPattern& out
         // Anything else reading what is left stops the chain here: that value stays materialized,
         // and folding further would compute it twice rather than once.
         if(!isOnlyUse(base, next, inst)) break;
+    }
+
+    // `[index*scale + disp32]` with no base at all is a legal SIB form, and it is what a scaled index
+    // with nothing left to add it to becomes: what the loop above stopped on is the multiply, which
+    // the addressing unit does for free but which would otherwise stay an instruction whose result
+    // the address reads as an unscaled base. This is the shape an absolute address indexed at run
+    // time takes - the offset is the displacement, and there is no pointer to add it to.
+    //
+    // Only worth it for a real scaling. At scale 1 the index register is the register the base would
+    // have been, so nothing is saved - and `[reg]` would become a SIB byte plus a four-byte
+    // displacement for the privilege.
+    if(!out.index && baseUser) {
+        auto candidate = out.base;
+        auto user = baseUser;
+        LowerInst* bitcast = nullptr;
+
+        // A bitcast is what the lowering has to write to use a computed integer as an address, and
+        // between two 64-bit classes it computes nothing: the value and its cast are the same bits in
+        // the same register. So the scaled index behind one is still a scaled index, and taking it as
+        // the address's index removes the cast along with the multiply.
+        //
+        // Only looked through here, and not for a base: a base reaches the access in a register
+        // either way, so seeing through the cast would change which register that is for no gain.
+        if(candidate->inst()->kind == LowerInst::Bitcast && isOnlyUse(base, candidate, user)) {
+            auto source = base[((LowerInstUnary*)candidate->inst())->from];
+
+            if(is64Bit(source->type) && is64Bit(candidate->type)) {
+                bitcast = candidate->inst();
+                user = bitcast;
+                candidate = source;
+            }
+        }
+
+        LowerValue* index = nullptr;
+        U8 scale = 1;
+
+        // matchScaled proves what this needs: a 64-bit multiply or shift by an encodable factor, read
+        // by nothing but the instruction that is about to be folded away.
+        if(matchScaled(base, candidate, user, index, scale) && scale != 1) {
+            // Outermost first, so that each is already unused by the time it goes.
+            if(bitcast) folded.push(bitcast);
+            folded.push(candidate->inst());
+
+            out.index = index;
+            out.scale = scale;
+            out.base = nullptr;
+        }
     }
 
     return folded.isNotEmpty();
@@ -627,7 +681,8 @@ static void foldAddresses(LowerBase base, LowerFunction& fun) {
 
             for(auto user: users) {
                 auto computed = new (arena) LowerInstX86Address(
-                    LowerInst::X86Address, 0, pattern.base - base,
+                    LowerInst::X86Address, 0,
+                    pattern.base ? pattern.base - base : nullptr,
                     pattern.index ? pattern.index - base : nullptr,
                     pattern.scale, U32(I32(pattern.displacement))
                 );
@@ -671,6 +726,11 @@ static void foldAddresses(LowerBase base, LowerFunction& fun) {
 // looks like from here.
 static bool isLeaProfitable(const AddressPattern& pattern, const Array<LowerInst*>& folded) {
     if(folded.size() > 1) return true;
+
+    // An index-only address folded the multiply that produced it, so there is nothing left for an
+    // `add` to have been - and no base whose use count could say anything either way.
+    if(!pattern.base) return true;
+
     return pattern.base->uses.size() > 1;
 }
 
@@ -702,7 +762,8 @@ static void foldLeas(LowerBase base, LowerFunction& fun) {
             if(!isLeaProfitable(pattern, folded)) continue;
 
             auto lea = new (arena) LowerInstX86Address(
-                LowerInst::X86Lea, result.name, pattern.base - base,
+                LowerInst::X86Lea, result.name,
+                pattern.base ? pattern.base - base : nullptr,
                 pattern.index ? pattern.index - base : nullptr,
                 pattern.scale, U32(I32(pattern.displacement))
             );

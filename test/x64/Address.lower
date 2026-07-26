@@ -177,6 +177,33 @@ storedPointer(%p: Ptr) {
     }
 }
 
+# No base at all: `[index*scale + disp32]`, the no-base SIB form. An absolute address indexed at run
+# time has nothing to add the index to, so the constant becomes the displacement and the scaled index
+# stands alone - and the bitcast that turned the computed integer into a pointer goes with the
+# multiply, since between two 64-bit classes it was the same bits in the same register. Three
+# instructions and one access become one access.
+indexOnly(%i: Long): Long {
+    {
+        %o = shl %i, 3: Long
+        %p = bitcast %o: Ptr
+        %q = add %p, 4096: Ptr
+        %v = load %q, 8: Long
+        ret %v
+    }
+}
+
+# The same shape at scale 1, which is deliberately not folded: the index register would be the
+# register the base already was, so nothing is saved, and `[reg + disp]` is shorter than the SIB byte
+# and four-byte displacement a base-less address needs.
+unscaledIndexKeepsBase(%i: Long): Long {
+    {
+        %p = bitcast %i: Ptr
+        %q = add %p, 4096: Ptr
+        %v = load %q, 8: Long
+        ret %v
+    }
+}
+
 # Two displacements that fit individually and not together. A displacement is sign-extended from 32
 # bits, so the chain stops at the point where the sum stops fitting: the outer add folds and the
 # inner one stays as the base register.

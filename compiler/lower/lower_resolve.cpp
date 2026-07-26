@@ -338,12 +338,32 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         return Just(block.addInst(base, new (resolve.moduleArena) LowerInstSelect(getResultName(ast.results[0]), lhs - base, rhs - base, cmp - base, lhs->type)));
     });
 
+    // `alloca %bytes, alignment`. The alignment is optional in the text format and defaults to 8,
+    // which is what a scalar or a pointer needs - anything wanting more says so.
     instructionSet.add(Context::nameHash("alloca"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 1);
-        assertArgCount(ast.args, 1);
+
+        if(ast.args.size() != 1 && ast.args.size() != 2) {
+            resolve.diag.error("invalid argument count for instruction"_v, ast.source);
+            return Nothing();
+        }
+
+        U32 alignment = 8;
+
+        if(ast.args.size() == 2) {
+            auto arg = ast.args[1];
+            auto valid = arg.isInt() && arg.i > 0 && (arg.i & (arg.i - 1)) == 0;
+
+            if(!valid) {
+                resolve.diag.error("expected a power-of-two alignment for alloca"_v, ast.source);
+            } else {
+                alignment = U32(arg.i);
+            }
+        }
 
         auto size = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
-        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstAlloca(getResultName(ast.results[0]), size - base)));
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstAlloca(
+            getResultName(ast.results[0]), size - base, alignment)));
     });
 
     instructionSet.add(Context::nameHash("load"_v), handleLoad<false>());

@@ -89,8 +89,6 @@ enum: MachineFormId {
     FormPushArgImm,
 
     FormLea,
-    FormPush,
-    FormPop,
 
     FormJmp,
     FormJccFlags,
@@ -189,7 +187,12 @@ MachineTarget::MachineTarget() {
     // one whose condition is already in the flags reads them and writes nothing.
     name(OpSelect, "select"_v, true);
 
-    name(OpAlloca, "alloca"_v);
+    // A compile-time size is one `lea` and touches nothing; a run-time one rounds the size up and
+    // moves the stack pointer, which writes the flags. Which of the two applies follows the count
+    // being an embedded constant, so this is one of the opcodes whose selection a peephole moves -
+    // see MachineOpcodeDesc::flagsSelective for why that is still safe.
+    name(OpAlloca, "alloca"_v, true);
+
     name(OpLoad, "load"_v);
     name(OpStore, "store"_v);
     name(OpBlockCopy, "blockcopy"_v);
@@ -198,8 +201,6 @@ MachineTarget::MachineTarget() {
     name(OpPushArg, "pusharg"_v);
     name(OpAddress, "address"_v);
     name(OpLea, "lea"_v);
-    name(OpPush, "push"_v);
-    name(OpPop, "pop"_v);
     name(OpJmp, "jmp"_v);
 
     // As with the select above: a branch on a register tests it, a branch on the flags does not.
@@ -358,18 +359,25 @@ MachineTarget::MachineTarget() {
      *
      * NEG and NOT take their subject as r/m, so a value the allocator left in the frame is negated
      * or inverted in place rather than loaded, changed and stored back.
+     *
+     * They share an encoding shape and differ in one thing beyond the opcode extension: `neg` is a
+     * subtraction from zero and sets the flags accordingly, while `not` is a bitwise complement and
+     * leaves them entirely alone. Saying otherwise costs a compare that could have been folded
+     * across it.
      */
 
-    auto unaryArith = [&](MachineFormId id, MachineOpcodeId opcode, StringView formName, U8 extension) {
+    auto unaryArith = [&](MachineFormId id, MachineOpcodeId opcode, StringView formName, U8 extension,
+                          FlagsEffect flags)
+    {
         auto& form = add(id, opcode, formName);
         form.uses.push(regOrMem(MemoryAccessKind::ReadWrite));
         form.defs.push(tiedDef(0));
-        form.flagsEffect = FlagsEffect::Def;
+        form.flagsEffect = flags;
         form.encoding = rmExt(0xf7, extension, useRef(0));
     };
 
-    unaryArith(FormNeg, OpNeg, "neg r/m"_v, 3);
-    unaryArith(FormNot, OpNot, "not r/m"_v, 2);
+    unaryArith(FormNeg, OpNeg, "neg r/m"_v, 3, FlagsEffect::Def);
+    unaryArith(FormNot, OpNot, "not r/m"_v, 2, FlagsEffect::None);
 
     /*
      * The group-1 ALU operations.
@@ -619,17 +627,15 @@ MachineTarget::MachineTarget() {
     /*
      * Stack allocation.
      *
-     * A compile-time size becomes a frame object and one `lea`; a size only known at run time has to
-     * round itself up and move the stack pointer. Both are declared as writing the flags, because
-     * which of the two applies is settled at frame layout rather than here and the dynamic expansion
-     * does write them.
+     * A compile-time size becomes a frame object and one `lea`, which leaves the flags alone; a size
+     * only known at run time has to round itself up and move the stack pointer, which does not. So
+     * the two forms disagree about the flags, and OpAlloca says so.
      */
 
     {
         auto& form = add(FormAllocaFixed, OpAlloca, "lea r, [frame]"_v);
         form.uses.push(immediate(ImmediateWidth::Imm64));
         form.defs.push(def());
-        form.flagsEffect = FlagsEffect::Clobber;
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::AllocaFixed,
         };
@@ -723,14 +729,14 @@ MachineTarget::MachineTarget() {
     }
 
     {
-        // The unrolled form needs one general register to carry each word through. It is declared as
-        // a temporary *and* held as a clobber, which is how the reservation is made today: the
-        // clobber is what keeps a live value out of it.
+        // The unrolled form needs one general register to carry each word through, and states it as a
+        // clobber of a fixed register rather than as a declared temporary (MachineForm::temporaries).
+        // The two would reserve it at different scopes: a clobber keeps a live value out of r11 at
+        // this one instruction, where a declared temporary is held back from the whole function.
         auto& form = add(FormBlockCopyUnrolled, OpBlockCopy, "mov (unrolled)"_v);
         form.uses.push(anyReg());
         form.uses.push(anyReg());
         form.clobbers.add(gpr(IntRegister::r11));
-        form.temporaries.counts[BankGpr] = 1;
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::BlockCopyUnrolled,
         };
@@ -821,30 +827,6 @@ MachineTarget::MachineTarget() {
             .opcode = 0x8d,
             .regField = defRef(0),
             .width = OperationWidth::Fixed64,
-        };
-    }
-
-    // push and pop are fixed at 64-bit operand size in long mode, so a REX prefix here only ever
-    // extends the register number - which is what a 32-bit width states.
-    {
-        auto& form = add(FormPush, OpPush, "push r"_v);
-        form.uses.push(anyReg());
-        form.encoding = EncodingDescriptor {
-            .family = EncodingFamily::OpcodeReg,
-            .opcode = 0x50,
-            .rmField = useRef(0),
-            .width = OperationWidth::Fixed32,
-        };
-    }
-
-    {
-        auto& form = add(FormPop, OpPop, "pop r"_v);
-        form.defs.push(def());
-        form.encoding = EncodingDescriptor {
-            .family = EncodingFamily::OpcodeReg,
-            .opcode = 0x58,
-            .rmField = defRef(0),
-            .width = OperationWidth::Fixed32,
         };
     }
 
@@ -944,8 +926,10 @@ bool validateMachineForms(const MachineTarget& target) {
                 }
             }
 
+            // Every register the subset names has to be one the class already allows: the subset
+            // narrows a class rather than reaching outside it.
             if(c.kind == OperandConstraintKind::RegisterSubset) {
-                if(!(c.allowed.complement(cls.allowedPhysical) == c.allowed)) {
+                if(!((c.allowed & cls.allowedPhysical) == c.allowed)) {
                     fail(form, "allows an operand a register outside its class"_v);
                 }
             }
@@ -969,6 +953,41 @@ bool validateMachineForms(const MachineTarget& target) {
 
             if(isMemory != (c.memoryAccess != MemoryAccessKind::None)) {
                 fail(form, "states a memory access for an operand that has none, or the reverse"_v);
+            }
+
+            /*
+             * Descriptor fields no generic pass implements yet.
+             *
+             * Each of these is part of the representation because the first form that needs it must
+             * be able to say so rather than being handled by a special case. But a field placement
+             * and legalization do not read is worse than one that does not exist: a form using it
+             * looks complete while half of what it declares is silently ignored. So a use of one is
+             * rejected here until the pass that would honour it exists, which turns "adding this
+             * instruction needs allocator work" into a build failure rather than into wrong code.
+             */
+
+            // Placement is first-fit over a class's registers and does not narrow by `allowed`.
+            if(c.kind == OperandConstraintKind::RegisterSubset) {
+                fail(form, "restricts an operand to a register subset, which placement does not implement"_v);
+            }
+
+            // Legalization can leave an operand in a frame slot, but has no rule for one that may
+            // *only* be in memory - there is nothing to reload it into and nothing to spill.
+            if(c.kind == OperandConstraintKind::Memory) {
+                fail(form, "requires an operand in memory, which legalization does not implement"_v);
+            }
+
+            // A write-only memory operand would be a result written to a slot the instruction never
+            // read, which nothing produces and legalization's in-place rule does not cover.
+            if(c.memoryAccess == MemoryAccessKind::Write) {
+                fail(form, "writes an operand in memory without reading it, which legalization does not implement"_v);
+            }
+
+            // Every form described so far reads all of its operands before writing any result, and
+            // placement's rule for a tied result assumes exactly that.
+            auto defaultTiming = isDef ? OperandTiming::LateDef : OperandTiming::EarlyUse;
+            if(c.timing != defaultTiming) {
+                fail(form, "states an operand timing that placement does not implement"_v);
             }
         };
 
@@ -1062,6 +1081,26 @@ bool validateMachineForms(const MachineTarget& target) {
         // named a reserved register would be an instruction the allocator cannot work around.
         auto reserved = registers.bank(BankGpr).reserved | registers.bank(BankVector).reserved;
         if(!(form.clobbers & reserved).isEmpty()) fail(form, "clobbers a reserved register"_v);
+
+        // The other two halves of the same fence as the operand fields above. A register an
+        // instruction destroys is expressible today as a clobber, which every pass honours; one it
+        // merely *reads* without naming, and one it defines without naming, are read by nothing -
+        // so a form stating either would have that effect ignored rather than respected.
+        if(!form.implicitUses.isEmpty()) {
+            fail(form, "reads a register it does not name, which no pass implements"_v);
+        }
+
+        if(!form.implicitDefs.isEmpty()) {
+            fail(form, "defines a register it does not name - state it as a clobber instead"_v);
+        }
+
+        // And the third: the temporary reserve derives its two pools from what legalization asks for
+        // (see TemporaryReserve), and has no pool for a register a form's own *expansion* needs. The
+        // one expansion that needs a scratch register today names a fixed one as a clobber instead,
+        // which reserves it at the instruction rather than for the whole function.
+        for(auto count: form.temporaries.counts) {
+            if(count != 0) fail(form, "declares expansion temporaries, which the reserve does not implement"_v);
+        }
     }
 
     for(Size i = 1; i < kMachineOpcodeCount; i++) {
@@ -1142,8 +1181,6 @@ MachineOpcodeId opcodeFor(LowerInst* inst) {
         case LowerInst::X86Lea:     return OpLea;
         case LowerInst::Intrinsic:
             return machineTarget().intrinsic(((LowerInstIntrinsic*)inst)->getIntrinsic()).opcode;
-        case LowerInst::X86Push:    return OpPush;
-        case LowerInst::X86Pop:     return OpPop;
         case LowerInst::X86PushArg: return OpPushArg;
     }
 
@@ -1244,8 +1281,6 @@ MachineFormId selectForm(LowerBase base, LowerInst* inst) {
             return desc.form;
         }
 
-        case LowerInst::X86Push:    return FormPush;
-        case LowerInst::X86Pop:     return FormPop;
         case LowerInst::Global:     return FormGlobalAddress;
 
         case LowerInst::X86PushArg:
@@ -1416,16 +1451,16 @@ MachineFormId selectForm(LowerBase base, LowerInst* inst) {
     return FormNop;
 }
 
-ImmediateWidth immediateWidthFor(MachineOpcodeId opcode, Size index) {
-    auto& target = machineTarget();
-
-    for(auto& form: target.forms) {
+bool opcodeCanEmbedImmediate(MachineOpcodeId opcode, Size index, U64 value) {
+    // Every form of the opcode, rather than the first one that names an immediate there: which form
+    // an instruction ends up in is not settled while the peepholes are still running, so the
+    // question is whether *any* of them could carry this value in this position.
+    for(auto& form: machineTarget().forms) {
         if(form.opcode != opcode) continue;
         if(index >= form.uses.size()) continue;
         if(form.uses[index].kind != OperandConstraintKind::Immediate) continue;
-
-        return form.uses[index].immediate;
+        if(fitsImmediate(form.uses[index].immediate, value)) return true;
     }
 
-    return ImmediateWidth::None;
+    return false;
 }

@@ -1,12 +1,4 @@
 
-displacement<complex>(%p: Ptr): Int {
-  b_0 {
-    %q = add %p, 16: Ptr
-    %v = load %q, 4: Int
-    ret %v
-  }
-}
-
 sink<complex>(%p: Ptr): Int {
   b_0 {
     ret 0
@@ -39,17 +31,6 @@ storedPointer<complex>(%p: Ptr) {
   }
 }
 
-readModifyWrite<complex>(%p: Ptr, %i: Long, %v: Int) {
-  b_0 {
-    %o = shl %i, 2: Long
-    %q = add %p, %o: Ptr
-    %old = load %q, 4: Int
-    %new = add %old, %v: Int
-    store %q, %new, 4
-    ret 
-  }
-}
-
 narrowScale<complex>(%p: Ptr, %i: Int): Int {
   b_0 {
     %o = shl %i, 2: Int
@@ -59,26 +40,13 @@ narrowScale<complex>(%p: Ptr, %i: Int): Int {
   }
 }
 
-sharedIndex<complex>(%p: Ptr, %r: Ptr, %i: Long): Int {
+indexOnly<complex>(%i: Long): Long {
   b_0 {
-    %o = shl %i, 2: Long
-    %a = add %p, %o: Ptr
-    %b = add %r, %o: Ptr
-    %x = load %a, 4: Int
-    %y = load %b, 4: Int
-    %s = add %x, %y: Int
-    ret %s
-  }
-}
-
-localElement<complex>(%i: Long, %v: Int): Int {
-  b_0 {
-    %a = alloca 64: Ptr
-    %o = shl %i, 2: Long
-    %q = add %a, %o: Ptr
-    store %q, %v, 4
-    %r = load %q, 4: Int
-    ret %r
+    %o = shl %i, 3: Long
+    %p = bitcast %o: Ptr
+    %q = add %p, 4096: Ptr
+    %v = load %q, 8: Long
+    ret %v
   }
 }
 
@@ -95,23 +63,6 @@ displacementOverflow<complex>(%p: Ptr): Int {
   b_0 {
     %a = add %p, 2147483647: Ptr
     %q = add %a, 2147483647: Ptr
-    %v = load %q, 4: Int
-    ret %v
-  }
-}
-
-storeAddress<complex>(%p: Ptr, %i: Long, %v: Int) {
-  b_0 {
-    %o = shl %i, 2: Long
-    %q = add %p, %o: Ptr
-    store %q, %v, 4
-    ret 
-  }
-}
-
-negativeDisplacement<complex>(%p: Ptr): Int {
-  b_0 {
-    %q = sub %p, 8: Ptr
     %v = load %q, 4: Int
     ret %v
   }
@@ -134,6 +85,82 @@ acrossBlocks<complex>(%p: Ptr, %i: Long, %c: Int): Int {
   }
 }
 
+index<complex>(%p: Ptr, %i: Long): Int {
+  b_0 {
+    %q = add %p, %i: Ptr
+    %v = load %q, 4: Int
+    ret %v
+  }
+}
+
+displacement<complex>(%p: Ptr): Int {
+  b_0 {
+    %q = add %p, 16: Ptr
+    %v = load %q, 4: Int
+    ret %v
+  }
+}
+
+readModifyWrite<complex>(%p: Ptr, %i: Long, %v: Int) {
+  b_0 {
+    %o = shl %i, 2: Long
+    %q = add %p, %o: Ptr
+    %old = load %q, 4: Int
+    %new = add %old, %v: Int
+    store %q, %new, 4
+    ret 
+  }
+}
+
+unscaledIndexKeepsBase<complex>(%i: Long): Long {
+  b_0 {
+    %p = bitcast %i: Ptr
+    %q = add %p, 4096: Ptr
+    %v = load %q, 8: Long
+    ret %v
+  }
+}
+
+sharedIndex<complex>(%p: Ptr, %r: Ptr, %i: Long): Int {
+  b_0 {
+    %o = shl %i, 2: Long
+    %a = add %p, %o: Ptr
+    %b = add %r, %o: Ptr
+    %x = load %a, 4: Int
+    %y = load %b, 4: Int
+    %s = add %x, %y: Int
+    ret %s
+  }
+}
+
+localElement<complex>(%i: Long, %v: Int): Int {
+  b_0 {
+    %a = alloca 64, 8: Ptr
+    %o = shl %i, 2: Long
+    %q = add %a, %o: Ptr
+    store %q, %v, 4
+    %r = load %q, 4: Int
+    ret %r
+  }
+}
+
+storeAddress<complex>(%p: Ptr, %i: Long, %v: Int) {
+  b_0 {
+    %o = shl %i, 2: Long
+    %q = add %p, %o: Ptr
+    store %q, %v, 4
+    ret 
+  }
+}
+
+negativeDisplacement<complex>(%p: Ptr): Int {
+  b_0 {
+    %q = sub %p, 8: Ptr
+    %v = load %q, 4: Int
+    ret %v
+  }
+}
+
 full<complex>(%p: Ptr, %i: Long): Int {
   b_0 {
     %o = shl %i, 3: Long
@@ -144,23 +171,6 @@ full<complex>(%p: Ptr, %i: Long): Int {
   }
 }
 
-index<complex>(%p: Ptr, %i: Long): Int {
-  b_0 {
-    %q = add %p, %i: Ptr
-    %v = load %q, 4: Int
-    ret %v
-  }
-}
-
-
---- codegen: displacement ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  imm uses=[] creates=[-]  => 
-  x86_addr scale=1 disp=16 uses=[rdi] creates=[-]  => 
-  load uses=[-] creates=[rax]  => 8b4710
-  ret uses=[rax] creates=[]  => c3
 
 --- codegen: sink ---
 block #0:
@@ -198,18 +208,6 @@ block #1:
   store uses=[rdi, rdi] creates=[]  => 48893f
   ret uses=[] creates=[]  => c3
 
---- codegen: readModifyWrite ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  imm uses=[] creates=[-]  => 
-  x86_addr scale=4 disp=0 uses=[rdi, rsi] creates=[-]  => 
-  load uses=[-] creates=[rax]  => 8b04b7
-  add uses=[rax, rdx] creates=[rax]  => 01d0
-  x86_addr scale=4 disp=0 uses=[rdi, rsi] creates=[-]  => 
-  store uses=[-, rax] creates=[]  => 8904b7
-  ret uses=[] creates=[]  => c3
-
 --- codegen: narrowScale ---
 block #0:
   jmp uses=[] creates=[]  => 
@@ -220,32 +218,15 @@ block #1:
   load uses=[-] creates=[rax]  => 8b0437
   ret uses=[rax] creates=[]  => c3
 
---- codegen: sharedIndex ---
+--- codegen: indexOnly ---
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  shl uses=[rdx, -] creates=[rdx]  => 48c1e202
-  x86_addr scale=1 disp=0 uses=[rdi, rdx] creates=[-]  => 
-  load uses=[-] creates=[rax]  => 8b0417
-  x86_addr scale=1 disp=0 uses=[rsi, rdx] creates=[-]  => 
-  load uses=[-] creates=[rcx]  => 8b0c16
-  add uses=[rax, rcx] creates=[rax]  => 01c8
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=8 disp=4096 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 488b04fd00100000
   ret uses=[rax] creates=[]  => c3
-
---- codegen: localElement ---
-  prologue  => 4883ec48
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  imm uses=[] creates=[-]  => 
-  alloca uses=[-] creates=[rax]  => 488d0424
-  imm uses=[] creates=[-]  => 
-  x86_addr scale=4 disp=0 uses=[rax, rdi] creates=[-]  => 
-  store uses=[-, rsi] creates=[]  => 8934b8
-  x86_addr scale=4 disp=0 uses=[rax, rdi] creates=[-]  => 
-  load uses=[-] creates=[rax]  => 8b04b8
-  ret uses=[rax] creates=[]  => 4883c448c3
 
 --- codegen: multipliedIndex ---
 block #0:
@@ -267,6 +248,86 @@ block #1:
   load uses=[-] creates=[rax]  => 8b87ffffff7f
   ret uses=[rax] creates=[]  => c3
 
+--- codegen: acrossBlocks ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  je uses=[rdx] creates=[]  => 85d20f8503000000
+block miss:
+  imm uses=[] creates=[rax]  => 31c0
+  ret uses=[rax] creates=[]  => c3
+block hit:
+  x86_addr scale=4 disp=0 uses=[rdi, rsi] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 8b04b7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: index ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rdi, rsi] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 8b0437
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: displacement ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 8b4710
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: readModifyWrite ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=4 disp=0 uses=[rdi, rsi] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 8b04b7
+  add uses=[rax, rdx] creates=[rax]  => 01d0
+  x86_addr scale=4 disp=0 uses=[rdi, rsi] creates=[-]  => 
+  store uses=[-, rax] creates=[]  => 8904b7
+  ret uses=[] creates=[]  => c3
+
+--- codegen: unscaledIndexKeepsBase ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bitcast uses=[rdi] creates=[rdi]  => 
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=4096 uses=[rdi] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 488b8700100000
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: sharedIndex ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  shl uses=[rdx, -] creates=[rdx]  => 48c1e202
+  x86_addr scale=1 disp=0 uses=[rdi, rdx] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 8b0417
+  x86_addr scale=1 disp=0 uses=[rsi, rdx] creates=[-]  => 
+  load uses=[-] creates=[rcx]  => 8b0c16
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: localElement ---
+  prologue  => 4883ec40
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  alloca uses=[-] creates=[rax]  => 488d0424
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=4 disp=0 uses=[rax, rdi] creates=[-]  => 
+  store uses=[-, rsi] creates=[]  => 8934b8
+  x86_addr scale=4 disp=0 uses=[rax, rdi] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 8b04b8
+  ret uses=[rax] creates=[]  => 4883c440c3
+
 --- codegen: storeAddress ---
 block #0:
   jmp uses=[] creates=[]  => 
@@ -285,20 +346,6 @@ block #1:
   load uses=[-] creates=[rax]  => 8b47f8
   ret uses=[rax] creates=[]  => c3
 
---- codegen: acrossBlocks ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block start:
-  imm uses=[] creates=[-]  => 
-  je uses=[rdx] creates=[]  => 85d20f8503000000
-block miss:
-  imm uses=[] creates=[rax]  => 31c0
-  ret uses=[rax] creates=[]  => c3
-block hit:
-  x86_addr scale=4 disp=0 uses=[rdi, rsi] creates=[-]  => 
-  load uses=[-] creates=[rax]  => 8b04b7
-  ret uses=[rax] creates=[]  => c3
-
 --- codegen: full ---
 block #0:
   jmp uses=[] creates=[]  => 
@@ -307,12 +354,4 @@ block #1:
   imm uses=[] creates=[-]  => 
   x86_addr scale=8 disp=24 uses=[rdi, rsi] creates=[-]  => 
   load uses=[-] creates=[rax]  => 8b44f718
-  ret uses=[rax] creates=[]  => c3
-
---- codegen: index ---
-block #0:
-  jmp uses=[] creates=[]  => 
-block #1:
-  x86_addr scale=1 disp=0 uses=[rdi, rsi] creates=[-]  => 
-  load uses=[-] creates=[rax]  => 8b0437
   ret uses=[rax] creates=[]  => c3

@@ -120,6 +120,17 @@ struct RegSet {
         return true;
     }
 
+    // How many registers are in the set - which the prologue needs as often as it needs the registers
+    // themselves, since what it pushes decides where everything below it lands.
+    Size count() const {
+        Size total = 0;
+        for(auto bank: banks) {
+            for(auto remaining = bank; remaining; remaining >>= 1) total += remaining & 1;
+        }
+
+        return total;
+    }
+
     RegSet& operator |= (const RegSet& other) {
         for(Size i = 0; i < kRegisterBankCount; i++) banks[i] |= other.banks[i];
         return *this;
@@ -409,31 +420,79 @@ inline RegSet framePointerRegs() {
 /*
  * Scratch registers.
  *
- * A value living in the frame cannot be read by any encoder, so it is brought into a register at
- * each instruction that touches it. Those registers have to come from somewhere, and the simple,
- * defensible answer for a lean compiler is to hold a few back - but only in a function that turned
- * out to need them.
+ * A value living in the frame cannot be read by every encoder, so it is brought into a register at
+ * the instructions that cannot address it where it is. Those registers have to come from somewhere,
+ * and they cannot be found after the fact: a register handed to a web is one legalization can no
+ * longer borrow, so whatever it is going to need has to be held back before placement runs.
  *
- * A function is allocated once with nothing reserved. If nothing spilled, that is the answer and the
- * common case has paid nothing. If something did, the whole function is allocated again with these
- * held back. Two attempts, no heuristics, and the second cannot fail: whatever does not fit in a
- * register goes to the frame, and the frame has no limit.
+ * So a function is placed once with nothing held back. If nothing went homeless, that is the answer
+ * and the common case has paid nothing. If something did, the reserve legalizing that placement will
+ * need is *measured* - by legalizing it and recording what it asked for - and the function is placed
+ * again with that much held back. The measurement cannot drift from the pass that spends the reserve,
+ * because it is that pass.
  *
- * Three operand temporaries is what the widest instruction can want - two unconstrained operands and
- * a result that shares with neither - and a fixed-register operand needs none, since it is loaded
- * straight into the register the instruction demands. Two more serve the parallel copies, which need
- * somewhere to go through when a transfer has a frame slot at both ends or a cycle runs through one.
+ * The reserve is per bank and derived rather than fixed. It used to be the top five registers of
+ * every bank after any spill at all, which charged a function that left one integer value in the
+ * frame for the two temporaries a vector move cycle would have wanted and for three operand
+ * temporaries no instruction in it could ask for.
  *
- * They are taken from the top of the register file on purpose: r11-r15 are outside every described
- * convention's argument and result registers, so a scratch can never collide with a fixed register
- * the same instruction is also placing.
+ * Two pools, because both can be live at one instruction: the operand pool serves the operands and
+ * results of the instruction being legalized, and the move pool serves the parallel copies around it
+ * - a cycle that has to go through a register, and a transfer with a frame slot at both ends.
+ *
+ * A third pool belongs here as soon as a form declares temporaries for its own expansion (see
+ * MachineForm::temporaries, which validateMachineForms rejects until then). The unrolled block
+ * operation's scratch is not one of those: it is a fixed physical register the form states as a
+ * clobber, which keeps a live value out of it at that one instruction rather than for the whole
+ * function, and is the cheaper of the two ways to say it.
+ *
+ * Temporaries are taken from the top of the register file on purpose: r11-r15 are outside every
+ * described convention's argument and result registers, so a scratch can never collide with a fixed
+ * register the same instruction is also placing.
  */
-static constexpr Size kMaxSpillTemps = 3;
-static constexpr Size kMoveTemps = 2;
-static constexpr Size kTotalSpillTemps = kMaxSpillTemps + kMoveTemps;
 
-// Scratch register `index` of a bank. The operand temporaries come first, then the two the move
-// sequencer uses, so that the two pools cannot hand out the same register.
-PhysicalReg spillTemp(RegisterBankId bank, Size index);
-PhysicalReg moveTemp(RegisterBankId bank, Size index);
-RegSet spillTempRegs();
+// The most operand temporaries one instruction can ask for of one bank, which is a property of the
+// widest form described: two unconstrained operands and a result sharing with neither. A
+// fixed-register operand needs none, being loaded straight into the register the instruction demands.
+//
+// This is not the reserve - it is the limit the measurement is checked against, so that a form
+// wanting more is a loud failure rather than two temporaries quietly naming one register.
+static constexpr Size kMaxOperandTemps = 3;
+
+// The two the move sequencer can want at once: one to break a cycle that has no exchange to use, and
+// one to carry a transfer whose ends are both frame slots.
+static constexpr Size kMaxMoveTemps = 2;
+
+struct TemporaryReserve {
+    U8 operandTemps[kRegisterBankCount] = {};
+    U8 moveTemps[kRegisterBankCount] = {};
+
+    // The widest pools any one instruction can ask for. Held during the measuring pass only, so that
+    // measuring hands out a distinct register per temporary: two temporaries naming one register
+    // would look like a copy cycle that the real pass does not have, and would be measured as a
+    // demand for a scratch register nothing needs.
+    static TemporaryReserve widest();
+
+    bool isEmpty() const {
+        for(Size i = 0; i < kRegisterBankCount; i++) {
+            if(operandTemps[i] || moveTemps[i]) return false;
+        }
+
+        return true;
+    }
+
+    // Scratch register `index` of a bank's operand pool and of its move pool. Positions counted from
+    // the top of the register file with the operand pool first, so the two can never hand out the
+    // same register - and so that narrowing the operand pool hands back the registers below it rather
+    // than leaving a hole in the middle of the reserve.
+    PhysicalReg operandTemp(RegisterBankId bank, Size index) const;
+    PhysicalReg moveTemp(RegisterBankId bank, Size index) const;
+
+    // Every register this reserve holds back.
+    RegSet regs() const;
+
+    // Raises every count to the larger of the two, and answers whether anything grew. Monotone on
+    // purpose: it is what bounds the placement loop, since each growth is a strict increase in a
+    // count the register file bounds from above.
+    bool growTo(const TemporaryReserve& other);
+};

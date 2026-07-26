@@ -70,7 +70,7 @@ spilledLoop<complex>(%n: Int, %seed: Int): Int {
 
 framePointerPressure<complex>(%a: Int, %n: Int): Int {
   b_0 {
-    %p = alloca %n: Ptr
+    %p = alloca %n, 8: Ptr
     %v0 = add %a, 0: Int
     %v1 = add %a, 1: Int
     %v2 = add %a, 2: Int
@@ -210,20 +210,20 @@ slotReuse<complex>(%a: Int): Int {
 
 
 --- codegen: liveAcrossCall ---
-  prologue  => 53554883ec18
+  prologue  => 535541544155415641574883ec08
 block #0:
-  jmp uses=[] creates=[] pre=[rsi->rbx, rdx->rbp, rcx->stack:0, r8->stack:1, r9->stack:2, r10->stack:3, r11->stack:4]  => 488bde488bea890c24448944240444894c2408448954240c44895c2410
+  jmp uses=[] creates=[] pre=[rsi->rbx, rdx->r12, rcx->r13, r8->r14, r9->r15, r10->rbp, r11->stack:0]  => 488bde4c8be24c8be94d8bf04d8bf9498bea44891c24
 block #1:
   fun uses=[] creates=[-]  => 
-  call_complex uses=[-, rdi] creates=[rax]  => e81e000000
+  call_complex uses=[-, rdi] creates=[rax]  => e822000000
   add uses=[rax, rbx] creates=[rax]  => 01d8
+  add uses=[rax, r12] creates=[rax]  => 4401e0
+  add uses=[rax, r13] creates=[rax]  => 4401e8
+  add uses=[rax, r14] creates=[rax]  => 4401f0
+  add uses=[rax, r15] creates=[rax]  => 4401f8
   add uses=[rax, rbp] creates=[rax]  => 01e8
   add uses=[rax, stack:0] creates=[rax]  => 030424
-  add uses=[rax, stack:1] creates=[rax]  => 03442404
-  add uses=[rax, stack:2] creates=[rax]  => 03442408
-  add uses=[rax, stack:3] creates=[rax]  => 0344240c
-  add uses=[rax, stack:4] creates=[rax]  => 03442410
-  ret uses=[rax] creates=[]  => 4883c4185d5bc3
+  ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
 
 --- codegen: sink ---
 block #0:
@@ -232,39 +232,39 @@ block #1:
   ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
 
 --- codegen: spilledLoop ---
-  prologue  => 53554883ec18
+  prologue  => 535541544155415641574883ec08
 block #0:
   jmp uses=[] creates=[]  => 
 block start:
   imm uses=[] creates=[-]  => 
   cast uses=[-] creates=[rax]  => b800000000
-  jmp uses=[] creates=[] pre=[rax->rcx, rax->stack:0, rax->stack:1, rax->stack:2, rax->stack:3, rax->stack:4, rax->stack:5, rax->rdx, rax->r8, rax->r9, rax->r10, rax->rbx, rax->rbp]  => 488bc889042489442404894424088944240c8944241089442414488bd04c8bc04c8bc84c8bd0488bd8488be8
+  jmp uses=[] creates=[] pre=[rax->rcx, rax->stack:0, rax->rdx, rax->r8, rax->r9, rax->r10, rax->r11, rax->rbx, rax->r12, rax->r13, rax->r14, rax->r15, rax->rbp]  => 488bc8890424488bd04c8bc04c8bc84c8bd04c8bd8488bd84c8be04c8be84c8bf04c8bf8488be8
 block head:
   cmp_ilt uses=[rax, rdi] creates=[-]  => 39f8
-  je uses=[-] creates=[]  => 0f8d2f000000
+  je uses=[-] creates=[]  => 0f8d2a000000
 block body:
   add uses=[rcx, rsi] creates=[rcx]  => 01f1
   add uses=[stack:0, rsi] creates=[stack:0]  => 013424
-  add uses=[stack:1, rsi] creates=[stack:1]  => 01742404
-  add uses=[stack:2, rsi] creates=[stack:2]  => 01742408
-  add uses=[stack:3, rsi] creates=[stack:3]  => 0174240c
-  add uses=[stack:4, rsi] creates=[stack:4]  => 01742410
-  add uses=[stack:5, rsi] creates=[stack:5]  => 01742414
   add uses=[rdx, rsi] creates=[rdx]  => 01f2
   add uses=[r8, rsi] creates=[r8]  => 4101f0
   add uses=[r9, rsi] creates=[r9]  => 4101f1
   add uses=[r10, rsi] creates=[r10]  => 4101f2
+  add uses=[r11, rsi] creates=[r11]  => 4101f3
   add uses=[rbx, rsi] creates=[rbx]  => 01f3
+  add uses=[r12, rsi] creates=[r12]  => 4101f4
+  add uses=[r13, rsi] creates=[r13]  => 4101f5
+  add uses=[r14, rsi] creates=[r14]  => 4101f6
+  add uses=[r15, rsi] creates=[r15]  => 4101f7
   add uses=[rbp, rsi] creates=[rbp]  => 01f5
   imm uses=[] creates=[-]  => 
   add uses=[rax, -] creates=[rax]  => ffc0
-  jmp uses=[] creates=[]  => e9c9ffffff
+  jmp uses=[] creates=[]  => e9ceffffff
 block out:
   add uses=[rcx, rbp] creates=[rcx]  => 01e9
-  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc14883c4185d5bc3
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc14883c408415f415e415d415c5d5bc3
 
 --- codegen: framePointerPressure ---
-  prologue  => 55488bec5341574883ec18
+  prologue  => 55488bec5341544155415641574883ec08
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -282,39 +282,39 @@ block #1:
   imm uses=[] creates=[-]  => 
   add uses=[r10, -] creates=[r10] pre=[rdi->r10]  => 4c8bd74183c205
   imm uses=[] creates=[-]  => 
-  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 488bdf83c306
+  add uses=[r11, -] creates=[r11] pre=[rdi->r11]  => 4c8bdf4183c306
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 4c8bff4183c70744897dd8
+  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 488bdf83c307
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:1]  => 4c8bff4183c70844897ddc
+  add uses=[r12, -] creates=[r12] pre=[rdi->r12]  => 4c8be74183c408
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:2]  => 4c8bff4183c70944897de0
+  add uses=[r13, -] creates=[r13] pre=[rdi->r13]  => 4c8bef4183c509
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:3]  => 4c8bff4183c70a44897de4
+  add uses=[r14, -] creates=[r14] pre=[rdi->r14]  => 4c8bf74183c60a
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:4]  => 4c8bff4183c70b44897de8
+  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 4c8bff4183c70b44897dd0
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:5]  => 4c8bff4183c70c44897dec
+  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:1]  => 4c8bff4183c70c44897dd4
   imm uses=[] creates=[-]  => 
   add uses=[rdi, -] creates=[rdi]  => 83c70d
   store uses=[rsi, rdi] creates=[]  => 48893e
-  add uses=[rdi, stack:5] creates=[rdi]  => 037dec
-  add uses=[rdi, stack:4] creates=[rdi]  => 037de8
-  add uses=[rdi, stack:3] creates=[rdi]  => 037de4
-  add uses=[rdi, stack:2] creates=[rdi]  => 037de0
-  add uses=[rdi, stack:1] creates=[rdi]  => 037ddc
-  add uses=[rdi, stack:0] creates=[rdi]  => 037dd8
+  add uses=[rdi, stack:1] creates=[rdi]  => 037dd4
+  add uses=[rdi, stack:0] creates=[rdi]  => 037dd0
+  add uses=[rdi, r14] creates=[rdi]  => 4401f7
+  add uses=[rdi, r13] creates=[rdi]  => 4401ef
+  add uses=[rdi, r12] creates=[rdi]  => 4401e7
   add uses=[rdi, rbx] creates=[rdi]  => 01df
+  add uses=[rdi, r11] creates=[rdi]  => 4401df
   add uses=[rdi, r10] creates=[rdi]  => 4401d7
   add uses=[rdi, r9] creates=[rdi]  => 4401cf
   add uses=[rdi, r8] creates=[rdi]  => 4401c7
   add uses=[rdi, rdx] creates=[rdi]  => 01d7
   add uses=[rdi, rcx] creates=[rdi]  => 01cf
   add uses=[rdi, rax] creates=[rdi]  => 01c7
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7488d65f0415f5b5dc3
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7488d65d8415f415e415d415c5b5dc3
 
 --- codegen: manyLive ---
-  prologue  => 535541574883ec18
+  prologue  => 535541544155415641574883ec08
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -333,31 +333,31 @@ block #1:
   imm uses=[] creates=[-]  => 
   add uses=[r10, -] creates=[r10] pre=[rdi->r10]  => 4c8bd74183c206
   imm uses=[] creates=[-]  => 
-  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 488bdf83c307
+  add uses=[r11, -] creates=[r11] pre=[rdi->r11]  => 4c8bdf4183c307
   imm uses=[] creates=[-]  => 
-  add uses=[rbp, -] creates=[rbp] pre=[rdi->rbp]  => 488bef83c508
+  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 488bdf83c308
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 4c8bff4183c70944893c24
+  add uses=[r12, -] creates=[r12] pre=[rdi->r12]  => 4c8be74183c409
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:1]  => 4c8bff4183c70a44897c2404
+  add uses=[r13, -] creates=[r13] pre=[rdi->r13]  => 4c8bef4183c50a
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:2]  => 4c8bff4183c70b44897c2408
+  add uses=[r14, -] creates=[r14] pre=[rdi->r14]  => 4c8bf74183c60b
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:3]  => 4c8bff4183c70c44897c240c
+  add uses=[rbp, -] creates=[rbp] pre=[rdi->rbp]  => 488bef83c50c
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:4]  => 4c8bff4183c70d44897c2410
+  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 4c8bff4183c70d44893c24
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:5]  => 4c8bff4183c70e44897c2414
+  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:1]  => 4c8bff4183c70e44897c2404
   imm uses=[] creates=[-]  => 
   add uses=[rdi, -] creates=[rdi]  => 83c70f
-  add uses=[rdi, stack:5] creates=[rdi]  => 037c2414
-  add uses=[rdi, stack:4] creates=[rdi]  => 037c2410
-  add uses=[rdi, stack:3] creates=[rdi]  => 037c240c
-  add uses=[rdi, stack:2] creates=[rdi]  => 037c2408
   add uses=[rdi, stack:1] creates=[rdi]  => 037c2404
   add uses=[rdi, stack:0] creates=[rdi]  => 033c24
   add uses=[rdi, rbp] creates=[rdi]  => 01ef
+  add uses=[rdi, r14] creates=[rdi]  => 4401f7
+  add uses=[rdi, r13] creates=[rdi]  => 4401ef
+  add uses=[rdi, r12] creates=[rdi]  => 4401e7
   add uses=[rdi, rbx] creates=[rdi]  => 01df
+  add uses=[rdi, r11] creates=[rdi]  => 4401df
   add uses=[rdi, r10] creates=[rdi]  => 4401d7
   add uses=[rdi, r9] creates=[rdi]  => 4401cf
   add uses=[rdi, r8] creates=[rdi]  => 4401c7
@@ -365,10 +365,10 @@ block #1:
   add uses=[rdi, rdx] creates=[rdi]  => 01d7
   add uses=[rdi, rcx] creates=[rdi]  => 01cf
   add uses=[rdi, rax] creates=[rdi]  => 01c7
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc74883c418415f5d5bc3
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc74883c408415f415e415d415c5d5bc3
 
 --- codegen: slotReuse ---
-  prologue  => 535541574883ec18
+  prologue  => 535541544155415641574883ec08
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
@@ -387,31 +387,31 @@ block #1:
   imm uses=[] creates=[-]  => 
   add uses=[r10, -] creates=[r10] pre=[rdi->r10]  => 4c8bd74183c206
   imm uses=[] creates=[-]  => 
-  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 488bdf83c307
+  add uses=[r11, -] creates=[r11] pre=[rdi->r11]  => 4c8bdf4183c307
   imm uses=[] creates=[-]  => 
-  add uses=[rbp, -] creates=[rbp] pre=[rdi->rbp]  => 488bef83c508
+  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 488bdf83c308
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 4c8bff4183c70944893c24
+  add uses=[r12, -] creates=[r12] pre=[rdi->r12]  => 4c8be74183c409
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:1]  => 4c8bff4183c70a44897c2404
+  add uses=[r13, -] creates=[r13] pre=[rdi->r13]  => 4c8bef4183c50a
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:2]  => 4c8bff4183c70b44897c2408
+  add uses=[r14, -] creates=[r14] pre=[rdi->r14]  => 4c8bf74183c60b
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:3]  => 4c8bff4183c70c44897c240c
+  add uses=[rbp, -] creates=[rbp] pre=[rdi->rbp]  => 488bef83c50c
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:4]  => 4c8bff4183c70d44897c2410
+  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 4c8bff4183c70d44893c24
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:5]  => 4c8bff4183c70e44897c2414
+  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:1]  => 4c8bff4183c70e44897c2404
   imm uses=[] creates=[-]  => 
   add uses=[rdi, -] creates=[rdi]  => 83c70f
-  add uses=[rdi, stack:5] creates=[rdi]  => 037c2414
-  add uses=[rdi, stack:4] creates=[rdi]  => 037c2410
-  add uses=[rdi, stack:3] creates=[rdi]  => 037c240c
-  add uses=[rdi, stack:2] creates=[rdi]  => 037c2408
   add uses=[rdi, stack:1] creates=[rdi]  => 037c2404
   add uses=[rdi, stack:0] creates=[rdi]  => 033c24
   add uses=[rdi, rbp] creates=[rdi]  => 01ef
+  add uses=[rdi, r14] creates=[rdi]  => 4401f7
+  add uses=[rdi, r13] creates=[rdi]  => 4401ef
+  add uses=[rdi, r12] creates=[rdi]  => 4401e7
   add uses=[rdi, rbx] creates=[rdi]  => 01df
+  add uses=[rdi, r11] creates=[rdi]  => 4401df
   add uses=[rdi, r10] creates=[rdi]  => 4401d7
   add uses=[rdi, r9] creates=[rdi]  => 4401cf
   add uses=[rdi, r8] creates=[rdi]  => 4401c7
@@ -434,31 +434,31 @@ block #1:
   imm uses=[] creates=[-]  => 
   add uses=[r10, -] creates=[r10] pre=[rdi->r10]  => 4c8bd74183c206
   imm uses=[] creates=[-]  => 
-  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 488bdf83c307
+  add uses=[r11, -] creates=[r11] pre=[rdi->r11]  => 4c8bdf4183c307
   imm uses=[] creates=[-]  => 
-  add uses=[rbp, -] creates=[rbp] pre=[rdi->rbp]  => 488bef83c508
+  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 488bdf83c308
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 4c8bff4183c70944893c24
+  add uses=[r12, -] creates=[r12] pre=[rdi->r12]  => 4c8be74183c409
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:1]  => 4c8bff4183c70a44897c2404
+  add uses=[r13, -] creates=[r13] pre=[rdi->r13]  => 4c8bef4183c50a
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:2]  => 4c8bff4183c70b44897c2408
+  add uses=[r14, -] creates=[r14] pre=[rdi->r14]  => 4c8bf74183c60b
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:3]  => 4c8bff4183c70c44897c240c
+  add uses=[rbp, -] creates=[rbp] pre=[rdi->rbp]  => 488bef83c50c
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:4]  => 4c8bff4183c70d44897c2410
+  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 4c8bff4183c70d44893c24
   imm uses=[] creates=[-]  => 
-  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:5]  => 4c8bff4183c70e44897c2414
+  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:1]  => 4c8bff4183c70e44897c2404
   imm uses=[] creates=[-]  => 
   add uses=[rdi, -] creates=[rdi]  => 83c70f
-  add uses=[rdi, stack:5] creates=[rdi]  => 037c2414
-  add uses=[rdi, stack:4] creates=[rdi]  => 037c2410
-  add uses=[rdi, stack:3] creates=[rdi]  => 037c240c
-  add uses=[rdi, stack:2] creates=[rdi]  => 037c2408
   add uses=[rdi, stack:1] creates=[rdi]  => 037c2404
   add uses=[rdi, stack:0] creates=[rdi]  => 033c24
   add uses=[rdi, rbp] creates=[rdi]  => 01ef
+  add uses=[rdi, r14] creates=[rdi]  => 4401f7
+  add uses=[rdi, r13] creates=[rdi]  => 4401ef
+  add uses=[rdi, r12] creates=[rdi]  => 4401e7
   add uses=[rdi, rbx] creates=[rdi]  => 01df
+  add uses=[rdi, r11] creates=[rdi]  => 4401df
   add uses=[rdi, r10] creates=[rdi]  => 4401d7
   add uses=[rdi, r9] creates=[rdi]  => 4401cf
   add uses=[rdi, r8] creates=[rdi]  => 4401c7
@@ -466,4 +466,4 @@ block #1:
   add uses=[rdi, rdx] creates=[rdi]  => 01d7
   add uses=[rdi, rcx] creates=[rdi]  => 01cf
   add uses=[rdi, rax] creates=[rdi]  => 01c7
-  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc74883c418415f5d5bc3
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc74883c408415f415e415d415c5d5bc3

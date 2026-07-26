@@ -129,11 +129,14 @@ static void writeRegName(Net::Writer& w, MachineLocation at) {
     }
 }
 
-static void writeRegList(Net::Writer& w, const Array<MachineLocation>& regs) {
+// Where each operand ended up. An operand that occupies no location at all - an immediate the
+// encoding carries, an address folded into a ModRM byte - prints as "-", which is what its invalid
+// location says.
+static void writeRegList(Net::Writer& w, const Array<ResolvedOperand>& regs) {
     w.writeByte('[');
     for(Size i = 0; i < regs.size(); i++) {
         if(i > 0) w.writeString(", "_v);
-        writeRegName(w, regs[i]);
+        writeRegName(w, regs[i].at);
     }
     w.writeByte(']');
 }
@@ -153,7 +156,7 @@ static void onEmitInst(void* ctx, LowerInst* inst, const InstRegs& regs, U32 sta
     auto trace = (TraceContext*)ctx;
     trace->entries.push(TraceEntry {
         .inst = inst,
-        .regs = InstRegs { regs.uses, regs.creates, regs.moves, regs.postMoves },
+        .regs = InstRegs { regs.uses, regs.creates, regs.address, regs.hasAddress, regs.moves, regs.postMoves },
         .start = start,
         .end = end,
     });

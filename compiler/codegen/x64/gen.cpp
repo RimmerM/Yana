@@ -46,8 +46,14 @@ static bool checkFormOperands(const MachineForm& form, const InstRegs& regs) {
         if(constraint.kind == OperandConstraintKind::None && at.isValid()) return false;
         if(constraint.kind == OperandConstraintKind::Register && at.isStack()) return false;
 
-        // An immediate operand carries a value rather than occupying a place.
-        if(constraint.kind == OperandConstraintKind::Immediate && at.isValid()) return false;
+        // An immediate operand carries a value rather than occupying a place, and one the form's
+        // immediate field is actually wide enough for. Checked here rather than inside each encoder
+        // so that every family gets it from the one place the form is asked what it required.
+        if(constraint.kind == OperandConstraintKind::Immediate) {
+            if(at.isValid()) return false;
+            if(!regs.uses[i].isImmediate) return false;
+            if(!fitsImmediate(constraint.immediate, regs.uses[i].immediate)) return false;
+        }
     }
 
     for(Size i = 0; i < form.defs.size() && i < regs.creates.size(); i++) {
@@ -77,20 +83,25 @@ static bool checkFormOperands(const MachineForm& form, const InstRegs& regs) {
 // one: a value living in the frame is brought into a scratch register by genMoves before anything
 // reads it, and taken back afterwards if it was written.
 //
+// The number comes from the *view* the operand's class gives the register rather than from the
+// location's index, which is what makes the class load-bearing: viewOf rejects a class that does not
+// cover the location's bank, where an index read straight out of the location is the same number
+// whichever register file it came from.
+//
 // Only the general-purpose bank has encoders. A vector or mask location reaching here is a
 // legalization that produced a location this backend cannot emit, and failing loudly is the point:
 // the register model already describes banks the encoders do not implement, and silently writing a
 // GPR instruction with an xmm number in it is the one way that can go wrong quietly.
-static U8 reg(MachineLocation at) {
+static U8 reg(MachineLocation at, RegisterClassId regClass) {
     assertTrue(!at.isStack());            // an encoder was handed a frame slot
     assertTrue(!at.isRemat());            // an encoder was handed a rematerialization recipe
     assertTrue(at.isPhysical());          // an encoder was handed no location at all
     assertTrue(at.bank == BankGpr);       // no encoder emits a non-integer register bank yet
-    return U8(at.index);
+    return targetRegisters().viewOf(regClass, at.physicalReg()).encoding;
 }
 
 static U8 reg(const ResolvedOperand& operand) {
-    return reg(operand.at);
+    return reg(operand.at, operand.regClass);
 }
 
 // The same for a location that is already known to be a physical register - the frame's base, a
@@ -311,7 +322,8 @@ static void genZeroReg(AsmModule& to, U8 reg, bool is64) {
 // off. This is the only way anything addresses a frame object: the layout owns the arithmetic and
 // the encoders only ever see the answer.
 static MachineAddress slotAddress(const FrameLayout& frame, MachineLocation slot) {
-    return MachineAddress::atOffset(reg(frame.base), frame.slotOffset[slot.stackSlot()]);
+    FrameReference ref { slot.stackSlot() };
+    return MachineAddress::atOffset(reg(frame.baseOf(ref)), frame.offsetOf(ref));
 }
 
 // An instruction reading one operand straight out of the frame instead of out of a register: the
@@ -478,32 +490,48 @@ static void genFlagsToReg(AsmModule& to, U8 reg, LowerCmp cmp) {
 /*
  * Parallel copies.
  *
- * A copy is bank work rather than instruction work: what it takes to move a value between two places
- * depends on which register file it lives in and not at all on what produced it. The encodings are a
- * table per bank, so that a bank whose moves this backend cannot emit yet fails here rather than
- * being written out as an integer instruction with a vector register number in it.
+ * A copy is register-file work rather than instruction work: what it takes to move a value between
+ * two places depends on the class it lives in and not at all on what produced it. The encodings are a
+ * table per *class* rather than per bank, because two classes over one register file need not move
+ * with the same instruction or at the same width - and a class this backend cannot emit a move for
+ * fails here rather than being written out as an integer instruction with a vector register number
+ * in it.
  */
 
-struct BankMoveEncoding {
+struct ClassMoveEncoding {
     U8 regToReg = 0;  // register to register
     U8 load = 0;      // register from a frame slot
     U8 store = 0;     // frame slot from a register
-    U8 exchange = 0;  // the cycle break, for a bank that has one
+    U8 exchange = 0;  // the cycle break, for a class that has one
+
+    // REX.W on a register-to-register copy. Both GPR classes copy at 64 bits: the narrow one's upper
+    // half is dead by construction (every 32-bit operation this backend emits clears it), and a byte
+    // per copy is not worth a width the class table would then have to be trusted about.
+    bool wide = false;
+
     bool defined = false;
 };
 
-static const BankMoveEncoding kBankMoves[kRegisterBankCount] = {
+static const ClassMoveEncoding kClassMoves[kRegisterClassCount] = {
     // The general registers. MOV r, r/m either way, and XCHG r/m64, r64 to break a cycle without
     // needing a scratch register at all.
-    [BankGpr] = { .regToReg = 0x8b, .load = 0x8b, .store = 0x89, .exchange = 0x87, .defined = true },
+    [ClassGpr32] = { .regToReg = 0x8b, .load = 0x8b, .store = 0x89, .exchange = 0x87, .wide = true, .defined = true },
+    [ClassGpr64] = { .regToReg = 0x8b, .load = 0x8b, .store = 0x89, .exchange = 0x87, .wide = true, .defined = true },
 
-    // The vector registers, which no encoder produces yet. See the plan's stage C.
-    [BankVector] = {},
+    // The vector classes, which no encoder produces yet - and which have no exchange instruction at
+    // all, so a cycle in one will have to go through a scratch register. See the plan's stage C.
+    [ClassXmm128] = {},
+    [ClassYmm256] = {},
+    [ClassZmm512] = {},
 };
+
+bool classHasExchange(RegisterClassId regClass) {
+    return kClassMoves[regClass].exchange != 0;
+}
 
 // Recreates a rematerialized value in `dest` - see Remat in gen.h. Defined below, next to the
 // encoders it is made of; declared here because a recipe reaches the machine through genMoves.
-static void genRemat(AsmModule& to, const FrameLayout& frame, const Remat& r, MachineLocation dest);
+static void genRemat(AsmModule& to, const FrameLayout& frame, const Remat& r, MachineLocation dest, RegisterClassId regClass);
 
 // Emits a sequenced permutation of locations (fixed-register constraints, phi placement, the copy
 // that feeds a destructive two-address encoding, a value moving between the frame and a register).
@@ -526,36 +554,42 @@ static void genMoves(AsmModule& to, const FrameLayout& frame, const FrameObjects
         // write to - and so can never be part of a cycle either.
         if(m.from.isRemat()) {
             assertTrue(!m.swap && m.to.isPhysical());
-            genRemat(to, frame, remats[m.from.rematId()], m.to);
+            genRemat(to, frame, remats[m.from.rematId()], m.to, m.regClass);
             continue;
         }
 
         auto fromSlot = m.from.isStack();
         auto toSlot = m.to.isStack();
 
-        // Only an exchange between two registers can be encoded without somewhere to put a third
-        // value, and only registers ever end up in a cycle - see sequenceMoves.
-        assertTrue(!m.swap || (!fromSlot && !toSlot));
+        // The move is the class's, not the location's: a slot belongs to the value in it rather than
+        // to a register file, so both ends of a transfer are of one class by construction.
+        auto& encoding = kClassMoves[m.regClass];
+        assertTrue(encoding.defined); // a move between locations of a class this backend cannot emit
+
+        // Only an exchange can be encoded without somewhere to put a third value, and only where the
+        // class has one; a cycle through a slot, or through a class that has no exchange, was already
+        // broken with a scratch register by sequenceMoves.
+        assertTrue(!m.swap || (encoding.exchange != 0 && !fromSlot && !toSlot));
 
         // A transfer with a slot at both ends is expanded into a load and a store by sequenceMoves,
         // which owns the register it goes through, so none ever reaches an encoder.
         assertTrue(!(fromSlot && toSlot));
 
-        // The bank is whichever end of the transfer is a register: a slot belongs to the value in
-        // it rather than to a register file.
-        auto& encoding = kBankMoves[fromSlot ? m.to.bank : m.from.bank];
-        assertTrue(encoding.defined); // a move between locations of a bank this backend cannot emit
-
+        // A load or store is as wide as the *slot*, not as the class: slots are packed by width, so a
+        // 4-byte value sits 4 bytes from its neighbour and a wider access would take it along. The
+        // two agree for every integer value; a scalar float in a vector class is the case where the
+        // slot is the narrower of the two and is the one to believe.
         auto slotIs64 = [&](MachineLocation slot) {
             return objects.slots[slot.stackSlot()].size > 4;
         };
 
         if(fromSlot) {
-            genSlotOperand(to, frame, slotIs64(m.from), reg(m.to), m.from, encoding.load);
+            genSlotOperand(to, frame, slotIs64(m.from), reg(m.to, m.regClass), m.from, encoding.load);
         } else if(toSlot) {
-            genSlotOperand(to, frame, slotIs64(m.to), reg(m.from), m.to, encoding.store);
+            genSlotOperand(to, frame, slotIs64(m.to), reg(m.from, m.regClass), m.to, encoding.store);
         } else {
-            genRegReg(to, true, reg(m.from), reg(m.to), m.swap ? encoding.exchange : encoding.regToReg);
+            genRegReg(to, encoding.wide, reg(m.from, m.regClass), reg(m.to, m.regClass),
+                m.swap ? encoding.exchange : encoding.regToReg);
         }
     }
 }
@@ -582,6 +616,11 @@ static void genPrologue(AsmModule& to, const FrameLayout& frame) {
     // Ascending register order, which is the order the epilogue pops them back in.
     frame.savedRegs.iterate([&](PhysicalReg saved) { genPushReg(to, reg(saved)); });
 
+    // The realignment goes above everything the frame reserves - see the picture in gen.h: the locals
+    // and the argument area are then both measured from an rsp the mask has aligned, and the incoming
+    // arguments stay where rbp can still reach them.
+    if(frame.realignsStack) genAndImm(to, rsp, -I32(frame.dynamicAlignment));
+
     genAddImm(to, rsp, I32(frame.fixedSize), true);
 }
 
@@ -589,8 +628,7 @@ static void genEpilogue(AsmModule& to, const FrameLayout& frame) {
     auto rbp = U8(IntRegister::rbp);
     auto rsp = U8(IntRegister::rsp);
 
-    U32 savedCount = 0;
-    frame.savedRegs.iterate([&](PhysicalReg) { savedCount++; });
+    auto savedCount = U32(frame.savedRegs.count());
 
     if(frame.framePointer) {
         if(savedCount == 0) {
@@ -618,8 +656,8 @@ static void genEpilogue(AsmModule& to, const FrameLayout& frame) {
 // RIP-relative LEA (0x8d, mod=00 rm=101) + a relocation against the target's eventual offset. The
 // relocation is written by the shared address encoder in place of the disp32, which is what keeps
 // this from being another handwritten ModRM byte.
-static void genLoadAddress(AsmModule& to, MachineLocation destReg, LowerGlobal* global, LowerFunction* function) {
-    genMemory(to, MachineAddress::atSymbol(function, global), reg(destReg), MemForm {
+static void genLoadAddress(AsmModule& to, MachineLocation destReg, RegisterClassId regClass, LowerGlobal* global, LowerFunction* function) {
+    genMemory(to, MachineAddress::atSymbol(function, global), reg(destReg, regClass), MemForm {
         .opCode = 0x8d, .is64 = true,
     });
 }
@@ -627,19 +665,19 @@ static void genLoadAddress(AsmModule& to, MachineLocation destReg, LowerGlobal* 
 // Recreates a rematerialized value in `dest`. This is the whole of what a recipe costs at the point
 // it is needed, and it stands in for two instructions rather than one: the definition that no longer
 // emits anything and the reload that a frame home would have needed here.
-static void genRemat(AsmModule& to, const FrameLayout& frame, const Remat& r, MachineLocation dest) {
+static void genRemat(AsmModule& to, const FrameLayout& frame, const Remat& r, MachineLocation dest, RegisterClassId regClass) {
     switch(r.kind) {
         case Remat::Immediate:
-            genMovImmValue(to, is64Bit(r.type), r.imm, reg(dest));
+            genMovImmValue(to, is64Bit(r.type), r.imm, reg(dest, regClass));
             break;
         case Remat::GlobalAddress:
-            genLoadAddress(to, dest, r.global, nullptr);
+            genLoadAddress(to, dest, regClass, r.global, nullptr);
             break;
         case Remat::FunctionAddress:
-            genLoadAddress(to, dest, nullptr, r.function);
+            genLoadAddress(to, dest, regClass, nullptr, r.function);
             break;
         case Remat::FrameAddress:
-            genLeaFrame(to, reg(dest), reg(frame.base), frame.offsetOf(r.frame));
+            genLeaFrame(to, reg(dest, regClass), reg(frame.baseOf(r.frame)), frame.offsetOf(r.frame));
             break;
     }
 }
@@ -705,8 +743,10 @@ struct Emitter {
     }
 
     // The same, with an immediate the encoding carries. The shorter opcode is taken whenever the
-    // value fits in a byte; a form with no imm32 encoding of its own requires that it does.
-    void emitRmExtImm(const EncodingDescriptor& e, const InstRegs& regs, bool is64) {
+    // value fits in a byte; a form with no imm32 encoding of its own requires that it does, which is
+    // exactly what its declared immediate width says.
+    void emitRmExtImm(const MachineForm& form, const InstRegs& regs, bool is64) {
+        auto& e = form.encoding;
         auto& rmOp = field(regs, e.rmField);
         auto& immOp = field(regs, e.immField);
         assertTrue(immOp.isImmediate); // an immediate field naming an operand that carries no value
@@ -718,8 +758,10 @@ struct Emitter {
         }
 
         auto value = immOp.immediate;
+        assertTrue(fitsImmediate(form.immediateWidth(), value)); // an immediate this form cannot carry
+
         auto isImm8 = fitsImm8(value);
-        assertTrue(isImm8 || (e.opcodeAlt != 0 && fitsImm32(value))); // an immediate this form cannot carry
+        assertTrue(isImm8 || e.opcodeAlt != 0); // a wider immediate in a direction that does not exist
 
         auto opcode = isImm8 ? e.opcode : e.opcodeAlt;
 
@@ -735,15 +777,18 @@ struct Emitter {
 
     // reg, r/m and an immediate: the three-operand `imul`, whose destination can differ from both of
     // its sources.
-    void emitRegRmImm(const EncodingDescriptor& e, const InstRegs& regs, bool is64) {
+    void emitRegRmImm(const MachineForm& form, const InstRegs& regs, bool is64) {
+        auto& e = form.encoding;
         auto& regOp = field(regs, e.regField);
         auto& rmOp = field(regs, e.rmField);
         auto& immOp = field(regs, e.immField);
         assertTrue(immOp.isImmediate);
 
         auto value = immOp.immediate;
+        assertTrue(fitsImmediate(form.immediateWidth(), value)); // an immediate this form cannot carry
+
         auto isImm8 = fitsImm8(value);
-        assertTrue(isImm8 || fitsImm32(value)); // an immediate this form cannot carry
+        assertTrue(isImm8 || e.opcodeAlt != 0);
 
         auto destReg = reg(regOp);
         auto srcReg = reg(rmOp);
@@ -779,7 +824,8 @@ struct Emitter {
 
     // A memory access, with the other operand in ModRM.reg - or an opcode extension there, for the
     // store of an immediate, which has no second register.
-    void emitLoadStore(const EncodingDescriptor& e, const InstRegs& regs, bool is64) {
+    void emitLoadStore(const MachineForm& form, const InstRegs& regs, bool is64) {
+        auto& e = form.encoding;
         assertTrue(regs.hasAddress); // a memory access with no address resolved for it
 
         auto regField = e.regField.isNone() ? e.extension : reg(field(regs, e.regField));
@@ -791,7 +837,8 @@ struct Emitter {
 
         if(!e.immField.isNone()) {
             auto& immOp = field(regs, e.immField);
-            assertTrue(immOp.isImmediate && fitsImm32(immOp.immediate)); // a wider constant needs a register
+            assertTrue(immOp.isImmediate);
+            assertTrue(fitsImmediate(form.immediateWidth(), immOp.immediate)); // a wider constant needs a register
             to.buffer.writeInt<LittleEndian>(U32(immOp.immediate));
         }
     }
@@ -866,28 +913,42 @@ struct Emitter {
     // required to have a frame pointer (see frame.cpp): everything else in the frame is addressed
     // through rbp and so does not care where rsp has ended up. The result register doubles as the
     // scratch for rounding the size up, so the count operand survives for whatever else reads it.
+    //
+    // An allocation that wants more alignment than the frame keeps rsp on is aligned in the *result*
+    // rather than by masking rsp: masking rsp would undo the alignment the prologue established and
+    // move the outgoing argument area out from under the stack pointer, where every callee looks for
+    // it. So the size is padded by the extra the rounding can cost and the address is rounded up
+    // inside the region that pays for it.
     void emitAlloca(LowerInst* inst, const InstRegs& regs, bool dynamic) {
         auto dest = reg(regs.creates[0]);
         auto rsp = U8(IntRegister::rsp);
+        auto wanted = I32(((LowerInstAlloca*)inst)->alignment);
 
         if(!dynamic) {
+            // The frame object carries the alignment, and frame layout has already put it on a
+            // boundary that satisfies it - verifyFrameLayout checks exactly that - so the address is
+            // one `lea` however strongly aligned it is.
             auto ref = objects.references.getValue(inst);
             assertTrue(ref.isJust()); // a fixed allocation placement created no frame object for
-            genLeaFrame(to, dest, reg(frame.base), frame.offsetOf(ref.unwrap()));
+            genLeaFrame(to, dest, reg(frame.baseOf(ref.unwrap())), frame.offsetOf(ref.unwrap()));
             return;
         }
 
         assertTrue(frame.framePointer); // guaranteed by FrameObjects::hasDynamicAlloca
 
         // The allocation has to keep the stack pointer on the boundary it was already on, so the
-        // size is rounded up before it is subtracted rather than the result being masked afterwards
-        // - masking would also undo any alignment the frame had established.
-        auto alignment = I32(frame.dynamicAlignment);
+        // size is rounded up before it is subtracted rather than the result being masked afterwards.
+        auto stackAlignment = I32(frame.dynamicAlignment);
+
+        // Room for rounding the result up, when it is going to be. `wanted - 1` is the most that
+        // rounding can move the address, so a region that much larger still holds the whole
+        // allocation above it.
+        auto slack = wanted > stackAlignment ? wanted - 1 : 0;
 
         if(dest != reg(regs.uses[0])) genRegReg(to, true, reg(regs.uses[0]), dest, 0x8b);
 
-        genAddImm(to, dest, alignment - 1, false);
-        genAndImm(to, dest, -alignment);
+        genAddImm(to, dest, slack + stackAlignment - 1, false);
+        genAndImm(to, dest, -stackAlignment);
         genRegReg(to, true, rsp, dest, 0x29);  // sub rsp, dest
 
         // The allocation sits above the outgoing argument area, which stays at the bottom of the
@@ -898,6 +959,11 @@ struct Emitter {
             genLeaFrame(to, dest, rsp, I32(frame.argAreaSize));
         } else {
             genRegReg(to, true, rsp, dest, 0x8b);
+        }
+
+        if(slack != 0) {
+            genAddImm(to, dest, wanted - 1, false);
+            genAndImm(to, dest, -wanted);
         }
     }
 
@@ -1100,11 +1166,11 @@ struct Emitter {
             case EncodingFamily::Opcode:      emitOpcode(e, is64); break;
             case EncodingFamily::RegRm:       emitRegRm(e, regs, is64); break;
             case EncodingFamily::RmExt:       emitRmExt(e, regs, is64); break;
-            case EncodingFamily::RmExtImm:    emitRmExtImm(e, regs, is64); break;
-            case EncodingFamily::RegRmImm:    emitRegRmImm(e, regs, is64); break;
+            case EncodingFamily::RmExtImm:    emitRmExtImm(form, regs, is64); break;
+            case EncodingFamily::RegRmImm:    emitRegRmImm(form, regs, is64); break;
             case EncodingFamily::MoveImm:     emitMoveImm(e, regs, is64); break;
             case EncodingFamily::Lea:         emitLea(e, regs, is64); break;
-            case EncodingFamily::LoadStore:   emitLoadStore(e, regs, is64); break;
+            case EncodingFamily::LoadStore:   emitLoadStore(form, regs, is64); break;
             case EncodingFamily::Conditional: emitConditional(e, selected, regs, is64); break;
             case EncodingFamily::OpcodeReg:   emitOpcodeReg(e, regs, is64); break;
             case EncodingFamily::Pseudo:      emitPseudo(e.pseudo, inst, selected, regs); break;

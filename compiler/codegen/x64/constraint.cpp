@@ -350,7 +350,7 @@ InstShape shapeOf(LowerBase base, const MachineFunction& machine, const Constrai
 }
 
 /*
- * Memory operands. See the block comment on memoryUseOperand in gen.h.
+ * Memory operands. See the block comment on DirectMemoryChoice in gen.h.
  *
  * Which operand an encoding could take from memory is the form's answer. What is added here is the
  * half that depends on the value in it rather than on the instruction: an operand the encoding
@@ -368,24 +368,22 @@ static bool operandFitsMemoryForm(LowerBase base, const MachineForm& form, Lower
     return stackSlotClassFor(value->type) == stackSlotClassFor(operationType(base, form, inst));
 }
 
-I32 memoryUseOperand(LowerBase base, const MachineFunction& machine, LowerInst* inst) {
+DirectMemoryChoice directMemoryOperands(LowerBase base, const MachineFunction& machine, LowerInst* inst) {
     auto& form = machine.formOf(inst);
-    auto index = form.memoryUse();
-    if(index == kNoMemoryOperand) return kNoMemoryOperand;
+    DirectMemoryChoice out;
 
-    return operandFitsMemoryForm(base, form, inst, index) ? index : kNoMemoryOperand;
-}
+    auto applicable = [&](I32 index) {
+        return index != kNoMemoryOperand && operandFitsMemoryForm(base, form, inst, index);
+    };
 
-I32 memoryDefOperand(LowerBase base, const MachineFunction& machine, LowerInst* inst) {
-    auto& form = machine.formOf(inst);
-    auto index = form.memoryDef();
-    if(index == kNoMemoryOperand) return kNoMemoryOperand;
+    if(applicable(form.memoryUse())) out.read = form.memoryUse();
 
-    // The result is written through the same r/m field the operand is read from, so it has to be a
-    // value of its own rather than something the encoding swallowed.
-    if(inst->createdCount == 0 || isImplicit(&inst->created()[0])) return kNoMemoryOperand;
+    // A read/write operand is written back through the same r/m field it is read from, so the result
+    // has to be a value of its own rather than something the encoding swallowed.
+    auto hasResult = inst->createdCount > 0 && !isImplicit(&inst->created()[0]);
+    if(hasResult && applicable(form.memoryDef())) out.readWrite = form.memoryDef();
 
-    return operandFitsMemoryForm(base, form, inst, index) ? index : kNoMemoryOperand;
+    return out;
 }
 
 RegSet writtenRegisters(const InstShape& shape) {

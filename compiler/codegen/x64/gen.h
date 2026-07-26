@@ -222,39 +222,56 @@ RegSet writtenRegisters(const InstShape& shape);
  * read it. Most x86 ALU instructions have a form that reads one operand straight out of memory
  * instead, which removes the reload entirely - `add rax, [slot]` in place of a load and an add.
  *
- * Which operand that is, if any, is a property of the selected machine form rather than a decision
- * made separately by each consumer: the allocator asks to know whether to leave a spilled operand
- * where it is, the encoder emits the memory form when it finds a slot there, and the verifier asks
- * the same question to catch the case where a slot reaches an encoder that has no form for it.
+ * Which operand that is, if any, is the *selected form's* answer (`memoryUse`/`memoryDef` on
+ * MachineForm). What is added here is the half the form cannot state, because it depends on the value
+ * rather than on the instruction: an operand the encoding already swallowed has no location at all,
+ * and a slot is exactly as wide as the value in it, so an access at any other width would take a
+ * neighbouring value with it.
  *
- * The two functions below add to the form's answer the one thing the form cannot state: whether the
- * *value* in that operand actually fits. A slot is exactly as wide as the value in it, so an access
- * at any other width would take a neighbouring value with it, and an operand the encoding already
- * swallowed has no location at all.
+ * That is the whole of this: **allocation-dependent applicability of form data**, not a second table
+ * of instruction properties. One call answers both roles at once so that placement's costing,
+ * legalization and the verifier consume one result rather than asking twice and having to remember
+ * that the two are mutually exclusive.
  */
 
-// Returned by memoryUseOperand for an instruction that has to have every operand in a register.
+// The operand index for a role no form of this instruction offers.
 static constexpr I32 kNoMemoryOperand = -1;
 
-// The one operand of `inst` that may be read directly out of a frame slot, as an index into its
-// used() buffer, or kNoMemoryOperand.
+// Which of `inst`'s operands may stay in a frame slot, by role, as indices into its used() buffer.
 //
-// At most one, which is both what the encodings allow (a general memory operand occupies the r/m
-// field, and there is one of those) and what keeps the answer a single index.
-I32 memoryUseOperand(LowerBase base, const MachineFunction& machine, LowerInst* inst);
+// At most one of each, and at most one *overall* at any given instruction: a general memory operand
+// occupies the r/m field and there is one of those, which validateMachineForms checks per form and
+// which is why the two roles are answered together rather than composed by the caller.
+//
+//   `read`      the operand an encoding can take from memory outright - `add rax, [slot]` in place of
+//               a reload and an add. Applicable on its own.
+//
+//   `readWrite` the operand a destructive encoding reads *and writes* through the same r/m field -
+//               `add [slot], rcx` rather than `add rax, [slot]` - so it is always operand zero where
+//               it answers at all. Not applicable on its own: the operand and the result also have to
+//               occupy the same slot, which only the allocator can say. `inPlaceAt` is that question.
+struct DirectMemoryChoice {
+    I32 read = kNoMemoryOperand;
+    I32 readWrite = kNoMemoryOperand;
 
-// The one operand of `inst` that may be read *and written* in place, as an index into its used()
-// buffer, or kNoMemoryOperand. Answers only for the destructive two-address encodings whose r/m
-// operand is the destination - `add r/m, r` rather than `add r, r/m` - so it is always operand zero
-// where it answers at all.
+    bool hasRead() const { return read != kNoMemoryOperand; }
+    bool hasReadWrite() const { return readWrite != kNoMemoryOperand; }
+};
+
+DirectMemoryChoice directMemoryOperands(LowerBase base, const MachineFunction& machine, LowerInst* inst);
+
+// Whether the read/write role is actually taken: the form offers it, and the operand and the result
+// turn out to be in the same slot - which is the half only the allocator can answer, and the reason
+// `readWrite` alone is not applicability. Two things produce it. The operand's life ends at the point
+// the result's begins, so first-fit hands them one slot whenever it can; and phi-web coalescing makes a
+// loop-carried accumulator and the value computed for the next iteration literally one web.
 //
-// Unlike memoryUseOperand this is not enough on its own: the operand and the result have to occupy
-// the same slot, which the allocator is the only one that can say. What is stated here is the half
-// that depends on the instruction - that such a form exists, and that the slot is the width the
-// operation works at.
-//
-// The two are mutually exclusive at one instruction. Both want the r/m field, and there is one.
-I32 memoryDefOperand(LowerBase base, const MachineFunction& machine, LowerInst* inst);
+// Asked once by legalization of the homes placement gave them, and again by the verifier of the
+// locations legalization resolved them to. Placement's costing asks it before either exists, and so
+// asks of the webs instead - see isInPlace in place.cpp.
+inline bool takesInPlace(const DirectMemoryChoice& choice, MachineLocation operand, MachineLocation result) {
+    return choice.hasReadWrite() && operand.isStack() && operand == result;
+}
 
 /*
  * Addresses.
@@ -335,6 +352,16 @@ struct ResolvedOperand {
     // address folded into a ModRM byte, a comparison consumed as flags.
     MachineLocation at;
 
+    // Which register class this operand is read or written *as*, which a location does not say: a
+    // location names the physical register, and the class is what turns it into the view an encoder
+    // writes - `eax` as against `rax`, `xmm3` as against `zmm3`. Meaningless for an operand that
+    // occupies no location.
+    //
+    // It is here rather than derived at emission because deriving it means reading the operand's
+    // type back out of the IR, which is the one thing emission is not supposed to do - and because
+    // the index alone is the same number for every bank, so a class from the wrong one is silent.
+    RegisterClassId regClass = ClassGpr64;
+
     // The value an immediate operand carries. Resolved here rather than read out of the IR by the
     // encoder, which is what keeps "is this operand an immediate" a question the selected form
     // already answered.
@@ -342,10 +369,13 @@ struct ResolvedOperand {
     bool isImmediate = false;
 
     static ResolvedOperand none() { return ResolvedOperand {}; }
-    static ResolvedOperand location(MachineLocation at) { return ResolvedOperand { at }; }
+
+    static ResolvedOperand location(MachineLocation at, RegisterClassId regClass) {
+        return ResolvedOperand { at, regClass };
+    }
 
     static ResolvedOperand constant(U64 value) {
-        return ResolvedOperand { MachineLocation::invalid(), value, true };
+        return ResolvedOperand { MachineLocation::invalid(), ClassGpr64, value, true };
     }
 
     bool isValid() const { return at.isValid(); }
@@ -353,18 +383,33 @@ struct ResolvedOperand {
     bool isStack() const { return at.isStack(); }
     bool isRemat() const { return at.isRemat(); }
 
+    // The register this operand names, at the width the encoder writes it.
+    RegisterView view() const {
+        return targetRegisters().viewOf(regClass, at.physicalReg());
+    }
+
     // Deliberately no equality: two operands are compared through `at`, because "the same place" is
     // the only sense in which two of them are ever the same thing.
 };
 
-// One step of a register permutation. `swap` marks the entry as an exchange rather than a copy:
-// sequencing a parallel copy whose sources and destinations overlap cyclically needs one, and
-// x86's `xchg` provides it without having to find a free scratch register.
+// One step of a location permutation: a copy between two locations, of a value of one class.
+//
+// The class is what says which instruction the copy is - a bank alone does not, since two classes
+// over one register file need not move at the same width, and a class narrower than its register
+// need not preserve what the rest of it held. `swap` marks the entry as an exchange rather than a
+// copy: sequencing a parallel copy whose sources and destinations overlap cyclically needs one, and
+// where the class has an exchange instruction (GPR `xchg`) it costs no scratch register at all.
 struct RegMove {
     MachineLocation from;
     MachineLocation to;
+    RegisterClassId regClass = ClassGpr64;
     bool swap = false;
 };
+
+// Whether a cycle in a parallel copy of this class can be broken with an exchange instruction, or
+// has to go through a scratch register. Answered from the same move table emission writes the bytes
+// from (gen.cpp), so the sequencer cannot ask for an exchange no encoder has.
+bool classHasExchange(RegisterClassId regClass);
 
 // Resolved locations - physical registers, or frame slots where the encoding has a memory form -
 // for a single instruction. `uses`/`creates` are parallel to that instruction's `used()`/`created()`
@@ -528,7 +573,7 @@ struct Remat {
  *
  * Placement is a pass of its own (place.cpp) and runs to completion over the whole function before
  * any instruction record exists. That is what lets it think again about a web it has already
- * placed: nothing has been published that would have to be rebuilt, so an eviction is a decision
+ * placed: nothing has been published that would have to be rebuilt, so a displacement is a decision
  * inside placement rather than a reason to start the function over.
  *
  * It is over *webs* rather than over values. A phi and the values that feed it are one quantity
@@ -592,13 +637,15 @@ struct Placement {
 
     // Set when a web ended up with no register at all. A value that is not in one has to be brought
     // into a scratch register at each instruction that touches it, and those are reserved for the
-    // whole function rather than found after the fact - so this asks for one more placement pass
-    // with them held back. See allocateRegisters.
-    bool needsScratch = false;
+    // whole function rather than found after the fact - so this asks for the reserve to be measured
+    // and, if it grew, for one more placement pass with it held back. See allocateRegisters.
+    bool requiresLegalizationTemps = false;
 
     // Webs this pass would rather have displaced than left the web that asked for their register
-    // homeless. Applied to the next placement pass; see `assign` in place.cpp.
-    Array<LiveId> evicted;
+    // homeless. Both are requests from placement to placement - a displaced web chooses a recipe or
+    // a slot for itself on the next pass, which is why this asks for it to be left *homeless* rather
+    // than spilled. Applied to the next placement pass; see `assign` in place.cpp.
+    Array<LiveId> displacementRequests;
 
     Size valueCount() const { return webOf.size(); }
 
@@ -645,6 +692,12 @@ struct FunctionRegs {
     // same answer the allocator did. False means rbp was allocatable and may hold a value; the two
     // must never disagree, since the frame is addressed through rbp exactly when this is set.
     bool framePointer = false;
+
+    // The scratch registers this function held back, which is what legalization handed out from - see
+    // TemporaryReserve. Carried here because it is part of the allocation: the registers in it are
+    // ones no web was offered, and a reader of the result that assumed a fixed set would disagree
+    // with the pass that chose it.
+    TemporaryReserve temporaries;
 };
 
 /*
@@ -671,6 +724,31 @@ struct FunctionRegs {
  * callee finds its stack arguments at the stack pointer, so the area has to stay at the bottom even
  * in a function whose rsp moves. A dynamic alloca therefore re-establishes it below the memory it
  * allocated (see genAlloca).
+ *
+ * A function that needs rsp on a stronger boundary than its own entry convention promises - one that
+ * calls SysV from a convention aligned to 8, or that allocates an over-aligned local - cannot get
+ * there by padding: padding preserves an offset from an entry that was never aligned in the first
+ * place. It has to *realign*:
+ *
+ *     [rbp + 16 + n]   incoming stack argument at offset n
+ *     [rbp + 8]        return address
+ *     [rbp]            caller's rbp
+ *     [rbp - 8k]       saved callee-saved registers
+ *                      <- and rsp, -alignment: aligned here, by an amount only known at run time
+ *     [rsp + ...]      locals and spill slots
+ *     [rsp + n]        outgoing argument area                <- rsp after the prologue
+ *
+ * The realignment splits the frame in two, and the two halves are addressed through different
+ * registers - which is what `slotBase` is for. Everything below the mask hangs off the now-aligned
+ * rsp, so a local is on its own boundary because the region it sits in is; the incoming arguments are
+ * above it and keep their fixed distance from rbp, since nothing can be said about the distance from
+ * rsp to them any more. The epilogue recovers rsp from rbp, which it already does whenever there is a
+ * frame pointer - so realigning requires one, exactly as a dynamic alloca does.
+ *
+ * A dynamic alloca and a realignment are the one combination not supported: the alloca moves rsp out
+ * from under the locals the realignment put there, and keeping them reachable would take a third base
+ * register held for the whole function. computeFrameLayout rejects it rather than emitting a frame
+ * whose locals move.
  */
 struct FrameLayout {
     // Callee-saved registers the prologue pushes, in ascending register order.
@@ -680,8 +758,8 @@ struct FrameLayout {
     // register; see FramePointerMode for when it is worth it.
     bool framePointer = false;
 
-    // The register frame references are relative to: rbp when there is a frame pointer, rsp when
-    // there is not.
+    // The register the frame as a whole is measured from: rbp when there is a frame pointer, rsp when
+    // there is not. A realigning frame measures its locals from rsp instead - see slotBase.
     PhysicalReg base;
 
     // Bytes the prologue subtracts from rsp: the outgoing argument area, the locals and spill
@@ -693,12 +771,24 @@ struct FrameLayout {
     // itself so that the next call still finds it there.
     U32 argAreaSize = 0;
 
-    // The boundary a dynamic allocation has to round its size up to, so that moving rsp at run time
-    // preserves the alignment the prologue established.
+    // Set when the prologue has to align rsp itself rather than inherit an alignment from its caller,
+    // because something in the body needs a stronger boundary than the entry convention promises -
+    // see the picture above. Requires a frame pointer, since the distance from rsp back to the
+    // incoming arguments is then only known at run time.
+    bool realignsStack = false;
+
+    // The boundary rsp is kept on: what a realignment masks to, and what a dynamic allocation rounds
+    // its size up to so that moving rsp at run time preserves it.
     U32 dynamicAlignment = 8;
 
-    // Displacement from `base` for each slot, indexed by StackSlotId.
+    // Displacement from `slotBase[i]` for each slot, indexed by StackSlotId.
     Array<I32> slotOffset;
+
+    // The register each slot's displacement is measured from. One per slot rather than one per frame,
+    // because a realigning frame has two: its locals hang off the aligned rsp and its incoming
+    // arguments keep their distance from rbp, and the mask between them is exactly what makes the
+    // distance from one to the other unknown until run time.
+    Array<PhysicalReg> slotBase;
 
     // Whether the function needs any prologue at all.
     bool isEmpty() const { return savedRegs.isEmpty() && !framePointer && fixedSize == 0; }
@@ -706,6 +796,11 @@ struct FrameLayout {
     I32 offsetOf(FrameReference ref) const {
         assertTrue(ref.slot < slotOffset.size());
         return slotOffset[ref.slot] + ref.addend;
+    }
+
+    PhysicalReg baseOf(FrameReference ref) const {
+        assertTrue(ref.slot < slotBase.size());
+        return slotBase[ref.slot];
     }
 };
 
@@ -716,6 +811,12 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
 // before allocation starts and its answer given to both the allocator and frame layout - see the
 // comment at the top of frame.cpp.
 bool functionNeedsFramePointer(Context& ctx, LowerBase base, LowerFunction& fun);
+
+// Whether this function has to align rsp itself, because something in it needs a stronger boundary
+// than its own entry convention promises. Answered from the IR for the same reason the frame-pointer
+// question is: realigning requires a frame pointer, so the two have to be decided together and before
+// the allocator is told which registers it may hand out.
+bool functionRealignsStack(LowerBase base, LowerFunction& fun, const Constraints& constraints);
 
 // Checks that the offsets a layout produced describe a frame its objects fit in, and that no two of
 // them land on the same bytes. Both failures corrupt memory rather than producing a visibly wrong
@@ -821,24 +922,32 @@ struct AsmModule {
 struct LowerInstX86Address: LowerInstSingle {
     LowerInstX86Address(LowerInst::Kind kind, U32 name, LowerPtr<LowerValue> base, LowerPtr<LowerValue> index, U8 scale, U32 displacement):
         LowerInstSingle(kind, name, LowerType::Pointer),
-        base(base), index(index), displacement(displacement), scale(scale)
+        first(base ? base : index), second(base && index ? index : nullptr),
+        displacement(displacement), scale(scale),
+        hasBase(base != nullptr), hasIndex(index != nullptr)
     {
         assertTrue(kind == LowerInst::X86Address || kind == LowerInst::X86Lea);
 
-        if(base) {
-            usedCount = index ? 2 : 1;
-        } else if(index) {
-            usedCount = 1;
-        }
+        usedCount = U8((hasBase ? 1 : 0) + (hasIndex ? 1 : 0));
 
         if(kind == LowerInst::X86Address) {
             result.flags |= LowerValue::Implicit;
         }
     }
 
-    LowerPtr<LowerValue> base, index;
+    // The operand slots, named by position rather than by role. used() is one contiguous buffer, so
+    // an address with no base - the no-base SIB form, `[index*scale + disp32]` - holds its index in
+    // the first slot: a hole where the absent base would have been is a null operand that every
+    // consumer walking used() would dereference. Read them through base() and index() below.
+    LowerPtr<LowerValue> first, second;
+
     U32 displacement;
     U8 scale;
+    bool hasBase;
+    bool hasIndex;
+
+    LowerPtr<LowerValue> base() const { return hasBase ? first : nullptr; }
+    LowerPtr<LowerValue> index() const { return hasIndex ? (hasBase ? second : first) : nullptr; }
 };
 
 // Runs the target transform pipeline over `fun` in place - see the pipeline table at the bottom of
@@ -862,13 +971,23 @@ void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, Machine
  * "where must it be at this instruction", and neither answers the other's question.
  */
 
-// One complete placement of a function, with `reserved` held back from every web and `forceSpill`
-// naming the webs a previous pass asked to be left homeless.
+// One complete placement of a function. `framePointer` and `temporaries` are what is held back from
+// every web - rbp when the frame is addressed through it, and the scratch registers legalization is
+// going to need - and `forcedHomeless` names the webs a previous pass asked to be left homeless.
 Placement computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
-    const Constraints& constraints, RegSet reserved, const Array<bool>& forceSpill);
+    const Constraints& constraints, bool framePointer, const TemporaryReserve& temporaries,
+    const Array<bool>& forcedHomeless);
 
-// Resolves every instruction against a completed placement.
+// Resolves every instruction against a completed placement, handing out scratch registers from
+// `temporaries` - which has to be one measureTemporaryReserve produced for this same placement.
 LegalizedFunction legalizeFunction(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
+    const Constraints& constraints, const Placement& placement, const TemporaryReserve& temporaries);
+
+// How many scratch registers legalizing this placement will need, by bank and by pool. Answered by
+// legalizing it and recording what was asked for, rather than by a second rule that mirrors the
+// first: the two would be a pair of answers to one question, and the one that is wrong is the one
+// that leaves an instruction with nowhere to bring a spilled operand.
+TemporaryReserve measureTemporaryReserve(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
     const Constraints& constraints, const Placement& placement);
 
 // Where the encoder reads one operand, which is the question legalization exists to answer. It is

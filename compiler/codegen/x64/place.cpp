@@ -14,7 +14,7 @@
  * an encoding demands, where a result is written before being carried home - is legalization's, and
  * it runs afterwards over a placement that is already complete (legalize.cpp).
  *
- * The separation is what makes an eviction cheap. A web placed here can be reconsidered while
+ * The separation is what makes a displacement cheap. A web placed here can be reconsidered while
  * placement is still running, because nothing downstream has been written yet: no instruction names
  * a location until legalization puts one there. The pass used to place and emit in one walk, so a
  * displaced web meant re-running everything.
@@ -99,6 +99,11 @@ struct ClobberSite {
     RegSet mask;
 };
 
+// "No register chosen", for the two searches below. A value of its own rather than the length of the
+// order they walk: the order holds only the registers the target hands out, so its length is a
+// perfectly good register index and using it as a sentinel would read r15 as failure.
+static constexpr Size kNoRegister = ~Size(0);
+
 /*
  * Allocation order.
  *
@@ -115,28 +120,33 @@ struct ClobberSite {
  * rbp goes last of all. It costs the same push and pop as any other preserved register, but a
  * function that puts a value in it also gives up being walkable through the frame-pointer chain, so
  * it is worth having only when the alternative is a frame slot - which is what being last means.
+ *
+ * The candidates are the bank's *allocatable* set rather than its register count: a register the
+ * target never hands out has no business in an order whose whole purpose is to be tried in turn. Today
+ * that is rsp alone, and skipping it here rather than filtering it out at every use is what keeps a
+ * future bank that reserves k0, or the extended vector registers no encoding can name without EVEX,
+ * from being offered and rejected sixteen times per web.
  */
 static void buildOrder(const CallConvention& convention, RegisterBankId bank, U16* out, Size& outCount) {
     Size count = 0;
     auto framePointer = framePointerReg();
-    auto registers = targetRegisters().bank(bank).physicalCount;
+    auto& allocatable = targetRegisters().bank(bank).allocatable;
 
-    auto append = [&](Size i) {
-        if(PhysicalReg { bank, U16(i) } == framePointer) return; // last, below
-        out[count++] = U16(i);
+    // A bank's set holds only its own registers, which targetRegisters() checks - so the register this
+    // yields is one of `bank`'s by construction.
+    auto pass = [&](bool clobbered) {
+        allocatable.iterate([&](PhysicalReg reg) {
+            if(reg == framePointer) return; // last, below
+            if(convention.clobber.has(reg) == clobbered) out[count++] = reg.index;
+        });
     };
 
-    for(Size i = 0; i < registers; i++) {
-        if(convention.clobber.has(PhysicalReg { bank, U16(i) })) append(i);
-    }
+    pass(true);
+    pass(false);
 
-    for(Size i = 0; i < registers; i++) {
-        if(!convention.clobber.has(PhysicalReg { bank, U16(i) })) append(i);
-    }
+    if(allocatable.has(framePointer)) out[count++] = framePointer.index;
 
-    if(bank == framePointer.bank) out[count++] = framePointer.index;
-
-    assertTrue(count == registers); // every register is in the order exactly once
+    assertTrue(count == allocatable.count()); // every allocatable register is in the order exactly once
     outCount = count;
 }
 
@@ -195,28 +205,39 @@ struct Placer {
     Array<MachineLocation> incomingArgs;
 
     // Webs this pass has to leave homeless whatever it would otherwise have done, because a previous
-    // pass found something that wanted their register more. Indexed by web id; see the eviction
-    // comment on `assign` and the loop in allocateRegisters.
-    const Array<bool>& forceSpill;
+    // pass found something that wanted their register more. *Homeless* rather than spilled: which of
+    // the two homeless states such a web takes is still its own choice, and a cheap constant takes a
+    // recipe rather than a slot. Indexed by web id; see the displacement comment on `assign` and the
+    // loop in allocateRegisters.
+    const Array<bool>& forcedHomeless;
 
     // Webs *this* pass would rather have displaced than the one it displaced instead. Placement is
     // one walk in the order legalization will later read it, so a web already placed has already
-    // been offered to everything that could have taken its register from it - the answer is carried
+    // been offered to everything that could have taken its register from it - the request is carried
     // out to allocateRegisters and applied to the next pass.
-    Array<LiveId> evicted;
+    Array<LiveId> displacementRequests;
 
     // Set when any web ended up without a register. The first pass over a function reserves no
-    // scratch registers; if this comes back true, the function is placed again with some held back,
-    // because a value that is not in a register has to be brought into one at each instruction that
-    // touches it. See allocateRegisters.
-    bool needsScratch = false;
+    // scratch registers; if this comes back true, the reserve legalizing this placement would need is
+    // measured and the function placed again with it held back, because a value that is not in a
+    // register has to be brought into one at each instruction that touches it. See allocateRegisters.
+    bool requiresLegalizationTemps = false;
+
+    // The scratch registers held back for this function, which no web may be given - and which the
+    // rule below has to know the identity of, since a copy into one of them at an instruction is a
+    // register a sibling operand of that instruction cannot be read out of.
+    const TemporaryReserve& temporaries;
 
     Placer(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
-        const Constraints& constraints, RegSet reserved, const Array<bool>& forceSpill):
-        base(base), fun(fun), live(live), machine(machine), constraints(constraints), forceSpill(forceSpill)
+        const Constraints& constraints, bool framePointer, const TemporaryReserve& temporaries,
+        const Array<bool>& forcedHomeless):
+        base(base), fun(fun), live(live), machine(machine), constraints(constraints),
+        forcedHomeless(forcedHomeless), temporaries(temporaries)
     {
         // Whatever is held back - the scratch registers, and rbp in a function that establishes a
         // frame pointer - is not available to hand out as a home.
+        auto reserved = temporaries.regs();
+        if(framePointer) reserved.add(framePointerReg());
         allocatable = reserved.complement(allocatable);
 
         auto& convention = constraints.getConvention(fun.callType);
@@ -315,7 +336,7 @@ struct Placer {
         auto interval = info.interval();
 
         // A previous pass found something that needed this web's register more than it did.
-        if(forceSpill[webId]) return assignHomeless(webId, v->type, interval);
+        if(forcedHomeless[webId]) return assignHomeless(webId, v->type, interval);
 
         auto usable = [&](Size i) {
             auto reg = PhysicalReg { bank, U16(i) };
@@ -324,13 +345,12 @@ struct Placer {
             return isFree(cls, reg, interval);
         };
 
-        auto registers = orderCount[bank];
-        Size chosen = registers;
+        auto chosen = kNoRegister;
 
         if(hint.isPhysical() && hint.bank == bank && usable(hint.index)) {
             chosen = hint.index;
         } else {
-            for(Size i = 0; i < registers; i++) {
+            for(Size i = 0; i < orderCount[bank]; i++) {
                 if(usable(order[bank][i])) { chosen = order[bank][i]; break; }
             }
         }
@@ -345,8 +365,8 @@ struct Placer {
         // the earlier decisions inconsistent with the later ones. It is *recorded* instead, and the
         // next pass starts with it homeless, which leaves its register free at the point that
         // wanted it. Nothing has been emitted either way, which is what makes another pass cheap.
-        if(chosen == registers) {
-            recordEviction(cls, avoid, interval, info.homelessCost());
+        if(chosen == kNoRegister) {
+            requestDisplacement(cls, avoid, interval, info.homelessCost());
             return assignHomeless(webId, v->type, interval);
         }
 
@@ -360,14 +380,13 @@ struct Placer {
     // less than `budget` - what the web asking for a register is about to pay for not having one.
     // Every occupant whose life overlaps has to go, since the register is only free for the new web
     // when all of them have.
-    void recordEviction(RegisterClassId cls, const RegSet& avoid, const LiveInterval& interval, U32 budget) {
+    void requestDisplacement(RegisterClassId cls, const RegSet& avoid, const LiveInterval& interval, U32 budget) {
         auto bank = targetRegisters().regClass(cls).bank;
-        auto registers = orderCount[bank];
 
-        Size best = registers;
+        auto best = kNoRegister;
         auto bestCost = budget;
 
-        for(Size k = 0; k < registers; k++) {
+        for(Size k = 0; k < orderCount[bank]; k++) {
             auto i = order[bank][k];
             auto reg = PhysicalReg { bank, U16(i) };
             if(!allocatable.has(reg) || avoid.has(reg)) continue;
@@ -381,10 +400,10 @@ struct Placer {
             if(cost < bestCost) { bestCost = cost; best = i; }
         }
 
-        if(best == registers) return;
+        if(best == kNoRegister) return;
 
         for(auto id: occupants[bank][best]) {
-            if(webs[id].interval().overlaps(interval)) evicted.push(id);
+            if(webs[id].interval().overlaps(interval)) displacementRequests.push(id);
         }
     }
 
@@ -393,7 +412,7 @@ struct Placer {
     // it back at each instruction that cannot read a memory operand. computeSpillCosts priced both.
     MachineLocation assignHomeless(LiveId webId, LowerType type, const LiveInterval& interval) {
         auto& info = webs[webId];
-        needsScratch = true;
+        requiresLegalizationTemps = true;
 
         if(info.canRemat && info.rematCost < info.spillCost) {
             remats.push(info.recipe);
@@ -598,15 +617,19 @@ static U32 blockWeight(LowerBlock* block) {
     return U32(1) << (3 * depth);
 }
 
-// Whether this instruction reads and writes operand `index` in the same place - which it does when
-// the encoding has such a form and the operand and the result turn out to be one web, so that they
-// are certain to share whatever home that web gets. This is the shape phi-web coalescing produces
-// for a loop-carried accumulator, and the one case where a spilled result costs nothing to store.
-static bool isInPlace(Placer& a, LowerInst* inst, I32 index) {
-    if(index == kNoMemoryOperand || inst->createdCount == 0) return false;
+// Whether this instruction reads and writes its read/write memory operand in the same place - which it
+// does when the operand and the result turn out to be one web, so that they are certain to share
+// whatever home that web gets. This is the shape phi-web coalescing produces for a loop-carried
+// accumulator, and the one case where a spilled result costs nothing to store.
+//
+// Asked of the *webs* rather than of their locations, because this runs before anything has been
+// placed. `takesInPlace` is the same question once there are locations to compare, and the two have to
+// agree for the costing to have priced what legalization will actually do.
+static bool isInPlace(Placer& a, LowerInst* inst, const DirectMemoryChoice& choice) {
+    if(!choice.hasReadWrite() || inst->createdCount == 0) return false;
 
     auto& result = inst->created()[0];
-    auto operand = a.base[inst->used()[index]];
+    auto operand = a.base[inst->used()[choice.readWrite]];
 
     if(isImplicit(&result) || isImplicit(operand)) return false;
     return a.sameWeb(operand, &result);
@@ -680,9 +703,9 @@ static void computeSpillCosts(Placer& a) {
             // The one operand this instruction could leave in the frame, if any. A read-modify-write
             // form takes precedence: it makes both the read and the write free, where a memory
             // source only makes the read free, and the two want the same r/m field.
-            auto folded = memoryUseOperand(a.base, a.machine, inst);
-            auto inPlace = isInPlace(a, inst, memoryDefOperand(a.base, a.machine, inst));
-            if(inPlace) folded = memoryDefOperand(a.base, a.machine, inst);
+            auto choice = directMemoryOperands(a.base, a.machine, inst);
+            auto inPlace = isInPlace(a, inst, choice);
+            auto folded = inPlace ? choice.readWrite : choice.read;
 
             auto used = inst->used();
             for(Size i = 0; i < used.size(); i++) {
@@ -775,7 +798,7 @@ static void placeInst(Placer& a, LowerInst* inst, U32 index) {
 
             // Nothing has been handed out yet at this point in the instruction, so an operand that
             // needs a scratch register would get the first of them.
-            if(site.needsTemp) blocked.add(spillTemp(site.tempBank, 0));
+            if(site.needsTemp) blocked.add(a.temporaries.operandTemp(site.tempBank, 0));
             else if(site.at.isPhysical()) blocked.add(site.at.physicalReg());
         }
 
@@ -889,7 +912,8 @@ static void collectFrameObjects(Placer& a) {
             auto inst = a.base[i];
 
             if(inst->kind == LowerInst::Alloca) {
-                auto count = a.base[((LowerInstAlloca*)inst)->byteCount];
+                auto alloca = (LowerInstAlloca*)inst;
+                auto count = a.base[alloca->byteCount];
 
                 if(isImm(count)) {
                     // A compile-time size is an ordinary fixed frame object, and the alloca becomes
@@ -902,9 +926,10 @@ static void collectFrameObjects(Placer& a) {
                         .slotClass = StackSlotClass::Slot64,
                         .size = U32(size),
 
-                        // Nothing in the IR says what the allocation is going to hold, so it gets
-                        // an alignment that suits any scalar or 128-bit vector stored into it.
-                        .alignment = size >= 16 ? 16u : 8u,
+                        // What the program asked for. Frame layout rounds the object up to it and
+                        // raises the whole frame's alignment to match, so an over-aligned local is
+                        // over-aligned rather than merely large.
+                        .alignment = alloca->alignment,
                     });
 
                     a.frame.references.add(inst, FrameReference { .slot = slot });
@@ -931,9 +956,10 @@ static void collectFrameObjects(Placer& a) {
 }
 
 Placement computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
-    const Constraints& constraints, RegSet reserved, const Array<bool>& forceSpill)
+    const Constraints& constraints, bool framePointer, const TemporaryReserve& temporaries,
+    const Array<bool>& forcedHomeless)
 {
-    Placer a(base, fun, live, machine, constraints, reserved, forceSpill);
+    Placer a(base, fun, live, machine, constraints, framePointer, temporaries, forcedHomeless);
     collectFrameObjects(a);
 
     // Webs before avoid sets: a clobber that one member has to dodge is one the whole web has to
@@ -979,7 +1005,7 @@ Placement computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, c
     result.remats = ::move(a.remats);
     result.incomingArgs = ::move(a.incomingArgs);
     result.writtenPhysical = a.written;
-    result.needsScratch = a.needsScratch;
-    result.evicted = ::move(a.evicted);
+    result.requiresLegalizationTemps = a.requiresLegalizationTemps;
+    result.displacementRequests = ::move(a.displacementRequests);
     return result;
 }

@@ -16,16 +16,20 @@ static RegisterUnitMask fullBank(Size count) {
     return count >= 64 ? ~RegisterUnitMask(0) : (RegisterUnitMask(1) << count) - 1;
 }
 
+// Both of these are the union of what the *bank descriptions* say rather than a second statement of
+// which registers exist and which are held back. That matters for a bank whose reservations are not
+// rsp: a mask bank cannot hand out k0, and an extended vector bank has sixteen registers no encoding
+// can name without EVEX. Deriving them here means a bank that reserves something new is one edit in
+// the constructor below rather than two that can disagree.
 RegSet allRegs() {
     RegSet set;
-    set.banks[BankGpr] = fullBank(kGprCount);
-    set.banks[BankVector] = fullBank(kVectorCount);
+    for(auto& bank: targetRegisters().banks) set |= bank.allocatable | bank.reserved;
     return set;
 }
 
 RegSet allocatableRegs() {
-    auto set = allRegs();
-    set.remove(stackPointerReg());
+    RegSet set;
+    for(auto& bank: targetRegisters().banks) set |= bank.allocatable;
     return set;
 }
 
@@ -41,11 +45,14 @@ TargetRegisters::TargetRegisters() {
     vectorBank.name = "vector"_v;
     vectorBank.physicalCount = U16(kVectorCount);
 
-    for(Size i = 0; i < kGprCount; i++) {
-        if(!gprBank.reserved.has(gpr(i))) gprBank.allocatable.add(gpr(i));
+    // A bank hands out every register it has that it did not reserve. Derived rather than written out,
+    // so that reserving one is a single line above and the two sets cannot come to disagree.
+    for(auto& bank: banks) {
+        for(Size i = 0; i < bank.physicalCount; i++) {
+            auto reg = PhysicalReg { bank.id, U16(i) };
+            if(!bank.reserved.has(reg)) bank.allocatable.add(reg);
+        }
     }
-
-    for(Size i = 0; i < kVectorCount; i++) vectorBank.allocatable.add(vectorReg(i));
 
     auto describe = [&](RegisterClassId id, RegisterBankId bank, StackSlotClass spill) {
         auto& cls = classes[id];
@@ -66,12 +73,24 @@ TargetRegisters::TargetRegisters() {
     describe(ClassYmm256, BankVector, StackSlotClass::Slot256);
     describe(ClassZmm512, BankVector, StackSlotClass::Slot512);
 
+    // A bank names only registers of its own, which is what lets everything else iterate a bank's
+    // allocatable set and take the bank from the registers it yields.
+    for(auto& bank: banks) {
+        for(Size i = 0; i < kRegisterBankCount; i++) {
+            if(RegisterBankId(i) == bank.id) continue;
+            assertTrue(bank.allocatable.banks[i] == 0);
+            assertTrue(bank.reserved.banks[i] == 0);
+        }
+    }
+
     // Every class belongs to a bank that exists, names only registers that exist, and names no
     // register the bank reserved. Checked here rather than trusted, because a class that could name
-    // rsp would be an allocator that hands out the stack pointer.
+    // rsp would be an allocator that hands out the stack pointer. The range check comes first: it is
+    // what makes indexing `banks` below defined at all.
     for(auto& cls: classes) {
-        auto& bank = banks[cls.bank];
         assertTrue(cls.bank < kRegisterBankCount);
+
+        auto& bank = banks[cls.bank];
         assertTrue((cls.allowedPhysical.banks[cls.bank] & ~fullBank(bank.physicalCount)) == 0);
         assertTrue((cls.allowedPhysical & bank.reserved).isEmpty());
 
@@ -90,26 +109,52 @@ const TargetRegisters& targetRegisters() {
  * Scratch registers. See the block comment in target.h.
  */
 
-PhysicalReg spillTemp(RegisterBankId bank, Size index) {
-    assertTrue(index < kTotalSpillTemps);
-
+// Position `index` counted down from the top of a bank's register file, which is where every
+// temporary comes from and the only arithmetic either pool does.
+static PhysicalReg topOfBank(RegisterBankId bank, Size index) {
     auto count = targetRegisters().bank(bank).physicalCount;
+    assertTrue(index < count); // a reserve larger than the register file it is taken from
     return PhysicalReg { bank, U16(count - 1 - index) };
 }
 
-PhysicalReg moveTemp(RegisterBankId bank, Size index) {
-    assertTrue(index < kMoveTemps);
-    return spillTemp(bank, kMaxSpillTemps + index);
+TemporaryReserve TemporaryReserve::widest() {
+    TemporaryReserve out;
+
+    for(Size bank = 0; bank < kRegisterBankCount; bank++) {
+        out.operandTemps[bank] = U8(kMaxOperandTemps);
+        out.moveTemps[bank] = U8(kMaxMoveTemps);
+    }
+
+    return out;
 }
 
-RegSet spillTempRegs() {
+PhysicalReg TemporaryReserve::operandTemp(RegisterBankId bank, Size index) const {
+    return topOfBank(bank, index);
+}
+
+PhysicalReg TemporaryReserve::moveTemp(RegisterBankId bank, Size index) const {
+    return topOfBank(bank, operandTemps[bank] + index);
+}
+
+RegSet TemporaryReserve::regs() const {
     RegSet set;
 
-    for(Size i = 0; i < kTotalSpillTemps; i++) {
-        for(Size bank = 0; bank < kRegisterBankCount; bank++) {
-            set.add(spillTemp(RegisterBankId(bank), i));
-        }
+    for(Size bank = 0; bank < kRegisterBankCount; bank++) {
+        auto id = RegisterBankId(bank);
+        for(Size i = 0; i < operandTemps[bank]; i++) set.add(operandTemp(id, i));
+        for(Size i = 0; i < moveTemps[bank]; i++) set.add(moveTemp(id, i));
     }
 
     return set;
+}
+
+bool TemporaryReserve::growTo(const TemporaryReserve& other) {
+    auto grew = false;
+
+    for(Size i = 0; i < kRegisterBankCount; i++) {
+        if(other.operandTemps[i] > operandTemps[i]) { operandTemps[i] = other.operandTemps[i]; grew = true; }
+        if(other.moveTemps[i] > moveTemps[i]) { moveTemps[i] = other.moveTemps[i]; grew = true; }
+    }
+
+    return grew;
 }
