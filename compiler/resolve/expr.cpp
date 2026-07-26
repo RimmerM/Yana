@@ -94,6 +94,38 @@ ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, L
     return value;
 }
 
+// The same question convert() answers, asked without answering it. Overload selection has to know
+// whether a candidate accepts an argument before it commits to that candidate, and convert()
+// cannot be used for that: reporting the mismatch is its job, and a candidate that does not fit is
+// not an error while another member of the overload set may still serve the call.
+bool ExprResolver::convertible(ModulePtr<Value> value, TypePtr target, LocationId source) {
+    if(!value || !target) return false;
+
+    auto from = valueType(value);
+    if(sameType(from, target)) return true;
+
+    // An error type has already been reported once, so it fits anything rather than producing a
+    // second diagnostic about the same mistake.
+    if(global[from]->kind == Type::Error || global[target]->kind == Type::Error) return true;
+
+    // Only widening is implicit, so a narrowing pair does not fit even though convert() would
+    // perform it when asked explicitly.
+    if(isNumeric(global, from) && isNumeric(global, target)) return numericRank(from) <= numericRank(target);
+
+    Array<ClassFunRef> candidates;
+    findClassFunctions(module, context.addUnqualifiedName("extend", 6), source, candidates);
+
+    for(auto& candidate: candidates) {
+        ModulePtr<Value> args[] = { value };
+
+        ClassMatch match;
+        if(!matchClassFun(candidate, { args, 1 }, target, match) || !match.instance) continue;
+        if(local[match.instance]->functions.get(local, match.index)) return true;
+    }
+
+    return false;
+}
+
 ModulePtr<Value> ExprResolver::finishBranches(Array<BranchArm>& arms, LocationId source, bool used) {
     // Every arm that diverged - returned, or broke out of a loop - left no block behind. If none
     // of them did leave one, the expression as a whole never completes and there is no join.

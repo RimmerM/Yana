@@ -1,0 +1,144 @@
+
+bothQualified<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %v_1 = and %a, %b: Int
+    ret %v_1
+  }
+}
+
+negated<complex>(%a: Int): Int {
+  b_0 {
+    %v_1 = neg %a: Int
+    ret %v_1
+  }
+}
+
+difference<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %v_1 = sub %a, %b: Int
+    ret %v_1
+  }
+}
+
+bothTrue<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %v_1 = and %a, %b: Int
+    ret %v_1
+  }
+}
+
+maskGeneric(Int)<complex>(%x: Int, %y: Int): Int {
+  b_0 {
+    %v_1 = and %x, %y: Int
+    ret %v_1
+  }
+}
+
+and<complex>(%v_0: Ptr, %a: Ptr, %b: Ptr) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = loads %a, 4: Int
+    %v_4 = loads %b, 4: Int
+    %v_5 = and %v_3, %v_4: Int
+    store %v_2, %v_5, 4
+    copy %v_0, %v_2, 4
+    ret 
+  }
+}
+
+mask<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %v_1 = and %a, %b: Int
+    ret %v_1
+  }
+}
+
+maskQualified<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %v_1 = and %a, %b: Int
+    ret %v_1
+  }
+}
+
+bothGeneric(Bool)<complex>(%x: Int, %y: Int): Int {
+  b_0 {
+    %v_1 = and %x, %y: Int
+    ret %v_1
+  }
+}
+
+combined<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %a, 4
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %b, 4
+    %v_3 = alloca 4, 4: Ptr
+    call_complex and, %v_3, %v_1, %v_2
+    %v_4 = loads %v_3, 4: Int
+    ret %v_4
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex mask, 6, 3: Int
+    %v_2 = call_complex combined, 6, 3: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = call_complex maskQualified, 12, 10: Int
+    %v_5 = add %v_3, %v_4: Int
+    %v_6 = call_complex maskGeneric(Int), 5, 4: Int
+    %v_7 = add %v_5, %v_6: Int
+    %v_8 = call_complex negated, 1: Int
+    %v_9 = add %v_8, 10: Int
+    %v_10 = call_complex difference, %v_9, 2: Int
+    %v_11 = add %v_7, %v_10: Int
+    %v_12 = call_complex bothTrue, 1, 0: Int
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    jmp b_15
+  }
+
+  b_14 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = phi [b_13, 100], [b_14, 0]: Int
+    %v_17 = add %v_11, %v_16: Int
+    %v_18 = call_complex bothQualified, 1, 1: Int
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    jmp b_21
+  }
+
+  b_20 {
+    jmp b_21
+  }
+
+  b_21 {
+    %v_22 = phi [b_19, 1000], [b_20, 0]: Int
+    %v_23 = add %v_17, %v_22: Int
+    %v_24 = call_complex bothGeneric(Bool), 1, 0: Int
+    je %v_24, b_25, b_26
+  }
+
+  b_25 {
+    jmp b_27
+  }
+
+  b_26 {
+    jmp b_27
+  }
+
+  b_27 {
+    %v_28 = phi [b_25, 10000], [b_26, 0]: Int
+    %v_29 = add %v_23, %v_28: Int
+    ret %v_29
+  }
+}
+

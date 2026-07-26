@@ -1,0 +1,132 @@
+fn and(%a: Permissions, %b: Permissions) -> Permissions {
+  b0:
+    %v2 = alloc : Permissions
+    %v3 = load %a@Permissions.bits : Int
+    %v4 = load %b@Permissions.bits : Int
+    %v5 = and %v3, %v4 : Int
+    init %local2@Permissions.bits, %v5
+    ret %v2
+}
+
+fn mask(%a: Int, %b: Int) -> Int {
+  b0:
+    %v2 = and %a, %b : Int
+    ret %v2
+}
+
+fn combined(%a: Int, %b: Int) -> Int {
+  b0:
+    %v2 = alloc : Permissions
+    init %local0@Permissions.bits, %a
+    %v4 = alloc : Permissions
+    init %local1@Permissions.bits, %b
+    %v6 = call and, %v2, %v4 : Permissions
+    %v7 = load %local2@Permissions.bits : Int
+    ret %v7
+}
+
+fn bothTrue(%a: Bool, %b: Bool) -> Bool {
+  b0:
+    %v2 = and %a, %b : Bool
+    ret %v2
+}
+
+fn maskQualified(%a: Int, %b: Int) -> Int {
+  b0:
+    %v2 = and %a, %b : Int
+    ret %v2
+}
+
+fn bothQualified(%a: Bool, %b: Bool) -> Bool {
+  b0:
+    %v2 = and %a, %b : Bool
+    ret %v2
+}
+
+(Integral(a)) fn maskGeneric(%x: a, %y: a) -> a {
+  b0:
+    %v2 = gencall Integral(a).and, %x, %y : a
+    ret %v2
+}
+
+(Logic(a)) fn bothGeneric(%x: a, %y: a) -> a {
+  b0:
+    %v2 = gencall Logic(a).and, %x, %y : a
+    ret %v2
+}
+
+fn negated(%a: Int) -> Int {
+  b0:
+    %v1 = neg %a : Int
+    ret %v1
+}
+
+fn difference(%a: Int, %b: Int) -> Int {
+  b0:
+    %v2 = sub %a, %b : Int
+    ret %v2
+}
+
+fn main() -> Int {
+  b0:
+    %v2 = call mask, 6, 3 : Int
+    %v5 = call combined, 6, 3 : Int
+    %v6 = add %v2, %v5 : Int
+    %v9 = call maskQualified, 12, 10 : Int
+    %v10 = add %v6, %v9 : Int
+    %v13 = call maskGeneric(Int), 5, 4 : Int
+    %v14 = add %v10, %v13 : Int
+    %v16 = call negated, 1 : Int
+    %v18 = add %v16, 10 : Int
+    %v20 = call difference, %v18, 2 : Int
+    %v21 = add %v14, %v20 : Int
+    %v24 = call bothTrue, True, False : Bool
+    je %v24, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v30 = phi [b1, 100], [b2, 0] : Int
+    %v31 = add %v21, %v30 : Int
+    %v34 = call bothQualified, True, True : Bool
+    je %v34, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v40 = phi [b4, 1000], [b5, 0] : Int
+    %v41 = add %v31, %v40 : Int
+    %v44 = call bothGeneric(Bool), True, False : Bool
+    je %v44, b7, b8
+
+  b7:
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v50 = phi [b7, 10000], [b8, 0] : Int
+    %v51 = add %v41, %v50 : Int
+    ret %v51
+}
+
+fn maskGeneric(Int)(%x: Int, %y: Int) -> Int {
+  b0:
+    %v2 = and %x, %y : Int
+    ret %v2
+}
+
+fn bothGeneric(Bool)(%x: Bool, %y: Bool) -> Bool {
+  b0:
+    %v2 = and %x, %y : Bool
+    ret %v2
+}

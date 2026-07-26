@@ -1,0 +1,41 @@
+-- Overload sets, per Design.md's Overloading section: a set is keyed by (name, arity), a plain
+-- function is one of its members rather than a shadow over it, and ambiguity is settled by
+-- naming a class rather than by a tiebreak.
+
+data Permissions {bits: Int}
+
+-- R5: this used to disable `Integral.and` for every Int in the module. It is now one candidate of
+-- the `(and, 2)` set, so it serves the calls it fits and leaves the rest to the class half.
+fn and(a: Permissions, b: Permissions) -> Permissions = Permissions {bits: a.bits `and` b.bits}
+
+fn mask(a: Int, b: Int) -> Int = a `and` b                    -- Integral.and, still reachable
+
+fn combined(a: Int, b: Int) -> Int =
+    and(Permissions {bits: a}, Permissions {bits: b}).bits    -- the plain function
+
+fn bothTrue(a: Bool, b: Bool) -> Bool = a `and` b             -- Logic.and, by argument type
+
+-- R4: the same name in two classes is disambiguated by writing the class, on either side of the
+-- call. Both of these are unambiguous by argument type as well - the point is that the qualified
+-- form names one class and gets that one.
+fn maskQualified(a: Int, b: Int) -> Int = Integral.and(a, b)
+
+fn bothQualified(a: Bool, b: Bool) -> Bool = Logic.and(a, b)
+
+-- R3: in generic code no instance exists yet to break the tie, so the constraint in scope decides
+-- which class `and` belongs to. Each of these is the same call text resolving to a different class.
+fn (Integral(a)) maskGeneric(x: a, y: a) -> a = x `and` y
+
+fn (Logic(a)) bothGeneric(x: a, y: a) -> a = x `and` y
+
+-- R1: one class declares `-` at two arities, and which is meant is the arity of the call.
+fn negated(a: Int) -> Int = -a
+
+fn difference(a: Int, b: Int) -> Int = a - b
+
+fn main() -> Int =
+    mask(6, 3) + combined(6, 3) + maskQualified(12, 10) + maskGeneric(5, 4) +
+    difference(negated(1) + 10, 2) +
+    (if bothTrue(True, False) then 100 else 0) +
+    (if bothQualified(True, True) then 1000 else 0) +
+    (if bothGeneric(True, False) then 10000 else 0)

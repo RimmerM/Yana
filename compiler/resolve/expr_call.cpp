@@ -18,11 +18,37 @@
  * asks for bottom-up, left-to-right inference with no backtracking, and this is that rule - it
  * keeps `1 + 2 :: Long` an Int addition widened afterwards rather than silently becoming a Long
  * addition, while still letting `extend(x) :: Long` work at all.
+ *
+ * A name may be declared by more than one class and by one class at more than one arity, so
+ * emitCall selects out of an overload set rather than off a single signature. Design.md's
+ * Overloading section states the five rules it implements: the set is keyed by (name, arity),
+ * candidates are not ranked, a constraint declared by the enclosing function is what picks a class
+ * in generic code, ambiguity is resolved by writing `Class.method` and never by a tiebreak, and a
+ * plain function is one member of the set rather than a shadow over it.
  */
 
 static U8 operatorPrecedence(Module& module, StringId op) {
     auto found = findPrecedence(module, op);
     return found ? found.unwrap() : 0;
+}
+
+// R4 resolves ambiguity by qualification and never by a tiebreak, so an ambiguity diagnostic has to
+// say which qualified names there are to choose between - `Integral.and or Logic.and`. Leaving the
+// author to go and find the classes themselves is the difference between a rule and a puzzle.
+static String describeQualified(Context& context, GlobalBase global, StringId name,
+                               Buffer<GlobalPtr<TypeClass>> classes) {
+    Array<char> text;
+
+    for(Size i = 0; i < classes.length; i++) {
+        if(i) appendText(text, i + 1 == classes.length ? " or "_v : ", "_v);
+
+        auto qualified = context.findName(global[classes[i]]->name) + String(".") + context.findName(name);
+        for(Size c = 0; c < qualified.size(); c++) text.push(qualified.text()[c]);
+    }
+
+    auto data = (char*)hAlloc(text.size());
+    copy(text.pointer(), data, text.size());
+    return String(data, text.size(), true);
 }
 
 // Binds the class type variables that one position of a signature constrains. Numeric widening
@@ -98,6 +124,50 @@ bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<
     resolved.instance = selectInstance(reference.typeClass, toBuffer(bindings));
     resolved.args.clear();
     for(auto binding: bindings) resolved.args.push(binding);
+
+    return true;
+}
+
+// The plain-function half of an overload set. Design.md's R1 keys the set by (name, arity) and
+// admits at most one plain function, so this is arity plus "do the arguments fit", and the answer
+// has to be reached without reporting anything - see ExprResolver::convertible.
+bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, TypePtr target,
+                                LocationId source) {
+    auto callable = local[callee];
+    if(callable->args.size() != args.length) return false;
+
+    // A generic function fits when its type arguments can all be inferred here, by the same
+    // one-directional rule the classes use.
+    if(auto env = functionGen(global, *callable)) {
+        Array<TypePtr> bindings;
+        for(Size i = 0; i < env->types.size(); i++) bindings.push(nullptr);
+
+        for(Size i = 0; i < args.length; i++) {
+            auto declared = local[callable->args.get(local, i)]->type;
+            if(!bindPosition(declared, valueType(args[i]), bindings, true)) return false;
+        }
+
+        if(target) {
+            Array<TypePtr> withTarget;
+            for(auto binding: bindings) withTarget.push(binding);
+
+            if(bindPosition(callable->returnType, target, withTarget, false)) {
+                for(Size i = 0; i < bindings.size(); i++) {
+                    if(!bindings[i]) bindings[i] = withTarget[i];
+                }
+            }
+        }
+
+        for(auto binding: bindings) {
+            if(!binding) return false;
+        }
+
+        return true;
+    }
+
+    for(Size i = 0; i < args.length; i++) {
+        if(!convertible(args[i], local[callable->args.get(local, i)]->type, source)) return false;
+    }
 
     return true;
 }
@@ -187,9 +257,19 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     // which `Maybe` it is building - neither a class function nor a generic function can do the
     // same, because which types their parameters have is exactly what the arguments are being
     // resolved to decide.
+    //
+    // Only when the plain function is the whole overload set, though: R5 lets the class half serve
+    // a call the plain function does not fit, and pushing its parameter types into the arguments
+    // would report the mismatch before selection ever got the chance to look elsewhere.
     auto direct = findFunction(module, call.callee.var, expr.source);
     auto callArgs = call.args;
     auto declared = direct && !local[direct]->gen && local[direct]->args.size() == callArgs.size();
+
+    if(declared) {
+        Array<ClassFunRef> overloads;
+        findClassFunctions(module, call.callee.var, expr.source, overloads);
+        declared = overloads.isEmpty();
+    }
 
     Array<ModulePtr<Value>> values;
     Size index = 0;
@@ -252,21 +332,34 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
         if(!arg) return nullptr;
     }
 
-    // A plain function shadows a class function of the same name, in keeping with a local
-    // definition shadowing an imported one.
-    if(auto direct = findFunction(module, callName, source)) {
-        if(local[direct]->args.size() == args.length) {
-            return local[direct]->gen ? emitGenericCall(direct, args, source, target, resultName)
-                                      : emitDirectCall(direct, args, source, target, resultName);
-        }
-
-        context.diagnostics.error("%@ takes %@ arguments but was given %@"_v, source, context.findName(callName),
-                                  U32(local[direct]->args.size()), U32(args.length));
-        return nullptr;
-    }
-
     Array<ClassFunRef> candidates;
     findClassFunctions(module, callName, source, candidates);
+
+    auto direct = findFunction(module, callName, source);
+
+    // Committing to the plain function, once it is the candidate the call is being served by. Its
+    // arity is checked here rather than in matchFunction because a mismatch has to be reported as
+    // itself: "takes two arguments" says more than the list of types the class half accepts.
+    auto emitPlain = [&]() -> ModulePtr<Value> {
+        if(local[direct]->args.size() != args.length) {
+            context.diagnostics.error("%@ takes %@ arguments but was given %@"_v, source, context.findName(callName),
+                                      U32(local[direct]->args.size()), U32(args.length));
+            return nullptr;
+        }
+
+        return local[direct]->gen ? emitGenericCall(direct, args, source, target, resultName)
+                                  : emitDirectCall(direct, args, source, target, resultName);
+    };
+
+    // R5: a plain function is an ordinary member of the overload set, not a shadow over it. It wins
+    // when it fits, which keeps "my definition beats the imported one" for the case that really
+    // overlaps; when it doesn't fit, the class candidates are still reachable. Shadowing outright
+    // meant that a module-level `fn and(a: Permissions, b: Permissions)` silently disabled
+    // `Integral.and` for every Int in the module, reported as an argument-type error on a call the
+    // author never touched.
+    if(direct && (candidates.isEmpty() || matchFunction(direct, args, target, source))) {
+        return emitPlain();
+    }
 
     if(candidates.isEmpty()) {
         context.diagnostics.error("unknown function %@"_v, source, context.findName(callName));
@@ -283,6 +376,9 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
     // become concrete.
     Array<ClassMatch> deferred;
 
+    // Every class that turned out to apply, kept only so an ambiguity can name them all.
+    Array<GlobalPtr<TypeClass>> applicable;
+
     for(auto& candidate: candidates) {
         ClassMatch match;
         if(!matchClassFun(candidate, args, target, match)) continue;
@@ -291,8 +387,10 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
         for(auto argument: match.args) isDeferred = isDeferred || isGeneric(global, argument);
 
         if(isDeferred) {
+            applicable.push(match.typeClass);
             deferred.push(::move(match));
         } else if(match.instance) {
+            applicable.push(match.typeClass);
             if(!selectedCount) selected = ::move(match);
             selectedCount++;
         } else {
@@ -317,8 +415,9 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
 
         if(declaredCount > 1 || (!declaredCount && deferred.size() > 1)) {
             context.diagnostics.error(
-                "ambiguous call to %@ - more than one class applies, and the types that would decide are not known here"_v,
-                source, context.findName(callName));
+                "ambiguous call to %@ - more than one class applies, and the types that would decide are not known here. Name one class here (%@), or declare which one this function requires"_v,
+                source, context.findName(callName),
+                describeQualified(context, global, callName, toBuffer(applicable)));
             return nullptr;
         }
 
@@ -326,12 +425,18 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
     }
 
     if(selectedCount > 1) {
-        context.diagnostics.error("ambiguous call to %@ - more than one class instance applies"_v, source,
-                                  context.findName(callName));
+        context.diagnostics.error("ambiguous call to %@ - more than one class instance applies. Name one class here (%@)"_v,
+                                  source, context.findName(callName),
+                                  describeQualified(context, global, callName, toBuffer(applicable)));
         return nullptr;
     }
 
     if(!selectedCount) {
+        // Nothing in the class half of the overload set fits. A plain function of this name is then
+        // the only candidate left, and its own diagnostic - which argument did not fit, and what it
+        // was declared as - says more than the list of types the classes would not take.
+        if(direct) return emitPlain();
+
         Array<char> types;
 
         if(withoutInstanceCount) {

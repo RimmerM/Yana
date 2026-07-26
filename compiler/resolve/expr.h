@@ -108,6 +108,10 @@ struct ExprResolver {
     ModulePtr<Value> makeInt(LocationId source, TypePtr type, U64 value);
     ModulePtr<Value> makeFloat(LocationId source, TypePtr type, F64 value);
     ModulePtr<Value> convert(ModulePtr<Value> value, TypePtr target, LocationId source, bool implicit = true);
+
+    // Whether convert() would succeed implicitly, without reporting anything if it wouldn't.
+    bool convertible(ModulePtr<Value> value, TypePtr target, LocationId source);
+
     U8 numericRank(TypePtr type);
     TypePtr commonNumeric(TypePtr lhs, TypePtr rhs, LocationId source);
 
@@ -150,6 +154,11 @@ struct ExprResolver {
 
     bool bindPosition(TypePtr pattern, TypePtr actual, Array<TypePtr>& bindings, bool widen);
     bool matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<Value>> args, TypePtr target, ClassMatch& resolved);
+
+    // Whether a plain function can serve this call - the same question matchClassFun asks of a
+    // class function, so that both halves of an overload set are judged by one rule.
+    bool matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, TypePtr target, LocationId source);
+
     ModulePtr<ClassInstance> selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
 
     /*
