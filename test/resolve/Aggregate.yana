@@ -1,0 +1,53 @@
+infixl 6 <+>
+
+data Pair {x: Int, y: Int}
+
+data Choice = Left(Int) | Right {value: Int, extra: Int}
+data Direction = North | South
+
+data Early {later: Later}
+data Later {value: Int}
+
+fn sum(pair: Pair) -> Int = pair.x + pair.y
+
+fn makePair() -> Pair = Pair {x: 2, y: 3}
+
+fn choiceValue(choice: Choice) -> Int = match choice:
+    Left(value) -> value
+    Right {value, extra} -> value + extra
+
+fn classify(value: Int) -> Int = match value:
+    0 -> 0
+    1..10 -> 1
+    else -> 2
+
+fn tupleValue(pair: {Int, Int}) -> Int = let {left, right} = pair in left + right
+
+fn forwardRecord() -> Int =
+    Early {later: Later {value: 6}}.later.value
+
+fn boolValue(value: Bool) -> Int = match !value:
+    True -> 1
+    False -> 0
+
+fn directionValue(value: Direction) -> Int = match value:
+    North -> 1
+    South -> 2
+
+fn selectedPair(value: Bool) -> Pair = match value:
+    True -> Pair {x: 3, y: 4}
+    False -> Pair {x: 0, y: 0}
+
+fn <+>(lhs: Int, rhs: Int) -> Int = lhs + rhs
+
+fn main() -> Int =
+    sum(makePair()) +
+    choiceValue(Left(4)) +
+    choiceValue(Right {value: 2, extra: 3}) +
+    classify(7) +
+    tupleValue({4, 5}) +
+    forwardRecord() +
+    boolValue(False) +
+    directionValue(South) +
+    sum(selectedPair(True)) +
+    (1 <+> 2)

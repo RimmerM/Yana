@@ -1,66 +1,91 @@
 #include "block.h"
 #include "module.h"
 
-Value* Block::use(Module* module, Value* value, Inst* user) {
-    value->uses.push(module->memory, user - module->local);
-    return value;
+static void addUse(Module& module, ModulePtr<Value> value, Inst* user) {
+    if(!value) return;
+    auto base = *module.arena;
+    base[value]->uses.push(module.arena, user - base);
 }
 
-Value* Block::inst(Module* module, Size size, StringId name, Inst::Kind kind, Type* type) {
-    auto inst = (Value*)module->memory.alloc(size);
-    new (inst) Value(kind, this - module->local, type - module->global);
+// A place is used through the local it is rooted in, so that the value the storage came from -
+// an alloc, or an argument - sees every read and write of any part of it.
+static void addPlaceUse(Module& module, const Place& place, Inst* user) {
+    auto base = *module.arena;
+    auto function = base[user->block] ? base[base[user->block]->function] : nullptr;
+    if(!function || place.local >= function->localCount()) return;
 
-    inst->name = name;
-    inst->id = (U16)module->local[function]->instCounter++;
+    addUse(module, function->localAt(base, place.local).value, user);
+}
 
-    if(isTerminator(kind)) {
+Inst* Block::add(Module& module, Inst* inst) {
+    auto base = *module.arena;
+    auto pointer = inst - base;
+
+    assertTrue(inst->block == this - base);
+
+    if(inst->kind == Value::Phi) {
+        phis.push(module.arena, (InstPhi*)inst - base);
+        for(auto input: ((InstPhi*)inst)->inputs.contents(base)) addUse(module, input.value, inst);
+    } else if(isTerminator(*inst)) {
         assertTrue(terminator == nullptr);
-        terminator = (Inst*)inst - module->local;
-    } else if(isPhi(kind)) {
-        phis.push(module->memory, (InstPhi*)inst - module->local);
-    } else {
-        instructions.push(module->memory, (Inst*)inst - module->local);
-    }
+        terminator = pointer;
 
-    if(name) {
-        namedValues[name] = inst;
+        if(inst->kind == Value::Je) {
+            auto branch = (InstJe*)inst;
+            outgoing[0] = branch->thenBlock;
+            outgoing[1] = branch->elseBlock;
+            base[branch->thenBlock]->incoming.push(module.arena, this - base);
+            base[branch->elseBlock]->incoming.push(module.arena, this - base);
+            addUse(module, branch->cond, inst);
+        } else if(inst->kind == Value::Jmp) {
+            auto jump = (InstJmp*)inst;
+            outgoing[0] = jump->target;
+            base[jump->target]->incoming.push(module.arena, this - base);
+        } else {
+            addUse(module, ((InstRet*)inst)->value, inst);
+        }
+    } else {
+        instructions.push(module.arena, pointer);
+
+        switch(inst->kind) {
+            case Value::LoadPlace:
+                addPlaceUse(module, ((InstLoadPlace*)inst)->place, inst);
+                break;
+            case Value::Init: {
+                auto init = (InstInit*)inst;
+                addPlaceUse(module, init->place, inst);
+                addUse(module, init->value, inst);
+                break;
+            }
+            case Value::Cast:
+            case Value::Neg:
+            case Value::Not:
+                addUse(module, ((InstUnary*)inst)->from, inst);
+                break;
+            case Value::Add:
+            case Value::Sub:
+            case Value::Mul:
+            case Value::Div:
+            case Value::Rem:
+            case Value::Shl:
+            case Value::Shr:
+            case Value::Sar:
+            case Value::And:
+            case Value::Or:
+            case Value::Xor:
+            case Value::Cmp: {
+                auto binary = (InstBinary*)inst;
+                addUse(module, binary->lhs, inst);
+                addUse(module, binary->rhs, inst);
+                break;
+            }
+            case Value::Call:
+                for(auto arg: ((InstCall*)inst)->args.contents(base)) addUse(module, arg, inst);
+                break;
+            default:
+                break;
+        }
     }
 
     return inst;
-}
-
-Value* Block::findValue(Module* module, StringId name) {
-    auto n = namedValues.get(name);
-    if(n) return n.unwrap();
-
-    if(preceding) {
-        return module->local[preceding]->findValue(module, name);
-    } else {
-        auto fun = module->local[function];
-
-        for(auto arg: fun->args.contents(module->local)) {
-            auto a = module->local[arg];
-            if(a->name == name) {
-                return a;
-            }
-        }
-        return nullptr;
-    }
-}
-
-Block* block(Module* module, Function* fun, bool deferAdd) {
-    auto block = new (module->memory) Block(fun - module->local, fun->blockCounter++);
-
-    if(!deferAdd) {
-        fun->blocks.push(module->memory, block - module->local);
-    }
-
-    return block;
-}
-
-void setName(Module* module, Value* v, StringId name) {
-    v->name = name;
-    if(name && v->block) {
-        module->local[v->block]->namedValues[name] = v;
-    }
 }

@@ -508,6 +508,19 @@ private:
         }
     }
 
+    // The return-root marker and the binding convention are written in source order, which is
+    // also the order they are parsed in: `return &value: T`.
+    void printArgConvention(bool returnRoot, BindType bind) {
+        if(returnRoot) stream.writeString("return "_v);
+
+        switch(bind) {
+            case BindType::Borrow: break;
+            case BindType::Ref: stream.writeString("&"_v); break;
+            case BindType::Sink: stream.writeString("->"_v); break;
+            case BindType::Set: stream.writeString("set "_v); break;
+        }
+    }
+
     void printFunExpr(Expr& e) {
         auto f = base[e.fun];
         stream.writeString("FunExpr "_v);
@@ -519,13 +532,7 @@ private:
 
         auto contents = f->args.contents(base);
         for(auto a = contents.begin(); a != contents.end(); ++a) {
-            switch((*a).bind) {
-                case BindType::Borrow: break;
-                case BindType::Ref: stream.writeString("&"_v); break;
-                case BindType::Sink: stream.writeString("->"_v); break;
-                case BindType::Set: stream.writeString("set "_v); break;
-            }
-
+            printArgConvention((*a).returnRoot, (*a).bind);
             write(stream, context.findName((*a).name));
 
             if((*a).type) {
@@ -575,12 +582,7 @@ private:
                 toStringIntro(i == args.back() && e.fun.ret == nullptr && e.fun.body == nullptr);
 
                 stream.writeString("Arg "_v);
-                switch(arg.bind) {
-                    case BindType::Borrow: break;
-                    case BindType::Ref: stream.writeString("&"_v); break;
-                    case BindType::Sink: stream.writeString("->"_v); break;
-                    case BindType::Set: stream.writeString("set "_v); break;
-                }
+                printArgConvention(arg.returnRoot, arg.bind);
                 write(stream, context.findName(arg.name));
 
                 makeLevel();
@@ -910,13 +912,7 @@ private:
 
     void toString(const ArgDecl& arg) {
         stream.writeString("Arg "_v);
-
-        switch(arg.bind) {
-            case BindType::Borrow: break;
-            case BindType::Ref: stream.writeString("&"_v); break;
-            case BindType::Sink: stream.writeString("->"_v); break;
-            case BindType::Set: stream.writeString("set "_v); break;
-        }
+        printArgConvention(arg.returnRoot, arg.bind);
 
         auto name = context.find(arg.name);
         if(name.textLength > 0) {

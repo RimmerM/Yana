@@ -1,0 +1,50 @@
+-- Decimal literals default to Float and take a floating type from context when there is one;
+-- an integer-syntax literal can resolve to a floating type directly, without a conversion.
+fn floatDefault() -> Float = 1.5
+
+fn doubleFromContext() -> Double = 1.5
+
+fn floatFromInteger() -> Float = 2
+
+fn doubleFromInteger() -> Double = 3
+
+fn ascribedDouble() -> Double = 1.5 :: Double
+
+fn ascribedFloat() -> Float = 4 :: Float
+
+-- Branch arms of different numeric types unify to the widest of them. The conversion has to be
+-- emitted in the arm it comes from, so these are the cases where the result type is only known
+-- after every arm has been resolved - there is no expected type to push down.
+fn mixedIf(c: Bool, a: Int, b: Double) -> Double = let v = if c then a else b in v
+
+fn mixedMultiIf(c: Bool, a: Int, b: Long) -> Long =
+    let v = (if:
+        c -> a
+        else -> b) in v
+
+fn mixedMatch(c: Bool, a: Int, b: Float) -> Float =
+    let v = match c:
+        True -> a
+        False -> b
+    in v
+
+-- One arm returning means the join has a single predecessor and needs no phi at all.
+fn divergingArm(c: Bool, a: Int) -> Int:
+    let v = if c then return 7 else a
+    return v
+
+fn main() -> Int =
+    (floatDefault() :: Int) +
+    (doubleFromContext() :: Int) +
+    (floatFromInteger() :: Int) +
+    (doubleFromInteger() :: Int) +
+    (ascribedDouble() :: Int) +
+    (ascribedFloat() :: Int) +
+    (mixedIf(True, 3, 4.5) :: Int) +
+    (mixedIf(False, 3, 4.5) :: Int) +
+    (mixedMultiIf(True, 5, 6) :: Int) +
+    (mixedMultiIf(False, 5, 6) :: Int) +
+    (mixedMatch(True, 8, 9.25) :: Int) +
+    (mixedMatch(False, 8, 9.25) :: Int) +
+    divergingArm(True, 1) +
+    divergingArm(False, 2)

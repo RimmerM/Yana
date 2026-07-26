@@ -318,6 +318,11 @@ struct Arg {
     ParsePtr<Type> type;    // nullable
     ParsePtr<Expr> def;     // nullable
     BindType bind;
+
+    // Set by the `return` marker: borrows in the function's result may be rooted in this
+    // argument. All marked arguments of one signature form a single return-root group, and
+    // the group is part of the function's type rather than of this declaration.
+    bool returnRoot = false;
 };
 
 struct FormatChunk {
@@ -340,6 +345,7 @@ struct ArgDecl {
     Type type;
     StringId name;
     BindType bind;
+    bool returnRoot = false;  // See Arg::returnRoot; a function type carries the same marker.
 };
 
 struct MapArg {

@@ -48,6 +48,7 @@ struct Parser: BasicParser<Lexer, Token> {
     ast::Expr parseQop();
     ast::FunKind parseFunKind();
     ast::BindType parseBindType();
+    bool parseReturnRoot();
 
     ast::SimpleType parseSimpleType();
     ast::Type parseType();

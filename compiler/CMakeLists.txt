@@ -33,8 +33,6 @@ target_link_libraries(YanaParse PUBLIC YanaCore)
 set(RESOLVE_SOURCE_FILES
     resolve/inst.h
     resolve/inst.cpp
-    resolve/validate.cpp
-    resolve/validate.h
     resolve/block.h
     resolve/block.cpp
     resolve/module.h
@@ -43,20 +41,20 @@ set(RESOLVE_SOURCE_FILES
     resolve/type.cpp
     resolve/print.cpp
     resolve/print.h
+    resolve/builder.h
     resolve/expr.cpp
     resolve/expr.h
     resolve/expr_call.cpp
     resolve/expr_construct.cpp
-    resolve/expr_convert.cpp
     resolve/expr_pat.cpp
     resolve/builtins.cpp
     resolve/builtins.h
-    resolve/eval.cpp
+    resolve/lower.h
     resolve/lower.cpp
 )
 
 add_library(YanaResolve ${RESOLVE_SOURCE_FILES})
-target_link_libraries(YanaResolve PUBLIC YanaCore)
+target_link_libraries(YanaResolve PUBLIC YanaCore YanaParse)
 
 set(LOWER_SOURCE_FILES
     lower/lower.h
@@ -78,6 +76,7 @@ set(LOWER_SOURCE_FILES
 
 add_library(YanaLower ${LOWER_SOURCE_FILES})
 target_link_libraries(YanaLower PUBLIC YanaCore)
+target_link_libraries(YanaResolve PUBLIC YanaLower)
 
 set(LLVM_SOURCE_FILES
     codegen/llvm/gen.cpp

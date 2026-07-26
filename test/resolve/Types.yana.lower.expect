@@ -1,0 +1,90 @@
+
+floatProduct<complex>(%a: Float, %b: Float): Float {
+  b_0 {
+    %v_1 = call_complex __builtin_f32_mul, %a, %b: Float
+    ret %v_1
+  }
+}
+
+doubleSum<complex>(%a: Double, %b: Double): Double {
+  b_0 {
+    %v_1 = call_complex __builtin_f64_add, %a, %b: Double
+    ret %v_1
+  }
+}
+
+__builtin_f64_add<complex>(%lhs: Double, %rhs: Double): Double {
+  b_0 {
+    %v_1 = add %lhs, %rhs: Double
+    ret %v_1
+  }
+}
+
+widen<complex>(%value: Int): Long {
+  b_0 {
+    %v_1 = sext %value: Long
+    ret %v_1
+  }
+}
+
+longLiteral<complex>(): Long {
+  b_0 {
+    ret 9
+  }
+}
+
+__builtin_f32_mul<complex>(%lhs: Float, %rhs: Float): Float {
+  b_0 {
+    %v_1 = mul %lhs, %rhs: Float
+    ret %v_1
+  }
+}
+
+__builtin_bool_and<complex>(%lhs: Int, %rhs: Int): Int {
+  b_0 {
+    %v_1 = and %lhs, %rhs: Int
+    ret %v_1
+  }
+}
+
+both<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %v_1 = call_complex __builtin_bool_and, %a, %b: Int
+    ret %v_1
+  }
+}
+
+floatLiteral<complex>(): Float {
+  b_0 {
+    ret 1.5
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex both, 1, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    %v_5 = call_complex widen, 7: Long
+    %v_6 = cast %v_5: Int
+    jmp b_4
+  }
+
+  b_4 {
+    %v_7 = phi [b_2, 0], [b_3, %v_6]: Int
+    ret %v_7
+  }
+}
+
+doubleLiteral<complex>(): Double {
+  b_0 {
+    ret 1.5
+  }
+}
+

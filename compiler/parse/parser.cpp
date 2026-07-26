@@ -943,6 +943,16 @@ ast::Expr Parser::parseVarDecl(const WithLocation& location, U32 line) {
 }
 
 ast::VarDecl Parser::parseDeclExpr() {
+    // A `let` takes the same binding conventions as a parameter, written the same way and in
+    // the same place. `set` is the exception: it is a parameter-position keyword, so a leading
+    // `set` here is an ordinary variable being bound rather than a convention.
+    auto bind = ast::BindType::Borrow;
+    if(maybe(Token::opArrowR)) {
+        bind = ast::BindType::Sink;
+    } else if(maybe(Token::opAmp)) {
+        bind = ast::BindType::Ref;
+    }
+
     auto pat = parsePattern();
 
     if(maybe(Token::opEquals)) {
@@ -971,9 +981,9 @@ ast::VarDecl Parser::parseDeclExpr() {
             in = heap(parseExpr());
         }
 
-        return { pat, heap(expr), in, alts, ast::BindType::Borrow };
+        return { pat, heap(expr), in, alts, bind };
     } else {
-        return { pat, nullptr, nullptr, {}, ast::BindType::Borrow };
+        return { pat, nullptr, nullptr, {}, bind };
     }
 }
 
@@ -1164,9 +1174,18 @@ ast::BindType Parser::parseBindType() {
     return ast::BindType::Borrow;
 }
 
+// `return` is the return-root marker only in parameter position, where the statement keyword
+// cannot appear; it is written before the binding convention (`return &value: T`). Which
+// conventions it may combine with, and that a marked parameter cannot also have a default
+// value, are resolve-stage rules rather than grammatical ones.
+bool Parser::parseReturnRoot() {
+    return maybe(Token::kwReturn).isJust();
+}
+
 void Parser::parseArg(ast::ParseList<ast::Arg>& list, bool requireType) {
     WithLocation location(*this);
 
+    auto returnRoot = parseReturnRoot();
     auto bind = parseBindType();
 
     auto name = tryMaybe(expect(Token::VarID, "expected parameter name"_v), return).id;
@@ -1190,6 +1209,7 @@ void Parser::parseArg(ast::ParseList<ast::Arg>& list, bool requireType) {
         .type = type,
         .def = def,
         .bind = bind,
+        .returnRoot = returnRoot,
     });
 }
 
@@ -1445,6 +1465,7 @@ void Parser::parseConstraints(ast::ConstraintList& list) {
 }
 
 void Parser::parseArgDecl(ast::ParseList<ast::ArgDecl>& list) {
+    auto returnRoot = parseReturnRoot();
     auto bind = parseBindType();
 
     if(token.type == Token::VarID) {
@@ -1456,7 +1477,7 @@ void Parser::parseArgDecl(ast::ParseList<ast::ArgDecl>& list) {
         eat();
 
         if(maybe(Token::opColon)) {
-            list.push(arena, ast::ArgDecl { parseType(), name, bind });
+            list.push(arena, ast::ArgDecl { parseType(), name, bind, returnRoot });
             return;
         }
 
@@ -1464,7 +1485,7 @@ void Parser::parseArgDecl(ast::ParseList<ast::ArgDecl>& list) {
         token = savedToken;
     }
 
-    list.push(arena, ast::ArgDecl { parseType(), 0, bind });
+    list.push(arena, ast::ArgDecl { parseType(), 0, bind, returnRoot });
 }
 
 void Parser::parseTypeArg(ast::ParseList<ast::ArgDecl>& list) {

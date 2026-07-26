@@ -1,0 +1,44 @@
+-- Binding conventions on a let declaration.
+fn f() =
+  let x = 0
+
+fn g() =
+  let &y = 0
+
+fn h() =
+  let ->z = 0
+
+-- Conventions in a multi-declaration let block.
+fn i():
+  let
+    a = 0
+    &b = a
+    ->c = a
+
+  return c
+
+-- Conventions with the 'in' form and with a fallback alternative.
+fn j() = let ->x = 0 in x
+
+fn k() = let &x = 0 | 1 in x
+
+-- Conventions in a where block.
+fn l() = y
+  where ->y = 0
+
+-- The return-root marker on function arguments.
+fn accessor(return self: Person) -> String = self.name
+
+fn selector(index: Int, return &objects: [Object]) -> &Object = objects[index]
+
+fn choose(flag: Bool, return &left: Object, return &right: Object) -> &Object =
+  if flag then left else right
+
+-- The same marker as part of a function type, named and unnamed.
+alias Accessor = (return Person) -> String
+alias Selector = (Int, return &[Object]) -> &Object
+alias NamedSelector = (index: Int, return &objects: [Object]) -> &Object
+
+-- And in constraint position.
+fn (pick: (return &a) -> &b)
+  m() = 0

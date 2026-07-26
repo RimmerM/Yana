@@ -1,354 +1,299 @@
-#include <alloca.h>
 #include "expr.h"
-#include "../parse/ast.h"
 
 /*
- * Handles resolving of named type construction.
- *  - Record types are constructed by the constructor name and a set of arguments for that constructor.
- *    Generic records are instantiated for the set of arguments provided.
- *  - Named primitive types (defined in builtins.cpp) are constructed like any expression,
- *    but implicitly converted to the target type with relaxed rules.
- *  - Alias types are instantiated for the set of arguments provided, if generic.
- *    The resulting type is constructed like a named primitive.
+ * Storage, places and aggregates.
+ *
+ * A place is a local plus a path into it (Implementation-IR.md part 2). Milestone 2 needs three
+ * of the projection kinds - Discriminant, Downcast and Field - and produces places in exactly
+ * two situations: constructing an aggregate, and reading a field out of one. Everything else in
+ * the resolver still works on SSA values, which is what keeps scalars out of memory entirely.
  */
 
-struct Args {
-    Value** values;
-    U32 count;
-};
+ModulePtr<Value> ExprResolver::allocate(TypePtr type, LocationId source, StringId valueName) {
+    auto allocation = emit<InstAlloc>(source, valueName, type, maxLimit<U32>);
+    auto result = ref(allocation);
 
-static Args buildArgs(FunBuilder* b, List<ast::TupArg>* arg) {
-    U32 argCount = 0;
-    while(arg) {
-        argCount++;
-        arg = arg->next;
-    }
-
-    auto args = (Value**)b->mem.alloc(sizeof(Value*) * argCount);
-    set(args, argCount, 0);
-
-    return {args, argCount};
+    allocation->local = function.addLocal(module, type, valueName, result);
+    return result;
 }
 
-static void matchArgs(FunBuilder* b, List<ast::TupArg>* arg, Field* fields, Args args) {
-    for(U32 i = 0; i < args.count; i++) {
-        Field* field = fields + i;
-        bool found = true;
-        auto argName = arg->item.name;
+// The place a value is stored in. A value loaded out of a place is addressed through that same
+// place again rather than through a copy, so that a field of a field resolves to one projection
+// path rather than to a chain of temporaries.
+Place ExprResolver::placeFor(ModulePtr<Value> value, LocationId source) {
+    if(value && local[value]->kind == Value::LoadPlace) {
+        return ((InstLoadPlace*)local[value])->place;
+    }
 
-        if(argName) {
-            Field* f = nullptr;
-            for(U32 a = 0; a < args.count; a++) {
-                auto ta = &fields[a];
-                if(argName == ta->name) {
-                    f = ta;
+    for(U32 i = 0; i < function.localCount(); i++) {
+        if(function.localAt(local, i).value == value) return Place { i, {} };
+    }
+
+    context.diagnostics.error("aggregate value does not have an addressable place"_v, source);
+    return Place { maxLimit<U32>, {} };
+}
+
+Place ExprResolver::project(Place place, ProjectionKind kind, U16 index) {
+    Place result { place.local, {} };
+
+    for(auto projection: place.projections.contents(local)) {
+        result.projections.push(module.arena, projection);
+    }
+
+    result.projections.push(module.arena, Projection { kind, index });
+    return result;
+}
+
+TypePtr ExprResolver::placeType(const Place& place) {
+    if(place.local >= function.localCount()) return module.scalar.error;
+    auto type = function.localAt(local, place.local).type;
+    auto projections = place.projections;
+
+    for(auto projection: projections.contents(local)) {
+        switch(projection.kind) {
+            case ProjectionKind::Discriminant:
+                type = module.scalar.int_;
+                break;
+            case ProjectionKind::Downcast: {
+                if(global[type]->kind != Type::Record) return module.scalar.error;
+
+                auto record = (RecordType*)global[type];
+                if(projection.index >= record->constructors.size()) return module.scalar.error;
+
+                type = record->constructors.get(global, projection.index).content;
+                break;
+            }
+            case ProjectionKind::Field: {
+                if(global[type]->kind != Type::Tup) return module.scalar.error;
+
+                auto tuple = (TupType*)global[type];
+                if(projection.index >= tuple->fields.size()) return module.scalar.error;
+
+                type = tuple->fields.get(global, projection.index).type;
+                break;
+            }
+            default:
+                return module.scalar.error;
+        }
+    }
+
+    return type;
+}
+
+ModulePtr<Value> ExprResolver::load(Place place, LocationId source, StringId valueName) {
+    auto type = placeType(place);
+    if(isUnit(global, type)) return nullptr;
+
+    return ref(emit<InstLoadPlace>(source, valueName, type, place));
+}
+
+void ExprResolver::initialize(Place place, ModulePtr<Value> value, LocationId source) {
+    if(isUnit(global, placeType(place))) return;
+
+    if(!value) {
+        context.diagnostics.error("cannot initialize aggregate field without a value"_v, source);
+        return;
+    }
+
+    emit<InstInit>(source, 0, module.scalar.unit, place, value);
+}
+
+// Writes one value into each field of `tuple`, matching the arguments to fields by name where
+// they have one and by position otherwise.
+bool ExprResolver::fillTuple(Place place, TupType& tuple, ast::ParseList<ast::TupArg> astArgs, LocationId source) {
+    auto args = astArgs.contents(parse);
+
+    Array<ModulePtr<Value>> values;
+    values.reserve(tuple.fields.size());
+    for(Size i = 0; i < tuple.fields.size(); i++) values.push(nullptr);
+
+    Size positional = 0;
+    auto success = true;
+
+    for(auto arg: args) {
+        Size index = maxLimit<Size>;
+
+        if(arg.name) {
+            for(Size i = 0; i < tuple.fields.size(); i++) {
+                if(tuple.fields.get(global, i).name == arg.name) {
+                    index = i;
                     break;
                 }
             }
-
-            if(f) {
-                field = f;
-            } else {
-                found = false;
-            }
-        }
-
-        if(found) {
-            if(args.values[field->index]) {
-                error(b, "argument specified more than once"_v, arg->item.value);
-            }
-
-            args.values[field->index] = resolveExpr(b, field->type, arg->item.value, 0, true);
         } else {
-            error(b, "constructed type has no field with this name"_v, arg->item.value);
+            while(positional < values.size() && values[positional]) positional++;
+            if(positional < values.size()) index = positional++;
         }
 
-        arg = arg->next;
-    }
-}
-
-static Value* resolveTupCon(FunBuilder* b, ast::ConExpr* expr, Con* con, Type* content, Id name);
-static Value* explicitConstruct(FunBuilder* b, Type* type, Type* targetType, ast::ConExpr* expr, Id name, bool required);
-
-static Value* constructAlias(FunBuilder* b, AliasType* alias, Type* targetType, ast::ConExpr* expr, Id name) {
-    // If the alias is complete, simply forward the arguments to its canonical type.
-    return explicitConstruct(b, alias->to, targetType, expr, name, true);
-}
-
-static Value* explicitConstruct(FunBuilder* b, Type* type, Type* targetType, ast::ConExpr* expr, Id name, bool required) {
-    // There are a whole bunch of possible cases we could support here,
-    // but most can't even be created by the parser.
-    // For now we handle aliases and primitive types.
-    if(type->kind == Type::Int || type->kind == Type::Float) {
-        if(!expr->args || expr->args->next) {
-            error(b, "incorrect number of arguments to type constructor"_v, expr);
-            return type->kind == Type::Int ? (Value*)constInt(b->block, name, 0, type) : constFloat(b->block, name, 0, type);
+        if(index == maxLimit<Size>) {
+            context.diagnostics.error(arg.name ? "constructed tuple has no field with this name"_v : "too many tuple arguments"_v, arg.value.source);
+            success = false;
+            continue;
         }
 
-        auto arg = resolveExpr(b, type, expr->args->item.value, name, true);
-        auto v = implicitConvert(b, arg, type, true, required);
-        return v ? v : arg;
-    } else if(type->kind == Type::String) {
-        if(!expr->args || expr->args->next) {
-            error(b, "incorrect number of arguments to string constructor"_v, expr);
-            return constString(b->block, name, "", 0);
+        if(values[index]) {
+            context.diagnostics.error("tuple field specified more than once"_v, arg.value.source);
+            success = false;
+            continue;
         }
 
-        auto arg = resolveExpr(b, type, expr->args->item.value, name, true);
-        if(arg->type->kind != Type::String) {
-            error(b, "strings must be constructed with a string"_v, expr);
-            return constString(b->block, name, "", 0);
-        }
+        auto expected = tuple.fields.get(global, index).type;
+        values[index] = resolve(arg.value, expected);
 
-        return arg;
-    } else if(type->kind == Type::Alias) {
-        // This won't handle aliases to record types.
-        // Constructing a record using the alias name is impossible,
-        // since record construction requires a constructor name instead of a type name.
-        return constructAlias(b, (AliasType*)type, targetType, expr, name);
-    } else if(type->kind == Type::Tup) {
-        auto tup = (TupType*)type;
-        auto args = buildArgs(b, expr->args);
-
-        if(args.count != tup->count) {
-            error(b, "invalid field count for tuple type: %@ required, but %@ were provided"_v, expr->type, tup->count, args.count);
-        }
-
-        matchArgs(b, expr->args, tup->fields, args);
-
-        if(tup->named && args.count == tup->count) {
-            for(U32 i = 0; i < tup->count; i++) {
-                if(!args.values[i]) {
-                    error(b, "no value provided for field '%@'"_v, expr->type, b->context.findName(tup->fields[i].name));
-                    args.values[i] = error(b->block, 0, tup->fields[i].type);
-                }
-            }
-        }
-
-        // Implicitly convert each field to the correct type.
-        // Generic fields are automatically instantiated to the actual type from the arguments.
-        // If any generic fields were instantiated, we have to generate a new TupType for this expression.
-        U32 genCount = 0;
-        for(U32 i = 0; i < args.count; i++) {
-            auto fieldType = tup->fields[i].type;
-            if(fieldType->kind == Type::Gen) {
-                genCount++;
-            } else {
-                auto v = implicitConvert(b, args.values[i], fieldType, true, required);
-                if(v) args.values[i] = v;
-            }
-        }
-
-        auto finalType = tup;
-        if(genCount > 0) {
-            auto finalFields = (Field*)alloca(sizeof(Field) * args.count);
-            for(U32 i = 0; i < args.count; i++) {
-                finalFields[i].type = args.values[i]->type;
-                finalFields[i].name = tup->fields[i].name;
-            }
-
-            finalType = resolveTupType(&b->context, b->fun->module, finalFields, args.count);
-        }
-
-        return ::tup(b->block, name, finalType, args.values, args.count);
-    } else if(type->kind == Type::Record) {
-        // This case can happen when explicitly constructing an alias pointing to a record.
-        // We support this for single-constructor records; records with multiple constructors
-        // have to be created with a constructor name rather than the alias name.
-        auto record = (RecordType*)type;
-        if(record->kind == RecordType::Single) {
-            return resolveTupCon(b, expr, &record->cons[0], record->cons[0].content, name);
-        } else {
-            error(b, "record %@ can only be constructed through a constructor name"_v, expr, b->context.findName(record->name));
-            return error(b->block, name, type);
-        }
-    } else if(type->kind == Type::Fun) {
-        // TODO
-        error(b, "not implemented"_v, expr);
-        return error(b->block, name, type);
-    } else if(type->kind == Type::Unit) {
-        if(expr->args) {
-            error(b, "incorrect number of arguments to unit type constructor"_v, expr);
-        }
-
-        return nop(b->block, name);
-    } else if(type->kind == Type::Error) {
-        return error(b->block, name, type);
-    } else if(!required) {
-        if(!expr->args || expr->args->next) {
-            error(b, "cannot convert multiple arguments to single type"_v, expr);
-            return error(b->block, name, type);
-        } else {
-            return resolveExpr(b, targetType, expr->args->item.value, name, true);
+        if(values[index] && !isMemoryType(global, expected)) {
+            values[index] = convert(values[index], expected, arg.value.source);
         }
     }
 
-    error(b, "cannot construct this type"_v, expr->type);
-    return error(b->block, name, type);
+    if(args.size() != tuple.fields.size()) {
+        context.diagnostics.error("incorrect number of tuple fields"_v, source);
+        success = false;
+    }
+
+    for(Size i = 0; i < values.size(); i++) {
+        if(!values[i]) {
+            context.diagnostics.error("no value provided for tuple field"_v, source);
+            success = false;
+            continue;
+        }
+
+        initialize(project(place, ProjectionKind::Field, U16(i)), values[i], source);
+    }
+
+    return success;
 }
 
-static Value* resolveMiscCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr, Id name) {
-    auto type = findType(&b->context, b->fun->module, expr->type->con);
-    if(!type) {
-        error(b, "cannot find type"_v, expr->type);
+ModulePtr<Value> ExprResolver::resolveTuple(const ast::Expr& expr, ast::ParseList<ast::TupArg> astArgs, TypePtr target) {
+    if(astArgs.isEmpty()) return nullptr;
+
+    TupType* tuple = nullptr;
+    Array<ModulePtr<Value>> inferredValues;
+
+    // With no expected type the tuple's own type is whatever its arguments turn out to be, so
+    // they are resolved first and the type interned from their results.
+    if(target && global[target]->kind == Type::Tup) {
+        tuple = (TupType*)global[target];
+    } else {
+        Array<Field> fields;
+
+        for(auto arg: astArgs.contents(parse)) {
+            auto value = resolve(arg.value);
+            inferredValues.push(value);
+            fields.push(Field { valueType(value), arg.name, 0 });
+        }
+
+        tuple = resolveTupleType(context, module, toBuffer(fields), expr.source);
+    }
+
+    auto result = allocate((Type*)tuple - global, expr.source);
+    auto place = placeFor(result, expr.source);
+
+    if(inferredValues.isNotEmpty()) {
+        for(Size i = 0; i < inferredValues.size(); i++) {
+            initialize(project(place, ProjectionKind::Field, U16(i)), inferredValues[i], expr.source);
+        }
+    } else {
+        fillTuple(place, *tuple, astArgs, expr.source);
+    }
+
+    return result;
+}
+
+ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast::ConExpr& construct, TypePtr target) {
+    if(construct.type.kind != ast::Type::Con) {
+        context.diagnostics.error("constructor must have a named type"_v, expr.source);
         return nullptr;
     }
 
-    return explicitConstruct(b, type, targetType, expr, name, true);
-}
+    auto found = module.constructors.get(construct.type.name);
+    if(!found) {
+        context.diagnostics.error("unknown constructor %@"_v, expr.source, context.findName(construct.type.name));
+        return nullptr;
+    }
 
-static Value* argumentCountError(FunBuilder* b, Con* con, U32 wantedCount, Node* source, Id name) {
-    error(b, "incorrect number of arguments to constructor. Constructor %@ requires %@ argument(s)"_v, source, b->context.findName(con->name), wantedCount);
-    return error(b->block, name, con->parent);
-}
+    auto reference = found.unwrap();
+    auto record = global[reference.record];
+    auto recordType = (Type*)record - global;
 
-static Con* targetCon(Con* con, Type* targetType) {
-    return con;
-}
+    if(target && !sameType(target, recordType)) {
+        context.diagnostics.error("constructor does not produce the expected type"_v, expr.source);
+    }
 
-static Value* resolveEmptyCon(FunBuilder* b, Con* con, Node* source, Id name) {
-    return record(b->block, name, con, nullptr);
-}
+    auto constructor = record->constructors.get(global, reference.index);
+    auto constructArgs = construct.args;
+    auto args = constructArgs.contents(parse);
 
-static Value* resolveTupCon(FunBuilder* b, ast::ConExpr* expr, Con* con, Type* content, Id name) {
-    auto args = buildArgs(b, expr->args);
-    Field* fields;
-    U32 fieldCount;
-    Field dummyField;
+    // A record whose constructors all carry nothing is just its discriminant, so constructing
+    // one produces the index as a value rather than storage holding it.
+    if(record->layout == RecordType::Enum) {
+        if(args.size()) context.diagnostics.error("nullary constructor does not take arguments"_v, expr.source);
+        return makeInt(expr.source, recordType, reference.index);
+    }
 
-    if(content->kind == Type::Tup) {
-        // TODO: Support creation from an existing tuple.
-        auto tup = (TupType*)content;
-        if(args.count != tup->count) {
-            return argumentCountError(b, con, tup->count, expr, name);
-        }
+    auto result = allocate(recordType, expr.source);
+    auto root = placeFor(result, expr.source);
 
-        // Match the provided arguments to fields in the target type.
-        matchArgs(b, expr->args, tup->fields, args);
+    if(record->layout == RecordType::Multi) {
+        auto discriminant = makeInt(expr.source, module.scalar.int_, reference.index);
+        initialize(project(root, ProjectionKind::Discriminant, 0), discriminant, expr.source);
+    }
 
-        // If the target type uses named fields, make sure that each field was actually provided.
-        // Checking the argument count is not enough, since there may be arguments with unknown or duplicate field names.
-        if(tup->named) {
-            for(U32 i = 0; i < tup->count; i++) {
-                if(!args.values[i]) {
-                    error(b, "no value provided for field '%@'"_v, expr->type, b->context.findName(tup->fields[i].name));
-                    args.values[i] = error(b->block, 0, tup->fields[i].type);
-                }
-            }
-        }
+    auto content = constructor.content;
+    auto contentPlace = project(root, ProjectionKind::Downcast, reference.index);
 
-        fields = tup->fields;
-        fieldCount = tup->count;
+    if(!content || isUnit(global, content)) {
+        if(args.size()) context.diagnostics.error("nullary constructor does not take arguments"_v, expr.source);
+    } else if(global[content]->kind == Type::Tup) {
+        fillTuple(contentPlace, *(TupType*)global[content], construct.args, expr.source);
+    } else if(args.size() != 1 || args[0].name) {
+        context.diagnostics.error("constructor requires one positional argument"_v, expr.source);
     } else {
-        if(args.count != 1) {
-            return argumentCountError(b, con, 1, expr, name);
-        }
+        auto value = resolve(args[0].value, content);
+        if(value && !isMemoryType(global, content)) value = convert(value, content, args[0].value.source);
 
-        args.values[0] = resolveExpr(b, content, expr->args->item.value, 0, true);
-
-        fields = &dummyField;
-        fieldCount = 1;
-        dummyField = { content, nullptr, 0, 0 };
+        initialize(contentPlace, value, expr.source);
     }
 
-    auto base = con->parent->base();
-    if(base->argCount) {
-        // If the created type contains type arguments, match any generic types to the actual argument types.
-        // This only solves type arguments that are used in this constructor -
-        // any additional ones will have to have been provided by the target type.
-        auto argCount = base->argCount;
-        auto instance = (Type**)alloca(sizeof(Type*) * argCount);
-        set(instance, argCount, 0);
-
-        // When we resolve the construction of a generic record inside of another generic record,
-        // we get the situation where the nested record is already instantiated and thus has no arguments.
-        // However, to resolve everything correctly, we still need to instantiate the type with the provided values.
-        if(con->parent->instanceOf) {
-            copy(con->parent->instance, instance, argCount);
-        }
-
-        auto baseCon = base->cons[con->index].content;
-        if(baseCon->kind == Type::Tup) {
-            fields = ((TupType*)baseCon)->fields;
-        } else {
-            dummyField = {baseCon, nullptr, 0, 0};
-        }
-
-        auto changeCount = 0u;
-        for(U32 i = 0; i < fieldCount; i++) {
-            matchGens(fields[i].type, args.values[i]->type, [&](GenType* gen, Type* target) {
-                assertTrue(gen->env->container == base);
-                assertTrue(gen->index < argCount);
-                assertTrue(target->kind != Type::Gen || ((GenType*)target)->env->kind == GenEnv::Function);
-                instance[gen->index] = target;
-                changeCount++;
-            });
-        }
-
-        // Make sure each type argument is defined.
-        // If there are remaining type arguments, we don't have enough information to determine the final type.
-        auto failCount = 0u;
-        for(U32 i = 0; i < argCount; i++) {
-            if(instance[i] == nullptr) {
-                instance[i] = &errorType;
-                failCount++;
-            }
-        }
-
-        if(failCount > 0) {
-            error(b, "cannot infer type of constructor %@ in this context"_v, expr, b->context.findName(con->name));
-        }
-
-        if(changeCount > 0) {
-            auto targetType = instantiateRecord(&b->context, b->fun->module, base, instance, argCount, nullptr, true);
-            con = &targetType->cons[con->index];
-            content = canonicalType(con->content);
-
-            if(content->kind == Type::Tup) {
-                fields = ((TupType*)content)->fields;
-            } else {
-                dummyField = {content, nullptr, 0, 0};
-            }
-        }
-    }
-
-    // Finally, make sure the final field types are correct and perform implicit conversions where possible.
-    for(U32 i = 0; i < args.count; i++) {
-        args.values[i] = implicitConvert(b, args.values[i], fields[i].type, true, true);
-    }
-
-    Value* value;
-    if(content->kind == Type::Tup) {
-        value = tup(b->block, 0, content, args.values, args.count);
-    } else {
-        value = args.values[0];
-    }
-
-    return record(b->block, name, con, value);
+    return result;
 }
 
-Value* resolveCon(FunBuilder* b, Type* targetType, ast::ConExpr* expr, Id name) {
-    // Check if there is a record constructor for this name.
-    // If not, try to explicitly construct the corresponding type instead.
-    auto con = findCon(&b->context, b->fun->module, expr->type->con);
-    if(!con) {
-        return resolveMiscCon(b, targetType, expr, name);
+ModulePtr<Value> ExprResolver::resolveField(const ast::Expr& expr, const ast::FieldExpr& field) {
+    if(field.field.kind != ast::Expr::Var) {
+        context.diagnostics.error("field selection requires a field name"_v, field.field.source);
+        return nullptr;
     }
 
-    // If we have a target type, match it to the constructor to get additional type constraints if possible.
-    con = targetCon(con, targetType);
+    auto value = resolve(field.target);
+    if(!value) return nullptr;
 
-    auto content = con->content;
-    auto arg = expr->args;
+    auto place = placeFor(value, field.target.source);
+    auto type = valueType(value);
 
-    if(!content) {
-        if(arg) {
-            error(b, "incorrect number of arguments to constructor. Constructor %@ requires 0 arguments, but one or more was provided."_v, expr, b->context.findName(con->name));
+    // A single-constructor record has no discriminant to test, so selecting a field out of one
+    // is a downcast to its only constructor followed by an ordinary field projection.
+    if(global[type]->kind == Type::Record) {
+        auto record = (RecordType*)global[type];
+        if(record->layout != RecordType::Single) {
+            context.diagnostics.error("direct field selection requires a single-constructor record"_v, expr.source);
+            return nullptr;
         }
 
-        return resolveEmptyCon(b, con, expr, name);
+        place = project(place, ProjectionKind::Downcast, 0);
+        type = record->constructors.get(global, 0).content;
     }
 
-    content = canonicalType(content);
-    return resolveTupCon(b, expr, con, content, name);
+    if(!type || global[type]->kind != Type::Tup) {
+        context.diagnostics.error("value does not contain named fields"_v, expr.source);
+        return nullptr;
+    }
+
+    auto tuple = (TupType*)global[type];
+    for(Size i = 0; i < tuple->fields.size(); i++) {
+        if(tuple->fields.get(global, i).name == field.field.var) {
+            return load(project(place, ProjectionKind::Field, U16(i)), expr.source);
+        }
+    }
+
+    context.diagnostics.error("unknown field %@"_v, field.field.source, context.findName(field.field.var));
+    return nullptr;
 }

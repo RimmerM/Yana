@@ -1,0 +1,74 @@
+fn __builtin_f32_mul(%lhs: Float, %rhs: Float) -> Float {
+  b0:
+    %v2 = mul %lhs, %rhs : Float
+    ret %v2
+}
+
+fn __builtin_f64_add(%lhs: Double, %rhs: Double) -> Double {
+  b0:
+    %v2 = add %lhs, %rhs : Double
+    ret %v2
+}
+
+fn __builtin_bool_and(%lhs: Bool, %rhs: Bool) -> Bool {
+  b0:
+    %v2 = and %lhs, %rhs : Bool
+    ret %v2
+}
+
+fn widen(%value: Int) -> Long {
+  b0:
+    %v1 = cast %value : Long
+    ret %v1
+}
+
+fn longLiteral() -> Long {
+  b0:
+    ret 9
+}
+
+fn floatLiteral() -> Float {
+  b0:
+    ret 1.5
+}
+
+fn doubleLiteral() -> Double {
+  b0:
+    ret 1.5
+}
+
+fn floatProduct(%a: Float, %b: Float) -> Float {
+  b0:
+    %v2 = call __builtin_f32_mul, %a, %b : Float
+    ret %v2
+}
+
+fn doubleSum(%a: Double, %b: Double) -> Double {
+  b0:
+    %v2 = call __builtin_f64_add, %a, %b : Double
+    ret %v2
+}
+
+fn both(%a: Bool, %b: Bool) -> Bool {
+  b0:
+    %v2 = call __builtin_bool_and, %a, %b : Bool
+    ret %v2
+}
+
+fn main() -> Int {
+  b0:
+    %v2 = call both, True, False : Bool
+    je %v2, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    %v6 = call widen, 7 : Long
+    %v7 = cast %v6 : Int
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, 0], [b2, %v7] : Int
+    ret %v10
+}

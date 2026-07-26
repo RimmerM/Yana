@@ -1,0 +1,133 @@
+Module 
+|-FunDecl f <implicit return> 
+| `-Body
+|   `-DeclExpr 
+|     `-VarDecl x <borrow> 
+|       |-VarPat x
+|       `-LitExpr 0
+|-FunDecl g <implicit return> 
+| `-Body
+|   `-DeclExpr 
+|     `-VarDecl y <ref> 
+|       |-VarPat y
+|       `-LitExpr 0
+|-FunDecl h <implicit return> 
+| `-Body
+|   `-DeclExpr 
+|     `-VarDecl z <sink> 
+|       |-VarPat z
+|       `-LitExpr 0
+|-FunDecl i
+| `-Body
+|   `-MultiExpr 
+|     |-DeclExpr 
+|     | |-VarDecl a <borrow> 
+|     | | |-VarPat a
+|     | | `-LitExpr 0
+|     | |-VarDecl b <ref> 
+|     | | |-VarPat b
+|     | | `-VarExpr a
+|     | `-VarDecl c <sink> 
+|     |   |-VarPat c
+|     |   `-VarExpr a
+|     `-RetExpr 
+|       `-VarExpr c
+|-FunDecl j <implicit return> 
+| `-Body
+|   `-DeclExpr 
+|     `-VarDecl x <sink> 
+|       |-VarPat x
+|       |-LitExpr 0
+|       `-In
+|         `-VarExpr x
+|-FunDecl k <implicit return> 
+| `-Body
+|   `-DeclExpr 
+|     `-VarDecl x <ref> 
+|       |-VarPat x
+|       |-LitExpr 0
+|       |-Else
+|       | `-Alt
+|       |   |-AnyPat
+|       |   `-LitExpr 1
+|       `-In
+|         `-VarExpr x
+|-FunDecl l <implicit return> 
+| `-Body
+|   `-MultiExpr 
+|     |-VarExpr y
+|     `-DeclExpr 
+|       `-VarDecl y <sink> 
+|         |-VarPat y
+|         `-LitExpr 0
+|-FunDecl accessor <implicit return> 
+| |-Arg return self
+| | `-ConType Person
+| |-Result
+| | `-ConType String
+| `-Body
+|   `-FieldExpr 
+|     |-VarExpr name
+|     `-VarExpr self
+|-FunDecl selector <implicit return> 
+| |-Arg index
+| | `-ConType Int
+| |-Arg return &objects
+| | `-ArrType 
+| |   `-ConType Object
+| |-Result
+| | `-BorrowType 
+| |   `-ConType Object
+| `-Body
+|   `-SubExpr 
+|     |-VarExpr objects
+|     `-Field <anonymous>
+|       `-VarExpr index
+|-FunDecl choose <implicit return> 
+| |-Arg flag
+| | `-ConType Bool
+| |-Arg return &left
+| | `-ConType Object
+| |-Arg return &right
+| | `-ConType Object
+| |-Result
+| | `-BorrowType 
+| |   `-ConType Object
+| `-Body
+|   `-IfExpr 
+|     |-VarExpr flag
+|     |-VarExpr left
+|     `-VarExpr right
+|-AliasDecl Accessor 
+| `-FunType 
+|   |-Arg return <anonymous>
+|   | `-ConType Person
+|   `-ConType String
+|-AliasDecl Selector 
+| `-FunType 
+|   |-Arg <anonymous>
+|   | `-ConType Int
+|   |-Arg return &<anonymous>
+|   | `-ArrType 
+|   |   `-ConType Object
+|   `-BorrowType 
+|     `-ConType Object
+|-AliasDecl NamedSelector 
+| `-FunType 
+|   |-Arg index
+|   | `-ConType Int
+|   |-Arg return &objects
+|   | `-ArrType 
+|   |   `-ConType Object
+|   `-BorrowType 
+|     `-ConType Object
+`-FunDecl m <implicit return> 
+  |-<constraints>
+  | `-FunctionConstraint pick
+  |   `-FunType 
+  |     |-Arg return &<anonymous>
+  |     | `-GenType a
+  |     `-BorrowType 
+  |       `-GenType b
+  `-Body
+    `-LitExpr 0

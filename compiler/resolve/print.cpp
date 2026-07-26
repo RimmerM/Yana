@@ -1,468 +1,325 @@
 #include "print.h"
 
-void printValue(Net::Writer& stream, Context& context, Module& module, const Value* value) {
-    if(value->kind == Value::Arg || value->kind == Value::Global || value->kind >= Value::FirstInst) {
-        stream.writeByte('%');
+struct ResolvePrint {
+    Net::Writer& writer;
+    Context& context;
+    Module& module;
+    GlobalBase global;
+    ModuleBase local;
+};
 
-        auto name = context.find(value->name);
-        if(name.textLength > 0) {
-            stream.writeBytes((const Byte*)name.text, name.textLength);
-        } else if(value->kind >= Value::FirstInst) {
-            stream << value->id;
-        } else if(value->kind == Value::Arg) {
-            stream.writeByte('a');
-            stream << ((Arg*)value)->index;
+static void writeUInt(Net::Writer& writer, U64 value) {
+    writer.writeBytes(64, [&](Byte* buffer) {
+        return show(value, (char*)buffer, 64);
+    });
+}
+
+static void writeFloat(Net::Writer& writer, F64 value) {
+    writer.writeBytes(64, [&](Byte* buffer) {
+        return show(value, (char*)buffer, 64);
+    });
+}
+
+static void printType(ResolvePrint& print, TypePtr pointer) {
+    auto type = print.global[pointer];
+    if(type->kind == Type::Record) {
+        print.writer.writeString(print.context.findName(((RecordType*)type)->name));
+        return;
+    }
+
+    if(type->kind == Type::Tup) {
+        auto tuple = (TupType*)type;
+        print.writer.writeByte('{');
+
+        for(Size i = 0; i < tuple->fields.size(); i++) {
+            if(i) print.writer.writeString(", "_v);
+            auto field = tuple->fields.get(print.global, i);
+            if(field.name) {
+                print.writer.writeString(print.context.findName(field.name));
+                print.writer.writeString(": "_v);
+            }
+
+            printType(print, field.type);
+        }
+
+        print.writer.writeByte('}');
+        return;
+    }
+
+    print.writer.writeString(typeName(print.global, pointer));
+}
+
+static void printPlace(ResolvePrint& print, Function& function, const Place& place) {
+    auto known = place.local < function.localCount();
+    auto root = known ? function.localAt(print.local, place.local) : Local {};
+    print.writer.writeByte('%');
+
+    if(root.name) {
+        print.writer.writeString(print.context.findName(root.name));
+    } else {
+        print.writer.writeString("local"_v);
+        writeUInt(print.writer, place.local);
+    }
+
+    auto type = known ? root.type : print.module.scalar.error;
+    auto projections = place.projections;
+
+    for(auto projection: projections.contents(print.local)) {
+        if(projection.kind == ProjectionKind::Discriminant) {
+            print.writer.writeString(".discriminant"_v);
+            type = print.module.scalar.int_;
+        } else if(projection.kind == ProjectionKind::Downcast) {
+            auto record = (RecordType*)print.global[type];
+            print.writer.writeByte('@');
+            print.writer.writeString(print.context.findName(record->constructors.get(print.global, projection.index).name));
+            type = record->constructors.get(print.global, projection.index).content;
+        } else if(projection.kind == ProjectionKind::Field) {
+            auto tuple = (TupType*)print.global[type];
+            auto field = tuple->fields.get(print.global, projection.index);
+            print.writer.writeByte('.');
+
+            if(field.name) print.writer.writeString(print.context.findName(field.name));
+            else writeUInt(print.writer, projection.index);
+            type = field.type;
         } else {
-            stream.writeString("<unnamed>"_v);
-        }
-    } else if(value->kind == Value::ConstInt) {
-        stream << ((ConstInt*)value)->value;
-        stream.writeString(": "_v);
-        printType(stream, context, module, module.global[value->type]);
-    } else if(value->kind == Value::ConstFloat) {
-        stream << ((ConstFloat*)value)->value;
-        stream.writeString(": ");
-        printType(stream, context, module, module.global[value->type]);
-    } else if(value->kind == Value::ConstString) {
-        auto c = ((ConstString*)value);
-        auto string = context.findName(c->value);
-
-        stream.writeByte('"');
-        stream.writeString(string);
-        stream.writeByte('"');
-    }
-}
-
-void printType(Net::Writer& stream, Context& context, Module& module, const Type* type) {
-    switch(type->kind) {
-        case Type::Unit:
-            stream.writeString("void"_v);
-            break;
-        case Type::Error:
-            stream.writeString("<type error>"_v);
-            break;
-        case Type::Int:
-            stream.writeByte('i');
-            stream << ((IntType*)type)->bits;
-            break;
-        case Type::Float:
-            stream.writeByte('f');
-            stream << ((FloatType*)type)->bits;
-            break;
-        case Type::String:
-            stream.writeString("String"_v);
-            break;
-        case Type::Ptr:
-            stream.writeByte('*');
-            printType(stream, context, module, module.global[((PtrType*)type)->to]);
-            break;
-        case Type::Array:
-            stream.writeByte('[');
-            printType(stream, context, module, module.global[((ArrayType*)type)->content]);
-            stream.writeByte(']');
-            break;
-        case Type::Map:
-            stream.writeByte('[');
-            printType(stream, context, module, module.global[((MapType*)type)->from]);
-            stream.writeString(" -> "_v);
-            printType(stream, context, module, module.global[((MapType*)type)->to]);
-            stream.writeByte(']');
-            break;
-        case Type::Record: {
-            auto record = (RecordType*)type;
-            auto name = context.find(record->name);
-            if(name.textLength > 0) {
-                stream.writeBytes((const Byte*)name.text, name.textLength);
-            }
-
-            break;
-        }
-        case Type::Tup: {
-            auto tup = (TupType*)type;
-            stream.writeByte('{');
-            for(Size i = 0; i < tup->count; i++) {
-                printType(stream, context, tup->fields[i].type);
-                if(i < tup->count - 1) {
-                    stream.writeString(", "_v);
-                }
-            }
-            stream.writeByte('}');
-            break;
-        }
-        case Type::Fun: {
-            auto fun = (FunType*)type;
-            stream.writeByte('(');
-            for(Size i = 0; i < fun->argCount; i++) {
-                printType(stream, context, fun->args[i].type);
-                if(i < fun->argCount - 1) {
-                    stream.writeString(", "_v);
-                }
-            }
-            stream.writeString(") -> "_v);
-            printType(stream, context, module, module.global[fun->result]);
-            break;
-        }
-        case Type::Alias: {
-            printType(stream, context, module, module.global[((AliasType*)type)->to]);
-            break;
+            print.writer.writeString(projection.kind == ProjectionKind::Deref ? ".*"_v : "[...]"_v);
         }
     }
 }
 
-void printBlockName(Net::Writer& stream, Module& module, Block& block) {
+static void printValue(ResolvePrint& print, Value& value) {
+    if(value.name) {
+        print.writer.writeByte('%');
+        print.writer.writeString(print.context.findName(value.name));
+        return;
+    }
+
+    switch(value.kind) {
+        case Value::ConstInt:
+            if(isBool(print.global, value.type)) {
+                print.writer.writeString(((ConstInt&)value).value ? "True"_v : "False"_v);
+            } else {
+                writeUInt(print.writer, ((ConstInt&)value).value);
+            }
+
+            return;
+        case Value::ConstFloat:
+            writeFloat(print.writer, ((ConstFloat&)value).value);
+            return;
+        case Value::ConstDouble:
+            writeFloat(print.writer, ((ConstDouble&)value).value);
+            return;
+        default:
+            print.writer.writeString("%v"_v);
+            writeUInt(print.writer, value.id);
+            return;
+    }
+}
+
+static StringView instructionName(Value& value, GlobalBase global) {
+    switch(value.kind) {
+        case Value::Alloc: return "alloc"_v;
+        case Value::LoadPlace: return "load"_v;
+        case Value::Init: return "init"_v;
+        case Value::Cast: return "cast"_v;
+        case Value::Neg: return "neg"_v;
+        case Value::Not: return "not"_v;
+        case Value::Add: return "add"_v;
+        case Value::Sub: return "sub"_v;
+        case Value::Mul: return "mul"_v;
+        case Value::Div: return "div"_v;
+        case Value::Rem: return "rem"_v;
+        case Value::Shl: return "shl"_v;
+        case Value::Shr: return "shr"_v;
+        case Value::Sar: return "sar"_v;
+        case Value::And: return "and"_v;
+        case Value::Or: return "or"_v;
+        case Value::Xor: return "xor"_v;
+        case Value::Cmp: {
+            switch(((InstCmp&)value).cmp) {
+                case CompareOp::Eq: return "cmp_eq"_v;
+                case CompareOp::Ne: return "cmp_ne"_v;
+                case CompareOp::Gt: return "cmp_gt"_v;
+                case CompareOp::Ge: return "cmp_ge"_v;
+                case CompareOp::Lt: return "cmp_lt"_v;
+                case CompareOp::Le: return "cmp_le"_v;
+            }
+            break;
+        }
+        case Value::Call: return "call"_v;
+        case Value::Je: return "je"_v;
+        case Value::Jmp: return "jmp"_v;
+        case Value::Ret: return "ret"_v;
+        case Value::Phi: return "phi"_v;
+        default: break;
+    }
+    return "<invalid>"_v;
+}
+
+static void printBlockRef(ResolvePrint& print, Block& block) {
+    print.writer.writeString("b"_v);
+    writeUInt(print.writer, block.index);
+}
+
+static void printInstruction(ResolvePrint& print, Inst& inst) {
+    print.writer.writeString("    "_v);
+
+    auto produces = !isTerminator(inst) && !isUnit(print.global, inst.type);
+    if(produces) {
+        printValue(print, inst);
+        print.writer.writeString(" = "_v);
+    }
+
+    print.writer.writeString(instructionName(inst, print.global));
+    auto function = print.local[print.local[inst.block]->function];
+
+    switch(inst.kind) {
+        case Value::Alloc:
+            break;
+        case Value::LoadPlace:
+            print.writer.writeByte(' ');
+            printPlace(print, *function, ((InstLoadPlace&)inst).place);
+            break;
+        case Value::Init: {
+            auto& init = (InstInit&)inst;
+            print.writer.writeByte(' ');
+            printPlace(print, *function, init.place);
+            print.writer.writeString(", "_v);
+            printValue(print, *print.local[init.value]);
+            break;
+        }
+        case Value::Cast:
+        case Value::Neg:
+        case Value::Not: {
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[((InstUnary&)inst).from]);
+            break;
+        }
+        case Value::Add:
+        case Value::Sub:
+        case Value::Mul:
+        case Value::Div:
+        case Value::Rem:
+        case Value::Shl:
+        case Value::Shr:
+        case Value::Sar:
+        case Value::And:
+        case Value::Or:
+        case Value::Xor:
+        case Value::Cmp: {
+            auto& binary = (InstBinary&)inst;
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[binary.lhs]);
+            print.writer.writeString(", "_v);
+            printValue(print, *print.local[binary.rhs]);
+            break;
+        }
+        case Value::Call: {
+            auto& call = (InstCall&)inst;
+            print.writer.writeByte(' ');
+            print.writer.writeString(print.context.findName(print.local[call.callee]->name));
+
+            for(auto arg: call.args.contents(print.local)) {
+                print.writer.writeString(", "_v);
+                printValue(print, *print.local[arg]);
+            }
+
+            break;
+        }
+        case Value::Je: {
+            auto& branch = (InstJe&)inst;
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[branch.cond]);
+            print.writer.writeString(", "_v);
+            printBlockRef(print, *print.local[branch.thenBlock]);
+            print.writer.writeString(", "_v);
+            printBlockRef(print, *print.local[branch.elseBlock]);
+            break;
+        }
+        case Value::Jmp:
+            print.writer.writeByte(' ');
+            printBlockRef(print, *print.local[((InstJmp&)inst).target]);
+            break;
+        case Value::Ret: {
+            auto value = ((InstRet&)inst).value;
+            if(value) {
+                print.writer.writeByte(' ');
+                printValue(print, *print.local[value]);
+            }
+
+            break;
+        }
+        case Value::Phi: {
+            auto& phi = (InstPhi&)inst;
+            Size index = 0;
+            for(auto input: phi.inputs.contents(print.local)) {
+                print.writer.writeString(index++ ? ", ["_v : " ["_v);
+                printBlockRef(print, *print.local[input.block]);
+                print.writer.writeString(", "_v);
+                printValue(print, *print.local[input.value]);
+                print.writer.writeByte(']');
+            }
+
+            break;
+        }
+        default:
+            break;
+    }
+
+    if(produces) {
+        print.writer.writeString(" : "_v);
+        printType(print, inst.type);
+    }
+
+    print.writer.writeByte('\n');
+}
+
+static void printFunction(ResolvePrint& print, Function& function) {
+    print.writer.writeString("fn "_v);
+    print.writer.writeString(print.context.findName(function.name));
+    print.writer.writeByte('(');
+
     Size index = 0;
-    for(Size i = 0; i < block->function->blocks.size(); i++) {
-        if(block->function->blocks[i] == block) break;
-        index++;
+    for(auto argPointer: function.args.contents(print.local)) {
+        auto arg = print.local[argPointer];
+        if(index++) print.writer.writeString(", "_v);
+        printValue(print, *arg);
+        print.writer.writeString(": "_v);
+        printType(print, arg->type);
     }
 
-    stream.writeByte('#');
-    stream << index;
+    print.writer.writeString(") -> "_v);
+    printType(print, function.returnType);
+    print.writer.writeString(" {\n"_v);
+
+    index = 0;
+    for(auto blockPointer: function.blocks.contents(print.local)) {
+        if(index++) print.writer.writeByte('\n');
+        auto block = print.local[blockPointer];
+        print.writer.writeString("  "_v);
+        printBlockRef(print, *block);
+        print.writer.writeString(":\n"_v);
+
+        for(auto phi: block->phis.contents(print.local)) {
+            printInstruction(print, *print.local[phi]);
+        }
+
+        for(auto instruction: block->instructions.contents(print.local)) {
+            printInstruction(print, *print.local[instruction]);
+        }
+        if(block->terminator) printInstruction(print, *print.local[block->terminator]);
+    }
+
+    print.writer.writeString("}\n"_v);
 }
 
-void printBlock(Net::Writer& stream, Context& context, Module& module, Block& block) {
-    printBlockName(stream, module, block);
-    stream.writeString(":\n"_v);
+void printModule(Net::Writer& writer, Context& context, Module& module) {
+    ResolvePrint print { writer, context, module, *module.types, *module.arena };
+    Size index = 0;
 
-    for(auto inst: block.phis.contents(module.local)) {
-        printInst(stream, context, module, module.local[inst]);
+    for(auto function: module.functionOrder.contents(print.local)) {
+        if(print.local[function]->builtin && !print.local[function]->used) continue;
+        if(index++) writer.writeByte('\n');
+        printFunction(print, *print.local[function]);
     }
-
-    for(auto inst: block.instructions.contents(module.local)) {
-        printInst(stream, context, module, module.local[inst]);
-    }
-
-    if(block.terminator) {
-        printInst(stream, context, module, module.local[block.terminator]);
-    }
-}
-
-void printGlobal(Net::Writer& stream, Context& context, Module& module, const Global* global) {
-    stream.writeString("global "_v);
-    auto name = context.find(global->name);
-    if(name.textLength > 0) {
-        stream.writeByte('%');
-        stream.writeBytes((const Byte*)name.text, name.textLength);
-    } else {
-        stream.writeString("<unnamed>"_v);
-    }
-
-    stream.writeString(": "_v);
-    printType(stream, context, module, module.global[global->type]);
-    stream.writeByte('\n');
-}
-
-void printModule(Net::Writer& stream, Context& context, Module& module) {
-    for(auto& global: module.globals) {
-        printGlobal(stream, context, module, &global);
-    }
-
-    stream.writeByte('\n');
-
-    for(auto& fun: module.functions) {
-        printFunction(stream, context, module, &fun);
-        stream.writeByte('\n');
-    }
-}
-
-void printFunction(Net::Writer& stream, Context& context, Module& module, const Function* fun, StringId forceName) {
-    stream.writeString("fn "_v);
-    auto name = context.find(forceName ? forceName : fun->name);
-    if(name.textLength > 0) {
-        stream.writeBytes((const Byte*)name.text, name.textLength);
-    } else {
-        stream.writeString("<unnamed>"_v);
-    }
-
-    stream.writeByte('(');
-    for(Size i = 0; i < fun->args.size(); i++) {
-        printValue(stream, context, fun->args[i]);
-        stream << ": ";
-        printType(stream, context, fun->args[i]->type);
-        if(i < fun->args.size() - 1) {
-            stream << ", ";
-        }
-    }
-    stream.writeString(") -> "_v);
-    printType(stream, context, module, module.global[fun->returnType]);
-    stream.writeString(" {\n"_v);
-
-    for(auto& block : fun->blocks) {
-        printBlock(stream, context, block);
-    }
-
-    stream.writeString("}\n"_v);
-}
-
-void printInst(Net::Writer& stream, Context& context, Module& module, const Inst* inst) {
-    stream.writeString("  "_v);
-
-    StringView name;
-    switch(inst->kind) {
-        case Inst::InstNop:
-            name = "nop"_v;
-            break;
-        case Inst::InstTrunc:
-            name = "trunc"_v;
-            break;
-        case Inst::InstFTrunc:
-            name = "truncf"_v;
-            break;
-        case Inst::InstZExt:
-            name = "zext"_v;
-            break;
-        case Inst::InstSExt:
-            name = "sext"_v;
-            break;
-        case Inst::InstFExt:
-            name = "fext"_v;
-            break;
-        case Inst::InstFToI:
-            name = "ftoi"_v;
-            break;
-        case Inst::InstFToUI:
-            name = "ftoui"_v;
-            break;
-        case Inst::InstIToF:
-            name = "itof"_v;
-            break;
-        case Inst::InstUIToF:
-            name = "uitof"_v;
-            break;
-        case Inst::InstAdd:
-            name = "add"_v;
-            break;
-        case Inst::InstSub:
-            name = "sub"_v;
-            break;
-        case Inst::InstMul:
-            name = "mul"_v;
-            break;
-        case Inst::InstDiv:
-            name = "div"_v;
-            break;
-        case Inst::InstIDiv:
-            name = "idiv"_v;
-            break;
-        case Inst::InstRem:
-            name = "rem"_v;
-            break;
-        case Inst::InstIRem:
-            name = "irem"_v;
-            break;
-        case Inst::InstFAdd:
-            name = "fadd"_v;
-            break;
-        case Inst::InstFSub:
-            name = "fsub"_v;
-            break;
-        case Inst::InstFMul:
-            name = "fmul"_v;
-            break;
-        case Inst::InstFDiv:
-            name = "fdiv"_v;
-            break;
-        case Inst::InstICmp:
-            name = "icmp"_v;
-            break;
-        case Inst::InstFCmp:
-            name = "fcmp"_v;
-            break;
-        case Inst::InstShl:
-            name = "shl"_v;
-            break;
-        case Inst::InstShr:
-            name = "shr"_v;
-            break;
-        case Inst::InstSar:
-            name = "sar"_v;
-            break;
-        case Inst::InstAnd:
-            name = "and"_v;
-            break;
-        case Inst::InstOr:
-            name = "or"_v;
-            break;
-        case Inst::InstXor:
-            name = "xor"_v;
-            break;
-        case Inst::InstAddPtr:
-            name = "addptr"_v;
-            break;
-        case Inst::InstJe:
-            name = "je"_v;
-            break;
-        case Inst::InstRecord:
-            name = "record"_v;
-            break;
-        case Inst::InstTup:
-            name = "tup"_v;
-            break;
-        case Inst::InstFun:
-            name = "fun"_v;
-            break;
-        case Inst::InstAlloc:
-            name = "alloc"_v;
-            break;
-        case Inst::InstAllocArray:
-            name = "allocarray"_v;
-            break;
-        case Inst::InstLoad:
-            name = "load"_v;
-            break;
-        case Inst::InstLoadField:
-            name = "loadfield"_v;
-            break;
-        case Inst::InstLoadArray:
-            name = "loadarray"_v;
-            break;
-        case Inst::InstStore:
-            name = "store"_v;
-            break;
-        case Inst::InstStoreField:
-            name = "storefield"_v;
-            break;
-        case Inst::InstStoreArray:
-            name = "storearray"_v;
-            break;
-        case Inst::InstGetField:
-            name = "getfield"_v;
-            break;
-        case Inst::InstUpdateField:
-            name = "updatefield"_v;
-            break;
-        case Inst::InstArrayLength:
-            name = "arraylength"_v;
-            break;
-        case Inst::InstArrayCopy:
-            name = "arraycopy"_v;
-            break;
-        case Inst::InstArraySlice:
-            name = "arrayslice"_v;
-            break;
-        case Inst::InstStringLength:
-            name = "stringlength"_v;
-            break;
-        case Inst::InstStringData:
-            name = "stringdata"_v;
-            break;
-        case Inst::InstCall:
-            name = "call"_v;
-            break;
-        case Inst::InstCallDyn:
-            name = "call dyn"_v;
-            break;
-        case Inst::InstCallForeign:
-            name = "call foreign"_v;
-            break;
-        case Inst::InstJmp:
-            name = "jmp"_v;
-            break;
-        case Inst::InstRet:
-            name = "ret"_v;
-            break;
-        case Inst::InstPhi:
-            name = "phi"_v;
-            break;
-    }
-
-    if(module.global[inst->type]->kind != Type::Unit && inst->kind != Inst::InstRet) {
-        printValue(stream, context, inst);
-        stream.writeString(" = "_v);
-    }
-
-    stream.writeString(name);
-
-    if(inst->kind == Inst::InstAlloc) {
-        if(((InstAlloc*)inst)->mut) stream.writeString("<mut>"_v);
-    }
-
-    stream.writeByte('(');
-
-    if(inst->kind == Inst::InstCall) {
-        auto fun = context.find(((InstCall*)inst)->fun->name);
-        if(fun.textLength > 0) {
-            stream.writeBytes((const Byte*)fun.text, fun.textLength);
-        } else {
-            stream.writeString("<unnamed>"_v);
-        }
-
-        if(inst->usedCount > 0) {
-            stream << ", ";
-        }
-    } else if(inst->kind == Inst::InstCallForeign) {
-        auto fun = context.find(((InstCallForeign*)inst)->fun->name);
-        if(fun.textLength > 0) {
-            stream.write(fun.text, fun.textLength);
-        } else {
-            stream << "<unnamed>";
-        }
-
-        if(inst->usedCount > 0) {
-            stream << ", ";
-        }
-    } else if(inst->kind == Inst::InstCallDyn) {
-        if(((InstCallDyn*)inst)->isIntrinsic) {
-            stream << "<intrinsic> ";
-        }
-    } else if(inst->kind == Inst::InstRecord) {
-        auto record = (InstRecord*)inst;
-        auto con = context.findName(record->con->name);
-        stream.write(con.text(), con.size());
-
-        if(inst->usedCount > 0) {
-            stream << ", ";
-        }
-    }
-
-    if(inst->kind == Inst::InstPhi) {
-        auto phi = (InstPhi*)inst;
-        for(U32 i = 0; i < phi->altCount; i++) {
-            stream << '[';
-            printValue(stream, context, phi->alts[i].value);
-            stream << ", ";
-            printBlockName(stream, phi->alts[i].fromBlock);
-            stream << ']';
-
-            if(i < phi->altCount - 1) {
-                stream << ", ";
-            }
-        }
-    } else if(inst->kind == Inst::InstJe) {
-        auto je = (InstJe*)inst;
-        stream << '[';
-        printValue(stream, context, je->cond);
-        stream << ", ";
-        printBlockName(stream, je->then);
-        stream << ", ";
-        printBlockName(stream, je->otherwise);
-        stream << ']';
-    } else {
-        for(U32 i = 0; i < inst->usedCount; i++) {
-            printValue(stream, context, inst->usedValues[i]);
-            if(i < inst->usedCount - 1) {
-                stream << ", ";
-            }
-        }
-    }
-
-    if(inst->kind == Inst::InstJmp) {
-        printBlockName(stream, ((const InstJmp*)inst)->to);
-    } else if(inst->kind == Inst::InstGetField) {
-        auto get = (InstGetField*)inst;
-        for(Size i = 0; i < get->chainLength; i++) {
-            stream << ", ";
-            stream << get->indexChain[i];
-        }
-    } else if(inst->kind == Inst::InstLoadField) {
-        auto get = (InstLoadField*)inst;
-        for(Size i = 0; i < get->chainLength; i++) {
-            stream << ", ";
-            stream << get->indexChain[i];
-        }
-    }
-
-    stream.writeString("): "_v);
-    printType(stream, context, module.global[inst->type]);
-    stream.writeByte('\n');
 }
