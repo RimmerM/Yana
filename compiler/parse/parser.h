@@ -79,28 +79,57 @@ struct Parser: BasicParser<Lexer, Token> {
         if(token.type == Token::EndOfBlock) eat();
     }
 
+    // Consumes the closing token of a construct, or reports `errorText` and skips ahead to it.
+    // Returns false if the construct was left open - the caller should then give up on it rather
+    // than parse what follows as more of the same. See skipToClose().
+    bool expectClose(Token::Type end, StringView errorText);
+
+    // Skips ahead to the closing token a construct is missing, so that parsing resumes after the
+    // construct rather than inside it. Never crosses the end of the statement or block the
+    // construct is in: a delimiter that was never closed should cost the declaration it is in and
+    // not the ones after it. Returns true if the closing token was found, and consumes it.
+    bool skipToClose(Token::Type end);
+
+    // Like BasicParser::between, but recovers when the closing token is missing.
+    template<class F>
+    void delimited(F&& f, Token::Type start, Token::Type end, StringView startError, StringView endError) {
+        if(token.type != start) {
+            error(startError);
+            return;
+        }
+
+        eat();
+        f();
+        expectClose(end, endError);
+    }
+
+    template<class F>
+    void maybeDelimited(F&& f, Token::Type start, Token::Type end, StringView startError, StringView endError) {
+        if(token.type == start) delimited(f, start, end, startError, endError);
+    }
+
     template<class F> auto parens(F&& f) {
-        return between(f, Token::Type::ParenL, Token::Type::ParenR, "expected '('"_v, "expected ')'"_v);
+        return delimited(f, Token::Type::ParenL, Token::Type::ParenR, "expected '('"_v, "expected ')'"_v);
     }
 
     template<class F> auto maybeParens(F&& f) {
-        return maybeBetween(f, Token::Type::ParenL, Token::Type::ParenR, "expected '('"_v, "expected ')'"_v);
+        return maybeDelimited(f, Token::Type::ParenL, Token::Type::ParenR, "expected '('"_v, "expected ')'"_v);
     }
 
     template<class F> auto braces(F&& f) {
-        return between(f, Token::Type::BraceL, Token::Type::BraceR, "expected '{'"_v, "expected '}'"_v);
+        return delimited(f, Token::Type::BraceL, Token::Type::BraceR, "expected '{'"_v, "expected '}'"_v);
     }
 
     template<class F> auto maybeBraces(F&& f) {
-        return maybeBetween(f, Token::Type::BraceL, Token::Type::BraceR, "expected '{'"_v, "expected '}'"_v);
+        return maybeDelimited(f, Token::Type::BraceL, Token::Type::BraceR, "expected '{'"_v, "expected '}'"_v);
     }
 
     template<class F> auto brackets(F&& f) {
-        return between(f, Token::Type::BracketL, Token::Type::BracketR, "expected '['"_v, "expected ']'"_v);
+        return delimited(f, Token::Type::BracketL, Token::Type::BracketR, "expected '['"_v, "expected ']'"_v);
     }
 
     template<class F> auto maybeBrackets(F&& f) {
-        return maybeBetween(f, Token::Type::BracketL, Token::Type::BracketR, "expected '['"_v, "expected ']'"_v);
+        return maybeDelimited(f, Token::Type::BracketL, Token::Type::BracketR, "expected '['"_v, "expected ']'"_v);
     }
 
     auto maybeVar(StringId var) {

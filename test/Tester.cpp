@@ -58,8 +58,9 @@ void parserTest(const String& path, StringView content) {
     Context context(diagnostics);
     provider.context = &context;
 
-    Lexer lexer(context, context.diagnostics, content);
-    Parser parser(context, lexer, context.addUnqualifiedName("no_name", 7));
+    auto name = context.addUnqualifiedName("no_name", 7);
+    Lexer lexer(context, context.diagnostics, content, name);
+    Parser parser(context, lexer, name);
     auto ast = parser.parseModule();
 
     Net::Writer writer(16384);
@@ -98,8 +99,9 @@ void generateParserTest(const String& path, StringView content) {
     Context context(diagnostics);
     provider.context = &context;
 
-    Lexer lexer(context, context.diagnostics, content);
-    Parser parser(context, lexer, context.addUnqualifiedName("no_name", 7));
+    auto name = context.addUnqualifiedName("no_name", 7);
+    Lexer lexer(context, context.diagnostics, content, name);
+    Parser parser(context, lexer, name);
     auto ast = parser.parseModule();
 
     try {
@@ -162,8 +164,9 @@ void resolverTest(const String& path, StringView content) {
     Context context(diagnostics);
     provider.context = &context;
 
-    Lexer lexer(context, context.diagnostics, content);
-    Parser parser(context, lexer, context.addUnqualifiedName("no_name", 7));
+    auto name = context.addUnqualifiedName("no_name", 7);
+    Lexer lexer(context, context.diagnostics, content, name);
+    Parser parser(context, lexer, name);
 
     auto ast = parser.parseModule();
     auto module = resolveModule(&context, &provider, &ast);
@@ -206,8 +209,9 @@ void generateResolverTest(const String& path, StringView content) {
     Context context(diagnostics);
     provider.context = &context;
 
-    Lexer lexer(context, context.diagnostics, content);
-    Parser parser(context, lexer, context.addUnqualifiedName("no_name", 7));
+    auto name = context.addUnqualifiedName("no_name", 7);
+    Lexer lexer(context, context.diagnostics, content, name);
+    Parser parser(context, lexer, name);
 
     auto ast = parser.parseModule();
     auto module = resolveModule(&context, &provider, &ast);

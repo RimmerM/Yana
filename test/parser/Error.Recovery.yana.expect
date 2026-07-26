@@ -1,0 +1,84 @@
+error 9:0 [548..548]: expected ')'
+error 14:0 [654..654]: expected ']' after array end
+error 18:0 [735..735]: expected '}' after tuple expression
+error 21:18 [867..868]: expected declaration end
+error 28:2 [1106..1107]: expected ')'
+error 34:0 [1312..1312]: expected ',' or ')' in argument list
+error 38:26 [1520..1521]: expected ')'
+error 45:2 [1725..1725]: expected function name
+error 45:2 [1725..1725]: expected '('
+
+Module 
+|-FunDecl unclosedParen <implicit return> 
+| `-Body
+|   `-NestedExpr 
+|     `-InfixExpr 
+|       |-VarExpr +
+|       |-LitExpr 1
+|       `-LitExpr 2
+|-FunDecl afterParen <implicit return> 
+| `-Body
+|   `-LitExpr 0
+|-FunDecl alsoAfterParen <implicit return> 
+| `-Body
+|   `-LitExpr 1
+|-FunDecl unclosedArray <implicit return> 
+| `-Body
+|   `-ArrayExpr 
+|     |-LitExpr 1
+|     `-LitExpr 2
+|-FunDecl afterArray <implicit return> 
+| `-Body
+|   `-LitExpr 0
+|-FunDecl unclosedTuple <implicit return> 
+| `-Body
+|   `-TupExpr
+|     `-Field a
+|       `-LitExpr 1
+|-FunDecl afterTuple <implicit return> 
+| `-Body
+|   `-LitExpr 1
+|-FunDecl trailing <implicit return> 
+| `-Body
+|   `-LitExpr 0
+|-FunDecl afterTrailing <implicit return> 
+| `-Body
+|   `-LitExpr 1
+|-FunDecl indentedJunk <implicit return> 
+| `-Body
+|   `-AppExpr 
+|     |-LitExpr 0
+|     `-Field <anonymous>
+|       `-InfixExpr 
+|         |-VarExpr +
+|         |-LitExpr 1
+|         `-LitExpr 2
+|-FunDecl afterIndentedJunk <implicit return> 
+| `-Body
+|   `-LitExpr 1
+|-FunDecl unclosedArgs <implicit return> 
+| `-Body
+|   `-<parse error>
+|-FunDecl afterUnclosedArgs <implicit return> 
+| `-Body
+|   `-LitExpr 1
+|-FunDecl junkBeforeClose <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| `-Body
+|   `-VarExpr a
+|-TraitDecl Broken (a)
+| |-FunDecl ok
+| | |-Arg value
+| | | `-GenType a
+| | `-Result
+| |   `-ConType Int
+| |-FunDecl 
+| `-FunDecl alsoOk
+|   |-Arg value
+|   | `-GenType a
+|   `-Result
+|     `-ConType Int
+`-FunDecl afterClass <implicit return> 
+  `-Body
+    `-LitExpr 1

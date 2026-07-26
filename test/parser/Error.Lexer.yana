@@ -1,0 +1,20 @@
+-- Lexical mistakes. The lexer reports these against the range of source the mistake covers, so
+-- they carry a location just like the parser's own diagnostics do.
+
+-- A string literal that is not terminated before the end of the line.
+fn unterminated() = "abc
+
+-- A string gap that is not closed by a second '\'.
+fn unclosedGap() = "abc\ def"
+
+-- Characters that are not tokens in the language. Each byte is reported on its own, so a
+-- copy-pasted quote or dash produces one diagnostic per byte of its encoding.
+fn smartQuote() = “abc”
+
+-- The declaration after the above still parses.
+fn after(a: Int) = a
+
+-- A nested block comment that is never terminated. This one has to come last: it runs to the end
+-- of the file, so anything after it is part of the comment.
+{- outer {- inner -}
+fn insideComment() = 0

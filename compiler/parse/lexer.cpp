@@ -97,10 +97,29 @@ static bool isSpecial(char c) {
 
 //------------------------------------------------------------------------------
 
-Lexer::Lexer(Context& context, Diagnostics& diag, const StringView& text) :
-    text(text.ptr), p(text.ptr), l(text.ptr), m(text.ptr + text.length), newItem(true), context(context), diag(diag) {
+Lexer::Lexer(Context& context, Diagnostics& diag, const StringView& text, StringId moduleName) :
+    moduleName(moduleName), text(text.ptr), p(text.ptr), l(text.ptr), m(text.ptr + text.length),
+    newItem(true), context(context), diag(diag) {
     // The first indentation level of a file should be 0.
     indentation = 0;
+}
+
+Lexer::Position Lexer::position() const {
+    return {
+        .line = line,
+        .column = U32((p - l) + tabs * (kTabWidth - 1)),
+        .offset = U32(p - text),
+    };
+}
+
+Location Lexer::locationFrom(const Position& start) const {
+    auto end = position();
+
+    return {
+        .sourceModule = moduleName,
+        .sourceStart = { .offset = start.offset, .line = U16(start.line), .column = U16(start.column) },
+        .sourceEnd = { .offset = end.offset, .line = U16(end.line), .column = U16(end.column) },
+    };
 }
 
 void Lexer::nextLine() {
@@ -147,6 +166,7 @@ void Lexer::skipWhitespace() {
             else if(m - p > 2 && *p == '{' && p[1] == '-' && p[2] != '>') {
                 // The current nested comment depth.
                 U32 level = 1;
+                auto commentStart = position();
 
                 // Skip until the comment end.
                 p += 2;
@@ -172,7 +192,11 @@ void Lexer::skipWhitespace() {
                 // p now points to the first character after the comment, or the file end.
                 // Check if the comments were nested correctly.
                 if(level) {
-                    diag.warning("Incorrectly nested comment: missing comment terminator(s)."_v, nullptr);
+                    // The comment runs to the end of the file, so the range starts at the opener
+                    // and the reader is shown where the unterminated comment began.
+                    auto location = locationFrom(commentStart);
+                    location.sourceEnd = { commentStart.offset + 2, U16(commentStart.line), U16(commentStart.column + 2) };
+                    diag.warning("Incorrectly nested comment: missing comment terminator(s)."_v, &location);
                 }
 
                 continue;
@@ -192,11 +216,13 @@ StringId Lexer::parseStringLiteral() {
     Array<char> chars(128);
 
     auto terminated = false;
+    auto stringStart = position();
     p++;
 
     while(p < m) {
         if(*p == '\\') {
             // This is an escape sequence or gap.
+            auto gapStart = position();
             p++;
             if(p >= m) break;
 
@@ -208,7 +234,8 @@ StringId Lexer::parseStringLiteral() {
 
                 if(p >= m || *p != '\\') {
                     // The first character after a gap must be '\'.
-                    diag.warning("Missing gap end in string literal"_v, nullptr);
+                    auto location = locationFrom(gapStart);
+                    diag.warning("Missing gap end in string literal"_v, &location);
                 }
 
                 // Continue parsing the string.
@@ -243,9 +270,13 @@ StringId Lexer::parseStringLiteral() {
         }
     }
 
-    if(!terminated) {
-        // If the line ends without terminating the string, we issue a warning.
-        diag.warning("Missing terminating quote in string literal"_v, nullptr);
+    // A format sequence ends this chunk but not the literal - the text after the formatted
+    // expression is lexed as a further chunk, and the terminating quote is that chunk's to find.
+    if(!terminated && formatting != 1) {
+        // If the line ends without terminating the string, we issue a warning. It points at the
+        // whole unterminated literal, starting at the quote that opened it.
+        auto location = locationFrom(stringStart);
+        diag.warning("Missing terminating quote in string literal"_v, &location);
     }
 
     // Create a new buffer for this string.
@@ -640,8 +671,27 @@ void Lexer::next(Token& token) {
 
     // Unknown token - issue an error and skip it.
     else {
-        diag.error("unknown token '%@'"_v, nullptr, *p);
+        auto start = position();
+        auto character = *p;
         p++;
+
+        // Bytes are what the lexer works in, so a character it cannot use is shown as itself if it
+        // is printable and as an escape otherwise - which is what the bytes of, say, a pasted
+        // typographic quote come out as.
+        char described[8];
+        Size describedLength;
+
+        if(character >= ' ' && character <= '~') {
+            described[0] = character;
+            describedLength = 1;
+        } else {
+            described[0] = '\\';
+            described[1] = 'x';
+            describedLength = 2 + showHex(U8(character), described + 2, sizeof(described) - 2);
+        }
+
+        auto location = locationFrom(start);
+        diag.error("unknown token '%@'"_v, &location, StringView { described, describedLength });
         goto parseT;
     }
 

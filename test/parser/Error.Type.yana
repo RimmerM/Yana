@@ -1,0 +1,41 @@
+-- Types, constraints and patterns that do not parse.
+
+-- An alias to nothing, and one to a type that is never closed.
+alias Empty =
+alias Unclosed = A(B
+
+-- A function type without its result.
+alias NoResult = (Int) ->
+
+-- A tuple type field without a type, and one without a name.
+alias NoFieldType = {a: }
+alias NoFieldName = {: Int}
+
+-- An array type that is never closed.
+alias NoArrayEnd = [Int
+
+-- A constructor that is not a type name.
+data BadCon = 3
+
+-- A record field that is not a name.
+data BadField {3: Int}
+
+-- A constraint that is not a class, field or function constraint.
+fn badConstraint(3) f(a: Int) = a
+
+-- A field constraint without a field name, and one without a type.
+fn noConstraintField(a.) f(x: a) = x
+fn noConstraintType(a.field:) f(x: a) = x
+
+-- A pattern that is not a pattern.
+fn badPattern(a: Int)
+  | + -> 1
+  | _ -> 0
+
+-- A range pattern without an upper bound.
+fn badRange(a: Int)
+  | 1 .. -> 1
+  | _ -> 0
+
+-- The declaration after all of the above still parses.
+fn after(a: Int) = a

@@ -23,12 +23,13 @@ void PrintDiagnostics::message(Level level, StringView text, const Location* whe
     if(!where) return;
 
     auto source = provider.getSource(where->sourceModule);
-    if(source.length <= where->sourceEnd.offset) return;
-
-    // Find the range of text to display.
     auto offset = where->sourceStart.offset;
+    if(offset >= source.length) return;
+
+    // Find the range of text to display. The source text is not terminated, so every scan is
+    // bounded by its length rather than by looking for a zero byte.
     auto lineStart = source.ptr + offset;
-    while(lineStart > source.ptr && *lineStart != '\n' && (offset - (lineStart - source.ptr) < 50)) {
+    while(lineStart > source.ptr && *lineStart != '\n' && (offset - Size(lineStart - source.ptr) < 50)) {
         lineStart--;
     }
 
@@ -36,8 +37,9 @@ void PrintDiagnostics::message(Level level, StringView text, const Location* whe
         lineStart++;
     }
 
+    auto sourceEnd = source.ptr + source.length;
     auto lineEnd = source.ptr + offset;
-    while(*lineEnd && *lineEnd != '\n' && ((lineStart - source.ptr) - offset < 50)) {
+    while(lineEnd < sourceEnd && *lineEnd != '\n' && Size(lineEnd - source.ptr) - offset < 50) {
         lineEnd++;
     }
 
@@ -50,19 +52,32 @@ void PrintDiagnostics::message(Level level, StringView text, const Location* whe
     auto length = Size(lineEnd - lineStart);
     println(StringView{lineStart, length});
 
-    // Print the location within the line.
+    // Print the location within the line. Everything here is clamped to what was printed above:
+    // a location can be longer than the displayed line, or - if the node it belongs to was built
+    // before its first token was consumed - can even end before it starts.
     char buffer[128];
     setMem(buffer, 128, ' ');
-    auto bufferStart = lineStart - source.ptr;
-    buffer[offset - bufferStart] = '^';
 
-    auto tokenLength = where->sourceEnd.offset - offset;
-    if(tokenLength > 1) {
-        for(auto i = offset - bufferStart + 1; i < offset - bufferStart + tokenLength - 1; i++) {
-            buffer[i] = '~';
+    auto markerStart = offset - Size(lineStart - source.ptr);
+    if(markerStart >= sizeof(buffer)) return;
+
+    buffer[markerStart] = '^';
+    auto markerLength = Size(1);
+
+    if(where->sourceEnd.offset > offset) {
+        auto available = min(sizeof(buffer), length) - markerStart;
+        auto tokenLength = min(Size(where->sourceEnd.offset - offset), available);
+
+        if(tokenLength > markerLength) {
+            markerLength = tokenLength;
+
+            for(Size i = markerStart + 1; i < markerStart + markerLength; i++) {
+                buffer[i] = '~';
+            }
+
+            buffer[markerStart + markerLength - 1] = '^';
         }
-        buffer[offset - bufferStart + tokenLength - 1] = '^';
     }
 
-    println(StringView{buffer, 128});
+    println(StringView{buffer, markerStart + markerLength});
 }

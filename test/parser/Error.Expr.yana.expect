@@ -1,0 +1,112 @@
+error 12:0 [617..617]: expected an expression
+error 12:26 [643..644]: expected 'then' after if-expression
+error 16:0 [720..720]: expected an expression
+error 16:0 [720..720]: expected 'then' after if-expression
+error 16:0 [720..720]: expected an expression
+error 17:8 [753..754]: expected '->' after if condition
+error 20:23 [810..811]: expected an expression
+error 26:26 [963..964]: expected name before field contents
+error 29:39 [1054..1055]: expected '`' after operator identifier
+error 35:0 [1145..1145]: expected an expression
+error 38:0 [1243..1243]: expected an expression
+error 39:4 [1268..1270]: expected pattern
+
+Module 
+|-FunDecl missingOperand <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| `-Body
+|   `-InfixExpr 
+|     |-VarExpr +
+|     |-VarExpr a
+|     `-<parse error>
+|-FunDecl noThen <implicit return> 
+| |-Arg a
+| | `-ConType Bool
+| `-Body
+|   `-IfExpr 
+|     |-VarExpr a
+|     |-LitExpr 1
+|     `-LitExpr 2
+|-FunDecl noIfBody <implicit return> 
+| |-Arg a
+| | `-ConType Bool
+| `-Body
+|   `-IfExpr 
+|     |-<parse error>
+|     `-<parse error>
+|-FunDecl noArrow <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| `-Body
+|   `-MultiIfExpr 
+|     `-IfCase 
+|       |-InfixExpr 
+|       | |-VarExpr >
+|       | |-VarExpr a
+|       | `-LitExpr 0
+|       `-LitExpr 1
+|-FunDecl noMapValue <implicit return> 
+| `-Body
+|   `-MapExpr 
+|     `-Entry 
+|       |-LitExpr "a"
+|       `-<parse error>
+|-FunDecl noFieldName <implicit return> 
+| |-Arg v
+| `-Body
+|   `-TupUpdateExpr 
+|     |-VarExpr v
+|     `-Field <anonymous>
+|       `-LitExpr 1
+|-FunDecl noUpdatePath <implicit return> 
+| |-Arg v
+| `-Body
+|   `-TupUpdateExpr 
+|     |-VarExpr v
+|     `-Field <anonymous>
+|       `-LitExpr 2
+|-FunDecl unclosedOp <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| |-Arg b
+| | `-ConType Int
+| `-Body
+|   `-InfixExpr 
+|     |-VarExpr add
+|     |-VarExpr a
+|     `-VarExpr b
+|-FunDecl noField <implicit return> 
+| |-Arg v
+| `-Body
+|   `-FieldExpr 
+|     |-<parse error>
+|     `-VarExpr v
+|-FunDecl noLambdaBody <implicit return> 
+| `-Body
+|   `-FunExpr (x)
+|     `-<parse error>
+|-FunDecl noPattern <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| `-Body
+|   `-MatchExpr 
+|     |-VarExpr a
+|     `-Alt
+|       |-<parse error>
+|       `-LitExpr 1
+|-FunDecl noWhereName <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| `-Body
+|   `-MultiExpr 
+|     |-VarExpr b
+|     `-DeclExpr 
+|       `-VarDecl  <borrow> 
+|         |-LitPat 1
+|         `-VarExpr a
+`-FunDecl after <implicit return> 
+  |-Arg a
+  | `-ConType Int
+  `-Body
+    `-VarExpr a

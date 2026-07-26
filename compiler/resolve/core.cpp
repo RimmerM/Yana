@@ -435,8 +435,9 @@ void defineCore(Program& program) {
     program.scalar.error = (Type*)new (program.types) Type(Type::Error, 0) - *program.types;
     program.scalar.unit = (Type*)new (program.types) Type(Type::Unit, 0) - *program.types;
 
-    Lexer lexer(context, context.diagnostics, StringView { kCoreSource, stringLength(kCoreSource) });
-    Parser parser(context, lexer, context.addQualifiedName("Core", 4, 1));
+    auto name = context.addQualifiedName("Core", 4, 1);
+    Lexer lexer(context, context.diagnostics, StringView { kCoreSource, stringLength(kCoreSource) }, name);
+    Parser parser(context, lexer, name);
     auto ast = new ast::Module(parser.parseModule());
 
     auto module = program.addModule(ast->name, *ast->region);

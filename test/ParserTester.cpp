@@ -15,15 +15,66 @@ using namespace Tritium;
 
 struct TestProvider: SourceProvider {
     StringView source;
+    Context* context = nullptr;
 
     StringView getSource(StringId module) override {
         return source;
     }
 
     const Location* getNode(LocationId id) override {
-        return nullptr;
+        return context ? context->getLocation(id) : nullptr;
     }
 };
+
+// Collects diagnostics as text instead of printing them, so that a fixture can assert on what
+// the parser reports. The message alone is not enough for a negative test to be worth much: a
+// diagnostic that points at the wrong place is as broken as a missing one, so the line, column
+// and source range it covers are part of the compared text. A node whose location was never
+// recorded shows up as `<no location>`.
+struct TestDiagnostics: Diagnostics {
+    using Diagnostics::Diagnostics;
+
+    Array<String> messages;
+
+    void message(Level level, StringView text, const Location* where) override {
+        Diagnostics::message(level, text, where);
+
+        const char* kind;
+        switch(level) {
+            case ErrorLevel: kind = "error"; break;
+            case WarningLevel: kind = "warning"; break;
+            case MessageLevel:
+            default: kind = "message";
+        }
+
+        char buffer[4096];
+        Size length;
+
+        if(where) {
+            length = format(toBuffer(buffer), toString("%@ %@:%@ [%@..%@]: %@"_v), kind, where->sourceStart.line + 1,
+                            where->sourceStart.column, where->sourceStart.offset, where->sourceEnd.offset, text);
+        } else {
+            length = format(toBuffer(buffer), toString("%@ <no location>: %@"_v), kind, text);
+        }
+
+        messages.push(ownedString(buffer, length));
+    }
+};
+
+// The diagnostics a module produced, followed by its AST. Tests that parse cleanly write no
+// diagnostics section at all, so their expect files contain the AST and nothing else.
+static void writeModule(Net::Writer& writer, Context& context, TestDiagnostics& diagnostics, ast::Module& ast) {
+    for(auto& message: diagnostics.messages) {
+        writer.writeString(message);
+        writer.writeString("\n"_v);
+    }
+
+    if(diagnostics.messages.size()) {
+        writer.writeString("\n"_v);
+    }
+
+    printModule(writer, context, *ast.region, ast);
+}
 
 void parserTest(const String& path, StringView content) {
     print("Running test \"%@\"...", path);
@@ -31,15 +82,17 @@ void parserTest(const String& path, StringView content) {
     TestProvider provider;
     provider.source = content;
 
-    PrintDiagnostics diagnostics(provider);
+    TestDiagnostics diagnostics(provider);
     Context context(diagnostics);
+    provider.context = &context;
 
-    Lexer lexer(context, context.diagnostics, content);
-    Parser parser(context, lexer, context.addUnqualifiedName("no_name", 7));
+    auto name = context.addUnqualifiedName("no_name", 7);
+    Lexer lexer(context, context.diagnostics, content, name);
+    Parser parser(context, lexer, name);
     auto ast = parser.parseModule();
 
     Net::Writer writer(16384);
-    printModule(writer, context, *ast.region, ast);
+    writeModule(writer, context, diagnostics, ast);
 
     auto expectPath = path + String(".expect");
     auto file = tryResultOr(File::openFile(expectPath, readAccess()), {
@@ -70,11 +123,13 @@ void generateParserTest(const String& path, StringView content) {
     TestProvider provider;
     provider.source = content;
 
-    PrintDiagnostics diagnostics(provider);
+    TestDiagnostics diagnostics(provider);
     Context context(diagnostics);
+    provider.context = &context;
 
-    Lexer lexer(context, context.diagnostics, content);
-    Parser parser(context, lexer, context.addUnqualifiedName("no_name", 7));
+    auto name = context.addUnqualifiedName("no_name", 7);
+    Lexer lexer(context, context.diagnostics, content, name);
+    Parser parser(context, lexer, name);
     auto ast = parser.parseModule();
 
     try {
@@ -82,7 +137,7 @@ void generateParserTest(const String& path, StringView content) {
         file.open(path + ".expect", writeAccess(), File::CreateAlways);
 
         Net::Writer writer(Net::WriteStream(file), 16384);
-        printModule(writer, context, *ast.region, ast);
+        writeModule(writer, context, diagnostics, ast);
     } catch(const Net::Exception& e) {
         logError("Cannot create expect file for \"%@\": %@", path, e.description);
     }

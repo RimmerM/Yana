@@ -203,8 +203,13 @@ struct Context {
     Identifier& find(StringId id);
     String findName(StringId id);
 
+    // The index has to be taken before pushing: a push that grows the array frees the old
+    // buffer, and since the order the operands of `-` are evaluated in is unspecified, deriving
+    // the index from `push(node) - begin()` can subtract the two buffers from each other.
     LocationId addLocation(const Location& node) {
-        return locations.push(node) - locations.begin();
+        auto id = LocationId(locations.size());
+        locations.push(node);
+        return id;
     }
 
     LocationId addLocation(LocationId l) {
@@ -212,9 +217,8 @@ struct Context {
     }
 
     Location* prepareLocation(LocationId& target) {
-        auto v = locations.push();
-        target = v - locations.begin();
-        return &v;
+        target = LocationId(locations.size());
+        return &locations.push();
     }
 
     const Location* getLocation(LocationId id) {

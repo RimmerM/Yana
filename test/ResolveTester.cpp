@@ -63,7 +63,7 @@ struct TestProvider: SourceProvider, ModuleProvider {
         Ptr<char, HeapDeleter> text { (char*)hAlloc(size) };
         file.read({ (Byte*)text.get(), size });
 
-        Lexer lexer(*context, context->diagnostics, StringView { text.get(), size });
+        Lexer lexer(*context, context->diagnostics, StringView { text.get(), size }, name);
         Parser parser(*context, lexer, name);
         auto ast = new ast::Module(parser.parseModule());
 
@@ -191,8 +191,9 @@ static bool runTest(const String& path, StringView source, bool generate) {
     Context context(diagnostics);
     provider.context = &context;
 
-    Lexer lexer(context, diagnostics, source);
-    Parser parser(context, lexer, context.addUnqualifiedName("ResolveTest", 11));
+    auto name = context.addUnqualifiedName("ResolveTest", 11);
+    Lexer lexer(context, diagnostics, source, name);
+    Parser parser(context, lexer, name);
     auto ast = parser.parseModule();
     auto module = resolveProgram(context, ast, &provider);
     if(diagnostics.errorCount()) {

@@ -1,0 +1,44 @@
+-- Locations of nodes that a diagnostic points at, across many different location ids.
+--
+-- The compiler records source locations in one growing array and refers to them by index. Getting
+-- that index wrong produces a diagnostic that either points somewhere random or, when the index is
+-- out of range, has no location at all - and the indices that used to be computed wrongly were the
+-- ones where the array grew, so whether a declaration was reported correctly depended on how many
+-- locations the declarations before it happened to record.
+--
+-- Every statement below is broken in a way whose diagnostic points at a stored node location
+-- rather than at the token the parser is on, and there are enough of them, at close enough
+-- intervals, to cover the growth boundaries near the start of a file - the ids where such a bug
+-- shows up. No line here may report `<no location>`, and every range has to cover the construct
+-- named in the message.
+
+{1: 2}
+return 1
+{-> 1: 2}
+{2: 3}
+return 2
+{-> 2: 3}
+{3: 4}
+return 3
+{-> 3: 4}
+{4: 5}
+return 4
+{-> 4: 5}
+{5: 6}
+return 5
+{-> 5: 6}
+{6: 7}
+return 6
+{-> 6: 7}
+{7: 8}
+return 7
+{-> 7: 8}
+{8: 9}
+return 8
+{-> 8: 9}
+{9: 10}
+return 9
+{-> 9: 10}
+{10: 11}
+return 10
+{-> 10: 11}

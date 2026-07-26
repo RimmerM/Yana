@@ -23,8 +23,9 @@ static Ptr<ast::Module> parseFile(Context& context, const StringView& path, cons
         return nullptr;
     });
 
-    Lexer lexer(context, context.diagnostics, { text.get(), size });
-    Parser parser(context, lexer, context.addIdentifier(id));
+    auto name = context.addIdentifier(id);
+    Lexer lexer(context, context.diagnostics, { text.get(), size }, name);
+    Parser parser(context, lexer, name);
 
     return Ptr(new ast::Module(parser.parseModule()));
 }

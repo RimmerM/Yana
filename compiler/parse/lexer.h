@@ -121,10 +121,23 @@ struct Token {
 };
 
 struct Lexer {
-    Lexer(Context& context, Diagnostics& diag, const StringView& text);
+    Lexer(Context& context, Diagnostics& diag, const StringView& text, StringId moduleName);
     void next(Token& token);
 
 private:
+    // A position in the source, remembered so that a diagnostic can point at where a construct
+    // started rather than at where the lexer noticed that it was broken.
+    struct Position {
+        U32 line;
+        U32 column;
+        U32 offset;
+    };
+
+    Position position() const;
+
+    // The source range from a remembered position up to the lexer's current position.
+    Location locationFrom(const Position& start) const;
+
     void skipWhitespace();
     bool handleWhitespace();
     void nextLine();
@@ -150,6 +163,7 @@ private:
     Diagnostics& diag;
     Context& context;
 
+    StringId moduleName; // The module this source belongs to, for the locations of diagnostics.
     const char* text; // The full source code.
     const char* p; // The current source pointer.
     const char* l; // The first character of the current line.

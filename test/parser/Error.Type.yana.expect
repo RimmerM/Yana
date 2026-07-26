@@ -1,0 +1,92 @@
+error 5:0 [133..133]: expected a type
+error 8:0 [194..194]: expected ')'
+error 11:0 [283..283]: expected a type
+error 11:24 [307..308]: expected a type
+error 12:21 [330..331]: expected a type
+error 12:21 [330..331]: expected '}'
+error 18:0 [444..444]: expected ']'
+error 18:14 [458..459]: expected constructor name
+error 18:14 [458..459]: expected declaration end
+error 21:15 [514..515]: expected a type
+error 21:15 [514..515]: expected '}'
+error 24:17 [607..608]: expected parameter name
+error 24:17 [607..608]: expected ')'
+error 24:20 [610..611]: expected function body
+error 24:20 [610..611]: expected declaration end
+error 27:22 [715..716]: expected ')'
+error 27:25 [718..719]: expected function body
+error 27:25 [718..719]: expected declaration end
+error 28:21 [751..752]: expected ')'
+error 28:30 [760..761]: expected function body
+error 28:30 [760..761]: expected declaration end
+error 32:4 [835..836]: expected pattern
+error 32:4 [835..836]: expected ':'
+error 32:6 [837..839]: expected an expression
+error 32:6 [837..839]: expected declaration end
+error 37:9 [926..928]: expected pattern
+
+Module 
+|-AliasDecl Empty 
+| `-<parse error>
+|-AliasDecl Unclosed 
+| `-AppType 
+|   |-ConType A
+|   `-ConType B
+|-AliasDecl NoResult 
+| `-FunType 
+|   |-Arg <anonymous>
+|   | `-ConType Int
+|   `-<parse error>
+|-AliasDecl NoFieldType 
+| `-TupType 
+|   `-Field a
+|     `-<parse error>
+|-AliasDecl NoFieldName 
+| `-TupType 
+|   `-Field <anonymous>
+|     `-<parse error>
+|-AliasDecl NoArrayEnd 
+| `-ArrType 
+|   `-ConType Int
+|-DataDecl BadCon 
+| `-<invalid name>
+|-DataDecl BadField 
+| `-Constructor BadField
+|   `-TupType 
+|     `-Field <anonymous>
+|       `-<parse error>
+|-FunDecl badConstraint
+|-FunDecl noConstraintField
+| `-Arg a
+|-FunDecl noConstraintType
+| `-Arg a
+|-FunDecl badPattern <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| `-Body
+|   `-MatchExpr 
+|     |-VarExpr a
+|     `-Alt
+|       |-<parse error>
+|       `-PrefixExpr 
+|         |-VarExpr +
+|         `-<parse error>
+|-FunDecl badRange <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| `-Body
+|   `-MatchExpr 
+|     |-VarExpr a
+|     |-Alt
+|     | |-RangePat 
+|     | | |-LitPat 1
+|     | | `-<parse error>
+|     | `-LitExpr 1
+|     `-Alt
+|       |-AnyPat
+|       `-LitExpr 0
+`-FunDecl after <implicit return> 
+  |-Arg a
+  | `-ConType Int
+  `-Body
+    `-VarExpr a

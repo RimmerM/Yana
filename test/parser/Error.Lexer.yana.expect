@@ -1,0 +1,25 @@
+warning 5:20 [256..260]: Missing terminating quote in string literal
+warning 8:23 [337..339]: Missing gap end in string literal
+error 12:18 [532..533]: unknown token '\xE2'
+error 12:19 [533..534]: unknown token '\x80'
+error 12:20 [534..535]: unknown token '\x9C'
+error 12:24 [538..539]: unknown token '\xE2'
+error 12:25 [539..540]: unknown token '\x80'
+error 12:26 [540..541]: unknown token '\x9D'
+warning 19:0 [773..775]: Incorrectly nested comment: missing comment terminator(s).
+
+Module 
+|-FunDecl unterminated <implicit return> 
+| `-Body
+|   `-LitExpr "abc"
+|-FunDecl unclosedGap <implicit return> 
+| `-Body
+|   `-LitExpr "abcef"
+|-FunDecl smartQuote <implicit return> 
+| `-Body
+|   `-VarExpr abc
+`-FunDecl after <implicit return> 
+  |-Arg a
+  | `-ConType Int
+  `-Body
+    `-VarExpr a

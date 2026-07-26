@@ -143,6 +143,47 @@ ast::Fixity Parser::parseFixity() {
     return fixity;
 }
 
+bool Parser::expectClose(Token::Type end, StringView errorText) {
+    if(token.type == end) {
+        eat();
+        return true;
+    }
+
+    error(errorText);
+    return skipToClose(end);
+}
+
+bool Parser::skipToClose(Token::Type end) {
+    U32 depth = 0;
+
+    while(true) {
+        auto type = token.type;
+
+        // The layout tokens are the safe locations to give up at: everything after one of them was
+        // written as a new statement, and reading it as part of this construct only loses more.
+        if(type == Token::EndOfFile || type == Token::EndOfStmt || type == Token::EndOfBlock) {
+            return false;
+        }
+
+        if(type == Token::ParenL || type == Token::BracketL || type == Token::BraceL) {
+            depth++;
+        } else if(type == Token::ParenR || type == Token::BracketR || type == Token::BraceR) {
+            if(depth == 0) {
+                // A closing token that is not the one we want closes something we are nested in,
+                // so it is left for that construct to consume.
+                if(type != end) return false;
+
+                eat();
+                return true;
+            }
+
+            depth--;
+        }
+
+        eat();
+    }
+}
+
 void Parser::parseDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported) {
     if(token.type == Token::kwAlias) {
         return parseTypeDecl(decls, ::move(attributes), exported);
@@ -816,7 +857,11 @@ ast::Expr Parser::parseBaseExpr() {
                 parseArg(args, false);
             }, Token::Comma);
 
-            expect(Token::ParenR, "expected ',' or ')' in argument list"_v);
+            // If the list was never closed, the lambda's body is not what follows it - parsing
+            // one here is what makes an unclosed '(' swallow the declarations after it.
+            if(!expectClose(Token::ParenR, "expected ',' or ')' in argument list"_v)) {
+                return makeExpr(Error, var, 0, location);
+            }
 
             return makeExpr(Fun, fun, heap(ast::FunExpr {
                 args,
@@ -842,6 +887,15 @@ ast::Expr Parser::parseBaseExpr() {
             } else {
                 return makeExpr(Nested, nested, heap(expr), location);
             }
+        }
+
+        // None of the remaining cases can continue at the end of a statement or block, so what
+        // this is is a parenthesis that was never closed. Reporting that and keeping the
+        // expression is both the better diagnostic and the cheaper recovery: reading on as an
+        // argument list would take the following declarations for this lambda's body.
+        if(token.type == Token::EndOfStmt || token.type == Token::EndOfBlock || token.type == Token::EndOfFile) {
+            error("expected ')'"_v);
+            return makeExpr(Nested, nested, heap(expr), location);
         }
 
         // Cases to handle:
@@ -870,7 +924,10 @@ ast::Expr Parser::parseBaseExpr() {
             }, Token::Comma);
         }
 
-        expect(Token::ParenR, "expected ',' or ')' in argument list"_v);
+        if(!expectClose(Token::ParenR, "expected ',' or ')' in argument list"_v)) {
+            return makeExpr(Error, var, 0, location);
+        }
+
         return makeExpr(Fun, fun, heap(ast::FunExpr { args, parseBlock(false), funKind }), location);
     } else if(token.type == Token::BraceL) {
         return parseTupleExpr(location);
@@ -1035,7 +1092,7 @@ ast::Expr Parser::parseTupleExpr(const WithLocation& location) {
             parseTupUpdateArg(update.args, first, updateBind);
         }, Token::Comma);
 
-        expect(Token::BraceR, "expected '}' after tuple expression"_v);
+        expectClose(Token::BraceR, "expected '}' after tuple expression"_v);
         return makeExpr(TupUpdate, tupUpdate, heap(update), location);
     }
 
@@ -1061,7 +1118,7 @@ ast::Expr Parser::parseTupleExpr(const WithLocation& location) {
         }, Token::Comma);
     }
 
-    expect(Token::BraceR, "expected '}' after tuple expression"_v);
+    expectClose(Token::BraceR, "expected '}' after tuple expression"_v);
     return makeExpr(Tup, tup, args, location);
 }
 
@@ -1071,7 +1128,7 @@ ast::Expr Parser::parseArrayExpr(const WithLocation& location) {
     if(maybe(Token::BracketR)) {
         return makeExpr(Array, arr, {}, location);
     } else if(maybe(Token::opColon)) {
-        expect(Token::BracketR, "expected ']' after empty map"_v);
+        expectClose(Token::BracketR, "expected ']' after empty map"_v);
         return makeExpr(Map, map, {}, location);
     }
 
@@ -1092,7 +1149,7 @@ ast::Expr Parser::parseArrayExpr(const WithLocation& location) {
             }, Token::Comma);
         }
 
-        expect(Token::BracketR, "expected ']' after map end"_v);
+        expectClose(Token::BracketR, "expected ']' after map end"_v);
         return makeExpr(Map, map, contents, location);
     } else {
         ast::ParseList<ast::Expr> contents;
@@ -1104,7 +1161,7 @@ ast::Expr Parser::parseArrayExpr(const WithLocation& location) {
             }, Token::Comma);
         }
 
-        expect(Token::BracketR, "expected ']' after array end"_v);
+        expectClose(Token::BracketR, "expected ']' after array end"_v);
         return makeExpr(Array, arr, contents, location);
     }
 }
@@ -1472,7 +1529,7 @@ ast::Constraint Parser::parseConstraint() {
             parseTypeArg(args);
         }, Token::Comma, Token::ParenR);
 
-        expect(Token::ParenR, "expected ')'"_v);
+        expectClose(Token::ParenR, "expected ')'"_v);
         expect(Token::opArrowR, "expected function return type"_v);
 
         WithLocation retLocation(*this);
@@ -1637,7 +1694,7 @@ ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::At
         return parseArrayType(location, attributes);
     } else if(maybe(Token::ParenL)) {
         auto t = parseType();
-        expect(Token::ParenR, "expected ')'"_v);
+        expectClose(Token::ParenR, "expected ')'"_v);
         return t;
     } else {
         error("expected a type"_v);
@@ -1743,7 +1800,12 @@ ast::Expr Parser::toLiteral(const Token::Payload& payload, Token::Type type, con
 }
 
 ast::Expr Parser::toLiteral(const WithLocation& location) {
-    auto lit = toLiteral(token.data, token.type, location);
+    // The location has to be resolved after the token is consumed: a location ends where the
+    // current token starts, so building the literal first would give it a location that ends
+    // before the literal itself begins.
+    auto payload = token.data;
+    auto type = token.type;
     eat();
-    return lit;
+
+    return toLiteral(payload, type, location);
 }

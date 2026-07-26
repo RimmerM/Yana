@@ -1,0 +1,41 @@
+-- Declarations that do not parse. Each case is its own top-level declaration, so the parser has
+-- to recover far enough to make sense of the next one - the AST below the diagnostics shows how
+-- much of each broken declaration survived.
+
+-- A function without a body.
+fn noBody(a: Int)
+
+-- A function name that is not an identifier.
+fn 3(a: Int) = 0
+
+-- An argument list that is never closed.
+fn unclosed(a: Int = 0
+
+-- A data declaration with no constructors.
+data NoCons
+
+-- An alias with nothing to alias.
+alias NoTarget
+
+-- A class declaration missing the ':' that opens its body.
+class NoBody(a)
+
+-- An instance declaration missing the ':' that opens its body.
+instance NoBody(Int)
+
+-- A default without a class name, and one without a type.
+default 3 = Int
+default FromInt
+
+-- An attribute declaration without a name, and one without a type.
+@data
+@data named
+
+-- A terminating statement where a declaration belongs.
+return 0
+
+-- Trailing tokens after an otherwise complete declaration.
+fn trailing() = 0 )
+
+-- The declaration after all of the above still parses.
+fn after(a: Int) = a

@@ -1,0 +1,46 @@
+-- Expressions that do not parse, where the parser stays inside the declaration that is broken.
+-- Most of these diagnostics point at the token the parser stopped on rather than at the construct
+-- that is incomplete, and one mistake often produces a cascade as each enclosing production gives
+-- up in turn - both are what the parser does today, not what it ideally would do.
+--
+-- Errors that make the parser skip past the end of a declaration are in Error.Recovery.yana.
+
+-- An operator with nothing on its right.
+fn missingOperand(a: Int) = a +
+
+-- An if-expression without 'then', and one without a body at all.
+fn noThen(a: Bool) = if a 1 else 2
+fn noIfBody(a: Bool) = if
+
+-- A multi-way if whose arm has no '->'.
+fn noArrow(a: Int) = if:
+  a > 0 1
+
+-- A map item without a value.
+fn noMapValue() = ["a":]
+
+-- A tuple update field with contents but no name.
+fn noFieldName(v) = {v | 1}
+
+-- An update path that is not a field name.
+fn noUpdatePath(v) = {v | 1: 2}
+
+-- A backtick operator that is never closed.
+fn unclosedOp(a: Int, b: Int) = a `add b
+
+-- A field access with nothing to select.
+fn noField(v) = v.
+
+-- A lambda with no body.
+fn noLambdaBody() = (x) ->
+
+-- A pattern-matching function body whose alternative has no pattern.
+fn noPattern(a: Int)
+  | -> 1
+
+-- A 'where' binding without a name.
+fn noWhereName(a: Int) = b
+  where 1 = a
+
+-- The declaration after all of the above still parses.
+fn after(a: Int) = a

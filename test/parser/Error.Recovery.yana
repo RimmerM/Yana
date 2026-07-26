@@ -1,0 +1,47 @@
+-- How far the parser skips when a declaration does not parse. A construct that is left open is
+-- given up on at the end of the statement it started in, so the declarations after it still parse
+-- on their own - the AST below the diagnostics is the record of that. Every group here ends with
+-- declarations that have to survive.
+
+-- An expression that is never closed. The parenthesis is reported as missing and the expression
+-- inside it is kept, rather than the rest of the line being read as a lambda's arguments.
+fn unclosedParen() = (1 + 2
+fn afterParen() = 0
+fn alsoAfterParen() = 1
+
+-- An array that is never closed.
+fn unclosedArray() = [1, 2
+fn afterArray() = 0
+
+-- A tuple that is never closed.
+fn unclosedTuple() = {a: 1
+fn afterTuple() = 1
+
+-- Trailing tokens after an otherwise complete declaration are skipped up to the root level.
+fn trailing() = 0 ) ] }
+fn afterTrailing() = 1
+
+-- An unclosed parenthesis whose contents run over several indented lines: the block is parsed as
+-- the expression's contents, and the declaration after it is still reached.
+fn indentedJunk() = 0 (
+  1 + 2
+  3 + 4
+fn afterIndentedJunk() = 1
+
+-- A lambda argument list that is never closed. The body is not looked for after it, so what
+-- follows is not taken for the lambda's contents.
+fn unclosedArgs() = (x: Int
+fn afterUnclosedArgs() = 1
+
+-- Junk between the contents of a construct and its closing token is skipped up to the token, so
+-- the declaration around it is still parsed as a whole.
+fn junkBeforeClose(a: Int 3) = a
+
+-- A class body whose functions do not parse. The class itself still ends where the layout says,
+-- and the members around the broken one are kept.
+class Broken(a):
+  fn ok(value: a) -> Int
+  fn
+  fn alsoOk(value: a) -> Int
+
+fn afterClass() = 1
