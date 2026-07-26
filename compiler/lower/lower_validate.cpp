@@ -155,6 +155,23 @@ static bool validateJe(Diagnostics* diagnostics, LowerBase base, LowerInstJe* in
         return false;
     }
 
+    // A weight is a ratio against the sibling edge, so both edges state one or neither does - an
+    // edge weighted alone would be a ratio with nothing to compare against. The frequency analysis
+    // divides by the pair's total, which is also why neither may be zero.
+    for(auto& likelihood: inst->likelihood) {
+        auto stated = likelihood.source != LikelihoodSource::Unknown;
+
+        if(stated != inst->hasLikelihood()) {
+            diagnostics->error("a branch states an edge weight for both of its edges or for neither"_v, inst->source);
+            return false;
+        }
+
+        if(likelihood.weight < 1 || likelihood.weight > kMaxEdgeWeight) {
+            diagnostics->error("branch edge weight out of range"_v, inst->source);
+            return false;
+        }
+    }
+
     return true;
 }
 

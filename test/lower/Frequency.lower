@@ -1,0 +1,148 @@
+# Block frequencies.
+#
+# Every frequency is stated relative to the block the function is entered through, which prints as
+# 1.00. There is no unit and no absolute count: what the analysis produces is "this block runs eight
+# times as often as the entry", and every consumer of it compares one block against another.
+#
+# The `.freq.expect` golden is the whole of the property under test here - the plain `.expect` file
+# next to it covers the text format, including that an edge weight round-trips through it.
+
+# A branch nothing is known about splits evenly. This is the case the analysis must not get clever
+# about: the IR has lost whatever made one arm exceptional, and a data-dependent test looks exactly
+# like a check that never fails.
+neutral(%c: Int): Int {
+    start {
+        je %c, left, right
+    }
+
+    left {
+        %a = cast 1: Int
+        jmp end
+    }
+
+    right {
+        %b = cast 2: Int
+        jmp end
+    }
+
+    end {
+        ret (phi [left, %a], [right, %b]: Int)
+    }
+}
+
+# The same branch with the weights stated. `left` is taken 99 times for every one `right` is, so it
+# is nearly as hot as the branch above it and `right` is nearly cold. `end`, which both arms reach,
+# is back at the frequency of the entry - it prints a hundredth under it because a hundred does not
+# divide the unit frequencies are held in, and the printout truncates rather than rounds.
+hinted(%c: Int): Int {
+    start {
+        je %c, [left, 99], [right, 1]
+    }
+
+    left {
+        %a = cast 1: Int
+        jmp end
+    }
+
+    right {
+        %b = cast 2: Int
+        jmp end
+    }
+
+    end {
+        ret (phi [left, %a], [right, %b]: Int)
+    }
+}
+
+# A loop with nothing stated about it. The one thing the CFG says on its own is that a loop runs more
+# than once, so the edge leaving it is taken once where the edge staying in it is taken every
+# iteration but the last: the header and the body come out at the assumed trip count, and `end` -
+# which is left exactly once however long the loop ran - comes back to the entry's frequency.
+loop(%n: Int): Int {
+    start {
+        %z = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [start, %z], [body, %i2]: Int
+        je (cmp_ige %i, %n), end, body
+    }
+
+    body {
+        %i2 = add %i, 1: Int
+        jmp head
+    }
+
+    end {
+        ret %i
+    }
+}
+
+# Two nested loops. The multipliers compose, so the inner body is the trip count squared, and each
+# loop's exit lands back at the frequency of the loop that contains it rather than at the frequency
+# of the loop it leaves.
+nested(%n: Int, %m: Int): Int {
+    start {
+        %z = cast 0: Int
+        jmp outer
+    }
+
+    outer {
+        %i = phi [start, %z], [outerEnd, %i2]: Int
+        je (cmp_ige %i, %n), done, innerHead
+    }
+
+    innerHead {
+        %j = phi [outer, %z], [innerBody, %j2]: Int
+        je (cmp_ige %j, %m), outerEnd, innerBody
+    }
+
+    innerBody {
+        %j2 = add %j, 1: Int
+        jmp innerHead
+    }
+
+    outerEnd {
+        %i2 = add %i, 1: Int
+        jmp outer
+    }
+
+    done {
+        ret %i
+    }
+}
+
+# A failure path inside a hot loop - the case the whole thing exists for. `check` runs as often as
+# the loop body does, and the arm it almost never takes has to come out colder than the code outside
+# the loop entirely, or a value live only across the failure path would be weighed as though it were
+# live in the loop.
+coldPathInLoop(%n: Int, %c: Int): Int {
+    start {
+        %z = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [start, %z], [next, %i2]: Int
+        je (cmp_ige %i, %n), done, check
+    }
+
+    check {
+        je (cmp_eq %c, 0), [fail, 1], [next, 1000]
+    }
+
+    fail {
+        %e = cast 0: Int
+        jmp done
+    }
+
+    next {
+        %i2 = add %i, 1: Int
+        jmp head
+    }
+
+    done {
+        ret (phi [head, %i], [fail, %e]: Int)
+    }
+}

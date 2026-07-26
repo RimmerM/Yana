@@ -43,6 +43,11 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun,
     auto& convention = constraints.getConvention(fun.callType);
     auto live = fun.buildLiveness(base);
 
+    // How often each block runs relative to the entry, which is what every cost the placement weighs
+    // is stated in. Computed once here rather than inside each pass: it is a function of the CFG and
+    // the edge metadata, and nothing on the loop below touches either.
+    auto frequency = fun.buildFrequencies(base);
+
     // Whether rbp is this function's frame pointer or one more register to hand out. Asked once,
     // here, and given to both the allocator and (through FunctionRegs) frame layout: the two
     // deciding it separately is the one way this can go wrong quietly, since a value placed in rbp
@@ -60,7 +65,8 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun,
     TemporaryReserve temporaries;
 
     for(;;) {
-        placement = computePlacement(base, fun, *live, machine, constraints, framePointer, temporaries, forcedHomeless);
+        placement = computePlacement(base, fun, *live, machine, constraints, frequency, framePointer,
+            temporaries, forcedHomeless);
         bool again = false;
 
         // A web with no register has to be brought into a scratch one at the instructions that cannot

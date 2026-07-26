@@ -974,9 +974,11 @@ void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, Machine
 // One complete placement of a function. `framePointer` and `temporaries` are what is held back from
 // every web - rbp when the frame is addressed through it, and the scratch registers legalization is
 // going to need - and `forcedHomeless` names the webs a previous pass asked to be left homeless.
+// `frequency` is what every decision that trades one part of the function against another is weighed
+// by; it depends on the CFG alone, so one is computed per allocation rather than per pass.
 Placement computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
-    const Constraints& constraints, bool framePointer, const TemporaryReserve& temporaries,
-    const Array<bool>& forcedHomeless);
+    const Constraints& constraints, const FunctionFrequencyInfo& frequency, bool framePointer,
+    const TemporaryReserve& temporaries, const Array<bool>& forcedHomeless);
 
 // Resolves every instruction against a completed placement, handing out scratch registers from
 // `temporaries` - which has to be one measureTemporaryReserve produced for this same placement.

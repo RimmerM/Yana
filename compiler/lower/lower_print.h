@@ -16,6 +16,9 @@ struct PrintContext {
     // If set, prints comments with liveness info for each block.
     Liveness* live = nullptr;
 
+    // If set, prints each block's execution frequency relative to the function's entry.
+    const FunctionFrequencyInfo* frequency = nullptr;
+
     // Maps anonymous variables to their temporary name.
     HashMap<const LowerValue*, U32> valueMap;
 
@@ -26,7 +29,17 @@ struct PrintContext {
     HashMap<U8, StringView> registerNames;
 };
 
-void printModule(Net::Writer& writer, Context& context, LowerBase base, LowerModule& module, bool analyzeFunctions);
+// What a printout annotates each function with beyond its instructions. Each one costs an analysis
+// the plain printout does not run, and each has a golden of its own in the test suite - so a change
+// to one analysis shows up as a change to the file that exists to cover it rather than everywhere.
+struct PrintAnnotations {
+    bool liveness = false;
+    bool frequency = false;
+
+    bool any() const { return liveness || frequency; }
+};
+
+void printModule(Net::Writer& writer, Context& context, LowerBase base, LowerModule& module, PrintAnnotations annotations = {});
 void printFunction(Net::Writer& writer, Context& context, LowerBase base, LowerFunction& decl, PrintContext& print);
 void printGlobal(Net::Writer& writer, Context& context, LowerBase base, LowerGlobal& global, PrintContext& print);
 void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst& inst, PrintContext& print);

@@ -544,9 +544,25 @@ struct LowerInstJe: LowerInst {
         flags = encodeOptionalCmp(cmp);
     }
 
+    // Whether either edge carries a claim about how likely it is, as against both being unknown.
+    bool hasLikelihood() const {
+        return likelihood[0].source != LikelihoodSource::Unknown
+            || likelihood[1].source != LikelihoodSource::Unknown;
+    }
+
     LowerPtr<LowerValue> cond;
     LowerPtr<LowerBlock> then;
     LowerPtr<LowerBlock> otherwise;
+
+    // How likely each edge is relative to the other - see EdgeLikelihood. Index 0 is `then` and
+    // index 1 is `otherwise`, which is also the order the containing block lists them in
+    // `outgoing`, so the two are indexed alike everywhere.
+    //
+    // Indexed by edge rather than named per target block, which is what makes the metadata survive
+    // a CFG transform for free: splitting an edge retargets `then` or `otherwise` in place, and the
+    // weight of edge 0 is still the weight of edge 0 when it now leads to the split block instead.
+    // The inserted block's own jump has one successor and so needs no weight at all.
+    EdgeLikelihood likelihood[2];
 };
 
 // Unconditional branch to a different block.

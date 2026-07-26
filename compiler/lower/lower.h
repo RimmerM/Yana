@@ -92,6 +92,134 @@ struct DominatorTree {
 };
 
 /*
+ * Edge likelihood.
+ *
+ * A conditional terminator may say how its two successors compare - which arm is the common one and
+ * which is the exception - and where that claim came from. It is the one thing about a branch that
+ * cannot be recovered from the CFG: `je %ok, cont, panic` and `je %c, left, right` are the same
+ * instruction, and only whoever produced them knows that one of them almost never branches.
+ *
+ * Weights are relative to the terminator's other edge and nothing else. There is no unit and no
+ * absolute count anywhere in this file: what an edge weight of 99 means is "99 times as often as its
+ * sibling weighted 1", and the block frequencies derived below are stated relative to the function's
+ * own entry for the same reason. A frequency that meant "times per second" would be a claim the
+ * compiler is in no position to make.
+ *
+ * The source orders precedence when two answers exist. A measured profile beats a frontend hint,
+ * which beats an estimate derived from the shape of the CFG, which beats nothing at all - so a later
+ * profiling pass writes into the same field rather than into one of its own, and the allocator that
+ * reads a weight never learns which of the four produced it.
+ */
+enum class LikelihoodSource: U8 {
+    // Nothing is known, and the edge is as likely as its sibling.
+    Unknown,
+
+    // Derived from the shape of the CFG - a loop backedge, a loop exit, an edge into unreachable or
+    // non-returning code. Never stored on an edge: it is rederivable by definition, so keeping it
+    // would be a second copy of an answer the analysis produces anyway (see edgeWeightsOf).
+    Static,
+
+    // Stated by whoever produced the IR: `likely`/`unlikely`, an exception path, a panic path, a
+    // failed bounds check - semantic knowledge a generic CFG walk cannot get back.
+    FrontendHint,
+
+    // Measured. Nothing produces this yet; it is named here so that the pass that eventually does
+    // has somewhere to put its answer that every consumer already reads.
+    Profile,
+};
+
+struct EdgeLikelihood {
+    U32 weight = 1;
+    LikelihoodSource source = LikelihoodSource::Unknown;
+};
+
+// The largest weight an edge may state. Frequencies are computed as `frequency * weight / total` in
+// 64 bits, so bounding the weight is what keeps that product from overflowing at the frequency
+// ceiling below; 2^20 is far more resolution than any hint or profile can honestly claim.
+static constexpr U32 kMaxEdgeWeight = 1 << 20;
+
+/*
+ * Loops.
+ *
+ * One loop per block a back edge targets, its body the union of the natural loops of every back edge
+ * to it - so a loop with two latches is one loop rather than two, and a block in it is one loop deep
+ * rather than two. Loops found this way are properly nested or disjoint, which is what lets the
+ * innermost one containing a block name the whole chain.
+ *
+ * A CFG with an irreducible loop has no such structure. Nothing here fails on one - the back edges a
+ * depth-first walk happens to find are still grouped and still nest - but the answer is then one
+ * possible reading of the loop rather than the only one, which is all a heuristic needs.
+ */
+struct LoopInfo {
+    // The innermost loop containing each block, named by its header, or kNullBlock for a block in no
+    // loop at all. A header is a member of its own loop, so `header[h] == h` for every header.
+    BlockList header;
+
+    // For a loop header, the header of the loop immediately containing it, or kNullBlock. Only
+    // meaningful where `header[b] == b`.
+    BlockList parent;
+
+    // How many loops each block is inside: the length of the chain the two lists above describe.
+    Array<U16> depth;
+
+    bool isHeader(BlockIndex b) const { return header[b] == b; }
+
+    // Whether `block` is inside the loop headed by `loop`. A header counts as inside its own loop,
+    // which is what makes a latch's back edge an edge that stays in the loop rather than leaves it.
+    bool contains(BlockIndex loop, BlockIndex block) const;
+
+    // Whether the edge from `from` to `to` closes a loop - `to` heads a loop that `from` is inside.
+    // This is the definition of a back edge, asked of the finished structure rather than of the walk
+    // that found it, so anything reading the loops answers it the same way.
+    bool isBackEdge(BlockIndex from, BlockIndex to) const {
+        return isHeader(to) && contains(to, from);
+    }
+};
+
+// The relative weights of a block's two outgoing edges, as edgeWeightsOf answers them. Index 0 is
+// the block's `outgoing[0]`, index 1 its `outgoing[1]`; a block with fewer than two successors has
+// nothing to weigh and answers with the neutral pair.
+struct EdgeWeights {
+    U32 weight[2] = { 1, 1 };
+    LikelihoodSource source = LikelihoodSource::Unknown;
+
+    U32 total() const { return weight[0] + weight[1]; }
+};
+
+// How often each block runs relative to the block the function is entered through. Absolute counts
+// are unnecessary and unavailable; every consumer compares one block against another.
+struct FunctionFrequencyInfo {
+    // Indexed by LowerBlock::index. A block the entry cannot reach has frequency zero.
+    Array<U64> relativeBlockFrequency;
+
+    U64 frequencyOf(BlockIndex block) const { return relativeBlockFrequency[block]; }
+};
+
+// The entry block's frequency, and so the unit every other one is stated in: a block that runs
+// exactly as often as the function is entered has this frequency, one that runs half as often has
+// half of it. Large enough that a dozen nested even branches still divide down to something above
+// zero, which is what keeps a rarely-taken path distinguishable from an unreachable one.
+static constexpr U64 kEntryFrequency = U64(1) << 16;
+
+// What a loop is assumed to iterate when nothing better is known. It is the one number here that is
+// a guess rather than a derivation, and it is deliberately a single one: an analysis that inferred
+// trip counts per loop would be a different piece of work, and every consumer of the result compares
+// blocks rather than trusting the count. Eight is also what the loop-depth weighting it replaces
+// used, so a loop with no branches in it weighs exactly what it always did.
+static constexpr U64 kLoopTripCount = 8;
+
+// The ceiling frequencies saturate at, rather than wrapping. Deeply nested loops multiply by the
+// trip count per level, so nine of them reach this - and a block that runs 2^40 times as often as
+// the function's entry is already as hot as any consumer can express.
+static constexpr U64 kMaxFrequency = U64(1) << 40;
+
+// How `block`'s two outgoing edges compare, from whichever of the four sources knows most about
+// them. This is the single statement of what a branch's probabilities are: block layout, the
+// frequency computation and anything later that weighs one edge against another all ask it, so no
+// two of them can disagree about which arm of a branch is the likely one.
+EdgeWeights edgeWeightsOf(LowerBase base, const LoopInfo& loops, LowerBlock* block);
+
+/*
  * Program points.
  *
  * Each instruction owns two: `before`, where its operands are read, and `after`, where its results
@@ -319,10 +447,12 @@ struct LowerBlock {
     // This is only valid between a call to LowerFunction::buildPostorder() and any transformations to the block tree.
     BlockIndex postIndex = kNullBlock;
 
-    // How many loops this block is inside, counted by the back edges whose natural loop contains it -
-    // so a block in two nested loops answers two. Written by whichever pass last ordered the blocks
-    // (the x64 backend's orderBlocks) and read by anything that has to weigh one part of a function
-    // against another, since a block one loop deep runs some multiple of the times its header does.
+    // How many loops this block is inside - so a block in two nested loops answers two. Written by
+    // buildLoops, which whichever pass last ordered the blocks runs (the x64 backend's orderBlocks).
+    // Kept on the block because the ordering itself needs it after the LoopInfo it came from has
+    // been invalidated by the renumbering; anything weighing one part of a function against another
+    // wants the block frequency rather than this, since a loop body under a cold branch is one loop
+    // deep and still rarely executed.
     U16 loopDepth = 0;
 
     // Used while parsing blocks from source.
@@ -354,6 +484,18 @@ struct LowerFunction {
     // Calculates liveness information for all values in the function.
     // The information is stored in each block.
     Ptr<Liveness> buildLiveness(LowerBase base);
+
+    // Finds the loops of the function - see LoopInfo. Additionally stores each block's loop depth in
+    // LowerBlock::loopDepth. The result is indexed by block index, and so is invalidated by anything
+    // that renumbers the blocks.
+    LoopInfo buildLoops(LowerBase base);
+
+    // How often each block runs relative to the entry block, combining the edge likelihoods the IR
+    // carries with estimates derived from the loops for the edges that carry none.
+    //
+    // Derived rather than stored, the way liveness is: it is a function of the CFG and the edge
+    // metadata, so a pass that changes either invalidates it, and one that changes neither cannot.
+    FunctionFrequencyInfo buildFrequencies(LowerBase base);
 
     StringId name;
     LocationId source = kNullLocation;

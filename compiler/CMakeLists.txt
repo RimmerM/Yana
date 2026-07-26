@@ -112,6 +112,7 @@ set(X64_SOURCE_FILES
     codegen/x64/target.cpp
     codegen/x64/machine.h
     codegen/x64/machine.cpp
+    codegen/x64/intrinsic.cpp
     codegen/x64/gen.h
     codegen/x64/gen.cpp
     codegen/x64/transform.cpp

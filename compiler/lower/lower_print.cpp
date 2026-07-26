@@ -81,6 +81,23 @@ static void printBlockRef(Net::Writer& writer, Context& context, const LowerBloc
     }
 }
 
+// One successor of a conditional branch: `block` on its own, or `[block, weight]` when the branch
+// states how likely its edges are - see EdgeLikelihood.
+static void printEdge(Net::Writer& writer, Context& context, const LowerBlock& block,
+    const EdgeLikelihood& likelihood, bool stated, PrintContext& print)
+{
+    if(!stated) {
+        printBlockRef(writer, context, block, print);
+        return;
+    }
+
+    writer.writeByte('[');
+    printBlockRef(writer, context, block, print);
+    writer.writeString(", "_v);
+    printInt(writer, likelihood.weight);
+    writer.writeByte(']');
+}
+
 static StringView nameForCmp(LowerCmp cmp) {
     switch(cmp) {
         case LowerCmp::eq:
@@ -270,7 +287,7 @@ StringView nameForCall(LowerCallType type) {
     return ""_v;
 }
 
-void printModule(Net::Writer& writer, Context& context, LowerBase base, LowerModule& module, bool analyzeFunctions) {
+void printModule(Net::Writer& writer, Context& context, LowerBase base, LowerModule& module, PrintAnnotations annotations) {
     PrintContext print;
 
     for(auto g: module.globals) {
@@ -282,10 +299,16 @@ void printModule(Net::Writer& writer, Context& context, LowerBase base, LowerMod
 
     for(auto f: module.functions) {
         Ptr<Liveness> l;
+        FunctionFrequencyInfo frequency;
 
-        if(analyzeFunctions) {
+        if(annotations.liveness) {
             l = base[f]->buildLiveness(base);
             print.live = l.get();
+        }
+
+        if(annotations.frequency) {
+            frequency = base[f]->buildFrequencies(base);
+            print.frequency = &frequency;
         }
 
         printFunction(writer, context, base, *base[f], print);
@@ -412,11 +435,18 @@ void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst&
     } else if(inst.kind == LowerInst::Je) {
         auto& je = (LowerInstJe&)inst;
 
+        // A branch that says nothing about its edges prints as a pair of bare labels, and one that
+        // does prints both weights - the same all-or-nothing the parser accepts, so the text
+        // round-trips exactly. A static estimate is deliberately not printed: it is derived from the
+        // CFG on demand, and writing it down would turn a rederivable answer into a stored one that
+        // the next CFG transform could leave stale.
+        auto stated = je.hasLikelihood();
+
         printValueRef(writer, context, base, *base[je.cond], print);
         writer.writeString(", "_v);
-        printBlockRef(writer, context, *base[je.then], print);
+        printEdge(writer, context, *base[je.then], je.likelihood[0], stated, print);
         writer.writeString(", "_v);
-        printBlockRef(writer, context, *base[je.otherwise], print);
+        printEdge(writer, context, *base[je.otherwise], je.likelihood[1], stated, print);
 
         if(auto cmp = je.getEmbeddedCmp()) {
             writer.writeString("    # implicit "_v);
@@ -506,12 +536,32 @@ static void printLiveness(Net::Writer& writer, Context& context, LowerBase base,
     writer.writeByte('\n');
 }
 
+// A block's frequency as a multiple of the entry block's, to two decimal places - so the entry
+// prints as 1.00, a body inside one loop as 8.00, and an arm the IR called unlikely as something
+// well under one. Written by hand rather than through a float: these are exact ratios of integers,
+// and a golden file has no business depending on how a float happens to be formatted.
+static void printFrequency(Net::Writer& writer, U64 frequency) {
+    printInt(writer, frequency / kEntryFrequency);
+    writer.writeByte('.');
+
+    auto fraction = (frequency % kEntryFrequency) * 100 / kEntryFrequency;
+    if(fraction < 10) writer.writeByte('0');
+    printInt(writer, fraction);
+}
+
 void printBlock(Net::Writer& writer, Context& context, LowerBase base, LowerBlock& block, PrintContext& print) {
     printIndentation(writer, print);
     printBlockRef(writer, context, block, print);
 
     writer.writeString(" {\n"_v);
     print.depth++;
+
+    if(print.frequency) {
+        printIndentation(writer, print);
+        writer.writeString("# frequency: "_v);
+        printFrequency(writer, print.frequency->frequencyOf(block.index));
+        writer.writeByte('\n');
+    }
 
     if(print.live) {
         printLiveness(writer, context, base, block, print, true);

@@ -1,0 +1,155 @@
+
+hinted<complex>(%c: Int): Int {
+  start {
+    # frequency: 1.00
+    je %c, [left, 99], [right, 1]
+  }
+
+  left {
+    # frequency: 0.98
+    %a = cast 1: Int
+    jmp end
+  }
+
+  right {
+    # frequency: 0.00
+    %b = cast 2: Int
+    jmp end
+  }
+
+  end {
+    # frequency: 0.99
+    %v_0 = phi [left, %a], [right, %b]: Int
+    ret %v_0
+  }
+}
+
+neutral<complex>(%c: Int): Int {
+  start {
+    # frequency: 1.00
+    je %c, left, right
+  }
+
+  left {
+    # frequency: 0.50
+    %a = cast 1: Int
+    jmp end
+  }
+
+  right {
+    # frequency: 0.50
+    %b = cast 2: Int
+    jmp end
+  }
+
+  end {
+    # frequency: 1.00
+    %v_0 = phi [left, %a], [right, %b]: Int
+    ret %v_0
+  }
+}
+
+loop<complex>(%n: Int): Int {
+  start {
+    # frequency: 1.00
+    %z = cast 0: Int
+    jmp head
+  }
+
+  head {
+    # frequency: 8.00
+    %i = phi [start, %z], [body, %i2]: Int
+    %v_0 = cmp_ige %i, %n: Int
+    je %v_0, end, body
+  }
+
+  body {
+    # frequency: 7.00
+    %i2 = add %i, 1: Int
+    jmp head
+  }
+
+  end {
+    # frequency: 1.00
+    ret %i
+  }
+}
+
+nested<complex>(%n: Int, %m: Int): Int {
+  start {
+    # frequency: 1.00
+    %z = cast 0: Int
+    jmp outer
+  }
+
+  outer {
+    # frequency: 8.00
+    %i = phi [start, %z], [outerEnd, %i2]: Int
+    %v_0 = cmp_ige %i, %n: Int
+    je %v_0, done, innerHead
+  }
+
+  innerHead {
+    # frequency: 56.00
+    %j = phi [outer, %z], [innerBody, %j2]: Int
+    %v_1 = cmp_ige %j, %m: Int
+    je %v_1, outerEnd, innerBody
+  }
+
+  innerBody {
+    # frequency: 49.00
+    %j2 = add %j, 1: Int
+    jmp innerHead
+  }
+
+  outerEnd {
+    # frequency: 7.00
+    %i2 = add %i, 1: Int
+    jmp outer
+  }
+
+  done {
+    # frequency: 1.00
+    ret %i
+  }
+}
+
+coldPathInLoop<complex>(%n: Int, %c: Int): Int {
+  start {
+    # frequency: 1.00
+    %z = cast 0: Int
+    jmp head
+  }
+
+  head {
+    # frequency: 8.00
+    %i = phi [start, %z], [next, %i2]: Int
+    %v_0 = cmp_ige %i, %n: Int
+    je %v_0, done, check
+  }
+
+  check {
+    # frequency: 7.00
+    %v_1 = cmp_eq %c, 0: Int
+    je %v_1, [fail, 1], [next, 1000]
+  }
+
+  fail {
+    # frequency: 0.00
+    %e = cast 0: Int
+    jmp done
+  }
+
+  next {
+    # frequency: 6.99
+    %i2 = add %i, 1: Int
+    jmp head
+  }
+
+  done {
+    # frequency: 1.00
+    %v_2 = phi [head, %i], [fail, %e]: Int
+    ret %v_2
+  }
+}
+

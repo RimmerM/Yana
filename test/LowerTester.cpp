@@ -28,9 +28,9 @@ struct TestProvider: SourceProvider {
 
 // Prints the module and compares it against the file at comparePath.
 // Returns false (and prints a diff) if the comparison fails or the file cannot be opened.
-static bool compareAgainst(Context& context, LowerModule& module, const String& comparePath, bool analyzeFunctions) {
+static bool compareAgainst(Context& context, LowerModule& module, const String& comparePath, PrintAnnotations annotations) {
     Net::Writer writer(16384);
-    printModule(writer, context, *module.arena, module, analyzeFunctions);
+    printModule(writer, context, *module.arena, module, annotations);
     auto string = writer.getBuffered();
 
     auto result = File::openFile(comparePath, readAccess());
@@ -56,13 +56,13 @@ static bool compareAgainst(Context& context, LowerModule& module, const String& 
     return equal;
 }
 
-static void writeExpect(Context& context, LowerModule& module, const String& path, bool analyzeFunctions) {
+static void writeExpect(Context& context, LowerModule& module, const String& path, PrintAnnotations annotations) {
     try {
         Net::FileStream file;
         file.open(path, writeAccess(), File::CreateAlways);
 
         Net::Writer writer(Net::WriteStream(file), 16384);
-        printModule(writer, context, *module.arena, module, analyzeFunctions);
+        printModule(writer, context, *module.arena, module, annotations);
         writer.flush();
     } catch(const Net::Exception& e) {
         logError("Cannot create expect file \"%@\": %@", path, e.description);
@@ -90,14 +90,21 @@ void lowerTest(const String& path, StringView content) {
     // Every test compares its plain (unannotated) printout against `<name>.expect` -
     // this is the baseline that exercises parsing, resolving and printing.
     auto expectPath = path + String(".expect");
-    auto pass = compareAgainst(context, module, expectPath, false);
+    auto pass = compareAgainst(context, module, expectPath, PrintAnnotations {});
 
     // If a `<name>.live.expect` file also exists, additionally compare the liveness-annotated
     // printout against it. This exercises LowerFunction::buildLiveness() (see lower_analyze.cpp),
     // which the plain printout above never triggers.
     auto livePath = path + String(".live.expect");
-    if(File::openFile(livePath, readAccess()).isOk()) {
-        pass = compareAgainst(context, module, livePath, true) && pass;
+    if(File::exists(livePath)) {
+        pass = compareAgainst(context, module, livePath, PrintAnnotations { .liveness = true }) && pass;
+    }
+
+    // Likewise for `<name>.freq.expect` and LowerFunction::buildFrequencies(): the block
+    // frequencies, which are what everything downstream weighs one part of a function by.
+    auto freqPath = path + String(".freq.expect");
+    if(File::exists(freqPath)) {
+        pass = compareAgainst(context, module, freqPath, PrintAnnotations { .frequency = true }) && pass;
     }
 
     println(pass ? "Pass."_v : "Fail."_v);
@@ -122,15 +129,21 @@ void generateLowerTest(const String& path, StringView content) {
     }
 
     auto expectPath = path + String(".expect");
-    writeExpect(context, module, expectPath, false);
+    writeExpect(context, module, expectPath, PrintAnnotations {});
     println("Created expect file \"%@\".", expectPath);
 
-    // Only (re-)generate the liveness expect file if one already exists for this test -
-    // opting a test into liveness coverage is done by hand-creating `<name>.live.expect` once.
+    // Only (re-)generate an annotated expect file if one already exists for this test - opting a
+    // test into liveness or frequency coverage is done by hand-creating the file once.
     auto livePath = path + String(".live.expect");
-    if(File::openFile(livePath, readAccess()).isOk()) {
-        writeExpect(context, module, livePath, true);
+    if(File::exists(livePath)) {
+        writeExpect(context, module, livePath, PrintAnnotations { .liveness = true });
         println("Created expect file \"%@\".", livePath);
+    }
+
+    auto freqPath = path + String(".freq.expect");
+    if(File::exists(freqPath)) {
+        writeExpect(context, module, freqPath, PrintAnnotations { .frequency = true });
+        println("Created expect file \"%@\".", freqPath);
     }
 }
 

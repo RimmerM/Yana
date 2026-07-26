@@ -1,0 +1,341 @@
+
+neutralLayout<complex>(%c: Int, %a: Int): Int {
+  start {
+    je %c, hot, cold
+  }
+
+  hot {
+    %h = add %a, 1: Int
+    jmp end
+  }
+
+  cold {
+    %l = add %a, 2: Int
+    jmp end
+  }
+
+  end {
+    %v_0 = phi [hot, %h], [cold, %l]: Int
+    ret %v_0
+  }
+}
+
+sink<complex>(%v: Int): Int {
+  b_0 {
+    ret %v
+  }
+}
+
+neutralSplitLayout<complex>(%c: Int, %a: Int): Int {
+  start {
+    %x = add %a, 1: Int
+    je %c, hot, end
+  }
+
+  hot {
+    %h = add %x, 2: Int
+    jmp end
+  }
+
+  end {
+    %v_0 = phi [start, %x], [hot, %h]: Int
+    ret %v_0
+  }
+}
+
+hintedLayout<complex>(%c: Int, %a: Int): Int {
+  start {
+    je %c, [hot, 99], [cold, 1]
+  }
+
+  hot {
+    %h = add %a, 1: Int
+    jmp end
+  }
+
+  cold {
+    %l = add %a, 2: Int
+    jmp end
+  }
+
+  end {
+    %v_0 = phi [hot, %h], [cold, %l]: Int
+    ret %v_0
+  }
+}
+
+neutralCost<complex>(%n: Int, %c: Int, %a: Int, %b: Int): Int {
+  start {
+    %v0 = add %a, 0: Int
+    %v1 = add %a, 1: Int
+    %v2 = add %a, 2: Int
+    %v3 = add %a, 3: Int
+    %v4 = add %b, 4: Int
+    %v5 = add %b, 5: Int
+    %v6 = add %b, 6: Int
+    %v7 = add %b, 7: Int
+    %z = cast 0: Int
+    jmp head
+  }
+
+  head {
+    %i = phi [start, %z], [join, %i2]: Int
+    %r = call_complex sink, %i: Int
+    je %c, common, rare
+  }
+
+  common {
+    %c0 = add %v0, %v1: Int
+    %c1 = add %c0, %v2: Int
+    %c2 = add %c1, %v3: Int
+    jmp join
+  }
+
+  rare {
+    %r0 = add %v4, %v5: Int
+    %r1 = add %r0, %v6: Int
+    %r2 = add %r1, %v7: Int
+    jmp join
+  }
+
+  join {
+    %s = phi [common, %c2], [rare, %r2]: Int
+    %i2 = add %i, 1: Int
+    %v_0 = cmp_ilt %i2, %n: Int
+    je %v_0, head, done
+  }
+
+  done {
+    ret %s
+  }
+}
+
+hintedSplitLayout<complex>(%c: Int, %a: Int): Int {
+  start {
+    %x = add %a, 1: Int
+    je %c, [hot, 99], [end, 1]
+  }
+
+  hot {
+    %h = add %x, 2: Int
+    jmp end
+  }
+
+  end {
+    %v_0 = phi [start, %x], [hot, %h]: Int
+    ret %v_0
+  }
+}
+
+hintedCost<complex>(%n: Int, %c: Int, %a: Int, %b: Int): Int {
+  start {
+    %v0 = add %a, 0: Int
+    %v1 = add %a, 1: Int
+    %v2 = add %a, 2: Int
+    %v3 = add %a, 3: Int
+    %v4 = add %b, 4: Int
+    %v5 = add %b, 5: Int
+    %v6 = add %b, 6: Int
+    %v7 = add %b, 7: Int
+    %z = cast 0: Int
+    jmp head
+  }
+
+  head {
+    %i = phi [start, %z], [join, %i2]: Int
+    %r = call_complex sink, %i: Int
+    je %c, [common, 1000], [rare, 1]
+  }
+
+  common {
+    %c0 = add %v0, %v1: Int
+    %c1 = add %c0, %v2: Int
+    %c2 = add %c1, %v3: Int
+    jmp join
+  }
+
+  rare {
+    %r0 = add %v4, %v5: Int
+    %r1 = add %r0, %v6: Int
+    %r2 = add %r1, %v7: Int
+    jmp join
+  }
+
+  join {
+    %s = phi [common, %c2], [rare, %r2]: Int
+    %i2 = add %i, 1: Int
+    %v_0 = cmp_ilt %i2, %n: Int
+    je %v_0, head, done
+  }
+
+  done {
+    ret %s
+  }
+}
+
+
+--- codegen: neutralLayout ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  je uses=[rdi] creates=[]  => 85ff0f850b000000
+block cold:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc683c002
+  jmp uses=[] creates=[]  => e905000000
+block hot:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc6ffc0
+  jmp uses=[] creates=[]  => 
+block end:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: sink ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc7c3
+
+--- codegen: neutralSplitLayout ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  add uses=[rsi, -] creates=[rsi]  => ffc6
+  je uses=[rdi] creates=[]  => 85ff0f8505000000
+block #2:
+  jmp uses=[] creates=[]  => e903000000
+block hot:
+  imm uses=[] creates=[-]  => 
+  add uses=[rsi, -] creates=[rsi]  => 83c602
+  jmp uses=[] creates=[]  => 
+block end:
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+
+--- codegen: hintedLayout ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  je uses=[rdi] creates=[]  => 85ff0f840a000000
+block hot:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc6ffc0
+  jmp uses=[] creates=[]  => e906000000
+block cold:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488bc683c002
+  jmp uses=[] creates=[]  => 
+block end:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: neutralCost ---
+  prologue  => 535541544155415641574883ec18
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->stack:0, rsi->rbx]  => 893c24488bde
+block start:
+  imm uses=[] creates=[-]  => 
+  add uses=[r12, -] creates=[r12] pre=[rdx->r12]  => 4c8be24183c400
+  imm uses=[] creates=[-]  => 
+  add uses=[r15, -] creates=[r15] pre=[rdx->r15] post=[r15->stack:1]  => 4c8bfa41ffc744897c2404
+  imm uses=[] creates=[-]  => 
+  add uses=[r15, -] creates=[r15] pre=[rdx->r15] post=[r15->stack:2]  => 4c8bfa4183c70244897c2408
+  imm uses=[] creates=[-]  => 
+  add uses=[r15, -] creates=[r15] pre=[rdx->r15] post=[r15->stack:3]  => 4c8bfa4183c70344897c240c
+  imm uses=[] creates=[-]  => 
+  add uses=[r13, -] creates=[r13] pre=[rcx->r13]  => 4c8be94183c504
+  imm uses=[] creates=[-]  => 
+  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:4]  => 4c8bf94183c70544897c2410
+  imm uses=[] creates=[-]  => 
+  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:5]  => 4c8bf94183c70644897c2414
+  imm uses=[] creates=[-]  => 
+  add uses=[r14, -] creates=[r14] pre=[rcx->r14]  => 4c8bf14183c607
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rbp]  => bd00000000
+  jmp uses=[] creates=[]  => 
+block head:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 488bfde85cffffff
+  je uses=[rbx] creates=[]  => 85db0f8513000000
+block rare:
+  add uses=[rax, stack:4] creates=[rax] pre=[r13->rax]  => 498bc503442410
+  add uses=[rax, stack:5] creates=[rax]  => 03442414
+  add uses=[rax, r14] creates=[rax]  => 4401f0
+  jmp uses=[] creates=[]  => e90f000000
+block common:
+  add uses=[rax, stack:1] creates=[rax] pre=[r12->rax]  => 498bc403442404
+  add uses=[rax, stack:2] creates=[rax]  => 03442408
+  add uses=[rax, stack:3] creates=[rax]  => 0344240c
+  jmp uses=[] creates=[]  => 
+block join:
+  imm uses=[] creates=[-]  => 
+  add uses=[rbp, -] creates=[rbp]  => ffc5
+  cmp_ilt uses=[rbp, stack:0] creates=[-]  => 3b2c24
+  je uses=[-] creates=[]  => 0f8d05000000
+block #6:
+  jmp uses=[] creates=[]  => e9beffffff
+block done:
+  ret uses=[rax] creates=[]  => 4883c418415f415e415d415c5d5bc3
+
+--- codegen: hintedSplitLayout ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  add uses=[rsi, -] creates=[rsi]  => ffc6
+  je uses=[rdi] creates=[]  => 85ff0f8408000000
+block hot:
+  imm uses=[] creates=[-]  => 
+  add uses=[rsi, -] creates=[rsi]  => 83c602
+  jmp uses=[] creates=[]  => e900000000
+block #3:
+  jmp uses=[] creates=[]  => 
+block end:
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 488bc6c3
+
+--- codegen: hintedCost ---
+  prologue  => 535541544155415641574883ec18
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->stack:0, rsi->rbx]  => 893c24488bde
+block start:
+  imm uses=[] creates=[-]  => 
+  add uses=[r12, -] creates=[r12] pre=[rdx->r12]  => 4c8be24183c400
+  imm uses=[] creates=[-]  => 
+  add uses=[r15, -] creates=[r15] pre=[rdx->r15] post=[r15->stack:1]  => 4c8bfa41ffc744897c2404
+  imm uses=[] creates=[-]  => 
+  add uses=[r13, -] creates=[r13] pre=[rdx->r13]  => 4c8bea4183c502
+  imm uses=[] creates=[-]  => 
+  add uses=[r14, -] creates=[r14] pre=[rdx->r14]  => 4c8bf24183c603
+  imm uses=[] creates=[-]  => 
+  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:2]  => 4c8bf94183c70444897c2408
+  imm uses=[] creates=[-]  => 
+  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:3]  => 4c8bf94183c70544897c240c
+  imm uses=[] creates=[-]  => 
+  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:4]  => 4c8bf94183c70644897c2410
+  imm uses=[] creates=[-]  => 
+  add uses=[r15, -] creates=[r15] pre=[rcx->r15] post=[r15->stack:5]  => 4c8bf94183c70744897c2414
+  imm uses=[] creates=[-]  => 
+  cast uses=[-] creates=[rbp]  => bd00000000
+  jmp uses=[] creates=[]  => 
+block head:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax] pre=[rbp->rdi]  => 488bfde88cfeffff
+  je uses=[rbx] creates=[]  => 85db0f8412000000
+block common:
+  add uses=[rax, stack:1] creates=[rax] pre=[r12->rax]  => 498bc403442404
+  add uses=[rax, r13] creates=[rax]  => 4401e8
+  add uses=[rax, r14] creates=[rax]  => 4401f0
+  jmp uses=[] creates=[]  => e910000000
+block rare:
+  add uses=[rax, stack:3] creates=[rax] pre=[stack:2->rax]  => 8b4424080344240c
+  add uses=[rax, stack:4] creates=[rax]  => 03442410
+  add uses=[rax, stack:5] creates=[rax]  => 03442414
+  jmp uses=[] creates=[]  => 
+block join:
+  imm uses=[] creates=[-]  => 
+  add uses=[rbp, -] creates=[rbp]  => ffc5
+  cmp_ilt uses=[rbp, stack:0] creates=[-]  => 3b2c24
+  je uses=[-] creates=[]  => 0f8d05000000
+block #6:
+  jmp uses=[] creates=[]  => e9beffffff
+block done:
+  ret uses=[rax] creates=[]  => 4883c418415f415e415d415c5d5bc3

@@ -289,7 +289,7 @@ void lowerTest(const String& path, StringView content) {
     }
 
     Net::Writer writer(16384);
-    printModule(writer, context, *module.arena, module, false);
+    printModule(writer, context, *module.arena, module);
     auto string = writer.getBuffered();
 
     auto expectPath = path + String(".expect");
@@ -348,7 +348,7 @@ void generateLowerTest(const String& path, StringView content) {
         file.open(expectPath, writeAccess(), File::CreateAlways);
 
         Net::Writer writer(Net::WriteStream(file), 16384);
-        printModule(writer, context, *module.arena, module, true);
+        printModule(writer, context, *module.arena, module, PrintAnnotations { .liveness = true });
 
         println("Created expect file \"%@\". Parse memory: %@ bytes, resolve memory: %@ bytes", expectPath, parser.buffer.used(), module.arena.used());
         writer.flush();

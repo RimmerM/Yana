@@ -92,6 +92,317 @@ DominatorTree LowerFunction::buildDominatorTree(LowerBase base) {
     };
 }
 
+/*
+ * Loops.
+ *
+ * A back edge is one to a block the depth-first walk is still inside, and the loop it closes is the
+ * natural loop of that edge: the header, plus everything the latch is reachable from without passing
+ * back through the header. Two back edges to one header describe one loop with two latches rather
+ * than two loops, so they are grouped by header and their bodies unioned - a block in such a loop is
+ * one loop deep, not two, and runs once per iteration like every other block in it.
+ *
+ * The result is the nesting rather than a count: which loop is innermost for each block, and which
+ * loop each loop sits in. That is what lets an edge be classified as leaving a loop, which is the
+ * only static estimate of a branch's probability worth making (see edgeWeightsOf).
+ */
+
+struct BackEdge {
+    LowerBlock* latch;
+    LowerBlock* header;
+};
+
+static constexpr U32 kOnStack = 1;
+static constexpr U32 kFinished = 2;
+
+// An edge to a block still on the walk's own stack is one that closes a cycle, which is the whole of
+// what makes it a back edge. Blocks the entry cannot reach are never visited and belong to no loop.
+static void findBackEdges(LowerBase base, LowerBlock* b, Array<BackEdge>& out) {
+    b->marker = kOnStack;
+
+    for(auto s: b->outgoing) {
+        if(!s) continue;
+        auto succ = base[s];
+
+        if(succ->marker == kOnStack) out.push(BackEdge { b, succ });
+        else if(succ->marker != kFinished) findBackEdges(base, succ, out);
+    }
+
+    b->marker = kFinished;
+}
+
+// One loop while its body is being collected, before the loops are ordered and the nesting read off.
+struct LoopBody {
+    BlockIndex header = kNullBlock;
+    Array<bool> members;
+    Size size = 0;
+};
+
+// Adds one back edge's natural loop to `loop`: everything the latch is reachable from backwards,
+// stopping at the header, which is marked before the walk starts precisely so that it bounds it -
+// a predecessor reached through the header is outside the loop.
+static void addLatch(LowerBase base, LoopBody& loop, LowerBlock* latch) {
+    Array<LowerBlock*> pending;
+
+    auto visit = [&](LowerBlock* b) {
+        if(loop.members[b->index]) return;
+
+        loop.members[b->index] = true;
+        loop.size++;
+        pending.push(b);
+    };
+
+    visit(latch);
+
+    // Walked as a queue rather than popped, so that `pending` doubles as the visited list.
+    for(Size i = 0; i < pending.size(); i++) {
+        for(auto p: pending[i]->incoming.contents(base)) visit(base[p]);
+    }
+}
+
+bool LoopInfo::contains(BlockIndex loop, BlockIndex block) const {
+    auto h = header[block];
+
+    // Bounded rather than run to the end of the chain: `parent` points strictly outward for the
+    // properly nested loops a reducible CFG produces, and an irreducible one is the single shape
+    // that could close the chain into a cycle. A bound costs nothing and beats proving it cannot.
+    for(Size step = 0; h != kNullBlock && step <= header.size(); step++) {
+        if(h == loop) return true;
+        h = parent[h];
+    }
+
+    return false;
+}
+
+LoopInfo LowerFunction::buildLoops(LowerBase base) {
+    auto blockList = blocks.contents(base);
+
+    LoopInfo info;
+    for(Size i = 0; i < blockList.size(); i++) {
+        auto b = base[blockList[i]];
+        b->index = BlockIndex(i);
+        b->marker = 0;
+
+        info.header.push(kNullBlock);
+        info.parent.push(kNullBlock);
+        info.depth.push(0);
+    }
+
+    Array<BackEdge> backEdges;
+    findBackEdges(base, base[blocks.get(base, 0)], backEdges);
+
+    // One loop per header, its body the union of the natural loops of every back edge to it.
+    Array<LoopBody> loops;
+
+    for(auto& edge: backEdges) {
+        Size found = loops.size();
+        for(Size i = 0; i < loops.size(); i++) {
+            if(loops[i].header == edge.header->index) { found = i; break; }
+        }
+
+        if(found == loops.size()) {
+            LoopBody loop;
+            loop.header = edge.header->index;
+            for(Size i = 0; i < blockList.size(); i++) loop.members.push(false);
+
+            loop.members[loop.header] = true;
+            loop.size = 1;
+            loops.push(::move(loop));
+        }
+
+        addLatch(base, loops[found], edge.latch);
+    }
+
+    // Smallest first, so that the first loop to claim a block is the innermost one containing it and
+    // the first loop to contain a header is that loop's parent. Natural loops are nested or
+    // disjoint, so smaller means inner wherever two of them share a block at all.
+    Array<Size> order;
+    for(Size i = 0; i < loops.size(); i++) order.push(i);
+
+    for(Size i = 1; i < order.size(); i++) {
+        auto v = order[i];
+        auto j = i;
+
+        while(j > 0 && loops[order[j - 1]].size > loops[v].size) {
+            order[j] = order[j - 1];
+            j--;
+        }
+
+        order[j] = v;
+    }
+
+    // Every header heads its own loop, whatever else contains it. That identity is what the chain
+    // walks terminate on, so it is established before anything else can claim the block.
+    for(auto& loop: loops) info.header[loop.header] = loop.header;
+
+    for(auto o: order) {
+        auto& loop = loops[o];
+
+        for(Size b = 0; b < blockList.size(); b++) {
+            if(!loop.members[b]) continue;
+
+            if(info.header[b] == kNullBlock) info.header[b] = loop.header;
+
+            // The innermost loop containing a header, other than the one it heads, is its parent.
+            if(BlockIndex(b) != loop.header && info.isHeader(BlockIndex(b)) && info.parent[b] == kNullBlock) {
+                info.parent[b] = loop.header;
+            }
+        }
+    }
+
+    for(Size b = 0; b < blockList.size(); b++) {
+        U16 d = 0;
+        auto h = info.header[b];
+
+        for(Size step = 0; h != kNullBlock && step <= loops.size(); step++) {
+            d++;
+            h = info.parent[h];
+        }
+
+        info.depth[b] = d;
+        base[blockList[b]]->loopDepth = d;
+    }
+
+    return info;
+}
+
+/*
+ * Edge likelihood.
+ *
+ * What the IR says wins, because it is the only thing that can know: a branch that tests a value the
+ * program computed looks exactly like one that tests whether an allocation failed, and only whoever
+ * wrote it can tell the two apart. Where nothing is stated, exactly one thing about a branch is
+ * derivable from the CFG - that a loop runs more than once, so the edge leaving it is taken once
+ * where the edge staying in it is taken every iteration but the last.
+ *
+ * Nothing else is guessed. An ordinary data-dependent branch is left at even odds rather than being
+ * declared exceptional on the strength of what its arms happen to contain, since the IR has already
+ * lost whatever made it exceptional. The other static sources the design names - a call that does not
+ * return, an edge into unreachable code - have nothing to read yet: this IR has no way to write
+ * either down, and a rule keyed on something unrepresentable would be dead code claiming coverage.
+ */
+
+// Weights are relative, so only their ratio matters - but the product below has to stay inside 64
+// bits at the frequency ceiling, which is what bounds them.
+static U32 clampWeight(U32 weight) {
+    if(weight < 1) return 1;
+    return weight > kMaxEdgeWeight ? kMaxEdgeWeight : weight;
+}
+
+EdgeWeights edgeWeightsOf(LowerBase base, const LoopInfo& loops, LowerBlock* block) {
+    // A block with one successor has nothing to weigh: everything reaching it continues there.
+    if(!block->outgoing[0] || !block->outgoing[1]) return EdgeWeights {};
+
+    auto term = base[block->terminator];
+    assertTrue(term->kind == LowerInst::Je); // the only terminator with two successors
+
+    auto je = (LowerInstJe*)term;
+
+    if(je->hasLikelihood()) {
+        auto& left = je->likelihood[0];
+        auto& right = je->likelihood[1];
+
+        // The better-informed of the two sources describes the pair: a profile that measured one arm
+        // measured the branch, and the sibling's default of one is what it measured it against.
+        return EdgeWeights {
+            { clampWeight(left.weight), clampWeight(right.weight) },
+            left.source > right.source ? left.source : right.source,
+        };
+    }
+
+    auto loop = loops.header[block->index];
+
+    if(loop != kNullBlock) {
+        auto stays0 = loops.contains(loop, base[block->outgoing[0]]->index);
+        auto stays1 = loops.contains(loop, base[block->outgoing[1]]->index);
+
+        // Only when exactly one of them leaves. A branch whose arms both stay in the loop says
+        // nothing about how long the loop runs, and neither does one whose arms both leave it.
+        if(stays0 != stays1) {
+            EdgeWeights out;
+            out.source = LikelihoodSource::Static;
+            out.weight[stays0 ? 0 : 1] = U32(kLoopTripCount - 1);
+            out.weight[stays0 ? 1 : 0] = 1;
+
+            return out;
+        }
+    }
+
+    return EdgeWeights {};
+}
+
+/*
+ * Block frequency.
+ *
+ * One walk in reverse postorder, with the back edges left out of it: every other edge into a block
+ * comes from a block the walk has already answered, so the sum is complete when it is taken and no
+ * fixpoint is needed. What the back edges would have contributed is the loop's own multiplier, which
+ * the header is scaled by instead.
+ *
+ * The two halves are chosen to agree rather than to be independently plausible. A loop whose exit
+ * edge has probability 1/T satisfies H = entry + H(1 - 1/T), which is H = entry * T - exactly what
+ * scaling the header by T produces. So the exit block comes out at the frequency of the entry rather
+ * than at T times it, and a loop that iterates eight times is left eight times as hot as the code
+ * around it without the code it leaves to becoming hot as well. Both numbers come from
+ * kLoopTripCount, which is why they cannot drift apart.
+ *
+ * They agree exactly for a loop with one exit. A loop with several - a search with both a "found"
+ * and a "ran out" ending - gives each of them 1/T of wherever it sits, so the exits together account
+ * for more than one departure per entry, and the loop is really being modelled as running rather
+ * fewer than T times. Making that exact means solving for the trip count the exit structure implies
+ * rather than assuming one, which is a fixpoint over each loop; nothing that reads the result needs
+ * it, because every consumer compares blocks and the ranking is the same either way.
+ */
+
+// What one edge carries: the source block's frequency, split between its successors in proportion to
+// their weights.
+static U64 edgeFrequency(LowerBase base, const LoopInfo& loops, const FunctionFrequencyInfo& freq,
+    LowerBlock* from, LowerBlock* to)
+{
+    auto source = freq.relativeBlockFrequency[from->index];
+    if(!from->outgoing[1]) return source;
+
+    auto weights = edgeWeightsOf(base, loops, from);
+    auto edge = base[from->outgoing[0]] == to ? 0 : 1;
+
+    return source * weights.weight[edge] / weights.total();
+}
+
+FunctionFrequencyInfo LowerFunction::buildFrequencies(LowerBase base) {
+    auto loops = buildLoops(base);
+    auto postorder = buildPostorder(base);
+    auto blockList = blocks.contents(base);
+
+    FunctionFrequencyInfo out;
+    for(Size i = 0; i < blockList.size(); i++) out.relativeBlockFrequency.push(0);
+
+    for(Size i = postorder.size(); i > 0; i--) {
+        auto index = postorder[i - 1];
+        auto b = base[blockList[index]];
+
+        // Execution arrives at the entry block from outside the function; nothing branches to it.
+        U64 total = index == 0 ? kEntryFrequency : 0;
+
+        for(auto p: b->incoming.contents(base)) {
+            auto pred = base[p];
+            if(loops.isBackEdge(pred->index, b->index)) continue;
+
+            total += edgeFrequency(base, loops, out, pred, b);
+        }
+
+        if(loops.isHeader(index)) total *= kLoopTripCount;
+        if(total > kMaxFrequency) total = kMaxFrequency;
+
+        // A block the walk reached does execute, however rarely. Rounding it to nothing would make
+        // it indistinguishable from one nothing reaches at all, which is the one distinction a
+        // consumer weighing spill costs must not lose.
+        if(total == 0) total = 1;
+
+        out.relativeBlockFrequency[index] = total;
+    }
+
+    return out;
+}
+
 // Assigns a dense LiveId to every value the instruction creates. Unlike an escape-analysis-filtered
 // numbering, this covers block-local values too: the LiveId doubles as the index into
 // Liveness::ranges, and the register allocator needs a range for every value it has to place, not

@@ -157,6 +157,13 @@ struct Placer {
     const MachineFunction& machine;
     const Constraints& constraints;
 
+    // How often each block runs relative to the function's entry - see FunctionFrequencyInfo. Every
+    // decision here that trades one part of the function against another is weighed by it: what a
+    // web costs if it is left homeless, and which of two competing phi copies is worth coalescing.
+    // Computed once per allocation rather than per placement pass, since nothing on the displacement
+    // loop changes the CFG or the edge metadata it is derived from.
+    const FunctionFrequencyInfo& frequency;
+
     // The result, built as the walk goes rather than copied out at the end - which is what lets the
     // operand rule below ask where a sibling operand will be read from while placement is still
     // running, against exactly the structure legalization will read afterwards.
@@ -229,10 +236,10 @@ struct Placer {
     const TemporaryReserve& temporaries;
 
     Placer(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
-        const Constraints& constraints, bool framePointer, const TemporaryReserve& temporaries,
-        const Array<bool>& forcedHomeless):
+        const Constraints& constraints, const FunctionFrequencyInfo& frequency, bool framePointer,
+        const TemporaryReserve& temporaries, const Array<bool>& forcedHomeless):
         base(base), fun(fun), live(live), machine(machine), constraints(constraints),
-        forcedHomeless(forcedHomeless), temporaries(temporaries)
+        frequency(frequency), forcedHomeless(forcedHomeless), temporaries(temporaries)
     {
         // Whatever is held back - the scratch registers, and rbp in a function that establishes a
         // frame pointer - is not available to hand out as a home.
@@ -505,11 +512,36 @@ static void buildWebs(Placer& a) {
         return id;
     };
 
-    // Block order, so that the result is reproducible in the goldens. Processing the hottest phis
-    // first would coalesce the copies that matter most when two candidates compete, and is the
-    // natural refinement once block frequencies exist.
-    for(auto offset: a.fun.blocks.contents(a.base)) {
-        auto block = a.base[offset];
+    // Hottest block first, because a merge can fail: two phis may each want to join a web, and only
+    // the first of them to ask can, since the second then overlaps what the first merged in. The one
+    // in the hotter block is the copy worth removing - a move in a loop body costs a multiple of the
+    // same move outside it - so it is the one that gets to ask first.
+    //
+    // Blocks of equal frequency keep their list order, which is what keeps the result reproducible
+    // in the goldens: the sort below is a stable insertion sort over the block list.
+    auto blockList = a.fun.blocks.contents(a.base);
+    auto weightAt = [&](Size position) {
+        return a.frequency.frequencyOf(a.base[blockList[position]]->index);
+    };
+
+    Array<Size> blockOrder;
+    for(Size i = 0; i < blockList.size(); i++) blockOrder.push(i);
+
+    for(Size i = 1; i < blockOrder.size(); i++) {
+        auto v = blockOrder[i];
+        auto weight = weightAt(v);
+        auto j = i;
+
+        while(j > 0 && weightAt(blockOrder[j - 1]) < weight) {
+            blockOrder[j] = blockOrder[j - 1];
+            j--;
+        }
+
+        blockOrder[j] = v;
+    }
+
+    for(auto position: blockOrder) {
+        auto block = a.base[blockList[position]];
 
         for(auto p: block->phis.contents(a.base)) {
             auto phi = a.base[p];
@@ -601,8 +633,7 @@ static void computeAvoidSets(Placer& a) {
  * with anything, since it is not live between its uses.
  *
  * Both are stated in quarter-instructions, so that "a longer encoding" can be told apart from
- * "free", and both are weighted by loop depth, since an instruction one loop deep runs some multiple
- * of the times the code around it does. `orderBlocks` left that depth on each block for this.
+ * "free", and both are weighted by how often the block they are in actually runs.
  */
 
 static constexpr U32 kReloadCost = 4;    // an operand that has to be brought into a register
@@ -610,11 +641,23 @@ static constexpr U32 kStoreCost = 4;     // a result that has to be carried back
 static constexpr U32 kRematCost = 4;     // recreating the value where it is read
 static constexpr U32 kFoldedUseCost = 1; // an operand read straight out of the frame
 
-// How much more one execution of this block is worth than one execution of the function's entry.
-// Eight per loop level, capped so that a deeply nested block cannot overflow the sums these feed.
-static U32 blockWeight(LowerBlock* block) {
-    auto depth = block->loopDepth < 5 ? block->loopDepth : 5;
-    return U32(1) << (3 * depth);
+// The most one block may be worth. Costs are summed over every read and write in a function in 32
+// bits, so the weight has to leave room for that; five loop levels is already further in than any
+// difference between two of them decides anything.
+static constexpr U64 kMaxBlockWeight = 32768;
+
+// How much more one execution of this block is worth than one execution of the function's entry -
+// the block frequency, in units of the entry's own.
+//
+// Truncated to an integer rather than kept as a fraction, so a block that runs *less* often than the
+// entry weighs one, the same as the entry does. That is the resolution the costs below are stated at
+// and there is nothing below it to distinguish: what matters is that a loop body outweighs the code
+// around it, and that a cold arm inside that loop does not.
+static U32 blockWeight(Placer& a, LowerBlock* block) {
+    auto scaled = a.frequency.frequencyOf(block->index) / kEntryFrequency;
+    if(scaled < 1) return 1;
+
+    return U32(scaled < kMaxBlockWeight ? scaled : kMaxBlockWeight);
 }
 
 // Whether this instruction reads and writes its read/write memory operand in the same place - which it
@@ -695,7 +738,7 @@ static void computeSpillCosts(Placer& a) {
 
     for(auto offset: a.fun.blocks.contents(a.base)) {
         auto block = a.base[offset];
-        auto weight = blockWeight(block);
+        auto weight = blockWeight(a, block);
 
         auto onInst = [&](LowerInst* inst) {
             auto shape = shapeOf(a.base, a.machine, a.constraints, a.fun, inst);
@@ -956,10 +999,10 @@ static void collectFrameObjects(Placer& a) {
 }
 
 Placement computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
-    const Constraints& constraints, bool framePointer, const TemporaryReserve& temporaries,
-    const Array<bool>& forcedHomeless)
+    const Constraints& constraints, const FunctionFrequencyInfo& frequency, bool framePointer,
+    const TemporaryReserve& temporaries, const Array<bool>& forcedHomeless)
 {
-    Placer a(base, fun, live, machine, constraints, framePointer, temporaries, forcedHomeless);
+    Placer a(base, fun, live, machine, constraints, frequency, framePointer, temporaries, forcedHomeless);
     collectFrameObjects(a);
 
     // Webs before avoid sets: a clobber that one member has to dodge is one the whole web has to

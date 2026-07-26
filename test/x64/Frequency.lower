@@ -1,0 +1,204 @@
+# Block frequency in the backend.
+#
+# The frequencies themselves are covered by `lower/Frequency.lower.freq.expect`, which prints them
+# directly. What these functions record is what the backend does differently because of them: which
+# block follows which in the layout, and which value the allocator is willing to leave in the frame.
+#
+# Each case is a pair of functions with identical bodies, one stating what it knows about its branch
+# and one saying nothing - so the property under test is the difference between two goldens rather
+# than an absolute claim about either.
+
+# The likely arm becomes the fallthrough.
+#
+# `hot` is declared first, so with nothing known the walk explores it first, finishes it first, and
+# reverses it to *after* the arm it was declared before - `cold` ends up immediately behind the
+# branch and every execution pays a taken jump around it.
+neutralLayout(%c: Int, %a: Int): Int {
+    start {
+        je %c, hot, cold
+    }
+
+    hot {
+        %h = add %a, 1: Int
+        jmp end
+    }
+
+    cold {
+        %l = add %a, 2: Int
+        jmp end
+    }
+
+    end {
+        ret (phi [hot, %h], [cold, %l]: Int)
+    }
+}
+
+# The same function with the branch weighted. The less likely successor is explored first, so `hot`
+# is the block immediately after the branch and the jump around `cold` is the one almost never taken.
+hintedLayout(%c: Int, %a: Int): Int {
+    start {
+        je %c, [hot, 99], [cold, 1]
+    }
+
+    hot {
+        %h = add %a, 1: Int
+        jmp end
+    }
+
+    cold {
+        %l = add %a, 2: Int
+        jmp end
+    }
+
+    end {
+        ret (phi [hot, %h], [cold, %l]: Int)
+    }
+}
+
+# A weight on an edge that gets split.
+#
+# `start` has two successors and one of them, `end`, has phis - so the transform pipeline inserts a
+# block on that edge before the layout runs, to give the phi transfer somewhere it can happen that is
+# not also on the path to `hot` (see normalizePhiEdges). With nothing known, `hot` is declared and so
+# explored first, and ends up behind the inserted block.
+neutralSplitLayout(%c: Int, %a: Int): Int {
+    start {
+        %x = add %a, 1: Int
+        je %c, hot, end
+    }
+
+    hot {
+        %h = add %x, 2: Int
+        jmp end
+    }
+
+    end {
+        ret (phi [start, %x], [hot, %h]: Int)
+    }
+}
+
+# The same function with the branch weighted, which is what the inserted block must not lose. The
+# weight belongs to the edge rather than to the block the edge leads to, so retargeting it onto the
+# inserted block carries the weight with it - and `hot` is still laid out as the fallthrough, ahead
+# of the block on the edge that is almost never taken.
+hintedSplitLayout(%c: Int, %a: Int): Int {
+    start {
+        %x = add %a, 1: Int
+        je %c, [hot, 99], [end, 1]
+    }
+
+    hot {
+        %h = add %x, 2: Int
+        jmp end
+    }
+
+    end {
+        ret (phi [start, %x], [hot, %h]: Int)
+    }
+}
+
+# What a value costs depends on where it is read.
+#
+# Eight values are live across a call inside a loop, and only six registers survive one - so two of
+# them have to live in the frame whatever else is decided. Four are read only in the loop's common
+# arm and four only in the arm it almost never takes; with nothing known about the branch, all eight
+# are read exactly once in a block of the same weight, and the allocator has no reason to prefer any
+# of them.
+neutralCost(%n: Int, %c: Int, %a: Int, %b: Int): Int {
+    start {
+        %v0 = add %a, 0: Int
+        %v1 = add %a, 1: Int
+        %v2 = add %a, 2: Int
+        %v3 = add %a, 3: Int
+        %v4 = add %b, 4: Int
+        %v5 = add %b, 5: Int
+        %v6 = add %b, 6: Int
+        %v7 = add %b, 7: Int
+        %z = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [start, %z], [join, %i2]: Int
+        %r = call_complex sink, %i: Int
+        je %c, common, rare
+    }
+
+    common {
+        %c0 = add %v0, %v1: Int
+        %c1 = add %c0, %v2: Int
+        %c2 = add %c1, %v3: Int
+        jmp join
+    }
+
+    rare {
+        %r0 = add %v4, %v5: Int
+        %r1 = add %r0, %v6: Int
+        %r2 = add %r1, %v7: Int
+        jmp join
+    }
+
+    join {
+        %s = phi [common, %c2], [rare, %r2]: Int
+        %i2 = add %i, 1: Int
+        je (cmp_ilt %i2, %n), head, done
+    }
+
+    done {
+        ret %s
+    }
+}
+
+# The same function with the rare arm weighted as rare. The four values read only there now cost a
+# thousandth of what the four read in the common arm cost, so they are the ones the frame gets first
+# and the common arm reads out of a register wherever there is one to spare.
+hintedCost(%n: Int, %c: Int, %a: Int, %b: Int): Int {
+    start {
+        %v0 = add %a, 0: Int
+        %v1 = add %a, 1: Int
+        %v2 = add %a, 2: Int
+        %v3 = add %a, 3: Int
+        %v4 = add %b, 4: Int
+        %v5 = add %b, 5: Int
+        %v6 = add %b, 6: Int
+        %v7 = add %b, 7: Int
+        %z = cast 0: Int
+        jmp head
+    }
+
+    head {
+        %i = phi [start, %z], [join, %i2]: Int
+        %r = call_complex sink, %i: Int
+        je %c, [common, 1000], [rare, 1]
+    }
+
+    common {
+        %c0 = add %v0, %v1: Int
+        %c1 = add %c0, %v2: Int
+        %c2 = add %c1, %v3: Int
+        jmp join
+    }
+
+    rare {
+        %r0 = add %v4, %v5: Int
+        %r1 = add %r0, %v6: Int
+        %r2 = add %r1, %v7: Int
+        jmp join
+    }
+
+    join {
+        %s = phi [common, %c2], [rare, %r2]: Int
+        %i2 = add %i, 1: Int
+        je (cmp_ilt %i2, %n), head, done
+    }
+
+    done {
+        ret %s
+    }
+}
+
+sink(%v: Int): Int {
+    {
+        ret %v
+    }
+}

@@ -1,0 +1,131 @@
+
+hinted<complex>(%c: Int): Int {
+  start {
+    je %c, [left, 99], [right, 1]
+  }
+
+  left {
+    %a = cast 1: Int
+    jmp end
+  }
+
+  right {
+    %b = cast 2: Int
+    jmp end
+  }
+
+  end {
+    %v_0 = phi [left, %a], [right, %b]: Int
+    ret %v_0
+  }
+}
+
+neutral<complex>(%c: Int): Int {
+  start {
+    je %c, left, right
+  }
+
+  left {
+    %a = cast 1: Int
+    jmp end
+  }
+
+  right {
+    %b = cast 2: Int
+    jmp end
+  }
+
+  end {
+    %v_0 = phi [left, %a], [right, %b]: Int
+    ret %v_0
+  }
+}
+
+loop<complex>(%n: Int): Int {
+  start {
+    %z = cast 0: Int
+    jmp head
+  }
+
+  head {
+    %i = phi [start, %z], [body, %i2]: Int
+    %v_0 = cmp_ige %i, %n: Int
+    je %v_0, end, body
+  }
+
+  body {
+    %i2 = add %i, 1: Int
+    jmp head
+  }
+
+  end {
+    ret %i
+  }
+}
+
+nested<complex>(%n: Int, %m: Int): Int {
+  start {
+    %z = cast 0: Int
+    jmp outer
+  }
+
+  outer {
+    %i = phi [start, %z], [outerEnd, %i2]: Int
+    %v_0 = cmp_ige %i, %n: Int
+    je %v_0, done, innerHead
+  }
+
+  innerHead {
+    %j = phi [outer, %z], [innerBody, %j2]: Int
+    %v_1 = cmp_ige %j, %m: Int
+    je %v_1, outerEnd, innerBody
+  }
+
+  innerBody {
+    %j2 = add %j, 1: Int
+    jmp innerHead
+  }
+
+  outerEnd {
+    %i2 = add %i, 1: Int
+    jmp outer
+  }
+
+  done {
+    ret %i
+  }
+}
+
+coldPathInLoop<complex>(%n: Int, %c: Int): Int {
+  start {
+    %z = cast 0: Int
+    jmp head
+  }
+
+  head {
+    %i = phi [start, %z], [next, %i2]: Int
+    %v_0 = cmp_ige %i, %n: Int
+    je %v_0, done, check
+  }
+
+  check {
+    %v_1 = cmp_eq %c, 0: Int
+    je %v_1, [fail, 1], [next, 1000]
+  }
+
+  fail {
+    %e = cast 0: Int
+    jmp done
+  }
+
+  next {
+    %i2 = add %i, 1: Int
+    jmp head
+  }
+
+  done {
+    %v_2 = phi [head, %i], [fail, %e]: Int
+    ret %v_2
+  }
+}
+

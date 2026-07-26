@@ -184,7 +184,7 @@ static void writeMoveList(Net::Writer& w, StringView label, const Array<RegMove>
 // as LowerTester.cpp's golden files show it) followed by a per-instruction disassembly trace.
 static void printTrace(Net::Writer& writer, Context& context, LowerBase base, LowerModule& module) {
     PrintContext print;
-    printModule(writer, context, base, module, false);
+    printModule(writer, context, base, module);
 
     // Every function is emitted into a single AsmModule before anything is printed, so that a
     // direct call's rel32 is actually resolved against the callee's real offset (relocations can

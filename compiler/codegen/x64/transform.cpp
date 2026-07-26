@@ -814,79 +814,38 @@ static void foldLeas(LowerBase base, LowerFunction& fun) {
  * loop is split into two ranges around the intruding block.
  *
  * Exploring the successor that *leaves* the loop first fixes both, since it is finished first and so
- * reversed last. That is all the loop analysis below is for: a depth per block, so that two
- * successors can be told apart by which of them is further in.
+ * reversed last.
+ *
+ * That generalizes, and is what the choice is actually made on: **explore the less likely successor
+ * first**, so that the likely one is reversed into the position immediately after the branch and
+ * becomes the fallthrough. A loop exit is only the case of it the CFG can derive on its own - the
+ * edge leaving a loop is taken once where the edge staying in it is taken every iteration but the
+ * last - and a branch the IR says is unlikely gets the same treatment for the same reason. Where the
+ * two edges are equally likely there is nothing to prefer, and the loop depth decides: the deeper
+ * successor goes last, so that a block entering a loop is followed by the loop rather than by
+ * whatever comes after it. `edgeWeightsOf` is where those probabilities come from, and it is the
+ * same one the block frequencies are computed from - so layout and cost cannot disagree about which
+ * arm of a branch is the common one.
  */
 
-// A retreating edge found by the walk, from the block that closes a loop back to the one that opens
-// it. In a reducible CFG an edge to a block still on the walk's own stack is exactly an edge to a
-// block that dominates its source, which is what makes it a loop rather than a diamond.
-struct BackEdge {
-    LowerBlock* latch;
-    LowerBlock* header;
-};
-
-static constexpr U32 kOnStack = 1;
-static constexpr U32 kFinished = 2;
-
-static void findBackEdges(LowerBase base, LowerBlock* b, Array<BackEdge>& out) {
-    b->marker = kOnStack;
-
-    for(auto o: b->outgoing) {
-        if(!o) continue;
-        auto s = base[o];
-
-        if(s->marker == kOnStack) out.push(BackEdge { b, s });
-        else if(s->marker != kFinished) findBackEdges(base, s, out);
-    }
-
-    b->marker = kFinished;
-}
-
-// Counts one back edge's loop into `depth`: the header, plus everything the latch is reachable from
-// without passing back through the header, which is the natural loop of that edge. Nested loops
-// simply add on top of each other, so a block inside two of them is counted twice and compares as
-// deeper than one inside either alone.
-static void addLoopDepth(LowerBase base, LowerFunction& fun, const BackEdge& edge, Array<U32>& depth) {
-    Array<bool> inLoop;
-    for(Size i = 0; i < fun.blocks.size(); i++) inLoop.push(false);
-
-    // Marked before the walk starts rather than visited by it: the header bounds the loop, and a
-    // predecessor reached through it is outside.
-    inLoop[edge.header->index] = true;
-    depth[edge.header->index]++;
-
-    Array<LowerBlock*> body;
-
-    auto visit = [&](LowerBlock* b) {
-        if(inLoop[b->index]) return;
-
-        inLoop[b->index] = true;
-        depth[b->index]++;
-        body.push(b);
-    };
-
-    visit(edge.latch);
-
-    // Walked as a queue rather than popped, so that `body` doubles as the visited list.
-    for(Size i = 0; i < body.size(); i++) {
-        for(auto p: body[i]->incoming.contents(base)) visit(base[p]);
-    }
-}
-
-static void traverseOrdered(LowerBase base, LowerBlock* b, const Array<U32>& depth, BlockList& out) {
+static void traverseOrdered(LowerBase base, const LoopInfo& loops, LowerBlock* b, BlockList& out) {
     b->marker = 1;
 
     auto first = b->outgoing[0] ? base[b->outgoing[0]] : nullptr;
     auto second = b->outgoing[1] ? base[b->outgoing[1]] : nullptr;
 
-    // The deeper successor is explored last, so that it is pushed last and reversed to the front:
-    // the block continuing the loop follows its header directly, and whatever leaves is left for
-    // after the body. Successors at the same depth keep the order the branch declares them in.
-    if(first && second && depth[first->index] > depth[second->index]) ::swap(first, second);
+    if(first && second) {
+        auto weights = edgeWeightsOf(base, loops, b);
 
-    if(first && !first->marker) traverseOrdered(base, first, depth, out);
-    if(second && !second->marker) traverseOrdered(base, second, depth, out);
+        auto swapThem = weights.weight[0] != weights.weight[1]
+            ? weights.weight[0] > weights.weight[1]
+            : loops.depth[first->index] > loops.depth[second->index];
+
+        if(swapThem) ::swap(first, second);
+    }
+
+    if(first && !first->marker) traverseOrdered(base, loops, first, out);
+    if(second && !second->marker) traverseOrdered(base, loops, second, out);
 
     out.push(b->index);
 }
@@ -895,22 +854,14 @@ static void orderBlocks(LowerBase base, LowerFunction& fun) {
     auto blockList = fun.blocks.contents(base);
     auto entry = base[fun.blocks.get(base, 0)];
 
-    Array<U32> depth;
-    for(Size i = 0; i < blockList.size(); i++) {
-        auto b = base[blockList[i]];
-        b->index = BlockIndex(i);
-        b->marker = 0;
-        depth.push(0);
-    }
-
-    Array<BackEdge> backEdges;
-    findBackEdges(base, entry, backEdges);
-    for(auto& e: backEdges) addLoopDepth(base, fun, e, depth);
+    // Also leaves each block's loop depth on it, which is where the ordering below reads it back
+    // from after the renumbering has invalidated the index-keyed result.
+    auto loops = fun.buildLoops(base);
 
     for(auto o: blockList) base[o]->marker = 0;
 
     BlockList postorder(blockList.size());
-    traverseOrdered(base, entry, depth, postorder);
+    traverseOrdered(base, loops, entry, postorder);
 
     // A block that the entry point cannot reach has no place in the ordering, and nothing
     // downstream is prepared to allocate registers for one.
@@ -923,12 +874,6 @@ static void orderBlocks(LowerBase base, LowerFunction& fun) {
 
     for(Size i = 0; i < ordered.size(); i++) {
         auto b = base[ordered[i]];
-
-        // The depth the ordering was decided from is kept rather than thrown away: it is the only
-        // thing downstream that can say one part of a function runs more often than another, and the
-        // allocator weighs a spill by it. Read before the renumbering below, since `depth` is
-        // indexed by the numbering the traversal used.
-        b->loopDepth = U16(depth[b->index]);
 
         fun.blocks.set(base, i, ordered[i]);
         b->index = BlockIndex(i);
@@ -1060,12 +1005,13 @@ static void normalizePhiEdges(LowerBase base, LowerFunction& fun) {
     splitPhiEdges(base, fun);
 }
 
-// Finds the loops, records a depth per block, and rewrites the block list into the reverse postorder
-// that follows them - see the block-order comment above.
+// Finds the loops and rewrites the block list into the reverse postorder that follows them and the
+// branch probabilities - see the block-order comment above.
 //
-// Expects: the CFG in its final shape.  Establishes: blocks in reverse postorder with `index` equal
-// to list position, and `loopDepth` set. Mutates: the block list order and block metadata.
-// Invalidates: nothing after it.
+// Expects: the CFG in its final shape, since the edge probabilities it lays the blocks out by are
+// read from it. Establishes: blocks in reverse postorder with the likely successor of each branch
+// immediately behind it, `index` equal to list position, and `loopDepth` set. Mutates: the block
+// list order and block metadata. Invalidates: nothing after it.
 static void analyzeLoopsAndOrderBlocks(LowerBase base, LowerFunction& fun) {
     orderBlocks(base, fun);
 }
@@ -1216,6 +1162,28 @@ static bool verifyTransformInvariants(Context& ctx, LowerBase base, LowerFunctio
             {
                 fail("%@: block %@ has two successors and block %@ has phis",
                     funName, U32(block->index), U32(base[o]->index));
+            }
+        }
+
+        // Edge likelihood survives every CFG transform, or the layout and the frequencies are
+        // reasoning about a branch that no longer exists. Splitting an edge is the case that could
+        // lose one - it retargets `then` or `otherwise` - and what would show here is a branch that
+        // came out with a weight on one edge and nothing on the other, which is not a ratio.
+        if(base[block->terminator]->kind == LowerInst::Je) {
+            auto je = (LowerInstJe*)base[block->terminator];
+
+            for(auto& likelihood: je->likelihood) {
+                auto stated = likelihood.source != LikelihoodSource::Unknown;
+
+                if(stated != je->hasLikelihood()) {
+                    fail("%@: branch in block %@ states an edge weight for one edge only",
+                        funName, U32(block->index));
+                }
+
+                if(likelihood.weight < 1 || likelihood.weight > kMaxEdgeWeight) {
+                    fail("%@: branch in block %@ has an edge weight out of range",
+                        funName, U32(block->index));
+                }
             }
         }
 

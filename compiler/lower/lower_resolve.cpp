@@ -97,6 +97,39 @@ static Maybe<LowerBlock*> findBlock(LowerResolve& resolve, LowerBase base, Lower
     return Nothing();
 }
 
+// One successor of a conditional branch, together with what the source said about how likely it is.
+struct LowerEdgeAst {
+    LowerBlock* block;
+    EdgeLikelihood likelihood;
+};
+
+// A branch target, written either as a bare block label or as `[block, weight]` - see
+// EdgeLikelihood. The weight is relative to the branch's other edge and to nothing else, so a
+// branch states both of them or neither; one on its own would be a ratio with nothing to be a ratio
+// against, and the caller checks for that.
+//
+// The bracket form is the one the parser already accepts for a phi's `[block, value]`, which is why
+// it needs no syntax of its own: the block arrives as the argument's `source` and the weight as the
+// argument itself.
+static Maybe<LowerEdgeAst> findEdge(LowerResolve& resolve, LowerBase base, LowerBlock& block, const LowerArgAst& ast, LocationId source) {
+    if(!ast.source) {
+        auto target = tryMaybe(findBlock(resolve, base, block, ast, source), return Nothing());
+        return Just(LowerEdgeAst { target, EdgeLikelihood {} });
+    }
+
+    auto target = tryMaybe(findBlock(resolve, base, block, ast.source, source), return Nothing());
+
+    if(!ast.isInt() || ast.i < 1 || ast.i > kMaxEdgeWeight) {
+        resolve.diag.error("expected a positive branch weight within the supported range"_v, source);
+        return Nothing();
+    }
+
+    // A weight written into the IR is a claim by whoever produced it. A static estimate is derived
+    // rather than written down, and a measured one has no way in yet, so this is the one source the
+    // text format can express.
+    return Just(LowerEdgeAst { target, EdgeLikelihood { U32(ast.i), LikelihoodSource::FrontendHint } });
+}
+
 template<LowerInst::Kind kind>
 InstResolver handleImplicit() {
     return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
@@ -431,10 +464,21 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         assertOnlyTerminator();
 
         auto cmp = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
-        auto lhs = tryMaybe(findBlock(resolve, base, block, ast.args[1], ast.source), return Nothing());
-        auto rhs = tryMaybe(findBlock(resolve, base, block, ast.args[2], ast.source), return Nothing());
+        auto lhs = tryMaybe(findEdge(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto rhs = tryMaybe(findEdge(resolve, base, block, ast.args[2], ast.source), return Nothing());
 
-        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstJe(cmp - base, lhs - base, rhs - base)));
+        // A weight is relative to the other edge, so one without the other says nothing.
+        auto stated = lhs.likelihood.source != LikelihoodSource::Unknown;
+        if(stated != (rhs.likelihood.source != LikelihoodSource::Unknown)) {
+            resolve.diag.error("a branch states a weight for both of its edges or for neither"_v, ast.source);
+            return Nothing();
+        }
+
+        auto je = new (resolve.moduleArena) LowerInstJe(cmp - base, lhs.block - base, rhs.block - base);
+        je->likelihood[0] = lhs.likelihood;
+        je->likelihood[1] = rhs.likelihood;
+
+        return Just(block.addInst(base, je));
     });
 
     instructionSet.add(Context::nameHash("jmp"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
