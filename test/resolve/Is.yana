@@ -1,0 +1,70 @@
+-- `expr is pat` - a condition that binds. It is the named form of what `Truth` does anonymously:
+-- `if x` asks whether x matches the pattern its type considers non-empty, and `if x is p` names
+-- the pattern instead.
+--
+-- The names a pattern binds are live where the condition is known true, which is the block the
+-- condition branches into: the `then` arm, a case's body, a loop body. That is the whole reason
+-- this is a condition rather than a Bool - a Bool has nowhere to put them.
+
+data Shape = Circle(Int) | Square {width: Int, height: Int}
+
+-- The subsuming case: what would be `if let` elsewhere is one operator here.
+fn orZero(m: Maybe(Int)) -> Int:
+    if m is Just(v):
+        return v + 1
+
+    return 0
+
+-- The `else` arm is reached exactly when the pattern did not match, so nothing it bound is in
+-- scope there - the same rule the arms of a `match` follow.
+fn either(m: Maybe(Int)) -> Int = if m is Just(v) then v * 2 else 0
+
+-- A pattern that binds nothing is still a test.
+fn isZero(m: Maybe(Int)) -> Int = if m is Just(0) then 1 else 0
+
+-- Nesting works because the pattern is an ordinary pattern: `expr_pat.cpp` does all of the work
+-- and `is` supplies only the pivot.
+fn deep(m: Maybe(Maybe(Int))) -> Int = if m is Just(Just(v)) then v else 0
+
+-- Each case of a multi-way if is a condition of its own, so each one may bind.
+fn area(s: Shape) -> Int = if:
+    s is Circle(r) -> r * r
+    s is Square {width: w, height: h} -> w * h
+    else -> 0
+
+-- Ordinary conditions and `is` conditions mix, since they are the same construct.
+fn describe(s: Shape, flag: Bool) -> Int = if:
+    flag -> 1
+    s is Circle(r) -> r
+    else -> 0
+
+-- A loop condition binds into the body, which is the one place the pattern matched.
+fn firstOf(m: Maybe(Int)) -> Int:
+    while m is Just(item):
+        return item + 10
+
+    return 0
+
+-- Outside condition position there is no block for bindings to live in - the value comes out of a
+-- join, and the path through it is the one where the pattern failed - so `is` is an ordinary Bool
+-- and its pattern binds nothing that outlives it.
+fn present(m: Maybe(Int)) -> Int:
+    let found = m is Just(_)
+    return if found then 2 else 1
+
+-- The pivot is an arbitrary expression, and a call is the case worth showing: it is evaluated once,
+-- before the test, like any other pivot.
+fn viaCall(value: Int) -> Int = if wrap(value) is Just(v) then v else 0
+
+fn wrap(value: Int) -> Maybe(Int) = if value > 0 then Just(value) else Nothing
+
+fn main() -> Int =
+    orZero(Just(1)) + orZero(Nothing) * 100 +
+    either(Just(2)) + either(Nothing) * 100 +
+    isZero(Just(0)) * 8 + isZero(Just(1)) * 100 +
+    deep(Just(Just(16))) + deep(Just(Nothing)) * 100 + deep(Nothing) * 100 +
+    area(Circle(5)) + area(Square {width: 3, height: 4}) +
+    describe(Circle(7), True) + describe(Circle(7), False) +
+    firstOf(Just(32)) + firstOf(Nothing) * 100 +
+    present(Just(1)) * 64 + present(Nothing) * 128 +
+    viaCall(128) + viaCall(0) * 100

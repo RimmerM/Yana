@@ -745,6 +745,76 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
     return PatternResult::Never;
 }
 
+/*
+ * Conditions.
+ *
+ * A condition is either an expression whose type has a `Truth` instance or an `is` test - the
+ * anonymous and the named form of one idea. Both come out here as a branch rather than as a value,
+ * which is the whole point of the `is` half: the names its pattern binds have to be live in the
+ * block where the condition held, and nowhere else. A value-producing `is` (resolveIs below) is
+ * the degenerate case where there is no such block to bind into.
+ */
+PatternResult ExprResolver::resolveCondition(const ast::Expr& expr, ModulePtr<Block>& onFail) {
+    if(expr.kind == ast::Expr::Is) {
+        auto& test = *parse[expr.is];
+
+        // As in resolveMatch: the pivot has to have a type before a pattern can be matched against
+        // it, so a bare literal settles first.
+        auto pivot = settle(resolve(test.value), test.value.source);
+        if(!pivot) return PatternResult::Never;
+
+        PatternSpace space(*this, valueType(pivot));
+        if(space.add(test.pat)) {
+            context.diagnostics.warning("this pattern always matches, so the condition is always true"_v,
+                                        test.pat.source);
+        }
+
+        if(!onFail) onFail = addBlock();
+        auto result = resolvePattern(test.pat, pivot, onFail);
+        if(result != PatternResult::Always) return result;
+
+        // An irrefutable pattern emits no test, which would leave the failure block with nothing
+        // entering it - and every caller has already been handed that block to resolve its other
+        // arm into. A branch nothing takes keeps the graph well-formed and costs one dead compare;
+        // removing a block from the middle of a half-built function would cost rather more.
+        return branchPattern(makeInt(expr.source, module.scalar.bool_, 1), onFail, expr.source);
+    }
+
+    // Not `is`: an ordinary value, asked whether it is true. It is resolved with no expected type,
+    // because pushing `Bool` down would be the conversion step `Truth` is defined not to take -
+    // and a literal condition settles to its own class's default before being asked.
+    auto value = truthy(settle(resolve(expr), expr.source), expr.source);
+    if(!value) return PatternResult::Never;
+
+    // The success block is created first so that a `then` arm keeps the block order it had before
+    // conditions went through here.
+    auto success = addBlock();
+    if(!onFail) onFail = addBlock();
+
+    terminate(emit<InstJe>(expr.source, 0, module.scalar.unit, value, success, onFail));
+    current = success;
+
+    return PatternResult::Maybe;
+}
+
+// `x is p` where nothing branches on it. The bindings cannot survive: the value is produced by a
+// join, and the path through it is exactly the one on which the pattern did not match.
+ModulePtr<Value> ExprResolver::resolveIs(const ast::Expr& expr, const ast::IsExpr&, bool used) {
+    auto bindingCount = bindings.size();
+    ModulePtr<Block> onFail = nullptr;
+
+    if(resolveCondition(expr, onFail) == PatternResult::Never) return nullptr;
+    bindings.resize(bindingCount);
+
+    Array<BranchArm> arms;
+    arms.push(BranchArm { current, makeInt(expr.source, module.scalar.bool_, 1), expr.source });
+
+    current = onFail;
+    arms.push(BranchArm { current, makeInt(expr.source, module.scalar.bool_, 0), expr.source });
+
+    return finishBranches(arms, expr.source, used);
+}
+
 ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::MatchExpr& match, TypePtr target, bool used) {
     // Every pattern is matched against the pivot's type, so a pivot that is a bare literal has to
     // have settled on one before the first alternative is read.

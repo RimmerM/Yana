@@ -149,6 +149,24 @@ struct ExprResolver {
     ModulePtr<Value> resolveLiteral(const ast::Expr& expr, TypePtr target);
     ModulePtr<Value> resolveInteger(LocationId source, TypePtr target, U64 value);
     ModulePtr<Value> resolveDecimal(LocationId source, TypePtr target, F64 value);
+    // Resolves a condition into a branch. On return, `current` is the block reached when the
+    // condition holds - which is where an `is` test's bindings are live - and `onFail` is the
+    // block reached when it does not. A caller that already has a block to fail into (a loop's
+    // exit) passes it in; one that does not passes null and is given a fresh one.
+    //
+    // A condition is either an expression whose type has a `Truth` instance or an `is` test, which
+    // are the same idea named two ways: `if x` asks whether x matches the pattern its type
+    // considers non-empty, and `if x is p` names the pattern instead.
+    PatternResult resolveCondition(const ast::Expr& expr, ModulePtr<Block>& onFail);
+
+    // The `Truth` instance of this value's own type, applied. Never reached through a conversion:
+    // what `if x` means is decided by x's type alone.
+    ModulePtr<Value> truthy(ModulePtr<Value> value, LocationId source);
+
+    // `expr is pat` outside condition position, where there is no branch for its bindings to live
+    // in: an ordinary Bool, with what the pattern bound discarded.
+    ModulePtr<Value> resolveIs(const ast::Expr& expr, const ast::IsExpr& test, bool used);
+
     ModulePtr<Value> resolveIf(const ast::Expr& expr, const ast::IfExpr& branch, TypePtr target, bool used);
     ModulePtr<Value> resolveMultiIf(const ast::Expr& expr, ast::ParseList<ast::IfCase> cases, TypePtr target, bool used);
     void resolveWhile(const ast::WhileExpr& loop);

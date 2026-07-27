@@ -1,0 +1,238 @@
+fn fromBool(%value: Bool) -> Int {
+  b0:
+    je %value, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, 1], [b2, 0] : Int
+    ret %v6
+}
+
+fn compared(%a: Int, %b: Int) -> Int {
+  b0:
+    %v2 = cmp_gt %a, %b : Bool
+    je %v2, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, 1], [b2, 0] : Int
+    ret %v8
+}
+
+fn fromInt(%value: Int) -> Int {
+  b0:
+    %v2 = cmp_ne %value, 0 : Bool
+    je %v2, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, 1], [b2, 0] : Int
+    ret %v8
+}
+
+fn fromLong(%value: Long) -> Int {
+  b0:
+    %v2 = cmp_ne %value, 0 : Bool
+    je %v2, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, 1], [b2, 0] : Int
+    ret %v8
+}
+
+fn fromFloat(%value: Float) -> Int {
+  b0:
+    %v2 = cmp_ne %value, 0 : Bool
+    je %v2, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, 1], [b2, 0] : Int
+    ret %v8
+}
+
+fn fromLiteral() -> Int {
+  b0:
+    %v3 = cmp_ne 1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, 1], [b2, 0] : Int
+    ret %v9
+}
+
+fn classify(%value: Int) -> Int {
+  b0:
+    %v3 = sub %value, 1 : Int
+    %v5 = cmp_ne %v3, 0 : Bool
+    je %v5, b1, b2
+
+  b1:
+    jmp b5
+
+  b2:
+    %v9 = cmp_ne %value, 0 : Bool
+    je %v9, b3, b4
+
+  b3:
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v16 = phi [b1, 2], [b3, 1], [b4, 0] : Int
+    ret %v16
+}
+
+fn loop(%value: Int) -> Int {
+  b0:
+    jmp b1
+
+  b1:
+    %v3 = cmp_ne %value, 0 : Bool
+    je %v3, b3, b2
+
+  b2:
+    ret 6
+
+  b3:
+    ret 5
+}
+
+(Truth(a)) fn present(%value: a) -> Int {
+  b0:
+    %v1 = gencall Truth(a).truthy, %value : Bool
+    je %v1, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v7 = phi [b1, 1], [b2, 0] : Int
+    ret %v7
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call fromBool, True : Int
+    %v3 = call fromBool, False : Int
+    %v6 = mul %v3, 100 : Int
+    %v7 = add %v1, %v6 : Int
+    %v10 = call compared, 2, 1 : Int
+    %v13 = mul %v10, 2 : Int
+    %v14 = add %v7, %v13 : Int
+    %v17 = call compared, 1, 2 : Int
+    %v20 = mul %v17, 100 : Int
+    %v21 = add %v14, %v20 : Int
+    %v24 = call fromInt, 7 : Int
+    %v27 = mul %v24, 4 : Int
+    %v28 = add %v21, %v27 : Int
+    %v31 = call fromInt, 0 : Int
+    %v34 = mul %v31, 100 : Int
+    %v35 = add %v28, %v34 : Int
+    %v37 = call fromLong, 7 : Int
+    %v40 = mul %v37, 8 : Int
+    %v41 = add %v35, %v40 : Int
+    %v43 = call fromLong, 0 : Int
+    %v46 = mul %v43, 100 : Int
+    %v47 = add %v41, %v46 : Int
+    %v49 = call fromFloat, 0.5 : Int
+    %v52 = mul %v49, 16 : Int
+    %v53 = add %v47, %v52 : Int
+    %v55 = call fromFloat, 0 : Int
+    %v58 = mul %v55, 100 : Int
+    %v59 = add %v53, %v58 : Int
+    %v60 = call fromLiteral : Int
+    %v63 = mul %v60, 32 : Int
+    %v64 = add %v59, %v63 : Int
+    %v66 = call classify, 0 : Int
+    %v69 = mul %v66, 64 : Int
+    %v70 = add %v64, %v69 : Int
+    %v72 = call classify, 1 : Int
+    %v75 = mul %v72, 128 : Int
+    %v76 = add %v70, %v75 : Int
+    %v78 = call classify, 5 : Int
+    %v81 = mul %v78, 256 : Int
+    %v82 = add %v76, %v81 : Int
+    %v84 = call loop, 1 : Int
+    %v87 = mul %v84, 512 : Int
+    %v88 = add %v82, %v87 : Int
+    %v90 = call loop, 0 : Int
+    %v93 = mul %v90, 1024 : Int
+    %v94 = add %v88, %v93 : Int
+    %v97 = call present(Int), 3 : Int
+    %v100 = mul %v97, 2048 : Int
+    %v101 = add %v94, %v100 : Int
+    %v104 = call present(Float), 0 : Int
+    %v107 = mul %v104, 100 : Int
+    %v108 = add %v101, %v107 : Int
+    ret %v108
+}
+
+fn present(Int)(%value: Int) -> Int {
+  b0:
+    %v3 = cmp_ne %value, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v1 = phi [b1, 1], [b2, 0] : Int
+    ret %v1
+}
+
+fn present(Float)(%value: Float) -> Int {
+  b0:
+    %v3 = cmp_ne %value, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v1 = phi [b1, 1], [b2, 0] : Int
+    ret %v1
+}

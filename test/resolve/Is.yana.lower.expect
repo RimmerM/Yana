@@ -1,0 +1,408 @@
+
+isZero<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = loads %m, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = add %m, 4: Ptr
+    %v_7 = loads %v_6, 4: Int
+    %v_8 = cmp_eq %v_7, 0: Int
+    je %v_8, b_9, b_4
+  }
+
+  b_9 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_10 = phi [b_9, 1], [b_4, 0]: Int
+    ret %v_10
+  }
+}
+
+present<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = loads %m, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = add %m, 4: Ptr
+    %v_7 = loads %v_6, 4: Int
+    jmp b_5
+  }
+
+  b_5 {
+    %found = phi [b_3, 1], [b_4, 0]: Int
+    je %found, b_8, b_9
+  }
+
+  b_8 {
+    jmp b_10
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = phi [b_8, 2], [b_9, 1]: Int
+    ret %v_11
+  }
+}
+
+area<complex>(%s: Ptr): Int {
+  b_0 {
+    %v_1 = loads %s, 4: Int
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = loads %s, 4: Int
+    %v_6 = cmp_eq %v_5, 1: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_3 {
+    %v_9 = add %s, 4: Ptr
+    %r = loads %v_9, 4: Int
+    %v_10 = imul %r, %r: Int
+    jmp b_11
+  }
+
+  b_8 {
+    jmp b_11
+  }
+
+  b_7 {
+    %v_12 = add %s, 4: Ptr
+    %v_13 = add %s, 4: Ptr
+    %w = loads %v_13, 4: Int
+    %v_14 = add %s, 8: Ptr
+    %h = loads %v_14, 4: Int
+    %v_15 = imul %w, %h: Int
+    jmp b_11
+  }
+
+  b_11 {
+    %v_16 = phi [b_3, %v_10], [b_7, %v_15], [b_8, 0]: Int
+    ret %v_16
+  }
+}
+
+firstOf<complex>(%m: Ptr): Int {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = loads %m, 4: Int
+    %v_3 = cmp_eq %v_2, 1: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    ret 0
+  }
+
+  b_4 {
+    %v_6 = add %m, 4: Ptr
+    %item = loads %v_6, 4: Int
+    %v_7 = add %item, 10: Int
+    ret %v_7
+  }
+}
+
+either<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = loads %m, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = add %m, 4: Ptr
+    %v = loads %v_6, 4: Int
+    %v_7 = imul %v, 2: Int
+    jmp b_5
+  }
+
+  b_5 {
+    %v_8 = phi [b_3, %v_7], [b_4, 0]: Int
+    ret %v_8
+  }
+}
+
+deep<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = loads %m, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = add %m, 4: Ptr
+    %v_7 = add %m, 4: Ptr
+    %v_8 = loads %v_7, 4: Int
+    %v_9 = cmp_eq %v_8, 1: Int
+    je %v_9, b_10, b_4
+  }
+
+  b_10 {
+    %v_11 = add %m, 8: Ptr
+    %v = loads %v_11, 4: Int
+    jmp b_5
+  }
+
+  b_5 {
+    %v_12 = phi [b_10, %v], [b_4, 0]: Int
+    ret %v_12
+  }
+}
+
+wrap<complex>(%v_0: Ptr, %value: Int) {
+  b_1 {
+    %v_2 = cmp_igt %value, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = alloca 8, 4: Ptr
+    store %v_5, 1, 4
+    %v_6 = add %v_5, 4: Ptr
+    store %v_6, %value, 4
+    jmp b_7
+  }
+
+  b_4 {
+    %v_8 = alloca 8, 4: Ptr
+    store %v_8, 0, 4
+    jmp b_7
+  }
+
+  b_7 {
+    %v_9 = phi [b_3, %v_5], [b_4, %v_8]: Ptr
+    copy %v_0, %v_9, 8
+    ret 
+  }
+}
+
+describe<complex>(%s: Ptr, %flag: Int): Int {
+  b_0 {
+    je %flag, b_1, b_2
+  }
+
+  b_1 {
+    jmp b_3
+  }
+
+  b_2 {
+    %v_4 = loads %s, 4: Int
+    %v_5 = cmp_eq %v_4, 0: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    jmp b_3
+  }
+
+  b_6 {
+    %v_8 = add %s, 4: Ptr
+    %r = loads %v_8, 4: Int
+    jmp b_3
+  }
+
+  b_3 {
+    %v_9 = phi [b_1, 1], [b_6, %r], [b_7, 0]: Int
+    ret %v_9
+  }
+}
+
+orZero<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = loads %m, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = add %m, 4: Ptr
+    %v = loads %v_6, 4: Int
+    %v_7 = add %v, 1: Int
+    ret %v_7
+  }
+
+  b_5 {
+    ret 0
+  }
+}
+
+viaCall<complex>(%value: Int): Int {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    call_complex wrap, %v_1, %value
+    %v_2 = loads %v_1, 4: Int
+    %v_3 = cmp_eq %v_2, 1: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_4 {
+    %v_7 = add %v_1, 4: Ptr
+    %v = loads %v_7, 4: Int
+    jmp b_6
+  }
+
+  b_6 {
+    %v_8 = phi [b_4, %v], [b_5, 0]: Int
+    ret %v_8
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 1, 4
+    %v_3 = call_complex orZero, %v_1: Int
+    %v_4 = alloca 8, 4: Ptr
+    store %v_4, 0, 4
+    %v_5 = call_complex orZero, %v_4: Int
+    %v_6 = imul %v_5, 100: Int
+    %v_7 = add %v_3, %v_6: Int
+    %v_8 = alloca 8, 4: Ptr
+    store %v_8, 1, 4
+    %v_9 = add %v_8, 4: Ptr
+    store %v_9, 2, 4
+    %v_10 = call_complex either, %v_8: Int
+    %v_11 = add %v_7, %v_10: Int
+    %v_12 = alloca 8, 4: Ptr
+    store %v_12, 0, 4
+    %v_13 = call_complex either, %v_12: Int
+    %v_14 = imul %v_13, 100: Int
+    %v_15 = add %v_11, %v_14: Int
+    %v_16 = alloca 8, 4: Ptr
+    store %v_16, 1, 4
+    %v_17 = add %v_16, 4: Ptr
+    store %v_17, 0, 4
+    %v_18 = call_complex isZero, %v_16: Int
+    %v_19 = imul %v_18, 8: Int
+    %v_20 = add %v_15, %v_19: Int
+    %v_21 = alloca 8, 4: Ptr
+    store %v_21, 1, 4
+    %v_22 = add %v_21, 4: Ptr
+    store %v_22, 1, 4
+    %v_23 = call_complex isZero, %v_21: Int
+    %v_24 = imul %v_23, 100: Int
+    %v_25 = add %v_20, %v_24: Int
+    %v_26 = alloca 12, 4: Ptr
+    store %v_26, 1, 4
+    %v_27 = alloca 8, 4: Ptr
+    store %v_27, 1, 4
+    %v_28 = add %v_27, 4: Ptr
+    store %v_28, 16, 4
+    %v_29 = add %v_26, 4: Ptr
+    copy %v_29, %v_27, 8
+    %v_30 = call_complex deep, %v_26: Int
+    %v_31 = add %v_25, %v_30: Int
+    %v_32 = alloca 12, 4: Ptr
+    store %v_32, 1, 4
+    %v_33 = alloca 8, 4: Ptr
+    store %v_33, 0, 4
+    %v_34 = add %v_32, 4: Ptr
+    copy %v_34, %v_33, 8
+    %v_35 = call_complex deep, %v_32: Int
+    %v_36 = imul %v_35, 100: Int
+    %v_37 = add %v_31, %v_36: Int
+    %v_38 = alloca 12, 4: Ptr
+    store %v_38, 0, 4
+    %v_39 = call_complex deep, %v_38: Int
+    %v_40 = imul %v_39, 100: Int
+    %v_41 = add %v_37, %v_40: Int
+    %v_42 = alloca 12, 4: Ptr
+    store %v_42, 0, 4
+    %v_43 = add %v_42, 4: Ptr
+    store %v_43, 5, 4
+    %v_44 = call_complex area, %v_42: Int
+    %v_45 = add %v_41, %v_44: Int
+    %v_46 = alloca 12, 4: Ptr
+    store %v_46, 1, 4
+    %v_47 = add %v_46, 4: Ptr
+    store %v_47, 3, 4
+    %v_48 = add %v_46, 8: Ptr
+    store %v_48, 4, 4
+    %v_49 = call_complex area, %v_46: Int
+    %v_50 = add %v_45, %v_49: Int
+    %v_51 = alloca 12, 4: Ptr
+    store %v_51, 0, 4
+    %v_52 = add %v_51, 4: Ptr
+    store %v_52, 7, 4
+    %v_53 = call_complex describe, %v_51, 1: Int
+    %v_54 = add %v_50, %v_53: Int
+    %v_55 = alloca 12, 4: Ptr
+    store %v_55, 0, 4
+    %v_56 = add %v_55, 4: Ptr
+    store %v_56, 7, 4
+    %v_57 = call_complex describe, %v_55, 0: Int
+    %v_58 = add %v_54, %v_57: Int
+    %v_59 = alloca 8, 4: Ptr
+    store %v_59, 1, 4
+    %v_60 = add %v_59, 4: Ptr
+    store %v_60, 32, 4
+    %v_61 = call_complex firstOf, %v_59: Int
+    %v_62 = add %v_58, %v_61: Int
+    %v_63 = alloca 8, 4: Ptr
+    store %v_63, 0, 4
+    %v_64 = call_complex firstOf, %v_63: Int
+    %v_65 = imul %v_64, 100: Int
+    %v_66 = add %v_62, %v_65: Int
+    %v_67 = alloca 8, 4: Ptr
+    store %v_67, 1, 4
+    %v_68 = add %v_67, 4: Ptr
+    store %v_68, 1, 4
+    %v_69 = call_complex present, %v_67: Int
+    %v_70 = imul %v_69, 64: Int
+    %v_71 = add %v_66, %v_70: Int
+    %v_72 = alloca 8, 4: Ptr
+    store %v_72, 0, 4
+    %v_73 = call_complex present, %v_72: Int
+    %v_74 = imul %v_73, 128: Int
+    %v_75 = add %v_71, %v_74: Int
+    %v_76 = call_complex viaCall, 128: Int
+    %v_77 = add %v_75, %v_76: Int
+    %v_78 = call_complex viaCall, 0: Int
+    %v_79 = imul %v_78, 100: Int
+    %v_80 = add %v_77, %v_79: Int
+    ret %v_80
+  }
+}
+

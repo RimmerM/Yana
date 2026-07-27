@@ -53,6 +53,7 @@ struct Printer {
             case Expr::Yield: printYieldExpr(expr); break;
             case Expr::Break: printBreakExpr(expr); break;
             case Expr::Continue: stream.writeString("ContinueExpr"_v); break;
+            case Expr::Is: printIsExpr(expr); break;
         }
     }
 
@@ -469,6 +470,16 @@ private:
         makeLevel();
         toString(match->pivot, match->alts.isEmpty());
         printList(match->alts);
+        removeLevel();
+    }
+
+    void printIsExpr(Expr& e) {
+        auto test = base[e.is];
+
+        stream.writeString("IsExpr "_v);
+        makeLevel();
+        toString(test->value, false);
+        toString(test->pat, true);
         removeLevel();
     }
 

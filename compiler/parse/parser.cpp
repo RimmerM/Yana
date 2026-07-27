@@ -622,6 +622,16 @@ ast::Expr Parser::parseInfixExpr(const WithLocation& location) {
      */
     auto lhs = parsePrefixExpr(location);
 
+    // `is` binds one operand of the chain rather than the chain itself, which is what makes
+    // `p is Just(v) && v > 0` mean what it looks like: the `is` test is `&&`'s left operand, and
+    // the precedence pass sees an ordinary operand. A pattern cannot begin with an operator, so
+    // there is nothing to look ahead for. Testing the result of an infix expression needs parens
+    // (`(a + b) is p`), since fixity is resolved long after this.
+    if(maybe(Token::kwIs)) {
+        auto pat = parsePattern();
+        lhs = makeExpr(Is, is, heap(ast::IsExpr { .value = lhs, .pat = pat }), location);
+    }
+
     if(maybe(Token::opEquals)) {
         auto rhs = parseExpr();
         return makeExpr(Assign, assign, heap(ast::AssignExpr { .target = lhs, .value = rhs }), location);

@@ -224,6 +224,7 @@ struct AppExpr;
 struct InfixExpr;
 struct PrefixExpr;
 struct IfExpr;
+struct IsExpr;
 struct FunExpr;
 struct TupUpdateExpr;
 struct ConExpr;
@@ -272,6 +273,7 @@ struct Expr {
         Yield,
         Break,
         Continue,
+        Is,
         Lit, // Must be last; the literal type is (kind - Kind::Lit).
     };
 
@@ -304,6 +306,7 @@ struct Expr {
         ParseList<VarDecl> decl;
         ParsePtr<MatchExpr> match;
         ParsePtr<RangeExpr> range;
+        ParsePtr<IsExpr> is;
     };
 
     LocationId source: 26;
@@ -392,6 +395,13 @@ struct IfExpr {
     Expr cond;
     Expr then;
     Maybe<Expr> otherwise;
+};
+
+// `value is pat` - a condition that binds. The pattern is held by value, as a declaration's is,
+// because the exhaustiveness space keeps patterns by address.
+struct IsExpr {
+    Expr value;
+    Pat pat;
 };
 
 struct FunExpr {

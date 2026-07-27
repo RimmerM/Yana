@@ -103,6 +103,21 @@ class Logic(a):
   fn not(value: a) -> a
   fn !(value: a) -> a
 
+-- What a condition means. `if x`, `if:` cases and `while x` ask this class rather than requiring
+-- a Bool, so `if items:` and `if i - 1: continue` say what they look like they say. The rule that
+-- keeps it from being JavaScript's truthiness is that it never applies through a conversion: the
+-- instance is selected for the condition's own type, so what `if x` means depends on x's type
+-- alone and not on which Widen instances happen to be in scope. Bool's instance is the identity.
+--
+-- Deliberately not instanced for Maybe or Result: they carry a payload, and `if maybeThing:`
+-- invites unwrapping it on the next line. Truth answers "is this empty/zero/null", not "did this
+-- succeed" - the `is` operator is what payload-carrying types use.
+--
+-- `value` becomes `&a` once binding conventions are resolved; nothing about truthiness needs to
+-- consume what it is asked about.
+class Truth(a):
+  fn truthy(value: a) -> Bool
+
 -- A Widen instance is required to be lossless and total; that is a contract on whoever writes
 -- one, checked no more than Copy's is. Which of the two classes relates a pair of types is the
 -- whole of the rule for whether a conversion happens on its own or has to be written.
@@ -186,6 +201,25 @@ static ModulePtr<Value> emitFromLiteral(ExprResolver& resolver, Buffer<ModulePtr
     if(value->kind == Value::ConstFloat) return resolver.makeFloat(source, type, F64(((ConstFloat*)value)->value));
 
     return emitCast(resolver, args, type, source, resultName);
+}
+
+// `truthy` on Bool. The identity is a real instance rather than a special case in the resolver,
+// so that the condition path has exactly one shape - and because it expands to nothing, `if a > b`
+// produces the IR it always did.
+static ModulePtr<Value> emitIdentity(ExprResolver&, Buffer<ModulePtr<Value>> args, TypePtr,
+                                     LocationId, StringId) {
+    return args[0];
+}
+
+// `truthy` on a number: non-zero. The zero is built at the operand's type rather than the result's,
+// which is what makes one emitter serve both the integer and the floating-point instances.
+static ModulePtr<Value> emitTruthy(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                   LocationId source, StringId resultName) {
+    auto from = resolver.valueType(args[0]);
+    auto zero = isFloat(resolver.global, from) ? resolver.makeFloat(source, from, 0.0)
+                                               : resolver.makeInt(source, from, 0);
+
+    return resolver.ref(resolver.emit<InstCmp>(source, resultName, type, args[0], zero, CompareOp::Ne));
 }
 
 // `not` on a Bool is the one bit operation that is correct for a two-constructor discriminant,
@@ -406,6 +440,11 @@ static void defineLogic(CoreBuilder& builder, TypePtr type) {
     generateInstance(builder, builder.classNamed("Logic"_v), { &type, 1 }, { methods, 7 });
 }
 
+static void defineTruth(CoreBuilder& builder, TypePtr type, Emit emit) {
+    CoreMethod methods[] = { { "truthy"_v, 1, emit } };
+    generateInstance(builder, builder.classNamed("Truth"_v), { &type, 1 }, { methods, 1 });
+}
+
 static void defineConversion(CoreBuilder& builder, StringView className, StringView method, TypePtr from, TypePtr to) {
     TypePtr args[] = { from, to };
     CoreMethod methods[] = { { method, 1, emitCast } };
@@ -484,6 +523,12 @@ void defineCore(Program& program) {
     defineLogic(builder, program.scalar.bool_);
     defineEq(builder, program.scalar.ordering);
 
+    // A Bool is already the answer; every number is asked whether it is non-zero. NaN is therefore
+    // truthy, which is worth knowing rather than surprising: the instance says "not zero", and no
+    // amount of floating-point special-casing would make `if x` mean something better.
+    defineTruth(builder, program.scalar.bool_, emitIdentity);
+    for(auto type: numeric) defineTruth(builder, type, emitTruthy);
+
     // Widening and narrowing are ordinary class operations, so a user type can join either
     // ladder later without the resolver learning anything new about conversion. The ladder is
     // written out rather than searched: one step, never a chain.
@@ -499,12 +544,13 @@ void defineCore(Program& program) {
         }
     }
 
-    // The four classes the language's own syntax is written in terms of. Looked up by name once,
+    // The five classes the language's own syntax is written in terms of. Looked up by name once,
     // here, so that nothing downstream has to search for them by string.
     program.coreClasses.fromInt = builder.classNamed("FromInt"_v);
     program.coreClasses.fromDecimal = builder.classNamed("FromDecimal"_v);
     program.coreClasses.widen = builder.classNamed("Widen"_v);
     program.coreClasses.narrow = builder.classNamed("Narrow"_v);
+    program.coreClasses.truth = builder.classNamed("Truth"_v);
 
     // Core's own instances exist only now, so its superclass checks and its `default`
     // declarations run here rather than as part of reading its source.

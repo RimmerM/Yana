@@ -1,0 +1,327 @@
+fn orZero(%m: Maybe(Int)) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v = load %m@Just : Int
+    %v8 = add %v, 1 : Int
+    ret %v8
+
+  b3:
+    ret 0
+}
+
+fn either(%m: Maybe(Int)) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v = load %m@Just : Int
+    %v8 = mul %v, 2 : Int
+    jmp b3
+
+  b3:
+    %v12 = phi [b2, %v8], [b1, 0] : Int
+    ret %v12
+}
+
+fn isZero(%m: Maybe(Int)) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    jmp b4
+
+  b2:
+    %v5 = load %m@Just : Int
+    %v7 = cmp_eq %v5, 0 : Bool
+    je %v7, b3, b1
+
+  b3:
+    jmp b4
+
+  b4:
+    %v13 = phi [b3, 1], [b1, 0] : Int
+    ret %v13
+}
+
+fn deep(%m: Maybe(Maybe(Int))) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    jmp b4
+
+  b2:
+    %v5 = load %m@Just : Maybe(Int)
+    %v6 = load %m@Just.discriminant : Int
+    %v8 = cmp_eq %v6, 1 : Bool
+    je %v8, b3, b1
+
+  b3:
+    %v = load %m@Just@Just : Int
+    jmp b4
+
+  b4:
+    %v14 = phi [b3, %v], [b1, 0] : Int
+    ret %v14
+}
+
+fn area(%s: Shape) -> Int {
+  b0:
+    %v1 = load %s.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v7 = load %s.discriminant : Int
+    %v9 = cmp_eq %v7, 1 : Bool
+    je %v9, b4, b3
+
+  b2:
+    %r = load %s@Circle : Int
+    %v6 = mul %r, %r : Int
+    jmp b5
+
+  b3:
+    jmp b5
+
+  b4:
+    %v11 = load %s@Square : {width: Int, height: Int}
+    %w = load %s@Square.width : Int
+    %h = load %s@Square.height : Int
+    %v14 = mul %w, %h : Int
+    jmp b5
+
+  b5:
+    %v19 = phi [b2, %v6], [b4, %v14], [b3, 0] : Int
+    ret %v19
+}
+
+fn describe(%s: Shape, %flag: Bool) -> Int {
+  b0:
+    je %flag, b1, b2
+
+  b1:
+    jmp b5
+
+  b2:
+    %v4 = load %s.discriminant : Int
+    %v6 = cmp_eq %v4, 0 : Bool
+    je %v6, b4, b3
+
+  b3:
+    jmp b5
+
+  b4:
+    %r = load %s@Circle : Int
+    jmp b5
+
+  b5:
+    %v13 = phi [b1, 1], [b4, %r], [b3, 0] : Int
+    ret %v13
+}
+
+fn firstOf(%m: Maybe(Int)) -> Int {
+  b0:
+    jmp b1
+
+  b1:
+    %v2 = load %m.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b3, b2
+
+  b2:
+    ret 0
+
+  b3:
+    %item = load %m@Just : Int
+    %v9 = add %item, 10 : Int
+    ret %v9
+}
+
+fn present(%m: Maybe(Int)) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v5 = load %m@Just : Int
+    jmp b3
+
+  b3:
+    %found = phi [b2, True], [b1, False] : Bool
+    je %found, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v16 = phi [b4, 2], [b5, 1] : Int
+    ret %v16
+}
+
+fn viaCall(%value: Int) -> Int {
+  b0:
+    %v1 = call wrap, %value : Maybe(Int)
+    %v2 = load %local0.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v = load %local0@Just : Int
+    jmp b3
+
+  b3:
+    %v10 = phi [b2, %v], [b1, 0] : Int
+    ret %v10
+}
+
+fn wrap(%value: Int) -> Maybe(Int) {
+  b0:
+    %v3 = cmp_gt %value, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Maybe(Int)
+    init %local0.discriminant, 1
+    init %local0@Just, %value
+    jmp b3
+
+  b2:
+    %v9 = alloc : Maybe(Int)
+    init %local1.discriminant, 0
+    jmp b3
+
+  b3:
+    %v14 = phi [b1, %v5], [b2, %v9] : Maybe(Int)
+    ret %v14
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = alloc : Maybe(Int)
+    init %local0.discriminant, 1
+    init %local0@Just, 1
+    %v5 = call orZero, %v0 : Int
+    %v6 = alloc : Maybe(Int)
+    init %local1.discriminant, 0
+    %v9 = call orZero, %v6 : Int
+    %v12 = mul %v9, 100 : Int
+    %v13 = add %v5, %v12 : Int
+    %v14 = alloc : Maybe(Int)
+    init %local2.discriminant, 1
+    init %local2@Just, 2
+    %v19 = call either, %v14 : Int
+    %v20 = add %v13, %v19 : Int
+    %v21 = alloc : Maybe(Int)
+    init %local3.discriminant, 0
+    %v24 = call either, %v21 : Int
+    %v27 = mul %v24, 100 : Int
+    %v28 = add %v20, %v27 : Int
+    %v29 = alloc : Maybe(Int)
+    init %local4.discriminant, 1
+    init %local4@Just, 0
+    %v34 = call isZero, %v29 : Int
+    %v37 = mul %v34, 8 : Int
+    %v38 = add %v28, %v37 : Int
+    %v39 = alloc : Maybe(Int)
+    init %local5.discriminant, 1
+    init %local5@Just, 1
+    %v44 = call isZero, %v39 : Int
+    %v47 = mul %v44, 100 : Int
+    %v48 = add %v38, %v47 : Int
+    %v49 = alloc : Maybe(Maybe(Int))
+    init %local6.discriminant, 1
+    %v52 = alloc : Maybe(Int)
+    init %local7.discriminant, 1
+    init %local7@Just, 16
+    init %local6@Just, %v52
+    %v58 = call deep, %v49 : Int
+    %v59 = add %v48, %v58 : Int
+    %v60 = alloc : Maybe(Maybe(Int))
+    init %local8.discriminant, 1
+    %v63 = alloc : Maybe(Int)
+    init %local9.discriminant, 0
+    init %local8@Just, %v63
+    %v67 = call deep, %v60 : Int
+    %v70 = mul %v67, 100 : Int
+    %v71 = add %v59, %v70 : Int
+    %v72 = alloc : Maybe(Maybe(Int))
+    init %local10.discriminant, 0
+    %v75 = call deep, %v72 : Int
+    %v78 = mul %v75, 100 : Int
+    %v79 = add %v71, %v78 : Int
+    %v80 = alloc : Shape
+    init %local11.discriminant, 0
+    init %local11@Circle, 5
+    %v85 = call area, %v80 : Int
+    %v86 = add %v79, %v85 : Int
+    %v87 = alloc : Shape
+    init %local12.discriminant, 1
+    init %local12@Square.width, 3
+    init %local12@Square.height, 4
+    %v94 = call area, %v87 : Int
+    %v95 = add %v86, %v94 : Int
+    %v96 = alloc : Shape
+    init %local13.discriminant, 0
+    init %local13@Circle, 7
+    %v102 = call describe, %v96, True : Int
+    %v103 = add %v95, %v102 : Int
+    %v104 = alloc : Shape
+    init %local14.discriminant, 0
+    init %local14@Circle, 7
+    %v110 = call describe, %v104, False : Int
+    %v111 = add %v103, %v110 : Int
+    %v112 = alloc : Maybe(Int)
+    init %local15.discriminant, 1
+    init %local15@Just, 32
+    %v117 = call firstOf, %v112 : Int
+    %v118 = add %v111, %v117 : Int
+    %v119 = alloc : Maybe(Int)
+    init %local16.discriminant, 0
+    %v122 = call firstOf, %v119 : Int
+    %v125 = mul %v122, 100 : Int
+    %v126 = add %v118, %v125 : Int
+    %v127 = alloc : Maybe(Int)
+    init %local17.discriminant, 1
+    init %local17@Just, 1
+    %v132 = call present, %v127 : Int
+    %v135 = mul %v132, 64 : Int
+    %v136 = add %v126, %v135 : Int
+    %v137 = alloc : Maybe(Int)
+    init %local18.discriminant, 0
+    %v140 = call present, %v137 : Int
+    %v143 = mul %v140, 128 : Int
+    %v144 = add %v136, %v143 : Int
+    %v146 = call viaCall, 128 : Int
+    %v147 = add %v144, %v146 : Int
+    %v149 = call viaCall, 0 : Int
+    %v152 = mul %v149, 100 : Int
+    %v153 = add %v147, %v152 : Int
+    ret %v153
+}

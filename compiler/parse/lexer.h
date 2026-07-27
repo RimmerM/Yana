@@ -60,6 +60,7 @@ struct Token {
         kwPrefixR,
         kwSuffixL,
         kwInstance,
+        kwIs,
         kwIter,
         kwLens,
         kwLet,

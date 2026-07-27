@@ -8,14 +8,14 @@ scan<complex>(%c: Int): Int {
     je 1, b_2, b_3
   }
 
+  b_3 {
+    ret 9
+  }
+
   b_2 {
     %v_4 = cast %c: Int
     %v_5 = cmp_eq %v_4, 0: Int
     je %v_5, b_6, b_7
-  }
-
-  b_3 {
-    ret 9
   }
 
   b_7 {
@@ -65,14 +65,14 @@ retry<complex>(%m: Ptr, %c: Int): Int {
     je 1, b_2, b_3
   }
 
+  b_3 {
+    ret 50
+  }
+
   b_2 {
     %v_4 = loads %m, 4: Int
     %v_5 = cmp_eq %v_4, 1: Int
     je %v_5, b_6, b_7
-  }
-
-  b_3 {
-    ret 50
   }
 
   b_7 {
@@ -135,33 +135,33 @@ firstJust<complex>(%a: Ptr, %b: Ptr): Int {
     je 1, b_2, b_3
   }
 
-  b_2 {
-    %v_4 = loads %a, 4: Int
+  b_3 {
+    %v_4 = loads %b, 4: Int
     %v_5 = cmp_eq %v_4, 1: Int
     je %v_5, b_6, b_7
   }
 
-  b_3 {
-    %v_8 = loads %b, 4: Int
+  b_2 {
+    %v_8 = loads %a, 4: Int
     %v_9 = cmp_eq %v_8, 1: Int
     je %v_9, b_10, b_11
   }
 
-  b_7 {
+  b_11 {
     jmp b_3
   }
 
-  b_6 {
+  b_10 {
     %v_12 = add %a, 4: Ptr
     %first = loads %v_12, 4: Int
     ret %first
   }
 
-  b_11 {
+  b_7 {
     ret 0
   }
 
-  b_10 {
+  b_6 {
     %v_13 = add %b, 4: Ptr
     %second = loads %v_13, 4: Int
     ret %second

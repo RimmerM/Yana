@@ -1,0 +1,25 @@
+-- `expr is pat`, the condition that binds. The right operand is a pattern, not an expression.
+
+fn simple(m: Maybe(Int)) = if m is Just(v) then v else 0
+
+-- `is` binds one operand of an infix chain rather than the chain itself, so the test is `&&`'s
+-- left operand and the precedence pass sees an ordinary operand.
+fn conjunction(m: Maybe(Int)) = m is Just(v) && v > 0
+
+-- Which also means the left operand is a single operand: testing the result of an infix
+-- expression takes parentheses.
+fn parenthesized(a: Int, b: Int) = (a + b) is 0
+
+-- Any pattern: a nested one, a literal inside it, a wildcard, a nullary constructor.
+fn patterns(m: Maybe(Maybe(Int))) = if:
+  m is Just(Just(0)) -> 1
+  m is Just(_) -> 2
+  m is Nothing -> 3
+  else -> 4
+
+-- In a loop condition and in statement position.
+fn loop(m: Maybe(Int)):
+  while m is Just(item):
+    print(item)
+
+  let found = m is Just(_)

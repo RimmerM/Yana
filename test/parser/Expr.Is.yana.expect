@@ -1,0 +1,96 @@
+Module 
+|-FunDecl simple <implicit return> 
+| |-Arg m
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-ConType Int
+| `-Body
+|   `-IfExpr 
+|     |-IsExpr 
+|     | |-VarExpr m
+|     | `-ConPat Just
+|     |   `-VarPat v
+|     |-VarExpr v
+|     `-LitExpr 0
+|-FunDecl conjunction <implicit return> 
+| |-Arg m
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-ConType Int
+| `-Body
+|   `-InfixExpr 
+|     |-VarExpr &&
+|     |-IsExpr 
+|     | |-VarExpr m
+|     | `-ConPat Just
+|     |   `-VarPat v
+|     `-InfixExpr 
+|       |-VarExpr >
+|       |-VarExpr v
+|       `-LitExpr 0
+|-FunDecl parenthesized <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| |-Arg b
+| | `-ConType Int
+| `-Body
+|   `-IsExpr 
+|     |-NestedExpr 
+|     | `-InfixExpr 
+|     |   |-VarExpr +
+|     |   |-VarExpr a
+|     |   `-VarExpr b
+|     `-LitPat 0
+|-FunDecl patterns <implicit return> 
+| |-Arg m
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-AppType 
+| |     |-ConType Maybe
+| |     `-ConType Int
+| `-Body
+|   `-MultiIfExpr 
+|     |-IfCase 
+|     | |-IsExpr 
+|     | | |-VarExpr m
+|     | | `-ConPat Just
+|     | |   `-ConPat Just
+|     | |     `-LitPat 0
+|     | `-LitExpr 1
+|     |-IfCase 
+|     | |-IsExpr 
+|     | | |-VarExpr m
+|     | | `-ConPat Just
+|     | |   `-AnyPat
+|     | `-LitExpr 2
+|     |-IfCase 
+|     | |-IsExpr 
+|     | | |-VarExpr m
+|     | | `-ConPat Nothing
+|     | `-LitExpr 3
+|     `-IfCase 
+|       |-LitExpr True
+|       `-LitExpr 4
+`-FunDecl loop
+  |-Arg m
+  | `-AppType 
+  |   |-ConType Maybe
+  |   `-ConType Int
+  `-Body
+    `-MultiExpr 
+      |-WhileExpr
+      | |-IsExpr 
+      | | |-VarExpr m
+      | | `-ConPat Just
+      | |   `-VarPat item
+      | `-AppExpr 
+      |   |-VarExpr print
+      |   `-Field <anonymous>
+      |     `-VarExpr item
+      `-DeclExpr 
+        `-VarDecl found <borrow> 
+          |-VarPat found
+          `-IsExpr 
+            |-VarExpr m
+            `-ConPat Just
+              `-AnyPat

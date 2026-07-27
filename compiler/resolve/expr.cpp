@@ -170,6 +170,50 @@ ModulePtr<Value> ExprResolver::materializeLiteral(ModulePtr<Value> value, TypePt
     return failed();
 }
 
+/*
+ * What a condition means.
+ *
+ * `if x` is `Truth(typeof x).truthy(x)`, consulted for x's own type and never through a
+ * conversion. That one rule is what separates this from JavaScript's truthiness: the criticized
+ * part there is not that values have a truth value, it is that implicit coercion decides which
+ * one, so the same expression means different things in different contexts. Here the instance is
+ * selected for the type the condition already has - no Widen step is tried first - so `if x`
+ * depends on nothing but x's type, and coherence gives that type exactly one answer.
+ */
+ModulePtr<Value> ExprResolver::truthy(ModulePtr<Value> value, LocationId source) {
+    if(!value) return nullptr;
+
+    auto type = valueType(value);
+    if(global[type]->kind == Type::Error) return nullptr;
+
+    auto typeClass = module.coreClasses.truth;
+    if(!typeClass || global[typeClass]->functions.isEmpty()) return nullptr;
+
+    // Selected against the class rather than by the name `truthy`, for the same reason
+    // materializeLiteral selects `fromInt` that way: going through emitCall would put R5 in the
+    // way, and a module that happens to define a plain function of that name would take over every
+    // condition written in it.
+    ClassFunRef reference { typeClass, global[typeClass]->functions.get(global, 0).name, 0 };
+    ClassMatch match;
+    ModulePtr<Value> args[] = { value };
+
+    if(matchClassFun(reference, { args, 1 }, module.scalar.bool_, match)) {
+        if(match.instance) {
+            if(auto implementation = local[match.instance]->functions.get(local, match.index)) {
+                return emitDirectCall(implementation, { args, 1 }, source);
+            }
+        } else if(isGeneric(global, type)) {
+            // In a generic body the instance is the caller's to supply, exactly as it is for any
+            // other class call this body's own type variables decide.
+            return emitGenericDispatch(match, { args, 1 }, source, 0);
+        }
+    }
+
+    context.diagnostics.error("%@ cannot be used as a condition - it has no Truth instance"_v, source,
+                              describeType(context, global, type));
+    return nullptr;
+}
+
 ModulePtr<Value> ExprResolver::settle(ModulePtr<Value> value, LocationId source) {
     if(!value || !isLiteral(global, valueType(value))) return value;
     return materializeLiteral(value, literalDefault(valueType(value)), source);
@@ -350,17 +394,16 @@ ModulePtr<Value> ExprResolver::finishBranches(Array<BranchArm>& arms, LocationId
 }
 
 ModulePtr<Value> ExprResolver::resolveIf(const ast::Expr& expr, const ast::IfExpr& branch, TypePtr target, bool used) {
-    auto cond = convert(resolve(branch.cond, module.scalar.bool_), module.scalar.bool_, branch.cond.source);
-    if(!cond) return nullptr;
-
-    auto thenBlock = addBlock();
-    auto elseBlock = addBlock();
-    terminate(emit<InstJe>(expr.source, 0, module.scalar.unit, cond, thenBlock, elseBlock));
-
     auto bindingCount = bindings.size();
+    ModulePtr<Block> elseBlock = nullptr;
+
+    // The condition leaves `current` at the block where it held, which is where an `is` test's
+    // bindings are live - so the `then` arm is resolved with them in scope and the resize below
+    // takes them away again, exactly as the arms of a `match` scope what their patterns bind.
+    if(resolveCondition(branch.cond, elseBlock) == PatternResult::Never) return nullptr;
+
     Array<BranchArm> arms;
 
-    current = thenBlock;
     auto thenValue = resolve(branch.then, target, used);
     if(current) arms.push(BranchArm { current, thenValue, branch.then.source });
     bindings.resize(bindingCount);
@@ -402,14 +445,8 @@ ModulePtr<Value> ExprResolver::resolveMultiIf(const ast::Expr& expr, ast::ParseL
 
         if(isElse) {
             hasElse = true;
-        } else {
-            auto cond = convert(resolve(contents[i].cond, module.scalar.bool_), module.scalar.bool_, contents[i].cond.source);
-            if(!cond) return nullptr;
-
-            auto thenBlock = addBlock();
-            nextBlock = addBlock();
-            terminate(emit<InstJe>(contents[i].cond.source, 0, module.scalar.unit, cond, thenBlock, nextBlock));
-            current = thenBlock;
+        } else if(resolveCondition(contents[i].cond, nextBlock) == PatternResult::Never) {
+            return nullptr;
         }
 
         auto value = resolve(contents[i].then, target, used);
@@ -430,22 +467,27 @@ ModulePtr<Value> ExprResolver::resolveMultiIf(const ast::Expr& expr, ast::ParseL
 
 void ExprResolver::resolveWhile(const ast::WhileExpr& loop) {
     auto conditionBlock = addBlock();
-    auto bodyBlock = addBlock();
+
+    // The exit block is made here rather than left to the condition, because `break` targets it
+    // and the body is resolved before anything else refers to it.
     auto exitBlock = addBlock();
 
     terminate(emit<InstJmp>(loop.cond.source, 0, module.scalar.unit, conditionBlock));
 
-    current = conditionBlock;
-    auto cond = convert(resolve(loop.cond, module.scalar.bool_), module.scalar.bool_, loop.cond.source);
-    terminate(emit<InstJe>(loop.cond.source, 0, module.scalar.unit, cond, bodyBlock, exitBlock));
-
     // A name the body binds belongs to the body, the way it does in the arms of an `if` or a
     // `match`. Letting one outlive the loop would also let it be read from the exit block, which
-    // the value it was bound to does not dominate - the loop may have run zero times.
+    // the value it was bound to does not dominate - the loop may have run zero times. The names an
+    // `is` condition binds are in the same position and are scoped by the same resize: they are
+    // live in the body, which is exactly where the pattern matched.
     auto bindingCount = bindings.size();
 
+    current = conditionBlock;
+    if(resolveCondition(loop.cond, exitBlock) == PatternResult::Never) {
+        current = exitBlock;
+        return;
+    }
+
     loops.push(LoopTarget { conditionBlock, exitBlock });
-    current = bodyBlock;
     resolve(loop.body, nullptr, false);
     loops.pop();
 
@@ -590,6 +632,8 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             return resolveIf(expr, *parse[expr.singleIf], target, used);
         case ast::Expr::MultiIf:
             return resolveMultiIf(expr, expr.multiIf, target, used);
+        case ast::Expr::Is:
+            return resolveIs(expr, *parse[expr.is], used);
         case ast::Expr::Match:
             return resolveMatch(expr, *parse[expr.match], target, used);
         case ast::Expr::Decl:

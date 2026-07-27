@@ -264,16 +264,17 @@ struct ScalarTypes {
     TypePtr ordering = nullptr;
 };
 
-// The four Core classes the resolver has to know by name rather than by lookup, because the
+// The five Core classes the resolver has to know by name rather than by lookup, because the
 // language's own syntax is written in terms of them: a literal is a call to one of the first
-// two, and an implicit conversion is a call to `widen`. They are ordinary classes in every
-// other respect - user types join them by writing an instance, and nothing about selection or
-// instance lookup treats them specially.
+// two, an implicit conversion is a call to `widen`, and a condition is a call to `truthy`. They
+// are ordinary classes in every other respect - user types join them by writing an instance, and
+// nothing about selection or instance lookup treats them specially.
 struct CoreClasses {
     GlobalPtr<TypeClass> fromInt = nullptr;
     GlobalPtr<TypeClass> fromDecimal = nullptr;
     GlobalPtr<TypeClass> widen = nullptr;
     GlobalPtr<TypeClass> narrow = nullptr;
+    GlobalPtr<TypeClass> truth = nullptr;
 };
 
 /*

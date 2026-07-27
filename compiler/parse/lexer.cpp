@@ -495,6 +495,7 @@ void Lexer::parseVariable(Token& token, const char** start, U32* length) {
                 if(c < m && *c == 'l') {c++; token.type = Token::kwInfixL;}
                 else if(c < m && *c == 'r') {c++; token.type = Token::kwInfixR;}
             } else if(compareConstString(c, m, "nstance")) token.type = Token::kwInstance;
+            else if(c < m && *c == 's') {c++; token.type = Token::kwIs;}
             else if(compareConstString(c, m, "ter")) token.type = Token::kwIter;
             break;
         case 'l':

@@ -1,0 +1,53 @@
+-- What a condition is. `if`, `if:` and `while` require a `Truth` instance for the condition's own
+-- type rather than requiring a `Bool`, so `if i - 1:` says what it looks like it says.
+--
+-- The rule that keeps this from being JavaScript's truthiness is that it never applies through a
+-- conversion: the instance is chosen for the type the condition already has, so what `if x` means
+-- depends on x's type alone. Coherence gives that type exactly one answer.
+
+-- Bool's instance is the identity, so a comparison compiles to the branch it always did - there is
+-- no call and no test beyond the one the comparison itself emits.
+fn fromBool(value: Bool) -> Int = if value then 1 else 0
+
+fn compared(a: Int, b: Int) -> Int = if a > b then 1 else 0
+
+-- A number is truthy when it is not zero.
+fn fromInt(value: Int) -> Int = if value then 1 else 0
+
+fn fromLong(value: Long) -> Int = if value then 1 else 0
+
+fn fromFloat(value: Float) -> Int = if value then 1 else 0
+
+-- The condition is resolved with no expected type, so a literal one settles to its own class's
+-- default and is asked about that: this is `Truth(Int)`, not a Bool conversion.
+fn fromLiteral() -> Int = if 1 then 1 else 0
+
+-- Each case of a multi-way if is a condition in its own right. The first holds for everything but
+-- 1, the second for everything but 0.
+fn classify(value: Int) -> Int = if:
+    value - 1 -> 2
+    value -> 1
+    else -> 0
+
+-- A loop condition goes through the same class as a branch condition.
+fn loop(value: Int) -> Int:
+    while value:
+        return 5
+
+    return 6
+
+-- A generic body needs the instance from whoever instantiates it, exactly as it does for any other
+-- class its own type variables decide - so the condition is what makes `Truth(a)` a requirement,
+-- and a declared constraint is the same entry an inferred one would be.
+fn (Truth(a)) present(value: a) -> Int = if value then 1 else 0
+
+fn main() -> Int =
+    fromBool(True) + fromBool(False) * 100 +
+    compared(2, 1) * 2 + compared(1, 2) * 100 +
+    fromInt(7) * 4 + fromInt(0) * 100 +
+    fromLong(7) * 8 + fromLong(0) * 100 +
+    fromFloat(0.5) * 16 + fromFloat(0.0) * 100 +
+    fromLiteral() * 32 +
+    classify(0) * 64 + classify(1) * 128 + classify(5) * 256 +
+    loop(1) * 512 + loop(0) * 1024 +
+    present(3) * 2048 + present(0.0) * 100

@@ -64,12 +64,9 @@ fn main() -> Int {
     jmp b1
 
   b1:
-    je False, b2, b3
+    je False, b3, b2
 
   b2:
-    ret 99
-
-  b3:
     %v11 = mul %value, 2 : Int
     %v13 = call classify, 5 : Int
     %v14 = add %v11, %v13 : Int
@@ -77,4 +74,7 @@ fn main() -> Int {
     %v17 = add %v14, %v16 : Int
     %v20 = sub %v17, 2 : Int
     ret %v20
+
+  b3:
+    ret 99
 }

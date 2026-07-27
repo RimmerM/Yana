@@ -129,20 +129,20 @@ fn firstJust(%a: Maybe(Int), %b: Maybe(Int)) -> Int {
     jmp b1
 
   b1:
-    je True, b2, b3
+    je True, b3, b2
 
   b2:
-    %v5 = load %a.discriminant : Int
-    %v7 = cmp_eq %v5, 1 : Bool
-    je %v7, b5, b4
-
-  b3:
     %v12 = load %b.discriminant : Int
     %v14 = cmp_eq %v12, 1 : Bool
     je %v14, b7, b6
 
+  b3:
+    %v5 = load %a.discriminant : Int
+    %v7 = cmp_eq %v5, 1 : Bool
+    je %v7, b5, b4
+
   b4:
-    jmp b3
+    jmp b2
 
   b5:
     %first = load %a@Just : Int
@@ -161,15 +161,15 @@ fn retry(%m: Maybe(Int), %c: Color) -> Int {
     jmp b1
 
   b1:
-    je True, b2, b3
+    je True, b3, b2
 
   b2:
+    ret 50
+
+  b3:
     %v5 = load %m.discriminant : Int
     %v7 = cmp_eq %v5, 1 : Bool
     je %v7, b5, b4
-
-  b3:
-    ret 50
 
   b4:
     %v10 = cast %c : Int
@@ -187,7 +187,7 @@ fn retry(%m: Maybe(Int), %c: Color) -> Int {
     je %v17, b9, b8
 
   b7:
-    jmp b3
+    jmp b2
 
   b8:
     jmp b1
@@ -201,15 +201,15 @@ fn scan(%c: Color) -> Int {
     jmp b1
 
   b1:
-    je True, b2, b3
+    je True, b3, b2
 
   b2:
+    ret 9
+
+  b3:
     %v4 = cast %c : Int
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b5, b4
-
-  b3:
-    ret 9
 
   b4:
     %v9 = cast %c : Int
@@ -217,7 +217,7 @@ fn scan(%c: Color) -> Int {
     je %v11, b7, b6
 
   b5:
-    jmp b3
+    jmp b2
 
   b6:
     ret 8
