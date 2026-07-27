@@ -90,8 +90,22 @@ fn blockOperations() -> I64:
 -- Sizes come from the same Repr the field offsets do.
 fn sizes() -> I64 = sizeOf(0 :: I64) * 100 + alignOf(0 :: U8) * 10 + sizeOf(0 :: U16)
 
+-- A pointer is an ordinary type argument, including where the argument has to come from an
+-- ascription because the constructor carries nothing that could imply it.
+fn maybePointer() -> I64:
+    let slot = 0 :: U8
+    let empty = Nothing :: Maybe(%U8)
+    let full = Just(addressOf(slot)) :: Maybe(%U8)
+
+    return unwrapPointer(empty) + unwrapPointer(full) * 2
+
+fn unwrapPointer(value: Maybe(%U8)) -> I64 = match value:
+    Just(p) -> if isNull(p) then 0 else 1
+    Nothing -> 0
+
 fn main() -> Int:
     let result = roundTrip() + throughField() + pointerFields() + walkList() +
-                 elementStride() + compareAddresses() + blockOperations() + sizes()
+                 elementStride() + compareAddresses() + blockOperations() + sizes() +
+                 maybePointer()
 
     return result :: Int

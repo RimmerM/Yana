@@ -1,0 +1,102 @@
+-- The three halves of declaring and building a record that Analysis-Ergonomics.md section 6 is
+-- about: the newtype, field-level defaults, and record update.
+
+import Native
+
+data Flags {read: Bool = False, write: Bool = False, exec: Bool = False}
+data Vec2 {x: Int, y: Int}
+data Rect {origin: Vec2, size: Vec2}
+
+-- `alias qualified Name = Type` is a newtype: a distinct type wrapping one other type, under a
+-- constructor of its own name. What follows `=` is a type and only a type, so the wrapped type may
+-- be a sigil, a name declared further down, or one of the declaration's own variables, and none of
+-- it collides with the nullary constructors a `data` declares.
+alias qualified OpenFlags = I32
+alias qualified Handle = %U8
+alias qualified Wrapper = Inner
+alias qualified Boxed(a) = %a
+data Inner {value: Int}
+data Direction = North | South
+
+-- A plain alias is still transparent, and names the same type rather than a new one.
+alias Count = Int
+
+-- A default belongs to the declaration rather than to an instantiation of it, which is what makes
+-- one work on a generic record whose instantiation was created while another declaration was being
+-- read - `Box(Int)` exists before this file has reached `Box`'s own default.
+data Holder {box: Box(Int)}
+data Box(a) {value: a, tag: Int = 7}
+
+fn held() -> Holder = Holder {box: Box {value: 5}}
+fn heldTag(h: Holder) -> Int = h.box.tag + h.box.value
+
+-- An omitted field takes the default its declaration gave it, and a given one replaces it. A
+-- record all of whose fields have defaults can be constructed with none at all.
+fn none() -> Flags = Flags {}
+fn readOnly() -> Flags = Flags {read: True}
+fn readWrite() -> Flags = Flags {read: True, write: True}
+
+fn flagBits(f: Flags) -> Int =
+    (if f.read then 1 else 0) + (if f.write then 2 else 0) + (if f.exec then 4 else 0)
+
+-- `{value | field: x}` is a copy of its source with those fields replaced, so the source is
+-- unchanged and the result is a new value of the same type.
+fn withExec(f: Flags) -> Flags = {f | exec: True}
+fn moveTo(it: Rect, to: Vec2) -> Rect = {it | origin: to}
+
+-- A nested path projects into the one copy the update made, rather than expanding into an update
+-- per level. That is what names the source once - `deeper` copies `make()` once and calls it once -
+-- and what lets two paths sharing a prefix both survive, which an expansion into nested updates
+-- cannot do: each level would copy `origin` separately and the second would replace the first.
+fn translateX(it: Rect, by: Int) -> Rect = {it | .origin.x: it.origin.x + by}
+fn corners(it: Rect) -> Rect = {it | .origin.x: 100, .origin.y: 200}
+fn deeper() -> Rect = {makeRect() | .origin.x: 7, .size.y: 8}
+
+fn makeRect() -> Rect = Rect {origin: Vec2 {x: 1, y: 2}, size: Vec2 {x: 3, y: 4}}
+
+-- `~field` replaces a field with the binding of the same name, as it does in a construction.
+fn withX(v: Vec2, x: Int) -> Vec2 = {v | ~x}
+
+-- Update works on an anonymous tuple as well, which has no declaration and therefore no defaults.
+fn tupleUpdate(t: {a: Int, b: Int}) -> Int:
+    let u = {t | b: 9}
+    return u.a + u.b
+
+-- A newtype is constructed and destructured under its own name, and its content is the one type
+-- it wraps rather than a tuple.
+fn oCreat() -> OpenFlags = OpenFlags(64)
+fn flagValue(f: OpenFlags) -> Count = match f: OpenFlags(v) -> v :: Int
+
+fn wrapped() -> Wrapper = Wrapper(Inner {value: 7})
+fn unwrapped(w: Wrapper) -> Int = match w: Wrapper(i) -> i.value
+
+fn nullHandle() -> Handle = Handle(null())
+fn handleAddress(h: Handle) -> I64 = match h: Handle(p) -> asInt(p)
+
+fn boxed(p: %I64) -> Boxed(I64) = Boxed(p)
+fn boxedValue(b: Boxed(I64)) -> I64 = match b: Boxed(p) -> *p
+
+fn directionValue(d: Direction) -> Int = match d:
+    North -> 1
+    South -> 2
+
+fn main() -> Int:
+    let slot = 11 :: I64
+    let rect = Rect {origin: Vec2 {x: 1, y: 2}, size: Vec2 {x: 3, y: 4}}
+
+    let scalars =
+        flagBits(none()) +
+        flagBits(readOnly()) +
+        flagBits(withExec(readWrite())) +
+        translateX(rect, 5).origin.x +
+        moveTo(rect, Vec2 {x: 8, y: 9}).origin.y +
+        tupleUpdate({a: 1, b: 2}) +
+        corners(rect).origin.x + corners(rect).origin.y +
+        deeper().origin.x + deeper().size.y + deeper().origin.y +
+        withX(Vec2 {x: 0, y: 0}, 6).x +
+        flagValue(oCreat()) +
+        unwrapped(wrapped()) +
+        directionValue(South) +
+        heldTag(held())
+
+    return scalars + ((handleAddress(nullHandle()) + boxedValue(boxed(addressOf(slot)))) :: Int)

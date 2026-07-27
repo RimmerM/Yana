@@ -45,35 +45,38 @@ ModulePtr<Value> ExprResolver::makeFloat(LocationId source, TypePtr type, F64 va
  */
 ModulePtr<Value> ExprResolver::globalValue(ModulePtr<Global> global_, LocationId source) {
     auto& definition = *local[global_];
-    auto type = definition.type;
 
-    if(definition.mut || !isDirectType(global, type)) {
+    if(definition.mut || !isDirectType(global, definition.type)) {
         definition.used = true;
         return load(Place::inGlobal(global_), source);
     }
 
-    // `initial` holds the bits the storage would have held, at the width of the global's own type,
-    // which is the form declareGlobal wrote them in.
+    return constantBits(definition.type, definition.initial, source);
+}
+
+// The constant a declared-once value holds, from the bits its storage would have held at the width
+// of its own type - the form both a global's initializer and a field default are recorded in.
+ModulePtr<Value> ExprResolver::constantBits(TypePtr type, U64 bits, LocationId source) {
     if(isFloat(global, type)) {
         if(((FloatType*)global[type])->width == FloatType::Float) {
             F32 single;
-            copy((const Byte*)&definition.initial, (Byte*)&single, sizeof(single));
+            copy((const Byte*)&bits, (Byte*)&single, sizeof(single));
             return makeFloat(source, type, F64(single));
         }
 
         F64 number;
-        copy((const Byte*)&definition.initial, (Byte*)&number, sizeof(number));
+        copy((const Byte*)&bits, (Byte*)&number, sizeof(number));
         return makeFloat(source, type, number);
     }
 
     // The resolve IR has no pointer immediate on purpose, so a pointer constant is its address as
     // an integer reinterpreted - which is the same thing `null()` expands to.
     if(isPointer(global, type)) {
-        auto address = makeInt(source, module.scalar.long_, definition.initial);
+        auto address = makeInt(source, module.scalar.long_, bits);
         return ref(emit<InstUnary>(source, 0, type, Value::Cast, address));
     }
 
-    return makeInt(source, type, definition.initial);
+    return makeInt(source, type, bits);
 }
 
 /*
@@ -847,12 +850,18 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             auto type = resolveType(module, coerce.type);
 
             // `::` is what supplies the expected type where nothing else does, so it is pushed
-            // down into a literal (which has no type of its own) and into a call (whose class
-            // instance may be decided by its result type - `truncate(x) :: Int`). The call keeps
-            // its own result unconverted, because the ascription that selected the instance is
-            // also the explicit conversion, and an explicit one may narrow.
+            // down into a literal (which has no type of its own), into a call (whose class
+            // instance may be decided by its result type - `truncate(x) :: Int`) and into a
+            // constructor (whose record's type arguments may be - `Nothing :: Maybe(%U8)`, which
+            // nothing else in the expression says). The call keeps its own result unconverted,
+            // because the ascription that selected the instance is also the explicit conversion,
+            // and an explicit one may narrow.
             if(ast::isLiteral(coerce.target)) {
                 return convert(resolve(coerce.target, type), type, expr.source, false);
+            }
+
+            if(coerce.target.kind == ast::Expr::Con) {
+                return resolveConstruct(coerce.target, *parse[coerce.target.con], type);
             }
 
             if(coerce.target.kind == ast::Expr::App) {
@@ -889,6 +898,8 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
         }
         case ast::Expr::Tup:
             return resolveTuple(expr, expr.tup, target);
+        case ast::Expr::TupUpdate:
+            return resolveTupUpdate(expr, *parse[expr.tupUpdate], target);
         case ast::Expr::Field:
             return resolveField(expr, *parse[expr.field]);
         case ast::Expr::Assign:

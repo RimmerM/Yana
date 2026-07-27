@@ -46,3 +46,13 @@ fn t(v) = {->v | x: 1}
 
 -- The fully expanded move-update equivalent.
 fn u(v) = {->v | origin: {->v.origin | x: 1}}
+
+-- A nested path is kept as a path rather than expanded into an update per level.
+fn v(x) = {x | .a.b.c: 1}
+
+-- Two paths sharing a prefix are two paths, not two updates of the same field.
+fn w(x) = {x | .a.b: 1, .a.c: 2}
+
+-- `~field` replaces a field with the binding of the same name.
+fn x(a, b) = {a | ~b}
+fn y(a, b) = {a | ~b, c: 1}

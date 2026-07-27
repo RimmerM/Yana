@@ -560,26 +560,60 @@ Module
 | |     `-GenType b
 | `-Body
 |   `-LitExpr 0
-`-FunDecl f <implicit return> 
-  |-<constraints>
-  | |-FunctionConstraint foo
-  | | `-FunType 
-  | |   |-Arg <anonymous>
-  | |   | `-GenType a
-  | |   |-Arg <anonymous>
-  | |   | `-TupType 
-  | |   |   |-Field <anonymous>
-  | |   |   | `-ConType Bool
-  | |   |   `-Field <anonymous>
-  | |   |     `-ConType Bool
-  | |   `-TupType 
-  | |     |-Field x
-  | |     | `-ArrType 
-  | |     |   `-ConType Int
-  | |     `-Field y
-  | |       `-ConType Int
-  | `-FunctionConstraint bar
-  |   `-FunType 
-  |     `-ConType Int
+|-FunDecl f <implicit return> 
+| |-<constraints>
+| | |-FunctionConstraint foo
+| | | `-FunType 
+| | |   |-Arg <anonymous>
+| | |   | `-GenType a
+| | |   |-Arg <anonymous>
+| | |   | `-TupType 
+| | |   |   |-Field <anonymous>
+| | |   |   | `-ConType Bool
+| | |   |   `-Field <anonymous>
+| | |   |     `-ConType Bool
+| | |   `-TupType 
+| | |     |-Field x
+| | |     | `-ArrType 
+| | |     |   `-ConType Int
+| | |     `-Field y
+| | |       `-ConType Int
+| | `-FunctionConstraint bar
+| |   `-FunType 
+| |     `-ConType Int
+| `-Body
+|   `-LitExpr 0
+|-FunDecl contains <implicit return> 
+| |-Arg set
+| | `-ConType Flags
+| |-Arg flag
+| | `-ConType Flags
+| |-Result
+| | `-ConType Bool
+| `-Body
+|   `-AppExpr 
+|     |-VarExpr f
+|     `-Field <anonymous>
+|       `-VarExpr set
+|-FunDecl insert <implicit return> 
+| |-Arg set x
+| | `-ConType Flags
+| |-Arg flag
+| | `-ConType Flags
+| |-Result
+| | `-ConType Bool
+| `-Body
+|   `-AppExpr 
+|     |-VarExpr g
+|     `-Field <anonymous>
+|       `-VarExpr x
+`-FunDecl only <implicit return> 
+  |-Arg set
+  | `-ConType Flags
+  |-Result
+  | `-ConType Bool
   `-Body
-    `-LitExpr 0
+    `-AppExpr 
+      |-VarExpr h
+      `-Field <anonymous>
+        `-VarExpr set

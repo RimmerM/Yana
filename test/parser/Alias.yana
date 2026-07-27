@@ -6,3 +6,12 @@ alias A = [Int]
 alias A(a) = [a]
 alias A(a, b, c) = (a, b) -> c
 alias A = ([B]) -> [C: D]
+
+-- `alias qualified` is a newtype: a distinct type wrapping the one on the right, rather than
+-- another name for it. What follows `=` is an ordinary type in both forms.
+alias qualified X = Y
+alias qualified X = %Y
+alias qualified X = [Y]
+alias qualified X = {a: Y, b: Z}
+alias qualified X(a) = %a
+alias qualified X(a, bits) = Y(a)

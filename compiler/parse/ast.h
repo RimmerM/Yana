@@ -12,6 +12,7 @@ struct Type;
 struct Pat;
 struct Constraint;
 struct TupArg;
+struct TupUpdateArg;
 struct TupField;
 struct ArgDecl;
 
@@ -352,6 +353,20 @@ struct TupArg {
     Expr value;
 };
 
+/*
+ * One field replacement of a tuple update - `{v | origin: p}` or `{v | .origin.x: 1}`.
+ *
+ * The path is kept whole rather than rewritten into nested updates, because a rewrite would name
+ * the source once per level: `{f() | .a.b: 1}` would call `f` twice, and `{v | .a.b: 1, .a.c: 2}`
+ * would build two independent copies of `v.a` and let the second replace the first. One path into
+ * one copy is both what the user wrote and the only reading under which two paths sharing a prefix
+ * compose.
+ */
+struct TupUpdateArg {
+    ParseList<StringId> path;
+    Expr value;
+};
+
 struct ArgDecl {
     Type type;
     StringId name;
@@ -412,7 +427,7 @@ struct FunExpr {
 
 struct TupUpdateExpr {
     Expr value;
-    ParseList<TupArg> args;
+    ParseList<TupUpdateArg> args;
     BindType bind = BindType::Borrow;
 };
 

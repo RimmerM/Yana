@@ -623,7 +623,7 @@ private:
     }
 
     void printAliasDecl(Decl& e) {
-        stream.writeString("AliasDecl "_v);
+        stream.writeString(e.qualified ? "AliasDecl <qualified> "_v : "AliasDecl "_v);
         toString(e.alias.type);
         makeLevel();
         toString(e.alias.target, true);
@@ -731,6 +731,20 @@ private:
             stream.writeBytes((const Byte*)name.text, name.textLength);
         } else {
             stream.writeString("<anonymous>"_v);
+        }
+
+        makeLevel();
+        toString(arg.value, true);
+        removeLevel();
+    }
+
+    void toString(TupUpdateArg& arg) {
+        stream.writeString("Field "_v);
+
+        auto path = arg.path.contents(base);
+        for(auto i = path.begin(); i != path.end(); ++i) {
+            write(stream, context.findName(*i));
+            if(i != path.back()) stream.writeByte('.');
         }
 
         makeLevel();
@@ -920,7 +934,8 @@ private:
         }
 
         makeLevel();
-        toString(field.type, true);
+        toString(field.type, field.def == nullptr);
+        if(field.def) toString(*base[field.def], true);
         removeLevel();
     }
 

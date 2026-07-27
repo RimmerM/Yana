@@ -49,11 +49,15 @@ struct Parser: BasicParser<Lexer, Token> {
     void parseTypeArg(ast::ParseList<ast::ArgDecl>& list);
     void parseArgDecl(ast::ParseList<ast::ArgDecl>& list);
     void parseTupArg(ast::ParseList<ast::TupArg>& list);
-    void parseTupUpdateArg(ast::ParseList<ast::TupArg>& list, const ast::Expr& source, ast::BindType bind);
+    void parseTupUpdateArg(ast::ParseList<ast::TupUpdateArg>& list);
     ast::Expr parseVarDecl(const WithLocation& location, U32 line);
     void parseAlt(ast::ParseList<ast::Alt>& list);
     ast::Expr parseQop();
     ast::FunKind parseFunKind();
+
+    // Whether the `set` at the current token is the binding convention rather than a name of its
+    // own, which is decided by whether a name follows it. Does not consume anything.
+    bool atSetConvention();
     ast::BindType parseBindType();
     bool parseReturnRoot();
 

@@ -167,10 +167,33 @@ struct TupType: Type {
     bool reprReady = false;
 };
 
+/*
+ * What one field of a constructor is when a construction leaves it out -
+ * `data Flags {read: Bool = False, ...}`.
+ *
+ * A default is kept as the bits the field's storage would hold rather than as the expression it
+ * was written as, for the same reason a global's initializer is (see declareGlobal): there is no
+ * program point at which a declaration's code would run, and an expression would additionally
+ * belong to the parse arena of the module that wrote it, which is not the one constructing the
+ * value. That is what restricts a default to a literal, and it is enough for what the feature is
+ * for - a flags type whose fields are all `False`, a counter that starts at zero, a null link.
+ *
+ * `field` indexes the constructor's content tuple, so only a named field can carry one.
+ */
+struct FieldDefault {
+    U16 field = 0;
+    U64 value = 0;
+};
+
 struct Constructor {
     StringId name = 0;
     TypePtr content = nullptr;
     U32 index = 0;
+
+    // Only the fields that were given one, in field order; most constructors have none. Read from
+    // the declaration rather than from an instantiation of it, since an instantiation can be
+    // created before the declaration's defaults have been read - see resolveConstruct.
+    GlobalList<FieldDefault> defaults;
 };
 
 /*

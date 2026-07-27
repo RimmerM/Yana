@@ -170,12 +170,55 @@ Module
 | `-Constructor Z
 |   `-ArrType 
 |     `-ConType Int
-`-DataDecl A 
-  |-<constraints>
-  | `-ClassConstraint Eq (a)
-  `-Constructor A
+|-DataDecl A 
+| |-<constraints>
+| | `-ClassConstraint Eq (a)
+| `-Constructor A
+|   `-TupType 
+|     |-Field x
+|     | `-GenType a
+|     `-Field y
+|       `-GenType a
+|-DataDecl X 
+| `-Constructor Y
+|-DataDecl X 
+| `-Constructor X
+|   `-TupType 
+|     `-Field a
+|       |-ConType Y
+|       `-LitExpr 1
+|-DataDecl X 
+| `-Constructor X
+|   `-TupType 
+|     |-Field a
+|     | |-ConType Y
+|     | `-LitExpr 1
+|     `-Field b
+|       `-ConType Z
+|-DataDecl X 
+| `-Constructor X
+|   `-TupType 
+|     |-Field a
+|     | `-ConType Y
+|     `-Field b
+|       |-ConType Z
+|       `-ConExpr 
+|         |-ConType False
+|-DataDecl X 
+| `-Constructor X
+|   `-TupType 
+|     |-Field a
+|     | |-ConType Y
+|     | `-LitExpr 1
+|     `-Field b
+|       |-ConType Z
+|       `-LitExpr 2
+`-DataDecl X (a)
+  `-Constructor X
     `-TupType 
-      |-Field x
-      | `-GenType a
-      `-Field y
-        `-GenType a
+      `-Field contents
+        |-AppType 
+        | |-ConType Maybe
+        | `-GenType a
+        `-ConExpr 
+          |-ConType Nothing

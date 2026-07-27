@@ -202,11 +202,132 @@ static void resolveConstraintClasses(Module& module, GenEnv& env) {
  * Data, alias and class declarations.
  */
 
-static RecordType* declareRecord(Module& module, ast::Decl& decl) {
-    auto found = module.namedTypes.add(decl.data.type.name);
+/*
+ * A field default, reduced to the bits its field holds.
+ *
+ * The same literal shapes a global's initializer takes, plus a nullary constructor - which is what
+ * `True` and `False` are, and so what a flags type is made of. The difference from declareGlobal is
+ * that the type is already known here - it is the field's - so a literal is checked against it
+ * rather than deciding it, and there is no `:: Type` form to write.
+ */
+static bool fieldDefaultBits(Module& module, const ast::Expr& expr, TypePtr type, U64& bits) {
+    auto global = *module.types;
+    auto& diagnostics = module.context.diagnostics;
+
+    // A record whose constructors all carry nothing is its discriminant, so a nullary constructor
+    // of one is as much a constant as a number is - and it is what `Bool` is made of, which makes
+    // `read: Bool = False` the case this whole feature exists for.
+    if(expr.kind == ast::Expr::Con) {
+        auto& construct = *module.parse[expr.con];
+        auto args = construct.args;
+
+        if(construct.type.kind == ast::Type::Con && args.isEmpty()) {
+            auto found = findConstructor(module, construct.type.name, expr.source);
+            auto record = found ? (RecordType*)global[found.unwrap().record] : nullptr;
+
+            if(record && record->layout == RecordType::Enum && (Type*)record - global == type) {
+                bits = found.unwrap().index;
+                return true;
+            }
+        }
+    }
+
+    if(!ast::isLiteral(expr)) {
+        diagnostics.error("a field default must be a literal or a nullary constructor"_v, expr.source);
+        return false;
+    }
+
+    auto literal = ast::Literal::Kind(expr.kind - ast::Expr::Lit);
+
+    // A pointer field's default is an address written as an integer, which is the same spelling a
+    // null pointer global takes.
+    if(literal == ast::Literal::Int && (isInteger(global, type) || isPointer(global, type))) {
+        bits = expr.lit.i();
+        return true;
+    }
+
+    if(isFloat(global, type) &&
+       (literal == ast::Literal::Int || literal == ast::Literal::Float || literal == ast::Literal::Double)) {
+        auto number = literal == ast::Literal::Int  ? F64(expr.lit.i())
+                    : literal == ast::Literal::Float ? F64(expr.lit.f)
+                                                     : expr.lit.d();
+
+        // Written as the bits the field will occupy, so that nothing has to convert again later.
+        if(((FloatType*)global[type])->width == FloatType::Float) {
+            auto single = F32(number);
+            copy((const Byte*)&single, (Byte*)&bits, sizeof(single));
+        } else {
+            copy((const Byte*)&number, (Byte*)&bits, sizeof(number));
+        }
+
+        return true;
+    }
+
+    diagnostics.error("a field of type %@ cannot have this default"_v, expr.source,
+                      describeType(module.context, global, type));
+    return false;
+}
+
+/*
+ * Records the defaults written in a record's constructors.
+ *
+ * A pass of its own, after every record has been defined, because a default may name a nullary
+ * constructor of a record declared further down and the layout that makes one a constant is
+ * decided by defineRecord. Instantiations inherit their declaration's constructors whole, so a
+ * generic record's defaults reach `Maybe(Int)` with nothing to do here.
+ */
+static void declareRecordDefaults(Module& module, ast::Decl& decl) {
+    auto global = *module.types;
+    auto found = module.namedTypes.get(decl.data.type.name);
+    if(!found || global[found.unwrap()]->kind != Type::Record) return;
+
+    auto record = (RecordType*)global[found.unwrap()];
+    Size at = 0;
+
+    for(auto con: decl.data.cons.contents(module.parse)) {
+        if(at >= record->constructors.size()) break;
+
+        auto index = at++;
+        auto constructor = record->constructors.get(global, index);
+        auto content = constructor.content;
+        if(!con.content) continue;
+
+        // Only a tuple content has named fields to write a default on; a constructor wrapping one
+        // unnamed type has nothing to leave out.
+        auto& astContent = *module.parse[con.content];
+        if(astContent.kind != ast::Type::Tup || !content || global[content]->kind != Type::Tup) continue;
+
+        auto tuple = (TupType*)global[content];
+        auto astFields = astContent.tup.fields;
+        U16 field = 0;
+        auto added = false;
+
+        for(auto astField: astFields.contents(module.parse)) {
+            if(astField.def && field < tuple->fields.size()) {
+                U64 bits = 0;
+                auto type = tuple->fields.get(global, field).type;
+
+                if(fieldDefaultBits(module, *module.parse[astField.def], type, bits)) {
+                    constructor.defaults.push(module.types, FieldDefault { field, bits });
+                    added = true;
+                }
+            }
+
+            field++;
+        }
+
+        if(added) record->constructors.set(global, index, constructor);
+    }
+}
+
+// The record a declaration introduces, with its own type variables but no constructors yet. Shared
+// by `data` and by the newtype an `alias qualified` declares, which differ only in what they then
+// put in it.
+static RecordType* declareRecordType(Module& module, ast::SimpleType& type, ast::ConstraintList constraints,
+                                     bool qualified, LocationId source) {
+    auto found = module.namedTypes.add(type.name);
     if(found.existed) {
-        module.context.diagnostics.error("duplicate type %@"_v, decl.source,
-                                         module.context.findName(decl.data.type.name));
+        module.context.diagnostics.error("duplicate type %@"_v, source, module.context.findName(type.name));
         auto existing = *found.value;
 
         return existing && (*module.types)[existing]->kind == Type::Record
@@ -214,60 +335,108 @@ static RecordType* declareRecord(Module& module, ast::Decl& decl) {
             : nullptr;
     }
 
-    auto record = new (module.types) RecordType(decl.data.type.name);
-    record->qualified = decl.qualified;
+    auto record = new (module.types) RecordType(type.name);
+    record->qualified = qualified;
     *found.value = (Type*)record - *module.types;
 
-    auto variables = decl.data.type.kind;
-    if(variables.isNotEmpty() || decl.data.constraints.isNotEmpty()) {
-        record->gen = prepareGenEnv(module, GenEnv::Record, variables, decl.data.constraints);
+    auto variables = type.kind;
+    if(variables.isNotEmpty() || constraints.isNotEmpty()) {
+        record->gen = prepareGenEnv(module, GenEnv::Record, variables, constraints);
         record->generic = (*module.types)[record->gen]->types.isNotEmpty();
-    }
-
-    U32 index = 0;
-    for(auto con: decl.data.cons.contents(module.parse)) {
-        record->constructors.push(module.types, Constructor { con.name, nullptr, index });
-
-        // A qualified record's constructors are addressed only as `Record.Constructor`, so they
-        // are not added to the module's flat constructor table.
-        if(!decl.qualified) {
-            auto inserted = module.constructors.add(con.name);
-            if(inserted.existed) {
-                module.context.diagnostics.error("duplicate constructor %@"_v, con.source,
-                                                 module.context.findName(con.name));
-            } else {
-                *inserted.value = ConstructorRef { record - *module.types, U16(index) };
-            }
-        }
-
-        index++;
     }
 
     return record;
 }
 
-static void defineRecord(Module& module, ast::Decl& decl) {
-    auto found = module.namedTypes.get(decl.data.type.name);
-    if(!found || (*module.types)[found.unwrap()]->kind != Type::Record) return;
+// Registers one constructor of `record`, and makes it reachable by its own name. A qualified
+// record's constructors are addressed only as `Record.Constructor`, so they are not added to the
+// module's flat constructor table.
+static void declareConstructor(Module& module, RecordType& record, StringId name, U32 index,
+                               bool qualified, LocationId source) {
+    record.constructors.push(module.types, Constructor { name, nullptr, index });
+    if(qualified) return;
 
-    auto record = (RecordType*)(*module.types)[found.unwrap()];
-    auto env = record->gen ? (*module.types)[record->gen] : nullptr;
-    record->resolvingRepr = true;
-    Size index = 0;
+    auto inserted = module.constructors.add(name);
+    if(inserted.existed) {
+        module.context.diagnostics.error("duplicate constructor %@"_v, source, module.context.findName(name));
+    } else {
+        *inserted.value = ConstructorRef { &record - *module.types, U16(index) };
+    }
+}
 
+static void declareRecord(Module& module, ast::Decl& decl) {
+    auto record = declareRecordType(module, decl.data.type, decl.data.constraints, decl.qualified, decl.source);
+    if(!record) return;
+
+    U32 index = 0;
     for(auto con: decl.data.cons.contents(module.parse)) {
-        auto content = con.content ? resolveType(module, *module.parse[con.content], env) : module.scalar.unit;
+        declareConstructor(module, *record, con.name, index++, decl.qualified, con.source);
+    }
+}
 
-        auto stored = record->constructors.get(*module.types, index);
-        stored.content = content;
-        record->constructors.set(*module.types, index, stored);
-        index++;
+/*
+ * `alias qualified Id = Int` - a newtype.
+ *
+ * A distinct type wrapping one other type, under a constructor of its own name. There is no way to
+ * spell a different constructor name, and no ambiguity to resolve: what follows `=` in an `alias`
+ * is a type, whereas under `data` the same words would be a constructor list.
+ *
+ * Everything past the declaration is an ordinary single-constructor record, so `Id(5)`, `Id(v)` in
+ * a pattern, and every class instance over `Id` work with nothing further to teach them.
+ */
+static void declareNewtype(Module& module, ast::Decl& decl) {
+    auto record = declareRecordType(module, decl.alias.type, {}, false, decl.source);
+    if(!record) return;
+
+    declareConstructor(module, *record, decl.alias.type.name, 0, false, decl.source);
+}
+
+// Fills in a record's constructor contents, once every type name in the module is registered so
+// that one may name a type declared further down.
+static void defineRecordContent(Module& module, RecordType& record, LocationId source,
+                                Buffer<const ast::Type*> contents) {
+    auto env = record.gen ? (*module.types)[record.gen] : nullptr;
+    record.resolvingRepr = true;
+
+    for(Size index = 0; index < contents.length && index < record.constructors.size(); index++) {
+        auto stored = record.constructors.get(*module.types, index);
+        stored.content = contents[index] ? resolveType(module, *contents[index], env) : module.scalar.unit;
+        record.constructors.set(*module.types, index, stored);
     }
 
-    record->resolvingRepr = false;
-    computeRecordLayout(*module.types, *record);
-    record->definitionReady = true;
-    if(!record->generic) finishRecordRepr(module, *record, decl.source);
+    record.resolvingRepr = false;
+    computeRecordLayout(*module.types, record);
+    record.definitionReady = true;
+    if(!record.generic) finishRecordRepr(module, record, source);
+}
+
+// The record a data or qualified-alias declaration introduced, or null when the name turned out to
+// be something else (a duplicate that lost, or a plain alias).
+static RecordType* declaredRecord(Module& module, StringId name) {
+    auto found = module.namedTypes.get(name);
+    if(!found || (*module.types)[found.unwrap()]->kind != Type::Record) return nullptr;
+
+    return (RecordType*)(*module.types)[found.unwrap()];
+}
+
+static void defineRecord(Module& module, ast::Decl& decl) {
+    auto record = declaredRecord(module, decl.data.type.name);
+    if(!record) return;
+
+    Array<const ast::Type*> contents;
+    for(auto con: decl.data.cons.contents(module.parse)) {
+        contents.push(con.content ? module.parse[con.content] : nullptr);
+    }
+
+    defineRecordContent(module, *record, decl.source, toBuffer(contents));
+}
+
+static void defineNewtype(Module& module, ast::Decl& decl) {
+    auto record = declaredRecord(module, decl.alias.type.name);
+    if(!record) return;
+
+    const ast::Type* content = &decl.alias.target;
+    defineRecordContent(module, *record, decl.source, { &content, 1 });
 }
 
 static void declareAlias(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> pointer) {
@@ -858,7 +1027,13 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
                 declareRecord(module, decl);
                 break;
             case ast::Decl::Alias:
-                declareAlias(module, decl, pointer);
+                // A qualified alias is a newtype rather than a name for another type, so it
+                // declares a record and never reaches the alias table.
+                if(decl.qualified) {
+                    declareNewtype(module, decl);
+                } else {
+                    declareAlias(module, decl, pointer);
+                }
                 break;
             case ast::Decl::Trait:
                 declareClass(module, decl, pointer);
@@ -878,18 +1053,21 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
 
     for(auto decl: decls.contents(parse)) {
         if(decl.kind == ast::Decl::Data) defineRecord(module, decl);
+        else if(decl.kind == ast::Decl::Alias && decl.qualified) defineNewtype(module, decl);
+    }
+
+    for(auto decl: decls.contents(parse)) {
+        if(decl.kind == ast::Decl::Data) declareRecordDefaults(module, decl);
     }
 
     completePendingInstances(module);
 
     for(auto decl: decls.contents(parse)) {
-        if(decl.kind != ast::Decl::Data) continue;
+        auto newtype = decl.kind == ast::Decl::Alias && decl.qualified;
+        if(decl.kind != ast::Decl::Data && !newtype) continue;
 
-        auto found = module.namedTypes.get(decl.data.type.name);
-        if(found && (*module.types)[found.unwrap()]->kind == Type::Record) {
-            auto record = (RecordType*)(*module.types)[found.unwrap()];
-            if(!record->generic) finishRecordRepr(module, *record, decl.source);
-        }
+        auto record = declaredRecord(module, newtype ? decl.alias.type.name : decl.data.type.name);
+        if(record && !record->generic) finishRecordRepr(module, *record, decl.source);
     }
 
     for(auto decl: decls.contents(parse)) {

@@ -138,6 +138,10 @@ struct ExprResolver {
     // What reading a module-level name produces: a constant for an immutable global of direct
     // type, and a load of its place for anything else. See expr.cpp.
     ModulePtr<Value> globalValue(ModulePtr<Global> global_, LocationId source);
+
+    // The constant `bits` names at `type` - see expr.cpp. Shared by an immutable global and a
+    // field default, which are recorded the same way and for the same reason.
+    ModulePtr<Value> constantBits(TypePtr type, U64 bits, LocationId source);
     ModulePtr<Value> convert(ModulePtr<Value> value, TypePtr target, LocationId source, bool implicit = true);
 
     // Whether convert() would succeed implicitly, without reporting anything if it wouldn't.
@@ -280,6 +284,7 @@ struct ExprResolver {
     ModulePtr<Value> addressOf(Place place, LocationId source, StringId name = 0);
 
     ModulePtr<Value> resolveTuple(const ast::Expr& expr, ast::ParseList<ast::TupArg> args, TypePtr target);
+    ModulePtr<Value> resolveTupUpdate(const ast::Expr& expr, const ast::TupUpdateExpr& update, TypePtr target);
     ModulePtr<Value> resolveConstruct(const ast::Expr& expr, const ast::ConExpr& construct, TypePtr target);
     TypePtr constructedType(ConstructorRef reference, ast::ParseList<ast::TupArg> args, TypePtr target, Array<ModulePtr<Value>>& resolved, LocationId source);
     ModulePtr<Value> resolveField(const ast::Expr& expr, const ast::FieldExpr& field);
@@ -288,12 +293,17 @@ struct ExprResolver {
     // record needs and the dereference a reference does. Shared by field reads and field
     // assignments so that both reach a field the same way.
     Maybe<Place> projectField(Place place, const ast::Expr& field, LocationId source);
+    Maybe<Place> projectField(Place place, StringId field, LocationId fieldSource, LocationId source);
 
     // Reports a reference kind `.` cannot follow yet - a region pointer or a checked reference,
     // whose dereferences need more than an address. False for anything else, including a raw
     // pointer, which is followed. See expr_construct.cpp.
     bool reportUnfollowedReference(TypePtr type, LocationId source);
-    bool fillTuple(Place place, TupType& tuple, ast::ParseList<ast::TupArg> args, LocationId source);
+    bool fillTuple(Place place, TupType& tuple, ast::ParseList<ast::TupArg> args,
+                   GlobalList<FieldDefault>* defaults, LocationId source);
+
+    // The default declared for one field of a constructor, or nothing where it has none.
+    Maybe<U64> fieldDefault(GlobalList<FieldDefault>* defaults, U16 field);
 
     /*
      * Patterns (expr_pat.cpp).

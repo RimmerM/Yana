@@ -52,6 +52,31 @@ fn squareAreas() -> Int {
     ret %v3
 }
 
+fn styles() -> Int {
+  b0:
+    %v0 = alloc : Style
+    init %local0@Style.filled, False
+    init %local0@Style.weight, 1
+    %v5 = call styleValue, %v0 : Int
+    %v6 = alloc : Style
+    init %local1@Style.filled, True
+    init %local1@Style.weight, 3
+    %v11 = call styleValue, %v6 : Int
+    %v12 = add %v5, %v11 : Int
+    ret %v12
+}
+
+fn labelValue() -> Int {
+  b0:
+    %v0 = alloc : Label
+    init %local0@Label, 5
+    %v = load %local0@Label : Int
+    jmp b1
+
+  b1:
+    ret %v
+}
+
 fn main() -> Int {
   b0:
     %v0 = call area1 : Int
@@ -66,7 +91,11 @@ fn main() -> Int {
     %v9 = add %v7, %v8 : Int
     %v10 = call squareAreas : Int
     %v11 = add %v9, %v10 : Int
-    ret %v11
+    %v12 = call styles : Int
+    %v13 = add %v11, %v12 : Int
+    %v14 = call labelValue : Int
+    %v15 = add %v13, %v14 : Int
+    ret %v15
 }
 
 fn Area(Square).area(%value: Square) -> Int {
@@ -95,6 +124,24 @@ fn scale(%value: Point, %by: Int) -> Point {
     init %local1@Point.x, %v4
     init %local1@Point.y, %v6
     ret %v2
+}
+
+fn styleValue(%it: Style) -> Int {
+  b0:
+    %v1 = load %it@Style.filled : Bool
+    je %v1, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, 10], [b2, 0] : Int
+    %v10 = load %it@Style.weight : Int
+    %v11 = add %v9, %v10 : Int
+    ret %v11
 }
 
 fn Area(Point).area(%value: Point) -> Int {

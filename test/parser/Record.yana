@@ -39,3 +39,14 @@ data X
 
 -- Type constraints; more constraints are tested in Function.yana.
 data (Eq(a)) A { x: a, y: a }
+
+-- A single bare constructor name after `=` is a nullary constructor, never a wrapped type;
+-- the newtype form is `alias qualified` and lives in Alias.yana.
+data X = Y
+
+-- Field-level defaults.
+data X {a: Y = 1}
+data X {a: Y = 1, b: Z}
+data X {a: Y, b: Z = False}
+data X = X {a: Y = 1, b: Z = 2}
+data X(a) {contents: Maybe(a) = Nothing}

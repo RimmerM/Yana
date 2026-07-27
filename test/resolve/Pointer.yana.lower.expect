@@ -47,6 +47,44 @@ walkList<complex>(): Long {
   }
 }
 
+unwrapPointer<complex>(%value: Ptr): Long {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = add %value, 8: Ptr
+    %p = load %v_6, 8: Ptr
+    %v_7 = bitcast %p: Long
+    %v_8 = cmp_eq %v_7, 0: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    jmp b_11
+  }
+
+  b_10 {
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = phi [b_9, 0], [b_10, 1]: Long
+    jmp b_5
+  }
+
+  b_5 {
+    %v_13 = phi [b_11, %v_12], [b_4, 0]: Long
+    ret %v_13
+  }
+}
+
 pointerFields<complex>(): Long {
   b_0 {
     %first = alloca 16, 8: Ptr
@@ -204,6 +242,24 @@ blockOperations<complex>(): Long {
   }
 }
 
+maybePointer<complex>(): Long {
+  b_0 {
+    %empty = alloca 16, 8: Ptr
+    store %empty, 0, 4
+    %full = alloca 16, 8: Ptr
+    store %full, 1, 4
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, 0, 1
+    %v_2 = add %full, 8: Ptr
+    store %v_2, %v_1, 8
+    %v_3 = call_complex unwrapPointer, %empty: Long
+    %v_4 = call_complex unwrapPointer, %full: Long
+    %v_5 = imul %v_4, 2: Long
+    %v_6 = add %v_3, %v_5: Long
+    ret %v_6
+  }
+}
+
 total<complex>(%node: Ptr): Long {
   b_0 {
     %v_1 = loads %node, 8: Long
@@ -259,9 +315,11 @@ main<complex>(): Int {
     %v_12 = call_complex blockOperations: Long
     %v_13 = add %v_11, %v_12: Long
     %v_14 = call_complex sizes: Long
-    %result = add %v_13, %v_14: Long
-    %v_15 = cast %result: Int
-    ret %v_15
+    %v_15 = add %v_13, %v_14: Long
+    %v_16 = call_complex maybePointer: Long
+    %result = add %v_15, %v_16: Long
+    %v_17 = cast %result: Int
+    ret %v_17
   }
 }
 

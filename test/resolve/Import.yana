@@ -27,6 +27,15 @@ instance Area(Square):
 
 fn squareAreas() -> Int = tripleArea(Square {side: 2})
 
+-- A field default and a newtype declared in another module. Neither needs that module's AST to
+-- be reachable: the default is the constant its declaration reduced to, and the newtype's
+-- constructor is an ordinary one under the type's own name.
+fn styles() -> Int = styleValue(Style {}) + styleValue(Style {filled: True, weight: 3})
+
+fn labelValue() -> Int = match Label(5):
+    Label(v) -> v
+
 -- Core is implicitly imported, so its operators work here without being named.
 fn main() -> Int =
-    area1() + area2() + viaFunction() + area(qualifiedConstructor()) + twoAreas() + squareAreas()
+    area1() + area2() + viaFunction() + area(qualifiedConstructor()) + twoAreas() + squareAreas() +
+    styles() + labelValue()

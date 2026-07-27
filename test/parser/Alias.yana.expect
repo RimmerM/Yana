@@ -33,11 +33,32 @@ Module
 |   |-Arg <anonymous>
 |   | `-GenType b
 |   `-GenType c
-`-AliasDecl A 
-  `-FunType 
-    |-Arg <anonymous>
-    | `-ArrType 
-    |   `-ConType B
-    `-MapType 
-      |-ConType C
-      `-ConType D
+|-AliasDecl A 
+| `-FunType 
+|   |-Arg <anonymous>
+|   | `-ArrType 
+|   |   `-ConType B
+|   `-MapType 
+|     |-ConType C
+|     `-ConType D
+|-AliasDecl <qualified> X 
+| `-ConType Y
+|-AliasDecl <qualified> X 
+| `-PtrType 
+|   `-ConType Y
+|-AliasDecl <qualified> X 
+| `-ArrType 
+|   `-ConType Y
+|-AliasDecl <qualified> X 
+| `-TupType 
+|   |-Field a
+|   | `-ConType Y
+|   `-Field b
+|     `-ConType Z
+|-AliasDecl <qualified> X (a)
+| `-PtrType 
+|   `-GenType a
+`-AliasDecl <qualified> X (a, bits)
+  `-AppType 
+    |-ConType Y
+    `-GenType a

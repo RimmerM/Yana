@@ -34,7 +34,21 @@ fn labelled() -> Labelled(Int) = Labelled {label: 2, contents: Just(40)}
 
 fn labelSum(value: Labelled(Int)) -> Int = value.label + unwrap(value.contents, 0)
 
+-- Where nothing around a constructor says which type it produces, an ascription does. `Nothing` on
+-- its own is not inferable from anything, so `let n = Nothing` has no type to be given until
+-- `:: Maybe(Bool)` supplies one - which is the same expected type a declared return or a parameter
+-- would have supplied.
+fn ascribedNothing() -> Int:
+    let n = Nothing :: Maybe(Bool)
+    return unwrapBool(n)
+
+fn ascribedJust() -> Int:
+    let j = Just(True) :: Maybe(Bool)
+    return unwrapBool(j)
+
 fn main() -> Int =
+    ascribedNothing() +
+    ascribedJust() +
     unwrap(justInt(), 100) +
     unwrap(nothingInt(), 5) +
     unwrapBool(Just(True)) +

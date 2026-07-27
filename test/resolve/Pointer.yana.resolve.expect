@@ -213,6 +213,53 @@ fn sizes() -> I64 {
     ret %v13
 }
 
+fn maybePointer() -> I64 {
+  b0:
+    %empty = alloc : Maybe(%U8)
+    init %local0.discriminant, 0
+    %full = alloc : Maybe(%U8)
+    init %local1.discriminant, 1
+    %v7 = alloc : U8
+    init %local2, %slot
+    %v9 = addressof %local2 : %U8
+    init %local1@Just, %v9
+    %v11 = call unwrapPointer, %empty : I64
+    %v12 = call unwrapPointer, %full : I64
+    %v15 = mul %v12, 2 : I64
+    %v16 = add %v11, %v15 : I64
+    ret %v16
+}
+
+fn unwrapPointer(%value: Maybe(%U8)) -> I64 {
+  b0:
+    %v1 = load %value.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    jmp b6
+
+  b2:
+    %p = load %value@Just : %U8
+    %v6 = cast %p : Long
+    %v8 = cmp_eq %v6, 0 : Bool
+    je %v8, b3, b4
+
+  b3:
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v14 = phi [b3, 0], [b4, 1] : I64
+    jmp b6
+
+  b6:
+    %v18 = phi [b5, %v14], [b1, 0] : I64
+    ret %v18
+}
+
 fn main() -> Int {
   b0:
     %v0 = call roundTrip : I64
@@ -229,7 +276,9 @@ fn main() -> Int {
     %v11 = call blockOperations : I64
     %v12 = add %v10, %v11 : I64
     %v13 = call sizes : I64
-    %result = add %v12, %v13 : I64
-    %v15 = cast %result : Int
-    ret %v15
+    %v14 = add %v12, %v13 : I64
+    %v15 = call maybePointer : I64
+    %result = add %v14, %v15 : I64
+    %v17 = cast %result : Int
+    ret %v17
 }

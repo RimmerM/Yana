@@ -170,8 +170,11 @@ ModulePtr<Value> ExprResolver::addressOf(Place place, LocationId source, StringI
 }
 
 // Writes one value into each field of `tuple`, matching the arguments to fields by name where
-// they have one and by position otherwise.
-bool ExprResolver::fillTuple(Place place, TupType& tuple, ast::ParseList<ast::TupArg> astArgs, LocationId source) {
+// they have one and by position otherwise. A field the arguments left out takes the default its
+// declaration gave it, and is an error where there is none - `defaults` is empty for an anonymous
+// tuple, which has no declaration to have written one in.
+bool ExprResolver::fillTuple(Place place, TupType& tuple, ast::ParseList<ast::TupArg> astArgs,
+                             GlobalList<FieldDefault>* defaults, LocationId source) {
     auto args = astArgs.contents(parse);
 
     Array<ModulePtr<Value>> values;
@@ -216,22 +219,38 @@ bool ExprResolver::fillTuple(Place place, TupType& tuple, ast::ParseList<ast::Tu
         }
     }
 
-    if(args.size() != tuple.fields.size()) {
-        context.diagnostics.error("incorrect number of tuple fields"_v, source);
-        success = false;
-    }
-
     for(Size i = 0; i < values.size(); i++) {
         if(!values[i]) {
-            context.diagnostics.error("no value provided for tuple field"_v, source);
-            success = false;
-            continue;
+            auto field = tuple.fields.get(global, i);
+
+            if(auto def = fieldDefault(defaults, U16(i))) {
+                values[i] = constantBits(field.type, def.unwrap(), source);
+            } else if(field.name) {
+                context.diagnostics.error("no value provided for field %@"_v, source,
+                                          context.findName(field.name));
+                success = false;
+                continue;
+            } else {
+                context.diagnostics.error("no value provided for tuple field"_v, source);
+                success = false;
+                continue;
+            }
         }
 
         initialize(project(place, ProjectionKind::Field, U16(i)), values[i], source);
     }
 
     return success;
+}
+
+Maybe<U64> ExprResolver::fieldDefault(GlobalList<FieldDefault>* defaults, U16 field) {
+    if(!defaults) return Nothing();
+
+    for(auto def: defaults->contents(global)) {
+        if(def.field == field) return Just(def.value);
+    }
+
+    return Nothing();
 }
 
 ModulePtr<Value> ExprResolver::resolveTuple(const ast::Expr& expr, ast::ParseList<ast::TupArg> astArgs, TypePtr target) {
@@ -266,7 +285,7 @@ ModulePtr<Value> ExprResolver::resolveTuple(const ast::Expr& expr, ast::ParseLis
             initialize(project(place, ProjectionKind::Field, U16(i)), inferredValues[i], expr.source);
         }
     } else {
-        fillTuple(place, *tuple, astArgs, expr.source);
+        fillTuple(place, *tuple, astArgs, nullptr, expr.source);
     }
 
     return result;
@@ -404,7 +423,12 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
             initialize(contentPlace, value, expr.source);
         }
     } else if(global[content]->kind == Type::Tup) {
-        fillTuple(contentPlace, *(TupType*)global[content], construct.args, expr.source);
+        // Defaults are read from the declaration rather than from `record`, which may be an
+        // instantiation of it: what a field falls back to is a property of the declaration, and
+        // an instantiation can be made before the declaration's defaults have been read.
+        // `reference.record` is always the declaration - see findConstructor.
+        auto declared = ((RecordType*)global[reference.record])->constructors.get(global, reference.index);
+        fillTuple(contentPlace, *(TupType*)global[content], construct.args, &declared.defaults, expr.source);
     } else if(args.size() != 1 || args[0].name) {
         context.diagnostics.error("constructor requires one positional argument"_v, expr.source);
     } else {
@@ -412,6 +436,83 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
         if(value && !isMemoryType(global, content)) value = convert(value, content, args[0].value.source);
 
         initialize(contentPlace, value, expr.source);
+    }
+
+    return result;
+}
+
+/*
+ * Record update - `{value | field: x}`.
+ *
+ * A copy of `value` with some of its fields replaced, which is what makes an immutable record
+ * usable at all: without it there is no way to change one field of one, and the only workaround is
+ * to write every other field out again. The result is a new value of the source's own type, so the
+ * update names the type rather than being told it - `{v | x: 1}` is a `Vec2` wherever a `Vec2` is
+ * wanted and nowhere else.
+ *
+ * The whole of it is a copy followed by the writes: storage of the source's type, the source
+ * initialized into it, and one field initialization per argument, into a place projected out of
+ * the copy. A nested path is that projection with more steps and nothing else - the copy is what
+ * every path writes into, so `{v | .a.b: 1, .a.c: 2}` sets two fields of one `v.a` and the source
+ * expression is named once however many paths there are.
+ *
+ * `{->v | ...}` is the same expression consuming its source instead of copying it, which is the
+ * only version that can be cheaper than a copy and the only one that needs to know whether anyone
+ * else can still see `v`. That is the ownership resolver's question, so it reports until then.
+ */
+ModulePtr<Value> ExprResolver::resolveTupUpdate(const ast::Expr& expr, const ast::TupUpdateExpr& update,
+                                                TypePtr target) {
+    if(update.bind == ast::BindType::Sink) {
+        context.diagnostics.error("a move update is deferred until the ownership resolver - write `{value | ...}` to copy"_v,
+                                  expr.source);
+        return nullptr;
+    }
+
+    auto value = resolve(update.value, target);
+    if(!value) return nullptr;
+
+    auto type = valueType(value);
+    auto args = update.args;
+
+    // Only a value that *has* named fields can have them replaced. A reference is excluded rather
+    // than followed: an update through one would copy the reference and then write through it into
+    // what it points at, which is an assignment wearing an expression's clothes.
+    auto kind = global[type]->kind;
+    auto single = kind == Type::Record && ((RecordType*)global[type])->layout == RecordType::Single;
+
+    if(!single && kind != Type::Tup) {
+        context.diagnostics.error("cannot update %@ - a record update requires a single-constructor record or a tuple"_v,
+                                  update.value.source, describeType(context, global, type));
+        return nullptr;
+    }
+
+    auto result = allocate(type, expr.source);
+    auto root = placeFor(result, expr.source);
+    initialize(root, value, expr.source);
+
+    for(auto arg: args.contents(parse)) {
+        auto path = arg.path;
+        auto place = root;
+        auto reached = true;
+
+        for(auto field: path.contents(parse)) {
+            auto next = projectField(place, field, arg.value.source, expr.source);
+            if(!next) {
+                reached = false;
+                break;
+            }
+
+            place = next.unwrap();
+        }
+
+        if(!reached || path.isEmpty()) continue;
+
+        auto expected = placeType(place);
+        auto replacement = resolve(arg.value, expected);
+        if(!replacement) continue;
+
+        if(!isMemoryType(global, expected)) replacement = convert(replacement, expected, arg.value.source);
+        initialize(place, replacement, arg.value.source);
     }
 
     return result;
@@ -452,6 +553,10 @@ Maybe<Place> ExprResolver::projectField(Place place, const ast::Expr& field, Loc
         return Nothing();
     }
 
+    return projectField(place, field.var, field.source, source);
+}
+
+Maybe<Place> ExprResolver::projectField(Place place, StringId field, LocationId fieldSource, LocationId source) {
     auto type = placeType(place);
 
     // Field selection reads through a reference, one step per `.`, so a chain reaches through as
@@ -484,12 +589,12 @@ Maybe<Place> ExprResolver::projectField(Place place, const ast::Expr& field, Loc
 
     auto tuple = (TupType*)global[type];
     for(Size i = 0; i < tuple->fields.size(); i++) {
-        if(tuple->fields.get(global, i).name == field.var) {
+        if(tuple->fields.get(global, i).name == field) {
             return Just(project(place, ProjectionKind::Field, U16(i)));
         }
     }
 
-    context.diagnostics.error("unknown field %@"_v, field.source, context.findName(field.var));
+    context.diagnostics.error("unknown field %@"_v, fieldSource, context.findName(field));
     return Nothing();
 }
 

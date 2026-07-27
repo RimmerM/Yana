@@ -23,3 +23,11 @@ fn (Area(a)) totalArea(one: a, other: a) -> Int = area(one) + area(other)
 -- Nested, to check that the inner call is proved on the original caller's behalf rather than
 -- against what this module happens to see.
 fn (Area(a)) tripleArea(value: a) -> Int = totalArea(value, value) + area(value)
+
+-- A record whose fields have defaults, and a newtype, both declared here and constructed from the
+-- importing module. A default is recorded as the bits its field holds rather than as the
+-- expression it was written as, which is exactly what makes it reachable from over there.
+data Style {filled: Bool = False, weight: Int = 1}
+alias qualified Label = Int
+
+fn styleValue(it: Style) -> Int = (if it.filled then 10 else 0) + it.weight

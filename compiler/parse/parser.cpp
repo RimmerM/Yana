@@ -366,9 +366,22 @@ void Parser::parseDataDecl(ast::DeclList& decls, ast::AttrList attributes, bool 
     });
 }
 
+/*
+ * `alias Name = Type`, and `alias qualified Name = Type` - a newtype.
+ *
+ * The two differ only in whether the name is transparent. A plain alias *is* its target, so nothing
+ * distinguishes the two types anywhere; a qualified one is a distinct type reached only through a
+ * constructor of its own name, which is the same thing `qualified` means on a `data` - access has
+ * to name the type.
+ *
+ * This is an `alias` rather than a `data` shorthand because what follows `=` here is a type and
+ * only ever a type. Under `data` the same words are a constructor list, and `data Id = Long` and
+ * `data Direction = North` are the same tokens meaning different things.
+ */
 void Parser::parseTypeDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported) {
     WithLocation location(*this);
     expect(Token::kwAlias, "expected 'alias'"_v);
+    auto qualified = maybeVar(qualifiedId).isJust();
 
     auto name = parseSimpleType();
     expect(Token::opEquals, "expected '='"_v);
@@ -380,6 +393,7 @@ void Parser::parseTypeDecl(ast::DeclList& decls, ast::AttrList attributes, bool 
         .source = context.addLocation(location),
         .kind = ast::Decl::Alias,
         .exported = exported,
+        .qualified = qualified,
     });
 }
 
@@ -869,7 +883,7 @@ ast::Expr Parser::parseBaseExpr() {
             return makeExpr(Fun, fun, heap(ast::FunExpr { .body = parseBlock(false), .kind = funKind }), location);
         }
 
-        if(token.type == Token::opArrowR || token.type == Token::opAmp || (token.type == Token::VarID && token.data.id == setId)) {
+        if(token.type == Token::opArrowR || token.type == Token::opAmp || atSetConvention()) {
             ast::ParseList<ast::Arg> args;
             sepBy1([&] {
                 parseArg(args, false);
@@ -1112,7 +1126,7 @@ ast::Expr Parser::parseTupleExpr(const WithLocation& location) {
         ast::TupUpdateExpr update { .value = first, .bind = updateBind };
 
         sepBy1([&] {
-            parseTupUpdateArg(update.args, first, updateBind);
+            parseTupUpdateArg(update.args);
         }, Token::Comma);
 
         expectClose(Token::BraceR, "expected '}' after tuple expression"_v);
@@ -1211,68 +1225,102 @@ void Parser::parseTupArg(ast::ParseList<ast::TupArg>& list) {
     }
 }
 
-void Parser::parseTupUpdateArg(ast::ParseList<ast::TupArg>& list, const ast::Expr& source, ast::BindType bind) {
-    if(!maybe(Token::opDot)) {
-        parseTupArg(list);
+/*
+ * One replacement of a tuple update: `field: expr`, `.path.to.field: expr`, or the `~field`
+ * shorthand for `field: field`.
+ *
+ * The path is handed to the resolver as written rather than expanded into nested updates here.
+ * Expanding it would name the update's source once per level, which evaluates a source with side
+ * effects more than once and makes two paths sharing a prefix - `{v | .a.b: 1, .a.c: 2}` - build
+ * two separate copies of `v.a`, the second of which replaces the first. See TupUpdateArg.
+ */
+void Parser::parseTupUpdateArg(ast::ParseList<ast::TupUpdateArg>& list) {
+    WithLocation location(*this);
+    ast::ParseList<StringId> path;
+
+    if(maybe(Token::opDot)) {
+        sepBy1([&] {
+            auto field = expect(Token::VarID, "expected field name in update path"_v);
+            if(field) path.push(arena, field.unwrap().id);
+        }, Token::opDot);
+
+        expect(Token::opColon, "expected ':' after update path"_v);
+        if(path.isNotEmpty()) list.push(arena, ast::TupUpdateArg { path, parseExpr() });
         return;
     }
 
-    ast::ParseList<StringId> path;
+    auto shorthand = maybe(Token::opTilde).isJust();
+    auto name = expect(Token::VarID, "expected the name of the field to update"_v);
+    if(!name) return;
 
-    sepBy1([&] {
-        auto field = expect(Token::VarID, "expected field name in update path"_v);
-        if(field) path.push(arena, field.unwrap().id);
-    }, Token::opDot);
+    path.push(arena, name.unwrap().id);
 
-    expect(Token::opColon, "expected ':' after update path"_v);
-    auto nestedValue = parseExpr();
-    if(path.isEmpty()) return;
-
-    ast::ParseList<ast::Expr> projectedSources;
-    projectedSources.push(arena, source);
-
-    auto projected = source;
-    for(Size i = 0; i + 1 < path.size(); i++) {
-        auto field = ast::Expr {
-            .var = path.get(*arena, i),
-            .source = source.source,
+    // `~x` names the field and its replacement at once, as it does in a tuple construction.
+    if(shorthand && token.type != Token::opColon) {
+        auto value = ast::Expr {
+            .var = name.unwrap().id,
+            .source = context.addLocation(location),
             .kind = ast::Expr::Var,
         };
 
-        projected = ast::Expr {
-            .field = heap(ast::FieldExpr {
-                .target = projected,
-                .field = field,
-            }),
-            .source = source.source,
-            .kind = ast::Expr::Field,
-        };
-
-        projectedSources.push(arena, projected);
+        list.push(arena, ast::TupUpdateArg { path, value });
+        return;
     }
 
-    for(Size i = path.size() - 1; i > 0; i--) {
-        ast::ParseList<ast::TupArg> args;
-        args.push(arena, ast::TupArg { path.get(*arena, i), nestedValue });
+    expect(Token::opColon, "expected ':' after the name of the field to update"_v);
+    list.push(arena, ast::TupUpdateArg { path, parseExpr() });
+}
 
-        nestedValue = ast::Expr {
-            .tupUpdate = heap(ast::TupUpdateExpr {
-                .value = projectedSources.get(*arena, i),
-                .args = args,
-                .bind = bind,
-            }),
-            .source = source.source,
-            .kind = ast::Expr::TupUpdate,
-        };
+/*
+ * `set` is a convention only where a convention can be: immediately before the thing it applies
+ * to, which is a name in a parameter list (`set value: T`) and a type in a function type
+ * (`(set Float) -> Int`). Written where nothing follows it to apply to, it is an ordinary
+ * identifier - which is what lets `set` be a parameter or field name, and it is set-like and
+ * collection code, where `set` is the obvious name, that the collision otherwise lands on.
+ *
+ * The test is on what *ends* the item rather than on what could start a name or a type, so that
+ * this stays one rule as the type grammar grows. The other two conventions need no rule at all:
+ * `->` and `&` are symbols, and no name can be one.
+ */
+bool Parser::atSetConvention() {
+    if(token.type != Token::VarID || token.data.id != setId) return false;
+
+    SaveLexer save(lexer);
+    auto savedToken = token;
+    eat();
+
+    auto convention = true;
+    switch(token.type) {
+        case Token::opColon:
+        case Token::opEquals:
+        case Token::Comma:
+        case Token::ParenR:
+        case Token::BraceR:
+        case Token::BracketR:
+        case Token::EndOfStmt:
+        case Token::EndOfBlock:
+        case Token::EndOfFile:
+            convention = false;
+            break;
+        default:
+            break;
     }
 
-    list.push(arena, ast::TupArg { path.get(*arena, 0), nestedValue });
+    save.restore();
+    token = savedToken;
+
+    return convention;
 }
 
 ast::BindType Parser::parseBindType() {
     if(maybe(Token::opArrowR)) return ast::BindType::Sink;
     if(maybe(Token::opAmp)) return ast::BindType::Ref;
-    if(maybeVar(setId)) return ast::BindType::Set;
+
+    if(atSetConvention()) {
+        eat();
+        return ast::BindType::Set;
+    }
+
     return ast::BindType::Borrow;
 }
 
@@ -1748,7 +1796,15 @@ ast::Type Parser::parseTupleType(const WithLocation& location, ast::ParsePtr<ast
         sepBy([&] {
             if(auto n = maybeNode(Token::VarID)) {
                 if(maybe(Token::opColon)) {
-                    fields.push(arena, ast::TupField { n.unwrap().payload.id, parseType(), nullptr });
+                    auto fieldType = parseType();
+
+                    // `{read: Bool = False}` - what the field is when a construction leaves it
+                    // out. Only a named field can have one, since an omitted positional field has
+                    // no name to be omitted by.
+                    ast::ParsePtr<ast::Expr> def = nullptr;
+                    if(maybe(Token::opEquals)) def = heap(ast::Expr(parseExpr()));
+
+                    fields.push(arena, ast::TupField { n.unwrap().payload.id, fieldType, def });
                 } else {
                     auto gen = makeType(Gen, name, n.unwrap().payload.id, n.unwrap().node, nullptr);
                     fields.push(arena, ast::TupField { 0, gen, nullptr });
