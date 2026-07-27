@@ -25,19 +25,38 @@ static void printType(ResolvePrint& print, TypePtr pointer) {
     print.writer.writeString(stringView(text));
 }
 
-static void printPlace(ResolvePrint& print, Function& function, const Place& place) {
-    auto known = place.local < function.localCount();
-    auto root = known ? function.localAt(print.local, place.local) : Local {};
-    print.writer.writeByte('%');
+static void printValue(ResolvePrint& print, Value& value);
 
-    if(root.name) {
-        print.writer.writeString(print.context.findName(root.name));
+static void printPlace(ResolvePrint& print, Function& function, const Place& place) {
+    auto type = print.program.scalar.error;
+
+    if(place.root == PlaceRoot::Global) {
+        // A global is written as its own name with no sigil, which is what distinguishes it on
+        // sight from the locals and values that carry one.
+        auto global_ = print.local[place.global];
+        print.writer.writeString(print.context.findName(global_->name));
+        type = global_->type;
+    } else if(place.root == PlaceRoot::Pointer) {
+        // `[%v3]` - the memory a pointer names, as against the pointer itself.
+        print.writer.writeByte('[');
+        printValue(print, *print.local[place.pointer]);
+        print.writer.writeByte(']');
+        type = pointeeType(print.global, print.local[place.pointer]->type);
     } else {
-        print.writer.writeString("local"_v);
-        writeUInt(print.writer, place.local);
+        auto known = place.local < function.localCount();
+        auto root = known ? function.localAt(print.local, place.local) : Local {};
+        print.writer.writeByte('%');
+
+        if(root.name) {
+            print.writer.writeString(print.context.findName(root.name));
+        } else {
+            print.writer.writeString("local"_v);
+            writeUInt(print.writer, place.local);
+        }
+
+        if(known) type = root.type;
     }
 
-    auto type = known ? root.type : print.program.scalar.error;
     auto projections = place.projections;
 
     for(auto projection: projections.contents(print.local)) {
@@ -57,8 +76,11 @@ static void printPlace(ResolvePrint& print, Function& function, const Place& pla
             if(field.name) print.writer.writeString(print.context.findName(field.name));
             else writeUInt(print.writer, projection.index);
             type = field.type;
+        } else if(projection.kind == ProjectionKind::Deref) {
+            print.writer.writeString(".*"_v);
+            type = pointeeType(print.global, type);
         } else {
-            print.writer.writeString(projection.kind == ProjectionKind::Deref ? ".*"_v : "[...]"_v);
+            print.writer.writeString("[...]"_v);
         }
     }
 }
@@ -104,6 +126,14 @@ static StringView instructionName(Value& value, GlobalBase global) {
         case Value::Alloc: return "alloc"_v;
         case Value::LoadPlace: return "load"_v;
         case Value::Init: return "init"_v;
+        case Value::Address: return "addressof"_v;
+        case Value::Native:
+            switch(((InstNative&)value).op) {
+                case NativeOp::CopyMemory: return "copymemory"_v;
+                case NativeOp::SetMemory: return "setmemory"_v;
+                case NativeOp::Syscall: return "syscall"_v;
+            }
+            break;
         case Value::Cast: return "cast"_v;
         case Value::Neg: return "neg"_v;
         case Value::Not: return "not"_v;
@@ -170,6 +200,21 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             printPlace(print, *function, init.place);
             print.writer.writeString(", "_v);
             printValue(print, *print.local[init.value]);
+            break;
+        }
+        case Value::Address:
+            print.writer.writeByte(' ');
+            printPlace(print, *function, ((InstAddress&)inst).place);
+            break;
+        case Value::Native: {
+            auto& native = (InstNative&)inst;
+            Size index = 0;
+
+            for(auto arg: native.args.contents(print.local)) {
+                print.writer.writeString(index++ ? ", "_v : " "_v);
+                printValue(print, *print.local[arg]);
+            }
+
             break;
         }
         case Value::Cast:
@@ -366,9 +411,28 @@ static void printFunction(ResolvePrint& print, Function& function) {
 // Only the root module is printed in full. An imported module contributes the functions
 // something actually reached: Core declares a few hundred instance implementations, and all but
 // the handful a program calls are dead weight in a fixture.
+// `let &heapNext: %U8 = 0` - the declaration as written, since a global has no body to print.
+static void printGlobal(ResolvePrint& print, Global& global_) {
+    print.writer.writeString(global_.mut ? "let &"_v : "let "_v);
+    print.writer.writeString(print.context.findName(global_.name));
+    print.writer.writeString(": "_v);
+    printType(print, global_.type);
+    print.writer.writeString(" = "_v);
+    writeUInt(print.writer, global_.initial);
+    print.writer.writeByte('\n');
+}
+
 void printProgram(Net::Writer& writer, Context& context, Program& program) {
     ResolvePrint print { writer, context, program, *program.types, *program.arena };
     Size index = 0;
+
+    for(auto module: program.modules) {
+        for(auto global_: module->globalOrder.contents(print.local)) {
+            if(!module->root && !print.local[global_]->used) continue;
+            if(index++) writer.writeByte('\n');
+            printGlobal(print, *print.local[global_]);
+        }
+    }
 
     for(auto module: program.modules) {
         for(auto function: module->functionOrder.contents(print.local)) {

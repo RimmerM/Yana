@@ -65,6 +65,19 @@ struct Type {
     bool generic = false;
 };
 
+/*
+ * An integer type.
+ *
+ * `bits` is how wide the value is in memory and `width` is the primitive it occupies once loaded,
+ * which is what Design.md's "integer types can have different sizes when stored in memory,
+ * however when loaded they are converted to the closest primitive integer in size" means: `U8`
+ * and `I16` are one byte and two bytes of storage but both arrive in a 32-bit register, and only
+ * the 64-bit family needs a wider one.
+ *
+ * `name` is carried rather than derived from `(bits, isSigned)` because Core's `Int` and Native's
+ * `I32` are two distinct types of identical shape - separate interned Types with separate class
+ * instances - and a diagnostic has to say which one it meant.
+ */
 struct IntType: Type {
     enum Width: U8 {
         Bool,
@@ -72,13 +85,31 @@ struct IntType: Type {
         Long,
     };
 
-    IntType(U16 bits, Width width, bool isSigned):
+    IntType(U16 bits, Width width, bool isSigned, StringId name = 0):
         Type(Type::Int, 1, { U32(bits / 8), U32(bits / 8) }),
-        bits(bits), width(width), isSigned(isSigned) {}
+        name(name), bits(bits), width(width), isSigned(isSigned) {}
 
+    StringId name;
     U16 bits;
     Width width;
     bool isSigned;
+};
+
+/*
+ * A raw pointer - Design.md's `%T`, aliased `Ptr(a)`.
+ *
+ * Interned on its target type, so that `%Int` written in two places is one TypePtr and pointer
+ * equality keeps answering sameType(). A pointer is a direct type: it lives in a register like an
+ * Int does, and it is the target address of a load rather than something loaded.
+ *
+ * The pointee is what pointer arithmetic scales by and what a deref place projects to, so it is
+ * kept even though nothing about the machine representation depends on it.
+ */
+struct PtrType: Type {
+    explicit PtrType(TypePtr to):
+        Type(Type::Ptr, 1, { 8, 8 }), to(to) {}
+
+    TypePtr to;
 };
 
 struct FloatType: Type {
@@ -287,6 +318,9 @@ struct CoreClasses {
 TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env = nullptr);
 TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId source);
 
+// The raw pointer type to `to`, interned per target type.
+TypePtr resolvePointerType(Module& module, TypePtr to);
+
 // Instantiates a generic record for a set of fully concrete arguments, interning the result so
 // that `Maybe(Int)` names one type no matter how many places write it.
 TypePtr instantiateRecord(Module& module, GlobalPtr<RecordType> record, Buffer<TypePtr> args, LocationId source);
@@ -337,6 +371,10 @@ inline bool sameTypes(List& list, Base base, Buffer<TypePtr> args) {
 bool isUnit(GlobalBase base, TypePtr type);
 bool isLiteral(GlobalBase base, TypePtr type);
 bool isInteger(GlobalBase base, TypePtr type);
+bool isPointer(GlobalBase base, TypePtr type);
+
+// What a pointer points at, or null for anything else.
+TypePtr pointeeType(GlobalBase base, TypePtr type);
 bool isFloat(GlobalBase base, TypePtr type);
 bool isNumeric(GlobalBase base, TypePtr type);
 bool isGeneric(GlobalBase base, TypePtr type);

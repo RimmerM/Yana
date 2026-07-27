@@ -1,0 +1,62 @@
+import Native
+
+data Node {value: I64, next: %Node}
+
+-- Reading and writing through a raw pointer. `addressOf` is what forces `slot` into storage
+-- rather than a register, and `*p` and `*p = v` are the same place read two ways.
+fn roundTrip() -> I64:
+    let slot = 7 :: I64
+    let p = addressOf(slot)
+
+    *p = *p + 1
+    return *p
+
+-- A field of an aggregate reached through a pointer to it, in both directions.
+fn throughField() -> I64:
+    let node = Node {value: 3, next: null()}
+    let p = addressOf(node)
+
+    (*p).value = (*p).value * 5
+    return (*p).value
+
+-- Pointer arithmetic is in elements: `p + 1` moves by one Node however large a Node is, and the
+-- same walk written in bytes has to say so.
+fn elementStride() -> I64:
+    let node = Node {value: 0, next: null()}
+    let base = addressOf(node)
+    let next = base + 1
+
+    return difference(base, next) * 100 + difference(cast(base) :: %U8, cast(next) :: %U8)
+
+-- Comparison and the null test, which are plain functions on `%a` rather than Eq/Ord instances.
+fn compareAddresses() -> I64:
+    let node = Node {value: 0, next: null()}
+    let base = addressOf(node)
+
+    let &score = 0 :: I64
+    if base < base + 1 then score = score + 1
+    if base == base then score = score + 2
+    if isNull(null() :: %Node) then score = score + 4
+    if !isNull(base) then score = score + 8
+
+    return score
+
+-- The block operations, over a byte view of an aggregate's storage.
+fn blockOperations() -> I64:
+    let source = Node {value: 9, next: null()}
+    let target = Node {value: 0, next: null()}
+
+    copyMemory(cast(addressOf(target)) :: %U8, cast(addressOf(source)) :: %U8, sizeOf(source))
+    let copied = target.value
+
+    setMemory(cast(addressOf(target)) :: %U8, 0, sizeOf(target))
+    return copied * 10 + target.value
+
+-- Sizes come from the same Repr the field offsets do.
+fn sizes() -> I64 = sizeOf(0 :: I64) * 100 + alignOf(0 :: U8) * 10 + sizeOf(0 :: U16)
+
+fn main() -> Int:
+    let total = roundTrip() + throughField() + elementStride() +
+                compareAddresses() + blockOperations() + sizes()
+
+    return total :: Int

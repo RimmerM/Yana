@@ -2,6 +2,7 @@
 #include "core.h"
 #include "expr.h"
 #include "name.h"
+#include "native.h"
 #include "../parse/ast.h"
 
 /*
@@ -27,7 +28,7 @@ Program::Program(Context& context, Size typeMemory, Size irMemory):
 
 Program::~Program() {
     for(auto module: modules) delete module;
-    delete coreAst;
+    for(auto ast: embeddedAsts) delete ast;
 }
 
 Module* Program::addModule(StringId name, ast::ParseBase parse) {
@@ -62,6 +63,21 @@ Function* Module::addFunction(StringId functionName, LocationId source) {
 
     function->addBlock(*this);
     return function;
+}
+
+Global* Module::addGlobal(StringId globalName, LocationId source) {
+    auto found = globals.add(globalName);
+    if(found.existed) {
+        context.diagnostics.error("duplicate global %@"_v, source, context.findName(globalName));
+        return (*arena)[*found.value];
+    }
+
+    auto global_ = new (arena) Global(this, globalName);
+    global_->source = source;
+    *found.value = global_ - *arena;
+    globalOrder.push(arena, global_ - *arena);
+
+    return global_;
 }
 
 // A function that is reachable through something other than its name - a class instance's
@@ -271,6 +287,100 @@ static void declareAlias(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Dec
     if(variables.isNotEmpty()) alias.gen = prepareGenEnv(module, GenEnv::Alias, variables, {});
 
     *found.value = alias;
+}
+
+/*
+ * A module-level `let`.
+ *
+ * There is no program point at which module-level code would run, so a global's initializer is a
+ * constant rather than an expression: a literal, or a literal coerced to the type the global is
+ * meant to have. `let &heapNext = 0 :: %U8` is therefore both the declaration and the whole of
+ * what it starts as, which is what a runtime's static state actually needs and no more.
+ */
+static void declareGlobal(Module& module, ast::Decl& decl) {
+    auto parse = module.parse;
+    auto& context = module.context;
+
+    if(decl.stmt.kind != ast::Expr::Decl) {
+        context.diagnostics.error("only a `let` declaration can appear at module level"_v, decl.source);
+        return;
+    }
+
+    for(auto declaration: decl.stmt.decl.contents(parse)) {
+        if(declaration.pat.kind != ast::Pat::Var) {
+            context.diagnostics.error("a global must be declared as a single name"_v, declaration.pat.source);
+            continue;
+        }
+
+        if(declaration.bind != ast::BindType::Borrow && declaration.bind != ast::BindType::Ref) {
+            context.diagnostics.error("a global is either plain or `&` mutable"_v, declaration.pat.source);
+            continue;
+        }
+
+        if(!declaration.content) {
+            context.diagnostics.error("a global requires a constant initializer"_v, declaration.pat.source);
+            continue;
+        }
+
+        // `0 :: %U8` names the type as well as the value, which is the only way a global says
+        // what it is: a `let` pattern carries no type annotation.
+        auto& content = *parse[declaration.content];
+        auto value = &content;
+        TypePtr type = nullptr;
+
+        if(content.kind == ast::Expr::Coerce) {
+            auto& coerce = *parse[content.coerce];
+            type = resolveType(module, coerce.type);
+            value = &coerce.target;
+        }
+
+        if(!ast::isLiteral(*value)) {
+            context.diagnostics.error("a global's initializer must be a literal, optionally written `literal :: Type`"_v,
+                                      value->source);
+            continue;
+        }
+
+        auto literal = ast::Literal::Kind(value->kind - ast::Expr::Lit);
+        U64 initial = 0;
+
+        switch(literal) {
+            case ast::Literal::Int:
+                if(!type) type = module.scalar.int_;
+                initial = value->lit.i();
+                break;
+            case ast::Literal::Double:
+            case ast::Literal::Float: {
+                if(!type) type = module.scalar.float_;
+
+                // A float's initial value is its storage, so it is written as the bits it will
+                // occupy rather than as a number the emitter would have to convert again.
+                auto number = literal == ast::Literal::Float ? F64(value->lit.f) : value->lit.d();
+
+                if(isFloat(*module.types, type) &&
+                   ((FloatType*)(*module.types)[type])->width == FloatType::Float) {
+                    auto single = F32(number);
+                    copy((const Byte*)&single, (Byte*)&initial, sizeof(single));
+                } else {
+                    copy((const Byte*)&number, (Byte*)&initial, sizeof(number));
+                }
+
+                break;
+            }
+            default:
+                context.diagnostics.error("a global's initializer must be a number"_v, value->source);
+                continue;
+        }
+
+        if(!isDirectType(*module.types, type) && !isMemoryType(*module.types, type)) {
+            context.diagnostics.error("a global cannot have this type"_v, declaration.pat.source);
+            continue;
+        }
+
+        auto global_ = module.addGlobal(declaration.pat.var, declaration.pat.source);
+        global_->type = type;
+        global_->initial = initial;
+        global_->mut = declaration.bind == ast::BindType::Ref;
+    }
 }
 
 static void declareClass(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> pointer) {
@@ -661,11 +771,9 @@ static void checkSuperclasses(Module& module, ClassInstance& instance) {
  * Whole-module passes.
  */
 
-static void resolveImports(Module& module, ast::Module& ast, ModuleProvider* provider);
-
-void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provider) {
+void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provider, bool importsResolved) {
     auto parse = module.parse;
-    resolveImports(module, ast, provider);
+    if(!importsResolved) resolveImports(module, ast, provider);
 
     for(auto fixity: ast.ops.contents(parse)) {
         *module.operatorPrecedence.add(fixity.op).value = U8(fixity.precedence);
@@ -691,6 +799,9 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
             case ast::Decl::Instance:
             case ast::Decl::Default:
                 break;
+            case ast::Decl::Stmt:
+                // Deferred: a global's type may name a record declared after it.
+                break;
             default:
                 module.context.diagnostics.error("this declaration is not available yet"_v, decl.source);
                 break;
@@ -711,6 +822,10 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
             auto record = (RecordType*)(*module.types)[found.unwrap()];
             if(!record->generic) finishRecordRepr(module, *record, decl.source);
         }
+    }
+
+    for(auto decl: decls.contents(parse)) {
+        if(decl.kind == ast::Decl::Stmt) declareGlobal(module, decl);
     }
 
     for(auto& entry: module.classes) {
@@ -765,7 +880,7 @@ void checkModuleClasses(Module& module, ast::Module& ast) {
     }
 }
 
-static void resolveImports(Module& module, ast::Module& ast, ModuleProvider* provider) {
+void resolveImports(Module& module, ast::Module& ast, ModuleProvider* provider) {
     // Core is visible everywhere without being written, and is the one module that does not
     // import itself.
     if(module.program.core && &module != module.program.core) {
@@ -815,9 +930,83 @@ static void resolveImports(Module& module, ast::Module& ast, ModuleProvider* pro
     }
 }
 
+/*
+ * What the program actually contains.
+ *
+ * `used` is set on a function as each call to it is resolved, which answers "was this called" and
+ * not "can this run". The two differ as soon as a module's functions call each other: Native's
+ * allocateHeap calls heapClassOf whether or not any program allocates, so every one of them would
+ * be marked and an unimported runtime would be emitted into every binary.
+ *
+ * The answer is rebuilt here as a closure over what the root module can reach, once every body
+ * exists. Globals come along the same way - a global is part of the program exactly when
+ * something that runs reads or writes it.
+ */
+static void markPlace(ModuleBase local, const Place& place) {
+    if(place.root == PlaceRoot::Global && place.global) local[place.global]->used = true;
+}
+
+static void markReachable(Program& program, Array<ModulePtr<Function>>& pending) {
+    ModuleBase local = *program.arena;
+
+    while(pending.isNotEmpty()) {
+        auto function = local[pending.pop().unwrap()];
+
+        auto reach = [&](ModulePtr<Function> callee) {
+            if(!callee || local[callee]->used) return;
+
+            local[callee]->used = true;
+            pending.push(callee);
+        };
+
+        for(auto blockPointer: function->blocks.contents(local)) {
+            for(auto instructionPointer: local[blockPointer]->instructions.contents(local)) {
+                auto& instruction = *local[instructionPointer];
+
+                switch(instruction.kind) {
+                    case Value::Call:
+                        reach(((InstCall&)instruction).callee);
+                        break;
+                    case Value::GenCall:
+                        reach(((InstGenCall&)instruction).callee);
+                        break;
+                    case Value::LoadPlace:
+                        markPlace(local, ((InstLoadPlace&)instruction).place);
+                        break;
+                    case Value::Init:
+                        markPlace(local, ((InstInit&)instruction).place);
+                        break;
+                    case Value::Address:
+                        markPlace(local, ((InstAddress&)instruction).place);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+    }
+}
+
+static void markProgramReachable(Program& program) {
+    ModuleBase local = *program.arena;
+    Array<ModulePtr<Function>> pending;
+
+    for(auto module: program.modules) {
+        for(auto function: module->functionOrder.contents(local)) {
+            local[function]->used = module->root;
+            if(module->root) pending.push(function);
+        }
+
+        for(auto global_: module->globalOrder.contents(local)) local[global_]->used = module->root;
+    }
+
+    markReachable(program, pending);
+}
+
 Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider* provider) {
     auto program = Ptr<Program>(new Program(context));
     defineCore(*program);
+    defineNative(*program);
 
     auto module = program->addModule(root.name, *root.region);
     module->root = true;
@@ -829,5 +1018,6 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
     // only the root module's signatures made resolvable.
     for(auto entry: program->modules) resolveModuleBodies(*entry);
 
+    markProgramReachable(*program);
     return program;
 }

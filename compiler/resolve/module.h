@@ -84,6 +84,33 @@ struct Function {
     bool signature = false;
 };
 
+/*
+ * A module-level storage slot.
+ *
+ * A global is storage nothing owns and every function can reach, which is why the language keeps
+ * it to what a runtime genuinely needs: the Native heap's bump pointer has to survive between two
+ * calls to allocateHeap, and there is nowhere else for it to live.
+ *
+ * Its initializer is a constant rather than an expression, because there is no program point at
+ * which module-level code would run. A scalar's bytes are its value; anything larger starts as
+ * zeroes, which is what a pointer table or a control block wants anyway.
+ */
+struct Global {
+    Global(Module* module, StringId name): module(module), name(name) {}
+
+    Module* module;
+    StringId name;
+    TypePtr type = nullptr;
+    LocationId source = kNullLocation;
+
+    // The scalar constant this starts at, in the bit pattern of its own type. Aggregates leave it
+    // zero and are emitted as zeroed storage of their Repr's size.
+    U64 initial = 0;
+
+    bool mut = false;
+    bool used = false;
+};
+
 // One module made visible in another. `include`/`exclude` are the parsed symbol lists; an empty
 // `include` means everything the module exports.
 struct Import {
@@ -98,6 +125,7 @@ struct Module {
     Module(Program& program, StringId name, ast::ParseBase parse);
 
     Function* addFunction(StringId name, LocationId source);
+    Global* addGlobal(StringId name, LocationId source);
     Block* entry(Function& function);
 
     // True when `name` may be looked up in this module from outside it, per one import's
@@ -124,6 +152,7 @@ struct Module {
     HashMap<StringId, TypeAlias> aliases;
     HashMap<StringId, ConstructorRef> constructors;
     HashMap<StringId, ModulePtr<Function>> functions;
+    HashMap<StringId, ModulePtr<Global>> globals;
     HashMap<StringId, GlobalPtr<TypeClass>> classes;
     HashMap<StringId, U8> operatorPrecedence;
 
@@ -134,6 +163,7 @@ struct Module {
     Array<ModulePtr<ClassInstance>> instances;
 
     ModuleList<ModulePtr<Function>, false> functionOrder;
+    ModuleList<ModulePtr<Global>, false> globalOrder;
 
     // The module the program was asked to compile. Its functions are emitted whether or not
     // anything calls them; every other module contributes only what is reached.
@@ -166,6 +196,7 @@ struct Program {
 
     Array<Module*> modules;
     GlobalList<GlobalPtr<TupType>> tupleTypes;
+    GlobalList<GlobalPtr<PtrType>> pointerTypes;
 
     // Instantiations created before the declaration they came from had been read, waiting for
     // their constructor contents. Drained by completePendingInstances().
@@ -174,18 +205,24 @@ struct Program {
     Module* core = nullptr;
     Module* root = nullptr;
 
-    // Core is parsed from source embedded in the compiler, so the program owns that AST for as
-    // long as anything can still resolve against it.
-    ast::Module* coreAst = nullptr;
+    // Core and Native are parsed from source embedded in the compiler, so the program owns those
+    // ASTs for as long as anything can still resolve against them.
+    Array<ast::Module*> embeddedAsts;
 };
 
 // Resolves `root` and everything it imports, with Core built and implicitly imported first.
 Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider* provider = nullptr);
 
-// Resolves the declarations of one already-registered module. Exposed because Core is assembled
-// from both parsed source and directly generated definitions.
-void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provider);
+// Resolves the declarations of one already-registered module. Exposed because Core and Native are
+// assembled from both parsed source and directly generated definitions. `importsResolved` is for
+// a module that had to import something before its own declarations could be built - Native
+// generates class instances, and the classes are Core's.
+void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provider, bool importsResolved = false);
 bool resolveModuleBodies(Module& module);
+
+// Makes every module one `import` names visible in this one, resolving each the first time it is
+// named. Exposed for the same reason resolveModuleDecls is.
+void resolveImports(Module& module, ast::Module& ast, ModuleProvider* provider);
 
 // Checks each instance against its class's superclasses and resolves the module's `default`
 // declarations. Both need every instance of the module to exist, so this runs after them - which

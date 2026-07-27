@@ -81,6 +81,17 @@ Maybe<ConstructorRef> findConstructor(Module& module, StringId name, LocationId 
     return found && (*found).record ? Just(*found) : Nothing();
 }
 
+ModulePtr<Global> findGlobal(Module& module, StringId name, LocationId source) {
+    auto found = search<ModulePtr<Global>>(module.context, module, name, source, [](Module& in, NameRef reference) -> ModulePtr<Global> {
+        if(reference.segments() != 1) return nullptr;
+
+        auto global_ = in.globals.get(reference.single());
+        return global_ ? global_.unwrap() : nullptr;
+    });
+
+    return found ? *found : nullptr;
+}
+
 ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source) {
     auto found = search<ModulePtr<Function>>(module.context, module, name, source, [](Module& in, NameRef reference) -> ModulePtr<Function> {
         if(reference.segments() != 1) return nullptr;

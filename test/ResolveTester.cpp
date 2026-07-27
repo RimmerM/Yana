@@ -137,6 +137,10 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
         auto registers = allocateRegisters(context, base, *function, machine);
         genFunction(context, base, assembly, *function, machine, registers);
     }
+
+    // Globals go after every function, since this is a flat buffer rather than an object file
+    // with sections - see AsmModule::addGlobal.
+    for(auto globalPointer: module.globals) assembly.addGlobal(base[globalPointer]);
     assembly.resolveRelocations();
 
     auto mainName = Context::nameHash("main", 4);
@@ -154,7 +158,11 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
     if(memory == MAP_FAILED) return Nothing();
 
     copy(assembly.buffer.buffer, (Byte*)memory, byteCount);
-    if(mprotect(memory, allocationSize, PROT_READ | PROT_EXEC) != 0) {
+
+    // Writable as well as executable, because the code and the globals share one mapping here.
+    // A real linker gives them separate sections with separate protection; this driver exists to
+    // run a fixture, and splitting the buffer would mean teaching it what a section is.
+    if(mprotect(memory, allocationSize, PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
         munmap(memory, allocationSize);
         return Nothing();
     }

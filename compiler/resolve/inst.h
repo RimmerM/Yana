@@ -16,6 +16,7 @@ using ModuleList = SmallList<ModuleRegion, T, allowEmbed>;
 
 struct Inst;
 struct Value;
+struct Global;
 
 enum class ProjectionKind: U8 {
     Discriminant,
@@ -31,8 +32,38 @@ struct Projection {
     ModulePtr<Value> value = nullptr;
 };
 
+/*
+ * What a place is rooted in.
+ *
+ * Implementation-IR.md part 2 states a place as a local plus a path into it, which is all the
+ * ownership model ever needs: a local is storage whose lifetime the function knows. Raw memory
+ * adds the two roots whose lifetime it does not - a module-level global, and an address the
+ * program computed for itself.
+ *
+ * The distinction is the one the borrow checker will care about. A local root can be proved
+ * things about; a pointer root cannot be proved anything about at all, which is exactly what
+ * Design.md means by the Native module being unsafe.
+ */
+enum class PlaceRoot: U8 {
+    Local,
+    Global,
+    Pointer,
+};
+
 struct Place {
+    static Place inLocal(U32 local) { return Place { PlaceRoot::Local, local }; }
+    static Place inGlobal(ModulePtr<Global> global) { return Place { PlaceRoot::Global, 0, global }; }
+
+    // The memory a raw pointer names. The address is the root itself rather than something loaded
+    // from it, so `*p` is one place with no projections rather than a place plus a Deref.
+    static Place atPointer(ModulePtr<Value> pointer) {
+        return Place { PlaceRoot::Pointer, 0, nullptr, pointer };
+    }
+
+    PlaceRoot root = PlaceRoot::Local;
     U32 local = 0;
+    ModulePtr<Global> global = nullptr;
+    ModulePtr<Value> pointer = nullptr;
     ModuleList<Projection, false> projections;
 };
 
@@ -45,6 +76,8 @@ struct Value {
         Alloc,
         LoadPlace,
         Init,
+        Address,
+        Native,
         Cast,
         Neg,
         Not,
@@ -135,6 +168,45 @@ struct InstInit: Inst {
 
     Place place;
     ModulePtr<Value> value;
+};
+
+// The address of a place, as a raw pointer. This is what `addressOf` compiles to, and it is the
+// one operation that forces storage to exist: a value it is applied to cannot stay in a register,
+// which is the "writable, stable-address representation requirement" Design.md's Pointers section
+// gives to anything a raw pointer is taken of.
+struct InstAddress: Inst {
+    InstAddress(ModulePtr<Block> block, TypePtr type, Place place):
+        Inst(Value::Address, block, type), place(place) {}
+
+    Place place;
+};
+
+/*
+ * An operation of the Native module that is not expressible as anything more basic.
+ *
+ * These are one instruction rather than one kind each because they have nothing in common with
+ * the rest of the IR and everything in common with each other: a fixed operation, a flat argument
+ * list, and a meaning that is the machine's rather than the language's. Everything the resolver
+ * does with them is the same for all of them, so a kind per operation would be a case per
+ * operation in five switches to say the same thing five times.
+ */
+enum class NativeOp: U8 {
+    // copyMemory(to, from, count) and setMemory(to, value, count) - the two block operations the
+    // lower IR already has, reached by name instead of derived from an aggregate assignment.
+    CopyMemory,
+    SetMemory,
+
+    // syscall(number, args...). The lower IR and the x64 backend already model this as a call with
+    // its own convention, so the number is operand zero here exactly as it is there.
+    Syscall,
+};
+
+struct InstNative: Inst {
+    InstNative(ModulePtr<Block> block, TypePtr type, NativeOp op):
+        Inst(Value::Native, block, type), op(op) {}
+
+    ModuleList<ModulePtr<Value>, false> args;
+    NativeOp op;
 };
 
 struct InstUnary: Inst {

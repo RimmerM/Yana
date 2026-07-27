@@ -1,0 +1,51 @@
+import Native
+
+-- The bump path: two allocations from a fresh heap are distinct, ordered, and far enough apart to
+-- hold what was asked for.
+fn distinctBlocks() -> I64:
+    let first = allocateHeap(32)
+    let second = allocateHeap(32)
+
+    if isNull(first) || isNull(second) then return 0
+    if difference(first, second) < 32 then return 0
+
+    return 1
+
+-- Allocated memory is writable, and two allocations do not overlap.
+fn writeAndRead() -> I64:
+    let a = cast(allocateHeap(8)) :: Ptr(I64)
+    let b = cast(allocateHeap(8)) :: Ptr(I64)
+
+    if isNull(a) || isNull(b) then return 0
+
+    *a = 40
+    *b = 2
+
+    return *a + *b
+
+-- The free path: a block returned to its size class is the one the next request of that class is
+-- served from, which is what makes the free list a free list rather than a leak.
+fn reuseAfterFree() -> I64:
+    let first = allocateHeap(100)
+    freeHeap(first)
+
+    let second = allocateHeap(100)
+    if first == second then return 1
+
+    return 0
+
+-- Size classes are per class: freeing a small block does not serve a large request from it.
+fn classesAreSeparate() -> I64:
+    let small = allocateHeap(8)
+    freeHeap(small)
+
+    let large = allocateHeap(1000)
+    if small == large then return 0
+
+    return 1
+
+fn main() -> Int:
+    let total = distinctBlocks() * 1000 + writeAndRead() * 10 +
+                reuseAfterFree() * 5 + classesAreSeparate()
+
+    return total :: Int

@@ -24,7 +24,7 @@ static LowerType lowerType(GlobalBase base, TypePtr type) {
         return LowerType::Int32;
     }
 
-    if(isMemoryType(base, type)) return LowerType::Pointer;
+    if(value->kind == Type::Ptr || isMemoryType(base, type)) return LowerType::Pointer;
     if(value->kind == Type::Int) {
         return ((IntType*)value)->width == IntType::Long ? LowerType::Int64 : LowerType::Int32;
     }
@@ -55,15 +55,45 @@ static LowerPtr<LowerValue> immediate(LowerContext& lower, U64 value, LowerType 
 
 static LowerPtr<LowerValue> mappedValue(LowerContext& lower, ModulePtr<Value> pointer);
 
-// A place becomes the address of the local it is rooted in plus the constant offset its
+// Folds an accumulated constant offset into an address, which is what every projection path comes
+// down to once the aggregate structure is gone.
+static LowerPtr<LowerValue> addOffset(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> address, U32 offset) {
+    if(!offset) return address;
+
+    auto offsetValue = immediate(lower, offset);
+    auto add = binary<LowerInst::Add>(lower.lower, lower.to, block, lower.lower[address], lower.lower[offsetValue], LowerType::Pointer, 0);
+    return add->created().ptr - lower.lower;
+}
+
+// A place becomes the address of whatever it is rooted in plus the constant offset its
 // projections add up to. Nothing else survives: the lower IR has no aggregates, so this is where
 // field access stops being structural and becomes arithmetic.
+//
+// The three roots differ only in where that first address comes from - a local's alloca, a
+// global's static address, or a pointer the program computed - which is exactly why raw memory
+// needs no lowering of its own beyond a root the resolver was already able to name.
 static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, Function& function, const Place& place) {
-    assertTrue(place.local < function.localCount());
+    LowerPtr<LowerValue> address;
+    TypePtr type;
 
-    auto root = function.localAt(lower.local, place.local);
-    auto address = mappedValue(lower, root.value);
-    auto type = root.type;
+    if(place.root == PlaceRoot::Global) {
+        auto global_ = lower.local[place.global];
+        auto target = lower.to.globals.getValue(global_->name).unwrap();
+        auto load = block.addInst(lower.lower, new (lower.to.arena) LowerInstGlobal(global_->name, target));
+
+        address = load->created().ptr - lower.lower;
+        type = global_->type;
+    } else if(place.root == PlaceRoot::Pointer) {
+        address = mappedValue(lower, place.pointer);
+        type = pointeeType(lower.global, lower.local[place.pointer]->type);
+    } else {
+        assertTrue(place.local < function.localCount());
+
+        auto root = function.localAt(lower.local, place.local);
+        address = mappedValue(lower, root.value);
+        type = root.type;
+    }
+
     U32 offset = 0;
     auto projections = place.projections;
 
@@ -79,16 +109,21 @@ static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, F
             auto field = tuple->fields.get(lower.global, projection.index);
             offset += field.offset;
             type = field.type;
+        } else if(projection.kind == ProjectionKind::Deref) {
+            // The pointer stored here becomes the address the rest of the path is relative to,
+            // so everything accumulated so far has to be spent before it is loaded.
+            auto from = addOffset(lower, block, address, offset);
+            auto loaded = load(lower.lower, lower.to, block, lower.lower[from], 8, false, LowerType::Pointer, 0);
+
+            address = loaded->created().ptr - lower.lower;
+            type = pointeeType(lower.global, type);
+            offset = 0;
         } else {
-            assertTrue("unsupported place projection reached Milestone 2 lowering" == nullptr);
+            assertTrue("unsupported place projection reached lowering" == nullptr);
         }
     }
 
-    if(!offset) return address;
-
-    auto offsetValue = immediate(lower, offset);
-    auto add = binary<LowerInst::Add>(lower.lower, lower.to, block, lower.lower[address], lower.lower[offsetValue], LowerType::Pointer, 0);
-    return add->created().ptr - lower.lower;
+    return addOffset(lower, block, address, offset);
 }
 
 // Constants belong to no block in the resolve IR, so each one is materialized once per function
@@ -158,12 +193,17 @@ static void mapResult(LowerContext& lower, ModulePtr<Value> from, LowerInst* ins
 static LowerInst::Kind binaryKind(LowerContext& lower, InstBinary& binary) {
     auto floating = isFloat(lower.global, binary.type);
 
+    // Which of the two multiply/divide/remainder instructions an integer operation becomes is the
+    // type's own signedness: an unsigned type's arithmetic is the unsigned one, which is the
+    // whole of what makes Native's U8..U64 different from the I-family at the machine level.
+    auto signed_ = signedType(lower.global, binary.type);
+
     switch(binary.kind) {
         case Value::Add: return LowerInst::Add;
         case Value::Sub: return LowerInst::Sub;
-        case Value::Mul: return floating ? LowerInst::Mul : LowerInst::IMul;
-        case Value::Div: return floating ? LowerInst::Div : LowerInst::IDiv;
-        case Value::Rem: return LowerInst::IRem;
+        case Value::Mul: return floating ? LowerInst::Mul : (signed_ ? LowerInst::IMul : LowerInst::Mul);
+        case Value::Div: return floating ? LowerInst::Div : (signed_ ? LowerInst::IDiv : LowerInst::Div);
+        case Value::Rem: return signed_ ? LowerInst::IRem : LowerInst::Rem;
         case Value::Shl: return LowerInst::Shl;
         case Value::Shr: return LowerInst::Shr;
         case Value::Sar: return LowerInst::Sar;
@@ -222,10 +262,59 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
 
             break;
         }
+        case Value::Address: {
+            // Nothing is loaded: the address the place computes is the value.
+            auto address = lowerPlace(lower, block, *function, ((InstAddress&)instruction).place);
+            lower.values.add(instValue, address);
+            return;
+        }
+        case Value::Native: {
+            auto& native = (InstNative&)instruction;
+            Array<LowerPtr<LowerValue>> args;
+            for(auto arg: native.args.contents(lower.local)) args.push(mappedValue(lower, arg));
+
+            switch(native.op) {
+                case NativeOp::CopyMemory:
+                    result = block.addInst(lower.lower, new (lower.to.arena) LowerInstCopy(args[0], args[1], args[2]));
+                    break;
+                case NativeOp::SetMemory:
+                    // setMemory is written (to, value, count) and the instruction takes
+                    // (to, count, pattern), which is the order its printed form uses.
+                    result = block.addInst(lower.lower, new (lower.to.arena) LowerInstSetPattern(args[0], args[2], args[1]));
+                    break;
+                case NativeOp::Syscall: {
+                    // The kernel is the callee, so there is no function operand: the number is
+                    // operand zero, exactly as the lower IR's own syscall form has it.
+                    auto created = isUnit(lower.global, instruction.type) ? 0 : 1;
+
+                    result = call(lower.lower, lower.to, block, created, args.size(), LowerCallType::Syscall,
+                                  [&](LowerInstCall* syscall) {
+                        if(created) {
+                            new (syscall->created().ptr) LowerValue(syscall, lowerType(lower.global, instruction.type),
+                                                                    instruction.name);
+                        }
+
+                        for(Size i = 0; i < args.size(); i++) syscall->used()[i] = args[i];
+                    });
+
+                    break;
+                }
+            }
+
+            break;
+        }
         case Value::Cast: {
             auto& castInst = (InstUnary&)instruction;
             auto from = mappedValue(lower, castInst.from);
             auto sourceType = lower.local[castInst.from]->type;
+
+            // A conversion involving a raw pointer moves no bits: both sides are one machine
+            // word, and what changes is only what the program says the word means.
+            if(isPointer(lower.global, sourceType) || isPointer(lower.global, instruction.type)) {
+                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstUnary(
+                    LowerInst::Bitcast, instruction.name, lowerType(lower.global, instruction.type), from));
+                break;
+            }
 
             auto sourceLower = lowerType(lower.global, sourceType);
             auto targetLower = lowerType(lower.global, instruction.type);
@@ -300,6 +389,9 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                     break;
                 case LowerInst::IRem:
                     result = binary<LowerInst::IRem>(lower.lower, lower.to, block, lower.lower[lhs], lower.lower[rhs], type, instruction.name);
+                    break;
+                case LowerInst::Rem:
+                    result = binary<LowerInst::Rem>(lower.lower, lower.to, block, lower.lower[lhs], lower.lower[rhs], type, instruction.name);
                     break;
                 case LowerInst::Shl:
                     result = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[lhs], lower.lower[rhs], type, instruction.name);
@@ -458,6 +550,31 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
     LowerContext lower {
         context, program, *result, *program.types, *program.arena, *result->arena
     };
+
+    // Globals come first: a function's very first instruction may take the address of one, and
+    // the lower module resolves that by name.
+    for(auto module: program.modules) {
+        for(auto globalPointer: module->globalOrder.contents(lower.local)) {
+            auto source = lower.local[globalPointer];
+            if(!module->root && !source->used) continue;
+
+            auto target = new (result->arena) LowerGlobal(source->name);
+            target->mut = source->mut;
+
+            // A scalar starts as the bytes of its constant and an aggregate as zeroes, which is
+            // the same statement in both cases: the global's Repr, filled from `initial`.
+            auto size = typeSize(lower.global, source->type);
+            target->initialContents = ByteBuffer((Byte*)result->arena.alloc(size), size);
+            set(target->initialContents.ptr, size, 0);
+
+            if(isDirectType(lower.global, source->type)) {
+                copy((const Byte*)&source->initial, target->initialContents.ptr,
+                     size < sizeof(U64) ? Size(size) : sizeof(U64));
+            }
+
+            *result->globals.add(source->name).value = target - lower.lower;
+        }
+    }
 
     Array<ModulePtr<Function>> emitted;
     for(auto module: program.modules) {

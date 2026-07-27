@@ -1,7 +1,5 @@
 #include "core.h"
-#include "builder.h"
-#include "expr.h"
-#include "name.h"
+#include "intrinsic.h"
 #include "../parse/parser.h"
 
 /*
@@ -128,337 +126,18 @@ class Narrow(a, b):
   fn narrow(from: a) -> b
 )CORE";
 
-namespace {
-
-// One generated instance under construction. Building an instance is the same six steps every
-// time - make the function, give it the class's substituted signature, emit a body, attach the
-// intrinsic, record it in the instance, and register the instance - so they are done in one
-// place and the tables below say only what is different.
-struct CoreBuilder {
-    Module& module;
-    ModuleBase local;
-    GlobalBase global;
-
-    explicit CoreBuilder(Module& module):
-        module(module), local(*module.arena), global(*module.types) {}
-
-    StringId name(StringView text) {
-        return module.context.addQualifiedName(text.ptr, text.length, 1);
-    }
-
-    GlobalPtr<TypeClass> classNamed(StringView text) {
-        auto found = module.classes.get(Context::nameHash(text));
-        assertTrue(found.isJust());
-        return found.unwrap();
-    }
-};
-
-// The IR one primitive operation expands to, shared by the generated body and the intrinsic so
-// that a call and an inline expansion can never drift apart.
-using Emit = ModulePtr<Value> (*)(ExprResolver&, Buffer<ModulePtr<Value>>, TypePtr, LocationId, StringId);
-
-template<Value::Kind kind>
-static ModulePtr<Value> emitBinary(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                   LocationId source, StringId resultName) {
-    return resolver.ref(resolver.emit<InstBinary>(source, resultName, type, kind, args[0], args[1]));
-}
-
-template<Value::Kind kind>
-static ModulePtr<Value> emitUnary(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                  LocationId source, StringId resultName) {
-    return resolver.ref(resolver.emit<InstUnary>(source, resultName, type, kind, args[0]));
-}
-
-template<CompareOp op>
-static ModulePtr<Value> emitCompare(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                    LocationId source, StringId resultName) {
-    return resolver.ref(resolver.emit<InstCmp>(source, resultName, type, args[0], args[1], op));
-}
-
-static ModulePtr<Value> emitCast(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                 LocationId source, StringId resultName) {
-    return resolver.ref(resolver.emit<InstUnary>(source, resultName, type, Value::Cast, args[0]));
-}
-
-// `fromInt`/`fromDecimal` on a primitive is the literal itself, at the type that was asked for.
-// Folding the constant here rather than emitting a cast is what lets every literal go through a
-// class without concrete arithmetic generating anything it did not generate before: `1 :: Double`
-// is still one immediate, not a Long immediate and a conversion.
-//
-// A `fromInt(x)` written out with a runtime argument is an ordinary numeric conversion, and is
-// also what the generated body of the instance itself contains.
-static ModulePtr<Value> emitFromLiteral(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                        LocationId source, StringId resultName) {
-    auto value = resolver.local[args[0]];
-
-    if(value->kind == Value::ConstInt) {
-        auto literal = ((ConstInt*)value)->value;
-        return isFloat(resolver.global, type) ? resolver.makeFloat(source, type, F64(literal))
-                                              : resolver.makeInt(source, type, literal);
-    }
-
-    if(value->kind == Value::ConstDouble) return resolver.makeFloat(source, type, ((ConstDouble*)value)->value);
-    if(value->kind == Value::ConstFloat) return resolver.makeFloat(source, type, F64(((ConstFloat*)value)->value));
-
-    return emitCast(resolver, args, type, source, resultName);
-}
-
-// `truthy` on Bool. The identity is a real instance rather than a special case in the resolver,
-// so that the condition path has exactly one shape - and because it expands to nothing, `if a > b`
-// produces the IR it always did.
-static ModulePtr<Value> emitIdentity(ExprResolver&, Buffer<ModulePtr<Value>> args, TypePtr,
-                                     LocationId, StringId) {
-    return args[0];
-}
-
-// `truthy` on a number: non-zero. The zero is built at the operand's type rather than the result's,
-// which is what makes one emitter serve both the integer and the floating-point instances.
-static ModulePtr<Value> emitTruthy(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                   LocationId source, StringId resultName) {
-    auto from = resolver.valueType(args[0]);
-    auto zero = isFloat(resolver.global, from) ? resolver.makeFloat(source, from, 0.0)
-                                               : resolver.makeInt(source, from, 0);
-
-    return resolver.ref(resolver.emit<InstCmp>(source, resultName, type, args[0], zero, CompareOp::Ne));
-}
-
-// `not` on a Bool is the one bit operation that is correct for a two-constructor discriminant,
-// rather than an integer complement that would produce something outside the type.
-static ModulePtr<Value> emitLogicalNot(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                       LocationId source, StringId resultName) {
-    auto one = resolver.makeInt(source, type, 1);
-    return resolver.ref(resolver.emit<InstBinary>(source, resultName, type, Value::Xor, args[0], one));
-}
-
-} // namespace
-
-/*
- * Generating an instance function.
- */
-
-// Emits `fn f(args...) = <emit>(args...)` as a real function, so the instance has something to
-// print, lower and eventually take the address of even though ordinary calls inline it.
-static ModulePtr<Function> generateInstanceFunction(CoreBuilder& builder, TypeClass& typeClass,
-                                                    Buffer<TypePtr> args, U16 index, Emit emit) {
-    auto& module = builder.module;
-    auto signature = builder.local[typeClass.functions.get(builder.global, index).fun];
-    auto method = typeClass.functions.get(builder.global, index).name;
-
-    auto function = addAnonymousFunction(module, instanceFunctionName(module, typeClass, args, method), kNullLocation);
-    function->instanceOf = (TypeClass*)&typeClass - builder.global;
-    for(auto arg: args) function->instanceArgs.push(module.arena, arg);
-
-    function->returnType = substituteType(module, signature->returnType, args, kNullLocation);
-
-    for(Size i = 0; i < signature->args.size(); i++) {
-        auto declared = builder.local[signature->args.get(builder.local, i)];
-        function->addArg(module, declared->name, substituteType(module, declared->type, args, kNullLocation),
-                         kNullLocation);
-    }
-
-    ExprResolver resolver(module.context, module, *function);
-    Array<ModulePtr<Value>> values;
-    for(auto arg: function->args.contents(builder.local)) values.push((ModulePtr<Value>)arg);
-
-    auto result = emit(resolver, toBuffer(values), function->returnType, kNullLocation, 0);
-    resolver.terminate(resolver.emit<InstRet>(kNullLocation, 0, module.scalar.unit, result));
-
-    function->intrinsic = emit;
-    return function - builder.local;
-}
-
-// `compare` is the one primitive operation that is not a single instruction, so it has a real
-// body and no intrinsic: calls to it are ordinary calls that reach the backend as written.
-static ModulePtr<Function> generateCompare(CoreBuilder& builder, TypeClass& typeClass, TypePtr type, U16 index) {
-    auto& module = builder.module;
-    auto ordering = module.scalar.ordering;
-    TypePtr args[] = { type };
-
-    auto function = addAnonymousFunction(
-        module, instanceFunctionName(module, typeClass, { args, 1 }, Context::nameHash("compare", 7)), kNullLocation);
-
-    function->instanceOf = (TypeClass*)&typeClass - builder.global;
-    function->instanceArgs.push(module.arena, type);
-    function->returnType = ordering;
-
-    auto lhs = ModulePtr<Value>(function->addArg(module, builder.name("lhs"_v), type, kNullLocation) - builder.local);
-    auto rhs = ModulePtr<Value>(function->addArg(module, builder.name("rhs"_v), type, kNullLocation) - builder.local);
-
-    ExprResolver resolver(module.context, module, *function);
-    auto equalBlock = resolver.addBlock();
-    auto greaterTest = resolver.addBlock();
-    auto greaterBlock = resolver.addBlock();
-    auto lessBlock = resolver.addBlock();
-
-    auto equal = resolver.ref(resolver.emit<InstCmp>(kNullLocation, 0, module.scalar.bool_, lhs, rhs, CompareOp::Eq));
-    resolver.terminate(resolver.emit<InstJe>(kNullLocation, 0, module.scalar.unit, equal, equalBlock, greaterTest));
-
-    // Ordering has no payload, so each result is just its constructor index.
-    auto returnOrdering = [&](ModulePtr<Block> block, U64 constructor) {
-        resolver.current = block;
-        auto value = resolver.makeInt(kNullLocation, ordering, constructor);
-        resolver.terminate(resolver.emit<InstRet>(kNullLocation, 0, module.scalar.unit, value));
-    };
-
-    returnOrdering(equalBlock, 1);
-
-    resolver.current = greaterTest;
-    auto greater = resolver.ref(resolver.emit<InstCmp>(kNullLocation, 0, module.scalar.bool_, lhs, rhs, CompareOp::Gt));
-    resolver.terminate(resolver.emit<InstJe>(kNullLocation, 0, module.scalar.unit, greater, greaterBlock, lessBlock));
-
-    returnOrdering(greaterBlock, 2);
-    returnOrdering(lessBlock, 0);
-
-    return function - builder.local;
-}
-
-namespace {
-
-// One method of a generated instance: the name and arity it has in the class, and what it
-// expands to. Arity is part of the key because `Num` declares `-` twice.
-struct CoreMethod {
-    StringView name;
-    U16 arity;
-    Emit emit;
-};
-
-} // namespace
-
-static void generateInstance(CoreBuilder& builder, GlobalPtr<TypeClass> classPointer, Buffer<TypePtr> args,
-                             Buffer<CoreMethod> methods) {
-    auto& module = builder.module;
-    auto typeClass = builder.global[classPointer];
-
-    auto instance = new (module.arena) ClassInstance(classPointer);
-    instance->module = &module;
-    for(auto arg: args) instance->forTypes.push(module.arena, arg);
-    for(Size i = 0; i < typeClass->functions.size(); i++) instance->functions.push(module.arena, nullptr);
-
-    for(auto& method: methods) {
-        auto wanted = Context::nameHash(method.name);
-        auto matched = false;
-
-        for(Size i = 0; i < typeClass->functions.size(); i++) {
-            auto entry = typeClass->functions.get(builder.global, i);
-            if(entry.name != wanted || entry.arity != method.arity) continue;
-            if(instance->functions.get(builder.local, i)) continue;
-
-            instance->functions.set(builder.local, i,
-                                    generateInstanceFunction(builder, *typeClass, args, U16(i), method.emit));
-            matched = true;
-            break;
-        }
-
-        assertTrue(matched);
-    }
-
-    // `compare` is the only class function no table entry above covers.
-    for(Size i = 0; i < typeClass->functions.size(); i++) {
-        if(instance->functions.get(builder.local, i)) continue;
-
-        auto entry = typeClass->functions.get(builder.global, i);
-        assertTrue(entry.name == Context::nameHash("compare", 7));
-        instance->functions.set(builder.local, i, generateCompare(builder, *typeClass, args[0], U16(i)));
-    }
-
-    module.instances.push(instance - builder.local);
-}
-
-/*
- * The primitive instances.
- */
-
-static void defineFromInt(CoreBuilder& builder, TypePtr type) {
-    CoreMethod methods[] = { { "fromInt"_v, 1, emitFromLiteral } };
-    generateInstance(builder, builder.classNamed("FromInt"_v), { &type, 1 }, { methods, 1 });
-}
-
-static void defineFromDecimal(CoreBuilder& builder, TypePtr type) {
-    CoreMethod methods[] = { { "fromDecimal"_v, 1, emitFromLiteral } };
-    generateInstance(builder, builder.classNamed("FromDecimal"_v), { &type, 1 }, { methods, 1 });
-}
-
-static void defineEq(CoreBuilder& builder, TypePtr type) {
-    CoreMethod methods[] = {
-        { "=="_v, 2, emitCompare<CompareOp::Eq> },
-        { "!="_v, 2, emitCompare<CompareOp::Ne> },
-    };
-
-    generateInstance(builder, builder.classNamed("Eq"_v), { &type, 1 }, { methods, 2 });
-}
-
-static void defineOrd(CoreBuilder& builder, TypePtr type) {
-    CoreMethod methods[] = {
-        { "<"_v, 2, emitCompare<CompareOp::Lt> },
-        { "<="_v, 2, emitCompare<CompareOp::Le> },
-        { ">"_v, 2, emitCompare<CompareOp::Gt> },
-        { ">="_v, 2, emitCompare<CompareOp::Ge> },
-    };
-
-    generateInstance(builder, builder.classNamed("Ord"_v), { &type, 1 }, { methods, 4 });
-}
-
-static void defineNum(CoreBuilder& builder, TypePtr type) {
-    CoreMethod methods[] = {
-        { "+"_v, 2, emitBinary<Value::Add> },
-        { "-"_v, 2, emitBinary<Value::Sub> },
-        { "*"_v, 2, emitBinary<Value::Mul> },
-        { "/"_v, 2, emitBinary<Value::Div> },
-        { "-"_v, 1, emitUnary<Value::Neg> },
-    };
-
-    generateInstance(builder, builder.classNamed("Num"_v), { &type, 1 }, { methods, 5 });
-}
-
-static void defineIntegral(CoreBuilder& builder, TypePtr type) {
-    CoreMethod methods[] = {
-        { "rem"_v, 2, emitBinary<Value::Rem> },
-        { "%"_v, 2, emitBinary<Value::Rem> },
-        { "shl"_v, 2, emitBinary<Value::Shl> },
-        { "shr"_v, 2, emitBinary<Value::Shr> },
-        { "sar"_v, 2, emitBinary<Value::Sar> },
-        { "and"_v, 2, emitBinary<Value::And> },
-        { "or"_v, 2, emitBinary<Value::Or> },
-        { "xor"_v, 2, emitBinary<Value::Xor> },
-        { "not"_v, 1, emitUnary<Value::Not> },
-    };
-
-    generateInstance(builder, builder.classNamed("Integral"_v), { &type, 1 }, { methods, 9 });
-}
-
-static void defineLogic(CoreBuilder& builder, TypePtr type) {
-    CoreMethod methods[] = {
-        { "&&"_v, 2, emitBinary<Value::And> },
-        { "||"_v, 2, emitBinary<Value::Or> },
-        { "and"_v, 2, emitBinary<Value::And> },
-        { "or"_v, 2, emitBinary<Value::Or> },
-        { "xor"_v, 2, emitBinary<Value::Xor> },
-        { "not"_v, 1, emitLogicalNot },
-        { "!"_v, 1, emitLogicalNot },
-    };
-
-    generateInstance(builder, builder.classNamed("Logic"_v), { &type, 1 }, { methods, 7 });
-}
-
-static void defineTruth(CoreBuilder& builder, TypePtr type, Emit emit) {
-    CoreMethod methods[] = { { "truthy"_v, 1, emit } };
-    generateInstance(builder, builder.classNamed("Truth"_v), { &type, 1 }, { methods, 1 });
-}
-
-static void defineConversion(CoreBuilder& builder, StringView className, StringView method, TypePtr from, TypePtr to) {
-    TypePtr args[] = { from, to };
-    CoreMethod methods[] = { { method, 1, emitCast } };
-
-    generateInstance(builder, builder.classNamed(className), { args, 2 }, { methods, 1 });
-}
-
 /*
  * Assembling the module.
  */
 
 static TypePtr addPrimitive(Program& program, Module& module, StringView name, Type* value) {
     auto pointer = value - *program.types;
-    module.namedTypes.add(module.context.addQualifiedName(name.ptr, name.length, 1), pointer);
+    auto id = module.context.addQualifiedName(name.ptr, name.length, 1);
+
+    // An integer type is printed by name, so it has to know the one it was declared under.
+    if(value->kind == Type::Int) ((IntType*)value)->name = id;
+
+    module.namedTypes.add(id, pointer);
     return pointer;
 }
 
@@ -481,7 +160,7 @@ void defineCore(Program& program) {
 
     auto module = program.addModule(ast->name, *ast->region);
     program.core = module;
-    program.coreAst = ast;
+    program.embeddedAsts.push(ast);
 
     addPrimitive(program, *module, "Unit"_v, (Type*)(*program.types)[program.scalar.unit]);
     program.scalar.int_ = addPrimitive(program, *module, "Int"_v, new (program.types) IntType(32, IntType::Int, true));
@@ -494,8 +173,6 @@ void defineCore(Program& program) {
     program.scalar.bool_ = coreType(*module, "Bool"_v);
     program.scalar.ordering = coreType(*module, "Ordering"_v);
 
-    CoreBuilder builder(*module);
-
     TypePtr numeric[] = {
         program.scalar.int_,
         program.scalar.long_,
@@ -505,29 +182,29 @@ void defineCore(Program& program) {
 
     // FromInt comes first because Num declares it as a superclass: `1` has to mean something for
     // a type before `+` on that type can be told what `x + 1` is.
-    for(auto type: numeric) defineFromInt(builder, type);
+    for(auto type: numeric) defineFromInt(*module, type);
 
-    defineFromDecimal(builder, program.scalar.float_);
-    defineFromDecimal(builder, program.scalar.double_);
+    defineFromDecimal(*module, program.scalar.float_);
+    defineFromDecimal(*module, program.scalar.double_);
 
     for(auto type: numeric) {
-        defineEq(builder, type);
-        defineOrd(builder, type);
-        defineNum(builder, type);
+        defineEq(*module, type);
+        defineOrd(*module, type);
+        defineNum(*module, type);
     }
 
-    defineIntegral(builder, program.scalar.int_);
-    defineIntegral(builder, program.scalar.long_);
+    defineIntegral(*module, program.scalar.int_);
+    defineIntegral(*module, program.scalar.long_);
 
-    defineEq(builder, program.scalar.bool_);
-    defineLogic(builder, program.scalar.bool_);
-    defineEq(builder, program.scalar.ordering);
+    defineEq(*module, program.scalar.bool_);
+    defineLogic(*module, program.scalar.bool_);
+    defineEq(*module, program.scalar.ordering);
 
     // A Bool is already the answer; every number is asked whether it is non-zero. NaN is therefore
     // truthy, which is worth knowing rather than surprising: the instance says "not zero", and no
     // amount of floating-point special-casing would make `if x` mean something better.
-    defineTruth(builder, program.scalar.bool_, emitIdentity);
-    for(auto type: numeric) defineTruth(builder, type, emitTruthy);
+    defineTruth(*module, program.scalar.bool_, emitIdentity);
+    for(auto type: numeric) defineTruth(*module, type, emitTruthy);
 
     // Widening and narrowing are ordinary class operations, so a user type can join either
     // ladder later without the resolver learning anything new about conversion. The ladder is
@@ -537,20 +214,20 @@ void defineCore(Program& program) {
             if(from == to) continue;
 
             if(from < to) {
-                defineConversion(builder, "Widen"_v, "widen"_v, numeric[from], numeric[to]);
+                defineConversion(*module, "Widen"_v, "widen"_v, numeric[from], numeric[to]);
             } else {
-                defineConversion(builder, "Narrow"_v, "narrow"_v, numeric[from], numeric[to]);
+                defineConversion(*module, "Narrow"_v, "narrow"_v, numeric[from], numeric[to]);
             }
         }
     }
 
     // The five classes the language's own syntax is written in terms of. Looked up by name once,
     // here, so that nothing downstream has to search for them by string.
-    program.coreClasses.fromInt = builder.classNamed("FromInt"_v);
-    program.coreClasses.fromDecimal = builder.classNamed("FromDecimal"_v);
-    program.coreClasses.widen = builder.classNamed("Widen"_v);
-    program.coreClasses.narrow = builder.classNamed("Narrow"_v);
-    program.coreClasses.truth = builder.classNamed("Truth"_v);
+    program.coreClasses.fromInt = classNamed(*module, "FromInt"_v);
+    program.coreClasses.fromDecimal = classNamed(*module, "FromDecimal"_v);
+    program.coreClasses.widen = classNamed(*module, "Widen"_v);
+    program.coreClasses.narrow = classNamed(*module, "Narrow"_v);
+    program.coreClasses.truth = classNamed(*module, "Truth"_v);
 
     // Core's own instances exist only now, so its superclass checks and its `default`
     // declarations run here rather than as part of reading its source.

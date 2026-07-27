@@ -1,0 +1,166 @@
+fn roundTrip() -> I64 {
+  b0:
+    %v1 = alloc : I64
+    init %local0, %slot
+    %p = addressof %local0 : %I64
+    %v4 = load [%p] : I64
+    %v7 = add %v4, 1 : I64
+    init [%p], %v7
+    %v9 = load [%p] : I64
+    ret %v9
+}
+
+fn throughField() -> I64 {
+  b0:
+    %node = alloc : Node
+    %v3 = cast 0 : %Node
+    init %local0@Node.value, 3
+    init %local0@Node.next, %v3
+    %p = addressof %local0 : %Node
+    %v7 = load [%p]@Node.value : I64
+    %v10 = mul %v7, 5 : I64
+    init [%p]@Node.value, %v10
+    %v12 = load [%p]@Node.value : I64
+    ret %v12
+}
+
+fn elementStride() -> I64 {
+  b0:
+    %node = alloc : Node
+    %v3 = cast 0 : %Node
+    init %local0@Node.value, 0
+    init %local0@Node.next, %v3
+    %base = addressof %local0 : %Node
+    %v10 = mul 1, 16 : I64
+    %next = add %base, %v10 : %Node
+    %v12 = sub %next, %base : I64
+    %v14 = div %v12, 16 : I64
+    %v17 = mul %v14, 100 : I64
+    %v18 = cast %base : %U8
+    %v19 = cast %next : %U8
+    %v20 = sub %v19, %v18 : I64
+    %v21 = add %v17, %v20 : I64
+    ret %v21
+}
+
+fn compareAddresses() -> I64 {
+  b0:
+    %node = alloc : Node
+    %v3 = cast 0 : %Node
+    init %local0@Node.value, 0
+    init %local0@Node.next, %v3
+    %base = addressof %local0 : %Node
+    %score = alloc : I64
+    init %score, 0
+    %v13 = mul 1, 16 : I64
+    %v14 = add %base, %v13 : %Node
+    %v15 = cmp_lt %base, %v14 : Bool
+    je %v15, b1, b2
+
+  b1:
+    %v17 = load %score : I64
+    %v20 = add %v17, 1 : I64
+    init %score, %v20
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v24 = cmp_eq %base, %base : Bool
+    je %v24, b4, b5
+
+  b4:
+    %v26 = load %score : I64
+    %v29 = add %v26, 2 : I64
+    init %score, %v29
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v34 = cast 0 : %Node
+    %v35 = cast %v34 : Long
+    %v37 = cmp_eq %v35, 0 : Bool
+    je %v37, b7, b8
+
+  b7:
+    %v39 = load %score : I64
+    %v42 = add %v39, 4 : I64
+    init %score, %v42
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v46 = cast %base : Long
+    %v48 = cmp_eq %v46, 0 : Bool
+    %v50 = xor %v48, True : Bool
+    je %v50, b10, b11
+
+  b10:
+    %v52 = load %score : I64
+    %v55 = add %v52, 8 : I64
+    init %score, %v55
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v59 = load %score : I64
+    ret %v59
+}
+
+fn blockOperations() -> I64 {
+  b0:
+    %source = alloc : Node
+    %v3 = cast 0 : %Node
+    init %local0@Node.value, 9
+    init %local0@Node.next, %v3
+    %target = alloc : Node
+    %v9 = cast 0 : %Node
+    init %local1@Node.value, 0
+    init %local1@Node.next, %v9
+    %v12 = addressof %local1 : %Node
+    %v13 = cast %v12 : %U8
+    %v14 = addressof %local0 : %Node
+    %v15 = cast %v14 : %U8
+    copymemory %v13, %v15, 16
+    %copied = load %local1@Node.value : I64
+    %v19 = addressof %local1 : %Node
+    %v20 = cast %v19 : %U8
+    setmemory %v20, 0, 16
+    %v26 = mul %copied, 10 : I64
+    %v27 = load %local1@Node.value : I64
+    %v28 = add %v26, %v27 : I64
+    ret %v28
+}
+
+fn sizes() -> I64 {
+  b0:
+    %v4 = mul 8, 100 : I64
+    %v9 = mul 1, 10 : I64
+    %v10 = add %v4, %v9 : I64
+    %v13 = add %v10, 2 : I64
+    ret %v13
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call roundTrip : I64
+    %v1 = call throughField : I64
+    %v2 = add %v0, %v1 : I64
+    %v3 = call elementStride : I64
+    %v4 = add %v2, %v3 : I64
+    %v5 = call compareAddresses : I64
+    %v6 = add %v4, %v5 : I64
+    %v7 = call blockOperations : I64
+    %v8 = add %v6, %v7 : I64
+    %v9 = call sizes : I64
+    %total = add %v8, %v9 : I64
+    %v11 = cast %total : Int
+    ret %v11
+}

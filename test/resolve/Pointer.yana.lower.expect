@@ -1,0 +1,185 @@
+
+elementStride<complex>(): Long {
+  b_0 {
+    %node = alloca 16, 8: Ptr
+    %v_1 = bitcast 0: Ptr
+    store %node, 0, 8
+    %v_2 = add %node, 8: Ptr
+    store %v_2, %v_1, 8
+    %v_3 = imul 1, 16: Long
+    %next = add %node, %v_3: Ptr
+    %v_4 = sub %next, %node: Long
+    %v_5 = idiv %v_4, 16: Long
+    %v_6 = imul %v_5, 100: Long
+    %v_7 = bitcast %node: Ptr
+    %v_8 = bitcast %next: Ptr
+    %v_9 = sub %v_8, %v_7: Long
+    %v_10 = add %v_6, %v_9: Long
+    ret %v_10
+  }
+}
+
+throughField<complex>(): Long {
+  b_0 {
+    %node = alloca 16, 8: Ptr
+    %v_1 = bitcast 0: Ptr
+    store %node, 3, 8
+    %v_2 = add %node, 8: Ptr
+    store %v_2, %v_1, 8
+    %v_3 = loads %node, 8: Long
+    %v_4 = imul %v_3, 5: Long
+    store %node, %v_4, 8
+    %v_5 = loads %node, 8: Long
+    ret %v_5
+  }
+}
+
+blockOperations<complex>(): Long {
+  b_0 {
+    %source = alloca 16, 8: Ptr
+    %v_1 = bitcast 0: Ptr
+    store %source, 9, 8
+    %v_2 = add %source, 8: Ptr
+    store %v_2, %v_1, 8
+    %target = alloca 16, 8: Ptr
+    %v_3 = bitcast 0: Ptr
+    store %target, 0, 8
+    %v_4 = add %target, 8: Ptr
+    store %v_4, %v_3, 8
+    %v_5 = bitcast %target: Ptr
+    %v_6 = bitcast %source: Ptr
+    copy %v_5, %v_6, 16
+    %copied = loads %target, 8: Long
+    %v_7 = bitcast %target: Ptr
+    setpattern %v_7, 16, 0
+    %v_8 = imul %copied, 10: Long
+    %v_9 = loads %target, 8: Long
+    %v_10 = add %v_8, %v_9: Long
+    ret %v_10
+  }
+}
+
+sizes<complex>(): Long {
+  b_0 {
+    %v_1 = imul 8, 100: Long
+    %v_2 = imul 1, 10: Long
+    %v_3 = add %v_1, %v_2: Long
+    %v_4 = add %v_3, 2: Long
+    ret %v_4
+  }
+}
+
+roundTrip<complex>(): Long {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, 7, 8
+    %v_2 = loads %v_1, 8: Long
+    %v_3 = add %v_2, 1: Long
+    store %v_1, %v_3, 8
+    %v_4 = loads %v_1, 8: Long
+    ret %v_4
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex roundTrip: Long
+    %v_2 = call_complex throughField: Long
+    %v_3 = add %v_1, %v_2: Long
+    %v_4 = call_complex elementStride: Long
+    %v_5 = add %v_3, %v_4: Long
+    %v_6 = call_complex compareAddresses: Long
+    %v_7 = add %v_5, %v_6: Long
+    %v_8 = call_complex blockOperations: Long
+    %v_9 = add %v_7, %v_8: Long
+    %v_10 = call_complex sizes: Long
+    %total = add %v_9, %v_10: Long
+    %v_11 = cast %total: Int
+    ret %v_11
+  }
+}
+
+compareAddresses<complex>(): Long {
+  b_0 {
+    %node = alloca 16, 8: Ptr
+    %v_1 = bitcast 0: Ptr
+    store %node, 0, 8
+    %v_2 = add %node, 8: Ptr
+    store %v_2, %v_1, 8
+    %score = alloca 8, 8: Ptr
+    store %score, 0, 8
+    %v_3 = imul 1, 16: Long
+    %v_4 = add %node, %v_3: Ptr
+    %v_5 = cmp_lt %node, %v_4: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    %v_8 = loads %score, 8: Long
+    %v_9 = add %v_8, 1: Long
+    store %score, %v_9, 8
+    jmp b_10
+  }
+
+  b_7 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = cmp_eq %node, %node: Int
+    je %v_11, b_12, b_13
+  }
+
+  b_12 {
+    %v_14 = loads %score, 8: Long
+    %v_15 = add %v_14, 2: Long
+    store %score, %v_15, 8
+    jmp b_16
+  }
+
+  b_13 {
+    jmp b_16
+  }
+
+  b_16 {
+    %v_17 = bitcast 0: Ptr
+    %v_18 = bitcast %v_17: Long
+    %v_19 = cmp_eq %v_18, 0: Int
+    je %v_19, b_20, b_21
+  }
+
+  b_20 {
+    %v_22 = loads %score, 8: Long
+    %v_23 = add %v_22, 4: Long
+    store %score, %v_23, 8
+    jmp b_24
+  }
+
+  b_21 {
+    jmp b_24
+  }
+
+  b_24 {
+    %v_25 = bitcast %node: Long
+    %v_26 = cmp_eq %v_25, 0: Int
+    %v_27 = xor %v_26, 1: Int
+    je %v_27, b_28, b_29
+  }
+
+  b_28 {
+    %v_30 = loads %score, 8: Long
+    %v_31 = add %v_30, 8: Long
+    store %score, %v_31, 8
+    jmp b_32
+  }
+
+  b_29 {
+    jmp b_32
+  }
+
+  b_32 {
+    %v_33 = loads %score, 8: Long
+    ret %v_33
+  }
+}
+

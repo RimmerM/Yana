@@ -159,6 +159,8 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
 
             return (Type*)resolveTupleType(module, toBuffer(fields), source) - global;
         }
+        case Type::Ptr:
+            return resolvePointerType(module, substituteType(module, ((PtrType*)global[type])->to, args, source));
         default:
             return type;
     }
@@ -214,6 +216,8 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
 
             return true;
         }
+        case Type::Ptr:
+            return matchType(global, ((PtrType*)global[pattern])->to, ((PtrType*)global[concrete])->to, bindings);
         default:
             return false;
     }
@@ -369,9 +373,30 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
             return resolveApp(module, *module.parse[type.app], env, type.source);
         case ast::Type::Tup:
             return resolveTupleAst(module, type, env);
+        case ast::Type::Ptr:
+            return resolvePointerType(module, resolveType(module, *module.parse[type.to], env));
         default:
             return errorType(module, type.source, "type is not available in this milestone"_v);
     }
+}
+
+// Pointers are interned on their target the way tuples are interned on their fields, so that the
+// pointer written in a signature and the one an `addressOf` produces are the same TypePtr.
+TypePtr resolvePointerType(Module& module, TypePtr to) {
+    auto base = *module.types;
+    if(!to) return module.scalar.error;
+
+    for(auto pointer: module.program.pointerTypes.contents(base)) {
+        if(base[pointer]->to == to) return (Type*)base[pointer] - base;
+    }
+
+    auto type = new (module.types) PtrType(to);
+    type->generic = isGeneric(base, to);
+
+    auto pointer = type - base;
+    module.program.pointerTypes.push(module.types, pointer);
+
+    return (Type*)type - base;
 }
 
 TupType* resolveTupleType(Module& module, Buffer<Field> requested, LocationId source) {
@@ -582,6 +607,14 @@ bool isFloat(GlobalBase base, TypePtr type) {
     return type && base[type]->kind == Type::Float;
 }
 
+bool isPointer(GlobalBase base, TypePtr type) {
+    return type && base[type]->kind == Type::Ptr;
+}
+
+TypePtr pointeeType(GlobalBase base, TypePtr type) {
+    return isPointer(base, type) ? ((PtrType*)base[type])->to : nullptr;
+}
+
 bool isNumeric(GlobalBase base, TypePtr type) {
     return isInteger(base, type) || isFloat(base, type);
 }
@@ -590,7 +623,10 @@ bool isDirectType(GlobalBase base, TypePtr type) {
     if(!type || isUnit(base, type)) return false;
 
     auto value = base[type];
-    if(value->kind == Type::Int || value->kind == Type::Float) return true;
+
+    // A raw pointer is an address held in a register, not something held in memory: `%T` is
+    // direct however large `T` is. The memory it names is reached through a place instead.
+    if(value->kind == Type::Int || value->kind == Type::Float || value->kind == Type::Ptr) return true;
 
     return value->kind == Type::Record && ((RecordType*)value)->layout == RecordType::Enum;
 }
@@ -620,12 +656,25 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
         case Type::Unit:
             target << "()";
             return;
-        case Type::Int:
+        case Type::Int: {
+            // Core's Int and Native's I32 have the same shape and different names, so an integer
+            // type says which one it is rather than describing its width.
+            auto name = ((IntType*)base[type])->name;
+            if(name) {
+                target << context.findName(name);
+                return;
+            }
+
             switch(((IntType*)base[type])->width) {
                 case IntType::Bool: target << "Bool"; return;
                 case IntType::Int: target << "Int"; return;
                 case IntType::Long: target << "Long"; return;
             }
+            return;
+        }
+        case Type::Ptr:
+            target << '%';
+            describeType(context, base, ((PtrType*)base[type])->to, target);
             return;
         case Type::Float:
             target << (((FloatType*)base[type])->width == FloatType::Float ? "Float" : "Double");

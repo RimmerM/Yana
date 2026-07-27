@@ -1,0 +1,110 @@
+#pragma once
+
+#include "expr.h"
+
+/*
+ * Generating the operations the language cannot write in itself.
+ *
+ * Core and Native both need this: `Int`'s `+` cannot be defined in terms of anything more basic,
+ * and neither can a pointer dereference. What they share is the shape of the answer - a real
+ * declaration with a real signature, plus a hook that generates its body's one instruction at the
+ * call site instead of calling it - so the machinery for building one lives here and each module
+ * says only which operations it has and what they expand to.
+ *
+ * Two kinds of intrinsic exist, and the difference is whether the operation depends on a type the
+ * declaration does not fix:
+ *
+ *   A *concrete* intrinsic - Core's `Num(Int).+` - is a generated function with a generated body,
+ *   so it can be printed, lowered and eventually have its address taken, while an ordinary call
+ *   to it expands to the instruction it contains.
+ *
+ *   A *generic* intrinsic - Native's `fn *(it: %a) -> a` - is one operation per element type, so
+ *   there is nothing to generate until a call says which. It is declared in source with no body
+ *   at all and never reaches lowering; expandIntrinsic() generates it where it is called.
+ */
+
+// The IR one primitive operation expands to, shared by a generated body and the intrinsic hook so
+// that a call and an inline expansion can never drift apart.
+using Emit = ModulePtr<Value> (*)(ExprResolver&, Buffer<ModulePtr<Value>>, TypePtr, LocationId, StringId);
+
+// One method of a generated instance: the name and arity it has in the class, and what it expands
+// to. Arity is part of the key because `Num` declares `-` twice.
+struct IntrinsicMethod {
+    StringView name;
+    U16 arity;
+    Emit emit;
+};
+
+/*
+ * The emitters, in the order the classes need them.
+ */
+
+template<Value::Kind kind>
+inline ModulePtr<Value> emitBinary(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                   LocationId source, StringId resultName) {
+    return resolver.ref(resolver.emit<InstBinary>(source, resultName, type, kind, args[0], args[1]));
+}
+
+template<Value::Kind kind>
+inline ModulePtr<Value> emitUnary(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                  LocationId source, StringId resultName) {
+    return resolver.ref(resolver.emit<InstUnary>(source, resultName, type, kind, args[0]));
+}
+
+template<CompareOp op>
+inline ModulePtr<Value> emitCompare(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                    LocationId source, StringId resultName) {
+    return resolver.ref(resolver.emit<InstCmp>(source, resultName, type, args[0], args[1], op));
+}
+
+ModulePtr<Value> emitCast(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                          LocationId source, StringId resultName);
+
+// `fromInt`/`fromDecimal` on a primitive is the literal itself, at the type that was asked for.
+ModulePtr<Value> emitFromLiteral(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                 LocationId source, StringId resultName);
+
+// `truthy` on a number: non-zero. `truthy` on a Bool: the value itself.
+ModulePtr<Value> emitTruthy(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                            LocationId source, StringId resultName);
+ModulePtr<Value> emitIdentity(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                              LocationId source, StringId resultName);
+
+// `not` on a Bool is the one bit operation correct for a two-constructor discriminant, rather than
+// an integer complement that would produce something outside the type.
+ModulePtr<Value> emitLogicalNot(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                LocationId source, StringId resultName);
+
+/*
+ * Building instances and declarations.
+ */
+
+// The class of this name, which must exist: these are the classes the module being built declared
+// itself, or ones it imported from Core.
+GlobalPtr<TypeClass> classNamed(Module& module, StringView name);
+
+// Generates one instance of `typeClass` for `args`, with one generated function per method. A
+// class function no method covers is generated from its own default implementation, which today
+// means `Ord.compare`.
+void generateInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
+                      Buffer<IntrinsicMethod> methods);
+
+// The standard instances of one primitive type. Each is exactly the class's methods mapped onto
+// the machine operations that implement them.
+void defineFromInt(Module& module, TypePtr type);
+void defineFromDecimal(Module& module, TypePtr type);
+void defineEq(Module& module, TypePtr type);
+void defineOrd(Module& module, TypePtr type);
+void defineNum(Module& module, TypePtr type);
+void defineIntegral(Module& module, TypePtr type);
+void defineLogic(Module& module, TypePtr type);
+void defineTruth(Module& module, TypePtr type, Emit emit);
+
+// One rung of the conversion ladder: `Widen(from, to)` or `Narrow(from, to)`, whose single method
+// is a cast.
+void defineConversion(Module& module, StringView className, StringView method, TypePtr from, TypePtr to);
+
+// Attaches a hook to a signature the module declared in source but gave no body. This is how a
+// generic intrinsic is written: the declaration says what it means to the type checker, and the
+// hook says what it generates. Reports if no such function was declared.
+void attachIntrinsic(Module& module, StringView name, Intrinsic intrinsic);

@@ -266,7 +266,11 @@ ModulePtr<Value> ExprResolver::resolvePrefix(const ast::Expr& expr, const ast::P
         return nullptr;
     }
 
-    auto value = resolve(prefix.on, target);
+    // The operand is resolved with no expected type of its own. What a prefix operator's argument
+    // should be is its selected overload's parameter type, which is not known until the operand
+    // has one - and pushing the *result* type down is only right when the two coincide, as they
+    // do for `-` and not for a dereference, whose operand is a pointer to its result.
+    auto value = resolve(prefix.on);
     if(!value) return nullptr;
 
     ModulePtr<Value> args[] = { value };
@@ -531,6 +535,24 @@ ModulePtr<Value> ExprResolver::emitGenericDispatch(ClassMatch& match, Buffer<Mod
     return result;
 }
 
+/*
+ * Generating a generic intrinsic at the call site.
+ *
+ * A concrete intrinsic - Core's `Num(Int).+` - is a real function whose body an ordinary call
+ * expands instead of calling. A generic one has no body at all: `fn (a) *(it: %a) -> a` is not
+ * one operation but one per element type, so there is nothing to write down until the call says
+ * which. The type arguments are therefore handed to the intrinsic through the substituted result
+ * type, which is all any of them needs.
+ */
+ModulePtr<Value> ExprResolver::expandIntrinsic(ModulePtr<Function> callee, Buffer<TypePtr> typeArgs,
+                                               Buffer<ModulePtr<Value>> args, LocationId source,
+                                               StringId resultName) {
+    auto generic = local[callee];
+    auto resultType = substituteType(module, generic->returnType, typeArgs, source);
+
+    return generic->intrinsic(*this, args, resultType, source, resultName);
+}
+
 ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args,
                                                LocationId source, TypePtr target, StringId resultName) {
     auto generic = local[callee];
@@ -588,6 +610,13 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
     auto deferred = bindings.contains([&](TypePtr binding) { return isGeneric(global, binding); });
 
     if(!deferred) {
+        // A generic intrinsic has nothing to specialize: what it means is generated here from the
+        // types the call decided, so there is no body to clone and no function to call. This is
+        // what keeps a pointer dereference one load rather than a call per element access.
+        if(generic->intrinsic) {
+            return expandIntrinsic(callee, toBuffer(bindings), toBuffer(converted), source, resultName);
+        }
+
         auto specialized = instantiateFunction(module, callee, toBuffer(bindings), source);
         if(!specialized) return nullptr;
 

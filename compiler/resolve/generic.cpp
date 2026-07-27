@@ -170,7 +170,13 @@ static ModulePtr<Value> cloneValue(Clone& clone, ModulePtr<Value> value) {
 }
 
 static Place clonePlace(Clone& clone, const Place& place) {
-    Place result { place.local, {} };
+    Place result = place;
+    result.projections = {};
+
+    // A local index and a global are the same in the clone; a pointer root is a value of the
+    // body being cloned and has to be mapped like any other operand.
+    if(place.root == PlaceRoot::Pointer) result.pointer = cloneValue(clone, place.pointer);
+
     auto projections = place.projections;
 
     for(auto projection: projections.contents(clone.local)) {
@@ -207,6 +213,17 @@ static void cloneGenCall(Clone& clone, InstGenCall& call) {
         }
 
         callee = clone.local[instance]->functions.get(clone.local, call.index);
+    } else if(clone.local[call.callee]->intrinsic) {
+        // A generic intrinsic is generated rather than instantiated, here for the same reason it
+        // is at an ordinary call site: there is no body for these types until there are types.
+        auto pointer = (ModulePtr<Value>)((Inst*)&call - clone.local);
+        auto result = clone.resolver.expandIntrinsic(call.callee, toBuffer(typeArgs), toBuffer(args),
+                                                     call.source, call.name);
+
+        if(result) clone.values.add(pointer, result);
+        else clone.ok = false;
+
+        return;
     } else {
         callee = instantiateFunction(clone.site, call.callee, toBuffer(typeArgs), call.source);
     }
@@ -239,6 +256,22 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             auto& init = (InstInit&)inst;
             result = resolver.emit<InstInit>(inst.source, inst.name, type, clonePlace(clone, init.place),
                                              cloneValue(clone, init.value));
+            break;
+        }
+        case Value::Address:
+            result = resolver.emit<InstAddress>(inst.source, inst.name, type,
+                                                clonePlace(clone, ((InstAddress&)inst).place));
+            break;
+        case Value::Native: {
+            auto& native = (InstNative&)inst;
+            auto cloned = resolver.create<InstNative>(inst.source, inst.name, type, native.op);
+
+            for(auto arg: native.args.contents(clone.local)) {
+                cloned->args.push(clone.module.arena, cloneValue(clone, arg));
+            }
+
+            resolver.append(cloned);
+            result = cloned;
             break;
         }
         case Value::Cast:

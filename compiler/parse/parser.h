@@ -7,6 +7,12 @@
 struct Parser: BasicParser<Lexer, Token> {
     Parser(Context& context, Lexer& lexer, StringId moduleName);
 
+    // Whether a module-level `fn` may be written without a body, as a class signature may be.
+    // This is for the modules the compiler embeds and parses itself: Native declares a
+    // dereference and a system call with their real signatures, and what they mean is generated
+    // at each call site rather than written down. Ordinary source always needs a body.
+    bool allowSignatures = false;
+
     ast::Module parseModule();
     ast::Import parseImport();
     ast::Fixity parseFixity();

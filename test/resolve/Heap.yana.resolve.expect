@@ -1,0 +1,348 @@
+let &heapNext: %U8 = 0
+
+let &heapLimit: %U8 = 0
+
+let &heapFree: %%U8 = 0
+
+fn heapRegionSize() -> I64 {
+  b0:
+    ret 4194304
+}
+
+fn heapClassCount() -> I64 {
+  b0:
+    ret 32
+}
+
+fn initHeap() -> () {
+  b0:
+    %v0 = call heapRegionSize : I64
+    %region = call mapMemory, %v0 : %U8
+    %v2 = cast %region : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = call heapClassCount : I64
+    %table = mul %v8, 8 : I64
+    setmemory %region, 0, %table
+    %v14 = cast %region : %%U8
+    init heapFree, %v14
+    %v16 = add %region, %table : %U8
+    init heapNext, %v16
+    %v18 = call heapRegionSize : I64
+    %v19 = add %region, %v18 : %U8
+    init heapLimit, %v19
+    ret
+}
+
+fn heapClassOf(%total: I64) -> I64 {
+  b0:
+    %size = alloc : I64
+    init %size, 16
+    %sizeClass = alloc : I64
+    init %sizeClass, 0
+    jmp b1
+
+  b1:
+    %v8 = load %size : I64
+    %v9 = cmp_lt %v8, %total : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v21 = load %sizeClass : I64
+    ret %v21
+
+  b3:
+    %v11 = load %size : I64
+    %v12 = load %size : I64
+    %v13 = add %v11, %v12 : I64
+    init %size, %v13
+    %v15 = load %sizeClass : I64
+    %v18 = add %v15, 1 : I64
+    init %sizeClass, %v18
+    jmp b1
+}
+
+fn heapBlockSize(%sizeClass: I64) -> I64 {
+  b0:
+    %v2 = shl 16, %sizeClass : I64
+    ret %v2
+}
+
+fn freeListHead(%sizeClass: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v3 = mul %sizeClass, 8 : I64
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v4 = mul %sizeClass, 8 : I64
+    %v5 = add %v2, %v4 : %%U8
+    init [%v5], %block
+    ret
+}
+
+fn allocateHeap(%size: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = cast %v1 : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    call initHeap
+    %v7 = load heapFree : %%U8
+    %v8 = cast %v7 : Long
+    %v10 = cmp_eq %v8, 0 : Bool
+    je %v10, b3, b4
+
+  b2:
+    jmp b6
+
+  b3:
+    %v13 = cast 0 : %U8
+    ret %v13
+
+  b4:
+    jmp b5
+
+  b5:
+    jmp b6
+
+  b6:
+    %v20 = add %size, 8 : I64
+    %sizeClass = call heapClassOf, %v20 : I64
+    %v22 = call heapClassCount : I64
+    %v23 = cmp_ge %sizeClass, %v22 : Bool
+    je %v23, b7, b8
+
+  b7:
+    %v26 = cast 0 : %U8
+    ret %v26
+
+  b8:
+    jmp b9
+
+  b9:
+    %reused = call freeListHead, %sizeClass : %U8
+    %v30 = cast %reused : Long
+    %v32 = cmp_eq %v30, 0 : Bool
+    %v34 = xor %v32, True : Bool
+    je %v34, b10, b11
+
+  b10:
+    %v36 = cast %reused : %%U8
+    %v37 = load [%v36] : %U8
+    call setFreeListHead, %sizeClass, %v37
+    ret %reused
+
+  b11:
+    jmp b12
+
+  b12:
+    %block = load heapNext : %U8
+    %blockSize = call heapBlockSize, %sizeClass : I64
+    %v43 = add %block, %blockSize : %U8
+    %v44 = load heapLimit : %U8
+    %v45 = cmp_gt %v43, %v44 : Bool
+    je %v45, b13, b14
+
+  b13:
+    %v48 = cast 0 : %U8
+    ret %v48
+
+  b14:
+    jmp b15
+
+  b15:
+    %v51 = add %block, %blockSize : %U8
+    init heapNext, %v51
+    %v53 = cast %block : %I64
+    init [%v53], %sizeClass
+    %v57 = add %block, 8 : %U8
+    ret %v57
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = cast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = sub %allocation, 8 : %U8
+    %v10 = cast %v9 : %I64
+    %sizeClass = load [%v10] : I64
+    %v12 = cast %allocation : %%U8
+    %v13 = call freeListHead, %sizeClass : %U8
+    init [%v12], %v13
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn sysMmap() -> I64 {
+  b0:
+    ret 9
+}
+
+fn protReadWrite() -> I64 {
+  b0:
+    ret 3
+}
+
+fn mapPrivateAnonymous() -> I64 {
+  b0:
+    ret 34
+}
+
+fn mapMemory(%size: I64) -> %U8 {
+  b0:
+    %v1 = call sysMmap : I64
+    %v3 = call protReadWrite : I64
+    %v4 = call mapPrivateAnonymous : I64
+    %v7 = neg 1 : I64
+    %result = syscall %v1, 0, %size, %v3, %v4, %v7, 0 : I64
+    %v12 = cmp_lt %result, 0 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v15 = cast 0 : %U8
+    ret %v15
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = cast %result : %U8
+    ret %v18
+}
+
+fn distinctBlocks() -> I64 {
+  b0:
+    %first = call allocateHeap, 32 : %U8
+    %second = call allocateHeap, 32 : %U8
+    %v4 = cast %first : Long
+    %v6 = cmp_eq %v4, 0 : Bool
+    %v7 = cast %second : Long
+    %v9 = cmp_eq %v7, 0 : Bool
+    %v10 = or %v6, %v9 : Bool
+    je %v10, b1, b2
+
+  b1:
+    ret 0
+
+  b2:
+    jmp b3
+
+  b3:
+    %v15 = sub %second, %first : I64
+    %v18 = cmp_lt %v15, 32 : Bool
+    je %v18, b4, b5
+
+  b4:
+    ret 0
+
+  b5:
+    jmp b6
+
+  b6:
+    ret 1
+}
+
+fn writeAndRead() -> I64 {
+  b0:
+    %v1 = call allocateHeap, 8 : %U8
+    %a = cast %v1 : %I64
+    %v4 = call allocateHeap, 8 : %U8
+    %b = cast %v4 : %I64
+    %v6 = cast %a : Long
+    %v8 = cmp_eq %v6, 0 : Bool
+    %v9 = cast %b : Long
+    %v11 = cmp_eq %v9, 0 : Bool
+    %v12 = or %v8, %v11 : Bool
+    je %v12, b1, b2
+
+  b1:
+    ret 0
+
+  b2:
+    jmp b3
+
+  b3:
+    init [%a], 40
+    init [%b], 2
+    %v21 = load [%a] : I64
+    %v22 = load [%b] : I64
+    %v23 = add %v21, %v22 : I64
+    ret %v23
+}
+
+fn reuseAfterFree() -> I64 {
+  b0:
+    %first = call allocateHeap, 100 : %U8
+    call freeHeap, %first
+    %second = call allocateHeap, 100 : %U8
+    %v5 = cmp_eq %first, %second : Bool
+    je %v5, b1, b2
+
+  b1:
+    ret 1
+
+  b2:
+    jmp b3
+
+  b3:
+    ret 0
+}
+
+fn classesAreSeparate() -> I64 {
+  b0:
+    %small = call allocateHeap, 8 : %U8
+    call freeHeap, %small
+    %large = call allocateHeap, 1000 : %U8
+    %v5 = cmp_eq %small, %large : Bool
+    je %v5, b1, b2
+
+  b1:
+    ret 0
+
+  b2:
+    jmp b3
+
+  b3:
+    ret 1
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call distinctBlocks : I64
+    %v3 = mul %v0, 1000 : I64
+    %v4 = call writeAndRead : I64
+    %v7 = mul %v4, 10 : I64
+    %v8 = add %v3, %v7 : I64
+    %v9 = call reuseAfterFree : I64
+    %v12 = mul %v9, 5 : I64
+    %v13 = add %v8, %v12 : I64
+    %v14 = call classesAreSeparate : I64
+    %total = add %v13, %v14 : I64
+    %v16 = cast %total : Int
+    ret %v16
+}

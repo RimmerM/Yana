@@ -7,12 +7,17 @@ void ExprResolver::terminate(Inst* inst) {
     current = nullptr;
 }
 
-ModulePtr<Value> ExprResolver::find(StringId name) {
+Binding* ExprResolver::findBinding(StringId name) {
     for(Size i = bindings.size(); i > 0; i--) {
-        if(bindings[i - 1].name == name) return bindings[i - 1].value;
+        if(bindings[i - 1].name == name) return &bindings[i - 1];
     }
 
     return nullptr;
+}
+
+ModulePtr<Value> ExprResolver::find(StringId name) {
+    auto binding = findBinding(name);
+    return binding ? binding->value : nullptr;
 }
 
 ModulePtr<Value> ExprResolver::makeInt(LocationId source, TypePtr type, U64 value) {
@@ -522,7 +527,9 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
             continue;
         }
 
-        if(decl.bind != ast::BindType::Borrow) {
+        auto mutable_ = decl.bind == ast::BindType::Ref;
+
+        if(decl.bind != ast::BindType::Borrow && !mutable_) {
             context.diagnostics.error("let binding conventions are deferred until the ownership resolver"_v, decl.pat.source);
         }
 
@@ -534,7 +541,12 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
         auto value = settle(resolve(*parse[decl.content]), decl.pat.source);
         if(!value) continue;
 
-        resolveBinding(decl, value);
+        if(mutable_) {
+            bindMutable(decl, value);
+        } else {
+            resolveBinding(decl, value);
+        }
+
         if(!current) break;
 
         if(decl.in) {
@@ -546,6 +558,125 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
     }
 
     return result;
+}
+
+/*
+ * `let &x = value`.
+ *
+ * The initializer's storage is what the name refers to from here on, so the declaration allocates
+ * a slot, writes the value into it, and binds the name to the slot rather than to the value. That
+ * is the whole difference between a mutable and an immutable binding at this milestone: the same
+ * places, the same InstInit, and one more entry in Function::locals.
+ *
+ * Only a plain name can be mutable. Destructuring one into several mutable slots is a question
+ * about ownership - which of the parts the binding owns - and belongs with the rest of Milestone
+ * 5, not with the machinery for writing to a slot.
+ */
+void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value> value) {
+    if(declaration.pat.kind != ast::Pat::Var) {
+        context.diagnostics.error("a mutable binding must be a single name"_v, declaration.pat.source);
+        return;
+    }
+
+    auto alternatives = declaration.alts;
+    if(alternatives.isNotEmpty()) {
+        context.diagnostics.error("a mutable binding always matches, so it takes no alternatives"_v,
+                                  declaration.pat.source);
+    }
+
+    auto name = declaration.pat.var;
+    auto type = valueType(value);
+    auto storage = allocate(type, declaration.pat.source, name);
+    auto place = placeFor(storage, declaration.pat.source);
+
+    initialize(place, value, declaration.pat.source);
+    bindings.push(Binding { name, storage, place.local });
+}
+
+/*
+ * What an assignment writes to.
+ *
+ * Three expressions name storage: a mutable binding, a global, and the memory a raw pointer
+ * points at. Everything reachable from those by projection does too, which is what makes
+ * `p.x = 1` and `(*node).next = null` work without a rule of their own - the projection path is
+ * built by the same field selection an ordinary read uses.
+ */
+Maybe<Place> ExprResolver::resolvePlace(const ast::Expr& astExpr) {
+    auto& expr = unwrapNested(astExpr);
+
+    switch(expr.kind) {
+        case ast::Expr::Var: {
+            if(auto binding = findBinding(expr.var)) {
+                if(!binding->isPlace()) {
+                    context.diagnostics.error("%@ is not mutable - declare it with `let &` to assign to it"_v,
+                                              expr.source, context.findName(expr.var));
+                    return Nothing();
+                }
+
+                return Just(Place::inLocal(binding->local));
+            }
+
+            if(auto global_ = findGlobal(module, expr.var, expr.source)) {
+                if(!local[global_]->mut) {
+                    context.diagnostics.error("%@ is not mutable - declare it with `let &` to assign to it"_v,
+                                              expr.source, context.findName(expr.var));
+                    return Nothing();
+                }
+
+                local[global_]->used = true;
+                return Just(Place::inGlobal(global_));
+            }
+
+            context.diagnostics.error("unknown value %@"_v, expr.source, context.findName(expr.var));
+            return Nothing();
+        }
+        case ast::Expr::Field: {
+            auto& field = *parse[expr.field];
+            auto target = resolvePlace(field.target);
+            if(!target) return Nothing();
+
+            return projectField(target.unwrap(), field.field, expr.source);
+        }
+        case ast::Expr::Prefix: {
+            // `*p = value` - the one place expression whose root the compiler knows nothing
+            // about, which is the point of it.
+            auto& prefix = *parse[expr.prefix];
+            if(prefix.op.kind != ast::Expr::Var || prefix.op.var != Context::nameHash("*"_v)) break;
+
+            auto pointer = resolve(prefix.on);
+            if(!pointer) return Nothing();
+
+            if(!isPointer(global, valueType(pointer))) {
+                context.diagnostics.error("cannot dereference %@ - it is not a raw pointer"_v, expr.source,
+                                          describeType(context, global, valueType(pointer)));
+                return Nothing();
+            }
+
+            return Just(Place::atPointer(pointer));
+        }
+        default:
+            break;
+    }
+
+    context.diagnostics.error("this expression does not name storage that can be assigned to"_v, expr.source);
+    return Nothing();
+}
+
+ModulePtr<Value> ExprResolver::resolveAssign(const ast::Expr& expr, const ast::AssignExpr& assign) {
+    auto place = resolvePlace(assign.target);
+    if(!place) return nullptr;
+
+    auto type = placeType(place.unwrap());
+    auto value = resolve(assign.value, type);
+    if(!value) return nullptr;
+
+    if(!isMemoryType(global, type)) value = convert(value, type, expr.source);
+
+    // Writing over a live value is the same instruction as initializing empty storage until
+    // there is something to drop - Implementation-IR.md part 3's InstAssign lands with the
+    // ownership milestone, which is what gives the distinction an observable meaning.
+    initialize(place.unwrap(), value, expr.source);
+    return nullptr;
 }
 
 // An integer-syntax literal can resolve to either kind of number, so a floating target takes it
@@ -612,13 +743,27 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             return result;
         }
         case ast::Expr::Var: {
-            auto value = find(expr.var);
-            if(!value) {
+            auto binding = findBinding(expr.var);
+            if(!binding) {
+                // A module-level name is storage rather than a value, so a global read is a load
+                // of its place exactly as a mutable local's is.
+                if(auto found = findGlobal(module, expr.var, expr.source)) {
+                    local[found]->used = true;
+                    auto value = load(Place::inGlobal(found), expr.source);
+                    return value && target ? convert(value, target, expr.source) : value;
+                }
+
                 context.diagnostics.error("unknown scalar value %@"_v, expr.source, context.findName(expr.var));
                 return nullptr;
             }
 
-            return target ? convert(value, target, expr.source) : value;
+            // A mutable binding names storage, so what its name produces is whatever is in that
+            // storage now rather than what was put there when it was declared. The name stays on
+            // the place, and each read of it is its own value.
+            auto value = binding->isPlace() ? load(Place::inLocal(binding->local), expr.source)
+                                            : binding->value;
+
+            return value && target ? convert(value, target, expr.source) : value;
         }
         case ast::Expr::Con:
             return resolveConstruct(expr, *parse[expr.con], target);
@@ -691,8 +836,7 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
         case ast::Expr::Field:
             return resolveField(expr, *parse[expr.field]);
         case ast::Expr::Assign:
-            context.diagnostics.error("assignment requires the ownership resolver's places and mutable bindings"_v, expr.source);
-            return nullptr;
+            return resolveAssign(expr, *parse[expr.assign]);
         default:
             context.diagnostics.error("expression is not available in the aggregate resolver"_v, expr.source);
             return nullptr;
@@ -703,6 +847,10 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
 bool resolveFunctionBody(Module& module, Function& function) {
     auto& context = module.context;
     if(!function.ast || function.resolving) return true;
+
+    // A declaration whose implementation the compiler generates has no body to resolve and never
+    // will: what it means is one instruction at each call site rather than anything writable.
+    if(function.intrinsic) return true;
 
     auto& decl = *module.parse[function.ast];
     if(!decl.fun.body) {

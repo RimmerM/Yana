@@ -18,9 +18,22 @@
  * deciding which of several shapes a value has, and the two meet only through Place.
  */
 
+/*
+ * One name in scope.
+ *
+ * An immutable binding is a name for an SSA value and nothing more. A `let &x` is a name for
+ * *storage*: it has a local, reads of it load and assignments to it write, so that the two
+ * statements of `let &i = 0` / `i = i + 1` are about the same slot rather than about two values.
+ *
+ * That is the whole of what mutation needs at this milestone. Ownership, exclusivity and the rest
+ * of what `&` will eventually mean are Milestone 5's; nothing here checks anything.
+ */
 struct Binding {
     StringId name = 0;
     ModulePtr<Value> value = nullptr;
+    U32 local = maxLimit<U32>;
+
+    bool isPlace() const { return local != maxLimit<U32>; }
 };
 
 // One class function that fits a call, together with what its class's type variables had to be
@@ -96,6 +109,23 @@ struct ExprResolver {
      */
 
     ModulePtr<Value> find(StringId name);
+    Binding* findBinding(StringId name);
+
+    // The place an assignable expression names - a mutable binding, a field of one, or the memory
+    // a raw pointer points at. Null root when the expression names no storage, which is the one
+    // diagnostic assignment has of its own.
+    // `(x)` and `x` name the same thing, and every rule that looks at the *shape* of an
+    // expression - a dereference in assignment position, a field of one - has to see through the
+    // parentheses to find it.
+    const ast::Expr& unwrapNested(const ast::Expr& expr) {
+        auto current = &expr;
+        while(current->kind == ast::Expr::Nested) current = parse[current->nested];
+        return *current;
+    }
+
+    Maybe<Place> resolvePlace(const ast::Expr& expr);
+    ModulePtr<Value> resolveAssign(const ast::Expr& expr, const ast::AssignExpr& assign);
+    void bindMutable(const ast::VarDecl& declaration, ModulePtr<Value> value);
     ModulePtr<Value> makeInt(LocationId source, TypePtr type, U64 value);
     ModulePtr<Value> makeFloat(LocationId source, TypePtr type, F64 value);
     ModulePtr<Value> convert(ModulePtr<Value> value, TypePtr target, LocationId source, bool implicit = true);
@@ -197,6 +227,11 @@ struct ExprResolver {
     ModulePtr<Value> emitGenericCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, LocationId source,
                                      TypePtr target, StringId resultName);
 
+    // A generic intrinsic, generated for the types this call decided. Shared with generic.cpp,
+    // which reaches the same intrinsics through an InstGenCall a specialization made concrete.
+    ModulePtr<Value> expandIntrinsic(ModulePtr<Function> callee, Buffer<TypePtr> typeArgs,
+                                     Buffer<ModulePtr<Value>> args, LocationId source, StringId resultName);
+
     // A class function whose instance cannot be chosen here, because the types it would be chosen
     // by are this function's own type variables. Records the requirement and emits InstGenCall.
     ModulePtr<Value> emitGenericDispatch(ClassMatch& match, Buffer<ModulePtr<Value>> args, LocationId source,
@@ -217,15 +252,23 @@ struct ExprResolver {
 
     ModulePtr<Value> allocate(TypePtr type, LocationId source, StringId name = 0);
     Place placeFor(ModulePtr<Value> value, LocationId source);
-    Place project(Place place, ProjectionKind kind, U16 index);
+    Place materialize(ModulePtr<Value> value, LocationId source);
+    Place project(Place place, ProjectionKind kind, U16 index, ModulePtr<Value> value = nullptr);
+    TypePtr placeRootType(const Place& place);
     TypePtr placeType(const Place& place);
     ModulePtr<Value> load(Place place, LocationId source, StringId name = 0);
     void initialize(Place place, ModulePtr<Value> value, LocationId source);
+    ModulePtr<Value> addressOf(Place place, LocationId source, StringId name = 0);
 
     ModulePtr<Value> resolveTuple(const ast::Expr& expr, ast::ParseList<ast::TupArg> args, TypePtr target);
     ModulePtr<Value> resolveConstruct(const ast::Expr& expr, const ast::ConExpr& construct, TypePtr target);
     TypePtr constructedType(ConstructorRef reference, ast::ParseList<ast::TupArg> args, TypePtr target, Array<ModulePtr<Value>>& resolved, LocationId source);
     ModulePtr<Value> resolveField(const ast::Expr& expr, const ast::FieldExpr& field);
+
+    // The place of one named field of `place`, following the downcast a single-constructor
+    // record needs. Shared by field reads and field assignments so that both reach a field the
+    // same way.
+    Maybe<Place> projectField(Place place, const ast::Expr& field, LocationId source);
     bool fillTuple(Place place, TupType& tuple, ast::ParseList<ast::TupArg> args, LocationId source);
 
     /*

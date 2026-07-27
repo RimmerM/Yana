@@ -122,6 +122,7 @@ TypePtr findType(Module& module, StringId name, LocationId source);
 Maybe<TypeAlias*> findAlias(Module& module, StringId name, LocationId source);
 Maybe<ConstructorRef> findConstructor(Module& module, StringId name, LocationId source);
 ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source);
+ModulePtr<Global> findGlobal(Module& module, StringId name, LocationId source);
 GlobalPtr<TypeClass> findClass(Module& module, StringId name, LocationId source);
 Maybe<U8> findPrecedence(Module& module, StringId name);
 

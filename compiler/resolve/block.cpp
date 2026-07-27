@@ -7,14 +7,28 @@ static void addUse(Module& module, ModulePtr<Value> value, Inst* user) {
     base[value]->uses.push(module.arena, user - base);
 }
 
-// A place is used through the local it is rooted in, so that the value the storage came from -
-// an alloc, or an argument - sees every read and write of any part of it.
+// A place is used through whatever it is rooted in, so that the value the storage came from - an
+// alloc, an argument, or the pointer an address was computed into - sees every read and write of
+// any part of it. A global has no value to attribute the use to; its uses are recorded on the
+// global itself when the instruction is built.
 static void addPlaceUse(Module& module, const Place& place, Inst* user) {
     auto base = *module.arena;
-    auto function = base[user->block] ? base[base[user->block]->function] : nullptr;
-    if(!function || place.local >= function->localCount()) return;
 
-    addUse(module, function->localAt(base, place.local).value, user);
+    if(place.root == PlaceRoot::Pointer) {
+        addUse(module, place.pointer, user);
+    } else if(place.root == PlaceRoot::Local) {
+        auto function = base[user->block] ? base[base[user->block]->function] : nullptr;
+
+        if(function && place.local < function->localCount()) {
+            addUse(module, function->localAt(base, place.local).value, user);
+        }
+    }
+
+    // An index projection is an ordinary operand of the access it appears in.
+    auto projections = place.projections;
+    for(auto projection: projections.contents(base)) {
+        if(projection.value) addUse(module, projection.value, user);
+    }
 }
 
 Inst* Block::add(Module& module, Inst* inst) {
@@ -57,6 +71,12 @@ Inst* Block::add(Module& module, Inst* inst) {
                 addUse(module, init->value, inst);
                 break;
             }
+            case Value::Address:
+                addPlaceUse(module, ((InstAddress*)inst)->place, inst);
+                break;
+            case Value::Native:
+                for(auto arg: ((InstNative*)inst)->args.contents(base)) addUse(module, arg, inst);
+                break;
             case Value::Cast:
             case Value::Neg:
             case Value::Not:

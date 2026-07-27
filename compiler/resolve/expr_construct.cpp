@@ -27,27 +27,66 @@ Place ExprResolver::placeFor(ModulePtr<Value> value, LocationId source) {
     }
 
     for(U32 i = 0; i < function.localCount(); i++) {
-        if(function.localAt(local, i).value == value) return Place { i, {} };
+        if(function.localAt(local, i).value == value) return Place::inLocal(i);
     }
 
     context.diagnostics.error("aggregate value does not have an addressable place"_v, source);
-    return Place { maxLimit<U32>, {} };
+    return Place::inLocal(maxLimit<U32>);
 }
 
-Place ExprResolver::project(Place place, ProjectionKind kind, U16 index) {
-    Place result { place.local, {} };
+// The place a value occupies, creating one if it has none. A scalar normally has none - it is in
+// a register, and that is the point of it - so taking its address is what makes storage exist,
+// which is why this is the one operation `addressOf` needs and ordinary code never does.
+Place ExprResolver::materialize(ModulePtr<Value> value, LocationId source) {
+    if(value && local[value]->kind == Value::LoadPlace) {
+        return ((InstLoadPlace*)local[value])->place;
+    }
+
+    for(U32 i = 0; i < function.localCount(); i++) {
+        if(function.localAt(local, i).value == value) return Place::inLocal(i);
+    }
+
+    // Deliberately unnamed: the value already carries the name this was written under, and giving
+    // the storage the same one would print two different things as `%x`.
+    auto storage = allocate(valueType(value), source);
+    auto place = placeFor(storage, source);
+
+    initialize(place, value, source);
+    return place;
+}
+
+Place ExprResolver::project(Place place, ProjectionKind kind, U16 index, ModulePtr<Value> value) {
+    Place result = place;
+    result.projections = {};
 
     for(auto projection: place.projections.contents(local)) {
         result.projections.push(module.arena, projection);
     }
 
-    result.projections.push(module.arena, Projection { kind, index });
+    result.projections.push(module.arena, Projection { kind, index, value });
     return result;
 }
 
+// The type of the storage a place's root names, before any projection.
+TypePtr ExprResolver::placeRootType(const Place& place) {
+    switch(place.root) {
+        case PlaceRoot::Local:
+            if(place.local >= function.localCount()) return module.scalar.error;
+            return function.localAt(local, place.local).type;
+        case PlaceRoot::Global:
+            return place.global ? local[place.global]->type : module.scalar.error;
+        case PlaceRoot::Pointer: {
+            // The pointee is the storage: `%Node` roots a place holding a Node.
+            auto pointee = pointeeType(global, valueType(place.pointer));
+            return pointee ? pointee : module.scalar.error;
+        }
+    }
+
+    return module.scalar.error;
+}
+
 TypePtr ExprResolver::placeType(const Place& place) {
-    if(place.local >= function.localCount()) return module.scalar.error;
-    auto type = function.localAt(local, place.local).type;
+    auto type = placeRootType(place);
     auto projections = place.projections;
 
     for(auto projection: projections.contents(local)) {
@@ -55,6 +94,13 @@ TypePtr ExprResolver::placeType(const Place& place) {
             case ProjectionKind::Discriminant:
                 type = module.scalar.int_;
                 break;
+            case ProjectionKind::Deref: {
+                auto pointee = pointeeType(global, type);
+                if(!pointee) return module.scalar.error;
+
+                type = pointee;
+                break;
+            }
             case ProjectionKind::Downcast: {
                 if(global[type]->kind != Type::Record) return module.scalar.error;
 
@@ -97,6 +143,13 @@ void ExprResolver::initialize(Place place, ModulePtr<Value> value, LocationId so
     }
 
     emit<InstInit>(source, 0, module.scalar.unit, place, value);
+}
+
+// The address of a place, as a pointer to whatever it holds. Taking one is what forces a value
+// that could have stayed in a register into storage - see InstAddress.
+ModulePtr<Value> ExprResolver::addressOf(Place place, LocationId source, StringId valueName) {
+    auto type = resolvePointerType(module, placeType(place));
+    return ref(emit<InstAddress>(source, valueName, type, place));
 }
 
 // Writes one value into each field of `tuple`, matching the arguments to fields by name where
@@ -347,25 +400,21 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
     return result;
 }
 
-ModulePtr<Value> ExprResolver::resolveField(const ast::Expr& expr, const ast::FieldExpr& field) {
-    if(field.field.kind != ast::Expr::Var) {
-        context.diagnostics.error("field selection requires a field name"_v, field.field.source);
-        return nullptr;
+Maybe<Place> ExprResolver::projectField(Place place, const ast::Expr& field, LocationId source) {
+    if(field.kind != ast::Expr::Var) {
+        context.diagnostics.error("field selection requires a field name"_v, field.source);
+        return Nothing();
     }
 
-    auto value = resolve(field.target);
-    if(!value) return nullptr;
-
-    auto place = placeFor(value, field.target.source);
-    auto type = valueType(value);
+    auto type = placeType(place);
 
     // A single-constructor record has no discriminant to test, so selecting a field out of one
     // is a downcast to its only constructor followed by an ordinary field projection.
     if(global[type]->kind == Type::Record) {
         auto record = (RecordType*)global[type];
         if(record->layout != RecordType::Single) {
-            context.diagnostics.error("direct field selection requires a single-constructor record"_v, expr.source);
-            return nullptr;
+            context.diagnostics.error("direct field selection requires a single-constructor record"_v, source);
+            return Nothing();
         }
 
         place = project(place, ProjectionKind::Downcast, 0);
@@ -373,17 +422,43 @@ ModulePtr<Value> ExprResolver::resolveField(const ast::Expr& expr, const ast::Fi
     }
 
     if(!type || global[type]->kind != Type::Tup) {
-        context.diagnostics.error("value does not contain named fields"_v, expr.source);
-        return nullptr;
+        context.diagnostics.error("value does not contain named fields"_v, source);
+        return Nothing();
     }
 
     auto tuple = (TupType*)global[type];
     for(Size i = 0; i < tuple->fields.size(); i++) {
-        if(tuple->fields.get(global, i).name == field.field.var) {
-            return load(project(place, ProjectionKind::Field, U16(i)), expr.source);
+        if(tuple->fields.get(global, i).name == field.var) {
+            return Just(project(place, ProjectionKind::Field, U16(i)));
         }
     }
 
-    context.diagnostics.error("unknown field %@"_v, field.field.source, context.findName(field.field.var));
-    return nullptr;
+    context.diagnostics.error("unknown field %@"_v, field.source, context.findName(field.var));
+    return Nothing();
+}
+
+ModulePtr<Value> ExprResolver::resolveField(const ast::Expr& expr, const ast::FieldExpr& field) {
+    // A field of raw memory is reached through the place the pointer names, so `(*node).value`
+    // needs no dereference of its own beyond the one the place already is.
+    auto& target = unwrapNested(field.target);
+
+    if(target.kind == ast::Expr::Prefix) {
+        auto& prefix = *parse[target.prefix];
+
+        if(prefix.op.kind == ast::Expr::Var && prefix.op.var == Context::nameHash("*"_v)) {
+            auto pointer = resolve(prefix.on);
+            if(!pointer) return nullptr;
+
+            if(isPointer(global, valueType(pointer))) {
+                auto place = projectField(Place::atPointer(pointer), field.field, expr.source);
+                return place ? load(place.unwrap(), expr.source) : nullptr;
+            }
+        }
+    }
+
+    auto value = resolve(field.target);
+    if(!value) return nullptr;
+
+    auto place = projectField(placeFor(value, field.target.source), field.field, expr.source);
+    return place ? load(place.unwrap(), expr.source) : nullptr;
 }

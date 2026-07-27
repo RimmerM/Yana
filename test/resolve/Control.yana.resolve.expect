@@ -39,12 +39,12 @@ fn classify(%value: Int) -> Int {
     je %v3, b1, b2
 
   b1:
-    %v6 = neg 1 : Int
+    %v7 = neg 1 : Int
     jmp b5
 
   b2:
-    %v9 = cmp_eq %value, 0 : Bool
-    je %v9, b3, b4
+    %v10 = cmp_eq %value, 0 : Bool
+    je %v10, b3, b4
 
   b3:
     jmp b5
@@ -53,8 +53,8 @@ fn classify(%value: Int) -> Int {
     jmp b5
 
   b5:
-    %v16 = phi [b1, %v6], [b3, 0], [b4, 1] : Int
-    ret %v16
+    %v17 = phi [b1, %v7], [b3, 0], [b4, 1] : Int
+    ret %v17
 }
 
 fn main() -> Int {

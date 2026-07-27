@@ -42,6 +42,10 @@ set(RESOLVE_SOURCE_FILES
     resolve/class.h
     resolve/core.h
     resolve/core.cpp
+    resolve/native.h
+    resolve/native.cpp
+    resolve/intrinsic.h
+    resolve/intrinsic.cpp
     resolve/type.h
     resolve/type.cpp
     resolve/generic.h

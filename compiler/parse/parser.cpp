@@ -192,7 +192,7 @@ void Parser::parseDecl(ast::DeclList& decls, ast::AttrList attributes, bool expo
     } else if(token.type == Token::kwForeign) {
         return parseForeignDecl(decls, ::move(attributes), exported);
     } else if(token.type == Token::kwFn || token.type == Token::kwLens || token.type == Token::kwIter) {
-        return parseFunDecl(decls, ::move(attributes), exported, true);
+        return parseFunDecl(decls, ::move(attributes), exported, !allowSignatures);
     } else if(token.type == Token::kwClass) {
         return parseTraitDecl(decls, ::move(attributes), exported);
     } else if(token.type == Token::kwInstance) {

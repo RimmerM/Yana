@@ -1,0 +1,68 @@
+
+divide<complex>(%a: Long, %b: Long): Long {
+  b_0 {
+    %v_1 = div %a, %b: Long
+    ret %v_1
+  }
+}
+
+remainder<complex>(%a: Long, %b: Long): Long {
+  b_0 {
+    %v_1 = rem %a, %b: Long
+    ret %v_1
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = sub 0, 2: Int
+    %big = cast %v_1: Long
+    %half = call_complex divide, %big, 2: Long
+    %rest = call_complex remainder, %big, 3: Long
+    %v_2 = cmp_gt %half, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %quotientIsPositive = phi [b_3, 1], [b_4, 0]: Int
+    %v_6 = sub 0, 7: Int
+    %v_7 = sext %v_6: Long
+    %v_8 = call_complex signedDivide, %v_7, 2: Long
+    %v_9 = sub 0, 3: Int
+    %v_10 = sext %v_9: Long
+    %v_11 = cmp_eq %v_8, %v_10: Int
+    je %v_11, b_12, b_13
+  }
+
+  b_12 {
+    jmp b_14
+  }
+
+  b_13 {
+    jmp b_14
+  }
+
+  b_14 {
+    %signedStillSigned = phi [b_12, 10], [b_13, 0]: Int
+    %v_15 = add %quotientIsPositive, %signedStillSigned: Int
+    %v_16 = cast %rest: Int
+    %v_17 = add %v_15, %v_16: Int
+    ret %v_17
+  }
+}
+
+signedDivide<complex>(%a: Long, %b: Long): Long {
+  b_0 {
+    %v_1 = idiv %a, %b: Long
+    ret %v_1
+  }
+}
+
