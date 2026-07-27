@@ -19,14 +19,14 @@ fn f(a: A B, b: Bool, c: [A(B C)]) -> A B = 0
 fn f(a: [A(B C)], b: [A(B C)], c: [A(B C)]) -> [A(B C)] = 0
 
 -- Mutable arguments.
-fn f(&a: Int, set b: Bool, c: Float) = 0
-fn f(a: Int, &b: Bool, set c: Float) -> Int = 0
+fn f(&a: Int, ->b: Bool, c: Float) = 0
+fn f(a: Int, &b: Bool, ->c: Float) -> Int = 0
 fn f(&a: A B, &b: Bool, &c: [A(B C)]) -> A B = 0
-fn f(set a: [A(B C)], set b: [A(B C)], set c: [A(B C)]) -> [A(B C)] = 0
+fn f(->a: [A(B C)], ->b: [A(B C)], ->c: [A(B C)]) -> [A(B C)] = 0
 fn f(->a: Int) = 0
 
 -- Default arguments.
-fn f(&a: Int = 0, b: Bool = False, set c: Float = 1) = 0
+fn f(&a: Int = 0, b: Bool = False, ->c: Float = 1) = 0
 fn f(a: Int = 6 * f(a, b), b: Bool = if a then b else A {x: 0, y: 1}, c: Float) -> Int = 0
 fn f(a: A B, b: Bool, &c: [A(B C)] = [A(v), A {x, y}]) -> A B = 0
 
@@ -77,8 +77,8 @@ fn (stuff: (a, Int) -> b)
 fn (foo: (a, {Bool, Bool}) -> {x: [Int], y: Int}, bar: () -> Int)
   f() = 0
 
--- `set` is a convention only where something follows it to apply to, so it is an ordinary
--- parameter name everywhere else.
+-- `set` is an ordinary identifier: the binding conventions are all symbols, so the word is
+-- free for the set-like and collection code that wants it.
 fn contains(set: Flags, flag: Flags) -> Bool = f(set)
-fn insert(set x: Flags, flag: Flags) -> Bool = g(x)
+fn insert(&set: Flags, flag: Flags) -> Bool = g(set)
 fn only(set: Flags) -> Bool = h(set)

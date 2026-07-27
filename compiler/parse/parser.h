@@ -55,9 +55,6 @@ struct Parser: BasicParser<Lexer, Token> {
     ast::Expr parseQop();
     ast::FunKind parseFunKind();
 
-    // Whether the `set` at the current token is the binding convention rather than a name of its
-    // own, which is decided by whether a name follows it. Does not consume anything.
-    bool atSetConvention();
     ast::BindType parseBindType();
     bool parseReturnRoot();
 
@@ -168,6 +165,5 @@ struct Parser: BasicParser<Lexer, Token> {
     StringId rawPtrId;     // sigil '%': raw, unchecked pointer (Type::Ptr, aliased Ptr(a)).
     StringId downtoId;
     StringId stepId;
-    StringId setId;
     StringId arraySizeId;
 };

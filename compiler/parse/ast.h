@@ -31,7 +31,6 @@ enum class BindType: U8 {
     Borrow,
     Ref,
     Sink,
-    Set,
 };
 
 // Marks a function type, function declaration, or lambda literal as compiling

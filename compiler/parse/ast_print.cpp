@@ -303,9 +303,6 @@ private:
             case BindType::Sink:
                 stream.writeString(" <sink> "_v);
                 break;
-            case BindType::Set:
-                stream.writeString(" <set> "_v);
-                break;
         }
 
         makeLevel();
@@ -529,7 +526,6 @@ private:
             case BindType::Borrow: break;
             case BindType::Ref: stream.writeString("&"_v); break;
             case BindType::Sink: stream.writeString("->"_v); break;
-            case BindType::Set: stream.writeString("set "_v); break;
         }
     }
 

@@ -17,7 +17,6 @@ Parser::Parser(Context& context, Lexer& lexer, StringId moduleName):
     rawPtrId = Context::nameHash("%", 1);
     downtoId = Context::nameHash("downto", 6);
     stepId = Context::nameHash("step", 4);
-    setId = Context::nameHash("set", 3);
     arraySizeId = Context::nameHash("*", 1);
 
     eat();
@@ -883,7 +882,7 @@ ast::Expr Parser::parseBaseExpr() {
             return makeExpr(Fun, fun, heap(ast::FunExpr { .body = parseBlock(false), .kind = funKind }), location);
         }
 
-        if(token.type == Token::opArrowR || token.type == Token::opAmp || atSetConvention()) {
+        if(token.type == Token::opArrowR || token.type == Token::opAmp) {
             ast::ParseList<ast::Arg> args;
             sepBy1([&] {
                 parseArg(args, false);
@@ -1055,8 +1054,7 @@ ast::Expr Parser::parseVarDecl(const WithLocation& location, U32 line) {
 
 ast::VarDecl Parser::parseDeclExpr() {
     // A `let` takes the same binding conventions as a parameter, written the same way and in
-    // the same place. `set` is the exception: it is a parameter-position keyword, so a leading
-    // `set` here is an ordinary variable being bound rather than a convention.
+    // the same place.
     auto bind = ast::BindType::Borrow;
     if(maybe(Token::opArrowR)) {
         bind = ast::BindType::Sink;
@@ -1271,55 +1269,13 @@ void Parser::parseTupUpdateArg(ast::ParseList<ast::TupUpdateArg>& list) {
     list.push(arena, ast::TupUpdateArg { path, parseExpr() });
 }
 
-/*
- * `set` is a convention only where a convention can be: immediately before the thing it applies
- * to, which is a name in a parameter list (`set value: T`) and a type in a function type
- * (`(set Float) -> Int`). Written where nothing follows it to apply to, it is an ordinary
- * identifier - which is what lets `set` be a parameter or field name, and it is set-like and
- * collection code, where `set` is the obvious name, that the collision otherwise lands on.
- *
- * The test is on what *ends* the item rather than on what could start a name or a type, so that
- * this stays one rule as the type grammar grows. The other two conventions need no rule at all:
- * `->` and `&` are symbols, and no name can be one.
- */
-bool Parser::atSetConvention() {
-    if(token.type != Token::VarID || token.data.id != setId) return false;
-
-    SaveLexer save(lexer);
-    auto savedToken = token;
-    eat();
-
-    auto convention = true;
-    switch(token.type) {
-        case Token::opColon:
-        case Token::opEquals:
-        case Token::Comma:
-        case Token::ParenR:
-        case Token::BraceR:
-        case Token::BracketR:
-        case Token::EndOfStmt:
-        case Token::EndOfBlock:
-        case Token::EndOfFile:
-            convention = false;
-            break;
-        default:
-            break;
-    }
-
-    save.restore();
-    token = savedToken;
-
-    return convention;
-}
-
+// The binding conventions are symbols, so no lookahead is needed to tell one from a name:
+// `->` and `&` cannot start an identifier. Out-parameters - writing into storage the caller
+// owns and has not initialized - are spelled `@uninit &` and belong to the ownership
+// milestone alongside `&` parameters themselves; they are not a fourth convention.
 ast::BindType Parser::parseBindType() {
     if(maybe(Token::opArrowR)) return ast::BindType::Sink;
     if(maybe(Token::opAmp)) return ast::BindType::Ref;
-
-    if(atSetConvention()) {
-        eat();
-        return ast::BindType::Set;
-    }
 
     return ast::BindType::Borrow;
 }

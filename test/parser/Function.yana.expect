@@ -155,7 +155,7 @@ Module
 |-FunDecl f <implicit return> 
 | |-Arg &a
 | | `-ConType Int
-| |-Arg set b
+| |-Arg ->b
 | | `-ConType Bool
 | |-Arg c
 | | `-ConType Float
@@ -166,7 +166,7 @@ Module
 | | `-ConType Int
 | |-Arg &b
 | | `-ConType Bool
-| |-Arg set c
+| |-Arg ->c
 | | `-ConType Float
 | |-Result
 | | `-ConType Int
@@ -193,21 +193,21 @@ Module
 | `-Body
 |   `-LitExpr 0
 |-FunDecl f <implicit return> 
-| |-Arg set a
+| |-Arg ->a
 | | `-ArrType 
 | |   `-AppType 
 | |     |-ConType A
 | |     `-AppType 
 | |       |-ConType B
 | |       `-ConType C
-| |-Arg set b
+| |-Arg ->b
 | | `-ArrType 
 | |   `-AppType 
 | |     |-ConType A
 | |     `-AppType 
 | |       |-ConType B
 | |       `-ConType C
-| |-Arg set c
+| |-Arg ->c
 | | `-ArrType 
 | |   `-AppType 
 | |     |-ConType A
@@ -236,7 +236,7 @@ Module
 | | |-ConType Bool
 | | `-ConExpr 
 | |   |-ConType False
-| |-Arg set c
+| |-Arg ->c
 | | |-ConType Float
 | | `-LitExpr 1
 | `-Body
@@ -596,7 +596,7 @@ Module
 |     `-Field <anonymous>
 |       `-VarExpr set
 |-FunDecl insert <implicit return> 
-| |-Arg set x
+| |-Arg &set
 | | `-ConType Flags
 | |-Arg flag
 | | `-ConType Flags
@@ -606,7 +606,7 @@ Module
 |   `-AppExpr 
 |     |-VarExpr g
 |     `-Field <anonymous>
-|       `-VarExpr x
+|       `-VarExpr set
 `-FunDecl only <implicit return> 
   |-Arg set
   | `-ConType Flags
