@@ -31,6 +31,9 @@
  * plain function is one member of the set rather than a shadow over it.
  */
 
+// The declared precedence of an operator that has one. Only reached for operators resolveBinary
+// has already established a fixity for, so the fallback is unreachable rather than meaningful -
+// precedence 0 is a real precedence, which is where an assignment operator belongs.
 static U8 operatorPrecedence(Module& module, StringId op) {
     auto found = findPrecedence(module, op);
     return found ? found.unwrap() : 0;
@@ -284,7 +287,7 @@ ModulePtr<Value> ExprResolver::resolveBinary(const ast::Expr& expr, const ast::I
             return nullptr;
         }
 
-        if(operatorPrecedence(module, node->op.var) == 0) {
+        if(!findPrecedence(module, node->op.var)) {
             context.diagnostics.error("operator has no declared fixity %@"_v, node->op.source, context.findName(node->op.var));
             return nullptr;
         }
@@ -303,7 +306,10 @@ ModulePtr<Value> ExprResolver::resolveBinary(const ast::Expr& expr, const ast::I
     Size operandIndex = 0;
     Size operatorIndex = 0;
 
-    auto result = resolvePrecedence(operands, operators, operandIndex, operatorIndex, 1);
+    // Climbing starts at 0 rather than 1 because 0 is a declarable precedence - it is where Core
+    // puts the compound assignments. Starting a rung above it would drop such an operator out of
+    // the loop and quietly yield its left operand instead of applying it.
+    auto result = resolvePrecedence(operands, operators, operandIndex, operatorIndex, 0);
     if(result && target) result = convert(result, target, expr.source);
     return result;
 }
@@ -380,10 +386,27 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
                                               LocationId source, TypePtr, StringId resultName) {
     auto function_ = local[callee];
 
+    // Every argument's convention is applied here, which is the one place a call knows both what
+    // the callee asked for and what the caller produced. A `&` becomes a mutable borrow of the
+    // argument's storage; everything else is the ordinary value path.
     Array<ModulePtr<Value>> converted;
     for(Size i = 0; i < args.length; i++) {
-        auto expected = local[function_->args.get(local, i)]->type;
-        converted.push(convert(args[i], expected, source));
+        auto declared = local[function_->args.get(local, i)];
+
+        if(declared->isMutableBorrow()) {
+            converted.push(borrowArgument(args[i], declared->type, source));
+            continue;
+        }
+
+        auto value = convert(args[i], declared->type, source);
+
+        // A `->` parameter consumes what it is given, so the argument is moved out of its storage
+        // - or copied, for a TrivialCopy type. The conversion comes first deliberately: a
+        // converted argument is a temporary of the callee's type, and moving out of a temporary is
+        // the no-op sinkValue() already reports it as.
+        if(declared->convention == ast::BindType::Sink) value = sinkValue(value, source);
+
+        converted.push(value);
     }
 
     if(function_->intrinsic) {

@@ -18,6 +18,22 @@ struct Inst;
 struct Value;
 struct Global;
 
+/*
+ * Where an owned value's storage comes from (Implementation-IR.md part 3).
+ *
+ * `Inline` is storage inside its parent, `Stack` is the frame, `Region` is an arena, and `Heap` is
+ * the Native allocator. Only `Stack` is ever selected today: choosing between them is escape
+ * analysis, which is Milestone 6. The enum is complete anyway because the field it fills in is
+ * what Implementation-Regions.md part 6 lowers against, and a lowering that handles three of four
+ * cases is worse than one that handles all four and is only ever handed one.
+ */
+enum class StorageClass: U8 {
+    Inline,
+    Stack,
+    Region,
+    Heap,
+};
+
 enum class ProjectionKind: U8 {
     Discriminant,
     Field,
@@ -76,6 +92,11 @@ struct Value {
         Alloc,
         LoadPlace,
         Init,
+        Assign,
+        Borrow,
+        Move,
+        Copy,
+        Drop,
         Address,
         Native,
         Cast,
@@ -113,11 +134,30 @@ struct Value {
     Kind kind;
 };
 
+/*
+ * One function parameter.
+ *
+ * `convention` is Design.md's three-item list, and it is a property of the parameter rather than of
+ * its type: `fn f(&x: Int)` takes a mutable borrow of an Int, not a value of some `&Int` type.
+ * That distinction is why there is no Borrow type kind at this milestone - nothing can hold a
+ * borrow except a parameter or a binding, both of which say so themselves.
+ *
+ * A `&` parameter therefore has type `T` while *arriving* as an address, which is a fact about
+ * this argument that only lowering and place resolution consult; see PlaceRoot::Borrow.
+ *
+ * `returnRoot` is the `return` marker. It is recorded here so that the signature it was written on
+ * keeps it, but nothing validates root sets yet - that is Milestone 6, and until then the marker
+ * is accepted, printed and otherwise inert.
+ */
 struct Arg: Value {
     Arg(ModulePtr<Block> block, TypePtr type, U16 index):
         Value(Value::Arg, block, type), index(index) {}
 
+    bool isMutableBorrow() const { return convention == ast::BindType::Ref; }
+
     U16 index;
+    ast::BindType convention = ast::BindType::Borrow;
+    bool returnRoot = false;
 };
 
 struct ConstInt: Value {
@@ -153,6 +193,11 @@ struct InstAlloc: Inst {
         Inst(Value::Alloc, block, type), local(local) {}
 
     U32 local;
+
+    // Which of the four storage classes this allocation uses. Escape analysis fills it in at
+    // Milestone 6; until then everything is frame-placed, which is always sound and sometimes
+    // wasteful - the direction the default has to err in.
+    StorageClass storage = StorageClass::Stack;
 };
 
 struct InstLoadPlace: Inst {
@@ -162,12 +207,116 @@ struct InstLoadPlace: Inst {
     Place place;
 };
 
+/*
+ * Writing a value into a place. Two kinds share one shape, because they differ in exactly one
+ * thing and everything that reads them reads them the same way:
+ *
+ *  - `Init` fills storage that held nothing - a fresh local, a field of a value being constructed.
+ *  - `Assign` overwrites storage that held a live value, which means the old value's `Drop` runs
+ *    first.
+ *
+ * Keeping them apart is what makes "has this been initialized" a property the compiler can check
+ * rather than a convention, which is the prerequisite for `@uninit &` and for knowing which places
+ * a drop pass owes a drop to.
+ */
 struct InstInit: Inst {
-    InstInit(ModulePtr<Block> block, TypePtr unit, Place place, ModulePtr<Value> value):
-        Inst(Value::Init, block, unit), place(place), value(value) {}
+    InstInit(ModulePtr<Block> block, TypePtr unit, Place place, ModulePtr<Value> value,
+             Kind kind = Value::Init):
+        Inst(kind, block, unit), place(place), value(value) {}
 
     Place place;
     ModulePtr<Value> value;
+};
+
+/*
+ * A borrow of a place - Implementation-IR.md part 3's InstBorrow.
+ *
+ * The root is kept rather than the address alone, because everything the borrow checker asks is
+ * about the root: whether a second borrow of an overlapping path is live at the same time, and
+ * whether the owner is still initialized. An address would answer none of it.
+ *
+ * The result type is the type of what is borrowed, not a `&T` - there is no borrow type kind at
+ * this milestone, deliberately, because nothing can hold a borrow except a parameter or a binding
+ * and both of those say so themselves. What that costs is that the *value* of a borrow is a
+ * machine address while its *type* says otherwise, which is contained: a borrow value is only ever
+ * a call argument, and lowering maps it to the place's address the way InstAddress does.
+ */
+struct InstBorrow: Inst {
+    InstBorrow(ModulePtr<Block> block, TypePtr type, Place place, bool mut):
+        Inst(Value::Borrow, block, type), place(place), mut(mut) {}
+
+    Place place;
+
+    // Exclusive while live. An immutable borrow coexists with any number of others.
+    bool mut;
+};
+
+/*
+ * Taking ownership out of a place - what `->` compiles to.
+ *
+ * The place is dead afterwards: reading it again is a use-after-move, and the drop pass owes it no
+ * drop unless something initializes it again. Both of those are why this is an instruction rather
+ * than a plain read - the value produced is indistinguishable from a load, and the statement being
+ * made is entirely about the place it came out of.
+ *
+ * Only emitted for a type that is not TrivialCopy. Design.md's copy-on-read rule says a `->`
+ * binding of a TrivialCopy source produces an independent copy and leaves the source untouched, so
+ * for those this is an InstCopy or - for a scalar already in a register - nothing at all.
+ */
+struct InstMove: Inst {
+    InstMove(ModulePtr<Block> block, TypePtr type, Place place):
+        Inst(Value::Move, block, type), place(place) {}
+
+    Place place;
+
+    // Set when the type has an authored `Sink`: relocating it is that call rather than a memcpy.
+    ModulePtr<Function> sink = nullptr;
+};
+
+/*
+ * An independent, freshly-rooted duplicate of a place.
+ *
+ * Deliberately a different operation from a borrow rather than a special case of one. Emitting a
+ * copy is exactly what lets a TrivialCopy read out through a live `&` not count as handing out a
+ * second borrow: the result has its own root, so the source's exclusivity is untouched.
+ */
+struct InstCopy: Inst {
+    InstCopy(ModulePtr<Block> block, TypePtr type, Place place):
+        Inst(Value::Copy, block, type), place(place) {}
+
+    Place place;
+
+    // Set when the type has an authored `Copy`; null for the bitwise duplicate a TrivialCopy type
+    // gets. The local is the storage the duplicate lands in, as a call result's is.
+    ModulePtr<Function> copy = nullptr;
+    U32 local = maxLimit<U32>;
+};
+
+/*
+ * The end of a value's lifetime, inserted by the drop pass and never by the AST resolver.
+ *
+ * `kind` is carried rather than looked up from the type because region placement elides one and
+ * not the other (Implementation-Regions.md part 5), so the decision has to be visible in the IR
+ * rather than re-derived from a type by whoever lowers it.
+ *
+ * `flag` is set only where control flow made the drop conditional - a value moved out of on one
+ * arm of a branch and not the other. It names an I8 local holding 1 while the place still owns
+ * something, which is the standard drop-elaboration answer to a question no amount of static
+ * analysis can settle.
+ */
+struct InstDrop: Inst {
+    InstDrop(ModulePtr<Block> block, TypePtr unit, Place place, DropKind kind):
+        Inst(Value::Drop, block, unit), place(place), kind(kind) {}
+
+    Place place;
+
+    // The implementation to run: an authored `Drop` instance, or the glue synthesized for a
+    // derived one. Null when the type's drop is empty, which the pass elides rather than emits.
+    ModulePtr<Function> implementation = nullptr;
+
+    // The drop flag's local, or maxLimit when the drop is unconditional.
+    U32 flag = maxLimit<U32>;
+    DropKind kind;
 };
 
 // The address of a place, as a raw pointer. This is what `addressOf` compiles to, and it is the
@@ -314,3 +463,7 @@ struct InstPhi: Inst {
 
 bool isTerminator(const Value& value);
 bool isConstant(const Value& value);
+
+// How a binding convention is named in a diagnostic. The sigil for the two that have one, and a
+// description for the default, since "declared ``" reads as a compiler bug rather than as a rule.
+StringView conventionName(ast::BindType convention);

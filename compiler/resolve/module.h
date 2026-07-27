@@ -11,20 +11,27 @@ struct Expr;
 
 struct Program;
 struct ExprResolver;
+struct OwnershipResults;
 
-enum class StorageClass: U8 {
-    Stack,
-};
-
-// A named storage slot in a function. `convention` and `storage` are the two halves of what
-// Implementation-IR.md part 2 asks a Local to carry; both stay at their defaults until the
-// ownership milestone gives the resolver something to put in them.
+/*
+ * A named storage slot in a function.
+ *
+ * `convention` is how the name that introduced this slot accesses it - Design.md's borrow / `&` /
+ * `->`. It is deliberately distinct from `owner`, which the analysis side table assigns: a
+ * convention describes one access, while the owner identifies the object whose lifetime all of
+ * those accesses constrain. `InstMove` transfers an owner, `InstBorrow` refers back to one, and
+ * `InstCopy` creates a fresh one.
+ */
 struct Local {
     TypePtr type = nullptr;
     StringId name = 0;
     ModulePtr<Value> value = nullptr;
     ast::BindType convention = ast::BindType::Borrow;
     StorageClass storage = StorageClass::Stack;
+
+    // Set for the slot behind a `&` parameter: the local names storage the caller owns, so it is
+    // never allocated, never initialized here, and never dropped here.
+    bool borrowed = false;
 };
 
 // A function whose body the resolver generates at the call site instead of calling. The
@@ -40,7 +47,8 @@ struct Function {
 
     Block* addBlock(Module& module, StringId name = 0);
     Arg* addArg(Module& module, StringId name, TypePtr type, LocationId source);
-    U32 addLocal(Module& module, TypePtr type, StringId name, ModulePtr<Value> value);
+    U32 addLocal(Module& module, TypePtr type, StringId name, ModulePtr<Value> value,
+                 ast::BindType convention = ast::BindType::Borrow, bool borrowed = false);
 
     Local localAt(ModuleBase base, U32 index) { return locals.get(base, index); }
     Size localCount() { return locals.size(); }
@@ -201,6 +209,15 @@ struct Program {
     // Instantiations created before the declaration they came from had been read, waiting for
     // their constructor contents. Drained by completePendingInstances().
     Array<GlobalPtr<RecordType>> pendingInstances;
+
+    // The synthesized derived-drop glue, interned per type. Registered before its body is built,
+    // so a type reachable from itself terminates instead of generating glue forever.
+    HashMap<U32, ModulePtr<Function>> dropGlue;
+
+    // What the ownership passes found, per function, kept for printing rather than for any later
+    // stage - see analyze.h. Held behind a pointer because analyze.h is written against this
+    // header rather than the other way round.
+    Ptr<OwnershipResults> ownership;
 
     Module* core = nullptr;
     Module* root = nullptr;

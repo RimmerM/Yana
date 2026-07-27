@@ -238,9 +238,12 @@ static ModulePtr<Value> emitDeref(ExprResolver& resolver, Buffer<ModulePtr<Value
     return resolver.load(Place::atPointer(args[0]), source, name);
 }
 
+// An assignment rather than an initialization: what a raw pointer names is memory the program
+// manages itself, so whatever was there is being overwritten. Nothing is dropped either way - a
+// pointer root is outside the ownership graph entirely, which is what makes this the unsafe module.
 static ModulePtr<Value> emitStore(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr,
                                   LocationId source, StringId) {
-    resolver.initialize(Place::atPointer(args[0]), args[1], source);
+    resolver.assign(Place::atPointer(args[0]), args[1], source);
     return nullptr;
 }
 

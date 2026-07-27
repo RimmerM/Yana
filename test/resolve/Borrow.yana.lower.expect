@@ -1,0 +1,100 @@
+
+*=(Int)<complex>(%target: Ptr, %amount: Int) {
+  b_0 {
+    %v_1 = loads %target, 4: Int
+    %v_2 = imul %v_1, %amount: Int
+    store %target, %v_2, 4
+    ret 
+  }
+}
+
+swap<complex>(%a: Ptr, %b: Ptr) {
+  b_0 {
+    %old = loads %a, 4: Int
+    %v_1 = loads %b, 4: Int
+    store %a, %v_1, 4
+    store %b, %old, 4
+    ret 
+  }
+}
+
+copyThroughBorrow<complex>(%target: Ptr, %amount: Int) {
+  b_0 {
+    %v_1 = loads %target, 4: Int
+    %v_2 = add %v_1, %amount: Int
+    store %target, %v_2, 4
+    ret 
+  }
+}
+
+moveBy<complex>(%p: Ptr, %dx: Int, %dy: Int) {
+  b_0 {
+    %v_1 = loads %p, 4: Int
+    call_complex +=(Int), %p, %dx
+    %v_2 = add %p, 4: Ptr
+    %v_3 = loads %v_2, 4: Int
+    %v_4 = add %p, 4: Ptr
+    call_complex +=(Int), %v_4, %dy
+    ret 
+  }
+}
+
++=(Int)<complex>(%target: Ptr, %amount: Int) {
+  b_0 {
+    %v_1 = loads %target, 4: Int
+    %v_2 = add %v_1, %amount: Int
+    store %target, %v_2, 4
+    ret 
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %total = alloca 4, 4: Ptr
+    store %total, 0, 4
+    %v_1 = loads %total, 4: Int
+    call_complex bump, %total, 5
+    %v_2 = loads %total, 4: Int
+    call_complex +=(Int), %total, 3
+    %v_3 = loads %total, 4: Int
+    call_complex *=(Int), %total, 2
+    %left = alloca 4, 4: Ptr
+    store %left, 1, 4
+    %right = alloca 4, 4: Ptr
+    store %right, 2, 4
+    %v_4 = loads %left, 4: Int
+    %v_5 = loads %right, 4: Int
+    call_complex swap, %left, %right
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, 10, 4
+    %v_7 = add %v_6, 4: Ptr
+    store %v_7, 20, 4
+    %here = alloca 8, 4: Ptr
+    copy %here, %v_6, 8
+    call_complex moveBy, %here, 1, 2
+    %v_8 = loads %total, 4: Int
+    %v_9 = loads %total, 4: Int
+    call_complex copyThroughBorrow, %total, %v_9
+    %v_10 = loads %total, 4: Int
+    %v_11 = loads %left, 4: Int
+    %v_12 = loads %right, 4: Int
+    %v_13 = sub %v_11, %v_12: Int
+    %v_14 = add %v_10, %v_13: Int
+    %v_15 = loads %here, 4: Int
+    %v_16 = add %v_14, %v_15: Int
+    %v_17 = add %here, 4: Ptr
+    %v_18 = loads %v_17, 4: Int
+    %v_19 = add %v_16, %v_18: Int
+    ret %v_19
+  }
+}
+
+bump<complex>(%counter: Ptr, %by: Int) {
+  b_0 {
+    %v_1 = loads %counter, 4: Int
+    %v_2 = add %v_1, %by: Int
+    store %counter, %v_2, 4
+    ret 
+  }
+}
+

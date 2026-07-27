@@ -126,6 +126,15 @@ static StringView instructionName(Value& value, GlobalBase global) {
         case Value::Alloc: return "alloc"_v;
         case Value::LoadPlace: return "load"_v;
         case Value::Init: return "init"_v;
+        case Value::Assign: return "assign"_v;
+        case Value::Borrow: return ((InstBorrow&)value).mut ? "borrow_mut"_v : "borrow"_v;
+        case Value::Move: return "move"_v;
+        case Value::Copy: return "copy"_v;
+        case Value::Drop:
+            switch(((InstDrop&)value).kind) {
+                case DropKind::Authored: return "drop"_v;
+                default: return "drop_derived"_v;
+            }
         case Value::Address: return "addressof"_v;
         case Value::Native:
             switch(((InstNative&)value).op) {
@@ -194,12 +203,62 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             print.writer.writeByte(' ');
             printPlace(print, *function, ((InstLoadPlace&)inst).place);
             break;
-        case Value::Init: {
+        case Value::Init:
+        case Value::Assign: {
             auto& init = (InstInit&)inst;
             print.writer.writeByte(' ');
             printPlace(print, *function, init.place);
             print.writer.writeString(", "_v);
             printValue(print, *print.local[init.value]);
+            break;
+        }
+        case Value::Borrow:
+            print.writer.writeByte(' ');
+            printPlace(print, *function, ((InstBorrow&)inst).place);
+            break;
+        case Value::Move: {
+            auto& moved = (InstMove&)inst;
+            print.writer.writeByte(' ');
+            printPlace(print, *function, moved.place);
+
+            // `move %x via Sink(T).sink` - which of the two relocations this is, since a bitwise
+            // move and a call are very different things to read past.
+            if(moved.sink) {
+                print.writer.writeString(" via "_v);
+                print.writer.writeString(print.context.findName(print.local[moved.sink]->name));
+            }
+
+            break;
+        }
+        case Value::Copy: {
+            auto& copied = (InstCopy&)inst;
+            print.writer.writeByte(' ');
+            printPlace(print, *function, copied.place);
+
+            if(copied.copy) {
+                print.writer.writeString(" via "_v);
+                print.writer.writeString(print.context.findName(print.local[copied.copy]->name));
+            }
+
+            break;
+        }
+        case Value::Drop: {
+            auto& dropped = (InstDrop&)inst;
+            print.writer.writeByte(' ');
+            printPlace(print, *function, dropped.place);
+
+            if(dropped.implementation) {
+                print.writer.writeString(" via "_v);
+                print.writer.writeString(print.context.findName(print.local[dropped.implementation]->name));
+            }
+
+            // `if %flag2` - the drop is conditional, which is a fact about the control flow that
+            // reached here rather than about the type, so it is worth seeing at the drop.
+            if(dropped.flag != maxLimit<U32>) {
+                print.writer.writeString(" if "_v);
+                printPlace(print, *function, Place::inLocal(dropped.flag));
+            }
+
             break;
         }
         case Value::Address:

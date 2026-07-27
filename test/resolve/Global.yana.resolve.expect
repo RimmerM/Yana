@@ -63,7 +63,7 @@ fn addressOfConstant() -> I64 {
     %p = addressof %local0 : %I64
     %v4 = load [%p] : I64
     %v7 = add %v4, 1 : I64
-    init [%p], %v7
+    assign [%p], %v7
     %v9 = load [%p] : I64
     %v11 = sub %v9, 4194304 : I64
     ret %v11
@@ -73,7 +73,7 @@ fn addressOfStorage() -> I64 {
   b0:
     %v0 = load slot : I64
     %p = addressof slot : %I64
-    init [%p], 7
+    assign [%p], 7
     %v4 = load slot : I64
     ret %v4
 }
@@ -82,7 +82,7 @@ fn mutableGlobal() -> I64 {
   b0:
     %v0 = load counter : I64
     %v3 = add %v0, 5 : I64
-    init counter, %v3
+    assign counter, %v3
     %v5 = load counter : I64
     ret %v5
 }

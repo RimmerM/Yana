@@ -1,0 +1,36 @@
+fn +=(Int) {
+  %target: Int borrowed live [0, 1) [2, 3)
+  %amount: Int borrowed live [0, 2)
+  %local2: Int live [1, 3)
+}
+
+fn *=(Int) {
+  %target: Int borrowed live [0, 1) [2, 3)
+  %amount: Int borrowed live [0, 2)
+  %local2: Int live [1, 3)
+}
+
+fn bump {
+  %counter: Int borrowed live [0, 1) [2, 3)
+}
+
+fn swap {
+  %a: Int borrowed live [0, 1) [2, 3)
+  %b: Int borrowed live [0, 2) [3, 4)
+}
+
+fn moveBy {
+  %p: Point borrowed live [0, 8)
+}
+
+fn copyThroughBorrow {
+  %target: Int borrowed live [0, 1) [2, 3)
+}
+
+fn main {
+  %total: Int live [0, 33)
+  %left: Int live [11, 34)
+  %right: Int live [13, 35)
+  %local3: Point live [20, 25)
+  %here: Point live [23, 42)
+}

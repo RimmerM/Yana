@@ -1,0 +1,42 @@
+import Native
+
+-- What the borrow checker rejects. Each function is one rule; the expectation beside this file is
+-- the whole of what it reports.
+
+data Buffer {bytes: %U8}
+
+instance Drop(Buffer):
+    fn drop(->value: Buffer) -> {}: freeHeap(value.bytes)
+
+data Pair {left: Buffer, right: Buffer}
+
+fn take(->it: Buffer) -> I64 = asInt(it.bytes)
+
+-- Use after move: the second read reaches storage the first handed away.
+fn useAfterMove() -> I64:
+    let buffer = Buffer {bytes: null()}
+    let first = take(buffer)
+    let second = take(buffer)
+    return first + second
+
+-- Two mutable borrows of one place, alive at once. `swap(x, x)` is the smallest program that wants
+-- to be two writes through the same storage at the same time.
+fn swap(&a: I64, &b: I64) -> {}:
+    let old = a
+    a = b
+    b = old
+
+fn twoMutableBorrows() -> I64:
+    let &value = 0 :: I64
+    swap(value, value)
+    return value
+
+-- Moving one field out of an aggregate. The slot would be half-owned afterwards, and every later
+-- drop of it would have to know which half - a drop flag per field, which is not built yet.
+fn partialMove() -> I64:
+    let pair = Pair {left: Buffer {bytes: null()}, right: Buffer {bytes: null()}}
+    return take(pair.left)
+
+-- Taking ownership of borrowed storage. A `&` binding never owns what it refers to, so there is
+-- nothing there to hand away.
+fn moveFromBorrow(&held: Buffer) -> I64 = take(held)

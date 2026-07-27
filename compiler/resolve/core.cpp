@@ -23,6 +23,10 @@
  * else decided one.
  */
 static const char* kCoreSource = R"CORE(
+infixl 0 +=
+infixl 0 -=
+infixl 0 *=
+infixl 0 /=
 infixl 1 ||
 infixl 2 &&
 infixl 3 ==
@@ -97,6 +101,32 @@ class (FromInt(a)) Num(a):
   fn /(lhs: a, rhs: a) -> a
   fn -(value: a) -> a = 0 - value
 
+-- The compound assignments are ordinary functions, not syntax. `=` is the one reserved token, so
+-- `+=` lexes as an operator like `==` does and needs only a fixity and a declaration - which is
+-- why there is no desugaring of `x += e` to `x = x + e` anywhere in the parser.
+--
+-- That is worth the four lines rather than the one-line rewrite, and the reason is the mutable
+-- borrow. On a `@bits`-packed field, a JS host property, or anything else whose Property is not a
+-- plain load and store, the rewritten form reads and then writes independently while this one
+-- passes one borrow and walks the property path once - the distinction Design.md's Properties and
+-- field access draws between `set` and `modify`, inherited here for free.
+--
+-- Precedence 0 is below every other operator, which is what makes `x += a + b` group as it reads.
+-- It is declared `infixl` because the resolver's precedence climbing is left-associative for every
+-- operator - `infixr` parses and is not yet read - and `a += b += c` is nonsense under either
+-- reading anyway, since the result is unit.
+fn (Num(a)) +=(&target: a, amount: a) -> {}:
+    target = target + amount
+
+fn (Num(a)) -=(&target: a, amount: a) -> {}:
+    target = target - amount
+
+fn (Num(a)) *=(&target: a, amount: a) -> {}:
+    target = target * amount
+
+fn (Num(a)) /=(&target: a, amount: a) -> {}:
+    target = target / amount
+
 class (Num(a)) Integral(a):
   fn rem(lhs: a, rhs: a) -> a
   fn %(lhs: a, rhs: a) -> a
@@ -131,10 +161,41 @@ class Logic(a):
 -- invites unwrapping it on the next line. Truth answers "is this empty/zero/null", not "did this
 -- succeed" - the `is` operator is what payload-carrying types use.
 --
--- `value` becomes `&a` once binding conventions are resolved; nothing about truthiness needs to
--- consume what it is asked about.
+-- `value` is the default convention, which is already an immutable borrow: nothing about
+-- truthiness needs to consume or write what it is asked about.
 class Truth(a):
   fn truthy(value: a) -> Bool
+
+-- The three ownership classes a type can join by writing an instance.
+--
+-- The other two Design.md names - TrivialCopy and TrivialSink - are deliberately absent. They are
+-- implicit, hold for a type exactly when they hold for every one of its members, and are decided
+-- structurally by the compiler before typeclass dispatch is available at all; there is nothing for
+-- an instance of either to say. They become real classes, and so real constraints on a generic
+-- parameter, in Milestone 7.
+--
+-- What these three are for is the cases the structural answer gets wrong, and each of them is a
+-- statement that it does: `Copy` for a type that can be duplicated but not by copying its bytes,
+-- `Sink` for one that cannot be relocated by copying its bytes because it refers to its own
+-- address, and `Drop` for one whose lifetime ends in something other than releasing its storage.
+--
+-- A type that writes none of them still gets all three behaviours - a bitwise copy, a bitwise
+-- move, and the derived drop that releases each member and then this owner's own storage. Writing
+-- `Drop` is what makes that drop opaque, which is the distinction regions are built on.
+class Copy(a):
+  fn copy(from: a) -> a
+
+-- `to` arrives uninitialized and must be fully initialized before returning. That obligation is
+-- Design.md's `@uninit &`, which is not implementable yet - nothing in the language produces
+-- uninitialized storage for a caller to pass - so it is documented here and unchecked. When the
+-- attribute lands this signature gains it and nothing else about the class changes.
+class Sink(a):
+  fn sink(&to: a, ->from: a) -> {}
+
+-- Run once when a live instance dies, at its last use rather than at the end of its scope. Never
+-- run on a location a value has been moved out of, which is what the drop flags exist to know.
+class Drop(a):
+  fn drop(->value: a) -> {}
 
 -- A Widen instance is required to be lossless and total; that is a contract on whoever writes
 -- one, checked no more than Copy's is. Which of the two classes relates a pair of types is the
@@ -241,13 +302,17 @@ void defineCore(Program& program) {
         }
     }
 
-    // The five classes the language's own syntax is written in terms of. Looked up by name once,
-    // here, so that nothing downstream has to search for them by string.
+    // The classes the language's own syntax is written in terms of - a literal, an implicit
+    // conversion, a condition, and the three points a binding convention compiles to. Looked up by
+    // name once, here, so that nothing downstream has to search for them by string.
     program.coreClasses.fromInt = classNamed(*module, "FromInt"_v);
     program.coreClasses.fromDecimal = classNamed(*module, "FromDecimal"_v);
     program.coreClasses.widen = classNamed(*module, "Widen"_v);
     program.coreClasses.narrow = classNamed(*module, "Narrow"_v);
     program.coreClasses.truth = classNamed(*module, "Truth"_v);
+    program.coreClasses.copy = classNamed(*module, "Copy"_v);
+    program.coreClasses.sink = classNamed(*module, "Sink"_v);
+    program.coreClasses.drop = classNamed(*module, "Drop"_v);
 
     // Core's own instances exist only now, so its superclass checks and its `default`
     // declarations run here rather than as part of reading its source.

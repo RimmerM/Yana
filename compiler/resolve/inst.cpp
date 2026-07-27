@@ -7,3 +7,11 @@ bool isTerminator(const Value& value) {
 bool isConstant(const Value& value) {
     return value.kind == Value::ConstInt || value.kind == Value::ConstFloat || value.kind == Value::ConstDouble;
 }
+
+StringView conventionName(ast::BindType convention) {
+    switch(convention) {
+        case ast::BindType::Ref: return "`&`"_v;
+        case ast::BindType::Sink: return "`->`"_v;
+        default: return "an immutable borrow"_v;
+    }
+}

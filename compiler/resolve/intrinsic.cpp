@@ -86,8 +86,10 @@ static ModulePtr<Function> generateInstanceFunction(Module& module, TypeClass& t
 
     for(Size i = 0; i < signature->args.size(); i++) {
         auto declared = local[signature->args.get(local, i)];
-        function->addArg(module, declared->name, substituteType(module, declared->type, args, kNullLocation),
-                         kNullLocation);
+        auto created = function->addArg(module, declared->name,
+                                        substituteType(module, declared->type, args, kNullLocation), kNullLocation);
+        created->convention = declared->convention;
+        created->returnRoot = declared->returnRoot;
     }
 
     ExprResolver resolver(module.context, module, *function);

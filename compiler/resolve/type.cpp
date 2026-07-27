@@ -597,6 +597,136 @@ bool sameTypes(Buffer<TypePtr> lhs, Buffer<TypePtr> rhs) {
     return true;
 }
 
+/*
+ * Ownership classification (Implementation-IR.md part 4).
+ *
+ * Three questions, answered from the shape of the type plus whatever instances the program wrote:
+ * can this be duplicated by copying its bytes, can it be relocated by copying its bytes, and does
+ * the end of its lifetime run anything. The order below matters - the authored instances are
+ * looked for first, because writing one is exactly the statement that the structural answer is
+ * wrong for this type.
+ */
+
+// Whether the program wrote `instance Class(type)`. A class the program never declared (no Core,
+// or a module built before Core's classes exist) has no instances, which is the right answer
+// rather than a reason to check.
+static bool hasInstance(Module& module, GlobalPtr<TypeClass> typeClass, TypePtr type) {
+    if(!typeClass) return false;
+
+    TypePtr args[] = { type };
+    return findInstance(module, typeClass, toBuffer(args)) != nullptr;
+}
+
+// Folds one member into an aggregate's classification. A member that is not trivial makes the
+// whole aggregate not trivial, and a member that has to be dropped gives the aggregate a derived
+// drop - which is the whole of "drop each field, then release this type's own storage".
+static void includeMember(Module& module, TypePtr member, Ownership& target) {
+    auto inner = ownershipOf(module, member);
+
+    target.trivialCopy = target.trivialCopy && inner.trivialCopy;
+    target.trivialSink = target.trivialSink && inner.trivialSink;
+
+    if(inner.drop != DropKind::None && target.drop == DropKind::None) {
+        target.drop = DropKind::Derived;
+    }
+}
+
+Ownership ownershipOf(Module& module, TypePtr type) {
+    auto base = *module.types;
+    if(!type) return Ownership {};
+
+    auto value = base[type];
+    if(value->ownershipReady) return value->ownership;
+
+    // A type reached from inside its own classification can only be a declaration that contains
+    // itself without an indirection, which has no finite value. Answering conservatively rather
+    // than recursing leaves the diagnostic to whoever computes its Repr, which is where an
+    // infinitely large type is already reported.
+    if(value->resolvingOwnership) return Ownership { false, false, false, false, DropKind::Derived };
+
+    Ownership result;
+    value->resolvingOwnership = true;
+
+    switch(value->kind) {
+        case Type::Error:
+        case Type::Unit:
+        case Type::Int:
+        case Type::Float:
+        case Type::Literal:
+            // The scalars, and the literal variable that becomes one. Nothing to release, and
+            // both duplication and relocation are the bytes themselves.
+            break;
+
+        case Type::Ptr:
+            // A raw pointer is an address, and an address is TrivialCopy by Design.md's own list.
+            // Whatever it points at is owned by something else - that is what makes `%T` unsafe
+            // and what keeps it out of this analysis entirely.
+            break;
+
+        case Type::Gen:
+            // Design.md: an unconstrained generic parameter is treated as non-TrivialCopy inside
+            // the body regardless of what a caller substitutes, so that a generic function's
+            // accepted programs are fixed by its own signature. The same argument applies to the
+            // other two: the body must be written as though the type owns something.
+            result = Ownership { false, false, false, false, DropKind::Derived };
+            break;
+
+        case Type::Tup: {
+            auto tuple = (TupType*)value;
+            for(auto field: tuple->fields.contents(base)) includeMember(module, field.type, result);
+            break;
+        }
+
+        case Type::Record: {
+            auto record = (RecordType*)value;
+
+            // An enum-layout record is a discriminant and nothing else, so there are no member
+            // types to fold and the scalar answer is already right.
+            if(record->layout != RecordType::Enum) {
+                for(auto constructor: record->constructors.contents(base)) {
+                    if(constructor.content) includeMember(module, constructor.content, result);
+                }
+            }
+
+            break;
+        }
+
+        default:
+            // Borrow, Ref, RegionPtr, Region, Fun, Array and Map. None of them are constructible
+            // yet; classifying them conservatively is what makes adding one a decision rather than
+            // a silently wrong default.
+            result = Ownership { false, false, false, false, DropKind::Derived };
+            break;
+    }
+
+    // An authored instance overrides the structural answer, which is what writing one means. A
+    // generic declaration is skipped: `Maybe(a)` is not a type anything can have an instance for,
+    // and asking would match the instance of whatever `a` last resolved to.
+    if(!value->generic) {
+        if(hasInstance(module, module.coreClasses.drop, type)) result.drop = DropKind::Authored;
+        if(hasInstance(module, module.coreClasses.copy, type)) result.authoredCopy = true;
+
+        if(hasInstance(module, module.coreClasses.sink, type)) {
+            result.authoredSink = true;
+            result.trivialSink = false;
+        }
+    }
+
+    // Duplicating a value whose lifetime releases something would release it twice, so a drop of
+    // any kind rules out TrivialCopy. This is stated once here rather than at each producer of a
+    // drop above, because it holds for the authored case as well as the derived one.
+    if(result.drop != DropKind::None) result.trivialCopy = false;
+
+    value->resolvingOwnership = false;
+    value->ownership = result;
+    value->ownershipReady = true;
+    return result;
+}
+
+bool needsDrop(Module& module, TypePtr type) {
+    return ownershipOf(module, type).drop != DropKind::None;
+}
+
 bool isUnit(GlobalBase base, TypePtr type) {
     return type && base[type]->kind == Type::Unit;
 }

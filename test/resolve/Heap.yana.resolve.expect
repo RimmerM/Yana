@@ -21,11 +21,11 @@ fn initHeap() -> () {
     %table = mul 32, 8 : I64
     setmemory %region, 0, %table
     %v14 = cast %region : %%U8
-    init heapFree, %v14
+    assign heapFree, %v14
     %v16 = add %region, %table : %U8
-    init heapNext, %v16
+    assign heapNext, %v16
     %v19 = add %region, 4194304 : %U8
-    init heapLimit, %v19
+    assign heapLimit, %v19
     ret
 }
 
@@ -50,10 +50,10 @@ fn heapClassOf(%total: I64) -> I64 {
     %v11 = load %size : I64
     %v12 = load %size : I64
     %v13 = add %v11, %v12 : I64
-    init %size, %v13
+    assign %size, %v13
     %v15 = load %sizeClass : I64
     %v18 = add %v15, 1 : I64
-    init %sizeClass, %v18
+    assign %sizeClass, %v18
     jmp b1
 }
 
@@ -77,7 +77,7 @@ fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
     %v2 = load heapFree : %%U8
     %v4 = mul %sizeClass, 8 : I64
     %v5 = add %v2, %v4 : %%U8
-    init [%v5], %block
+    assign [%v5], %block
     ret
 }
 
@@ -154,9 +154,9 @@ fn allocateHeap(%size: I64) -> %U8 {
 
   b15:
     %v51 = add %block, %blockSize : %U8
-    init heapNext, %v51
+    assign heapNext, %v51
     %v53 = cast %block : %I64
-    init [%v53], %sizeClass
+    assign [%v53], %sizeClass
     %v57 = add %block, 8 : %U8
     ret %v57
 }
@@ -179,7 +179,7 @@ fn freeHeap(%allocation: %U8) -> () {
     %sizeClass = load [%v10] : I64
     %v12 = cast %allocation : %%U8
     %v13 = call freeListHead, %sizeClass : %U8
-    init [%v12], %v13
+    assign [%v12], %v13
     call setFreeListHead, %sizeClass, %allocation
     ret
 }
@@ -255,8 +255,8 @@ fn writeAndRead() -> I64 {
     jmp b3
 
   b3:
-    init [%a], 40
-    init [%b], 2
+    assign [%a], 40
+    assign [%b], 2
     %v21 = load [%a] : I64
     %v22 = load [%b] : I64
     %v23 = add %v21, %v22 : I64

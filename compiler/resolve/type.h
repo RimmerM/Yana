@@ -27,6 +27,48 @@ struct Repr {
     U32 align = 1;
 };
 
+/*
+ * What running out of a value's lifetime costs.
+ *
+ * `None` is nothing at all, `Derived` is the glue the compiler writes - drop each member, then
+ * release this owner's own indirect storage - and `Authored` is an `instance Drop(T)` someone
+ * wrote. Design.md's Ownership-related classes draws the line where it does because regions need
+ * it: derived drop is provably reclaim-only and can be elided when its storage is region-placed,
+ * while an authored one cannot be assumed side-effect-free by inspection.
+ */
+enum class DropKind: U8 {
+    None,
+    Derived,
+    Authored,
+};
+
+/*
+ * The structural ownership facts of one type (Implementation-IR.md part 4).
+ *
+ * These are computed from the shape of the type rather than looked up per use, because every one
+ * of them is needed long before typeclass dispatch is available: whether a `let x = e` copies or
+ * borrows is decided while resolving the `let`, and it is decided by whether `e`'s type is
+ * TrivialCopy.
+ *
+ * `trivialCopy` and `trivialSink` are the two implicit classes and are never spelled in source at
+ * this milestone; `authoredCopy` and `drop`/`trivialSink` record what an `instance Copy(T)` /
+ * `instance Sink(T)` / `instance Drop(T)` supplied, since those *are* spellable and are what
+ * InstCopy and InstMove call. The relations between them are not independent:
+ *
+ *  - a type with any drop is not TrivialCopy, because copying it would duplicate the resource its
+ *    drop releases;
+ *  - a type with an authored Sink anywhere inside it is not TrivialSink, because moving it is a
+ *    call rather than a memcpy;
+ *  - both properties are structural over members, so one non-trivial field is enough.
+ */
+struct Ownership {
+    bool trivialCopy = true;
+    bool trivialSink = true;
+    bool authoredCopy = false;
+    bool authoredSink = false;
+    DropKind drop = DropKind::None;
+};
+
 // Resolve types live in one region shared by every module of a program, so that a type
 // resolved in Core is the same TypePtr when a user module names it. Interning is what makes
 // that identity meaningful: sameType() is pointer equality, and instance selection, generic
@@ -63,6 +105,13 @@ struct Type {
     // Set when a type variable is reachable inside this type. A generic type has no Repr and
     // never reaches the IR; it exists to be substituted.
     bool generic = false;
+
+    // Cached by ownershipOf(). Ownership classification is a whole-program property - one type has
+    // one answer - so it is cached on the type the way Repr is, rather than recomputed per module
+    // that asks. That relies on instance coherence, which the language already requires.
+    Ownership ownership;
+    bool ownershipReady = false;
+    bool resolvingOwnership = false;
 };
 
 /*
@@ -329,6 +378,14 @@ struct CoreClasses {
     GlobalPtr<TypeClass> widen = nullptr;
     GlobalPtr<TypeClass> narrow = nullptr;
     GlobalPtr<TypeClass> truth = nullptr;
+
+    // The three ownership classes. They are known by name for the same reason the five above are:
+    // `let ->z = x` and the end of a value's lifetime are language syntax, and what they compile
+    // to is a lookup of these. TrivialCopy and TrivialSink are deliberately *not* here - they are
+    // structural facts with no instance to find, until Milestone 7 makes them constraints.
+    GlobalPtr<TypeClass> copy = nullptr;
+    GlobalPtr<TypeClass> sink = nullptr;
+    GlobalPtr<TypeClass> drop = nullptr;
 };
 
 /*
@@ -390,6 +447,21 @@ inline bool sameTypes(List& list, Base base, Buffer<TypePtr> args) {
 
     return true;
 }
+
+/*
+ * The ownership classification of a type, computed structurally and cached.
+ *
+ * `module` is needed only to find the authored instances, and the answer does not depend on which
+ * module asked - see Type::ownership. A cycle reachable without an indirection would be an
+ * infinitely large value and cannot be constructed; the guard exists so that a declaration which
+ * *is* recursive (through a raw pointer, which is never recursed into) still terminates rather than
+ * relying on the pointer case being reached first.
+ */
+Ownership ownershipOf(Module& module, TypePtr type);
+
+// Whether the end of this value's lifetime has to run anything. Shorthand for the question drop
+// insertion asks of every place, which is the one ownership fact most callers want.
+bool needsDrop(Module& module, TypePtr type);
 
 bool isUnit(GlobalBase base, TypePtr type);
 bool isLiteral(GlobalBase base, TypePtr type);

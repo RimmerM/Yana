@@ -265,10 +265,38 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             result = resolver.emit<InstLoadPlace>(inst.source, inst.name, type,
                                                   clonePlace(clone, ((InstLoadPlace&)inst).place));
             break;
-        case Value::Init: {
+        case Value::Init:
+        case Value::Assign: {
             auto& init = (InstInit&)inst;
             result = resolver.emit<InstInit>(inst.source, inst.name, type, clonePlace(clone, init.place),
-                                             cloneValue(clone, init.value));
+                                             cloneValue(clone, init.value), inst.kind);
+            break;
+        }
+        case Value::Move: {
+            // The Sink and Copy implementations are deliberately not carried across. A clone is
+            // being made for concrete types, and which implementation serves them is a question
+            // only the substituted type can answer - see finishOwnership, which runs on the
+            // specialization the same way it runs on any other function.
+            result = resolver.emit<InstMove>(inst.source, inst.name, type,
+                                             clonePlace(clone, ((InstMove&)inst).place));
+            break;
+        }
+        case Value::Copy: {
+            auto cloned = resolver.emit<InstCopy>(inst.source, inst.name, type,
+                                                  clonePlace(clone, ((InstCopy&)inst).place));
+
+            if(((InstCopy&)inst).local != maxLimit<U32>) {
+                cloned->local = resolver.function.addLocal(clone.module, type, inst.name,
+                                                           resolver.ref(cloned));
+            }
+
+            result = cloned;
+            break;
+        }
+        case Value::Borrow: {
+            auto& borrow = (InstBorrow&)inst;
+            result = resolver.emit<InstBorrow>(inst.source, inst.name, type,
+                                               clonePlace(clone, borrow.place), borrow.mut);
             break;
         }
         case Value::Address:
@@ -363,6 +391,8 @@ static void cloneBody(Clone& clone, Function& to) {
     for(auto argPointer: from.args.contents(local)) {
         auto arg = local[argPointer];
         auto created = to.addArg(clone.module, arg->name, cloneType(clone, arg->type), arg->source);
+        created->convention = arg->convention;
+        created->returnRoot = arg->returnRoot;
         clone.values.add((ModulePtr<Value>)argPointer, (ModulePtr<Value>)(created - local));
     }
 
@@ -372,7 +402,7 @@ static void cloneBody(Clone& clone, Function& to) {
     for(Size i = 0; i < from.localCount(); i++) {
         auto slot = from.localAt(local, U32(i));
         to.locals.push(clone.module.arena, Local {
-            cloneType(clone, slot.type), slot.name, nullptr, slot.convention, slot.storage,
+            cloneType(clone, slot.type), slot.name, nullptr, slot.convention, slot.storage, slot.borrowed,
         });
     }
 

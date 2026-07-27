@@ -584,11 +584,6 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
         }
 
         auto mutable_ = decl.bind == ast::BindType::Ref;
-
-        if(decl.bind != ast::BindType::Borrow && !mutable_) {
-            context.diagnostics.error("let binding conventions are deferred until the ownership resolver"_v, decl.pat.source);
-        }
-
         auto checkpoint = bindings.size();
 
         // A `let` is a statement boundary, so a literal the initializer left open is settled to
@@ -596,6 +591,14 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
         // and make it a Long.
         auto value = settle(resolve(*parse[decl.content]), decl.pat.source);
         if(!value) continue;
+
+        // `let ->z = x` takes ownership out of whatever `x` named, so the name that follows binds
+        // the moved value rather than the source. The binding itself is an ordinary immutable one:
+        // what `->` decides is where the value came from, not what may be done with it after.
+        if(decl.bind == ast::BindType::Sink) {
+            value = sinkValue(value, decl.pat.source);
+            if(!value) continue;
+        }
 
         if(mutable_) {
             bindMutable(decl, value);
@@ -642,7 +645,7 @@ void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value>
 
     auto name = declaration.pat.var;
     auto type = valueType(value);
-    auto storage = allocate(type, declaration.pat.source, name);
+    auto storage = allocate(type, declaration.pat.source, name, ast::BindType::Ref);
     auto place = placeFor(storage, declaration.pat.source);
 
     initialize(place, value, declaration.pat.source);
@@ -728,20 +731,19 @@ Maybe<Place> ExprResolver::resolvePlace(const ast::Expr& astExpr, bool through) 
     return Nothing();
 }
 
-ModulePtr<Value> ExprResolver::resolveAssign(const ast::Expr& expr, const ast::AssignExpr& assign) {
-    auto place = resolvePlace(assign.target);
+ModulePtr<Value> ExprResolver::resolveAssign(const ast::Expr& expr, const ast::AssignExpr& assignment) {
+    auto place = resolvePlace(assignment.target);
     if(!place) return nullptr;
 
     auto type = placeType(place.unwrap());
-    auto value = resolve(assign.value, type);
+    auto value = resolve(assignment.value, type);
     if(!value) return nullptr;
 
     if(!isMemoryType(global, type)) value = convert(value, type, expr.source);
 
-    // Writing over a live value is the same instruction as initializing empty storage until
-    // there is something to drop - Implementation-IR.md part 3's InstAssign lands with the
-    // ownership milestone, which is what gives the distinction an observable meaning.
-    initialize(place.unwrap(), value, expr.source);
+    // An assignment overwrites whatever the place held, which is what obliges the drop pass to
+    // release the old value here rather than at the end of the binding's life.
+    assign(place.unwrap(), value, expr.source);
     return nullptr;
 }
 
@@ -935,12 +937,23 @@ bool resolveFunctionBody(Module& module, Function& function) {
     for(auto argPointer: function.args.contents(*module.arena)) {
         auto arg = (*module.arena)[argPointer];
         auto value = (ModulePtr<Value>)argPointer;
+        Binding binding { arg->name, value };
 
-        if(isMemoryType(*module.types, arg->type)) {
-            function.addLocal(module, arg->type, arg->name, value);
+        if(arg->isMutableBorrow()) {
+            // A `&` parameter names storage the caller owns. The argument arrived as the address
+            // of it, so the parameter gets a local whose value *is* that address - which is
+            // exactly what a local of an ordinary allocation holds - and the binding names the
+            // slot rather than the value, so reads load and assignments write through.
+            //
+            // `borrowed` is what keeps this frame from treating the slot as its own: it is never
+            // allocated here and never dropped here.
+            binding.local = function.addLocal(module, arg->type, arg->name, value,
+                                              ast::BindType::Ref, true);
+        } else if(isMemoryType(*module.types, arg->type)) {
+            function.addLocal(module, arg->type, arg->name, value, arg->convention);
         }
 
-        resolver.bindings.push(Binding { arg->name, value });
+        resolver.bindings.push(binding);
     }
 
     auto errors = context.diagnostics.errorCount();

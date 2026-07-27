@@ -10,28 +10,54 @@
  * the resolver still works on SSA values, which is what keeps scalars out of memory entirely.
  */
 
-ModulePtr<Value> ExprResolver::allocate(TypePtr type, LocationId source, StringId valueName) {
+ModulePtr<Value> ExprResolver::allocate(TypePtr type, LocationId source, StringId valueName,
+                                        ast::BindType convention) {
     auto allocation = emit<InstAlloc>(source, valueName, type, maxLimit<U32>);
     auto result = ref(allocation);
 
-    allocation->local = function.addLocal(module, type, valueName, result);
+    allocation->local = function.addLocal(module, type, valueName, result, convention);
     return result;
 }
 
-// The place a value is stored in. A value loaded out of a place is addressed through that same
-// place again rather than through a copy, so that a field of a field resolves to one projection
-// path rather than to a chain of temporaries.
-Place ExprResolver::placeFor(ModulePtr<Value> value, LocationId source) {
+// The place a value came out of, or nothing where it came out of no storage at all. A value loaded
+// out of a place is addressed through that same place again rather than through a copy, so that a
+// field of a field resolves to one projection path rather than to a chain of temporaries.
+Maybe<Place> ExprResolver::findPlace(ModulePtr<Value> value) {
     if(value && local[value]->kind == Value::LoadPlace) {
-        return ((InstLoadPlace*)local[value])->place;
+        return Just(((InstLoadPlace*)local[value])->place);
     }
 
     for(U32 i = 0; i < function.localCount(); i++) {
-        if(function.localAt(local, i).value == value) return Place::inLocal(i);
+        if(function.localAt(local, i).value == value) return Just(Place::inLocal(i));
     }
+
+    return Nothing();
+}
+
+Place ExprResolver::placeFor(ModulePtr<Value> value, LocationId source) {
+    if(auto found = findPlace(value)) return found.unwrap();
 
     context.diagnostics.error("aggregate value does not have an addressable place"_v, source);
     return Place::inLocal(maxLimit<U32>);
+}
+
+// Whether this place may be written through. A local says so with the convention of the binding
+// that owns it, a global with `let &`, and the memory a raw pointer names is always writable -
+// Design.md's Pointers section, which is also why an immutable binding holding one can still root
+// a write. A borrow of a place is exactly a write capability handed to someone else, so a mutable
+// borrow asks this same question.
+bool ExprResolver::isWritablePlace(const Place& place) {
+    switch(place.root) {
+        case PlaceRoot::Local:
+            return place.local < function.localCount() &&
+                   function.localAt(local, place.local).convention == ast::BindType::Ref;
+        case PlaceRoot::Global:
+            return place.global && local[place.global]->mut;
+        case PlaceRoot::Pointer:
+            return true;
+    }
+
+    return false;
 }
 
 // The place a value occupies, creating one if it has none. A scalar normally has none - it is in
@@ -152,6 +178,16 @@ ModulePtr<Value> ExprResolver::load(Place place, LocationId source, StringId val
 }
 
 void ExprResolver::initialize(Place place, ModulePtr<Value> value, LocationId source) {
+    write(place, value, source, Value::Init);
+}
+
+// Overwriting storage that already held a live value. The difference from initialize() is entirely
+// about what the old value was owed - see InstInit - so the two share everything else.
+void ExprResolver::assign(Place place, ModulePtr<Value> value, LocationId source) {
+    write(place, value, source, Value::Assign);
+}
+
+void ExprResolver::write(Place place, ModulePtr<Value> value, LocationId source, Value::Kind kind) {
     if(isUnit(global, placeType(place))) return;
 
     if(!value) {
@@ -159,7 +195,87 @@ void ExprResolver::initialize(Place place, ModulePtr<Value> value, LocationId so
         return;
     }
 
-    emit<InstInit>(source, 0, module.scalar.unit, place, value);
+    emit<InstInit>(source, 0, module.scalar.unit, place, value, kind);
+}
+
+/*
+ * The argument of a `&` parameter.
+ *
+ * There is no sigil at the call site: the convention is part of the callee's signature, so `f(x)`
+ * mutably borrows exactly when `f` declared `&x`. That is what lets `x += 41` mean anything at
+ * all, since an infix operator has nowhere to put a sigil and `+=` is an ordinary function whose
+ * first parameter is `&`.
+ *
+ * What is checked here is what a mutable borrow needs before liveness has anything to say: the
+ * argument has to name storage, and that storage has to be writable. Note that no conversion is
+ * attempted - converting would borrow a temporary and write back into nothing, so a mismatched
+ * type is an ordinary argument error rather than something to paper over.
+ */
+ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr expected, LocationId source) {
+    if(!value) return nullptr;
+
+    if(!sameType(valueType(value), expected)) {
+        context.diagnostics.error("a `&` argument must have exactly type %@, but this is %@ - a conversion would borrow a temporary"_v,
+                                  source, describeType(context, global, expected),
+                                  describeType(context, global, valueType(value)));
+        return nullptr;
+    }
+
+    auto place = findPlace(value);
+    if(!place) {
+        context.diagnostics.error("a `&` argument must name storage that can be written back to"_v, source);
+        return nullptr;
+    }
+
+    if(!isWritablePlace(place.unwrap())) {
+        context.diagnostics.error("a `&` argument must name mutable storage - declare it with `let &`"_v, source);
+        return nullptr;
+    }
+
+    return ref(emit<InstBorrow>(source, 0, expected, place.unwrap(), true));
+}
+
+/*
+ * What a `->` binding or a `->` argument produces.
+ *
+ * Design.md gives sink two behaviours rather than one, and which applies is decided here by the
+ * source's type:
+ *
+ *  - not TrivialCopy: ownership is taken out of the source's storage, which becomes inaccessible.
+ *    That is InstMove, and it is the whole reason `->` exists.
+ *  - TrivialCopy: an independent copy, leaving the source valid - "`let ->z = x` (with `x: Int`)
+ *    leaves `x` valid too, since `->` is the other TrivialCopy-affected convention alongside
+ *    default". For a scalar that copy is free: the value is already in a register and the storage
+ *    it was read out of was never touched. For an aggregate it is a real duplicate, because
+ *    binding the same address twice would give two names one storage - which is exactly what
+ *    TrivialCopy promises does not happen.
+ *
+ * A source that is in no storage at all - a call result, an arithmetic expression, a construction -
+ * is already a temporary nothing else can reach, so there is nothing to take it out of and it
+ * passes through unchanged.
+ */
+ModulePtr<Value> ExprResolver::sinkValue(ModulePtr<Value> value, LocationId source) {
+    if(!value) return nullptr;
+
+    auto type = valueType(value);
+    auto place = findPlace(value);
+    if(!place) return value;
+
+    auto ownership = ownershipOf(module, type);
+    auto name = local[value]->name;
+
+    if(!ownership.trivialCopy) {
+        return ref(emit<InstMove>(source, name, type, place.unwrap()));
+    }
+
+    if(!isMemoryType(global, type)) return value;
+
+    auto duplicate = create<InstCopy>(source, name, type, place.unwrap());
+    append(duplicate);
+
+    auto result = ref(duplicate);
+    duplicate->local = function.addLocal(module, type, name, result);
+    return result;
 }
 
 // The address of a place, as a pointer to whatever it holds. Taking one is what forces a value
@@ -458,12 +574,18 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
  *
  * `{->v | ...}` is the same expression consuming its source instead of copying it, which is the
  * only version that can be cheaper than a copy and the only one that needs to know whether anyone
- * else can still see `v`. That is the ownership resolver's question, so it reports until then.
+ * else can still see `v`.
+ *
+ * The ownership resolver can now answer that, but the optimization it enables is a different
+ * thing from the answer: writing in place means reusing the source's storage for the result, which
+ * is a storage-class decision rather than a checking one. Until that is worth doing, the honest
+ * spelling of `{->v | ...}` would be an InstMove followed by exactly the copy `{v | ...}` already
+ * performs - the same code under a name that promises otherwise. So it still reports.
  */
 ModulePtr<Value> ExprResolver::resolveTupUpdate(const ast::Expr& expr, const ast::TupUpdateExpr& update,
                                                 TypePtr target) {
     if(update.bind == ast::BindType::Sink) {
-        context.diagnostics.error("a move update is deferred until the ownership resolver - write `{value | ...}` to copy"_v,
+        context.diagnostics.error("a move update is not implemented - write `{value | ...}` to copy"_v,
                                   expr.source);
         return nullptr;
     }

@@ -65,12 +65,25 @@ Inst* Block::add(Module& module, Inst* inst) {
             case Value::LoadPlace:
                 addPlaceUse(module, ((InstLoadPlace*)inst)->place, inst);
                 break;
-            case Value::Init: {
+            case Value::Init:
+            case Value::Assign: {
                 auto init = (InstInit*)inst;
                 addPlaceUse(module, init->place, inst);
                 addUse(module, init->value, inst);
                 break;
             }
+            case Value::Borrow:
+                addPlaceUse(module, ((InstBorrow*)inst)->place, inst);
+                break;
+            case Value::Move:
+                addPlaceUse(module, ((InstMove*)inst)->place, inst);
+                break;
+            case Value::Copy:
+                addPlaceUse(module, ((InstCopy*)inst)->place, inst);
+                break;
+            case Value::Drop:
+                addPlaceUse(module, ((InstDrop*)inst)->place, inst);
+                break;
             case Value::Address:
                 addPlaceUse(module, ((InstAddress*)inst)->place, inst);
                 break;

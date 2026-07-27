@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include "../compiler/parse/parser.h"
+#include "../compiler/resolve/analyze.h"
 #include "../compiler/resolve/lower.h"
 #include "../compiler/resolve/print.h"
 #include "../compiler/lower/lower_print.h"
@@ -71,6 +72,42 @@ struct TestProvider: SourceProvider, ModuleProvider {
         return ast;
     }
 };
+
+/*
+ * A diagnostics sink that keeps what was reported instead of printing it.
+ *
+ * A rejection fixture asserts the diagnostics themselves, so they have to be comparable text rather
+ * than something written to the console. The recorded form is deliberately narrower than
+ * PrintDiagnostics': the line, the column, the level and the message, and none of the quoted source
+ * - a fixture asserting the underline would be asserting the diagnostic printer rather than the
+ * rule that produced the diagnostic.
+ */
+struct RecordDiagnostics: Diagnostics {
+    using Diagnostics::Diagnostics;
+
+    void message(Level level, StringView text, const Location* where) override {
+        Diagnostics::message(level, text, where);
+
+        const char* type;
+        switch(level) {
+            case ErrorLevel: type = "error"; break;
+            case WarningLevel: type = "warning"; break;
+            default: type = "message"; break;
+        }
+
+        format(recorded, String("%@:%@: %@: %@\n"),
+               where ? where->sourceStart.line + 1 : 0,
+               where ? where->sourceStart.column : 0,
+               type, text);
+    }
+
+    StringBuilder recorded;
+};
+
+static bool fileExists(const String& path) {
+    auto info = File::info(path);
+    return info && !info.unwrapOk().isDirectory;
+}
 
 static bool compareText(const String& path, ByteBuffer actual) {
     auto opened = File::openFile(path, readAccess());
@@ -192,7 +229,52 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
 #endif
 }
 
+/*
+ * A fixture that asserts what the resolver *rejects*.
+ *
+ * Ownership is the first milestone where the interesting output of a fixture is a diagnostic
+ * rather than an instruction, so rejection is a fixture mode rather than a failure: a `.yana` file
+ * with a `.errors.expect` beside it is expected to report, and the reported text is what is
+ * compared. Nothing after resolution runs for one - an IR built while errors were being reported
+ * has no reason to lower or to mean anything.
+ *
+ * The mode is opted into by the file's existence rather than by anything in the source, so a new
+ * rejection fixture is an empty `.errors.expect` plus a `generate` run.
+ */
+static bool runRejectionTest(const String& path, const String& errorPath, StringView source, bool generate) {
+    TestProvider provider;
+    provider.source = source;
+    RecordDiagnostics diagnostics(provider);
+    Context context(diagnostics);
+    provider.context = &context;
+
+    auto name = context.addUnqualifiedName("ResolveTest", 11);
+    Lexer lexer(context, diagnostics, source, name);
+    Parser parser(context, lexer, name);
+    auto ast = parser.parseModule();
+    resolveProgram(context, ast, &provider);
+
+    if(generate) {
+        writeText(errorPath, [&](Net::Writer& writer) {
+            writer.writeString(StringView { diagnostics.recorded.pointer(), diagnostics.recorded.size() });
+        });
+    }
+
+    auto pass = true;
+    if(!diagnostics.errorCount()) {
+        println("Fail (%@): expected the resolver to report, and it accepted the program.", path);
+        pass = false;
+    }
+
+    pass = compareText(errorPath, ByteBuffer((Byte*)diagnostics.recorded.pointer(), diagnostics.recorded.size())) && pass;
+    println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);
+    return pass;
+}
+
 static bool runTest(const String& path, StringView source, bool generate) {
+    auto errorPath = path + String(".errors.expect");
+    if(fileExists(errorPath)) return runRejectionTest(path, errorPath, source, generate);
+
     TestProvider provider;
     provider.source = source;
     PrintDiagnostics diagnostics(provider);
@@ -222,15 +304,36 @@ static bool runTest(const String& path, StringView source, bool generate) {
     printProgram(resolveWriter, context, *module);
     auto pass = compareText(resolvePath, resolveWriter.getBuffered());
 
-    auto lowered = lowerProgram(context, *module);
-    if(!validateLowerModule(&diagnostics, lowered.get())) {
-        println("Fail (%@): lowering produced invalid lower IR.", path);
-        return false;
+    // The ownership dump is opt-in per fixture rather than produced for every one. Liveness of a
+    // function with nothing to own says nothing, and generating it everywhere would put a third
+    // expectation beside twenty fixtures that are not about ownership.
+    auto ownPath = path + String(".own.expect");
+    if(fileExists(ownPath)) {
+        if(generate) {
+            writeText(ownPath, [&](Net::Writer& writer) {
+                printOwnership(writer, context, *module);
+            });
+        }
+
+        Net::Writer ownWriter(16384);
+        printOwnership(ownWriter, context, *module);
+        pass = compareText(ownPath, ownWriter.getBuffered()) && pass;
     }
+
+    auto lowered = lowerProgram(context, *module);
+
+    // Written before it is validated, deliberately: the whole value of a validation failure is
+    // being able to look at the IR that failed, and it is exactly then that the expect file has
+    // not been produced yet.
     if(generate) {
         writeText(lowerPath, [&](Net::Writer& writer) {
             printModule(writer, context, *lowered->arena, *lowered);
         });
+    }
+
+    if(!validateLowerModule(&diagnostics, lowered.get())) {
+        println("Fail (%@): lowering produced invalid lower IR.", path);
+        return false;
     }
 
     Net::Writer lowerWriter(16384);

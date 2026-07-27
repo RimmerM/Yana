@@ -224,6 +224,11 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
 
     switch(instruction.kind) {
         case Value::Alloc: {
+            // Only frame storage is ever selected today - see StorageClass. The others are
+            // asserted rather than silently treated as a frame slot, since a region-placed value
+            // silently landing on the stack would be a lifetime bug rather than a slow program.
+            assertTrue(((InstAlloc&)instruction).storage == StorageClass::Stack);
+
             auto bytes = immediate(lower, typeSize(lower.global, instruction.type));
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(instruction.name, bytes, typeAlign(lower.global, instruction.type)));
             break;
@@ -248,7 +253,11 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             );
             break;
         }
-        case Value::Init: {
+        case Value::Init:
+        case Value::Assign: {
+            // The two are one instruction here. Whatever the old value's drop needed has already
+            // been emitted as its own InstDrop by the drop pass, so by the time lowering sees an
+            // assignment there is nothing left in it but the write.
             auto& init = (InstInit&)instruction;
             auto address = lowerPlace(lower, block, *function, init.place);
             auto value = mappedValue(lower, init.value);
@@ -259,6 +268,90 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             } else {
                 result = block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, value, memoryWidth(lower.global, lower.local[init.value]->type)));
             }
+
+            break;
+        }
+        case Value::Borrow: {
+            // A borrow is the address of what it borrows. Nothing is loaded and nothing is copied,
+            // which is the whole of what "non-owning, zero-cost" means once the checking is done.
+            auto address = lowerPlace(lower, block, *function, ((InstBorrow&)instruction).place);
+            lower.values.add(instValue, address);
+            return;
+        }
+        case Value::Move: {
+            // A bitwise move needs no code at all: the bytes stay where they are and what changed
+            // is only which name is allowed to reach them. An authored Sink is the call the
+            // resolver already attached, and is emitted by the drop pass rather than here, so a
+            // move reaching lowering is always the bitwise one.
+            auto& moved = (InstMove&)instruction;
+            assertTrue(moved.sink == nullptr);
+
+            auto address = lowerPlace(lower, block, *function, moved.place);
+
+            if(isMemoryType(lower.global, instruction.type)) {
+                lower.values.add(instValue, address);
+                return;
+            }
+
+            result = load(
+                lower.lower, lower.to, block, lower.lower[address],
+                memoryWidth(lower.global, instruction.type),
+                signedType(lower.global, instruction.type),
+                lowerType(lower.global, instruction.type),
+                instruction.name
+            );
+            break;
+        }
+        case Value::Copy: {
+            // A copy is a real duplicate, so unlike a move it needs storage of its own: an
+            // aggregate is a block copy into a fresh alloca and a scalar is an ordinary load,
+            // which is already a fresh value in a register.
+            auto& copied = (InstCopy&)instruction;
+            assertTrue(copied.copy == nullptr);
+
+            auto address = lowerPlace(lower, block, *function, copied.place);
+
+            if(isMemoryType(lower.global, instruction.type)) {
+                auto size = typeSize(lower.global, instruction.type);
+                auto bytes = immediate(lower, size);
+                auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
+                    instruction.name, bytes, typeAlign(lower.global, instruction.type)));
+
+                auto target = allocation->created().ptr - lower.lower;
+                auto count = immediate(lower, size);
+                auto blockCopy = block.addInst(lower.lower, new (lower.to.arena) LowerInstCopy(target, address, count));
+                blockCopy->source = instruction.source;
+
+                lower.values.add(instValue, target);
+                return;
+            }
+
+            result = load(
+                lower.lower, lower.to, block, lower.lower[address],
+                memoryWidth(lower.global, instruction.type),
+                signedType(lower.global, instruction.type),
+                lowerType(lower.global, instruction.type),
+                instruction.name
+            );
+            break;
+        }
+        case Value::Drop: {
+            // A drop is a call to the implementation the pass selected, taking the address of what
+            // is being dropped. A drop with no implementation is one whose glue turned out to be
+            // empty and should have been elided rather than emitted.
+            auto& dropped = (InstDrop&)instruction;
+            assertTrue(dropped.implementation != nullptr);
+            assertTrue(dropped.flag == maxLimit<U32>);
+
+            auto address = lowerPlace(lower, block, *function, dropped.place);
+            auto target = lower.functions.getValue(dropped.implementation).unwrap();
+            auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, target));
+
+            result = call(lower.lower, lower.to, block, 0, 2, lower.lower[target]->callType,
+                          [&](LowerInstCall* dropCall) {
+                dropCall->used()[0] = fun->created().ptr - lower.lower;
+                dropCall->used()[1] = address;
+            });
 
             break;
         }
@@ -615,7 +708,12 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
 
         for(auto argPointer: function->args.contents(lower.local)) {
             auto arg = lower.local[argPointer];
-            auto targetArg = target->addArg(lower.lower, arg->name, lowerType(lower.global, arg->type));
+
+            // A `&` parameter arrives as the address of the caller's storage whatever it holds, so
+            // its lower type is a pointer even where the borrowed type is a register-sized scalar.
+            // For a memory type the two answers already coincide.
+            auto argType = arg->isMutableBorrow() ? LowerType::Pointer : lowerType(lower.global, arg->type);
+            auto targetArg = target->addArg(lower.lower, arg->name, argType);
             targetArg->source = arg->source;
             lower.values.add((ModulePtr<Value>)argPointer, &targetArg->result - lower.lower);
         }

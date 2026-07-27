@@ -130,7 +130,7 @@ struct ExprResolver {
     // `through` says the place is about to be projected into rather than assigned to as a whole,
     // which is what lets an immutable binding holding a raw pointer root one - see resolvePlace.
     Maybe<Place> resolvePlace(const ast::Expr& expr, bool through = false);
-    ModulePtr<Value> resolveAssign(const ast::Expr& expr, const ast::AssignExpr& assign);
+    ModulePtr<Value> resolveAssign(const ast::Expr& expr, const ast::AssignExpr& assignment);
     void bindMutable(const ast::VarDecl& declaration, ModulePtr<Value> value);
     ModulePtr<Value> makeInt(LocationId source, TypePtr type, U64 value);
     ModulePtr<Value> makeFloat(LocationId source, TypePtr type, F64 value);
@@ -273,14 +273,31 @@ struct ExprResolver {
      * Storage and aggregates (expr_construct.cpp).
      */
 
-    ModulePtr<Value> allocate(TypePtr type, LocationId source, StringId name = 0);
+    // Storage for one value. `convention` is what the name that owns the slot may do with it: a
+    // temporary and an immutable binding get the default, a `let &` gets Ref, and it is what both
+    // assignment and a `&` argument check before writing through.
+    ModulePtr<Value> allocate(TypePtr type, LocationId source, StringId name = 0,
+                              ast::BindType convention = ast::BindType::Borrow);
+    Maybe<Place> findPlace(ModulePtr<Value> value);
     Place placeFor(ModulePtr<Value> value, LocationId source);
+    bool isWritablePlace(const Place& place);
+
+    // The value passed for a `&` parameter: a mutable borrow of whatever storage the argument
+    // named. Null, after reporting, when the argument names none or names storage that may not be
+    // written - the two ways a mutable borrow can fail before any liveness question arises.
+    ModulePtr<Value> borrowArgument(ModulePtr<Value> value, TypePtr expected, LocationId source);
+
+    // The value a `->` binding or a `->` argument produces - a move, an independent copy, or the
+    // value unchanged, decided by the source's ownership classification. See expr_construct.cpp.
+    ModulePtr<Value> sinkValue(ModulePtr<Value> value, LocationId source);
     Place materialize(ModulePtr<Value> value, LocationId source);
     Place project(Place place, ProjectionKind kind, U16 index, ModulePtr<Value> value = nullptr);
     TypePtr placeRootType(const Place& place);
     TypePtr placeType(const Place& place);
     ModulePtr<Value> load(Place place, LocationId source, StringId name = 0);
     void initialize(Place place, ModulePtr<Value> value, LocationId source);
+    void assign(Place place, ModulePtr<Value> value, LocationId source);
+    void write(Place place, ModulePtr<Value> value, LocationId source, Value::Kind kind);
     ModulePtr<Value> addressOf(Place place, LocationId source, StringId name = 0);
 
     ModulePtr<Value> resolveTuple(const ast::Expr& expr, ast::ParseList<ast::TupArg> args, TypePtr target);

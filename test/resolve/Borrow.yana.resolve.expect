@@ -1,0 +1,101 @@
+fn +=(Int)(%target: Int, %amount: Int) -> () {
+  b0:
+    %v2 = load %target : Int
+    %v3 = add %v2, %amount : Int
+    assign %target, %v3
+    ret
+}
+
+fn *=(Int)(%target: Int, %amount: Int) -> () {
+  b0:
+    %v2 = load %target : Int
+    %v3 = mul %v2, %amount : Int
+    assign %target, %v3
+    ret
+}
+
+fn bump(%counter: Int, %by: Int) -> () {
+  b0:
+    %v2 = load %counter : Int
+    %v3 = add %v2, %by : Int
+    assign %counter, %v3
+    ret
+}
+
+fn swap(%a: Int, %b: Int) -> () {
+  b0:
+    %old = load %a : Int
+    %v3 = load %b : Int
+    assign %a, %v3
+    assign %b, %old
+    ret
+}
+
+fn moveBy(%p: Point, %dx: Int, %dy: Int) -> () {
+  b0:
+    %v3 = load %p : Point
+    %v4 = load %p@Point.x : Int
+    %v5 = borrow_mut %p@Point.x : Int
+    call +=(Int), %v5, %dx
+    %v7 = load %p : Point
+    %v8 = load %p@Point.y : Int
+    %v9 = borrow_mut %p@Point.y : Int
+    call +=(Int), %v9, %dy
+    ret
+}
+
+fn copyThroughBorrow(%target: Int, %amount: Int) -> () {
+  b0:
+    %v2 = load %target : Int
+    %v3 = add %v2, %amount : Int
+    assign %target, %v3
+    ret
+}
+
+fn main() -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v3 = load %total : Int
+    %v5 = borrow_mut %total : Int
+    call bump, %v5, 5
+    %v7 = load %total : Int
+    %v10 = borrow_mut %total : Int
+    call +=(Int), %v10, 3
+    %v12 = load %total : Int
+    %v15 = borrow_mut %total : Int
+    call *=(Int), %v15, 2
+    %left = alloc : Int
+    init %left, 1
+    %right = alloc : Int
+    init %right, 2
+    %v23 = load %left : Int
+    %v24 = load %right : Int
+    %v25 = borrow_mut %left : Int
+    %v26 = borrow_mut %right : Int
+    call swap, %v25, %v26
+    %v28 = alloc : Point
+    init %local3@Point.x, 10
+    init %local3@Point.y, 20
+    %here = alloc : Point
+    init %here, %v28
+    %v35 = load %here : Point
+    %v38 = borrow_mut %here : Point
+    call moveBy, %v38, 1, 2
+    %v40 = load %total : Int
+    %v41 = load %total : Int
+    %v42 = borrow_mut %total : Int
+    call copyThroughBorrow, %v42, %v41
+    %v44 = load %total : Int
+    %v45 = load %left : Int
+    %v46 = load %right : Int
+    %v47 = sub %v45, %v46 : Int
+    %v48 = add %v44, %v47 : Int
+    %v49 = load %here : Point
+    %v50 = load %here@Point.x : Int
+    %v51 = add %v48, %v50 : Int
+    %v52 = load %here : Point
+    %v53 = load %here@Point.y : Int
+    %v54 = add %v51, %v53 : Int
+    ret %v54
+}

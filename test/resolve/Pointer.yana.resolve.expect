@@ -5,7 +5,7 @@ fn roundTrip() -> I64 {
     %p = addressof %local0 : %I64
     %v4 = load [%p] : I64
     %v7 = add %v4, 1 : I64
-    init [%p], %v7
+    assign [%p], %v7
     %v9 = load [%p] : I64
     ret %v9
 }
@@ -20,7 +20,7 @@ fn throughField() -> I64 {
     %v7 = load [%p] : Node
     %v8 = load [%p]@Node.value : I64
     %v11 = mul %v8, 5 : I64
-    init [%p]@Node.value, %v11
+    assign [%p]@Node.value, %v11
     %v13 = load [%p] : Node
     %v14 = load [%p]@Node.value : I64
     ret %v14
@@ -38,13 +38,13 @@ fn pointerFields() -> I64 {
     init %local1@Node.next, %v9
     %n = addressof %local0 : %Node
     %m = addressof %local1 : %Node
-    init [%n]@Node.value, 5
-    init [%n]@Node.next, %m
+    assign [%n]@Node.value, 5
+    assign [%n]@Node.next, %m
     %v17 = load [%n]@Node.value : I64
     %v18 = load [%n]@Node.next : %Node
     %v19 = load [%v18]@Node.value : I64
     %v20 = add %v17, %v19 : I64
-    init [%n]@Node.next.*@Node.value, %v20
+    assign [%n]@Node.next.*@Node.value, %v20
     %v22 = load [%n]@Node.value : I64
     %v25 = mul %v22, 100 : I64
     %v26 = load [%n]@Node.next : %Node
@@ -82,9 +82,9 @@ fn walkList() -> I64 {
     init %local2@Node.next, %v15
     %a = addressof %local2 : %Node
     %v19 = addressof %local1 : %Node
-    init [%a]@Node.next, %v19
+    assign [%a]@Node.next, %v19
     %v21 = addressof %local0 : %Node
-    init [%a]@Node.next.*@Node.next, %v21
+    assign [%a]@Node.next.*@Node.next, %v21
     %v23 = call total, %a : I64
     ret %v23
 }
@@ -125,7 +125,7 @@ fn compareAddresses() -> I64 {
   b1:
     %v17 = load %score : I64
     %v20 = add %v17, 1 : I64
-    init %score, %v20
+    assign %score, %v20
     jmp b3
 
   b2:
@@ -138,7 +138,7 @@ fn compareAddresses() -> I64 {
   b4:
     %v26 = load %score : I64
     %v29 = add %v26, 2 : I64
-    init %score, %v29
+    assign %score, %v29
     jmp b6
 
   b5:
@@ -153,7 +153,7 @@ fn compareAddresses() -> I64 {
   b7:
     %v39 = load %score : I64
     %v42 = add %v39, 4 : I64
-    init %score, %v42
+    assign %score, %v42
     jmp b9
 
   b8:
@@ -168,7 +168,7 @@ fn compareAddresses() -> I64 {
   b10:
     %v52 = load %score : I64
     %v55 = add %v52, 8 : I64
-    init %score, %v55
+    assign %score, %v55
     jmp b12
 
   b11:

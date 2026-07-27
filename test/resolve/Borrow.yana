@@ -1,0 +1,43 @@
+-- `&` parameters, and the compound assignments Core writes on top of them.
+
+fn bump(&counter: Int, by: Int) -> {}:
+    counter = counter + by
+
+fn swap(&a: Int, &b: Int) -> {}:
+    let old = a
+    a = b
+    b = old
+
+data Point {x: Int, y: Int}
+
+-- A `&` parameter of a memory type is the same thing: the argument is the address of the caller's
+-- storage either way, and a field of it is an ordinary projection off that root.
+fn moveBy(&p: Point, dx: Int, dy: Int) -> {}:
+    p.x += dx
+    p.y += dy
+
+-- Reading a TrivialCopy value out through a live mutable borrow is legal, and deliberately so.
+-- Design.md: producing a copy is a different operation from handing out a second borrow, so it
+-- does not require suspending exclusivity - which is exactly why `let &y = 0; let z = y` leaves
+-- `y` exclusive and valid while `z` becomes an independent copy.
+fn copyThroughBorrow(&target: Int, amount: Int) -> {}:
+    target = target + amount
+
+fn main() -> Int:
+    let &total = 0 :: Int
+    bump(total, 5)
+    total += 3
+    total *= 2
+
+    let &left = 1 :: Int
+    let &right = 2 :: Int
+    swap(left, right)
+
+    let &here = Point {x: 10, y: 20}
+    moveBy(here, 1, 2)
+
+    -- `total` is both mutably borrowed and read by copy in one call.
+    copyThroughBorrow(total, total)
+
+    -- 32 + (2 - 1) + 11 + 22 = 66
+    return total + (left - right) + here.x + here.y

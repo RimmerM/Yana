@@ -1,0 +1,102 @@
+import Native
+import Native.Linux
+
+-- An authored `Drop` is the base case the whole ownership model hangs off: a type whose lifetime
+-- ends in something other than releasing its own storage. Here that something is a real free, so
+-- placement is asserted by counting what the heap did rather than by reading the IR.
+
+let &liveBuffers = 0 :: I64
+
+data Buffer {bytes: %U8}
+
+fn makeBuffer(size: I64) -> Buffer:
+    liveBuffers += 1
+    return Buffer {bytes: allocateHeap(size)}
+
+instance Drop(Buffer):
+    fn drop(->value: Buffer) -> {}:
+        freeHeap(value.bytes)
+        liveBuffers -= 1
+
+-- Reading one, so that a buffer has a last use somewhere other than where it was made. The
+-- parameter is an ordinary immutable borrow, so this never consumes what it is given.
+fn firstByte(it: Buffer) -> I64 = *it.bytes
+
+-- A `->` parameter takes ownership, so the drop it owes is this frame's rather than the caller's:
+-- the caller recorded the handover as a move and will not drop it again.
+fn consume(->it: Buffer) -> I64:
+    let counted = liveBuffers
+    return counted + firstByte(it)
+
+-- A record containing one gets a *derived* drop: drop each member, then release this owner's own
+-- storage. Nothing is written for it and nothing needs to be.
+data Pair {left: Buffer, right: Buffer}
+
+-- Every count below is read *before* the last use of the buffer it is counting, which is what
+-- makes the number an assertion about where the drop went. Reading it afterwards would pass just as
+-- happily with the drops in the wrong place, since by then the answer is zero either way.
+fn straightLine() -> I64:
+    let a = makeBuffer(64)
+    let b = makeBuffer(64)
+
+    let counted = liveBuffers
+    return counted + firstByte(a) + firstByte(b)
+
+fn derived() -> I64:
+    let pair = Pair {left: makeBuffer(32), right: makeBuffer(32)}
+
+    let counted = liveBuffers
+    return counted + firstByte(pair.left)
+
+-- Design.md's branch case: a value used on only one arm is live until that arm's own last use and
+-- dropped there, while the arm that does not use it drops it on the edge out of the branch.
+-- `branch(False)` is the assertion that matters here: the buffer has no use on that arm, so its
+-- drop lands on the edge out of the branch and the count read afterwards is zero. `branch(True)`
+-- reads the count while it is still live and sees one.
+fn branch(flag: Bool) -> I64:
+    let held = makeBuffer(16)
+
+    if flag:
+        let counted = liveBuffers
+        return counted + firstByte(held)
+
+    return liveBuffers
+
+-- And the loop case: a value read anywhere in a loop body is live for the whole loop, because the
+-- back edge makes every later iteration reachable from any point in it. Its drop lands after the
+-- loop rather than at the end of the first iteration.
+fn loop() -> I64:
+    let &total = 0 :: I64
+    let &i = 0 :: I64
+    let buffer = makeBuffer(8)
+
+    while i < 3:
+        total += firstByte(buffer) + liveBuffers
+        i += 1
+
+    return total
+
+fn main() -> I64:
+    let &result = 0 :: I64
+
+    result += straightLine()
+    if liveBuffers != 0 then return -1
+
+    result += derived()
+    if liveBuffers != 0 then return -2
+
+    result += branch(True)
+    if liveBuffers != 0 then return -3
+
+    result += branch(False)
+    if liveBuffers != 0 then return -4
+
+    result += loop()
+    if liveBuffers != 0 then return -5
+
+    let handed = makeBuffer(4)
+    result += consume(handed)
+    if liveBuffers != 0 then return -6
+
+    -- 2 + 2 + 1 + 0 + 3 + 1 = 9, with every firstByte reading a zero out of freshly mapped memory.
+    return result

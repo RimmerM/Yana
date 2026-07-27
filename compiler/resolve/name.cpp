@@ -117,14 +117,18 @@ GlobalPtr<TypeClass> findClass(Module& module, StringId name, LocationId source)
 Maybe<U8> findPrecedence(Module& module, StringId name) {
     // Fixity is not a definition, so a missing one is not an error and two equal declarations do
     // not conflict; the traversal is used only to get the same module order as everything else.
+    //
+    // The precedence is carried one above what was declared, because search() reads a falsy result
+    // as "not in this module" and 0 is a precedence a declaration may legitimately have - it is
+    // where Core puts the compound assignments, below every other operator.
     auto found = search<U16>(module.context, module, name, kNullLocation, [](Module& in, NameRef reference) -> U16 {
         if(reference.segments() != 1) return 0;
 
         auto precedence = in.operatorPrecedence.get(reference.single());
-        return precedence ? U16(precedence.unwrap()) : 0;
+        return precedence ? U16(precedence.unwrap()) + 1 : 0;
     });
 
-    return found && *found ? Just(U8(*found)) : Nothing();
+    return found && *found ? Just(U8(*found - 1)) : Nothing();
 }
 
 // Unlike the lookups above, a class function name is deliberately allowed to be found more than

@@ -1,4 +1,5 @@
 #include "module.h"
+#include "analyze.h"
 #include "core.h"
 #include "expr.h"
 #include "generic.h"
@@ -116,9 +117,10 @@ Arg* Function::addArg(Module& module, StringId argName, TypePtr type, LocationId
     return arg;
 }
 
-U32 Function::addLocal(Module& module, TypePtr type, StringId localName, ModulePtr<Value> value) {
+U32 Function::addLocal(Module& module, TypePtr type, StringId localName, ModulePtr<Value> value,
+                       ast::BindType convention, bool borrowed) {
     auto index = U32(locals.size());
-    locals.push(module.arena, Local { type, localName, value });
+    locals.push(module.arena, Local { type, localName, value, convention, StorageClass::Stack, borrowed });
     return index;
 }
 
@@ -620,18 +622,18 @@ static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, 
             continue;
         }
 
-        // Both halves of an argument's ownership contract parse today and neither is modelled
-        // yet: the convention belongs on FunArg and the return-root marker in the function type,
-        // which is the ownership milestone's work (Implementation-IR.md part 3).
-        if(arg.bind != ast::BindType::Borrow) {
-            module.context.diagnostics.error("binding conventions are deferred until the ownership resolver"_v, arg.source);
-        }
+        auto declared = function->addArg(module, arg.name, resolveType(module, *module.parse[arg.type], env), arg.source);
+        declared->convention = arg.bind;
+        declared->returnRoot = arg.returnRoot;
 
+        // The marker is recorded but not yet checked. Validating it means resolving every return
+        // path's borrow provenance against the declared group, which needs the function summaries
+        // of Milestone 6; accepting it silently in the meantime would let a signature promise
+        // something no implementation was held to, so it reports instead.
         if(arg.returnRoot) {
-            module.context.diagnostics.error("return-root markers are deferred until the ownership resolver"_v, arg.source);
+            module.context.diagnostics.error("return-root markers are not checked yet - `return` on an argument needs the borrow provenance analysis"_v,
+                                             arg.source);
         }
-
-        function->addArg(module, arg.name, resolveType(module, *module.parse[arg.type], env), arg.source);
     }
 
     return function;
@@ -701,7 +703,9 @@ static ModulePtr<Function> resolveClassDefault(Module& module, TypeClass& typeCl
 
     for(auto argPointer: signature.args.contents(*module.arena)) {
         auto arg = (*module.arena)[argPointer];
-        function->addArg(module, arg->name, arg->type, arg->source);
+        auto copied = function->addArg(module, arg->name, arg->type, arg->source);
+        copied->convention = arg->convention;
+        copied->returnRoot = arg->returnRoot;
     }
 
     return function - *module.arena;
@@ -1195,7 +1199,21 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
                 }
             }
 
-            function->addArg(module, declared.name ? declared.name : classArg->name, expectedType, declared.source);
+            // The convention is as much of the contract as the type is: an instance whose `drop`
+            // borrows what the class said it consumes would be called by every generic caller as
+            // though the value were gone. It is taken from the class rather than from what the
+            // implementation wrote, and disagreeing is reported the same way a type does.
+            if(declared.bind != classArg->convention) {
+                module.context.diagnostics.error("argument %@ is declared %@ here but %@ in class %@"_v, declared.source,
+                                                 module.context.findName(declared.name),
+                                                 conventionName(declared.bind), conventionName(classArg->convention),
+                                                 module.context.findName(className));
+            }
+
+            auto implArg = function->addArg(module, declared.name ? declared.name : classArg->name,
+                                            expectedType, declared.source);
+            implArg->convention = classArg->convention;
+            implArg->returnRoot = classArg->returnRoot;
         }
 
         if(member.fun.ret) {
@@ -1543,10 +1561,29 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending)
                         markPlace(local, ((InstLoadPlace&)instruction).place);
                         break;
                     case Value::Init:
+                    case Value::Assign:
                         markPlace(local, ((InstInit&)instruction).place);
                         break;
                     case Value::Address:
                         markPlace(local, ((InstAddress&)instruction).place);
+                        break;
+                    case Value::Borrow:
+                        markPlace(local, ((InstBorrow&)instruction).place);
+                        break;
+                    case Value::Move:
+                        markPlace(local, ((InstMove&)instruction).place);
+                        reach(((InstMove&)instruction).sink);
+                        break;
+                    case Value::Copy:
+                        markPlace(local, ((InstCopy&)instruction).place);
+                        reach(((InstCopy&)instruction).copy);
+                        break;
+                    case Value::Drop:
+                        // The drop implementation is reached from here and from nowhere else: a
+                        // derived glue function has no call site in the source at all, and an
+                        // authored instance may have none either.
+                        markPlace(local, ((InstDrop&)instruction).place);
+                        reach(((InstDrop&)instruction).implementation);
                         break;
                     default:
                         break;
@@ -1586,6 +1623,11 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
     // Bodies come last, and for every module at once: a Core instance may call a function that
     // only the root module's signatures made resolvable.
     for(auto entry: program->modules) resolveModuleBodies(*entry);
+
+    // Ownership runs over the finished program rather than per module, because a generic
+    // function's specializations only exist once every body that calls one has been resolved -
+    // and it is the specializations, not the generic body, that get drops.
+    runProgramOwnership(*program);
 
     markProgramReachable(*program);
     return program;
