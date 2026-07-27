@@ -102,9 +102,42 @@ bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, Array<TypePtr>&
     return matchType(global, pattern, actual, { bindings.pointer(), bindings.size() });
 }
 
-// The instance of `typeClass` whose types are exactly `args`, or null.
-ModulePtr<ClassInstance> ExprResolver::selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
-    return findInstance(module, typeClass, args);
+// The instance of `typeClass` that serves `args`, and what selecting it bound its own type
+// variables to.
+ModulePtr<ClassInstance> ExprResolver::selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
+                                                      Array<TypePtr>& instanceArgs) {
+    auto match = matchInstance(module, typeClass, args);
+    instanceArgs = ::move(match.args);
+    return match.instance;
+}
+
+ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassInstance> instance,
+                                                Buffer<TypePtr> instanceArgs, U16 index,
+                                                Buffer<ModulePtr<Value>> args, LocationId source,
+                                                TypePtr target, StringId resultName) {
+    auto implementation = local[instance]->functions.get(local, index);
+    if(!implementation) return nullptr;
+
+    // A concrete instance's implementation is a function like any other.
+    if(!local[instance]->gen) return emitDirectCall(implementation, args, source, target, resultName);
+
+    // A parametric one's is written against the head's variables, so the types the head bound are
+    // what makes it a function about something. An intrinsic has no body to specialize and is
+    // generated here for those types, exactly as a generic intrinsic is at an ordinary call site.
+    Array<ModulePtr<Value>> converted;
+    for(Size i = 0; i < args.length; i++) {
+        auto declared = local[local[implementation]->args.get(local, i)]->type;
+        converted.push(convert(args[i], substituteType(module, declared, instanceArgs, source), source));
+    }
+
+    if(local[implementation]->intrinsic) {
+        return expandIntrinsic(implementation, instanceArgs, toBuffer(converted), source, resultName);
+    }
+
+    auto specialized = instantiateFunction(site, implementation, instanceArgs, source);
+    if(!specialized) return nullptr;
+
+    return emitDirectCall(specialized, toBuffer(converted), source, target, resultName);
 }
 
 // Works out whether one class function can serve this call, and if so which instance it selects.
@@ -152,7 +185,7 @@ bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<
 
     resolved.typeClass = reference.typeClass;
     resolved.index = reference.index;
-    resolved.instance = selectInstance(reference.typeClass, toBuffer(bindings));
+    resolved.instance = selectInstance(reference.typeClass, toBuffer(bindings), resolved.instanceArgs);
     resolved.args = bindings;
 
     return true;
@@ -489,14 +522,14 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
         return nullptr;
     }
 
-    auto implementation = local[selected.instance]->functions.get(local, selected.index);
-    if(!implementation) {
+    if(!local[selected.instance]->functions.get(local, selected.index)) {
         context.diagnostics.error("instance of %@ does not implement %@"_v, source,
                                   context.findName(global[selected.typeClass]->name), context.findName(callName));
         return nullptr;
     }
 
-    return emitDirectCall(implementation, args, source, target, resultName);
+    return emitInstanceCall(module, selected.instance, toBuffer(selected.instanceArgs), selected.index,
+                            args, source, target, resultName);
 }
 
 /*

@@ -98,8 +98,9 @@ bool ExprResolver::literalFits(TypePtr literal, TypePtr target) {
     // A type variable has no instances to look at. What answers for it is a requirement of the
     // enclosing function - declared, like the `FromInt(a)` that `Num(a)` implies through its
     // superclass, or recorded by this call the way an undeclared `Ord(a)` is recorded by a
-    // comparison in the body. Anything else generic - `Maybe(a)` - cannot carry an instance at
-    // all, since selection matches an instance's types for equality.
+    // comparison in the body. A generic type built over one - `Maybe(a)` - could be served by a
+    // parametric instance, but there is no requirement shaped like `FromInt(Maybe(a))` to record
+    // for it, so a literal is not built at one here.
     if(isGeneric(global, target)) {
         return global[target]->kind == Type::Gen && functionGen(global, function) != nullptr;
     }
@@ -160,8 +161,9 @@ ModulePtr<Value> ExprResolver::materializeLiteral(ModulePtr<Value> value, TypePt
 
     if(matchClassFun(reference, { args, 1 }, target, match)) {
         if(match.instance) {
-            if(auto implementation = local[match.instance]->functions.get(local, match.index)) {
-                return emitDirectCall(implementation, { args, 1 }, source);
+            if(local[match.instance]->functions.get(local, match.index)) {
+                return emitInstanceCall(module, match.instance, toBuffer(match.instanceArgs), match.index,
+                                        { args, 1 }, source);
             }
         } else if(isGeneric(global, target)) {
             // Inside a generic body the instance is the caller's to supply, exactly as it is for
@@ -253,10 +255,10 @@ ModulePtr<Value> ExprResolver::emitConversion(GlobalPtr<TypeClass> typeClass, St
         ClassMatch match;
         if(!matchClassFun(candidate, { args, 1 }, target, match) || !match.instance) continue;
 
-        auto implementation = local[match.instance]->functions.get(local, match.index);
-        if(!implementation) continue;
+        if(!local[match.instance]->functions.get(local, match.index)) continue;
 
-        return emitDirectCall(implementation, { args, 1 }, source);
+        return emitInstanceCall(module, match.instance, toBuffer(match.instanceArgs), match.index,
+                                { args, 1 }, source);
     }
 
     return nullptr;

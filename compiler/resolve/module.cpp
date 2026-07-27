@@ -1,6 +1,7 @@
 #include "module.h"
 #include "core.h"
 #include "expr.h"
+#include "generic.h"
 #include "name.h"
 #include "native.h"
 #include "../parse/ast.h"
@@ -515,10 +516,58 @@ StringId instanceFunctionName(Module& module, TypeClass& typeClass, Buffer<TypeP
     return module.context.addQualifiedName(text.pointer(), text.size(), 1);
 }
 
+// Whether one variable of a generic context is reachable inside a type. Instance selection binds
+// by variable index, so occurrence is asked by index too rather than by identity.
+static bool mentionsVariable(GlobalBase global, TypePtr type, U16 index) {
+    if(!isGeneric(global, type)) return false;
+
+    switch(global[type]->kind) {
+        case Type::Gen:
+            return ((GenType*)global[type])->index == index;
+        case Type::Ptr:
+            return mentionsVariable(global, ((PtrType*)global[type])->to, index);
+        case Type::Tup: {
+            auto tuple = (TupType*)global[type];
+
+            for(Size i = 0; i < tuple->fields.size(); i++) {
+                if(mentionsVariable(global, tuple->fields.get(global, i).type, index)) return true;
+            }
+
+            return false;
+        }
+        case Type::Record: {
+            auto record = (RecordType*)global[type];
+
+            for(auto arg: record->instanceArgs.contents(global)) {
+                if(mentionsVariable(global, arg, index)) return true;
+            }
+
+            return false;
+        }
+        default:
+            return false;
+    }
+}
+
+/*
+ * One instance declaration.
+ *
+ * The head is resolved in an open generic context of its own, so `instance Ord(Ptr(a))` introduces
+ * `a` by using it exactly as a function signature does. A head that used no variable leaves the
+ * context empty and the instance is the concrete one it always was; a head that used one is
+ * selected by matching instead of by equality (see matchInstance), and each of its implementations
+ * becomes a generic function over that context, specialized for what a selection bound.
+ */
 static void resolveInstance(Module& module, ast::Decl& decl) {
     auto& type = decl.instance.type;
     StringId className = 0;
     Array<TypePtr> args;
+
+    // The constraints are read first, since they name the variables the head is written over -
+    // and a constraint may name one the head does not, which is what the check below reports.
+    auto genPointer = prepareGenEnv(module, GenEnv::Instance, {}, decl.instance.constraints);
+    auto gen = (*module.types)[genPointer];
+    gen->open = true;
 
     if(type.kind == ast::Type::App) {
         auto& app = *module.parse[type.app];
@@ -529,7 +578,7 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
 
         className = app.base.name;
         auto appArgs = app.args;
-        for(auto arg: appArgs.contents(module.parse)) args.push(resolveType(module, arg, nullptr));
+        for(auto arg: appArgs.contents(module.parse)) args.push(resolveType(module, arg, gen));
     } else {
         module.context.diagnostics.error(
             "type-namespaced instances are not available yet - write `instance Class(Type)`"_v, decl.source);
@@ -552,29 +601,40 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
         return;
     }
 
-    for(auto arg: args) {
-        if(isGeneric(*module.types, arg)) {
-            // Selection matches an instance's types for equality, so `instance Eq(Maybe(a))` has
-            // nothing to be chosen by; it needs matching plus a recursive proof of `Eq(a)`.
-            module.context.diagnostics.error(
-                "an instance must name concrete types - instances over a type variable are not available yet"_v,
-                decl.source);
-            return;
-        }
+    // A variable the head does not mention is one nothing could ever bind, so a constraint over it
+    // says something no selection can check.
+    for(auto variable: gen->types.contents(*module.types)) {
+        auto index = (*module.types)[variable]->index;
+        auto mentioned = args.contains([&](TypePtr arg) { return mentionsVariable(*module.types, arg, index); });
+        if(mentioned) continue;
+
+        module.context.diagnostics.error("type variable %@ does not appear in the instance head"_v, decl.source,
+                                         module.context.findName((*module.types)[variable]->name));
+        return;
     }
+
+    // Closed once the head has been read: from here on a lowercase name in the body means one of
+    // the variables the head introduced, and anything else is the error it would be in a function.
+    gen->open = false;
+    resolveConstraintClasses(module, *gen);
+    auto parametric = gen->types.isNotEmpty();
 
     auto instance = new (module.arena) ClassInstance(classPointer);
     instance->module = &module;
     instance->source = decl.source;
+    instance->gen = parametric ? genPointer : nullptr;
     for(auto arg: args) instance->forTypes.push(module.arena, arg);
     for(Size i = 0; i < typeClass->functions.size(); i++) instance->functions.push(module.arena, nullptr);
 
-    // Two instances for the same arguments would make selection depend on declaration order.
+    // Two instances one of which is no more specific than the other would make selection depend on
+    // declaration order, whether they are written for the same types or for heads that mean the
+    // same thing - `Eq(Ptr(a))` twice, under two names for `a`.
     Array<ModulePtr<ClassInstance>> existing;
     findInstances(module, classPointer, existing);
 
     for(auto other: existing) {
-        if(!sameTypes((*module.arena)[other]->forTypes, *module.arena, toBuffer(args))) continue;
+        auto& previous = *(*module.arena)[other];
+        if(!instanceCovers(module, previous, *instance) || !instanceCovers(module, *instance, previous)) continue;
 
         module.context.diagnostics.error("duplicate instance of %@ for these types"_v, decl.source,
                                          module.context.findName(className));
@@ -623,6 +683,7 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
             module, instanceFunctionName(module, *typeClass, toBuffer(args), member.fun.name), member.source);
 
         function->instanceOf = classPointer;
+        function->gen = instance->gen;
         for(auto arg: args) function->instanceArgs.push(module.arena, arg);
         function->returnType = substituteType(module, signature->returnType, toBuffer(args), member.source);
         function->ast = nullptr;
@@ -641,7 +702,7 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
             auto declared = declaredArgs[i];
 
             if(declared.type) {
-                auto written = resolveType(module, *module.parse[declared.type], nullptr);
+                auto written = resolveType(module, *module.parse[declared.type], gen);
                 if(!sameType(written, expectedType)) {
                     module.context.diagnostics.error("argument %@ has type %@ here but %@ in class %@"_v, declared.source,
                                                      module.context.findName(declared.name),
@@ -655,7 +716,7 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
         }
 
         if(member.fun.ret) {
-            auto written = resolveType(module, *module.parse[member.fun.ret], nullptr);
+            auto written = resolveType(module, *module.parse[member.fun.ret], gen);
             if(!sameType(written, function->returnType)) {
                 module.context.diagnostics.error("%@ returns %@ here but %@ in class %@"_v, member.source,
                                                  module.context.findName(member.fun.name),
@@ -757,6 +818,13 @@ static void checkSuperclasses(Module& module, ClassInstance& instance) {
         }
 
         if(findInstance(module, constraint.typeClass, toBuffer(concrete))) continue;
+
+        // A parametric head answers for a superclass with what it requires of its own variables as
+        // well as with what has an instance: `instance (Ord(a)) Foo(Ptr(a))` has `Eq(a)` in hand
+        // because `Ord` declares it, exactly as a generic function's body does.
+        if(instance.gen && provesClass(module, *global[instance.gen], constraint.typeClass, toBuffer(concrete))) {
+            continue;
+        }
 
         StringBuilder text;
         describeTypes(context, global, toBuffer(concrete), text);

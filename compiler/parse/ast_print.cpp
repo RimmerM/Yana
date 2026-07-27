@@ -685,7 +685,8 @@ private:
     void printInstanceDecl(Decl& e) {
         stream.writeString("InstanceDecl "_v);
         makeLevel();
-        toString(e.instance.type, e.instance.decls.isEmpty());
+        toString(e.instance.type, e.instance.constraints.isEmpty() && e.instance.decls.isEmpty());
+        toString(e.instance.constraints, e.instance.decls.isEmpty());
         printList(e.instance.decls);
         removeLevel();
     }

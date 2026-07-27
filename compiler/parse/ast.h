@@ -522,6 +522,7 @@ struct Decl {
 
         struct {
             Type type;
+            ConstraintList constraints;
             DeclList decls;
         } instance;
 

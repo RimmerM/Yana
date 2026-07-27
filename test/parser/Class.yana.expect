@@ -127,6 +127,21 @@ Module
 |       | |-VarExpr x
 |       | `-VarExpr this
 |       `-LitExpr 5
+|-InstanceDecl 
+| |-AppType 
+| | |-ConType A
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-GenType a
+| |-<constraints>
+| | `-ClassConstraint Eq (a)
+| `-FunDecl f <implicit return> 
+|   |-Arg x
+|   | `-AppType 
+|   |   |-ConType Maybe
+|   |   `-GenType a
+|   `-Body
+|     `-VarExpr x
 |-TraitDecl Num (a)
 | |-<constraints>
 | | `-ClassConstraint Ord (a)

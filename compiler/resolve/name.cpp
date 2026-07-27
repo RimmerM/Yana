@@ -210,14 +210,122 @@ void findInstances(Module& module, GlobalPtr<TypeClass> typeClass, Array<ModuleP
     for(auto& import: module.imports) collect(*import.module);
 }
 
-ModulePtr<ClassInstance> findInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
+/*
+ * Selecting an instance.
+ *
+ * See matchInstance()'s comment in name.h for the rules; what follows is only how they are
+ * checked. A parametric head is matched with matchType(), which is the same inference the rest of
+ * the resolver uses, so nothing here knows anything about the shape of a head that resolveType()
+ * did not already decide.
+ */
+
+// Bounds the recursive proof of a head's own constraints. A hierarchy that needs more than this
+// is a declaration that proves itself; the depth is what stops the search rather than a visited
+// set, for the same reason impliesClass() bounds its walk over superclasses.
+static const U32 kProofDepth = 8;
+
+static bool instanceApplies(Module& module, ClassInstance& instance, Buffer<TypePtr> args,
+                            Array<TypePtr>& bindings, U32 depth);
+
+static InstanceMatch matchInstanceAt(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
+                                     U32 depth) {
     auto local = *module.arena;
     Array<ModulePtr<ClassInstance>> candidates;
     findInstances(module, typeClass, candidates);
 
+    InstanceMatch best;
+
     for(auto candidate: candidates) {
-        if(sameTypes(local[candidate]->forTypes, local, args)) return candidate;
+        Array<TypePtr> bindings;
+        if(!instanceApplies(module, *local[candidate], args, bindings, depth)) continue;
+
+        // Overlap between two heads is resolved by specificity: a candidate wins only when the one
+        // held so far is general enough to cover it, which is what lets a hand-written `Eq(%U8)`
+        // stand in front of a blanket `Eq(Ptr(a))`. Two heads that overlap without either covering
+        // the other - `Eq(Pair(Int, a))` and `Eq(Pair(b, Bool))` - would make the answer depend on
+        // declaration order; rejecting that pair is a coherence check the declaration pass does not
+        // make yet, and until it does the first match stands.
+        if(best && !instanceCovers(module, *local[best.instance], *local[candidate])) continue;
+
+        best.instance = candidate;
+        best.args = ::move(bindings);
     }
 
-    return nullptr;
+    return best;
+}
+
+static bool instanceApplies(Module& module, ClassInstance& instance, Buffer<TypePtr> args,
+                            Array<TypePtr>& bindings, U32 depth) {
+    auto global = *module.types;
+    auto local = *module.arena;
+    auto env = instance.gen ? global[instance.gen] : nullptr;
+
+    if(!env) return sameTypes(instance.forTypes, local, args);
+    if(instance.forTypes.size() != args.length) return false;
+
+    for(Size i = 0; i < env->types.size(); i++) bindings.push(nullptr);
+
+    Size index = 0;
+    for(auto pattern: instance.forTypes.contents(local)) {
+        if(!matchType(global, pattern, args[index++], { bindings.pointer(), bindings.size() })) return false;
+    }
+
+    // A variable of the head that the match left open cannot be chosen by anything later, so the
+    // instance does not apply. resolveInstance() rejects a head that can never bind one at all.
+    for(auto binding: bindings) {
+        if(!binding) return false;
+    }
+
+    if(env->classes.isEmpty()) return true;
+    if(!depth) return false;
+
+    for(auto constraint: env->classes.contents(global)) {
+        if(!constraint.typeClass) continue;
+
+        Array<TypePtr> concrete;
+        for(auto arg: constraint.args.contents(global)) {
+            concrete.push(substituteType(module, arg, toBuffer(bindings), instance.source));
+        }
+
+        // A requirement over types that are still variables is nothing to look an instance up by.
+        // It is left to the instantiation that makes them concrete, which asks this again.
+        if(concrete.contains([&](TypePtr type) { return isGeneric(global, type); })) continue;
+
+        // The instance's own head, for the types this match bound, is what is being decided here
+        // rather than a further obligation - which is what lets one of its implementations use the
+        // class it implements, as `!=` written in terms of `==` does.
+        if(constraint.typeClass == instance.typeClass && sameTypes(toBuffer(concrete), args)) continue;
+
+        if(!matchInstanceAt(module, constraint.typeClass, toBuffer(concrete), depth - 1)) return false;
+    }
+
+    return true;
+}
+
+bool instanceCovers(Module& module, ClassInstance& pattern, ClassInstance& other) {
+    auto global = *module.types;
+    auto local = *module.arena;
+    if(pattern.forTypes.size() != other.forTypes.size()) return false;
+
+    Array<TypePtr> bindings;
+    if(pattern.gen) {
+        for(Size i = 0; i < global[pattern.gen]->types.size(); i++) bindings.push(nullptr);
+    }
+
+    Size index = 0;
+    for(auto type: pattern.forTypes.contents(local)) {
+        if(!matchType(global, type, other.forTypes.get(local, index++), { bindings.pointer(), bindings.size() })) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+InstanceMatch matchInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
+    return matchInstanceAt(module, typeClass, args, kProofDepth);
+}
+
+ModulePtr<ClassInstance> findInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
+    return matchInstance(module, typeClass, args).instance;
 }

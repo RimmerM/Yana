@@ -39,10 +39,14 @@ struct Binding {
 // One class function that fits a call, together with what its class's type variables had to be
 // and the instance that supplies them. `instance` is null when the signature fits but nothing
 // implements it for these types, which is a different diagnostic from "wrong function".
+//
+// `instanceArgs` is what selecting that instance bound *its* own variables to, which is empty for
+// the concrete head that is the usual case and one type per variable for a parametric one.
 struct ClassMatch {
     GlobalPtr<TypeClass> typeClass = nullptr;
     ModulePtr<ClassInstance> instance = nullptr;
     Array<TypePtr> args;
+    Array<TypePtr> instanceArgs;
     U16 index = 0;
 };
 
@@ -244,7 +248,16 @@ struct ExprResolver {
     // class function, so that both halves of an overload set are judged by one rule.
     bool matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, TypePtr target, LocationId source);
 
-    ModulePtr<ClassInstance> selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
+    // Calls one implementation of a selected instance. A concrete instance's is an ordinary
+    // function; a parametric one's is generic over the instance's own variables, so it is expanded
+    // where it is an intrinsic and specialized where it is not. `site` is the module the call was
+    // written in, which is what decides the instances its own requirements are proved against.
+    ModulePtr<Value> emitInstanceCall(Module& site, ModulePtr<ClassInstance> instance, Buffer<TypePtr> instanceArgs,
+                                      U16 index, Buffer<ModulePtr<Value>> args, LocationId source,
+                                      TypePtr target = nullptr, StringId resultName = 0);
+
+    ModulePtr<ClassInstance> selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
+                                            Array<TypePtr>& instanceArgs);
 
     /*
      * Storage and aggregates (expr_construct.cpp).

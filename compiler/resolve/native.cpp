@@ -16,10 +16,16 @@
  * type, so there is nothing to write down until a call says which; see intrinsic.h. That also
  * means none of them ever becomes a call in the IR: `*p` is a load, and `p + 1` is an add.
  *
- * The comparison and arithmetic operators on pointers are plain functions rather than Eq/Ord/Num
- * instances, because an instance head must be a concrete type and `%a` is not one. They join the
- * overload set for their names on equal terms with the classes (see emitCall's R5), so `a == b`
- * still means Eq for everything that has an instance and pointer comparison for what does not.
+ * Comparison is `instance Eq(Ptr(a))` and `instance Ord(Ptr(a))` - generated below rather than
+ * written here, so that each method stays the one instruction it is instead of becoming a call.
+ * A pointer therefore crosses into generic code that constrains Eq or Ord like any other type.
+ *
+ * Arithmetic is deliberately *not* `Num`. Three things say so independently: `class (FromInt(a))
+ * Num(a)` would make `let p: %U8 = 4096` well-typed, `Num`'s operations are homogeneous while
+ * `p + 1` and `difference(p, q)` are not, and `*` and `/` on an address mean nothing. The class
+ * that fits pointer arithmetic is a heterogeneous one - roughly `class Offset(a, b)`, which would
+ * also cover an iterator plus a count - and until a second type wants it the plain functions below
+ * are correct and cost nothing.
  */
 static const char* kNativeSource = R"NATIVE(
 -- The generic spelling of the pointer sigil, for ordinary generic and constraint positions.
@@ -65,13 +71,6 @@ fn alignOf(it: a) -> I64
 fn +(it: %a, count: I64) -> %a
 fn -(it: %a, count: I64) -> %a
 fn difference(from: %a, to: %a) -> I64
-
-fn ==(lhs: %a, rhs: %a) -> Bool
-fn !=(lhs: %a, rhs: %a) -> Bool
-fn <(lhs: %a, rhs: %a) -> Bool
-fn <=(lhs: %a, rhs: %a) -> Bool
-fn >(lhs: %a, rhs: %a) -> Bool
-fn >=(lhs: %a, rhs: %a) -> Bool
 
 {-
    Memory and the operating system.
@@ -402,6 +401,33 @@ static void defineIntegerTypes(Module& module) {
     }
 }
 
+/*
+ * Eq and Ord over every pointer type at once.
+ *
+ * The head is `Ptr(a)`, written here as a generic context holding one variable and the pointer
+ * type over it. Nothing about comparing two addresses depends on what they point at, so the
+ * instance has no requirement of its own to prove and is the simplest possible parametric head -
+ * which is what makes it the natural first client of one.
+ *
+ * Every method is an intrinsic, so selecting the instance expands to the same `cmp` a concrete
+ * instance would; `compare` is the one method with a real body, and it is specialized per pointee
+ * type the way any generic function is.
+ */
+static void definePointerInstances(Module& module) {
+    auto global = *module.types;
+    auto env = new (module.types) GenEnv(GenEnv::Instance);
+    auto envPointer = env - global;
+
+    auto name = module.context.addQualifiedName("a", 1, 1);
+    auto variable = new (module.types) GenType(envPointer, name, 0);
+    env->types.push(module.types, variable - global);
+
+    auto pointer = resolvePointerType(module, (Type*)variable - global);
+
+    defineEq(module, pointer, envPointer);
+    defineOrd(module, pointer, envPointer);
+}
+
 static void attachPointerIntrinsics(Module& module) {
     attachIntrinsic(module, "*"_v, emitDeref);
     attachIntrinsic(module, "store"_v, emitStore);
@@ -417,13 +443,6 @@ static void attachPointerIntrinsics(Module& module) {
     attachIntrinsic(module, "+"_v, emitPointerOffset<Value::Add>);
     attachIntrinsic(module, "-"_v, emitPointerOffset<Value::Sub>);
     attachIntrinsic(module, "difference"_v, emitDifference);
-
-    attachIntrinsic(module, "=="_v, emitCompare<CompareOp::Eq>);
-    attachIntrinsic(module, "!="_v, emitCompare<CompareOp::Ne>);
-    attachIntrinsic(module, "<"_v, emitCompare<CompareOp::Lt>);
-    attachIntrinsic(module, "<="_v, emitCompare<CompareOp::Le>);
-    attachIntrinsic(module, ">"_v, emitCompare<CompareOp::Gt>);
-    attachIntrinsic(module, ">="_v, emitCompare<CompareOp::Ge>);
 
     attachIntrinsic(module, "copyMemory"_v, emitNativeOp<NativeOp::CopyMemory>);
     attachIntrinsic(module, "setMemory"_v, emitNativeOp<NativeOp::SetMemory>);
@@ -457,6 +476,7 @@ void defineNative(Program& program) {
     // imported first of all, since the classes these instances join are its.
     resolveImports(*native, *nativeAst, nullptr);
     defineIntegerTypes(*native);
+    definePointerInstances(*native);
 
     resolveModuleDecls(*native, *nativeAst, nullptr, true);
     attachPointerIntrinsics(*native);

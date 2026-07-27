@@ -20,6 +20,11 @@ instance B:
   fn h(this: B) = this.x
   fn i(&this: B): this.x = 5
 
+-- An instance head over a type variable, with what that variable has to satisfy written in
+-- front of it exactly as a class writes its superclasses.
+instance (Eq(a)) A(Maybe(a)):
+  fn f(x: Maybe(a)) = x
+
 -- Type constraints; more constraints are tested in Function.yana.
 class (Ord(a)) Num(a):
   fn + (lhs: a, rhs: a) -> a

@@ -133,6 +133,39 @@ void findClassFunctions(Module& module, StringId name, LocationId source, Array<
 // Every instance of `typeClass` visible from this module, in declaration order.
 void findInstances(Module& module, GlobalPtr<TypeClass> typeClass, Array<ModulePtr<ClassInstance>>& target);
 
-// The one instance of `typeClass` for exactly these types, or null. Selection is by argument
-// types alone, so this is the single answer to "does this program implement this class here".
+// One selected instance, and what selecting it bound its own type variables to. `args` is empty
+// for a concrete head and has one entry per variable of a parametric one - which is what an
+// implementation of that instance has to be specialized for before it can be called.
+struct InstanceMatch {
+    ModulePtr<ClassInstance> instance = nullptr;
+    Array<TypePtr> args;
+
+    explicit operator bool() const { return instance != nullptr; }
+};
+
+/*
+ * The instance of `typeClass` that serves these types, or none.
+ *
+ * A concrete head is selected by equality and a parametric one by matching, which is the whole of
+ * the difference: `Ord(%U8)` is chosen because it is written for `%U8`, and `Ord(Ptr(a))` because
+ * `Ptr(a)` matches it. A parametric head must additionally prove its own constraints for what the
+ * match bound - `instance (Eq(a)) Eq(Maybe(a))` serves `Maybe(Int)` exactly when something serves
+ * `Eq(Int)` - and the proof is recursive, bounded only because a class hierarchy is finite.
+ *
+ * A requirement whose types are not concrete yet is accepted rather than proved. Nothing commits
+ * to an instance in that state: a call whose class arguments are still type variables is deferred
+ * to the instantiation that makes them concrete, and that instantiation asks this again.
+ *
+ * When two instances match, the more specific one wins - the one whose head the other's matches
+ * and not the reverse - so a hand-written `Eq(%U8)` beats the blanket `Eq(Ptr(a))` rather than
+ * being ambiguous with it.
+ */
+InstanceMatch matchInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
+
+// matchInstance for callers that only need to know whether the program implements this class here.
 ModulePtr<ClassInstance> findInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
+
+// Whether `pattern`'s head is at least as general as `other`'s: the head one instance is written
+// for matches the head the other is. Two instances general in each other's terms are the same
+// instance written twice, which is what makes this the duplicate test as well as the tiebreak.
+bool instanceCovers(Module& module, ClassInstance& pattern, ClassInstance& other);

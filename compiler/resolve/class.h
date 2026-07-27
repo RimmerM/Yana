@@ -53,9 +53,16 @@ struct ClassInstance {
 
     GlobalPtr<TypeClass> typeClass;
 
-    // One concrete type per class type variable, and one implementation per class function.
+    // One type per class type variable, and one implementation per class function.
     ModuleList<TypePtr, false> forTypes;
     ModuleList<ModulePtr<Function>, false> functions;
+
+    // Set when the head is written over type variables - `instance Ord(Ptr(a))`. The context holds
+    // those variables and the requirements the head itself declares, so selecting this instance is
+    // matching its types rather than comparing them, plus a proof of its own constraints for what
+    // the match bound. Each implementation is then a generic function over the same context,
+    // specialized for the types one selection decided.
+    GlobalPtr<GenEnv> gen = nullptr;
 
     Module* module = nullptr;
     LocationId source = kNullLocation;

@@ -86,15 +86,19 @@ GlobalPtr<TypeClass> classNamed(Module& module, StringView name);
 // Generates one instance of `typeClass` for `args`, with one generated function per method. A
 // class function no method covers is generated from its own default implementation, which today
 // means `Ord.compare`.
+//
+// `gen` is the head's own generic context, for an instance written over a type variable rather
+// than for one type: `args` are then that context's types (`%a` rather than `%U8`) and every
+// generated function is generic over it, exactly as a source-written parametric instance is.
 void generateInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
-                      Buffer<IntrinsicMethod> methods);
+                      Buffer<IntrinsicMethod> methods, GlobalPtr<GenEnv> gen = nullptr);
 
 // The standard instances of one primitive type. Each is exactly the class's methods mapped onto
 // the machine operations that implement them.
 void defineFromInt(Module& module, TypePtr type);
 void defineFromDecimal(Module& module, TypePtr type);
-void defineEq(Module& module, TypePtr type);
-void defineOrd(Module& module, TypePtr type);
+void defineEq(Module& module, TypePtr type, GlobalPtr<GenEnv> gen = nullptr);
+void defineOrd(Module& module, TypePtr type, GlobalPtr<GenEnv> gen = nullptr);
 void defineNum(Module& module, TypePtr type);
 void defineIntegral(Module& module, TypePtr type);
 void defineLogic(Module& module, TypePtr type);

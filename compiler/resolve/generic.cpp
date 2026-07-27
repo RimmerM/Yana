@@ -201,7 +201,7 @@ static void cloneGenCall(Clone& clone, InstGenCall& call) {
     ModulePtr<Function> callee = nullptr;
 
     if(call.typeClass) {
-        auto instance = findInstance(clone.site, call.typeClass, toBuffer(typeArgs));
+        auto instance = matchInstance(clone.site, call.typeClass, toBuffer(typeArgs));
 
         // The requirements were all proved before cloning started, so a miss here is a compiler
         // bug rather than a program error.
@@ -212,7 +212,20 @@ static void cloneGenCall(Clone& clone, InstGenCall& call) {
             return;
         }
 
-        callee = clone.local[instance]->functions.get(clone.local, call.index);
+        if(!clone.local[instance.instance]->functions.get(clone.local, call.index)) {
+            clone.ok = false;
+            return;
+        }
+
+        // The implementation of a parametric instance is itself generic, so it is specialized (or
+        // expanded) for what selecting the instance bound - the same step an ordinary call site
+        // takes, which is why both go through emitInstanceCall.
+        auto pointer = (ModulePtr<Value>)((Inst*)&call - clone.local);
+        auto result = clone.resolver.emitInstanceCall(clone.site, instance.instance, toBuffer(instance.args),
+                                                      call.index, toBuffer(args), call.source, nullptr, call.name);
+
+        if(result) clone.values.add(pointer, result);
+        return;
     } else if(clone.local[call.callee]->intrinsic) {
         // A generic intrinsic is generated rather than instantiated, here for the same reason it
         // is at an ordinary call site: there is no body for these types until there are types.

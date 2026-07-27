@@ -475,11 +475,19 @@ void Parser::parseInstanceDecl(ast::DeclList& decls, ast::AttrList attributes, b
     WithLocation location(*this);
     expect(Token::kwInstance, "expected 'instance'"_v);
 
+    // An instance head may be written over type variables, and what those variables have to
+    // satisfy is written in front of it exactly as a class writes its superclasses:
+    // `instance (Eq(a)) Eq(Maybe(a))`.
+    ast::ConstraintList constraints;
+    if(token.type == Token::ParenL) {
+        parseConstraints(constraints);
+    }
+
     auto type = parseType();
     expect(Token::opColon, "expected ':' after instance declaration"_v);
 
     ast::Decl decl {
-        .instance = { .type = type, .decls = {} },
+        .instance = { .type = type, .constraints = constraints, .decls = {} },
         .attributes = ::move(attributes),
         .source = context.addLocation(location),
         .kind = ast::Decl::Instance,

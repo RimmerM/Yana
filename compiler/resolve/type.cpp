@@ -181,7 +181,11 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
         return true;
     }
 
-    if(pattern == concrete) return true;
+    // Two identical types match with nothing to say about it - unless the pattern is generic, in
+    // which case what it has to say is exactly which variable bound which. `Maybe(a)` against
+    // `Maybe(a)` binds `a` to itself rather than binding nothing, so a caller that then substitutes
+    // with the bindings gets the type back instead of a hole.
+    if(pattern == concrete && !isGeneric(global, pattern)) return true;
     if(global[pattern]->kind != global[concrete]->kind) return false;
 
     switch(global[pattern]->kind) {
@@ -219,7 +223,9 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
         case Type::Ptr:
             return matchType(global, ((PtrType*)global[pattern])->to, ((PtrType*)global[concrete])->to, bindings);
         default:
-            return false;
+            // A kind with no structure to walk into matches only itself, which is what the identity
+            // above already answered for everything except a generic type of such a kind.
+            return pattern == concrete;
     }
 }
 

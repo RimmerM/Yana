@@ -70,7 +70,7 @@ GlobalPtr<TypeClass> classNamed(Module& module, StringView text) {
 // Emits `fn f(args...) = <emit>(args...)` as a real function, so the instance has something to
 // print, lower and eventually take the address of even though ordinary calls inline it.
 static ModulePtr<Function> generateInstanceFunction(Module& module, TypeClass& typeClass, Buffer<TypePtr> args,
-                                                    U16 index, Emit emit) {
+                                                    U16 index, Emit emit, GlobalPtr<GenEnv> gen) {
     ModuleBase local = *module.arena;
     GlobalBase global = *module.types;
 
@@ -79,6 +79,7 @@ static ModulePtr<Function> generateInstanceFunction(Module& module, TypeClass& t
 
     auto function = addAnonymousFunction(module, instanceFunctionName(module, typeClass, args, method), kNullLocation);
     function->instanceOf = (TypeClass*)&typeClass - global;
+    function->gen = gen;
     for(auto arg: args) function->instanceArgs.push(module.arena, arg);
 
     function->returnType = substituteType(module, signature->returnType, args, kNullLocation);
@@ -102,7 +103,8 @@ static ModulePtr<Function> generateInstanceFunction(Module& module, TypeClass& t
 
 // `compare` is the one primitive operation that is not a single instruction, so it has a real
 // body and no intrinsic: calls to it are ordinary calls that reach the backend as written.
-static ModulePtr<Function> generateCompare(Module& module, TypeClass& typeClass, TypePtr type) {
+static ModulePtr<Function> generateCompare(Module& module, TypeClass& typeClass, TypePtr type,
+                                          GlobalPtr<GenEnv> gen) {
     ModuleBase local = *module.arena;
     auto ordering = module.scalar.ordering;
     TypePtr args[] = { type };
@@ -111,6 +113,7 @@ static ModulePtr<Function> generateCompare(Module& module, TypeClass& typeClass,
         module, instanceFunctionName(module, typeClass, { args, 1 }, Context::nameHash("compare", 7)), kNullLocation);
 
     function->instanceOf = (TypeClass*)&typeClass - *module.types;
+    function->gen = gen;
     function->instanceArgs.push(module.arena, type);
     function->returnType = ordering;
 
@@ -147,13 +150,14 @@ static ModulePtr<Function> generateCompare(Module& module, TypeClass& typeClass,
 }
 
 void generateInstance(Module& module, GlobalPtr<TypeClass> classPointer, Buffer<TypePtr> args,
-                      Buffer<IntrinsicMethod> methods) {
+                      Buffer<IntrinsicMethod> methods, GlobalPtr<GenEnv> gen) {
     ModuleBase local = *module.arena;
     GlobalBase global = *module.types;
     auto typeClass = global[classPointer];
 
     auto instance = new (module.arena) ClassInstance(classPointer);
     instance->module = &module;
+    instance->gen = gen;
     for(auto arg: args) instance->forTypes.push(module.arena, arg);
     for(Size i = 0; i < typeClass->functions.size(); i++) instance->functions.push(module.arena, nullptr);
 
@@ -167,7 +171,7 @@ void generateInstance(Module& module, GlobalPtr<TypeClass> classPointer, Buffer<
             if(instance->functions.get(local, i)) continue;
 
             instance->functions.set(local, i,
-                                    generateInstanceFunction(module, *typeClass, args, U16(i), method.emit));
+                                    generateInstanceFunction(module, *typeClass, args, U16(i), method.emit, gen));
             matched = true;
             break;
         }
@@ -181,7 +185,7 @@ void generateInstance(Module& module, GlobalPtr<TypeClass> classPointer, Buffer<
 
         auto entry = typeClass->functions.get(global, i);
         assertTrue(entry.name == Context::nameHash("compare", 7));
-        instance->functions.set(local, i, generateCompare(module, *typeClass, args[0]));
+        instance->functions.set(local, i, generateCompare(module, *typeClass, args[0], gen));
     }
 
     module.instances.push(instance - local);
@@ -201,16 +205,16 @@ void defineFromDecimal(Module& module, TypePtr type) {
     generateInstance(module, classNamed(module, "FromDecimal"_v), { &type, 1 }, { methods, 1 });
 }
 
-void defineEq(Module& module, TypePtr type) {
+void defineEq(Module& module, TypePtr type, GlobalPtr<GenEnv> gen) {
     IntrinsicMethod methods[] = {
         { "=="_v, 2, emitCompare<CompareOp::Eq> },
         { "!="_v, 2, emitCompare<CompareOp::Ne> },
     };
 
-    generateInstance(module, classNamed(module, "Eq"_v), { &type, 1 }, { methods, 2 });
+    generateInstance(module, classNamed(module, "Eq"_v), { &type, 1 }, { methods, 2 }, gen);
 }
 
-void defineOrd(Module& module, TypePtr type) {
+void defineOrd(Module& module, TypePtr type, GlobalPtr<GenEnv> gen) {
     IntrinsicMethod methods[] = {
         { "<"_v, 2, emitCompare<CompareOp::Lt> },
         { "<="_v, 2, emitCompare<CompareOp::Le> },
@@ -218,7 +222,7 @@ void defineOrd(Module& module, TypePtr type) {
         { ">="_v, 2, emitCompare<CompareOp::Ge> },
     };
 
-    generateInstance(module, classNamed(module, "Ord"_v), { &type, 1 }, { methods, 4 });
+    generateInstance(module, classNamed(module, "Ord"_v), { &type, 1 }, { methods, 4 }, gen);
 }
 
 void defineNum(Module& module, TypePtr type) {
