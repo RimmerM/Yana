@@ -113,6 +113,46 @@ tiedSwap(%x: Long, %y: Long, %n: Int): Long {
     }
 }
 
+# The other half of the same disjointness, and the one refusing the merge does not cover. `%y`'s
+# life begins exactly where `%p`'s and `%q`'s end, so `%q` and the web `%y` belongs to are not
+# merely mergeable - they are two webs first-fit will happily put in one register, and one of them
+# is then read after the copy in front of the imul has overwritten it.
+#
+# Which of the two notices depends on which is placed first, and that is what makes this a phi
+# hazard rather than an arithmetic one. A destructive result is normally placed *at* its instruction,
+# where the other operands are already known and kept away from; but `%y` shares a web with the phi
+# in `join`, so it was placed at the terminator of `left` - the first predecessor edge to reach that
+# phi - long before the imul is walked, and the register it took there is one nothing at the imul
+# was consulted about.
+#
+# Every part of the shape is load-bearing. `%g` is live across the whole function so that the web
+# cannot have the first register in the order; `%p` takes the register `%a` is vacating, so the
+# first free one is still free when `%q` asks for it - and what `%q` then finds free is the web's.
+tiedNeighbour(%a: Int, %c: Int): Int {
+    start {
+        %g = add %a, 7: Int
+        je %c, right, left
+    }
+
+    left {
+        %x = add %g, 1: Int
+        jmp join
+    }
+
+    right {
+        %p = add %a, 2: Int
+        %q = add %g, 3: Int
+        %y = imul %p, %q: Int
+        jmp join
+    }
+
+    join {
+        %r = phi [left, %x], [right, %y]: Int
+        %z = add %r, %g: Int
+        ret %z
+    }
+}
+
 # A phi threaded through a second diamond, so the value arriving at `end` comes from a phi rather
 # than from an ordinary instruction.
 chain(%x: Int, %c: Int): Int {

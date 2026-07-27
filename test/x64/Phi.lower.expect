@@ -48,6 +48,31 @@ sourceUsedLater<complex>(%n: Int, %lim: Int): Int {
   }
 }
 
+tiedNeighbour<complex>(%a: Int, %c: Int): Int {
+  start {
+    %g = add %a, 7: Int
+    je %c, right, left
+  }
+
+  left {
+    %x = add %g, 1: Int
+    jmp join
+  }
+
+  right {
+    %p = add %a, 2: Int
+    %q = add %g, 3: Int
+    %y = imul %p, %q: Int
+    jmp join
+  }
+
+  join {
+    %r = phi [left, %x], [right, %y]: Int
+    %z = add %r, %g: Int
+    ret %z
+  }
+}
+
 branchedSource<complex>(%n: Int, %c: Int): Int {
   start {
     %x = add %n, 1: Int
@@ -167,6 +192,28 @@ block #3:
   jmp uses=[] creates=[] pre=[rcx->rax]  => 488bc1e9ebffffff
 block end:
   ret uses=[rax] creates=[]  => c3
+
+--- codegen: tiedNeighbour ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc783c007
+  je uses=[rsi] creates=[]  => 85f60f850a000000
+block left:
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx] pre=[rax->rcx]  => 488bc8ffc1
+  jmp uses=[] creates=[]  => e90f000000
+block right:
+  imm uses=[] creates=[-]  => 
+  add uses=[rdi, -] creates=[rdi]  => 83c702
+  imm uses=[] creates=[-]  => 
+  add uses=[rdx, -] creates=[rdx] pre=[rax->rdx]  => 488bd083c203
+  imul uses=[rcx, rdx] creates=[rcx] pre=[rdi->rcx]  => 488bcf0fafca
+  jmp uses=[] creates=[]  => 
+block join:
+  add uses=[rcx, rax] creates=[rcx]  => 01c1
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 488bc1c3
 
 --- codegen: branchedSource ---
 block #0:

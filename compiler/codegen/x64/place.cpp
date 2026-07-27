@@ -272,6 +272,16 @@ struct Placer {
     // of them are ever live at the same point.
     Array<LiveId> occupants[kRegisterBankCount][kMaxRegistersPerBank];
 
+    // The pairs of webs that may not share a register for a reason interval overlap does not state -
+    // see collectTieConflicts. Indexed by web id, holding web ids, and symmetric: whichever of the
+    // two is placed first, the second finds the register taken.
+    //
+    // Built by buildWebs, which needs the same relation to decide what it may merge. That it answers
+    // both questions is the point: a destructive result and a sibling operand of its instruction may
+    // no more share a register than share a web, and a rule that only refused the merge left the
+    // register sharing to be discovered by whichever of the two happened to be placed second.
+    Array<Array<LiveId>> tieConflicts;
+
     // The registers a value can be handed, held once rather than rebuilt at every assignment.
     RegSet allocatable = allocatableRegs();
 
@@ -359,6 +369,7 @@ struct Placer {
         for(Size i = 0; i < live.valueMap.size(); i++) {
             out.webOf.push(LiveId(i));
             out.webs.push(WebAllocation {});
+            tieConflicts.push();
 
             WebInfo web;
             auto interval = live.getInterval(LiveId(i));
@@ -445,15 +456,31 @@ struct Placer {
         return home;
     }
 
+    // Whether these two webs are a pair no register may hold both of - see tieConflicts and
+    // collectTieConflicts. The relation is symmetric, so one of the two lists answers it.
+    bool tiesConflict(LiveId webId, LiveId other) const {
+        for(auto id: tieConflicts[webId]) {
+            if(id == other) return true;
+        }
+
+        return false;
+    }
+
     // A register is available to a web when nothing already in it is ever live at the same time.
     // Comparing whole intervals rather than an endpoint against the walk's current position is what
     // lets a phi be placed at whichever predecessor edge reaches it first, and what lets a register
     // be reused across a web's holes.
     //
+    // Disjoint lives are not quite the whole of it, which is what `tieConflicts` is here for: a
+    // destructive result and a sibling operand of its instruction have disjoint lives *by
+    // construction* - the operand's ends where the result's begins - and still may not share a
+    // register, because the copy that puts operand zero into the result's register runs in front of
+    // the instruction and would overwrite the sibling before it is read.
+    //
     // Occupancy is tracked per *unit* rather than per register name, because two views of one
     // register are the same storage. Today every class covers its register completely and a unit is
     // a register, so this is one iteration; the loop is what stops that from being an assumption.
-    bool isFree(RegisterClassId cls, PhysicalReg reg, const LiveInterval& interval) {
+    bool isFree(LiveId webId, RegisterClassId cls, PhysicalReg reg, const LiveInterval& interval) {
         auto units = targetRegisters().viewOf(cls, reg).units;
 
         for(Size i = 0; units; i++, units >>= 1) {
@@ -461,6 +488,7 @@ struct Placer {
 
             for(auto id: occupants[reg.bank][i]) {
                 if(webs[id].interval().overlaps(interval)) return false;
+                if(tiesConflict(webId, id)) return false;
             }
         }
 
@@ -503,7 +531,7 @@ struct Placer {
             auto reg = PhysicalReg { bank, U16(i) };
             if(!allocatable.has(reg) || blocked.has(reg)) return false;
             if(!targetRegisters().regClass(cls).allowedPhysical.has(reg)) return false;
-            return isFree(cls, reg, interval);
+            return isFree(webId, cls, reg, interval);
         };
 
         auto chosen = kNoRegister;
@@ -543,9 +571,9 @@ struct Placer {
             // instead, and the next pass starts with it homeless, which leaves its register free at
             // the point that wanted it. Nothing has been emitted either way, which is what makes
             // another pass cheap.
-            auto displaced = findDisplacement(cls, avoid, interval, budget);
+            auto displaced = findDisplacement(webId, cls, avoid, interval, budget);
             if(displaced != kNoRegister) {
-                recordDisplacement(bank, displaced, interval);
+                recordDisplacement(webId, bank, displaced, interval);
                 return assignHomeless(webId, v->type, cls, interval);
             }
 
@@ -717,10 +745,20 @@ struct Placer {
         return setSplit(webId, cls, MachineLocation::physical(reg), plan.windows, MachineLocation::stack(slot));
     }
 
+    // Whether this occupant would have to go for `webId` to take the register it is in. Every
+    // occupant whose life overlaps, and - for the same reason isFree refuses one - every occupant
+    // the web ties against, whose life does not overlap and which would still be read after the
+    // copy in front of its instruction had overwritten it.
+    bool displaces(LiveId webId, LiveId occupant, const LiveInterval& interval) const {
+        return webs[occupant].interval().overlaps(interval) || tiesConflict(webId, occupant);
+    }
+
     // The register whose occupants would be cheapest to displace, if displacing them costs less than
-    // `budget` - what the web asking for a register would otherwise pay. Every occupant whose life
-    // overlaps has to go, since the register is only free for the new web when all of them have.
-    Size findDisplacement(RegisterClassId cls, const RegSet& avoid, const LiveInterval& interval, U32 budget) const {
+    // `budget` - what the web asking for a register would otherwise pay. The register is only free
+    // for the new web once all of them have gone, so the price is all of theirs together.
+    Size findDisplacement(LiveId webId, RegisterClassId cls, const RegSet& avoid,
+        const LiveInterval& interval, U32 budget) const
+    {
         auto bank = targetRegisters().regClass(cls).bank;
 
         auto best = kNoRegister;
@@ -734,7 +772,7 @@ struct Placer {
 
             U32 cost = 0;
             for(auto id: occupants[bank][i]) {
-                if(webs[id].interval().overlaps(interval)) cost += webs[id].homelessCost();
+                if(displaces(webId, id, interval)) cost += webs[id].homelessCost();
             }
 
             if(cost < bestCost) { bestCost = cost; best = i; }
@@ -743,9 +781,9 @@ struct Placer {
         return best;
     }
 
-    void recordDisplacement(RegisterBankId bank, Size reg, const LiveInterval& interval) {
+    void recordDisplacement(LiveId webId, RegisterBankId bank, Size reg, const LiveInterval& interval) {
         for(auto id: occupants[bank][reg]) {
-            if(webs[id].interval().overlaps(interval)) displacementRequests.push(id);
+            if(displaces(webId, id, interval)) displacementRequests.push(id);
         }
     }
 
@@ -801,9 +839,10 @@ struct Placer {
  * Pass 0: build the webs.
  */
 
-// The pairs of values a merge has to keep apart for a reason interval overlap does not state - see
-// buildWebs. Indexed by web representative, and merged onto the representative exactly as the ranges
-// are, so a web carries everything merged into it.
+// The pairs of values that have to be kept apart for a reason interval overlap does not state - see
+// buildWebs and Placer::isFree. Indexed by web representative while the webs are being built, and
+// merged onto the representative exactly as the ranges are, so a web carries everything merged into
+// it; rewritten in terms of web ids once they are, since that is what everything afterwards asks in.
 using TieConflicts = Array<Array<LiveId>>;
 
 // A destructive encoding's result and the *other* operands of its instruction. The result is written
@@ -814,6 +853,13 @@ using TieConflicts = Array<Array<LiveId>>;
 // `beforeInst` and the result's begins at `afterInst`. So the interference test below sees two webs
 // that are perfectly mergeable, and a loop that swaps two values asks for that merge at every latch -
 // the phi takes its incoming value from an operation whose other operand is the phi itself.
+//
+// The same disjointness makes the two look like ideal *neighbours in one register*, which is the
+// other half of what this is for. Refusing only the merge is not enough: two webs that were never
+// merged are still offered the same register by first-fit, and which of them notices depends on which
+// is placed first - the result is placed at its instruction, but a result that shares a web with a phi
+// is placed at whichever predecessor edge reached that phi, which can be long before. So placement
+// treats a pair here as interference (Placer::isFree) rather than only as an unmergeable pair.
 //
 // Operand zero is deliberately not here, since the result sharing its location is the whole content
 // of the tie; and neither is an operand that *is* operand zero (`sub %a, %a`), where the copy in
@@ -940,6 +986,13 @@ static void buildWebs(Placer& a) {
 
     // Flatten, so that everything afterwards is a direct lookup rather than a find().
     for(Size i = 0; i < a.out.webOf.size(); i++) a.out.webOf[i] = find(LiveId(i));
+
+    // And restate the conflicts in the same terms, since placement asks them of webs rather than of
+    // values. One direction is enough: collectTieConflicts records both, and a merge moves a web's
+    // entries onto the representative without dropping the ones pointing back at it.
+    for(Size i = 0; i < tieConflicts.size(); i++) {
+        for(auto id: tieConflicts[i]) a.tieConflicts[LiveId(i)].push(a.out.webOf[id]);
+    }
 }
 
 /*

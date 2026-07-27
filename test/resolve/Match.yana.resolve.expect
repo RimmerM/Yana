@@ -46,6 +46,57 @@ fn shapeValue(%s: Shape) -> Int {
     ret %v15
 }
 
+fn area(%s: Shape) -> Int {
+  b0:
+    %v1 = load %s.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v10 = load %s.discriminant : Int
+    %v12 = cmp_eq %v10, 0 : Bool
+    je %v12, b5, b4
+
+  b2:
+    %v5 = load %s@Circle : Int
+    %v7 = cmp_ge %v5, 11 : Bool
+    je %v7, b3, b1
+
+  b3:
+    jmp b9
+
+  b4:
+    %v15 = load %s.discriminant : Int
+    %v17 = cmp_eq %v15, 1 : Bool
+    je %v17, b7, b6
+
+  b5:
+    %r = load %s@Circle : Int
+    jmp b9
+
+  b6:
+    %v28 = load %s@Square : {width: Int, height: Int}
+    %w = load %s@Square.width : Int
+    %h = load %s@Square.height : Int
+    %v31 = mul %w, %h : Int
+    jmp b9
+
+  b7:
+    %v19 = load %s@Square : {width: Int, height: Int}
+    %v20 = load %s@Square.width : Int
+    %v22 = cmp_ge %v20, 11 : Bool
+    je %v22, b8, b6
+
+  b8:
+    %h = load %s@Square.height : Int
+    %v27 = mul %h, 10 : Int
+    jmp b9
+
+  b9:
+    %v36 = phi [b3, 100], [b5, %r], [b8, %v27], [b6, %v31] : Int
+    ret %v36
+}
+
 fn nested(%m: Maybe(Color)) -> Int {
   b0:
     %v1 = load %m.discriminant : Int
@@ -234,79 +285,101 @@ fn main() -> Int {
     init %local1@Circle, 4
     %v22 = call shapeValue, %v17 : Int
     %v23 = add %v16, %v22 : Int
-    %v24 = alloc : Maybe(Color)
-    init %local2.discriminant, 1
-    init %local2@Just, Red
-    %v29 = call nested, %v24 : Int
+    %v24 = alloc : Shape
+    init %local2.discriminant, 0
+    init %local2@Circle, 20
+    %v29 = call area, %v24 : Int
     %v30 = add %v23, %v29 : Int
-    %v31 = alloc : Maybe(Color)
-    init %local3.discriminant, 1
-    init %local3@Just, Green
-    %v36 = call nested, %v31 : Int
+    %v31 = alloc : Shape
+    init %local3.discriminant, 0
+    init %local3@Circle, 3
+    %v36 = call area, %v31 : Int
     %v37 = add %v30, %v36 : Int
-    %v38 = alloc : Maybe(Color)
+    %v38 = alloc : Shape
     init %local4.discriminant, 1
-    init %local4@Just, Blue
-    %v43 = call nested, %v38 : Int
-    %v44 = add %v37, %v43 : Int
-    %v45 = alloc : Maybe(Color)
-    init %local5.discriminant, 0
-    %v48 = call nested, %v45 : Int
-    %v49 = add %v44, %v48 : Int
-    %v50 = alloc : {Color, Bool}
-    init %local6.0, Red
-    init %local6.1, True
-    %v55 = call pairValue, %v50 : Int
-    %v56 = add %v49, %v55 : Int
-    %v57 = alloc : {Color, Bool}
-    init %local7.0, Red
-    init %local7.1, False
-    %v62 = call pairValue, %v57 : Int
-    %v63 = add %v56, %v62 : Int
-    %v64 = alloc : {Color, Bool}
-    init %local8.0, Green
-    init %local8.1, True
-    %v69 = call pairValue, %v64 : Int
-    %v70 = add %v63, %v69 : Int
-    %v71 = alloc : {Color, Bool}
-    init %local9.0, Green
-    init %local9.1, False
-    %v76 = call pairValue, %v71 : Int
-    %v77 = add %v70, %v76 : Int
-    %v78 = alloc : {Color, Bool}
-    init %local10.0, Blue
+    init %local4@Square.width, 20
+    init %local4@Square.height, 2
+    %v45 = call area, %v38 : Int
+    %v46 = add %v37, %v45 : Int
+    %v47 = alloc : Shape
+    init %local5.discriminant, 1
+    init %local5@Square.width, 3
+    init %local5@Square.height, 9
+    %v54 = call area, %v47 : Int
+    %v55 = add %v46, %v54 : Int
+    %v56 = alloc : Maybe(Color)
+    init %local6.discriminant, 1
+    init %local6@Just, Red
+    %v61 = call nested, %v56 : Int
+    %v62 = add %v55, %v61 : Int
+    %v63 = alloc : Maybe(Color)
+    init %local7.discriminant, 1
+    init %local7@Just, Green
+    %v68 = call nested, %v63 : Int
+    %v69 = add %v62, %v68 : Int
+    %v70 = alloc : Maybe(Color)
+    init %local8.discriminant, 1
+    init %local8@Just, Blue
+    %v75 = call nested, %v70 : Int
+    %v76 = add %v69, %v75 : Int
+    %v77 = alloc : Maybe(Color)
+    init %local9.discriminant, 0
+    %v80 = call nested, %v77 : Int
+    %v81 = add %v76, %v80 : Int
+    %v82 = alloc : {Color, Bool}
+    init %local10.0, Red
     init %local10.1, True
-    %v83 = call pairValue, %v78 : Int
-    %v84 = add %v77, %v83 : Int
-    %v85 = alloc : {Color, Bool}
-    init %local11.0, Blue
+    %v87 = call pairValue, %v82 : Int
+    %v88 = add %v81, %v87 : Int
+    %v89 = alloc : {Color, Bool}
+    init %local11.0, Red
     init %local11.1, False
-    %v90 = call pairValue, %v85 : Int
-    %v91 = add %v84, %v90 : Int
-    %v92 = alloc : Maybe(Color)
-    init %local12.discriminant, 1
-    init %local12@Just, Red
-    %v97 = call firstOrRest, %v92 : Int
-    %v98 = add %v91, %v97 : Int
-    %v99 = alloc : Maybe(Color)
-    init %local13.discriminant, 1
-    init %local13@Just, Green
-    %v104 = call firstOrRest, %v99 : Int
-    %v105 = add %v98, %v104 : Int
-    %v106 = alloc : Maybe(Color)
-    init %local14.discriminant, 1
-    init %local14@Just, Blue
-    %v111 = call firstOrRest, %v106 : Int
-    %v112 = add %v105, %v111 : Int
-    %v113 = alloc : Maybe(Color)
-    init %local15.discriminant, 0
-    %v116 = call firstOrRest, %v113 : Int
-    %v117 = add %v112, %v116 : Int
-    %v119 = call classify, 0 : Int
-    %v120 = add %v117, %v119 : Int
-    %v122 = call classify, 7 : Int
-    %v123 = add %v120, %v122 : Int
-    %v125 = call classify, 50 : Int
-    %v126 = add %v123, %v125 : Int
-    ret %v126
+    %v94 = call pairValue, %v89 : Int
+    %v95 = add %v88, %v94 : Int
+    %v96 = alloc : {Color, Bool}
+    init %local12.0, Green
+    init %local12.1, True
+    %v101 = call pairValue, %v96 : Int
+    %v102 = add %v95, %v101 : Int
+    %v103 = alloc : {Color, Bool}
+    init %local13.0, Green
+    init %local13.1, False
+    %v108 = call pairValue, %v103 : Int
+    %v109 = add %v102, %v108 : Int
+    %v110 = alloc : {Color, Bool}
+    init %local14.0, Blue
+    init %local14.1, True
+    %v115 = call pairValue, %v110 : Int
+    %v116 = add %v109, %v115 : Int
+    %v117 = alloc : {Color, Bool}
+    init %local15.0, Blue
+    init %local15.1, False
+    %v122 = call pairValue, %v117 : Int
+    %v123 = add %v116, %v122 : Int
+    %v124 = alloc : Maybe(Color)
+    init %local16.discriminant, 1
+    init %local16@Just, Red
+    %v129 = call firstOrRest, %v124 : Int
+    %v130 = add %v123, %v129 : Int
+    %v131 = alloc : Maybe(Color)
+    init %local17.discriminant, 1
+    init %local17@Just, Green
+    %v136 = call firstOrRest, %v131 : Int
+    %v137 = add %v130, %v136 : Int
+    %v138 = alloc : Maybe(Color)
+    init %local18.discriminant, 1
+    init %local18@Just, Blue
+    %v143 = call firstOrRest, %v138 : Int
+    %v144 = add %v137, %v143 : Int
+    %v145 = alloc : Maybe(Color)
+    init %local19.discriminant, 0
+    %v148 = call firstOrRest, %v145 : Int
+    %v149 = add %v144, %v148 : Int
+    %v151 = call classify, 0 : Int
+    %v152 = add %v149, %v151 : Int
+    %v154 = call classify, 7 : Int
+    %v155 = add %v152, %v154 : Int
+    %v157 = call classify, 50 : Int
+    %v158 = add %v155, %v157 : Int
+    ret %v158
 }

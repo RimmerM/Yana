@@ -17,6 +17,18 @@ fn shapeValue(s: Shape) -> Int = match s:
     Square {width, height} -> width * height
     Circle(r) -> r + 1
 
+-- Two opaque tests over one column, and an alternative whose body combines two names bound in it.
+-- That is the shape the x86-64 register allocator used to assert on: `h` dies exactly where the
+-- product begins, so the two never overlap and first-fit was free to give them one register - and
+-- the product shares a web with the phi that joins the alternatives, so it was placed at the first
+-- alternative to reach that phi rather than at the multiplication. `tiedNeighbour` in
+-- test/x64/Phi.lower is the same hazard stated in the backend's own terms.
+fn area(s: Shape) -> Int = match s:
+    Circle(11.._) -> 100
+    Circle(r) -> r
+    Square {width: 11.._, height: h} -> h * 10
+    Square {width: w, height: h} -> w * h
+
 -- Nesting: `Just` is never written on its own, and the column under it is still complete.
 fn nested(m: Maybe(Color)) -> Int = match m:
     Just(Red) -> 1
@@ -48,6 +60,8 @@ fn classify(value: Int) -> Int = match value:
 fn main() -> Int =
     colorValue(Red) + colorValue(Green) + colorValue(Blue) +
     shapeValue(Square {width: 2, height: 3}) + shapeValue(Circle(4)) +
+    area(Circle(20)) + area(Circle(3)) +
+    area(Square {width: 20, height: 2}) + area(Square {width: 3, height: 9}) +
     nested(Just(Red)) + nested(Just(Green)) + nested(Just(Blue)) + nested(Nothing) +
     pairValue({Red, True}) + pairValue({Red, False}) +
     pairValue({Green, True}) + pairValue({Green, False}) +
