@@ -966,6 +966,13 @@ private:
     }
 
     void toString(Pat& pat) {
+        // `a@pat` binds the whole value as well as matching it against `pat`. A rest pattern
+        // keeps its own name in the same field, and prints it as its content instead.
+        if(pat.asVar && pat.kind != Pat::Rest) {
+            write(stream, context.findName(pat.asVar));
+            stream.writeByte('@');
+        }
+
         if(pat.kind >= Pat::Lit) {
             stream.writeString("LitPat "_v);
             printLiteral(pat.lit, (Literal::Kind)(pat.kind - Pat::Lit));
@@ -1037,6 +1044,15 @@ private:
                 makeLevel();
                 toString(*base[pat.range.from], false);
                 toString(*base[pat.range.to], true);
+                removeLevel();
+                break;
+            }
+            case Pat::Section: {
+                stream.writeString("SectionPat "_v);
+                write(stream, context.findName(pat.section.op));
+
+                makeLevel();
+                toString(*base[pat.section.bound], true);
                 removeLevel();
                 break;
             }

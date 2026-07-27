@@ -1,0 +1,248 @@
+fn sign(%x: Int) -> Int {
+  b0:
+    %v2 = cmp_gt %x, 0 : Bool
+    je %v2, b2, b1
+
+  b1:
+    %v6 = cmp_lt %x, 0 : Bool
+    je %v6, b4, b3
+
+  b2:
+    jmp b5
+
+  b3:
+    jmp b5
+
+  b4:
+    %v9 = neg 1 : Int
+    jmp b5
+
+  b5:
+    %v14 = phi [b2, 1], [b4, %v9], [b3, 0] : Int
+    ret %v14
+}
+
+fn clampedTo(%x: Int, %limit: Int) -> Int {
+  b0:
+    %v2 = cmp_gt %x, %limit : Bool
+    je %v2, b2, b1
+
+  b1:
+    %v4 = cmp_eq %x, %limit : Bool
+    je %v4, b4, b3
+
+  b2:
+    jmp b5
+
+  b3:
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v10 = phi [b2, %limit], [b4, 0], [b3, %x] : Int
+    ret %v10
+}
+
+fn shadowing(%x: Int, %limit: Int) -> Int {
+  b0:
+    %v4 = add %x, 1 : Int
+    jmp b1
+
+  b1:
+    ret %v4
+}
+
+fn doubleIfPositive(%x: Int) -> Int {
+  b0:
+    %v2 = cmp_gt %x, 0 : Bool
+    je %v2, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v6 = mul %x, 2 : Int
+    jmp b3
+
+  b3:
+    %v9 = phi [b2, %v6], [b1, %x] : Int
+    ret %v9
+}
+
+fn area(%s: Shape) -> Int {
+  b0:
+    %v1 = load %s.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v10 = load %s.discriminant : Int
+    %v12 = cmp_eq %v10, 0 : Bool
+    je %v12, b5, b4
+
+  b2:
+    %v5 = load %s@Circle : Int
+    %v7 = cmp_gt %v5, 10 : Bool
+    je %v7, b3, b1
+
+  b3:
+    jmp b9
+
+  b4:
+    %v15 = load %s.discriminant : Int
+    %v17 = cmp_eq %v15, 1 : Bool
+    je %v17, b7, b6
+
+  b5:
+    %r = load %s@Circle : Int
+    jmp b9
+
+  b6:
+    %v28 = load %s@Square : {width: Int, height: Int}
+    %w = load %s@Square.width : Int
+    %v30 = load %s@Square.height : Int
+    jmp b9
+
+  b7:
+    %v19 = load %s@Square : {width: Int, height: Int}
+    %v20 = load %s@Square.width : Int
+    %v22 = cmp_gt %v20, 10 : Bool
+    je %v22, b8, b6
+
+  b8:
+    %h = load %s@Square.height : Int
+    %v27 = add %h, 10 : Int
+    jmp b9
+
+  b9:
+    %v35 = phi [b3, 100], [b5, %r], [b8, %v27], [b6, %w] : Int
+    ret %v35
+}
+
+fn firstIfEqual(%p: {Int, Int}) -> Int {
+  b0:
+    %a = load %p.0 : Int
+    %v2 = load %p.1 : Int
+    %v3 = cmp_eq %v2, %a : Bool
+    je %v3, b2, b1
+
+  b1:
+    %a = load %p.0 : Int
+    %b = load %p.1 : Int
+    %v7 = add %a, %b : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b2, %a], [b1, %v7] : Int
+    ret %v10
+}
+
+fn near(%a: Int, %b: Int) -> Bool {
+  b0:
+    %v2 = sub %a, %b : Int
+    %v5 = cmp_lt %v2, 2 : Bool
+    %v6 = sub %b, %a : Int
+    %v9 = cmp_lt %v6, 2 : Bool
+    %v10 = and %v5, %v9 : Bool
+    ret %v10
+}
+
+fn isNearTen(%x: Int) -> Int {
+  b0:
+    %v2 = call near, %x, 10 : Bool
+    je %v2, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b2, 1], [b1, 0] : Int
+    ret %v8
+}
+
+fn positiveOr(%x: Int, %fallback: Int) -> Int {
+  b0:
+    %v3 = cmp_gt %x, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    ret %fallback
+
+  b2:
+    ret %x
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call sign, 5 : Int
+    %v3 = neg 5 : Int
+    %v4 = call sign, %v3 : Int
+    %v5 = add %v1, %v4 : Int
+    %v7 = call sign, 0 : Int
+    %v8 = add %v5, %v7 : Int
+    %v11 = call clampedTo, 20, 10 : Int
+    %v12 = add %v8, %v11 : Int
+    %v15 = call clampedTo, 10, 10 : Int
+    %v16 = add %v12, %v15 : Int
+    %v19 = call clampedTo, 3, 10 : Int
+    %v20 = add %v16, %v19 : Int
+    %v23 = call shadowing, 7, 100 : Int
+    %v24 = add %v20, %v23 : Int
+    %v26 = call doubleIfPositive, 4 : Int
+    %v27 = add %v24, %v26 : Int
+    %v29 = neg 4 : Int
+    %v30 = call doubleIfPositive, %v29 : Int
+    %v31 = add %v27, %v30 : Int
+    %v32 = alloc : Shape
+    init %local0.discriminant, 0
+    init %local0@Circle, 20
+    %v37 = call area, %v32 : Int
+    %v38 = add %v31, %v37 : Int
+    %v39 = alloc : Shape
+    init %local1.discriminant, 0
+    init %local1@Circle, 3
+    %v44 = call area, %v39 : Int
+    %v45 = add %v38, %v44 : Int
+    %v46 = alloc : Shape
+    init %local2.discriminant, 1
+    init %local2@Square.width, 20
+    init %local2@Square.height, 2
+    %v53 = call area, %v46 : Int
+    %v54 = add %v45, %v53 : Int
+    %v55 = alloc : Shape
+    init %local3.discriminant, 1
+    init %local3@Square.width, 3
+    init %local3@Square.height, 9
+    %v62 = call area, %v55 : Int
+    %v63 = add %v54, %v62 : Int
+    %v64 = alloc : {Int, Int}
+    init %local4.0, 6
+    init %local4.1, 6
+    %v69 = call firstIfEqual, %v64 : Int
+    %v70 = add %v63, %v69 : Int
+    %v71 = alloc : {Int, Int}
+    init %local5.0, 1
+    init %local5.1, 2
+    %v76 = call firstIfEqual, %v71 : Int
+    %v77 = add %v70, %v76 : Int
+    %v79 = call isNearTen, 11 : Int
+    %v80 = add %v77, %v79 : Int
+    %v82 = call isNearTen, 50 : Int
+    %v83 = add %v80, %v82 : Int
+    %v86 = neg 1 : Int
+    %v87 = call positiveOr, 9, %v86 : Int
+    %v88 = add %v83, %v87 : Int
+    %v90 = neg 9 : Int
+    %v92 = neg 1 : Int
+    %v93 = call positiveOr, %v90, %v92 : Int
+    %v94 = add %v88, %v93 : Int
+    ret %v94
+}

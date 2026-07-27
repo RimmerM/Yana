@@ -19,11 +19,9 @@ error 27:25 [718..719]: expected declaration end
 error 28:21 [751..752]: expected ')'
 error 28:30 [760..761]: expected function body
 error 28:30 [760..761]: expected declaration end
-error 32:4 [835..836]: expected pattern
-error 32:4 [835..836]: expected ':'
-error 32:6 [837..839]: expected an expression
-error 32:6 [837..839]: expected declaration end
-error 37:9 [926..928]: expected pattern
+error 32:4 [835..837]: expected pattern
+error 37:6 [936..938]: expected pattern
+error 42:9 [1025..1027]: expected pattern
 
 Module 
 |-AliasDecl Empty 
@@ -66,11 +64,25 @@ Module
 | `-Body
 |   `-MatchExpr 
 |     |-VarExpr a
+|     |-Alt
+|     | |-<parse error>
+|     | `-LitExpr 1
 |     `-Alt
-|       |-<parse error>
-|       `-PrefixExpr 
-|         |-VarExpr +
-|         `-<parse error>
+|       |-AnyPat
+|       `-LitExpr 0
+|-FunDecl badSection <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| `-Body
+|   `-MatchExpr 
+|     |-VarExpr a
+|     |-Alt
+|     | |-SectionPat +
+|     | | `-<parse error>
+|     | `-LitExpr 1
+|     `-Alt
+|       |-AnyPat
+|       `-LitExpr 0
 |-FunDecl badRange <implicit return> 
 | |-Arg a
 | | `-ConType Int

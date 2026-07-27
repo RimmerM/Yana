@@ -100,10 +100,43 @@ Module
 |   | | |-LitPat 0
 |   | | `-AnyPat
 |   | `-LitExpr 0
+|   |-Alt
+|   | |-RangePat 
+|   | | |-AnyPat
+|   | | `-LitPat 0
+|   | `-LitExpr 0
+|   |-Alt
+|   | |-RangePat 
+|   | | |-LitPat -5
+|   | | `-LitPat 5
+|   | `-LitExpr 0
 |   `-Alt
 |     |-RangePat 
-|     | |-AnyPat
-|     | `-LitPat 0
+|     | |-LitPat -5
+|     | `-LitPat -1
+|     `-LitExpr 0
+|-StmtDecl
+| `-MatchExpr 
+|   |-VarExpr x
+|   |-Alt
+|   | |-SectionPat ==
+|   | | `-VarPat v
+|   | `-LitExpr 0
+|   |-Alt
+|   | |-SectionPat >
+|   | | `-LitPat 0
+|   | `-LitExpr 0
+|   |-Alt
+|   | |-SectionPat <=
+|   | | `-VarPat limit
+|   | `-LitExpr 0
+|   |-Alt
+|   | |-SectionPat !=
+|   | | `-LitPat -1
+|   | `-LitExpr 0
+|   `-Alt
+|     |-SectionPat elem
+|     | `-VarPat xs
 |     `-LitExpr 0
 |-StmtDecl
 | `-MatchExpr 
@@ -112,19 +145,31 @@ Module
 |   | |-VarPat a
 |   | `-LitExpr 0
 |   |-Alt
-|   | |-ConPat Int
+|   | |-a@ConPat Int
 |   | `-LitExpr 0
 |   |-Alt
-|   | |-TupPat
+|   | |-a@TupPat
 |   | | |-Field 
 |   | | | `-LitPat 0
 |   | | `-Field 
 |   | |   `-LitPat 0
 |   | `-LitExpr 0
 |   |-Alt
-|   | |-RangePat 
+|   | |-a@RangePat 
 |   | | |-LitPat 0
 |   | | `-LitPat 100
+|   | `-LitExpr 0
+|   |-Alt
+|   | |-a@SectionPat >
+|   | | `-LitPat 0
+|   | `-LitExpr 0
+|   |-Alt
+|   | |-a@SectionPat ==
+|   | | `-VarPat v
+|   | `-LitExpr 0
+|   |-Alt
+|   | |-a@SectionPat elem
+|   | | `-VarPat xs
 |   | `-LitExpr 0
 |   |-Alt
 |   | |-VarPat a

@@ -13,7 +13,7 @@ match x:
   Int {x: 0, y: Int {a: b, c: d }} -> 0
   Int { True, False } -> 0
 
--- RangePat.
+-- RangePat. A negative bound is a literal like any other, on either end.
 match x:
   0..100 -> 0
   True..False -> 0
@@ -21,13 +21,29 @@ match x:
   "a".."z" -> 0
   0.._ -> 0
   _..0 -> 0
+  -5..5 -> 0
+  -5 .. -1 -> 0
 
--- VarPat.
+-- SectionPat. An operator at the head of a pattern takes the matched value as its left
+-- operand, so the pattern below reads as the comparison it is. Any operator will parse;
+-- whether it produces a Bool is a question for the resolver.
+match x:
+  ==v -> 0
+  >0 -> 0
+  <=limit -> 0
+  != -1 -> 0
+  `elem` xs -> 0
+
+-- VarPat. `@` binds the whole value in addition to matching it; a section goes in parentheses
+-- there, the same as a range, because both are pattern forms rather than left-patterns.
 match x:
   a -> 0
   a@Int -> 0
   a@{0, 0} -> 0
   a@(0..100) -> 0
+  a@(>0) -> 0
+  a@(==v) -> 0
+  a@(`elem` xs) -> 0
   (a) -> 0
   (Int {x, y}) -> 0
 

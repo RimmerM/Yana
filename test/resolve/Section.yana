@@ -1,0 +1,73 @@
+-- Operator sections as patterns. An operator at the head of a pattern takes the matched value as
+-- its left operand, so `>0` is the comparison it reads as. Nothing else in a pattern tests a value
+-- against another one: a bare name always binds, so what a pattern means is decided by the pattern
+-- itself rather than by what happens to be in scope around it.
+
+data Shape = Circle(Int) | Square {width: Int, height: Int}
+
+-- Strict comparisons, which an inclusive range cannot express. The `else` is needed because no set
+-- of comparisons ever completes a column - the resolver relates one opaque test to no other, so it
+-- can never conclude that together they cover everything.
+fn sign(x: Int) -> Int = match x:
+    >0 -> 1
+    <0 -> -1
+    else -> 0
+
+-- The operand is read from the scope the match is in, which is the case a bare name used to serve.
+-- Here it is a parameter, and the pattern says which of the two it is comparing.
+fn clampedTo(x: Int, limit: Int) -> Int = match x:
+    >limit -> limit
+    ==limit -> 0
+    else -> x
+
+-- A bare name binds and shadows, in a `match` exactly as in a `let`. `limit` in the alternative is
+-- the matched value, and the alternative is irrefutable, so the match needs nothing after it.
+fn shadowing(x: Int, limit: Int) -> Int = match x:
+    limit -> limit + 1
+
+-- `@` binds the whole value in addition to testing it. A section is parenthesized there, the same
+-- as a range, because both are pattern forms rather than left-patterns.
+fn doubleIfPositive(x: Int) -> Int = match x:
+    a@(>0) -> a * 2
+    a -> a
+
+-- Sections nest wherever a pattern does: under a constructor, in a named field, in a positional
+-- one, beside an ordinary binding.
+fn area(s: Shape) -> Int = match s:
+    Circle(>10) -> 100
+    Circle(r) -> r
+    Square {width: >10, height: h} -> h + 10
+    Square {width: w, height: _} -> w
+
+-- Two fields compared against each other. The second is a section rather than a repeated name, so
+-- it does not depend on the first having been written as a binding to mean this.
+fn firstIfEqual(p: {Int, Int}) -> Int = match p:
+    {a, ==a} -> a
+    {a, b} -> a + b
+
+-- The operator is an ordinary two-argument function, so a plain one serves as well as a class
+-- method. A section applies it once and never re-associates anything, so it needs no fixity.
+fn near(a: Int, b: Int) -> Bool = a - b < 2 && b - a < 2
+
+fn isNearTen(x: Int) -> Int = match x:
+    `near` 10 -> 1
+    else -> 0
+
+-- A declaration takes the same patterns, and a section is one that can fail, so it needs the
+-- alternatives that say what happens when it does.
+fn positiveOr(x: Int, fallback: Int) -> Int:
+    let >0 = x | return fallback
+    return x
+
+-- Both sides of every alternative above: an alternative is only shown to be right by the values
+-- that reach it.
+fn main() -> Int =
+    sign(5) + sign(-5) + sign(0) +
+    clampedTo(20, 10) + clampedTo(10, 10) + clampedTo(3, 10) +
+    shadowing(7, 100) +
+    doubleIfPositive(4) + doubleIfPositive(-4) +
+    area(Circle(20)) + area(Circle(3)) +
+    area(Square {width: 20, height: 2}) + area(Square {width: 3, height: 9}) +
+    firstIfEqual({6, 6}) + firstIfEqual({1, 2}) +
+    isNearTen(11) + isNearTen(50) +
+    positiveOr(9, -1) + positiveOr(-9, -1)

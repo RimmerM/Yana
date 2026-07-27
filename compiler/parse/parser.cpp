@@ -1320,25 +1320,17 @@ ast::FieldPat Parser::parseFieldPat() {
 ast::Pat Parser::parsePattern() {
     WithLocation location(*this);
 
-    if(token.singleMinus) {
-        eat();
-
-        auto lit = (token.type == Token::Integer || token.type == Token::Float) ? toLiteral(location) : ({
-            error("expected integer or float literal"_v);
-            toLiteral({ .integer = 0 }, Token::Integer, location);
-        });
-
-        // The lexer only ever produces the positive magnitude; apply the sign here.
-        if(lit.kind == (ast::Expr::Lit + ast::Literal::Int)) {
-            lit.lit.i((U64)(-(I64)lit.lit.i()));
-        } else if(lit.kind == (ast::Expr::Lit + ast::Literal::Double)) {
-            lit.lit.d(-lit.lit.d());
-        }
+    // An operator section, which is the only pattern that starts with an operator: the matched
+    // value is the left operand, so `>0` matches a value greater than zero. A lone `-` is not
+    // one - it is the sign of a negative literal, which parseLeftPattern reads.
+    if((token.type == Token::VarSym && !token.singleMinus) || token.type == Token::Grave) {
+        auto op = parseQop();
+        auto bound = parseLeftPattern();
 
         return ast::Pat {
-            .lit = lit.lit,
-            .source = lit.source,
-            .kind = (ast::Pat::Kind)(ast::Pat::Lit + (lit.kind - ast::Expr::Lit)),
+            .section = { op.var, heap(bound) },
+            .source = context.addLocation(location),
+            .kind = ast::Pat::Section,
         };
     }
 
@@ -1387,6 +1379,28 @@ ast::Pat Parser::parsePattern() {
 
 ast::Pat Parser::parseLeftPattern() {
     WithLocation location(*this);
+
+    if(token.singleMinus) {
+        eat();
+
+        auto lit = (token.type == Token::Integer || token.type == Token::Float) ? toLiteral(location) : ({
+            error("expected integer or float literal"_v);
+            toLiteral({ .integer = 0 }, Token::Integer, location);
+        });
+
+        // The lexer only ever produces the positive magnitude; apply the sign here.
+        if(lit.kind == (ast::Expr::Lit + ast::Literal::Int)) {
+            lit.lit.i((U64)(-(I64)lit.lit.i()));
+        } else if(lit.kind == (ast::Expr::Lit + ast::Literal::Double)) {
+            lit.lit.d(-lit.lit.d());
+        }
+
+        return ast::Pat {
+            .lit = lit.lit,
+            .source = lit.source,
+            .kind = (ast::Pat::Kind)(ast::Pat::Lit + (lit.kind - ast::Expr::Lit)),
+        };
+    }
 
     if(token.type >= Token::FirstLiteral && token.type <= Token::LastLiteral) {
         auto lit = toLiteral(location);

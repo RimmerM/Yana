@@ -38,11 +38,11 @@
 // A pattern's head constructor, as the exhaustiveness algorithm sees it.
 //
 // `Opaque` is the escape hatch: a test the algorithm cannot relate to any other - a range, an
-// array pattern, a comparison against a value in scope, or a constructor that does not belong to
-// the type being matched. Each occurrence is its own constructor drawn from an inexhaustible
-// signature, so it can never complete a column and can never be shown to subsume another
-// pattern. Both of those err towards saying less, which is the safe direction: the worst an
-// Opaque can cause is a wildcard the author did not strictly need.
+// array pattern, an operator section, or a constructor that does not belong to the type being
+// matched. Each occurrence is its own constructor drawn from an inexhaustible signature, so it
+// can never complete a column and can never be shown to subsume another pattern. Both of those
+// err towards saying less, which is the safe direction: the worst an Opaque can cause is a
+// wildcard the author did not strictly need.
 struct PatternHead {
     enum Kind: U8 {
         Wildcard,
@@ -84,9 +84,9 @@ struct PatternMatrix {
 };
 
 struct PatternSpace {
-    PatternSpace(ExprResolver& resolver, TypePtr pivot, PatternMode mode):
-        resolver(resolver), context(resolver.context), module(resolver.module),
-        parse(resolver.parse), global(resolver.global), mode(mode)
+    PatternSpace(ExprResolver& resolver, TypePtr pivot):
+        context(resolver.context), module(resolver.module),
+        parse(resolver.parse), global(resolver.global)
     {
         covered.types.push(pivot);
     }
@@ -99,8 +99,6 @@ struct PatternSpace {
     // the head cache is keyed by. An alternative read out of a parse list is a copy, so the
     // callers below keep the ones they hand over.
     bool useful(const ast::Pat& pattern) {
-        classify(pattern);
-
         Array<const ast::Pat*> row;
         row.push(&pattern);
         return useful(covered, row);
@@ -108,7 +106,6 @@ struct PatternSpace {
 
     // Adds `pattern` to the space, and answers whether everything is now covered.
     bool add(const ast::Pat& pattern) {
-        classify(pattern);
         covered.cells.push(&pattern);
         covered.rows++;
 
@@ -125,44 +122,6 @@ struct PatternSpace {
     }
 
 private:
-    /*
-     * Classification.
-     */
-
-    // Records which bare names in `pattern` are tests rather than bindings, walking it in the
-    // order resolvePattern() binds them so that the second `a` of `{a, a}` is seen as the
-    // comparison it compiles to.
-    void classify(const ast::Pat& pattern) {
-        Array<StringId> bound;
-        classify(pattern, bound);
-    }
-
-    void classify(const ast::Pat& pattern, Array<StringId>& bound) {
-        if(pattern.asVar) bound.push(pattern.asVar);
-
-        switch(pattern.kind) {
-            case ast::Pat::Var:
-                if(mode == PatternMode::Match && (bound.containsValue(pattern.var) || resolver.find(pattern.var))) {
-                    if(!tests.containsValue(&pattern)) tests.push(&pattern);
-                } else {
-                    bound.push(pattern.var);
-                }
-                return;
-            case ast::Pat::Tup: {
-                auto fieldList = pattern.tup;
-                for(auto field: fieldList.contents(parse)) classify(*parse[field.pat], bound);
-                return;
-            }
-            case ast::Pat::Con:
-                if(pattern.con.pats) classify(*parse[pattern.con.pats], bound);
-                return;
-            default:
-                // A range's bounds read values rather than binding them, and array patterns are
-                // opaque as a whole, so neither introduces a name.
-                return;
-        }
-    }
-
     // The head of one cell. Cached by pattern rather than recomputed, both because the recursion
     // asks for the same one repeatedly and because looking a constructor up can report ambiguity
     // - which has to happen once, not once per column the pattern is looked at from.
@@ -182,11 +141,13 @@ private:
         auto opaque = [&]() { return PatternHead { 0, 0, &pattern, PatternHead::Opaque }; };
 
         switch(pattern.kind) {
+            // A bare name is a wildcard as far as coverage goes - it matches every value, it just
+            // remembers which one it saw. Testing a value against something is what an operator
+            // section is for, and that one is opaque.
             case ast::Pat::Error:
             case ast::Pat::Any:
-                return {};
             case ast::Pat::Var:
-                return tests.containsValue(&pattern) ? opaque() : PatternHead {};
+                return {};
             case ast::Pat::Tup: {
                 if(!type || global[type]->kind != Type::Tup) return opaque();
 
@@ -524,16 +485,13 @@ private:
         PatternHead head;
     };
 
-    ExprResolver& resolver;
     Context& context;
     Module& module;
     ast::ParseBase parse;
     GlobalBase global;
 
     PatternMatrix covered;
-    Array<const ast::Pat*> tests;
     Array<CachedHead> headCache;
-    PatternMode mode;
 };
 
 /*
@@ -551,15 +509,17 @@ PatternResult ExprResolver::branchPattern(ModulePtr<Value> condition, ModulePtr<
     return PatternResult::Maybe;
 }
 
-// The value a range bound or a literal pattern compares against. A bound may be a literal, an
-// existing binding, or `_` for an open end.
+// The value a pattern compares against - a range's bound, a literal, or an operator section's
+// right operand. It may be a literal, an existing binding, or `_` where the caller allows an
+// open end; `_` yields no value at all rather than an error, so a caller that needs one has to
+// say so itself.
 ModulePtr<Value> ExprResolver::patternBound(const ast::Pat& pattern, TypePtr target) {
     if(pattern.kind == ast::Pat::Any) return nullptr;
 
     if(pattern.kind == ast::Pat::Var) {
         auto value = find(pattern.var);
         if(!value) {
-            context.diagnostics.error("unknown value in range pattern %@"_v, pattern.source, context.findName(pattern.var));
+            context.diagnostics.error("unknown value in pattern %@"_v, pattern.source, context.findName(pattern.var));
         }
 
         return value;
@@ -575,23 +535,31 @@ ModulePtr<Value> ExprResolver::patternBound(const ast::Pat& pattern, TypePtr tar
         return resolve(literal, target);
     }
 
-    context.diagnostics.error("range pattern bounds must be literals, existing values, or _"_v, pattern.source);
+    context.diagnostics.error("a pattern can only compare against a literal, an existing value, or _"_v, pattern.source);
     return nullptr;
 }
 
 PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Value> pivot, ModulePtr<Block> onFail,
-                                           PatternMode mode) {
+                                           Size bindingBase) {
     // A null failure block says the caller has already proved this pattern matches. Everything
     // below then takes the value apart and binds it without asking any question about it.
     auto tested = onFail != nullptr;
 
-    if(pattern.asVar) {
-        if(mode == PatternMode::Match && find(pattern.asVar)) {
-            context.diagnostics.error("pattern name is already bound %@"_v, pattern.source, context.findName(pattern.asVar));
-        } else {
-            bindings.push(Binding { pattern.asVar, pivot });
+    // A name binds, always, shadowing whatever it shadows - that is what makes a pattern mean the
+    // same thing wherever it is written. Binding the same name twice within one pattern is the
+    // one case that cannot be meant, since only one of the two could ever be read.
+    auto bind = [&](StringId name) {
+        for(auto i = bindingBase; i < bindings.size(); i++) {
+            if(bindings[i].name != name) continue;
+
+            context.diagnostics.error("this pattern binds %@ twice"_v, pattern.source, context.findName(name));
+            return;
         }
-    }
+
+        bindings.push(Binding { name, pivot });
+    };
+
+    if(pattern.asVar) bind(pattern.asVar);
 
     switch(pattern.kind) {
         case ast::Pat::Error:
@@ -599,21 +567,38 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
         case ast::Pat::Any:
             return PatternResult::Always;
         case ast::Pat::Var: {
-            // In a match, a name that is already bound is a test against that value rather than a
-            // new binding, which is what makes `match x: y -> ...` mean "equal to y". A
-            // declaration has nothing to test against, so the same name shadows instead.
-            if(mode == PatternMode::Match) {
-                if(auto existing = find(pattern.var)) {
-                    if(!tested) return PatternResult::Always;
+            if(local[pivot]->name == 0) local[pivot]->name = pattern.var;
+            bind(pattern.var);
+            return PatternResult::Always;
+        }
+        case ast::Pat::Section: {
+            if(!tested) return PatternResult::Always;
 
-                    ModulePtr<Value> args[] = { pivot, existing };
-                    return branchPattern(emitCall(Context::nameHash("==", 2), { args, 2 }, pattern.source, module.scalar.bool_), onFail, pattern.source);
-                }
+            // The matched value is the operator's left operand, so `>0` reads as the comparison
+            // it is. Which operator it is decides nothing here beyond the call: any function of
+            // two arguments that answers Bool can serve as a test.
+            auto& bound = *parse[pattern.section.bound];
+            if(bound.kind == ast::Pat::Any) {
+                context.diagnostics.error("an operator pattern needs a value to compare against"_v, pattern.source);
+                return PatternResult::Never;
             }
 
-            if(local[pivot]->name == 0) local[pivot]->name = pattern.var;
-            bindings.push(Binding { pattern.var, pivot });
-            return PatternResult::Always;
+            auto value = patternBound(bound, valueType(pivot));
+            if(!value) return PatternResult::Never;
+
+            ModulePtr<Value> args[] = { pivot, value };
+            auto condition = emitCall(pattern.section.op, { args, 2 }, pattern.source, module.scalar.bool_);
+            if(!condition) return PatternResult::Never;
+
+            auto type = valueType(condition);
+            if(type != module.scalar.bool_ && global[type]->kind != Type::Error) {
+                context.diagnostics.error("an operator used as a pattern has to produce Bool, but %@ produces %@"_v,
+                                          pattern.source, context.findName(pattern.section.op),
+                                          describeType(context, global, type));
+                return PatternResult::Never;
+            }
+
+            return branchPattern(condition, onFail, pattern.source);
         }
         case ast::Pat::Tup: {
             auto type = valueType(pivot);
@@ -649,7 +634,7 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
                 }
 
                 auto child = load(project(root, ProjectionKind::Field, U16(index)), parse[fieldPattern.pat]->source);
-                auto result = resolvePattern(*parse[fieldPattern.pat], child, onFail, mode);
+                auto result = resolvePattern(*parse[fieldPattern.pat], child, onFail, bindingBase);
 
                 if(result == PatternResult::Never) return result;
                 if(result == PatternResult::Maybe) overall = result;
@@ -708,7 +693,7 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
                 }
 
                 auto content = load(project(placeFor(pivot, pattern.source), ProjectionKind::Downcast, reference.index), pattern.source);
-                childResult = resolvePattern(*parse[pattern.con.pats], content, onFail, mode);
+                childResult = resolvePattern(*parse[pattern.con.pats], content, onFail, bindingBase);
             }
 
             if(childResult == PatternResult::Never) return childResult;
@@ -779,7 +764,7 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
     patterns.reserve(U32(alternatives.size()));
     for(auto alternative: alternatives) patterns.push(alternative.pat);
 
-    PatternSpace space(*this, valueType(pivot), PatternMode::Match);
+    PatternSpace space(*this, valueType(pivot));
     auto bindingCount = bindings.size();
     Array<BranchArm> arms;
     auto exhaustive = false;
@@ -847,7 +832,7 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
  * and on that path the pattern matched.
  */
 void ExprResolver::resolveBinding(const ast::VarDecl& declaration, ModulePtr<Value> value) {
-    PatternSpace space(*this, valueType(value), PatternMode::Bind);
+    PatternSpace space(*this, valueType(value));
     auto alternativeList = declaration.alts;
     auto alternatives = alternativeList.contents(parse);
 
@@ -863,7 +848,7 @@ void ExprResolver::resolveBinding(const ast::VarDecl& declaration, ModulePtr<Val
                                         declaration.pat.source);
         }
 
-        resolvePattern(declaration.pat, value, nullptr, PatternMode::Bind);
+        resolvePattern(declaration.pat, value, nullptr);
         return;
     }
 
@@ -877,14 +862,14 @@ void ExprResolver::resolveBinding(const ast::VarDecl& declaration, ModulePtr<Val
 
         // Bound anyway, and without its tests: the names are what the rest of the block was
         // written against, and one diagnostic about the declaration is enough.
-        resolvePattern(declaration.pat, value, nullptr, PatternMode::Bind);
+        resolvePattern(declaration.pat, value, nullptr);
         return;
     }
 
     auto checkpoint = bindings.size();
     auto failure = addBlock();
 
-    if(resolvePattern(declaration.pat, value, failure, PatternMode::Bind) == PatternResult::Never) return;
+    if(resolvePattern(declaration.pat, value, failure) == PatternResult::Never) return;
     auto success = current;
 
     // What the pattern bound is live on the matching path only, so the alternatives are resolved
@@ -913,7 +898,7 @@ void ExprResolver::resolveBinding(const ast::VarDecl& declaration, ModulePtr<Val
         covered = space.add(pattern);
         auto next = covered ? ModulePtr<Block>(nullptr) : addBlock();
 
-        if(resolvePattern(pattern, value, next, PatternMode::Bind) != PatternResult::Never) {
+        if(resolvePattern(pattern, value, next) != PatternResult::Never) {
             auto errors = context.diagnostics.errorCount();
             resolve(body, nullptr, false);
 

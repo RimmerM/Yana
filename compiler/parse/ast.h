@@ -183,6 +183,7 @@ struct Pat {
         Arr,
         Rest,
         Range,
+        Section,
         Lit, // Must be last; the literal type is (kind - Kind::Lit).
     };
 
@@ -201,6 +202,13 @@ struct Pat {
             ParsePtr<Pat> from;
             ParsePtr<Pat> to;
         } range;
+
+        // An operator section: the matched value is the operator's left operand and `bound` is
+        // its right one, so `>0` matches a value greater than zero.
+        struct {
+            StringId op;
+            ParsePtr<Pat> bound;
+        } section;
     };
 
     StringId asVar;

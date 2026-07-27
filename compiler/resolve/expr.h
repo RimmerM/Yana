@@ -47,17 +47,6 @@ enum class PatternResult: I8 {
     Always = 1,
 };
 
-// What a bare name in a pattern means.
-//
-// In `match` it is a test - `match x: y -> ...` asks whether `x` equals the `y` already in
-// scope - which is what makes a constant usable as an alternative without repeating its value.
-// In a declaration there is nothing to test against: `let y = y + 1` introduces a new `y` that
-// shadows the old one, the way every other binding form does.
-enum class PatternMode: U8 {
-    Match,
-    Bind,
-};
-
 // One alternative's contribution to a branching expression's result: the block control leaves
 // through, and the value produced there. Collected by if/multi-if/match alike, then unified into
 // a single phi by finishBranches().
@@ -236,8 +225,15 @@ struct ExprResolver {
     // the pattern is already known to match every value that can reach it - either because it is
     // irrefutable, or because the alternatives before it ruled everything else out - so no test
     // is emitted and there is no failure edge to take.
+    PatternResult resolvePattern(const ast::Pat& pattern, ModulePtr<Value> pivot, ModulePtr<Block> onFail) {
+        return resolvePattern(pattern, pivot, onFail, bindings.size());
+    }
+
+    // `bindingBase` is where the bindings this one pattern introduces start, which is what makes
+    // a name it binds twice tellable from one that merely shadows an outer binding. The recursion
+    // passes its own base down; the entry point above takes it from the scope it was called in.
     PatternResult resolvePattern(const ast::Pat& pattern, ModulePtr<Value> pivot, ModulePtr<Block> onFail,
-                                 PatternMode mode = PatternMode::Match);
+                                 Size bindingBase);
 
     PatternResult branchPattern(ModulePtr<Value> condition, ModulePtr<Block> onFail, LocationId source);
     ModulePtr<Value> patternBound(const ast::Pat& pattern, TypePtr target);
