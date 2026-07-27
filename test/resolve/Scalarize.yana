@@ -1,0 +1,27 @@
+-- Repr selection at its smallest: an aggregate every use of which is a read, and whose address
+-- nothing ever takes, needs no storage at all. Its fields stay in registers and the alloca, the
+-- stores and the loads all disappear - which is visible in the lowered form beside this file.
+
+data Point {x: Int, y: Int}
+
+-- Read-only and never addressed: this one evaporates.
+fn readOnly() -> Int:
+    let p = Point {x: 3, y: 4}
+    return p.x * p.x + p.y * p.y
+
+-- The same shape, written to. A writable owner needs storage to be written to.
+fn writable() -> Int:
+    let &p = Point {x: 3, y: 4}
+    p.x = p.x + 1
+    return p.x + p.y
+
+-- The same shape again, read-only, but named as a whole rather than field by field: a call takes
+-- the aggregate itself, so there has to be an aggregate for it to take. Read-only is a necessary
+-- condition and not a sufficient one.
+fn passedWhole() -> Int:
+    let p = Point {x: 3, y: 4}
+    return distance(p)
+
+fn distance(it: Point) -> Int = it.x + it.y
+
+fn main() -> Int = readOnly() + writable() + passedWhole()

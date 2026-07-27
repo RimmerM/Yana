@@ -1,0 +1,40 @@
+fn initHeap {
+}
+
+fn heapClassOf {
+  arg total readonly
+  %size: I64 writable live [0, 8) [10, 12) [13, 18)
+  %sizeClass: I64 writable live [2, 9) [10, 15) [16, 18)
+}
+
+fn heapBlockSize {
+  arg sizeClass readonly
+}
+
+fn freeListHead {
+  arg sizeClass readonly
+  result escapes
+}
+
+fn setFreeListHead {
+  arg sizeClass readonly
+  arg block readonly
+}
+
+fn allocateHeap {
+  arg size readonly
+  result escapes
+}
+
+fn freeHeap {
+  arg allocation readonly
+}
+
+fn mapMemory {
+  arg size readonly
+}
+
+fn main {
+  %local0: Pair readonly live [0, 5)
+  %p: Pair droppable writable heap live [3, 13)
+}

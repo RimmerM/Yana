@@ -840,7 +840,7 @@ struct EmbedSet {
         assertTrue(index < count);
 
         if(isSmall(count)) {
-            embedded |= (Size(1) << index);
+            embedded &= ~(Size(1) << index);
         } else {
             list[index / bits] &= ~(Size(1) << (index % bits));
         }
@@ -849,7 +849,7 @@ struct EmbedSet {
     template<bool isSmall>
     void clear(Size index) {
         if constexpr(isSmall) {
-            embedded |= (Size(1) << index);
+            embedded &= ~(Size(1) << index);
         } else {
             list[index / bits] &= ~(Size(1) << (index % bits));
         }

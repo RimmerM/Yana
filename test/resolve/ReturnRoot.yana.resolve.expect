@@ -1,0 +1,51 @@
+fn xOf(%p: Point) -> &Int {
+  b0:
+    %v1 = load %p@Point.x : Int
+    %v2 = borrow %p@Point.x : &Int
+    ret %v2
+}
+
+fn larger(%a: Int, %b: Int) -> &mut Int {
+  b0:
+    %v2 = load %a : Int
+    %v3 = load %b : Int
+    %v4 = cmp_gt %v2, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load %a : Int
+    %v7 = borrow_mut %a : &mut Int
+    jmp b3
+
+  b2:
+    %v8 = load %b : Int
+    %v9 = borrow_mut %b : &mut Int
+    jmp b3
+
+  b3:
+    %v12 = phi [b1, %v7], [b2, %v9] : &mut Int
+    ret %v12
+}
+
+fn main() -> Int {
+  b0:
+    %here = alloc : Point
+    init %local0@Point.x, 10
+    init %local0@Point.y, 20
+    %v5 = borrow %local0 : &Point
+    %v6 = call xOf, %v5 : &Int
+    %left = alloc : Int
+    init %left, 1
+    %right = alloc : Int
+    init %right, 2
+    %v13 = load %left : Int
+    %v14 = load %right : Int
+    %v15 = borrow_mut %left : &mut Int
+    %v16 = borrow_mut %right : &mut Int
+    %v17 = call larger, %v15, %v16 : &mut Int
+    assign [%v17], 40
+    %v20 = load [%v6] : Int
+    %v21 = load [%v17] : Int
+    %v22 = add %v20, %v21 : Int
+    ret %v22
+}

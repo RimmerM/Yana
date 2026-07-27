@@ -17,3 +17,14 @@
  * selects a Num instance exactly as it would for a user-defined type.
  */
 void defineCore(Program& program);
+
+/*
+ * The Collections module.
+ *
+ * Built the same way as Core and for the same reason, except that it is written entirely in the
+ * language: the growable array `[a]` needs raw pointers and the heap, which are Native's, and
+ * Native imports Core - so this is a third module rather than more of the first. It is implicitly
+ * imported, because the grammar produces `[a]` types and array literals whether or not a program
+ * asked for them.
+ */
+void defineCollections(Program& program);

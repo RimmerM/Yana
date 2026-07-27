@@ -55,6 +55,11 @@ bool ExprResolver::isWritablePlace(const Place& place) {
             return place.global && local[place.global]->mut;
         case PlaceRoot::Pointer:
             return true;
+        case PlaceRoot::Borrow:
+            // A borrow carries its own answer: `&T` was handed out as a write capability and `&`
+            // with no mutability was not. That is the whole of what the two types differ in.
+            return isBorrow(global, valueType(place.pointer)) &&
+                   ((BorrowType*)global[valueType(place.pointer)])->mut;
     }
 
     return false;
@@ -122,6 +127,10 @@ TypePtr ExprResolver::placeRootType(const Place& place) {
             // The pointee is the storage: `%Node` roots a place holding a Node.
             auto pointee = pointeeType(global, valueType(place.pointer));
             return pointee ? pointee : module.scalar.error;
+        }
+        case PlaceRoot::Borrow: {
+            auto type = valueType(place.pointer);
+            return isBorrow(global, type) ? ((BorrowType*)global[type])->to : module.scalar.error;
         }
     }
 
@@ -232,7 +241,7 @@ ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr ex
         return nullptr;
     }
 
-    return ref(emit<InstBorrow>(source, 0, expected, place.unwrap(), true));
+    return ref(emit<InstBorrow>(source, 0, resolveBorrowType(module, expected, true), place.unwrap(), true));
 }
 
 /*
@@ -734,4 +743,163 @@ ModulePtr<Value> ExprResolver::resolveField(const ast::Expr& expr, const ast::Fi
 
     auto place = projectField(root, field.field, expr.source);
     return place ? load(place.unwrap(), expr.source) : nullptr;
+}
+
+/*
+ * Array literals and subscripts.
+ *
+ * `[1, 2, 3]` is not a primitive: it builds a Collections `Array(T)`, whose elements live in a
+ * buffer this expression allocates. The buffer is an ordinary allocation and therefore an ordinary
+ * subject of storage-class selection - it stays on the frame when the array provably does not
+ * outlive it, and goes to the heap when it does, with `onHeap` recording which so that the array's
+ * `Drop` knows whether it has anything to free.
+ *
+ * The buffer's type is an anonymous tuple of n fields rather than a fixed-size array type, because
+ * that is a type the compiler already has: it has a Repr, its fields have offsets, and a field
+ * projection into it is the projection the rest of the resolver already builds. What it costs is
+ * that a literal with a thousand elements is a tuple with a thousand fields, which is a real limit
+ * and the reason `[T *n]` will want to be a type of its own eventually.
+ */
+
+// The element type of an `Array(T)`, or null for anything else.
+static TypePtr arrayElement(Module& module, GlobalBase global, TypePtr type) {
+    if(!type || global[type]->kind != Type::Record) return nullptr;
+
+    auto record = (RecordType*)global[type];
+    if(record->instanceOf != module.program.arrayType || record->instanceArgs.size() != 1) return nullptr;
+
+    return record->instanceArgs.get(global, 0);
+}
+
+ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseList<ast::Expr> items,
+                                            TypePtr target) {
+    auto source = expr.source;
+
+    if(!module.program.arrayType) {
+        context.diagnostics.error("arrays are not available in this module"_v, source);
+        return nullptr;
+    }
+
+    // The expected type decides the element type where there is one, so that `[] :: [Int]` and a
+    // literal in an argument position both work; otherwise the first element decides and the rest
+    // are converted to it.
+    auto element = arrayElement(module, global, target);
+
+    Array<ModulePtr<Value>> values;
+    for(auto item: items.contents(parse)) {
+        auto value = resolve(item, element);
+        if(!element && value) element = settleType(valueType(value));
+        values.push(value);
+    }
+
+    if(!element) {
+        context.diagnostics.error("cannot tell what this empty array holds - give it an expected type"_v, source);
+        return nullptr;
+    }
+
+    auto arrayType = instantiateRecord(module, module.program.arrayType, { &element, 1 }, source);
+    if(global[arrayType]->kind != Type::Record) return nullptr;
+
+    /*
+     * An element whose lifetime ends in something is one this array would have to drop, and
+     * dropping the elements means walking the buffer at run time - which needs the element's drop
+     * to be reachable from a generic body, and that is Milestone 7's. Rejected rather than leaked.
+     */
+    if(needsDrop(module, element)) {
+        context.diagnostics.error("an array of %@ is not available yet - its elements have a `Drop`, and releasing them needs the erased generic model"_v,
+                                  source, describeType(context, global, element));
+        return nullptr;
+    }
+
+    auto record = (RecordType*)global[arrayType];
+    if(record->constructors.isEmpty()) return nullptr;
+
+    auto content = record->constructors.get(global, 0).content;
+    if(!content || global[content]->kind != Type::Tup) return nullptr;
+
+    auto fields = (TupType*)global[content];
+    if(fields->fields.size() < 4) return nullptr;
+    auto pointerField = fields->fields.get(global, 0).type;
+    auto countField = fields->fields.get(global, 1).type;
+    auto flagField = fields->fields.get(global, 3).type;
+
+    // The buffer, and the elements written into it.
+    ModulePtr<Value> buffer = nullptr;
+    ModulePtr<Value> items_ = nullptr;
+
+    if(values.isNotEmpty()) {
+        Array<Field> layout;
+        for(Size i = 0; i < values.size(); i++) layout.push(Field { element, 0, 0 });
+
+        auto bufferType = (Type*)resolveTupleType(module, toBuffer(layout), source) - global;
+        buffer = allocate(bufferType, source);
+        auto bufferPlace = placeFor(buffer, source);
+
+        for(Size i = 0; i < values.size(); i++) {
+            auto value = convert(values[i], element, source);
+            if(value) initialize(project(bufferPlace, ProjectionKind::Field, U16(i)), value, source);
+        }
+
+        // The address of the first element, typed as a pointer to one rather than to the buffer:
+        // what the array holds is where its elements start, and the buffer is only how they got
+        // somewhere. Nothing about the address changes, which is why this is not a cast.
+        items_ = ref(emit<InstAddress>(source, 0, pointerField, bufferPlace));
+    } else {
+        items_ = constantBits(pointerField, 0, source);
+    }
+
+    // The flag the storage decision is written into, once it has been made. It starts as "not the
+    // heap" because that is what the analysis answers unless it proves otherwise, and because a
+    // literal that never reaches selectStorage - inside a generic body, say - is then still right.
+    auto onHeap = constant<ConstInt>(source, flagField, 0);
+    if(buffer) ((InstAlloc*)local[buffer])->storageFlag = onHeap;
+
+    auto storage = allocate(arrayType, source, 0);
+    auto place = project(placeFor(storage, source), ProjectionKind::Downcast, 0);
+    auto count = makeInt(source, countField, values.size());
+
+    initialize(project(place, ProjectionKind::Field, 0), items_, source);
+    initialize(project(place, ProjectionKind::Field, 1), count, source);
+    initialize(project(place, ProjectionKind::Field, 2), count, source);
+    initialize(project(place, ProjectionKind::Field, 3), onHeap, source);
+
+    return storage;
+}
+
+/*
+ * `xs[i]`.
+ *
+ * Sugar for the accessor, in both directions: a read is `get`, and an assignment target is
+ * `getMut`, whose result is a mutable borrow the assignment writes through. Nothing about either is
+ * special-cased in the checker - the return-root markers on those two signatures are what keep the
+ * array borrowed for as long as the element is, exactly as they would for an accessor a program
+ * wrote itself.
+ */
+ModulePtr<Value> ExprResolver::resolveSubscript(const ast::Expr& expr, const ast::AppExpr& subscript,
+                                                bool mutable_) {
+    auto source = expr.source;
+    auto args = subscript.args;
+
+    if(args.size() != 1) {
+        context.diagnostics.error("an array subscript takes exactly one index"_v, source);
+        return nullptr;
+    }
+
+    auto target = resolve(subscript.callee);
+    if(!target) return nullptr;
+
+    if(!arrayElement(module, global, valueType(target))) {
+        context.diagnostics.error("cannot index %@ - only an array may be subscripted"_v, source,
+                                  describeType(context, global, valueType(target)));
+        return nullptr;
+    }
+
+    ModulePtr<Value> index = nullptr;
+    for(auto arg: args.contents(parse)) index = resolve(arg.value);
+    if(!index) return nullptr;
+
+    ModulePtr<Value> values[] = { target, index };
+    auto name = context.addUnqualifiedName(mutable_ ? "getMut" : "get", mutable_ ? 6 : 3);
+
+    return emitCall(name, { values, 2 }, source);
 }

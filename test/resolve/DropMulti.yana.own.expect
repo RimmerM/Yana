@@ -56,41 +56,27 @@ fn makeBuffer {
   %local0: Buffer droppable readonly live [3, 7)
 }
 
-fn firstByte {
+fn touch {
   arg it readonly
-  %it: Buffer borrowed droppable readonly live [0, 1)
+  %it: Slot borrowed droppable readonly live never
 }
 
-fn consume {
-  arg it readonly
-  %it: Buffer droppable readonly live [0, 2)
+fn holdsTwo {
+  %local0: Slot droppable readonly live [0, 8)
+  %local1: Buffer droppable readonly live [2, 5)
+  %local2: Buffer droppable readonly live [3, 6)
 }
 
-fn straightLine {
-  %local0: Buffer droppable readonly live [0, 4)
-  %local1: Buffer droppable readonly live [1, 6)
+fn holdsOne {
+  %local0: Slot droppable readonly live [0, 6)
+  %local1: Buffer droppable readonly live [2, 4)
 }
 
-fn derived {
-  %local0: Pair droppable readonly live [0, 8)
-  %local1: Buffer droppable readonly live [1, 4)
-  %local2: Buffer droppable readonly live [2, 5)
-}
-
-fn branch {
-  arg flag readonly
-  %local0: Buffer droppable readonly live [0, 4)
-}
-
-fn loop {
-  %total: I64 writable live [0, 10) [11, 21)
-  %i: I64 writable live [2, 9) [11, 21)
-  %local2: Buffer droppable readonly live [4, 9) [11, 21)
+fn holdsNothing {
+  %local0: Slot droppable readonly live [0, 4)
 }
 
 fn main {
-  %result: I64 writable live [0, 9) [11, 19) [21, 29) [31, 39) [41, 49) [51, 61) [63, 65)
-  %local1: Buffer droppable readonly live [52, 55)
 }
 
 fn Drop(Buffer).drop {
@@ -98,6 +84,6 @@ fn Drop(Buffer).drop {
   %value: Buffer borrowed droppable readonly live [0, 1)
 }
 
-fn drop$Pair {
+fn drop$Slot {
   arg value readonly
 }

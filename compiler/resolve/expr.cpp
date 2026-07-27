@@ -331,6 +331,75 @@ TypePtr ExprResolver::commonWiden(TypePtr lhs, TypePtr rhs) {
     return nullptr;
 }
 
+/*
+ * The three conversions a borrow takes part in (Design.md's "Borrows in return position").
+ *
+ * Taking one is not written at the call site any more than a `&` argument's sigil is: a position
+ * that wants `&T` and is handed something that names storage of type `T` borrows it, which is what
+ * makes `fn get(return self: Array(a), index: I64) -> &a = *(self.data + index)` an ordinary body
+ * rather than one that has to say what it is doing twice.
+ *
+ * Reading through one is the mirror image, and is what lets a returned borrow be used as the value
+ * it refers to without the caller ever naming the borrow.
+ *
+ * Weakening a mutable borrow to an immutable one is allowed because it hands back capability rather
+ * than taking it: the borrow checker still sees the original exclusive loan, since the reborrow is
+ * rooted in it.
+ */
+ModulePtr<Value> ExprResolver::convertBorrow(ModulePtr<Value> value, TypePtr from, TypePtr target,
+                                             LocationId source) {
+    if(isBorrow(global, target)) {
+        auto wanted = (BorrowType*)global[target];
+
+        if(isBorrow(global, from)) {
+            auto held = (BorrowType*)global[from];
+
+            if(held->to != wanted->to || wanted->mut) {
+                context.diagnostics.error("cannot convert %@ to %@"_v, source,
+                                          describeType(context, global, from),
+                                          describeType(context, global, target));
+                return value;
+            }
+
+            return ref(emit<InstBorrow>(source, 0, target, Place::inBorrow(value), false));
+        }
+
+        if(!sameType(from, wanted->to)) {
+            context.diagnostics.error("cannot convert %@ to %@"_v, source,
+                                      describeType(context, global, from),
+                                      describeType(context, global, target));
+            return value;
+        }
+
+        // Only something that names storage can be borrowed. A computed value names none, and
+        // borrowing a temporary this expression created would hand out a reference to storage
+        // whose lifetime ends before the caller can look at it.
+        auto place = findPlace(value);
+        if(!place) {
+            context.diagnostics.error("cannot borrow this - a borrow must name storage, and this is a value with none"_v,
+                                      source);
+            return value;
+        }
+
+        if(wanted->mut && !isWritablePlace(place.unwrap())) {
+            context.diagnostics.error("cannot borrow this mutably - it does not name storage that may be written"_v,
+                                      source);
+            return value;
+        }
+
+        return ref(emit<InstBorrow>(source, 0, target, place.unwrap(), wanted->mut));
+    }
+
+    if(sameType(((BorrowType*)global[from])->to, target)) {
+        return load(Place::inBorrow(value), source, local[value]->name);
+    }
+
+    context.diagnostics.error("cannot convert %@ to %@"_v, source,
+                              describeType(context, global, from),
+                              describeType(context, global, target));
+    return value;
+}
+
 ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, LocationId source, bool implicit) {
     if(!value || !target) return value;
 
@@ -342,6 +411,12 @@ ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, L
 
     if(sameType(from, target)) return value;
     if(global[from]->kind == Type::Error || global[target]->kind == Type::Error) return value;
+
+    // A borrow converts to and from exactly one thing - the type it refers to - so when either side
+    // is one, that is the whole of the decision and there is no widening path to fall through to.
+    if(isBorrow(global, from) || isBorrow(global, target)) {
+        return convertBorrow(value, from, target, source);
+    }
 
     if(auto widened = emitConversion(module.coreClasses.widen, context.addUnqualifiedName("widen", 5),
                                      value, target, source)) {
@@ -383,6 +458,17 @@ bool ExprResolver::convertible(ModulePtr<Value> value, TypePtr target, LocationI
     // An error type has already been reported once, so it fits anything rather than producing a
     // second diagnostic about the same mistake.
     if(global[from]->kind == Type::Error || global[target]->kind == Type::Error) return true;
+
+    // The same three cases convertBorrow emits, asked without emitting. A borrow of a value with
+    // no place is left to convert() to report, since a candidate rejected here would instead be
+    // reported as no matching overload, which says less about what is wrong.
+    if(isBorrow(global, target)) {
+        auto wanted = ((BorrowType*)global[target])->to;
+        return sameType(from, wanted) ||
+               (isBorrow(global, from) && ((BorrowType*)global[from])->to == wanted);
+    }
+
+    if(isBorrow(global, from)) return sameType(((BorrowType*)global[from])->to, target);
 
     TypePtr args[] = { from, target };
     return findInstance(module, module.coreClasses.widen, { args, 2 }) != nullptr;
@@ -600,11 +686,15 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
             if(!value) continue;
         }
 
-        if(mutable_) {
+        if(isBorrow(global, valueType(value))) {
+            bindBorrow(decl, value, mutable_);
+        } else if(mutable_) {
             bindMutable(decl, value);
         } else {
             resolveBinding(decl, value);
         }
+
+        if(decl.attributes.isNotEmpty()) applyBindingAttributes(decl, value, checkpoint);
 
         if(!current) break;
 
@@ -631,6 +721,91 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
  * about ownership - which of the parts the binding owns - and belongs with the rest of Milestone
  * 5, not with the machinery for writing to a slot.
  */
+/*
+ * Attributes on a binding.
+ *
+ * `@heap` is the only one so far, and it is Design.md's "for a large allocation that's freed well
+ * before the region closes": an override of the storage class escape analysis would otherwise
+ * choose. It is deliberately one-directional - it can only move a value off the frame, never onto
+ * it - because the analysis picks the frame exactly when it has proved the frame is enough, and an
+ * attribute that could overrule *that* would be an attribute that could introduce a dangling
+ * reference.
+ *
+ * The slot it applies to is whichever local the binding's value ends up occupying: for a mutable
+ * binding that is the slot the declaration allocated, and for an aggregate it is the storage the
+ * construction already created.
+ */
+void ExprResolver::applyBindingAttributes(const ast::VarDecl& declaration, ModulePtr<Value> value,
+                                          Size bindingBase) {
+    auto slot = maxLimit<U32>;
+
+    if(bindings.size() > bindingBase && bindings[bindingBase].local != maxLimit<U32>) {
+        slot = bindings[bindingBase].local;
+    } else if(auto place = findPlace(value)) {
+        if(place.unwrap().root == PlaceRoot::Local) slot = place.unwrap().local;
+    }
+
+    auto attributes = declaration.attributes;
+
+    for(auto attribute: attributes.contents(parse)) {
+        if(attribute.name != context.addUnqualifiedName("heap", 4)) {
+            context.diagnostics.error("unknown attribute %@ on a binding"_v, attribute.source,
+                                      context.findName(attribute.name));
+            continue;
+        }
+
+        if(attribute.args.isNotEmpty()) {
+            context.diagnostics.error("`@heap` takes no arguments"_v, attribute.source);
+            continue;
+        }
+
+        if(slot == maxLimit<U32>) {
+            // A value in a register occupies no storage for an attribute to place. Saying so is
+            // better than allocating one just so that the attribute has something to be about.
+            context.diagnostics.error("`@heap` has nothing to place - this binding names a value that occupies no storage of its own"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        auto local_ = function.localAt(local, slot);
+        function.locals.set(local, slot, Local {
+            local_.type, local_.name, local_.value, local_.convention, StorageClass::Heap, local_.borrowed,
+        });
+    }
+}
+
+/*
+ * `let entry = f(...)` and `let &entry = f(...)`, where what `f` returned is a borrow.
+ *
+ * The name refers to the storage the callee's return-root group named, so there is nothing to
+ * allocate and nothing to copy: the binding is a place rooted in the borrow itself. Allocating a
+ * slot and writing the borrow into it - which is what the ordinary path would do - would give the
+ * name a *copy* of the reference, and `entry.field = value` would then write through to the right
+ * storage by accident rather than by construction.
+ *
+ * The sigil still has to agree with what was handed over. `let &` on an immutable borrow would be a
+ * name that claims a capability nobody granted it, and that is the one thing to report here rather
+ * than at the first write through it.
+ */
+void ExprResolver::bindBorrow(const ast::VarDecl& declaration, ModulePtr<Value> value, bool mutable_) {
+    if(declaration.pat.kind != ast::Pat::Var) {
+        context.diagnostics.error("a binding of a borrow must be a single name - a borrow has no members to destructure"_v,
+                                  declaration.pat.source);
+        return;
+    }
+
+    auto borrow = (BorrowType*)global[valueType(value)];
+
+    if(mutable_ && !borrow->mut) {
+        context.diagnostics.error("cannot bind an immutable borrow with `let &` - the value it refers to may not be written through it"_v,
+                                  declaration.pat.source);
+        return;
+    }
+
+    Binding binding { declaration.pat.var, value, maxLimit<U32>, value };
+    bindings.push(binding);
+}
+
 void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value> value) {
     if(declaration.pat.kind != ast::Pat::Var) {
         context.diagnostics.error("a mutable binding must be a single name"_v, declaration.pat.source);
@@ -673,8 +848,16 @@ Maybe<Place> ExprResolver::resolvePlace(const ast::Expr& astExpr, bool through) 
         case ast::Expr::Var: {
             if(auto binding = findBinding(expr.var)) {
                 if(!binding->isPlace()) {
+                    // An immutable binding still roots a place when what it holds is a reference:
+                    // projecting into it names the storage the reference points at, which is not
+                    // this binding's to be mutable about. A raw pointer and a borrow differ here
+                    // only in whether anything checked the result.
                     if(through && isPointer(global, valueType(binding->value))) {
                         return Just(Place::atPointer(binding->value));
+                    }
+
+                    if(isBorrow(global, valueType(binding->value))) {
+                        return Just(Place::inBorrow(binding->value));
                     }
 
                     context.diagnostics.error("%@ is not mutable - declare it with `let &` to assign to it"_v,
@@ -682,7 +865,7 @@ Maybe<Place> ExprResolver::resolvePlace(const ast::Expr& astExpr, bool through) 
                     return Nothing();
                 }
 
-                return Just(Place::inLocal(binding->local));
+                return Just(binding->place());
             }
 
             if(auto global_ = findGlobal(module, expr.var, expr.source)) {
@@ -705,6 +888,15 @@ Maybe<Place> ExprResolver::resolvePlace(const ast::Expr& astExpr, bool through) 
             if(!target) return Nothing();
 
             return projectField(target.unwrap(), field.field, expr.source);
+        }
+        case ast::Expr::Sub: {
+            // `xs[i] = value`. The mutable accessor hands back a borrow of the element, and the
+            // assignment writes through it - which is also what keeps the array exclusively
+            // borrowed for as long as the write is in progress.
+            auto borrowed = resolveSubscript(expr, *parse[expr.sub], true);
+            if(!borrowed) return Nothing();
+
+            return Just(Place::inBorrow(borrowed));
         }
         case ast::Expr::Prefix: {
             // `*p = value` - the one place expression whose root the compiler knows nothing
@@ -825,7 +1017,7 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             // A mutable binding names storage, so what its name produces is whatever is in that
             // storage now rather than what was put there when it was declared. The name stays on
             // the place, and each read of it is its own value.
-            auto value = binding->isPlace() ? load(Place::inLocal(binding->local), expr.source)
+            auto value = binding->isPlace() ? load(binding->place(), expr.source)
                                             : binding->value;
 
             return value && target ? convert(value, target, expr.source) : value;
@@ -853,7 +1045,11 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             return nullptr;
         case ast::Expr::Coerce: {
             auto& coerce = *parse[expr.coerce];
-            auto type = resolveType(module, coerce.type);
+
+            // Resolved against this function's own context, so that an ascription inside a generic
+            // body may name the variables that body is written over - `cast(p) :: %a` is how a
+            // generic function says which of the two pointer types a reinterpretation produces.
+            auto type = resolveType(module, coerce.type, functionGen(global, function));
 
             // `::` is what supplies the expected type where nothing else does, so it is pushed
             // down into a literal (which has no type of its own), into a call (whose class
@@ -901,6 +1097,16 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             terminate(emit<InstJmp>(expr.source, 0, module.scalar.unit, targetBlock));
 
             return nullptr;
+        }
+        case ast::Expr::Array:
+            return resolveArray(expr, expr.arr, target);
+        case ast::Expr::Sub: {
+            // A subscript read produces a borrow of the element, which the position it appears in
+            // then reads through - so the caller writes `xs[0] + 1` and never names the borrow.
+            auto borrowed = resolveSubscript(expr, *parse[expr.sub], false);
+            if(!borrowed || !isBorrow(global, valueType(borrowed))) return borrowed;
+
+            return convert(borrowed, ((BorrowType*)global[valueType(borrowed)])->to, expr.source);
         }
         case ast::Expr::Tup:
             return resolveTuple(expr, expr.tup, target);

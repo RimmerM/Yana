@@ -384,6 +384,10 @@ struct VarDecl {
     ParsePtr<Expr> in;         // nullable; if this is set, content must also be set.
     ParseList<Alt> alts; // if this is set, content must also be set.
     BindType bind;
+
+    // Attributes written before the binding - `@heap let big = ...`. Parsed but not interpreted
+    // here; which ones mean anything is a resolve-stage question.
+    AttrList attributes;
 };
 
 // -----------------------------------------------

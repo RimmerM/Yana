@@ -25,15 +25,23 @@
  * *storage*: it has a local, reads of it load and assignments to it write, so that the two
  * statements of `let &i = 0` / `i = i + 1` are about the same slot rather than about two values.
  *
- * That is the whole of what mutation needs at this milestone. Ownership, exclusivity and the rest
- * of what `&` will eventually mean are Milestone 5's; nothing here checks anything.
+ * A third form is a name for a *borrow* - `let &entry = f(...)`, where the storage is whatever the
+ * callee's return-root group named. It is a place like the second, and differs only in what roots
+ * it. Nothing here checks anything: exclusivity and last use are resolve/analyze.cpp's, stated over
+ * the places these produce.
  */
 struct Binding {
     StringId name = 0;
     ModulePtr<Value> value = nullptr;
     U32 local = maxLimit<U32>;
 
-    bool isPlace() const { return local != maxLimit<U32>; }
+    // Set for a name bound to a borrow rather than to storage of its own - `let &entry = f(...)`,
+    // where what the name refers to is whatever the callee's return-root group named. The binding
+    // is a place either way; only what roots it differs.
+    ModulePtr<Value> borrow = nullptr;
+
+    bool isPlace() const { return local != maxLimit<U32> || borrow != nullptr; }
+    Place place() const { return borrow ? Place::inBorrow(borrow) : Place::inLocal(local); }
 };
 
 // One class function that fits a call, together with what its class's type variables had to be
@@ -132,6 +140,13 @@ struct ExprResolver {
     Maybe<Place> resolvePlace(const ast::Expr& expr, bool through = false);
     ModulePtr<Value> resolveAssign(const ast::Expr& expr, const ast::AssignExpr& assignment);
     void bindMutable(const ast::VarDecl& declaration, ModulePtr<Value> value);
+
+    // A name for a borrow someone else's storage backs, rather than for a slot of this frame.
+    void bindBorrow(const ast::VarDecl& declaration, ModulePtr<Value> value, bool mutable_);
+
+    // `@heap` and whatever joins it - the attributes written before a `let`. `bindingBase` is where
+    // this declaration's own bindings start, which is how the slot it introduced is found.
+    void applyBindingAttributes(const ast::VarDecl& declaration, ModulePtr<Value> value, Size bindingBase);
     ModulePtr<Value> makeInt(LocationId source, TypePtr type, U64 value);
     ModulePtr<Value> makeFloat(LocationId source, TypePtr type, F64 value);
 
@@ -143,6 +158,10 @@ struct ExprResolver {
     // field default, which are recorded the same way and for the same reason.
     ModulePtr<Value> constantBits(TypePtr type, U64 bits, LocationId source);
     ModulePtr<Value> convert(ModulePtr<Value> value, TypePtr target, LocationId source, bool implicit = true);
+
+    // Taking a borrow of what a value names, reading through one, or weakening a mutable one.
+    // Null when neither type is a borrow, which is every conversion the rest of the language has.
+    ModulePtr<Value> convertBorrow(ModulePtr<Value> value, TypePtr from, TypePtr target, LocationId source);
 
     // Whether convert() would succeed implicitly, without reporting anything if it wouldn't.
     bool convertible(ModulePtr<Value> value, TypePtr target, LocationId source);
@@ -299,6 +318,11 @@ struct ExprResolver {
     void assign(Place place, ModulePtr<Value> value, LocationId source);
     void write(Place place, ModulePtr<Value> value, LocationId source, Value::Kind kind);
     ModulePtr<Value> addressOf(Place place, LocationId source, StringId name = 0);
+
+    // `[1, 2, 3]`, and `xs[i]` in either a reading or an assigning position. Both build calls into
+    // Collections rather than anything the IR knows about - see expr_construct.cpp.
+    ModulePtr<Value> resolveArray(const ast::Expr& expr, ast::ParseList<ast::Expr> items, TypePtr target);
+    ModulePtr<Value> resolveSubscript(const ast::Expr& expr, const ast::AppExpr& subscript, bool mutable_);
 
     ModulePtr<Value> resolveTuple(const ast::Expr& expr, ast::ParseList<ast::TupArg> args, TypePtr target);
     ModulePtr<Value> resolveTupUpdate(const ast::Expr& expr, const ast::TupUpdateExpr& update, TypePtr target);

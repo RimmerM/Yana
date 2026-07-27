@@ -62,6 +62,18 @@ fn asPtr(it: I64) -> %a
 fn null() -> %a
 fn isNull(it: %a) -> Bool
 
+{-
+   A borrow of what a pointer names.
+
+   The one operation that re-enters the checked world from the unchecked one. Nothing here verified
+   that the pointer is valid, that what it names is initialized, or that nothing else writes through
+   it while the borrow is live - which is exactly what makes it Native's and not the language's. A
+   collection written over raw storage needs it, and having written it, owes its callers a signature
+   whose `return` marker says what the result is rooted in.
+-}
+fn borrow(return it: %a) -> &a
+fn borrowMut(return it: %a) -> &a
+
 -- The size and alignment of a value's type, in bytes.
 fn sizeOf(it: a) -> I64
 fn alignOf(it: a) -> I64
@@ -278,6 +290,15 @@ static ModulePtr<Value> emitIsNull(ExprResolver& resolver, Buffer<ModulePtr<Valu
     return resolver.ref(resolver.emit<InstCmp>(source, name, type, number, zero, CompareOp::Eq));
 }
 
+// `borrow(p)` and `borrowMut(p)`. The place is the memory the pointer names, so the borrow is
+// rooted where the pointer was rooted and everything downstream of it - the return-root check, the
+// caller's loan - follows from that one fact.
+template<bool mut>
+static ModulePtr<Value> emitBorrowAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                     LocationId source, StringId name) {
+    return resolver.ref(resolver.emit<InstBorrow>(source, name, type, Place::atPointer(args[0]), mut));
+}
+
 static ModulePtr<Value> emitSizeOf(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                    LocationId source, StringId) {
     return resolver.makeInt(source, type, typeSize(resolver.global, resolver.valueType(args[0])));
@@ -442,6 +463,18 @@ static void attachPointerIntrinsics(Module& module) {
     attachIntrinsic(module, "asPtr"_v, emitReinterpret);
     attachIntrinsic(module, "null"_v, emitNull);
     attachIntrinsic(module, "isNull"_v, emitIsNull);
+    attachIntrinsic(module, "borrow"_v, emitBorrowAt<false>);
+    attachIntrinsic(module, "borrowMut"_v, emitBorrowAt<true>);
+
+    // `borrowMut` is declared `-> &a` like its immutable sibling, because the grammar has one
+    // spelling for a borrow type; which of the two it is comes from the signature it appears in,
+    // and this one has no `return` group to say so. So it is said here instead.
+    if(auto found = module.functions.get(module.context.addUnqualifiedName("borrowMut", 9))) {
+        auto function = (*module.arena)[found.unwrap()];
+        auto declared = (BorrowType*)(*module.types)[function->returnType];
+        function->returnType = resolveBorrowType(module, declared->to, true);
+    }
+
     attachIntrinsic(module, "sizeOf"_v, emitSizeOf);
     attachIntrinsic(module, "alignOf"_v, emitAlignOf);
 
@@ -499,4 +532,14 @@ void defineNative(Program& program) {
     platform.localName = platformModule->name;
 
     resolveModuleDecls(*platformModule, *linuxAst, nullptr);
+
+    // Recorded so that storage-class selection and drop insertion can emit calls to them without
+    // going through name resolution in whichever module happened to need one - see Program.
+    auto findNative = [&](const char* text, Size length) -> ModulePtr<Function> {
+        auto found = native->functions.get(context.addUnqualifiedName(text, length));
+        return found ? found.unwrap() : nullptr;
+    };
+
+    program.allocateHeap = findNative("allocateHeap", 12);
+    program.freeHeap = findNative("freeHeap", 8);
 }

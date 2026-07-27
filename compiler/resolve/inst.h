@@ -22,16 +22,73 @@ struct Global;
  * Where an owned value's storage comes from (Implementation-IR.md part 3).
  *
  * `Inline` is storage inside its parent, `Stack` is the frame, `Region` is an arena, and `Heap` is
- * the Native allocator. Only `Stack` is ever selected today: choosing between them is escape
- * analysis, which is Milestone 6. The enum is complete anyway because the field it fills in is
- * what Implementation-Regions.md part 6 lowers against, and a lowering that handles three of four
- * cases is worse than one that handles all four and is only ever handed one.
+ * the Native allocator. Escape analysis chooses between the frame and the heap, cheapest first;
+ * `Region` is reserved and never selected, since regions are deliberately not part of this
+ * milestone and adding the rung later should be a third case in an existing decision rather than a
+ * new pass. `Inline` is what a field of an aggregate already is, and is never chosen either.
  */
 enum class StorageClass: U8 {
     Inline,
     Stack,
     Region,
     Heap,
+};
+
+/*
+ * What one ownership root's storage has to be able to do (Implementation-IR.md part 5).
+ *
+ * Design.md's "Binding mutability and owner mutation demand" is careful that this is a property of
+ * the owned object rather than of whichever binding currently names it: a move preserves the same
+ * root and its demand, a borrow contributes to it, and only a copy starts a new one. So it is
+ * inferred per root and never read off a convention.
+ *
+ * `Unknown` is the analysis's top state rather than a source-level category. It arises where a
+ * callee's summary is not available - a dynamic call, an unspecialized generic - and it selects the
+ * conservative writable representation wherever one has to be chosen.
+ */
+enum class MutationDemand: U8 {
+    ReadOnly,
+    Writable,
+    Unknown,
+};
+
+struct ReprRequirements {
+    MutationDemand mutation = MutationDemand::ReadOnly;
+
+    // Set where something took the address of this root, which is what makes a value that could
+    // have stayed in a register have to occupy storage.
+    bool needsStableAddress = false;
+
+    // Set where something may grow this root in place, which is what keeps an array's buffer off
+    // the frame - see the array's own storage decision in analyze.cpp.
+    bool mayResize = false;
+
+    void raise(const ReprRequirements& other) {
+        if(other.mutation > mutation) mutation = other.mutation;
+        needsStableAddress = needsStableAddress || other.needsStableAddress;
+        mayResize = mayResize || other.mayResize;
+    }
+
+    bool operator==(const ReprRequirements& other) const {
+        return mutation == other.mutation && needsStableAddress == other.needsStableAddress &&
+               mayResize == other.mayResize;
+    }
+};
+
+/*
+ * How long a value's storage has to stay valid, in the order the escape analysis tries them
+ * (Design.md's "Implicit region-backed allocation": stack, then the ambient region, then heap).
+ *
+ * `Arguments` is the case a borrow returned from a function is in: the storage is not this frame's
+ * and not the ambient region's, it is whatever the caller passed. `Region` is reserved rather than
+ * produced - regions are deliberately not part of this milestone - so that adding the rung later is
+ * a third case in this decision rather than a new one.
+ */
+enum class StorageBound: U8 {
+    Frame,
+    Arguments,
+    Region,
+    Escapes,
 };
 
 enum class ProjectionKind: U8 {
@@ -64,6 +121,7 @@ enum class PlaceRoot: U8 {
     Local,
     Global,
     Pointer,
+    Borrow,
 };
 
 struct Place {
@@ -74,6 +132,19 @@ struct Place {
     // from it, so `*p` is one place with no projections rather than a place plus a Deref.
     static Place atPointer(ModulePtr<Value> pointer) {
         return Place { PlaceRoot::Pointer, 0, nullptr, pointer };
+    }
+
+    /*
+     * The storage a borrow refers to.
+     *
+     * Shaped exactly like the pointer case and kept apart from it on purpose: the two are the same
+     * address and different amounts of knowledge. A pointer root can be proved nothing about, so
+     * the borrow checker declines to reason about it at all; a borrow root carries provenance back
+     * to the place it was taken of, so writing through one is checked against that place's
+     * exclusivity and against the mutability the borrow was created with.
+     */
+    static Place inBorrow(ModulePtr<Value> borrow) {
+        return Place { PlaceRoot::Borrow, 0, nullptr, borrow };
     }
 
     PlaceRoot root = PlaceRoot::Local;
@@ -138,16 +209,16 @@ struct Value {
  * One function parameter.
  *
  * `convention` is Design.md's three-item list, and it is a property of the parameter rather than of
- * its type: `fn f(&x: Int)` takes a mutable borrow of an Int, not a value of some `&Int` type.
- * That distinction is why there is no Borrow type kind at this milestone - nothing can hold a
- * borrow except a parameter or a binding, both of which say so themselves.
+ * its type: `fn f(&x: Int)` takes a mutable borrow of an Int, not a value of some `&Int` type. A
+ * `&` parameter therefore has type `T` while *arriving* as an address, which is a fact about this
+ * argument that only lowering and place resolution consult.
  *
- * A `&` parameter therefore has type `T` while *arriving* as an address, which is a fact about
- * this argument that only lowering and place resolution consult; see PlaceRoot::Borrow.
+ * That is why `&T` exists as a type only where a borrow has to survive being handed to someone -
+ * a result and the binding that receives one - rather than everywhere a parameter can appear.
  *
- * `returnRoot` is the `return` marker. It is recorded here so that the signature it was written on
- * keeps it, but nothing validates root sets yet - that is Milestone 6, and until then the marker
- * is accepted, printed and otherwise inert.
+ * `returnRoot` is the `return` marker: a declaration that a borrow in the result may be rooted in
+ * this argument. What it means for the caller is in FunctionSummary; what it means here is that
+ * the loan created for this argument lasts until the last use of the result.
  */
 struct Arg: Value {
     Arg(ModulePtr<Block> block, TypePtr type, U16 index):
@@ -194,10 +265,28 @@ struct InstAlloc: Inst {
 
     U32 local;
 
-    // Which of the four storage classes this allocation uses. Escape analysis fills it in at
-    // Milestone 6; until then everything is frame-placed, which is always sound and sometimes
-    // wasteful - the direction the default has to err in.
+    // Which of the four storage classes this allocation uses, filled in by escape analysis.
     StorageClass storage = StorageClass::Stack;
+
+    /*
+     * Whether the frame that made this allocation is also the one that releases it.
+     *
+     * True for everything frame-placed, and for a `@heap` binding - the storage went to the heap
+     * because it was asked to, and the value still lives and dies here. False for storage that
+     * escaped: something else holds it now, and that something's own `Drop` is what releases it.
+     * Freeing it here as well would be a double free of the array buffer the array now owns.
+     */
+    bool releasedHere = true;
+
+    /*
+     * A Bool constant recording where this allocation landed, for code that has to know at run
+     * time. The array's buffer is the case it exists for: its `Drop` frees the buffer only when it
+     * went to the heap, and whether it did is a decision made after the body was resolved.
+     *
+     * Null when nothing asked. selectStorage patches the constant, which is the one place a
+     * decision these passes make becomes a value the program itself can read.
+     */
+    ModulePtr<Value> storageFlag = nullptr;
 };
 
 struct InstLoadPlace: Inst {
@@ -235,11 +324,10 @@ struct InstInit: Inst {
  * about the root: whether a second borrow of an overlapping path is live at the same time, and
  * whether the owner is still initialized. An address would answer none of it.
  *
- * The result type is the type of what is borrowed, not a `&T` - there is no borrow type kind at
- * this milestone, deliberately, because nothing can hold a borrow except a parameter or a binding
- * and both of those say so themselves. What that costs is that the *value* of a borrow is a
- * machine address while its *type* says otherwise, which is contained: a borrow value is only ever
- * a call argument, and lowering maps it to the place's address the way InstAddress does.
+ * The result type is `&T`, and its mutability is the one this instruction was created with. A
+ * borrow value is an address once the checking is done, so lowering maps it to the place's address
+ * the way InstAddress does; what the type buys is everything before that - a place rooted in a
+ * borrow knows whether it may be written, and a call knows whether it was handed a loan or a copy.
  */
 struct InstBorrow: Inst {
     InstBorrow(ModulePtr<Block> block, TypePtr type, Place place, bool mut):
@@ -317,6 +405,12 @@ struct InstDrop: Inst {
     // The drop flag's local, or maxLimit when the drop is unconditional.
     U32 flag = maxLimit<U32>;
     DropKind kind;
+
+    // Set when this place's own storage has to be handed back as well as dropped - a heap-placed
+    // allocation whose frame owns it. The two are separate because most drops release nothing of
+    // their own (the storage is the frame's, and the frame returning is the release) and because a
+    // type with no drop at all can still be heap-placed.
+    bool releaseStorage = false;
 };
 
 // The address of a place, as a raw pointer. This is what `addressOf` compiles to, and it is the

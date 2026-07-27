@@ -1,0 +1,22 @@
+-- Borrows in return position: the `return` marker, and what it buys a caller.
+
+data Point {x: Int, y: Int}
+
+-- An immutable accessor. The result is a borrow of the caller's storage, so `p` stays borrowed for
+-- as long as the result is live.
+fn xOf(return p: Point) -> &Int = p.x
+
+-- A mutable selector. Every member of the group is `return &`, which is what makes the result
+-- exclusive rather than shared.
+fn larger(return &a: Int, return &b: Int) -> &Int = if a > b then a else b
+
+fn main() -> Int:
+    let here = Point {x: 10, y: 20}
+    let first = xOf(here)
+
+    let &left = 1 :: Int
+    let &right = 2 :: Int
+    let &chosen = larger(left, right)
+    chosen = 40
+
+    return first + chosen

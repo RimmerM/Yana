@@ -34,6 +34,72 @@ struct Local {
     bool borrowed = false;
 };
 
+/*
+ * What one argument's summary says about what the callee does with it.
+ *
+ * `requirements` is what the callee demands of the caller's storage, which is how mutation demand
+ * crosses a call without the caller re-inspecting the body: `fn bump(&counter: Int)` reports a
+ * writable first argument, so every root reaching that position is writable at the caller too.
+ *
+ * `retained` is whether anything derived from the argument outlives the call - stored into a
+ * global, written through a pointer the callee did not own, or handed to a further call that
+ * retains it. A retained argument's loan cannot end at the call the way an ordinary borrow's does.
+ */
+struct ArgSummary {
+    ReprRequirements requirements;
+    bool retained = false;
+
+    // The `return` marker, copied from the declaration so that a caller reads one structure rather
+    // than two. Rejected on Sink arguments and on defaulted ones - see resolveSignature.
+    bool returnRoot = false;
+
+    bool operator==(const ArgSummary& other) const {
+        return requirements == other.requirements && retained == other.retained &&
+               returnRoot == other.returnRoot;
+    }
+};
+
+/*
+ * What a caller may know about a callee without looking at its body (Implementation-IR.md part 5).
+ *
+ * The three things it answers are the three a caller cannot derive for itself: what the callee does
+ * to each argument, where a borrow in the result came from, and how long the result's storage has
+ * to stay valid. Everything else a caller needs it can see.
+ *
+ * Root sets are bit masks over argument indices. That caps a return-root group at 64 arguments,
+ * which is not a limit any signature reaches; a function with more of them simply cannot mark the
+ * ones past it, and resolveSignature says so rather than silently dropping the marker.
+ */
+struct FunctionSummary {
+    ModuleList<ArgSummary, false> args;
+
+    // The declared group, and what resolving every return path actually found. The check is
+    // `actual` is a subset of `declared`, plus `invalidRoot` being clear.
+    U64 declaredRoots = 0;
+    U64 actualRoots = 0;
+
+    // Set when a returned borrow is rooted in something that can never be a member of any group -
+    // a local, a global, or a sunk parameter. Kept apart from `actualRoots` so that the diagnostic
+    // can say which of the two mistakes was made.
+    bool invalidRoot = false;
+
+    // Set when the result is or contains a borrow, and whether that borrow is a mutable one. A
+    // mutable result has to be rooted in a `return &` member rather than in any member.
+    bool returnsBorrow = false;
+    bool mutableResult = false;
+
+    StorageBound resultBound = StorageBound::Frame;
+
+    // False until the fixpoint has visited this function once. A callee that has not been visited
+    // contributes nothing, which is what makes the fixpoint start optimistic and climb.
+    bool ready = false;
+
+    // Set for a function whose body is not available to summarize - a class signature, an
+    // unresolved callee, a call whose target is decided per specialization. Everything about an
+    // opaque callee is the conservative answer.
+    bool opaque = false;
+};
+
 // A function whose body the resolver generates at the call site instead of calling. The
 // primitive operations are the only ones today: `+` on Int has a real Function with a real body
 // so that it can be printed, lowered and taken the address of, but an ordinary call to it
@@ -90,6 +156,10 @@ struct Function {
     // never will: it exists so that selection has something to match against, and is the one
     // kind of Function that must not reach printing or lowering.
     bool signature = false;
+
+    // What callers may assume about this function, computed by the ownership passes and read by
+    // every call site of it. See FunctionSummary.
+    FunctionSummary summary;
 };
 
 /*
@@ -205,6 +275,7 @@ struct Program {
     Array<Module*> modules;
     GlobalList<GlobalPtr<TupType>> tupleTypes;
     GlobalList<GlobalPtr<PtrType>> pointerTypes;
+    GlobalList<GlobalPtr<BorrowType>> borrowTypes;
 
     // Instantiations created before the declaration they came from had been read, waiting for
     // their constructor contents. Drained by completePendingInstances().
@@ -219,7 +290,26 @@ struct Program {
     // header rather than the other way round.
     Ptr<OwnershipResults> ownership;
 
+    /*
+     * The runtime operations the compiler emits calls to on its own.
+     *
+     * These are ordinary Native functions - nothing about them is special except that a program can
+     * end up calling them without having written the call, so the compiler has to be able to find
+     * them by something other than name resolution at a call site. Heap-placed storage is the whole
+     * of the list today: escape analysis decides an allocation cannot live on the frame, and the
+     * allocation and its release then have to come from somewhere.
+     */
+    ModulePtr<Function> allocateHeap = nullptr;
+    ModulePtr<Function> freeHeap = nullptr;
+
     Module* core = nullptr;
+
+    // Where the array lives, and the generic declaration `[a]` resolves to. Both are null until
+    // defineCollections has run, which is what keeps Core and Native - built before it - from
+    // being handed an implicit import of a module that does not exist yet.
+    Module* collections = nullptr;
+    GlobalPtr<RecordType> arrayType = nullptr;
+
     Module* root = nullptr;
 
     // Core and Native are parsed from source embedded in the compiler, so the program owns those

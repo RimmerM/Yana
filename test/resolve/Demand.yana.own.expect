@@ -1,0 +1,32 @@
+fn read {
+  arg it readonly
+  %it: Point borrowed readonly live [0, 2)
+}
+
+fn bump {
+  arg it writable
+  %it: Point borrowed writable live [0, 4)
+}
+
+fn onlyRead {
+  %local0: Point readonly live [0, 5)
+}
+
+fn mutableOnOneArm {
+  arg flag readonly
+  %local0: Point readonly live [0, 5)
+  %p: Point writable live [3, 13)
+}
+
+fn copyIsIndependent {
+  %local0: Point readonly live [0, 14)
+  %local1: Point readonly live [3, 10)
+  %duplicate: Point writable live [8, 16)
+}
+
+fn addressed {
+  %local0: Point writable addressed live [0, 8)
+}
+
+fn main {
+}

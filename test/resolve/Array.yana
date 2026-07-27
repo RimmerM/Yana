@@ -1,0 +1,38 @@
+-- The growable array: a literal, an accessor rooted in it, and the storage decisions that follow.
+
+fn sum(xs: [Int]) -> Int:
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < length(xs):
+        total = total + xs[i]
+        i = i + 1
+
+    return total
+
+{-
+   An array that outlives the frame that built it.
+
+   The literal's buffer cannot be this frame's storage, because the array holding its address
+   leaves - so escape analysis places the buffer on the heap and patches the flag the literal wrote,
+   and the caller's drop is what hands it back. Nothing in the source says any of this.
+-}
+fn make() -> [Int] = [7, 8, 9]
+
+fn escaping() -> Int:
+    let xs = make()
+    return xs[0] + xs[1] + xs[2]
+
+fn main() -> Int:
+    -- The buffer of a literal that never leaves this frame stays on the frame.
+    let &small = [1, 2, 3]
+    small[0] = 10
+
+    -- Growing past the literal's capacity moves the elements to the heap, and the array's own
+    -- `Drop` is what hands that storage back.
+    push(small, 4)
+    push(small, 5)
+    remove(small, 1)
+
+    -- 10 + 3 + 4 + 5 = 22, from four elements after the removal, and 24 from the heap-placed one.
+    return sum(small) + length(small) + escaping() :: Int

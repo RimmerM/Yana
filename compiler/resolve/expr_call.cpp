@@ -102,6 +102,21 @@ bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, Array<TypePtr>&
     // outermost type of a literal for matchType to walk into.
     if(isLiteral(global, actual)) return !isGeneric(global, pattern) && literalFits(actual, pattern);
 
+    /*
+     * A concrete position in an otherwise generic signature is judged the way a non-generic
+     * function's is: there is no variable here to bind, so what matters is whether the argument
+     * converts. Without this, `fn push(&self: Array(a), index: Int)` would reject the `Short` that
+     * the identical non-generic signature accepts, and a signature would mean different things
+     * depending on whether some *other* parameter mentioned a type variable.
+     *
+     * Only in the argument direction. The result position asks what the call produces, and a
+     * result that would need converting has not decided the type arguments by itself.
+     */
+    if(widen && !isGeneric(global, pattern) && !sameType(pattern, actual)) {
+        TypePtr pair[] = { actual, pattern };
+        return findInstance(module, module.coreClasses.widen, { pair, 2 }) != nullptr;
+    }
+
     return matchType(global, pattern, actual, { bindings.pointer(), bindings.size() });
 }
 
@@ -405,6 +420,24 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
         // converted argument is a temporary of the callee's type, and moving out of a temporary is
         // the no-op sinkValue() already reports it as.
         if(declared->convention == ast::BindType::Sink) value = sinkValue(value, source);
+
+        /*
+         * A `return` argument is loaned rather than merely read.
+         *
+         * The marker says a borrow in the result may be rooted here, so the loan has to outlive the
+         * call: nothing may write this storage while the result is still live. Making that an
+         * explicit InstBorrow is what puts the extent in front of the borrow checker, which
+         * otherwise sees only a value passed and returns the storage to general use at the call.
+         *
+         * The mutable case already has one - `&` created it above - and this is deliberately the
+         * immutable one only.
+         */
+        if(declared->returnRoot && value) {
+            if(auto place = findPlace(value)) {
+                value = ref(emit<InstBorrow>(source, 0, resolveBorrowType(module, declared->type, false),
+                                             place.unwrap(), false));
+            }
+        }
 
         converted.push(value);
     }

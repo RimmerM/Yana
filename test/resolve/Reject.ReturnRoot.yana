@@ -1,0 +1,41 @@
+-- What the return-root rules reject. Each function is one rule.
+
+data Point {x: Int, y: Int}
+
+-- A result that is a borrow, with nothing declared to root it in.
+fn unrooted(p: Point) -> &Int = p.x
+
+-- `return` on a value that arrives in a register: what the body sees is a copy of its own, so
+-- there is no caller-side storage for the result to be rooted in.
+fn copied(return n: Int) -> &Int = n
+
+-- `return` on a sunk argument: the callee owns it, so nothing survives the call to be rooted in.
+fn sunk(return ->p: Point) -> &Int = p.x
+
+-- A borrow of storage this frame owns. It stops existing when the frame does, whatever the
+-- signature declared.
+fn ofLocal(return p: Point) -> &Int:
+    let here = Point {x: 1, y: 2}
+    return here.x
+
+-- A borrow rooted in an argument the signature did not mark.
+fn wrongRoot(return a: Point, b: Point) -> &Int = b.y
+
+-- The loan a `return` argument creates outlives the call, so writing through the original while
+-- the result is still live is two writers of one place.
+fn larger(return &a: Int, return &b: Int) -> &Int = if a > b then a else b
+
+fn loanSurvivesCall() -> Int:
+    let &first = 1 :: Int
+    let &second = 2 :: Int
+    let &picked = larger(first, second)
+
+    first = 5
+    return picked
+
+-- `let &` on a borrow that was never exclusive.
+fn immutableBinding(return p: Point) -> Int:
+    let &field = xOfPoint(p)
+    return field
+
+fn xOfPoint(return p: Point) -> &Int = p.x

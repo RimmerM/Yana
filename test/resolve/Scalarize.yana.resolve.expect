@@ -1,0 +1,60 @@
+fn readOnly() -> Int {
+  b0:
+    %p = alloc : Point
+    init %local0@Point.x, 3
+    init %local0@Point.y, 4
+    %v5 = load %local0@Point.x : Int
+    %v6 = load %local0@Point.x : Int
+    %v7 = mul %v5, %v6 : Int
+    %v8 = load %local0@Point.y : Int
+    %v9 = load %local0@Point.y : Int
+    %v10 = mul %v8, %v9 : Int
+    %v11 = add %v7, %v10 : Int
+    ret %v11
+}
+
+fn writable() -> Int {
+  b0:
+    %v0 = alloc : Point
+    init %local0@Point.x, 3
+    init %local0@Point.y, 4
+    %p = alloc : Point
+    init %p, %v0
+    %v7 = load %p : Point
+    %v8 = load %p@Point.x : Int
+    %v11 = add %v8, 1 : Int
+    assign %p@Point.x, %v11
+    %v13 = load %p : Point
+    %v14 = load %p@Point.x : Int
+    %v15 = load %p : Point
+    %v16 = load %p@Point.y : Int
+    %v17 = add %v14, %v16 : Int
+    ret %v17
+}
+
+fn passedWhole() -> Int {
+  b0:
+    %p = alloc : Point
+    init %local0@Point.x, 3
+    init %local0@Point.y, 4
+    %v5 = call distance, %p : Int
+    ret %v5
+}
+
+fn distance(%it: Point) -> Int {
+  b0:
+    %v1 = load %it@Point.x : Int
+    %v2 = load %it@Point.y : Int
+    %v3 = add %v1, %v2 : Int
+    ret %v3
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call readOnly : Int
+    %v1 = call writable : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call passedWhole : Int
+    %v4 = add %v2, %v3 : Int
+    ret %v4
+}

@@ -161,6 +161,30 @@ struct PtrType: Type {
     TypePtr to;
 };
 
+/*
+ * A borrow - rung 2 of Design.md's reference-kind ladder, written `&T`.
+ *
+ * Interned on its target and its mutability, so that the `&Int` written in a signature and the one
+ * an InstBorrow produces are one TypePtr and sameType() stays pointer equality.
+ *
+ * This exists as a *type* only where a borrow has to survive being handed to someone: a function
+ * result, and the binding that receives one. A parameter still says `&` on itself rather than
+ * having a `&T` type, because a convention is a property of the parameter and not of what it
+ * refers to - `fn f(&x: Int)` takes a mutable borrow of an Int, not a value of type `&Int`.
+ *
+ * What a borrow is made of is an address, and that is representation rather than structure: a
+ * borrow has no members, cannot be matched on, and `.` on one always means a field of its target.
+ */
+struct BorrowType: Type {
+    BorrowType(TypePtr to, bool mut):
+        Type(Type::Borrow, 1, { 8, 8 }), to(to), mut(mut) {}
+
+    TypePtr to;
+
+    // Exclusive while live. Immutable borrows of one place coexist with any number of others.
+    bool mut;
+};
+
 struct FloatType: Type {
     enum Width: U8 {
         Float,
@@ -401,6 +425,9 @@ TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId sourc
 // The raw pointer type to `to`, interned per target type.
 TypePtr resolvePointerType(Module& module, TypePtr to);
 
+// The borrow type `&to`, interned per target type and mutability.
+TypePtr resolveBorrowType(Module& module, TypePtr to, bool mut);
+
 // Instantiates a generic record for a set of fully concrete arguments, interning the result so
 // that `Maybe(Int)` names one type no matter how many places write it.
 TypePtr instantiateRecord(Module& module, GlobalPtr<RecordType> record, Buffer<TypePtr> args, LocationId source);
@@ -467,6 +494,7 @@ bool isUnit(GlobalBase base, TypePtr type);
 bool isLiteral(GlobalBase base, TypePtr type);
 bool isInteger(GlobalBase base, TypePtr type);
 bool isPointer(GlobalBase base, TypePtr type);
+bool isBorrow(GlobalBase base, TypePtr type);
 
 // What a pointer points at, or null for anything else.
 TypePtr pointeeType(GlobalBase base, TypePtr type);

@@ -1,0 +1,102 @@
+fn initHeap {
+}
+
+fn heapClassOf {
+  arg total readonly
+  %size: I64 writable live [0, 8) [10, 12) [13, 18)
+  %sizeClass: I64 writable live [2, 9) [10, 15) [16, 18)
+}
+
+fn heapBlockSize {
+  arg sizeClass readonly
+}
+
+fn freeListHead {
+  arg sizeClass readonly
+  result escapes
+}
+
+fn setFreeListHead {
+  arg sizeClass readonly
+  arg block readonly
+}
+
+fn allocateHeap {
+  arg size readonly
+  result escapes
+}
+
+fn freeHeap {
+  arg allocation readonly
+}
+
+fn mapMemory {
+  arg size readonly
+}
+
+fn length(Int) {
+  arg self readonly
+  %self: Array(Int) borrowed droppable readonly live [0, 1)
+}
+
+fn get(Int) {
+  arg self readonly return
+  arg index readonly
+  result arguments
+  %self: Array(Int) borrowed droppable readonly live [0, 1)
+}
+
+fn getMut(Int) {
+  arg self writable return
+  arg index readonly
+  result arguments
+  %self: Array(Int) borrowed droppable writable live [0, 2)
+}
+
+fn push(Int) {
+  arg self writable addressed resizable
+  arg item readonly
+  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 12) [13, 26)
+  %item: Int borrowed readonly live [0, 12) [13, 22)
+}
+
+fn reserve(Int) {
+  arg self writable addressed resizable
+  arg wanted readonly
+  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 4) [5, 34) [35, 59)
+  %wide: Int writable live [11, 34) [35, 57)
+}
+
+fn byteSpan(Int) {
+  arg from readonly
+  arg count readonly
+}
+
+fn remove(Int) {
+  arg self writable addressed
+  arg index readonly
+  %self: Array(Int) borrowed droppable writable addressed live [0, 6) [7, 38)
+}
+
+fn sum {
+  arg xs readonly
+  %xs: Array(Int) borrowed droppable readonly live [0, 9) [11, 22)
+  %total: Int writable live [0, 10) [11, 12) [17, 22)
+  %i: Int writable live [2, 9) [11, 19) [20, 22)
+}
+
+fn make {
+  result escapes
+  %local0: {Int, Int, Int} writable addressed escapes heap live [0, 7)
+  %local1: Array(Int) droppable readonly live [5, 11)
+}
+
+fn escaping {
+  %local0: Array(Int) droppable readonly live [0, 10)
+}
+
+fn main {
+  %local0: {Int, Int, Int} writable addressed live [0, 7)
+  %local1: Array(Int) droppable readonly live [5, 12)
+  %small: Array(Int) droppable writable addressed resizable live [10, 29)
+}

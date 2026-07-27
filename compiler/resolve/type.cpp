@@ -161,6 +161,10 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
         }
         case Type::Ptr:
             return resolvePointerType(module, substituteType(module, ((PtrType*)global[type])->to, args, source));
+        case Type::Borrow: {
+            auto borrow = (BorrowType*)global[type];
+            return resolveBorrowType(module, substituteType(module, borrow->to, args, source), borrow->mut);
+        }
         default:
             return type;
     }
@@ -222,6 +226,13 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
         }
         case Type::Ptr:
             return matchType(global, ((PtrType*)global[pattern])->to, ((PtrType*)global[concrete])->to, bindings);
+        case Type::Borrow: {
+            auto patternBorrow = (BorrowType*)global[pattern];
+            auto concreteBorrow = (BorrowType*)global[concrete];
+
+            if(patternBorrow->mut != concreteBorrow->mut) return false;
+            return matchType(global, patternBorrow->to, concreteBorrow->to, bindings);
+        }
         default:
             // A kind with no structure to walk into matches only itself, which is what the identity
             // above already answered for everything except a generic type of such a kind.
@@ -381,6 +392,27 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
             return resolveTupleAst(module, type, env);
         case ast::Type::Ptr:
             return resolvePointerType(module, resolveType(module, *module.parse[type.to], env));
+        case ast::Type::Arr: {
+            // `[T]` is the growable array, which is an ordinary generic record declared in
+            // Collections rather than a type kind: the grammar has a spelling for it, and what the
+            // spelling means is a library type. `[T *n]` - the fixed-size inline one - has no
+            // implementation behind it yet, so it is rejected rather than silently made growable.
+            if(type.arr.length) {
+                return errorType(module, type.source, "fixed-size arrays are not available yet"_v);
+            }
+
+            if(!module.program.arrayType) {
+                return errorType(module, type.source, "arrays are not available in this module"_v);
+            }
+
+            auto element = resolveType(module, *module.parse[type.arr.type], env);
+            return instantiateRecord(module, module.program.arrayType, { &element, 1 }, type.source);
+        }
+        case ast::Type::Borrow:
+            // Immutable until the signature it belongs to says otherwise: what makes a returned
+            // borrow exclusive is the return-root group being entirely `return &`, which is not
+            // known until every argument of the declaration has been read.
+            return resolveBorrowType(module, resolveType(module, *module.parse[type.to], env), false);
         default:
             return errorType(module, type.source, "type is not available in this milestone"_v);
     }
@@ -402,6 +434,24 @@ TypePtr resolvePointerType(Module& module, TypePtr to) {
     auto pointer = type - base;
     module.program.pointerTypes.push(module.types, pointer);
 
+    return (Type*)type - base;
+}
+
+// Borrows are interned the way pointers are, on their target and on the one bit that distinguishes
+// an exclusive borrow from a shared one.
+TypePtr resolveBorrowType(Module& module, TypePtr to, bool mut) {
+    auto base = *module.types;
+    if(!to) return module.scalar.error;
+
+    for(auto pointer: module.program.borrowTypes.contents(base)) {
+        auto borrow = base[pointer];
+        if(borrow->to == to && borrow->mut == mut) return (Type*)borrow - base;
+    }
+
+    auto type = new (module.types) BorrowType(to, mut);
+    type->generic = isGeneric(base, to);
+
+    module.program.borrowTypes.push(module.types, type - base);
     return (Type*)type - base;
 }
 
@@ -663,6 +713,15 @@ Ownership ownershipOf(Module& module, TypePtr type) {
             // and what keeps it out of this analysis entirely.
             break;
 
+        case Type::Borrow:
+            // A borrow owns nothing, so it releases nothing and relocates by copying its address.
+            // Only the exclusive one is kept out of TrivialCopy: duplicating a mutable borrow on
+            // read would hand out a second exclusive access to one place, which is the one thing
+            // exclusivity means. An immutable borrow may be duplicated freely, which is exactly
+            // Design.md's "any number of immutable borrows can be alive simultaneously".
+            result.trivialCopy = ((BorrowType*)value)->mut == false;
+            break;
+
         case Type::Gen:
             // Design.md: an unconstrained generic parameter is treated as non-TrivialCopy inside
             // the body regardless of what a caller substitutes, so that a generic function's
@@ -747,6 +806,10 @@ bool isPointer(GlobalBase base, TypePtr type) {
     return type && base[type]->kind == Type::Ptr;
 }
 
+bool isBorrow(GlobalBase base, TypePtr type) {
+    return type && base[type]->kind == Type::Borrow;
+}
+
 TypePtr pointeeType(GlobalBase base, TypePtr type) {
     return isPointer(base, type) ? ((PtrType*)base[type])->to : nullptr;
 }
@@ -761,8 +824,12 @@ bool isDirectType(GlobalBase base, TypePtr type) {
     auto value = base[type];
 
     // A raw pointer is an address held in a register, not something held in memory: `%T` is
-    // direct however large `T` is. The memory it names is reached through a place instead.
-    if(value->kind == Type::Int || value->kind == Type::Float || value->kind == Type::Ptr) return true;
+    // direct however large `T` is. The memory it names is reached through a place instead, and a
+    // borrow is the same shape with checking attached.
+    if(value->kind == Type::Int || value->kind == Type::Float || value->kind == Type::Ptr ||
+       value->kind == Type::Borrow) {
+        return true;
+    }
 
     return value->kind == Type::Record && ((RecordType*)value)->layout == RecordType::Enum;
 }
@@ -811,6 +878,13 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
         case Type::Ptr:
             target << '%';
             describeType(context, base, ((PtrType*)base[type])->to, target);
+            return;
+        case Type::Borrow:
+            // `&T` is how a borrow is written; `&mut T` is a printed form rather than a source one,
+            // since what makes a returned borrow mutable is the group it is rooted in rather than
+            // anything written on the result - see resolveSignature.
+            target << (((BorrowType*)base[type])->mut ? "&mut " : "&");
+            describeType(context, base, ((BorrowType*)base[type])->to, target);
             return;
         case Type::Float:
             target << (((FloatType*)base[type])->width == FloatType::Float ? "Float" : "Double");

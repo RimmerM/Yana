@@ -1,5 +1,6 @@
 #include "analyze.h"
 #include "expr.h"
+#include "generic.h"
 #include "name.h"
 
 /*
@@ -68,6 +69,29 @@ struct LiveBorrow {
     bool mut = false;
 };
 
+/*
+ * Which storage one value may refer to.
+ *
+ * Ownership is stated over places, but everything a *caller* needs to know is stated over values:
+ * whether the pointer this function returned points into its own frame, whether the borrow it was
+ * handed ended up somewhere that outlives the call. So each value carries the set of roots it may
+ * refer to, as an ordinary forward fixpoint over the SSA graph.
+ *
+ * The set is over locals rather than over "argument or not", because the two questions the result
+ * answers are different: a summary asks which *arguments* a value is rooted in, and storage-class
+ * selection asks which *allocations* have to outlive the frame. A local backed by an Arg answers
+ * the first, every local answers the second, and one set covers both.
+ */
+struct Provenance {
+    LocalSet locals;
+    bool global = false;
+
+    // Storage this analysis cannot name: the result of an opaque call, or anything reached through
+    // a raw pointer whose own origin was already unknown. Conservative in the one direction that
+    // matters - it can only make storage live longer than it had to.
+    bool unknown = false;
+};
+
 struct Analysis {
     Analysis(Module& module, Function& function):
         module(module), context(module.context), global(*module.types), local(*module.arena),
@@ -81,6 +105,7 @@ struct Analysis {
 
     Size localCount = 0;
     Size instructionCount = 0;
+    Size valueCount = 0;
 
     Array<ModulePtr<Inst>> order;
     Array<BlockRange> blockRanges;
@@ -97,6 +122,40 @@ struct Analysis {
     // Ownership state before each instruction, one row per instruction index.
     Array<Array<OwnState>> stateBefore;
 
+    /*
+     * The flow facts, all keyed the same way: values by their id, roots by their local index.
+     *
+     * `contents` is what makes this more than a walk of the operand graph. A value written into a
+     * place is reachable through that place's root afterwards, so an array's buffer is reachable
+     * through the array, and returning the array is what makes the buffer outlive the frame. It is
+     * field-insensitive - `x.a` and `x.b` contribute to one set - which is precise enough for the
+     * question and avoids a second projection model inside the analysis.
+     */
+    Array<Provenance> values;
+    Array<Provenance> contents;
+
+    /*
+     * Whether each root's storage has to stay valid after this frame returns.
+     *
+     * Two arrays for one question, because the two consumers ask it differently. `outlives` starts
+     * with every parameter's slot set, since a parameter names the caller's storage and that
+     * already survives - which is what makes "written into an argument" an escape with no rule of
+     * its own. `escaped` records only what this pass *proved* escapes, which is what a summary
+     * reports as a retained argument and what storage-class selection reads.
+     */
+    LocalSet outlives;
+    LocalSet escaped;
+
+    // What each root's representation has to be able to do, per Design.md's owner mutation demand.
+    Array<ReprRequirements> demand;
+
+    // Which roots this frame has to hand storage back for. Not simply "is heap-placed": storage
+    // that escaped is heap-placed *because* something else owns it now.
+    LocalSet releasesStorage;
+
+    // Reported diagnostics, but also the switch that decides whether this run is one of the
+    // fixpoint's silent rounds or the final one that rewrites the body.
+    bool reporting = true;
     bool ok = true;
 
     Block* blockAt(Size index) { return local[function.blocks.get(local, index)]; }
@@ -110,6 +169,28 @@ static LocalSet emptySet(Size count) {
     LocalSet set;
     for(Size i = 0; i < count; i++) set.push(0);
     return set;
+}
+
+/*
+ * Every diagnostic this file produces goes through here, because the passes run more than once.
+ *
+ * Summaries are a fixpoint: a function is analyzed as many times as it takes for what its callees
+ * say about themselves to stop changing, and only the last of those rounds is the one whose
+ * diagnostics are the program's. Reporting from the silent rounds would say the same thing three
+ * times; not recording `ok` in them would let a round that failed still be treated as a result.
+ */
+template<class... Args>
+static void report(Analysis& analysis, StringView text, LocationId source, Args&&... args) {
+    analysis.ok = false;
+    if(analysis.reporting) {
+        analysis.context.diagnostics.error(text, source, forward<Args>(args)...);
+    }
+}
+
+static void note(Analysis& analysis, StringView text, LocationId source) {
+    if(analysis.reporting) {
+        analysis.context.diagnostics.message(Diagnostics::MessageLevel, text, source);
+    }
 }
 
 /*
@@ -398,6 +479,689 @@ static void attributePhiEdges(Analysis& analysis) {
 }
 
 /*
+ * Provenance, containment, and what has to outlive the frame.
+ *
+ * Three facts computed together because each needs the one before it. A value's provenance is the
+ * set of roots it may refer to; a root's contents are the provenance of everything written into
+ * it; and a root outlives the frame when something handed it, or something it contains, to code
+ * that runs after this function returns.
+ *
+ * All three are "may" analyses climbing from empty, so a round that has not seen a callee's summary
+ * yet is optimistic rather than wrong - the fixpoint above only ever adds.
+ */
+
+static Provenance emptyProvenance(Size count) {
+    return Provenance { emptySet(count), false, false };
+}
+
+static bool joinProvenance(Provenance& target, const Provenance& source) {
+    auto changed = false;
+
+    for(Size i = 0; i < source.locals.size() && i < target.locals.size(); i++) {
+        if(source.locals[i] && !target.locals[i]) {
+            target.locals[i] = 1;
+            changed = true;
+        }
+    }
+
+    if(source.global && !target.global) { target.global = true; changed = true; }
+    if(source.unknown && !target.unknown) { target.unknown = true; changed = true; }
+    return changed;
+}
+
+static Provenance& provenanceOf(Analysis& analysis, ModulePtr<Value> value) {
+    static Provenance none;
+    if(!value) return none;
+
+    auto id = analysis.local[value]->id;
+    return id < analysis.values.size() ? analysis.values[id] : none;
+}
+
+// Whether a value is the kind of thing that can refer to storage at all. A scalar computed into a
+// register refers to nothing, and saying so keeps arithmetic out of the fixpoint entirely.
+static bool refersToStorage(Analysis& analysis, TypePtr type) {
+    return isMemoryType(analysis.global, type) || isPointer(analysis.global, type) ||
+           isBorrow(analysis.global, type);
+}
+
+// The roots a place names. A projection stays inside the storage its root names, so the path is
+// not walked - which is the same reason liveness is tracked per local.
+static Provenance placeProvenance(Analysis& analysis, const Place& place) {
+    auto result = emptyProvenance(analysis.localCount);
+
+    switch(place.root) {
+        case PlaceRoot::Local:
+            if(place.local < analysis.localCount) result.locals[place.local] = 1;
+            else result.unknown = true;
+            break;
+
+        case PlaceRoot::Global:
+            result.global = true;
+            break;
+
+        case PlaceRoot::Pointer:
+            // The place is the memory the pointer names, so its roots are the pointer's own.
+            joinProvenance(result, provenanceOf(analysis, place.pointer));
+            break;
+    }
+
+    return result;
+}
+
+// What reading out of a place produces: everything anything ever wrote into the roots it names.
+static Provenance contentsOfPlace(Analysis& analysis, const Place& place) {
+    auto roots = placeProvenance(analysis, place);
+    auto result = emptyProvenance(analysis.localCount);
+
+    for(Size i = 0; i < analysis.localCount; i++) {
+        if(roots.locals[i]) joinProvenance(result, analysis.contents[i]);
+    }
+
+    if(roots.global || roots.unknown) result.unknown = true;
+    return result;
+}
+
+// What a value contributes when it is written somewhere. An aggregate is copied byte for byte, so
+// what lands in the destination is what the source contained rather than the source itself.
+static Provenance transferredProvenance(Analysis& analysis, ModulePtr<Value> value) {
+    if(!value) return emptyProvenance(analysis.localCount);
+
+    auto result = emptyProvenance(analysis.localCount);
+    auto type = analysis.local[value]->type;
+
+    if(isMemoryType(analysis.global, type)) {
+        auto roots = provenanceOf(analysis, value);
+        for(Size i = 0; i < analysis.localCount; i++) {
+            if(roots.locals[i]) joinProvenance(result, analysis.contents[i]);
+        }
+
+        if(roots.global || roots.unknown) result.unknown = true;
+    } else if(refersToStorage(analysis, type)) {
+        joinProvenance(result, provenanceOf(analysis, value));
+    }
+
+    return result;
+}
+
+// The summary of a called function, or nothing when the callee is not one this pass can see.
+static FunctionSummary* summaryOf(Analysis& analysis, ModulePtr<Function> callee) {
+    if(!callee) return nullptr;
+
+    auto& summary = analysis.local[callee]->summary;
+    return summary.ready && !summary.opaque ? &summary : nullptr;
+}
+
+// What a call's result may refer to, composed from the callee's declared return-root group. A
+// borrow coming out of a call is related to every member of that group at once, which is
+// Design.md's deliberate conservatism: the callee may have returned any of them.
+static Provenance callResultProvenance(Analysis& analysis, ModulePtr<Function> callee,
+                                       ModuleList<ModulePtr<Value>, false>& args, TypePtr type) {
+    auto result = emptyProvenance(analysis.localCount);
+    if(!refersToStorage(analysis, type)) return result;
+
+    auto summary = summaryOf(analysis, callee);
+    if(!summary) {
+        result.unknown = true;
+        return result;
+    }
+
+    if(summary->resultBound == StorageBound::Arguments) {
+        U16 index = 0;
+        for(auto arg: args.contents(analysis.local)) {
+            if(summary->declaredRoots & (U64(1) << min(U16(63), index))) {
+                joinProvenance(result, provenanceOf(analysis, arg));
+            }
+
+            index++;
+        }
+    } else if(summary->resultBound != StorageBound::Frame) {
+        result.unknown = true;
+    }
+
+    return result;
+}
+
+// One round of the value fixpoint. Returns whether anything was added.
+static bool flowRound(Analysis& analysis) {
+    auto changed = false;
+    auto local = analysis.local;
+
+    for(Size i = 0; i < analysis.instructionCount; i++) {
+        auto pointer = analysis.order[i];
+        auto& instruction = *local[pointer];
+        auto id = instruction.id;
+        if(id >= analysis.values.size()) continue;
+
+        auto produced = emptyProvenance(analysis.localCount);
+
+        // A value that owns a slot refers to that slot and to nothing else, whatever produced it -
+        // an allocation, a copy, a call whose aggregate result landed in one.
+        auto backing = backingLocal(analysis, (ModulePtr<Value>)pointer);
+        if(backing != maxLimit<U32>) {
+            produced.locals[backing] = 1;
+        } else {
+            switch(instruction.kind) {
+                case Value::LoadPlace: {
+                    auto& read = (InstLoadPlace&)instruction;
+
+                    // An aggregate is addressed rather than loaded, so the value *is* the place.
+                    // A scalar or a pointer read out of storage is whatever was written there.
+                    if(isMemoryType(analysis.global, instruction.type)) {
+                        joinProvenance(produced, placeProvenance(analysis, read.place));
+                    } else if(refersToStorage(analysis, instruction.type)) {
+                        joinProvenance(produced, contentsOfPlace(analysis, read.place));
+                    }
+
+                    break;
+                }
+
+                case Value::Borrow:
+                    joinProvenance(produced, placeProvenance(analysis, ((InstBorrow&)instruction).place));
+                    break;
+
+                case Value::Address:
+                    joinProvenance(produced, placeProvenance(analysis, ((InstAddress&)instruction).place));
+                    break;
+
+                case Value::Move:
+                    joinProvenance(produced, placeProvenance(analysis, ((InstMove&)instruction).place));
+                    break;
+
+                case Value::Cast:
+                    // A cast of a pointer is the same address written differently, and asInt/asPtr
+                    // are casts. Losing the root here is exactly how an escape would go unnoticed.
+                    joinProvenance(produced, provenanceOf(analysis, ((InstUnary&)instruction).from));
+                    break;
+
+                case Value::Add:
+                case Value::Sub:
+                    // Pointer arithmetic stays inside whatever the pointer named.
+                    if(refersToStorage(analysis, instruction.type)) {
+                        joinProvenance(produced, provenanceOf(analysis, ((InstBinary&)instruction).lhs));
+                        joinProvenance(produced, provenanceOf(analysis, ((InstBinary&)instruction).rhs));
+                    }
+
+                    break;
+
+                case Value::Call: {
+                    auto& call = (InstCall&)instruction;
+                    joinProvenance(produced, callResultProvenance(analysis, call.callee, call.args, instruction.type));
+                    break;
+                }
+
+                case Value::GenCall:
+                    /*
+                     * No summary to read - the instance is decided per specialization - so the
+                     * conservative reading of what a reference result may point at is: anything
+                     * this call was handed.
+                     *
+                     * Deliberately without `unknown`, which would be the safer answer anywhere
+                     * else. An InstGenCall never survives specialization, and every specialization
+                     * is checked in full with the real instructions in place; so what this decides
+                     * is only how much a *generic* body is allowed to say about itself, and the
+                     * soundness of any concrete program is settled elsewhere. Saying `unknown` here
+                     * would instead make every generic accessor unable to declare its own roots.
+                     */
+                    if(refersToStorage(analysis, instruction.type)) {
+                        for(auto arg: ((InstGenCall&)instruction).args.contents(local)) {
+                            joinProvenance(produced, provenanceOf(analysis, arg));
+                        }
+                    }
+
+                    break;
+
+                case Value::Native:
+                    // copyMemory and setMemory produce nothing, and a syscall produces an integer.
+                    // Neither hands back an address this analysis could have named.
+                    if(refersToStorage(analysis, instruction.type)) produced.unknown = true;
+                    break;
+
+                case Value::Phi:
+                    for(auto input: ((InstPhi&)instruction).inputs.contents(local)) {
+                        joinProvenance(produced, provenanceOf(analysis, input.value));
+                    }
+
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        changed = joinProvenance(analysis.values[id], produced) || changed;
+
+        // Writing into a place makes what was written reachable through that place's root.
+        if(instruction.kind == Value::Init || instruction.kind == Value::Assign) {
+            auto& write = (InstInit&)instruction;
+            auto roots = placeProvenance(analysis, write.place);
+            auto stored = transferredProvenance(analysis, write.value);
+
+            for(Size l = 0; l < analysis.localCount; l++) {
+                if(roots.locals[l]) changed = joinProvenance(analysis.contents[l], stored) || changed;
+            }
+        }
+    }
+
+    return changed;
+}
+
+static void computeProvenance(Analysis& analysis) {
+    analysis.valueCount = analysis.function.valueCounter;
+
+    for(Size i = 0; i < analysis.valueCount; i++) {
+        analysis.values.push(emptyProvenance(analysis.localCount));
+    }
+
+    for(Size i = 0; i < analysis.localCount; i++) {
+        analysis.contents.push(emptyProvenance(analysis.localCount));
+    }
+
+    /*
+     * What is inside a parameter is rooted in that parameter.
+     *
+     * Nothing in this frame wrote it, so without this a pointer loaded out of an argument would
+     * come from nowhere and an accessor could not say what its result was rooted in. "Reachable
+     * through" is exactly the relation Design.md's rule is stated over - "every borrow escaping
+     * through the result must be transitively rooted in a `return` parameter" - so a parameter's
+     * contents starting as the parameter itself is that rule's base case.
+     */
+    for(Size l = 0; l < analysis.localCount; l++) {
+        auto slot = analysis.function.localAt(analysis.local, U32(l));
+        if(slot.value && analysis.local[slot.value]->kind == Value::Arg) analysis.contents[l].locals[l] = 1;
+    }
+
+    // Bounded rather than unbounded: each round can only add, and the lattice is finite, so this
+    // settles - the bound is a guard against a rule added later that is not monotone, not a
+    // shortcut. Loops need one round per level of the value graph they close over.
+    for(Size round = 0; round < analysis.instructionCount + 2; round++) {
+        if(!flowRound(analysis)) break;
+    }
+}
+
+/*
+ * What has to outlive the frame.
+ *
+ * Seeded from the four instructions that can hand storage to something running after this function
+ * returns, then closed over containment: if a root outlives the frame, so must everything reachable
+ * through it, or the array survives and its buffer does not.
+ */
+static bool markEscaped(Analysis& analysis, const Provenance& roots) {
+    auto changed = false;
+
+    for(Size l = 0; l < analysis.localCount; l++) {
+        if(roots.locals[l] && !analysis.escaped[l]) {
+            analysis.escaped[l] = 1;
+            analysis.outlives[l] = 1;
+            changed = true;
+        }
+    }
+
+    return changed;
+}
+
+// One round of seeds. Separate from the closure below only so that both can be repeated together:
+// a store into a root that a later instruction turns out to hand away is an escape too, and one
+// pass in instruction order would miss it.
+static bool escapeRound(Analysis& analysis) {
+    auto changed = false;
+
+    for(Size i = 0; i < analysis.instructionCount; i++) {
+        auto& instruction = *analysis.local[analysis.order[i]];
+
+        switch(instruction.kind) {
+            case Value::Ret: {
+                auto value = ((InstRet&)instruction).value;
+                if(!value) break;
+
+                /*
+                 * An aggregate result is copied into storage the caller passed in, so the slot it
+                 * came out of stays behind and only what it *contained* leaves. A borrow or a
+                 * pointer is the address itself, so the root leaves with it.
+                 *
+                 * A root that is a *parameter's* slot is deliberately not marked. Handing a borrow
+                 * of an argument back is not an escape, it is the return-root mechanism, and the
+                 * caller already bounds that storage - the summary says so through its declared
+                 * group rather than through this bit. Marking it here would make every accessor's
+                 * argument look like something that had to outlive its caller, and every value
+                 * anyone ever borrowed from would land on the heap.
+                 */
+                auto leaving = transferredProvenance(analysis, value);
+
+                for(Size l = 0; l < analysis.localCount; l++) {
+                    auto slot = analysis.function.localAt(analysis.local, U32(l));
+                    if(slot.value && analysis.local[slot.value]->kind == Value::Arg) leaving.locals[l] = 0;
+                }
+
+                changed = markEscaped(analysis, leaving) || changed;
+                break;
+            }
+
+            case Value::Init:
+            case Value::Assign: {
+                auto& write = (InstInit&)instruction;
+                auto roots = placeProvenance(analysis, write.place);
+
+                auto escaping = roots.global || roots.unknown;
+                for(Size l = 0; l < analysis.localCount && !escaping; l++) {
+                    escaping = roots.locals[l] && analysis.outlives[l];
+                }
+
+                if(escaping) {
+                    changed = markEscaped(analysis, transferredProvenance(analysis, write.value)) || changed;
+                }
+
+                break;
+            }
+
+            case Value::Call: {
+                auto& call = (InstCall&)instruction;
+                auto summary = summaryOf(analysis, call.callee);
+                U16 index = 0;
+
+                for(auto arg: call.args.contents(analysis.local)) {
+                    auto retained = !summary || index >= summary->args.size() ||
+                                    summary->args.get(analysis.local, index).retained;
+
+                    if(retained) {
+                        changed = markEscaped(analysis, transferredProvenance(analysis, arg)) || changed;
+                    }
+
+                    index++;
+                }
+
+                break;
+            }
+
+            case Value::GenCall:
+                // No summary to consult, so everything handed over is assumed kept.
+                for(auto arg: ((InstGenCall&)instruction).args.contents(analysis.local)) {
+                    changed = markEscaped(analysis, transferredProvenance(analysis, arg)) || changed;
+                }
+
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    // Containment closure. A root that outlives the frame drags everything written into it along,
+    // and that relation is what connects an array's own storage to its buffer's.
+    for(Size l = 0; l < analysis.localCount; l++) {
+        if(!analysis.outlives[l]) continue;
+
+        for(Size m = 0; m < analysis.localCount; m++) {
+            // A root contains itself - that is how a parameter's contents are rooted in the
+            // parameter - and that says nothing about escaping.
+            if(m == l) continue;
+
+            if(analysis.contents[l].locals[m] && !analysis.escaped[m]) {
+                analysis.escaped[m] = 1;
+                analysis.outlives[m] = 1;
+                changed = true;
+            }
+        }
+    }
+
+    return changed;
+}
+
+static void computeOutliving(Analysis& analysis) {
+    analysis.outlives = emptySet(analysis.localCount);
+    analysis.escaped = emptySet(analysis.localCount);
+
+    // A parameter's storage is the caller's and already outlives this frame. It is set in
+    // `outlives` and not in `escaped`, because nothing here proved anything about it.
+    for(Size l = 0; l < analysis.localCount; l++) {
+        auto slot = analysis.function.localAt(analysis.local, U32(l));
+        if(slot.value && analysis.local[slot.value]->kind == Value::Arg) analysis.outlives[l] = 1;
+    }
+
+    for(Size round = 0; round <= analysis.localCount + 1; round++) {
+        if(!escapeRound(analysis)) break;
+    }
+}
+
+/*
+ * Owner mutation demand (Design.md's "Binding mutability and owner mutation demand").
+ *
+ * Deliberately keyed on the root rather than on the binding that named it, and deliberately not
+ * raised by initialization: filling storage that held nothing is what every owned value's first
+ * instruction does, so counting it would make every root writable and the analysis would answer
+ * the same thing everywhere. Overwriting a live value is the operation that needs writable storage,
+ * which is the whole reason Init and Assign are two instructions.
+ */
+static void raiseDemand(Analysis& analysis, const Provenance& roots, const ReprRequirements& what) {
+    for(Size l = 0; l < analysis.localCount; l++) {
+        if(roots.locals[l]) analysis.demand[l].raise(what);
+    }
+}
+
+static void computeDemand(Analysis& analysis) {
+    for(Size l = 0; l < analysis.localCount; l++) analysis.demand.push(ReprRequirements());
+
+    auto writable = ReprRequirements { MutationDemand::Writable, false, false };
+    auto unknown = ReprRequirements { MutationDemand::Unknown, false, false };
+
+    for(Size i = 0; i < analysis.instructionCount; i++) {
+        auto& instruction = *analysis.local[analysis.order[i]];
+
+        switch(instruction.kind) {
+            case Value::Assign: {
+                auto& write = (InstInit&)instruction;
+                auto roots = placeProvenance(analysis, write.place);
+                raiseDemand(analysis, roots, writable);
+
+                /*
+                 * Replacing indirect storage this owner holds is what a regrow is.
+                 *
+                 * There is no `resize` operation in the language to key this on, so the structural
+                 * definition is the one above: an assignment - not an initialization - of a pointer
+                 * into a projection of a root replaced storage that root was holding. That is
+                 * exactly what an array's grow does and what nothing else does, and it is the fact
+                 * that keeps a growable array's buffer off the frame.
+                 */
+                if(write.place.projections.isNotEmpty() &&
+                   isPointer(analysis.global, analysis.local[write.value]->type)) {
+                    raiseDemand(analysis, roots, ReprRequirements { MutationDemand::ReadOnly, false, true });
+                }
+
+                break;
+            }
+
+            case Value::Borrow:
+                if(((InstBorrow&)instruction).mut) {
+                    raiseDemand(analysis, placeProvenance(analysis, ((InstBorrow&)instruction).place), writable);
+                }
+
+                break;
+
+            case Value::Address:
+                // Design.md's Pointers section: the memory a raw pointer names is always mutable,
+                // so handing one out is both a write capability and a demand for storage to exist.
+                raiseDemand(analysis, placeProvenance(analysis, ((InstAddress&)instruction).place),
+                            ReprRequirements { MutationDemand::Writable, true, false });
+                break;
+
+            case Value::Call: {
+                auto& call = (InstCall&)instruction;
+                auto summary = summaryOf(analysis, call.callee);
+                U16 index = 0;
+
+                for(auto arg: call.args.contents(analysis.local)) {
+                    auto roots = provenanceOf(analysis, arg);
+
+                    if(!summary || index >= summary->args.size()) {
+                        if(refersToStorage(analysis, analysis.local[arg]->type)) {
+                            raiseDemand(analysis, roots, unknown);
+                        }
+                    } else {
+                        raiseDemand(analysis, roots, summary->args.get(analysis.local, index).requirements);
+                    }
+
+                    index++;
+                }
+
+                break;
+            }
+
+            case Value::GenCall:
+                for(auto arg: ((InstGenCall&)instruction).args.contents(analysis.local)) {
+                    if(refersToStorage(analysis, analysis.local[arg]->type)) {
+                        raiseDemand(analysis, provenanceOf(analysis, arg), unknown);
+                    }
+                }
+
+                break;
+
+            case Value::Native:
+                // Native's block operations write through whatever they were given, and there is
+                // no signature here to say which of the two arguments that was.
+                for(auto arg: ((InstNative&)instruction).args.contents(analysis.local)) {
+                    if(refersToStorage(analysis, analysis.local[arg]->type)) {
+                        raiseDemand(analysis, provenanceOf(analysis, arg),
+                                    ReprRequirements { MutationDemand::Writable, true, false });
+                    }
+                }
+
+                break;
+
+            default:
+                break;
+        }
+    }
+}
+
+/*
+ * The summary: what a caller may know without looking at this body.
+ *
+ * Derived from the flow facts above rather than computed separately, which is the point of having
+ * built them: "is this argument retained" is "did anything derived from its slot escape", and
+ * "where is the result rooted" is the provenance of what every `ret` handed back.
+ */
+
+// The slot one parameter's storage is named by, or none for a scalar passed in a register - which
+// has no storage in this frame for anything to be rooted in.
+static U32 argLocal(Analysis& analysis, ModulePtr<Arg> arg) {
+    for(U32 l = 0; l < analysis.localCount; l++) {
+        if(analysis.function.localAt(analysis.local, l).value == (ModulePtr<Value>)arg) return l;
+    }
+
+    return maxLimit<U32>;
+}
+
+static U64 rootBit(U16 index) {
+    return index < 64 ? U64(1) << index : 0;
+}
+
+// Rebuilds the summary from the current round's facts, reporting whether anything moved. The
+// fixpoint above runs until every function in the program answers no.
+static bool deriveSummary(Analysis& analysis) {
+    auto& function = analysis.function;
+    auto& summary = function.summary;
+    auto changed = !summary.ready;
+
+    // Sized once and then updated in place: the fixpoint visits a function many times and the
+    // module arena never gives anything back, so pushing per round would be a leak per round.
+    while(summary.args.size() < function.args.size()) {
+        summary.args.push(analysis.module.arena, ArgSummary());
+    }
+
+    U16 index = 0;
+    U64 declared = 0;
+
+    for(auto argPointer: function.args.contents(analysis.local)) {
+        auto arg = analysis.local[argPointer];
+        auto slot = argLocal(analysis, argPointer);
+
+        ArgSummary updated;
+        updated.returnRoot = arg->returnRoot;
+
+        if(slot != maxLimit<U32>) {
+            updated.requirements = analysis.demand[slot];
+            updated.retained = analysis.escaped[slot];
+        }
+
+        // A `&` parameter is a declaration that the caller's storage must be writable, whatever
+        // this body turns out to do with it. The signature is the contract, not the body.
+        if(arg->isMutableBorrow()) updated.requirements.mutation = MutationDemand::Writable;
+
+        if(arg->returnRoot) declared |= rootBit(index);
+
+        if(!(summary.args.get(analysis.local, index) == updated)) {
+            summary.args.set(analysis.local, index, updated);
+            changed = true;
+        }
+
+        index++;
+    }
+
+    // What every return path handed back, unioned. Provenance composition through a call already
+    // happened when the call's own result got its provenance, so a function returning another
+    // selector's result arrives here with that callee's roots already mapped through the operands.
+    auto returned = emptyProvenance(analysis.localCount);
+    auto returnsValue = false;
+
+    for(Size i = 0; i < analysis.instructionCount; i++) {
+        auto& instruction = *analysis.local[analysis.order[i]];
+        if(instruction.kind != Value::Ret) continue;
+
+        auto value = ((InstRet&)instruction).value;
+        if(!value) continue;
+
+        returnsValue = true;
+        joinProvenance(returned, transferredProvenance(analysis, value));
+    }
+
+    U64 actual = 0;
+    auto invalid = returned.global || returned.unknown;
+
+    for(Size l = 0; l < analysis.localCount; l++) {
+        if(!returned.locals[l]) continue;
+
+        auto slot = analysis.function.localAt(analysis.local, U32(l));
+        auto arg = slot.value && analysis.local[slot.value]->kind == Value::Arg
+            ? (Arg*)analysis.local[slot.value] : nullptr;
+
+        // A borrow rooted in a sunk parameter is as invalid as one rooted in a local: the callee
+        // owns what it was given, so there is no caller-side root left to keep it alive.
+        if(arg && arg->convention != ast::BindType::Sink) actual |= rootBit(arg->index);
+        else invalid = true;
+    }
+
+    auto bound = StorageBound::Frame;
+    if(invalid) bound = StorageBound::Escapes;
+    else if(actual) bound = StorageBound::Arguments;
+
+    auto borrowed = isBorrow(analysis.global, function.returnType);
+    auto mutableResult = borrowed &&
+        ((BorrowType*)analysis.global[function.returnType])->mut;
+
+    // Everything reaching here is about the *result*, so a function that returns nothing keeps the
+    // frame-bounded answer rather than inheriting a root from a path that returned no value.
+    if(!returnsValue) {
+        actual = 0;
+        invalid = false;
+        bound = StorageBound::Frame;
+    }
+
+    if(summary.declaredRoots != declared || summary.actualRoots != actual ||
+       summary.invalidRoot != invalid || summary.resultBound != bound ||
+       summary.returnsBorrow != borrowed || summary.mutableResult != mutableResult) {
+        summary.declaredRoots = declared;
+        summary.actualRoots = actual;
+        summary.invalidRoot = invalid;
+        summary.resultBound = bound;
+        summary.returnsBorrow = borrowed;
+        summary.mutableResult = mutableResult;
+        changed = true;
+    }
+
+    summary.ready = true;
+    return changed;
+}
+
+/*
  * Liveness - the ordinary backward fixpoint.
  *
  * A local is live at a point when some path from there reaches a use of it before the next write
@@ -622,18 +1386,55 @@ static bool touchedPlace(Value& instruction, Place& target) {
  * deliberately *not* here is recorded at the end of this file.
  */
 
-// How far a borrow's extent reaches: to the last instruction that consumes the borrow value. A
-// borrow's only consumer today is a call argument, so this is usually one instruction later - but
-// stating it as an extent rather than as a point is what makes it generalize when a borrow can be
-// held in a binding.
+/*
+ * How far a borrow's extent reaches.
+ *
+ * To the last instruction that consumes the borrow value - and then, if one of those was a call
+ * that may hand it back, to the last use of what the call produced. That second clause is the
+ * whole of Design.md's "the caller conservatively keeps every member borrowed until the last use
+ * of all result borrows", and it is why the loan on `objects` does not end at the call to
+ * `getMutableEntry` but at the last use of the entry it returned.
+ *
+ * Transitive, because a caller may hand the result on again: a chain of selectors keeps the
+ * original root borrowed for the whole chain. The `seen` list is what makes a value used by two
+ * calls, or a loop, terminate instead of walking the graph forever.
+ */
 static U32 lastUseOf(Analysis& analysis, ModulePtr<Inst> pointer) {
     auto found = analysis.indexOf.get(U32(pointer));
     auto last = found ? found.unwrap() : 0;
 
-    auto uses = analysis.local[pointer]->uses;
-    for(auto user: uses.contents(analysis.local)) {
-        auto index = analysis.indexOf.get(U32(user));
-        if(index && index.unwrap() > last) last = index.unwrap();
+    Array<ModulePtr<Value>> pending;
+    Array<ModulePtr<Value>> seen;
+    pending.push((ModulePtr<Value>)pointer);
+
+    while(pending.size()) {
+        auto value = pending.pop().unwrap();
+
+        auto visited = false;
+        for(auto& entry: seen) visited = visited || entry == value;
+        if(visited) continue;
+        seen.push(value);
+
+        for(auto user: analysis.local[value]->uses.contents(analysis.local)) {
+            auto index = analysis.indexOf.get(U32(user));
+            if(index && index.unwrap() > last) last = index.unwrap();
+
+            auto& instruction = *analysis.local[user];
+            if(instruction.kind != Value::Call) continue;
+
+            auto& call = (InstCall&)instruction;
+            auto summary = summaryOf(analysis, call.callee);
+            if(!summary) continue;
+
+            U16 position = 0;
+            for(auto arg: call.args.contents(analysis.local)) {
+                if(arg == value && (summary->declaredRoots & rootBit(position))) {
+                    pending.push((ModulePtr<Value>)user);
+                }
+
+                position++;
+            }
+        }
     }
 
     return last;
@@ -687,15 +1488,13 @@ static void checkBorrows(Analysis& analysis) {
 
             if(!borrow.mut && !writes) continue;
 
-            analysis.context.diagnostics.error(
-                borrow.mut
-                    ? "this use conflicts with a mutable borrow of the same storage, which is exclusive while it is live"_v
-                    : "this write conflicts with an immutable borrow of the same storage that is still live"_v,
-                instruction.source);
+            report(analysis,
+                   borrow.mut
+                       ? "this use conflicts with a mutable borrow of the same storage, which is exclusive while it is live"_v
+                       : "this write conflicts with an immutable borrow of the same storage that is still live"_v,
+                   instruction.source);
 
-            analysis.context.diagnostics.message(Diagnostics::MessageLevel,
-                                                 "the borrow it conflicts with is here"_v, borrowed.source);
-            analysis.ok = false;
+            note(analysis, "the borrow it conflicts with is here"_v, borrowed.source);
         }
     }
 }
@@ -716,17 +1515,15 @@ static void checkMoves(Analysis& analysis) {
             // have to know which half. That is a drop flag per field and a drop that runs over a
             // subset of members - real work, deferred deliberately rather than approximated.
             if(moved.place.projections.isNotEmpty()) {
-                analysis.context.diagnostics.error("cannot move a part of a value out of it - move the whole value instead"_v,
-                                                   instruction.source);
-                analysis.ok = false;
+                report(analysis, "cannot move a part of a value out of it - move the whole value instead"_v,
+                       instruction.source);
                 continue;
             }
 
             auto root = rootLocal(analysis, moved.place);
             if(root != maxLimit<U32> && !analysis.tracked[root].owned) {
-                analysis.context.diagnostics.error("cannot take ownership of borrowed storage - a `&` binding never owns what it refers to"_v,
-                                                   instruction.source);
-                analysis.ok = false;
+                report(analysis, "cannot take ownership of borrowed storage - a `&` binding never owns what it refers to"_v,
+                       instruction.source);
                 continue;
             }
         }
@@ -738,19 +1535,125 @@ static void checkMoves(Analysis& analysis) {
             auto moved = states[use] == OwnState::Moved;
 
             if(name) {
-                analysis.context.diagnostics.error(
-                    moved ? "%@ has been moved out of and cannot be used again"_v
-                          : "%@ may have been moved out of on some paths reaching here"_v,
-                    instruction.source, analysis.context.findName(name));
+                report(analysis,
+                       moved ? "%@ has been moved out of and cannot be used again"_v
+                             : "%@ may have been moved out of on some paths reaching here"_v,
+                       instruction.source, analysis.context.findName(name));
             } else {
-                analysis.context.diagnostics.error(
-                    moved ? "this value has been moved out of and cannot be used again"_v
-                          : "this value may have been moved out of on some paths reaching here"_v,
-                    instruction.source);
+                report(analysis,
+                       moved ? "this value has been moved out of and cannot be used again"_v
+                             : "this value may have been moved out of on some paths reaching here"_v,
+                       instruction.source);
             }
-
-            analysis.ok = false;
         }
+    }
+}
+
+/*
+ * The return-root check (Design.md's "Borrows in return position").
+ *
+ * The declaration is the contract and the body is what has to fit it, so this compares two things
+ * the summary already holds: the group the signature declared, and the roots resolving every return
+ * path actually found. Nothing here looks at a callee's body - a call's result arrived with the
+ * callee's declared group already mapped through the operands, which is what makes provenance
+ * compose transitively through a helper without inspecting one.
+ */
+static void checkReturnRoots(Analysis& analysis) {
+    auto& function = analysis.function;
+    auto& summary = function.summary;
+    if(!summary.returnsBorrow) return;
+
+    auto source = function.source;
+
+    // A borrow rooted in a local, a global, or a sunk parameter has no caller-side root that could
+    // keep it alive, which is a different mistake from being rooted in the wrong argument.
+    if(summary.invalidRoot) {
+        report(analysis,
+               "a borrow returned from this function is rooted in storage the caller does not own - it must come from an argument marked `return`"_v,
+               source);
+    }
+
+    auto undeclared = summary.actualRoots & ~summary.declaredRoots;
+    if(!undeclared) return;
+
+    U16 index = 0;
+    for(auto argPointer: function.args.contents(analysis.local)) {
+        auto arg = analysis.local[argPointer];
+
+        if(undeclared & rootBit(index)) {
+            report(analysis,
+                   "a borrow returned from this function is rooted in %@, which the signature did not mark `return`"_v,
+                   arg->source, analysis.context.findName(arg->name));
+        }
+
+        index++;
+    }
+}
+
+/*
+ * Storage-class selection (Implementation-IR.md part 5, Implementation-Regions.md part 4).
+ *
+ * Cheapest first, which with regions deliberately left out of this milestone is two options: the
+ * frame, unless this pass proved the storage has to outlive it. `mayResize` is *not* one of the
+ * reasons - an owner whose buffer may be replaced starts on the frame and migrates when it actually
+ * grows, which is the whole point of tracking the demand rather than assuming it.
+ *
+ * Only an allocation has a storage class to choose. A call result or a copy occupies storage the
+ * instruction that produced it creates, and if one of those escapes it escapes as a raw pointer,
+ * which the language already says nothing about - see the note at the end of this file.
+ */
+static void selectStorage(Analysis& analysis, OwnershipResult& result) {
+    analysis.releasesStorage = emptySet(analysis.localCount);
+
+    for(Size i = 0; i < analysis.instructionCount; i++) {
+        auto& instruction = *analysis.local[analysis.order[i]];
+        if(instruction.kind != Value::Alloc) continue;
+
+        auto& allocation = (InstAlloc&)instruction;
+        if(allocation.local >= analysis.localCount) continue;
+
+        auto escapes = analysis.escaped[allocation.local] != 0;
+        auto storage = escapes ? StorageClass::Heap : StorageClass::Stack;
+
+        // `@heap` on the binding overrides the analysis in the one direction that is always safe:
+        // Design.md's "for a large allocation that's freed well before the region closes".
+        auto slot = analysis.function.localAt(analysis.local, allocation.local);
+        if(slot.storage == StorageClass::Heap) storage = StorageClass::Heap;
+
+        /*
+         * Who releases it.
+         *
+         * Storage that escaped was handed to something that outlives this frame, and that something
+         * owns it now: an array's buffer is on the heap precisely because the array it belongs to
+         * left, and the array's own `Drop` is what frees it. Releasing it here as well would free it
+         * twice. A `@heap` binding is the other case - it went to the heap because it was asked to,
+         * and it still lives and dies in this frame.
+         */
+        allocation.releasedHere = !escapes;
+        allocation.storage = storage;
+
+        // The flag the program reads at run time, where something asked for one.
+        if(allocation.storageFlag && analysis.local[allocation.storageFlag]->kind == Value::ConstInt) {
+            ((ConstInt*)analysis.local[allocation.storageFlag])->value = storage == StorageClass::Heap;
+        }
+
+        // Heap storage this frame owns has to be handed back at the end of the value's life, which
+        // is a reason to drop a local whose type has no drop of its own.
+        if(storage == StorageClass::Heap && allocation.releasedHere) {
+            analysis.releasesStorage[allocation.local] = 1;
+            analysis.tracked[allocation.local].droppable = true;
+            if(allocation.local < result.locals.size()) result.locals[allocation.local].droppable = true;
+        }
+
+        if(storage == StorageClass::Heap && analysis.module.program.allocateHeap) {
+            analysis.local[analysis.module.program.allocateHeap]->used = true;
+        }
+
+        analysis.function.locals.set(analysis.local, allocation.local,
+                                     Local { slot.type, slot.name, slot.value, slot.convention,
+                                             storage, slot.borrowed });
+
+        if(allocation.local < result.locals.size()) result.locals[allocation.local].storage = storage;
     }
 }
 
@@ -788,7 +1691,20 @@ static ModulePtr<Function> dropImplementation(Module& module, TypePtr type, Loca
         if(instance->functions.isEmpty()) return nullptr;
 
         auto implementation = instance->functions.get(*module.arena, 0);
-        if(implementation) (*module.arena)[implementation]->used = true;
+        if(!implementation) return nullptr;
+
+        /*
+         * A parametric instance - `instance Drop(Array(a))` - has one implementation written over
+         * its own variables, and what runs is the specialization for the types the head matched.
+         * The same step emitInstanceCall takes for an ordinary call, taken here because a drop has
+         * no call site in the source to have taken it at.
+         */
+        if((*module.arena)[implementation]->gen) {
+            implementation = instantiateFunction(module, implementation, toBuffer(match.args), source);
+            if(!implementation) return nullptr;
+        }
+
+        (*module.arena)[implementation]->used = true;
         return implementation;
     }
 
@@ -861,11 +1777,44 @@ static ModulePtr<Function> dropGlueFor(Module& module, TypePtr type, LocationId 
             auto content = record->constructors.get(global, 0).content;
             dropMembers(resolver, module, resolver.project(base, ProjectionKind::Downcast, 0), content, source);
         } else if(record->layout == RecordType::Multi) {
-            // Each constructor carries a different payload, so the glue has to read the
-            // discriminant and drop the members of whichever one is there. That is a switch this
-            // pass does not build yet - see the restrictions at the end of this file.
-            module.context.diagnostics.error("a derived drop for a multi-constructor record is not generated yet - write an `instance Drop` for %@"_v,
-                                             source, describeType(module.context, global, type));
+            /*
+             * Each constructor carries a different payload, so the glue reads the discriminant and
+             * drops the members of whichever one is present.
+             *
+             * Built as a chain of tests rather than as a jump table, because that is what the IR
+             * has: `je` is its only conditional, and a record with a dozen constructors is not the
+             * case worth a second control-flow construct for. A constructor whose payload has
+             * nothing to release is skipped entirely, so the chain is as long as the number of
+             * constructors that own something rather than the number that exist.
+             */
+            auto exit = resolver.addBlock();
+
+            for(auto constructor: record->constructors.contents(global)) {
+                auto content = constructor.content;
+                if(!content || !needsDrop(module, content)) continue;
+
+                auto discriminant = resolver.load(
+                    resolver.project(base, ProjectionKind::Discriminant, 0), source);
+
+                auto index = resolver.makeInt(source, module.scalar.int_, constructor.index);
+                auto matches = resolver.emit<InstCmp>(source, 0, module.scalar.bool_,
+                                                      discriminant, index, CompareOp::Eq);
+
+                auto drops = resolver.addBlock();
+                auto next = resolver.addBlock();
+                resolver.terminate(resolver.emit<InstJe>(source, 0, module.scalar.unit,
+                                                         resolver.ref(matches), drops, next));
+
+                resolver.current = drops;
+                dropMembers(resolver, module, resolver.project(base, ProjectionKind::Downcast,
+                                                               U16(constructor.index)), content, source);
+                resolver.terminate(resolver.emit<InstJmp>(source, 0, module.scalar.unit, exit));
+
+                resolver.current = next;
+            }
+
+            resolver.terminate(resolver.emit<InstJmp>(source, 0, module.scalar.unit, exit));
+            resolver.current = exit;
         }
     }
 
@@ -933,9 +1882,8 @@ static void placeDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops
                 // Init and Assign are two instructions rather than one.
                 if(defines && effects.assigns && before != OwnState::Uninitialized) {
                     if(before == OwnState::Maybe) {
-                        analysis.context.diagnostics.error("this assignment overwrites a value that was moved out of on only some paths - conditional drops need drop flags, which are not implemented yet"_v,
-                                                           analysis.local[analysis.order[i]]->source);
-                        analysis.ok = false;
+                        report(analysis, "this assignment overwrites a value that was moved out of on only some paths - conditional drops need drop flags, which are not implemented yet"_v,
+                               analysis.local[analysis.order[i]]->source);
                     } else if(before == OwnState::Owned) {
                         blockDrops[b].push(PendingDrop { U32(l), U32(i) });
                     }
@@ -946,9 +1894,8 @@ static void placeDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops
 
                 if((liveBefore || defines) && !liveAfter && (ownedAfter || maybeAfter)) {
                     if(maybeAfter) {
-                        analysis.context.diagnostics.error("this value was moved out of on only some paths reaching its last use - conditional drops need drop flags, which are not implemented yet"_v,
-                                                           analysis.local[analysis.order[i]]->source);
-                        analysis.ok = false;
+                        report(analysis, "this value was moved out of on only some paths reaching its last use - conditional drops need drop flags, which are not implemented yet"_v,
+                               analysis.local[analysis.order[i]]->source);
                     } else {
                         blockDrops[b].push(PendingDrop { U32(l), U32(i + 1) });
                     }
@@ -976,9 +1923,8 @@ static void placeDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops
                 // The terminator itself never changes ownership, so the state before it is the
                 // state on the edge.
                 if(state == OwnState::Maybe) {
-                    analysis.context.diagnostics.error("this value is owned on only some paths reaching this branch - conditional drops need drop flags, which are not implemented yet"_v,
-                                                       analysis.local[block->terminator]->source);
-                    analysis.ok = false;
+                    report(analysis, "this value is owned on only some paths reaching this branch - conditional drops need drop flags, which are not implemented yet"_v,
+                           analysis.local[block->terminator]->source);
                 } else if(state == OwnState::Owned) {
                     edgeDrops.push(EdgeDrop { U32(l), b, successorIndex });
                 }
@@ -994,13 +1940,24 @@ static void placeDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops
 static InstDrop* makeDrop(Analysis& analysis, Block& block, U32 localIndex, LocationId source) {
     auto slot = analysis.function.localAt(analysis.local, localIndex);
     auto implementation = dropImplementation(analysis.module, slot.type, source);
-    if(!implementation) return nullptr;
+
+    // Heap storage this frame owns has to be handed back whether or not the type it holds has
+    // anything of its own to run - which is the whole difference between the two halves of a
+    // derived drop, "drop each member" and "release this owner's own storage".
+    auto releases = localIndex < analysis.releasesStorage.size() && analysis.releasesStorage[localIndex];
+    if(!implementation && !releases) return nullptr;
 
     auto drop = createInst<InstDrop>(analysis.module, analysis.function, block, source, 0,
                                      analysis.module.scalar.unit, Place::inLocal(localIndex),
                                      ownershipOf(analysis.module, slot.type).drop);
 
     drop->implementation = implementation;
+    drop->releaseStorage = releases;
+
+    if(releases && analysis.module.program.freeHeap) {
+        analysis.local[analysis.module.program.freeHeap]->used = true;
+    }
+
     return drop;
 }
 
@@ -1187,9 +2144,19 @@ static void buildRanges(Analysis& analysis, OwnershipResult& result) {
  * The entry points.
  */
 
-bool runOwnership(Module& module, Function& function, OwnershipResult& result) {
+/*
+ * One function, once.
+ *
+ * `reporting` is what separates the fixpoint's silent rounds from the one round whose diagnostics
+ * are the program's, and `rewrite` whether this run is allowed to insert drops and choose storage.
+ * Everything before those two switches is the same work either way: the facts do not depend on
+ * which round computed them, only on the summaries that were available when they did.
+ */
+static bool analyzeFunction(Module& module, Function& function, OwnershipResult& result,
+                            bool reporting, bool rewrite, bool* summaryChanged) {
     Analysis analysis(module, function);
     analysis.localCount = function.localCount();
+    analysis.reporting = reporting;
 
     if(function.blocks.isEmpty()) return true;
 
@@ -1234,10 +2201,31 @@ bool runOwnership(Module& module, Function& function, OwnershipResult& result) {
     computeLiveness(analysis);
     computeOwnership(analysis);
 
+    // The interprocedural half, in the order each part needs the one before it: which storage every
+    // value refers to, what has to outlive the frame, what each root's representation must do, and
+    // finally what all of that says to a caller.
+    computeProvenance(analysis);
+    computeOutliving(analysis);
+    computeDemand(analysis);
+
+    auto changed = deriveSummary(analysis);
+    if(summaryChanged) *summaryChanged = changed;
+
+    // A silent round exists to move the summary and nothing else. Checking here as well would be
+    // harmless but wasted, and rewriting would apply a decision the fixpoint has not settled yet.
+    if(!rewrite) return true;
+
     checkMoves(analysis);
     checkBorrows(analysis);
+    checkReturnRoots(analysis);
 
     result.locals = analysis.tracked;
+    for(Size l = 0; l < analysis.localCount; l++) {
+        result.locals[l].requirements = analysis.demand[l];
+        result.locals[l].escapes = analysis.escaped[l] != 0;
+    }
+
+    selectStorage(analysis, result);
     buildRanges(analysis, result);
 
     // Nothing is rewritten once something has been reported: the IR the diagnostics were derived
@@ -1264,6 +2252,10 @@ bool runOwnership(Module& module, Function& function, OwnershipResult& result) {
     return true;
 }
 
+bool runOwnership(Module& module, Function& function, OwnershipResult& result) {
+    return analyzeFunction(module, function, result, true, true, nullptr);
+}
+
 // Which functions the passes run over. A signature has no body, an intrinsic is generated at each
 // call site rather than being one function, and a generic body is checked but never given drops -
 // what reaches the backend is its specializations, and those are ordinary functions that get their
@@ -1273,11 +2265,77 @@ static bool ownershipApplies(Function& function) {
     return !function.signature && !function.intrinsic && function.blocks.isNotEmpty();
 }
 
+/*
+ * The whole program, in two phases.
+ *
+ * A summary is a statement about a function that its callers read, so a caller cannot be analyzed
+ * before its callees - and with recursion there is no order in which that is true. The answer is
+ * the ordinary one: run the analysis silently until no summary moves, then run it once more for
+ * real. Every fact involved is a "may" fact climbing from empty, so the silent rounds are
+ * optimistic and each round only adds; the last round therefore sees every summary at its final
+ * value, and what it reports is what the program means.
+ *
+ * The cost is that the intraprocedural work is repeated per round. That is deliberate over keeping
+ * every function's Analysis alive at once: the rounds are bounded by the depth of the call graph,
+ * and a compiler that holds the liveness of every function of a program in memory to save a few
+ * of them is trading the wrong resource.
+ */
+static Size summaryRound(Program& program, bool& changed) {
+    auto base = *program.arena;
+    Size analyzed = 0;
+
+    for(auto module: program.modules) {
+        for(Size i = 0; i < module->functionOrder.size(); i++) {
+            auto function = base[module->functionOrder.get(base, i)];
+            if(!ownershipApplies(*function)) continue;
+
+            OwnershipResult discarded;
+            auto moved = false;
+            analyzeFunction(*module, *function, discarded, false, false, &moved);
+
+            changed = changed || moved;
+            analyzed++;
+        }
+    }
+
+    return analyzed;
+}
+
 bool runProgramOwnership(Program& program) {
     auto base = *program.arena;
     auto success = true;
 
     if(!program.ownership) program.ownership = Ptr<OwnershipResults>(new OwnershipResults());
+
+    // A signature has no body to summarize, so it says nothing rather than saying the optimistic
+    // thing: a class method's implementation is chosen per instance, and a caller that assumed one
+    // did not mutate its argument would be assuming it of every instance there will ever be.
+    for(auto module: program.modules) {
+        for(auto pointer: module->functionOrder.contents(base)) {
+            auto function = base[pointer];
+            if(ownershipApplies(*function)) continue;
+
+            function->summary.opaque = true;
+            function->summary.ready = true;
+        }
+    }
+
+    /*
+     * Rounds until nothing moves.
+     *
+     * The first round sees callees that have not been visited yet and reads the conservative answer
+     * for them; every round after that sees real summaries, so what the iteration is doing is
+     * relaxing an over-approximation rather than climbing a lattice. That is why the bound is a
+     * count of functions rather than an argument about monotonicity: it settles in a handful of
+     * rounds for any call graph a program has, and the cap is what stops a rule added later from
+     * turning a failure to settle into a hang.
+     */
+    auto changed = true;
+    for(Size round = 0; changed; round++) {
+        changed = false;
+        auto count = summaryRound(program, changed);
+        if(round > count + 1) break;
+    }
 
     for(auto module: program.modules) {
         // Specializations and drop glue are appended while this runs, so the list is walked by
@@ -1288,7 +2346,7 @@ bool runProgramOwnership(Program& program) {
             if(!ownershipApplies(*function)) continue;
 
             OwnershipResult result;
-            auto ok = runOwnership(*module, *function, result);
+            auto ok = analyzeFunction(*module, *function, result, true, true, nullptr);
             success = success && ok;
 
             // add() hands back uninitialized storage, so the result is constructed into it rather
@@ -1317,11 +2375,63 @@ static void writeIndex(Net::Writer& writer, U32 value) {
     });
 }
 
+// The three demand bits, in one place so that a local and an argument print alike.
+static void printRequirements(Net::Writer& writer, const ReprRequirements& requirements) {
+    switch(requirements.mutation) {
+        case MutationDemand::ReadOnly: writer.writeString(" readonly"_v); break;
+        case MutationDemand::Writable: writer.writeString(" writable"_v); break;
+        case MutationDemand::Unknown: writer.writeString(" unknown"_v); break;
+    }
+
+    if(requirements.needsStableAddress) writer.writeString(" addressed"_v);
+    if(requirements.mayResize) writer.writeString(" resizable"_v);
+}
+
+/*
+ * The summary, printed first because it is what the rest of the program was analyzed against.
+ *
+ * A caller's diagnostics and a caller's storage decisions both follow from these lines, so a fixture
+ * that asserts them is asserting the interface every call site was checked against rather than one
+ * body's internals.
+ */
+static void printSummary(Net::Writer& writer, Context& context, ModuleBase base, Function& function) {
+    auto& summary = function.summary;
+    U16 index = 0;
+
+    for(auto argPointer: function.args.contents(base)) {
+        auto arg = base[argPointer];
+        writer.writeString("  arg "_v);
+
+        if(arg->name) writer.writeString(context.findName(arg->name));
+        else writeIndex(writer, index);
+
+        if(index < summary.args.size()) {
+            auto entry = summary.args.get(base, index);
+            printRequirements(writer, entry.requirements);
+
+            if(entry.returnRoot) writer.writeString(" return"_v);
+            if(entry.retained) writer.writeString(" retained"_v);
+        }
+
+        writer.writeByte('\n');
+        index++;
+    }
+
+    switch(summary.resultBound) {
+        case StorageBound::Frame: break;
+        case StorageBound::Arguments: writer.writeString("  result arguments\n"_v); break;
+        case StorageBound::Region: writer.writeString("  result region\n"_v); break;
+        case StorageBound::Escapes: writer.writeString("  result escapes\n"_v); break;
+    }
+}
+
 static void printFunctionOwnership(Net::Writer& writer, Context& context, Program& program,
                                    Function& function, OwnershipResult& result) {
     writer.writeString("fn "_v);
     writer.writeString(context.findName(function.name));
     writer.writeString(" {\n"_v);
+
+    printSummary(writer, context, *program.arena, function);
 
     for(Size l = 0; l < result.locals.size(); l++) {
         auto& tracked = result.locals[l];
@@ -1338,6 +2448,12 @@ static void printFunctionOwnership(Net::Writer& writer, Context& context, Progra
 
         if(!tracked.owned) writer.writeString(" borrowed"_v);
         if(tracked.droppable) writer.writeString(" droppable"_v);
+        printRequirements(writer, tracked.requirements);
+
+        // Only the allocations have a storage class to report, and only the non-default one is
+        // worth a word: everything is frame-placed unless something proved it could not be.
+        if(tracked.escapes) writer.writeString(" escapes"_v);
+        if(tracked.storage == StorageClass::Heap) writer.writeString(" heap"_v);
 
         writer.writeString(" live"_v);
         auto ranges = result.rangesOf(l);
@@ -1385,8 +2501,8 @@ void printOwnership(Net::Writer& writer, Context& context, Program& program) {
  *
  * Everything below is a deliberate omission rather than an oversight, and each is conservative in
  * the same direction: the analysis either rejects a program it could have accepted, or drops later
- * than it had to. Nothing here can make it accept a program it should reject, which is the
- * property worth preserving while the rest is filled in.
+ * than it had to, or gives a value more storage than it needed. Nothing here can make it accept a
+ * program it should reject, which is the property worth preserving while the rest is filled in.
  *
  * **Drop flags.** A value moved out of on only some paths reaching its last use needs a runtime bit
  * saying whether the slot still owns anything. The bit, the block split around the conditional
@@ -1394,32 +2510,46 @@ void printOwnership(Net::Writer& writer, Context& context, Program& program) {
  * This is the largest single item and the one an ordinary program hits first - `if c: consume(x)`
  * is enough.
  *
- * **Partial moves.** Moving one field out of an aggregate leaves the slot half-owned. checkMove()
+ * **Partial moves.** Moving one field out of an aggregate leaves the slot half-owned. checkMoves()
  * rejects it, because representing it means a drop flag per field and a drop that runs over a
  * subset of members - the same machinery drop flags need, one level further in.
- *
- * **Multi-constructor derived drops.** dropGlueFor() handles a tuple and a single-constructor
- * record. A multi-constructor one needs the glue to read the discriminant and drop the members of
- * whichever constructor is present, which is a switch this pass does not build; it reports and asks
- * for an authored `instance Drop`.
- *
- * **Loans that survive a call.** A borrow's extent ends at the last use of the borrow value, so a
- * callee that retains what it was given is not modelled. That needs the function summaries of
- * Milestone 6, and until then a call returning a borrow is rejected rather than mis-tracked - see
- * the return-root marker's own diagnostic in resolveSignature.
  *
  * **Two-phase borrows.** `f(&x, g(x))` evaluates `g(x)` while the borrow of `x` for the first
  * argument is already live, which is rejected here and accepted by Rust through a reservation
  * phase. The resolver happens to evaluate arguments before creating the borrow, so the common
  * shapes do not hit it, but the rule is not stated anywhere and should be.
  *
- * **Per-field granularity for liveness and ownership.** Both are tracked per local, so borrowing
- * `x.a` keeps all of `x` alive. Conflict *detection* is per place and does distinguish `x.a` from
- * `x.b`; it is only the extent that is coarse.
+ * **Per-field granularity for liveness, ownership and demand.** All three are tracked per local, so
+ * borrowing `x.a` keeps all of `x` alive and writing `x.a` makes all of `x` writable. Conflict
+ * *detection* is per place and does distinguish `x.a` from `x.b`; it is only the extent and the
+ * demand that are coarse. Containment in the provenance analysis is field-insensitive for the same
+ * reason and with the same effect.
  *
- * **Address escapes.** `addressOf` produces a raw pointer that can be stored anywhere, and no
- * extent computed here bounds it. This is unchecked by construction - it is what `%T` means - but
- * it does mean a program can defeat the analysis through `Native` without being told.
+ * **Demand does not follow a move.** Design.md says an ownership root keeps its demand across a
+ * move, and here a `->` binding starts a new local with a demand of its own. What that costs is
+ * precision in one direction only - a value moved and then mutated leaves its source classified
+ * read-only, and the source's storage was already dead by then.
+ *
+ * **Places rooted in a raw pointer are not checked against each other.** placesOverlap() answers no
+ * for two of them, so `*p` and `*q` never conflict however they were derived. That is what `%T`
+ * means and what makes Native's `borrow` the deliberate seam it is - a collection written over raw
+ * storage is trusted about aliasing inside itself, and owes its callers a `return` marker that
+ * makes the outside checkable.
+ *
+ * **Regions.** The storage decision is between the frame and the heap; StorageClass::Region is
+ * reserved and never selected. Implementation-Regions.md part 4 is the third case in this
+ * decision rather than a new pass, which is why it was left out rather than approximated.
+ *
+ * **Repr variants beyond "in memory or not".** There is no packing and no niche yet, so the only
+ * two representations that differ are storage and no storage - which is what resolve/lower.cpp's
+ * scalarization spends the demand result on. A read-only variant that differs in *layout* needs
+ * Implementation-Repr.md's work first, and a materialize/thaw conversion at the boundaries where
+ * an unspecialized ABI requires the canonical one.
+ *
+ * **Interprocedural summaries are recomputed per round.** The fixpoint re-runs the whole
+ * intraprocedural analysis for every function on every round rather than keeping each function's
+ * facts alive. The rounds are bounded by the depth of the call graph, and the alternative trades
+ * the wrong resource - see runProgramOwnership.
  *
  * **The checked reference rungs.** `Ref` and `RegionPtr` classify conservatively in ownershipOf()
  * and are not constructible yet, so nothing exercises them.

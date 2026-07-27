@@ -1,0 +1,54 @@
+
+larger<complex>(%a: Ptr, %b: Ptr): Ptr {
+  b_0 {
+    %v_1 = loads %a, 4: Int
+    %v_2 = loads %b, 4: Int
+    %v_3 = cmp_igt %v_1, %v_2: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    %v_6 = loads %a, 4: Int
+    jmp b_7
+  }
+
+  b_5 {
+    %v_8 = loads %b, 4: Int
+    jmp b_7
+  }
+
+  b_7 {
+    %v_9 = phi [b_4, %a], [b_5, %b]: Ptr
+    ret %v_9
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %here = alloca 8, 4: Ptr
+    store %here, 10, 4
+    %v_1 = add %here, 4: Ptr
+    store %v_1, 20, 4
+    %v_2 = call_complex xOf, %here: Ptr
+    %left = alloca 4, 4: Ptr
+    store %left, 1, 4
+    %right = alloca 4, 4: Ptr
+    store %right, 2, 4
+    %v_3 = loads %left, 4: Int
+    %v_4 = loads %right, 4: Int
+    %v_5 = call_complex larger, %left, %right: Ptr
+    store %v_5, 40, 4
+    %v_6 = loads %v_2, 4: Int
+    %v_7 = loads %v_5, 4: Int
+    %v_8 = add %v_6, %v_7: Int
+    ret %v_8
+  }
+}
+
+xOf<complex>(%p: Ptr): Ptr {
+  b_0 {
+    %v_1 = loads %p, 4: Int
+    ret %p
+  }
+}
+

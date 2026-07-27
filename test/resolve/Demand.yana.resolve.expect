@@ -1,0 +1,99 @@
+fn read(%it: Point) -> Int {
+  b0:
+    %v1 = load %it@Point.x : Int
+    %v2 = load %it@Point.y : Int
+    %v3 = add %v1, %v2 : Int
+    ret %v3
+}
+
+fn bump(%it: Point) -> () {
+  b0:
+    %v1 = load %it : Point
+    %v2 = load %it@Point.x : Int
+    %v5 = add %v2, 1 : Int
+    assign %it@Point.x, %v5
+    ret
+}
+
+fn onlyRead() -> Int {
+  b0:
+    %p = alloc : Point
+    init %local0@Point.x, 1
+    init %local0@Point.y, 2
+    %v5 = call read, %p : Int
+    %v6 = call read, %p : Int
+    %v7 = add %v5, %v6 : Int
+    ret %v7
+}
+
+fn mutableOnOneArm(%flag: Bool) -> Int {
+  b0:
+    %v1 = alloc : Point
+    init %local0@Point.x, 1
+    init %local0@Point.y, 2
+    %p = alloc : Point
+    init %p, %v1
+    je %flag, b1, b2
+
+  b1:
+    %v9 = load %p : Point
+    %v10 = borrow_mut %p : &mut Point
+    call bump, %v10
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v14 = load %p : Point
+    %v15 = call read, %v14 : Int
+    ret %v15
+}
+
+fn copyIsIndependent() -> Int {
+  b0:
+    %source = alloc : Point
+    init %local0@Point.x, 1
+    init %local0@Point.y, 2
+    %v5 = alloc : Point
+    %v6 = load %local0@Point.x : Int
+    %v7 = load %local0@Point.y : Int
+    init %local1@Point.x, %v6
+    init %local1@Point.y, %v7
+    %duplicate = alloc : Point
+    init %duplicate, %v5
+    %v12 = load %duplicate : Point
+    %v13 = borrow_mut %duplicate : &mut Point
+    call bump, %v13
+    %v15 = call read, %source : Int
+    %v16 = load %duplicate : Point
+    %v17 = call read, %v16 : Int
+    %v18 = add %v15, %v17 : Int
+    ret %v18
+}
+
+fn addressed() -> Int {
+  b0:
+    %p = alloc : Point
+    init %local0@Point.x, 1
+    init %local0@Point.y, 2
+    %at = addressof %local0 : %Point
+    %v6 = load [%at] : Point
+    %v7 = load [%at]@Point.x : Int
+    %v8 = load [%at] : Point
+    %v9 = load [%at]@Point.y : Int
+    %v10 = add %v7, %v9 : Int
+    ret %v10
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call onlyRead : Int
+    %v2 = call mutableOnOneArm, True : Int
+    %v3 = add %v0, %v2 : Int
+    %v4 = call copyIsIndependent : Int
+    %v5 = add %v3, %v4 : Int
+    %v6 = call addressed : Int
+    %v7 = add %v5, %v6 : Int
+    ret %v7
+}

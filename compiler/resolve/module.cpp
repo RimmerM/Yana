@@ -615,24 +615,88 @@ static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, 
     function->returnType = decl.fun.ret ? resolveType(module, *module.parse[decl.fun.ret], env)
                                         : module.scalar.unit;
 
+    U16 index = 0;
+    auto roots = 0u;
+
+    // Markers that were written, valid or not. A signature whose only marker was rejected has
+    // already been told what is wrong with it, and "you must mark an argument" would be the second
+    // diagnostic about the same line saying the opposite of the first.
+    auto written = 0u;
+    auto allRootsMutable = true;
+
     for(auto arg: decl.fun.args.contents(module.parse)) {
         if(!arg.type) {
             module.context.diagnostics.error("function arguments require an explicit type"_v, arg.source);
             function->addArg(module, arg.name, module.scalar.error, arg.source);
+            index++;
             continue;
         }
 
-        auto declared = function->addArg(module, arg.name, resolveType(module, *module.parse[arg.type], env), arg.source);
+        auto type = resolveType(module, *module.parse[arg.type], env);
+        auto declared = function->addArg(module, arg.name, type, arg.source);
         declared->convention = arg.bind;
         declared->returnRoot = arg.returnRoot;
 
-        // The marker is recorded but not yet checked. Validating it means resolving every return
-        // path's borrow provenance against the declared group, which needs the function summaries
-        // of Milestone 6; accepting it silently in the meantime would let a signature promise
-        // something no implementation was held to, so it reports instead.
+        /*
+         * What may carry the marker, per Design.md's "Borrows in return position".
+         *
+         * All three rules are about the same thing: the marker says a borrow in the result may be
+         * rooted in the caller's storage for this argument, so the argument has to *have* caller
+         * storage that survives the call. A sunk one does not - the callee owns it - and a
+         * TrivialCopy one passed by the default convention does not either, since what the body
+         * sees is a copy of its own.
+         */
         if(arg.returnRoot) {
-            module.context.diagnostics.error("return-root markers are not checked yet - `return` on an argument needs the borrow provenance analysis"_v,
-                                             arg.source);
+            written++;
+
+            if(arg.bind == ast::BindType::Sink) {
+                module.context.diagnostics.error("`return` cannot be written on a `->` argument - the callee owns what it was given, so there is no caller-side storage left for a result to be rooted in"_v,
+                                                 arg.source);
+            } else if(arg.bind != ast::BindType::Ref && isDirectType(*module.types, type) &&
+                      !isPointer(*module.types, type)) {
+                // Design.md states this rule over TrivialCopy, which is the same rule one step
+                // earlier: what disqualifies a parameter is arriving as a copy rather than as an
+                // address. Here that is exactly a direct type - a scalar in a register - while a
+                // TrivialCopy *aggregate* still arrives as the caller's address and can root a
+                // borrow of it perfectly well.
+                //
+                // A raw pointer is the exception among direct types: the copy it arrives as *is*
+                // an address, so what it names is still the caller's. `return %a` is how Native's
+                // `borrow` says that its result points into whatever it was given, which is the
+                // one bridge from unchecked memory back into checked borrows.
+                module.context.diagnostics.error("`return` on %@ has nothing to root a borrow in - it arrives in a register, so the body sees a copy of its own; write `return &` when the caller's storage must be the root"_v,
+                                                 arg.source, describeType(module.context, *module.types, type));
+            } else if(index >= 64) {
+                // The group is a bit set, and a signature this wide has never been written. Saying
+                // so is better than silently dropping a marker the caller would then rely on.
+                module.context.diagnostics.error("`return` cannot be written past the 64th argument"_v, arg.source);
+            } else {
+                roots++;
+                if(arg.bind != ast::BindType::Ref) allRootsMutable = false;
+            }
+        }
+
+        index++;
+    }
+
+    /*
+     * What makes a returned borrow exclusive.
+     *
+     * `&T` in type position says a borrow and not which kind, because the answer is not a property
+     * of the result: Design.md's rule is that "a returned mutable borrow must be rooted in a
+     * `return &` mutable parameter", so the result is exclusive exactly when every member of the
+     * group it may be rooted in is. A mixed group yields the weaker capability, which is the same
+     * rule read the other way - an immutable result may be rooted in either kind.
+     */
+    if(isBorrow(*module.types, function->returnType)) {
+        if(!roots) {
+            if(!written) {
+                module.context.diagnostics.error("a function returning a borrow must mark the argument it is rooted in with `return`"_v,
+                                                 decl.source);
+            }
+        } else if(allRootsMutable) {
+            function->returnType = resolveBorrowType(
+                module, ((BorrowType*)(*module.types)[function->returnType])->to, true);
         }
     }
 
@@ -1476,6 +1540,15 @@ void resolveImports(Module& module, ast::Module& ast, ModuleProvider* provider) 
         core.localName = module.program.core->name;
     }
 
+    // Collections is visible everywhere for the same reason: `[a]` and `[1, 2, 3]` are grammar
+    // rather than library, so what they mean has to be reachable without being asked for. It is
+    // built after Core and Native, so neither of those is handed one of these.
+    if(module.program.collections && &module != module.program.collections) {
+        auto& collections = *module.imports.push();
+        collections.module = module.program.collections;
+        collections.localName = module.program.collections->name;
+    }
+
     for(auto imported: ast.imports.contents(module.parse)) {
         if(imported.from == module.name) {
             module.context.diagnostics.error("a module cannot import itself"_v, imported.source);
@@ -1581,9 +1654,17 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending)
                     case Value::Drop:
                         // The drop implementation is reached from here and from nowhere else: a
                         // derived glue function has no call site in the source at all, and an
-                        // authored instance may have none either.
+                        // authored instance may have none either. The same goes for the release of
+                        // heap storage, which lowering emits as a call nothing in the IR names.
                         markPlace(local, ((InstDrop&)instruction).place);
                         reach(((InstDrop&)instruction).implementation);
+                        if(((InstDrop&)instruction).releaseStorage) reach(program.freeHeap);
+                        break;
+                    case Value::Alloc:
+                        if(((InstAlloc&)instruction).storage == StorageClass::Heap) {
+                            reach(program.allocateHeap);
+                        }
+
                         break;
                     default:
                         break;
@@ -1613,6 +1694,7 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
     auto program = Ptr<Program>(new Program(context));
     defineCore(*program);
     defineNative(*program);
+    defineCollections(*program);
 
     auto module = program->addModule(root.name, *root.region);
     module->root = true;

@@ -36,12 +36,16 @@ static void printPlace(ResolvePrint& print, Function& function, const Place& pla
         auto global_ = print.local[place.global];
         print.writer.writeString(print.context.findName(global_->name));
         type = global_->type;
-    } else if(place.root == PlaceRoot::Pointer) {
-        // `[%v3]` - the memory a pointer names, as against the pointer itself.
+    } else if(place.root == PlaceRoot::Pointer || place.root == PlaceRoot::Borrow) {
+        // `[%v3]` - the memory a pointer or a borrow names, as against the reference itself.
+        auto& reference = *print.local[place.pointer];
         print.writer.writeByte('[');
-        printValue(print, *print.local[place.pointer]);
+        printValue(print, reference);
         print.writer.writeByte(']');
-        type = pointeeType(print.global, print.local[place.pointer]->type);
+
+        type = place.root == PlaceRoot::Borrow
+            ? ((BorrowType*)print.global[reference.type])->to
+            : pointeeType(print.global, reference.type);
     } else {
         auto known = place.local < function.localCount();
         auto root = known ? function.localAt(print.local, place.local) : Local {};
@@ -198,6 +202,12 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
 
     switch(inst.kind) {
         case Value::Alloc:
+            // Where the storage came from, when it is not the frame. Silence means the ordinary
+            // case, so that only a decision worth reading takes up room in a fixture.
+            if(((InstAlloc&)inst).storage == StorageClass::Heap) {
+                print.writer.writeString(((InstAlloc&)inst).releasedHere ? " heap"_v : " heap escaping"_v);
+            }
+
             break;
         case Value::LoadPlace:
             print.writer.writeByte(' ');
@@ -251,6 +261,11 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
                 print.writer.writeString(" via "_v);
                 print.writer.writeString(print.context.findName(print.local[dropped.implementation]->name));
             }
+
+            // The other half of a derived drop: handing back storage this frame owns. Printed
+            // because the drop of a type with nothing to run is otherwise indistinguishable from
+            // no drop at all.
+            if(dropped.releaseStorage) print.writer.writeString(" release"_v);
 
             // `if %flag2` - the drop is conditional, which is a fact about the control flow that
             // reached here rather than about the type, so it is worth seeing at the drop.

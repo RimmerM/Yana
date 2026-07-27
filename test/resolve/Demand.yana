@@ -1,0 +1,43 @@
+import Native
+
+-- Owner mutation demand: what each ownership root's storage has to be able to do, which is a
+-- property of the owner rather than of whichever binding currently names it. The answers are in
+-- the ownership dump beside this file.
+
+data Point {x: Int, y: Int}
+
+fn read(it: Point) -> Int = it.x + it.y
+fn bump(&it: Point) -> {}: it.x = it.x + 1
+
+-- Every use is a read, so the root is read-only however many times it is borrowed.
+fn onlyRead() -> Int:
+    let p = Point {x: 1, y: 2}
+    return read(p) + read(p)
+
+-- A mutable borrow on one arm raises the *whole* root, because demand is a statement about the
+-- owner's lifetime rather than about the point the borrow was taken at. There is no
+-- path-sensitive representation change inside one owner's life.
+fn mutableOnOneArm(flag: Bool) -> Int:
+    let &p = Point {x: 1, y: 2}
+    if flag then bump(p)
+
+    return read(p)
+
+-- Demand does not cross a copy: the duplicate is a new root, so mutating it says nothing about
+-- where it was copied from.
+fn copyIsIndependent() -> Int:
+    let source = Point {x: 1, y: 2}
+    let &duplicate = Point {x: source.x, y: source.y}
+    bump(duplicate)
+
+    return read(source) + read(duplicate)
+
+-- Taking an address is both a write capability and a demand for storage to exist, since the memory
+-- a raw pointer names is mutable by definition - so this root is `writable addressed` even though
+-- nothing in the source writes through the pointer.
+fn addressed() -> Int:
+    let p = Point {x: 1, y: 2}
+    let at = addressOf(p)
+    return (*at).x + (*at).y
+
+fn main() -> Int = onlyRead() + mutableOnOneArm(True) + copyIsIndependent() + addressed()

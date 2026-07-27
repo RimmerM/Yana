@@ -1,4 +1,5 @@
 #include "lower.h"
+#include "analyze.h"
 #include "../lower/lower_builder.h"
 
 // The side tables mapping one IR to the other are keyed by region offset rather than by address:
@@ -16,7 +17,137 @@ struct LowerContext {
     HashMap<U32, LowerPtr<LowerValue>> values;
     HashMap<U32, LowerPtr<LowerValue>> returnPlaces;
     LowerBlock* constantBlock = nullptr;
+
+    // The fields of each scalarized local of the function being lowered, by local index and then
+    // by field index. Empty for every local that kept its storage - see prepareScalars().
+    Array<Array<LowerPtr<LowerValue>>> scalars;
 };
+
+/*
+ * Aggregates that evaporate.
+ *
+ * An owner whose representation has to be writable, addressable or resizable needs storage; one
+ * that needs none of those is a value, and the fields it was built from can stay in registers. That
+ * is the whole of what a Repr *variant* is at this milestone - there is no packing and no niche
+ * yet, so the only two representations that differ are "in memory" and "not in memory at all".
+ *
+ * Which is why the demand analysis of Implementation-IR.md part 5 is what decides it rather than
+ * anything lowering could work out for itself: read-only is a fact about every use of an owner
+ * across the whole function, and `needsStableAddress` is the one that would otherwise be found out
+ * too late, after the address had already been handed to someone.
+ *
+ * The rest of the conditions are lowering's own, and they are about what this translation can
+ * express rather than about what is true:
+ *
+ *  - one basic block, because a field that flowed through a branch would need a phi per field, and
+ *    building those is a real pass rather than a special case of this one;
+ *  - a field path of exactly one Field projection, since a nested aggregate would have to be
+ *    exploded recursively;
+ *  - nothing that names the aggregate as a whole - passing it to a call, returning it, dropping it -
+ *    because there is no whole left to name.
+ */
+static bool scalarizable(LowerContext& lower, Function& function, U32 index, OwnershipResult& ownership) {
+    if(index >= ownership.locals.size()) return false;
+
+    auto& tracked = ownership.locals[index];
+    auto slot = function.localAt(lower.local, index);
+
+    if(tracked.requirements.mutation != MutationDemand::ReadOnly) return false;
+    if(tracked.requirements.needsStableAddress || tracked.requirements.mayResize) return false;
+    if(tracked.escapes || tracked.droppable || slot.storage != StorageClass::Stack) return false;
+    if(!slot.value || lower.local[slot.value]->kind != Value::Alloc) return false;
+    if(!isMemoryType(lower.global, slot.type)) return false;
+
+    // Only a shape whose fields are a flat list, which is what a single Field projection can name.
+    auto content = slot.type;
+    if(lower.global[content]->kind == Type::Record) {
+        auto record = (RecordType*)lower.global[content];
+        if(record->layout != RecordType::Single || record->constructors.isEmpty()) return false;
+
+        content = record->constructors.get(lower.global, 0).content;
+    }
+
+    if(!content || lower.global[content]->kind != Type::Tup) return false;
+
+    for(auto field: ((TupType*)lower.global[content])->fields.contents(lower.global)) {
+        if(isMemoryType(lower.global, field.type)) return false;
+    }
+
+    // Every use has to be one this translation can rewrite, and all of them in one block.
+    ModulePtr<Block> only = nullptr;
+
+    for(auto user: lower.local[slot.value]->uses.contents(lower.local)) {
+        auto& instruction = *lower.local[user];
+
+        if(!only) only = instruction.block;
+        else if(only != instruction.block) return false;
+
+        Place place;
+
+        switch(instruction.kind) {
+            case Value::Init: place = ((InstInit&)instruction).place; break;
+            case Value::LoadPlace: place = ((InstLoadPlace&)instruction).place; break;
+            default: return false;
+        }
+
+        if(place.root != PlaceRoot::Local || place.local != index) return false;
+
+        auto path = place.projections;
+        auto steps = path.contents(lower.local);
+        auto fields = 0u;
+
+        for(auto projection: steps) {
+            if(projection.kind == ProjectionKind::Downcast) continue;
+            if(projection.kind != ProjectionKind::Field) return false;
+            fields++;
+        }
+
+        if(fields != 1) return false;
+    }
+
+    return only != nullptr;
+}
+
+// The field one place names, for a local this pass decided to scalarize. Only ever asked of a
+// place scalarizable() already accepted, so the path is known to be one Field.
+static U16 scalarField(LowerContext& lower, const Place& place) {
+    auto path = place.projections;
+
+    for(auto projection: path.contents(lower.local)) {
+        if(projection.kind == ProjectionKind::Field) return projection.index;
+    }
+
+    return 0;
+}
+
+static bool isScalarPlace(LowerContext& lower, const Place& place) {
+    return place.root == PlaceRoot::Local && place.local < lower.scalars.size() &&
+           lower.scalars[place.local].size() > 0;
+}
+
+static void prepareScalars(LowerContext& lower, ModulePtr<Function> pointer, Function& function) {
+    lower.scalars.clear();
+    for(Size i = 0; i < function.localCount(); i++) lower.scalars.push(Array<LowerPtr<LowerValue>>());
+
+    if(!lower.from.ownership) return;
+
+    auto found = lower.from.ownership->functions.get(U32(pointer));
+    if(!found) return;
+
+    auto& ownership = found.unwrap();
+
+    for(U32 i = 0; i < function.localCount(); i++) {
+        if(!scalarizable(lower, function, i, ownership)) continue;
+
+        auto content = function.localAt(lower.local, i).type;
+        if(lower.global[content]->kind == Type::Record) {
+            content = ((RecordType*)lower.global[content])->constructors.get(lower.global, 0).content;
+        }
+
+        auto count = ((TupType*)lower.global[content])->fields.size();
+        for(Size f = 0; f < count; f++) lower.scalars[i].push(nullptr);
+    }
+}
 
 static LowerType lowerType(GlobalBase base, TypePtr type) {
     auto value = base[type];
@@ -24,7 +155,10 @@ static LowerType lowerType(GlobalBase base, TypePtr type) {
         return LowerType::Int32;
     }
 
-    if(value->kind == Type::Ptr || isMemoryType(base, type)) return LowerType::Pointer;
+    if(value->kind == Type::Ptr || value->kind == Type::Borrow || isMemoryType(base, type)) {
+        return LowerType::Pointer;
+    }
+
     if(value->kind == Type::Int) {
         return ((IntType*)value)->width == IntType::Long ? LowerType::Int64 : LowerType::Int32;
     }
@@ -83,9 +217,15 @@ static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, F
 
         address = load->created().ptr - lower.lower;
         type = global_->type;
-    } else if(place.root == PlaceRoot::Pointer) {
+    } else if(place.root == PlaceRoot::Pointer || place.root == PlaceRoot::Borrow) {
+        // A borrow is an address once the checking is done, so the two roots lower alike; all
+        // that differed between them was how much could be proved before reaching here.
         address = mappedValue(lower, place.pointer);
-        type = pointeeType(lower.global, lower.local[place.pointer]->type);
+        auto referenced = lower.local[place.pointer]->type;
+
+        type = place.root == PlaceRoot::Borrow
+            ? ((BorrowType*)lower.global[referenced])->to
+            : pointeeType(lower.global, referenced);
     } else {
         assertTrue(place.local < function.localCount());
 
@@ -224,17 +364,53 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
 
     switch(instruction.kind) {
         case Value::Alloc: {
-            // Only frame storage is ever selected today - see StorageClass. The others are
-            // asserted rather than silently treated as a frame slot, since a region-placed value
-            // silently landing on the stack would be a lifetime bug rather than a slow program.
-            assertTrue(((InstAlloc&)instruction).storage == StorageClass::Stack);
+            // Two of the four storage classes are ever selected - see StorageClass. Region and
+            // Inline are asserted rather than silently treated as a frame slot, since a
+            // region-placed value landing on the stack would be a lifetime bug rather than a slow
+            // program.
+            auto& allocation = (InstAlloc&)instruction;
+
+            // A scalarized aggregate has no storage to create: its fields are values, and the
+            // instructions that would have written and read them are rewritten below.
+            if(allocation.local < lower.scalars.size() && lower.scalars[allocation.local].size()) {
+                return;
+            }
 
             auto bytes = immediate(lower, typeSize(lower.global, instruction.type));
+
+            if(allocation.storage == StorageClass::Heap) {
+                // Storage escape analysis proved the frame cannot hold, so it comes from the
+                // Native allocator instead. The release is an InstDrop the drop pass inserted,
+                // or the new owner's - see InstAlloc::releasedHere.
+                auto target = lower.functions.getValue(lower.from.allocateHeap).unwrap();
+                auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, target));
+
+                result = call(lower.lower, lower.to, block, 1, 2, lower.lower[target]->callType,
+                              [&](LowerInstCall* allocate) {
+                    new (allocate->created().ptr) LowerValue(allocate, LowerType::Pointer, instruction.name);
+                    allocate->used()[0] = fun->created().ptr - lower.lower;
+                    allocate->used()[1] = bytes;
+                });
+
+                result->source = instruction.source;
+                lower.values.add(instValue, result->created().ptr - lower.lower);
+                return;
+            }
+
+            assertTrue(allocation.storage == StorageClass::Stack);
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(instruction.name, bytes, typeAlign(lower.global, instruction.type)));
             break;
         }
         case Value::LoadPlace: {
             auto& loadInst = (InstLoadPlace&)instruction;
+
+            // Reading a field of a scalarized aggregate is naming the value that was written into
+            // it, which is what makes the load disappear rather than become a cheaper load.
+            if(isScalarPlace(lower, loadInst.place)) {
+                lower.values.add(instValue, lower.scalars[loadInst.place.local][scalarField(lower, loadInst.place)]);
+                return;
+            }
+
             auto address = lowerPlace(lower, block, *function, loadInst.place);
 
             // An aggregate is never loaded into a value: the address of its storage is what the
@@ -259,6 +435,12 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             // been emitted as its own InstDrop by the drop pass, so by the time lowering sees an
             // assignment there is nothing left in it but the write.
             auto& init = (InstInit&)instruction;
+
+            if(isScalarPlace(lower, init.place)) {
+                lower.scalars[init.place.local][scalarField(lower, init.place)] = mappedValue(lower, init.value);
+                return;
+            }
+
             auto address = lowerPlace(lower, block, *function, init.place);
             auto value = mappedValue(lower, init.value);
 
@@ -336,22 +518,37 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             break;
         }
         case Value::Drop: {
-            // A drop is a call to the implementation the pass selected, taking the address of what
-            // is being dropped. A drop with no implementation is one whose glue turned out to be
-            // empty and should have been elided rather than emitted.
+            /*
+             * Two halves, either of which may be absent: run what the value's lifetime ends in, and
+             * hand back the storage it occupied. A drop with neither is one the pass should have
+             * elided rather than emitted.
+             *
+             * The order is the one the language requires - whatever the drop does, it does while
+             * the storage is still there to do it in.
+             */
             auto& dropped = (InstDrop&)instruction;
-            assertTrue(dropped.implementation != nullptr);
+            assertTrue(dropped.implementation != nullptr || dropped.releaseStorage);
             assertTrue(dropped.flag == maxLimit<U32>);
 
             auto address = lowerPlace(lower, block, *function, dropped.place);
-            auto target = lower.functions.getValue(dropped.implementation).unwrap();
-            auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, target));
 
-            result = call(lower.lower, lower.to, block, 0, 2, lower.lower[target]->callType,
-                          [&](LowerInstCall* dropCall) {
-                dropCall->used()[0] = fun->created().ptr - lower.lower;
-                dropCall->used()[1] = address;
-            });
+            auto callWith = [&](ModulePtr<Function> callee) {
+                auto target = lower.functions.getValue(callee).unwrap();
+                auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, target));
+
+                return call(lower.lower, lower.to, block, 0, 2, lower.lower[target]->callType,
+                            [&](LowerInstCall* dropCall) {
+                    dropCall->used()[0] = fun->created().ptr - lower.lower;
+                    dropCall->used()[1] = address;
+                });
+            };
+
+            if(dropped.implementation) result = callWith(dropped.implementation);
+
+            if(dropped.releaseStorage) {
+                if(result) result->source = instruction.source;
+                result = callWith(lower.from.freeHeap);
+            }
 
             break;
         }
@@ -726,6 +923,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         }
 
         lower.constantBlock = lower.lower[lower.blocks.getValue(function->blocks.get(lower.local, 0)).unwrap()];
+        prepareScalars(lower, functionPointer, *function);
 
         for(auto blockPointer: function->blocks.contents(lower.local)) {
             auto sourceBlock = lower.local[blockPointer];

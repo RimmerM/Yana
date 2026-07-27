@@ -1053,6 +1053,10 @@ ast::Expr Parser::parseVarDecl(const WithLocation& location, U32 line) {
 }
 
 ast::VarDecl Parser::parseDeclExpr() {
+    // Attributes come first, as they do on a declaration: `@heap let big = ...`.
+    ast::AttrList attributes;
+    parseAttributes(attributes, true);
+
     // A `let` takes the same binding conventions as a parameter, written the same way and in
     // the same place.
     auto bind = ast::BindType::Borrow;
@@ -1095,9 +1099,9 @@ ast::VarDecl Parser::parseDeclExpr() {
             in = heap(parseExpr());
         }
 
-        return { pat, heap(expr), in, alts, bind };
+        return { pat, heap(expr), in, alts, bind, ::move(attributes) };
     } else {
-        return { pat, nullptr, nullptr, {}, bind };
+        return { pat, nullptr, nullptr, {}, bind, ::move(attributes) };
     }
 }
 

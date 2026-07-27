@@ -175,7 +175,9 @@ static Place clonePlace(Clone& clone, const Place& place) {
 
     // A local index and a global are the same in the clone; a pointer root is a value of the
     // body being cloned and has to be mapped like any other operand.
-    if(place.root == PlaceRoot::Pointer) result.pointer = cloneValue(clone, place.pointer);
+    if(place.root == PlaceRoot::Pointer || place.root == PlaceRoot::Borrow) {
+        result.pointer = cloneValue(clone, place.pointer);
+    }
 
     auto projections = place.projections;
 

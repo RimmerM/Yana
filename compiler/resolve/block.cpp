@@ -14,7 +14,7 @@ static void addUse(Module& module, ModulePtr<Value> value, Inst* user) {
 static void addPlaceUse(Module& module, const Place& place, Inst* user) {
     auto base = *module.arena;
 
-    if(place.root == PlaceRoot::Pointer) {
+    if(place.root == PlaceRoot::Pointer || place.root == PlaceRoot::Borrow) {
         addUse(module, place.pointer, user);
     } else if(place.root == PlaceRoot::Local) {
         auto function = base[user->block] ? base[base[user->block]->function] : nullptr;

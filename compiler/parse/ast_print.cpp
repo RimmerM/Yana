@@ -306,6 +306,15 @@ private:
         }
 
         makeLevel();
+
+        if(e.attributes.isNotEmpty()) {
+            toStringIntro(false);
+            stream.writeString("<attributes>"_v);
+            makeLevel();
+            printList(e.attributes);
+            removeLevel();
+        }
+
         toString(e.pat, false);
         if(e.content) toString(*base[e.content], e.in == nullptr && e.alts.isEmpty());
         if(e.alts.isNotEmpty()) {
