@@ -1,0 +1,431 @@
+fn Ord(%a).compare(I64)(%lhs: %I64, %rhs: %I64) -> Ordering {
+  b0:
+    %v2 = cmp_eq %lhs, %rhs : Bool
+    je %v2, b1, b2
+
+  b1:
+    ret EQ
+
+  b2:
+    %v6 = cmp_gt %lhs, %rhs : Bool
+    je %v6, b3, b4
+
+  b3:
+    ret GT
+
+  b4:
+    ret LT
+}
+
+fn none() -> Maybe(Int) {
+  b0:
+    %v0 = alloc : Maybe(Int)
+    init %local0.discriminant, 0
+    ret %v0
+}
+
+fn maybes() -> I64 {
+  b0:
+    %score = alloc : I64
+    init %score, 0
+    %v5 = alloc : Maybe(Int)
+    init %local1.discriminant, 1
+    init %local1@Just, 1
+    %v11 = alloc : Maybe(Int)
+    init %local2.discriminant, 1
+    init %local2@Just, 1
+    %v15 = call Eq(Maybe(a)).==(Int), %v5, %v11 : Bool
+    je %v15, b1, b2
+
+  b1:
+    %v17 = load %score : I64
+    %v20 = add %v17, 1 : I64
+    init %score, %v20
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v26 = alloc : Maybe(Int)
+    init %local3.discriminant, 1
+    init %local3@Just, 1
+    %v32 = alloc : Maybe(Int)
+    init %local4.discriminant, 1
+    init %local4@Just, 2
+    %v36 = call Eq(Maybe(a)).!=(Int), %v26, %v32 : Bool
+    je %v36, b4, b5
+
+  b4:
+    %v38 = load %score : I64
+    %v41 = add %v38, 2 : I64
+    init %score, %v41
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v45 = call none : Maybe(Int)
+    %v46 = call none : Maybe(Int)
+    %v47 = call Eq(Maybe(a)).==(Int), %v45, %v46 : Bool
+    je %v47, b7, b8
+
+  b7:
+    %v49 = load %score : I64
+    %v52 = add %v49, 4 : I64
+    init %score, %v52
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v57 = alloc : Maybe(Bool)
+    init %local7.discriminant, 1
+    init %local7@Just, True
+    %v62 = alloc : Maybe(Bool)
+    init %local8.discriminant, 1
+    init %local8@Just, False
+    %v66 = call Eq(Maybe(a)).!=(Bool), %v57, %v62 : Bool
+    je %v66, b10, b11
+
+  b10:
+    %v68 = load %score : I64
+    %v71 = add %v68, 8 : I64
+    init %score, %v71
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v75 = load %score : I64
+    ret %v75
+}
+
+(Ord(a)) fn smaller(%x: a, %y: a) -> a {
+  b0:
+    %v2 = gencall Ord(a).<, %x, %y : Bool
+    je %v2, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %x], [b2, %y] : a
+    ret %v6
+}
+
+fn pointers() -> I64 {
+  b0:
+    %v2 = alloc : I64
+    init %local0, %first
+    %a = addressof %local0 : %I64
+    %v5 = alloc : I64
+    init %local1, %second
+    %b = addressof %local1 : %I64
+    %low = call smaller(%I64), %a, %b : %I64
+    %high = call smaller(%I64), %b, %a : %I64
+    %score = alloc : I64
+    init %score, 0
+    %v13 = cmp_le %low, %high : Bool
+    je %v13, b1, b2
+
+  b1:
+    %v15 = load %score : I64
+    %v18 = add %v15, 1 : I64
+    init %score, %v18
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v22 = call smaller(%I64), %a, %b : %I64
+    %v23 = cmp_eq %v22, %low : Bool
+    je %v23, b4, b5
+
+  b4:
+    %v25 = load %score : I64
+    %v28 = add %v25, 2 : I64
+    init %score, %v28
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v32 = call Ord(%a).compare(I64), %a, %a : Ordering
+    %v33 = cast %v32 : Int
+    %v35 = cmp_eq %v33, 1 : Bool
+    je %v35, b8, b7
+
+  b7:
+    jmp b9
+
+  b8:
+    %v37 = load %score : I64
+    %v40 = add %v37, 4 : I64
+    init %score, %v40
+    jmp b9
+
+  b9:
+    %v44 = load %score : I64
+    ret %v44
+}
+
+fn nested() -> I64 {
+  b0:
+    %v1 = alloc : I64
+    init %local0, %value
+    %p = addressof %local0 : %I64
+    %v4 = alloc : Maybe(%I64)
+    init %local1.discriminant, 1
+    init %local1@Just, %p
+    %v8 = alloc : Maybe(%I64)
+    init %local2.discriminant, 1
+    init %local2@Just, %p
+    %v12 = call Eq(Maybe(a)).==(%I64), %v4, %v8 : Bool
+    je %v12, b1, b2
+
+  b1:
+    ret 16
+
+  b2:
+    jmp b3
+
+  b3:
+    ret 0
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call maybes : I64
+    %v1 = call pointers : I64
+    %v2 = add %v0, %v1 : I64
+    %v3 = call nested : I64
+    %v4 = add %v2, %v3 : I64
+    %v5 = cast %v4 : Int
+    ret %v5
+}
+
+(Eq(a), Eq(Maybe(a))) fn Eq(Maybe(a)).==(%lhs: Maybe(a), %rhs: Maybe(a)) -> Bool {
+  b0:
+    %v2 = alloc : {Maybe(a), Maybe(a)}
+    init %local2.0, %lhs
+    init %local2.1, %rhs
+    %v5 = load %local2.0 : Maybe(a)
+    %v6 = load %local2.0.discriminant : Int
+    %v8 = cmp_eq %v6, 1 : Bool
+    je %v8, b2, b1
+
+  b1:
+    %v18 = load %local2.0 : Maybe(a)
+    %v19 = load %local2.0.discriminant : Int
+    %v21 = cmp_eq %v19, 0 : Bool
+    je %v21, b5, b4
+
+  b2:
+    %x = load %local2.0@Just : a
+    %v11 = load %local2.1 : Maybe(a)
+    %v12 = load %local2.1.discriminant : Int
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b3, b1
+
+  b3:
+    %y = load %local2.1@Just : a
+    %v17 = gencall Eq(a).==, %x, %y : Bool
+    jmp b7
+
+  b4:
+    jmp b7
+
+  b5:
+    %v23 = load %local2.1 : Maybe(a)
+    %v24 = load %local2.1.discriminant : Int
+    %v26 = cmp_eq %v24, 0 : Bool
+    je %v26, b6, b4
+
+  b6:
+    jmp b7
+
+  b7:
+    %v33 = phi [b3, %v17], [b6, True], [b4, False] : Bool
+    ret %v33
+}
+
+(Eq(a), Eq(Maybe(a))) fn Eq(Maybe(a)).!=(%lhs: Maybe(a), %rhs: Maybe(a)) -> Bool {
+  b0:
+    %v2 = gencall Eq(Maybe(a)).==, %lhs, %rhs : Bool
+    %v4 = xor %v2, True : Bool
+    ret %v4
+}
+
+fn Eq(Maybe(a)).==(Int)(%lhs: Maybe(Int), %rhs: Maybe(Int)) -> Bool {
+  b0:
+    %v3 = alloc : {Maybe(Int), Maybe(Int)}
+    init %local2.0, %lhs
+    init %local2.1, %rhs
+    %v6 = load %local2.0 : Maybe(Int)
+    %v7 = load %local2.0.discriminant : Int
+    %v9 = cmp_eq %v7, 1 : Bool
+    je %v9, b2, b1
+
+  b1:
+    %v11 = load %local2.0 : Maybe(Int)
+    %v12 = load %local2.0.discriminant : Int
+    %v14 = cmp_eq %v12, 0 : Bool
+    je %v14, b5, b4
+
+  b2:
+    %x = load %local2.0@Just : Int
+    %v17 = load %local2.1 : Maybe(Int)
+    %v18 = load %local2.1.discriminant : Int
+    %v20 = cmp_eq %v18, 1 : Bool
+    je %v20, b3, b1
+
+  b3:
+    %y = load %local2.1@Just : Int
+    %v23 = cmp_eq %x, %y : Bool
+    jmp b7
+
+  b4:
+    jmp b7
+
+  b5:
+    %v26 = load %local2.1 : Maybe(Int)
+    %v27 = load %local2.1.discriminant : Int
+    %v29 = cmp_eq %v27, 0 : Bool
+    je %v29, b6, b4
+
+  b6:
+    jmp b7
+
+  b7:
+    %v2 = phi [b3, %v23], [b6, True], [b4, False] : Bool
+    ret %v2
+}
+
+fn Eq(Maybe(a)).!=(Int)(%lhs: Maybe(Int), %rhs: Maybe(Int)) -> Bool {
+  b0:
+    %v2 = call Eq(Maybe(a)).==(Int), %lhs, %rhs : Bool
+    %v4 = xor %v2, True : Bool
+    ret %v4
+}
+
+fn Eq(Maybe(a)).!=(Bool)(%lhs: Maybe(Bool), %rhs: Maybe(Bool)) -> Bool {
+  b0:
+    %v2 = call Eq(Maybe(a)).==(Bool), %lhs, %rhs : Bool
+    %v4 = xor %v2, True : Bool
+    ret %v4
+}
+
+fn Eq(Maybe(a)).==(Bool)(%lhs: Maybe(Bool), %rhs: Maybe(Bool)) -> Bool {
+  b0:
+    %v3 = alloc : {Maybe(Bool), Maybe(Bool)}
+    init %local2.0, %lhs
+    init %local2.1, %rhs
+    %v6 = load %local2.0 : Maybe(Bool)
+    %v7 = load %local2.0.discriminant : Int
+    %v9 = cmp_eq %v7, 1 : Bool
+    je %v9, b2, b1
+
+  b1:
+    %v11 = load %local2.0 : Maybe(Bool)
+    %v12 = load %local2.0.discriminant : Int
+    %v14 = cmp_eq %v12, 0 : Bool
+    je %v14, b5, b4
+
+  b2:
+    %x = load %local2.0@Just : Bool
+    %v17 = load %local2.1 : Maybe(Bool)
+    %v18 = load %local2.1.discriminant : Int
+    %v20 = cmp_eq %v18, 1 : Bool
+    je %v20, b3, b1
+
+  b3:
+    %y = load %local2.1@Just : Bool
+    %v23 = cmp_eq %x, %y : Bool
+    jmp b7
+
+  b4:
+    jmp b7
+
+  b5:
+    %v26 = load %local2.1 : Maybe(Bool)
+    %v27 = load %local2.1.discriminant : Int
+    %v29 = cmp_eq %v27, 0 : Bool
+    je %v29, b6, b4
+
+  b6:
+    jmp b7
+
+  b7:
+    %v2 = phi [b3, %v23], [b6, True], [b4, False] : Bool
+    ret %v2
+}
+
+fn smaller(%I64)(%x: %I64, %y: %I64) -> %I64 {
+  b0:
+    %v3 = cmp_lt %x, %y : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %x], [b2, %y] : %I64
+    ret %v2
+}
+
+fn Eq(Maybe(a)).==(%I64)(%lhs: Maybe(%I64), %rhs: Maybe(%I64)) -> Bool {
+  b0:
+    %v3 = alloc : {Maybe(%I64), Maybe(%I64)}
+    init %local2.0, %lhs
+    init %local2.1, %rhs
+    %v6 = load %local2.0 : Maybe(%I64)
+    %v7 = load %local2.0.discriminant : Int
+    %v9 = cmp_eq %v7, 1 : Bool
+    je %v9, b2, b1
+
+  b1:
+    %v11 = load %local2.0 : Maybe(%I64)
+    %v12 = load %local2.0.discriminant : Int
+    %v14 = cmp_eq %v12, 0 : Bool
+    je %v14, b5, b4
+
+  b2:
+    %x = load %local2.0@Just : %I64
+    %v17 = load %local2.1 : Maybe(%I64)
+    %v18 = load %local2.1.discriminant : Int
+    %v20 = cmp_eq %v18, 1 : Bool
+    je %v20, b3, b1
+
+  b3:
+    %y = load %local2.1@Just : %I64
+    %v23 = cmp_eq %x, %y : Bool
+    jmp b7
+
+  b4:
+    jmp b7
+
+  b5:
+    %v26 = load %local2.1 : Maybe(%I64)
+    %v27 = load %local2.1.discriminant : Int
+    %v29 = cmp_eq %v27, 0 : Bool
+    je %v29, b6, b4
+
+  b6:
+    jmp b7
+
+  b7:
+    %v2 = phi [b3, %v23], [b6, True], [b4, False] : Bool
+    ret %v2
+}

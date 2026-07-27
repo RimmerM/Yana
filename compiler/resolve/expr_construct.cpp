@@ -400,6 +400,35 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
     return result;
 }
 
+/*
+ * Reaching through a reference.
+ *
+ * `.` reads through a reference of any kind rather than through `%T` alone. Every rung of
+ * Design.md's [reference-kind ladder](Design.md#reference-kinds) is an opaque primitive in the
+ * type system: a raw pointer is an address, a region pointer an offset, and a checked reference a
+ * fat pointer, and none of the three exposes what it is made of as a field. There is therefore
+ * never a name the selection could have meant instead of the target's, which is what makes reading
+ * through all of them one rule rather than a special case for the unchecked one.
+ *
+ * What differs between the rungs is the step each dereference needs, not what `.` means. A raw
+ * pointer's is the address itself, so it is a place projection and nothing more. A region
+ * pointer's needs the `Region` handle its `*` requires, and a checked reference's the generation
+ * compare - neither of which has a representation the resolver can produce yet, so both report
+ * here rather than quietly producing an unchecked read. When they land, this check is what turns
+ * into their step, and field selection reaches through them with nothing else to change.
+ */
+bool ExprResolver::reportUnfollowedReference(TypePtr type, LocationId source) {
+    auto kind = global[type]->kind;
+    if(kind != Type::Ref && kind != Type::RegionPtr) return false;
+
+    context.diagnostics.error(kind == Type::Ref
+        ? "reading a field through a checked reference is not available yet - it needs the generation check a dereference performs"_v
+        : "reading a field through a region pointer is not available yet - it needs the `Region` handle a dereference requires"_v,
+        source);
+
+    return true;
+}
+
 Maybe<Place> ExprResolver::projectField(Place place, const ast::Expr& field, LocationId source) {
     if(field.kind != ast::Expr::Var) {
         context.diagnostics.error("field selection requires a field name"_v, field.source);
@@ -407,6 +436,16 @@ Maybe<Place> ExprResolver::projectField(Place place, const ast::Expr& field, Loc
     }
 
     auto type = placeType(place);
+
+    // Field selection reads through a reference, one step per `.`, so a chain reaches through as
+    // many links as it has - see reportUnfollowedReference above for why this is one rule over
+    // every reference kind. A raw pointer's step is the projection; the checked rungs report.
+    if(isPointer(global, type)) {
+        place = project(place, ProjectionKind::Deref, 0);
+        type = placeType(place);
+    } else if(reportUnfollowedReference(type, source)) {
+        return Nothing();
+    }
 
     // A single-constructor record has no discriminant to test, so selecting a field out of one
     // is a downcast to its only constructor followed by an ordinary field projection.
@@ -438,27 +477,17 @@ Maybe<Place> ExprResolver::projectField(Place place, const ast::Expr& field, Loc
 }
 
 ModulePtr<Value> ExprResolver::resolveField(const ast::Expr& expr, const ast::FieldExpr& field) {
-    // A field of raw memory is reached through the place the pointer names, so `(*node).value`
-    // needs no dereference of its own beyond the one the place already is.
-    auto& target = unwrapNested(field.target);
-
-    if(target.kind == ast::Expr::Prefix) {
-        auto& prefix = *parse[target.prefix];
-
-        if(prefix.op.kind == ast::Expr::Var && prefix.op.var == Context::nameHash("*"_v)) {
-            auto pointer = resolve(prefix.on);
-            if(!pointer) return nullptr;
-
-            if(isPointer(global, valueType(pointer))) {
-                auto place = projectField(Place::atPointer(pointer), field.field, expr.source);
-                return place ? load(place.unwrap(), expr.source) : nullptr;
-            }
-        }
-    }
-
     auto value = resolve(field.target);
     if(!value) return nullptr;
 
-    auto place = projectField(placeFor(value, field.target.source), field.field, expr.source);
+    // A reference is the root of the place its field lives in, rather than something that has to
+    // be in a place of its own first. That is what lets `n.value` work on a `%Node` that came from
+    // an argument or a call: there is no storage holding the pointer, and none is needed.
+    if(reportUnfollowedReference(valueType(value), field.target.source)) return nullptr;
+
+    auto root = isPointer(global, valueType(value)) ? Place::atPointer(value)
+                                                    : placeFor(value, field.target.source);
+
+    auto place = projectField(root, field.field, expr.source);
     return place ? load(place.unwrap(), expr.source) : nullptr;
 }

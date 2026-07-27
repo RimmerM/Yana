@@ -17,11 +17,76 @@ fn throughField() -> I64 {
     init %local0@Node.value, 3
     init %local0@Node.next, %v3
     %p = addressof %local0 : %Node
-    %v7 = load [%p]@Node.value : I64
-    %v10 = mul %v7, 5 : I64
-    init [%p]@Node.value, %v10
-    %v12 = load [%p]@Node.value : I64
-    ret %v12
+    %v7 = load [%p] : Node
+    %v8 = load [%p]@Node.value : I64
+    %v11 = mul %v8, 5 : I64
+    init [%p]@Node.value, %v11
+    %v13 = load [%p] : Node
+    %v14 = load [%p]@Node.value : I64
+    ret %v14
+}
+
+fn pointerFields() -> I64 {
+  b0:
+    %first = alloc : Node
+    %v3 = cast 0 : %Node
+    init %local0@Node.value, 1
+    init %local0@Node.next, %v3
+    %second = alloc : Node
+    %v9 = cast 0 : %Node
+    init %local1@Node.value, 2
+    init %local1@Node.next, %v9
+    %n = addressof %local0 : %Node
+    %m = addressof %local1 : %Node
+    init [%n]@Node.value, 5
+    init [%n]@Node.next, %m
+    %v17 = load [%n]@Node.value : I64
+    %v18 = load [%n]@Node.next : %Node
+    %v19 = load [%v18]@Node.value : I64
+    %v20 = add %v17, %v19 : I64
+    init [%n]@Node.next.*@Node.value, %v20
+    %v22 = load [%n]@Node.value : I64
+    %v25 = mul %v22, 100 : I64
+    %v26 = load [%n]@Node.next : %Node
+    %v27 = load [%v26]@Node.value : I64
+    %v28 = add %v25, %v27 : I64
+    ret %v28
+}
+
+fn total(%node: %Node) -> I64 {
+  b0:
+    %v1 = load [%node]@Node.value : I64
+    %v2 = load [%node]@Node.next : %Node
+    %v3 = load [%v2]@Node.value : I64
+    %v4 = add %v1, %v3 : I64
+    %v5 = load [%node]@Node.next : %Node
+    %v6 = load [%v5]@Node.next : %Node
+    %v7 = load [%v6]@Node.value : I64
+    %v8 = add %v4, %v7 : I64
+    ret %v8
+}
+
+fn walkList() -> I64 {
+  b0:
+    %third = alloc : Node
+    %v3 = cast 0 : %Node
+    init %local0@Node.value, 3
+    init %local0@Node.next, %v3
+    %second = alloc : Node
+    %v9 = cast 0 : %Node
+    init %local1@Node.value, 2
+    init %local1@Node.next, %v9
+    %first = alloc : Node
+    %v15 = cast 0 : %Node
+    init %local2@Node.value, 1
+    init %local2@Node.next, %v15
+    %a = addressof %local2 : %Node
+    %v19 = addressof %local1 : %Node
+    init [%a]@Node.next, %v19
+    %v21 = addressof %local0 : %Node
+    init [%a]@Node.next.*@Node.next, %v21
+    %v23 = call total, %a : I64
+    ret %v23
 }
 
 fn elementStride() -> I64 {
@@ -153,14 +218,18 @@ fn main() -> Int {
     %v0 = call roundTrip : I64
     %v1 = call throughField : I64
     %v2 = add %v0, %v1 : I64
-    %v3 = call elementStride : I64
+    %v3 = call pointerFields : I64
     %v4 = add %v2, %v3 : I64
-    %v5 = call compareAddresses : I64
+    %v5 = call walkList : I64
     %v6 = add %v4, %v5 : I64
-    %v7 = call blockOperations : I64
+    %v7 = call elementStride : I64
     %v8 = add %v6, %v7 : I64
-    %v9 = call sizes : I64
-    %total = add %v8, %v9 : I64
-    %v11 = cast %total : Int
-    ret %v11
+    %v9 = call compareAddresses : I64
+    %v10 = add %v8, %v9 : I64
+    %v11 = call blockOperations : I64
+    %v12 = add %v10, %v11 : I64
+    %v13 = call sizes : I64
+    %result = add %v12, %v13 : I64
+    %v15 = cast %result : Int
+    ret %v15
 }

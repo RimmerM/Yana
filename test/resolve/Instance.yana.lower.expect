@@ -1,0 +1,446 @@
+
+Eq(Maybe(a)).==(Bool)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+  b_0 {
+    %v_1 = alloca 16, 4: Ptr
+    copy %v_1, %lhs, 8
+    %v_2 = add %v_1, 8: Ptr
+    copy %v_2, %rhs, 8
+    %v_3 = loads %v_1, 4: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = loads %v_1, 4: Int
+    %v_8 = cmp_eq %v_7, 0: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_5 {
+    %v_11 = add %v_1, 4: Ptr
+    %x = load %v_11, 4: Int
+    %v_12 = add %v_1, 8: Ptr
+    %v_13 = add %v_1, 8: Ptr
+    %v_14 = loads %v_13, 4: Int
+    %v_15 = cmp_eq %v_14, 1: Int
+    je %v_15, b_16, b_6
+  }
+
+  b_16 {
+    %v_17 = add %v_1, 12: Ptr
+    %y = load %v_17, 4: Int
+    %v_18 = cmp_eq %x, %y: Int
+    jmp b_19
+  }
+
+  b_10 {
+    jmp b_19
+  }
+
+  b_9 {
+    %v_20 = add %v_1, 8: Ptr
+    %v_21 = add %v_1, 8: Ptr
+    %v_22 = loads %v_21, 4: Int
+    %v_23 = cmp_eq %v_22, 0: Int
+    je %v_23, b_24, b_10
+  }
+
+  b_24 {
+    jmp b_19
+  }
+
+  b_19 {
+    %v_25 = phi [b_16, %v_18], [b_24, 1], [b_10, 0]: Int
+    ret %v_25
+  }
+}
+
+Eq(Maybe(a)).==(%I64)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+  b_0 {
+    %v_1 = alloca 32, 8: Ptr
+    copy %v_1, %lhs, 16
+    %v_2 = add %v_1, 16: Ptr
+    copy %v_2, %rhs, 16
+    %v_3 = loads %v_1, 4: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = loads %v_1, 4: Int
+    %v_8 = cmp_eq %v_7, 0: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_5 {
+    %v_11 = add %v_1, 8: Ptr
+    %x = load %v_11, 8: Ptr
+    %v_12 = add %v_1, 16: Ptr
+    %v_13 = add %v_1, 16: Ptr
+    %v_14 = loads %v_13, 4: Int
+    %v_15 = cmp_eq %v_14, 1: Int
+    je %v_15, b_16, b_6
+  }
+
+  b_16 {
+    %v_17 = add %v_1, 24: Ptr
+    %y = load %v_17, 8: Ptr
+    %v_18 = cmp_eq %x, %y: Int
+    jmp b_19
+  }
+
+  b_10 {
+    jmp b_19
+  }
+
+  b_9 {
+    %v_20 = add %v_1, 16: Ptr
+    %v_21 = add %v_1, 16: Ptr
+    %v_22 = loads %v_21, 4: Int
+    %v_23 = cmp_eq %v_22, 0: Int
+    je %v_23, b_24, b_10
+  }
+
+  b_24 {
+    jmp b_19
+  }
+
+  b_19 {
+    %v_25 = phi [b_16, %v_18], [b_24, 1], [b_10, 0]: Int
+    ret %v_25
+  }
+}
+
+maybes<complex>(): Long {
+  b_0 {
+    %score = alloca 8, 8: Ptr
+    store %score, 0, 8
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 1, 4
+    %v_3 = alloca 8, 4: Ptr
+    store %v_3, 1, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 1, 4
+    %v_5 = call_complex Eq(Maybe(a)).==(Int), %v_1, %v_3: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    %v_8 = loads %score, 8: Long
+    %v_9 = add %v_8, 1: Long
+    store %score, %v_9, 8
+    jmp b_10
+  }
+
+  b_7 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = alloca 8, 4: Ptr
+    store %v_11, 1, 4
+    %v_12 = add %v_11, 4: Ptr
+    store %v_12, 1, 4
+    %v_13 = alloca 8, 4: Ptr
+    store %v_13, 1, 4
+    %v_14 = add %v_13, 4: Ptr
+    store %v_14, 2, 4
+    %v_15 = call_complex Eq(Maybe(a)).!=(Int), %v_11, %v_13: Int
+    je %v_15, b_16, b_17
+  }
+
+  b_16 {
+    %v_18 = loads %score, 8: Long
+    %v_19 = add %v_18, 2: Long
+    store %score, %v_19, 8
+    jmp b_20
+  }
+
+  b_17 {
+    jmp b_20
+  }
+
+  b_20 {
+    %v_21 = alloca 8, 4: Ptr
+    call_complex none, %v_21
+    %v_22 = alloca 8, 4: Ptr
+    call_complex none, %v_22
+    %v_23 = call_complex Eq(Maybe(a)).==(Int), %v_21, %v_22: Int
+    je %v_23, b_24, b_25
+  }
+
+  b_24 {
+    %v_26 = loads %score, 8: Long
+    %v_27 = add %v_26, 4: Long
+    store %score, %v_27, 8
+    jmp b_28
+  }
+
+  b_25 {
+    jmp b_28
+  }
+
+  b_28 {
+    %v_29 = alloca 8, 4: Ptr
+    store %v_29, 1, 4
+    %v_30 = add %v_29, 4: Ptr
+    store %v_30, 1, 4
+    %v_31 = alloca 8, 4: Ptr
+    store %v_31, 1, 4
+    %v_32 = add %v_31, 4: Ptr
+    store %v_32, 0, 4
+    %v_33 = call_complex Eq(Maybe(a)).!=(Bool), %v_29, %v_31: Int
+    je %v_33, b_34, b_35
+  }
+
+  b_34 {
+    %v_36 = loads %score, 8: Long
+    %v_37 = add %v_36, 8: Long
+    store %score, %v_37, 8
+    jmp b_38
+  }
+
+  b_35 {
+    jmp b_38
+  }
+
+  b_38 {
+    %v_39 = loads %score, 8: Long
+    ret %v_39
+  }
+}
+
+nested<complex>(): Long {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, 0, 8
+    %v_2 = alloca 16, 8: Ptr
+    store %v_2, 1, 4
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, 1, 4
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_1, 8
+    %v_6 = call_complex Eq(Maybe(a)).==(%I64), %v_2, %v_4: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    ret 16
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_9 {
+    ret 0
+  }
+}
+
+Ord(%a).compare(I64)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+  b_0 {
+    %v_1 = cmp_eq %lhs, %rhs: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    ret 1
+  }
+
+  b_3 {
+    %v_4 = cmp_gt %lhs, %rhs: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    ret 2
+  }
+
+  b_6 {
+    ret 0
+  }
+}
+
+none<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 0, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+Eq(Maybe(a)).==(Int)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+  b_0 {
+    %v_1 = alloca 16, 4: Ptr
+    copy %v_1, %lhs, 8
+    %v_2 = add %v_1, 8: Ptr
+    copy %v_2, %rhs, 8
+    %v_3 = loads %v_1, 4: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = loads %v_1, 4: Int
+    %v_8 = cmp_eq %v_7, 0: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_5 {
+    %v_11 = add %v_1, 4: Ptr
+    %x = loads %v_11, 4: Int
+    %v_12 = add %v_1, 8: Ptr
+    %v_13 = add %v_1, 8: Ptr
+    %v_14 = loads %v_13, 4: Int
+    %v_15 = cmp_eq %v_14, 1: Int
+    je %v_15, b_16, b_6
+  }
+
+  b_16 {
+    %v_17 = add %v_1, 12: Ptr
+    %y = loads %v_17, 4: Int
+    %v_18 = cmp_eq %x, %y: Int
+    jmp b_19
+  }
+
+  b_10 {
+    jmp b_19
+  }
+
+  b_9 {
+    %v_20 = add %v_1, 8: Ptr
+    %v_21 = add %v_1, 8: Ptr
+    %v_22 = loads %v_21, 4: Int
+    %v_23 = cmp_eq %v_22, 0: Int
+    je %v_23, b_24, b_10
+  }
+
+  b_24 {
+    jmp b_19
+  }
+
+  b_19 {
+    %v_25 = phi [b_16, %v_18], [b_24, 1], [b_10, 0]: Int
+    ret %v_25
+  }
+}
+
+Eq(Maybe(a)).!=(Int)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+  b_0 {
+    %v_1 = call_complex Eq(Maybe(a)).==(Int), %lhs, %rhs: Int
+    %v_2 = xor %v_1, 1: Int
+    ret %v_2
+  }
+}
+
+Eq(Maybe(a)).!=(Bool)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+  b_0 {
+    %v_1 = call_complex Eq(Maybe(a)).==(Bool), %lhs, %rhs: Int
+    %v_2 = xor %v_1, 1: Int
+    ret %v_2
+  }
+}
+
+smaller(%I64)<complex>(%x: Ptr, %y: Ptr): Ptr {
+  b_0 {
+    %v_1 = cmp_lt %x, %y: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_2, %x], [b_3, %y]: Ptr
+    ret %v_5
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex maybes: Long
+    %v_2 = call_complex pointers: Long
+    %v_3 = add %v_1, %v_2: Long
+    %v_4 = call_complex nested: Long
+    %v_5 = add %v_3, %v_4: Long
+    %v_6 = cast %v_5: Int
+    ret %v_6
+  }
+}
+
+pointers<complex>(): Long {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, 0, 8
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, 0, 8
+    %low = call_complex smaller(%I64), %v_1, %v_2: Ptr
+    %high = call_complex smaller(%I64), %v_2, %v_1: Ptr
+    %score = alloca 8, 8: Ptr
+    store %score, 0, 8
+    %v_3 = cmp_le %low, %high: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    %v_6 = loads %score, 8: Long
+    %v_7 = add %v_6, 1: Long
+    store %score, %v_7, 8
+    jmp b_8
+  }
+
+  b_5 {
+    jmp b_8
+  }
+
+  b_8 {
+    %v_9 = call_complex smaller(%I64), %v_1, %v_2: Ptr
+    %v_10 = cmp_eq %v_9, %low: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    %v_13 = loads %score, 8: Long
+    %v_14 = add %v_13, 2: Long
+    store %score, %v_14, 8
+    jmp b_15
+  }
+
+  b_12 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = call_complex Ord(%a).compare(I64), %v_1, %v_1: Int
+    %v_17 = cast %v_16: Int
+    %v_18 = cmp_eq %v_17, 1: Int
+    je %v_18, b_19, b_20
+  }
+
+  b_20 {
+    jmp b_21
+  }
+
+  b_19 {
+    %v_22 = loads %score, 8: Long
+    %v_23 = add %v_22, 4: Long
+    store %score, %v_23, 8
+    jmp b_21
+  }
+
+  b_21 {
+    %v_24 = loads %score, 8: Long
+    ret %v_24
+  }
+}
+

@@ -598,18 +598,28 @@ void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value>
 /*
  * What an assignment writes to.
  *
- * Three expressions name storage: a mutable binding, a global, and the memory a raw pointer
- * points at. Everything reachable from those by projection does too, which is what makes
- * `p.x = 1` and `(*node).next = null` work without a rule of their own - the projection path is
- * built by the same field selection an ordinary read uses.
+ * Four expressions name storage: a mutable binding, a mutable global, the memory a raw pointer
+ * points at, and - only as the target of a field selection - an immutable binding holding a raw
+ * pointer. Everything reachable from those by projection does too, which is what makes `p.x = 1`
+ * and `(*node).next = null` work without a rule of their own - the projection path is built by the
+ * same field selection an ordinary read uses.
+ *
+ * `through` is what marks that fourth case: writing *through* a pointer is not writing to the
+ * binding that holds it, and the memory a pointer names is always mutable. `let n = ...` followed
+ * by `n.value = 5` therefore writes, while `n = q` on the same binding stays the error it is -
+ * that one rebinds the pointer rather than writing through it.
  */
-Maybe<Place> ExprResolver::resolvePlace(const ast::Expr& astExpr) {
+Maybe<Place> ExprResolver::resolvePlace(const ast::Expr& astExpr, bool through) {
     auto& expr = unwrapNested(astExpr);
 
     switch(expr.kind) {
         case ast::Expr::Var: {
             if(auto binding = findBinding(expr.var)) {
                 if(!binding->isPlace()) {
+                    if(through && isPointer(global, valueType(binding->value))) {
+                        return Just(Place::atPointer(binding->value));
+                    }
+
                     context.diagnostics.error("%@ is not mutable - declare it with `let &` to assign to it"_v,
                                               expr.source, context.findName(expr.var));
                     return Nothing();
@@ -634,7 +644,7 @@ Maybe<Place> ExprResolver::resolvePlace(const ast::Expr& astExpr) {
         }
         case ast::Expr::Field: {
             auto& field = *parse[expr.field];
-            auto target = resolvePlace(field.target);
+            auto target = resolvePlace(field.target, true);
             if(!target) return Nothing();
 
             return projectField(target.unwrap(), field.field, expr.source);

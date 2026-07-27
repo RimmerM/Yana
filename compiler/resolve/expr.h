@@ -127,7 +127,9 @@ struct ExprResolver {
         return *current;
     }
 
-    Maybe<Place> resolvePlace(const ast::Expr& expr);
+    // `through` says the place is about to be projected into rather than assigned to as a whole,
+    // which is what lets an immutable binding holding a raw pointer root one - see resolvePlace.
+    Maybe<Place> resolvePlace(const ast::Expr& expr, bool through = false);
     ModulePtr<Value> resolveAssign(const ast::Expr& expr, const ast::AssignExpr& assign);
     void bindMutable(const ast::VarDecl& declaration, ModulePtr<Value> value);
     ModulePtr<Value> makeInt(LocationId source, TypePtr type, U64 value);
@@ -279,9 +281,14 @@ struct ExprResolver {
     ModulePtr<Value> resolveField(const ast::Expr& expr, const ast::FieldExpr& field);
 
     // The place of one named field of `place`, following the downcast a single-constructor
-    // record needs. Shared by field reads and field assignments so that both reach a field the
-    // same way.
+    // record needs and the dereference a reference does. Shared by field reads and field
+    // assignments so that both reach a field the same way.
     Maybe<Place> projectField(Place place, const ast::Expr& field, LocationId source);
+
+    // Reports a reference kind `.` cannot follow yet - a region pointer or a checked reference,
+    // whose dereferences need more than an address. False for anything else, including a raw
+    // pointer, which is followed. See expr_construct.cpp.
+    bool reportUnfollowedReference(TypePtr type, LocationId source);
     bool fillTuple(Place place, TupType& tuple, ast::ParseList<ast::TupArg> args, LocationId source);
 
     /*

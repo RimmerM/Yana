@@ -19,83 +19,64 @@ elementStride<complex>(): Long {
   }
 }
 
-throughField<complex>(): Long {
+walkList<complex>(): Long {
   b_0 {
-    %node = alloca 16, 8: Ptr
+    %third = alloca 16, 8: Ptr
     %v_1 = bitcast 0: Ptr
-    store %node, 3, 8
-    %v_2 = add %node, 8: Ptr
+    store %third, 3, 8
+    %v_2 = add %third, 8: Ptr
     store %v_2, %v_1, 8
-    %v_3 = loads %node, 8: Long
-    %v_4 = imul %v_3, 5: Long
-    store %node, %v_4, 8
-    %v_5 = loads %node, 8: Long
-    ret %v_5
-  }
-}
-
-blockOperations<complex>(): Long {
-  b_0 {
-    %source = alloca 16, 8: Ptr
-    %v_1 = bitcast 0: Ptr
-    store %source, 9, 8
-    %v_2 = add %source, 8: Ptr
-    store %v_2, %v_1, 8
-    %target = alloca 16, 8: Ptr
+    %second = alloca 16, 8: Ptr
     %v_3 = bitcast 0: Ptr
-    store %target, 0, 8
-    %v_4 = add %target, 8: Ptr
+    store %second, 2, 8
+    %v_4 = add %second, 8: Ptr
     store %v_4, %v_3, 8
-    %v_5 = bitcast %target: Ptr
-    %v_6 = bitcast %source: Ptr
-    copy %v_5, %v_6, 16
-    %copied = loads %target, 8: Long
-    %v_7 = bitcast %target: Ptr
-    setpattern %v_7, 16, 0
-    %v_8 = imul %copied, 10: Long
-    %v_9 = loads %target, 8: Long
-    %v_10 = add %v_8, %v_9: Long
-    ret %v_10
-  }
-}
-
-sizes<complex>(): Long {
-  b_0 {
-    %v_1 = imul 8, 100: Long
-    %v_2 = imul 1, 10: Long
-    %v_3 = add %v_1, %v_2: Long
-    %v_4 = add %v_3, 2: Long
-    ret %v_4
-  }
-}
-
-roundTrip<complex>(): Long {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    store %v_1, 7, 8
-    %v_2 = loads %v_1, 8: Long
-    %v_3 = add %v_2, 1: Long
-    store %v_1, %v_3, 8
-    %v_4 = loads %v_1, 8: Long
-    ret %v_4
-  }
-}
-
-main<complex>(): Int {
-  b_0 {
-    %v_1 = call_complex roundTrip: Long
-    %v_2 = call_complex throughField: Long
-    %v_3 = add %v_1, %v_2: Long
-    %v_4 = call_complex elementStride: Long
-    %v_5 = add %v_3, %v_4: Long
-    %v_6 = call_complex compareAddresses: Long
-    %v_7 = add %v_5, %v_6: Long
-    %v_8 = call_complex blockOperations: Long
-    %v_9 = add %v_7, %v_8: Long
-    %v_10 = call_complex sizes: Long
-    %total = add %v_9, %v_10: Long
-    %v_11 = cast %total: Int
+    %first = alloca 16, 8: Ptr
+    %v_5 = bitcast 0: Ptr
+    store %first, 1, 8
+    %v_6 = add %first, 8: Ptr
+    store %v_6, %v_5, 8
+    %v_7 = add %first, 8: Ptr
+    store %v_7, %second, 8
+    %v_8 = add %first, 8: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    %v_10 = add %v_9, 8: Ptr
+    store %v_10, %third, 8
+    %v_11 = call_complex total, %first: Long
     ret %v_11
+  }
+}
+
+pointerFields<complex>(): Long {
+  b_0 {
+    %first = alloca 16, 8: Ptr
+    %v_1 = bitcast 0: Ptr
+    store %first, 1, 8
+    %v_2 = add %first, 8: Ptr
+    store %v_2, %v_1, 8
+    %second = alloca 16, 8: Ptr
+    %v_3 = bitcast 0: Ptr
+    store %second, 2, 8
+    %v_4 = add %second, 8: Ptr
+    store %v_4, %v_3, 8
+    store %first, 5, 8
+    %v_5 = add %first, 8: Ptr
+    store %v_5, %second, 8
+    %v_6 = loads %first, 8: Long
+    %v_7 = add %first, 8: Ptr
+    %v_8 = load %v_7, 8: Ptr
+    %v_9 = loads %v_8, 8: Long
+    %v_10 = add %v_6, %v_9: Long
+    %v_11 = add %first, 8: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    store %v_12, %v_10, 8
+    %v_13 = loads %first, 8: Long
+    %v_14 = imul %v_13, 100: Long
+    %v_15 = add %first, 8: Ptr
+    %v_16 = load %v_15, 8: Ptr
+    %v_17 = loads %v_16, 8: Long
+    %v_18 = add %v_14, %v_17: Long
+    ret %v_18
   }
 }
 
@@ -180,6 +161,107 @@ compareAddresses<complex>(): Long {
   b_32 {
     %v_33 = loads %score, 8: Long
     ret %v_33
+  }
+}
+
+throughField<complex>(): Long {
+  b_0 {
+    %node = alloca 16, 8: Ptr
+    %v_1 = bitcast 0: Ptr
+    store %node, 3, 8
+    %v_2 = add %node, 8: Ptr
+    store %v_2, %v_1, 8
+    %v_3 = loads %node, 8: Long
+    %v_4 = imul %v_3, 5: Long
+    store %node, %v_4, 8
+    %v_5 = loads %node, 8: Long
+    ret %v_5
+  }
+}
+
+blockOperations<complex>(): Long {
+  b_0 {
+    %source = alloca 16, 8: Ptr
+    %v_1 = bitcast 0: Ptr
+    store %source, 9, 8
+    %v_2 = add %source, 8: Ptr
+    store %v_2, %v_1, 8
+    %target = alloca 16, 8: Ptr
+    %v_3 = bitcast 0: Ptr
+    store %target, 0, 8
+    %v_4 = add %target, 8: Ptr
+    store %v_4, %v_3, 8
+    %v_5 = bitcast %target: Ptr
+    %v_6 = bitcast %source: Ptr
+    copy %v_5, %v_6, 16
+    %copied = loads %target, 8: Long
+    %v_7 = bitcast %target: Ptr
+    setpattern %v_7, 16, 0
+    %v_8 = imul %copied, 10: Long
+    %v_9 = loads %target, 8: Long
+    %v_10 = add %v_8, %v_9: Long
+    ret %v_10
+  }
+}
+
+total<complex>(%node: Ptr): Long {
+  b_0 {
+    %v_1 = loads %node, 8: Long
+    %v_2 = add %node, 8: Ptr
+    %v_3 = load %v_2, 8: Ptr
+    %v_4 = loads %v_3, 8: Long
+    %v_5 = add %v_1, %v_4: Long
+    %v_6 = add %node, 8: Ptr
+    %v_7 = load %v_6, 8: Ptr
+    %v_8 = add %v_7, 8: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    %v_10 = loads %v_9, 8: Long
+    %v_11 = add %v_5, %v_10: Long
+    ret %v_11
+  }
+}
+
+sizes<complex>(): Long {
+  b_0 {
+    %v_1 = imul 8, 100: Long
+    %v_2 = imul 1, 10: Long
+    %v_3 = add %v_1, %v_2: Long
+    %v_4 = add %v_3, 2: Long
+    ret %v_4
+  }
+}
+
+roundTrip<complex>(): Long {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, 7, 8
+    %v_2 = loads %v_1, 8: Long
+    %v_3 = add %v_2, 1: Long
+    store %v_1, %v_3, 8
+    %v_4 = loads %v_1, 8: Long
+    ret %v_4
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex roundTrip: Long
+    %v_2 = call_complex throughField: Long
+    %v_3 = add %v_1, %v_2: Long
+    %v_4 = call_complex pointerFields: Long
+    %v_5 = add %v_3, %v_4: Long
+    %v_6 = call_complex walkList: Long
+    %v_7 = add %v_5, %v_6: Long
+    %v_8 = call_complex elementStride: Long
+    %v_9 = add %v_7, %v_8: Long
+    %v_10 = call_complex compareAddresses: Long
+    %v_11 = add %v_9, %v_10: Long
+    %v_12 = call_complex blockOperations: Long
+    %v_13 = add %v_11, %v_12: Long
+    %v_14 = call_complex sizes: Long
+    %result = add %v_13, %v_14: Long
+    %v_15 = cast %result: Int
+    ret %v_15
   }
 }
 

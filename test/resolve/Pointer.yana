@@ -11,13 +11,48 @@ fn roundTrip() -> I64:
     *p = *p + 1
     return *p
 
--- A field of an aggregate reached through a pointer to it, in both directions.
+-- A field of an aggregate reached through a pointer to it, in both directions. Written with an
+-- explicit dereference, which is now the long way round of the function below it: `(*p).value` and
+-- `p.value` name the same place, and the parenthesized form composes with everything the direct
+-- one does.
 fn throughField() -> I64:
     let node = Node {value: 3, next: null()}
     let p = addressOf(node)
 
     (*p).value = (*p).value * 5
     return (*p).value
+
+-- The same field, reached through the pointer directly. The place is rooted at the pointer rather
+-- than at the binding holding it, which is what makes `n.value = 5` a write through an immutable
+-- `let` while `n = m` on the same binding stays an error - the memory a pointer names is always
+-- mutable, the pointer itself is not.
+fn pointerFields() -> I64:
+    let first = Node {value: 1, next: null()}
+    let second = Node {value: 2, next: null()}
+
+    let n = addressOf(first)
+    let m = addressOf(second)
+
+    n.value = 5
+    n.next = m
+    n.next.value = n.value + n.next.value
+
+    return n.value * 100 + n.next.value
+
+-- A chain reaches through as many pointers as it has links, and a pointer parameter needs no
+-- storage of its own to have its fields read.
+fn total(node: %Node) -> I64 = node.value + node.next.value + node.next.next.value
+
+fn walkList() -> I64:
+    let third = Node {value: 3, next: null()}
+    let second = Node {value: 2, next: null()}
+    let first = Node {value: 1, next: null()}
+
+    let a = addressOf(first)
+    a.next = addressOf(second)
+    a.next.next = addressOf(third)
+
+    return total(a)
 
 -- Pointer arithmetic is in elements: `p + 1` moves by one Node however large a Node is, and the
 -- same walk written in bytes has to say so.
@@ -56,7 +91,7 @@ fn blockOperations() -> I64:
 fn sizes() -> I64 = sizeOf(0 :: I64) * 100 + alignOf(0 :: U8) * 10 + sizeOf(0 :: U16)
 
 fn main() -> Int:
-    let total = roundTrip() + throughField() + elementStride() +
-                compareAddresses() + blockOperations() + sizes()
+    let result = roundTrip() + throughField() + pointerFields() + walkList() +
+                 elementStride() + compareAddresses() + blockOperations() + sizes()
 
-    return total :: Int
+    return result :: Int
