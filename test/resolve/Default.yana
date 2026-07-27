@@ -1,0 +1,122 @@
+-- Class default implementations.
+--
+-- A default is a body the class writes for one of its own signatures, and every instance that does
+-- not supply that function gets it. What it is underneath is a generic function over the class's
+-- own type variables carrying the class itself as a requirement, so the body is resolved once and
+-- specialized per instance that inherited it - which is the step a parametric instance's own
+-- implementations already take.
+--
+-- A default is a fallback body for a signature that is already in the overload set, not a new
+-- member of it, so nothing about how a call is selected changes.
+
+data Metres {value: Int}
+
+-- One function written, two available: `!=` is Eq's own `!(lhs == rhs)`, specialized for Metres.
+instance Eq(Metres):
+    fn ==(lhs: Metres, rhs: Metres) -> Bool = lhs.value == rhs.value
+
+-- `compare` is the whole of an order, and the four comparisons are defaults written over it. That
+-- is what makes an Ord instance one function rather than five.
+instance Ord(Metres):
+    fn compare(lhs: Metres, rhs: Metres) -> Ordering = compare(lhs.value, rhs.value)
+
+fn ordered() -> Int:
+    let a = Metres {value: 1}
+    let b = Metres {value: 2}
+    let &score = 0
+
+    if a != b then score = score + 1
+    if a < b then score = score + 2
+    if a <= b then score = score + 4
+    if b > a then score = score + 8
+    if b >= a then score = score + 16
+    if a >= a then score = score + 32
+
+    return score
+
+-- An instance that writes the function keeps its own body: the default is what happens when
+-- nothing was written, not a rule about what may be.
+data Feet {value: Int}
+
+instance Eq(Feet):
+    fn ==(lhs: Feet, rhs: Feet) -> Bool = lhs.value == rhs.value
+    fn !=(lhs: Feet, rhs: Feet) -> Bool = lhs.value != rhs.value
+
+fn overridden() -> Int:
+    if Feet {value: 1} != Feet {value: 2} then return 64
+    return 0
+
+data Cents {value: Int}
+
+instance FromInt(Cents):
+    fn fromInt(value: Long) -> Cents = Cents {value: narrow(value)}
+
+instance Eq(Cents):
+    fn ==(lhs: Cents, rhs: Cents) -> Bool = lhs.value == rhs.value
+
+-- Unary `-` defaults to `0 - value`. The zero is `FromInt`, which Num declares as a superclass and
+-- so is in scope inside the default for free; the subtraction is this class's own.
+instance Num(Cents):
+    fn +(lhs: Cents, rhs: Cents) -> Cents = Cents {value: lhs.value + rhs.value}
+    fn -(lhs: Cents, rhs: Cents) -> Cents = Cents {value: lhs.value - rhs.value}
+    fn *(lhs: Cents, rhs: Cents) -> Cents = Cents {value: lhs.value * rhs.value}
+    fn /(lhs: Cents, rhs: Cents) -> Cents = Cents {value: lhs.value / rhs.value}
+
+fn negated() -> Int:
+    let value = Cents {value: 7}
+    let negative = -value
+
+    if negative == Cents {value: -7} then return 128
+    return 0
+
+data Flags {read: Bool, write: Bool}
+
+instance Eq(Flags):
+    fn ==(lhs: Flags, rhs: Flags) -> Bool = lhs.read == rhs.read && lhs.write == rhs.write
+
+-- Four functions written, seven available. For a type that is not Bool the short-circuiting pair
+-- and the bitwise pair are the same operation, and Logic says so once instead of every instance
+-- saying it again.
+instance Logic(Flags):
+    fn and(lhs: Flags, rhs: Flags) -> Flags = Flags {read: lhs.read && rhs.read, write: lhs.write && rhs.write}
+    fn or(lhs: Flags, rhs: Flags) -> Flags = Flags {read: lhs.read || rhs.read, write: lhs.write || rhs.write}
+    fn xor(lhs: Flags, rhs: Flags) -> Flags = Flags {read: lhs.read `xor` rhs.read, write: lhs.write `xor` rhs.write}
+    fn not(value: Flags) -> Flags = Flags {read: !value.read, write: !value.write}
+
+fn flags() -> Int:
+    let rw = Flags {read: True, write: True}
+    let r = Flags {read: True, write: False}
+    let inverted = !r
+    let &score = 0
+
+    if (rw && r) == r then score = score + 256
+    if (r || rw) == rw then score = score + 512
+    if inverted == Flags {read: False, write: True} then score = score + 1024
+
+    return score
+
+-- A class declared here writes defaults by the same rule Core's do.
+class Describe(a):
+    fn size(value: a) -> Int
+    fn doubled(value: a) -> Int = size(value) + size(value)
+
+instance Describe(Metres):
+    fn size(value: Metres) -> Int = value.value
+
+fn described() -> Int = doubled(Metres {value: 1024})
+
+data Box(a) {item: a}
+
+-- A parametric head inheriting a default. The default is generic over the *class's* variable, so
+-- what specializes it here is `Box(Int)` - what selecting the head resolved to - rather than the
+-- `Int` the head's own variable bound.
+instance (Eq(a)) Eq(Box(a)):
+    fn ==(lhs: Box(a), rhs: Box(a)) -> Bool = lhs.item == rhs.item
+
+fn boxOf(value: Int) -> Box(Int) = Box {item: value}
+
+fn boxes() -> Int:
+    if boxOf(1) != boxOf(2) then return 4096
+    return 0
+
+fn main() -> Int = ordered() + overridden() + negated() + flags() + described() + boxes()

@@ -1,0 +1,514 @@
+fn Ord(Int).compare(%lhs: Int, %rhs: Int) -> Ordering {
+  b0:
+    %v2 = cmp_eq %lhs, %rhs : Bool
+    je %v2, b1, b2
+
+  b1:
+    ret EQ
+
+  b2:
+    %v6 = cmp_gt %lhs, %rhs : Bool
+    je %v6, b3, b4
+
+  b3:
+    ret GT
+
+  b4:
+    ret LT
+}
+
+fn Eq.!=(Metres)(%lhs: Metres, %rhs: Metres) -> Bool {
+  b0:
+    %v2 = call Eq(Metres).==, %lhs, %rhs : Bool
+    %v4 = xor %v2, True : Bool
+    ret %v4
+}
+
+fn Ord.<(Metres)(%lhs: Metres, %rhs: Metres) -> Bool {
+  b0:
+    %v2 = call Ord(Metres).compare, %lhs, %rhs : Ordering
+    %v4 = cmp_eq %v2, LT : Bool
+    ret %v4
+}
+
+fn Ord.<=(Metres)(%lhs: Metres, %rhs: Metres) -> Bool {
+  b0:
+    %v2 = call Ord(Metres).compare, %lhs, %rhs : Ordering
+    %v4 = cmp_ne %v2, GT : Bool
+    ret %v4
+}
+
+fn Ord.>(Metres)(%lhs: Metres, %rhs: Metres) -> Bool {
+  b0:
+    %v2 = call Ord(Metres).compare, %lhs, %rhs : Ordering
+    %v4 = cmp_eq %v2, GT : Bool
+    ret %v4
+}
+
+fn Ord.>=(Metres)(%lhs: Metres, %rhs: Metres) -> Bool {
+  b0:
+    %v2 = call Ord(Metres).compare, %lhs, %rhs : Ordering
+    %v4 = cmp_ne %v2, LT : Bool
+    ret %v4
+}
+
+fn Num.-(Cents)(%value: Cents) -> Cents {
+  b0:
+    %v2 = call FromInt(Cents).fromInt, 0 : Cents
+    %v3 = call Num(Cents).-, %v2, %value : Cents
+    ret %v3
+}
+
+fn Logic.!(Flags)(%value: Flags) -> Flags {
+  b0:
+    %v1 = call Logic(Flags).not, %value : Flags
+    ret %v1
+}
+
+fn Logic.&&(Flags)(%lhs: Flags, %rhs: Flags) -> Flags {
+  b0:
+    %v2 = call Logic(Flags).and, %lhs, %rhs : Flags
+    ret %v2
+}
+
+fn Logic.||(Flags)(%lhs: Flags, %rhs: Flags) -> Flags {
+  b0:
+    %v2 = call Logic(Flags).or, %lhs, %rhs : Flags
+    ret %v2
+}
+
+fn Eq.!=(Box(Int))(%lhs: Box(Int), %rhs: Box(Int)) -> Bool {
+  b0:
+    %v2 = call Eq(Box(a)).==(Int), %lhs, %rhs : Bool
+    %v4 = xor %v2, True : Bool
+    ret %v4
+}
+
+(Describe(a)) fn Describe.doubled(%value: a) -> Int {
+  b0:
+    %v1 = gencall Describe(a).size, %value : Int
+    %v2 = gencall Describe(a).size, %value : Int
+    %v3 = add %v1, %v2 : Int
+    ret %v3
+}
+
+fn ordered() -> Int {
+  b0:
+    %a = alloc : Metres
+    init %local0@Metres.value, 1
+    %b = alloc : Metres
+    init %local1@Metres.value, 2
+    %score = alloc : Int
+    init %score, 0
+    %v10 = call Eq.!=(Metres), %a, %b : Bool
+    je %v10, b1, b2
+
+  b1:
+    %v12 = load %score : Int
+    %v15 = add %v12, 1 : Int
+    init %score, %v15
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = call Ord.<(Metres), %a, %b : Bool
+    je %v19, b4, b5
+
+  b4:
+    %v21 = load %score : Int
+    %v24 = add %v21, 2 : Int
+    init %score, %v24
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v28 = call Ord.<=(Metres), %a, %b : Bool
+    je %v28, b7, b8
+
+  b7:
+    %v30 = load %score : Int
+    %v33 = add %v30, 4 : Int
+    init %score, %v33
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v37 = call Ord.>(Metres), %b, %a : Bool
+    je %v37, b10, b11
+
+  b10:
+    %v39 = load %score : Int
+    %v42 = add %v39, 8 : Int
+    init %score, %v42
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v46 = call Ord.>=(Metres), %b, %a : Bool
+    je %v46, b13, b14
+
+  b13:
+    %v48 = load %score : Int
+    %v51 = add %v48, 16 : Int
+    init %score, %v51
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v55 = call Ord.>=(Metres), %a, %a : Bool
+    je %v55, b16, b17
+
+  b16:
+    %v57 = load %score : Int
+    %v60 = add %v57, 32 : Int
+    init %score, %v60
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v64 = load %score : Int
+    ret %v64
+}
+
+fn overridden() -> Int {
+  b0:
+    %v0 = alloc : Feet
+    init %local0@Feet.value, 1
+    %v3 = alloc : Feet
+    init %local1@Feet.value, 2
+    %v6 = call Eq(Feet).!=, %v0, %v3 : Bool
+    je %v6, b1, b2
+
+  b1:
+    ret 64
+
+  b2:
+    jmp b3
+
+  b3:
+    ret 0
+}
+
+fn negated() -> Int {
+  b0:
+    %value = alloc : Cents
+    init %local0@Cents.value, 7
+    %negative = call Num.-(Cents), %value : Cents
+    %v4 = alloc : Cents
+    %v7 = neg 7 : Int
+    init %local2@Cents.value, %v7
+    %v9 = call Eq(Cents).==, %negative, %v4 : Bool
+    je %v9, b1, b2
+
+  b1:
+    ret 128
+
+  b2:
+    jmp b3
+
+  b3:
+    ret 0
+}
+
+fn flags() -> Int {
+  b0:
+    %rw = alloc : Flags
+    init %local0@Flags.read, True
+    init %local0@Flags.write, True
+    %r = alloc : Flags
+    init %local1@Flags.read, True
+    init %local1@Flags.write, False
+    %inverted = call Logic.!(Flags), %r : Flags
+    %score = alloc : Int
+    init %score, 0
+    %v15 = call Logic.&&(Flags), %rw, %r : Flags
+    %v16 = call Eq(Flags).==, %v15, %r : Bool
+    je %v16, b1, b2
+
+  b1:
+    %v18 = load %score : Int
+    %v21 = add %v18, 256 : Int
+    init %score, %v21
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v25 = call Logic.||(Flags), %r, %rw : Flags
+    %v26 = call Eq(Flags).==, %v25, %rw : Bool
+    je %v26, b4, b5
+
+  b4:
+    %v28 = load %score : Int
+    %v31 = add %v28, 512 : Int
+    init %score, %v31
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v35 = alloc : Flags
+    init %local6@Flags.read, False
+    init %local6@Flags.write, True
+    %v40 = call Eq(Flags).==, %inverted, %v35 : Bool
+    je %v40, b7, b8
+
+  b7:
+    %v42 = load %score : Int
+    %v45 = add %v42, 1024 : Int
+    init %score, %v45
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v49 = load %score : Int
+    ret %v49
+}
+
+fn described() -> Int {
+  b0:
+    %v0 = alloc : Metres
+    init %local0@Metres.value, 1024
+    %v3 = call Describe.doubled(Metres), %v0 : Int
+    ret %v3
+}
+
+fn boxOf(%value: Int) -> Box(Int) {
+  b0:
+    %v1 = alloc : Box(Int)
+    init %local0@Box.item, %value
+    ret %v1
+}
+
+fn boxes() -> Int {
+  b0:
+    %v1 = call boxOf, 1 : Box(Int)
+    %v3 = call boxOf, 2 : Box(Int)
+    %v4 = call Eq.!=(Box(Int)), %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret 4096
+
+  b2:
+    jmp b3
+
+  b3:
+    ret 0
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call ordered : Int
+    %v1 = call overridden : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call negated : Int
+    %v4 = add %v2, %v3 : Int
+    %v5 = call flags : Int
+    %v6 = add %v4, %v5 : Int
+    %v7 = call described : Int
+    %v8 = add %v6, %v7 : Int
+    %v9 = call boxes : Int
+    %v10 = add %v8, %v9 : Int
+    ret %v10
+}
+
+fn Eq(Metres).==(%lhs: Metres, %rhs: Metres) -> Bool {
+  b0:
+    %v2 = load %lhs@Metres.value : Int
+    %v3 = load %rhs@Metres.value : Int
+    %v4 = cmp_eq %v2, %v3 : Bool
+    ret %v4
+}
+
+fn Ord(Metres).compare(%lhs: Metres, %rhs: Metres) -> Ordering {
+  b0:
+    %v2 = load %lhs@Metres.value : Int
+    %v3 = load %rhs@Metres.value : Int
+    %v4 = call Ord(Int).compare, %v2, %v3 : Ordering
+    ret %v4
+}
+
+fn Eq(Feet).==(%lhs: Feet, %rhs: Feet) -> Bool {
+  b0:
+    %v2 = load %lhs@Feet.value : Int
+    %v3 = load %rhs@Feet.value : Int
+    %v4 = cmp_eq %v2, %v3 : Bool
+    ret %v4
+}
+
+fn Eq(Feet).!=(%lhs: Feet, %rhs: Feet) -> Bool {
+  b0:
+    %v2 = load %lhs@Feet.value : Int
+    %v3 = load %rhs@Feet.value : Int
+    %v4 = cmp_ne %v2, %v3 : Bool
+    ret %v4
+}
+
+fn FromInt(Cents).fromInt(%value: Long) -> Cents {
+  b0:
+    %v1 = alloc : Cents
+    %v2 = cast %value : Int
+    init %local0@Cents.value, %v2
+    ret %v1
+}
+
+fn Eq(Cents).==(%lhs: Cents, %rhs: Cents) -> Bool {
+  b0:
+    %v2 = load %lhs@Cents.value : Int
+    %v3 = load %rhs@Cents.value : Int
+    %v4 = cmp_eq %v2, %v3 : Bool
+    ret %v4
+}
+
+fn Num(Cents).+(%lhs: Cents, %rhs: Cents) -> Cents {
+  b0:
+    %v2 = alloc : Cents
+    %v3 = load %lhs@Cents.value : Int
+    %v4 = load %rhs@Cents.value : Int
+    %v5 = add %v3, %v4 : Int
+    init %local2@Cents.value, %v5
+    ret %v2
+}
+
+fn Num(Cents).-(%lhs: Cents, %rhs: Cents) -> Cents {
+  b0:
+    %v2 = alloc : Cents
+    %v3 = load %lhs@Cents.value : Int
+    %v4 = load %rhs@Cents.value : Int
+    %v5 = sub %v3, %v4 : Int
+    init %local2@Cents.value, %v5
+    ret %v2
+}
+
+fn Num(Cents).*(%lhs: Cents, %rhs: Cents) -> Cents {
+  b0:
+    %v2 = alloc : Cents
+    %v3 = load %lhs@Cents.value : Int
+    %v4 = load %rhs@Cents.value : Int
+    %v5 = mul %v3, %v4 : Int
+    init %local2@Cents.value, %v5
+    ret %v2
+}
+
+fn Num(Cents)./(%lhs: Cents, %rhs: Cents) -> Cents {
+  b0:
+    %v2 = alloc : Cents
+    %v3 = load %lhs@Cents.value : Int
+    %v4 = load %rhs@Cents.value : Int
+    %v5 = div %v3, %v4 : Int
+    init %local2@Cents.value, %v5
+    ret %v2
+}
+
+fn Eq(Flags).==(%lhs: Flags, %rhs: Flags) -> Bool {
+  b0:
+    %v2 = load %lhs@Flags.read : Bool
+    %v3 = load %rhs@Flags.read : Bool
+    %v4 = cmp_eq %v2, %v3 : Bool
+    %v5 = load %lhs@Flags.write : Bool
+    %v6 = load %rhs@Flags.write : Bool
+    %v7 = cmp_eq %v5, %v6 : Bool
+    %v8 = and %v4, %v7 : Bool
+    ret %v8
+}
+
+fn Logic(Flags).and(%lhs: Flags, %rhs: Flags) -> Flags {
+  b0:
+    %v2 = alloc : Flags
+    %v3 = load %lhs@Flags.read : Bool
+    %v4 = load %rhs@Flags.read : Bool
+    %v5 = and %v3, %v4 : Bool
+    %v6 = load %lhs@Flags.write : Bool
+    %v7 = load %rhs@Flags.write : Bool
+    %v8 = and %v6, %v7 : Bool
+    init %local2@Flags.read, %v5
+    init %local2@Flags.write, %v8
+    ret %v2
+}
+
+fn Logic(Flags).or(%lhs: Flags, %rhs: Flags) -> Flags {
+  b0:
+    %v2 = alloc : Flags
+    %v3 = load %lhs@Flags.read : Bool
+    %v4 = load %rhs@Flags.read : Bool
+    %v5 = or %v3, %v4 : Bool
+    %v6 = load %lhs@Flags.write : Bool
+    %v7 = load %rhs@Flags.write : Bool
+    %v8 = or %v6, %v7 : Bool
+    init %local2@Flags.read, %v5
+    init %local2@Flags.write, %v8
+    ret %v2
+}
+
+fn Logic(Flags).xor(%lhs: Flags, %rhs: Flags) -> Flags {
+  b0:
+    %v2 = alloc : Flags
+    %v3 = load %lhs@Flags.read : Bool
+    %v4 = load %rhs@Flags.read : Bool
+    %v5 = xor %v3, %v4 : Bool
+    %v6 = load %lhs@Flags.write : Bool
+    %v7 = load %rhs@Flags.write : Bool
+    %v8 = xor %v6, %v7 : Bool
+    init %local2@Flags.read, %v5
+    init %local2@Flags.write, %v8
+    ret %v2
+}
+
+fn Logic(Flags).not(%value: Flags) -> Flags {
+  b0:
+    %v1 = alloc : Flags
+    %v2 = load %value@Flags.read : Bool
+    %v4 = xor %v2, True : Bool
+    %v5 = load %value@Flags.write : Bool
+    %v7 = xor %v5, True : Bool
+    init %local1@Flags.read, %v4
+    init %local1@Flags.write, %v7
+    ret %v1
+}
+
+fn Describe(Metres).size(%value: Metres) -> Int {
+  b0:
+    %v1 = load %value@Metres.value : Int
+    ret %v1
+}
+
+(Eq(a)) fn Eq(Box(a)).==(%lhs: Box(a), %rhs: Box(a)) -> Bool {
+  b0:
+    %v2 = load %lhs@Box.item : a
+    %v3 = load %rhs@Box.item : a
+    %v4 = gencall Eq(a).==, %v2, %v3 : Bool
+    ret %v4
+}
+
+fn Describe.doubled(Metres)(%value: Metres) -> Int {
+  b0:
+    %v1 = call Describe(Metres).size, %value : Int
+    %v2 = call Describe(Metres).size, %value : Int
+    %v3 = add %v1, %v2 : Int
+    ret %v3
+}
+
+fn Eq(Box(a)).==(Int)(%lhs: Box(Int), %rhs: Box(Int)) -> Bool {
+  b0:
+    %v2 = load %lhs@Box.item : Int
+    %v3 = load %rhs@Box.item : Int
+    %v4 = cmp_eq %v2, %v3 : Bool
+    ret %v4
+}

@@ -118,6 +118,22 @@ ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassIns
     auto implementation = local[instance]->functions.get(local, index);
     if(!implementation) return nullptr;
 
+    // A default the instance did not override is generic over the *class's* type variables rather
+    // than over the head's, so what specializes it is what the head resolves to - `Ptr(Int)`, for
+    // `Eq(Ptr(a))` selected at `a = Int` - and not the head's own bindings. Reading the class types
+    // back off the head is what makes a concrete and a parametric instance the same case here.
+    if(implementation == global[local[instance]->typeClass]->functions.get(global, index).defaultFun) {
+        Array<TypePtr> classArgs;
+        for(auto type: local[instance]->forTypes.contents(local)) {
+            classArgs.push(substituteType(module, type, instanceArgs, source));
+        }
+
+        auto specialized = instantiateFunction(site, implementation, toBuffer(classArgs), source);
+        if(!specialized) return nullptr;
+
+        return emitDirectCall(specialized, args, source, target, resultName);
+    }
+
     // A concrete instance's implementation is a function like any other.
     if(!local[instance]->gen) return emitDirectCall(implementation, args, source, target, resultName);
 

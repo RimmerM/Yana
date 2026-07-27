@@ -256,8 +256,12 @@ ModulePtr<Value> ExprResolver::truthy(ModulePtr<Value> value, LocationId source)
 
     if(matchClassFun(reference, { args, 1 }, module.scalar.bool_, match)) {
         if(match.instance) {
-            if(auto implementation = local[match.instance]->functions.get(local, match.index)) {
-                return emitDirectCall(implementation, { args, 1 }, source);
+            // Through emitInstanceCall rather than straight to the implementation, because what
+            // stands in the slot may be a parametric head's generic body or the class's own
+            // default, neither of which is a function about this type until it is specialized.
+            if(local[match.instance]->functions.get(local, match.index)) {
+                return emitInstanceCall(module, match.instance, toBuffer(match.instanceArgs), match.index,
+                                        { args, 1 }, source);
             }
         } else if(isGeneric(global, type)) {
             // In a generic body the instance is the caller's to supply, exactly as it is for any

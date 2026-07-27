@@ -59,27 +59,43 @@ class FromDecimal(a):
 default FromInt = Int
 default FromDecimal = Float
 
+-- The bodies below are class defaults: an instance that writes `==` has `!=` already, and one
+-- that writes `compare` has all four comparisons. What each class still asks of an instance is the
+-- one primitive operation everything else is derived from, which is why there is no choice of
+-- which function to implement and no `MINIMAL` pragma to read. A default may only call class
+-- functions of strictly lower rank than its own, so a pair defining each other in terms of the
+-- other is a rejected declaration rather than a program that compiles and hangs.
+--
+-- Every primitive instance below still supplies all of these itself, so a Bool's `!=` is the one
+-- comparison instruction it always was rather than a specialization of `!(lhs == rhs)`.
 class Eq(a):
   fn ==(lhs: a, rhs: a) -> Bool
-  fn !=(lhs: a, rhs: a) -> Bool
+  fn !=(lhs: a, rhs: a) -> Bool = !(lhs == rhs)
 
+-- The four comparisons are `compare` read four ways, and `compare` is the fold a derived instance
+-- would have to produce. Lexicographic order over a record is therefore one function rather than
+-- five, which is what makes Ord worth deriving at all.
 class (Eq(a)) Ord(a):
-  fn <(lhs: a, rhs: a) -> Bool
-  fn <=(lhs: a, rhs: a) -> Bool
-  fn >(lhs: a, rhs: a) -> Bool
-  fn >=(lhs: a, rhs: a) -> Bool
+  fn <(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) == LT
+  fn <=(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) != GT
+  fn >(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) == GT
+  fn >=(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) != LT
   fn compare(lhs: a, rhs: a) -> Ordering
 
 -- Anything that can be added can be counted from, so `fn (Num(a)) inc(x: a) = x + 1` compiles as
 -- written rather than making the author declare FromInt as well. FromInt stays its own class so
 -- that a Duration or a units newtype can be integer-literal-constructible without also claiming
 -- to support multiplication.
+--
+-- Negation is the one place the superclass earns its keep as a default: `0` is `FromInt(a)` and
+-- the subtraction is this class's own, so unary `-` needs nothing an instance has not already
+-- promised. An instance for which that is not the negation it wants overrides it.
 class (FromInt(a)) Num(a):
   fn +(lhs: a, rhs: a) -> a
   fn -(lhs: a, rhs: a) -> a
   fn *(lhs: a, rhs: a) -> a
   fn /(lhs: a, rhs: a) -> a
-  fn -(value: a) -> a
+  fn -(value: a) -> a = 0 - value
 
 class (Num(a)) Integral(a):
   fn rem(lhs: a, rhs: a) -> a
@@ -92,14 +108,18 @@ class (Num(a)) Integral(a):
   fn xor(lhs: a, rhs: a) -> a
   fn not(value: a) -> a
 
+-- For a type that is not Bool the short-circuiting pair and the bitwise pair are the same
+-- operation, so `&&`, `||` and `!` default to `and`, `or` and `not` and an instance writes four
+-- functions instead of seven. Bool's own instance supplies all seven, which is where
+-- short-circuiting lands when the evaluation order of `&&` becomes a rule.
 class Logic(a):
-  fn &&(lhs: a, rhs: a) -> a
-  fn ||(lhs: a, rhs: a) -> a
+  fn &&(lhs: a, rhs: a) -> a = and(lhs, rhs)
+  fn ||(lhs: a, rhs: a) -> a = or(lhs, rhs)
   fn and(lhs: a, rhs: a) -> a
   fn or(lhs: a, rhs: a) -> a
   fn xor(lhs: a, rhs: a) -> a
   fn not(value: a) -> a
-  fn !(value: a) -> a
+  fn !(value: a) -> a = not(value)
 
 -- What a condition means. `if x`, `if:` cases and `while x` ask this class rather than requiring
 -- a Bool, so `if items:` and `if i - 1: continue` say what they look like they say. The rule that

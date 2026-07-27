@@ -27,6 +27,18 @@ struct ClassFun {
     // Recorded at declaration time so that two functions of one class can share a name when
     // their arities differ - a class declares both the binary and the unary `-`.
     U16 arity = 0;
+
+    // The body the class wrote for this signature, if it wrote one: a generic function over the
+    // class's own type variables that carries the class itself as a requirement, so `!=` written
+    // as `!(lhs == rhs)` is exactly `fn (Eq(a)) !=(lhs: a, rhs: a) -> Bool`. An instance that
+    // supplies no implementation gets this one, specialized for its own types.
+    ModulePtr<Function> defaultFun = nullptr;
+
+    // How far this function is from one an instance must write. A signature with no default has
+    // rank 0; a default has one more than the highest-ranked class function it calls, which makes
+    // a set of defaults that call each other in a circle a rejected declaration rather than a
+    // program that compiles and hangs. See checkDefaultRanks().
+    U16 rank = 0;
 };
 
 struct TypeClass {

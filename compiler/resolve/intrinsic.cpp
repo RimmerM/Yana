@@ -179,11 +179,18 @@ void generateInstance(Module& module, GlobalPtr<TypeClass> classPointer, Buffer<
         assertTrue(matched);
     }
 
-    // `compare` is the only class function no table entry above covers.
+    // `compare` is the only class function no table entry above covers. The tables stay complete
+    // even where the class now has a default, so a primitive's `!=` is still the one `cmp` it
+    // always was rather than a specialized `!(lhs == rhs)` waiting to be inlined.
     for(Size i = 0; i < typeClass->functions.size(); i++) {
         if(instance->functions.get(local, i)) continue;
 
         auto entry = typeClass->functions.get(global, i);
+        if(entry.defaultFun) {
+            instance->functions.set(local, i, entry.defaultFun);
+            continue;
+        }
+
         assertTrue(entry.name == Context::nameHash("compare", 7));
         instance->functions.set(local, i, generateCompare(module, *typeClass, args[0], gen));
     }
