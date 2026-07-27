@@ -134,6 +134,10 @@ struct ExprResolver {
     void bindMutable(const ast::VarDecl& declaration, ModulePtr<Value> value);
     ModulePtr<Value> makeInt(LocationId source, TypePtr type, U64 value);
     ModulePtr<Value> makeFloat(LocationId source, TypePtr type, F64 value);
+
+    // What reading a module-level name produces: a constant for an immutable global of direct
+    // type, and a load of its place for anything else. See expr.cpp.
+    ModulePtr<Value> globalValue(ModulePtr<Global> global_, LocationId source);
     ModulePtr<Value> convert(ModulePtr<Value> value, TypePtr target, LocationId source, bool implicit = true);
 
     // Whether convert() would succeed implicitly, without reporting anything if it wouldn't.

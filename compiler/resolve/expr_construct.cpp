@@ -46,9 +46,26 @@ Place ExprResolver::materialize(ModulePtr<Value> value, LocationId source) {
         if(function.localAt(local, i).value == value) return Place::inLocal(i);
     }
 
+    // A value that occupies nothing has nowhere to be put, so there is no address to answer with
+    // and the honest answer is to say so. Allocating for one would hand back a pointer to whatever
+    // followed it in the frame, which is a dangling pointer the program has no way to notice.
+    //
+    // Everything else *can* be given storage, and the address it then has is the address of a
+    // temporary - which is what taking the address of a value rather than of a variable means,
+    // whether the value came from a call, an arithmetic expression, or an immutable global. This is
+    // the whole of the check on purpose: a value reaches here with a settled, concrete type (see
+    // emitGenericCall), so a size that cannot be allocated for is the one case left.
+    auto type = valueType(value);
+    if(isUnit(global, type)) {
+        // Worded for addressOf, which is the only caller; a second one would want it generalized.
+        context.diagnostics.error("cannot take the address of a value of type %@, which occupies no storage"_v,
+                                  source, describeType(context, global, type));
+        return Place::inLocal(maxLimit<U32>);
+    }
+
     // Deliberately unnamed: the value already carries the name this was written under, and giving
     // the storage the same one would print two different things as `%x`.
-    auto storage = allocate(valueType(value), source);
+    auto storage = allocate(type, source);
     auto place = placeFor(storage, source);
 
     initialize(place, value, source);

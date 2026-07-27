@@ -30,6 +30,53 @@ ModulePtr<Value> ExprResolver::makeFloat(LocationId source, TypePtr type, F64 va
 }
 
 /*
+ * Reading a module-level name.
+ *
+ * A `let &` global is storage, so reading one is a load of its place exactly as a mutable local's
+ * is. A plain one is not. Nothing in the program can assign to it - resolvePlace reports on any
+ * attempt - so its value is forever the constant declareGlobal recorded, and the read is that
+ * constant rather than a load of the bytes it would have been emitted as. Nothing then reads the
+ * storage at all, so the global is not marked used and is not emitted: an immutable global is a
+ * name for a constant and occupies nothing, which is what `let regionSize = 4194304 :: I64` should
+ * cost and what makes it worth writing in place of a function returning the same number.
+ *
+ * Only a direct type folds. A memory type's value *is* its storage, and `initial` says only that
+ * the storage starts zeroed, so for one of those the load stays.
+ */
+ModulePtr<Value> ExprResolver::globalValue(ModulePtr<Global> global_, LocationId source) {
+    auto& definition = *local[global_];
+    auto type = definition.type;
+
+    if(definition.mut || !isDirectType(global, type)) {
+        definition.used = true;
+        return load(Place::inGlobal(global_), source);
+    }
+
+    // `initial` holds the bits the storage would have held, at the width of the global's own type,
+    // which is the form declareGlobal wrote them in.
+    if(isFloat(global, type)) {
+        if(((FloatType*)global[type])->width == FloatType::Float) {
+            F32 single;
+            copy((const Byte*)&definition.initial, (Byte*)&single, sizeof(single));
+            return makeFloat(source, type, F64(single));
+        }
+
+        F64 number;
+        copy((const Byte*)&definition.initial, (Byte*)&number, sizeof(number));
+        return makeFloat(source, type, number);
+    }
+
+    // The resolve IR has no pointer immediate on purpose, so a pointer constant is its address as
+    // an integer reinterpreted - which is the same thing `null()` expands to.
+    if(isPointer(global, type)) {
+        auto address = makeInt(source, module.scalar.long_, definition.initial);
+        return ref(emit<InstUnary>(source, 0, type, Value::Cast, address));
+    }
+
+    return makeInt(source, type, definition.initial);
+}
+
+/*
  * Literal variables.
  *
  * A literal is a class-polymorphic value: `1` means `FromInt.fromInt(1)` and `1.5` means
@@ -757,11 +804,8 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
         case ast::Expr::Var: {
             auto binding = findBinding(expr.var);
             if(!binding) {
-                // A module-level name is storage rather than a value, so a global read is a load
-                // of its place exactly as a mutable local's is.
                 if(auto found = findGlobal(module, expr.var, expr.source)) {
-                    local[found]->used = true;
-                    auto value = load(Place::inGlobal(found), expr.source);
+                    auto value = globalValue(found, expr.source);
                     return value && target ? convert(value, target, expr.source) : value;
                 }
 

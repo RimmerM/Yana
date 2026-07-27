@@ -1,0 +1,107 @@
+let regionSize: I64 = 4194304
+
+let classCount: I64 = 32
+
+let ratio: Float = 1075838976
+
+let nowhere: %U8 = 0
+
+let &counter: I64 = 0
+
+let &slot: I64 = 0
+
+fn integerConstants() -> I64 {
+  b0:
+    %v2 = div 4194304, 32 : I64
+    ret %v2
+}
+
+fn floatConstant() -> I64 {
+  b0:
+    %v3 = cmp_gt 2.5, 2 : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, 1], [b2, 0] : I64
+    ret %v9
+}
+
+fn pointerConstant() -> I64 {
+  b0:
+    %v1 = cast 0 : %U8
+    %v2 = cast %v1 : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, 10], [b2, 0] : I64
+    ret %v10
+}
+
+fn fromNative() -> I64 {
+  b0:
+    %v2 = div 4194304, 32 : I64
+    ret %v2
+}
+
+fn addressOfConstant() -> I64 {
+  b0:
+    %v1 = alloc : I64
+    init %local0, 4194304
+    %p = addressof %local0 : %I64
+    %v4 = load [%p] : I64
+    %v7 = add %v4, 1 : I64
+    init [%p], %v7
+    %v9 = load [%p] : I64
+    %v11 = sub %v9, 4194304 : I64
+    ret %v11
+}
+
+fn addressOfStorage() -> I64 {
+  b0:
+    %v0 = load slot : I64
+    %p = addressof slot : %I64
+    init [%p], 7
+    %v4 = load slot : I64
+    ret %v4
+}
+
+fn mutableGlobal() -> I64 {
+  b0:
+    %v0 = load counter : I64
+    %v3 = add %v0, 5 : I64
+    init counter, %v3
+    %v5 = load counter : I64
+    ret %v5
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call integerConstants : I64
+    %v1 = call floatConstant : I64
+    %v2 = add %v0, %v1 : I64
+    %v3 = call pointerConstant : I64
+    %v4 = add %v2, %v3 : I64
+    %v5 = call fromNative : I64
+    %v6 = add %v4, %v5 : I64
+    %v7 = call addressOfConstant : I64
+    %v8 = add %v6, %v7 : I64
+    %v9 = call addressOfStorage : I64
+    %v10 = add %v8, %v9 : I64
+    %v11 = call mutableGlobal : I64
+    %total = add %v10, %v11 : I64
+    %v13 = cast %total : Int
+    ret %v13
+}

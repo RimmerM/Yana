@@ -1,0 +1,115 @@
+@nowhere = [0, 0, 0, 0, 0, 0, 0, 0]
+@classCount = [32, 0, 0, 0, 0, 0, 0, 0]
+@regionSize = [0, 0, 64, 0, 0, 0, 0, 0]
+@ratio = [0, 0, 32, 64]
+@slot = [0, 0, 0, 0, 0, 0, 0, 0]
+@counter = [0, 0, 0, 0, 0, 0, 0, 0]
+
+fromNative<complex>(): Long {
+  b_0 {
+    %v_1 = idiv 4194304, 32: Long
+    ret %v_1
+  }
+}
+
+mutableGlobal<complex>(): Long {
+  b_0 {
+    %v_1 = loads @counter, 8: Long
+    %v_2 = add %v_1, 5: Long
+    store @counter, %v_2, 8
+    %v_3 = loads @counter, 8: Long
+    ret %v_3
+  }
+}
+
+integerConstants<complex>(): Long {
+  b_0 {
+    %v_1 = idiv 4194304, 32: Long
+    ret %v_1
+  }
+}
+
+floatConstant<complex>(): Long {
+  b_0 {
+    %v_1 = cmp_gt 2.5, 2: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_2, 1], [b_3, 0]: Long
+    ret %v_5
+  }
+}
+
+addressOfStorage<complex>(): Long {
+  b_0 {
+    %v_1 = loads @slot, 8: Long
+    store @slot, 7, 8
+    %v_2 = loads @slot, 8: Long
+    ret %v_2
+  }
+}
+
+pointerConstant<complex>(): Long {
+  b_0 {
+    %v_1 = bitcast 0: Ptr
+    %v_2 = bitcast %v_1: Long
+    %v_3 = cmp_eq %v_2, 0: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    jmp b_6
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_4, 10], [b_5, 0]: Long
+    ret %v_7
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex integerConstants: Long
+    %v_2 = call_complex floatConstant: Long
+    %v_3 = add %v_1, %v_2: Long
+    %v_4 = call_complex pointerConstant: Long
+    %v_5 = add %v_3, %v_4: Long
+    %v_6 = call_complex fromNative: Long
+    %v_7 = add %v_5, %v_6: Long
+    %v_8 = call_complex addressOfConstant: Long
+    %v_9 = add %v_7, %v_8: Long
+    %v_10 = call_complex addressOfStorage: Long
+    %v_11 = add %v_9, %v_10: Long
+    %v_12 = call_complex mutableGlobal: Long
+    %total = add %v_11, %v_12: Long
+    %v_13 = cast %total: Int
+    ret %v_13
+  }
+}
+
+addressOfConstant<complex>(): Long {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, 4194304, 8
+    %v_2 = loads %v_1, 8: Long
+    %v_3 = add %v_2, 1: Long
+    store %v_1, %v_3, 8
+    %v_4 = loads %v_1, 8: Long
+    %v_5 = sub %v_4, 4194304: Long
+    ret %v_5
+  }
+}
+

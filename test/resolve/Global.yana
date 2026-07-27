@@ -1,0 +1,55 @@
+-- Module-level `let`, and the difference the `&` makes.
+--
+-- An immutable global is a name for a constant: nothing can assign to it, so every read is the
+-- value the declaration recorded rather than a load of the bytes it would have been emitted as.
+-- A `let &` is static storage, and reading one is a load exactly as a mutable local's is.
+
+import Native
+
+let regionSize = 4194304 :: I64
+let classCount = 32 :: I64
+let ratio = 2.5 :: Float
+let nowhere = 0 :: %U8
+
+let &counter = 0 :: I64
+let &slot = 0 :: I64
+
+-- Four folds, one per direct type a global can have: nothing here loads, and the arithmetic is
+-- over immediates.
+fn integerConstants() -> I64 = regionSize / classCount
+
+fn floatConstant() -> I64 = if ratio > 2.0 then 1 else 0
+
+fn pointerConstant() -> I64 = if isNull(nowhere) then 10 else 0
+
+-- A constant declared in another module folds the same way - nothing about the fold depends on
+-- where the `let` was written, which is what makes Native's own constants free at every call site.
+fn fromNative() -> I64 = heapRegionSize / heapClassCount
+
+-- `addressOf` of an immutable global is the address of a temporary holding its value, since a
+-- constant has no storage of its own to point at. Writing through that pointer changes the copy
+-- and nothing else, which is the only reading available for a value that cannot be assigned to.
+fn addressOfConstant() -> I64:
+    let p = addressOf(regionSize)
+
+    *p = *p + 1
+    return *p - regionSize
+
+-- A `let &` global does have storage, so its address *is* that storage and a write through the
+-- pointer is seen by the next read of the name.
+fn addressOfStorage() -> I64:
+    let p = addressOf(slot)
+
+    *p = 7
+    return slot
+
+-- Reading and writing a mutable global, which is the case the fold leaves alone.
+fn mutableGlobal() -> I64:
+    counter = counter + 5
+    return counter
+
+fn main() -> Int:
+    let total = integerConstants() + floatConstant() + pointerConstant() + fromNative() +
+                addressOfConstant() + addressOfStorage() + mutableGlobal()
+
+    return total :: Int

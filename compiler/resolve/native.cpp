@@ -109,24 +109,26 @@ fn syscall6(number: I64, a: I64, b: I64, c: I64, d: I64, e: I64, f: I64) -> I64
 -}
 
 -- 4 MiB of address space, and 32 size classes from 16 bytes up. The table is 256 bytes, so the
--- bump area starts there.
+-- bump area starts there. An immutable `let` is a name for a constant and occupies nothing, so
+-- these two are the numbers themselves wherever they are read; the three `let &` below are the
+-- static storage the policy actually needs.
+let heapRegionSize = 4194304 :: I64
+let heapClassCount = 32 :: I64
+
 let &heapNext = 0 :: %U8
 let &heapLimit = 0 :: %U8
 let &heapFree = 0 :: Ptr(Ptr(U8))
 
-fn heapRegionSize() -> I64 = 4194304
-fn heapClassCount() -> I64 = 32
-
 fn initHeap() -> {}:
-    let region = mapMemory(heapRegionSize())
+    let region = mapMemory(heapRegionSize)
     if isNull(region) then return
 
-    let table = heapClassCount() * 8
+    let table = heapClassCount * 8
     setMemory(region, 0, table)
 
     heapFree = cast(region) :: Ptr(Ptr(U8))
     heapNext = region + table
-    heapLimit = region + heapRegionSize()
+    heapLimit = region + heapRegionSize
 
 -- The size class of a request: the number of doublings from 16 bytes needed to hold it.
 fn heapClassOf(total: I64) -> I64:
@@ -152,7 +154,7 @@ fn allocateHeap(size: I64) -> %U8:
         if isNull(heapFree) then return null()
 
     let sizeClass = heapClassOf(size + 8)
-    if sizeClass >= heapClassCount() then return null()
+    if sizeClass >= heapClassCount then return null()
 
     -- A reused block already has its header; only the free list changes.
     let reused = freeListHead(sizeClass)
@@ -191,30 +193,30 @@ static const char* kLinuxSource = R"LINUX(
 import Native
 
 -- amd64 Linux call numbers.
-fn sysMmap() -> I64 = 9
-fn sysMunmap() -> I64 = 11
-fn sysWrite() -> I64 = 1
-fn sysExit() -> I64 = 60
+let sysMmap = 9 :: I64
+let sysMunmap = 11 :: I64
+let sysWrite = 1 :: I64
+let sysExit = 60 :: I64
 
 -- PROT_READ | PROT_WRITE, and MAP_PRIVATE | MAP_ANONYMOUS.
-fn protReadWrite() -> I64 = 3
-fn mapPrivateAnonymous() -> I64 = 34
+let protReadWrite = 3 :: I64
+let mapPrivateAnonymous = 34 :: I64
 
 -- Maps `size` bytes of zeroed, readable and writable address space, or null if the kernel
 -- refused. mmap reports failure as a small negative value rather than as an error flag, which is
 -- why the result is checked as a number before it becomes a pointer.
 fn mapMemory(size: I64) -> %U8:
-    let result = syscall6(sysMmap(), 0, size, protReadWrite(), mapPrivateAnonymous(), -1, 0)
+    let result = syscall6(sysMmap, 0, size, protReadWrite, mapPrivateAnonymous, -1, 0)
     if result < 0 then return null()
 
     return asPtr(result)
 
-fn unmapMemory(from: %U8, size: I64) -> I64 = syscall2(sysMunmap(), asInt(from), size)
+fn unmapMemory(from: %U8, size: I64) -> I64 = syscall2(sysMunmap, asInt(from), size)
 
-fn writeFile(handle: I64, from: %U8, count: I64) -> I64 = syscall3(sysWrite(), handle, asInt(from), count)
+fn writeFile(handle: I64, from: %U8, count: I64) -> I64 = syscall3(sysWrite, handle, asInt(from), count)
 
 fn exitProcess(status: I64) -> {}:
-    syscall1(sysExit(), status)
+    syscall1(sysExit, status)
     return
 )LINUX";
 

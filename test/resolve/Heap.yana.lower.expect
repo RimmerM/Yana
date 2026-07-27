@@ -2,6 +2,13 @@
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 
+heapBlockSize<complex>(%sizeClass: Long): Long {
+  b_0 {
+    %v_1 = shl 16, %sizeClass: Long
+    ret %v_1
+  }
+}
+
 heapClassOf<complex>(%total: Long): Long {
   b_0 {
     %size = alloca 8, 8: Ptr
@@ -58,33 +65,24 @@ reuseAfterFree<complex>(): Long {
 
 mapMemory<complex>(%size: Long): Ptr {
   b_0 {
-    %v_1 = call_complex sysMmap: Long
-    %v_2 = call_complex protReadWrite: Long
-    %v_3 = call_complex mapPrivateAnonymous: Long
-    %v_4 = neg 1: Long
-    %result = syscall %v_1, 0, %size, %v_2, %v_3, %v_4, 0: Long
-    %v_5 = cmp_ilt %result, 0: Int
-    je %v_5, b_6, b_7
+    %v_1 = neg 1: Long
+    %result = syscall 9, 0, %size, 3, 34, %v_1, 0: Long
+    %v_2 = cmp_ilt %result, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = bitcast 0: Ptr
+    ret %v_5
+  }
+
+  b_4 {
+    jmp b_6
   }
 
   b_6 {
-    %v_8 = bitcast 0: Ptr
-    ret %v_8
-  }
-
-  b_7 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = bitcast %result: Ptr
-    ret %v_10
-  }
-}
-
-heapRegionSize<complex>(): Long {
-  b_0 {
-    ret 4194304
+    %v_7 = bitcast %result: Ptr
+    ret %v_7
   }
 }
 
@@ -164,63 +162,6 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-initHeap<complex>() {
-  b_0 {
-    %v_1 = call_complex heapRegionSize: Long
-    %region = call_complex mapMemory, %v_1: Ptr
-    %v_2 = bitcast %region: Long
-    %v_3 = cmp_eq %v_2, 0: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_4 {
-    ret 
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = call_complex heapClassCount: Long
-    %table = imul %v_7, 8: Long
-    setpattern %region, %table, 0
-    %v_8 = bitcast %region: Ptr
-    store @heapFree, %v_8, 8
-    %v_9 = add %region, %table: Ptr
-    store @heapNext, %v_9, 8
-    %v_10 = call_complex heapRegionSize: Long
-    %v_11 = add %region, %v_10: Ptr
-    store @heapLimit, %v_11, 8
-    ret 
-  }
-}
-
-heapBlockSize<complex>(%sizeClass: Long): Long {
-  b_0 {
-    %v_1 = shl 16, %sizeClass: Long
-    ret %v_1
-  }
-}
-
-mapPrivateAnonymous<complex>(): Long {
-  b_0 {
-    ret 34
-  }
-}
-
-sysMmap<complex>(): Long {
-  b_0 {
-    ret 9
-  }
-}
-
-heapClassCount<complex>(): Long {
-  b_0 {
-    ret 32
-  }
-}
-
 allocateHeap<complex>(%size: Long): Ptr {
   b_0 {
     %v_1 = load @heapFree, 8: Ptr
@@ -257,80 +198,63 @@ allocateHeap<complex>(%size: Long): Ptr {
   b_11 {
     %v_14 = add %size, 8: Long
     %sizeClass = call_complex heapClassOf, %v_14: Long
-    %v_15 = call_complex heapClassCount: Long
-    %v_16 = cmp_ige %sizeClass, %v_15: Int
-    je %v_16, b_17, b_18
+    %v_15 = cmp_ige %sizeClass, 32: Int
+    je %v_15, b_16, b_17
+  }
+
+  b_16 {
+    %v_18 = bitcast 0: Ptr
+    ret %v_18
   }
 
   b_17 {
-    %v_19 = bitcast 0: Ptr
-    ret %v_19
+    jmp b_19
   }
 
-  b_18 {
-    jmp b_20
-  }
-
-  b_20 {
+  b_19 {
     %reused = call_complex freeListHead, %sizeClass: Ptr
-    %v_21 = bitcast %reused: Long
-    %v_22 = cmp_eq %v_21, 0: Int
-    %v_23 = xor %v_22, 1: Int
-    je %v_23, b_24, b_25
+    %v_20 = bitcast %reused: Long
+    %v_21 = cmp_eq %v_20, 0: Int
+    %v_22 = xor %v_21, 1: Int
+    je %v_22, b_23, b_24
   }
 
-  b_24 {
-    %v_26 = bitcast %reused: Ptr
-    %v_27 = load %v_26, 8: Ptr
-    call_complex setFreeListHead, %sizeClass, %v_27
+  b_23 {
+    %v_25 = bitcast %reused: Ptr
+    %v_26 = load %v_25, 8: Ptr
+    call_complex setFreeListHead, %sizeClass, %v_26
     ret %reused
   }
 
-  b_25 {
-    jmp b_28
+  b_24 {
+    jmp b_27
   }
 
-  b_28 {
+  b_27 {
     %block = load @heapNext, 8: Ptr
     %blockSize = call_complex heapBlockSize, %sizeClass: Long
-    %v_29 = add %block, %blockSize: Ptr
-    %v_30 = load @heapLimit, 8: Ptr
-    %v_31 = cmp_gt %v_29, %v_30: Int
-    je %v_31, b_32, b_33
+    %v_28 = add %block, %blockSize: Ptr
+    %v_29 = load @heapLimit, 8: Ptr
+    %v_30 = cmp_gt %v_28, %v_29: Int
+    je %v_30, b_31, b_32
+  }
+
+  b_31 {
+    %v_33 = bitcast 0: Ptr
+    ret %v_33
   }
 
   b_32 {
-    %v_34 = bitcast 0: Ptr
-    ret %v_34
+    jmp b_34
   }
 
-  b_33 {
-    jmp b_35
-  }
-
-  b_35 {
-    %v_36 = add %block, %blockSize: Ptr
-    store @heapNext, %v_36, 8
-    %v_37 = bitcast %block: Ptr
-    store %v_37, %sizeClass, 8
-    %v_38 = add %block, 8: Ptr
-    ret %v_38
-  }
-}
-
-protReadWrite<complex>(): Long {
-  b_0 {
-    ret 3
-  }
-}
-
-freeListHead<complex>(%sizeClass: Long): Ptr {
-  b_0 {
-    %v_1 = load @heapFree, 8: Ptr
-    %v_2 = imul %sizeClass, 8: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    %v_4 = load %v_3, 8: Ptr
-    ret %v_4
+  b_34 {
+    %v_35 = add %block, %blockSize: Ptr
+    store @heapNext, %v_35, 8
+    %v_36 = bitcast %block: Ptr
+    store %v_36, %sizeClass, 8
+    %v_37 = add %block, 8: Ptr
+    ret %v_37
   }
 }
 
@@ -363,6 +287,16 @@ writeAndRead<complex>(): Long {
     %v_12 = loads %b, 8: Long
     %v_13 = add %v_11, %v_12: Long
     ret %v_13
+  }
+}
+
+freeListHead<complex>(%sizeClass: Long): Ptr {
+  b_0 {
+    %v_1 = load @heapFree, 8: Ptr
+    %v_2 = imul %sizeClass, 8: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    %v_4 = load %v_3, 8: Ptr
+    ret %v_4
   }
 }
 
@@ -402,6 +336,35 @@ main<complex>(): Int {
     %total = add %v_8, %v_9: Long
     %v_10 = cast %total: Int
     ret %v_10
+  }
+}
+
+initHeap<complex>() {
+  b_0 {
+    %region = call_complex mapMemory, 4194304: Ptr
+    %v_1 = bitcast %region: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %table = imul 32, 8: Long
+    setpattern %region, %table, 0
+    %v_6 = bitcast %region: Ptr
+    store @heapFree, %v_6, 8
+    %v_7 = add %region, %table: Ptr
+    store @heapNext, %v_7, 8
+    %v_8 = add %region, 4194304: Ptr
+    store @heapLimit, %v_8, 8
+    ret 
   }
 }
 
