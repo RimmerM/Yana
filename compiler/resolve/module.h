@@ -38,10 +38,10 @@ struct Local {
      *
      * This frame allocates it and the *function value* owns it: nothing here drops it and nothing
      * here hands the storage back, because the closure's own derived teardown does both through the
-     * environment descriptor it carries. It is heap-placed for the same reason - a call through a
-     * function value is exactly where Design-Memory §13's escape analysis gives up, so an
-     * environment goes to the allocator rather than to the frame whether or not this particular
-     * closure turns out to outlive it.
+     * closure header its code word leads to. Where it is allocated is the ordinary decision - a
+     * closure that outlives this frame takes its captures with it, and one that does not can have
+     * them in the frame like anything else - and selectStorage records the answer in that header,
+     * since the teardown that reads it is not in this frame at all.
      */
     bool closureEnv = false;
 };
@@ -155,6 +155,11 @@ struct Function {
     ModulePtr<Function> specializationOf = nullptr;
     ModuleList<TypePtr, false> genericArgs;
 
+    // Set on a lifted lambda that captured something: the static data emitted immediately in front
+    // of this function's entry point, which is where its closures' teardown reads the environment
+    // descriptor and the storage decision from. See ClosureHeaderLayout.
+    ModulePtr<Global> closureHeader = nullptr;
+
     Intrinsic intrinsic = nullptr;
     U32 valueCounter = 0;
     bool resolving = false;
@@ -256,6 +261,17 @@ struct Global {
     // The same, for a word holding a class rather than a type - a witness records which class it
     // implements, and a region offset would say nothing in a dump.
     ModuleList<U32, false> classWords;
+
+    /*
+     * Set when this table is not module-level storage at all, but the bytes immediately in front of
+     * a function's entry point - a closure header. It is still a global in every other respect: it
+     * has a name, it holds relocations, and a table naming it names it by that name.
+     *
+     * What changes is where the bytes go, and that only the code generator can honour: the header
+     * has to be at a fixed negative offset from the entry point, so it is emitted with the function
+     * rather than into the module's data.
+     */
+    ModulePtr<Function> prefixOf = nullptr;
 
     bool mut = false;
     bool used = false;
@@ -360,6 +376,10 @@ struct Program {
     HashMap<U32, ModulePtr<Function>> reclaimGlue;
 
     HashMap<U32, ModulePtr<Function>> moveInitGlue;
+
+    // The reclaim a closure whose environment is heap-placed runs, keyed by the environment type -
+    // see closureReleaseFor. Only the environment types that turned out to need one are in here.
+    HashMap<U32, ModulePtr<Function>> closureRelease;
 
     // The teardown a type with nothing to run gets, so that a descriptor's lifecycle slots are
     // always callable - see emptyTeardown.

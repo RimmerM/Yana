@@ -1413,7 +1413,7 @@ struct Emitter {
 
 void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction& fun, const MachineFunction& machine, FunctionRegs& regs, InstEmitCallback onInst, void* onInstCtx) {
     auto blocks = fun.blocks.contents(base);
-    to.startFunction(&fun);
+    to.startFunction(base, &fun);
 
     // The two halves of the allocation the encoders read: the abstract frame objects and recipes
     // placement produced, and the resolved locations legalization produced against them.

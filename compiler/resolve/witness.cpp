@@ -34,8 +34,28 @@ TypePtr typeDescPlaceType(Module& module) {
 }
 
 TypePtr funValueFieldType(Module& module, U16 field) {
-    if(field == FunValueLayout::kDesc) return resolvePointerType(module, typeDescPlaceType(module));
     return resolvePointerType(module, module.scalar.unit);
+}
+
+TypePtr closureHeaderPlaceType(Module& module) {
+    auto& context = module.context;
+    auto address = resolvePointerType(module, module.scalar.unit);
+
+    Field fields[] = {
+        Field { address, context.addUnqualifiedName("drop", 4), 0 },
+        Field { address, context.addUnqualifiedName("reclaim", 7), 0 },
+    };
+
+    auto tuple = resolveTupleType(module, { fields, 2 }, kNullLocation);
+    auto base = *module.types;
+
+    // One layout described twice - see typeDescPlaceType, which checks its own for the same reason.
+    // This one has a second reader that the descriptor does not: the code generator, which has to
+    // place these bytes at exactly this distance in front of an entry point.
+    assertTrue(tuple->fields.get(base, ClosureHeaderFields::kReclaim).offset == ClosureHeaderLayout::kReclaim);
+    assertTrue(tuple->repr.size == ClosureHeaderLayout::kSize_);
+
+    return (Type*)tuple - base;
 }
 
 /*
@@ -273,7 +293,7 @@ static bool lowerablePlace(Module& module, Function& owner, const Place& place) 
                 type = ((RecordType*)global[type])->constructors.get(global, projection.index).content;
                 break;
             case ProjectionKind::Field:
-                // A function value's three words are at fixed offsets whatever the body's type
+                // A function value's two words are at fixed offsets whatever the body's type
                 // arguments turn out to be, so it is projected into like any other aggregate and
                 // needs no composite descriptor to do it.
                 type = global[type]->kind == Type::Fun
@@ -715,7 +735,7 @@ static bool bodyLowerable(Module& module, ModulePtr<Function> function,
              * body passes everything - by address - while whatever the caller put in `f` is a
              * concrete function expecting whatever `a` turned out to be. Adapting between the two is
              * what a `FunctionWitness` is for: it carries the environment *and* the shape the
-             * callable was compiled at, which a bare `{code, env, envDesc}` does not.
+             * callable was compiled at, which a bare `{code, env}` does not.
              *
              * Until that exists such a body specializes, which is always available for a concrete
              * argument list - the same staging every other gap here uses.
@@ -877,4 +897,125 @@ ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source) {
                       orEmpty(teardownImplementation(module, type, Teardown::Drop, source)));
 
     return pointer;
+}
+
+/*
+ * The closure header.
+ *
+ * Not interned, and it is the one compiler-built table that is not: the others are keyed by what
+ * they describe and shared by everything that describes it, while this one belongs to one lifted
+ * function and is emitted at that function's address. Two lambdas capturing the same types are still
+ * two lambdas with two entry points, and each needs its own bytes in front of its own.
+ *
+ * What goes *in* it is interned in the ordinary way, since both halves depend only on the
+ * environment's type - which is what makes the header itself sixteen bytes of relocation rather than
+ * anything generated.
+ */
+ModulePtr<Global> closureHeaderFor(Module& module, ModulePtr<Function> lambda, TypePtr envType,
+                                   LocationId source) {
+    auto function = (*module.arena)[lambda];
+    if(function->closureHeader) return function->closureHeader;
+
+    StringBuilder text;
+    text << "closure$" << module.context.findName(function->name);
+    auto name = module.context.addQualifiedName(text.pointer(), text.size(), 1);
+
+    auto global_ = addAnonymousGlobal(module, name, source);
+    auto pointer = global_ - *module.arena;
+
+    TableBuilder table(module, ClosureHeaderLayout::kSize_);
+    global_->contents = table.bytes;
+    global_->prefixOf = lambda;
+
+    auto orEmpty = [&](ModulePtr<Function> implementation) {
+        return implementation ? implementation : emptyTeardown(module, source);
+    };
+
+    table.putFunction(*global_, ClosureHeaderLayout::kDrop,
+                      orEmpty(teardownImplementation(module, envType, Teardown::Drop, source)));
+
+    // The frame-environment answer, which is also the safe one to start from: a header that never
+    // reaches selectStorage releases the captures and leaves the storage alone, and storage nothing
+    // decided about is storage in the frame.
+    table.putFunction(*global_, ClosureHeaderLayout::kReclaim,
+                      orEmpty(teardownImplementation(module, envType, Teardown::Reclaim, source)));
+
+    function->closureHeader = pointer;
+    return pointer;
+}
+
+/*
+ * The heap environment's reclaim: the captures, and then the storage under them.
+ *
+ * A wrapper rather than a flag on the environment type's own reclaim, because the two callers want
+ * different things from the same type - a closure whose environment is in the frame runs exactly the
+ * inner one - and because which of them a lambda needs is settled at compile time. The shared
+ * teardown a function value goes through never learns the difference: it calls what the header
+ * names.
+ */
+ModulePtr<Function> closureReleaseFor(Module& module, TypePtr envType, LocationId source) {
+    auto& program = module.program;
+    if(auto found = program.closureRelease.get(U32(envType))) return found.unwrap();
+
+    auto local = *module.arena;
+    auto function = addAnonymousFunction(module, tableName(module, "closureRelease$"_v, envType), source);
+    auto pointer = function - local;
+    *program.closureRelease.add(U32(envType)).value = pointer;
+
+    function->returnType = module.scalar.unit;
+    function->used = true;
+
+    auto envPointer = resolvePointerType(module, envType);
+    auto arg = function->addArg(module, module.context.addQualifiedName("env", 3, 1), envPointer, source);
+    auto env = (ModulePtr<Value>)(arg - local);
+
+    ExprResolver resolver(module.context, module, *function);
+
+    if(auto reclaim = teardownImplementation(module, envType, Teardown::Reclaim, source)) {
+        local[reclaim]->used = true;
+
+        auto inner = resolver.create<InstCall>(source, 0, module.scalar.unit, reclaim);
+        inner->args.push(module.arena, env);
+        resolver.append(inner);
+    }
+
+    if(program.freeHeap) {
+        auto free = local[program.freeHeap];
+        free->used = true;
+
+        // `freeHeap` is written over `%U8`, so the address is reinterpreted rather than converted -
+        // both sides are one machine word and only what the program says it means differs.
+        auto expected = free->args.isEmpty() ? envPointer : local[free->args.get(local, 0)]->type;
+        auto address = sameType(expected, envPointer)
+            ? env : resolver.ref(resolver.emit<InstUnary>(source, 0, expected, Value::Cast, env));
+
+        auto release = resolver.create<InstCall>(source, 0, module.scalar.unit, program.freeHeap);
+        release->args.push(module.arena, address);
+        resolver.append(release);
+    }
+
+    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+    return pointer;
+}
+
+void setClosureRelease(Module& module, ModulePtr<Global> header, ModulePtr<Function> reclaim) {
+    auto local = *module.arena;
+    auto global_ = local[header];
+    if(!reclaim) return;
+
+    local[reclaim]->used = true;
+
+    // Rewritten rather than appended: a second relocation at one offset is two addresses for one
+    // word, and which of them the emitter would write is whichever it saw last.
+    for(Size i = 0; i < global_->relocations.size(); i++) {
+        auto relocation = global_->relocations.get(local, i);
+        if(relocation.offset != ClosureHeaderLayout::kReclaim) continue;
+
+        relocation.function = reclaim;
+        global_->relocations.set(local, i, relocation);
+        return;
+    }
+
+    global_->relocations.push(module.arena,
+                              GlobalRelocation { ClosureHeaderLayout::kReclaim, reclaim, nullptr });
 }

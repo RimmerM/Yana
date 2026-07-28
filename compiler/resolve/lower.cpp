@@ -1287,6 +1287,36 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
 
     Array<RelocatedGlobal> relocated;
 
+    // The bytes of one global, wherever they end up going. Its relocations are translated later
+    // rather than resolved here: what they point at may not have been created yet, and the address
+    // they hold is not known until the module is placed.
+    auto lowerGlobal = [&](ModulePtr<Global> globalPointer) {
+        auto source = lower.local[globalPointer];
+        auto target = new (result->arena) LowerGlobal(source->name);
+        target->mut = source->mut;
+
+        if(source->contents.length) {
+            // A compiler-built table brings its own bytes.
+            auto size = source->contents.length;
+            target->initialContents = ByteBuffer((Byte*)result->arena.alloc(size), size);
+            copy(source->contents.ptr, target->initialContents.ptr, size);
+        } else {
+            // A scalar starts as the bytes of its constant and an aggregate as zeroes, which
+            // is the same statement in both cases: the global's Repr, filled from `initial`.
+            auto size = typeSize(lower.global, source->type);
+            target->initialContents = ByteBuffer((Byte*)result->arena.alloc(size), size);
+            set(target->initialContents.ptr, size, 0);
+
+            if(isDirectType(lower.global, source->type)) {
+                copy((const Byte*)&source->initial, target->initialContents.ptr,
+                     size < sizeof(U64) ? Size(size) : sizeof(U64));
+            }
+        }
+
+        relocated.push(RelocatedGlobal { globalPointer, target - lower.lower });
+        return target;
+    };
+
     // Globals come first: a function's very first instruction may take the address of one, and
     // the lower module resolves that by name.
     for(auto module: program.modules) {
@@ -1294,31 +1324,12 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
             auto source = lower.local[globalPointer];
             if(!module->root && !source->used) continue;
 
-            auto target = new (result->arena) LowerGlobal(source->name);
-            target->mut = source->mut;
+            // A closure header is emitted in front of the function it belongs to rather than into
+            // the module's data, so it is not one of these - see LowerFunction::prefix.
+            if(source->prefixOf) continue;
 
-            if(source->contents.length) {
-                // A compiler-built table brings its own bytes. Its relocations are translated
-                // here rather than resolved: what they point at may not have been emitted yet,
-                // and the address they hold is not known until the module is placed.
-                auto size = source->contents.length;
-                target->initialContents = ByteBuffer((Byte*)result->arena.alloc(size), size);
-                copy(source->contents.ptr, target->initialContents.ptr, size);
-            } else {
-                // A scalar starts as the bytes of its constant and an aggregate as zeroes, which
-                // is the same statement in both cases: the global's Repr, filled from `initial`.
-                auto size = typeSize(lower.global, source->type);
-                target->initialContents = ByteBuffer((Byte*)result->arena.alloc(size), size);
-                set(target->initialContents.ptr, size, 0);
-
-                if(isDirectType(lower.global, source->type)) {
-                    copy((const Byte*)&source->initial, target->initialContents.ptr,
-                         size < sizeof(U64) ? Size(size) : sizeof(U64));
-                }
-            }
-
+            auto target = lowerGlobal(globalPointer);
             *result->globals.add(source->name).value = target - lower.lower;
-            relocated.push(RelocatedGlobal { globalPointer, target - lower.lower });
         }
     }
 
@@ -1344,6 +1355,12 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
 
         if(!isUnit(lower.global, function->returnType) && !isMemoryType(lower.global, function->returnType)) {
             target->returnTypes.push(result->arena, lowerType(lower.global, function->returnType));
+        }
+
+        // A lifted lambda's closure header travels with it, because where those bytes go is stated
+        // relative to this function's entry point and nowhere else.
+        if(function->closureHeader) {
+            target->prefix = lowerGlobal(function->closureHeader) - lower.lower;
         }
 
         lower.functions.add(functionPointer, target - lower.lower);

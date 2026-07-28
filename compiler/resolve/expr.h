@@ -339,18 +339,19 @@ struct ExprResolver {
      */
 
     // `(a, b) -> expr` and `(a, b): block`. Lifts the body into a function of its own and builds
-    // the `{code, env, envDesc}` value that reaches it - see expr_fun.cpp.
+    // the `{code, env}` value that reaches it - see expr_fun.cpp.
     ModulePtr<Value> resolveFun(const ast::Expr& expr, const ast::FunExpr& fun, TypePtr target);
 
     // A named function in value position. The value's code word is a thunk that drops the
     // environment every callable is handed, so that a plain function and a closure are one shape.
     ModulePtr<Value> functionValue(ModulePtr<Function> callee, LocationId source);
 
-    // Builds a `{code, env, envDesc}` value in fresh storage. `env` and `envDesc` are null for a
-    // function value that captured nothing, which is what makes its teardown a branch that never
-    // fires rather than a second representation.
+    // Builds a `{code, env}` value in fresh storage. `env` is null for a function value that
+    // captured nothing, which is what makes its teardown a branch that never fires rather than a
+    // second representation. What is *in* the environment is said by the closure header in front of
+    // `code` rather than by this value - see ClosureHeaderLayout.
     ModulePtr<Value> makeFunValue(TypePtr type, ModulePtr<Function> code, ModulePtr<Value> env,
-                                  ModulePtr<Global> envDesc, LocationId source, StringId name);
+                                  LocationId source, StringId name);
 
     // Calling a value of function type: loads the code and the environment out of it and emits
     // InstCallDyn, with each argument taken by the convention the *type* declares.
@@ -368,8 +369,8 @@ struct ExprResolver {
     // Storage for one value. `convention` is what the name that owns the slot may do with it: a
     // temporary and an immutable binding get the default, a `let &` gets Ref, and it is what both
     // assignment and a `&` argument check before writing through.
-    // `closureEnv` marks the storage a closure's captures live in: heap-placed, and released by
-    // the function value that owns it rather than by this frame - see Local::closureEnv.
+    // `closureEnv` marks the storage a closure's captures live in: released by the function value
+    // that owns it rather than by this frame - see Local::closureEnv.
     ModulePtr<Value> allocate(TypePtr type, LocationId source, StringId name = 0,
                               ast::BindType convention = ast::BindType::Borrow, bool closureEnv = false);
     Maybe<Place> findPlace(ModulePtr<Value> value);

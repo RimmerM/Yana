@@ -147,6 +147,21 @@ struct Analysis {
     LocalSet outlives;
     LocalSet escaped;
 
+    /*
+     * The part of `escaped` that something else now *owns*.
+     *
+     * Escaping is one bit for the question "must this storage still be valid after the frame
+     * returns", and two different answers for the question "who hands it back". A returned value's
+     * contents, a member of an aggregate that left, an argument a callee consumed: those belong to
+     * whatever they left with, and its teardown is what releases them. A pointer a call this pass
+     * could not summarize may have kept is neither of those - the storage is still this frame's,
+     * and this frame still has to release it.
+     *
+     * Only the second kind is an approximation, which is why the distinction is worth a set: the
+     * frame that would leak it is the frame that never proved anything.
+     */
+    LocalSet transferred;
+
     // What each root's representation has to be able to do, per Design.md's owner mutation demand.
     Array<ReprRequirements> demand;
 
@@ -158,6 +173,10 @@ struct Analysis {
     // fixpoint's silent rounds or the final one that rewrites the body.
     bool reporting = true;
     bool ok = true;
+
+    // Whether this run is the one that gets to change the program - insert drops, and generate the
+    // glue those drops name. A silent round computes the same facts and keeps them to itself.
+    bool rewriting = true;
 
     Block* blockAt(Size index) { return local[function.blocks.get(local, index)]; }
     Size blockCount() { return function.blocks.size(); }
@@ -633,6 +652,41 @@ static Provenance callResultProvenance(Analysis& analysis, ModulePtr<Function> c
     return result;
 }
 
+/*
+ * The same, for a call through a function value.
+ *
+ * The signature is what a caller reaching a function this way has, and FunArg carries the `return`
+ * marker precisely so that it is enough: the group is declared on the *type*, so a borrow coming out
+ * of the call is related to the arguments in that group exactly as a direct call's result is related
+ * to its callee's. Falling back to `unknown` here would be reading the contract and then ignoring it.
+ *
+ * Null signature - a teardown the compiler calls through a descriptor - has no contract to read, and
+ * a result that refers to storage is then storage this analysis cannot name.
+ */
+static Provenance dynamicResultProvenance(Analysis& analysis, InstCallDyn& call) {
+    auto result = emptyProvenance(analysis.localCount);
+    if(!refersToStorage(analysis, call.type)) return result;
+
+    auto signature = call.signature && analysis.global[call.signature]->kind == Type::Fun
+        ? (FunType*)analysis.global[call.signature] : nullptr;
+
+    if(!signature || !signature->returnRoots) {
+        result.unknown = true;
+        return result;
+    }
+
+    U16 index = 0;
+    for(auto arg: call.args.contents(analysis.local)) {
+        if(signature->returnRoots & (U64(1) << min(U16(63), index))) {
+            joinProvenance(result, provenanceOf(analysis, arg));
+        }
+
+        index++;
+    }
+
+    return result;
+}
+
 // One round of the value fixpoint. Returns whether anything was added.
 static bool flowRound(Analysis& analysis) {
     auto changed = false;
@@ -704,12 +758,13 @@ static bool flowRound(Analysis& analysis) {
                 case Value::CallDyn:
                     /*
                      * There is no callee to have a summary, by construction: which function this
-                     * reaches is what a function value decides at run time. So a result that refers
-                     * to storage refers to storage this analysis cannot name, which is the same
-                     * answer Design-Memory §13 gives - "a call through a function value is where it
-                     * gives up and falls back to the heap".
+                     * reaches is what a function value decides at run time. What there is instead is
+                     * the signature the call was written through, and its declared `return` group is
+                     * the one thing a caller in this position may believe - see
+                     * dynamicResultProvenance. Where it declares nothing, the result refers to
+                     * storage this analysis cannot name, which is the answer Design-Memory §13 gives.
                      */
-                    if(refersToStorage(analysis, instruction.type)) produced.unknown = true;
+                    joinProvenance(produced, dynamicResultProvenance(analysis, (InstCallDyn&)instruction));
                     break;
 
                 case Value::GenCall:
@@ -808,18 +863,53 @@ static void computeProvenance(Analysis& analysis) {
  * returns, then closed over containment: if a root outlives the frame, so must everything reachable
  * through it, or the array survives and its buffer does not.
  */
-static bool markEscaped(Analysis& analysis, const Provenance& roots) {
+
+// Which of the two things an escape says about who owns the storage afterwards - see
+// Analysis::transferred. `Owned` is the answer whenever this pass can point at the new owner.
+enum class Escape: U8 {
+    Owned,
+    Referenced,
+};
+
+static bool markEscaped(Analysis& analysis, const Provenance& roots, Escape kind) {
     auto changed = false;
 
     for(Size l = 0; l < analysis.localCount; l++) {
-        if(roots.locals[l] && !analysis.escaped[l]) {
+        if(!roots.locals[l]) continue;
+
+        if(!analysis.escaped[l]) {
             analysis.escaped[l] = 1;
             analysis.outlives[l] = 1;
+            changed = true;
+        }
+
+        // One root can be both, and being owned elsewhere is the stronger statement: a value handed
+        // over is handed over however many other references to it were kept.
+        if(kind == Escape::Owned && !analysis.transferred[l]) {
+            analysis.transferred[l] = 1;
             changed = true;
         }
     }
 
     return changed;
+}
+
+/*
+ * What handing one argument to a call says about the storage behind it.
+ *
+ * The two cases are the two shapes an argument has, which is why this needs neither a summary nor a
+ * signature to decide. An aggregate is passed as the address of storage the caller keeps, so what
+ * can outlive the call is what it *contained* - and whatever it contained belongs to the aggregate,
+ * whose own teardown is what releases it. A borrow or a pointer is the address itself, so what may
+ * outlive the call is a reference to storage that is still this frame's.
+ *
+ * Which is exactly the distinction Analysis::transferred exists for, and the reason a root handed to
+ * a call the pass could not summarize is not thereby leaked.
+ */
+static Escape argumentEscape(Analysis& analysis, ModulePtr<Value> arg) {
+    // The same test transferredProvenance splits on, and necessarily so: this says who owns what
+    // that function decided was leaving, so the two have to be reading the argument the same way.
+    return isMemoryType(analysis.global, analysis.local[arg]->type) ? Escape::Owned : Escape::Referenced;
 }
 
 // One round of seeds. Separate from the closure below only so that both can be repeated together:
@@ -855,7 +945,7 @@ static bool escapeRound(Analysis& analysis) {
                     if(slot.value && analysis.local[slot.value]->kind == Value::Arg) leaving.locals[l] = 0;
                 }
 
-                changed = markEscaped(analysis, leaving) || changed;
+                changed = markEscaped(analysis, leaving, Escape::Owned) || changed;
                 break;
             }
 
@@ -869,8 +959,11 @@ static bool escapeRound(Analysis& analysis) {
                     escaping = roots.locals[l] && analysis.outlives[l];
                 }
 
+                // Owned rather than merely referenced: what was written is reachable through the
+                // root it was written into, and that root's teardown is what releases it.
                 if(escaping) {
-                    changed = markEscaped(analysis, transferredProvenance(analysis, write.value)) || changed;
+                    changed = markEscaped(analysis, transferredProvenance(analysis, write.value),
+                                          Escape::Owned) || changed;
                 }
 
                 break;
@@ -886,7 +979,8 @@ static bool escapeRound(Analysis& analysis) {
                                     summary->args.get(analysis.local, index).retained;
 
                     if(retained) {
-                        changed = markEscaped(analysis, transferredProvenance(analysis, arg)) || changed;
+                        changed = markEscaped(analysis, transferredProvenance(analysis, arg),
+                                              argumentEscape(analysis, arg)) || changed;
                     }
 
                     index++;
@@ -896,11 +990,19 @@ static bool escapeRound(Analysis& analysis) {
             }
 
             case Value::CallDyn: {
-                // Same reasoning as GenCall, and for a stronger reason: there is no callee at all
-                // to have a summary, so everything handed over is assumed kept.
+                /*
+                 * Same reasoning as GenCall, and for a stronger reason: there is no callee at all to
+                 * have a summary, so everything handed over is assumed kept.
+                 *
+                 * Assumed *kept*, though, and not assumed given away - which is the whole of what
+                 * argumentEscape decides, and the difference between a root this frame still has to
+                 * release and one it must not. A function value's arguments are the sharpest case
+                 * for it precisely because nothing here can prove anything about them.
+                 */
                 auto& call = (InstCallDyn&)instruction;
                 for(auto arg: call.args.contents(analysis.local)) {
-                    changed = markEscaped(analysis, transferredProvenance(analysis, arg)) || changed;
+                    changed = markEscaped(analysis, transferredProvenance(analysis, arg),
+                                          argumentEscape(analysis, arg)) || changed;
                 }
 
                 break;
@@ -909,7 +1011,8 @@ static bool escapeRound(Analysis& analysis) {
             case Value::GenCall:
                 // No summary to consult, so everything handed over is assumed kept.
                 for(auto arg: ((InstGenCall&)instruction).args.contents(analysis.local)) {
-                    changed = markEscaped(analysis, transferredProvenance(analysis, arg)) || changed;
+                    changed = markEscaped(analysis, transferredProvenance(analysis, arg),
+                                          argumentEscape(analysis, arg)) || changed;
                 }
 
                 break;
@@ -929,9 +1032,12 @@ static bool escapeRound(Analysis& analysis) {
             // parameter - and that says nothing about escaping.
             if(m == l) continue;
 
-            if(analysis.contents[l].locals[m] && !analysis.escaped[m]) {
+            // Owned, always: being reachable through a root that outlives the frame is being
+            // part of what that root's teardown releases.
+            if(analysis.contents[l].locals[m] && !(analysis.escaped[m] && analysis.transferred[m])) {
                 analysis.escaped[m] = 1;
                 analysis.outlives[m] = 1;
+                analysis.transferred[m] = 1;
                 changed = true;
             }
         }
@@ -943,6 +1049,7 @@ static bool escapeRound(Analysis& analysis) {
 static void computeOutliving(Analysis& analysis) {
     analysis.outlives = emptySet(analysis.localCount);
     analysis.escaped = emptySet(analysis.localCount);
+    analysis.transferred = emptySet(analysis.localCount);
 
     // A parameter's storage is the caller's and already outlives this frame. It is set in
     // `outlives` and not in `escaped`, because nothing here proved anything about it.
@@ -1040,6 +1147,14 @@ static void computeDemand(Analysis& analysis) {
             }
 
             case Value::CallDyn:
+                /*
+                 * Deliberately not read off the signature, unlike the escape and return-root rules
+                 * next door. Those are contracts a function *type* states, and this is not one: the
+                 * demand is what the callee's body turned out to need of the caller's storage, and a
+                 * convention says nothing about it - a borrow argument is still passed as an address
+                 * into a body this call site cannot see. `unknown` is the top of the lattice and
+                 * selects the conservative representation, which is the right answer here.
+                 */
                 for(auto arg: ((InstCallDyn&)instruction).args.contents(analysis.local)) {
                     if(refersToStorage(analysis, analysis.local[arg]->type)) {
                         raiseDemand(analysis, provenanceOf(analysis, arg), unknown);
@@ -1494,18 +1609,35 @@ static U32 lastUseOf(Analysis& analysis, ModulePtr<Inst> pointer) {
                 }
             }
 
-            if(instruction.kind != Value::Call) continue;
+            /*
+             * A loan handed to a call's `return` group outlives the call, whichever way the callee
+             * was named.
+             *
+             * A direct call reads the group off the callee's summary and a call through a function
+             * value reads it off the signature, which is the same contract in the two places it can
+             * be written down - and the reason FunArg carries the marker at all. A chain of
+             * selectors keeps the original root borrowed for the whole chain either way.
+             */
+            U64 roots = 0;
 
-            auto& call = (InstCall&)instruction;
-            auto summary = summaryOf(analysis, call.callee);
-            if(!summary) continue;
+            if(instruction.kind == Value::Call) {
+                auto summary = summaryOf(analysis, ((InstCall&)instruction).callee);
+                if(summary) roots = summary->declaredRoots;
+            } else if(instruction.kind == Value::CallDyn) {
+                auto signature = ((InstCallDyn&)instruction).signature;
+                if(signature && analysis.global[signature]->kind == Type::Fun) {
+                    roots = ((FunType*)analysis.global[signature])->returnRoots;
+                }
+            }
+
+            if(!roots) continue;
 
             U16 position = 0;
-            for(auto arg: call.args.contents(analysis.local)) {
-                if(arg == value && (summary->declaredRoots & rootBit(position))) {
-                    pending.push((ModulePtr<Value>)user);
-                }
+            auto args = instruction.kind == Value::Call ? &((InstCall&)instruction).args
+                                                        : &((InstCallDyn&)instruction).args;
 
+            for(auto arg: args->contents(analysis.local)) {
+                if(arg == value && (roots & rootBit(position))) pending.push((ModulePtr<Value>)user);
                 position++;
             }
         }
@@ -1728,39 +1860,81 @@ static void selectStorage(Analysis& analysis, OwnershipResult& result) {
         if(slot.storage == StorageClass::Heap) storage = StorageClass::Heap;
 
         /*
-         * A closure environment is not this decision's to make.
+         * A closure environment is decided the same way as anything else, and released differently.
          *
-         * It is heap-placed whatever the analysis found, because the thing that reads it is reached
-         * through a function value and Design-Memory §13 says that is exactly where an escape
-         * summary gives up. And it is not released here whether or not it escaped, because the
-         * function value owns it: freeing it at the end of this frame as well would be a double
-         * free the moment the closure outlived one call.
+         * The decision is the same because the question is: an environment is reachable from the
+         * function value that owns it, so a closure that leaves this frame drags its captures along
+         * and the containment closure in computeOutliving is what says so. A closure that is built,
+         * called and dropped here does not, and there is nothing about being an environment that
+         * makes the frame unable to hold it.
+         *
+         * What differs is who hands the storage back. Not this frame, whichever class it got: the
+         * function value owns the environment, so freeing it at the end of this frame as well would
+         * be a double free the moment the closure outlived one call. The closure's own derived
+         * Reclaim does it, and it reads which class this was from the lambda's closure header -
+         * which is why the decision is written back there rather than only into the IR.
          */
         if(slot.closureEnv) {
-            allocation.storage = StorageClass::Heap;
+            allocation.storage = storage;
             allocation.releasedHere = false;
 
-            if(analysis.module.program.allocateHeap) {
+            /*
+             * The heap answer, where it is the answer. The header is built holding the frame one,
+             * so there is nothing to undo for an environment that stays here.
+             *
+             * Only on the run that rewrites, because this generates a function: the silent rounds
+             * are an over-approximation being relaxed, and one of them deciding "heap" would leave
+             * a release wrapper in the module that the settled answer does not want.
+             */
+            if(analysis.rewriting && storage == StorageClass::Heap && allocation.closure) {
+                auto header = analysis.local[allocation.closure]->closureHeader;
+
+                if(header) {
+                    setClosureRelease(analysis.module, header,
+                                      closureReleaseFor(analysis.module, slot.type, instruction.source));
+                }
+            }
+
+            if(storage == StorageClass::Heap && analysis.module.program.allocateHeap) {
                 analysis.local[analysis.module.program.allocateHeap]->used = true;
             }
 
             if(allocation.local < result.locals.size()) {
-                result.locals[allocation.local].storage = StorageClass::Heap;
+                result.locals[allocation.local].storage = storage;
             }
 
+            /*
+             * What is deliberately missing here is the write into the Local that the ordinary path
+             * below makes.
+             *
+             * This pass runs once per fixpoint round, the first round reads the conservative answer
+             * for every callee it has not summarized yet, and the slot the `@heap` override reads a
+             * few lines up is the same one. Recording the decision there would make that first,
+             * pessimistic round's answer the one every later round is forced back to - which is
+             * exactly the round in which every closure looks like it escapes.
+             */
             continue;
         }
 
         /*
          * Who releases it.
          *
-         * Storage that escaped was handed to something that outlives this frame, and that something
-         * owns it now: an array's buffer is on the heap precisely because the array it belongs to
-         * left, and the array's own `Drop` is what frees it. Releasing it here as well would free it
-         * twice. A `@heap` binding is the other case - it went to the heap because it was asked to,
-         * and it still lives and dies in this frame.
+         * Escaping and being handed over are not the same statement, and this is the line where the
+         * difference is spent. Storage something else *owns* now is not released here: an array's
+         * buffer is on the heap precisely because the array it belongs to left, and the array's own
+         * `Drop` is what frees it, so releasing it here as well would free it twice. Storage that
+         * escaped because a call this pass could not summarize may have kept a reference to it is
+         * still this frame's, and the frame that stopped releasing it would leak it - which is what
+         * `&counter` handed to a function value is, and what Analysis::transferred tells apart.
+         *
+         * A `@heap` binding is neither: it went to the heap because it was asked to, and it still
+         * lives and dies in this frame.
+         *
+         * Storage whose class the program itself reads is a handover too, whatever the analysis
+         * found: `storageFlag` exists so that another value's `Drop` can free this storage, and that
+         * `Drop` is the one release it gets.
          */
-        allocation.releasedHere = !escapes;
+        allocation.releasedHere = !analysis.transferred[allocation.local] && !allocation.storageFlag;
         allocation.storage = storage;
 
         // The flag the program reads at run time, where something asked for one.
@@ -1895,21 +2069,26 @@ static bool contributes(Module& module, TypePtr type, Teardown half) {
 /*
  * A function value's teardown.
  *
- * The two words that matter are the environment and its descriptor, and what has to run is whatever
- * that descriptor says - which is exactly why the descriptor travels with the *value*: two closures
- * of one function type can capture completely different things, so releasing one is a per-closure
- * question that no per-type glue could answer.
+ * The word that matters is the environment, and what has to run is whatever the *closure header*
+ * says - the static data in front of the entry point the code word names (ClosureHeaderLayout). That
+ * indirection is what makes releasing a closure a per-closure question without making it a
+ * per-value one: two closures of one function type can capture completely different things, and
+ * which of them this is was decided by which lambda it came from.
  *
  * A value that captured nothing has a null environment, so this is a branch that never fires rather
- * than a second representation. The reclaim half additionally hands the environment's storage back,
- * unconditionally, because a closure environment is always heap-placed (Local::closureEnv) - the
- * alternative is a fourth word carrying the storage decision, which is a whole word to say something
- * that is currently never in doubt.
+ * than a second representation - and it is also why nothing here reads a header that was never
+ * emitted: only a capturing lambda has one, and only a capturing lambda's values reach the branch.
+ *
+ * Nothing here decides anything about the environment's storage, and it is worth saying why not:
+ * where one lambda's environment lives is fixed at compile time, and this code is not per lambda -
+ * it is interned per function *type*, and one `(Int) -> Int` teardown serves closures over the frame,
+ * closures over the heap and function values with no environment at all. So the decision is spent
+ * where it is known, in which reclaim the header names, and what is left here is a call.
  */
 static void teardownFunValue(ExprResolver& resolver, Module& module, Place base, Teardown half,
                              LocationId source) {
-    auto local = *module.arena;
     auto address = funValueFieldType(module, FunValueLayout::kEnv);
+    auto word = module.scalar.long_;
 
     auto env = resolver.load(resolver.project(base, ProjectionKind::Field, FunValueLayout::kEnv), source);
     auto empty = resolver.constantBits(address, 0, source);
@@ -1920,33 +2099,30 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
     resolver.terminate(resolver.emit<InstJe>(source, 0, module.scalar.unit, resolver.ref(present), run, exit));
     resolver.current = run;
 
-    auto descriptor = resolver.load(
-        resolver.project(base, ProjectionKind::Field, FunValueLayout::kDesc), source);
+    /*
+     * The header, from the entry point it sits in front of.
+     *
+     * Through the integer rather than as a place projection, because the offset is negative: a
+     * projection walks *into* an aggregate, and this walks backwards out of one. The two casts are
+     * both reinterpretations of one machine word - asInt and asPtr - so what they cost is nothing
+     * and what they buy is that the arithmetic is stated where the layout is.
+     */
+    auto headerType = resolvePointerType(module, closureHeaderPlaceType(module));
+    auto codeWord = resolver.load(resolver.project(base, ProjectionKind::Field, FunValueLayout::kCode), source);
+    auto codeInt = resolver.ref(resolver.emit<InstUnary>(source, 0, word, Value::Cast, codeWord));
+    auto distance = resolver.constantBits(word, ClosureHeaderLayout::kSize_, source);
+    auto headerInt = resolver.ref(resolver.emit<InstBinary>(source, 0, word, Value::Sub, codeInt, distance));
+    auto header = Place::atPointer(
+        resolver.ref(resolver.emit<InstUnary>(source, 0, headerType, Value::Cast, headerInt)));
 
-    auto slot = half == Teardown::Drop ? TypeDescFields::kDrop : TypeDescFields::kReclaim;
-    auto operation = resolver.load(
-        resolver.project(Place::atPointer(descriptor), ProjectionKind::Field, slot), source);
+    auto slot = half == Teardown::Drop ? ClosureHeaderFields::kDrop : ClosureHeaderFields::kReclaim;
+    auto operation = resolver.load(resolver.project(header, ProjectionKind::Field, slot), source);
 
     // No signature: this is the compiler calling a teardown it generated, not a program calling a
     // function value, so there are no conventions to honour and no environment convention either.
     auto teardown = resolver.create<InstCallDyn>(source, 0, module.scalar.unit, nullptr, operation, nullptr);
     teardown->args.push(module.arena, env);
     resolver.append(teardown);
-
-    if(half == Teardown::Reclaim && module.program.freeHeap) {
-        auto free = local[module.program.freeHeap];
-        free->used = true;
-
-        // `freeHeap` is written over `%U8`, so the address is reinterpreted rather than converted -
-        // both sides are one machine word and only what the program says it means differs.
-        auto expected = free->args.isEmpty() ? address : local[free->args.get(local, 0)]->type;
-        auto pointer = sameType(expected, address)
-            ? env : resolver.ref(resolver.emit<InstUnary>(source, 0, expected, Value::Cast, env));
-
-        auto release = resolver.create<InstCall>(source, 0, module.scalar.unit, module.program.freeHeap);
-        release->args.push(module.arena, pointer);
-        resolver.append(release);
-    }
 
     resolver.terminate(resolver.emit<InstJmp>(source, 0, module.scalar.unit, exit));
     resolver.current = exit;
@@ -2223,10 +2399,137 @@ static void placeDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops
  * Rewriting the body.
  */
 
+/*
+ * What tearing down one function value actually costs, where this frame can see.
+ *
+ * The generic teardown of a function value is written against what a call site knows: a code word
+ * and an environment word, either of which may have come from anywhere, so it tests the environment
+ * for null, finds the closure header in front of the entry point and calls what the header names.
+ * None of that is knowledge a *drop site* lacks when the value was built here - there is one
+ * instruction that wrote the environment word, and what it wrote is either nothing or the address of
+ * a local whose type this frame knows.
+ *
+ * So the answer is one of three:
+ *
+ *   Unknown      the value arrived from somewhere - a parameter, a phi, a call - and the generic
+ *                teardown is what it is for. `let f = if c then A else B` is the ordinary shape
+ *                here: two lambdas reach one drop, and which of them this is is a run-time fact.
+ *   Empty        the environment word is the null constant, so the generic teardown would test it,
+ *                take the other branch and return. A lambda that captured nothing is this.
+ *   Environment  the environment is a frame local, so tearing the closure down *is* tearing that
+ *                local down - the same two halves the header would have named, reached by name.
+ *
+ * Deliberately restricted to a frame-placed environment. A heap one has its storage to hand back as
+ * well, and who does that is bookkeeping this would have to move rather than skip; the header path
+ * already gets it right.
+ */
+struct ClosureTeardown {
+    enum Kind: U8 {
+        Unknown,
+        Empty,
+        Environment,
+    };
+
+    Kind kind = Unknown;
+    U32 local = maxLimit<U32>;
+};
+
+static ClosureTeardown closureTeardown(Analysis& analysis, U32 localIndex) {
+    ClosureTeardown unknown;
+
+    auto slot = analysis.function.localAt(analysis.local, localIndex);
+    if(!slot.type || analysis.global[slot.type]->kind != Type::Fun) return unknown;
+
+    // Storage this frame created, so that every write to it is an instruction in this body. A phi
+    // result or a parameter is a function value that arrived already built, and what is in it is
+    // exactly what this cannot see.
+    if(!slot.value || analysis.local[slot.value]->kind != Value::Alloc) return unknown;
+    if(((InstAlloc*)analysis.local[slot.value])->local != localIndex) return unknown;
+
+    // Storage this frame also has to hand back is not this shortcut's to take: the release belongs
+    // to this local, and redirecting the drop to another one would drop it.
+    if(localIndex < analysis.releasesStorage.size() && analysis.releasesStorage[localIndex]) return unknown;
+
+    ModulePtr<Value> environment = nullptr;
+    auto seenCode = false;
+    auto seenEnv = false;
+
+    for(Size i = 0; i < analysis.instructionCount; i++) {
+        auto& instruction = *analysis.local[analysis.order[i]];
+        if(instruction.kind != Value::Init && instruction.kind != Value::Assign) continue;
+
+        auto& write = (InstInit&)instruction;
+        if(write.place.root != PlaceRoot::Local || write.place.local != localIndex) continue;
+
+        // Anything other than the two field initializations the closure builder emits - an
+        // assignment, a write of the whole value, a second write of one word - and what the slot
+        // holds is no longer settled by one instruction.
+        if(instruction.kind != Value::Init || write.place.projections.size() != 1) return unknown;
+
+        auto projection = write.place.projections.get(analysis.local, 0);
+        if(projection.kind != ProjectionKind::Field) return unknown;
+
+        if(projection.index == FunValueLayout::kCode) {
+            if(seenCode) return unknown;
+            seenCode = true;
+            continue;
+        }
+
+        if(projection.index != FunValueLayout::kEnv || seenEnv) return unknown;
+
+        seenEnv = true;
+        environment = write.value;
+    }
+
+    if(!seenEnv || !environment) return unknown;
+
+    auto value = analysis.local[environment];
+
+    // Through the cast, because the resolve IR has no pointer immediate: a null address is the
+    // integer reinterpreted, which is what constantBits builds and what `null()` expands to.
+    while(value->kind == Value::Cast) value = analysis.local[((InstUnary*)value)->from];
+
+    // No environment at all. That bit pattern is what makeFunValue writes for a lambda that captured
+    // nothing, and it is the one case where the generic teardown provably does nothing.
+    if(value->kind == Value::ConstInt) {
+        return ((ConstInt*)value)->value == 0 ? ClosureTeardown { ClosureTeardown::Empty } : unknown;
+    }
+
+    // The address of a local, which is what makes the environment storage this frame can name -
+    // and naming it is all a teardown of it needs.
+    if(value->kind != Value::Address) return unknown;
+
+    auto& place = ((InstAddress*)value)->place;
+    if(place.root != PlaceRoot::Local || place.projections.isNotEmpty()) return unknown;
+    if(place.local >= analysis.localCount) return unknown;
+
+    auto envSlot = analysis.function.localAt(analysis.local, place.local);
+    if(!envSlot.closureEnv) return unknown;
+    if(!envSlot.value || analysis.local[envSlot.value]->kind != Value::Alloc) return unknown;
+    if(((InstAlloc*)analysis.local[envSlot.value])->storage != StorageClass::Stack) return unknown;
+
+    return ClosureTeardown { ClosureTeardown::Environment, place.local };
+}
+
 static InstDrop* makeDrop(Analysis& analysis, Block& block, U32 localIndex, LocationId source) {
     auto& module = analysis.module;
     auto slot = analysis.function.localAt(analysis.local, localIndex);
     auto ownership = ownershipOf(module, slot.type);
+
+    /*
+     * A closure built here is torn down by name rather than through its own header.
+     *
+     * Nothing about the result differs - the environment is the only thing a function value has to
+     * release, and this is the same two halves run on the same storage. What differs is that a
+     * closure whose environment holds nothing to tear down now costs no instructions at all, where
+     * the generic path costs a load, a test, six instructions of header arithmetic and two indirect
+     * calls to a function that returns.
+     */
+    auto closure = closureTeardown(analysis, localIndex);
+    if(closure.kind == ClosureTeardown::Empty) return nullptr;
+    if(closure.kind == ClosureTeardown::Environment) {
+        return makeDrop(analysis, block, closure.local, source);
+    }
 
     auto drop_ = teardownFor(module, slot.type, Teardown::Drop, source);
     auto reclaim = teardownFor(module, slot.type, Teardown::Reclaim, source);
@@ -2453,6 +2756,7 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
     Analysis analysis(module, function);
     analysis.localCount = function.localCount();
     analysis.reporting = reporting;
+    analysis.rewriting = rewrite;
 
     if(function.blocks.isEmpty()) return true;
 
@@ -2489,8 +2793,10 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
             : !slot.borrowed;
 
         // A closure's environment is allocated here and owned by the function value built out of
-        // it, so this frame neither drops it nor hands its storage back - the value's derived
-        // teardown does both, through the descriptor it carries. See Local::closureEnv.
+        // it, so this frame neither drops it nor hands its storage back on its own account - the
+        // value's teardown does both. It may still be *reached* by name where that teardown turns
+        // out to be one this frame can see through; see closureTeardown, which is what keeps the
+        // two from both happening. See Local::closureEnv.
         if(slot.closureEnv) owned = false;
 
         analysis.tracked.push(TrackedLocal {
@@ -2869,20 +3175,23 @@ void printOwnership(Net::Writer& writer, Context& context, Program& program) {
  * **The checked reference rungs.** `Ref` and `RegionPtr` classify conservatively in ownershipOf()
  * and are not constructible yet, so nothing exercises them.
  *
- * **A closure environment is always heap-placed**, whether or not the closure it belongs to turns
- * out to die in the frame that built it. Design-Memory §13 names a call through a function value as
- * the place escape analysis gives up, so this is the documented fallback rather than a gap - but a
- * closure whose whole extent is one block could have had its environment on the frame, and telling
- * the two apart needs a bit in the value saying which storage its `Reclaim` should hand back.
- *
  * **An InstCallDyn's arguments are assumed retained**, since there is no callee to have a summary.
- * That is the same answer an opaque direct call gets, and it has the same consequence: a root passed
- * to a function value goes to the heap. Combined with the item below it is the sharpest edge here.
+ * That is the same answer an opaque direct call gets, and it has the same consequence: a root handed
+ * to a function value goes to the heap. What it no longer costs is a leak - the retention is
+ * classified as a reference kept rather than as ownership handed over, so the frame still releases
+ * the storage - and what it no longer discards is the signature: the declared `return` group is read
+ * for the result's provenance and for the extent of the loans the arguments create, because those
+ * are contracts the function *type* states and FunArg carries them for exactly this position.
  *
- * **Storage that escaped only by approximation is never released.** `releasedHere` is false for
- * everything the escape analysis marked, on the grounds that whatever it escaped *to* owns it now -
- * which is true for a returned array's buffer and not true for a root that was merely handed to a
- * call this pass could not summarize. Distinguishing "ownership was transferred" from "a reference
- * may have been kept" is what would fix it, and it is what an InstCallDyn argument wants most.
+ * The remaining half is retention itself, which a function type cannot state: `(Int) -> Int` says
+ * nothing about whether the callee keeps what it was given, so every argument is assumed kept. A
+ * marker on FunArg saying otherwise is what would narrow it, and it would have to be checked in
+ * every lambda and thunk that becomes a value of that type.
+ *
+ * **A retained root is still heap-placed.** Since the frame both allocates and releases it, the
+ * heap buys nothing over the frame here: what the retention says is that a *reference* may outlive
+ * the call, and neither storage class makes that reference valid afterwards. Leaving `escaped`
+ * driving the storage class is the conservative reading of a fact the pass did not prove, and
+ * narrowing it means deciding what a reference kept past a call is allowed to mean at all.
  * ---------------------------------------------------------------------------------------------
  */

@@ -44,34 +44,32 @@ fn apply {
   %f: (Int) -> Int borrowed droppable readonly live [0, 1)
 }
 
-fn applyUnit {
-  arg f readonly
-  %f: () -> () borrowed droppable readonly live [0, 1)
+fn direct {
+  arg base readonly
+  %local0: {base: Int} closure writable addressed live [0, 7)
+  %local1: (Int) -> Int droppable readonly live [3, 8)
 }
 
-fn makeAdder {
+fn either {
+  arg pick readonly
+  arg a readonly
+  arg b readonly
+  %local0: {a: Int} closure writable addressed live [2, 9)
+  %local1: (Int) -> Int droppable readonly live [5, 10)
+  %local2: {b: Int} closure writable addressed live [10, 17)
+  %local3: (Int) -> Int droppable readonly live [13, 18)
+  %local4: (Int) -> Int droppable readonly live [18, 20)
+}
+
+fn escaping {
   arg amount readonly
   result escapes
   %local0: {amount: Int} closure writable addressed escapes heap live [0, 7)
   %local1: (Int) -> Int droppable readonly live [3, 8)
 }
 
-fn makeScaler {
-  arg scale readonly
-  arg offset readonly
-  result escapes
-  %local0: {scale: Int, offset: Int} closure writable addressed escapes heap live [0, 8)
-  %local1: (Int) -> Int droppable readonly live [4, 9)
-}
-
 fn main {
-  %local0: {base: Int} closure writable addressed live [0, 7)
-  %local1: (Int) -> Int droppable readonly live [3, 8)
-  %total: Int writable live [8, 24)
-  %local3: {total: &mut Int} closure writable addressed live [10, 18)
-  %local4: () -> () droppable readonly live [14, 19)
-  %local5: (Int) -> Int droppable readonly live [19, 21)
-  %local6: (Int) -> Int droppable readonly live [21, 23)
+  %local0: (Int) -> Int droppable readonly live [3, 5)
 }
 
 fn ResolveTest.lambda$0 {
@@ -91,14 +89,7 @@ fn ResolveTest.lambda$2 {
 
 fn ResolveTest.lambda$3 {
   arg env readonly
-}
-
-fn closureRelease${amount: Int} {
-  arg env readonly
-}
-
-fn closureRelease${scale: Int, offset: Int} {
-  arg env readonly
+  arg x readonly
 }
 
 fn drop$(Int) -> Int {
@@ -107,4 +98,8 @@ fn drop$(Int) -> Int {
 
 fn reclaim$(Int) -> Int {
   arg value readonly
+}
+
+fn closureRelease${amount: Int} {
+  arg env readonly
 }

@@ -977,7 +977,21 @@ struct AsmModule {
         blocks[b.unwrap()].endOffset = U32(buffer.offset());
     }
 
-    void startFunction(LowerFunction* fun) {
+    /*
+     * Opens a function, having first laid down its prefix data where the only place it may go is.
+     *
+     * A function with prefix data is preceded by exactly its bytes: whoever reads them computes
+     * their address by subtracting their size from the entry point, so a byte of padding in between
+     * would point the reader at the wrong word. The padding that *is* allowed goes before them, and
+     * is what keeps the prefix - and so the entry point - on a sensible boundary after whatever the
+     * previous function's last instruction left behind.
+     */
+    void startFunction(LowerBase base, LowerFunction* fun) {
+        if(fun->prefix) {
+            while(buffer.offset() & 15) buffer.writeByte(0);
+            emitData(base, base[fun->prefix]);
+        }
+
         functionOffsets.add(fun, U32(buffer.offset()));
     }
 
@@ -988,7 +1002,12 @@ struct AsmModule {
     // so that a global is never split across a cache line by whatever preceded it.
     void addGlobal(LowerBase base, LowerGlobal* global) {
         while(buffer.offset() & 15) buffer.writeByte(0);
+        emitData(base, global);
+    }
 
+    // One global's bytes at the current offset, wherever that is. Shared by the module's data and by
+    // prefix data, which differ in where they are placed and in nothing else.
+    void emitData(LowerBase base, LowerGlobal* global) {
         auto start = U32(buffer.offset());
         globalOffsets.add(global, start);
         buffer.writeBytes(global->initialContents.data(), global->initialContents.size());

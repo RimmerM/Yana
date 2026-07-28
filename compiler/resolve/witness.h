@@ -79,9 +79,81 @@ namespace TypeDescFields {
 // one of its words the way any other aggregate is read.
 TypePtr typeDescPlaceType(Module& module);
 
-// The type of one word of a function value - see FunValueLayout. Two of the three are bare
-// addresses; the descriptor word is typed, because the teardown glue projects into what it names.
+// The type of one word of a function value - see FunValueLayout. Both are bare addresses: what is
+// behind the code word is not this compiler's business, and what is behind the environment word is
+// known only to the closure header the code word leads to.
 TypePtr funValueFieldType(Module& module, U16 field);
+
+/*
+ * What a closure's teardown runs, emitted as static data immediately in front of the lifted
+ * function's entry point.
+ *
+ * A function value is `{code, env}`, and neither word says what is in the environment. The
+ * environment's descriptor used to be a third word; it does not have to be a word of the value at
+ * all, because what a closure captured is decided by the lambda it came from and the code word
+ * already names the lambda. So the answer lives at a negative offset from the entry point -
+ * `[code - kSize_]` - and every function value is one word narrower for it.
+ *
+ * The two slots hold plain code addresses rather than a descriptor, for the same reason a class
+ * witness's method slots do: everything a descriptor carries beyond them - the size, the alignment,
+ * the flags - is about a type nothing here has to reason about, and the extra indirection would be
+ * paid at every teardown to reach the two words that matter. Holding the addresses also makes them
+ * the *closure's* halves rather than the environment type's, which is what lets a heap environment's
+ * reclaim be "release the captures and hand the storage back" while a frame environment's is only
+ * the first half. Where the environment lives is a compile-time constant per lifted lambda - one
+ * lambda expression is one allocation site - so it is spent here, in which function this slot names,
+ * instead of travelling to a shared teardown as a bit for it to test.
+ *
+ * Both slots are always callable, never null, so nothing that reaches them has to test one first -
+ * see emptyTeardown, which is the same rule a TypeDesc's lifecycle slots follow.
+ *
+ * "Immediately in front of the entry point" is a real constraint on the backend rather than a
+ * convention: the offsets below are what the emitted teardown subtracts, so a code generator that
+ * pads between the header and the first instruction breaks it. AsmModule::startFunction is where
+ * that is honoured, and it is why LowerFunction carries the header rather than the module's global
+ * list.
+ *
+ * Only a lambda that captured something has one. A non-capturing lambda and the thunk that makes a
+ * named function a value have a null environment, so their teardown never reaches for a header and
+ * none is emitted.
+ */
+namespace ClosureHeaderLayout {
+    static constexpr U32 kDrop = 0;
+    static constexpr U32 kReclaim = 8;
+
+    static constexpr U32 kSize_ = 16;
+    static constexpr U32 kAlign_ = 8;
+}
+
+// The same layout as tuple fields, for the typed IR the teardown glue is built in - the same two
+// descriptions of one layout TypeDescFields is, checked against each other the same way.
+namespace ClosureHeaderFields {
+    static constexpr U16 kDrop = 0;
+    static constexpr U16 kReclaim = 1;
+}
+
+TypePtr closureHeaderPlaceType(Module& module);
+
+/*
+ * The header for one lifted lambda, built once and attached to the function it belongs in front of.
+ *
+ * Built when the closure is, with the reclaim slot naming the environment type's own - which is the
+ * answer for an environment that lives in the frame, and the one that is safe to be wrong about in
+ * the direction of doing too little. selectStorage replaces it where the environment turned out to
+ * need the heap, because that is the pass that decides and nothing before it knows.
+ */
+ModulePtr<Global> closureHeaderFor(Module& module, ModulePtr<Function> lambda, TypePtr envType,
+                                   LocationId source);
+
+// The reclaim of a closure whose environment is heap-placed: the environment type's own, and then
+// the storage. Interned per environment type - what it does depends on the type and on nothing
+// about the lambda - and generated only where a closure actually needs one.
+ModulePtr<Function> closureReleaseFor(Module& module, TypePtr envType, LocationId source);
+
+// Points an existing header's reclaim slot at another function. Called from selectStorage with the
+// result of closureReleaseFor, which is the one thing about a header that is not decided by the
+// time the closure is built.
+void setClosureRelease(Module& module, ModulePtr<Global> header, ModulePtr<Function> reclaim);
 
 /*
  * The structural facts a generic body may need about a type it cannot see.
@@ -166,7 +238,7 @@ namespace GenEnvLayout {
  * The method slots hold plain code addresses rather than full `FunctionWitness` records. A witness
  * carries a closure and a captured environment, and a class method has neither: it is a known
  * function reached through a known table. Constrained function *values* are what need the wider
- * shape - which is now exactly the `{code, env, envDesc}` triple FunValueLayout describes, plus the
+ * shape - which is now exactly the `{code, env}` pair FunValueLayout describes, plus the
  * generic environment a constrained callable additionally has to carry.
  */
 namespace ClassWitnessLayout {

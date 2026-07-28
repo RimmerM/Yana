@@ -321,6 +321,15 @@ void printFunction(Net::Writer& writer, Context& context, LowerBase base, LowerF
     print.valueMap.clear();
     print.blockMap.clear();
 
+    // Prefix data is printed where it is emitted - in front of the entry point rather than with the
+    // module's globals - because being there is the whole of what it is. Like the relocations of any
+    // other compiler-built table, it is shown rather than round-tripped: the text format describes
+    // hand-written IR, and neither has syntax for it.
+    if(decl.prefix) {
+        printGlobal(writer, context, base, *base[decl.prefix], print);
+        writer.writeByte('\n');
+    }
+
     printIndentation(writer, print);
     writer.writeString(context.findName(decl.name));
     writer.writeByte('<');

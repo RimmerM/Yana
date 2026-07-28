@@ -224,18 +224,17 @@ struct FunArg {
  * in order, each argument's convention and `return` marker, the result, and the `lens`/`iter` kind.
  * Nothing else may join that key, which is why `name` above is left out of it.
  *
- * The representation is three words, and the third is the one worth explaining. A function value is
- * a code pointer plus the environment its captures live in (Design-Memory §8), and *releasing* that
- * environment is a per-closure question rather than a per-type one: two values of one function type
- * can capture completely different things. So the value carries the environment's TypeDesc as well,
- * which is what its derived Reclaim and Drop run - the same "context travelling with the value"
- * shape §17's existentials have, one word narrower because the code pointer is the whole interface.
+ * The representation is two words: a code pointer, plus the environment its captures live in
+ * (Design-Memory §8). *Releasing* that environment is a per-closure question rather than a per-type
+ * one - two values of one function type can capture completely different things - but the answer is
+ * reached through the code pointer rather than copied into the value, because which lambda a closure
+ * came from is what decides both. See ClosureHeaderLayout.
  *
- * A non-capturing lambda and a plain function referenced by name have a null environment and a null
- * descriptor, so the teardown is a branch that never fires rather than a second representation.
+ * A non-capturing lambda and a plain function referenced by name have a null environment, so the
+ * teardown is a branch that never fires rather than a second representation.
  */
 struct FunType: Type {
-    FunType(): Type(Type::Fun, 3, { 24, 8 }) {}
+    FunType(): Type(Type::Fun, 2, { 16, 8 }) {}
 
     GlobalList<FunArg> args;
     TypePtr result = nullptr;

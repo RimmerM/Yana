@@ -9,9 +9,15 @@ let &liveBuffers = 0 :: I64
 
 data Buffer {bytes: %U8}
 
+-- Zeroed on purpose. Every count below is asserted by adding `firstByte` of a buffer to the result,
+-- so what those bytes hold has to be something this file decided: a block the allocator handed back
+-- a second time still has the free list's own bookkeeping in it, and the sums would then be about
+-- the allocator rather than about where the drops went.
 fn makeBuffer(size: I64) -> Buffer:
     liveBuffers += 1
-    return Buffer {bytes: allocateHeap(size)}
+    let buffer = Buffer {bytes: allocateHeap(size)}
+    setMemory(buffer.bytes, 0, size)
+    return buffer
 
 instance Drop(Buffer):
     fn drop(->value: Buffer) -> {}:

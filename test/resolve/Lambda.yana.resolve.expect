@@ -305,99 +305,74 @@ fn main() -> Int {
     init %local0.code, %v1
     %v4 = cast 0 : %()
     init %local0.env, %v4
-    %v7 = cast 0 : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    init %local0.envDesc, %v7
     %a = call apply, %v0, 10 : Int
-    drop_derived %local0 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
-    %v11 = alloc : (Int) -> Int
-    %v12 = symbol funvalue$double : %()
-    init %local1.code, %v12
-    %v15 = cast 0 : %()
-    init %local1.env, %v15
-    %v18 = cast 0 : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    init %local1.envDesc, %v18
-    %b = call apply, %v11, 20 : Int
-    drop_derived %local1 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    %v8 = alloc : (Int) -> Int
+    %v9 = symbol funvalue$double : %()
+    init %local1.code, %v9
+    %v12 = cast 0 : %()
+    init %local1.env, %v12
+    %b = call apply, %v8, 20 : Int
     %f = alloc : (Int) -> Int
-    %v23 = symbol ResolveTest.lambda$1 : %()
-    init %local2.code, %v23
-    %v26 = cast 0 : %()
-    init %local2.env, %v26
-    %v29 = cast 0 : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    init %local2.envDesc, %v29
+    %v17 = symbol ResolveTest.lambda$1 : %()
+    init %local2.code, %v17
+    %v20 = cast 0 : %()
+    init %local2.env, %v20
     %c = calldyn %f, 5 : Int
-    drop_derived %local2 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
-    %v33 = alloc : (Int) -> Int
-    %v34 = symbol ResolveTest.lambda$2 : %()
-    init %local3.code, %v34
-    %v37 = cast 0 : %()
-    init %local3.env, %v37
-    %v40 = cast 0 : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    init %local3.envDesc, %v40
-    %d = call twice, %v33, 1 : Int
-    drop_derived %local3 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    %v24 = alloc : (Int) -> Int
+    %v25 = symbol ResolveTest.lambda$2 : %()
+    init %local3.code, %v25
+    %v28 = cast 0 : %()
+    init %local3.env, %v28
+    %d = call twice, %v24, 1 : Int
     %g = alloc : (Int) -> Int
-    %v45 = symbol ResolveTest.lambda$3 : %()
-    init %local4.code, %v45
-    %v48 = cast 0 : %()
-    init %local4.env, %v48
-    %v51 = cast 0 : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    init %local4.envDesc, %v51
+    %v33 = symbol ResolveTest.lambda$3 : %()
+    init %local4.code, %v33
+    %v36 = cast 0 : %()
+    init %local4.env, %v36
     %e = calldyn %g, 4 : Int
-    drop_derived %local4 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
     %step = alloc : Step
-    %v57 = alloc : (Int) -> Int
-    %v58 = symbol ResolveTest.lambda$4 : %()
-    init %local6.code, %v58
-    %v61 = cast 0 : %()
-    init %local6.env, %v61
-    %v64 = cast 0 : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    init %local6.envDesc, %v64
+    %v42 = alloc : (Int) -> Int
+    %v43 = symbol ResolveTest.lambda$4 : %()
+    init %local6.code, %v43
+    %v46 = cast 0 : %()
+    init %local6.env, %v46
     init %local5@Step.weight, 2
-    init %local5@Step.run, %v57
+    init %local5@Step.run, %v42
     %h = call runStep, %step, 6 : Int
     drop_derived %local5 via drop$Step reclaim reclaim$Step
-    %v70 = alloc : (Int) -> Int
-    %v71 = symbol ResolveTest.lambda$5 : %()
-    init %local7.code, %v71
-    %v74 = cast 0 : %()
-    init %local7.env, %v74
-    %v77 = cast 0 : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    init %local7.envDesc, %v77
-    %i = call twiceGeneric(Int), %v70, 1 : Int
-    drop_derived %local7 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
-    %v82 = alloc : (->Array(Int)) -> Int
-    %v83 = symbol funvalue$consume : %()
-    init %local8.code, %v83
-    %v86 = cast 0 : %()
-    init %local8.env, %v86
-    %v89 = cast 0 : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    init %local8.envDesc, %v89
-    %j = call run, %v82 : Int
-    drop_derived %local8 via drop$(->Array(Int)) -> Int reclaim reclaim$(->Array(Int)) -> Int
-    %counter = alloc heap escaping : Int
+    %v52 = alloc : (Int) -> Int
+    %v53 = symbol ResolveTest.lambda$5 : %()
+    init %local7.code, %v53
+    %v56 = cast 0 : %()
+    init %local7.env, %v56
+    %i = call twiceGeneric(Int), %v52, 1 : Int
+    %v61 = alloc : (->Array(Int)) -> Int
+    %v62 = symbol funvalue$consume : %()
+    init %local8.code, %v62
+    %v65 = cast 0 : %()
+    init %local8.env, %v65
+    %j = call run, %v61 : Int
+    %counter = alloc heap : Int
     init %counter, 100
-    %v95 = alloc : (&Int) -> ()
-    %v96 = symbol ResolveTest.lambda$6 : %()
-    init %local10.code, %v96
-    %v99 = cast 0 : %()
-    init %local10.env, %v99
-    %v102 = cast 0 : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    init %local10.envDesc, %v102
-    %v104 = load %counter : Int
-    %v105 = borrow_mut %counter : &mut Int
-    call runOn, %v95, %v105
-    drop_derived %local10 via drop$(&Int) -> () reclaim reclaim$(&Int) -> ()
-    %v107 = add %a, %b : Int
-    %v108 = add %v107, %c : Int
-    %v109 = add %v108, %d : Int
-    %v110 = add %v109, %e : Int
-    %v111 = add %v110, %h : Int
-    %v112 = add %v111, %i : Int
-    %v113 = add %v112, %j : Int
-    %v114 = load %counter : Int
-    %v115 = add %v113, %v114 : Int
-    ret %v115
+    %v71 = alloc : (&Int) -> ()
+    %v72 = symbol ResolveTest.lambda$6 : %()
+    init %local10.code, %v72
+    %v75 = cast 0 : %()
+    init %local10.env, %v75
+    %v77 = load %counter : Int
+    %v78 = borrow_mut %counter : &mut Int
+    call runOn, %v71, %v78
+    %v80 = add %a, %b : Int
+    %v81 = add %v80, %c : Int
+    %v82 = add %v81, %d : Int
+    %v83 = add %v82, %e : Int
+    %v84 = add %v83, %h : Int
+    %v85 = add %v84, %i : Int
+    %v86 = add %v85, %j : Int
+    %v87 = load %counter : Int
+    drop_derived %counter release
+    %v88 = add %v86, %v87 : Int
+    ret %v88
 }
 
 fn ResolveTest.lambda$0(%env: %{}, %x: Int) -> Int {
@@ -464,6 +439,12 @@ fn ResolveTest.lambda$6(%env: %{}, %t: Int) -> () {
     ret
 }
 
+fn drop$Step(%value: %Step) -> () {
+  b0:
+    drop_derived [%value]@Step.run via drop$(Int) -> Int
+    ret
+}
+
 fn drop$(Int) -> Int(%value: %(Int) -> Int) -> () {
   b0:
     %v1 = load [%value].env : %()
@@ -472,12 +453,21 @@ fn drop$(Int) -> Int(%value: %(Int) -> Int) -> () {
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%value].envDesc : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    %v7 = load [%v6].drop : %()
-    calldyn %v7, %v1
+    %v6 = load [%value].code : %()
+    %v7 = cast %v6 : Long
+    %v9 = sub %v7, 16 : Long
+    %v10 = cast %v9 : %{drop: %(), reclaim: %()}
+    %v11 = load [%v10].drop : %()
+    calldyn %v11, %v1
     jmp b2
 
   b2:
+    ret
+}
+
+fn reclaim$Step(%value: %Step) -> () {
+  b0:
+    drop_derived [%value]@Step.run reclaim reclaim$(Int) -> Int
     ret
 }
 
@@ -489,95 +479,12 @@ fn reclaim$(Int) -> Int(%value: %(Int) -> Int) -> () {
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%value].envDesc : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    %v7 = load [%v6].reclaim : %()
-    calldyn %v7, %v1
-    %v9 = cast %v1 : %U8
-    call freeHeap, %v9
-    jmp b2
-
-  b2:
-    ret
-}
-
-fn drop$Step(%value: %Step) -> () {
-  b0:
-    drop_derived [%value]@Step.run via drop$(Int) -> Int
-    ret
-}
-
-fn reclaim$Step(%value: %Step) -> () {
-  b0:
-    drop_derived [%value]@Step.run reclaim reclaim$(Int) -> Int
-    ret
-}
-
-fn drop$(->Array(Int)) -> Int(%value: %(->Array(Int)) -> Int) -> () {
-  b0:
-    %v1 = load [%value].env : %()
-    %v3 = cast 0 : %()
-    %v4 = cmp_ne %v1, %v3 : Bool
-    je %v4, b1, b2
-
-  b1:
-    %v6 = load [%value].envDesc : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    %v7 = load [%v6].drop : %()
-    calldyn %v7, %v1
-    jmp b2
-
-  b2:
-    ret
-}
-
-fn reclaim$(->Array(Int)) -> Int(%value: %(->Array(Int)) -> Int) -> () {
-  b0:
-    %v1 = load [%value].env : %()
-    %v3 = cast 0 : %()
-    %v4 = cmp_ne %v1, %v3 : Bool
-    je %v4, b1, b2
-
-  b1:
-    %v6 = load [%value].envDesc : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    %v7 = load [%v6].reclaim : %()
-    calldyn %v7, %v1
-    %v9 = cast %v1 : %U8
-    call freeHeap, %v9
-    jmp b2
-
-  b2:
-    ret
-}
-
-fn drop$(&Int) -> ()(%value: %(&Int) -> ()) -> () {
-  b0:
-    %v1 = load [%value].env : %()
-    %v3 = cast 0 : %()
-    %v4 = cmp_ne %v1, %v3 : Bool
-    je %v4, b1, b2
-
-  b1:
-    %v6 = load [%value].envDesc : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    %v7 = load [%v6].drop : %()
-    calldyn %v7, %v1
-    jmp b2
-
-  b2:
-    ret
-}
-
-fn reclaim$(&Int) -> ()(%value: %(&Int) -> ()) -> () {
-  b0:
-    %v1 = load [%value].env : %()
-    %v3 = cast 0 : %()
-    %v4 = cmp_ne %v1, %v3 : Bool
-    je %v4, b1, b2
-
-  b1:
-    %v6 = load [%value].envDesc : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
-    %v7 = load [%v6].reclaim : %()
-    calldyn %v7, %v1
-    %v9 = cast %v1 : %U8
-    call freeHeap, %v9
+    %v6 = load [%value].code : %()
+    %v7 = cast %v6 : Long
+    %v9 = sub %v7, 16 : Long
+    %v10 = cast %v9 : %{drop: %(), reclaim: %()}
+    %v11 = load [%v10].reclaim : %()
+    calldyn %v11, %v1
     jmp b2
 
   b2:

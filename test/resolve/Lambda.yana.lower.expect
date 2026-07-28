@@ -2,6 +2,31 @@
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 
+reclaim$(Int) -> Int<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 8: Ptr
+    %v_3 = bitcast 0: Ptr
+    %v_4 = cmp_neq %v_2, %v_3: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Long
+    %v_9 = sub %v_8, 16: Long
+    %v_10 = bitcast %v_9: Ptr
+    %v_11 = add %v_10, 8: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    call_complex %v_12, %v_2
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
 heapClassOf<complex>(%total: Long): Long {
   b_0 {
     %size = alloca 8, 8: Ptr
@@ -44,11 +69,12 @@ drop$(Int) -> Int<complex>(%value: Ptr) {
   }
 
   b_5 {
-    %v_7 = add %value, 16: Ptr
-    %v_8 = load %v_7, 8: Ptr
-    %v_9 = add %v_8, 40: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    call_complex %v_10, %v_2
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Long
+    %v_9 = sub %v_8, 16: Long
+    %v_10 = bitcast %v_9: Ptr
+    %v_11 = load %v_10, 8: Ptr
+    call_complex %v_11, %v_2
     jmp b_6
   }
 
@@ -77,6 +103,31 @@ mapMemory<complex>(%size: Long): Ptr {
   b_6 {
     %v_7 = bitcast %result: Ptr
     ret %v_7
+  }
+}
+
+ResolveTest.lambda$5<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = add %x, 10: Int
+    ret %v_1
+  }
+}
+
+reclaim$Step<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    call_complex reclaim$(Int) -> Int, %v_1
+    ret 
+  }
+}
+
+setFreeListHead<complex>(%sizeClass: Long, %block: Ptr) {
+  b_0 {
+    %v_1 = load @heapFree, 8: Ptr
+    %v_2 = imul %sizeClass, 8: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    store %v_3, %block, 8
+    ret 
   }
 }
 
@@ -114,6 +165,29 @@ ResolveTest.lambda$2<complex>(%env: Ptr, %x: Int): Int {
   }
 }
 
+Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 16: Ptr
+    %v_2 = load %v_1, 4: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = load %value, 8: Ptr
+    %v_6 = bitcast %v_5: Ptr
+    call_complex freeHeap, %v_6
+    jmp b_7
+  }
+
+  b_4 {
+    jmp b_7
+  }
+
+  b_7 {
+    ret 
+  }
+}
+
 apply<complex>(%f: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = add %f, 8: Ptr
@@ -121,6 +195,28 @@ apply<complex>(%f: Ptr, %x: Int): Int {
     %v_3 = load %v_1, 8: Ptr
     %v_4 = call_complex %v_2, %v_3, %x: Int
     ret %v_4
+  }
+}
+
+twiceGeneric(Int)<complex>(%f: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = add %f, 8: Ptr
+    %v_2 = load %f, 8: Ptr
+    %v_3 = load %v_1, 8: Ptr
+    %v_4 = call_complex %v_2, %v_3, %x: Int
+    %v_5 = add %f, 8: Ptr
+    %v_6 = load %f, 8: Ptr
+    %v_7 = load %v_5, 8: Ptr
+    %v_8 = call_complex %v_6, %v_7, %v_4: Int
+    ret %v_8
+  }
+}
+
+drop$Step<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    call_complex drop$(Int) -> Int, %v_1
+    ret 
   }
 }
 
@@ -161,6 +257,13 @@ initHeap<complex>() {
   }
 }
 
+heapBlockSize<complex>(%sizeClass: Long): Long {
+  b_0 {
+    %v_1 = shl 16, %sizeClass: Long
+    ret %v_1
+  }
+}
+
 funvalue$double<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = call_complex double, %x: Int
@@ -179,31 +282,6 @@ twice<complex>(%f: Ptr, %x: Int): Int {
     %v_7 = load %v_5, 8: Ptr
     %v_8 = call_complex %v_6, %v_7, %v_4: Int
     ret %v_8
-  }
-}
-
-reclaim$(&Int) -> ()<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = bitcast 0: Ptr
-    %v_4 = cmp_neq %v_2, %v_3: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = add %value, 16: Ptr
-    %v_8 = load %v_7, 8: Ptr
-    %v_9 = add %v_8, 32: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    call_complex %v_10, %v_2
-    %v_11 = bitcast %v_2: Ptr
-    call_complex freeHeap, %v_11
-    jmp b_6
-  }
-
-  b_6 {
-    ret 
   }
 }
 
@@ -242,204 +320,6 @@ run<complex>(%f: Ptr): Int {
 ResolveTest.lambda$0<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = add %x, 1: Int
-    ret %v_1
-  }
-}
-
-runOn<complex>(%f: Ptr, %target: Ptr) {
-  b_0 {
-    %v_1 = loads %target, 4: Int
-    %v_2 = add %f, 8: Ptr
-    %v_3 = load %f, 8: Ptr
-    %v_4 = load %v_2, 8: Ptr
-    call_complex %v_3, %v_4, %target
-    ret 
-  }
-}
-
-freeListHead<complex>(%sizeClass: Long): Ptr {
-  b_0 {
-    %v_1 = load @heapFree, 8: Ptr
-    %v_2 = imul %sizeClass, 8: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    %v_4 = load %v_3, 8: Ptr
-    ret %v_4
-  }
-}
-
-runStep<complex>(%s: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = add %s, 8: Ptr
-    %v_2 = add %v_1, 8: Ptr
-    %v_3 = load %v_1, 8: Ptr
-    %v_4 = load %v_2, 8: Ptr
-    %v_5 = call_complex %v_3, %v_4, %x: Int
-    %v_6 = loads %s, 4: Int
-    %v_7 = imul %v_5, %v_6: Int
-    ret %v_7
-  }
-}
-
-ResolveTest.lambda$3<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = imul %x, 3: Int
-    ret %v_1
-  }
-}
-
-ResolveTest.lambda$1<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = imul %x, %x: Int
-    ret %v_1
-  }
-}
-
-reclaim$(Int) -> Int<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = bitcast 0: Ptr
-    %v_4 = cmp_neq %v_2, %v_3: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = add %value, 16: Ptr
-    %v_8 = load %v_7, 8: Ptr
-    %v_9 = add %v_8, 32: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    call_complex %v_10, %v_2
-    %v_11 = bitcast %v_2: Ptr
-    call_complex freeHeap, %v_11
-    jmp b_6
-  }
-
-  b_6 {
-    ret 
-  }
-}
-
-ResolveTest.lambda$5<complex>(%env: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = add %x, 10: Int
-    ret %v_1
-  }
-}
-
-reclaim$Step<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    call_complex reclaim$(Int) -> Int, %v_1
-    ret 
-  }
-}
-
-drop$(->Array(Int)) -> Int<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = bitcast 0: Ptr
-    %v_4 = cmp_neq %v_2, %v_3: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = add %value, 16: Ptr
-    %v_8 = load %v_7, 8: Ptr
-    %v_9 = add %v_8, 40: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    call_complex %v_10, %v_2
-    jmp b_6
-  }
-
-  b_6 {
-    ret 
-  }
-}
-
-setFreeListHead<complex>(%sizeClass: Long, %block: Ptr) {
-  b_0 {
-    %v_1 = load @heapFree, 8: Ptr
-    %v_2 = imul %sizeClass, 8: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    store %v_3, %block, 8
-    ret 
-  }
-}
-
-Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 16: Ptr
-    %v_2 = load %v_1, 4: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    %v_5 = load %value, 8: Ptr
-    %v_6 = bitcast %v_5: Ptr
-    call_complex freeHeap, %v_6
-    jmp b_7
-  }
-
-  b_4 {
-    jmp b_7
-  }
-
-  b_7 {
-    ret 
-  }
-}
-
-twiceGeneric(Int)<complex>(%f: Ptr, %x: Int): Int {
-  b_0 {
-    %v_1 = add %f, 8: Ptr
-    %v_2 = load %f, 8: Ptr
-    %v_3 = load %v_1, 8: Ptr
-    %v_4 = call_complex %v_2, %v_3, %x: Int
-    %v_5 = add %f, 8: Ptr
-    %v_6 = load %f, 8: Ptr
-    %v_7 = load %v_5, 8: Ptr
-    %v_8 = call_complex %v_6, %v_7, %v_4: Int
-    ret %v_8
-  }
-}
-
-drop$Step<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    call_complex drop$(Int) -> Int, %v_1
-    ret 
-  }
-}
-
-reclaim$(->Array(Int)) -> Int<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = bitcast 0: Ptr
-    %v_4 = cmp_neq %v_2, %v_3: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = add %value, 16: Ptr
-    %v_8 = load %v_7, 8: Ptr
-    %v_9 = add %v_8, 32: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    call_complex %v_10, %v_2
-    %v_11 = bitcast %v_2: Ptr
-    call_complex freeHeap, %v_11
-    jmp b_6
-  }
-
-  b_6 {
-    ret 
-  }
-}
-
-heapBlockSize<complex>(%sizeClass: Long): Long {
-  b_0 {
-    %v_1 = shl 16, %sizeClass: Long
     ret %v_1
   }
 }
@@ -556,26 +436,44 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
-drop$(&Int) -> ()<complex>(%value: Ptr) {
+runOn<complex>(%f: Ptr, %target: Ptr) {
   b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = bitcast 0: Ptr
-    %v_4 = cmp_neq %v_2, %v_3: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = add %value, 16: Ptr
-    %v_8 = load %v_7, 8: Ptr
-    %v_9 = add %v_8, 40: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    call_complex %v_10, %v_2
-    jmp b_6
-  }
-
-  b_6 {
+    %v_1 = loads %target, 4: Int
+    %v_2 = add %f, 8: Ptr
+    %v_3 = load %f, 8: Ptr
+    %v_4 = load %v_2, 8: Ptr
+    call_complex %v_3, %v_4, %target
     ret 
+  }
+}
+
+freeListHead<complex>(%sizeClass: Long): Ptr {
+  b_0 {
+    %v_1 = load @heapFree, 8: Ptr
+    %v_2 = imul %sizeClass, 8: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    %v_4 = load %v_3, 8: Ptr
+    ret %v_4
+  }
+}
+
+runStep<complex>(%s: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = add %s, 8: Ptr
+    %v_2 = add %v_1, 8: Ptr
+    %v_3 = load %v_1, 8: Ptr
+    %v_4 = load %v_2, 8: Ptr
+    %v_5 = call_complex %v_3, %v_4, %x: Int
+    %v_6 = loads %s, 4: Int
+    %v_7 = imul %v_5, %v_6: Int
+    ret %v_7
+  }
+}
+
+ResolveTest.lambda$3<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = imul %x, 3: Int
+    ret %v_1
   }
 }
 
@@ -596,128 +494,93 @@ length(Int)<complex>(%self: Ptr): Int {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = alloca 24, 8: Ptr
+    %v_1 = alloca 16, 8: Ptr
     store %v_1, ResolveTest.lambda$0, 8
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
-    %v_4 = bitcast 0: Ptr
-    %v_5 = add %v_1, 16: Ptr
-    store %v_5, %v_4, 8
     %a = call_complex apply, %v_1, 10: Int
-    call_complex drop$(Int) -> Int, %v_1
-    call_complex reclaim$(Int) -> Int, %v_1
-    %v_6 = alloca 24, 8: Ptr
-    store %v_6, funvalue$double, 8
-    %v_7 = bitcast 0: Ptr
-    %v_8 = add %v_6, 8: Ptr
-    store %v_8, %v_7, 8
-    %v_9 = bitcast 0: Ptr
-    %v_10 = add %v_6, 16: Ptr
-    store %v_10, %v_9, 8
-    %b = call_complex apply, %v_6, 20: Int
-    call_complex drop$(Int) -> Int, %v_6
-    call_complex reclaim$(Int) -> Int, %v_6
-    %f = alloca 24, 8: Ptr
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, funvalue$double, 8
+    %v_5 = bitcast 0: Ptr
+    %v_6 = add %v_4, 8: Ptr
+    store %v_6, %v_5, 8
+    %b = call_complex apply, %v_4, 20: Int
+    %f = alloca 16, 8: Ptr
     store %f, ResolveTest.lambda$1, 8
-    %v_11 = bitcast 0: Ptr
-    %v_12 = add %f, 8: Ptr
-    store %v_12, %v_11, 8
+    %v_7 = bitcast 0: Ptr
+    %v_8 = add %f, 8: Ptr
+    store %v_8, %v_7, 8
+    %v_9 = add %f, 8: Ptr
+    %v_10 = load %f, 8: Ptr
+    %v_11 = load %v_9, 8: Ptr
+    %c = call_complex %v_10, %v_11, 5: Int
+    %v_12 = alloca 16, 8: Ptr
+    store %v_12, ResolveTest.lambda$2, 8
     %v_13 = bitcast 0: Ptr
-    %v_14 = add %f, 16: Ptr
+    %v_14 = add %v_12, 8: Ptr
     store %v_14, %v_13, 8
-    %v_15 = add %f, 8: Ptr
-    %v_16 = load %f, 8: Ptr
-    %v_17 = load %v_15, 8: Ptr
-    %c = call_complex %v_16, %v_17, 5: Int
-    call_complex drop$(Int) -> Int, %f
-    call_complex reclaim$(Int) -> Int, %f
-    %v_18 = alloca 24, 8: Ptr
-    store %v_18, ResolveTest.lambda$2, 8
-    %v_19 = bitcast 0: Ptr
-    %v_20 = add %v_18, 8: Ptr
-    store %v_20, %v_19, 8
-    %v_21 = bitcast 0: Ptr
-    %v_22 = add %v_18, 16: Ptr
-    store %v_22, %v_21, 8
-    %d = call_complex twice, %v_18, 1: Int
-    call_complex drop$(Int) -> Int, %v_18
-    call_complex reclaim$(Int) -> Int, %v_18
-    %g = alloca 24, 8: Ptr
+    %d = call_complex twice, %v_12, 1: Int
+    %g = alloca 16, 8: Ptr
     store %g, ResolveTest.lambda$3, 8
-    %v_23 = bitcast 0: Ptr
-    %v_24 = add %g, 8: Ptr
-    store %v_24, %v_23, 8
-    %v_25 = bitcast 0: Ptr
-    %v_26 = add %g, 16: Ptr
-    store %v_26, %v_25, 8
-    %v_27 = add %g, 8: Ptr
-    %v_28 = load %g, 8: Ptr
-    %v_29 = load %v_27, 8: Ptr
-    %e = call_complex %v_28, %v_29, 4: Int
-    call_complex drop$(Int) -> Int, %g
-    call_complex reclaim$(Int) -> Int, %g
-    %step = alloca 32, 8: Ptr
-    %v_30 = alloca 24, 8: Ptr
-    store %v_30, ResolveTest.lambda$4, 8
-    %v_31 = bitcast 0: Ptr
-    %v_32 = add %v_30, 8: Ptr
-    store %v_32, %v_31, 8
-    %v_33 = bitcast 0: Ptr
-    %v_34 = add %v_30, 16: Ptr
-    store %v_34, %v_33, 8
+    %v_15 = bitcast 0: Ptr
+    %v_16 = add %g, 8: Ptr
+    store %v_16, %v_15, 8
+    %v_17 = add %g, 8: Ptr
+    %v_18 = load %g, 8: Ptr
+    %v_19 = load %v_17, 8: Ptr
+    %e = call_complex %v_18, %v_19, 4: Int
+    %step = alloca 24, 8: Ptr
+    %v_20 = alloca 16, 8: Ptr
+    store %v_20, ResolveTest.lambda$4, 8
+    %v_21 = bitcast 0: Ptr
+    %v_22 = add %v_20, 8: Ptr
+    store %v_22, %v_21, 8
     store %step, 2, 4
-    %v_35 = add %step, 8: Ptr
-    copy %v_35, %v_30, 24
+    %v_23 = add %step, 8: Ptr
+    copy %v_23, %v_20, 16
     %h = call_complex runStep, %step, 6: Int
     call_complex drop$Step, %step
     call_complex reclaim$Step, %step
-    %v_36 = alloca 24, 8: Ptr
-    store %v_36, ResolveTest.lambda$5, 8
-    %v_37 = bitcast 0: Ptr
-    %v_38 = add %v_36, 8: Ptr
-    store %v_38, %v_37, 8
-    %v_39 = bitcast 0: Ptr
-    %v_40 = add %v_36, 16: Ptr
-    store %v_40, %v_39, 8
-    %i = call_complex twiceGeneric(Int), %v_36, 1: Int
-    call_complex drop$(Int) -> Int, %v_36
-    call_complex reclaim$(Int) -> Int, %v_36
-    %v_41 = alloca 24, 8: Ptr
-    store %v_41, funvalue$consume, 8
-    %v_42 = bitcast 0: Ptr
-    %v_43 = add %v_41, 8: Ptr
-    store %v_43, %v_42, 8
-    %v_44 = bitcast 0: Ptr
-    %v_45 = add %v_41, 16: Ptr
-    store %v_45, %v_44, 8
-    %j = call_complex run, %v_41: Int
-    call_complex drop$(->Array(Int)) -> Int, %v_41
-    call_complex reclaim$(->Array(Int)) -> Int, %v_41
+    %v_24 = alloca 16, 8: Ptr
+    store %v_24, ResolveTest.lambda$5, 8
+    %v_25 = bitcast 0: Ptr
+    %v_26 = add %v_24, 8: Ptr
+    store %v_26, %v_25, 8
+    %i = call_complex twiceGeneric(Int), %v_24, 1: Int
+    %v_27 = alloca 16, 8: Ptr
+    store %v_27, funvalue$consume, 8
+    %v_28 = bitcast 0: Ptr
+    %v_29 = add %v_27, 8: Ptr
+    store %v_29, %v_28, 8
+    %j = call_complex run, %v_27: Int
     %counter = call_complex allocateHeap, 4: Ptr
     store %counter, 100, 4
-    %v_46 = alloca 24, 8: Ptr
-    store %v_46, ResolveTest.lambda$6, 8
-    %v_47 = bitcast 0: Ptr
-    %v_48 = add %v_46, 8: Ptr
-    store %v_48, %v_47, 8
-    %v_49 = bitcast 0: Ptr
-    %v_50 = add %v_46, 16: Ptr
-    store %v_50, %v_49, 8
-    %v_51 = loads %counter, 4: Int
-    call_complex runOn, %v_46, %counter
-    call_complex drop$(&Int) -> (), %v_46
-    call_complex reclaim$(&Int) -> (), %v_46
-    %v_52 = add %a, %b: Int
-    %v_53 = add %v_52, %c: Int
-    %v_54 = add %v_53, %d: Int
-    %v_55 = add %v_54, %e: Int
-    %v_56 = add %v_55, %h: Int
-    %v_57 = add %v_56, %i: Int
-    %v_58 = add %v_57, %j: Int
-    %v_59 = loads %counter, 4: Int
-    %v_60 = add %v_58, %v_59: Int
-    ret %v_60
+    %v_30 = alloca 16, 8: Ptr
+    store %v_30, ResolveTest.lambda$6, 8
+    %v_31 = bitcast 0: Ptr
+    %v_32 = add %v_30, 8: Ptr
+    store %v_32, %v_31, 8
+    %v_33 = loads %counter, 4: Int
+    call_complex runOn, %v_30, %counter
+    %v_34 = add %a, %b: Int
+    %v_35 = add %v_34, %c: Int
+    %v_36 = add %v_35, %d: Int
+    %v_37 = add %v_36, %e: Int
+    %v_38 = add %v_37, %h: Int
+    %v_39 = add %v_38, %i: Int
+    %v_40 = add %v_39, %j: Int
+    %v_41 = loads %counter, 4: Int
+    call_complex freeHeap, %counter
+    %v_42 = add %v_40, %v_41: Int
+    ret %v_42
+  }
+}
+
+ResolveTest.lambda$1<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = imul %x, %x: Int
+    ret %v_1
   }
 }
 

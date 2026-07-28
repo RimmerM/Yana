@@ -122,8 +122,7 @@ U32 Function::addLocal(Module& module, TypePtr type, StringId localName, ModuleP
                        ast::BindType convention, bool borrowed, bool closureEnv) {
     auto index = U32(locals.size());
     locals.push(module.arena, Local {
-        type, localName, value, convention,
-        closureEnv ? StorageClass::Heap : StorageClass::Stack, borrowed, closureEnv,
+        type, localName, value, convention, StorageClass::Stack, borrowed, closureEnv,
     });
 
     return index;

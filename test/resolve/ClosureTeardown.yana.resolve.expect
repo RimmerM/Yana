@@ -6,12 +6,12 @@ let &heapFree: %%U8 = 0
 
 table closure$ResolveTest.lambda$0 before ResolveTest.lambda$0 {
   +0 teardown$none
-  +8 closureRelease${amount: Int}
+  +8 teardown$none
 }
 
 table closure$ResolveTest.lambda$1 before ResolveTest.lambda$1 {
   +0 teardown$none
-  +8 closureRelease${scale: Int, offset: Int}
+  +8 teardown$none
 }
 
 table closure$ResolveTest.lambda$2 before ResolveTest.lambda$2 {
@@ -21,7 +21,7 @@ table closure$ResolveTest.lambda$2 before ResolveTest.lambda$2 {
 
 table closure$ResolveTest.lambda$3 before ResolveTest.lambda$3 {
   +0 teardown$none
-  +8 teardown$none
+  +8 closureRelease${amount: Int}
 }
 
 fn teardown$none(%value: %()) -> () {
@@ -234,116 +234,103 @@ fn apply(%f: (Int) -> Int, %x: Int) -> Int {
     ret %v2
 }
 
-fn applyUnit(%f: () -> ()) -> () {
+fn direct(%base: Int) -> Int {
   b0:
-    calldyn %f
-    ret
-}
-
-fn makeAdder(%amount: Int) -> (Int) -> Int {
-  b0:
-    %v1 = alloc heap escaping : {amount: Int}
-    init %local0.amount, %amount
+    %v1 = alloc : {base: Int}
+    init %local0.base, %base
     %v3 = addressof %local0 : %()
     %v4 = alloc : (Int) -> Int
     %v5 = symbol ResolveTest.lambda$0 : %()
     init %local1.code, %v5
     init %local1.env, %v3
-    ret %v4
+    %v9 = call apply, %v4, 1 : Int
+    ret %v9
 }
 
-fn makeScaler(%scale: Int, %offset: Int) -> (Int) -> Int {
+fn either(%pick: Int, %a: Int, %b: Int) -> Int {
   b0:
-    %v2 = alloc heap escaping : {scale: Int, offset: Int}
-    init %local0.scale, %scale
-    init %local0.offset, %offset
-    %v5 = addressof %local0 : %()
-    %v6 = alloc : (Int) -> Int
-    %v7 = symbol ResolveTest.lambda$1 : %()
-    init %local1.code, %v7
-    init %local1.env, %v5
-    ret %v6
+    %v5 = cmp_lt %pick, 1 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = alloc : {a: Int}
+    init %local0.a, %a
+    %v9 = addressof %local0 : %()
+    %v10 = alloc : (Int) -> Int
+    %v11 = symbol ResolveTest.lambda$1 : %()
+    init %local1.code, %v11
+    init %local1.env, %v9
+    jmp b3
+
+  b2:
+    %v14 = alloc : {b: Int}
+    init %local2.b, %b
+    %v16 = addressof %local2 : %()
+    %v17 = alloc : (Int) -> Int
+    %v18 = symbol ResolveTest.lambda$2 : %()
+    init %local3.code, %v18
+    init %local3.env, %v16
+    jmp b3
+
+  b3:
+    %f = phi [b1, %v10], [b2, %v17] : (Int) -> Int
+    %v25 = call apply, %f, 10 : Int
+    drop_derived %local4 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    ret %v25
+}
+
+fn escaping(%amount: Int) -> (Int) -> Int {
+  b0:
+    %v1 = alloc heap escaping : {amount: Int}
+    init %local0.amount, %amount
+    %v3 = addressof %local0 : %()
+    %v4 = alloc : (Int) -> Int
+    %v5 = symbol ResolveTest.lambda$3 : %()
+    init %local1.code, %v5
+    init %local1.env, %v3
+    ret %v4
 }
 
 fn main() -> Int {
   b0:
-    %v2 = alloc : {base: Int}
-    init %local0.base, %base
-    %v4 = addressof %local0 : %()
-    %v5 = alloc : (Int) -> Int
-    %v6 = symbol ResolveTest.lambda$2 : %()
-    init %local1.code, %v6
-    init %local1.env, %v4
-    %a = call apply, %v5, 1 : Int
-    %total = alloc : Int
-    init %total, 0
-    %v14 = alloc : {total: &mut Int}
-    %v15 = borrow_mut %total : &mut Int
-    init %local3.total, %v15
-    %v17 = addressof %local3 : %()
-    %v18 = alloc : () -> ()
-    %v19 = symbol ResolveTest.lambda$3 : %()
-    init %local4.code, %v19
-    init %local4.env, %v17
-    call applyUnit, %v18
-    %add5 = call makeAdder, 5 : (Int) -> Int
-    %b = calldyn %add5, 20 : Int
-    drop_derived %local5 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
-    %scale = call makeScaler, 3, 4 : (Int) -> Int
-    %c = calldyn %scale, 10 : Int
-    drop_derived %local6 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
-    %v32 = load %total : Int
-    %v33 = add %a, %v32 : Int
-    %v34 = add %v33, %b : Int
-    %v35 = add %v34, %c : Int
-    ret %v35
+    %a = call direct, 5 : Int
+    %b = call either, 0, 3, 7 : Int
+    %c = call either, 2, 3, 7 : Int
+    %f = call escaping, 100 : (Int) -> Int
+    %d = calldyn %f, 1 : Int
+    drop_derived %local0 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    %v14 = add %a, %b : Int
+    %v15 = add %v14, %c : Int
+    %v16 = add %v15, %d : Int
+    ret %v16
 }
 
-fn ResolveTest.lambda$0(%env: %{amount: Int}, %x: Int) -> Int {
-  b0:
-    %v2 = load [%env].amount : Int
-    %v3 = add %x, %v2 : Int
-    ret %v3
-}
-
-fn ResolveTest.lambda$1(%env: %{scale: Int, offset: Int}, %x: Int) -> Int {
-  b0:
-    %v2 = load [%env].scale : Int
-    %v3 = mul %x, %v2 : Int
-    %v4 = load [%env].offset : Int
-    %v5 = add %v3, %v4 : Int
-    ret %v5
-}
-
-fn ResolveTest.lambda$2(%env: %{base: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$0(%env: %{base: Int}, %x: Int) -> Int {
   b0:
     %v2 = load [%env].base : Int
     %v3 = add %x, %v2 : Int
     ret %v3
 }
 
-fn ResolveTest.lambda$3(%env: %{total: &mut Int}) -> () {
+fn ResolveTest.lambda$1(%env: %{a: Int}, %x: Int) -> Int {
   b0:
-    %v1 = load [%env].total : &mut Int
-    %v2 = load [%env].total : &mut Int
-    %v3 = load [%v2] : Int
-    %v6 = add %v3, 7 : Int
-    assign [%v1], %v6
-    ret
+    %v2 = load [%env].a : Int
+    %v3 = add %x, %v2 : Int
+    ret %v3
 }
 
-fn closureRelease${amount: Int}(%env: %{amount: Int}) -> () {
+fn ResolveTest.lambda$2(%env: %{b: Int}, %x: Int) -> Int {
   b0:
-    %v1 = cast %env : %U8
-    call freeHeap, %v1
-    ret
+    %v2 = load [%env].b : Int
+    %v3 = mul %x, %v2 : Int
+    ret %v3
 }
 
-fn closureRelease${scale: Int, offset: Int}(%env: %{scale: Int, offset: Int}) -> () {
+fn ResolveTest.lambda$3(%env: %{amount: Int}, %x: Int) -> Int {
   b0:
-    %v1 = cast %env : %U8
-    call freeHeap, %v1
-    ret
+    %v2 = load [%env].amount : Int
+    %v3 = add %x, %v2 : Int
+    ret %v3
 }
 
 fn drop$(Int) -> Int(%value: %(Int) -> Int) -> () {
@@ -383,5 +370,12 @@ fn reclaim$(Int) -> Int(%value: %(Int) -> Int) -> () {
     jmp b2
 
   b2:
+    ret
+}
+
+fn closureRelease${amount: Int}(%env: %{amount: Int}) -> () {
+  b0:
+    %v1 = cast %env : %U8
+    call freeHeap, %v1
     ret
 }

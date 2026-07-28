@@ -226,10 +226,12 @@ fn makeBuffer(%size: I64) -> Buffer {
     %v1 = load liveBuffers : I64
     %v4 = borrow_mut liveBuffers : &mut I64
     call +=(I64), %v4, 1
-    %v6 = alloc : Buffer
+    %buffer = alloc : Buffer
     %v7 = call allocateHeap, %size : %U8
     init %local0@Buffer.bytes, %v7
-    ret %v6
+    %v9 = load %local0@Buffer.bytes : %U8
+    setmemory %v9, 0, %size
+    ret %buffer
 }
 
 fn firstByte(%it: Buffer) -> I64 {

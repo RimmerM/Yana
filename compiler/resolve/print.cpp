@@ -629,6 +629,15 @@ static void printFunction(ResolvePrint& print, Function& function) {
 static void printTable(ResolvePrint& print, Global& global_) {
     print.writer.writeString("table "_v);
     print.writer.writeString(print.context.findName(global_.name));
+
+    // Where a table goes is part of what it is, for the one kind that does not go with the data:
+    // a closure header is these bytes at this function's entry point, and a fixture that could not
+    // see which function would not be asserting anything about it.
+    if(global_.prefixOf) {
+        print.writer.writeString(" before "_v);
+        print.writer.writeString(print.context.findName(print.local[global_.prefixOf]->name));
+    }
+
     print.writer.writeString(" {\n"_v);
 
     // Every table is a whole number of 8-byte words, and the scalar half of a TypeDesc packs two

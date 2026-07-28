@@ -1,0 +1,35 @@
+-- Where a closure's teardown can be resolved to the environment it was built over, and where it
+-- cannot. Both halves matter: the first is the shape every closure that stays in its frame has, and
+-- the second is the reason a function value still carries a way to find its teardown at run time.
+
+fn apply(f: (Int) -> Int, x: Int) -> Int = f(x)
+
+-- One lambda, one environment, one drop site. The teardown is that environment's, reached by name
+-- rather than through the header in front of the entry point - and an environment holding one copied
+-- `Int` has nothing to run, so this closure costs no teardown at all.
+fn direct(base: Int) -> Int = apply((x) -> x + base, 1)
+
+-- Two lambdas reaching one drop. Both environments are in the frame and neither closure escapes, so
+-- the *site* is known; which lambda the value holds is not, because the phi decides it at run time.
+-- This is what the closure header exists for, and what stops the devirtualization above from being
+-- unconditional.
+fn either(pick: Int, a: Int, b: Int) -> Int:
+    let f = if pick < 1 then (x: Int) -> x + a else (x: Int) -> x * b
+    return apply(f, 10)
+
+-- A closure that outlives the frame that built it, so its environment is on the heap and its
+-- teardown hands that storage back. The caller cannot see which lambda this is either.
+fn escaping(amount: Int) -> (Int) -> Int = (x) -> x + amount
+
+fn main() -> Int:
+    let a = direct(5)
+
+    -- 10 + 3 = 13, and 10 * 7 = 70.
+    let b = either(0, 3, 7)
+    let c = either(2, 3, 7)
+
+    let f = escaping(100)
+    let d = f(1)
+
+    -- 6 + 13 + 70 + 101 = 190
+    return a + b + c + d

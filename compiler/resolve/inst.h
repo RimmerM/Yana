@@ -93,7 +93,7 @@ enum class StorageBound: U8 {
 };
 
 /*
- * The three words a function value is made of (Design.md's "Function types", Design-Memory §8).
+ * The two words a function value is made of (Design.md's "Function types", Design-Memory §8).
  *
  * Written as field indices rather than as byte offsets because a function value is reached the way
  * every other aggregate is - a place with a Field projection - so that constructing one, reading one
@@ -103,15 +103,18 @@ enum class StorageBound: U8 {
  *  - `Code` is the entry point, and it always takes the environment as its first parameter, so that
  *    a capturing lambda, a non-capturing one and a plain function referenced by name are one shape.
  *  - `Env` is the storage the captures live in, or null.
- *  - `Desc` is that storage's TypeDesc, which is what the value's derived teardown runs. It is a
- *    per-closure question rather than a per-type one - two values of one function type can capture
- *    completely different things - which is why it travels with the value.
+ *
+ * What is *not* here is the environment's descriptor. Tearing a closure down is a per-closure
+ * question rather than a per-type one - two values of one function type can capture completely
+ * different things - but it is not a per-*value* question either: which environment a closure has
+ * is decided by which lambda it came from, and that is exactly what the code word already names. So
+ * the answer is static data attached to the code rather than a third word copied into every value;
+ * see ClosureHeaderLayout in witness.h.
  */
 namespace FunValueLayout {
     static constexpr U16 kCode = 0;
     static constexpr U16 kEnv = 1;
-    static constexpr U16 kDesc = 2;
-    static constexpr U16 kFieldCount = 3;
+    static constexpr U16 kFieldCount = 2;
 
     static constexpr U32 offsetOf(U16 field) { return 8u * field; }
 }
@@ -314,6 +317,11 @@ struct InstAlloc: Inst {
      * decision these passes make becomes a value the program itself can read.
      */
     ModulePtr<Value> storageFlag = nullptr;
+
+    // Set when this allocates a closure's environment: the lifted function whose header the storage
+    // decision is spent in. The frame that makes the decision is not the one that acts on it, so it
+    // is written where the *closure's* teardown will find it - see ClosureHeaderLayout.
+    ModulePtr<Function> closure = nullptr;
 };
 
 struct InstLoadPlace: Inst {
@@ -530,7 +538,7 @@ struct InstCmp: InstBinary {
  *
  * One instruction for both because they are one operation: an address that is not known until the
  * module is placed and that nothing in the frame computes. It exists because a function value has to
- * hold both (`{code, env, envDesc}`), and neither was expressible before - a place rooted in a
+ * hold both (`{code, env}`), and neither was expressible before - a place rooted in a
  * global names the storage rather than its address, and a TypeDesc has no source type for a place
  * to be typed by at all.
  */
@@ -569,6 +577,12 @@ struct InstCall: Inst {
  * and the return-root group come from. That is the whole reason FunArg carries them: a caller
  * reaching a function through a value has the type and nothing else, and a contract that evaporated
  * here would be worse than no contract. Null for a compiler-internal call.
+ *
+ * It is read by the resolver and by the ownership passes alike, and both read the same two things:
+ * each argument's convention decides what is passed and what that does to the caller's storage, and
+ * the declared `return` group decides what a borrow in the result may be rooted in and how long the
+ * loans the arguments created have to live. What the type cannot state is retention, so this call is
+ * assumed to keep a reference to everything it is handed - see the note at the end of analyze.cpp.
  */
 struct InstCallDyn: Inst {
     InstCallDyn(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> callable,

@@ -343,10 +343,12 @@ makeBuffer<complex>(%v_0: Ptr, %size: Long) {
   b_1 {
     %v_2 = loads @liveBuffers, 8: Long
     call_complex +=(I64), @liveBuffers, 1
-    %v_3 = alloca 8, 8: Ptr
-    %v_4 = call_complex allocateHeap, %size: Ptr
-    store %v_3, %v_4, 8
-    copy %v_0, %v_3, 8
+    %buffer = alloca 8, 8: Ptr
+    %v_3 = call_complex allocateHeap, %size: Ptr
+    store %buffer, %v_3, 8
+    %v_4 = load %buffer, 8: Ptr
+    setpattern %v_4, %size, 0
+    copy %v_0, %buffer, 8
     ret 
   }
 }

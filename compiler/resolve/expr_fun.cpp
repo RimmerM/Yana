@@ -7,13 +7,17 @@
 /*
  * Function values and closures.
  *
- * A function value is three words - `{code, env, envDesc}` - and every callable has that shape,
- * whatever it was written as. A lambda that captured nothing, a lambda that captured five things
- * and a plain function referenced by name differ only in what the second and third words hold, and
- * `code` always takes the environment as its first parameter so that a call site never has to know
- * which of the three it is holding. That uniformity is the whole design: it is what lets a function
- * type be a type rather than a family of them, and it is what a `PropertyWitness` and an `any C`
- * payload will be built on later.
+ * A function value is two words - `{code, env}` - and every callable has that shape, whatever it was
+ * written as. A lambda that captured nothing, a lambda that captured five things and a plain
+ * function referenced by name differ only in what the second word holds, and `code` always takes the
+ * environment as its first parameter so that a call site never has to know which of the three it is
+ * holding. That uniformity is the whole design: it is what lets a function type be a type rather
+ * than a family of them, and it is what a `PropertyWitness` and an `any C` payload will be built on
+ * later.
+ *
+ * What the environment *contains* is not in the value. It is static data in front of the lifted
+ * function's entry point - the closure header - because a closure's captures are decided by which
+ * lambda it came from, and `code` already names the lambda. See ClosureHeaderLayout.
  *
  * Lifting.
  *
@@ -40,11 +44,11 @@
  * The environment.
  *
  * One tuple, holding a word per capture: the value for the two that own it and a `&T` for the two
- * that borrow. It is heap-placed and owned by the *function value* rather than by the frame that
- * built it, because a call through a function value is exactly where Design-Memory §13's escape
- * analysis gives up - so an environment goes to the allocator whether or not this particular
- * closure turns out to outlive its frame. The closure's derived Reclaim hands it back; see
- * teardownGlueFor's Fun case in analyze.cpp.
+ * that borrow. It is owned by the *function value* rather than by the frame that built it - the
+ * closure's derived Reclaim is what hands it back, see teardownGlueFor's Fun case in analyze.cpp -
+ * and it is allocated wherever the ownership pass says the captures have to live: on the frame for a
+ * closure that dies in it, and on the heap for one that leaves. Which of the two it was is written
+ * into the lambda's closure header, because the Reclaim that has to know is not in this frame.
  */
 
 // The name a lifted lambda is printed and linked under. It is not addressable in source; what it
@@ -229,9 +233,8 @@ static void fillEnvironment(ExprResolver& resolver, ExprResolver& body, Place pl
 }
 
 ModulePtr<Value> ExprResolver::makeFunValue(TypePtr type, ModulePtr<Function> code, ModulePtr<Value> env,
-                                            ModulePtr<Global> envDesc, LocationId source, StringId name) {
+                                            LocationId source, StringId name) {
     auto codeType = funValueFieldType(module, FunValueLayout::kCode);
-    auto descType = funValueFieldType(module, FunValueLayout::kDesc);
     local[code]->used = true;
 
     auto storage = allocate(type, source, name);
@@ -243,12 +246,6 @@ ModulePtr<Value> ExprResolver::makeFunValue(TypePtr type, ModulePtr<Function> co
     initialize(project(place, ProjectionKind::Field, FunValueLayout::kEnv),
                env ? env : constantBits(codeType, 0, source), source);
 
-    if(envDesc) local[envDesc]->used = true;
-
-    auto descValue = envDesc ? ref(emit<InstSymbol>(source, 0, descType, nullptr, envDesc))
-                             : constantBits(descType, 0, source);
-
-    initialize(project(place, ProjectionKind::Field, FunValueLayout::kDesc), descValue, source);
     return storage;
 }
 
@@ -324,7 +321,7 @@ ModulePtr<Value> ExprResolver::functionValue(ModulePtr<Function> callee, Locatio
 
     auto type = resolveFunType(module, toBuffer(args), target->returnType, ast::FunKind::Plain);
     auto thunk = functionThunk(module, callee, source);
-    return makeFunValue(type, thunk, nullptr, nullptr, source, 0);
+    return makeFunValue(type, thunk, nullptr, source, 0);
 }
 
 ModulePtr<Value> ExprResolver::emitDynamicCall(ModulePtr<Value> callable, Buffer<ModulePtr<Value>> args,
@@ -531,19 +528,26 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
     auto envType = (Type*)envTuple - global;
     finishTupleRepr(module, *envTuple, source);
 
-    // A lambda that captured nothing gets neither storage nor a descriptor: the value's second and
-    // third words are null, and its teardown is a branch that never fires.
-    if(body.captures.isEmpty()) return makeFunValue(type, lambda - local, nullptr, nullptr, source, 0);
+    // A lambda that captured nothing gets neither storage nor a header: the value's second word is
+    // null, and its teardown is a branch that never fires.
+    if(body.captures.isEmpty()) return makeFunValue(type, lambda - local, nullptr, source, 0);
+
+    // The header goes in front of the lifted function rather than into the value, which is what
+    // keeps a function value two words wide. Its flags are completed by selectStorage, the only
+    // pass that knows where the environment below actually landed.
+    auto lambdaPointer = (ModulePtr<Function>)(lambda - local);
+    closureHeaderFor(module, lambdaPointer, envType, source);
 
     auto storage = allocate(envType, source, 0, ast::BindType::Borrow, true);
+    ((InstAlloc*)local[storage])->closure = lambdaPointer;
+
     auto place = placeFor(storage, source);
     fillEnvironment(*this, body, place, source);
 
     // Typed as a bare address rather than as `%Env`, because that is what the function value's
-    // second word is: whoever reads it does so through the descriptor in the third, which is the
-    // only thing that knows what is in there.
+    // second word is: whoever reads it does so through the descriptor the code word leads to, which
+    // is the only thing that knows what is in there.
     auto address = ref(emit<InstAddress>(source, 0, funValueFieldType(module, FunValueLayout::kEnv), place));
-    auto descriptor = typeDescFor(module, envType, source);
 
-    return makeFunValue(type, lambda - local, address, descriptor, source, 0);
+    return makeFunValue(type, lambda - local, address, source, 0);
 }

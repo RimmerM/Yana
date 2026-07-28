@@ -170,7 +170,7 @@ TypePtr ExprResolver::placeType(const Place& place) {
                 break;
             }
             case ProjectionKind::Field: {
-                // A function value is three addresses, and they are projected into rather than
+                // A function value is two addresses, and they are projected into rather than
                 // being a representation only lowering knows about - which is what lets the same
                 // Init, LoadPlace and Drop machinery build one, read one and tear one down.
                 if(global[type]->kind == Type::Fun) {
