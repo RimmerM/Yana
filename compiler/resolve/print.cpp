@@ -344,6 +344,15 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
         }
         case Value::GenCall: {
             auto& call = (InstGenCall&)inst;
+
+            // Printed because it is what distinguishes the two forms an InstGenCall can be in: one
+            // waiting for a specialization to decide it, and one that has already been given
+            // everything it needs and will be emitted as a call.
+            if(call.env) {
+                print.writer.writeString(" env "_v);
+                print.writer.writeString(print.context.findName(print.local[call.env]->name));
+            }
+
             print.writer.writeByte(' ');
 
             // `Ord(a).<=` for a class dispatch, `swap(a, b)` for a generic function: in both
@@ -578,7 +587,68 @@ static void printFunction(ResolvePrint& print, Function& function) {
 // something actually reached: Core declares a few hundred instance implementations, and all but
 // the handful a program calls are dead weight in a fixture.
 // `let &heapNext: %U8 = 0` - the declaration as written, since a global has no body to print.
+/*
+ * A compiler-built constant table - a TypeDesc, a runtime environment.
+ *
+ * Printed as its scalar words plus the symbol each of its addresses names, because the bytes on
+ * their own say nothing and the addresses are not known until the module is placed. This is the
+ * only way a fixture can assert that slot N of an environment holds the descriptor it should.
+ */
+static void printTable(ResolvePrint& print, Global& global_) {
+    print.writer.writeString("table "_v);
+    print.writer.writeString(print.context.findName(global_.name));
+    print.writer.writeString(" {\n"_v);
+
+    // Every table is a whole number of 8-byte words, and the scalar half of a TypeDesc packs two
+    // U32s into each. Printing words rather than bytes is what keeps the dump readable.
+    for(Size offset = 0; offset + 8 <= global_.contents.length; offset += 8) {
+        ModulePtr<Function> function = nullptr;
+        ModulePtr<Global> target = nullptr;
+
+        for(auto relocation: global_.relocations.contents(print.local)) {
+            if(relocation.offset != U32(offset)) continue;
+            function = relocation.function;
+            target = relocation.global;
+        }
+
+        print.writer.writeString("  +"_v);
+        writeUInt(print.writer, offset);
+        print.writer.writeByte(' ');
+
+        if(function) {
+            print.writer.writeString(print.context.findName(print.local[function]->name));
+        } else if(target) {
+            print.writer.writeString(print.context.findName(print.local[target]->name));
+        } else {
+            U32 low, high;
+            copy(global_.contents.ptr + offset, (Byte*)&low, sizeof(U32));
+            copy(global_.contents.ptr + offset + 4, (Byte*)&high, sizeof(U32));
+
+            auto named = false;
+            for(auto word: global_.typeWords.contents(print.local)) {
+                if(word != U32(offset)) continue;
+
+                printType(print, TypePtr(low));
+                named = true;
+            }
+
+            if(!named) writeUInt(print.writer, low);
+            print.writer.writeString(", "_v);
+            writeUInt(print.writer, high);
+        }
+
+        print.writer.writeByte('\n');
+    }
+
+    print.writer.writeString("}\n"_v);
+}
+
 static void printGlobal(ResolvePrint& print, Global& global_) {
+    if(global_.contents.length) {
+        printTable(print, global_);
+        return;
+    }
+
     print.writer.writeString(global_.mut ? "let &"_v : "let "_v);
     print.writer.writeString(print.context.findName(global_.name));
     print.writer.writeString(": "_v);

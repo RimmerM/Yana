@@ -1,0 +1,87 @@
+table genEnv$identity(Int) {
+  +0 0, 0
+  +8 typeDesc$Int
+}
+
+table typeDesc$Int {
+  +0 Int, 4
+  +8 4, 4
+  +16 131, 0
+  +24 moveInit$Int
+  +32 teardown$none
+  +40 teardown$none
+}
+
+table genEnv$firstOf(Int) {
+  +0 0, 0
+  +8 typeDesc$Int
+}
+
+table genEnv$pick(Int, Bool) {
+  +0 0, 0
+  +8 typeDesc$Int
+  +16 typeDesc$Bool
+}
+
+table typeDesc$Bool {
+  +0 Bool, 4
+  +8 4, 4
+  +16 131, 0
+  +24 moveInit$Bool
+  +32 teardown$none
+  +40 teardown$none
+}
+
+fn identity(%value: a) -> a {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    ret %value
+}
+
+fn firstOf(%x: a, %y: a) -> a {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    ret %x
+}
+
+fn pick(%flag: Bool, %x: a, %y: b) -> b {
+  schema {
+    #0 type b
+    #1 type a
+  }
+
+  b0:
+    ret %y
+}
+
+fn main() -> Int {
+  b0:
+    %one = gencall env genEnv$identity(Int) identity(Int), 1 : Int
+    %two = gencall env genEnv$firstOf(Int) firstOf(Int), 2, 99 : Int
+    %three = gencall env genEnv$pick(Int, Bool) pick(Int, Bool), True, False, 3 : Int
+    %v13 = add %one, %two : Int
+    %v14 = add %v13, %three : Int
+    ret %v14
+}
+
+fn moveInit$Int(%to: %Int, %from: %Int) -> () {
+  b0:
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, 4
+    ret
+}
+
+fn moveInit$Bool(%to: %Bool, %from: %Bool) -> () {
+  b0:
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, 4
+    ret
+}

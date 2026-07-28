@@ -1,5 +1,7 @@
 #include "lower.h"
 #include "analyze.h"
+#include "generic.h"
+#include "witness.h"
 #include "../lower/lower_builder.h"
 
 // The side tables mapping one IR to the other are keyed by region offset rather than by address:
@@ -21,6 +23,21 @@ struct LowerContext {
     // The fields of each scalarized local of the function being lowered, by local index and then
     // by field index. Empty for every local that kept its storage - see prepareScalars().
     Array<Array<LowerPtr<LowerValue>>> scalars;
+
+    /*
+     * The erased half, set only while a *generic* function is being lowered.
+     *
+     * An unspecialized body does not know what its type variables are, so everything it would have
+     * read off a type - a size, an alignment, how to relocate or release a value - it reads out of
+     * the environment its caller passed instead. `genEnv` is that environment's address, and
+     * `genContext` is the compile-time schema that says which slot holds what.
+     *
+     * Both are null for an ordinary function, and every use of them below is guarded by that: the
+     * concrete path is unchanged, which is what keeps the two forms comparable.
+     */
+    LowerPtr<LowerValue> genEnv = nullptr;
+    GenEnv* genContext = nullptr;
+    Module* genModule = nullptr;
 };
 
 /*
@@ -197,6 +214,65 @@ static LowerPtr<LowerValue> addOffset(LowerContext& lower, LowerBlock& block, Lo
     auto offsetValue = immediate(lower, offset);
     auto add = binary<LowerInst::Add>(lower.lower, lower.to, block, lower.lower[address], lower.lower[offsetValue], LowerType::Pointer, 0);
     return add->created().ptr - lower.lower;
+}
+
+/*
+ * Reading the environment.
+ *
+ * Slot N is at a fixed offset and holds a pointer, so this is one load. That is the whole of
+ * Implementation-Generics.md part 1's "no runtime name lookup": no hashing, no search, no
+ * comparison - the schema decided the number at compile time and the code loads it.
+ */
+static LowerPtr<LowerValue> genSlot(LowerContext& lower, LowerBlock& block, U16 slot) {
+    auto address = addOffset(lower, block, lower.genEnv, GenEnvLayout::slotOffset(slot));
+    auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, 0);
+    return loaded->created().ptr - lower.lower;
+}
+
+// The descriptor of a type this body cannot see, or null for one it can. A concrete type inside a
+// generic body needs no descriptor: its size is a constant here exactly as it is anywhere else.
+static LowerPtr<LowerValue> genTypeDesc(LowerContext& lower, LowerBlock& block, TypePtr type) {
+    if(!lower.genEnv || !type || !isGeneric(lower.global, type)) return nullptr;
+
+    auto slot = genTypeSlot(*lower.genModule, *lower.genContext, type);
+
+    // A generic type with no slot is one the schema never recorded, which would mean the body needs
+    // something its own context does not promise. requireTypeSlot is what keeps that from happening;
+    // reaching it here is a compiler bug rather than a program error.
+    assertTrue(slot != maxLimit<U16>);
+    return genSlot(lower, block, slot);
+}
+
+// One U32 field of a descriptor, widened to the 64-bit form every size and offset is computed in.
+static LowerPtr<LowerValue> descField(LowerContext& lower, LowerBlock& block,
+                                      LowerPtr<LowerValue> descriptor, U32 offset) {
+    auto address = addOffset(lower, block, descriptor, offset);
+    auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 4, false, LowerType::Int32, 0);
+    auto widened = cast<false, false>(lower.lower, lower.to, block,
+                                      lower.lower[loaded->created().ptr - lower.lower],
+                                      LowerType::Int64, 0);
+
+    return widened->created().ptr - lower.lower;
+}
+
+// How many bytes one value of this type occupies - a constant where the type is known, and a load
+// out of its descriptor where it is not.
+static LowerPtr<LowerValue> sizeOfType(LowerContext& lower, LowerBlock& block, TypePtr type) {
+    if(auto descriptor = genTypeDesc(lower, block, type)) {
+        return descField(lower, block, descriptor, TypeDescLayout::kSize);
+    }
+
+    return immediate(lower, typeSize(lower.global, type));
+}
+
+// What a teardown's place holds. A generic teardown only ever names a whole local - a partial move
+// is rejected long before here - so a root that is anything else is a concrete one by construction.
+static TypePtr dropPlaceType(LowerContext& lower, Function& function, const Place& place) {
+    auto projections = place.projections;
+    if(place.root != PlaceRoot::Local || projections.isNotEmpty()) return nullptr;
+    if(place.local >= function.localCount()) return nullptr;
+
+    return function.localAt(lower.local, place.local).type;
 }
 
 // A place becomes the address of whatever it is rooted in plus the constant offset its
@@ -376,7 +452,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 return;
             }
 
-            auto bytes = immediate(lower, typeSize(lower.global, instruction.type));
+            auto bytes = sizeOfType(lower, block, instruction.type);
 
             if(allocation.storage == StorageClass::Heap) {
                 // Storage escape analysis proved the frame cannot hold, so it comes from the
@@ -398,7 +474,15 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             }
 
             assertTrue(allocation.storage == StorageClass::Stack);
-            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(instruction.name, bytes, typeAlign(lower.global, instruction.type)));
+
+            // An alloca states its alignment at compile time, and a generic body has no type to ask
+            // for one. Over-aligning is always safe and costs a few bytes of frame, so the erased
+            // path takes the widest alignment any target ABI asks for rather than loading the real
+            // one and having no way to use it.
+            auto alignment = isGeneric(lower.global, instruction.type)
+                ? 16u : typeAlign(lower.global, instruction.type);
+
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(instruction.name, bytes, alignment));
             break;
         }
         case Value::LoadPlace: {
@@ -445,7 +529,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             auto value = mappedValue(lower, init.value);
 
             if(isMemoryType(lower.global, lower.local[init.value]->type)) {
-                auto count = immediate(lower, typeSize(lower.global, lower.local[init.value]->type));
+                auto count = sizeOfType(lower, block, lower.local[init.value]->type);
                 result = block.addInst(lower.lower, new (lower.to.arena) LowerInstCopy(address, value, count));
             } else {
                 result = block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, value, memoryWidth(lower.global, lower.local[init.value]->type)));
@@ -494,13 +578,15 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             auto address = lowerPlace(lower, block, *function, copied.place);
 
             if(isMemoryType(lower.global, instruction.type)) {
-                auto size = typeSize(lower.global, instruction.type);
-                auto bytes = immediate(lower, size);
+                auto bytes = sizeOfType(lower, block, instruction.type);
+                auto alignment = isGeneric(lower.global, instruction.type)
+                    ? 16u : typeAlign(lower.global, instruction.type);
+
                 auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
-                    instruction.name, bytes, typeAlign(lower.global, instruction.type)));
+                    instruction.name, bytes, alignment));
 
                 auto target = allocation->created().ptr - lower.lower;
-                auto count = immediate(lower, size);
+                auto count = sizeOfType(lower, block, instruction.type);
                 auto blockCopy = block.addInst(lower.lower, new (lower.to.arena) LowerInstCopy(target, address, count));
                 blockCopy->source = instruction.source;
 
@@ -542,6 +628,42 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                     dropCall->used()[1] = address;
                 });
             };
+
+            /*
+             * The erased case: a teardown the body cannot name, because the type it belongs to is
+             * one of this function's own type variables. What runs is whatever the caller's
+             * descriptor holds, reached through the same indirect call any function value uses -
+             * the lower IR takes a call's callee as an ordinary operand, so a loaded address is as
+             * good a callee as a symbol.
+             *
+             * The slots are never null, which is what keeps this branch-free: a type with nothing
+             * to run gets the shared empty teardown rather than a hole, so the erased path is one
+             * unconditional call per half instead of a load, a test and a split block. The flags in
+             * the descriptor still say which halves are empty, for a later pass that wants to skip
+             * the call rather than make it.
+             */
+            auto placeType = dropPlaceType(lower, *function, dropped.place);
+
+            if(lower.genEnv && isGeneric(lower.global, placeType)) {
+                auto descriptor = genTypeDesc(lower, block, placeType);
+
+                auto erasedStep = [&](U32 offset) {
+                    auto slotAddress = addOffset(lower, block, descriptor, offset);
+                    auto loaded = load(lower.lower, lower.to, block, lower.lower[slotAddress], 8,
+                                       false, LowerType::Pointer, 0);
+
+                    if(result) result->source = instruction.source;
+                    result = call(lower.lower, lower.to, block, 0, 2, kDefaultCallType,
+                                  [&](LowerInstCall* teardown) {
+                        teardown->used()[0] = loaded->created().ptr - lower.lower;
+                        teardown->used()[1] = address;
+                    });
+                };
+
+                erasedStep(TypeDescLayout::kDrop);
+                erasedStep(TypeDescLayout::kReclaim);
+                break;
+            }
 
             auto step = [&](ModulePtr<Function> callee) {
                 if(!callee) return;
@@ -728,8 +850,15 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             LowerPtr<LowerValue> returnPlace = nullptr;
 
             if(memoryResult) {
-                auto bytes = immediate(lower, typeSize(lower.global, instruction.type));
-                auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(instruction.name, bytes, typeAlign(lower.global, instruction.type)));
+                // The hidden result storage. Its size is a load rather than a constant wherever the
+                // result type belongs to the caller's own type variables, which is the case
+                // Implementation-Generics.md part 8 calls "owned return: hidden uninitialized
+                // result pointer" - the caller provides it because only the caller knows where.
+                auto bytes = sizeOfType(lower, block, instruction.type);
+                auto alignment = isGeneric(lower.global, instruction.type)
+                    ? 16u : typeAlign(lower.global, instruction.type);
+
+                auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(instruction.name, bytes, alignment));
                 returnPlace = allocation->created().ptr - lower.lower;
             }
 
@@ -754,6 +883,127 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             if(memoryResult) {
                 result->source = instruction.source;
                 lower.values.add(instValue, returnPlace);
+                return;
+            }
+
+            break;
+        }
+        case Value::GenCall: {
+            /*
+             * The erased call - Implementation-Generics.md part 9.
+             *
+             * Structurally an ordinary call with one more argument in front: the environment the
+             * callee reads its slots out of. Everything else about the shape is the same, which is
+             * the point of the leading position - a caller does not have to know anything about the
+             * callee's schema to lay out the call, only to have built the right environment.
+             *
+             * Reaching here means the environment was static, since that is the only case
+             * emitGenericCall takes the erased path for. A forwarded or mixed environment - one
+             * generic body calling another - specializes instead, and is what part 9's cases 2 and
+             * 3 are still owed.
+             */
+            auto& callInst = (InstGenCall&)instruction;
+            auto callee = lower.local[callInst.callee];
+            auto target = lower.functions.getValue(callInst.callee).unwrap();
+            auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, target));
+
+            auto environment = lower.to.globals.getValue(lower.local[callInst.env]->name).unwrap();
+            auto envValue = block.addInst(lower.lower, new (lower.to.arena) LowerInstGlobal(
+                lower.local[callInst.env]->name, environment));
+
+            /*
+             * The concrete-to-erased boundary.
+             *
+             * The callee was compiled against its own type variables, so a parameter whose declared
+             * type is one of them arrives as an address whatever the caller substituted - part 8's
+             * "unknown-size values use addresses". A caller holding an `Int` in a register therefore
+             * has to give it storage first.
+             *
+             * Done here rather than in the resolver on purpose: the typed IR stays the source of
+             * truth for what the call *means*, and only its representation is adapted.
+             */
+            auto materialize = [&](LowerPtr<LowerValue> value, TypePtr concrete) {
+                auto bytes = immediate(lower, typeSize(lower.global, concrete));
+                auto storage = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
+                    0, bytes, typeAlign(lower.global, concrete)));
+
+                auto address = storage->created().ptr - lower.lower;
+                block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
+                    address, value, memoryWidth(lower.global, concrete)));
+
+                return address;
+            };
+
+            Array<LowerPtr<LowerValue>> arguments;
+            Size argIndex = 0;
+
+            for(auto arg: callInst.args.contents(lower.local)) {
+                auto value = mappedValue(lower, arg);
+                auto concrete = lower.local[arg]->type;
+
+                auto declared = argIndex < callee->args.size()
+                    ? lower.local[callee->args.get(lower.local, argIndex)]->type : nullptr;
+
+                if(declared && isGeneric(lower.global, declared) && !isMemoryType(lower.global, concrete)) {
+                    value = materialize(value, concrete);
+                }
+
+                arguments.push(value);
+                argIndex++;
+            }
+
+            /*
+             * The result, decided by what the *callee* declared rather than by what this call
+             * substituted. A function returning `a` returns through caller storage however small the
+             * substitution turns out to be, because the body it was compiled from has no other way
+             * to hand a value back - so the caller provides the storage and reads out of it.
+             */
+            auto erasedResult = isMemoryType(lower.global, callee->returnType);
+            auto concreteResult = isMemoryType(lower.global, instruction.type);
+            LowerPtr<LowerValue> returnPlace = nullptr;
+
+            if(erasedResult) {
+                auto bytes = sizeOfType(lower, block, instruction.type);
+                auto alignment = isGeneric(lower.global, instruction.type)
+                    ? 16u : typeAlign(lower.global, instruction.type);
+
+                auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(instruction.name, bytes, alignment));
+                returnPlace = allocation->created().ptr - lower.lower;
+            }
+
+            auto created = isUnit(lower.global, instruction.type) || erasedResult ? 0 : 1;
+            auto used = arguments.size() + 2 + (erasedResult ? 1 : 0);
+
+            result = call(lower.lower, lower.to, block, created, used, lower.lower[target]->callType, [&](LowerInstCall* call) {
+                if(created) {
+                    new (call->created().ptr) LowerValue(call, lowerType(lower.global, instruction.type), instruction.name);
+                }
+
+                call->used()[0] = fun->created().ptr - lower.lower;
+                call->used()[1] = envValue->created().ptr - lower.lower;
+
+                Size index = 2;
+                if(erasedResult) call->used()[index++] = returnPlace;
+
+                for(auto argument: arguments) call->used()[index++] = argument;
+            });
+
+            if(erasedResult) {
+                result->source = instruction.source;
+
+                // Storage on the way in, a value on the way out: a result the caller can hold in a
+                // register is loaded back out of the storage the erased signature made it use.
+                if(concreteResult) {
+                    lower.values.add(instValue, returnPlace);
+                } else if(!isUnit(lower.global, instruction.type)) {
+                    auto loaded = load(lower.lower, lower.to, block, lower.lower[returnPlace],
+                                       memoryWidth(lower.global, instruction.type),
+                                       signedType(lower.global, instruction.type),
+                                       lowerType(lower.global, instruction.type), instruction.name);
+
+                    lower.values.add(instValue, loaded->created().ptr - lower.lower);
+                }
+
                 return;
             }
 
@@ -794,7 +1044,7 @@ static void lowerTerminator(LowerContext& lower, LowerBlock& block, ModulePtr<In
             if(memoryResult && returnInst.value) {
                 auto target = lower.returnPlaces.getValue(functionPointer).unwrap();
                 auto source = mappedValue(lower, returnInst.value);
-                auto countValue = immediate(lower, typeSize(lower.global, function->returnType));
+                auto countValue = sizeOfType(lower, block, function->returnType);
                 auto copyInst = block.addInst(lower.lower, new (lower.to.arena) LowerInstCopy(target, source, countValue));
                 copyInst->source = instruction.source;
             }
@@ -897,9 +1147,10 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         for(auto functionPointer: module->functionOrder.contents(lower.local)) {
             if(lower.local[functionPointer]->signature) continue;
 
-            // A generic function has no machine code of its own: this milestone specializes every
-            // call, so what reaches the backend is its instantiations.
-            if(lower.local[functionPointer]->gen) continue;
+            // A generic function has machine code of its own only when something takes the erased
+            // path to it. Where every call site specialized, its instantiations are what reaches the
+            // backend and the generic body is a compile-time artifact.
+            if(lower.local[functionPointer]->gen && !lower.local[functionPointer]->genericallyUsed) continue;
             if(!module->root && !lower.local[functionPointer]->used) continue;
             emitted.push(functionPointer);
         }
@@ -951,6 +1202,25 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
     for(auto functionPointer: emitted) {
         auto function = lower.local[functionPointer];
         auto target = lower.lower[lower.functions.getValue(functionPointer).unwrap()];
+
+        /*
+         * The two hidden parameters, in the order a caller writes them.
+         *
+         * The environment comes first because it is the one every generic function has, whatever
+         * its signature: Implementation-Generics.md part 8's "every unspecialized generic function
+         * receives `GenEnv*` as a hidden first argument". The result storage follows, for the same
+         * reason it does in a concrete function - a value of unknown size cannot come back in a
+         * register, so the caller says where to put it.
+         */
+        lower.genEnv = nullptr;
+        lower.genContext = functionGen(lower.global, *function);
+        lower.genModule = function->module;
+
+        if(lower.genContext) {
+            auto envArg = target->addArg(lower.lower, lower.context.addUnqualifiedName("genEnv", 6),
+                                         LowerType::Pointer);
+            lower.genEnv = &envArg->result - lower.lower;
+        }
 
         // An aggregate result is returned through storage the caller passes in, so it becomes a
         // leading pointer argument that every `ret` in the function copies into.

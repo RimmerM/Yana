@@ -107,6 +107,57 @@ inline U32 typeDescFlags(const Ownership& ownership, bool needsStableAddress) {
 ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source);
 
 /*
+ * The layout of a runtime `GenEnv`.
+ *
+ * One immutable realization of a GenSchema: the schema it was built for, then one pointer per slot
+ * in the canonical numbering. Emitted code loads slot N from `kSlots + 8 * N` and nothing else -
+ * Implementation-Generics.md part 1's "no runtime name lookup" is exactly this.
+ *
+ * The leading schema word is not read by emitted code. It is what a debug build compares against
+ * the callee's own schema, which is the only check that can catch a caller and a callee disagreeing
+ * about what slot 3 means.
+ */
+namespace GenEnvLayout {
+    static constexpr U32 kSchema = 0;
+    static constexpr U32 kSlots = 8;
+    static constexpr U32 kSlotSize = 8;
+    static constexpr U32 kAlign = 8;
+
+    static constexpr U32 slotOffset(U16 slot) { return kSlots + kSlotSize * slot; }
+    static constexpr U32 sizeFor(Size slotCount) { return kSlots + kSlotSize * U32(slotCount); }
+}
+
+/*
+ * The environment one generic function needs when called with these type arguments.
+ *
+ * This is Implementation-Generics.md part 9's first case - "all entries concrete; reference an
+ * interned global constant" - and it is the only one the erased path takes today. A forwarded or
+ * mixed environment is what a generic body calling another generic function needs, and it wants
+ * slots this caller does not have; until that lands, such a call is specialized instead.
+ *
+ * Null after reporting when a slot cannot be supplied. The diagnostic names the source constraint
+ * rather than the slot, per part 12: a schema slot is not a thing anyone wrote.
+ */
+ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<TypePtr> args,
+                            LocationId source);
+
+/*
+ * Whether this generic body can be emitted as machine code at all, rather than only cloned.
+ *
+ * A body is lowerable when every decision left in it can be made from the environment its caller
+ * passes. Two things are not, yet, and both are Implementation-Generics.md part 9's forwarded and
+ * mixed environments:
+ *
+ *  - a call to another generic function, whose environment would have to be built from *this*
+ *    function's slots rather than from concrete types;
+ *  - a class dispatch the body deferred, which needs the class witness that environment would hold.
+ *
+ * A call site that gets `false` specializes instead, which is always available for a concrete
+ * argument list. That is what keeps the erased path a staged optimization rather than a cliff.
+ */
+bool genericBodyLowerable(Module& module, ModulePtr<Function> function);
+
+/*
  * `moveInit(dst, src)`: initialize uninitialized `dst` from an owned `src`, leaving `src` dead.
  *
  * A block copy for a TrivialSink type, and a call to the authored `Sink` for anything else.

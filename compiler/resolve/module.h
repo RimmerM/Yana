@@ -147,6 +147,12 @@ struct Function {
     bool resolving = false;
     bool used = false;
 
+    // Set when something calls this generic function through the erased ABI rather than through a
+    // specialization. Only then does its body reach the backend: a function every call site
+    // specialized has no machine code of its own, and emitting one nothing calls would be code with
+    // no reason to exist rather than a fallback.
+    bool genericallyUsed = false;
+
     // Set while this function is being cloned for one set of type arguments, so that a request to
     // clone it again for different ones is recognized as polymorphic recursion instead of
     // instantiating forever.
@@ -172,6 +178,20 @@ struct GlobalRelocation {
     // Exactly one of these is set.
     ModulePtr<Function> function = nullptr;
     ModulePtr<Global> global = nullptr;
+};
+
+/*
+ * One interned runtime generic environment.
+ *
+ * Keyed by the callee and its type arguments, which is what decides every slot: the descriptors are
+ * derived from the arguments, and the witnesses from the arguments plus the instances visible where
+ * the environment is built. A linear scan is right here for the same reason it is for instances -
+ * one generic function called at three argument lists has three of these, not three thousand.
+ */
+struct InternedEnv {
+    ModulePtr<Function> callee;
+    Array<TypePtr> args;
+    ModulePtr<Global> env;
 };
 
 /*
@@ -206,6 +226,11 @@ struct Global {
     // storage: `type` and `initial` say nothing about one.
     ByteBuffer contents;
     ModuleList<GlobalRelocation, false> relocations;
+
+    // Where in `contents` a word holds an interned type rather than a number. Recorded so that a
+    // dump can name the type instead of printing a region offset, which would otherwise make every
+    // fixture holding a descriptor churn whenever an unrelated declaration moved.
+    ModuleList<U32, false> typeWords;
 
     bool mut = false;
     bool used = false;
@@ -311,6 +336,10 @@ struct Program {
 
     HashMap<U32, ModulePtr<Function>> moveInitGlue;
 
+    // The teardown a type with nothing to run gets, so that a descriptor's lifecycle slots are
+    // always callable - see emptyTeardown.
+    ModulePtr<Function> emptyTeardown = nullptr;
+
     // The instances of TrivialCopy and TrivialSink the compiler answers structurally, interned per
     // (class, type). See structuralInstance in name.cpp.
     HashMap<U64, ModulePtr<ClassInstance>> structuralInstances;
@@ -318,6 +347,24 @@ struct Program {
     // The runtime half of the generic model, interned per type - see witness.h. A TypeDesc is
     // built the first time something generic needs to know about a type it cannot see.
     HashMap<U32, ModulePtr<Global>> typeDescs;
+
+    // The runtime environments, interned per callee and type argument list - see genEnvFor.
+    Array<InternedEnv> genEnvs;
+
+    /*
+     * Whether a concrete generic call site becomes a specialization or an erased call.
+     *
+     * Both forms are first-class outputs (Design.md's "Generic and specialized code"), and the
+     * honest test that they agree is compiling the same program each way and comparing what it
+     * does - which is what `Generic` is for. `Always` is the default because a specialization is
+     * faster wherever it is available; nothing about correctness depends on the choice.
+     */
+    enum class Specialization: U8 {
+        Always,
+        Generic,
+    };
+
+    Specialization specialization = Specialization::Always;
 
     // What the ownership passes found, per function, kept for printing rather than for any later
     // stage - see analyze.h. Held behind a pointer because analyze.h is written against this
@@ -352,7 +399,10 @@ struct Program {
 };
 
 // Resolves `root` and everything it imports, with Core built and implicitly imported first.
-Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider* provider = nullptr);
+// `specialization` decides what a concrete generic call site becomes; both answers have to produce
+// the same observable behaviour, which is what the fixtures compare.
+Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider* provider = nullptr,
+                            Program::Specialization specialization = Program::Specialization::Always);
 
 // Resolves the declarations of one already-registered module. Exposed because Core and Native are
 // assembled from both parsed source and directly generated definitions. `importsResolved` is for

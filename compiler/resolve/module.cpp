@@ -1693,8 +1693,15 @@ static void markProgramReachable(Program& program) {
     markReachable(program, pending);
 }
 
-Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider* provider) {
+Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider* provider,
+                            Program::Specialization specialization) {
     auto program = Ptr<Program>(new Program(context));
+
+    // Set before anything is resolved, and never after: which form a call site takes has to be the
+    // same answer for every call site in one compilation, or the two would not be comparable.
+    // Core, Native and Collections are built under it too - they are where most generic code is.
+    program->specialization = specialization;
+
     defineCore(*program);
     defineNative(*program);
     defineCollections(*program);

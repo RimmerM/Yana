@@ -45,6 +45,13 @@ struct TableBuilder {
         target.relocations.push(module.arena, GlobalRelocation { offset, function, nullptr });
     }
 
+    // An interned type, stored as its region offset. Recorded as well as written, so that printing
+    // can name the type rather than the number - see Global::typeWords.
+    void putType(Global& target, U32 offset, TypePtr type) {
+        putU32(offset, U32(type));
+        target.typeWords.push(module.arena, offset);
+    }
+
     void putGlobal(Global& target, U32 offset, ModulePtr<Global> global_) {
         if(!global_) return;
 
@@ -55,6 +62,35 @@ struct TableBuilder {
     Module& module;
     ByteBuffer bytes;
 };
+
+/*
+ * The teardown a type with nothing to run gets.
+ *
+ * A descriptor's lifecycle slots are never null, which is what lets erased code call them without
+ * first testing them: one unconditional indirect call per half, instead of a load, a comparison and
+ * a split block at every drop of a generic value. The flags still record which halves are empty, for
+ * a pass that would rather skip the call than make it.
+ *
+ * One per program rather than one per type: it does nothing, so there is nothing to distinguish.
+ */
+ModulePtr<Function> emptyTeardown(Module& module, LocationId source) {
+    auto& program = module.program;
+    if(program.emptyTeardown) return program.emptyTeardown;
+
+    auto& core = *program.core;
+    auto function = addAnonymousFunction(core, module.context.addQualifiedName("teardown$none", 13, 1), source);
+    function->returnType = core.scalar.unit;
+    function->used = true;
+
+    auto name = module.context.addQualifiedName("value", 5, 1);
+    function->addArg(core, name, resolvePointerType(core, core.scalar.unit), source);
+
+    ExprResolver resolver(core.context, core, *function);
+    resolver.terminate(resolver.emit<InstRet>(source, 0, core.scalar.unit, nullptr));
+
+    program.emptyTeardown = function - *core.arena;
+    return program.emptyTeardown;
+}
 
 StringId tableName(Module& module, StringView prefix, TypePtr type) {
     StringBuilder text;
@@ -148,6 +184,192 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
     return pointer;
 }
 
+/*
+ * Whether a place can be addressed with constant offsets.
+ *
+ * Lowering walks a projection path accumulating byte offsets read off each type it passes through,
+ * and a generic aggregate has none: `Pair(a, b).second` sits at an offset that depends on what `a`
+ * turned out to be, and a body compiled once for every `a` has no constant to use. What it needs is
+ * the composite descriptor Implementation-Generics.md part 4 calls `reprOps`, whose "scoped
+ * constructor-content projection" is exactly this.
+ *
+ * Until that exists, a body that projects into a generic type specializes instead. Depending on the
+ * declaration's own offsets happening to be right - which they are whenever every field before the
+ * projected one has a size independent of the arguments - would be an accident rather than a rule.
+ */
+static bool lowerablePlace(Module& module, Function& owner, const Place& place) {
+    auto local = *module.arena;
+    auto global = *module.types;
+    auto projections = place.projections;
+    if(projections.isEmpty()) return true;
+
+    TypePtr type = nullptr;
+
+    switch(place.root) {
+        case PlaceRoot::Local:
+            if(place.local >= owner.localCount()) return false;
+            type = owner.localAt(local, place.local).type;
+            break;
+        case PlaceRoot::Global:
+            type = local[place.global]->type;
+            break;
+        case PlaceRoot::Pointer:
+            type = pointeeType(global, local[place.pointer]->type);
+            break;
+        case PlaceRoot::Borrow:
+            type = ((BorrowType*)global[local[place.pointer]->type])->to;
+            break;
+    }
+
+    for(auto projection: projections.contents(local)) {
+        if(!type) return false;
+        if(isGeneric(global, type)) return false;
+
+        switch(projection.kind) {
+            case ProjectionKind::Discriminant:
+                type = module.scalar.int_;
+                break;
+            case ProjectionKind::Downcast:
+                type = ((RecordType*)global[type])->constructors.get(global, projection.index).content;
+                break;
+            case ProjectionKind::Field:
+                type = ((TupType*)global[type])->fields.get(global, projection.index).type;
+                break;
+            case ProjectionKind::Deref:
+                type = pointeeType(global, type);
+                break;
+            case ProjectionKind::Index:
+                return false;
+        }
+    }
+
+    return true;
+}
+
+static bool lowerablePlaces(Module& module, Function& owner, Value& inst) {
+    switch(inst.kind) {
+        case Value::LoadPlace: return lowerablePlace(module, owner, ((InstLoadPlace&)inst).place);
+        case Value::Init:
+        case Value::Assign: return lowerablePlace(module, owner, ((InstInit&)inst).place);
+        case Value::Borrow: return lowerablePlace(module, owner, ((InstBorrow&)inst).place);
+        case Value::Move: return lowerablePlace(module, owner, ((InstMove&)inst).place);
+        case Value::Address: return lowerablePlace(module, owner, ((InstAddress&)inst).place);
+        case Value::Drop: return lowerablePlace(module, owner, ((InstDrop&)inst).place);
+        default: return true;
+    }
+}
+
+bool genericBodyLowerable(Module& module, ModulePtr<Function> function) {
+    auto local = *module.arena;
+    auto target = local[function];
+
+    // A signature or an intrinsic has no body to emit; the first is not callable at all and the
+    // second is generated at each call site, so neither is a candidate.
+    if(target->signature || target->intrinsic) return false;
+
+    for(auto blockPointer: target->blocks.contents(local)) {
+        auto block = local[blockPointer];
+
+        for(auto instruction: block->instructions.contents(local)) {
+            auto& inst = *local[instruction];
+
+            // A deferred call - one the body could not decide - has no environment of its own, and
+            // supplying one means projecting this function's slots into the callee's.
+            if(inst.kind == Value::GenCall && !((InstGenCall&)inst).env) return false;
+
+            // An explicit copy of a value whose type the body cannot see needs the `Copy` witness,
+            // which is a class constraint and so is on the same list as the two above.
+            if(inst.kind == Value::Copy && isGeneric(*module.types, inst.type)) return false;
+
+            // A projection into a generic aggregate. `Pair(a, b).second` sits at an offset that
+            // depends on what `a` turned out to be, and a body compiled once for every `a` has no
+            // constant to use - it needs the composite descriptor Implementation-Generics.md part 4
+            // calls `reprOps`, whose "scoped constructor-content projection" is exactly this.
+            //
+            // Until that exists the offsets a generic body would compute are the declaration's,
+            // which are only right when every field before the projected one has a size independent
+            // of the type arguments. Rather than depend on that accident, such a body specializes.
+            if(!lowerablePlaces(module, *target, inst)) return false;
+        }
+    }
+
+    return true;
+}
+
+ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<TypePtr> args,
+                            LocationId source) {
+    auto& context = module.context;
+    auto global = *module.types;
+    auto local = *module.arena;
+    auto& program = module.program;
+
+    auto env = functionGen(global, *local[callee]);
+    if(!env) return nullptr;
+
+    for(auto& existing: program.genEnvs) {
+        if(existing.callee != callee) continue;
+        if(sameTypes(toBuffer(existing.args), args)) return existing.env;
+    }
+
+    auto& schema = genSchemaOf(module, *env);
+    auto slotCount = schema.slots.size();
+
+    StringBuilder text;
+    text << "genEnv$" << context.findName(local[callee]->name) << '(';
+    describeTypes(context, global, args, text);
+    text << ')';
+
+    auto global_ = addAnonymousGlobal(module, context.addQualifiedName(text.pointer(), text.size(), 1), source);
+    auto pointer = global_ - local;
+
+    // Registered before the slots are filled, since building one of them can ask for an environment
+    // again - a witness whose implementation is itself generic.
+    program.genEnvs.push(InternedEnv { callee, Array<TypePtr>(), pointer });
+    auto& entry = program.genEnvs[program.genEnvs.size() - 1];
+    for(auto arg: args) entry.args.push(arg);
+
+    TableBuilder table(module, GenEnvLayout::sizeFor(slotCount));
+    global_->contents = table.bytes;
+
+    auto ok = true;
+
+    for(auto slot: schema.slots.contents(global)) {
+        auto offset = GenEnvLayout::slotOffset(slot.index);
+
+        switch(slot.kind) {
+            case GenSlotKind::Type: {
+                auto concrete = substituteType(module, slot.type, args, source);
+                auto descriptor = typeDescFor(module, concrete, source);
+
+                if(!descriptor) {
+                    context.diagnostics.error("%@ cannot be passed to generic code - it is not a concrete type"_v,
+                                              source, describeType(context, global, concrete));
+                    ok = false;
+                    break;
+                }
+
+                table.putGlobal(*global_, offset, descriptor);
+                break;
+            }
+
+            // The three witness kinds. Each one is a separate constraint entry with its own
+            // implementation, and none of them is derivable from a TypeDesc - knowing a type's size
+            // grants nothing else, which is Implementation-Generics.md part 1's fifth invariant.
+            case GenSlotKind::Class:
+            case GenSlotKind::Property:
+            case GenSlotKind::Function:
+                context.diagnostics.error("%@ cannot be called generically yet - its %@ requirement needs a witness, which is not built yet"_v,
+                                          source, context.findName(local[callee]->name),
+                                          slot.kind == GenSlotKind::Class ? "class"_v
+                                          : slot.kind == GenSlotKind::Property ? "field"_v : "function"_v);
+                ok = false;
+                break;
+        }
+    }
+
+    return ok ? pointer : nullptr;
+}
+
 ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source) {
     auto& program = module.program;
     if(!type || isGeneric(*module.types, type)) return nullptr;
@@ -166,7 +388,6 @@ ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source) {
     auto align = typeAlign(*module.types, type);
 
     TableBuilder table(module, TypeDescLayout::kSize_);
-    table.putU32(TypeDescLayout::kLogicalType, U32(type));
     table.putU32(TypeDescLayout::kSize, size);
     table.putU32(TypeDescLayout::kAlign, align);
     table.putU32(TypeDescLayout::kStride, align ? ((size + align - 1) & ~(align - 1)) : size);
@@ -176,12 +397,20 @@ ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source) {
     table.putU32(TypeDescLayout::kFlags, typeDescFlags(ownership, false));
 
     global_->contents = table.bytes;
+    table.putType(*global_, TypeDescLayout::kLogicalType, type);
 
-    table.putFunction(*global_, TypeDescLayout::kMoveInit, moveInitFor(module, type, source));
+    // Every lifecycle slot holds a callable address, so erased code never has to test one - see
+    // emptyTeardown. A type whose bytes are its whole relocation still gets a real moveInit, since
+    // that one has a size to copy and is not a no-op.
+    auto orEmpty = [&](ModulePtr<Function> implementation) {
+        return implementation ? implementation : emptyTeardown(module, source);
+    };
+
+    table.putFunction(*global_, TypeDescLayout::kMoveInit, orEmpty(moveInitFor(module, type, source)));
     table.putFunction(*global_, TypeDescLayout::kReclaim,
-                      teardownImplementation(module, type, Teardown::Reclaim, source));
+                      orEmpty(teardownImplementation(module, type, Teardown::Reclaim, source)));
     table.putFunction(*global_, TypeDescLayout::kDrop,
-                      teardownImplementation(module, type, Teardown::Drop, source));
+                      orEmpty(teardownImplementation(module, type, Teardown::Drop, source)));
 
     return pointer;
 }

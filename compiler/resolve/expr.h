@@ -260,6 +260,12 @@ struct ExprResolver {
     ModulePtr<Value> emitGenericCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, LocationId source,
                                      TypePtr target, StringId resultName);
 
+    // A call that passes its callee a runtime environment instead of being specialized for these
+    // types. Null when the environment cannot be built yet, which leaves the call site for the
+    // specializing path.
+    ModulePtr<Value> emitErasedCall(ModulePtr<Function> callee, Buffer<TypePtr> typeArgs,
+                                    Buffer<ModulePtr<Value>> args, LocationId source, StringId resultName);
+
     // A generic intrinsic, generated for the types this call decided. Shared with generic.cpp,
     // which reaches the same intrinsics through an InstGenCall a specialization made concrete.
     ModulePtr<Value> expandIntrinsic(ModulePtr<Function> callee, Buffer<TypePtr> typeArgs,

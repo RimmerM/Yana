@@ -1,0 +1,87 @@
+@genEnv$identity(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$firstOf(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Int = [88, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 131, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Bool = [216, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 131, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$pick(Int, Bool) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+firstOf<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr, %y: Ptr) {
+  b_1 {
+    %v_2 = add %genEnv, 8: Ptr
+    %v_3 = load %v_2, 8: Ptr
+    %v_4 = add %v_3, 4: Ptr
+    %v_5 = load %v_4, 4: Int
+    %v_6 = cast %v_5: Long
+    copy %v_0, %x, %v_6
+    ret 
+  }
+}
+
+moveInit$Int<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    %v_1 = bitcast %to: Ptr
+    %v_2 = bitcast %from: Ptr
+    copy %v_1, %v_2, 4
+    ret 
+  }
+}
+
+identity<complex>(%genEnv: Ptr, %v_0: Ptr, %value: Ptr) {
+  b_1 {
+    %v_2 = add %genEnv, 8: Ptr
+    %v_3 = load %v_2, 8: Ptr
+    %v_4 = add %v_3, 4: Ptr
+    %v_5 = load %v_4, 4: Int
+    %v_6 = cast %v_5: Long
+    copy %v_0, %value, %v_6
+    ret 
+  }
+}
+
+moveInit$Bool<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    %v_1 = bitcast %to: Ptr
+    %v_2 = bitcast %from: Ptr
+    copy %v_1, %v_2, 4
+    ret 
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 1, 4
+    %one = alloca 4, 4: Ptr
+    call_complex identity, @genEnv$identity(Int), %one, %v_1
+    %one = loads %one, 4: Int
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 2, 4
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 99, 4
+    %two = alloca 4, 4: Ptr
+    call_complex firstOf, @genEnv$firstOf(Int), %two, %v_2, %v_3
+    %two = loads %two, 4: Int
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, 0, 4
+    %v_5 = alloca 4, 4: Ptr
+    store %v_5, 3, 4
+    %three = alloca 4, 4: Ptr
+    call_complex pick, @genEnv$pick(Int, Bool), %three, 1, %v_4, %v_5
+    %three = loads %three, 4: Int
+    %v_6 = add %one, %two: Int
+    %v_7 = add %v_6, %three: Int
+    ret %v_7
+  }
+}
+
+pick<complex>(%genEnv: Ptr, %v_0: Ptr, %flag: Int, %x: Ptr, %y: Ptr) {
+  b_1 {
+    %v_2 = add %genEnv, 8: Ptr
+    %v_3 = load %v_2, 8: Ptr
+    %v_4 = add %v_3, 4: Ptr
+    %v_5 = load %v_4, 4: Int
+    %v_6 = cast %v_5: Long
+    copy %v_0, %y, %v_6
+    ret 
+  }
+}
+

@@ -194,12 +194,12 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if(memory == MAP_FAILED) return Nothing();
 
-    copy(assembly.buffer.buffer, (Byte*)memory, byteCount);
-
     // The addresses inside constant data are only knowable now: a witness table holding a function
-    // pointer needs the address the module was actually mapped at. A linker would emit these as
-    // dynamic relocations and let the loader do exactly this.
+    // pointer needs the address the module was actually mapped at. Patched before the copy rather
+    // than after, since it is the assembler's buffer that is patched and the mapping is a copy of
+    // it. A linker would emit these as dynamic relocations and let the loader do the same thing.
     assembly.applyDataRelocations((Byte*)memory);
+    copy(assembly.buffer.buffer, (Byte*)memory, byteCount);
 
     // Writable as well as executable, because the code and the globals share one mapping here.
     // A real linker gives them separate sections with separate protection; this driver exists to
@@ -276,9 +276,63 @@ static bool runRejectionTest(const String& path, const String& errorPath, String
     return pass;
 }
 
+/*
+ * The same fixture, compiled the other way.
+ *
+ * Design.md's "Generic and specialized code" makes both forms first-class outputs and says the
+ * equivalence runs both ways: removing a specialization must only make code slower, and adding one
+ * must only make it faster. Neither may change what the program does, so this compiles the whole
+ * thing with specialization declined and checks that `main` still answers the same.
+ *
+ * A fixture whose callees have requirements no witness exists for yet falls back to specializing
+ * per call site, so this passes trivially for those rather than failing - which is the honest
+ * report while the witness half is being filled in.
+ */
+static bool runGenericPass(const String& path, StringView source, I64 expected) {
+    TestProvider provider;
+    provider.source = source;
+    PrintDiagnostics diagnostics(provider);
+    Context context(diagnostics);
+    provider.context = &context;
+
+    auto name = context.addUnqualifiedName("ResolveTest", 11);
+    Lexer lexer(context, diagnostics, source, name);
+    Parser parser(context, lexer, name);
+    auto ast = parser.parseModule();
+    auto module = resolveProgram(context, ast, &provider, Program::Specialization::Generic);
+
+    if(diagnostics.errorCount()) {
+        println("Fail (%@): forced-generic resolution produced %@ diagnostics.", path, diagnostics.errorCount());
+        return false;
+    }
+
+    auto lowered = lowerProgram(context, *module);
+    if(!validateLowerModule(&diagnostics, lowered.get())) {
+        println("Fail (%@): forced-generic lowering produced invalid lower IR.", path);
+        return false;
+    }
+
+    auto actual = executeMain(context, *module, *lowered);
+    if(!actual || actual.unwrap() != expected) {
+        println("Fail (%@): forced-generic amd64 main returned %@, expected %@.", path,
+                actual ? actual.unwrap() : I64(-1), expected);
+        return false;
+    }
+
+    return true;
+}
+
 static bool runTest(const String& path, StringView source, bool generate) {
     auto errorPath = path + String(".errors.expect");
     if(fileExists(errorPath)) return runRejectionTest(path, errorPath, source, generate);
+
+    /*
+     * A fixture that is *about* the erased ABI compiles in that mode to begin with, so its expected
+     * IR is the erased form rather than a pile of specializations. Opted into by a marker file
+     * beside the source, for the same reason the ownership dump is: most fixtures are not about
+     * this, and generating the other form for all of them would assert the optimizer everywhere.
+     */
+    auto forceGeneric = fileExists(path + String(".generic"));
 
     TestProvider provider;
     provider.source = source;
@@ -290,7 +344,9 @@ static bool runTest(const String& path, StringView source, bool generate) {
     Lexer lexer(context, diagnostics, source, name);
     Parser parser(context, lexer, name);
     auto ast = parser.parseModule();
-    auto module = resolveProgram(context, ast, &provider);
+    auto module = resolveProgram(context, ast, &provider,
+                                 forceGeneric ? Program::Specialization::Generic
+                                              : Program::Specialization::Always);
     if(diagnostics.errorCount()) {
         println("Fail (%@): resolver produced %@ diagnostics.", path, diagnostics.errorCount());
         return false;
@@ -353,6 +409,13 @@ static bool runTest(const String& path, StringView source, bool generate) {
                     actual ? actual.unwrap() : I64(-1), expected.unwrap());
             pass = false;
         }
+
+        // The same program with every concrete generic call site forced through the erased ABI
+        // instead of a specialization. Implementation-Generics.md §14 asks for exactly this, and
+        // for the reason it gives: it is the most direct guard against a semantic decision quietly
+        // moving into the optimizer. Only the *result* is compared - the two forms legitimately
+        // produce different IR, and that they do is the point.
+        if(!forceGeneric) pass = runGenericPass(path, source, expected.unwrap()) && pass;
     }
 
     println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);

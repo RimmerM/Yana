@@ -532,6 +532,11 @@ struct InstGenCall: Inst {
     ModuleList<ModulePtr<Value>, false> args;
     U16 index;
     U32 local = maxLimit<U32>;
+
+    // Set when this call took the erased path rather than being specialized: the constant
+    // environment the callee reads its slots out of, built for exactly these type arguments. Null
+    // for a call still waiting to be made concrete by an instantiation.
+    ModulePtr<Global> env = nullptr;
 };
 
 struct InstJe: Inst {

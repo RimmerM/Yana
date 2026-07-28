@@ -1,0 +1,29 @@
+-- The erased generic ABI: a generic body compiled once and called through a runtime environment,
+-- rather than cloned per set of type arguments.
+--
+-- This fixture is compiled with specialization declined (see the `.generic` marker beside it), so
+-- the IR below is the erased form. Every other fixture is compiled both ways and its *result*
+-- compared, which is Implementation-Generics.md §14's equivalence check; this one exists so that
+-- the erased form itself is inspectable.
+--
+-- What a call site does: build the constant environment for these type arguments - one TypeDesc per
+-- slot of the callee's schema - and pass it in a hidden leading position. What the body does: read
+-- the size it needs out of that environment instead of out of a type it cannot see.
+
+fn identity(value: a) -> a = value
+
+-- A value of unknown size cannot come back in a register, so an owned generic result goes through
+-- storage the caller provides. Substituting `Int` does not change that - the body was compiled once
+-- - so the caller allocates, passes the address, and loads the value back out.
+fn firstOf(x: a, y: a) -> a = x
+
+-- Two variables, two descriptor slots. The second argument's size is a different slot from the
+-- first's, which is what makes the numbering matter rather than being incidental.
+fn pick(flag: Bool, x: a, y: b) -> b = y
+
+fn main() -> Int:
+    let one = identity(1)
+    let two = firstOf(2, 99)
+    let three = pick(True, False, 3)
+
+    return one + two + three

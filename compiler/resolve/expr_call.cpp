@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "witness.h"
 #include "generic.h"
 #include "name.h"
 
@@ -641,6 +642,47 @@ ModulePtr<Value> ExprResolver::emitGenericDispatch(ClassMatch& match, Buffer<Mod
 }
 
 /*
+ * The erased call.
+ *
+ * Everything the callee needs to know about the types it was instantiated for travels as one
+ * constant environment, built for exactly this argument list and interned. What the call itself
+ * looks like is unchanged - the same arguments in the same order - because the environment goes in
+ * a hidden leading position that only lowering ever names.
+ *
+ * Null when the environment could not be built, which today means the callee has a requirement no
+ * witness exists for yet. The caller then specializes instead, which is always available for a
+ * concrete argument list and is what keeps this a staged optimization rather than a cliff.
+ */
+ModulePtr<Value> ExprResolver::emitErasedCall(ModulePtr<Function> callee, Buffer<TypePtr> typeArgs,
+                                              Buffer<ModulePtr<Value>> args, LocationId source,
+                                              StringId resultName) {
+    // Built before anything is emitted, since a missing witness has to leave the call site
+    // untouched for the specializing path to take it instead.
+    auto errors = context.diagnostics.errorCount();
+    auto environment = genEnvFor(module, callee, typeArgs, source);
+
+    if(!environment || context.diagnostics.errorCount() != errors) return nullptr;
+
+    auto generic = local[callee];
+    auto resultType = substituteType(module, generic->returnType, typeArgs, source);
+
+    generic->used = true;
+    generic->genericallyUsed = true;
+
+    auto call = create<InstGenCall>(source, resultName, resultType, callee, nullptr, 0);
+    call->env = environment;
+
+    for(auto argument: typeArgs) call->typeArgs.push(module.arena, argument);
+    for(auto value: args) call->args.push(module.arena, value);
+
+    append(call);
+    auto result = ref(call);
+    if(isMemoryType(global, resultType)) call->local = function.addLocal(module, resultType, resultName, result);
+
+    return result;
+}
+
+/*
  * Generating a generic intrinsic at the call site.
  *
  * A concrete intrinsic - Core's `Num(Int).+` - is a real function whose body an ordinary call
@@ -720,6 +762,18 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
         // what keeps a pointer dereference one load rather than a call per element access.
         if(generic->intrinsic) {
             return expandIntrinsic(callee, toBuffer(bindings), toBuffer(converted), source, resultName);
+        }
+
+        // Both forms are first-class outputs, and which one a concrete call site takes is a choice
+        // rather than a property of the callee - see Program::Specialization. Taking the erased path
+        // needs the body first, since the body is what collects the requirements the environment has
+        // to supply.
+        if(module.program.specialization == Program::Specialization::Generic &&
+           resolveFunctionBody(*generic->module, *generic) &&
+           genericBodyLowerable(module, callee)) {
+            if(auto call = emitErasedCall(callee, toBuffer(bindings), toBuffer(converted), source, resultName)) {
+                return call;
+            }
         }
 
         auto specialized = instantiateFunction(module, callee, toBuffer(bindings), source);
