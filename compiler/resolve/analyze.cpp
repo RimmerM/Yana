@@ -28,8 +28,8 @@ struct BlockRange {
 };
 
 // What one instruction does to the locals it touches. `defs` and `uses` drive liveness, `moves`
-// drives the ownership lattice, and `assigns` marks the writes that overwrite a live value - the
-// one place a drop happens before an instruction rather than after one.
+// drives the ownership lattice, and `overwrites` keeps a slot's old contents live up to the write
+// that replaces them - which is where the drop for those contents goes.
 struct Effects {
     // Writes that replace the whole slot, so nothing above them can still be reaching its old
     // contents. These end a live range going backwards.
@@ -42,7 +42,17 @@ struct Effects {
 
     Array<U32> uses;
     Array<U32> moves;
-    bool assigns = false;
+
+    /*
+     * Slots a whole-slot `Assign` replaces the contents of.
+     *
+     * A use for liveness and nothing else. The old value has to still be live *into* the write for
+     * the write to be the point its lifetime ends at - without that the slot reads as dead from its
+     * last real use onwards, the last-use rule drops it there, and the overwrite rule drops it again
+     * a few instructions later. It is deliberately not a `use` for the move check, because writing a
+     * slot that was moved out of is how one is filled again rather than a use of what left it.
+     */
+    Array<U32> overwrites;
 };
 
 // One drop the pass decided to insert. `before` is a linear index: the drop goes immediately
@@ -51,6 +61,10 @@ struct Effects {
 struct PendingDrop {
     U32 local = 0;
     U32 before = 0;
+
+    // Set for a drop that releases what a write is about to replace, in which case the place comes
+    // from the write rather than from the local - see makeOverwriteDrop.
+    ModulePtr<Inst> overwrite = nullptr;
 };
 
 // One drop that belongs on a CFG edge rather than inside a block - the branch case, where a value
@@ -330,9 +344,12 @@ static void computeEffects(Analysis& analysis) {
 
                     if(whole) {
                         effects.defs.push(root);
-                        effects.assigns = instruction.kind == Value::Assign;
+                        if(instruction.kind == Value::Assign) effects.overwrites.push(root);
                     } else {
                         // A field write leaves the rest of the slot alone, so it reads as a use.
+                        // That covers the liveness half of a field *assignment* as well - what such
+                        // a write replaces is one field, and the drop for it is stated over that
+                        // field's place rather than over the slot. See placeOverwriteDrops.
                         effects.uses.push(root);
                     }
 
@@ -355,6 +372,33 @@ static void computeEffects(Analysis& analysis) {
 
                 auto root = rootLocal(analysis, moved.place);
                 if(root != maxLimit<U32>) effects.moves.push(root);
+                break;
+            }
+
+            /*
+             * Both places are read and both are written, and the state of neither changes. So both
+             * are uses and neither is a def, a move or an init - the whole of what makes these two
+             * the operations that need no lattice.
+             *
+             * A use is not nothing, though: it is what keeps the old contents live up to here, which
+             * is what stops the last-use rule dropping a value that this instruction is about to
+             * hand somewhere else. It is also what makes reading a moved-out slot through one of
+             * these the use-after-move it is.
+             */
+            case Value::Swap: {
+                auto& swap = (InstSwap&)instruction;
+                useRoot(analysis, effects, swap.a);
+                useRoot(analysis, effects, swap.b);
+                break;
+            }
+
+            case Value::Exchange: {
+                auto& exchange = (InstExchange&)instruction;
+                useRoot(analysis, effects, exchange.place);
+
+                // The incoming value goes into the place, so whatever owed a drop for it is now the
+                // place's business - the same handover an Init of the same value would be.
+                transferFrom(analysis, effects, exchange.value);
                 break;
             }
 
@@ -571,7 +615,10 @@ static Provenance placeProvenance(Analysis& analysis, const Place& place) {
             break;
 
         case PlaceRoot::Pointer:
-            // The place is the memory the pointer names, so its roots are the pointer's own.
+        case PlaceRoot::Borrow:
+            // The place is the memory the pointer names, so its roots are the pointer's own. A
+            // borrow answers the same way: how much was *proved* about the address is what separates
+            // the two roots, and provenance is not one of the things it separates.
             joinProvenance(result, provenanceOf(analysis, place.pointer));
             break;
     }
@@ -733,6 +780,13 @@ static bool flowRound(Analysis& analysis) {
                     joinProvenance(produced, placeProvenance(analysis, ((InstMove&)instruction).place));
                     break;
 
+                // What came out of the place may refer to whatever the place did. Only reached for a
+                // scalar: an aggregate result has a slot of its own, which backingLocal answers with
+                // before this switch runs.
+                case Value::Exchange:
+                    joinProvenance(produced, placeProvenance(analysis, ((InstExchange&)instruction).place));
+                    break;
+
                 case Value::Cast:
                     // A cast of a pointer is the same address written differently, and asInt/asPtr
                     // are casts. Losing the root here is exactly how an escape would go unnoticed.
@@ -809,14 +863,32 @@ static bool flowRound(Analysis& analysis) {
         changed = joinProvenance(analysis.values[id], produced) || changed;
 
         // Writing into a place makes what was written reachable through that place's root.
-        if(instruction.kind == Value::Init || instruction.kind == Value::Assign) {
-            auto& write = (InstInit&)instruction;
-            auto roots = placeProvenance(analysis, write.place);
-            auto stored = transferredProvenance(analysis, write.value);
-
+        auto storeInto = [&](const Place& place, const Provenance& stored) {
+            auto roots = placeProvenance(analysis, place);
             for(Size l = 0; l < analysis.localCount; l++) {
                 if(roots.locals[l]) changed = joinProvenance(analysis.contents[l], stored) || changed;
             }
+        };
+
+        if(instruction.kind == Value::Init || instruction.kind == Value::Assign) {
+            auto& write = (InstInit&)instruction;
+            storeInto(write.place, transferredProvenance(analysis, write.value));
+        } else if(instruction.kind == Value::Exchange) {
+            auto& exchange = (InstExchange&)instruction;
+            storeInto(exchange.place, transferredProvenance(analysis, exchange.value));
+        } else if(instruction.kind == Value::Swap) {
+            /*
+             * Each place ends up holding what the other did. The sets are joined both ways rather
+             * than crossed over, because this is a fixpoint over a join lattice and there is no
+             * "used to hold" to take away - a place that ever held either is a place that may refer
+             * to either, which is the answer escape analysis needs and the only one it can keep.
+             */
+            auto& swap = (InstSwap&)instruction;
+            auto both = contentsOfPlace(analysis, swap.a);
+            joinProvenance(both, contentsOfPlace(analysis, swap.b));
+
+            storeInto(swap.a, both);
+            storeInto(swap.b, both);
         }
     }
 
@@ -1332,8 +1404,11 @@ static void applyBackward(Analysis& analysis, Size first, Size end, LocalSet& li
         auto& effects = analysis.effects[i - 1];
 
         // Defs before uses: an instruction that both writes and reads a slot leaves it live above.
+        // An overwrite is both at once - it ends the old value's range and is the point that range
+        // has to reach - which is why it is applied on the reading side.
         for(auto def: effects.defs) live[def] = 0;
         for(auto use: effects.uses) live[use] = 1;
+        for(auto overwritten: effects.overwrites) live[overwritten] = 1;
     }
 }
 
@@ -1522,19 +1597,38 @@ static bool placesOverlap(ModuleBase base, Place lhs, Place rhs) {
     return true;
 }
 
-// The place an instruction touches, for conflict reporting. Only the instructions that name
-// storage have one; everything else answers no and is not a borrow conflict by construction.
-static bool touchedPlace(Value& instruction, Place& target) {
+/*
+ * The places an instruction touches, for conflict reporting. Only the instructions that name
+ * storage have any; everything else answers none and is not a borrow conflict by construction.
+ *
+ * Writes into `target`, and returns how many. Every instruction here names one place except the
+ * swap, which is the only one in the IR that names two - so callers that only ever ask about
+ * single-place instructions go through touchedPlace() below and are unaffected.
+ */
+static Size touchedPlaces(Value& instruction, Place* target) {
     switch(instruction.kind) {
-        case Value::LoadPlace: target = ((InstLoadPlace&)instruction).place; return true;
+        case Value::LoadPlace: target[0] = ((InstLoadPlace&)instruction).place; return 1;
         case Value::Init:
-        case Value::Assign: target = ((InstInit&)instruction).place; return true;
-        case Value::Borrow: target = ((InstBorrow&)instruction).place; return true;
-        case Value::Move: target = ((InstMove&)instruction).place; return true;
-        case Value::Copy: target = ((InstCopy&)instruction).place; return true;
-        case Value::Address: target = ((InstAddress&)instruction).place; return true;
-        default: return false;
+        case Value::Assign: target[0] = ((InstInit&)instruction).place; return 1;
+        case Value::Borrow: target[0] = ((InstBorrow&)instruction).place; return 1;
+        case Value::Move: target[0] = ((InstMove&)instruction).place; return 1;
+        case Value::Copy: target[0] = ((InstCopy&)instruction).place; return 1;
+        case Value::Address: target[0] = ((InstAddress&)instruction).place; return 1;
+        case Value::Exchange: target[0] = ((InstExchange&)instruction).place; return 1;
+        case Value::Swap:
+            target[0] = ((InstSwap&)instruction).a;
+            target[1] = ((InstSwap&)instruction).b;
+            return 2;
+        default: return 0;
     }
+}
+
+static bool touchedPlace(Value& instruction, Place& target) {
+    Place places[2];
+    if(!touchedPlaces(instruction, places)) return false;
+
+    target = places[0];
+    return true;
 }
 
 /*
@@ -1666,9 +1760,16 @@ static void checkBorrows(Analysis& analysis) {
             auto other = analysis.order[i];
             auto& instruction = *analysis.local[other];
 
-            Place place;
-            if(!touchedPlace(instruction, place)) continue;
-            if(!placesOverlap(analysis.local, borrowed.place, place)) continue;
+            Place places[2];
+            auto touched = touchedPlaces(instruction, places);
+            if(!touched) continue;
+
+            auto overlaps = false;
+            for(Size p = 0; p < touched; p++) {
+                overlaps = overlaps || placesOverlap(analysis.local, borrowed.place, places[p]);
+            }
+
+            if(!overlaps) continue;
 
             // The instructions that consume the borrow reach the storage *through* it, which is
             // the whole point of handing one out rather than a conflict with it.
@@ -1690,7 +1791,8 @@ static void checkBorrows(Analysis& analysis) {
             // exclusive. A write is a conflict with either.
             auto writes = instruction.kind == Value::Assign || instruction.kind == Value::Init ||
                           instruction.kind == Value::Move || otherMutable ||
-                          instruction.kind == Value::Address;
+                          instruction.kind == Value::Address ||
+                          instruction.kind == Value::Swap || instruction.kind == Value::Exchange;
 
             if(!borrow.mut && !writes) continue;
 
@@ -1726,9 +1828,37 @@ static void checkMoves(Analysis& analysis) {
                 continue;
             }
 
+            /*
+             * Taking ownership out of storage this frame does not own.
+             *
+             * A `&` parameter is the case with a local behind it, and the one this check was
+             * written for. A borrow root is the same mistake with no local to find: `let &e = xs[i]`
+             * names storage the collection owns, and `let ->x = e` would take the element out from
+             * under it. A global's storage outlives every frame there is. Both were reaching the
+             * state test below and finding nothing to test, because rootLocal has no answer for
+             * either - so both were accepted in silence.
+             *
+             * The borrow half is load-bearing rather than tidy. placeOverwriteDrops releases what a
+             * write through a borrow replaces without consulting any state, which is sound only
+             * while nothing can empty borrowed storage behind its owner's back. This is what makes
+             * that true.
+             *
+             * A raw pointer root is deliberately not here. `let ->x = *p` is Native taking
+             * ownership of memory it is holding the only address of, which is the one thing the
+             * module exists to be able to do.
+             */
             auto root = rootLocal(analysis, moved.place);
-            if(root != maxLimit<U32> && !analysis.tracked[root].owned) {
+            auto borrowed = moved.place.root == PlaceRoot::Borrow ||
+                            (root != maxLimit<U32> && !analysis.tracked[root].owned);
+
+            if(borrowed) {
                 report(analysis, "cannot take ownership of borrowed storage - a `&` binding never owns what it refers to"_v,
+                       instruction.source);
+                continue;
+            }
+
+            if(moved.place.root == PlaceRoot::Global) {
+                report(analysis, "cannot take ownership of a global - its storage outlives every frame that could take it"_v,
                        instruction.source);
                 continue;
             }
@@ -2286,6 +2416,11 @@ static bool checkReclaimShape(Module& module, Function& function) {
 
 /*
  * Drop placement.
+ *
+ * Two rules, and each has a pass of its own because they are about different things. A value's
+ * lifetime ends where nothing reaches it any more, which is a fact about a local and is what
+ * placeDrops walks liveness for. A value is also over when something writes over it, which is a fact
+ * about a place - see placeOverwriteDrops.
  */
 
 // Where in a block's instruction list a linear index sits. A drop that would land on the
@@ -2321,6 +2456,7 @@ static void placeDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops
             auto& effects = analysis.effects[i - 1];
             for(auto def: effects.defs) live[def] = 0;
             for(auto use: effects.uses) live[use] = 1;
+            for(auto overwritten: effects.overwrites) live[overwritten] = 1;
         }
 
         for(Size l = 0; l < count; l++) {
@@ -2339,18 +2475,6 @@ static void placeDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops
                 for(auto move: effects.moves) moves = moves || move == l;
 
                 auto before = analysis.stateBefore[i][l];
-
-                // Overwriting a live value releases the old one first. That is the entire reason
-                // Init and Assign are two instructions rather than one.
-                if(defines && effects.assigns && before != OwnState::Uninitialized) {
-                    if(before == OwnState::Maybe) {
-                        report(analysis, "this assignment overwrites a value that was moved out of on only some paths - conditional drops need drop flags, which are not implemented yet"_v,
-                               analysis.local[analysis.order[i]]->source);
-                    } else if(before == OwnState::Owned) {
-                        blockDrops[b].push(PendingDrop { U32(l), U32(i) });
-                    }
-                }
-
                 auto ownedAfter = defines || (before == OwnState::Owned && !moves);
                 auto maybeAfter = !defines && !moves && before == OwnState::Maybe;
 
@@ -2390,6 +2514,108 @@ static void placeDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops
                 } else if(state == OwnState::Owned) {
                     edgeDrops.push(EdgeDrop { U32(l), b, successorIndex });
                 }
+            }
+        }
+    }
+}
+
+/*
+ * The other kind of drop: the one an overwrite owes.
+ *
+ * Overwriting storage releases what it held first - the entire reason Init and Assign are two
+ * instructions rather than one - and that obligation is about the *place* being written rather than
+ * about the slot it is rooted in. `v.f = x` replaces one field and leaves every other member of `v`
+ * exactly where it was, so what it owes is a drop of `v.f`; dropping `v` there would release members
+ * nothing overwrote, and dropping nothing at all leaks whatever `f` held. Which is why this is one
+ * pass over the writes rather than a case inside the per-local walk above: a field write is not a
+ * fact about a local's lifetime at all.
+ *
+ * It reads the ownership state rather than TrackedLocal::owned, because the two answer different
+ * questions. `owned` is "does this frame release the slot when it dies", which a `&` parameter's
+ * does not - the caller's storage outlives the call and dropping it at the end would release
+ * something the caller still holds. An overwrite is not the end of anything: the program asked for
+ * the contents to be replaced, the storage stays, and the old contents have to go somewhere whoever
+ * owns the slot. What has to be true is only that something was there, which is what the state says.
+ *
+ * A field of an owned aggregate is always initialized when the aggregate is, since moving a part of
+ * a value out of it is rejected outright - see checkMoves. So the root's state is the field's state
+ * too, and no per-field lattice is needed to know that the old field is there to release.
+ *
+ * A borrow root has no state to read, and does not need one: a borrow refers to an initialized
+ * value of its type, always. That is a property of `&` rather than something inferred here, and it
+ * is what `xs[i] = v` needs, since the borrow `getMut` hands back is a call result with no place
+ * behind it to ask about.
+ *
+ * It holds because nothing can falsify it. A Borrow instruction records a *use* of its root, so
+ * checkMoves rejects taking one of storage that is not owned; a move out of a `&` binding and a
+ * partial move are both rejected outright; and a borrow that came from a call is a borrow some
+ * other body took under those same rules. What is left is Native, where `borrowMut` turns an
+ * address into a borrow and the promise becomes the caller's to keep - which is the same tier as
+ * every bounds check in this compiler, and already what `getMut(xs, i)` for an `i` past the end
+ * was before any of this.
+ *
+ * A global gets the same answer for a plainer reason: its initializer is a constant, so it holds a
+ * value before the program starts and there is no program point at which it does not.
+ *
+ * Which leaves the raw pointer, and it stays left. `*p = v` releases nothing, because the memory a
+ * pointer names is outside the ownership model by definition and nothing here can say what is in
+ * it. That is the unsafety Native is named for rather than a case missing from this pass.
+ */
+static void placeOverwriteDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops) {
+    for(Size b = 0; b < analysis.blockCount(); b++) {
+        auto range = analysis.blockRanges[b];
+
+        for(Size i = range.first; i < range.end; i++) {
+            auto pointer = analysis.order[i];
+            auto& instruction = *analysis.local[pointer];
+            if(instruction.kind != Value::Assign) continue;
+
+            auto& write = (InstInit&)instruction;
+
+            if(write.place.root == PlaceRoot::Pointer) continue;
+
+            // A step through a raw pointer leaves the root behind as surely as a pointer root does
+            // - `p.f = x` for `p: %Node` writes into memory whose contents nothing here can speak
+            // for. What is left is a path that stays inside the storage the root names, which is
+            // what makes the root's answer the whole place's answer.
+            auto reachable = true;
+            for(auto projection: write.place.projections.contents(analysis.local)) {
+                auto inside = projection.kind == ProjectionKind::Field ||
+                              projection.kind == ProjectionKind::Downcast;
+
+                reachable = reachable && inside;
+            }
+
+            if(!reachable) continue;
+
+            auto type = placeType(analysis.module, analysis.function, write.place);
+            if(!needsTeardown(analysis.module, type)) continue;
+
+            // The two roots that are initialized by the time anything can name them. Neither has a
+            // row in the state table, and neither needs one - see above.
+            if(write.place.root == PlaceRoot::Borrow || write.place.root == PlaceRoot::Global) {
+                blockDrops[b].push(PendingDrop { maxLimit<U32>, U32(i), pointer });
+                continue;
+            }
+
+            // Asked after the roots that have no state rather than before them, so that a local
+            // index out of range falls out here as the malformed place it is instead of being read
+            // as one of those.
+            auto root = rootLocal(analysis, write.place);
+            if(root == maxLimit<U32>) continue;
+
+            switch(analysis.stateBefore[i][root]) {
+                case OwnState::Owned:
+                    blockDrops[b].push(PendingDrop { root, U32(i), pointer });
+                    break;
+                case OwnState::Maybe:
+                    report(analysis, "this assignment overwrites a value that was moved out of on only some paths - conditional drops need drop flags, which are not implemented yet"_v,
+                           instruction.source);
+                    break;
+                default:
+                    // Uninitialized or moved out of: there is nothing there to release, and filling
+                    // the slot again is what this write is.
+                    break;
             }
         }
     }
@@ -2555,6 +2781,40 @@ static InstDrop* makeDrop(Analysis& analysis, Block& block, U32 localIndex, Loca
     return drop;
 }
 
+/*
+ * The drop a write owes for what it is about to replace.
+ *
+ * Stated over the write's own place, which is what makes the field case work: `v.f = x` releases
+ * `v.f`, and the projections that name it are the ones the write already carries.
+ *
+ * Nothing here releases storage, unlike makeDrop. Handing an allocation back is what happens when a
+ * value's lifetime ends and nothing follows it, and something does follow this one: the write that
+ * comes next fills the same storage again. Freeing it here and writing into it afterwards would be
+ * a use after free of the frame's own heap slot.
+ */
+static InstDrop* makeOverwriteDrop(Analysis& analysis, Block& block, ModulePtr<Inst> write,
+                                   LocationId source) {
+    auto& module = analysis.module;
+
+    // By value: creating the drop may grow the arena, and a reference into it would then be
+    // pointing at the old one. The projection list travels as an offset, so the copy names the
+    // same projections rather than a second set of them.
+    auto place = ((InstInit&)*analysis.local[write]).place;
+    auto type = placeType(module, analysis.function, place);
+    auto ownership = ownershipOf(module, type);
+
+    auto drop_ = teardownFor(module, type, Teardown::Drop, source);
+    auto reclaim = teardownFor(module, type, Teardown::Reclaim, source);
+    if(!drop_ && !reclaim) return nullptr;
+
+    auto drop = createInst<InstDrop>(module, analysis.function, block, source, 0,
+                                     module.scalar.unit, place, ownership.drop, ownership.reclaim);
+
+    drop->drop = drop_;
+    drop->reclaim = reclaim;
+    return drop;
+}
+
 static void insertBlockDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops) {
     for(Size b = 0; b < analysis.blockCount(); b++) {
         if(blockDrops[b].isEmpty()) continue;
@@ -2571,7 +2831,11 @@ static void insertBlockDrops(Analysis& analysis, Array<Array<PendingDrop>>& bloc
         for(auto& pending: blockDrops[b]) {
             auto position = positionInBlock(analysis, b, pending.before);
             auto source = analysis.local[analysis.order[min(Size(pending.before), analysis.instructionCount - 1)]]->source;
-            auto drop = makeDrop(analysis, *block, pending.local, source);
+
+            auto drop = pending.overwrite
+                ? makeOverwriteDrop(analysis, *block, pending.overwrite, source)
+                : makeDrop(analysis, *block, pending.local, source);
+
             if(!drop) continue;
 
             positions.push(position);
@@ -2699,6 +2963,7 @@ static void buildRanges(Analysis& analysis, OwnershipResult& result) {
                 auto& effects = analysis.effects[i - 1];
                 for(auto def: effects.defs) live[def] = 0;
                 for(auto use: effects.uses) live[use] = 1;
+                for(auto overwritten: effects.overwrites) live[overwritten] = 1;
                 before.push(live[l]);
             }
 
@@ -2853,6 +3118,7 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
 
     Array<EdgeDrop> edgeDrops;
     placeDrops(analysis, blockDrops, edgeDrops);
+    placeOverwriteDrops(analysis, blockDrops);
 
     if(!analysis.ok) return false;
 

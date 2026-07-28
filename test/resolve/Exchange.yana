@@ -1,0 +1,152 @@
+import Native
+import Native.Linux
+
+{-
+   `swap` and `exchange` - the two operations that take a value out of storage without leaving a
+   hole in it.
+
+   `->` empties the place it reads, which is why it needs one the compiler can prove things about.
+   These two never empty anything: both places hold a live value before and after. So they are the
+   way a value comes out of the storage the lattice cannot describe - a global, a borrow, an element
+   a collection handed back - and Reject.Exchange.yana holds the cases where `->` is refused and one
+   of these is what the program should have said.
+
+   Nothing here reads the IR. Where the relocations went is asserted by the counter the `Sink`
+   instance increments, and whether anything was dropped by the counter the `Drop` instance keeps -
+   a relocation that went missing leaves the destination holding whatever the copy left there, and a
+   value read out of it would be right by accident.
+-}
+
+let &sinkCalls = 0 :: I64
+let &liveBuffers = 0 :: I64
+
+data Handle {value: I64}
+
+instance Sink(Handle):
+    fn sink(&to: Handle, ->from: Handle) -> {}:
+        sinkCalls += 1
+        to.value = from.value
+
+data Buffer {bytes: %U8}
+
+-- Zeroed, for the reason Drop.yana gives: a block the allocator handed back a second time still has
+-- the free list's own bookkeeping in it.
+fn makeBuffer(size: I64) -> Buffer:
+    liveBuffers += 1
+    let buffer = Buffer {bytes: allocateHeap(size)}
+    setMemory(buffer.bytes, 0, size)
+    return buffer
+
+instance Drop(Buffer):
+    fn drop(->value: Buffer) -> {}:
+        freeHeap(value.bytes)
+        liveBuffers -= 1
+
+fn firstByte(it: Buffer) -> I64 = *it.bytes
+
+-- The scalar cases, where a relocation is a load and a store and the whole operation is registers.
+fn scalars() -> I64:
+    let &x = 1 :: I64
+    let &y = 2 :: I64
+    swap(x, y)
+
+    -- 21 if the two really crossed over, 12 if nothing happened and 11 or 22 if one store won.
+    return x * 10 + y
+
+fn exchangeScalar() -> I64:
+    let &x = 1 :: I64
+    let old = exchange(x, 9)
+    return old * 10 + x
+
+{-
+   A global.
+
+   `let ->taken = counter` is rejected - a global's storage outlives every frame that could take
+   ownership of it - and this is the same intent said in a way that is true: the global holds a live
+   value throughout, and what comes back is the one it used to hold.
+-}
+let &counter = 5 :: I64
+
+fn globalExchange() -> I64:
+    let old = exchange(counter, 7)
+    return old * 10 + counter
+
+{-
+   What the two cost.
+
+   A swap cannot write either place until it has read both, so it relocates three times through a
+   temporary. An exchange is handed a value rather than a place, so it relocates twice and needs no
+   temporary. That is the entire reason both exist, and it is the counter that says so.
+-}
+fn sinkSwap() -> I64:
+    let &a = Handle {value: 1}
+    let &b = Handle {value: 2}
+
+    sinkCalls = 0
+    swap(a, b)
+
+    return sinkCalls * 100 + a.value * 10 + b.value
+
+fn sinkExchange() -> I64:
+    let &slot = Handle {value: 1}
+
+    sinkCalls = 0
+    let old = exchange(slot, Handle {value: 2})
+
+    return sinkCalls * 100 + old.value * 10 + slot.value
+
+-- A swap of owned values runs no teardown at all. Both places held a live value before and both do
+-- after, so there is nothing whose lifetime ended and nothing to drop - which is the property that
+-- makes this legal on storage with no initialization state to consult.
+fn swapDroppable() -> I64:
+    let &x = makeBuffer(16)
+    let &y = makeBuffer(32)
+    swap(x, y)
+
+    return liveBuffers + firstByte(x) + firstByte(y)
+
+-- An exchange hands the old value back as something this frame owns, so it is torn down here rather
+-- than in the slot it came out of. Both are live where the count is read.
+fn exchangeDroppable() -> I64:
+    let &slot = makeBuffer(16)
+    let old = exchange(slot, makeBuffer(32))
+
+    let counted = liveBuffers
+    return counted + firstByte(old) + firstByte(slot)
+
+-- Through a borrow, which is storage this frame does not own. Ownership decides who releases a slot
+-- when it dies; a swap is not the end of anything, so it does not ask.
+fn swapThrough(&p: Buffer, &q: Buffer) -> {}:
+    swap(p, q)
+
+fn borrowed() -> I64:
+    let &x = makeBuffer(16)
+    let &y = makeBuffer(32)
+    swapThrough(x, y)
+
+    return liveBuffers + firstByte(x) + firstByte(y)
+
+fn main() -> I64:
+    let &result = 0 :: I64
+
+    if scalars() != 21 then return -1
+    if exchangeScalar() != 19 then return -2
+    if globalExchange() != 57 then return -3
+
+    -- Three relocations, and the values crossed over: 300 + 2*10 + 1.
+    if sinkSwap() != 321 then return -4
+
+    -- Two, and the old value came back: 200 + 1*10 + 2.
+    if sinkExchange() != 212 then return -5
+
+    if swapDroppable() != 2 then return -6
+    if liveBuffers != 0 then return -7
+
+    if exchangeDroppable() != 2 then return -8
+    if liveBuffers != 0 then return -9
+
+    if borrowed() != 2 then return -10
+    if liveBuffers != 0 then return -11
+
+    result = 1
+    return result

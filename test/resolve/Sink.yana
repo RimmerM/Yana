@@ -73,6 +73,15 @@ fn captured(->h: Handle) -> () -> I64 = () -> h.value
 -- `right` is read out of the source, and the source is dead only once the sink has run.
 fn retag(->p: Pair) -> Pair = {->p | right: p.right + 1}
 
+-- The same relocation written where the type is not known yet. A generic body has no `Sink` to name
+-- and no size to copy, so it records neither and relocates through the descriptor its caller passed;
+-- a specialization has the type and answers the question again for it. Both have to reach the same
+-- call, which is what this asserts - the file compiles once specialized and once with specialization
+-- declined, and the counts are the same either way.
+fn relocate(->x: a) -> a:
+    let ->y = x
+    return y
+
 fn main() -> I64:
     let &result = 0 :: I64
 
@@ -107,5 +116,17 @@ fn main() -> I64:
     if sinkCalls != 6 then return -8
 
     result += retagged.left.value + retagged.right
+
+    -- One relocation of a `Handle` inside a body that could not see one, and one of a `Pair` whose
+    -- relocation is the derived glue rather than an authored instance.
+    let relocated = relocate(Handle {value: 70})
+    if sinkCalls != 7 then return -9
+
+    result += relocated.value
+
+    let relocatedPair = relocate(Pair {left: Handle {value: 80}, right: 8})
+    if sinkCalls != 8 then return -10
+
+    result += relocatedPair.left.value + relocatedPair.right
 
     return result + sinkCalls

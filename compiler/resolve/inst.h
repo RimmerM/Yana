@@ -194,6 +194,8 @@ struct Value {
         Assign,
         Borrow,
         Move,
+        Swap,
+        Exchange,
         Copy,
         Drop,
         Address,
@@ -396,6 +398,70 @@ struct InstMove: Inst {
     // type has one, and the generated member-wise glue where a member has one. Null for a
     // TrivialSink type, whose relocation is its bytes - see sinkFor.
     ModulePtr<Function> sink = nullptr;
+};
+
+/*
+ * Exchanging the contents of two places - `swap(a, b)`.
+ *
+ * The one ownership operation that is *total*. Every other one moves a place across the
+ * initialization lattice: Init fills, Move and Drop empty, and Assign owes a drop that depends on
+ * which of those the place last went through. A swap's precondition and postcondition are the same
+ * statement - both places hold a live value before and after - so it changes no state at all.
+ *
+ * Which is why it is an instruction rather than the three moves it looks like. Written out, the
+ * middle of it has one place emptied and the other not yet refilled, and a move out of a borrow is
+ * exactly what checkMoves rejects - for the good reason that it would leave someone else's storage
+ * empty with nothing obliged to refill it. Here the refill is the same operation, so the property
+ * holds at every instruction boundary; making the sequence one instruction is what makes that a
+ * fact about the IR rather than a claim about the order of three of them.
+ *
+ * The upshot is that this is the operation that works on the roots the lattice cannot describe. A
+ * global, a borrow, an element the collection handed back - none has a state to consult, and a swap
+ * never needs one. Taking a value out of any of those is spelled with this rather than with `->`.
+ */
+struct InstSwap: Inst {
+    InstSwap(ModulePtr<Block> block, TypePtr unit, Place a, Place b, TypePtr content):
+        Inst(Value::Swap, block, unit), a(a), b(b), content(content) {}
+
+    Place a;
+    Place b;
+
+    // What is being exchanged. Carried rather than re-derived because `type` is unit - a swap
+    // produces nothing - and lowering has no Module to ask placeType with.
+    TypePtr content;
+
+    // The relocation, on the same terms as InstMove::sink: null when the type's bytes are its whole
+    // relocation, and the authored or generated `Sink` otherwise. One field for what lowering
+    // performs three times.
+    ModulePtr<Function> sink = nullptr;
+};
+
+/*
+ * `exchange(slot, ->value)` - write `value` into `slot` and produce what was there.
+ *
+ * The same totality argument as InstSwap, and a separate instruction for the reason the two were
+ * asked for together: they cost different amounts. A swap is three relocations and a temporary,
+ * because neither place can be written until both have been read. An exchange is two and no
+ * temporary, because the incoming value is already a value rather than a place - the caller moved
+ * it in - so there is nothing to save it from.
+ *
+ * `swap(a, b)` is therefore not `exchange` twice, and `exchange(s, v)` is not a swap with a
+ * temporary the optimizer might remove. They are two operations, and a caller that has a
+ * replacement in hand should not pay for the one that does not.
+ */
+struct InstExchange: Inst {
+    InstExchange(ModulePtr<Block> block, TypePtr type, Place place, ModulePtr<Value> value):
+        Inst(Value::Exchange, block, type), place(place), value(value) {}
+
+    Place place;
+    ModulePtr<Value> value;
+
+    ModulePtr<Function> sink = nullptr;
+
+    // Storage for the result, as InstCopy has: what came out of the place is a value with a root of
+    // its own, and for a memory type that root has to be somewhere. maxLimit for a scalar, which
+    // comes out in a register.
+    U32 local = maxLimit<U32>;
 };
 
 /*

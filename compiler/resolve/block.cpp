@@ -78,6 +78,18 @@ Inst* Block::add(Module& module, Inst* inst) {
             case Value::Move:
                 addPlaceUse(module, ((InstMove*)inst)->place, inst);
                 break;
+            case Value::Swap: {
+                auto swap = (InstSwap*)inst;
+                addPlaceUse(module, swap->a, inst);
+                addPlaceUse(module, swap->b, inst);
+                break;
+            }
+            case Value::Exchange: {
+                auto exchange = (InstExchange*)inst;
+                addPlaceUse(module, exchange->place, inst);
+                addUse(module, exchange->value, inst);
+                break;
+            }
             case Value::Copy:
                 addPlaceUse(module, ((InstCopy*)inst)->place, inst);
                 break;

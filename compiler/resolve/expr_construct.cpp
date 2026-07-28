@@ -119,7 +119,13 @@ Place ExprResolver::project(Place place, ProjectionKind kind, U16 index, ModuleP
 }
 
 // The type of the storage a place's root names, before any projection.
-TypePtr ExprResolver::placeRootType(const Place& place) {
+TypePtr placeRootType(Module& module, Function& function, const Place& place) {
+    auto global = *module.types;
+    auto local = *module.arena;
+    auto valueType = [&](ModulePtr<Value> value) {
+        return value ? local[value]->type : module.scalar.unit;
+    };
+
     switch(place.root) {
         case PlaceRoot::Local:
             if(place.local >= function.localCount()) return module.scalar.error;
@@ -140,8 +146,10 @@ TypePtr ExprResolver::placeRootType(const Place& place) {
     return module.scalar.error;
 }
 
-TypePtr ExprResolver::placeType(const Place& place) {
-    auto type = placeRootType(place);
+TypePtr placeType(Module& module, Function& function, const Place& place) {
+    auto global = *module.types;
+    auto local = *module.arena;
+    auto type = placeRootType(module, function, place);
     auto projections = place.projections;
 
     for(auto projection: projections.contents(local)) {
@@ -190,6 +198,14 @@ TypePtr ExprResolver::placeType(const Place& place) {
     }
 
     return type;
+}
+
+TypePtr ExprResolver::placeRootType(const Place& place) {
+    return ::placeRootType(module, function, place);
+}
+
+TypePtr ExprResolver::placeType(const Place& place) {
+    return ::placeType(module, function, place);
 }
 
 ModulePtr<Value> ExprResolver::load(Place place, LocationId source, StringId valueName) {

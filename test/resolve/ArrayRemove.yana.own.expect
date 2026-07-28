@@ -1,0 +1,118 @@
+fn +=(I64) {
+  arg target writable
+  arg amount readonly
+  %target: I64 borrowed writable live [0, 3)
+  %amount: I64 borrowed readonly live [0, 2)
+  %local2: I64 readonly live [1, 3)
+}
+
+fn -=(I64) {
+  arg target writable
+  arg amount readonly
+  %target: I64 borrowed writable live [0, 3)
+  %amount: I64 borrowed readonly live [0, 2)
+  %local2: I64 readonly live [1, 3)
+}
+
+fn initHeap {
+}
+
+fn heapClassOf {
+  arg total readonly
+  %size: I64 writable live [0, 8) [10, 18)
+  %sizeClass: I64 writable live [2, 9) [10, 18)
+}
+
+fn heapBlockSize {
+  arg sizeClass readonly
+}
+
+fn freeListHead {
+  arg sizeClass readonly
+  result escapes
+}
+
+fn setFreeListHead {
+  arg sizeClass readonly
+  arg block readonly
+}
+
+fn allocateHeap {
+  arg size readonly
+  result escapes
+}
+
+fn freeHeap {
+  arg allocation readonly
+}
+
+fn mapMemory {
+  arg size readonly
+}
+
+fn emptyArray(Buffer) {
+  %local0: Array(Buffer) droppable readonly live [0, 7)
+}
+
+fn push(Buffer) {
+  arg self writable addressed resizable
+  arg item readonly
+  %self: Array(Buffer) borrowed droppable writable addressed resizable live [0, 12) [13, 26)
+  %item: Buffer borrowed readonly live [0, 12) [13, 22)
+}
+
+fn reserve(Buffer) {
+  arg self writable addressed resizable
+  arg wanted readonly
+  %self: Array(Buffer) borrowed droppable writable addressed resizable live [0, 4) [5, 34) [35, 59)
+  %wide: Int writable live [11, 34) [35, 57)
+}
+
+fn byteSpan(Buffer) {
+  arg from readonly
+  arg count readonly
+}
+
+fn length(Buffer) {
+  arg self readonly
+  %self: Array(Buffer) borrowed droppable readonly live [0, 1)
+}
+
+fn remove(Buffer) {
+  arg self writable addressed
+  arg index readonly
+  %self: Array(Buffer) borrowed droppable writable addressed live [0, 6) [7, 47)
+  %local1: Buffer readonly live [13, 15)
+  %local2: Buffer readonly live [15, 17)
+}
+
+fn get(Buffer) {
+  arg self readonly return
+  arg index readonly
+  result arguments
+  %self: Array(Buffer) borrowed droppable readonly live [0, 1)
+}
+
+fn makeBuffer {
+  arg mark readonly
+  result escapes
+  %local0: Buffer readonly live [3, 12)
+}
+
+fn marker {
+  arg it readonly
+  %it: Buffer borrowed readonly live [0, 1)
+}
+
+fn main {
+  %local0: Array(Buffer) droppable readonly live [0, 3)
+  %xs: Array(Buffer) droppable writable addressed resizable live [1, 18) [20, 25) [27, 35) [37, 45) [47, 55) [57, 69) [71, 79) [81, 89) [91, 97)
+  %local2: Buffer readonly live [4, 7)
+  %local3: Buffer readonly live [8, 11)
+  %local4: Buffer readonly live [12, 15)
+}
+
+fn Drop(Buffer).drop {
+  arg value readonly
+  %value: Buffer borrowed readonly live [0, 1)
+}

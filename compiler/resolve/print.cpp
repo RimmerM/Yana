@@ -140,6 +140,8 @@ static StringView instructionName(Value& value, GlobalBase global) {
         case Value::Assign: return "assign"_v;
         case Value::Borrow: return ((InstBorrow&)value).mut ? "borrow_mut"_v : "borrow"_v;
         case Value::Move: return "move"_v;
+        case Value::Swap: return "swap"_v;
+        case Value::Exchange: return "exchange"_v;
         case Value::Copy: return "copy"_v;
         case Value::Drop:
             // Named after what it actually runs. A teardown with an authored half on either side is
@@ -250,6 +252,34 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             if(moved.sink) {
                 print.writer.writeString(" via "_v);
                 print.writer.writeString(print.context.findName(print.local[moved.sink]->name));
+            }
+
+            break;
+        }
+        case Value::Swap: {
+            auto& swap = (InstSwap&)inst;
+            print.writer.writeByte(' ');
+            printPlace(print, *function, swap.a);
+            print.writer.writeString(", "_v);
+            printPlace(print, *function, swap.b);
+
+            if(swap.sink) {
+                print.writer.writeString(" via "_v);
+                print.writer.writeString(print.context.findName(print.local[swap.sink]->name));
+            }
+
+            break;
+        }
+        case Value::Exchange: {
+            auto& exchange = (InstExchange&)inst;
+            print.writer.writeByte(' ');
+            printPlace(print, *function, exchange.place);
+            print.writer.writeString(", "_v);
+            printValue(print, *print.local[exchange.value]);
+
+            if(exchange.sink) {
+                print.writer.writeString(" via "_v);
+                print.writer.writeString(print.context.findName(print.local[exchange.sink]->name));
             }
 
             break;

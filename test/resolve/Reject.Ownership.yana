@@ -51,3 +51,22 @@ fn updatePartial(->pair: Pair) -> Buffer = {->pair.left | bytes: null()}
 fn updateThenUse(->pair: Pair) -> Pair:
     let updated = {->pair | right: Buffer {bytes: null()}}
     return pair
+
+{-
+   The same rule with no local behind it.
+
+   `moveFromBorrow` above is a `&` parameter, which has a slot in this frame to be found not to own
+   its contents. A `let &` binding of a *returned* borrow has none - the storage belongs to whatever
+   `pick` was handed - so the check that catches the parameter had nothing to look at and this was
+   accepted in silence.
+
+   It is worth its own case because DropAssignBorrow.yana depends on it. A write through a borrow
+   releases what was there without consulting any state, on the grounds that a borrow always refers
+   to an initialized value; a move out of one is the only thing in the language that could have made
+   that false.
+-}
+fn pick(return &a: Buffer, return &b: Buffer, first: Bool) -> &Buffer = if first then a else b
+
+fn moveFromBorrowBinding(&x: Buffer, &y: Buffer) -> I64:
+    let &chosen = pick(x, y, True)
+    return take(chosen)

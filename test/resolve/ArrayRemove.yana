@@ -1,0 +1,79 @@
+import Native
+import Native.Linux
+
+{-
+   `remove` over an element type that has a teardown.
+
+   Closing the gap is a `copyMemory`, which is Native moving bytes rather than an assignment the
+   compiler can see - so nothing about it says the element it writes over is over. `remove` now takes
+   that element out into a `->` binding first, and the binding is what owes its release.
+
+   What this file asserts is what holds: the element leaves, the survivors keep their order, and the
+   length is right. What it does not assert is the count, because the drop does not run yet and the
+   reason has nothing to do with `remove`.
+
+   `Buffer` is not classified as droppable at all here - not in `remove`, and not in this module's own
+   `makeBuffer` either, which DropAssign.yana shows it is when no array is involved. Instantiating
+   `Array(Buffer)` asks for `Buffer`'s ownership from inside Collections, where `instance Drop(Buffer)`
+   is not visible, and `ownershipOf` caches its answer on the type - so the first asker decides it for
+   the whole program. That is the same wall `an array of %@ is not available yet` names, reached by a
+   different road: this array was built with `emptyArray` rather than as a literal, and only the
+   literal path carries that check.
+
+   So `liveBuffers` stays at 3 throughout. When the erased model lands, every `remove` below releases
+   one buffer and the final count is 0 - which is what the commented assertions are for.
+-}
+
+let &liveBuffers = 0 :: I64
+
+data Buffer {bytes: %U8}
+
+fn makeBuffer(mark: I64) -> Buffer:
+    liveBuffers += 1
+    let buffer = Buffer {bytes: allocateHeap(16)}
+    setMemory(buffer.bytes, 0, 16)
+
+    -- A marker, so that "the right element was removed" is a question this file can ask rather than
+    -- only "the right number of them".
+    store(cast(buffer.bytes) :: %I64, mark)
+    return buffer
+
+instance Drop(Buffer):
+    fn drop(->value: Buffer) -> {}:
+        freeHeap(value.bytes)
+        liveBuffers -= 1
+
+fn marker(it: Buffer) -> I64 = *(cast(it.bytes) :: %I64)
+
+fn main() -> I64:
+    let &xs = emptyArray() :: [Buffer]
+    push(xs, makeBuffer(1))
+    push(xs, makeBuffer(2))
+    push(xs, makeBuffer(3))
+
+    if liveBuffers != 3 then return -1
+    if length(xs) != 3 then return -2
+
+    -- The middle one goes, and the two that remain keep their order.
+    remove(xs, 1)
+
+    if length(xs) != 2 then return -3
+    if marker(xs[0]) != 1 then return -4
+    if marker(xs[1]) != 3 then return -5
+    -- once elements are dropped: if liveBuffers != 2 then return -6
+
+    -- An index outside the array removes nothing.
+    remove(xs, 5)
+    remove(xs, 0 - 1)
+    if length(xs) != 2 then return -7
+
+    -- The last element, where there is no gap to close.
+    remove(xs, 1)
+    if length(xs) != 1 then return -8
+    if marker(xs[0]) != 1 then return -9
+
+    remove(xs, 0)
+    if length(xs) != 0 then return -10
+    -- once elements are dropped: if liveBuffers != 0 then return -11
+
+    return 1

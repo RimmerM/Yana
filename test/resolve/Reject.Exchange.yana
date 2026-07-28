@@ -1,0 +1,52 @@
+import Native
+
+-- What `swap` and `exchange` are refused for. Each function is one rule; the expectation beside
+-- this file is the whole of what it reports.
+
+data Handle {value: I64}
+
+-- Both places are written, so both are exclusive for as long as the operation runs. `swap(x, x)` is
+-- the smallest program that asks for one storage to be two of them, and it is rejected by the
+-- exclusivity rule that was there before swap existed rather than by anything written for it. That
+-- is the whole reason these take their places from `&` arguments.
+fn selfSwap() -> I64:
+    let &value = 1 :: I64
+    swap(value, value)
+    return value
+
+-- An immutable binding names storage nothing may write, which is as true of an exchange as of an
+-- assignment: what these do to a place is write it.
+fn immutableSwap() -> I64:
+    let x = 1 :: I64
+    let &y = 2 :: I64
+    swap(x, y)
+    return x
+
+fn immutableExchange() -> I64:
+    let slot = Handle {value: 1}
+    let old = exchange(slot, Handle {value: 2})
+    return old.value
+
+{-
+   A subscript in `&` position, which does not work and is not about swap.
+
+   `xs[0] = v` routes through `getMut` because resolvePlace has a case for a subscript; an argument
+   is resolved as an ordinary expression first and reaches `get`, whose result is an immutable
+   borrow. So what arrives at the `&` parameter is a place that may not be written, and the
+   diagnostic is the one any immutable argument gets.
+
+   The ordering is what makes this more than an oversight: which accessor a subscript wants is
+   decided by the parameter's convention, and the convention is not known until overload resolution
+   has picked a callee, which needs the argument types. Every `&` parameter has this - it is not
+   reached by swap, only shown by it - and a collection that wants an exchange of its own element
+   offers an operation rather than leaving callers to write this.
+-}
+fn element() -> I64:
+    let &xs = [1, 2, 3]
+    let old = exchange(xs[0], 9)
+    return old
+
+fn twoElements() -> I64:
+    let &xs = [1, 2, 3]
+    swap(xs[0], xs[2])
+    return xs[0]

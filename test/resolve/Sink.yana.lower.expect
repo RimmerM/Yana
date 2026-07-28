@@ -76,6 +76,24 @@ derived<complex>(): Long {
   }
 }
 
+relocate(Pair)<complex>(%v_0: Ptr, %x: Ptr) {
+  b_1 {
+    %y = alloca 16, 8: Ptr
+    call_complex moveInit$Pair, %y, %x
+    copy %v_0, %y, 16
+    ret 
+  }
+}
+
+relocate(Handle)<complex>(%v_0: Ptr, %x: Ptr) {
+  b_1 {
+    %y = alloca 8, 8: Ptr
+    call_complex Sink(Handle).sink, %y, %x
+    copy %v_0, %y, 8
+    ret 
+  }
+}
+
 setFreeListHead<complex>(%sizeClass: Long, %block: Ptr) {
   b_0 {
     %v_1 = load @heapFree, 8: Ptr
@@ -682,10 +700,61 @@ main<complex>(): Long {
     %v_73 = loads %v_72, 8: Long
     %v_74 = add %v_71, %v_73: Long
     call_complex +=(I64), %result, %v_74
-    %v_75 = loads %result, 8: Long
+    %v_75 = alloca 8, 8: Ptr
+    store %v_75, 70, 8
+    %relocated = alloca 8, 8: Ptr
+    call_complex relocate(Handle), %relocated, %v_75
     %v_76 = loads @sinkCalls, 8: Long
-    %v_77 = add %v_75, %v_76: Long
-    ret %v_77
+    %v_77 = cmp_neq %v_76, 7: Int
+    je %v_77, b_78, b_79
+  }
+
+  b_78 {
+    %v_80 = neg 9: Long
+    ret %v_80
+  }
+
+  b_79 {
+    jmp b_81
+  }
+
+  b_81 {
+    %v_82 = loads %result, 8: Long
+    %v_83 = loads %relocated, 8: Long
+    call_complex +=(I64), %result, %v_83
+    %v_84 = alloca 16, 8: Ptr
+    %v_85 = alloca 8, 8: Ptr
+    store %v_85, 80, 8
+    copy %v_84, %v_85, 8
+    %v_86 = add %v_84, 8: Ptr
+    store %v_86, 8, 8
+    %relocatedPair = alloca 16, 8: Ptr
+    call_complex relocate(Pair), %relocatedPair, %v_84
+    %v_87 = loads @sinkCalls, 8: Long
+    %v_88 = cmp_neq %v_87, 8: Int
+    je %v_88, b_89, b_90
+  }
+
+  b_89 {
+    %v_91 = neg 10: Long
+    ret %v_91
+  }
+
+  b_90 {
+    jmp b_92
+  }
+
+  b_92 {
+    %v_93 = loads %result, 8: Long
+    %v_94 = loads %relocatedPair, 8: Long
+    %v_95 = add %relocatedPair, 8: Ptr
+    %v_96 = loads %v_95, 8: Long
+    %v_97 = add %v_94, %v_96: Long
+    call_complex +=(I64), %result, %v_97
+    %v_98 = loads %result, 8: Long
+    %v_99 = loads @sinkCalls, 8: Long
+    %v_100 = add %v_98, %v_99: Long
+    ret %v_100
   }
 
   b_52 {

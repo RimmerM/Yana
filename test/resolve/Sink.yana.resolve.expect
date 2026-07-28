@@ -354,6 +354,18 @@ fn retag(%p: Pair) -> Pair {
     ret %v1
 }
 
+fn relocate(%x: a) -> a {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %x = move %x : a
+    %y = alloc : a
+    init %local1, %x
+    ret %y
+}
+
 fn main() -> I64 {
   b0:
     %result = alloc : I64
@@ -463,7 +475,7 @@ fn main() -> I64 {
     %closed = call captured, %v96 : () -> I64
     %v98 = load sinkCalls : I64
     %v101 = cmp_ne %v98, 5 : Bool
-    je %v101, b25, b20
+    je %v101, b31, b20
 
   b19:
     %v105 = neg 7 : I64
@@ -504,12 +516,58 @@ fn main() -> I64 {
     %v135 = add %v133, %v134 : I64
     %v136 = borrow_mut %result : &mut I64
     call +=(I64), %v136, %v135
-    %v138 = load %result : I64
-    %v139 = load sinkCalls : I64
-    %v140 = add %v138, %v139 : I64
-    ret %v140
+    %v138 = alloc : Handle
+    init %local7@Handle.value, 70
+    %v141 = move %local7 via Sink(Handle).sink : Handle
+    %relocated = call relocate(Handle), %v141 : Handle
+    %v143 = load sinkCalls : I64
+    %v146 = cmp_ne %v143, 7 : Bool
+    je %v146, b25, b26
 
   b25:
+    %v150 = neg 9 : I64
+    ret %v150
+
+  b26:
+    jmp b27
+
+  b27:
+    %v153 = load %result : I64
+    %v154 = load %local8@Handle.value : I64
+    %v155 = borrow_mut %result : &mut I64
+    call +=(I64), %v155, %v154
+    %v157 = alloc : Pair
+    %v158 = alloc : Handle
+    init %local10@Handle.value, 80
+    init %local9@Pair.left, %v158
+    init %local9@Pair.right, 8
+    %v164 = move %local9 via moveInit$Pair : Pair
+    %relocatedPair = call relocate(Pair), %v164 : Pair
+    %v166 = load sinkCalls : I64
+    %v169 = cmp_ne %v166, 8 : Bool
+    je %v169, b28, b29
+
+  b28:
+    %v173 = neg 10 : I64
+    ret %v173
+
+  b29:
+    jmp b30
+
+  b30:
+    %v176 = load %result : I64
+    %v177 = load %local11@Pair.left : Handle
+    %v178 = load %local11@Pair.left@Handle.value : I64
+    %v179 = load %local11@Pair.right : I64
+    %v180 = add %v178, %v179 : I64
+    %v181 = borrow_mut %result : &mut I64
+    call +=(I64), %v181, %v180
+    %v183 = load %result : I64
+    %v184 = load sinkCalls : I64
+    %v185 = add %v183, %v184 : I64
+    ret %v185
+
+  b31:
     drop_derived %local3 via drop$() -> I64 reclaim reclaim$() -> I64
     jmp b19
 }
@@ -573,6 +631,22 @@ fn ResolveTest.lambda$0(%env: %{h: Handle}) -> I64 {
     %v1 = load [%env].h : Handle
     %v2 = load [%env].h@Handle.value : I64
     ret %v2
+}
+
+fn relocate(Handle)(%x: Handle) -> Handle {
+  b0:
+    %x = move %x via Sink(Handle).sink : Handle
+    %y = alloc : Handle
+    init %local1, %x
+    ret %y
+}
+
+fn relocate(Pair)(%x: Pair) -> Pair {
+  b0:
+    %x = move %x via moveInit$Pair : Pair
+    %y = alloc : Pair
+    init %local1, %x
+    ret %y
 }
 
 fn closureRelease${h: Handle}(%env: %{h: Handle}) -> () {

@@ -540,6 +540,44 @@ static LowerInst::Kind binaryKind(LowerContext& lower, InstBinary& binary) {
  * of bytes that already belong to nobody else, and a sink would be wrong there - it would empty a
  * temporary that has no source to be emptied from.
  */
+/*
+ * The relocation itself, once the two questions above it have been answered: is this a relocation
+ * at all, and which `Sink` does it run. Split out so that swap and exchange can ask for one
+ * directly - they are relocations by construction, and the sink is on the instruction rather than
+ * on a value that has to be recognized as a move first.
+ */
+static LowerInst* relocateWith(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> target,
+                               LowerPtr<LowerValue> source, TypePtr type, ModulePtr<Function> sink,
+                               bool erased) {
+    if(erased && !sink) {
+        auto descriptor = genTypeDesc(lower, block, type);
+        auto slot = addOffset(lower, block, descriptor, TypeDescLayout::kMoveInit);
+        auto moveInit = load(lower.lower, lower.to, block, lower.lower[slot], 8, false, LowerType::Pointer, 0);
+
+        return call(lower.lower, lower.to, block, 0, 3, kDefaultCallType, [&](LowerInstCall* relocation) {
+            relocation->used()[0] = moveInit->created().ptr - lower.lower;
+            relocation->used()[1] = target;
+            relocation->used()[2] = source;
+        });
+    }
+
+    if(!sink) {
+        auto count = sizeOfType(lower, block, type);
+        return block.addInst(lower.lower, new (lower.to.arena) LowerInstCopy(target, source, count));
+    }
+
+    // Reachable because module.cpp's reachability walk follows the sink field, which is what puts
+    // the callee in front of lowering at all.
+    auto callee = lower.functions.getValue(sink).unwrap();
+    auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, callee));
+
+    return call(lower.lower, lower.to, block, 0, 3, lower.lower[callee]->callType, [&](LowerInstCall* sinkCall) {
+        sinkCall->used()[0] = fun->created().ptr - lower.lower;
+        sinkCall->used()[1] = target;
+        sinkCall->used()[2] = source;
+    });
+}
+
 static LowerInst* relocate(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> target,
                            ModulePtr<Value> value, LowerPtr<LowerValue> source, TypePtr type) {
     auto& produced = *lower.local[value];
@@ -559,33 +597,8 @@ static LowerInst* relocate(LowerContext& lower, LowerBlock& block, LowerPtr<Lowe
      * Only a move. Initializing storage from a copy or from a call result is a write of bytes that
      * already belong to nobody, and running a `Sink` there would empty a source that has none.
      */
-    if(moved && !sink && lower.genEnv && isGeneric(lower.global, type)) {
-        auto descriptor = genTypeDesc(lower, block, type);
-        auto slot = addOffset(lower, block, descriptor, TypeDescLayout::kMoveInit);
-        auto moveInit = load(lower.lower, lower.to, block, lower.lower[slot], 8, false, LowerType::Pointer, 0);
-
-        return call(lower.lower, lower.to, block, 0, 3, kDefaultCallType, [&](LowerInstCall* relocation) {
-            relocation->used()[0] = moveInit->created().ptr - lower.lower;
-            relocation->used()[1] = target;
-            relocation->used()[2] = source;
-        });
-    }
-
-    if(!sink) {
-        auto count = sizeOfType(lower, block, type);
-        return block.addInst(lower.lower, new (lower.to.arena) LowerInstCopy(target, source, count));
-    }
-
-    // Reachable because module.cpp's reachability walk follows InstMove::sink, which is what puts
-    // the callee in front of lowering at all.
-    auto callee = lower.functions.getValue(sink).unwrap();
-    auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, callee));
-
-    return call(lower.lower, lower.to, block, 0, 3, lower.lower[callee]->callType, [&](LowerInstCall* sinkCall) {
-        sinkCall->used()[0] = fun->created().ptr - lower.lower;
-        sinkCall->used()[1] = target;
-        sinkCall->used()[2] = source;
-    });
+    auto erased = moved && lower.genEnv && isGeneric(lower.global, type);
+    return relocateWith(lower, block, target, source, type, sink, erased);
 }
 
 static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<Inst> pointer) {
@@ -727,6 +740,85 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 instruction.name
             );
             break;
+        }
+        case Value::Swap: {
+            /*
+             * Three relocations through a temporary, and the temporary is not removable: neither
+             * place can be written until both have been read, so something has to hold the first
+             * one while the second is written over it. That is the cost `exchange` exists to avoid.
+             *
+             * A scalar needs no storage for it - two loads before either store is the same
+             * statement, said in registers.
+             */
+            auto& swap = (InstSwap&)instruction;
+            auto a = lowerPlace(lower, block, *function, swap.a);
+            auto b = lowerPlace(lower, block, *function, swap.b);
+            auto erased = lower.genEnv && isGeneric(lower.global, swap.content);
+
+            if(!isMemoryType(lower.global, swap.content)) {
+                auto width = memoryWidth(lower.global, swap.content);
+                auto isSigned = signedType(lower.global, swap.content);
+                auto kind = lowerType(lower.global, swap.content);
+
+                auto oldA = load(lower.lower, lower.to, block, lower.lower[a], width, isSigned, kind, 0);
+                auto oldB = load(lower.lower, lower.to, block, lower.lower[b], width, isSigned, kind, 0);
+
+                block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
+                    a, oldB->created().ptr - lower.lower, width));
+
+                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
+                    b, oldA->created().ptr - lower.lower, width));
+
+                break;
+            }
+
+            auto bytes = sizeOfType(lower, block, swap.content);
+            auto alignment = isGeneric(lower.global, swap.content) ? 16u : typeAlign(lower.global, swap.content);
+            auto temporary = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(0, bytes, alignment));
+            auto slot = temporary->created().ptr - lower.lower;
+
+            relocateWith(lower, block, slot, a, swap.content, swap.sink, erased);
+            relocateWith(lower, block, a, b, swap.content, swap.sink, erased);
+            result = relocateWith(lower, block, b, slot, swap.content, swap.sink, erased);
+            break;
+        }
+        case Value::Exchange: {
+            /*
+             * Two relocations and no temporary. What is coming in is already a value rather than a
+             * place - the caller moved it in - so there is nothing to save from being written over,
+             * and the storage the old contents leave for is the result's own.
+             */
+            auto& exchange = (InstExchange&)instruction;
+            auto address = lowerPlace(lower, block, *function, exchange.place);
+            auto incoming = mappedValue(lower, exchange.value);
+            auto content = instruction.type;
+
+            if(!isMemoryType(lower.global, content)) {
+                auto width = memoryWidth(lower.global, content);
+                auto old = load(lower.lower, lower.to, block, lower.lower[address], width,
+                                signedType(lower.global, content), lowerType(lower.global, content),
+                                instruction.name);
+
+                block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, incoming, width));
+                result = old;
+                break;
+            }
+
+            auto bytes = sizeOfType(lower, block, content);
+            auto alignment = isGeneric(lower.global, content) ? 16u : typeAlign(lower.global, content);
+            auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
+                instruction.name, bytes, alignment));
+
+            auto target = allocation->created().ptr - lower.lower;
+            auto erased = lower.genEnv && isGeneric(lower.global, content);
+
+            // Out first, then in: the incoming value is relocated by whatever rule its own move
+            // recorded, which is the same question an Init of it would ask and is asked the same way.
+            relocateWith(lower, block, target, address, content, exchange.sink, erased);
+            relocate(lower, block, address, exchange.value, incoming, content);
+
+            lower.values.add(instValue, target);
+            return;
         }
         case Value::Copy: {
             // A copy is a real duplicate, so unlike a move it needs storage of its own: an

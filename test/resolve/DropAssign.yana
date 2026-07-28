@@ -1,0 +1,110 @@
+import Native
+import Native.Linux
+
+-- Overwriting storage releases what it held first. That is the entire reason `Init` and `Assign`
+-- are two instructions, and it is a rule about the *place* being written rather than about the slot
+-- it is rooted in: a field write replaces one member and leaves every other one alone.
+--
+-- Every count here is asserted by the counter the `Drop` instance keeps, read at a point where the
+-- answer is decided by where the drop went. Nothing reads the IR - a drop that ran twice and a drop
+-- that never ran are both invisible in the bytes, and only the count is wrong when the placement is.
+
+let &liveBuffers = 0 :: I64
+
+data Buffer {bytes: %U8}
+
+-- Zeroed, for the reason Drop.yana gives: a block the allocator handed back a second time still has
+-- the free list's own bookkeeping in it, and a sum over `firstByte` would then be about the
+-- allocator rather than about this file.
+fn makeBuffer(size: I64) -> Buffer:
+    liveBuffers += 1
+    let buffer = Buffer {bytes: allocateHeap(size)}
+    setMemory(buffer.bytes, 0, size)
+    return buffer
+
+instance Drop(Buffer):
+    fn drop(->value: Buffer) -> {}:
+        freeHeap(value.bytes)
+        liveBuffers -= 1
+
+fn firstByte(it: Buffer) -> I64 = *it.bytes
+
+data Holder {slot: Buffer, tag: I64}
+
+-- The whole-slot case, with a use between the two writes so that the old value is plainly live at
+-- the point it is replaced.
+fn whole() -> I64:
+    let &b = makeBuffer(16)
+    let first = firstByte(b)
+    b = makeBuffer(32)
+
+    let counted = liveBuffers
+    return counted + first + firstByte(b)
+
+-- The same write with nothing between it and the initialization. The old value is dead by every
+-- other measure here - its slot is written again before anything reads it - and it still owes
+-- exactly one drop, not one per rule that noticed it was over.
+fn immediate() -> I64:
+    let &b = makeBuffer(16)
+    b = makeBuffer(32)
+
+    let counted = liveBuffers
+    return counted + firstByte(b)
+
+-- The field case. `h.slot` held a buffer and the write is the last thing that can reach it, while
+-- `h.tag` and the storage of `h` itself are untouched - which is why the drop is of the field's
+-- place rather than of `h`, and why `h` is still there to be torn down at the end.
+fn field() -> I64:
+    let &h = Holder {slot: makeBuffer(16), tag: 1}
+    let first = firstByte(h.slot)
+    h.slot = makeBuffer(32)
+
+    let counted = liveBuffers
+    return counted + first + firstByte(h.slot) + h.tag
+
+-- And a write through a `&` parameter, which is storage this frame does not own. Ownership decides
+-- who releases the slot when it dies; it does not decide this, because an overwrite is not the end
+-- of anything - the caller's storage stays and only its contents are replaced.
+fn replace(&slot: Buffer, ->with: Buffer) -> {}:
+    slot = with
+
+fn throughBorrow() -> I64:
+    let &b = makeBuffer(16)
+    replace(b, makeBuffer(32))
+
+    let counted = liveBuffers
+    return counted + firstByte(b)
+
+-- Assigning a slot that was moved out of is how one is filled again, so there is nothing there to
+-- release and the write owes no drop at all. The count is read while the moved value is still live,
+-- which is what tells the two apart: a drop at the write would release storage `taken` now holds.
+fn afterMove() -> I64:
+    let &b = makeBuffer(16)
+    let ->taken = b
+    b = makeBuffer(32)
+
+    let counted = liveBuffers
+    return counted + firstByte(taken) + firstByte(b)
+
+fn main() -> I64:
+    let &result = 0 :: I64
+
+    result += whole()
+    if liveBuffers != 0 then return -1
+
+    result += immediate()
+    if liveBuffers != 0 then return -2
+
+    result += field()
+    if liveBuffers != 0 then return -3
+
+    result += throughBorrow()
+    if liveBuffers != 0 then return -4
+
+    result += afterMove()
+    if liveBuffers != 0 then return -5
+
+    -- 1 + 1 + (1 + 1) + 1 + 2 = 7, with every firstByte reading a zero out of freshly mapped memory,
+    -- the extra 1 in `field` being `h.tag`, and the 2 in `afterMove` being the moved value and its
+    -- replacement, both still live where the count is read.
+    return result

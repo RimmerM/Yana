@@ -1,0 +1,98 @@
+import Native
+import Native.Linux
+
+-- Overwriting storage releases what it held first, and that rule is about the place being written
+-- rather than about the slot it is rooted in. DropAssign.yana covers the places rooted in a local.
+-- This one covers the place rooted in a *borrow*, which is the case with no initialization state to
+-- consult: the borrow is a call result, and there is no slot in this frame behind it to ask about.
+--
+-- What stands in for that state is a property of `&` itself - a borrow refers to an initialized
+-- value of its type - so the drop here is owed unconditionally. Reject.DropAssignBorrow.yana holds
+-- the other half of that: the move that would falsify it is rejected.
+--
+-- Every count is asserted by the counter the `Drop` instance keeps, read at a point where the answer
+-- is decided by where the drop went. Nothing reads the IR - a drop that ran twice and a drop that
+-- never ran are both invisible in the bytes, and only the count is wrong when the placement is.
+
+let &liveBuffers = 0 :: I64
+
+data Buffer {bytes: %U8}
+
+-- Zeroed, for the reason Drop.yana gives: a block the allocator handed back a second time still has
+-- the free list's own bookkeeping in it, and a sum over `firstByte` would then be about the
+-- allocator rather than about this file.
+fn makeBuffer(size: I64) -> Buffer:
+    liveBuffers += 1
+    let buffer = Buffer {bytes: allocateHeap(size)}
+    setMemory(buffer.bytes, 0, size)
+    return buffer
+
+instance Drop(Buffer):
+    fn drop(->value: Buffer) -> {}:
+        freeHeap(value.bytes)
+        liveBuffers -= 1
+
+fn firstByte(it: Buffer) -> I64 = *it.bytes
+
+data Holder {slot: Buffer, tag: I64}
+
+-- The selector shape, and the whole point of the fixture: nothing about `pick` is a raw pointer or
+-- an intrinsic, so the borrow its caller writes through is one the language handed out on its own.
+-- `Array.getMut` is this signature with an index; what differs is only how the referent is found.
+fn pick(return &a: Buffer, return &b: Buffer, first: Bool) -> &Buffer = if first then a else b
+
+fn holderOf(return &self: Holder) -> &Holder = self
+
+-- A whole write through a borrow. `chosen` names `x`'s storage, so this replaces what `x` held and
+-- owes a drop of it - and `x` itself is untouched, still owned by this frame and still torn down at
+-- the end with whatever it holds by then.
+fn whole() -> I64:
+    let &x = makeBuffer(16)
+    let &y = makeBuffer(16)
+
+    let &chosen = pick(x, y, True)
+    chosen = makeBuffer(32)
+
+    -- Three made, one released by the overwrite.
+    let counted = liveBuffers
+    return counted + firstByte(x) + firstByte(y)
+
+-- The other arm of the same selector, so that which storage the borrow resolved to is decided by a
+-- value rather than by the shape of the expression. The drop still has to land on `y`.
+fn other() -> I64:
+    let &x = makeBuffer(16)
+    let &y = makeBuffer(16)
+
+    let &chosen = pick(x, y, False)
+    chosen = makeBuffer(32)
+
+    let counted = liveBuffers
+    return counted + firstByte(x) + firstByte(y)
+
+-- A field write on top of a borrow root - the projection path is built by the same field selection
+-- an ordinary read uses, exactly as it is for a local root. `h.slot` is replaced and `h.tag` is not,
+-- which is what makes this a drop of the field rather than of the holder.
+fn field() -> I64:
+    let &owner = Holder {slot: makeBuffer(16), tag: 3}
+    let &h = holderOf(owner)
+    h.slot = makeBuffer(32)
+
+    let counted = liveBuffers
+    return counted + firstByte(owner.slot) + owner.tag
+
+fn main() -> I64:
+    let &result = 0 :: I64
+
+    result += whole()
+    if liveBuffers != 0 then return -1
+
+    result += other()
+    if liveBuffers != 0 then return -2
+
+    result += field()
+    if liveBuffers != 0 then return -3
+
+    -- 2 + 2 + (1 + 3) = 8, with every firstByte reading a zero out of freshly mapped memory, the
+    -- two in each selector case being the two frame buffers still live where the count is read, and
+    -- the 3 in `field` being `owner.tag`.
+    return result

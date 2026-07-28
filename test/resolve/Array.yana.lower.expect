@@ -127,43 +127,50 @@ remove(Int)<complex>(%self: Ptr, %index: Int) {
   }
 
   b_8 {
-    %v_9 = add %self, 8: Ptr
-    %v_10 = loads %v_9, 4: Int
-    %v_11 = sub %v_10, %index: Int
-    %rest = sub %v_11, 1: Int
-    %v_12 = cmp_igt %rest, 0: Int
-    je %v_12, b_13, b_14
+    %v_9 = load %self, 8: Ptr
+    %v_10 = sext %index: Long
+    %v_11 = imul %v_10, 4: Long
+    %v_12 = add %v_9, %v_11: Ptr
+    %v_13 = loads %v_12, 4: Int
+    %doomed = alloca 4, 4: Ptr
+    store %doomed, %v_13, 4
+    %v_14 = add %self, 8: Ptr
+    %v_15 = loads %v_14, 4: Int
+    %v_16 = sub %v_15, %index: Int
+    %rest = sub %v_16, 1: Int
+    %v_17 = cmp_igt %rest, 0: Int
+    je %v_17, b_18, b_19
   }
 
-  b_13 {
-    %v_15 = load %self, 8: Ptr
-    %v_16 = sext %index: Long
-    %v_17 = imul %v_16, 4: Long
-    %v_18 = add %v_15, %v_17: Ptr
-    %v_19 = bitcast %v_18: Ptr
+  b_18 {
     %v_20 = load %self, 8: Ptr
     %v_21 = sext %index: Long
     %v_22 = imul %v_21, 4: Long
     %v_23 = add %v_20, %v_22: Ptr
-    %v_24 = imul 1, 4: Long
-    %v_25 = add %v_23, %v_24: Ptr
-    %v_26 = bitcast %v_25: Ptr
-    %v_27 = load %self, 8: Ptr
-    %v_28 = call_complex byteSpan(Int), %v_27, %rest: Long
-    copy %v_19, %v_26, %v_28
-    jmp b_29
+    %v_24 = bitcast %v_23: Ptr
+    %v_25 = load %self, 8: Ptr
+    %v_26 = sext %index: Long
+    %v_27 = imul %v_26, 4: Long
+    %v_28 = add %v_25, %v_27: Ptr
+    %v_29 = imul 1, 4: Long
+    %v_30 = add %v_28, %v_29: Ptr
+    %v_31 = bitcast %v_30: Ptr
+    %v_32 = load %self, 8: Ptr
+    %v_33 = call_complex byteSpan(Int), %v_32, %rest: Long
+    copy %v_24, %v_31, %v_33
+    jmp b_34
   }
 
-  b_14 {
-    jmp b_29
+  b_19 {
+    jmp b_34
   }
 
-  b_29 {
-    %v_30 = add %self, 8: Ptr
-    %v_31 = loads %v_30, 4: Int
-    %v_32 = sub %v_31, 1: Int
-    %v_33 = add %self, 8: Ptr
-    store %v_33, %v_32, 4
+  b_34 {
+    %v_35 = add %self, 8: Ptr
+    %v_36 = loads %v_35, 4: Int
+    %v_37 = sub %v_36, 1: Int
+    %v_38 = add %self, 8: Ptr
+    store %v_38, %v_37, 4
     ret 
   }
 }

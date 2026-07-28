@@ -1,7 +1,7 @@
 fn +=(Int) {
   arg target writable
   arg amount readonly
-  %target: Int borrowed writable live [0, 1) [2, 3)
+  %target: Int borrowed writable live [0, 3)
   %amount: Int borrowed readonly live [0, 2)
   %local2: Int readonly live [1, 3)
 }
@@ -9,7 +9,7 @@ fn +=(Int) {
 fn *=(Int) {
   arg target writable
   arg amount readonly
-  %target: Int borrowed writable live [0, 1) [2, 3)
+  %target: Int borrowed writable live [0, 3)
   %amount: Int borrowed readonly live [0, 2)
   %local2: Int readonly live [1, 3)
 }
@@ -17,14 +17,14 @@ fn *=(Int) {
 fn bump {
   arg counter writable
   arg by readonly
-  %counter: Int borrowed writable live [0, 1) [2, 3)
+  %counter: Int borrowed writable live [0, 3)
 }
 
 fn swap {
   arg a writable
   arg b writable
-  %a: Int borrowed writable live [0, 1) [2, 3)
-  %b: Int borrowed writable live [0, 2) [3, 4)
+  %a: Int borrowed writable live [0, 3)
+  %b: Int borrowed writable live [0, 4)
 }
 
 fn moveBy {
@@ -37,7 +37,7 @@ fn moveBy {
 fn copyThroughBorrow {
   arg target writable
   arg amount readonly
-  %target: Int borrowed writable live [0, 1) [2, 3)
+  %target: Int borrowed writable live [0, 3)
 }
 
 fn main {

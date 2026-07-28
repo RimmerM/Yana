@@ -3,8 +3,8 @@ fn initHeap {
 
 fn heapClassOf {
   arg total readonly
-  %size: I64 writable live [0, 8) [10, 12) [13, 18)
-  %sizeClass: I64 writable live [2, 9) [10, 15) [16, 18)
+  %size: I64 writable live [0, 8) [10, 18)
+  %sizeClass: I64 writable live [2, 9) [10, 18)
 }
 
 fn heapBlockSize {
@@ -75,14 +75,16 @@ fn byteSpan(Int) {
 fn remove(Int) {
   arg self writable addressed
   arg index readonly
-  %self: Array(Int) borrowed droppable writable addressed live [0, 6) [7, 38)
+  %self: Array(Int) borrowed droppable writable addressed live [0, 6) [7, 46)
+  %local1: Int readonly live [13, 16)
+  %local2: Int readonly live [14, 16)
 }
 
 fn sum {
   arg xs readonly
   %xs: Array(Int) borrowed droppable readonly live [0, 9) [11, 22)
-  %total: Int writable live [0, 10) [11, 12) [17, 22)
-  %i: Int writable live [2, 9) [11, 19) [20, 22)
+  %total: Int writable live [0, 10) [11, 22)
+  %i: Int writable live [2, 9) [11, 22)
 }
 
 fn make {

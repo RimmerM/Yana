@@ -331,12 +331,93 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             break;
         }
         case Value::Move: {
-            // The Sink and Copy implementations are deliberately not carried across. A clone is
-            // being made for concrete types, and which implementation serves them is a question
-            // only the substituted type can answer - see finishOwnership, which runs on the
-            // specialization the same way it runs on any other function.
-            result = resolver.emit<InstMove>(inst.source, inst.name, type,
-                                             clonePlace(clone, ((InstMove&)inst).place));
+            auto& source = (InstMove&)inst;
+
+            /*
+             * A move of something that turned out to be register-sized is that value and nothing
+             * else.
+             *
+             * A generic body reaches a result of unknown size through storage, because that is all
+             * it can do without the size - so `let ->x = f(...)` moves out of the local backing the
+             * call's result. Substituting a scalar takes the storage away: the specialization has
+             * the value in a register, and the local it was reached through never gets an
+             * allocation. Cloning the place as written would name storage nothing allocated, which
+             * lowering rejects on the spot.
+             *
+             * The test is that the local was backed by a *value* rather than by an Alloc. A local
+             * with an Alloc has storage in the clone too, whatever its type turned out to be, and
+             * a move out of it is an ordinary move; one backed by a call result had storage only
+             * because the generic body could not see a size.
+             *
+             * This is the mirror of the parameter materialization further down. That one hands
+             * storage back where the body needs a place; this one drops it where the body only ever
+             * needed a value. Both keep Implementation-Generics.md's first invariant: the body's
+             * decisions are preserved and only their representation is adapted.
+             */
+            if(!isMemoryType(clone.global, type) && source.place.root == PlaceRoot::Local &&
+               source.place.projections.isEmpty() && source.place.local < clone.from.localCount()) {
+                auto backing = clone.from.localAt(clone.local, source.place.local).value;
+
+                if(backing && clone.local[backing]->kind != Value::Alloc) {
+                    clone.values.add(pointer, cloneValue(clone, backing));
+                    return;
+                }
+            }
+
+            // The relocation is not carried across, because the one the generic body recorded is
+            // not the one this clone needs: `move %x : a` left it null, since a body that cannot
+            // see the type has nothing concrete to name and relocates through the descriptor its
+            // caller passed instead. A specialization has the type, so it answers the question
+            // again for the substituted one - the same question sinkValue asks at an ordinary
+            // `->`, asked the same way, which is what keeps an authored `Sink` from being skipped
+            // for exactly the types that need it.
+            auto moved = resolver.emit<InstMove>(inst.source, inst.name, type,
+                                                 clonePlace(clone, source.place));
+
+            auto ownership = ownershipIn(clone.module, functionGen(clone.global, resolver.function), type);
+            if(!ownership.trivialSink) moved->sink = sinkFor(clone.module, type, inst.source);
+
+            result = moved;
+            break;
+        }
+        /*
+         * The relocation is re-derived rather than carried across, for the reason the Move case
+         * above gives at length: the generic body left it null because it had no concrete type to
+         * name one for, and a specialization does have one. Carrying the null across is exactly how
+         * an authored `Sink` would be skipped for the types that have one.
+         *
+         * Asked of the *exchanged* type rather than of `type`, which for a swap is unit.
+         */
+        case Value::Swap: {
+            auto& swap = (InstSwap&)inst;
+            auto a = clonePlace(clone, swap.a);
+            auto b = clonePlace(clone, swap.b);
+            auto swapped = cloneType(clone, swap.content);
+            auto cloned = resolver.emit<InstSwap>(inst.source, inst.name, type, a, b, swapped);
+
+            auto ownership = ownershipIn(clone.module, functionGen(clone.global, resolver.function), swapped);
+            if(!ownership.trivialSink) cloned->sink = sinkFor(clone.module, swapped, inst.source);
+
+            result = cloned;
+            break;
+        }
+        case Value::Exchange: {
+            auto& exchange = (InstExchange&)inst;
+            auto place = clonePlace(clone, exchange.place);
+            auto cloned = resolver.emit<InstExchange>(inst.source, inst.name, type, place,
+                                                      cloneValue(clone, exchange.value));
+
+            auto ownership = ownershipIn(clone.module, functionGen(clone.global, resolver.function), type);
+            if(!ownership.trivialSink) cloned->sink = sinkFor(clone.module, type, inst.source);
+
+            // The same reconciliation the Copy case performs: a type that turned out to be
+            // register-sized has no second storage to make, so the result wants no slot.
+            if(isMemoryType(clone.global, type)) {
+                cloned->local = resolver.function.addLocal(clone.module, type, inst.name,
+                                                           resolver.ref(cloned));
+            }
+
+            result = cloned;
             break;
         }
         case Value::Copy: {
@@ -546,6 +627,11 @@ static void cloneBody(Clone& clone, Function& to) {
                 case Value::Assign: note(((InstInit&)inst).place); break;
                 case Value::Borrow: note(((InstBorrow&)inst).place); break;
                 case Value::Move: note(((InstMove&)inst).place); break;
+                case Value::Swap:
+                    note(((InstSwap&)inst).a);
+                    note(((InstSwap&)inst).b);
+                    break;
+                case Value::Exchange: note(((InstExchange&)inst).place); break;
                 case Value::Copy: note(((InstCopy&)inst).place); break;
                 case Value::Address: note(((InstAddress&)inst).place); break;
                 case Value::Drop: note(((InstDrop&)inst).place); break;

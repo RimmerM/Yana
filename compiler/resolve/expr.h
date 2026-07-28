@@ -502,6 +502,12 @@ struct ExprResolver {
 // instance's implementation - with a unique name for printing and lowering.
 Function* addAnonymousFunction(Module& module, StringId name, LocationId source);
 
+// What storage a place names, and what that storage holds after its projections are followed.
+// Free functions rather than only ExprResolver methods because the drop pass asks the same
+// question of a place it did not build, long after the resolver that built it is gone.
+TypePtr placeRootType(Module& module, Function& function, const Place& place);
+TypePtr placeType(Module& module, Function& function, const Place& place);
+
 // Names one binding per parameter, and storage for the ones that need it. `firstArg` skips the
 // leading closure environment of anything reached as a function value - see expr.cpp.
 void bindFunctionArgs(ExprResolver& resolver, Module& module, Function& function, Size firstArg);

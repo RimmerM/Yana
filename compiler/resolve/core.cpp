@@ -1,5 +1,7 @@
 #include "core.h"
 #include "intrinsic.h"
+#include "generic.h"
+#include "witness.h"
 #include "../parse/parser.h"
 
 /*
@@ -236,7 +238,109 @@ class Widen(a, b):
 
 class Narrow(a, b):
   fn narrow(from: a) -> b
+
+{-
+   Exchanging the contents of storage.
+
+   `->` takes a value out of a place and leaves it empty, which is why it needs the place to be one
+   the compiler can prove things about: something has to know the hole is there, and something has
+   to refill it or account for it at the end. That proof is a per-local lattice, and there are three
+   kinds of storage it cannot cover - a global, a borrow, and an element a collection handed back.
+   None of them has a slot in this frame to carry a state.
+
+   These two are how a value comes out of those. Neither ever leaves a hole: both places hold a live
+   value before and after, so there is no state to track and nothing to prove. `let ->old = theGlobal`
+   is rejected; `let old = exchange(theGlobal, ->replacement)` is the same intent said in a way that
+   is true.
+
+   Two rather than one because they cost different amounts. `swap` cannot write either place until it
+   has read both, so it relocates three times through a temporary. `exchange` is handed a value
+   rather than a place, so it relocates twice and needs no temporary. A caller with a replacement in
+   hand should not pay for the one that has none.
+-}
+fn swap(&left: a, &right: a) -> {}
+fn exchange(&slot: a, ->value: a) -> a
 )CORE";
+
+/*
+ * `swap` and `exchange`.
+ *
+ * Both take their places from mutable borrows, which is what lets one declaration cover a local, a
+ * field, a global and an element the collection handed back: whatever produced the borrow already
+ * answered where the storage is, and the exclusivity check already answered whether two of them may
+ * be live at once. `swap(x, x)` is two mutable borrows of one place and is rejected by the rule that
+ * was there before either of these existed.
+ */
+
+// The relocation, on exactly the terms sinkValue records one for a `->`. Asked the same way for the
+// same reason: a body that cannot see the type leaves this null and relocates through the caller's
+// descriptor instead, and a specialization asks again for the type it turned out to be.
+static ModulePtr<Function> relocationFor(ExprResolver& resolver, TypePtr type, LocationId source) {
+    auto ownership = ownershipIn(resolver.module, functionGen(resolver.global, resolver.function), type);
+    if(ownership.trivialSink) return nullptr;
+
+    return sinkFor(resolver.module, type, source);
+}
+
+/*
+ * The mutable borrow a `&` parameter would have made.
+ *
+ * A generic intrinsic reaches its emitter through expandIntrinsic, which hands over the arguments
+ * as the call wrote them - the conventions are applied by emitDirectCall, and a generic signature
+ * never goes through it. So the borrow is made here instead, by the same call emitDirectCall would
+ * have made.
+ *
+ * Which is not a formality. The borrow is what puts these operations in front of the borrow
+ * checker: `swap(x, x)` is two mutable borrows of one place, and it is rejected by the exclusivity
+ * rule that was there before swap existed rather than by anything written for it.
+ */
+static ModulePtr<Value> exchangedPlace(ExprResolver& resolver, ModulePtr<Value> argument, TypePtr type,
+                                       LocationId source) {
+    return resolver.borrowArgument(argument, type, source);
+}
+
+static ModulePtr<Value> emitSwap(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr,
+                                 LocationId source, StringId) {
+    // The exchanged type comes off the argument rather than off the declaration: `swap` returns
+    // unit, so the substituted result type says nothing about what is being swapped.
+    auto type = resolver.valueType(args[0]);
+
+    auto a = exchangedPlace(resolver, args[0], type, source);
+    auto b = exchangedPlace(resolver, args[1], type, source);
+    if(!a || !b) return nullptr;
+
+    auto swap = resolver.emit<InstSwap>(source, 0, resolver.module.scalar.unit,
+                                        Place::inBorrow(a), Place::inBorrow(b), type);
+
+    swap->sink = relocationFor(resolver, type, source);
+    return nullptr;
+}
+
+static ModulePtr<Value> emitExchange(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                     LocationId source, StringId name) {
+    auto slot = exchangedPlace(resolver, args[0], type, source);
+    if(!slot) return nullptr;
+
+    // And the `->` convention on the incoming value, for the same reason: expandIntrinsic did not
+    // apply it, and what goes into the slot has to be a value this operation owns.
+    auto incoming = resolver.sinkValue(resolver.convert(args[1], type, source), source);
+    if(!incoming) return nullptr;
+
+    auto exchange = resolver.emit<InstExchange>(source, name, type, Place::inBorrow(slot), incoming);
+
+    exchange->sink = relocationFor(resolver, type, source);
+
+    auto result = resolver.ref(exchange);
+
+    // Storage for what came out, for the reason rootSink gives: a value has no address, so a name
+    // bound to this would have nothing to read a field out of. A scalar came out in a register and
+    // wants no slot.
+    if(isMemoryType(resolver.global, type)) {
+        exchange->local = resolver.function.addLocal(resolver.module, type, name, result);
+    }
+
+    return result;
+}
 
 /*
  * Assembling the module.
@@ -268,6 +372,11 @@ void defineCore(Program& program) {
     auto name = context.addQualifiedName("Core", 4, 1);
     Lexer lexer(context, context.diagnostics, StringView { kCoreSource, stringLength(kCoreSource) }, name);
     Parser parser(context, lexer, name);
+
+    // `swap` and `exchange` are declared with no body, like Native's generic intrinsics: there is one
+    // operation per type being exchanged, so there is nothing to generate until a call says which.
+    parser.allowSignatures = true;
+
     auto ast = new ast::Module(parser.parseModule());
 
     auto module = program.addModule(ast->name, *ast->region);
@@ -281,6 +390,9 @@ void defineCore(Program& program) {
     program.scalar.double_ = addPrimitive(program, *module, "Double"_v, new (program.types) FloatType(FloatType::Double));
 
     resolveModuleDecls(*module, *ast, nullptr);
+
+    attachIntrinsic(*module, "swap"_v, emitSwap);
+    attachIntrinsic(*module, "exchange"_v, emitExchange);
 
     program.scalar.bool_ = coreType(*module, "Bool"_v);
     program.scalar.ordering = coreType(*module, "Ordering"_v);
@@ -450,9 +562,27 @@ fn push(&self: Array(a), item: a) -> {}:
     store(self.items + self.length, item)
     self.length = self.length + 1
 
--- Removes element `index`, moving whatever followed it down over the gap.
+{-
+   Removes element `index`, moving whatever followed it down over the gap.
+
+   The element is taken out before the gap is closed, rather than being left to the `copyMemory` that
+   writes over it. An assignment releases what it replaces, which is the rule that would have covered
+   this - but a block copy is not an assignment the compiler can see. It is Native moving bytes, and
+   bytes moving over a live value is exactly the operation that owes its own bookkeeping.
+
+   So `doomed` is where the element goes, and the binding is the whole of the fix: a `->` binding
+   owns what it holds, and what it holds is released when this returns. It is never read, which is
+   the point - the value has nowhere to go and being dropped is what should happen to it.
+
+   The move is out of a raw pointer, which is unchecked by construction and correct here for the
+   reason the bounds test above it establishes: `index` is inside the initialized prefix, so there is
+   a live value at that address to take. Design-Memory's checked world cannot state that, which is
+   why the collection is the thing written against Native rather than the caller.
+-}
 fn remove(&self: Array(a), index: Int) -> {}:
     if index < 0 || index >= self.length then return
+
+    let ->doomed = *(self.items + index)
 
     let rest = self.length - index - 1
     if rest > 0:

@@ -1,0 +1,423 @@
+let &heapNext: %U8 = 0
+
+let &heapLimit: %U8 = 0
+
+let &heapFree: %%U8 = 0
+
+let &liveBuffers: I64 = 0
+
+fn +=(I64)(%target: I64, %amount: I64) -> () {
+  b0:
+    %v2 = load %target : I64
+    %v3 = add %v2, %amount : I64
+    assign %target, %v3
+    ret
+}
+
+fn -=(I64)(%target: I64, %amount: I64) -> () {
+  b0:
+    %v2 = load %target : I64
+    %v3 = sub %v2, %amount : I64
+    assign %target, %v3
+    ret
+}
+
+fn initHeap() -> () {
+  b0:
+    %region = call mapMemory, 4194304 : %U8
+    %v2 = cast %region : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %table = mul 32, 8 : I64
+    setmemory %region, 0, %table
+    %v14 = cast %region : %%U8
+    assign heapFree, %v14
+    %v16 = add %region, %table : %U8
+    assign heapNext, %v16
+    %v19 = add %region, 4194304 : %U8
+    assign heapLimit, %v19
+    ret
+}
+
+fn heapClassOf(%total: I64) -> I64 {
+  b0:
+    %size = alloc : I64
+    init %size, 16
+    %sizeClass = alloc : I64
+    init %sizeClass, 0
+    jmp b1
+
+  b1:
+    %v8 = load %size : I64
+    %v9 = cmp_lt %v8, %total : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v21 = load %sizeClass : I64
+    ret %v21
+
+  b3:
+    %v11 = load %size : I64
+    %v12 = load %size : I64
+    %v13 = add %v11, %v12 : I64
+    assign %size, %v13
+    %v15 = load %sizeClass : I64
+    %v18 = add %v15, 1 : I64
+    assign %sizeClass, %v18
+    jmp b1
+}
+
+fn heapBlockSize(%sizeClass: I64) -> I64 {
+  b0:
+    %v2 = shl 16, %sizeClass : I64
+    ret %v2
+}
+
+fn freeListHead(%sizeClass: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v3 = mul %sizeClass, 8 : I64
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v4 = mul %sizeClass, 8 : I64
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn allocateHeap(%size: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = cast %v1 : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    call initHeap
+    %v7 = load heapFree : %%U8
+    %v8 = cast %v7 : Long
+    %v10 = cmp_eq %v8, 0 : Bool
+    je %v10, b3, b4
+
+  b2:
+    jmp b6
+
+  b3:
+    %v13 = cast 0 : %U8
+    ret %v13
+
+  b4:
+    jmp b5
+
+  b5:
+    jmp b6
+
+  b6:
+    %v20 = add %size, 8 : I64
+    %sizeClass = call heapClassOf, %v20 : I64
+    %v23 = cmp_ge %sizeClass, 32 : Bool
+    je %v23, b7, b8
+
+  b7:
+    %v26 = cast 0 : %U8
+    ret %v26
+
+  b8:
+    jmp b9
+
+  b9:
+    %reused = call freeListHead, %sizeClass : %U8
+    %v30 = cast %reused : Long
+    %v32 = cmp_eq %v30, 0 : Bool
+    %v34 = xor %v32, True : Bool
+    je %v34, b10, b11
+
+  b10:
+    %v36 = cast %reused : %%U8
+    %v37 = load [%v36] : %U8
+    call setFreeListHead, %sizeClass, %v37
+    ret %reused
+
+  b11:
+    jmp b12
+
+  b12:
+    %block = load heapNext : %U8
+    %blockSize = call heapBlockSize, %sizeClass : I64
+    %v43 = add %block, %blockSize : %U8
+    %v44 = load heapLimit : %U8
+    %v45 = cmp_gt %v43, %v44 : Bool
+    je %v45, b13, b14
+
+  b13:
+    %v48 = cast 0 : %U8
+    ret %v48
+
+  b14:
+    jmp b15
+
+  b15:
+    %v51 = add %block, %blockSize : %U8
+    assign heapNext, %v51
+    %v53 = cast %block : %I64
+    assign [%v53], %sizeClass
+    %v57 = add %block, 8 : %U8
+    ret %v57
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = cast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = sub %allocation, 8 : %U8
+    %v10 = cast %v9 : %I64
+    %sizeClass = load [%v10] : I64
+    %v12 = cast %allocation : %%U8
+    %v13 = call freeListHead, %sizeClass : %U8
+    assign [%v12], %v13
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn mapMemory(%size: I64) -> %U8 {
+  b0:
+    %v7 = neg 1 : I64
+    %result = syscall 9, 0, %size, 3, 34, %v7, 0 : I64
+    %v12 = cmp_lt %result, 0 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v15 = cast 0 : %U8
+    ret %v15
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = cast %result : %U8
+    ret %v18
+}
+
+fn makeBuffer(%size: I64) -> Buffer {
+  b0:
+    %v1 = load liveBuffers : I64
+    %v4 = borrow_mut liveBuffers : &mut I64
+    call +=(I64), %v4, 1
+    %buffer = alloc : Buffer
+    %v7 = call allocateHeap, %size : %U8
+    init %local0@Buffer.bytes, %v7
+    %v9 = load %local0@Buffer.bytes : %U8
+    setmemory %v9, 0, %size
+    ret %buffer
+}
+
+fn firstByte(%it: Buffer) -> I64 {
+  b0:
+    %v1 = load %it@Buffer.bytes : %U8
+    %v2 = load [%v1] : U8
+    %v3 = cast %v2 : I64
+    ret %v3
+}
+
+fn pick(%a: Buffer, %b: Buffer, %first: Bool) -> &mut Buffer {
+  b0:
+    je %first, b1, b2
+
+  b1:
+    %v4 = load %a : Buffer
+    %v5 = borrow_mut %a : &mut Buffer
+    jmp b3
+
+  b2:
+    %v6 = load %b : Buffer
+    %v7 = borrow_mut %b : &mut Buffer
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, %v5], [b2, %v7] : &mut Buffer
+    ret %v10
+}
+
+fn holderOf(%self: Holder) -> &mut Holder {
+  b0:
+    %v1 = load %self : Holder
+    %v2 = borrow_mut %self : &mut Holder
+    ret %v2
+}
+
+fn whole() -> I64 {
+  b0:
+    %v1 = call makeBuffer, 16 : Buffer
+    %x = alloc : Buffer
+    init %x, %v1
+    %v5 = call makeBuffer, 16 : Buffer
+    %y = alloc : Buffer
+    init %y, %v5
+    %v8 = load %x : Buffer
+    %v9 = load %y : Buffer
+    %v11 = borrow_mut %x : &mut Buffer
+    %v12 = borrow_mut %y : &mut Buffer
+    %v13 = call pick, %v11, %v12, True : &mut Buffer
+    %v15 = call makeBuffer, 32 : Buffer
+    drop [%v13] via Drop(Buffer).drop
+    assign [%v13], %v15
+    %counted = load liveBuffers : I64
+    %v18 = load %x : Buffer
+    %v19 = call firstByte, %v18 : I64
+    drop %x via Drop(Buffer).drop
+    %v20 = add %counted, %v19 : I64
+    %v21 = load %y : Buffer
+    %v22 = call firstByte, %v21 : I64
+    drop %y via Drop(Buffer).drop
+    %v23 = add %v20, %v22 : I64
+    ret %v23
+}
+
+fn other() -> I64 {
+  b0:
+    %v1 = call makeBuffer, 16 : Buffer
+    %x = alloc : Buffer
+    init %x, %v1
+    %v5 = call makeBuffer, 16 : Buffer
+    %y = alloc : Buffer
+    init %y, %v5
+    %v8 = load %x : Buffer
+    %v9 = load %y : Buffer
+    %v11 = borrow_mut %x : &mut Buffer
+    %v12 = borrow_mut %y : &mut Buffer
+    %v13 = call pick, %v11, %v12, False : &mut Buffer
+    %v15 = call makeBuffer, 32 : Buffer
+    drop [%v13] via Drop(Buffer).drop
+    assign [%v13], %v15
+    %counted = load liveBuffers : I64
+    %v18 = load %x : Buffer
+    %v19 = call firstByte, %v18 : I64
+    drop %x via Drop(Buffer).drop
+    %v20 = add %counted, %v19 : I64
+    %v21 = load %y : Buffer
+    %v22 = call firstByte, %v21 : I64
+    drop %y via Drop(Buffer).drop
+    %v23 = add %v20, %v22 : I64
+    ret %v23
+}
+
+fn field() -> I64 {
+  b0:
+    %v0 = alloc : Holder
+    %v2 = call makeBuffer, 16 : Buffer
+    init %local0@Holder.slot, %v2
+    init %local0@Holder.tag, 3
+    %owner = alloc : Holder
+    init %owner, %v0
+    %v8 = load %owner : Holder
+    %v9 = borrow_mut %owner : &mut Holder
+    %v10 = call holderOf, %v9 : &mut Holder
+    %v12 = call makeBuffer, 32 : Buffer
+    drop [%v10]@Holder.slot via Drop(Buffer).drop
+    assign [%v10]@Holder.slot, %v12
+    %counted = load liveBuffers : I64
+    %v15 = load %owner : Holder
+    %v16 = load %owner@Holder.slot : Buffer
+    %v17 = call firstByte, %v16 : I64
+    %v18 = add %counted, %v17 : I64
+    %v19 = load %owner : Holder
+    %v20 = load %owner@Holder.tag : I64
+    drop_derived %owner via drop$Holder
+    %v21 = add %v18, %v20 : I64
+    ret %v21
+}
+
+fn main() -> I64 {
+  b0:
+    %result = alloc : I64
+    init %result, 0
+    %v3 = load %result : I64
+    %v4 = call whole : I64
+    %v5 = borrow_mut %result : &mut I64
+    call +=(I64), %v5, %v4
+    %v7 = load liveBuffers : I64
+    %v10 = cmp_ne %v7, 0 : Bool
+    je %v10, b1, b2
+
+  b1:
+    %v14 = neg 1 : I64
+    ret %v14
+
+  b2:
+    jmp b3
+
+  b3:
+    %v17 = load %result : I64
+    %v18 = call other : I64
+    %v19 = borrow_mut %result : &mut I64
+    call +=(I64), %v19, %v18
+    %v21 = load liveBuffers : I64
+    %v24 = cmp_ne %v21, 0 : Bool
+    je %v24, b4, b5
+
+  b4:
+    %v28 = neg 2 : I64
+    ret %v28
+
+  b5:
+    jmp b6
+
+  b6:
+    %v31 = load %result : I64
+    %v32 = call field : I64
+    %v33 = borrow_mut %result : &mut I64
+    call +=(I64), %v33, %v32
+    %v35 = load liveBuffers : I64
+    %v38 = cmp_ne %v35, 0 : Bool
+    je %v38, b7, b8
+
+  b7:
+    %v42 = neg 3 : I64
+    ret %v42
+
+  b8:
+    jmp b9
+
+  b9:
+    %v45 = load %result : I64
+    ret %v45
+}
+
+fn Drop(Buffer).drop(%value: Buffer) -> () {
+  b0:
+    %v1 = load %value@Buffer.bytes : %U8
+    call freeHeap, %v1
+    %v3 = load liveBuffers : I64
+    %v6 = borrow_mut liveBuffers : &mut I64
+    call -=(I64), %v6, 1
+    ret
+}
+
+fn drop$Holder(%value: %Holder) -> () {
+  b0:
+    drop [%value]@Holder.slot via Drop(Buffer).drop
+    ret
+}

@@ -389,41 +389,49 @@ fn remove(Int)(%self: Array(Int), %index: Int) -> () {
 
   b3:
     %v11 = load %self : Array(Int)
-    %v12 = load %self@Array.length : Int
-    %v13 = sub %v12, %index : Int
-    %rest = sub %v13, 1 : Int
-    %v17 = cmp_gt %rest, 0 : Bool
-    je %v17, b4, b5
+    %v12 = load %self@Array.items : %Int
+    %v13 = cast %index : I64
+    %v15 = mul %v13, 4 : I64
+    %v16 = add %v12, %v15 : %Int
+    %v17 = load [%v16] : Int
+    %doomed = alloc : Int
+    init %local2, %v17
+    %v20 = load %self : Array(Int)
+    %v21 = load %self@Array.length : Int
+    %v22 = sub %v21, %index : Int
+    %rest = sub %v22, 1 : Int
+    %v26 = cmp_gt %rest, 0 : Bool
+    je %v26, b4, b5
 
   b4:
-    %v19 = load %self : Array(Int)
-    %v20 = load %self@Array.items : %Int
-    %v21 = cast %index : I64
-    %v23 = mul %v21, 4 : I64
-    %v24 = add %v20, %v23 : %Int
-    %v25 = cast %v24 : %U8
-    %v26 = load %self : Array(Int)
-    %v27 = load %self@Array.items : %Int
-    %v28 = cast %index : I64
-    %v30 = mul %v28, 4 : I64
-    %v31 = add %v27, %v30 : %Int
-    %v34 = mul 1, 4 : I64
-    %v35 = add %v31, %v34 : %Int
-    %v36 = cast %v35 : %U8
-    %v37 = load %self : Array(Int)
-    %v38 = load %self@Array.items : %Int
-    %v39 = call byteSpan(Int), %v38, %rest : I64
-    copymemory %v25, %v36, %v39
+    %v28 = load %self : Array(Int)
+    %v29 = load %self@Array.items : %Int
+    %v30 = cast %index : I64
+    %v32 = mul %v30, 4 : I64
+    %v33 = add %v29, %v32 : %Int
+    %v34 = cast %v33 : %U8
+    %v35 = load %self : Array(Int)
+    %v36 = load %self@Array.items : %Int
+    %v37 = cast %index : I64
+    %v39 = mul %v37, 4 : I64
+    %v40 = add %v36, %v39 : %Int
+    %v43 = mul 1, 4 : I64
+    %v44 = add %v40, %v43 : %Int
+    %v45 = cast %v44 : %U8
+    %v46 = load %self : Array(Int)
+    %v47 = load %self@Array.items : %Int
+    %v48 = call byteSpan(Int), %v47, %rest : I64
+    copymemory %v34, %v45, %v48
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v43 = load %self : Array(Int)
-    %v44 = load %self@Array.length : Int
-    %v46 = sub %v44, 1 : Int
-    assign %self@Array.length, %v46
+    %v52 = load %self : Array(Int)
+    %v53 = load %self@Array.length : Int
+    %v55 = sub %v53, 1 : Int
+    assign %self@Array.length, %v55
     ret
 }
 
