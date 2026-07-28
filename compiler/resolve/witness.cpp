@@ -52,6 +52,12 @@ struct TableBuilder {
         target.typeWords.push(module.arena, offset);
     }
 
+    // An interned class, recorded for the same reason a type is - see Global::classWords.
+    void putClass(Global& target, U32 offset, GlobalPtr<TypeClass> typeClass) {
+        putU32(offset, U32(typeClass));
+        target.classWords.push(module.arena, offset);
+    }
+
     void putGlobal(Global& target, U32 offset, ModulePtr<Global> global_) {
         if(!global_) return;
 
@@ -259,13 +265,387 @@ static bool lowerablePlaces(Module& module, Function& owner, Value& inst) {
     }
 }
 
-bool genericBodyLowerable(Module& module, ModulePtr<Function> function) {
+/*
+ * The erased entry point of one class method.
+ *
+ * A generic body that deferred a dispatch knows only the class *signature*, written over the class's
+ * own type variables - so it calls with the shape that signature has, not the shape the instance's
+ * implementation has. Those differ exactly where the signature is generic: an argument declared `a`
+ * arrives as an address whatever `a` turned out to be, and a result declared `a` goes back through
+ * caller storage for the same reason.
+ *
+ * The thunk is the adapter between the two. It takes that erased shape, reads the concrete values
+ * out of it, calls the implementation the ordinary way - which expands an intrinsic exactly as any
+ * call site does, so a specialized `<` on Int stays one `cmp` behind the pointer - and writes the
+ * result back where the caller asked.
+ */
+static ModulePtr<Function> erasedThunkFor(Module& module, GlobalPtr<TypeClass> typeClass,
+                                          const InstanceMatch& match, Buffer<TypePtr> classArgs,
+                                          U16 index, LocationId source) {
+    auto& context = module.context;
+    auto global = *module.types;
     auto local = *module.arena;
+
+    auto entry = global[typeClass]->functions.get(global, index);
+    if(!entry.fun) return nullptr;
+
+    auto signature = local[entry.fun];
+
+    // The method index rather than only the name, because a class may declare one name at two
+    // arities - `Num` declares both the binary and the unary `-` - and a thunk per method needs a
+    // symbol per method. Everything downstream is keyed by name, so a collision here would silently
+    // merge two functions rather than being reported.
+    StringBuilder text;
+    text << "thunk$" << context.findName(global[typeClass]->name) << '(';
+    describeTypes(context, global, classArgs, text);
+    text << ")." << context.findName(entry.name) << '#';
+    text.appendValue(U32(index));
+
+    auto function = addAnonymousFunction(module, context.addQualifiedName(text.pointer(), text.size(), 1), source);
+    auto pointer = function - local;
+    function->returnType = module.scalar.unit;
+    function->used = true;
+
+    // The result the caller allocated storage for, when the signature returns something whose size
+    // the caller could not know. Declared before the arguments so that the erased shape is the same
+    // one an unspecialized generic function has - hidden storage first, then what was written.
+    auto concreteResult = substituteType(module, signature->returnType, classArgs, source);
+    auto erasedResult = isGeneric(global, signature->returnType);
+    Arg* resultArg = nullptr;
+
+    if(erasedResult) {
+        resultArg = function->addArg(module, context.addQualifiedName("result", 6, 1),
+                                     resolvePointerType(module, concreteResult), source);
+    } else {
+        function->returnType = concreteResult;
+    }
+
+    Array<Arg*> parameters;
+    Array<bool> byAddress;
+
+    for(auto argPointer: signature->args.contents(local)) {
+        auto declared = local[argPointer]->type;
+        auto concrete = substituteType(module, declared, classArgs, source);
+        auto erased = isGeneric(global, declared);
+
+        byAddress.push(erased);
+        parameters.push(function->addArg(module, local[argPointer]->name,
+                                         erased ? resolvePointerType(module, concrete) : concrete, source));
+    }
+
+    ExprResolver resolver(context, module, *function);
+    Array<ModulePtr<Value>> args;
+
+    for(Size i = 0; i < parameters.size(); i++) {
+        auto value = (ModulePtr<Value>)(parameters[i] - local);
+        args.push(byAddress[i] ? resolver.load(Place::atPointer(value), source) : value);
+    }
+
+    Array<TypePtr> instanceArgs;
+    for(auto arg: match.args) instanceArgs.push(arg);
+
+    auto errors = context.diagnostics.errorCount();
+    auto result = resolver.emitInstanceCall(module, match.instance, toBuffer(instanceArgs), index,
+                                            toBuffer(args), source);
+
+    if(context.diagnostics.errorCount() != errors) return nullptr;
+
+    if(erasedResult) {
+        // The storage arrived uninitialized, so this is an Init rather than an Assign: there is no
+        // old value in it for anything to have to release.
+        if(result) {
+            resolver.initialize(Place::atPointer((ModulePtr<Value>)(resultArg - local)), result, source);
+        }
+
+        resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+    } else {
+        resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, result));
+    }
+
+    return pointer;
+}
+
+ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
+                                  LocationId source) {
+    auto& context = module.context;
+    auto global = *module.types;
+    auto& program = module.program;
+
+    for(auto& existing: program.classWitnesses) {
+        if(existing.typeClass != typeClass) continue;
+        if(sameTypes(toBuffer(existing.args), args)) return existing.witness;
+    }
+
+    for(auto arg: args) {
+        if(isGeneric(global, arg)) return nullptr;
+    }
+
+    auto match = matchInstance(module, typeClass, args);
+    if(!match) {
+        StringBuilder types;
+        describeTypes(context, global, args, types);
+
+        context.diagnostics.error("no instance of %@ for (%@)"_v, source,
+                                  context.findName(global[typeClass]->name), types.view());
+        return nullptr;
+    }
+
+    auto methodCount = U16(global[typeClass]->functions.size());
+    auto argCount = U16(args.length);
+
+    StringBuilder text;
+    text << "witness$" << context.findName(global[typeClass]->name) << '(';
+    describeTypes(context, global, args, text);
+    text << ')';
+
+    auto global_ = addAnonymousGlobal(module, context.addQualifiedName(text.pointer(), text.size(), 1), source);
+    auto pointer = global_ - *module.arena;
+
+    // Registered before the thunks are generated, since one of them can ask for this witness again -
+    // a class whose default implementation calls another method of the same class. The entry is
+    // built whole and then pushed: generating a thunk can push another witness, and a reference into
+    // a list that reallocates under it would be writing into freed storage.
+    InternedWitness interned { typeClass, Array<TypePtr>(), pointer };
+    for(auto arg: args) interned.args.push(arg);
+    program.classWitnesses.push(::move(interned));
+
+    TableBuilder table(module, ClassWitnessLayout::sizeFor(argCount, methodCount));
+    table.putU32(ClassWitnessLayout::kArgCount, U32(argCount) | (U32(methodCount) << 16));
+    global_->contents = table.bytes;
+    table.putClass(*global_, ClassWitnessLayout::kClass, typeClass);
+
+    for(U16 i = 0; i < argCount; i++) {
+        auto descriptor = typeDescFor(module, args[i], source);
+        if(descriptor) table.putGlobal(*global_, ClassWitnessLayout::kArgs + 8 * i, descriptor);
+    }
+
+    auto methods = ClassWitnessLayout::methodsOffset(argCount);
+    auto ok = true;
+
+    for(U16 i = 0; i < methodCount; i++) {
+        // A signature the instance does not implement leaves a null slot rather than failing the
+        // whole witness: a body that never calls that method is unaffected, and one that does was
+        // already rejected where the call was written.
+        if(!(*module.arena)[match.instance]->functions.get(*module.arena, i)) continue;
+
+        auto thunk = erasedThunkFor(module, typeClass, match, args, i, source);
+        if(!thunk) {
+            ok = false;
+            continue;
+        }
+
+        table.putFunction(*global_, methods + 8 * i, thunk);
+    }
+
+    return ok ? pointer : nullptr;
+}
+
+/*
+ * Filling one call site's environment.
+ *
+ * For each slot of the callee's schema, the caller expresses that slot in its *own* terms - by
+ * substituting the type arguments it is calling with - and then answers one question: is what came
+ * out concrete, or is it one of my own type variables?
+ *
+ *  - concrete: store the address of an interned constant. This is part 9's static case, and it is
+ *    the whole environment whenever the caller is not itself generic.
+ *  - one of mine: copy my own slot across. This is the forwarded case, and it is what makes a chain
+ *    of generic calls work - `middle` hands `smaller` the `Ord` witness it was handed itself, and
+ *    nobody in the chain except the outermost concrete caller ever knows what the type is.
+ *
+ * A mix of the two is part 9's third case and needs no separate handling: the plan is per slot, so
+ * a call that knows two of its four slots concretely simply has two of each.
+ */
+static bool fillEnvironment(Module& module, Function& caller, InstGenCall& call, GenEnv& calleeEnv,
+                            Buffer<TypePtr> typeArgs) {
+    auto global = *module.types;
+    auto callerEnv = functionGen(global, caller);
+    auto& schema = genSchemaOf(module, calleeEnv);
+    auto ok = true;
+    auto allConstant = true;
+
+    call.fill.clear();
+
+    for(auto slot: schema.slots.contents(global)) {
+        GenSlotFill entry;
+
+        if(slot.kind == GenSlotKind::Type) {
+            auto expressed = substituteType(module, slot.type, typeArgs, call.source);
+
+            if(isGeneric(global, expressed)) {
+                entry.forwarded = callerEnv ? genTypeSlot(module, *callerEnv, expressed) : maxLimit<U16>;
+                allConstant = false;
+            } else {
+                entry.constant = typeDescFor(module, expressed, call.source);
+            }
+        } else if(slot.kind == GenSlotKind::Class) {
+            Array<TypePtr> expressed;
+            auto anyGeneric = false;
+
+            for(auto arg: slot.args.contents(global)) {
+                auto substituted = substituteType(module, arg, typeArgs, call.source);
+                anyGeneric = anyGeneric || isGeneric(global, substituted);
+                expressed.push(substituted);
+            }
+
+            if(anyGeneric) {
+                entry.forwarded = callerEnv
+                    ? genClassSlot(module, *callerEnv, slot.typeClass, toBuffer(expressed)) : maxLimit<U16>;
+                allConstant = false;
+            } else {
+                entry.constant = classWitnessFor(module, slot.typeClass, toBuffer(expressed), call.source);
+            }
+        } else {
+            // A property or function requirement. Both need a witness kind that does not exist yet,
+            // and the call site falls back to specializing rather than being given a null slot.
+            ok = false;
+        }
+
+        if(!entry.constant && !entry.isForwarded()) ok = false;
+        call.fill.push(module.arena, entry);
+    }
+
+    // Every slot concrete is the case worth interning: one constant shared by every call site that
+    // supplies the same arguments, rather than a table assembled on each of their frames.
+    if(ok && allConstant) {
+        call.env = genEnvFor(module, call.callee, typeArgs, call.source);
+        if(call.env) call.fill.clear();
+    }
+
+    return ok;
+}
+
+bool prepareGenericCalls(Program& program) {
+    auto local = *program.arena;
+    auto global = *program.types;
+    auto ok = true;
+
+    /*
+     * Which generic bodies actually reach the backend.
+     *
+     * A call site marks the function it calls, but that function's own calls are only discovered by
+     * looking at it - so `middle` being emitted is what makes `smaller` need emitting too. Run to a
+     * fixpoint rather than in one pass, since the call graph is not in any particular order and a
+     * function may be marked after it has already been walked.
+     */
+    for(auto changed = true; changed;) {
+        changed = false;
+
+        for(auto module: program.modules) {
+            for(Size i = 0; i < module->functionOrder.size(); i++) {
+                auto function = local[module->functionOrder.get(local, i)];
+                if(function->gen && !function->genericallyUsed) continue;
+
+                for(auto blockPointer: function->blocks.contents(local)) {
+                    for(auto instruction: local[blockPointer]->instructions.contents(local)) {
+                        auto& inst = *local[instruction];
+                        if(inst.kind != Value::GenCall) continue;
+
+                        auto& call = (InstGenCall&)inst;
+                        if(call.typeClass || !call.callee) continue;
+
+                        auto callee = local[call.callee];
+                        if(!callee->gen || callee->genericallyUsed) continue;
+
+                        callee->genericallyUsed = true;
+                        callee->used = true;
+                        changed = true;
+                    }
+                }
+            }
+        }
+    }
+
+    for(auto module: program.modules) {
+        // Thunks and witnesses are appended while this runs, so the list is walked by index - the
+        // same reason resolveModuleBodies and runProgramOwnership do.
+        for(Size i = 0; i < module->functionOrder.size(); i++) {
+            auto pointer = module->functionOrder.get(local, i);
+            auto function = local[pointer];
+
+            // Only a body that will actually be emitted. A generic function every call site
+            // specialized has no machine code, so its deferred calls are decided by cloning.
+            if(function->gen && !function->genericallyUsed) continue;
+
+            for(auto blockPointer: function->blocks.contents(local)) {
+                for(auto instruction: local[blockPointer]->instructions.contents(local)) {
+                    auto& inst = *local[instruction];
+                    if(inst.kind != Value::GenCall) continue;
+
+                    auto& call = (InstGenCall&)inst;
+                    if(call.env) continue;
+
+                    Array<TypePtr> typeArgs;
+                    for(auto arg: call.typeArgs.contents(local)) typeArgs.push(arg);
+
+                    if(call.typeClass) {
+                        // A deferred class dispatch reads its witness out of the caller's own
+                        // environment. Which slot that is could not be recorded when the call was
+                        // emitted, because the context was still collecting requirements.
+                        auto env = functionGen(global, *function);
+                        call.classSlot = env
+                            ? genClassSlot(*module, *env, call.typeClass, toBuffer(typeArgs)) : maxLimit<U16>;
+
+                        if(call.classSlot == maxLimit<U16>) {
+                            module->context.diagnostics.error("internal: a deferred class call has no witness slot in %@"_v,
+                                                              call.source, module->context.findName(function->name));
+                            ok = false;
+                        }
+
+                        continue;
+                    }
+
+                    auto calleeEnv = functionGen(global, *local[call.callee]);
+                    if(!calleeEnv) continue;
+
+                    if(!fillEnvironment(*module, *function, call, *calleeEnv, toBuffer(typeArgs))) {
+                        module->context.diagnostics.error("internal: %@ cannot be given an environment in %@"_v,
+                                                          call.source,
+                                                          module->context.findName(local[call.callee]->name),
+                                                          module->context.findName(function->name));
+                        ok = false;
+                    }
+                }
+            }
+        }
+    }
+
+    return ok;
+}
+
+/*
+ * Whether a body can be emitted, and with it every generic body it calls.
+ *
+ * The recursion is the point rather than an optimization: emitting `middle` means emitting
+ * `smaller`, because `middle`'s call to it is a real call that has to land somewhere. So a body is
+ * lowerable only if the whole reachable set is, and one function that is not takes the entire chain
+ * back to specialization.
+ *
+ * `visited` is what makes a recursive generic function terminate - it is on the stack, so assuming
+ * it lowerable is exactly the right answer while deciding whether it is.
+ */
+static bool bodyLowerable(Module& module, ModulePtr<Function> function,
+                          Array<ModulePtr<Function>>& visited, U32 depth) {
+    auto local = *module.arena;
+    auto global = *module.types;
     auto target = local[function];
 
     // A signature or an intrinsic has no body to emit; the first is not callable at all and the
     // second is generated at each call site, so neither is a candidate.
     if(target->signature || target->intrinsic) return false;
+    if(!depth) return false;
+
+    for(auto seen: visited) {
+        if(seen == function) return true;
+    }
+
+    visited.push(function);
+
+    // A field or function requirement needs a witness kind that does not exist yet. Checked on the
+    // context rather than on the body, since it is the *contract* that cannot be supplied.
+    if(auto env = functionGen(global, *target)) {
+        if(env->properties.isNotEmpty() || env->functions.isNotEmpty()) return false;
+    }
 
     for(auto blockPointer: target->blocks.contents(local)) {
         auto block = local[blockPointer];
@@ -273,13 +653,10 @@ bool genericBodyLowerable(Module& module, ModulePtr<Function> function) {
         for(auto instruction: block->instructions.contents(local)) {
             auto& inst = *local[instruction];
 
-            // A deferred call - one the body could not decide - has no environment of its own, and
-            // supplying one means projecting this function's slots into the callee's.
-            if(inst.kind == Value::GenCall && !((InstGenCall&)inst).env) return false;
-
             // An explicit copy of a value whose type the body cannot see needs the `Copy` witness,
-            // which is a class constraint and so is on the same list as the two above.
-            if(inst.kind == Value::Copy && isGeneric(*module.types, inst.type)) return false;
+            // which does not exist yet - a class witness holds methods, and `Copy` would have to be
+            // reached as one rather than through the descriptor's lifecycle slots.
+            if(inst.kind == Value::Copy && isGeneric(global, inst.type)) return false;
 
             // A projection into a generic aggregate. `Pair(a, b).second` sits at an offset that
             // depends on what `a` turned out to be, and a body compiled once for every `a` has no
@@ -290,10 +667,26 @@ bool genericBodyLowerable(Module& module, ModulePtr<Function> function) {
             // which are only right when every field before the projected one has a size independent
             // of the type arguments. Rather than depend on that accident, such a body specializes.
             if(!lowerablePlaces(module, *target, inst)) return false;
+
+            if(inst.kind != Value::GenCall) continue;
+
+            auto& call = (InstGenCall&)inst;
+
+            // A deferred class dispatch is supplied from this function's own environment, so what
+            // it needs is that the requirement is on the context - which requireClass guarantees.
+            if(call.typeClass) continue;
+
+            // A call to another generic function means emitting that one too.
+            if(!bodyLowerable(module, call.callee, visited, depth - 1)) return false;
         }
     }
 
     return true;
+}
+
+bool genericBodyLowerable(Module& module, ModulePtr<Function> function) {
+    Array<ModulePtr<Function>> visited;
+    return bodyLowerable(module, function, visited, 16);
 }
 
 ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<TypePtr> args,
@@ -323,10 +716,11 @@ ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<T
     auto pointer = global_ - local;
 
     // Registered before the slots are filled, since building one of them can ask for an environment
-    // again - a witness whose implementation is itself generic.
-    program.genEnvs.push(InternedEnv { callee, Array<TypePtr>(), pointer });
-    auto& entry = program.genEnvs[program.genEnvs.size() - 1];
-    for(auto arg: args) entry.args.push(arg);
+    // again - a witness whose implementation is itself generic. Built whole and then pushed, so that
+    // a nested request growing the list cannot leave a reference into freed storage.
+    InternedEnv interned { callee, Array<TypePtr>(), pointer };
+    for(auto arg: args) interned.args.push(arg);
+    program.genEnvs.push(::move(interned));
 
     TableBuilder table(module, GenEnvLayout::sizeFor(slotCount));
     global_->contents = table.bytes;
@@ -352,16 +746,30 @@ ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<T
                 break;
             }
 
-            // The three witness kinds. Each one is a separate constraint entry with its own
-            // implementation, and none of them is derivable from a TypeDesc - knowing a type's size
-            // grants nothing else, which is Implementation-Generics.md part 1's fifth invariant.
-            case GenSlotKind::Class:
+            case GenSlotKind::Class: {
+                Array<TypePtr> concrete;
+                for(auto arg: slot.args.contents(global)) {
+                    concrete.push(substituteType(module, arg, args, source));
+                }
+
+                auto witness = classWitnessFor(module, slot.typeClass, toBuffer(concrete), source);
+                if(!witness) {
+                    ok = false;
+                    break;
+                }
+
+                table.putGlobal(*global_, offset, witness);
+                break;
+            }
+
+            // The two witness kinds that do not exist yet. Each is a separate constraint entry with
+            // its own implementation, and neither is derivable from a TypeDesc - knowing a type's
+            // size grants nothing else, which is part 1's fifth invariant.
             case GenSlotKind::Property:
             case GenSlotKind::Function:
                 context.diagnostics.error("%@ cannot be called generically yet - its %@ requirement needs a witness, which is not built yet"_v,
                                           source, context.findName(local[callee]->name),
-                                          slot.kind == GenSlotKind::Class ? "class"_v
-                                          : slot.kind == GenSlotKind::Property ? "field"_v : "function"_v);
+                                          slot.kind == GenSlotKind::Property ? "field"_v : "function"_v);
                 ok = false;
                 break;
         }

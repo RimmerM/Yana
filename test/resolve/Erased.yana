@@ -21,9 +21,29 @@ fn firstOf(x: a, y: a) -> a = x
 -- first's, which is what makes the numbering matter rather than being incidental.
 fn pick(flag: Bool, x: a, y: b) -> b = y
 
+-- A class the body dispatches on. The instance is not chosen here and never can be: what runs is
+-- whatever method table the caller put in the environment, loaded at the slot the schema numbered.
+fn (Num(a)) twice(x: a) -> a = x + x
+
+-- A requirement the signature never wrote. `<` records Ord(a) while the body is resolved, and the
+-- environment carries a witness for it exactly as if it had been declared.
+fn smaller(x: a, y: a) -> a = if x < y then x else y
+
+-- One generic function calling another. `middle` cannot build `smaller`'s environment from concrete
+-- types - it has none - so it projects its own slots into the callee's, which is the forwarded case.
+fn middle(x: a, y: a, z: a) -> a = smaller(smaller(x, y), z)
+
+-- A literal inside a constrained body. `Num` implies `FromInt`, so the author never wrote it and the
+-- diagnostic never mentions it - but the dispatch still needs a witness, so the schema has a slot.
+fn (Num(a)) increment(x: a) -> a = x + 1
+
 fn main() -> Int:
     let one = identity(1)
     let two = firstOf(2, 99)
     let three = pick(True, False, 3)
 
-    return one + two + three
+    return one + two + three +
+        twice(5) +
+        smaller(30, 8) +
+        middle(60, 12, 40) +
+        increment(19)

@@ -128,6 +128,42 @@ namespace GenEnvLayout {
 }
 
 /*
+ * The layout of a `ClassWitness` - Implementation-Generics.md part 6.
+ *
+ * One immutable method table per class implementation: the class it is for, the descriptors of the
+ * types it was selected at, and one erased entry point per class function. A generic body that
+ * deferred a dispatch loads the witness out of its own environment and the method out of the
+ * witness, both at numbers the schema fixed at compile time.
+ *
+ * The method slots hold plain code addresses rather than full `FunctionWitness` records. A witness
+ * carries a closure and a captured environment, and a class method has neither: it is a known
+ * function reached through a known table. Constrained function *values* are what need the wider
+ * shape, and they need function values first.
+ */
+namespace ClassWitnessLayout {
+    // The class this implements, as its region offset - the same kind of identity a TypeDesc's
+    // logical type is, and used for the same debug validation.
+    static constexpr U32 kClass = 0;
+    static constexpr U32 kArgCount = 4;
+    static constexpr U32 kMethodCount = 6;
+    static constexpr U32 kArgs = 8;
+
+    static constexpr U32 methodsOffset(U16 argCount) { return kArgs + 8 * argCount; }
+    static constexpr U32 sizeFor(U16 argCount, U16 methodCount) {
+        return methodsOffset(argCount) + 8 * methodCount;
+    }
+}
+
+/*
+ * The witness for one class implementation, interned per class and argument list.
+ *
+ * Null after reporting when no instance serves these types, or when one of its methods cannot be
+ * given an erased entry point. A call site that gets null specializes instead.
+ */
+ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
+                                  LocationId source);
+
+/*
  * The environment one generic function needs when called with these type arguments.
  *
  * This is Implementation-Generics.md part 9's first case - "all entries concrete; reference an
@@ -140,6 +176,19 @@ namespace GenEnvLayout {
  */
 ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<TypePtr> args,
                             LocationId source);
+
+/*
+ * Fills in every generic call site's environment, once the whole program has been resolved.
+ *
+ * Deliberately not done where the calls are emitted. A slot number is derived from the finished
+ * context, and a body collects requirements *while* it is being resolved - so a plan computed at
+ * the call site would be numbered against a context that had not stopped growing. Running once at
+ * the end is what makes the caller's numbering and the callee's the same numbering.
+ *
+ * Reports and returns false when a call that has to be emitted cannot be supplied. A call that can
+ * still be specialized is left alone.
+ */
+bool prepareGenericCalls(Program& program);
 
 /*
  * Whether this generic body can be emitted as machine code at all, rather than only cloned.

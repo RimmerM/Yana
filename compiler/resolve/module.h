@@ -194,6 +194,14 @@ struct InternedEnv {
     ModulePtr<Global> env;
 };
 
+// One interned class method table, keyed by the class and the types it was selected at - which is
+// what decides both the instance and every thunk in it. See classWitnessFor.
+struct InternedWitness {
+    GlobalPtr<TypeClass> typeClass;
+    Array<TypePtr> args;
+    ModulePtr<Global> witness;
+};
+
 /*
  * A module-level storage slot.
  *
@@ -231,6 +239,10 @@ struct Global {
     // dump can name the type instead of printing a region offset, which would otherwise make every
     // fixture holding a descriptor churn whenever an unrelated declaration moved.
     ModuleList<U32, false> typeWords;
+
+    // The same, for a word holding a class rather than a type - a witness records which class it
+    // implements, and a region offset would say nothing in a dump.
+    ModuleList<U32, false> classWords;
 
     bool mut = false;
     bool used = false;
@@ -350,6 +362,9 @@ struct Program {
 
     // The runtime environments, interned per callee and type argument list - see genEnvFor.
     Array<InternedEnv> genEnvs;
+
+    // The class method tables, interned per class and argument list - see classWitnessFor.
+    Array<InternedWitness> classWitnesses;
 
     /*
      * Whether a concrete generic call site becomes a specialization or an erased call.

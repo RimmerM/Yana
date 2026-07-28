@@ -367,6 +367,18 @@ GenSchema& genSchemaOf(Module& module, GenEnv& env) {
         schema->slots.push(module.types, slot);
     }
 
+    for(auto constraint: env.dispatched.contents(global)) {
+        GenSlot slot;
+        slot.kind = GenSlotKind::Class;
+        slot.index = index++;
+        slot.typeClass = constraint.typeClass;
+        slot.name = constraint.name;
+        slot.source = constraint.source;
+
+        for(auto arg: constraint.args.contents(global)) slot.args.push(module.types, arg);
+        schema->slots.push(module.types, slot);
+    }
+
     for(auto constraint: env.properties.contents(global)) {
         GenSlot slot;
         slot.kind = GenSlotKind::Property;
@@ -438,6 +450,21 @@ U16 genFunctionSlot(Module& module, GenEnv& env, StringId name, TypePtr signatur
     }
 
     return maxLimit<U16>;
+}
+
+void requireClassSlot(Module& module, GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
+                      LocationId source) {
+    if(!typeClass) return;
+    if(genClassSlot(module, env, typeClass, args) != maxLimit<U16>) return;
+
+    ClassConstraint constraint;
+    constraint.typeClass = typeClass;
+    constraint.name = (*module.types)[typeClass]->name;
+    constraint.source = source;
+    for(auto arg: args) constraint.args.push(module.types, arg);
+
+    env.dispatched.push(module.types, constraint);
+    invalidateGenSchema(env);
 }
 
 void requireTypeSlot(Module& module, GenEnv& env, TypePtr type) {

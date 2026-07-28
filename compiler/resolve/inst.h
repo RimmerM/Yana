@@ -516,6 +516,20 @@ struct InstCall: Inst {
  * Generics.md's first invariant asks for. The body has already decided *which class function*
  * and *with which type arguments*; specialization only supplies the instance.
  */
+/*
+ * How one slot of a callee's environment is filled at a call site.
+ *
+ * Exactly one of the two applies: either the caller knows the slot concretely and stores the address
+ * of an interned constant, or the slot is one of the caller's own type variables and the caller
+ * copies its own slot across.
+ */
+struct GenSlotFill {
+    ModulePtr<Global> constant = nullptr;
+    U16 forwarded = maxLimit<U16>;
+
+    bool isForwarded() const { return forwarded != maxLimit<U16>; }
+};
+
 struct InstGenCall: Inst {
     InstGenCall(ModulePtr<Block> block, TypePtr type, ModulePtr<Function> callee,
                 GlobalPtr<TypeClass> typeClass, U16 index):
@@ -535,8 +549,25 @@ struct InstGenCall: Inst {
 
     // Set when this call took the erased path rather than being specialized: the constant
     // environment the callee reads its slots out of, built for exactly these type arguments. Null
-    // for a call still waiting to be made concrete by an instantiation.
+    // for a call still waiting to be made concrete by an instantiation, and null for one whose
+    // environment cannot be a constant - see `fill`.
     ModulePtr<Global> env = nullptr;
+
+    /*
+     * How to build the callee's environment when it cannot be one interned constant.
+     *
+     * Implementation-Generics.md part 9 lists four ways to supply an environment, and the middle two
+     * are what this is for: a generic body calling another generic function knows some of the
+     * callee's slots concretely and has to project the rest out of its *own* environment. The result
+     * is a small table assembled on the frame from forwarded and static pointers.
+     *
+     * One entry per slot of the callee's schema, in that numbering. Empty when `env` covers it.
+     */
+    ModuleList<GenSlotFill, false> fill;
+
+    // For a class dispatch, which slot of the *caller's* environment holds the witness. Filled in
+    // after every requirement has been collected, since adding one renumbers the context.
+    U16 classSlot = maxLimit<U16>;
 };
 
 struct InstJe: Inst {

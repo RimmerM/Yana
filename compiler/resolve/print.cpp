@@ -632,6 +632,14 @@ static void printTable(ResolvePrint& print, Global& global_) {
                 named = true;
             }
 
+            for(auto word: global_.classWords.contents(print.local)) {
+                if(word != U32(offset)) continue;
+
+                print.writer.writeString(print.context.findName(
+                    print.global[GlobalPtr<TypeClass>(low)]->name));
+                named = true;
+            }
+
             if(!named) writeUInt(print.writer, low);
             print.writer.writeString(", "_v);
             writeUInt(print.writer, high);

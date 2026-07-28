@@ -620,6 +620,10 @@ ModulePtr<Value> ExprResolver::emitGenericDispatch(ClassMatch& match, Buffer<Mod
 
     requireClass(module, function, match.typeClass, toBuffer(match.args), source);
 
+    // Whatever the declared constraints imply, the dispatch itself needs a witness, and a witness
+    // needs a slot. See GenEnv::dispatched.
+    requireClassSlot(module, *env, match.typeClass, toBuffer(match.args), source);
+
     auto typeClass = global[match.typeClass];
     auto entry = typeClass->functions.get(global, match.index);
     auto signature = local[entry.fun];
@@ -656,24 +660,55 @@ ModulePtr<Value> ExprResolver::emitGenericDispatch(ClassMatch& match, Buffer<Mod
 ModulePtr<Value> ExprResolver::emitErasedCall(ModulePtr<Function> callee, Buffer<TypePtr> typeArgs,
                                               Buffer<ModulePtr<Value>> args, LocationId source,
                                               StringId resultName) {
-    // Built before anything is emitted, since a missing witness has to leave the call site
-    // untouched for the specializing path to take it instead.
-    auto errors = context.diagnostics.errorCount();
-    auto environment = genEnvFor(module, callee, typeArgs, source);
-
-    if(!environment || context.diagnostics.errorCount() != errors) return nullptr;
-
     auto generic = local[callee];
     auto resultType = substituteType(module, generic->returnType, typeArgs, source);
 
     generic->used = true;
     generic->genericallyUsed = true;
 
+    /*
+     * Every argument's convention still applies.
+     *
+     * An erased call is a different *representation* of the same call, so the callee's conventions
+     * mean exactly what they meant - a `&` parameter is still a mutable borrow of the caller's
+     * storage, a `->` still consumes, and a `return` argument is still loaned for the result's
+     * lifetime. Reading the value instead would hand a `&` parameter a copy, and the writes it made
+     * would land somewhere the caller never looks.
+     */
+    Array<ModulePtr<Value>> converted;
+    for(Size i = 0; i < args.length; i++) {
+        auto declared = local[generic->args.get(local, i)];
+        auto expected = substituteType(module, declared->type, typeArgs, source);
+
+        if(declared->isMutableBorrow()) {
+            converted.push(borrowArgument(args[i], expected, source));
+            continue;
+        }
+
+        auto value = convert(args[i], expected, source);
+        if(declared->convention == ast::BindType::Sink) value = sinkValue(value, source);
+
+        if(declared->returnRoot && value) {
+            if(auto place = findPlace(value)) {
+                value = ref(emit<InstBorrow>(source, 0, resolveBorrowType(module, expected, false),
+                                             place.unwrap(), false));
+            }
+        }
+
+        converted.push(value);
+    }
+
+    for(auto value: converted) {
+        if(!value) return nullptr;
+    }
+
+    // The environment itself is filled in by prepareGenericCalls, once the whole program has been
+    // resolved. It cannot be built here: a slot number comes from a finished context, and the
+    // callee's context is still collecting requirements while its body is being resolved.
     auto call = create<InstGenCall>(source, resultName, resultType, callee, nullptr, 0);
-    call->env = environment;
 
     for(auto argument: typeArgs) call->typeArgs.push(module.arena, argument);
-    for(auto value: args) call->args.push(module.arena, value);
+    for(auto value: converted) call->args.push(module.arena, value);
 
     append(call);
     auto result = ref(call);

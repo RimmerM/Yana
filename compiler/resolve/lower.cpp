@@ -265,6 +265,70 @@ static LowerPtr<LowerValue> sizeOfType(LowerContext& lower, LowerBlock& block, T
     return immediate(lower, typeSize(lower.global, type));
 }
 
+// The address of one compiler-built constant table.
+static LowerPtr<LowerValue> tableAddress(LowerContext& lower, LowerBlock& block, ModulePtr<Global> table) {
+    auto name = lower.local[table]->name;
+    auto target = lower.to.globals.getValue(name).unwrap();
+    auto value = block.addInst(lower.lower, new (lower.to.arena) LowerInstGlobal(name, target));
+
+    return value->created().ptr - lower.lower;
+}
+
+/*
+ * The environment one generic call hands its callee - Implementation-Generics.md part 9.
+ *
+ * Three of its four cases land here. A call whose every slot was concrete has one interned constant
+ * and nothing to build; a call from inside a generic body assembles a small table on the frame from
+ * the addresses it knows and the slots it was handed itself. The fourth case, a specialized call,
+ * never reaches lowering at all - it stopped being a generic call when it was specialized.
+ *
+ * The table is written once and never read back by this frame, so nothing about it needs to outlive
+ * the call: an alloca is exactly the right storage, and the callee holding a pointer to it for the
+ * duration of the call is the same contract an argument passed by address already has.
+ */
+static LowerPtr<LowerValue> genEnvironment(LowerContext& lower, LowerBlock& block, InstGenCall& call) {
+    if(call.env) return tableAddress(lower, block, call.env);
+
+    auto slots = call.fill;
+    auto bytes = immediate(lower, GenEnvLayout::sizeFor(slots.size()));
+    auto storage = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
+        0, bytes, GenEnvLayout::kAlign));
+
+    auto base = storage->created().ptr - lower.lower;
+    U16 index = 0;
+
+    for(auto slot: slots.contents(lower.local)) {
+        auto value = slot.isForwarded()
+            ? genSlot(lower, block, slot.forwarded)
+            : tableAddress(lower, block, slot.constant);
+
+        auto address = addOffset(lower, block, base, GenEnvLayout::slotOffset(index));
+        block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, value, 8));
+        index++;
+    }
+
+    return base;
+}
+
+/*
+ * The implementation a deferred class dispatch resolves to.
+ *
+ * Two loads and no search: the witness out of the environment slot the schema numbered, and the
+ * method out of the witness at the index the class declared. Which instance that witness belongs to
+ * was decided by whoever built the environment, which is exactly the point - the body doing the
+ * dispatching never learns what type it is dispatching on.
+ */
+static LowerPtr<LowerValue> genMethod(LowerContext& lower, LowerBlock& block, InstGenCall& call) {
+    auto witness = genSlot(lower, block, call.classSlot);
+    auto argCount = U16(lower.global[lower.global[call.typeClass]->gen]->types.size());
+    auto offset = ClassWitnessLayout::methodsOffset(argCount) + 8 * call.index;
+
+    auto address = addOffset(lower, block, witness, offset);
+    auto method = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, 0);
+
+    return method->created().ptr - lower.lower;
+}
+
 // What a teardown's place holds. A generic teardown only ever names a whole local - a partial move
 // is rejected long before here - so a root that is anything else is a concrete one by construction.
 static TypePtr dropPlaceType(LowerContext& lower, Function& function, const Place& place) {
@@ -904,12 +968,28 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
              */
             auto& callInst = (InstGenCall&)instruction;
             auto callee = lower.local[callInst.callee];
-            auto target = lower.functions.getValue(callInst.callee).unwrap();
-            auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, target));
 
-            auto environment = lower.to.globals.getValue(lower.local[callInst.env]->name).unwrap();
-            auto envValue = block.addInst(lower.lower, new (lower.to.arena) LowerInstGlobal(
-                lower.local[callInst.env]->name, environment));
+            /*
+             * Two shapes reach here, and they differ only in where the code address comes from.
+             *
+             * A call to a generic *function* names it, and passes the environment the callee reads
+             * its own slots out of. A deferred *class* dispatch names nothing: the implementation is
+             * chosen by whoever supplied this function's environment, so the address is loaded out
+             * of the witness sitting in one of its slots, and the callee - being a concrete thunk -
+             * needs no environment of its own.
+             */
+            auto dispatched = callInst.typeClass != nullptr;
+            LowerPtr<LowerValue> address = nullptr;
+            LowerPtr<LowerValue> envValue = nullptr;
+
+            if(dispatched) {
+                address = genMethod(lower, block, callInst);
+            } else {
+                auto target = lower.functions.getValue(callInst.callee).unwrap();
+                auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, target));
+                address = fun->created().ptr - lower.lower;
+                envValue = genEnvironment(lower, block, callInst);
+            }
 
             /*
              * The concrete-to-erased boundary.
@@ -941,10 +1021,20 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 auto value = mappedValue(lower, arg);
                 auto concrete = lower.local[arg]->type;
 
-                auto declared = argIndex < callee->args.size()
-                    ? lower.local[callee->args.get(lower.local, argIndex)]->type : nullptr;
+                auto parameter = argIndex < callee->args.size()
+                    ? lower.local[callee->args.get(lower.local, argIndex)] : nullptr;
 
-                if(declared && isGeneric(lower.global, declared) && !isMemoryType(lower.global, concrete)) {
+                /*
+                 * A `&` parameter is an address in both worlds, so there is nothing to adapt: the
+                 * caller already passes a borrow. Boxing it would hand the callee the address of
+                 * the borrow rather than of what was borrowed, and every write through it would
+                 * land in a temporary the caller never reads - which is exactly the bug this
+                 * condition exists to avoid.
+                 */
+                auto byAddress = parameter && parameter->isMutableBorrow();
+
+                if(parameter && !byAddress && isGeneric(lower.global, parameter->type) &&
+                   !isMemoryType(lower.global, concrete)) {
                     value = materialize(value, concrete);
                 }
 
@@ -972,17 +1062,17 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             }
 
             auto created = isUnit(lower.global, instruction.type) || erasedResult ? 0 : 1;
-            auto used = arguments.size() + 2 + (erasedResult ? 1 : 0);
+            auto used = arguments.size() + 1 + (envValue ? 1 : 0) + (erasedResult ? 1 : 0);
 
-            result = call(lower.lower, lower.to, block, created, used, lower.lower[target]->callType, [&](LowerInstCall* call) {
+            result = call(lower.lower, lower.to, block, created, used, kDefaultCallType, [&](LowerInstCall* call) {
                 if(created) {
                     new (call->created().ptr) LowerValue(call, lowerType(lower.global, instruction.type), instruction.name);
                 }
 
-                call->used()[0] = fun->created().ptr - lower.lower;
-                call->used()[1] = envValue->created().ptr - lower.lower;
+                call->used()[0] = address;
 
-                Size index = 2;
+                Size index = 1;
+                if(envValue) call->used()[index++] = envValue;
                 if(erasedResult) call->used()[index++] = returnPlace;
 
                 for(auto argument: arguments) call->used()[index++] = argument;

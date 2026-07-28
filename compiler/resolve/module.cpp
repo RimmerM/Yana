@@ -5,6 +5,7 @@
 #include "generic.h"
 #include "name.h"
 #include "native.h"
+#include "witness.h"
 #include "../parse/ast.h"
 
 /*
@@ -1715,6 +1716,13 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
     // Bodies come last, and for every module at once: a Core instance may call a function that
     // only the root module's signatures made resolvable.
     for(auto entry: program->modules) resolveModuleBodies(*entry);
+
+    // The generic environments come before ownership, because filling them generates real
+    // functions - the erased entry thunk of every class method a witness holds - and those need
+    // drops inserted like any other body. They come after every body is resolved for the opposite
+    // reason: a slot number is derived from a finished context, and a body collects requirements
+    // while it is being resolved.
+    prepareGenericCalls(*program);
 
     // Ownership runs over the finished program rather than per module, because a generic
     // function's specializations only exist once every body that calls one has been resolved -

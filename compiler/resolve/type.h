@@ -456,6 +456,22 @@ struct GenEnv {
     GlobalList<TypePtr> derivedTypes;
 
     GlobalList<ClassConstraint> classes;
+
+    /*
+     * Classes the body dispatches on that `classes` does not name directly.
+     *
+     * A requirement one already in scope *implies* is deliberately not recorded as a constraint -
+     * `fn (Num(a)) inc(x: a) = x + 1` declares `Num(a)` and not also the `FromInt(a)` its superclass
+     * guarantees, because a diagnostic naming both would be naming the same promise twice.
+     *
+     * At run time the distinction disappears: the literal's `fromInt` is dispatched through a
+     * witness, and a witness has to be in a slot. So the implied ones get slots of their own here,
+     * kept apart from the declared list so that only what the author wrote is printed. A witness
+     * table that linked to its superclasses' would make this unnecessary; that is what
+     * Implementation-Generics.md part 6 means by superclasses referencing other class witnesses.
+     */
+    GlobalList<ClassConstraint> dispatched;
+
     GlobalList<PropertyConstraint> properties;
     GlobalList<FunctionConstraint> functions;
     Kind kind;
@@ -483,6 +499,11 @@ inline void invalidateGenSchema(GenEnv& env) { env.schema = nullptr; }
 // slot. These are what an emitted load of an environment slot is built from.
 U16 genTypeSlot(Module& module, GenEnv& env, TypePtr type);
 U16 genClassSlot(Module& module, GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
+
+// Records that the body dispatches on this class, giving it a slot if it does not have one. Adding
+// one renumbers the context, so this happens while the body is being resolved and never after.
+void requireClassSlot(Module& module, GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
+                      LocationId source);
 U16 genPropertySlot(Module& module, GenEnv& env, TypePtr owner, StringId field);
 U16 genFunctionSlot(Module& module, GenEnv& env, StringId name, TypePtr signature);
 
