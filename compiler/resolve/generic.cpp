@@ -81,6 +81,7 @@ void requireClass(Module& module, Function& function, GlobalPtr<TypeClass> typeC
     for(auto arg: args) constraint.args.push(module.types, arg);
 
     env->classes.push(module.types, constraint);
+    invalidateGenSchema(*env);
 }
 
 /*
@@ -284,8 +285,18 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             break;
         }
         case Value::Copy: {
-            auto cloned = resolver.emit<InstCopy>(inst.source, inst.name, type,
-                                                  clonePlace(clone, ((InstCopy&)inst).place));
+            auto place = clonePlace(clone, ((InstCopy&)inst).place);
+
+            // A duplicate of something that turned out to be register-sized is a load, and nothing
+            // else: there is no second storage to make, so what the generic body wrote as "an
+            // independent copy with its own root" is already true of the loaded value. This is the
+            // same reconciliation the materialization above performs on the way in.
+            if(!isMemoryType(clone.global, type)) {
+                result = resolver.emit<InstLoadPlace>(inst.source, inst.name, type, place);
+                break;
+            }
+
+            auto cloned = resolver.emit<InstCopy>(inst.source, inst.name, type, place);
 
             if(((InstCopy&)inst).local != maxLimit<U32>) {
                 cloned->local = resolver.function.addLocal(clone.module, type, inst.name,
@@ -408,6 +419,71 @@ static void cloneBody(Clone& clone, Function& to) {
         });
     }
 
+    /*
+     * Parameters that stopped being addresses.
+     *
+     * A generic body reaches a value of unknown size through its storage, because that is the only
+     * thing it can do without knowing the size - and so a parameter of type `a` gets a local and
+     * every use of it is a place. Substituting a scalar for `a` takes that away: the argument now
+     * arrives in a register, and the places the body already built have nothing to point at.
+     *
+     * So the specialization gives it storage back. This is the same materialization the erased ABI
+     * performs at a concrete-to-erased boundary, done at clone time instead, and it is what keeps
+     * Implementation-Generics.md's first invariant intact: the body's decisions are preserved
+     * exactly, and only their representation is adapted.
+     */
+    Array<bool> materialized;
+    Array<bool> addressed;
+    for(Size i = 0; i < from.localCount(); i++) {
+        materialized.push(false);
+        addressed.push(false);
+    }
+
+    auto note = [&](const Place& place) {
+        if(place.root == PlaceRoot::Local && place.local < addressed.size()) addressed[place.local] = true;
+    };
+
+    for(auto blockPointer: from.blocks.contents(local)) {
+        auto block = local[blockPointer];
+
+        for(auto instruction: block->instructions.contents(local)) {
+            auto& inst = *local[instruction];
+
+            switch(inst.kind) {
+                case Value::LoadPlace: note(((InstLoadPlace&)inst).place); break;
+                case Value::Init:
+                case Value::Assign: note(((InstInit&)inst).place); break;
+                case Value::Borrow: note(((InstBorrow&)inst).place); break;
+                case Value::Move: note(((InstMove&)inst).place); break;
+                case Value::Copy: note(((InstCopy&)inst).place); break;
+                case Value::Address: note(((InstAddress&)inst).place); break;
+                case Value::Drop: note(((InstDrop&)inst).place); break;
+                default: break;
+            }
+        }
+    }
+
+    clone.resolver.current = to.blocks.get(local, 0);
+
+    for(Size i = 0; i < from.localCount(); i++) {
+        auto slot = from.localAt(local, U32(i));
+        if(!addressed[i]) continue;
+        if(slot.borrowed || !slot.value || local[slot.value]->kind != Value::Arg) continue;
+
+        auto target = to.localAt(local, U32(i));
+        if(!isMemoryType(clone.global, slot.type) || isMemoryType(clone.global, target.type)) continue;
+
+        auto argument = cloneValue(clone, slot.value);
+        if(!argument) continue;
+
+        auto allocation = clone.resolver.emit<InstAlloc>(clone.source, target.name, target.type, U32(i));
+        target.value = clone.resolver.ref(allocation);
+        to.locals.set(local, i, target);
+        materialized[i] = true;
+
+        clone.resolver.initialize(Place::inLocal(U32(i)), argument, clone.source);
+    }
+
     // Phi shells first: a phi is the one instruction whose operands need not dominate it, so
     // anything else may reference one before the block it lives in has been reached.
     for(auto blockPointer: from.blocks.contents(local)) {
@@ -447,6 +523,8 @@ static void cloneBody(Clone& clone, Function& to) {
     }
 
     for(Size i = 0; i < from.localCount(); i++) {
+        if(materialized[i]) continue;
+
         auto slot = to.localAt(local, U32(i));
         slot.value = cloneValue(clone, from.localAt(local, U32(i)).value);
         to.locals.set(local, i, slot);

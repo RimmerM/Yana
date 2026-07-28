@@ -527,7 +527,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
              * the storage is still there to do it in.
              */
             auto& dropped = (InstDrop&)instruction;
-            assertTrue(dropped.implementation != nullptr || dropped.releaseStorage);
+            assertTrue(!dropped.isEmpty());
             assertTrue(dropped.flag == maxLimit<U32>);
 
             auto address = lowerPlace(lower, block, *function, dropped.place);
@@ -543,12 +543,18 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 });
             };
 
-            if(dropped.implementation) result = callWith(dropped.implementation);
-
-            if(dropped.releaseStorage) {
+            auto step = [&](ModulePtr<Function> callee) {
+                if(!callee) return;
                 if(result) result->source = instruction.source;
-                result = callWith(lower.from.freeHeap);
-            }
+                result = callWith(callee);
+            };
+
+            step(dropped.drop);
+            step(dropped.reclaim);
+
+            // Handing back this allocation is the last thing that happens to it, after both halves
+            // have finished reading it.
+            if(dropped.releaseStorage) step(lower.from.freeHeap);
 
             break;
         }
@@ -841,6 +847,16 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         context, program, *result, *program.types, *program.arena, *result->arena
     };
 
+    // The compiler-built tables whose relocations still have to be translated. Kept until every
+    // function exists, since a TypeDesc holds the address of teardown glue that has not been
+    // created yet when the table itself is.
+    struct RelocatedGlobal {
+        ModulePtr<Global> source;
+        LowerPtr<LowerGlobal> target;
+    };
+
+    Array<RelocatedGlobal> relocated;
+
     // Globals come first: a function's very first instruction may take the address of one, and
     // the lower module resolves that by name.
     for(auto module: program.modules) {
@@ -851,18 +867,28 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
             auto target = new (result->arena) LowerGlobal(source->name);
             target->mut = source->mut;
 
-            // A scalar starts as the bytes of its constant and an aggregate as zeroes, which is
-            // the same statement in both cases: the global's Repr, filled from `initial`.
-            auto size = typeSize(lower.global, source->type);
-            target->initialContents = ByteBuffer((Byte*)result->arena.alloc(size), size);
-            set(target->initialContents.ptr, size, 0);
+            if(source->contents.length) {
+                // A compiler-built table brings its own bytes. Its relocations are translated
+                // here rather than resolved: what they point at may not have been emitted yet,
+                // and the address they hold is not known until the module is placed.
+                auto size = source->contents.length;
+                target->initialContents = ByteBuffer((Byte*)result->arena.alloc(size), size);
+                copy(source->contents.ptr, target->initialContents.ptr, size);
+            } else {
+                // A scalar starts as the bytes of its constant and an aggregate as zeroes, which
+                // is the same statement in both cases: the global's Repr, filled from `initial`.
+                auto size = typeSize(lower.global, source->type);
+                target->initialContents = ByteBuffer((Byte*)result->arena.alloc(size), size);
+                set(target->initialContents.ptr, size, 0);
 
-            if(isDirectType(lower.global, source->type)) {
-                copy((const Byte*)&source->initial, target->initialContents.ptr,
-                     size < sizeof(U64) ? Size(size) : sizeof(U64));
+                if(isDirectType(lower.global, source->type)) {
+                    copy((const Byte*)&source->initial, target->initialContents.ptr,
+                         size < sizeof(U64) ? Size(size) : sizeof(U64));
+                }
             }
 
             *result->globals.add(source->name).value = target - lower.lower;
+            relocated.push(RelocatedGlobal { globalPointer, target - lower.lower });
         }
     }
 
@@ -890,6 +916,36 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         }
 
         lower.functions.add(functionPointer, target - lower.lower);
+    }
+
+    // Now that every function and every global exists, the tables that hold their addresses can say
+    // which ones. The addresses themselves are still unknown - that is the loader's half.
+    for(auto& entry: relocated) {
+        auto source = lower.local[entry.source];
+        auto target = lower.lower[entry.target];
+
+        for(auto relocation: source->relocations.contents(lower.local)) {
+            LowerDataRelocation translated;
+            translated.offset = relocation.offset;
+
+            if(relocation.function) {
+                auto found = lower.functions.getValue(relocation.function);
+
+                // A table naming a function nothing else reached is what keeps that function alive,
+                // so this should not happen; leaving the slot null is still better than pointing it
+                // at the wrong thing.
+                if(!found) continue;
+                translated.function = found.unwrap();
+            } else if(relocation.global) {
+                auto found = result->globals.getValue(lower.local[relocation.global]->name);
+                if(!found) continue;
+                translated.global = found.unwrap();
+            } else {
+                continue;
+            }
+
+            target->relocations.push(result->arena, translated);
+        }
     }
 
     for(auto functionPointer: emitted) {

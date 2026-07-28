@@ -1,4 +1,9 @@
 (Num(a)) fn inc(%x: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
   b0:
     %v4 = gencall FromInt(a).fromInt, 1 : a
     %v2 = gencall Num(a).+, %x, %v4 : a
@@ -6,6 +11,11 @@
 }
 
 (FromInt(a)) fn two() -> a {
+  schema {
+    #0 type a
+    #1 class FromInt(a)
+  }
+
   b0:
     %v2 = gencall FromInt(a).fromInt, 2 : a
     ret %v2

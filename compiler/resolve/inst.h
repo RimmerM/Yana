@@ -383,34 +383,48 @@ struct InstCopy: Inst {
 /*
  * The end of a value's lifetime, inserted by the drop pass and never by the AST resolver.
  *
- * `kind` is carried rather than looked up from the type because region placement elides one and
- * not the other (Implementation-Regions.md part 5), so the decision has to be visible in the IR
- * rather than re-derived from a type by whoever lowers it.
+ * Design-Memory §4 splits teardown in two, and this instruction carries both because they are
+ * elidable under different conditions and a later pass must not have to re-derive which is which:
  *
- * `flag` is set only where control flow made the drop conditional - a value moved out of on one
+ *  - `drop` is the effect - closing a socket, unlocking a mutex - and is never elided, on any
+ *    target, ever;
+ *  - `reclaim` releases the value's own storage, and specializes away entirely wherever something
+ *    else reclaims it in bulk (a region reset, the JS host's collector).
+ *
+ * They run in that order, which is the only order that works: whatever the drop does, it does while
+ * the storage it does it in is still there. `releaseStorage` is the last step and is the reclaim
+ * half of *this* allocation rather than of its members - see selectStorage.
+ *
+ * `flag` is set only where control flow made the teardown conditional - a value moved out of on one
  * arm of a branch and not the other. It names an I8 local holding 1 while the place still owns
  * something, which is the standard drop-elaboration answer to a question no amount of static
  * analysis can settle.
  */
 struct InstDrop: Inst {
-    InstDrop(ModulePtr<Block> block, TypePtr unit, Place place, DropKind kind):
-        Inst(Value::Drop, block, unit), place(place), kind(kind) {}
+    InstDrop(ModulePtr<Block> block, TypePtr unit, Place place, TeardownKind dropKind,
+             TeardownKind reclaimKind):
+        Inst(Value::Drop, block, unit), place(place), dropKind(dropKind), reclaimKind(reclaimKind) {}
 
     Place place;
 
-    // The implementation to run: an authored `Drop` instance, or the glue synthesized for a
-    // derived one. Null when the type's drop is empty, which the pass elides rather than emits.
-    ModulePtr<Function> implementation = nullptr;
+    // What to run for each half: an authored instance, or the glue synthesized for a derived one.
+    // Null where that half is empty, which the pass elides rather than emits.
+    ModulePtr<Function> drop = nullptr;
+    ModulePtr<Function> reclaim = nullptr;
 
-    // The drop flag's local, or maxLimit when the drop is unconditional.
+    // The drop flag's local, or maxLimit when the teardown is unconditional.
     U32 flag = maxLimit<U32>;
-    DropKind kind;
 
-    // Set when this place's own storage has to be handed back as well as dropped - a heap-placed
-    // allocation whose frame owns it. The two are separate because most drops release nothing of
-    // their own (the storage is the frame's, and the frame returning is the release) and because a
-    // type with no drop at all can still be heap-placed.
+    TeardownKind dropKind;
+    TeardownKind reclaimKind;
+
+    // Set when this place's own storage has to be handed back as well - a heap-placed allocation
+    // whose frame owns it. Separate from `reclaim` because most values release nothing of their own
+    // (the storage is the frame's, and the frame returning is the release) and because a type with
+    // no teardown at all can still be heap-placed.
     bool releaseStorage = false;
+
+    bool isEmpty() const { return !drop && !reclaim && !releaseStorage; }
 };
 
 // The address of a place, as a raw pointer. This is what `addressOf` compiles to, and it is the

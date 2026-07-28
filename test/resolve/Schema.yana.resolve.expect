@@ -1,0 +1,183 @@
+fn identity(%value: a) -> a {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    ret %value
+}
+
+(Num(a)) fn scale(%x: a, %y: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
+  b0:
+    %v2 = gencall Num(a).*, %x, %y : a
+    %v3 = gencall Num(a).+, %v2, %x : a
+    ret %v3
+}
+
+(Ord(a)) fn smallest(%x: a, %y: a, %z: a) -> a {
+  schema {
+    #0 type a
+    #1 class Ord(a)
+  }
+
+  b0:
+    %v3 = gencall Ord(a).<, %x, %y : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = gencall Ord(a).<, %x, %z : Bool
+    je %v5, b3, b4
+
+  b2:
+    %v10 = gencall Ord(a).<, %y, %z : Bool
+    je %v10, b6, b7
+
+  b3:
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v9 = phi [b3, %x], [b4, %z] : a
+    jmp b9
+
+  b6:
+    jmp b8
+
+  b7:
+    jmp b8
+
+  b8:
+    %v14 = phi [b6, %y], [b7, %z] : a
+    jmp b9
+
+  b9:
+    %v17 = phi [b5, %v9], [b8, %v14] : a
+    ret %v17
+}
+
+(Eq(a), Eq(b)) fn bothEqual(%p: a, %q: a, %r: b, %s: b) -> Bool {
+  schema {
+    #0 type a
+    #1 type b
+    #2 class Eq(a)
+    #3 class Eq(b)
+  }
+
+  b0:
+    %v4 = gencall Eq(a).==, %p, %q : Bool
+    %v5 = gencall Eq(b).==, %r, %s : Bool
+    %v6 = and %v4, %v5 : Bool
+    ret %v6
+}
+
+fn pairUp(%x: a, %y: b) -> Pair(a, b) {
+  schema {
+    #0 type a
+    #1 type b
+    #2 type Pair(a, b)
+  }
+
+  b0:
+    %v2 = alloc : Pair(a, b)
+    init %local2@Pair.first, %x
+    init %local2@Pair.second, %y
+    ret %v2
+}
+
+fn main() -> Int {
+  b0:
+    %v2 = call identity(Int), 1 : Int
+    %v7 = call scale(Int), 2, 3 : Int
+    %v8 = add %v2, %v7 : Int
+    %v15 = call smallest(Int), 9, 4, 7 : Int
+    %v16 = add %v8, %v15 : Int
+    %v23 = call bothEqual(Int, Bool), 1, 1, True, True : Bool
+    je %v23, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v31 = phi [b1, 5], [b2, 0] : Int
+    %v32 = add %v16, %v31 : Int
+    %v36 = call pairUp(Int, Bool), 20, False : Pair(Int, Bool)
+    %v37 = load %local0@Pair.first : Int
+    %v38 = add %v32, %v37 : Int
+    ret %v38
+}
+
+fn identity(Int)(%value: Int) -> Int {
+  b0:
+    ret %value
+}
+
+fn scale(Int)(%x: Int, %y: Int) -> Int {
+  b0:
+    %v2 = mul %x, %y : Int
+    %v3 = add %v2, %x : Int
+    ret %v3
+}
+
+fn smallest(Int)(%x: Int, %y: Int, %z: Int) -> Int {
+  b0:
+    %v6 = cmp_lt %x, %y : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v8 = cmp_lt %x, %z : Bool
+    je %v8, b3, b4
+
+  b2:
+    %v10 = cmp_lt %y, %z : Bool
+    je %v10, b6, b7
+
+  b3:
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v3 = phi [b3, %x], [b4, %z] : Int
+    jmp b9
+
+  b6:
+    jmp b8
+
+  b7:
+    jmp b8
+
+  b8:
+    %v4 = phi [b6, %y], [b7, %z] : Int
+    jmp b9
+
+  b9:
+    %v5 = phi [b5, %v3], [b8, %v4] : Int
+    ret %v5
+}
+
+fn bothEqual(Int, Bool)(%p: Int, %q: Int, %r: Bool, %s: Bool) -> Bool {
+  b0:
+    %v4 = cmp_eq %p, %q : Bool
+    %v5 = cmp_eq %r, %s : Bool
+    %v6 = and %v4, %v5 : Bool
+    ret %v6
+}
+
+fn pairUp(Int, Bool)(%x: Int, %y: Bool) -> Pair(Int, Bool) {
+  b0:
+    %v2 = alloc : Pair(Int, Bool)
+    init %local2@Pair.first, %x
+    init %local2@Pair.second, %y
+    ret %v2
+}

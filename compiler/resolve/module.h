@@ -163,6 +163,18 @@ struct Function {
 };
 
 /*
+ * One address inside a compiler-built constant that only the loader can fill in - see
+ * LowerDataRelocation, which this becomes.
+ */
+struct GlobalRelocation {
+    U32 offset = 0;
+
+    // Exactly one of these is set.
+    ModulePtr<Function> function = nullptr;
+    ModulePtr<Global> global = nullptr;
+};
+
+/*
  * A module-level storage slot.
  *
  * A global is storage nothing owns and every function can reach, which is why the language keeps
@@ -172,6 +184,11 @@ struct Function {
  * Its initializer is a constant rather than an expression, because there is no program point at
  * which module-level code would run. A scalar's bytes are its value; anything larger starts as
  * zeroes, which is what a pointer table or a control block wants anyway.
+ *
+ * `contents` is the exception, and it exists for the tables the *compiler* writes rather than the
+ * program: a TypeDesc, a class witness, a property witness. Those are constants of a shape no
+ * source type describes and they contain addresses, so they carry their own bytes and their own
+ * relocations instead of being described by `type` and `initial`.
  */
 struct Global {
     Global(Module* module, StringId name): module(module), name(name) {}
@@ -184,6 +201,11 @@ struct Global {
     // The scalar constant this starts at, in the bit pattern of its own type. Aggregates leave it
     // zero and are emitted as zeroed storage of their Repr's size.
     U64 initial = 0;
+
+    // Set for a compiler-built constant table. When present it is the whole of the global's
+    // storage: `type` and `initial` say nothing about one.
+    ByteBuffer contents;
+    ModuleList<GlobalRelocation, false> relocations;
 
     bool mut = false;
     bool used = false;
@@ -276,14 +298,26 @@ struct Program {
     GlobalList<GlobalPtr<TupType>> tupleTypes;
     GlobalList<GlobalPtr<PtrType>> pointerTypes;
     GlobalList<GlobalPtr<BorrowType>> borrowTypes;
+    GlobalList<GlobalPtr<FunType>> funTypes;
 
     // Instantiations created before the declaration they came from had been read, waiting for
     // their constructor contents. Drained by completePendingInstances().
     Array<GlobalPtr<RecordType>> pendingInstances;
 
-    // The synthesized derived-drop glue, interned per type. Registered before its body is built,
-    // so a type reachable from itself terminates instead of generating glue forever.
+    // The synthesized derived teardown glue, interned per type and per half. Registered before its
+    // body is built, so a type reachable from itself terminates instead of generating glue forever.
     HashMap<U32, ModulePtr<Function>> dropGlue;
+    HashMap<U32, ModulePtr<Function>> reclaimGlue;
+
+    HashMap<U32, ModulePtr<Function>> moveInitGlue;
+
+    // The instances of TrivialCopy and TrivialSink the compiler answers structurally, interned per
+    // (class, type). See structuralInstance in name.cpp.
+    HashMap<U64, ModulePtr<ClassInstance>> structuralInstances;
+
+    // The runtime half of the generic model, interned per type - see witness.h. A TypeDesc is
+    // built the first time something generic needs to know about a type it cannot see.
+    HashMap<U32, ModulePtr<Global>> typeDescs;
 
     // What the ownership passes found, per function, kept for printing rather than for any later
     // stage - see analyze.h. Held behind a pointer because analyze.h is written against this

@@ -1,0 +1,113 @@
+
+bothEqual(Int, Bool)<complex>(%p: Int, %q: Int, %r: Int, %s: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %p, %q: Int
+    %v_2 = cmp_eq %r, %s: Int
+    %v_3 = and %v_1, %v_2: Int
+    ret %v_3
+  }
+}
+
+scale(Int)<complex>(%x: Int, %y: Int): Int {
+  b_0 {
+    %v_1 = imul %x, %y: Int
+    %v_2 = add %v_1, %x: Int
+    ret %v_2
+  }
+}
+
+smallest(Int)<complex>(%x: Int, %y: Int, %z: Int): Int {
+  b_0 {
+    %v_1 = cmp_ilt %x, %y: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = cmp_ilt %x, %z: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_3 {
+    %v_7 = cmp_ilt %y, %z: Int
+    je %v_7, b_8, b_9
+  }
+
+  b_5 {
+    jmp b_10
+  }
+
+  b_6 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = phi [b_5, %x], [b_6, %z]: Int
+    jmp b_12
+  }
+
+  b_8 {
+    jmp b_13
+  }
+
+  b_9 {
+    jmp b_13
+  }
+
+  b_13 {
+    %v_14 = phi [b_8, %y], [b_9, %z]: Int
+    jmp b_12
+  }
+
+  b_12 {
+    %v_15 = phi [b_10, %v_11], [b_13, %v_14]: Int
+    ret %v_15
+  }
+}
+
+pairUp(Int, Bool)<complex>(%v_0: Ptr, %x: Int, %y: Int) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, %x, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, %y, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex identity(Int), 1: Int
+    %v_2 = call_complex scale(Int), 2, 3: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = call_complex smallest(Int), 9, 4, 7: Int
+    %v_5 = add %v_3, %v_4: Int
+    %v_6 = call_complex bothEqual(Int, Bool), 1, 1, 1, 1: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    jmp b_9
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_7, 5], [b_8, 0]: Int
+    %v_11 = add %v_5, %v_10: Int
+    %v_12 = alloca 8, 4: Ptr
+    call_complex pairUp(Int, Bool), %v_12, 20, 0
+    %v_13 = loads %v_12, 4: Int
+    %v_14 = add %v_11, %v_13: Int
+    ret %v_14
+  }
+}
+
+identity(Int)<complex>(%value: Int): Int {
+  b_0 {
+    ret %value
+  }
+}
+

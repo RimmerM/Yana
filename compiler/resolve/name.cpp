@@ -231,9 +231,58 @@ static const U32 kProofDepth = 8;
 static bool instanceApplies(Module& module, ClassInstance& instance, Buffer<TypePtr> args,
                             Array<TypePtr>& bindings, U32 depth);
 
+/*
+ * The two classes nobody writes an instance of.
+ *
+ * TrivialCopy and TrivialSink hold for a type exactly when they hold for every one of its members,
+ * which is a question the compiler already answers structurally and long before typeclass dispatch
+ * exists. Rather than making them a special case at every site that asks, one instance is interned
+ * per type the structural answer says yes for, so requirement proving, witness construction and
+ * printing all see an ordinary instance of an ordinary class.
+ *
+ * A generic type is deliberately never answered: Design-Memory §2.1 fixes a generic body's
+ * behaviour by its own signature, so an unconstrained `a` must not acquire TrivialCopy from the
+ * type one call site happened to substitute. The constraint has to be declared, and a declared one
+ * is proved through the context rather than through here.
+ */
+static ModulePtr<ClassInstance> structuralInstance(Module& module, GlobalPtr<TypeClass> typeClass,
+                                                   Buffer<TypePtr> args) {
+    auto& classes = module.coreClasses;
+    if(!typeClass || args.length != 1) return nullptr;
+
+    auto wantsCopy = typeClass == classes.trivialCopy;
+    if(!wantsCopy && typeClass != classes.trivialSink) return nullptr;
+
+    auto type = args[0];
+    if(!type || isGeneric(*module.types, type)) return nullptr;
+
+    auto ownership = ownershipOf(module, type);
+    if(wantsCopy ? !ownership.trivialCopy : !ownership.trivialSink) return nullptr;
+
+    auto key = (U64(U32(typeClass)) << 32) | U64(U32(type));
+    auto& interned = module.program.structuralInstances;
+    if(auto found = interned.get(key)) return found.unwrap();
+
+    // Built in Core, where the class is, because it says nothing about any other module: what makes
+    // it true is the shape of the type, which every module that can see the type agrees on.
+    auto& core = *module.program.core;
+    auto instance = new (core.arena) ClassInstance(typeClass);
+    instance->module = &core;
+    instance->forTypes.push(core.arena, type);
+
+    auto pointer = instance - *core.arena;
+    *interned.add(key).value = pointer;
+    return pointer;
+}
+
 static InstanceMatch matchInstanceAt(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
                                      U32 depth) {
     auto local = *module.arena;
+
+    if(auto structural = structuralInstance(module, typeClass, args)) {
+        return InstanceMatch { structural, {} };
+    }
+
     Array<ModulePtr<ClassInstance>> candidates;
     findInstances(module, typeClass, candidates);
 

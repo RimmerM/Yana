@@ -133,6 +133,11 @@ fn loop(%value: Int) -> Int {
 }
 
 (Truth(a)) fn present(%value: a) -> Int {
+  schema {
+    #0 type a
+    #1 class Truth(a)
+  }
+
   b0:
     %v1 = gencall Truth(a).truthy, %value : Bool
     je %v1, b1, b2

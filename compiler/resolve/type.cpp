@@ -1,4 +1,5 @@
 #include "type.h"
+#include "generic.h"
 #include "module.h"
 #include "name.h"
 
@@ -165,6 +166,19 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
             auto borrow = (BorrowType*)global[type];
             return resolveBorrowType(module, substituteType(module, borrow->to, args, source), borrow->mut);
         }
+        case Type::Fun: {
+            auto function = (FunType*)global[type];
+            Array<FunArg> substituted;
+
+            for(auto arg: function->args.contents(global)) {
+                substituted.push(FunArg {
+                    substituteType(module, arg.type, args, source), arg.name, arg.convention, arg.returnRoot,
+                });
+            }
+
+            return resolveFunType(module, toBuffer(substituted),
+                                  substituteType(module, function->result, args, source), function->kind);
+        }
         default:
             return type;
     }
@@ -233,6 +247,28 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
             if(patternBorrow->mut != concreteBorrow->mut) return false;
             return matchType(global, patternBorrow->to, concreteBorrow->to, bindings);
         }
+        case Type::Fun: {
+            auto patternFun = (FunType*)global[pattern];
+            auto concreteFun = (FunType*)global[concrete];
+
+            // The conventions and the `return` group have to agree exactly rather than being
+            // inferred from the match, for the reason FunArg gives: they are the contract a caller
+            // reading only the type has, so a match that ignored them would let a `&` parameter
+            // bind to a signature that takes a copy.
+            if(patternFun->kind != concreteFun->kind) return false;
+            if(patternFun->args.size() != concreteFun->args.size()) return false;
+            if(patternFun->returnRoots != concreteFun->returnRoots) return false;
+
+            for(Size i = 0; i < patternFun->args.size(); i++) {
+                auto patternArg = patternFun->args.get(global, i);
+                auto concreteArg = concreteFun->args.get(global, i);
+
+                if(patternArg.convention != concreteArg.convention) return false;
+                if(!matchType(global, patternArg.type, concreteArg.type, bindings)) return false;
+            }
+
+            return matchType(global, patternFun->result, concreteFun->result, bindings);
+        }
         default:
             // A kind with no structure to walk into matches only itself, which is what the identity
             // above already answered for everything except a generic type of such a kind.
@@ -262,8 +298,162 @@ GlobalPtr<GenType> genVariable(Module& module, GenEnv& env, StringId name) {
     auto type = new (module.types) GenType(&env - global, name, U16(env.types.size()));
     auto pointer = type - global;
     env.types.push(module.types, pointer);
+    invalidateGenSchema(env);
 
     return pointer;
+}
+
+/*
+ * The canonical numbering.
+ *
+ * Built in the order Implementation-Generics.md part 2 gives, and the order matters for exactly one
+ * reason: emitted code loads slot N, so the caller filling the environment and the callee reading it
+ * have to agree on what N is without either of them consulting the other. Deriving the numbering
+ * from the finished context is what makes them agree - two compilations of the same context produce
+ * the same numbers, however the requirements were discovered.
+ *
+ * Within each group the source order is kept rather than sorted. The declared variables and the
+ * explicit constraints have a written order that a diagnostic can point at, and the inferred ones
+ * are deduplicated structurally as they are added (see requireClass), so what is left is already
+ * the order in which the body first needed each of them.
+ */
+GenSchema& genSchemaOf(Module& module, GenEnv& env) {
+    auto global = *module.types;
+    if(env.schema) return *global[env.schema];
+
+    auto schema = new (module.types) GenSchema;
+    env.schema = schema - global;
+
+    U16 index = 0;
+
+    // 1. The type variables, in declaration order, then the derived type expressions the body
+    //    needed. Both are TypeDesc slots and are numbered together, because what distinguishes them
+    //    is where they came from rather than what a reader does with them.
+    for(auto variable: env.types.contents(global)) {
+        GenSlot slot;
+        slot.kind = GenSlotKind::Type;
+        slot.index = index++;
+        slot.type = (Type*)global[variable] - global;
+        slot.name = global[variable]->name;
+        schema->slots.push(module.types, slot);
+    }
+
+    // Applied expressions the body constructs or matches - `Maybe(a)`, `Pair(a, b)`. Their
+    // descriptors are built once by the caller rather than by applying a type constructor at run
+    // time, which is what keeps ordinary rank-1 generics away from higher-kinded machinery.
+    for(auto derived: env.derivedTypes.contents(global)) {
+        GenSlot slot;
+        slot.kind = GenSlotKind::Type;
+        slot.index = index++;
+        slot.type = derived;
+        schema->slots.push(module.types, slot);
+    }
+
+    schema->typeCount = index;
+
+    // 2. The class constraints, declared ones and inferred ones alike. By the time anything reads
+    //    the numbering the two are the same entry, which is the point of recording them in one list.
+    for(auto constraint: env.classes.contents(global)) {
+        if(!constraint.typeClass) continue;
+
+        GenSlot slot;
+        slot.kind = GenSlotKind::Class;
+        slot.index = index++;
+        slot.typeClass = constraint.typeClass;
+        slot.name = constraint.name;
+        slot.source = constraint.source;
+
+        for(auto arg: constraint.args.contents(global)) slot.args.push(module.types, arg);
+        schema->slots.push(module.types, slot);
+    }
+
+    for(auto constraint: env.properties.contents(global)) {
+        GenSlot slot;
+        slot.kind = GenSlotKind::Property;
+        slot.index = index++;
+        slot.type = constraint.owner;
+        slot.result = constraint.result;
+        slot.name = constraint.field;
+        slot.source = constraint.source;
+        schema->slots.push(module.types, slot);
+    }
+
+    for(auto constraint: env.functions.contents(global)) {
+        GenSlot slot;
+        slot.kind = GenSlotKind::Function;
+        slot.index = index++;
+        slot.type = constraint.signature;
+        slot.name = constraint.name;
+        slot.source = constraint.source;
+        schema->slots.push(module.types, slot);
+    }
+
+    return *schema;
+}
+
+U16 genTypeSlot(Module& module, GenEnv& env, TypePtr type) {
+    auto global = *module.types;
+    auto& schema = genSchemaOf(module, env);
+
+    for(auto slot: schema.slots.contents(global)) {
+        if(slot.kind == GenSlotKind::Type && slot.type == type) return slot.index;
+    }
+
+    return maxLimit<U16>;
+}
+
+U16 genClassSlot(Module& module, GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
+    auto global = *module.types;
+    auto& schema = genSchemaOf(module, env);
+
+    for(auto slot: schema.slots.contents(global)) {
+        if(slot.kind != GenSlotKind::Class || slot.typeClass != typeClass) continue;
+        if(sameTypes(slot.args, global, args)) return slot.index;
+    }
+
+    return maxLimit<U16>;
+}
+
+U16 genPropertySlot(Module& module, GenEnv& env, TypePtr owner, StringId field) {
+    auto global = *module.types;
+    auto& schema = genSchemaOf(module, env);
+
+    for(auto slot: schema.slots.contents(global)) {
+        if(slot.kind == GenSlotKind::Property && slot.type == owner && slot.name == field) {
+            return slot.index;
+        }
+    }
+
+    return maxLimit<U16>;
+}
+
+U16 genFunctionSlot(Module& module, GenEnv& env, StringId name, TypePtr signature) {
+    auto global = *module.types;
+    auto& schema = genSchemaOf(module, env);
+
+    for(auto slot: schema.slots.contents(global)) {
+        if(slot.kind == GenSlotKind::Function && slot.name == name && slot.type == signature) {
+            return slot.index;
+        }
+    }
+
+    return maxLimit<U16>;
+}
+
+void requireTypeSlot(Module& module, GenEnv& env, TypePtr type) {
+    auto global = *module.types;
+    if(!type || !isGeneric(global, type)) return;
+
+    // A bare type variable already has a slot from the declaration, and a duplicate applied
+    // expression is one slot however many times the body writes it.
+    if(genTypeSlot(module, env, type) != maxLimit<U16>) return;
+    if(global[type]->kind == Type::Gen) return;
+
+    // Recorded on the context rather than on the schema, so that rebuilding the numbering produces
+    // the same answer however many times it happens - see genSchemaOf. Derived expressions stay
+    // inside the leading run of TypeDesc slots, which is what keeps `typeCount` meaningful.
+    env.derivedTypes.push(module.types, type);
+    invalidateGenSchema(env);
 }
 
 static TypePtr resolveTupleAst(Module& module, const ast::Type& type, GenEnv* env) {
@@ -280,6 +470,58 @@ static TypePtr resolveTupleAst(Module& module, const ast::Type& type, GenEnv* en
     }
 
     return (Type*)resolveTupleType(module, toBuffer(fields), type.source) - *module.types;
+}
+
+/*
+ * A written function type - `(&a: Int, return b: T) -> &T`.
+ *
+ * The conventions and the `return` markers are read here rather than dropped, which is the whole
+ * point of Implementation-IR.md part 3's "the natural home is FunArg": a caller holding one of these
+ * has to know what the callee does to each argument, and this is the only place it can find out.
+ * The same validity rules apply as to a declaration, so both go through checkReturnRoot.
+ */
+static TypePtr resolveFunTypeAst(Module& module, const ast::FunType& type, GenEnv* env, LocationId source) {
+    auto parseBase = module.parse;
+    Array<FunArg> args;
+    auto allRootsMutable = true;
+    auto roots = 0u;
+    auto written = 0u;
+    U32 index = 0;
+
+    auto declaredArgs = type.args;
+
+    for(auto declared: declaredArgs.contents(parseBase)) {
+        FunArg arg;
+        arg.type = resolveType(module, declared.type, env);
+        arg.name = declared.name;
+        arg.convention = declared.bind;
+
+        if(declared.returnRoot) {
+            written++;
+
+            if(checkReturnRoot(module, arg.type, declared.bind, index, source)) {
+                arg.returnRoot = true;
+                roots++;
+                if(declared.bind != ast::BindType::Ref) allRootsMutable = false;
+            }
+        }
+
+        args.push(arg);
+        index++;
+    }
+
+    auto result = resolveType(module, type.ret, env);
+
+    if(isBorrow(*module.types, result)) {
+        if(!roots && !written) {
+            module.context.diagnostics.error("a function type returning a borrow must mark the argument it is rooted in with `return`"_v,
+                                             source);
+        } else if(roots) {
+            result = applyReturnRootMutability(module, result, allRootsMutable);
+        }
+    }
+
+    return resolveFunType(module, toBuffer(args), result, type.kind);
 }
 
 static TypePtr resolveAlias(Module& module, TypeAlias& alias, Buffer<TypePtr> args, LocationId source);
@@ -413,6 +655,8 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
             // borrow exclusive is the return-root group being entirely `return &`, which is not
             // known until every argument of the declaration has been read.
             return resolveBorrowType(module, resolveType(module, *module.parse[type.to], env), false);
+        case ast::Type::Fun:
+            return resolveFunTypeAst(module, *module.parse[type.fun], env, type.source);
         default:
             return errorType(module, type.source, "type is not available in this milestone"_v);
     }
@@ -453,6 +697,101 @@ TypePtr resolveBorrowType(Module& module, TypePtr to, bool mut) {
 
     module.program.borrowTypes.push(module.types, type - base);
     return (Type*)type - base;
+}
+
+/*
+ * Function types are interned on their whole signature, conventions and `return` markers included.
+ *
+ * The argument *names* are not part of the key, so the first spelling of a signature wins and every
+ * later one shares it. That is deliberate: `(a: Int) -> Int` and `(Int) -> Int` accept exactly the
+ * same calls, and making them two types would make a name in a signature an API commitment.
+ */
+TypePtr resolveFunType(Module& module, Buffer<FunArg> args, TypePtr result, ast::FunKind kind) {
+    auto base = *module.types;
+    if(!result) return module.scalar.error;
+
+    for(auto arg: args) {
+        if(!arg.type) return module.scalar.error;
+    }
+
+    for(auto pointer: module.program.funTypes.contents(base)) {
+        auto candidate = base[pointer];
+        if(candidate->result != result || candidate->kind != kind) continue;
+        if(candidate->args.size() != args.length) continue;
+
+        auto equal = true;
+        for(Size i = 0; i < args.length; i++) {
+            auto existing = candidate->args.get(base, i);
+            if(existing.type != args[i].type || existing.convention != args[i].convention ||
+               existing.returnRoot != args[i].returnRoot) {
+                equal = false;
+                break;
+            }
+        }
+
+        if(equal) return (Type*)candidate - base;
+    }
+
+    auto type = new (module.types) FunType;
+    type->result = result;
+    type->kind = kind;
+    type->generic = isGeneric(base, result);
+
+    for(Size i = 0; i < args.length; i++) {
+        type->args.push(module.types, args[i]);
+        if(args[i].returnRoot && i < 64) type->returnRoots |= U64(1) << i;
+        if(isGeneric(base, args[i].type)) type->generic = true;
+    }
+
+    module.program.funTypes.push(module.types, type - base);
+    return (Type*)type - base;
+}
+
+/*
+ * What may carry the `return` marker, per Design-Memory §5.2.
+ *
+ * All three rules are about the same thing: the marker says a borrow in the result may be rooted in
+ * the caller's storage for this argument, so the argument has to *have* caller storage that
+ * survives the call. A sunk one does not - the callee owns it - and a TrivialCopy one passed by the
+ * default convention does not either, since what the body sees is a copy of its own.
+ */
+bool checkReturnRoot(Module& module, TypePtr type, ast::BindType convention, U32 index, LocationId source) {
+    auto base = *module.types;
+
+    if(convention == ast::BindType::Sink) {
+        module.context.diagnostics.error("`return` cannot be written on a `->` argument - the callee owns what it was given, so there is no caller-side storage left for a result to be rooted in"_v,
+                                         source);
+        return false;
+    }
+
+    // Design-Memory states this rule over TrivialCopy, which is the same rule one step earlier:
+    // what disqualifies a parameter is arriving as a copy rather than as an address. Here that is
+    // exactly a direct type - a scalar in a register - while a TrivialCopy *aggregate* still
+    // arrives as the caller's address and can root a borrow of it perfectly well.
+    //
+    // A raw pointer is the exception among direct types: the copy it arrives as *is* an address, so
+    // what it names is still the caller's. `return %a` is how Native's `borrow` says that its
+    // result points into whatever it was given, which is the one bridge from unchecked memory back
+    // into checked borrows.
+    if(convention != ast::BindType::Ref && isDirectType(base, type) && !isPointer(base, type)) {
+        module.context.diagnostics.error("`return` on %@ has nothing to root a borrow in - it arrives in a register, so the body sees a copy of its own; write `return &` when the caller's storage must be the root"_v,
+                                         source, describeType(module.context, base, type));
+        return false;
+    }
+
+    // The group is a bit set, and a signature this wide has never been written. Saying so is better
+    // than silently dropping a marker the caller would then rely on.
+    if(index >= 64) {
+        module.context.diagnostics.error("`return` cannot be written past the 64th argument"_v, source);
+        return false;
+    }
+
+    return true;
+}
+
+TypePtr applyReturnRootMutability(Module& module, TypePtr result, bool allRootsMutable) {
+    if(!allRootsMutable || !isBorrow(*module.types, result)) return result;
+    return resolveBorrowType(module, ((BorrowType*)(*module.types)[result])->to, true);
 }
 
 TupType* resolveTupleType(Module& module, Buffer<Field> requested, LocationId source) {
@@ -667,17 +1006,23 @@ static bool hasInstance(Module& module, GlobalPtr<TypeClass> typeClass, TypePtr 
     return findInstance(module, typeClass, toBuffer(args)) != nullptr;
 }
 
-// Folds one member into an aggregate's classification. A member that is not trivial makes the
-// whole aggregate not trivial, and a member that has to be dropped gives the aggregate a derived
-// drop - which is the whole of "drop each field, then release this type's own storage".
+// Folds one member into an aggregate's classification. A member that is not trivial makes the whole
+// aggregate not trivial, and a member with either half of a teardown gives the aggregate a derived
+// half of the same kind - which is the whole of "recurse into each field, then release this type's
+// own storage". The two halves are folded independently, which is the point of splitting them: a
+// member with only a `Reclaim` must not give its container a `Drop` and cost it region eligibility.
 static void includeMember(Module& module, TypePtr member, Ownership& target) {
     auto inner = ownershipOf(module, member);
 
     target.trivialCopy = target.trivialCopy && inner.trivialCopy;
     target.trivialSink = target.trivialSink && inner.trivialSink;
 
-    if(inner.drop != DropKind::None && target.drop == DropKind::None) {
-        target.drop = DropKind::Derived;
+    if(inner.reclaim != TeardownKind::None && target.reclaim == TeardownKind::None) {
+        target.reclaim = TeardownKind::Derived;
+    }
+
+    if(inner.drop != TeardownKind::None && target.drop == TeardownKind::None) {
+        target.drop = TeardownKind::Derived;
     }
 }
 
@@ -692,7 +1037,9 @@ Ownership ownershipOf(Module& module, TypePtr type) {
     // itself without an indirection, which has no finite value. Answering conservatively rather
     // than recursing leaves the diagnostic to whoever computes its Repr, which is where an
     // infinitely large type is already reported.
-    if(value->resolvingOwnership) return Ownership { false, false, false, false, DropKind::Derived };
+    if(value->resolvingOwnership) {
+        return Ownership { false, false, false, false, TeardownKind::Derived, TeardownKind::Derived };
+    }
 
     Ownership result;
     value->resolvingOwnership = true;
@@ -727,7 +1074,7 @@ Ownership ownershipOf(Module& module, TypePtr type) {
             // the body regardless of what a caller substitutes, so that a generic function's
             // accepted programs are fixed by its own signature. The same argument applies to the
             // other two: the body must be written as though the type owns something.
-            result = Ownership { false, false, false, false, DropKind::Derived };
+            result = Ownership { false, false, false, false, TeardownKind::Derived, TeardownKind::Derived };
             break;
 
         case Type::Tup: {
@@ -750,11 +1097,23 @@ Ownership ownershipOf(Module& module, TypePtr type) {
             break;
         }
 
+        case Type::Fun:
+            // A function value owns the environment its captures live in (Design-Memory §8), so a
+            // bitwise duplicate would alias that environment and it is not TrivialCopy. It *is*
+            // TrivialSink - relocating it moves three words and the environment keeps its address -
+            // and its teardown is derived: run the environment descriptor's drop, if it has one.
+            //
+            // That answer is the same for a non-capturing lambda, whose descriptor is null. Making
+            // it depend on what one value captured would make ownership a property of a value
+            // rather than of a type, which is exactly what the model does not allow.
+            result = Ownership { false, true, false, false, TeardownKind::Derived, TeardownKind::Derived };
+            break;
+
         default:
-            // Borrow, Ref, RegionPtr, Region, Fun, Array and Map. None of them are constructible
-            // yet; classifying them conservatively is what makes adding one a decision rather than
-            // a silently wrong default.
-            result = Ownership { false, false, false, false, DropKind::Derived };
+            // Ref, RegionPtr, Region, Array and Map. None of them are constructible yet;
+            // classifying them conservatively is what makes adding one a decision rather than a
+            // silently wrong default.
+            result = Ownership { false, false, false, false, TeardownKind::Derived, TeardownKind::Derived };
             break;
     }
 
@@ -762,7 +1121,8 @@ Ownership ownershipOf(Module& module, TypePtr type) {
     // generic declaration is skipped: `Maybe(a)` is not a type anything can have an instance for,
     // and asking would match the instance of whatever `a` last resolved to.
     if(!value->generic) {
-        if(hasInstance(module, module.coreClasses.drop, type)) result.drop = DropKind::Authored;
+        if(hasInstance(module, module.coreClasses.reclaim, type)) result.reclaim = TeardownKind::Authored;
+        if(hasInstance(module, module.coreClasses.drop, type)) result.drop = TeardownKind::Authored;
         if(hasInstance(module, module.coreClasses.copy, type)) result.authoredCopy = true;
 
         if(hasInstance(module, module.coreClasses.sink, type)) {
@@ -771,10 +1131,10 @@ Ownership ownershipOf(Module& module, TypePtr type) {
         }
     }
 
-    // Duplicating a value whose lifetime releases something would release it twice, so a drop of
-    // any kind rules out TrivialCopy. This is stated once here rather than at each producer of a
-    // drop above, because it holds for the authored case as well as the derived one.
-    if(result.drop != DropKind::None) result.trivialCopy = false;
+    // Duplicating a value whose lifetime releases something would release it twice, so a teardown
+    // of either kind rules out TrivialCopy. This is stated once here rather than at each producer
+    // of one above, because it holds for the authored cases as well as the derived ones.
+    if(result.needsTeardown()) result.trivialCopy = false;
 
     value->resolvingOwnership = false;
     value->ownership = result;
@@ -782,8 +1142,94 @@ Ownership ownershipOf(Module& module, TypePtr type) {
     return result;
 }
 
+/*
+ * The context-sensitive half of the classification.
+ *
+ * This mirrors ownershipOf's structural fold, and differs from it in exactly one place: at a type
+ * variable, where the answer comes from what the context declared rather than from the type. The
+ * result is never cached, because two contexts can legitimately disagree about the same `a`.
+ *
+ * `depth` bounds the walk the way instance proving does. A type reachable from itself without an
+ * indirection has no finite value and is reported by whoever computes its Repr.
+ */
+static Ownership ownershipInAt(Module& module, GenEnv* env, TypePtr type, U32 depth) {
+    auto base = *module.types;
+    if(!type || !isGeneric(base, type) || !depth) return ownershipOf(module, type);
+
+    auto value = base[type];
+
+    switch(value->kind) {
+        case Type::Gen: {
+            auto result = ownershipOf(module, type);
+            TypePtr args[] = { type };
+
+            if(env) {
+                if(provesClass(module, *env, module.coreClasses.trivialCopy, toBuffer(args))) {
+                    result.trivialCopy = true;
+                    result.reclaim = TeardownKind::None;
+                    result.drop = TeardownKind::None;
+                }
+
+                if(provesClass(module, *env, module.coreClasses.trivialSink, toBuffer(args))) {
+                    result.trivialSink = true;
+                }
+            }
+
+            return result;
+        }
+
+        case Type::Tup: {
+            Ownership result;
+            for(auto field: ((TupType*)value)->fields.contents(base)) {
+                auto inner = ownershipInAt(module, env, field.type, depth - 1);
+                result.trivialCopy = result.trivialCopy && inner.trivialCopy;
+                result.trivialSink = result.trivialSink && inner.trivialSink;
+                if(inner.reclaim != TeardownKind::None) result.reclaim = TeardownKind::Derived;
+                if(inner.drop != TeardownKind::None) result.drop = TeardownKind::Derived;
+            }
+
+            if(result.needsTeardown()) result.trivialCopy = false;
+            return result;
+        }
+
+        case Type::Record: {
+            auto record = (RecordType*)value;
+            Ownership result;
+
+            if(record->layout != RecordType::Enum) {
+                for(auto constructor: record->constructors.contents(base)) {
+                    if(!constructor.content) continue;
+
+                    auto inner = ownershipInAt(module, env, constructor.content, depth - 1);
+                    result.trivialCopy = result.trivialCopy && inner.trivialCopy;
+                    result.trivialSink = result.trivialSink && inner.trivialSink;
+                    if(inner.reclaim != TeardownKind::None) result.reclaim = TeardownKind::Derived;
+                    if(inner.drop != TeardownKind::None) result.drop = TeardownKind::Derived;
+                }
+            }
+
+            // A generic instantiation cannot be asked for an authored instance - `Maybe(a)` is not
+            // a type anything writes one for - so the structural answer is the whole answer here,
+            // exactly as it is in ownershipOf.
+            if(result.needsTeardown()) result.trivialCopy = false;
+            return result;
+        }
+
+        default:
+            return ownershipOf(module, type);
+    }
+}
+
+Ownership ownershipIn(Module& module, GenEnv* env, TypePtr type) {
+    return ownershipInAt(module, env, type, 8);
+}
+
+bool needsTeardown(Module& module, TypePtr type) {
+    return ownershipOf(module, type).needsTeardown();
+}
+
 bool needsDrop(Module& module, TypePtr type) {
-    return ownershipOf(module, type).drop != DropKind::None;
+    return ownershipOf(module, type).drop != TeardownKind::None;
 }
 
 bool isUnit(GlobalBase base, TypePtr type) {
@@ -808,6 +1254,10 @@ bool isPointer(GlobalBase base, TypePtr type) {
 
 bool isBorrow(GlobalBase base, TypePtr type) {
     return type && base[type]->kind == Type::Borrow;
+}
+
+bool isFunction(GlobalBase base, TypePtr type) {
+    return type && base[type]->kind == Type::Fun;
 }
 
 TypePtr pointeeType(GlobalBase base, TypePtr type) {
@@ -920,6 +1370,31 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
             }
 
             target << '}';
+            return;
+        }
+        case Type::Fun: {
+            // Printed the way it is written, conventions and markers included, because those are
+            // what two otherwise identical signatures differ in and a diagnostic that dropped them
+            // would name two types the same way.
+            auto function = (FunType*)base[type];
+            if(function->kind == ast::FunKind::Lens) target << "lens ";
+            else if(function->kind == ast::FunKind::Iter) target << "iter ";
+
+            target << '(';
+            Size index = 0;
+
+            for(auto arg: function->args.contents(base)) {
+                if(index++) target << ", ";
+                if(arg.returnRoot) target << "return ";
+                if(arg.convention == ast::BindType::Ref) target << '&';
+                else if(arg.convention == ast::BindType::Sink) target << "->";
+                if(arg.name) target << context.findName(arg.name) << ": ";
+
+                describeType(context, base, arg.type, target);
+            }
+
+            target << ") -> ";
+            describeType(context, base, function->result, target);
             return;
         }
         case Type::Record: {

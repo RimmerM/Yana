@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "generic.h"
 #include "name.h"
 
 /*
@@ -12,6 +13,11 @@
 
 ModulePtr<Value> ExprResolver::allocate(TypePtr type, LocationId source, StringId valueName,
                                         ast::BindType convention) {
+    // Storage of a type this body cannot see needs that type's size, which is the first thing a
+    // TypeDesc carries. Recording the requirement here rather than at each construction site is
+    // what makes it exhaustive: every generic aggregate that occupies storage passes through.
+    if(auto env = functionGen(global, function)) requireTypeSlot(module, *env, type);
+
     auto allocation = emit<InstAlloc>(source, valueName, type, maxLimit<U32>);
     auto result = ref(allocation);
 
@@ -270,7 +276,11 @@ ModulePtr<Value> ExprResolver::sinkValue(ModulePtr<Value> value, LocationId sour
     auto place = findPlace(value);
     if(!place) return value;
 
-    auto ownership = ownershipOf(module, type);
+    // Asked of the *context* rather than of the type, because a type variable's answer belongs to
+    // the signature that introduced it: an unconstrained `a` is non-TrivialCopy inside this body
+    // however a caller later substitutes it, and a declared `TrivialCopy(a)` is what makes the copy
+    // legal. See ownershipIn.
+    auto ownership = ownershipIn(module, functionGen(global, function), type);
     auto name = local[value]->name;
 
     if(!ownership.trivialCopy) {
@@ -805,8 +815,8 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
      * dropping the elements means walking the buffer at run time - which needs the element's drop
      * to be reachable from a generic body, and that is Milestone 7's. Rejected rather than leaked.
      */
-    if(needsDrop(module, element)) {
-        context.diagnostics.error("an array of %@ is not available yet - its elements have a `Drop`, and releasing them needs the erased generic model"_v,
+    if(needsTeardown(module, element)) {
+        context.diagnostics.error("an array of %@ is not available yet - its elements have a teardown, and releasing them needs the erased generic model"_v,
                                   source, describeType(context, global, element));
         return nullptr;
     }

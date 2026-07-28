@@ -268,7 +268,7 @@ static void transferFrom(Analysis& analysis, Effects& effects, ModulePtr<Value> 
     effects.uses.push(root);
 
     auto type = analysis.function.localAt(analysis.local, root).type;
-    if(ownershipOf(analysis.module, type).drop != DropKind::None) effects.moves.push(root);
+    if(needsTeardown(analysis.module, type)) effects.moves.push(root);
 }
 
 static void computeEffects(Analysis& analysis) {
@@ -1658,33 +1658,48 @@ static void selectStorage(Analysis& analysis, OwnershipResult& result) {
 }
 
 /*
- * Derived drop glue.
+ * Derived teardown glue.
  *
- * "Drop each member, then release this type's own storage" written out as a function, so that it
- * can be printed, called recursively and lowered like anything else. It takes a raw pointer to what
- * it is dropping, which is what an InstDrop hands it.
+ * "Recurse into each member, and for the reclaim half release this type's own storage" written out
+ * as a function, so that it can be printed, called recursively and lowered like anything else. It
+ * takes a raw pointer to what it is tearing down, which is what an InstDrop hands it.
  *
- * Interned per type on the Program: a record with two fields of one type generates one of these,
- * and a type reachable from itself terminates because the entry is added before the body is built.
+ * There are two of these per type rather than one, because Design-Memory §4's two halves are
+ * elidable under different conditions and a caller has to be able to run one without the other: a
+ * region reset discharges every `Reclaim` in bulk and leaves every `Drop` to still run at last use.
+ * Generating one function that did both would make that choice unavailable to anyone downstream.
+ *
+ * Interned per type and per half on the Program: a record with two fields of one type generates one
+ * of each, and a type reachable from itself terminates because the entry is added before the body
+ * is built.
  */
-static ModulePtr<Function> dropGlueFor(Module& module, TypePtr type, LocationId source);
+
+// The two halves differ only in which classification decides whether a member contributes and which
+// instance an authored member reaches, so they share one generator rather than being written twice.
+static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardown half, LocationId source);
+
+static TeardownKind teardownKind(const Ownership& ownership, Teardown half) {
+    return half == Teardown::Drop ? ownership.drop : ownership.reclaim;
+}
 
 // The name a glue function is printed and linked under. It is not addressable in source; what it
-// needs is to be unique and to say what it drops.
-static StringId dropGlueName(Module& module, TypePtr type) {
+// needs is to be unique and to say what it tears down.
+static StringId teardownGlueName(Module& module, TypePtr type, Teardown half) {
     StringBuilder text;
-    text << "drop$";
+    text << (half == Teardown::Drop ? "drop$" : "reclaim$");
     describeType(module.context, *module.types, type, text);
     return module.context.addQualifiedName(text.pointer(), text.size(), 1);
 }
 
-// The implementation one member's drop runs, or null when that member has nothing to release.
-static ModulePtr<Function> dropImplementation(Module& module, TypePtr type, LocationId source) {
+// The implementation one type's teardown half runs, or null when that half has nothing to do.
+ModulePtr<Function> teardownFor(Module& module, TypePtr type, Teardown half, LocationId source) {
     auto ownership = ownershipOf(module, type);
+    auto kind = teardownKind(ownership, half);
 
-    if(ownership.drop == DropKind::Authored) {
+    if(kind == TeardownKind::Authored) {
+        auto typeClass = half == Teardown::Drop ? module.coreClasses.drop : module.coreClasses.reclaim;
         TypePtr args[] = { type };
-        auto match = matchInstance(module, module.coreClasses.drop, toBuffer(args));
+        auto match = matchInstance(module, typeClass, toBuffer(args));
         if(!match) return nullptr;
 
         auto instance = (*module.arena)[match.instance];
@@ -1694,10 +1709,10 @@ static ModulePtr<Function> dropImplementation(Module& module, TypePtr type, Loca
         if(!implementation) return nullptr;
 
         /*
-         * A parametric instance - `instance Drop(Array(a))` - has one implementation written over
+         * A parametric instance - `instance Reclaim(Array(a))` - has one implementation written over
          * its own variables, and what runs is the specialization for the types the head matched.
-         * The same step emitInstanceCall takes for an ordinary call, taken here because a drop has
-         * no call site in the source to have taken it at.
+         * The same step emitInstanceCall takes for an ordinary call, taken here because a teardown
+         * has no call site in the source to have taken it at.
          */
         if((*module.arena)[implementation]->gen) {
             implementation = instantiateFunction(module, implementation, toBuffer(match.args), source);
@@ -1708,14 +1723,14 @@ static ModulePtr<Function> dropImplementation(Module& module, TypePtr type, Loca
         return implementation;
     }
 
-    if(ownership.drop == DropKind::Derived) return dropGlueFor(module, type, source);
+    if(kind == TeardownKind::Derived) return teardownGlueFor(module, type, half, source);
     return nullptr;
 }
 
-// Emits one InstDrop for each member of `content` that has something to release, projected off
-// `base`. Shared by the tuple case and by a record constructor's payload.
-static void dropMembers(ExprResolver& resolver, Module& module, Place base, TypePtr content,
-                        LocationId source) {
+// Emits one InstDrop for each member of `content` that has something to do for this half, projected
+// off `base`. Shared by the tuple case and by a record constructor's payload.
+static void teardownMembers(ExprResolver& resolver, Module& module, Place base, TypePtr content,
+                            Teardown half, LocationId source) {
     auto global = *module.types;
     if(!content || global[content]->kind != Type::Tup) return;
 
@@ -1723,40 +1738,51 @@ static void dropMembers(ExprResolver& resolver, Module& module, Place base, Type
     U16 index = 0;
 
     for(auto field: tuple->fields.contents(global)) {
-        auto implementation = dropImplementation(module, field.type, source);
-        auto kind = ownershipOf(module, field.type).drop;
+        auto implementation = teardownFor(module, field.type, half, source);
+        auto kind = teardownKind(ownershipOf(module, field.type), half);
 
         if(implementation) {
             auto place = resolver.project(base, ProjectionKind::Field, index);
-            auto drop = resolver.emit<InstDrop>(source, 0, module.scalar.unit, place, kind);
-            drop->implementation = implementation;
+            auto isDrop = half == Teardown::Drop;
+            auto drop = resolver.emit<InstDrop>(source, 0, module.scalar.unit, place,
+                                                isDrop ? kind : TeardownKind::None,
+                                                isDrop ? TeardownKind::None : kind);
+
+            if(isDrop) drop->drop = implementation;
+            else drop->reclaim = implementation;
         }
 
         index++;
     }
 }
 
+// Whether this member contributes anything to this half of a teardown.
+static bool contributes(Module& module, TypePtr type, Teardown half) {
+    return teardownKind(ownershipOf(module, type), half) != TeardownKind::None;
+}
+
 /*
  * Built in the module that asked for it, not in Core.
  *
- * The glue has to resolve `instance Drop(Buffer)` for each of its members, and instance lookup is
+ * The glue has to resolve `instance Reclaim(Buffer)` for each of its members, and instance lookup is
  * relative to the module doing the looking - so building it in Core would find nothing an ordinary
  * program declared and silently produce empty glue. Interning is still program-wide, which relies
- * on instance coherence: two modules that can both see a type agree on what dropping it means, and
- * the language already requires that.
+ * on instance coherence: two modules that can both see a type agree on what tearing it down means,
+ * and the language already requires that.
  */
-static ModulePtr<Function> dropGlueFor(Module& module, TypePtr type, LocationId source) {
+static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardown half, LocationId source) {
     auto& program = module.program;
-    if(auto found = program.dropGlue.get(U32(type))) return found.unwrap();
+    auto& interned = half == Teardown::Drop ? program.dropGlue : program.reclaimGlue;
+    if(auto found = interned.get(U32(type))) return found.unwrap();
 
     // addAnonymousFunction already registers it in the module's function order, which is what puts
     // it in front of printing and lowering.
-    auto function = addAnonymousFunction(module, dropGlueName(module, type), source);
+    auto function = addAnonymousFunction(module, teardownGlueName(module, type, half), source);
     auto pointer = function - *module.arena;
 
     // Registered before the body is built, so a type reachable from itself finds the entry rather
     // than generating glue forever.
-    *program.dropGlue.add(U32(type)).value = pointer;
+    *interned.add(U32(type)).value = pointer;
 
     function->returnType = module.scalar.unit;
     function->used = true;
@@ -1769,29 +1795,30 @@ static ModulePtr<Function> dropGlueFor(Module& module, TypePtr type, LocationId 
     auto global = *module.types;
 
     if(global[type]->kind == Type::Tup) {
-        dropMembers(resolver, module, base, type, source);
+        teardownMembers(resolver, module, base, type, half, source);
     } else if(global[type]->kind == Type::Record) {
         auto record = (RecordType*)global[type];
 
         if(record->layout == RecordType::Single) {
             auto content = record->constructors.get(global, 0).content;
-            dropMembers(resolver, module, resolver.project(base, ProjectionKind::Downcast, 0), content, source);
+            teardownMembers(resolver, module, resolver.project(base, ProjectionKind::Downcast, 0),
+                            content, half, source);
         } else if(record->layout == RecordType::Multi) {
             /*
              * Each constructor carries a different payload, so the glue reads the discriminant and
-             * drops the members of whichever one is present.
+             * tears down the members of whichever one is present.
              *
              * Built as a chain of tests rather than as a jump table, because that is what the IR
              * has: `je` is its only conditional, and a record with a dozen constructors is not the
              * case worth a second control-flow construct for. A constructor whose payload has
-             * nothing to release is skipped entirely, so the chain is as long as the number of
-             * constructors that own something rather than the number that exist.
+             * nothing to do for this half is skipped entirely, so the chain is as long as the
+             * number of constructors that contribute rather than the number that exist.
              */
             auto exit = resolver.addBlock();
 
             for(auto constructor: record->constructors.contents(global)) {
                 auto content = constructor.content;
-                if(!content || !needsDrop(module, content)) continue;
+                if(!content || !contributes(module, content, half)) continue;
 
                 auto discriminant = resolver.load(
                     resolver.project(base, ProjectionKind::Discriminant, 0), source);
@@ -1806,8 +1833,9 @@ static ModulePtr<Function> dropGlueFor(Module& module, TypePtr type, LocationId 
                                                          resolver.ref(matches), drops, next));
 
                 resolver.current = drops;
-                dropMembers(resolver, module, resolver.project(base, ProjectionKind::Downcast,
-                                                               U16(constructor.index)), content, source);
+                teardownMembers(resolver, module, resolver.project(base, ProjectionKind::Downcast,
+                                                                   U16(constructor.index)),
+                                content, half, source);
                 resolver.terminate(resolver.emit<InstJmp>(source, 0, module.scalar.unit, exit));
 
                 resolver.current = next;
@@ -1820,6 +1848,71 @@ static ModulePtr<Function> dropGlueFor(Module& module, TypePtr type, LocationId 
 
     resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
     return pointer;
+}
+
+/*
+ * What an authored `Reclaim` is allowed to do.
+ *
+ * Design-Memory §4 constrains it by shape rather than trusting it for purity, and says exactly why:
+ * a region discharges every `Reclaim` inside it in bulk, at a point the author did not choose, so a
+ * `Reclaim` that ran an effect would run it somewhere the program never asked for. The permitted
+ * body is control flow, arithmetic over its own metadata, reads of storage it owns, calls to the
+ * compiler's per-member teardown, and storage release - and no other call.
+ *
+ * Checking that is a walk over the call graph, which is what this is. The author is trusted about
+ * "I call nothing else" and never about "my members are effect-free": whether `Map(k, v)`'s
+ * teardown has effects is *computed* from whether `k` and `v` have a `Drop`, above.
+ */
+static bool checkReclaimShape(Module& module, Function& function) {
+    auto local = *module.arena;
+    auto& program = module.program;
+    auto ok = true;
+
+    auto permitted = [&](ModulePtr<Function> callee) {
+        if(!callee) return true;
+        if(callee == program.freeHeap || callee == program.allocateHeap) return true;
+
+        auto target = local[callee];
+
+        // Another type's teardown - the per-member recursion this one is allowed to drive, whether
+        // it is generated glue or an authored instance of either half.
+        if(target->instanceOf == program.coreClasses.reclaim) return true;
+        if(target->instanceOf == program.coreClasses.drop) return true;
+
+        for(auto entry: program.reclaimGlue) {
+            if(entry == callee) return true;
+        }
+
+        for(auto entry: program.dropGlue) {
+            if(entry == callee) return true;
+        }
+
+        // A specialization stands in for whatever its generic original was, so it is judged by the
+        // same rule rather than by having a different name.
+        if(target->specializationOf) {
+            auto generic = local[target->specializationOf];
+            if(generic->instanceOf == program.coreClasses.reclaim) return true;
+            if(generic->instanceOf == program.coreClasses.drop) return true;
+        }
+
+        return false;
+    };
+
+    for(auto blockPointer: function.blocks.contents(local)) {
+        for(auto instruction: local[blockPointer]->instructions.contents(local)) {
+            auto& inst = *local[instruction];
+            if(inst.kind != Value::Call) continue;
+
+            auto callee = ((InstCall&)inst).callee;
+            if(permitted(callee)) continue;
+
+            module.context.diagnostics.error("an authored `Reclaim` may only release storage - it cannot call %@, because a region discharges every `Reclaim` inside it in bulk and this would then run somewhere the program never asked for. Write a `Drop` for an effect that has to happen at last use"_v,
+                                             inst.source, module.context.findName(local[callee]->name));
+            ok = false;
+        }
+    }
+
+    return ok;
 }
 
 /*
@@ -1938,20 +2031,25 @@ static void placeDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops
  */
 
 static InstDrop* makeDrop(Analysis& analysis, Block& block, U32 localIndex, LocationId source) {
+    auto& module = analysis.module;
     auto slot = analysis.function.localAt(analysis.local, localIndex);
-    auto implementation = dropImplementation(analysis.module, slot.type, source);
+    auto ownership = ownershipOf(module, slot.type);
+
+    auto drop_ = teardownFor(module, slot.type, Teardown::Drop, source);
+    auto reclaim = teardownFor(module, slot.type, Teardown::Reclaim, source);
 
     // Heap storage this frame owns has to be handed back whether or not the type it holds has
-    // anything of its own to run - which is the whole difference between the two halves of a
-    // derived drop, "drop each member" and "release this owner's own storage".
+    // anything of its own to run - which is the reclaim half applied to this allocation rather than
+    // to its members.
     auto releases = localIndex < analysis.releasesStorage.size() && analysis.releasesStorage[localIndex];
-    if(!implementation && !releases) return nullptr;
+    if(!drop_ && !reclaim && !releases) return nullptr;
 
-    auto drop = createInst<InstDrop>(analysis.module, analysis.function, block, source, 0,
-                                     analysis.module.scalar.unit, Place::inLocal(localIndex),
-                                     ownershipOf(analysis.module, slot.type).drop);
+    auto drop = createInst<InstDrop>(module, analysis.function, block, source, 0,
+                                     module.scalar.unit, Place::inLocal(localIndex),
+                                     ownership.drop, ownership.reclaim);
 
-    drop->implementation = implementation;
+    drop->drop = drop_;
+    drop->reclaim = reclaim;
     drop->releaseStorage = releases;
 
     if(releases && analysis.module.program.freeHeap) {
@@ -2140,6 +2238,11 @@ static void buildRanges(Analysis& analysis, OwnershipResult& result) {
 
 } // namespace
 
+// Declared in analyze.h so that a TypeDesc can name both halves - see witness.cpp.
+ModulePtr<Function> teardownImplementation(Module& module, TypePtr type, Teardown half, LocationId source) {
+    return teardownFor(module, type, half, source);
+}
+
 /*
  * The entry points.
  */
@@ -2185,6 +2288,7 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
          */
         auto parameter = slot.value && analysis.local[slot.value]->kind == Value::Arg;
         auto disposer = function.instanceOf == module.coreClasses.drop ||
+                        function.instanceOf == module.coreClasses.reclaim ||
                         function.instanceOf == module.coreClasses.sink;
 
         auto owned = parameter
@@ -2192,7 +2296,7 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
             : !slot.borrowed;
 
         analysis.tracked.push(TrackedLocal {
-            slot.type, slot.name, owned, ownership.drop != DropKind::None,
+            slot.type, slot.name, owned, ownership.needsTeardown(),
         });
     }
 
@@ -2338,11 +2442,16 @@ bool runProgramOwnership(Program& program) {
     }
 
     for(auto module: program.modules) {
-        // Specializations and drop glue are appended while this runs, so the list is walked by
+        // Specializations and teardown glue are appended while this runs, so the list is walked by
         // index - the same reason resolveModuleBodies does.
         for(Size i = 0; i < module->functionOrder.size(); i++) {
             auto pointer = module->functionOrder.get(base, i);
             auto function = base[pointer];
+
+            if(function->instanceOf == program.coreClasses.reclaim) {
+                success = checkReclaimShape(*module, *function) && success;
+            }
+
             if(!ownershipApplies(*function)) continue;
 
             OwnershipResult result;

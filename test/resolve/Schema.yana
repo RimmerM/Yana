@@ -1,0 +1,40 @@
+-- Canonical generic-context schemas: the numbering emitted code loads slots by.
+--
+-- Implementation-Generics.md §2 asks for slots canonicalized by structural key rather than by the
+-- order a hash table happened to return them, because a slot number is what a caller *writes* and a
+-- callee *reads*. Nothing else in the printed output would show that the two agree, so the schema is
+-- dumped and asserted here directly.
+--
+-- The order is: type variables in declaration order, then the applied type expressions the body
+-- uses, then class constraints, then property constraints, then function constraints.
+
+-- One variable, one slot.
+fn identity(value: a) -> a = value
+
+-- Declared variables keep the order the signature introduced them in, and a requirement the body
+-- inferred lands in the same list as one the signature declared - they are the same entry by the
+-- time anything reads the numbering.
+fn (Num(a)) scale(x: a, y: a) -> a = x * y + x
+
+-- A constraint the signature never wrote. `<` records Ord(a) on the context while the body is being
+-- resolved, which renumbers nothing before it: requirements are appended.
+fn smallest(x: a, y: a, z: a) -> a =
+    if x < y then (if x < z then x else z) else (if y < z then y else z)
+
+-- Two variables and two classes. `a` and `b` are numbered by first appearance across the
+-- constraints and then the signature, which for an open context is what "declaration order" means.
+fn (Eq(a), Eq(b)) bothEqual(p: a, q: a, r: b, s: b) -> Bool = p == q && r == s
+
+data Pair(a, b) {first: a, second: b}
+
+-- An applied type expression the body constructs gets a descriptor slot of its own, after the
+-- variables: the caller knows the concrete arguments and builds it once, rather than the callee
+-- applying a type constructor per use.
+fn pairUp(x: a, y: b) -> Pair(a, b) = Pair {first: x, second: y}
+
+fn main() -> Int =
+    identity(1) +
+    scale(2, 3) +
+    smallest(9, 4, 7) +
+    (if bothEqual(1, 1, True, True) then 5 else 0) +
+    pairUp(20, False).first

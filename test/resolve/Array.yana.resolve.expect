@@ -427,7 +427,7 @@ fn remove(Int)(%self: Array(Int), %index: Int) -> () {
     ret
 }
 
-fn Drop(Array(a)).drop(Int)(%value: Array(Int)) -> () {
+fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   b0:
     %v1 = load %value@Array.onHeap : Bool
     je %v1, b1, b2
@@ -504,7 +504,7 @@ fn escaping() -> Int {
     %v11 = add %v5, %v10 : Int
     %v14 = borrow %local0 : &Array(Int)
     %v15 = call get(Int), %v14, 2 : &Int
-    drop %local0 via Drop(Array(a)).drop(Int)
+    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
     %v16 = load [%v15] : Int
     %v17 = add %v11, %v16 : Int
     ret %v17
@@ -541,7 +541,7 @@ fn main() -> Int {
     %v41 = call sum, %v40 : Int
     %v42 = load %small : Array(Int)
     %v43 = call length(Int), %v42 : Int
-    drop %small via Drop(Array(a)).drop(Int)
+    drop %small reclaim Reclaim(Array(a)).reclaim(Int)
     %v44 = add %v41, %v43 : Int
     %v45 = call escaping : Int
     %v46 = add %v44, %v45 : Int

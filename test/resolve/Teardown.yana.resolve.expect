@@ -1,0 +1,308 @@
+let &heapNext: %U8 = 0
+
+let &heapLimit: %U8 = 0
+
+let &heapFree: %%U8 = 0
+
+let &effects: Int = 0
+
+let &released: Int = 0
+
+fn initHeap() -> () {
+  b0:
+    %region = call mapMemory, 4194304 : %U8
+    %v2 = cast %region : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %table = mul 32, 8 : I64
+    setmemory %region, 0, %table
+    %v14 = cast %region : %%U8
+    assign heapFree, %v14
+    %v16 = add %region, %table : %U8
+    assign heapNext, %v16
+    %v19 = add %region, 4194304 : %U8
+    assign heapLimit, %v19
+    ret
+}
+
+fn heapClassOf(%total: I64) -> I64 {
+  b0:
+    %size = alloc : I64
+    init %size, 16
+    %sizeClass = alloc : I64
+    init %sizeClass, 0
+    jmp b1
+
+  b1:
+    %v8 = load %size : I64
+    %v9 = cmp_lt %v8, %total : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v21 = load %sizeClass : I64
+    ret %v21
+
+  b3:
+    %v11 = load %size : I64
+    %v12 = load %size : I64
+    %v13 = add %v11, %v12 : I64
+    assign %size, %v13
+    %v15 = load %sizeClass : I64
+    %v18 = add %v15, 1 : I64
+    assign %sizeClass, %v18
+    jmp b1
+}
+
+fn heapBlockSize(%sizeClass: I64) -> I64 {
+  b0:
+    %v2 = shl 16, %sizeClass : I64
+    ret %v2
+}
+
+fn freeListHead(%sizeClass: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v3 = mul %sizeClass, 8 : I64
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v4 = mul %sizeClass, 8 : I64
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn allocateHeap(%size: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = cast %v1 : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    call initHeap
+    %v7 = load heapFree : %%U8
+    %v8 = cast %v7 : Long
+    %v10 = cmp_eq %v8, 0 : Bool
+    je %v10, b3, b4
+
+  b2:
+    jmp b6
+
+  b3:
+    %v13 = cast 0 : %U8
+    ret %v13
+
+  b4:
+    jmp b5
+
+  b5:
+    jmp b6
+
+  b6:
+    %v20 = add %size, 8 : I64
+    %sizeClass = call heapClassOf, %v20 : I64
+    %v23 = cmp_ge %sizeClass, 32 : Bool
+    je %v23, b7, b8
+
+  b7:
+    %v26 = cast 0 : %U8
+    ret %v26
+
+  b8:
+    jmp b9
+
+  b9:
+    %reused = call freeListHead, %sizeClass : %U8
+    %v30 = cast %reused : Long
+    %v32 = cmp_eq %v30, 0 : Bool
+    %v34 = xor %v32, True : Bool
+    je %v34, b10, b11
+
+  b10:
+    %v36 = cast %reused : %%U8
+    %v37 = load [%v36] : %U8
+    call setFreeListHead, %sizeClass, %v37
+    ret %reused
+
+  b11:
+    jmp b12
+
+  b12:
+    %block = load heapNext : %U8
+    %blockSize = call heapBlockSize, %sizeClass : I64
+    %v43 = add %block, %blockSize : %U8
+    %v44 = load heapLimit : %U8
+    %v45 = cmp_gt %v43, %v44 : Bool
+    je %v45, b13, b14
+
+  b13:
+    %v48 = cast 0 : %U8
+    ret %v48
+
+  b14:
+    jmp b15
+
+  b15:
+    %v51 = add %block, %blockSize : %U8
+    assign heapNext, %v51
+    %v53 = cast %block : %I64
+    assign [%v53], %sizeClass
+    %v57 = add %block, 8 : %U8
+    ret %v57
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = cast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = sub %allocation, 8 : %U8
+    %v10 = cast %v9 : %I64
+    %sizeClass = load [%v10] : I64
+    %v12 = cast %allocation : %%U8
+    %v13 = call freeListHead, %sizeClass : %U8
+    assign [%v12], %v13
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn mapMemory(%size: I64) -> %U8 {
+  b0:
+    %v7 = neg 1 : I64
+    %result = syscall 9, 0, %size, 3, 34, %v7, 0 : I64
+    %v12 = cmp_lt %result, 0 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v15 = cast 0 : %U8
+    ret %v15
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = cast %result : %U8
+    ret %v18
+}
+
+fn makeBuffer(%count: Int) -> Buffer {
+  b0:
+    %v3 = mul %count, 8 : Int
+    %v4 = cast %v3 : I64
+    %v5 = call allocateHeap, %v4 : %U8
+    %cells = cast %v5 : %I64
+    %v7 = alloc : Buffer
+    init %local0@Buffer.cells, %cells
+    init %local0@Buffer.count, %count
+    ret %v7
+}
+
+fn useSession(%s: Session) -> Int {
+  b0:
+    %v1 = load %s@Session.owner : Handle
+    %v2 = load %s@Session.owner@Handle.id : Int
+    drop_derived %s via drop$Session reclaim reclaim$Session
+    ret %v2
+}
+
+(TrivialCopy(a)) fn duplicate(%x: a) -> {left: a, right: a} {
+  schema {
+    #0 type a
+    #1 type {left: a, right: a}
+    #2 class TrivialCopy(a)
+  }
+
+  b0:
+    %x = copy %x : a
+    %x = copy %x : a
+    %v3 = alloc : {left: a, right: a}
+    init %local3.left, %x
+    init %local3.right, %x
+    ret %v3
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = alloc : Session
+    %v2 = call makeBuffer, 4 : Buffer
+    %v3 = alloc : Handle
+    init %local2@Handle.id, 7
+    init %local0@Session.pages, %v2
+    init %local0@Session.owner, %v3
+    %session = move %local0 : Session
+    %used = call useSession, %session : Int
+    %pair = call duplicate(Int), 35 : {left: Int, right: Int}
+    %v13 = load %local3.left : Int
+    %v14 = add %used, %v13 : Int
+    %v15 = load effects : Int
+    %v16 = add %v14, %v15 : Int
+    %v17 = load released : Int
+    %v18 = sub %v16, %v17 : Int
+    ret %v18
+}
+
+fn Reclaim(Buffer).reclaim(%value: Buffer) -> () {
+  b0:
+    %v1 = load released : Int
+    %v4 = add %v1, 1 : Int
+    assign released, %v4
+    %v6 = load %value@Buffer.cells : %I64
+    %v7 = cast %v6 : %U8
+    call freeHeap, %v7
+    ret
+}
+
+fn Drop(Handle).drop(%value: Handle) -> () {
+  b0:
+    %v1 = load effects : Int
+    %v2 = load %value@Handle.id : Int
+    %v3 = add %v1, %v2 : Int
+    assign effects, %v3
+    ret
+}
+
+fn duplicate(Int)(%x: Int) -> {left: Int, right: Int} {
+  b0:
+    %x = alloc : Int
+    init %x, %x
+    %x = load %x : Int
+    %x = load %x : Int
+    %v5 = alloc : {left: Int, right: Int}
+    init %local3.left, %x
+    init %local3.right, %x
+    ret %v5
+}
+
+fn drop$Session(%value: %Session) -> () {
+  b0:
+    drop [%value]@Session.owner via Drop(Handle).drop
+    ret
+}
+
+fn reclaim$Session(%value: %Session) -> () {
+  b0:
+    drop [%value]@Session.pages reclaim Reclaim(Buffer).reclaim
+    ret
+}

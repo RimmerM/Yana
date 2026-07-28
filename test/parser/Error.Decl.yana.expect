@@ -6,26 +6,20 @@ error 9:3 [338..339]: expected declaration end
 error 15:0 [463..463]: expected ')'
 error 15:0 [463..463]: expected function body
 error 18:0 [511..511]: expected '=' or '{' after type name
-error 21:0 [587..587]: expected '='
-error 21:0 [587..587]: expected a type
-error 24:0 [668..668]: expected ':' after class declaration
-error 24:0 [668..668]: expected 'fn'
-error 24:0 [668..668]: expected function name
-error 24:0 [668..668]: expected '('
-error 24:0 [668..676]: expected 'fn'
-error 24:0 [668..676]: expected function name
-error 24:0 [668..676]: expected '('
-error 24:0 [668..676]: expected declaration end
-error 27:8 [757..758]: expected a class name
-error 27:8 [757..758]: expected '='
-error 27:8 [757..758]: expected a type
-error 27:8 [757..758]: expected declaration end
-error 31:0 [850..850]: expected '='
-error 31:0 [850..850]: expected a type
-error 32:0 [856..856]: expected identifier
-error 35:0 [925..925]: expected attribute type
-error 35:0 [925..933]: terminating statements cannot be used in a global scope
-error 38:18 [1013..1014]: expected declaration end
+error 21:0 [591..591]: expected '='
+error 21:0 [591..591]: expected a type
+error 24:0 [672..672]: expected ':' after instance declaration
+error 24:0 [672..672]: expected an expression
+error 24:8 [680..681]: expected a class name
+error 24:8 [680..681]: expected '='
+error 24:8 [680..681]: expected a type
+error 24:8 [680..681]: expected declaration end
+error 28:0 [773..773]: expected '='
+error 28:0 [773..773]: expected a type
+error 29:0 [779..779]: expected identifier
+error 32:0 [848..848]: expected attribute type
+error 32:0 [848..856]: terminating statements cannot be used in a global scope
+error 35:18 [936..937]: expected declaration end
 
 Module 
 |-FunDecl noBody
@@ -39,11 +33,14 @@ Module
 |-<parse error>
 |-AliasDecl NoTarget 
 | `-<parse error>
-|-TraitDecl NoBody (a)
-| |-FunDecl 
-| `-FunDecl 
-|-DefaultDecl 
-| `-<parse error>
+|-InstanceDecl 
+| |-AppType 
+| | |-ConType NoBody
+| | `-ConType Int
+| |-StmtDecl
+| | `-<parse error>
+| `-DefaultDecl 
+|   `-<parse error>
 |-DefaultDecl FromInt
 | `-<parse error>
 |-<parse error>

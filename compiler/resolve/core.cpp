@@ -166,22 +166,17 @@ class Logic(a):
 class Truth(a):
   fn truthy(value: a) -> Bool
 
--- The three ownership classes a type can join by writing an instance.
+-- The ownership classes a type can join by writing an instance.
 --
--- The other two Design.md names - TrivialCopy and TrivialSink - are deliberately absent. They are
--- implicit, hold for a type exactly when they hold for every one of its members, and are decided
--- structurally by the compiler before typeclass dispatch is available at all; there is nothing for
--- an instance of either to say. They become real classes, and so real constraints on a generic
--- parameter, in Milestone 7.
+-- What they are for is the cases the structural answer gets wrong, and each of them is a statement
+-- that it does: `Copy` for a type that can be duplicated but not by copying its bytes, `Sink` for
+-- one that cannot be relocated by copying its bytes because it refers to its own address,
+-- `Reclaim` for one whose storage is released by something other than handing an allocation back,
+-- and `Drop` for one whose lifetime ends in an effect.
 --
--- What these three are for is the cases the structural answer gets wrong, and each of them is a
--- statement that it does: `Copy` for a type that can be duplicated but not by copying its bytes,
--- `Sink` for one that cannot be relocated by copying its bytes because it refers to its own
--- address, and `Drop` for one whose lifetime ends in something other than releasing its storage.
---
--- A type that writes none of them still gets all three behaviours - a bitwise copy, a bitwise
--- move, and the derived drop that releases each member and then this owner's own storage. Writing
--- `Drop` is what makes that drop opaque, which is the distinction regions are built on.
+-- A type that writes none of them still gets all of the behaviours - a bitwise copy, a bitwise
+-- move, and the derived teardown that recurses into each member and then releases this owner's own
+-- storage.
 class Copy(a):
   fn copy(from: a) -> a
 
@@ -192,10 +187,46 @@ class Copy(a):
 class Sink(a):
   fn sink(&to: a, ->from: a) -> {}
 
+{-
+   The two halves of teardown - Design-Memory §4.
+
+   Splitting them is what makes three otherwise separate rules one sentence each: `Reclaim` compiles
+   to nothing on the JS target while `Drop` runs; `Reclaim` is elided for region-placed storage
+   while `Drop` still runs at last use; and closing a region discharges every `Reclaim` inside it in
+   bulk. Region eligibility therefore becomes structural - a type is implicitly region-placeable
+   when it has no `Drop` - which is what lets a map of connections be arena-placed with its
+   connection teardowns still running where they should.
+
+   `Reclaim` releases this value's own storage and nothing else. An authored one is constrained by
+   shape rather than trusted for purity: its body may contain control flow, arithmetic over its own
+   metadata, reads of storage it owns, calls to the compiler's per-member teardown, and storage
+   release, and no other call. The author is trusted about "I call nothing else", never about "my
+   members are effect-free" - whether a container's teardown has effects is computed from whether
+   its element types have a `Drop`.
+-}
+class Reclaim(a):
+  fn reclaim(->value: a) -> {}
+
 -- Run once when a live instance dies, at its last use rather than at the end of its scope. Never
 -- run on a location a value has been moved out of, which is what the drop flags exist to know.
 class Drop(a):
   fn drop(->value: a) -> {}
+
+{-
+   The two implicit ownership classes.
+
+   No instance of either is ever written: they hold for a type exactly when they hold for every one
+   of its members, and the compiler answers them structurally before typeclass dispatch is available
+   at all. They are declared as classes anyway so that a *signature* can constrain a type variable
+   by one - `fn (TrivialCopy(a)) dup(x: a) -> {a, a}` - and the body may then act on the fact.
+
+   Design-Memory §2.1's rule is what makes that distinction load-bearing: an unconstrained parameter
+   is treated as non-TrivialCopy inside the body regardless of what a caller later substitutes, so
+   discovering the fact at one concrete call site may never upgrade a borrow to a copy. The
+   constraint is the only thing that can.
+-}
+class TrivialCopy(a)
+class TrivialSink(a)
 
 -- A Widen instance is required to be lossless and total; that is a contract on whoever writes
 -- one, checked no more than Copy's is. Which of the two classes relates a pair of types is the
@@ -312,7 +343,10 @@ void defineCore(Program& program) {
     program.coreClasses.truth = classNamed(*module, "Truth"_v);
     program.coreClasses.copy = classNamed(*module, "Copy"_v);
     program.coreClasses.sink = classNamed(*module, "Sink"_v);
+    program.coreClasses.reclaim = classNamed(*module, "Reclaim"_v);
     program.coreClasses.drop = classNamed(*module, "Drop"_v);
+    program.coreClasses.trivialCopy = classNamed(*module, "TrivialCopy"_v);
+    program.coreClasses.trivialSink = classNamed(*module, "TrivialSink"_v);
 
     // Core's own instances exist only now, so its superclass checks and its `default`
     // declarations run here rather than as part of reading its source.
@@ -427,8 +461,12 @@ fn remove(&self: Array(a), index: Int) -> {}:
 
     self.length = self.length - 1
 
-instance Drop(Array(a)):
-    fn drop(->value: Array(a)) -> {}:
+-- Handing the buffer back is storage release and nothing else, so this is a `Reclaim` rather than
+-- a `Drop` - which is what keeps an array of elements that have no effect of their own
+-- region-placeable (Design-Memory §4). An array whose *elements* have a `Drop` gets one derived
+-- from them, and running it is the erased loop the generic model supplies.
+instance Reclaim(Array(a)):
+    fn reclaim(->value: Array(a)) -> {}:
         if value.onHeap then freeHeap(cast(value.items) :: %U8)
 )COLLECTIONS";
 

@@ -28,45 +28,58 @@ struct Repr {
 };
 
 /*
- * What running out of a value's lifetime costs.
+ * How one half of a teardown is supplied.
  *
- * `None` is nothing at all, `Derived` is the glue the compiler writes - drop each member, then
- * release this owner's own indirect storage - and `Authored` is an `instance Drop(T)` someone
- * wrote. Design.md's Ownership-related classes draws the line where it does because regions need
- * it: derived drop is provably reclaim-only and can be elided when its storage is region-placed,
- * while an authored one cannot be assumed side-effect-free by inspection.
+ * `None` is nothing at all, `Derived` is the glue the compiler writes - recurse into each member,
+ * and for the reclaim half also release this owner's own indirect storage - and `Authored` is an
+ * instance someone wrote.
  */
-enum class DropKind: U8 {
+enum class TeardownKind: U8 {
     None,
     Derived,
     Authored,
 };
 
 /*
- * The structural ownership facts of one type (Implementation-IR.md part 4).
+ * The structural ownership facts of one type (Implementation-IR.md part 4, Design-Memory §4.1).
  *
  * These are computed from the shape of the type rather than looked up per use, because every one
  * of them is needed long before typeclass dispatch is available: whether a `let x = e` copies or
  * borrows is decided while resolving the `let`, and it is decided by whether `e`'s type is
  * TrivialCopy.
  *
- * `trivialCopy` and `trivialSink` are the two implicit classes and are never spelled in source at
- * this milestone; `authoredCopy` and `drop`/`trivialSink` record what an `instance Copy(T)` /
- * `instance Sink(T)` / `instance Drop(T)` supplied, since those *are* spellable and are what
- * InstCopy and InstMove call. The relations between them are not independent:
+ * `trivialCopy` and `trivialSink` are the two implicit classes; `authoredCopy`, `authoredSink`,
+ * `reclaim` and `drop` record what an `instance Copy(T)` / `Sink(T)` / `Reclaim(T)` / `Drop(T)`
+ * supplied, since those *are* spellable and are what InstCopy, InstMove and InstDrop call.
  *
- *  - a type with any drop is not TrivialCopy, because copying it would duplicate the resource its
- *    drop releases;
+ * Teardown is two fields rather than one because Design-Memory §4 splits it, and the split is what
+ * makes three previously separate rules one sentence each: `Reclaim` compiles to nothing on the JS
+ * target while `Drop` runs; `Reclaim` is elided for region-placed storage while `Drop` still runs
+ * at last use; closing a region discharges every `Reclaim` inside it in bulk. **Region eligibility
+ * is therefore `drop == None`**, computed over the member graph exactly as TrivialCopy is, which is
+ * what lets `Map(String, Connection)` be arena-placeable with its connection teardowns intact.
+ *
+ * The relations between the fields are not independent:
+ *
+ *  - a type with either half of a teardown is not TrivialCopy, because copying it would duplicate
+ *    the resource that teardown releases;
  *  - a type with an authored Sink anywhere inside it is not TrivialSink, because moving it is a
  *    call rather than a memcpy;
- *  - both properties are structural over members, so one non-trivial field is enough.
+ *  - every property is structural over members, so one non-trivial field is enough.
  */
 struct Ownership {
     bool trivialCopy = true;
     bool trivialSink = true;
     bool authoredCopy = false;
     bool authoredSink = false;
-    DropKind drop = DropKind::None;
+
+    // Release this value's own storage. Elidable: something else may reclaim it in bulk.
+    TeardownKind reclaim = TeardownKind::None;
+
+    // Run an effect at last use. Never elided, on any target, ever.
+    TeardownKind drop = TeardownKind::None;
+
+    bool needsTeardown() const { return reclaim != TeardownKind::None || drop != TeardownKind::None; }
 };
 
 // Resolve types live in one region shared by every module of a program, so that a type
@@ -185,6 +198,55 @@ struct BorrowType: Type {
     bool mut;
 };
 
+/*
+ * One argument of a function *type*.
+ *
+ * Implementation-IR.md part 3 is explicit that the convention and the `return` marker belong here
+ * rather than on a declaration: a caller that reaches a function through a generic parameter, a
+ * function value or dynamic dispatch has only the type to read, and a contract that survived a
+ * direct call and evaporated at an abstraction boundary would be worse than no contract. So the
+ * same two bits `Arg` carries are part of what makes two function types the same one.
+ *
+ * `name` is deliberately *not* part of identity. `(a: Int) -> Int` and `(Int) -> Int` are one type;
+ * the name exists for diagnostics and for printing a signature back the way it was written.
+ */
+struct FunArg {
+    TypePtr type = nullptr;
+    StringId name = 0;
+    ast::BindType convention = ast::BindType::Borrow;
+    bool returnRoot = false;
+};
+
+/*
+ * A function type - Design.md's "Function types", and what a function value has.
+ *
+ * Interned on everything that decides whether two of them accept the same calls: the argument types
+ * in order, each argument's convention and `return` marker, the result, and the `lens`/`iter` kind.
+ * Nothing else may join that key, which is why `name` above is left out of it.
+ *
+ * The representation is three words, and the third is the one worth explaining. A function value is
+ * a code pointer plus the environment its captures live in (Design-Memory §8), and *releasing* that
+ * environment is a per-closure question rather than a per-type one: two values of one function type
+ * can capture completely different things. So the value carries the environment's TypeDesc as well,
+ * which is what its derived Reclaim and Drop run - the same "context travelling with the value"
+ * shape §17's existentials have, one word narrower because the code pointer is the whole interface.
+ *
+ * A non-capturing lambda and a plain function referenced by name have a null environment and a null
+ * descriptor, so the teardown is a branch that never fires rather than a second representation.
+ */
+struct FunType: Type {
+    FunType(): Type(Type::Fun, 3, { 24, 8 }) {}
+
+    GlobalList<FunArg> args;
+    TypePtr result = nullptr;
+    ast::FunKind kind = ast::FunKind::Plain;
+
+    // The argument indices whose `returnRoot` bit is set, as a mask - the single return-root group
+    // Implementation-IR.md part 3 gives one function type. Kept alongside the args so that a caller
+    // composing provenance through a call reads one word rather than walking the list.
+    U64 returnRoots = 0;
+};
+
 struct FloatType: Type {
     enum Width: U8 {
         Float,
@@ -297,6 +359,84 @@ struct ClassConstraint {
     LocationId source = kNullLocation;
 };
 
+/*
+ * One `a.field: b` requirement of a context - Design.md's structural field constraint.
+ *
+ * `owner` and `result` are the context's own types, so the relation is between two slots of one
+ * context rather than a fact attached globally to `a`. What satisfies it at an instantiation is a
+ * PropertyWitness: the scoped read/set/modify of that one field, on the owner's selected Repr.
+ */
+struct PropertyConstraint {
+    TypePtr owner = nullptr;
+    TypePtr result = nullptr;
+    StringId field = 0;
+    LocationId source = kNullLocation;
+};
+
+/*
+ * One `f: (a) -> b` requirement of a context.
+ *
+ * `signature` is a FunType, so the conventions and the `return` group a constrained callable
+ * promises are part of the requirement rather than being lost at the boundary - which is exactly
+ * what FunArg exists for. Satisfied by a FunctionWitness.
+ */
+struct FunctionConstraint {
+    TypePtr signature = nullptr;
+    StringId name = 0;
+    LocationId source = kNullLocation;
+};
+
+/*
+ * What a runtime environment carries, and in which order.
+ *
+ * Implementation-Generics.md part 2 asks for slots canonicalized by structural key rather than by
+ * the order a hash table happened to return them, because a slot number is what emitted code
+ * *loads*: the caller writes slot 3 and the callee reads slot 3, and if the two disagreed about
+ * what 3 meant nothing would say so. So the numbering is derived once, from the context, by a rule
+ * that does not depend on how the context was built up.
+ */
+enum class GenSlotKind: U8 {
+    // A TypeDesc: the identity, size, alignment and lifecycle of one type variable or of one
+    // applied type expression the body uses.
+    Type,
+
+    // A ClassWitness: one typeclass implementation and its method table.
+    Class,
+
+    // A PropertyWitness: the scoped read/set/modify of one constrained field.
+    Property,
+
+    // A FunctionWitness: one constrained callable.
+    Function,
+};
+
+struct GenSlot {
+    GenSlotKind kind = GenSlotKind::Type;
+    U16 index = 0;
+
+    // Type slot: the variable or applied expression it describes.
+    // Property slot: the owner type. Function slot: the signature.
+    TypePtr type = nullptr;
+
+    // Class slot: the class and the types it is required for.
+    GlobalPtr<TypeClass> typeClass = nullptr;
+    GlobalList<TypePtr> args;
+
+    // Property slot: the field name and its type. Function slot: the function name.
+    StringId name = 0;
+    TypePtr result = nullptr;
+
+    LocationId source = kNullLocation;
+};
+
+struct GenSchema {
+    GlobalList<GenSlot> slots;
+
+    // How many leading slots are type descriptors. Everything else indexes off this, and it is what
+    // a caller building an environment fills in first.
+    U16 typeCount = 0;
+};
+
 struct GenEnv {
     enum Kind: U8 {
         Record,
@@ -309,14 +449,47 @@ struct GenEnv {
     explicit GenEnv(Kind kind): kind(kind) {}
 
     GlobalList<GlobalPtr<GenType>> types;
+
+    // Applied type expressions the body uses - `Maybe(a)`, `Pair(b, a)`. They get descriptor slots
+    // of their own so that the caller, which knows the concrete arguments, builds each one once
+    // instead of the callee re-applying a type constructor per use.
+    GlobalList<TypePtr> derivedTypes;
+
     GlobalList<ClassConstraint> classes;
+    GlobalList<PropertyConstraint> properties;
+    GlobalList<FunctionConstraint> functions;
     Kind kind;
 
     // A function context has no declared variable list: `fn id(x: a) -> a` introduces `a` by
     // using it. An open context adds a variable the first time a type mentions one, which numbers
     // them in order of appearance across the constraints and then the signature.
     bool open = false;
+
+    // The canonical numbering, built on first request and invalidated by anything that adds a
+    // requirement. Deliberately derived rather than maintained: a body infers requirements while it
+    // is being resolved, and a numbering that shifted underneath half-emitted code would be worse
+    // than one that does not exist yet.
+    GlobalPtr<GenSchema> schema = nullptr;
 };
+
+// The canonical schema of one context, built if it does not exist yet. Every slot number anything
+// emits comes from here.
+GenSchema& genSchemaOf(Module& module, GenEnv& env);
+
+// Discards a context's cached numbering. Called by whatever adds a requirement to it.
+inline void invalidateGenSchema(GenEnv& env) { env.schema = nullptr; }
+
+// Where in the canonical numbering one requirement sits, or maxLimit when the context has no such
+// slot. These are what an emitted load of an environment slot is built from.
+U16 genTypeSlot(Module& module, GenEnv& env, TypePtr type);
+U16 genClassSlot(Module& module, GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
+U16 genPropertySlot(Module& module, GenEnv& env, TypePtr owner, StringId field);
+U16 genFunctionSlot(Module& module, GenEnv& env, StringId name, TypePtr signature);
+
+// Records that the body needs a TypeDesc for this type expression - a type variable, or an applied
+// type such as `Maybe(a)` it constructs or matches. Adding one renumbers the context, so this
+// happens while the body is being resolved and never after.
+void requireTypeSlot(Module& module, GenEnv& env, TypePtr type);
 
 // The type variable of `env` called `name`, adding it if the context is open. Null when the
 // context is closed and has no such variable.
@@ -403,13 +576,19 @@ struct CoreClasses {
     GlobalPtr<TypeClass> narrow = nullptr;
     GlobalPtr<TypeClass> truth = nullptr;
 
-    // The three ownership classes. They are known by name for the same reason the five above are:
+    // The ownership classes. They are known by name for the same reason the five above are:
     // `let ->z = x` and the end of a value's lifetime are language syntax, and what they compile
-    // to is a lookup of these. TrivialCopy and TrivialSink are deliberately *not* here - they are
-    // structural facts with no instance to find, until Milestone 7 makes them constraints.
+    // to is a lookup of these.
     GlobalPtr<TypeClass> copy = nullptr;
     GlobalPtr<TypeClass> sink = nullptr;
+    GlobalPtr<TypeClass> reclaim = nullptr;
     GlobalPtr<TypeClass> drop = nullptr;
+
+    // The two implicit ones. Unlike the four above, no instance of either is ever *written* - the
+    // compiler answers them structurally - but they are real classes so that a signature can
+    // constrain a type variable by one and a body may then act on the fact. See ownershipOf.
+    GlobalPtr<TypeClass> trivialCopy = nullptr;
+    GlobalPtr<TypeClass> trivialSink = nullptr;
 };
 
 /*
@@ -427,6 +606,19 @@ TypePtr resolvePointerType(Module& module, TypePtr to);
 
 // The borrow type `&to`, interned per target type and mutability.
 TypePtr resolveBorrowType(Module& module, TypePtr to, bool mut);
+
+// The function type these arguments, result and kind name, interned on all three. Every argument's
+// convention and `return` marker is part of the key - see FunArg.
+TypePtr resolveFunType(Module& module, Buffer<FunArg> args, TypePtr result, ast::FunKind kind);
+
+// Whether a `return` marker is valid on an argument of this type, convention and position,
+// reporting what is wrong with it when it is not. Shared by a declaration's signature and by a
+// written function type, so that a contract means the same thing in both places.
+bool checkReturnRoot(Module& module, TypePtr type, ast::BindType convention, U32 index, LocationId source);
+
+// The result type of a function whose group is `roots`: `&T` becomes `&mut T` exactly when every
+// member of the group it may be rooted in is itself a `return &`. See resolveSignature.
+TypePtr applyReturnRootMutability(Module& module, TypePtr result, bool allRootsMutable);
 
 // Instantiates a generic record for a set of fully concrete arguments, interning the result so
 // that `Maybe(Int)` names one type no matter how many places write it.
@@ -486,8 +678,28 @@ inline bool sameTypes(List& list, Base base, Buffer<TypePtr> args) {
  */
 Ownership ownershipOf(Module& module, TypePtr type);
 
-// Whether the end of this value's lifetime has to run anything. Shorthand for the question drop
-// insertion asks of every place, which is the one ownership fact most callers want.
+/*
+ * The classification a body written in `env` may act on, which is not always the structural one.
+ *
+ * Design-Memory §2.1: "a generic parameter gets copy-on-read only when the signature asks for it.
+ * An unconstrained parameter is treated as non-TrivialCopy inside the body regardless of what a
+ * caller later substitutes, so a generic function's accepted programs and behaviour are fixed by
+ * its own signature." So a type variable answers conservatively *unless* the context declares
+ * `TrivialCopy(a)`, and the answer is deliberately not cached on the Type - it belongs to one
+ * context rather than to the type.
+ *
+ * A null `env` is the ordinary non-generic case and is exactly ownershipOf().
+ */
+Ownership ownershipIn(Module& module, GenEnv* env, TypePtr type);
+
+// Whether the end of this value's lifetime has to run anything at all - either half. Shorthand for
+// the question drop insertion asks of every place, which is the one ownership fact most callers
+// want.
+bool needsTeardown(Module& module, TypePtr type);
+
+// Whether this type has a `Drop` - an effect that runs at last use and is never elided. This is the
+// narrower question, and it is the one region eligibility asks: storage whose teardown is entirely
+// `Reclaim` may be released in bulk (Design-Memory §4).
 bool needsDrop(Module& module, TypePtr type);
 
 bool isUnit(GlobalBase base, TypePtr type);
@@ -495,6 +707,7 @@ bool isLiteral(GlobalBase base, TypePtr type);
 bool isInteger(GlobalBase base, TypePtr type);
 bool isPointer(GlobalBase base, TypePtr type);
 bool isBorrow(GlobalBase base, TypePtr type);
+bool isFunction(GlobalBase base, TypePtr type);
 
 // What a pointer points at, or null for anything else.
 TypePtr pointeeType(GlobalBase base, TypePtr type);

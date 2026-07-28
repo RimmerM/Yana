@@ -105,6 +105,11 @@ fn maybes() -> I64 {
 }
 
 (Ord(a)) fn smaller(%x: a, %y: a) -> a {
+  schema {
+    #0 type a
+    #1 class Ord(a)
+  }
+
   b0:
     %v2 = gencall Ord(a).<, %x, %y : Bool
     je %v2, b1, b2
@@ -214,6 +219,13 @@ fn main() -> Int {
 }
 
 (Eq(a), Eq(Maybe(a))) fn Eq(Maybe(a)).==(%lhs: Maybe(a), %rhs: Maybe(a)) -> Bool {
+  schema {
+    #0 type a
+    #1 type {Maybe(a), Maybe(a)}
+    #2 class Eq(a)
+    #3 class Eq(Maybe(a))
+  }
+
   b0:
     %v2 = alloc : {Maybe(a), Maybe(a)}
     init %local2.0, %lhs
@@ -259,6 +271,13 @@ fn main() -> Int {
 }
 
 (Eq(a), Eq(Maybe(a))) fn Eq(Maybe(a)).!=(%lhs: Maybe(a), %rhs: Maybe(a)) -> Bool {
+  schema {
+    #0 type a
+    #1 type {Maybe(a), Maybe(a)}
+    #2 class Eq(a)
+    #3 class Eq(Maybe(a))
+  }
+
   b0:
     %v2 = gencall Eq(Maybe(a)).==, %lhs, %rhs : Bool
     %v4 = xor %v2, True : Bool

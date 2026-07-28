@@ -171,14 +171,33 @@ static GlobalPtr<GenEnv> prepareGenEnv(Module& module, GenEnv::Kind kind,
                 env->classes.push(module.types, entry);
                 break;
             }
-            case ast::Constraint::Field:
-            case ast::Constraint::Function:
-                // Both need a witness passed at runtime rather than a type substituted at
-                // compile time, which is the erased half of the generic model.
-                module.context.diagnostics.error(
-                    "field and function constraints require property witnesses, which are not available yet"_v,
-                    constraint.source);
+            case ast::Constraint::Field: {
+                // `a.field: b` - a relation between two slots of *this* context rather than a fact
+                // attached globally to `a`, which is what makes `Serialize`-shaped constraints
+                // expressible at all. What satisfies it is a PropertyWitness for that one field.
+                auto owner = addVariable(constraint.field.typeName, constraint.source);
+
+                PropertyConstraint entry;
+                entry.owner = (Type*)(*module.types)[owner] - *module.types;
+                entry.field = constraint.field.fieldName;
+                entry.source = constraint.source;
+                entry.result = resolveType(module, *module.parse[constraint.field.type], env);
+
+                env->properties.push(module.types, entry);
                 break;
+            }
+            case ast::Constraint::Function: {
+                // `f: (a) -> b`. The signature is a real function type, so the conventions and the
+                // `return` group it promises survive into the requirement instead of being dropped
+                // at the boundary - see FunArg.
+                FunctionConstraint entry;
+                entry.name = constraint.fun.name;
+                entry.source = constraint.source;
+                entry.signature = resolveType(module, *module.parse[constraint.fun.type], env);
+
+                env->functions.push(module.types, entry);
+                break;
+            }
         }
     }
 
@@ -637,42 +656,16 @@ static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, 
         declared->convention = arg.bind;
         declared->returnRoot = arg.returnRoot;
 
-        /*
-         * What may carry the marker, per Design.md's "Borrows in return position".
-         *
-         * All three rules are about the same thing: the marker says a borrow in the result may be
-         * rooted in the caller's storage for this argument, so the argument has to *have* caller
-         * storage that survives the call. A sunk one does not - the callee owns it - and a
-         * TrivialCopy one passed by the default convention does not either, since what the body
-         * sees is a copy of its own.
-         */
+        // What may carry the marker is one rule shared with a written function type - see
+        // checkReturnRoot, which is where it and its diagnostics live.
         if(arg.returnRoot) {
             written++;
 
-            if(arg.bind == ast::BindType::Sink) {
-                module.context.diagnostics.error("`return` cannot be written on a `->` argument - the callee owns what it was given, so there is no caller-side storage left for a result to be rooted in"_v,
-                                                 arg.source);
-            } else if(arg.bind != ast::BindType::Ref && isDirectType(*module.types, type) &&
-                      !isPointer(*module.types, type)) {
-                // Design.md states this rule over TrivialCopy, which is the same rule one step
-                // earlier: what disqualifies a parameter is arriving as a copy rather than as an
-                // address. Here that is exactly a direct type - a scalar in a register - while a
-                // TrivialCopy *aggregate* still arrives as the caller's address and can root a
-                // borrow of it perfectly well.
-                //
-                // A raw pointer is the exception among direct types: the copy it arrives as *is*
-                // an address, so what it names is still the caller's. `return %a` is how Native's
-                // `borrow` says that its result points into whatever it was given, which is the
-                // one bridge from unchecked memory back into checked borrows.
-                module.context.diagnostics.error("`return` on %@ has nothing to root a borrow in - it arrives in a register, so the body sees a copy of its own; write `return &` when the caller's storage must be the root"_v,
-                                                 arg.source, describeType(module.context, *module.types, type));
-            } else if(index >= 64) {
-                // The group is a bit set, and a signature this wide has never been written. Saying
-                // so is better than silently dropping a marker the caller would then rely on.
-                module.context.diagnostics.error("`return` cannot be written past the 64th argument"_v, arg.source);
-            } else {
+            if(checkReturnRoot(module, type, arg.bind, index, arg.source)) {
                 roots++;
                 if(arg.bind != ast::BindType::Ref) allRootsMutable = false;
+            } else {
+                declared->returnRoot = false;
             }
         }
 
@@ -694,9 +687,8 @@ static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, 
                 module.context.diagnostics.error("a function returning a borrow must mark the argument it is rooted in with `return`"_v,
                                                  decl.source);
             }
-        } else if(allRootsMutable) {
-            function->returnType = resolveBorrowType(
-                module, ((BorrowType*)(*module.types)[function->returnType])->to, true);
+        } else {
+            function->returnType = applyReturnRootMutability(module, function->returnType, allRootsMutable);
         }
     }
 
@@ -1139,6 +1131,16 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
     auto classPointer = findClass(module, className, decl.source);
     if(!classPointer) {
         module.context.diagnostics.error("unknown class %@"_v, decl.source, module.context.findName(className));
+        return;
+    }
+
+    // The two implicit classes have no instances to write: whether a type is TrivialCopy is decided
+    // by whether every one of its members is, and an instance saying otherwise would be a claim the
+    // compiler has already contradicted. What a type that needs different behaviour writes is
+    // `Copy` or `Sink`, which is exactly what those are for.
+    if(classPointer == module.coreClasses.trivialCopy || classPointer == module.coreClasses.trivialSink) {
+        module.context.diagnostics.error("%@ is decided structurally and has no instances to write - a type that cannot be duplicated or relocated bitwise says so by writing `Copy` or `Sink`"_v,
+                                         decl.source, module.context.findName(className));
         return;
     }
 
@@ -1652,12 +1654,13 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending)
                         reach(((InstCopy&)instruction).copy);
                         break;
                     case Value::Drop:
-                        // The drop implementation is reached from here and from nowhere else: a
-                        // derived glue function has no call site in the source at all, and an
-                        // authored instance may have none either. The same goes for the release of
-                        // heap storage, which lowering emits as a call nothing in the IR names.
+                        // Both teardown implementations are reached from here and from nowhere
+                        // else: a derived glue function has no call site in the source at all, and
+                        // an authored instance may have none either. The same goes for the release
+                        // of heap storage, which lowering emits as a call nothing in the IR names.
                         markPlace(local, ((InstDrop&)instruction).place);
-                        reach(((InstDrop&)instruction).implementation);
+                        reach(((InstDrop&)instruction).drop);
+                        reach(((InstDrop&)instruction).reclaim);
                         if(((InstDrop&)instruction).releaseStorage) reach(program.freeHeap);
                         break;
                     case Value::Alloc:

@@ -44,12 +44,22 @@ fn bothQualified(%a: Bool, %b: Bool) -> Bool {
 }
 
 (Integral(a)) fn maskGeneric(%x: a, %y: a) -> a {
+  schema {
+    #0 type a
+    #1 class Integral(a)
+  }
+
   b0:
     %v2 = gencall Integral(a).and, %x, %y : a
     ret %v2
 }
 
 (Logic(a)) fn bothGeneric(%x: a, %y: a) -> a {
+  schema {
+    #0 type a
+    #1 class Logic(a)
+  }
+
   b0:
     %v2 = gencall Logic(a).and, %x, %y : a
     ret %v2

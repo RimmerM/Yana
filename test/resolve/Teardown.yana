@@ -1,0 +1,53 @@
+-- The two halves of teardown, and the two implicit ownership classes as constraints.
+--
+-- Design-Memory §4 splits teardown into `Reclaim` - release this value's own storage, elidable
+-- wherever something reclaims it in bulk - and `Drop` - run an effect at last use, never elided.
+-- What the split buys is that a type with only a `Reclaim` stays region-eligible, which a single
+-- combined class could not express.
+
+import Native
+
+let &effects = 0 :: Int
+let &released = 0 :: Int
+
+-- Storage and nothing else: releasing it is `Reclaim`, so this type has no `Drop` at all and its
+-- bytes could be arena-placed with nothing left over to run at last use.
+data Buffer {cells: %I64, count: Int}
+
+instance Reclaim(Buffer):
+    fn reclaim(->value: Buffer) -> {}:
+        released = released + 1
+        freeHeap(cast(value.cells) :: %U8)
+
+-- An effect at last use: `Drop`, which is never elided on any target.
+data Handle {id: Int}
+
+instance Drop(Handle):
+    fn drop(->value: Handle) -> {}:
+        effects = effects + value.id
+
+-- Both halves derived, and derived independently: `pages` contributes a reclaim and `owner` a
+-- drop, so the record gets one of each rather than one merged teardown.
+data Session {pages: Buffer, owner: Handle}
+
+fn makeBuffer(count: Int) -> Buffer:
+    let cells = cast(allocateHeap(count * 8)) :: %I64
+    return Buffer {cells: cells, count: count}
+
+fn useSession(->s: Session) -> Int = s.owner.id
+
+-- The implicit classes as real constraints. `a` is non-TrivialCopy inside this body until the
+-- signature says otherwise, so the copy below is legal exactly because the constraint is written.
+fn (TrivialCopy(a)) duplicate(x: a) -> {left: a, right: a}:
+    let ->left = x
+    let ->right = x
+    return {left: left, right: right}
+
+fn main() -> Int:
+    let ->session = Session {pages: makeBuffer(4), owner: Handle {id: 7}}
+    -- A convention is the callee's and is never written at the call site, so this consumes
+    -- `session` because `useSession` declared `->`.
+    let used = useSession(session)
+
+    let pair = duplicate(35)
+    return used + pair.left + effects - released

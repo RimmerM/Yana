@@ -135,10 +135,15 @@ static StringView instructionName(Value& value, GlobalBase global) {
         case Value::Move: return "move"_v;
         case Value::Copy: return "copy"_v;
         case Value::Drop:
-            switch(((InstDrop&)value).kind) {
-                case DropKind::Authored: return "drop"_v;
-                default: return "drop_derived"_v;
+            // Named after what it actually runs. A teardown with an authored half on either side is
+            // opaque to region placement, so telling the two apart in the dump is telling apart the
+            // two things placement decides between.
+            if(((InstDrop&)value).dropKind == TeardownKind::Authored ||
+               ((InstDrop&)value).reclaimKind == TeardownKind::Authored) {
+                return "drop"_v;
             }
+
+            return "drop_derived"_v;
         case Value::Address: return "addressof"_v;
         case Value::Native:
             switch(((InstNative&)value).op) {
@@ -257,14 +262,22 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             print.writer.writeByte(' ');
             printPlace(print, *function, dropped.place);
 
-            if(dropped.implementation) {
+            // The two halves are printed separately because they are elided separately: a region
+            // reset discharges the reclaim and leaves the drop, and a dump that merged them would
+            // not show which one survived.
+            if(dropped.drop) {
                 print.writer.writeString(" via "_v);
-                print.writer.writeString(print.context.findName(print.local[dropped.implementation]->name));
+                print.writer.writeString(print.context.findName(print.local[dropped.drop]->name));
             }
 
-            // The other half of a derived drop: handing back storage this frame owns. Printed
-            // because the drop of a type with nothing to run is otherwise indistinguishable from
-            // no drop at all.
+            if(dropped.reclaim) {
+                print.writer.writeString(" reclaim "_v);
+                print.writer.writeString(print.context.findName(print.local[dropped.reclaim]->name));
+            }
+
+            // The last part of the reclaim half: handing back storage this frame owns. Printed
+            // because a teardown of a type with nothing to run is otherwise indistinguishable from
+            // no teardown at all.
             if(dropped.releaseStorage) print.writer.writeString(" release"_v);
 
             // `if %flag2` - the drop is conditional, which is a fact about the control flow that
@@ -416,7 +429,7 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
 // list includes the requirements the body turned out to need as well as the ones the signature
 // declared, because they are the same thing by the time it is printed.
 static void printGenEnv(ResolvePrint& print, GenEnv& env) {
-    if(env.classes.isEmpty()) return;
+    if(env.classes.isEmpty() && env.properties.isEmpty() && env.functions.isEmpty()) return;
 
     print.writer.writeByte('(');
     Size index = 0;
@@ -438,7 +451,84 @@ static void printGenEnv(ResolvePrint& print, GenEnv& env) {
         print.writer.writeByte(')');
     }
 
+    for(auto constraint: env.properties.contents(print.global)) {
+        if(index++) print.writer.writeString(", "_v);
+        printType(print, constraint.owner);
+        print.writer.writeByte('.');
+        print.writer.writeString(print.context.findName(constraint.field));
+        print.writer.writeString(": "_v);
+        printType(print, constraint.result);
+    }
+
+    for(auto constraint: env.functions.contents(print.global)) {
+        if(index++) print.writer.writeString(", "_v);
+        print.writer.writeString(print.context.findName(constraint.name));
+        print.writer.writeString(": "_v);
+        printType(print, constraint.signature);
+    }
+
     print.writer.writeString(") "_v);
+}
+
+/*
+ * The canonical slot numbering.
+ *
+ * Printed because it is what emitted code *loads*: a caller writes slot 3 and a callee reads slot 3,
+ * and nothing else in the output would show that the two agree. A fixture asserting these numbers is
+ * asserting the one property the erased ABI cannot check for itself.
+ */
+static void printGenSchema(ResolvePrint& print, Module& module, GenEnv& env) {
+    auto& schema = genSchemaOf(module, env);
+    if(schema.slots.isEmpty()) return;
+
+    print.writer.writeString("  schema {\n"_v);
+
+    for(auto slot: schema.slots.contents(print.global)) {
+        print.writer.writeString("    "_v);
+        print.writer.writeByte('#');
+        writeUInt(print.writer, slot.index);
+        print.writer.writeByte(' ');
+
+        switch(slot.kind) {
+            case GenSlotKind::Type:
+                print.writer.writeString("type "_v);
+                printType(print, slot.type);
+                break;
+            case GenSlotKind::Class:
+                print.writer.writeString("class "_v);
+                print.writer.writeString(print.context.findName(print.global[slot.typeClass]->name));
+                print.writer.writeByte('(');
+
+                {
+                    Size argIndex = 0;
+                    for(auto arg: slot.args.contents(print.global)) {
+                        if(argIndex++) print.writer.writeString(", "_v);
+                        printType(print, arg);
+                    }
+                }
+
+                print.writer.writeByte(')');
+                break;
+            case GenSlotKind::Property:
+                print.writer.writeString("property "_v);
+                printType(print, slot.type);
+                print.writer.writeByte('.');
+                print.writer.writeString(print.context.findName(slot.name));
+                print.writer.writeString(": "_v);
+                printType(print, slot.result);
+                break;
+            case GenSlotKind::Function:
+                print.writer.writeString("function "_v);
+                print.writer.writeString(print.context.findName(slot.name));
+                print.writer.writeString(": "_v);
+                printType(print, slot.type);
+                break;
+        }
+
+        print.writer.writeByte('\n');
+    }
+
+    print.writer.writeString("  }\n\n"_v);
 }
 
 static void printFunction(ResolvePrint& print, Function& function) {
@@ -460,6 +550,8 @@ static void printFunction(ResolvePrint& print, Function& function) {
     print.writer.writeString(") -> "_v);
     printType(print, function.returnType);
     print.writer.writeString(" {\n"_v);
+
+    if(function.gen && function.module) printGenSchema(print, *function.module, *print.global[function.gen]);
 
     index = 0;
     for(auto blockPointer: function.blocks.contents(print.local)) {

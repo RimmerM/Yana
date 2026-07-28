@@ -1,9 +1,19 @@
 fn identity(%value: a) -> a {
+  schema {
+    #0 type a
+  }
+
   b0:
     ret %value
 }
 
 fn swap(%value: Pair(a, b)) -> Pair(b, a) {
+  schema {
+    #0 type b
+    #1 type a
+    #2 type Pair(b, a)
+  }
+
   b0:
     %v1 = alloc : Pair(b, a)
     %v2 = load %value@Pair.second : b
@@ -14,12 +24,22 @@ fn swap(%value: Pair(a, b)) -> Pair(b, a) {
 }
 
 fn leftOf(%value: Pair(a, b)) -> a {
+  schema {
+    #0 type a
+    #1 type b
+  }
+
   b0:
     %v1 = load %value@Pair.first : a
     ret %v1
 }
 
 (Ord(a)) fn smaller(%x: a, %y: a) -> a {
+  schema {
+    #0 type a
+    #1 class Ord(a)
+  }
+
   b0:
     %v2 = gencall Ord(a).<, %x, %y : Bool
     je %v2, b1, b2
@@ -36,12 +56,22 @@ fn leftOf(%value: Pair(a, b)) -> a {
 }
 
 (Num(a)) fn twice(%x: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
   b0:
     %v1 = gencall Num(a).+, %x, %x : a
     ret %v1
 }
 
 (Ord(a)) fn middle(%x: a, %y: a, %z: a) -> a {
+  schema {
+    #0 type a
+    #1 class Ord(a)
+  }
+
   b0:
     %v3 = gencall smaller(a), %x, %y : a
     %v4 = gencall smaller(a), %v3, %z : a
@@ -49,6 +79,10 @@ fn leftOf(%value: Pair(a, b)) -> a {
 }
 
 fn orElse(%value: Maybe(a), %fallback: a) -> a {
+  schema {
+    #0 type a
+  }
+
   b0:
     %v2 = load %value.discriminant : Int
     %v4 = cmp_eq %v2, 1 : Bool
@@ -67,6 +101,11 @@ fn orElse(%value: Maybe(a), %fallback: a) -> a {
 }
 
 fn wrap(%value: a) -> Maybe(a) {
+  schema {
+    #0 type a
+    #1 type Maybe(a)
+  }
+
   b0:
     %v1 = alloc : Maybe(a)
     init %local1.discriminant, 1
@@ -75,6 +114,11 @@ fn wrap(%value: a) -> Maybe(a) {
 }
 
 fn empty() -> Maybe(a) {
+  schema {
+    #0 type a
+    #1 type Maybe(a)
+  }
+
   b0:
     %v0 = alloc : Maybe(a)
     init %local0.discriminant, 0

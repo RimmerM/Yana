@@ -215,6 +215,29 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
+Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 16: Ptr
+    %v_2 = load %v_1, 4: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = load %value, 8: Ptr
+    %v_6 = bitcast %v_5: Ptr
+    call_complex freeHeap, %v_6
+    jmp b_7
+  }
+
+  b_4 {
+    jmp b_7
+  }
+
+  b_7 {
+    ret 
+  }
+}
+
 initHeap<complex>() {
   b_0 {
     %region = call_complex mapMemory, 4194304: Ptr
@@ -404,7 +427,7 @@ escaping<complex>(): Int {
     %v_4 = loads %v_3, 4: Int
     %v_5 = add %v_2, %v_4: Int
     %v_6 = call_complex get(Int), %xs, 2: Ptr
-    call_complex Drop(Array(a)).drop(Int), %xs
+    call_complex Reclaim(Array(a)).reclaim(Int), %xs
     %v_7 = loads %v_6, 4: Int
     %v_8 = add %v_5, %v_7: Int
     ret %v_8
@@ -539,29 +562,6 @@ make<complex>(%v_0: Ptr) {
   }
 }
 
-Drop(Array(a)).drop(Int)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 16: Ptr
-    %v_2 = load %v_1, 4: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    %v_5 = load %value, 8: Ptr
-    %v_6 = bitcast %v_5: Ptr
-    call_complex freeHeap, %v_6
-    jmp b_7
-  }
-
-  b_4 {
-    jmp b_7
-  }
-
-  b_7 {
-    ret 
-  }
-}
-
 length(Int)<complex>(%self: Ptr): Int {
   b_0 {
     %v_1 = add %self, 8: Ptr
@@ -596,7 +596,7 @@ main<complex>(): Int {
     call_complex remove(Int), %small, 1
     %v_10 = call_complex sum, %small: Int
     %v_11 = call_complex length(Int), %small: Int
-    call_complex Drop(Array(a)).drop(Int), %small
+    call_complex Reclaim(Array(a)).reclaim(Int), %small
     %v_12 = add %v_10, %v_11: Int
     %v_13 = call_complex escaping: Int
     %v_14 = add %v_12, %v_13: Int

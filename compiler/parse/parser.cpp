@@ -465,15 +465,19 @@ void Parser::parseTraitDecl(ast::DeclList& decls, ast::AttrList attributes, bool
     }
 
     auto type = parseSimpleType();
-    expect(Token::opColon, "expected ':' after class declaration"_v);
     auto source = context.addLocation(location);
-
     ast::DeclList funs;
-    withLevel([&] {
-        sepBy([&] {
-            parseFunDecl(funs, {}, false, false);
-        }, Token::EndOfStmt, Token::EndOfBlock);
-    });
+
+    // A class with no functions is written without the `:` and the block, because there would be
+    // nothing to put in them. `class TrivialCopy(a)` is the case: what it asks of a type is a
+    // property rather than an operation, so what an instance of it supplies is its own existence.
+    if(maybe(Token::opColon)) {
+        withLevel([&] {
+            sepBy([&] {
+                parseFunDecl(funs, {}, false, false);
+            }, Token::EndOfStmt, Token::EndOfBlock);
+        });
+    }
 
     decls.push(arena, ast::Decl {
         .trait = { type, constraints, funs },

@@ -131,6 +131,19 @@ bool runOwnership(Module& module, Function& function, OwnershipResult& result);
 // specializations, not the generic body, that get drops.
 bool runProgramOwnership(Program& program);
 
+// Which half of a teardown a request is about - see Design-Memory §4. The two are elidable under
+// different conditions, so nothing may ask for "the teardown" without saying which.
+enum class Teardown: U8 {
+    Drop,
+    Reclaim,
+};
+
+// The implementation one type's teardown half runs - an authored instance, or the glue synthesized
+// for a derived one - or null where that half has nothing to do. Exposed because a TypeDesc names
+// both halves and is built outside this pass; `module` is where the instances are looked up and
+// where generated glue lands.
+ModulePtr<Function> teardownImplementation(Module& module, TypePtr type, Teardown half, LocationId source);
+
 // Writes the analysis result for the whole program, in the same golden-file spirit as the resolve
 // and lower IR dumps. This is what makes liveness inspectable rather than only trusted.
 void printOwnership(Net::Writer& writer, Context& context, Program& program);
