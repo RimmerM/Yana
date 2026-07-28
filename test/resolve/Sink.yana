@@ -1,0 +1,95 @@
+import Native
+
+-- An authored `Sink` is the other base case of the ownership model, alongside `Drop`: a type whose
+-- *relocation* is a call rather than its bytes, because it refers to its own address. Nothing here
+-- reads the IR to assert that - every count is asserted by the counter the instance increments,
+-- read at a point where the answer is decided by where the relocation went.
+--
+-- Which is also why this file never inspects a `Handle`'s bytes. A relocation that went missing
+-- leaves a destination holding whatever the copy left there, and a value read out of it would be
+-- right by accident; the count is the only thing that is wrong when the call is.
+
+let &sinkCalls = 0 :: I64
+
+data Handle {value: I64}
+
+instance Sink(Handle):
+    fn sink(&to: Handle, ->from: Handle) -> {}:
+        sinkCalls += 1
+        to.value = from.value
+
+-- A record that has no `Sink` of its own and a member that does. Its relocation is neither of the
+-- two the class names: its bytes, plus a call for the member whose bytes are not the whole story.
+data Pair {left: Handle, right: I64}
+
+-- The same, where which member needs the call depends on the discriminant.
+data Either = Plain {n: I64} | Held {h: Handle}
+
+-- And one whose member is itself neither, so its relocation reaches the `Handle`s through the glue
+-- generated for `Pair` rather than through anything it names itself.
+data Nest {inner: Pair, tag: I64}
+
+-- A `let ->` binding is the one consumer of a move that has no destination of its own to offer, so
+-- it provides one and the relocation lands in it.
+fn direct() -> I64:
+    let h = Handle {value: 10}
+    let ->g = h
+    return g.value
+
+fn derived() -> I64:
+    let p = Pair {left: Handle {value: 20}, right: 3}
+    let ->q = p
+    return q.left.value + q.right
+
+fn nested() -> I64:
+    let n = Nest {inner: Pair {left: Handle {value: 40}, right: 1}, tag: 4}
+    let ->m = n
+    return m.inner.left.value + m.inner.right + m.tag
+
+fn unwrap(e: Either) -> I64 = match e:
+    Plain {n: v} -> v
+    Held {h: hv} -> hv.value
+
+fn tagged(flag: Bool) -> I64:
+    let e = if flag then Held {h: Handle {value: 7}} else Plain {n: 100}
+    let ->f = e
+    return unwrap(f)
+
+-- A `->` argument hands the callee the storage the argument already sits in, so nothing is
+-- relocated and no sink runs. That is the best answer a self-referential type can get: bytes that
+-- never move never break.
+fn consume(->it: Handle) -> I64 = it.value
+
+-- A capture that is not TrivialCopy is a sink into the environment, which is a relocation into
+-- storage the closure provides - so it goes through the same call, without a binding to root it.
+fn captured(->h: Handle) -> () -> I64 = () -> h.value
+
+fn main() -> I64:
+    let &result = 0 :: I64
+
+    result += direct()
+    if sinkCalls != 1 then return -1
+
+    result += derived()
+    if sinkCalls != 2 then return -2
+
+    result += nested()
+    if sinkCalls != 3 then return -3
+
+    -- The arm carrying a `Handle` relocates by the sink; the other one is bytes only.
+    result += tagged(True)
+    if sinkCalls != 4 then return -4
+
+    result += tagged(False)
+    if sinkCalls != 4 then return -5
+
+    let handed = Handle {value: 5}
+    result += consume(handed)
+    if sinkCalls != 4 then return -6
+
+    let closed = captured(Handle {value: 30})
+    if sinkCalls != 5 then return -7
+
+    result += closed()
+
+    return result + sinkCalls

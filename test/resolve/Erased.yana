@@ -33,8 +33,9 @@ fn smaller(x: a, y: a) -> a = if x < y then x else y
 -- types - it has none - so it projects its own slots into the callee's, which is the forwarded case.
 fn middle(x: a, y: a, z: a) -> a = smaller(smaller(x, y), z)
 
--- A literal inside a constrained body. `Num` implies `FromInt`, so the author never wrote it and the
--- diagnostic never mentions it - but the dispatch still needs a witness, so the schema has a slot.
+-- A literal inside a constrained body. `Num` implies `FromInt`, so the author never wrote it, the
+-- diagnostic never mentions it, and it gets no slot either: the witness for it is the one the `Num`
+-- witness already names, which is the load the schema below does not have to carry a number for.
 fn (Num(a)) increment(x: a) -> a = x + 1
 
 fn main() -> Int:

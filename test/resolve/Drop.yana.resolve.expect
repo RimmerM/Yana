@@ -280,6 +280,19 @@ fn derived() -> I64 {
     ret %v10
 }
 
+fn rebound() -> I64 {
+  b0:
+    %a = call makeBuffer, 64 : Buffer
+    %a = move %local0 : Buffer
+    %b = alloc : Buffer
+    init %local1, %a
+    %counted = load liveBuffers : I64
+    %v6 = call firstByte, %b : I64
+    drop %local1 via Drop(Buffer).drop
+    %v7 = add %counted, %v6 : I64
+    ret %v7
+}
+
 fn branch(%flag: Bool) -> I64 {
   b0:
     %held = call makeBuffer, 16 : Buffer
@@ -423,26 +436,42 @@ fn main() -> I64 {
     jmp b15
 
   b15:
-    %handed = call makeBuffer, 4 : Buffer
-    %v77 = load %result : I64
-    %handed = move %local1 : Buffer
-    %v79 = call consume, %handed : I64
-    %v80 = borrow_mut %result : &mut I64
-    call +=(I64), %v80, %v79
-    %v82 = load liveBuffers : I64
-    %v85 = cmp_ne %v82, 0 : Bool
-    je %v85, b16, b17
+    %v75 = load %result : I64
+    %v76 = call rebound : I64
+    %v77 = borrow_mut %result : &mut I64
+    call +=(I64), %v77, %v76
+    %v79 = load liveBuffers : I64
+    %v82 = cmp_ne %v79, 0 : Bool
+    je %v82, b16, b17
 
   b16:
-    %v89 = neg 6 : I64
-    ret %v89
+    %v86 = neg 6 : I64
+    ret %v86
 
   b17:
     jmp b18
 
   b18:
-    %v92 = load %result : I64
-    ret %v92
+    %handed = call makeBuffer, 4 : Buffer
+    %v91 = load %result : I64
+    %handed = move %local1 : Buffer
+    %v93 = call consume, %handed : I64
+    %v94 = borrow_mut %result : &mut I64
+    call +=(I64), %v94, %v93
+    %v96 = load liveBuffers : I64
+    %v99 = cmp_ne %v96, 0 : Bool
+    je %v99, b19, b20
+
+  b19:
+    %v103 = neg 7 : I64
+    ret %v103
+
+  b20:
+    jmp b21
+
+  b21:
+    %v106 = load %result : I64
+    ret %v106
 }
 
 fn Drop(Buffer).drop(%value: Buffer) -> () {

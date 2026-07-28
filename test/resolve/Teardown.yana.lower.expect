@@ -297,7 +297,9 @@ main<complex>(): Int {
     copy %v_1, %v_2, 16
     %v_4 = add %v_1, 16: Ptr
     copy %v_4, %v_3, 4
-    %used = call_complex useSession, %v_1: Int
+    %session = alloca 24, 8: Ptr
+    copy %session, %v_1, 24
+    %used = call_complex useSession, %session: Int
     %pair = alloca 8, 4: Ptr
     call_complex duplicate(Int), %pair, 35
     %v_5 = loads %pair, 4: Int

@@ -32,9 +32,25 @@ data Pair(a, b) {first: a, second: b}
 -- applying a type constructor per use.
 fn pairUp(x: a, y: b) -> Pair(a, b) = Pair {first: x, second: y}
 
+data Labelled {tag: Int, weight: Int}
+
+-- A property constraint - a relation between two slots of *this* context rather than a fact
+-- attached globally to `a` - numbered after every class. Neither body below uses what its signature
+-- requires, which is deliberate: the requirement is proved where it is written, so a body that
+-- never reaches the field is still rejected for an argument that has none.
+fn (a.tag: Int) tagOf(value: a) -> Int = 7
+
+fn double(n: Int) -> Int = n * 2
+
+-- A function constraint, last in the numbering. The signature is a real function type, so the
+-- conventions it promises are part of the requirement rather than being lost at the boundary.
+fn (double: (Int) -> Int) doubled(value: a) -> Int = 8
+
 fn main() -> Int =
     identity(1) +
     scale(2, 3) +
     smallest(9, 4, 7) +
     (if bothEqual(1, 1, True, True) then 5 else 0) +
-    pairUp(20, False).first
+    pairUp(20, False).first +
+    tagOf(Labelled {tag: 1, weight: 2}) +
+    doubled(Labelled {tag: 1, weight: 2})

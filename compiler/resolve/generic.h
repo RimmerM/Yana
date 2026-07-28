@@ -44,6 +44,25 @@ bool hasClassRequirement(GlobalBase global, const GenEnv& env, GlobalPtr<TypeCla
 bool provesClass(Module& module, const GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
 
 /*
+ * Where a body finds the witness for one class requirement, as emitted code reaches it: the
+ * environment slot holding a witness, and the superclasses to step through from there.
+ *
+ * The steps are what keeps `fn (Num(a)) inc(x: a) = x + 1` to one witness slot. The literal
+ * dispatches `FromInt(a)`, which the author never declared because `Num` already guarantees it, and
+ * a slot of its own would be the caller passing the same class witness twice under two numbers. A
+ * `ClassWitness` names its superclasses' witnesses, so what the body loads instead is the `Num`
+ * witness it was given and then the `FromInt` pointer inside it - see ClassWitnessLayout.
+ *
+ * `supers` is filled with that path as one byte offset into a witness per step - the class at each
+ * step decides where its superclass pointers sit, and only this walk knows what those classes are.
+ * Empty for a slot that holds the wanted witness directly.
+ * maxLimit<U16> when the context proves the requirement nowhere, which is what a caller that has to
+ * specialize instead is told.
+ */
+U16 genWitnessPath(Module& module, GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
+                   Array<U32>& supers);
+
+/*
  * Instantiates `generic` for one set of fully concrete type arguments, cloning its resolved body
  * and substituting. The result is interned per argument list, so a function called at the same
  * types from ten places is specialized once.

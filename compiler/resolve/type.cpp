@@ -455,7 +455,13 @@ U16 genFunctionSlot(Module& module, GenEnv& env, StringId name, TypePtr signatur
 void requireClassSlot(Module& module, GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
                       LocationId source) {
     if(!typeClass) return;
-    if(genClassSlot(module, env, typeClass, args) != maxLimit<U16>) return;
+
+    // A witness the context can already reach needs no slot of its own, whether it sits in one
+    // directly or inside one that names it as a superclass. The second is what keeps
+    // `fn (Num(a)) inc(x: a) = x + 1` to a single witness: the literal's `FromInt(a)` is loaded out
+    // of the `Num` witness the caller already passed.
+    Array<U32> supers;
+    if(genWitnessPath(module, env, typeClass, args, supers) != maxLimit<U16>) return;
 
     ClassConstraint constraint;
     constraint.typeClass = typeClass;
@@ -1163,6 +1169,13 @@ Ownership ownershipOf(Module& module, TypePtr type) {
     // of one above, because it holds for the authored cases as well as the derived ones.
     if(result.needsTeardown()) result.trivialCopy = false;
 
+    // And TrivialCopy implies TrivialSink, because a duplicate is strictly more than a relocation:
+    // a type whose bytes cannot even be *moved* without a call - it refers to its own address -
+    // certainly cannot have those bytes duplicated into a second live value. Saying so here is what
+    // makes an authored `Sink` reachable at all, since `->` copies rather than moves a TrivialCopy
+    // source and a type left in both classes would never take the move path its instance is for.
+    if(!result.trivialSink) result.trivialCopy = false;
+
     value->resolvingOwnership = false;
     value->ownership = result;
     value->ownershipReady = true;
@@ -1215,7 +1228,7 @@ static Ownership ownershipInAt(Module& module, GenEnv* env, TypePtr type, U32 de
                 if(inner.drop != TeardownKind::None) result.drop = TeardownKind::Derived;
             }
 
-            if(result.needsTeardown()) result.trivialCopy = false;
+            if(result.needsTeardown() || !result.trivialSink) result.trivialCopy = false;
             return result;
         }
 
@@ -1238,7 +1251,7 @@ static Ownership ownershipInAt(Module& module, GenEnv* env, TypePtr type, U32 de
             // A generic instantiation cannot be asked for an authored instance - `Maybe(a)` is not
             // a type anything writes one for - so the structural answer is the whole answer here,
             // exactly as it is in ownershipOf.
-            if(result.needsTeardown()) result.trivialCopy = false;
+            if(result.needsTeardown() || !result.trivialSink) result.trivialCopy = false;
             return result;
         }
 

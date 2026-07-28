@@ -392,7 +392,9 @@ struct InstMove: Inst {
 
     Place place;
 
-    // Set when the type has an authored `Sink`: relocating it is that call rather than a memcpy.
+    // Set when relocating the type is a call rather than a memcpy: the authored `Sink` where the
+    // type has one, and the generated member-wise glue where a member has one. Null for a
+    // TrivialSink type, whose relocation is its bytes - see sinkFor.
     ModulePtr<Function> sink = nullptr;
 };
 
@@ -617,6 +619,12 @@ struct GenSlotFill {
     ModulePtr<Global> constant = nullptr;
     U16 forwarded = maxLimit<U16>;
 
+    // The superclasses to step through from the forwarded slot, when what the caller holds is a
+    // witness that *implies* the one the callee's slot wants rather than that one itself. One byte
+    // offset into a witness per step. Empty for a slot copied across as it stands, and unused by a
+    // constant. See genWitnessPath and ClassWitnessLayout.
+    ModuleList<U32, false> forwardedSupers;
+
     bool isForwarded() const { return forwarded != maxLimit<U16>; }
 };
 
@@ -655,9 +663,12 @@ struct InstGenCall: Inst {
      */
     ModuleList<GenSlotFill, false> fill;
 
-    // For a class dispatch, which slot of the *caller's* environment holds the witness. Filled in
-    // after every requirement has been collected, since adding one renumbers the context.
+    // For a class dispatch, which slot of the *caller's* environment holds the witness, and the
+    // superclasses to step through from it - the requirement this call dispatches on may be one the
+    // body never declared because another requirement implies it. Filled in after every requirement
+    // has been collected, since adding one renumbers the context.
     U16 classSlot = maxLimit<U16>;
+    ModuleList<U32, false> classPath;
 };
 
 struct InstJe: Inst {

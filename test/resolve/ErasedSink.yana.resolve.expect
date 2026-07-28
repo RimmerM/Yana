@@ -1,0 +1,372 @@
+let &sinkCalls: I64 = 0
+
+table typeDesc$Handle {
+  +0 Handle, 8
+  +8 8, 8
+  +16 128, 0
+  +24 Sink(Handle).sink
+  +32 teardown$none
+  +40 teardown$none
+}
+
+table genEnv$relocate(Handle) {
+  +0 0, 0
+  +8 typeDesc$Handle
+}
+
+table typeDesc$Pair {
+  +0 Pair, 16
+  +8 8, 16
+  +16 128, 0
+  +24 moveInit$Pair
+  +32 teardown$none
+  +40 teardown$none
+}
+
+table genEnv$relocate(Pair) {
+  +0 0, 0
+  +8 typeDesc$Pair
+}
+
+table typeDesc$Int {
+  +0 Int, 4
+  +8 4, 4
+  +16 131, 0
+  +24 moveInit$Int
+  +32 teardown$none
+  +40 teardown$none
+}
+
+table witness$Num(Int) {
+  +0 Num, 327681
+  +8 1, 0
+  +16 typeDesc$Int
+  +24 thunk$Num(Int).+#0
+  +32 thunk$Num(Int).-#1
+  +40 thunk$Num(Int).*#2
+  +48 thunk$Num(Int)./#3
+  +56 thunk$Num(Int).-#4
+  +64 witness$FromInt(Int)
+}
+
+table witness$FromInt(Int) {
+  +0 FromInt, 65537
+  +8 0, 0
+  +16 typeDesc$Int
+  +24 thunk$FromInt(Int).fromInt#0
+}
+
+table genEnv$twice(Int) {
+  +0 0, 0
+  +8 typeDesc$Int
+  +16 witness$Num(Int)
+}
+
+table genEnv$numeric(Int) {
+  +0 0, 0
+  +8 typeDesc$Int
+  +16 witness$Num(Int)
+}
+
+table typeDesc$I64 {
+  +0 I64, 8
+  +8 8, 8
+  +16 131, 0
+  +24 moveInit$I64
+  +32 teardown$none
+  +40 teardown$none
+}
+
+table witness$Num(I64) {
+  +0 Num, 327681
+  +8 1, 0
+  +16 typeDesc$I64
+  +24 thunk$Num(I64).+#0
+  +32 thunk$Num(I64).-#1
+  +40 thunk$Num(I64).*#2
+  +48 thunk$Num(I64)./#3
+  +56 thunk$Num(I64).-#4
+  +64 witness$FromInt(I64)
+}
+
+table witness$FromInt(I64) {
+  +0 FromInt, 65537
+  +8 0, 0
+  +16 typeDesc$I64
+  +24 thunk$FromInt(I64).fromInt#0
+}
+
+table genEnv$+=(I64) {
+  +0 0, 0
+  +8 typeDesc$I64
+  +16 witness$Num(I64)
+}
+
+(Num(a)) fn +=(%target: a, %amount: a) -> () {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
+  b0:
+    %v2 = load %target : a
+    %v3 = gencall Num(a).+, %v2, %amount : a
+    assign %target, %v3
+    ret
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn relocate(%x: a) -> a {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %x = move %x : a
+    %y = alloc : a
+    init %local1, %x
+    ret %y
+}
+
+(Num(a)) fn increment(%x: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
+  b0:
+    %v4 = gencall FromInt(a).fromInt, 1 : a
+    %v2 = gencall Num(a).+, %x, %v4 : a
+    ret %v2
+}
+
+(Num(a)) fn twice(%x: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
+  b0:
+    %v1 = gencall increment(a), %x : a
+    %v2 = gencall increment(a), %v1 : a
+    ret %v2
+}
+
+(FromInt(a)) fn unit(%like: a) -> a {
+  schema {
+    #0 type a
+    #1 class FromInt(a)
+  }
+
+  b0:
+    %v3 = gencall FromInt(a).fromInt, 1 : a
+    ret %v3
+}
+
+(Num(a)) fn numeric(%x: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
+  b0:
+    %v1 = gencall unit(a), %x : a
+    ret %v1
+}
+
+fn main() -> I64 {
+  b0:
+    %h = alloc : Handle
+    init %local0@Handle.value, 10
+    %h = move %local0 via Sink(Handle).sink : Handle
+    %moved = gencall env genEnv$relocate(Handle) relocate(Handle), %h : Handle
+    %v5 = load sinkCalls : I64
+    %v8 = cmp_ne %v5, 1 : Bool
+    je %v8, b1, b2
+
+  b1:
+    %v12 = neg 1 : I64
+    ret %v12
+
+  b2:
+    jmp b3
+
+  b3:
+    %p = alloc : Pair
+    %v16 = alloc : Handle
+    init %local3@Handle.value, 20
+    init %local2@Pair.left, %v16
+    init %local2@Pair.right, 5
+    %p = move %local2 via moveInit$Pair : Pair
+    %movedPair = gencall env genEnv$relocate(Pair) relocate(Pair), %p : Pair
+    %v24 = load sinkCalls : I64
+    %v27 = cmp_ne %v24, 2 : Bool
+    je %v27, b4, b5
+
+  b4:
+    %v31 = neg 2 : I64
+    ret %v31
+
+  b5:
+    jmp b6
+
+  b6:
+    %v34 = load %local1@Handle.value : I64
+    %v35 = load %local4@Pair.left : Handle
+    %v36 = load %local4@Pair.left@Handle.value : I64
+    %v37 = add %v34, %v36 : I64
+    %v38 = load %local4@Pair.right : I64
+    %v39 = add %v37, %v38 : I64
+    %v40 = load sinkCalls : I64
+    %v41 = add %v39, %v40 : I64
+    %v44 = gencall env genEnv$twice(Int) twice(Int), 19 : Int
+    %v45 = cast %v44 : I64
+    %v46 = add %v41, %v45 : I64
+    %v49 = gencall env genEnv$numeric(Int) numeric(Int), 4 : Int
+    %v50 = cast %v49 : I64
+    %v51 = add %v46, %v50 : I64
+    ret %v51
+}
+
+fn Sink(Handle).sink(%to: Handle, %from: Handle) -> () {
+  b0:
+    %v2 = load sinkCalls : I64
+    %v5 = borrow_mut sinkCalls : &mut I64
+    gencall env genEnv$+=(I64) +=(I64), %v5, 1
+    %v7 = load %from@Handle.value : I64
+    assign %to@Handle.value, %v7
+    ret
+}
+
+fn moveInit$Pair(%to: %Pair, %from: %Pair) -> () {
+  b0:
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, 16
+    %v6 = addressof [%to]@Pair.left : %Handle
+    %v7 = addressof [%from]@Pair.left : %Handle
+    call Sink(Handle).sink, %v6, %v7
+    ret
+}
+
+fn moveInit$Int(%to: %Int, %from: %Int) -> () {
+  b0:
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, 4
+    ret
+}
+
+fn thunk$Num(Int).+#0(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+  b0:
+    %v3 = load [%lhs] : Int
+    %v4 = load [%rhs] : Int
+    %v5 = add %v3, %v4 : Int
+    init [%result], %v5
+    ret
+}
+
+fn thunk$Num(Int).-#1(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+  b0:
+    %v3 = load [%lhs] : Int
+    %v4 = load [%rhs] : Int
+    %v5 = sub %v3, %v4 : Int
+    init [%result], %v5
+    ret
+}
+
+fn thunk$Num(Int).*#2(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+  b0:
+    %v3 = load [%lhs] : Int
+    %v4 = load [%rhs] : Int
+    %v5 = mul %v3, %v4 : Int
+    init [%result], %v5
+    ret
+}
+
+fn thunk$Num(Int)./#3(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+  b0:
+    %v3 = load [%lhs] : Int
+    %v4 = load [%rhs] : Int
+    %v5 = div %v3, %v4 : Int
+    init [%result], %v5
+    ret
+}
+
+fn thunk$Num(Int).-#4(%result: %Int, %value: %Int) -> () {
+  b0:
+    %v2 = load [%value] : Int
+    %v3 = neg %v2 : Int
+    init [%result], %v3
+    ret
+}
+
+fn thunk$FromInt(Int).fromInt#0(%result: %Int, %value: Long) -> () {
+  b0:
+    %v2 = cast %value : Int
+    init [%result], %v2
+    ret
+}
+
+fn moveInit$I64(%to: %I64, %from: %I64) -> () {
+  b0:
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, 8
+    ret
+}
+
+fn thunk$Num(I64).+#0(%result: %I64, %lhs: %I64, %rhs: %I64) -> () {
+  b0:
+    %v3 = load [%lhs] : I64
+    %v4 = load [%rhs] : I64
+    %v5 = add %v3, %v4 : I64
+    init [%result], %v5
+    ret
+}
+
+fn thunk$Num(I64).-#1(%result: %I64, %lhs: %I64, %rhs: %I64) -> () {
+  b0:
+    %v3 = load [%lhs] : I64
+    %v4 = load [%rhs] : I64
+    %v5 = sub %v3, %v4 : I64
+    init [%result], %v5
+    ret
+}
+
+fn thunk$Num(I64).*#2(%result: %I64, %lhs: %I64, %rhs: %I64) -> () {
+  b0:
+    %v3 = load [%lhs] : I64
+    %v4 = load [%rhs] : I64
+    %v5 = mul %v3, %v4 : I64
+    init [%result], %v5
+    ret
+}
+
+fn thunk$Num(I64)./#3(%result: %I64, %lhs: %I64, %rhs: %I64) -> () {
+  b0:
+    %v3 = load [%lhs] : I64
+    %v4 = load [%rhs] : I64
+    %v5 = div %v3, %v4 : I64
+    init [%result], %v5
+    ret
+}
+
+fn thunk$Num(I64).-#4(%result: %I64, %value: %I64) -> () {
+  b0:
+    %v2 = load [%value] : I64
+    %v3 = neg %v2 : I64
+    init [%result], %v3
+    ret
+}
+
+fn thunk$FromInt(I64).fromInt#0(%result: %I64, %value: Long) -> () {
+  b0:
+    %v2 = cast %value : I64
+    init [%result], %v2
+    ret
+}

@@ -240,6 +240,13 @@ namespace GenEnvLayout {
  * function reached through a known table. Constrained function *values* are what need the wider
  * shape - which is now exactly the `{code, env}` pair FunValueLayout describes, plus the
  * generic environment a constrained callable additionally has to carry.
+ *
+ * After the methods come the superclasses: one witness pointer per class this one declares, in the
+ * order the declaration wrote them. This is what a requirement that another one *implies* is
+ * satisfied through - `class (FromInt(a)) Num(a)` means every `Num` witness names a `FromInt`
+ * witness for the same types - so a body holding `Num(a)` dispatches `fromInt` through one extra
+ * load rather than through a second environment slot its caller would have had to fill with a
+ * witness it already passed. See genWitnessPath, which is where that path is worked out.
  */
 namespace ClassWitnessLayout {
     // The class this implements, as its region offset - the same kind of identity a TypeDesc's
@@ -247,13 +254,31 @@ namespace ClassWitnessLayout {
     static constexpr U32 kClass = 0;
     static constexpr U32 kArgCount = 4;
     static constexpr U32 kMethodCount = 6;
-    static constexpr U32 kArgs = 8;
+    static constexpr U32 kSuperCount = 8;
+
+    // The three counted sections, each a whole number of 8-byte pointers. The header is padded to
+    // one so that every section after it is aligned for the addresses it holds.
+    static constexpr U32 kArgs = 16;
 
     static constexpr U32 methodsOffset(U16 argCount) { return kArgs + 8 * argCount; }
-    static constexpr U32 sizeFor(U16 argCount, U16 methodCount) {
+    static constexpr U32 supersOffset(U16 argCount, U16 methodCount) {
         return methodsOffset(argCount) + 8 * methodCount;
     }
+
+    static constexpr U32 sizeFor(U16 argCount, U16 methodCount, U16 superCount) {
+        return supersOffset(argCount, methodCount) + 8 * superCount;
+    }
 }
+
+/*
+ * Where a witness for `typeClass` holds the pointer to its `index`th superclass - the classes it
+ * declares, in declaration order.
+ *
+ * A constant per class, since the two counted sections in front of it are decided by the class
+ * rather than by the instance: every witness for one class has the same shape, which is what lets a
+ * body compiled once load an implied requirement's witness at a fixed offset.
+ */
+U32 classSuperclassOffset(GlobalBase global, GlobalPtr<TypeClass> typeClass, U16 index);
 
 /*
  * The witness for one class implementation, interned per class and argument list.
@@ -310,9 +335,19 @@ bool genericBodyLowerable(Module& module, ModulePtr<Function> function);
 /*
  * `moveInit(dst, src)`: initialize uninitialized `dst` from an owned `src`, leaving `src` dead.
  *
- * A block copy for a TrivialSink type, and a call to the authored `Sink` for anything else.
- * Generated as a real function rather than as a flag the caller interprets, because the caller is
- * generic code that does not know the size - which is exactly the thing the descriptor exists to
- * carry. Null where relocation is a copy of nothing.
+ * A block copy for a TrivialSink type, the authored `Sink` where the type has one, and the bytes
+ * plus a call per non-trivial member for an aggregate that contains one. Always a real function
+ * rather than a flag the caller interprets, because the caller is generic code that does not know
+ * the size - which is exactly the thing the descriptor exists to carry. Null where relocation is a
+ * copy of nothing, and null with a diagnostic where this compiler cannot state one at all.
  */
 ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source);
+
+/*
+ * The relocation a *concrete* move runs, or null when it is a block copy the mover emits itself.
+ *
+ * This is the question InstMove::sink holds the answer to. It differs from moveInitFor only in the
+ * TrivialSink case, where a descriptor slot still needs a function to name and an already-resolved
+ * move does not - it copies the bytes inline instead of calling something that copies the bytes.
+ */
+ModulePtr<Function> sinkFor(Module& module, TypePtr type, LocationId source);

@@ -385,6 +385,12 @@ struct ExprResolver {
     // The value a `->` binding or a `->` argument produces - a move, an independent copy, or the
     // value unchanged, decided by the source's ownership classification. See expr_construct.cpp.
     ModulePtr<Value> sinkValue(ModulePtr<Value> value, LocationId source);
+
+    // Storage for a moved value whose relocation is a call rather than its bytes. A no-op for
+    // every other value, including a bitwise move - see expr_construct.cpp for which consumers of
+    // a move need this and why the rest do not.
+    ModulePtr<Value> rootSink(ModulePtr<Value> value, LocationId source);
+
     Place materialize(ModulePtr<Value> value, LocationId source);
     Place project(Place place, ProjectionKind kind, U16 index, ModulePtr<Value> value = nullptr);
     TypePtr placeRootType(const Place& place);

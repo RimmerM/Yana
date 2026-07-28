@@ -693,7 +693,7 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
         // the moved value rather than the source. The binding itself is an ordinary immutable one:
         // what `->` decides is where the value came from, not what may be done with it after.
         if(decl.bind == ast::BindType::Sink) {
-            value = sinkValue(value, decl.pat.source);
+            value = rootSink(sinkValue(value, decl.pat.source), decl.pat.source);
             if(!value) continue;
         }
 

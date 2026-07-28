@@ -77,6 +77,11 @@ fn derived {
   %local2: Buffer droppable readonly live [2, 5)
 }
 
+fn rebound {
+  %local0: Buffer droppable readonly live [0, 2)
+  %local1: Buffer droppable readonly live [2, 6)
+}
+
 fn branch {
   arg flag readonly
   %local0: Buffer droppable readonly live [0, 4)
@@ -89,8 +94,8 @@ fn loop {
 }
 
 fn main {
-  %result: I64 writable live [0, 9) [11, 19) [21, 29) [31, 39) [41, 49) [51, 61) [63, 65)
-  %local1: Buffer droppable readonly live [52, 55)
+  %result: I64 writable live [0, 9) [11, 19) [21, 29) [31, 39) [41, 49) [51, 59) [61, 71) [73, 75)
+  %local1: Buffer droppable readonly live [62, 65)
 }
 
 fn Drop(Buffer).drop {

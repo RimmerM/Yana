@@ -65,6 +65,10 @@ enum class TeardownKind: U8 {
  *    the resource that teardown releases;
  *  - a type with an authored Sink anywhere inside it is not TrivialSink, because moving it is a
  *    call rather than a memcpy;
+ *  - a type that is not TrivialSink is not TrivialCopy either, because a duplicate is strictly more
+ *    than a relocation: bytes that cannot be moved without a call cannot be duplicated by copying
+ *    them. This one is load-bearing rather than tidy - `->` copies a TrivialCopy source instead of
+ *    moving it, so a type in both classes would never reach the move its Sink exists for;
  *  - every property is structural over members, so one non-trivial field is enough.
  */
 struct Ownership {
@@ -457,17 +461,20 @@ struct GenEnv {
     GlobalList<ClassConstraint> classes;
 
     /*
-     * Classes the body dispatches on that `classes` does not name directly.
+     * Classes the body dispatches on that `classes` does not name directly, and that nothing in
+     * `classes` reaches either.
      *
      * A requirement one already in scope *implies* is deliberately not recorded as a constraint -
      * `fn (Num(a)) inc(x: a) = x + 1` declares `Num(a)` and not also the `FromInt(a)` its superclass
-     * guarantees, because a diagnostic naming both would be naming the same promise twice.
+     * guarantees, because a diagnostic naming both would be naming the same promise twice. Nor does
+     * it get a slot: a `ClassWitness` names its superclasses' witnesses, so the literal's `fromInt`
+     * is dispatched through the `Num` witness the caller already passed - see genWitnessPath, which
+     * is Implementation-Generics.md part 6's "superclasses reference other class witnesses".
      *
-     * At run time the distinction disappears: the literal's `fromInt` is dispatched through a
-     * witness, and a witness has to be in a slot. So the implied ones get slots of their own here,
-     * kept apart from the declared list so that only what the author wrote is printed. A witness
-     * table that linked to its superclasses' would make this unnecessary; that is what
-     * Implementation-Generics.md part 6 means by superclasses referencing other class witnesses.
+     * What is left for this list is a requirement no declared one implies, which a body infers by
+     * using it - the `Ord(a)` a comparison records. It is kept apart from the declared list so that
+     * only what the author wrote is printed; by the time anything reads the numbering, the two are
+     * the same kind of entry.
      */
     GlobalList<ClassConstraint> dispatched;
 

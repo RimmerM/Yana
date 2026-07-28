@@ -30,7 +30,9 @@ ModulePtr<Value> ExprResolver::allocate(TypePtr type, LocationId source, StringI
 // out of a place is addressed through that same place again rather than through a copy, so that a
 // field of a field resolves to one projection path rather than to a chain of temporaries.
 Maybe<Place> ExprResolver::findPlace(ModulePtr<Value> value) {
-    if(value && local[value]->kind == Value::LoadPlace) {
+    if(!value) return Nothing();
+
+    if(local[value]->kind == Value::LoadPlace) {
         return Just(((InstLoadPlace*)local[value])->place);
     }
 
@@ -76,13 +78,7 @@ bool ExprResolver::isWritablePlace(const Place& place) {
 // a register, and that is the point of it - so taking its address is what makes storage exist,
 // which is why this is the one operation `addressOf` needs and ordinary code never does.
 Place ExprResolver::materialize(ModulePtr<Value> value, LocationId source) {
-    if(value && local[value]->kind == Value::LoadPlace) {
-        return ((InstLoadPlace*)local[value])->place;
-    }
-
-    for(U32 i = 0; i < function.localCount(); i++) {
-        if(function.localAt(local, i).value == value) return Place::inLocal(i);
-    }
+    if(auto place = findPlace(value)) return place.unwrap();
 
     // A value that occupies nothing has nowhere to be put, so there is no address to answer with
     // and the honest answer is to say so. Allocating for one would hand back a pointer to whatever
@@ -268,7 +264,10 @@ ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr ex
  * source's type:
  *
  *  - not TrivialCopy: ownership is taken out of the source's storage, which becomes inaccessible.
- *    That is InstMove, and it is the whole reason `->` exists.
+ *    That is InstMove, and it is the whole reason `->` exists. Whether relocating the value is its
+ *    bytes or a call is decided here too, and recorded on the instruction: a type that is not
+ *    TrivialSink has a `Sink` of its own or a member with one, and either way the relocation is
+ *    that function rather than a memcpy.
  *  - TrivialCopy: an independent copy, leaving the source valid - "`let ->z = x` (with `x: Int`)
  *    leaves `x` valid too, since `->` is the other TrivialCopy-affected convention alongside
  *    default". For a scalar that copy is free: the value is already in a register and the storage
@@ -295,7 +294,16 @@ ModulePtr<Value> ExprResolver::sinkValue(ModulePtr<Value> value, LocationId sour
     auto name = local[value]->name;
 
     if(!ownership.trivialCopy) {
-        return ref(emit<InstMove>(source, name, type, place.unwrap()));
+        auto moved = create<InstMove>(source, name, type, place.unwrap());
+
+        // Asked of the type rather than of the context, unlike TrivialCopy above: relocating an
+        // unknown `a` is the erased path's business - the descriptor its caller passed carries the
+        // moveInit - and nothing concrete to call exists here to name. ownershipIn never reports a
+        // generic type as non-TrivialSink for a reason it could act on, so this asks what it can.
+        if(!ownership.trivialSink) moved->sink = sinkFor(module, type, source);
+
+        append(moved);
+        return ref(moved);
     }
 
     if(!isMemoryType(global, type)) return value;
@@ -306,6 +314,41 @@ ModulePtr<Value> ExprResolver::sinkValue(ModulePtr<Value> value, LocationId sour
     auto result = ref(duplicate);
     duplicate->local = function.addLocal(module, type, name, result);
     return result;
+}
+
+/*
+ * Storage for a `->` binding of an aggregate.
+ *
+ * Every other consumer of a move already has a destination to offer - a captured field, a
+ * constructed member and a returned value are all storage somebody else provided, and lowering
+ * relocates straight into it. A `let ->g = h` is the one that does not, so it provides its own here.
+ * The InstInit in between is what lowering turns into the relocation, which is a call for a type
+ * whose `Sink` says so and a block copy for one whose bytes are the whole story; nothing is copied
+ * twice either way.
+ *
+ * A bitwise move needs the destination just as much, even though its bytes could have stayed where
+ * they were: what a move produces is a value, and a value has no address, so the name that follows
+ * one would have nothing to read a field out of. Letting it name the *source's* storage instead is
+ * the thing that cannot work - the source has been moved out of, and every later use of that slot
+ * is rejected as one, so `let ->g = h` would bind a name nothing may be read through.
+ *
+ * A scalar is not this. It came out of storage as a value in a register, which is where the binding
+ * wants it, and giving it a slot would be putting it back for nobody.
+ *
+ * A `->` *argument* deliberately does not pass through this either. The callee takes over the
+ * storage the argument already sits in, so there is no relocation to make - which is also the best
+ * answer a self-referential type can get, since bytes that never move never break.
+ */
+ModulePtr<Value> ExprResolver::rootSink(ModulePtr<Value> value, LocationId source) {
+    if(!value || local[value]->kind != Value::Move) return value;
+    if(!isMemoryType(global, valueType(value))) return value;
+
+    // Deliberately unnamed. The source's name is already on the move, and giving the destination
+    // the same one would print two allocations and a call between them under one name.
+    auto storage = allocate(valueType(value), source);
+    if(auto place = findPlace(storage)) initialize(place.unwrap(), value, source);
+
+    return storage;
 }
 
 // The address of a place, as a pointer to whatever it holds. Taking one is what forces a value

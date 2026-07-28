@@ -229,6 +229,28 @@ static LowerPtr<LowerValue> genSlot(LowerContext& lower, LowerBlock& block, U16 
     return loaded->created().ptr - lower.lower;
 }
 
+/*
+ * The witness one slot of the environment leads to.
+ *
+ * Usually the one in the slot, and one load further along for each superclass the path steps
+ * through: a body holding `Num(a)` reaches `FromInt(a)` through the pointer the `Num` witness holds
+ * for it rather than through a slot of its own. Every step is a byte offset the resolver worked out
+ * from the class declarations - see genWitnessPath - so this is arithmetic and loads with nothing to
+ * search, which is the property every other environment read has too.
+ */
+static LowerPtr<LowerValue> genWitness(LowerContext& lower, LowerBlock& block, U16 slot,
+                                       ModuleList<U32, false> path) {
+    auto witness = genSlot(lower, block, slot);
+
+    for(auto step: path.contents(lower.local)) {
+        auto address = addOffset(lower, block, witness, step);
+        auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, 0);
+        witness = loaded->created().ptr - lower.lower;
+    }
+
+    return witness;
+}
+
 // The descriptor of a type this body cannot see, or null for one it can. A concrete type inside a
 // generic body needs no descriptor: its size is a constant here exactly as it is anywhere else.
 static LowerPtr<LowerValue> genTypeDesc(LowerContext& lower, LowerBlock& block, TypePtr type) {
@@ -299,7 +321,7 @@ static LowerPtr<LowerValue> genEnvironment(LowerContext& lower, LowerBlock& bloc
 
     for(auto slot: slots.contents(lower.local)) {
         auto value = slot.isForwarded()
-            ? genSlot(lower, block, slot.forwarded)
+            ? genWitness(lower, block, slot.forwarded, slot.forwardedSupers)
             : tableAddress(lower, block, slot.constant);
 
         auto address = addOffset(lower, block, base, GenEnvLayout::slotOffset(index));
@@ -317,9 +339,13 @@ static LowerPtr<LowerValue> genEnvironment(LowerContext& lower, LowerBlock& bloc
  * method out of the witness at the index the class declared. Which instance that witness belongs to
  * was decided by whoever built the environment, which is exactly the point - the body doing the
  * dispatching never learns what type it is dispatching on.
+ *
+ * One more load per superclass where the dispatch is on a requirement another one implies, which is
+ * what genWitness walks: `Num(a)` in hand and `FromInt(a)` wanted is the `Num` witness, its `FromInt`
+ * pointer, and then the method - still no search, and still nothing the caller had to pass twice.
  */
 static LowerPtr<LowerValue> genMethod(LowerContext& lower, LowerBlock& block, InstGenCall& call) {
-    auto witness = genSlot(lower, block, call.classSlot);
+    auto witness = genWitness(lower, block, call.classSlot, call.classPath);
     auto argCount = U16(lower.global[lower.global[call.typeClass]->gen]->types.size());
     auto offset = ClassWitnessLayout::methodsOffset(argCount) + 8 * call.index;
 
@@ -499,6 +525,69 @@ static LowerInst::Kind binaryKind(LowerContext& lower, InstBinary& binary) {
     }
 }
 
+/*
+ * Putting an aggregate's bytes somewhere they were not.
+ *
+ * Every such write in this pass is one of Design-Memory §4.1's two relocations, and which one was
+ * settled in the resolver: a TrivialSink value is its bytes and moves as a block copy, and anything
+ * else moves by the call InstMove::sink names - the authored `Sink` where the type has one, and the
+ * member-wise glue where a member does. Both callees take the destination and then the source as
+ * addresses and return nothing, which is why one call shape serves both - and why the erased case
+ * below, whose callee was decided by the caller rather than by the resolver, is the same shape again.
+ *
+ * `value` is the resolve-level value being written, and it is the *value* rather than the type that
+ * decides: only a move relocates. Initializing storage from a copy or from a call result is a write
+ * of bytes that already belong to nobody else, and a sink would be wrong there - it would empty a
+ * temporary that has no source to be emptied from.
+ */
+static LowerInst* relocate(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> target,
+                           ModulePtr<Value> value, LowerPtr<LowerValue> source, TypePtr type) {
+    auto& produced = *lower.local[value];
+    auto moved = produced.kind == Value::Move;
+    auto sink = moved ? ((InstMove&)produced).sink : nullptr;
+
+    /*
+     * The erased case: a move of a value whose type this body cannot see.
+     *
+     * Which of Design-Memory §4.1's two relocations applies is exactly what the body has no way to
+     * decide - the resolver left `sink` null because there was no concrete type to find one for -
+     * so the answer travels in the descriptor its caller passed, and this is the load and the call
+     * that read it. Unconditional, like the erased teardown and for the same reason: a TrivialSink
+     * type's moveInit is a real function that copies its bytes rather than a null slot, so there is
+     * nothing to test before calling.
+     *
+     * Only a move. Initializing storage from a copy or from a call result is a write of bytes that
+     * already belong to nobody, and running a `Sink` there would empty a source that has none.
+     */
+    if(moved && !sink && lower.genEnv && isGeneric(lower.global, type)) {
+        auto descriptor = genTypeDesc(lower, block, type);
+        auto slot = addOffset(lower, block, descriptor, TypeDescLayout::kMoveInit);
+        auto moveInit = load(lower.lower, lower.to, block, lower.lower[slot], 8, false, LowerType::Pointer, 0);
+
+        return call(lower.lower, lower.to, block, 0, 3, kDefaultCallType, [&](LowerInstCall* relocation) {
+            relocation->used()[0] = moveInit->created().ptr - lower.lower;
+            relocation->used()[1] = target;
+            relocation->used()[2] = source;
+        });
+    }
+
+    if(!sink) {
+        auto count = sizeOfType(lower, block, type);
+        return block.addInst(lower.lower, new (lower.to.arena) LowerInstCopy(target, source, count));
+    }
+
+    // Reachable because module.cpp's reachability walk follows InstMove::sink, which is what puts
+    // the callee in front of lowering at all.
+    auto callee = lower.functions.getValue(sink).unwrap();
+    auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(0, callee));
+
+    return call(lower.lower, lower.to, block, 0, 3, lower.lower[callee]->callType, [&](LowerInstCall* sinkCall) {
+        sinkCall->used()[0] = fun->created().ptr - lower.lower;
+        sinkCall->used()[1] = target;
+        sinkCall->used()[2] = source;
+    });
+}
+
 static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<Inst> pointer) {
     auto& instruction = *lower.local[pointer];
     auto instValue = (ModulePtr<Value>)pointer;
@@ -596,8 +685,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             auto value = mappedValue(lower, init.value);
 
             if(isMemoryType(lower.global, lower.local[init.value]->type)) {
-                auto count = sizeOfType(lower, block, lower.local[init.value]->type);
-                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstCopy(address, value, count));
+                result = relocate(lower, block, address, init.value, value, lower.local[init.value]->type);
             } else {
                 result = block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, value, memoryWidth(lower.global, lower.local[init.value]->type)));
             }
@@ -612,13 +700,18 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             return;
         }
         case Value::Move: {
-            // A bitwise move needs no code at all: the bytes stay where they are and what changed
-            // is only which name is allowed to reach them. An authored Sink is the call the
-            // resolver already attached, and is emitted by the drop pass rather than here, so a
-            // move reaching lowering is always the bitwise one.
+            /*
+             * A move on its own needs no code at all: the bytes stay where they are and what
+             * changed is only which name is allowed to reach them. The instruction produces the
+             * source's address, and every consumer that would have taken a copy of those bytes -
+             * an initialization, an assignment, a return into the caller's result slot - goes
+             * through relocate() instead, which is where InstMove::sink turns into a call.
+             *
+             * A consumer that takes the address and nothing else is right to emit nothing: passing
+             * a `->` argument hands the callee the storage it already sits in, and a value that was
+             * never relocated has nothing to relocate it with.
+             */
             auto& moved = (InstMove&)instruction;
-            assertTrue(moved.sink == nullptr);
-
             auto address = lowerPlace(lower, block, *function, moved.place);
 
             if(isMemoryType(lower.global, instruction.type)) {
@@ -1222,10 +1315,12 @@ static void lowerTerminator(LowerContext& lower, LowerBlock& block, ModulePtr<In
             auto memoryResult = isMemoryType(lower.global, function->returnType);
 
             if(memoryResult && returnInst.value) {
+                // The other place bytes are written into storage that did not hold them: the
+                // caller's hidden result slot. A returned move relocates into it by whatever rule
+                // its type relocates by, exactly as an initialization does.
                 auto target = lower.returnPlaces.getValue(functionPointer).unwrap();
                 auto source = mappedValue(lower, returnInst.value);
-                auto countValue = sizeOfType(lower, block, function->returnType);
-                auto copyInst = block.addInst(lower.lower, new (lower.to.arena) LowerInstCopy(target, source, countValue));
+                auto copyInst = relocate(lower, block, target, returnInst.value, source, function->returnType);
                 copyInst->source = instruction.source;
             }
 

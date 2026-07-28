@@ -34,12 +34,21 @@ table genEnv$pick(Int, Bool) {
 
 table witness$Num(Int) {
   +0 Num, 327681
-  +8 typeDesc$Int
-  +16 thunk$Num(Int).+#0
-  +24 thunk$Num(Int).-#1
-  +32 thunk$Num(Int).*#2
-  +40 thunk$Num(Int)./#3
-  +48 thunk$Num(Int).-#4
+  +8 1, 0
+  +16 typeDesc$Int
+  +24 thunk$Num(Int).+#0
+  +32 thunk$Num(Int).-#1
+  +40 thunk$Num(Int).*#2
+  +48 thunk$Num(Int)./#3
+  +56 thunk$Num(Int).-#4
+  +64 witness$FromInt(Int)
+}
+
+table witness$FromInt(Int) {
+  +0 FromInt, 65537
+  +8 0, 0
+  +16 typeDesc$Int
+  +24 thunk$FromInt(Int).fromInt#0
 }
 
 table genEnv$twice(Int) {
@@ -50,12 +59,22 @@ table genEnv$twice(Int) {
 
 table witness$Ord(Int) {
   +0 Ord, 327681
-  +8 typeDesc$Int
-  +16 thunk$Ord(Int).<#0
-  +24 thunk$Ord(Int).<=#1
-  +32 thunk$Ord(Int).>#2
-  +40 thunk$Ord(Int).>=#3
-  +48 thunk$Ord(Int).compare#4
+  +8 1, 0
+  +16 typeDesc$Int
+  +24 thunk$Ord(Int).<#0
+  +32 thunk$Ord(Int).<=#1
+  +40 thunk$Ord(Int).>#2
+  +48 thunk$Ord(Int).>=#3
+  +56 thunk$Ord(Int).compare#4
+  +64 witness$Eq(Int)
+}
+
+table witness$Eq(Int) {
+  +0 Eq, 131073
+  +8 0, 0
+  +16 typeDesc$Int
+  +24 thunk$Eq(Int).==#0
+  +32 thunk$Eq(Int).!=#1
 }
 
 table genEnv$smaller(Int) {
@@ -70,17 +89,10 @@ table genEnv$middle(Int) {
   +16 witness$Ord(Int)
 }
 
-table witness$FromInt(Int) {
-  +0 FromInt, 65537
-  +8 typeDesc$Int
-  +16 thunk$FromInt(Int).fromInt#0
-}
-
 table genEnv$increment(Int) {
   +0 0, 0
   +8 typeDesc$Int
   +16 witness$Num(Int)
-  +24 witness$FromInt(Int)
 }
 
 fn Ord(Int).compare(%lhs: Int, %rhs: Int) -> Ordering {
@@ -183,7 +195,6 @@ fn pick(%flag: Bool, %x: a, %y: b) -> b {
   schema {
     #0 type a
     #1 class Num(a)
-    #2 class FromInt(a)
   }
 
   b0:
@@ -270,6 +281,13 @@ fn thunk$Num(Int).-#4(%result: %Int, %value: %Int) -> () {
     ret
 }
 
+fn thunk$FromInt(Int).fromInt#0(%result: %Int, %value: Long) -> () {
+  b0:
+    %v2 = cast %value : Int
+    init [%result], %v2
+    ret
+}
+
 fn thunk$Ord(Int).<#0(%lhs: %Int, %rhs: %Int) -> Bool {
   b0:
     %v2 = load [%lhs] : Int
@@ -310,9 +328,18 @@ fn thunk$Ord(Int).compare#4(%lhs: %Int, %rhs: %Int) -> Ordering {
     ret %v4
 }
 
-fn thunk$FromInt(Int).fromInt#0(%result: %Int, %value: Long) -> () {
+fn thunk$Eq(Int).==#0(%lhs: %Int, %rhs: %Int) -> Bool {
   b0:
-    %v2 = cast %value : Int
-    init [%result], %v2
-    ret
+    %v2 = load [%lhs] : Int
+    %v3 = load [%rhs] : Int
+    %v4 = cmp_eq %v2, %v3 : Bool
+    ret %v4
+}
+
+fn thunk$Eq(Int).!=#1(%lhs: %Int, %rhs: %Int) -> Bool {
+  b0:
+    %v2 = load [%lhs] : Int
+    %v3 = load [%rhs] : Int
+    %v4 = cmp_ne %v2, %v3 : Bool
+    ret %v4
 }

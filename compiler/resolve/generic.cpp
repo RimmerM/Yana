@@ -1,5 +1,6 @@
 #include "generic.h"
 #include "expr.h"
+#include "witness.h"
 #include "name.h"
 
 GenEnv* functionGen(GlobalBase global, const Function& function) {
@@ -20,11 +21,24 @@ bool hasClassRequirement(GlobalBase global, const GenEnv& env, GlobalPtr<TypeCla
     return false;
 }
 
-// Whether `have(haveArgs)` proves `want(wantArgs)`, by walking `have` up its own superclasses.
-// `depth` bounds the walk rather than tracking what has been visited: a superclass cycle is a
-// declaration error, and the classes a real hierarchy stacks are few.
-static bool impliesClass(Module& module, GlobalPtr<TypeClass> have, Buffer<TypePtr> haveArgs,
-                         GlobalPtr<TypeClass> want, Buffer<TypePtr> wantArgs, U32 depth) {
+/*
+ * Whether `have(haveArgs)` proves `want(wantArgs)`, by walking `have` up its own superclasses, and
+ * which superclasses were stepped through to get there.
+ *
+ * `steps` is the answer emitted code uses rather than a by-product of the search: a witness holds one
+ * pointer per superclass its class declares, so each step of the walk is one load at one offset, and
+ * the offsets together are the sequence that reaches the wanted witness from the one in hand. Only
+ * this walk knows which class each step is in, which is why it records the offsets rather than the
+ * indices. `steps` is left holding the successful path and is unwound on every branch that failed,
+ * so a caller reading it after a `true` reads that path and nothing from an attempt that did not
+ * work out.
+ *
+ * `depth` bounds the walk rather than tracking what has been visited: a superclass cycle is a
+ * declaration error, and the classes a real hierarchy stacks are few.
+ */
+static bool superclassPath(Module& module, GlobalPtr<TypeClass> have, Buffer<TypePtr> haveArgs,
+                           GlobalPtr<TypeClass> want, Buffer<TypePtr> wantArgs,
+                           Array<U32>& steps, U32 depth) {
     auto global = *module.types;
     if(!have) return false;
 
@@ -34,7 +48,10 @@ static bool impliesClass(Module& module, GlobalPtr<TypeClass> have, Buffer<TypeP
     auto env = global[global[have]->gen];
     if(env->types.size() != haveArgs.length) return false;
 
+    U16 index = 0;
+
     for(auto superclass: env->classes.contents(global)) {
+        auto step = index++;
         if(!superclass.typeClass) continue;
 
         // A superclass is written in its own class's variables, so it is expressed in the types
@@ -44,7 +61,15 @@ static bool impliesClass(Module& module, GlobalPtr<TypeClass> have, Buffer<TypeP
             substituted.push(substituteType(module, arg, haveArgs, superclass.source));
         }
 
-        if(impliesClass(module, superclass.typeClass, toBuffer(substituted), want, wantArgs, depth - 1)) return true;
+        auto depthBefore = U32(steps.size());
+        steps.push(classSuperclassOffset(global, have, step));
+
+        if(superclassPath(module, superclass.typeClass, toBuffer(substituted), want, wantArgs,
+                          steps, depth - 1)) {
+            return true;
+        }
+
+        steps.resize(depthBefore);
     }
 
     return false;
@@ -53,15 +78,45 @@ static bool impliesClass(Module& module, GlobalPtr<TypeClass> have, Buffer<TypeP
 bool provesClass(Module& module, const GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
     auto global = *module.types;
     auto classes = env.classes;
+    Array<U32> steps;
 
     for(auto constraint: classes.contents(global)) {
         Array<TypePtr> have;
         for(auto arg: constraint.args.contents(global)) have.push(arg);
 
-        if(impliesClass(module, constraint.typeClass, toBuffer(have), typeClass, args, 8)) return true;
+        steps.clear();
+        if(superclassPath(module, constraint.typeClass, toBuffer(have), typeClass, args, steps, 8)) return true;
     }
 
     return false;
+}
+
+U16 genWitnessPath(Module& module, GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
+                   Array<U32>& supers) {
+    auto global = *module.types;
+    supers.clear();
+
+    // A slot for exactly this requirement first. The two answers are equally usable, and preferring
+    // the direct one keeps a body that declared what it dispatches on loading its witness rather
+    // than deriving it from a superclass relation it also happens to have.
+    if(auto slot = genClassSlot(module, env, typeClass, args); slot != maxLimit<U16>) return slot;
+
+    auto& schema = genSchemaOf(module, env);
+
+    for(auto slot: schema.slots.contents(global)) {
+        if(slot.kind != GenSlotKind::Class) continue;
+
+        Array<TypePtr> have;
+        for(auto arg: slot.args.contents(global)) have.push(arg);
+
+        supers.clear();
+        if(superclassPath(module, slot.typeClass, toBuffer(have), typeClass, args, supers, 8)) {
+            return slot.index;
+        }
+    }
+
+    supers.clear();
+    return maxLimit<U16>;
 }
 
 void requireClass(Module& module, Function& function, GlobalPtr<TypeClass> typeClass,
@@ -582,29 +637,182 @@ static StringId specializationName(Module& module, Function& generic, Buffer<Typ
     return module.context.addQualifiedName(text.pointer(), text.size(), 1);
 }
 
-// Proves every requirement of the context for these arguments. Reported against the requirement
-// rather than against the call inside the body that needs it: `Ord(a)` is what the signature
-// promises, and `Ord(Shape)` is what the caller failed to supply.
+/*
+ * The type of one named field of a concrete type, or null where it has none.
+ *
+ * The type half of ExprResolver::projectField, and it follows the same two steps for the same
+ * reasons: a raw pointer is read through, and a single-constructor record's fields are the fields
+ * of its one constructor's content. Anything the use site would reject - a multi-constructor record,
+ * a scalar - has no field of any name, which is the answer a constraint needs rather than a
+ * diagnostic of its own.
+ */
+static TypePtr fieldTypeOf(Module& module, TypePtr type, StringId field) {
+    auto global = *module.types;
+    if(!type) return nullptr;
+
+    if(global[type]->kind == Type::Ptr) type = ((PtrType*)global[type])->to;
+    if(!type) return nullptr;
+
+    if(global[type]->kind == Type::Record) {
+        auto record = (RecordType*)global[type];
+        if(record->layout != RecordType::Single || record->constructors.isEmpty()) return nullptr;
+
+        type = record->constructors.get(global, 0).content;
+    }
+
+    if(!type || global[type]->kind != Type::Tup) return nullptr;
+
+    for(auto member: ((TupType*)global[type])->fields.contents(global)) {
+        if(member.name == field) return member.type;
+    }
+
+    return nullptr;
+}
+
+/*
+ * One constraint written back out the way its author wrote it - `a.x: Int`, `f: (a) -> Int`.
+ *
+ * Implementation-Generics.md part 12: a diagnostic names the source constraint, never the
+ * environment slot it was numbered into. Spelled from the constraint's own types rather than from
+ * the substituted ones, so what a message quotes is the text in the signature and the concrete
+ * types appear beside it as what failed to satisfy it.
+ */
+static void describeProperty(Context& context, GlobalBase global, const PropertyConstraint& constraint,
+                             StringBuilder& target) {
+    describeType(context, global, constraint.owner, target);
+    target << '.' << context.findName(constraint.field) << ": ";
+    describeType(context, global, constraint.result, target);
+}
+
+static void describeFunctionConstraint(Context& context, GlobalBase global, const FunctionConstraint& constraint,
+                                       StringBuilder& target) {
+    target << context.findName(constraint.name) << ": ";
+    describeType(context, global, constraint.signature, target);
+}
+
+// The type a named function would have as a value: its declared arguments, with their conventions,
+// and its result. What a `f: (a) -> b` constraint is satisfied by, and the reason FunctionConstraint
+// holds a FunType rather than a name and an arity - the conventions are part of the promise.
+static TypePtr signatureOf(Module& module, Function& function) {
+    auto local = *module.arena;
+
+    Array<FunArg> args;
+    for(auto argPointer: function.args.contents(local)) {
+        auto declared = local[argPointer];
+        args.push(FunArg { declared->type, declared->name, declared->convention, declared->returnRoot });
+    }
+
+    return resolveFunType(module, toBuffer(args), function.returnType, ast::FunKind::Plain);
+}
+
+/*
+ * Proves every requirement of the context for these arguments.
+ *
+ * Reported against the requirement rather than against the call inside the body that needs it:
+ * `Ord(a)` is what the signature promises, and `Ord(Shape)` is what the caller failed to supply.
+ * Implementation-Generics.md part 12 says the same about the other two kinds - a diagnostic names
+ * the constraint the author wrote, never the environment slot it was numbered into - which is why
+ * each message below is about `a.x: Int` rather than about slot 1.
+ *
+ * All three kinds are proved here even though only the class ones have a witness to build. A
+ * constraint that is checked nowhere is not a constraint: the declaration would accept every
+ * argument type and the rejection would fall to whatever the *body* happened to do with it, which
+ * reports at the wrong place, only for the members the body reaches, and not at all for a body that
+ * does not reach any of them.
+ */
 static bool proveRequirements(Module& from, Function& generic, GenEnv& env, Buffer<TypePtr> args, LocationId source) {
     auto& context = from.context;
+    auto global = *from.types;
     auto ok = true;
 
-    for(auto constraint: env.classes.contents(*from.types)) {
+    for(auto constraint: env.classes.contents(global)) {
         if(!constraint.typeClass) continue;
 
         Array<TypePtr> concrete;
-        for(auto arg: constraint.args.contents(*from.types)) {
+        for(auto arg: constraint.args.contents(global)) {
             concrete.push(substituteType(from, arg, args, source));
         }
 
         if(findInstance(from, constraint.typeClass, toBuffer(concrete))) continue;
 
         StringBuilder text;
-        describeTypes(context, *from.types, toBuffer(concrete), text);
+        describeTypes(context, global, toBuffer(concrete), text);
 
         context.diagnostics.error("no instance of %@ for (%@), required by %@"_v, source,
-                                  context.findName((*from.types)[constraint.typeClass]->name),
+                                  context.findName(global[constraint.typeClass]->name),
                                   text.view(), context.findName(generic.name));
+        ok = false;
+    }
+
+    for(auto constraint: env.properties.contents(global)) {
+        StringBuilder declared;
+        describeProperty(context, global, constraint, declared);
+
+        auto owner = substituteType(from, constraint.owner, args, source);
+        auto expected = substituteType(from, constraint.result, args, source);
+        auto actual = fieldTypeOf(from, owner, constraint.field);
+
+        if(!actual) {
+            context.diagnostics.error("%@ has no field %@, required by %@ of %@"_v, source,
+                                      describeType(context, global, owner),
+                                      context.findName(constraint.field), declared.view(),
+                                      context.findName(generic.name));
+            ok = false;
+            continue;
+        }
+
+        // Exactly, not convertibly. A property witness reads and writes the owner's storage, so a
+        // field that merely converts to the declared type would give the body a place of a type it
+        // cannot write back through - which is the same reason a `&` argument takes no conversion.
+        if(sameType(actual, expected)) continue;
+
+        context.diagnostics.error("field %@ of %@ is %@, not the %@ required by %@ of %@"_v, source,
+                                  context.findName(constraint.field),
+                                  describeType(context, global, owner),
+                                  describeType(context, global, actual),
+                                  describeType(context, global, expected),
+                                  declared.view(), context.findName(generic.name));
+        ok = false;
+    }
+
+    for(auto constraint: env.functions.contents(global)) {
+        StringBuilder declared;
+        describeFunctionConstraint(context, global, constraint, declared);
+
+        auto expected = substituteType(from, constraint.signature, args, source);
+        auto target = findFunction(from, constraint.name, source);
+
+        if(!target) {
+            context.diagnostics.error("there is no function %@, required by %@ of %@"_v, source,
+                                      context.findName(constraint.name), declared.view(),
+                                      context.findName(generic.name));
+            ok = false;
+            continue;
+        }
+
+        /*
+         * A generic candidate is not proof. Satisfying `f: (Point) -> Int` with a `fn f(x: a) -> Int`
+         * means instantiating it, and what instantiates it is the witness this constraint is owed -
+         * which does not exist yet. Rejecting keeps that a missing feature rather than a silently
+         * accepted declaration, and it is the answer genEnvFor already gives the erased path.
+         */
+        auto found = (*from.arena)[target];
+        if(found->gen) {
+            context.diagnostics.error("%@ is generic, and cannot satisfy %@ of %@ yet - that needs a function witness, which is not built yet"_v,
+                                      source, context.findName(constraint.name), declared.view(),
+                                      context.findName(generic.name));
+            ok = false;
+            continue;
+        }
+
+        auto actual = signatureOf(from, *found);
+        if(sameType(actual, expected)) continue;
+
+        context.diagnostics.error("%@ is %@, not the %@ required by %@ of %@"_v, source,
+                                  context.findName(constraint.name),
+                                  describeType(context, global, actual),
+                                  describeType(context, global, expected),
+                                  declared.view(), context.findName(generic.name));
         ok = false;
     }
 

@@ -1,0 +1,424 @@
+@typeDesc$Pair = [152, 90, 0, 0, 16, 0, 0, 0, 8, 0, 0, 0, 16, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$I64 = [144, 45, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 131, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Int = [88, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 131, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Handle = [172, 89, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@witness$FromInt(Int) = [48, 6, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$relocate(Handle) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@witness$Num(Int) = [240, 12, 0, 0, 1, 0, 5, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$numeric(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$+=(I64) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$twice(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@witness$FromInt(I64) = [48, 6, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@sinkCalls = [0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$relocate(Pair) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@witness$Num(I64) = [240, 12, 0, 0, 1, 0, 5, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+thunk$Num(Int).+#0<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
+  b_0 {
+    %v_1 = loads %lhs, 4: Int
+    %v_2 = loads %rhs, 4: Int
+    %v_3 = add %v_1, %v_2: Int
+    store %result, %v_3, 4
+    ret 
+  }
+}
+
+moveInit$Int<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    %v_1 = bitcast %to: Ptr
+    %v_2 = bitcast %from: Ptr
+    copy %v_1, %v_2, 4
+    ret 
+  }
+}
+
+thunk$Num(Int)./#3<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
+  b_0 {
+    %v_1 = loads %lhs, 4: Int
+    %v_2 = loads %rhs, 4: Int
+    %v_3 = idiv %v_1, %v_2: Int
+    store %result, %v_3, 4
+    ret 
+  }
+}
+
+thunk$Num(I64).+#0<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
+  b_0 {
+    %v_1 = loads %lhs, 8: Long
+    %v_2 = loads %rhs, 8: Long
+    %v_3 = add %v_1, %v_2: Long
+    store %result, %v_3, 8
+    ret 
+  }
+}
+
+thunk$Num(I64).*#2<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
+  b_0 {
+    %v_1 = loads %lhs, 8: Long
+    %v_2 = loads %rhs, 8: Long
+    %v_3 = imul %v_1, %v_2: Long
+    store %result, %v_3, 8
+    ret 
+  }
+}
+
+thunk$FromInt(Int).fromInt#0<complex>(%result: Ptr, %value: Long) {
+  b_0 {
+    %v_1 = cast %value: Int
+    store %result, %v_1, 4
+    ret 
+  }
+}
+
+teardown$none<complex>(%value: Ptr) {
+  b_0 {
+    ret 
+  }
+}
+
++=<complex>(%genEnv: Ptr, %target: Ptr, %amount: Ptr) {
+  b_0 {
+    %v_1 = add %genEnv, 16: Ptr
+    %v_2 = load %v_1, 8: Ptr
+    %v_3 = add %v_2, 24: Ptr
+    %v_4 = load %v_3, 8: Ptr
+    %v_5 = add %genEnv, 8: Ptr
+    %v_6 = load %v_5, 8: Ptr
+    %v_7 = add %v_6, 4: Ptr
+    %v_8 = load %v_7, 4: Int
+    %v_9 = cast %v_8: Long
+    %v_10 = alloca %v_9, 16: Ptr
+    call_complex %v_4, %v_10, %target, %amount
+    %v_11 = add %genEnv, 8: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    %v_13 = add %v_12, 4: Ptr
+    %v_14 = load %v_13, 4: Int
+    %v_15 = cast %v_14: Long
+    copy %target, %v_10, %v_15
+    ret 
+  }
+}
+
+thunk$Num(Int).-#4<complex>(%result: Ptr, %value: Ptr) {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    %v_2 = neg %v_1: Int
+    store %result, %v_2, 4
+    ret 
+  }
+}
+
+moveInit$I64<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    %v_1 = bitcast %to: Ptr
+    %v_2 = bitcast %from: Ptr
+    copy %v_1, %v_2, 8
+    ret 
+  }
+}
+
+relocate<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr) {
+  b_1 {
+    %v_2 = add %genEnv, 8: Ptr
+    %v_3 = load %v_2, 8: Ptr
+    %v_4 = add %v_3, 4: Ptr
+    %v_5 = load %v_4, 4: Int
+    %v_6 = cast %v_5: Long
+    %y = alloca %v_6, 16: Ptr
+    %v_7 = add %genEnv, 8: Ptr
+    %v_8 = load %v_7, 8: Ptr
+    %v_9 = add %v_8, 24: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    call_complex %v_10, %y, %x
+    %v_11 = add %genEnv, 8: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    %v_13 = add %v_12, 4: Ptr
+    %v_14 = load %v_13, 4: Int
+    %v_15 = cast %v_14: Long
+    copy %v_0, %y, %v_15
+    ret 
+  }
+}
+
+thunk$Num(I64)./#3<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
+  b_0 {
+    %v_1 = loads %lhs, 8: Long
+    %v_2 = loads %rhs, 8: Long
+    %v_3 = idiv %v_1, %v_2: Long
+    store %result, %v_3, 8
+    ret 
+  }
+}
+
+moveInit$Pair<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    %v_1 = bitcast %to: Ptr
+    %v_2 = bitcast %from: Ptr
+    copy %v_1, %v_2, 16
+    call_complex Sink(Handle).sink, %to, %from
+    ret 
+  }
+}
+
+twice<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr) {
+  b_1 {
+    %v_2 = alloca 24, 8: Ptr
+    %v_3 = add %genEnv, 8: Ptr
+    %v_4 = load %v_3, 8: Ptr
+    %v_5 = add %v_2, 8: Ptr
+    store %v_5, %v_4, 8
+    %v_6 = add %genEnv, 16: Ptr
+    %v_7 = load %v_6, 8: Ptr
+    %v_8 = add %v_2, 16: Ptr
+    store %v_8, %v_7, 8
+    %v_9 = add %genEnv, 8: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    %v_11 = add %v_10, 4: Ptr
+    %v_12 = load %v_11, 4: Int
+    %v_13 = cast %v_12: Long
+    %v_14 = alloca %v_13, 16: Ptr
+    call_complex increment, %v_2, %v_14, %x
+    %v_15 = alloca 24, 8: Ptr
+    %v_16 = add %genEnv, 8: Ptr
+    %v_17 = load %v_16, 8: Ptr
+    %v_18 = add %v_15, 8: Ptr
+    store %v_18, %v_17, 8
+    %v_19 = add %genEnv, 16: Ptr
+    %v_20 = load %v_19, 8: Ptr
+    %v_21 = add %v_15, 16: Ptr
+    store %v_21, %v_20, 8
+    %v_22 = add %genEnv, 8: Ptr
+    %v_23 = load %v_22, 8: Ptr
+    %v_24 = add %v_23, 4: Ptr
+    %v_25 = load %v_24, 4: Int
+    %v_26 = cast %v_25: Long
+    %v_27 = alloca %v_26, 16: Ptr
+    call_complex increment, %v_15, %v_27, %v_14
+    %v_28 = add %genEnv, 8: Ptr
+    %v_29 = load %v_28, 8: Ptr
+    %v_30 = add %v_29, 4: Ptr
+    %v_31 = load %v_30, 4: Int
+    %v_32 = cast %v_31: Long
+    copy %v_0, %v_27, %v_32
+    ret 
+  }
+}
+
+thunk$Num(Int).*#2<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
+  b_0 {
+    %v_1 = loads %lhs, 4: Int
+    %v_2 = loads %rhs, 4: Int
+    %v_3 = imul %v_1, %v_2: Int
+    store %result, %v_3, 4
+    ret 
+  }
+}
+
+unit<complex>(%genEnv: Ptr, %v_0: Ptr, %like: Ptr) {
+  b_1 {
+    %v_2 = add %genEnv, 16: Ptr
+    %v_3 = load %v_2, 8: Ptr
+    %v_4 = add %v_3, 24: Ptr
+    %v_5 = load %v_4, 8: Ptr
+    %v_6 = add %genEnv, 8: Ptr
+    %v_7 = load %v_6, 8: Ptr
+    %v_8 = add %v_7, 4: Ptr
+    %v_9 = load %v_8, 4: Int
+    %v_10 = cast %v_9: Long
+    %v_11 = alloca %v_10, 16: Ptr
+    call_complex %v_5, %v_11, 1
+    %v_12 = add %genEnv, 8: Ptr
+    %v_13 = load %v_12, 8: Ptr
+    %v_14 = add %v_13, 4: Ptr
+    %v_15 = load %v_14, 4: Int
+    %v_16 = cast %v_15: Long
+    copy %v_0, %v_11, %v_16
+    ret 
+  }
+}
+
+thunk$Num(Int).-#1<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
+  b_0 {
+    %v_1 = loads %lhs, 4: Int
+    %v_2 = loads %rhs, 4: Int
+    %v_3 = sub %v_1, %v_2: Int
+    store %result, %v_3, 4
+    ret 
+  }
+}
+
+increment<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr) {
+  b_1 {
+    %v_2 = add %genEnv, 16: Ptr
+    %v_3 = load %v_2, 8: Ptr
+    %v_4 = add %v_3, 64: Ptr
+    %v_5 = load %v_4, 8: Ptr
+    %v_6 = add %v_5, 24: Ptr
+    %v_7 = load %v_6, 8: Ptr
+    %v_8 = add %genEnv, 8: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    %v_10 = add %v_9, 4: Ptr
+    %v_11 = load %v_10, 4: Int
+    %v_12 = cast %v_11: Long
+    %v_13 = alloca %v_12, 16: Ptr
+    call_complex %v_7, %v_13, 1
+    %v_14 = add %genEnv, 16: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    %v_16 = add %v_15, 24: Ptr
+    %v_17 = load %v_16, 8: Ptr
+    %v_18 = add %genEnv, 8: Ptr
+    %v_19 = load %v_18, 8: Ptr
+    %v_20 = add %v_19, 4: Ptr
+    %v_21 = load %v_20, 4: Int
+    %v_22 = cast %v_21: Long
+    %v_23 = alloca %v_22, 16: Ptr
+    call_complex %v_17, %v_23, %x, %v_13
+    %v_24 = add %genEnv, 8: Ptr
+    %v_25 = load %v_24, 8: Ptr
+    %v_26 = add %v_25, 4: Ptr
+    %v_27 = load %v_26, 4: Int
+    %v_28 = cast %v_27: Long
+    copy %v_0, %v_23, %v_28
+    ret 
+  }
+}
+
+thunk$Num(I64).-#1<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
+  b_0 {
+    %v_1 = loads %lhs, 8: Long
+    %v_2 = loads %rhs, 8: Long
+    %v_3 = sub %v_1, %v_2: Long
+    store %result, %v_3, 8
+    ret 
+  }
+}
+
+Sink(Handle).sink<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    %v_1 = loads @sinkCalls, 8: Long
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, 1, 8
+    call_complex +=, @genEnv$+=(I64), @sinkCalls, %v_2
+    %v_3 = loads %from, 8: Long
+    store %to, %v_3, 8
+    ret 
+  }
+}
+
+thunk$Num(I64).-#4<complex>(%result: Ptr, %value: Ptr) {
+  b_0 {
+    %v_1 = loads %value, 8: Long
+    %v_2 = neg %v_1: Long
+    store %result, %v_2, 8
+    ret 
+  }
+}
+
+thunk$FromInt(I64).fromInt#0<complex>(%result: Ptr, %value: Long) {
+  b_0 {
+    %v_1 = cast %value: Long
+    store %result, %v_1, 8
+    ret 
+  }
+}
+
+main<complex>(): Long {
+  b_0 {
+    %h = alloca 8, 8: Ptr
+    store %h, 10, 8
+    %moved = alloca 8, 8: Ptr
+    call_complex relocate, @genEnv$relocate(Handle), %moved, %h
+    %v_1 = loads @sinkCalls, 8: Long
+    %v_2 = cmp_neq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = neg 1: Long
+    ret %v_5
+  }
+
+  b_4 {
+    jmp b_6
+  }
+
+  b_6 {
+    %p = alloca 16, 8: Ptr
+    %v_7 = alloca 8, 8: Ptr
+    store %v_7, 20, 8
+    copy %p, %v_7, 8
+    %v_8 = add %p, 8: Ptr
+    store %v_8, 5, 8
+    %movedPair = alloca 16, 8: Ptr
+    call_complex relocate, @genEnv$relocate(Pair), %movedPair, %p
+    %v_9 = loads @sinkCalls, 8: Long
+    %v_10 = cmp_neq %v_9, 2: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    %v_13 = neg 2: Long
+    ret %v_13
+  }
+
+  b_12 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = loads %moved, 8: Long
+    %v_16 = loads %movedPair, 8: Long
+    %v_17 = add %v_15, %v_16: Long
+    %v_18 = add %movedPair, 8: Ptr
+    %v_19 = loads %v_18, 8: Long
+    %v_20 = add %v_17, %v_19: Long
+    %v_21 = loads @sinkCalls, 8: Long
+    %v_22 = add %v_20, %v_21: Long
+    %v_23 = alloca 4, 4: Ptr
+    store %v_23, 19, 4
+    %v_24 = alloca 4, 4: Ptr
+    call_complex twice, @genEnv$twice(Int), %v_24, %v_23
+    %v_25 = loads %v_24, 4: Int
+    %v_26 = sext %v_25: Long
+    %v_27 = add %v_22, %v_26: Long
+    %v_28 = alloca 4, 4: Ptr
+    store %v_28, 4, 4
+    %v_29 = alloca 4, 4: Ptr
+    call_complex numeric, @genEnv$numeric(Int), %v_29, %v_28
+    %v_30 = loads %v_29, 4: Int
+    %v_31 = sext %v_30: Long
+    %v_32 = add %v_27, %v_31: Long
+    ret %v_32
+  }
+}
+
+numeric<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr) {
+  b_1 {
+    %v_2 = alloca 24, 8: Ptr
+    %v_3 = add %genEnv, 8: Ptr
+    %v_4 = load %v_3, 8: Ptr
+    %v_5 = add %v_2, 8: Ptr
+    store %v_5, %v_4, 8
+    %v_6 = add %genEnv, 16: Ptr
+    %v_7 = load %v_6, 8: Ptr
+    %v_8 = add %v_7, 64: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    %v_10 = add %v_2, 16: Ptr
+    store %v_10, %v_9, 8
+    %v_11 = add %genEnv, 8: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    %v_13 = add %v_12, 4: Ptr
+    %v_14 = load %v_13, 4: Int
+    %v_15 = cast %v_14: Long
+    %v_16 = alloca %v_15, 16: Ptr
+    call_complex unit, %v_2, %v_16, %x
+    %v_17 = add %genEnv, 8: Ptr
+    %v_18 = load %v_17, 8: Ptr
+    %v_19 = add %v_18, 4: Ptr
+    %v_20 = load %v_19, 4: Int
+    %v_21 = cast %v_20: Long
+    copy %v_0, %v_16, %v_21
+    ret 
+  }
+}
+

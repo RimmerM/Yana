@@ -34,7 +34,23 @@ TypePtr typeDescPlaceType(Module& module) {
 }
 
 TypePtr funValueFieldType(Module& module, U16 field) {
-    return resolvePointerType(module, module.scalar.unit);
+    // The two words happen to have the same type, which is not a reason to answer without looking:
+    // a projection index that is neither of them describes no word of a function value, and handing
+    // it an address anyway would let a place nothing laid out reach lowering as a load at an offset.
+    switch(field) {
+        case FunValueLayout::kCode:
+        case FunValueLayout::kEnv:
+            return resolvePointerType(module, module.scalar.unit);
+        default:
+            return module.scalar.error;
+    }
+}
+
+U32 classSuperclassOffset(GlobalBase global, GlobalPtr<TypeClass> typeClass, U16 index) {
+    auto argCount = U16(global[global[typeClass]->gen]->types.size());
+    auto methodCount = U16(global[typeClass]->functions.size());
+
+    return ClassWitnessLayout::supersOffset(argCount, methodCount) + 8 * index;
 }
 
 TypePtr closureHeaderPlaceType(Module& module) {
@@ -159,20 +175,103 @@ StringId tableName(Module& module, StringView prefix, TypePtr type) {
     return module.context.addQualifiedName(text.pointer(), text.size(), 1);
 }
 
+/*
+ * The authored `Sink` for a type, specialized for it.
+ *
+ * The same step teardownFor takes for an authored `Drop`, and for the same reason: a parametric
+ * instance - `instance Sink(Node(a))` - has one implementation written over its own variables, and
+ * what runs is the specialization for the types the head matched. A relocation has no call site in
+ * the source to have taken that step at, so it is taken here.
+ */
+static ModulePtr<Function> authoredSinkFor(Module& module, TypePtr type, LocationId source) {
+    TypePtr args[] = { type };
+    auto match = matchInstance(module, module.coreClasses.sink, toBuffer(args));
+    if(!match) return nullptr;
+
+    auto instance = (*module.arena)[match.instance];
+    if(instance->functions.isEmpty()) return nullptr;
+
+    auto implementation = instance->functions.get(*module.arena, 0);
+    if(!implementation) return nullptr;
+
+    if((*module.arena)[implementation]->gen) {
+        implementation = instantiateFunction(module, implementation, toBuffer(match.args), source);
+        if(!implementation) return nullptr;
+    }
+
+    (*module.arena)[implementation]->used = true;
+    return implementation;
+}
+
+// Whether any member of `content` relocates by a call rather than by its bytes. Asked instead of
+// sinkFor() wherever the answer is only being tested, since asking sinkFor() would *generate* the
+// glue for every member of every constructor of every record the question is asked about.
+static bool hasSinkingMember(Module& module, TypePtr content) {
+    auto global = *module.types;
+    if(!content || global[content]->kind != Type::Tup) return false;
+
+    for(auto field: ((TupType*)global[content])->fields.contents(global)) {
+        if(!ownershipOf(module, field.type).trivialSink) return true;
+    }
+
+    return false;
+}
+
+/*
+ * The per-member half of a derived relocation: one call for each member whose bytes are not the
+ * whole story, projected off the two bases.
+ *
+ * Both projections are addressed rather than loaded, because that is what the callee wants either
+ * way - `fn sink(&to: a, ->from: a)` passes both of its conventions as addresses, and generated
+ * glue takes two raw pointers.
+ */
+static void sinkMembers(ExprResolver& resolver, Module& module, Place to, Place from,
+                        TypePtr content, LocationId source) {
+    auto global = *module.types;
+    if(!content || global[content]->kind != Type::Tup) return;
+
+    U16 index = 0;
+
+    for(auto field: ((TupType*)global[content])->fields.contents(global)) {
+        if(auto implementation = sinkFor(module, field.type, source)) {
+            auto toMember = resolver.addressOf(resolver.project(to, ProjectionKind::Field, index), source, 0);
+            auto fromMember = resolver.addressOf(resolver.project(from, ProjectionKind::Field, index), source, 0);
+
+            auto call = resolver.create<InstCall>(source, 0, module.scalar.unit, implementation);
+            call->args.push(module.arena, toMember);
+            call->args.push(module.arena, fromMember);
+            resolver.append(call);
+        }
+
+        index++;
+    }
+}
+
 } // namespace
 
 /*
  * moveInit.
  *
- * Implementation-Generics.md part 4 lists three answers - a block copy for TrivialSink, an adapter
- * over the authored `Sink` where one exists, and unavailable - and the first two are generated the
- * same way: a two-argument function taking the destination and the source as raw pointers, so that
- * generic code can call it without knowing either type or size.
+ * Implementation-Generics.md part 4 lists three answers - a block copy for TrivialSink, the
+ * authored `Sink` where one exists, and unavailable - and what every caller wants is one shape: a
+ * two-argument function taking the destination and the source as raw pointers, so that generic code
+ * can call it without knowing either type or size. An authored `Sink` is already that shape, since
+ * `(&to: a, ->from: a) -> {}` is two addresses and a unit result, so it is named directly rather
+ * than wrapped in an adapter that would forward its two arguments and nothing else.
  *
- * The "unavailable" case is not represented here at all, deliberately. Whether a body may move a
- * value of an unknown type is a question its *schema* answers, and it is answered before any of
- * this is reached; a descriptor that carried "you may not" would be inviting a second, later check
- * of something already settled.
+ * The fourth case is the one the list does not name and the one an aggregate usually is: a type
+ * that is *neither*, because it has a member that is neither. Relocating it is its bytes plus a
+ * call per such member - the same structural recursion the derived teardown is - and the bytes come
+ * first so that the members which do relocate bitwise, the discriminant of a multi-constructor
+ * record among them, are carried by the one copy rather than by a projection each. What that copy
+ * writes over the non-trivial members is written again by their sinks, which is sound because a
+ * destination is uninitialized until a sink has filled it and no one reads it in between.
+ *
+ * The "unavailable" case is not represented in the descriptor at all, deliberately. Whether a body
+ * may move a value of an unknown type is a question its *schema* answers, and it is answered before
+ * any of this is reached; a descriptor that carried "you may not" would be inviting a second, later
+ * check of something already settled. What is reported here instead is the concrete gap: a type
+ * whose relocation this compiler cannot state, which used to produce a function with an empty body.
  */
 ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source) {
     auto& program = module.program;
@@ -186,8 +285,33 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
     // Nothing to relocate: a zero-sized type, or one whose bytes the caller has already placed.
     if(!size) return nullptr;
 
+    if(ownership.authoredSink) {
+        auto implementation = authoredSinkFor(module, type, source);
+        if(implementation) *program.moveInitGlue.add(U32(type)).value = implementation;
+        return implementation;
+    }
+
+    auto global = *module.types;
+    auto record = global[type]->kind == Type::Record ? (RecordType*)global[type] : nullptr;
+
+    /*
+     * A type that relocates by neither rule and has no members to recurse into. Every kind that
+     * reaches this is one ownershipOf classifies conservatively because it is not constructible yet
+     * - Ref, Region, Array, Map - and the conservative answer is worth keeping: emitting the block
+     * copy anyway would turn "adding one of these is a decision" into a silently wrong default.
+     */
+    if(!ownership.trivialSink && !record && global[type]->kind != Type::Tup) {
+        module.context.diagnostics.error(
+            "%@ cannot be relocated: it is not TrivialSink and has no Sink instance"_v, source,
+            describeType(module.context, global, type));
+        return nullptr;
+    }
+
     auto function = addAnonymousFunction(module, tableName(module, "moveInit$"_v, type), source);
     auto pointer = function - *module.arena;
+
+    // Registered before the body is built, so a type reachable from itself finds the entry rather
+    // than generating glue forever - the same arrangement teardownGlueFor relies on.
     *program.moveInitGlue.add(U32(type)).value = pointer;
 
     function->returnType = module.scalar.unit;
@@ -199,10 +323,9 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
 
     ExprResolver resolver(module.context, module, *function);
 
-    if(ownership.trivialSink) {
-        // A relocation of a TrivialSink value is its bytes and nothing else, which is what the
-        // class means. copyMemory rather than a load and a store because the size is a constant
-        // here and the type may be an aggregate with no register form at all.
+    // The bytes. copyMemory rather than a load and a store because the size is a constant here and
+    // the type may be an aggregate with no register form at all.
+    {
         auto bytes = resolver.makeInt(source, module.scalar.long_, size);
         auto byteType = resolvePointerType(module, module.scalar.unit);
 
@@ -216,32 +339,78 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
         copyInst->args.push(module.arena, castFrom);
         copyInst->args.push(module.arena, bytes);
         resolver.append(copyInst);
-    } else if(ownership.authoredSink) {
-        // The authored `Sink` takes `(&to: a, ->from: a)`, and both conventions arrive as addresses,
-        // so the two pointers this function was given are already the arguments it wants.
-        TypePtr args[] = { type };
-        auto match = matchInstance(module, module.coreClasses.sink, toBuffer(args));
+    }
 
-        if(match && !(*module.arena)[match.instance]->functions.isEmpty()) {
-            auto implementation = (*module.arena)[match.instance]->functions.get(*module.arena, 0);
+    if(!ownership.trivialSink) {
+        auto toBase = Place::atPointer((ModulePtr<Value>)(to - *module.arena));
+        auto fromBase = Place::atPointer((ModulePtr<Value>)(from - *module.arena));
 
-            if(implementation && (*module.arena)[implementation]->gen) {
-                implementation = instantiateFunction(module, implementation, toBuffer(match.args), source);
+        if(!record) {
+            sinkMembers(resolver, module, toBase, fromBase, type, source);
+        } else if(record->layout == RecordType::Single) {
+            sinkMembers(resolver, module,
+                        resolver.project(toBase, ProjectionKind::Downcast, 0),
+                        resolver.project(fromBase, ProjectionKind::Downcast, 0),
+                        record->constructors.get(global, 0).content, source);
+        } else if(record->layout == RecordType::Multi) {
+            /*
+             * Each constructor carries a different payload, so which members need a call depends on
+             * which one is present. Read off the *source*, whose discriminant is the one that was
+             * true before the copy above made it true of both.
+             *
+             * A chain of tests rather than a jump table, for the reason teardownGlueFor gives: `je`
+             * is the IR's only conditional. A constructor whose payload relocates bitwise is
+             * skipped entirely, since the copy above has already moved it.
+             */
+            auto exit = resolver.addBlock();
+
+            for(auto constructor: record->constructors.contents(global)) {
+                auto content = constructor.content;
+                if(!hasSinkingMember(module, content)) continue;
+
+                auto discriminant = resolver.load(
+                    resolver.project(fromBase, ProjectionKind::Discriminant, 0), source);
+
+                auto index = resolver.makeInt(source, module.scalar.int_, constructor.index);
+                auto matches = resolver.emit<InstCmp>(source, 0, module.scalar.bool_,
+                                                      discriminant, index, CompareOp::Eq);
+
+                auto sinks = resolver.addBlock();
+                auto next = resolver.addBlock();
+                resolver.terminate(resolver.emit<InstJe>(source, 0, module.scalar.unit,
+                                                         resolver.ref(matches), sinks, next));
+
+                resolver.current = sinks;
+                sinkMembers(resolver, module,
+                            resolver.project(toBase, ProjectionKind::Downcast, U16(constructor.index)),
+                            resolver.project(fromBase, ProjectionKind::Downcast, U16(constructor.index)),
+                            content, source);
+                resolver.terminate(resolver.emit<InstJmp>(source, 0, module.scalar.unit, exit));
+
+                resolver.current = next;
             }
 
-            if(implementation) {
-                (*module.arena)[implementation]->used = true;
-
-                auto call = resolver.create<InstCall>(source, 0, module.scalar.unit, implementation);
-                call->args.push(module.arena, (ModulePtr<Value>)(to - *module.arena));
-                call->args.push(module.arena, (ModulePtr<Value>)(from - *module.arena));
-                resolver.append(call);
-            }
+            resolver.terminate(resolver.emit<InstJmp>(source, 0, module.scalar.unit, exit));
+            resolver.current = exit;
         }
     }
 
     resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
     return pointer;
+}
+
+/*
+ * What relocating a value of this type runs, or null when relocating it is a block copy.
+ *
+ * The distinction moveInitFor cannot make, because a descriptor slot has to name *some* function:
+ * an already-resolved move of a concrete type emits the copy itself and needs to know only whether
+ * there is a call to make instead.
+ */
+ModulePtr<Function> sinkFor(Module& module, TypePtr type, LocationId source) {
+    if(!type || isGeneric(*module.types, type)) return nullptr;
+    if(ownershipOf(module, type).trivialSink) return nullptr;
+
+    return moveInitFor(module, type, source);
 }
 
 /*
@@ -450,8 +619,10 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
         return nullptr;
     }
 
+    auto classEnv = global[global[typeClass]->gen];
     auto methodCount = U16(global[typeClass]->functions.size());
     auto argCount = U16(args.length);
+    auto superCount = U16(classEnv->classes.size());
 
     StringBuilder text;
     text << "witness$" << context.findName(global[typeClass]->name) << '(';
@@ -467,10 +638,13 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
     // a list that reallocates under it would be writing into freed storage.
     InternedWitness interned { typeClass, Array<TypePtr>(), pointer };
     for(auto arg: args) interned.args.push(arg);
+
+    auto entry = program.classWitnesses.size();
     program.classWitnesses.push(::move(interned));
 
-    TableBuilder table(module, ClassWitnessLayout::sizeFor(argCount, methodCount));
+    TableBuilder table(module, ClassWitnessLayout::sizeFor(argCount, methodCount, superCount));
     table.putU32(ClassWitnessLayout::kArgCount, U32(argCount) | (U32(methodCount) << 16));
+    table.putU32(ClassWitnessLayout::kSuperCount, superCount);
     global_->contents = table.bytes;
     table.putClass(*global_, ClassWitnessLayout::kClass, typeClass);
 
@@ -497,7 +671,51 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
         table.putFunction(*global_, methods + 8 * i, thunk);
     }
 
-    return ok ? pointer : nullptr;
+    /*
+     * The superclasses, each a witness of its own for the types this one was selected at.
+     *
+     * Always present, never derived on demand: a body reaching one of these has already been
+     * compiled to load it at this offset, and the instance it belongs to is not knowable there. That
+     * every one of them exists is what checkSuperclasses settles at the declaration - an instance of
+     * a class whose superclass has none was rejected long before anything asked for this table.
+     */
+    auto supers = ClassWitnessLayout::supersOffset(argCount, methodCount);
+    U16 superIndex = 0;
+
+    for(auto constraint: classEnv->classes.contents(global)) {
+        auto slot = superIndex++;
+        if(!constraint.typeClass) continue;
+
+        Array<TypePtr> concrete;
+        for(auto arg: constraint.args.contents(global)) {
+            concrete.push(substituteType(module, arg, args, source));
+        }
+
+        auto superclass = classWitnessFor(module, constraint.typeClass, toBuffer(concrete), source);
+        if(!superclass) {
+            ok = false;
+            continue;
+        }
+
+        table.putGlobal(*global_, supers + 8 * slot, superclass);
+    }
+
+    if(!ok) {
+        /*
+         * The entry has to go with the failure. Interning early is what lets this recurse, but it
+         * also means a half-built table is sitting in the cache under a key that is still being
+         * asked about: the next request would find it, skip the diagnostic this call just reported,
+         * and take the table - whose failed method slot is a null the erased call would jump to.
+         *
+         * Removing it by the index it was pushed at rather than popping, because generating the
+         * thunks pushed entries of their own and those are the successful ones. Nothing removes an
+         * entry it did not push, so every index below this one is still what it was.
+         */
+        program.classWitnesses.remove(entry);
+        return nullptr;
+    }
+
+    return pointer;
 }
 
 /*
@@ -549,8 +767,12 @@ static bool fillEnvironment(Module& module, Function& caller, InstGenCall& call,
             }
 
             if(anyGeneric) {
+                Array<U32> supers;
                 entry.forwarded = callerEnv
-                    ? genClassSlot(module, *callerEnv, slot.typeClass, toBuffer(expressed)) : maxLimit<U16>;
+                    ? genWitnessPath(module, *callerEnv, slot.typeClass, toBuffer(expressed), supers)
+                    : maxLimit<U16>;
+
+                for(auto step: supers) entry.forwardedSupers.push(module.arena, step);
                 allConstant = false;
             } else {
                 entry.constant = classWitnessFor(module, slot.typeClass, toBuffer(expressed), call.source);
@@ -643,8 +865,13 @@ bool prepareGenericCalls(Program& program) {
                         // environment. Which slot that is could not be recorded when the call was
                         // emitted, because the context was still collecting requirements.
                         auto env = functionGen(global, *function);
+                        Array<U32> supers;
                         call.classSlot = env
-                            ? genClassSlot(*module, *env, call.typeClass, toBuffer(typeArgs)) : maxLimit<U16>;
+                            ? genWitnessPath(*module, *env, call.typeClass, toBuffer(typeArgs), supers)
+                            : maxLimit<U16>;
+
+                        call.classPath.clear();
+                        for(auto step: supers) call.classPath.push(module->arena, step);
 
                         if(call.classSlot == maxLimit<U16>) {
                             module->context.diagnostics.error("internal: a deferred class call has no witness slot in %@"_v,
@@ -796,6 +1023,8 @@ ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<T
     // a nested request growing the list cannot leave a reference into freed storage.
     InternedEnv interned { callee, Array<TypePtr>(), pointer };
     for(auto arg: args) interned.args.push(arg);
+
+    auto entry = program.genEnvs.size();
     program.genEnvs.push(::move(interned));
 
     TableBuilder table(module, GenEnvLayout::sizeFor(slotCount));
@@ -851,7 +1080,16 @@ ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<T
         }
     }
 
-    return ok ? pointer : nullptr;
+    // Interned early so that a slot can ask for this environment again, and un-interned here for
+    // the same reason classWitnessFor does: an environment with an unfilled slot is a table whose
+    // reader would load a null, and a later request must be told what this one was told rather than
+    // handed the wreckage silently. See the note there for why the index is still this entry's.
+    if(!ok) {
+        program.genEnvs.remove(entry);
+        return nullptr;
+    }
+
+    return pointer;
 }
 
 ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source) {

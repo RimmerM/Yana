@@ -91,6 +91,32 @@ fn pairUp(%x: a, %y: b) -> Pair(a, b) {
     ret %v2
 }
 
+(a.tag: Int) fn tagOf(%value: a) -> Int {
+  schema {
+    #0 type a
+    #1 property a.tag: Int
+  }
+
+  b0:
+    ret 7
+}
+
+fn double(%n: Int) -> Int {
+  b0:
+    %v3 = mul %n, 2 : Int
+    ret %v3
+}
+
+(double: (Int) -> Int) fn doubled(%value: a) -> Int {
+  schema {
+    #0 type a
+    #1 function double: (Int) -> Int
+  }
+
+  b0:
+    ret 8
+}
+
 fn main() -> Int {
   b0:
     %v2 = call identity(Int), 1 : Int
@@ -113,7 +139,17 @@ fn main() -> Int {
     %v36 = call pairUp(Int, Bool), 20, False : Pair(Int, Bool)
     %v37 = load %local0@Pair.first : Int
     %v38 = add %v32, %v37 : Int
-    ret %v38
+    %v39 = alloc : Labelled
+    init %local1@Labelled.tag, 1
+    init %local1@Labelled.weight, 2
+    %v44 = call tagOf(Labelled), %v39 : Int
+    %v45 = add %v38, %v44 : Int
+    %v46 = alloc : Labelled
+    init %local2@Labelled.tag, 1
+    init %local2@Labelled.weight, 2
+    %v51 = call doubled(Labelled), %v46 : Int
+    %v52 = add %v45, %v51 : Int
+    ret %v52
 }
 
 fn identity(Int)(%value: Int) -> Int {
@@ -180,4 +216,14 @@ fn pairUp(Int, Bool)(%x: Int, %y: Bool) -> Pair(Int, Bool) {
     init %local2@Pair.first, %x
     init %local2@Pair.second, %y
     ret %v2
+}
+
+fn tagOf(Labelled)(%value: Labelled) -> Int {
+  b0:
+    ret 7
+}
+
+fn doubled(Labelled)(%value: Labelled) -> Int {
+  b0:
+    ret 8
 }

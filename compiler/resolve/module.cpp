@@ -132,14 +132,23 @@ U32 Function::addLocal(Module& module, TypePtr type, StringId localName, ModuleP
  * Generic contexts.
  */
 
-// Builds the generic context of one declaration: its declared type variables, then the class
-// constraints written over them. Constraint *classes* are resolved in a later pass, since a
-// class may be declared after the type that constrains itself by it.
+/*
+ * Builds the generic context of one declaration: its declared type variables, then the class
+ * constraints written over them. Constraint *classes* are resolved in a later pass, since a class
+ * may be declared after the type that constrains itself by it.
+ *
+ * `open` says whether a type variable the constraints mention introduces itself. A function and an
+ * instance have no declared variable list, so it has to - and it has to be set *here* rather than
+ * by the caller afterwards, because a constraint's own types are resolved below: `f: (a) -> Int`
+ * mentions `a` before the signature that would otherwise have introduced it, and a context that
+ * only opened after this returned would have rejected it.
+ */
 static GlobalPtr<GenEnv> prepareGenEnv(Module& module, GenEnv::Kind kind,
                                        ast::ParseList<StringId> variables,
-                                       ast::ConstraintList constraints) {
+                                       ast::ConstraintList constraints, bool open = false) {
     auto env = new (module.types) GenEnv(kind);
     auto pointer = env - *module.types;
+    env->open = open;
 
     auto addVariable = [&](StringId variableName, LocationId source) -> GlobalPtr<GenType> {
         for(auto existing: env->types.contents(*module.types)) {
@@ -1112,9 +1121,8 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
 
     // The constraints are read first, since they name the variables the head is written over -
     // and a constraint may name one the head does not, which is what the check below reports.
-    auto genPointer = prepareGenEnv(module, GenEnv::Instance, {}, decl.instance.constraints);
+    auto genPointer = prepareGenEnv(module, GenEnv::Instance, {}, decl.instance.constraints, true);
     auto gen = (*module.types)[genPointer];
-    gen->open = true;
 
     if(type.kind == ast::Type::App) {
         auto& app = *module.parse[type.app];
@@ -1497,16 +1505,22 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
         // Every function is resolved in an open context: a type variable in the signature is what
         // makes the function generic, and the constraints written in front of it are the ones the
         // body does not have to prove. The context is dropped again when nothing used it.
-        auto env = prepareGenEnv(module, GenEnv::Function, {}, decl.fun.constraints);
-        (*module.types)[env]->open = true;
+        auto env = prepareGenEnv(module, GenEnv::Function, {}, decl.fun.constraints, true);
 
         auto function = resolveSignature(module, decl, (*module.types)[env], decl.fun.name, false);
         function->ast = pointer;
 
-        if((*module.types)[env]->types.isNotEmpty()) {
+        auto& context = *(*module.types)[env];
+
+        if(context.types.isNotEmpty()) {
             function->gen = env;
-            resolveConstraintClasses(module, *(*module.types)[env]);
-        } else if((*module.types)[env]->classes.isNotEmpty()) {
+            resolveConstraintClasses(module, context);
+        } else if(context.classes.isNotEmpty() || context.properties.isNotEmpty() ||
+                  context.functions.isNotEmpty()) {
+            // Every kind, not only the classes. A context with no variables is never instantiated,
+            // so there is no site at which any of its requirements would be proved - and a
+            // requirement nothing proves is decoration, which is what proveRequirements exists to
+            // stop this compiler from accepting.
             module.context.diagnostics.error("%@ has constraints but no type variables"_v, decl.source,
                                              module.context.findName(decl.fun.name));
         }

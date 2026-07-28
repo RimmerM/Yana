@@ -1,10 +1,7 @@
 
-bothEqual(Int, Bool)<complex>(%p: Int, %q: Int, %r: Int, %s: Int): Int {
+tagOf(Labelled)<complex>(%value: Ptr): Int {
   b_0 {
-    %v_1 = cmp_eq %p, %q: Int
-    %v_2 = cmp_eq %r, %s: Int
-    %v_3 = and %v_1, %v_2: Int
-    ret %v_3
+    ret 7
   }
 }
 
@@ -13,6 +10,28 @@ scale(Int)<complex>(%x: Int, %y: Int): Int {
     %v_1 = imul %x, %y: Int
     %v_2 = add %v_1, %x: Int
     ret %v_2
+  }
+}
+
+doubled(Labelled)<complex>(%value: Ptr): Int {
+  b_0 {
+    ret 8
+  }
+}
+
+double<complex>(%n: Int): Int {
+  b_0 {
+    %v_1 = imul %n, 2: Int
+    ret %v_1
+  }
+}
+
+bothEqual(Int, Bool)<complex>(%p: Int, %q: Int, %r: Int, %s: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %p, %q: Int
+    %v_2 = cmp_eq %r, %s: Int
+    %v_3 = and %v_1, %v_2: Int
+    ret %v_3
   }
 }
 
@@ -101,7 +120,19 @@ main<complex>(): Int {
     call_complex pairUp(Int, Bool), %v_12, 20, 0
     %v_13 = loads %v_12, 4: Int
     %v_14 = add %v_11, %v_13: Int
-    ret %v_14
+    %v_15 = alloca 8, 4: Ptr
+    store %v_15, 1, 4
+    %v_16 = add %v_15, 4: Ptr
+    store %v_16, 2, 4
+    %v_17 = call_complex tagOf(Labelled), %v_15: Int
+    %v_18 = add %v_14, %v_17: Int
+    %v_19 = alloca 8, 4: Ptr
+    store %v_19, 1, 4
+    %v_20 = add %v_19, 4: Ptr
+    store %v_20, 2, 4
+    %v_21 = call_complex doubled(Labelled), %v_19: Int
+    %v_22 = add %v_18, %v_21: Int
+    ret %v_22
   }
 }
 

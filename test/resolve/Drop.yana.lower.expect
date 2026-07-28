@@ -139,6 +139,20 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
+rebound<complex>(): Long {
+  b_0 {
+    %a = alloca 8, 8: Ptr
+    call_complex makeBuffer, %a, 64
+    %b = alloca 8, 8: Ptr
+    copy %b, %a, 8
+    %counted = loads @liveBuffers, 8: Long
+    %v_1 = call_complex firstByte, %b: Long
+    call_complex Drop(Buffer).drop, %b
+    %v_2 = add %counted, %v_1: Long
+    ret %v_2
+  }
+}
+
 -=(I64)<complex>(%target: Ptr, %amount: Long) {
   b_0 {
     %v_1 = loads %target, 8: Long
@@ -486,10 +500,8 @@ main<complex>(): Long {
   }
 
   b_40 {
-    %handed = alloca 8, 8: Ptr
-    call_complex makeBuffer, %handed, 4
     %v_41 = loads %result, 8: Long
-    %v_42 = call_complex consume, %handed: Long
+    %v_42 = call_complex rebound: Long
     call_complex +=(I64), %result, %v_42
     %v_43 = loads @liveBuffers, 8: Long
     %v_44 = cmp_neq %v_43, 0: Int
@@ -506,8 +518,28 @@ main<complex>(): Long {
   }
 
   b_48 {
+    %handed = alloca 8, 8: Ptr
+    call_complex makeBuffer, %handed, 4
     %v_49 = loads %result, 8: Long
-    ret %v_49
+    %v_50 = call_complex consume, %handed: Long
+    call_complex +=(I64), %result, %v_50
+    %v_51 = loads @liveBuffers, 8: Long
+    %v_52 = cmp_neq %v_51, 0: Int
+    je %v_52, b_53, b_54
+  }
+
+  b_53 {
+    %v_55 = neg 7: Long
+    ret %v_55
+  }
+
+  b_54 {
+    jmp b_56
+  }
+
+  b_56 {
+    %v_57 = loads %result, 8: Long
+    ret %v_57
   }
 }
 

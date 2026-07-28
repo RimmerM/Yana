@@ -54,6 +54,17 @@ fn derived() -> I64:
     let counted = liveBuffers
     return counted + firstByte(pair.left)
 
+-- A `->` binding of a type whose relocation is its bytes rather than a call. The name still needs
+-- storage of its own: what a move produces is a value, and a value has no address for `firstByte`
+-- to read through - while the storage it came out of has been moved out of, so a binding that named
+-- *that* would be a name every later use of is rejected as a use after a move.
+fn rebound() -> I64:
+    let a = makeBuffer(64)
+    let ->b = a
+
+    let counted = liveBuffers
+    return counted + firstByte(b)
+
 -- Design.md's branch case: a value used on only one arm is live until that arm's own last use and
 -- dropped there, while the arm that does not use it drops it on the edge out of the branch.
 -- `branch(False)` is the assertion that matters here: the buffer has no use on that arm, so its
@@ -100,9 +111,13 @@ fn main() -> I64:
     result += loop()
     if liveBuffers != 0 then return -5
 
-    let handed = makeBuffer(4)
-    result += consume(handed)
+    result += rebound()
     if liveBuffers != 0 then return -6
 
-    -- 2 + 2 + 1 + 0 + 3 + 1 = 9, with every firstByte reading a zero out of freshly mapped memory.
+    let handed = makeBuffer(4)
+    result += consume(handed)
+    if liveBuffers != 0 then return -7
+
+    -- 2 + 2 + 1 + 0 + 3 + 1 + 1 = 10, with every firstByte reading a zero out of freshly mapped
+    -- memory.
     return result
