@@ -64,6 +64,15 @@ fn consume(->it: Handle) -> I64 = it.value
 -- storage the closure provides - so it goes through the same call, without a binding to root it.
 fn captured(->h: Handle) -> () -> I64 = () -> h.value
 
+-- A move update is the same relocation with the result's storage as its destination: one sink for
+-- the whole source, and then the replaced fields written over what it left. A copy update of a
+-- `Pair` is the thing that cannot be written at all - relocating one is a call, so duplicating one
+-- is not its bytes either.
+--
+-- The replacement reads the field it replaces, which is why the relocation is emitted after it:
+-- `right` is read out of the source, and the source is dead only once the sink has run.
+fn retag(->p: Pair) -> Pair = {->p | right: p.right + 1}
+
 fn main() -> I64:
     let &result = 0 :: I64
 
@@ -91,5 +100,12 @@ fn main() -> I64:
     if sinkCalls != 5 then return -7
 
     result += closed()
+
+    -- The update relocates the `Pair` once, which is one call for the `Handle` inside it.
+    let pair = Pair {left: Handle {value: 60}, right: 6}
+    let retagged = retag(pair)
+    if sinkCalls != 6 then return -8
+
+    result += retagged.left.value + retagged.right
 
     return result + sinkCalls

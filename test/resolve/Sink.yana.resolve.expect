@@ -343,6 +343,17 @@ fn captured(%h: Handle) -> () -> I64 {
     ret %v5
 }
 
+fn retag(%p: Pair) -> Pair {
+  b0:
+    %v1 = alloc : Pair
+    %v2 = load %p@Pair.right : I64
+    %v5 = add %v2, 1 : I64
+    %p = move %p via moveInit$Pair : Pair
+    init %local1, %p
+    assign %local1@Pair.right, %v5
+    ret %v1
+}
+
 fn main() -> I64 {
   b0:
     %result = alloc : I64
@@ -452,7 +463,7 @@ fn main() -> I64 {
     %closed = call captured, %v96 : () -> I64
     %v98 = load sinkCalls : I64
     %v101 = cmp_ne %v98, 5 : Bool
-    je %v101, b22, b20
+    je %v101, b25, b20
 
   b19:
     %v105 = neg 7 : I64
@@ -467,12 +478,38 @@ fn main() -> I64 {
     drop_derived %local3 via drop$() -> I64 reclaim reclaim$() -> I64
     %v110 = borrow_mut %result : &mut I64
     call +=(I64), %v110, %v109
-    %v112 = load %result : I64
-    %v113 = load sinkCalls : I64
-    %v114 = add %v112, %v113 : I64
-    ret %v114
+    %pair = alloc : Pair
+    %v113 = alloc : Handle
+    init %local5@Handle.value, 60
+    init %local4@Pair.left, %v113
+    init %local4@Pair.right, 6
+    %pair = move %local4 via moveInit$Pair : Pair
+    %retagged = call retag, %pair : Pair
+    %v121 = load sinkCalls : I64
+    %v124 = cmp_ne %v121, 6 : Bool
+    je %v124, b22, b23
 
   b22:
+    %v128 = neg 8 : I64
+    ret %v128
+
+  b23:
+    jmp b24
+
+  b24:
+    %v131 = load %result : I64
+    %v132 = load %local6@Pair.left : Handle
+    %v133 = load %local6@Pair.left@Handle.value : I64
+    %v134 = load %local6@Pair.right : I64
+    %v135 = add %v133, %v134 : I64
+    %v136 = borrow_mut %result : &mut I64
+    call +=(I64), %v136, %v135
+    %v138 = load %result : I64
+    %v139 = load sinkCalls : I64
+    %v140 = add %v138, %v139 : I64
+    ret %v140
+
+  b25:
     drop_derived %local3 via drop$() -> I64 reclaim reclaim$() -> I64
     jmp b19
 }

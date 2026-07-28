@@ -40,3 +40,14 @@ fn partialMove() -> I64:
 -- Taking ownership of borrowed storage. A `&` binding never owns what it refers to, so there is
 -- nothing there to hand away.
 fn moveFromBorrow(&held: Buffer) -> I64 = take(held)
+
+-- A move update is a move, so it is the same three rules again rather than three of its own: the
+-- source has to be owned, whole, and unused afterwards.
+fn updateFromBorrow(&held: Pair) -> Pair = {->held | right: Buffer {bytes: null()}}
+
+fn updatePartial(->pair: Pair) -> Buffer = {->pair.left | bytes: null()}
+
+-- Reading the source *after* the update, rather than in the replacement it is allowed in.
+fn updateThenUse(->pair: Pair) -> Pair:
+    let updated = {->pair | right: Buffer {bytes: null()}}
+    return pair

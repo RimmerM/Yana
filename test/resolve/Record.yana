@@ -57,6 +57,23 @@ fn makeRect() -> Rect = Rect {origin: Vec2 {x: 1, y: 2}, size: Vec2 {x: 3, y: 4}
 -- `~field` replaces a field with the binding of the same name, as it does in a construction.
 fn withX(v: Vec2, x: Int) -> Vec2 = {v | ~x}
 
+-- `{->value | ...}` is the same expression consuming its source rather than copying it: the source
+-- is relocated into the result and cannot be used again. Every record here is TrivialCopy, which by
+-- the copy-on-read rule makes that relocation the copy above - Sink.yana is where the two differ.
+-- What is asserted here is that the *expression* means the same thing either way.
+fn movedExec(->f: Flags) -> Flags = {->f | exec: True}
+fn movedTo(->it: Rect, to: Vec2) -> Rect = {->it | origin: to}
+
+-- The replacements are resolved before the source is relocated, so they may still read it. That is
+-- what a move update is usually for: a field of the result derived from the field it replaces.
+fn bumpX(->v: Vec2) -> Vec2 = {->v | x: v.x + 1}
+fn movedCorners(->it: Rect) -> Rect = {->it | .origin.x: it.origin.x + 10, .size.y: 8}
+
+-- A source that is in no storage of its own has nothing to be taken out of, and a `~field`
+-- replacement means what it does in a copy.
+fn movedTemporary() -> Rect = {->makeRect() | .origin.y: 5}
+fn movedWithX(->v: Vec2, x: Int) -> Vec2 = {->v | ~x}
+
 -- Update works on an anonymous tuple as well, which has no declaration and therefore no defaults.
 fn tupleUpdate(t: {a: Int, b: Int}) -> Int:
     let u = {t | b: 9}
@@ -84,7 +101,19 @@ fn main() -> Int:
     let slot = 11 :: I64
     let rect = Rect {origin: Vec2 {x: 1, y: 2}, size: Vec2 {x: 3, y: 4}}
 
+    -- Every source here is a value of its own rather than `rect`, which the copy updates below
+    -- still read: a move update consumes what it is given, so handing it a name would be the last
+    -- thing that name could be used for.
+    let moved =
+        flagBits(movedExec(readWrite())) +
+        movedTo(makeRect(), Vec2 {x: 8, y: 9}).origin.y +
+        bumpX(Vec2 {x: 41, y: 0}).x +
+        movedCorners(makeRect()).origin.x + movedCorners(makeRect()).size.y +
+        movedTemporary().origin.y + movedTemporary().origin.x +
+        movedWithX(Vec2 {x: 0, y: 0}, 6).x
+
     let scalars =
+        moved +
         flagBits(none()) +
         flagBits(readOnly()) +
         flagBits(withExec(readWrite())) +

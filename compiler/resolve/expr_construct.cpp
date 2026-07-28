@@ -645,24 +645,26 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
  * every path writes into, so `{v | .a.b: 1, .a.c: 2}` sets two fields of one `v.a` and the source
  * expression is named once however many paths there are.
  *
- * `{->v | ...}` is the same expression consuming its source instead of copying it, which is the
- * only version that can be cheaper than a copy and the only one that needs to know whether anyone
- * else can still see `v`.
+ * `{->v | ...}` is the same expression consuming its source instead of copying it. It is the same
+ * shape with the relocation sinkValue() picks in place of the copy: ownership is taken out of `v`,
+ * which is dead afterwards, and lands in the result's storage. What that buys is a type whose
+ * relocation is not a copy at all - a `Sink` runs once instead of a `Copy`, and a type that has no
+ * `Copy` to run can be updated at all, which is the whole of it. `v` being TrivialCopy makes `->`
+ * the copy again, by Design.md's copy-on-read rule, and a source that is in no storage - a call
+ * result, another update - has nothing to be taken out of and passes through as it does anywhere
+ * else.
  *
- * The ownership resolver can now answer that, but the optimization it enables is a different
- * thing from the answer: writing in place means reusing the source's storage for the result, which
- * is a storage-class decision rather than a checking one. Until that is worth doing, the honest
- * spelling of `{->v | ...}` would be an InstMove followed by exactly the copy `{v | ...}` already
- * performs - the same code under a name that promises otherwise. So it still reports.
+ * What it does not yet buy is writing the new fields into `v`'s own storage rather than into a
+ * fresh allocation. That is a storage-class decision rather than a checking one, and the relocation
+ * the honest version emits is the thing that makes it worth making later.
+ *
+ * The replacements are resolved before the source is moved, so that they may still read it:
+ * `{->c | n: c.n + 1}` is what a move update is *for*, and it is the source's own field it reads.
+ * Reading before the move is also the order the expression is written in - the source's own effects
+ * happen first, then each replacement's, and the relocation is the last thing before the writes.
  */
 ModulePtr<Value> ExprResolver::resolveTupUpdate(const ast::Expr& expr, const ast::TupUpdateExpr& update,
                                                 TypePtr target) {
-    if(update.bind == ast::BindType::Sink) {
-        context.diagnostics.error("a move update is not implemented - write `{value | ...}` to copy"_v,
-                                  expr.source);
-        return nullptr;
-    }
-
     auto value = resolve(update.value, target);
     if(!value) return nullptr;
 
@@ -681,9 +683,24 @@ ModulePtr<Value> ExprResolver::resolveTupUpdate(const ast::Expr& expr, const ast
         return nullptr;
     }
 
+    auto sink = update.bind == ast::BindType::Sink;
     auto result = allocate(type, expr.source);
     auto root = placeFor(result, expr.source);
-    initialize(root, value, expr.source);
+
+    // A copy is made before the replacements are resolved, and a relocation after them. Both are
+    // as early as they can be: the copy leaves the source readable, so nothing is gained by
+    // delaying it, and the move does not, so it waits for everything that still reads the source.
+    if(!sink) initialize(root, value, expr.source);
+
+    // Where a replacement of a moved-from source goes, held until the relocation has happened.
+    // Writing one before that would put it in storage the relocation is about to overwrite.
+    struct Replacement {
+        Place place;
+        ModulePtr<Value> value;
+        LocationId source;
+    };
+
+    Array<Replacement> replacements;
 
     for(auto arg: args.contents(parse)) {
         auto path = arg.path;
@@ -707,7 +724,30 @@ ModulePtr<Value> ExprResolver::resolveTupUpdate(const ast::Expr& expr, const ast
         if(!replacement) continue;
 
         if(!isMemoryType(global, expected)) replacement = convert(replacement, expected, arg.value.source);
-        initialize(place, replacement, arg.value.source);
+
+        if(sink) replacements.push(Replacement { place, replacement, arg.value.source });
+        else initialize(place, replacement, arg.value.source);
+    }
+
+    if(sink) {
+        // Asked of the context rather than of the type for the reason sinkValue is - see there.
+        // A TrivialCopy source's `->` is the copy the other branch already performs, and asking
+        // sinkValue for it as well would duplicate it into a local nothing else reads.
+        auto ownership = ownershipIn(module, functionGen(global, function), type);
+        if(!ownership.trivialCopy) value = sinkValue(value, update.value.source);
+
+        initialize(root, value, expr.source);
+
+        // `assign` rather than `initialize`, because the relocation just put a live value in every
+        // one of these places - which is the whole difference between the two. What it does not yet
+        // buy is the drop of the value replaced: a write to a *field* is tracked as a use of the
+        // slot rather than as a definition of part of it, so the drop it owes is the one an
+        // ordinary `v.f = x` owes and does not run either. Both are the same missing thing - the
+        // per-field ownership state that "cannot move a part of a value out of it" is also about -
+        // and marking the write for what it is, is what makes this one land when that arrives.
+        for(auto& replacement: replacements) {
+            assign(replacement.place, replacement.value, replacement.source);
+        }
     }
 
     return result;

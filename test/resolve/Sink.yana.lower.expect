@@ -293,6 +293,20 @@ direct<complex>(): Long {
   }
 }
 
+retag<complex>(%v_0: Ptr, %p: Ptr) {
+  b_1 {
+    %v_2 = alloca 16, 8: Ptr
+    %v_3 = add %p, 8: Ptr
+    %v_4 = loads %v_3, 8: Long
+    %v_5 = add %v_4, 1: Long
+    call_complex moveInit$Pair, %v_2, %p
+    %v_6 = add %v_2, 8: Ptr
+    store %v_6, %v_5, 8
+    copy %v_0, %v_2, 16
+    ret 
+  }
+}
+
 drop$() -> I64<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
@@ -639,10 +653,39 @@ main<complex>(): Long {
     call_complex drop$() -> I64, %closed
     call_complex reclaim$() -> I64, %closed
     call_complex +=(I64), %result, %v_61
-    %v_62 = loads %result, 8: Long
-    %v_63 = loads @sinkCalls, 8: Long
-    %v_64 = add %v_62, %v_63: Long
-    ret %v_64
+    %pair = alloca 16, 8: Ptr
+    %v_62 = alloca 8, 8: Ptr
+    store %v_62, 60, 8
+    copy %pair, %v_62, 8
+    %v_63 = add %pair, 8: Ptr
+    store %v_63, 6, 8
+    %retagged = alloca 16, 8: Ptr
+    call_complex retag, %retagged, %pair
+    %v_64 = loads @sinkCalls, 8: Long
+    %v_65 = cmp_neq %v_64, 6: Int
+    je %v_65, b_66, b_67
+  }
+
+  b_66 {
+    %v_68 = neg 8: Long
+    ret %v_68
+  }
+
+  b_67 {
+    jmp b_69
+  }
+
+  b_69 {
+    %v_70 = loads %result, 8: Long
+    %v_71 = loads %retagged, 8: Long
+    %v_72 = add %retagged, 8: Ptr
+    %v_73 = loads %v_72, 8: Long
+    %v_74 = add %v_71, %v_73: Long
+    call_complex +=(I64), %result, %v_74
+    %v_75 = loads %result, 8: Long
+    %v_76 = loads @sinkCalls, 8: Long
+    %v_77 = add %v_75, %v_76: Long
+    ret %v_77
   }
 
   b_52 {
