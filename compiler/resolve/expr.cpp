@@ -60,17 +60,7 @@ ModulePtr<Value> ExprResolver::globalValue(ModulePtr<Global> global_, LocationId
 // The constant a declared-once value holds, from the bits its storage would have held at the width
 // of its own type - the form both a global's initializer and a field default are recorded in.
 ModulePtr<Value> ExprResolver::constantBits(TypePtr type, U64 bits, LocationId source) {
-    if(isFloat(global, type)) {
-        if(((FloatType*)global[type])->width == FloatType::Float) {
-            F32 single;
-            copy((const Byte*)&bits, (Byte*)&single, sizeof(single));
-            return makeFloat(source, type, F64(single));
-        }
-
-        F64 number;
-        copy((const Byte*)&bits, (Byte*)&number, sizeof(number));
-        return makeFloat(source, type, number);
-    }
+    if(isFloat(global, type)) return makeFloat(source, type, floatFromBits(global, type, bits));
 
     // The resolve IR has no pointer immediate on purpose, so a pointer constant is its address as
     // an integer reinterpreted - which is the same thing `null()` expands to.

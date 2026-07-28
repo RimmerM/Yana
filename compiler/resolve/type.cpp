@@ -1473,3 +1473,39 @@ String describeType(Context& context, GlobalBase base, TypePtr type) {
     describeType(context, base, type, buffer);
     return buffer.string();
 }
+
+StringId builtName(Context& context, StringBuilder& text) {
+    return context.addQualifiedName(text.pointer(), text.size(), 1);
+}
+
+StringId derivedName(Module& module, StringView prefix, TypePtr type) {
+    StringBuilder text;
+    text << prefix;
+    describeType(module.context, *module.types, type, text);
+    return builtName(module.context, text);
+}
+
+U64 floatBits(GlobalBase base, TypePtr type, F64 value) {
+    U64 bits = 0;
+
+    if(isFloat(base, type) && ((FloatType*)base[type])->width == FloatType::Float) {
+        auto single = F32(value);
+        copy((const Byte*)&single, (Byte*)&bits, sizeof(single));
+    } else {
+        copy((const Byte*)&value, (Byte*)&bits, sizeof(value));
+    }
+
+    return bits;
+}
+
+F64 floatFromBits(GlobalBase base, TypePtr type, U64 bits) {
+    if(isFloat(base, type) && ((FloatType*)base[type])->width == FloatType::Float) {
+        F32 single;
+        copy((const Byte*)&bits, (Byte*)&single, sizeof(single));
+        return F64(single);
+    }
+
+    F64 number;
+    copy((const Byte*)&bits, (Byte*)&number, sizeof(number));
+    return number;
+}

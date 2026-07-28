@@ -53,7 +53,19 @@ set(RESOLVE_SOURCE_FILES
     resolve/witness.h
     resolve/witness.cpp
     resolve/analyze.h
+    resolve/analyze_pass.h
     resolve/analyze.cpp
+    resolve/analyze_effects.cpp
+    resolve/analyze_live.cpp
+    resolve/analyze_own.cpp
+    resolve/analyze_provenance.cpp
+    resolve/analyze_escape.cpp
+    resolve/analyze_demand.cpp
+    resolve/analyze_summary.cpp
+    resolve/analyze_borrow.cpp
+    resolve/analyze_drop.cpp
+    resolve/analyze_teardown.cpp
+    resolve/analyze_print.cpp
     resolve/print.cpp
     resolve/print.h
     resolve/builder.h

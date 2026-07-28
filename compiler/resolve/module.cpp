@@ -287,13 +287,7 @@ static bool fieldDefaultBits(Module& module, const ast::Expr& expr, TypePtr type
                                                      : expr.lit.d();
 
         // Written as the bits the field will occupy, so that nothing has to convert again later.
-        if(((FloatType*)global[type])->width == FloatType::Float) {
-            auto single = F32(number);
-            copy((const Byte*)&single, (Byte*)&bits, sizeof(single));
-        } else {
-            copy((const Byte*)&number, (Byte*)&bits, sizeof(number));
-        }
-
+        bits = floatBits(global, type, number);
         return true;
     }
 
@@ -559,15 +553,7 @@ static void declareGlobal(Module& module, ast::Decl& decl) {
                 // A float's initial value is its storage, so it is written as the bits it will
                 // occupy rather than as a number the emitter would have to convert again.
                 auto number = literal == ast::Literal::Float ? F64(value->lit.f) : value->lit.d();
-
-                if(isFloat(*module.types, type) &&
-                   ((FloatType*)(*module.types)[type])->width == FloatType::Float) {
-                    auto single = F32(number);
-                    copy((const Byte*)&single, (Byte*)&initial, sizeof(single));
-                } else {
-                    copy((const Byte*)&number, (Byte*)&initial, sizeof(number));
-                }
-
+                initial = floatBits(*module.types, type, number);
                 break;
             }
             default:
@@ -1668,6 +1654,12 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
             for(auto instructionPointer: local[blockPointer]->instructions.contents(local)) {
                 auto& instruction = *local[instructionPointer];
 
+                // A global is part of the program exactly when something that runs names storage
+                // rooted in it, and which places an instruction names is one list - see
+                // instructionPlaces. What the switch below is about is everything else an
+                // instruction can reach: a callee, a table, a teardown.
+                eachPlace(instruction, [&](const Place& place) { markPlace(local, place); });
+
                 switch(instruction.kind) {
                     case Value::Call:
                         reach(((InstCall&)instruction).callee);
@@ -1687,25 +1679,10 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
                         reach(((InstSymbol&)instruction).callee);
                         reachTable(((InstSymbol&)instruction).global);
                         break;
-                    case Value::LoadPlace:
-                        markPlace(local, ((InstLoadPlace&)instruction).place);
-                        break;
-                    case Value::Init:
-                    case Value::Assign:
-                        markPlace(local, ((InstInit&)instruction).place);
-                        break;
-                    case Value::Address:
-                        markPlace(local, ((InstAddress&)instruction).place);
-                        break;
-                    case Value::Borrow:
-                        markPlace(local, ((InstBorrow&)instruction).place);
-                        break;
                     case Value::Move:
-                        markPlace(local, ((InstMove&)instruction).place);
                         reach(((InstMove&)instruction).sink);
                         break;
                     case Value::Copy:
-                        markPlace(local, ((InstCopy&)instruction).place);
                         reach(((InstCopy&)instruction).copy);
                         break;
                     case Value::Drop:
@@ -1713,7 +1690,6 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
                         // else: a derived glue function has no call site in the source at all, and
                         // an authored instance may have none either. The same goes for the release
                         // of heap storage, which lowering emits as a call nothing in the IR names.
-                        markPlace(local, ((InstDrop&)instruction).place);
                         reach(((InstDrop&)instruction).drop);
                         reach(((InstDrop&)instruction).reclaim);
                         if(((InstDrop&)instruction).releaseStorage) reach(program.freeHeap);

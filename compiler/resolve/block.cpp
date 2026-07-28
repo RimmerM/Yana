@@ -61,43 +61,17 @@ Inst* Block::add(Module& module, Inst* inst) {
     } else {
         instructions.push(module.arena, pointer);
 
+        // The storage half, which is the same list for every pass that walks places - see
+        // instructionPlaces. What is left below is the operands, which are per instruction.
+        eachPlace(*inst, [&](const Place& place) { addPlaceUse(module, place, inst); });
+
         switch(inst->kind) {
-            case Value::LoadPlace:
-                addPlaceUse(module, ((InstLoadPlace*)inst)->place, inst);
-                break;
             case Value::Init:
-            case Value::Assign: {
-                auto init = (InstInit*)inst;
-                addPlaceUse(module, init->place, inst);
-                addUse(module, init->value, inst);
+            case Value::Assign:
+                addUse(module, ((InstInit*)inst)->value, inst);
                 break;
-            }
-            case Value::Borrow:
-                addPlaceUse(module, ((InstBorrow*)inst)->place, inst);
-                break;
-            case Value::Move:
-                addPlaceUse(module, ((InstMove*)inst)->place, inst);
-                break;
-            case Value::Swap: {
-                auto swap = (InstSwap*)inst;
-                addPlaceUse(module, swap->a, inst);
-                addPlaceUse(module, swap->b, inst);
-                break;
-            }
-            case Value::Exchange: {
-                auto exchange = (InstExchange*)inst;
-                addPlaceUse(module, exchange->place, inst);
-                addUse(module, exchange->value, inst);
-                break;
-            }
-            case Value::Copy:
-                addPlaceUse(module, ((InstCopy*)inst)->place, inst);
-                break;
-            case Value::Drop:
-                addPlaceUse(module, ((InstDrop*)inst)->place, inst);
-                break;
-            case Value::Address:
-                addPlaceUse(module, ((InstAddress*)inst)->place, inst);
+            case Value::Exchange:
+                addUse(module, ((InstExchange*)inst)->value, inst);
                 break;
             case Value::Native:
                 for(auto arg: ((InstNative*)inst)->args.contents(base)) addUse(module, arg, inst);

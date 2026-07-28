@@ -775,6 +775,40 @@ struct InstPhi: Inst {
 bool isTerminator(const Value& value);
 bool isConstant(const Value& value);
 
+/*
+ * The places one instruction names.
+ *
+ * Every pass that walks storage asks this same question - which slots does this instruction touch -
+ * and each of them used to answer it with a switch of its own: recording uses when a block is built,
+ * deciding which parameters a specialization has to give storage back to, deciding whether a body
+ * can be lowered at all, keeping a table reachable, and the ownership analyses. Five copies of one
+ * list, and an instruction added to the IR has to reach all five or the ones it does not reach are
+ * silently wrong about it.
+ *
+ * Writes them into `target` and returns how many. Every instruction here names one place except the
+ * swap, which is the only one in the IR that names two - so `target` needs room for kMaxPlaces.
+ */
+static constexpr Size kMaxPlaces = 2;
+Size instructionPlaces(const Value& instruction, Place* target);
+
+// The same, for a caller that would only have written the loop.
+template<class F>
+inline void eachPlace(const Value& instruction, F&& f) {
+    Place places[kMaxPlaces];
+    auto count = instructionPlaces(instruction, places);
+    for(Size i = 0; i < count; i++) f(places[i]);
+}
+
+// The first place an instruction names, for callers that only ever ask about the single-place ones.
+// A swap answers with `a`, which is the same order instructionPlaces writes them in.
+inline bool firstPlace(const Value& instruction, Place& target) {
+    Place places[kMaxPlaces];
+    if(!instructionPlaces(instruction, places)) return false;
+
+    target = places[0];
+    return true;
+}
+
 // How a binding convention is named in a diagnostic. The sigil for the two that have one, and a
 // description for the default, since "declared ``" reads as a compiler bug rather than as a rule.
 StringView conventionName(ast::BindType convention);

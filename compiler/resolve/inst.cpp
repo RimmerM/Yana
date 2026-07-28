@@ -8,6 +8,25 @@ bool isConstant(const Value& value) {
     return value.kind == Value::ConstInt || value.kind == Value::ConstFloat || value.kind == Value::ConstDouble;
 }
 
+Size instructionPlaces(const Value& instruction, Place* target) {
+    switch(instruction.kind) {
+        case Value::LoadPlace: target[0] = ((const InstLoadPlace&)instruction).place; return 1;
+        case Value::Init:
+        case Value::Assign: target[0] = ((const InstInit&)instruction).place; return 1;
+        case Value::Borrow: target[0] = ((const InstBorrow&)instruction).place; return 1;
+        case Value::Move: target[0] = ((const InstMove&)instruction).place; return 1;
+        case Value::Copy: target[0] = ((const InstCopy&)instruction).place; return 1;
+        case Value::Drop: target[0] = ((const InstDrop&)instruction).place; return 1;
+        case Value::Address: target[0] = ((const InstAddress&)instruction).place; return 1;
+        case Value::Exchange: target[0] = ((const InstExchange&)instruction).place; return 1;
+        case Value::Swap:
+            target[0] = ((const InstSwap&)instruction).a;
+            target[1] = ((const InstSwap&)instruction).b;
+            return 2;
+        default: return 0;
+    }
+}
+
 StringView conventionName(ast::BindType convention) {
     switch(convention) {
         case ast::BindType::Ref: return "`&`"_v;

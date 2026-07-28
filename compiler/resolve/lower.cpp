@@ -1495,8 +1495,21 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
             set(target->initialContents.ptr, size, 0);
 
             if(isDirectType(lower.global, source->type)) {
-                copy((const Byte*)&source->initial, target->initialContents.ptr,
-                     size < sizeof(U64) ? Size(size) : sizeof(U64));
+                /*
+                 * Through a writer at the target's byte order rather than by copying the host's
+                 * bytes. `initial` is a U64 of *storage* - see floatBits - and which of its bytes
+                 * come first is a fact about whoever reads the emitted global, which is the target.
+                 *
+                 * A type narrower than the word takes the bytes the target would have put the value
+                 * in: the leading ones little-endian, the trailing ones big-endian.
+                 */
+                Byte word[sizeof(U64)];
+                Net::BufferWriter bits(word, sizeof(word));
+                bits.writeLong<kTargetByteOrder>(source->initial);
+
+                auto width = size < sizeof(U64) ? Size(size) : sizeof(U64);
+                auto first = kTargetByteOrder == LittleEndian ? 0 : sizeof(U64) - width;
+                copy(word + first, target->initialContents.ptr, width);
             }
         }
 

@@ -1032,9 +1032,18 @@ struct AsmModule {
      * the same list as dynamic relocations and let the loader do it.
      */
     void applyDataRelocations(Byte* loadBase) {
+        // Through a writer over the same bytes rather than a copy of a host U64: a relocation site
+        // is a target-endian word exactly like every immediate the emitter wrote above it, and the
+        // one place that wrote one by copying host bytes was the one place it was not stated.
+        //
+        // Sized at the buffer's capacity rather than at its length so that nothing here can reach
+        // the resize path, which would move the bytes into an allocation of the writer's own and
+        // leave the patched addresses in memory nobody maps.
+        Net::BufferWriter site(buffer.buffer, Size(buffer.max - buffer.buffer));
+
         for(auto& relocation: dataRelocations) {
-            auto address = U64(loadBase) + U64(relocation.targetOffset);
-            copy((const Byte*)&address, buffer.buffer + relocation.siteOffset, sizeof(U64));
+            site.offset(relocation.siteOffset);
+            site.writeLong<LittleEndian>(U64(loadBase) + U64(relocation.targetOffset));
         }
     }
 

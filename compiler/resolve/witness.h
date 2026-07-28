@@ -1,6 +1,7 @@
 #pragma once
 
 #include "module.h"
+#include "Net/Buffer.h"
 
 /*
  * The runtime half of the generic model - Implementation-Generics.md parts 3 to 6.
@@ -21,6 +22,17 @@
  *    TrivialCopy because lowering has to know how to relocate it; that flag never lets a body emit
  *    a bitwise copy its own signature did not ask for.
  */
+
+/*
+ * The byte order the tables in this file are written in.
+ *
+ * Emitted code reads these words at fixed offsets, which makes the reader the *target* rather than
+ * the compiler: writing the host's bytes happens to be right for x64-on-x64 and is silently wrong
+ * for any pair that disagrees. Naming the assumption is what turns "add a target" from a bug into
+ * a value to change - and the byte order of a table is the target's, not the target's *word size*,
+ * which the layouts above already fix at eight bytes per address.
+ */
+static constexpr ByteOrder kTargetByteOrder = LittleEndian;
 
 /*
  * The layout of a TypeDesc, as the emitted bytes have it.

@@ -73,3 +73,19 @@ U16 genWitnessPath(Module& module, GenEnv& env, GlobalPtr<TypeClass> typeClass, 
  */
 ModulePtr<Function> instantiateFunction(Module& from, ModulePtr<Function> generic, Buffer<TypePtr> args,
                                         LocationId source);
+
+/*
+ * The function one instance of a single-method class runs for these types, ready to be called.
+ *
+ * Two steps rather than one, which is why it is worth a function: selecting the instance, and then
+ * specializing what it holds. A parametric instance - `instance Reclaim(Array(a))` - has one
+ * implementation written over its own variables, and what actually runs is the specialization for
+ * the types the head matched. An ordinary call site takes that step in emitInstanceCall; the callers
+ * here have no call site in the source to have taken it at, because what asks for the implementation
+ * is a teardown the compiler inserted or a descriptor slot it filled in.
+ *
+ * Null when the program has no instance, when the instance implements nothing, or when specializing
+ * failed - all three of which mean the same thing to a caller: there is no function to name here.
+ */
+ModulePtr<Function> instanceImplementation(Module& module, GlobalPtr<TypeClass> typeClass, TypePtr type,
+                                           LocationId source);

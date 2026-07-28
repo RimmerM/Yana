@@ -619,24 +619,7 @@ static void cloneBody(Clone& clone, Function& to) {
         auto block = local[blockPointer];
 
         for(auto instruction: block->instructions.contents(local)) {
-            auto& inst = *local[instruction];
-
-            switch(inst.kind) {
-                case Value::LoadPlace: note(((InstLoadPlace&)inst).place); break;
-                case Value::Init:
-                case Value::Assign: note(((InstInit&)inst).place); break;
-                case Value::Borrow: note(((InstBorrow&)inst).place); break;
-                case Value::Move: note(((InstMove&)inst).place); break;
-                case Value::Swap:
-                    note(((InstSwap&)inst).a);
-                    note(((InstSwap&)inst).b);
-                    break;
-                case Value::Exchange: note(((InstExchange&)inst).place); break;
-                case Value::Copy: note(((InstCopy&)inst).place); break;
-                case Value::Address: note(((InstAddress&)inst).place); break;
-                case Value::Drop: note(((InstDrop&)inst).place); break;
-                default: break;
-            }
+            eachPlace(*local[instruction], note);
         }
     }
 
@@ -720,7 +703,7 @@ static StringId specializationName(Module& module, Function& generic, Buffer<Typ
     describeTypes(module.context, *module.types, args, text);
     text << ')';
 
-    return module.context.addQualifiedName(text.pointer(), text.size(), 1);
+    return builtName(module.context, text);
 }
 
 /*
@@ -983,4 +966,26 @@ ModulePtr<Function> instantiateFunction(Module& from, ModulePtr<Function> pointe
 
     generic->instantiating = false;
     return specialized - local;
+}
+
+ModulePtr<Function> instanceImplementation(Module& module, GlobalPtr<TypeClass> typeClass, TypePtr type,
+                                           LocationId source) {
+    TypePtr args[] = { type };
+    auto match = matchInstance(module, typeClass, toBuffer(args));
+    if(!match) return nullptr;
+
+    auto local = *module.arena;
+    auto instance = local[match.instance];
+    if(instance->functions.isEmpty()) return nullptr;
+
+    auto implementation = instance->functions.get(local, 0);
+    if(!implementation) return nullptr;
+
+    if(local[implementation]->gen) {
+        implementation = instantiateFunction(module, implementation, toBuffer(match.args), source);
+        if(!implementation) return nullptr;
+    }
+
+    (*module.arena)[implementation]->used = true;
+    return implementation;
 }

@@ -1,0 +1,346 @@
+#include "analyze_pass.h"
+
+/*
+ * What has to outlive the frame, and where that puts it.
+ *
+ * One file because the second question has no content of its own: an allocation goes on the heap
+ * exactly when this pass proved its storage outlives the frame, and everything else about the
+ * decision - who releases it, whether a `@heap` binding overrode it - is about *which* of the two
+ * escapes it was. See selectStorage at the end.
+ *
+ * Seeded from the four instructions that can hand storage to something running after this function
+ * returns, then closed over containment: if a root outlives the frame, so must everything reachable
+ * through it, or the array survives and its buffer does not.
+ */
+
+// Which of the two things an escape says about who owns the storage afterwards - see
+// Analysis::transferred. `Owned` is the answer whenever this pass can point at the new owner.
+enum class Escape: U8 {
+    Owned,
+    Referenced,
+};
+
+static bool markEscaped(Analysis& analysis, const Provenance& roots, Escape kind) {
+    auto changed = false;
+
+    for(Size l = 0; l < analysis.localCount; l++) {
+        if(!roots.locals[l]) continue;
+
+        if(!analysis.escaped[l]) {
+            analysis.escaped[l] = 1;
+            analysis.outlives[l] = 1;
+            changed = true;
+        }
+
+        // One root can be both, and being owned elsewhere is the stronger statement: a value handed
+        // over is handed over however many other references to it were kept.
+        if(kind == Escape::Owned && !analysis.transferred[l]) {
+            analysis.transferred[l] = 1;
+            changed = true;
+        }
+    }
+
+    return changed;
+}
+
+/*
+ * What handing one argument to a call says about the storage behind it.
+ *
+ * The two cases are the two shapes an argument has, which is why this needs neither a summary nor a
+ * signature to decide. An aggregate is passed as the address of storage the caller keeps, so what
+ * can outlive the call is what it *contained* - and whatever it contained belongs to the aggregate,
+ * whose own teardown is what releases it. A borrow or a pointer is the address itself, so what may
+ * outlive the call is a reference to storage that is still this frame's.
+ *
+ * Which is exactly the distinction Analysis::transferred exists for, and the reason a root handed to
+ * a call the pass could not summarize is not thereby leaked.
+ */
+static Escape argumentEscape(Analysis& analysis, ModulePtr<Value> arg) {
+    // The same test transferredProvenance splits on, and necessarily so: this says who owns what
+    // that function decided was leaving, so the two have to be reading the argument the same way.
+    return isMemoryType(analysis.global, analysis.local[arg]->type) ? Escape::Owned : Escape::Referenced;
+}
+
+// One round of seeds. Separate from the closure below only so that both can be repeated together:
+// a store into a root that a later instruction turns out to hand away is an escape too, and one
+// pass in instruction order would miss it.
+static bool escapeRound(Analysis& analysis) {
+    auto changed = false;
+
+    for(Size i = 0; i < analysis.instructionCount; i++) {
+        auto& instruction = *analysis.local[analysis.order[i]];
+
+        switch(instruction.kind) {
+            case Value::Ret: {
+                auto value = ((InstRet&)instruction).value;
+                if(!value) break;
+
+                /*
+                 * An aggregate result is copied into storage the caller passed in, so the slot it
+                 * came out of stays behind and only what it *contained* leaves. A borrow or a
+                 * pointer is the address itself, so the root leaves with it.
+                 *
+                 * A root that is a *parameter's* slot is deliberately not marked. Handing a borrow
+                 * of an argument back is not an escape, it is the return-root mechanism, and the
+                 * caller already bounds that storage - the summary says so through its declared
+                 * group rather than through this bit. Marking it here would make every accessor's
+                 * argument look like something that had to outlive its caller, and every value
+                 * anyone ever borrowed from would land on the heap.
+                 */
+                auto leaving = transferredProvenance(analysis, value);
+
+                for(Size l = 0; l < analysis.localCount; l++) {
+                    auto slot = analysis.function.localAt(analysis.local, U32(l));
+                    if(slot.value && analysis.local[slot.value]->kind == Value::Arg) leaving.locals[l] = 0;
+                }
+
+                changed = markEscaped(analysis, leaving, Escape::Owned) || changed;
+                break;
+            }
+
+            case Value::Init:
+            case Value::Assign: {
+                auto& write = (InstInit&)instruction;
+                auto roots = placeProvenance(analysis, write.place);
+
+                auto escaping = roots.global || roots.unknown;
+                for(Size l = 0; l < analysis.localCount && !escaping; l++) {
+                    escaping = roots.locals[l] && analysis.outlives[l];
+                }
+
+                // Owned rather than merely referenced: what was written is reachable through the
+                // root it was written into, and that root's teardown is what releases it.
+                if(escaping) {
+                    changed = markEscaped(analysis, transferredProvenance(analysis, write.value),
+                                          Escape::Owned) || changed;
+                }
+
+                break;
+            }
+
+            case Value::Call: {
+                auto& call = (InstCall&)instruction;
+                auto summary = summaryOf(analysis, call.callee);
+                U16 index = 0;
+
+                for(auto arg: call.args.contents(analysis.local)) {
+                    auto retained = !summary || index >= summary->args.size() ||
+                                    summary->args.get(analysis.local, index).retained;
+
+                    if(retained) {
+                        changed = markEscaped(analysis, transferredProvenance(analysis, arg),
+                                              argumentEscape(analysis, arg)) || changed;
+                    }
+
+                    index++;
+                }
+
+                break;
+            }
+
+            case Value::CallDyn: {
+                /*
+                 * Same reasoning as GenCall, and for a stronger reason: there is no callee at all to
+                 * have a summary, so everything handed over is assumed kept.
+                 *
+                 * Assumed *kept*, though, and not assumed given away - which is the whole of what
+                 * argumentEscape decides, and the difference between a root this frame still has to
+                 * release and one it must not. A function value's arguments are the sharpest case
+                 * for it precisely because nothing here can prove anything about them.
+                 */
+                auto& call = (InstCallDyn&)instruction;
+                for(auto arg: call.args.contents(analysis.local)) {
+                    changed = markEscaped(analysis, transferredProvenance(analysis, arg),
+                                          argumentEscape(analysis, arg)) || changed;
+                }
+
+                break;
+            }
+
+            case Value::GenCall:
+                // No summary to consult, so everything handed over is assumed kept.
+                for(auto arg: ((InstGenCall&)instruction).args.contents(analysis.local)) {
+                    changed = markEscaped(analysis, transferredProvenance(analysis, arg),
+                                          argumentEscape(analysis, arg)) || changed;
+                }
+
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    // Containment closure. A root that outlives the frame drags everything written into it along,
+    // and that relation is what connects an array's own storage to its buffer's.
+    for(Size l = 0; l < analysis.localCount; l++) {
+        if(!analysis.outlives[l]) continue;
+
+        for(Size m = 0; m < analysis.localCount; m++) {
+            // A root contains itself - that is how a parameter's contents are rooted in the
+            // parameter - and that says nothing about escaping.
+            if(m == l) continue;
+
+            // Owned, always: being reachable through a root that outlives the frame is being
+            // part of what that root's teardown releases.
+            if(analysis.contents[l].locals[m] && !(analysis.escaped[m] && analysis.transferred[m])) {
+                analysis.escaped[m] = 1;
+                analysis.outlives[m] = 1;
+                analysis.transferred[m] = 1;
+                changed = true;
+            }
+        }
+    }
+
+    return changed;
+}
+
+void computeOutliving(Analysis& analysis) {
+    analysis.outlives = emptySet(analysis.localCount);
+    analysis.escaped = emptySet(analysis.localCount);
+    analysis.transferred = emptySet(analysis.localCount);
+
+    // A parameter's storage is the caller's and already outlives this frame. It is set in
+    // `outlives` and not in `escaped`, because nothing here proved anything about it.
+    for(Size l = 0; l < analysis.localCount; l++) {
+        auto slot = analysis.function.localAt(analysis.local, U32(l));
+        if(slot.value && analysis.local[slot.value]->kind == Value::Arg) analysis.outlives[l] = 1;
+    }
+
+    for(Size round = 0; round <= analysis.localCount + 1; round++) {
+        if(!escapeRound(analysis)) break;
+    }
+}
+
+/*
+ * Storage-class selection (Implementation-IR.md part 5, Implementation-Regions.md part 4).
+ *
+ * Cheapest first, which with regions deliberately left out of this milestone is two options: the
+ * frame, unless this pass proved the storage has to outlive it. `mayResize` is *not* one of the
+ * reasons - an owner whose buffer may be replaced starts on the frame and migrates when it actually
+ * grows, which is the whole point of tracking the demand rather than assuming it.
+ *
+ * Only an allocation has a storage class to choose. A call result or a copy occupies storage the
+ * instruction that produced it creates, and if one of those escapes it escapes as a raw pointer,
+ * which the language already says nothing about - see the note at the end of analyze.cpp.
+ */
+void selectStorage(Analysis& analysis, OwnershipResult& result) {
+    analysis.releasesStorage = emptySet(analysis.localCount);
+
+    for(Size i = 0; i < analysis.instructionCount; i++) {
+        auto& instruction = *analysis.local[analysis.order[i]];
+        if(instruction.kind != Value::Alloc) continue;
+
+        auto& allocation = (InstAlloc&)instruction;
+        if(allocation.local >= analysis.localCount) continue;
+
+        auto escapes = analysis.escaped[allocation.local] != 0;
+        auto storage = escapes ? StorageClass::Heap : StorageClass::Stack;
+
+        // `@heap` on the binding overrides the analysis in the one direction that is always safe:
+        // Design.md's "for a large allocation that's freed well before the region closes".
+        auto slot = analysis.function.localAt(analysis.local, allocation.local);
+        if(slot.storage == StorageClass::Heap) storage = StorageClass::Heap;
+
+        /*
+         * A closure environment is decided the same way as anything else, and released differently.
+         *
+         * The decision is the same because the question is: an environment is reachable from the
+         * function value that owns it, so a closure that leaves this frame drags its captures along
+         * and the containment closure in computeOutliving is what says so. A closure that is built,
+         * called and dropped here does not, and there is nothing about being an environment that
+         * makes the frame unable to hold it.
+         *
+         * What differs is who hands the storage back. Not this frame, whichever class it got: the
+         * function value owns the environment, so freeing it at the end of this frame as well would
+         * be a double free the moment the closure outlived one call. The closure's own derived
+         * Reclaim does it, and it reads which class this was from the lambda's closure header -
+         * which is why the decision is written back there rather than only into the IR.
+         */
+        if(slot.closureEnv) {
+            allocation.storage = storage;
+            allocation.releasedHere = false;
+
+            /*
+             * The heap answer, where it is the answer. The header is built holding the frame one,
+             * so there is nothing to undo for an environment that stays here.
+             *
+             * Only on the run that rewrites, because this generates a function: the silent rounds
+             * are an over-approximation being relaxed, and one of them deciding "heap" would leave
+             * a release wrapper in the module that the settled answer does not want.
+             */
+            if(analysis.rewriting && storage == StorageClass::Heap && allocation.closure) {
+                auto header = analysis.local[allocation.closure]->closureHeader;
+
+                if(header) {
+                    setClosureRelease(analysis.module, header,
+                                      closureReleaseFor(analysis.module, slot.type, instruction.source));
+                }
+            }
+
+            if(storage == StorageClass::Heap && analysis.module.program.allocateHeap) {
+                analysis.local[analysis.module.program.allocateHeap]->used = true;
+            }
+
+            if(allocation.local < result.locals.size()) {
+                result.locals[allocation.local].storage = storage;
+            }
+
+            /*
+             * What is deliberately missing here is the write into the Local that the ordinary path
+             * below makes.
+             *
+             * This pass runs once per fixpoint round, the first round reads the conservative answer
+             * for every callee it has not summarized yet, and the slot the `@heap` override reads a
+             * few lines up is the same one. Recording the decision there would make that first,
+             * pessimistic round's answer the one every later round is forced back to - which is
+             * exactly the round in which every closure looks like it escapes.
+             */
+            continue;
+        }
+
+        /*
+         * Who releases it.
+         *
+         * Escaping and being handed over are not the same statement, and this is the line where the
+         * difference is spent. Storage something else *owns* now is not released here: an array's
+         * buffer is on the heap precisely because the array it belongs to left, and the array's own
+         * `Drop` is what frees it, so releasing it here as well would free it twice. Storage that
+         * escaped because a call this pass could not summarize may have kept a reference to it is
+         * still this frame's, and the frame that stopped releasing it would leak it - which is what
+         * `&counter` handed to a function value is, and what Analysis::transferred tells apart.
+         *
+         * A `@heap` binding is neither: it went to the heap because it was asked to, and it still
+         * lives and dies in this frame.
+         *
+         * Storage whose class the program itself reads is a handover too, whatever the analysis
+         * found: `storageFlag` exists so that another value's `Drop` can free this storage, and that
+         * `Drop` is the one release it gets.
+         */
+        allocation.releasedHere = !analysis.transferred[allocation.local] && !allocation.storageFlag;
+        allocation.storage = storage;
+
+        // The flag the program reads at run time, where something asked for one.
+        if(allocation.storageFlag && analysis.local[allocation.storageFlag]->kind == Value::ConstInt) {
+            ((ConstInt*)analysis.local[allocation.storageFlag])->value = storage == StorageClass::Heap;
+        }
+
+        // Heap storage this frame owns has to be handed back at the end of the value's life, which
+        // is a reason to drop a local whose type has no drop of its own.
+        if(storage == StorageClass::Heap && allocation.releasedHere) {
+            analysis.releasesStorage[allocation.local] = 1;
+            analysis.tracked[allocation.local].droppable = true;
+            if(allocation.local < result.locals.size()) result.locals[allocation.local].droppable = true;
+        }
+
+        if(storage == StorageClass::Heap && analysis.module.program.allocateHeap) {
+            analysis.local[analysis.module.program.allocateHeap]->used = true;
+        }
+
+        analysis.function.locals.set(analysis.local, allocation.local,
+                                     Local { slot.type, slot.name, slot.value, slot.convention,
+                                             storage, slot.borrowed, slot.closureEnv });
+
+        if(allocation.local < result.locals.size()) result.locals[allocation.local].storage = storage;
+    }
+}

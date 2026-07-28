@@ -755,3 +755,24 @@ String describeType(Context& context, GlobalBase base, TypePtr type);
 // A comma-separated list of types, as an argument list or an instance's types are written. Every
 // diagnostic that names more than one type at once goes through this, so they all read alike.
 void describeTypes(Context& context, GlobalBase base, Buffer<TypePtr> types, StringBuilder& target);
+
+// The name of something the compiler generated for one type: `drop$Array(Int)`, `typeDesc$Bool`.
+// None of them is addressable in source, so all they need is to be unique and to say what they are
+// about - which is the prefix and the type, every time.
+StringId derivedName(Module& module, StringView prefix, TypePtr type);
+
+// The interned name of a symbol built up in a StringBuilder. Every generated function and table
+// ends the same way, and writing it out spells the same three arguments each time.
+StringId builtName(Context& context, StringBuilder& text);
+
+/*
+ * A floating-point value as the bits its storage holds, and back.
+ *
+ * A global's initializer and a field's default are both recorded as one U64 of storage rather than
+ * as a number, so that nothing downstream has to convert again - and the conversion is at the *type's*
+ * width, since an `F32` field holds four bytes of single precision and not a truncated double. Both
+ * directions exist because both are taken: the resolver records the bits, and building the constant
+ * that fills the storage reads them back.
+ */
+U64 floatBits(GlobalBase base, TypePtr type, F64 value);
+F64 floatFromBits(GlobalBase base, TypePtr type, U64 bits);

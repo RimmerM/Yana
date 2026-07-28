@@ -96,14 +96,30 @@ Global* addAnonymousGlobal(Module& module, StringId name, LocationId source) {
     return global_;
 }
 
+/*
+ * The bytes of one compiler-built table.
+ *
+ * Filled slot by slot at the offsets the layout namespaces in witness.h give rather than in write
+ * order, because what goes in a slot becomes available in whatever order the things it names get
+ * built - which is why this holds a writer that is repositioned per field instead of a stream.
+ *
+ * The words go through Net::BufferWriter at kTargetByteOrder rather than being copied out of a host
+ * U32. Emitted code reads them at these offsets, so the byte order that matters is the one the
+ * *target* reads in, and copying the host's is right only for as long as there is one target.
+ */
 struct TableBuilder {
-    TableBuilder(Module& module, Size size): module(module) {
-        bytes = ByteBuffer((Byte*)module.arena.alloc(size), size);
+    TableBuilder(Module& module, Size size):
+        module(module), bytes((Byte*)module.arena.alloc(size), size), writer(bytes.ptr, size) {
         set(bytes.ptr, size, 0);
     }
 
     void putU32(U32 offset, U32 value) {
-        copy((const Byte*)&value, bytes.ptr + offset, sizeof(U32));
+        // The writer would grow a buffer of its own rather than overrun, and a table that grew one
+        // would be filling bytes the module never sees. A slot outside the layout is a compiler bug.
+        assertTrue(offset + sizeof(U32) <= bytes.length);
+
+        writer.offset(offset);
+        writer.writeInt<kTargetByteOrder>(value);
     }
 
     // An address is left as zeroes and recorded instead. A null target records nothing, which is
@@ -137,6 +153,10 @@ struct TableBuilder {
 
     Module& module;
     ByteBuffer bytes;
+
+    // Over the arena bytes rather than owning any: `bytes` is what the global keeps, and the writer
+    // is only how they are addressed.
+    Net::BufferWriter writer;
 };
 
 /*
@@ -166,41 +186,6 @@ ModulePtr<Function> emptyTeardown(Module& module, LocationId source) {
 
     program.emptyTeardown = function - *core.arena;
     return program.emptyTeardown;
-}
-
-StringId tableName(Module& module, StringView prefix, TypePtr type) {
-    StringBuilder text;
-    text << prefix;
-    describeType(module.context, *module.types, type, text);
-    return module.context.addQualifiedName(text.pointer(), text.size(), 1);
-}
-
-/*
- * The authored `Sink` for a type, specialized for it.
- *
- * The same step teardownFor takes for an authored `Drop`, and for the same reason: a parametric
- * instance - `instance Sink(Node(a))` - has one implementation written over its own variables, and
- * what runs is the specialization for the types the head matched. A relocation has no call site in
- * the source to have taken that step at, so it is taken here.
- */
-static ModulePtr<Function> authoredSinkFor(Module& module, TypePtr type, LocationId source) {
-    TypePtr args[] = { type };
-    auto match = matchInstance(module, module.coreClasses.sink, toBuffer(args));
-    if(!match) return nullptr;
-
-    auto instance = (*module.arena)[match.instance];
-    if(instance->functions.isEmpty()) return nullptr;
-
-    auto implementation = instance->functions.get(*module.arena, 0);
-    if(!implementation) return nullptr;
-
-    if((*module.arena)[implementation]->gen) {
-        implementation = instantiateFunction(module, implementation, toBuffer(match.args), source);
-        if(!implementation) return nullptr;
-    }
-
-    (*module.arena)[implementation]->used = true;
-    return implementation;
 }
 
 // Whether any member of `content` relocates by a call rather than by its bytes. Asked instead of
@@ -286,7 +271,7 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
     if(!size) return nullptr;
 
     if(ownership.authoredSink) {
-        auto implementation = authoredSinkFor(module, type, source);
+        auto implementation = instanceImplementation(module, module.coreClasses.sink, type, source);
         if(implementation) *program.moveInitGlue.add(U32(type)).value = implementation;
         return implementation;
     }
@@ -307,7 +292,7 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
         return nullptr;
     }
 
-    auto function = addAnonymousFunction(module, tableName(module, "moveInit$"_v, type), source);
+    auto function = addAnonymousFunction(module, derivedName(module, "moveInit$"_v, type), source);
     auto pointer = function - *module.arena;
 
     // Registered before the body is built, so a type reachable from itself finds the entry rather
@@ -481,17 +466,10 @@ static bool lowerablePlace(Module& module, Function& owner, const Place& place) 
     return true;
 }
 
-static bool lowerablePlaces(Module& module, Function& owner, Value& inst) {
-    switch(inst.kind) {
-        case Value::LoadPlace: return lowerablePlace(module, owner, ((InstLoadPlace&)inst).place);
-        case Value::Init:
-        case Value::Assign: return lowerablePlace(module, owner, ((InstInit&)inst).place);
-        case Value::Borrow: return lowerablePlace(module, owner, ((InstBorrow&)inst).place);
-        case Value::Move: return lowerablePlace(module, owner, ((InstMove&)inst).place);
-        case Value::Address: return lowerablePlace(module, owner, ((InstAddress&)inst).place);
-        case Value::Drop: return lowerablePlace(module, owner, ((InstDrop&)inst).place);
-        default: return true;
-    }
+static bool lowerablePlaces(Module& module, Function& owner, const Value& inst) {
+    auto ok = true;
+    eachPlace(inst, [&](const Place& place) { ok = lowerablePlace(module, owner, place) && ok; });
+    return ok;
 }
 
 /*
@@ -530,7 +508,7 @@ static ModulePtr<Function> erasedThunkFor(Module& module, GlobalPtr<TypeClass> t
     text << ")." << context.findName(entry.name) << '#';
     text.appendValue(U32(index));
 
-    auto function = addAnonymousFunction(module, context.addQualifiedName(text.pointer(), text.size(), 1), source);
+    auto function = addAnonymousFunction(module, builtName(context, text), source);
     auto pointer = function - local;
     function->returnType = module.scalar.unit;
     function->used = true;
@@ -629,7 +607,7 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
     describeTypes(context, global, args, text);
     text << ')';
 
-    auto global_ = addAnonymousGlobal(module, context.addQualifiedName(text.pointer(), text.size(), 1), source);
+    auto global_ = addAnonymousGlobal(module, builtName(context, text), source);
     auto pointer = global_ - *module.arena;
 
     // Registered before the thunks are generated, since one of them can ask for this witness again -
@@ -1015,7 +993,7 @@ ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<T
     describeTypes(context, global, args, text);
     text << ')';
 
-    auto global_ = addAnonymousGlobal(module, context.addQualifiedName(text.pointer(), text.size(), 1), source);
+    auto global_ = addAnonymousGlobal(module, builtName(context, text), source);
     auto pointer = global_ - local;
 
     // Registered before the slots are filled, since building one of them can ask for an environment
@@ -1098,7 +1076,7 @@ ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source) {
 
     if(auto found = program.typeDescs.get(U32(type))) return found.unwrap();
 
-    auto global_ = addAnonymousGlobal(module, tableName(module, "typeDesc$"_v, type), source);
+    auto global_ = addAnonymousGlobal(module, derivedName(module, "typeDesc$"_v, type), source);
     auto pointer = global_ - *module.arena;
 
     // Registered before the lifecycle functions are generated, since generating one for a type
@@ -1156,7 +1134,7 @@ ModulePtr<Global> closureHeaderFor(Module& module, ModulePtr<Function> lambda, T
 
     StringBuilder text;
     text << "closure$" << module.context.findName(function->name);
-    auto name = module.context.addQualifiedName(text.pointer(), text.size(), 1);
+    auto name = builtName(module.context, text);
 
     auto global_ = addAnonymousGlobal(module, name, source);
     auto pointer = global_ - *module.arena;
@@ -1196,7 +1174,7 @@ ModulePtr<Function> closureReleaseFor(Module& module, TypePtr envType, LocationI
     if(auto found = program.closureRelease.get(U32(envType))) return found.unwrap();
 
     auto local = *module.arena;
-    auto function = addAnonymousFunction(module, tableName(module, "closureRelease$"_v, envType), source);
+    auto function = addAnonymousFunction(module, derivedName(module, "closureRelease$"_v, envType), source);
     auto pointer = function - local;
     *program.closureRelease.add(U32(envType)).value = pointer;
 
