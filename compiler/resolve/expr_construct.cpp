@@ -1,6 +1,7 @@
 #include "expr.h"
 #include "generic.h"
 #include "name.h"
+#include "witness.h"
 
 /*
  * Storage, places and aggregates.
@@ -12,7 +13,7 @@
  */
 
 ModulePtr<Value> ExprResolver::allocate(TypePtr type, LocationId source, StringId valueName,
-                                        ast::BindType convention) {
+                                        ast::BindType convention, bool closureEnv) {
     // Storage of a type this body cannot see needs that type's size, which is the first thing a
     // TypeDesc carries. Recording the requirement here rather than at each construction site is
     // what makes it exhaustive: every generic aggregate that occupies storage passes through.
@@ -21,7 +22,7 @@ ModulePtr<Value> ExprResolver::allocate(TypePtr type, LocationId source, StringI
     auto allocation = emit<InstAlloc>(source, valueName, type, maxLimit<U32>);
     auto result = ref(allocation);
 
-    allocation->local = function.addLocal(module, type, valueName, result, convention);
+    allocation->local = function.addLocal(module, type, valueName, result, convention, false, closureEnv);
     return result;
 }
 
@@ -169,6 +170,16 @@ TypePtr ExprResolver::placeType(const Place& place) {
                 break;
             }
             case ProjectionKind::Field: {
+                // A function value is three addresses, and they are projected into rather than
+                // being a representation only lowering knows about - which is what lets the same
+                // Init, LoadPlace and Drop machinery build one, read one and tear one down.
+                if(global[type]->kind == Type::Fun) {
+                    if(projection.index >= FunValueLayout::kFieldCount) return module.scalar.error;
+
+                    type = funValueFieldType(module, projection.index);
+                    break;
+                }
+
                 if(global[type]->kind != Type::Tup) return module.scalar.error;
 
                 auto tuple = (TupType*)global[type];

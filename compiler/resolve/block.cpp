@@ -115,6 +115,13 @@ Inst* Block::add(Module& module, Inst* inst) {
             case Value::Call:
                 for(auto arg: ((InstCall*)inst)->args.contents(base)) addUse(module, arg, inst);
                 break;
+            case Value::CallDyn: {
+                auto call = (InstCallDyn*)inst;
+                addUse(module, call->callable, inst);
+                addUse(module, call->address, inst);
+                for(auto arg: call->args.contents(base)) addUse(module, arg, inst);
+                break;
+            }
             case Value::GenCall:
                 for(auto arg: ((InstGenCall*)inst)->args.contents(base)) addUse(module, arg, inst);
                 break;

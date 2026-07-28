@@ -1,0 +1,47 @@
+-- What function values and captures reject. Each function is one rule; the expectation beside this
+-- file is the whole of what it reports.
+
+fn applyUnit(f: () -> {}) -> {} = f()
+
+fn identity(x: a) -> a = x
+
+-- Design-Memory §8: a closure that outlives the frame that built it has to own what it captures.
+-- `total` is mutable storage, so the capture is by reference, and the reference cannot leave.
+fn escapingBorrow() -> () -> {}:
+    let &total = 0 :: Int
+    return (): total = total + 1
+
+-- The exclusivity half of the same rule: a by-reference capture is a mutable borrow live for as
+-- long as the closure, so the enclosing frame may not touch the binding while one exists.
+fn borrowedWhileCaptured() -> Int:
+    let &count = 0 :: Int
+    let bump = (): count = count + 1
+    let seen = count
+    applyUnit(bump)
+    return seen
+
+-- A capture that came out by value is one whose enclosing binding was not mutable, so writing it
+-- would write the environment's own copy and the enclosing frame would never see it.
+fn writeToCopiedCapture() -> {}:
+    let fixed = 1
+    applyUnit((): fixed = 2)
+
+-- Nothing says what the argument is, and a lambda has nowhere else to look.
+fn unknownArgument() -> Int:
+    let f = (x) -> x + 1
+    return 0
+
+-- The result type is the body's, so there is nothing for a `return` to be checked against.
+fn returnInInferredLambda() -> Int:
+    let f = (x: Int): return x + 1
+    return 0
+
+-- A generic function reached as a value would need a witness rather than an address.
+fn genericAsValue() -> Int:
+    let f = identity
+    return 0
+
+-- lens and iter lambdas parse and are not implemented.
+fn lensLambda() -> Int:
+    let f = lens (x: Int) -> x
+    return 0

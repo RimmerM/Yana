@@ -1,0 +1,29 @@
+-- A closure that owns what it captured, and outlives the frame that built it.
+--
+-- Design-Memory §8's third case: a capture that is neither writable storage nor TrivialCopy is a
+-- sink, so the environment owns it and the enclosing binding is inaccessible afterwards. That is
+-- what makes returning this legal, and it is what gives the closure something real to release: the
+-- array's buffer is freed by the environment's derived `Reclaim`, reached through the descriptor the
+-- function value carries, and the environment itself is freed after it.
+
+fn total(xs: [Int]) -> Int:
+    let &sum = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < length(xs):
+        sum += xs[i]
+        i += 1
+
+    return sum
+
+-- The captured array is consumed, so `xs` is gone here and lives in the closure instead.
+fn makeSummer(->xs: [Int]) -> () -> Int = () -> total(xs)
+
+-- Two closures over two different arrays, to show the environment is per value rather than per
+-- type: both are `() -> Int`, and each carries its own storage and its own descriptor.
+fn main() -> Int:
+    let first = makeSummer([1, 2, 3, 4])
+    let second = makeSummer([10, 20])
+
+    -- 10 + 30 = 40
+    return first() + second()

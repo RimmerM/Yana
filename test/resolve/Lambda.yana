@@ -1,0 +1,64 @@
+-- Function values: lambdas, named functions used as values, and calls through both.
+-- Nothing here captures anything, so every environment is null and every teardown is a branch
+-- that never fires - see Closure.yana for the capturing half.
+
+fn double(x: Int) -> Int = x * 2
+
+fn apply(f: (Int) -> Int, x: Int) -> Int = f(x)
+
+-- The convention is part of the function *type*, so a call through a value borrows mutably for
+-- the same reason a direct call does: the callee said so, and the caller reads it off the type.
+fn runOn(f: (&Int) -> {}, &target: Int) -> {} = f(target)
+
+fn twice(f: (Int) -> Int, x: Int) -> Int = f(f(x))
+
+-- A generic function taking a function value. `(a) -> a` mentions the type variable, so the
+-- callable's shape is not known until the call site decides `a` - which is why a body like this one
+-- specializes rather than being emitted once through the erased ABI.
+fn twiceGeneric(f: (a) -> a, x: a) -> a = f(f(x))
+
+-- Conventions survive the abstraction boundary in both directions: `run` knows only the type, and
+-- the thunk that makes `consume` a value forwards the `->` so the array is consumed exactly once.
+fn consume(->xs: [Int]) -> Int = length(xs)
+
+fn run(f: (->[Int]) -> Int) -> Int = f([1, 2, 3])
+
+-- A function value is an ordinary value, so it is an ordinary field. The call below reaches it
+-- through a field expression rather than through a name, which is the same indirect call.
+data Step {weight: Int, run: (Int) -> Int}
+
+fn runStep(s: Step, x: Int) -> Int = s.run(x) * s.weight
+
+fn main() -> Int:
+    -- A lambda in an argument position takes its argument types from the expected type.
+    let a = apply((x) -> x + 1, 10)
+
+    -- A named function in value position, reached through the thunk that drops the environment.
+    let b = apply(double, 20)
+
+    -- A binding of function type, called by name. The binding shadows nothing, but the callee
+    -- being a value rather than a declaration is what makes this an indirect call.
+    let f = (x: Int) -> x * x
+    let c = f(5)
+
+    let d = twice((x) -> x + 3, 1)
+
+    -- `::` is what says what a lambda is where nothing else does. It binds looser than the lambda
+    -- arrow, so the lambda is parenthesized.
+    let g = ((x) -> x * 3) :: (Int) -> Int
+    let e = g(4)
+
+    let step = Step {weight: 2, run: (x) -> x - 1}
+    let h = runStep(step, 6)
+
+    -- A generic call site does not push its parameter types into its arguments, so the lambda says
+    -- what it takes.
+    let i = twiceGeneric((x: Int) -> x + 10, 1)
+
+    let j = run(consume)
+
+    let &counter = 100 :: Int
+    runOn((&t: Int): t = t + 5, counter)
+
+    -- 11 + 40 + 25 + 7 + 12 + 10 + 21 + 3 + 105 = 234
+    return a + b + c + d + e + h + i + j + counter

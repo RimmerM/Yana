@@ -4,6 +4,7 @@
 
 struct Block;
 struct Function;
+struct Module;
 struct ModuleRegion {};
 
 using ModuleBase = RegionBase<ModuleRegion>;
@@ -90,6 +91,30 @@ enum class StorageBound: U8 {
     Region,
     Escapes,
 };
+
+/*
+ * The three words a function value is made of (Design.md's "Function types", Design-Memory §8).
+ *
+ * Written as field indices rather than as byte offsets because a function value is reached the way
+ * every other aggregate is - a place with a Field projection - so that constructing one, reading one
+ * and tearing one down all go through machinery that already exists. The byte offsets are here
+ * because lowering is where the structure stops and arithmetic starts.
+ *
+ *  - `Code` is the entry point, and it always takes the environment as its first parameter, so that
+ *    a capturing lambda, a non-capturing one and a plain function referenced by name are one shape.
+ *  - `Env` is the storage the captures live in, or null.
+ *  - `Desc` is that storage's TypeDesc, which is what the value's derived teardown runs. It is a
+ *    per-closure question rather than a per-type one - two values of one function type can capture
+ *    completely different things - which is why it travels with the value.
+ */
+namespace FunValueLayout {
+    static constexpr U16 kCode = 0;
+    static constexpr U16 kEnv = 1;
+    static constexpr U16 kDesc = 2;
+    static constexpr U16 kFieldCount = 3;
+
+    static constexpr U32 offsetOf(U16 field) { return 8u * field; }
+}
 
 enum class ProjectionKind: U8 {
     Discriminant,
@@ -185,7 +210,9 @@ struct Value {
         Or,
         Xor,
         Cmp,
+        Symbol,
         Call,
+        CallDyn,
         GenCall,
         Je,
         Jmp,
@@ -497,11 +524,60 @@ struct InstCmp: InstBinary {
     CompareOp cmp;
 };
 
+/*
+ * The address of something the linker names - a function's entry point, or a compiler-built
+ * constant table - as a raw pointer.
+ *
+ * One instruction for both because they are one operation: an address that is not known until the
+ * module is placed and that nothing in the frame computes. It exists because a function value has to
+ * hold both (`{code, env, envDesc}`), and neither was expressible before - a place rooted in a
+ * global names the storage rather than its address, and a TypeDesc has no source type for a place
+ * to be typed by at all.
+ */
+struct InstSymbol: Inst {
+    InstSymbol(ModulePtr<Block> block, TypePtr type, ModulePtr<Function> callee, ModulePtr<Global> global):
+        Inst(Value::Symbol, block, type), callee(callee), global(global) {}
+
+    // Exactly one of the two is set.
+    ModulePtr<Function> callee;
+    ModulePtr<Global> global;
+};
+
 struct InstCall: Inst {
     InstCall(ModulePtr<Block> block, TypePtr type, ModulePtr<Function> callee):
         Inst(Value::Call, block, type), callee(callee) {}
 
     ModulePtr<Function> callee;
+    ModuleList<ModulePtr<Value>, false> args;
+    U32 local = maxLimit<U32>;
+};
+
+/*
+ * A call through an address rather than to a name - what calling a function value compiles to.
+ *
+ * `callable` is the function value itself rather than the two words unpacked out of it, and that is
+ * load-bearing rather than a convenience: the value is what the *ownership* passes have to see. A
+ * call that named only the loaded code and environment would leave the closure's own last use at
+ * those loads, and the drop pass would then release the environment immediately before the call
+ * that is about to read it.
+ *
+ * `address` is the other shape: a bare code address, for the calls the compiler makes on its own
+ * account - a teardown reached through a descriptor - where there is no function value and no
+ * environment convention to honour. Exactly one of the two is set.
+ *
+ * `signature` is the FunType the call was written through, which is where the argument conventions
+ * and the return-root group come from. That is the whole reason FunArg carries them: a caller
+ * reaching a function through a value has the type and nothing else, and a contract that evaporated
+ * here would be worse than no contract. Null for a compiler-internal call.
+ */
+struct InstCallDyn: Inst {
+    InstCallDyn(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> callable,
+                ModulePtr<Value> address, TypePtr signature):
+        Inst(Value::CallDyn, block, type), callable(callable), address(address), signature(signature) {}
+
+    ModulePtr<Value> callable;
+    ModulePtr<Value> address;
+    TypePtr signature;
     ModuleList<ModulePtr<Value>, false> args;
     U32 local = maxLimit<U32>;
 };
@@ -611,3 +687,7 @@ bool isConstant(const Value& value);
 // How a binding convention is named in a diagnostic. The sigil for the two that have one, and a
 // description for the default, since "declared ``" reads as a compiler bug rather than as a rule.
 StringView conventionName(ast::BindType convention);
+
+// The printed name of one word of a function value - see FunValueLayout, and funValueFieldType in
+// witness.h for the type each one has.
+StringView funValueFieldName(U16 field);

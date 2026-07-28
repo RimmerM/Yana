@@ -384,6 +384,9 @@ static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, F
             auto record = (RecordType*)lower.global[type];
             if(record->layout == RecordType::Multi) offset += record->payloadOffset;
             type = record->constructors.get(lower.global, projection.index).content;
+        } else if(projection.kind == ProjectionKind::Field && lower.global[type]->kind == Type::Fun) {
+            offset += FunValueLayout::offsetOf(projection.index);
+            type = funValueFieldType(*lower.from.core, projection.index);
         } else if(projection.kind == ProjectionKind::Field) {
             auto tuple = (TupType*)lower.global[type];
             auto field = tuple->fields.get(lower.global, projection.index);
@@ -904,6 +907,93 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             auto rhs = mappedValue(lower, compare.rhs);
 
             result = cmp(lower.lower, lower.to, block, lower.lower[lhs], lower.lower[rhs], lowerCmp(lower, compare), instruction.name);
+            break;
+        }
+        case Value::Symbol: {
+            // An address the loader supplies. The lower IR already has both forms, because a call
+            // names its callee this way and a global load names its storage this way; what is new
+            // here is only that the address is wanted as an ordinary value.
+            auto& symbol = (InstSymbol&)instruction;
+
+            if(symbol.callee) {
+                auto target = lower.functions.getValue(symbol.callee).unwrap();
+                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(instruction.name, target));
+            } else {
+                auto global_ = lower.local[symbol.global];
+                auto target = lower.to.globals.getValue(global_->name).unwrap();
+                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstGlobal(instruction.name, target));
+            }
+
+            break;
+        }
+        case Value::CallDyn: {
+            /*
+             * A call through an address, laid out exactly as a direct one: the callee first, then
+             * the hidden result storage a memory result needs, then the environment, then the
+             * declared arguments.
+             *
+             * The environment sits after the result place rather than before it because a lifted
+             * lambda is an ordinary function whose first *declared* parameter it is - the caller
+             * builds nothing hidden, and the two sides agree because both read the same list.
+             */
+            auto& callInst = (InstCallDyn&)instruction;
+            LowerPtr<LowerValue> address = nullptr;
+            LowerPtr<LowerValue> env = nullptr;
+
+            if(callInst.callable) {
+                // The two words the call is reached through. A function value is a memory type, so
+                // its lowered form is the address of the three, and the code and the environment
+                // are the first two loads off it.
+                auto base = mappedValue(lower, callInst.callable);
+                auto codeAddress = addOffset(lower, block, base, FunValueLayout::offsetOf(FunValueLayout::kCode));
+                auto envAddress = addOffset(lower, block, base, FunValueLayout::offsetOf(FunValueLayout::kEnv));
+
+                address = load(lower.lower, lower.to, block, lower.lower[codeAddress], 8, false,
+                               LowerType::Pointer, 0)->created().ptr - lower.lower;
+
+                env = load(lower.lower, lower.to, block, lower.lower[envAddress], 8, false,
+                           LowerType::Pointer, 0)->created().ptr - lower.lower;
+            } else {
+                address = mappedValue(lower, callInst.address);
+            }
+
+            auto memoryResult = isMemoryType(lower.global, instruction.type);
+            LowerPtr<LowerValue> returnPlace = nullptr;
+
+            if(memoryResult) {
+                auto bytes = sizeOfType(lower, block, instruction.type);
+                auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
+                    instruction.name, bytes, typeAlign(lower.global, instruction.type)));
+
+                returnPlace = allocation->created().ptr - lower.lower;
+            }
+
+            Array<LowerPtr<LowerValue>> arguments;
+            for(auto arg: callInst.args.contents(lower.local)) arguments.push(mappedValue(lower, arg));
+
+            auto created = isUnit(lower.global, instruction.type) || memoryResult ? 0 : 1;
+            auto used = arguments.size() + 1 + (env ? 1 : 0) + (memoryResult ? 1 : 0);
+
+            result = call(lower.lower, lower.to, block, created, used, kDefaultCallType, [&](LowerInstCall* dynamic) {
+                if(created) {
+                    new (dynamic->created().ptr) LowerValue(dynamic, lowerType(lower.global, instruction.type), instruction.name);
+                }
+
+                dynamic->used()[0] = address;
+
+                Size index = 1;
+                if(memoryResult) dynamic->used()[index++] = returnPlace;
+                if(env) dynamic->used()[index++] = env;
+
+                for(auto argument: arguments) dynamic->used()[index++] = argument;
+            });
+
+            if(memoryResult) {
+                result->source = instruction.source;
+                lower.values.add(instValue, returnPlace);
+                return;
+            }
+
             break;
         }
         case Value::Call: {

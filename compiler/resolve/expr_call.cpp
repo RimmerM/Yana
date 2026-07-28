@@ -350,11 +350,78 @@ ModulePtr<Value> ExprResolver::resolvePrefix(const ast::Expr& expr, const ast::P
     return convertResult && target ? convert(result, target, expr.source) : result;
 }
 
-ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target, bool convertResult) {
-    if(call.callee.kind != ast::Expr::Var) {
-        context.diagnostics.error("function values and indirect calls are not available yet"_v, call.callee.source);
-        return nullptr;
+/*
+ * A call whose callee is a value rather than a name.
+ *
+ * Two shapes reach here and they are the same question asked twice: `f(x)` where `f` is a local of
+ * function type, and `(expr)(x)` where the callee is any expression at all. The first has to be
+ * checked before the name is looked up as a function, because a binding shadows a module-level
+ * declaration exactly as it does everywhere else.
+ *
+ * Null when this call is not an indirect one, which leaves it for the ordinary path.
+ */
+ModulePtr<Value> ExprResolver::resolveIndirectCall(const ast::Expr& expr, const ast::AppExpr& call,
+                                                   TypePtr target) {
+    auto& callee = unwrapNested(call.callee);
+    ModulePtr<Value> callable = nullptr;
+
+    if(callee.kind == ast::Expr::Var) {
+        auto binding = findBinding(callee.var);
+        if(!binding) return nullptr;
+
+        callable = binding->isPlace() ? load(placeOf(*binding, callee.source), callee.source)
+                                      : binding->value;
+
+        if(!isFunction(global, valueType(callable))) {
+            context.diagnostics.error("%@ is not callable - it is %@"_v, callee.source,
+                                      context.findName(callee.var),
+                                      describeType(context, global, valueType(callable)));
+            return nullptr;
+        }
+    } else {
+        callable = resolve(callee);
+        if(!callable || !isFunction(global, valueType(callable))) {
+            if(callable) {
+                context.diagnostics.error("this expression is not callable - it is %@"_v, callee.source,
+                                          describeType(context, global, valueType(callable)));
+            }
+
+            return nullptr;
+        }
     }
+
+    auto signature = (FunType*)global[valueType(callable)];
+    Array<ModulePtr<Value>> values;
+    Size index = 0;
+
+    // A function value's parameter types are known before its arguments are resolved, exactly as a
+    // plain function's are, so they are pushed down the same way - which is what lets `f(Nothing)`
+    // through a `(Maybe(Int)) -> Bool` know which `Maybe` it is building.
+    auto callArgs = call.args;
+
+    for(auto arg: callArgs.contents(parse)) {
+        if(arg.name) {
+            context.diagnostics.error("named call arguments are not available yet"_v, arg.value.source);
+        }
+
+        auto expected = index < signature->args.size()
+            ? signature->args.get(global, index).type : TypePtr(nullptr);
+
+        values.push(resolve(arg.value, expected));
+        index++;
+    }
+
+    auto result = emitDynamicCall(callable, toBuffer(values), expr.source, 0);
+    return target ? convert(result, target, expr.source) : result;
+}
+
+ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target, bool convertResult) {
+    // A binding of function type shadows a declaration of the same name, and an arbitrary callee
+    // expression was never a name at all. Both are the indirect path.
+    auto& calleeExpr = unwrapNested(call.callee);
+    auto named = calleeExpr.kind == ast::Expr::Var && !findBinding(calleeExpr.var);
+
+    if(!named) return resolveIndirectCall(expr, call, convertResult ? target : nullptr);
 
     // A plain function's parameter types are known before its arguments are resolved, so they
     // are pushed down as the expected type of each one. That is what lets `f(Nothing)` know
@@ -365,13 +432,13 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     // Only when the plain function is the whole overload set, though: R5 lets the class half serve
     // a call the plain function does not fit, and pushing its parameter types into the arguments
     // would report the mismatch before selection ever got the chance to look elsewhere.
-    auto direct = findFunction(module, call.callee.var, expr.source);
+    auto direct = findFunction(module, calleeExpr.var, expr.source);
     auto callArgs = call.args;
     auto declared = direct && !local[direct]->gen && local[direct]->args.size() == callArgs.size();
 
     if(declared) {
         Array<ClassFunRef> overloads;
-        findClassFunctions(module, call.callee.var, expr.source, overloads);
+        findClassFunctions(module, calleeExpr.var, expr.source, overloads);
         declared = overloads.isEmpty();
     }
 
@@ -389,7 +456,7 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     }
 
     auto result = declared ? emitDirectCall(direct, toBuffer(values), expr.source, target)
-                           : emitCall(call.callee.var, toBuffer(values), expr.source, target);
+                           : emitCall(calleeExpr.var, toBuffer(values), expr.source, target);
 
     return convertResult && target ? convert(result, target, expr.source) : result;
 }

@@ -1,4 +1,5 @@
 #include "print.h"
+#include "witness.h"
 
 struct ResolvePrint {
     Net::Writer& writer;
@@ -72,6 +73,12 @@ static void printPlace(ResolvePrint& print, Function& function, const Place& pla
             print.writer.writeByte('@');
             print.writer.writeString(print.context.findName(record->constructors.get(print.global, projection.index).name));
             type = record->constructors.get(print.global, projection.index).content;
+        } else if(projection.kind == ProjectionKind::Field && print.global[type]->kind == Type::Fun) {
+            // `%f.code` - a function value's three words are reached like any other aggregate's
+            // fields, so they are printed like them rather than as offsets.
+            print.writer.writeByte('.');
+            print.writer.writeString(funValueFieldName(projection.index));
+            type = funValueFieldType(*print.program.core, projection.index);
         } else if(projection.kind == ProjectionKind::Field) {
             auto tuple = (TupType*)print.global[type];
             auto field = tuple->fields.get(print.global, projection.index);
@@ -177,7 +184,9 @@ static StringView instructionName(Value& value, GlobalBase global) {
             }
             break;
         }
+        case Value::Symbol: return "symbol"_v;
         case Value::Call: return "call"_v;
+        case Value::CallDyn: return "calldyn"_v;
         case Value::GenCall: return "gencall"_v;
         case Value::Je: return "je"_v;
         case Value::Jmp: return "jmp"_v;
@@ -330,10 +339,33 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             printValue(print, *print.local[binary.rhs]);
             break;
         }
+        case Value::Symbol: {
+            auto& symbol = (InstSymbol&)inst;
+            print.writer.writeByte(' ');
+            print.writer.writeString(print.context.findName(
+                symbol.callee ? print.local[symbol.callee]->name : print.local[symbol.global]->name));
+
+            break;
+        }
         case Value::Call: {
             auto& call = (InstCall&)inst;
             print.writer.writeByte(' ');
             print.writer.writeString(print.context.findName(print.local[call.callee]->name));
+
+            for(auto arg: call.args.contents(print.local)) {
+                print.writer.writeString(", "_v);
+                printValue(print, *print.local[arg]);
+            }
+
+            break;
+        }
+        case Value::CallDyn: {
+            // The function value, or the bare address a compiler-internal call names instead.
+            // The environment is not printed: it is not an argument, it is the word every callable
+            // is reached through, and a dump that mixed it in would misnumber the real ones.
+            auto& call = (InstCallDyn&)inst;
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[call.callable ? call.callable : call.address]);
 
             for(auto arg: call.args.contents(print.local)) {
                 print.writer.writeString(", "_v);

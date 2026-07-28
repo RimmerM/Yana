@@ -1,0 +1,35 @@
+-- Captures (Design-Memory §8). There is no capture list: a name a lambda body uses that belongs to
+-- an enclosing function is one more binding of it, and the convention is inferred from the
+-- enclosing binding rather than written.
+
+fn apply(f: (Int) -> Int, x: Int) -> Int = f(x)
+
+fn applyUnit(f: () -> {}) -> {} = f()
+
+-- A closure that outlives the frame that built it. `amount` is TrivialCopy, so the environment
+-- holds an independent copy - which is what makes returning this legal at all.
+fn makeAdder(amount: Int) -> (Int) -> Int = (x) -> x + amount
+
+-- Two captures, and one of them captured by a nested lambda through the one in between.
+fn makeScaler(scale: Int, offset: Int) -> (Int) -> Int = (x) -> x * scale + offset
+
+fn main() -> Int:
+    -- A read-only capture of an immutable binding: an independent copy, taken when the closure is
+    -- built. Nothing here can tell the difference from a borrow, which is why the copy is allowed.
+    let base = 10
+    let a = apply((x) -> x + base, 1)
+
+    -- A capture of mutable storage is by reference, so the write lands in the enclosing frame.
+    -- `total` stays exclusively borrowed for as long as the closure does, which is why it is only
+    -- read after the closure's last use.
+    let &total = 0 :: Int
+    applyUnit((): total = total + 7)
+
+    let add5 = makeAdder(5)
+    let b = add5(20)
+
+    let scale = makeScaler(3, 4)
+    let c = scale(10)
+
+    -- 11 + 7 + 25 + 34 = 77
+    return a + total + b + c

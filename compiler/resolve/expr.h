@@ -40,8 +40,38 @@ struct Binding {
     // is a place either way; only what roots it differs.
     ModulePtr<Value> borrow = nullptr;
 
-    bool isPlace() const { return local != maxLimit<U32> || borrow != nullptr; }
+    /*
+     * A fourth form: a name a lambda body captured, which lives in the environment the body was
+     * handed rather than in this frame at all.
+     *
+     * `captureField` is which word of that environment holds it, and `captureBorrow` says whether
+     * the word is the value or a borrow of storage the enclosing frame still owns - Design-Memory
+     * §8's two answers, decided where the capture was created rather than where it is read.
+     */
+    bool captured = false;
+    bool captureBorrow = false;
+    U16 captureField = 0;
+
+    bool isPlace() const { return captured || local != maxLimit<U32> || borrow != nullptr; }
     Place place() const { return borrow ? Place::inBorrow(borrow) : Place::inLocal(local); }
+};
+
+/*
+ * One binding a lambda body named that belongs to an enclosing function - Design-Memory §8.
+ *
+ * There is no capture list, so this is discovered rather than declared: the first time the body
+ * names an outer binding, one of these is appended and the environment gains a word. `convention`
+ * is the ordinary binding convention, inferred from what the body does with the name, and it is
+ * what decides whether the environment holds the value or an address.
+ */
+struct Capture {
+    StringId name = 0;
+
+    // The captured value's type. The environment's field is `&T` for a by-reference capture and
+    // `T` for the two that own, which is the whole of what the convention changes here.
+    TypePtr type = nullptr;
+    ast::BindType convention = ast::BindType::Borrow;
+    bool byReference = false;
 };
 
 // One class function that fits a call, together with what its class's type variables had to be
@@ -122,6 +152,12 @@ struct ExprResolver {
 
     ModulePtr<Value> find(StringId name);
     Binding* findBinding(StringId name);
+
+    // The storage one name refers to. For an ordinary binding this is Binding::place(); for a
+    // capture it is a word of the environment, and for one taken by reference it is the storage
+    // that word points at - one more load, at each use, because a capture discovered half-way
+    // through a body has no entry block left to hoist it into.
+    Place placeOf(const Binding& binding, LocationId source);
 
     // The place an assignable expression names - a mutable binding, a field of one, or the memory
     // a raw pointer points at. Null root when the expression names no storage, which is the one
@@ -251,6 +287,10 @@ struct ExprResolver {
     ModulePtr<Value> resolvePrefix(const ast::Expr& expr, const ast::PrefixExpr& prefix, TypePtr target, bool convertResult = true);
     ModulePtr<Value> resolvePrecedence(Array<const ast::Expr*>& operands, Array<StringId>& operators, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence);
     ModulePtr<Value> resolveCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target, bool convertResult = true);
+
+    // A call whose callee is a value rather than a name - a binding of function type, or any
+    // expression at all in callee position. Null when the call is not one of those.
+    ModulePtr<Value> resolveIndirectCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target);
     ModulePtr<Value> emitCall(StringId name, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0);
     ModulePtr<Value> emitDirectCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0);
 
@@ -295,14 +335,43 @@ struct ExprResolver {
                                             Array<TypePtr>& instanceArgs);
 
     /*
+     * Function values and closures (expr_fun.cpp).
+     */
+
+    // `(a, b) -> expr` and `(a, b): block`. Lifts the body into a function of its own and builds
+    // the `{code, env, envDesc}` value that reaches it - see expr_fun.cpp.
+    ModulePtr<Value> resolveFun(const ast::Expr& expr, const ast::FunExpr& fun, TypePtr target);
+
+    // A named function in value position. The value's code word is a thunk that drops the
+    // environment every callable is handed, so that a plain function and a closure are one shape.
+    ModulePtr<Value> functionValue(ModulePtr<Function> callee, LocationId source);
+
+    // Builds a `{code, env, envDesc}` value in fresh storage. `env` and `envDesc` are null for a
+    // function value that captured nothing, which is what makes its teardown a branch that never
+    // fires rather than a second representation.
+    ModulePtr<Value> makeFunValue(TypePtr type, ModulePtr<Function> code, ModulePtr<Value> env,
+                                  ModulePtr<Global> envDesc, LocationId source, StringId name);
+
+    // Calling a value of function type: loads the code and the environment out of it and emits
+    // InstCallDyn, with each argument taken by the convention the *type* declares.
+    ModulePtr<Value> emitDynamicCall(ModulePtr<Value> callable, Buffer<ModulePtr<Value>> args,
+                                     LocationId source, StringId resultName);
+
+    // The binding a lambda body named that belongs to an enclosing function, added to this body's
+    // capture list the first time it is named. Null when no enclosing body has it either.
+    Binding* captureBinding(StringId name);
+
+    /*
      * Storage and aggregates (expr_construct.cpp).
      */
 
     // Storage for one value. `convention` is what the name that owns the slot may do with it: a
     // temporary and an immutable binding get the default, a `let &` gets Ref, and it is what both
     // assignment and a `&` argument check before writing through.
+    // `closureEnv` marks the storage a closure's captures live in: heap-placed, and released by
+    // the function value that owns it rather than by this frame - see Local::closureEnv.
     ModulePtr<Value> allocate(TypePtr type, LocationId source, StringId name = 0,
-                              ast::BindType convention = ast::BindType::Borrow);
+                              ast::BindType convention = ast::BindType::Borrow, bool closureEnv = false);
     Maybe<Place> findPlace(ModulePtr<Value> value);
     Place placeFor(ModulePtr<Value> value, LocationId source);
     bool isWritablePlace(const Place& place);
@@ -395,8 +464,37 @@ struct ExprResolver {
     // function is resolved, and the arena is a bump allocator that never gives anything back.
     Array<Binding> bindings;
     Array<LoopTarget> loops;
+
+    /*
+     * The lambda half, all null or empty for an ordinary function body.
+     *
+     * `enclosing` is what makes a capture possible at all: a name this body does not bind is looked
+     * for there, and finding one is the definition of a capture. It is a chain rather than a single
+     * link, so a nested lambda naming a binding two frames out captures it through the one in
+     * between - which is the same thing happening twice rather than a second mechanism.
+     */
+    ExprResolver* enclosing = nullptr;
+
+    // The environment parameter - argument zero of a lifted lambda - and the tuple type it points
+    // at, which gains a field per capture as the body names them.
+    ModulePtr<Value> envArg = nullptr;
+    TupType* envType = nullptr;
+    Array<Capture> captures;
+
+    // The names the lambda body assigns to, collected from its AST before it is resolved. A capture
+    // the body writes has to be a mutable borrow (Design-Memory §8), and which it is has to be
+    // decided at the *first* use rather than at the one that happens to be a write.
+    Array<StringId> written;
+
+    // Set while resolving a lambda whose result type its body decides, which is what makes an
+    // explicit `return` inside one something to report rather than something to convert.
+    bool resultInferred = false;
 };
 
 // Creates a function that is reached through something other than its own name - a class
 // instance's implementation - with a unique name for printing and lowering.
 Function* addAnonymousFunction(Module& module, StringId name, LocationId source);
+
+// Names one binding per parameter, and storage for the ones that need it. `firstArg` skips the
+// leading closure environment of anything reached as a function value - see expr.cpp.
+void bindFunctionArgs(ExprResolver& resolver, Module& module, Function& function, Size firstArg);

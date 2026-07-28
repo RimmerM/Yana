@@ -12,7 +12,10 @@ Binding* ExprResolver::findBinding(StringId name) {
         if(bindings[i - 1].name == name) return &bindings[i - 1];
     }
 
-    return nullptr;
+    // A name a lambda body does not bind itself may still belong to an enclosing one, and naming it
+    // is what makes it a capture. Nothing is a capture until it is used, which is Design-Memory
+    // §8's "there is no capture list" made literal.
+    return captureBinding(name);
 }
 
 ModulePtr<Value> ExprResolver::find(StringId name) {
@@ -645,6 +648,14 @@ void ExprResolver::resolveWhile(const ast::WhileExpr& loop) {
 }
 
 void ExprResolver::resolveReturn(const ast::Expr& expr) {
+    if(resultInferred) {
+        // Nothing has decided what this lambda returns yet, and `return` cannot be the thing that
+        // decides it: a later `return` of a different type would have nothing to be checked
+        // against, and the two would silently disagree.
+        context.diagnostics.error("this lambda's result type is decided by its body, so it cannot use `return` - write it where a function type is expected"_v,
+                                  expr.source);
+    }
+
     ModulePtr<Value> value = nullptr;
     if(expr.ret) value = resolve(*parse[expr.ret], function.returnType);
 
@@ -769,7 +780,8 @@ void ExprResolver::applyBindingAttributes(const ast::VarDecl& declaration, Modul
 
         auto local_ = function.localAt(local, slot);
         function.locals.set(local, slot, Local {
-            local_.type, local_.name, local_.value, local_.convention, StorageClass::Heap, local_.borrowed,
+            local_.type, local_.name, local_.value, local_.convention, StorageClass::Heap,
+            local_.borrowed, local_.closureEnv,
         });
     }
 }
@@ -865,7 +877,22 @@ Maybe<Place> ExprResolver::resolvePlace(const ast::Expr& astExpr, bool through) 
                     return Nothing();
                 }
 
-                return Just(binding->place());
+                /*
+                 * A capture the closure owns is not assignable.
+                 *
+                 * Design-Memory §8 requires a written capture to be by reference, and a capture
+                 * that came out by value is exactly one whose enclosing binding was not mutable -
+                 * so writing it would write the environment's own copy and the enclosing frame
+                 * would never see it. That is the same diagnostic an immutable binding gets,
+                 * because it is the same mistake.
+                 */
+                if(binding->captured && !binding->captureBorrow) {
+                    context.diagnostics.error("%@ is captured by value and cannot be assigned to - declare it with `let &` in the enclosing function to capture it by reference"_v,
+                                              expr.source, context.findName(expr.var));
+                    return Nothing();
+                }
+
+                return Just(placeOf(*binding, expr.source));
             }
 
             if(auto global_ = findGlobal(module, expr.var, expr.source)) {
@@ -1010,6 +1037,14 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
                     return value && target ? convert(value, target, expr.source) : value;
                 }
 
+                // A function's name in value position is the function value that reaches it. This
+                // is the last thing tried rather than the first, so a binding and a global still
+                // shadow a declaration exactly as they did before function values existed.
+                if(auto callee = findFunction(module, expr.var, expr.source)) {
+                    auto value = functionValue(callee, expr.source);
+                    return value && target ? convert(value, target, expr.source) : value;
+                }
+
                 context.diagnostics.error("unknown scalar value %@"_v, expr.source, context.findName(expr.var));
                 return nullptr;
             }
@@ -1017,7 +1052,7 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             // A mutable binding names storage, so what its name produces is whatever is in that
             // storage now rather than what was put there when it was declared. The name stays on
             // the place, and each read of it is its own value.
-            auto value = binding->isPlace() ? load(binding->place(), expr.source)
+            auto value = binding->isPlace() ? load(placeOf(*binding, expr.source), expr.source)
                                             : binding->value;
 
             return value && target ? convert(value, target, expr.source) : value;
@@ -1064,6 +1099,15 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
 
             if(coerce.target.kind == ast::Expr::Con) {
                 return resolveConstruct(coerce.target, *parse[coerce.target.con], type);
+            }
+
+            // A lambda has no type of its own either: its argument types and its result are read
+            // off the position it appears in, and `::` is what supplies one where nothing else
+            // does. Through the parentheses, because `::` binds looser than the lambda arrow and
+            // `((x) -> x * 3) :: (Int) -> Int` is how one is written.
+            auto& ascribed = unwrapNested(coerce.target);
+            if(ascribed.kind == ast::Expr::Fun) {
+                return resolveFun(ascribed, *parse[ascribed.fun], type);
             }
 
             if(coerce.target.kind == ast::Expr::App) {
@@ -1116,9 +1160,46 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             return resolveField(expr, *parse[expr.field]);
         case ast::Expr::Assign:
             return resolveAssign(expr, *parse[expr.assign]);
+        case ast::Expr::Fun:
+            return resolveFun(expr, *parse[expr.fun], target);
         default:
             context.diagnostics.error("expression is not available in the aggregate resolver"_v, expr.source);
             return nullptr;
+    }
+}
+
+/*
+ * Names one binding per parameter, and storage for the ones that need it.
+ *
+ * `firstArg` is where the declared parameters start, which is one for anything reached as a
+ * function value: those take the closure environment as argument zero, and it is bound by whoever
+ * knows what is in it rather than by name.
+ */
+void bindFunctionArgs(ExprResolver& resolver, Module& module, Function& function, Size firstArg) {
+    Size index = 0;
+
+    for(auto argPointer: function.args.contents(*module.arena)) {
+        if(index++ < firstArg) continue;
+
+        auto arg = (*module.arena)[argPointer];
+        auto value = (ModulePtr<Value>)argPointer;
+        Binding binding { arg->name, value };
+
+        if(arg->isMutableBorrow()) {
+            // A `&` parameter names storage the caller owns. The argument arrived as the address
+            // of it, so the parameter gets a local whose value *is* that address - which is
+            // exactly what a local of an ordinary allocation holds - and the binding names the
+            // slot rather than the value, so reads load and assignments write through.
+            //
+            // `borrowed` is what keeps this frame from treating the slot as its own: it is never
+            // allocated here and never dropped here.
+            binding.local = function.addLocal(module, arg->type, arg->name, value,
+                                              ast::BindType::Ref, true);
+        } else if(isMemoryType(*module.types, arg->type)) {
+            function.addLocal(module, arg->type, arg->name, value, arg->convention);
+        }
+
+        resolver.bindings.push(binding);
     }
 }
 
@@ -1140,27 +1221,7 @@ bool resolveFunctionBody(Module& module, Function& function) {
     function.resolving = true;
 
     ExprResolver resolver(context, module, function);
-    for(auto argPointer: function.args.contents(*module.arena)) {
-        auto arg = (*module.arena)[argPointer];
-        auto value = (ModulePtr<Value>)argPointer;
-        Binding binding { arg->name, value };
-
-        if(arg->isMutableBorrow()) {
-            // A `&` parameter names storage the caller owns. The argument arrived as the address
-            // of it, so the parameter gets a local whose value *is* that address - which is
-            // exactly what a local of an ordinary allocation holds - and the binding names the
-            // slot rather than the value, so reads load and assignments write through.
-            //
-            // `borrowed` is what keeps this frame from treating the slot as its own: it is never
-            // allocated here and never dropped here.
-            binding.local = function.addLocal(module, arg->type, arg->name, value,
-                                              ast::BindType::Ref, true);
-        } else if(isMemoryType(*module.types, arg->type)) {
-            function.addLocal(module, arg->type, arg->name, value, arg->convention);
-        }
-
-        resolver.bindings.push(binding);
-    }
+    bindFunctionArgs(resolver, module, function, 0);
 
     auto errors = context.diagnostics.errorCount();
 

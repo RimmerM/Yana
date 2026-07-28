@@ -1,0 +1,130 @@
+fn teardown$none {
+  arg value readonly
+}
+
+fn initHeap {
+}
+
+fn heapClassOf {
+  arg total readonly
+  %size: I64 writable live [0, 8) [10, 12) [13, 18)
+  %sizeClass: I64 writable live [2, 9) [10, 15) [16, 18)
+}
+
+fn heapBlockSize {
+  arg sizeClass readonly
+}
+
+fn freeListHead {
+  arg sizeClass readonly
+  result escapes
+}
+
+fn setFreeListHead {
+  arg sizeClass readonly
+  arg block readonly
+}
+
+fn allocateHeap {
+  arg size readonly
+  result escapes
+}
+
+fn freeHeap {
+  arg allocation readonly
+}
+
+fn mapMemory {
+  arg size readonly
+}
+
+fn apply {
+  arg f readonly
+  arg x readonly
+  %f: (Int) -> Int borrowed droppable readonly live [0, 1)
+}
+
+fn applyUnit {
+  arg f readonly
+  %f: () -> () borrowed droppable readonly live [0, 1)
+}
+
+fn makeAdder {
+  arg amount readonly
+  result escapes
+  %local0: {amount: Int} closure writable addressed escapes heap live [0, 7)
+  %local1: (Int) -> Int droppable readonly live [3, 10)
+}
+
+fn makeScaler {
+  arg scale readonly
+  arg offset readonly
+  result escapes
+  %local0: {scale: Int, offset: Int} closure writable addressed escapes heap live [0, 8)
+  %local1: (Int) -> Int droppable readonly live [4, 11)
+}
+
+fn main {
+  %local0: {base: Int} closure writable addressed heap live [0, 7)
+  %local1: (Int) -> Int droppable readonly live [3, 10)
+  %total: Int writable live [10, 28)
+  %local3: {total: &mut Int} closure writable addressed heap live [12, 20)
+  %local4: () -> () droppable readonly live [16, 23)
+  %local5: (Int) -> Int droppable readonly live [23, 25)
+  %local6: (Int) -> Int droppable readonly live [25, 27)
+}
+
+fn ResolveTest.lambda$0 {
+  arg env readonly
+  arg x readonly
+}
+
+fn moveInit${amount: Int} {
+  arg to readonly
+  arg from readonly
+}
+
+fn ResolveTest.lambda$1 {
+  arg env readonly
+  arg x readonly
+}
+
+fn moveInit${scale: Int, offset: Int} {
+  arg to readonly
+  arg from readonly
+}
+
+fn ResolveTest.lambda$2 {
+  arg env readonly
+  arg x readonly
+}
+
+fn moveInit${base: Int} {
+  arg to readonly
+  arg from readonly
+}
+
+fn ResolveTest.lambda$3 {
+  arg env readonly
+}
+
+fn moveInit${total: &mut Int} {
+  arg to readonly
+  arg from readonly
+}
+
+fn drop$(Int) -> Int {
+  arg value readonly
+}
+
+fn reclaim$(Int) -> Int {
+  arg value readonly
+}
+
+fn drop$() -> () {
+  arg value readonly
+}
+
+fn reclaim$() -> () {
+  arg value readonly
+}

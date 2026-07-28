@@ -119,9 +119,13 @@ Arg* Function::addArg(Module& module, StringId argName, TypePtr type, LocationId
 }
 
 U32 Function::addLocal(Module& module, TypePtr type, StringId localName, ModulePtr<Value> value,
-                       ast::BindType convention, bool borrowed) {
+                       ast::BindType convention, bool borrowed, bool closureEnv) {
     auto index = U32(locals.size());
-    locals.push(module.arena, Local { type, localName, value, convention, StorageClass::Stack, borrowed });
+    locals.push(module.arena, Local {
+        type, localName, value, convention,
+        closureEnv ? StorageClass::Heap : StorageClass::Stack, borrowed, closureEnv,
+    });
+
     return index;
 }
 
@@ -1609,18 +1613,43 @@ static void markPlace(ModuleBase local, const Place& place) {
     if(place.root == PlaceRoot::Global && place.global) local[place.global]->used = true;
 }
 
-static void markReachable(Program& program, Array<ModulePtr<Function>>& pending) {
+/*
+ * `tables` is the compiler-built constants reached so far, and walking them is not optional: a table
+ * holds addresses, and an address is a reason for what it names to exist. A TypeDesc naming the glue
+ * that tears its type down is the only thing keeping that glue alive, and dropping the relocation
+ * instead would leave a slot the emitted code calls through holding zero.
+ */
+static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
+                          Array<ModulePtr<Global>>& tables) {
     ModuleBase local = *program.arena;
 
-    while(pending.isNotEmpty()) {
+    auto reachFunction = [&](ModulePtr<Function> callee) {
+        if(!callee || local[callee]->used) return;
+
+        local[callee]->used = true;
+        pending.push(callee);
+    };
+
+    auto reachTable = [&](ModulePtr<Global> table) {
+        if(!table || local[table]->used) return;
+
+        local[table]->used = true;
+        tables.push(table);
+    };
+
+    while(pending.isNotEmpty() || tables.isNotEmpty()) {
+        while(tables.isNotEmpty()) {
+            auto table = local[tables.pop().unwrap()];
+
+            for(auto relocation: table->relocations.contents(local)) {
+                reachFunction(relocation.function);
+                reachTable(relocation.global);
+            }
+        }
+
+        if(pending.isEmpty()) continue;
         auto function = local[pending.pop().unwrap()];
-
-        auto reach = [&](ModulePtr<Function> callee) {
-            if(!callee || local[callee]->used) return;
-
-            local[callee]->used = true;
-            pending.push(callee);
-        };
+        auto& reach = reachFunction;
 
         for(auto blockPointer: function->blocks.contents(local)) {
             for(auto instructionPointer: local[blockPointer]->instructions.contents(local)) {
@@ -1632,6 +1661,18 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending)
                         break;
                     case Value::GenCall:
                         reach(((InstGenCall&)instruction).callee);
+                        reachTable(((InstGenCall&)instruction).env);
+
+                        for(auto fill: ((InstGenCall&)instruction).fill.contents(local)) {
+                            reachTable(fill.constant);
+                        }
+
+                        break;
+                    case Value::Symbol:
+                        // The address of a function or of a table, taken as a value: a function
+                        // value's code word, and the environment descriptor it carries.
+                        reach(((InstSymbol&)instruction).callee);
+                        reachTable(((InstSymbol&)instruction).global);
                         break;
                     case Value::LoadPlace:
                         markPlace(local, ((InstLoadPlace&)instruction).place);
@@ -1682,16 +1723,24 @@ static void markProgramReachable(Program& program) {
     ModuleBase local = *program.arena;
     Array<ModulePtr<Function>> pending;
 
+    Array<ModulePtr<Global>> tables;
+
     for(auto module: program.modules) {
         for(auto function: module->functionOrder.contents(local)) {
             local[function]->used = module->root;
             if(module->root) pending.push(function);
         }
 
-        for(auto global_: module->globalOrder.contents(local)) local[global_]->used = module->root;
+        // The root module's tables are seeded alongside its functions rather than being taken as
+        // already-reached, because what a table *holds* is the point: marking one used without
+        // walking it would keep the bytes and drop everything their relocations name.
+        for(auto global_: module->globalOrder.contents(local)) {
+            local[global_]->used = module->root;
+            if(module->root) tables.push(global_);
+        }
     }
 
-    markReachable(program, pending);
+    markReachable(program, pending, tables);
 }
 
 Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider* provider,

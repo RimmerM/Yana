@@ -56,6 +56,34 @@ namespace TypeDescLayout {
 }
 
 /*
+ * The same layout, as fields of a tuple type.
+ *
+ * The bytes above are written by this compiler and read by the code it emits, and until function
+ * values that reading was ordinary loads at literal offsets. A function value's teardown reaches the
+ * same words from the *typed* IR - it is a real function, with real places - so the layout needs a
+ * type as well. typeDescPlaceType() asserts the two descriptions agree rather than trusting that
+ * they do, because they are one set of offsets written twice.
+ */
+namespace TypeDescFields {
+    static constexpr U16 kLogicalType = 0;
+    static constexpr U16 kSize = 1;
+    static constexpr U16 kAlign = 2;
+    static constexpr U16 kStride = 3;
+    static constexpr U16 kFlags = 4;
+    static constexpr U16 kMoveInit = 5;
+    static constexpr U16 kReclaim = 6;
+    static constexpr U16 kDrop = 7;
+}
+
+// A tuple laid out exactly like a TypeDesc, so that a place rooted in a descriptor address can read
+// one of its words the way any other aggregate is read.
+TypePtr typeDescPlaceType(Module& module);
+
+// The type of one word of a function value - see FunValueLayout. Two of the three are bare
+// addresses; the descriptor word is typed, because the teardown glue projects into what it names.
+TypePtr funValueFieldType(Module& module, U16 field);
+
+/*
  * The structural facts a generic body may need about a type it cannot see.
  *
  * These are the *already-resolved* answers, not permissions. Design-Memory §2.1 is what makes that
@@ -138,7 +166,8 @@ namespace GenEnvLayout {
  * The method slots hold plain code addresses rather than full `FunctionWitness` records. A witness
  * carries a closure and a captured environment, and a class method has neither: it is a known
  * function reached through a known table. Constrained function *values* are what need the wider
- * shape, and they need function values first.
+ * shape - which is now exactly the `{code, env, envDesc}` triple FunValueLayout describes, plus the
+ * generic environment a constrained callable additionally has to carry.
  */
 namespace ClassWitnessLayout {
     // The class this implements, as its region offset - the same kind of identity a TypeDesc's

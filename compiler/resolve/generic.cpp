@@ -365,6 +365,41 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             if(value) clone.values.add(pointer, value);
             return;
         }
+        case Value::Symbol: {
+            auto& symbol = (InstSymbol&)inst;
+            result = resolver.emit<InstSymbol>(inst.source, inst.name, type, symbol.callee, symbol.global);
+            break;
+        }
+        case Value::CallDyn: {
+            /*
+             * An indirect call clones unchanged.
+             *
+             * A function value's callee is decided at run time, so there is nothing here for a
+             * substitution to make concrete - unlike an InstGenCall, which exists precisely to be
+             * decided by one. What the signature substitutes to still matters for the conventions,
+             * so it goes through cloneType like every other type in the body.
+             */
+            auto& call = (InstCallDyn&)inst;
+            auto dynamic = resolver.create<InstCallDyn>(
+                inst.source, inst.name, type,
+                call.callable ? cloneValue(clone, call.callable) : nullptr,
+                call.address ? cloneValue(clone, call.address) : nullptr,
+                cloneType(clone, call.signature));
+
+            for(auto arg: call.args.contents(clone.local)) {
+                dynamic->args.push(clone.module.arena, cloneValue(clone, arg));
+            }
+
+            resolver.append(dynamic);
+
+            if(call.local != maxLimit<U32>) {
+                dynamic->local = resolver.function.addLocal(clone.module, type, inst.name,
+                                                            resolver.ref(dynamic));
+            }
+
+            result = dynamic;
+            break;
+        }
         case Value::GenCall:
             cloneGenCall(clone, (InstGenCall&)inst);
             return;
@@ -416,6 +451,7 @@ static void cloneBody(Clone& clone, Function& to) {
         auto slot = from.localAt(local, U32(i));
         to.locals.push(clone.module.arena, Local {
             cloneType(clone, slot.type), slot.name, nullptr, slot.convention, slot.storage, slot.borrowed,
+            slot.closureEnv,
         });
     }
 
@@ -627,6 +663,20 @@ ModulePtr<Function> instantiateFunction(Module& from, ModulePtr<Function> pointe
     specialized->specializationOf = pointer;
     specialized->returnType = substituteType(owner, generic->returnType, args, source);
     specialized->used = true;
+
+    /*
+     * A specialization of a class implementation is still that implementation.
+     *
+     * It matters for one rule beyond printing: a `Drop`, `Reclaim` or `Sink` implementation is the
+     * one place a `->` parameter's disposal is the body's own business, and a specialization that
+     * had forgotten which class it implements would be given a drop of its own argument - which is
+     * a call to itself, forever. `instance Reclaim(Array(a))` specialized at `Int` is exactly that
+     * shape, so this is not a hypothetical.
+     */
+    specialized->instanceOf = generic->instanceOf;
+    for(auto type: generic->instanceArgs.contents(local)) {
+        specialized->instanceArgs.push(owner.arena, substituteType(owner, type, args, source));
+    }
     for(auto arg: args) specialized->genericArgs.push(owner.arena, arg);
 
     // Registered before the body is cloned, so a recursive call that substitutes to these same

@@ -1,4 +1,4 @@
-#include "inst.h"
+#include "module.h"
 
 bool isTerminator(const Value& value) {
     return value.kind == Value::Je || value.kind == Value::Jmp || value.kind == Value::Ret;
@@ -13,5 +13,13 @@ StringView conventionName(ast::BindType convention) {
         case ast::BindType::Ref: return "`&`"_v;
         case ast::BindType::Sink: return "`->`"_v;
         default: return "an immutable borrow"_v;
+    }
+}
+
+StringView funValueFieldName(U16 field) {
+    switch(field) {
+        case FunValueLayout::kCode: return "code"_v;
+        case FunValueLayout::kEnv: return "env"_v;
+        default: return "envDesc"_v;
     }
 }

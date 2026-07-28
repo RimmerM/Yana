@@ -1,0 +1,463 @@
+let &heapNext: %U8 = 0
+
+let &heapLimit: %U8 = 0
+
+let &heapFree: %%U8 = 0
+
+table typeDesc${amount: Int} {
+  +0 {amount: Int}, 4
+  +8 4, 4
+  +16 131, 0
+  +24 moveInit${amount: Int}
+  +32 teardown$none
+  +40 teardown$none
+}
+
+table typeDesc${scale: Int, offset: Int} {
+  +0 {scale: Int, offset: Int}, 8
+  +8 4, 8
+  +16 131, 0
+  +24 moveInit${scale: Int, offset: Int}
+  +32 teardown$none
+  +40 teardown$none
+}
+
+table typeDesc${base: Int} {
+  +0 {base: Int}, 4
+  +8 4, 4
+  +16 131, 0
+  +24 moveInit${base: Int}
+  +32 teardown$none
+  +40 teardown$none
+}
+
+table typeDesc${total: &mut Int} {
+  +0 {total: &mut Int}, 8
+  +8 8, 8
+  +16 130, 0
+  +24 moveInit${total: &mut Int}
+  +32 teardown$none
+  +40 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn initHeap() -> () {
+  b0:
+    %region = call mapMemory, 4194304 : %U8
+    %v2 = cast %region : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %table = mul 32, 8 : I64
+    setmemory %region, 0, %table
+    %v14 = cast %region : %%U8
+    assign heapFree, %v14
+    %v16 = add %region, %table : %U8
+    assign heapNext, %v16
+    %v19 = add %region, 4194304 : %U8
+    assign heapLimit, %v19
+    ret
+}
+
+fn heapClassOf(%total: I64) -> I64 {
+  b0:
+    %size = alloc : I64
+    init %size, 16
+    %sizeClass = alloc : I64
+    init %sizeClass, 0
+    jmp b1
+
+  b1:
+    %v8 = load %size : I64
+    %v9 = cmp_lt %v8, %total : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v21 = load %sizeClass : I64
+    ret %v21
+
+  b3:
+    %v11 = load %size : I64
+    %v12 = load %size : I64
+    %v13 = add %v11, %v12 : I64
+    assign %size, %v13
+    %v15 = load %sizeClass : I64
+    %v18 = add %v15, 1 : I64
+    assign %sizeClass, %v18
+    jmp b1
+}
+
+fn heapBlockSize(%sizeClass: I64) -> I64 {
+  b0:
+    %v2 = shl 16, %sizeClass : I64
+    ret %v2
+}
+
+fn freeListHead(%sizeClass: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v3 = mul %sizeClass, 8 : I64
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v4 = mul %sizeClass, 8 : I64
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn allocateHeap(%size: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = cast %v1 : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    call initHeap
+    %v7 = load heapFree : %%U8
+    %v8 = cast %v7 : Long
+    %v10 = cmp_eq %v8, 0 : Bool
+    je %v10, b3, b4
+
+  b2:
+    jmp b6
+
+  b3:
+    %v13 = cast 0 : %U8
+    ret %v13
+
+  b4:
+    jmp b5
+
+  b5:
+    jmp b6
+
+  b6:
+    %v20 = add %size, 8 : I64
+    %sizeClass = call heapClassOf, %v20 : I64
+    %v23 = cmp_ge %sizeClass, 32 : Bool
+    je %v23, b7, b8
+
+  b7:
+    %v26 = cast 0 : %U8
+    ret %v26
+
+  b8:
+    jmp b9
+
+  b9:
+    %reused = call freeListHead, %sizeClass : %U8
+    %v30 = cast %reused : Long
+    %v32 = cmp_eq %v30, 0 : Bool
+    %v34 = xor %v32, True : Bool
+    je %v34, b10, b11
+
+  b10:
+    %v36 = cast %reused : %%U8
+    %v37 = load [%v36] : %U8
+    call setFreeListHead, %sizeClass, %v37
+    ret %reused
+
+  b11:
+    jmp b12
+
+  b12:
+    %block = load heapNext : %U8
+    %blockSize = call heapBlockSize, %sizeClass : I64
+    %v43 = add %block, %blockSize : %U8
+    %v44 = load heapLimit : %U8
+    %v45 = cmp_gt %v43, %v44 : Bool
+    je %v45, b13, b14
+
+  b13:
+    %v48 = cast 0 : %U8
+    ret %v48
+
+  b14:
+    jmp b15
+
+  b15:
+    %v51 = add %block, %blockSize : %U8
+    assign heapNext, %v51
+    %v53 = cast %block : %I64
+    assign [%v53], %sizeClass
+    %v57 = add %block, 8 : %U8
+    ret %v57
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = cast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = sub %allocation, 8 : %U8
+    %v10 = cast %v9 : %I64
+    %sizeClass = load [%v10] : I64
+    %v12 = cast %allocation : %%U8
+    %v13 = call freeListHead, %sizeClass : %U8
+    assign [%v12], %v13
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn mapMemory(%size: I64) -> %U8 {
+  b0:
+    %v7 = neg 1 : I64
+    %result = syscall 9, 0, %size, 3, 34, %v7, 0 : I64
+    %v12 = cmp_lt %result, 0 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v15 = cast 0 : %U8
+    ret %v15
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = cast %result : %U8
+    ret %v18
+}
+
+fn apply(%f: (Int) -> Int, %x: Int) -> Int {
+  b0:
+    %v2 = calldyn %f, %x : Int
+    ret %v2
+}
+
+fn applyUnit(%f: () -> ()) -> () {
+  b0:
+    calldyn %f
+    ret
+}
+
+fn makeAdder(%amount: Int) -> (Int) -> Int {
+  b0:
+    %v1 = alloc heap escaping : {amount: Int}
+    init %local0.amount, %amount
+    %v3 = addressof %local0 : %()
+    %v4 = alloc : (Int) -> Int
+    %v5 = symbol ResolveTest.lambda$0 : %()
+    init %local1.code, %v5
+    init %local1.env, %v3
+    %v8 = symbol typeDesc${amount: Int} : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
+    init %local1.envDesc, %v8
+    ret %v4
+}
+
+fn makeScaler(%scale: Int, %offset: Int) -> (Int) -> Int {
+  b0:
+    %v2 = alloc heap escaping : {scale: Int, offset: Int}
+    init %local0.scale, %scale
+    init %local0.offset, %offset
+    %v5 = addressof %local0 : %()
+    %v6 = alloc : (Int) -> Int
+    %v7 = symbol ResolveTest.lambda$1 : %()
+    init %local1.code, %v7
+    init %local1.env, %v5
+    %v10 = symbol typeDesc${scale: Int, offset: Int} : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
+    init %local1.envDesc, %v10
+    ret %v6
+}
+
+fn main() -> Int {
+  b0:
+    %v2 = alloc heap escaping : {base: Int}
+    init %local0.base, %base
+    %v4 = addressof %local0 : %()
+    %v5 = alloc : (Int) -> Int
+    %v6 = symbol ResolveTest.lambda$2 : %()
+    init %local1.code, %v6
+    init %local1.env, %v4
+    %v9 = symbol typeDesc${base: Int} : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
+    init %local1.envDesc, %v9
+    %a = call apply, %v5, 1 : Int
+    drop_derived %local1 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    %total = alloc : Int
+    init %total, 0
+    %v16 = alloc heap escaping : {total: &mut Int}
+    %v17 = borrow_mut %total : &mut Int
+    init %local3.total, %v17
+    %v19 = addressof %local3 : %()
+    %v20 = alloc : () -> ()
+    %v21 = symbol ResolveTest.lambda$3 : %()
+    init %local4.code, %v21
+    init %local4.env, %v19
+    %v24 = symbol typeDesc${total: &mut Int} : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
+    init %local4.envDesc, %v24
+    call applyUnit, %v20
+    drop_derived %local4 via drop$() -> () reclaim reclaim$() -> ()
+    %add5 = call makeAdder, 5 : (Int) -> Int
+    %b = calldyn %add5, 20 : Int
+    drop_derived %local5 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    %scale = call makeScaler, 3, 4 : (Int) -> Int
+    %c = calldyn %scale, 10 : Int
+    drop_derived %local6 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    %v36 = load %total : Int
+    %v37 = add %a, %v36 : Int
+    %v38 = add %v37, %b : Int
+    %v39 = add %v38, %c : Int
+    ret %v39
+}
+
+fn ResolveTest.lambda$0(%env: %{amount: Int}, %x: Int) -> Int {
+  b0:
+    %v2 = load [%env].amount : Int
+    %v3 = add %x, %v2 : Int
+    ret %v3
+}
+
+fn moveInit${amount: Int}(%to: %{amount: Int}, %from: %{amount: Int}) -> () {
+  b0:
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, 4
+    ret
+}
+
+fn ResolveTest.lambda$1(%env: %{scale: Int, offset: Int}, %x: Int) -> Int {
+  b0:
+    %v2 = load [%env].scale : Int
+    %v3 = mul %x, %v2 : Int
+    %v4 = load [%env].offset : Int
+    %v5 = add %v3, %v4 : Int
+    ret %v5
+}
+
+fn moveInit${scale: Int, offset: Int}(%to: %{scale: Int, offset: Int}, %from: %{scale: Int, offset: Int}) -> () {
+  b0:
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, 8
+    ret
+}
+
+fn ResolveTest.lambda$2(%env: %{base: Int}, %x: Int) -> Int {
+  b0:
+    %v2 = load [%env].base : Int
+    %v3 = add %x, %v2 : Int
+    ret %v3
+}
+
+fn moveInit${base: Int}(%to: %{base: Int}, %from: %{base: Int}) -> () {
+  b0:
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, 4
+    ret
+}
+
+fn ResolveTest.lambda$3(%env: %{total: &mut Int}) -> () {
+  b0:
+    %v1 = load [%env].total : &mut Int
+    %v2 = load [%env].total : &mut Int
+    %v3 = load [%v2] : Int
+    %v6 = add %v3, 7 : Int
+    assign [%v1], %v6
+    ret
+}
+
+fn moveInit${total: &mut Int}(%to: %{total: &mut Int}, %from: %{total: &mut Int}) -> () {
+  b0:
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, 8
+    ret
+}
+
+fn drop$(Int) -> Int(%value: %(Int) -> Int) -> () {
+  b0:
+    %v1 = load [%value].env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load [%value].envDesc : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
+    %v7 = load [%v6].drop : %()
+    calldyn %v7, %v1
+    jmp b2
+
+  b2:
+    ret
+}
+
+fn reclaim$(Int) -> Int(%value: %(Int) -> Int) -> () {
+  b0:
+    %v1 = load [%value].env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load [%value].envDesc : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
+    %v7 = load [%v6].reclaim : %()
+    calldyn %v7, %v1
+    %v9 = cast %v1 : %U8
+    call freeHeap, %v9
+    jmp b2
+
+  b2:
+    ret
+}
+
+fn drop$() -> ()(%value: %() -> ()) -> () {
+  b0:
+    %v1 = load [%value].env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load [%value].envDesc : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
+    %v7 = load [%v6].drop : %()
+    calldyn %v7, %v1
+    jmp b2
+
+  b2:
+    ret
+}
+
+fn reclaim$() -> ()(%value: %() -> ()) -> () {
+  b0:
+    %v1 = load [%value].env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load [%value].envDesc : %{logicalType: Int, size: Int, align: Int, stride: Int, flags: Int, moveInit: %(), reclaim: %(), drop: %()}
+    %v7 = load [%v6].reclaim : %()
+    calldyn %v7, %v1
+    %v9 = cast %v1 : %U8
+    call freeHeap, %v9
+    jmp b2
+
+  b2:
+    ret
+}

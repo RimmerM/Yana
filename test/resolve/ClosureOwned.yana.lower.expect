@@ -1,0 +1,467 @@
+@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc${xs: Array(Int)} = [144, 111, 0, 0, 24, 0, 0, 0, 8, 0, 0, 0, 24, 0, 0, 0, 134, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
+@heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
+
+heapClassOf<complex>(%total: Long): Long {
+  b_0 {
+    %size = alloca 8, 8: Ptr
+    store %size, 16, 8
+    %sizeClass = alloca 8, 8: Ptr
+    store %sizeClass, 0, 8
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = loads %size, 8: Long
+    %v_3 = cmp_ilt %v_2, %total: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = loads %sizeClass, 8: Long
+    ret %v_6
+  }
+
+  b_4 {
+    %v_7 = loads %size, 8: Long
+    %v_8 = loads %size, 8: Long
+    %v_9 = add %v_7, %v_8: Long
+    store %size, %v_9, 8
+    %v_10 = loads %sizeClass, 8: Long
+    %v_11 = add %v_10, 1: Long
+    store %sizeClass, %v_11, 8
+    jmp b_1
+  }
+}
+
+mapMemory<complex>(%size: Long): Ptr {
+  b_0 {
+    %v_1 = neg 1: Long
+    %result = syscall 9, 0, %size, 3, 34, %v_1, 0: Long
+    %v_2 = cmp_ilt %result, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = bitcast 0: Ptr
+    ret %v_5
+  }
+
+  b_4 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = bitcast %result: Ptr
+    ret %v_7
+  }
+}
+
+reclaim$() -> Int<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 8: Ptr
+    %v_3 = bitcast 0: Ptr
+    %v_4 = cmp_neq %v_2, %v_3: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = add %value, 16: Ptr
+    %v_8 = load %v_7, 8: Ptr
+    %v_9 = add %v_8, 32: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    call_complex %v_10, %v_2
+    %v_11 = bitcast %v_2: Ptr
+    call_complex freeHeap, %v_11
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
+get(Int)<complex>(%self: Ptr, %index: Int): Ptr {
+  b_0 {
+    %v_1 = load %self, 8: Ptr
+    %v_2 = sext %index: Long
+    %v_3 = imul %v_2, 4: Long
+    %v_4 = add %v_1, %v_3: Ptr
+    ret %v_4
+  }
+}
+
+setFreeListHead<complex>(%sizeClass: Long, %block: Ptr) {
+  b_0 {
+    %v_1 = load @heapFree, 8: Ptr
+    %v_2 = imul %sizeClass, 8: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    store %v_3, %block, 8
+    ret 
+  }
+}
+
+freeHeap<complex>(%allocation: Ptr) {
+  b_0 {
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %v_7 = bitcast %v_6: Ptr
+    %sizeClass = loads %v_7, 8: Long
+    %v_8 = bitcast %allocation: Ptr
+    %v_9 = call_complex freeListHead, %sizeClass: Ptr
+    store %v_8, %v_9, 8
+    call_complex setFreeListHead, %sizeClass, %allocation
+    ret 
+  }
+}
+
+reclaim${xs: Array(Int)}<complex>(%value: Ptr) {
+  b_0 {
+    call_complex Reclaim(Array(a)).reclaim(Int), %value
+    ret 
+  }
+}
+
+Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 16: Ptr
+    %v_2 = load %v_1, 4: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = load %value, 8: Ptr
+    %v_6 = bitcast %v_5: Ptr
+    call_complex freeHeap, %v_6
+    jmp b_7
+  }
+
+  b_4 {
+    jmp b_7
+  }
+
+  b_7 {
+    ret 
+  }
+}
+
+teardown$none<complex>(%value: Ptr) {
+  b_0 {
+    ret 
+  }
+}
+
+initHeap<complex>() {
+  b_0 {
+    %region = call_complex mapMemory, 4194304: Ptr
+    %v_1 = bitcast %region: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %table = imul 32, 8: Long
+    setpattern %region, %table, 0
+    %v_6 = bitcast %region: Ptr
+    store @heapFree, %v_6, 8
+    %v_7 = add %region, %table: Ptr
+    store @heapNext, %v_7, 8
+    %v_8 = add %region, 4194304: Ptr
+    store @heapLimit, %v_8, 8
+    ret 
+  }
+}
+
+heapBlockSize<complex>(%sizeClass: Long): Long {
+  b_0 {
+    %v_1 = shl 16, %sizeClass: Long
+    ret %v_1
+  }
+}
+
+drop$() -> Int<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 8: Ptr
+    %v_3 = bitcast 0: Ptr
+    %v_4 = cmp_neq %v_2, %v_3: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = add %value, 16: Ptr
+    %v_8 = load %v_7, 8: Ptr
+    %v_9 = add %v_8, 40: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    call_complex %v_10, %v_2
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
++=(Int)<complex>(%target: Ptr, %amount: Int) {
+  b_0 {
+    %v_1 = loads %target, 4: Int
+    %v_2 = add %v_1, %amount: Int
+    store %target, %v_2, 4
+    ret 
+  }
+}
+
+makeSummer<complex>(%v_0: Ptr, %xs: Ptr) {
+  b_1 {
+    %v_2 = call_complex allocateHeap, 24: Ptr
+    copy %v_2, %xs, 24
+    %v_3 = alloca 24, 8: Ptr
+    store %v_3, ResolveTest.lambda$0, 8
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, %v_2, 8
+    %v_5 = add %v_3, 16: Ptr
+    store %v_5, @typeDesc${xs: Array(Int)}, 8
+    copy %v_0, %v_3, 24
+    ret 
+  }
+}
+
+ResolveTest.lambda$0<complex>(%env: Ptr): Int {
+  b_0 {
+    %v_1 = call_complex total, %env: Int
+    ret %v_1
+  }
+}
+
+allocateHeap<complex>(%size: Long): Ptr {
+  b_0 {
+    %v_1 = load @heapFree, 8: Ptr
+    %v_2 = bitcast %v_1: Long
+    %v_3 = cmp_eq %v_2, 0: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    call_complex initHeap
+    %v_6 = load @heapFree, 8: Ptr
+    %v_7 = bitcast %v_6: Long
+    %v_8 = cmp_eq %v_7, 0: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_5 {
+    jmp b_11
+  }
+
+  b_9 {
+    %v_12 = bitcast 0: Ptr
+    ret %v_12
+  }
+
+  b_10 {
+    jmp b_13
+  }
+
+  b_13 {
+    jmp b_11
+  }
+
+  b_11 {
+    %v_14 = add %size, 8: Long
+    %sizeClass = call_complex heapClassOf, %v_14: Long
+    %v_15 = cmp_ige %sizeClass, 32: Int
+    je %v_15, b_16, b_17
+  }
+
+  b_16 {
+    %v_18 = bitcast 0: Ptr
+    ret %v_18
+  }
+
+  b_17 {
+    jmp b_19
+  }
+
+  b_19 {
+    %reused = call_complex freeListHead, %sizeClass: Ptr
+    %v_20 = bitcast %reused: Long
+    %v_21 = cmp_eq %v_20, 0: Int
+    %v_22 = xor %v_21, 1: Int
+    je %v_22, b_23, b_24
+  }
+
+  b_23 {
+    %v_25 = bitcast %reused: Ptr
+    %v_26 = load %v_25, 8: Ptr
+    call_complex setFreeListHead, %sizeClass, %v_26
+    ret %reused
+  }
+
+  b_24 {
+    jmp b_27
+  }
+
+  b_27 {
+    %block = load @heapNext, 8: Ptr
+    %blockSize = call_complex heapBlockSize, %sizeClass: Long
+    %v_28 = add %block, %blockSize: Ptr
+    %v_29 = load @heapLimit, 8: Ptr
+    %v_30 = cmp_gt %v_28, %v_29: Int
+    je %v_30, b_31, b_32
+  }
+
+  b_31 {
+    %v_33 = bitcast 0: Ptr
+    ret %v_33
+  }
+
+  b_32 {
+    jmp b_34
+  }
+
+  b_34 {
+    %v_35 = add %block, %blockSize: Ptr
+    store @heapNext, %v_35, 8
+    %v_36 = bitcast %block: Ptr
+    store %v_36, %sizeClass, 8
+    %v_37 = add %block, 8: Ptr
+    ret %v_37
+  }
+}
+
+freeListHead<complex>(%sizeClass: Long): Ptr {
+  b_0 {
+    %v_1 = load @heapFree, 8: Ptr
+    %v_2 = imul %sizeClass, 8: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    %v_4 = load %v_3, 8: Ptr
+    ret %v_4
+  }
+}
+
+total<complex>(%xs: Ptr): Int {
+  b_0 {
+    %sum = alloca 4, 4: Ptr
+    store %sum, 0, 4
+    %i = alloca 4, 4: Ptr
+    store %i, 0, 4
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = loads %i, 4: Int
+    %v_3 = call_complex length(Int), %xs: Int
+    %v_4 = cmp_ilt %v_2, %v_3: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = loads %sum, 4: Int
+    ret %v_7
+  }
+
+  b_5 {
+    %v_8 = loads %sum, 4: Int
+    %v_9 = loads %i, 4: Int
+    %v_10 = call_complex get(Int), %xs, %v_9: Ptr
+    %v_11 = loads %v_10, 4: Int
+    call_complex +=(Int), %sum, %v_11
+    %v_12 = loads %i, 4: Int
+    call_complex +=(Int), %i, 1
+    jmp b_1
+  }
+}
+
+moveInit${xs: Array(Int)}<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    %v_1 = bitcast %to: Ptr
+    %v_2 = bitcast %from: Ptr
+    copy %v_1, %v_2, 24
+    ret 
+  }
+}
+
+length(Int)<complex>(%self: Ptr): Int {
+  b_0 {
+    %v_1 = add %self, 8: Ptr
+    %v_2 = loads %v_1, 4: Int
+    ret %v_2
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex allocateHeap, 16: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 2, 4
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, 3, 4
+    %v_4 = add %v_1, 12: Ptr
+    store %v_4, 4, 4
+    %v_5 = alloca 24, 8: Ptr
+    store %v_5, %v_1, 8
+    %v_6 = add %v_5, 8: Ptr
+    %v_7 = imm 4: Int
+    store %v_6, %v_7, 4
+    %v_8 = add %v_5, 12: Ptr
+    store %v_8, %v_7, 4
+    %v_9 = add %v_5, 16: Ptr
+    store %v_9, 1, 4
+    %first = alloca 24, 8: Ptr
+    call_complex makeSummer, %first, %v_5
+    %v_10 = call_complex allocateHeap, 8: Ptr
+    store %v_10, 10, 4
+    %v_11 = add %v_10, 4: Ptr
+    store %v_11, 20, 4
+    %v_12 = alloca 24, 8: Ptr
+    store %v_12, %v_10, 8
+    %v_13 = add %v_12, 8: Ptr
+    %v_14 = imm 2: Int
+    store %v_13, %v_14, 4
+    %v_15 = add %v_12, 12: Ptr
+    store %v_15, %v_14, 4
+    %v_16 = add %v_12, 16: Ptr
+    store %v_16, 1, 4
+    %second = alloca 24, 8: Ptr
+    call_complex makeSummer, %second, %v_12
+    %v_17 = add %first, 8: Ptr
+    %v_18 = load %first, 8: Ptr
+    %v_19 = load %v_17, 8: Ptr
+    %v_20 = call_complex %v_18, %v_19: Int
+    call_complex drop$() -> Int, %first
+    call_complex reclaim$() -> Int, %first
+    %v_21 = add %second, 8: Ptr
+    %v_22 = load %second, 8: Ptr
+    %v_23 = load %v_21, 8: Ptr
+    %v_24 = call_complex %v_22, %v_23: Int
+    call_complex drop$() -> Int, %second
+    call_complex reclaim$() -> Int, %second
+    %v_25 = add %v_20, %v_24: Int
+    ret %v_25
+  }
+}
+

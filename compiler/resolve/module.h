@@ -32,6 +32,18 @@ struct Local {
     // Set for the slot behind a `&` parameter: the local names storage the caller owns, so it is
     // never allocated, never initialized here, and never dropped here.
     bool borrowed = false;
+
+    /*
+     * Set for the environment a closure captured into.
+     *
+     * This frame allocates it and the *function value* owns it: nothing here drops it and nothing
+     * here hands the storage back, because the closure's own derived teardown does both through the
+     * environment descriptor it carries. It is heap-placed for the same reason - a call through a
+     * function value is exactly where Design-Memory §13's escape analysis gives up, so an
+     * environment goes to the allocator rather than to the frame whether or not this particular
+     * closure turns out to outlive it.
+     */
+    bool closureEnv = false;
 };
 
 /*
@@ -114,7 +126,8 @@ struct Function {
     Block* addBlock(Module& module, StringId name = 0);
     Arg* addArg(Module& module, StringId name, TypePtr type, LocationId source);
     U32 addLocal(Module& module, TypePtr type, StringId name, ModulePtr<Value> value,
-                 ast::BindType convention = ast::BindType::Borrow, bool borrowed = false);
+                 ast::BindType convention = ast::BindType::Borrow, bool borrowed = false,
+                 bool closureEnv = false);
 
     Local localAt(ModuleBase base, U32 index) { return locals.get(base, index); }
     Size localCount() { return locals.size(); }
@@ -365,6 +378,14 @@ struct Program {
 
     // The class method tables, interned per class and argument list - see classWitnessFor.
     Array<InternedWitness> classWitnesses;
+
+    // The glue that lets a plain function be a function value, interned per function: one word of
+    // adapter that drops the environment every callable is handed. See expr_fun.cpp.
+    HashMap<U32, ModulePtr<Function>> functionThunks;
+
+    // Numbers the lifted lambda bodies of the whole program, so that two of them are never printed
+    // or linked under one name.
+    U32 lambdaCounter = 0;
 
     /*
      * Whether a concrete generic call site becomes a specialization or an erased call.

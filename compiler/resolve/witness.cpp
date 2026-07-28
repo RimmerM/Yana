@@ -4,6 +4,40 @@
 #include "generic.h"
 #include "name.h"
 
+TypePtr typeDescPlaceType(Module& module) {
+    auto& context = module.context;
+    auto word = module.scalar.int_;
+    auto address = resolvePointerType(module, module.scalar.unit);
+
+    Field fields[] = {
+        Field { word, context.addUnqualifiedName("logicalType", 11), 0 },
+        Field { word, context.addUnqualifiedName("size", 4), 0 },
+        Field { word, context.addUnqualifiedName("align", 5), 0 },
+        Field { word, context.addUnqualifiedName("stride", 6), 0 },
+        Field { word, context.addUnqualifiedName("flags", 5), 0 },
+        Field { address, context.addUnqualifiedName("moveInit", 8), 0 },
+        Field { address, context.addUnqualifiedName("reclaim", 7), 0 },
+        Field { address, context.addUnqualifiedName("drop", 4), 0 },
+    };
+
+    auto tuple = resolveTupleType(module, { fields, 8 }, kNullLocation);
+    auto base = *module.types;
+
+    // One layout described twice, so the two descriptions are checked against each other rather
+    // than believed. Five 32-bit words followed by three addresses is what puts `moveInit` at 24.
+    assertTrue(tuple->fields.get(base, TypeDescFields::kMoveInit).offset == TypeDescLayout::kMoveInit);
+    assertTrue(tuple->fields.get(base, TypeDescFields::kReclaim).offset == TypeDescLayout::kReclaim);
+    assertTrue(tuple->fields.get(base, TypeDescFields::kDrop).offset == TypeDescLayout::kDrop);
+    assertTrue(tuple->repr.size == TypeDescLayout::kSize_);
+
+    return (Type*)tuple - base;
+}
+
+TypePtr funValueFieldType(Module& module, U16 field) {
+    if(field == FunValueLayout::kDesc) return resolvePointerType(module, typeDescPlaceType(module));
+    return resolvePointerType(module, module.scalar.unit);
+}
+
 /*
  * Building the constants.
  *
@@ -239,7 +273,13 @@ static bool lowerablePlace(Module& module, Function& owner, const Place& place) 
                 type = ((RecordType*)global[type])->constructors.get(global, projection.index).content;
                 break;
             case ProjectionKind::Field:
-                type = ((TupType*)global[type])->fields.get(global, projection.index).type;
+                // A function value's three words are at fixed offsets whatever the body's type
+                // arguments turn out to be, so it is projected into like any other aggregate and
+                // needs no composite descriptor to do it.
+                type = global[type]->kind == Type::Fun
+                    ? funValueFieldType(module, projection.index)
+                    : ((TupType*)global[type])->fields.get(global, projection.index).type;
+
                 break;
             case ProjectionKind::Deref:
                 type = pointeeType(global, type);
@@ -667,6 +707,22 @@ static bool bodyLowerable(Module& module, ModulePtr<Function> function,
             // which are only right when every field before the projected one has a size independent
             // of the type arguments. Rather than depend on that accident, such a body specializes.
             if(!lowerablePlaces(module, *target, inst)) return false;
+
+            /*
+             * A call through a function value whose *type* the body cannot see.
+             *
+             * `f: (a) -> a` is compiled once for every `a`, so the body passes `x` the way an erased
+             * body passes everything - by address - while whatever the caller put in `f` is a
+             * concrete function expecting whatever `a` turned out to be. Adapting between the two is
+             * what a `FunctionWitness` is for: it carries the environment *and* the shape the
+             * callable was compiled at, which a bare `{code, env, envDesc}` does not.
+             *
+             * Until that exists such a body specializes, which is always available for a concrete
+             * argument list - the same staging every other gap here uses.
+             */
+            if(inst.kind == Value::CallDyn && isGeneric(global, ((InstCallDyn&)inst).signature)) {
+                return false;
+            }
 
             if(inst.kind != Value::GenCall) continue;
 
