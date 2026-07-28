@@ -177,7 +177,7 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
 
     // Globals go after every function, since this is a flat buffer rather than an object file
     // with sections - see AsmModule::addGlobal.
-    for(auto globalPointer: module.globals) assembly.addGlobal(base[globalPointer]);
+    for(auto globalPointer: module.globals) assembly.addGlobal(base, base[globalPointer]);
     assembly.resolveRelocations();
 
     auto mainName = Context::nameHash("main", 4);
@@ -195,6 +195,11 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
     if(memory == MAP_FAILED) return Nothing();
 
     copy(assembly.buffer.buffer, (Byte*)memory, byteCount);
+
+    // The addresses inside constant data are only knowable now: a witness table holding a function
+    // pointer needs the address the module was actually mapped at. A linker would emit these as
+    // dynamic relocations and let the loader do exactly this.
+    assembly.applyDataRelocations((Byte*)memory);
 
     // Writable as well as executable, because the code and the globals share one mapping here.
     // A real linker gives them separate sections with separate protection; this driver exists to

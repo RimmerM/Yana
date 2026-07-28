@@ -1486,6 +1486,26 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
 }
 
 void AsmModule::resolveRelocations() {
+    // The data sites first, since they only need the target's offset and every symbol is known by
+    // now. What they cannot have yet is the load address, which applyDataRelocations supplies.
+    for(auto& r: pendingData) {
+        U32 target;
+
+        if(r.function) {
+            auto o = functionOffsets.getValue(r.function);
+            assertTrue(o.isJust());
+            target = o.unwrap();
+        } else {
+            auto o = globalOffsets.getValue(r.global);
+            assertTrue(o.isJust());
+            target = o.unwrap();
+        }
+
+        dataRelocations.push(AsmDataRelocation { .siteOffset = r.siteOffset, .targetOffset = target });
+    }
+
+    pendingData.clear();
+
     for(auto& r: relocations) {
         U32 target;
 

@@ -211,7 +211,7 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
 
     // After all code, so the two never interleave - see AsmModule::addGlobal.
     for(auto& g: module.globals) {
-        asm_.addGlobal(base[g]);
+        asm_.addGlobal(base, base[g]);
     }
 
     asm_.resolveRelocations();

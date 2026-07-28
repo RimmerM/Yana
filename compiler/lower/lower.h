@@ -510,6 +510,28 @@ struct LowerFunction {
     LowerCallType callType = kDefaultCallType;
 };
 
+/*
+ * One address inside a global's initial contents that only the loader can fill in.
+ *
+ * A constant table holding the address of a function or of another global cannot state that
+ * address as bytes: nothing knows where the module will be placed until it is. So the bytes are
+ * left zero, the site is recorded here, and whoever maps the module writes `base + offset` into it.
+ * That is the same thing an object file's `R_X86_64_64` says, spelled for a flat buffer.
+ *
+ * This is what makes the generic model's witness tables - a TypeDesc's `drop`, a class witness's
+ * method slots - ordinary constant data rather than something assembled at run time on every call.
+ */
+struct LowerGlobal;
+
+struct LowerDataRelocation {
+    // Where in `initialContents` the 8-byte address goes.
+    U32 offset = 0;
+
+    // Exactly one of these is set.
+    LowerPtr<LowerFunction> function = nullptr;
+    LowerPtr<LowerGlobal> global = nullptr;
+};
+
 struct LowerGlobal {
     explicit LowerGlobal(StringId name): name(name) {}
 
@@ -519,6 +541,9 @@ struct LowerGlobal {
 
     // Also defines the size; uninitialized globals are filled with zeroes.
     ByteBuffer initialContents;
+
+    // The addresses inside `initialContents` that are not known until the module is placed.
+    LowerList<LowerDataRelocation, false> relocations;
 };
 
 struct LowerModule {

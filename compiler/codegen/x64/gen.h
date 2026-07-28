@@ -928,12 +928,34 @@ struct AsmRelocation {
     LowerGlobal* global = nullptr;
 };
 
+/*
+ * An absolute address inside emitted constant data - LowerDataRelocation, after placement.
+ *
+ * Kept apart from AsmRelocation because it is a different kind of fixup: that one is a rel32 in an
+ * instruction, patched once every symbol's offset is known, and this one is a full 64-bit address
+ * that stays unknown until the module is mapped. Both offsets are recorded here; the addition
+ * happens in applyDataRelocations, which is the last thing to touch the buffer.
+ */
+struct AsmDataRelocation {
+    // Where in the buffer the 8-byte address goes.
+    U32 siteOffset;
+
+    // The buffer offset of what it points at.
+    U32 targetOffset;
+};
+
 struct AsmModule {
     explicit AsmModule(Size initialSize = 4096): buffer(initialSize) {}
 
     Net::BufferWriter buffer;
     Array<AsmBlock> blocks;
     Array<AsmRelocation> relocations;
+    Array<AsmDataRelocation> dataRelocations;
+
+    // Data relocations whose target offset is not known yet, because the global or function they
+    // name had not been emitted when the data holding them was. Drained by resolveRelocations.
+    Array<AsmRelocation> pendingData;
+
     HashMap<LowerBlock*, U32> blockOffsets;
     HashMap<LowerFunction*, U32> functionOffsets;
     HashMap<LowerGlobal*, U32> globalOffsets;
@@ -964,11 +986,37 @@ struct AsmModule {
     // there are no sections), so callers should emit all functions first and all globals after,
     // keeping executable and non-executable bytes from interleaving. Offsets are 16-byte aligned
     // so that a global is never split across a cache line by whatever preceded it.
-    void addGlobal(LowerGlobal* global) {
+    void addGlobal(LowerBase base, LowerGlobal* global) {
         while(buffer.offset() & 15) buffer.writeByte(0);
 
-        globalOffsets.add(global, U32(buffer.offset()));
+        auto start = U32(buffer.offset());
+        globalOffsets.add(global, start);
         buffer.writeBytes(global->initialContents.data(), global->initialContents.size());
+
+        // The sites are recorded against the emitted copy rather than against the source bytes, and
+        // their targets are looked up in resolveRelocations - the global this one points at may not
+        // have been emitted yet.
+        for(auto relocation: global->relocations.contents(base)) {
+            pendingData.push(AsmRelocation {
+                .siteOffset = start + relocation.offset,
+                .function = relocation.function ? base[relocation.function] : nullptr,
+                .global = relocation.global ? base[relocation.global] : nullptr,
+            });
+        }
+    }
+
+    /*
+     * Writes the real addresses into the data relocation sites, given where the module was placed.
+     *
+     * Separate from resolveRelocations because it needs something that one does not: the address the
+     * buffer ended up at. Whoever maps the module calls this once, afterwards; a linker would emit
+     * the same list as dynamic relocations and let the loader do it.
+     */
+    void applyDataRelocations(Byte* loadBase) {
+        for(auto& relocation: dataRelocations) {
+            auto address = U64(loadBase) + U64(relocation.targetOffset);
+            copy((const Byte*)&address, buffer.buffer + relocation.siteOffset, sizeof(U64));
+        }
     }
 
     // Records a placeholder relocation at the rel32 field about to be written at the buffer's

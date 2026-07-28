@@ -50,6 +50,8 @@ set(RESOLVE_SOURCE_FILES
     resolve/type.cpp
     resolve/generic.h
     resolve/generic.cpp
+    resolve/witness.h
+    resolve/witness.cpp
     resolve/analyze.h
     resolve/analyze.cpp
     resolve/print.cpp
