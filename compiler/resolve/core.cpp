@@ -366,8 +366,8 @@ static TypePtr coreType(Module& module, StringView name) {
 void defineCore(Program& program) {
     auto& context = program.context;
 
-    program.scalar.error = (Type*)new (program.types) Type(Type::Error, 0) - *program.types;
-    program.scalar.unit = (Type*)new (program.types) Type(Type::Unit, 0) - *program.types;
+    program.scalar.error = (Type*)new (program.types) Type(Type::Error) - *program.types;
+    program.scalar.unit = (Type*)new (program.types) Type(Type::Unit) - *program.types;
 
     auto name = context.addQualifiedName("Core", 4, 1);
     Lexer lexer(context, context.diagnostics, StringView { kCoreSource, stringLength(kCoreSource) }, name);

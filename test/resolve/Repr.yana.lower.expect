@@ -1,0 +1,60 @@
+
+useRaw<complex>(%it: Ptr): Int {
+  b_0 {
+    %v_1 = load %it, 8: Ptr
+    %v_2 = bitcast %v_1: Long
+    %v_3 = cmp_eq %v_2, 0: Int
+    ret %v_3
+  }
+}
+
+useFlags<complex>(%it: Ptr): Int {
+  b_0 {
+    %v_1 = load %it, 4: Int
+    ret %v_1
+  }
+}
+
+useWrapped<complex>(%it: Ptr): Long {
+  b_0 {
+    %v_1 = load %it, 8: Long
+    ret %v_1
+  }
+}
+
+useId<complex>(%it: Long): Long {
+  b_0 {
+    ret %it
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %flags = alloca 8, 4: Ptr
+    store %flags, 1, 4
+    %v_1 = add %flags, 4: Ptr
+    store %v_1, 0, 4
+    %wrapped = alloca 8, 8: Ptr
+    store %wrapped, 7, 8
+    %v_2 = call_complex useWrapped, %wrapped: Long
+    %widened = cast %v_2: Long
+    %v_3 = call_complex useFlags, %flags: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    jmp b_6
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_4, 1], [b_5, 0]: Int
+    %v_8 = cast %widened: Int
+    %v_9 = add %v_7, %v_8: Int
+    ret %v_9
+  }
+}
+

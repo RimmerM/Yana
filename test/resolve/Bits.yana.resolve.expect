@@ -1,0 +1,35 @@
+fn double(%it: @bits(53) U64) -> @bits(53) U64 {
+  b0:
+    %it = cast %it : U64
+    %it = cast %it : U64
+    %v3 = add %it, %it : U64
+    %v5 = and %v3, 9007199254740991 : U64
+    %v6 = cast %v5 : @bits(53) U64
+    ret %v6
+}
+
+fn asPlain(%it: U64) -> U64 {
+  b0:
+    ret %it
+}
+
+fn main() -> Int {
+  b0:
+    %doubled = call double, %small : @bits(53) U64
+    %doubled = cast %doubled : U64
+    %widened = call asPlain, %doubled : U64
+    %record = alloc : Packed
+    init %local0@Packed.version, 3
+    init %local0@Packed.length, 4000
+    %v9 = load %local0@Packed.version : @bits(4) U32
+    %v10 = cast %v9 : U32
+    %v11 = cast %v10 : Int
+    %v14 = mul %v11, 10000 : Int
+    %v15 = load %local0@Packed.length : @bits(13) U32
+    %v16 = cast %v15 : U32
+    %v17 = cast %v16 : Int
+    %fields = add %v14, %v17 : Int
+    %v19 = cast %widened : Int
+    %v20 = add %v19, %fields : Int
+    ret %v20
+}

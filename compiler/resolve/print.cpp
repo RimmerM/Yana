@@ -154,6 +154,14 @@ static StringView instructionName(Value& value, GlobalBase global) {
 
             return "drop_derived"_v;
         case Value::Address: return "addressof"_v;
+        case Value::TypeMetric:
+            switch(((InstTypeMetric&)value).metric) {
+                case TypeMetricKind::Size: return "sizeof"_v;
+                case TypeMetricKind::Align: return "alignof"_v;
+                case TypeMetricKind::Stride: return "strideof"_v;
+            }
+
+            return "sizeof"_v;
         case Value::Native:
             switch(((InstNative&)value).op) {
                 case NativeOp::CopyMemory: return "copymemory"_v;
@@ -331,6 +339,13 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
         case Value::Address:
             print.writer.writeByte(' ');
             printPlace(print, *function, ((InstAddress&)inst).place);
+            break;
+        case Value::TypeMetric:
+            // The type, not a number. What the number is depends on the target, and printing it
+            // here would make every fixture that measures anything an assertion about the machine
+            // this compiler happened to be built for.
+            print.writer.writeByte(' ');
+            printType(print, ((InstTypeMetric&)inst).of);
             break;
         case Value::Native: {
             auto& native = (InstNative&)inst;

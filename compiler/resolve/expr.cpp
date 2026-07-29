@@ -393,6 +393,46 @@ ModulePtr<Value> ExprResolver::convertBorrow(ModulePtr<Value> value, TypePtr fro
     return value;
 }
 
+/*
+ * Between a `@bits` refinement and what it refines.
+ *
+ * Neither direction is a class instance, and that is the point: `@bits` exists so that a program can
+ * narrow storage without acquiring a family of arithmetic types, so if the conversion needed a
+ * `Widen(Id, U64)` somebody would have to write one per refinement and the feature would cost more
+ * than it saves.
+ *
+ * Widening is free. The two types have the same `width`, so the value is already the right bits in
+ * the right register and only the *type* of the IR value changes - which is what the cast says, and
+ * lowering emits nothing for a same-width one.
+ *
+ * Narrowing masks. A refined value has to satisfy its own range or the patterns above it are not
+ * free after all, and a `Maybe(Id)` that folded its discriminant into those patterns would read a
+ * `Just` holding 2^60 as a `Nothing`. So the mask is not an optimization to skip - it is what makes
+ * the niche true. Per this pass's scope it truncates silently; the debug-build range check that
+ * reports instead is a later addition, and this is the one place it will go.
+ */
+ModulePtr<Value> ExprResolver::convertRefinement(ModulePtr<Value> value, TypePtr from, TypePtr target,
+                                                 LocationId source) {
+    if(global[from]->kind != Type::Int || global[target]->kind != Type::Int) return nullptr;
+
+    auto canonical = canonicalType(global, from);
+    if(canonical != canonicalType(global, target)) return nullptr;
+
+    auto& wanted = *(IntType*)global[target];
+    auto& held = *(IntType*)global[from];
+
+    // Widening, including a refinement to a narrower one that already fits inside the target.
+    if(held.bits <= wanted.bits) {
+        return ref(emit<InstUnary>(source, local[value]->name, target, Value::Cast, value));
+    }
+
+    auto mask = wanted.bits >= 64 ? maxLimit<U64> : (U64(1) << wanted.bits) - 1;
+    auto masked = ref(emit<InstBinary>(source, 0, from, Value::And, value,
+                                       makeInt(source, from, mask)));
+
+    return ref(emit<InstUnary>(source, local[value]->name, target, Value::Cast, masked));
+}
+
 ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, LocationId source, bool implicit) {
     if(!value || !target) return value;
 
@@ -404,6 +444,7 @@ ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, L
 
     if(sameType(from, target)) return value;
     if(global[from]->kind == Type::Error || global[target]->kind == Type::Error) return value;
+    if(auto refined = convertRefinement(value, from, target, source)) return refined;
 
     // A borrow converts to and from exactly one thing - the type it refers to - so when either side
     // is one, that is the whole of the decision and there is no widening path to fall through to.
@@ -462,6 +503,14 @@ bool ExprResolver::convertible(ModulePtr<Value> value, TypePtr target, LocationI
     }
 
     if(isBorrow(global, from)) return sameType(((BorrowType*)global[from])->to, target);
+
+    // A `@bits` refinement converts to and from what it refines without an instance - see
+    // convertRefinement. Overload selection has to agree with convert() about that, or a candidate
+    // taking a `U64` would be rejected for an `Id` argument convert() would have accepted.
+    if(canonicalType(global, from) == canonicalType(global, target) &&
+       global[from]->kind == Type::Int) {
+        return true;
+    }
 
     TypePtr args[] = { from, target };
     return findInstance(module, module.coreClasses.widen, { args, 2 }) != nullptr;

@@ -313,7 +313,24 @@ static bool instanceApplies(Module& module, ClassInstance& instance, Buffer<Type
     auto local = *module.arena;
     auto env = instance.gen ? global[instance.gen] : nullptr;
 
-    if(!env) return sameTypes(instance.forTypes, local, args);
+    /*
+     * A head with no variables still cannot be compared by pointer equality, because a `@bits`
+     * refinement is a distinct type that must dispatch as the type it refines: `instance Num(U64)`
+     * has to answer `Num(Id)`. matchType() knows that, and the fast path here bypassed it - which
+     * is exactly the kind of second, less careful copy of a rule that makes a feature work in one
+     * place and not another.
+     */
+    if(!env) {
+        if(instance.forTypes.size() != args.length) return false;
+
+        Size index = 0;
+        for(auto pattern: instance.forTypes.contents(local)) {
+            if(canonicalType(global, pattern) != canonicalType(global, args[index++])) return false;
+        }
+
+        return true;
+    }
+
     if(instance.forTypes.size() != args.length) return false;
 
     for(Size i = 0; i < env->types.size(); i++) bindings.push(nullptr);

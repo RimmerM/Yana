@@ -452,6 +452,14 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             result = resolver.emit<InstAddress>(inst.source, inst.name, type,
                                                 clonePlace(clone, ((InstAddress&)inst).place));
             break;
+        case Value::TypeMetric: {
+            // The measured type is substituted like any other, which is what turns `sizeOf(x)` in a
+            // generic body from a load out of the descriptor into a constant in the specialization.
+            auto& metric = (InstTypeMetric&)inst;
+            result = resolver.emit<InstTypeMetric>(inst.source, inst.name, type,
+                                                   cloneType(clone, metric.of), metric.metric);
+            break;
+        }
         case Value::Native: {
             auto& native = (InstNative&)inst;
             auto cloned = resolver.create<InstNative>(inst.source, inst.name, type, native.op);

@@ -183,7 +183,7 @@ Binding* ExprResolver::captureBinding(StringId name) {
 
     auto index = U16(captures.size());
     captures.push(capture);
-    envType->fields.push(module.types, Field { fieldType, name, 0 });
+    envType->fields.push(module.types, Field { fieldType, name });
 
     Binding binding;
     binding.name = name;
@@ -526,9 +526,12 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
 
     auto type = resolveFunType(module, toBuffer(signature), lambda->returnType, ast::FunKind::Plain);
 
-    // The environment is complete once the body is, so its layout can be decided.
+    // The environment is complete once the body is. Nothing is decided here any more - a code
+    // generator lays the tuple out when it emits - but a capture that made the environment contain
+    // itself would still be an infinitely large value, and that is a source error worth reporting
+    // against the lambda rather than against whichever backend noticed.
     auto envType = (Type*)envTuple - global;
-    finishTupleRepr(module, *envTuple, source);
+    checkTypeAcyclic(module, envType, source);
 
     // A lambda that captured nothing gets neither storage nor a header: the value's second word is
     // null, and its teardown is a branch that never fires.

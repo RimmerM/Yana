@@ -10,14 +10,14 @@ TypePtr typeDescPlaceType(Module& module) {
     auto address = resolvePointerType(module, module.scalar.unit);
 
     Field fields[] = {
-        Field { word, context.addUnqualifiedName("logicalType", 11), 0 },
-        Field { word, context.addUnqualifiedName("size", 4), 0 },
-        Field { word, context.addUnqualifiedName("align", 5), 0 },
-        Field { word, context.addUnqualifiedName("stride", 6), 0 },
-        Field { word, context.addUnqualifiedName("flags", 5), 0 },
-        Field { address, context.addUnqualifiedName("moveInit", 8), 0 },
-        Field { address, context.addUnqualifiedName("reclaim", 7), 0 },
-        Field { address, context.addUnqualifiedName("drop", 4), 0 },
+        Field { word, context.addUnqualifiedName("logicalType", 11) },
+        Field { word, context.addUnqualifiedName("size", 4) },
+        Field { word, context.addUnqualifiedName("align", 5) },
+        Field { word, context.addUnqualifiedName("stride", 6) },
+        Field { word, context.addUnqualifiedName("flags", 5) },
+        Field { address, context.addUnqualifiedName("moveInit", 8) },
+        Field { address, context.addUnqualifiedName("reclaim", 7) },
+        Field { address, context.addUnqualifiedName("drop", 4) },
     };
 
     auto tuple = resolveTupleType(module, { fields, 8 }, kNullLocation);
@@ -25,12 +25,19 @@ TypePtr typeDescPlaceType(Module& module) {
 
     // One layout described twice, so the two descriptions are checked against each other rather
     // than believed. Five 32-bit words followed by three addresses is what puts `moveInit` at 24.
-    assertTrue(tuple->fields.get(base, TypeDescFields::kMoveInit).offset == TypeDescLayout::kMoveInit);
-    assertTrue(tuple->fields.get(base, TypeDescFields::kReclaim).offset == TypeDescLayout::kReclaim);
-    assertTrue(tuple->fields.get(base, TypeDescFields::kDrop).offset == TypeDescLayout::kDrop);
-    assertTrue(tuple->repr.size == TypeDescLayout::kSize_);
+    //
+    // The check asks the *program's* Repr table rather than the type, because a type no longer knows
+    // where its fields are. That makes it a check of the target actually being compiled for, which is
+    // stricter than what it replaced: a target whose layout rule put `moveInit` somewhere else would
+    // now be caught here instead of writing bytes the emitted loads disagree with.
+    auto self = (Type*)tuple - base;
+    auto& repr = module.program.repr;
+    assertTrue(repr.fieldOf(self, TypeDescFields::kMoveInit)->offset == TypeDescLayout::kMoveInit);
+    assertTrue(repr.fieldOf(self, TypeDescFields::kReclaim)->offset == TypeDescLayout::kReclaim);
+    assertTrue(repr.fieldOf(self, TypeDescFields::kDrop)->offset == TypeDescLayout::kDrop);
+    assertTrue(repr.sizeOf(self) == TypeDescLayout::kSize_);
 
-    return (Type*)tuple - base;
+    return self;
 }
 
 TypePtr funValueFieldType(Module& module, U16 field) {
@@ -64,8 +71,8 @@ TypePtr closureHeaderPlaceType(Module& module) {
     auto address = resolvePointerType(module, module.scalar.unit);
 
     Field fields[] = {
-        Field { address, context.addUnqualifiedName("drop", 4), 0 },
-        Field { address, context.addUnqualifiedName("reclaim", 7), 0 },
+        Field { address, context.addUnqualifiedName("drop", 4) },
+        Field { address, context.addUnqualifiedName("reclaim", 7) },
     };
 
     auto tuple = resolveTupleType(module, { fields, 2 }, kNullLocation);
@@ -74,10 +81,12 @@ TypePtr closureHeaderPlaceType(Module& module) {
     // One layout described twice - see typeDescPlaceType, which checks its own for the same reason.
     // This one has a second reader that the descriptor does not: the code generator, which has to
     // place these bytes at exactly this distance in front of an entry point.
-    assertTrue(tuple->fields.get(base, ClosureHeaderFields::kReclaim).offset == ClosureHeaderLayout::kReclaim);
-    assertTrue(tuple->repr.size == ClosureHeaderLayout::kSize_);
+    auto self = (Type*)tuple - base;
+    auto& repr = module.program.repr;
+    assertTrue(repr.fieldOf(self, ClosureHeaderFields::kReclaim)->offset == ClosureHeaderLayout::kReclaim);
+    assertTrue(repr.sizeOf(self) == ClosureHeaderLayout::kSize_);
 
-    return (Type*)tuple - base;
+    return self;
 }
 
 /*
@@ -271,10 +280,10 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
     if(auto found = program.moveInitGlue.get(U32(type))) return found.unwrap();
 
     auto ownership = ownershipOf(module, type);
-    auto size = typeSize(*module.types, type);
-
-    // Nothing to relocate: a zero-sized type, or one whose bytes the caller has already placed.
-    if(!size) return nullptr;
+    // Nothing to relocate: a type that carries no information at all. Asked of the logical shape
+    // rather than of a size, so that the answer is the same on every target - whether a `()` needs
+    // moving is a fact about `()`, not about how wide it happens to be.
+    if(isUnit(*module.types, type)) return nullptr;
 
     if(ownership.authoredSink) {
         auto implementation = instanceImplementation(module, module.coreClasses.sink, type, source);
@@ -317,7 +326,8 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
     // The bytes. copyMemory rather than a load and a store because the size is a constant here and
     // the type may be an aggregate with no register form at all.
     {
-        auto bytes = resolver.makeInt(source, module.scalar.long_, size);
+        auto bytes = resolver.ref(resolver.emit<InstTypeMetric>(source, 0, module.scalar.long_,
+                                                                type, TypeMetricKind::Size));
         auto byteType = resolvePointerType(module, module.scalar.unit);
 
         auto castTo = resolver.ref(resolver.emit<InstUnary>(source, 0, byteType, Value::Cast,
@@ -1090,13 +1100,14 @@ ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source) {
     *program.typeDescs.add(U32(type)).value = pointer;
 
     auto ownership = ownershipOf(module, type);
-    auto size = typeSize(*module.types, type);
-    auto align = typeAlign(*module.types, type);
+    auto& repr = module.program.repr.of(type);
+    auto size = repr.size;
+    auto align = repr.align;
 
     TableBuilder table(module, TypeDescLayout::kSize_);
     table.putU32(TypeDescLayout::kSize, size);
     table.putU32(TypeDescLayout::kAlign, align);
-    table.putU32(TypeDescLayout::kStride, align ? ((size + align - 1) & ~(align - 1)) : size);
+    table.putU32(TypeDescLayout::kStride, repr.stride);
 
     // Nothing selects a non-canonical Repr yet, and no type declares that it must keep its address,
     // so the only source of a stable-address requirement is a Repr variant - which is Milestone 8's.

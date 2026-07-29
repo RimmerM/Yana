@@ -299,42 +299,55 @@ static ModulePtr<Value> emitBorrowAt(ExprResolver& resolver, Buffer<ModulePtr<Va
     return resolver.ref(resolver.emit<InstBorrow>(source, name, type, Place::atPointer(args[0]), mut));
 }
 
+/*
+ * `sizeOf(x)` and `alignOf(x)`.
+ *
+ * A question rather than an answer, now that layout is a target's business: the instruction carries
+ * the type and whoever emits folds it. That costs nothing on the concrete path - it is one immediate
+ * either way - and it is what makes these work inside a generic body at all, where there is no
+ * number to fold and the width comes out of the caller's TypeDesc instead.
+ */
 static ModulePtr<Value> emitSizeOf(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                   LocationId source, StringId) {
-    return resolver.makeInt(source, type, typeSize(resolver.global, resolver.valueType(args[0])));
+                                   LocationId source, StringId name) {
+    return resolver.ref(resolver.emit<InstTypeMetric>(source, name, type, resolver.valueType(args[0]),
+                                                      TypeMetricKind::Size));
 }
 
 static ModulePtr<Value> emitAlignOf(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                    LocationId source, StringId) {
-    return resolver.makeInt(source, type, typeAlign(resolver.global, resolver.valueType(args[0])));
+                                    LocationId source, StringId name) {
+    return resolver.ref(resolver.emit<InstTypeMetric>(source, name, type, resolver.valueType(args[0]),
+                                                      TypeMetricKind::Align));
 }
 
-// `p + n` and `p - n`, in elements. The scale is folded away when the element is a byte, which is
-// what makes `%U8` the type byte arithmetic is written in without paying for a multiply.
+/*
+ * `p + n` and `p - n`, in elements.
+ *
+ * The scale used to be folded here, and skipped entirely for a one-byte element - which is what made
+ * `%U8` the type byte arithmetic is written in without paying for a multiply. Both halves of that
+ * moved rather than disappeared: the scale is a TypeMetric, and the multiply by the one it folds to
+ * is removed where every other constant-folding decision is made, in the translation to the lower IR.
+ * The resolver no longer claims to know how wide a `U8` is on the target being built for.
+ */
 template<Value::Kind kind>
 static ModulePtr<Value> emitPointerOffset(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                           LocationId source, StringId name) {
-    auto size = typeSize(resolver.global, elementType(resolver, args));
-    auto offset = args[1];
-
-    if(size != 1) {
-        auto scale = resolver.makeInt(source, resolver.valueType(offset), size);
-        offset = resolver.ref(resolver.emit<InstBinary>(source, 0, resolver.valueType(offset),
-                                                        Value::Mul, offset, scale));
-    }
+    auto offsetType = resolver.valueType(args[1]);
+    auto scale = resolver.ref(resolver.emit<InstTypeMetric>(source, 0, offsetType,
+                                                            elementType(resolver, args),
+                                                            TypeMetricKind::Stride));
+    auto offset = resolver.ref(resolver.emit<InstBinary>(source, 0, offsetType, Value::Mul,
+                                                         args[1], scale));
 
     return resolver.ref(resolver.emit<InstBinary>(source, name, type, kind, args[0], offset));
 }
 
 static ModulePtr<Value> emitDifference(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                        LocationId source, StringId name) {
-    auto size = typeSize(resolver.global, elementType(resolver, args));
-    auto bytes = resolver.ref(resolver.emit<InstBinary>(source, size == 1 ? name : 0, type,
-                                                        Value::Sub, args[1], args[0]));
+    auto bytes = resolver.ref(resolver.emit<InstBinary>(source, 0, type, Value::Sub, args[1], args[0]));
+    auto scale = resolver.ref(resolver.emit<InstTypeMetric>(source, 0, type,
+                                                            elementType(resolver, args),
+                                                            TypeMetricKind::Stride));
 
-    if(size == 1) return bytes;
-
-    auto scale = resolver.makeInt(source, type, size);
     return resolver.ref(resolver.emit<InstBinary>(source, name, type, Value::Div, bytes, scale));
 }
 

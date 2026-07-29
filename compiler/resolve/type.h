@@ -22,11 +22,6 @@ struct GenType;
 struct TypeClass;
 using TypePtr = GlobalPtr<Type>;
 
-struct Repr {
-    U32 size = 0;
-    U32 align = 1;
-};
-
 /*
  * How one half of a teardown is supplied.
  *
@@ -86,10 +81,24 @@ struct Ownership {
     bool needsTeardown() const { return reclaim != TeardownKind::None || drop != TeardownKind::None; }
 };
 
-// Resolve types live in one region shared by every module of a program, so that a type
-// resolved in Core is the same TypePtr when a user module names it. Interning is what makes
-// that identity meaningful: sameType() is pointer equality, and instance selection, generic
-// instantiation caching and Repr all depend on it.
+/*
+ * Resolve types live in one region shared by every module of a program, so that a type resolved in
+ * Core is the same TypePtr when a user module names it. Interning is what makes that identity
+ * meaningful: sameType() is pointer equality, and instance selection, generic instantiation caching
+ * and Repr all depend on it.
+ *
+ * **A Type carries no layout.** No size, no alignment, no field offsets - see compiler/repr/repr.h
+ * for where those live and why they are a code generator's business rather than the resolver's. What
+ * is here is the *logical* shape, and the resolver reasons entirely in terms of it: a place is a
+ * root plus a path of field indices, never a byte offset, so ownership, borrows, drops, escape and
+ * provenance are all decided without anyone knowing how wide anything is.
+ *
+ * The one layout-shaped question resolve does answer is isDirectType() - whether a value lives in a
+ * register or in storage - and that is deliberately computed from the kind alone. It has to be
+ * target-independent, because it decides whether a call result gets a local and therefore what the
+ * ownership passes see; a version of it that consulted a target's Repr would make the set of
+ * accepted programs depend on which backend was running.
+ */
 struct Type {
     enum Kind: U8 {
         Error,
@@ -110,13 +119,10 @@ struct Type {
         Literal,
     };
 
-    Type(Kind kind, U16 virtualSize, Repr repr = {}):
-        virtualSize(virtualSize), repr(repr), kind(kind) {}
+    explicit Type(Kind kind): kind(kind) {}
 
     GlobalPtr<Byte> descriptor = nullptr;
     U16 descriptorLength = 0;
-    U16 virtualSize;
-    Repr repr;
     Kind kind;
 
     // Set when a type variable is reachable inside this type. A generic type has no Repr and
@@ -143,6 +149,26 @@ struct Type {
  * `name` is carried rather than derived from `(bits, isSigned)` because Core's `Int` and Native's
  * `I32` are two distinct types of identical shape - separate interned Types with separate class
  * instances - and a diagnostic has to say which one it meant.
+ *
+ * ## `@bits(n)`, and why it makes a type
+ *
+ * `alias Id = @bits(53) U64` interns an IntType with `bits = 53` and `canonical` naming `U64`.
+ *
+ * Design.md's "Bit-width refinements" says `@bits(n)` is Repr-only and that generic code sees a
+ * plain `UInt`, which reads as though it should not make a type at all. It has to. Repr is a
+ * function of the logical type, so if `Id` and `U64` were one type then `Maybe(Id)` and `Maybe(U64)`
+ * would be one type as well, and could not have different layouts - which is exactly the thing the
+ * refinement exists to buy. `Maybe(Id)` is one machine word because eleven of `Id`'s patterns are
+ * unreachable, and `Maybe(U64)` is two because none of `U64`'s are.
+ *
+ * What the design document is actually asking for is that the refinement never reaches *dispatch*,
+ * and `canonical` is how that is delivered rather than by collapsing the types. Instance selection,
+ * matchType, literal defaulting and overload resolution all canonicalize first, so `Num(Id)`,
+ * `Eq(Id)` and the literal in `let x: Id = 1` are answered by `U64`'s instances and nobody writes an
+ * instance per width. Assigning an `Id` to a `U64` is free, and the other direction masks.
+ *
+ * So the split the type already had - `bits` is storage, `width` is what a load produces - is the
+ * whole mechanism, and the only new thing is that `bits` may now be set independently of `width`.
  */
 struct IntType: Type {
     enum Width: U8 {
@@ -151,15 +177,34 @@ struct IntType: Type {
         Long,
     };
 
-    IntType(U16 bits, Width width, bool isSigned, StringId name = 0):
-        Type(Type::Int, 1, { U32(bits / 8), U32(bits / 8) }),
-        name(name), bits(bits), width(width), isSigned(isSigned) {}
+    IntType(U16 bits, Width width, bool isSigned, StringId name = 0, TypePtr canonical = nullptr):
+        Type(Type::Int), name(name), canonical(canonical), bits(bits), width(width),
+        isSigned(isSigned) {}
 
     StringId name;
+
+    // The unrefined type this is a `@bits` refinement of, or null when this *is* the unrefined one.
+    // Followed by everything that dispatches, and by nothing that lays out.
+    TypePtr canonical;
+
     U16 bits;
     Width width;
     bool isSigned;
 };
+
+/*
+ * The type a dispatch should see - a `@bits` refinement's unrefined form, and everything else
+ * unchanged.
+ *
+ * Every caller is somewhere a *decision* is made about which code runs: which instance serves a
+ * constraint, whether two types unify, what a literal defaults to. Layout deliberately does not call
+ * it, because the refinement is precisely what layout is for.
+ */
+TypePtr canonicalType(GlobalBase base, TypePtr type);
+
+// The `@bits(n)` refinement of an integer type, interned per (base type, width). Reports and
+// returns the base type when `n` is out of range or the type is not an integer.
+TypePtr resolveBitsType(Module& module, TypePtr base, U32 bits, LocationId source);
 
 /*
  * A raw pointer - Design.md's `%T`, aliased `Ptr(a)`.
@@ -173,7 +218,7 @@ struct IntType: Type {
  */
 struct PtrType: Type {
     explicit PtrType(TypePtr to):
-        Type(Type::Ptr, 1, { 8, 8 }), to(to) {}
+        Type(Type::Ptr), to(to) {}
 
     TypePtr to;
 };
@@ -194,7 +239,7 @@ struct PtrType: Type {
  */
 struct BorrowType: Type {
     BorrowType(TypePtr to, bool mut):
-        Type(Type::Borrow, 1, { 8, 8 }), to(to), mut(mut) {}
+        Type(Type::Borrow), to(to), mut(mut) {}
 
     TypePtr to;
 
@@ -238,7 +283,7 @@ struct FunArg {
  * teardown is a branch that never fires rather than a second representation.
  */
 struct FunType: Type {
-    FunType(): Type(Type::Fun, 2, { 16, 8 }) {}
+    FunType(): Type(Type::Fun) {}
 
     GlobalList<FunArg> args;
     TypePtr result = nullptr;
@@ -256,11 +301,7 @@ struct FloatType: Type {
         Double,
     };
 
-    explicit FloatType(Width width):
-        Type(Type::Float, 1, {
-            width == Float ? 4u : 8u,
-            width == Float ? 4u : 8u,
-        }), width(width) {}
+    explicit FloatType(Width width): Type(Type::Float), width(width) {}
 
     Width width;
 };
@@ -284,25 +325,24 @@ struct FloatType: Type {
  * variables even when they end up at the same type.
  */
 struct LiteralType: Type {
-    explicit LiteralType(U32 index): Type(Type::Literal, 1), index(index) {}
+    explicit LiteralType(U32 index): Type(Type::Literal), index(index) {}
 
     GlobalList<GlobalPtr<TypeClass>> classes;
     U32 index;
 };
 
+// One field of a tuple: what it is and what it is called. Where it *sits* is a Repr answer and
+// lives in the code generator's table - see FieldRepr in compiler/repr/repr.h.
 struct Field {
     TypePtr type = nullptr;
     StringId name = 0;
-    U32 offset = 0;
 };
 
 struct TupType: Type {
-    TupType(): Type(Type::Tup, 0) {}
+    TupType(): Type(Type::Tup) {}
 
     GlobalList<Field> fields;
     bool named = false;
-    bool resolvingRepr = false;
-    bool reprReady = false;
 };
 
 /*
@@ -346,7 +386,7 @@ struct Constructor {
 
 struct GenType: Type {
     GenType(GlobalPtr<GenEnv> env, StringId name, U16 index):
-        Type(Type::Gen, 1), env(env), name(name), index(index) { generic = true; }
+        Type(Type::Gen), env(env), name(name), index(index) { generic = true; }
 
     GlobalPtr<GenEnv> env;
     StringId name;
@@ -530,7 +570,7 @@ struct RecordType: Type {
     };
 
     explicit RecordType(StringId name):
-        Type(Type::Record, 0), name(name) {}
+        Type(Type::Record), name(name) {}
 
     // The declaration this type came from: itself for a plain or generic declaration, and the
     // generic declaration for one of its instantiations.
@@ -549,12 +589,9 @@ struct RecordType: Type {
     GlobalPtr<RecordType> instanceOf = nullptr;
     GlobalList<TypePtr> instanceArgs;
 
-    U32 payloadOffset = 0;
     Layout layout = Multi;
     bool qualified = false;
-    bool resolvingRepr = false;
     bool definitionReady = false;
-    bool reprReady = false;
 };
 
 struct ConstructorRef {
@@ -671,8 +708,19 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
 // inherits the answer.
 void computeRecordLayout(GlobalBase base, RecordType& record);
 
-bool finishTupleRepr(Module& module, TupType& tuple, LocationId source);
-bool finishRecordRepr(Module& module, RecordType& record, LocationId source);
+/*
+ * Whether this type's inline containment is acyclic, reporting when it is not.
+ *
+ * The one layout-shaped check that stays in resolve, and it stays because it is the only one whose
+ * answer is a *source* error. A type that contains itself without an indirection has no finite
+ * value, which is true of every target at once - so it is reported here, once, against the
+ * declaration, rather than discovered separately by each code generator's layout pass and reported
+ * twice in two voices.
+ *
+ * This is also the hook Design-Memory §10's automatic indirection will land on: the back edge this
+ * walk finds is exactly the edge that gets the compiler-inserted box.
+ */
+bool checkTypeAcyclic(Module& module, TypePtr type, LocationId source);
 
 bool sameType(TypePtr lhs, TypePtr rhs);
 
@@ -743,9 +791,6 @@ bool isNumeric(GlobalBase base, TypePtr type);
 bool isGeneric(GlobalBase base, TypePtr type);
 bool isDirectType(GlobalBase base, TypePtr type);
 bool isMemoryType(GlobalBase base, TypePtr type);
-
-U32 typeSize(GlobalBase base, TypePtr type);
-U32 typeAlign(GlobalBase base, TypePtr type);
 
 // How a type is written in a diagnostic or in printed IR. The builder form is the one that
 // composes; the String form allocates a copy for a diagnostic argument.

@@ -100,7 +100,8 @@ static bool platformEnabled(Module& module, const ast::Decl& decl, bool report =
 }
 
 Program::Program(Context& context, Size typeMemory, Size irMemory):
-    context(context), types(typeMemory), arena(irMemory) {}
+    context(context), types(typeMemory), arena(irMemory),
+    repr(*types, isJsMode(context.settings.mode) ? jsReprTarget() : nativeReprTarget()) {}
 
 Program::~Program() {
     for(auto module: modules) delete module;
@@ -497,7 +498,6 @@ static void declareNewtype(Module& module, ast::Decl& decl) {
 static void defineRecordContent(Module& module, RecordType& record, LocationId source,
                                 Buffer<const ast::Type*> contents) {
     auto env = record.gen ? (*module.types)[record.gen] : nullptr;
-    record.resolvingRepr = true;
 
     for(Size index = 0; index < contents.length && index < record.constructors.size(); index++) {
         auto stored = record.constructors.get(*module.types, index);
@@ -505,10 +505,9 @@ static void defineRecordContent(Module& module, RecordType& record, LocationId s
         record.constructors.set(*module.types, index, stored);
     }
 
-    record.resolvingRepr = false;
     computeRecordLayout(*module.types, record);
     record.definitionReady = true;
-    if(!record.generic) finishRecordRepr(module, record, source);
+    (void)source;
 }
 
 // The record a data or qualified-alias declaration introduced, or null when the name turned out to
@@ -1551,8 +1550,12 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
         auto newtype = decl.kind == ast::Decl::Alias && decl.qualified;
         if(decl.kind != ast::Decl::Data && !newtype) continue;
 
+        // Every content type in the module is resolved by now, which is the earliest point a
+        // containment cycle can be seen at all - a record may name one declared further down.
         auto record = declaredRecord(module, newtype ? decl.alias.type.name : decl.data.type.name);
-        if(record && !record->generic) finishRecordRepr(module, *record, decl.source);
+        if(record && !record->generic) {
+            checkTypeAcyclic(module, (Type*)record - *module.types, decl.source);
+        }
     }
 
     for(auto decl: decls.contents(parse)) {

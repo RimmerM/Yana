@@ -192,8 +192,24 @@ static bool signedType(GlobalBase base, TypePtr type) {
     return base[type]->kind == Type::Int && ((IntType*)base[type])->isSigned;
 }
 
-static U32 memoryWidth(GlobalBase base, TypePtr type) {
-    auto size = typeSize(base, type);
+/*
+ * Layout, asked of the target rather than read off the type.
+ *
+ * This file is the resolve-to-lower translation, which is the first point in the pipeline that is
+ * allowed to know how wide anything is - see compiler/repr/repr.h for why that line is drawn here.
+ * Everything upstream reasons in field indices and constructor names; from here down it is offsets
+ * and bytes.
+ */
+static U32 typeSize(LowerContext& lower, TypePtr type) {
+    return lower.from.repr.sizeOf(type);
+}
+
+static U32 typeAlign(LowerContext& lower, TypePtr type) {
+    return lower.from.repr.alignOf(type);
+}
+
+static U32 memoryWidth(LowerContext& lower, TypePtr type) {
+    auto size = typeSize(lower, type);
     assertTrue(size == 1 || size == 2 || size == 4 || size == 8);
     return size;
 }
@@ -284,7 +300,7 @@ static LowerPtr<LowerValue> sizeOfType(LowerContext& lower, LowerBlock& block, T
         return descField(lower, block, descriptor, TypeDescLayout::kSize);
     }
 
-    return immediate(lower, typeSize(lower.global, type));
+    return immediate(lower, typeSize(lower, type));
 }
 
 // The address of one compiler-built constant table.
@@ -408,16 +424,16 @@ static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, F
             type = lower.from.scalar.int_;
         } else if(projection.kind == ProjectionKind::Downcast) {
             auto record = (RecordType*)lower.global[type];
-            if(record->layout == RecordType::Multi) offset += record->payloadOffset;
+            offset += lower.from.repr.of(type).payloadOffset;
             type = record->constructors.get(lower.global, projection.index).content;
         } else if(projection.kind == ProjectionKind::Field && lower.global[type]->kind == Type::Fun) {
             offset += FunValueLayout::offsetOf(projection.index);
             type = funValueFieldType(*lower.from.core, projection.index);
         } else if(projection.kind == ProjectionKind::Field) {
-            auto tuple = (TupType*)lower.global[type];
-            auto field = tuple->fields.get(lower.global, projection.index);
-            offset += field.offset;
-            type = field.type;
+            auto field = lower.from.repr.fieldOf(type, projection.index);
+            assertTrue(field != nullptr);
+            offset += field->offset;
+            type = field->type;
         } else if(projection.kind == ProjectionKind::Deref) {
             // The pointer stored here becomes the address the rest of the path is relative to,
             // so everything accumulated so far has to be spent before it is loaded.
@@ -468,7 +484,30 @@ static LowerPtr<LowerValue> mapConstant(LowerContext& lower, ModulePtr<Value> po
 static LowerPtr<LowerValue> mappedValue(LowerContext& lower, ModulePtr<Value> pointer) {
     if(!pointer) return nullptr;
     if(auto found = lower.values.get(pointer)) return found.unwrap();
-    if(isConstant(*lower.local[pointer])) return mapConstant(lower, pointer);
+
+    auto& value = *lower.local[pointer];
+    if(isConstant(value)) return mapConstant(lower, pointer);
+
+    /*
+     * How wide a concrete type is, which is a constant that only this stage knows.
+     *
+     * Materialized here rather than where the instruction sits, on the same terms as a literal: it
+     * has no effect, no position, and one value however many times it is asked for. Doing it lazily
+     * is what keeps the scaling fold above from leaving an `imm 1` behind every time it removes the
+     * only use of a stride. A *generic* type's metric is a real load out of a descriptor and is not
+     * this case; it is mapped where the instruction is.
+     */
+    if(value.kind == Value::TypeMetric) {
+        auto& metric = (InstTypeMetric&)value;
+        auto& repr = lower.from.repr.of(metric.of);
+        auto number = metric.metric == TypeMetricKind::Align ? repr.align
+                    : metric.metric == TypeMetricKind::Stride ? repr.stride
+                    : repr.size;
+
+        auto result = immediate(lower, number, lowerType(lower.global, value.type));
+        lower.values.add(pointer, result);
+        return result;
+    }
 
     assertTrue("resolve value was used before it was lowered" == nullptr);
     return nullptr;
@@ -649,7 +688,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             // path takes the widest alignment any target ABI asks for rather than loading the real
             // one and having no way to use it.
             auto alignment = isGeneric(lower.global, instruction.type)
-                ? 16u : typeAlign(lower.global, instruction.type);
+                ? 16u : typeAlign(lower, instruction.type);
 
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(instruction.name, bytes, alignment));
             break;
@@ -675,7 +714,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
 
             result = load(
                 lower.lower, lower.to, block, lower.lower[address],
-                memoryWidth(lower.global, instruction.type),
+                memoryWidth(lower, instruction.type),
                 signedType(lower.global, instruction.type),
                 lowerType(lower.global, instruction.type),
                 instruction.name
@@ -700,7 +739,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             if(isMemoryType(lower.global, lower.local[init.value]->type)) {
                 result = relocate(lower, block, address, init.value, value, lower.local[init.value]->type);
             } else {
-                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, value, memoryWidth(lower.global, lower.local[init.value]->type)));
+                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, value, memoryWidth(lower, lower.local[init.value]->type)));
             }
 
             break;
@@ -734,7 +773,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
 
             result = load(
                 lower.lower, lower.to, block, lower.lower[address],
-                memoryWidth(lower.global, instruction.type),
+                memoryWidth(lower, instruction.type),
                 signedType(lower.global, instruction.type),
                 lowerType(lower.global, instruction.type),
                 instruction.name
@@ -756,7 +795,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             auto erased = lower.genEnv && isGeneric(lower.global, swap.content);
 
             if(!isMemoryType(lower.global, swap.content)) {
-                auto width = memoryWidth(lower.global, swap.content);
+                auto width = memoryWidth(lower, swap.content);
                 auto isSigned = signedType(lower.global, swap.content);
                 auto kind = lowerType(lower.global, swap.content);
 
@@ -773,7 +812,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             }
 
             auto bytes = sizeOfType(lower, block, swap.content);
-            auto alignment = isGeneric(lower.global, swap.content) ? 16u : typeAlign(lower.global, swap.content);
+            auto alignment = isGeneric(lower.global, swap.content) ? 16u : typeAlign(lower, swap.content);
             auto temporary = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(0, bytes, alignment));
             auto slot = temporary->created().ptr - lower.lower;
 
@@ -794,7 +833,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             auto content = instruction.type;
 
             if(!isMemoryType(lower.global, content)) {
-                auto width = memoryWidth(lower.global, content);
+                auto width = memoryWidth(lower, content);
                 auto old = load(lower.lower, lower.to, block, lower.lower[address], width,
                                 signedType(lower.global, content), lowerType(lower.global, content),
                                 instruction.name);
@@ -805,7 +844,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             }
 
             auto bytes = sizeOfType(lower, block, content);
-            auto alignment = isGeneric(lower.global, content) ? 16u : typeAlign(lower.global, content);
+            auto alignment = isGeneric(lower.global, content) ? 16u : typeAlign(lower, content);
             auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
                 instruction.name, bytes, alignment));
 
@@ -832,7 +871,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             if(isMemoryType(lower.global, instruction.type)) {
                 auto bytes = sizeOfType(lower, block, instruction.type);
                 auto alignment = isGeneric(lower.global, instruction.type)
-                    ? 16u : typeAlign(lower.global, instruction.type);
+                    ? 16u : typeAlign(lower, instruction.type);
 
                 auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
                     instruction.name, bytes, alignment));
@@ -848,7 +887,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
 
             result = load(
                 lower.lower, lower.to, block, lower.lower[address],
-                memoryWidth(lower.global, instruction.type),
+                memoryWidth(lower, instruction.type),
                 signedType(lower.global, instruction.type),
                 lowerType(lower.global, instruction.type),
                 instruction.name
@@ -936,6 +975,31 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             // Nothing is loaded: the address the place computes is the value.
             auto address = lowerPlace(lower, block, *function, ((InstAddress&)instruction).place);
             lower.values.add(instValue, address);
+            return;
+        }
+        case Value::TypeMetric: {
+            /*
+             * The layout question, answered.
+             *
+             * A concrete type folds to an immediate, exactly as the resolver used to fold it - so
+             * `sizeOf(x)` costs nothing it did not cost before, and the difference is only in who
+             * knew the number. A type variable has no number here, and the answer is a load out of
+             * the descriptor its caller passed: `sizeOf` on a generic value works for the first
+             * time, through machinery that already existed for the sizes lowering needed anyway.
+             */
+            auto& metric = (InstTypeMetric&)instruction;
+            auto descriptor = genTypeDesc(lower, block, metric.of);
+
+            // A concrete type's metric is a constant, so it is materialized on demand by
+            // mappedValue rather than here - see the note there. Emitting it eagerly would leave an
+            // `imm` behind for every one the scaling fold above removed the only use of.
+            if(!descriptor) return;
+
+            auto offset = metric.metric == TypeMetricKind::Align ? TypeDescLayout::kAlign
+                        : metric.metric == TypeMetricKind::Stride ? TypeDescLayout::kStride
+                        : TypeDescLayout::kSize;
+
+            lower.values.add(instValue, descField(lower, block, descriptor, offset));
             return;
         }
         case Value::Native: {
@@ -1034,6 +1098,51 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
         case Value::Or:
         case Value::Xor: {
             auto& binaryInst = (InstBinary&)instruction;
+
+            /*
+             * Scaling by one, removed where the one became known.
+             *
+             * `p + n` on a `%U8` multiplies by the element stride, and the resolver no longer knows
+             * that stride is 1 - it emits the question and this stage answers it. Answering with an
+             * immediate and leaving the multiply behind would make byte arithmetic cost an
+             * instruction it never used to, which Design.md's pointer section is explicit about, so
+             * the fold moves here with the knowledge rather than being lost with it.
+             *
+             * Asked of the resolve operand rather than of the lowered one, so that the immediate is
+             * never materialized at all - checking afterwards would leave a dead `imm 1` in the
+             * constant block for every byte-pointer offset in the program.
+             *
+             * Deliberately narrow: only a metric this stage folded, never a `1` the program wrote.
+             * The backends have constant folders; what this owes is the cost the pointer-arithmetic
+             * idiom was promised, and nothing beyond it.
+             */
+            auto metricIsOne = [&](ModulePtr<Value> operand) {
+                auto value = lower.local[operand];
+                if(value->kind != Value::TypeMetric) return false;
+
+                auto& metric = *(InstTypeMetric*)value;
+                if(isGeneric(lower.global, metric.of)) return false;
+
+                auto& repr = lower.from.repr.of(metric.of);
+                auto number = metric.metric == TypeMetricKind::Align ? repr.align
+                            : metric.metric == TypeMetricKind::Stride ? repr.stride
+                            : repr.size;
+                return number == 1;
+            };
+
+            if(instruction.kind == Value::Mul || instruction.kind == Value::Div) {
+                // Division has only a right identity; multiplication has both.
+                if(metricIsOne(binaryInst.rhs)) {
+                    lower.values.add(instValue, mappedValue(lower, binaryInst.lhs));
+                    return;
+                }
+
+                if(instruction.kind == Value::Mul && metricIsOne(binaryInst.lhs)) {
+                    lower.values.add(instValue, mappedValue(lower, binaryInst.rhs));
+                    return;
+                }
+            }
+
             auto lhs = mappedValue(lower, binaryInst.lhs);
             auto rhs = mappedValue(lower, binaryInst.rhs);
             auto type = lowerType(lower.global, instruction.type);
@@ -1148,7 +1257,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             if(memoryResult) {
                 auto bytes = sizeOfType(lower, block, instruction.type);
                 auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
-                    instruction.name, bytes, typeAlign(lower.global, instruction.type)));
+                    instruction.name, bytes, typeAlign(lower, instruction.type)));
 
                 returnPlace = allocation->created().ptr - lower.lower;
             }
@@ -1195,7 +1304,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 // result pointer" - the caller provides it because only the caller knows where.
                 auto bytes = sizeOfType(lower, block, instruction.type);
                 auto alignment = isGeneric(lower.global, instruction.type)
-                    ? 16u : typeAlign(lower.global, instruction.type);
+                    ? 16u : typeAlign(lower, instruction.type);
 
                 auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(instruction.name, bytes, alignment));
                 returnPlace = allocation->created().ptr - lower.lower;
@@ -1278,13 +1387,13 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
              * truth for what the call *means*, and only its representation is adapted.
              */
             auto materialize = [&](LowerPtr<LowerValue> value, TypePtr concrete) {
-                auto bytes = immediate(lower, typeSize(lower.global, concrete));
+                auto bytes = immediate(lower, typeSize(lower, concrete));
                 auto storage = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
-                    0, bytes, typeAlign(lower.global, concrete)));
+                    0, bytes, typeAlign(lower, concrete)));
 
                 auto address = storage->created().ptr - lower.lower;
                 block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
-                    address, value, memoryWidth(lower.global, concrete)));
+                    address, value, memoryWidth(lower, concrete)));
 
                 return address;
             };
@@ -1330,7 +1439,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             if(erasedResult) {
                 auto bytes = sizeOfType(lower, block, instruction.type);
                 auto alignment = isGeneric(lower.global, instruction.type)
-                    ? 16u : typeAlign(lower.global, instruction.type);
+                    ? 16u : typeAlign(lower, instruction.type);
 
                 auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(instruction.name, bytes, alignment));
                 returnPlace = allocation->created().ptr - lower.lower;
@@ -1362,7 +1471,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                     lower.values.add(instValue, returnPlace);
                 } else if(!isUnit(lower.global, instruction.type)) {
                     auto loaded = load(lower.lower, lower.to, block, lower.lower[returnPlace],
-                                       memoryWidth(lower.global, instruction.type),
+                                       memoryWidth(lower, instruction.type),
                                        signedType(lower.global, instruction.type),
                                        lowerType(lower.global, instruction.type), instruction.name);
 
@@ -1490,7 +1599,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         } else {
             // A scalar starts as the bytes of its constant and an aggregate as zeroes, which
             // is the same statement in both cases: the global's Repr, filled from `initial`.
-            auto size = typeSize(lower.global, source->type);
+            auto size = typeSize(lower, source->type);
             target->initialContents = ByteBuffer((Byte*)result->arena.alloc(size), size);
             set(target->initialContents.ptr, size, 0);
 

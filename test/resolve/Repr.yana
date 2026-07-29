@@ -1,0 +1,33 @@
+import Native
+
+-- The layouts Implementation-Repr.md is about, as the Repr pass computes them. The niche column is
+-- the interesting one: a niche found here is what discriminant folding will consume, and asserting
+-- it separately is what lets the search be reviewed before the access lowering that uses it exists.
+
+-- A 53-bit value in a 64-bit word leaves everything above 2^53-1 unreachable, which is the niche
+-- `Maybe(Id)` folds into.
+alias Id = @bits(53) U64
+
+-- Two booleans. Each is a two-constructor enum, so each has unused patterns of its own.
+data Flags {optionA: Bool, optionB: Bool}
+
+-- A borrow is never null, so pattern zero is free - the one niche that needs no refinement to exist.
+data Held {at: &Int}
+
+-- A raw pointer is deliberately *not* niche-bearing: null() and isNull are ordinary Native
+-- intrinsics, so zero is a value a %U8 can legally hold.
+data Raw {at: %U8}
+
+data Wrapped {value: Id}
+
+fn useId(it: Id) -> Id = it
+fn useFlags(it: Flags) -> Bool = it.optionA
+fn useWrapped(it: Wrapped) -> Id = it.value
+fn useRaw(it: Raw) -> Bool = isNull(it.at)
+
+fn main() -> Int:
+    let flags = Flags {optionA: True, optionB: False}
+    let wrapped = Wrapped {value: 7}
+    let widened = useWrapped(wrapped) :: U64
+
+    return (if useFlags(flags) then 1 else 0) + (widened :: Int)

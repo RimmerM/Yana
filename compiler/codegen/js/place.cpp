@@ -160,9 +160,10 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr) {
                  * have two addresses in it - see closureHeaderPlaceType.
                  */
                 if(type == g.headerType) {
-                    auto entry = ((TupType*)g.global[type])->fields.get(g.global, projection.index);
-                    if(expr) *expr = tableCell(g, *expr, entry.offset);
-                    type = entry.type;
+                    auto entry = g.program.repr.fieldOf(type, projection.index);
+                    if(!entry) break;
+                    if(expr) *expr = tableCell(g, *expr, entry->offset);
+                    type = entry->type;
                     break;
                 }
 

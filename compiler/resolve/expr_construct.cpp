@@ -478,7 +478,7 @@ ModulePtr<Value> ExprResolver::resolveTuple(const ast::Expr& expr, ast::ParseLis
             // decided settles here rather than becoming a field type nothing can lay out.
             auto value = settle(resolve(arg.value), arg.value.source);
             inferredValues.push(value);
-            fields.push(Field { valueType(value), arg.name, 0 });
+            fields.push(Field { valueType(value), arg.name });
         }
 
         tuple = resolveTupleType(module, toBuffer(fields), expr.source);
@@ -951,7 +951,7 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
 
     if(values.isNotEmpty()) {
         Array<Field> layout;
-        for(Size i = 0; i < values.size(); i++) layout.push(Field { element, 0, 0 });
+        for(Size i = 0; i < values.size(); i++) layout.push(Field { element, 0 });
 
         auto bufferType = (Type*)resolveTupleType(module, toBuffer(layout), source) - global;
         buffer = allocate(bufferType, source);

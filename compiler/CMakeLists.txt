@@ -77,6 +77,16 @@ set(RESOLVE_SOURCE_FILES
     resolve/expr_pat.cpp
     resolve/lower.h
     resolve/lower.cpp
+
+    # Physical layout. Deliberately a directory of its own rather than part of resolve/: nothing in
+    # the resolver may include it, and a separate directory is what makes an accidental include
+    # visible in review. It links into YanaResolve because resolve/lower.cpp - the resolve-to-lower
+    # translation, which is already on the code generator's side of that line - is its first caller,
+    # and a library of its own would only make the dependency circular.
+    repr/repr.h
+    repr/repr.cpp
+    repr/repr_print.h
+    repr/repr_print.cpp
 )
 
 add_library(YanaResolve ${RESOLVE_SOURCE_FILES})

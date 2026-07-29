@@ -6,6 +6,7 @@
 #include "../compiler/resolve/analyze.h"
 #include "../compiler/resolve/lower.h"
 #include "../compiler/resolve/print.h"
+#include "../compiler/repr/repr_print.h"
 #include "../compiler/lower/lower_print.h"
 #include "../compiler/lower/lower_validate.h"
 #include "../compiler/codegen/x64/gen.h"
@@ -473,6 +474,26 @@ static bool runTest(const String& path, StringView source, bool generate) {
         Net::Writer ownWriter(16384);
         printOwnership(ownWriter, context, *module);
         pass = compareText(ownPath, ownWriter.getBuffered()) && pass;
+    }
+
+    /*
+     * The layout this target chose, opt-in per fixture on the same terms as the ownership dump.
+     *
+     * This is the only assertion that can see a Repr decision nothing has consumed yet - a niche the
+     * search found and the access lowering does not use yet is invisible in emitted code - so a
+     * fixture about layout asserts this and a fixture about anything else does not generate it.
+     */
+    auto reprPath = path + String(".repr.expect");
+    if(fileExists(reprPath)) {
+        if(generate) {
+            writeText(reprPath, [&](Net::Writer& writer) {
+                printReprs(writer, context, *module);
+            });
+        }
+
+        Net::Writer reprWriter(16384);
+        printReprs(reprWriter, context, *module);
+        pass = compareText(reprPath, reprWriter.getBuffered()) && pass;
     }
 
     auto jsPath = path + String(".js.expect");

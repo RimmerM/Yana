@@ -1,0 +1,15 @@
+import Native
+
+-- @bits refines storage, and storage is a thing only an integer has. Every other type either has
+-- no bit width to narrow or has one the compiler is not free to change.
+data Point {x: Int, y: Int}
+
+fn onRecord(it: @bits(4) Point) -> Int = it.x
+fn onFloat(it: @bits(8) Float) -> Int = 0
+
+-- The bound is the unrefined type's own width, so a refinement wider than what it refines is a
+-- mistake on every target rather than only on the small ones.
+fn tooWide(it: @bits(40) U32) -> Int = 0
+fn zero(it: @bits(0) U32) -> Int = 0
+
+fn main() -> Int = 0

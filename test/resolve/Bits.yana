@@ -1,0 +1,27 @@
+import Native
+
+-- Design.md's bit-width refinements. `@bits(n)` narrows what a value can hold and leaves what a
+-- load produces alone, so a refined type does arithmetic at its natural width and needs no
+-- instances of its own: `Num`, `Eq` and the literals below are all `U64`'s.
+alias Id = @bits(53) U64
+
+-- The refinement is not confined to an alias. A field position is the case Design.md's `Header`
+-- example is written in, and it is the same mechanism.
+data Packed {version: @bits(4) U32, length: @bits(13) U32}
+
+-- Dispatch canonicalizes, so this resolves through `instance Num(U64)` with nothing written here.
+fn double(it: Id) -> Id = it + it
+
+-- A refinement is transparent in the widening direction: an `Id` is a `U64` that happens to have
+-- eleven unreachable patterns, so handing one to a `U64` parameter is free.
+fn asPlain(it: U64) -> U64 = it
+
+fn main() -> Int:
+    let small = 21 :: Id
+    let doubled = double(small)
+    let widened = asPlain(doubled)
+
+    let record = Packed { version: 3, length: 4000 }
+    let fields = (record.version :: Int) * 10000 + (record.length :: Int)
+
+    return (widened :: Int) + fields

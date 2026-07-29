@@ -2,6 +2,7 @@
 
 #include "block.h"
 #include "class.h"
+#include "../repr/repr.h"
 
 namespace ast {
 struct Module;
@@ -368,6 +369,24 @@ struct Program {
     ScalarTypes scalar;
     CoreClasses coreClasses;
 
+    /*
+     * This program's physical layout answers, for the one target it is being compiled for.
+     *
+     * A program is already resolved once per target rather than once and walked twice - `@platform`
+     * decides which declarations *exist*, so a JS build and a native build do not share a resolved
+     * program - which is what makes one table per program the right granularity: one program, one
+     * target, one family of Reprs. `Maybe(Id)` is a single machine word in the native program and
+     * `number | null` in the JS one, and neither can see the other's answer.
+     *
+     * Almost nothing in resolve may touch this, and what does is listed here so that the list can be
+     * seen to be shrinking: resolve/witness.cpp, which writes the size and alignment of a type into
+     * its TypeDesc. That table is native ABI data being built during resolution, and structuring it
+     * so each backend materializes its own is what removes the last resolve-side reader. Everything
+     * else that needs layout - resolve/lower.cpp, and the JS backend - is on the emitting side of
+     * the pipeline already and is a legitimate caller.
+     */
+    ReprTable repr;
+
     // Numbers the literal variables of the whole program, so that two `?n` in one diagnostic are
     // never the same name for different literals.
     U32 literalCounter = 0;
@@ -375,6 +394,10 @@ struct Program {
     Array<Module*> modules;
     GlobalList<GlobalPtr<TupType>> tupleTypes;
     GlobalList<GlobalPtr<PtrType>> pointerTypes;
+
+    // The `@bits(n)` refinements, interned per unrefined type and width so that the `Id` two modules
+    // write is one TypePtr - which is what keeps sameType() pointer equality for them too.
+    GlobalList<GlobalPtr<IntType>> refinedIntTypes;
     GlobalList<GlobalPtr<BorrowType>> borrowTypes;
     GlobalList<GlobalPtr<FunType>> funTypes;
 

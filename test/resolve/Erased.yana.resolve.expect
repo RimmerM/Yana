@@ -223,17 +223,19 @@ fn main() -> Int {
 
 fn moveInit$Int(%to: %Int, %from: %Int) -> () {
   b0:
+    %v2 = sizeof Int : Long
     %v3 = cast %to : %()
     %v4 = cast %from : %()
-    copymemory %v3, %v4, 4
+    copymemory %v3, %v4, %v2
     ret
 }
 
 fn moveInit$Bool(%to: %Bool, %from: %Bool) -> () {
   b0:
+    %v2 = sizeof Bool : Long
     %v3 = cast %to : %()
     %v4 = cast %from : %()
-    copymemory %v3, %v4, 4
+    copymemory %v3, %v4, %v2
     ret
 }
 

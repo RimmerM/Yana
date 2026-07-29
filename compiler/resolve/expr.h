@@ -199,6 +199,11 @@ struct ExprResolver {
     // Null when neither type is a borrow, which is every conversion the rest of the language has.
     ModulePtr<Value> convertBorrow(ModulePtr<Value> value, TypePtr from, TypePtr target, LocationId source);
 
+    // Between a `@bits` refinement and what it refines, in either direction. Null when the two types
+    // are not related that way, so that convert() falls through to the ordinary paths.
+    ModulePtr<Value> convertRefinement(ModulePtr<Value> value, TypePtr from, TypePtr target,
+                                       LocationId source);
+
     // Whether convert() would succeed implicitly, without reporting anything if it wouldn't.
     bool convertible(ModulePtr<Value> value, TypePtr target, LocationId source);
 

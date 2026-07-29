@@ -40,10 +40,14 @@ fn initHeap() -> () {
     setmemory %region, 0, %table
     %v14 = cast %region : %%U8
     assign heapFree, %v14
-    %v16 = add %region, %table : %U8
-    assign heapNext, %v16
-    %v19 = add %region, 4194304 : %U8
-    assign heapLimit, %v19
+    %v16 = strideof U8 : I64
+    %v17 = mul %table, %v16 : I64
+    %v18 = add %region, %v17 : %U8
+    assign heapNext, %v18
+    %v21 = strideof U8 : I64
+    %v22 = mul 4194304, %v21 : I64
+    %v23 = add %region, %v22 : %U8
+    assign heapLimit, %v23
     ret
 }
 
@@ -84,7 +88,8 @@ fn heapBlockSize(%sizeClass: I64) -> I64 {
 fn freeListHead(%sizeClass: I64) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v3 = mul %sizeClass, 8 : I64
+    %v2 = strideof %U8 : I64
+    %v3 = mul %sizeClass, %v2 : I64
     %v4 = add %v1, %v3 : %%U8
     %v5 = load [%v4] : %U8
     ret %v5
@@ -93,7 +98,8 @@ fn freeListHead(%sizeClass: I64) -> %U8 {
 fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
   b0:
     %v2 = load heapFree : %%U8
-    %v4 = mul %sizeClass, 8 : I64
+    %v3 = strideof %U8 : I64
+    %v4 = mul %sizeClass, %v3 : I64
     %v5 = add %v2, %v4 : %%U8
     assign [%v5], %block
     ret
@@ -158,25 +164,31 @@ fn allocateHeap(%size: I64) -> %U8 {
   b12:
     %block = load heapNext : %U8
     %blockSize = call heapBlockSize, %sizeClass : I64
-    %v43 = add %block, %blockSize : %U8
-    %v44 = load heapLimit : %U8
-    %v45 = cmp_gt %v43, %v44 : Bool
-    je %v45, b13, b14
+    %v43 = strideof U8 : I64
+    %v44 = mul %blockSize, %v43 : I64
+    %v45 = add %block, %v44 : %U8
+    %v46 = load heapLimit : %U8
+    %v47 = cmp_gt %v45, %v46 : Bool
+    je %v47, b13, b14
 
   b13:
-    %v48 = cast 0 : %U8
-    ret %v48
+    %v50 = cast 0 : %U8
+    ret %v50
 
   b14:
     jmp b15
 
   b15:
-    %v51 = add %block, %blockSize : %U8
-    assign heapNext, %v51
-    %v53 = cast %block : %I64
-    assign [%v53], %sizeClass
-    %v57 = add %block, 8 : %U8
-    ret %v57
+    %v53 = strideof U8 : I64
+    %v54 = mul %blockSize, %v53 : I64
+    %v55 = add %block, %v54 : %U8
+    assign heapNext, %v55
+    %v57 = cast %block : %I64
+    assign [%v57], %sizeClass
+    %v61 = strideof U8 : I64
+    %v62 = mul 8, %v61 : I64
+    %v63 = add %block, %v62 : %U8
+    ret %v63
 }
 
 fn freeHeap(%allocation: %U8) -> () {
@@ -192,12 +204,14 @@ fn freeHeap(%allocation: %U8) -> () {
     jmp b3
 
   b3:
-    %v9 = sub %allocation, 8 : %U8
-    %v10 = cast %v9 : %I64
-    %sizeClass = load [%v10] : I64
-    %v12 = cast %allocation : %%U8
-    %v13 = call freeListHead, %sizeClass : %U8
-    assign [%v12], %v13
+    %v9 = strideof U8 : I64
+    %v10 = mul 8, %v9 : I64
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = cast %v11 : %I64
+    %sizeClass = load [%v12] : I64
+    %v14 = cast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
     call setFreeListHead, %sizeClass, %allocation
     ret
 }
@@ -259,7 +273,8 @@ fn push(Buffer)(%self: Array(Buffer), %item: Buffer) -> () {
     %v19 = load %self : Array(Buffer)
     %v20 = load %self@Array.length : Int
     %v21 = cast %v20 : I64
-    %v23 = mul %v21, 8 : I64
+    %v22 = strideof Buffer : I64
+    %v23 = mul %v21, %v22 : I64
     %v24 = add %v18, %v23 : %Buffer
     assign [%v24], %item
     %v26 = load %self : Array(Buffer)
@@ -367,11 +382,14 @@ fn byteSpan(Buffer)(%from: %Buffer, %count: Int) -> I64 {
   b0:
     %v2 = cast %from : %U8
     %v3 = cast %count : I64
-    %v5 = mul %v3, 8 : I64
+    %v4 = strideof Buffer : I64
+    %v5 = mul %v3, %v4 : I64
     %v6 = add %from, %v5 : %Buffer
     %v7 = cast %v6 : %U8
     %v8 = sub %v7, %v2 : I64
-    ret %v8
+    %v9 = strideof U8 : I64
+    %v10 = div %v8, %v9 : I64
+    ret %v10
 }
 
 fn length(Buffer)(%self: Array(Buffer)) -> Int {
@@ -399,7 +417,8 @@ fn remove(Buffer)(%self: Array(Buffer), %index: Int) -> () {
     %v11 = load %self : Array(Buffer)
     %v12 = load %self@Array.items : %Buffer
     %v13 = cast %index : I64
-    %v15 = mul %v13, 8 : I64
+    %v14 = strideof Buffer : I64
+    %v15 = mul %v13, %v14 : I64
     %v16 = add %v12, %v15 : %Buffer
     %v17 = load [%v16] : Buffer
     %v18 = move %local1 : Buffer
@@ -416,15 +435,18 @@ fn remove(Buffer)(%self: Array(Buffer), %index: Int) -> () {
     %v29 = load %self : Array(Buffer)
     %v30 = load %self@Array.items : %Buffer
     %v31 = cast %index : I64
-    %v33 = mul %v31, 8 : I64
+    %v32 = strideof Buffer : I64
+    %v33 = mul %v31, %v32 : I64
     %v34 = add %v30, %v33 : %Buffer
     %v35 = cast %v34 : %U8
     %v36 = load %self : Array(Buffer)
     %v37 = load %self@Array.items : %Buffer
     %v38 = cast %index : I64
-    %v40 = mul %v38, 8 : I64
+    %v39 = strideof Buffer : I64
+    %v40 = mul %v38, %v39 : I64
     %v41 = add %v37, %v40 : %Buffer
-    %v44 = mul 1, 8 : I64
+    %v43 = strideof Buffer : I64
+    %v44 = mul 1, %v43 : I64
     %v45 = add %v41, %v44 : %Buffer
     %v46 = cast %v45 : %U8
     %v47 = load %self : Array(Buffer)
@@ -448,7 +470,8 @@ fn get(Buffer)(%self: Array(Buffer), %index: Int) -> &Buffer {
   b0:
     %v2 = load %self@Array.items : %Buffer
     %v3 = cast %index : I64
-    %v5 = mul %v3, 8 : I64
+    %v4 = strideof Buffer : I64
+    %v5 = mul %v3, %v4 : I64
     %v6 = add %v2, %v5 : %Buffer
     %v7 = borrow [%v6] : &Buffer
     ret %v7

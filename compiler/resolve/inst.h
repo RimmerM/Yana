@@ -217,6 +217,7 @@ struct Value {
         Copy,
         Drop,
         Address,
+        TypeMetric,
         Native,
         Cast,
         Neg,
@@ -557,6 +558,37 @@ struct InstAddress: Inst {
         Inst(Value::Address, block, type), place(place) {}
 
     Place place;
+};
+
+/*
+ * How wide a type is, as a value rather than as a number the resolver already knew.
+ *
+ * `sizeOf(x)`, `alignOf(x)` and the scale factor in `p + n` all used to be folded to a ConstInt
+ * while the call was being resolved, which quietly made the resolver the authority on layout. Layout
+ * belongs to a target (see compiler/repr/repr.h), so the question travels in the IR and is answered
+ * by whoever is emitting: the native path folds it against its own Repr table, and the JS path
+ * against its own.
+ *
+ * The unexpected dividend is generic code. `sizeOf` on a type variable had no answer at all before,
+ * because there was no number to fold; here it is the same instruction, and lowering reads the width
+ * out of the caller's TypeDesc instead of out of a table. One instruction, and the concrete and
+ * erased cases stop being different features.
+ */
+enum class TypeMetricKind: U8 {
+    Size,
+    Align,
+
+    // What indexing homogeneous storage advances by, which is not always the size - see Repr.
+    Stride,
+};
+
+struct InstTypeMetric: Inst {
+    InstTypeMetric(ModulePtr<Block> block, TypePtr type, TypePtr of, TypeMetricKind metric):
+        Inst(Value::TypeMetric, block, type), of(of), metric(metric) {}
+
+    // The type being measured, which is not `type` - the result is an integer.
+    TypePtr of;
+    TypeMetricKind metric;
 };
 
 /*

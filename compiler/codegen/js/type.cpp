@@ -257,7 +257,15 @@ TypePtr blockCopyShape(Gen& g, InstNative& instruction) {
      * excluding it would leave a null in every scalar type's descriptor.
      */
     if(!to || to != from || isUnit(g.global, to)) return nullptr;
-    if(count->kind != Value::ConstInt || ((ConstInt*)count)->value != typeSize(g.global, to)) return nullptr;
+
+    // The count is the *question* "how wide is `to`" rather than an answer folded during resolution,
+    // so this recognizes the question instead of recomputing the answer and comparing. That is
+    // strictly better: it matches whatever this target's Repr turns the metric into, where comparing
+    // against a number would stop matching the moment the two disagreed.
+    if(count->kind != Value::TypeMetric) return nullptr;
+
+    auto& metric = *(const InstTypeMetric*)count;
+    if(metric.metric != TypeMetricKind::Size || metric.of != to) return nullptr;
 
     return to;
 }

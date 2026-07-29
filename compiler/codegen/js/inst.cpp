@@ -818,6 +818,33 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             define(g, value, binary(g, op, lhs, rhs));
             break;
         }
+        case Value::TypeMetric: {
+            /*
+             * How wide a type is *here*, which is not what the native target would have said.
+             *
+             * The point of the metric travelling in the IR rather than being folded during
+             * resolution is this line: the JS family has its own answers, and a `sizeOf` compiled
+             * for this target reports them. A generic body reads the descriptor slot instead, the
+             * same way the native path does.
+             */
+            auto& metric = (InstTypeMetric&)instruction;
+
+            if(auto descriptor = genTypeDesc(g, metric.of)) {
+                auto offset = metric.metric == TypeMetricKind::Align ? TypeDescLayout::kAlign
+                            : metric.metric == TypeMetricKind::Stride ? TypeDescLayout::kStride
+                            : TypeDescLayout::kSize;
+                define(g, value, tableCell(g, descriptor, offset));
+                break;
+            }
+
+            auto& repr = g.program.repr.of(metric.of);
+            auto number_ = metric.metric == TypeMetricKind::Align ? repr.align
+                         : metric.metric == TypeMetricKind::Stride ? repr.stride
+                         : repr.size;
+
+            define(g, value, coerce(g, instruction.type, number(g, F64(number_))));
+            break;
+        }
         case Value::Symbol: {
             auto& symbol = (InstSymbol&)instruction;
 

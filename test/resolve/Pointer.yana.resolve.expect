@@ -96,16 +96,20 @@ fn elementStride() -> I64 {
     init %local0@Node.value, 0
     init %local0@Node.next, %v3
     %base = addressof %local0 : %Node
-    %v10 = mul 1, 16 : I64
+    %v9 = strideof Node : I64
+    %v10 = mul 1, %v9 : I64
     %next = add %base, %v10 : %Node
     %v12 = sub %next, %base : I64
-    %v14 = div %v12, 16 : I64
+    %v13 = strideof Node : I64
+    %v14 = div %v12, %v13 : I64
     %v17 = mul %v14, 100 : I64
     %v18 = cast %base : %U8
     %v19 = cast %next : %U8
     %v20 = sub %v19, %v18 : I64
-    %v21 = add %v17, %v20 : I64
-    ret %v21
+    %v21 = strideof U8 : I64
+    %v22 = div %v20, %v21 : I64
+    %v23 = add %v17, %v22 : I64
+    ret %v23
 }
 
 fn compareAddresses() -> I64 {
@@ -117,7 +121,8 @@ fn compareAddresses() -> I64 {
     %base = addressof %local0 : %Node
     %score = alloc : I64
     init %score, 0
-    %v13 = mul 1, 16 : I64
+    %v12 = strideof Node : I64
+    %v13 = mul 1, %v12 : I64
     %v14 = add %base, %v13 : %Node
     %v15 = cmp_lt %base, %v14 : Bool
     je %v15, b1, b2
@@ -193,11 +198,13 @@ fn blockOperations() -> I64 {
     %v13 = cast %v12 : %U8
     %v14 = addressof %local0 : %Node
     %v15 = cast %v14 : %U8
-    copymemory %v13, %v15, 16
+    %v16 = sizeof Node : I64
+    copymemory %v13, %v15, %v16
     %copied = load %local1@Node.value : I64
     %v19 = addressof %local1 : %Node
     %v20 = cast %v19 : %U8
-    setmemory %v20, 0, 16
+    %v22 = sizeof Node : I64
+    setmemory %v20, 0, %v22
     %v26 = mul %copied, 10 : I64
     %v27 = load %local1@Node.value : I64
     %v28 = add %v26, %v27 : I64
@@ -206,10 +213,13 @@ fn blockOperations() -> I64 {
 
 fn sizes() -> I64 {
   b0:
-    %v4 = mul 8, 100 : I64
-    %v9 = mul 1, 10 : I64
+    %v1 = sizeof I64 : I64
+    %v4 = mul %v1, 100 : I64
+    %v6 = alignof U8 : I64
+    %v9 = mul %v6, 10 : I64
     %v10 = add %v4, %v9 : I64
-    %v13 = add %v10, 2 : I64
+    %v12 = sizeof U16 : I64
+    %v13 = add %v10, %v12 : I64
     ret %v13
 }
 

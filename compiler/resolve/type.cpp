@@ -3,10 +3,6 @@
 #include "module.h"
 #include "name.h"
 
-static U32 alignTo(U32 value, U32 alignment) {
-    return (value + alignment - 1) & ~(alignment - 1);
-}
-
 static TypePtr errorType(Module& module, LocationId source, StringView message) {
     module.context.diagnostics.error(message, source);
     return module.scalar.error;
@@ -54,7 +50,6 @@ static void completeInstance(Module& module, RecordType& instance) {
 
     instance.layout = declaration->layout;
     instance.definitionReady = true;
-    if(!instance.generic) finishRecordRepr(module, instance, kNullLocation);
 }
 
 void completePendingInstances(Module& module) {
@@ -155,7 +150,7 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
 
             for(Size i = 0; i < tuple->fields.size(); i++) {
                 auto field = tuple->fields.get(global, i);
-                fields.push(Field { substituteType(module, field.type, args, source), field.name, 0 });
+                fields.push(Field { substituteType(module, field.type, args, source), field.name });
             }
 
             return (Type*)resolveTupleType(module, toBuffer(fields), source) - global;
@@ -205,6 +200,19 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
     // with the bindings gets the type back instead of a hole.
     if(pattern == concrete && !isGeneric(global, pattern)) return true;
     if(global[pattern]->kind != global[concrete]->kind) return false;
+
+    /*
+     * A `@bits` refinement matches what it refines.
+     *
+     * This is the load-bearing half of "`@bits(n)` never participates in typeclass dispatch": every
+     * instance head is matched through here, so `instance Num(U64)` answers `Num(Id)` and nobody
+     * writes an instance per width. It is deliberately one-directional in effect rather than in
+     * form - both sides canonicalize, so `Id` also matches an instance written for `Id`, and the
+     * refinement is invisible to selection either way.
+     */
+    if(global[pattern]->kind == Type::Int) {
+        return canonicalType(global, pattern) == canonicalType(global, concrete);
+    }
 
     switch(global[pattern]->kind) {
         case Type::Record: {
@@ -498,7 +506,6 @@ static TypePtr resolveTupleAst(Module& module, const ast::Type& type, GenEnv* en
         fields.push(Field {
             resolveType(module, astField.type, env),
             astField.name,
-            0,
         });
     }
 
@@ -643,7 +650,55 @@ static TypePtr resolveAlias(Module& module, TypeAlias& alias, Buffer<TypePtr> ar
     return expected ? substituteType(module, alias.resolved, args, source) : alias.resolved;
 }
 
+/*
+ * The `@bits(n)` an attribute list carries, or zero.
+ *
+ * Everything else written as an attribute on a type is left alone rather than rejected, because the
+ * grammar accepts `@name(args)` in this position for several features that do not exist yet
+ * (`@layout(c)`, `@box`) and turning "not implemented" into "not allowed" here would have to be
+ * undone by each of them.
+ */
+static bool readBitsAttribute(Module& module, ast::ParsePtr<ast::AttrList> attributes, LocationId source,
+                              U32& bits) {
+    if(!attributes) return false;
+
+    auto parse = module.parse;
+    for(auto attribute: module.parse[attributes]->contents(parse)) {
+        if(attribute.name != module.context.addUnqualifiedName("bits", 4)) continue;
+
+        auto args = attribute.args;
+        if(args.size() != 1) {
+            module.context.diagnostics.error("@bits takes one argument: the width in bits"_v, source);
+            return false;
+        }
+
+        // The literal's own kind is encoded in the expression kind - see ast::Expr::Lit - so an
+        // integer literal is exactly `Lit + Literal::Int`.
+        auto argument = args.get(parse, 0).value;
+        if(argument.kind != ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
+            module.context.diagnostics.error("@bits takes a literal width"_v, attribute.source);
+            return false;
+        }
+
+        // Reported separately from "there is no attribute" so that `@bits(0)` reaches the range
+        // check rather than being read as an absent refinement.
+        bits = U32(argument.lit.i());
+        return true;
+    }
+
+    return false;
+}
+
 TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
+    U32 bits = 0;
+    if(readBitsAttribute(module, type.attributes, type.source, bits)) {
+        // Resolved without the attribute first, so that `@bits(4) UInt` narrows whatever `UInt`
+        // turned out to be rather than needing a case per way of spelling an integer.
+        auto plain = type;
+        plain.attributes = nullptr;
+        return resolveBitsType(module, resolveType(module, plain, env), bits, type.source);
+    }
+
     switch(type.kind) {
         case ast::Type::Error:
             return module.scalar.error;
@@ -693,6 +748,69 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
         default:
             return errorType(module, type.source, "type is not available in this milestone"_v);
     }
+}
+
+TypePtr canonicalType(GlobalBase base, TypePtr type) {
+    if(!type || base[type]->kind != Type::Int) return type;
+
+    auto canonical = ((IntType*)base[type])->canonical;
+    return canonical ? canonical : type;
+}
+
+/*
+ * `@bits(n) T` - Design.md's bit-width refinements.
+ *
+ * The refinement narrows what the value can *hold* and leaves what a load *produces* alone, which is
+ * the split IntType was already built around: `width` is recomputed from `n` by the ordinary rule,
+ * so a `@bits(13) UInt` still arrives in a 32-bit register and still does 32-bit arithmetic. Only
+ * `bits` moves, and only layout reads it.
+ *
+ * Refining an already-refined type re-refines the original rather than nesting, so
+ * `@bits(4) @bits(8) UInt` is `@bits(4) UInt` and there is one canonical form per width.
+ */
+TypePtr resolveBitsType(Module& module, TypePtr base_, U32 bits, LocationId source) {
+    auto base = *module.types;
+    if(!base_ || base[base_]->kind == Type::Error) return base_;
+
+    if(base[base_]->kind != Type::Int) {
+        module.context.diagnostics.error(
+            "@bits can only refine an integer type, and %@ is not one"_v, source,
+            describeType(module.context, base, base_));
+        return base_;
+    }
+
+    auto original = (IntType*)base[canonicalType(base, base_)];
+
+    // The upper bound is the unrefined type's own width rather than the target's, which is the
+    // stricter and more useful of the two: `@bits(40) U32` is a mistake on every target, and saying
+    // so here means the diagnostic names the type the programmer wrote.
+    if(bits == 0 || bits > original->bits) {
+        module.context.diagnostics.error(
+            "@bits(%@) is out of range for %@, which holds %@ bits"_v, source, bits,
+            describeType(module.context, base, (Type*)original - base), U32(original->bits));
+        return (Type*)original - base;
+    }
+
+    // A refinement to the full width is the type itself. Worth collapsing rather than interning,
+    // so that `@bits(32) Int` and `Int` are one type and not two that behave identically.
+    if(bits == original->bits) return (Type*)original - base;
+
+    auto canonical = (Type*)original - base;
+
+    for(auto refined: module.program.refinedIntTypes.contents(base)) {
+        auto& candidate = *(IntType*)base[refined];
+        if(candidate.canonical == canonical && candidate.bits == bits) return (Type*)base[refined] - base;
+    }
+
+    // `width` is recomputed from the narrowed size by the same rule the primitives use, so the
+    // refinement picks the smallest natural class that can hold it rather than inheriting a wider
+    // one from the type it refines.
+    auto width = bits <= 1 ? IntType::Bool : bits <= 32 ? IntType::Int : IntType::Long;
+    auto type = new (module.types) IntType(U16(bits), width, original->isSigned, original->name,
+                                           canonical);
+
+    module.program.refinedIntTypes.push(module.types, type - base);
+    return (Type*)type - base;
 }
 
 // Pointers are interned on their target the way tuples are interned on their fields, so that the
@@ -857,52 +975,73 @@ TupType* resolveTupleType(Module& module, Buffer<Field> requested, LocationId so
 
     tuple->named = named;
     module.program.tupleTypes.push(module.types, tuple - base);
-    if(!tuple->generic) finishTupleRepr(module, *tuple, source);
+    if(!tuple->generic) checkTypeAcyclic(module, (Type*)tuple - base, source);
 
     return tuple;
 }
 
-bool finishTupleRepr(Module& module, TupType& tuple, LocationId source) {
-    if(tuple.reprReady) return true;
-    if(tuple.generic) return false;
+/*
+ * The one layout question that is a *source* error, and therefore the one resolve keeps.
+ *
+ * A type that reaches itself through inline containment has no finite value. That is true of every
+ * target at once, so it is reported here - once, against the declaration - rather than rediscovered
+ * by each code generator's layout pass and reported in two voices. Everything else about layout is
+ * in compiler/repr/repr.h, whose recursion guard exists only so that a program which already
+ * reported this can still finish emitting.
+ *
+ * The walk is the ordinary depth-first cycle search, and what it does *not* recurse through is the
+ * whole content of the rule: a pointer, a borrow and a function value have a size independent of
+ * what they name, so they break the cycle. That is Design-Memory §10.2's "a field whose type is a
+ * handle has a size independent of its target", and the back edge this finds is exactly the edge
+ * automatic indirection will later box.
+ */
+static bool checkAcyclic(Module& module, TypePtr type, Array<TypePtr>& stack, LocationId source) {
+    if(!type) return true;
 
-    if(tuple.resolvingRepr) {
-        module.context.diagnostics.error("recursive tuple representation requires indirection"_v, source);
+    auto base = *module.types;
+    auto value = base[type];
+
+    // Reaching a value through one of these costs a load rather than containment, so the layout of
+    // what is on the other side cannot make this one infinite.
+    if(value->kind == Type::Ptr || value->kind == Type::Borrow || value->kind == Type::Fun) {
+        return true;
+    }
+
+    if(value->kind != Type::Tup && value->kind != Type::Record) return true;
+
+    for(auto entry: stack) {
+        if(entry != type) continue;
+
+        module.context.diagnostics.error(
+            "%@ contains itself without an indirection, so it has no finite size"_v, source,
+            describeType(module.context, base, type));
         return false;
     }
 
-    tuple.resolvingRepr = true;
-    auto base = *module.types;
-    U32 size = 0;
-    U32 alignment = 1;
-    auto ready = true;
+    stack.push(type);
+    auto ok = true;
 
-    for(Size i = 0; i < tuple.fields.size(); i++) {
-        auto field = tuple.fields.get(base, i);
-        if(field.type && base[field.type]->kind == Type::Record) {
-            ready = finishRecordRepr(module, *(RecordType*)base[field.type], source) && ready;
-        } else if(field.type && base[field.type]->kind == Type::Tup) {
-            ready = finishTupleRepr(module, *(TupType*)base[field.type], source) && ready;
+    if(value->kind == Type::Tup) {
+        for(auto field: ((TupType*)value)->fields.contents(base)) {
+            ok = checkAcyclic(module, field.type, stack, source) && ok;
         }
-
-        if(!ready) continue;
-
-        auto fieldAlign = typeAlign(base, field.type);
-        size = alignTo(size, fieldAlign);
-        field.offset = size;
-        tuple.fields.set(base, i, field);
-        size += typeSize(base, field.type);
-        alignment = max(alignment, fieldAlign);
+    } else {
+        for(auto constructor: ((RecordType*)value)->constructors.contents(base)) {
+            ok = checkAcyclic(module, constructor.content, stack, source) && ok;
+        }
     }
 
-    tuple.resolvingRepr = false;
-    if(!ready) return false;
-    tuple.repr = { alignTo(size, alignment), alignment };
-    tuple.virtualSize = U16(tuple.repr.size);
-    tuple.reprReady = true;
-
-    return true;
+    stack.pop();
+    return ok;
 }
+
+bool checkTypeAcyclic(Module& module, TypePtr type, LocationId source) {
+    if(!type || isGeneric(*module.types, type)) return true;
+
+    Array<TypePtr> stack;
+    return checkAcyclic(module, type, stack, source);
+}
+
 
 /*
  * Layout is a property of the declaration, not of one instantiation.
@@ -932,78 +1071,6 @@ void computeRecordLayout(GlobalBase base, RecordType& record) {
     record.layout = RecordType::Enum;
 }
 
-bool finishRecordRepr(Module& module, RecordType& record, LocationId source) {
-    if(record.reprReady) return true;
-    if(record.generic || !record.definitionReady) return false;
-
-    if(record.resolvingRepr) {
-        module.context.diagnostics.error("recursive records require indirection, which is not available yet"_v, source);
-        record.repr = { 0, 1 };
-        return false;
-    }
-
-    record.resolvingRepr = true;
-    auto base = *module.types;
-    auto constructors = record.constructors.contents(base);
-
-    // An instantiation inherits the declaration's layout rather than deciding its own.
-    if(record.instanceOf) {
-        record.layout = ((RecordType*)base[record.instanceOf])->layout;
-    } else {
-        computeRecordLayout(base, record);
-    }
-
-    if(record.layout == RecordType::Single) {
-        auto content = constructors[0].content;
-
-        if(content && base[content]->kind == Type::Record) {
-            if(!finishRecordRepr(module, *(RecordType*)base[content], source)) {
-                record.resolvingRepr = false;
-                return false;
-            }
-        } else if(content && base[content]->kind == Type::Tup) {
-            if(!finishTupleRepr(module, *(TupType*)base[content], source)) {
-                record.resolvingRepr = false;
-                return false;
-            }
-        }
-
-        record.repr = content ? base[content]->repr : Repr {};
-        record.payloadOffset = 0;
-    } else {
-        U32 payloadSize = 0;
-        U32 payloadAlign = 1;
-
-        for(auto constructor: constructors) {
-            if(!constructor.content || isUnit(base, constructor.content)) continue;
-            if(base[constructor.content]->kind == Type::Record) {
-                if(!finishRecordRepr(module, *(RecordType*)base[constructor.content], source)) {
-                    record.resolvingRepr = false;
-                    return false;
-                }
-            } else if(base[constructor.content]->kind == Type::Tup) {
-                if(!finishTupleRepr(module, *(TupType*)base[constructor.content], source)) {
-                    record.resolvingRepr = false;
-                    return false;
-                }
-            }
-
-            payloadSize = max(payloadSize, typeSize(base, constructor.content));
-            payloadAlign = max(payloadAlign, typeAlign(base, constructor.content));
-        }
-
-        record.payloadOffset = alignTo(4, payloadAlign);
-        record.repr.align = max(4u, payloadAlign);
-        record.repr.size = alignTo(record.payloadOffset + payloadSize, record.repr.align);
-
-        if(record.layout == RecordType::Enum) record.repr.size = 4;
-    }
-
-    record.virtualSize = U16(record.repr.size);
-    record.resolvingRepr = false;
-    record.reprReady = true;
-    return true;
-}
 
 bool sameType(TypePtr lhs, TypePtr rhs) {
     return lhs == rhs;
@@ -1328,14 +1395,6 @@ bool isMemoryType(GlobalBase base, TypePtr type) {
     return type && !isUnit(base, type) && !isDirectType(base, type);
 }
 
-U32 typeSize(GlobalBase base, TypePtr type) {
-    return type ? base[type]->repr.size : 0;
-}
-
-U32 typeAlign(GlobalBase base, TypePtr type) {
-    return type ? base[type]->repr.align : 1;
-}
-
 void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder& target) {
     if(!type) {
         target << "<none>";
@@ -1350,9 +1409,23 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
             target << "()";
             return;
         case Type::Int: {
+            // A refinement says so, and then says what it refines. Without this a diagnostic about
+            // `Id` and `U64` reads "cannot convert U64 to U64", which names the problem twice and
+            // identifies it not at all.
+            auto integer = (IntType*)base[type];
+            if(integer->canonical) {
+                // appendValue rather than `<<`, which takes a character and would quietly append
+                // the one with that code - `@bits(53)` came out as `@bits(5)`.
+                target << "@bits(";
+                target.appendValue(integer->bits);
+                target << ") ";
+                describeType(context, base, integer->canonical, target);
+                return;
+            }
+
             // Core's Int and Native's I32 have the same shape and different names, so an integer
             // type says which one it is rather than describing its width.
-            auto name = ((IntType*)base[type])->name;
+            auto name = integer->name;
             if(name) {
                 target << context.findName(name);
                 return;
