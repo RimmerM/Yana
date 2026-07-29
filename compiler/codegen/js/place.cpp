@@ -160,7 +160,7 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr) {
                  * have two addresses in it - see closureHeaderPlaceType.
                  */
                 if(type == g.headerType) {
-                    auto entry = g.program.repr.fieldOf(type, projection.index);
+                    auto entry = g.repr.fieldOf(type, projection.index);
                     if(!entry) break;
                     if(expr) *expr = tableCell(g, *expr, entry->offset);
                     type = entry->type;
@@ -239,17 +239,27 @@ JsPtr<Expr> referenceTo(Gen& g, const Place& place) {
  * The erased half - Implementation-Generics.md, read through §3.4.
  */
 
-JsPtr<Expr> tableCell(Gen& g, JsPtr<Expr> table, U32 offset) {
-    return index(g, table, offset >> 2);
+/*
+ * One slot of a compiler-built table, which here is one element of an array.
+ *
+ * This is the whole of the JS materialization of resolve/witness.h's tables, and it is this short
+ * because a slot number is already an index. There is nothing to divide by and nothing to skip: a
+ * host array has no padding, and an address is a name rather than eight bytes. Reading a native
+ * blob back at native offsets - which is what this used to do - made every table here a
+ * transcription of an x64 memory image, with a null in every second cell where the high half of a
+ * pointer would have been.
+ */
+JsPtr<Expr> tableCell(Gen& g, JsPtr<Expr> table, U16 slot) {
+    return index(g, table, slot);
 }
 
 JsPtr<Expr> genSlot(Gen& g, U16 slot) {
-    return tableCell(g, g.genEnv, GenEnvLayout::slotOffset(slot));
+    return tableCell(g, g.genEnv, GenEnvFields::slot(slot));
 }
 
 JsPtr<Expr> genWitness(Gen& g, U16 slot, ModuleList<U32, false> path) {
     auto witness = genSlot(g, slot);
-    for(auto step: path.contents(g.local)) witness = tableCell(g, witness, step);
+    for(auto step: path.contents(g.local)) witness = tableCell(g, witness, U16(step));
 
     return witness;
 }

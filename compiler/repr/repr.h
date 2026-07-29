@@ -219,6 +219,16 @@ struct ReprTarget {
     bool nullableRawPointers = true;
 
     /*
+     * Which end of a word this target puts the low byte at.
+     *
+     * A fact about the *reader* rather than about this compiler, which is the whole reason it is a
+     * field: writing the host's bytes happens to be right for x64-on-x64 and is silently wrong for
+     * any pair that disagrees. Everything that turns a value into bytes - a scalar global's
+     * initializer, a witness table's words - goes through a writer at this order.
+     */
+    ByteOrder byteOrder = LittleEndian;
+
+    /*
      * The two optimizations that change how a *value is accessed* rather than only how wide it is.
      *
      * Both are off, and they are off together for one reason: each makes an access stop being a

@@ -16,9 +16,11 @@
  *    capturing lambda is built by a factory - `L$make(env)` - which is what gives each closure its
  *    own environment. A lambda that captured nothing, and a plain function used as a value, are the
  *    function itself and cost no allocation at all;
- *  - a compiler-built constant table is an array of 32-bit cells, so that a load the native side
- *    writes as `[base + 24]` is `table[6]` here. That is the only place this backend reads a
- *    layout rather than a structure, and it is the one place the layout is the interface.
+ *  - a compiler-built constant table is an array, one element per slot, so that a load the native
+ *    side writes as `[base + 24]` is `table[5]` here. Resolve describes those tables as slots and
+ *    nothing else, so this is a materialization rather than a reinterpretation - which is what it
+ *    used to be, when the cells were the 32-bit words of a native memory image and every second one
+ *    was the empty high half of an address.
  *
  * What has no representation on JS is an address of something that is not an object. A borrow of a
  * `Int` local is the case that matters, since `&counter: Int` is ordinary Yana. A borrow whose every
@@ -482,49 +484,71 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
  * Globals.
  */
 
-// A compiler-built table as an array of 32-bit cells - see tableCell. An address the loader would
-// have filled in is the emitted name of what it names, which is the JS equivalent of a relocation
-// and needs no loader at all.
+/*
+ * A compiler-built table as an array, one element per slot - see tableCell.
+ *
+ * This is the JS materialization of resolve/witness.h's tables, and it is the whole of it. An
+ * address is the emitted name of what it names, which is the JS equivalent of a relocation and needs
+ * no loader; a number is a number. Nothing is laid out, because there is nowhere to lay it out: the
+ * slot number *is* the position.
+ */
 JsPtr<Expr> tableValue(Gen& g, Global& global_) {
     auto table = make<ArrayExpr>(g);
 
-    for(Size offset = 0; offset + 4 <= global_.contents.length; offset += 4) {
-        ModulePtr<Function> function = nullptr;
-        ModulePtr<Global> target = nullptr;
+    for(auto slot: global_.table.contents(g.local)) {
+        switch(slot.kind) {
+            case TableCell::Function: {
+                /*
+                 * A slot naming something this target does not have becomes `null` rather than a
+                 * diagnostic. That is not a hole: the slots in question are a descriptor's
+                 * `moveInit` and `reclaim`, and neither is ever read here - an erased relocation is
+                 * an assignment because a JS value has no size to copy, and reclamation is the host
+                 * collector's. A diagnostic would be reporting a table entry nothing loads.
+                 *
+                 * A null `function` is the deliberately empty slot, and lands here too, for the
+                 * same reason and with the same value.
+                 */
+                JsPtr<Expr> cell = nullValue(g);
 
-        for(auto relocation: global_.relocations.contents(g.local)) {
-            if(relocation.offset != U32(offset)) continue;
-            function = relocation.function;
-            target = relocation.global;
-        }
+                if(slot.function) {
+                    if(auto found = g.functionNames.get(U32(slot.function))) {
+                        cell = variable(g, found.unwrap());
+                    }
+                }
 
-        if(function) {
-            /*
-             * A slot naming something this target does not have becomes `null` rather than a
-             * diagnostic. That is not a hole: the slots in question are a descriptor's `moveInit`
-             * and `reclaim`, and neither is ever read here - an erased relocation is an assignment
-             * because a JS value has no size to copy, and reclamation is the host collector's. A
-             * diagnostic would be reporting a table entry nothing loads.
-             */
-            auto found = g.functionNames.get(U32(function));
-            table->values.push(g.file.arena, found ? variable(g, found.unwrap()) : nullValue(g));
-            continue;
-        }
-
-        if(target) {
-            if(g.emittedGlobals.contains(U32(target))) {
-                table->values.push(g.file.arena, globalValue(g, target));
-            } else {
-                g.forward.push(Forward { g.tableName, U32(table->values.size()), target });
-                table->values.push(g.file.arena, nullValue(g));
+                table->values.push(g.file.arena, cell);
+                break;
             }
 
-            continue;
-        }
+            case TableCell::Global: {
+                if(slot.global && g.emittedGlobals.contains(U32(slot.global))) {
+                    table->values.push(g.file.arena, globalValue(g, slot.global));
+                } else if(slot.global) {
+                    g.forward.push(Forward { g.tableName, U32(table->values.size()), slot.global });
+                    table->values.push(g.file.arena, nullValue(g));
+                } else {
+                    table->values.push(g.file.arena, nullValue(g));
+                }
 
-        U32 word;
-        copy(global_.contents.ptr + offset, (Byte*)&word, sizeof(U32));
-        table->values.push(g.file.arena, number(g, F64(word)));
+                break;
+            }
+
+            // How wide a type is *here*, which is not what the native target would have said. The
+            // descriptor was built without an answer for exactly this reason - see TableCell::Metric.
+            case TableCell::Metric:
+                table->values.push(g.file.arena,
+                                   number(g, F64(tableMetricValue(g.repr, slot))));
+                break;
+
+            // A number, a type or a class - all three are the word in `value`. What distinguishes
+            // the last two is only that a dump can name them; here they are what they were written
+            // as, which is a region offset an emitted debug check would compare.
+            case TableCell::Int:
+            case TableCell::Type:
+            case TableCell::Class:
+                table->values.push(g.file.arena, number(g, F64(slot.value)));
+                break;
+        }
     }
 
     return asExpr(g, table);
@@ -535,7 +559,7 @@ void genGlobal(Gen& g, ModulePtr<Global> pointer) {
     auto found = g.globalNames.get(U32(pointer));
     auto name = found ? found.unwrap() : Name {};
 
-    if(global_.contents.length) {
+    if(global_.isTable) {
         // The table is built before this global counts as emitted, so that a cell naming the table
         // it is inside becomes a forward patch rather than a `const` that reads itself.
         g.tableName = name;
@@ -626,8 +650,10 @@ void nameProgram(Gen& g) {
 Ptr<File> genProgram(Context& context, Program& program) {
     auto file = Ptr<File>(new File(8 * 1024 * 1024));
 
+    ReprTable repr(*program.types, jsReprTarget());
+
     Gen g {
-        context, program, *file, *program.types, *program.arena, *file->arena
+        context, program, *file, *program.types, *program.arena, *file->arena, repr
     };
 
     g.tagField = literalName(g, "$tag"_v);

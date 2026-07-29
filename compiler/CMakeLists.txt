@@ -87,6 +87,8 @@ set(RESOLVE_SOURCE_FILES
     repr/repr.cpp
     repr/repr_print.h
     repr/repr_print.cpp
+    repr/table.h
+    repr/table.cpp
 )
 
 add_library(YanaResolve ${RESOLVE_SOURCE_FILES})

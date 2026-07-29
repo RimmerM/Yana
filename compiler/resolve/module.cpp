@@ -100,8 +100,7 @@ static bool platformEnabled(Module& module, const ast::Decl& decl, bool report =
 }
 
 Program::Program(Context& context, Size typeMemory, Size irMemory):
-    context(context), types(typeMemory), arena(irMemory),
-    repr(*types, isJsMode(context.settings.mode) ? jsReprTarget() : nativeReprTarget()) {}
+    context(context), types(typeMemory), arena(irMemory) {}
 
 Program::~Program() {
     for(auto module: modules) delete module;
@@ -1727,9 +1726,9 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
         while(tables.isNotEmpty()) {
             auto table = local[tables.pop().unwrap()];
 
-            for(auto relocation: table->relocations.contents(local)) {
-                reachFunction(relocation.function);
-                reachTable(relocation.global);
+            for(auto slot: table->table.contents(local)) {
+                reachFunction(slot.function);
+                reachTable(slot.global);
             }
         }
 

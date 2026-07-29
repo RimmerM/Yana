@@ -7,8 +7,8 @@ let &heapFree: %%U8 = 0
 let &sinkCalls: I64 = 0
 
 table closure$ResolveTest.lambda$0 before ResolveTest.lambda$0 {
-  +0 teardown$none
-  +8 closureRelease${h: Handle}
+  .0 teardown$none
+  .1 closureRelease${h: Handle}
 }
 
 fn teardown$none(%value: %()) -> () {
@@ -683,7 +683,8 @@ fn drop$() -> I64(%value: %() -> I64) -> () {
   b1:
     %v6 = load [%value].code : %()
     %v7 = cast %v6 : Long
-    %v9 = sub %v7, 16 : Long
+    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v9 = sub %v7, %v8 : Long
     %v10 = cast %v9 : %{drop: %(), reclaim: %()}
     %v11 = load [%v10].drop : %()
     calldyn %v11, %v1
@@ -703,7 +704,8 @@ fn reclaim$() -> I64(%value: %() -> I64) -> () {
   b1:
     %v6 = load [%value].code : %()
     %v7 = cast %v6 : Long
-    %v9 = sub %v7, 16 : Long
+    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v9 = sub %v7, %v8 : Long
     %v10 = cast %v9 : %{drop: %(), reclaim: %()}
     %v11 = load [%v10].reclaim : %()
     calldyn %v11, %v1

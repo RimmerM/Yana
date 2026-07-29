@@ -62,7 +62,7 @@ static bool superclassPath(Module& module, GlobalPtr<TypeClass> have, Buffer<Typ
         }
 
         auto depthBefore = U32(steps.size());
-        steps.push(classSuperclassOffset(global, have, step));
+        steps.push(classSuperclassSlot(global, have, step));
 
         if(superclassPath(module, superclass.typeClass, toBuffer(substituted), want, wantArgs,
                           steps, depth - 1)) {

@@ -685,50 +685,66 @@ static void printTable(ResolvePrint& print, Global& global_) {
 
     print.writer.writeString(" {\n"_v);
 
-    // Every table is a whole number of 8-byte words, and the scalar half of a TypeDesc packs two
-    // U32s into each. Printing words rather than bytes is what keeps the dump readable.
-    for(Size offset = 0; offset + 8 <= global_.contents.length; offset += 8) {
-        ModulePtr<Function> function = nullptr;
-        ModulePtr<Global> target = nullptr;
+    /*
+     * One line per slot, numbered by slot.
+     *
+     * Not by byte offset, which is what this used to print: a table has no byte offsets until some
+     * backend gives it one, and a resolve dump that showed native ones would be asserting a layout
+     * this stage does not choose. Numbering by slot is also what makes the dump say the same thing
+     * for both targets, which is the property the whole arrangement exists for.
+     */
+    Size index = 0;
 
-        for(auto relocation: global_.relocations.contents(print.local)) {
-            if(relocation.offset != U32(offset)) continue;
-            function = relocation.function;
-            target = relocation.global;
-        }
-
-        print.writer.writeString("  +"_v);
-        writeUInt(print.writer, offset);
+    for(auto slot: global_.table.contents(print.local)) {
+        print.writer.writeString("  ."_v);
+        writeUInt(print.writer, index++);
         print.writer.writeByte(' ');
 
-        if(function) {
-            print.writer.writeString(print.context.findName(print.local[function]->name));
-        } else if(target) {
-            print.writer.writeString(print.context.findName(print.local[target]->name));
-        } else {
-            U32 low, high;
-            copy(global_.contents.ptr + offset, (Byte*)&low, sizeof(U32));
-            copy(global_.contents.ptr + offset + 4, (Byte*)&high, sizeof(U32));
+        switch(slot.kind) {
+            case TableCell::Int:
+                writeUInt(print.writer, slot.value);
+                break;
 
-            auto named = false;
-            for(auto word: global_.typeWords.contents(print.local)) {
-                if(word != U32(offset)) continue;
+            case TableCell::Type:
+                printType(print, TypePtr(slot.value));
+                break;
 
-                printType(print, TypePtr(low));
-                named = true;
-            }
+            // The measurement, not a number: this stage has no idea what the answer is, and a dump
+            // that guessed one would be asserting a layout nothing here chose.
+            case TableCell::Metric:
+                switch(slot.metric) {
+                    case TypeMetricKind::Size: print.writer.writeString("sizeof "_v); break;
+                    case TypeMetricKind::Align: print.writer.writeString("alignof "_v); break;
+                    case TypeMetricKind::Stride: print.writer.writeString("strideof "_v); break;
+                }
 
-            for(auto word: global_.classWords.contents(print.local)) {
-                if(word != U32(offset)) continue;
+                printType(print, TypePtr(slot.value));
+                break;
 
+            case TableCell::Class:
                 print.writer.writeString(print.context.findName(
-                    print.global[GlobalPtr<TypeClass>(low)]->name));
-                named = true;
-            }
+                    print.global[GlobalPtr<TypeClass>(slot.value)]->name));
+                break;
 
-            if(!named) writeUInt(print.writer, low);
-            print.writer.writeString(", "_v);
-            writeUInt(print.writer, high);
+            // An address, by the name of what it names. A null one is the deliberately empty slot -
+            // "nothing to do" - and says so rather than printing a zero that looks like a number.
+            case TableCell::Function:
+                if(slot.function) {
+                    print.writer.writeString(print.context.findName(print.local[slot.function]->name));
+                } else {
+                    print.writer.writeString("null"_v);
+                }
+
+                break;
+
+            case TableCell::Global:
+                if(slot.global) {
+                    print.writer.writeString(print.context.findName(print.local[slot.global]->name));
+                } else {
+                    print.writer.writeString("null"_v);
+                }
+
+                break;
         }
 
         print.writer.writeByte('\n');
@@ -738,7 +754,7 @@ static void printTable(ResolvePrint& print, Global& global_) {
 }
 
 static void printGlobal(ResolvePrint& print, Global& global_) {
-    if(global_.contents.length) {
+    if(global_.isTable) {
         printTable(print, global_);
         return;
     }

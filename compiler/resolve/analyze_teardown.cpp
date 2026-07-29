@@ -117,18 +117,23 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
     /*
      * The header, from wherever this target keeps it.
      *
-     * Native keeps it in front of the entry point, so it is found by subtracting a constant from the
-     * code word - through the integer rather than as a place projection, because the offset is
-     * negative: a projection walks *into* an aggregate, and this walks backwards out of one. The two
-     * casts are both reinterpretations of one machine word - asInt and asPtr - so what they cost is
-     * nothing and what they buy is that the arithmetic is stated where the layout is.
+     * Native keeps it in front of the entry point, so it is found by subtracting the header's own
+     * size from the code word - through the integer rather than as a place projection, because the
+     * offset is negative: a projection walks *into* an aggregate, and this walks backwards out of
+     * one. The two casts are both reinterpretations of one machine word - asInt and asPtr - so what
+     * they cost is nothing and what they buy is that the arithmetic is stated where the layout is.
+     *
+     * How far back is a TypeMetric rather than a constant. This pass has no idea how wide two
+     * addresses are, and a number written here would be this compiler subtracting the layout some
+     * other target chose; whoever emits folds it, having just laid the header out itself.
      *
      * A target whose code word is not an address has no bytes in front of it to subtract from, and
      * attaches the header to the code word instead. That is FunValueLayout::kHeader, and asking for
      * it is a projection like any other - which is the whole of the difference, because everything
      * around it reads the same two slots out of the same layout either way.
      */
-    auto headerType = resolvePointerType(module, closureHeaderPlaceType(module));
+    auto headerContent = closureHeaderPlaceType(module);
+    auto headerType = resolvePointerType(module, headerContent);
     Place header;
 
     if(isJsMode(module.context.settings.mode)) {
@@ -137,7 +142,8 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
     } else {
         auto codeWord = resolver.load(resolver.project(base, ProjectionKind::Field, FunValueLayout::kCode), source);
         auto codeInt = resolver.ref(resolver.emit<InstUnary>(source, 0, word, Value::Cast, codeWord));
-        auto distance = resolver.constantBits(word, ClosureHeaderLayout::kSize_, source);
+        auto distance = resolver.ref(resolver.emit<InstTypeMetric>(source, 0, word, headerContent,
+                                                                   TypeMetricKind::Size));
         auto headerInt = resolver.ref(resolver.emit<InstBinary>(source, 0, word, Value::Sub, codeInt, distance));
 
         header = Place::atPointer(

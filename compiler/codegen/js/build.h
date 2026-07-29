@@ -3,6 +3,7 @@
 #include "gen.h"
 #include "../../resolve/generic.h"
 #include "../../resolve/witness.h"
+#include "../../repr/table.h"
 
 /*
  * The JS backend's internal interface - the generator state, the AST construction helpers, and the
@@ -62,6 +63,16 @@ struct Gen {
     GlobalBase global;
     ModuleBase local;
     JsBase base;
+
+    /*
+     * This target's layout answers, owned by this target.
+     *
+     * Built from jsReprTarget() in genProgram, and the native backend builds its own from
+     * nativeReprTarget(). Neither can see the other's: `Maybe(Id)` is one machine word over there
+     * and `number | null` here, and the whole reason Repr is computed at emission rather than during
+     * resolution is that both of those are right.
+     */
+    ReprTable& repr;
 
     // Identifiers already handed out. Module-level names are checked by every local name as well,
     // so that a local can never shadow a function it might want to call.
@@ -455,7 +466,7 @@ JsPtr<Expr> referenceTo(Gen& g, TypePtr type, JsPtr<Expr> value);
 // A constant table is an array of 32-bit cells, so every offset the native side loads at becomes a
 // cell index. `>> 2` is the whole of the translation, and it is exact because every pointer field in
 // these layouts is eight-byte aligned and every scalar field is four.
-JsPtr<Expr> tableCell(Gen& g, JsPtr<Expr> table, U32 offset);
+JsPtr<Expr> tableCell(Gen& g, JsPtr<Expr> table, U16 slot);
 JsPtr<Expr> genSlot(Gen& g, U16 slot);
 JsPtr<Expr> genWitness(Gen& g, U16 slot, ModuleList<U32, false> path);
 JsPtr<Expr> genTypeDesc(Gen& g, TypePtr type);

@@ -24,67 +24,49 @@
  */
 
 /*
- * The byte order the tables in this file are written in.
+ * The slot numberings.
  *
- * Emitted code reads these words at fixed offsets, which makes the reader the *target* rather than
- * the compiler: writing the host's bytes happens to be right for x64-on-x64 and is silently wrong
- * for any pair that disagrees. Naming the assumption is what turns "add a target" from a bug into
- * a value to change - and the byte order of a table is the target's, not the target's *word size*,
- * which the layouts above already fix at eight bytes per address.
+ * A table is a list of TableSlots - see TableCell in module.h - and these are the positions in that
+ * list. No byte offsets: where a slot lands is decided by whichever backend is about to emit it,
+ * because that is the only place the answer exists. repr/table.h is the native answer.
  */
-static constexpr ByteOrder kTargetByteOrder = LittleEndian;
 
 /*
- * The layout of a TypeDesc, as the emitted bytes have it.
+ * The slots of a TypeDesc.
  *
- * Written out as offsets rather than as a C++ struct because there are two readers with different
- * ideas of the word: this compiler, which writes the bytes, and the generic code it emits, which
- * reads them through ordinary loads at these offsets. A struct would describe the first and leave
- * the second to a second, unchecked copy of the same numbers.
+ * One numbering with two readers, which is why it is not named for either of them. Erased code
+ * reaches these through whatever its target's materialization made of them; a function value's
+ * teardown reaches the same slots from the *typed* IR, as field projections into the tuple
+ * typeDescPlaceType() describes. Those are the same numbers because the tuple's fields are the
+ * table's slots, in order - and that identity is what lets one description serve both.
  */
-namespace TypeDescLayout {
+namespace TypeDescFields {
     // The interned type this describes, as its region offset. Stable within one program, which is
     // all that identity is needed for: validating a context against its schema, interning, and
     // specialization keys.
-    static constexpr U32 kLogicalType = 0;
+    static constexpr U16 kLogicalType = 0;
 
-    static constexpr U32 kSize = 4;
-    static constexpr U32 kAlign = 8;
+    static constexpr U16 kSize = 1;
+    static constexpr U16 kAlign = 2;
 
     // What indexing homogeneous storage advances by. `alignUp(size, align)` today, and explicit
     // because a packed or target-specific array stride may differ from it later.
-    static constexpr U32 kStride = 12;
+    static constexpr U16 kStride = 3;
 
-    static constexpr U32 kFlags = 16;
+    static constexpr U16 kFlags = 4;
 
     // The three lifecycle operations, each a code address or null. See TypeDescFlags for what null
     // means in each case - it is "nothing to do", never "unavailable".
-    static constexpr U32 kMoveInit = 24;
-    static constexpr U32 kReclaim = 32;
-    static constexpr U32 kDrop = 40;
-
-    static constexpr U32 kSize_ = 48;
-    static constexpr U32 kAlign_ = 8;
-}
-
-/*
- * The same layout, as fields of a tuple type.
- *
- * The bytes above are written by this compiler and read by the code it emits, and until function
- * values that reading was ordinary loads at literal offsets. A function value's teardown reaches the
- * same words from the *typed* IR - it is a real function, with real places - so the layout needs a
- * type as well. typeDescPlaceType() asserts the two descriptions agree rather than trusting that
- * they do, because they are one set of offsets written twice.
- */
-namespace TypeDescFields {
-    static constexpr U16 kLogicalType = 0;
-    static constexpr U16 kSize = 1;
-    static constexpr U16 kAlign = 2;
-    static constexpr U16 kStride = 3;
-    static constexpr U16 kFlags = 4;
     static constexpr U16 kMoveInit = 5;
     static constexpr U16 kReclaim = 6;
     static constexpr U16 kDrop = 7;
+
+    static constexpr U16 kCount = 8;
+
+    // Where the words stop and the addresses begin. A materializer that has the slots in hand does
+    // not need this; one describing the *shape* without an instance of it - which is what a reader
+    // computing "slot N of some descriptor" has - does.
+    static constexpr U16 kWordCount = 5;
 }
 
 // A tuple laid out exactly like a TypeDesc, so that a place rooted in a descriptor address can read
@@ -125,28 +107,24 @@ TypePtr funValueFieldType(Module& module, U16 field);
  * see emptyTeardown, which is the same rule a TypeDesc's lifecycle slots follow.
  *
  * "Immediately in front of the entry point" is a real constraint on the backend rather than a
- * convention: the offsets below are what the emitted teardown subtracts, so a code generator that
+ * convention: what the emitted teardown subtracts is the header's own size, so a code generator that
  * pads between the header and the first instruction breaks it. AsmModule::startFunction is where
  * that is honoured, and it is why LowerFunction carries the header rather than the module's global
- * list.
+ * list. How far back that is is deliberately not a constant here - the teardown asks for the size of
+ * closureHeaderPlaceType() as a TypeMetric and lets the target fold it, because a target that laid
+ * two addresses out differently would otherwise have this compiler subtracting somebody else's
+ * number.
  *
  * Only a lambda that captured something has one. A non-capturing lambda and the thunk that makes a
  * named function a value have a null environment, so their teardown never reaches for a header and
  * none is emitted.
  */
-namespace ClosureHeaderLayout {
-    static constexpr U32 kDrop = 0;
-    static constexpr U32 kReclaim = 8;
-
-    static constexpr U32 kSize_ = 16;
-    static constexpr U32 kAlign_ = 8;
-}
-
-// The same layout as tuple fields, for the typed IR the teardown glue is built in - the same two
-// descriptions of one layout TypeDescFields is, checked against each other the same way.
 namespace ClosureHeaderFields {
     static constexpr U16 kDrop = 0;
     static constexpr U16 kReclaim = 1;
+
+    static constexpr U16 kCount = 2;
+    static constexpr U16 kWordCount = 0;
 }
 
 TypePtr closureHeaderPlaceType(Module& module);
@@ -227,21 +205,21 @@ ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source);
  * The layout of a runtime `GenEnv`.
  *
  * One immutable realization of a GenSchema: the schema it was built for, then one pointer per slot
- * in the canonical numbering. Emitted code loads slot N from `kSlots + 8 * N` and nothing else -
- * Implementation-Generics.md part 1's "no runtime name lookup" is exactly this.
+ * in the canonical numbering. Emitted code reads slot N and nothing else - no hashing, no search, no
+ * comparison. Implementation-Generics.md part 1's "no runtime name lookup" is exactly this.
  *
  * The leading schema word is not read by emitted code. It is what a debug build compares against
  * the callee's own schema, which is the only check that can catch a caller and a callee disagreeing
  * about what slot 3 means.
  */
-namespace GenEnvLayout {
-    static constexpr U32 kSchema = 0;
-    static constexpr U32 kSlots = 8;
-    static constexpr U32 kSlotSize = 8;
-    static constexpr U32 kAlign = 8;
+namespace GenEnvFields {
+    static constexpr U16 kSchema = 0;
+    static constexpr U16 kSlots = 1;
 
-    static constexpr U32 slotOffset(U16 slot) { return kSlots + kSlotSize * slot; }
-    static constexpr U32 sizeFor(Size slotCount) { return kSlots + kSlotSize * U32(slotCount); }
+    static constexpr U16 slot(U16 index) { return U16(kSlots + index); }
+    static constexpr U16 countFor(Size slotCount) { return U16(kSlots + slotCount); }
+
+    static constexpr U16 kWordCount = 1;
 }
 
 /*
@@ -265,37 +243,39 @@ namespace GenEnvLayout {
  * load rather than through a second environment slot its caller would have had to fill with a
  * witness it already passed. See genWitnessPath, which is where that path is worked out.
  */
-namespace ClassWitnessLayout {
+namespace ClassWitnessFields {
     // The class this implements, as its region offset - the same kind of identity a TypeDesc's
     // logical type is, and used for the same debug validation.
-    static constexpr U32 kClass = 0;
-    static constexpr U32 kArgCount = 4;
-    static constexpr U32 kMethodCount = 6;
-    static constexpr U32 kSuperCount = 8;
+    static constexpr U16 kClass = 0;
 
-    // The three counted sections, each a whole number of 8-byte pointers. The header is padded to
-    // one so that every section after it is aligned for the addresses it holds.
-    static constexpr U32 kArgs = 16;
+    // The argument and method counts, packed into one word as `argCount | methodCount << 16`.
+    static constexpr U16 kCounts = 1;
+    static constexpr U16 kSuperCount = 2;
 
-    static constexpr U32 methodsOffset(U16 argCount) { return kArgs + 8 * argCount; }
-    static constexpr U32 supersOffset(U16 argCount, U16 methodCount) {
-        return methodsOffset(argCount) + 8 * methodCount;
+    // The three counted sections of addresses, in order.
+    static constexpr U16 kArgs = 3;
+
+    static constexpr U16 method(U16 argCount, U16 index) { return U16(kArgs + argCount + index); }
+    static constexpr U16 super(U16 argCount, U16 methodCount, U16 index) {
+        return U16(kArgs + argCount + methodCount + index);
     }
 
-    static constexpr U32 sizeFor(U16 argCount, U16 methodCount, U16 superCount) {
-        return supersOffset(argCount, methodCount) + 8 * superCount;
+    static constexpr U16 countFor(U16 argCount, U16 methodCount, U16 superCount) {
+        return U16(kArgs + argCount + methodCount + superCount);
     }
+
+    static constexpr U16 kWordCount = 3;
 }
 
 /*
- * Where a witness for `typeClass` holds the pointer to its `index`th superclass - the classes it
- * declares, in declaration order.
+ * Which slot of a witness for `typeClass` holds the pointer to its `index`th superclass - the
+ * classes it declares, in declaration order.
  *
  * A constant per class, since the two counted sections in front of it are decided by the class
  * rather than by the instance: every witness for one class has the same shape, which is what lets a
- * body compiled once load an implied requirement's witness at a fixed offset.
+ * body compiled once load an implied requirement's witness from a fixed slot.
  */
-U32 classSuperclassOffset(GlobalBase global, GlobalPtr<TypeClass> typeClass, U16 index);
+U16 classSuperclassSlot(GlobalBase global, GlobalPtr<TypeClass> typeClass, U16 index);
 
 /*
  * The witness for one class implementation, interned per class and argument list.

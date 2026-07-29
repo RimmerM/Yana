@@ -5,23 +5,23 @@ let &heapLimit: %U8 = 0
 let &heapFree: %%U8 = 0
 
 table closure$ResolveTest.lambda$0 before ResolveTest.lambda$0 {
-  +0 teardown$none
-  +8 teardown$none
+  .0 teardown$none
+  .1 teardown$none
 }
 
 table closure$ResolveTest.lambda$1 before ResolveTest.lambda$1 {
-  +0 teardown$none
-  +8 teardown$none
+  .0 teardown$none
+  .1 teardown$none
 }
 
 table closure$ResolveTest.lambda$2 before ResolveTest.lambda$2 {
-  +0 teardown$none
-  +8 teardown$none
+  .0 teardown$none
+  .1 teardown$none
 }
 
 table closure$ResolveTest.lambda$3 before ResolveTest.lambda$3 {
-  +0 teardown$none
-  +8 closureRelease${amount: Int}
+  .0 teardown$none
+  .1 closureRelease${amount: Int}
 }
 
 fn teardown$none(%value: %()) -> () {
@@ -357,7 +357,8 @@ fn drop$(Int) -> Int(%value: %(Int) -> Int) -> () {
   b1:
     %v6 = load [%value].code : %()
     %v7 = cast %v6 : Long
-    %v9 = sub %v7, 16 : Long
+    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v9 = sub %v7, %v8 : Long
     %v10 = cast %v9 : %{drop: %(), reclaim: %()}
     %v11 = load [%v10].drop : %()
     calldyn %v11, %v1
@@ -377,7 +378,8 @@ fn reclaim$(Int) -> Int(%value: %(Int) -> Int) -> () {
   b1:
     %v6 = load [%value].code : %()
     %v7 = cast %v6 : Long
-    %v9 = sub %v7, 16 : Long
+    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v9 = sub %v7, %v8 : Long
     %v10 = cast %v9 : %{drop: %(), reclaim: %()}
     %v11 = load [%v10].reclaim : %()
     calldyn %v11, %v1

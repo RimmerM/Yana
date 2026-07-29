@@ -483,18 +483,32 @@ static bool runTest(const String& path, StringView source, bool generate) {
      * search found and the access lowering does not use yet is invisible in emitted code - so a
      * fixture about layout asserts this and a fixture about anything else does not generate it.
      */
-    auto reprPath = path + String(".repr.expect");
-    if(fileExists(reprPath)) {
+    auto checkRepr = [&](const char* suffix, const ReprTarget& target) {
+        auto reprPath = path + String(suffix);
+        if(!fileExists(reprPath)) return;
+
         if(generate) {
             writeText(reprPath, [&](Net::Writer& writer) {
-                printReprs(writer, context, *module);
+                printReprs(writer, context, *module, target);
             });
         }
 
         Net::Writer reprWriter(16384);
-        printReprs(reprWriter, context, *module);
+        printReprs(reprWriter, context, *module, target);
         pass = compareText(reprPath, reprWriter.getBuffered()) && pass;
-    }
+    };
+
+    /*
+     * Both targets' answers for one source, from one resolved program.
+     *
+     * The two are separate files rather than one dump with two halves so that a fixture can assert
+     * only the one it is about - but a fixture that touches packing or niches should have both,
+     * because the interesting property is where they *differ*. `Maybe(Id)` being one word natively
+     * and `number | null` on JS is the whole argument for computing layout at emission, and it is
+     * only visible side by side.
+     */
+    checkRepr(".repr.expect", nativeReprTarget());
+    checkRepr(".repr.js.expect", jsReprTarget());
 
     auto jsPath = path + String(".js.expect");
     if(fileExists(jsPath)) pass = runJsPass(path, jsPath, source, generate, forceGeneric) && pass;

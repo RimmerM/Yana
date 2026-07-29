@@ -4,6 +4,15 @@
 #include "generic.h"
 #include "name.h"
 
+/*
+ * The two tables the typed IR reaches into, as tuple types.
+ *
+ * A field of one of these is the slot of the same number - the tuples below are the slot lists of
+ * witness.h's numberings, written as types so that a place rooted in a table address can read one
+ * the way any other aggregate is read. Nothing here says where a field *is*; that is the emitting
+ * target's, and whether its answer for the tuple agrees with its answer for the slot list is what
+ * checkTableTypes asserts on the native side, where both descriptions exist.
+ */
 TypePtr typeDescPlaceType(Module& module) {
     auto& context = module.context;
     auto word = module.scalar.int_;
@@ -21,23 +30,7 @@ TypePtr typeDescPlaceType(Module& module) {
     };
 
     auto tuple = resolveTupleType(module, { fields, 8 }, kNullLocation);
-    auto base = *module.types;
-
-    // One layout described twice, so the two descriptions are checked against each other rather
-    // than believed. Five 32-bit words followed by three addresses is what puts `moveInit` at 24.
-    //
-    // The check asks the *program's* Repr table rather than the type, because a type no longer knows
-    // where its fields are. That makes it a check of the target actually being compiled for, which is
-    // stricter than what it replaced: a target whose layout rule put `moveInit` somewhere else would
-    // now be caught here instead of writing bytes the emitted loads disagree with.
-    auto self = (Type*)tuple - base;
-    auto& repr = module.program.repr;
-    assertTrue(repr.fieldOf(self, TypeDescFields::kMoveInit)->offset == TypeDescLayout::kMoveInit);
-    assertTrue(repr.fieldOf(self, TypeDescFields::kReclaim)->offset == TypeDescLayout::kReclaim);
-    assertTrue(repr.fieldOf(self, TypeDescFields::kDrop)->offset == TypeDescLayout::kDrop);
-    assertTrue(repr.sizeOf(self) == TypeDescLayout::kSize_);
-
-    return self;
+    return (Type*)tuple - *module.types;
 }
 
 TypePtr funValueFieldType(Module& module, U16 field) {
@@ -59,11 +52,11 @@ TypePtr funValueFieldType(Module& module, U16 field) {
     }
 }
 
-U32 classSuperclassOffset(GlobalBase global, GlobalPtr<TypeClass> typeClass, U16 index) {
+U16 classSuperclassSlot(GlobalBase global, GlobalPtr<TypeClass> typeClass, U16 index) {
     auto argCount = U16(global[global[typeClass]->gen]->types.size());
     auto methodCount = U16(global[typeClass]->functions.size());
 
-    return ClassWitnessLayout::supersOffset(argCount, methodCount) + 8 * index;
+    return ClassWitnessFields::super(argCount, methodCount, index);
 }
 
 TypePtr closureHeaderPlaceType(Module& module) {
@@ -76,17 +69,7 @@ TypePtr closureHeaderPlaceType(Module& module) {
     };
 
     auto tuple = resolveTupleType(module, { fields, 2 }, kNullLocation);
-    auto base = *module.types;
-
-    // One layout described twice - see typeDescPlaceType, which checks its own for the same reason.
-    // This one has a second reader that the descriptor does not: the code generator, which has to
-    // place these bytes at exactly this distance in front of an entry point.
-    auto self = (Type*)tuple - base;
-    auto& repr = module.program.repr;
-    assertTrue(repr.fieldOf(self, ClosureHeaderFields::kReclaim)->offset == ClosureHeaderLayout::kReclaim);
-    assertTrue(repr.sizeOf(self) == ClosureHeaderLayout::kSize_);
-
-    return self;
+    return (Type*)tuple - *module.types;
 }
 
 /*
@@ -112,66 +95,70 @@ Global* addAnonymousGlobal(Module& module, StringId name, LocationId source) {
 }
 
 /*
- * The bytes of one compiler-built table.
+ * The slots of one compiler-built table.
  *
- * Filled slot by slot at the offsets the layout namespaces in witness.h give rather than in write
- * order, because what goes in a slot becomes available in whatever order the things it names get
- * built - which is why this holds a writer that is repositioned per field instead of a stream.
+ * Filled by slot number rather than in write order, because what goes in a slot becomes available in
+ * whatever order the things it names get built - a descriptor's lifecycle glue is generated after
+ * its numbers are known, and a witness's superclasses after its methods. So the list is sized up
+ * front and written into, which also means an unset slot is a null of the right kind rather than a
+ * gap.
  *
- * The words go through Net::BufferWriter at kTargetByteOrder rather than being copied out of a host
- * U32. Emitted code reads them at these offsets, so the byte order that matters is the one the
- * *target* reads in, and copying the host's is right only for as long as there is one target.
+ * Nothing here is bytes. A slot names a function or holds a number, and turning either into storage
+ * is the backend's - see TableCell.
  */
 struct TableBuilder {
-    TableBuilder(Module& module, Size size):
-        module(module), bytes((Byte*)module.arena.alloc(size), size), writer(bytes.ptr, size) {
-        set(bytes.ptr, size, 0);
+    TableBuilder(Module& module, Global& target, U16 slots): module(module), target(target) {
+        target.isTable = true;
+        target.table.reserve(module.arena, slots);
+
+        for(U16 i = 0; i < slots; i++) target.table.push(module.arena, TableSlot {});
     }
 
-    void putU32(U32 offset, U32 value) {
-        // The writer would grow a buffer of its own rather than overrun, and a table that grew one
-        // would be filling bytes the module never sees. A slot outside the layout is a compiler bug.
-        assertTrue(offset + sizeof(U32) <= bytes.length);
-
-        writer.offset(offset);
-        writer.writeInt<kTargetByteOrder>(value);
+    void put(U16 slot, TableSlot value) {
+        // A slot outside the numbering is a compiler bug rather than a program error, and pushing
+        // one would silently make the table longer than the shape its readers were compiled against.
+        assertTrue(slot < target.table.size());
+        target.table.set(*module.arena, slot, value);
     }
 
-    // An address is left as zeroes and recorded instead. A null target records nothing, which is
-    // how "this type has no drop" reaches the reader as a null slot rather than as a missing entry.
-    void putFunction(Global& target, U32 offset, ModulePtr<Function> function) {
+    void putU32(U16 slot, U32 value) {
+        put(slot, TableSlot { TableCell::Int, TypeMetricKind::Size, value, nullptr, nullptr });
+    }
+
+    // How wide a type is, left as the question rather than the answer - see TableCell::Metric. This
+    // is what keeps a descriptor free of any one target's numbers.
+    void putMetric(U16 slot, TypePtr type, TypeMetricKind metric) {
+        put(slot, TableSlot { TableCell::Metric, metric, U32(type), nullptr, nullptr });
+    }
+
+    // A null target writes nothing, leaving the zero slot the constructor put there: that is how
+    // "this type has no drop" reaches the reader as an empty slot rather than as a missing entry.
+    void putFunction(U16 slot, ModulePtr<Function> function) {
         if(!function) return;
 
         (*module.arena)[function]->used = true;
-        target.relocations.push(module.arena, GlobalRelocation { offset, function, nullptr });
+        put(slot, TableSlot { TableCell::Function, TypeMetricKind::Size, 0, function, nullptr });
     }
 
-    // An interned type, stored as its region offset. Recorded as well as written, so that printing
-    // can name the type rather than the number - see Global::typeWords.
-    void putType(Global& target, U32 offset, TypePtr type) {
-        putU32(offset, U32(type));
-        target.typeWords.push(module.arena, offset);
+    // An interned type, as its region offset. Its own kind rather than an Int so that a dump can
+    // name the type instead of printing the offset - see TableCell::Type.
+    void putType(U16 slot, TypePtr type) {
+        put(slot, TableSlot { TableCell::Type, TypeMetricKind::Size, U32(type), nullptr, nullptr });
     }
 
-    // An interned class, recorded for the same reason a type is - see Global::classWords.
-    void putClass(Global& target, U32 offset, GlobalPtr<TypeClass> typeClass) {
-        putU32(offset, U32(typeClass));
-        target.classWords.push(module.arena, offset);
+    void putClass(U16 slot, GlobalPtr<TypeClass> typeClass) {
+        put(slot, TableSlot { TableCell::Class, TypeMetricKind::Size, U32(typeClass), nullptr, nullptr });
     }
 
-    void putGlobal(Global& target, U32 offset, ModulePtr<Global> global_) {
+    void putGlobal(U16 slot, ModulePtr<Global> global_) {
         if(!global_) return;
 
         (*module.arena)[global_]->used = true;
-        target.relocations.push(module.arena, GlobalRelocation { offset, nullptr, global_ });
+        put(slot, TableSlot { TableCell::Global, TypeMetricKind::Size, 0, nullptr, global_ });
     }
 
     Module& module;
-    ByteBuffer bytes;
-
-    // Over the arena bytes rather than owning any: `bytes` is what the global keeps, and the writer
-    // is only how they are addressed.
-    Net::BufferWriter writer;
+    Global& target;
 };
 
 /*
@@ -636,18 +623,17 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
     auto entry = program.classWitnesses.size();
     program.classWitnesses.push(::move(interned));
 
-    TableBuilder table(module, ClassWitnessLayout::sizeFor(argCount, methodCount, superCount));
-    table.putU32(ClassWitnessLayout::kArgCount, U32(argCount) | (U32(methodCount) << 16));
-    table.putU32(ClassWitnessLayout::kSuperCount, superCount);
-    global_->contents = table.bytes;
-    table.putClass(*global_, ClassWitnessLayout::kClass, typeClass);
+    TableBuilder table(module, *global_,
+                       ClassWitnessFields::countFor(argCount, methodCount, superCount));
+    table.putClass(ClassWitnessFields::kClass, typeClass);
+    table.putU32(ClassWitnessFields::kCounts, U32(argCount) | (U32(methodCount) << 16));
+    table.putU32(ClassWitnessFields::kSuperCount, superCount);
 
     for(U16 i = 0; i < argCount; i++) {
         auto descriptor = typeDescFor(module, args[i], source);
-        if(descriptor) table.putGlobal(*global_, ClassWitnessLayout::kArgs + 8 * i, descriptor);
+        if(descriptor) table.putGlobal(ClassWitnessFields::kArgs + i, descriptor);
     }
 
-    auto methods = ClassWitnessLayout::methodsOffset(argCount);
     auto ok = true;
 
     for(U16 i = 0; i < methodCount; i++) {
@@ -662,18 +648,17 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
             continue;
         }
 
-        table.putFunction(*global_, methods + 8 * i, thunk);
+        table.putFunction(ClassWitnessFields::method(argCount, i), thunk);
     }
 
     /*
      * The superclasses, each a witness of its own for the types this one was selected at.
      *
      * Always present, never derived on demand: a body reaching one of these has already been
-     * compiled to load it at this offset, and the instance it belongs to is not knowable there. That
+     * compiled to load it from this slot, and the instance it belongs to is not knowable there. That
      * every one of them exists is what checkSuperclasses settles at the declaration - an instance of
      * a class whose superclass has none was rejected long before anything asked for this table.
      */
-    auto supers = ClassWitnessLayout::supersOffset(argCount, methodCount);
     U16 superIndex = 0;
 
     for(auto constraint: classEnv->classes.contents(global)) {
@@ -691,7 +676,7 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
             continue;
         }
 
-        table.putGlobal(*global_, supers + 8 * slot, superclass);
+        table.putGlobal(ClassWitnessFields::super(argCount, methodCount, slot), superclass);
     }
 
     if(!ok) {
@@ -1021,13 +1006,11 @@ ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<T
     auto entry = program.genEnvs.size();
     program.genEnvs.push(::move(interned));
 
-    TableBuilder table(module, GenEnvLayout::sizeFor(slotCount));
-    global_->contents = table.bytes;
-
+    TableBuilder table(module, *global_, GenEnvFields::countFor(slotCount));
     auto ok = true;
 
     for(auto slot: schema.slots.contents(global)) {
-        auto offset = GenEnvLayout::slotOffset(slot.index);
+        auto cell = GenEnvFields::slot(slot.index);
 
         switch(slot.kind) {
             case GenSlotKind::Type: {
@@ -1041,7 +1024,7 @@ ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<T
                     break;
                 }
 
-                table.putGlobal(*global_, offset, descriptor);
+                table.putGlobal(cell, descriptor);
                 break;
             }
 
@@ -1057,7 +1040,7 @@ ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<T
                     break;
                 }
 
-                table.putGlobal(*global_, offset, witness);
+                table.putGlobal(cell, witness);
                 break;
             }
 
@@ -1100,21 +1083,26 @@ ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source) {
     *program.typeDescs.add(U32(type)).value = pointer;
 
     auto ownership = ownershipOf(module, type);
-    auto& repr = module.program.repr.of(type);
-    auto size = repr.size;
-    auto align = repr.align;
 
-    TableBuilder table(module, TypeDescLayout::kSize_);
-    table.putU32(TypeDescLayout::kSize, size);
-    table.putU32(TypeDescLayout::kAlign, align);
-    table.putU32(TypeDescLayout::kStride, repr.stride);
+    /*
+     * The three measurements, as questions rather than answers.
+     *
+     * This is the last thing in resolve that used to know how wide a type was, and it did not have
+     * to: `size`, `align` and `stride` are the emitting target's, and a descriptor whose numbers were
+     * filled in here would be a native artifact that the JS backend then read as though it described
+     * JS values. So the slot says *which measurement of which type* and whoever materializes the
+     * table answers it - the same trade InstTypeMetric makes for the instruction form, for the same
+     * reason.
+     */
+    TableBuilder table(module, *global_, TypeDescFields::kCount);
+    table.putType(TypeDescFields::kLogicalType, type);
+    table.putMetric(TypeDescFields::kSize, type, TypeMetricKind::Size);
+    table.putMetric(TypeDescFields::kAlign, type, TypeMetricKind::Align);
+    table.putMetric(TypeDescFields::kStride, type, TypeMetricKind::Stride);
 
     // Nothing selects a non-canonical Repr yet, and no type declares that it must keep its address,
     // so the only source of a stable-address requirement is a Repr variant - which is Milestone 8's.
-    table.putU32(TypeDescLayout::kFlags, typeDescFlags(ownership, false));
-
-    global_->contents = table.bytes;
-    table.putType(*global_, TypeDescLayout::kLogicalType, type);
+    table.putU32(TypeDescFields::kFlags, typeDescFlags(ownership, false));
 
     // Every lifecycle slot holds a callable address, so erased code never has to test one - see
     // emptyTeardown. A type whose bytes are its whole relocation still gets a real moveInit, since
@@ -1123,10 +1111,10 @@ ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source) {
         return implementation ? implementation : emptyTeardown(module, source);
     };
 
-    table.putFunction(*global_, TypeDescLayout::kMoveInit, orEmpty(moveInitFor(module, type, source)));
-    table.putFunction(*global_, TypeDescLayout::kReclaim,
+    table.putFunction(TypeDescFields::kMoveInit, orEmpty(moveInitFor(module, type, source)));
+    table.putFunction(TypeDescFields::kReclaim,
                       orEmpty(teardownImplementation(module, type, Teardown::Reclaim, source)));
-    table.putFunction(*global_, TypeDescLayout::kDrop,
+    table.putFunction(TypeDescFields::kDrop,
                       orEmpty(teardownImplementation(module, type, Teardown::Drop, source)));
 
     return pointer;
@@ -1156,21 +1144,20 @@ ModulePtr<Global> closureHeaderFor(Module& module, ModulePtr<Function> lambda, T
     auto global_ = addAnonymousGlobal(module, name, source);
     auto pointer = global_ - *module.arena;
 
-    TableBuilder table(module, ClosureHeaderLayout::kSize_);
-    global_->contents = table.bytes;
+    TableBuilder table(module, *global_, ClosureHeaderFields::kCount);
     global_->prefixOf = lambda;
 
     auto orEmpty = [&](ModulePtr<Function> implementation) {
         return implementation ? implementation : emptyTeardown(module, source);
     };
 
-    table.putFunction(*global_, ClosureHeaderLayout::kDrop,
+    table.putFunction(ClosureHeaderFields::kDrop,
                       orEmpty(teardownImplementation(module, envType, Teardown::Drop, source)));
 
     // The frame-environment answer, which is also the safe one to start from: a header that never
     // reaches selectStorage releases the captures and leaves the storage alone, and storage nothing
     // decided about is storage in the frame.
-    table.putFunction(*global_, ClosureHeaderLayout::kReclaim,
+    table.putFunction(ClosureHeaderFields::kReclaim,
                       orEmpty(teardownImplementation(module, envType, Teardown::Reclaim, source)));
 
     function->closureHeader = pointer;
@@ -1238,17 +1225,9 @@ void setClosureRelease(Module& module, ModulePtr<Global> header, ModulePtr<Funct
 
     local[reclaim]->used = true;
 
-    // Rewritten rather than appended: a second relocation at one offset is two addresses for one
-    // word, and which of them the emitter would write is whichever it saw last.
-    for(Size i = 0; i < global_->relocations.size(); i++) {
-        auto relocation = global_->relocations.get(local, i);
-        if(relocation.offset != ClosureHeaderLayout::kReclaim) continue;
-
-        relocation.function = reclaim;
-        global_->relocations.set(local, i, relocation);
-        return;
-    }
-
-    global_->relocations.push(module.arena,
-                              GlobalRelocation { ClosureHeaderLayout::kReclaim, reclaim, nullptr });
+    // The slot is overwritten rather than a second one appended, which is what a list of positions
+    // makes obvious and a list of relocations did not: two entries for one slot would be two
+    // addresses for one word, and which of them an emitter wrote would be whichever it saw last.
+    global_->table.set(local, ClosureHeaderFields::kReclaim,
+                       TableSlot { TableCell::Function, TypeMetricKind::Size, 0, reclaim, nullptr });
 }

@@ -2,6 +2,7 @@
 #include "analyze.h"
 #include "generic.h"
 #include "witness.h"
+#include "../repr/table.h"
 #include "../lower/lower_builder.h"
 
 // The side tables mapping one IR to the other are keyed by region offset rather than by address:
@@ -14,6 +15,17 @@ struct LowerContext {
     GlobalBase global;
     ModuleBase local;
     LowerBase lower;
+
+    /*
+     * This backend's layout answers, owned by this backend.
+     *
+     * Constructed in lowerProgram from nativeReprTarget() and named there rather than read off the
+     * program, which is the difference between a target being *chosen* and being inferred: a table
+     * hanging off Program had to guess from the compile mode which one it was for, so a native
+     * lowering in a JS build would have measured everything with the wrong ruler. The JS backend
+     * builds its own the same way, and the two never meet.
+     */
+    ReprTable& repr;
     HashMap<U32, LowerPtr<LowerFunction>> functions;
     HashMap<U32, LowerPtr<LowerBlock>> blocks;
     HashMap<U32, LowerPtr<LowerValue>> values;
@@ -201,11 +213,54 @@ static bool signedType(GlobalBase base, TypePtr type) {
  * and bytes.
  */
 static U32 typeSize(LowerContext& lower, TypePtr type) {
-    return lower.from.repr.sizeOf(type);
+    return lower.repr.sizeOf(type);
 }
 
 static U32 typeAlign(LowerContext& lower, TypePtr type) {
-    return lower.from.repr.alignOf(type);
+    return lower.repr.alignOf(type);
+}
+
+/*
+ * The two descriptions of a compiler-built table, checked against each other rather than believed.
+ *
+ * A witness table is described twice on purpose. Erased code reads it by slot number, through
+ * repr/table.h; a function value's teardown reads the same table from the typed IR, as field
+ * projections into the tuple typeDescPlaceType and closureHeaderPlaceType describe. Those are the
+ * same slots, so they had better be the same bytes - and they are computed by two different rules,
+ * the table layout and the ordinary struct layout, which happen to agree.
+ *
+ * Checked here because here is the only place both exist. Resolve states the slots and has no
+ * offsets; the JS backend has neither. A target whose struct rule disagreed with its table rule
+ * would otherwise emit a teardown reading the wrong word, which is the kind of thing that shows up
+ * as a crash in unrelated code long afterwards.
+ */
+static void checkTableTypes(LowerContext& lower) {
+    auto root = lower.from.root;
+    if(!root) return;
+
+    auto& repr = lower.repr;
+    auto& target = repr.target;
+
+    auto descriptor = typeDescPlaceType(*root);
+    for(U16 i = 0; i < TypeDescFields::kCount; i++) {
+        assertTrue(repr.fieldOf(descriptor, i)->offset ==
+                   tableSlotOffset(target, TypeDescFields::kWordCount, i));
+    }
+
+    assertTrue(repr.sizeOf(descriptor) ==
+               tableSize(target, TypeDescFields::kWordCount, TypeDescFields::kCount));
+
+    // The header has the stricter of the two requirements: the code generator places these bytes at
+    // exactly this distance in front of an entry point, and the teardown subtracts the tuple's size
+    // to find them - see teardownFunValue.
+    auto header = closureHeaderPlaceType(*root);
+    for(U16 i = 0; i < ClosureHeaderFields::kCount; i++) {
+        assertTrue(repr.fieldOf(header, i)->offset ==
+                   tableSlotOffset(target, ClosureHeaderFields::kWordCount, i));
+    }
+
+    assertTrue(repr.sizeOf(header) ==
+               tableSize(target, ClosureHeaderFields::kWordCount, ClosureHeaderFields::kCount));
 }
 
 static U32 memoryWidth(LowerContext& lower, TypePtr type) {
@@ -240,7 +295,9 @@ static LowerPtr<LowerValue> addOffset(LowerContext& lower, LowerBlock& block, Lo
  * comparison - the schema decided the number at compile time and the code loads it.
  */
 static LowerPtr<LowerValue> genSlot(LowerContext& lower, LowerBlock& block, U16 slot) {
-    auto address = addOffset(lower, block, lower.genEnv, GenEnvLayout::slotOffset(slot));
+    auto offset = tableSlotOffset(lower.repr.target, GenEnvFields::kWordCount,
+                                  GenEnvFields::slot(slot));
+    auto address = addOffset(lower, block, lower.genEnv, offset);
     auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, 0);
     return loaded->created().ptr - lower.lower;
 }
@@ -259,7 +316,8 @@ static LowerPtr<LowerValue> genWitness(LowerContext& lower, LowerBlock& block, U
     auto witness = genSlot(lower, block, slot);
 
     for(auto step: path.contents(lower.local)) {
-        auto address = addOffset(lower, block, witness, step);
+        auto offset = tableSlotOffset(lower.repr.target, ClassWitnessFields::kWordCount, U16(step));
+        auto address = addOffset(lower, block, witness, offset);
         auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, 0);
         witness = loaded->created().ptr - lower.lower;
     }
@@ -283,7 +341,8 @@ static LowerPtr<LowerValue> genTypeDesc(LowerContext& lower, LowerBlock& block, 
 
 // One U32 field of a descriptor, widened to the 64-bit form every size and offset is computed in.
 static LowerPtr<LowerValue> descField(LowerContext& lower, LowerBlock& block,
-                                      LowerPtr<LowerValue> descriptor, U32 offset) {
+                                      LowerPtr<LowerValue> descriptor, U16 slot) {
+    auto offset = tableSlotOffset(lower.repr.target, TypeDescFields::kWordCount, slot);
     auto address = addOffset(lower, block, descriptor, offset);
     auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 4, false, LowerType::Int32, 0);
     auto widened = cast<false, false>(lower.lower, lower.to, block,
@@ -297,7 +356,7 @@ static LowerPtr<LowerValue> descField(LowerContext& lower, LowerBlock& block,
 // out of its descriptor where it is not.
 static LowerPtr<LowerValue> sizeOfType(LowerContext& lower, LowerBlock& block, TypePtr type) {
     if(auto descriptor = genTypeDesc(lower, block, type)) {
-        return descField(lower, block, descriptor, TypeDescLayout::kSize);
+        return descField(lower, block, descriptor, TypeDescFields::kSize);
     }
 
     return immediate(lower, typeSize(lower, type));
@@ -327,10 +386,12 @@ static LowerPtr<LowerValue> tableAddress(LowerContext& lower, LowerBlock& block,
 static LowerPtr<LowerValue> genEnvironment(LowerContext& lower, LowerBlock& block, InstGenCall& call) {
     if(call.env) return tableAddress(lower, block, call.env);
 
+    auto& target = lower.repr.target;
     auto slots = call.fill;
-    auto bytes = immediate(lower, GenEnvLayout::sizeFor(slots.size()));
+    auto bytes = immediate(lower, tableSize(target, GenEnvFields::kWordCount,
+                                            GenEnvFields::countFor(slots.size())));
     auto storage = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
-        0, bytes, GenEnvLayout::kAlign));
+        0, bytes, target.pointerAlign));
 
     auto base = storage->created().ptr - lower.lower;
     U16 index = 0;
@@ -340,7 +401,8 @@ static LowerPtr<LowerValue> genEnvironment(LowerContext& lower, LowerBlock& bloc
             ? genWitness(lower, block, slot.forwarded, slot.forwardedSupers)
             : tableAddress(lower, block, slot.constant);
 
-        auto address = addOffset(lower, block, base, GenEnvLayout::slotOffset(index));
+        auto address = addOffset(lower, block, base, tableSlotOffset(
+            target, GenEnvFields::kWordCount, GenEnvFields::slot(index)));
         block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, value, 8));
         index++;
     }
@@ -363,7 +425,8 @@ static LowerPtr<LowerValue> genEnvironment(LowerContext& lower, LowerBlock& bloc
 static LowerPtr<LowerValue> genMethod(LowerContext& lower, LowerBlock& block, InstGenCall& call) {
     auto witness = genWitness(lower, block, call.classSlot, call.classPath);
     auto argCount = U16(lower.global[lower.global[call.typeClass]->gen]->types.size());
-    auto offset = ClassWitnessLayout::methodsOffset(argCount) + 8 * call.index;
+    auto offset = tableSlotOffset(lower.repr.target, ClassWitnessFields::kWordCount,
+                                  ClassWitnessFields::method(argCount, call.index));
 
     auto address = addOffset(lower, block, witness, offset);
     auto method = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, 0);
@@ -424,13 +487,13 @@ static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, F
             type = lower.from.scalar.int_;
         } else if(projection.kind == ProjectionKind::Downcast) {
             auto record = (RecordType*)lower.global[type];
-            offset += lower.from.repr.of(type).payloadOffset;
+            offset += lower.repr.of(type).payloadOffset;
             type = record->constructors.get(lower.global, projection.index).content;
         } else if(projection.kind == ProjectionKind::Field && lower.global[type]->kind == Type::Fun) {
             offset += FunValueLayout::offsetOf(projection.index);
             type = funValueFieldType(*lower.from.core, projection.index);
         } else if(projection.kind == ProjectionKind::Field) {
-            auto field = lower.from.repr.fieldOf(type, projection.index);
+            auto field = lower.repr.fieldOf(type, projection.index);
             assertTrue(field != nullptr);
             offset += field->offset;
             type = field->type;
@@ -499,7 +562,7 @@ static LowerPtr<LowerValue> mappedValue(LowerContext& lower, ModulePtr<Value> po
      */
     if(value.kind == Value::TypeMetric) {
         auto& metric = (InstTypeMetric&)value;
-        auto& repr = lower.from.repr.of(metric.of);
+        auto& repr = lower.repr.of(metric.of);
         auto number = metric.metric == TypeMetricKind::Align ? repr.align
                     : metric.metric == TypeMetricKind::Stride ? repr.stride
                     : repr.size;
@@ -590,7 +653,8 @@ static LowerInst* relocateWith(LowerContext& lower, LowerBlock& block, LowerPtr<
                                bool erased) {
     if(erased && !sink) {
         auto descriptor = genTypeDesc(lower, block, type);
-        auto slot = addOffset(lower, block, descriptor, TypeDescLayout::kMoveInit);
+        auto slot = addOffset(lower, block, descriptor, tableSlotOffset(
+            lower.repr.target, TypeDescFields::kWordCount, TypeDescFields::kMoveInit));
         auto moveInit = load(lower.lower, lower.to, block, lower.lower[slot], 8, false, LowerType::Pointer, 0);
 
         return call(lower.lower, lower.to, block, 0, 3, kDefaultCallType, [&](LowerInstCall* relocation) {
@@ -938,7 +1002,8 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             if(lower.genEnv && isGeneric(lower.global, placeType)) {
                 auto descriptor = genTypeDesc(lower, block, placeType);
 
-                auto erasedStep = [&](U32 offset) {
+                auto erasedStep = [&](U16 slot) {
+                    auto offset = tableSlotOffset(lower.repr.target, TypeDescFields::kWordCount, slot);
                     auto slotAddress = addOffset(lower, block, descriptor, offset);
                     auto loaded = load(lower.lower, lower.to, block, lower.lower[slotAddress], 8,
                                        false, LowerType::Pointer, 0);
@@ -951,8 +1016,8 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                     });
                 };
 
-                erasedStep(TypeDescLayout::kDrop);
-                erasedStep(TypeDescLayout::kReclaim);
+                erasedStep(TypeDescFields::kDrop);
+                erasedStep(TypeDescFields::kReclaim);
                 break;
             }
 
@@ -995,9 +1060,9 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             // `imm` behind for every one the scaling fold above removed the only use of.
             if(!descriptor) return;
 
-            auto offset = metric.metric == TypeMetricKind::Align ? TypeDescLayout::kAlign
-                        : metric.metric == TypeMetricKind::Stride ? TypeDescLayout::kStride
-                        : TypeDescLayout::kSize;
+            auto offset = metric.metric == TypeMetricKind::Align ? TypeDescFields::kAlign
+                        : metric.metric == TypeMetricKind::Stride ? TypeDescFields::kStride
+                        : TypeDescFields::kSize;
 
             lower.values.add(instValue, descField(lower, block, descriptor, offset));
             return;
@@ -1123,7 +1188,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 auto& metric = *(InstTypeMetric*)value;
                 if(isGeneric(lower.global, metric.of)) return false;
 
-                auto& repr = lower.from.repr.of(metric.of);
+                auto& repr = lower.repr.of(metric.of);
                 auto number = metric.metric == TypeMetricKind::Align ? repr.align
                             : metric.metric == TypeMetricKind::Stride ? repr.stride
                             : repr.size;
@@ -1569,33 +1634,56 @@ static void lowerPhi(LowerContext& lower, LowerBlock& block, ModulePtr<InstPhi> 
 // LowerFunction, and the two live in the same arena precisely so that it can.
 Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
     auto result = Ptr<LowerModule>(new LowerModule(8 * 1024 * 1024));
+    ReprTable repr(*program.types, nativeReprTarget());
+
     LowerContext lower {
-        context, program, *result, *program.types, *program.arena, *result->arena
+        context, program, *result, *program.types, *program.arena, *result->arena, repr
     };
 
-    // The compiler-built tables whose relocations still have to be translated. Kept until every
-    // function exists, since a TypeDesc holds the address of teardown glue that has not been
-    // created yet when the table itself is.
+    checkTableTypes(lower);
+
+    /*
+     * The compiler-built tables, kept until every function exists.
+     *
+     * Two things are deferred rather than done as each global is reached, and for the same reason: a
+     * TypeDesc names teardown glue that has not been generated when the table itself is built, and
+     * nothing has an address at all until the module is placed. So a slot naming a function becomes
+     * a relocation, and the relocation is translated in a second pass over these.
+     *
+     * `offsets` is where each slot of the table landed, which is what turns a slot number into a
+     * relocation offset. It is kept per table rather than recomputed because the layout rule is the
+     * materializer's and asking it twice would be two chances to disagree.
+     */
     struct RelocatedGlobal {
         ModulePtr<Global> source;
         LowerPtr<LowerGlobal> target;
+        Array<U32> offsets;
     };
 
     Array<RelocatedGlobal> relocated;
 
-    // The bytes of one global, wherever they end up going. Its relocations are translated later
-    // rather than resolved here: what they point at may not have been created yet, and the address
-    // they hold is not known until the module is placed.
+    // The bytes of one global, wherever they end up going.
     auto lowerGlobal = [&](ModulePtr<Global> globalPointer) {
         auto source = lower.local[globalPointer];
         auto target = new (result->arena) LowerGlobal(source->name);
         target->mut = source->mut;
 
-        if(source->contents.length) {
-            // A compiler-built table brings its own bytes.
-            auto size = source->contents.length;
-            target->initialContents = ByteBuffer((Byte*)result->arena.alloc(size), size);
-            copy(source->contents.ptr, target->initialContents.ptr, size);
+        Array<U32> offsets;
+
+        if(source->isTable) {
+            /*
+             * A compiler-built table, laid out here rather than where it was described.
+             *
+             * This is the whole of what the structured form bought: resolve said which slot holds
+             * the size and which holds the drop, and *this* target decides that an address is eight
+             * bytes little-endian and that five words are followed by three of them. The JS backend
+             * reads the same slots and never produces bytes at all.
+             */
+            Array<TableSlot> slots;
+            for(auto slot: source->table.contents(lower.local)) slots.push(slot);
+
+            target->initialContents = materializeTable(result->arena, lower.repr,
+                                                       toBuffer(slots), offsets);
         } else {
             // A scalar starts as the bytes of its constant and an aggregate as zeroes, which
             // is the same statement in both cases: the global's Repr, filled from `initial`.
@@ -1612,17 +1700,24 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
                  * A type narrower than the word takes the bytes the target would have put the value
                  * in: the leading ones little-endian, the trailing ones big-endian.
                  */
+                auto order = lower.repr.target.byteOrder;
+
                 Byte word[sizeof(U64)];
                 Net::BufferWriter bits(word, sizeof(word));
-                bits.writeLong<kTargetByteOrder>(source->initial);
+
+                if(order == LittleEndian) {
+                    bits.writeLong<LittleEndian>(source->initial);
+                } else {
+                    bits.writeLong<BigEndian>(source->initial);
+                }
 
                 auto width = size < sizeof(U64) ? Size(size) : sizeof(U64);
-                auto first = kTargetByteOrder == LittleEndian ? 0 : sizeof(U64) - width;
+                auto first = order == LittleEndian ? 0 : sizeof(U64) - width;
                 copy(word + first, target->initialContents.ptr, width);
             }
         }
 
-        relocated.push(RelocatedGlobal { globalPointer, target - lower.lower });
+        relocated.push(RelocatedGlobal { globalPointer, target - lower.lower, ::move(offsets) });
         return target;
     };
 
@@ -1681,23 +1776,30 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         auto source = lower.local[entry.source];
         auto target = lower.lower[entry.target];
 
-        for(auto relocation: source->relocations.contents(lower.local)) {
-            LowerDataRelocation translated;
-            translated.offset = relocation.offset;
+        Size index = 0;
 
-            if(relocation.function) {
-                auto found = lower.functions.getValue(relocation.function);
+        for(auto slot: source->table.contents(lower.local)) {
+            auto at = index++;
+            if(!isAddressCell(slot.kind)) continue;
+
+            LowerDataRelocation translated;
+            translated.offset = entry.offsets[at];
+
+            if(slot.function) {
+                auto found = lower.functions.getValue(slot.function);
 
                 // A table naming a function nothing else reached is what keeps that function alive,
                 // so this should not happen; leaving the slot null is still better than pointing it
                 // at the wrong thing.
                 if(!found) continue;
                 translated.function = found.unwrap();
-            } else if(relocation.global) {
-                auto found = result->globals.getValue(lower.local[relocation.global]->name);
+            } else if(slot.global) {
+                auto found = result->globals.getValue(lower.local[slot.global]->name);
                 if(!found) continue;
                 translated.global = found.unwrap();
             } else {
+                // A deliberately empty address slot - "nothing to do", which is zeroes and no
+                // relocation. See TableCell.
                 continue;
             }
 

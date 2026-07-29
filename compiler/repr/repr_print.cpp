@@ -127,8 +127,9 @@ void printRepr(ReprPrint& print, TypePtr type) {
 
 } // namespace
 
-void printReprs(Net::Writer& writer, Context& context, Program& program) {
-    ReprPrint print { writer, context, *program.types, program.repr };
+void printReprs(Net::Writer& writer, Context& context, Program& program, const ReprTarget& target) {
+    ReprTable table(*program.types, target);
+    ReprPrint print { writer, context, *program.types, table };
     auto global = *program.types;
 
     /*

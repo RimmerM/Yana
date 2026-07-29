@@ -2,7 +2,6 @@
 
 #include "block.h"
 #include "class.h"
-#include "../repr/repr.h"
 
 namespace ast {
 struct Module;
@@ -200,16 +199,69 @@ struct Function {
 };
 
 /*
- * One address inside a compiler-built constant that only the loader can fill in - see
- * LowerDataRelocation, which this becomes.
+ * What one cell of a compiler-built table holds.
+ *
+ * A table is built as a list of these and nothing else - no bytes, no offsets, no byte order. That
+ * is the whole of what makes it target-neutral: which *position* a slot ends up at is a question
+ * only the reader can answer, and the two readers disagree completely. Native wants a byte offset
+ * into a blob whose addresses are eight bytes wide in the target's endianness; JS wants an element
+ * of an array, where an address is a name and has no width at all. Writing native bytes here and
+ * letting JS read them back at native offsets - which is what this used to do - made every JS table
+ * a padded transcription of an x64 memory image, and made "add a target" mean "reinterpret somebody
+ * else's bytes".
+ *
+ * So resolve states the slots, `repr/table.h` turns them into native offsets and relocations, and
+ * `codegen/js` turns them into array elements. The numberings in witness.h are what emitted code is
+ * compiled against, and they are the only thing the two materializations share.
  */
-struct GlobalRelocation {
-    U32 offset = 0;
+enum class TableCell: U8 {
+    // A plain number, in `value`.
+    Int,
 
-    // Exactly one of these is set.
+    // An interned type or class, as its region offset. Distinguished from Int because a dump can
+    // then name what one refers to instead of printing a region offset, which would make every
+    // fixture holding a descriptor churn whenever an unrelated declaration moved.
+    Type,
+    Class,
+
+    /*
+     * How wide a type is, as `metric` of the type in `value` - the table-slot form of a TypeMetric.
+     *
+     * The number itself is deliberately not here, for exactly the reason InstTypeMetric exists: a
+     * descriptor's size is the *emitting target's* answer, and the two targets disagree about every
+     * type. Resolve builds one descriptor per type and says which measurement each slot holds;
+     * whichever backend materializes it fills in its own numbers. Writing native sizes at build time
+     * made a descriptor a native artifact that the JS backend then read as though it described JS
+     * values, which was the last thing in resolve that knew how wide anything was.
+     */
+    Metric,
+
+    // The address of a function or of another table, left for the materializer to name - on native
+    // it becomes a LowerDataRelocation, and on JS the emitted name itself. Null where the slot is
+    // deliberately empty, which for a lifecycle slot means "nothing to do", never "unavailable".
+    Function,
+    Global,
+};
+
+struct TableSlot {
+    TableCell kind = TableCell::Int;
+
+    // Which measurement, for a Metric cell. Ignored by every other kind.
+    TypeMetricKind metric = TypeMetricKind::Size;
+
+    // The number, or the interned type or class, as its region offset.
+    U32 value = 0;
+
+    // At most one of these, and only for the matching kind.
     ModulePtr<Function> function = nullptr;
     ModulePtr<Global> global = nullptr;
 };
+
+// Whether a cell holds a target address rather than a 32-bit word. The only thing about a slot that
+// a layout has to know, which is what keeps every layout rule out of resolve.
+inline bool isAddressCell(TableCell kind) {
+    return kind == TableCell::Function || kind == TableCell::Global;
+}
 
 /*
  * One interned runtime generic environment.
@@ -261,19 +313,17 @@ struct Global {
     // zero and are emitted as zeroed storage of their Repr's size.
     U64 initial = 0;
 
-    // Set for a compiler-built constant table. When present it is the whole of the global's
-    // storage: `type` and `initial` say nothing about one.
-    ByteBuffer contents;
-    ModuleList<GlobalRelocation, false> relocations;
-
-    // Where in `contents` a word holds an interned type rather than a number. Recorded so that a
-    // dump can name the type instead of printing a region offset, which would otherwise make every
-    // fixture holding a descriptor churn whenever an unrelated declaration moved.
-    ModuleList<U32, false> typeWords;
-
-    // The same, for a word holding a class rather than a type - a witness records which class it
-    // implements, and a region offset would say nothing in a dump.
-    ModuleList<U32, false> classWords;
+    /*
+     * Set for a compiler-built constant table. When present it is the whole of the global's
+     * storage: `type` and `initial` say nothing about one.
+     *
+     * Slots rather than bytes, and that is the point - see TableCell. What each slot means is
+     * decided here; where it lands, how wide it is and which end of it comes first are decided by
+     * whichever backend is about to emit the table, because those are the only three questions whose
+     * answers differ between them.
+     */
+    ModuleList<TableSlot, false> table;
+    bool isTable = false;
 
     /*
      * Set when this table is not module-level storage at all, but the bytes immediately in front of
@@ -368,24 +418,6 @@ struct Program {
     Region<ModuleRegion> arena;
     ScalarTypes scalar;
     CoreClasses coreClasses;
-
-    /*
-     * This program's physical layout answers, for the one target it is being compiled for.
-     *
-     * A program is already resolved once per target rather than once and walked twice - `@platform`
-     * decides which declarations *exist*, so a JS build and a native build do not share a resolved
-     * program - which is what makes one table per program the right granularity: one program, one
-     * target, one family of Reprs. `Maybe(Id)` is a single machine word in the native program and
-     * `number | null` in the JS one, and neither can see the other's answer.
-     *
-     * Almost nothing in resolve may touch this, and what does is listed here so that the list can be
-     * seen to be shrinking: resolve/witness.cpp, which writes the size and alignment of a type into
-     * its TypeDesc. That table is native ABI data being built during resolution, and structuring it
-     * so each backend materializes its own is what removes the last resolve-side reader. Everything
-     * else that needs layout - resolve/lower.cpp, and the JS backend - is on the emitting side of
-     * the pipeline already and is a legitimate caller.
-     */
-    ReprTable repr;
 
     // Numbers the literal variables of the whole program, so that two `?n` in one diagnostic are
     // never the same name for different literals.

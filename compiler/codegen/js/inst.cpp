@@ -92,7 +92,7 @@ bool erasedRelocate(Gen& g, JsPtr<Expr> target, JsPtr<Expr> source, TypePtr type
     auto descriptor = genTypeDesc(g, type);
     if(!descriptor) return false;
 
-    emitExpr(g, call(g, tableCell(g, descriptor, TypeDescLayout::kMoveInit),
+    emitExpr(g, call(g, tableCell(g, descriptor, TypeDescFields::kMoveInit),
                      referenceTo(g, type, target), referenceTo(g, type, source)));
     return true;
 }
@@ -326,7 +326,7 @@ void genDrop(Gen& g, InstDrop& instruction) {
         // The teardown the caller's descriptor names, reached through the same cell read every
         // other erased operation uses.
         if(auto descriptor = genTypeDesc(g, type)) {
-            emitExpr(g, call(g, tableCell(g, descriptor, TypeDescLayout::kDrop), argument));
+            emitExpr(g, call(g, tableCell(g, descriptor, TypeDescFields::kDrop), argument));
         }
 
         return;
@@ -369,9 +369,10 @@ void genCallDyn(Gen& g, ModulePtr<Value> pointer, InstCallDyn& instruction) {
 JsPtr<Expr> genEnvTable(Gen& g, InstGenCall& instruction) {
     auto table = make<ArrayExpr>(g);
 
-    // The schema word the layout puts in front of the slots. Emitted code never reads it; it is
-    // here so that cell indices match the offsets the layout states.
-    for(U32 i = 0; i < GenEnvLayout::kSlots / 4; i++) {
+    // The schema word in front of the slots. Emitted code never reads it; it is here because the
+    // numbering says slot N is at N + kSlots, and a caller assembling a table has to agree with the
+    // interned ones it may be passed alongside.
+    for(U16 i = 0; i < GenEnvFields::kWordCount; i++) {
         table->values.push(g.file.arena, number(g, 0));
     }
 
@@ -381,7 +382,6 @@ JsPtr<Expr> genEnvTable(Gen& g, InstGenCall& instruction) {
             : globalValue(g, slot.constant);
 
         table->values.push(g.file.arena, value);
-        table->values.push(g.file.arena, number(g, 0));
     }
 
     return asExpr(g, table);
@@ -397,7 +397,7 @@ void genGenCall(Gen& g, ModulePtr<Value> pointer, InstGenCall& instruction) {
         // thunk, so it needs no environment of its own.
         auto witness = genWitness(g, instruction.classSlot, instruction.classPath);
         auto argCount = U16(g.global[g.global[instruction.typeClass]->gen]->types.size());
-        callee = tableCell(g, witness, ClassWitnessLayout::methodsOffset(argCount) + 8 * instruction.index);
+        callee = tableCell(g, witness, ClassWitnessFields::method(argCount, instruction.index));
     } else {
         callee = functionValue(g, instruction.callee, instruction.source);
         args.push(instruction.env ? globalValue(g, instruction.env) : genEnvTable(g, instruction));
@@ -830,14 +830,14 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             auto& metric = (InstTypeMetric&)instruction;
 
             if(auto descriptor = genTypeDesc(g, metric.of)) {
-                auto offset = metric.metric == TypeMetricKind::Align ? TypeDescLayout::kAlign
-                            : metric.metric == TypeMetricKind::Stride ? TypeDescLayout::kStride
-                            : TypeDescLayout::kSize;
-                define(g, value, tableCell(g, descriptor, offset));
+                auto slot = metric.metric == TypeMetricKind::Align ? TypeDescFields::kAlign
+                          : metric.metric == TypeMetricKind::Stride ? TypeDescFields::kStride
+                          : TypeDescFields::kSize;
+                define(g, value, tableCell(g, descriptor, slot));
                 break;
             }
 
-            auto& repr = g.program.repr.of(metric.of);
+            auto& repr = g.repr.of(metric.of);
             auto number_ = metric.metric == TypeMetricKind::Align ? repr.align
                          : metric.metric == TypeMetricKind::Stride ? repr.stride
                          : repr.size;

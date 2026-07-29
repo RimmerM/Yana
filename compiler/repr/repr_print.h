@@ -1,5 +1,6 @@
 #pragma once
 
+#include "repr.h"
 #include "../resolve/module.h"
 #include "Net/Stream.h"
 
@@ -10,4 +11,7 @@
  * decision that nothing has consumed yet. A niche the search finds and the access lowering does not
  * use is invisible in emitted code, and a layout nobody can see is a layout nobody can check.
  */
-void printReprs(Net::Writer& writer, Context& context, Program& program);
+// Over a table of its own rather than one the program carries, so that a fixture can ask what
+// *either* target chose without having to be compiled for it - which is the only way the two
+// families can be compared side by side.
+void printReprs(Net::Writer& writer, Context& context, Program& program, const ReprTarget& target);

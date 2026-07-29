@@ -7,8 +7,8 @@ let &heapFree: %%U8 = 0
 let &dropCalls: Int = 0
 
 table closure$ResolveTest.lambda$0 before ResolveTest.lambda$0 {
-  +0 drop${g: Guard}
-  +8 closureRelease${g: Guard}
+  .0 drop${g: Guard}
+  .1 closureRelease${g: Guard}
 }
 
 fn initHeap() -> () {
@@ -330,7 +330,8 @@ fn drop$() -> Int(%value: %() -> Int) -> () {
   b1:
     %v6 = load [%value].code : %()
     %v7 = cast %v6 : Long
-    %v9 = sub %v7, 16 : Long
+    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v9 = sub %v7, %v8 : Long
     %v10 = cast %v9 : %{drop: %(), reclaim: %()}
     %v11 = load [%v10].drop : %()
     calldyn %v11, %v1
@@ -350,7 +351,8 @@ fn reclaim$() -> Int(%value: %() -> Int) -> () {
   b1:
     %v6 = load [%value].code : %()
     %v7 = cast %v6 : Long
-    %v9 = sub %v7, 16 : Long
+    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v9 = sub %v7, %v8 : Long
     %v10 = cast %v9 : %{drop: %(), reclaim: %()}
     %v11 = load [%v10].reclaim : %()
     calldyn %v11, %v1

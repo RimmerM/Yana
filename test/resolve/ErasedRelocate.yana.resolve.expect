@@ -1,31 +1,35 @@
 let &sinkCalls: I64 = 0
 
 table typeDesc$Handle {
-  +0 Handle, 8
-  +8 8, 8
-  +16 128, 0
-  +24 Sink(Handle).sink
-  +32 teardown$none
-  +40 teardown$none
+  .0 Handle
+  .1 sizeof Handle
+  .2 alignof Handle
+  .3 strideof Handle
+  .4 128
+  .5 Sink(Handle).sink
+  .6 teardown$none
+  .7 teardown$none
 }
 
 table genEnv$relocate(Handle) {
-  +0 0, 0
-  +8 typeDesc$Handle
+  .0 0
+  .1 typeDesc$Handle
 }
 
 table typeDesc$Pair {
-  +0 Pair, 16
-  +8 8, 16
-  +16 128, 0
-  +24 moveInit$Pair
-  +32 teardown$none
-  +40 teardown$none
+  .0 Pair
+  .1 sizeof Pair
+  .2 alignof Pair
+  .3 strideof Pair
+  .4 128
+  .5 moveInit$Pair
+  .6 teardown$none
+  .7 teardown$none
 }
 
 table genEnv$relocate(Pair) {
-  +0 0, 0
-  +8 typeDesc$Pair
+  .0 0
+  .1 typeDesc$Pair
 }
 
 fn teardown$none(%value: %()) -> () {
