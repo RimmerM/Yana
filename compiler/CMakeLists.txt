@@ -105,23 +105,29 @@ target_link_libraries(YanaLower PUBLIC YanaCore)
 target_link_libraries(YanaResolve PUBLIC YanaLower)
 
 set(LLVM_SOURCE_FILES
-    codegen/llvm/gen.cpp
     codegen/llvm/gen.h
-    codegen/llvm/link.cpp
+    codegen/llvm/build.h
+    codegen/llvm/gen.cpp
+    codegen/llvm/inst.cpp
+    codegen/llvm/intrinsic.cpp
+    codegen/llvm/emit.cpp
+)
+
+llvm_map_components_to_libnames(LLVM_LIBRARIES
+    core support analysis passes target codegen mc linker
+    x86codegen x86asmparser x86desc x86info
 )
 
 add_library(YanaLLVM ${LLVM_SOURCE_FILES})
-target_include_directories(YanaLLVM PUBLIC ${LLVM_INCLUDE_DIR})
-target_link_libraries(YanaLLVM PUBLIC
-    YanaCore
-    LLVMLinker
-    LLVMTransformUtils
-    LLVMCore
-    LLVMBinaryFormat
-    LLVMSupport
-    LLVMDemangle
-)
+target_include_directories(YanaLLVM PUBLIC ${LLVM_INCLUDE_DIRS})
+separate_arguments(LLVM_DEFINITION_LIST NATIVE_COMMAND "${LLVM_DEFINITIONS}")
+target_compile_definitions(YanaLLVM PUBLIC ${LLVM_DEFINITION_LIST})
+target_link_libraries(YanaLLVM PUBLIC YanaCore YanaLower ${LLVM_LIBRARIES})
 
+# The pre-migration JS backend is retained, unchanged, in codegen/js_old/ and intentionally has no
+# build target: it consumes the aggregate/Value IR the old resolver produced and predates places,
+# ownership instructions, Repr and generic contexts. codegen/js is the rewrite against the current
+# resolve IR that Analysis-JS.md part 3 describes.
 set(JS_SOURCE_FILES
     codegen/js/gen.h
     codegen/js/build.h
@@ -161,9 +167,9 @@ add_library(YanaX64 ${X64_SOURCE_FILES})
 target_link_libraries(YanaX64 PUBLIC YanaCore YanaLower)
 
 set(DRIVER_SOURCE_FILES
-    compiler/source.h
-    compiler/source.cpp
     compiler/driver.cpp
+    compiler/source.cpp
+    compiler/source.h
 )
 
 add_executable(Yana ${DRIVER_SOURCE_FILES})

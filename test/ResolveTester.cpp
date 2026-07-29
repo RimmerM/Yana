@@ -10,6 +10,7 @@
 #include "../compiler/lower/lower_validate.h"
 #include "../compiler/codegen/x64/gen.h"
 #include "../compiler/codegen/js/gen.h"
+#include "../compiler/codegen/llvm/gen.h"
 #include "Net/Stream.h"
 #include "Net/File.h"
 
@@ -376,6 +377,45 @@ static bool runJsPass(const String& path, const String& jsPath, StringView sourc
     return compareText(jsPath, writer.getBuffered());
 }
 
+/*
+ * The same fixture, handed to LLVM.
+ *
+ * The lowered module rather than a second resolution, unlike the JS pass: this backend and the x64
+ * one consume the same IR, so what it asserts is the translation into LLVM's form and nothing about
+ * the stages in front of it. Opted into by the `.llvm.expect` file, on the same terms as the rest -
+ * a fixture that says nothing new about the translation would only be a second copy of what
+ * `.lower.expect` already asserts.
+ *
+ * The verifier runs whether or not the text matches, because a module LLVM rejects is a failure of
+ * this backend even when the expect file was generated from it.
+ */
+static bool runLlvmPass(const String& path, const String& llvmPath, Context& context,
+                        Diagnostics& diagnostics, LowerModule& lowered, bool generate) {
+    llvm::LLVMContext llvm;
+    auto errors = diagnostics.errorCount();
+    auto module = llvmgen::genModule(llvm, context, lowered);
+
+    if(diagnostics.errorCount() > errors) {
+        println("Fail (%@): the LLVM backend produced %@ diagnostics.", path, diagnostics.errorCount() - errors);
+        return false;
+    }
+
+    if(!llvmgen::verifyGenModule(context, *module)) {
+        println("Fail (%@): the LLVM backend produced a module the verifier rejects.", path);
+        return false;
+    }
+
+    if(generate) {
+        writeText(llvmPath, [&](Net::Writer& writer) {
+            llvmgen::printModule(writer, *module);
+        });
+    }
+
+    Net::Writer writer(16384);
+    llvmgen::printModule(writer, *module);
+    return compareText(llvmPath, writer.getBuffered());
+}
+
 static bool runTest(const String& path, StringView source, bool generate) {
     auto errorPath = path + String(".errors.expect");
     if(fileExists(errorPath)) return runRejectionTest(path, errorPath, source, generate);
@@ -457,6 +497,11 @@ static bool runTest(const String& path, StringView source, bool generate) {
     Net::Writer lowerWriter(16384);
     printModule(lowerWriter, context, *lowered->arena, *lowered);
     pass = compareText(lowerPath, lowerWriter.getBuffered()) && pass;
+
+    auto llvmPath = path + String(".llvm.expect");
+    if(fileExists(llvmPath)) {
+        pass = runLlvmPass(path, llvmPath, context, diagnostics, *lowered, generate) && pass;
+    }
 
     auto runPath = path + String(".run.expect");
     if(auto expected = readExpectedRun(runPath)) {

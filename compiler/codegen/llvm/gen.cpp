@@ -1,1004 +1,407 @@
-#include "gen.h"
-#include <llvm/IR/Module.h>
-#include <llvm/IR/InlineAsm.h>
+#include "build.h"
 
-llvm::BasicBlock* genBlock(Gen* gen, Block* block);
-llvm::Function* genFunction(Gen* gen, Function* fun);
-llvm::Type* useType(Gen* gen, Type* type);
+#include <llvm/ADT/STLExtras.h>
+#include <llvm/IR/Verifier.h>
+#include <llvm/Support/raw_ostream.h>
 
-struct RecordGen {
-    llvm::Type* selectorType;
-    llvm::Type* opaqueType;
-    U32 selectorSize;
-    U32 selectorAlignment;
-    U32 maxSize;
-    U32 maxAlignment;
-    bool indirect;
+#include <string>
+
+namespace llvmgen {
+
+/*
+ * Types.
+ */
+
+llvm::Type* typeOf(Gen& gen, LowerType type) {
+    switch(type) {
+        case LowerType::Int32:
+            return llvm::Type::getInt32Ty(gen.llvm);
+        case LowerType::Int64:
+            return llvm::Type::getInt64Ty(gen.llvm);
+        case LowerType::Float32:
+            return llvm::Type::getFloatTy(gen.llvm);
+        case LowerType::Float64:
+            return llvm::Type::getDoubleTy(gen.llvm);
+        case LowerType::Pointer:
+            // Opaque, which is what makes this backend short: the lower IR has one pointer type and
+            // states what memory holds at the access rather than in the type, and since LLVM 15 so
+            // does LLVM. Every `bitcast` between pointer types the old backend emitted was work to
+            // agree with a type system that no longer exists.
+            return llvm::Type::getInt8PtrTy(gen.llvm);
+    }
+
+    assertTrue("unknown lower type" == nullptr);
+    return nullptr;
+}
+
+llvm::IntegerType* intTypeOfWidth(Gen& gen, U32 bytes) {
+    return llvm::IntegerType::get(gen.llvm, bytes * 8);
+}
+
+llvm::Type* resultTypeOf(Gen& gen, llvm::ArrayRef<llvm::Type*> results) {
+    if(results.empty()) return llvm::Type::getVoidTy(gen.llvm);
+    if(results.size() == 1) return results[0];
+
+    return llvm::StructType::get(gen.llvm, results);
+}
+
+llvm::FunctionType* signatureOf(Gen& gen, llvm::ArrayRef<llvm::Type*> args, llvm::ArrayRef<llvm::Type*> results) {
+    return llvm::FunctionType::get(resultTypeOf(gen, results), args, false);
+}
+
+llvm::FunctionType* signatureOf(Gen& gen, LowerFunction& fun) {
+    llvm::SmallVector<llvm::Type*, 8> args;
+    llvm::SmallVector<llvm::Type*, 2> results;
+
+    for(auto a: fun.args.contents(gen.base)) {
+        args.push_back(typeOf(gen, gen.base[a]->result.type));
+    }
+
+    for(auto r: fun.returnTypes.contents(gen.base)) {
+        results.push_back(typeOf(gen, LowerType(r)));
+    }
+
+    return signatureOf(gen, args, results);
+}
+
+/*
+ * Calling conventions.
+ *
+ * Three of the six are the compiler's own, and they exist to tell *our* register allocator how much
+ * of the register file a call may take - which is not a question LLVM's allocator asks anyone. What
+ * survives the translation is the part that is an ABI rather than an allocation policy: whether the
+ * caller and the callee agree on the platform's convention, or on one LLVM is free to choose.
+ *
+ * So Complex and Clobber both become `fastcc`. They differ in what a caller may keep in a register
+ * across the call, and LLVM decides that for itself from the call graph it can see - which is the
+ * whole reason this backend exists beside the x64 one.
+ */
+llvm::CallingConv::ID conventionOf(LowerCallType type) {
+    switch(type) {
+        case LowerCallType::Sysv:
+            // The C convention of the target triple. On x86-64 ELF that is System V by definition,
+            // which is also why nothing here has to name the argument registers.
+            return llvm::CallingConv::C;
+        case LowerCallType::Win64:
+            return llvm::CallingConv::Win64;
+        case LowerCallType::Simple:
+            // The caller keeps almost everything, which is exactly what preserve_most promises: the
+            // callee saves every register but its result and one scratch.
+            return llvm::CallingConv::PreserveMost;
+        case LowerCallType::Complex:
+        case LowerCallType::Clobber:
+            return llvm::CallingConv::Fast;
+        case LowerCallType::Syscall:
+            // Never reaches a call instruction - genSyscall emits inline assembly instead.
+            return llvm::CallingConv::C;
+    }
+
+    assertTrue("unknown calling convention" == nullptr);
+    return llvm::CallingConv::C;
+}
+
+/*
+ * The target the module is for.
+ *
+ * Stated rather than taken from a TargetMachine, so that generating IR needs no target backend
+ * linked in and produces the same text wherever the compiler runs. `writeObjectFile` overwrites the
+ * data layout with the target machine's own, which is the one place the two could disagree.
+ */
+struct TargetDescription {
+    StringView triple;
+    StringView dataLayout;
 };
 
-struct ConGen {
-    llvm::Type* memType;
-    llvm::Type* regType;
-    U32 size;
-    U32 alignment;
-};
+static TargetDescription targetDescriptionOf(Context& context) {
+    static constexpr StringView kX64Layout =
+        "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"_v;
 
-static llvm::StringRef toRef(Context* context, StringId name) {
-    if(name == 0) return "";
+    switch(context.settings.arch) {
+        case TargetArch::ARM64:
+            switch(context.settings.target) {
+                case TargetType::MacOS:
+                    return { "arm64-apple-darwin"_v, "e-m:o-i64:64-i128:128-n32:64-S128"_v };
+                default:
+                    return { "aarch64-unknown-linux-gnu"_v, "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"_v };
+            }
 
-    auto& v = context->find(name);
-    if(v.textLength == 0) return "";
+        case TargetArch::X86:
+        case TargetArch::ARM:
+            // The lower IR is 64-bit: addresses are added to with 64-bit offsets, and every
+            // compiler-built table lays out its slots eight bytes apart. A 32-bit target is a
+            // different lowering rather than a different triple here.
+            context.diagnostics.error("llvm: the 32-bit architectures are not supported yet"_v, nullptr);
+            [[fallthrough]];
 
-    return {v.text, v.textLength};
-}
-
-static bool isIndirect(Type* type) {
-    type = canonicalType(type);
-    return type->kind == Type::Record && ((RecordGen*)type->codegen)->indirect;
-}
-
-// Returns the pointee type of a typed pointer value.
-// Used to migrate calls that relied on the now-removed implicit-type overloads of CreateLoad/CreateGEP.
-static llvm::Type* elementType(llvm::Value* pointer) {
-    return pointer->getType()->getNonOpaquePointerElementType();
-}
-
-llvm::Type* genIntType(Gen* gen, IntType* type) {
-    switch(type->width) {
-        case IntType::Bool:
-            return gen->builder->getInt1Ty();
-        case IntType::Int:
-            return gen->builder->getInt32Ty();
-        case IntType::Long:
+        case TargetArch::X64:
         default:
-            return gen->builder->getInt64Ty();
-    }
-}
-
-llvm::Type* genFloatType(Gen* gen, FloatType* type) {
-    switch(type->width) {
-        case FloatType::F16:
-            return gen->builder->getHalfTy();
-        case FloatType::F32:
-            return gen->builder->getFloatTy();
-        case FloatType::F64:
-        default:
-            return gen->builder->getDoubleTy();
-    }
-}
-
-llvm::Type* genTupType(Gen* gen, TupType* type) {
-    auto types = (llvm::Type**)alloca(sizeof(llvm::Type*) * type->count);
-    for(U32 i = 0; i < type->count; i++) {
-        types[i] = useType(gen, type->fields[i].type);
-    }
-
-    auto t = llvm::StructType::get(*gen->llvm, {types, type->count}, false);
-    return t;
-}
-
-RecordGen* genRecordType(Gen* gen, RecordType* type) {
-    auto layout = &gen->module->getDataLayout();
-    auto conCount = type->conCount;
-    auto cons = type->cons;
-    auto record = new (*gen->mem) RecordGen;
-    record->indirect = false;
-
-    if(conCount > 1) {
-        if(conCount <= 255) {
-            record->selectorType = gen->builder->getInt8Ty();
-        } else if(conCount <= 65535) {
-            record->selectorType = gen->builder->getInt16Ty();
-        } else {
-            record->selectorType = gen->builder->getInt32Ty();
-        }
-
-        record->selectorSize = (U32)layout->getTypeAllocSize(record->selectorType);
-        record->selectorAlignment = layout->getPrefTypeAlignment(record->selectorType);
-    } else {
-        record->selectorType = nullptr;
-        record->selectorSize = 0;
-        record->selectorAlignment = 0;
-    }
-
-    if(type->kind == RecordType::Enum) {
-        record->maxSize = record->selectorSize;
-        record->maxAlignment = record->selectorAlignment;
-        record->opaqueType = record->selectorType;
-
-        auto conGen = new (*gen->mem) ConGen;
-        conGen->regType = record->selectorType;
-        conGen->memType = record->selectorType;
-        conGen->alignment = record->selectorAlignment;
-        conGen->size = record->selectorSize;
-
-        for(U32 i = 0; i < conCount; i++) {
-            cons[i].codegen = conGen;
-        }
-    } else if(type->kind == RecordType::Single) {
-        auto conGen = new (*gen->mem) ConGen;
-        cons[0].codegen = conGen;
-
-        llvm::Type* con = useType(gen, cons[0].content);
-        conGen->memType = con;
-        conGen->regType = con;
-
-        auto s = (U32)layout->getTypeAllocSize(con);
-        auto a = layout->getPrefTypeAlignment(con);
-        conGen->size = s;
-        conGen->alignment = a;
-
-        record->opaqueType = con;
-        record->maxAlignment = a;
-        record->maxSize = s;
-    } else {
-        U32 maxSize = 0;
-        U32 maxAlignment = 0;
-
-        for(U32 i = 0; i < conCount; i++) {
-            auto conGen = new (*gen->mem) ConGen;
-            cons[i].codegen = conGen;
-
-            if(cons[i].content) {
-                llvm::Type* con = useType(gen, cons[i].content);
-
-                llvm::Type* memTypes[2];
-                memTypes[0] = record->selectorType;
-                memTypes[1] = con;
-                auto t = llvm::StructType::get(*gen->llvm, {memTypes, 2});
-                conGen->memType = t;
-
-                auto s = (U32)layout->getTypeAllocSize(t);
-                auto a = (U32)layout->getPrefTypeAlignment(t);
-                conGen->size = s;
-                conGen->alignment = a;
-
-                maxSize = max(maxSize, s);
-                maxAlignment = max(maxAlignment, a);
-            } else {
-                conGen->regType = record->selectorType;
-                conGen->memType = record->selectorType;
-                conGen->size = record->selectorSize;
-                conGen->alignment = record->selectorAlignment;
+            switch(context.settings.target) {
+                case TargetType::MacOS:
+                    return { "x86_64-apple-darwin"_v, "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"_v };
+                case TargetType::Win32:
+                    return { "x86_64-pc-windows-msvc"_v, "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"_v };
+                default:
+                    return { "x86_64-unknown-linux-gnu"_v, kX64Layout };
             }
+    }
+}
+
+static llvm::StringRef toRef(StringView view) {
+    return { view.ptr, view.length };
+}
+
+/*
+ * Globals.
+ *
+ * A global's contents are bytes and a list of addresses to write into them, which is the flat-buffer
+ * spelling of a relocation - see LowerDataRelocation. LLVM says the same thing with a constant that
+ * *contains* the address, so this splits the bytes at each relocation site and rebuilds them as a
+ * packed struct of byte arrays and pointers. Packed because the offsets are the point: a witness
+ * table's slot is at the offset the lowering computed, and a struct LLVM is free to pad is not.
+ *
+ * Built twice per global. A table naming a function is a forward reference as often as not - and
+ * naming *itself* is what a recursive type descriptor does - so the first pass builds the same
+ * shape with null addresses, which is what the variable is declared as, and the second fills them
+ * in once everything in the module exists. Both walk this one function, so the type the variable
+ * was declared with and the type of what is stored into it cannot drift apart.
+ */
+static llvm::Constant* byteChunk(Gen& gen, const Byte* bytes, Size length) {
+    return llvm::ConstantDataArray::get(gen.llvm, llvm::ArrayRef<uint8_t>((const uint8_t*)bytes, length));
+}
+
+static llvm::Constant* initializerOf(Gen& gen, LowerGlobal& global, bool resolve) {
+    auto contents = global.initialContents;
+
+    // Each site as the address that goes into it. Resolved before being sorted so that what is
+    // sorted is a pair of numbers rather than the IR's own record of the relocation.
+    llvm::SmallVector<std::pair<U32, llvm::Constant*>, 8> sites;
+
+    for(auto relocation: global.relocations.contents(gen.base)) {
+        llvm::Constant* address = nullptr;
+
+        if(!resolve) {
+            address = llvm::ConstantPointerNull::get(llvm::Type::getInt8PtrTy(gen.llvm));
+        } else if(relocation.function) {
+            address = gen.functionOf(relocation.function);
+        } else if(relocation.global) {
+            address = gen.globalOf(relocation.global);
         }
 
-        record->maxAlignment = maxAlignment;
-        record->maxSize = maxSize;
-
-        if(conCount > 1) {
-            for(U32 i = 0; i < conCount; i++) {
-                auto conGen = (ConGen*)cons[i].codegen;
-
-                if(conGen->size < maxSize) {
-                    if(conGen->memType == record->selectorType) {
-                        llvm::Type* regTypes[2];
-                        regTypes[0] = record->selectorType;
-                        regTypes[1] = llvm::ArrayType::get(gen->builder->getInt8Ty(), maxSize - conGen->size);
-                        conGen->regType = llvm::StructType::get(*gen->llvm, {regTypes, 2});
-                    } else {
-                        llvm::Type* regTypes[3];
-                        regTypes[0] = record->selectorType;
-                        regTypes[1] = conGen->memType;
-                        regTypes[2] = llvm::ArrayType::get(gen->builder->getInt8Ty(), maxSize - conGen->size);
-                        conGen->regType = llvm::StructType::get(*gen->llvm, {regTypes, 3});
-                    }
-                } else {
-                    conGen->regType = conGen->memType;
-                }
-
-                if(i > 0 && conGen->regType != ((ConGen*)cons[i - 1].codegen)->regType) {
-                    record->indirect = true;
-                }
-            }
-
-            record->opaqueType = ((ConGen*)cons[0].codegen)->regType;
-        } else {
-            auto conGen = (ConGen*)cons[0].codegen;
-            conGen->regType = conGen->memType;
-            record->opaqueType = conGen->memType;
-        }
-    }
-
-    return record;
-}
-
-llvm::Type* genStringType(llvm::LLVMContext* context) {
-    auto length = llvm::IntegerType::getInt32Ty(*context);
-    auto data = llvm::ArrayType::get(llvm::IntegerType::getInt8Ty(*context), 0);
-    llvm::Type* fields[2];
-    fields[0] = length;
-    fields[1] = data;
-
-    return llvm::StructType::get(*context, {fields, 2});
-}
-
-llvm::Type* genType(Gen* gen, Type* type) {
-    switch(type->kind) {
-        case Type::Error:
-        case Type::Unit:
-            return gen->builder->getVoidTy();
-        case Type::Gen:
-            return gen->builder->getInt8PtrTy(0);
-        case Type::Int:
-            return genIntType(gen, (IntType*)type);
-        case Type::Float:
-            return genFloatType(gen, (FloatType*)type);
-        case Type::String:
-            return gen->types.stringRef;
-        case Type::Ref:
-            return llvm::PointerType::get(useType(gen, ((RefType*)type)->to), 0);
-        case Type::Fun:
-        case Type::Array:
-        case Type::Map:
-            return gen->builder->getInt8PtrTy(0);
-        case Type::Tup:
-            return genTupType(gen, (TupType*)type);
-        case Type::Alias:
-            return useType(gen, ((AliasType*)type)->to);
-    }
-    return nullptr;
-}
-
-llvm::Type* useType(Gen* gen, Type* type) {
-    auto v = type->codegen;
-    if(v) {
-        if(type->kind == Type::Record) {
-            return ((RecordGen*)v)->opaqueType;
-        } else {
-            return (llvm::Type*)v;
-        }
-    }
-
-    if(type->kind == Type::Record) {
-        auto t = genRecordType(gen, (RecordType*)type);
-        type->codegen = t;
-        return t->opaqueType;
-    } else {
-        auto t = genType(gen, type);
-        type->codegen = t;
-        return t;
-    }
-}
-
-llvm::Function* useFunction(Gen* gen, Function* fun) {
-    auto v = (llvm::Function*)fun->codegen;
-    if(v) return v;
-
-    return genFunction(gen, fun);
-}
-
-llvm::BasicBlock* useBlock(Gen* gen, Block* block) {
-    auto v = (llvm::BasicBlock*)block->codegen;
-    if(v) return v;
-
-    return genBlock(gen, block);
-}
-
-llvm::Value* genStringLiteral(Gen* gen, const char* v, U32 l) {
-    auto type = gen->types.stringRef;
-    llvm::Constant* values[2];
-    values[0] = llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(*gen->llvm), l);
-    values[1] = llvm::ConstantDataArray::getString(*gen->llvm, {v, l}, false);
-
-    llvm::Type* types[2];
-    types[0] = values[0]->getType();
-    types[1] = values[1]->getType();
-
-    auto stringType = llvm::StructType::get(*gen->llvm, {types, 2});
-    auto initializer = llvm::ConstantStruct::get(stringType, {values, 2});
-    auto var = new llvm::GlobalVariable(*gen->module, stringType, true, llvm::GlobalValue::PrivateLinkage, initializer);
-    return gen->builder->CreateBitCast(var, type);
-}
-
-llvm::Value* useValue(Gen* gen, Value* value) {
-    auto v = (llvm::Value*)value->codegen;
-    if(v) return v;
-
-    switch(value->kind) {
-        case Value::ConstInt:
-            return llvm::ConstantInt::get(useType(gen, value->type), ((ConstInt*)value)->value);
-        case Value::ConstFloat:
-            return llvm::ConstantFP::get(useType(gen, value->type), ((ConstFloat*)value)->value);
-        case Value::ConstString:
-            return genStringLiteral(gen, ((ConstString*)value)->value, ((ConstString*)value)->length);
-    }
-
-    // If this happens, some instruction is not generated correctly.
-    return nullptr;
-}
-
-llvm::Value* genTrunc(Gen* gen, InstTrunc* inst) {
-    return gen->builder->CreateTrunc(useValue(gen, inst->from), useType(gen, inst->type));
-}
-
-llvm::Value* genFTrunc(Gen* gen, InstFTrunc* inst) {
-    return gen->builder->CreateFPTrunc(useValue(gen, inst->from), useType(gen, inst->type));
-}
-
-llvm::Value* genZExt(Gen* gen, InstZExt* inst) {
-    return gen->builder->CreateZExt(useValue(gen, inst->from), useType(gen, inst->type));
-}
-
-llvm::Value* genSExt(Gen* gen, InstSExt* inst) {
-    return gen->builder->CreateSExt(useValue(gen, inst->from), useType(gen, inst->type));
-}
-
-llvm::Value* genFExt(Gen* gen, InstFExt* inst) {
-    return gen->builder->CreateFPExt(useValue(gen, inst->from), useType(gen, inst->type));
-}
-
-llvm::Value* genFToI(Gen* gen, InstFToI* inst) {
-    return gen->builder->CreateFPToSI(useValue(gen, inst->from), useType(gen, inst->type));
-}
-
-llvm::Value* genFToUI(Gen* gen, InstFToUI* inst) {
-    return gen->builder->CreateFPToUI(useValue(gen, inst->from), useType(gen, inst->type));
-}
-
-llvm::Value* genIToF(Gen* gen, InstIToF* inst) {
-    return gen->builder->CreateSIToFP(useValue(gen, inst->from), useType(gen, inst->type));
-}
-
-llvm::Value* genUIToF(Gen* gen, InstUIToF* inst) {
-    return gen->builder->CreateUIToFP(useValue(gen, inst->from), useType(gen, inst->type));
-}
-
-llvm::Value* genAdd(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateAdd(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genSub(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateSub(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genMul(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateMul(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genDiv(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateUDiv(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genIDiv(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateSDiv(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genRem(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateURem(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genIRem(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateSRem(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genFAdd(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateFAdd(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genFSub(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateFSub(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genFMul(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateFMul(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genFDiv(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateFDiv(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genICmp(Gen* gen, InstICmp* inst) {
-    llvm::CmpInst::Predicate p;
-    switch(inst->cmp) {
-        case ICmp::eq:
-            p = llvm::CmpInst::ICMP_EQ;
-            break;
-        case ICmp::neq:
-            p = llvm::CmpInst::ICMP_NE;
-            break;
-        case ICmp::gt:
-            p = llvm::CmpInst::ICMP_UGT;
-            break;
-        case ICmp::ge:
-            p = llvm::CmpInst::ICMP_UGE;
-            break;
-        case ICmp::lt:
-            p = llvm::CmpInst::ICMP_ULT;
-            break;
-        case ICmp::le:
-            p = llvm::CmpInst::ICMP_ULE;
-            break;
-        case ICmp::igt:
-            p = llvm::CmpInst::ICMP_SGT;
-            break;
-        case ICmp::ige:
-            p = llvm::CmpInst::ICMP_SGE;
-            break;
-        case ICmp::ilt:
-            p = llvm::CmpInst::ICMP_SLT;
-            break;
-        case ICmp::ile:
-            p = llvm::CmpInst::ICMP_SLE;
-            break;
-    }
-    return gen->builder->CreateICmp(p, useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genFCmp(Gen* gen, InstFCmp* inst) {
-    llvm::CmpInst::Predicate p;
-    switch(inst->cmp) {
-        case FCmp::eq:
-            p = llvm::CmpInst::FCMP_OEQ;
-            break;
-        case FCmp::neq:
-            p = llvm::CmpInst::FCMP_ONE;
-            break;
-        case FCmp::gt:
-            p = llvm::CmpInst::FCMP_OGT;
-            break;
-        case FCmp::ge:
-            p = llvm::CmpInst::FCMP_OGE;
-            break;
-        case FCmp::lt:
-            p = llvm::CmpInst::FCMP_OLT;
-            break;
-        case FCmp::le:
-            p = llvm::CmpInst::FCMP_OLE;
-            break;
-    }
-    return gen->builder->CreateFCmp(p, useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genShl(Gen* gen, InstShift* inst) {
-    return gen->builder->CreateShl(useValue(gen, inst->arg), useValue(gen, inst->amount));
-}
-
-llvm::Value* genShr(Gen* gen, InstShift* inst) {
-    return gen->builder->CreateLShr(useValue(gen, inst->arg), useValue(gen, inst->amount));
-}
-
-llvm::Value* genSar(Gen* gen, InstShift* inst) {
-    return gen->builder->CreateAShr(useValue(gen, inst->arg), useValue(gen, inst->amount));
-}
-
-llvm::Value* genAnd(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateAnd(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genOr(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateOr(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genXor(Gen* gen, InstBinary* inst) {
-    return gen->builder->CreateXor(useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genAddRef(Gen* gen, InstBinary* inst) {
-    auto refType = (RefType*)canonicalType(inst->lhs->type);
-    return gen->builder->CreateGEP(useType(gen, refType->to), useValue(gen, inst->lhs), useValue(gen, inst->rhs));
-}
-
-llvm::Value* genRecord(Gen* gen, InstRecord* inst) {
-    useType(gen, inst->type);
-    auto type = (RecordGen*)inst->type->codegen;
-    auto con = (ConGen*)inst->con->codegen;
-
-    if(type->selectorType && type->selectorType == type->opaqueType) {
-        return llvm::ConstantInt::get(type->selectorType, inst->con->index);
-    } else if(type->selectorType) {
-        auto conIndex = llvm::ConstantInt::get(type->selectorType, inst->con->index);
-        auto v = useValue(gen, inst->content);
-        if(isIndirect(inst->content->type)) {
-            v = gen->builder->CreateLoad(useType(gen, inst->content->type), v);
+        if(!address) {
+            gen.context.diagnostics.error("llvm: global %@ relocates against something that does not exist"_v,
+                                          &global.source, gen.context.findName(global.name));
+            address = llvm::ConstantPointerNull::get(llvm::Type::getInt8PtrTy(gen.llvm));
         }
 
-        if(type->indirect) {
-            llvm::Value* record = gen->builder->CreateAlloca(con->regType);
+        sites.push_back({ relocation.offset, address });
+    }
 
-            llvm::Value* indices[2];
-            indices[0] = gen->builder->getInt32(0);
-            indices[1] = indices[0];
-            auto selector = gen->builder->CreateGEP(con->regType, record, {indices, 2});
-            gen->builder->CreateStore(conIndex, selector);
+    if(sites.empty()) {
+        if(contents.length == 0) return llvm::ConstantAggregateZero::get(llvm::ArrayType::get(llvm::Type::getInt8Ty(gen.llvm), 0));
+        return byteChunk(gen, contents.ptr, contents.length);
+    }
 
-            indices[1] = gen->builder->getInt32(1);
-            auto content = gen->builder->CreateGEP(con->regType, record, {indices, 2});
-            gen->builder->CreateStore(v, content);
+    llvm::sort(sites, [](const std::pair<U32, llvm::Constant*>& a, const std::pair<U32, llvm::Constant*>& b) {
+        return a.first < b.first;
+    });
 
-            return record;
-        } else {
-            llvm::Value* record = llvm::UndefValue::get(con->regType);
-            record = gen->builder->CreateInsertValue(record, conIndex, 0);
-            record = gen->builder->CreateInsertValue(record, v, 1);
-            return record;
+    llvm::SmallVector<llvm::Constant*, 8> fields;
+    Size at = 0;
+
+    for(auto& site: sites) {
+        if(site.first > at) {
+            fields.push_back(byteChunk(gen, contents.ptr + at, site.first - at));
         }
-    } else {
-        // If the content type is indirect, we continue using the same value when possible.
-        // The IR will contain an explicit alloc + store if the copied value is mutable.
-        return useValue(gen, inst->content);
-    }
-}
 
-llvm::Value* genTup(Gen* gen, InstTup* inst) {
-    auto type = useType(gen, inst->type);
-    llvm::Value* tup = llvm::UndefValue::get(type);
-
-    for(U32 i = 0; i < inst->fieldCount; i++) {
-        auto v = useValue(gen, inst->fields[i]);
-        if(isIndirect(inst->fields[i]->type)) {
-            v = gen->builder->CreateLoad(useType(gen, inst->fields[i]->type), v);
-        }
-        tup = gen->builder->CreateInsertValue(tup, v, i);
+        fields.push_back(site.second);
+        at = site.first + 8;
     }
 
-    return tup;
-}
-
-llvm::Value* genAlloc(Gen* gen, InstAlloc* inst) {
-    auto type = (RefType*)canonicalType(inst->type);
-    if(type->isLocal) {
-        return gen->builder->CreateAlloca(useType(gen, type->to));
-    } else {
-        // TODO
-        return nullptr;
+    if(at < contents.length) {
+        fields.push_back(byteChunk(gen, contents.ptr + at, contents.length - at));
     }
+
+    return llvm::ConstantStruct::getAnon(gen.llvm, fields, true);
 }
 
-llvm::Value* genLoad(Gen* gen, InstLoad* inst) {
-    // TODO: For records - load from mem form into reg form.
-    if(isIndirect(inst->from->type)) {
-        return useValue(gen, inst->from);
-    } else {
-        return gen->builder->CreateLoad(useType(gen, inst->type), useValue(gen, inst->from));
+static llvm::GlobalVariable* declareGlobal(Gen& gen, LowerGlobal& global) {
+    auto initializer = initializerOf(gen, global, false);
+    auto variable = new llvm::GlobalVariable(
+        gen.module, initializer->getType(), !global.mut,
+        llvm::GlobalValue::ExternalLinkage, initializer, nameOf(gen.context, global.name)
+    );
+
+    // The strongest thing anything in a compiler-built table needs, and the alignment every one of
+    // them is laid out for: a slot holding an address has to be aligned to be atomically readable,
+    // and nothing in the lower IR asks for more than a word.
+    variable->setAlignment(llvm::Align(8));
+    gen.globals.add((&global - gen.base).offset, variable);
+    return variable;
+}
+
+/*
+ * Functions.
+ */
+
+static llvm::Function* declareFunction(Gen& gen, LowerFunction& fun) {
+    auto target = llvm::Function::Create(
+        signatureOf(gen, fun), llvm::Function::ExternalLinkage,
+        nameOf(gen.context, fun.name), gen.module
+    );
+
+    target->setCallingConv(conventionOf(fun.callType));
+
+    U32 index = 0;
+    for(auto a: fun.args.contents(gen.base)) {
+        target->getArg(index++)->setName(nameOf(gen.context, gen.base[a]->result.name));
     }
+
+    gen.functions.add((&fun - gen.base).offset, target);
+    return target;
 }
 
-llvm::Value* genStore(Gen* gen, InstStore* inst) {
-    // TODO: For records - store from reg form into mem form.
-    if(isIndirect(inst->value->type)) {
-        auto v = gen->builder->CreateLoad(useType(gen, inst->value->type), useValue(gen, inst->value));
-        return gen->builder->CreateStore(v, useValue(gen, inst->to));
-    } else {
-        return gen->builder->CreateStore(useValue(gen, inst->value), useValue(gen, inst->to));
+/*
+ * The blocks of one function.
+ *
+ * Generated in reverse postorder so that everything a use names has been built by the time the use
+ * is: the lower validator guarantees that a definition dominates every non-phi use of it, and a
+ * dominator precedes what it dominates in reverse postorder. Phis are the exception the SSA form
+ * always is, so they are created empty first and given their operands once every block exists.
+ */
+static void genFunctionBody(Gen& gen, LowerFunction& fun, llvm::Function& target) {
+    FunGen f(gen, fun, target);
+
+    U32 index = 0;
+    for(auto a: fun.args.contents(gen.base)) {
+        f.define(gen.base[a]->result, target.getArg(index++));
     }
-}
 
-static llvm::Value* buildChain(Gen* gen, llvm::Value* from, U32* chain, U32& chainLength) {
-    auto v = gen->builder->CreateExtractValue(from, {chain, chainLength});
-    chainLength = 0;
-    return v;
-}
+    auto blockList = fun.blocks.contents(gen.base);
+    auto postorder = fun.buildPostorder(gen.base);
 
-llvm::Value* genGetField(Gen* gen, InstGetField* inst) {
-    auto currentChain = (U32*)alloca(sizeof(U32) * inst->chainLength);
-    U32 chainLength = 0;
+    for(Size i = 0; i < blockList.size(); i++) {
+        auto block = gen.base[blockList[i]];
+        f.blocks.push(llvm::BasicBlock::Create(gen.llvm, nameOf(gen.context, block->name), &target));
+    }
 
-    auto from = canonicalType(inst->from->type);
-    llvm::Value* result = useValue(gen, inst->from);
+    f.entry = f.blocks[0];
 
-    for(U32 i = 0; i < inst->chainLength; i++) {
-        U32 index = inst->indexChain[i];
-        if(from->kind == Type::Record) {
-            // Record type: either get the constructor id or cast to a specific constructor.
-            // Start with lazily generating any previous tuple chain.
-            if(chainLength) {
-                result = buildChain(gen, result, currentChain, chainLength);
-            }
+    // Every phi in the function, before any of them can be named: a loop header's phi takes a value
+    // the latch has not produced yet, and the latch's own instructions may read that phi.
+    for(Size i = postorder.size(); i > 0; i--) {
+        auto block = gen.base[blockList[postorder[i - 1]]];
+        f.builder.SetInsertPoint(f.blocks[block->index]);
 
-            useType(gen, from);
-            auto recordType = (RecordType*)from;
-            auto recordGen = (RecordGen*)recordType->codegen;
-
-            if(index == 0) {
-                if(recordGen->indirect) {
-                    if(recordGen->selectorType && recordGen->selectorType == recordGen->opaqueType) {
-                        result = gen->builder->CreateLoad(recordGen->opaqueType, result);
-                    } else if(recordGen->selectorType) {
-                        llvm::Value* indices[2];
-                        indices[0] = gen->builder->getInt32(0);
-                        indices[1] = indices[0];
-                        auto p = gen->builder->CreateGEP(recordGen->opaqueType, result, {indices, 2});
-
-                        result = gen->builder->CreateLoad(recordGen->selectorType, p);
-                    } else {
-                        result = gen->builder->getInt32(0);
-                    }
-                } else {
-                    if(recordGen->selectorType && recordGen->selectorType == recordGen->opaqueType) {
-                        // Do nothing - result already has the correct type.
-                    } else if(recordGen->selectorType) {
-                        result = gen->builder->CreateExtractValue(result, {&index, 1});
-                    } else {
-                        result = gen->builder->getInt32(0);
-                    }
-                }
-
-                auto targetType = gen->builder->getInt32Ty();
-                if(result->getType() != targetType) {
-                    result = gen->builder->CreateZExt(result, targetType);
-                }
-            } else {
-                auto con = &recordType->cons[index - 1];
-                auto conGen = (ConGen*)con->codegen;
-
-                if(recordGen->indirect) {
-                    if(recordType->conCount == 1) {
-                        if(isIndirect(con->content)) {
-                            // Do nothing - the result is a pointer to the correct type already.
-                        } else {
-                            result = gen->builder->CreateLoad(recordGen->opaqueType, result);
-                        }
-                    } else {
-                        auto p = gen->builder->CreateBitCast(result, llvm::PointerType::get(conGen->regType, 0));
-
-                        llvm::Value* indices[2];
-                        indices[0] = gen->builder->getInt32(0);
-                        indices[1] = gen->builder->getInt32(1);
-                        auto e = gen->builder->CreateGEP(conGen->regType, p, {indices, 2});
-
-                        if(isIndirect(con->content)) {
-                            result = e;
-                        } else {
-                            result = gen->builder->CreateLoad(elementType(e), e);
-                        }
-                    }
-                } else if(isIndirect(con->content)) {
-                    auto p = gen->builder->CreateAlloca(useType(gen, con->content));
-
-                    llvm::Value* indices[2];
-                    indices[0] = gen->builder->getInt32(0);
-                    indices[1] = gen->builder->getInt32(recordType->conCount == 1 ? 0 : 1);
-                    auto e = gen->builder->CreateGEP(elementType(result), result, {indices, 2});
-
-                    auto v = gen->builder->CreateLoad(elementType(e), e);
-                    gen->builder->CreateStore(v, p);
-                    result = p;
-                } else {
-                    // Do nothing - result either already has the correct type, or this case is not supported.
-                }
-
-                from = canonicalType(con->content);
-            }
-        } else {
-            // Tuple type: simply return the field at the provided index.
-            currentChain[chainLength] = inst->indexChain[i];
-            chainLength++;
-            from = canonicalType(((TupType*)from)->fields[index].type);
+        for(auto p: block->phis.contents(gen.base)) {
+            auto phi = gen.base[p];
+            auto built = f.builder.CreatePHI(typeOf(gen, phi->result.type), phi->usedCount,
+                                             nameOf(gen.context, phi->result.name));
+            f.define(phi->result, built);
         }
     }
 
-    if(chainLength) {
-        return buildChain(gen, result, currentChain, chainLength);
-    } else {
-        return result;
-    }
-}
+    for(Size i = postorder.size(); i > 0; i--) {
+        auto block = gen.base[blockList[postorder[i - 1]]];
+        f.builder.SetInsertPoint(f.blocks[block->index]);
 
-llvm::Value* genStringLength(Gen* gen, InstStringLength* inst) {
-    llvm::Value* indices[2];
-    indices[0] = llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(*gen->llvm), 0);
-    indices[1] = indices[0];
-    auto p = gen->builder->CreateGEP(gen->types.stringData, useValue(gen, inst->from), {indices, 2});
-    return gen->builder->CreateLoad(gen->builder->getInt32Ty(), p);
-}
+        for(auto offset: block->instructions.contents(gen.base)) {
+            genInst(f, *gen.base[offset]);
+        }
 
-llvm::Value* genStringData(Gen* gen, InstStringData* inst) {
-    llvm::Value* indices[3];
-    indices[0] = llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(*gen->llvm), 0);
-    indices[1] = llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(*gen->llvm), 1);
-    indices[2] = llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(*gen->llvm), 0);
-    return gen->builder->CreateGEP(gen->types.stringData, useValue(gen, inst->from), {indices, 3});
-}
-
-llvm::Value* genCall(Gen* gen, InstCall* inst) {
-    auto args = (llvm::Value**)alloca(sizeof(llvm::Value*) * inst->argCount);
-    for(U32 i = 0; i < inst->argCount; i++) {
-        args[i] = useValue(gen, inst->args[i]);
+        genInst(f, *gen.base[block->terminator]);
     }
 
-    // Indirect values are handled automatically - they are a pointers inside the function,
-    // and they are pointers in the argument type.
-    auto call = gen->builder->CreateCall(useFunction(gen, inst->fun), {args, inst->argCount});
-    call->setCallingConv(llvm::CallingConv::Fast);
-    return call;
-}
+    // A block the entry cannot reach is not something the lowering produces - the dominator
+    // analysis the validator runs would not accept one - but a block without a terminator is not
+    // valid LLVM, so an empty one is closed here rather than left for the verifier to find.
+    for(Size i = 0; i < blockList.size(); i++) {
+        auto block = f.blocks[i];
+        if(block->getTerminator()) continue;
 
-llvm::Value* genSysCall(Gen* gen, InstCallDyn* inst) {
-    llvm::Value* args[7];
-    llvm::Type* argTypes[7];
-
-    argTypes[0] = gen->builder->getInt32Ty();
-    args[0] = useValue(gen, inst->fun);
-
-    char constraints[1024];
-    auto p = copyString("={rax},{rax},", constraints, 1024);
-
-    auto argCount = inst->argCount;
-    for(U32 i = 0; i < argCount; i++) {
-        argTypes[i + 1] = useType(gen, inst->args[i]->type);
-        args[i + 1] = useValue(gen, inst->args[i]);
+        f.builder.SetInsertPoint(block);
+        f.builder.CreateUnreachable();
     }
 
-    if(argCount >= 1) {
-        p = copyString("{rdi},", p, (U32)(1024 - (p - constraints)));
-        if(argCount >= 2) {
-            p = copyString("{rsi},", p, (U32)(1024 - (p - constraints)));
-            if(argCount >= 3) {
-                p = copyString("{rdx},", p, (U32)(1024 - (p - constraints)));
-                if(argCount >= 4) {
-                    p = copyString("{r10},", p, (U32)(1024 - (p - constraints)));
-                    if(argCount >= 5) {
-                        p = copyString("{r8},", p, (U32)(1024 - (p - constraints)));
-                        if(argCount >= 6) {
-                            p = copyString("{r9},", p, (U32)(1024 - (p - constraints)));
-                            if(argCount > 6) {
-                                gen->context->diagnostics.error("codegen: unsupported syscall argument count"_v, nullptr);
-                            }
-                        }
-                    }
-                }
+    for(Size i = postorder.size(); i > 0; i--) {
+        auto block = gen.base[blockList[postorder[i - 1]]];
+
+        for(auto p: block->phis.contents(gen.base)) {
+            auto phi = gen.base[p];
+            auto built = (llvm::PHINode*)f.use(phi->result);
+            auto values = phi->used();
+            auto sources = phi->sources();
+
+            for(Size j = 0; j < values.length; j++) {
+                auto value = f.use(values[j]);
+                if(!value) value = llvm::PoisonValue::get(typeOf(gen, phi->result.type));
+
+                built->addIncoming(value, f.block(sources[j]));
             }
         }
     }
-
-    p = copyString("~{dirflag},~{fpsr},~{flags},~{rcx},~{r11}", p, (U32)(1024 - (p - constraints)));
-
-    auto funType = llvm::FunctionType::get(gen->builder->getInt8PtrTy(0), {argTypes, argCount + 1}, false);
-    auto assembly = llvm::InlineAsm::get(funType, "syscall", {constraints, (U32)(p - constraints)}, true);
-    return gen->builder->CreateCall(assembly, {args, argCount + 1});
 }
 
-llvm::Value* genCallIntrinsic(Gen* gen, InstCallDyn* inst) {
-    auto funType = canonicalType(inst->fun->type);
-    if(funType->kind == Type::Int) {
-        return genSysCall(gen, inst);
-    } else if(funType->kind == Type::String) {
-        // TODO: Implement LLVM intrinsics.
-        return nullptr;
-    } else {
-        // Unsupported type.
-        gen->context->diagnostics.error("codegen: unsupported intrinsic call type"_v, nullptr);
-        return nullptr;
-    }
-}
+/*
+ * The module.
+ */
 
-llvm::Value* genCallDyn(Gen* gen, InstCallDyn* inst) {
-    if(inst->isIntrinsic) {
-        return genCallIntrinsic(gen, inst);
-    }
+Ptr<llvm::Module> genModule(llvm::LLVMContext& llvm, Context& context, LowerModule& module) {
+    auto description = targetDescriptionOf(context);
+    auto built = new llvm::Module(nameOf(context, module.name), llvm);
 
-    return nullptr;
-}
+    built->setTargetTriple(toRef(description.triple));
+    built->setDataLayout(toRef(description.dataLayout));
 
-llvm::Value* genJe(Gen* gen, InstJe* inst) {
-    auto then = useBlock(gen, inst->then);
-    auto otherwise = useBlock(gen, inst->otherwise);
-    return gen->builder->CreateCondBr(useValue(gen, inst->cond), then, otherwise);
-}
+    Gen gen(llvm, *built, context, module);
+    auto base = gen.base;
 
-llvm::Value* genJmp(Gen* gen, InstJmp* inst) {
-    auto to = useBlock(gen, inst->to);
-    return gen->builder->CreateBr(to);
-}
+    // Declarations first, and all of them: a call is a forward reference as often as not, and a
+    // constant table holding the address of a function is one by definition.
+    for(auto g: module.globals) declareGlobal(gen, *base[g]);
+    for(auto f: module.functions) declareFunction(gen, *base[f]);
 
-llvm::Value* genRet(Gen* gen, InstRet* inst) {
-    // TODO: Handle returning indirect values.
-    auto value = inst->value ? useValue(gen, inst->value) : nullptr;
-    return gen->builder->CreateRet(value);
-}
-
-llvm::Value* genPhi(Gen* gen, InstPhi* inst) {
-    auto type = useType(gen, inst->type);
-    if(isIndirect(inst->type)) {
-        type = llvm::PointerType::get(type, 0);
+    // Now that everything has a name, what the constant tables hold can be filled in.
+    for(auto g: module.globals) {
+        gen.globalOf(g)->setInitializer(initializerOf(gen, *base[g], true));
     }
 
-    auto phi = gen->builder->CreatePHI(type, (U32)inst->altCount);
-    inst->codegen = phi;
+    // Prefix data is emitted immediately in front of the entry point, which is what LLVM calls it
+    // too: a reference to the function names the entry point, and the data sits at a negative
+    // offset from it. That is exactly the contract LowerFunction::prefix states, so a closure
+    // header needs nothing here beyond building the constant.
+    for(auto f: module.functions) {
+        auto fun = base[f];
+        if(!fun->prefix) continue;
 
-    for(Size i = 0; i < inst->altCount; i++) {
-        auto& alt = inst->alts[i];
-        auto block = useBlock(gen, alt.fromBlock);
-        phi->addIncoming(useValue(gen, alt.value), block);
+        gen.functionOf(f)->setPrefixData(initializerOf(gen, *base[fun->prefix], true));
     }
-    return phi;
+
+    for(auto f: module.functions) {
+        genFunctionBody(gen, *base[f], *gen.functionOf(f));
+    }
+
+    return Ptr(built);
 }
 
-llvm::Value* genInstValue(Gen* gen, Inst* inst) {
-    switch(inst->kind) {
-        case Inst::InstTrunc:
-            return genTrunc(gen, (InstTrunc*)inst);
-        case Inst::InstFTrunc:
-            return genFTrunc(gen, (InstFTrunc*)inst);
-        case Inst::InstZExt:
-            return genZExt(gen, (InstZExt*)inst);
-        case Inst::InstSExt:
-            return genSExt(gen, (InstSExt*)inst);
-        case Inst::InstFExt:
-            return genFExt(gen, (InstFExt*)inst);
-        case Inst::InstFToI:
-            return genFToI(gen, (InstFToI*)inst);
-        case Inst::InstFToUI:
-            return genFToUI(gen, (InstFToUI*)inst);
-        case Inst::InstIToF:
-            return genIToF(gen, (InstIToF*)inst);
-        case Inst::InstUIToF:
-            return genUIToF(gen, (InstUIToF*)inst);
-        case Inst::InstAdd:
-            return genAdd(gen, (InstAdd*)inst);
-        case Inst::InstSub:
-            return genSub(gen, (InstSub*)inst);
-        case Inst::InstMul:
-            return genMul(gen, (InstMul*)inst);
-        case Inst::InstDiv:
-            return genDiv(gen, (InstDiv*)inst);
-        case Inst::InstIDiv:
-            return genIDiv(gen, (InstIDiv*)inst);
-        case Inst::InstRem:
-            return genRem(gen, (InstRem*)inst);
-        case Inst::InstIRem:
-            return genIRem(gen, (InstIRem*)inst);
-        case Inst::InstFAdd:
-            return genFAdd(gen, (InstFAdd*)inst);
-        case Inst::InstFSub:
-            return genFSub(gen, (InstFSub*)inst);
-        case Inst::InstFMul:
-            return genFMul(gen, (InstFMul*)inst);
-        case Inst::InstFDiv:
-            return genFDiv(gen, (InstFDiv*)inst);
-        case Inst::InstICmp:
-            return genICmp(gen, (InstICmp*)inst);
-        case Inst::InstFCmp:
-            return genFCmp(gen, (InstFCmp*)inst);
-        case Inst::InstShl:
-            return genShl(gen, (InstShift*)inst);
-        case Inst::InstShr:
-            return genShr(gen, (InstShift*)inst);
-        case Inst::InstSar:
-            return genSar(gen, (InstShift*)inst);
-        case Inst::InstAnd:
-            return genAnd(gen, (InstAnd*)inst);
-        case Inst::InstOr:
-            return genOr(gen, (InstOr*)inst);
-        case Inst::InstXor:
-            return genXor(gen, (InstXor*)inst);
-        case Inst::InstAddRef:
-            return genAddRef(gen, (InstAddRef*)inst);
-        case Inst::InstRecord:
-            return genRecord(gen, (InstRecord*)inst);
-        case Inst::InstTup:
-            return genTup(gen, (InstTup*)inst);
-        case Inst::InstAlloc:
-            return genAlloc(gen, (InstAlloc*)inst);
-        case Inst::InstLoad:
-            return genLoad(gen, (InstLoad*)inst);
-        case Inst::InstStore:
-            return genStore(gen, (InstStore*)inst);
-        case Inst::InstGetField:
-            return genGetField(gen, (InstGetField*)inst);
-        case Inst::InstStringLength:
-            return genStringLength(gen, (InstStringLength*)inst);
-        case Inst::InstStringData:
-            return genStringData(gen, (InstStringData*)inst);
-        case Inst::InstCall:
-            return genCall(gen, (InstCall*)inst);
-        case Inst::InstCallDyn:
-            return genCallDyn(gen, (InstCallDyn*)inst);
-        case Inst::InstJe:
-            return genJe(gen, (InstJe*)inst);
-        case Inst::InstJmp:
-            return genJmp(gen, (InstJmp*)inst);
-        case Inst::InstRet:
-            return genRet(gen, (InstRet*)inst);
-        case Inst::InstPhi:
-            return genPhi(gen, (InstPhi*)inst);
-    }
-    return nullptr;
+bool verifyGenModule(Context& context, llvm::Module& module) {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+
+    if(!llvm::verifyModule(module, &stream)) return true;
+
+    stream.flush();
+    context.diagnostics.error("llvm: the generated module is invalid: %@"_v, nullptr,
+                              StringView { text.data(), text.size() });
+    return false;
 }
 
-llvm::Value* genInst(Gen* gen, Inst* inst) {
-    auto value = genInstValue(gen, inst);
-    inst->codegen = value;
-    return value;
+void printModule(Net::Writer& writer, llvm::Module& module) {
+    std::string text;
+    llvm::raw_string_ostream stream(text);
+    module.print(stream, nullptr);
+    stream.flush();
+
+    writer.writeString(StringView { text.data(), text.size() });
 }
 
-llvm::BasicBlock* genBlock(Gen* gen, Block* block) {
-    auto b = llvm::BasicBlock::Create(*gen->llvm, "", (llvm::Function*)block->function->codegen);
-    block->codegen = b;
-
-    auto builder = gen->builder;
-    auto insertBlock = builder->GetInsertBlock();
-    auto insert = builder->GetInsertPoint();
-
-    builder->SetInsertPoint(b);
-    for(auto inst: block->instructions) {
-        genInst(gen, inst);
-    }
-
-    if(insertBlock) {
-        builder->SetInsertPoint(insertBlock, insert);
-    }
-    return b;
-}
-
-llvm::Function* genFunction(Gen* gen, Function* fun) {
-    auto ret = useType(gen, fun->returnType);
-    auto argCount = fun->args.size();
-    auto args = (llvm::Type**)alloca(argCount * sizeof(llvm::Type*));
-    for(U32 i = 0; i < argCount; i++) {
-        auto t = useType(gen, fun->args[i]->type);
-        if(isIndirect(fun->args[i]->type)) {
-            args[i] = llvm::PointerType::get(t, 0);
-        } else {
-            args[i] = t;
-        }
-    }
-
-    auto sig = llvm::FunctionType::get(ret, llvm::ArrayRef<llvm::Type*>(args, argCount), false);
-    auto linkage = llvm::Function::ExternalLinkage;
-    auto f = llvm::Function::Create(sig, linkage, toRef(gen->context, fun->name), gen->module);
-
-    f->setCallingConv(llvm::CallingConv::Fast);
-    fun->codegen = f;
-
-    U32 i = 0;
-    for(auto it = f->arg_begin(); it != f->arg_end(); i++, it++) {
-        auto arg = fun->args[i];
-        it->setName(toRef(gen->context, arg->name));
-        arg->codegen = &*it;
-    }
-
-    genBlock(gen, fun->blocks[0]);
-    return f;
-}
-
-llvm::Value* genGlobal(Gen* gen, Global* global) {
-    auto name = toRef(gen->context, global->name);
-    auto type = useType(gen, ((RefType*)global->type)->to);
-    auto initializer = llvm::ConstantAggregateZero::get(type);
-    auto g = new llvm::GlobalVariable(*gen->module, type, false, llvm::GlobalVariable::InternalLinkage, initializer,
-                                      name, nullptr, llvm::GlobalVariable::NotThreadLocal, 0, false);
-    global->codegen = g;
-    return g;
-}
-
-llvm::Module* genModule(llvm::LLVMContext* llvm, Context* context, Module* module) {
-    auto moduleName = &context->find(module->id);
-
-    auto name = llvm::StringRef{moduleName->text, moduleName->textLength};
-    auto llvmModule = new llvm::Module(name, *llvm);
-    llvmModule->setDataLayout("e-S128");
-    llvmModule->setTargetTriple(LLVM_HOST_TRIPLE);
-
-    llvm::IRBuilder<> builder(*llvm);
-
-    LLVMTypes types;
-    types.stringData = genStringType(llvm);
-    types.stringRef = llvm::PointerType::get(types.stringData, 0);
-
-    Gen gen{llvm, llvmModule, &builder, types, &context->exprArena, context};
-
-    for(auto& global: module->globals) {
-        genGlobal(&gen, &global);
-    }
-
-    for(auto& fun: module->functions) {
-        // Functions can be lazily generated depending on their usage order, so we only generate if needed.
-        useFunction(&gen, &fun);
-    }
-
-    for(const InstanceMap& map: module->classInstances) {
-        for(U32 i = 0; i < map.instances.size(); i++) {
-            ClassInstance* instance = map.instances[i];
-            auto instances = instance->instances;
-            auto funCount = instance->typeClass->funCount;
-
-            for(U32 j = 0; j < funCount; j++) {
-                useFunction(&gen, instances[j]);
-            }
-        }
-    }
-
-    return llvmModule;
-}
+} // namespace llvmgen

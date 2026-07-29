@@ -1,56 +1,32 @@
-#include <fstream>
-#include "../resolve/module.h"
 #include "../parse/parser.h"
 #include "../parse/ast_print.h"
+#include "../resolve/module.h"
 #include "../resolve/print.h"
+#include "../resolve/lower.h"
+#include "../lower/lower_print.h"
+#include "../lower/lower_validate.h"
 #include "../codegen/llvm/gen.h"
 #include "../codegen/js/gen.h"
 #include "settings.h"
 #include "source.h"
 #include "Net/File.h"
+#include <File.h>
 
-static Ptr<ast::Module> parseFile(Context& context, const StringView& path, const Identifier& id) {
-    auto file = tryResultOr(File::openFile(toString(path), readAccess(), File::OpenExisting), {
-        context.diagnostics.error("cannot open file %@: error %@"_v, nullptr, path, it.unwrapErr());
-        return nullptr;
-    });
+/*
+ * The compiler driver.
+ *
+ * What a project is has moved down into the resolver since this was last written: `resolveProgram`
+ * takes the root module and asks a ModuleProvider for everything it imports, so linking modules
+ * together is name resolution rather than anything the driver arranges. What is left here is the
+ * three things only the driver can do - find the files, decide which module is the root, and take
+ * the finished program to the output the command line asked for.
+ */
 
-    auto size = file.size();
-    Ptr<char> text { (char*)hAlloc(size) };
-
-    tryResultOr(file.read({ (Byte*)text.get(), size }), {
-        context.diagnostics.error("cannot read file %@: error %@"_v, nullptr, path, it.unwrapErr());
-        return nullptr;
-    });
-
-    auto name = context.addIdentifier(id);
-    Lexer lexer(context, context.diagnostics, { text.get(), size }, name);
-    Parser parser(context, lexer, name);
-
-    return Ptr(new ast::Module(parser.parseModule()));
-}
-
-static Module* compileEntry(Context& context, ModuleProvider& provider, SourceEntry& entry) {
-    if(entry.ir) return entry.ir.get();
-
-    if(!entry.ast) entry.ast = parseFile(context, entry.path, entry.id);
-    if(!entry.ast || entry.ast->errorCount > 0) return nullptr;
-
-    entry.ir = resolveModule(&context, &provider, entry.ast.get());
-    return entry.ir.get();
-}
-
-static String generatePath(StringView root, const Identifier& id, StringView extension) {
-    StringBuilder path(root.length + id.textLength + 1 + extension.length);
-    path.append(root.ptr, root.length);
-
-    for(Size i = 0; i < id.segmentCount; i++) {
-        auto start = id.getSegmentOffset(i);
-        path.append(id.text + start, id.getSegmentOffset(i + 1) - start);
-        path.append("/");
-    }
-
-    path.append(".");
+static String joinPath(const String& directory, StringView name, StringView extension) {
+    StringBuilder path(directory.size() + name.length + extension.length + 2);
+    path.append(directory.text(), directory.size());
+    path.append("/");
+    path.append(name.ptr, name.length);
     path.append(extension.ptr, extension.length);
 
     return path.string();
@@ -62,7 +38,7 @@ static String replaceExtension(const StringView& path, const String& extension) 
 
     p++;
     auto extensionLength = path.length - (p - path.ptr);
-    auto oldExtension = StringView{p, extensionLength};
+    auto oldExtension = StringView { p, extensionLength };
     if(findChar(oldExtension, '/')) return toString(path) + extension;
 
     auto length = path.size() - extensionLength + extension.size();
@@ -73,30 +49,124 @@ static String replaceExtension(const StringView& path, const String& extension) 
     return { buffer, length, true };
 }
 
-static void astToFile(Context& context, ast::Module& module, const SourceEntry& entry) {
-    Net::FileStream file;
-
+template<class Print>
+static bool writeText(Context& context, const String& path, Print&& printValue) {
     try {
-        file.open(replaceExtension(entry.path, "ast"), writeAccess(), File::CreateAlways);
-        Net::StackWriter<2048> writer { Net::WriteStream(file) };
-
-        printModule(writer, context, *module.region, module);
-    } catch(const Net::Exception& e) {
-        context.diagnostics.error("Cannot print AST for module %@: %@"_v, nullptr, context.findName(module.name), e.description);
+        Net::FileStream file;
+        file.open(path, writeAccess(), File::CreateAlways);
+        Net::Writer writer(Net::WriteStream(file), 16384);
+        printValue(writer);
+        writer.flush();
+        return true;
+    } catch(const Net::Exception& error) {
+        context.diagnostics.error("cannot write %@: %@"_v, nullptr, path, error.description);
+        return false;
     }
 }
 
-static void irToFile(Context& context, Module& module, const SourceEntry& entry) {
-    Net::FileStream file;
+/*
+ * The debug outputs.
+ *
+ * Written beside the source they came from, since there is one per module and the module is what
+ * names them. The lowered form is the exception: lowering produces one module for the whole
+ * program, so it goes to the output directory with everything else that is per-program.
+ */
+static void printAsts(Context& context, ModuleMap& map) {
+    for(auto& entry: map.entries) {
+        if(!entry.ast) continue;
 
-    try {
-        file.open(replaceExtension(entry.path, "ir"), writeAccess(), File::CreateAlways);
-        Net::StackWriter<2048> writer { Net::WriteStream(file) };
-
-        printModule(writer, context, module);
-    } catch(const Net::Exception& e) {
-        context.diagnostics.error("Cannot print IR for module %@: %@"_v, nullptr, context.findName(module.id), e.description);
+        writeText(context, replaceExtension(entry.path, "ast"), [&](Net::Writer& writer) {
+            printModule(writer, context, *entry.ast->region, *entry.ast);
+        });
     }
+}
+
+/*
+ * The targets.
+ */
+
+static bool compileJs(Context& context, Program& program, const String& outputDir, StringView name) {
+    auto file = js::genProgram(context, program);
+    if(context.diagnostics.errorCount()) return false;
+
+    return writeText(context, joinPath(outputDir, name, ".js"_v), [&](Net::Writer& writer) {
+        js::formatFile(writer, context, *file, false);
+    });
+}
+
+// Everything the two native modes share: the resolved program as an LLVM module, entry point and
+// all. `-mode llvm` stops at the text of it, which is why the wrapper and the optimization happen
+// here rather than in the executable path - the IR that mode writes is the IR that mode would
+// compile, and one that had been through neither would be a different program.
+static Ptr<llvm::Module> genNative(llvm::LLVMContext& llvm, Context& context, Program& program) {
+    auto lowered = lowerProgram(context, program);
+    if(context.diagnostics.errorCount()) return nullptr;
+
+    if(!validateLowerModule(&context.diagnostics, lowered.get())) {
+        context.diagnostics.error("lowering produced invalid IR"_v, nullptr);
+        return nullptr;
+    }
+
+    if(context.settings.printIr) {
+        writeText(context, joinPath(context.settings.outputDir, "program"_v, ".lower"_v), [&](Net::Writer& writer) {
+            printModule(writer, context, *lowered->arena, *lowered);
+        });
+    }
+
+    auto module = llvmgen::genModule(llvm, context, *lowered);
+    if(context.diagnostics.errorCount()) return nullptr;
+
+    if(!llvmgen::addNativeEntry(context, *module, "main"_v)) return nullptr;
+    if(!llvmgen::verifyGenModule(context, *module)) return nullptr;
+
+    llvmgen::optimizeModule(context, *module, context.settings.optimization);
+    return module;
+}
+
+static bool compileLlvm(Context& context, Program& program, const String& outputDir, StringView name) {
+    llvm::LLVMContext llvm;
+    auto module = genNative(llvm, context, program);
+    if(!module) return false;
+
+    return llvmgen::writeIrFile(context, *module, joinPath(outputDir, name, ".ll"_v));
+}
+
+static bool compileNative(Context& context, Program& program, const String& outputDir, StringView name) {
+    llvm::LLVMContext llvm;
+    auto module = genNative(llvm, context, program);
+    if(!module) return false;
+
+    auto objectPath = joinPath(outputDir, name, ".o"_v);
+    if(!llvmgen::writeObjectFile(context, *module, objectPath)) return false;
+
+    return llvmgen::linkExecutable(context, objectPath, joinPath(outputDir, name, ""_v));
+}
+
+/*
+ * Choosing the root.
+ *
+ * A program has exactly one: it is the module whose `main` the process enters through, and the one
+ * whose functions are emitted whether or not anything calls them. Every other module in the source
+ * tree is compiled because something imported it, which is why an unreferenced file in the tree is
+ * not an error and not in the output either.
+ */
+static SourceEntry* findRoot(ModuleMap& map, const CompileSettings& settings) {
+    if(settings.rootObjects.size() > 1) {
+        println("Error: a program has one root module. Provide one with -root <module>.");
+        return nullptr;
+    }
+
+    if(settings.rootObjects.size() == 1) {
+        auto root = map.find(settings.rootObjects[0]);
+        if(!root) println("Error: cannot find root module %@", settings.rootObjects[0]);
+        return root;
+    }
+
+    if(map.entries.size() == 1) return &map.entries[0];
+
+    println("Error: %@ modules were found and none was named as the root. Provide one with -root <module>.",
+            map.entries.size());
+    return nullptr;
 }
 
 int main(int argc, const char** argv) {
@@ -110,7 +180,7 @@ int main(int argc, const char** argv) {
 
     auto settings = result.moveUnwrapOk();
 
-    // Walk the input directory tree to create a map with each module we will compile.
+    // Walk the input directory tree to create a map with each module we could compile.
     ModuleMap moduleMap;
     auto sourceResult = buildModuleMap(moduleMap, settings);
     if(sourceResult.isErr()) {
@@ -119,132 +189,81 @@ int main(int argc, const char** argv) {
         return 1;
     }
 
-    // Print a module listing if needed.
+    if(moduleMap.entries.size() == 0) {
+        println("Error: no modules to compile were found");
+        return 1;
+    }
+
     if(settings.printModules) {
         for(auto& source: moduleMap.entries) {
-            println("Found module %@ at location %@", String{source.id.text, source.id.textLength}, source.path);
+            println("Found module %@ at location %@", String { source.id.text, source.id.textLength }, source.path);
         }
     }
 
-    // Match any root modules to the source map.
-    Array<SourceEntry*> roots(settings.rootObjects.size());
-    for(auto& root: settings.rootObjects) {
-        auto found = false;
-        for(auto& entry: moduleMap.entries) {
-            if(String(entry.id.text, entry.id.textLength) == root) {
-                roots.push(&entry);
-                found = true;
-                break;
-            }
-        }
-
-        if(!found) {
-            println("Error: Cannot find root module %@", root);
-        }
-    }
-
-    if(roots.size() != settings.rootObjects.size()) {
-        return 1;
-    }
-
-    if(moduleMap.entries.size() == 0) {
-        println("Error: No modules to compile found");
-        return 1;
-    }
-
-    // Create compilation context.
+    // Create the compilation context. The provider is what both the resolver and the diagnostics
+    // read source through, so it is built first and given the context once there is one.
     FileProvider provider(moduleMap);
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
-    provider.context = &context;
+    context.settings = ::move(settings);
+    provider.prepare(context);
 
-    // Add standard library to the compilation set.
-    Array<Module*> compiledModules;
-    compiledModules.push(provider.core);
+    auto root = findRoot(moduleMap, context.settings);
+    if(!root) return 1;
 
-    auto onEntry = [&](SourceEntry& entry) {
-        auto module = compileEntry(context, provider, entry);
+    auto rootAst = provider.parse(*root);
+    if(!rootAst || diagnostics.errorCount() > 0) return 1;
 
-        if(entry.ast && settings.printAst) {
-            astToFile(context, *entry.ast, entry);
-        }
+    // Everything the root imports is parsed and resolved from here, through the provider. The
+    // compilation mode is already in the settings, which matters: `@platform` selects which
+    // declarations exist at all, so a JS build and a native build do not share a resolved program.
+    auto program = resolveProgram(context, *rootAst, &provider);
 
-        if(module && settings.printIr) {
-            irToFile(context, *module, entry);
-        }
+    if(context.settings.printAst) printAsts(context, moduleMap);
 
-        if(module) {
-            compiledModules.push(module);
-        }
-    };
-
-    // If any roots were provided, we initially parse only those. Any other modules are parsed on-demand.
-    // Otherwise, simply parse every entry in the source map.
-    if(roots.size() > 0) {
-        for(auto root: roots) onEntry(*root);
-    } else {
-        for(auto& entry: moduleMap.entries) onEntry(entry);
+    if(program && context.settings.printIr) {
+        writeText(context, joinPath(context.settings.outputDir, "program"_v, ".ir"_v), [&](Net::Writer& writer) {
+            printProgram(writer, context, *program);
+        });
     }
 
-    // Stop compiling if any parse errors occurred.
-    if(diagnostics.errorCount() > 0) {
+    if(!program || diagnostics.errorCount() > 0) return 1;
+
+    auto& outputDir = context.settings.outputDir;
+    auto directoryResult = createDirectory(outputDir);
+    if(!directoryResult && directoryResult.unwrapErr() != FileError::Exists) {
+        println("Cannot create output directory %@: error %@", outputDir, (U32)directoryResult.unwrapErr());
         return 1;
     }
 
-    auto outputDir = std::string(settings.outputDir.text(), settings.outputDir.size());
-    auto dirResult = createDirectory(outputDir.c_str());
-    if(!dirResult) {
-        println("Cannot create directory: %@ to due error: ", outputDir.c_str(), (U32)dirResult.unwrapErr());
+    auto name = StringView { root->id.text, root->id.textLength };
+    auto built = false;
+
+    switch(context.settings.mode) {
+        case CompileMode::NativeExecutable:
+            built = compileNative(context, *program, outputDir, name);
+            break;
+        case CompileMode::Llvm:
+            built = compileLlvm(context, *program, outputDir, name);
+            break;
+        case CompileMode::JsExecutable:
+            built = compileJs(context, *program, outputDir, name);
+            break;
+
+        // The three that have no code behind them yet. Each is a different question the answer
+        // above does not contain: a library is what a program links *against*, which needs a
+        // format for the resolved declarations rather than for the code; a shared library is that
+        // plus an exported symbol table and position-independent placement.
+        case CompileMode::Library:
+            diagnostics.error("library generation is not implemented yet"_v, nullptr);
+            break;
+        case CompileMode::NativeShared:
+            diagnostics.error("shared library generation is not implemented yet"_v, nullptr);
+            break;
+        case CompileMode::JsLibrary:
+            diagnostics.error("JS library generation is not implemented yet"_v, nullptr);
+            break;
     }
 
-    switch(settings.mode) {
-        case CompileMode::Library: {
-            diagnostics.error("Library generation is not implemented yet."_v, nullptr);
-            break;
-        }
-        case CompileMode::NativeExecutable: {
-            llvm::LLVMContext llvmContext;
-            Array<llvm::Module*> llvmModules;
-
-            for(auto module: compiledModules) {
-                llvmModules.push(genModule(&llvmContext, &context, module));
-            }
-
-            auto result = linkModules(&llvmContext, &context, llvmModules.pointer(), llvmModules.size());
-
-            diagnostics.error("Native executable generation is not implemented yet."_v, nullptr);
-            break;
-        }
-        case CompileMode::NativeShared: {
-            diagnostics.error("Native shared library generation is not implemented yet."_v, nullptr);
-            break;
-        }
-        case CompileMode::JsExecutable: {
-            std::ofstream jsFile(outputDir + "/module.js", std::ios_base::out);
-            for(auto module: compiledModules) {
-                auto ast = js::genModule(&context, module);
-                js::formatFile(context, jsFile, ast, false);
-            }
-            break;
-        }
-        case CompileMode::JsLibrary: {
-            diagnostics.error("JS library generation is not implemented yet."_v, nullptr);
-            break;
-        }
-        case CompileMode::Llvm: {
-            std::ofstream llvmFile(outputDir + "/module.ll", std::ios_base::out);
-            llvm::LLVMContext llvmContext;
-
-            Array<llvm::Module*> llvmModules;
-            for(auto module: compiledModules) {
-                llvmModules.push(genModule(&llvmContext, &context, module));
-            }
-
-            auto result = linkModules(&llvmContext, &context, llvmModules.pointer(), llvmModules.size());
-            llvm::raw_os_ostream stream{llvmFile};
-            result->print(stream, nullptr);
-
-            break;
-        }
-    }
+    return built && diagnostics.errorCount() == 0 ? 0 : 1;
 }

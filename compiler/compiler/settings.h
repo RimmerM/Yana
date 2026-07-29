@@ -108,6 +108,10 @@ struct CompileSettings {
 
     FramePointerMode framePointer = FramePointerMode::Needed;
 
+    /// How hard the optimizing native backend works, 0-3. Only the LLVM path reads it: the local
+    /// amd64 backend is the fast one by construction and has no levels to choose between.
+    U32 optimization = 2;
+
     bool printModules = false; /// Debug flag: Print a list of modules found in the input.
     bool printAst = false;     /// Debug flag: Create .ast files for each source file.
     bool printIr = false;      /// Debug flag: Create .ir files for each source file.

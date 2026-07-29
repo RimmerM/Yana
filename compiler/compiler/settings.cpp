@@ -26,6 +26,7 @@ struct Flag {
         arch,
         format,
         framePointer,
+        optimization,
 
         /*
          * Boolean flags.
@@ -52,6 +53,7 @@ Flag flagTable[] = {
     { "arch"_v, 1, Flag::arch },
     { "format"_v, 1, Flag::format },
     { "frame-pointer"_v, 1, Flag::framePointer },
+    { "opt"_v, 1, Flag::optimization },
 
     { "print-modules"_v, 0, Flag::printModules },
     { "print-ast"_v, 0, Flag::printAst },
@@ -431,6 +433,17 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     error = "Unrecognized frame pointer mode. Valid modes are: all|non-leaf|needed.";
                     return false;
                 }
+            case Flag::optimization: {
+                // 0 to 3, as every compiler spells it. What it selects is LLVM's own pipeline; the
+                // local amd64 backend has one setting and is it.
+                if(value.size() != 1 || value.text()[0] < '0' || value.text()[0] > '3') {
+                    error = "Unrecognized optimization level. Valid levels are 0-3.";
+                    return false;
+                }
+
+                settings.optimization = U32(value.text()[0] - '0');
+                return true;
+            }
             case Flag::printModules:
                 settings.printModules = true;
                 return true;

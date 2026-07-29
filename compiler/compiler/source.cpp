@@ -1,35 +1,80 @@
 #include "source.h"
-#include "../resolve/builtins.h"
+#include "../parse/parser.h"
 #include "Mem/Hash.h"
 #include <File.h>
 
-FileProvider::FileProvider(ModuleMap& map): moduleMap(map) {}
+SourceEntry* ModuleMap::find(StringId name) {
+    for(auto& entry: entries) {
+        if(entry.name == name) return &entry;
+    }
+
+    return nullptr;
+}
+
+SourceEntry* ModuleMap::find(const String& identifier) {
+    for(auto& entry: entries) {
+        if(String(entry.id.text, entry.id.textLength) == identifier) return &entry;
+    }
+
+    return nullptr;
+}
+
+void FileProvider::prepare(Context& target) {
+    context = &target;
+
+    for(auto& entry: moduleMap.entries) {
+        entry.name = target.addIdentifier(entry.id);
+    }
+}
 
 StringView FileProvider::getSource(StringId module) {
-    if(auto source = sourceMap.get(module)) {
-        return *source.get();
-    }
+    auto entry = moduleMap.find(module);
+    if(!entry || !entry->text) return {};
 
-    for(auto& e: moduleMap.entries) {
-
-    }
+    return StringView { entry->text.get(), entry->length };
 }
 
 const Location* FileProvider::getNode(LocationId id) {
-    return context->getLocation(id);
+    return context ? context->getLocation(id) : nullptr;
 }
 
-Module* FileProvider::getModule(Module* from, StringId name) {
-    if(name == core->id) {
-        if(!core) core = coreModule(context);
-        return core;
-    } else if(name == native->id) {
-        if(!core) core = coreModule(context);
-        if(!native) native = nativeModule(context, core);
-        return native;
-    } else {
+// Core and Native are built into the compiler and resolved before anything asks for them, so a name
+// reaching here is one an `import` in user source named. A module the source tree has no file for
+// is not an error to report from here: the resolver reports it against the import that named it.
+ast::Module* FileProvider::getModule(StringId name) {
+    auto entry = moduleMap.find(name);
+    return entry ? parse(*entry) : nullptr;
+}
+
+ast::Module* FileProvider::parse(SourceEntry& entry) {
+    if(entry.ast) return entry.ast.get();
+
+    auto opened = File::openFile(toString(entry.path), readAccess(), File::OpenExisting);
+    if(opened.isErr()) {
+        context->diagnostics.error("cannot open file %@: error %@"_v, nullptr,
+                                   toString(entry.path), (U32)opened.unwrapErr());
         return nullptr;
     }
+
+    auto file = opened.moveUnwrapOk();
+    auto size = file.size();
+    Ptr<char, HeapDeleter> text { (char*)hAlloc(size) };
+
+    if(file.read({ (Byte*)text.get(), size }).isErr()) {
+        context->diagnostics.error("cannot read file %@"_v, nullptr, toString(entry.path));
+        return nullptr;
+    }
+
+    // Kept for as long as the compilation runs: a diagnostic quotes the line it points at, and it
+    // may be reported long after the module it is in was parsed.
+    entry.text = ::move(text);
+    entry.length = size;
+
+    Lexer lexer(*context, context->diagnostics, StringView { entry.text.get(), size }, entry.name);
+    Parser parser(*context, lexer, entry.name);
+    entry.ast = Ptr(new ast::Module(parser.parseModule()));
+
+    return entry.ast.get();
 }
 
 template<class... T>
