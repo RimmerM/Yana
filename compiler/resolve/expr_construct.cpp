@@ -176,9 +176,11 @@ TypePtr placeType(Module& module, Function& function, const Place& place) {
             case ProjectionKind::Field: {
                 // A function value is two addresses, and they are projected into rather than
                 // being a representation only lowering knows about - which is what lets the same
-                // Init, LoadPlace and Drop machinery build one, read one and tear one down.
+                // Init, LoadPlace and Drop machinery build one, read one and tear one down. The
+                // third index is the closure header, which is a projection some targets answer and
+                // no source can write - see FunValueLayout::kHeader.
                 if(global[type]->kind == Type::Fun) {
-                    if(projection.index >= FunValueLayout::kFieldCount) return module.scalar.error;
+                    if(projection.index >= FunValueLayout::kProjectionCount) return module.scalar.error;
 
                     type = funValueFieldType(module, projection.index);
                     break;

@@ -115,20 +115,34 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
     resolver.current = run;
 
     /*
-     * The header, from the entry point it sits in front of.
+     * The header, from wherever this target keeps it.
      *
-     * Through the integer rather than as a place projection, because the offset is negative: a
-     * projection walks *into* an aggregate, and this walks backwards out of one. The two casts are
-     * both reinterpretations of one machine word - asInt and asPtr - so what they cost is nothing
-     * and what they buy is that the arithmetic is stated where the layout is.
+     * Native keeps it in front of the entry point, so it is found by subtracting a constant from the
+     * code word - through the integer rather than as a place projection, because the offset is
+     * negative: a projection walks *into* an aggregate, and this walks backwards out of one. The two
+     * casts are both reinterpretations of one machine word - asInt and asPtr - so what they cost is
+     * nothing and what they buy is that the arithmetic is stated where the layout is.
+     *
+     * A target whose code word is not an address has no bytes in front of it to subtract from, and
+     * attaches the header to the code word instead. That is FunValueLayout::kHeader, and asking for
+     * it is a projection like any other - which is the whole of the difference, because everything
+     * around it reads the same two slots out of the same layout either way.
      */
     auto headerType = resolvePointerType(module, closureHeaderPlaceType(module));
-    auto codeWord = resolver.load(resolver.project(base, ProjectionKind::Field, FunValueLayout::kCode), source);
-    auto codeInt = resolver.ref(resolver.emit<InstUnary>(source, 0, word, Value::Cast, codeWord));
-    auto distance = resolver.constantBits(word, ClosureHeaderLayout::kSize_, source);
-    auto headerInt = resolver.ref(resolver.emit<InstBinary>(source, 0, word, Value::Sub, codeInt, distance));
-    auto header = Place::atPointer(
-        resolver.ref(resolver.emit<InstUnary>(source, 0, headerType, Value::Cast, headerInt)));
+    Place header;
+
+    if(isJsMode(module.context.settings.mode)) {
+        header = Place::atPointer(resolver.load(
+            resolver.project(base, ProjectionKind::Field, FunValueLayout::kHeader), source));
+    } else {
+        auto codeWord = resolver.load(resolver.project(base, ProjectionKind::Field, FunValueLayout::kCode), source);
+        auto codeInt = resolver.ref(resolver.emit<InstUnary>(source, 0, word, Value::Cast, codeWord));
+        auto distance = resolver.constantBits(word, ClosureHeaderLayout::kSize_, source);
+        auto headerInt = resolver.ref(resolver.emit<InstBinary>(source, 0, word, Value::Sub, codeInt, distance));
+
+        header = Place::atPointer(
+            resolver.ref(resolver.emit<InstUnary>(source, 0, headerType, Value::Cast, headerInt)));
+    }
 
     auto slot = half == Teardown::Drop ? ClosureHeaderFields::kDrop : ClosureHeaderFields::kReclaim;
     auto operation = resolver.load(resolver.project(header, ProjectionKind::Field, slot), source);

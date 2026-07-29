@@ -1,0 +1,81 @@
+"use strict";
+// ResolveTest
+function justInt() {
+  return { $tag: 1, $p: 3 };
+}
+
+function nothingInt() {
+  return { $tag: 0, $p: null };
+}
+
+function unwrap(value, fallback) {
+  var v9;
+  if (value.$tag === 1) {
+    v9 = value.$p;
+  } else {
+    v9 = fallback;
+  }
+  return v9;
+}
+
+function unwrapBool(value) {
+  var v11;
+  var v15;
+  if (value.$tag === 1) {
+    if (value.$p) {
+      v11 = 1;
+    } else {
+      v11 = 0;
+    }
+    v15 = v11;
+  } else {
+    v15 = 2;
+  }
+  return v15;
+}
+
+function okResult() {
+  return { $tag: 1, $p: 11 };
+}
+
+function errResult() {
+  return { $tag: 0, $p: 4 };
+}
+
+function resultValue(value) {
+  var v12;
+  if (value.$tag === 1) {
+    v12 = value.$p;
+  } else {
+    v12 = 0 - value.$p | 0;
+  }
+  return v12;
+}
+
+function unbox(value) {
+  return value;
+}
+
+function labelled() {
+  var v0 = { label: 0, contents: { $tag: 0, $p: null } };
+  var v2 = { $tag: 1, $p: 40 };
+  v0.label = 2;
+  v0.contents = v2;
+  return v0;
+}
+
+function labelSum(value) {
+  return value.label + unwrap(value.contents, 0) | 0;
+}
+
+function ascribedNothing() {
+  return unwrapBool({ $tag: 0, $p: null });
+}
+
+function ascribedJust() {
+  return unwrapBool({ $tag: 1, $p: true });
+}
+
+function main() {
+  return ((((((((ascribedNothing() + ascribedJust() | 0) + unwrap(justInt(), 100) | 0) + unwrap(nothingInt(), 5) | 0) + unwrapBool({ $tag: 1, $p: true }) | 0) + unwrapBool({ $tag: 0, $p: null }) | 0) + resultValue(okResult()) | 0) + resultValue(errResult()) | 0) + unbox(6) | 0) + labelSum(labelled()) | 0;
+}

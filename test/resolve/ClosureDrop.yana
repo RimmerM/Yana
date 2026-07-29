@@ -1,0 +1,42 @@
+-- An authored `Drop` on a value a closure captured.
+--
+-- ClosureTeardown.yana is about the *site*: where a closure's teardown can be resolved to the
+-- environment it was built over, the drop reaches it by name and no metadata is read at all. This
+-- one is about the case that cannot be - a closure that outlived the frame that built it - so what
+-- runs is whatever the closure's own header says, which is the one thing about a lambda the two
+-- targets represent differently. Native puts the header in front of the entry point and subtracts a
+-- constant from the code word to reach it; the JS target has no bytes in front of a function, so it
+-- keeps the header in a module-level `const` and the lambda's factory hangs it on each closure.
+--
+-- Asserted by counting, because a teardown that never ran and one that ran twice are both invisible
+-- in the value: the environment is collected either way.
+
+let &dropCalls = 0 :: Int
+
+data Guard {id: Int}
+
+instance Drop(Guard):
+    fn drop(->self: Guard) -> {}:
+        dropCalls = dropCalls + 1
+
+-- The closure escapes, so its caller cannot see which lambda it holds and the environment is not a
+-- local of any frame that drops it.
+fn guarded(id: Int) -> () -> Int:
+    let g = Guard {id: id}
+    return (): g.id
+
+-- One that captured nothing, to prove the same teardown does nothing to it: there is no environment
+-- to tear down, and on the JS target no metadata was attached to look for either.
+fn plain() -> () -> Int = (): 5
+
+fn main() -> Int:
+    let f = guarded(7)
+    let a = f()
+    if dropCalls != 1 then return -1
+
+    let p = plain()
+    let b = p()
+    if dropCalls != 1 then return -2
+
+    -- 7 + 5 + 1 = 13
+    return a + b + dropCalls

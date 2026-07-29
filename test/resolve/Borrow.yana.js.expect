@@ -1,0 +1,53 @@
+"use strict";
+// Core
+function add_eq_Int(target, amount) {
+  target.$v = target.$v + amount | 0;
+  return;
+}
+
+function mul_eq_Int(target, amount) {
+  target.$v = Math.imul(target.$v, amount) | 0;
+  return;
+}
+
+// ResolveTest
+function bump(counter, by) {
+  counter.$v = counter.$v + by | 0;
+  return;
+}
+
+function swap(a, b) {
+  var old = a.$v;
+  a.$v = b.$v;
+  b.$v = old;
+  return;
+}
+
+function moveBy(p, dx, dy) {
+  var v5 = { $v: p.x };
+  add_eq_Int(v5, dx);
+  p.x = v5.$v;
+  var v9 = { $v: p.y };
+  add_eq_Int(v9, dy);
+  p.y = v9.$v;
+  return;
+}
+
+function copyThroughBorrow(target, amount) {
+  target.$v = target.$v + amount | 0;
+  return;
+}
+
+function main() {
+  var total = { $v: 0 };
+  bump(total, 5);
+  add_eq_Int(total, 3);
+  mul_eq_Int(total, 2);
+  var left = { $v: 1 };
+  var right = { $v: 2 };
+  swap(left, right);
+  var here = { x: 10, y: 20 };
+  moveBy(here, 1, 2);
+  copyThroughBorrow(total, total.$v);
+  return ((total.$v + (left.$v - right.$v | 0) | 0) + here.x | 0) + here.y | 0;
+}

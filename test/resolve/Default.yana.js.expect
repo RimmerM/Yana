@@ -1,0 +1,234 @@
+"use strict";
+// Core
+function Ord_Int_compare(lhs, rhs) {
+  if (lhs === rhs) {
+    return 1;
+  } else {
+    if (lhs > rhs) {
+      return 2;
+    } else {
+      return 0;
+    }
+  }
+}
+
+function Eq_not_eq_Metres(lhs, rhs) {
+  return Eq_Metres_eq_eq(lhs, rhs) !== true;
+}
+
+function Ord_lt_Metres(lhs, rhs) {
+  return Ord_Metres_compare(lhs, rhs) === 0;
+}
+
+function Ord_lt_eq_Metres(lhs, rhs) {
+  return Ord_Metres_compare(lhs, rhs) !== 2;
+}
+
+function Ord_gt_Metres(lhs, rhs) {
+  return Ord_Metres_compare(lhs, rhs) === 2;
+}
+
+function Ord_gt_eq_Metres(lhs, rhs) {
+  return Ord_Metres_compare(lhs, rhs) !== 0;
+}
+
+function Num_sub_Cents(value) {
+  return Num_Cents_sub(FromInt_Cents_fromInt(0n), value);
+}
+
+function Logic_not_Flags(value) {
+  return Logic_Flags_not(value);
+}
+
+function Logic_and_and_Flags(lhs, rhs) {
+  return Logic_Flags_and(lhs, rhs);
+}
+
+function Logic_or_or_Flags(lhs, rhs) {
+  return Logic_Flags_or(lhs, rhs);
+}
+
+function Eq_not_eq_Box_Int(lhs, rhs) {
+  return Eq_Box_a_eq_eq_Int(lhs, rhs) !== true;
+}
+
+// ResolveTest
+function ordered() {
+  var a = { value: 1 };
+  var b = { value: 2 };
+  var score = 0;
+  if (Eq_not_eq_Metres(a, b)) {
+    score = score + 1 | 0;
+  }
+  if (Ord_lt_Metres(a, b)) {
+    score = score + 2 | 0;
+  }
+  if (Ord_lt_eq_Metres(a, b)) {
+    score = score + 4 | 0;
+  }
+  if (Ord_gt_Metres(b, a)) {
+    score = score + 8 | 0;
+  }
+  if (Ord_gt_eq_Metres(b, a)) {
+    score = score + 16 | 0;
+  }
+  if (Ord_gt_eq_Metres(a, a)) {
+    score = score + 32 | 0;
+  }
+  return score;
+}
+
+function overridden() {
+  if (Eq_Feet_not_eq({ value: 1 }, { value: 2 })) {
+    return 64;
+  } else {
+    return 0;
+  }
+}
+
+function negated() {
+  if (Eq_Cents_eq_eq(Num_sub_Cents({ value: 7 }), { value: -7 | 0 })) {
+    return 128;
+  } else {
+    return 0;
+  }
+}
+
+function flags() {
+  var rw = { read: true, write: true };
+  var r = { read: true, write: false };
+  var inverted = Logic_not_Flags(r);
+  var score = 0;
+  if (Eq_Flags_eq_eq(Logic_and_and_Flags(rw, r), r)) {
+    score = score + 256 | 0;
+  }
+  if (Eq_Flags_eq_eq(Logic_or_or_Flags(r, rw), rw)) {
+    score = score + 512 | 0;
+  }
+  if (Eq_Flags_eq_eq(inverted, { read: false, write: true })) {
+    score = score + 1024 | 0;
+  }
+  return score;
+}
+
+function described() {
+  return Describe_doubled_Metres({ value: 1024 });
+}
+
+function boxOf(value) {
+  return { item: value };
+}
+
+function boxes() {
+  if (Eq_not_eq_Box_Int(boxOf(1), boxOf(2))) {
+    return 4096;
+  } else {
+    return 0;
+  }
+}
+
+function main() {
+  return ((((ordered() + overridden() | 0) + negated() | 0) + flags() | 0) + described() | 0) + boxes() | 0;
+}
+
+function Eq_Metres_eq_eq(lhs, rhs) {
+  return lhs.value === rhs.value;
+}
+
+function Ord_Metres_compare(lhs, rhs) {
+  return Ord_Int_compare(lhs.value, rhs.value);
+}
+
+function Eq_Feet_eq_eq(lhs, rhs) {
+  return lhs.value === rhs.value;
+}
+
+function Eq_Feet_not_eq(lhs, rhs) {
+  return lhs.value !== rhs.value;
+}
+
+function FromInt_Cents_fromInt(value) {
+  return { value: Number(value) | 0 };
+}
+
+function Eq_Cents_eq_eq(lhs, rhs) {
+  return lhs.value === rhs.value;
+}
+
+function Num_Cents_add(lhs, rhs) {
+  return { value: lhs.value + rhs.value | 0 };
+}
+
+function Num_Cents_sub(lhs, rhs) {
+  return { value: lhs.value - rhs.value | 0 };
+}
+
+function Num_Cents_mul(lhs, rhs) {
+  return { value: Math.imul(lhs.value, rhs.value) | 0 };
+}
+
+function Num_Cents_div(lhs, rhs) {
+  return { value: lhs.value / rhs.value | 0 };
+}
+
+function Eq_Flags_eq_eq(lhs, rhs) {
+  var v4 = lhs.read === rhs.read;
+  var v7 = lhs.write === rhs.write;
+  return v4 && v7;
+}
+
+function Logic_Flags_and(lhs, rhs) {
+  var v2 = { read: false, write: false };
+  var v3 = lhs.read;
+  var v4 = rhs.read;
+  var v5 = v3 && v4;
+  var v6 = lhs.write;
+  var v7 = rhs.write;
+  var v8 = v6 && v7;
+  v2.read = v5;
+  v2.write = v8;
+  return v2;
+}
+
+function Logic_Flags_or(lhs, rhs) {
+  var v2 = { read: false, write: false };
+  var v3 = lhs.read;
+  var v4 = rhs.read;
+  var v5 = v3 || v4;
+  var v6 = lhs.write;
+  var v7 = rhs.write;
+  var v8 = v6 || v7;
+  v2.read = v5;
+  v2.write = v8;
+  return v2;
+}
+
+function Logic_Flags_xor(lhs, rhs) {
+  var v2 = { read: false, write: false };
+  var v5 = lhs.read !== rhs.read;
+  var v8 = lhs.write !== rhs.write;
+  v2.read = v5;
+  v2.write = v8;
+  return v2;
+}
+
+function Logic_Flags_not(value) {
+  var v1 = { read: false, write: false };
+  var v4 = value.read !== true;
+  var v7 = value.write !== true;
+  v1.read = v4;
+  v1.write = v7;
+  return v1;
+}
+
+function Describe_Metres_size(value) {
+  return value.value;
+}
+
+function Describe_doubled_Metres(value) {
+  return Describe_Metres_size(value) + Describe_Metres_size(value) | 0;
+}
+
+function Eq_Box_a_eq_eq_Int(lhs, rhs) {
+  return lhs.item === rhs.item;
+}

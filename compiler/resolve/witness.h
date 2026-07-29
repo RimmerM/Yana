@@ -106,6 +106,11 @@ TypePtr funValueFieldType(Module& module, U16 field);
  * already names the lambda. So the answer lives at a negative offset from the entry point -
  * `[code - kSize_]` - and every function value is one word narrower for it.
  *
+ * Where it lives is a *target* decision, and the only one the two targets make differently about a
+ * lambda: a code word that is not an address has nothing in front of it to subtract from, so a
+ * target may keep this table anywhere it likes and answer FunValueLayout::kHeader with it instead.
+ * What is in the table, and what reads it, is the same either way.
+ *
  * The two slots hold plain code addresses rather than a descriptor, for the same reason a class
  * witness's method slots do: everything a descriptor carries beyond them - the size, the alignment,
  * the flags - is about a type nothing here has to reason about, and the extra indirection would be

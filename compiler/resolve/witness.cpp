@@ -41,6 +41,12 @@ TypePtr funValueFieldType(Module& module, U16 field) {
         case FunValueLayout::kCode:
         case FunValueLayout::kEnv:
             return resolvePointerType(module, module.scalar.unit);
+
+        // The header the target attached to the code word, where it attached one - see
+        // FunValueLayout::kHeader. Typed, unlike the two words, because what it points at is a
+        // layout this compiler both writes and reads.
+        case FunValueLayout::kHeader:
+            return resolvePointerType(module, closureHeaderPlaceType(module));
         default:
             return module.scalar.error;
     }

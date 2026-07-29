@@ -1,0 +1,66 @@
+"use strict";
+// ResolveTest
+function and(a, b) {
+  return { bits: a.bits & b.bits | 0 };
+}
+
+function mask(a, b) {
+  return a & b | 0;
+}
+
+function combined(a, b) {
+  return and({ bits: a }, { bits: b }).bits;
+}
+
+function bothTrue(a, b) {
+  return a && b;
+}
+
+function maskQualified(a, b) {
+  return a & b | 0;
+}
+
+function bothQualified(a, b) {
+  return a && b;
+}
+
+function negated(a) {
+  return -a | 0;
+}
+
+function difference(a, b) {
+  return a - b | 0;
+}
+
+function main() {
+  var v35;
+  var v47;
+  var v59;
+  var v24 = (((mask(6, 3) + combined(6, 3) | 0) + maskQualified(12, 10) | 0) + maskGeneric_Int(5, 4) | 0) + difference(negated(1) + 10 | 0, 2) | 0;
+  if (bothTrue(true, false)) {
+    v35 = 100;
+  } else {
+    v35 = 0;
+  }
+  var v36 = v24 + v35 | 0;
+  if (bothQualified(true, true)) {
+    v47 = 1000;
+  } else {
+    v47 = 0;
+  }
+  var v48 = v36 + v47 | 0;
+  if (bothGeneric_Bool(true, false)) {
+    v59 = 10000;
+  } else {
+    v59 = 0;
+  }
+  return v48 + v59 | 0;
+}
+
+function maskGeneric_Int(x, y) {
+  return x & y | 0;
+}
+
+function bothGeneric_Bool(x, y) {
+  return x && y;
+}

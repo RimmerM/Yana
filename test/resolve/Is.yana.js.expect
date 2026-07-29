@@ -1,0 +1,149 @@
+"use strict";
+// ResolveTest
+function orZero(m) {
+  if (m.$tag === 1) {
+    return m.$p + 1 | 0;
+  } else {
+    return 0;
+  }
+}
+
+function either(m) {
+  var v12;
+  if (m.$tag === 1) {
+    v12 = Math.imul(m.$p, 2) | 0;
+  } else {
+    v12 = 0;
+  }
+  return v12;
+}
+
+function isZero(m) {
+  var v13;
+  B0: {
+    B1: {
+      if (m.$tag === 1) {
+        if (m.$p === 0) {
+          v13 = 1;
+          break B0;
+        }
+      }
+    }
+    v13 = 0;
+  }
+  return v13;
+}
+
+function deep(m) {
+  var v14;
+  B0: {
+    B1: {
+      if (m.$tag === 1) {
+        if (m.$p.$tag === 1) {
+          v14 = m.$p.$p;
+          break B0;
+        }
+      }
+    }
+    v14 = 0;
+  }
+  return v14;
+}
+
+function area(s) {
+  var v19;
+  if (s.$tag === 0) {
+    var r = s.$p;
+    v19 = Math.imul(r, r) | 0;
+  } else {
+    if (s.$tag === 1) {
+      v19 = Math.imul(s.width, s.height) | 0;
+    } else {
+      v19 = 0;
+    }
+  }
+  return v19;
+}
+
+function describe(s, flag) {
+  var v13;
+  if (flag) {
+    v13 = 1;
+  } else {
+    if (s.$tag === 0) {
+      v13 = s.$p;
+    } else {
+      v13 = 0;
+    }
+  }
+  return v13;
+}
+
+function firstOf(m) {
+  if (m.$tag === 1) {
+    return m.$p + 10 | 0;
+  } else {
+    return 0;
+  }
+}
+
+function present(m) {
+  var found;
+  var v16;
+  if (m.$tag === 1) {
+    found = true;
+  } else {
+    found = false;
+  }
+  if (found) {
+    v16 = 2;
+  } else {
+    v16 = 1;
+  }
+  return v16;
+}
+
+function viaCall(value) {
+  var v10;
+  var v1 = wrap(value);
+  if (v1.$tag === 1) {
+    v10 = v1.$p;
+  } else {
+    v10 = 0;
+  }
+  return v10;
+}
+
+function wrap(value) {
+  var v14;
+  if (value > 0) {
+    v14 = { $tag: 1, $p: value };
+  } else {
+    v14 = { $tag: 0, $p: null };
+  }
+  return v14;
+}
+
+function main() {
+  var v5 = orZero({ $tag: 1, $p: 1 });
+  var v9 = orZero({ $tag: 0, $p: null });
+  var v20 = (v5 + (Math.imul(v9, 100) | 0) | 0) + either({ $tag: 1, $p: 2 }) | 0;
+  var v24 = either({ $tag: 0, $p: null });
+  var v28 = v20 + (Math.imul(v24, 100) | 0) | 0;
+  var v34 = isZero({ $tag: 1, $p: 0 });
+  var v38 = v28 + (Math.imul(v34, 8) | 0) | 0;
+  var v44 = isZero({ $tag: 1, $p: 1 });
+  var v59 = (v38 + (Math.imul(v44, 100) | 0) | 0) + deep({ $tag: 1, $p: { $tag: 1, $p: 16 } }) | 0;
+  var v67 = deep({ $tag: 1, $p: { $tag: 0, $p: null } });
+  var v71 = v59 + (Math.imul(v67, 100) | 0) | 0;
+  var v75 = deep({ $tag: 0, $p: null });
+  var v118 = (((((v71 + (Math.imul(v75, 100) | 0) | 0) + area({ $tag: 0, width: 0, height: 0, $p: 5 }) | 0) + area({ $tag: 1, width: 3, height: 4, $p: null }) | 0) + describe({ $tag: 0, width: 0, height: 0, $p: 7 }, true) | 0) + describe({ $tag: 0, width: 0, height: 0, $p: 7 }, false) | 0) + firstOf({ $tag: 1, $p: 32 }) | 0;
+  var v122 = firstOf({ $tag: 0, $p: null });
+  var v126 = v118 + (Math.imul(v122, 100) | 0) | 0;
+  var v132 = present({ $tag: 1, $p: 1 });
+  var v136 = v126 + (Math.imul(v132, 64) | 0) | 0;
+  var v140 = present({ $tag: 0, $p: null });
+  var v147 = (v136 + (Math.imul(v140, 128) | 0) | 0) + viaCall(128) | 0;
+  var v149 = viaCall(0);
+  return v147 + (Math.imul(v149, 100) | 0) | 0;
+}

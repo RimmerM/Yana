@@ -1,550 +1,497 @@
-#include <fstream>
-#include "ast.h"
-#include "../../compiler/context.h"
+#include "gen.h"
 
-using namespace js;
+/*
+ * The JS AST as text.
+ *
+ * The only decision here that is not mechanical is parenthesization, and it is made from operator
+ * precedence rather than by wrapping everything: `(a + b) | 0` is what the integer tower asks for
+ * on almost every arithmetic instruction (Analysis-JS.md §2.1), and a formatter that parenthesized
+ * unconditionally would turn that into an unreadable pile for the one case that matters most.
+ */
 
-struct CodeBuilder {
-    std::ostream& writer;
+namespace js {
+
+namespace {
+
+struct OpInfo {
+    StringView text;
+    U8 precedence;
+};
+
+// Precedence numbers from the grammar; low binds loosest. Only the levels this tree can build are
+// listed - assignment and the conditional are handled where they are printed.
+const OpInfo kBinaryOps[] = {
+    { "*"_v, 12 }, { "/"_v, 12 }, { "%"_v, 12 },
+    { "+"_v, 11 }, { "-"_v, 11 },
+    { "<<"_v, 10 }, { ">>>"_v, 10 }, { ">>"_v, 10 },
+    { "<"_v, 9 }, { "<="_v, 9 }, { ">"_v, 9 }, { ">="_v, 9 },
+    { "==="_v, 8 }, { "!=="_v, 8 },
+    { "=="_v, 8 }, { "!="_v, 8 },
+    { "&"_v, 7 }, { "^"_v, 6 }, { "|"_v, 5 },
+    { "&&"_v, 4 }, { "||"_v, 3 },
+};
+
+// Below everything, so a function expression is bare where it stands alone - a `return`, an
+// initializer, an argument - and parenthesized everywhere else. `(function(){}).x` needs them and
+// `return function(){}` does not, and one number decides both.
+constexpr U8 kFunctionPrecedence = 1;
+constexpr U8 kAssignPrecedence = 2;
+constexpr U8 kTernaryPrecedence = 3;
+constexpr U8 kUnaryPrecedence = 14;
+constexpr U8 kCallPrecedence = 17;
+constexpr U8 kAtomPrecedence = 18;
+
+struct Format {
+    Net::Writer& writer;
     Context& context;
-
+    JsBase base;
     bool minify;
     U32 indentation = 0;
 
-    StringView space;
-    StringView comma;
-    StringView parenBlockStart;
-    StringView doBlockStart;
-    StringView doCondStart;
-    StringView elseHead;
-    StringView indent;
-    StringView colon;
+    void write(StringView text) { writer.writeString(text); }
+    void write(char c) { writer.writeByte(c); }
 
-    CodeBuilder(std::ostream& writer, Context& context, StringView indent, bool minify): writer(writer), context(context), minify(minify), indent(indent) {
-        if(minify) {
-            space = ""_v;
-            comma = ","_v;
-            parenBlockStart = "){"_v;
-            doBlockStart = "do{"_v;
-            doCondStart = "}while("_v;
-            elseHead = "}else{"_v;
-            colon = ":"_v;
-        } else {
-            space = " "_v;
-            comma = ", "_v;
-            parenBlockStart = ") {"_v;
-            doBlockStart = "do {"_v;
-            doCondStart = "} while("_v;
-            elseHead = "} else {"_v;
-            colon = ": "_v;
-        }
+    void name(Name value) {
+        auto id = context.find(value.text);
+        writer.writeString(StringView { id.text, id.textLength });
     }
+
+    void space() { if(!minify) write(' '); }
+    void newline() { if(!minify) write('\n'); }
+
+    // Set by a label, which has already opened the line the statement it introduces continues.
+    bool sameLine = false;
 
     void startLine() {
-        if(!minify) {
-            for(U32 i = 0; i < indentation; i++) {
-                append(indent);
-            }
+        if(sameLine) {
+            sameLine = false;
+            return;
         }
+
+        if(minify) return;
+        for(U32 i = 0; i < indentation; i++) write("  "_v);
     }
 
-    void endLine() {
-        if(!minify) {
-            writer << '\n';
-        }
-    }
-
-    template<class F> void withLevel(F&& f) {
+    template<class F>
+    void withLevel(F&& f) {
         indentation++;
         f();
         indentation--;
     }
-
-    template<class F> void sepBy(U32 count, StringView sep, F&& f) {
-        if(sep.length > 0 && sep.ptr[0] == '\n') {
-            for(U32 i = 0; i < count; i++) {
-                if(i == count - 1) {
-                    f(i);
-                } else {
-                    f(i);
-                    endLine();
-                    startLine();
-                    writer.write(sep.ptr + 1, sep.length - 1);
-                }
-            }
-        } else if(sep.length > 0 && sep.ptr[sep.length - 1] == '\n') {
-            for(U32 i = 0; i < count; i++) {
-                if(i == count - 1) {
-                    f(i);
-                } else {
-                    f(i);
-                    writer.write(sep.ptr, sep.length - 1);
-                    endLine();
-                    startLine();
-                }
-            }
-        } else {
-            for(U32 i = 0; i < count; i++) {
-                if(i == count - 1) {
-                    f(i);
-                } else {
-                    f(i);
-                    append(sep);
-                }
-            }
-        }
-    }
-
-    void append(StringView seg) {
-        writer.write(seg.ptr, seg.length);
-    }
-
-    void line(StringView seg) {
-        startLine();
-        append(seg);
-        endLine();
-    }
-
-    void line(char c) {
-        startLine();
-        writer << c;
-        endLine();
-    }
 };
 
-static void appendExpr(CodeBuilder& b, Expr* e);
-static void formatFun(CodeBuilder& b, StringId name, U32 localId, bool named, Variable* args, U32 argCount, Stmt* body);
-
-static bool isFieldName(const char* string, U32 length) {
-    for(U32 i = 0; i < length; i++) {
-        auto c = string[i];
-        if(c >= 'a' && c <= 'z') continue;
-        if(c >= 'A' && c <= 'Z') continue;
-        if(c >= '0' && c <= '9') continue;
-        if(c == '_') continue;
-
-        return false;
-    }
-
-    return true;
+void writeInt(Format& f, I64 value) {
+    f.writer.writeBytes(32, [&](Byte* buffer) { return show(value, (char*)buffer, 32); });
 }
 
-static void appendVarName(CodeBuilder& b, StringId name, U32 localId) {
-    if(!b.minify && name) {
-        auto id = b.context.find(name);
-        b.writer.write(id.text, id.textLength);
-        b.writer << '_';
+void writeNumber(Format& f, F64 value, bool integral) {
+    // An integral value is printed through the integer path so that a number the IR holds as bits
+    // comes out as an index rather than as `4.09600e+06`. Anything past the exactly-representable
+    // range falls back to the general form, where it is a double in fact as well as in shape.
+    if(integral && value >= -9007199254740992.0 && value <= 9007199254740992.0) {
+        writeInt(f, I64(value));
+        return;
     }
 
-    auto index = localId % 52;
-    if(index < 26) {
-        b.writer << char('a' + index);
-    } else {
-        b.writer << char('A' + (index - 26));
-    }
-
-    auto remaining = localId % 52;
-    while(remaining > 62) {
-        index = remaining % 62;
-        remaining /= 62;
-
-        if(index < 26) {
-            b.writer << char('a' + index);
-        } else if(index < 52) {
-            b.writer << char('A' + (index - 26));
-        } else {
-            b.writer << char('0' + (index - 52));
-        }
-    }
+    f.writer.writeBytes(64, [&](Byte* buffer) { return show(value, (char*)buffer, 64); });
 }
 
-static void appendString(CodeBuilder& b, StringId string) {
-    b.writer << '"';
-    auto id = b.context.find(string);
+void writeStringLiteral(Format& f, StringId value) {
+    auto id = f.context.find(value);
+    f.write('"');
+
     for(U32 i = 0; i < id.textLength; i++) {
         auto c = id.text[i];
-        if(c == '\b') {
-            b.writer << "\\b";
-        } else if(c == '\n') {
-            b.writer << "\\n";
-        } else if(c == '\\') {
-            b.writer << "\\\\";
-        } else if(c == '"') {
-            b.writer << "\\\"";
-        } else {
-            b.writer << c;
+        switch(c) {
+            case '"': f.write("\\\""_v); break;
+            case '\\': f.write("\\\\"_v); break;
+            case '\n': f.write("\\n"_v); break;
+            case '\r': f.write("\\r"_v); break;
+            case '\t': f.write("\\t"_v); break;
+            default: f.write(c); break;
         }
     }
-    b.writer << '"';
+
+    f.write('"');
 }
 
-static void appendObjectKey(CodeBuilder& b, Expr* key, Expr* value) {
-    if(key->type == Expr::String) {
-        auto s = ((StringExpr*)key)->string;
-        auto id = b.context.find(s);
+U8 precedenceOf(Format& f, JsPtr<Expr> pointer) {
+    switch(f.base[pointer]->kind) {
+        case Expr::Function: return kFunctionPrecedence;
+        case Expr::Unary: return kUnaryPrecedence;
+        case Expr::Binary: return kBinaryOps[U32(((BinaryExpr*)f.base[pointer])->op)].precedence;
+        case Expr::Ternary: return kTernaryPrecedence;
+        case Expr::Assign: return kAssignPrecedence;
+        case Expr::Call:
+        case Expr::Field:
+        case Expr::Index: return kCallPrecedence;
+        default: return kAtomPrecedence;
+    }
+}
 
-        if(isFieldName(id.text, id.textLength)) {
-            b.writer.write(id.text, id.textLength);
-        } else {
-            b.writer << '"';
-            b.writer.write(id.text, id.textLength);
-            b.writer << '"';
+void writeExpr(Format& f, JsPtr<Expr> pointer);
+void writeBody(Format& f, StmtList body);
+
+// The parameter list both a declaration and a function expression have.
+void writeArgs(Format& f, JsList<Name, false>& args) {
+    auto first = true;
+
+    f.write('(');
+    for(auto arg: args.contents(f.base)) {
+        if(!first) {
+            f.write(',');
+            f.space();
         }
+
+        first = false;
+        f.name(arg);
+    }
+
+    f.write(')');
+}
+
+// `expr` where it binds at least as tightly as the position it goes into, and `(expr)` otherwise.
+void writeNested(Format& f, JsPtr<Expr> pointer, U8 required) {
+    if(precedenceOf(f, pointer) < required) {
+        f.write('(');
+        writeExpr(f, pointer);
+        f.write(')');
     } else {
-        b.writer << '[';
-        appendExpr(b, key);
-        b.writer << ']';
+        writeExpr(f, pointer);
     }
-
-    b.append(b.colon);
-    appendExpr(b, value);
 }
 
-static void appendExpr(CodeBuilder& b, Expr* e) {
-    switch(e->type) {
+void writeExpr(Format& f, JsPtr<Expr> pointer) {
+    auto expr = f.base[pointer];
+
+    switch(expr->kind) {
+        case Expr::Number: {
+            auto number = (NumberExpr*)expr;
+            writeNumber(f, number->value, number->integral);
+            break;
+        }
+        case Expr::BigInt: {
+            auto value = (BigIntExpr*)expr;
+            if(value->isSigned) {
+                writeInt(f, I64(value->value));
+            } else {
+                f.writer.writeBytes(32, [&](Byte* buffer) { return show(value->value, (char*)buffer, 32); });
+            }
+
+            f.write('n');
+            break;
+        }
         case Expr::String:
-            appendString(b, ((StringExpr*)e)->string);
-            break;
-        case Expr::Float:
-            b.writer << ((FloatExpr*)e)->f;
-            break;
-        case Expr::Int:
-            b.writer << ((IntExpr*)e)->i;
+            writeStringLiteral(f, ((StringExpr*)expr)->value);
             break;
         case Expr::Bool:
-            b.writer << (((BoolExpr*)e)->b ? "true" : "false");
+            f.write(((BoolExpr*)expr)->value ? "true"_v : "false"_v);
             break;
         case Expr::Null:
-            b.writer << "null";
+            f.write("null"_v);
             break;
         case Expr::Undefined:
-            b.writer << "undefined";
+            f.write("undefined"_v);
             break;
+        case Expr::Var:
+            f.name(((VarExpr*)expr)->name);
+            break;
+        case Expr::Field: {
+            auto field = (FieldExpr*)expr;
+            writeNested(f, field->object, kCallPrecedence);
+            f.write('.');
+            f.name(field->field);
+            break;
+        }
+        case Expr::Index: {
+            auto index = (IndexExpr*)expr;
+            writeNested(f, index->array, kCallPrecedence);
+            f.write('[');
+            writeExpr(f, index->index);
+            f.write(']');
+            break;
+        }
         case Expr::Array: {
-            auto a = (ArrayExpr*)e;
+            auto array = (ArrayExpr*)expr;
+            auto first = true;
 
-            b.writer << '[';
-            for(U32 i = 0; i < a->count; i++) {
-                if(i == a->count - 1) {
-                    appendExpr(b, a->content[i]);
-                } else {
-                    appendExpr(b, a->content[i]);
-                    b.append(b.comma);
+            f.write('[');
+            for(auto value: array->values.contents(f.base)) {
+                if(!first) {
+                    f.write(',');
+                    f.space();
                 }
+
+                first = false;
+                writeExpr(f, value);
             }
-            b.writer << ']';
+            f.write(']');
             break;
         }
         case Expr::Object: {
-            auto o = (ObjectExpr*)e;
+            auto object = (ObjectExpr*)expr;
+            auto first = true;
 
-            b.writer << '{';
-            for(U32 i = 0; i < o->count; i++) {
-                if(i == o->count - 1) {
-                    appendObjectKey(b, o->keys[i], o->values[i]);
-                } else {
-                    appendObjectKey(b, o->keys[i], o->values[i]);
-                    b.append(b.comma);
-                }
-            }
-            b.writer << '}';
-            break;
-        }
-        case Expr::Var: {
-            auto var = (VarExpr*)e;
-            appendVarName(b, var->var->name, var->var->localId);
-            break;
-        }
-        case Expr::Field: {
-            auto f = (FieldExpr*)e;
-            appendExpr(b, f->arg);
+            f.write('{');
+            for(auto property: object->properties.contents(f.base)) {
+                if(!first) f.write(',');
+                f.space();
+                first = false;
 
-            bool isField = false;
-            if(f->field->type == Expr::String) {
-                auto field = b.context.find(((StringExpr*)f->field)->string);
-                if(isFieldName(field.text, field.textLength)) {
-                    b.writer << '.';
-                    b.writer.write(field.text, field.textLength);
-                    isField = true;
-                }
+                f.name(property.key);
+                f.write(':');
+                f.space();
+                writeExpr(f, property.value);
             }
 
-            if(!isField) {
-                b.writer << '[';
-                appendExpr(b, f->field);
-                b.writer << ']';
+            if(!first) f.space();
+            f.write('}');
+            break;
+        }
+        case Expr::Unary: {
+            auto unary = (UnaryExpr*)expr;
+            switch(unary->op) {
+                case UnaryOp::Neg: f.write('-'); break;
+                case UnaryOp::Not: f.write('!'); break;
+                case UnaryOp::BitNot: f.write('~'); break;
             }
 
+            writeNested(f, unary->value, kUnaryPrecedence);
             break;
         }
-        case Expr::Prefix: {
-            auto p = (PrefixExpr*)e;
+        case Expr::Binary: {
+            auto binary = (BinaryExpr*)expr;
+            auto& op = kBinaryOps[U32(binary->op)];
 
-            b.writer << '(';
-            auto op = b.context.find(p->op);
-            b.writer.write(op.text, op.textLength);
-            appendExpr(b, p->arg);
-            b.writer << ')';
+            // Every operator here is left-associative, so the right operand needs one level more
+            // than the left to stay unparenthesized.
+            writeNested(f, binary->lhs, op.precedence);
+            f.space();
+            f.write(op.text);
+            f.space();
+            writeNested(f, binary->rhs, U8(op.precedence + 1));
             break;
         }
-        case Expr::Infix: {
-            auto i = (InfixExpr*)e;
-
-            b.writer << '(';
-            appendExpr(b, i->lhs);
-            b.append(b.space);
-            auto op = b.context.find(i->op);
-            b.writer.write(op.text, op.textLength);
-            b.append(b.space);
-            appendExpr(b, i->rhs);
-            b.writer << ')';
-            break;
-        }
-        case Expr::If: {
-            auto i = (IfExpr*)e;
-
-            b.writer << '(';
-            appendExpr(b, i->cond);
-            b.append(b.space);
-            b.writer << '?';
-            b.append(b.space);
-            appendExpr(b, i->then);
-            b.append(b.space);
-            b.writer << ':';
-            b.append(b.space);
-            appendExpr(b, i->otherwise);
-            b.writer << ')';
+        case Expr::Ternary: {
+            auto ternary = (TernaryExpr*)expr;
+            writeNested(f, ternary->cond, U8(kTernaryPrecedence + 1));
+            f.space();
+            f.write('?');
+            f.space();
+            writeNested(f, ternary->then, kAssignPrecedence);
+            f.space();
+            f.write(':');
+            f.space();
+            writeNested(f, ternary->otherwise, kAssignPrecedence);
             break;
         }
         case Expr::Assign: {
-            auto a = (AssignExpr*)e;
-
-            appendExpr(b, a->target);
-            b.append(b.space);
-            b.writer << '=';
-            b.append(b.space);
-            appendExpr(b, a->value);
+            auto assign = (AssignExpr*)expr;
+            writeNested(f, assign->target, kCallPrecedence);
+            f.space();
+            f.write('=');
+            f.space();
+            writeNested(f, assign->value, kAssignPrecedence);
             break;
         }
         case Expr::Call: {
-            auto c = (CallExpr*)e;
+            auto call = (CallExpr*)expr;
+            auto first = true;
 
-            appendExpr(b, c->target);
-            b.writer << '(';
-            for(U32 i = 0; i < c->count; i++) {
-                if(i == c->count - 1) {
-                    appendExpr(b, c->args[i]);
-                } else {
-                    appendExpr(b, c->args[i]);
-                    b.append(b.comma);
+            writeNested(f, call->callee, kCallPrecedence);
+            f.write('(');
+            for(auto arg: call->args.contents(f.base)) {
+                if(!first) {
+                    f.write(',');
+                    f.space();
                 }
+
+                first = false;
+                writeExpr(f, arg);
             }
-            b.writer << ')';
+            f.write(')');
             break;
         }
-        case Expr::Fun: {
-            auto f = (FunExpr*)e;
-            formatFun(b, f->name, 0, false, f->args, f->argCount, f->body);
+        case Expr::Function: {
+            auto function = (FunValueExpr*)expr;
+            f.write("function"_v);
+            writeArgs(f, function->args);
+            f.space();
+            writeBody(f, function->body);
             break;
         }
     }
 }
 
-static void appendVarDecl(CodeBuilder& b, DeclStmt* v) {
-    appendVarName(b, v->v->name, v->v->localId);
-    if(v->value) {
-        b.append(b.space);
-        b.writer << '=';
-        b.append(b.space);
-        appendExpr(b, v->value);
-    }
+void writeStmt(Format& f, JsPtr<Stmt> pointer);
+
+void writeBody(Format& f, StmtList body) {
+    f.write('{');
+    f.newline();
+    f.withLevel([&] {
+        for(auto stmt: body.contents(f.base)) writeStmt(f, stmt);
+    });
+    f.startLine();
+    f.write('}');
 }
 
-static void formatStmt(CodeBuilder& b, Stmt* stmt) {
-    switch(stmt->type) {
+void writeStmt(Format& f, JsPtr<Stmt> pointer) {
+    auto stmt = f.base[pointer];
+
+    switch(stmt->kind) {
         case Stmt::Block:
-            b.line('{');
-            b.withLevel([&] {
-                auto block = (BlockStmt*)stmt;
-                for(U32 i = 0; i < block->count; i++) {
-                    formatStmt(b, block->stmts[i]);
-                }
-            });
-            b.line('}');
+            f.startLine();
+            writeBody(f, ((BlockStmt*)stmt)->body);
+            f.newline();
             break;
-        case Stmt::Exp:
-            b.startLine();
-            appendExpr(b, ((ExprStmt*)stmt)->expr);
-            b.writer << ';';
-            b.endLine();
+        case Stmt::Expression:
+            f.startLine();
+            writeExpr(f, ((ExprStmt*)stmt)->value);
+            f.write(';');
+            f.newline();
             break;
         case Stmt::If: {
-            auto c = (IfStmt*)stmt;
+            auto branch = (IfStmt*)stmt;
+            auto then = branch->then;
+            auto otherwise = branch->otherwise;
 
-            b.startLine();
-            b.writer << "if(";
-            appendExpr(b, c->cond);
-            b.append(b.parenBlockStart);
-            b.withLevel([&] {
-                formatStmt(b, c->then);
-            });
+            f.startLine();
+            f.write("if"_v);
+            f.space();
+            f.write('(');
+            writeExpr(f, branch->cond);
+            f.write(')');
+            f.space();
+            writeBody(f, then);
 
-            if(c->otherwise) {
-                b.line(b.elseHead);
-                b.withLevel([&] {
-                    formatStmt(b, c->otherwise);
-                });
-                b.line('}');
+            if(otherwise.list.count) {
+                f.space();
+                f.write("else"_v);
+                f.space();
+                writeBody(f, otherwise);
             }
 
-            b.line('}');
+            f.newline();
             break;
         }
-        case Stmt::While: {
-            auto c = (WhileStmt*)stmt;
-
-            b.startLine();
-            b.writer << "while(";
-            appendExpr(b, c->cond);
-            b.append(b.parenBlockStart);
-            b.withLevel([&] {
-                formatStmt(b, c->body);
-            });
-
-            b.line('}');
+        case Stmt::Forever:
+            f.startLine();
+            f.write("for"_v);
+            f.space();
+            f.write("(;;)"_v);
+            f.space();
+            writeBody(f, ((ForeverStmt*)stmt)->body);
+            f.newline();
             break;
-        }
-        case Stmt::DoWhile: {
-            auto c = (DoWhileStmt*)stmt;
-
-            b.startLine();
-            b.append(b.doBlockStart);
-            b.withLevel([&] {
-                formatStmt(b, c->body);
-            });
-
-            b.startLine();
-            b.append(b.doCondStart);
-            appendExpr(b, c->cond);
-            b.append({");", 2});
-            b.endLine();
-            break;
-        }
         case Stmt::Break:
-            b.line({"break;", 6});
+            f.startLine();
+            f.write("break "_v);
+            f.name(((BreakStmt*)stmt)->label);
+            f.write(';');
+            f.newline();
             break;
         case Stmt::Continue:
-            b.line({"continue;", 9});
+            f.startLine();
+            f.write("continue "_v);
+            f.name(((ContinueStmt*)stmt)->label);
+            f.write(';');
+            f.newline();
             break;
         case Stmt::Labelled: {
-            auto c = (LabelledStmt*)stmt;
-            auto id = b.context.find(c->name);
+            auto labelled = (LabelledStmt*)stmt;
+            f.startLine();
+            f.name(labelled->label);
+            f.write(':');
+            f.space();
 
-            b.startLine();
-            b.writer.write(id.text, id.textLength);
-            b.writer << ':';
-            b.append(b.space);
-            b.endLine();
-            formatStmt(b, c->content);
+            // The label already opened the line, so the statement it introduces continues it rather
+            // than indenting again. Its own body still nests at this level.
+            f.sameLine = true;
+            writeStmt(f, labelled->content);
             break;
         }
         case Stmt::Return: {
-            auto c = (ReturnStmt*)stmt;
-            b.startLine();
-            if(c->value) {
-                b.append({"return ", 7});
-                appendExpr(b, c->value);
-                b.writer << ';';
+            auto returned = (ReturnStmt*)stmt;
+            f.startLine();
+
+            if(returned->value) {
+                f.write("return "_v);
+                writeExpr(f, returned->value);
             } else {
-                b.append({"return;", 7});
+                f.write("return"_v);
             }
 
-            b.endLine();
+            f.write(';');
+            f.newline();
             break;
         }
         case Stmt::Decl: {
-            auto c = (DeclStmt*)stmt;
-            b.startLine();
-            b.append({"var ", 4});
-            appendVarDecl(b, c);
-            b.writer << ';';
-            b.endLine();
-            break;
-        }
-        case Stmt::Var: {
-            auto c = (VarStmt*)stmt;
-            b.startLine();
-            b.append({"var ", 4});
+            auto decl = (DeclStmt*)stmt;
+            f.startLine();
+            f.write(decl->constant ? "const "_v : "var "_v);
+            f.name(decl->name);
 
-            for(U32 i = 0; i < c->count; i++) {
-                if(i == c->count - 1) {
-                    appendVarDecl(b, &c->values[i]);
-                    b.writer << ';';
-                } else {
-                    appendVarDecl(b, &c->values[i]);
-                    b.append(b.comma);
-                }
+            if(decl->value) {
+                f.space();
+                f.write('=');
+                f.space();
+                writeExpr(f, decl->value);
             }
 
-            b.endLine();
+            f.write(';');
+            f.newline();
             break;
         }
         case Stmt::Fun: {
-            auto c = (FunStmt*)stmt;
-            formatFun(b, c->name, c->localId, true, c->args, c->argCount, c->body);
+            auto fun = (FunStmt*)stmt;
+
+            f.startLine();
+            f.write("function "_v);
+            f.name(fun->name);
+            writeArgs(f, fun->args);
+            f.space();
+            writeBody(f, fun->body);
+            f.newline();
+            break;
+        }
+        case Stmt::Comment: {
+            if(f.minify) break;
+            auto text = f.context.findName(((CommentStmt*)stmt)->text);
+            f.startLine();
+            f.write("// "_v);
+            f.write(stringView(text));
+            f.newline();
             break;
         }
     }
 }
 
-static void formatFun(CodeBuilder& b, StringId name, U32 localId, bool named, Variable* args, U32 argCount, Stmt* body) {
-    if(named) {
-        b.startLine();
-        b.writer << "function ";
-        appendVarName(b, name, localId);
-        b.writer << '(';
-    } else {
-        b.writer << "function(";
-    }
+} // namespace
 
-    if(argCount > 6 && !b.minify) {
-        b.endLine();
-        b.withLevel([&] {
-            b.startLine();
-            b.sepBy(argCount, {",\n", 2}, [&](U32 i) {
-                appendVarName(b, args[i].name, args[i].localId);
-            });
-        });
-        b.endLine();
-        b.startLine();
-    } else if(argCount > 0) {
-        b.sepBy(argCount, b.comma, [&](U32 i) {
-            appendVarName(b, args[i].name, args[i].localId);
-        });
-    }
+void formatFile(Net::Writer& writer, Context& context, File& file, bool minify) {
+    Format format { writer, context, *file.arena, minify };
 
-    b.append(b.parenBlockStart);
-    b.endLine();
-    b.withLevel([&] {
-        if(body->type == Stmt::Block) {
-            auto block = (BlockStmt*)body;
-            for(U32 i = 0; i < block->count; i++) {
-                formatStmt(b, block->stmts[i]);
-            }
-        } else {
-            formatStmt(b, body);
-        }
-    });
-    b.line('}');
-    b.endLine();
-}
+    // Strict mode, always: `with` and a few other things this tree cannot build are the reason,
+    // and a file that opts in once is one fewer thing for every emitted function to be careful of.
+    writer.writeString(minify ? "\"use strict\";"_v : "\"use strict\";\n"_v);
 
-namespace js {
+    /*
+     * A blank line in front of each function, and in front of the comment that introduces a run of
+     * them. Only where the file is meant to be read: minified output has no lines to separate, and
+     * §3.6 wants the unminified form to be something a person can debug.
+     */
+    auto previous = Stmt::Comment;
+    auto first = true;
 
-void formatFile(Context& context, std::ostream& to, File* file, bool minify) {
-    CodeBuilder builder(to, context, {"  ", 2}, minify);
-    for(auto stmt: file->statements) {
-        formatStmt(builder, stmt);
+    for(auto stmt: file.statements.contents(format.base)) {
+        auto kind = format.base[stmt]->kind;
+        auto separated = kind == Stmt::Fun || kind == Stmt::Comment;
+
+        if(separated && !first && previous != Stmt::Comment) format.newline();
+
+        writeStmt(format, stmt);
+        previous = kind;
+        first = false;
     }
 }
 

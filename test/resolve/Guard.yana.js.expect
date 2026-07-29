@@ -1,0 +1,127 @@
+"use strict";
+// ResolveTest
+function orZero(m) {
+  if (m.$tag === 1) {
+    return m.$p + 1 | 0;
+  } else {
+    return 0;
+  }
+}
+
+function orZeroElse(m) {
+  if (m.$tag === 1) {
+    return m.$p + 2 | 0;
+  } else {
+    return 0;
+  }
+}
+
+function describe(m) {
+  var v22;
+  if (m.$tag === 1) {
+    var c = m.$p;
+    if ((c | 0) === 0) {
+      v22 = 1;
+    } else {
+      if ((c | 0) === 1) {
+        v22 = 2;
+      } else {
+        v22 = 3;
+      }
+    }
+    return v22;
+  } else {
+    return 0;
+  }
+}
+
+function onlyRed(m) {
+  B0: {
+    if (m.$tag === 1) {
+      if ((m.$p | 0) === 0) {
+        return 10;
+      }
+    }
+  }
+  B1: {
+    if (m.$tag === 1) {
+      if ((m.$p | 0) === 1) {
+        return 20;
+      }
+    }
+  }
+  B2: {
+    if (m.$tag === 1) {
+      if ((m.$p | 0) === 2) {
+        return 30;
+      }
+    }
+  }
+  return 0;
+}
+
+function scoped(m) {
+  if (m.$tag === 1) {
+    return Math.imul(m.$p, 3) | 0;
+  } else {
+    return 0;
+  }
+}
+
+function firstJust(a, b) {
+  B0: {
+    if (true) {
+      if (a.$tag === 1) {
+        return a.$p;
+      }
+    }
+  }
+  if (b.$tag === 1) {
+    return b.$p;
+  } else {
+    return 0;
+  }
+}
+
+function retry(m, c) {
+  L0: for (;;) {
+    B1: {
+      if (true) {
+        if (m.$tag === 1) {
+          return m.$p + 1 | 0;
+        } else {
+          if ((c | 0) === 0) {
+          } else {
+            if ((c | 0) === 1) {
+              return 100;
+            } else {
+              continue L0;
+            }
+          }
+        }
+      }
+    }
+    return 50;
+    break L0;
+  }
+}
+
+function scan(c) {
+  B0: {
+    if (true) {
+      if ((c | 0) === 0) {
+      } else {
+        if ((c | 0) === 1) {
+          return 7;
+        } else {
+          return 8;
+        }
+      }
+    }
+  }
+  return 9;
+}
+
+function main() {
+  return ((((((((((((((((((((orZero({ $tag: 1, $p: 1 }) + orZero({ $tag: 0, $p: null }) | 0) + orZeroElse({ $tag: 1, $p: 1 }) | 0) + orZeroElse({ $tag: 0, $p: null }) | 0) + describe({ $tag: 1, $p: 0 }) | 0) + describe({ $tag: 1, $p: 1 }) | 0) + describe({ $tag: 1, $p: 2 }) | 0) + describe({ $tag: 0, $p: null }) | 0) + onlyRed({ $tag: 1, $p: 0 }) | 0) + onlyRed({ $tag: 1, $p: 1 }) | 0) + onlyRed({ $tag: 1, $p: 2 }) | 0) + onlyRed({ $tag: 0, $p: null }) | 0) + scoped({ $tag: 1, $p: 4 }) | 0) + scoped({ $tag: 0, $p: null }) | 0) + firstJust({ $tag: 0, $p: null }, { $tag: 1, $p: 7 }) | 0) + firstJust({ $tag: 1, $p: 3 }, { $tag: 0, $p: null }) | 0) + retry({ $tag: 1, $p: 5 }, 0) | 0) + retry({ $tag: 0, $p: null }, 0) | 0) + retry({ $tag: 0, $p: null }, 1) | 0) + scan(0) | 0) + scan(1) | 0) + scan(2) | 0;
+}

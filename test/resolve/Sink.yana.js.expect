@@ -1,0 +1,210 @@
+"use strict";
+var sinkCalls = 0n;
+const closure$ResolveTest_lambda$0 = [teardown$none, 0, null, 0];
+
+// Core
+function teardown$none(value) {
+  return;
+}
+
+function add_eq_I64(target, amount) {
+  target.$v = BigInt.asIntN(64, target.$v + amount);
+  return;
+}
+
+// ResolveTest
+function direct() {
+  var h = { value: 10n };
+  var g = { value: 0n };
+  Sink_Handle_sink(g, h);
+  return g.value;
+}
+
+function derived() {
+  var p = { left: { value: 20n }, right: 3n };
+  var q = { left: { value: 0n }, right: 0n };
+  moveInit$Pair(q, p);
+  return BigInt.asIntN(64, q.left.value + q.right);
+}
+
+function nested() {
+  var n = { inner: { left: { value: 40n }, right: 1n }, tag: 4n };
+  var m = { inner: { left: { value: 0n }, right: 0n }, tag: 0n };
+  moveInit$Nest(m, n);
+  return BigInt.asIntN(64, BigInt.asIntN(64, m.inner.left.value + m.inner.right) + m.tag);
+}
+
+function unwrap(e) {
+  var v12;
+  if (e.$tag === 0) {
+    v12 = e.n;
+  } else {
+    v12 = e.h.value;
+  }
+  return v12;
+}
+
+function tagged(flag) {
+  var e;
+  if (flag) {
+    e = { $tag: 1, n: 0n, h: { value: 7n } };
+  } else {
+    e = { $tag: 0, n: 100n, h: { value: 0n } };
+  }
+  var e$1 = e;
+  var f = { $tag: 0, n: 0n, h: { value: 0n } };
+  moveInit$Either(f, e$1);
+  return unwrap(f);
+}
+
+function consume(it) {
+  return it.value;
+}
+
+function captured(h) {
+  var v1 = { h: { value: 0n } };
+  Sink_Handle_sink(v1.h, h);
+  return ResolveTest_lambda$0$make(v1);
+}
+
+function retag(p) {
+  var v1 = { left: { value: 0n }, right: 0n };
+  var v5 = BigInt.asIntN(64, p.right + 1n);
+  moveInit$Pair(v1, p);
+  v1.right = v5;
+  return v1;
+}
+
+function main() {
+  var result = { $v: 0n };
+  add_eq_I64(result, direct());
+  if (sinkCalls !== 1n) {
+    return BigInt.asIntN(64, -1n);
+  } else {
+    add_eq_I64(result, derived());
+    if (sinkCalls !== 2n) {
+      return BigInt.asIntN(64, -2n);
+    } else {
+      add_eq_I64(result, nested());
+      if (sinkCalls !== 3n) {
+        return BigInt.asIntN(64, -3n);
+      } else {
+        add_eq_I64(result, tagged(true));
+        if (sinkCalls !== 4n) {
+          return BigInt.asIntN(64, -4n);
+        } else {
+          add_eq_I64(result, tagged(false));
+          if (sinkCalls !== 4n) {
+            return BigInt.asIntN(64, -5n);
+          } else {
+            add_eq_I64(result, consume({ value: 5n }));
+            if (sinkCalls !== 4n) {
+              return BigInt.asIntN(64, -6n);
+            } else {
+              var closed = captured({ value: 30n });
+              if (sinkCalls !== 5n) {
+                drop$_sub_gt_I64({ $v: closed });
+                return BigInt.asIntN(64, -7n);
+              } else {
+                var v109 = closed();
+                drop$_sub_gt_I64({ $v: closed });
+                add_eq_I64(result, v109);
+                var retagged = retag({ left: { value: 60n }, right: 6n });
+                if (sinkCalls !== 6n) {
+                  return BigInt.asIntN(64, -8n);
+                } else {
+                  add_eq_I64(result, BigInt.asIntN(64, retagged.left.value + retagged.right));
+                  var relocated = relocate_Handle({ value: 70n });
+                  if (sinkCalls !== 7n) {
+                    return BigInt.asIntN(64, -9n);
+                  } else {
+                    add_eq_I64(result, relocated.value);
+                    var relocatedPair = relocate_Pair({ left: { value: 80n }, right: 8n });
+                    if (sinkCalls !== 8n) {
+                      return BigInt.asIntN(64, -10n);
+                    } else {
+                      add_eq_I64(result, BigInt.asIntN(64, relocatedPair.left.value + relocatedPair.right));
+                      return BigInt.asIntN(64, result.$v + sinkCalls);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function Sink_Handle_sink(to, from) {
+  var v5 = { $v: sinkCalls };
+  add_eq_I64(v5, 1n);
+  sinkCalls = v5.$v;
+  to.value = from.value;
+  return;
+}
+
+function moveInit$Pair(to, from) {
+  var v3 = to;
+  var v4 = from;
+  v3.left = { value: v4.left.value };
+  v3.right = v4.right;
+  Sink_Handle_sink(to.left, from.left);
+  return;
+}
+
+function moveInit$Nest(to, from) {
+  var v3 = to;
+  var v4 = from;
+  v3.inner = { left: { value: v4.inner.left.value }, right: v4.inner.right };
+  v3.tag = v4.tag;
+  moveInit$Pair(to.inner, from.inner);
+  return;
+}
+
+function moveInit$Either(to, from) {
+  var v3 = to;
+  var v4 = from;
+  v3.$tag = v4.$tag;
+  v3.n = v4.n;
+  v3.h = { value: v4.h.value };
+  if (from.$tag === 1) {
+    Sink_Handle_sink(to.h, from.h);
+  }
+  return;
+}
+
+function ResolveTest_lambda$0$make(env) {
+  return function() {
+    return env.h.value;
+  };
+}
+
+function relocate_Handle(x) {
+  var y = { value: 0n };
+  Sink_Handle_sink(y, x);
+  return y;
+}
+
+function relocate_Pair(x) {
+  var y = { left: { value: 0n }, right: 0n };
+  moveInit$Pair(y, x);
+  return y;
+}
+
+function drop$_sub_gt_I64(value) {
+  var v1 = value.$v.$e;
+  if (v1 != null) {
+    value.$v.$h[0](v1);
+  }
+  return;
+}
+
+function reclaim$_sub_gt_I64(value) {
+  var v1 = value.$v.$e;
+  if (v1 != null) {
+    value.$v.$h[2](v1);
+  }
+  return;
+}

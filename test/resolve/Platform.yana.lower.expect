@@ -1,0 +1,45 @@
+
+emptyStorage<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 0, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, 0, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+shared<complex>(%x: Int): Int {
+  b_0 {
+    %v_1 = imul %x, 10: Int
+    ret %v_1
+  }
+}
+
+backend<complex>(): Int {
+  b_0 {
+    ret 1
+  }
+}
+
+capacityOf<complex>(%s: Ptr): Int {
+  b_0 {
+    %v_1 = loads %s, 4: Int
+    ret %v_1
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %s = alloca 8, 4: Ptr
+    call_complex emptyStorage, %s
+    %v_1 = call_complex backend: Int
+    %v_2 = call_complex capacityOf, %s: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = call_complex shared, 4: Int
+    %v_5 = add %v_3, %v_4: Int
+    ret %v_5
+  }
+}
+

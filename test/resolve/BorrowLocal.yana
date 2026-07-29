@@ -1,0 +1,30 @@
+-- A `&` binding whose borrow never leaves the function it was taken in.
+--
+-- This is Analysis-JS.md §2.3's value-in/value-out lowering from the direction the JS backend can
+-- act on. A reference to something that is not a host object needs a box to point at, but a borrow
+-- that is only ever the root of a place is a second *name* for the storage rather than something
+-- anybody holds - so on that target `total` below is a plain binding in the first function and a
+-- one-property box in the second, and the two are one fixture because what separates them is
+-- exactly one call.
+
+fn addTo(&target: Int, amount: Int) -> {}:
+    target = target + amount
+
+-- Nothing takes a reference to `total` out of this frame, so it needs no storage of its own.
+fn accumulate(n: Int) -> Int:
+    let &total = 0 :: Int
+    total = total + n
+    total = total * 2
+    return total
+
+-- The same binding, handed to something that could keep it. A callee is handed an address on both
+-- targets, so this one is stored the way the reference needs.
+fn shared(n: Int) -> Int:
+    let &total = 0 :: Int
+    addTo(total, n)
+    total = total + 1
+    return total
+
+fn main() -> Int:
+    -- 10 + 6 = 16
+    return accumulate(5) + shared(5)

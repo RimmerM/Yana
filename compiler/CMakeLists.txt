@@ -124,13 +124,20 @@ target_link_libraries(YanaLLVM PUBLIC
 
 set(JS_SOURCE_FILES
     codegen/js/gen.h
+    codegen/js/build.h
+    codegen/js/name.cpp
+    codegen/js/type.cpp
+    codegen/js/place.cpp
+    codegen/js/inst.cpp
+    codegen/js/flow.cpp
     codegen/js/gen.cpp
     codegen/js/ast.h
+    codegen/js/opt.cpp
     codegen/js/format.cpp
 )
 
 add_library(YanaJS ${JS_SOURCE_FILES})
-target_link_libraries(YanaJS PUBLIC YanaCore)
+target_link_libraries(YanaJS PUBLIC YanaCore YanaResolve)
 
 set(X64_SOURCE_FILES
     codegen/x64/target.h

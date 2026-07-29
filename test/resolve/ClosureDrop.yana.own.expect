@@ -1,0 +1,81 @@
+fn initHeap {
+}
+
+fn heapClassOf {
+  arg total readonly
+  %size: I64 writable live [0, 8) [10, 18)
+  %sizeClass: I64 writable live [2, 9) [10, 18)
+}
+
+fn heapBlockSize {
+  arg sizeClass readonly
+}
+
+fn freeListHead {
+  arg sizeClass readonly
+  result escapes
+}
+
+fn setFreeListHead {
+  arg sizeClass readonly
+  arg block readonly
+}
+
+fn allocateHeap {
+  arg size readonly
+  result escapes
+}
+
+fn freeHeap {
+  arg allocation readonly
+}
+
+fn mapMemory {
+  arg size readonly
+}
+
+fn guarded {
+  arg id readonly
+  result escapes
+  %local0: Guard droppable readonly live [0, 4)
+  %local1: {g: Guard} closure droppable writable addressed escapes heap live [2, 10)
+  %local2: () -> Int droppable readonly live [6, 11)
+}
+
+fn plain {
+  %local0: () -> Int droppable readonly live [0, 6)
+}
+
+fn main {
+  %local0: () -> Int droppable readonly live [0, 2)
+  %local1: () -> Int droppable readonly live [8, 10)
+}
+
+fn Drop(Guard).drop {
+  arg self readonly
+  %self: Guard borrowed droppable readonly live never
+}
+
+fn ResolveTest.lambda$0 {
+  arg env readonly
+}
+
+fn drop${g: Guard} {
+  arg value readonly
+}
+
+fn ResolveTest.lambda$1 {
+  arg env readonly
+}
+
+fn closureRelease${g: Guard} {
+  arg env readonly
+}
+
+fn drop$() -> Int {
+  arg value readonly
+}
+
+fn reclaim$() -> Int {
+  arg value readonly
+}

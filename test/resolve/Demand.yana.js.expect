@@ -1,0 +1,44 @@
+"use strict";
+// ResolveTest
+function read(it) {
+  return it.x + it.y | 0;
+}
+
+function bump(it) {
+  it.x = it.x + 1 | 0;
+  return;
+}
+
+function onlyRead() {
+  var p = { x: 1, y: 2 };
+  return read(p) + read(p) | 0;
+}
+
+function mutableOnOneArm(flag) {
+  var p = { x: 1, y: 2 };
+  if (flag) {
+    bump(p);
+  }
+  return read(p);
+}
+
+function copyIsIndependent() {
+  var source = { x: 1, y: 2 };
+  var v5 = { x: 0, y: 0 };
+  var v6 = source.x;
+  var v7 = source.y;
+  v5.x = v6;
+  v5.y = v7;
+  var duplicate = v5;
+  bump(duplicate);
+  return read(source) + read(duplicate) | 0;
+}
+
+function addressed() {
+  var at = { x: 1, y: 2 };
+  return at.x + at.y | 0;
+}
+
+function main() {
+  return ((onlyRead() + mutableOnOneArm(true) | 0) + copyIsIndependent() | 0) + addressed() | 0;
+}

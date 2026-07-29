@@ -268,6 +268,7 @@ static ModulePtr<Function> functionThunk(Module& module, ModulePtr<Function> cal
 
     function->returnType = target->returnType;
     function->used = true;
+    function->takesEnv = true;
     target->used = true;
 
     // The dropped environment. It has no captures behind it, so its type is a pointer to nothing.
@@ -435,6 +436,7 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
 
     auto lambda = addAnonymousFunction(module, lambdaName(module), source);
     lambda->used = true;
+    lambda->takesEnv = true;
 
     /*
      * The environment's type is built as the body names its captures, which is why it is a fresh

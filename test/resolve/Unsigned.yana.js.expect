@@ -1,0 +1,32 @@
+"use strict";
+// ResolveTest
+function divide(a, b) {
+  return BigInt.asUintN(64, a / b);
+}
+
+function remainder(a, b) {
+  return BigInt.asUintN(64, a % b);
+}
+
+function signedDivide(a, b) {
+  return BigInt.asIntN(64, a / b);
+}
+
+function main() {
+  var quotientIsPositive;
+  var signedStillSigned;
+  var big = BigInt.asUintN(64, BigInt(0 - 2 | 0));
+  var half = divide(big, 2n);
+  var rest = remainder(big, 3n);
+  if (half > 0n) {
+    quotientIsPositive = 1;
+  } else {
+    quotientIsPositive = 0;
+  }
+  if (signedDivide(BigInt.asIntN(64, BigInt(0 - 7 | 0)), 2n) === BigInt.asIntN(64, BigInt(0 - 3 | 0))) {
+    signedStillSigned = 10;
+  } else {
+    signedStillSigned = 0;
+  }
+  return (quotientIsPositive + signedStillSigned | 0) + (Number(rest) | 0) | 0;
+}

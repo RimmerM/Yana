@@ -1,0 +1,85 @@
+"use strict";
+const closure$ResolveTest_lambda$0 = [teardown$none, 0, teardown$none, 0];
+const closure$ResolveTest_lambda$1 = [teardown$none, 0, teardown$none, 0];
+const closure$ResolveTest_lambda$2 = [teardown$none, 0, teardown$none, 0];
+const closure$ResolveTest_lambda$3 = [teardown$none, 0, null, 0];
+
+// Core
+function teardown$none(value) {
+  return;
+}
+
+// ResolveTest
+function apply(f, x) {
+  return f(x);
+}
+
+function direct(base) {
+  return apply(ResolveTest_lambda$0$make({ base: base }), 1);
+}
+
+function either(pick, a, b) {
+  var f;
+  if (pick < 1) {
+    f = ResolveTest_lambda$1$make({ a: a });
+  } else {
+    f = ResolveTest_lambda$2$make({ b: b });
+  }
+  var v25 = apply(f, 10);
+  drop$_Int_sub_gt_Int({ $v: f });
+  return v25;
+}
+
+function escaping(amount) {
+  return ResolveTest_lambda$3$make({ amount: amount });
+}
+
+function main() {
+  var a = direct(5);
+  var b = either(0, 3, 7);
+  var c = either(2, 3, 7);
+  var f = escaping(100);
+  var d = f(1);
+  drop$_Int_sub_gt_Int({ $v: f });
+  return ((a + b | 0) + c | 0) + d | 0;
+}
+
+function ResolveTest_lambda$0$make(env) {
+  return function(x) {
+    return x + env.base | 0;
+  };
+}
+
+function ResolveTest_lambda$1$make(env) {
+  return function(x) {
+    return x + env.a | 0;
+  };
+}
+
+function ResolveTest_lambda$2$make(env) {
+  return function(x) {
+    return Math.imul(x, env.b) | 0;
+  };
+}
+
+function ResolveTest_lambda$3$make(env) {
+  return function(x) {
+    return x + env.amount | 0;
+  };
+}
+
+function drop$_Int_sub_gt_Int(value) {
+  var v1 = value.$v.$e;
+  if (v1 != null) {
+    value.$v.$h[0](v1);
+  }
+  return;
+}
+
+function reclaim$_Int_sub_gt_Int(value) {
+  var v1 = value.$v.$e;
+  if (v1 != null) {
+    value.$v.$h[2](v1);
+  }
+  return;
+}

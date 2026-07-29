@@ -160,6 +160,18 @@ struct Function {
     // descriptor and the storage decision from. See ClosureHeaderLayout.
     ModulePtr<Global> closureHeader = nullptr;
 
+    /*
+     * Set when this function is a *code word*: a lifted lambda, or the thunk that makes a named
+     * function into a function value.
+     *
+     * What it says is the convention FunValueLayout describes - the environment arrives as the
+     * first parameter, whatever the signature says - and it is a property of the function rather
+     * than something re-derived from where it came from, because a target may not spell that
+     * convention the way the native ABI does. See codegen/js, where a code word *is* the closure
+     * and the parameter is not passed at all.
+     */
+    bool takesEnv = false;
+
     Intrinsic intrinsic = nullptr;
     U32 valueCounter = 0;
     bool resolving = false;

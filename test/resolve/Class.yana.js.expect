@@ -1,0 +1,51 @@
+"use strict";
+// ResolveTest
+function metreSize() {
+  return Describe_Metres_size({ value: 7 });
+}
+
+function feetSize() {
+  return Describe_Feet_size({ value: 5 });
+}
+
+function doubledMetres() {
+  return Describe_Metres_size(Describe_Metres_doubled({ value: 3 }));
+}
+
+function sameMetres(a, b) {
+  var v12;
+  if (Eq_Metres_eq_eq({ value: a }, { value: b })) {
+    v12 = 1;
+  } else {
+    v12 = 0;
+  }
+  return v12;
+}
+
+function main() {
+  return (((metreSize() + feetSize() | 0) + doubledMetres() | 0) + sameMetres(4, 4) | 0) + sameMetres(4, 5) | 0;
+}
+
+function Describe_Metres_size(value) {
+  return value.value;
+}
+
+function Describe_Metres_doubled(value) {
+  return { value: Math.imul(value.value, 2) | 0 };
+}
+
+function Describe_Feet_size(value) {
+  return value.value;
+}
+
+function Describe_Feet_doubled(value) {
+  return { value: value.value + value.value | 0 };
+}
+
+function Eq_Metres_eq_eq(lhs, rhs) {
+  return lhs.value === rhs.value;
+}
+
+function Eq_Metres_not_eq(lhs, rhs) {
+  return lhs.value !== rhs.value;
+}

@@ -116,6 +116,24 @@ namespace FunValueLayout {
     static constexpr U16 kEnv = 1;
     static constexpr U16 kFieldCount = 2;
 
+    /*
+     * The closure header, as a projection rather than as a third word.
+     *
+     * Where the header *is* is a target decision, and this is where the two targets part. Native
+     * puts it in front of the entry point and reaches it by arithmetic on the code word, which is
+     * what keeps a function value two words wide - see ClosureHeaderLayout, and teardownFunValue for
+     * the arithmetic. A target whose code word is not an address has nothing in front of it to
+     * subtract from, so it attaches the header to the code word instead and this projection is how
+     * the teardown asks for it.
+     *
+     * So it is a *projection* the value may or may not have rather than a field it always has:
+     * `kFieldCount` is still two, `offsetOf` is still only asked about those two, and the extra
+     * index exists so that one shared teardown can be written against both answers. Only a build
+     * whose target provides it ever emits one.
+     */
+    static constexpr U16 kHeader = 2;
+    static constexpr U16 kProjectionCount = 3;
+
     static constexpr U32 offsetOf(U16 field) { return 8u * field; }
 }
 

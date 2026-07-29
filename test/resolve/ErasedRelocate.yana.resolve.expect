@@ -1,0 +1,115 @@
+let &sinkCalls: I64 = 0
+
+table typeDesc$Handle {
+  +0 Handle, 8
+  +8 8, 8
+  +16 128, 0
+  +24 Sink(Handle).sink
+  +32 teardown$none
+  +40 teardown$none
+}
+
+table genEnv$relocate(Handle) {
+  +0 0, 0
+  +8 typeDesc$Handle
+}
+
+table typeDesc$Pair {
+  +0 Pair, 16
+  +8 8, 16
+  +16 128, 0
+  +24 moveInit$Pair
+  +32 teardown$none
+  +40 teardown$none
+}
+
+table genEnv$relocate(Pair) {
+  +0 0, 0
+  +8 typeDesc$Pair
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn relocate(%x: a) -> a {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %x = move %x : a
+    %y = alloc : a
+    init %local1, %x
+    ret %y
+}
+
+fn main() -> I64 {
+  b0:
+    %h = alloc : Handle
+    init %local0@Handle.value, 10
+    %h = move %local0 via Sink(Handle).sink : Handle
+    %moved = gencall env genEnv$relocate(Handle) relocate(Handle), %h : Handle
+    %v5 = load sinkCalls : I64
+    %v8 = cmp_ne %v5, 1 : Bool
+    je %v8, b1, b2
+
+  b1:
+    %v12 = neg 1 : I64
+    ret %v12
+
+  b2:
+    jmp b3
+
+  b3:
+    %p = alloc : Pair
+    %v16 = alloc : Handle
+    init %local3@Handle.value, 20
+    init %local2@Pair.left, %v16
+    init %local2@Pair.right, 5
+    %p = move %local2 via moveInit$Pair : Pair
+    %movedPair = gencall env genEnv$relocate(Pair) relocate(Pair), %p : Pair
+    %v24 = load sinkCalls : I64
+    %v27 = cmp_ne %v24, 2 : Bool
+    je %v27, b4, b5
+
+  b4:
+    %v31 = neg 2 : I64
+    ret %v31
+
+  b5:
+    jmp b6
+
+  b6:
+    %v34 = load %local1@Handle.value : I64
+    %v35 = load %local4@Pair.left : Handle
+    %v36 = load %local4@Pair.left@Handle.value : I64
+    %v37 = add %v34, %v36 : I64
+    %v38 = load %local4@Pair.right : I64
+    %v39 = add %v37, %v38 : I64
+    %v40 = load sinkCalls : I64
+    %v41 = add %v39, %v40 : I64
+    ret %v41
+}
+
+fn Sink(Handle).sink(%to: Handle, %from: Handle) -> () {
+  b0:
+    %v2 = load sinkCalls : I64
+    %v5 = add %v2, 1 : I64
+    assign sinkCalls, %v5
+    %v7 = load %from@Handle.value : I64
+    assign %to@Handle.value, %v7
+    ret
+}
+
+fn moveInit$Pair(%to: %Pair, %from: %Pair) -> () {
+  b0:
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, 16
+    %v6 = addressof [%to]@Pair.left : %Handle
+    %v7 = addressof [%from]@Pair.left : %Handle
+    call Sink(Handle).sink, %v6, %v7
+    ret
+}

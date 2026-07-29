@@ -1,0 +1,47 @@
+"use strict";
+var sinkCalls = 0n;
+const typeDesc$Handle = [23480, 8, 8, 8, 128, 0, Sink_Handle_sink, 0, teardown$none, 0, teardown$none, 0];
+const genEnv$relocate_Handle = [0, 0, typeDesc$Handle, 0];
+const typeDesc$Pair = [23716, 16, 8, 16, 128, 0, moveInit$Pair, 0, teardown$none, 0, teardown$none, 0];
+const genEnv$relocate_Pair = [0, 0, typeDesc$Pair, 0];
+
+// Core
+function teardown$none(value) {
+  return;
+}
+
+// ResolveTest
+function relocate(genEnv, x) {
+  var y = {};
+  genEnv[2][6](y, x);
+  return y;
+}
+
+function main() {
+  var moved = relocate(genEnv$relocate_Handle, { value: 10n });
+  if (sinkCalls !== 1n) {
+    return BigInt.asIntN(64, -1n);
+  } else {
+    var movedPair = relocate(genEnv$relocate_Pair, { left: { value: 20n }, right: 5n });
+    if (sinkCalls !== 2n) {
+      return BigInt.asIntN(64, -2n);
+    } else {
+      return BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, moved.value + movedPair.left.value) + movedPair.right) + sinkCalls);
+    }
+  }
+}
+
+function Sink_Handle_sink(to, from) {
+  sinkCalls = BigInt.asIntN(64, sinkCalls + 1n);
+  to.value = from.value;
+  return;
+}
+
+function moveInit$Pair(to, from) {
+  var v3 = to;
+  var v4 = from;
+  v3.left = { value: v4.left.value };
+  v3.right = v4.right;
+  Sink_Handle_sink(to.left, from.left);
+  return;
+}

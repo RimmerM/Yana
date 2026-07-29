@@ -1,0 +1,86 @@
+"use strict";
+// ResolveTest
+function floatDefault() {
+  return 1.5;
+}
+
+function doubleFromContext() {
+  return 1.5;
+}
+
+function floatFromInteger() {
+  return 2;
+}
+
+function doubleFromInteger() {
+  return 3;
+}
+
+function ascribedDouble() {
+  return 1.5;
+}
+
+function ascribedFloat() {
+  return 4;
+}
+
+function mixedIf(c, a, b) {
+  var v;
+  if (c) {
+    v = a;
+  } else {
+    v = b;
+  }
+  return v;
+}
+
+function mixedMultiIf(c, a, b) {
+  var v;
+  if (c) {
+    v = BigInt.asIntN(64, BigInt(a));
+  } else {
+    v = b;
+  }
+  return v;
+}
+
+function mixedMatch(c, a, b) {
+  var v;
+  if ((c ? 1 : 0) === 1) {
+    v = Math.fround(a);
+  } else {
+    v = b;
+  }
+  return v;
+}
+
+function divergingArm(c, a) {
+  if (c) {
+    return 7;
+  } else {
+    return a;
+  }
+}
+
+function main() {
+  var v0 = floatDefault();
+  var v1 = Math.trunc(v0) | 0;
+  var v2 = doubleFromContext();
+  var v4 = v1 + (Math.trunc(v2) | 0) | 0;
+  var v5 = floatFromInteger();
+  var v7 = v4 + (Math.trunc(v5) | 0) | 0;
+  var v8 = doubleFromInteger();
+  var v10 = v7 + (Math.trunc(v8) | 0) | 0;
+  var v11 = ascribedDouble();
+  var v13 = v10 + (Math.trunc(v11) | 0) | 0;
+  var v14 = ascribedFloat();
+  var v16 = v13 + (Math.trunc(v14) | 0) | 0;
+  var v20 = mixedIf(true, 3, 4.5);
+  var v22 = v16 + (Math.trunc(v20) | 0) | 0;
+  var v26 = mixedIf(false, 3, 4.5);
+  var v40 = ((v22 + (Math.trunc(v26) | 0) | 0) + (Number(mixedMultiIf(true, 5, 6n)) | 0) | 0) + (Number(mixedMultiIf(false, 5, 6n)) | 0) | 0;
+  var v44 = mixedMatch(true, 8, 9.25);
+  var v46 = v40 + (Math.trunc(v44) | 0) | 0;
+  var v50 = mixedMatch(false, 8, 9.25);
+  return ((v46 + (Math.trunc(v50) | 0) | 0) + divergingArm(true, 1) | 0) + divergingArm(false, 2) | 0;
+}

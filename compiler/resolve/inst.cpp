@@ -38,6 +38,7 @@ StringView conventionName(ast::BindType convention) {
 StringView funValueFieldName(U16 field) {
     switch(field) {
         case FunValueLayout::kCode: return "code"_v;
+        case FunValueLayout::kHeader: return "header"_v;
         default: return "env"_v;
     }
 }

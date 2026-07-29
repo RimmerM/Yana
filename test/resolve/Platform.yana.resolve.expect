@@ -1,0 +1,35 @@
+fn backend() -> Int {
+  b0:
+    ret 1
+}
+
+fn emptyStorage() -> Storage {
+  b0:
+    %v0 = alloc : Storage
+    init %local0@Storage.capacity, 0
+    init %local0@Storage.count, 0
+    ret %v0
+}
+
+fn capacityOf(%s: Storage) -> Int {
+  b0:
+    %v1 = load %s@Storage.capacity : Int
+    ret %v1
+}
+
+fn shared(%x: Int) -> Int {
+  b0:
+    %v3 = mul %x, 10 : Int
+    ret %v3
+}
+
+fn main() -> Int {
+  b0:
+    %s = call emptyStorage : Storage
+    %v1 = call backend : Int
+    %v2 = call capacityOf, %s : Int
+    %v3 = add %v1, %v2 : Int
+    %v5 = call shared, 4 : Int
+    %v6 = add %v3, %v5 : Int
+    ret %v6
+}

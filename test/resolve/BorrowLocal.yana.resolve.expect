@@ -1,0 +1,43 @@
+fn addTo(%target: Int, %amount: Int) -> () {
+  b0:
+    %v2 = load %target : Int
+    %v3 = add %v2, %amount : Int
+    assign %target, %v3
+    ret
+}
+
+fn accumulate(%n: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v4 = load %total : Int
+    %v5 = add %v4, %n : Int
+    assign %total, %v5
+    %v7 = load %total : Int
+    %v10 = mul %v7, 2 : Int
+    assign %total, %v10
+    %v12 = load %total : Int
+    ret %v12
+}
+
+fn shared(%n: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v4 = load %total : Int
+    %v5 = borrow_mut %total : &mut Int
+    call addTo, %v5, %n
+    %v7 = load %total : Int
+    %v10 = add %v7, 1 : Int
+    assign %total, %v10
+    %v12 = load %total : Int
+    ret %v12
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call accumulate, 5 : Int
+    %v3 = call shared, 5 : Int
+    %v4 = add %v1, %v3 : Int
+    ret %v4
+}

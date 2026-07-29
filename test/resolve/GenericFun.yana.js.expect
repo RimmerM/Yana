@@ -1,0 +1,58 @@
+"use strict";
+// ResolveTest
+function main() {
+  return (((((identity_Int(1) + leftOf_Int_Bool(swap_Int_Bool({ first: true, second: 20 })) | 0) + twice_Int(3) | 0) + smaller_Int(9, 4) | 0) + middle_Int(30, 8, 12) | 0) + orElse_Int(wrap_Int(5), 0) | 0) + orElse_Int(empty_Int(), 7) | 0;
+}
+
+function identity_Int(value) {
+  return value;
+}
+
+function swap_Int_Bool(value) {
+  var v1 = { first: 0, second: false };
+  var v2 = value.second;
+  var v3 = value.first;
+  v1.first = v2;
+  v1.second = v3;
+  return v1;
+}
+
+function leftOf_Int_Bool(value) {
+  return value.first;
+}
+
+function twice_Int(x) {
+  return x + x | 0;
+}
+
+function smaller_Int(x, y) {
+  var v2;
+  if (x < y) {
+    v2 = x;
+  } else {
+    v2 = y;
+  }
+  return v2;
+}
+
+function middle_Int(x, y, z) {
+  return smaller_Int(smaller_Int(x, y), z);
+}
+
+function wrap_Int(value) {
+  return { $tag: 1, $p: value };
+}
+
+function orElse_Int(value, fallback) {
+  var v2;
+  if (value.$tag === 1) {
+    v2 = value.$p;
+  } else {
+    v2 = fallback;
+  }
+  return v2;
+}
+
+function empty_Int() {
+  return { $tag: 0, $p: null };
+}

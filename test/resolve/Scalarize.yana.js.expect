@@ -1,0 +1,24 @@
+"use strict";
+// ResolveTest
+function readOnly() {
+  var p = { x: 3, y: 4 };
+  return (Math.imul(p.x, p.x) | 0) + (Math.imul(p.y, p.y) | 0) | 0;
+}
+
+function writable() {
+  var p = { x: 3, y: 4 };
+  p.x = p.x + 1 | 0;
+  return p.x + p.y | 0;
+}
+
+function passedWhole() {
+  return distance({ x: 3, y: 4 });
+}
+
+function distance(it) {
+  return it.x + it.y | 0;
+}
+
+function main() {
+  return (readOnly() + writable() | 0) + passedWhole() | 0;
+}

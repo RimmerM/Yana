@@ -1,0 +1,14 @@
+-- What `@platform` rejects. A typo would otherwise delete a declaration from every build and be
+-- discovered as a missing name somewhere else entirely, so the attribute is checked where it is
+-- written rather than where its absence is felt.
+
+@platform(wasm)
+fn onlyWasm() -> Int = 1
+
+@platform
+fn noTarget() -> Int = 2
+
+@platform("js")
+fn quoted() -> Int = 3
+
+fn main() -> Int = 0

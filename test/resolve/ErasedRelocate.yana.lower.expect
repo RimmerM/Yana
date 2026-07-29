@@ -1,0 +1,112 @@
+@typeDesc$Pair = [164, 92, 0, 0, 16, 0, 0, 0, 8, 0, 0, 0, 16, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Handle = [184, 91, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@sinkCalls = [0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$relocate(Handle) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$relocate(Pair) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+relocate<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr) {
+  b_1 {
+    %v_2 = add %genEnv, 8: Ptr
+    %v_3 = load %v_2, 8: Ptr
+    %v_4 = add %v_3, 4: Ptr
+    %v_5 = load %v_4, 4: Int
+    %v_6 = cast %v_5: Long
+    %y = alloca %v_6, 16: Ptr
+    %v_7 = add %genEnv, 8: Ptr
+    %v_8 = load %v_7, 8: Ptr
+    %v_9 = add %v_8, 24: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    call_complex %v_10, %y, %x
+    %v_11 = add %genEnv, 8: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    %v_13 = add %v_12, 4: Ptr
+    %v_14 = load %v_13, 4: Int
+    %v_15 = cast %v_14: Long
+    copy %v_0, %y, %v_15
+    ret 
+  }
+}
+
+moveInit$Pair<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    %v_1 = bitcast %to: Ptr
+    %v_2 = bitcast %from: Ptr
+    copy %v_1, %v_2, 16
+    call_complex Sink(Handle).sink, %to, %from
+    ret 
+  }
+}
+
+Sink(Handle).sink<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    %v_1 = loads @sinkCalls, 8: Long
+    %v_2 = add %v_1, 1: Long
+    store @sinkCalls, %v_2, 8
+    %v_3 = loads %from, 8: Long
+    store %to, %v_3, 8
+    ret 
+  }
+}
+
+teardown$none<complex>(%value: Ptr) {
+  b_0 {
+    ret 
+  }
+}
+
+main<complex>(): Long {
+  b_0 {
+    %h = alloca 8, 8: Ptr
+    store %h, 10, 8
+    %moved = alloca 8, 8: Ptr
+    call_complex relocate, @genEnv$relocate(Handle), %moved, %h
+    %v_1 = loads @sinkCalls, 8: Long
+    %v_2 = cmp_neq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = neg 1: Long
+    ret %v_5
+  }
+
+  b_4 {
+    jmp b_6
+  }
+
+  b_6 {
+    %p = alloca 16, 8: Ptr
+    %v_7 = alloca 8, 8: Ptr
+    store %v_7, 20, 8
+    copy %p, %v_7, 8
+    %v_8 = add %p, 8: Ptr
+    store %v_8, 5, 8
+    %movedPair = alloca 16, 8: Ptr
+    call_complex relocate, @genEnv$relocate(Pair), %movedPair, %p
+    %v_9 = loads @sinkCalls, 8: Long
+    %v_10 = cmp_neq %v_9, 2: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    %v_13 = neg 2: Long
+    ret %v_13
+  }
+
+  b_12 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = loads %moved, 8: Long
+    %v_16 = loads %movedPair, 8: Long
+    %v_17 = add %v_15, %v_16: Long
+    %v_18 = add %movedPair, 8: Ptr
+    %v_19 = loads %v_18, 8: Long
+    %v_20 = add %v_17, %v_19: Long
+    %v_21 = loads @sinkCalls, 8: Long
+    %v_22 = add %v_20, %v_21: Long
+    ret %v_22
+  }
+}
+

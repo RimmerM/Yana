@@ -1,0 +1,47 @@
+"use strict";
+// ResolveTest
+function add(a, b) {
+  return a + b | 0;
+}
+
+function noop() {
+  return;
+}
+
+function local(value) {
+  return Math.imul(value + 1 | 0, 2) | 0;
+}
+
+function choose(a, b) {
+  var v8;
+  if (a > b) {
+    v8 = add(a, 1);
+  } else {
+    v8 = b;
+  }
+  return v8;
+}
+
+function classify(value) {
+  var v17;
+  if (value < 0) {
+    v17 = -1 | 0;
+  } else {
+    if (value === 0) {
+      v17 = 0;
+    } else {
+      v17 = 1;
+    }
+  }
+  return v17;
+}
+
+function main() {
+  noop();
+  var value = choose(2, 1);
+  if (false) {
+    return 99;
+  } else {
+    return (((Math.imul(value, 2) | 0) + classify(5) | 0) + local(0) | 0) - 2 | 0;
+  }
+}

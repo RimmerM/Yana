@@ -9,6 +9,7 @@
 #include "../compiler/lower/lower_print.h"
 #include "../compiler/lower/lower_validate.h"
 #include "../compiler/codegen/x64/gen.h"
+#include "../compiler/codegen/js/gen.h"
 #include "Net/Stream.h"
 #include "Net/File.h"
 
@@ -322,6 +323,59 @@ static bool runGenericPass(const String& path, StringView source, I64 expected) 
     return true;
 }
 
+/*
+ * The same fixture, compiled for the JavaScript target.
+ *
+ * A second resolution rather than a second walk of the first one, because `@platform` selects which
+ * declarations *exist* (Analysis-JS.md §2.4): a JS build and a native build do not share a resolved
+ * program, and pretending they did would be the "the semantics are whatever the backend does" drift
+ * the second target is there to prevent.
+ *
+ * Opted into by the `.js.expect` file, on the same terms as the ownership dump. Most fixtures reach
+ * `Native` - through `[a]`, through anything heap-placed - and a JS target that has no host `Array`
+ * yet has nothing useful to say about those; the ones that opt in are the ones that are about
+ * something this backend implements.
+ */
+static bool runJsPass(const String& path, const String& jsPath, StringView source, bool generate,
+                      bool forceGeneric) {
+    TestProvider provider;
+    provider.source = source;
+    PrintDiagnostics diagnostics(provider);
+    Context context(diagnostics);
+    context.settings.mode = CompileMode::JsExecutable;
+    provider.context = &context;
+
+    auto name = context.addUnqualifiedName("ResolveTest", 11);
+    Lexer lexer(context, diagnostics, source, name);
+    Parser parser(context, lexer, name);
+    auto ast = parser.parseModule();
+    auto module = resolveProgram(context, ast, &provider,
+                                 forceGeneric ? Program::Specialization::Generic
+                                              : Program::Specialization::Always);
+
+    if(diagnostics.errorCount()) {
+        println("Fail (%@): resolving for the JS target produced %@ diagnostics.", path, diagnostics.errorCount());
+        return false;
+    }
+
+    auto file = js::genProgram(context, *module);
+
+    if(diagnostics.errorCount()) {
+        println("Fail (%@): the JS backend produced %@ diagnostics.", path, diagnostics.errorCount());
+        return false;
+    }
+
+    if(generate) {
+        writeText(jsPath, [&](Net::Writer& writer) {
+            js::formatFile(writer, context, *file, false);
+        });
+    }
+
+    Net::Writer writer(16384);
+    js::formatFile(writer, context, *file, false);
+    return compareText(jsPath, writer.getBuffered());
+}
+
 static bool runTest(const String& path, StringView source, bool generate) {
     auto errorPath = path + String(".errors.expect");
     if(fileExists(errorPath)) return runRejectionTest(path, errorPath, source, generate);
@@ -380,6 +434,9 @@ static bool runTest(const String& path, StringView source, bool generate) {
         printOwnership(ownWriter, context, *module);
         pass = compareText(ownPath, ownWriter.getBuffered()) && pass;
     }
+
+    auto jsPath = path + String(".js.expect");
+    if(fileExists(jsPath)) pass = runJsPass(path, jsPath, source, generate, forceGeneric) && pass;
 
     auto lowered = lowerProgram(context, *module);
 

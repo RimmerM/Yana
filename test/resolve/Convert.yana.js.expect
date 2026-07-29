@@ -1,0 +1,47 @@
+"use strict";
+// ResolveTest
+function widened(value) {
+  return BigInt.asIntN(64, BigInt(value));
+}
+
+function narrowed(value) {
+  return Number(value) | 0;
+}
+
+function toFloat(value) {
+  return Math.fround(value);
+}
+
+function toDouble(value) {
+  return value;
+}
+
+function ascribed() {
+  return Math.trunc(9.75) | 0;
+}
+
+function takesLong(value) {
+  return value;
+}
+
+function implicitArgument(value) {
+  return takesLong(BigInt.asIntN(64, BigInt(value)));
+}
+
+function implicitReturn(value) {
+  return value;
+}
+
+function explicitNarrowing(value) {
+  return Math.trunc(value) | 0;
+}
+
+function main() {
+  var v5 = (Number(widened(3)) | 0) + narrowed(4n) | 0;
+  var v7 = toFloat(5);
+  var v9 = v5 + (Math.trunc(v7) | 0) | 0;
+  var v11 = toDouble(6);
+  var v19 = ((v9 + (Math.trunc(v11) | 0) | 0) + ascribed() | 0) + (Number(implicitArgument(7)) | 0) | 0;
+  var v21 = implicitReturn(8);
+  return (v19 + (Math.trunc(v21) | 0) | 0) + explicitNarrowing(9.5) | 0;
+}

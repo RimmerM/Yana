@@ -1,0 +1,79 @@
+"use strict";
+// ResolveTest
+function sum(pair) {
+  return pair.x + pair.y | 0;
+}
+
+function makePair() {
+  return { x: 2, y: 3 };
+}
+
+function choiceValue(choice) {
+  var v12;
+  if (choice.$tag === 0) {
+    v12 = choice.$p;
+  } else {
+    v12 = choice.value + choice.extra | 0;
+  }
+  return v12;
+}
+
+function classify(value) {
+  var v16;
+  if (value === 0) {
+    v16 = 0;
+  } else {
+    if (value >= 1 && value <= 10) {
+      v16 = 1;
+    } else {
+      v16 = 2;
+    }
+  }
+  return v16;
+}
+
+function tupleValue(pair) {
+  return pair.f0 + pair.f1 | 0;
+}
+
+function forwardRecord() {
+  return { later: { value: 6 } }.later.value;
+}
+
+function boolValue(value) {
+  var v11;
+  if ((value !== true ? 1 : 0) === 1) {
+    v11 = 1;
+  } else {
+    v11 = 0;
+  }
+  return v11;
+}
+
+function directionValue(value) {
+  var v9;
+  if ((value | 0) === 0) {
+    v9 = 1;
+  } else {
+    v9 = 2;
+  }
+  return v9;
+}
+
+function selectedPair(value) {
+  var v17;
+  if ((value ? 1 : 0) === 1) {
+    v17 = { x: 3, y: 4 };
+  } else {
+    v17 = { x: 0, y: 0 };
+  }
+  return v17;
+}
+
+function lt_add_gt(lhs, rhs) {
+  return lhs + rhs | 0;
+}
+
+function main() {
+  return ((((((((sum(makePair()) + choiceValue({ $tag: 0, value: 0, extra: 0, $p: 4 }) | 0) + choiceValue({ $tag: 1, value: 2, extra: 3, $p: null }) | 0) + classify(7) | 0) + tupleValue({ f0: 4, f1: 5 }) | 0) + forwardRecord() | 0) + boolValue(false) | 0) + directionValue(1) | 0) + sum(selectedPair(true)) | 0) + lt_add_gt(1, 2) | 0;
+}

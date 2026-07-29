@@ -1,0 +1,68 @@
+"use strict";
+// ResolveTest
+function incLong() {
+  return inc_Long(40n);
+}
+
+function defaulted() {
+  return 7 + (Math.trunc(2.5) | 0) | 0;
+}
+
+function mixedLiterals() {
+  return Math.fround(1 + 2.5);
+}
+
+function oneMetre() {
+  return FromInt_Metres_fromInt(1n);
+}
+
+function measure(distance) {
+  return distance.value;
+}
+
+function isFive(distance) {
+  return Eq_Metres_eq_eq(distance, FromInt_Metres_fromInt(5n));
+}
+
+function main() {
+  var v34;
+  var v2 = inc_Int(10);
+  var v5 = inc_Float(1.5);
+  var v11 = ((v2 + (Math.trunc(v5) | 0) | 0) + two_Int() | 0) + defaulted() | 0;
+  var v12 = mixedLiterals();
+  var v22 = ((v11 + (Math.trunc(v12) | 0) | 0) + measure(oneMetre()) | 0) + measure(FromInt_Metres_fromInt(4n)) | 0;
+  if (isFive({ value: 5 })) {
+    v34 = 1;
+  } else {
+    v34 = 0;
+  }
+  return (v22 + v34 | 0) + (Number(incLong()) | 0) | 0;
+}
+
+function FromInt_Metres_fromInt(value) {
+  return { value: Number(value) | 0 };
+}
+
+function Eq_Metres_eq_eq(lhs, rhs) {
+  return lhs.value === rhs.value;
+}
+
+function Eq_Metres_not_eq(lhs, rhs) {
+  return lhs.value !== rhs.value;
+}
+
+function inc_Long(x) {
+  return BigInt.asIntN(64, x + 1n);
+}
+
+function inc_Int(x) {
+  return x + 1 | 0;
+}
+
+function inc_Float(x) {
+  return Math.fround(x + 1);
+}
+
+function two_Int() {
+  return 2;
+}

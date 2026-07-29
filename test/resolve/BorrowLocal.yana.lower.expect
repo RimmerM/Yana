@@ -1,0 +1,48 @@
+
+accumulate<complex>(%n: Int): Int {
+  b_0 {
+    %total = alloca 4, 4: Ptr
+    store %total, 0, 4
+    %v_1 = loads %total, 4: Int
+    %v_2 = add %v_1, %n: Int
+    store %total, %v_2, 4
+    %v_3 = loads %total, 4: Int
+    %v_4 = imul %v_3, 2: Int
+    store %total, %v_4, 4
+    %v_5 = loads %total, 4: Int
+    ret %v_5
+  }
+}
+
+addTo<complex>(%target: Ptr, %amount: Int) {
+  b_0 {
+    %v_1 = loads %target, 4: Int
+    %v_2 = add %v_1, %amount: Int
+    store %target, %v_2, 4
+    ret 
+  }
+}
+
+shared<complex>(%n: Int): Int {
+  b_0 {
+    %total = alloca 4, 4: Ptr
+    store %total, 0, 4
+    %v_1 = loads %total, 4: Int
+    call_complex addTo, %total, %n
+    %v_2 = loads %total, 4: Int
+    %v_3 = add %v_2, 1: Int
+    store %total, %v_3, 4
+    %v_4 = loads %total, 4: Int
+    ret %v_4
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex accumulate, 5: Int
+    %v_2 = call_complex shared, 5: Int
+    %v_3 = add %v_1, %v_2: Int
+    ret %v_3
+  }
+}
+

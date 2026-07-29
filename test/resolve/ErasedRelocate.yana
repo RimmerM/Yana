@@ -1,0 +1,48 @@
+-- The relocation a body that cannot see the type performs, on both targets.
+--
+-- Compiled with specialization declined (see the `.generic` marker), so `relocate` below is the
+-- erased form: it has no `Sink` to name and no size to copy, and what it runs comes out of the
+-- `moveInit` slot of the descriptor its caller passed. ErasedSink.yana asserts the same thing about
+-- the native lowering; this one exists because the JS backend answers it differently - a value of
+-- unknown shape is a reference there rather than an address, and the storage the relocation fills
+-- gets its properties from whatever fills it.
+--
+-- Asserted by counting rather than by reading the IR, for the reason that file gives: a relocation
+-- that went missing leaves the destination holding whatever the copy put there, and a value read
+-- out of it would be right by accident.
+--
+-- The counter is written as an assignment rather than with `+=`, and deliberately: `+=` takes a `&`
+-- parameter, and in this mode even a concrete one is compiled erased - which is the half of §3.4
+-- the JS target does not have yet and reports rather than emits.
+
+import Native
+
+let &sinkCalls = 0 :: I64
+
+data Handle {value: I64}
+
+instance Sink(Handle):
+    fn sink(&to: Handle, ->from: Handle) -> {}:
+        sinkCalls = sinkCalls + 1
+        to.value = from.value
+
+-- A record with no `Sink` of its own and a member that has one, so its descriptor's `moveInit` is
+-- the derived glue rather than an authored instance. The generic body cannot tell the difference,
+-- which is the point of the slot.
+data Pair {left: Handle, right: I64}
+
+fn relocate(->x: a) -> a:
+    let ->y = x
+    return y
+
+fn main() -> I64:
+    let h = Handle {value: 10}
+    let moved = relocate(h)
+    if sinkCalls != 1 then return -1
+
+    let p = Pair {left: Handle {value: 20}, right: 5}
+    let movedPair = relocate(p)
+    if sinkCalls != 2 then return -2
+
+    -- 10 + 20 + 5 + 2 = 37
+    return moved.value + movedPair.left.value + movedPair.right + sinkCalls

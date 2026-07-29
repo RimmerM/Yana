@@ -12,6 +12,15 @@ enum class CompileMode {
     Llvm,             /// Compiles into a native program, but outputs LLVM IR files rather than object files.
 };
 
+/// Whether a compilation mode emits JavaScript rather than machine code.
+/// This is what `@platform(js)` and `@platform(native)` select on: the two targets differ in which
+/// declarations exist at all, because the host-shaped implementations of `String`, `Array`, `Map`
+/// and `Storage` are separate declarations rather than separate representations of one.
+/// See Analysis-JS.md §2.4.
+inline bool isJsMode(CompileMode mode) {
+    return mode == CompileMode::JsExecutable || mode == CompileMode::JsLibrary;
+}
+
 /// Native executable formats that can be generated.
 /// Only applicable to CompileMode::NativeExecutable and CompileMode::NativeShared.
 enum class ExecutableFormat {
@@ -89,8 +98,10 @@ struct CompileSettings {
     Array<Tritium::String> rootObjects;
     Tritium::String outputDir;
 
-    CompileMode mode;
-    ExecutableFormat format;
+    // Defaulted rather than left indeterminate: `@platform` reads it on every declaration, so a
+    // driver that never set it would select declarations by whatever was on the stack.
+    CompileMode mode = CompileMode::NativeExecutable;
+    ExecutableFormat format = ExecutableFormat::ELF;
     TargetType target;
     TargetArch arch;
     TargetExtensions extensions;

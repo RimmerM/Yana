@@ -1,0 +1,81 @@
+"use strict";
+// ResolveTest
+function area1() {
+  return Area_Point_area({ x: 3, y: 4 });
+}
+
+function viaFunction() {
+  return Area_Point_area(scale(origin(), 2));
+}
+
+function area2() {
+  return Area_Point_area({ x: 2, y: 5 });
+}
+
+function qualifiedConstructor() {
+  return { x: 1, y: 1 };
+}
+
+function twoAreas() {
+  return totalArea_Point({ x: 1, y: 2 }, { x: 3, y: 3 });
+}
+
+function squareAreas() {
+  return tripleArea_Square({ side: 2 });
+}
+
+function styles() {
+  return styleValue({ filled: false, weight: 1 }) + styleValue({ filled: true, weight: 3 }) | 0;
+}
+
+function labelValue() {
+  return 5;
+}
+
+function main() {
+  return ((((((area1() + area2() | 0) + viaFunction() | 0) + Area_Point_area(qualifiedConstructor()) | 0) + twoAreas() | 0) + squareAreas() | 0) + styles() | 0) + labelValue() | 0;
+}
+
+function Area_Square_area(value) {
+  return Math.imul(value.side, value.side) | 0;
+}
+
+// Shapes
+function origin() {
+  return { x: 0, y: 0 };
+}
+
+function scale(value, by) {
+  var v2 = { x: 0, y: 0 };
+  var v4 = Math.imul(value.x, by) | 0;
+  var v6 = Math.imul(value.y, by) | 0;
+  v2.x = v4;
+  v2.y = v6;
+  return v2;
+}
+
+function styleValue(it) {
+  var v9;
+  if (it.filled) {
+    v9 = 10;
+  } else {
+    v9 = 0;
+  }
+  return v9 + it.weight | 0;
+}
+
+function Area_Point_area(value) {
+  return Math.imul(value.x, value.y) | 0;
+}
+
+function totalArea_Point(one, other) {
+  return Area_Point_area(one) + Area_Point_area(other) | 0;
+}
+
+function tripleArea_Square(value) {
+  return totalArea_Square(value, value) + Area_Square_area(value) | 0;
+}
+
+function totalArea_Square(one, other) {
+  return Area_Square_area(one) + Area_Square_area(other) | 0;
+}

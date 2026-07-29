@@ -1,0 +1,51 @@
+-- `@platform(js)` and `@platform(native)` - Analysis-JS.md §2.4, and the mechanism two
+-- implementation documents already cited as though it existed.
+--
+-- The point of the attribute is not conditional compilation for its own sake: it is that `String`,
+-- `Array`, `Map` and `Storage` need per-target *implementations* rather than per-target Repr, since
+-- a three-word capacity record wrapping a host `Array` is exactly the overhead the JS performance
+-- contract forbids. An excluded declaration is not resolved at all, so it contributes no name, no
+-- type, no instance and no body - which is what keeps a JS build from ever resolving a call to the
+-- native implementation of something.
+--
+-- This fixture is compiled twice by the driver, once per target, and the two expect files are what
+-- the two builds see. Everything not marked is shared, which is the ordinary case.
+
+-- One name, two declarations, and only one of them exists in any given build.
+@platform(native)
+fn backend() -> Int = 1
+
+@platform(js)
+fn backend() -> Int = 2
+
+-- The same for a type. A record excluded on one target takes its constructors and its field names
+-- with it, so nothing in the other build can name them by accident.
+@platform(native)
+data Storage {capacity: Int, count: Int}
+
+@platform(js)
+data Storage {count: Int}
+
+@platform(native)
+fn emptyStorage() -> Storage = Storage {capacity: 0, count: 0}
+
+@platform(js)
+fn emptyStorage() -> Storage = Storage {count: 0}
+
+@platform(native)
+fn capacityOf(s: Storage) -> Int = s.capacity
+
+-- On JS there is no capacity to report: a host array grows on its own, so `reserve` returning true
+-- and doing nothing is the honest answer rather than a number to keep in step.
+@platform(js)
+fn capacityOf(s: Storage) -> Int = 0
+
+-- An attribute list may also name both, which is every target and therefore says nothing. It is
+-- accepted so that a declaration can be marked while its second implementation is still being
+-- written.
+@platform(js, native)
+fn shared(x: Int) -> Int = x * 10
+
+fn main() -> Int:
+    let s = emptyStorage()
+    return backend() + capacityOf(s) + shared(4)

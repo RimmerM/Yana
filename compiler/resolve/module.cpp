@@ -26,6 +26,79 @@ static ast::ParsePtr<ast::Decl> declAt(ast::DeclList decls, Size index) {
     return ast::ParsePtr<ast::Decl>(decls.list.p.offset + U32(sizeof(ast::Decl) * index));
 }
 
+/*
+ * `@platform(js)` / `@platform(native)` - Analysis-JS.md §2.4, and the mechanism two implementation
+ * documents already cite as though it existed.
+ *
+ * A target-selected declaration, and deliberately nothing more than that: an excluded declaration
+ * is not resolved, so it contributes no name, no type, no instance and no body. That is what makes
+ * `Storage(a)` be a host `Array` on JS and a length/capacity/address record on native without the
+ * compiler knowing that `push` means `.push` - the alternative §2.4 rejects, because host knowledge
+ * in codegen can neither be tested nor extended.
+ *
+ * Selection happens here rather than at any later stage for the same reason: a declaration the
+ * target does not have must not be *resolvable* on it. A JS build that could still call the native
+ * `Storage.reserve` would have two implementations of one name and would pick by accident.
+ *
+ * Multiple platforms may be listed (`@platform(js, native)` is every target and therefore
+ * pointless, but `@platform` written twice on one declaration reads as "and", so all of them have
+ * to accept). An unknown name is reported rather than silently excluding the declaration, since a
+ * typo would otherwise delete a declaration from every build.
+ *
+ * `report` is false for every pass after the first. A module is read in eight passes and each of
+ * them asks this question of each declaration, so reporting from all of them would say the same
+ * thing eight times about one attribute.
+ */
+static bool platformEnabled(Module& module, const ast::Decl& decl, bool report = false) {
+    auto attributes = decl.attributes;
+    if(attributes.isEmpty()) return true;
+
+    auto& context = module.context;
+    auto platform = context.addUnqualifiedName("platform", 8);
+    auto js = context.addUnqualifiedName("js", 2);
+    auto native = context.addUnqualifiedName("native", 6);
+    auto targetIsJs = isJsMode(context.settings.mode);
+    auto enabled = true;
+
+    for(auto attribute: attributes.contents(module.parse)) {
+        if(attribute.name != platform) continue;
+
+        if(attribute.args.isEmpty()) {
+            if(report) {
+                context.diagnostics.error("`@platform` needs at least one target - `@platform(js)` or `@platform(native)`"_v,
+                                          attribute.source);
+            }
+
+            continue;
+        }
+
+        auto matched = false;
+        for(auto arg: attribute.args.contents(module.parse)) {
+            if(arg.value.kind != ast::Expr::Var) {
+                if(report) {
+                    context.diagnostics.error("a `@platform` target is a bare name - `js` or `native`"_v,
+                                              arg.value.source);
+                }
+
+                continue;
+            }
+
+            if(arg.value.var == js) {
+                matched = matched || targetIsJs;
+            } else if(arg.value.var == native) {
+                matched = matched || !targetIsJs;
+            } else if(report) {
+                context.diagnostics.error("unknown platform %@ - expected `js` or `native`"_v,
+                                          arg.value.source, context.findName(arg.value.var));
+            }
+        }
+
+        enabled = enabled && matched;
+    }
+
+    return enabled;
+}
+
 Program::Program(Context& context, Size typeMemory, Size irMemory):
     context(context), types(typeMemory), arena(irMemory) {}
 
@@ -1427,6 +1500,9 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
         auto pointer = declAt(decls, i);
         auto& decl = *parse[pointer];
 
+        // The one pass that reports: every declaration passes through it, and it is the first.
+        if(!platformEnabled(module, decl, true)) continue;
+
         switch(decl.kind) {
             case ast::Decl::Data:
                 declareRecord(module, decl);
@@ -1457,17 +1533,21 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
     }
 
     for(auto decl: decls.contents(parse)) {
+        if(!platformEnabled(module, decl)) continue;
         if(decl.kind == ast::Decl::Data) defineRecord(module, decl);
         else if(decl.kind == ast::Decl::Alias && decl.qualified) defineNewtype(module, decl);
     }
 
     for(auto decl: decls.contents(parse)) {
+        if(!platformEnabled(module, decl)) continue;
         if(decl.kind == ast::Decl::Data) declareRecordDefaults(module, decl);
     }
 
     completePendingInstances(module);
 
     for(auto decl: decls.contents(parse)) {
+        if(!platformEnabled(module, decl)) continue;
+
         auto newtype = decl.kind == ast::Decl::Alias && decl.qualified;
         if(decl.kind != ast::Decl::Data && !newtype) continue;
 
@@ -1476,6 +1556,7 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
     }
 
     for(auto decl: decls.contents(parse)) {
+        if(!platformEnabled(module, decl)) continue;
         if(decl.kind == ast::Decl::Stmt) declareGlobal(module, decl);
     }
 
@@ -1487,6 +1568,7 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
         auto pointer = declAt(decls, i);
         auto& decl = *parse[pointer];
         if(decl.kind != ast::Decl::Fun) continue;
+        if(!platformEnabled(module, decl)) continue;
 
         // Every function is resolved in an open context: a type variable in the signature is what
         // makes the function generic, and the constraints written in front of it are the ones the
@@ -1513,6 +1595,7 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
     }
 
     for(auto decl: decls.contents(parse)) {
+        if(!platformEnabled(module, decl)) continue;
         if(decl.kind == ast::Decl::Instance) resolveInstance(module, decl);
     }
 
@@ -1533,6 +1616,7 @@ void checkModuleClasses(Module& module, ast::Module& ast) {
 
     auto decls = ast.decls;
     for(auto decl: decls.contents(module.parse)) {
+        if(!platformEnabled(module, decl)) continue;
         if(decl.kind == ast::Decl::Default) resolveDefault(module, decl);
     }
 }
