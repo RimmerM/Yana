@@ -807,10 +807,9 @@ TypePtr resolveBitsType(Module& module, TypePtr base_, U32 bits, LocationId sour
 
     // `width` is recomputed from the narrowed size by the same rule the primitives use, so the
     // refinement picks the smallest natural class that can hold it rather than inheriting a wider
-    // one from the type it refines.
-    auto width = bits <= 1 ? IntType::Bool : bits <= 32 ? IntType::Int : IntType::Long;
-    auto type = new (module.types) IntType(U16(bits), width, original->isSigned, original->name,
-                                           canonical);
+    // one from the type it refines. Literally the same rule - see IntType::widthFor.
+    auto type = new (module.types) IntType(U16(bits), IntType::widthFor(U16(bits)),
+                                           original->isSigned, original->name, canonical);
 
     module.program.refinedIntTypes.push(module.types, type - base);
     return (Type*)type - base;

@@ -975,6 +975,75 @@ static LowerPtr<LowerValue> decodePackedField(LowerContext& lower, LowerBlock& b
 }
 
 /*
+ * Wrapping an arithmetic result back into a type narrower than the register that holds it.
+ *
+ * **A primitive integer type only, never a `@bits` refinement.** The language rule is that
+ * arithmetic happens at the type's native size and `@bits` describes *storage*, so `x + 1` on a
+ * `@bits(3) U32` computes at 32 bits and is masked when it is stored; masking the value as well
+ * would change what a comparison of it sees.
+ *
+ * The `canonical` test is belt and braces rather than a fix for an observed bug. A refinement's
+ * arithmetic already never reaches here, because every `@bits` type dispatches to the instances of
+ * the type it refines and the resulting instruction is typed at *that* type - `x + 1` above is typed
+ * `U32`, whose 32 bits are a natural unit. Verified by disabling this predicate entirely: the
+ * lowering of a `@bits(3) U32` add is byte-identical either way, and only `WideInt` changes. It is
+ * stated in the predicate anyway so that the rule is the code's rather than a consequence of how
+ * dispatch happens to type a refinement today.
+ *
+ * What makes `WideInt` different is that 53 bits *is* its native size: it is declared as a primitive
+ * rather than as `@bits(53) I64`, so its own `Integral` instance is selected and 53 is the width its
+ * arithmetic is defined at on every target. Without this it wrapped at 64 here and at 53 on JS - a
+ * silent cross-target difference in exactly the operation the type exists for.
+ *
+ * So the rule generalizes rather than naming `WideInt`: any primitive whose width is not a natural
+ * storage unit wraps at that width. Today that is `WideInt` and nothing else - `U8`, `U16`, `U32`,
+ * `I64` and the rest are all natural widths and fail the second test.
+ *
+ * Only the operations that can leave the range: `and`, `or`, `xor`, the right shifts, division and
+ * remainder all map an in-range pair to an in-range result, and masking those would cost an
+ * instruction per operation to compute a value that is already correct.
+ *
+ * Two shapes, the same pair `decodePackedBits` uses: an unsigned type masks, and a signed one shifts
+ * up until its sign bit is the register's and arithmetically back down, which truncates and
+ * sign-extends in the same two instructions.
+ */
+static bool wrapsAtDeclaredWidth(GlobalBase global, TypePtr type, Value::Kind kind) {
+    switch(kind) {
+        case Value::Add: case Value::Sub: case Value::Mul: case Value::Shl: case Value::Neg:
+            break;
+        default:
+            return false;
+    }
+
+    if(!type || global[type]->kind != Type::Int) return false;
+
+    auto integer = (IntType*)global[type];
+    if(integer->canonical || integer->width == IntType::Bool) return false;
+
+    return integer->bits < naturalStorageBits(integer->bits);
+}
+
+static LowerInst* truncateToWidth(LowerContext& lower, LowerBlock& block, LowerInst* result,
+                                  TypePtr type, LowerType lowered, StringId name) {
+    auto integer = (IntType*)lower.global[type];
+    auto bits = U32(integer->bits);
+    auto value = result->created().ptr - lower.lower;
+
+    if(!signedType(lower.global, type)) {
+        auto mask = immediate(lower, lowMask(bits));
+        return binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[value],
+                                      lower.lower[mask], lowered, name);
+    }
+
+    auto distance = immediate(lower, naturalStorageBits(bits) - bits);
+    auto up = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[value],
+                                     lower.lower[distance], lowered, 0)->created().ptr - lower.lower;
+
+    return binary<LowerInst::Sar>(lower.lower, lower.to, block, lower.lower[up],
+                                  lower.lower[distance], lowered, name);
+}
+
+/*
  * Writing a packed field: read the word, replace the field's bits, write it back.
  *
  * The load is deliberately here rather than anywhere earlier. Design.md's write-back rule is that
@@ -2456,6 +2525,11 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 default:
                     break;
             }
+
+            if(result && wrapsAtDeclaredWidth(lower.global, instruction.type, instruction.kind)) {
+                result = truncateToWidth(lower, block, result, instruction.type, type, instruction.name);
+            }
+
             break;
         }
         case Value::Cmp: {

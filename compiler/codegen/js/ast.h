@@ -53,6 +53,19 @@ enum class UnaryOp: U8 {
     BitNot,  // ~x
 };
 
+/*
+ * One operation on an integer of 33 to 53 bits that no host operator performs.
+ *
+ * Here rather than in build.h because a call node carries one: the peephole that fuses a chain of
+ * these reads the tree and nothing else, so what a call *is* has to be on the node. See wide.cpp.
+ */
+enum class WideOp: U8 {
+    Wrap,   // reduce an arbitrary value into the type's range - the general coercion
+    Add, Sub, Mul,
+    And, Or, Xor, Not,
+    Shl, Shr, Sar,
+};
+
 enum class BinaryOp: U8 {
     Mul, Div, Rem,
     Add, Sub,
@@ -208,6 +221,17 @@ struct CallExpr: Expr {
      * lets `var v = Math.imul(a, b) | 0; p.x = v;` collapse the way the `+` next to it does.
      */
     bool pure = false;
+
+    /*
+     * Set on a call to one of the 33-to-53-bit helpers, saying which operation it is.
+     *
+     * The peephole needs to recognize these to fuse a chain of them, and matching on the callee's
+     * name would be matching on something `uniqueName` is allowed to change. `wideBits` is zero on
+     * every call that is not one of them, which is what the tag is tested by.
+     */
+    WideOp wide = WideOp::Wrap;
+    U16 wideBits = 0;
+    bool wideSigned = false;
 };
 
 using StmtList = JsList<JsPtr<Stmt>, false>;

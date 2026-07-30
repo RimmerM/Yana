@@ -1,0 +1,112 @@
+import Native
+
+{-
+   `WideInt` - the widest integer that is still a machine primitive on every target.
+
+   Natively it is an ordinary masked 64-bit integer, so this fixture is nearly free there. On JS it
+   is a host `number` of 53 bits, and every operation the host has no operator for goes through the
+   split helpers in codegen/js/wide.cpp: the value is taken apart into two 32-bit halves, each half
+   is operated on with the 32-bit operators JS does have, and the halves are joined back.
+
+   What that means for this file is that **behaviour is the only useful assertion**. A split that
+   drops a carry, masks at the wrong width, rounds a negative high half toward zero instead of down,
+   or re-applies the sign twice produces a *number* that is wrong rather than code that is malformed
+   - and the two targets are each other's reference, since native reaches the same answers by a
+   completely different route.
+
+   Each case compares against a value worked out independently and contributes a distinct power of
+   two when it matches, so `main` is 262143 = 2^18 - 1 when every case passes and any other number
+   says exactly which ones did not.
+
+   **The ascriptions are load-bearing where a sub-expression is parenthesized, and only there.**
+   `resolvePrecedence` now hands the expected type to each operator's own selection, so a literal
+   chain with nothing else to go on - `checkLiteralChain` below - picks `Integral(WideInt)` and
+   computes at 53 bits. What it cannot do is carry that type *into* a parenthesized operand, which
+   `resolve` reaches with no expected type: `(a `or` b) `and` c` still settles the inner call to
+   `Int` first. Carrying it there is bidirectional checking, which this resolver does not do.
+
+   So an ascription inside parentheses is a real requirement rather than decoration, and an earlier
+   version of this fixture that omitted them passed six of its seventeen cases *by coincidence*, all
+   of them at 32 bits.
+-}
+
+fn high() -> WideInt = 34359738375        -- 2^35 + 7, so both halves are occupied
+
+fn mask() -> WideInt = 1099511627775      -- 2^40 - 1
+
+fn check(actual: WideInt, expected: WideInt, weight: Int) -> Int =
+    if actual == expected then weight else 0
+
+-- The three binary operators, each with operands whose halves both matter.
+fn checkAnd() -> Int = check(high() `and` mask(), 34359738375, 1)
+
+fn checkOr() -> Int = check((34359738368 :: WideInt) `or` 255, 34359738623, 2)
+
+fn checkXor() -> Int = check((34359738375 :: WideInt) `xor` 34359738368, 7, 4)
+
+-- Complement, which is what says whether the high half is masked at the declared width: a helper
+-- masking at 32, or not masking at all, gets a different number for both of these.
+fn checkNotZero() -> Int = check(not(0 :: WideInt), 0 - 1, 8)
+
+fn checkNot() -> Int = check(not(34359738375 :: WideInt), (0 :: WideInt) - 34359738376, 16)
+
+-- Shifts across the halfway point. Twenty up moves bits from the low half into the high one and
+-- twenty back brings them down, so a helper that lost the crossing answers zero for the round trip.
+fn checkShl() -> Int = check((1048577 :: WideInt) `shl` 20, 1099512676352, 32)
+
+fn checkShr() -> Int = check((1099512676352 :: WideInt) `shr` 20, 1048577, 64)
+
+-- A shift by more than 32, where the two halves swap roles entirely.
+fn checkShlFar() -> Int = check((3 :: WideInt) `shl` 33, 25769803776, 128)
+
+-- Arithmetic shift of a negative value, which the logical form cannot produce: the operand was
+-- reduced to its width before the split, so there are no sign bits left to shift and the helper has
+-- to put them back.
+fn checkSarNegative() -> Int = check(((0 :: WideInt) - 1024) `sar` 4, (0 :: WideInt) - 64, 256)
+
+fn checkSarPositive() -> Int = check((1099512676352 :: WideInt) `sar` 20, 1048577, 512)
+
+-- Wrapping at the ends of the range, where the add's "compare and subtract" shortcut is either
+-- right or off by a whole modulus. 2^52 - 1 plus one is the most negative value, and back again.
+fn checkAddWrap() -> Int =
+    check((4503599627370495 :: WideInt) + 1, (0 :: WideInt) - 4503599627370496, 1024)
+
+fn checkSubWrap() -> Int =
+    check(((0 :: WideInt) - 4503599627370496) - 1, 4503599627370495, 2048)
+
+-- Multiplication, which needs 16-bit limbs: the full product of two 32-bit halves passes 2^53, so a
+-- helper that formed it as one double would already have lost the low bits.
+fn checkMul() -> Int = check((1234567 :: WideInt) * 7654321, 9449772114007, 4096)
+
+-- The same, with *both* operands above 16 bits. This is the `a16 * b16` limb - the low half's own
+-- top halves meeting at bit 32 - which comes out right for free whenever either operand is small
+-- enough, and is the one term easiest to leave out of the decomposition.
+fn checkMulLimbs() -> Int = check((3000000 :: WideInt) * 1000003, 3000009000000, 8192)
+
+-- Division and remainder, which need no helper: both operands are in range, the quotient of two
+-- in-range values is one, and truncation toward zero is what the host division plus `Math.trunc`
+-- already does. Here to assert that shortcut rather than to exercise a split.
+fn checkDiv() -> Int = check((34359738375 :: WideInt) / 1000, 34359738, 16384)
+
+fn checkRem() -> Int = check((34359738375 :: WideInt) % 1000, 375, 32768)
+
+-- Comparison, which is the whole reason this representation is worth having: two of these are
+-- ordinary numbers on JS, so `<` is `<` with no helper anywhere near it.
+fn checkCompare() -> Int = if high() < mask() then 65536 else 0
+
+-- Literal arithmetic with nothing but the expected type to decide it, and no ascription anywhere.
+-- This is what `resolvePrecedence` passing its target to each operator buys: without it both
+-- literals settle to `Int`, `Integral(Int)` is selected, and the answer is 255 - the operand having
+-- been truncated before the operator ever ran. The argument position of `check` is what says
+-- `WideInt` here, so this also covers a target arriving from a parameter rather than a return.
+fn checkLiteralChain() -> Int = check(34359738368 `or` 255, 34359738623, 131072)
+
+fn main() -> Int =
+    checkAnd() + checkOr() + checkXor() +
+    checkNotZero() + checkNot() +
+    checkShl() + checkShr() + checkShlFar() +
+    checkSarNegative() + checkSarPositive() +
+    checkAddWrap() + checkSubWrap() +
+    checkMul() + checkMulLimbs() +
+    checkDiv() + checkRem() +
+    checkCompare() + checkLiteralChain()

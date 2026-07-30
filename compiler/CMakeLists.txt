@@ -147,6 +147,7 @@ set(JS_SOURCE_FILES
     codegen/js/build.h
     codegen/js/name.cpp
     codegen/js/type.cpp
+    codegen/js/wide.cpp
     codegen/js/place.cpp
     codegen/js/inst.cpp
     codegen/js/flow.cpp

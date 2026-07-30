@@ -33,13 +33,12 @@ fn main() -> Int {
 
   b3:
     %quotientIsPositive = phi [b1, 1], [b2, 0] : Int
-    %v24 = sub 0, 7 : Int
-    %v25 = cast %v24 : I64
-    %v27 = call signedDivide, %v25, 2 : I64
-    %v32 = sub 0, 3 : Int
-    %v33 = cast %v32 : I64
-    %v34 = cmp_eq %v27, %v33 : Bool
-    je %v34, b4, b5
+    %v24 = sub 0, 7 : I64
+    %v26 = call signedDivide, %v24, 2 : I64
+    %v31 = sub 0, 3 : Int
+    %v32 = cast %v31 : I64
+    %v33 = cmp_eq %v26, %v32 : Bool
+    je %v33, b4, b5
 
   b4:
     jmp b6
@@ -49,8 +48,8 @@ fn main() -> Int {
 
   b6:
     %signedStillSigned = phi [b4, 10], [b5, 0] : Int
-    %v43 = add %quotientIsPositive, %signedStillSigned : Int
-    %v44 = cast %rest : Int
-    %v45 = add %v43, %v44 : Int
-    ret %v45
+    %v42 = add %quotientIsPositive, %signedStillSigned : Int
+    %v43 = cast %rest : Int
+    %v44 = add %v42, %v43 : Int
+    ret %v44
 }

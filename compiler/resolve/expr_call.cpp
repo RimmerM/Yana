@@ -272,7 +272,29 @@ bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Va
 // Precedence climbing over the flattened operand/operator lists. The parser cannot do this
 // itself: fixity declarations are module-level, so an operator's precedence is only known once
 // the whole module has been read.
-ModulePtr<Value> ExprResolver::resolvePrecedence(Array<const ast::Expr*>& operands, Array<StringId>& operators, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence) {
+/*
+ * `target` is the type the whole chain is expected to produce, and it is passed to each operator's
+ * own selection rather than to the operands.
+ *
+ * What it buys is the case where nothing else says: `1 \`or\` 2` at a `WideInt` result used to
+ * settle both literals to `Int`, select `Integral(Int)`, compute at 32 bits and widen the *answer* -
+ * so `34359738368 \`or\` 255` was 255, having lost the operand before the operator ran.
+ * `matchClassFun` already knows what to do with an expected result; it was simply never handed one
+ * from here.
+ *
+ * To the operator and not to the operands, because the operands are where this would stop being
+ * safe. `matchClassFun` lets the expected result fill only what the arguments left *open* - a
+ * literal binds nothing, a concrete operand binds its own type and wins - so `x + 1` on an `Int` x
+ * still computes at `Int` however the result is used. Resolving the operands against `target`
+ * instead would convert `x` first and silently change that to `WideInt` arithmetic.
+ *
+ * The same reason bounds what it fixes: a *parenthesized* sub-expression is resolved through
+ * `resolve` below with no expected type, so `(1 \`or\` 2) \`and\` 3` still settles the inner call
+ * to `Int` before the outer one is matched. Carrying an expected type down into operand position
+ * is bidirectional checking, which this resolver deliberately does not do (it binds one-way and
+ * positionally), and it is the same wall the property-constraint inference hit.
+ */
+ModulePtr<Value> ExprResolver::resolvePrecedence(Array<const ast::Expr*>& operands, Array<StringId>& operators, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target) {
     auto lhsExpr = operands[operandIndex++];
     auto lhs = resolve(*lhsExpr);
 
@@ -284,7 +306,7 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(Array<const ast::Expr*>& operan
         if(!lhs || !rhs) return nullptr;
 
         ModulePtr<Value> args[] = { lhs, rhs };
-        lhs = emitCall(op, { args, 2 }, lhsExpr->source);
+        lhs = emitCall(op, { args, 2 }, lhsExpr->source, target);
     }
 
     return lhs;
@@ -325,7 +347,10 @@ ModulePtr<Value> ExprResolver::resolveBinary(const ast::Expr& expr, const ast::I
     // Climbing starts at 0 rather than 1 because 0 is a declarable precedence - it is where Core
     // puts the compound assignments. Starting a rung above it would drop such an operator out of
     // the loop and quietly yield its left operand instead of applying it.
-    auto result = resolvePrecedence(operands, operators, operandIndex, operatorIndex, 0);
+    // The target goes into the chain as well as being applied to its result. Where the operators
+    // could honour it the conversion afterwards is then the identity; where they could not - a
+    // concrete operand decided the instance - it is the conversion that was always emitted.
+    auto result = resolvePrecedence(operands, operators, operandIndex, operatorIndex, 0, target);
     if(result && target) result = convert(result, target, expr.source);
     return result;
 }

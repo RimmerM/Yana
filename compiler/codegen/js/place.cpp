@@ -23,10 +23,25 @@ JsPtr<Expr> constantValue(Gen& g, Value& value) {
             if(isBool(g, value.type)) return number(g, bits ? 1 : 0);
 
             if(auto integer = intType(g, value.type)) {
-                if(integer->width == IntType::Long) return bigInt(g, bits, integer->isSigned);
+                if(isLong(g, value.type)) return bigInt(g, bits, integer->isSigned);
 
-                if(integer->isSigned) return number(g, F64(I64(I32(U32(bits)))));
-                return number(g, F64(U32(bits)));
+                /*
+                 * Read back at the type's own width rather than at 32.
+                 *
+                 * The constant arrives as a raw bit pattern, so producing the `number` that denotes
+                 * it is a sign extension from bit `bits - 1` for a signed type and a mask for an
+                 * unsigned one. `I32`/`U32` did both at once for the 32-bit tower and are exactly
+                 * wrong for the 33-to-53-bit one, where the value does not fit a 32-bit integer.
+                 */
+                auto width = integer->bits;
+                auto mask = width >= 64 ? ~U64(0) : (U64(1) << width) - 1;
+                auto masked = bits & mask;
+
+                if(integer->isSigned && width < 64 && (masked & (U64(1) << (width - 1)))) {
+                    return number(g, -F64((mask - masked) + 1));
+                }
+
+                return number(g, F64(masked));
             }
 
             // A null pointer written as an integer, which is how `cast(0)` reaches here. Nothing

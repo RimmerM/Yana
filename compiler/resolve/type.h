@@ -182,6 +182,18 @@ struct IntType: Type {
         Long,
     };
 
+    /*
+     * The width class a given number of bits falls into - the smallest one that holds it.
+     *
+     * One rule in one place, because two callers construct integer types: the primitives in
+     * `addInteger` and the `@bits` refinements in `resolveBitsType`. They disagreed once, and the
+     * symptom was not a diagnostic - a 53-bit primitive built with a hardcoded `bits == 64` test
+     * came out in the `Int` class and was silently emitted as 32-bit arithmetic on both targets.
+     */
+    static Width widthFor(U16 bits) {
+        return bits <= 1 ? Bool : bits <= 32 ? Int : Long;
+    }
+
     IntType(U16 bits, Width width, bool isSigned, StringId name = 0, TypePtr canonical = nullptr):
         Type(Type::Int), name(name), canonical(canonical), bits(bits), width(width),
         isSigned(isSigned) {}

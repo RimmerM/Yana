@@ -23,6 +23,25 @@ namespace js {
 constexpr U32 kNoBlock = maxLimit<U32>;
 
 /*
+ * The widest integer a host `number` holds every value of.
+ *
+ * The same number as `ReprTarget::integerBits` for this target and for the same reason - above it
+ * consecutive integers stop being representable - but it is stated separately because the two are
+ * asked by different people. That one is what a *layout* may occupy; this one is what the *value*
+ * tower switches on, and an integer type wider than this is a `bigint` here.
+ */
+constexpr U16 kMaxNumberBits = 53;
+
+// One helper this file needs, in the order they were first asked for. `WideOp` is in ast.h, since
+// a call node carries one.
+struct WideHelper {
+    Name name;
+    WideOp op;
+    U16 bits;
+    bool isSigned;
+};
+
+/*
  * One block an enclosing construct can be left through, and how.
  *
  * A `Loop` entry is its header, so reaching it is `continue`; a `Forward` entry is a labelled block
@@ -110,6 +129,11 @@ struct Gen {
 
     // Names this generator has already copied into the string arena - see internText.
     HashSet<StringId> interned;
+
+    // The 33-to-53-bit helpers this file has asked for, interned per (operation, width, signedness)
+    // and emitted once at the end. See wide.cpp.
+    HashMap<U32, Name> wideHelpers;
+    Array<WideHelper> wideHelperOrder;
 
     // The property names that are the compiler's rather than the program's.
     Name tagField;
@@ -388,7 +412,36 @@ Name refPartName(Gen& g, Value& value, StringView suffix);
 IntType* intType(Gen& g, TypePtr type);
 RecordType* recordType(Gen& g, TypePtr type);
 bool isBool(Gen& g, TypePtr type);
+
+// Whether this type is a host `bigint` - an integer wider than a `number` holds exactly. Every
+// caller means "is this the other representation", which is why the test moved from the width class
+// to the bit count when the 33-to-53 band stopped being one.
 bool isLong(Gen& g, TypePtr type);
+
+// Whether this type is one of the 33-to-53-bit `number`s wide.cpp is about. Never true at the same
+// time as `isLong`, and both are false for the ordinary 32-bit tower.
+bool isWideNumber(Gen& g, TypePtr type);
+
+JsPtr<Expr> coerce(Gen& g, TypePtr type, JsPtr<Expr> value);
+
+/*
+ * wide.cpp - integers of 33 to 53 bits.
+ */
+
+// The name of one helper, emitting it on first use. Callers normally want `wideCall`.
+Name wideHelper(Gen& g, WideOp op, U32 bits, bool isSigned);
+
+// `$w53i$and(a, b)`. `b` is null for the one-operand operations.
+JsPtr<Expr> wideCall(Gen& g, WideOp op, IntType* type, JsPtr<Expr> a, JsPtr<Expr> b);
+
+// `v >= 2**(bits-1) ? v - 2**bits : v` - an unsigned bit pattern read back as a signed value.
+JsPtr<Expr> resignExpr(Gen& g, JsPtr<Expr> value, U32 bits);
+
+// A value crossing between a wide type and a narrower integer, in the widening direction.
+JsPtr<Expr> wideFromNarrow(Gen& g, IntType* to, IntType* from, JsPtr<Expr> value);
+
+// Every helper asked for, as function declarations. Called once, at the end of genProgram.
+void emitWideHelpers(Gen& g);
 
 // Whether a value of this type is a host object - what `isMemoryType` is on native, asked of this
 // target instead. See type.cpp for the three places the two answers differ.

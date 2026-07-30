@@ -45,9 +45,45 @@ bool isBool(Gen& g, TypePtr type) {
     return type && type == g.program.scalar.bool_;
 }
 
-bool isLong(Gen& g, TypePtr type) {
+/*
+ * Which of the two integer representations a type wider than 32 bits has, and why the question is
+ * asked of its *canonical* form rather than of itself.
+ *
+ * `IntType::Long` used to be the whole answer, because everything above 32 bits was a `bigint`. It
+ * is now split at `kMaxNumberBits`: at 53 bits and below a host `number` holds every value exactly,
+ * so such a type is a `number` and wide.cpp supplies the operators JS stops having above 32.
+ *
+ * The canonical width decides it because **a `@bits` refinement dispatches to the instances of the
+ * type it refines**. `a and b` on a `@bits(40) U64` resolves to `Integral(U64)`, so the arguments
+ * are converted to `U64`, the operation happens at 64 bits, and the result is narrowed back. If the
+ * refinement were a `number` while `U64` stayed a `bigint`, each of those conversions would be a
+ * real `BigInt()`/`Number()` round trip and every operation on the refinement would get *slower*
+ * than it is today. Keyed on the canonical form instead, a refinement and what it refines are
+ * always the same host type and every conversion between them stays free.
+ *
+ * So a `number` of 33 to 53 bits is reached by refining a type that is already one - `WideInt` and
+ * anything built on it - and never by refining `U64`. That is the whole reason `WideInt` is a
+ * primitive with its own instances rather than an alias for `@bits(53) I64`: an alias would have
+ * had U64's arithmetic and U64's representation, which is the thing being avoided.
+ *
+ * `resolveBitsType` recomputes the width class from the refined count, so `width == Long` is exactly
+ * `bits > 32`, and these two predicates partition that band with nothing in between.
+ */
+static IntType* canonicalInt(Gen& g, TypePtr type) {
     auto integer = intType(g, type);
-    return integer && integer->width == IntType::Long;
+    if(!integer || integer->width != IntType::Long) return nullptr;
+
+    return (IntType*)g.global[canonicalType(g.global, type)];
+}
+
+bool isLong(Gen& g, TypePtr type) {
+    auto canonical = canonicalInt(g, type);
+    return canonical && canonical->bits > kMaxNumberBits;
+}
+
+bool isWideNumber(Gen& g, TypePtr type) {
+    auto canonical = canonicalInt(g, type);
+    return canonical && canonical->bits <= kMaxNumberBits;
 }
 
 /*
@@ -160,7 +196,10 @@ JsPtr<Expr> zeroValue(Gen& g, TypePtr type) {
         case Type::Int: {
             auto integer = (IntType*)value;
             if(integer->width == IntType::Bool) return number(g, 0);
-            if(integer->width == IntType::Long) return bigInt(g, 0, integer->isSigned);
+            if(isLong(g, type)) return bigInt(g, 0, integer->isSigned);
+
+            // Including the 33-to-53-bit band, whose zero is an ordinary `0` - the representation
+            // is a `number` and only the operators differ.
             return number(g, 0);
         }
         case Type::Float:
@@ -245,10 +284,26 @@ JsPtr<Expr> coerce(Gen& g, TypePtr type, JsPtr<Expr> value) {
     if(auto integer = intType(g, type)) {
         if(integer->width == IntType::Bool) return value;
 
-        if(integer->width == IntType::Long) {
+        /*
+         * The declared width rather than 64.
+         *
+         * This used to mask every `Long`-class type to 64 bits whatever its `@bits` said, so
+         * `@bits(58) U64` wrapped at 58 on native and at 64 here - a silent cross-target semantic
+         * difference rather than a missing optimization. `bits` is the unrefined type's own width
+         * when nothing refined it, so the common case emits the same text it always did.
+         */
+        if(isLong(g, type)) {
             return hostCall(g, "BigInt"_v, integer->isSigned ? "asIntN"_v : "asUintN"_v,
-                            number(g, 64), value);
+                            number(g, integer->bits), value);
         }
+
+        /*
+         * The general reduction for a 33-to-53-bit value, and the one wide.cpp's callers mostly
+         * avoid: every arithmetic operation there knows how far out of range its own result can be
+         * and wraps more cheaply than this can. What reaches here is a cast from something wider,
+         * where nothing is known about the input at all.
+         */
+        if(isWideNumber(g, type)) return wideCall(g, WideOp::Wrap, integer, value, nullptr);
 
         auto bits = integer->bits;
         if(bits >= 32) {

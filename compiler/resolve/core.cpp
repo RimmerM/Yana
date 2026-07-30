@@ -385,8 +385,7 @@ static TypePtr coreType(Module& module, StringView name) {
 // everything below 64 bits arrives in a 32-bit register and only the widest family needs a wider one.
 static TypePtr addInteger(Module& module, StringView name, U16 bits, bool isSigned) {
     auto id = module.context.addQualifiedName(name.ptr, name.length, 1);
-    auto width = bits == 64 ? IntType::Long : IntType::Int;
-    auto type = new (module.types) IntType(bits, width, isSigned, id);
+    auto type = new (module.types) IntType(bits, IntType::widthFor(bits), isSigned, id);
 
     auto pointer = (Type*)type - *module.types;
     module.namedTypes.add(id, pointer);
@@ -414,6 +413,28 @@ static void defineIntegerTypes(Module& module, Array<TypePtr>& types) {
         { "I16"_v, 16, true }, { "U16"_v, 16, false },
         { "I32"_v, 32, true }, { "U32"_v, 32, false },
         { "I64"_v, 64, true }, { "U64"_v, 64, false },
+
+        /*
+         * The widest integer that is still a machine primitive on every target.
+         *
+         * 64 bits is not: a JS `number` holds 53 consecutive integers and nothing wider, so `Long`
+         * there is a `bigint` - a heap value, four times the retained size of a number, and off the
+         * ordinary arithmetic path. `WideInt` is the type that stays a primitive everywhere: a
+         * masked 64-bit integer natively, and a plain `number` on JS with codegen/js/wide.cpp
+         * supplying the bitwise operators the host stops having above 32 bits.
+         *
+         * **Signed, and that is a correctness requirement rather than a preference.** Wrapping
+         * addition on JS is a comparison and a subtraction, which is sound only while `a + b` is
+         * exactly representable - true below 2^53. A signed 53-bit type has operands bounded by
+         * 2^52, so the sum always is; an unsigned one reaches 2^54 and would silently round.
+         * benchmark/bits53-js/findings.md is where that was measured.
+         *
+         * A primitive rather than `alias WideInt = @bits(53) I64`, because a refinement dispatches
+         * to the instances of the type it refines: the alias would have done its arithmetic at 64
+         * bits, as a `bigint` on JS, with a conversion at each end. See `isWideNumber` in
+         * codegen/js/type.cpp.
+         */
+        { "WideInt"_v, 53, true },
     };
 
     for(auto& width: widths) types.push(addInteger(module, width.name, width.bits, width.isSigned));

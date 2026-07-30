@@ -33,29 +33,28 @@ main<complex>(): Int {
 
   b_5 {
     %quotientIsPositive = phi [b_3, 1], [b_4, 0]: Int
-    %v_6 = sub 0, 7: Int
-    %v_7 = sext %v_6: Long
-    %v_8 = call_complex signedDivide, %v_7, 2: Long
-    %v_9 = sub 0, 3: Int
-    %v_10 = sext %v_9: Long
-    %v_11 = cmp_eq %v_8, %v_10: Int
-    je %v_11, b_12, b_13
+    %v_6 = sub 0, 7: Long
+    %v_7 = call_complex signedDivide, %v_6, 2: Long
+    %v_8 = sub 0, 3: Int
+    %v_9 = sext %v_8: Long
+    %v_10 = cmp_eq %v_7, %v_9: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    jmp b_13
   }
 
   b_12 {
-    jmp b_14
+    jmp b_13
   }
 
   b_13 {
-    jmp b_14
-  }
-
-  b_14 {
-    %signedStillSigned = phi [b_12, 10], [b_13, 0]: Int
-    %v_15 = add %quotientIsPositive, %signedStillSigned: Int
-    %v_16 = cast %rest: Int
-    %v_17 = add %v_15, %v_16: Int
-    ret %v_17
+    %signedStillSigned = phi [b_11, 10], [b_12, 0]: Int
+    %v_14 = add %quotientIsPositive, %signedStillSigned: Int
+    %v_15 = cast %rest: Int
+    %v_16 = add %v_14, %v_15: Int
+    ret %v_16
   }
 }
 

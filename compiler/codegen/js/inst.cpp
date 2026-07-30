@@ -290,6 +290,51 @@ void genBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
         define(g, pointer, coerce(g, type, binary(g, op, lhs, rhs)));
     };
 
+    /*
+     * The 33-to-53-bit band, where the host has the representation but not the operators.
+     *
+     * Each of these goes to a helper rather than to an inline expansion, because the split form of
+     * one bitwise operator is eight operations and a program using such a type uses it everywhere.
+     * `opt.cpp` fuses chains of them back into one inline unpack-operate-pack, which is where the
+     * measured win is - so the compact form is the default and the expansion is earned.
+     *
+     * Comparison, and only comparison, is missing from this list on purpose: two of these are
+     * ordinary `number`s carrying their mathematical values, so `<` already means what it says.
+     * That is the whole reason this representation is worth having.
+     */
+    if(isWideNumber(g, type)) {
+        auto wide = [&](WideOp op) { define(g, pointer, wideCall(g, op, integer, lhs, rhs)); };
+
+        switch(instruction.kind) {
+            case Value::Add: wide(WideOp::Add); return;
+            case Value::Sub: wide(WideOp::Sub); return;
+            case Value::Mul: wide(WideOp::Mul); return;
+            case Value::And: wide(WideOp::And); return;
+            case Value::Or: wide(WideOp::Or); return;
+            case Value::Xor: wide(WideOp::Xor); return;
+            case Value::Shl: wide(WideOp::Shl); return;
+            case Value::Shr: wide(WideOp::Shr); return;
+            case Value::Sar: wide(WideOp::Sar); return;
+
+            /*
+             * Division and remainder need no helper and no coercion. Both operands are already in
+             * range, `Math.trunc` is the truncation toward zero the language asks for, and a
+             * quotient of two in-range values is in range - except for the one signed pair whose
+             * quotient is the missing positive, which `Wrap` catches.
+             */
+            case Value::Div: {
+                auto quotient = hostCall(g, "Math"_v, "trunc"_v, binary(g, BinaryOp::Div, lhs, rhs));
+                define(g, pointer, integer->isSigned
+                    ? wideCall(g, WideOp::Wrap, integer, quotient, nullptr) : quotient);
+                return;
+            }
+            case Value::Rem:
+                define(g, pointer, binary(g, BinaryOp::Rem, lhs, rhs));
+                return;
+            default: break;
+        }
+    }
+
     switch(instruction.kind) {
         case Value::Add: simple(BinaryOp::Add); return;
         case Value::Sub: simple(BinaryOp::Sub); return;
@@ -399,6 +444,21 @@ void genCast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
     if(isInteger(g.global, to) && isFloat(g.global, from)) {
         define(g, pointer, coerce(g, to, hostCall(g, "Math"_v, "trunc"_v, value)));
         return;
+    }
+
+    /*
+     * Integer to integer, both of them `number`s here.
+     *
+     * Widening into the 33-to-53-bit band is asked separately because most of it is free - the two
+     * representations are the same host type, so only a negative value entering an unsigned type
+     * is a real conversion - and the general coercion for that band is a remainder that would
+     * otherwise be emitted on every widening.
+     */
+    if(isWideNumber(g, to)) {
+        if(auto source = intType(g, from)) {
+            define(g, pointer, wideFromNarrow(g, intType(g, to), source, value));
+            return;
+        }
     }
 
     define(g, pointer, coerce(g, to, value));
@@ -1156,6 +1216,16 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             break;
         case Value::Neg: {
             auto from = useValue(g, ((InstUnary&)instruction).from);
+
+            // Negation of a wide value is `0 - x`, which is the subtract helper and its wrap: the
+            // one value with no positive counterpart negates to itself, and `-x` alone would leave
+            // it out of range.
+            if(isWideNumber(g, instruction.type)) {
+                define(g, value, wideCall(g, WideOp::Sub, intType(g, instruction.type),
+                                          number(g, 0), from));
+                break;
+            }
+
             define(g, value, coerce(g, instruction.type, unary(g, UnaryOp::Neg, from)));
             break;
         }
@@ -1166,6 +1236,11 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             // Bool is one bit, so flipping it is flipping that bit.
             if(isBool(g, instruction.type)) {
                 define(g, value, binary(g, BinaryOp::Xor, operand, number(g, 1)));
+            } else if(isWideNumber(g, instruction.type)) {
+                // `~` is a 32-bit operator, so complementing a wider value has to complement both
+                // halves and mask the top one back to the declared width.
+                define(g, value, wideCall(g, WideOp::Not, intType(g, instruction.type),
+                                          operand, nullptr));
             } else {
                 define(g, value, coerce(g, instruction.type, unary(g, UnaryOp::BitNot, operand)));
             }

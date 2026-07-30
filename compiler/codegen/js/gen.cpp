@@ -950,6 +950,9 @@ Ptr<File> genProgram(Context& context, Program& program) {
         }
     }
 
+    g.body = &file->statements;
+    emitWideHelpers(g);
+
     optimizeFile(g);
     return file;
 }
