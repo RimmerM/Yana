@@ -103,17 +103,19 @@ fn checkSarPositive() -> Int {
 fn checkAddWrap() -> Int {
   b0:
     %v3 = add 4503599627370495, 1 : WideInt
-    %v7 = sub 0, 4503599627370496 : WideInt
-    %v9 = call check, %v3, %v7, 1024 : Int
-    ret %v9
+    %v7 = sub 0, 4503599627370495 : WideInt
+    %v10 = sub %v7, 1 : WideInt
+    %v12 = call check, %v3, %v10, 1024 : Int
+    ret %v12
 }
 
 fn checkSubWrap() -> Int {
   b0:
-    %v3 = sub 0, 4503599627370496 : WideInt
+    %v3 = sub 0, 4503599627370495 : WideInt
     %v6 = sub %v3, 1 : WideInt
-    %v9 = call check, %v6, 4503599627370495, 2048 : Int
-    ret %v9
+    %v9 = sub %v6, 1 : WideInt
+    %v12 = call check, %v9, 4503599627370495, 2048 : Int
+    ret %v12
 }
 
 fn checkMul() -> Int {

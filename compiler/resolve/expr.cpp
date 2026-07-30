@@ -23,8 +23,73 @@ ModulePtr<Value> ExprResolver::find(StringId name) {
     return binding ? binding->value : nullptr;
 }
 
+// A value in the normal form of its type: the type's own bits, sign-extended if it is signed. The
+// same form `convertRefinement` puts a runtime value in, and `truncateToWidth` an arithmetic result.
+static U64 reduceToWidth(const IntType& integer, U64 value) {
+    if(integer.bits >= 64) return value;
+
+    auto mask = (U64(1) << integer.bits) - 1;
+    value &= mask;
+
+    // A signed type's high bit is its sign, so a value that has it set is the negative number it
+    // stands for and not the small positive one the mask left behind.
+    if(integer.isSigned && (value & (U64(1) << (integer.bits - 1)))) value |= ~mask;
+
+    return value;
+}
+
+/*
+ * An integer constant, reduced to its type's normal form on the way in.
+ *
+ * A literal written where its type is already known is built at that type directly rather than
+ * converted into it, so it reached none of the narrowing a conversion emits: `Box {small: 20}` on a
+ * `@bits(4)` field stored 20, while `Box {small: v}` for a runtime `v` of 20 stored 4. Whether a
+ * store narrowed came down to whether it could be folded, which is the one thing constant folding
+ * must never decide.
+ *
+ * Every integer constant funnels through here, so this is the one place the rule has to be stated -
+ * and the reason the *warning* below cannot live here: most callers hand this bits that are already
+ * at the type's width.
+ */
 ModulePtr<Value> ExprResolver::makeInt(LocationId source, TypePtr type, U64 value) {
+    if(type && global[type]->kind == Type::Int) value = reduceToWidth(*(IntType*)global[type], value);
     return constant<ConstInt>(source, type, value);
+}
+
+/*
+ * Reports a written literal that does not fit the type it is being built at.
+ *
+ * A warning rather than an error, because `makeInt` above gives the program a defined meaning either
+ * way and because a full-width mask written at a signed type - `0xFFFFFFFF :: Int` - is a real idiom
+ * rather than a mistake. What it catches is the case that has no other symptom at all: `Box {small:
+ * 20}` on a `@bits(4)` field is 4, and nothing in the source says 4.
+ *
+ * Only where a *literal* is built. Every other caller of `makeInt` hands it bits that are already at
+ * the type's width - a mask this file computed, a shift distance, the stored initializer of a global
+ * - so checking there would report the compiler's own constants back at the author.
+ *
+ * Written literals are never negative: `-1` is `0 - 1`, two literals and an operator, so the range
+ * that matters is one-sided and a signed type's is half an unsigned one's.
+ */
+void ExprResolver::checkLiteralRange(LocationId source, TypePtr type, U64 written) {
+    if(!type || global[type]->kind != Type::Int) return;
+
+    auto& integer = *(IntType*)global[type];
+    auto bits = U32(integer.bits) - (integer.isSigned ? 1 : 0);
+    if(bits >= 64 || written <= (U64(1) << bits) - 1) return;
+
+    auto reduced = reduceToWidth(integer, written);
+    auto described = describeType(context, global, type);
+
+    // Printed the way the type reads it, since the point of the message is what the program will do
+    // and a signed truncation that comes out negative is exactly the surprising case.
+    if(integer.isSigned) {
+        context.diagnostics.warning("the literal %@ does not fit in %@ and is truncated to %@"_v,
+                                    source, written, described, I64(reduced));
+    } else {
+        context.diagnostics.warning("the literal %@ does not fit in %@ and is truncated to %@"_v,
+                                    source, written, described, reduced);
+    }
 }
 
 ModulePtr<Value> ExprResolver::makeFloat(LocationId source, TypePtr type, F64 value) {
@@ -179,7 +244,12 @@ ModulePtr<Value> ExprResolver::materializeLiteral(ModulePtr<Value> value, TypePt
     // where its type is already known takes.
     if(integral) {
         auto written = ((ConstInt*)local[value])->value;
-        if(isInteger(global, target)) return makeInt(source, target, written);
+
+        if(isInteger(global, target)) {
+            checkLiteralRange(source, target, written);
+            return makeInt(source, target, written);
+        }
+
         if(isFloat(global, target)) return makeFloat(source, target, F64(written));
     } else if(isFloat(global, target)) {
         return makeFloat(source, target, ((ConstDouble*)local[value])->value);
@@ -405,11 +475,21 @@ ModulePtr<Value> ExprResolver::convertBorrow(ModulePtr<Value> value, TypePtr fro
  * the right register and only the *type* of the IR value changes - which is what the cast says, and
  * lowering emits nothing for a same-width one.
  *
- * Narrowing masks. A refined value has to satisfy its own range or the patterns above it are not
- * free after all, and a `Maybe(Id)` that folded its discriminant into those patterns would read a
- * `Just` holding 2^60 as a `Nothing`. So the mask is not an optimization to skip - it is what makes
- * the niche true. Per this pass's scope it truncates silently; the debug-build range check that
- * reports instead is a later addition, and this is the one place it will go.
+ * Narrowing reduces to the refinement's range. A refined value has to satisfy its own range or the
+ * patterns above it are not free after all, and a `Maybe(Id)` that folded its discriminant into
+ * those patterns would read a `Just` holding 2^60 as a `Nothing`. So this is not an optimization to
+ * skip - it is what makes the niche true. Per this pass's scope it truncates silently; the
+ * debug-build range check that reports instead is a later addition, and this is the one place it
+ * will go.
+ *
+ * **An unsigned refinement masks and a signed one sign-extends**, which is the same pair
+ * `decodePackedField` and `truncateToWidth` use and not a choice this function gets to make
+ * independently. The invariant the rest of the compiler is written against is that a value in a
+ * register is in its canonical type's normal form: `encodeBits` masks what it is handed precisely
+ * because "a signed one arrives sign-extended, so its high bits are ones exactly when they must not
+ * be stored". Masking here broke that - a `@bits(4) I32` holding -4 became 12 and stayed 12, since
+ * widening back is a cast that lowers to nothing and so had no way to undo it. Design.md's rule is
+ * that a load widens by zero- *or sign*-extension as the type asks.
  */
 ModulePtr<Value> ExprResolver::convertRefinement(ModulePtr<Value> value, TypePtr from, TypePtr target,
                                                  LocationId source) {
@@ -424,6 +504,16 @@ ModulePtr<Value> ExprResolver::convertRefinement(ModulePtr<Value> value, TypePtr
     // Widening, including a refinement to a narrower one that already fits inside the target.
     if(held.bits <= wanted.bits) {
         return ref(emit<InstUnary>(source, local[value]->name, target, Value::Cast, value));
+    }
+
+    if(wanted.isSigned) {
+        auto distance = IntType::registerBits(((IntType*)global[canonical])->width) - wanted.bits;
+        auto up = ref(emit<InstBinary>(source, 0, from, Value::Shl, value,
+                                       makeInt(source, from, distance)));
+        auto down = ref(emit<InstBinary>(source, 0, from, Value::Sar, up,
+                                         makeInt(source, from, distance)));
+
+        return ref(emit<InstUnary>(source, local[value]->name, target, Value::Cast, down));
     }
 
     auto mask = wanted.bits >= 64 ? maxLimit<U64> : (U64(1) << wanted.bits) - 1;
@@ -582,7 +672,7 @@ ModulePtr<Value> ExprResolver::finishBranches(Array<BranchArm>& arms, LocationId
     return result;
 }
 
-ModulePtr<Value> ExprResolver::resolveIf(const ast::Expr& expr, const ast::IfExpr& branch, TypePtr target, bool used) {
+ModulePtr<Value> ExprResolver::resolveIf(const ast::Expr& expr, const ast::IfExpr& branch, TypePtr target, bool used, bool implicit) {
     auto bindingCount = bindings.size();
     ModulePtr<Block> elseBlock = nullptr;
 
@@ -593,7 +683,7 @@ ModulePtr<Value> ExprResolver::resolveIf(const ast::Expr& expr, const ast::IfExp
 
     Array<BranchArm> arms;
 
-    auto thenValue = resolve(branch.then, target, used);
+    auto thenValue = resolve(branch.then, target, used, implicit);
     if(current) arms.push(BranchArm { current, thenValue, branch.then.source });
     bindings.resize(bindingCount);
 
@@ -602,7 +692,7 @@ ModulePtr<Value> ExprResolver::resolveIf(const ast::Expr& expr, const ast::IfExp
     auto elseSource = expr.source;
 
     if(branch.otherwise) {
-        elseValue = resolve(branch.otherwise.unwrap(), target, used);
+        elseValue = resolve(branch.otherwise.unwrap(), target, used, implicit);
         elseSource = branch.otherwise.unwrap().source;
     } else if(used) {
         context.diagnostics.error("value-producing if requires an else branch"_v, expr.source);
@@ -614,7 +704,7 @@ ModulePtr<Value> ExprResolver::resolveIf(const ast::Expr& expr, const ast::IfExp
     return finishBranches(arms, expr.source, used);
 }
 
-ModulePtr<Value> ExprResolver::resolveMultiIf(const ast::Expr& expr, ast::ParseList<ast::IfCase> cases, TypePtr target, bool used) {
+ModulePtr<Value> ExprResolver::resolveMultiIf(const ast::Expr& expr, ast::ParseList<ast::IfCase> cases, TypePtr target, bool used, bool implicit) {
     auto contents = cases.contents(parse);
     if(contents.size() == 0) return nullptr;
 
@@ -638,7 +728,7 @@ ModulePtr<Value> ExprResolver::resolveMultiIf(const ast::Expr& expr, ast::ParseL
             return nullptr;
         }
 
-        auto value = resolve(contents[i].then, target, used);
+        auto value = resolve(contents[i].then, target, used, implicit);
         if(current) arms.push(BranchArm { current, value, contents[i].then.source });
         bindings.resize(bindingCount);
 
@@ -1011,7 +1101,11 @@ ModulePtr<Value> ExprResolver::resolveAssign(const ast::Expr& expr, const ast::A
 // all leaves a literal variable behind for the surrounding expression to decide.
 ModulePtr<Value> ExprResolver::resolveInteger(LocationId source, TypePtr target, U64 value) {
     if(target && isFloat(global, target)) return makeFloat(source, target, F64(value));
-    if(target && isInteger(global, target)) return makeInt(source, target, value);
+
+    if(target && isInteger(global, target)) {
+        checkLiteralRange(source, target, value);
+        return makeInt(source, target, value);
+    }
 
     auto literal = constant<ConstInt>(source, literalVariable(module.coreClasses.fromInt), value);
     return target ? materializeLiteral(literal, target, source) : literal;
@@ -1043,7 +1137,7 @@ ModulePtr<Value> ExprResolver::resolveLiteral(const ast::Expr& expr, TypePtr tar
     }
 }
 
-ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bool used) {
+ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bool used, bool implicit) {
     if(!current) return nullptr;
     if(ast::isLiteral(expr)) return resolveLiteral(expr, target);
 
@@ -1051,7 +1145,7 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
         case ast::Expr::Error:
             return nullptr;
         case ast::Expr::Nested:
-            return resolve(*parse[expr.nested], target, used);
+            return resolve(*parse[expr.nested], target, used, implicit);
         case ast::Expr::Multi: {
             ModulePtr<Value> result = nullptr;
             auto expressions = expr.multi;
@@ -1059,7 +1153,7 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
 
             for(Size i = 0; i < values.size() && current; i++) {
                 auto last = i + 1 == values.size();
-                result = resolve(values[i], last ? target : nullptr, used && last);
+                result = resolve(values[i], last ? target : nullptr, used && last, last && implicit);
 
                 // Each element of a block is a statement of its own, which is the boundary a
                 // literal variable that nothing decided has to be settled at.
@@ -1073,7 +1167,7 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             if(!binding) {
                 if(auto found = findGlobal(module, expr.var, expr.source)) {
                     auto value = globalValue(found, expr.source);
-                    return value && target ? convert(value, target, expr.source) : value;
+                    return value && target ? convert(value, target, expr.source, implicit) : value;
                 }
 
                 // A function's name in value position is the function value that reaches it. This
@@ -1081,7 +1175,7 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
                 // shadow a declaration exactly as they did before function values existed.
                 if(auto callee = findFunction(module, expr.var, expr.source)) {
                     auto value = functionValue(callee, expr.source);
-                    return value && target ? convert(value, target, expr.source) : value;
+                    return value && target ? convert(value, target, expr.source, implicit) : value;
                 }
 
                 context.diagnostics.error("unknown scalar value %@"_v, expr.source, context.findName(expr.var));
@@ -1094,24 +1188,24 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             auto value = binding->isPlace() ? load(placeOf(*binding, expr.source), expr.source)
                                             : binding->value;
 
-            return value && target ? convert(value, target, expr.source) : value;
+            return value && target ? convert(value, target, expr.source, implicit) : value;
         }
         case ast::Expr::Con:
             return resolveConstruct(expr, *parse[expr.con], target);
         case ast::Expr::App:
-            return resolveCall(expr, *parse[expr.app], target);
+            return resolveCall(expr, *parse[expr.app], target, implicit);
         case ast::Expr::Infix:
-            return resolveBinary(expr, *parse[expr.infix], target);
+            return resolveBinary(expr, *parse[expr.infix], target, implicit);
         case ast::Expr::Prefix:
-            return resolvePrefix(expr, *parse[expr.prefix], target);
+            return resolvePrefix(expr, *parse[expr.prefix], target, implicit);
         case ast::Expr::If:
-            return resolveIf(expr, *parse[expr.singleIf], target, used);
+            return resolveIf(expr, *parse[expr.singleIf], target, used, implicit);
         case ast::Expr::MultiIf:
-            return resolveMultiIf(expr, expr.multiIf, target, used);
+            return resolveMultiIf(expr, expr.multiIf, target, used, implicit);
         case ast::Expr::Is:
             return resolveIs(expr, *parse[expr.is], used);
         case ast::Expr::Match:
-            return resolveMatch(expr, *parse[expr.match], target, used);
+            return resolveMatch(expr, *parse[expr.match], target, used, implicit);
         case ast::Expr::Decl:
             return resolveDecl(expr.decl, target, used);
         case ast::Expr::While:
@@ -1157,6 +1251,25 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             if(coerce.target.kind == ast::Expr::Prefix) {
                 auto value = resolvePrefix(coerce.target, *parse[coerce.target.prefix], type, false);
                 return convert(value, type, expr.source, false);
+            }
+
+            /*
+             * A form with no type of its own - a parenthesis, a block, the arms of an `if` or a
+             * `match` - is a pass-through, so the ascription belongs to each leaf rather than to the
+             * value they join. Without this the target stopped at the parenthesis: `(a `or` b) :: T`
+             * resolved the operator chain against nothing, its literals defaulted to `Int`, and the
+             * truncated result was converted afterwards.
+             *
+             * Pushed down as an *explicit* conversion, which is the whole reason `implicit` exists
+             * as a parameter. `(x) :: U8` has to keep meaning what `x :: U8` means, and an implicit
+             * conversion to a narrower type is an error about precision rather than a narrowing.
+             *
+             * The conversion below is then a no-op in the ordinary case and the fallback in the one
+             * where a leaf produced something else - a branch whose arms unified to a common type
+             * that still has to reach the ascribed one.
+             */
+            if(isPassThrough(coerce.target)) {
+                return convert(resolve(coerce.target, type, true, false), type, expr.source, false);
             }
 
             return convert(resolve(coerce.target), type, expr.source, false);

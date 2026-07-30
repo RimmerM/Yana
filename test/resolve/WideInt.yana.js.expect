@@ -59,11 +59,11 @@ function checkSarPositive() {
 }
 
 function checkAddWrap() {
-  return check($w53i$add(4503599627370495, 1), $w53i$sub(0, -4503599627370496), 1024);
+  return check($w53i$add(4503599627370495, 1), $w53i$sub($w53i$sub(0, 4503599627370495), 1), 1024);
 }
 
 function checkSubWrap() {
-  return check($w53i$sub($w53i$sub(0, -4503599627370496), 1), 4503599627370495, 2048);
+  return check($w53i$sub($w53i$sub($w53i$sub(0, 4503599627370495), 1), 1), 4503599627370495, 2048);
 }
 
 function checkMul() {

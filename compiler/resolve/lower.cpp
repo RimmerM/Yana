@@ -975,67 +975,109 @@ static LowerPtr<LowerValue> decodePackedField(LowerContext& lower, LowerBlock& b
 }
 
 /*
- * Wrapping an arithmetic result back into a type narrower than the register that holds it.
+ * A primitive integer whose declared width is narrower than the register the lower IR holds it in,
+ * so a value of it does not fill its own storage and arithmetic can leave a result the type cannot
+ * represent. `U8`/`I8`/`U16`/`I16` in a 32-bit register, and `WideInt` in a 64-bit one.
  *
- * **A primitive integer type only, never a `@bits` refinement.** The language rule is that
- * arithmetic happens at the type's native size and `@bits` describes *storage*, so `x + 1` on a
- * `@bits(3) U32` computes at 32 bits and is masked when it is stored; masking the value as well
- * would change what a comparison of it sees.
+ * **A primitive only, never a `@bits` refinement.** The language rule is that arithmetic happens at
+ * the type's native size and `@bits` describes *storage*, so `x + 1` on a `@bits(3) U32` computes at
+ * 32 bits and is masked when it is stored; masking the value as well would change what a comparison
+ * of it sees. That distinction is why the test is `registerBits(width)` and not the type's own
+ * `naturalStorageBits`: a refinement's own width is exactly what must not be wrapped to here.
  *
  * The `canonical` test is belt and braces rather than a fix for an observed bug. A refinement's
  * arithmetic already never reaches here, because every `@bits` type dispatches to the instances of
  * the type it refines and the resulting instruction is typed at *that* type - `x + 1` above is typed
- * `U32`, whose 32 bits are a natural unit. Verified by disabling this predicate entirely: the
- * lowering of a `@bits(3) U32` add is byte-identical either way, and only `WideInt` changes. It is
- * stated in the predicate anyway so that the rule is the code's rather than a consequence of how
- * dispatch happens to type a refinement today.
+ * `U32`, which fills its register. Verified by disabling this predicate entirely: the lowering of a
+ * `@bits(3) U32` add is byte-identical either way. It is stated in the predicate anyway so that the
+ * rule is the code's rather than a consequence of how dispatch happens to type a refinement today.
  *
- * What makes `WideInt` different is that 53 bits *is* its native size: it is declared as a primitive
- * rather than as `@bits(53) I64`, so its own `Integral` instance is selected and 53 is the width its
- * arithmetic is defined at on every target. Without this it wrapped at 64 here and at 53 on JS - a
- * silent cross-target difference in exactly the operation the type exists for.
+ * `WideInt` is the case that made this necessary at all: 53 bits *is* its native size, because it is
+ * declared as a primitive rather than as `@bits(53) I64`, so its own `Integral` instance is selected
+ * and 53 is the width its arithmetic is defined at on every target. Without this it wrapped at 64
+ * here and at 53 on JS.
  *
- * So the rule generalizes rather than naming `WideInt`: any primitive whose width is not a natural
- * storage unit wraps at that width. Today that is `WideInt` and nothing else - `U8`, `U16`, `U32`,
- * `I64` and the rest are all natural widths and fail the second test.
- *
- * Only the operations that can leave the range: `and`, `or`, `xor`, the right shifts, division and
- * remainder all map an in-range pair to an in-range result, and masking those would cost an
- * instruction per operation to compute a value that is already correct.
- *
- * Two shapes, the same pair `decodePackedBits` uses: an unsigned type masks, and a signed one shifts
- * up until its sign bit is the register's and arithmetically back down, which truncates and
- * sign-extends in the same two instructions.
+ * The sub-word widths were the same bug found later and from the other side. Nothing narrowed a
+ * `U8` result, so `addU8(200, 100)` was 300 here - a value of a type that cannot hold it, in a
+ * register whose high bits nothing had cleared - and 44 on JS, which masks every narrow integer at
+ * its own width. Widening one to an `Int` afterwards is a `cast` that trusts a register the
+ * arithmetic never actually narrowed, so the dirt propagated silently.
  */
-static bool wrapsAtDeclaredWidth(GlobalBase global, TypePtr type, Value::Kind kind) {
-    switch(kind) {
-        case Value::Add: case Value::Sub: case Value::Mul: case Value::Shl: case Value::Neg:
-            break;
-        default:
-            return false;
-    }
-
+static bool narrowerThanRegister(GlobalBase global, TypePtr type) {
     if(!type || global[type]->kind != Type::Int) return false;
 
     auto integer = (IntType*)global[type];
     if(integer->canonical || integer->width == IntType::Bool) return false;
 
-    return integer->bits < naturalStorageBits(integer->bits);
+    return integer->bits < IntType::registerBits(integer->width);
+}
+
+/*
+ * Wrapping an arithmetic result back into a type narrower than the register that holds it.
+ *
+ * Only the operations that can leave the range: `and`, `or`, `xor`, `sar`, division and remainder
+ * all map an in-range pair to an in-range result, and masking those would cost an instruction per
+ * operation to compute a value that is already correct.
+ *
+ * `shr` is here for a different reason than the arithmetic five, and needs `zeroExtendsShiftOperand`
+ * below as well - see its comment. On its own the wrap would be pointless, since a logical shift of
+ * an already-masked operand is in range for every distance but zero.
+ */
+static bool wrapsAtDeclaredWidth(GlobalBase global, TypePtr type, Value::Kind kind) {
+    switch(kind) {
+        case Value::Add: case Value::Sub: case Value::Mul: case Value::Shl: case Value::Neg:
+        case Value::Shr:
+            break;
+        default:
+            return false;
+    }
+
+    return narrowerThanRegister(global, type);
+}
+
+/*
+ * Zero-extending the operand of a logical right shift.
+ *
+ * `shr` is the one operation that reads a narrow value's *storage* rather than its value. A signed
+ * type narrower than its register is held sign-extended - that is exactly what `truncateToWidth`
+ * leaves behind - so shifting it right logically brings the register's own sign bits down into the
+ * answer instead of zeroes. `((0 :: WideInt) - 1) \`shr\` 1` was 2^63-1 here and 2^52-1 on JS, and
+ * an `I8` holding -1 would have had the same 24 bits of dirt in front of it.
+ *
+ * Masking afterwards cannot recover it: by then the bits that should have been zero are part of the
+ * result. So the operand is masked first, and the result is re-signed by `truncateToWidth` like any
+ * other - which does something only at a shift distance of zero, where the masked value can still
+ * have its own sign bit set.
+ */
+static bool zeroExtendsShiftOperand(GlobalBase global, TypePtr type, Value::Kind kind) {
+    return kind == Value::Shr && signedType(global, type) && narrowerThanRegister(global, type);
+}
+
+// The register-relative distance that puts a narrow type's sign bit in the register's, which is what
+// makes shifting up and arithmetically back down a truncate and a sign-extend in two instructions.
+static U32 signShift(GlobalBase global, TypePtr type) {
+    auto integer = (IntType*)global[type];
+    return IntType::registerBits(integer->width) - integer->bits;
+}
+
+static LowerPtr<LowerValue> maskToWidth(LowerContext& lower, LowerBlock& block,
+                                        LowerPtr<LowerValue> value, TypePtr type, LowerType lowered) {
+    auto mask = immediate(lower, lowMask(U32(((IntType*)lower.global[type])->bits)), lowered);
+    return binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[value],
+                                  lower.lower[mask], lowered, 0)->created().ptr - lower.lower;
 }
 
 static LowerInst* truncateToWidth(LowerContext& lower, LowerBlock& block, LowerInst* result,
                                   TypePtr type, LowerType lowered, StringId name) {
-    auto integer = (IntType*)lower.global[type];
-    auto bits = U32(integer->bits);
     auto value = result->created().ptr - lower.lower;
 
     if(!signedType(lower.global, type)) {
-        auto mask = immediate(lower, lowMask(bits));
+        auto mask = immediate(lower, lowMask(U32(((IntType*)lower.global[type])->bits)), lowered);
         return binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[value],
                                       lower.lower[mask], lowered, name);
     }
 
-    auto distance = immediate(lower, naturalStorageBits(bits) - bits);
+    auto distance = immediate(lower, signShift(lower.global, type), lowered);
     auto up = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[value],
                                      lower.lower[distance], lowered, 0)->created().ptr - lower.lower;
 
@@ -2478,6 +2520,10 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             auto lhs = mappedValue(lower, binaryInst.lhs);
             auto rhs = mappedValue(lower, binaryInst.rhs);
             auto type = lowerType(lower.global, instruction.type);
+
+            if(zeroExtendsShiftOperand(lower.global, instruction.type, instruction.kind)) {
+                lhs = maskToWidth(lower, block, lhs, instruction.type, type);
+            }
 
             switch(binaryKind(lower, binaryInst)) {
                 case LowerInst::Add:

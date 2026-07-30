@@ -21,9 +21,10 @@ fn bump(%x: @bits(4) Int) -> () {
     %v1 = load %x : @bits(4) Int
     %v3 = cast %v1 : Int
     %v5 = add %v3, 1 : Int
-    %v7 = and %v5, 15 : Int
-    %v8 = cast %v7 : @bits(4) Int
-    assign %x, %v8
+    %v7 = shl %v5, 28 : Int
+    %v9 = sar %v7, 28 : Int
+    %v10 = cast %v9 : @bits(4) Int
+    assign %x, %v10
     ret
 }
 
@@ -439,20 +440,21 @@ fn reordered() -> Int {
     %v16 = load %i@Inefficient.d : @bits(4) Int
     %v18 = cast %v16 : Int
     %v20 = add %v18, 1 : Int
-    %v22 = and %v20, 15 : Int
-    %v23 = cast %v22 : @bits(4) Int
-    assign %i@Inefficient.d, %v23
-    %v25 = load %i : Inefficient
-    %v26 = load %i@Inefficient.f : @bits(4) Int
-    %v27 = borrow_mut %i@Inefficient.f : &mut @bits(4) Int
-    call bump, %v27
-    %v29 = load %i : Inefficient
-    %v30 = load %i@Inefficient.b : U64
-    %v33 = add %v30, 1 : U64
-    assign %i@Inefficient.b, %v33
-    %v35 = load %i : Inefficient
-    %v36 = load %i@Inefficient.a : Bool
-    je %v36, b1, b2
+    %v22 = shl %v20, 28 : Int
+    %v24 = sar %v22, 28 : Int
+    %v25 = cast %v24 : @bits(4) Int
+    assign %i@Inefficient.d, %v25
+    %v27 = load %i : Inefficient
+    %v28 = load %i@Inefficient.f : @bits(4) Int
+    %v29 = borrow_mut %i@Inefficient.f : &mut @bits(4) Int
+    call bump, %v29
+    %v31 = load %i : Inefficient
+    %v32 = load %i@Inefficient.b : U64
+    %v35 = add %v32, 1 : U64
+    assign %i@Inefficient.b, %v35
+    %v37 = load %i : Inefficient
+    %v38 = load %i@Inefficient.a : Bool
+    je %v38, b1, b2
 
   b1:
     jmp b3
@@ -461,33 +463,33 @@ fn reordered() -> Int {
     jmp b3
 
   b3:
-    %v44 = phi [b1, 1], [b2, 0] : Int
-    %v45 = load %i : Inefficient
-    %v46 = load %i@Inefficient.b : U64
-    %v47 = cast %v46 : Int
-    %v50 = mul %v47, 10 : Int
-    %v51 = add %v44, %v50 : Int
-    %v52 = load %i : Inefficient
-    %v53 = load %i@Inefficient.c : U8
-    %v54 = cast %v53 : Int
-    %v57 = mul %v54, 100 : Int
-    %v58 = add %v51, %v57 : Int
-    %v59 = load %i : Inefficient
-    %v60 = load %i@Inefficient.d : @bits(4) Int
-    %v61 = cast %v60 : Int
-    %v64 = mul %v61, 1000 : Int
-    %v65 = add %v58, %v64 : Int
-    %v66 = load %i : Inefficient
-    %v67 = load %i@Inefficient.e : U32
-    %v68 = cast %v67 : Int
-    %v71 = mul %v68, 10000 : Int
-    %v72 = add %v65, %v71 : Int
-    %v73 = load %i : Inefficient
-    %v74 = load %i@Inefficient.f : @bits(4) Int
-    %v75 = cast %v74 : Int
-    %v78 = mul %v75, 1000000 : Int
-    %v79 = add %v72, %v78 : Int
-    ret %v79
+    %v46 = phi [b1, 1], [b2, 0] : Int
+    %v47 = load %i : Inefficient
+    %v48 = load %i@Inefficient.b : U64
+    %v49 = cast %v48 : Int
+    %v52 = mul %v49, 10 : Int
+    %v53 = add %v46, %v52 : Int
+    %v54 = load %i : Inefficient
+    %v55 = load %i@Inefficient.c : U8
+    %v56 = cast %v55 : Int
+    %v59 = mul %v56, 100 : Int
+    %v60 = add %v53, %v59 : Int
+    %v61 = load %i : Inefficient
+    %v62 = load %i@Inefficient.d : @bits(4) Int
+    %v63 = cast %v62 : Int
+    %v66 = mul %v63, 1000 : Int
+    %v67 = add %v60, %v66 : Int
+    %v68 = load %i : Inefficient
+    %v69 = load %i@Inefficient.e : U32
+    %v70 = cast %v69 : Int
+    %v73 = mul %v70, 10000 : Int
+    %v74 = add %v67, %v73 : Int
+    %v75 = load %i : Inefficient
+    %v76 = load %i@Inefficient.f : @bits(4) Int
+    %v77 = cast %v76 : Int
+    %v80 = mul %v77, 1000000 : Int
+    %v81 = add %v74, %v80 : Int
+    ret %v81
 }
 
 fn pinned() -> Int {
@@ -505,20 +507,21 @@ fn pinned() -> Int {
     %v16 = load %p@Pinned.d : @bits(4) Int
     %v18 = cast %v16 : Int
     %v20 = add %v18, 1 : Int
-    %v22 = and %v20, 15 : Int
-    %v23 = cast %v22 : @bits(4) Int
-    assign %p@Pinned.d, %v23
-    %v25 = load %p : Pinned
-    %v26 = load %p@Pinned.f : @bits(4) Int
-    %v27 = borrow_mut %p@Pinned.f : &mut @bits(4) Int
-    call bump, %v27
-    %v29 = load %p : Pinned
-    %v30 = load %p@Pinned.b : U64
-    %v33 = add %v30, 1 : U64
-    assign %p@Pinned.b, %v33
-    %v35 = load %p : Pinned
-    %v36 = load %p@Pinned.a : Bool
-    je %v36, b1, b2
+    %v22 = shl %v20, 28 : Int
+    %v24 = sar %v22, 28 : Int
+    %v25 = cast %v24 : @bits(4) Int
+    assign %p@Pinned.d, %v25
+    %v27 = load %p : Pinned
+    %v28 = load %p@Pinned.f : @bits(4) Int
+    %v29 = borrow_mut %p@Pinned.f : &mut @bits(4) Int
+    call bump, %v29
+    %v31 = load %p : Pinned
+    %v32 = load %p@Pinned.b : U64
+    %v35 = add %v32, 1 : U64
+    assign %p@Pinned.b, %v35
+    %v37 = load %p : Pinned
+    %v38 = load %p@Pinned.a : Bool
+    je %v38, b1, b2
 
   b1:
     jmp b3
@@ -527,33 +530,33 @@ fn pinned() -> Int {
     jmp b3
 
   b3:
-    %v44 = phi [b1, 1], [b2, 0] : Int
-    %v45 = load %p : Pinned
-    %v46 = load %p@Pinned.b : U64
-    %v47 = cast %v46 : Int
-    %v50 = mul %v47, 10 : Int
-    %v51 = add %v44, %v50 : Int
-    %v52 = load %p : Pinned
-    %v53 = load %p@Pinned.c : U8
-    %v54 = cast %v53 : Int
-    %v57 = mul %v54, 100 : Int
-    %v58 = add %v51, %v57 : Int
-    %v59 = load %p : Pinned
-    %v60 = load %p@Pinned.d : @bits(4) Int
-    %v61 = cast %v60 : Int
-    %v64 = mul %v61, 1000 : Int
-    %v65 = add %v58, %v64 : Int
-    %v66 = load %p : Pinned
-    %v67 = load %p@Pinned.e : U32
-    %v68 = cast %v67 : Int
-    %v71 = mul %v68, 10000 : Int
-    %v72 = add %v65, %v71 : Int
-    %v73 = load %p : Pinned
-    %v74 = load %p@Pinned.f : @bits(4) Int
-    %v75 = cast %v74 : Int
-    %v78 = mul %v75, 1000000 : Int
-    %v79 = add %v72, %v78 : Int
-    ret %v79
+    %v46 = phi [b1, 1], [b2, 0] : Int
+    %v47 = load %p : Pinned
+    %v48 = load %p@Pinned.b : U64
+    %v49 = cast %v48 : Int
+    %v52 = mul %v49, 10 : Int
+    %v53 = add %v46, %v52 : Int
+    %v54 = load %p : Pinned
+    %v55 = load %p@Pinned.c : U8
+    %v56 = cast %v55 : Int
+    %v59 = mul %v56, 100 : Int
+    %v60 = add %v53, %v59 : Int
+    %v61 = load %p : Pinned
+    %v62 = load %p@Pinned.d : @bits(4) Int
+    %v63 = cast %v62 : Int
+    %v66 = mul %v63, 1000 : Int
+    %v67 = add %v60, %v66 : Int
+    %v68 = load %p : Pinned
+    %v69 = load %p@Pinned.e : U32
+    %v70 = cast %v69 : Int
+    %v73 = mul %v70, 10000 : Int
+    %v74 = add %v67, %v73 : Int
+    %v75 = load %p : Pinned
+    %v76 = load %p@Pinned.f : @bits(4) Int
+    %v77 = cast %v76 : Int
+    %v80 = mul %v77, 1000000 : Int
+    %v81 = add %v74, %v80 : Int
+    ret %v81
 }
 
 fn hostShaped() -> Int {
@@ -571,23 +574,25 @@ fn hostShaped() -> Int {
     %v16 = load %p@HostShaped.d : @bits(4) Int
     %v18 = cast %v16 : Int
     %v20 = add %v18, 1 : Int
-    %v22 = and %v20, 15 : Int
-    %v23 = cast %v22 : @bits(4) Int
-    assign %p@HostShaped.d, %v23
-    %v25 = load %p : HostShaped
-    %v26 = load %p@HostShaped.f : @bits(4) Int
-    %v28 = cast %v26 : Int
-    %v30 = add %v28, 1 : Int
-    %v32 = and %v30, 15 : Int
-    %v33 = cast %v32 : @bits(4) Int
-    assign %p@HostShaped.f, %v33
-    %v35 = load %p : HostShaped
-    %v36 = load %p@HostShaped.b : U64
-    %v39 = add %v36, 1 : U64
-    assign %p@HostShaped.b, %v39
-    %v41 = load %p : HostShaped
-    %v42 = load %p@HostShaped.a : Bool
-    je %v42, b1, b2
+    %v22 = shl %v20, 28 : Int
+    %v24 = sar %v22, 28 : Int
+    %v25 = cast %v24 : @bits(4) Int
+    assign %p@HostShaped.d, %v25
+    %v27 = load %p : HostShaped
+    %v28 = load %p@HostShaped.f : @bits(4) Int
+    %v30 = cast %v28 : Int
+    %v32 = add %v30, 1 : Int
+    %v34 = shl %v32, 28 : Int
+    %v36 = sar %v34, 28 : Int
+    %v37 = cast %v36 : @bits(4) Int
+    assign %p@HostShaped.f, %v37
+    %v39 = load %p : HostShaped
+    %v40 = load %p@HostShaped.b : U64
+    %v43 = add %v40, 1 : U64
+    assign %p@HostShaped.b, %v43
+    %v45 = load %p : HostShaped
+    %v46 = load %p@HostShaped.a : Bool
+    je %v46, b1, b2
 
   b1:
     jmp b3
@@ -596,33 +601,33 @@ fn hostShaped() -> Int {
     jmp b3
 
   b3:
-    %v50 = phi [b1, 1], [b2, 0] : Int
-    %v51 = load %p : HostShaped
-    %v52 = load %p@HostShaped.b : U64
-    %v53 = cast %v52 : Int
-    %v56 = mul %v53, 10 : Int
-    %v57 = add %v50, %v56 : Int
-    %v58 = load %p : HostShaped
-    %v59 = load %p@HostShaped.c : U8
-    %v60 = cast %v59 : Int
-    %v63 = mul %v60, 100 : Int
-    %v64 = add %v57, %v63 : Int
-    %v65 = load %p : HostShaped
-    %v66 = load %p@HostShaped.d : @bits(4) Int
-    %v67 = cast %v66 : Int
-    %v70 = mul %v67, 1000 : Int
-    %v71 = add %v64, %v70 : Int
-    %v72 = load %p : HostShaped
-    %v73 = load %p@HostShaped.e : U32
-    %v74 = cast %v73 : Int
-    %v77 = mul %v74, 10000 : Int
-    %v78 = add %v71, %v77 : Int
-    %v79 = load %p : HostShaped
-    %v80 = load %p@HostShaped.f : @bits(4) Int
-    %v81 = cast %v80 : Int
-    %v84 = mul %v81, 1000000 : Int
-    %v85 = add %v78, %v84 : Int
-    ret %v85
+    %v54 = phi [b1, 1], [b2, 0] : Int
+    %v55 = load %p : HostShaped
+    %v56 = load %p@HostShaped.b : U64
+    %v57 = cast %v56 : Int
+    %v60 = mul %v57, 10 : Int
+    %v61 = add %v54, %v60 : Int
+    %v62 = load %p : HostShaped
+    %v63 = load %p@HostShaped.c : U8
+    %v64 = cast %v63 : Int
+    %v67 = mul %v64, 100 : Int
+    %v68 = add %v61, %v67 : Int
+    %v69 = load %p : HostShaped
+    %v70 = load %p@HostShaped.d : @bits(4) Int
+    %v71 = cast %v70 : Int
+    %v74 = mul %v71, 1000 : Int
+    %v75 = add %v68, %v74 : Int
+    %v76 = load %p : HostShaped
+    %v77 = load %p@HostShaped.e : U32
+    %v78 = cast %v77 : Int
+    %v81 = mul %v78, 10000 : Int
+    %v82 = add %v75, %v81 : Int
+    %v83 = load %p : HostShaped
+    %v84 = load %p@HostShaped.f : @bits(4) Int
+    %v85 = cast %v84 : Int
+    %v88 = mul %v85, 1000000 : Int
+    %v89 = add %v82, %v88 : Int
+    ret %v89
 }
 
 fn hostBorrowed() -> Int {

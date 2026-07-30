@@ -377,12 +377,26 @@ static JsPtr<Expr> shiftOf(Gen& g, PlaceBits bits) {
     return binary(g, BinaryOp::Add, bits.shift, number(g, F64(bits.offset)));
 }
 
-JsPtr<Expr> decodeBits(Gen& g, JsPtr<Expr> owner, PlaceBits bits, TypePtr) {
+JsPtr<Expr> decodeBits(Gen& g, JsPtr<Expr> owner, PlaceBits bits, TypePtr type) {
     auto value = owner;
     if(auto shift = shiftOf(g, bits)) value = binary(g, BinaryOp::Shr, value, shift);
 
-    auto mask = bits.width >= 32 ? ~U32(0) : (U32(1) << bits.width) - 1;
-    return binary(g, BinaryOp::And, value, number(g, F64(mask)));
+    if(bits.width >= 32) return binary(g, BinaryOp::And, value, number(g, F64(~U32(0))));
+
+    /*
+     * A signed field widens by *sign*-extension, which masking cannot do: `& 15` on a `@bits(4) I32`
+     * holding -4 answers 12, and the field's four bits are all the information there is to tell the
+     * two apart. Shifting the field's top bit up to bit 31 and arithmetically back down truncates
+     * and sign-extends in the same pair - the shape `decodePackedField` uses natively, and the
+     * reason the two targets agreed on everything here except the sign.
+     */
+    auto integer = intType(g, type);
+    if(integer && integer->isSigned) {
+        auto distance = number(g, F64(32 - bits.width));
+        return binary(g, BinaryOp::Sar, binary(g, BinaryOp::Shl, value, distance), distance);
+    }
+
+    return binary(g, BinaryOp::And, value, number(g, F64((U32(1) << bits.width) - 1)));
 }
 
 /*

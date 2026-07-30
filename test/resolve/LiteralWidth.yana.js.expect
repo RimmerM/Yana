@@ -1,0 +1,151 @@
+"use strict";
+// ResolveTest
+function checkW(actual, expected, weight) {
+  var v8;
+  if (actual === expected) {
+    v8 = weight;
+  } else {
+    v8 = 0;
+  }
+  return v8;
+}
+
+function checkL(actual, expected, weight) {
+  var v8;
+  if (actual === expected) {
+    v8 = weight;
+  } else {
+    v8 = 0;
+  }
+  return v8;
+}
+
+function adoptOr() {
+  return $w53i$or(34359738368, 255);
+}
+
+function adoptAdd() {
+  return $w53i$add(34359738368, 255);
+}
+
+function adoptShl() {
+  return $w53i$shl(1, 40);
+}
+
+function adoptChain() {
+  return $w53i$or($w53i$or(34359738368, 255), 4096);
+}
+
+function adoptAssign() {
+  return $w53i$or(34359738368, 255);
+}
+
+function adoptArgument() {
+  return checkW($w53i$or(34359738368, 255), 34359738623, 32);
+}
+
+function adoptField() {
+  return { value: $w53i$or(34359738368, 255) }.value;
+}
+
+function adoptLong() {
+  return BigInt.asIntN(64, 3000000000n + 3000000000n);
+}
+
+function adoptNegative() {
+  return BigInt.asIntN(64, 0n - 3000000000n);
+}
+
+function adoptIf(flag) {
+  var v10;
+  if (flag) {
+    v10 = $w53i$or(34359738368, 255);
+  } else {
+    v10 = 0;
+  }
+  return v10;
+}
+
+function concreteWins(x) {
+  return BigInt.asIntN(64, BigInt(x + 2147483647 | 0));
+}
+
+function concreteMul(x) {
+  return Math.imul(x, x) | 0;
+}
+
+function castParen() {
+  return $w53i$or(34359738368, 255);
+}
+
+function castTwice() {
+  return $w53i$or(34359738368, 255);
+}
+
+function castIf(c) {
+  var v10;
+  if (c) {
+    v10 = $w53i$or(34359738368, 255);
+  } else {
+    v10 = 0;
+  }
+  return v10;
+}
+
+function castMatch(c) {
+  var v13;
+  if (c) {
+    v13 = $w53i$or(34359738368, 255);
+  } else {
+    v13 = 0;
+  }
+  return v13;
+}
+
+function narrowParen(x) {
+  return Number(x) | 0;
+}
+
+function narrowIf(c, x) {
+  var v7;
+  if (c) {
+    v7 = Number(x) | 0;
+  } else {
+    v7 = 0;
+  }
+  return v7;
+}
+
+function main() {
+  var v99;
+  var v114;
+  var v86 = ((((((((((((((checkW(adoptOr(), 34359738623, 1) + checkW(adoptAdd(), 34359738623, 2) | 0) + checkW(adoptShl(), 1099511627776, 4) | 0) + checkW(adoptChain(), 34359742719, 8) | 0) + checkW(adoptAssign(), 34359738623, 16) | 0) + adoptArgument() | 0) + checkW(adoptField(), 34359738623, 64) | 0) + checkL(adoptLong(), 6000000000n, 128) | 0) + checkL(adoptNegative(), BigInt.asIntN(64, 0n - 3000000000n), 256) | 0) + checkW(adoptIf(1), 34359738623, 512) | 0) + checkL(concreteWins(1), BigInt.asIntN(64, 0n - 2147483648n), 1024) | 0) + checkW(concreteMul(100000), 1410065408, 2048) | 0) + checkW(castParen(), 34359738623, 4096) | 0) + checkW(castTwice(), 34359738623, 8192) | 0) + checkW(castIf(1), 34359738623, 16384) | 0) + checkW(castMatch(1), 34359738623, 32768) | 0;
+  if (narrowParen(4294967301n) === 5) {
+    v99 = 65536;
+  } else {
+    v99 = 0;
+  }
+  var v100 = v86 + v99 | 0;
+  if (narrowIf(1, 4294967301n) === 5) {
+    v114 = 131072;
+  } else {
+    v114 = 0;
+  }
+  return v100 + v114 | 0;
+}
+
+// integers of 33 to 53 bits - see codegen/js/wide.cpp
+function $w53i$or(a, b) {
+  var v = ((Math.floor(a * 2.3283064365386963E-10) | Math.floor(b * 2.3283064365386963E-10)) & 2097151) * 4294967296 + ((a | b) >>> 0);
+  return v >= 4503599627370496 ? v - 9007199254740992 : v;
+}
+
+function $w53i$add(a, b) {
+  var v = a + b;
+  return v >= 4503599627370496 ? v - 9007199254740992 : v < -4503599627370496 ? v + 9007199254740992 : v;
+}
+
+function $w53i$shl(a, b) {
+  var s = b >= 32 ? (a >>> 0 << b - 32 & 2097151) * 4294967296 : (((Math.floor(a * 2.3283064365386963E-10) & 2097151) << b | a >>> 0 >>> 32 - b) & 2097151) * 4294967296 + (a >>> 0 << b >>> 0);
+  return b === 0 ? a : s >= 4503599627370496 ? s - 9007199254740992 : s;
+}

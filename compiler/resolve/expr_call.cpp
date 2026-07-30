@@ -312,7 +312,7 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(Array<const ast::Expr*>& operan
     return lhs;
 }
 
-ModulePtr<Value> ExprResolver::resolveBinary(const ast::Expr& expr, const ast::InfixExpr& binary, TypePtr target) {
+ModulePtr<Value> ExprResolver::resolveBinary(const ast::Expr& expr, const ast::InfixExpr& binary, TypePtr target, bool convertResult) {
     Array<const ast::Expr*> operands;
     Array<StringId> operators;
     auto node = &binary;
@@ -351,7 +351,7 @@ ModulePtr<Value> ExprResolver::resolveBinary(const ast::Expr& expr, const ast::I
     // could honour it the conversion afterwards is then the identity; where they could not - a
     // concrete operand decided the instance - it is the conversion that was always emitted.
     auto result = resolvePrecedence(operands, operators, operandIndex, operatorIndex, 0, target);
-    if(result && target) result = convert(result, target, expr.source);
+    if(result && target) result = convert(result, target, expr.source, convertResult);
     return result;
 }
 

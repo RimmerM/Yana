@@ -2,6 +2,8 @@
 #include <File.h>
 #include <cstdlib>
 #include <cstring>
+#include <cstdio>
+#include <cerrno>
 #include "../compiler/parse/parser.h"
 #include "../compiler/resolve/analyze.h"
 #include "../compiler/resolve/lower.h"
@@ -338,8 +340,80 @@ static bool runGenericPass(const String& path, StringView source, I64 expected) 
  * yet has nothing useful to say about those; the ones that opt in are the ones that are about
  * something this backend implements.
  */
+
+/*
+ * Runs the emitted JavaScript and compares what `main` answers with what the amd64 backend answered.
+ *
+ * The gap this closes is that nothing executed the JS at all: the backend was asserted by its own
+ * golden text, so the two targets could - and repeatedly did - disagree about what a program *means*
+ * with every fixture still green. Four such differences were found by hand before this existed, and
+ * every one of them would have been a failing test here.
+ *
+ * The expected value is the one the native run is checked against, because agreeing with each other
+ * is the property worth asserting; a fixture whose JS answer legitimately differs says so by putting
+ * the other number in a `.js.run.expect` beside it, which today is `Platform.yana` and nothing else.
+ * Opted into by `.js.expect` and `.run.expect` both existing, on the same terms as every other mode.
+ *
+ * The text run is the text just emitted rather than the file on disk, so a stale golden cannot make
+ * this pass by testing the previous compiler's output.
+ */
+static bool nodeAvailable() {
+    static int cached = -1;
+    if(cached < 0) {
+        cached = system("node --version > /dev/null 2>&1") == 0;
+        if(!cached) println("Note: `node` is not on PATH, so the JavaScript output is not being run.");
+    }
+
+    return cached != 0;
+}
+
+static Maybe<I64> executeJsMain(const String& path, ByteBuffer emitted) {
+    auto scriptPath = path + String(".run.js");
+    auto outputPath = path + String(".run.out");
+
+    writeText(scriptPath, [&](Net::Writer& writer) {
+        writer.writeString(StringView { (const char*)emitted.ptr, emitted.length });
+        // `String()` rather than the value itself, because an `I64` is a BigInt here and would
+        // otherwise print as `37n`.
+        writer.writeString("\nconsole.log(String(main()));\n"_v);
+    });
+
+    // Assembled into a null-terminated buffer rather than through String, whose text() is a length-
+    // counted pointer with no terminator: handing that to a shell appends whatever follows it in
+    // memory, which truncated the redirection into `2>&` and made a third of the fixtures report a
+    // JavaScript failure with a different third failing on each run.
+    char command[512];
+    snprintf(command, sizeof(command), "node '%.*s' > '%.*s' 2>&1",
+             int(scriptPath.size()), scriptPath.text(), int(outputPath.size()), outputPath.text());
+
+    auto status = system(command);
+
+    char buffer[512] = {};
+    Size read = 0;
+
+    if(auto opened = File::openFile(outputPath, readAccess()); opened.isOk()) {
+        auto file = opened.moveUnwrapOk();
+        read = file.size() < sizeof(buffer) - 1 ? Size(file.size()) : sizeof(buffer) - 1;
+        file.read({ (Byte*)buffer, read });
+        buffer[read] = 0;
+    }
+
+    File::remove(scriptPath);
+    File::remove(outputPath);
+
+    if(status != 0) {
+        println("Fail (%@): running the emitted JavaScript failed: %@", path,
+                StringView(buffer, U32(read)));
+        return Nothing();
+    }
+
+    char* end = nullptr;
+    auto value = strtoll(buffer, &end, 10);
+    return end == buffer ? Nothing() : Just(I64(value));
+}
+
 static bool runJsPass(const String& path, const String& jsPath, StringView source, bool generate,
-                      bool forceGeneric) {
+                      bool forceGeneric, Maybe<I64> expectedRun) {
     TestProvider provider;
     provider.source = source;
     PrintDiagnostics diagnostics(provider);
@@ -375,7 +449,20 @@ static bool runJsPass(const String& path, const String& jsPath, StringView sourc
 
     Net::Writer writer(16384);
     js::formatFile(writer, context, *file, false);
-    return compareText(jsPath, writer.getBuffered());
+    auto pass = compareText(jsPath, writer.getBuffered());
+
+    // The forced-generic build emits the same program through the erased ABI, and its *result* is
+    // what that mode asserts - running it twice would only assert Node twice.
+    if(expectedRun && !forceGeneric && nodeAvailable()) {
+        auto actual = executeJsMain(path, writer.getBuffered());
+        if(!actual || actual.unwrap() != expectedRun.unwrap()) {
+            println("Fail (%@): JavaScript main returned %@, expected %@.", path,
+                    actual ? actual.unwrap() : I64(-1), expectedRun.unwrap());
+            pass = false;
+        }
+    }
+
+    return pass;
 }
 
 /*
@@ -510,8 +597,18 @@ static bool runTest(const String& path, StringView source, bool generate) {
     checkRepr(".repr.expect", nativeReprTarget());
     checkRepr(".repr.js.expect", jsReprTarget());
 
+    auto runPath = path + String(".run.expect");
+    auto expectedRun = readExpectedRun(runPath);
+
     auto jsPath = path + String(".js.expect");
-    if(fileExists(jsPath)) pass = runJsPass(path, jsPath, source, generate, forceGeneric) && pass;
+
+    if(fileExists(jsPath)) {
+        // A fixture whose two targets legitimately answer differently names the JS answer here.
+        // `@platform` selecting different bodies is the one case, and it is a property of the
+        // program rather than a difference of opinion between the backends.
+        auto jsRun = readExpectedRun(path + String(".js.run.expect"));
+        pass = runJsPass(path, jsPath, source, generate, forceGeneric, jsRun ? jsRun : expectedRun) && pass;
+    }
 
     auto lowered = lowerProgram(context, *module);
 
@@ -538,8 +635,7 @@ static bool runTest(const String& path, StringView source, bool generate) {
         pass = runLlvmPass(path, llvmPath, context, diagnostics, *lowered, generate) && pass;
     }
 
-    auto runPath = path + String(".run.expect");
-    if(auto expected = readExpectedRun(runPath)) {
+    if(auto expected = expectedRun) {
         auto actual = executeMain(context, *module, *lowered);
         if(!actual || actual.unwrap() != expected.unwrap()) {
             println("Fail (%@): amd64 main returned %@, expected %@.", path,

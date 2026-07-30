@@ -1,0 +1,317 @@
+
+checkL<complex>(%actual: Long, %expected: Long, %weight: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %actual, %expected: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
+    ret %v_5
+  }
+}
+
+concreteWins<complex>(%x: Int): Long {
+  b_0 {
+    %v_1 = add %x, 2147483647: Int
+    %v_2 = sext %v_1: Long
+    ret %v_2
+  }
+}
+
+adoptField<complex>(): Long {
+  b_0 {
+    %v_1 = or 34359738368, 255: Long
+    ret %v_1
+  }
+}
+
+concreteMul<complex>(%x: Int): Long {
+  b_0 {
+    %v_1 = imul %x, %x: Int
+    %v_2 = sext %v_1: Long
+    ret %v_2
+  }
+}
+
+adoptChain<complex>(): Long {
+  b_0 {
+    %v_1 = or 34359738368, 255: Long
+    %v_2 = or %v_1, 4096: Long
+    ret %v_2
+  }
+}
+
+adoptArgument<complex>(): Int {
+  b_0 {
+    %v_1 = or 34359738368, 255: Long
+    %v_2 = call_complex checkW, %v_1, 34359738623, 32: Int
+    ret %v_2
+  }
+}
+
+adoptAdd<complex>(): Long {
+  b_0 {
+    %v_1 = add 34359738368, 255: Long
+    %v_2 = imm 11: Long
+    %v_3 = shl %v_1, %v_2: Long
+    %v_4 = sar %v_3, %v_2: Long
+    ret %v_4
+  }
+}
+
+adoptShl<complex>(): Long {
+  b_0 {
+    %v_1 = shl 1, 40: Long
+    %v_2 = imm 11: Long
+    %v_3 = shl %v_1, %v_2: Long
+    %v_4 = sar %v_3, %v_2: Long
+    ret %v_4
+  }
+}
+
+narrowIf<complex>(%c: Int, %x: Long): Int {
+  b_0 {
+    je %c, b_1, b_2
+  }
+
+  b_1 {
+    %v_3 = cast %x: Int
+    jmp b_4
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_1, %v_3], [b_2, 0]: Int
+    ret %v_5
+  }
+}
+
+adoptNegative<complex>(): Long {
+  b_0 {
+    %v_1 = sub 0, 3000000000: Long
+    ret %v_1
+  }
+}
+
+castIf<complex>(%c: Int): Long {
+  b_0 {
+    je %c, b_1, b_2
+  }
+
+  b_1 {
+    %v_3 = or 34359738368, 255: Long
+    jmp b_4
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_1, %v_3], [b_2, 0]: Long
+    ret %v_5
+  }
+}
+
+adoptAssign<complex>(): Long {
+  b_0 {
+    %v_1 = or 34359738368, 255: Long
+    ret %v_1
+  }
+}
+
+castMatch<complex>(%c: Int): Long {
+  b_0 {
+    %v_1 = cast %c: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = or 34359738368, 255: Long
+    jmp b_5
+  }
+
+  b_5 {
+    %v_7 = phi [b_3, %v_6], [b_4, 0]: Long
+    ret %v_7
+  }
+}
+
+narrowParen<complex>(%x: Long): Int {
+  b_0 {
+    %v_1 = cast %x: Int
+    ret %v_1
+  }
+}
+
+adoptOr<complex>(): Long {
+  b_0 {
+    %v_1 = or 34359738368, 255: Long
+    ret %v_1
+  }
+}
+
+adoptIf<complex>(%flag: Int): Long {
+  b_0 {
+    je %flag, b_1, b_2
+  }
+
+  b_1 {
+    %v_3 = or 34359738368, 255: Long
+    jmp b_4
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_1, %v_3], [b_2, 0]: Long
+    ret %v_5
+  }
+}
+
+checkW<complex>(%actual: Long, %expected: Long, %weight: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %actual, %expected: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
+    ret %v_5
+  }
+}
+
+castTwice<complex>(): Long {
+  b_0 {
+    %v_1 = or 34359738368, 255: Long
+    ret %v_1
+  }
+}
+
+adoptLong<complex>(): Long {
+  b_0 {
+    %v_1 = add 3000000000, 3000000000: Long
+    ret %v_1
+  }
+}
+
+castParen<complex>(): Long {
+  b_0 {
+    %v_1 = or 34359738368, 255: Long
+    ret %v_1
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex adoptOr: Long
+    %v_2 = call_complex checkW, %v_1, 34359738623, 1: Int
+    %v_3 = call_complex adoptAdd: Long
+    %v_4 = call_complex checkW, %v_3, 34359738623, 2: Int
+    %v_5 = add %v_2, %v_4: Int
+    %v_6 = call_complex adoptShl: Long
+    %v_7 = call_complex checkW, %v_6, 1099511627776, 4: Int
+    %v_8 = add %v_5, %v_7: Int
+    %v_9 = call_complex adoptChain: Long
+    %v_10 = call_complex checkW, %v_9, 34359742719, 8: Int
+    %v_11 = add %v_8, %v_10: Int
+    %v_12 = call_complex adoptAssign: Long
+    %v_13 = call_complex checkW, %v_12, 34359738623, 16: Int
+    %v_14 = add %v_11, %v_13: Int
+    %v_15 = call_complex adoptArgument: Int
+    %v_16 = add %v_14, %v_15: Int
+    %v_17 = call_complex adoptField: Long
+    %v_18 = call_complex checkW, %v_17, 34359738623, 64: Int
+    %v_19 = add %v_16, %v_18: Int
+    %v_20 = call_complex adoptLong: Long
+    %v_21 = call_complex checkL, %v_20, 6000000000, 128: Int
+    %v_22 = add %v_19, %v_21: Int
+    %v_23 = call_complex adoptNegative: Long
+    %v_24 = sub 0, 3000000000: Long
+    %v_25 = call_complex checkL, %v_23, %v_24, 256: Int
+    %v_26 = add %v_22, %v_25: Int
+    %v_27 = call_complex adoptIf, 1: Long
+    %v_28 = call_complex checkW, %v_27, 34359738623, 512: Int
+    %v_29 = add %v_26, %v_28: Int
+    %v_30 = call_complex concreteWins, 1: Long
+    %v_31 = sub 0, 2147483648: Long
+    %v_32 = call_complex checkL, %v_30, %v_31, 1024: Int
+    %v_33 = add %v_29, %v_32: Int
+    %v_34 = call_complex concreteMul, 100000: Long
+    %v_35 = call_complex checkW, %v_34, 1410065408, 2048: Int
+    %v_36 = add %v_33, %v_35: Int
+    %v_37 = call_complex castParen: Long
+    %v_38 = call_complex checkW, %v_37, 34359738623, 4096: Int
+    %v_39 = add %v_36, %v_38: Int
+    %v_40 = call_complex castTwice: Long
+    %v_41 = call_complex checkW, %v_40, 34359738623, 8192: Int
+    %v_42 = add %v_39, %v_41: Int
+    %v_43 = call_complex castIf, 1: Long
+    %v_44 = call_complex checkW, %v_43, 34359738623, 16384: Int
+    %v_45 = add %v_42, %v_44: Int
+    %v_46 = call_complex castMatch, 1: Long
+    %v_47 = call_complex checkW, %v_46, 34359738623, 32768: Int
+    %v_48 = add %v_45, %v_47: Int
+    %v_49 = call_complex narrowParen, 4294967301: Int
+    %v_50 = cmp_eq %v_49, 5: Int
+    je %v_50, b_51, b_52
+  }
+
+  b_51 {
+    jmp b_53
+  }
+
+  b_52 {
+    jmp b_53
+  }
+
+  b_53 {
+    %v_54 = phi [b_51, 65536], [b_52, 0]: Int
+    %v_55 = add %v_48, %v_54: Int
+    %v_56 = call_complex narrowIf, 1, 4294967301: Int
+    %v_57 = cmp_eq %v_56, 5: Int
+    je %v_57, b_58, b_59
+  }
+
+  b_58 {
+    jmp b_60
+  }
+
+  b_59 {
+    jmp b_60
+  }
+
+  b_60 {
+    %v_61 = phi [b_58, 131072], [b_59, 0]: Int
+    %v_62 = add %v_55, %v_61: Int
+    ret %v_62
+  }
+}
+

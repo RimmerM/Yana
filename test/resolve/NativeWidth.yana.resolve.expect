@@ -1,0 +1,282 @@
+fn checkU(%actual: U32, %expected: U32, %weight: Int) -> Int {
+  b0:
+    %v3 = cmp_eq %actual, %expected : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, %weight], [b2, 0] : Int
+    ret %v8
+}
+
+fn checkW(%actual: WideInt, %expected: WideInt, %weight: Int) -> Int {
+  b0:
+    %v3 = cmp_eq %actual, %expected : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, %weight], [b2, 0] : Int
+    ret %v8
+}
+
+fn checkL(%actual: I64, %expected: I64, %weight: Int) -> Int {
+  b0:
+    %v3 = cmp_eq %actual, %expected : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, %weight], [b2, 0] : Int
+    ret %v8
+}
+
+fn checkI(%actual: I32, %expected: I32, %weight: Int) -> Int {
+  b0:
+    %v3 = cmp_eq %actual, %expected : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, %weight], [b2, 0] : Int
+    ret %v8
+}
+
+fn addSmall(%x: @bits(4) U32) -> U32 {
+  b0:
+    %x = cast %x : U32
+    %x = cast %x : U32
+    %v3 = add %x, %x : U32
+    ret %v3
+}
+
+fn addSmallNarrow(%x: @bits(4) U32) -> @bits(4) U32 {
+  b0:
+    %x = cast %x : U32
+    %x = cast %x : U32
+    %v3 = add %x, %x : U32
+    %v5 = and %v3, 15 : U32
+    %v6 = cast %v5 : @bits(4) U32
+    ret %v6
+}
+
+fn mulWide20(%x: @bits(20) U32) -> U32 {
+  b0:
+    %x = cast %x : U32
+    %x = cast %x : U32
+    %v3 = mul %x, %x : U32
+    ret %v3
+}
+
+fn shiftAfterMul(%x: @bits(4) U32) -> U32 {
+  b0:
+    %x = cast %x : U32
+    %x = cast %x : U32
+    %v3 = mul %x, %x : U32
+    %v6 = shr %v3, 4 : U32
+    ret %v6
+}
+
+fn boxed(%value: U32) -> U32 {
+  b0:
+    %b = alloc : Box
+    %v3 = and %value, 15 : U32
+    %value = cast %v3 : @bits(4) U32
+    init %local0@Box.small, %value
+    %v6 = load %local0@Box.small : @bits(4) U32
+    %v7 = cast %v6 : U32
+    ret %v7
+}
+
+fn mulForty(%x: @bits(40) WideInt) -> WideInt {
+  b0:
+    %x = cast %x : WideInt
+    %x = cast %x : WideInt
+    %v3 = mul %x, %x : WideInt
+    ret %v3
+}
+
+fn mulWrap() -> WideInt {
+  b0:
+    %v3 = mul 4000000000, 4000000 : WideInt
+    ret %v3
+}
+
+fn shlWrap() -> WideInt {
+  b0:
+    %v3 = shl 3, 52 : WideInt
+    ret %v3
+}
+
+fn negWrap() -> WideInt {
+  b0:
+    %v4 = sub 0, 4503599627370495 : WideInt
+    %v7 = sub %v4, 1 : WideInt
+    %v8 = sub 0, %v7 : WideInt
+    ret %v8
+}
+
+fn mulLong(%x: I64) -> I64 {
+  b0:
+    %v1 = mul %x, %x : I64
+    ret %v1
+}
+
+fn dirtyHigh() -> Int {
+  b0:
+    %v2 = call addU8, 200, 100 : U8
+    %v3 = cast %v2 : Int
+    ret %v3
+}
+
+fn shrNegative() -> WideInt {
+  b0:
+    %v3 = sub 0, 1 : WideInt
+    %v6 = shr %v3, 1 : WideInt
+    ret %v6
+}
+
+fn foldedStore() -> U32 {
+  b0:
+    %b = alloc : Box
+    init %local0@Box.small, 4
+    %v3 = load %local0@Box.small : @bits(4) U32
+    %v4 = cast %v3 : U32
+    ret %v4
+}
+
+fn signedField(%x: I32) -> I32 {
+  b0:
+    %b = alloc : SignedBox
+    %v3 = shl %x, 28 : I32
+    %v5 = sar %v3, 28 : I32
+    %x = cast %v5 : @bits(4) I32
+    init %local0@SignedBox.value, %x
+    %v8 = load %local0@SignedBox.value : @bits(4) I32
+    %v9 = cast %v8 : I32
+    ret %v9
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call addSmall, 12 : U32
+    %v4 = call checkU, %v1, 24, 1 : Int
+    %v6 = call addSmallNarrow, 12 : @bits(4) U32
+    %v7 = cast %v6 : U32
+    %v10 = call checkU, %v7, 8, 2 : Int
+    %v11 = add %v4, %v10 : Int
+    %v13 = call mulWide20, 2000 : U32
+    %v16 = call checkU, %v13, 4000000, 4 : Int
+    %v17 = add %v11, %v16 : Int
+    %v19 = call shiftAfterMul, 12 : U32
+    %v22 = call checkU, %v19, 9, 8 : Int
+    %v23 = add %v17, %v22 : Int
+    %v25 = call boxed, 20 : U32
+    %v28 = call checkU, %v25, 4, 16 : Int
+    %v29 = add %v23, %v28 : Int
+    %v31 = call mulForty, 2097152 : WideInt
+    %v34 = call checkW, %v31, 4398046511104, 32 : Int
+    %v35 = add %v29, %v34 : Int
+    %v36 = call mulWrap : WideInt
+    %v40 = sub 0, 2014398509481984 : WideInt
+    %v42 = call checkW, %v36, %v40, 64 : Int
+    %v43 = add %v35, %v42 : Int
+    %v44 = call shlWrap : WideInt
+    %v48 = sub 0, 4503599627370495 : WideInt
+    %v51 = sub %v48, 1 : WideInt
+    %v53 = call checkW, %v44, %v51, 128 : Int
+    %v54 = add %v43, %v53 : Int
+    %v55 = call negWrap : WideInt
+    %v59 = sub 0, 4503599627370495 : WideInt
+    %v62 = sub %v59, 1 : WideInt
+    %v64 = call checkW, %v55, %v62, 256 : Int
+    %v65 = add %v54, %v64 : Int
+    %v67 = call mulLong, 4000000000 : I64
+    %v71 = sub 0, 2446744073709551616 : I64
+    %v73 = call checkL, %v67, %v71, 512 : Int
+    %v74 = add %v65, %v73 : Int
+    %v75 = call dirtyHigh : Int
+    %v78 = cmp_eq %v75, 44 : Bool
+    je %v78, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v86 = phi [b1, 1024], [b2, 0] : Int
+    %v87 = add %v74, %v86 : Int
+    %v88 = call shrNegative : WideInt
+    %v91 = call checkW, %v88, 4503599627370495, 2048 : Int
+    %v92 = add %v87, %v91 : Int
+    %v93 = call foldedStore : U32
+    %v96 = call checkU, %v93, 4, 4096 : Int
+    %v97 = add %v92, %v96 : Int
+    %v101 = sub 0, 4 : I32
+    %v102 = call signedField, %v101 : I32
+    %v106 = sub 0, 4 : I32
+    %v108 = call checkI, %v102, %v106, 8192 : Int
+    %v109 = add %v97, %v108 : Int
+    ret %v109
+}
+
+fn addU8(%x: U8, %y: U8) -> U8 {
+  b0:
+    %v2 = add %x, %y : U8
+    ret %v2
+}
+
+fn addU16(%x: U16, %y: U16) -> U16 {
+  b0:
+    %v2 = add %x, %y : U16
+    ret %v2
+}
+
+fn addU32(%x: U32, %y: U32) -> U32 {
+  b0:
+    %v2 = add %x, %y : U32
+    ret %v2
+}
+
+fn addI64(%x: I64, %y: I64) -> I64 {
+  b0:
+    %v2 = add %x, %y : I64
+    ret %v2
+}
+
+fn addWide(%x: WideInt, %y: WideInt) -> WideInt {
+  b0:
+    %v2 = add %x, %y : WideInt
+    ret %v2
+}
+
+fn tickBits(%x: @bits(3) U32) -> @bits(3) U32 {
+  b0:
+    %x = cast %x : U32
+    %v4 = add %x, 1 : U32
+    %v6 = and %v4, 7 : U32
+    %v7 = cast %v6 : @bits(3) U32
+    ret %v7
+}

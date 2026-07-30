@@ -10,6 +10,11 @@
 --
 -- This fixture is compiled twice by the driver, once per target, and the two expect files are what
 -- the two builds see. Everything not marked is shared, which is the ordinary case.
+--
+-- It is also the one fixture whose two targets answer differently when run, which is why it has a
+-- `.js.run.expect` beside its `.run.expect`. Everywhere else the driver holds the JS build to the
+-- number the amd64 build produced - agreeing is the property worth asserting - and a second file is
+-- how a fixture says the difference is a property of the program rather than of the backends.
 
 -- One name, two declarations, and only one of them exists in any given build.
 @platform(native)

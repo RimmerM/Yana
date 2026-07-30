@@ -1,0 +1,180 @@
+{-
+   **Arithmetic happens at a type's native size; `@bits(n)` describes storage and nothing else.**
+
+   Design.md's [Bit-width refinements](#bit-width-refinements-bits) states the rule in two halves:
+   a load always widens to the ordinary machine type, so "arithmetic never operates on a narrowed
+   value", and a store always narrows. A refinement therefore needs no instances of its own - it
+   dispatches through the type it refines - and one `Integral` instance per width family is enough.
+
+   What that leaves is every primitive whose declared width is narrower than the register the lower
+   IR holds it in, since a value of one does not fill its own storage and arithmetic on it can
+   produce a result the type cannot represent. `WideInt` at 53 bits in a 64-bit register is the case
+   the type was introduced for; `U8`/`I8`/`U16`/`I16` in a 32-bit one are the same case, and were
+   silently broken for longer. `narrowerThanRegister` in resolve/lower.cpp is that predicate, and it
+   is deliberately restricted to *primitives*: a `@bits` refinement must never reach it, or the first
+   half of the rule above would be false. `U32` and `I64` fill their registers and are untouched.
+
+   Each case contributes a distinct power of two, so `main` is 16383 when they all pass and any other
+   number names the failures in binary. Four of them - `dirtyHigh` through `signedField` - are the
+   cases where the two targets used to *disagree*, each found by running both rather than by reading
+   the emitted code; they are ordinary assertions now, and the comment on each says what the wrong
+   answer was, because a golden that only records agreement cannot say which way it was reached.
+
+   The functions below `main` are compiled but never called - they are here so that the lower and JS
+   goldens record which operations get a truncation, which is a structural property no return value
+   can show.
+-}
+
+fn checkU(actual: U32, expected: U32, weight: Int) -> Int = if actual == expected then weight else 0
+
+fn checkW(actual: WideInt, expected: WideInt, weight: Int) -> Int =
+    if actual == expected then weight else 0
+
+fn checkL(actual: I64, expected: I64, weight: Int) -> Int = if actual == expected then weight else 0
+
+fn checkI(actual: I32, expected: I32, weight: Int) -> Int = if actual == expected then weight else 0
+
+-- ## `@bits` is storage
+
+alias Small = @bits(4) U32
+alias Wide20 = @bits(20) U32
+
+-- Adding two four-bit values produces a *five*-bit answer, because the addition is a `U32` one: the
+-- operands widened on load and nothing has narrowed them yet. Clipping the operands to four bits
+-- first would answer 8.
+fn addSmall(x: Small) -> U32 = x + x
+
+-- The same expression, returned at the refined type instead. Now the narrowing cast the resolver
+-- inserts on the way out does apply, and 24 becomes 8. This is the half of the rule that is easy to
+-- mistake for the other half.
+fn addSmallNarrow(x: Small) -> Small = x + x
+
+-- Twenty bits times twenty bits, which needs twenty-two. Clipping to the declared width would
+-- answer 854272.
+fn mulWide20(x: Wide20) -> U32 = x * x
+
+-- Addition and multiplication survive an early mask (masking distributes over both), so neither can
+-- show *when* the narrowing happens. A shift can: masking `x * x` to four bits before shifting
+-- leaves nothing above bit 4 to shift down, and answers 0 instead of 9.
+fn shiftAfterMul(x: Small) -> U32 = (x * x) `shr` 4
+
+data Box {small: Small}
+
+-- Storing genuinely does narrow, and through a runtime value rather than a folded constant.
+fn boxed(value: U32) -> U32:
+    let b = Box { small: value }
+    return b.small
+
+-- ## `@bits` over `WideInt` in particular
+
+-- A refinement of `WideInt` still computes at `WideInt`'s 53 bits, not at the refined 40: the
+-- refinement dispatches to `Integral(WideInt)` like any other. This is also what keeps the JS
+-- backend's representation predicate honest, since it keys on the *canonical* width - a refinement
+-- and the type it refines have to be the same host type or every conversion between them becomes
+-- real work. Clipping to 40 bits would answer 0, since 2^42 is a multiple of 2^40.
+alias Forty = @bits(40) WideInt
+
+fn mulForty(x: Forty) -> WideInt = x * x
+
+-- ## `WideInt` wraps at 53, and only `WideInt` does
+
+-- The three operations that can carry a pair of in-range operands out of the range. `and`/`or`/
+-- `xor`/`not`/`shr`/`sar`/`div`/`rem` cannot, and are covered operation by operation in WideInt.yana.
+fn mulWrap() -> WideInt = (4000000000 :: WideInt) * 4000000
+
+fn shlWrap() -> WideInt = (3 :: WideInt) `shl` 52
+
+-- Negating the most negative value is the one input where negation overflows, and it is the case a
+-- "wrap only if the result looks out of range" shortcut gets wrong in whichever direction it guesses.
+fn negWrap() -> WideInt = (0 :: WideInt) - ((0 :: WideInt) - 4503599627370495 - 1)
+
+-- `I64` is untouched by all of the above: its width *is* a storage unit, so it overflows at 64 where
+-- the machine already puts it. If `WideInt`'s truncation ever leaked into the shared path, this is
+-- the case that would move.
+fn mulLong(x: I64) -> I64 = x * x
+
+-- ## Sub-word widths, which are `WideInt`'s case in a 32-bit register
+
+-- A `U8` sum that does not fit in eight bits. Nothing narrowed this natively, so it was 300 - a
+-- value of a type that cannot hold it - while JS, which masks every narrow integer at its own width,
+-- answered 44. Widening to an `Int` afterwards is a `cast` that trusts a register the arithmetic
+-- never actually narrowed, so the dirt propagated rather than staying inside the `U8`.
+fn dirtyHigh() -> Int = addU8(200, 100) :: Int
+
+-- Logical right shift is the one operation that reads a narrow value's *storage* rather than its
+-- value: a signed type is held sign-extended, so `shr` brought the register's own sign bits down
+-- into the answer and gave 2^63-1 here against 2^52-1 on JS. Masking afterwards cannot recover it -
+-- the operand has to be zero-extended first.
+fn shrNegative() -> WideInt = ((0 :: WideInt) - 1) `shr` 1
+
+-- The same store as `boxed`, with a constant instead of a parameter. A literal written where its
+-- type is already known is built at that type rather than converted into it, so it reached none of
+-- the narrowing a conversion emits and this answered 20 where `boxed(20)` answered 4. Whether a
+-- store narrowed came down to whether it could be folded.
+--
+-- This is also the one line in the suite that is *meant* to warn - "the literal 20 does not fit in
+-- @bits(4) U32 and is truncated to 4" - which is the diagnostic the same bug now gets in a program
+-- that has no second copy of the expression on a runtime value to compare against.
+fn foldedStore() -> U32:
+    let b = Box { small: 20 }
+    return b.small
+
+data SignedBox {value: @bits(4) I32}
+
+-- A load widens by zero- *or sign*-extension as the field's type asks. Narrowing to a signed
+-- refinement used to mask, which is right for the bits going into storage but leaves the register
+-- holding 12 rather than -4 - and widening back is a cast that lowers to nothing, so there was
+-- nowhere left to undo it.
+fn signedField(x: I32) -> I32:
+    let b = SignedBox { value: x }
+    return b.value
+
+fn main() -> Int =
+    checkU(addSmall(12), 24, 1) +
+    checkU(addSmallNarrow(12) :: U32, 8, 2) +
+    checkU(mulWide20(2000), 4000000, 4) +
+    checkU(shiftAfterMul(12), 9, 8) +
+    checkU(boxed(20), 4, 16) +
+    checkW(mulForty(2097152), 4398046511104, 32) +
+    checkW(mulWrap(), (0 :: WideInt) - 2014398509481984, 64) +
+    checkW(shlWrap(), (0 :: WideInt) - 4503599627370495 - 1, 128) +
+    checkW(negWrap(), (0 :: WideInt) - 4503599627370495 - 1, 256) +
+    checkL(mulLong(4000000000), (0 :: I64) - 2446744073709551616, 512) +
+    (if dirtyHigh() == 44 then 1024 else 0) +
+    checkW(shrNegative(), 4503599627370495, 2048) +
+    checkU(foldedStore(), 4, 4096) +
+    checkI(signedField((0 :: I32) - 4), (0 :: I32) - 4, 8192)
+
+{-
+   The rest exists for the goldens rather than for `main`, because which operations get a truncation
+   is a structural property no return value can show. Five adds, one per width, and the lowered form
+   of each is the evidence:
+
+   - `addU8` and `addU16` narrow, because 8 and 16 bits do not fill the 32-bit register they lower
+     into. Unsigned, so a mask.
+   - `addU32` and `addI64` do not. Their widths *are* their registers, which is the whole reason
+     nothing had to be emitted for them and the whole reason the sub-word case went unnoticed.
+   - `addWide` narrows with a `shl`/`sar` pair rather than a mask, because it is signed: the two
+     instructions truncate and sign-extend together.
+
+   Verified the other way round as well, by disabling the predicate and confirming that exactly these
+   three change.
+
+   `tickBits` is the `@bits` half of the same claim, and the one case where reading the dump is
+   misleading. It does lower with a mask - but the mask is the resolver's own narrowing cast on the
+   way out, the same one `addSmallNarrow` gets, and not the wrapping rule. It is byte-identical with
+   the predicate disabled, which is the only way to tell the two apart.
+-}
+
+fn addU8(x: U8, y: U8) -> U8 = x + y
+
+fn addU16(x: U16, y: U16) -> U16 = x + y
+
+fn addU32(x: U32, y: U32) -> U32 = x + y
+
+fn addI64(x: I64, y: I64) -> I64 = x + y
+
+fn addWide(x: WideInt, y: WideInt) -> WideInt = x + y
+
+fn tickBits(x: @bits(3) U32) -> @bits(3) U32 = x + 1
+

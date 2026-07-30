@@ -249,7 +249,39 @@ struct ExprResolver {
     // still one constant and the IR is what it always was.
     ModulePtr<Value> materializeLiteral(ModulePtr<Value> value, TypePtr target, LocationId source);
 
-    ModulePtr<Value> resolve(const ast::Expr& expr, TypePtr target = nullptr, bool used = true);
+    // Warns where a written literal does not fit the integer type it is being built at. Called only
+    // from the two positions a literal reaches, never from makeInt itself - see its comment.
+    void checkLiteralRange(LocationId source, TypePtr type, U64 written);
+
+    /*
+     * `implicit` says who owns the conversion to `target`.
+     *
+     * True - the ordinary case - means this position is asking for a value of that type, so a
+     * narrowing conversion is an error about precision. False means an ascription above has already
+     * asked for it explicitly, and is threaded down through the forms that have no type of their
+     * own: a parenthesis, a block, the arms of an `if` or a `match`. Those are pass-throughs, so the
+     * ascription belongs to each leaf rather than to the value they join, and `(x) :: U8` has to
+     * mean what `x :: U8` means. It is also what a call takes as `convertResult`, which is the same
+     * condition said in the caller's words - the ascription that selected the instance *is* the
+     * conversion, so the call must not convert its own result a second time.
+     */
+    ModulePtr<Value> resolve(const ast::Expr& expr, TypePtr target = nullptr, bool used = true,
+                             bool implicit = true);
+
+    // A form whose value is its leaves' value, so an expected type belongs to each leaf rather than
+    // to the result. The whitelist an ascription pushes through.
+    static bool isPassThrough(const ast::Expr& expr) {
+        switch(expr.kind) {
+            case ast::Expr::Nested:
+            case ast::Expr::Multi:
+            case ast::Expr::If:
+            case ast::Expr::MultiIf:
+            case ast::Expr::Match:
+                return true;
+            default:
+                return false;
+        }
+    }
     ModulePtr<Value> resolveLiteral(const ast::Expr& expr, TypePtr target);
     ModulePtr<Value> resolveInteger(LocationId source, TypePtr target, U64 value);
     ModulePtr<Value> resolveDecimal(LocationId source, TypePtr target, F64 value);
@@ -271,8 +303,8 @@ struct ExprResolver {
     // in: an ordinary Bool, with what the pattern bound discarded.
     ModulePtr<Value> resolveIs(const ast::Expr& expr, const ast::IsExpr& test, bool used);
 
-    ModulePtr<Value> resolveIf(const ast::Expr& expr, const ast::IfExpr& branch, TypePtr target, bool used);
-    ModulePtr<Value> resolveMultiIf(const ast::Expr& expr, ast::ParseList<ast::IfCase> cases, TypePtr target, bool used);
+    ModulePtr<Value> resolveIf(const ast::Expr& expr, const ast::IfExpr& branch, TypePtr target, bool used, bool implicit = true);
+    ModulePtr<Value> resolveMultiIf(const ast::Expr& expr, ast::ParseList<ast::IfCase> cases, TypePtr target, bool used, bool implicit = true);
     void resolveWhile(const ast::WhileExpr& loop);
     ModulePtr<Value> resolveDecl(ast::ParseList<ast::VarDecl> declarations, TypePtr target, bool used);
     void resolveReturn(const ast::Expr& expr);
@@ -288,7 +320,7 @@ struct ExprResolver {
      * Calls and operators (expr_call.cpp).
      */
 
-    ModulePtr<Value> resolveBinary(const ast::Expr& expr, const ast::InfixExpr& binary, TypePtr target);
+    ModulePtr<Value> resolveBinary(const ast::Expr& expr, const ast::InfixExpr& binary, TypePtr target, bool convertResult = true);
     ModulePtr<Value> resolvePrefix(const ast::Expr& expr, const ast::PrefixExpr& prefix, TypePtr target, bool convertResult = true);
     ModulePtr<Value> resolvePrecedence(Array<const ast::Expr*>& operands, Array<StringId>& operators, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target = nullptr);
     ModulePtr<Value> resolveCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target, bool convertResult = true);
@@ -466,7 +498,7 @@ struct ExprResolver {
      * Patterns (expr_pat.cpp).
      */
 
-    ModulePtr<Value> resolveMatch(const ast::Expr& expr, const ast::MatchExpr& match, TypePtr target, bool used);
+    ModulePtr<Value> resolveMatch(const ast::Expr& expr, const ast::MatchExpr& match, TypePtr target, bool used, bool implicit = true);
 
     // One declaration's pattern, bound to the value its initializer produced, together with the
     // alternatives that cover what the pattern does not. Everything a `let` needs beyond

@@ -1,0 +1,151 @@
+{-
+   **An expected type reaches the operator, and a literal operand takes it from there.**
+
+   Design.md's [Literals](#literals) makes literals class-polymorphic values rather than values of a
+   fixed type, and draws the consequence explicitly: "because a literal decides nothing on its own,
+   it is the one argument an expected result type may still refine: `inc(1) :: Long` is a `Long`
+   computation, while `inc(x) :: Long` on an `Int` `x` is an `Int` one widened afterwards."
+
+   `resolveBinary` used not to implement that. It called `resolvePrecedence` with no target and
+   converted the *result*, so `fn f() -> WideInt = 34359738368 \`or\` 255` answered 255: both
+   literals defaulted to `Int`, `Integral(Int)` was selected, and the left operand was truncated
+   before the operator ever ran. The target now reaches each operator's own `emitCall`, where
+   `matchClassFun` already knew what to do with it.
+
+   Two halves, and the second is the safety property rather than an afterthought:
+
+   - a chain of literals with nothing else to go on adopts the target (`adoptOr` through `adoptIf`),
+   - and a concrete operand still wins over it (`concreteWins`, `concreteMul`), because the type
+     flows **to the operator, not to the operands**. Were it to reach the operands, `x + 1` on an
+     `Int` `x` would silently become 64-bit arithmetic wherever its result happened to be used.
+
+   The third group is what an **ascription** pushes through. A parenthesis, a block, and the arms of
+   an `if` or a `match` have no type of their own - their value is their leaves' value - so a target
+   belongs to each leaf rather than to the value they join, and `resolve` carries it through all
+   four. Argument position already did; `::` did not, and stopped at the parenthesis.
+
+   It is carried as an **explicit** conversion, which is the safety property of that group in the
+   same way `concreteWins` is of the second. `(x) :: Int` on an `I64` `x` has to keep meaning what
+   `x :: Int` means - a narrowing that was asked for - rather than becoming an implicit conversion
+   that is an error about precision. That is what `narrowParen` and `narrowIf` are for, and both fail
+   at compile time rather than at runtime if it regresses.
+
+   Each case contributes a distinct power of two, so `main` is 262143 when they all pass.
+
+   One thing this file deliberately does *not* assert, because it is open rather than settled: an
+   **operand** of another operator does not receive the target. ``(34359738368 `or` 255) `and` c``
+   still settles the inner call to `Int` first, and it is not the same case as the ascription above -
+   pushing a type into an operand is what would turn `(x + 1) * y` on `Int`s into 64-bit arithmetic
+   because of where its result is used. Written up under Design.md's open questions; ascribe inside
+   the parentheses in the meantime, which now works.
+
+   Related and worth knowing: `::` binds tighter than a backtick operator, so ``a `or` b :: WideInt``
+   ascribes `b` alone rather than the operator application.
+-}
+
+fn checkW(actual: WideInt, expected: WideInt, weight: Int) -> Int =
+    if actual == expected then weight else 0
+
+fn checkL(actual: I64, expected: I64, weight: Int) -> Int = if actual == expected then weight else 0
+
+-- ## The target reaches the operator
+
+-- 2^35 and 0xFF, whose bits are disjoint, so a truncation to 32 bits anywhere in the chain leaves
+-- exactly 255 and says so.
+fn adoptOr() -> WideInt = 34359738368 `or` 255
+
+fn adoptAdd() -> WideInt = 34359738368 + 255
+
+-- A shift whose distance alone exceeds the default type. `1 \`shl\` 40` at `Int` is not 2^40 by any
+-- reading, so this is the case where defaulting is not merely lossy but meaningless.
+fn adoptShl() -> WideInt = 1 `shl` 40
+
+-- Two operators rather than one: `resolvePrecedence` builds the chain itself, so the target has to
+-- reach every application it emits and not just the outermost.
+fn adoptChain() -> WideInt = 34359738368 `or` 255 `or` 4096
+
+-- The target arriving from an assignment's left-hand side rather than from a return type. (A `let`
+-- has no type annotation to carry one - a binding takes its type from its initializer - so a
+-- mutable binding assigned afterwards is the nearest thing this language has to a declared local.)
+fn adoptAssign() -> WideInt:
+    let &value = 0 :: WideInt
+    value = 34359738368 `or` 255
+    return value
+
+-- ...from a parameter position, which is the form most real calls take.
+fn adoptArgument() -> Int = checkW(34359738368 `or` 255, 34359738623, 32)
+
+-- ...and from a field's declared type.
+data Holder {value: WideInt}
+
+fn adoptField() -> WideInt:
+    let h = Holder { value: 34359738368 `or` 255 }
+    return h.value
+
+-- Nothing about this is specific to `WideInt`; `Long` is the case ordinary code hits. At `Int` both
+-- literals wrap to -1294967296 and the sum is 1705032704.
+fn adoptLong() -> I64 = 3000000000 + 3000000000
+
+-- Subtraction from zero is how a negative literal is written, and it is still a literal chain.
+fn adoptNegative() -> I64 = 0 - 3000000000
+
+-- Through a branch, where each arm is resolved against the same expected type.
+fn adoptIf(flag: Bool) -> WideInt = if flag then 34359738368 `or` 255 else 0
+
+-- ## A concrete operand still wins
+
+-- `x` is an `Int`, so the addition is an `Int` one and the widening happens afterwards - the
+-- literal is bound by its neighbour, not by the return type. Computing at 64 bits would answer
+-- 2147483648 rather than wrapping to the most negative `Int`.
+fn concreteWins(x: Int) -> I64 = x + 2147483647
+
+-- The same rule with no literal in the expression at all, which is the case that would break most
+-- loudly if the target were ever applied to operands: 10^10 does not fit in an `Int`, and the
+-- answer has to be the wrapped one.
+fn concreteMul(x: Int) -> WideInt = x * x
+
+-- ## What an ascription pushes through
+
+-- The case that used to fail. Nothing inside the parentheses says `WideInt`, and the parenthesis
+-- itself has no type to say it with, so before the target was carried inward both literals defaulted
+-- to `Int` and this answered 255.
+fn castParen() -> WideInt = (34359738368 `or` 255) :: WideInt
+
+-- Two of them, because a pass-through that only forwards one level is a different rule.
+fn castTwice() -> WideInt = ((34359738368 `or` 255)) :: WideInt
+
+-- Each arm resolved against the ascribed type, rather than the arms unifying to `Int` first and the
+-- join being converted afterwards - by which point the operand is already truncated.
+fn castIf(c: Bool) -> WideInt = (if c then 34359738368 `or` 255 else 0) :: WideInt
+
+fn castMatch(c: Bool) -> WideInt = (match c:
+    True -> 34359738368 `or` 255
+    _ -> 0) :: WideInt
+
+-- The safety property of the group. `x` is an `I64` and `Int` is narrower, so this is a conversion
+-- that has to be *asked for*: carrying the target inward as an implicit one makes it "implicit
+-- conversion from I64 to Int would lose precision" and the program stops compiling. 4294967301 is
+-- 2^32 + 5, so a truncation that happened at the wrong width answers something other than 5.
+fn narrowParen(x: I64) -> Int = (x) :: Int
+
+fn narrowIf(c: Bool, x: I64) -> Int = (if c then x else 0) :: Int
+
+fn main() -> Int =
+    checkW(adoptOr(), 34359738623, 1) +
+    checkW(adoptAdd(), 34359738623, 2) +
+    checkW(adoptShl(), 1099511627776, 4) +
+    checkW(adoptChain(), 34359742719, 8) +
+    checkW(adoptAssign(), 34359738623, 16) +
+    adoptArgument() +
+    checkW(adoptField(), 34359738623, 64) +
+    checkL(adoptLong(), 6000000000, 128) +
+    checkL(adoptNegative(), (0 :: I64) - 3000000000, 256) +
+    checkW(adoptIf(True), 34359738623, 512) +
+    checkL(concreteWins(1), (0 :: I64) - 2147483648, 1024) +
+    checkW(concreteMul(100000), 1410065408, 2048) +
+    checkW(castParen(), 34359738623, 4096) +
+    checkW(castTwice(), 34359738623, 8192) +
+    checkW(castIf(True), 34359738623, 16384) +
+    checkW(castMatch(True), 34359738623, 32768) +
+    (if narrowParen(4294967301) == 5 then 65536 else 0) +
+    (if narrowIf(True, 4294967301) == 5 then 131072 else 0)

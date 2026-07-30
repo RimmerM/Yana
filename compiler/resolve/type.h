@@ -194,6 +194,18 @@ struct IntType: Type {
         return bits <= 1 ? Bool : bits <= 32 ? Int : Long;
     }
 
+    /*
+     * How many bits the register a value of this width class is held in actually has.
+     *
+     * Not the same question as the type's own width, and the difference is where narrowing has to
+     * happen: `U8` fills 8 of a 32-bit register and `WideInt` 53 of a 64-bit one, so arithmetic on
+     * either can produce a register value the type cannot represent. `U32` and `I64` fill theirs,
+     * which is why nothing has to be emitted for them.
+     */
+    static U16 registerBits(Width width) {
+        return width == Bool ? 1 : width == Int ? 32 : 64;
+    }
+
     IntType(U16 bits, Width width, bool isSigned, StringId name = 0, TypePtr canonical = nullptr):
         Type(Type::Int), name(name), canonical(canonical), bits(bits), width(width),
         isSigned(isSigned) {}

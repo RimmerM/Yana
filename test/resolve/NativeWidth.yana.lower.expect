@@ -1,0 +1,360 @@
+
+checkL<complex>(%actual: Long, %expected: Long, %weight: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %actual, %expected: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
+    ret %v_5
+  }
+}
+
+addSmall<complex>(%x: Int): Int {
+  b_0 {
+    %x = cast %x: Int
+    %x = cast %x: Int
+    %v_1 = add %x, %x: Int
+    ret %v_1
+  }
+}
+
+mulWide20<complex>(%x: Int): Int {
+  b_0 {
+    %x = cast %x: Int
+    %x = cast %x: Int
+    %v_1 = mul %x, %x: Int
+    ret %v_1
+  }
+}
+
+dirtyHigh<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex addU8, 200, 100: Int
+    %v_2 = cast %v_1: Int
+    ret %v_2
+  }
+}
+
+addU32<complex>(%x: Int, %y: Int): Int {
+  b_0 {
+    %v_1 = add %x, %y: Int
+    ret %v_1
+  }
+}
+
+tickBits<complex>(%x: Int): Int {
+  b_0 {
+    %x = cast %x: Int
+    %v_1 = add %x, 1: Int
+    %v_2 = and %v_1, 7: Int
+    %v_3 = cast %v_2: Int
+    ret %v_3
+  }
+}
+
+mulForty<complex>(%x: Long): Long {
+  b_0 {
+    %x = cast %x: Long
+    %x = cast %x: Long
+    %v_1 = imul %x, %x: Long
+    %v_2 = imm 11: Long
+    %v_3 = shl %v_1, %v_2: Long
+    %v_4 = sar %v_3, %v_2: Long
+    ret %v_4
+  }
+}
+
+signedField<complex>(%x: Int): Int {
+  b_0 {
+    %v_1 = shl %x, 28: Int
+    %v_2 = sar %v_1, 28: Int
+    %x = cast %v_2: Int
+    %v_3 = cast %x: Int
+    ret %v_3
+  }
+}
+
+checkI<complex>(%actual: Int, %expected: Int, %weight: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %actual, %expected: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
+    ret %v_5
+  }
+}
+
+addSmallNarrow<complex>(%x: Int): Int {
+  b_0 {
+    %x = cast %x: Int
+    %x = cast %x: Int
+    %v_1 = add %x, %x: Int
+    %v_2 = and %v_1, 15: Int
+    %v_3 = cast %v_2: Int
+    ret %v_3
+  }
+}
+
+negWrap<complex>(): Long {
+  b_0 {
+    %v_1 = sub 0, 4503599627370495: Long
+    %v_2 = imm 11: Long
+    %v_3 = shl %v_1, %v_2: Long
+    %v_4 = sar %v_3, %v_2: Long
+    %v_5 = sub %v_4, 1: Long
+    %v_6 = imm 11: Long
+    %v_7 = shl %v_5, %v_6: Long
+    %v_8 = sar %v_7, %v_6: Long
+    %v_9 = sub 0, %v_8: Long
+    %v_10 = imm 11: Long
+    %v_11 = shl %v_9, %v_10: Long
+    %v_12 = sar %v_11, %v_10: Long
+    ret %v_12
+  }
+}
+
+boxed<complex>(%value: Int): Int {
+  b_0 {
+    %v_1 = and %value, 15: Int
+    %value = cast %v_1: Int
+    %v_2 = cast %value: Int
+    ret %v_2
+  }
+}
+
+mulWrap<complex>(): Long {
+  b_0 {
+    %v_1 = imul 4000000000, 4000000: Long
+    %v_2 = imm 11: Long
+    %v_3 = shl %v_1, %v_2: Long
+    %v_4 = sar %v_3, %v_2: Long
+    ret %v_4
+  }
+}
+
+addU8<complex>(%x: Int, %y: Int): Int {
+  b_0 {
+    %v_1 = add %x, %y: Int
+    %v_2 = and %v_1, 255: Int
+    ret %v_2
+  }
+}
+
+addI64<complex>(%x: Long, %y: Long): Long {
+  b_0 {
+    %v_1 = add %x, %y: Long
+    ret %v_1
+  }
+}
+
+shiftAfterMul<complex>(%x: Int): Int {
+  b_0 {
+    %x = cast %x: Int
+    %x = cast %x: Int
+    %v_1 = mul %x, %x: Int
+    %v_2 = shr %v_1, 4: Int
+    ret %v_2
+  }
+}
+
+shrNegative<complex>(): Long {
+  b_0 {
+    %v_1 = sub 0, 1: Long
+    %v_2 = imm 11: Long
+    %v_3 = shl %v_1, %v_2: Long
+    %v_4 = sar %v_3, %v_2: Long
+    %v_5 = and %v_4, 9007199254740991: Long
+    %v_6 = shr %v_5, 1: Long
+    %v_7 = imm 11: Long
+    %v_8 = shl %v_6, %v_7: Long
+    %v_9 = sar %v_8, %v_7: Long
+    ret %v_9
+  }
+}
+
+addU16<complex>(%x: Int, %y: Int): Int {
+  b_0 {
+    %v_1 = add %x, %y: Int
+    %v_2 = and %v_1, 65535: Int
+    ret %v_2
+  }
+}
+
+addWide<complex>(%x: Long, %y: Long): Long {
+  b_0 {
+    %v_1 = add %x, %y: Long
+    %v_2 = imm 11: Long
+    %v_3 = shl %v_1, %v_2: Long
+    %v_4 = sar %v_3, %v_2: Long
+    ret %v_4
+  }
+}
+
+checkW<complex>(%actual: Long, %expected: Long, %weight: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %actual, %expected: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
+    ret %v_5
+  }
+}
+
+mulLong<complex>(%x: Long): Long {
+  b_0 {
+    %v_1 = imul %x, %x: Long
+    ret %v_1
+  }
+}
+
+checkU<complex>(%actual: Int, %expected: Int, %weight: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %actual, %expected: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
+    ret %v_5
+  }
+}
+
+shlWrap<complex>(): Long {
+  b_0 {
+    %v_1 = shl 3, 52: Long
+    %v_2 = imm 11: Long
+    %v_3 = shl %v_1, %v_2: Long
+    %v_4 = sar %v_3, %v_2: Long
+    ret %v_4
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex addSmall, 12: Int
+    %v_2 = call_complex checkU, %v_1, 24, 1: Int
+    %v_3 = call_complex addSmallNarrow, 12: Int
+    %v_4 = cast %v_3: Int
+    %v_5 = call_complex checkU, %v_4, 8, 2: Int
+    %v_6 = add %v_2, %v_5: Int
+    %v_7 = call_complex mulWide20, 2000: Int
+    %v_8 = call_complex checkU, %v_7, 4000000, 4: Int
+    %v_9 = add %v_6, %v_8: Int
+    %v_10 = call_complex shiftAfterMul, 12: Int
+    %v_11 = call_complex checkU, %v_10, 9, 8: Int
+    %v_12 = add %v_9, %v_11: Int
+    %v_13 = call_complex boxed, 20: Int
+    %v_14 = call_complex checkU, %v_13, 4, 16: Int
+    %v_15 = add %v_12, %v_14: Int
+    %v_16 = call_complex mulForty, 2097152: Long
+    %v_17 = call_complex checkW, %v_16, 4398046511104, 32: Int
+    %v_18 = add %v_15, %v_17: Int
+    %v_19 = call_complex mulWrap: Long
+    %v_20 = sub 0, 2014398509481984: Long
+    %v_21 = imm 11: Long
+    %v_22 = shl %v_20, %v_21: Long
+    %v_23 = sar %v_22, %v_21: Long
+    %v_24 = call_complex checkW, %v_19, %v_23, 64: Int
+    %v_25 = add %v_18, %v_24: Int
+    %v_26 = call_complex shlWrap: Long
+    %v_27 = sub 0, 4503599627370495: Long
+    %v_28 = imm 11: Long
+    %v_29 = shl %v_27, %v_28: Long
+    %v_30 = sar %v_29, %v_28: Long
+    %v_31 = sub %v_30, 1: Long
+    %v_32 = imm 11: Long
+    %v_33 = shl %v_31, %v_32: Long
+    %v_34 = sar %v_33, %v_32: Long
+    %v_35 = call_complex checkW, %v_26, %v_34, 128: Int
+    %v_36 = add %v_25, %v_35: Int
+    %v_37 = call_complex negWrap: Long
+    %v_38 = sub 0, 4503599627370495: Long
+    %v_39 = imm 11: Long
+    %v_40 = shl %v_38, %v_39: Long
+    %v_41 = sar %v_40, %v_39: Long
+    %v_42 = sub %v_41, 1: Long
+    %v_43 = imm 11: Long
+    %v_44 = shl %v_42, %v_43: Long
+    %v_45 = sar %v_44, %v_43: Long
+    %v_46 = call_complex checkW, %v_37, %v_45, 256: Int
+    %v_47 = add %v_36, %v_46: Int
+    %v_48 = call_complex mulLong, 4000000000: Long
+    %v_49 = sub 0, 2446744073709551616: Long
+    %v_50 = call_complex checkL, %v_48, %v_49, 512: Int
+    %v_51 = add %v_47, %v_50: Int
+    %v_52 = call_complex dirtyHigh: Int
+    %v_53 = cmp_eq %v_52, 44: Int
+    je %v_53, b_54, b_55
+  }
+
+  b_54 {
+    jmp b_56
+  }
+
+  b_55 {
+    jmp b_56
+  }
+
+  b_56 {
+    %v_57 = phi [b_54, 1024], [b_55, 0]: Int
+    %v_58 = add %v_51, %v_57: Int
+    %v_59 = call_complex shrNegative: Long
+    %v_60 = call_complex checkW, %v_59, 4503599627370495, 2048: Int
+    %v_61 = add %v_58, %v_60: Int
+    %v_62 = call_complex foldedStore: Int
+    %v_63 = call_complex checkU, %v_62, 4, 4096: Int
+    %v_64 = add %v_61, %v_63: Int
+    %v_65 = sub 0, 4: Int
+    %v_66 = call_complex signedField, %v_65: Int
+    %v_67 = sub 0, 4: Int
+    %v_68 = call_complex checkI, %v_66, %v_67, 8192: Int
+    %v_69 = add %v_64, %v_68: Int
+    ret %v_69
+  }
+}
+
+foldedStore<complex>(): Int {
+  b_0 {
+    %v_1 = cast 4: Int
+    ret %v_1
+  }
+}
+

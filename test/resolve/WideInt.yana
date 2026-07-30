@@ -69,10 +69,10 @@ fn checkSarPositive() -> Int = check((1099512676352 :: WideInt) `sar` 20, 104857
 -- Wrapping at the ends of the range, where the add's "compare and subtract" shortcut is either
 -- right or off by a whole modulus. 2^52 - 1 plus one is the most negative value, and back again.
 fn checkAddWrap() -> Int =
-    check((4503599627370495 :: WideInt) + 1, (0 :: WideInt) - 4503599627370496, 1024)
+    check((4503599627370495 :: WideInt) + 1, (0 :: WideInt) - 4503599627370495 - 1, 1024)
 
 fn checkSubWrap() -> Int =
-    check(((0 :: WideInt) - 4503599627370496) - 1, 4503599627370495, 2048)
+    check(((0 :: WideInt) - 4503599627370495 - 1) - 1, 4503599627370495, 2048)
 
 -- Multiplication, which needs 16-bit limbs: the full product of two 32-bit halves passes 2^53, so a
 -- helper that formed it as one double would already have lost the low bits.

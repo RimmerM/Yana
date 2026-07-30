@@ -14,7 +14,7 @@ function flip(x$o, x$k, x$s) {
 }
 
 function bump(x$o, x$k, x$s) {
-  x$o[x$k] = x$o[x$k] & ~(15 << x$s) | ((((x$o[x$k] >>> x$s & 15 | 0) + 1 | 0) & 15 | 0) << 28 >> 28 & 15) << x$s;
+  x$o[x$k] = x$o[x$k] & ~(15 << x$s) | (((((x$o[x$k] >>> x$s << 28 >> 28 | 0) + 1 | 0) << 28 | 0) >> 28 | 0) << 28 >> 28 & 15) << x$s;
   return;
 }
 
@@ -259,7 +259,7 @@ function held() {
 }
 
 function reordered() {
-  var v44;
+  var v46;
   var v0 = { b: 0n, c: 0, $p14: 0, e: 0 };
   v0.$p14 = v0.$p14 & ~(1 << 8) | (1 & 1) << 8;
   v0.b = 9n;
@@ -268,43 +268,43 @@ function reordered() {
   v0.e = 40;
   v0.$p14 = v0.$p14 & ~(15 << 4) | (6 & 15) << 4;
   var i = v0;
-  i.$p14 = i.$p14 & 4294967280 | (((i.$p14 & 15 | 0) + 1 | 0) & 15 | 0) << 28 >> 28 & 15;
+  i.$p14 = i.$p14 & 4294967280 | ((((i.$p14 << 28 >> 28 | 0) + 1 | 0) << 28 | 0) >> 28 | 0) << 28 >> 28 & 15;
   bump(i, "$p14", 4);
   i.b = BigInt.asUintN(64, i.b + 1n);
   if (i.$p14 >>> 8 & 1) {
-    v44 = 1;
+    v46 = 1;
   } else {
-    v44 = 0;
+    v46 = 0;
   }
-  return ((((v44 + (Math.imul(Number(i.b) | 0, 10) | 0) | 0) + (Math.imul(i.c | 0, 100) | 0) | 0) + (Math.imul(i.$p14 & 15 | 0, 1000) | 0) | 0) + (Math.imul(i.e | 0, 10000) | 0) | 0) + (Math.imul(i.$p14 >>> 4 & 15 | 0, 1000000) | 0) | 0;
+  return ((((v46 + (Math.imul(Number(i.b) | 0, 10) | 0) | 0) + (Math.imul(i.c | 0, 100) | 0) | 0) + (Math.imul(i.$p14 << 28 >> 28 | 0, 1000) | 0) | 0) + (Math.imul(i.e | 0, 10000) | 0) | 0) + (Math.imul(i.$p14 >>> 4 << 28 >> 28 | 0, 1000000) | 0) | 0;
 }
 
 function pinned() {
-  var v44;
+  var v46;
   var p = { a: 1, b: 9n, c: 3, d: 5, e: 40, f: 6 };
-  p.d = (((p.d | 0) + 1 | 0) & 15 | 0) << 28 >> 28;
+  p.d = ((((p.d | 0) + 1 | 0) << 28 | 0) >> 28 | 0) << 28 >> 28;
   bump(p, "f", 0);
   p.b = BigInt.asUintN(64, p.b + 1n);
   if (p.a) {
-    v44 = 1;
+    v46 = 1;
   } else {
-    v44 = 0;
+    v46 = 0;
   }
-  return ((((v44 + (Math.imul(Number(p.b) | 0, 10) | 0) | 0) + (Math.imul(p.c | 0, 100) | 0) | 0) + (Math.imul(p.d | 0, 1000) | 0) | 0) + (Math.imul(p.e | 0, 10000) | 0) | 0) + (Math.imul(p.f | 0, 1000000) | 0) | 0;
+  return ((((v46 + (Math.imul(Number(p.b) | 0, 10) | 0) | 0) + (Math.imul(p.c | 0, 100) | 0) | 0) + (Math.imul(p.d | 0, 1000) | 0) | 0) + (Math.imul(p.e | 0, 10000) | 0) | 0) + (Math.imul(p.f | 0, 1000000) | 0) | 0;
 }
 
 function hostShaped() {
-  var v50;
+  var v54;
   var p = { a: 1, b: 9n, c: 3, d: 5, e: 40, f: 6 };
-  p.d = (((p.d | 0) + 1 | 0) & 15 | 0) << 28 >> 28;
-  p.f = (((p.f | 0) + 1 | 0) & 15 | 0) << 28 >> 28;
+  p.d = ((((p.d | 0) + 1 | 0) << 28 | 0) >> 28 | 0) << 28 >> 28;
+  p.f = ((((p.f | 0) + 1 | 0) << 28 | 0) >> 28 | 0) << 28 >> 28;
   p.b = BigInt.asUintN(64, p.b + 1n);
   if (p.a) {
-    v50 = 1;
+    v54 = 1;
   } else {
-    v50 = 0;
+    v54 = 0;
   }
-  return ((((v50 + (Math.imul(Number(p.b) | 0, 10) | 0) | 0) + (Math.imul(p.c | 0, 100) | 0) | 0) + (Math.imul(p.d | 0, 1000) | 0) | 0) + (Math.imul(p.e | 0, 10000) | 0) | 0) + (Math.imul(p.f | 0, 1000000) | 0) | 0;
+  return ((((v54 + (Math.imul(Number(p.b) | 0, 10) | 0) | 0) + (Math.imul(p.c | 0, 100) | 0) | 0) + (Math.imul(p.d | 0, 1000) | 0) | 0) + (Math.imul(p.e | 0, 10000) | 0) | 0) + (Math.imul(p.f | 0, 1000000) | 0) | 0;
 }
 
 function hostBorrowed() {

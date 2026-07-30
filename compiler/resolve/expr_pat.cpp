@@ -815,7 +815,7 @@ ModulePtr<Value> ExprResolver::resolveIs(const ast::Expr& expr, const ast::IsExp
     return finishBranches(arms, expr.source, used);
 }
 
-ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::MatchExpr& match, TypePtr target, bool used) {
+ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::MatchExpr& match, TypePtr target, bool used, bool implicit) {
     // Every pattern is matched against the pivot's type, so a pivot that is a bare literal has to
     // have settled on one before the first alternative is read.
     auto pivot = settle(resolve(match.pivot), match.pivot.source);
@@ -871,7 +871,7 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
             continue;
         }
 
-        auto value = resolve(body, target, used);
+        auto value = resolve(body, target, used, implicit);
         if(current) arms.push(BranchArm { current, value, body.source });
         bindings.resize(bindingCount);
 

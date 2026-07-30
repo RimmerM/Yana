@@ -136,6 +136,13 @@ static void printValue(ResolvePrint& print, Value& value) {
             if(type->kind == Type::Record && constant < ((RecordType*)type)->constructors.size()) {
                 auto constructor = ((RecordType*)type)->constructors.get(print.global, Size(constant));
                 print.writer.writeString(print.context.findName(constructor.name));
+            } else if(type->kind == Type::Int && ((IntType*)type)->isSigned && I64(constant) < 0) {
+                // Constants are stored sign-extended, so a signed type's negative values are large
+                // unsigned ones in the payload. Printing the bit pattern turns `- 4503599627370496`
+                // in the source into 18442240474082181120 in the dump, which reads as a different
+                // program rather than as the same one.
+                print.writer.writeByte('-');
+                writeUInt(print.writer, U64(-I64(constant)));
             } else {
                 writeUInt(print.writer, constant);
             }
