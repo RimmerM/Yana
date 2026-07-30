@@ -7,9 +7,16 @@
  * Native's declarations.
  *
  * As in Core, everything that can be written in the language is written in the language. What the
- * compiler supplies is what the language has no way to say about itself, which here is a longer
- * list than Core's: the fixed-width integer types, and every operation whose meaning is the
- * machine's rather than the program's.
+ * compiler supplies is what the language has no way to say about itself, which here is every
+ * operation whose meaning is the machine's rather than the program's.
+ *
+ * The fixed-width integer family used to be declared here, on the reasoning that a program which
+ * cares how many bits a number has is a program close enough to the machine to have imported
+ * Native anyway. That stopped being true once the JS target gained packing and scalarization:
+ * `U8` and `I16` are how a record says it wants to be narrow, and on JS the payoff is a smaller
+ * object rather than a smaller struct. Asking a pure web program to import the raw-pointer and
+ * system-call module to reach them made the width types look unsafe, which they are not. They
+ * are Core's now - see core.cpp's defineIntegerTypes.
  *
  * The pointer operations are *generic* intrinsics - declared here with a signature and no body,
  * and generated where they are called. A dereference is not one operation but one per element
@@ -367,79 +374,6 @@ static ModulePtr<Value> emitNativeOp(ExprResolver& resolver, Buffer<ModulePtr<Va
  * Assembling the modules.
  */
 
-// One fixed-width integer type, as Design.md's `I8`/`U8` through `I64`/`U64`. `bits` is its size
-// in memory and the width is the primitive it occupies once loaded, so everything below 64 bits
-// arrives in a 32-bit register and only the widest family needs a wider one.
-static TypePtr addInteger(Module& module, StringView name, U16 bits, bool isSigned) {
-    auto id = module.context.addQualifiedName(name.ptr, name.length, 1);
-    auto width = bits == 64 ? IntType::Long : IntType::Int;
-    auto type = new (module.types) IntType(bits, width, isSigned, id);
-
-    auto pointer = (Type*)type - *module.types;
-    module.namedTypes.add(id, pointer);
-    return pointer;
-}
-
-// Whether a value of `from` fits in `to` without losing anything: more bits, or the same bits
-// without a sign to lose. This decides which of the two conversion ladders a pair joins, which
-// is the whole of the rule for whether a conversion happens on its own or has to be written.
-static bool widens(GlobalBase global, TypePtr from, TypePtr to) {
-    auto source = (IntType*)global[from];
-    auto target = (IntType*)global[to];
-
-    if(source->isSigned && !target->isSigned) return false;
-    if(source->isSigned == target->isSigned) return target->bits > source->bits;
-
-    // Unsigned into signed needs a bit to spare for the sign.
-    return target->bits > source->bits;
-}
-
-static void defineIntegerTypes(Module& module) {
-    GlobalBase global = *module.types;
-    Array<TypePtr> types;
-
-    struct Width { StringView name; U16 bits; bool isSigned; };
-    static const Width widths[] = {
-        { "I8"_v, 8, true },   { "U8"_v, 8, false },
-        { "I16"_v, 16, true }, { "U16"_v, 16, false },
-        { "I32"_v, 32, true }, { "U32"_v, 32, false },
-        { "I64"_v, 64, true }, { "U64"_v, 64, false },
-    };
-
-    for(auto& width: widths) types.push(addInteger(module, width.name, width.bits, width.isSigned));
-
-    // FromInt first, because Num declares it as a superclass: `1` has to mean something for a
-    // type before `+` on it can be told what `x + 1` is.
-    for(auto type: types) defineFromInt(module, type);
-
-    for(auto type: types) {
-        defineEq(module, type);
-        defineOrd(module, type);
-        defineNum(module, type);
-        defineIntegral(module, type);
-        defineTruth(module, type, emitTruthy);
-    }
-
-    // The conversion ladder, over these types and the two Core integer types they sit alongside.
-    // Pairs that are both Core's already have their rung and are skipped rather than declared
-    // twice, which would leave instance selection with two answers to one question.
-    auto coreCount = types.size();
-    types.push(module.scalar.int_);
-    types.push(module.scalar.long_);
-
-    for(Size from = 0; from < types.size(); from++) {
-        for(Size to = 0; to < types.size(); to++) {
-            if(from == to || (from >= coreCount && to >= coreCount)) continue;
-
-            if(widens(global, types[from], types[to])) {
-                defineConversion(module, "Widen"_v, "widen"_v, types[from], types[to]);
-            } else {
-                defineConversion(module, "Narrow"_v, "narrow"_v, types[from], types[to]);
-            }
-        }
-    }
-}
-
 /*
  * Eq and Ord over every pointer type at once.
  *
@@ -526,7 +460,6 @@ void defineNative(Program& program) {
     // before any body that uses one - which is the same order Core is built in. Core has to be
     // imported first of all, since the classes these instances join are its.
     resolveImports(*native, *nativeAst, nullptr);
-    defineIntegerTypes(*native);
     definePointerInstances(*native);
 
     resolveModuleDecls(*native, *nativeAst, nullptr, true);

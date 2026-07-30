@@ -363,6 +363,97 @@ static TypePtr coreType(Module& module, StringView name) {
     return found.unwrap();
 }
 
+/*
+ * The fixed-width integer family.
+ *
+ * Design.md's `I8`/`U8` through `I64`/`U64`, sitting alongside `Int` and `Long` rather than
+ * replacing them: `Int` is the type a bare literal takes and the one ordinary arithmetic is
+ * written in, and these are what a program reaches for when the width is part of what it means.
+ *
+ * They live in Core rather than Native because naming a width is not an unsafe act, and because
+ * on every target now - not just the machine ones - a narrow field buys something. A record of
+ * `U8`s packs into one JS number where a record of `Int`s cannot, so requiring `import Native`
+ * to write one would have made the JS target's best representation reachable only through the
+ * raw-pointer module.
+ *
+ * The declaration is split in two because the classes these types join are written in Core's own
+ * source: `defineIntegerTypes` creates the types, which the source may then name, and
+ * `defineIntegerInstances` joins them to the classes once that source has been read.
+ */
+
+// `bits` is the type's size in memory and the width is the primitive it occupies once loaded, so
+// everything below 64 bits arrives in a 32-bit register and only the widest family needs a wider one.
+static TypePtr addInteger(Module& module, StringView name, U16 bits, bool isSigned) {
+    auto id = module.context.addQualifiedName(name.ptr, name.length, 1);
+    auto width = bits == 64 ? IntType::Long : IntType::Int;
+    auto type = new (module.types) IntType(bits, width, isSigned, id);
+
+    auto pointer = (Type*)type - *module.types;
+    module.namedTypes.add(id, pointer);
+    return pointer;
+}
+
+// Whether a value of `from` fits in `to` without losing anything: more bits, or the same bits
+// without a sign to lose. This decides which of the two conversion ladders a pair joins, which
+// is the whole of the rule for whether a conversion happens on its own or has to be written.
+static bool widens(GlobalBase global, TypePtr from, TypePtr to) {
+    auto source = (IntType*)global[from];
+    auto target = (IntType*)global[to];
+
+    if(source->isSigned && !target->isSigned) return false;
+    if(source->isSigned == target->isSigned) return target->bits > source->bits;
+
+    // Unsigned into signed needs a bit to spare for the sign.
+    return target->bits > source->bits;
+}
+
+static void defineIntegerTypes(Module& module, Array<TypePtr>& types) {
+    struct Width { StringView name; U16 bits; bool isSigned; };
+    static const Width widths[] = {
+        { "I8"_v, 8, true },   { "U8"_v, 8, false },
+        { "I16"_v, 16, true }, { "U16"_v, 16, false },
+        { "I32"_v, 32, true }, { "U32"_v, 32, false },
+        { "I64"_v, 64, true }, { "U64"_v, 64, false },
+    };
+
+    for(auto& width: widths) types.push(addInteger(module, width.name, width.bits, width.isSigned));
+}
+
+static void defineIntegerInstances(Module& module, Array<TypePtr>& types) {
+    GlobalBase global = *module.types;
+
+    // FromInt first, because Num declares it as a superclass: `1` has to mean something for a
+    // type before `+` on it can be told what `x + 1` is.
+    for(auto type: types) defineFromInt(module, type);
+
+    for(auto type: types) {
+        defineEq(module, type);
+        defineOrd(module, type);
+        defineNum(module, type);
+        defineIntegral(module, type);
+        defineTruth(module, type, emitTruthy);
+    }
+
+    // The conversion ladder, over these types and the two integer types they sit alongside. The
+    // `Int`/`Long` pair already has its rung from the numeric ladder below and is skipped rather
+    // than declared twice, which would leave instance selection with two answers to one question.
+    auto widthCount = types.size();
+    types.push(module.scalar.int_);
+    types.push(module.scalar.long_);
+
+    for(Size from = 0; from < types.size(); from++) {
+        for(Size to = 0; to < types.size(); to++) {
+            if(from == to || (from >= widthCount && to >= widthCount)) continue;
+
+            if(widens(global, types[from], types[to])) {
+                defineConversion(module, "Widen"_v, "widen"_v, types[from], types[to]);
+            } else {
+                defineConversion(module, "Narrow"_v, "narrow"_v, types[from], types[to]);
+            }
+        }
+    }
+}
+
 void defineCore(Program& program) {
     auto& context = program.context;
 
@@ -388,6 +479,10 @@ void defineCore(Program& program) {
     program.scalar.long_ = addPrimitive(program, *module, "Long"_v, new (program.types) IntType(64, IntType::Long, true));
     program.scalar.float_ = addPrimitive(program, *module, "Float"_v, new (program.types) FloatType(FloatType::Float));
     program.scalar.double_ = addPrimitive(program, *module, "Double"_v, new (program.types) FloatType(FloatType::Double));
+
+    // Before the source is read, so that Core's own declarations may name a width.
+    Array<TypePtr> widthTypes;
+    defineIntegerTypes(*module, widthTypes);
 
     resolveModuleDecls(*module, *ast, nullptr);
 
@@ -444,6 +539,11 @@ void defineCore(Program& program) {
             }
         }
     }
+
+    // The width types join the same classes, after the ladder above rather than before it: their
+    // own ladder reaches `Int` and `Long`, and skips that one pair on the grounds that it has just
+    // been declared here.
+    defineIntegerInstances(*module, widthTypes);
 
     // The classes the language's own syntax is written in terms of - a literal, an implicit
     // conversion, a condition, and the three points a binding convention compiles to. Looked up by
