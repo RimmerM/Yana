@@ -1,7 +1,7 @@
 
 depthOf<complex>(%m: Ptr): Int {
   b_0 {
-    %v_1 = load %m, 4: Long
+    %v_1 = load %m, 1: Long
     %v_2 = cmp_le %v_1, 3: Int
     %v_3 = select 1, 0, %v_2: Int
     %v_4 = cmp_eq %v_3, 0: Int
@@ -9,7 +9,7 @@ depthOf<complex>(%m: Ptr): Int {
   }
 
   b_6 {
-    %v_7 = load %m, 4: Long
+    %v_7 = load %m, 1: Long
     %v_8 = cmp_le %v_7, 3: Int
     %v_9 = select 1, 0, %v_8: Int
     %v_10 = cmp_eq %v_9, 1: Int
@@ -21,16 +21,16 @@ depthOf<complex>(%m: Ptr): Int {
   }
 
   b_12 {
-    %o = load %m, 4: Int
-    %v_14 = alloca 4, 4: Ptr
-    store %v_14, %o, 4
+    %o = load %m, 1: Int
+    %v_14 = alloca 1, 1: Ptr
+    store %v_14, %o, 1
     %v_15 = call_complex tagOf, %v_14: Int
     %v_16 = add 300, %v_15: Int
     jmp b_13
   }
 
   b_11 {
-    %v_17 = load %m, 4: Long
+    %v_17 = load %m, 1: Long
     %v_18 = cmp_le %v_17, 2: Int
     %v_19 = select 1, 0, %v_18: Int
     %v_20 = cmp_eq %v_19, 0: Int
@@ -49,7 +49,7 @@ depthOf<complex>(%m: Ptr): Int {
 
 tagOf<complex>(%m: Ptr): Int {
   b_0 {
-    %v_1 = load %m, 4: Long
+    %v_1 = load %m, 1: Long
     %v_2 = cmp_le %v_1, 2: Int
     %v_3 = select 1, 0, %v_2: Int
     %v_4 = cmp_eq %v_3, 0: Int
@@ -57,7 +57,7 @@ tagOf<complex>(%m: Ptr): Int {
   }
 
   b_6 {
-    %v_7 = load %m, 4: Long
+    %v_7 = load %m, 1: Long
     %v_8 = cmp_le %v_7, 2: Int
     %v_9 = select 1, 0, %v_8: Int
     %v_10 = cmp_eq %v_9, 1: Int
@@ -69,7 +69,7 @@ tagOf<complex>(%m: Ptr): Int {
   }
 
   b_12 {
-    %v_14 = load %m, 4: Long
+    %v_14 = load %m, 1: Long
     %v_15 = cmp_le %v_14, 2: Int
     %v_16 = select 1, 0, %v_15: Int
     %v_17 = cmp_eq %v_16, 1: Int
@@ -77,7 +77,7 @@ tagOf<complex>(%m: Ptr): Int {
   }
 
   b_11 {
-    %v_20 = load %m, 4: Int
+    %v_20 = load %m, 1: Int
     %v_21 = cast %v_20: Int
     %v_22 = cmp_eq %v_21, 0: Int
     je %v_22, b_23, b_12
@@ -88,12 +88,12 @@ tagOf<complex>(%m: Ptr): Int {
   }
 
   b_19 {
-    %v_24 = load %m, 4: Int
+    %v_24 = load %m, 1: Int
     jmp b_13
   }
 
   b_18 {
-    %v_25 = load %m, 4: Int
+    %v_25 = load %m, 1: Int
     %v_26 = cast %v_25: Int
     %v_27 = cmp_eq %v_26, 1: Int
     je %v_27, b_28, b_19
@@ -111,16 +111,12 @@ tagOf<complex>(%m: Ptr): Int {
 
 paired<complex>(): Int {
   b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    %v_2 = alloca 4, 4: Ptr
-    store %v_2, 2, 4
-    %v_3 = alloca 4, 4: Ptr
-    store %v_3, 3, 4
-    copy %v_1, %v_2, 4
-    %v_4 = add %v_1, 4: Ptr
-    copy %v_4, %v_3, 4
-    %v_5 = call_complex pairValue, %v_1: Int
-    ret %v_5
+    %v_1 = alloca 2, 1: Ptr
+    store %v_1, 2, 1
+    %v_2 = add %v_1, 1: Ptr
+    store %v_2, 3, 1
+    %v_3 = call_complex pairValue, %v_1: Int
+    ret %v_3
   }
 }
 
@@ -154,7 +150,7 @@ pairValue<complex>(%p: Ptr): Int {
   b_0 {
     %v_1 = call_complex tagOf, %p: Int
     %v_2 = imul %v_1, 10: Int
-    %v_3 = add %p, 4: Ptr
+    %v_3 = add %p, 1: Ptr
     %v_4 = call_complex tagOf, %v_3: Int
     %v_5 = add %v_2, %v_4: Int
     ret %v_5
@@ -163,14 +159,14 @@ pairValue<complex>(%p: Ptr): Int {
 
 roundTrip<complex>(): Int {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, 3, 4
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, 3, 1
     %a = call_complex tagOf, %v_1: Int
-    %v_2 = alloca 4, 4: Ptr
-    store %v_2, 0, 4
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
     %b = call_complex tagOf, %v_2: Int
-    %v_3 = alloca 4, 4: Ptr
-    store %v_3, 2, 4
+    %v_3 = alloca 1, 1: Ptr
+    store %v_3, 2, 1
     %c = call_complex tagOf, %v_3: Int
     %v_4 = imul %b, 10: Int
     %v_5 = add %a, %v_4: Int
@@ -182,22 +178,18 @@ roundTrip<complex>(): Int {
 
 nested<complex>(): Int {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, 4, 4
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, 4, 1
     %outer = call_complex depthOf, %v_1: Int
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    store %v_3, 3, 4
-    copy %v_2, %v_3, 4
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 3, 1
     %middle = call_complex depthOf, %v_2: Int
-    %v_4 = alloca 4, 4: Ptr
-    %v_5 = alloca 4, 4: Ptr
-    store %v_5, 1, 4
-    copy %v_4, %v_5, 4
-    %inner = call_complex depthOf, %v_4: Int
-    %v_6 = add %outer, %middle: Int
-    %v_7 = add %v_6, %inner: Int
-    ret %v_7
+    %v_3 = alloca 1, 1: Ptr
+    store %v_3, 1, 1
+    %inner = call_complex depthOf, %v_3: Int
+    %v_4 = add %outer, %middle: Int
+    %v_5 = add %v_4, %inner: Int
+    ret %v_5
   }
 }
 

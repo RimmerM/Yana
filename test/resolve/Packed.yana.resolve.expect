@@ -1,0 +1,444 @@
+fn bump(%x: U32) -> () {
+  b0:
+    %v1 = load %x : U32
+    %v4 = add %v1, 1 : U32
+    assign %x, %v4
+    ret
+}
+
+fn flip(%b: Bool) -> () {
+  b0:
+    %v1 = load %b : Bool
+    %v3 = xor %v1, True : Bool
+    assign %b, %v3
+    ret
+}
+
+fn scale(%x: U32, %by: U32) -> () {
+  b0:
+    %v2 = load %x : U32
+    %v3 = mul %v2, %by : U32
+    assign %x, %v3
+    ret
+}
+
+fn direct() -> Int {
+  b0:
+    %v0 = alloc : Header
+    init %local0@Header.version, 1
+    init %local0@Header.flags, 2
+    init %local0@Header.length, 3
+    %h = alloc : Header
+    init %h, %v0
+    assign %h@Header.length, 4000
+    assign %h@Header.version, 9
+    %v13 = load %h : Header
+    %v14 = load %h@Header.version : @bits(4) U32
+    %v15 = cast %v14 : U32
+    %v16 = cast %v15 : Int
+    %v19 = mul %v16, 100000 : Int
+    %v20 = load %h : Header
+    %v21 = load %h@Header.flags : @bits(3) U32
+    %v22 = cast %v21 : U32
+    %v23 = cast %v22 : Int
+    %v26 = mul %v23, 10000 : Int
+    %v27 = add %v19, %v26 : Int
+    %v28 = load %h : Header
+    %v29 = load %h@Header.length : @bits(13) U32
+    %v30 = cast %v29 : U32
+    %v31 = cast %v30 : Int
+    %v32 = add %v27, %v31 : Int
+    ret %v32
+}
+
+fn borrowed() -> Int {
+  b0:
+    %v0 = alloc : Header
+    init %local0@Header.version, 1
+    init %local0@Header.flags, 2
+    init %local0@Header.length, 3
+    %h = alloc : Header
+    init %h, %v0
+    %v9 = load %h : Header
+    %v10 = load %h@Header.version : @bits(4) U32
+    %v11 = alloc : U32
+    %v12 = load %h@Header.version : @bits(4) U32
+    %v13 = cast %v12 : U32
+    init %local2, %v13
+    %v15 = borrow_mut %local2 : &mut U32
+    call bump, %v15
+    %v17 = load %local2 : U32
+    %v19 = and %v17, 15 : U32
+    %v20 = cast %v19 : @bits(4) U32
+    assign %h@Header.version, %v20
+    %v22 = load %h : Header
+    %v23 = load %h@Header.length : @bits(13) U32
+    %v24 = alloc : U32
+    %v25 = load %h@Header.length : @bits(13) U32
+    %v26 = cast %v25 : U32
+    init %local3, %v26
+    %v28 = borrow_mut %local3 : &mut U32
+    call bump, %v28
+    %v30 = load %local3 : U32
+    %v32 = and %v30, 8191 : U32
+    %v33 = cast %v32 : @bits(13) U32
+    assign %h@Header.length, %v33
+    %v35 = load %h : Header
+    %v36 = load %h@Header.version : @bits(4) U32
+    %v37 = cast %v36 : U32
+    %v38 = cast %v37 : Int
+    %v41 = mul %v38, 100 : Int
+    %v42 = load %h : Header
+    %v43 = load %h@Header.length : @bits(13) U32
+    %v44 = cast %v43 : U32
+    %v45 = cast %v44 : Int
+    %v46 = add %v41, %v45 : Int
+    ret %v46
+}
+
+fn neighbours() -> Int {
+  b0:
+    %v0 = alloc : Header
+    init %local0@Header.version, 1
+    init %local0@Header.flags, 0
+    init %local0@Header.length, 100
+    %h = alloc : Header
+    init %h, %v0
+    %v9 = load %h : Header
+    %v10 = load %h@Header.version : @bits(4) U32
+    %v11 = alloc : U32
+    %v12 = load %h@Header.version : @bits(4) U32
+    %v13 = cast %v12 : U32
+    init %local2, %v13
+    %v15 = borrow_mut %local2 : &mut U32
+    call bump, %v15
+    %v17 = load %local2 : U32
+    %v19 = and %v17, 15 : U32
+    %v20 = cast %v19 : @bits(4) U32
+    assign %h@Header.version, %v20
+    %v22 = load %h : Header
+    %v23 = load %h@Header.length : @bits(13) U32
+    %v25 = alloc : U32
+    %v26 = load %h@Header.length : @bits(13) U32
+    %v27 = cast %v26 : U32
+    init %local3, %v27
+    %v29 = borrow_mut %local3 : &mut U32
+    call scale, %v29, 3
+    %v31 = load %local3 : U32
+    %v33 = and %v31, 8191 : U32
+    %v34 = cast %v33 : @bits(13) U32
+    assign %h@Header.length, %v34
+    %v36 = load %h : Header
+    %v37 = load %h@Header.version : @bits(4) U32
+    %v38 = cast %v37 : U32
+    %v39 = cast %v38 : Int
+    %v42 = mul %v39, 1000 : Int
+    %v43 = load %h : Header
+    %v44 = load %h@Header.length : @bits(13) U32
+    %v45 = cast %v44 : U32
+    %v46 = cast %v45 : Int
+    %v47 = add %v42, %v46 : Int
+    ret %v47
+}
+
+fn together() -> Int {
+  b0:
+    %v0 = alloc : Flags
+    init %local0@Flags.optionA, False
+    init %local0@Flags.optionB, False
+    %f = alloc : Flags
+    init %f, %v0
+    %v7 = load %f : Flags
+    %v8 = load %f@Flags.optionA : Bool
+    %v9 = borrow_mut %f@Flags.optionA : &mut Bool
+    call flip, %v9
+    %v11 = load %f : Flags
+    %v12 = load %f@Flags.optionB : Bool
+    %v13 = borrow_mut %f@Flags.optionB : &mut Bool
+    call flip, %v13
+    %v15 = load %f : Flags
+    %v16 = load %f@Flags.optionA : Bool
+    je %v16, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v24 = phi [b1, 1], [b2, 0] : Int
+    %v25 = load %f : Flags
+    %v26 = load %f@Flags.optionB : Bool
+    je %v26, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v34 = phi [b4, 2], [b5, 0] : Int
+    %v35 = add %v24, %v34 : Int
+    ret %v35
+}
+
+fn unpacked() -> Int {
+  b0:
+    %v0 = alloc : Mixed
+    init %local0@Mixed.only, 7
+    init %local0@Mixed.wide, 5
+    %m = alloc : Mixed
+    init %m, %v0
+    %v7 = load %m : Mixed
+    %v8 = load %m@Mixed.only : @bits(5) U32
+    %v9 = alloc : U32
+    %v10 = load %m@Mixed.only : @bits(5) U32
+    %v11 = cast %v10 : U32
+    init %local2, %v11
+    %v13 = borrow_mut %local2 : &mut U32
+    call bump, %v13
+    %v15 = load %local2 : U32
+    %v17 = and %v15, 31 : U32
+    %v18 = cast %v17 : @bits(5) U32
+    assign %m@Mixed.only, %v18
+    %v20 = load %m : Mixed
+    %v21 = load %m@Mixed.only : @bits(5) U32
+    %v22 = cast %v21 : U32
+    %v23 = cast %v22 : Int
+    %v26 = mul %v23, 10 : Int
+    %v27 = load %m : Mixed
+    %v28 = load %m@Mixed.wide : Int
+    %v29 = add %v26, %v28 : Int
+    ret %v29
+}
+
+fn pick(%flag: Bool, %a: Bool, %b: Bool) -> &mut Bool {
+  b0:
+    je %flag, b1, b2
+
+  b1:
+    %v4 = load %a : Bool
+    %v5 = borrow_mut %a : &mut Bool
+    jmp b3
+
+  b2:
+    %v6 = load %b : Bool
+    %v7 = borrow_mut %b : &mut Bool
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, %v5], [b2, %v7] : &mut Bool
+    ret %v10
+}
+
+fn loaned() -> Int {
+  b0:
+    %v0 = alloc : Flags
+    init %local0@Flags.optionA, True
+    init %local0@Flags.optionB, True
+    %f = alloc : Flags
+    init %f, %v0
+    %v8 = load %f : Flags
+    %v9 = load %f@Flags.optionA : Bool
+    %v10 = load %f : Flags
+    %v11 = load %f@Flags.optionB : Bool
+    %v12 = borrow_mut %f@Flags.optionA : &mut Bool
+    %v13 = borrow_mut %f@Flags.optionB : &mut Bool
+    %v14 = call pick, True, %v12, %v13 : &mut Bool
+    assign [%v14], False
+    %v17 = load %f : Flags
+    %v18 = load %f@Flags.optionA : Bool
+    je %v18, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v26 = phi [b1, 1], [b2, 0] : Int
+    %v27 = load %f : Flags
+    %v28 = load %f@Flags.optionB : Bool
+    je %v28, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v36 = phi [b4, 2], [b5, 0] : Int
+    %v37 = add %v26, %v36 : Int
+    ret %v37
+}
+
+fn optionOf(%f: Flags) -> &mut Bool {
+  b0:
+    %v1 = load %f : Flags
+    %v2 = load %f@Flags.optionA : Bool
+    %v3 = borrow_mut %f@Flags.optionA : &mut Bool
+    ret %v3
+}
+
+fn returned() -> Int {
+  b0:
+    %v0 = alloc : Flags
+    init %local0@Flags.optionA, False
+    init %local0@Flags.optionB, True
+    %f = alloc : Flags
+    init %f, %v0
+    %v7 = load %f : Flags
+    %v8 = borrow_mut %f : &mut Flags
+    %v9 = call optionOf, %v8 : &mut Bool
+    assign [%v9], True
+    %v12 = load %f : Flags
+    %v13 = load %f@Flags.optionA : Bool
+    je %v13, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v21 = phi [b1, 1], [b2, 0] : Int
+    %v22 = load %f : Flags
+    %v23 = load %f@Flags.optionB : Bool
+    je %v23, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v31 = phi [b4, 2], [b5, 0] : Int
+    %v32 = add %v21, %v31 : Int
+    ret %v32
+}
+
+fn swapBools(%a: Bool, %b: Bool) -> () {
+  b0:
+    %t = load %a : Bool
+    %v3 = load %b : Bool
+    assign %a, %v3
+    assign %b, %t
+    ret
+}
+
+fn interleaved() -> Int {
+  b0:
+    %v0 = alloc : Flags
+    init %local0@Flags.optionA, True
+    init %local0@Flags.optionB, False
+    %g = alloc : Flags
+    init %g, %v0
+    %v7 = load %g : Flags
+    %v8 = load %g@Flags.optionA : Bool
+    %v9 = load %g : Flags
+    %v10 = load %g@Flags.optionB : Bool
+    %v11 = borrow_mut %g@Flags.optionA : &mut Bool
+    %v12 = borrow_mut %g@Flags.optionB : &mut Bool
+    call swapBools, %v11, %v12
+    %v14 = load %g : Flags
+    %v15 = load %g@Flags.optionA : Bool
+    je %v15, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v23 = phi [b1, 1], [b2, 0] : Int
+    %v24 = load %g : Flags
+    %v25 = load %g@Flags.optionB : Bool
+    je %v25, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v33 = phi [b4, 2], [b5, 0] : Int
+    %v34 = add %v23, %v33 : Int
+    ret %v34
+}
+
+fn nudge(%x: @bits(13) U32) -> () {
+  b0:
+    %v1 = load %x : @bits(13) U32
+    %v3 = cast %v1 : U32
+    %v5 = add %v3, 1 : U32
+    %v7 = and %v5, 8191 : U32
+    %v8 = cast %v7 : @bits(13) U32
+    assign %x, %v8
+    ret
+}
+
+fn nudgeTwice(%x: @bits(13) U32) -> () {
+  b0:
+    %v1 = load %x : @bits(13) U32
+    %v2 = borrow_mut %x : &mut @bits(13) U32
+    call nudge, %v2
+    %v4 = load %x : @bits(13) U32
+    %v5 = borrow_mut %x : &mut @bits(13) U32
+    call nudge, %v5
+    ret
+}
+
+fn threaded() -> Int {
+  b0:
+    %v0 = alloc : Header
+    init %local0@Header.version, 1
+    init %local0@Header.flags, 2
+    init %local0@Header.length, 100
+    %h = alloc : Header
+    init %h, %v0
+    %v9 = load %h : Header
+    %v10 = load %h@Header.length : @bits(13) U32
+    %v11 = borrow_mut %h@Header.length : &mut @bits(13) U32
+    call nudgeTwice, %v11
+    %v13 = load %h : Header
+    %v14 = load %h@Header.length : @bits(13) U32
+    %v15 = cast %v14 : U32
+    %v16 = cast %v15 : Int
+    %v19 = mul %v16, 10 : Int
+    %v20 = load %h : Header
+    %v21 = load %h@Header.version : @bits(4) U32
+    %v22 = cast %v21 : U32
+    %v23 = cast %v22 : Int
+    %v24 = add %v19, %v23 : Int
+    ret %v24
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call direct : Int
+    %v1 = call borrowed : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call neighbours : Int
+    %v4 = add %v2, %v3 : Int
+    %v5 = call together : Int
+    %v6 = add %v4, %v5 : Int
+    %v7 = call unpacked : Int
+    %v8 = add %v6, %v7 : Int
+    %v9 = call loaned : Int
+    %v10 = add %v8, %v9 : Int
+    %v11 = call returned : Int
+    %v12 = add %v10, %v11 : Int
+    %v13 = call interleaved : Int
+    %v14 = add %v12, %v13 : Int
+    %v15 = call threaded : Int
+    %v16 = add %v14, %v15 : Int
+    ret %v16
+}

@@ -44,6 +44,21 @@ struct Local {
      * since the teardown that reads it is not in this frame at all.
      */
     bool closureEnv = false;
+
+    /*
+     * Set for the temporary a mutable borrow of a packed field was materialized into - Design.md's
+     * tier 1, and see ExprResolver::borrowPlace.
+     *
+     * Recorded because the storage is *this frame's* while the field it stands for is not, so a
+     * borrow of it may not outlive the frame. A callee that retains one, or a result rooted in one,
+     * is Design.md's tier 2 and needs the field's property witness rather than a temporary; until
+     * that exists the ownership passes report it, and this is what tells them which locals to
+     * report about.
+     *
+     * Last in the struct, and staying there: Function::addLocal builds one of these positionally, so
+     * a field added in the middle silently shifts every one after it.
+     */
+    bool materialized = false;
 };
 
 /*
@@ -285,6 +300,14 @@ struct InternedWitness {
     ModulePtr<Global> witness;
 };
 
+// One interned field accessor pair, keyed by the owner and the field name - which together decide
+// both accessors and the two descriptors beside them. See propertyWitnessFor.
+struct InternedProperty {
+    TypePtr owner = nullptr;
+    StringId field = 0;
+    ModulePtr<Global> witness = nullptr;
+};
+
 /*
  * A module-level storage slot.
  *
@@ -465,6 +488,9 @@ struct Program {
 
     // The class method tables, interned per class and argument list - see classWitnessFor.
     Array<InternedWitness> classWitnesses;
+
+    // The field accessor tables, interned per owner and field name - see propertyWitnessFor.
+    Array<InternedProperty> propertyWitnesses;
 
     // The glue that lets a plain function be a function value, interned per function: one word of
     // adapter that drops the environment every callable is handed. See expr_fun.cpp.

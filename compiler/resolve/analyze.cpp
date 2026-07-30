@@ -62,8 +62,14 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
         // two from both happening. See Local::closureEnv.
         if(slot.closureEnv) owned = false;
 
+        // By name, for the reason Function::addLocal gives: this is the other struct in the
+        // ownership passes that gets fields added to it, and a positional list of four out of eight
+        // is exactly the shape that goes wrong quietly when a fifth is inserted in front.
         analysis.tracked.push(TrackedLocal {
-            slot.type, slot.name, owned, ownership.needsTeardown(),
+            .type = slot.type,
+            .name = slot.name,
+            .owned = owned,
+            .droppable = ownership.needsTeardown(),
         });
     }
 
@@ -89,6 +95,7 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
     checkMoves(analysis);
     checkBorrows(analysis);
     checkReturnRoots(analysis);
+    checkMaterializedBorrows(analysis);
     checkClosureEnvironments(analysis);
 
     result.locals = analysis.tracked;

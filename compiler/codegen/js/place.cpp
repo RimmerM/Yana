@@ -76,7 +76,7 @@ JsPtr<Expr> globalValue(Gen& g, ModulePtr<Global> pointer) {
  */
 namespace {
 
-TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr) {
+TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = maxLimit<Size>) {
     TypePtr type = nullptr;
 
     if(place.root == PlaceRoot::Global) {
@@ -95,9 +95,14 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr) {
         if(expr) {
             *expr = useValue(g, place.pointer);
 
-            // An alias is the storage under a second name, so there is no box to read through -
-            // see prepareLocals. Everything else that is not an object arrived as one.
-            if(!isJsObject(g, type) && !g.aliasBorrows.contains(U32(place.pointer))) {
+            // A reference to a narrow value is the (object, property) pair a place already is here,
+            // reified - so reading and writing through one is one index expression, which is an
+            // lvalue and needs no interception on either side. See Gen::refObject.
+            if(isNarrowJsValue(g, type)) {
+                *expr = elementAt(g, field(g, *expr, g.refObject), field(g, *expr, g.refKey));
+            } else if(!isJsObject(g, type) && !g.aliasBorrows.contains(U32(place.pointer))) {
+                // An alias is the storage under a second name, so there is no box to read through -
+                // see prepareLocals. Everything else that is not an object arrived as one.
                 *expr = field(g, *expr, g.boxField);
             }
         }
@@ -108,7 +113,11 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr) {
         if(expr) {
             *expr = useValue(g, root.value);
 
-            if(place.local < g.boxed.size() && g.boxed[place.local]) {
+            // The slot behind a `&` parameter of narrow type holds one of those pairs rather than
+            // storage of its own.
+            if(root.borrowed && isNarrowJsValue(g, type)) {
+                *expr = elementAt(g, field(g, *expr, g.refObject), field(g, *expr, g.refKey));
+            } else if(place.local < g.boxed.size() && g.boxed[place.local]) {
                 *expr = field(g, *expr, g.boxField);
             }
         }
@@ -118,8 +127,14 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr) {
     }
 
     auto projections = place.projections;
+    Size walked = 0;
 
     for(auto projection: projections.contents(g.local)) {
+        // `limit` stops before the trailing Property projection, which is how the *owner* of a
+        // constrained field is asked for: the field is reached by calling the witness with that
+        // owner rather than by naming a property of it. See propertySlotOf in inst.cpp.
+        if(walked++ >= limit) break;
+
         switch(projection.kind) {
             case ProjectionKind::Discriminant: {
                 // An enum *is* its discriminant, so there is nothing to project out of it.
@@ -212,16 +227,16 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr) {
 
 } // namespace
 
-JsPtr<Expr> placeExpr(Gen& g, const Place& place) {
+JsPtr<Expr> placeExpr(Gen& g, const Place& place, Size limit) {
     JsPtr<Expr> expr = nullptr;
-    walkPlace(g, place, &expr);
+    walkPlace(g, place, &expr, limit);
     return expr;
 }
 
 // What a place holds. Most callers want one or the other rather than both, so this skips building
 // the chain rather than building one nobody reads.
-TypePtr placeType(Gen& g, const Place& place) {
-    return walkPlace(g, place, nullptr);
+TypePtr placeType(Gen& g, const Place& place, Size limit) {
+    return walkPlace(g, place, nullptr, limit);
 }
 
 JsPtr<Expr> referenceTo(Gen& g, TypePtr type, JsPtr<Expr> value) {
@@ -229,9 +244,9 @@ JsPtr<Expr> referenceTo(Gen& g, TypePtr type, JsPtr<Expr> value) {
     return value;
 }
 
-JsPtr<Expr> referenceTo(Gen& g, const Place& place) {
+JsPtr<Expr> referenceTo(Gen& g, const Place& place, Size limit) {
     JsPtr<Expr> expr = nullptr;
-    auto type = walkPlace(g, place, &expr);
+    auto type = walkPlace(g, place, &expr, limit);
     return referenceTo(g, type, expr);
 }
 

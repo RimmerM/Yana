@@ -48,7 +48,9 @@ ReprTarget nativeReprTarget() {
     target.pointerSize = 8;
     target.pointerAlign = 8;
     target.integerBits = 64;
+    target.maxPackBits = 64;
     target.nullableRawPointers = true;
+    target.packFields = true;
     target.foldNiches = true;
     return target;
 }
@@ -70,6 +72,7 @@ ReprTarget jsReprTarget() {
     target.pointerSize = 8;
     target.pointerAlign = 8;
     target.integerBits = 53;
+    target.maxPackBits = 53;
     target.nullableRawPointers = true;
     return target;
 }
@@ -109,6 +112,60 @@ const FieldRepr* ReprTable::fieldOf(TypePtr type, U16 index) {
     return index < repr.fields.size() ? &repr.fields[index] : nullptr;
 }
 
+bool ReprTable::hasPaddedWord(TypePtr type, U32 depth) {
+    auto& repr = of(type);
+    if(repr.opaque || depth > 8) return false;
+
+    /*
+     * A bit tag's leftover patterns, which are exactly the packed case below wearing another name: the
+     * tag is written by a read-modify-write, so the bits above it are whatever the storage held, and
+     * the niche the record publishes is made of them.
+     */
+    if(repr.isBitTagged() &&
+       repr.discriminantBitOffset + repr.discriminantBits < repr.size * 8) {
+        return true;
+    }
+
+    /*
+     * A *packed* word only, which is the whole of the difference.
+     *
+     * A narrow value that owns its storage is written by a store of the whole width - a `@bits(13)`
+     * field is a two-byte store of a masked value - so its high bits are written every time and its
+     * niche is true without anyone arranging it. A packed word is written by a read-modify-write that
+     * preserves everything outside the field, so the bits above the run are whatever was there.
+     */
+    for(auto& field: repr.fields) {
+        if(field.isPacked()) {
+            // The packed fields of one word, gathered by asking how far up the word anything reaches.
+            U32 used = 0;
+            for(auto& other: repr.fields) {
+                if(other.isPacked() && other.offset == field.offset) {
+                    used = max(used, U32(other.bitOffset) + other.bitWidth);
+                }
+            }
+
+            if(used < U32(field.wordBytes) * 8) return true;
+        } else if(field.type && field.type != type && hasPaddedWord(field.type, depth + 1)) {
+            return true;
+        }
+    }
+
+    /*
+     * A sum's payloads, which its own field list does not mention: a record with several constructors
+     * describes their contents one Downcast at a time rather than as fields of itself, so the walk
+     * above would stop at a tag and never look at what the tag selects between.
+     */
+    auto value = global[type];
+    if(value->kind == Type::Record) {
+        for(auto constructor: ((RecordType*)value)->constructors.contents(global)) {
+            auto content = constructor.content;
+            if(content && content != type && hasPaddedWord(content, depth + 1)) return true;
+        }
+    }
+
+    return false;
+}
+
 void ReprTable::compute(TypePtr type, Repr& into) {
     auto value = global[type];
 
@@ -130,6 +187,7 @@ void ReprTable::compute(TypePtr type, Repr& into) {
             auto storage = naturalBytes(integer->bits);
             into.size = storage;
             into.align = storage;
+            into.scalarBits = integer->bits;
             into.niche = intNiche(*integer, 0);
             break;
         }
@@ -173,12 +231,10 @@ void ReprTable::compute(TypePtr type, Repr& into) {
 }
 
 // The natural storage of an integer of `bits` logical width: the smallest power-of-two byte count
-// that holds it, which is what the machine has a load for.
+// that holds it, which is what the machine has a load for. The rule itself lives in resolve, because
+// the packing-candidate predicate there is stated in terms of it and the two have to agree.
 U32 ReprTable::naturalBytes(U32 bits) const {
-    if(bits <= 8) return 1;
-    if(bits <= 16) return 2;
-    if(bits <= 32) return 4;
-    return 8;
+    return naturalStorageBits(bits) / 8;
 }
 
 /*
@@ -218,19 +274,55 @@ Niche ReprTable::addressNiche(U32 offset) const {
 void ReprTable::computeTuple(TupType& tuple, Repr& into) {
     U32 size = 0;
     U32 alignment = 1;
+    auto count = tuple.fields.size();
 
-    for(Size i = 0; i < tuple.fields.size(); i++) {
-        auto field = tuple.fields.get(global, i);
+    // Placed by index rather than pushed, because fields are not placed in the order they were
+    // written and a packed word places several of them at once.
+    into.fields.reserve(U32(count));
+    for(Size i = 0; i < count; i++) into.fields.push(FieldRepr {});
+
+    // The whole aggregate as one scalar, where it has that form and this target can hold it.
+    if(target.packFields && scalarizeTuple(tuple, into)) return;
+
+    Array<U16> order;
+    placementOrder(tuple, order);
+    auto walk = toBuffer(order);
+
+    Size at = 0;
+    while(at < walk.length) {
+        if(target.packFields) {
+            auto next = packWord(tuple, into, walk, at, size, alignment);
+            if(next != at) { at = next; continue; }
+        }
+
+        auto index = walk[at];
+        auto field = tuple.fields.get(global, index);
         auto& member = of(field.type);
+        auto memberSize = member.size;
+        auto memberAlign = member.align;
+
+        /*
+         * A bit-field that shares its unit with nobody still occupies the whole unit under a pinned
+         * layout, because C says so: `int d: 4` between two other members takes four bytes, not the
+         * one its four bits would fit in. Only the *slot* widens - reading and writing it is still a
+         * load of the value's own width at its own address, which on this byte order is the low end of
+         * the unit and is what the narrow-reference ABI already assumes.
+         */
+        if(tuple.layout == TypeLayout::C) {
+            if(auto unit = declaredUnitBits(global, field.type) / 8) {
+                memberSize = max(memberSize, unit);
+                memberAlign = max(memberAlign, unit);
+            }
+        }
 
         FieldRepr placed;
         placed.type = field.type;
-        placed.wordBytes = U8(member.size > 255 ? 0 : member.size);
+        placed.wordBytes = U8(memberSize > 255 ? 0 : memberSize);
 
-        size = alignTo(size, member.align);
+        size = alignTo(size, memberAlign);
         placed.offset = size;
-        size += member.size;
-        alignment = max(alignment, member.align);
+        size += memberSize;
+        alignment = max(alignment, memberAlign);
 
         // The first niche any field exposes becomes the aggregate's, republished at the offset the
         // field ended up at. First rather than largest, because a niche is only ever asked whether
@@ -240,11 +332,221 @@ void ReprTable::computeTuple(TupType& tuple, Repr& into) {
             into.niche.offset += placed.offset;
         }
 
-        into.fields.push(placed);
+        into.fields[index] = placed;
+        at++;
     }
 
     into.size = alignTo(size, alignment);
     into.align = alignment;
+}
+
+/*
+ * The whole aggregate as one integer - Implementation-JS-Repr.md part 1's shape, arrived at for
+ * native first because it is where the bits are.
+ *
+ * A record whose every field is narrow *is* a run of co-packed fields and nothing else, so it costs
+ * the natural storage of their total width: `{a: Bool, b: Bool}` is one byte holding two bits, and a
+ * record containing that record co-packs those two bits into a word of its own rather than spending a
+ * byte on them. Which records have this form is `scalarLayout`'s answer rather than this one, for the
+ * usual reason - the span it reports is the mask width a callee holding a `&` of the whole aggregate
+ * applies, so the two have to be the same number.
+ *
+ * Declining where the span is wider than this target can load is what `Repr::scalarBits` being a
+ * target's answer is for: the record is then laid out as an ordinary aggregate below, and a `&` of it
+ * is an ordinary address.
+ *
+ * A field that resolve did not name as a pack candidate is placed *unpacked* even here, which matters
+ * for exactly one shape: a single-field record, whose one field is narrow but has nothing to share a
+ * word with. Its scalar form and its plain layout are the same bytes - offset zero of a word its own
+ * natural storage wide - so the only difference packing it would make is to take away the address
+ * `addressOf` is still allowed to hand out. The contract runs one way, and this is the one place in
+ * this function where that could have been broken silently.
+ */
+bool ReprTable::scalarizeTuple(TupType& tuple, Repr& into) {
+    PackedRun run;
+    Array<U32> offsets;
+    if(!scalarLayout(global, tuple, run, &offsets)) return false;
+
+    auto budget = min(target.maxPackBits, kMaxPackBits);
+    if(run.span > budget) return false;
+
+    auto bytes = naturalBytes(run.span);
+    into.size = bytes;
+    into.align = bytes;
+    into.scalarBits = run.span;
+
+    for(Size index = 0; index < offsets.size(); index++) {
+        auto field = tuple.fields.get(global, index);
+
+        FieldRepr placed;
+        placed.type = field.type;
+        placed.offset = 0;
+        placed.wordBytes = U8(bytes);
+
+        if(packCandidate(global, tuple, U16(index))) {
+            placed.bitOffset = U8(offsets[index]);
+            placed.bitWidth = U8(valueWidth(global, field.type).logical);
+        }
+
+        into.fields[index] = placed;
+    }
+
+    // Everything above the span, which is the niche `Maybe(Flags)` folds into - and the reason a
+    // scalar record is worth having even where it saved no space.
+    Niche niche;
+    niche.offset = 0;
+    niche.bytes = U8(bytes);
+    niche.validStart = 0;
+    niche.validEnd = (U64(1) << run.span) - 1;
+    into.niche = niche;
+
+    return true;
+}
+
+/*
+ * The order fields are *placed* in, which is not the order they were written in.
+ *
+ * Two groups. Everything that owns its storage goes first, widest alignment first and then widest
+ * size, which is the ordinary way to spend padding: a `U64` after a `Bool` costs seven bytes of hole,
+ * and the same two fields the other way round cost none. Then the pack candidates, in `packOrder`,
+ * because a run of bit-fields wants to end up in one word and a word placed last can be as narrow as
+ * what is left over rather than as wide as the alignment it landed on.
+ *
+ * `@layout(c)` is declaration order, one group, and the reordering above is exactly what it opts out
+ * of. A run of bit-fields is then whatever consecutive candidates the declaration wrote, which is
+ * what makes `{a: @bits(4), b: U64, c: @bits(4)}` two units under a pin and one word without it.
+ */
+void ReprTable::placementOrder(TupType& tuple, Array<U16>& into) {
+    auto count = tuple.fields.size();
+
+    if(tuple.layout != TypeLayout::Auto) {
+        for(U16 i = 0; i < count; i++) into.push(i);
+        return;
+    }
+
+    Array<U16> packed;
+    for(U16 i = 0; i < count; i++) {
+        if(target.packFields && packCandidate(global, tuple, i)) packed.push(i);
+        else into.push(i);
+    }
+
+    // Insertion sort, and stable, so that two fields a target has no reason to distinguish stay in
+    // the order they were declared - the layout dump of a record is easier to read against its
+    // declaration that way, and it is one fewer thing that changes when a field is added.
+    for(Size i = 1; i < into.size(); i++) {
+        auto index = into[i];
+        auto& member = of(tuple.fields.get(global, index).type);
+        auto at = i;
+
+        while(at > 0) {
+            auto& previous = of(tuple.fields.get(global, into[at - 1]).type);
+            if(previous.align > member.align) break;
+            if(previous.align == member.align && previous.size >= member.size) break;
+
+            into[at] = into[at - 1];
+            at--;
+        }
+
+        into[at] = index;
+    }
+
+    packOrder(global, tuple, packed);
+    for(auto index: packed) into.push(index);
+}
+
+/*
+ * One word of co-packed fields - Design.md's `Header`, and the half of Design.md's "Packed fields
+ * and mutable borrowing" that this file is responsible for.
+ *
+ * Which fields may be co-packed is resolve's answer, not this one: `packCandidate` is stated over
+ * the logical type so that it reads the same on every target, and this may pack fewer of them but
+ * never more. What is decided here is how many of a run fit one word and how wide that word is.
+ *
+ * Returns the index to continue from, or `first` unchanged when nothing was packed - which the
+ * caller takes as "place this field the ordinary way".
+ */
+Size ReprTable::packWord(TupType& tuple, Repr& into, Buffer<const U16> order, Size first, U32& size,
+                         U32& alignment) {
+    if(!packCandidate(global, tuple, order[first])) return first;
+
+    /*
+     * As many consecutive candidates of the placement order as fit the widest word this target can
+     * load and mask in one go. The placement itself - and the straddle rule that decides how much of
+     * the word a run actually spends - is `packBits` in resolve/type.cpp, because the span it reports
+     * is also the mask width a callee holding a reference to a whole scalar aggregate applies.
+     *
+     * `min` with the language's budget rather than the target's alone, because a target wider than
+     * `kMaxPackBits` would pack a run `valueWidth` had already told resolve was too wide to be one.
+     */
+    Array<U16> run;
+    for(auto at = first; at < order.length && packCandidate(global, tuple, order[at]); at++) {
+        run.push(order[at]);
+    }
+
+    auto budget = min(target.maxPackBits, kMaxPackBits);
+    Array<U32> offsets;
+    auto placed = packBits(global, tuple, toBuffer(run), budget, &offsets);
+
+    auto used = placed.span;
+    auto last = first + placed.count;
+
+    // A field alone in a word is not packed. It keeps its natural storage and therefore its
+    // address, which costs nothing in space and saves every borrow of it a temporary - see tier 0
+    // in Design.md. This is reached at the tail of a run too long for one word.
+    if(placed.count < 2) return first;
+
+    /*
+     * How wide the word is. As narrow as the bits need, except under a pinned layout, where it is as
+     * wide as the declared type of the widest bit-field in the run - two `int x: 4` share four bytes
+     * in C rather than one, and the whole point of the pin is that they do here too.
+     */
+    auto wordBytes = naturalBytes(used);
+    if(tuple.layout == TypeLayout::C) {
+        U32 unit = 0;
+        for(Size at = 0; at < placed.count; at++) {
+            unit = max(unit, declaredUnitBits(global, tuple.fields.get(global, run[at]).type));
+        }
+
+        if(unit) wordBytes = alignTo(used, unit) / 8;
+    }
+
+    size = alignTo(size, wordBytes);
+
+    auto offset = size;
+    size += wordBytes;
+    alignment = max(alignment, wordBytes);
+
+    for(Size at = 0; at < placed.count; at++) {
+        auto index = run[at];
+        auto field = tuple.fields.get(global, index);
+
+        FieldRepr entry;
+        entry.type = field.type;
+        entry.offset = offset;
+        entry.wordBytes = U8(wordBytes);
+        entry.bitOffset = U8(offsets[at]);
+        entry.bitWidth = U8(valueWidth(global, field.type).logical);
+        into.fields[index] = entry;
+    }
+
+    /*
+     * What the word has left over, which is a better niche than any of these fields could have
+     * donated alone: two booleans in one byte leave 252 patterns free where each of them separately
+     * left the high half of its own word.
+     *
+     * A packed field never republishes its own niche - there is no whole word for it to be a niche
+     * *of* - so this is the only way a packed run contributes one.
+     */
+    if(!into.niche.exists() && used < wordBytes * 8) {
+        Niche niche;
+        niche.offset = offset;
+        niche.bytes = U8(wordBytes);
+        niche.validStart = 0;
+        niche.validEnd = (U64(1) << used) - 1;
+        into.niche = niche;
+    }
+
+    return last;
 }
 
 void ReprTable::computeRecord(RecordType& record, Repr& into) {
@@ -259,6 +561,7 @@ void ReprTable::computeRecord(RecordType& record, Repr& into) {
         auto& inner = of(content);
         into.size = inner.size;
         into.align = inner.align;
+        into.scalarBits = inner.scalarBits;
         into.niche = inner.niche;
         copyFields(inner.fields, into.fields);
         into.payloadOffset = 0;
@@ -277,12 +580,31 @@ void ReprTable::computeRecord(RecordType& record, Repr& into) {
     }
 
     if(record.layout == RecordType::Enum) {
-        // No payload at all: the value is its discriminant. The unused patterns above the last
-        // constructor are the niche `Maybe(Bool)` and friends fold into.
-        into.size = 4;
-        into.align = 4;
+        // A payload-free sum *is* its discriminant, so it is a scalar of however many bits its
+        // constructor count needs - which is what lets a pair of `Bool`s share a byte.
+        into.scalarBits = valueWidth(global, (Type*)&record - global).logical;
+
+        /*
+         * No payload at all: the value is its discriminant, and it costs what that discriminant
+         * costs. A `Bool` is one byte and a three-constructor enum is one byte, rather than the four
+         * this used to spend unconditionally.
+         *
+         * That width is not a saving of its own - nothing holds a lone `Bool` more cheaply for it -
+         * but of what it does to the records containing one. An enum field that is *not* co-packed
+         * still occupies its own storage, so a four-byte `Bool` made `{a: U8, b: Bool}` eight bytes
+         * and dragged the record's alignment to four; at one byte the same record is two, with both
+         * fields addressable and read by an ordinary load. It is also what keeps the two answers
+         * about a scalar record consistent: `naturalBytes(span)` is the size, and a field left
+         * unpacked inside it has to fit that size or its store writes over the record.
+         *
+         * The unused patterns above the last constructor are the niche `Maybe(Bool)` and friends
+         * fold into, and they are now the patterns of a byte rather than of a word.
+         */
+        auto bytes = naturalBytes(into.scalarBits);
+        into.size = bytes;
+        into.align = bytes;
         into.discriminant = DiscriminantKind::Word;
-        into.discriminantBytes = 4;
+        into.discriminantBytes = bytes;
 
         // Zero rather than "after the discriminant", because there is no payload to be after it.
         // A Downcast into a payload-free constructor projects to nothing and must not move the
@@ -290,7 +612,7 @@ void ReprTable::computeRecord(RecordType& record, Repr& into) {
         into.payloadOffset = 0;
 
         Niche niche;
-        niche.bytes = 4;
+        niche.bytes = U8(bytes);
         niche.validStart = 0;
         niche.validEnd = constructors.size() ? constructors.size() - 1 : 0;
         into.niche = niche;
@@ -298,12 +620,100 @@ void ReprTable::computeRecord(RecordType& record, Repr& into) {
     }
 
     if(foldNiche(record, into)) return;
+    if(scalarizeSum(record, into, payloadSize, payloadAlign)) return;
 
     into.discriminant = DiscriminantKind::Word;
     into.discriminantBytes = 4;
     into.payloadOffset = alignTo(4, payloadAlign);
     into.align = max(4u, payloadAlign);
     into.size = alignTo(into.payloadOffset + payloadSize, into.align);
+}
+
+/*
+ * A tag of bits above the payload rather than a word in front of it.
+ *
+ * The fallback below spends four bytes on a tag and then aligns the payload behind it, so
+ * `data Small = A(U8) | B(U8)` costs eight bytes to hold one byte and one bit. This is the case
+ * niche folding cannot reach - `U8` fills its storage and has no impossible pattern - and it needs
+ * none: the *tag* is what becomes small, not the payload.
+ *
+ * ## Why the payload keeps its own layout
+ *
+ * Each constructor's content is placed at offset zero exactly as it is laid out standalone, and the
+ * tag goes strictly above the widest of them - above the whole `size` of it, padding included, and
+ * not merely above the last bit any of its fields reaches. That costs a little density, and it is
+ * what makes the rest of the compiler need no changes at all:
+ *
+ *  - a Downcast adds `payloadOffset`, which is zero, so the place walk reaches a payload field at
+ *    exactly the offset `fieldOf(content, i)` reports. Nothing has to know that a payload is inside a
+ *    tagged word, which is what keeps this out of resolve entirely;
+ *  - a whole-payload *copy* moves `size` bytes, and the tag is past them. Were the tag placed in the
+ *    padding a payload's alignment left over, `s = A(t)` for an aggregate `t` would memcpy over it -
+ *    and whether it did would depend on whether the tag write happened to be emitted first.
+ *
+ * So the win is entirely "four bytes of tag become a few bits", which is the whole of the cost for
+ * every payload of one, two or three bytes, and is why this only accepts a layout that is genuinely
+ * smaller than the word-tagged one: a bit tag is a shift and a mask where a tag word is a load, so
+ * where the two cost the same number of bytes the word is the better answer.
+ *
+ * Nothing about this makes the record a *scalar*: `scalarBits` stays zero, so a bit-tagged sum is
+ * never co-packed into a parent and a `&` of one is an ordinary address. That matches `valueWidth` in
+ * resolve, which declines a payload-carrying sum - and it is deliberately narrower than what the bits
+ * would allow, because a sum that could be co-packed would also have to be borrowable as a bit range,
+ * and the tag would then be at a shift the callee could not know.
+ */
+bool ReprTable::scalarizeSum(RecordType& record, Repr& into, U32 payloadSize, U32 payloadAlign) {
+    if(!target.packFields) return false;
+
+    auto constructors = record.constructors.size();
+    if(!constructors || !payloadSize) return false;
+
+    U32 tagBits = 1;
+    while((Size(1) << tagBits) < constructors) tagBits++;
+
+    // The payload's whole storage, so that a copy of one cannot reach the tag. Everything above it is
+    // the tag and then the patterns the tag does not use.
+    auto payloadBits = payloadSize * 8;
+    auto span = payloadBits + tagBits;
+
+    auto budget = min(target.maxPackBits, kMaxPackBits);
+    if(span > budget) return false;
+
+    auto bytes = naturalBytes(span);
+    auto alignment = max(bytes, payloadAlign);
+
+    // What the word-tagged form below would have cost. Equal is not good enough - see above.
+    auto wordAlign = max(4u, payloadAlign);
+    auto wordSize = alignTo(alignTo(4, payloadAlign) + payloadSize, wordAlign);
+    if(alignTo(bytes, alignment) >= wordSize) return false;
+
+    into.size = alignTo(bytes, alignment);
+    into.align = alignment;
+    into.payloadOffset = 0;
+    into.discriminant = DiscriminantKind::Bits;
+    into.discriminantBytes = bytes;
+    into.discriminantBitOffset = payloadBits;
+    into.discriminantBits = tagBits;
+
+    /*
+     * Everything above the tag, which is what makes `Maybe` of a bit-tagged sum one word rather than
+     * a second tag in front of it.
+     *
+     * Those patterns are only genuinely free if they are zero, and nothing writes them: a tag write
+     * is a read-modify-write of the bits it owns and a payload write stays below them. So this niche
+     * is true because the storage was zeroed when it was allocated, which is what hasPaddedWord
+     * arranges - the same bargain a co-packed word's leftover bits are held to.
+     */
+    if(span < into.size * 8) {
+        Niche niche;
+        niche.offset = 0;
+        niche.bytes = U8(min(into.size, 8u));
+        niche.validStart = 0;
+        niche.validEnd = (U64(1) << span) - 1;
+        into.niche = niche;
+    }
+
+    return true;
 }
 
 /*

@@ -1,6 +1,6 @@
 @genEnv$increment(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @typeDesc$Int = [64, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 131, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@typeDesc$Bool = [160, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 131, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Bool = [160, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 131, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @witness$FromInt(Int) = [120, 5, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$smaller(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$middle(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -90,7 +90,7 @@ moveInit$Bool<complex>(%to: Ptr, %from: Ptr) {
   b_0 {
     %v_1 = bitcast %to: Ptr
     %v_2 = bitcast %from: Ptr
-    copy %v_1, %v_2, 4
+    copy %v_1, %v_2, 1
     ret 
   }
 }
@@ -351,8 +351,8 @@ main<complex>(): Int {
     %two = alloca 4, 4: Ptr
     call_complex firstOf, @genEnv$firstOf(Int), %two, %v_2, %v_3
     %two = loads %two, 4: Int
-    %v_4 = alloca 4, 4: Ptr
-    store %v_4, 0, 4
+    %v_4 = alloca 1, 1: Ptr
+    store %v_4, 0, 1
     %v_5 = alloca 4, 4: Ptr
     store %v_5, 3, 4
     %three = alloca 4, 4: Ptr

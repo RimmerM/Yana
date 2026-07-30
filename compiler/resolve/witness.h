@@ -287,6 +287,54 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
                                   LocationId source);
 
 /*
+ * The layout of a `PropertyWitness` - Implementation-Generics.md part 5.
+ *
+ * One constrained field of one concrete owner: the two descriptors that say what it is, and the two
+ * operations that reach it. A generic body that reads `a.name` loads this out of its environment at
+ * the slot its schema numbered and calls through it, with nothing searched and no field name hashed.
+ *
+ * `read` and `set` take addresses and no callbacks, which is deliberately narrower than the scoped
+ * `read/modify` the design document describes. A scope is what a *borrow* of a field needs, and the
+ * CPS lowering that would make one is not built; by-value get and set are enough for every access a
+ * body actually writes, because a generic mutable field use is the same materialize-and-commit pair
+ * Design.md's tier 1 already is - read into a temporary, call, set it back. What the scoped form
+ * additionally buys is avoiding a copy of a large or non-TrivialCopy field, which is a cost rather
+ * than a capability.
+ *
+ *   read(owner, out)   - writes the field's logical value into uninitialized caller storage.
+ *   set(owner, value)  - takes ownership of `value` and commits it, releasing what was there.
+ *
+ * Both are ordinary generated functions, so an inline field's pair is a load and a store, a packed
+ * field's is a shift-and-mask and a read-modify-write, and neither the caller nor the body can tell
+ * which it got. That is the whole of "Repr chooses the witness bodies, never whether the property
+ * exists".
+ */
+namespace PropertyWitnessFields {
+    static constexpr U16 kOwner = 0;
+    static constexpr U16 kField = 1;
+    static constexpr U16 kRead = 2;
+    static constexpr U16 kSet = 3;
+
+    static constexpr U16 kCount = 4;
+
+    // No leading 32-bit cells: every slot here is an address, unlike a TypeDesc or a ClassWitness
+    // whose counts come first. Still named rather than written as a literal zero at the two call
+    // sites, because `tableSlotOffset` takes this and the slot index in that order and passing the
+    // wrong one of the two is an offset that is quietly right for the first slot.
+    static constexpr U16 kWordCount = 0;
+}
+
+/*
+ * The witness for one field of one concrete owner, interned per pair.
+ *
+ * Null after reporting when the owner has no such field, or when its accessors cannot be generated.
+ * A call site that gets null specializes instead, which is the same staging every other witness kind
+ * here uses.
+ */
+ModulePtr<Global> propertyWitnessFor(Module& module, TypePtr owner, StringId field, TypePtr result,
+                                     LocationId source);
+
+/*
  * The environment one generic function needs when called with these type arguments.
  *
  * This is Implementation-Generics.md part 9's first case - "all entries concrete; reference an

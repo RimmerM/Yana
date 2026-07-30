@@ -13,10 +13,6 @@ heapBlockSize<complex>(%sizeClass: Long): Long {
 
 duplicate(Int)<complex>(%v_0: Ptr, %x: Int) {
   b_1 {
-    %x = alloca 4, 4: Ptr
-    store %x, %x, 4
-    %x = loads %x, 4: Int
-    %x = loads %x, 4: Int
     %v_2 = alloca 8, 4: Ptr
     store %v_2, %x, 4
     %v_3 = add %v_2, 4: Ptr
@@ -28,32 +24,23 @@ duplicate(Int)<complex>(%v_0: Ptr, %x: Int) {
 
 heapClassOf<complex>(%total: Long): Long {
   b_0 {
-    %size = alloca 8, 8: Ptr
-    store %size, 16, 8
-    %sizeClass = alloca 8, 8: Ptr
-    store %sizeClass, 0, 8
     jmp b_1
   }
 
   b_1 {
-    %v_2 = loads %size, 8: Long
-    %v_3 = cmp_ilt %v_2, %total: Int
-    je %v_3, b_4, b_5
+    %v_2 = phi [b_0, 16], [b_3, %v_4]: Long
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Long
+    %v_7 = cmp_ilt %v_2, %total: Int
+    je %v_7, b_3, b_8
   }
 
-  b_5 {
-    %v_6 = loads %sizeClass, 8: Long
-    ret %v_6
+  b_8 {
+    ret %v_5
   }
 
-  b_4 {
-    %v_7 = loads %size, 8: Long
-    %v_8 = loads %size, 8: Long
-    %v_9 = add %v_7, %v_8: Long
-    store %size, %v_9, 8
-    %v_10 = loads %sizeClass, 8: Long
-    %v_11 = add %v_10, 1: Long
-    store %sizeClass, %v_11, 8
+  b_3 {
+    %v_4 = add %v_2, %v_2: Long
+    %v_6 = add %v_5, 1: Long
     jmp b_1
   }
 }
@@ -292,23 +279,21 @@ main<complex>(): Int {
     %v_1 = alloca 24, 8: Ptr
     %v_2 = alloca 16, 8: Ptr
     call_complex makeBuffer, %v_2, 4
-    %v_3 = alloca 4, 4: Ptr
-    store %v_3, 7, 4
     copy %v_1, %v_2, 16
-    %v_4 = add %v_1, 16: Ptr
-    copy %v_4, %v_3, 4
+    %v_3 = add %v_1, 16: Ptr
+    store %v_3, 7, 4
     %session = alloca 24, 8: Ptr
     copy %session, %v_1, 24
     %used = call_complex useSession, %session: Int
     %pair = alloca 8, 4: Ptr
     call_complex duplicate(Int), %pair, 35
-    %v_5 = loads %pair, 4: Int
-    %v_6 = add %used, %v_5: Int
-    %v_7 = loads @effects, 4: Int
-    %v_8 = add %v_6, %v_7: Int
-    %v_9 = loads @released, 4: Int
-    %v_10 = sub %v_8, %v_9: Int
-    ret %v_10
+    %v_4 = loads %pair, 4: Int
+    %v_5 = add %used, %v_4: Int
+    %v_6 = loads @effects, 4: Int
+    %v_7 = add %v_5, %v_6: Int
+    %v_8 = loads @released, 4: Int
+    %v_9 = sub %v_7, %v_8: Int
+    ret %v_9
   }
 }
 

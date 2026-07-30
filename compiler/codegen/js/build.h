@@ -98,6 +98,19 @@ struct Gen {
     Name envField;
     Name headerField;
 
+    /*
+     * The two halves of a reference to a narrow value - Design.md's tier 2, as this target spells
+     * it. Native carries an address plus a shift; here a place is already an (object, property)
+     * pair, so a reference to one is that pair reified: `{$o: owner, $k: "field"}`, read and written
+     * as `r.$o[r.$k]`.
+     *
+     * Which makes it a genuine reference rather than a copy with a write-back, and that is the
+     * point - it has no commit point, so it can outlive the call that produced it exactly as the
+     * native form can.
+     */
+    Name refObject;
+    Name refKey;
+
     // The tuple ClosureHeaderLayout is also described as - see closureHeaderPlaceType. A place into
     // one is a cell read rather than a property, because the header is a compiler-built table here
     // exactly as it is bytes there.
@@ -343,6 +356,24 @@ bool isLong(Gen& g, TypePtr type);
 bool isJsObject(Gen& g, TypePtr type);
 
 /*
+ * Whether a `&` of this type is the (object, property) pair Design.md's tier 2 becomes here.
+ *
+ * Narrow *and* without a host identity of its own. The first half is the language's answer - the same
+ * predicate native decides a shift-carrying reference by - and the second is this target's: a record
+ * of two `Bool`s is a narrow scalar on native and one word wide, but here it is an object, and a
+ * reference to an object is the object. So a narrow *aggregate* is borrowed as itself and only a
+ * value with nowhere to hold a reference - a `Bool`, a `@bits` integer, a newtype over one - needs
+ * the pair.
+ *
+ * This is what keeps whole-record scalarization a native decision. When this target grows its own
+ * scalar form - `Implementation-JS-Repr.md` part 1, a record as a `number` - it is this predicate
+ * that changes, and nothing else here has to.
+ */
+inline bool isNarrowJsValue(Gen& g, TypePtr type) {
+    return isNarrowValue(g.global, type) && !isJsObject(g, type);
+}
+
+/*
  * The properties one value of this type has, in construction order.
  *
  * One walk, used by everything that has to agree about the shape of a type: what a fresh slot holds,
@@ -455,12 +486,12 @@ JsPtr<Expr> useValue(Gen& g, ModulePtr<Value> pointer);
 // The emitted name of a module-level global.
 JsPtr<Expr> globalValue(Gen& g, ModulePtr<Global> pointer);
 
-JsPtr<Expr> placeExpr(Gen& g, const Place& place);
-TypePtr placeType(Gen& g, const Place& place);
+JsPtr<Expr> placeExpr(Gen& g, const Place& place, Size limit = maxLimit<Size>);
+TypePtr placeType(Gen& g, const Place& place, Size limit = maxLimit<Size>);
 
 // The argument a teardown or a relocation takes: those are written against a raw pointer, so a
 // value that is not an object has to arrive in a box the way any other reference does.
-JsPtr<Expr> referenceTo(Gen& g, const Place& place);
+JsPtr<Expr> referenceTo(Gen& g, const Place& place, Size limit = maxLimit<Size>);
 JsPtr<Expr> referenceTo(Gen& g, TypePtr type, JsPtr<Expr> value);
 
 // A constant table is an array of 32-bit cells, so every offset the native side loads at becomes a

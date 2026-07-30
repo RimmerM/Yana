@@ -352,12 +352,14 @@ ModulePtr<Value> ExprResolver::emitDynamicCall(ModulePtr<Value> callable, Buffer
      * does at a direct call - the callee writes through it, and which callee that is has not been
      * decided yet.
      */
+    auto packed = packedMark();
+
     Array<ModulePtr<Value>> converted;
     for(Size i = 0; i < args.length; i++) {
         auto declared = signature->args.get(global, i);
 
         if(declared.convention == ast::BindType::Ref) {
-            converted.push(borrowArgument(args[i], declared.type, source));
+            converted.push(borrowArgument(args[i], declared.type, source, declared.returnRoot));
             continue;
         }
 
@@ -368,8 +370,8 @@ ModulePtr<Value> ExprResolver::emitDynamicCall(ModulePtr<Value> callable, Buffer
         // direct one - the marker is part of the type precisely so that this is possible here.
         if(declared.returnRoot && value) {
             if(auto argPlace = findPlace(value)) {
-                value = ref(emit<InstBorrow>(source, 0, resolveBorrowType(module, declared.type, false),
-                                             argPlace.unwrap(), false));
+                value = borrowPlace(argPlace.unwrap(), resolveBorrowType(module, declared.type, false),
+                                    source, true);
             }
         }
 
@@ -390,6 +392,7 @@ ModulePtr<Value> ExprResolver::emitDynamicCall(ModulePtr<Value> callable, Buffer
         call->local = function.addLocal(module, signature->result, resultName, result);
     }
 
+    flushPackedBorrows(packed);
     return result;
 }
 

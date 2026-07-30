@@ -7,47 +7,32 @@
 
 heapClassOf<complex>(%total: Long): Long {
   b_0 {
-    %size = alloca 8, 8: Ptr
-    store %size, 16, 8
-    %sizeClass = alloca 8, 8: Ptr
-    store %sizeClass, 0, 8
     jmp b_1
   }
 
   b_1 {
-    %v_2 = loads %size, 8: Long
-    %v_3 = cmp_ilt %v_2, %total: Int
-    je %v_3, b_4, b_5
+    %v_2 = phi [b_0, 16], [b_3, %v_4]: Long
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Long
+    %v_7 = cmp_ilt %v_2, %total: Int
+    je %v_7, b_3, b_8
   }
 
-  b_5 {
-    %v_6 = loads %sizeClass, 8: Long
-    ret %v_6
+  b_8 {
+    ret %v_5
   }
 
-  b_4 {
-    %v_7 = loads %size, 8: Long
-    %v_8 = loads %size, 8: Long
-    %v_9 = add %v_7, %v_8: Long
-    store %size, %v_9, 8
-    %v_10 = loads %sizeClass, 8: Long
-    %v_11 = add %v_10, 1: Long
-    store %sizeClass, %v_11, 8
+  b_3 {
+    %v_4 = add %v_2, %v_2: Long
+    %v_6 = add %v_5, 1: Long
     jmp b_1
   }
 }
 
 exchangeScalar<complex>(): Long {
   b_0 {
-    %x = alloca 8, 8: Ptr
-    store %x, 1, 8
-    %v_1 = loads %x, 8: Long
-    %old = loads %x, 8: Long
-    store %x, 9, 8
-    %v_2 = imul %old, 10: Long
-    %v_3 = loads %x, 8: Long
-    %v_4 = add %v_2, %v_3: Long
-    ret %v_4
+    %v_1 = imul 1, 10: Long
+    %v_2 = add %v_1, 9: Long
+    ret %v_2
   }
 }
 
@@ -113,24 +98,22 @@ freeHeap<complex>(%allocation: Ptr) {
 
 sinkExchange<complex>(): Long {
   b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    store %v_1, 1, 8
     %slot = alloca 8, 8: Ptr
-    copy %slot, %v_1, 8
+    store %slot, 1, 8
     store @sinkCalls, 0, 8
-    %v_2 = alloca 8, 8: Ptr
-    store %v_2, 2, 8
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, 2, 8
     %old = alloca 8, 8: Ptr
     call_complex Sink(Handle).sink, %old, %slot
-    call_complex Sink(Handle).sink, %slot, %v_2
-    %v_3 = loads @sinkCalls, 8: Long
-    %v_4 = imul %v_3, 100: Long
-    %v_5 = loads %old, 8: Long
-    %v_6 = imul %v_5, 10: Long
-    %v_7 = add %v_4, %v_6: Long
-    %v_8 = loads %slot, 8: Long
-    %v_9 = add %v_7, %v_8: Long
-    ret %v_9
+    call_complex Sink(Handle).sink, %slot, %v_1
+    %v_2 = loads @sinkCalls, 8: Long
+    %v_3 = imul %v_2, 100: Long
+    %v_4 = loads %old, 8: Long
+    %v_5 = imul %v_4, 10: Long
+    %v_6 = add %v_3, %v_5: Long
+    %v_7 = loads %slot, 8: Long
+    %v_8 = add %v_6, %v_7: Long
+    ret %v_8
   }
 }
 
@@ -174,21 +157,9 @@ globalExchange<complex>(): Long {
 
 scalars<complex>(): Long {
   b_0 {
-    %x = alloca 8, 8: Ptr
-    store %x, 1, 8
-    %y = alloca 8, 8: Ptr
-    store %y, 2, 8
-    %v_1 = loads %x, 8: Long
-    %v_2 = loads %y, 8: Long
-    %v_3 = loads %x, 8: Long
-    %v_4 = loads %y, 8: Long
-    store %x, %v_4, 8
-    store %y, %v_3, 8
-    %v_5 = loads %x, 8: Long
-    %v_6 = imul %v_5, 10: Long
-    %v_7 = loads %y, 8: Long
-    %v_8 = add %v_6, %v_7: Long
-    ret %v_8
+    %v_1 = imul 2, 10: Long
+    %v_2 = add %v_1, 1: Long
+    ret %v_2
   }
 }
 
@@ -239,27 +210,23 @@ heapBlockSize<complex>(%sizeClass: Long): Long {
 
 sinkSwap<complex>(): Long {
   b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    store %v_1, 1, 8
     %a = alloca 8, 8: Ptr
-    copy %a, %v_1, 8
-    %v_2 = alloca 8, 8: Ptr
-    store %v_2, 2, 8
+    store %a, 1, 8
     %b = alloca 8, 8: Ptr
-    copy %b, %v_2, 8
+    store %b, 2, 8
     store @sinkCalls, 0, 8
-    %v_3 = alloca 8, 8: Ptr
-    call_complex Sink(Handle).sink, %v_3, %a
+    %v_1 = alloca 8, 8: Ptr
+    call_complex Sink(Handle).sink, %v_1, %a
     call_complex Sink(Handle).sink, %a, %b
-    call_complex Sink(Handle).sink, %b, %v_3
-    %v_4 = loads @sinkCalls, 8: Long
-    %v_5 = imul %v_4, 100: Long
-    %v_6 = loads %a, 8: Long
-    %v_7 = imul %v_6, 10: Long
-    %v_8 = add %v_5, %v_7: Long
-    %v_9 = loads %b, 8: Long
-    %v_10 = add %v_8, %v_9: Long
-    ret %v_10
+    call_complex Sink(Handle).sink, %b, %v_1
+    %v_2 = loads @sinkCalls, 8: Long
+    %v_3 = imul %v_2, 100: Long
+    %v_4 = loads %a, 8: Long
+    %v_5 = imul %v_4, 10: Long
+    %v_6 = add %v_3, %v_5: Long
+    %v_7 = loads %b, 8: Long
+    %v_8 = add %v_6, %v_7: Long
+    ret %v_8
   }
 }
 
@@ -404,12 +371,9 @@ makeBuffer<complex>(%v_0: Ptr, %size: Long) {
   b_1 {
     %v_2 = loads @liveBuffers, 8: Long
     call_complex +=(I64), @liveBuffers, 1
-    %buffer = alloca 8, 8: Ptr
     %v_3 = call_complex allocateHeap, %size: Ptr
-    store %buffer, %v_3, 8
-    %v_4 = load %buffer, 8: Ptr
-    setpattern %v_4, %size, 0
-    copy %v_0, %buffer, 8
+    setpattern %v_3, %size, 0
+    store %v_0, %v_3, 8
     ret 
   }
 }
@@ -436,8 +400,6 @@ Sink(Handle).sink<complex>(%to: Ptr, %from: Ptr) {
 
 main<complex>(): Long {
   b_0 {
-    %result = alloca 8, 8: Ptr
-    store %result, 0, 8
     %v_1 = call_complex scalars: Long
     %v_2 = cmp_neq %v_1, 21: Int
     je %v_2, b_3, b_4
@@ -603,9 +565,7 @@ main<complex>(): Long {
   }
 
   b_66 {
-    store %result, 1, 8
-    %v_67 = loads %result, 8: Long
-    ret %v_67
+    ret 1
   }
 }
 

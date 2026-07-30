@@ -29,7 +29,11 @@ TypePtr typeDescPlaceType(Module& module) {
         Field { address, context.addUnqualifiedName("drop", 4) },
     };
 
-    auto tuple = resolveTupleType(module, { fields, 8 }, kNullLocation);
+    // Pinned, because these bytes have two descriptions and both are already written: erased code
+    // reads the table by slot number through repr/table.h, and this tuple is how the typed IR reads
+    // the same words. A target free to reorder the fields would make the second description disagree
+    // with the first - which is what checkTableTypes in resolve/lower.cpp asserts it does not.
+    auto tuple = resolveTupleType(module, { fields, 8 }, kNullLocation, TypeLayout::C);
     return (Type*)tuple - *module.types;
 }
 
@@ -68,7 +72,9 @@ TypePtr closureHeaderPlaceType(Module& module) {
         Field { address, context.addUnqualifiedName("reclaim", 7) },
     };
 
-    auto tuple = resolveTupleType(module, { fields, 2 }, kNullLocation);
+    // Pinned for the same reason as the descriptor, and more strictly: the code generator places
+    // these two words at exactly this distance in front of an entry point.
+    auto tuple = resolveTupleType(module, { fields, 2 }, kNullLocation, TypeLayout::C);
     return (Type*)tuple - *module.types;
 }
 
@@ -438,7 +444,25 @@ static bool lowerablePlace(Module& module, Function& owner, const Place& place) 
             break;
     }
 
+    auto count = projections.size();
+    Size walked = 0;
+
     for(auto projection: projections.contents(local)) {
+        auto last = ++walked == count;
+
+        /*
+         * A constrained field, which is the one projection whose owner is *meant* to be a type this
+         * body cannot see - it is reached by calling the witness the caller passed rather than by
+         * adding an offset, so the generic-owner test below does not apply to it.
+         *
+         * Only as the last step. A path continuing through a property would need the read's result
+         * to be an address that the rest of the path could project into, and what a witness hands
+         * back is a value in storage this frame provided; the address of that storage names a copy,
+         * so a write through it would go nowhere. Such a body specializes, where the whole path
+         * becomes ordinary field access.
+         */
+        if(projection.kind == ProjectionKind::Property) return last;
+
         if(!type) return false;
         if(isGeneric(global, type)) return false;
 
@@ -698,6 +722,199 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
 }
 
 /*
+ * Where one named field of a concrete owner sits, as the projections that reach it.
+ *
+ * The same two steps `projectField` and `resolveProperty` take, and here for the third time because
+ * this is the third consumer: a single-constructor record *is* its content, reached through a
+ * downcast that costs nothing, and the field is a position in the tuple behind it. False when the
+ * owner has no such field, which is a caller that was never checked rather than a program error.
+ */
+static bool propertyPlace(Module& module, TypePtr owner, StringId field, Place& into, TypePtr& fieldType) {
+    auto global = *module.types;
+    auto content = owner;
+
+    if(owner && global[owner]->kind == Type::Record) {
+        auto record = (RecordType*)global[owner];
+        if(record->layout != RecordType::Single || record->constructors.isEmpty()) return false;
+
+        into.projections.push(module.arena, Projection { ProjectionKind::Downcast, 0, nullptr });
+        content = record->constructors.get(global, 0).content;
+    }
+
+    if(!content || global[content]->kind != Type::Tup) return false;
+
+    auto tuple = (TupType*)global[content];
+    for(Size i = 0; i < tuple->fields.size(); i++) {
+        auto entry = tuple->fields.get(global, i);
+        if(entry.name != field) continue;
+
+        into.projections.push(module.arena, Projection { ProjectionKind::Field, U16(i), nullptr });
+        fieldType = entry.type;
+        return true;
+    }
+
+    return false;
+}
+
+// The name both accessors are built under, which differs only in the verb. Generated names are not
+// addressable in source, so all they have to be is unique and legible in a dump.
+static StringId accessorName(Module& module, StringView verb, TypePtr owner, StringId field) {
+    auto& context = module.context;
+
+    StringBuilder text;
+    text << verb << '$';
+    describeType(context, *module.types, owner, text);
+    text << '.' << context.findName(field);
+
+    return builtName(context, text);
+}
+
+/*
+ * `read(owner, out)` - the field's logical value, into storage the caller provided.
+ *
+ * Both parameters are addresses, which is the erased shape every witness operation has: the body
+ * calling this was compiled once and does not know either type's size. What is *inside* is an
+ * ordinary field read of a type this function can see, so the widen-and-mask a packed field needs
+ * and the plain load an inline one needs are both just what lowering already does with the place.
+ */
+static ModulePtr<Function> propertyReadThunk(Module& module, TypePtr owner, StringId field,
+                                             TypePtr fieldType, LocationId source) {
+    auto& context = module.context;
+    auto local = *module.arena;
+
+    auto function = addAnonymousFunction(module, accessorName(module, "read"_v, owner, field), source);
+    auto pointer = function - local;
+    function->returnType = module.scalar.unit;
+    function->used = true;
+
+    auto ownerArg = function->addArg(module, context.addQualifiedName("owner", 5, 1),
+                                     resolvePointerType(module, owner), source);
+    auto outArg = function->addArg(module, context.addQualifiedName("out", 3, 1),
+                                   resolvePointerType(module, fieldType), source);
+
+    ExprResolver resolver(context, module, *function);
+
+    auto place = Place::atPointer((ModulePtr<Value>)(ownerArg - local));
+    TypePtr found = nullptr;
+    if(!propertyPlace(module, owner, field, place, found)) return nullptr;
+
+    // Init rather than Assign: the caller's storage arrived uninitialized, so there is no old value
+    // in it for anything to have to release.
+    resolver.initialize(Place::atPointer((ModulePtr<Value>)(outArg - local)),
+                        resolver.load(place, source), source);
+    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+
+    return pointer;
+}
+
+/*
+ * `set(owner, value)` - commit an owned replacement, releasing what was there.
+ *
+ * An Assign rather than an Init, which is the whole difference from the read side: the field held a
+ * live value and whatever that value owed is owed at this point. The drop pass puts it in.
+ */
+static ModulePtr<Function> propertySetThunk(Module& module, TypePtr owner, StringId field,
+                                            TypePtr fieldType, LocationId source) {
+    auto& context = module.context;
+    auto local = *module.arena;
+
+    auto function = addAnonymousFunction(module, accessorName(module, "set"_v, owner, field), source);
+    auto pointer = function - local;
+    function->returnType = module.scalar.unit;
+    function->used = true;
+
+    auto ownerArg = function->addArg(module, context.addQualifiedName("owner", 5, 1),
+                                     resolvePointerType(module, owner), source);
+    auto valueArg = function->addArg(module, context.addQualifiedName("value", 5, 1),
+                                     resolvePointerType(module, fieldType), source);
+
+    ExprResolver resolver(context, module, *function);
+
+    auto place = Place::atPointer((ModulePtr<Value>)(ownerArg - local));
+    TypePtr found = nullptr;
+    if(!propertyPlace(module, owner, field, place, found)) return nullptr;
+
+    auto incoming = resolver.load(Place::atPointer((ModulePtr<Value>)(valueArg - local)), source);
+    resolver.assign(place, incoming, source);
+    resolver.terminate(resolver.emit<InstRet>(source, 0, module.scalar.unit, nullptr));
+
+    return pointer;
+}
+
+ModulePtr<Global> propertyWitnessFor(Module& module, TypePtr owner, StringId field, TypePtr result,
+                                     LocationId source) {
+    auto& context = module.context;
+    auto global = *module.types;
+    auto& program = module.program;
+
+    if(!owner || isGeneric(global, owner)) return nullptr;
+
+    for(auto& existing: program.propertyWitnesses) {
+        if(existing.owner == owner && existing.field == field) return existing.witness;
+    }
+
+    Place probe;
+    TypePtr fieldType = nullptr;
+
+    if(!propertyPlace(module, owner, field, probe, fieldType)) {
+        context.diagnostics.error("%@ has no field %@"_v, source,
+                                  describeType(context, global, owner), context.findName(field));
+        return nullptr;
+    }
+
+    /*
+     * The constraint promised a type and the owner has to have exactly it.
+     *
+     * Exactly rather than convertibly, for the reason Reject.Property.yana states: the body may
+     * write back through this, and a conversion would commit into storage of a different shape.
+     * Checked here as well as at the call site because this is what the *witness* would be built
+     * from, and a mismatch reaching the table would be a silent reinterpretation.
+     */
+    if(result && !sameType(result, fieldType)) {
+        context.diagnostics.error("field %@ of %@ is %@, but the constraint promised %@"_v, source,
+                                  context.findName(field), describeType(context, global, owner),
+                                  describeType(context, global, fieldType),
+                                  describeType(context, global, result));
+        return nullptr;
+    }
+
+    StringBuilder text;
+    text << "property$";
+    describeType(context, global, owner, text);
+    text << '.' << context.findName(field);
+
+    auto global_ = addAnonymousGlobal(module, builtName(context, text), source);
+    auto pointer = global_ - *module.arena;
+
+    // Registered before the accessors are generated, for the reason classWitnessFor gives: building
+    // one can ask for another witness, and a reference into a list that reallocated under it would
+    // be a write into freed storage.
+    auto entry = program.propertyWitnesses.size();
+    program.propertyWitnesses.push(InternedProperty {
+        .owner = owner, .field = field, .witness = pointer,
+    });
+
+    TableBuilder table(module, *global_, PropertyWitnessFields::kCount);
+
+    auto ownerDesc = typeDescFor(module, owner, source);
+    auto fieldDesc = typeDescFor(module, fieldType, source);
+    auto read = propertyReadThunk(module, owner, field, fieldType, source);
+    auto set = propertySetThunk(module, owner, field, fieldType, source);
+
+    if(!ownerDesc || !fieldDesc || !read || !set) {
+        program.propertyWitnesses.remove(entry);
+        return nullptr;
+    }
+
+    table.putGlobal(PropertyWitnessFields::kOwner, ownerDesc);
+    table.putGlobal(PropertyWitnessFields::kField, fieldDesc);
+    table.putFunction(PropertyWitnessFields::kRead, read);
+    table.putFunction(PropertyWitnessFields::kSet, set);
+
+    return pointer;
+}
+
+/*
  * Filling one call site's environment.
  *
  * For each slot of the callee's schema, the caller expresses that slot in its *own* terms - by
@@ -756,9 +973,26 @@ static bool fillEnvironment(Module& module, Function& caller, InstGenCall& call,
             } else {
                 entry.constant = classWitnessFor(module, slot.typeClass, toBuffer(expressed), call.source);
             }
+        } else if(slot.kind == GenSlotKind::Property) {
+            auto owner = substituteType(module, slot.type, typeArgs, call.source);
+
+            if(isGeneric(global, owner)) {
+                // The caller does not know the owner either, so it hands over the witness it was
+                // handed - the same forwarding a class requirement uses, and what makes a chain of
+                // generic functions each carrying `a.name` cost one witness rather than one per
+                // frame.
+                entry.forwarded = callerEnv
+                    ? genPropertySlot(module, *callerEnv, owner, slot.name)
+                    : maxLimit<U16>;
+                allConstant = false;
+            } else {
+                auto result = substituteType(module, slot.result, typeArgs, call.source);
+                entry.constant = propertyWitnessFor(module, owner, slot.name, result, call.source);
+            }
         } else {
-            // A property or function requirement. Both need a witness kind that does not exist yet,
-            // and the call site falls back to specializing rather than being given a null slot.
+            // A function requirement, which needs a FunctionWitness - a witness kind that does not
+            // exist yet. The call site falls back to specializing rather than being given a null
+            // slot.
             ok = false;
         }
 
@@ -907,10 +1141,12 @@ static bool bodyLowerable(Module& module, ModulePtr<Function> function,
 
     visited.push(function);
 
-    // A field or function requirement needs a witness kind that does not exist yet. Checked on the
-    // context rather than on the body, since it is the *contract* that cannot be supplied.
+    // A function requirement needs a FunctionWitness, which does not exist yet. Checked on the
+    // context rather than on the body, since it is the *contract* that cannot be supplied. Field
+    // requirements are supplied - see propertyWitnessFor - and what limits them is what the *body*
+    // does with them, which lowerablePlace below decides.
     if(auto env = functionGen(global, *target)) {
-        if(env->properties.isNotEmpty() || env->functions.isNotEmpty()) return false;
+        if(env->functions.isNotEmpty()) return false;
     }
 
     for(auto blockPointer: target->blocks.contents(local)) {
@@ -1044,14 +1280,26 @@ ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<T
                 break;
             }
 
-            // The two witness kinds that do not exist yet. Each is a separate constraint entry with
-            // its own implementation, and neither is derivable from a TypeDesc - knowing a type's
-            // size grants nothing else, which is part 1's fifth invariant.
-            case GenSlotKind::Property:
+            case GenSlotKind::Property: {
+                auto owner = substituteType(module, slot.type, args, source);
+                auto result = substituteType(module, slot.result, args, source);
+
+                auto witness = propertyWitnessFor(module, owner, slot.name, result, source);
+                if(!witness) {
+                    ok = false;
+                    break;
+                }
+
+                table.putGlobal(cell, witness);
+                break;
+            }
+
+            // The one witness kind that does not exist yet. It is a separate constraint entry with
+            // its own implementation and is not derivable from a TypeDesc - knowing a type's size
+            // grants nothing else, which is part 1's fifth invariant.
             case GenSlotKind::Function:
-                context.diagnostics.error("%@ cannot be called generically yet - its %@ requirement needs a witness, which is not built yet"_v,
-                                          source, context.findName(local[callee]->name),
-                                          slot.kind == GenSlotKind::Property ? "field"_v : "function"_v);
+                context.diagnostics.error("%@ cannot be called generically yet - its function requirement needs a witness, which is not built yet"_v,
+                                          source, context.findName(local[callee]->name));
                 ok = false;
                 break;
         }

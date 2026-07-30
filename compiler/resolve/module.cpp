@@ -194,8 +194,18 @@ Arg* Function::addArg(Module& module, StringId argName, TypePtr type, LocationId
 U32 Function::addLocal(Module& module, TypePtr type, StringId localName, ModulePtr<Value> value,
                        ast::BindType convention, bool borrowed, bool closureEnv) {
     auto index = U32(locals.size());
+
+    // By name rather than by position. A field added to the middle of `Local` used to shift every
+    // one after it silently - `closureEnv` took `borrowed`'s argument once, and what it looked like
+    // was closures quietly never releasing their environments.
     locals.push(module.arena, Local {
-        type, localName, value, convention, StorageClass::Stack, borrowed, closureEnv,
+        .type = type,
+        .name = localName,
+        .value = value,
+        .convention = convention,
+        .storage = StorageClass::Stack,
+        .borrowed = borrowed,
+        .closureEnv = closureEnv,
     });
 
     return index;
@@ -492,15 +502,77 @@ static void declareNewtype(Module& module, ast::Decl& decl) {
     declareConstructor(module, *record, decl.alias.type.name, 0, false, decl.source);
 }
 
+/*
+ * `@layout(c)` on a type declaration - Design.md's "the existing `@layout` attribute pins it and opts
+ * a type out of Repr optimization", and Design-Memory §11's declared pin.
+ *
+ * `@layout(auto)` is the default and is accepted so that writing it means something; an argument that
+ * is neither is reported rather than ignored, because a misspelled pin would silently produce a layout
+ * an FFI declaration is relying on not to move.
+ *
+ * The pin is per declaration and does not reach inside one. A `@layout(c)` record containing a field
+ * of an `@layout(auto)` record type gets a C struct's *offsets* for that field, but the nested record
+ * is still laid out by its own rules - exactly as C lays out a nested struct by its own. A type whose
+ * whole graph has to match C therefore has to say so at each level, which is the same thing C requires
+ * of a header.
+ */
+static TypeLayout readLayoutAttribute(Module& module, const ast::Decl& decl) {
+    auto attributes = decl.attributes;
+    if(attributes.isEmpty()) return TypeLayout::Auto;
+
+    auto& context = module.context;
+    auto layout = context.addUnqualifiedName("layout", 6);
+    auto c = context.addUnqualifiedName("c", 1);
+    auto automatic = context.addUnqualifiedName("auto", 4);
+    auto result = TypeLayout::Auto;
+
+    for(auto attribute: attributes.contents(module.parse)) {
+        if(attribute.name != layout) continue;
+
+        if(attribute.args.size() != 1) {
+            context.diagnostics.error("`@layout` takes one argument - `@layout(c)` or `@layout(auto)`"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        auto argument = attribute.args.get(module.parse, 0).value;
+        if(argument.kind != ast::Expr::Var || (argument.var != c && argument.var != automatic)) {
+            context.diagnostics.error("`@layout` takes `c` or `auto`"_v, argument.source);
+            continue;
+        }
+
+        if(argument.var == c) result = TypeLayout::C;
+    }
+
+    return result;
+}
+
 // Fills in a record's constructor contents, once every type name in the module is registered so
 // that one may name a type declared further down.
 static void defineRecordContent(Module& module, RecordType& record, LocationId source,
-                                Buffer<const ast::Type*> contents) {
+                                Buffer<const ast::Type*> contents, TypeLayout layout) {
     auto env = record.gen ? (*module.types)[record.gen] : nullptr;
+    record.pinned = layout != TypeLayout::Auto;
 
     for(Size index = 0; index < contents.length && index < record.constructors.size(); index++) {
         auto stored = record.constructors.get(*module.types, index);
         stored.content = contents[index] ? resolveType(module, *contents[index], env) : module.scalar.unit;
+
+        /*
+         * The pin lives on the content tuple rather than only on the record, because content tuples
+         * are interned structurally and the Repr cache is keyed on the type - so two records of
+         * identical fields would otherwise share one layout and one of them would get the wrong
+         * answer. Re-interning here is what makes the pinned one a distinct type. See TypeLayout.
+         */
+        if(stored.content && layout != TypeLayout::Auto &&
+           (*module.types)[stored.content]->kind == Type::Tup) {
+            auto tuple = (TupType*)(*module.types)[stored.content];
+            Array<Field> fields;
+            for(auto field: tuple->fields.contents(*module.types)) fields.push(field);
+
+            stored.content = (Type*)resolveTupleType(module, toBuffer(fields), source, layout) - *module.types;
+        }
+
         record.constructors.set(*module.types, index, stored);
     }
 
@@ -527,7 +599,7 @@ static void defineRecord(Module& module, ast::Decl& decl) {
         contents.push(con.content ? module.parse[con.content] : nullptr);
     }
 
-    defineRecordContent(module, *record, decl.source, toBuffer(contents));
+    defineRecordContent(module, *record, decl.source, toBuffer(contents), readLayoutAttribute(module, decl));
 }
 
 static void defineNewtype(Module& module, ast::Decl& decl) {
@@ -535,7 +607,7 @@ static void defineNewtype(Module& module, ast::Decl& decl) {
     if(!record) return;
 
     const ast::Type* content = &decl.alias.target;
-    defineRecordContent(module, *record, decl.source, { &content, 1 });
+    defineRecordContent(module, *record, decl.source, { &content, 1 }, readLayoutAttribute(module, decl));
 }
 
 static void declareAlias(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> pointer) {

@@ -32,10 +32,10 @@ nothingInt<complex>(%v_0: Ptr) {
 
 labelSum<complex>(%value: Ptr): Int {
   b_0 {
-    %v_1 = loads %value, 4: Int
-    %v_2 = add %value, 4: Ptr
-    %v_3 = call_complex unwrap, %v_2, 0: Int
-    %v_4 = add %v_1, %v_3: Int
+    %v_1 = add %value, 8: Ptr
+    %v_2 = loads %v_1, 4: Int
+    %v_3 = call_complex unwrap, %value, 0: Int
+    %v_4 = add %v_2, %v_3: Int
     ret %v_4
   }
 }
@@ -64,7 +64,7 @@ errResult<complex>(%v_0: Ptr) {
 
 unwrapBool<complex>(%value: Ptr): Int {
   b_0 {
-    %v_1 = load %value, 4: Long
+    %v_1 = load %value, 1: Long
     %v_2 = cmp_le %v_1, 1: Int
     %v_3 = select 1, 0, %v_2: Int
     %v_4 = cmp_eq %v_3, 1: Int
@@ -76,7 +76,7 @@ unwrapBool<complex>(%value: Ptr): Int {
   }
 
   b_5 {
-    %inner = load %value, 4: Int
+    %inner = load %value, 1: Int
     je %inner, b_8, b_9
   }
 
@@ -101,8 +101,8 @@ unwrapBool<complex>(%value: Ptr): Int {
 
 ascribedNothing<complex>(): Int {
   b_0 {
-    %n = alloca 4, 4: Ptr
-    store %n, 2, 4
+    %n = alloca 1, 1: Ptr
+    store %n, 2, 1
     %v_1 = call_complex unwrapBool, %n: Int
     ret %v_1
   }
@@ -110,8 +110,8 @@ ascribedNothing<complex>(): Int {
 
 ascribedJust<complex>(): Int {
   b_0 {
-    %j = alloca 4, 4: Ptr
-    store %j, 1, 4
+    %j = alloca 1, 1: Ptr
+    store %j, 1, 1
     %v_1 = call_complex unwrapBool, %j: Int
     ret %v_1
   }
@@ -153,12 +153,12 @@ main<complex>(): Int {
     call_complex nothingInt, %v_7
     %v_8 = call_complex unwrap, %v_7, 5: Int
     %v_9 = add %v_6, %v_8: Int
-    %v_10 = alloca 4, 4: Ptr
-    store %v_10, 1, 4
+    %v_10 = alloca 1, 1: Ptr
+    store %v_10, 1, 1
     %v_11 = call_complex unwrapBool, %v_10: Int
     %v_12 = add %v_9, %v_11: Int
-    %v_13 = alloca 4, 4: Ptr
-    store %v_13, 2, 4
+    %v_13 = alloca 1, 1: Ptr
+    store %v_13, 2, 1
     %v_14 = call_complex unwrapBool, %v_13: Int
     %v_15 = add %v_12, %v_14: Int
     %v_16 = alloca 8, 4: Ptr
@@ -214,9 +214,9 @@ labelled<complex>(%v_0: Ptr) {
     store %v_3, 1, 4
     %v_4 = add %v_3, 4: Ptr
     store %v_4, 40, 4
-    store %v_2, 2, 4
-    %v_5 = add %v_2, 4: Ptr
-    copy %v_5, %v_3, 8
+    %v_5 = add %v_2, 8: Ptr
+    store %v_5, 2, 4
+    copy %v_2, %v_3, 8
     copy %v_0, %v_2, 12
     ret 
   }

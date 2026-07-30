@@ -10,8 +10,10 @@ useRaw<complex>(%it: Ptr): Int {
 
 useFlags<complex>(%it: Ptr): Int {
   b_0 {
-    %v_1 = load %it, 4: Int
-    ret %v_1
+    %v_1 = load %it, 1: Long
+    %v_2 = and %v_1, 1: Long
+    %v_3 = cast %v_2: Int
+    ret %v_3
   }
 }
 
@@ -30,31 +32,42 @@ useId<complex>(%it: Long): Long {
 
 main<complex>(): Int {
   b_0 {
-    %flags = alloca 8, 4: Ptr
-    store %flags, 1, 4
-    %v_1 = add %flags, 4: Ptr
-    store %v_1, 0, 4
+    %flags = alloca 1, 1: Ptr
+    store %flags, 0, 1
+    %v_1 = load %flags, 1: Long
+    %v_2 = cast 1: Long
+    %v_3 = and %v_2, 1: Long
+    %v_4 = and %v_1, 18446744073709551614: Long
+    %v_5 = or %v_4, %v_3: Long
+    store %flags, %v_5, 1
+    %v_6 = load %flags, 1: Long
+    %v_7 = cast 0: Long
+    %v_8 = and %v_7, 1: Long
+    %v_9 = shl %v_8, 1: Long
+    %v_10 = and %v_6, 18446744073709551613: Long
+    %v_11 = or %v_10, %v_9: Long
+    store %flags, %v_11, 1
     %wrapped = alloca 8, 8: Ptr
     store %wrapped, 7, 8
-    %v_2 = call_complex useWrapped, %wrapped: Long
-    %widened = cast %v_2: Long
-    %v_3 = call_complex useFlags, %flags: Int
-    je %v_3, b_4, b_5
+    %v_12 = call_complex useWrapped, %wrapped: Long
+    %widened = cast %v_12: Long
+    %v_13 = call_complex useFlags, %flags: Int
+    je %v_13, b_14, b_15
   }
 
-  b_4 {
-    jmp b_6
+  b_14 {
+    jmp b_16
   }
 
-  b_5 {
-    jmp b_6
+  b_15 {
+    jmp b_16
   }
 
-  b_6 {
-    %v_7 = phi [b_4, 1], [b_5, 0]: Int
-    %v_8 = cast %widened: Int
-    %v_9 = add %v_7, %v_8: Int
-    ret %v_9
+  b_16 {
+    %v_17 = phi [b_14, 1], [b_15, 0]: Int
+    %v_18 = cast %widened: Int
+    %v_19 = add %v_17, %v_18: Int
+    ret %v_19
   }
 }
 

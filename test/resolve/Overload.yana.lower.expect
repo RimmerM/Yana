@@ -36,12 +36,10 @@ maskGeneric(Int)<complex>(%x: Int, %y: Int): Int {
 
 and<complex>(%v_0: Ptr, %a: Ptr, %b: Ptr) {
   b_1 {
-    %v_2 = alloca 4, 4: Ptr
-    %v_3 = loads %a, 4: Int
-    %v_4 = loads %b, 4: Int
-    %v_5 = and %v_3, %v_4: Int
-    store %v_2, %v_5, 4
-    copy %v_0, %v_2, 4
+    %v_2 = loads %a, 4: Int
+    %v_3 = loads %b, 4: Int
+    %v_4 = and %v_2, %v_3: Int
+    store %v_0, %v_4, 4
     ret 
   }
 }

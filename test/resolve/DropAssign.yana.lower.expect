@@ -25,32 +25,23 @@ whole<complex>(): Long {
 
 heapClassOf<complex>(%total: Long): Long {
   b_0 {
-    %size = alloca 8, 8: Ptr
-    store %size, 16, 8
-    %sizeClass = alloca 8, 8: Ptr
-    store %sizeClass, 0, 8
     jmp b_1
   }
 
   b_1 {
-    %v_2 = loads %size, 8: Long
-    %v_3 = cmp_ilt %v_2, %total: Int
-    je %v_3, b_4, b_5
+    %v_2 = phi [b_0, 16], [b_3, %v_4]: Long
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Long
+    %v_7 = cmp_ilt %v_2, %total: Int
+    je %v_7, b_3, b_8
   }
 
-  b_5 {
-    %v_6 = loads %sizeClass, 8: Long
-    ret %v_6
+  b_8 {
+    ret %v_5
   }
 
-  b_4 {
-    %v_7 = loads %size, 8: Long
-    %v_8 = loads %size, 8: Long
-    %v_9 = add %v_7, %v_8: Long
-    store %size, %v_9, 8
-    %v_10 = loads %sizeClass, 8: Long
-    %v_11 = add %v_10, 1: Long
-    store %sizeClass, %v_11, 8
+  b_3 {
+    %v_4 = add %v_2, %v_2: Long
+    %v_6 = add %v_5, 1: Long
     jmp b_1
   }
 }
@@ -360,12 +351,9 @@ makeBuffer<complex>(%v_0: Ptr, %size: Long) {
   b_1 {
     %v_2 = loads @liveBuffers, 8: Long
     call_complex +=(I64), @liveBuffers, 1
-    %buffer = alloca 8, 8: Ptr
     %v_3 = call_complex allocateHeap, %size: Ptr
-    store %buffer, %v_3, 8
-    %v_4 = load %buffer, 8: Ptr
-    setpattern %v_4, %size, 0
-    copy %v_0, %buffer, 8
+    setpattern %v_3, %size, 0
+    store %v_0, %v_3, 8
     ret 
   }
 }

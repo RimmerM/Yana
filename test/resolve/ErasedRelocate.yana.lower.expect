@@ -76,37 +76,35 @@ main<complex>(): Long {
 
   b_6 {
     %p = alloca 16, 8: Ptr
-    %v_7 = alloca 8, 8: Ptr
-    store %v_7, 20, 8
-    copy %p, %v_7, 8
-    %v_8 = add %p, 8: Ptr
-    store %v_8, 5, 8
+    store %p, 20, 8
+    %v_7 = add %p, 8: Ptr
+    store %v_7, 5, 8
     %movedPair = alloca 16, 8: Ptr
     call_complex relocate, @genEnv$relocate(Pair), %movedPair, %p
-    %v_9 = loads @sinkCalls, 8: Long
-    %v_10 = cmp_neq %v_9, 2: Int
-    je %v_10, b_11, b_12
+    %v_8 = loads @sinkCalls, 8: Long
+    %v_9 = cmp_neq %v_8, 2: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_10 {
+    %v_12 = neg 2: Long
+    ret %v_12
   }
 
   b_11 {
-    %v_13 = neg 2: Long
-    ret %v_13
+    jmp b_13
   }
 
-  b_12 {
-    jmp b_14
-  }
-
-  b_14 {
-    %v_15 = loads %moved, 8: Long
-    %v_16 = loads %movedPair, 8: Long
-    %v_17 = add %v_15, %v_16: Long
-    %v_18 = add %movedPair, 8: Ptr
-    %v_19 = loads %v_18, 8: Long
-    %v_20 = add %v_17, %v_19: Long
-    %v_21 = loads @sinkCalls, 8: Long
-    %v_22 = add %v_20, %v_21: Long
-    ret %v_22
+  b_13 {
+    %v_14 = loads %moved, 8: Long
+    %v_15 = loads %movedPair, 8: Long
+    %v_16 = add %v_14, %v_15: Long
+    %v_17 = add %movedPair, 8: Ptr
+    %v_18 = loads %v_17, 8: Long
+    %v_19 = add %v_16, %v_18: Long
+    %v_20 = loads @sinkCalls, 8: Long
+    %v_21 = add %v_19, %v_20: Long
+    ret %v_21
   }
 }
 

@@ -469,6 +469,15 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
                                               LocationId source, TypePtr, StringId resultName) {
     auto function_ = local[callee];
 
+    /*
+     * Where this call's own packed-field write-backs start.
+     *
+     * By mark rather than wholesale, because the arguments were resolved before this was reached
+     * and a nested call among them has already committed its own: `f(&h.a, g(&h.b))` commits `b`
+     * after `g` and `a` after `f`, rather than committing `a` twice or `b` too late.
+     */
+    auto packed = packedMark();
+
     // Every argument's convention is applied here, which is the one place a call knows both what
     // the callee asked for and what the caller produced. A `&` becomes a mutable borrow of the
     // argument's storage; everything else is the ordinary value path.
@@ -477,7 +486,7 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
         auto declared = local[function_->args.get(local, i)];
 
         if(declared->isMutableBorrow()) {
-            converted.push(borrowArgument(args[i], declared->type, source));
+            converted.push(borrowArgument(args[i], declared->type, source, declared->returnRoot));
             continue;
         }
 
@@ -502,8 +511,8 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
          */
         if(declared->returnRoot && value) {
             if(auto place = findPlace(value)) {
-                value = ref(emit<InstBorrow>(source, 0, resolveBorrowType(module, declared->type, false),
-                                             place.unwrap(), false));
+                value = borrowPlace(place.unwrap(), resolveBorrowType(module, declared->type, false),
+                                    source, true);
             }
         }
 
@@ -511,7 +520,9 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
     }
 
     if(function_->intrinsic) {
-        return function_->intrinsic(*this, toBuffer(converted), function_->returnType, source, resultName);
+        auto expanded = function_->intrinsic(*this, toBuffer(converted), function_->returnType, source, resultName);
+        flushPackedBorrows(packed);
+        return expanded;
     }
 
     function_->used = true;
@@ -530,6 +541,9 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
         call->local = function.addLocal(module, call->type, resultName, result);
     }
 
+    // The loan every `&` argument created ends with the call, so this is where a packed field is
+    // told what the callee wrote - Design.md's tier 1.
+    flushPackedBorrows(packed);
     return result;
 }
 
@@ -742,13 +756,15 @@ ModulePtr<Value> ExprResolver::emitErasedCall(ModulePtr<Function> callee, Buffer
      * lifetime. Reading the value instead would hand a `&` parameter a copy, and the writes it made
      * would land somewhere the caller never looks.
      */
+    auto packed = packedMark();
+
     Array<ModulePtr<Value>> converted;
     for(Size i = 0; i < args.length; i++) {
         auto declared = local[generic->args.get(local, i)];
         auto expected = substituteType(module, declared->type, typeArgs, source);
 
         if(declared->isMutableBorrow()) {
-            converted.push(borrowArgument(args[i], expected, source));
+            converted.push(borrowArgument(args[i], expected, source, declared->returnRoot));
             continue;
         }
 
@@ -757,8 +773,7 @@ ModulePtr<Value> ExprResolver::emitErasedCall(ModulePtr<Function> callee, Buffer
 
         if(declared->returnRoot && value) {
             if(auto place = findPlace(value)) {
-                value = ref(emit<InstBorrow>(source, 0, resolveBorrowType(module, expected, false),
-                                             place.unwrap(), false));
+                value = borrowPlace(place.unwrap(), resolveBorrowType(module, expected, false), source, true);
             }
         }
 
@@ -781,6 +796,8 @@ ModulePtr<Value> ExprResolver::emitErasedCall(ModulePtr<Function> callee, Buffer
     auto result = ref(call);
     if(isMemoryType(global, resultType)) call->local = function.addLocal(module, resultType, resultName, result);
 
+    flushPackedBorrows(packed);
+
     return result;
 }
 
@@ -799,7 +816,14 @@ ModulePtr<Value> ExprResolver::expandIntrinsic(ModulePtr<Function> callee, Buffe
     auto generic = local[callee];
     auto resultType = substituteType(module, generic->returnType, typeArgs, source);
 
-    return generic->intrinsic(*this, args, resultType, source, resultName);
+    // An intrinsic that takes a `&` parameter makes the borrow itself - see exchangedPlace in
+    // core.cpp - so the loan it creates ends here, where the operation it was made for has been
+    // emitted. `swap(&h.a, &h.b)` on two co-packed fields commits both, in order.
+    auto mark = packedMark();
+    auto result = generic->intrinsic(*this, args, resultType, source, resultName);
+    flushPackedBorrows(mark);
+
+    return result;
 }
 
 ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args,

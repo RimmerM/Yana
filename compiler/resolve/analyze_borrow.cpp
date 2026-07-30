@@ -366,6 +366,31 @@ void checkReturnRoots(Analysis& analysis) {
  * InstCallDyn, deliberately: a lifted body has no way to name its own environment, so it cannot
  * store one, and treating every call as a handover would reject every closure that is used.
  */
+/*
+ * The one borrow that is still a temporary, escaping.
+ *
+ * A `&` argument whose declared type is wider than the field's - `increment(&x: Int)` given a
+ * `@bits(13)` field - is widened into a temporary and narrowed back when the call returns, because
+ * a reference cannot convert. That is right for a callee that reads and writes through it and wrong
+ * for one that keeps it: the temporary dies with the frame, and nothing would ever narrow.
+ *
+ * Nothing about packing is left in this check. A borrow of a narrow field at its *own* type is a
+ * reference that carries the field's shift, works wherever the field is, and outlives whatever it
+ * likes - see NarrowRef in resolve/lower.cpp. What is reported here is a conversion with nowhere to
+ * happen, and the fix is in the signature.
+ */
+void checkMaterializedBorrows(Analysis& analysis) {
+    for(Size l = 0; l < analysis.localCount; l++) {
+        auto slot = analysis.function.localAt(analysis.local, U32(l));
+        if(!slot.materialized || !analysis.escaped[l]) continue;
+
+        auto source = slot.value ? analysis.local[slot.value]->source : analysis.function.source;
+
+        report(analysis, "cannot borrow this beyond the call - the callee declared a wider type than the field has, so what it receives is a temporary written back when the call returns, and this callee keeps it. Declare the parameter at the field's own type"_v,
+               source);
+    }
+}
+
 void checkClosureEnvironments(Analysis& analysis) {
     auto global = analysis.global;
 

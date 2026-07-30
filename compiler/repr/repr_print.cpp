@@ -95,6 +95,25 @@ void printRepr(ReprPrint& print, TypePtr type) {
             printNumber(print, repr.encoding.firstPattern);
             print.writer.writeString(repr.encoding.ascending ? " up"_v : " down"_v);
             break;
+        case DiscriminantKind::Bits:
+            print.writer.writeString(", tag at bits "_v);
+            printNumber(print, repr.discriminantBitOffset);
+            print.writer.writeString(".."_v);
+            printNumber(print, repr.discriminantBitOffset + repr.discriminantBits - 1);
+            print.writer.writeString(" of "_v);
+            printNumber(print, repr.discriminantBytes);
+            print.writer.writeString(" bytes, payload at 0"_v);
+            break;
+    }
+
+    // Whether the whole of it is one integer, which for an aggregate is the interesting half of the
+    // answer: it decides both whether a container may co-pack it and whether a `&` of it carries a
+    // shift. Printed only where it is narrower than its storage, since that is the case that means
+    // something - see isNarrowRepr.
+    if(repr.scalarBits && repr.scalarBits < repr.size * 8) {
+        print.writer.writeString(", scalar of "_v);
+        printNumber(print, repr.scalarBits);
+        print.writer.writeString(" bits"_v);
     }
 
     print.writer.writeString(", niche "_v);

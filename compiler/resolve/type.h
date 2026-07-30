@@ -338,10 +338,33 @@ struct Field {
     StringId name = 0;
 };
 
+/*
+ * How much freedom a target has over where the fields of an aggregate sit - Design.md's `@layout`,
+ * and Design-Memory §11's "a declared pin is uniform across every instance of the type".
+ *
+ * `Auto` is the default and says nothing: a target may reorder the fields, co-pack the narrow ones,
+ * and represent the whole aggregate as a single scalar. `C` pins the layout to what a C compiler
+ * would have produced for the same declaration - declaration order kept, offsets and alignment
+ * computed C's way, and bit-fields allocated in units of their *declared* type rather than of their
+ * `@bits` width. A type that crosses an FFI boundary needs the second one, and everything else is
+ * better off with the first.
+ *
+ * This is a property of the *tuple* rather than only of the declaration it came from, and it has to
+ * be, because content tuples are interned structurally: `data A {x: Bool, y: Bool}` and
+ * `data B {x: Bool, y: Bool}` are otherwise one `TupType`, and one of them being `@layout(c)` would
+ * make the layout of the other depend on which was declared. Carrying it here makes the two
+ * distinct interned types, so the Repr cache - which is keyed on the type alone - stays sound.
+ */
+enum class TypeLayout: U8 {
+    Auto,
+    C,
+};
+
 struct TupType: Type {
     TupType(): Type(Type::Tup) {}
 
     GlobalList<Field> fields;
+    TypeLayout layout = TypeLayout::Auto;
     bool named = false;
 };
 
@@ -590,6 +613,11 @@ struct RecordType: Type {
     GlobalList<TypePtr> instanceArgs;
 
     Layout layout = Multi;
+
+    // Set by `@layout(c)`: the layout is the declaration's to decide and no target may improve on
+    // it. The content tuples carry the same fact as part of their identity - see TypeLayout - and
+    // this is the declaration's own copy of it, for the paths that have the record and not a tuple.
+    bool pinned = false;
     bool qualified = false;
     bool definitionReady = false;
 };
@@ -663,7 +691,8 @@ struct CoreClasses {
  * error. A null env means no type variable is in scope.
  */
 TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env = nullptr);
-TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId source);
+TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId source,
+                          TypeLayout layout = TypeLayout::Auto);
 
 // The raw pointer type to `to`, interned per target type.
 TypePtr resolvePointerType(Module& module, TypePtr to);
@@ -791,6 +820,166 @@ bool isNumeric(GlobalBase base, TypePtr type);
 bool isGeneric(GlobalBase base, TypePtr type);
 bool isDirectType(GlobalBase base, TypePtr type);
 bool isMemoryType(GlobalBase base, TypePtr type);
+
+/*
+ * How wide a value is, and how wide the storage a machine would give it is.
+ *
+ * The two questions field packing is decided by, and the reason they are here rather than in
+ * `compiler/repr` is Design.md's "Packed fields and mutable borrowing": which fields a target *may*
+ * co-pack has to be the same answer on every target, because whether a borrow of one needs the
+ * materialize/write-back treatment is a source-level fact and a diagnostic that fired on one backend
+ * and not the other would not be one.
+ *
+ * `logical` is zero for a type this does not have an answer for. An integer answers its `@bits` width
+ * against the smallest power-of-two byte count that holds it, and an enum-layout record answers the
+ * bits its constructor count needs against the discriminant word.
+ *
+ * An *aggregate* answers where the whole of it fits in fewer bits than its own storage - a record of
+ * two `Bool`s is two bits in a byte - which is what makes a record co-packable into a parent and
+ * borrowable as a bit range rather than as an address. That answer is the packed placement below, so
+ * `logical` is the same number `compiler/repr` will lay the fields out within, mask width included.
+ */
+struct ValueWidth {
+    U32 logical = 0;
+    U32 natural = 0;
+
+    // Narrower than its own storage, and therefore worth co-packing with a neighbour.
+    bool isNarrow() const { return logical != 0 && logical < natural; }
+};
+
+ValueWidth valueWidth(GlobalBase base, TypePtr type);
+
+// The storage a machine gives an integer of `bits` logical width: the smallest power-of-two byte
+// count that holds it, in bits. Repr's own `naturalBytes` is this divided by eight, and reads it
+// from here so that the two sides of the packing contract cannot drift apart.
+U32 naturalStorageBits(U32 bits);
+
+/*
+ * Whether a target may co-pack field `index` of this tuple with another.
+ *
+ * Narrow, *and* sharing the tuple with something else narrow. The second half is what keeps a record
+ * with one `Bool` in it addressable: co-packing a lone field with nothing saves no space and would
+ * cost every borrow of it a temporary, so a field only gives up its address where the declaration is
+ * actually asking to be packed.
+ *
+ * "Sharing the tuple with" rather than "written next to", because an `Auto` layout is free to reorder
+ * the fields and does, so a narrow field's neighbours are decided by the target rather than by the
+ * declaration - `{a: Bool, b: U64, c: Bool}` packs `a` with `c`. Under `C` the order *is* the
+ * declaration's, so there the neighbours are the written ones, exactly as a C bit-field's are.
+ *
+ * The contract with `compiler/repr` runs one way. A target may pack fewer fields than this names -
+ * it may decline entirely, as JS does - and may never pack one this does not name, because resolve
+ * has already decided, on the strength of this answer, which borrows needed rewriting and which
+ * fields have no address to hand to `addressOf`.
+ */
+bool packCandidate(GlobalBase base, TupType& tuple, U16 index);
+
+/*
+ * The widest word a run of co-packed fields may occupy, as the *language* rather than as a target.
+ *
+ * A target may be narrower than this and JS is (53 bits, the point at which a host `number` stops
+ * counting), and the one-way contract above is what makes that safe: a narrower target packs fewer
+ * runs and scalarizes fewer records. What no target may be is *wider*, because `valueWidth` is
+ * answered without knowing which one is emitting and a record it called scalar has to stay scalar.
+ *
+ * Raising this is how a target with wider registers than its integers - SSE, where the unit is 128
+ * bits - would come to pack into them. Two things have to move with it and neither is here: the
+ * lowered read-modify-write computes in a 64-bit value (see decodePackedField in resolve/lower.cpp),
+ * and `naturalStorageBits` stops at 64. So this is the *budget*, and widening it is a decision about
+ * layout that a wider access path then has to be able to serve.
+ */
+static const U32 kMaxPackBits = 64;
+
+/*
+ * Where a run of co-packable fields sits inside one word.
+ *
+ * `span` is the total bits the run occupies - including any gap the straddle rule left behind, since
+ * what a container needs to know is how wide the word has to be rather than how much of it is live.
+ * `count` is how many of the fields offered were placed; a run too long for one word stops early and
+ * the caller places the rest another way.
+ */
+struct PackedRun {
+    U32 span = 0;
+    U16 count = 0;
+};
+
+/*
+ * The bit placement of a run of narrow fields, and the one rule both stages have to agree on.
+ *
+ * `order` is the field indices to place, in the order they should be tried - which is not
+ * declaration order for an `Auto` layout, see `packOrder`. `offsets`, when given, receives the bit
+ * offset of each field placed, in the same order.
+ *
+ * **No field straddles the natural storage unit of its own width.** That is the C bit-field rule, and
+ * it is here for a reason C did not have: a `&` of a packed field is an address plus a shift
+ * (Design.md's tier 2), and the *width of the load* that shift applies to has to be recoverable from
+ * the field's type alone, because a callee holding one was compiled once and has only the type.
+ * Guaranteeing the field sits inside one `naturalStorageBits(bits)` unit is what makes that true: the
+ * unit is the load, and the shift is the position within it.
+ *
+ * Under `C` the unit is the *declared* type's width instead - `@bits(4) Int` is allocated in a 32-bit
+ * unit the way `int x: 4` is - because matching a C compiler is the whole content of that layout.
+ *
+ * This lives in resolve rather than in `compiler/repr` because both stages need the answer and they
+ * need the same one: repr lays the fields out at these offsets, and `valueWidth` reports the span as
+ * the mask width a callee holding a reference to the whole aggregate will use. Two implementations of
+ * it would be two mask widths.
+ */
+PackedRun packBits(GlobalBase base, TupType& tuple, Buffer<const U16> order, U32 maxBits,
+                   Array<U32>* offsets);
+
+/*
+ * The storage unit a bit-field is allocated in under a pinned layout, or zero for anything that is not
+ * one - which is everything but a written `@bits` refinement.
+ *
+ * `@bits(4) Int` is `int x: 4`, and C allocates that in an `int`: a lone one occupies four bytes and
+ * two of them share those four bytes. That is why the number is the *declared* type's width rather
+ * than the refinement's, and why matching C needs it in two places - the unit a run is packed in, and
+ * the storage a field that shares its unit with nobody still takes up.
+ */
+U32 declaredUnitBits(GlobalBase base, TypePtr type);
+
+/*
+ * The order narrow fields are packed in: widest first, and stable within a width.
+ *
+ * Widest first because the straddle rule wastes the *tail* of a unit rather than its head, so placing
+ * the wide fields while the word is still empty leaves the leftover bits in one run at the top where a
+ * niche can use them. `{d: @bits(4), f: @bits(4), a: Bool}` fills a byte with `d` and `f` and starts a
+ * second one with `a`, where declaration order would split `f` across the two.
+ *
+ * Declaration order under `C`, which is what pinning the layout means.
+ */
+void packOrder(GlobalBase base, TupType& tuple, Array<U16>& into);
+
+/*
+ * Whether the whole of an aggregate is one narrow scalar, and where its fields sit inside it.
+ *
+ * The layout half of what `valueWidth` reports about the same tuple, so that the target laying the
+ * fields out and the callee masking a reference to the whole thing are working from one placement.
+ * False where the aggregate has no scalar form, in which case `run` and `offsets` are untouched.
+ *
+ * `offsets` comes back indexed by *field* - one entry per field of the tuple, in declaration order -
+ * rather than in the order the fields were placed, so that a caller needs to know nothing about the
+ * ordering to use it.
+ */
+bool scalarLayout(GlobalBase base, TupType& tuple, PackedRun& run, Array<U32>* offsets);
+
+/*
+ * Whether a value of this type is narrow enough that a `&` of it carries a shift - Design.md's
+ * tier 2, and the thing that makes a packed field borrowable without a temporary at all.
+ *
+ * Stated over the pointee rather than over where the borrow came from, which is the whole point: a
+ * callee declaring `&b: Bool` is compiled once and takes a reference into a bit range whether or not
+ * its caller's `Bool` turned out to be packed. The unpacked case passes shift zero and costs a mask
+ * the type makes constant.
+ *
+ * A non-narrow pointee's shift is *provably* zero - a full-width value cannot sit at an offset
+ * inside a word of its own width - so `&Int` stays exactly the address it always was, with nothing
+ * elided at run time because there was nothing there.
+ */
+inline bool isNarrowValue(GlobalBase base, TypePtr type) {
+    return valueWidth(base, type).isNarrow();
+}
 
 // How a type is written in a diagnostic or in printed IR. The builder form is the one that
 // composes; the String form allocates a copy for a diagnostic argument.

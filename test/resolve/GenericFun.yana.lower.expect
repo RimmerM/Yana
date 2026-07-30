@@ -78,12 +78,12 @@ twice(Int)<complex>(%x: Int): Int {
 swap(Int, Bool)<complex>(%v_0: Ptr, %value: Ptr) {
   b_1 {
     %v_2 = alloca 8, 4: Ptr
-    %v_3 = add %value, 4: Ptr
-    %v_4 = loads %v_3, 4: Int
-    %v_5 = load %value, 4: Int
-    store %v_2, %v_4, 4
+    %v_3 = loads %value, 4: Int
+    %v_4 = add %value, 4: Ptr
+    %v_5 = load %v_4, 1: Int
+    store %v_2, %v_3, 4
     %v_6 = add %v_2, 4: Ptr
-    store %v_6, %v_5, 4
+    store %v_6, %v_5, 1
     copy %v_0, %v_2, 8
     ret 
   }
@@ -102,9 +102,9 @@ main<complex>(): Int {
   b_0 {
     %v_1 = call_complex identity(Int), 1: Int
     %v_2 = alloca 8, 4: Ptr
-    store %v_2, 1, 4
     %v_3 = add %v_2, 4: Ptr
-    store %v_3, 20, 4
+    store %v_3, 1, 1
+    store %v_2, 20, 4
     %v_4 = alloca 8, 4: Ptr
     call_complex swap(Int, Bool), %v_4, %v_2
     %v_5 = call_complex leftOf(Int, Bool), %v_4: Int

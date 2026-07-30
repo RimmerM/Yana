@@ -864,6 +864,16 @@ struct EmbedSet {
         }
     }
 
+    /*
+     * Every set bit, lowest first.
+     *
+     * The `break` on the top bit is not a shortcut but the whole of what keeps this terminating.
+     * Consuming a bit shifts the word right by one more than the bit's position, and for the highest
+     * bit of a word that is a shift by the width of the type - which C++ leaves undefined and which
+     * x86 implements by masking the count to zero. The word then comes back unchanged, the offset
+     * has advanced by a word, and the walk hands out indices past the end of the set forever. There
+     * is nothing above the top bit to look at, so stopping there is also the answer.
+     */
     template<bool isSmall, class F>
     void iterate(Size count, F&& f) {
         if constexpr(isSmall) {
@@ -873,6 +883,8 @@ struct EmbedSet {
             while(v) {
                 auto i = Math::findFirstBit(v);
                 f(o + i);
+                if(i + 1 >= bits) break;
+
                 o += i + 1;
                 v >>= i + 1;
             }
@@ -885,6 +897,8 @@ struct EmbedSet {
                 while(v) {
                     auto n = Math::findFirstBit(v);
                     f(o + n);
+                    if(n + 1 >= bits) break;
+
                     o += n + 1;
                     v >>= n + 1;
                 }

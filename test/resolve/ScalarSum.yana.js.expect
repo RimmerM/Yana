@@ -1,0 +1,140 @@
+"use strict";
+// ResolveTest
+function payloadOf(s) {
+  var v14;
+  if (s.$tag === 0) {
+    v14 = s.$p | 0;
+  } else {
+    v14 = (s.$p | 0) + 1000 | 0;
+  }
+  return v14;
+}
+
+function colourOf(c) {
+  var v27;
+  if (c.$tag === 0) {
+    v27 = ((c.r | 0) + (Math.imul(c.g | 0, 10) | 0) | 0) + (Math.imul(c.b | 0, 100) | 0) | 0;
+  } else {
+    v27 = Math.imul(c.$p | 0, 1000) | 0;
+  }
+  return v27;
+}
+
+function fiveOf(f) {
+  var v44;
+  if (f.$tag === 0) {
+    v44 = f.$p | 0;
+  } else {
+    if (f.$tag === 1) {
+      v44 = Math.imul(f.$p | 0, 10) | 0;
+    } else {
+      if (f.$tag === 2) {
+        v44 = Math.imul(f.$p | 0, 100) | 0;
+      } else {
+        if (f.$tag === 3) {
+          v44 = Math.imul(f.$p | 0, 1000) | 0;
+        } else {
+          v44 = Math.imul(f.$p | 0, 10000) | 0;
+        }
+      }
+    }
+  }
+  return v44;
+}
+
+function flagsValue(f) {
+  var v9;
+  var v18;
+  if (f.a) {
+    v9 = 1;
+  } else {
+    v9 = 0;
+  }
+  if (f.b) {
+    v18 = 2;
+  } else {
+    v18 = 0;
+  }
+  return v9 + v18 | 0;
+}
+
+function taggedOf(t) {
+  var v14;
+  if (t.$tag === 0) {
+    v14 = flagsValue(t.$p);
+  } else {
+    v14 = flagsValue(t.$p) + 100 | 0;
+  }
+  return v14;
+}
+
+function widthOf(w) {
+  var v14;
+  if (w.$tag === 0) {
+    v14 = w.$p | 0;
+  } else {
+    v14 = Math.imul(w.$p | 0, 10) | 0;
+  }
+  return v14;
+}
+
+function bump(x) {
+  x.$v = x.$v + 1 & 255;
+  return;
+}
+
+function roundTrip() {
+  return payloadOf({ $tag: 0, $p: 7 }) + payloadOf({ $tag: 1, $p: 9 }) | 0;
+}
+
+function coloured() {
+  return colourOf({ $tag: 0, r: 1, g: 2, b: 3, $p: null }) + colourOf({ $tag: 1, r: 0, g: 0, b: 0, $p: 4 }) | 0;
+}
+
+function counted() {
+  return fiveOf({ $tag: 0, $p: 1 }) + fiveOf({ $tag: 4, $p: 1 }) | 0;
+}
+
+function packedPayload() {
+  return taggedOf({ $tag: 0, $p: { a: true, b: true } }) + taggedOf({ $tag: 1, $p: { a: false, b: true } }) | 0;
+}
+
+function mutated() {
+  var s = { $tag: 0, $p: 41 };
+  if (s.$tag === 0) {
+    var v13 = { $v: s.$p };
+    bump(v13);
+    s.$p = v13.$v;
+  } else {
+    var v16 = { $v: s.$p };
+    bump(v16);
+    s.$p = v16.$v;
+  }
+  return payloadOf(s);
+}
+
+function copied() {
+  return taggedOf({ $tag: 1, $p: { a: true, b: false } });
+}
+
+function maybeOf(m) {
+  var v10;
+  if (m.$tag === 0) {
+    v10 = 500;
+  } else {
+    v10 = payloadOf(m.$p);
+  }
+  return v10;
+}
+
+function folded() {
+  return (maybeOf({ $tag: 0, $p: null }) + maybeOf({ $tag: 1, $p: { $tag: 0, $p: 2 } }) | 0) + maybeOf({ $tag: 1, $p: { $tag: 1, $p: 3 } }) | 0;
+}
+
+function wide() {
+  return widthOf({ $tag: 0, $p: 5 }) + widthOf({ $tag: 1, $p: 6 }) | 0;
+}
+
+function main() {
+  return ((((((roundTrip() + coloured() | 0) + counted() | 0) + packedPayload() | 0) + mutated() | 0) + copied() | 0) + folded() | 0) + wide() | 0;
+}

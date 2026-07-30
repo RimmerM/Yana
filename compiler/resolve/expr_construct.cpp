@@ -146,13 +146,16 @@ TypePtr placeRootType(Module& module, Function& function, const Place& place) {
     return module.scalar.error;
 }
 
-TypePtr placeType(Module& module, Function& function, const Place& place) {
+TypePtr placeType(Module& module, Function& function, const Place& place, Size limit) {
     auto global = *module.types;
     auto local = *module.arena;
     auto type = placeRootType(module, function, place);
     auto projections = place.projections;
+    Size walked = 0;
 
     for(auto projection: projections.contents(local)) {
+        if(walked++ >= limit) break;
+
         switch(projection.kind) {
             case ProjectionKind::Discriminant:
                 type = module.scalar.int_;
@@ -221,6 +224,27 @@ TypePtr placeType(Module& module, Function& function, const Place& place) {
     return type;
 }
 
+bool placeIsPackCandidate(Module& module, Function& function, const Place& place) {
+    auto global = *module.types;
+    auto local = *module.arena;
+    auto projections = place.projections;
+    auto count = projections.size();
+    if(!count) return false;
+
+    auto last = projections.get(local, count - 1);
+    if(last.kind != ProjectionKind::Field) return false;
+
+    auto owner = placeType(module, function, place, count - 1);
+    if(!owner || global[owner]->kind != Type::Tup) return false;
+
+    return packCandidate(global, *(TupType*)global[owner], last.index);
+}
+
+bool needsBorrowTemporary(Module& module, Function& function, const Place& place, TypePtr wanted) {
+    auto held = placeType(module, function, place);
+    return held && wanted && !sameType(held, wanted);
+}
+
 TypePtr ExprResolver::placeRootType(const Place& place) {
     return ::placeRootType(module, function, place);
 }
@@ -270,13 +294,33 @@ void ExprResolver::write(Place place, ModulePtr<Value> value, LocationId source,
  * attempted - converting would borrow a temporary and write back into nothing, so a mismatched
  * type is an ordinary argument error rather than something to paper over.
  */
-ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr expected, LocationId source) {
+ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr expected, LocationId source,
+                                              bool loaned) {
     if(!value) return nullptr;
 
-    if(!sameType(valueType(value), expected)) {
+    /*
+     * The type has to be the callee's, with one exception, and the exception is the reason `@bits`
+     * is usable at all.
+     *
+     * Design.md's own example is `increment(&h.length)` where `increment` takes `&Int` and
+     * `h.length` is a `@bits(13)` field: the whole point of the refinement is that it does not
+     * acquire a family of arithmetic types, so a parameter declared at the unrefined type has to
+     * accept one. What made that impossible before was that a conversion would have borrowed a
+     * temporary and written back into nothing - and a temporary written back *is* now what a borrow
+     * of such a field is, so the objection has been answered rather than waived. See borrowPlace.
+     *
+     * Every other mismatch stays an argument error. Converting through a class instance would build
+     * a value with no storage behind it, and there would be nothing for the commit to write to.
+     */
+    auto held = valueType(value);
+    auto refined = held && expected && global[held]->kind == Type::Int &&
+                   global[expected]->kind == Type::Int &&
+                   canonicalType(global, held) == canonicalType(global, expected);
+
+    if(!sameType(held, expected) && !refined) {
         context.diagnostics.error("a `&` argument must have exactly type %@, but this is %@ - a conversion would borrow a temporary"_v,
                                   source, describeType(context, global, expected),
-                                  describeType(context, global, valueType(value)));
+                                  describeType(context, global, held));
         return nullptr;
     }
 
@@ -291,7 +335,85 @@ ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr ex
         return nullptr;
     }
 
-    return ref(emit<InstBorrow>(source, 0, resolveBorrowType(module, expected, true), place.unwrap(), true));
+    return borrowPlace(place.unwrap(), resolveBorrowType(module, expected, true), source, loaned);
+}
+
+/*
+ * Design.md's "Packed fields and mutable borrowing", at the one point a mutable borrow is created.
+ *
+ * Tier 0 is the whole of the common case and is the `return` below: the borrow is the address, and
+ * nothing here applies.
+ *
+ * Tier 1 is what a co-packable field gets. There is no address in the middle of a word to hand over,
+ * so the field's value moves into a local, the borrow names that local, and a write-back is queued
+ * for the end of the loan. The callee is compiled against an ordinary `&Int` and never learns that
+ * anything happened, which is the property that keeps packing out of every signature in the program.
+ *
+ * Doing this here rather than in lowering is deliberate: the ownership passes then see a borrow of
+ * an ordinary local with an ordinary last use, so the borrow checker needs no concept of packing
+ * and no rule about fields sharing a word.
+ */
+ModulePtr<Value> ExprResolver::borrowPlace(Place place, TypePtr borrowType, LocationId source,
+                                           bool loaned) {
+    auto borrow = (BorrowType*)global[borrowType];
+    auto wanted = borrow->to;
+
+    if(!needsBorrowTemporary(module, function, place, wanted)) {
+        return ref(emit<InstBorrow>(source, 0, borrowType, place, borrow->mut));
+    }
+
+    auto held = placeType(place);
+
+    /*
+     * A `return` parameter declares that the loan outlives the call, and a temporary cannot serve
+     * one: the write-back happens when the loan ends, and everything written through the result up
+     * to that point would land in storage nobody reads again.
+     *
+     * There is nothing to arrange here, because there is nothing to convert *to*. A reference is
+     * what a borrow of a field needs and a reference is what the same-type case already gets; this
+     * is the conversion case, and a conversion has to happen somewhere. Declaring the parameter at
+     * the field's own type is the fix, and it is what the message says.
+     */
+    if(loaned) {
+        context.diagnostics.error("a `return &` argument must have exactly type %@ - the value is converted into a temporary and back, and a borrow in the result would outlive it"_v,
+                                  source, describeType(context, global, held));
+        return nullptr;
+    }
+
+    auto storage = allocate(wanted, source, 0, ast::BindType::Ref);
+    if(!storage) return nullptr;
+
+    auto temporary = placeFor(storage, source);
+    auto entry = function.localAt(local, temporary.local);
+    entry.materialized = true;
+    function.locals.set(local, temporary.local, entry);
+
+    // Widened on the way in and narrowed on the way back out, which for a `@bits` field is the same
+    // pair of conversions an ordinary read and write of it already perform. The callee sees the
+    // unrefined type it declared and nothing else.
+    initialize(temporary, convert(load(place, source), wanted, source), source);
+
+    auto result = ref(emit<InstBorrow>(source, 0, borrowType, temporary, borrow->mut));
+
+    // An immutable borrow has nothing to commit, because nothing wrote through it.
+    if(borrow->mut) packedBorrows.push(PackedBorrow { place, temporary, held, source });
+
+    return result;
+}
+
+void ExprResolver::flushPackedBorrows(Size mark) {
+    while(packedBorrows.size() > mark) {
+        auto entry = packedBorrows[packedBorrows.size() - 1];
+        packedBorrows.pop();
+
+        // Popped from the back, so the commits run in the reverse of the order the borrows were
+        // taken. Which order does not matter - each one reads the word as it stands - but that they
+        // are ordered at all is what makes a lost update impossible.
+        if(!current) continue;
+
+        auto written = convert(load(entry.temporary, entry.source), entry.fieldType, entry.source);
+        assign(entry.field, written, entry.source);
+    }
 }
 
 /*
@@ -391,6 +513,21 @@ ModulePtr<Value> ExprResolver::rootSink(ModulePtr<Value> value, LocationId sourc
 // The address of a place, as a pointer to whatever it holds. Taking one is what forces a value
 // that could have stayed in a register into storage - see InstAddress.
 ModulePtr<Value> ExprResolver::addressOf(Place place, LocationId source, StringId valueName) {
+    /*
+     * A raw pointer is an address and nothing else, so a field that shares a word cannot produce
+     * one: what a `&` of such a field carries is the address *and* the shift, and `%T` has room for
+     * only the first.
+     *
+     * That is the honest end of the trade-off Design.md names. A field that gave up its address to
+     * share a word has given it up to the unsafe half of the language too, and saying so here is
+     * better than handing out the address of the whole word.
+     */
+    if(placeIsPackCandidate(module, function, place)) {
+        context.diagnostics.error("cannot take the address of this field - it may share a machine word with its neighbours, so it has no address of its own. A `&` borrow of it works, because that carries the shift as well as the address"_v,
+                                  source);
+        return nullptr;
+    }
+
     auto type = resolvePointerType(module, placeType(place));
     return ref(emit<InstAddress>(source, valueName, type, place));
 }
@@ -987,7 +1124,12 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
         Array<Field> layout;
         for(Size i = 0; i < values.size(); i++) layout.push(Field { element, 0 });
 
-        auto bufferType = (Type*)resolveTupleType(module, toBuffer(layout), source) - global;
+        /*
+         * Pinned, because this tuple is not a record: it is `values.size()` elements of one type,
+         * about to be read as an array is - at a stride. A layout free to reorder or co-pack them
+         * would put two `Bool` elements in one byte and leave the indexing reading half of each.
+         */
+        auto bufferType = (Type*)resolveTupleType(module, toBuffer(layout), source, TypeLayout::C) - global;
         buffer = allocate(bufferType, source);
         auto bufferPlace = placeFor(buffer, source);
 

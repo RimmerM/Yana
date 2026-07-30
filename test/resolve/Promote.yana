@@ -1,0 +1,81 @@
+import Native
+
+-- Stack slots that did not need to be on the stack - see lower_promote.h, and isDirectType in
+-- resolve/type.h for why this is a transformation over lowered IR rather than an answer resolve
+-- gives about a type.
+--
+-- Every local starts as an `alloca`, a `store` and a `load`, because a place is an address and that
+-- is the only shape lowering has. What is asserted here is both halves of the decision: the slots
+-- that go away entirely and become phis, and the ones that stay because something took their
+-- address. `.lower.expect` says which; the numbers below say the answers did not change while they
+-- were moving.
+
+data Flags {a: Bool, b: Bool}
+
+fn bump(&x: Int) = x = x + 1
+
+fn sum(a: Int, b: Int) -> Int = a + b
+
+-- Two mutable locals carried around a loop. Nothing here has an address, so the whole function
+-- becomes two loop-carried phis and some arithmetic - the case that motivated doing this rather than
+-- calling a scalar record direct, since neither local is a record and neither is read-only.
+fn counted(n: Int) -> Int:
+    let &total = 0
+    let &i = 0
+
+    while i < n:
+        total = total + i
+        i = i + 1
+
+    return total
+
+-- A one-byte scalar record written on one arm of a branch and read after it. The value is narrower
+-- than the register that holds it, so each read masks - which is the truncation the load used to do
+-- and the reason a slot's width and its register type are two different numbers.
+fn flagged(x: Bool) -> Int:
+    let &f = Flags {a: x, b: False}
+    if x then f.b = True
+
+    return (if f.a then 1 else 0) + (if f.b then 2 else 0)
+
+-- Values narrower than the register that holds them, written past what they can hold.
+--
+-- This is the assertion that a promoted slot still truncates. Memory did it for free - a one-byte
+-- store keeps one byte - and a register does not, so the load's own narrowing has to be reproduced
+-- where the load was: a mask for an unsigned slot and the shift pair that sign-extends for a signed
+-- one. Both values here overflow, which is what makes the difference visible: unpromoted `u` is 4 and
+-- `v` is -126, and a promotion that skipped the narrowing answers 260 and 130.
+fn narrowed() -> Int:
+    let &u = 250 :: U8
+    let &v = 120 :: I8
+
+    u = u + 10
+    v = v + 10
+
+    return (u :: Int) * 1000 + (v :: Int)
+
+-- The declining half. `bump` takes a `&Int`, so this local's address is handed to something, and no
+-- amount of dataflow makes a slot that something else can write into a register.
+fn borrowed() -> Int:
+    let &v = 10
+
+    bump(v)
+    bump(v)
+
+    return v
+
+-- A value that flows into a call rather than into memory, which is not the same thing: the argument
+-- is the value, so the slots holding the two operands still go.
+fn called() -> Int:
+    let &a = 3
+    let &b = 4
+
+    a = a + b
+    return sum(a, b)
+
+-- counted:  0 + 1 + 2 + 3 + 4    = 10
+-- flagged:  1 + 2                = 3
+-- narrowed: 4 * 1000 + -126      = 3874
+-- borrowed: 12                   = 12
+-- called:   7 + 4                = 11
+fn main() -> Int = counted(5) + flagged(True) * 10 + narrowed() + borrowed() * 100 + called() * 1000

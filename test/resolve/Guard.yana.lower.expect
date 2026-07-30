@@ -170,7 +170,7 @@ firstJust<complex>(%a: Ptr, %b: Ptr): Int {
 
 onlyRed<complex>(%m: Ptr): Int {
   b_0 {
-    %v_1 = load %m, 4: Long
+    %v_1 = load %m, 1: Long
     %v_2 = cmp_le %v_1, 2: Int
     %v_3 = select 1, 0, %v_2: Int
     %v_4 = cmp_eq %v_3, 1: Int
@@ -178,7 +178,7 @@ onlyRed<complex>(%m: Ptr): Int {
   }
 
   b_6 {
-    %v_7 = load %m, 4: Long
+    %v_7 = load %m, 1: Long
     %v_8 = cmp_le %v_7, 2: Int
     %v_9 = select 1, 0, %v_8: Int
     %v_10 = cmp_eq %v_9, 1: Int
@@ -186,7 +186,7 @@ onlyRed<complex>(%m: Ptr): Int {
   }
 
   b_5 {
-    %v_13 = load %m, 4: Int
+    %v_13 = load %m, 1: Int
     %v_14 = cast %v_13: Int
     %v_15 = cmp_eq %v_14, 0: Int
     je %v_15, b_16, b_6
@@ -197,7 +197,7 @@ onlyRed<complex>(%m: Ptr): Int {
   }
 
   b_12 {
-    %v_17 = load %m, 4: Long
+    %v_17 = load %m, 1: Long
     %v_18 = cmp_le %v_17, 2: Int
     %v_19 = select 1, 0, %v_18: Int
     %v_20 = cmp_eq %v_19, 1: Int
@@ -205,7 +205,7 @@ onlyRed<complex>(%m: Ptr): Int {
   }
 
   b_11 {
-    %v_23 = load %m, 4: Int
+    %v_23 = load %m, 1: Int
     %v_24 = cast %v_23: Int
     %v_25 = cmp_eq %v_24, 1: Int
     je %v_25, b_26, b_12
@@ -220,7 +220,7 @@ onlyRed<complex>(%m: Ptr): Int {
   }
 
   b_21 {
-    %v_27 = load %m, 4: Int
+    %v_27 = load %m, 1: Int
     %v_28 = cast %v_27: Int
     %v_29 = cmp_eq %v_28, 2: Int
     je %v_29, b_30, b_22
@@ -233,7 +233,7 @@ onlyRed<complex>(%m: Ptr): Int {
 
 describe<complex>(%m: Ptr): Int {
   b_0 {
-    %v_1 = load %m, 4: Long
+    %v_1 = load %m, 1: Long
     %v_2 = cmp_le %v_1, 2: Int
     %v_3 = select 1, 0, %v_2: Int
     %v_4 = cmp_eq %v_3, 1: Int
@@ -245,7 +245,7 @@ describe<complex>(%m: Ptr): Int {
   }
 
   b_5 {
-    %c = load %m, 4: Int
+    %c = load %m, 1: Int
     %v_7 = cast %c: Int
     %v_8 = cmp_eq %v_7, 0: Int
     je %v_8, b_9, b_10
@@ -315,36 +315,36 @@ main<complex>(): Int {
     store %v_11, 0, 4
     %v_12 = call_complex orZeroElse, %v_11: Int
     %v_13 = add %v_10, %v_12: Int
-    %v_14 = alloca 4, 4: Ptr
-    store %v_14, 0, 4
+    %v_14 = alloca 1, 1: Ptr
+    store %v_14, 0, 1
     %v_15 = call_complex describe, %v_14: Int
     %v_16 = add %v_13, %v_15: Int
-    %v_17 = alloca 4, 4: Ptr
-    store %v_17, 1, 4
+    %v_17 = alloca 1, 1: Ptr
+    store %v_17, 1, 1
     %v_18 = call_complex describe, %v_17: Int
     %v_19 = add %v_16, %v_18: Int
-    %v_20 = alloca 4, 4: Ptr
-    store %v_20, 2, 4
+    %v_20 = alloca 1, 1: Ptr
+    store %v_20, 2, 1
     %v_21 = call_complex describe, %v_20: Int
     %v_22 = add %v_19, %v_21: Int
-    %v_23 = alloca 4, 4: Ptr
-    store %v_23, 3, 4
+    %v_23 = alloca 1, 1: Ptr
+    store %v_23, 3, 1
     %v_24 = call_complex describe, %v_23: Int
     %v_25 = add %v_22, %v_24: Int
-    %v_26 = alloca 4, 4: Ptr
-    store %v_26, 0, 4
+    %v_26 = alloca 1, 1: Ptr
+    store %v_26, 0, 1
     %v_27 = call_complex onlyRed, %v_26: Int
     %v_28 = add %v_25, %v_27: Int
-    %v_29 = alloca 4, 4: Ptr
-    store %v_29, 1, 4
+    %v_29 = alloca 1, 1: Ptr
+    store %v_29, 1, 1
     %v_30 = call_complex onlyRed, %v_29: Int
     %v_31 = add %v_28, %v_30: Int
-    %v_32 = alloca 4, 4: Ptr
-    store %v_32, 2, 4
+    %v_32 = alloca 1, 1: Ptr
+    store %v_32, 2, 1
     %v_33 = call_complex onlyRed, %v_32: Int
     %v_34 = add %v_31, %v_33: Int
-    %v_35 = alloca 4, 4: Ptr
-    store %v_35, 3, 4
+    %v_35 = alloca 1, 1: Ptr
+    store %v_35, 3, 1
     %v_36 = call_complex onlyRed, %v_35: Int
     %v_37 = add %v_34, %v_36: Int
     %v_38 = alloca 8, 4: Ptr

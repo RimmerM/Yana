@@ -1,0 +1,153 @@
+import Native
+
+-- Design.md's "Packed fields and mutable borrowing", the two tiers that exist. What this has to
+-- assert is behaviour rather than IR shape: a write-back that merged into a stale copy of the word
+-- and one that read the word at commit time produce the same instructions in a different order, and
+-- only one of them gets the answer right.
+
+-- The design doc's own example. Three fields, twenty bits, one word.
+data Header {version: @bits(4) U32, flags: @bits(3) U32, length: @bits(13) U32}
+
+-- Two booleans in a byte, which is the case with no `@bits` written anywhere: a Bool needs one bit
+-- and Repr gives it four bytes on its own, so a pair of them is a packing candidate by itself.
+data Flags {optionA: Bool, optionB: Bool}
+
+-- A neighbour that is not narrow stops the run, so `only` keeps its own storage and its address.
+-- Borrowing it is tier 0 and costs nothing.
+data Mixed {only: @bits(5) U32, wide: Int}
+
+fn bump(&x: U32) = x = x + 1
+
+fn flip(&b: Bool) = b = !b
+
+fn scale(&x: U32, by: U32) = x = x * by
+
+-- Reading and writing a packed field without borrowing it at all: shift and mask on the way out,
+-- read-modify-write on the way in.
+fn direct() -> Int:
+    let &h = Header {version: 1, flags: 2, length: 3}
+
+    h.length = 4000
+    h.version = 9
+
+    return (h.version :: Int) * 100000 + (h.flags :: Int) * 10000 + (h.length :: Int)
+
+-- Tier 1. `bump` is compiled against an ordinary `&U32` and never learns that its argument had no
+-- address; the caller loads, widens, calls, narrows and merges.
+fn borrowed() -> Int:
+    let &h = Header {version: 1, flags: 2, length: 3}
+
+    bump(h.version)
+    bump(h.length)
+
+    return (h.version :: Int) * 100 + (h.length :: Int)
+
+-- The assertion this fixture exists for.
+--
+-- `version` and `length` are in one word, and each write-back is a read-modify-write of that word.
+-- Reading the word when the borrow is *created* and merging into that copy would make the second
+-- commit undo the first, and `version` would come back 1 rather than 2 - which is the classic C
+-- bitfield lost update, and the reason Design.md no longer asks the borrow checker to treat
+-- co-packed fields as aliasing.
+fn neighbours() -> Int:
+    let &h = Header {version: 1, flags: 0, length: 100}
+
+    bump(h.version)
+    scale(h.length, 3)
+
+    return (h.version :: Int) * 1000 + (h.length :: Int)
+
+-- Two borrows of one word taken in sequence, which is ordinary code now: the commits are ordered,
+-- so neither loses the other's write.
+fn together() -> Int:
+    let &f = Flags {optionA: False, optionB: False}
+
+    flip(f.optionA)
+    flip(f.optionB)
+
+    return (if f.optionA then 1 else 0) + (if f.optionB then 2 else 0)
+
+-- A field with no narrow neighbour is not packed, so this is a plain address and no temporary is
+-- made for it. Asserted here because the *absence* of the rewrite is what keeps tier 0 free.
+fn unpacked() -> Int:
+    let &m = Mixed {only: 7, wide: 5}
+
+    bump(m.only)
+
+    return (m.only :: Int) * 10 + m.wide
+
+-- A `return` parameter declares a loan that outlives the call, so the write-back has to outlive it
+-- too. Committing when `pick` returned would put the temporary back before `chosen = False` was
+-- written to it, and that write would go nowhere - `optionA` would still read True. Deferring the
+-- commit to the last use of the result is what makes this 2 rather than 3, and it is why this case
+-- needs no second representation for `&`.
+fn pick(flag: Bool, return &a: Bool, return &b: Bool) -> &Bool = if flag then a else b
+
+fn loaned() -> Int:
+    let &f = Flags {optionA: True, optionB: True}
+    let &chosen = pick(True, f.optionA, f.optionB)
+
+    chosen = False
+
+    return (if f.optionA then 1 else 0) + (if f.optionB then 2 else 0)
+
+-- A reference to a packed field, handed back to the caller.
+--
+-- This is what tier 2 buys, and it is the case a materialized temporary could never serve: the
+-- temporary dies with the frame that made it, and the result is supposed to outlive that frame. A
+-- reference carries how to reach the field - the unit's address, and the shift within it - so this
+-- is an ordinary selector with nothing arranged around it.
+fn optionOf(return &f: Flags) -> &Bool = f.optionA
+
+fn returned() -> Int:
+    let &f = Flags {optionA: False, optionB: True}
+    let &chosen = optionOf(f)
+
+    chosen = True
+
+    return (if f.optionA then 1 else 0) + (if f.optionB then 2 else 0)
+
+-- Two references into one byte, alive at once and written in turn. Every write through one is its
+-- own read-modify-write of the unit, so the second reads what the first wrote and neither loses the
+-- other - which is why Design.md asks the borrow checker for nothing here and exclusivity stays
+-- field-sensitive.
+fn swapBools(&a: Bool, &b: Bool):
+    let t = a
+    a = b
+    b = t
+
+fn interleaved() -> Int:
+    let &g = Flags {optionA: True, optionB: False}
+
+    swapBools(g.optionA, g.optionB)
+
+    return (if g.optionA then 1 else 0) + (if g.optionB then 2 else 0)
+
+-- Handed down two frames and written at the bottom, with nothing in between knowing the field is
+-- packed - `nudge` is compiled once and would serve an unpacked `@bits(13)` field, or a whole local
+-- of that type, with the same code and a shift of zero.
+fn nudge(&x: @bits(13) U32) = x = x + 1
+
+fn nudgeTwice(&x: @bits(13) U32):
+    nudge(x)
+    nudge(x)
+
+fn threaded() -> Int:
+    let &h = Header {version: 1, flags: 2, length: 100}
+
+    nudgeTwice(h.length)
+
+    return (h.length :: Int) * 10 + (h.version :: Int)
+
+-- 900000 + 20000 + 4000 = 924000
+-- 200 + 4 = 204
+-- 2000 + 300 = 2300
+-- 1 + 2 = 3
+-- 80 + 5 = 85
+-- 0 + 2 = 2
+-- 1 + 2 = 3
+-- 0 + 2 = 2
+-- 1020 + 1 = 1021
+fn main() -> Int =
+    direct() + borrowed() + neighbours() + together() + unpacked() + loaned() +
+    returned() + interleaved() + threaded()

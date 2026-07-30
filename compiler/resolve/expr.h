@@ -385,7 +385,36 @@ struct ExprResolver {
     // The value passed for a `&` parameter: a mutable borrow of whatever storage the argument
     // named. Null, after reporting, when the argument names none or names storage that may not be
     // written - the two ways a mutable borrow can fail before any liveness question arises.
-    ModulePtr<Value> borrowArgument(ModulePtr<Value> value, TypePtr expected, LocationId source);
+    // `loaned` is the parameter's `return` marker. A borrow that outlives the call cannot be the
+    // temporary Design.md's tier 1 makes, since the write-back happens *at* the call and everything
+    // the caller wrote afterwards would be lost - so a packed field in that position is reported
+    // here, where the declaration that caused it can be named.
+    ModulePtr<Value> borrowArgument(ModulePtr<Value> value, TypePtr expected, LocationId source,
+                                    bool loaned = false);
+
+    /*
+     * A borrow of a place, with Design.md's tier 1 applied where the place needs it.
+     *
+     * The one place an `InstBorrow` of a place is created, so that the rewrite cannot be forgotten
+     * at one of them: a borrow of a field with no address of its own becomes a fresh local holding
+     * the field's value, a borrow of *that*, and - if the borrow is mutable - a write-back queued
+     * for whoever consumes it. An immutable one needs the temporary for the same reason and needs
+     * no commit, since nothing wrote to it.
+     *
+     * `loaned` says the borrow is meant to outlive the call, which is what a `return` parameter
+     * declares. That is tier 2 and is reported here, where the declaration causing it can be named.
+     */
+    ModulePtr<Value> borrowPlace(Place place, TypePtr borrowType, LocationId source,
+                                 bool loaned = false);
+
+    // Where the pending write-back list currently ends. A call takes one before converting its
+    // arguments and hands it back to flushPackedBorrows afterwards, so that a nested call commits
+    // its own arguments and not the enclosing call's.
+    Size packedMark() { return packedBorrows.size(); }
+
+    // Emits the write-back for every borrow materialized since `mark`. Called immediately after the
+    // instruction that consumed the borrows, which is where the loan ends.
+    void flushPackedBorrows(Size mark);
 
     // The value a `->` binding or a `->` argument produces - a move, an independent copy, or the
     // value unchanged, decided by the source's ownership classification. See expr_construct.cpp.
@@ -478,6 +507,26 @@ struct ExprResolver {
     Array<LoopTarget> loops;
 
     /*
+     * Mutable borrows of packed fields awaiting their write-back - Design.md's tier 1.
+     *
+     * A list rather than one entry because a call can take several, and ordered because the
+     * commits have to be: each one reads the containing word as it stands, so two fields of one
+     * word merge in sequence rather than racing.
+     */
+    struct PackedBorrow {
+        Place field;
+        Place temporary;
+
+        // What the field holds, which is not what the temporary holds when the field is `@bits`
+        // refined: the commit narrows back into it, and that narrowing is what keeps the
+        // refinement's range - and therefore the niche above it - true.
+        TypePtr fieldType;
+        LocationId source;
+    };
+
+    Array<PackedBorrow> packedBorrows;
+
+    /*
      * The lambda half, all null or empty for an ordinary function body.
      *
      * `enclosing` is what makes a capture possible at all: a name this body does not bind is looked
@@ -511,7 +560,38 @@ Function* addAnonymousFunction(Module& module, StringId name, LocationId source)
 // Free functions rather than only ExprResolver methods because the drop pass asks the same
 // question of a place it did not build, long after the resolver that built it is gone.
 TypePtr placeRootType(Module& module, Function& function, const Place& place);
-TypePtr placeType(Module& module, Function& function, const Place& place);
+
+// `limit` stops the walk after that many projections, which is how the owner of a place's *last*
+// projection is asked for - the question packed-field borrowing needs, since whether a field may be
+// co-packed is a fact about the tuple it is in rather than about the field's own type.
+TypePtr placeType(Module& module, Function& function, const Place& place,
+                  Size limit = maxLimit<Size>);
+
+/*
+ * Whether a place names a field a target may co-pack, and therefore one whose borrow needs
+ * Design.md's tier 1 materialize/write-back rather than an address.
+ *
+ * Asked in resolve and answered from the logical type, so that the rewrite and the diagnostics that
+ * go with it are the same on every target. Whether the field is *actually* packed is
+ * `compiler/repr`'s answer and may be no; the cost of the difference is a temporary that a
+ * declining target did not need, and the cost of getting it the other way round is a miscompile.
+ */
+bool placeIsPackCandidate(Module& module, Function& function, const Place& place);
+
+/*
+ * Whether a mutable borrow of this place has to be a temporary rather than a reference.
+ *
+ * One reason, and it is not that the field has no address: a narrow field is borrowed by a
+ * reference that carries its shift (Design.md's tier 2, `NarrowRef` in resolve/lower.cpp), which
+ * works wherever the field is. What a reference cannot do is *convert* - so a parameter declared at
+ * the unrefined type, which is what makes `increment(&x: Int)` accept `&h.length`, gets the value
+ * widened into a temporary and narrowed back at the end of the loan.
+ *
+ * That narrowing is not an optimization. A `@bits(13)` field whose storage was written a
+ * twenty-bit value would falsify the niche above its range, and a `Maybe` folded into that niche
+ * would start reading one constructor as another.
+ */
+bool needsBorrowTemporary(Module& module, Function& function, const Place& place, TypePtr wanted);
 
 // Names one binding per parameter, and storage for the ones that need it. `firstArg` skips the
 // leading closure environment of anything reached as a function value - see expr.cpp.

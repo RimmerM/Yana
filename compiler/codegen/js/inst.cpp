@@ -116,6 +116,57 @@ bool rebindsOwnStorage(Gen& g, const Place& place) {
     return !g.function->localAt(g.local, place.local).borrowed;
 }
 
+/*
+ * A field of a type this body cannot see - Implementation-Generics.md part 5's `PropertyWitness`.
+ *
+ * The one projection this target cannot walk into a property chain, because there is no property to
+ * name: where the field is was decided by whoever built the environment, and this body was emitted
+ * once for all of them. So it is intercepted before the place walk, exactly as it is on native, and
+ * the two loads and the call are the same three steps - a witness is an array here and a table of
+ * addresses there, which is the whole of the difference.
+ *
+ * maxLimit when the place does not end in one, which is every place in a program with no field
+ * constraint in it.
+ */
+U16 propertySlotOf(Gen& g, const Place& place) {
+    auto projections = place.projections;
+    auto count = projections.size();
+    if(!count) return maxLimit<U16>;
+
+    auto last = projections.get(g.local, count - 1);
+    return last.kind == ProjectionKind::Property ? last.index : maxLimit<U16>;
+}
+
+/*
+ * The owner a property is read out of, which is the same place with its last step left off.
+ *
+ * A whole local arrives as the variable holding it and a projected one as the chain, and either is
+ * what the witness takes: its accessors were generated against a concrete owner, so what they expect
+ * is a reference to one, which on this target is the object itself.
+ */
+JsPtr<Expr> propertyOwner(Gen& g, const Place& place) {
+    auto projections = place.projections;
+    return referenceTo(g, place, projections.size() - 1);
+}
+
+/*
+ * Storage for one value of a type whose shape this body may not know.
+ *
+ * The accessors write through a reference, so what they are handed has to be one: a box for
+ * something that is not an object here, and the object itself for something that is. A type variable
+ * takes the box, because the erased boundary is where a `number` gets one anyway - see genGenCall.
+ */
+JsPtr<Expr> propertyStorage(Gen& g, TypePtr type, Name name) {
+    auto known = type && !isGeneric(g.global, type) && isJsObject(g, type);
+    return declare(g, name, known ? zeroValue(g, type) : boxOf(g, zeroValue(g, type)));
+}
+
+// What such storage holds, once the accessor has written into it.
+JsPtr<Expr> propertyContents(Gen& g, TypePtr type, JsPtr<Expr> storage) {
+    auto known = type && !isGeneric(g.global, type) && isJsObject(g, type);
+    return known ? storage : field(g, storage, g.boxField);
+}
+
 void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value) {
     auto& produced = *g.local[value];
     auto target = placeExpr(g, place);
@@ -546,9 +597,76 @@ bool genFunValueWord(Gen& g, Value& instruction, InstInit& init) {
  * an object is *stored* boxed - see prepareLocals - so the box is already there and this is still
  * free; a field is not, so one is made here and written back after the call that consumes it.
  */
+/*
+ * A reference to a narrow value - Design.md's tier 2, as this target spells it.
+ *
+ * Native carries an address plus the shift of the field within the word it names. There are no
+ * addresses here, but a place already *is* an (object, property) pair, so the reference is that pair
+ * reified and needs no shift: `{$o: owner, $k: "field"}`.
+ *
+ * The point of it is what it is not - a copy with a write-back. Those two are the box `genBorrow`
+ * makes below, and they only work while the loan ends at the call that consumed them; this one has
+ * no commit point at all, so a callee may keep it, return it through a `return` parameter, or store
+ * it in a record that outlives the call, exactly as on native.
+ *
+ * A whole local is the same shape: prepareLocals boxed it, so the pair is that box and `$v`.
+ */
+static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, const Place& place,
+                         TypePtr type) {
+    if(!isNarrowJsValue(g, type)) return false;
+
+    auto projections = place.projections;
+    auto count = projections.size();
+
+    // Reborrowing one: it is already a pair of exactly this shape.
+    if(!count) {
+        if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
+            define(g, value, useValue(g, place.pointer));
+            return true;
+        }
+
+        if(place.root == PlaceRoot::Local && place.local < g.function->localCount()) {
+            auto slot = g.function->localAt(g.local, place.local);
+            if(slot.borrowed) {
+                define(g, value, useValue(g, slot.value));
+                return true;
+            }
+        }
+    }
+
+    JsPtr<Expr> owner = nullptr;
+    Name key;
+
+    if(!count) {
+        // A whole local, which prepareLocals stored boxed precisely so that a reference to it has
+        // something to name.
+        owner = placeExpr(g, place);
+        key = g.boxField;
+    } else {
+        auto last = projections.get(g.local, count - 1);
+        if(last.kind != ProjectionKind::Field) return false;
+
+        auto ownerType = placeType(g, place, count - 1);
+        if(!ownerType || g.global[ownerType]->kind != Type::Tup) return false;
+
+        auto entry = ((TupType*)g.global[ownerType])->fields.get(g.global, last.index);
+        owner = placeExpr(g, place, count - 1);
+        key = fieldName(g, entry.name, last.index);
+    }
+
+    auto pair = make<ObjectExpr>(g);
+    pair->properties.push(g.file.arena, Property { g.refObject, owner });
+    pair->properties.push(g.file.arena, Property { g.refKey, asExpr(g, make<StringExpr>(g, key.text)) });
+
+    define(g, value, declare(g, valueName(g, instruction), asExpr(g, pair)));
+    return true;
+}
+
 void genBorrow(Gen& g, ModulePtr<Value> value, Value& instruction, const Place& place) {
     auto type = placeType(g, place);
     auto projections = place.projections;
+
+    if(genNarrowRef(g, value, instruction, place, type)) return;
 
     // An object, or a path that ends in one: the reference *is* the object, so this is a name and
     // nothing else. A borrow prepareLocals proved never leaves this function is the same statement
@@ -711,15 +829,49 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             define(g, value, initial);
             break;
         }
-        case Value::LoadPlace:
-            define(g, value, placeExpr(g, ((InstLoadPlace&)instruction).place));
+        case Value::LoadPlace: {
+            auto& loadInst = (InstLoadPlace&)instruction;
+
+            // Read through the witness the caller passed, into storage this frame provides - the
+            // same shape native uses, and for the same reason: the field's type is a variable, so
+            // there is nothing to hand it back in.
+            if(auto slot = propertySlotOf(g, loadInst.place); slot != maxLimit<U16>) {
+                auto witness = genSlot(g, slot);
+                auto out = propertyStorage(g, instruction.type, valueName(g, instruction));
+
+                emitExpr(g, call(g, tableCell(g, witness, PropertyWitnessFields::kRead),
+                                 propertyOwner(g, loadInst.place), out));
+                g.values.add(U32(value), propertyContents(g, instruction.type, out));
+                break;
+            }
+
+            define(g, value, placeExpr(g, loadInst.place));
             break;
+        }
         case Value::Init:
         case Value::Assign: {
             // One statement for both. Whatever the old value's drop needed was emitted as its own
             // InstDrop by the drop pass, so an assignment here is only the write.
             auto& init = (InstInit&)instruction;
             if(genFunValueWord(g, instruction, init)) break;
+
+            /*
+             * Writing through the witness, which takes the replacement by reference for the same
+             * reason the read hands one back by reference. `set` consumes what it is given and
+             * releases what the field held, so this stages the value and lets the callee commit it.
+             */
+            if(auto slot = propertySlotOf(g, init.place); slot != maxLimit<U16>) {
+                auto written = g.local[init.value]->type;
+                auto witness = genSlot(g, slot);
+                auto staging = declare(g, generatedName(g, "field"_v, instruction.id),
+                                       isJsObject(g, written) && !isGeneric(g.global, written)
+                                           ? useValue(g, init.value)
+                                           : boxOf(g, useValue(g, init.value)));
+
+                emitExpr(g, call(g, tableCell(g, witness, PropertyWitnessFields::kSet),
+                                 propertyOwner(g, init.place), staging));
+                break;
+            }
 
             storeInto(g, init.place, g.local[init.value]->type, init.value);
             break;

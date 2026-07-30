@@ -1,0 +1,32 @@
+import Native
+
+-- What is left of Design.md's tier 2 once a `&` of a narrow value carries the shift of the field it
+-- names. A reference works wherever the field is and for as long as anything holds it, so what is
+-- rejected here is no longer about lifetime at all - it is the two places a *conversion* would have
+-- to happen and there is nowhere to put one.
+
+data Flags {optionA: Bool, optionB: Bool}
+
+data Header {version: @bits(4) U32, length: @bits(13) U32}
+
+-- A parameter declared at the unrefined type takes the value widened into a temporary and narrowed
+-- back when the call returns - which is what makes `increment(&x: Int)` accept a `@bits` field at
+-- all. A `return` marker says the loan outlives the call, and the temporary does not, so the two
+-- cannot both be true. Declaring the parameter `&x: @bits(13) U32` is the fix.
+fn stretch(return &x: U32) -> &U32 = x
+
+fn loanedConversion() -> Int:
+    let &h = Header {version: 1, length: 2}
+    let &wide = stretch(h.length)
+
+    wide = 3
+    return h.length :: Int
+
+-- The same mismatch in return position, refused one step earlier by the rule that a borrow refers to
+-- exactly one type. There is no call here for a conversion to be bracketed by.
+fn lengthOf(return &h: Header) -> &U32 = h.length
+
+-- And the unsafe half. A raw pointer is an address and nothing else, so a field that shares a word
+-- with its neighbours cannot produce one - the shift a `&` carries is exactly what `%T` has no room
+-- for.
+fn addressOfPacked(f: Flags) -> %Bool = addressOf(f.optionA)

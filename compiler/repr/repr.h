@@ -99,10 +99,13 @@ struct Niche {
  * that packed two booleans into one byte - and then the access is a load of the `wordBytes`-wide
  * word at `offset`, a shift by `bitOffset` and a mask, rather than a load of the field itself.
  *
- * Two fields whose `offset`/`wordBytes` name overlapping storage alias each other for exclusivity
- * (Design-Memory §5.1, §12): otherwise two independent write-backs race to merge into one word and
- * whichever commits second silently clobbers the first, which is the classic C bitfield hazard.
- * `sharesStorageWith` is what the borrow checker asks.
+ * Two fields whose `offset`/`wordBytes` name overlapping storage do *not* alias each other for
+ * exclusivity, and that is a deliberate reversal of what this comment used to say. The classic C
+ * bitfield hazard - two independent write-backs racing to merge into one word, the second clobbering
+ * the first - needs the second commit to have read the word before the first one wrote it. A
+ * write-back reads the word at commit time, and two commits are ordered, so it never does.
+ * `sharesStorageWith` is left because the aliasing question is real for anything that caches a word
+ * across a commit, and nothing in the compiler is allowed to.
  */
 struct FieldRepr {
     TypePtr type = nullptr;
@@ -127,11 +130,18 @@ struct FieldRepr {
  * discriminant this compiler has always emitted - a separate integer in front of the payload.
  * `Niche` is the folded form: the discriminant *is* a pattern of the payload's own storage that no
  * payload value can produce, so the record costs exactly its largest constructor.
+ *
+ * `Bits` is the case in between, and the one that needs no niche to exist. The payload keeps its own
+ * layout at offset zero and the tag is a bit range in the same word, immediately above it: `A(U8)`
+ * against `B(U8)` is one byte of payload and one bit of tag, so the whole record is two bytes rather
+ * than the eight a four-byte tag word in front of a byte cost. Reading it is a shift and a mask and
+ * writing it a read-modify-write, exactly as for a co-packed field - see scalarizeSum.
  */
 enum class DiscriminantKind : U8 {
     None,
     Word,
     Niche,
+    Bits,
 };
 
 /*
@@ -168,6 +178,24 @@ struct Repr {
     U32 size = 0;
     U32 align = 1;
 
+    /*
+     * Non-zero where the whole of this representation is one integer of that many bits.
+     *
+     * True of an integer and of a payload-free sum, which have always been scalars, and now also of a
+     * record whose every field is narrow: `data Flags {a: Bool, b: Bool}` is two bits, and a record
+     * containing one co-packs it into a word of its own rather than giving it a byte. That is whole-
+     * record scalarization, and the reason it is one number here is that everything else follows from
+     * it - `isNarrowRepr` decides the reference ABI by it, `packBits` places it inside a parent by it,
+     * and the niche search reads the patterns above it.
+     *
+     * It is *this target's* answer, which is what lets a target decline. `valueWidth` in resolve says
+     * which aggregates have a scalar form at all, from the logical type alone so that the answer is
+     * the same everywhere; a target whose budget is narrower lays the same record out as an ordinary
+     * aggregate and leaves this zero, and both sides of a call read this table rather than that
+     * predicate, so they cannot disagree about what a `&` of it is.
+     */
+    U32 scalarBits = 0;
+
     // What indexing homogeneous storage advances by. `alignUp(size, align)` for everything today,
     // and explicit because a packed element or a target ABI may choose otherwise.
     U32 stride = 0;
@@ -178,18 +206,42 @@ struct Repr {
     // Aggregates: one entry per field of the tuple, in field order. Empty for a scalar.
     Array<FieldRepr> fields;
 
-    // Sum types.
+    // Sum types. `discriminantBytes` is the storage the tag is read and written through - the whole
+    // word, for `Bits`, since a bit range is reached by loading the word that contains it.
     DiscriminantKind discriminant = DiscriminantKind::None;
     U32 payloadOffset = 0;
     U32 discriminantBytes = 0;
     NicheEncoding encoding;
+
+    // `Bits` only: where in that word the tag sits, and how wide it is. The offset is where the
+    // widest payload ends, so that a payload is never disturbed by a tag write and a copy of a whole
+    // payload is never able to disturb the tag.
+    U32 discriminantBitOffset = 0;
+    U32 discriminantBits = 0;
 
     // Set where the type has no layout on this target because it is not concrete. A generic body
     // reads what it needs out of the environment its caller passed instead.
     bool opaque = false;
 
     bool isNicheFolded() const { return discriminant == DiscriminantKind::Niche; }
+    bool isBitTagged() const { return discriminant == DiscriminantKind::Bits; }
 };
+
+/*
+ * Whether a `&T` for this representation is an address plus a shift rather than an address -
+ * Design.md's tier 2, asked of the target that is emitting.
+ *
+ * A scalar that does not fill its own storage is one: there are bits of the word it does not own, so
+ * it may have been co-packed into a neighbour's and a reference to it has to say where it starts. A
+ * scalar that fills its storage cannot have been, so its shift is *provably* zero and `&Int` stays
+ * exactly the address it always was.
+ *
+ * Both sides of a call answer this from the same table - a callee was compiled once and has only the
+ * pointee type - which is what makes it an ABI rather than a per-call-site decision.
+ */
+inline bool isNarrowRepr(const Repr& repr) {
+    return repr.scalarBits != 0 && repr.scalarBits < repr.size * 8;
+}
 
 /*
  * Everything one target decides differently, and nothing else.
@@ -209,6 +261,41 @@ struct ReprTarget {
     // the point at which a host `number` stops representing consecutive integers - see Design.md's
     // "JS target packing", where this single number is the whole of that section's budget.
     U32 integerBits = 64;
+
+    /*
+     * How many low bits of a machine word an address actually uses, leaving the rest free to carry
+     * something alongside it.
+     *
+     * What carries something is Design.md's tier 2: a `&T` for a narrow `T` is an address plus the
+     * shift of the field within the unit it names, and this is where the shift goes. Five bits at
+     * most - a field never straddles the natural storage unit of its own width, so its offset within
+     * that unit is bounded by the unit - against sixteen free here.
+     *
+     * Forty-eight is what every 64-bit target this compiler emits for actually implements: x86-64
+     * without five-level paging and AArch64 with a 48-bit VA both leave the top sixteen bits of a
+     * user address unused, which is the same assumption every tagged-pointer runtime makes. It is a
+     * field rather than a constant because a target that does not have the room has to say so, and
+     * what it would get instead is the two-word form - one register more per narrow borrow, and no
+     * other difference.
+     */
+    U32 addressBits = 48;
+
+    /*
+     * The widest word this target may co-pack a run of fields into, or represent a whole record as.
+     *
+     * Bounded above by `kMaxPackBits` in resolve/type.h, which is the same number as a *language*
+     * rule: `valueWidth` decides which records have a scalar form without knowing which target is
+     * emitting, so a target may be narrower than the budget and none may be wider. A narrower one
+     * packs fewer runs and scalarizes fewer records, and `Repr::scalarBits` is where it says so.
+     *
+     * This is the number a target with wider registers than its integers raises. An SSE target would
+     * set it to 128 and get the placement half for free - `packBits` is written in bits and does not
+     * care - but not the access half: the read-modify-write a packed field is lowered to computes in
+     * a 64-bit value. So raising it is a layout decision that a wider access path has to be able to
+     * serve, which is why it is separate from `integerBits`: that one is about what a *value* of this
+     * target can hold, and this one about what a *load* of it can carry.
+     */
+    U32 maxPackBits = 64;
 
     // Whether an address is known never to be null, and therefore exposes pattern 0 as a niche.
     //
@@ -231,21 +318,23 @@ struct ReprTarget {
     /*
      * Co-packing several small fields into one word.
      *
-     * Off, and the reason is not the access lowering. Reading a packed field is a load of its
-     * containing word plus a shift and a mask, and writing one is a read-modify-write; both are
-     * intercepted at the load and the store exactly the way a folded tag is, and neither is hard.
+     * On, for native. Reading a packed field is a load of its containing word plus a shift and a
+     * mask, and writing one is a read-modify-write; both are intercepted at the load and the store
+     * exactly the way a folded tag is.
      *
-     * What is missing is the condition under which packing is *allowed*. A packed field has no
-     * address, and `fn flip(&b: Bool)` called as `flip(flags.optionA)` is ordinary Yana that
-     * resolves today - so a packed `Flags` would hand `flip` the address of the whole word and let
-     * it write a full Bool across both fields. That is silent, and it is silent in the direction of
-     * corrupting a neighbouring field rather than crashing.
+     * What took longer to settle was what happens to `&h.length`, since a packed field has no
+     * address to hand over. The answer this flag depends on is *not* a whole-program "some field of
+     * this type has its address taken" requirement selecting an unpacked variant - that would make a
+     * record's layout, and the cost of every access to it, a function of code its author never
+     * reads. It is Design.md's tier split, decided at the borrow: a borrow the callee does not
+     * retain materializes into a temporary and is written back after the call, and one that escapes
+     * is reported (and, once PropertyWitness lands, carries the witness instead). See
+     * `packCandidate` in resolve/type.h for the half of that decision this file is bound by.
      *
-     * The fix is the one this table's ignored `ReprRequirements` parameter is threaded for: whether
-     * any field of a type has its address taken is a *requirement*, computed once over the program,
-     * and a type that has one selects the unpacked variant. That is a real analysis rather than a
-     * lowering change, and doing it badly is worse than not doing it - so packing waits for it, and
-     * this flag is what turns it on when it lands.
+     * The contract with resolve runs one way. Resolve names the fields a target *may* pack, from the
+     * logical type alone so that the answer is the same on every target; this may pack fewer of them
+     * and may never pack one resolve did not name. Packing a field resolve thinks is addressable is
+     * the miscompile the tiering exists to prevent.
      */
     bool packFields = false;
 
@@ -295,14 +384,40 @@ struct ReprTable {
     // Null when the type has no such field, which is a compiler bug rather than a program error.
     const FieldRepr* fieldOf(TypePtr type, U16 index);
 
+    /*
+     * Whether any word of this representation has bits that no field owns - and therefore whether
+     * fresh storage for it has to be zeroed before anything reads a niche out of it.
+     *
+     * The niche a packed word publishes *is* those bits: two `Bool`s in a byte leave patterns 4..255
+     * free, and `Maybe(Flags)` spends one of them on `Nothing`. But a packed field is written with a
+     * read-modify-write, which by construction preserves everything it does not own - so the bits the
+     * niche is made of are whatever the storage happened to contain, and a `Just` built in a fresh
+     * frame slot can read back as a `Nothing`.
+     *
+     * That is why this is asked at the *allocation* rather than fixed at the write. A write cannot fix
+     * it: the callee holding a `&Bool` into someone's byte knows its own field's width and unit, and
+     * has no idea which of the remaining bits belong to a neighbour and which to nobody. The one place
+     * that knows is the one that created the storage, which is also the only place it is free.
+     *
+     * True through nested fields, since a niche found in one is republished by its parent - with the
+     * same depth limit `valueWidth` carries, and for the same reason: a type that reaches itself by
+     * inline containment has been reported already, and this still has to return.
+     */
+    bool hasPaddedWord(TypePtr type, U32 depth = 0);
+
     GlobalBase global;
     ReprTarget target;
 
 private:
     void compute(TypePtr type, Repr& into);
     void computeTuple(TupType& tuple, Repr& into);
+    bool scalarizeTuple(TupType& tuple, Repr& into);
+    void placementOrder(TupType& tuple, Array<U16>& into);
+    Size packWord(TupType& tuple, Repr& into, Buffer<const U16> order, Size first, U32& size,
+                  U32& alignment);
     void computeRecord(RecordType& record, Repr& into);
     bool foldNiche(RecordType& record, Repr& into);
+    bool scalarizeSum(RecordType& record, Repr& into, U32 payloadSize, U32 payloadAlign);
 
     U32 naturalBytes(U32 bits) const;
     Niche intNiche(const IntType& integer, U32 offset) const;

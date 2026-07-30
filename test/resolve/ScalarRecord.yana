@@ -1,0 +1,204 @@
+import Native
+
+-- Whole-record scalarization and field reordering, and the one rule that makes both safe: a value
+-- whose whole representation is narrower than its storage is a bit range, and a `&` of a bit range
+-- carries where it starts.
+--
+-- Asserted behaviourally as well as in the layout dump, because the interesting failures are all
+-- invisible in the size. A composed bit offset that dropped the outer field's contribution reads a
+-- neighbour instead, and a reference to a whole record that lost its shift writes over one - and both
+-- of those produce a record of exactly the right number of bytes.
+
+-- Two bits in a byte. Neither field is a machine word wide, so the record is not one either.
+data Flags {a: Bool, b: Bool}
+
+-- A scalar record beside something that fills its own storage: one machine word, with the U32 first
+-- and the two flag bits in the byte after it. `flags` is the only narrow field, so it keeps its own
+-- byte and its own address - a lone field is never co-packed, see packCandidate.
+data Settings {flags: Flags, count: U32}
+
+-- Two scalar records in one byte: four bits, two of them `g`'s. This is the case that needs bit
+-- offsets to compose, since `g.a` is one bit at bit two of a byte and neither number is written
+-- anywhere - one comes from `Two`'s layout and the other from `Flags`'.
+data Two {f: Flags, g: Flags}
+
+-- Design.md's reordering example. Declared worst-first: thirty-two bytes in declaration order, and
+-- sixteen once the fields are placed by what they need - `b`, `e` and `c` in front, and the three
+-- narrow fields packed into two bytes behind them.
+data Inefficient {a: Bool, b: U64, c: U8, d: @bits(4) Int, e: U32, f: @bits(4) Int}
+
+-- The same fields with the layout pinned. Declaration order is kept, nothing is reordered, and only
+-- the written refinements share a unit - a `Bool` is a whole byte here, the way `_Bool` is in C.
+@layout(c)
+data Pinned {a: Bool, b: U64, c: U8, d: @bits(4) Int, e: U32, f: @bits(4) Int}
+
+-- A record of two narrow fields that is nevertheless not co-packed into anything, because its
+-- lifetime ends in a call. A `Drop` takes the address of the value it is ending, and a field sharing a
+-- word has none to give - so `Pair` below keeps its two fields in two bytes, and each drop is handed
+-- the bits it was about. Co-packing them would run the same drop on the same bits twice.
+data Owned {a: Bool, b: Bool}
+
+data Pair {x: Owned, y: Owned}
+
+let &dropped = 0 :: I64
+
+instance Drop(Owned):
+    fn drop(->value: Owned) -> {}:
+        dropped += (if value.a then 1 else 2)
+
+fn flip(&x: Bool) = x = !x
+
+fn bump(&x: @bits(4) Int) = x = x + 1
+
+-- A `&` of a whole scalar record, written through by field. The callee is compiled once against
+-- `&Flags` and has no idea whether its argument was a field of a byte, a field of a word, or a whole
+-- local: what it holds is two bits at a shift, and `f.a` is one bit at a constant offset into them.
+fn clear(&f: Flags):
+    f.a = False
+    f.b = False
+
+fn setBoth(&f: Flags):
+    f.a = True
+    f.b = True
+
+fn valueOf(f: Flags) -> Int = (if f.a then 1 else 0) + (if f.b then 2 else 0)
+
+-- Reading and writing the fields of a scalar record through the record it sits in, with no borrow
+-- anywhere: two field indices, one byte, and a read-modify-write per store.
+fn nested() -> Int:
+    let &s = Settings {flags: Flags {a: True, b: False}, count: 7}
+
+    s.flags.b = True
+    s.count = s.count + 1
+
+    return valueOf(s.flags) * 10 + (s.count :: Int)
+
+-- A borrow of the whole scalar record, and a borrow of one bit of it. The second is what tier 2 is
+-- for: `flip` takes a `&Bool` and there is no byte to hand it.
+fn borrowed() -> Int:
+    let &s = Settings {flags: Flags {a: False, b: False}, count: 0}
+
+    setBoth(s.flags)
+    flip(s.flags.a)
+
+    return valueOf(s.flags)
+
+-- Two scalar records co-packed into one byte. `clear` gets a reference into the low two bits and
+-- `setBoth` one into the high two, and neither may touch the other's - a shift that came out zero
+-- would make the second call overwrite the first.
+fn coPacked() -> Int:
+    let &t = Two {f: Flags {a: True, b: True}, g: Flags {a: False, b: False}}
+
+    clear(t.f)
+    setBoth(t.g)
+
+    return valueOf(t.f) + valueOf(t.g) * 10
+
+-- The composed offset, without a borrow in sight. `t.g.a` is bit two and `t.f.a` is bit zero, and
+-- both are one bit of the same byte.
+fn composed() -> Int:
+    let &t = Two {f: Flags {a: False, b: False}, g: Flags {a: False, b: False}}
+
+    t.f.a = True
+    t.g.b = True
+
+    return valueOf(t.f) + valueOf(t.g) * 10
+
+-- Reading a whole scalar record *out* of the word it shares. The result is a value like any other
+-- record's, so it gets storage of its own - see materializeScalar - and the bits are shifted down
+-- into it rather than copied.
+fn extracted() -> Int:
+    let t = Two {f: Flags {a: True, b: False}, g: Flags {a: False, b: True}}
+    let inner = t.g
+
+    return valueOf(inner) * 10 + valueOf(t.f)
+
+-- A borrow of a field of a record reached through a reference to that record - a reborrow, where the
+-- shift is the caller's and the field's offset is this body's, and the two have to be added.
+fn secondOf(return &f: Flags) -> &Bool = f.b
+
+fn reborrowed() -> Int:
+    let &t = Two {f: Flags {a: False, b: False}, g: Flags {a: False, b: False}}
+    let &bit = secondOf(t.g)
+
+    bit = True
+
+    return valueOf(t.f) + valueOf(t.g) * 10
+
+-- `swap` and `exchange` hold two references at once and write through both, and either side may be a
+-- bit range of the same word as the other. Both reads happen before either write, which is what a swap
+-- is, and each write is its own read-modify-write - so neither loses the other's.
+fn swapped() -> Int:
+    let &t = Two {f: Flags {a: True, b: False}, g: Flags {a: False, b: True}}
+
+    swap(t.f.a, t.g.a)
+    let previous = exchange(t.f.b, True)
+
+    return valueOf(t.f) + valueOf(t.g) * 10 + (if previous then 100 else 0)
+
+-- The two drops, each of its own field. Two rather than one, and 1 + 2 rather than 1 + 1, which is
+-- what a shared word would have produced.
+fn makePair():
+    let p = Pair {x: Owned {a: True, b: False}, y: Owned {a: False, b: True}}
+
+fn owned() -> Int:
+    makePair()
+    return (dropped :: Int)
+
+-- A scalar record inside a `Maybe`, which is the reason a scalar record is worth having even where it
+-- saved no space: `Flags` reaches four patterns of its byte, so `Nothing` is the fifth and the whole
+-- `Maybe` is one byte with no tag stored anywhere.
+--
+-- It is also what makes the zeroing at the allocation load-bearing rather than tidy. Those free
+-- patterns are bits that no field of `Flags` writes - a packed field is written with a
+-- read-modify-write, which preserves them by construction - so a `Just` built over uninitialized
+-- storage can carry a pattern that decodes as some other constructor. See ReprTable::hasPaddedWord.
+fn tagOf(m: Maybe(Flags)) -> Int = match m:
+    Nothing -> 4
+    Just(f) -> valueOf(f)
+
+fn folded() -> Int:
+    let empty = tagOf(Nothing)
+    let both = tagOf(Just(Flags {a: True, b: True}))
+    let one = tagOf(Just(Flags {a: False, b: True}))
+
+    return empty + both * 10 + one * 100
+
+-- Every field of the reordered record, written and read back. A field that ended up at the wrong
+-- offset reads as another field's value or as zero, and the six of them are distinguishable.
+fn reordered() -> Int:
+    let &i = Inefficient {a: True, b: 9, c: 3, d: 5, e: 40, f: 6}
+
+    i.d = i.d + 1
+    bump(i.f)
+    i.b = i.b + 1
+
+    return (if i.a then 1 else 0) + (i.b :: Int) * 10 + (i.c :: Int) * 100 +
+           (i.d :: Int) * 1000 + (i.e :: Int) * 10000 + (i.f :: Int) * 1000000
+
+-- The same, pinned. The answer has to be identical - a layout decides what a program costs and never
+-- what it computes.
+fn pinned() -> Int:
+    let &p = Pinned {a: True, b: 9, c: 3, d: 5, e: 40, f: 6}
+
+    p.d = p.d + 1
+    bump(p.f)
+    p.b = p.b + 1
+
+    return (if p.a then 1 else 0) + (p.b :: Int) * 10 + (p.c :: Int) * 100 +
+           (p.d :: Int) * 1000 + (p.e :: Int) * 10000 + (p.f :: Int) * 1000000
+
+-- nested:     3 * 10 + 8                                     = 38
+-- borrowed:   both set, then `a` flipped off                  = 2
+-- coPacked:   0 + 3 * 10                                      = 30
+-- composed:   1 + 2 * 10                                      = 21
+-- extracted:  2 * 10 + 1                                      = 21
+-- reborrowed: 0 + 2 * 10                                      = 20
+-- swapped:   f = {F,T} = 2, g = {T,T} = 3, previous False    = 32
+-- owned:     1 + 2, two drops of two bytes                    = 3
+-- folded:     4 + 3 * 10 + 2 * 100                            = 234
+-- reordered:  1 + 100 + 300 + 6000 + 400000 + 7000000         = 7406401
+-- pinned:     the same                                        = 7406401
+fn main() -> Int =
+    nested() + borrowed() + coPacked() + composed() + extracted() + reborrowed() +
+    swapped() + owned() + folded() + reordered() + pinned()

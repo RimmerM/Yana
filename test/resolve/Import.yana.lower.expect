@@ -22,14 +22,14 @@ qualifiedConstructor<complex>(%v_0: Ptr) {
 styles<complex>(): Int {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
-    store %v_1, 0, 4
     %v_2 = add %v_1, 4: Ptr
-    store %v_2, 1, 4
+    store %v_2, 0, 1
+    store %v_1, 1, 4
     %v_3 = call_complex styleValue, %v_1: Int
     %v_4 = alloca 8, 4: Ptr
-    store %v_4, 1, 4
     %v_5 = add %v_4, 4: Ptr
-    store %v_5, 3, 4
+    store %v_5, 1, 1
+    store %v_4, 3, 4
     %v_6 = call_complex styleValue, %v_4: Int
     %v_7 = add %v_3, %v_6: Int
     ret %v_7
@@ -67,37 +67,34 @@ viaFunction<complex>(): Int {
 
 styleValue<complex>(%it: Ptr): Int {
   b_0 {
-    %v_1 = load %it, 4: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    jmp b_4
+    %v_1 = add %it, 4: Ptr
+    %v_2 = load %v_1, 1: Int
+    je %v_2, b_3, b_4
   }
 
   b_3 {
-    jmp b_4
+    jmp b_5
   }
 
   b_4 {
-    %v_5 = phi [b_2, 10], [b_3, 0]: Int
-    %v_6 = add %it, 4: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = add %v_5, %v_7: Int
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_3, 10], [b_4, 0]: Int
+    %v_7 = loads %it, 4: Int
+    %v_8 = add %v_6, %v_7: Int
     ret %v_8
   }
 }
 
 labelValue<complex>(): Int {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, 5, 4
-    %v = loads %v_1, 4: Int
-    jmp b_2
+    jmp b_1
   }
 
-  b_2 {
-    ret %v
+  b_1 {
+    ret 5
   }
 }
 

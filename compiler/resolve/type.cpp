@@ -49,6 +49,7 @@ static void completeInstance(Module& module, RecordType& instance) {
     }
 
     instance.layout = declaration->layout;
+    instance.pinned = declaration->pinned;
     instance.definitionReady = true;
 }
 
@@ -153,7 +154,9 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
                 fields.push(Field { substituteType(module, field.type, args, source), field.name });
             }
 
-            return (Type*)resolveTupleType(module, toBuffer(fields), source) - global;
+            // The layout the tuple was pinned to survives substitution: `@layout(c)` on a generic
+            // record is a promise about every instantiation of it, not about the declaration.
+            return (Type*)resolveTupleType(module, toBuffer(fields), source, tuple->layout) - global;
         }
         case Type::Ptr:
             return resolvePointerType(module, substituteType(module, ((PtrType*)global[type])->to, args, source));
@@ -945,12 +948,12 @@ TypePtr applyReturnRootMutability(Module& module, TypePtr result, bool allRootsM
     return resolveBorrowType(module, ((BorrowType*)(*module.types)[result])->to, true);
 }
 
-TupType* resolveTupleType(Module& module, Buffer<Field> requested, LocationId source) {
+TupType* resolveTupleType(Module& module, Buffer<Field> requested, LocationId source, TypeLayout layout) {
     auto base = *module.types;
 
     for(auto tuplePointer: module.program.tupleTypes.contents(base)) {
         auto tuple = base[tuplePointer];
-        if(tuple->fields.size() != requested.length) continue;
+        if(tuple->fields.size() != requested.length || tuple->layout != layout) continue;
 
         auto equal = true;
         for(Size i = 0; i < requested.length; i++) {
@@ -974,6 +977,7 @@ TupType* resolveTupleType(Module& module, Buffer<Field> requested, LocationId so
     }
 
     tuple->named = named;
+    tuple->layout = layout;
     module.program.tupleTypes.push(module.types, tuple - base);
     if(!tuple->generic) checkTypeAcyclic(module, (Type*)tuple - base, source);
 
@@ -1393,6 +1397,269 @@ bool isDirectType(GlobalBase base, TypePtr type) {
 
 bool isMemoryType(GlobalBase base, TypePtr type) {
     return type && !isUnit(base, type) && !isDirectType(base, type);
+}
+
+U32 naturalStorageBits(U32 bits) {
+    if(bits <= 8) return 8;
+    if(bits <= 16) return 16;
+    if(bits <= 32) return 32;
+    return 64;
+}
+
+static U32 alignBitsTo(U32 value, U32 unit) {
+    return unit ? (value + unit - 1) & ~(unit - 1) : value;
+}
+
+/*
+ * The recursion, with a depth limit.
+ *
+ * An aggregate's width is its fields' widths, so this walks the type graph, and a type that reaches
+ * itself by inline containment would walk it forever. Resolve reports such a type against its
+ * declaration (see checkAcyclic) but resolution continues afterwards so that the rest of the module
+ * still produces diagnostics, so this can be asked about one. Answering "not narrow" past a depth no
+ * real declaration reaches is what keeps that a reported error rather than a hang - the same reason
+ * ReprTable::of carries an in-progress set.
+ */
+static ValueWidth valueWidthAt(GlobalBase base, TypePtr type, U32 depth);
+
+/*
+ * Whether a value of this type may be co-packed at all, before asking whether it is narrow enough.
+ *
+ * A type whose lifetime or whose copy is a *call* may not: every one of those calls takes the address
+ * of the value, and a field that shares a word has no address of its own to give. Handing over the
+ * word's would call the operation on the neighbour's bits - and for a record of two such fields, twice
+ * on the same ones. So an authored `Copy`, `Sink`, `Reclaim` or `Drop` anywhere inside a type keeps it
+ * out of a shared word, and costs it the byte it would have saved.
+ *
+ * `ownershipReady` is what makes this askable here at all: ownership is a whole-program property
+ * cached on the type, and by the time a target lays anything out every reachable type has one. A
+ * caller during resolution may see one that does not yet, and gets the permissive answer - which is
+ * the safe direction, since a target may always pack fewer fields than it was offered.
+ */
+static bool packableValue(GlobalBase base, TypePtr type) {
+    if(!type) return false;
+
+    auto value = base[type];
+    if(!value->ownershipReady) return true;
+
+    auto& ownership = value->ownership;
+    return ownership.trivialCopy && ownership.trivialSink && !ownership.needsTeardown();
+}
+
+
+// The bit offsets of every field of an aggregate that has a scalar form, or nothing where it has
+// none. Shared by `valueWidth`, which needs only the span, and by repr, which needs the offsets.
+static bool scalarBits(GlobalBase base, TupType& tuple, U32 depth, PackedRun& run, Array<U32>* offsets) {
+    // A pinned layout has no scalar form. Its whole purpose is that its fields sit where a C
+    // compiler put them, and a scalar is the compiler choosing.
+    if(tuple.layout != TypeLayout::Auto) return false;
+
+    auto count = tuple.fields.size();
+    if(!count) return false;
+
+    // Every field has to be narrow, because a scalar aggregate *is* a run of co-packed fields and a
+    // field that fills its own storage is not one. That is what keeps `{a: U8, b: U8}` two bytes
+    // rather than two bit-fields of a word, and it is why `data Small = A(U8) | B(U8)` - a tag bit
+    // over a full-width payload - is a separate feature rather than this one.
+    Array<U16> order;
+    for(U16 i = 0; i < count; i++) {
+        auto type = tuple.fields.get(base, i).type;
+        if(!packableValue(base, type)) return false;
+        if(!valueWidthAt(base, type, depth + 1).isNarrow()) return false;
+
+        order.push(i);
+    }
+
+    packOrder(base, tuple, order);
+
+    Array<U32> placed;
+    run = packBits(base, tuple, toBuffer(order), kMaxPackBits, offsets ? &placed : nullptr);
+
+    // A run too long for one word is not a scalar, and one that exactly fills its storage is not a
+    // *narrow* one - it has no bits left to be packed into a neighbour with, so calling it narrow
+    // would only cost every borrow of it a shift it does not need.
+    if(run.count != count || run.span >= naturalStorageBits(run.span)) return false;
+
+    // Reported by field index rather than in placement order, so that a caller laying the fields out
+    // needs nothing from the ordering above. Two places deciding the same permutation is two places
+    // that can disagree about where a field went.
+    if(offsets) {
+        for(Size i = 0; i < count; i++) offsets->push(0);
+        for(Size at = 0; at < placed.size(); at++) (*offsets)[order[at]] = placed[at];
+    }
+
+    return true;
+}
+
+static ValueWidth valueWidthAt(GlobalBase base, TypePtr type, U32 depth) {
+    if(!type || depth > 8) return {};
+
+    auto value = base[type];
+    switch(value->kind) {
+        case Type::Int: {
+            auto bits = U32(((IntType*)value)->bits);
+            return ValueWidth { bits, naturalStorageBits(bits) };
+        }
+        case Type::Tup: {
+            PackedRun run;
+            auto tuple = (TupType*)value;
+            if(!scalarBits(base, *tuple, depth, run, nullptr)) return {};
+
+            return ValueWidth { run.span, naturalStorageBits(run.span) };
+        }
+        case Type::Record: {
+            auto record = (RecordType*)value;
+
+            // A payload-free sum *is* its discriminant, so what it needs is the bits its constructor
+            // count needs against the storage those bits are held in - one byte for a `Bool`, the
+            // same rule an integer of that width answers by, and the same one Repr sizes an enum at.
+            if(record->layout == RecordType::Enum) {
+                auto count = record->constructors.size();
+                U32 bits = 1;
+                while((Size(1) << bits) < count) bits++;
+
+                return ValueWidth { bits, naturalStorageBits(bits) };
+            }
+
+            /*
+             * A single-constructor record is its content, which is what makes a record of two
+             * `Bool`s a two-bit value and `Maybe(Flags)` one byte.
+             *
+             * A record with several *payload-carrying* constructors is not: its discriminant would
+             * have to become a bit range of the same word and its constructors would have to overlap
+             * inside it, which is a second feature and not this one. A payload-free sum took the
+             * branch above, so what falls through here is the case with something to overlap.
+             */
+            if(record->layout != RecordType::Single) return {};
+
+            auto constructors = record->constructors.contents(base);
+            if(!constructors.size()) return {};
+
+            return valueWidthAt(base, constructors[0].content, depth + 1);
+        }
+        default:
+            return {};
+    }
+}
+
+ValueWidth valueWidth(GlobalBase base, TypePtr type) {
+    return valueWidthAt(base, type, 0);
+}
+
+/*
+ * Whether a field of a pinned aggregate is a bit-field at all.
+ *
+ * Under `C` only a written refinement is one - `@bits(4) Int` is `int x: 4`, and a `Bool` is a whole
+ * `_Bool` rather than one bit of a byte. That distinction does not exist under `Auto`, where every
+ * narrow value is a candidate and a `Bool` costing a bit rather than a byte is the point; it exists
+ * here because a C header has both spellings and they lay out differently.
+ */
+static bool isBitField(GlobalBase base, TypePtr type) {
+    return type && base[type]->kind == Type::Int && ((IntType*)base[type])->canonical != nullptr;
+}
+
+U32 declaredUnitBits(GlobalBase base, TypePtr type) {
+    if(!isBitField(base, type)) return 0;
+
+    auto canonical = canonicalType(base, type);
+    if(base[canonical]->kind != Type::Int) return 0;
+
+    return naturalStorageBits(U32(((IntType*)base[canonical])->bits));
+}
+
+// The unit a bit-field is allocated in. Its own natural storage, or - under a pinned layout - the
+// storage of the type it was written as a refinement of, which is the unit C uses.
+static U32 packUnitBits(GlobalBase base, TupType& tuple, TypePtr type, U32 bits) {
+    if(tuple.layout != TypeLayout::C) return naturalStorageBits(bits);
+
+    auto declared = declaredUnitBits(base, type);
+    return declared ? declared : naturalStorageBits(bits);
+}
+
+PackedRun packBits(GlobalBase base, TupType& tuple, Buffer<const U16> order, U32 maxBits,
+                   Array<U32>* offsets) {
+    PackedRun run;
+
+    for(auto index: order) {
+        auto type = tuple.fields.get(base, index).type;
+        auto width = valueWidth(base, type);
+        if(!width.logical) break;
+
+        auto unit = packUnitBits(base, tuple, type, width.logical);
+        auto at = run.span;
+
+        // Bumped to the next unit boundary where it would otherwise cross one. Measured before the
+        // budget check, since the bump is what decides whether the field still fits.
+        if(at / unit != (at + width.logical - 1) / unit) at = alignBitsTo(at, unit);
+        if(at + width.logical > maxBits) break;
+
+        if(offsets) offsets->push(at);
+        run.span = at + width.logical;
+        run.count++;
+    }
+
+    return run;
+}
+
+void packOrder(GlobalBase base, TupType& tuple, Array<U16>& into) {
+    if(tuple.layout != TypeLayout::Auto) return;
+
+    // Insertion sort, descending by width and stable within one - the lists are a handful of fields
+    // long, and stability is what makes the layout of two same-width fields the declaration's
+    // business rather than the sort's.
+    for(Size i = 1; i < into.size(); i++) {
+        auto index = into[i];
+        auto width = valueWidth(base, tuple.fields.get(base, index).type).logical;
+        auto at = i;
+
+        while(at > 0 && valueWidth(base, tuple.fields.get(base, into[at - 1]).type).logical < width) {
+            into[at] = into[at - 1];
+            at--;
+        }
+
+        into[at] = index;
+    }
+}
+
+bool packCandidate(GlobalBase base, TupType& tuple, U16 index) {
+    auto count = tuple.fields.size();
+    if(index >= count) return false;
+
+    auto narrowAt = [&](Size at) {
+        auto type = tuple.fields.get(base, at).type;
+        return packableValue(base, type) && valueWidth(base, type).isNarrow();
+    };
+
+    if(!narrowAt(index)) return false;
+
+    /*
+     * A pinned layout keeps the declaration's order, so a bit-field's neighbours are the ones it was
+     * written next to - `{a: @bits(4), b: U64, c: @bits(4)}` allocates two units, as C does - and only
+     * a written refinement shares a unit with anything at all.
+     */
+    if(tuple.layout == TypeLayout::C) {
+        auto fieldAt = [&](Size at) {
+            auto type = tuple.fields.get(base, at).type;
+            return isBitField(base, type) && valueWidth(base, type).isNarrow();
+        };
+
+        if(!fieldAt(index)) return false;
+        return (index > 0 && fieldAt(index - 1)) || (Size(index) + 1 < count && fieldAt(index + 1));
+    }
+
+    // An auto layout reorders, so anything else narrow in the tuple is a neighbour.
+    for(Size at = 0; at < count; at++) {
+        if(at != index && narrowAt(at)) return true;
+    }
+
+    return false;
+}
+
+// The scalar form of an aggregate, for whoever is laying it out. The span and the offsets come from
+// the same placement `valueWidth` reported, which is what makes the mask a callee applies to a
+// reference to the whole aggregate the same width the fields were placed within.
+bool scalarLayout(GlobalBase base, TupType& tuple, PackedRun& run, Array<U32>* offsets) {
+    return scalarBits(base, tuple, 0, run, offsets);
 }
 
 void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder& target) {

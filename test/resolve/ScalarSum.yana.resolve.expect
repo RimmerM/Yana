@@ -1,0 +1,370 @@
+fn payloadOf(%s: Sum) -> Int {
+  b0:
+    %v1 = load %s.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %x = load %s@B : U8
+    %v8 = cast %x : Int
+    %v11 = add %v8, 1000 : Int
+    jmp b3
+
+  b2:
+    %x = load %s@A : U8
+    %v6 = cast %x : Int
+    jmp b3
+
+  b3:
+    %v14 = phi [b2, %v6], [b1, %v11] : Int
+    ret %v14
+}
+
+fn colourOf(%c: Colour) -> Int {
+  b0:
+    %v1 = load %c.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %level = load %c@Gray : U8
+    %v21 = cast %level : Int
+    %v24 = mul %v21, 1000 : Int
+    jmp b3
+
+  b2:
+    %v5 = load %c@R : {r: U8, g: U8, b: U8}
+    %red = load %c@R.r : U8
+    %green = load %c@R.g : U8
+    %blue = load %c@R.b : U8
+    %v9 = cast %red : Int
+    %v10 = cast %green : Int
+    %v13 = mul %v10, 10 : Int
+    %v14 = add %v9, %v13 : Int
+    %v15 = cast %blue : Int
+    %v18 = mul %v15, 100 : Int
+    %v19 = add %v14, %v18 : Int
+    jmp b3
+
+  b3:
+    %v27 = phi [b2, %v19], [b1, %v24] : Int
+    ret %v27
+}
+
+fn fiveOf(%f: Five) -> Int {
+  b0:
+    %v1 = load %f.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v7 = load %f.discriminant : Int
+    %v9 = cmp_eq %v7, 1 : Bool
+    je %v9, b4, b3
+
+  b2:
+    %x = load %f@C0 : U8
+    %v6 = cast %x : Int
+    jmp b9
+
+  b3:
+    %v16 = load %f.discriminant : Int
+    %v18 = cmp_eq %v16, 2 : Bool
+    je %v18, b6, b5
+
+  b4:
+    %x = load %f@C1 : U8
+    %v12 = cast %x : Int
+    %v15 = mul %v12, 10 : Int
+    jmp b9
+
+  b5:
+    %v25 = load %f.discriminant : Int
+    %v27 = cmp_eq %v25, 3 : Bool
+    je %v27, b8, b7
+
+  b6:
+    %x = load %f@C2 : U8
+    %v21 = cast %x : Int
+    %v24 = mul %v21, 100 : Int
+    jmp b9
+
+  b7:
+    %x = load %f@C4 : U8
+    %v35 = cast %x : Int
+    %v38 = mul %v35, 10000 : Int
+    jmp b9
+
+  b8:
+    %x = load %f@C3 : U8
+    %v30 = cast %x : Int
+    %v33 = mul %v30, 1000 : Int
+    jmp b9
+
+  b9:
+    %v44 = phi [b2, %v6], [b4, %v15], [b6, %v24], [b8, %v33], [b7, %v38] : Int
+    ret %v44
+}
+
+fn flagsValue(%f: Flags) -> Int {
+  b0:
+    %v1 = load %f@Flags.a : Bool
+    je %v1, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, 1], [b2, 0] : Int
+    %v10 = load %f@Flags.b : Bool
+    je %v10, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v18 = phi [b4, 2], [b5, 0] : Int
+    %v19 = add %v9, %v18 : Int
+    ret %v19
+}
+
+fn taggedOf(%t: Tagged) -> Int {
+  b0:
+    %v1 = load %t.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %f = load %t@Unset : Flags
+    %v8 = call flagsValue, %f : Int
+    %v11 = add %v8, 100 : Int
+    jmp b3
+
+  b2:
+    %f = load %t@Set : Flags
+    %v6 = call flagsValue, %f : Int
+    jmp b3
+
+  b3:
+    %v14 = phi [b2, %v6], [b1, %v11] : Int
+    ret %v14
+}
+
+fn widthOf(%w: Wide) -> Int {
+  b0:
+    %v1 = load %w.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %x = load %w@W2 : U32
+    %v8 = cast %x : Int
+    %v11 = mul %v8, 10 : Int
+    jmp b3
+
+  b2:
+    %x = load %w@W1 : U32
+    %v6 = cast %x : Int
+    jmp b3
+
+  b3:
+    %v14 = phi [b2, %v6], [b1, %v11] : Int
+    ret %v14
+}
+
+fn bump(%x: U8) -> () {
+  b0:
+    %v1 = load %x : U8
+    %v4 = add %v1, 1 : U8
+    assign %x, %v4
+    ret
+}
+
+fn roundTrip() -> Int {
+  b0:
+    %v0 = alloc : Sum
+    init %local0.discriminant, 0
+    init %local0@A, 7
+    %v5 = call payloadOf, %v0 : Int
+    %v6 = alloc : Sum
+    init %local1.discriminant, 1
+    init %local1@B, 9
+    %v11 = call payloadOf, %v6 : Int
+    %v12 = add %v5, %v11 : Int
+    ret %v12
+}
+
+fn coloured() -> Int {
+  b0:
+    %v0 = alloc : Colour
+    init %local0.discriminant, 0
+    init %local0@R.r, 1
+    init %local0@R.g, 2
+    init %local0@R.b, 3
+    %v9 = call colourOf, %v0 : Int
+    %v10 = alloc : Colour
+    init %local1.discriminant, 1
+    init %local1@Gray, 4
+    %v15 = call colourOf, %v10 : Int
+    %v16 = add %v9, %v15 : Int
+    ret %v16
+}
+
+fn counted() -> Int {
+  b0:
+    %v0 = alloc : Five
+    init %local0.discriminant, 0
+    init %local0@C0, 1
+    %v5 = call fiveOf, %v0 : Int
+    %v6 = alloc : Five
+    init %local1.discriminant, 4
+    init %local1@C4, 1
+    %v11 = call fiveOf, %v6 : Int
+    %v12 = add %v5, %v11 : Int
+    ret %v12
+}
+
+fn packedPayload() -> Int {
+  b0:
+    %v0 = alloc : Tagged
+    init %local0.discriminant, 0
+    %v3 = alloc : Flags
+    init %local1@Flags.a, True
+    init %local1@Flags.b, True
+    init %local0@Set, %v3
+    %v9 = call taggedOf, %v0 : Int
+    %v10 = alloc : Tagged
+    init %local2.discriminant, 1
+    %v13 = alloc : Flags
+    init %local3@Flags.a, False
+    init %local3@Flags.b, True
+    init %local2@Unset, %v13
+    %v19 = call taggedOf, %v10 : Int
+    %v20 = add %v9, %v19 : Int
+    ret %v20
+}
+
+fn mutated() -> Int {
+  b0:
+    %v0 = alloc : Sum
+    init %local0.discriminant, 0
+    init %local0@A, 41
+    %s = alloc : Sum
+    init %s, %v0
+    %v7 = load %s : Sum
+    %v8 = load %s.discriminant : Int
+    %v10 = cmp_eq %v8, 0 : Bool
+    je %v10, b2, b1
+
+  b1:
+    %x = load %s@B : U8
+    %v16 = borrow_mut %s@B : &mut U8
+    call bump, %v16
+    jmp b3
+
+  b2:
+    %x = load %s@A : U8
+    %v13 = borrow_mut %s@A : &mut U8
+    call bump, %v13
+    jmp b3
+
+  b3:
+    %v20 = load %s : Sum
+    %v21 = call payloadOf, %v20 : Int
+    ret %v21
+}
+
+fn copied() -> Int {
+  b0:
+    %f = alloc : Flags
+    init %local0@Flags.a, True
+    init %local0@Flags.b, False
+    %t = alloc : Tagged
+    init %local1.discriminant, 1
+    init %local1@Unset, %f
+    %v9 = call taggedOf, %t : Int
+    ret %v9
+}
+
+fn maybeOf(%m: Maybe(Sum)) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %s = load %m@Just : Sum
+    %v7 = call payloadOf, %s : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b2, 500], [b1, %v7] : Int
+    ret %v10
+}
+
+fn folded() -> Int {
+  b0:
+    %v0 = alloc : Maybe(Sum)
+    init %local0.discriminant, 0
+    %v3 = call maybeOf, %v0 : Int
+    %v4 = alloc : Maybe(Sum)
+    init %local1.discriminant, 1
+    %v7 = alloc : Sum
+    init %local2.discriminant, 0
+    init %local2@A, 2
+    init %local1@Just, %v7
+    %v13 = call maybeOf, %v4 : Int
+    %v14 = add %v3, %v13 : Int
+    %v15 = alloc : Maybe(Sum)
+    init %local3.discriminant, 1
+    %v18 = alloc : Sum
+    init %local4.discriminant, 1
+    init %local4@B, 3
+    init %local3@Just, %v18
+    %v24 = call maybeOf, %v15 : Int
+    %v25 = add %v14, %v24 : Int
+    ret %v25
+}
+
+fn wide() -> Int {
+  b0:
+    %v0 = alloc : Wide
+    init %local0.discriminant, 0
+    init %local0@W1, 5
+    %v5 = call widthOf, %v0 : Int
+    %v6 = alloc : Wide
+    init %local1.discriminant, 1
+    init %local1@W2, 6
+    %v11 = call widthOf, %v6 : Int
+    %v12 = add %v5, %v11 : Int
+    ret %v12
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call roundTrip : Int
+    %v1 = call coloured : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call counted : Int
+    %v4 = add %v2, %v3 : Int
+    %v5 = call packedPayload : Int
+    %v6 = add %v4, %v5 : Int
+    %v7 = call mutated : Int
+    %v8 = add %v6, %v7 : Int
+    %v9 = call copied : Int
+    %v10 = add %v8, %v9 : Int
+    %v11 = call folded : Int
+    %v12 = add %v10, %v11 : Int
+    %v13 = call wide : Int
+    %v14 = add %v12, %v13 : Int
+    ret %v14
+}

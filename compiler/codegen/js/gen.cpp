@@ -660,6 +660,8 @@ Ptr<File> genProgram(Context& context, Program& program) {
     g.payloadField = literalName(g, "$p"_v);
     g.boxField = literalName(g, "$v"_v);
     g.envField = literalName(g, "$e"_v);
+    g.refObject = literalName(g, "$o"_v);
+    g.refKey = literalName(g, "$k"_v);
     g.headerField = literalName(g, "$h"_v);
     if(program.root) g.headerType = closureHeaderPlaceType(*program.root);
 

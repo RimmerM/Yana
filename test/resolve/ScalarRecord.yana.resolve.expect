@@ -1,0 +1,538 @@
+let &dropped: I64 = 0
+
+fn +=(I64)(%target: I64, %amount: I64) -> () {
+  b0:
+    %v2 = load %target : I64
+    %v3 = add %v2, %amount : I64
+    assign %target, %v3
+    ret
+}
+
+fn flip(%x: Bool) -> () {
+  b0:
+    %v1 = load %x : Bool
+    %v3 = xor %v1, True : Bool
+    assign %x, %v3
+    ret
+}
+
+fn bump(%x: @bits(4) Int) -> () {
+  b0:
+    %v1 = load %x : @bits(4) Int
+    %v3 = cast %v1 : Int
+    %v5 = add %v3, 1 : Int
+    %v7 = and %v5, 15 : Int
+    %v8 = cast %v7 : @bits(4) Int
+    assign %x, %v8
+    ret
+}
+
+fn clear(%f: Flags) -> () {
+  b0:
+    assign %f@Flags.a, False
+    assign %f@Flags.b, False
+    ret
+}
+
+fn setBoth(%f: Flags) -> () {
+  b0:
+    assign %f@Flags.a, True
+    assign %f@Flags.b, True
+    ret
+}
+
+fn valueOf(%f: Flags) -> Int {
+  b0:
+    %v1 = load %f@Flags.a : Bool
+    je %v1, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, 1], [b2, 0] : Int
+    %v10 = load %f@Flags.b : Bool
+    je %v10, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v18 = phi [b4, 2], [b5, 0] : Int
+    %v19 = add %v9, %v18 : Int
+    ret %v19
+}
+
+fn nested() -> Int {
+  b0:
+    %v0 = alloc : Settings
+    %v1 = alloc : Flags
+    init %local1@Flags.a, True
+    init %local1@Flags.b, False
+    init %local0@Settings.flags, %v1
+    init %local0@Settings.count, 7
+    %s = alloc : Settings
+    init %s, %v0
+    assign %s@Settings.flags@Flags.b, True
+    %v13 = load %s : Settings
+    %v14 = load %s@Settings.count : U32
+    %v17 = add %v14, 1 : U32
+    assign %s@Settings.count, %v17
+    %v19 = load %s : Settings
+    %v20 = load %s@Settings.flags : Flags
+    %v21 = call valueOf, %v20 : Int
+    %v24 = mul %v21, 10 : Int
+    %v25 = load %s : Settings
+    %v26 = load %s@Settings.count : U32
+    %v27 = cast %v26 : Int
+    %v28 = add %v24, %v27 : Int
+    ret %v28
+}
+
+fn borrowed() -> Int {
+  b0:
+    %v0 = alloc : Settings
+    %v1 = alloc : Flags
+    init %local1@Flags.a, False
+    init %local1@Flags.b, False
+    init %local0@Settings.flags, %v1
+    init %local0@Settings.count, 0
+    %s = alloc : Settings
+    init %s, %v0
+    %v11 = load %s : Settings
+    %v12 = load %s@Settings.flags : Flags
+    %v13 = borrow_mut %s@Settings.flags : &mut Flags
+    call setBoth, %v13
+    %v15 = load %s : Settings
+    %v16 = load %s@Settings.flags : Flags
+    %v17 = load %s@Settings.flags@Flags.a : Bool
+    %v18 = borrow_mut %s@Settings.flags@Flags.a : &mut Bool
+    call flip, %v18
+    %v20 = load %s : Settings
+    %v21 = load %s@Settings.flags : Flags
+    %v22 = call valueOf, %v21 : Int
+    ret %v22
+}
+
+fn coPacked() -> Int {
+  b0:
+    %v0 = alloc : Two
+    %v1 = alloc : Flags
+    init %local1@Flags.a, True
+    init %local1@Flags.b, True
+    %v6 = alloc : Flags
+    init %local2@Flags.a, False
+    init %local2@Flags.b, False
+    init %local0@Two.f, %v1
+    init %local0@Two.g, %v6
+    %t = alloc : Two
+    init %t, %v0
+    %v15 = load %t : Two
+    %v16 = load %t@Two.f : Flags
+    %v17 = borrow_mut %t@Two.f : &mut Flags
+    call clear, %v17
+    %v19 = load %t : Two
+    %v20 = load %t@Two.g : Flags
+    %v21 = borrow_mut %t@Two.g : &mut Flags
+    call setBoth, %v21
+    %v23 = load %t : Two
+    %v24 = load %t@Two.f : Flags
+    %v25 = call valueOf, %v24 : Int
+    %v26 = load %t : Two
+    %v27 = load %t@Two.g : Flags
+    %v28 = call valueOf, %v27 : Int
+    %v31 = mul %v28, 10 : Int
+    %v32 = add %v25, %v31 : Int
+    ret %v32
+}
+
+fn composed() -> Int {
+  b0:
+    %v0 = alloc : Two
+    %v1 = alloc : Flags
+    init %local1@Flags.a, False
+    init %local1@Flags.b, False
+    %v6 = alloc : Flags
+    init %local2@Flags.a, False
+    init %local2@Flags.b, False
+    init %local0@Two.f, %v1
+    init %local0@Two.g, %v6
+    %t = alloc : Two
+    init %t, %v0
+    assign %t@Two.f@Flags.a, True
+    assign %t@Two.g@Flags.b, True
+    %v19 = load %t : Two
+    %v20 = load %t@Two.f : Flags
+    %v21 = call valueOf, %v20 : Int
+    %v22 = load %t : Two
+    %v23 = load %t@Two.g : Flags
+    %v24 = call valueOf, %v23 : Int
+    %v27 = mul %v24, 10 : Int
+    %v28 = add %v21, %v27 : Int
+    ret %v28
+}
+
+fn extracted() -> Int {
+  b0:
+    %t = alloc : Two
+    %v1 = alloc : Flags
+    init %local1@Flags.a, True
+    init %local1@Flags.b, False
+    %v6 = alloc : Flags
+    init %local2@Flags.a, False
+    init %local2@Flags.b, True
+    init %local0@Two.f, %v1
+    init %local0@Two.g, %v6
+    %inner = load %local0@Two.g : Flags
+    %v14 = call valueOf, %inner : Int
+    %v17 = mul %v14, 10 : Int
+    %v18 = load %local0@Two.f : Flags
+    %v19 = call valueOf, %v18 : Int
+    %v20 = add %v17, %v19 : Int
+    ret %v20
+}
+
+fn secondOf(%f: Flags) -> &mut Bool {
+  b0:
+    %v1 = load %f : Flags
+    %v2 = load %f@Flags.b : Bool
+    %v3 = borrow_mut %f@Flags.b : &mut Bool
+    ret %v3
+}
+
+fn reborrowed() -> Int {
+  b0:
+    %v0 = alloc : Two
+    %v1 = alloc : Flags
+    init %local1@Flags.a, False
+    init %local1@Flags.b, False
+    %v6 = alloc : Flags
+    init %local2@Flags.a, False
+    init %local2@Flags.b, False
+    init %local0@Two.f, %v1
+    init %local0@Two.g, %v6
+    %t = alloc : Two
+    init %t, %v0
+    %v15 = load %t : Two
+    %v16 = load %t@Two.g : Flags
+    %v17 = borrow_mut %t@Two.g : &mut Flags
+    %v18 = call secondOf, %v17 : &mut Bool
+    assign [%v18], True
+    %v21 = load %t : Two
+    %v22 = load %t@Two.f : Flags
+    %v23 = call valueOf, %v22 : Int
+    %v24 = load %t : Two
+    %v25 = load %t@Two.g : Flags
+    %v26 = call valueOf, %v25 : Int
+    %v29 = mul %v26, 10 : Int
+    %v30 = add %v23, %v29 : Int
+    ret %v30
+}
+
+fn swapped() -> Int {
+  b0:
+    %v0 = alloc : Two
+    %v1 = alloc : Flags
+    init %local1@Flags.a, True
+    init %local1@Flags.b, False
+    %v6 = alloc : Flags
+    init %local2@Flags.a, False
+    init %local2@Flags.b, True
+    init %local0@Two.f, %v1
+    init %local0@Two.g, %v6
+    %t = alloc : Two
+    init %t, %v0
+    %v15 = load %t : Two
+    %v16 = load %t@Two.f : Flags
+    %v17 = load %t@Two.f@Flags.a : Bool
+    %v18 = load %t : Two
+    %v19 = load %t@Two.g : Flags
+    %v20 = load %t@Two.g@Flags.a : Bool
+    %v21 = borrow_mut %t@Two.f@Flags.a : &mut Bool
+    %v22 = borrow_mut %t@Two.g@Flags.a : &mut Bool
+    swap [%v21], [%v22]
+    %v24 = load %t : Two
+    %v25 = load %t@Two.f : Flags
+    %v26 = load %t@Two.f@Flags.b : Bool
+    %v28 = borrow_mut %t@Two.f@Flags.b : &mut Bool
+    %previous = exchange [%v28], True : Bool
+    %v30 = load %t : Two
+    %v31 = load %t@Two.f : Flags
+    %v32 = call valueOf, %v31 : Int
+    %v33 = load %t : Two
+    %v34 = load %t@Two.g : Flags
+    %v35 = call valueOf, %v34 : Int
+    %v38 = mul %v35, 10 : Int
+    %v39 = add %v32, %v38 : Int
+    je %previous, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v47 = phi [b1, 100], [b2, 0] : Int
+    %v48 = add %v39, %v47 : Int
+    ret %v48
+}
+
+fn makePair() -> () {
+  b0:
+    %p = alloc : Pair
+    %v1 = alloc : Owned
+    init %local1@Owned.a, True
+    init %local1@Owned.b, False
+    %v6 = alloc : Owned
+    init %local2@Owned.a, False
+    init %local2@Owned.b, True
+    init %local0@Pair.x, %v1
+    init %local0@Pair.y, %v6
+    drop_derived %local0 via drop$Pair
+    ret
+}
+
+fn owned() -> Int {
+  b0:
+    call makePair
+    %v1 = load dropped : I64
+    %v2 = cast %v1 : Int
+    ret %v2
+}
+
+fn tagOf(%m: Maybe(Flags)) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %f = load %m@Just : Flags
+    %v7 = call valueOf, %f : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b2, 4], [b1, %v7] : Int
+    ret %v10
+}
+
+fn folded() -> Int {
+  b0:
+    %v0 = alloc : Maybe(Flags)
+    init %local0.discriminant, 0
+    %empty = call tagOf, %v0 : Int
+    %v4 = alloc : Maybe(Flags)
+    init %local1.discriminant, 1
+    %v7 = alloc : Flags
+    init %local2@Flags.a, True
+    init %local2@Flags.b, True
+    init %local1@Just, %v7
+    %both = call tagOf, %v4 : Int
+    %v14 = alloc : Maybe(Flags)
+    init %local3.discriminant, 1
+    %v17 = alloc : Flags
+    init %local4@Flags.a, False
+    init %local4@Flags.b, True
+    init %local3@Just, %v17
+    %one = call tagOf, %v14 : Int
+    %v26 = mul %both, 10 : Int
+    %v27 = add %empty, %v26 : Int
+    %v30 = mul %one, 100 : Int
+    %v31 = add %v27, %v30 : Int
+    ret %v31
+}
+
+fn reordered() -> Int {
+  b0:
+    %v0 = alloc : Inefficient
+    init %local0@Inefficient.a, True
+    init %local0@Inefficient.b, 9
+    init %local0@Inefficient.c, 3
+    init %local0@Inefficient.d, 5
+    init %local0@Inefficient.e, 40
+    init %local0@Inefficient.f, 6
+    %i = alloc : Inefficient
+    init %i, %v0
+    %v15 = load %i : Inefficient
+    %v16 = load %i@Inefficient.d : @bits(4) Int
+    %v18 = cast %v16 : Int
+    %v20 = add %v18, 1 : Int
+    %v22 = and %v20, 15 : Int
+    %v23 = cast %v22 : @bits(4) Int
+    assign %i@Inefficient.d, %v23
+    %v25 = load %i : Inefficient
+    %v26 = load %i@Inefficient.f : @bits(4) Int
+    %v27 = borrow_mut %i@Inefficient.f : &mut @bits(4) Int
+    call bump, %v27
+    %v29 = load %i : Inefficient
+    %v30 = load %i@Inefficient.b : U64
+    %v33 = add %v30, 1 : U64
+    assign %i@Inefficient.b, %v33
+    %v35 = load %i : Inefficient
+    %v36 = load %i@Inefficient.a : Bool
+    je %v36, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v44 = phi [b1, 1], [b2, 0] : Int
+    %v45 = load %i : Inefficient
+    %v46 = load %i@Inefficient.b : U64
+    %v47 = cast %v46 : Int
+    %v50 = mul %v47, 10 : Int
+    %v51 = add %v44, %v50 : Int
+    %v52 = load %i : Inefficient
+    %v53 = load %i@Inefficient.c : U8
+    %v54 = cast %v53 : Int
+    %v57 = mul %v54, 100 : Int
+    %v58 = add %v51, %v57 : Int
+    %v59 = load %i : Inefficient
+    %v60 = load %i@Inefficient.d : @bits(4) Int
+    %v61 = cast %v60 : Int
+    %v64 = mul %v61, 1000 : Int
+    %v65 = add %v58, %v64 : Int
+    %v66 = load %i : Inefficient
+    %v67 = load %i@Inefficient.e : U32
+    %v68 = cast %v67 : Int
+    %v71 = mul %v68, 10000 : Int
+    %v72 = add %v65, %v71 : Int
+    %v73 = load %i : Inefficient
+    %v74 = load %i@Inefficient.f : @bits(4) Int
+    %v75 = cast %v74 : Int
+    %v78 = mul %v75, 1000000 : Int
+    %v79 = add %v72, %v78 : Int
+    ret %v79
+}
+
+fn pinned() -> Int {
+  b0:
+    %v0 = alloc : Pinned
+    init %local0@Pinned.a, True
+    init %local0@Pinned.b, 9
+    init %local0@Pinned.c, 3
+    init %local0@Pinned.d, 5
+    init %local0@Pinned.e, 40
+    init %local0@Pinned.f, 6
+    %p = alloc : Pinned
+    init %p, %v0
+    %v15 = load %p : Pinned
+    %v16 = load %p@Pinned.d : @bits(4) Int
+    %v18 = cast %v16 : Int
+    %v20 = add %v18, 1 : Int
+    %v22 = and %v20, 15 : Int
+    %v23 = cast %v22 : @bits(4) Int
+    assign %p@Pinned.d, %v23
+    %v25 = load %p : Pinned
+    %v26 = load %p@Pinned.f : @bits(4) Int
+    %v27 = borrow_mut %p@Pinned.f : &mut @bits(4) Int
+    call bump, %v27
+    %v29 = load %p : Pinned
+    %v30 = load %p@Pinned.b : U64
+    %v33 = add %v30, 1 : U64
+    assign %p@Pinned.b, %v33
+    %v35 = load %p : Pinned
+    %v36 = load %p@Pinned.a : Bool
+    je %v36, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v44 = phi [b1, 1], [b2, 0] : Int
+    %v45 = load %p : Pinned
+    %v46 = load %p@Pinned.b : U64
+    %v47 = cast %v46 : Int
+    %v50 = mul %v47, 10 : Int
+    %v51 = add %v44, %v50 : Int
+    %v52 = load %p : Pinned
+    %v53 = load %p@Pinned.c : U8
+    %v54 = cast %v53 : Int
+    %v57 = mul %v54, 100 : Int
+    %v58 = add %v51, %v57 : Int
+    %v59 = load %p : Pinned
+    %v60 = load %p@Pinned.d : @bits(4) Int
+    %v61 = cast %v60 : Int
+    %v64 = mul %v61, 1000 : Int
+    %v65 = add %v58, %v64 : Int
+    %v66 = load %p : Pinned
+    %v67 = load %p@Pinned.e : U32
+    %v68 = cast %v67 : Int
+    %v71 = mul %v68, 10000 : Int
+    %v72 = add %v65, %v71 : Int
+    %v73 = load %p : Pinned
+    %v74 = load %p@Pinned.f : @bits(4) Int
+    %v75 = cast %v74 : Int
+    %v78 = mul %v75, 1000000 : Int
+    %v79 = add %v72, %v78 : Int
+    ret %v79
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call nested : Int
+    %v1 = call borrowed : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call coPacked : Int
+    %v4 = add %v2, %v3 : Int
+    %v5 = call composed : Int
+    %v6 = add %v4, %v5 : Int
+    %v7 = call extracted : Int
+    %v8 = add %v6, %v7 : Int
+    %v9 = call reborrowed : Int
+    %v10 = add %v8, %v9 : Int
+    %v11 = call swapped : Int
+    %v12 = add %v10, %v11 : Int
+    %v13 = call owned : Int
+    %v14 = add %v12, %v13 : Int
+    %v15 = call folded : Int
+    %v16 = add %v14, %v15 : Int
+    %v17 = call reordered : Int
+    %v18 = add %v16, %v17 : Int
+    %v19 = call pinned : Int
+    %v20 = add %v18, %v19 : Int
+    ret %v20
+}
+
+fn Drop(Owned).drop(%value: Owned) -> () {
+  b0:
+    %v1 = load dropped : I64
+    %v2 = load %value@Owned.a : Bool
+    je %v2, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, 1], [b2, 2] : Int
+    %v11 = cast %v10 : I64
+    %v12 = borrow_mut dropped : &mut I64
+    call +=(I64), %v12, %v11
+    ret
+}
+
+fn drop$Pair(%value: %Pair) -> () {
+  b0:
+    drop [%value]@Pair.x via Drop(Owned).drop
+    drop [%value]@Pair.y via Drop(Owned).drop
+    ret
+}

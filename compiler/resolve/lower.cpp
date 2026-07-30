@@ -4,6 +4,7 @@
 #include "witness.h"
 #include "../repr/table.h"
 #include "../lower/lower_builder.h"
+#include "../lower/lower_promote.h"
 
 // The side tables mapping one IR to the other are keyed by region offset rather than by address:
 // a resolve handle already is that offset, so this is the same identity the rest of the resolver
@@ -451,7 +452,8 @@ static TypePtr dropPlaceType(LowerContext& lower, Function& function, const Plac
 // The three roots differ only in where that first address comes from - a local's alloca, a
 // global's static address, or a pointer the program computed - which is exactly why raw memory
 // needs no lowering of its own beyond a root the resolver was already able to name.
-static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, Function& function, const Place& place) {
+static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, Function& function,
+                                       const Place& place, Size limit = maxLimit<Size>) {
     LowerPtr<LowerValue> address;
     TypePtr type;
 
@@ -481,8 +483,14 @@ static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, F
 
     U32 offset = 0;
     auto projections = place.projections;
+    Size walked = 0;
 
     for(auto projection: projections.contents(lower.local)) {
+        // `limit` stops before the trailing Property projection, which is how the *owner's* address
+        // is asked for: a constrained field is reached by calling its witness with that address
+        // rather than by adding anything to it. See propertySlotOf.
+        if(walked++ >= limit) break;
+
         if(projection.kind == ProjectionKind::Discriminant) {
             type = lower.from.scalar.int_;
         } else if(projection.kind == ProjectionKind::Downcast) {
@@ -524,22 +532,26 @@ static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, F
  * projection whose meaning is a computation.
  */
 
+// What a place is rooted in, by the same rules lowerPlace walks by.
+static TypePtr placeRootedType(LowerContext& lower, Function& function, const Place& place) {
+    if(place.root == PlaceRoot::Global) return lower.local[place.global]->type;
+
+    if(place.root == PlaceRoot::Pointer || place.root == PlaceRoot::Borrow) {
+        auto referenced = lower.local[place.pointer]->type;
+        return place.root == PlaceRoot::Borrow
+            ? ((BorrowType*)lower.global[referenced])->to
+            : pointeeType(lower.global, referenced);
+    }
+
+    if(place.local >= function.localCount()) return nullptr;
+    return function.localAt(lower.local, place.local).type;
+}
+
 // The type a place's last projection is taken of, by the same rules lowerPlace walks by. Null when
 // the place has no projections, which is a whole local and has no owner to speak of.
 static TypePtr placeOwnerType(LowerContext& lower, Function& function, const Place& place) {
-    TypePtr type;
-
-    if(place.root == PlaceRoot::Global) {
-        type = lower.local[place.global]->type;
-    } else if(place.root == PlaceRoot::Pointer || place.root == PlaceRoot::Borrow) {
-        auto referenced = lower.local[place.pointer]->type;
-        type = place.root == PlaceRoot::Borrow
-            ? ((BorrowType*)lower.global[referenced])->to
-            : pointeeType(lower.global, referenced);
-    } else {
-        if(place.local >= function.localCount()) return nullptr;
-        type = function.localAt(lower.local, place.local).type;
-    }
+    auto type = placeRootedType(lower, function, place);
+    if(!type) return nullptr;
 
     auto projections = place.projections;
     auto count = projections.size();
@@ -569,10 +581,10 @@ static TypePtr placeOwnerType(LowerContext& lower, Function& function, const Pla
     return type;
 }
 
-// The record a place's final Discriminant projection is taken of, when that record's tag is folded
-// into a niche. Null in every other case, which is every place in a program that has no folded type
-// in it - so the cost of asking is a look at the last projection.
-static TypePtr foldedTagRecord(LowerContext& lower, Function& function, const Place& place) {
+// The record a place's final Discriminant projection is taken of, or null where the place does not
+// end in one - which is every place in a program with no sum type in it, so the cost of asking is a
+// look at the last projection.
+static TypePtr taggedRecord(LowerContext& lower, Function& function, const Place& place) {
     auto projections = place.projections;
     auto count = projections.size();
     if(!count) return nullptr;
@@ -582,7 +594,43 @@ static TypePtr foldedTagRecord(LowerContext& lower, Function& function, const Pl
     auto record = placeOwnerType(lower, function, place);
     if(!record || lower.global[record]->kind != Type::Record) return nullptr;
 
-    return lower.repr.of(record).isNicheFolded() ? record : nullptr;
+    return record;
+}
+
+// The same, narrowed to a record whose tag is folded into a niche - the one shape that has no tag in
+// memory at all.
+static TypePtr foldedTagRecord(LowerContext& lower, Function& function, const Place& place) {
+    auto record = taggedRecord(lower, function, place);
+    return record && lower.repr.of(record).isNicheFolded() ? record : nullptr;
+}
+
+// And to a record whose tag is a bit range of the word its payload shares - see scalarizeSum. The
+// place still lowers to the record's own address, since a bit-tagged payload begins where the record
+// does; what it does not lower to is something a load of the tag's *type* would be the right width of.
+static TypePtr bitTagRecord(LowerContext& lower, Function& function, const Place& place) {
+    auto record = taggedRecord(lower, function, place);
+    return record && lower.repr.of(record).isBitTagged() ? record : nullptr;
+}
+
+/*
+ * How many bytes of memory a place that names a tag actually names, or zero for a place that names
+ * something else.
+ *
+ * A tag is the one thing a place can name whose width is not a fact about its type. Every other load
+ * takes its width from what it produces; a Discriminant projection produces an `Int` whatever record
+ * it was taken of, and what is in memory is however much storage that record's Repr spends on its
+ * discriminant - four bytes for a payload-carrying sum, and one for a `Bool`. So the width comes from
+ * the owner, and a tag load of a type narrower than `Int` zero-extends into it.
+ */
+static U32 discriminantWidth(LowerContext& lower, Function& function, const Place& place) {
+    auto record = taggedRecord(lower, function, place);
+    if(!record) return 0;
+
+    // A tag word only. The other two shapes are intercepted before anything asks for a width, and
+    // answering with the containing word's here would let a missed interception store over a payload
+    // rather than fail - see decodeBitTag and decodeNicheTag.
+    auto& repr = lower.repr.of(record);
+    return repr.discriminant == DiscriminantKind::Word ? repr.discriminantBytes : 0;
 }
 
 /*
@@ -681,6 +729,651 @@ static LowerPtr<LowerValue> decodeNicheTag(LowerContext& lower, LowerBlock& bloc
 }
 
 /*
+ * A field of a type this body cannot see - Implementation-Generics.md part 5's `PropertyWitness`.
+ *
+ * The third thing a place can end in that has no address, after a folded tag and a packed field, and
+ * intercepted in the same two spots for the same reason. Here the reason is stronger: the owner is a
+ * type variable, so there is no offset even in principle - where the field sits was decided by
+ * whoever built the environment, and this body was compiled once for all of them.
+ *
+ * Returns the environment slot the constraint was numbered at, or maxLimit when the place does not
+ * end in one. Only the *last* projection is answered: a path continuing through a property would
+ * need the read's result to be an address, and what the witness hands back is a value in storage
+ * this frame provided - so such a body specializes instead, which lowerablePlace enforces.
+ */
+static U16 propertySlotOf(LowerContext& lower, const Place& place) {
+    auto projections = place.projections;
+    auto count = projections.size();
+    if(!count) return maxLimit<U16>;
+
+    auto last = projections.get(lower.local, count - 1);
+    return last.kind == ProjectionKind::Property ? last.index : maxLimit<U16>;
+}
+
+// One operation of a property witness, loaded out of the witness the environment slot holds. Two
+// loads and no search, exactly as a class method dispatch is - see genMethod.
+static LowerPtr<LowerValue> propertyOp(LowerContext& lower, LowerBlock& block, U16 slot, U16 field) {
+    auto witness = genSlot(lower, block, slot);
+    auto offset = tableSlotOffset(lower.repr.target, PropertyWitnessFields::kWordCount, field);
+    auto address = addOffset(lower, block, witness, offset);
+    auto loaded = load(lower.lower, lower.to, block, lower.lower[address], 8, false, LowerType::Pointer, 0);
+
+    return loaded->created().ptr - lower.lower;
+}
+
+// `op(owner, other)`, which is the shape both halves of a property witness have: two addresses in,
+// nothing out. What differs between read and set is which address is the field's storage.
+static void callPropertyOp(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> op,
+                           LowerPtr<LowerValue> owner, LowerPtr<LowerValue> other) {
+    call(lower.lower, lower.to, block, 0, 3, kDefaultCallType, [&](LowerInstCall* invoke) {
+        invoke->used()[0] = op;
+        invoke->used()[1] = owner;
+        invoke->used()[2] = other;
+    });
+}
+
+/*
+ * Zeroing fresh storage whose niche is made of bits nobody writes - see ReprTable::hasPaddedWord.
+ *
+ * The largest chunks first, then whatever is left, which for every type this is asked about is one or
+ * two stores: a record of two `Bool`s is a byte. It is deliberately the whole allocation rather than
+ * only the padded words - a second pass over the field list to find them would cost more here than the
+ * stores save, and zero padding is the honest state for anything else that reads storage as bytes.
+ */
+static void zeroStorage(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> address, U32 bytes) {
+    U32 at = 0;
+
+    while(at < bytes) {
+        auto width = bytes - at >= 8 ? 8u : bytes - at >= 4 ? 4u : bytes - at >= 2 ? 2u : 1u;
+        auto target = addOffset(lower, block, address, at);
+
+        block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(target, immediate(lower, 0), width));
+        at += width;
+    }
+}
+
+// Storage for one value of a type this body may not know the size of - the erased counterpart of an
+// ordinary alloca, taking its size from the caller's descriptor where the type is a variable.
+static LowerPtr<LowerValue> erasedStorage(LowerContext& lower, LowerBlock& block, TypePtr type,
+                                          StringId name) {
+    auto bytes = sizeOfType(lower, block, type);
+    auto alignment = isGeneric(lower.global, type) ? 16u : typeAlign(lower, type);
+    auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(name, bytes, alignment));
+
+    return allocation->created().ptr - lower.lower;
+}
+
+/*
+ * Which bits of which word a place names, where it names bits rather than a word.
+ *
+ * The same interception a folded tag needs and for the same reason: `lowerPlace` turns a place into
+ * an address, and a packed field's storage is a bit range that no address names. What the place walk
+ * *does* produce is the address of the containing word, because a packed FieldRepr's `offset` is the
+ * word's and every field of a scalar aggregate sits at offset zero of it - so the two halves below
+ * take that address and finish the job.
+ *
+ * The bit offsets *compose*, which is what whole-record scalarization needs from this: in
+ * `data Two {f: Flags, g: Flags}` the field `g` is two bits at bit two of a byte, and `g.a` is one bit
+ * at bit two of the same byte. So the walk accumulates rather than reading the last projection, and
+ * the answer is the innermost value's width at the outermost word's address.
+ *
+ * `exists()` is false for every place that is not one, which is every place in a program with nothing
+ * packed in it.
+ */
+struct PackedAccess {
+    U32 wordBytes = 0;
+    U32 bitOffset = 0;
+    U32 bitWidth = 0;
+    TypePtr type = nullptr;
+
+    bool exists() const { return bitWidth != 0; }
+};
+
+static TypePtr narrowRefRoot(LowerContext& lower, Function& function, const Place& place);
+
+static PackedAccess packedAccess(LowerContext& lower, Function& function, const Place& place) {
+    auto type = placeRootedType(lower, function, place);
+    if(!type) return {};
+
+    /*
+     * A place rooted in a reference that carries a shift is not this: the word's address is not the
+     * root's value, and where the bits start is half the caller's. Those places belong to
+     * `narrowRefAccess`, and keeping the two disjoint here rather than ordering the checks at each
+     * call site is what stops a callee dereferencing a reference's shift as though it were an address.
+     */
+    if(narrowRefRoot(lower, function, place)) return {};
+
+    PackedAccess access;
+    auto projections = place.projections;
+
+    for(auto projection: projections.contents(lower.local)) {
+        switch(projection.kind) {
+            case ProjectionKind::Field: {
+                // A function value's words are laid out by FunValueLayout rather than by Repr, and
+                // are never packed - see lowerPlace, which offsets them the same way.
+                if(lower.global[type]->kind == Type::Fun) {
+                    if(access.exists()) return {};
+                    type = funValueFieldType(*lower.from.core, projection.index);
+                    break;
+                }
+
+                auto field = lower.repr.fieldOf(type, projection.index);
+                if(!field) return {};
+
+                if(access.exists()) {
+                    /*
+                     * Already inside a bit range, so this field's placement is relative to it. An
+                     * *unpacked* field of a scalar aggregate is the whole of it - a single-field
+                     * record keeps its address, see scalarizeTuple - so it contributes no offset and
+                     * the width is the value's own.
+                     */
+                    access.bitOffset += field->bitOffset;
+                    access.bitWidth = field->isPacked()
+                        ? field->bitWidth
+                        : valueWidth(lower.global, field->type).logical;
+
+                    if(!access.bitWidth) return {};
+                } else if(field->isPacked()) {
+                    access.wordBytes = field->wordBytes;
+                    access.bitOffset = field->bitOffset;
+                    access.bitWidth = field->bitWidth;
+                }
+
+                type = field->type;
+                break;
+            }
+            case ProjectionKind::Downcast:
+                // A payload inside a bit range can only be a single-constructor record's, whose
+                // payload begins where the record does. Anything else has a tag of its own and is
+                // not a scalar - see valueWidth.
+                if(access.exists() && lower.repr.of(type).payloadOffset) return {};
+                type = ((RecordType*)lower.global[type])->constructors.get(lower.global, projection.index).content;
+                break;
+            case ProjectionKind::Discriminant:
+                // A payload-free sum *is* its discriminant, so this names the same bits under
+                // another type and moves nothing. A *bit-tagged* sum's tag is at a placement of its
+                // own, and one is never inside a bit range - `scalarBits` is zero for it, so nothing
+                // co-packs it - but declining is what keeps that a fact rather than an assumption.
+                if(lower.repr.of(type).isBitTagged()) return {};
+                type = lower.from.scalar.int_;
+                break;
+            case ProjectionKind::Deref:
+                // The pointer stored here becomes what the rest of the path is relative to, so a
+                // packed word passed on the way is not this place's. Nothing narrow is a pointer, so
+                // this can only be reached from outside a bit range.
+                if(access.exists()) return {};
+                type = pointeeType(lower.global, type);
+                if(!type) return {};
+                break;
+            default:
+                // A property is answered by a call taking an address rather than by a place, and is
+                // intercepted before this is asked - see propertySlotOf.
+                return {};
+        }
+    }
+
+    access.type = type;
+    return access;
+}
+
+// The mask that selects `bits` low bits. Kept in one place because the 64-bit case is the one that
+// would be undefined if it were written inline as `(1 << bits) - 1`.
+static U64 lowMask(U32 bits) {
+    return bits >= 64 ? maxLimit<U64> : (U64(1) << bits) - 1;
+}
+
+/*
+ * Reading a packed field: load the word, move the field to the bottom, discard everything else.
+ *
+ * Two shapes rather than one. An unsigned field shifts down and masks; a signed one shifts *up*
+ * until its sign bit is the word's and then shifts arithmetically back down, which sign-extends and
+ * masks in the same two instructions rather than needing a third.
+ */
+static LowerPtr<LowerValue> decodePackedBits(LowerContext& lower, LowerBlock& block,
+                                             LowerPtr<LowerValue> word, const PackedAccess& field,
+                                             bool isSigned) {
+    auto loaded = load(lower.lower, lower.to, block, lower.lower[word], field.wordBytes, false,
+                       LowerType::Int64, 0);
+    auto bits = loaded->created().ptr - lower.lower;
+
+    if(isSigned) {
+        auto up = immediate(lower, 64 - field.bitOffset - field.bitWidth);
+        auto down = immediate(lower, 64 - field.bitWidth);
+
+        auto high = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[bits],
+                                           lower.lower[up], LowerType::Int64, 0)->created().ptr - lower.lower;
+
+        return binary<LowerInst::Sar>(lower.lower, lower.to, block, lower.lower[high],
+                                      lower.lower[down], LowerType::Int64, 0)->created().ptr - lower.lower;
+    }
+
+    auto value = bits;
+    if(field.bitOffset) {
+        auto shift = immediate(lower, field.bitOffset);
+        value = binary<LowerInst::Shr>(lower.lower, lower.to, block, lower.lower[value],
+                                       lower.lower[shift], LowerType::Int64, 0)->created().ptr - lower.lower;
+    }
+
+    auto mask = immediate(lower, lowMask(field.bitWidth));
+    return binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[value],
+                                  lower.lower[mask], LowerType::Int64, 0)->created().ptr - lower.lower;
+}
+
+static LowerPtr<LowerValue> decodePackedField(LowerContext& lower, LowerBlock& block,
+                                              LowerPtr<LowerValue> word, const PackedAccess& field,
+                                              TypePtr type, StringId name) {
+    auto bits = decodePackedBits(lower, block, word, field, signedType(lower.global, type));
+    auto result = lowerType(lower.global, type);
+
+    if(signedType(lower.global, type)) {
+        return cast<true, true>(lower.lower, lower.to, block, lower.lower[bits], result, name)
+            ->created().ptr - lower.lower;
+    }
+
+    return cast<false, false>(lower.lower, lower.to, block, lower.lower[bits], result, name)
+        ->created().ptr - lower.lower;
+}
+
+/*
+ * Writing a packed field: read the word, replace the field's bits, write it back.
+ *
+ * The load is deliberately here rather than anywhere earlier. Design.md's write-back rule is that
+ * the word is read *at commit time*, which is the whole reason two co-packed fields borrowed across
+ * one call do not lose an update - the second commit reads what the first one wrote. Hoisting this
+ * load out of the read-modify-write, or caching a word across a call, reintroduces the classic C
+ * bitfield hazard that the rule exists to make impossible.
+ *
+ * The incoming value is masked rather than checked. That is the same choice `@bits` makes at every
+ * other store, for the same reason: the mask is what makes the surrounding niche true, so it is not
+ * an optimization that a range check could replace.
+ */
+static void encodePackedField(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> word,
+                              const PackedAccess& field, LowerPtr<LowerValue> value) {
+    auto loaded = load(lower.lower, lower.to, block, lower.lower[word], field.wordBytes, false,
+                       LowerType::Int64, 0);
+    auto bits = loaded->created().ptr - lower.lower;
+
+    auto widened = cast<false, false>(lower.lower, lower.to, block, lower.lower[value],
+                                      LowerType::Int64, 0)->created().ptr - lower.lower;
+
+    auto fieldMask = immediate(lower, lowMask(field.bitWidth));
+    auto trimmed = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[widened],
+                                          lower.lower[fieldMask], LowerType::Int64, 0)->created().ptr - lower.lower;
+
+    auto placed = trimmed;
+    if(field.bitOffset) {
+        auto shift = immediate(lower, field.bitOffset);
+        placed = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[trimmed],
+                                        lower.lower[shift], LowerType::Int64, 0)->created().ptr - lower.lower;
+    }
+
+    auto clearMask = immediate(lower, ~(lowMask(field.bitWidth) << field.bitOffset));
+    auto cleared = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[bits],
+                                          lower.lower[clearMask], LowerType::Int64, 0)->created().ptr - lower.lower;
+
+    auto merged = binary<LowerInst::Or>(lower.lower, lower.to, block, lower.lower[cleared],
+                                        lower.lower[placed], LowerType::Int64, 0)->created().ptr - lower.lower;
+
+    block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(word, merged, field.wordBytes));
+}
+
+/*
+ * A borrow that is an address plus a shift - Design.md's tier 2.
+ *
+ * `&T` for a narrow `T` refers to a bit range rather than to a word, so it carries where in that
+ * word the range starts. The shift is at most five bits, because a packed field never straddles the
+ * natural storage unit of its own width, and it travels in the address's spare high bits - see
+ * ReprTarget::addressBits. A non-narrow `T` has a provably zero shift and is left exactly the
+ * address it always was.
+ *
+ * What the callee does with one is entirely decided by the *type*: the unit to load is
+ * `naturalStorageBits(bits)` and the mask is `bits`, both constants there. Only the shift is
+ * unknown, which is what lets one compiled body serve a packed field, an unpacked one, and a whole
+ * local of the same type.
+ *
+ * A reference to a whole *aggregate* is the same thing once the aggregate is a scalar: `&Flags` for
+ * `data Flags {a: Bool, b: Bool}` is two bits at a shift, and reading `f.a` through one is the
+ * reference's shift plus the constant bit offset the field has inside those two bits. That constant is
+ * the callee's own - it comes from its Repr for the pointee type, which the caller never had to agree
+ * about beyond the type itself - so `bitOffset` below is added at the access rather than carried.
+ */
+struct NarrowRef {
+    LowerPtr<LowerValue> address;
+    LowerPtr<LowerValue> shift;
+    U32 unitBytes = 0;
+    U32 bits = 0;
+    bool isSigned = false;
+};
+
+/*
+ * Which bits a place names when the place is rooted in a reference of that kind.
+ *
+ * `referenced` is the pointee type, which decides the unit to load; `bitOffset` and `bitWidth` are
+ * where inside it the place ends up, composed exactly as `packedAccess` composes them - `&two.g` is a
+ * reference to a `Flags`, and `g.a` through it is one bit at offset zero of two.
+ */
+struct NarrowRefAccess {
+    TypePtr referenced = nullptr;
+    TypePtr type = nullptr;
+    U32 bitOffset = 0;
+    U32 bitWidth = 0;
+
+    bool exists() const { return referenced != nullptr; }
+};
+
+// Between an address and the integer its bits are, which moves nothing: `Cast` is the int/float
+// conversion and refuses a pointer on either side, and this is the one that does not - see
+// validateCast and validateBitcast.
+static LowerPtr<LowerValue> reinterpret(LowerContext& lower, LowerBlock& block,
+                                        LowerPtr<LowerValue> value, LowerType type) {
+    auto instruction = block.addInst(lower.lower, new (lower.to.arena) LowerInstUnary(
+        LowerInst::Bitcast, 0, type, value));
+
+    return instruction->created().ptr - lower.lower;
+}
+
+// The pointee type of a place that *is* a reference of this kind, or null for every other place -
+// which is every place in a program with no narrow borrow in it.
+static TypePtr narrowRefRoot(LowerContext& lower, Function& function, const Place& place) {
+    TypePtr referenced = nullptr;
+
+    if(place.root == PlaceRoot::Borrow) {
+        referenced = ((BorrowType*)lower.global[lower.local[place.pointer]->type])->to;
+    } else if(place.root == PlaceRoot::Local && place.local < function.localCount()) {
+        // The slot behind a `&` parameter, which holds the reference the caller passed rather than
+        // storage of its own. Every other local *is* its storage and is not one of these.
+        auto slot = function.localAt(lower.local, place.local);
+        if(!slot.borrowed) return nullptr;
+
+        referenced = slot.type;
+    } else {
+        return nullptr;
+    }
+
+    return referenced && isNarrowRepr(lower.repr.of(referenced)) ? referenced : nullptr;
+}
+
+/*
+ * Which bits of a reference a place names, or nothing where the place is not rooted in one.
+ *
+ * The projections a reference to a *scalar* may carry are the ones that stay inside its bits: fields
+ * of a scalar aggregate, the discriminant of a payload-free sum, and the payload of a single
+ * constructor. Anything else - a `Deref`, a property, a payload with a tag word of its own - leaves
+ * them, and a reference whose pointee is narrow cannot have one of those under it.
+ */
+static NarrowRefAccess narrowRefAccess(LowerContext& lower, Function& function, const Place& place) {
+    auto referenced = narrowRefRoot(lower, function, place);
+    if(!referenced) return {};
+
+    NarrowRefAccess access;
+    access.referenced = referenced;
+    access.type = referenced;
+    access.bitWidth = lower.repr.of(referenced).scalarBits;
+    auto projections = place.projections;
+
+    for(auto projection: projections.contents(lower.local)) {
+        switch(projection.kind) {
+            case ProjectionKind::Field: {
+                auto field = lower.repr.fieldOf(access.type, projection.index);
+                if(!field) return {};
+
+                access.bitOffset += field->bitOffset;
+                access.bitWidth = field->isPacked()
+                    ? field->bitWidth
+                    : valueWidth(lower.global, field->type).logical;
+
+                if(!access.bitWidth) return {};
+                access.type = field->type;
+                break;
+            }
+            case ProjectionKind::Downcast:
+                if(lower.repr.of(access.type).payloadOffset) return {};
+                access.type = ((RecordType*)lower.global[access.type])
+                    ->constructors.get(lower.global, projection.index).content;
+                break;
+            case ProjectionKind::Discriminant:
+                // As in packedAccess: a bit-tagged sum is never behind a narrow reference, and this
+                // is where that stops being something to remember.
+                if(lower.repr.of(access.type).isBitTagged()) return {};
+                access.type = lower.from.scalar.int_;
+                break;
+            default:
+                return {};
+        }
+    }
+
+    return access.bitWidth ? access : NarrowRefAccess {};
+}
+
+// The word holding the reference, for a place narrowRefType answered for.
+static LowerPtr<LowerValue> narrowRefValue(LowerContext& lower, Function& function, const Place& place) {
+    if(place.root == PlaceRoot::Borrow) return mappedValue(lower, place.pointer);
+    return mappedValue(lower, function.localAt(lower.local, place.local).value);
+}
+
+// The address and the shift, taken back apart. Two instructions, and the mask is the only constant
+// the target contributes.
+static NarrowRef unpackNarrowRef(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> ref,
+                                 const NarrowRefAccess& access) {
+    // The unit is the *pointee's*, not the accessed field's, which is what makes a field of a scalar
+    // aggregate reachable through a reference to the whole of it: the aggregate's bits all sit inside
+    // one such unit, so a load of it covers whichever field the constant below selects.
+    auto unitBits = naturalStorageBits(lower.repr.of(access.referenced).scalarBits);
+    auto addressBits = lower.repr.target.addressBits;
+
+    // The bit arithmetic runs on an integer and the result becomes an address again. Only Add and
+    // Sub take a pointer operand in the lower IR - see validateArith - which is the right rule and
+    // is why this says what it is doing rather than relying on the two being the same width.
+    auto word = reinterpret(lower, block, ref, LowerType::Int64);
+
+    auto addressMask = immediate(lower, lowMask(addressBits));
+    auto masked = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[word],
+                                         lower.lower[addressMask], LowerType::Int64, 0)
+        ->created().ptr - lower.lower;
+
+    auto address = reinterpret(lower, block, masked, LowerType::Pointer);
+
+    auto shiftBy = immediate(lower, addressBits);
+    auto shift = binary<LowerInst::Shr>(lower.lower, lower.to, block, lower.lower[word],
+                                        lower.lower[shiftBy], LowerType::Int64, 0)
+        ->created().ptr - lower.lower;
+
+    // Where the field sits inside the pointee, added to where the pointee sits inside its unit. This
+    // constant is the callee's own - it read it out of its Repr for a type it was told - so nothing
+    // about it had to travel in the reference.
+    if(access.bitOffset) {
+        auto within = immediate(lower, access.bitOffset);
+        shift = binary<LowerInst::Add>(lower.lower, lower.to, block, lower.lower[shift],
+                                       lower.lower[within], LowerType::Int64, 0)
+            ->created().ptr - lower.lower;
+    }
+
+    return NarrowRef {
+        .address = address,
+        .shift = shift,
+        .unitBytes = unitBits / 8,
+        .bits = access.bitWidth,
+        .isSigned = signedType(lower.global, access.type),
+    };
+}
+
+// Building one, at the borrow. `shift` is a constant here - the borrow site knows exactly which
+// field it is taking - and folds away entirely for the unpacked case, where it is zero.
+static LowerPtr<LowerValue> packNarrowRef(LowerContext& lower, LowerBlock& block,
+                                          LowerPtr<LowerValue> address, U32 shift) {
+    if(!shift) return address;
+
+    auto word = reinterpret(lower, block, address, LowerType::Int64);
+
+    auto tag = immediate(lower, U64(shift) << lower.repr.target.addressBits);
+    auto tagged = binary<LowerInst::Or>(lower.lower, lower.to, block, lower.lower[word],
+                                        lower.lower[tag], LowerType::Int64, 0)->created().ptr - lower.lower;
+
+    return reinterpret(lower, block, tagged, LowerType::Pointer);
+}
+
+/*
+ * A reference to something *inside* what a reference already names.
+ *
+ * `ref.shift` is where the value starts inside the word, which is the two halves of a reference added
+ * together - the shift the caller passed plus the field's own offset. What is left is to re-split that
+ * total against the unit the new pointee will be loaded in, since it may be narrower than the one the
+ * old shift was measured against: four bits at bit 9 of a sixteen-bit unit are bit 1 of the second
+ * byte, and a callee holding a `&@bits(4)` loads a byte.
+ *
+ * Every operand is a constant when the incoming shift was one, so a reborrow of a field of a whole
+ * local costs nothing at all.
+ */
+static LowerPtr<LowerValue> stepNarrowRef(LowerContext& lower, LowerBlock& block, const NarrowRef& ref,
+                                          U32 unitBytes) {
+    auto unitBits = unitBytes * 8;
+    U32 unitLog = 0;
+    while((U32(1) << unitLog) < unitBits) unitLog++;
+
+    // (total / unitBits) * unitBytes, as two shifts, which is exact because both are powers of two.
+    auto units = binary<LowerInst::Shr>(lower.lower, lower.to, block, lower.lower[ref.shift],
+                                        lower.lower[immediate(lower, unitLog)], LowerType::Int64, 0)
+        ->created().ptr - lower.lower;
+    auto step = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[units],
+                                       lower.lower[immediate(lower, unitLog - 3)], LowerType::Int64, 0)
+        ->created().ptr - lower.lower;
+
+    auto address = binary<LowerInst::Add>(lower.lower, lower.to, block, lower.lower[ref.address],
+                                          lower.lower[step], LowerType::Pointer, 0)
+        ->created().ptr - lower.lower;
+
+    auto within = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[ref.shift],
+                                         lower.lower[immediate(lower, unitBits - 1)], LowerType::Int64, 0)
+        ->created().ptr - lower.lower;
+
+    auto word = reinterpret(lower, block, address, LowerType::Int64);
+    auto tag = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[within],
+                                      lower.lower[immediate(lower, lower.repr.target.addressBits)],
+                                      LowerType::Int64, 0)->created().ptr - lower.lower;
+    auto tagged = binary<LowerInst::Or>(lower.lower, lower.to, block, lower.lower[word],
+                                        lower.lower[tag], LowerType::Int64, 0)->created().ptr - lower.lower;
+
+    return reinterpret(lower, block, tagged, LowerType::Pointer);
+}
+
+// Reading through one: the same two shapes decodePackedField has, with the shift loaded rather than
+// written in.
+static LowerPtr<LowerValue> decodeNarrowBits(LowerContext& lower, LowerBlock& block, const NarrowRef& ref) {
+    auto loaded = load(lower.lower, lower.to, block, lower.lower[ref.address], ref.unitBytes, false,
+                       LowerType::Int64, 0);
+    auto word = loaded->created().ptr - lower.lower;
+
+    auto shifted = binary<LowerInst::Shr>(lower.lower, lower.to, block, lower.lower[word],
+                                          lower.lower[ref.shift], LowerType::Int64, 0)
+        ->created().ptr - lower.lower;
+
+    auto mask = immediate(lower, lowMask(ref.bits));
+    auto masked = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[shifted],
+                                         lower.lower[mask], LowerType::Int64, 0)->created().ptr - lower.lower;
+
+    // Sign extension, where the type has a sign to extend: shift the value's top bit up to the
+    // word's and bring it back arithmetically.
+    if(ref.isSigned) {
+        auto up = immediate(lower, 64 - ref.bits);
+        auto high = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[masked],
+                                           lower.lower[up], LowerType::Int64, 0)->created().ptr - lower.lower;
+
+        return binary<LowerInst::Sar>(lower.lower, lower.to, block, lower.lower[high],
+                                      lower.lower[up], LowerType::Int64, 0)->created().ptr - lower.lower;
+    }
+
+    return masked;
+}
+
+static LowerPtr<LowerValue> decodeNarrowRef(LowerContext& lower, LowerBlock& block, const NarrowRef& ref,
+                                            TypePtr type, StringId name) {
+    auto bits = decodeNarrowBits(lower, block, ref);
+    auto result = lowerType(lower.global, type);
+
+    if(ref.isSigned) {
+        return cast<true, true>(lower.lower, lower.to, block, lower.lower[bits], result, name)
+            ->created().ptr - lower.lower;
+    }
+
+    return cast<false, false>(lower.lower, lower.to, block, lower.lower[bits], result, name)
+        ->created().ptr - lower.lower;
+}
+
+/*
+ * Writing through one, which is a read-modify-write of the unit and has no commit point.
+ *
+ * That is the whole of what makes this representation able to outlive the call that produced it:
+ * there is no temporary to write back, so there is nothing whose lifetime has to be arranged. Every
+ * write is complete when it returns, and two references into one unit interleave safely because each
+ * reads the unit as it stands.
+ */
+static void encodeNarrowRef(LowerContext& lower, LowerBlock& block, const NarrowRef& ref,
+                            LowerPtr<LowerValue> value) {
+    auto loaded = load(lower.lower, lower.to, block, lower.lower[ref.address], ref.unitBytes, false,
+                       LowerType::Int64, 0);
+    auto word = loaded->created().ptr - lower.lower;
+
+    auto widened = cast<false, false>(lower.lower, lower.to, block, lower.lower[value],
+                                      LowerType::Int64, 0)->created().ptr - lower.lower;
+
+    auto mask = immediate(lower, lowMask(ref.bits));
+    auto trimmed = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[widened],
+                                          lower.lower[mask], LowerType::Int64, 0)->created().ptr - lower.lower;
+    auto placed = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[trimmed],
+                                         lower.lower[ref.shift], LowerType::Int64, 0)->created().ptr - lower.lower;
+
+    auto hole = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[mask],
+                                       lower.lower[ref.shift], LowerType::Int64, 0)->created().ptr - lower.lower;
+    auto keep = unary<LowerInst::Not>(lower.lower, lower.to, block, lower.lower[hole],
+                                      LowerType::Int64, 0)->created().ptr - lower.lower;
+
+    auto cleared = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[word],
+                                          lower.lower[keep], LowerType::Int64, 0)->created().ptr - lower.lower;
+    auto merged = binary<LowerInst::Or>(lower.lower, lower.to, block, lower.lower[cleared],
+                                        lower.lower[placed], LowerType::Int64, 0)->created().ptr - lower.lower;
+
+    block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(ref.address, merged, ref.unitBytes));
+}
+
+/*
+ * Storage of its own, for a scalar aggregate that was living in someone else's word.
+ *
+ * Reading `two.g` produces a `Flags`, and a `Flags` is a memory type - every consumer of one expects
+ * an address. What the bits were part of is a word this frame does not own the rest of, so the value
+ * has to be somewhere before it can be handed over, and its own scalar storage is exactly as wide as
+ * the bits are: `naturalBytes(scalarBits)`, with the fields at the same bit offsets they have here.
+ *
+ * That is the whole cost of scalarizing an aggregate rather than making it a register value. A
+ * *direct* scalar record would need no storage at all, and this alloca is where that shows up - see
+ * isDirectType, which is target-independent and therefore cannot know that this record became one.
+ */
+static LowerPtr<LowerValue> materializeScalar(LowerContext& lower, LowerBlock& block, TypePtr type,
+                                              LowerPtr<LowerValue> bits, StringId name) {
+    auto& repr = lower.repr.of(type);
+    auto bytes = immediate(lower, repr.size);
+    auto storage = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(name, bytes, repr.align));
+    auto address = storage->created().ptr - lower.lower;
+
+    block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, bits, repr.size));
+    return address;
+}
+
+// The other direction: the bits of a value about to be written into a word. A scalar aggregate arrives
+// as the address of its own storage, so its bits are a load of it; everything else already is its
+// bits. The mask that trims it to the field's width is applied by whoever merges, so a scalar with
+// unused high bits needs nothing done to it here.
+static LowerPtr<LowerValue> scalarBitsOf(LowerContext& lower, LowerBlock& block, TypePtr type,
+                                         LowerPtr<LowerValue> value) {
+    if(!type || !isMemoryType(lower.global, type)) return value;
+
+    auto& repr = lower.repr.of(type);
+    auto loaded = load(lower.lower, lower.to, block, lower.lower[value], repr.size, false,
+                       LowerType::Int64, 0);
+
+    return loaded->created().ptr - lower.lower;
+}
+
+/*
  * Writing a folded tag, which for the payload constructor is writing nothing at all.
  *
  * That is not an optimization but the definition: the payload constructor *is* the payload's own
@@ -696,6 +1389,42 @@ static void encodeNicheTag(LowerContext& lower, LowerBlock& block, LowerPtr<Lowe
     auto address = addOffset(lower, block, payload, encoding.niche.offset);
     auto pattern = immediate(lower, encoding.patternOf(U16(constructor)));
     block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, pattern, encoding.niche.bytes));
+}
+
+/*
+ * A tag that is a bit range of the word its payload sits in - see scalarizeSum.
+ *
+ * The third of the three tag shapes, and the one with the least of its own: where a folded tag is a
+ * range check over the payload and a tag word is an ordinary load, this is exactly a co-packed field,
+ * so both directions are the packed access path with the tag's own placement handed to it. What it
+ * needs from the record's Repr is a `PackedAccess`, and that is all it needs.
+ */
+static PackedAccess bitTagAccess(const Repr& repr) {
+    PackedAccess access;
+    access.wordBytes = repr.discriminantBytes;
+    access.bitOffset = repr.discriminantBitOffset;
+    access.bitWidth = repr.discriminantBits;
+    return access;
+}
+
+// Reading one. Unsigned whatever the tag's type is: a constructor index is a count, and a one-bit
+// tag read as a signed field would decode constructor 1 as -1.
+static LowerPtr<LowerValue> decodeBitTag(LowerContext& lower, LowerBlock& block,
+                                         LowerPtr<LowerValue> word, TypePtr record,
+                                         TypePtr tagType, StringId name) {
+    auto access = bitTagAccess(lower.repr.of(record));
+    auto bits = decodePackedBits(lower, block, word, access, false);
+
+    return cast<false, false>(lower.lower, lower.to, block, lower.lower[bits],
+                              lowerType(lower.global, tagType), name)->created().ptr - lower.lower;
+}
+
+// Writing one, which is a read-modify-write of the word and therefore preserves the payload sharing
+// it - the same property that lets two co-packed fields be written independently.
+static void encodeBitTag(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> word,
+                         TypePtr record, U64 constructor) {
+    auto access = bitTagAccess(lower.repr.of(record));
+    encodePackedField(lower, block, word, access, immediate(lower, constructor));
 }
 
 // Constants belong to no block in the resolve IR, so each one is materialized once per function
@@ -925,7 +1654,13 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 });
 
                 result->source = instruction.source;
-                lower.values.add(instValue, result->created().ptr - lower.lower);
+
+                auto heap = result->created().ptr - lower.lower;
+                if(lower.repr.hasPaddedWord(instruction.type)) {
+                    zeroStorage(lower, block, heap, lower.repr.sizeOf(instruction.type));
+                }
+
+                lower.values.add(instValue, heap);
                 return;
             }
 
@@ -939,6 +1674,15 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 ? 16u : typeAlign(lower, instruction.type);
 
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(instruction.name, bytes, alignment));
+
+            // A niche made of bits no field writes needs them to start out zero. Asked of the type
+            // rather than of the allocation, so a generic body - whose type has no layout here - never
+            // reaches it.
+            if(lower.repr.hasPaddedWord(instruction.type)) {
+                zeroStorage(lower, block, result->created().ptr - lower.lower,
+                            lower.repr.sizeOf(instruction.type));
+            }
+
             break;
         }
         case Value::LoadPlace: {
@@ -961,6 +1705,84 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 return;
             }
 
+            // A bit tag is in memory, but not at a width its type describes - see decodeBitTag.
+            if(auto record = bitTagRecord(lower, *function, loadInst.place)) {
+                auto word = lowerPlace(lower, block, *function, loadInst.place);
+                lower.values.add(instValue, decodeBitTag(lower, block, word, record,
+                                                         instruction.type, instruction.name));
+                return;
+            }
+
+            /*
+             * A constrained field, read through the witness the caller passed.
+             *
+             * The result goes into storage this frame provides, for the same reason every erased
+             * result does: the field's type is a variable, so there is no register class to hand it
+             * back in. A scalar is then loaded straight back out of it, which is what keeps a
+             * specialized body and an erased one saying the same thing about the value.
+             */
+            if(auto slot = propertySlotOf(lower, loadInst.place); slot != maxLimit<U16>) {
+                auto count = loadInst.place.projections.size();
+                auto owner = lowerPlace(lower, block, *function, loadInst.place, count - 1);
+                auto out = erasedStorage(lower, block, instruction.type, instruction.name);
+
+                callPropertyOp(lower, block, propertyOp(lower, block, slot, PropertyWitnessFields::kRead),
+                               owner, out);
+
+                if(isMemoryType(lower.global, instruction.type)) {
+                    lower.values.add(instValue, out);
+                    return;
+                }
+
+                lower.values.add(instValue, load(
+                    lower.lower, lower.to, block, lower.lower[out],
+                    memoryWidth(lower, instruction.type),
+                    signedType(lower.global, instruction.type),
+                    lowerType(lower.global, instruction.type),
+                    instruction.name
+                )->created().ptr - lower.lower);
+                return;
+            }
+
+            // A packed field is not at an address either, and the place walk has already produced
+            // the address of the word it lives in - see packedAccess.
+            if(auto field = packedAccess(lower, *function, loadInst.place); field.exists()) {
+                auto word = lowerPlace(lower, block, *function, loadInst.place);
+
+                // A scalar aggregate read out of a word needs storage of its own, because every
+                // consumer of an aggregate takes an address. Everything narrower than that is a
+                // value, and arrives in a register the way it always did.
+                if(isMemoryType(lower.global, instruction.type)) {
+                    auto bits = decodePackedBits(lower, block, word, field,
+                                                 signedType(lower.global, instruction.type));
+                    lower.values.add(instValue, materializeScalar(lower, block, instruction.type, bits,
+                                                                  instruction.name));
+                    return;
+                }
+
+                lower.values.add(instValue, decodePackedField(lower, block, word, field,
+                                                              instruction.type, instruction.name));
+                return;
+            }
+
+            // Reading through a reference that carries a shift, where the shift is the caller's
+            // rather than a constant this body knows - see NarrowRef.
+            if(auto access = narrowRefAccess(lower, *function, loadInst.place); access.exists()) {
+                auto ref = unpackNarrowRef(lower, block, narrowRefValue(lower, *function, loadInst.place),
+                                           access);
+
+                if(isMemoryType(lower.global, instruction.type)) {
+                    lower.values.add(instValue, materializeScalar(lower, block, instruction.type,
+                                                                  decodeNarrowBits(lower, block, ref),
+                                                                  instruction.name));
+                    return;
+                }
+
+                lower.values.add(instValue, decodeNarrowRef(lower, block, ref, instruction.type,
+                                                            instruction.name));
+                return;
+            }
+
             auto address = lowerPlace(lower, block, *function, loadInst.place);
 
             // An aggregate is never loaded into a value: the address of its storage is what the
@@ -970,9 +1792,13 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 return;
             }
 
+            // A tag takes its width from the record it belongs to rather than from the `Int` the
+            // projection produces - see discriminantWidth.
+            auto tagWidth = discriminantWidth(lower, *function, loadInst.place);
+
             result = load(
                 lower.lower, lower.to, block, lower.lower[address],
-                memoryWidth(lower, instruction.type),
+                tagWidth ? tagWidth : memoryWidth(lower, instruction.type),
                 signedType(lower.global, instruction.type),
                 lowerType(lower.global, instruction.type),
                 instruction.name
@@ -1008,22 +1834,135 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 return;
             }
 
+            // A bit tag, written the way a co-packed field is: the word is read, the tag's bits are
+            // replaced, and the payload sharing it comes back unchanged. Literal for the same reason
+            // as above - nothing can write a computed constructor index.
+            if(auto record = bitTagRecord(lower, *function, init.place)) {
+                auto& written = *lower.local[init.value];
+                assertTrue(written.kind == Value::ConstInt);
+
+                auto word = lowerPlace(lower, block, *function, init.place);
+                encodeBitTag(lower, block, word, record, ((ConstInt&)written).value);
+                return;
+            }
+
+            /*
+             * Writing a constrained field, which is the mirror image: the replacement goes into
+             * storage of its own and the witness takes it from there.
+             *
+             * `set` consumes what it is handed, so this is a relocation into that storage rather
+             * than a borrow of wherever the value already was - the callee commits it and releases
+             * whatever the field held, and nothing here may release it a second time.
+             */
+            if(auto slot = propertySlotOf(lower, init.place); slot != maxLimit<U16>) {
+                auto count = init.place.projections.size();
+                auto owner = lowerPlace(lower, block, *function, init.place, count - 1);
+                auto written = lower.local[init.value]->type;
+                auto staging = erasedStorage(lower, block, written, 0);
+                auto value = mappedValue(lower, init.value);
+
+                if(isMemoryType(lower.global, written)) {
+                    relocate(lower, block, staging, init.value, value, written);
+                } else {
+                    block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
+                        staging, value, memoryWidth(lower, written)));
+                }
+
+                callPropertyOp(lower, block, propertyOp(lower, block, slot, PropertyWitnessFields::kSet),
+                               owner, staging);
+                return;
+            }
+
+            // Written into a bit range rather than into storage. A scalar aggregate arrives as the
+            // address of its own storage, so what goes into the word is a load of it - see
+            // scalarBitsOf - and the merge masks it to the field's width either way.
+            if(auto field = packedAccess(lower, *function, init.place); field.exists()) {
+                auto word = lowerPlace(lower, block, *function, init.place);
+                auto bits = scalarBitsOf(lower, block, lower.local[init.value]->type,
+                                         mappedValue(lower, init.value));
+
+                encodePackedField(lower, block, word, field, bits);
+                return;
+            }
+
+            if(auto access = narrowRefAccess(lower, *function, init.place); access.exists()) {
+                auto ref = unpackNarrowRef(lower, block, narrowRefValue(lower, *function, init.place),
+                                           access);
+                auto bits = scalarBitsOf(lower, block, lower.local[init.value]->type,
+                                         mappedValue(lower, init.value));
+
+                encodeNarrowRef(lower, block, ref, bits);
+                return;
+            }
+
             auto address = lowerPlace(lower, block, *function, init.place);
             auto value = mappedValue(lower, init.value);
 
             if(isMemoryType(lower.global, lower.local[init.value]->type)) {
                 result = relocate(lower, block, address, init.value, value, lower.local[init.value]->type);
             } else {
-                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, value, memoryWidth(lower, lower.local[init.value]->type)));
+                // As at the load: a tag is as wide as its record's Repr says, and the constructor
+                // index being written is an `Int` whichever record it belongs to.
+                auto tagWidth = discriminantWidth(lower, *function, init.place);
+                auto width = tagWidth ? tagWidth : memoryWidth(lower, lower.local[init.value]->type);
+
+                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, value, width));
             }
 
             break;
         }
         case Value::Borrow: {
-            // A borrow is the address of what it borrows. Nothing is loaded and nothing is copied,
-            // which is the whole of what "non-owning, zero-cost" means once the checking is done.
-            auto address = lowerPlace(lower, block, *function, ((InstBorrow&)instruction).place);
-            lower.values.add(instValue, address);
+            /*
+             * A borrow is the address of what it borrows. Nothing is loaded and nothing is copied,
+             * which is the whole of what "non-owning, zero-cost" means once the checking is done.
+             *
+             * Unless what it borrows is narrow, in which case it is that address plus the shift of
+             * the field within the unit it names - Design.md's tier 2. Both halves are constants
+             * here: the borrow site knows exactly which field it is taking, so the arithmetic below
+             * folds to nothing at all for an unpacked one.
+             */
+            auto& borrow = (InstBorrow&)instruction;
+            auto referenced = ((BorrowType*)lower.global[instruction.type])->to;
+
+            if(!isNarrowRepr(lower.repr.of(referenced))) {
+                lower.values.add(instValue, lowerPlace(lower, block, *function, borrow.place));
+                return;
+            }
+
+            auto unitBytes = naturalStorageBits(lower.repr.of(referenced).scalarBits) / 8;
+
+            // Reborrowing one: it is already a reference of this shape and carries its own shift, so
+            // a reference to a *field* of what it names is the same word with the field's offset
+            // added - and the total re-split against the unit the new pointee is loaded in.
+            if(auto access = narrowRefAccess(lower, *function, borrow.place); access.exists()) {
+                auto held = narrowRefValue(lower, *function, borrow.place);
+                if(!access.bitOffset && unitBytes * 8 == naturalStorageBits(access.bitWidth)) {
+                    lower.values.add(instValue, held);
+                    return;
+                }
+
+                auto ref = unpackNarrowRef(lower, block, held, access);
+                lower.values.add(instValue, stepNarrowRef(lower, block, ref, unitBytes));
+                return;
+            }
+
+            auto address = lowerPlace(lower, block, *function, borrow.place);
+            U32 shift = 0;
+
+            /*
+             * A packed field, whose word the place walk has already produced the address of. What is
+             * left is to step to the *unit* the field sits in - which it never straddles, by the
+             * placement rule packBits applies - and to record where inside it the field starts.
+             */
+            if(auto field = packedAccess(lower, *function, borrow.place); field.exists()) {
+                auto unit = unitBytes * 8;
+                auto index = field.bitOffset / unit;
+
+                address = addOffset(lower, block, address, index * unitBytes);
+                shift = field.bitOffset - index * unit;
+            }
+
+            lower.values.add(instValue, packNarrowRef(lower, block, address, shift));
             return;
         }
         case Value::Move: {
@@ -1065,6 +2004,30 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
              * statement, said in registers.
              */
             auto& swap = (InstSwap&)instruction;
+
+            /*
+             * Both sides through references that carry a shift, where the two may be bit ranges of one
+             * word. Read before either write, which is what a swap is; the writes are then ordinary
+             * read-modify-writes, and the second reads what the first wrote - so two fields of one word
+             * exchange without either losing the other, for the same reason two commits do.
+             */
+            if(auto accessA = narrowRefAccess(lower, *function, swap.a); accessA.exists()) {
+                auto accessB = narrowRefAccess(lower, *function, swap.b);
+                if(accessB.exists()) {
+                    auto refA = unpackNarrowRef(lower, block, narrowRefValue(lower, *function, swap.a),
+                                                accessA);
+                    auto refB = unpackNarrowRef(lower, block, narrowRefValue(lower, *function, swap.b),
+                                                accessB);
+
+                    auto oldA = decodeNarrowBits(lower, block, refA);
+                    auto oldB = decodeNarrowBits(lower, block, refB);
+
+                    encodeNarrowRef(lower, block, refA, oldB);
+                    encodeNarrowRef(lower, block, refB, oldA);
+                    return;
+                }
+            }
+
             auto a = lowerPlace(lower, block, *function, swap.a);
             auto b = lowerPlace(lower, block, *function, swap.b);
             auto erased = lower.genEnv && isGeneric(lower.global, swap.content);
@@ -1103,9 +2066,33 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
              * and the storage the old contents leave for is the result's own.
              */
             auto& exchange = (InstExchange&)instruction;
-            auto address = lowerPlace(lower, block, *function, exchange.place);
             auto incoming = mappedValue(lower, exchange.value);
             auto content = instruction.type;
+
+            // Through a reference that carries a shift: read the old bits out, write the new ones in,
+            // and hand back what was there. A scalar aggregate needs storage for the result, exactly as
+            // an ordinary read of one does.
+            if(auto access = narrowRefAccess(lower, *function, exchange.place); access.exists()) {
+                auto ref = unpackNarrowRef(lower, block, narrowRefValue(lower, *function, exchange.place),
+                                           access);
+                auto old = decodeNarrowBits(lower, block, ref);
+                encodeNarrowRef(lower, block, ref, scalarBitsOf(lower, block, content, incoming));
+
+                if(isMemoryType(lower.global, content)) {
+                    lower.values.add(instValue, materializeScalar(lower, block, content, old,
+                                                                  instruction.name));
+                    return;
+                }
+
+                result = ref.isSigned
+                    ? cast<true, true>(lower.lower, lower.to, block, lower.lower[old],
+                                       lowerType(lower.global, content), instruction.name)
+                    : cast<false, false>(lower.lower, lower.to, block, lower.lower[old],
+                                         lowerType(lower.global, content), instruction.name);
+                break;
+            }
+
+            auto address = lowerPlace(lower, block, *function, exchange.place);
 
             if(!isMemoryType(lower.global, content)) {
                 auto width = memoryWidth(lower, content);
@@ -2086,6 +3073,12 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
                 lowerTerminator(lower, *targetBlock, sourceBlock->terminator);
             }
         }
+
+        // Every local got storage on the way here, because a place is an address and that is the only
+        // shape this translation has. Which of those slots actually needed memory is a question about
+        // the finished IR rather than about the source, so it is asked now - see lower_promote.h, and
+        // isDirectType in resolve/type.h for why it is not asked any earlier.
+        promoteStackSlots(lower.lower, *target);
     }
 
     return result;

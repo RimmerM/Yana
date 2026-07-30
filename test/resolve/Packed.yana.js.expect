@@ -1,0 +1,168 @@
+"use strict";
+// ResolveTest
+function bump(x) {
+  x.$v = x.$v + 1 >>> 0;
+  return;
+}
+
+function flip(b) {
+  b.$o[b.$k] = b.$o[b.$k] !== true;
+  return;
+}
+
+function scale(x, by) {
+  x.$v = Math.imul(x.$v, by) >>> 0;
+  return;
+}
+
+function direct() {
+  var h = { version: 9, flags: 2, length: 4000 };
+  return ((Math.imul(h.version >>> 0 | 0, 100000) | 0) + (Math.imul(h.flags >>> 0 | 0, 10000) | 0) | 0) + (h.length >>> 0 | 0) | 0;
+}
+
+function borrowed() {
+  var h = { version: 1, flags: 2, length: 3 };
+  var v11 = { $v: h.version >>> 0 };
+  bump(v11);
+  h.version = (v11.$v & 15) >>> 0 & 15;
+  var v24 = { $v: h.length >>> 0 };
+  bump(v24);
+  h.length = (v24.$v & 8191) >>> 0 & 8191;
+  return (Math.imul(h.version >>> 0 | 0, 100) | 0) + (h.length >>> 0 | 0) | 0;
+}
+
+function neighbours() {
+  var h = { version: 1, flags: 0, length: 100 };
+  var v11 = { $v: h.version >>> 0 };
+  bump(v11);
+  h.version = (v11.$v & 15) >>> 0 & 15;
+  var v25 = { $v: h.length >>> 0 };
+  scale(v25, 3);
+  h.length = (v25.$v & 8191) >>> 0 & 8191;
+  return (Math.imul(h.version >>> 0 | 0, 1000) | 0) + (h.length >>> 0 | 0) | 0;
+}
+
+function together() {
+  var v24;
+  var v34;
+  var f = { optionA: false, optionB: false };
+  flip({ $o: f, $k: "optionA" });
+  flip({ $o: f, $k: "optionB" });
+  if (f.optionA) {
+    v24 = 1;
+  } else {
+    v24 = 0;
+  }
+  if (f.optionB) {
+    v34 = 2;
+  } else {
+    v34 = 0;
+  }
+  return v24 + v34 | 0;
+}
+
+function unpacked() {
+  var m = { only: 7, wide: 5 };
+  var v9 = { $v: m.only >>> 0 };
+  bump(v9);
+  m.only = (v9.$v & 31) >>> 0 & 31;
+  return (Math.imul(m.only >>> 0 | 0, 10) | 0) + m.wide | 0;
+}
+
+function pick(flag, a, b) {
+  var v10;
+  if (flag) {
+    v10 = a;
+  } else {
+    v10 = b;
+  }
+  return v10;
+}
+
+function loaned() {
+  var v26;
+  var v36;
+  var f = { optionA: true, optionB: true };
+  var v14 = pick(true, { $o: f, $k: "optionA" }, { $o: f, $k: "optionB" });
+  v14.$o[v14.$k] = false;
+  if (f.optionA) {
+    v26 = 1;
+  } else {
+    v26 = 0;
+  }
+  if (f.optionB) {
+    v36 = 2;
+  } else {
+    v36 = 0;
+  }
+  return v26 + v36 | 0;
+}
+
+function optionOf(f) {
+  return { $o: f, $k: "optionA" };
+}
+
+function returned() {
+  var v21;
+  var v31;
+  var f = { optionA: false, optionB: true };
+  var v9 = optionOf(f);
+  v9.$o[v9.$k] = true;
+  if (f.optionA) {
+    v21 = 1;
+  } else {
+    v21 = 0;
+  }
+  if (f.optionB) {
+    v31 = 2;
+  } else {
+    v31 = 0;
+  }
+  return v21 + v31 | 0;
+}
+
+function swapBools(a, b) {
+  var t = a.$o[a.$k];
+  a.$o[a.$k] = b.$o[b.$k];
+  b.$o[b.$k] = t;
+  return;
+}
+
+function interleaved() {
+  var v23;
+  var v33;
+  var g = { optionA: true, optionB: false };
+  swapBools({ $o: g, $k: "optionA" }, { $o: g, $k: "optionB" });
+  if (g.optionA) {
+    v23 = 1;
+  } else {
+    v23 = 0;
+  }
+  if (g.optionB) {
+    v33 = 2;
+  } else {
+    v33 = 0;
+  }
+  return v23 + v33 | 0;
+}
+
+function nudge(x) {
+  x.$o[x.$k] = ((x.$o[x.$k] >>> 0) + 1 >>> 0 & 8191) >>> 0 & 8191;
+  return;
+}
+
+function nudgeTwice(x) {
+  nudge(x);
+  nudge(x);
+  return;
+}
+
+function threaded() {
+  var h = { version: 1, flags: 2, length: 100 };
+  nudgeTwice({ $o: h, $k: "length" });
+  return (Math.imul(h.length >>> 0 | 0, 10) | 0) + (h.version >>> 0 | 0) | 0;
+}
+
+function main() {
+  return (((((((direct() + borrowed() | 0) + neighbours() | 0) + together() | 0) + unpacked() | 0) + loaned() | 0) + returned() | 0) + interleaved() | 0) + threaded() | 0;
+}

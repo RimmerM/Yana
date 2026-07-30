@@ -380,7 +380,7 @@ ModulePtr<Value> ExprResolver::convertBorrow(ModulePtr<Value> value, TypePtr fro
             return value;
         }
 
-        return ref(emit<InstBorrow>(source, 0, target, place.unwrap(), wanted->mut));
+        return borrowPlace(place.unwrap(), target, source);
     }
 
     if(sameType(((BorrowType*)global[from])->to, target)) {
