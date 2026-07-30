@@ -1,0 +1,93 @@
+(a.name: Int) fn nameOf(%p: a) -> Int {
+  schema {
+    #0 type a
+    #1 property a.name: Int
+  }
+
+  b0:
+    %v1 = load %p.name? : Int
+    ret %v1
+}
+
+(a.name: Int, a.tag: Int) fn labelled(%p: a) -> Int {
+  schema {
+    #0 type a
+    #1 property a.name: Int
+    #2 property a.tag: Int
+  }
+
+  b0:
+    %v1 = gencall nameOf(a), %p : Int
+    %v4 = mul %v1, 100 : Int
+    %v5 = load %p.tag? : Int
+    %v6 = add %v4, %v5 : Int
+    ret %v6
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = alloc : Person
+    init %local0@Person.name, 5
+    init %local0@Person.age, 90
+    %people = call nameOf(Person), %v0 : Int
+    %v6 = alloc : Item
+    init %local1@Item.name, 2
+    init %local1@Item.cost, 7
+    %items = call nameOf(Item), %v6 : Int
+    %v12 = alloc : Left
+    init %local2@Left.name, 1
+    init %local2@Left.tag, 3
+    %left = call labelled(Left), %v12 : Int
+    %v18 = alloc : Right
+    init %local3@Right.tag, 4
+    init %local3@Right.name, 6
+    %right = call labelled(Right), %v18 : Int
+    %v26 = mul %people, 1000 : Int
+    %v29 = mul %items, 100 : Int
+    %v30 = add %v26, %v29 : Int
+    %v31 = add %v30, %left : Int
+    %v32 = add %v31, %right : Int
+    ret %v32
+}
+
+fn nameOf(Person)(%p: Person) -> Int {
+  b0:
+    %v1 = load %p@Person.name : Int
+    ret %v1
+}
+
+fn nameOf(Item)(%p: Item) -> Int {
+  b0:
+    %v1 = load %p@Item.name : Int
+    ret %v1
+}
+
+fn labelled(Left)(%p: Left) -> Int {
+  b0:
+    %v1 = call nameOf(Left), %p : Int
+    %v3 = mul %v1, 100 : Int
+    %v4 = load %p@Left.tag : Int
+    %v5 = add %v3, %v4 : Int
+    ret %v5
+}
+
+fn nameOf(Left)(%p: Left) -> Int {
+  b0:
+    %v1 = load %p@Left.name : Int
+    ret %v1
+}
+
+fn labelled(Right)(%p: Right) -> Int {
+  b0:
+    %v1 = call nameOf(Right), %p : Int
+    %v3 = mul %v1, 100 : Int
+    %v4 = load %p@Right.tag : Int
+    %v5 = add %v3, %v4 : Int
+    ret %v5
+}
+
+fn nameOf(Right)(%p: Right) -> Int {
+  b0:
+    %v1 = load %p@Right.name : Int
+    ret %v1
+}

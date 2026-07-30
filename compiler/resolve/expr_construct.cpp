@@ -157,6 +157,25 @@ TypePtr placeType(Module& module, Function& function, const Place& place) {
             case ProjectionKind::Discriminant:
                 type = module.scalar.int_;
                 break;
+            case ProjectionKind::Property: {
+                // What the constraint promised the field holds. The owner is not consulted: the
+                // whole point of the slot is that the owner is not known here.
+                auto env = functionGen(global, function);
+                if(!env) return module.scalar.error;
+
+                auto& schema = genSchemaOf(module, *env);
+                TypePtr result = nullptr;
+
+                for(auto slot: schema.slots.contents(global)) {
+                    if(slot.kind == GenSlotKind::Property && slot.index == projection.index) {
+                        result = slot.result;
+                    }
+                }
+
+                if(!result) return module.scalar.error;
+                type = result;
+                break;
+            }
             case ProjectionKind::Deref: {
                 auto pointee = pointeeType(global, type);
                 if(!pointee) return module.scalar.error;
@@ -820,6 +839,21 @@ Maybe<Place> ExprResolver::projectField(Place place, StringId field, LocationId 
         type = placeType(place);
     } else if(reportUnfollowedReference(type, source)) {
         return Nothing();
+    }
+
+    /*
+     * A field of a type this body cannot see.
+     *
+     * Not an error and not a guess: the access becomes a *requirement* that the context has such a
+     * field, and the projection names the slot that records it. Where the field actually is depends
+     * on the owner's Repr, which is not decided until the owner is - so this is the one projection
+     * that is resolved later, when specialization turns `a` into a type with a layout.
+     */
+    if(global[type]->kind == Type::Gen) {
+        auto slot = requireProperty(module, function, type, field, source);
+        if(slot == maxLimit<U16>) return Nothing();
+
+        return Just(project(place, ProjectionKind::Property, slot));
     }
 
     // A single-constructor record has no discriminant to test, so selecting a field out of one

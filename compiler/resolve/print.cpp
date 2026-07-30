@@ -1,4 +1,5 @@
 #include "print.h"
+#include "generic.h"
 #include "witness.h"
 
 struct ResolvePrint {
@@ -68,6 +69,28 @@ static void printPlace(ResolvePrint& print, Function& function, const Place& pla
         if(projection.kind == ProjectionKind::Discriminant) {
             print.writer.writeString(".discriminant"_v);
             type = print.program.scalar.int_;
+        } else if(projection.kind == ProjectionKind::Property) {
+            /*
+             * A constrained field, by the name the constraint gave it - `%p.name?`.
+             *
+             * The `?` is not decoration: this is the one projection whose position is not known, and
+             * a dump that printed it as `.name` would read as an ordinary field access and hide the
+             * only interesting thing about it. It disappears at specialization, so it appears in a
+             * generic body's dump and never in a specialization's.
+             */
+            auto env = functionGen(print.global, function);
+            auto& schema = genSchemaOf(*print.program.core, *env);
+
+            print.writer.writeByte('.');
+
+            for(auto slot: schema.slots.contents(print.global)) {
+                if(slot.kind != GenSlotKind::Property || slot.index != projection.index) continue;
+
+                print.writer.writeString(print.context.findName(slot.name));
+                type = slot.result;
+            }
+
+            print.writer.writeByte('?');
         } else if(projection.kind == ProjectionKind::Downcast) {
             auto record = (RecordType*)print.global[type];
             print.writer.writeByte('@');

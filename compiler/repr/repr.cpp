@@ -49,7 +49,7 @@ ReprTarget nativeReprTarget() {
     target.pointerAlign = 8;
     target.integerBits = 64;
     target.nullableRawPointers = true;
-    target.packFields = true;
+    target.foldNiches = true;
     return target;
 }
 
@@ -71,7 +71,6 @@ ReprTarget jsReprTarget() {
     target.pointerAlign = 8;
     target.integerBits = 53;
     target.nullableRawPointers = true;
-    target.packFields = true;
     return target;
 }
 

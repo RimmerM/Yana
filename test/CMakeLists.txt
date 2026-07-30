@@ -2,7 +2,7 @@ set(SOURCE_FILES Tester.cpp)
 
 add_executable(YanaTest ${SOURCE_FILES})
 add_executable(YanaResolveTest ResolveTester.cpp)
-target_link_libraries(YanaResolveTest YanaParse YanaResolve YanaLower YanaX64 YanaJS)
+target_link_libraries(YanaResolveTest YanaParse YanaResolve YanaLower YanaX64 YanaJS YanaLLVM)
 
 add_executable(YanaParseTest ParserTester.cpp)
 target_link_libraries(YanaParseTest YanaParse)

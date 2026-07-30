@@ -31,6 +31,15 @@ GenEnv* functionGen(GlobalBase global, const Function& function);
 // Records that `function` needs `typeClass` for these types, adding the requirement to its
 // context when the signature did not declare it. Body-inferred requirements are allowed because
 // a body-bearing function's context is derived from it rather than maintained separately.
+/*
+ * Which schema slot promises `owner.field`, for a body reading a field of a type it cannot see.
+ *
+ * maxLimit<U16> after reporting when the context promises no such field - see the definition for
+ * why the constraint is required rather than inferred.
+ */
+U16 requireProperty(Module& module, Function& function, TypePtr owner, StringId field,
+                    LocationId source);
+
 void requireClass(Module& module, Function& function, GlobalPtr<TypeClass> typeClass,
                   Buffer<TypePtr> args, LocationId source);
 

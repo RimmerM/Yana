@@ -1,0 +1,61 @@
+import Native
+
+-- Discriminant folding: Design.md's "Niches and automatic packing", now that something consumes the
+-- niches Repr.yana asserts the search finds.
+--
+-- The point of asserting it behaviourally as well as in the layout dump is that a folded tag is not
+-- stored anywhere. A wrong encoding and a wrong decoding are both invisible in the size, and both
+-- turn one constructor into another - so what has to be checked is that every constructor still
+-- round-trips through storage as itself. `.repr.expect` says how big these are; the numbers below
+-- say they still mean what they meant.
+
+-- Named Rank rather than Ordering because Core already has one, and two types of one name in the
+-- layout dump would read as a duplicate entry rather than as two types.
+data Rank = Less | Same | More
+
+-- Nothing here is written against `Maybe`, which is the whole argument for a search rather than a
+-- list of special cases: `Maybe` is Core's, it knows nothing about niches, and all of these fold.
+
+-- `Rank` reaches 0..2, so 3 upwards is free and `Nothing` is 3. Four bytes, not eight.
+fn tagOf(m: Maybe(Rank)) -> Int = match m:
+    Nothing -> 0
+    Just(Less) -> 1
+    Just(Same) -> 2
+    Just(More) -> 3
+
+-- Nesting: the inner fold takes pattern 3, so the outer one takes 4 out of what is left. This is the
+-- case that catches a search which republishes a niche it has already spent - and it would still
+-- pass the size assertion while getting every answer wrong.
+fn depthOf(m: Maybe(Maybe(Rank))) -> Int = match m:
+    Nothing -> 100
+    Just(Nothing) -> 200
+    Just(Just(o)) -> 300 + tagOf(Just(o))
+
+-- A borrow is never null, so its free patterns are *below* the valid range and `Nothing` folds to
+-- zero - the representation a C programmer would have written by hand. Asserted in the layout dump
+-- rather than run, since a borrow is formed by passing one rather than by an operator.
+fn heldOr(m: Maybe(&Int), fallback: Int) -> Int = match m:
+    Nothing -> fallback
+    Just(at) -> at
+
+-- A record over a folded value. The fold has to leave whatever it did not spend behind, or a
+-- containing type would take a pattern that is already in use.
+data Pair {first: Maybe(Rank), second: Maybe(Rank)}
+
+fn pairValue(p: Pair) -> Int = tagOf(p.first) * 10 + tagOf(p.second)
+
+fn roundTrip() -> Int:
+    let a = tagOf(Nothing)
+    let b = tagOf(Just(Less))
+    let c = tagOf(Just(More))
+    return a + b * 10 + c * 100
+
+fn nested() -> Int:
+    let outer = depthOf(Nothing)
+    let middle = depthOf(Just(Nothing))
+    let inner = depthOf(Just(Just(Same)))
+    return outer + middle + inner
+
+fn paired() -> Int = pairValue(Pair {first: Just(More), second: Nothing})
+
+fn main() -> Int = roundTrip() + nested() + paired()

@@ -1,0 +1,180 @@
+fn tagOf(%m: Maybe(Rank)) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v6 = load %m.discriminant : Int
+    %v8 = cmp_eq %v6, 1 : Bool
+    je %v8, b4, b3
+
+  b2:
+    jmp b9
+
+  b3:
+    %v16 = load %m.discriminant : Int
+    %v18 = cmp_eq %v16, 1 : Bool
+    je %v18, b7, b6
+
+  b4:
+    %v10 = load %m@Just : Rank
+    %v11 = cast %v10 : Int
+    %v13 = cmp_eq %v11, 0 : Bool
+    je %v13, b5, b3
+
+  b5:
+    jmp b9
+
+  b6:
+    %v26 = load %m@Just : Rank
+    jmp b9
+
+  b7:
+    %v20 = load %m@Just : Rank
+    %v21 = cast %v20 : Int
+    %v23 = cmp_eq %v21, 1 : Bool
+    je %v23, b8, b6
+
+  b8:
+    jmp b9
+
+  b9:
+    %v32 = phi [b2, 0], [b5, 1], [b8, 2], [b6, 3] : Int
+    ret %v32
+}
+
+fn depthOf(%m: Maybe(Maybe(Rank))) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v6 = load %m.discriminant : Int
+    %v8 = cmp_eq %v6, 1 : Bool
+    je %v8, b4, b3
+
+  b2:
+    jmp b6
+
+  b3:
+    %v16 = load %m@Just : Maybe(Rank)
+    %o = load %m@Just@Just : Rank
+    %v19 = alloc : Maybe(Rank)
+    init %local1.discriminant, 1
+    init %local1@Just, %o
+    %v23 = call tagOf, %v19 : Int
+    %v25 = add 300, %v23 : Int
+    jmp b6
+
+  b4:
+    %v10 = load %m@Just : Maybe(Rank)
+    %v11 = load %m@Just.discriminant : Int
+    %v13 = cmp_eq %v11, 0 : Bool
+    je %v13, b5, b3
+
+  b5:
+    jmp b6
+
+  b6:
+    %v29 = phi [b2, 100], [b5, 200], [b3, %v25] : Int
+    ret %v29
+}
+
+fn heldOr(%m: Maybe(&Int), %fallback: Int) -> Int {
+  b0:
+    %v2 = load %m.discriminant : Int
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %at = load %m@Just : &Int
+    %at = load [%at] : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b2, %fallback], [b1, %at] : Int
+    ret %v10
+}
+
+fn pairValue(%p: Pair) -> Int {
+  b0:
+    %v1 = load %p@Pair.first : Maybe(Rank)
+    %v2 = call tagOf, %v1 : Int
+    %v5 = mul %v2, 10 : Int
+    %v6 = load %p@Pair.second : Maybe(Rank)
+    %v7 = call tagOf, %v6 : Int
+    %v8 = add %v5, %v7 : Int
+    ret %v8
+}
+
+fn roundTrip() -> Int {
+  b0:
+    %v0 = alloc : Maybe(Rank)
+    init %local0.discriminant, 0
+    %a = call tagOf, %v0 : Int
+    %v4 = alloc : Maybe(Rank)
+    init %local1.discriminant, 1
+    init %local1@Just, Less
+    %b = call tagOf, %v4 : Int
+    %v10 = alloc : Maybe(Rank)
+    init %local2.discriminant, 1
+    init %local2@Just, More
+    %c = call tagOf, %v10 : Int
+    %v18 = mul %b, 10 : Int
+    %v19 = add %a, %v18 : Int
+    %v22 = mul %c, 100 : Int
+    %v23 = add %v19, %v22 : Int
+    ret %v23
+}
+
+fn nested() -> Int {
+  b0:
+    %v0 = alloc : Maybe(Maybe(Rank))
+    init %local0.discriminant, 0
+    %outer = call depthOf, %v0 : Int
+    %v4 = alloc : Maybe(Maybe(Rank))
+    init %local1.discriminant, 1
+    %v7 = alloc : Maybe(Rank)
+    init %local2.discriminant, 0
+    init %local1@Just, %v7
+    %middle = call depthOf, %v4 : Int
+    %v12 = alloc : Maybe(Maybe(Rank))
+    init %local3.discriminant, 1
+    %v15 = alloc : Maybe(Rank)
+    init %local4.discriminant, 1
+    init %local4@Just, Same
+    init %local3@Just, %v15
+    %inner = call depthOf, %v12 : Int
+    %v22 = add %outer, %middle : Int
+    %v23 = add %v22, %inner : Int
+    ret %v23
+}
+
+fn paired() -> Int {
+  b0:
+    %v0 = alloc : Pair
+    %v1 = alloc : Maybe(Rank)
+    init %local1.discriminant, 1
+    init %local1@Just, More
+    %v6 = alloc : Maybe(Rank)
+    init %local2.discriminant, 0
+    init %local0@Pair.first, %v1
+    init %local0@Pair.second, %v6
+    %v11 = call pairValue, %v0 : Int
+    ret %v11
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call roundTrip : Int
+    %v1 = call nested : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call paired : Int
+    %v4 = add %v2, %v3 : Int
+    ret %v4
+}

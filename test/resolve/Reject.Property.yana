@@ -1,0 +1,23 @@
+-- What a field constraint rejects. Each of these is a way for a body to read a field the caller was
+-- never asked to supply, which would move the error from the declaration to whichever call site
+-- happened to pass a type without it.
+
+data Person {name: Int, age: Int}
+
+-- Reading a field of a type variable the context promises nothing about. Reported here rather than
+-- at the call site, and the message names the constraint to write.
+fn unpromised(p: a) -> Int = p.name
+
+-- The constraint is on the wrong field, so the one the body reads is still unpromised.
+fn (a.age: Int) wrongField(p: a) -> Int = p.name
+
+-- Promised, but the caller's type has no such field.
+fn (a.name: Int) nameOf(p: a) -> Int = p.name
+
+fn missingField() -> Int = nameOf(7)
+
+-- Promised as Int, but the caller's field is a Float. Exactly, not convertibly: the constraint is a
+-- promise about storage the body may write back through, which a conversion would not give.
+data Priced {name: Float}
+
+fn wrongType() -> Int = nameOf(Priced {name: 1.0})

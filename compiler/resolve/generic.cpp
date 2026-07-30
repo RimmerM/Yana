@@ -119,6 +119,49 @@ U16 genWitnessPath(Module& module, GenEnv& env, GlobalPtr<TypeClass> typeClass, 
     return maxLimit<U16>;
 }
 
+/*
+ * `a.field` in a body that cannot see what `a` is.
+ *
+ * The constraint is the whole of what makes this legal: a body may read a field of a type variable
+ * exactly when its context promises that variable has one. Answers which slot records that promise,
+ * or reports and answers maxLimit<U16>.
+ *
+ * ## Why this does not infer the constraint
+ *
+ * Implementation-Generics.md part 2 asks for inference in private bodies, and it is not done here,
+ * because inferring `a.name: b` means inventing `b` and then *solving* it from how the body uses the
+ * field. This resolver has no unification for that: a type variable is bound one-way, positionally,
+ * by matchType against a call site's arguments, so an invented variable is one more thing a caller
+ * would have to supply and nothing would ever determine it. `fn nameOf(p: a) -> Int = p.name`
+ * would resolve to a function of two type arguments with no way to give the second.
+ *
+ * So the constraint is required, and the diagnostic names exactly what to write. The public/private
+ * split that part 2 is really about - a `pub` signature being a contract that a body edit must not
+ * change silently - is unaffected by requiring it everywhere: it is the strict end of that rule.
+ * Inference is a later addition, and what it waits for is a solver rather than anything here.
+ */
+U16 requireProperty(Module& module, Function& function, TypePtr owner, StringId field,
+                    LocationId source) {
+    auto global = *module.types;
+    auto env = functionGen(global, function);
+    if(!env) return maxLimit<U16>;
+
+    if(auto existing = genPropertySlot(module, *env, owner, field); existing != maxLimit<U16>) {
+        return existing;
+    }
+
+    StringBuilder text;
+    describeType(module.context, global, owner, text);
+    text << '.' << module.context.findName(field) << ": <type>";
+
+    module.context.diagnostics.error(
+        "%@ reads a field %@ that its context does not promise - add the constraint `%@`"_v,
+        source, module.context.findName(function.name), module.context.findName(field),
+        text.view());
+
+    return maxLimit<U16>;
+}
+
 void requireClass(Module& module, Function& function, GlobalPtr<TypeClass> typeClass,
                   Buffer<TypePtr> args, LocationId source) {
     auto global = *module.types;
@@ -225,6 +268,63 @@ static ModulePtr<Value> cloneValue(Clone& clone, ModulePtr<Value> value) {
     return result;
 }
 
+/*
+ * Turning `a.name` into `.0` now that `a` is known.
+ *
+ * The owner comes from the schema slot rather than from walking the place, because the slot is what
+ * recorded the constraint and the constraint names the owner directly. Substituting it gives the
+ * concrete type, and from there this is the same search projectField does against a record it could
+ * see all along - which is the point: one description of where a field is, used twice.
+ *
+ * A field that is not there is a compiler bug rather than a program error. What makes a caller
+ * legal is that its concrete type satisfies the constraint, and that is checked where the
+ * specialization is asked for; reaching here with a type that does not have the field would mean
+ * that check let something through.
+ */
+static void resolveProperty(Clone& clone, Place& into, U16 slot, const Place& place) {
+    auto global = clone.global;
+    auto env = functionGen(global, clone.from);
+    if(!env) return;
+
+    auto& schema = genSchemaOf(clone.module, *env);
+    TypePtr owner = nullptr;
+    StringId field = 0;
+
+    for(auto entry: schema.slots.contents(global)) {
+        if(entry.kind == GenSlotKind::Property && entry.index == slot) {
+            owner = entry.type;
+            field = entry.name;
+        }
+    }
+
+    if(!owner) return;
+
+    auto concrete = cloneType(clone, owner);
+    auto content = concrete;
+
+    // The same two steps projectField takes: a single-constructor record is its content, reached
+    // through a downcast that costs nothing.
+    if(concrete && global[concrete]->kind == Type::Record) {
+        auto record = (RecordType*)global[concrete];
+        if(record->layout != RecordType::Single || record->constructors.isEmpty()) return;
+
+        into.projections.push(clone.module.arena, Projection { ProjectionKind::Downcast, 0, nullptr });
+        content = record->constructors.get(global, 0).content;
+    }
+
+    if(!content || global[content]->kind != Type::Tup) return;
+
+    auto tuple = (TupType*)global[content];
+    for(Size i = 0; i < tuple->fields.size(); i++) {
+        if(tuple->fields.get(global, i).name != field) continue;
+
+        into.projections.push(clone.module.arena, Projection { ProjectionKind::Field, U16(i), nullptr });
+        return;
+    }
+
+    (void)place;
+}
+
 static Place clonePlace(Clone& clone, const Place& place) {
     Place result = place;
     result.projections = {};
@@ -238,6 +338,14 @@ static Place clonePlace(Clone& clone, const Place& place) {
     auto projections = place.projections;
 
     for(auto projection: projections.contents(clone.local)) {
+        // A constrained field becomes the ordinary access it always described, now that the owner
+        // is a type with a layout. This is the whole of the compile-time property half: after this
+        // point the specialization is indistinguishable from a body someone wrote concretely.
+        if(projection.kind == ProjectionKind::Property) {
+            resolveProperty(clone, result, projection.index, place);
+            continue;
+        }
+
         result.projections.push(clone.module.arena, Projection {
             projection.kind, projection.index, cloneValue(clone, projection.value),
         });

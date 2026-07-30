@@ -1,0 +1,29 @@
+-- Structural field constraints - Design.md's `a.field: b`, and Implementation-Generics.md part 2.
+--
+-- The point is that these two records share no class, no superclass and no declaration: what makes
+-- one function serve both is that each has a `name` of type Int, which is a fact about their shape
+-- rather than about anything either of them was declared to implement.
+
+data Person {name: Int, age: Int}
+data Item {name: Int, cost: Int}
+
+-- One body, two layouts. `name` is field 0 of one and field 0 of the other here, but nothing below
+-- depends on that: the projection carries the *constraint slot* until specialization, and each
+-- specialization resolves it against the record it was given.
+fn (a.name: Int) nameOf(p: a) -> Int = p.name
+
+-- Two constraints on one variable, and one of them on a field that sits at a different index in
+-- each record - which is the case that would pass by accident if the slot resolved to a number in
+-- the generic body rather than at each instantiation.
+fn (a.name: Int, a.tag: Int) labelled(p: a) -> Int = nameOf(p) * 100 + p.tag
+
+data Left {name: Int, tag: Int}
+data Right {tag: Int, name: Int}
+
+fn main() -> Int:
+    let people = nameOf(Person {name: 5, age: 90})
+    let items = nameOf(Item {name: 2, cost: 7})
+    let left = labelled(Left {name: 1, tag: 3})
+    let right = labelled(Right {tag: 4, name: 6})
+
+    return people * 1000 + items * 100 + left + right

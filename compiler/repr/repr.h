@@ -229,23 +229,42 @@ struct ReprTarget {
     ByteOrder byteOrder = LittleEndian;
 
     /*
-     * The two optimizations that change how a *value is accessed* rather than only how wide it is.
+     * Co-packing several small fields into one word.
      *
-     * Both are off, and they are off together for one reason: each makes an access stop being a
-     * plain load at an offset. A co-packed field is a load of its containing word plus a shift and a
-     * mask; a folded discriminant is not stored anywhere at all, and reading it is a comparison of
-     * the payload's own bits against the range its type can reach. Neither is expressible as the
-     * `place + offset` that both backends currently lower a field access to, so turning either on
-     * without the encode/decode step in front of it does not produce a smaller value - it produces a
-     * wrong one, silently, in every pattern match in the program.
+     * Off, and the reason is not the access lowering. Reading a packed field is a load of its
+     * containing word plus a shift and a mask, and writing one is a read-modify-write; both are
+     * intercepted at the load and the store exactly the way a folded tag is, and neither is hard.
      *
-     * They are flags rather than absent code because the decision half is what the search above
-     * already computes and is worth having reviewable on its own: `niche` is published for every
-     * type here, so what remains is consuming it. Once the access lowering exists, turning these on
-     * is the change, and being able to turn them back off is what distinguishes "the feature works"
-     * from "the fixture agrees" when the layouts move.
+     * What is missing is the condition under which packing is *allowed*. A packed field has no
+     * address, and `fn flip(&b: Bool)` called as `flip(flags.optionA)` is ordinary Yana that
+     * resolves today - so a packed `Flags` would hand `flip` the address of the whole word and let
+     * it write a full Bool across both fields. That is silent, and it is silent in the direction of
+     * corrupting a neighbouring field rather than crashing.
+     *
+     * The fix is the one this table's ignored `ReprRequirements` parameter is threaded for: whether
+     * any field of a type has its address taken is a *requirement*, computed once over the program,
+     * and a type that has one selects the unpacked variant. That is a real analysis rather than a
+     * lowering change, and doing it badly is worse than not doing it - so packing waits for it, and
+     * this flag is what turns it on when it lands.
      */
     bool packFields = false;
+
+    /*
+     * Folding a sum type's discriminant into a niche its payload leaves free.
+     *
+     * On, for native. A folded tag is not stored anywhere: reading it compares the payload's own
+     * bits against the range its type can reach, and writing it is a store of one impossible pattern
+     * or - for the constructor that owns the payload - nothing at all. Both are intercepted at the
+     * load and the store rather than in the place walk, since a place resolves to an address and a
+     * folded tag has none. See decodeNicheTag and encodeNicheTag in resolve/lower.cpp.
+     *
+     * Off for JS, and not because the lowering is missing there but because the *niche* is the wrong
+     * one. A JS value is not a bit pattern, so the integer patterns this search finds are not what a
+     * host value leaves free - what it leaves free is `null`, which is one pattern available on
+     * every type that is not itself nullable. Folding on JS therefore wants a niche kind of its own
+     * plus a value representation where a folded record *is* its payload, which is what makes
+     * `Maybe(Id)` the `number | null` Design.md asks for rather than an object with a tag.
+     */
     bool foldNiches = false;
 };
 

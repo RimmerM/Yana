@@ -143,6 +143,22 @@ enum class ProjectionKind: U8 {
     Deref,
     Index,
     Downcast,
+
+    /*
+     * A field of a type this body cannot see - Design.md's `a.field: b`, and the only projection
+     * that names a requirement rather than a structure.
+     *
+     * `index` is the property slot of the owning function's schema, which is what carries the field
+     * name and the result type: a generic body knows *that* `a` has a `name` of type `b` and cannot
+     * know where it is, because where it is depends on `a`'s Repr and `a` is not chosen yet.
+     *
+     * Rewritten into the Downcast and Field it always meant when the body is specialized, which is
+     * why nothing downstream of specialization has a case for it - see clonePlace. That is the whole
+     * of the compile-time half: the runtime half, where an unspecialized body reads the field
+     * through a PropertyWitness the caller passed, is what genericBodyLowerable declines so that a
+     * call site specializes instead.
+     */
+    Property,
 };
 
 struct Projection {

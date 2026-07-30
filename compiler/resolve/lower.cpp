@@ -514,6 +514,190 @@ static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, F
     return addOffset(lower, block, address, offset);
 }
 
+/*
+ * A tag that is not stored anywhere.
+ *
+ * Everything above turns a place into an address, which every projection but one can be. A folded
+ * discriminant cannot: there is no word holding it, and its value is a *fact about the payload's
+ * bits* rather than something written next to them. So it is intercepted at the load and the store
+ * instead of in the place walk, which is also where it belongs - `.discriminant` is the only
+ * projection whose meaning is a computation.
+ */
+
+// The type a place's last projection is taken of, by the same rules lowerPlace walks by. Null when
+// the place has no projections, which is a whole local and has no owner to speak of.
+static TypePtr placeOwnerType(LowerContext& lower, Function& function, const Place& place) {
+    TypePtr type;
+
+    if(place.root == PlaceRoot::Global) {
+        type = lower.local[place.global]->type;
+    } else if(place.root == PlaceRoot::Pointer || place.root == PlaceRoot::Borrow) {
+        auto referenced = lower.local[place.pointer]->type;
+        type = place.root == PlaceRoot::Borrow
+            ? ((BorrowType*)lower.global[referenced])->to
+            : pointeeType(lower.global, referenced);
+    } else {
+        if(place.local >= function.localCount()) return nullptr;
+        type = function.localAt(lower.local, place.local).type;
+    }
+
+    auto projections = place.projections;
+    auto count = projections.size();
+    if(!count) return nullptr;
+
+    Size index = 0;
+    for(auto projection: projections.contents(lower.local)) {
+        if(index++ == count - 1) break;
+
+        if(projection.kind == ProjectionKind::Discriminant) {
+            type = lower.from.scalar.int_;
+        } else if(projection.kind == ProjectionKind::Downcast) {
+            type = ((RecordType*)lower.global[type])->constructors.get(lower.global, projection.index).content;
+        } else if(projection.kind == ProjectionKind::Field && lower.global[type]->kind == Type::Fun) {
+            type = funValueFieldType(*lower.from.core, projection.index);
+        } else if(projection.kind == ProjectionKind::Field) {
+            auto field = lower.repr.fieldOf(type, projection.index);
+            if(!field) return nullptr;
+            type = field->type;
+        } else if(projection.kind == ProjectionKind::Deref) {
+            type = pointeeType(lower.global, type);
+        } else {
+            return nullptr;
+        }
+    }
+
+    return type;
+}
+
+// The record a place's final Discriminant projection is taken of, when that record's tag is folded
+// into a niche. Null in every other case, which is every place in a program that has no folded type
+// in it - so the cost of asking is a look at the last projection.
+static TypePtr foldedTagRecord(LowerContext& lower, Function& function, const Place& place) {
+    auto projections = place.projections;
+    auto count = projections.size();
+    if(!count) return nullptr;
+
+    if(projections.get(lower.local, count - 1).kind != ProjectionKind::Discriminant) return nullptr;
+
+    auto record = placeOwnerType(lower, function, place);
+    if(!record || lower.global[record]->kind != Type::Record) return nullptr;
+
+    return lower.repr.of(record).isNicheFolded() ? record : nullptr;
+}
+
+/*
+ * Reading a folded tag: which constructor these bits are.
+ *
+ * The payload constructor is "the niche word holds something the payload could legally have
+ * produced", and every other constructor is one specific pattern outside that range. So the test is
+ * a range check, and the answer is a select rather than a branch - which is what keeps a folded
+ * `Maybe` cheaper than the tag word it replaced rather than merely smaller.
+ *
+ * Computed in 64 bits throughout because a niche pattern can be any bit pattern of an eight-byte
+ * word, and narrowed to the tag's own type at the end.
+ */
+static LowerPtr<LowerValue> decodeNicheTag(LowerContext& lower, LowerBlock& block,
+                                           LowerPtr<LowerValue> payload, TypePtr record,
+                                           TypePtr tagType, StringId name) {
+    auto& repr = lower.repr.of(record);
+    auto& encoding = repr.encoding;
+    auto& niche = encoding.niche;
+
+    auto constructors = ((RecordType*)lower.global[record])->constructors.size();
+    auto payloadIndex = U64(encoding.payloadConstructor);
+
+    auto address = addOffset(lower, block, payload, niche.offset);
+    auto loaded = load(lower.lower, lower.to, block, lower.lower[address], niche.bytes, false,
+                       LowerType::Int64, 0);
+    auto word = loaded->created().ptr - lower.lower;
+
+    /*
+     * `word - validStart <= validEnd - validStart`, unsigned - one subtract and one compare for a
+     * range test whichever end the valid patterns sit at. The subtract disappears for the usual
+     * niche, whose valid range starts at zero.
+     */
+    auto relative = word;
+    if(niche.validStart) {
+        auto base = immediate(lower, niche.validStart);
+        relative = binary<LowerInst::Sub>(lower.lower, lower.to, block, lower.lower[word],
+                                          lower.lower[base], LowerType::Int64, 0)->created().ptr - lower.lower;
+    }
+
+    auto span = immediate(lower, niche.validEnd - niche.validStart);
+    auto inRange = cmp(lower.lower, lower.to, block, lower.lower[relative], lower.lower[span],
+                       LowerCmp::le, 0)->created().ptr - lower.lower;
+
+    auto tagLower = lowerType(lower.global, tagType);
+    auto pick = [&](LowerPtr<LowerValue> whenInRange, LowerPtr<LowerValue> otherwise) {
+        auto select = new (lower.to.arena) LowerInstSelect(name, whenInRange, otherwise, inRange, tagLower);
+        block.addInst(lower.lower, select);
+        return select->created().ptr - lower.lower;
+    };
+
+    // Two constructors is the shape this exists for - `Nothing`/`Just` and every `Result`-like type -
+    // and there the pattern carries no information beyond "not the payload one". No arithmetic, then:
+    // the answer is one of two constants.
+    if(constructors == 2) {
+        auto payloadTag = immediate(lower, payloadIndex, tagLower);
+        auto otherTag = immediate(lower, payloadIndex == 0 ? 1 : 0, tagLower);
+        return pick(payloadTag, otherTag);
+    }
+
+    /*
+     * More than two, so which pattern it is decides which constructor it is. The patterns were handed
+     * out to the non-payload constructors in index order, so recovering the ordinal recovers the
+     * index - except that the payload constructor is missing from that sequence, which the last step
+     * puts back.
+     */
+    auto first = immediate(lower, encoding.firstPattern);
+    LowerPtr<LowerValue> ordinal;
+
+    if(encoding.ascending) {
+        ordinal = binary<LowerInst::Sub>(lower.lower, lower.to, block, lower.lower[word],
+                                         lower.lower[first], LowerType::Int64, 0)->created().ptr - lower.lower;
+    } else {
+        ordinal = binary<LowerInst::Sub>(lower.lower, lower.to, block, lower.lower[first],
+                                         lower.lower[word], LowerType::Int64, 0)->created().ptr - lower.lower;
+    }
+
+    auto narrowed = cast<false, false>(lower.lower, lower.to, block, lower.lower[ordinal],
+                                       tagLower, 0)->created().ptr - lower.lower;
+
+    // `ordinal >= payloadConstructor` means this constructor was written after the payload one, so
+    // its index is one higher than its position in the pattern sequence.
+    auto boundary = immediate(lower, payloadIndex, tagLower);
+    auto shifted = cmp(lower.lower, lower.to, block, lower.lower[narrowed], lower.lower[boundary],
+                       LowerCmp::ge, 0)->created().ptr - lower.lower;
+
+    auto one = immediate(lower, 1, tagLower);
+    auto bumped = binary<LowerInst::Add>(lower.lower, lower.to, block, lower.lower[narrowed],
+                                         lower.lower[one], tagLower, 0)->created().ptr - lower.lower;
+
+    auto adjust = new (lower.to.arena) LowerInstSelect(0, bumped, narrowed, shifted, tagLower);
+    block.addInst(lower.lower, adjust);
+
+    auto payloadTag = immediate(lower, payloadIndex, tagLower);
+    return pick(payloadTag, adjust->created().ptr - lower.lower);
+}
+
+/*
+ * Writing a folded tag, which for the payload constructor is writing nothing at all.
+ *
+ * That is not an optimization but the definition: the payload constructor *is* the payload's own
+ * bits, so the only thing that could make it identifiable is the payload being written, which the
+ * constructor's own field initializations do. Every other constructor has no payload to write, so
+ * its pattern is the whole value.
+ */
+static void encodeNicheTag(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> payload,
+                           TypePtr record, U64 constructor) {
+    auto& encoding = lower.repr.of(record).encoding;
+    if(constructor == encoding.payloadConstructor) return;
+
+    auto address = addOffset(lower, block, payload, encoding.niche.offset);
+    auto pattern = immediate(lower, encoding.patternOf(U16(constructor)));
+    block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, pattern, encoding.niche.bytes));
+}
+
 // Constants belong to no block in the resolve IR, so each one is materialized once per function
 // in the entry block the first time something asks for it.
 static LowerPtr<LowerValue> mapConstant(LowerContext& lower, ModulePtr<Value> pointer) {
@@ -767,6 +951,16 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 return;
             }
 
+            // A folded tag is not in memory to be loaded - see decodeNicheTag. The place still
+            // lowers to the payload's address, since a folded record's payload begins where the
+            // record does.
+            if(auto record = foldedTagRecord(lower, *function, loadInst.place)) {
+                auto payload = lowerPlace(lower, block, *function, loadInst.place);
+                lower.values.add(instValue, decodeNicheTag(lower, block, payload, record,
+                                                           instruction.type, instruction.name));
+                return;
+            }
+
             auto address = lowerPlace(lower, block, *function, loadInst.place);
 
             // An aggregate is never loaded into a value: the address of its storage is what the
@@ -794,6 +988,23 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
 
             if(isScalarPlace(lower, init.place)) {
                 lower.scalars[init.place.local][scalarField(lower, init.place)] = mappedValue(lower, init.value);
+                return;
+            }
+
+            /*
+             * Writing a folded tag, which is a store of a pattern or nothing at all.
+             *
+             * The constructor is always a literal here: a record is constructed by naming one, and
+             * `place.discriminant = <computed>` is not something any front end can write. An
+             * assertion rather than a fallback, because a runtime encode would be dead code that
+             * nothing could ever exercise or test.
+             */
+            if(auto record = foldedTagRecord(lower, *function, init.place)) {
+                auto& written = *lower.local[init.value];
+                assertTrue(written.kind == Value::ConstInt);
+
+                auto payload = lowerPlace(lower, block, *function, init.place);
+                encodeNicheTag(lower, block, payload, record, ((ConstInt&)written).value);
                 return;
             }
 
