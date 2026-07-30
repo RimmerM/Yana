@@ -16,6 +16,10 @@ data Flags {optionA: Bool, optionB: Bool}
 -- Borrowing it is tier 0 and costs nothing.
 data Mixed {only: @bits(5) U32, wide: Int}
 
+-- Nine bits, for the arity guard at the end of this file: nine references is more flattened
+-- arguments than the guard allows, so the call that takes all nine keeps its descriptors.
+data Nine {a: Bool, b: Bool, c: Bool, d: Bool, e: Bool, f: Bool, g: Bool, h: Bool, i: Bool}
+
 fn bump(&x: U32) = x = x + 1
 
 fn flip(&b: Bool) = b = !b
@@ -139,6 +143,40 @@ fn threaded() -> Int:
 
     return (h.length :: Int) * 10 + (h.version :: Int)
 
+{-
+   The arity guard.
+
+   A narrow reference crosses a call as its three parts, which is worth up to 3.7x - but only while
+   the arguments stay in registers, and a non-inlinable callee starts spilling somewhere past 16-24.
+   So a signature wide enough to reach that keeps its descriptors, and the decision is all-or-nothing
+   over the signature so that the caller and the callee reach it separately and agree.
+
+   Nine references is 27 flattened arguments against a limit of 24, so this one does not flatten and
+   the emitted signature below is nine ordinary parameters. Eight would be 24 and would. What makes
+   it a test rather than an assertion in a document is that a disagreement is silent: the caller
+   would pass 27 values into nine parameters and every read would find an object's property on a
+   number, so the answer - not the shape - is what catches it.
+-}
+fn nine(&a: Bool, &b: Bool, &c: Bool, &d: Bool, &e: Bool,
+        &f: Bool, &g: Bool, &h: Bool, &i: Bool):
+    a = True
+    b = True
+    c = True
+    d = True
+    e = True
+    f = True
+    g = True
+    h = True
+    i = True
+
+fn wide() -> Int:
+    let &s = Nine {a: False, b: False, c: False, d: False, e: False,
+                   f: False, g: False, h: False, i: False}
+
+    nine(s.a, s.b, s.c, s.d, s.e, s.f, s.g, s.h, s.i)
+
+    return (if s.a then 1 else 0) + (if s.e then 20 else 0) + (if s.i then 300 else 0)
+
 -- 900000 + 20000 + 4000 = 924000
 -- 200 + 4 = 204
 -- 2000 + 300 = 2300
@@ -148,6 +186,7 @@ fn threaded() -> Int:
 -- 1 + 2 = 3
 -- 0 + 2 = 2
 -- 1020 + 1 = 1021
+-- 1 + 20 + 300 = 321
 fn main() -> Int =
     direct() + borrowed() + neighbours() + together() + unpacked() + loaned() +
-    returned() + interleaved() + threaded()
+    returned() + interleaved() + threaded() + wide()

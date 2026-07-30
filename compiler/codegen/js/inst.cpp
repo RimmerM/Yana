@@ -436,9 +436,35 @@ void genDrop(Gen& g, InstDrop& instruction) {
                                 : referenceTo(g, instruction.place)));
 }
 
+/*
+ * One argument, as however many the convention says it occupies.
+ *
+ * A narrow reference goes as its parts - see refIsFlattened. The decision is the *declared parameter*
+ * type rather than the argument's, and the difference is not hypothetical: a concrete `&Bool` handed
+ * to a generic `&a` reaches a body compiled against a type variable, which has no width to mask with
+ * and takes the object. Where the two agree - every specialized call - reading the parameter costs a
+ * lookup and says the same thing.
+ */
+void pushArg(Gen& g, Array<JsPtr<Expr>>& args, ModulePtr<Value> arg, bool flat) {
+    if(arg && flat) {
+        auto parts = refPartsOf(g, arg);
+        args.push(parts.owner);
+        args.push(parts.key);
+        if(parts.shift) args.push(parts.shift);
+        return;
+    }
+
+    args.push(useValue(g, arg));
+}
+
 void genCall(Gen& g, ModulePtr<Value> pointer, InstCall& instruction) {
     Array<JsPtr<Expr>> args;
-    for(auto arg: instruction.args.contents(g.local)) args.push(useValue(g, arg));
+
+    Size index = 0;
+    for(auto arg: instruction.args.contents(g.local)) {
+        pushArg(g, args, arg, callParameterIsFlatRef(g, instruction, index));
+        index++;
+    }
 
     auto callee = functionValue(g, instruction.callee, instruction.source);
     define(g, pointer, callWith(g, callee, args));
@@ -461,7 +487,12 @@ void genCallDyn(Gen& g, ModulePtr<Value> pointer, InstCallDyn& instruction) {
         callee = useValue(g, instruction.address);
     }
 
-    for(auto arg: instruction.args.contents(g.local)) args.push(useValue(g, arg));
+    Size index = 0;
+    for(auto arg: instruction.args.contents(g.local)) {
+        pushArg(g, args, arg, callParameterIsFlatRef(g, instruction, index));
+        index++;
+    }
+
     define(g, pointer, callWith(g, callee, args));
 }
 
@@ -523,11 +554,22 @@ void genGenCall(Gen& g, ModulePtr<Value> pointer, InstGenCall& instruction) {
 
     Array<JsPtr<Expr>> declared;
     for(auto arg: instruction.args.contents(g.local)) {
-        auto value = useValue(g, arg);
         auto concrete = g.local[arg]->type;
 
         auto parameter = argIndex < function->args.size()
             ? g.local[function->args.get(g.local, argIndex)] : nullptr;
+
+        // A narrow reference the callee declared narrow goes flat here too. One it declared generic
+        // does not, and that is the case this list has always been about: an erased body holds a
+        // type variable and has neither the width to mask with nor the shift to apply.
+        if(parameter && functionFlattensRefs(g, *function) &&
+           refIsFlattened(g, parameter->type, parameter->convention)) {
+            pushArg(g, declared, arg, true);
+            argIndex++;
+            continue;
+        }
+
+        auto value = useValue(g, arg);
 
         if(parameter && !parameter->isMutableBorrow() && isGeneric(g.global, parameter->type) &&
            !isJsObject(g, concrete)) {
@@ -668,17 +710,30 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
     auto projections = place.projections;
     auto count = projections.size();
 
-    // Reborrowing one: it is already a pair of exactly this shape.
+    // Reborrowing one: it is already a triple of exactly this shape, in whichever form that one is
+    // being carried. Passing the form along rather than the object is what keeps a chain of
+    // re-borrows from materializing one at each link.
+    auto reborrow = [&](ModulePtr<Value> from) {
+        if(auto flat = g.flatRefs.get(U32(from))) {
+            g.flatRefs.add(U32(value), flat.unwrap());
+            if(narrowRefNeedsObject(g, value)) {
+                define(g, value, materializeRef(g, flat.unwrap()));
+            }
+        } else {
+            define(g, value, useValue(g, from));
+        }
+    };
+
     if(!count) {
         if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
-            define(g, value, useValue(g, place.pointer));
+            reborrow(place.pointer);
             return true;
         }
 
         if(place.root == PlaceRoot::Local && place.local < g.function->localCount()) {
             auto slot = g.function->localAt(g.local, place.local);
             if(slot.borrowed) {
-                define(g, value, useValue(g, slot.value));
+                reborrow(slot.value);
                 return true;
             }
         }
@@ -694,9 +749,9 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
             // Reborrowing through a reference: it already names the word, and the shift this body
             // walked adds to the one it arrived with. That addition is what makes `&f.optionA` inside
             // a callee reach the caller's bit rather than bit zero of something.
-            auto reference = useValue(g, place.pointer);
-            owner = field(g, reference, g.refObject);
-            keyExpr = field(g, reference, g.refKey);
+            auto parts = refPartsOf(g, place.pointer);
+            owner = parts.owner;
+            keyExpr = parts.key;
             return true;
         }
 
@@ -704,9 +759,9 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
 
         auto slot = g.function->localAt(g.local, place.local);
         if(slot.borrowed && isNarrowJsValue(g, slot.type)) {
-            auto reference = useValue(g, slot.value);
-            owner = field(g, reference, g.refObject);
-            keyExpr = field(g, reference, g.refKey);
+            auto parts = refPartsOf(g, slot.value);
+            owner = parts.owner;
+            keyExpr = parts.key;
             return true;
         }
 
@@ -762,9 +817,26 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
         bits.width = narrowWidth(g, placeType(g, place));
     }
 
-    auto pair = make<ObjectExpr>(g);
-    pair->properties.push(g.file.arena, Property { g.refObject, owner });
-    pair->properties.push(g.file.arena, Property { g.refKey, keyExpr });
+    /*
+     * The three parts, as themselves where that is already safe and in a variable where it is not.
+     *
+     * A part may be read several times - each use of the reference reads all three - so anything with
+     * an evaluation cost or an effect has to be named first. A variable or a literal has neither, and
+     * naming those would replace `t.$v >>> 2` with three declarations and the same expression. The
+     * key and the shift are literals in every case a record produces, and the owner is a variable
+     * whenever the reference is to a whole local, which is most of them.
+     */
+    auto part = [&](StringView suffix, JsPtr<Expr> value) {
+        auto kind = g.base[value]->kind;
+        auto trivial = kind == Expr::Var || kind == Expr::Number || kind == Expr::String ||
+                       kind == Expr::Bool || kind == Expr::Null;
+
+        return trivial ? value : declare(g, refPartName(g, instruction, suffix), value);
+    };
+
+    RefParts parts;
+    parts.owner = part("$o"_v, owner);
+    parts.key = part("$k"_v, keyExpr);
 
     /*
      * The shift, on a target that has bit ranges in it at all. Where nothing is packed every narrow
@@ -779,10 +851,15 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
                                : number(g, F64(bits.offset));
         }
 
-        pair->properties.push(g.file.arena, Property { g.refShift, shift });
+        parts.shift = part("$s"_v, shift);
     }
 
-    define(g, value, declare(g, valueName(g, instruction), asExpr(g, pair)));
+    g.flatRefs.add(U32(value), parts);
+
+    // And the object, only where something needs the reference to be one value - see
+    // narrowRefNeedsObject. This is the allocation flattening exists to remove.
+    if(narrowRefNeedsObject(g, value)) define(g, value, materializeRef(g, parts));
+
     return true;
 }
 

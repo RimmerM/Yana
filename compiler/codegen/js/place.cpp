@@ -68,6 +68,39 @@ JsPtr<Expr> globalValue(Gen& g, ModulePtr<Global> pointer) {
 }
 
 /*
+ * The parts of a narrow reference, from whichever of the two forms it is in.
+ *
+ * A flattened one has them in variables and there is no object to read; anything else is the
+ * `{$o,$k,$s}` object and they are its properties. Every consumer goes through here rather than
+ * projecting the object itself, which is what keeps flattening a decision about the *convention*
+ * rather than something each use has to know about.
+ */
+RefParts refPartsOfExpr(Gen& g, JsPtr<Expr> reference) {
+    RefParts parts;
+    parts.owner = field(g, reference, g.refObject);
+    parts.key = field(g, reference, g.refKey);
+    if(narrowRefCarriesShift(g)) parts.shift = field(g, reference, g.refShift);
+
+    return parts;
+}
+
+RefParts refPartsOf(Gen& g, ModulePtr<Value> reference) {
+    if(auto found = g.flatRefs.get(U32(reference))) return found.unwrap();
+    return refPartsOfExpr(g, useValue(g, reference));
+}
+
+// The object form, for the uses flattening cannot cover: JS has no multi-value return, so a
+// reference that is returned, stored or captured has to become one value again.
+JsPtr<Expr> materializeRef(Gen& g, RefParts parts) {
+    auto pair = make<ObjectExpr>(g);
+    pair->properties.push(g.file.arena, Property { g.refObject, parts.owner });
+    pair->properties.push(g.file.arena, Property { g.refKey, parts.key });
+    if(parts.shift) pair->properties.push(g.file.arena, Property { g.refShift, parts.shift });
+
+    return asExpr(g, pair);
+}
+
+/*
  * The walk both placeExpr and placeType are.
  *
  * The property chain is built only for a caller that asked for one, but the walk itself is the same
@@ -95,8 +128,6 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
             : pointeeType(g.global, referenced);
 
         if(expr) {
-            *expr = useValue(g, place.pointer);
-
             /*
              * A reference to a narrow value is the (object, property, shift) triple a place into a
              * bit range is - the pair reified, plus where inside the named word the value starts.
@@ -105,18 +136,27 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
              * co-packed field and a whole local: the callee has only the pointee type, so the *mask*
              * is a constant it can compute and the *shift* is the one thing it cannot. See
              * genNarrowRef, which is the other half.
+             *
+             * Asked before the value itself, because a flattened reference *has* no single value -
+             * its parts are three variables and there is no object anywhere to ask `useValue` for.
              */
             if(isNarrowJsValue(g, type)) {
-                *expr = elementAt(g, field(g, *expr, g.refObject), field(g, *expr, g.refKey));
+                auto parts = refPartsOf(g, place.pointer);
+                *expr = elementAt(g, parts.owner, parts.key);
 
-                if(narrowRefCarriesShift(g)) {
-                    within.shift = field(g, useValue(g, place.pointer), g.refShift);
+                if(parts.shift) {
+                    within.shift = parts.shift;
                     within.width = narrowWidth(g, type);
                 }
-            } else if(!isJsObject(g, type) && !g.aliasBorrows.contains(U32(place.pointer))) {
-                // An alias is the storage under a second name, so there is no box to read through -
-                // see prepareLocals. Everything else that is not an object arrived as one.
-                *expr = field(g, *expr, g.boxField);
+            } else {
+                *expr = useValue(g, place.pointer);
+
+                if(!isJsObject(g, type) && !g.aliasBorrows.contains(U32(place.pointer))) {
+                    // An alias is the storage under a second name, so there is no box to read
+                    // through - see prepareLocals. Everything else that is not an object arrived
+                    // as one.
+                    *expr = field(g, *expr, g.boxField);
+                }
             }
         }
     } else if(place.local < g.function->localCount()) {
@@ -124,19 +164,22 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
         type = root.type;
 
         if(expr) {
-            *expr = useValue(g, root.value);
-
             // The slot behind a `&` parameter of narrow type holds one of those triples rather than
-            // storage of its own.
+            // storage of its own - and holds it as three variables where it arrived flattened, which
+            // is why this is asked before the value is.
             if(root.borrowed && isNarrowJsValue(g, type)) {
-                *expr = elementAt(g, field(g, *expr, g.refObject), field(g, *expr, g.refKey));
+                auto parts = refPartsOf(g, root.value);
+                *expr = elementAt(g, parts.owner, parts.key);
 
-                if(narrowRefCarriesShift(g)) {
-                    within.shift = field(g, useValue(g, root.value), g.refShift);
+                if(parts.shift) {
+                    within.shift = parts.shift;
                     within.width = narrowWidth(g, type);
                 }
-            } else if(place.local < g.boxed.size() && g.boxed[place.local]) {
-                *expr = field(g, *expr, g.boxField);
+            } else {
+                *expr = useValue(g, root.value);
+                if(place.local < g.boxed.size() && g.boxed[place.local]) {
+                    *expr = field(g, *expr, g.boxField);
+                }
             }
         }
     } else {

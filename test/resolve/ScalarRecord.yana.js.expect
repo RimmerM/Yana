@@ -8,25 +8,25 @@ function add_eq_I64(target, amount) {
 }
 
 // ResolveTest
-function flip(x) {
-  x.$o[x.$k] = x.$o[x.$k] & ~(1 << x.$s) | ((x.$o[x.$k] >>> x.$s & 1 ^ 1) & 1) << x.$s;
+function flip(x$o, x$k, x$s) {
+  x$o[x$k] = x$o[x$k] & ~(1 << x$s) | ((x$o[x$k] >>> x$s & 1 ^ 1) & 1) << x$s;
   return;
 }
 
-function bump(x) {
-  x.$o[x.$k] = x.$o[x.$k] & ~(15 << x.$s) | ((((x.$o[x.$k] >>> x.$s & 15 | 0) + 1 | 0) & 15 | 0) << 28 >> 28 & 15) << x.$s;
+function bump(x$o, x$k, x$s) {
+  x$o[x$k] = x$o[x$k] & ~(15 << x$s) | ((((x$o[x$k] >>> x$s & 15 | 0) + 1 | 0) & 15 | 0) << 28 >> 28 & 15) << x$s;
   return;
 }
 
-function clear(f) {
-  f.$o[f.$k] = f.$o[f.$k] & ~(1 << f.$s) | (0 & 1) << f.$s;
-  f.$o[f.$k] = f.$o[f.$k] & ~(1 << f.$s + 1) | (0 & 1) << f.$s + 1;
+function clear(f$o, f$k, f$s) {
+  f$o[f$k] = f$o[f$k] & ~(1 << f$s) | (0 & 1) << f$s;
+  f$o[f$k] = f$o[f$k] & ~(1 << f$s + 1) | (0 & 1) << f$s + 1;
   return;
 }
 
-function setBoth(f) {
-  f.$o[f.$k] = f.$o[f.$k] & ~(1 << f.$s) | (1 & 1) << f.$s;
-  f.$o[f.$k] = f.$o[f.$k] & ~(1 << f.$s + 1) | (1 & 1) << f.$s + 1;
+function setBoth(f$o, f$k, f$s) {
+  f$o[f$k] = f$o[f$k] & ~(1 << f$s) | (1 & 1) << f$s;
+  f$o[f$k] = f$o[f$k] & ~(1 << f$s + 1) | (1 & 1) << f$s + 1;
   return;
 }
 
@@ -68,8 +68,8 @@ function borrowed() {
   v0.flags = v1;
   v0.count = 0;
   var s = v0;
-  setBoth({ $o: s, $k: "flags", $s: 0 });
-  flip({ $o: s, $k: "flags", $s: 0 });
+  setBoth(s, "flags", 0);
+  flip(s, "flags", 0);
   return valueOf(s.flags);
 }
 
@@ -84,8 +84,8 @@ function coPacked() {
   v0 = v0 & 4294967292 | v1 & 3;
   v0 = v0 & ~(3 << 2) | (v6 & 3) << 2;
   var t = { $v: v0 };
-  clear({ $o: t, $k: "$v", $s: 0 });
-  setBoth({ $o: t, $k: "$v", $s: 2 });
+  clear(t, "$v", 0);
+  setBoth(t, "$v", 2);
   var v25 = valueOf(t.$v & 3);
   var v28 = valueOf(t.$v >>> 2 & 3);
   return v25 + (Math.imul(v28, 10) | 0) | 0;
@@ -123,8 +123,8 @@ function extracted() {
   return (Math.imul(v14, 10) | 0) + valueOf(t & 3) | 0;
 }
 
-function secondOf(f) {
-  return { $o: f.$o, $k: f.$k, $s: f.$s + 1 };
+function secondOf(f$o, f$k, f$s) {
+  return { $o: f$o, $k: f$k, $s: f$s + 1 };
 }
 
 function reborrowed() {
@@ -138,7 +138,7 @@ function reborrowed() {
   v0 = v0 & 4294967292 | v1 & 3;
   v0 = v0 & ~(3 << 2) | (v6 & 3) << 2;
   var t = { $v: v0 };
-  var v18 = secondOf({ $o: t, $k: "$v", $s: 2 });
+  var v18 = secondOf(t, "$v", 2);
   v18.$o[v18.$k] = v18.$o[v18.$k] & ~(1 << v18.$s) | (1 & 1) << v18.$s;
   var v23 = valueOf(t.$v & 3);
   var v26 = valueOf(t.$v >>> 2 & 3);
@@ -157,14 +157,11 @@ function swapped() {
   v0 = v0 & 4294967292 | v1 & 3;
   v0 = v0 & ~(3 << 2) | (v6 & 3) << 2;
   var t = { $v: v0 };
-  var v21$1 = { $o: t, $k: "$v", $s: 0 };
-  var v22$1 = { $o: t, $k: "$v", $s: 2 };
-  var swap23 = v21$1.$o[v21$1.$k] >>> v21$1.$s & 1;
-  v21$1.$o[v21$1.$k] = v21$1.$o[v21$1.$k] & ~(1 << v21$1.$s) | (v22$1.$o[v22$1.$k] >>> v22$1.$s & 1 & 1) << v21$1.$s;
-  v22$1.$o[v22$1.$k] = v22$1.$o[v22$1.$k] & ~(1 << v22$1.$s) | (swap23 & 1) << v22$1.$s;
-  var v28$1 = { $o: t, $k: "$v", $s: 1 };
-  var previous$1 = v28$1.$o[v28$1.$k] >>> v28$1.$s & 1;
-  v28$1.$o[v28$1.$k] = v28$1.$o[v28$1.$k] & ~(1 << v28$1.$s) | (1 & 1) << v28$1.$s;
+  var swap23 = t.$v >>> 0 & 1;
+  t.$v = t.$v & ~(1 << 0) | (t.$v >>> 2 & 1 & 1) << 0;
+  t.$v = t.$v & ~(1 << 2) | (swap23 & 1) << 2;
+  var previous$1 = t.$v >>> 1 & 1;
+  t.$v = t.$v & ~(1 << 1) | (1 & 1) << 1;
   var v32 = valueOf(t.$v & 3);
   var v35 = valueOf(t.$v >>> 2 & 3);
   var v39 = v32 + (Math.imul(v35, 10) | 0) | 0;
@@ -226,7 +223,7 @@ function reordered() {
   var v44;
   var i = { a: 1, b: 9n, c: 3, d: 5, e: 40, f: 6 };
   i.d = (((i.d | 0) + 1 | 0) & 15 | 0) << 28 >> 28;
-  bump({ $o: i, $k: "f", $s: 0 });
+  bump(i, "f", 0);
   i.b = BigInt.asUintN(64, i.b + 1n);
   if (i.a) {
     v44 = 1;
@@ -240,7 +237,7 @@ function pinned() {
   var v44;
   var p = { a: 1, b: 9n, c: 3, d: 5, e: 40, f: 6 };
   p.d = (((p.d | 0) + 1 | 0) & 15 | 0) << 28 >> 28;
-  bump({ $o: p, $k: "f", $s: 0 });
+  bump(p, "f", 0);
   p.b = BigInt.asUintN(64, p.b + 1n);
   if (p.a) {
     v44 = 1;

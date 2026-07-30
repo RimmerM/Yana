@@ -421,6 +421,103 @@ fn threaded() -> Int {
     ret %v24
 }
 
+fn nine(%a: Bool, %b: Bool, %c: Bool, %d: Bool, %e: Bool, %f: Bool, %g: Bool, %h: Bool, %i: Bool) -> () {
+  b0:
+    assign %a, True
+    assign %b, True
+    assign %c, True
+    assign %d, True
+    assign %e, True
+    assign %f, True
+    assign %g, True
+    assign %h, True
+    assign %i, True
+    ret
+}
+
+fn wide() -> Int {
+  b0:
+    %v0 = alloc : Nine
+    init %local0@Nine.a, False
+    init %local0@Nine.b, False
+    init %local0@Nine.c, False
+    init %local0@Nine.d, False
+    init %local0@Nine.e, False
+    init %local0@Nine.f, False
+    init %local0@Nine.g, False
+    init %local0@Nine.h, False
+    init %local0@Nine.i, False
+    %s = alloc : Nine
+    init %s, %v0
+    %v21 = load %s : Nine
+    %v22 = load %s@Nine.a : Bool
+    %v23 = load %s : Nine
+    %v24 = load %s@Nine.b : Bool
+    %v25 = load %s : Nine
+    %v26 = load %s@Nine.c : Bool
+    %v27 = load %s : Nine
+    %v28 = load %s@Nine.d : Bool
+    %v29 = load %s : Nine
+    %v30 = load %s@Nine.e : Bool
+    %v31 = load %s : Nine
+    %v32 = load %s@Nine.f : Bool
+    %v33 = load %s : Nine
+    %v34 = load %s@Nine.g : Bool
+    %v35 = load %s : Nine
+    %v36 = load %s@Nine.h : Bool
+    %v37 = load %s : Nine
+    %v38 = load %s@Nine.i : Bool
+    %v39 = borrow_mut %s@Nine.a : &mut Bool
+    %v40 = borrow_mut %s@Nine.b : &mut Bool
+    %v41 = borrow_mut %s@Nine.c : &mut Bool
+    %v42 = borrow_mut %s@Nine.d : &mut Bool
+    %v43 = borrow_mut %s@Nine.e : &mut Bool
+    %v44 = borrow_mut %s@Nine.f : &mut Bool
+    %v45 = borrow_mut %s@Nine.g : &mut Bool
+    %v46 = borrow_mut %s@Nine.h : &mut Bool
+    %v47 = borrow_mut %s@Nine.i : &mut Bool
+    call nine, %v39, %v40, %v41, %v42, %v43, %v44, %v45, %v46, %v47
+    %v49 = load %s : Nine
+    %v50 = load %s@Nine.a : Bool
+    je %v50, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v58 = phi [b1, 1], [b2, 0] : Int
+    %v59 = load %s : Nine
+    %v60 = load %s@Nine.e : Bool
+    je %v60, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v68 = phi [b4, 20], [b5, 0] : Int
+    %v69 = add %v58, %v68 : Int
+    %v70 = load %s : Nine
+    %v71 = load %s@Nine.i : Bool
+    je %v71, b7, b8
+
+  b7:
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v79 = phi [b7, 300], [b8, 0] : Int
+    %v80 = add %v69, %v79 : Int
+    ret %v80
+}
+
 fn main() -> Int {
   b0:
     %v0 = call direct : Int
@@ -440,5 +537,7 @@ fn main() -> Int {
     %v14 = add %v12, %v13 : Int
     %v15 = call threaded : Int
     %v16 = add %v14, %v15 : Int
-    ret %v16
+    %v17 = call wide : Int
+    %v18 = add %v16, %v17 : Int
+    ret %v18
 }

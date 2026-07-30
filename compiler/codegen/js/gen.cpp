@@ -389,6 +389,20 @@ StmtList genBody(Gen& g, Function& function) {
 
     return collect(g, [&] {
         /*
+         * A flattened reference parameter that some use needs as one value, reassembled once at the
+         * top rather than at each use. The parts stay registered alongside it, so a call site still
+         * passes them flat and only the use that genuinely needs an object reads this.
+         */
+        for(auto argPointer: function.args.contents(g.local)) {
+            auto value = (ModulePtr<Value>)argPointer;
+            auto found = g.flatRefs.get(U32(value));
+            if(!found || !narrowRefNeedsObject(g, value)) continue;
+
+            auto& arg = *g.local[argPointer];
+            g.values.add(U32(value), declare(g, valueName(g, arg), materializeRef(g, found.unwrap())));
+        }
+
+        /*
          * Phi results are declared before anything that assigns them, because a phi is written by
          * each predecessor and read at the join - which is two different places in the emitted
          * structure and one value in the IR.
@@ -458,6 +472,9 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
     U16 index = 0;
     JsPtr<Expr> environment = nullptr;
 
+    // The same answer every caller computes from the same declarations - see functionFlattensRefs.
+    auto flattensRefs = functionFlattensRefs(g, function);
+
     for(auto argPointer: function.args.contents(g.local)) {
         auto arg = g.local[argPointer];
         auto name = valueName(g, *arg);
@@ -467,10 +484,45 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
             // where nothing was captured, since the body never reads it.
             if(closure) result->args.push(g.file.arena, name);
             environment = variable(g, name);
-        } else {
-            (closure ? closure->args : result->args).push(g.file.arena, name);
+            g.values.add(U32((ModulePtr<Value>)argPointer), variable(g, name));
+            index++;
+            continue;
         }
 
+        auto& into = closure ? closure->args : result->args;
+
+        /*
+         * A narrow reference arrives as its three parts rather than as an object - see
+         * refIsFlattened. There is nothing to allocate and nothing to project: `flip(o, k, s)` reads
+         * `(o[k] >>> s) & 1` directly, where the descriptor form read `(r.$o[r.$k] >>> r.$s) & 1`
+         * and the caller had to build `r` first.
+         *
+         * The parts are named after the parameter so that the emitted source still says which
+         * reference they belong to, and the whole triple is dropped if the body never touches it.
+         */
+        if(flattensRefs && refIsFlattened(g, arg->type, arg->convention)) {
+            auto owner = refPartName(g, *arg, "$o"_v);
+            auto key = refPartName(g, *arg, "$k"_v);
+
+            into.push(g.file.arena, owner);
+            into.push(g.file.arena, key);
+
+            RefParts parts;
+            parts.owner = variable(g, owner);
+            parts.key = variable(g, key);
+
+            if(narrowRefCarriesShift(g)) {
+                auto shift = refPartName(g, *arg, "$s"_v);
+                into.push(g.file.arena, shift);
+                parts.shift = variable(g, shift);
+            }
+
+            g.flatRefs.add(U32((ModulePtr<Value>)argPointer), parts);
+            index++;
+            continue;
+        }
+
+        into.push(g.file.arena, name);
         g.values.add(U32((ModulePtr<Value>)argPointer), variable(g, name));
         index++;
     }
@@ -679,6 +731,175 @@ void nameProgram(Gen& g) {
 }
 
 } // namespace
+
+/*
+ * Whether a flattened narrow reference has to be reassembled into an object anyway.
+ *
+ * Flattening is a calling convention, and it covers every use that is a call or a dereference. What
+ * it cannot cover is a use that needs the reference to be *one value*: JS has no multi-value return,
+ * so a reference that is returned, stored in a record or captured by a closure has to become the
+ * `{$o,$k,$s}` object again. The measured alternatives to allocating there are all worse than
+ * allocating - a caller-provided out-object came to 88% of a fresh one - so the object stays as the
+ * fallback rather than being engineered away.
+ *
+ * A reference can need both forms, and then it has both: the parts are still what a call site reads,
+ * and the object is built once beside them.
+ *
+ * Conservative by default, on the same terms as borrowStaysHere: an instruction kind this does not
+ * recognize is one whose operand handling has not been checked, and building an object that turns out
+ * to be unnecessary costs an allocation while failing to build a needed one emits `undefined`.
+ */
+/*
+ * The arity guard.
+ *
+ * Extra arguments are free in the range flattening produces - holding callee work constant, an
+ * inlinable callee measured flat from 2 to 64 arguments and a non-inlinable one was free to about 12
+ * and decayed past 16-24 as TurboFan ran out of registers to keep them in. A signature with many
+ * ordinary parameters *and* many references is the one shape that reaches the far end of that, and
+ * there the descriptor it would have allocated is cheaper than the spills.
+ *
+ * All or nothing for a signature, and computed from the declarations alone, because the caller and
+ * the callee decide it separately and have to agree: a per-parameter rule would need both of them to
+ * arrive at the same count anyway, and this way the count is the rule.
+ */
+static const Size kFlatArityLimit = 24;
+
+template<class F>
+static bool signatureFlattens(Gen& g, Size count, F&& isRef) {
+    Size arity = 0;
+    auto any = false;
+
+    for(Size i = 0; i < count; i++) {
+        if(isRef(i)) {
+            arity += flatRefArity(g);
+            any = true;
+        } else {
+            arity++;
+        }
+    }
+
+    return any && arity <= kFlatArityLimit;
+}
+
+bool functionFlattensRefs(Gen& g, Function& function) {
+    return signatureFlattens(g, function.args.size(), [&](Size i) {
+        auto arg = g.local[function.args.get(g.local, i)];
+        return refIsFlattened(g, arg->type, arg->convention);
+    });
+}
+
+static bool funTypeFlattensRefs(Gen& g, FunType& type) {
+    return signatureFlattens(g, type.args.size(), [&](Size i) {
+        auto arg = type.args.get(g.global, i);
+        return refIsFlattened(g, arg.type, arg.convention);
+    });
+}
+
+// The declared parameter at one argument position, whichever kind of call this is. The arity a
+// reference argument occupies is decided from this and never from the argument's own type - see
+// pushArg - so both the emitter and the question below have to read it from the same place.
+bool callParameterIsFlatRef(Gen& g, Value& user, Size index) {
+    auto fromFunction = [&](ModulePtr<Function> callee) {
+        if(!callee) return false;
+
+        auto function = g.local[callee];
+        if(index >= function->args.size()) return false;
+        if(!functionFlattensRefs(g, *function)) return false;
+
+        auto arg = g.local[function->args.get(g.local, index)];
+        return refIsFlattened(g, arg->type, arg->convention);
+    };
+
+    switch(user.kind) {
+        case Value::Call:
+            return fromFunction(((InstCall&)user).callee);
+        case Value::GenCall:
+            return fromFunction(((InstGenCall&)user).callee);
+        case Value::CallDyn: {
+            // An indirect call has a signature where a direct one has a callee, and it carries the
+            // same declarations.
+            auto signature = ((InstCallDyn&)user).signature;
+            if(!signature || g.global[signature]->kind != Type::Fun) return false;
+
+            auto type = (FunType*)g.global[signature];
+            if(index >= type->args.size()) return false;
+            if(!funTypeFlattensRefs(g, *type)) return false;
+
+            auto arg = type->args.get(g.global, index);
+            return refIsFlattened(g, arg.type, arg.convention);
+        }
+        default:
+            return false;
+    }
+}
+
+// Whether this reference reaches a call at a position that takes it flat. A position that does not -
+// a generic `&a` parameter, whose body has no width to mask with - needs the object like any other
+// use that wants one value.
+static bool passedFlat(Gen& g, Value& user, ModulePtr<Value> reference) {
+    Size index = 0;
+    auto flat = true;
+
+    ModuleList<ModulePtr<Value>, false>* args = nullptr;
+    switch(user.kind) {
+        case Value::Call: args = &((InstCall&)user).args; break;
+        case Value::CallDyn: args = &((InstCallDyn&)user).args; break;
+        case Value::GenCall: args = &((InstGenCall&)user).args; break;
+        default: return false;
+    }
+
+    for(auto arg: args->contents(g.local)) {
+        if(arg == reference && !callParameterIsFlatRef(g, user, index)) flat = false;
+        index++;
+    }
+
+    // The callee of a dynamic call is an operand too, and it is a function rather than a reference.
+    if(user.kind == Value::CallDyn) {
+        auto& dyn = (InstCallDyn&)user;
+        if(dyn.callable == reference || dyn.address == reference) return false;
+    }
+
+    return flat;
+}
+
+bool narrowRefNeedsObject(Gen& g, ModulePtr<Value> reference) {
+    for(auto userPointer: g.local[reference]->uses.contents(g.local)) {
+        auto& user = *g.local[userPointer];
+
+        switch(user.kind) {
+            // Passed on, which is what the flat convention is for - at every position that takes it
+            // flat. One that does not wants the object, and this is the only use that can be both.
+            case Value::Call:
+            case Value::CallDyn:
+            case Value::GenCall:
+                if(!passedFlat(g, user, reference)) return true;
+                continue;
+
+            // Dereferenced, re-borrowed, or the target of a write - all of them walk the place and
+            // want the parts rather than the object.
+            case Value::LoadPlace:
+            case Value::Borrow:
+            case Value::Address:
+            case Value::Move:
+            case Value::Swap:
+                continue;
+
+            // A store *of* the reference needs the value; a store *through* it does not.
+            case Value::Init:
+            case Value::Assign:
+                if(((InstInit&)user).value == reference) return true;
+                continue;
+            case Value::Exchange:
+                if(((InstExchange&)user).value == reference) return true;
+                continue;
+
+            default:
+                return true;
+        }
+    }
+
+    return false;
+}
 
 Ptr<File> genProgram(Context& context, Program& program) {
     auto file = Ptr<File>(new File(8 * 1024 * 1024));

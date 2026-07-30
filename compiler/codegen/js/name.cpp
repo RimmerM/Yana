@@ -170,6 +170,30 @@ Name valueName(Gen& g, Value& value) {
     return generatedName(g, "v"_v, value.id);
 }
 
+/*
+ * One part of a flattened narrow reference, named after the reference itself.
+ *
+ * `flip(p$o, p$k, p$s)` rather than three anonymous slots, so that emitted source still reads as a
+ * reference to `p` taken apart rather than as three unrelated parameters. Each part goes through
+ * uniqueName like any other local, since the base name it is built from is already taken.
+ */
+Name refPartName(Gen& g, Value& value, StringView suffix) {
+    char buffer[512];
+    Size length = 0;
+
+    if(value.name) {
+        auto text = stringView(g.context.findName(value.name));
+        length = text.length < sizeof(buffer) - 16 ? text.length : sizeof(buffer) - 16;
+        copy(text.ptr, buffer, length);
+    } else {
+        buffer[length++] = 'v';
+        length += show(U64(value.id), buffer + length, sizeof(buffer) - length);
+    }
+
+    copy(suffix.ptr, buffer + length, suffix.length);
+    return uniqueName(g, StringView { buffer, length + suffix.length }, true);
+}
+
 Name propertyName(Gen& g, StringView text) {
     char buffer[512];
     auto length = sanitize(text, buffer, sizeof(buffer));

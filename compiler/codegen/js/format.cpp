@@ -115,6 +115,31 @@ void writeStringLiteral(Format& f, StringId value) {
     f.write('"');
 }
 
+/*
+ * Whether this interned text can be written after a dot.
+ *
+ * Every property name the generator builds goes through propertyName or literalName and is an
+ * identifier by construction, but a `StringExpr` is also how a program's own string constant is
+ * emitted, and one of those can appear as a key. So the text is checked rather than assumed - a
+ * digit-leading or punctuated key stays in brackets, where it is correct.
+ *
+ * Reserved words are deliberately not excluded: `o.default` and `o.new` are legal property accesses,
+ * and only a *binding* may not use one.
+ */
+bool identifierText(Format& f, StringId value) {
+    auto id = f.context.find(value);
+    if(!id.textLength) return false;
+
+    for(U32 i = 0; i < id.textLength; i++) {
+        auto c = id.text[i];
+        auto ordinary = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '$';
+
+        if(!ordinary && !(i && c >= '0' && c <= '9')) return false;
+    }
+
+    return true;
+}
+
 U8 precedenceOf(Format& f, JsPtr<Expr> pointer) {
     switch(f.base[pointer]->kind) {
         case Expr::Function: return kFunctionPrecedence;
@@ -206,6 +231,22 @@ void writeExpr(Format& f, JsPtr<Expr> pointer) {
         case Expr::Index: {
             auto index = (IndexExpr*)expr;
             writeNested(f, index->array, kCallPrecedence);
+
+            /*
+             * A constant key that is a valid identifier prints as `o.k` rather than `o["k"]`.
+             *
+             * The two are the same operation, and the emitter cannot always tell them apart: a place
+             * into a narrow reference is `owner[key]` because the key is a *value* there, and that
+             * key turns out to be a literal wherever the reference did not come through a parameter.
+             * Deciding it here rather than at each construction site is what catches all of them.
+             */
+            auto key = f.base[index->index];
+            if(key->kind == Expr::String && identifierText(f, ((StringExpr*)key)->value)) {
+                f.write('.');
+                f.name(Name { ((StringExpr*)key)->value });
+                break;
+            }
+
             f.write('[');
             writeExpr(f, index->index);
             f.write(']');

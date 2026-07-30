@@ -60,6 +60,22 @@ struct Writeback {
     TypePtr type;
 };
 
+/*
+ * The three parts of a narrow reference, however this one is being carried.
+ *
+ * A reference that arrived flat - a parameter, or a borrow whose every use passes it on - has each
+ * part in a variable of its own and there is no object anywhere. One that did not is an ordinary
+ * `{$o,$k,$s}`, and the parts are its properties. Every consumer wants the parts rather than the
+ * object, which is what lets the two forms coexist without a flag at each use.
+ */
+struct RefParts {
+    JsPtr<Expr> owner = nullptr;
+    JsPtr<Expr> key = nullptr;
+    JsPtr<Expr> shift = nullptr;    // null where the target carries none
+
+    bool valid() const { return owner != nullptr; }
+};
+
 struct Gen {
     Context& context;
     Program& program;
@@ -138,6 +154,10 @@ struct Gen {
 
     HashMap<U32, JsPtr<Expr>> values;
     HashMap<U32, Name> phis;
+
+    // The narrow references currently being carried as separate variables rather than as an object -
+    // see refIsFlattened. A value is in here instead of, or as well as, `values`.
+    HashMap<U32, RefParts> flatRefs;
 
     // The code word each function-value local has been given, by local index, between the two Inits
     // that build one - see genFunValueWord.
@@ -354,6 +374,10 @@ Name generatedName(Gen& g, StringView prefix, U32 index);
 Name valueName(Gen& g, Value& value);
 Name fieldName(Gen& g, StringId name, U16 index);
 
+// One part of a flattened narrow reference - `p$o`, `p$k`, `p$s` - named after the reference it
+// came from so the emitted source still says which one that was.
+Name refPartName(Gen& g, Value& value, StringView suffix);
+
 /*
  * type.cpp - what a type is on this target.
  */
@@ -410,6 +434,49 @@ inline U32 narrowWidth(Gen& g, TypePtr type) {
 inline bool narrowRefCarriesShift(Gen& g) {
     return g.repr.target.packFields || g.repr.target.scalarizeRecords;
 }
+
+/*
+ * Whether a `&` of this pointee crosses a call as separate arguments rather than as one object.
+ *
+ * The descriptor is what makes a narrow reference cost anything here: native's shift rides in spare
+ * bits of a word already being passed, and this target has to allocate an object per borrow to carry
+ * the same three things. Passing them as three arguments removes the allocation and most of the cost -
+ * measured at 151% for one borrow and 366% for four through a callee V8 declines to inline, with the
+ * extra arity free in that range and the shift argument free in particular.
+ *
+ * Decided from the declaration and nothing else, because it is a calling convention: a witness-table
+ * slot, a closure and a `CallDyn` all have to agree with the direct call without seeing the callee,
+ * exactly as native's narrow-borrow rule is decided from the pointee type alone.
+ *
+ * Asked of a *declaration* - `&f: Flags` - rather than of a type, because that is the form the
+ * question exists in: a parameter's type is its pointee and the `&` is a binding convention beside
+ * it, and only a mutable borrow becomes a reference at all (see resolveArgs, where `borrowed` is set
+ * for exactly that case). An immutable borrow of a narrow value is passed by value and has nothing
+ * to write back through.
+ */
+inline bool refIsFlattened(Gen& g, TypePtr declaredType, ast::BindType convention) {
+    return convention == ast::BindType::Ref && isNarrowJsValue(g, declaredType);
+}
+
+// How many arguments a flattened reference occupies. Two where the target has no bit ranges in it and
+// the shift is provably zero - see narrowRefCarriesShift.
+inline U32 flatRefArity(Gen& g) { return narrowRefCarriesShift(g) ? 3 : 2; }
+
+RefParts refPartsOf(Gen& g, ModulePtr<Value> reference);
+RefParts refPartsOfExpr(Gen& g, JsPtr<Expr> reference);
+JsPtr<Expr> materializeRef(Gen& g, RefParts parts);
+
+// Whether some use of a flattened reference needs it to be one value after all - a return, a store,
+// a capture. Defined in gen.cpp beside the other use-list questions.
+bool narrowRefNeedsObject(Gen& g, ModulePtr<Value> reference);
+
+// Whether the parameter at one argument position of a call takes its reference flat. The emitter and
+// the question above both decide a reference argument's arity from this, and they have to agree.
+bool callParameterIsFlatRef(Gen& g, Value& user, Size index);
+
+// Whether this signature flattens its references at all - the arity guard, which is all-or-nothing
+// for a signature so that the caller and the callee reach it independently and agree.
+bool functionFlattensRefs(Gen& g, Function& function);
 
 /*
  * A bit range within the value a place names, or nothing where the place names the whole of one.
