@@ -1,0 +1,66 @@
+"use strict";
+// ResolveTest
+function check(actual, expected, weight) {
+  var v8;
+  if (actual === expected) {
+    v8 = weight;
+  } else {
+    v8 = 0;
+  }
+  return v8;
+}
+
+function andLow(x) {
+  return (x & 255) >>> 0;
+}
+
+function andHigh(x) {
+  return ($wi$hi(x) & 8) * 4294967296;
+}
+
+function mix(a, b, c) {
+  return (($wi$hi(a) & $wi$hi(b) ^ ($wi$hi(a) | $wi$hi(c))) << 11 >> 11) * 4294967296 + ((a & b ^ (a | c)) >>> 0);
+}
+
+function flags(a, b) {
+  return (($wi$hi(a) & -513 ^ $wi$hi(b)) << 11 >> 11) * 4294967296 + (((a | 128) ^ b) >>> 0);
+}
+
+function complement(x) {
+  return (~$wi$hi(x) << 11 >> 11) * 4294967296 + (~x >>> 0);
+}
+
+function clearTop(x) {
+  return ($wi$hi(x) & 1048575) * 4294967296 + (x >>> 0);
+}
+
+function keepNegative(x) {
+  return (~$wi$hi(x) << 11 >> 11) * 4294967296 + ((~x | 15) >>> 0);
+}
+
+function wholeMask() {
+  return 1099511627775;
+}
+
+function andCall(x) {
+  return $w53i$and(x, wholeMask());
+}
+
+function main() {
+  return ((((((check(andLow(34359738375), 7, 1) + check(andHigh(34359738375), 34359738368, 2) | 0) + check(mix(34359738375, 1099511627775, 255), 248, 4) | 0) + check(flags(2199023255560, 4398046511109), 4398046511245, 8) | 0) + check(complement(34359738375), $w53i$sub(0, 34359738376), 16) | 0) + check(clearTop($w53i$sub(0, 1)), 4503599627370495, 32) | 0) + check(keepNegative(1048591), $w53i$sub(0, 1048577), 64) | 0) + check(andCall(34359738375), 34359738375, 128) | 0;
+}
+
+// integers of 33 to 53 bits - see codegen/js/wide.cpp
+function $w53i$and(a, b) {
+  var v = ($wi$hi(a) & $wi$hi(b) & 2097151) * 4294967296 + ((a & b) >>> 0);
+  return v >= 4503599627370496 ? v - 9007199254740992 : v;
+}
+
+function $w53i$sub(a, b) {
+  var v = a - b;
+  return v >= 4503599627370496 ? v - 9007199254740992 : v < -4503599627370496 ? v + 9007199254740992 : v;
+}
+
+function $wi$hi(a) {
+  return Math.floor(a * 2.3283064365386963E-10);
+}

@@ -511,10 +511,10 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
             parts.owner = variable(g, owner);
             parts.key = variable(g, key);
 
-            if(narrowRefCarriesShift(g)) {
-                auto shift = refPartName(g, *arg, "$s"_v);
-                into.push(g.file.arena, shift);
-                parts.shift = variable(g, shift);
+            if(narrowRefCarriesScale(g)) {
+                auto scale = refPartName(g, *arg, "$s"_v);
+                into.push(g.file.arena, scale);
+                parts.scale = variable(g, scale);
             }
 
             g.flatRefs.add(U32((ModulePtr<Value>)argPointer), parts);
@@ -916,7 +916,7 @@ Ptr<File> genProgram(Context& context, Program& program) {
     g.envField = literalName(g, "$e"_v);
     g.refObject = literalName(g, "$o"_v);
     g.refKey = literalName(g, "$k"_v);
-    g.refShift = literalName(g, "$s"_v);
+    g.refScale = literalName(g, "$s"_v);
     g.headerField = literalName(g, "$h"_v);
     if(program.root) g.headerType = closureHeaderPlaceType(*program.root);
 
@@ -951,6 +951,10 @@ Ptr<File> genProgram(Context& context, Program& program) {
     }
 
     g.body = &file->statements;
+
+    // Bit ranges first: one of those bodies may ask for a wide helper, and `emitWideHelpers` walks
+    // a list that is allowed to grow underneath it while the reverse is not true.
+    emitBitHelpers(g);
     emitWideHelpers(g);
 
     optimizeFile(g);

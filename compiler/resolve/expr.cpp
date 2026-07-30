@@ -507,7 +507,20 @@ ModulePtr<Value> ExprResolver::convertRefinement(ModulePtr<Value> value, TypePtr
     }
 
     if(wanted.isSigned) {
-        auto distance = IntType::registerBits(((IntType*)global[canonical])->width) - wanted.bits;
+        /*
+         * The canonical type's *own* width rather than the register's.
+         *
+         * The pair below is a shift at the canonical type, and a shift at a type wraps at that
+         * type's width - which is the whole of "arithmetic at native size", and is emitted as a
+         * truncation on both targets for a primitive narrower than the register it lowers into. So
+         * for `WideInt`, whose 53 bits sit in a 64-bit register, shifting up by `64 - n` throws the
+         * value out the top and shifting back brings nothing useful down: narrowing `2^39 - 1` to
+         * `@bits(40) WideInt` answered zero, on both targets and therefore silently.
+         *
+         * `bits` is `registerBits` for every primitive that fills its register, so this is the same
+         * distance everything else was already getting.
+         */
+        auto distance = U32(((IntType*)global[canonical])->bits) - wanted.bits;
         auto up = ref(emit<InstBinary>(source, 0, from, Value::Shl, value,
                                        makeInt(source, from, distance)));
         auto down = ref(emit<InstBinary>(source, 0, from, Value::Sar, up,

@@ -9,24 +9,24 @@ function add_eq_I64(target, amount) {
 
 // ResolveTest
 function flip(x$o, x$k, x$s) {
-  x$o[x$k] = x$o[x$k] & ~(1 << x$s) | ((x$o[x$k] >>> x$s & 1 ^ 1) & 1) << x$s;
+  x$o[x$k] = $b1u$set(x$o[x$k], x$s, $b1u$get(x$o[x$k], x$s) ^ 1);
   return;
 }
 
 function bump(x$o, x$k, x$s) {
-  x$o[x$k] = x$o[x$k] & ~(15 << x$s) | (((((x$o[x$k] >>> x$s << 28 >> 28 | 0) + 1 | 0) << 28 | 0) >> 28 | 0) << 28 >> 28 & 15) << x$s;
+  x$o[x$k] = $b4u$set(x$o[x$k], x$s, (((($b4i$get(x$o[x$k], x$s) | 0) + 1 | 0) << 28 | 0) >> 28 | 0) << 28 >> 28);
   return;
 }
 
 function clear(f$o, f$k, f$s) {
-  f$o[f$k] = f$o[f$k] & ~(1 << f$s) | (0 & 1) << f$s;
-  f$o[f$k] = f$o[f$k] & ~(1 << f$s + 1) | (0 & 1) << f$s + 1;
+  f$o[f$k] = $b1u$set(f$o[f$k], f$s, 0);
+  f$o[f$k] = $b1u$set(f$o[f$k], f$s * 2, 0);
   return;
 }
 
 function setBoth(f$o, f$k, f$s) {
-  f$o[f$k] = f$o[f$k] & ~(1 << f$s) | (1 & 1) << f$s;
-  f$o[f$k] = f$o[f$k] & ~(1 << f$s + 1) | (1 & 1) << f$s + 1;
+  f$o[f$k] = $b1u$set(f$o[f$k], f$s, 1);
+  f$o[f$k] = $b1u$set(f$o[f$k], f$s * 2, 1);
   return;
 }
 
@@ -68,8 +68,8 @@ function borrowed() {
   v0.flags = v1;
   v0.count = 0;
   var s = v0;
-  setBoth(s, "flags", 0);
-  flip(s, "flags", 0);
+  setBoth(s, "flags", 1);
+  flip(s, "flags", 1);
   return valueOf(s.flags);
 }
 
@@ -84,8 +84,8 @@ function coPacked() {
   v0 = v0 & 4294967292 | v1 & 3;
   v0 = v0 & ~(3 << 2) | (v6 & 3) << 2;
   var t = { $v: v0 };
-  clear(t, "$v", 0);
-  setBoth(t, "$v", 2);
+  clear(t, "$v", 1);
+  setBoth(t, "$v", 4);
   var v25 = valueOf(t.$v & 3);
   var v28 = valueOf(t.$v >>> 2 & 3);
   return v25 + (Math.imul(v28, 10) | 0) | 0;
@@ -124,7 +124,7 @@ function extracted() {
 }
 
 function secondOf(f$o, f$k, f$s) {
-  return { $o: f$o, $k: f$k, $s: f$s + 1 };
+  return { $o: f$o, $k: f$k, $s: f$s * 2 };
 }
 
 function reborrowed() {
@@ -138,8 +138,8 @@ function reborrowed() {
   v0 = v0 & 4294967292 | v1 & 3;
   v0 = v0 & ~(3 << 2) | (v6 & 3) << 2;
   var t = { $v: v0 };
-  var v18 = secondOf(t, "$v", 2);
-  v18.$o[v18.$k] = v18.$o[v18.$k] & ~(1 << v18.$s) | (1 & 1) << v18.$s;
+  var v18 = secondOf(t, "$v", 4);
+  v18.$o[v18.$k] = $b1u$set(v18.$o[v18.$k], v18.$s, 1);
   var v23 = valueOf(t.$v & 3);
   var v26 = valueOf(t.$v >>> 2 & 3);
   return v23 + (Math.imul(v26, 10) | 0) | 0;
@@ -157,11 +157,11 @@ function swapped() {
   v0 = v0 & 4294967292 | v1 & 3;
   v0 = v0 & ~(3 << 2) | (v6 & 3) << 2;
   var t = { $v: v0 };
-  var swap23 = t.$v >>> 0 & 1;
-  t.$v = t.$v & ~(1 << 0) | (t.$v >>> 2 & 1 & 1) << 0;
-  t.$v = t.$v & ~(1 << 2) | (swap23 & 1) << 2;
-  var previous$1 = t.$v >>> 1 & 1;
-  t.$v = t.$v & ~(1 << 1) | (1 & 1) << 1;
+  var swap23 = $b1u$get(t.$v, 1);
+  t.$v = $b1u$set(t.$v, 1, $b1u$get(t.$v, 4));
+  t.$v = $b1u$set(t.$v, 4, swap23);
+  var previous$1 = $b1u$get(t.$v, 2);
+  t.$v = $b1u$set(t.$v, 2, 1);
   var v32 = valueOf(t.$v & 3);
   var v35 = valueOf(t.$v >>> 2 & 3);
   var v39 = v32 + (Math.imul(v35, 10) | 0) | 0;
@@ -269,7 +269,7 @@ function reordered() {
   v0.$p14 = v0.$p14 & ~(15 << 4) | (6 & 15) << 4;
   var i = v0;
   i.$p14 = i.$p14 & 4294967280 | ((((i.$p14 << 28 >> 28 | 0) + 1 | 0) << 28 | 0) >> 28 | 0) << 28 >> 28 & 15;
-  bump(i, "$p14", 4);
+  bump(i, "$p14", 16);
   i.b = BigInt.asUintN(64, i.b + 1n);
   if (i.$p14 >>> 8 & 1) {
     v46 = 1;
@@ -283,7 +283,7 @@ function pinned() {
   var v46;
   var p = { a: 1, b: 9n, c: 3, d: 5, e: 40, f: 6 };
   p.d = ((((p.d | 0) + 1 | 0) << 28 | 0) >> 28 | 0) << 28 >> 28;
-  bump(p, "f", 0);
+  bump(p, "f", 1);
   p.b = BigInt.asUintN(64, p.b + 1n);
   if (p.a) {
     v46 = 1;
@@ -348,4 +348,21 @@ function drop$Pair(value) {
   Drop_Owned_drop(value.x);
   Drop_Owned_drop(value.y);
   return;
+}
+
+// bit ranges of a word wider than the host's operators - see codegen/js/place.cpp
+function $b1u$get(w, s) {
+  return Math.floor(w / s) & 1;
+}
+
+function $b1u$set(w, s, v) {
+  return w + ((v & 1) - (Math.floor(w / s) & 1)) * s;
+}
+
+function $b4i$get(w, s) {
+  return Math.floor(w / s) << 28 >> 28;
+}
+
+function $b4u$set(w, s, v) {
+  return w + ((v & 15) - (Math.floor(w / s) & 15)) * s;
 }

@@ -42,6 +42,26 @@ struct WideHelper {
 };
 
 /*
+ * One accessor for a bit range whose position is only known at run time - see place.cpp.
+ *
+ * The static ranges are two or three operations against constants and are emitted where they are
+ * used. A range reached *through a reference* is not: the scale is a variable, so the read is a
+ * divide, a floor and a mask, and the write is that plus the arithmetic to put the field back. Every
+ * borrow of a narrow value in the program spells the same one out, and a program that borrows is a
+ * program that does it everywhere.
+ */
+struct BitHelper {
+    Name name;
+    U16 bits;
+    bool isSigned;
+    bool store;
+
+    // Whether the position arrives as a literal pair the body multiplies by, or as the single
+    // forward scale a reference carries and the body divides with. See place.cpp's Position.
+    bool packed;
+};
+
+/*
  * One block an enclosing construct can be left through, and how.
  *
  * A `Loop` entry is its header, so reaching it is `continue`; a `Forward` entry is a labelled block
@@ -90,7 +110,7 @@ struct Writeback {
 struct RefParts {
     JsPtr<Expr> owner = nullptr;
     JsPtr<Expr> key = nullptr;
-    JsPtr<Expr> shift = nullptr;    // null where the target carries none
+    JsPtr<Expr> scale = nullptr;    // `2**shift`, or null where the target carries none
 
     bool valid() const { return owner != nullptr; }
 };
@@ -135,6 +155,16 @@ struct Gen {
     HashMap<U32, Name> wideHelpers;
     Array<WideHelper> wideHelperOrder;
 
+    // The dynamic bit-range accessors, on the same terms, interned per (width, signedness,
+    // direction). See place.cpp.
+    HashMap<U32, Name> bitHelpers;
+    Array<BitHelper> bitHelperOrder;
+
+    // The heading each family of helpers is emitted under, so that a family the peephole emptied
+    // takes its own comment with it - see removeDeadHelpers.
+    JsPtr<Stmt> wideHelperComment = nullptr;
+    JsPtr<Stmt> bitHelperComment = nullptr;
+
     // The property names that are the compiler's rather than the program's.
     Name tagField;
     Name payloadField;
@@ -161,7 +191,7 @@ struct Gen {
      */
     Name refObject;
     Name refKey;
-    Name refShift;
+    Name refScale;
 
     // The tuple ClosureHeaderLayout is also described as - see closureHeaderPlaceType. A place into
     // one is a cell read rather than a property, because the header is a compiler-built table here
@@ -291,6 +321,14 @@ inline JsPtr<Expr> field(Gen& g, JsPtr<Expr> object, Name name) {
 
 inline JsPtr<Expr> number(Gen& g, F64 value, bool integral = true) {
     return asExpr(g, make<NumberExpr>(g, value, integral));
+}
+
+// `2**bits` as an exact double, by doubling rather than by `pow`: every power of two up to 2^53 is
+// representable, and this is a compile-time constant in the emitted text either way.
+inline F64 powerOfTwo(U32 bits) {
+    F64 result = 1;
+    for(U32 i = 0; i < bits; i++) result *= 2;
+    return result;
 }
 
 inline JsPtr<Expr> bigInt(Gen& g, U64 value, bool isSigned) {
@@ -434,14 +472,26 @@ Name wideHelper(Gen& g, WideOp op, U32 bits, bool isSigned);
 // `$w53i$and(a, b)`. `b` is null for the one-operand operations.
 JsPtr<Expr> wideCall(Gen& g, WideOp op, IntType* type, JsPtr<Expr> a, JsPtr<Expr> b);
 
+// The same, for a caller that has a width rather than a type - a bit range of a packed word is one
+// of these without being a value of any 33-to-53-bit type.
+JsPtr<Expr> wideCallAt(Gen& g, WideOp op, U32 bits, bool isSigned, JsPtr<Expr> a, JsPtr<Expr> b);
+
 // `v >= 2**(bits-1) ? v - 2**bits : v` - an unsigned bit pattern read back as a signed value.
 JsPtr<Expr> resignExpr(Gen& g, JsPtr<Expr> value, U32 bits);
 
 // A value crossing between a wide type and a narrower integer, in the widening direction.
 JsPtr<Expr> wideFromNarrow(Gen& g, IntType* to, IntType* from, JsPtr<Expr> value);
 
+// A tree of wide bitwise calls as one unpack-operate-pack, or null where this one is not that.
+// Asked at the root of a tree and never below it - see opt.cpp, which is the only caller.
+JsPtr<Expr> fuseWideBitwise(Gen& g, JsPtr<Expr> pointer);
+
 // Every helper asked for, as function declarations. Called once, at the end of genProgram.
 void emitWideHelpers(Gen& g);
+
+// The same for the dynamic bit-range accessors. Emitted *before* the wide helpers, since a body
+// here may ask for one of those and the list it would be appended to is already being walked.
+void emitBitHelpers(Gen& g);
 
 // Whether a value of this type is a host object - what `isMemoryType` is on native, asked of this
 // target instead. See type.cpp for the three places the two answers differ.
@@ -464,6 +514,7 @@ struct FieldProperty {
     TypePtr type = nullptr;    // the field's own, or `Int` for a word several of them share
     U8 bitOffset = 0;
     U8 bitWidth = 0;           // zero where the field owns its property
+    U8 wordBits = 32;          // how wide the shared word is, which decides how it is taken apart
     bool leader = true;
 
     bool isPacked() const { return bitWidth != 0; }
@@ -511,8 +562,21 @@ inline U32 narrowWidth(Gen& g, TypePtr type) {
  * is not the identity on this target the way it is on native: a `Bool` field holds `true`, and
  * `(owner & ~1) | (v & 1)` would store `1`. So while nothing is packed, nothing may pay for it.
  */
-inline bool narrowRefCarriesShift(Gen& g) {
+inline bool narrowRefCarriesScale(Gen& g) {
     return g.repr.target.packFields || g.repr.target.scalarizeRecords;
+}
+
+/*
+ * How wide a word a *reference* may name, which is not a question the callee can ask of its argument.
+ *
+ * A body compiled once against `&Bool` is reached from a whole local, a co-packed field and a
+ * scalarized record alike, so the widest word this target packs is the only honest answer - and it is
+ * a target-global constant, which is what lets the caller and the callee reach the same one without
+ * seeing each other. Where the target packs nothing wider than 32 bits this is 32 and every reference
+ * keeps the shift-and-mask form.
+ */
+inline U32 maxWordBits(Gen& g) {
+    return min(g.repr.target.maxPackBits, U32(kMaxNumberBits));
 }
 
 /*
@@ -539,8 +603,8 @@ inline bool refIsFlattened(Gen& g, TypePtr declaredType, ast::BindType conventio
 }
 
 // How many arguments a flattened reference occupies. Two where the target has no bit ranges in it and
-// the shift is provably zero - see narrowRefCarriesShift.
-inline U32 flatRefArity(Gen& g) { return narrowRefCarriesShift(g) ? 3 : 2; }
+// the scale is provably one - see narrowRefCarriesScale.
+inline U32 flatRefArity(Gen& g) { return narrowRefCarriesScale(g) ? 3 : 2; }
 
 RefParts refPartsOf(Gen& g, ModulePtr<Value> reference);
 RefParts refPartsOfExpr(Gen& g, JsPtr<Expr> reference);
@@ -577,15 +641,36 @@ struct PlaceBits {
     U32 width = 0;
 
     /*
-     * A shift known only at run time, added to `offset`.
+     * How wide the word this range lives in can be, which decides *how* it is taken apart.
+     *
+     * At 32 or below the range is reached with `>>>` and `&`, the operators JS actually has. Above
+     * it those stop working - a shift count is masked to five bits, so `word & ~(mask << 32)` clears
+     * nothing at all - and the range is reached by dividing and multiplying instead. Which of the two
+     * a site uses has to be decided from the word rather than from the field, because a field
+     * entirely below bit 32 still shares its word with everything above it and a `&` would drop all
+     * of that on the way back in.
+     *
+     * Thirty-two by default, so a place that never entered a packed word at all - and a target with
+     * no bit ranges in it - keeps the operators it always had.
+     */
+    U32 word = 32;
+
+    /*
+     * A scale known only at run time, multiplying `2**offset`.
      *
      * This is what a reference into a bit range carries, and it is why the two are separate numbers:
      * a callee compiled once against `&Bool` does not know whether its argument was a field of a
-     * scalarized record, a co-packed field, or a whole local, so the shift arrives with the reference
+     * scalarized record, a co-packed field, or a whole local, so the scale arrives with the reference
      * while the offsets of any fields it projects further are its own body's constants. Reborrowing
-     * adds the two, exactly as native adds a shift to a field offset.
+     * multiplies the two, exactly as native adds a shift to a field offset.
+     *
+     * `2**shift` rather than the shift, because the callee cannot know how wide the word it was
+     * handed is and therefore has to use the division form for every one of them - and computing
+     * `2**s` from `s` at each access is a `Math.pow` per read. Carrying the number the division
+     * actually wants costs nothing anywhere else: a reborrow multiplies where it used to add, and
+     * both operands are constants at every site that builds one.
      */
-    JsPtr<Expr> shift = nullptr;
+    JsPtr<Expr> scale = nullptr;
 
     /*
      * The record whose folded tag this place names, where it names one.

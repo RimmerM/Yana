@@ -1786,9 +1786,21 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             requireIntLike(to);
             if(isImm(base[cast->from])) return FormCastImm;
 
-            // Only a signed value widened into a signed one has to carry its sign bit up; every
-            // other cast between integer classes is the truncating-and-clearing move.
-            return cast->isSignedSource() && cast->isSignedResult() ? FormCastSext : FormCastMov;
+            /*
+             * Only a signed value *widened* into a signed one has to carry its sign bit up; every
+             * other cast between integer classes is the truncating-and-clearing move.
+             *
+             * Widening rather than merely signed, because `movsxd` reads a 32-bit source whatever
+             * register it is given - it is the 32-to-64 encoding and there is no other. Choosing it
+             * for a cast whose source is already 64 bits drops the top half and sign-extends what is
+             * left, which is silent: the values it is wrong for are exactly the ones that do not fit
+             * in 32 bits. A refinement of a 64-bit type widening to the type it refines - `@bits(40)
+             * WideInt` to `WideInt` - is signed at both ends and 64 bits at both ends, and is what
+             * reached this.
+             */
+            auto widens = !is64Bit(from) && is64Bit(to);
+            return widens && cast->isSignedSource() && cast->isSignedResult() ? FormCastSext
+                                                                             : FormCastMov;
         }
 
         case LowerInst::Bitcast: {

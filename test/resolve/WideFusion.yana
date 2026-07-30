@@ -1,0 +1,94 @@
+{-
+   **A tree of bitwise operators over a 33-to-53-bit integer, unpacked once instead of once per
+   operator.**
+
+   `WideInt` is a host `number` on JS and the operators JS has for one stop at 32 bits, so each of
+   `and`, `or`, `xor` and `not` is a call to a helper that splits the value into two 32-bit halves,
+   works on each half, and joins them back - see codegen/js/wide.cpp. Composing two of those splits
+   and joins twice for no reason: the halves never interact under any of these operators, so the
+   whole tree can run on each half separately and be joined once. That is the peephole in opt.cpp,
+   measured at 2.2-2.3x on a chain in benchmark/bits53-js.
+
+   **What this fixture asserts is that the fused form computes the same numbers**, which is the only
+   assertion worth making about a rewrite whose whole content is that two different expressions are
+   equal. The goldens record the shape and the run records the value, and the value is the one that
+   would notice a half being masked at the wrong width, a signed high half being read back
+   unsigned, or a constant's halves being split the wrong way round. Every case is a distinct power
+   of two, so `main` is 255 when they all pass and any other number names the failures in binary.
+
+   Native is unaffected by every line of this - a `WideInt` is an ordinary masked 64-bit integer
+   there - which is exactly what makes it the reference the JS run is held to. Confirmed to bite by
+   replacing the fused sign extension with the mask the helpers use, which fails exactly the two
+   cases whose high half is negative and nothing else.
+
+   The operands are *parameters* rather than literals, and that is a requirement rather than a
+   style: fusion declines a tree of nothing but constants, since expanding one would be the same
+   arithmetic in more text. WideInt.yana is written the other way round for the same reason, and
+   between them the two shapes cover both paths.
+-}
+
+fn check(actual: WideInt, expected: WideInt, weight: Int) -> Int =
+    if actual == expected then weight else 0
+
+-- ## A mask against a constant, which is what the tree collapses furthest
+
+-- Every bit of the constant is below 32, so the high half of the answer is known to be empty and
+-- the whole expression is the low half: one `&` and the unsigned read of it. This is the case the
+-- `known` bound in wide.cpp exists for - without it the empty high half is still masked and sign
+-- extended, three operations that cannot change anything.
+fn andLow(x: WideInt) -> WideInt = x `and` 255
+
+-- The mirror image: the constant is a single bit above 32, so the *low* half is empty and the
+-- answer is the high half scaled back up. Nothing is added to it, which is the other end of the
+-- same fold.
+fn andHigh(x: WideInt) -> WideInt = x `and` 34359738368
+
+-- ## Trees
+
+-- Three operands and two operators over one value, which is the shape the benchmark's `mix3`
+-- measures. `a` is split once here and twice as calls.
+fn mix(a: WideInt, b: WideInt, c: WideInt) -> WideInt = (a `and` b) `xor` (a `or` c)
+
+-- The read-clear-set-store a flags word actually gets: clear a bit above 32, set one below it, and
+-- fold in another word. Four operators, one unpack of each leaf, one join.
+--
+-- The ascription is not decoration. `not` is a *function*, and an argument of one is a position the
+-- expected type does not reach - the literal would settle to `Int`, truncate to zero, and clear
+-- nothing. The out-of-range warning is what says so, and it said so about this line.
+fn flags(a: WideInt, b: WideInt) -> WideInt =
+    ((a `and` not(2199023255552 :: WideInt)) `or` 128) `xor` b
+
+-- ## The sign, which is where the fused form differs from the helpers rather than merely inlining
+
+-- The helpers mask the high half and re-apply the sign afterwards with a ternary that mentions its
+-- operand three times, which is why they need a binding for it. Fusing sign-*extends* the high half
+-- instead, which is one expression and produces the negative result directly.
+fn complement(x: WideInt) -> WideInt = not(x)
+
+-- The same thing reached the other way: a negative operand masked down to a positive one. The
+-- constant's low half is all ones, so the `and` on that half is the identity and drops out, and the
+-- value has to come back through `>>> 0` rather than as a signed 32-bit result.
+fn clearTop(x: WideInt) -> WideInt = x `and` 4503599627370495
+
+-- A chain that starts negative and stays negative, so the sign extension is load-bearing at the
+-- join rather than a no-op that happens to be right.
+fn keepNegative(x: WideInt) -> WideInt = not(x) `or` 15
+
+-- ## Where fusion declines
+
+fn wholeMask() -> WideInt = 1099511627775
+
+-- A leaf that is a call cannot be split, because splitting reads a leaf once per half and calling
+-- something twice is not the same program. So this one stays two helper calls, and the golden is
+-- where that shows.
+fn andCall(x: WideInt) -> WideInt = x `and` wholeMask()
+
+fn main() -> Int =
+    check(andLow(34359738375), 7, 1) +
+    check(andHigh(34359738375), 34359738368, 2) +
+    check(mix(34359738375, 1099511627775, 255), 248, 4) +
+    check(flags(2199023255560, 4398046511109), 4398046511245, 8) +
+    check(complement(34359738375), (0 :: WideInt) - 34359738376, 16) +
+    check(clearTop((0 :: WideInt) - 1), 4503599627370495, 32) +
+    check(keepNegative(1048591), (0 :: WideInt) - 1048577, 64) +
+    check(andCall(34359738375), 34359738375, 128)

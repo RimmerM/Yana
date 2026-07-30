@@ -613,6 +613,41 @@ bool foldExprs(Gen& g, JsPtr<Expr>& slot) {
     return foldTernaryCompare(g, slot) || changed;
 }
 
+/*
+ * Bitwise fusion, which is the one rewrite here that reads a *type* rather than the tree's shape.
+ *
+ * Top-down rather than innermost-first, unlike foldExprs: the whole of what fusion does is take a
+ * maximal tree apart at once, and a fused inner call is no longer a call for the outer one to
+ * recognize. So a match consumes its subtree and the walk does not descend into what it produced -
+ * which has no wide calls left in it in any case.
+ */
+bool fuseExprs(Gen& g, JsPtr<Expr>& slot) {
+    if(auto fused = fuseWideBitwise(g, slot)) {
+        slot = fused;
+        return true;
+    }
+
+    auto changed = false;
+    eachOperand(g, g.base[slot], [&](JsPtr<Expr>& operand, bool) {
+        changed = fuseExprs(g, operand) || changed;
+    });
+
+    return changed;
+}
+
+bool fuseList(Gen& g, StmtList& list) {
+    auto changed = false;
+
+    for(auto pointer: list.contents(g.base)) {
+        auto stmt = g.base[pointer];
+        if(auto header = headerOf(g, stmt)) changed = fuseExprs(g, *header) || changed;
+
+        eachBody(g, stmt, [&](StmtList& body) { changed = fuseList(g, body) || changed; });
+    }
+
+    return changed;
+}
+
 bool optimizeList(Gen& g, StmtList& list, Names& names) {
     auto changed = false;
     Size index = 0;
@@ -651,14 +686,106 @@ bool optimizeList(Gen& g, StmtList& list, Names& names) {
  * - and they go stale in the safe direction: a count that is too high only means a binding is left
  * alone. So one pass runs against one set of counts, and what the pass uncovers is picked up by the
  * next. Each round that changes anything removes at least one statement, so this terminates.
+ *
+ * Fusion is the one thing here that goes stale the *other* way, which is why it is a phase of its
+ * own rather than another rewrite in the list. It mentions a leaf twice, so a name the counts still
+ * call single-use has two readers afterwards - and inlining one of them would leave the other
+ * reading a binding that no longer exists. Running it only between complete rounds is what
+ * guarantees the counts are rebuilt before anything acts on them again.
+ *
+ * It also wants to run *after* inlining rather than before: the emitter names every instruction's
+ * result, so the tree fusion matches on is one the substitution above is what assembles. The outer
+ * loop is then for the trees that assembling one uncovers, and it terminates because fusion removes
+ * wide calls and never adds one.
  */
 void optimizeFunction(Gen& g, FunStmt& function) {
     for(;;) {
-        Names names;
-        countList(g, function.body, names);
+        for(;;) {
+            Names names;
+            countList(g, function.body, names);
 
-        if(!optimizeList(g, function.body, names)) return;
+            if(!optimizeList(g, function.body, names)) break;
+        }
+
+        if(!fuseList(g, function.body)) return;
     }
+}
+
+/*
+ * The helpers nothing is left calling.
+ *
+ * A helper is interned when the *call node* is built, which is while the emitter is walking the
+ * instruction that wanted one - and fusion then takes the call away again. `(a and b) xor c` asks
+ * for three of them and ends up calling none, so without this the file carries three function
+ * definitions that nothing mentions. It was six hundred bytes of dead text in WideFusion.yana,
+ * which is a good deal more than the fusion saved there.
+ *
+ * Only the compiler's own helpers, by name: an unreferenced *user* function is a different question
+ * with a different answer, and which of those get emitted at all is `excludeFunctions`'.
+ *
+ * To a fixed point, because one helper's body may be the only thing calling another - a bit-range
+ * accessor wider than the operators reaches for a `wrap`, and removing the accessor is what makes
+ * the wrap dead.
+ */
+void removeDeadHelpers(Gen& g) {
+    if(g.wideHelperOrder.size() == 0 && g.bitHelperOrder.size() == 0) return;
+
+    HashSet<U32> generated;
+    for(auto& helper: g.wideHelperOrder) generated.add(helper.name.text);
+    for(auto& helper: g.bitHelperOrder) generated.add(helper.name.text);
+
+    for(;;) {
+        Names names;
+        countList(g, g.file.statements, names);
+
+        auto changed = false;
+        Size index = 0;
+
+        while(index < g.file.statements.size()) {
+            auto stmt = g.base[g.file.statements.get(g.base, index)];
+
+            if(stmt->kind == Stmt::Fun) {
+                auto name = ((FunStmt*)stmt)->name;
+                if(generated.contains(name.text) && !names.useCount(name)) {
+                    g.file.statements.remove(g.base, index);
+                    changed = true;
+                    continue;
+                }
+            }
+
+            index++;
+        }
+
+        if(!changed) break;
+    }
+
+    // And the heading of a family that emptied, which would otherwise introduce nothing.
+    auto stillHas = [&](Array<WideHelper>* wide, Array<BitHelper>* bits) {
+        for(auto pointer: g.file.statements.contents(g.base)) {
+            auto stmt = g.base[pointer];
+            if(stmt->kind != Stmt::Fun) continue;
+
+            auto name = ((FunStmt*)stmt)->name;
+            if(wide) for(auto& helper: *wide) if(helper.name.text == name.text) return true;
+            if(bits) for(auto& helper: *bits) if(helper.name.text == name.text) return true;
+        }
+
+        return false;
+    };
+
+    auto dropComment = [&](JsPtr<Stmt> comment) {
+        if(!comment) return;
+
+        for(Size i = 0; i < g.file.statements.size(); i++) {
+            if(g.file.statements.get(g.base, i) != comment) continue;
+
+            g.file.statements.remove(g.base, i);
+            return;
+        }
+    };
+
+    if(!stillHas(&g.wideHelperOrder, nullptr)) dropComment(g.wideHelperComment);
+    if(!stillHas(nullptr, &g.bitHelperOrder)) dropComment(g.bitHelperComment);
 }
 
 } // namespace
@@ -668,6 +795,8 @@ void optimizeFile(Gen& g) {
         auto stmt = g.base[pointer];
         if(stmt->kind == Stmt::Fun) optimizeFunction(g, *(FunStmt*)stmt);
     }
+
+    removeDeadHelpers(g);
 }
 
 } // namespace js

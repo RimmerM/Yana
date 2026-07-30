@@ -531,6 +531,27 @@ private:
     bool foldNiche(RecordType& record, Repr& into);
     bool scalarizeSum(RecordType& record, Repr& into, U32 payloadSize, U32 payloadAlign);
 
+    /*
+     * Whether a value of this type can live inside a packed word *on this target*.
+     *
+     * The bits always fit - `valueWidth` said so, and this is only ever asked of something it called
+     * narrow. What this asks is the other half: a field is moved in and out of the word as a value of
+     * its own type, and Design.md's bit-width rule says which type that is. A load of a `@bits(20)
+     * U64` widens to `U64`, so what comes out of the word is a `U64`, and a target whose values hold
+     * fewer bits than that cannot produce one.
+     *
+     * Native answers yes to everything, since `integerBits` is 64 there and no integer is wider. It
+     * is the JS target that has something to say: a value there holds 53 bits, and an integer whose
+     * canonical width is 64 is a `bigint` - a different host type, with different operators, that a
+     * shift and a mask of a `number` cannot produce. Packing one would emit `word & ~mask | value`
+     * over a mixed pair and fail at run time rather than silently.
+     *
+     * Asked of the *canonical* width rather than the refined one for the same reason the JS backend's
+     * `isLong` is: a refinement and the type it refines are the same host type, and the refinement is
+     * exactly the thing whose logical width would otherwise say yes.
+     */
+    bool packableHere(TypePtr type, U32 depth = 0);
+
     U32 naturalBytes(U32 bits) const;
     Niche intNiche(const IntType& integer, U32 offset) const;
     Niche addressNiche(U32 offset) const;

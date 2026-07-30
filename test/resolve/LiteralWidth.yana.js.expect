@@ -45,7 +45,7 @@ function adoptArgument() {
 }
 
 function adoptField() {
-  return { value: $w53i$or(34359738368, 255) }.value;
+  return $w53i$or(34359738368, 255);
 }
 
 function adoptLong() {
@@ -136,7 +136,7 @@ function main() {
 
 // integers of 33 to 53 bits - see codegen/js/wide.cpp
 function $w53i$or(a, b) {
-  var v = ((Math.floor(a * 2.3283064365386963E-10) | Math.floor(b * 2.3283064365386963E-10)) & 2097151) * 4294967296 + ((a | b) >>> 0);
+  var v = (($wi$hi(a) | $wi$hi(b)) & 2097151) * 4294967296 + ((a | b) >>> 0);
   return v >= 4503599627370496 ? v - 9007199254740992 : v;
 }
 
@@ -146,6 +146,10 @@ function $w53i$add(a, b) {
 }
 
 function $w53i$shl(a, b) {
-  var s = b >= 32 ? (a >>> 0 << b - 32 & 2097151) * 4294967296 : (((Math.floor(a * 2.3283064365386963E-10) & 2097151) << b | a >>> 0 >>> 32 - b) & 2097151) * 4294967296 + (a >>> 0 << b >>> 0);
+  var s = b >= 32 ? (a >>> 0 << b - 32 & 2097151) * 4294967296 : ((($wi$hi(a) & 2097151) << b | a >>> 0 >>> 32 - b) & 2097151) * 4294967296 + (a >>> 0 << b >>> 0);
   return b === 0 ? a : s >= 4503599627370496 ? s - 9007199254740992 : s;
+}
+
+function $wi$hi(a) {
+  return Math.floor(a * 2.3283064365386963E-10);
 }

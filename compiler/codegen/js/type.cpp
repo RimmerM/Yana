@@ -160,6 +160,7 @@ FieldProperty fieldProperty(Gen& g, TypePtr type, U16 index) {
             property.type = g.program.scalar.int_;
             property.bitOffset = placed->bitOffset;
             property.bitWidth = placed->bitWidth;
+            property.wordBits = U8(min(U32(placed->wordBytes) * 8, U32(kMaxNumberBits)));
             property.leader = placed->bitOffset == 0;
             return property;
         }

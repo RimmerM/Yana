@@ -527,7 +527,7 @@ void pushArg(Gen& g, Array<JsPtr<Expr>>& args, ModulePtr<Value> arg, bool flat) 
         auto parts = refPartsOf(g, arg);
         args.push(parts.owner);
         args.push(parts.key);
-        if(parts.shift) args.push(parts.shift);
+        if(parts.scale) args.push(parts.scale);
         return;
     }
 
@@ -892,7 +892,7 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
         PlaceBits walked;
         placeOwner(g, place, walked);
         bits.offset = walked.offset;
-        bits.shift = walked.shift;
+        bits.scale = walked.scale;
         bits.width = narrowWidth(g, placeType(g, place));
     }
 
@@ -918,19 +918,24 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
     parts.key = part("$k"_v, keyExpr);
 
     /*
-     * The shift, on a target that has bit ranges in it at all. Where nothing is packed every narrow
-     * value sits at offset zero of what it names, so the shift is provably zero and is not
+     * The scale, on a target that has bit ranges in it at all. Where nothing is packed every narrow
+     * value sits at offset zero of what it names, so the scale is provably one and is not
      * represented - the same elision native states about a full-width value, one level up. See
-     * narrowRefCarriesShift.
+     * narrowRefCarriesScale.
+     *
+     * `2**offset` rather than the offset, because that is the number the callee's arithmetic wants:
+     * it cannot know how wide the word it was handed is, so it divides rather than shifts, and
+     * computing `2**s` from `s` at every access would be a `Math.pow` per read. Composition is a
+     * multiply where it used to be an add, and both operands are constants at every site.
      */
-    if(narrowRefCarriesShift(g)) {
-        auto shift = bits.shift ? bits.shift : number(g, 0);
+    if(narrowRefCarriesScale(g)) {
+        auto scale = bits.scale ? bits.scale : number(g, 1);
         if(bits.offset) {
-            shift = bits.shift ? binary(g, BinaryOp::Add, shift, number(g, F64(bits.offset)))
-                               : number(g, F64(bits.offset));
+            auto step = number(g, powerOfTwo(bits.offset));
+            scale = bits.scale ? binary(g, BinaryOp::Mul, scale, step) : step;
         }
 
-        parts.shift = part("$s"_v, shift);
+        parts.scale = part("$s"_v, scale);
     }
 
     g.flatRefs.add(U32(value), parts);

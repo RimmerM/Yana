@@ -1,0 +1,106 @@
+fn check(%actual: WideInt, %expected: WideInt, %weight: Int) -> Int {
+  b0:
+    %v3 = cmp_eq %actual, %expected : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, %weight], [b2, 0] : Int
+    ret %v8
+}
+
+fn andLow(%x: WideInt) -> WideInt {
+  b0:
+    %v3 = and %x, 255 : WideInt
+    ret %v3
+}
+
+fn andHigh(%x: WideInt) -> WideInt {
+  b0:
+    %v3 = and %x, 34359738368 : WideInt
+    ret %v3
+}
+
+fn mix(%a: WideInt, %b: WideInt, %c: WideInt) -> WideInt {
+  b0:
+    %v3 = and %a, %b : WideInt
+    %v4 = or %a, %c : WideInt
+    %v5 = xor %v3, %v4 : WideInt
+    ret %v5
+}
+
+fn flags(%a: WideInt, %b: WideInt) -> WideInt {
+  b0:
+    %v3 = not 2199023255552 : WideInt
+    %v4 = and %a, %v3 : WideInt
+    %v7 = or %v4, 128 : WideInt
+    %v8 = xor %v7, %b : WideInt
+    ret %v8
+}
+
+fn complement(%x: WideInt) -> WideInt {
+  b0:
+    %v1 = not %x : WideInt
+    ret %v1
+}
+
+fn clearTop(%x: WideInt) -> WideInt {
+  b0:
+    %v3 = and %x, 4503599627370495 : WideInt
+    ret %v3
+}
+
+fn keepNegative(%x: WideInt) -> WideInt {
+  b0:
+    %v1 = not %x : WideInt
+    %v4 = or %v1, 15 : WideInt
+    ret %v4
+}
+
+fn wholeMask() -> WideInt {
+  b0:
+    ret 1099511627775
+}
+
+fn andCall(%x: WideInt) -> WideInt {
+  b0:
+    %v1 = call wholeMask : WideInt
+    %v2 = and %x, %v1 : WideInt
+    ret %v2
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call andLow, 34359738375 : WideInt
+    %v4 = call check, %v1, 7, 1 : Int
+    %v6 = call andHigh, 34359738375 : WideInt
+    %v9 = call check, %v6, 34359738368, 2 : Int
+    %v10 = add %v4, %v9 : Int
+    %v14 = call mix, 34359738375, 1099511627775, 255 : WideInt
+    %v17 = call check, %v14, 248, 4 : Int
+    %v18 = add %v10, %v17 : Int
+    %v21 = call flags, 2199023255560, 4398046511109 : WideInt
+    %v24 = call check, %v21, 4398046511245, 8 : Int
+    %v25 = add %v18, %v24 : Int
+    %v27 = call complement, 34359738375 : WideInt
+    %v31 = sub 0, 34359738376 : WideInt
+    %v33 = call check, %v27, %v31, 16 : Int
+    %v34 = add %v25, %v33 : Int
+    %v38 = sub 0, 1 : WideInt
+    %v39 = call clearTop, %v38 : WideInt
+    %v42 = call check, %v39, 4503599627370495, 32 : Int
+    %v43 = add %v34, %v42 : Int
+    %v45 = call keepNegative, 1048591 : WideInt
+    %v49 = sub 0, 1048577 : WideInt
+    %v51 = call check, %v45, %v49, 64 : Int
+    %v52 = add %v43, %v51 : Int
+    %v54 = call andCall, 34359738375 : WideInt
+    %v57 = call check, %v54, 34359738375, 128 : Int
+    %v58 = add %v52, %v57 : Int
+    ret %v58
+}

@@ -64,6 +64,11 @@ enum class WideOp: U8 {
     Add, Sub, Mul,
     And, Or, Xor, Not,
     Shl, Shr, Sar,
+
+    // The high 32 bits of a value, which is not an operation on the type so much as the first half
+    // of every one of them - and the only one whose helper does not depend on the width. See
+    // wide.cpp's `highHalf`.
+    High,
 };
 
 enum class BinaryOp: U8 {

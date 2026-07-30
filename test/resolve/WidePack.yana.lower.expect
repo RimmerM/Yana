@@ -1,0 +1,496 @@
+
+retagged<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = cast 549755813887: Long
+    %v_3 = and %v_2, 1099511627775: Long
+    %v_4 = and 0, 18446742974197923840: Long
+    %v_5 = or %v_4, %v_3: Long
+    %v_6 = cast 9: Long
+    %v_7 = and %v_6, 15: Long
+    %v_8 = shl %v_7, 40: Long
+    %v_9 = and %v_5, 18446727581035134975: Long
+    %v_10 = or %v_9, %v_8: Long
+    %v_11 = sub 0, 2: Long
+    %v_12 = imm 11: Long
+    %v_13 = shl %v_11, %v_12: Long
+    %v_14 = sar %v_13, %v_12: Long
+    %v_15 = shl %v_14, 13: Long
+    %v_16 = imm 11: Long
+    %v_17 = shl %v_15, %v_16: Long
+    %v_18 = sar %v_17, %v_16: Long
+    %v_19 = sar %v_18, 13: Long
+    %v_20 = cast %v_19: Long
+    %v_21 = cast %v_20: Long
+    %v_22 = and %v_21, 1099511627775: Long
+    %v_23 = and %v_10, 18446742974197923840: Long
+    %v_24 = or %v_23, %v_22: Long
+    store %v_0, %v_24, 8
+    ret 
+  }
+}
+
+writeLow<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = cast 1: Long
+    %v_3 = and %v_2, 1048575: Long
+    %v_4 = and 0, 18446744073708503040: Long
+    %v_5 = or %v_4, %v_3: Long
+    %v_6 = cast 999999: Long
+    %v_7 = and %v_6, 1048575: Long
+    %v_8 = shl %v_7, 32: Long
+    %v_9 = and %v_5, 18442240478377148415: Long
+    %v_10 = or %v_9, %v_8: Long
+    %v_11 = cast 1048575: Long
+    %v_12 = and %v_11, 1048575: Long
+    %v_13 = and %v_10, 18446744073708503040: Long
+    %v_14 = or %v_13, %v_12: Long
+    store %v_0, %v_14, 8
+    ret 
+  }
+}
+
+checkW<complex>(%actual: Long, %expected: Long, %weight: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %actual, %expected: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
+    ret %v_5
+  }
+}
+
+stored<complex>(%v_0: Ptr, %x: Long) {
+  b_1 {
+    %v_2 = cast 0: Long
+    %v_3 = and %v_2, 1099511627775: Long
+    %v_4 = and 0, 18446742974197923840: Long
+    %v_5 = or %v_4, %v_3: Long
+    %v_6 = cast 1: Long
+    %v_7 = and %v_6, 15: Long
+    %v_8 = shl %v_7, 40: Long
+    %v_9 = and %v_5, 18446727581035134975: Long
+    %v_10 = or %v_9, %v_8: Long
+    %v_11 = shl %x, 13: Long
+    %v_12 = imm 11: Long
+    %v_13 = shl %v_11, %v_12: Long
+    %v_14 = sar %v_13, %v_12: Long
+    %v_15 = sar %v_14, 13: Long
+    %x = cast %v_15: Long
+    %v_16 = cast %x: Long
+    %v_17 = and %v_16, 1099511627775: Long
+    %v_18 = and %v_10, 18446742974197923840: Long
+    %v_19 = or %v_18, %v_17: Long
+    store %v_0, %v_19, 8
+    ret 
+  }
+}
+
+marked<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = cast 5: Long
+    %v_3 = and %v_2, 1048575: Long
+    %v_4 = and 0, 18446744073708503040: Long
+    %v_5 = or %v_4, %v_3: Long
+    %v_6 = cast 0: Long
+    %v_7 = and %v_6, 1048575: Long
+    %v_8 = shl %v_7, 32: Long
+    %v_9 = and %v_5, 18442240478377148415: Long
+    %v_10 = or %v_9, %v_8: Long
+    %v_11 = sub 0, 3: Int
+    %v_12 = shl %v_11, 12: Int
+    %v_13 = sar %v_12, 12: Int
+    %v_14 = cast %v_13: Int
+    %v_15 = cast %v_14: Long
+    %v_16 = and %v_15, 1048575: Long
+    %v_17 = shl %v_16, 32: Long
+    %v_18 = and %v_10, 18442240478377148415: Long
+    %v_19 = or %v_18, %v_17: Long
+    store %v_0, %v_19, 8
+    ret 
+  }
+}
+
+tagged<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = cast 549755813887: Long
+    %v_3 = and %v_2, 1099511627775: Long
+    %v_4 = and 0, 18446742974197923840: Long
+    %v_5 = or %v_4, %v_3: Long
+    %v_6 = cast 9: Long
+    %v_7 = and %v_6, 15: Long
+    %v_8 = shl %v_7, 40: Long
+    %v_9 = and %v_5, 18446727581035134975: Long
+    %v_10 = or %v_9, %v_8: Long
+    store %v_0, %v_10, 8
+    ret 
+  }
+}
+
+checkI<complex>(%actual: Int, %expected: Int, %weight: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %actual, %expected: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
+    ret %v_5
+  }
+}
+
+readB<complex>(%p: Ptr): Int {
+  b_0 {
+    %v_1 = load %p, 8: Long
+    %v_2 = shr %v_1, 32: Long
+    %v_3 = and %v_2, 1048575: Long
+    %v_4 = cast %v_3: Int
+    ret %v_4
+  }
+}
+
+check<complex>(%actual: Int, %expected: Int, %weight: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %actual, %expected: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
+    ret %v_5
+  }
+}
+
+bumpedHigh<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = cast 1000: Long
+    %v_3 = and %v_2, 1048575: Long
+    %v_4 = and 0, 18446744073708503040: Long
+    %v_5 = or %v_4, %v_3: Long
+    %v_6 = cast 999999: Long
+    %v_7 = and %v_6, 1048575: Long
+    %v_8 = shl %v_7, 32: Long
+    %v_9 = and %v_5, 18442240478377148415: Long
+    %v_10 = or %v_9, %v_8: Long
+    %p = alloca 8, 8: Ptr
+    store %p, 0, 8
+    store %p, %v_10, 8
+    %v_11 = load %p, 8: Long
+    %v_12 = shr %v_11, 32: Long
+    %v_13 = and %v_12, 1048575: Long
+    %v_14 = cast %v_13: Int
+    %v_15 = add %p, 4: Ptr
+    call_complex nudge, %v_15
+    copy %v_0, %p, 8
+    ret 
+  }
+}
+
+nudge<complex>(%x: Ptr) {
+  b_0 {
+    %v_1 = bitcast %x: Long
+    %v_2 = and %v_1, 281474976710655: Long
+    %v_3 = bitcast %v_2: Ptr
+    %v_4 = shr %v_1, 48: Long
+    %v_5 = load %v_3, 4: Long
+    %v_6 = shr %v_5, %v_4: Long
+    %v_7 = and %v_6, 1048575: Long
+    %v_8 = cast %v_7: Int
+    %v_9 = cast %v_8: Int
+    %v_10 = add %v_9, 1: Int
+    %v_11 = and %v_10, 1048575: Int
+    %v_12 = cast %v_11: Int
+    %v_13 = bitcast %x: Long
+    %v_14 = and %v_13, 281474976710655: Long
+    %v_15 = bitcast %v_14: Ptr
+    %v_16 = shr %v_13, 48: Long
+    %v_17 = load %v_15, 4: Long
+    %v_18 = cast %v_12: Long
+    %v_19 = imm 1048575: Long
+    %v_20 = and %v_18, %v_19: Long
+    %v_21 = shl %v_20, %v_16: Long
+    %v_22 = shl %v_19, %v_16: Long
+    %v_23 = not %v_22: Long
+    %v_24 = and %v_17, %v_23: Long
+    %v_25 = or %v_24, %v_21: Long
+    store %v_15, %v_25, 4
+    ret 
+  }
+}
+
+nudge12<complex>(%x: Ptr) {
+  b_0 {
+    %v_1 = bitcast %x: Long
+    %v_2 = and %v_1, 281474976710655: Long
+    %v_3 = bitcast %v_2: Ptr
+    %v_4 = shr %v_1, 48: Long
+    %v_5 = load %v_3, 2: Long
+    %v_6 = shr %v_5, %v_4: Long
+    %v_7 = and %v_6, 4095: Long
+    %v_8 = cast %v_7: Int
+    %v_9 = cast %v_8: Int
+    %v_10 = add %v_9, 1: Int
+    %v_11 = and %v_10, 4095: Int
+    %v_12 = cast %v_11: Int
+    %v_13 = bitcast %x: Long
+    %v_14 = and %v_13, 281474976710655: Long
+    %v_15 = bitcast %v_14: Ptr
+    %v_16 = shr %v_13, 48: Long
+    %v_17 = load %v_15, 2: Long
+    %v_18 = cast %v_12: Long
+    %v_19 = imm 4095: Long
+    %v_20 = and %v_18, %v_19: Long
+    %v_21 = shl %v_20, %v_16: Long
+    %v_22 = shl %v_19, %v_16: Long
+    %v_23 = not %v_22: Long
+    %v_24 = and %v_17, %v_23: Long
+    %v_25 = or %v_24, %v_21: Long
+    store %v_15, %v_25, 2
+    ret 
+  }
+}
+
+boxed<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 7, 4
+    %v_3 = add %v_2, 4: Ptr
+    %v_4 = load %v_3, 4: Long
+    %v_5 = cast 1: Long
+    %v_6 = and %v_5, 1048575: Long
+    %v_7 = and %v_4, 18446744073708503040: Long
+    %v_8 = or %v_7, %v_6: Long
+    store %v_3, %v_8, 4
+    %v_9 = add %v_2, 4: Ptr
+    %v_10 = load %v_9, 4: Long
+    %v_11 = cast 4095: Long
+    %v_12 = and %v_11, 4095: Long
+    %v_13 = shl %v_12, 20: Long
+    %v_14 = and %v_10, 18446744069415632895: Long
+    %v_15 = or %v_14, %v_13: Long
+    store %v_9, %v_15, 4
+    %x = alloca 8, 4: Ptr
+    copy %x, %v_2, 8
+    %v_16 = add %x, 4: Ptr
+    %v_17 = load %v_16, 4: Long
+    %v_18 = shr %v_17, 20: Long
+    %v_19 = and %v_18, 4095: Long
+    %v_20 = cast %v_19: Int
+    %v_21 = add %x, 4: Ptr
+    %v_22 = add %v_21, 2: Ptr
+    %v_23 = bitcast %v_22: Long
+    %v_24 = or %v_23, 1125899906842624: Long
+    %v_25 = bitcast %v_24: Ptr
+    call_complex nudge12, %v_25
+    copy %v_0, %x, 8
+    ret 
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, 0, 8
+    %v_2 = load %v_1, 8: Long
+    %v_3 = cast 1000: Long
+    %v_4 = and %v_3, 1048575: Long
+    %v_5 = and %v_2, 18446744073708503040: Long
+    %v_6 = or %v_5, %v_4: Long
+    store %v_1, %v_6, 8
+    %v_7 = load %v_1, 8: Long
+    %v_8 = cast 999999: Long
+    %v_9 = and %v_8, 1048575: Long
+    %v_10 = shl %v_9, 32: Long
+    %v_11 = and %v_7, 18442240478377148415: Long
+    %v_12 = or %v_11, %v_10: Long
+    store %v_1, %v_12, 8
+    %v_13 = call_complex readB, %v_1: Int
+    %v_14 = cast %v_13: Int
+    %v_15 = call_complex check, %v_14, 999999, 1: Int
+    %v_16 = alloca 8, 8: Ptr
+    call_complex writeHigh, %v_16
+    %v_17 = load %v_16, 8: Long
+    %v_18 = shr %v_17, 32: Long
+    %v_19 = and %v_18, 1048575: Long
+    %v_20 = cast %v_19: Int
+    %v_21 = cast %v_20: Int
+    %v_22 = call_complex check, %v_21, 1048575, 2: Int
+    %v_23 = add %v_15, %v_22: Int
+    %v_24 = alloca 8, 8: Ptr
+    call_complex writeHigh, %v_24
+    %v_25 = load %v_24, 8: Long
+    %v_26 = and %v_25, 1048575: Long
+    %v_27 = cast %v_26: Int
+    %v_28 = cast %v_27: Int
+    %v_29 = call_complex check, %v_28, 1000, 4: Int
+    %v_30 = add %v_23, %v_29: Int
+    %v_31 = alloca 8, 8: Ptr
+    call_complex writeLow, %v_31
+    %v_32 = load %v_31, 8: Long
+    %v_33 = shr %v_32, 32: Long
+    %v_34 = and %v_33, 1048575: Long
+    %v_35 = cast %v_34: Int
+    %v_36 = cast %v_35: Int
+    %v_37 = call_complex check, %v_36, 999999, 8: Int
+    %v_38 = add %v_30, %v_37: Int
+    %v_39 = alloca 8, 8: Ptr
+    call_complex bumpedHigh, %v_39
+    %v_40 = load %v_39, 8: Long
+    %v_41 = shr %v_40, 32: Long
+    %v_42 = and %v_41, 1048575: Long
+    %v_43 = cast %v_42: Int
+    %v_44 = cast %v_43: Int
+    %v_45 = call_complex check, %v_44, 1000000, 16: Int
+    %v_46 = add %v_38, %v_45: Int
+    %v_47 = alloca 8, 8: Ptr
+    call_complex bumpedHigh, %v_47
+    %v_48 = load %v_47, 8: Long
+    %v_49 = and %v_48, 1048575: Long
+    %v_50 = cast %v_49: Int
+    %v_51 = cast %v_50: Int
+    %v_52 = call_complex check, %v_51, 1000, 32: Int
+    %v_53 = add %v_46, %v_52: Int
+    %v_54 = alloca 8, 8: Ptr
+    call_complex marked, %v_54
+    %v_55 = load %v_54, 8: Long
+    %v_56 = shl %v_55, 12: Long
+    %v_57 = sar %v_56, 44: Long
+    %v_58 = sext %v_57: Int
+    %v_59 = sub 0, 3: Int
+    %v_60 = cast %v_58: Int
+    %v_61 = call_complex checkI, %v_60, %v_59, 64: Int
+    %v_62 = add %v_53, %v_61: Int
+    %v_63 = alloca 8, 8: Ptr
+    call_complex marked, %v_63
+    %v_64 = load %v_63, 8: Long
+    %v_65 = and %v_64, 1048575: Long
+    %v_66 = cast %v_65: Int
+    %v_67 = cast %v_66: Int
+    %v_68 = call_complex check, %v_67, 5, 128: Int
+    %v_69 = add %v_62, %v_68: Int
+    %v_70 = alloca 8, 8: Ptr
+    call_complex tagged, %v_70
+    %v_71 = load %v_70, 8: Long
+    %v_72 = shl %v_71, 24: Long
+    %v_73 = sar %v_72, 24: Long
+    %v_74 = sext %v_73: Long
+    %v_75 = cast %v_74: Long
+    %v_76 = call_complex checkW, %v_75, 549755813887, 256: Int
+    %v_77 = add %v_69, %v_76: Int
+    %v_78 = alloca 8, 8: Ptr
+    call_complex tagged, %v_78
+    %v_79 = load %v_78, 8: Long
+    %v_80 = shr %v_79, 40: Long
+    %v_81 = and %v_80, 15: Long
+    %v_82 = cast %v_81: Int
+    %v_83 = cast %v_82: Int
+    %v_84 = call_complex check, %v_83, 9, 512: Int
+    %v_85 = add %v_77, %v_84: Int
+    %v_86 = alloca 8, 8: Ptr
+    call_complex retagged, %v_86
+    %v_87 = load %v_86, 8: Long
+    %v_88 = shl %v_87, 24: Long
+    %v_89 = sar %v_88, 24: Long
+    %v_90 = sext %v_89: Long
+    %v_91 = sub 0, 2: Long
+    %v_92 = imm 11: Long
+    %v_93 = shl %v_91, %v_92: Long
+    %v_94 = sar %v_93, %v_92: Long
+    %v_95 = cast %v_90: Long
+    %v_96 = call_complex checkW, %v_95, %v_94, 1024: Int
+    %v_97 = add %v_85, %v_96: Int
+    %v_98 = alloca 8, 8: Ptr
+    call_complex retagged, %v_98
+    %v_99 = load %v_98, 8: Long
+    %v_100 = shr %v_99, 40: Long
+    %v_101 = and %v_100, 15: Long
+    %v_102 = cast %v_101: Int
+    %v_103 = cast %v_102: Int
+    %v_104 = call_complex check, %v_103, 9, 2048: Int
+    %v_105 = add %v_97, %v_104: Int
+    %v_106 = alloca 8, 4: Ptr
+    call_complex boxed, %v_106
+    %v_107 = add %v_106, 4: Ptr
+    %v_108 = load %v_107, 4: Long
+    %v_109 = shr %v_108, 20: Long
+    %v_110 = and %v_109, 4095: Long
+    %v_111 = cast %v_110: Int
+    %v_112 = cast %v_111: Int
+    %v_113 = call_complex check, %v_112, 0, 4096: Int
+    %v_114 = add %v_105, %v_113: Int
+    %v_115 = alloca 8, 8: Ptr
+    call_complex stored, %v_115, 549755813887
+    %v_116 = load %v_115, 8: Long
+    %v_117 = shl %v_116, 24: Long
+    %v_118 = sar %v_117, 24: Long
+    %v_119 = sext %v_118: Long
+    %v_120 = cast %v_119: Long
+    %v_121 = call_complex checkW, %v_120, 549755813887, 8192: Int
+    %v_122 = add %v_114, %v_121: Int
+    %v_123 = sub 0, 549755813888: Long
+    %v_124 = imm 11: Long
+    %v_125 = shl %v_123, %v_124: Long
+    %v_126 = sar %v_125, %v_124: Long
+    %v_127 = alloca 8, 8: Ptr
+    call_complex stored, %v_127, %v_126
+    %v_128 = load %v_127, 8: Long
+    %v_129 = shl %v_128, 24: Long
+    %v_130 = sar %v_129, 24: Long
+    %v_131 = sext %v_130: Long
+    %v_132 = sub 0, 549755813888: Long
+    %v_133 = imm 11: Long
+    %v_134 = shl %v_132, %v_133: Long
+    %v_135 = sar %v_134, %v_133: Long
+    %v_136 = cast %v_131: Long
+    %v_137 = call_complex checkW, %v_136, %v_135, 16384: Int
+    %v_138 = add %v_122, %v_137: Int
+    ret %v_138
+  }
+}
+
+writeHigh<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = cast 1000: Long
+    %v_3 = and %v_2, 1048575: Long
+    %v_4 = and 0, 18446744073708503040: Long
+    %v_5 = or %v_4, %v_3: Long
+    %v_6 = cast 1: Long
+    %v_7 = and %v_6, 1048575: Long
+    %v_8 = shl %v_7, 32: Long
+    %v_9 = and %v_5, 18442240478377148415: Long
+    %v_10 = or %v_9, %v_8: Long
+    %v_11 = cast 1048575: Long
+    %v_12 = and %v_11, 1048575: Long
+    %v_13 = shl %v_12, 32: Long
+    %v_14 = and %v_10, 18442240478377148415: Long
+    %v_15 = or %v_14, %v_13: Long
+    store %v_0, %v_15, 8
+    ret 
+  }
+}
+

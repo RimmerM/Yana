@@ -42,12 +42,6 @@ namespace js {
 static const F64 kTwo32 = 4294967296.0;
 static const F64 kInvTwo32 = 1.0 / 4294967296.0;
 
-static F64 pow2(U32 bits) {
-    F64 result = 1;
-    for(U32 i = 0; i < bits; i++) result *= 2;
-    return result;
-}
-
 /*
  * The name of one helper, interned per (operation, width, signedness).
  *
@@ -74,6 +68,7 @@ static StringView opSuffix(WideOp op) {
         case WideOp::Shl: return "shl"_v;
         case WideOp::Shr: return "shr"_v;
         case WideOp::Sar: return "sar"_v;
+        case WideOp::High: return "hi"_v;
     }
 
     return "op"_v;
@@ -86,11 +81,14 @@ Name wideHelper(Gen& g, WideOp op, U32 bits, bool isSigned) {
     // `$w53i$and`. The `$` prefix is the convention the compiler's own names already use, and
     // `uniqueName` guarantees the rest: a program that declared `$w53i$and` itself gets this one
     // disambiguated rather than shadowed.
+    //
+    // A width of zero is a helper that does not have one - the split below - and it leaves the
+    // digits out rather than claiming a width it ignores: `$wi$hi`.
     char buffer[32];
     Size length = 0;
     buffer[length++] = '$';
     buffer[length++] = 'w';
-    length += show(U64(bits), buffer + length, sizeof(buffer) - length);
+    if(bits) length += show(U64(bits), buffer + length, sizeof(buffer) - length);
     buffer[length++] = isSigned ? 'i' : 'u';
     buffer[length++] = '$';
 
@@ -105,7 +103,11 @@ Name wideHelper(Gen& g, WideOp op, U32 bits, bool isSigned) {
 }
 
 JsPtr<Expr> wideCall(Gen& g, WideOp op, IntType* type, JsPtr<Expr> a, JsPtr<Expr> b) {
-    auto name = wideHelper(g, op, type->bits, type->isSigned);
+    return wideCallAt(g, op, type->bits, type->isSigned, a, b);
+}
+
+JsPtr<Expr> wideCallAt(Gen& g, WideOp op, U32 bits, bool isSigned, JsPtr<Expr> a, JsPtr<Expr> b) {
+    auto name = wideHelper(g, op, bits, isSigned);
     auto node = make<CallExpr>(g, variable(g, name));
     node->args.push(g.file.arena, a);
     if(b) node->args.push(g.file.arena, b);
@@ -115,8 +117,8 @@ JsPtr<Expr> wideCall(Gen& g, WideOp op, IntType* type, JsPtr<Expr> a, JsPtr<Expr
     // it. It also marks the call for the fusion peephole, which needs to know these are arithmetic.
     node->pure = true;
     node->wide = op;
-    node->wideBits = U16(type->bits);
-    node->wideSigned = type->isSigned;
+    node->wideBits = U16(bits);
+    node->wideSigned = isSigned;
     return asExpr(g, node);
 }
 
@@ -131,7 +133,7 @@ static JsPtr<Expr> lowHalf(Gen& g, JsPtr<Expr> value) {
     return binary(g, BinaryOp::Shr, value, number(g, 0));
 }
 
-static JsPtr<Expr> highHalf(Gen& g, JsPtr<Expr> value, bool isSigned) {
+static JsPtr<Expr> splitHigh(Gen& g, JsPtr<Expr> value, bool isSigned) {
     auto scaled = binary(g, BinaryOp::Mul, value, number(g, kInvTwo32, false));
 
     // Truncation toward zero is the wrong rounding for a negative value - `-5 * 2**-32` truncates
@@ -139,6 +141,28 @@ static JsPtr<Expr> highHalf(Gen& g, JsPtr<Expr> value, bool isSigned) {
     // never be negative, takes the cheaper `| 0`.
     if(isSigned) return hostCall(g, "Math"_v, "floor"_v, scaled);
     return binary(g, BinaryOp::Or, scaled, number(g, 0));
+}
+
+/*
+ * The same thing as a call, which is what every site actually gets.
+ *
+ * `Math.floor(a * 2.3283064365386963E-10)` is thirty-eight characters and the single most repeated
+ * expression this backend emits - twice in most helper bodies, once per leaf of every fused tree.
+ * `$wi$hi(a)` is eight, and the helper is width-independent, so one definition serves every wide
+ * type in the program rather than one per width.
+ *
+ * Interned at width zero for exactly that reason: this is the first half of every operation rather
+ * than an operation of any particular type, and keying it on a width would emit identical bodies for
+ * each one in use.
+ *
+ * It puts a call back inside the expression fusion exists to make call-free, which is the one thing
+ * against it. Measured on the chained case at 6.7734 against 6.7627 ns/iter - inside the noise of
+ * that harness, because the engine inlines a body this small - so what it costs is a dependency on
+ * that inlining happening, and what it buys is about a quarter of the emitted text of any program
+ * that uses these types.
+ */
+static JsPtr<Expr> highHalf(Gen& g, JsPtr<Expr> value, bool isSigned) {
+    return wideCallAt(g, WideOp::High, 0, isSigned, value, nullptr);
 }
 
 // `h * 2**32 + (l >>> 0)`, the unsigned value the two halves denote. A low half the builder already
@@ -155,7 +179,7 @@ static JsPtr<Expr> join(Gen& g, JsPtr<Expr> high, JsPtr<Expr> low) {
 // The high half masked to the bits this width actually owns. Also what makes a signed operand's
 // floored - and therefore negative - high half read back as the right unsigned bits.
 static JsPtr<Expr> maskHigh(Gen& g, JsPtr<Expr> high, U32 bits) {
-    return binary(g, BinaryOp::And, high, number(g, pow2(bits - 32) - 1));
+    return binary(g, BinaryOp::And, high, number(g, powerOfTwo(bits - 32) - 1));
 }
 
 static JsPtr<Expr> variableNamed(Gen& g, StringView text, Name& into) {
@@ -190,8 +214,18 @@ static void returnWide(Gen& g, JsPtr<Expr> value, U32 bits, bool isSigned) {
  * the formatter and the peephole read; a helper built out of text would be opaque to both.
  */
 static StmtList wideHelperBody(Gen& g, WideOp op, U32 bits, bool isSigned, JsList<Name, false>& args) {
-    auto modulus = pow2(bits);
-    auto half = pow2(bits - 1);
+    // Ahead of everything else because it is the one body with no width: the constants below are all
+    // computed from `bits`, and this one is interned at zero.
+    if(op == WideOp::High) {
+        Name aName;
+        auto a = variableNamed(g, "a"_v, aName);
+        args.push(g.file.arena, aName);
+
+        return collect(g, [&] { emit(g, make<ReturnStmt>(g, splitHigh(g, a, isSigned))); });
+    }
+
+    auto modulus = powerOfTwo(bits);
+    auto half = powerOfTwo(bits - 1);
 
     Name aName, bName;
     auto a = variableNamed(g, "a"_v, aName);
@@ -488,8 +522,8 @@ static StmtList wideHelperBody(Gen& g, WideOp op, U32 bits, bool isSigned, JsLis
  * recomputation.
  */
 JsPtr<Expr> resignExpr(Gen& g, JsPtr<Expr> value, U32 bits) {
-    return ternary(g, binary(g, BinaryOp::Ge, value, number(g, pow2(bits - 1))),
-                   binary(g, BinaryOp::Sub, value, number(g, pow2(bits))), value);
+    return ternary(g, binary(g, BinaryOp::Ge, value, number(g, powerOfTwo(bits - 1))),
+                   binary(g, BinaryOp::Sub, value, number(g, powerOfTwo(bits))), value);
 }
 
 /*
@@ -502,8 +536,10 @@ JsPtr<Expr> resignExpr(Gen& g, JsPtr<Expr> value, U32 bits) {
 void emitWideHelpers(Gen& g) {
     if(g.wideHelperOrder.size() == 0) return;
 
-    emit(g, make<CommentStmt>(g, internText(g,
-        "integers of 33 to 53 bits - see codegen/js/wide.cpp"_v)));
+    auto heading = make<CommentStmt>(g, internText(g,
+        "integers of 33 to 53 bits - see codegen/js/wide.cpp"_v));
+    g.wideHelperComment = asStmt(g, heading);
+    emit(g, heading);
 
     // Indexed rather than ranged, because a helper body may request another helper and push onto
     // this array while it is being walked.
@@ -533,6 +569,270 @@ JsPtr<Expr> wideFromNarrow(Gen& g, IntType* to, IntType* from, JsPtr<Expr> value
     if(to->isSigned || !from->isSigned) return value;
 
     return wideCall(g, WideOp::Wrap, to, value, nullptr);
+}
+
+/*
+ * Fusing a whole bitwise expression, which is what the compact form above exists to be traded for.
+ *
+ * `a and (b or c)` as calls splits `b` and `c`, joins, splits the join again, and joins again -
+ * three unpacks and two packs for a tree with two operators in it. Nothing about the middle join is
+ * needed: the halves never interact under `&`, `|`, `^` or `~`, so the whole tree can be evaluated
+ * on each half separately and joined once. That is measured at 2.2-2.3x on a chain in
+ * benchmark/bits53-js, and it is the only rewrite there that closes the gap against `bigint`.
+ *
+ * It also subsumes the individual patterns rather than joining them as a list. Setting, clearing and
+ * testing a bit are each one operator against a constant, and a constant's halves are known here -
+ * so `flags and 255` reduces to `(flags & 255) >>> 0` by the ordinary identity `h & 0 = 0`, with no
+ * rule in this file that mentions bits or masks. The findings document reached the same conclusion
+ * from the other side: fusing the patterns individually is a fixed set of shapes, and fusing the
+ * tree is every combination of them anyone writes.
+ *
+ * The two things it will not do are stated where they are decided: a leaf has to be readable twice
+ * (`isSplittable`), and a tree of nothing but literals is declined (`fuseWideBitwise`).
+ */
+
+namespace {
+
+/*
+ * One 32-bit half of a value, held as a constant wherever it is one.
+ *
+ * The constants are not an optimization of the emitted text so much as what makes the identities
+ * below reachable at all: a literal operand contributes a *known* half, and it is knowing that a
+ * mask's high half is zero that removes the high half of the whole expression.
+ */
+struct Half {
+    JsPtr<Expr> expr = nullptr;
+    I32 value = 0;
+    bool constant = true;
+
+    /*
+     * A bound on which bits this half can have set, or -1 for "no idea".
+     *
+     * Only ever narrowed by an `and` against a known operand, which is the case worth carrying: a
+     * mask says the answer is inside the width already, and `packWide` is then spared the
+     * reduction it would otherwise apply to every high half on principle. `x and 255` is the whole
+     * of why - it should come out as one `&`, not as one `&` and a two-instruction no-op.
+     */
+    I32 known = -1;
+};
+
+struct Split {
+    Half high;
+    Half low;
+};
+
+Half constantHalf(I32 value) {
+    Half half;
+    half.value = value;
+    half.known = value >= 0 ? value : -1;
+    return half;
+}
+
+Half builtHalf(JsPtr<Expr> expr) {
+    Half half;
+    half.expr = expr;
+    half.constant = false;
+    return half;
+}
+
+JsPtr<Expr> halfExpr(Gen& g, Half half) {
+    return half.constant ? number(g, F64(half.value)) : half.expr;
+}
+
+bool isFusible(WideOp op) {
+    return op == WideOp::And || op == WideOp::Or || op == WideOp::Xor || op == WideOp::Not;
+}
+
+/*
+ * One operator applied to one half, with the identities that make a constant operand disappear.
+ *
+ * Every operand reaching here is a name, a literal, or a split of one, so an operand an identity
+ * drops was never going to do anything - which is also why the constant may be moved to the right
+ * and each rule stated once rather than twice.
+ */
+Half combine(Gen& g, WideOp op, Half a, Half b) {
+    if(a.constant && b.constant) {
+        switch(op) {
+            case WideOp::And: return constantHalf(a.value & b.value);
+            case WideOp::Or: return constantHalf(a.value | b.value);
+            default: return constantHalf(a.value ^ b.value);
+        }
+    }
+
+    if(a.constant) {
+        auto swapped = a;
+        a = b;
+        b = swapped;
+    }
+
+    if(b.constant) {
+        switch(op) {
+            case WideOp::And:
+                if(b.value == 0) return constantHalf(0);
+                if(b.value == -1) return a;
+                break;
+            case WideOp::Or:
+                if(b.value == 0) return a;
+                if(b.value == -1) return constantHalf(-1);
+                break;
+            default:
+                if(b.value == 0) return a;
+                if(b.value == -1) return builtHalf(unary(g, UnaryOp::BitNot, halfExpr(g, a)));
+                break;
+        }
+    }
+
+    auto host = op == WideOp::And ? BinaryOp::And : op == WideOp::Or ? BinaryOp::Or : BinaryOp::Xor;
+    auto result = builtHalf(binary(g, host, halfExpr(g, a), halfExpr(g, b)));
+
+    // What the operator does to the bound. `and` keeps whichever side is known, since a bit not in
+    // one operand is not in the result; `or` and `xor` need both, since either side contributes.
+    if(op == WideOp::And) {
+        result.known = a.known >= 0 && b.known >= 0 ? a.known & b.known : max(a.known, b.known);
+    } else if(a.known >= 0 && b.known >= 0) {
+        result.known = a.known | b.known;
+    }
+
+    return result;
+}
+
+Half complement(Gen& g, Half a) {
+    if(a.constant) return constantHalf(~a.value);
+    return builtHalf(unary(g, UnaryOp::BitNot, a.expr));
+}
+
+/*
+ * Whether a leaf may be taken apart.
+ *
+ * The split reads it twice - once for each half - so it has to be something that costs nothing to
+ * read twice and cannot tell that the two reads happened in the other order. A name and a literal
+ * are both; a property read is the first but not obviously the second, and a call is neither.
+ *
+ * A name that is assigned elsewhere is still fine, and deliberately so: a fused tree contains
+ * nothing but reads, so there is nothing between the two of them that could write.
+ */
+bool isSplittable(Gen& g, JsPtr<Expr> pointer) {
+    auto expr = g.base[pointer];
+    if(expr->kind == Expr::Var) return true;
+    return expr->kind == Expr::Number && ((NumberExpr*)expr)->integral;
+}
+
+Split splitLeaf(Gen& g, JsPtr<Expr> pointer, bool isSigned) {
+    auto expr = g.base[pointer];
+
+    if(expr->kind == Expr::Number) {
+        auto bits = I64(((NumberExpr*)expr)->value);
+        return Split { constantHalf(I32(bits >> 32)), constantHalf(I32(U32(U64(bits)))) };
+    }
+
+    // The low half needs no `>>> 0` of its own: `&`, `|` and `^` apply ToInt32 to their operands,
+    // so the value *is* its low half wherever one of them consumes it. The one place that is not
+    // true - a low half that reaches the join unchanged - is where `packWide` puts the `>>> 0`.
+    return Split { builtHalf(highHalf(g, pointer, isSigned)), builtHalf(pointer) };
+}
+
+// The tree as a pair of half-expressions, or false where something in it is not one of these
+// operators over splittable leaves. `names` counts the leaves that are not literals.
+bool splitTree(Gen& g, JsPtr<Expr> pointer, U16 bits, bool isSigned, Split& into, U32& names) {
+    auto expr = g.base[pointer];
+
+    if(expr->kind == Expr::Call) {
+        auto& node = *(CallExpr*)expr;
+        if(node.wideBits == bits && node.wideSigned == isSigned && isFusible(node.wide) &&
+           node.args.size() == (node.wide == WideOp::Not ? Size(1) : Size(2))) {
+            Split left;
+            if(!splitTree(g, node.args.get(g.base, 0), bits, isSigned, left, names)) return false;
+
+            if(node.wide == WideOp::Not) {
+                into = Split { complement(g, left.high), complement(g, left.low) };
+                return true;
+            }
+
+            Split right;
+            if(!splitTree(g, node.args.get(g.base, 1), bits, isSigned, right, names)) return false;
+
+            into = Split { combine(g, node.wide, left.high, right.high),
+                           combine(g, node.wide, left.low, right.low) };
+            return true;
+        }
+    }
+
+    if(!isSplittable(g, pointer)) return false;
+    if(expr->kind == Expr::Var) names++;
+
+    into = splitLeaf(g, pointer, isSigned);
+    return true;
+}
+
+/*
+ * The high half reduced to the bits this width owns above 32.
+ *
+ * An unsigned one masks, exactly as the helpers do. A signed one *sign-extends* instead, which is
+ * where this beats the form it replaces: the helpers mask and then re-apply the sign with
+ * `resignExpr`, and that mentions its operand three times and therefore needs a binding. Shifting
+ * the top bit up to bit 31 and arithmetically back down is the same answer as one expression - the
+ * high half is then already negative where the value is, so the join produces a signed result
+ * directly. Same pair `decodeBits` narrows a signed field with, for the same reason.
+ */
+Half topHalf(Gen& g, Half high, U32 bits, bool isSigned) {
+    // Already inside the width, and below its sign bit where there is one, so neither the mask nor
+    // the sign extension would change anything. This is what a mask against a constant produces,
+    // which is the shape most of these are.
+    auto reach = I32(U32(1) << (bits - 32 - (isSigned ? 1 : 0)));
+    if(high.known >= 0 && high.known < reach) return high;
+
+    if(!isSigned) return combine(g, WideOp::And, high, constantHalf(I32((U32(1) << (bits - 32)) - 1)));
+
+    auto spare = 64 - bits;
+    if(high.constant) return constantHalf(I32(U32(high.value) << spare) >> spare);
+
+    auto distance = number(g, F64(spare));
+    return builtHalf(binary(g, BinaryOp::Sar,
+                            binary(g, BinaryOp::Shl, high.expr, distance), distance));
+}
+
+JsPtr<Expr> packWide(Gen& g, Split split, U32 bits, bool isSigned) {
+    auto top = topHalf(g, split.high, bits, isSigned);
+    auto low = split.low.constant ? number(g, F64(U32(split.low.value)))
+                                  : binary(g, BinaryOp::Shr, split.low.expr, number(g, 0));
+
+    // An empty high half is the whole of what a mask against a constant below bit 32 comes out as,
+    // and the answer is then the low half alone - non-negative and below 2^32 whatever the
+    // signedness, since the sign lives in the half that turned out to be zero.
+    if(top.constant && top.value == 0) return low;
+
+    auto scaled = binary(g, BinaryOp::Mul, halfExpr(g, top), number(g, kTwo32));
+    if(split.low.constant && split.low.value == 0) return scaled;
+
+    return binary(g, BinaryOp::Add, scaled, low);
+}
+
+} // namespace
+
+JsPtr<Expr> fuseWideBitwise(Gen& g, JsPtr<Expr> pointer) {
+    auto expr = g.base[pointer];
+    if(expr->kind != Expr::Call) return nullptr;
+
+    auto& node = *(CallExpr*)expr;
+    if(node.wideBits <= 32 || node.wideBits > kMaxNumberBits) return nullptr;
+    if(!isFusible(node.wide)) return nullptr;
+
+    Split split;
+    U32 names = 0;
+    if(!splitTree(g, pointer, node.wideBits, node.wideSigned, split, names)) return nullptr;
+
+    /*
+     * A tree of nothing but literals, which is declined rather than fused.
+     *
+     * Expanding it would trade one call for the same arithmetic written out over constants - no
+     * fewer operations at run time and a good deal more text. What it wants instead is constant
+     * folding, and that belongs where the arithmetic is already known at the right width for every
+     * target rather than here. It also leaves the helpers themselves reachable from a program made
+     * of literals, which is what WideInt.yana's cases are.
+     */
+    if(!names) return nullptr;
+
+    return packWide(g, split, node.wideBits, node.wideSigned);
 }
 
 } // namespace js

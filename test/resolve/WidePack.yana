@@ -1,0 +1,150 @@
+{-
+   **A packed word wider than the operators that pack it.**
+
+   The JS target's packing budget was 32 bits, and the comment on it said why: `&`, `|`, `<<` and
+   `>>>` are the operations that make a bit range cheap, and every one of them is 32-bit. A `number`
+   holds 53 consecutive integer bits, so a record of 33 to 53 bits *fits* one - it just could not be
+   taken apart. Measured on `{a: @bits(20), b: @bits(20)}`, one number against one object is seven
+   times less retained memory and nearly three times the construction rate, which is a bigger win
+   than the scalar-integer change that made it reachable. See benchmark/bits53-js.
+
+   What replaces the operators above bit 32 is arithmetic: dividing by `2**offset` to bring a field
+   down, multiplying to put it back, and a remainder where the field itself is wider than a mask can
+   reach. All of it is exact - every power of two up to 2^53 is a double, and so is every integer
+   below it - and the failure mode if it were not is *silent*: a shift count in JS is masked to five
+   bits, so `word & ~(mask << 32)` clears the low field instead of the high one and answers a number
+   rather than an error. Which is the whole reason this fixture asserts values.
+
+   Every case is a distinct power of two, so `main` is 32767 when they all pass. Native reaches the
+   same answers through ordinary 64-bit shifts and masks, so it is the independent reference the JS
+   run is held to - and the `.js.expect` beside this file is where the two forms are visible.
+
+   The field widths are not decorative. A field is only *narrow* - and therefore packable at all -
+   when it does not fill its own natural storage, so `@bits(16) U32` is a whole 16-bit unit and
+   `@bits(20) U32` is twenty bits of a thirty-two-bit one. And a field never straddles that unit, so
+   two twenty-bit fields land at 0 and 32 rather than at 0 and 20: the second one is above the
+   operators, which is exactly the case this is about.
+-}
+
+fn check(actual: U32, expected: U32, weight: Int) -> Int = if actual == expected then weight else 0
+
+fn checkI(actual: I32, expected: I32, weight: Int) -> Int = if actual == expected then weight else 0
+
+fn checkW(actual: WideInt, expected: WideInt, weight: Int) -> Int =
+    if actual == expected then weight else 0
+
+alias Field = @bits(20) U32
+
+-- Fifty-two bits: two twenty-bit fields at 0 and 32, with the second one out of reach of every
+-- 32-bit operator. One `number`, no object, no allocation.
+data Pair {a: Field, b: Field}
+
+fn readB(p: Pair) -> Field = p.b
+
+-- Writing the high field, which is the shape that fails loudest if the shift is left in: `mask << 32`
+-- is `mask`, so the store would clear `a` and leave `b` alone.
+fn writeHigh() -> Pair:
+    let &p = Pair {a: 1000, b: 1}
+    p.b = 1048575
+    return p
+
+-- ...and writing the low one, which has to leave the high one alone. A `&`-based read-modify-write
+-- keeps only the low 32 bits of the word, so this is where `b` would quietly become zero.
+fn writeLow() -> Pair:
+    let &p = Pair {a: 1, b: 999999}
+    p.a = 1048575
+    return p
+
+-- Through a reference, which is the case the callee cannot see the answer to. `nudge` is compiled
+-- once against `&Field` and reaches a whole local, a co-packed field and a field of a scalar record
+-- alike, so it has no idea how wide the word it was handed is - and therefore uses the arithmetic
+-- form for all of them. That is what the `$s` part of a reference carries `2**shift` for rather than
+-- the shift: the callee needs the divisor, and computing it from a shift would be a `Math.pow` per
+-- access.
+fn nudge(&x: Field) = x = x + 1
+
+fn bumpedHigh() -> Pair:
+    let &p = Pair {a: 1000, b: 999999}
+    nudge(p.b)
+    return p
+
+-- ## A signed field above bit 32
+
+-- Widening a signed field is a *sign* extension, and the value has to come down from bit 32 before
+-- there are 32 bits to extend within. Reading -3 back as 1048573 is what a masking decode answers.
+data Marked {a: Field, m: @bits(20) I32}
+
+fn marked() -> Marked:
+    let &v = Marked {a: 5, m: 0}
+    v.m = (0 :: I32) - 3
+    return v
+
+-- ## A field wider than any mask
+
+-- Forty bits, which no `&` can cut down: the low field of this record is reduced with a remainder
+-- and read back through the sign the same way a 33-to-53-bit integer is. `t` sits above it at bit 40,
+-- so this is also the case where both halves of the word are out of the operators' reach.
+data Tagged {v: @bits(40) WideInt, t: @bits(4) U32}
+
+fn tagged() -> Tagged = Tagged {v: 549755813887, t: 9}
+
+fn retagged() -> Tagged:
+    let &x = Tagged {v: 549755813887, t: 9}
+    x.v = (0 :: WideInt) - 2
+    return x
+
+{-
+   Storing a *runtime* value at the two ends of the field's range, which is where two separate bugs
+   were found by reaching this shape at all.
+
+   Narrowing to a signed refinement is a shift up to the sign bit and an arithmetic shift back down,
+   and it was measured against the *register* rather than against the type: 64 - 40 for a `WideInt`,
+   whose 53 bits sit in a 64-bit register. But a shift at a type wraps at that type's width, so
+   shifting up by 24 threw the value out of the top and brought nothing back - `2^39 - 1` narrowed to
+   zero. On both targets, which is why nothing had caught it: it is a wrong answer rather than a
+   disagreement, and the two backends agreeing is most of what this suite checks.
+
+   And *reading* it back reached the other one, which was a disagreement. Widening the field to
+   `WideInt` is a cast that is signed and 64 bits at both ends, and the x64 selector chose `movsxd`
+   for it - the only sign-extending move x86-64 has, and a 32-to-64 one. So the top half of a value
+   too wide for 32 bits was dropped and the rest sign-extended, silently, for exactly the values that
+   need 64 bits in the first place.
+-}
+fn stored(x: WideInt) -> Tagged:
+    let &r = Tagged {v: 0, t: 1}
+    r.v = x
+    return r
+
+-- ## A word of exactly 32 bits, inside an object
+
+-- `k` is full width, so this record keeps its object and `a` and `b` co-pack into one property of it
+-- - a word of exactly thirty-two bits, whose top bit is `b`'s. That word is read back unsigned
+-- rather than left as a negative `int32`, which is what makes a write *through a reference* land in
+-- the same number a direct write would: the reference's arithmetic preserves whatever offset the
+-- word it was handed had, so a word that is sometimes the pattern and sometimes the pattern minus
+-- 2^32 would compare unequal to itself.
+data Boxed {k: U32, a: Field, b: @bits(12) U32}
+
+fn nudge12(&x: @bits(12) U32) = x = x + 1
+
+fn boxed() -> Boxed:
+    let &x = Boxed {k: 7, a: 1, b: 4095}
+    nudge12(x.b)
+    return x
+
+fn main() -> Int =
+    check(readB(Pair {a: 1000, b: 999999}), 999999, 1) +
+    check(writeHigh().b, 1048575, 2) +
+    check(writeHigh().a, 1000, 4) +
+    check(writeLow().b, 999999, 8) +
+    check(bumpedHigh().b, 1000000, 16) +
+    check(bumpedHigh().a, 1000, 32) +
+    checkI(marked().m, (0 :: I32) - 3, 64) +
+    check(marked().a, 5, 128) +
+    checkW(tagged().v, 549755813887, 256) +
+    check(tagged().t, 9, 512) +
+    checkW(retagged().v, (0 :: WideInt) - 2, 1024) +
+    check(retagged().t, 9, 2048) +
+    check(boxed().b, 0, 4096) +
+    checkW(stored(549755813887).v, 549755813887, 8192) +
+    checkW(stored((0 :: WideInt) - 549755813888).v, (0 :: WideInt) - 549755813888, 16384)

@@ -76,15 +76,26 @@ ReprTarget jsReprTarget() {
     target.integerBits = 53;
 
     /*
-     * 32 rather than the 53 a `number` holds, and the two are different questions.
+     * The same 53, but it was 32 first and the two are different questions.
      *
      * `integerBits` is what a *value* of this target can hold. This is what a *load* of one can be
      * taken apart with, and every operation that makes packing cheap here - `&`, `|`, `<<`, `>>>` -
-     * is 32-bit in JS. Above 32 bits extracting a field becomes `Math.floor(v / 2**k) % 2**n`, which
-     * is a different and slower lowering, so 33-53 is a separate measured decision rather than a free
-     * extension of this one.
+     * is 32-bit in JS. Above 32 bits extracting a field becomes a divide and a mask and putting one
+     * back becomes a subtract and a multiply, which is a different lowering rather than a free
+     * extension of the same one, so it was left at 32 until it had been measured.
+     *
+     * It has been. On `{a: @bits(20), b: @bits(20)}` - fifty-two bits, and therefore one object
+     * under the old bound - one `number` is seven times less retained memory and 2.85x the
+     * construction rate against 0.84x on a field read, which is a bigger win than the scalar-integer
+     * change that made the arithmetic available. benchmark/bits53-js/record-benchmark.mjs is that
+     * measurement and codegen/js/place.cpp is the lowering; test/resolve/WidePack.yana is what says
+     * the two forms compute the same numbers.
+     *
+     * What the raise needs from *this* file is `packableHere`: the bits fitting is not enough, since
+     * a field also has to be a value this target can move in and out of a word, and an integer whose
+     * canonical width is 64 is a `bigint` here rather than a `number`.
      */
-    target.maxPackBits = 32;
+    target.maxPackBits = 53;
     target.nullableRawPointers = true;
 
     /*
@@ -533,6 +544,36 @@ void ReprTable::computeTuple(TupType& tuple, Repr& into) {
  * `addressOf` is still allowed to hand out. The contract runs one way, and this is the one place in
  * this function where that could have been broken silently.
  */
+bool ReprTable::packableHere(TypePtr type, U32 depth) {
+    if(!type || depth > 8) return false;
+
+    auto value = global[type];
+    switch(value->kind) {
+        case Type::Int:
+            return U32(((IntType*)global[canonicalType(global, type)])->bits) <= target.integerBits;
+        case Type::Tup: {
+            auto& tuple = *(TupType*)value;
+            for(auto field: tuple.fields.contents(global)) {
+                if(!packableHere(field.type, depth + 1)) return false;
+            }
+
+            return true;
+        }
+        case Type::Record: {
+            auto& record = *(RecordType*)value;
+
+            // An enum is its discriminant, which is a small integer on every target. A newtype is
+            // its content. Anything else was never narrow to begin with - see valueWidth.
+            if(record.layout == RecordType::Enum) return true;
+            if(record.layout != RecordType::Single || record.constructors.isEmpty()) return false;
+
+            return packableHere(record.constructors.get(global, 0).content, depth + 1);
+        }
+        default:
+            return false;
+    }
+}
+
 bool ReprTable::scalarizeTuple(TupType& tuple, Repr& into) {
     PackedRun run;
     Array<U32> offsets;
@@ -540,6 +581,12 @@ bool ReprTable::scalarizeTuple(TupType& tuple, Repr& into) {
 
     auto budget = min(target.maxPackBits, kMaxPackBits);
     if(run.span > budget) return false;
+
+    // All of it or none of it: a scalar record *is* its fields' bits, so one field this target
+    // cannot move in and out of a word is the whole record laid out the ordinary way.
+    for(auto field: tuple.fields.contents(global)) {
+        if(!packableHere(field.type)) return false;
+    }
 
     auto bytes = naturalBytes(run.span);
     into.size = bytes;
@@ -651,6 +698,11 @@ Size ReprTable::packWord(TupType& tuple, Repr& into, Buffer<const U16> order, Si
      */
     Array<U16> run;
     for(auto at = first; at < order.length && packCandidate(global, tuple, order[at]); at++) {
+        // The run ends at a field this target cannot move in and out of a word, rather than the
+        // whole record declining as it does above: the fields before it are still a word, and the
+        // one that stopped it gets a property of its own like any unpacked field.
+        if(!packableHere(tuple.fields.get(global, order[at]).type)) break;
+
         run.push(order[at]);
     }
 

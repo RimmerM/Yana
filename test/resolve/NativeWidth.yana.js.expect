@@ -140,9 +140,9 @@ function tickBits(x) {
 // integers of 33 to 53 bits - see codegen/js/wide.cpp
 function $w53i$mul(a, b) {
   var al = a >>> 0;
-  var ah = Math.floor(a * 2.3283064365386963E-10) & 2097151;
+  var ah = $wi$hi(a) & 2097151;
   var bl = b >>> 0;
-  var bh = Math.floor(b * 2.3283064365386963E-10) & 2097151;
+  var bh = $wi$hi(b) & 2097151;
   var p = (al & 65535) * (bl & 65535);
   var q = (al >>> 16) * (bl & 65535);
   var r = (al & 65535) * (bl >>> 16);
@@ -152,7 +152,7 @@ function $w53i$mul(a, b) {
 }
 
 function $w53i$shl(a, b) {
-  var s = b >= 32 ? (a >>> 0 << b - 32 & 2097151) * 4294967296 : (((Math.floor(a * 2.3283064365386963E-10) & 2097151) << b | a >>> 0 >>> 32 - b) & 2097151) * 4294967296 + (a >>> 0 << b >>> 0);
+  var s = b >= 32 ? (a >>> 0 << b - 32 & 2097151) * 4294967296 : ((($wi$hi(a) & 2097151) << b | a >>> 0 >>> 32 - b) & 2097151) * 4294967296 + (a >>> 0 << b >>> 0);
   return b === 0 ? a : s >= 4503599627370496 ? s - 9007199254740992 : s;
 }
 
@@ -162,10 +162,14 @@ function $w53i$sub(a, b) {
 }
 
 function $w53i$shr(a, b) {
-  return b === 0 ? a : b >= 32 ? (Math.floor(a * 2.3283064365386963E-10) & 2097151) >>> b - 32 : ((Math.floor(a * 2.3283064365386963E-10) & 2097151) >>> b) * 4294967296 + ((a >>> 0 >>> b | (Math.floor(a * 2.3283064365386963E-10) & 2097151) << 32 - b) >>> 0);
+  return b === 0 ? a : b >= 32 ? ($wi$hi(a) & 2097151) >>> b - 32 : (($wi$hi(a) & 2097151) >>> b) * 4294967296 + ((a >>> 0 >>> b | ($wi$hi(a) & 2097151) << 32 - b) >>> 0);
 }
 
 function $w53i$add(a, b) {
   var v = a + b;
   return v >= 4503599627370496 ? v - 9007199254740992 : v < -4503599627370496 ? v + 9007199254740992 : v;
+}
+
+function $wi$hi(a) {
+  return Math.floor(a * 2.3283064365386963E-10);
 }
