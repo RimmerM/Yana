@@ -23,13 +23,23 @@ RecordType* recordType(Gen& g, TypePtr type) {
 }
 
 /*
- * `Bool` is a host `boolean`, and it is the one place a Core type is recognized by identity here.
+ * `Bool` is 0 or 1, and it is the one place a Core type is recognized by identity here.
  *
- * It is a two-constructor enum, so the general rule below would make it a number - which is what it
- * is on native, where an enum is its discriminant. On JS the host has the niche already, and using
- * it is what the performance contract asks for: `!x` and `a && b` on a `boolean` are what a JS
- * programmer writes, and a number would additionally drag Design.md's `Truth` class into the
- * emitted code's truthiness, which is exactly what that class exists to avoid.
+ * It was a host `boolean` until whole-record scalarization needed a reference into a bit range. A
+ * reference like that carries a shift and reads and writes through a mask, and it has to do so
+ * *uniformly* - one compiled `flip(&Bool)` serves a bit of a scalarized record, a co-packed field and
+ * a whole local, because the callee has only the pointee type. The read-modify-write that entails is
+ * the identity on 0 or 1 and turns `true` into `1`, so the two representations cannot coexist behind
+ * one reference and the number is the one that composes.
+ *
+ * Measured before choosing, since the old comment here claimed the boolean was what the performance
+ * contract asked for: 0/1 is 105% on a field read and branch, 107% on `&&`, 108% on negation, 169%
+ * on comparing two of them, identical in bytes per record, and it makes `[Bool]` a `Uint8Array` at
+ * one byte per element against eight. It is a strict improvement rather than a concession.
+ *
+ * Design.md's `Truth` class is unaffected - the compiler emits `if` only on `Bool`-typed values, and
+ * 0 and 1 have exactly the truthiness they need. What does change is the host boundary, where a
+ * `Bool` becomes `!== 0` outbound and `? 1 : 0` inbound; see Analysis-JS-Interop.md.
  */
 bool isBool(Gen& g, TypePtr type) {
     return type && type == g.program.scalar.bool_;
@@ -55,6 +65,14 @@ bool isLong(Gen& g, TypePtr type) {
  *
  * Everything that has to decide "is this a reference to an object, or a box standing in for one"
  * asks this: boxing a borrow, boxing across the erased boundary, and reading a place back.
+ *
+ * The last question is asked of the **Repr rather than of the type**, which is
+ * [Implementation-JS-Repr.md part 5](../../../Implementation-JS-Repr.md) and the reason the three
+ * representation features do not each need their own version of it. A record whose Repr is one
+ * scalar is a `number` here, with no allocation, no property to project into and no hidden class -
+ * and answering that from the layout rather than from `isMemoryType` is what propagates the fact to
+ * construction, field access, copy, equality and array element type at once. Nothing moves until a
+ * target sets `scalarizeRecords`, because until then no aggregate has a scalar Repr.
  */
 bool isJsObject(Gen& g, TypePtr type) {
     if(!type || !isMemoryType(g.global, type)) return false;
@@ -63,7 +81,13 @@ bool isJsObject(Gen& g, TypePtr type) {
     TypePtr content = nullptr;
     if(isNewtype(g, type, content)) return content && isJsObject(g, content);
 
-    return true;
+    // A generic body has no layout to consult and treats every opaque value as a reference, which is
+    // what the erased convention hands it. `of` answers an empty Repr for one, so this asks `opaque`
+    // rather than reading `scalarBits` out of it.
+    auto& repr = g.repr.of(type);
+    if(repr.opaque) return true;
+
+    return repr.scalarBits == 0;
 }
 
 bool isNewtype(Gen& g, TypePtr type, TypePtr& content) {
@@ -90,7 +114,7 @@ JsPtr<Expr> zeroValue(Gen& g, TypePtr type) {
     switch(value->kind) {
         case Type::Int: {
             auto integer = (IntType*)value;
-            if(integer->width == IntType::Bool) return boolean(g, false);
+            if(integer->width == IntType::Bool) return number(g, 0);
             if(integer->width == IntType::Long) return bigInt(g, 0, integer->isSigned);
             return number(g, 0);
         }
@@ -100,7 +124,7 @@ JsPtr<Expr> zeroValue(Gen& g, TypePtr type) {
         case Type::Borrow:
             return nullValue(g);
         case Type::Record:
-            if(isBool(g, type)) return boolean(g, false);
+            if(isBool(g, type)) return number(g, 0);
 
             // An enum is its discriminant and nothing else, so it is a number here exactly as it is
             // a machine word on native.
@@ -132,6 +156,12 @@ JsPtr<Expr> zeroValue(Gen& g, TypePtr type) {
 
     TypePtr content = nullptr;
     if(isNewtype(g, type, content)) return zeroValue(g, content);
+
+    // A record the Repr made one scalar has no properties to pre-create - it is a `number`, and a
+    // fresh one is zero. Every field of it is a bit range of that number, so the writes that fill it
+    // are the read-modify-writes `encodePackedField` is on native rather than property assignments,
+    // and they preserve the bits they do not own by construction.
+    if(!isJsObject(g, type)) return number(g, 0);
 
     auto object = make<ObjectExpr>(g);
     eachProperty(g, type, [&](Name key, TypePtr member) {

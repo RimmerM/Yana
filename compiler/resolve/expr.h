@@ -578,6 +578,10 @@ TypePtr placeType(Module& module, Function& function, const Place& place,
  */
 bool placeIsPackCandidate(Module& module, Function& function, const Place& place);
 
+// Whether the place names a narrow field of a `@layout(js)` record, which may not be borrowed -
+// see the definition for why the pin and the reference cannot both be honoured.
+bool placeIsHostPinnedField(Module& module, Function& function, const Place& place);
+
 /*
  * Whether a mutable borrow of this place has to be a temporary rather than a reference.
  *

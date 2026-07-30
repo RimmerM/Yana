@@ -51,6 +51,7 @@ ReprTarget nativeReprTarget() {
     target.maxPackBits = 64;
     target.nullableRawPointers = true;
     target.packFields = true;
+    target.scalarizeRecords = true;
     target.foldNiches = true;
     return target;
 }
@@ -72,8 +73,36 @@ ReprTarget jsReprTarget() {
     target.pointerSize = 8;
     target.pointerAlign = 8;
     target.integerBits = 53;
-    target.maxPackBits = 53;
+
+    /*
+     * 32 rather than the 53 a `number` holds, and the two are different questions.
+     *
+     * `integerBits` is what a *value* of this target can hold. This is what a *load* of one can be
+     * taken apart with, and every operation that makes packing cheap here - `&`, `|`, `<<`, `>>>` -
+     * is 32-bit in JS. Above 32 bits extracting a field becomes `Math.floor(v / 2**k) % 2**n`, which
+     * is a different and slower lowering, so 33-53 is a separate measured decision rather than a free
+     * extension of this one.
+     */
+    target.maxPackBits = 32;
     target.nullableRawPointers = true;
+
+    /*
+     * On.
+     *
+     * What this turns on is not bytes but the removal of the *object*: a record whose whole Repr fits
+     * 32 bits and holds no reference becomes a `number`, with no allocation, no hidden class, nothing
+     * to trace, a copy that is a register move, `===` for equality, and value semantics as a `Map`
+     * key. Measured against the same record as an object, 95% less memory and 15x construction.
+     *
+     * What it cost was `Bool`. Scalarizing makes fields bit ranges, so a `&` of one carries a shift
+     * and reads and writes through a mask, uniformly - one compiled `flip(&Bool)` serves a bit of a
+     * scalarized record, a co-packed field and a whole local. That read-modify-write is the identity
+     * on 0 or 1 and turns `true` into `1`, so `Bool` is now a number on this target; see `isBool` in
+     * codegen/js/type.cpp, which measured the change as an improvement in its own right. The one
+     * representation that keeps the host's form is `@layout(js)`, and a narrow field of one may not
+     * be borrowed - there is nowhere to put the conversion. See placeIsHostPinnedField.
+     */
+    target.scalarizeRecords = true;
     return target;
 }
 
@@ -295,7 +324,7 @@ void ReprTable::computeTuple(TupType& tuple, Repr& into) {
     for(Size i = 0; i < count; i++) into.fields.push(FieldRepr {});
 
     // The whole aggregate as one scalar, where it has that form and this target can hold it.
-    if(target.packFields && scalarizeTuple(tuple, into)) return;
+    if(target.scalarizeRecords && scalarizeTuple(tuple, into)) return;
 
     Array<U16> order;
     placementOrder(tuple, order);

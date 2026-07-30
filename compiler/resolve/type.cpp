@@ -1645,6 +1645,12 @@ bool packCandidate(GlobalBase base, TupType& tuple, U16 index) {
         return (index > 0 && fieldAt(index - 1)) || (Size(index) + 1 < count && fieldAt(index + 1));
     }
 
+    // A `@layout(js)` record keeps one property per field, which is the whole content of the pin, so
+    // nothing in it shares with anything. `placementOrder` already declines to group a pinned tuple,
+    // but this is the answer the *borrow* tier asks for - see expr_construct's use - and a field that
+    // is not packed must not be borrowed as though it were.
+    if(tuple.layout == TypeLayout::Js) return false;
+
     // An auto layout reorders, so anything else narrow in the tuple is a neighbour.
     for(Size at = 0; at < count; at++) {
         if(at != index && narrowAt(at)) return true;

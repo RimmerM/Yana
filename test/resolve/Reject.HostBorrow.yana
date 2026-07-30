@@ -1,0 +1,54 @@
+import Native
+
+-- `@layout(js)` pins a record's representation to what a host reader expects, and that is exactly
+-- what a reference cannot honour.
+--
+-- A `&T` for narrow `T` is compiled once against the pointee type and reads and writes through it
+-- uniformly - a shift and a mask - because the callee cannot know whether its argument was a bit of a
+-- scalarized record, a co-packed field or a whole local. A pinned record's field holds the host's
+-- form instead, so honouring both would need a conversion at every read and write through the
+-- reference, and there is nowhere to put one. A real host object does not hand out references into
+-- its fields either.
+
+@layout(js)
+data Config {verbose: Bool, level: @bits(4) U32, name: Int}
+
+data Plain {verbose: Bool, level: @bits(4) U32}
+
+fn flip(&b: Bool) = b = !b
+
+fn bump(&x: @bits(4) U32) = x = x + 1
+
+-- Both refused: a `Bool` and a `@bits` field are the two narrow shapes.
+fn borrowFlag() -> Int:
+    let &c = Config {verbose: True, level: 1, name: 0}
+    flip(c.verbose)
+    return 0
+
+fn borrowBits() -> Int:
+    let &c = Config {verbose: True, level: 1, name: 0}
+    bump(c.level)
+    return 0
+
+-- Returning one is the same refusal, reached by the other path.
+fn flagOf(return &c: Config) -> &Bool = c.verbose
+
+-- Accepted, and the reason the rejection is worth stating rather than making the whole record
+-- unborrowable: `name` is not narrow, so a reference to it is the ordinary pair with nothing to
+-- convert. Reading and assigning a narrow field is fine too - only the reference is refused.
+fn wholeRecord(&c: Config) -> Int = c.name
+
+fn readAndWrite() -> Int:
+    let &c = Config {verbose: True, level: 1, name: 5}
+    c.verbose = !c.verbose
+    c.level = c.level + 1
+    return c.name
+
+-- And the unpinned record it is contrasted with, where every one of these works.
+fn plainBorrow() -> Int:
+    let &p = Plain {verbose: True, level: 1}
+    flip(p.verbose)
+    bump(p.level)
+    return 0
+
+fn main() -> Int = 0

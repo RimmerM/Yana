@@ -1,0 +1,31 @@
+-- `@layout` names a representation something outside the program depends on, so every way of getting
+-- it wrong is reported rather than ignored: a misspelled pin that silently meant `auto` would move a
+-- layout an FFI or host declaration is relying on not to move.
+
+-- Not one of the three.
+@layout(rust)
+data Misspelled {a: Bool, b: Bool}
+
+-- The right words, the wrong shape.
+@layout
+data NoArgument {a: Bool, b: Bool}
+
+@layout(c, js)
+data TwoArguments {a: Bool, b: Bool}
+
+-- Both pins on one declaration. A type has one representation and these name different ones, so this
+-- is an error rather than a precedence rule to remember.
+@layout(c)
+@layout(js)
+data BothPins {a: Bool, b: Bool}
+
+-- Accepted, and the reason the check above is worth having: `auto` written explicitly means what the
+-- default means, and repeating a pin that agrees with itself is not a conflict.
+@layout(auto)
+data Explicit {a: Bool, b: Bool}
+
+@layout(js)
+@layout(js)
+data Repeated {a: Bool, b: Bool}
+
+fn main() -> Int = 0

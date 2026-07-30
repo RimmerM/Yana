@@ -32,6 +32,20 @@ data Inefficient {a: Bool, b: U64, c: U8, d: @bits(4) Int, e: U32, f: @bits(4) I
 @layout(c)
 data Pinned {a: Bool, b: U64, c: U8, d: @bits(4) Int, e: U32, f: @bits(4) Int}
 
+-- The same fields pinned the other way. `@layout(js)` is the declaration saying something outside the
+-- program reads this representation, so the compiler may not choose it: declaration order is kept and
+-- nothing is co-packed, which is the same statement as `@layout(c)`'s without C's bit-field units.
+-- On JS that means one property per field under the declared name; here it means the fields sit where
+-- they were written.
+@layout(js)
+data HostShaped {a: Bool, b: U64, c: U8, d: @bits(4) Int, e: U32, f: @bits(4) Int}
+
+-- A record small enough to be a `number` on JS, pinned so that it is not one. Two bits that would
+-- otherwise scalarize away entirely - this is the case where the pin is load-bearing rather than
+-- merely order-preserving, and its answer still has to match `Flags`'.
+@layout(js)
+data HostFlags {a: Bool, b: Bool}
+
 -- A record of two narrow fields that is nevertheless not co-packed into anything, because its
 -- lifetime ends in a call. A `Drop` takes the address of the value it is ending, and a field sharing a
 -- word has none to give - so `Pair` below keeps its two fields in two bytes, and each drop is handed
@@ -188,6 +202,33 @@ fn pinned() -> Int:
     return (if p.a then 1 else 0) + (p.b :: Int) * 10 + (p.c :: Int) * 100 +
            (p.d :: Int) * 1000 + (p.e :: Int) * 10000 + (p.f :: Int) * 1000000
 
+-- The same again, pinned for the host. This is the equivalence check the JS Repr features are gated
+-- on: `@layout(js)` turns off scalarization, co-packing and niche folding at once, so a program that
+-- answers differently with the pin than without it is a miscompile in whichever of the three moved.
+-- `bump(p.f)` where `reordered` and `pinned` have it: a `@bits` field of a pinned record is narrow,
+-- so borrowing it is refused (Reject.HostBorrow.yana) and the direct write is what is left. That is
+-- the pin's whole cost, and the answer below still has to match the other two.
+fn hostShaped() -> Int:
+    let &p = HostShaped {a: True, b: 9, c: 3, d: 5, e: 40, f: 6}
+
+    p.d = p.d + 1
+    p.f = p.f + 1
+    p.b = p.b + 1
+
+    return (if p.a then 1 else 0) + (p.b :: Int) * 10 + (p.c :: Int) * 100 +
+           (p.d :: Int) * 1000 + (p.e :: Int) * 10000 + (p.f :: Int) * 1000000
+
+-- A pinned record's fields, read and written directly - which is what the pin does allow, and the
+-- half worth asserting since borrowing one is refused (see Reject.HostBorrow.yana). Assignment and
+-- field read both go through the property, so the host reader sees what it expects.
+fn hostBorrowed() -> Int:
+    let &h = HostFlags {a: True, b: False}
+
+    h.a = !h.a
+    h.b = !h.b
+
+    return (if h.a then 1 else 0) + (if h.b then 2 else 0)
+
 -- nested:     3 * 10 + 8                                     = 38
 -- borrowed:   both set, then `a` flipped off                  = 2
 -- coPacked:   0 + 3 * 10                                      = 30
@@ -199,6 +240,8 @@ fn pinned() -> Int:
 -- folded:     4 + 3 * 10 + 2 * 100                            = 234
 -- reordered:  1 + 100 + 300 + 6000 + 400000 + 7000000         = 7406401
 -- pinned:     the same                                        = 7406401
+-- hostShaped: the same again                                  = 7406401
+-- hostBorrowed: a flipped off, b flipped on                   = 2
 fn main() -> Int =
     nested() + borrowed() + coPacked() + composed() + extracted() + reborrowed() +
-    swapped() + owned() + folded() + reordered() + pinned()
+    swapped() + owned() + folded() + reordered() + pinned() + hostShaped() + hostBorrowed()

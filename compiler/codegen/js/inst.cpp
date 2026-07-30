@@ -14,6 +14,10 @@ namespace js {
 
 namespace {
 
+// Writing a computed value into a place, honouring a bit range where the place names one. Defined
+// below, and forward-declared because the write-back flush above it is one of the three writers.
+bool assignPlace(Gen& g, const Place& place, TypePtr type, JsPtr<Expr> value);
+
 // Everything a value needs to be usable later: a name, a `var`, and an entry in the map. A unit
 // result is a statement rather than a binding, since there is nothing to name.
 void define(Gen& g, ModulePtr<Value> pointer, JsPtr<Expr> value) {
@@ -52,9 +56,13 @@ void flushWritebacks(Gen& g, Value& instruction) {
         for(Size i = 0; i < g.writebacks.size(); i++) {
             if(g.writebacks[i].borrow != arg) continue;
 
-            auto& entry = g.writebacks[i];
-            emitExpr(g, assign(g, entry.place, field(g, entry.box, g.boxField)));
+            auto entry = g.writebacks[i];
             g.writebacks.remove(i);
+
+            auto committed = field(g, entry.box, g.boxField);
+            if(!assignPlace(g, entry.target, entry.type, committed)) {
+                emitExpr(g, assign(g, placeExpr(g, entry.target), committed));
+            }
             break;
         }
     }
@@ -167,8 +175,31 @@ JsPtr<Expr> propertyContents(Gen& g, TypePtr type, JsPtr<Expr> storage) {
     return known ? storage : field(g, storage, g.boxField);
 }
 
+/*
+ * Writing a computed value into a place.
+ *
+ * The inverse of `placeExpr`, and separate from it for the reason part 1 names: a place into a
+ * scalarized record is a bit range rather than a location, so it is an expression on the way out and
+ * a read-modify-write of the whole binding on the way in. Every writer goes through here so that the
+ * three of them cannot disagree about which places are locations.
+ *
+ * Nothing that reaches the bit path needs a drop or a sink: a value narrow enough to be a bit range
+ * is trivially copyable by construction.
+ */
+bool assignPlace(Gen& g, const Place& place, TypePtr type, JsPtr<Expr> value) {
+    PlaceBits bits;
+    auto owner = placeOwner(g, place, bits);
+    if(!bits.valid()) return false;
+
+    emitExpr(g, assign(g, owner, encodeBits(g, owner, bits, type, value)));
+    return true;
+}
+
 void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value) {
     auto& produced = *g.local[value];
+
+    if(assignPlace(g, place, type, useValue(g, value))) return;
+
     auto target = placeExpr(g, place);
 
     auto moved = produced.kind == Value::Move;
@@ -223,13 +254,17 @@ void genBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
     auto type = instruction.type;
     auto integer = intType(g, type);
 
-    // Bool is a host `boolean`, so its three bitwise operations are the logical ones. `^` on two
-    // booleans is inequality, which is what Core's `xor` on Bool means.
+    /*
+     * Bool is 0 or 1, so its three bitwise operations are the bitwise ones and need no special case
+     * at all beyond skipping the coercion below - the operands are already in range and the results
+     * cannot leave it. This used to be `&&`/`||`/`!==` over host booleans; the operators here are
+     * branchless, which is one of the reasons the number measured better.
+     */
     if(isBool(g, type)) {
         switch(instruction.kind) {
-            case Value::And: define(g, pointer, binary(g, BinaryOp::LogicalAnd, lhs, rhs)); return;
-            case Value::Or: define(g, pointer, binary(g, BinaryOp::LogicalOr, lhs, rhs)); return;
-            case Value::Xor: define(g, pointer, binary(g, BinaryOp::Ne, lhs, rhs)); return;
+            case Value::And: define(g, pointer, binary(g, BinaryOp::And, lhs, rhs)); return;
+            case Value::Or: define(g, pointer, binary(g, BinaryOp::Or, lhs, rhs)); return;
+            case Value::Xor: define(g, pointer, binary(g, BinaryOp::Xor, lhs, rhs)); return;
             default: break;
         }
     }
@@ -371,19 +406,34 @@ void genDrop(Gen& g, InstDrop& instruction) {
 
     auto type = placeType(g, instruction.place);
 
-    auto argument = referenceTo(g, instruction.place);
-
     if(g.genEnv && isGeneric(g.global, type)) {
         // The teardown the caller's descriptor names, reached through the same cell read every
-        // other erased operation uses.
+        // other erased operation uses. This one *is* written against a reference - the descriptor's
+        // slot has one signature for every type - so the box is right here.
         if(auto descriptor = genTypeDesc(g, type)) {
-            emitExpr(g, call(g, tableCell(g, descriptor, TypeDescFields::kDrop), argument));
+            emitExpr(g, call(g, tableCell(g, descriptor, TypeDescFields::kDrop),
+                             referenceTo(g, instruction.place)));
         }
 
         return;
     }
 
-    emitExpr(g, call(g, functionValue(g, instruction.drop, instruction.source), argument));
+    /*
+     * A scalarized record goes by value; everything else keeps the box it always had.
+     *
+     * `referenceTo` boxes whatever is not an object, and for as long as every aggregate here *was*
+     * one that meant "aggregates unboxed, scalars boxed" - which is what every teardown was compiled
+     * against. Scalarization moves aggregates from one side of that to the other, and the callee did
+     * not move with them: it reads the by-value parameter it declares, so a box would make it read
+     * `{$v: 3} & 1` and get zero. Keeping the box for everything else leaves the teardowns that
+     * genuinely take a reference - a closure's, `Sink`'s - exactly as they were.
+     */
+    auto scalarized = type && isMemoryType(g.global, type) &&
+                      g.global[type]->kind != Type::Fun && g.repr.of(type).scalarBits != 0;
+
+    emitExpr(g, call(g, functionValue(g, instruction.drop, instruction.source),
+                     scalarized ? placeExpr(g, instruction.place)
+                                : referenceTo(g, instruction.place)));
 }
 
 void genCall(Gen& g, ModulePtr<Value> pointer, InstCall& instruction) {
@@ -635,28 +685,102 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
     }
 
     JsPtr<Expr> owner = nullptr;
-    Name key;
+    JsPtr<Expr> keyExpr = nullptr;
+    PlaceBits bits;
+
+    // The word the reference names, when nothing on the path is an object: whatever the root is.
+    auto rootWord = [&]() -> bool {
+        if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
+            // Reborrowing through a reference: it already names the word, and the shift this body
+            // walked adds to the one it arrived with. That addition is what makes `&f.optionA` inside
+            // a callee reach the caller's bit rather than bit zero of something.
+            auto reference = useValue(g, place.pointer);
+            owner = field(g, reference, g.refObject);
+            keyExpr = field(g, reference, g.refKey);
+            return true;
+        }
+
+        if(place.root != PlaceRoot::Local || place.local >= g.function->localCount()) return false;
+
+        auto slot = g.function->localAt(g.local, place.local);
+        if(slot.borrowed && isNarrowJsValue(g, slot.type)) {
+            auto reference = useValue(g, slot.value);
+            owner = field(g, reference, g.refObject);
+            keyExpr = field(g, reference, g.refKey);
+            return true;
+        }
+
+        // A local, which prepareLocals boxed precisely so that a reference to it has something to
+        // name - so the *box* is the owner. `placeExpr` would give its contents.
+        if(place.local >= g.boxed.size() || !g.boxed[place.local]) return false;
+
+        owner = useValue(g, slot.value);
+        keyExpr = asExpr(g, make<StringExpr>(g, g.boxField.text));
+        return true;
+    };
 
     if(!count) {
-        // A whole local, which prepareLocals stored boxed precisely so that a reference to it has
-        // something to name.
-        owner = placeExpr(g, place);
-        key = g.boxField;
+        if(!rootWord()) return false;
     } else {
         auto last = projections.get(g.local, count - 1);
         if(last.kind != ProjectionKind::Field) return false;
 
-        auto ownerType = placeType(g, place, count - 1);
-        if(!ownerType || g.global[ownerType]->kind != Type::Tup) return false;
+        /*
+         * The split point: the longest prefix of the path whose value is still an object, because
+         * that is the last thing with a property to name. Everything past it is inside one `number`
+         * and contributes a bit offset rather than a property.
+         *
+         * `&s.flags.a`, where `Settings` is an object and `flags` a scalarized `Flags`, is the case
+         * that makes this a search rather than "the last projection": the reference has to be
+         * `{$o: s, $k: "flags", $s: 0}`, so both remaining steps are offsets. Splitting at the last
+         * projection would name a property of a number.
+         */
+        Size walkedTo = count;
+        while(walkedTo > 0 && !isJsObject(g, placeType(g, place, walkedTo - 1))) walkedTo--;
 
-        auto entry = ((TupType*)g.global[ownerType])->fields.get(g.global, last.index);
-        owner = placeExpr(g, place, count - 1);
-        key = fieldName(g, entry.name, last.index);
+        if(walkedTo > 0) {
+            auto atObject = walkedTo - 1;
+            auto at = projections.get(g.local, atObject);
+            if(at.kind != ProjectionKind::Field) return false;
+
+            auto ownerType = placeType(g, place, atObject);
+            if(!ownerType || g.global[ownerType]->kind != Type::Tup) return false;
+
+            auto entry = ((TupType*)g.global[ownerType])->fields.get(g.global, at.index);
+            owner = placeExpr(g, place, atObject);
+            keyExpr = asExpr(g, make<StringExpr>(g, fieldName(g, entry.name, at.index).text));
+        } else if(!rootWord()) {
+            return false;
+        }
+
+        // Everything from the word onwards, as bit offsets within it. `placeOwner` over the whole
+        // path accumulates exactly these, since a step into an object contributes none.
+        PlaceBits walked;
+        placeOwner(g, place, walked);
+        bits.offset = walked.offset;
+        bits.shift = walked.shift;
+        bits.width = narrowWidth(g, placeType(g, place));
     }
 
     auto pair = make<ObjectExpr>(g);
     pair->properties.push(g.file.arena, Property { g.refObject, owner });
-    pair->properties.push(g.file.arena, Property { g.refKey, asExpr(g, make<StringExpr>(g, key.text)) });
+    pair->properties.push(g.file.arena, Property { g.refKey, keyExpr });
+
+    /*
+     * The shift, on a target that has bit ranges in it at all. Where nothing is packed every narrow
+     * value sits at offset zero of what it names, so the shift is provably zero and is not
+     * represented - the same elision native states about a full-width value, one level up. See
+     * narrowRefCarriesShift.
+     */
+    if(narrowRefCarriesShift(g)) {
+        auto shift = bits.shift ? bits.shift : number(g, 0);
+        if(bits.offset) {
+            shift = bits.shift ? binary(g, BinaryOp::Add, shift, number(g, F64(bits.offset)))
+                               : number(g, F64(bits.offset));
+        }
+
+        pair->properties.push(g.file.arena, Property { g.refShift, shift });
+    }
 
     define(g, value, declare(g, valueName(g, instruction), asExpr(g, pair)));
     return true;
@@ -697,11 +821,10 @@ void genBorrow(Gen& g, ModulePtr<Value> value, Value& instruction, const Place& 
 
     // A scalar reached through a path - `&p.x`, or a module-level global. Nothing behind that
     // storage is a reference already, so one is made here and written back once the loan ends.
-    auto target = placeExpr(g, place);
-    auto box = declare(g, valueName(g, instruction), boxOf(g, target));
+    auto box = declare(g, valueName(g, instruction), boxOf(g, placeExpr(g, place)));
 
     g.values.add(U32(value), box);
-    g.writebacks.push(Writeback { value, box, target });
+    g.writebacks.push(Writeback { value, box, place, type });
 }
 
 /*
@@ -714,9 +837,23 @@ void genSwap(Gen& g, Value& instruction, InstSwap& swap) {
     auto b = placeExpr(g, swap.b);
 
     if(!swap.sink) {
+        /*
+         * Both sides may be bit ranges of the *same* word - `swap(t.f.a, t.g.a)` is two bits of one
+         * byte - so both reads are materialized before either write. With two locations one
+         * temporary is enough and the second is left out, which is what keeps this the same emitted
+         * shape it has always had on a target that packs nothing.
+         */
+        PlaceBits aBits, bBits;
+        placeOwner(g, swap.a, aBits);
+        placeOwner(g, swap.b, bBits);
+
         auto temporary = declare(g, generatedName(g, "swap"_v, instruction.id), a);
-        emitExpr(g, assign(g, a, b));
-        emitExpr(g, assign(g, b, temporary));
+        auto other = aBits.valid() || bBits.valid()
+            ? declare(g, generatedName(g, "swapped"_v, instruction.id), b)
+            : b;
+
+        if(!assignPlace(g, swap.a, swap.content, other)) emitExpr(g, assign(g, a, other));
+        if(!assignPlace(g, swap.b, swap.content, temporary)) emitExpr(g, assign(g, b, temporary));
         return;
     }
 
@@ -731,7 +868,17 @@ void genSwap(Gen& g, Value& instruction, InstSwap& swap) {
 // there is nothing to save it from.
 void genExchange(Gen& g, ModulePtr<Value> value, Value& instruction, InstExchange& exchange) {
     if(!exchange.sink) {
-        define(g, value, placeExpr(g, exchange.place));
+        // The old value has to be read before the write, and where the place is a bit range the read
+        // is an expression over the word the write is about to change - so it is materialized rather
+        // than left to be evaluated at its use.
+        PlaceBits bits;
+        placeOwner(g, exchange.place, bits);
+
+        auto previous = placeExpr(g, exchange.place);
+        define(g, value, bits.valid()
+            ? declare(g, valueName(g, instruction), previous)
+            : previous);
+
         storeInto(g, exchange.place, instruction.type, exchange.value);
         return;
     }
@@ -919,8 +1066,10 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
         case Value::Not: {
             auto operand = useValue(g, ((InstUnary&)instruction).from);
 
+            // `^ 1` rather than `!`, which is the same statement as the bitwise operators above: a
+            // Bool is one bit, so flipping it is flipping that bit.
             if(isBool(g, instruction.type)) {
-                define(g, value, unary(g, UnaryOp::Not, operand));
+                define(g, value, binary(g, BinaryOp::Xor, operand, number(g, 1)));
             } else {
                 define(g, value, coerce(g, instruction.type, unary(g, UnaryOp::BitNot, operand)));
             }

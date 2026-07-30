@@ -20,7 +20,7 @@ JsPtr<Expr> constantValue(Gen& g, Value& value) {
         case Value::ConstInt: {
             auto bits = ((ConstInt&)value).value;
 
-            if(isBool(g, value.type)) return boolean(g, bits != 0);
+            if(isBool(g, value.type)) return number(g, bits ? 1 : 0);
 
             if(auto integer = intType(g, value.type)) {
                 if(integer->width == IntType::Long) return bigInt(g, bits, integer->isSigned);
@@ -76,8 +76,10 @@ JsPtr<Expr> globalValue(Gen& g, ModulePtr<Global> pointer) {
  */
 namespace {
 
-TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = maxLimit<Size>) {
+TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = maxLimit<Size>,
+                  PlaceBits* bits = nullptr) {
     TypePtr type = nullptr;
+    PlaceBits within;
 
     if(place.root == PlaceRoot::Global) {
         type = g.local[place.global]->type;
@@ -95,11 +97,22 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
         if(expr) {
             *expr = useValue(g, place.pointer);
 
-            // A reference to a narrow value is the (object, property) pair a place already is here,
-            // reified - so reading and writing through one is one index expression, which is an
-            // lvalue and needs no interception on either side. See Gen::refObject.
+            /*
+             * A reference to a narrow value is the (object, property, shift) triple a place into a
+             * bit range is - the pair reified, plus where inside the named word the value starts.
+             *
+             * The shift is what makes one compiled body serve a field of a scalarized record, a
+             * co-packed field and a whole local: the callee has only the pointee type, so the *mask*
+             * is a constant it can compute and the *shift* is the one thing it cannot. See
+             * genNarrowRef, which is the other half.
+             */
             if(isNarrowJsValue(g, type)) {
                 *expr = elementAt(g, field(g, *expr, g.refObject), field(g, *expr, g.refKey));
+
+                if(narrowRefCarriesShift(g)) {
+                    within.shift = field(g, useValue(g, place.pointer), g.refShift);
+                    within.width = narrowWidth(g, type);
+                }
             } else if(!isJsObject(g, type) && !g.aliasBorrows.contains(U32(place.pointer))) {
                 // An alias is the storage under a second name, so there is no box to read through -
                 // see prepareLocals. Everything else that is not an object arrived as one.
@@ -113,10 +126,15 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
         if(expr) {
             *expr = useValue(g, root.value);
 
-            // The slot behind a `&` parameter of narrow type holds one of those pairs rather than
+            // The slot behind a `&` parameter of narrow type holds one of those triples rather than
             // storage of its own.
             if(root.borrowed && isNarrowJsValue(g, type)) {
                 *expr = elementAt(g, field(g, *expr, g.refObject), field(g, *expr, g.refKey));
+
+                if(narrowRefCarriesShift(g)) {
+                    within.shift = field(g, useValue(g, root.value), g.refShift);
+                    within.width = narrowWidth(g, type);
+                }
             } else if(place.local < g.boxed.size() && g.boxed[place.local]) {
                 *expr = field(g, *expr, g.boxField);
             }
@@ -203,6 +221,28 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
 
                 if(g.global[type]->kind == Type::Tup) {
                     auto entry = ((TupType*)g.global[type])->fields.get(g.global, projection.index);
+
+                    /*
+                     * A field of a record the Repr made one scalar. There is no property to descend
+                     * into - the owner *is* the value - so the walk stays where it is and accumulates
+                     * where inside that number this field sits.
+                     *
+                     * The accumulation is the part with teeth. `t.f.a` reaches here twice: once for
+                     * `f`, two bits at bit zero or two of `Two`, and once for `a`, one bit at bit
+                     * zero of `Flags`. Neither offset is written anywhere and only their sum names
+                     * the bit, which is why a walk that reported the last projection's offset would
+                     * read a neighbour and still produce a value of the right type.
+                     */
+                    if(!isJsObject(g, type)) {
+                        if(auto placed = g.repr.fieldOf(type, projection.index)) {
+                            within.offset += placed->bitOffset;
+                            within.width = placed->bitWidth ? placed->bitWidth
+                                                            : g.repr.of(entry.type).scalarBits;
+                            type = entry.type;
+                            break;
+                        }
+                    }
+
                     if(expr) *expr = field(g, *expr, fieldName(g, entry.name, projection.index));
                     type = entry.type;
                 }
@@ -222,14 +262,75 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
         }
     }
 
+    if(bits) *bits = within;
     return type;
 }
 
 } // namespace
 
+/*
+ * Reading a bit range out of the number that holds it.
+ *
+ * `>>>` and `&` rather than anything wider, which is the whole of why the JS packing budget is 32
+ * bits and not the 53 a `number` holds: above 32 these stop being the operations JS has.
+ *
+ * Nothing needs converting on the way out, and that is the point of `Bool` being 0 or 1 rather than a
+ * host boolean: an enum, a `@bits` integer, a nested scalar record and a `Bool` are all numbers, so
+ * the bits *are* the value and this is the same two operations for every one of them.
+ */
+// The total shift: the constant offsets this body walked, plus whatever a reference brought with it.
+static JsPtr<Expr> shiftOf(Gen& g, PlaceBits bits) {
+    if(!bits.shift) return bits.offset ? number(g, F64(bits.offset)) : nullptr;
+    if(!bits.offset) return bits.shift;
+    return binary(g, BinaryOp::Add, bits.shift, number(g, F64(bits.offset)));
+}
+
+JsPtr<Expr> decodeBits(Gen& g, JsPtr<Expr> owner, PlaceBits bits, TypePtr) {
+    auto value = owner;
+    if(auto shift = shiftOf(g, bits)) value = binary(g, BinaryOp::Shr, value, shift);
+
+    auto mask = bits.width >= 32 ? ~U32(0) : (U32(1) << bits.width) - 1;
+    return binary(g, BinaryOp::And, value, number(g, F64(mask)));
+}
+
+/*
+ * Putting one back, which is a read-modify-write because the neighbours share the word.
+ *
+ * `(owner & ~(mask << shift)) | ((value & mask) << shift)`. The inner mask is not redundant: a
+ * `@bits(4)` value that arrived wider would otherwise write over the field above it, and a signed one
+ * arrives sign-extended, so its high bits are ones exactly when they must not be stored.
+ */
+JsPtr<Expr> encodeBits(Gen& g, JsPtr<Expr> owner, PlaceBits bits, TypePtr, JsPtr<Expr> value) {
+    auto mask = bits.width >= 32 ? ~U32(0) : (U32(1) << bits.width) - 1;
+
+    value = binary(g, BinaryOp::And, value, number(g, F64(mask)));
+
+    auto shift = shiftOf(g, bits);
+    if(shift) value = binary(g, BinaryOp::Shl, value, shift);
+
+    // The hole the field occupies. Constant where nothing brought a shift, and computed where a
+    // reference did - a callee cannot fold `~(mask << r.$s)` and has to build it.
+    auto hole = shift ? unary(g, UnaryOp::BitNot,
+                              binary(g, BinaryOp::Shl, number(g, F64(mask)), shift))
+                      : number(g, F64(U32(~mask)));
+
+    return binary(g, BinaryOp::Or, binary(g, BinaryOp::And, owner, hole), value);
+}
+
 JsPtr<Expr> placeExpr(Gen& g, const Place& place, Size limit) {
     JsPtr<Expr> expr = nullptr;
-    walkPlace(g, place, &expr, limit);
+    PlaceBits bits;
+    auto type = walkPlace(g, place, &expr, limit, &bits);
+
+    // Every reader wants the value rather than the word it sits in, so the decode is applied here and
+    // the one caller that cannot use it - the store below - asks placeOwner instead.
+    if(bits.valid()) return decodeBits(g, expr, bits, type);
+    return expr;
+}
+
+JsPtr<Expr> placeOwner(Gen& g, const Place& place, PlaceBits& bits, Size limit) {
+    JsPtr<Expr> expr = nullptr;
+    walkPlace(g, place, &expr, limit, &bits);
     return expr;
 }
 

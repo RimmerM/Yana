@@ -13,7 +13,7 @@ function Ord_Int_compare(lhs, rhs) {
 }
 
 function Eq_not_eq_Metres(lhs, rhs) {
-  return Eq_Metres_eq_eq(lhs, rhs) !== true;
+  return Eq_Metres_eq_eq(lhs, rhs) ^ 1;
 }
 
 function Ord_lt_Metres(lhs, rhs) {
@@ -49,7 +49,7 @@ function Logic_or_or_Flags(lhs, rhs) {
 }
 
 function Eq_not_eq_Box_Int(lhs, rhs) {
-  return Eq_Box_a_eq_eq_Int(lhs, rhs) !== true;
+  return Eq_Box_a_eq_eq_Int(lhs, rhs) ^ 1;
 }
 
 // ResolveTest
@@ -95,8 +95,12 @@ function negated() {
 }
 
 function flags() {
-  var rw = { read: true, write: true };
-  var r = { read: true, write: false };
+  var rw = 0;
+  rw = rw & 4294967294 | 1 & 1;
+  rw = rw & ~(1 << 1) | (1 & 1) << 1;
+  var r = 0;
+  r = r & 4294967294 | 1 & 1;
+  r = r & ~(1 << 1) | (0 & 1) << 1;
   var inverted = Logic_not_Flags(r);
   var score = 0;
   if (Eq_Flags_eq_eq(Logic_and_and_Flags(rw, r), r)) {
@@ -105,7 +109,10 @@ function flags() {
   if (Eq_Flags_eq_eq(Logic_or_or_Flags(r, rw), rw)) {
     score = score + 512 | 0;
   }
-  if (Eq_Flags_eq_eq(inverted, { read: false, write: true })) {
+  var v35 = 0;
+  v35 = v35 & 4294967294 | 0 & 1;
+  v35 = v35 & ~(1 << 1) | (1 & 1) << 1;
+  if (Eq_Flags_eq_eq(inverted, v35)) {
     score = score + 1024 | 0;
   }
   return score;
@@ -172,52 +179,42 @@ function Num_Cents_div(lhs, rhs) {
 }
 
 function Eq_Flags_eq_eq(lhs, rhs) {
-  var v4 = lhs.read === rhs.read;
-  var v7 = lhs.write === rhs.write;
-  return v4 && v7;
+  return (lhs & 1) === (rhs & 1) & (lhs >>> 1 & 1) === (rhs >>> 1 & 1);
 }
 
 function Logic_Flags_and(lhs, rhs) {
-  var v2 = { read: false, write: false };
-  var v3 = lhs.read;
-  var v4 = rhs.read;
-  var v5 = v3 && v4;
-  var v6 = lhs.write;
-  var v7 = rhs.write;
-  var v8 = v6 && v7;
-  v2.read = v5;
-  v2.write = v8;
+  var v2 = 0;
+  var v5 = lhs & 1 & (rhs & 1);
+  var v8 = lhs >>> 1 & 1 & (rhs >>> 1 & 1);
+  v2 = v2 & 4294967294 | v5 & 1;
+  v2 = v2 & ~(1 << 1) | (v8 & 1) << 1;
   return v2;
 }
 
 function Logic_Flags_or(lhs, rhs) {
-  var v2 = { read: false, write: false };
-  var v3 = lhs.read;
-  var v4 = rhs.read;
-  var v5 = v3 || v4;
-  var v6 = lhs.write;
-  var v7 = rhs.write;
-  var v8 = v6 || v7;
-  v2.read = v5;
-  v2.write = v8;
+  var v2 = 0;
+  var v5 = lhs & 1 | rhs & 1;
+  var v8 = lhs >>> 1 & 1 | rhs >>> 1 & 1;
+  v2 = v2 & 4294967294 | v5 & 1;
+  v2 = v2 & ~(1 << 1) | (v8 & 1) << 1;
   return v2;
 }
 
 function Logic_Flags_xor(lhs, rhs) {
-  var v2 = { read: false, write: false };
-  var v5 = lhs.read !== rhs.read;
-  var v8 = lhs.write !== rhs.write;
-  v2.read = v5;
-  v2.write = v8;
+  var v2 = 0;
+  var v5 = lhs & 1 ^ rhs & 1;
+  var v8 = lhs >>> 1 & 1 ^ rhs >>> 1 & 1;
+  v2 = v2 & 4294967294 | v5 & 1;
+  v2 = v2 & ~(1 << 1) | (v8 & 1) << 1;
   return v2;
 }
 
 function Logic_Flags_not(value) {
-  var v1 = { read: false, write: false };
-  var v4 = value.read !== true;
-  var v7 = value.write !== true;
-  v1.read = v4;
-  v1.write = v7;
+  var v1 = 0;
+  var v4 = value & 1 ^ 1;
+  var v7 = value >>> 1 & 1 ^ 1;
+  v1 = v1 & 4294967294 | v4 & 1;
+  v1 = v1 & ~(1 << 1) | (v7 & 1) << 1;
   return v1;
 }
 

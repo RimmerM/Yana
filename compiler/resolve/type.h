@@ -354,6 +354,19 @@ struct Field {
  * `@bits` width. A type that crosses an FFI boundary needs the second one, and everything else is
  * better off with the first.
  *
+ * `Js` is the third, and it exists for the same reason `C` does: something outside the program reads
+ * this type's representation, so the compiler may not choose it. What it pins is what a JS consumer
+ * can see - the record is an object, its properties are the declared field names, and they are
+ * assigned in declaration order - which rules out the four things the JS Repr family would otherwise
+ * do to it: co-pack narrow fields into one property, represent the whole record as a `number`, fold
+ * a sum's discriminant into `null`, and minify the names. It is the pin that makes the other three
+ * safe to enable by default, since a record that crosses the host boundary now has a way to say so.
+ *
+ * All three are the *declaration's* statement rather than a target's, so `Js` pins on every target
+ * and not only on JS - what it means there is declaration order with no packing and no scalar form,
+ * which is a coherent layout everywhere. A type is not split in two by being shared; it is just not
+ * optimized, which is what its author asked for.
+ *
  * This is a property of the *tuple* rather than only of the declaration it came from, and it has to
  * be, because content tuples are interned structurally: `data A {x: Bool, y: Bool}` and
  * `data B {x: Bool, y: Bool}` are otherwise one `TupType`, and one of them being `@layout(c)` would
@@ -363,6 +376,7 @@ struct Field {
 enum class TypeLayout: U8 {
     Auto,
     C,
+    Js,
 };
 
 struct TupType: Type {

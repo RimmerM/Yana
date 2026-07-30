@@ -53,7 +53,11 @@ struct Forward {
 struct Writeback {
     ModulePtr<Value> borrow;
     JsPtr<Expr> box;
-    JsPtr<Expr> place;
+
+    // The place rather than an expression for it, because committing into a bit range is a
+    // read-modify-write and only `assignPlace` knows which places are locations.
+    Place target;
+    TypePtr type;
 };
 
 struct Gen {
@@ -99,17 +103,25 @@ struct Gen {
     Name headerField;
 
     /*
-     * The two halves of a reference to a narrow value - Design.md's tier 2, as this target spells
+     * The three parts of a reference to a narrow value - Design.md's tier 2, as this target spells
      * it. Native carries an address plus a shift; here a place is already an (object, property)
-     * pair, so a reference to one is that pair reified: `{$o: owner, $k: "field"}`, read and written
-     * as `r.$o[r.$k]`.
+     * pair, so a reference to one is that pair reified plus the same shift:
+     * `{$o: owner, $k: "field", $s: 0}`, read as `(r.$o[r.$k] >>> r.$s) & mask`.
      *
      * Which makes it a genuine reference rather than a copy with a write-back, and that is the
      * point - it has no commit point, so it can outlive the call that produced it exactly as the
      * native form can.
+     *
+     * The shift is what whole-record scalarization needed and the pair alone could not give: a field
+     * of a record that became a `number` has no property to name, so `$k` names the word and `$s`
+     * says where in it the field starts. It is carried on every narrow reference rather than only on
+     * the packed ones for the same reason native carries it on every one - the callee has the pointee
+     * type and nothing else, so one compiled `flip(&Bool)` has to serve a bit of a scalarized record,
+     * a co-packed field and a whole local alike.
      */
     Name refObject;
     Name refKey;
+    Name refShift;
 
     // The tuple ClosureHeaderLayout is also described as - see closureHeaderPlaceType. A place into
     // one is a cell read rather than a property, because the header is a compiler-built table here
@@ -359,19 +371,83 @@ bool isJsObject(Gen& g, TypePtr type);
  * Whether a `&` of this type is the (object, property) pair Design.md's tier 2 becomes here.
  *
  * Narrow *and* without a host identity of its own. The first half is the language's answer - the same
- * predicate native decides a shift-carrying reference by - and the second is this target's: a record
- * of two `Bool`s is a narrow scalar on native and one word wide, but here it is an object, and a
- * reference to an object is the object. So a narrow *aggregate* is borrowed as itself and only a
- * value with nowhere to hold a reference - a `Bool`, a `@bits` integer, a newtype over one - needs
- * the pair.
+ * predicate native decides a shift-carrying reference by - and the second is this target's: a value
+ * with nowhere to hold a reference - a `Bool`, a `@bits` integer, a newtype over one, and now a
+ * scalarized record - needs the pair, and an object is borrowed as itself.
  *
- * This is what keeps whole-record scalarization a native decision. When this target grows its own
- * scalar form - `Implementation-JS-Repr.md` part 1, a record as a `number` - it is this predicate
- * that changes, and nothing else here has to.
+ * `isJsObject` is what carries scalarization into this: a record the Repr made one `number` stops
+ * being an object, so a `&` of it becomes the pair, exactly as native's `&` of it became an address
+ * plus a shift. That is the whole of what part 1 had to change here.
  */
 inline bool isNarrowJsValue(Gen& g, TypePtr type) {
     return isNarrowValue(g.global, type) && !isJsObject(g, type);
 }
+
+/*
+ * How wide the bit range behind a narrow reference is.
+ *
+ * Answered from the *type* rather than from any layout, which is what makes it available to a callee
+ * that has only the pointee type - the same contract native's `naturalStorageBits(bits)` mask is
+ * stated under. The shift is the one thing a callee cannot compute, which is why that and only that
+ * rides along in the reference.
+ */
+inline U32 narrowWidth(Gen& g, TypePtr type) {
+    return valueWidth(g.global, type).logical;
+}
+
+/*
+ * Whether a narrow reference on this target carries a shift at all.
+ *
+ * This is the same elision native states about a full-width value - "a shift that is provably zero is
+ * never represented" - applied one level up. A target that co-packs nothing and scalarizes nothing has
+ * no bit ranges in it, so *every* narrow value sits at offset zero of the storage it names, and the
+ * reference is the plain `{$o, $k}` pair with `r.$o[r.$k]` as an lvalue on both sides.
+ *
+ * It matters here rather than only saving two operations, because the read-modify-write a shift forces
+ * is not the identity on this target the way it is on native: a `Bool` field holds `true`, and
+ * `(owner & ~1) | (v & 1)` would store `1`. So while nothing is packed, nothing may pay for it.
+ */
+inline bool narrowRefCarriesShift(Gen& g) {
+    return g.repr.target.packFields || g.repr.target.scalarizeRecords;
+}
+
+/*
+ * A bit range within the value a place names, or nothing where the place names the whole of one.
+ *
+ * This is what a field of a scalarized record is: the walk stops at the `number` that holds it and
+ * reports where inside that number the field sits, because there is no property to descend into.
+ * Offsets *compose* - `t.f.a` is one bit of `Flags` at bit zero, and `Flags` is two bits of `Two` at
+ * bit zero or two - and neither number is written anywhere in the source, which is why they are
+ * accumulated here rather than read off the last projection.
+ *
+ * A place carrying one of these is no longer a location. Reading it is a shift and a mask and writing
+ * it is a read-modify-write of the whole binding, which is why the two interception points are the
+ * load and the store rather than the place walk itself - the same split native settled on for a
+ * packed field and a folded tag.
+ */
+struct PlaceBits {
+    U32 offset = 0;
+    U32 width = 0;
+
+    /*
+     * A shift known only at run time, added to `offset`.
+     *
+     * This is what a reference into a bit range carries, and it is why the two are separate numbers:
+     * a callee compiled once against `&Bool` does not know whether its argument was a field of a
+     * scalarized record, a co-packed field, or a whole local, so the shift arrives with the reference
+     * while the offsets of any fields it projects further are its own body's constants. Reborrowing
+     * adds the two, exactly as native adds a shift to a field offset.
+     */
+    JsPtr<Expr> shift = nullptr;
+
+    bool valid() const { return width != 0; }
+};
+
+// The shift-and-mask that reads `bits` out of `owner`, and the read-modify-write that puts one back.
+// `type` is the field's own type, because a `Bool` is a host boolean rather than a one-bit number and
+// has to be converted in both directions.
+JsPtr<Expr> decodeBits(Gen& g, JsPtr<Expr> owner, PlaceBits bits, TypePtr type);
+JsPtr<Expr> encodeBits(Gen& g, JsPtr<Expr> owner, PlaceBits bits, TypePtr type, JsPtr<Expr> value);
 
 /*
  * The properties one value of this type has, in construction order.
@@ -488,6 +564,17 @@ JsPtr<Expr> globalValue(Gen& g, ModulePtr<Global> pointer);
 
 JsPtr<Expr> placeExpr(Gen& g, const Place& place, Size limit = maxLimit<Size>);
 TypePtr placeType(Gen& g, const Place& place, Size limit = maxLimit<Size>);
+
+/*
+ * The place as an owner plus a bit range, for the two callers that have to tell them apart.
+ *
+ * `placeExpr` above answers with the decode already applied, which is what every *reader* wants. A
+ * writer cannot use that - the result is an expression rather than an lvalue - so it asks here, gets
+ * the `number` the field lives in and where inside it, and emits the read-modify-write. `bits` comes
+ * back invalid for every place that is an ordinary location, which is all of them until a target
+ * scalarizes something.
+ */
+JsPtr<Expr> placeOwner(Gen& g, const Place& place, PlaceBits& bits, Size limit = maxLimit<Size>);
 
 // The argument a teardown or a relocation takes: those are written against a raw pointer, so a
 // value that is not an object has to arrive in a box the way any other reference does.

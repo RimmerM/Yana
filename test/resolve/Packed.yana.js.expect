@@ -6,7 +6,7 @@ function bump(x) {
 }
 
 function flip(b) {
-  b.$o[b.$k] = b.$o[b.$k] !== true;
+  b.$o[b.$k] = b.$o[b.$k] & ~(1 << b.$s) | ((b.$o[b.$k] >>> b.$s & 1 ^ 1) & 1) << b.$s;
   return;
 }
 
@@ -16,44 +16,61 @@ function scale(x, by) {
 }
 
 function direct() {
-  var h = { version: 9, flags: 2, length: 4000 };
-  return ((Math.imul(h.version >>> 0 | 0, 100000) | 0) + (Math.imul(h.flags >>> 0 | 0, 10000) | 0) | 0) + (h.length >>> 0 | 0) | 0;
+  var v0 = 0;
+  v0 = v0 & ~(15 << 16) | (1 & 15) << 16;
+  v0 = v0 & ~(7 << 20) | (2 & 7) << 20;
+  v0 = v0 & 4294959104 | 3 & 8191;
+  var h = v0;
+  h = h & 4294959104 | 4000 & 8191;
+  h = h & ~(15 << 16) | (9 & 15) << 16;
+  return ((Math.imul((h >>> 16 & 15) >>> 0 | 0, 100000) | 0) + (Math.imul((h >>> 20 & 7) >>> 0 | 0, 10000) | 0) | 0) + ((h & 8191) >>> 0 | 0) | 0;
 }
 
 function borrowed() {
-  var h = { version: 1, flags: 2, length: 3 };
-  var v11 = { $v: h.version >>> 0 };
+  var v0 = 0;
+  v0 = v0 & ~(15 << 16) | (1 & 15) << 16;
+  v0 = v0 & ~(7 << 20) | (2 & 7) << 20;
+  v0 = v0 & 4294959104 | 3 & 8191;
+  var h = v0;
+  var v11 = { $v: (h >>> 16 & 15) >>> 0 };
   bump(v11);
-  h.version = (v11.$v & 15) >>> 0 & 15;
-  var v24 = { $v: h.length >>> 0 };
+  h = h & ~(15 << 16) | ((v11.$v & 15) >>> 0 & 15 & 15) << 16;
+  var v24 = { $v: (h & 8191) >>> 0 };
   bump(v24);
-  h.length = (v24.$v & 8191) >>> 0 & 8191;
-  return (Math.imul(h.version >>> 0 | 0, 100) | 0) + (h.length >>> 0 | 0) | 0;
+  h = h & 4294959104 | (v24.$v & 8191) >>> 0 & 8191 & 8191;
+  return (Math.imul((h >>> 16 & 15) >>> 0 | 0, 100) | 0) + ((h & 8191) >>> 0 | 0) | 0;
 }
 
 function neighbours() {
-  var h = { version: 1, flags: 0, length: 100 };
-  var v11 = { $v: h.version >>> 0 };
+  var v0 = 0;
+  v0 = v0 & ~(15 << 16) | (1 & 15) << 16;
+  v0 = v0 & ~(7 << 20) | (0 & 7) << 20;
+  v0 = v0 & 4294959104 | 100 & 8191;
+  var h = v0;
+  var v11 = { $v: (h >>> 16 & 15) >>> 0 };
   bump(v11);
-  h.version = (v11.$v & 15) >>> 0 & 15;
-  var v25 = { $v: h.length >>> 0 };
+  h = h & ~(15 << 16) | ((v11.$v & 15) >>> 0 & 15 & 15) << 16;
+  var v25 = { $v: (h & 8191) >>> 0 };
   scale(v25, 3);
-  h.length = (v25.$v & 8191) >>> 0 & 8191;
-  return (Math.imul(h.version >>> 0 | 0, 1000) | 0) + (h.length >>> 0 | 0) | 0;
+  h = h & 4294959104 | (v25.$v & 8191) >>> 0 & 8191 & 8191;
+  return (Math.imul((h >>> 16 & 15) >>> 0 | 0, 1000) | 0) + ((h & 8191) >>> 0 | 0) | 0;
 }
 
 function together() {
   var v24;
   var v34;
-  var f = { optionA: false, optionB: false };
-  flip({ $o: f, $k: "optionA" });
-  flip({ $o: f, $k: "optionB" });
-  if (f.optionA) {
+  var v0 = 0;
+  v0 = v0 & 4294967294 | 0 & 1;
+  v0 = v0 & ~(1 << 1) | (0 & 1) << 1;
+  var f = { $v: v0 };
+  flip({ $o: f, $k: "$v", $s: 0 });
+  flip({ $o: f, $k: "$v", $s: 1 });
+  if (f.$v & 1) {
     v24 = 1;
   } else {
     v24 = 0;
   }
-  if (f.optionB) {
+  if (f.$v >>> 1 & 1) {
     v34 = 2;
   } else {
     v34 = 0;
@@ -82,15 +99,18 @@ function pick(flag, a, b) {
 function loaned() {
   var v26;
   var v36;
-  var f = { optionA: true, optionB: true };
-  var v14 = pick(true, { $o: f, $k: "optionA" }, { $o: f, $k: "optionB" });
-  v14.$o[v14.$k] = false;
-  if (f.optionA) {
+  var v0 = 0;
+  v0 = v0 & 4294967294 | 1 & 1;
+  v0 = v0 & ~(1 << 1) | (1 & 1) << 1;
+  var f = { $v: v0 };
+  var v14 = pick(1, { $o: f, $k: "$v", $s: 0 }, { $o: f, $k: "$v", $s: 1 });
+  v14.$o[v14.$k] = v14.$o[v14.$k] & ~(1 << v14.$s) | (0 & 1) << v14.$s;
+  if (f.$v & 1) {
     v26 = 1;
   } else {
     v26 = 0;
   }
-  if (f.optionB) {
+  if (f.$v >>> 1 & 1) {
     v36 = 2;
   } else {
     v36 = 0;
@@ -99,21 +119,24 @@ function loaned() {
 }
 
 function optionOf(f) {
-  return { $o: f, $k: "optionA" };
+  return { $o: f.$o, $k: f.$k, $s: f.$s };
 }
 
 function returned() {
   var v21;
   var v31;
-  var f = { optionA: false, optionB: true };
-  var v9 = optionOf(f);
-  v9.$o[v9.$k] = true;
-  if (f.optionA) {
+  var v0 = 0;
+  v0 = v0 & 4294967294 | 0 & 1;
+  v0 = v0 & ~(1 << 1) | (1 & 1) << 1;
+  var f = { $v: v0 };
+  var v9 = optionOf({ $o: f, $k: "$v", $s: 0 });
+  v9.$o[v9.$k] = v9.$o[v9.$k] & ~(1 << v9.$s) | (1 & 1) << v9.$s;
+  if (f.$v & 1) {
     v21 = 1;
   } else {
     v21 = 0;
   }
-  if (f.optionB) {
+  if (f.$v >>> 1 & 1) {
     v31 = 2;
   } else {
     v31 = 0;
@@ -122,23 +145,26 @@ function returned() {
 }
 
 function swapBools(a, b) {
-  var t = a.$o[a.$k];
-  a.$o[a.$k] = b.$o[b.$k];
-  b.$o[b.$k] = t;
+  var t = a.$o[a.$k] >>> a.$s & 1;
+  a.$o[a.$k] = a.$o[a.$k] & ~(1 << a.$s) | (b.$o[b.$k] >>> b.$s & 1 & 1) << a.$s;
+  b.$o[b.$k] = b.$o[b.$k] & ~(1 << b.$s) | (t & 1) << b.$s;
   return;
 }
 
 function interleaved() {
   var v23;
   var v33;
-  var g = { optionA: true, optionB: false };
-  swapBools({ $o: g, $k: "optionA" }, { $o: g, $k: "optionB" });
-  if (g.optionA) {
+  var v0 = 0;
+  v0 = v0 & 4294967294 | 1 & 1;
+  v0 = v0 & ~(1 << 1) | (0 & 1) << 1;
+  var g = { $v: v0 };
+  swapBools({ $o: g, $k: "$v", $s: 0 }, { $o: g, $k: "$v", $s: 1 });
+  if (g.$v & 1) {
     v23 = 1;
   } else {
     v23 = 0;
   }
-  if (g.optionB) {
+  if (g.$v >>> 1 & 1) {
     v33 = 2;
   } else {
     v33 = 0;
@@ -147,7 +173,7 @@ function interleaved() {
 }
 
 function nudge(x) {
-  x.$o[x.$k] = ((x.$o[x.$k] >>> 0) + 1 >>> 0 & 8191) >>> 0 & 8191;
+  x.$o[x.$k] = x.$o[x.$k] & ~(8191 << x.$s) | ((((x.$o[x.$k] >>> x.$s & 8191) >>> 0) + 1 >>> 0 & 8191) >>> 0 & 8191 & 8191) << x.$s;
   return;
 }
 
@@ -158,9 +184,13 @@ function nudgeTwice(x) {
 }
 
 function threaded() {
-  var h = { version: 1, flags: 2, length: 100 };
-  nudgeTwice({ $o: h, $k: "length" });
-  return (Math.imul(h.length >>> 0 | 0, 10) | 0) + (h.version >>> 0 | 0) | 0;
+  var v0 = 0;
+  v0 = v0 & ~(15 << 16) | (1 & 15) << 16;
+  v0 = v0 & ~(7 << 20) | (2 & 7) << 20;
+  v0 = v0 & 4294959104 | 100 & 8191;
+  var h = { $v: v0 };
+  nudgeTwice({ $o: h, $k: "$v", $s: 0 });
+  return (Math.imul((h.$v & 8191) >>> 0 | 0, 10) | 0) + ((h.$v >>> 16 & 15) >>> 0 | 0) | 0;
 }
 
 function main() {

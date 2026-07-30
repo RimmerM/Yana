@@ -240,6 +240,38 @@ bool placeIsPackCandidate(Module& module, Function& function, const Place& place
     return packCandidate(global, *(TupType*)global[owner], last.index);
 }
 
+/*
+ * Whether this place names a field of a record whose representation is pinned to the host's.
+ *
+ * `@layout(js)` says something outside the program reads this object, so its properties hold what a
+ * JS consumer expects rather than what the compiler would have chosen - `true` rather than the 0 or 1
+ * a `Bool` is everywhere else. A `&` of such a field is refused for the same reason `addressOf` of a
+ * packed one is: a reference is compiled once against the pointee type and reads and writes through
+ * it uniformly, so there is nowhere to put the conversion the pin implies. A real host object does
+ * not hand out references into its fields either, which is the same statement from the other side.
+ *
+ * Stated over the *type* rather than over the target, so it is one diagnostic on every backend - a
+ * rejection that fired on one and not the other would not be one.
+ */
+bool placeIsHostPinnedField(Module& module, Function& function, const Place& place) {
+    auto global = *module.types;
+    auto local = *module.arena;
+    auto projections = place.projections;
+    auto count = projections.size();
+    if(!count) return false;
+
+    auto last = projections.get(local, count - 1);
+    if(last.kind != ProjectionKind::Field) return false;
+
+    auto owner = placeType(module, function, place, count - 1);
+    if(!owner || global[owner]->kind != Type::Tup) return false;
+    if(((TupType*)global[owner])->layout != TypeLayout::Js) return false;
+
+    // Only the narrow ones. A pinned record's `Int` field is a property holding a number and a
+    // reference to it is the ordinary pair, with nothing to convert and nothing to reject.
+    return isNarrowValue(global, ((TupType*)global[owner])->fields.get(global, last.index).type);
+}
+
 bool needsBorrowTemporary(Module& module, Function& function, const Place& place, TypePtr wanted) {
     auto held = placeType(module, function, place);
     return held && wanted && !sameType(held, wanted);
@@ -357,6 +389,12 @@ ModulePtr<Value> ExprResolver::borrowPlace(Place place, TypePtr borrowType, Loca
                                            bool loaned) {
     auto borrow = (BorrowType*)global[borrowType];
     auto wanted = borrow->to;
+
+    if(placeIsHostPinnedField(module, function, place)) {
+        context.diagnostics.error("cannot borrow this field - its record is `@layout(js)`, so the field holds what a host reader expects rather than what a reference reads and writes through. Reading or assigning the field works; only the reference has nowhere to convert"_v,
+                                  source);
+        return nullptr;
+    }
 
     if(!needsBorrowTemporary(module, function, place, wanted)) {
         return ref(emit<InstBorrow>(source, 0, borrowType, place, borrow->mut));

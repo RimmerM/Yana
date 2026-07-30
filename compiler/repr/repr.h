@@ -339,6 +339,24 @@ struct ReprTarget {
     bool packFields = false;
 
     /*
+     * Representing a whole aggregate as one integer, rather than co-packing a run of fields inside
+     * one that stays an aggregate.
+     *
+     * Separate from `packFields` because on JS the two are different features with different sizes.
+     * There, what this removes is not bytes but the *object*: a scalarized record has no allocation,
+     * no hidden class, nothing for the collector to trace, a copy that is a register move, `===` for
+     * equality, value semantics as a `Map` key, and an `Int32Array` for an array of it. Measured
+     * against the same record as an object it is 95% less memory and 15x construction, where
+     * co-packing inside a surviving object is 42% and 1.4x - so they are worth turning on separately
+     * even on a target that ends up wanting both.
+     *
+     * On native they are two halves of one thing and both are on. The search is shared either way:
+     * `scalarLayout` in resolve says which aggregates have a scalar form at all, from the logical
+     * type alone, and this says whether this target takes it.
+     */
+    bool scalarizeRecords = false;
+
+    /*
      * Folding a sum type's discriminant into a niche its payload leaves free.
      *
      * On, for native. A folded tag is not stored anywhere: reading it compares the payload's own

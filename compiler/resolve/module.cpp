@@ -503,18 +503,22 @@ static void declareNewtype(Module& module, ast::Decl& decl) {
 }
 
 /*
- * `@layout(c)` on a type declaration - Design.md's "the existing `@layout` attribute pins it and opts
- * a type out of Repr optimization", and Design-Memory §11's declared pin.
+ * `@layout(c)` and `@layout(js)` on a type declaration - Design.md's "the existing `@layout`
+ * attribute pins it and opts a type out of Repr optimization", and Design-Memory §11's declared pin.
  *
  * `@layout(auto)` is the default and is accepted so that writing it means something; an argument that
- * is neither is reported rather than ignored, because a misspelled pin would silently produce a layout
- * an FFI declaration is relying on not to move.
+ * is none of the three is reported rather than ignored, because a misspelled pin would silently
+ * produce a layout an FFI declaration is relying on not to move.
+ *
+ * The two pins do not compose - a type has one representation, and `c` and `js` name different ones -
+ * so writing both is an error rather than a precedence rule to remember.
  *
  * The pin is per declaration and does not reach inside one. A `@layout(c)` record containing a field
  * of an `@layout(auto)` record type gets a C struct's *offsets* for that field, but the nested record
  * is still laid out by its own rules - exactly as C lays out a nested struct by its own. A type whose
  * whole graph has to match C therefore has to say so at each level, which is the same thing C requires
- * of a header.
+ * of a header. `@layout(js)` is the same: a pinned record's field of an unpinned record type gets a
+ * real property, but what sits in that property may well be a `number`.
  */
 static TypeLayout readLayoutAttribute(Module& module, const ast::Decl& decl) {
     auto attributes = decl.attributes;
@@ -523,25 +527,41 @@ static TypeLayout readLayoutAttribute(Module& module, const ast::Decl& decl) {
     auto& context = module.context;
     auto layout = context.addUnqualifiedName("layout", 6);
     auto c = context.addUnqualifiedName("c", 1);
+    auto js = context.addUnqualifiedName("js", 2);
     auto automatic = context.addUnqualifiedName("auto", 4);
     auto result = TypeLayout::Auto;
+    auto pinned = false;
 
     for(auto attribute: attributes.contents(module.parse)) {
         if(attribute.name != layout) continue;
 
         if(attribute.args.size() != 1) {
-            context.diagnostics.error("`@layout` takes one argument - `@layout(c)` or `@layout(auto)`"_v,
+            context.diagnostics.error("`@layout` takes one argument - `@layout(c)`, `@layout(js)` or `@layout(auto)`"_v,
                                       attribute.source);
             continue;
         }
 
         auto argument = attribute.args.get(module.parse, 0).value;
-        if(argument.kind != ast::Expr::Var || (argument.var != c && argument.var != automatic)) {
-            context.diagnostics.error("`@layout` takes `c` or `auto`"_v, argument.source);
+        if(argument.kind != ast::Expr::Var ||
+           (argument.var != c && argument.var != js && argument.var != automatic)) {
+            context.diagnostics.error("`@layout` takes `c`, `js` or `auto`"_v, argument.source);
             continue;
         }
 
-        if(argument.var == c) result = TypeLayout::C;
+        auto requested = argument.var == c ? TypeLayout::C
+                       : argument.var == js ? TypeLayout::Js
+                       : TypeLayout::Auto;
+
+        if(pinned && requested != TypeLayout::Auto && requested != result) {
+            context.diagnostics.error("`@layout(c)` and `@layout(js)` name different representations and cannot both apply"_v,
+                                      argument.source);
+            continue;
+        }
+
+        if(requested != TypeLayout::Auto) {
+            result = requested;
+            pinned = true;
+        }
     }
 
     return result;

@@ -13,7 +13,7 @@ function combined(a, b) {
 }
 
 function bothTrue(a, b) {
-  return a && b;
+  return a & b;
 }
 
 function maskQualified(a, b) {
@@ -21,7 +21,7 @@ function maskQualified(a, b) {
 }
 
 function bothQualified(a, b) {
-  return a && b;
+  return a & b;
 }
 
 function negated(a) {
@@ -37,19 +37,19 @@ function main() {
   var v47;
   var v59;
   var v24 = (((mask(6, 3) + combined(6, 3) | 0) + maskQualified(12, 10) | 0) + maskGeneric_Int(5, 4) | 0) + difference(negated(1) + 10 | 0, 2) | 0;
-  if (bothTrue(true, false)) {
+  if (bothTrue(1, 0)) {
     v35 = 100;
   } else {
     v35 = 0;
   }
   var v36 = v24 + v35 | 0;
-  if (bothQualified(true, true)) {
+  if (bothQualified(1, 1)) {
     v47 = 1000;
   } else {
     v47 = 0;
   }
   var v48 = v36 + v47 | 0;
-  if (bothGeneric_Bool(true, false)) {
+  if (bothGeneric_Bool(1, 0)) {
     v59 = 10000;
   } else {
     v59 = 0;
@@ -62,5 +62,5 @@ function maskGeneric_Int(x, y) {
 }
 
 function bothGeneric_Bool(x, y) {
-  return x && y;
+  return x & y;
 }

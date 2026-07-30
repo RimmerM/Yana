@@ -282,13 +282,32 @@ void prepareLocals(Gen& g, Function& function) {
         if(!aliases.add(U32(value), place.local)) pending.push(value);
     };
 
+    /*
+     * A local that is not an object, any part of which is borrowed, needs the box - whether the
+     * borrow names the whole of it or one bit of it.
+     *
+     * `consider` above is about *aliasing*, which only a borrow of the whole local can be. This is
+     * the other requirement, and scalarization is what introduced it: `&f.optionA` where `f` is a
+     * scalarized record has to name something writable, and `f` is a `var` holding a number. The box
+     * is what the reference names, with the field's shift saying where in it the bit is.
+     */
+    auto boxIfNarrowRoot = [&](const Place& place) {
+        if(place.root != PlaceRoot::Local || place.local >= g.boxed.size()) return;
+        if(place.local >= function.localCount()) return;
+
+        auto type = function.localAt(g.local, place.local).type;
+        if(type && !isJsObject(g, type)) g.boxed[place.local] = true;
+    };
+
     eachInstruction(g, function, [&](Value& instruction) {
         auto pointer = (ModulePtr<Value>)((Inst*)&instruction - g.local);
 
         if(instruction.kind == Value::Borrow) {
             consider(pointer, ((InstBorrow&)instruction).place);
+            boxIfNarrowRoot(((InstBorrow&)instruction).place);
         } else if(instruction.kind == Value::Address) {
             consider(pointer, ((InstAddress&)instruction).place);
+            boxIfNarrowRoot(((InstAddress&)instruction).place);
         }
     });
 
@@ -323,6 +342,20 @@ void prepareLocals(Gen& g, Function& function) {
         auto slot = function.localAt(g.local, i);
         if(!slot.borrowed || !slot.type) continue;
         if(!isJsObject(g, slot.type)) g.boxed[i] = true;
+    }
+
+    /*
+     * A local that is not an object and is borrowed at all needs the box, even where the borrow never
+     * leaves this function.
+     *
+     * Aliasing - the borrow being a second *name* for the storage - is what makes a borrow free here,
+     * and it works because a reference to an object is the object. A scalarized record is a `number`,
+     * so there is no second name to be had: a reference to one has to name something that can be
+     * written through, which is the box. Without this a `&` of such a local silently becomes a copy.
+     */
+    for(auto entry: aliases.entries()) {
+        auto slot = function.localAt(g.local, entry.value);
+        if(slot.type && !isJsObject(g, slot.type)) g.boxed[entry.value] = true;
     }
 
     for(auto entry: aliases.entries()) {
@@ -662,6 +695,7 @@ Ptr<File> genProgram(Context& context, Program& program) {
     g.envField = literalName(g, "$e"_v);
     g.refObject = literalName(g, "$o"_v);
     g.refKey = literalName(g, "$k"_v);
+    g.refShift = literalName(g, "$s"_v);
     g.headerField = literalName(g, "$h"_v);
     if(program.root) g.headerType = closureHeaderPlaceType(*program.root);
 

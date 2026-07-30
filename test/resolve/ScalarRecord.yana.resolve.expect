@@ -484,6 +484,118 @@ fn pinned() -> Int {
     ret %v79
 }
 
+fn hostShaped() -> Int {
+  b0:
+    %v0 = alloc : HostShaped
+    init %local0@HostShaped.a, True
+    init %local0@HostShaped.b, 9
+    init %local0@HostShaped.c, 3
+    init %local0@HostShaped.d, 5
+    init %local0@HostShaped.e, 40
+    init %local0@HostShaped.f, 6
+    %p = alloc : HostShaped
+    init %p, %v0
+    %v15 = load %p : HostShaped
+    %v16 = load %p@HostShaped.d : @bits(4) Int
+    %v18 = cast %v16 : Int
+    %v20 = add %v18, 1 : Int
+    %v22 = and %v20, 15 : Int
+    %v23 = cast %v22 : @bits(4) Int
+    assign %p@HostShaped.d, %v23
+    %v25 = load %p : HostShaped
+    %v26 = load %p@HostShaped.f : @bits(4) Int
+    %v28 = cast %v26 : Int
+    %v30 = add %v28, 1 : Int
+    %v32 = and %v30, 15 : Int
+    %v33 = cast %v32 : @bits(4) Int
+    assign %p@HostShaped.f, %v33
+    %v35 = load %p : HostShaped
+    %v36 = load %p@HostShaped.b : U64
+    %v39 = add %v36, 1 : U64
+    assign %p@HostShaped.b, %v39
+    %v41 = load %p : HostShaped
+    %v42 = load %p@HostShaped.a : Bool
+    je %v42, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v50 = phi [b1, 1], [b2, 0] : Int
+    %v51 = load %p : HostShaped
+    %v52 = load %p@HostShaped.b : U64
+    %v53 = cast %v52 : Int
+    %v56 = mul %v53, 10 : Int
+    %v57 = add %v50, %v56 : Int
+    %v58 = load %p : HostShaped
+    %v59 = load %p@HostShaped.c : U8
+    %v60 = cast %v59 : Int
+    %v63 = mul %v60, 100 : Int
+    %v64 = add %v57, %v63 : Int
+    %v65 = load %p : HostShaped
+    %v66 = load %p@HostShaped.d : @bits(4) Int
+    %v67 = cast %v66 : Int
+    %v70 = mul %v67, 1000 : Int
+    %v71 = add %v64, %v70 : Int
+    %v72 = load %p : HostShaped
+    %v73 = load %p@HostShaped.e : U32
+    %v74 = cast %v73 : Int
+    %v77 = mul %v74, 10000 : Int
+    %v78 = add %v71, %v77 : Int
+    %v79 = load %p : HostShaped
+    %v80 = load %p@HostShaped.f : @bits(4) Int
+    %v81 = cast %v80 : Int
+    %v84 = mul %v81, 1000000 : Int
+    %v85 = add %v78, %v84 : Int
+    ret %v85
+}
+
+fn hostBorrowed() -> Int {
+  b0:
+    %v0 = alloc : HostFlags
+    init %local0@HostFlags.a, True
+    init %local0@HostFlags.b, False
+    %h = alloc : HostFlags
+    init %h, %v0
+    %v7 = load %h : HostFlags
+    %v8 = load %h@HostFlags.a : Bool
+    %v10 = xor %v8, True : Bool
+    assign %h@HostFlags.a, %v10
+    %v12 = load %h : HostFlags
+    %v13 = load %h@HostFlags.b : Bool
+    %v15 = xor %v13, True : Bool
+    assign %h@HostFlags.b, %v15
+    %v17 = load %h : HostFlags
+    %v18 = load %h@HostFlags.a : Bool
+    je %v18, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v26 = phi [b1, 1], [b2, 0] : Int
+    %v27 = load %h : HostFlags
+    %v28 = load %h@HostFlags.b : Bool
+    je %v28, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v36 = phi [b4, 2], [b5, 0] : Int
+    %v37 = add %v26, %v36 : Int
+    ret %v37
+}
+
 fn main() -> Int {
   b0:
     %v0 = call nested : Int
@@ -507,7 +619,11 @@ fn main() -> Int {
     %v18 = add %v16, %v17 : Int
     %v19 = call pinned : Int
     %v20 = add %v18, %v19 : Int
-    ret %v20
+    %v21 = call hostShaped : Int
+    %v22 = add %v20, %v21 : Int
+    %v23 = call hostBorrowed : Int
+    %v24 = add %v22, %v23 : Int
+    ret %v24
 }
 
 fn Drop(Owned).drop(%value: Owned) -> () {
