@@ -102,9 +102,22 @@ const Repr& ReprTable::of(TypePtr type, ReprRequirements) {
     inProgress.pop();
 
     owned->stride = owned->stride ? owned->stride : alignTo(owned->size, owned->align);
+    checkAbiContract(type, *owned);
+
     reprs.push(owned);
     cache.add(U32(type), owned);
     return *owned;
+}
+
+void ReprTable::checkAbiContract(TypePtr type, const Repr& repr) const {
+    // A generic type has no layout here at all, so there is nothing to hold it to.
+    if(repr.opaque) return;
+
+    // A copy in a register is a copy of one register's worth. Anything resolve calls direct whose
+    // representation outgrew that is a type admitted to `isDirectType` by its kind while its layout
+    // says otherwise - and the failure would be silent, since the value would simply be truncated at
+    // every load of it.
+    assertTrue(!isDirectType(global, type) || repr.size <= target.pointerSize);
 }
 
 const FieldRepr* ReprTable::fieldOf(TypePtr type, U16 index) {

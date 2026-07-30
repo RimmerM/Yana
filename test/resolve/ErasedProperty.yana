@@ -1,0 +1,44 @@
+-- The runtime half of a structural field constraint: `PropertyWitness`, and a body that reads and
+-- writes a field of a type it cannot see.
+--
+-- Compiled with specialization declined (see the `.generic` marker beside it), so the IR below is
+-- the erased form. Property.yana is the same feature specialized, and the two have to agree about
+-- what the program means - which is what the run comparison every other fixture does asserts.
+--
+-- What a witness is: two descriptors and two accessors, interned per owner and field. What a body
+-- does with it: load the witness from the environment slot its schema numbered, load the operation
+-- from the witness, call it. No name is hashed and nothing is searched, at either end.
+
+data Person {name: Int, age: Int}
+data Item {name: Int, cost: Int}
+
+-- One constraint, read only. The result comes back through storage this frame provided, because the
+-- field's type is a variable here and there is no register class to hand it back in.
+fn (a.name: Int) nameOf(p: a) -> Int = p.name
+
+-- Writing one. `set` consumes what it is handed and releases what the field held, so the caller
+-- relocates the replacement into staging storage rather than lending it - which for an Int is a
+-- store, and for a type that owed something would be the one relocation it is allowed.
+fn (a.name: Int) rename(&p: a, to: Int) = p.name = to
+
+-- Two constraints on one variable, at different indices in each record. Nothing in the body depends
+-- on where either field is: both are witnesses, and which one each caller passed is the whole of the
+-- difference between the two records below.
+fn (a.name: Int, a.tag: Int) labelled(p: a) -> Int = nameOf(p) * 100 + p.tag
+
+data Left {name: Int, tag: Int}
+data Right {tag: Int, name: Int}
+
+fn main() -> Int:
+    let people = nameOf(Person {name: 5, age: 90})
+    let items = nameOf(Item {name: 2, cost: 7})
+
+    let &subject = Person {name: 1, age: 2}
+    rename(subject, 8)
+
+    -- 100 + 3 = 103, and 600 + 4 = 604.
+    let left = labelled(Left {name: 1, tag: 3})
+    let right = labelled(Right {tag: 4, name: 6})
+
+    -- 5000 + 200 + 80 + 103 + 604 = 5987
+    return people * 1000 + items * 100 + nameOf(subject) * 10 + left + right

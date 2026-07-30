@@ -1,0 +1,557 @@
+let &heapNext: %U8 = 0
+
+let &heapLimit: %U8 = 0
+
+let &heapFree: %%U8 = 0
+
+table typeDesc$Person {
+  .0 Person
+  .1 sizeof Person
+  .2 alignof Person
+  .3 strideof Person
+  .4 131
+  .5 moveInit$Person
+  .6 teardown$none
+  .7 teardown$none
+}
+
+table property$Person.name {
+  .0 typeDesc$Person
+  .1 typeDesc$Int
+  .2 read$Person.name
+  .3 set$Person.name
+}
+
+table typeDesc$Int {
+  .0 Int
+  .1 sizeof Int
+  .2 alignof Int
+  .3 strideof Int
+  .4 131
+  .5 moveInit$Int
+  .6 teardown$none
+  .7 teardown$none
+}
+
+table genEnv$nameOf(Person) {
+  .0 0
+  .1 typeDesc$Person
+  .2 property$Person.name
+}
+
+table typeDesc$Item {
+  .0 Item
+  .1 sizeof Item
+  .2 alignof Item
+  .3 strideof Item
+  .4 131
+  .5 moveInit$Item
+  .6 teardown$none
+  .7 teardown$none
+}
+
+table property$Item.name {
+  .0 typeDesc$Item
+  .1 typeDesc$Int
+  .2 read$Item.name
+  .3 set$Item.name
+}
+
+table genEnv$nameOf(Item) {
+  .0 0
+  .1 typeDesc$Item
+  .2 property$Item.name
+}
+
+table genEnv$rename(Person) {
+  .0 0
+  .1 typeDesc$Person
+  .2 property$Person.name
+}
+
+table typeDesc$Left {
+  .0 Left
+  .1 sizeof Left
+  .2 alignof Left
+  .3 strideof Left
+  .4 131
+  .5 moveInit$Left
+  .6 teardown$none
+  .7 teardown$none
+}
+
+table property$Left.name {
+  .0 typeDesc$Left
+  .1 typeDesc$Int
+  .2 read$Left.name
+  .3 set$Left.name
+}
+
+table property$Left.tag {
+  .0 typeDesc$Left
+  .1 typeDesc$Int
+  .2 read$Left.tag
+  .3 set$Left.tag
+}
+
+table genEnv$labelled(Left) {
+  .0 0
+  .1 typeDesc$Left
+  .2 property$Left.name
+  .3 property$Left.tag
+}
+
+table typeDesc$Right {
+  .0 Right
+  .1 sizeof Right
+  .2 alignof Right
+  .3 strideof Right
+  .4 131
+  .5 moveInit$Right
+  .6 teardown$none
+  .7 teardown$none
+}
+
+table property$Right.name {
+  .0 typeDesc$Right
+  .1 typeDesc$Int
+  .2 read$Right.name
+  .3 set$Right.name
+}
+
+table property$Right.tag {
+  .0 typeDesc$Right
+  .1 typeDesc$Int
+  .2 read$Right.tag
+  .3 set$Right.tag
+}
+
+table genEnv$labelled(Right) {
+  .0 0
+  .1 typeDesc$Right
+  .2 property$Right.name
+  .3 property$Right.tag
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn initHeap() -> () {
+  b0:
+    %region = call mapMemory, 4194304 : %U8
+    %v2 = cast %region : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %table = mul 32, 8 : I64
+    setmemory %region, 0, %table
+    %v14 = cast %region : %%U8
+    assign heapFree, %v14
+    %v16 = strideof U8 : I64
+    %v17 = mul %table, %v16 : I64
+    %v18 = add %region, %v17 : %U8
+    assign heapNext, %v18
+    %v21 = strideof U8 : I64
+    %v22 = mul 4194304, %v21 : I64
+    %v23 = add %region, %v22 : %U8
+    assign heapLimit, %v23
+    ret
+}
+
+fn heapClassOf(%total: I64) -> I64 {
+  b0:
+    %size = alloc : I64
+    init %size, 16
+    %sizeClass = alloc : I64
+    init %sizeClass, 0
+    jmp b1
+
+  b1:
+    %v8 = load %size : I64
+    %v9 = cmp_lt %v8, %total : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v21 = load %sizeClass : I64
+    ret %v21
+
+  b3:
+    %v11 = load %size : I64
+    %v12 = load %size : I64
+    %v13 = add %v11, %v12 : I64
+    assign %size, %v13
+    %v15 = load %sizeClass : I64
+    %v18 = add %v15, 1 : I64
+    assign %sizeClass, %v18
+    jmp b1
+}
+
+fn heapBlockSize(%sizeClass: I64) -> I64 {
+  b0:
+    %v2 = shl 16, %sizeClass : I64
+    ret %v2
+}
+
+fn freeListHead(%sizeClass: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : I64
+    %v3 = mul %sizeClass, %v2 : I64
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : I64
+    %v4 = mul %sizeClass, %v3 : I64
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn allocateHeap(%size: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = cast %v1 : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    call initHeap
+    %v7 = load heapFree : %%U8
+    %v8 = cast %v7 : Long
+    %v10 = cmp_eq %v8, 0 : Bool
+    je %v10, b3, b4
+
+  b2:
+    jmp b6
+
+  b3:
+    %v13 = cast 0 : %U8
+    ret %v13
+
+  b4:
+    jmp b5
+
+  b5:
+    jmp b6
+
+  b6:
+    %v20 = add %size, 8 : I64
+    %sizeClass = call heapClassOf, %v20 : I64
+    %v23 = cmp_ge %sizeClass, 32 : Bool
+    je %v23, b7, b8
+
+  b7:
+    %v26 = cast 0 : %U8
+    ret %v26
+
+  b8:
+    jmp b9
+
+  b9:
+    %reused = call freeListHead, %sizeClass : %U8
+    %v30 = cast %reused : Long
+    %v32 = cmp_eq %v30, 0 : Bool
+    %v34 = xor %v32, True : Bool
+    je %v34, b10, b11
+
+  b10:
+    %v36 = cast %reused : %%U8
+    %v37 = load [%v36] : %U8
+    call setFreeListHead, %sizeClass, %v37
+    ret %reused
+
+  b11:
+    jmp b12
+
+  b12:
+    %block = load heapNext : %U8
+    %blockSize = call heapBlockSize, %sizeClass : I64
+    %v43 = strideof U8 : I64
+    %v44 = mul %blockSize, %v43 : I64
+    %v45 = add %block, %v44 : %U8
+    %v46 = load heapLimit : %U8
+    %v47 = cmp_gt %v45, %v46 : Bool
+    je %v47, b13, b14
+
+  b13:
+    %v50 = cast 0 : %U8
+    ret %v50
+
+  b14:
+    jmp b15
+
+  b15:
+    %v53 = strideof U8 : I64
+    %v54 = mul %blockSize, %v53 : I64
+    %v55 = add %block, %v54 : %U8
+    assign heapNext, %v55
+    %v57 = cast %block : %I64
+    assign [%v57], %sizeClass
+    %v61 = strideof U8 : I64
+    %v62 = mul 8, %v61 : I64
+    %v63 = add %block, %v62 : %U8
+    ret %v63
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = cast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : I64
+    %v10 = mul 8, %v9 : I64
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = cast %v11 : %I64
+    %sizeClass = load [%v12] : I64
+    %v14 = cast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn mapMemory(%size: I64) -> %U8 {
+  b0:
+    %v7 = neg 1 : I64
+    %result = syscall 9, 0, %size, 3, 34, %v7, 0 : I64
+    %v12 = cmp_lt %result, 0 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v15 = cast 0 : %U8
+    ret %v15
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = cast %result : %U8
+    ret %v18
+}
+
+(a.name: Int) fn nameOf(%p: a) -> Int {
+  schema {
+    #0 type a
+    #1 property a.name: Int
+  }
+
+  b0:
+    %v1 = load %p.name? : Int
+    ret %v1
+}
+
+(a.name: Int) fn rename(%p: a, %to: Int) -> () {
+  schema {
+    #0 type a
+    #1 property a.name: Int
+  }
+
+  b0:
+    assign %p.name?, %to
+    ret
+}
+
+(a.name: Int, a.tag: Int) fn labelled(%p: a) -> Int {
+  schema {
+    #0 type a
+    #1 property a.name: Int
+    #2 property a.tag: Int
+  }
+
+  b0:
+    %v1 = gencall nameOf(a), %p : Int
+    %v4 = mul %v1, 100 : Int
+    %v5 = load %p.tag? : Int
+    %v6 = add %v4, %v5 : Int
+    ret %v6
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = alloc : Person
+    init %local0@Person.name, 5
+    init %local0@Person.age, 90
+    %people = gencall env genEnv$nameOf(Person) nameOf(Person), %v0 : Int
+    %v6 = alloc : Item
+    init %local1@Item.name, 2
+    init %local1@Item.cost, 7
+    %items = gencall env genEnv$nameOf(Item) nameOf(Item), %v6 : Int
+    %v12 = alloc : Person
+    init %local2@Person.name, 1
+    init %local2@Person.age, 2
+    %subject = alloc heap : Person
+    init %subject, %v12
+    %v19 = load %subject : Person
+    %v22 = borrow_mut %subject : &mut Person
+    gencall env genEnv$rename(Person) rename(Person), %v22, 8
+    %v24 = alloc : Left
+    init %local4@Left.name, 1
+    init %local4@Left.tag, 3
+    %left = gencall env genEnv$labelled(Left) labelled(Left), %v24 : Int
+    %v30 = alloc : Right
+    init %local5@Right.tag, 4
+    init %local5@Right.name, 6
+    %right = gencall env genEnv$labelled(Right) labelled(Right), %v30 : Int
+    %v38 = mul %people, 1000 : Int
+    %v41 = mul %items, 100 : Int
+    %v42 = add %v38, %v41 : Int
+    %v43 = load %subject : Person
+    %v44 = gencall env genEnv$nameOf(Person) nameOf(Person), %v43 : Int
+    drop_derived %subject release
+    %v47 = mul %v44, 10 : Int
+    %v48 = add %v42, %v47 : Int
+    %v49 = add %v48, %left : Int
+    %v50 = add %v49, %right : Int
+    ret %v50
+}
+
+fn moveInit$Person(%to: %Person, %from: %Person) -> () {
+  b0:
+    %v2 = sizeof Person : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
+fn moveInit$Int(%to: %Int, %from: %Int) -> () {
+  b0:
+    %v2 = sizeof Int : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
+fn read$Person.name(%owner: %Person, %out: %Int) -> () {
+  b0:
+    %v2 = load [%owner]@Person.name : Int
+    init [%out], %v2
+    ret
+}
+
+fn set$Person.name(%owner: %Person, %value: %Int) -> () {
+  b0:
+    %v2 = load [%value] : Int
+    assign [%owner]@Person.name, %v2
+    ret
+}
+
+fn moveInit$Item(%to: %Item, %from: %Item) -> () {
+  b0:
+    %v2 = sizeof Item : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
+fn read$Item.name(%owner: %Item, %out: %Int) -> () {
+  b0:
+    %v2 = load [%owner]@Item.name : Int
+    init [%out], %v2
+    ret
+}
+
+fn set$Item.name(%owner: %Item, %value: %Int) -> () {
+  b0:
+    %v2 = load [%value] : Int
+    assign [%owner]@Item.name, %v2
+    ret
+}
+
+fn moveInit$Left(%to: %Left, %from: %Left) -> () {
+  b0:
+    %v2 = sizeof Left : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
+fn read$Left.name(%owner: %Left, %out: %Int) -> () {
+  b0:
+    %v2 = load [%owner]@Left.name : Int
+    init [%out], %v2
+    ret
+}
+
+fn set$Left.name(%owner: %Left, %value: %Int) -> () {
+  b0:
+    %v2 = load [%value] : Int
+    assign [%owner]@Left.name, %v2
+    ret
+}
+
+fn read$Left.tag(%owner: %Left, %out: %Int) -> () {
+  b0:
+    %v2 = load [%owner]@Left.tag : Int
+    init [%out], %v2
+    ret
+}
+
+fn set$Left.tag(%owner: %Left, %value: %Int) -> () {
+  b0:
+    %v2 = load [%value] : Int
+    assign [%owner]@Left.tag, %v2
+    ret
+}
+
+fn moveInit$Right(%to: %Right, %from: %Right) -> () {
+  b0:
+    %v2 = sizeof Right : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
+fn read$Right.name(%owner: %Right, %out: %Int) -> () {
+  b0:
+    %v2 = load [%owner]@Right.name : Int
+    init [%out], %v2
+    ret
+}
+
+fn set$Right.name(%owner: %Right, %value: %Int) -> () {
+  b0:
+    %v2 = load [%value] : Int
+    assign [%owner]@Right.name, %v2
+    ret
+}
+
+fn read$Right.tag(%owner: %Right, %out: %Int) -> () {
+  b0:
+    %v2 = load [%owner]@Right.tag : Int
+    init [%out], %v2
+    ret
+}
+
+fn set$Right.tag(%owner: %Right, %value: %Int) -> () {
+  b0:
+    %v2 = load [%value] : Int
+    assign [%owner]@Right.tag, %v2
+    ret
+}

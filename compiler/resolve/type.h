@@ -93,11 +93,16 @@ struct Ownership {
  * root plus a path of field indices, never a byte offset, so ownership, borrows, drops, escape and
  * provenance are all decided without anyone knowing how wide anything is.
  *
- * The one layout-shaped question resolve does answer is isDirectType() - whether a value lives in a
- * register or in storage - and that is deliberately computed from the kind alone. It has to be
- * target-independent, because it decides whether a call result gets a local and therefore what the
- * ownership passes see; a version of it that consulted a target's Repr would make the set of
+ * The one layout-shaped question resolve does answer is isDirectType() - whether a value is carried
+ * as a copy in a register or as an address - and it is deliberately computed from the kind alone. It
+ * has to be target-independent, because it decides whether a call result gets a local and therefore
+ * what the ownership passes see; a version of it that consulted a target's Repr would make the set of
  * accepted programs depend on which backend was running.
+ *
+ * It reads like an observation about layout and is not one. It is a *decision*, and the contract runs
+ * one way: resolve states it and every target's calling convention is bound by it. That direction is
+ * what makes arrivesAsCopy() below a sound rule rather than a coincidence, and ReprTable::of asserts
+ * the half of it a target could break - see checkAbiContract in repr.cpp.
  */
 struct Type {
     enum Kind: U8 {
@@ -818,8 +823,46 @@ TypePtr pointeeType(GlobalBase base, TypePtr type);
 bool isFloat(GlobalBase base, TypePtr type);
 bool isNumeric(GlobalBase base, TypePtr type);
 bool isGeneric(GlobalBase base, TypePtr type);
+/*
+ * Whether a value of this type is carried as a copy in a register rather than as an address.
+ *
+ * Three different questions are asked of this, and they are worth telling apart because only one of
+ * them decides what compiles:
+ *
+ *  - **the ABI**, which is what it literally says, and which every target is bound by rather than
+ *    free to disagree with - see the header comment above and checkAbiContract in repr.cpp;
+ *  - **the IR shape**, through isMemoryType: whether resolve models a value of this type as a place
+ *    or as a value. That is a convention of this IR and nothing more;
+ *  - **whether a `return` parameter can root a borrow**, which is the semantic one, and which is
+ *    asked through arrivesAsCopy below rather than here.
+ *
+ * Whether a value that *could* be a register actually gets one at run time is no longer asked here at
+ * all - promoteStackSlots in compiler/lower answers that over finished IR, where it is unobservable.
+ */
 bool isDirectType(GlobalBase base, TypePtr type);
 bool isMemoryType(GlobalBase base, TypePtr type);
+
+/*
+ * Whether a parameter of this type arrives as a copy of the caller's value rather than as the
+ * caller's storage - and so whether a `return` on it has anything to root a borrow in.
+ *
+ * The one place directness decides what compiles, which is why it is named rather than spelled out at
+ * the call site. Design-Memory states the rule over TrivialCopy; this is the same rule one step
+ * earlier, since what disqualifies a parameter is arriving as a copy and a TrivialCopy *aggregate*
+ * still arrives as the caller's address.
+ *
+ * A raw pointer is the exception among direct types: the copy it arrives as *is* an address, so what
+ * it names is still the caller's.
+ *
+ * Known gap, recorded here because the compiler cannot yet close it: a newtype over a direct type has
+ * that type's representation and not its directness, so `data One {a: Bool}` arrives as an address
+ * where `Bool` arrives as a copy, and a `return` on it is accepted where the same `return` on `Bool`
+ * is not. That is sound only because resolve's answer is also what the ABI does - which is exactly
+ * the contract checkAbiContract exists to keep true. Closing it means a value-producing path for
+ * single-field records in expr_construct.cpp and value-based field projection to match, since a
+ * direct value has no address for a Downcast to walk.
+ */
+bool arrivesAsCopy(GlobalBase base, TypePtr type);
 
 /*
  * How wide a value is, and how wide the storage a machine would give it is.

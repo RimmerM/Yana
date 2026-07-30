@@ -376,6 +376,29 @@ struct ReprTable {
 
     const Repr& of(TypePtr type, ReprRequirements requirements = {});
 
+    /*
+     * The half of the ABI contract with resolve that a target could break.
+     *
+     * `isDirectType` in resolve/type.h is a decision rather than an observation, and the contract runs
+     * one way: resolve says which types are carried as a copy in a register, and a target's calling
+     * convention is bound by that answer rather than free to reach its own. It matters because it is
+     * load-bearing for a *diagnostic* - `arrivesAsCopy` decides whether a `return` parameter has
+     * anything to root a borrow in, and the answer has to be the same for every backend or the set of
+     * accepted programs is not a property of the language.
+     *
+     * The direction that would actually go wrong is a target passing a type resolve calls a *memory*
+     * type in registers - SysV's two-eightbyte rule would do exactly that to `data Point {x: Int, y:
+     * Int}`, and a `return p: Point` that had been accepted would then be rooting a borrow in a copy.
+     * Nothing here can check that yet, because no convention classifier exists; when one lands it
+     * belongs here, next to this.
+     *
+     * What is checkable now is the other end: a type resolve calls direct has to actually fit in a
+     * register on this target. That catches the shape of mistake that is easy to make while the
+     * predicate is computed from the type's *kind* - a kind admitted to it whose representation turns
+     * out to be wider than a word.
+     */
+    void checkAbiContract(TypePtr type, const Repr& repr) const;
+
     U32 sizeOf(TypePtr type) { return of(type).size; }
     U32 alignOf(TypePtr type) { return of(type).align; }
     U32 strideOf(TypePtr type) { return of(type).stride; }

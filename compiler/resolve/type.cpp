@@ -918,16 +918,10 @@ bool checkReturnRoot(Module& module, TypePtr type, ast::BindType convention, U32
         return false;
     }
 
-    // Design-Memory states this rule over TrivialCopy, which is the same rule one step earlier:
-    // what disqualifies a parameter is arriving as a copy rather than as an address. Here that is
-    // exactly a direct type - a scalar in a register - while a TrivialCopy *aggregate* still
-    // arrives as the caller's address and can root a borrow of it perfectly well.
-    //
-    // A raw pointer is the exception among direct types: the copy it arrives as *is* an address, so
-    // what it names is still the caller's. `return %a` is how Native's `borrow` says that its
-    // result points into whatever it was given, which is the one bridge from unchecked memory back
-    // into checked borrows.
-    if(convention != ast::BindType::Ref && isDirectType(base, type) && !isPointer(base, type)) {
+    // The one rule directness decides - see arrivesAsCopy, which carries the whole of why. `return %a`
+    // is how Native's `borrow` says that its result points into whatever it was given, which is the
+    // one bridge from unchecked memory back into checked borrows, and is why a raw pointer is exempt.
+    if(convention != ast::BindType::Ref && arrivesAsCopy(base, type)) {
         module.context.diagnostics.error("`return` on %@ has nothing to root a borrow in - it arrives in a register, so the body sees a copy of its own; write `return &` when the caller's storage must be the root"_v,
                                          source, describeType(module.context, base, type));
         return false;
@@ -1397,6 +1391,10 @@ bool isDirectType(GlobalBase base, TypePtr type) {
 
 bool isMemoryType(GlobalBase base, TypePtr type) {
     return type && !isUnit(base, type) && !isDirectType(base, type);
+}
+
+bool arrivesAsCopy(GlobalBase base, TypePtr type) {
+    return isDirectType(base, type) && !isPointer(base, type);
 }
 
 U32 naturalStorageBits(U32 bits) {
