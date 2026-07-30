@@ -213,6 +213,50 @@ U32 predecessorCount(Gen& g, U32 block) {
     return count;
 }
 
+bool dominates(Gen& g, U32 owner, U32 block) {
+    while(block != kNoBlock && block < g.idom.size()) {
+        if(block == owner) return true;
+        block = g.idom[block];
+    }
+
+    return false;
+}
+
+// Whether this block owns a merge that will become a labelled block - the static half of
+// ownedMerges, asked of a block that is not being emitted yet.
+bool ownsMerge(Gen& g, U32 owner) {
+    for(Size i = 0; i < g.blocks.size(); i++) {
+        if(g.idom[i] != owner || U32(i) == g.ipdom[owner]) continue;
+        if(g.loopHeader[i] || predecessorCount(g, U32(i)) < 2) continue;
+
+        return true;
+    }
+
+    return false;
+}
+
+/*
+ * Whether a labelled block will be opened inside this one's arms whose escape lands on this block's
+ * own join.
+ *
+ * That is the case the join needs a label for, and it is one level further out than the rule beside
+ * it: the merge is owned by an inner block, so the inner block is the one that labels it, and an arm
+ * that skips past it lands at a join the inner block does not own and cannot label. `ipdom[inner] ==
+ * ipdom[block]` is what says the escape lands *here* - a nested region whose own join is somewhere
+ * inside is closed by the structure that contains it and needs nothing from this one.
+ */
+bool nestedMerge(Gen& g, U32 block) {
+    for(Size i = 0; i < g.blocks.size(); i++) {
+        auto inner = U32(i);
+        if(inner == block || g.ipdom[inner] != g.ipdom[block]) continue;
+        if(!dominates(g, block, inner)) continue;
+
+        if(ownsMerge(g, inner)) return true;
+    }
+
+    return false;
+}
+
 /*
  * The join points this block owns, outermost first.
  *
@@ -254,7 +298,9 @@ void ownedMerges(Gen& g, U32 block, U32 stopAt, Array<U32>& target) {
      * past that merge has to leave both, so the join becomes the outer of the two labelled blocks
      * rather than the statement after them.
      */
-    if(target.isNotEmpty() && available(g.ipdom[block])) target.push(g.ipdom[block]);
+    if((target.isNotEmpty() || nestedMerge(g, block)) && available(g.ipdom[block])) {
+        target.push(g.ipdom[block]);
+    }
 
     for(Size i = 1; i < target.size(); i++) {
         for(Size j = i; j > 0; j--) {

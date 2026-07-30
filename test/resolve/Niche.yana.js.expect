@@ -1,0 +1,83 @@
+"use strict";
+// ResolveTest
+function tagOf(m) {
+  var v32;
+  B0: {
+    if (!(m <= 2)) {
+      v32 = 0;
+    } else {
+      B1: {
+        if (m <= 2) {
+          if ((m | 0) === 0) {
+            v32 = 1;
+            break B0;
+          }
+        }
+      }
+      B2: {
+        if (m <= 2) {
+          if ((m | 0) === 1) {
+            v32 = 2;
+            break B0;
+          }
+        }
+      }
+      v32 = 3;
+    }
+  }
+  return v32;
+}
+
+function depthOf(m) {
+  var v29;
+  B0: {
+    if (!(m <= 3)) {
+      v29 = 100;
+    } else {
+      B1: {
+        if (m <= 3) {
+          if (!(m <= 2)) {
+            v29 = 200;
+            break B0;
+          }
+        }
+      }
+      v29 = 300 + tagOf(m) | 0;
+    }
+  }
+  return v29;
+}
+
+function heldOr(m, fallback) {
+  var v10;
+  if (m === null) {
+    v10 = fallback;
+  } else {
+    v10 = m.$v;
+  }
+  return v10;
+}
+
+function pairValue(p) {
+  var v2 = tagOf(p.first);
+  return (Math.imul(v2, 10) | 0) + tagOf(p.second) | 0;
+}
+
+function roundTrip() {
+  var a = tagOf(3);
+  var b = tagOf(0);
+  var c = tagOf(2);
+  return (a + (Math.imul(b, 10) | 0) | 0) + (Math.imul(c, 100) | 0) | 0;
+}
+
+function nested() {
+  return (depthOf(4) + depthOf(3) | 0) + depthOf(1) | 0;
+}
+
+function paired() {
+  return pairValue({ first: 2, second: 3 });
+}
+
+function main() {
+  return (roundTrip() + nested() | 0) + paired() | 0;
+}
