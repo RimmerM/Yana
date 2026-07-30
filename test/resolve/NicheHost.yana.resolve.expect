@@ -1,0 +1,175 @@
+fn pointOr(%m: Maybe(Point), %fallback: Int) -> Int {
+  b0:
+    %v2 = load %m.discriminant : Int
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %p = load %m@Just : Point
+    %v7 = load %m@Just@Point.x : Int
+    %v10 = mul %v7, 10 : Int
+    %v11 = load %m@Just@Point.y : Int
+    %v12 = add %v10, %v11 : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v15 = phi [b2, %fallback], [b1, %v12] : Int
+    ret %v15
+}
+
+fn intOr(%m: Maybe(Int), %fallback: Int) -> Int {
+  b0:
+    %v2 = load %m.discriminant : Int
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %n = load %m@Just : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b2, %fallback], [b1, %n] : Int
+    ret %v9
+}
+
+fn depthOf(%m: Maybe(Maybe(Point))) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %inner = load %m@Just : Maybe(Point)
+    %v9 = call pointOr, %inner, 0 : Int
+    %v11 = add 2, %v9 : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v14 = phi [b2, 1], [b1, %v11] : Int
+    ret %v14
+}
+
+fn pairValue(%p: Both) -> Int {
+  b0:
+    %v1 = load %p@Both.left : Maybe(Point)
+    %v3 = call pointOr, %v1, 7 : Int
+    %v6 = mul %v3, 100 : Int
+    %v7 = load %p@Both.right : Maybe(Int)
+    %v9 = call intOr, %v7, 7 : Int
+    %v10 = add %v6, %v9 : Int
+    ret %v10
+}
+
+fn objectFold() -> Int {
+  b0:
+    %v0 = alloc : Maybe(Point)
+    init %local0.discriminant, 1
+    %v3 = alloc : Point
+    init %local1@Point.x, 3
+    init %local1@Point.y, 4
+    init %local0@Just, %v3
+    %some = call pointOr, %v0, 9 : Int
+    %v11 = alloc : Maybe(Point)
+    init %local2.discriminant, 0
+    %none = call pointOr, %v11, 9 : Int
+    %v18 = mul %none, 1000 : Int
+    %v19 = add %some, %v18 : Int
+    ret %v19
+}
+
+fn intFold() -> Int {
+  b0:
+    %v0 = alloc : Maybe(Int)
+    init %local0.discriminant, 1
+    init %local0@Just, 0
+    %zero = call intOr, %v0, 7 : Int
+    %v7 = alloc : Maybe(Int)
+    init %local1.discriminant, 1
+    init %local1@Just, 5
+    %some = call intOr, %v7, 7 : Int
+    %v14 = alloc : Maybe(Int)
+    init %local2.discriminant, 0
+    %none = call intOr, %v14, 7 : Int
+    %v21 = mul %some, 10 : Int
+    %v22 = add %zero, %v21 : Int
+    %v25 = mul %none, 100 : Int
+    %v26 = add %v22, %v25 : Int
+    ret %v26
+}
+
+fn nested() -> Int {
+  b0:
+    %v0 = alloc : Maybe(Maybe(Point))
+    init %local0.discriminant, 0
+    %outer = call depthOf, %v0 : Int
+    %v4 = alloc : Maybe(Maybe(Point))
+    init %local1.discriminant, 1
+    %v7 = alloc : Maybe(Point)
+    init %local2.discriminant, 0
+    init %local1@Just, %v7
+    %middle = call depthOf, %v4 : Int
+    %v12 = alloc : Maybe(Maybe(Point))
+    init %local3.discriminant, 1
+    %v15 = alloc : Maybe(Point)
+    init %local4.discriminant, 1
+    %v18 = alloc : Point
+    init %local5@Point.x, 1
+    init %local5@Point.y, 2
+    init %local4@Just, %v18
+    init %local3@Just, %v15
+    %inner = call depthOf, %v12 : Int
+    %v28 = mul %middle, 10 : Int
+    %v29 = add %outer, %v28 : Int
+    %v32 = mul %inner, 100 : Int
+    %v33 = add %v29, %v32 : Int
+    ret %v33
+}
+
+fn paired() -> Int {
+  b0:
+    %v0 = alloc : Both
+    %v1 = alloc : Maybe(Point)
+    init %local1.discriminant, 1
+    %v4 = alloc : Point
+    init %local2@Point.x, 2
+    init %local2@Point.y, 6
+    init %local1@Just, %v4
+    %v10 = alloc : Maybe(Int)
+    init %local3.discriminant, 0
+    init %local0@Both.left, %v1
+    init %local0@Both.right, %v10
+    %v15 = call pairValue, %v0 : Int
+    %v16 = alloc : Both
+    %v17 = alloc : Maybe(Point)
+    init %local5.discriminant, 0
+    %v20 = alloc : Maybe(Int)
+    init %local6.discriminant, 1
+    init %local6@Just, 3
+    init %local4@Both.left, %v17
+    init %local4@Both.right, %v20
+    %v27 = call pairValue, %v16 : Int
+    %v30 = mul %v27, 10000 : Int
+    %v31 = add %v15, %v30 : Int
+    ret %v31
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call objectFold : Int
+    %v1 = call intFold : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call nested : Int
+    %v4 = add %v2, %v3 : Int
+    %v5 = call paired : Int
+    %v6 = add %v4, %v5 : Int
+    ret %v6
+}

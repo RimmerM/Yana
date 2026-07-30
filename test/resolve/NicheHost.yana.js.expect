@@ -1,0 +1,66 @@
+"use strict";
+// ResolveTest
+function pointOr(m, fallback) {
+  var v15;
+  if (m === null) {
+    v15 = fallback;
+  } else {
+    v15 = (Math.imul(m.x, 10) | 0) + m.y | 0;
+  }
+  return v15;
+}
+
+function intOr(m, fallback) {
+  var v9;
+  if (m === null) {
+    v9 = fallback;
+  } else {
+    v9 = m;
+  }
+  return v9;
+}
+
+function depthOf(m) {
+  var v14;
+  if (m.$tag === 0) {
+    v14 = 1;
+  } else {
+    v14 = 2 + pointOr(m.$p, 0) | 0;
+  }
+  return v14;
+}
+
+function pairValue(p) {
+  var v3 = pointOr(p.left, 7);
+  return (Math.imul(v3, 100) | 0) + intOr(p.right, 7) | 0;
+}
+
+function objectFold() {
+  var some = pointOr({ x: 3, y: 4 }, 9);
+  var none = pointOr(null, 9);
+  return some + (Math.imul(none, 1000) | 0) | 0;
+}
+
+function intFold() {
+  var zero = intOr(0, 7);
+  var some = intOr(5, 7);
+  var none = intOr(null, 7);
+  return (zero + (Math.imul(some, 10) | 0) | 0) + (Math.imul(none, 100) | 0) | 0;
+}
+
+function nested() {
+  var outer = depthOf({ $tag: 0, $p: null });
+  var middle = depthOf({ $tag: 1, $p: null });
+  var inner = depthOf({ $tag: 1, $p: { x: 1, y: 2 } });
+  return (outer + (Math.imul(middle, 10) | 0) | 0) + (Math.imul(inner, 100) | 0) | 0;
+}
+
+function paired() {
+  var v15 = pairValue({ left: { x: 2, y: 6 }, right: null });
+  var v27 = pairValue({ left: null, right: 3 });
+  return v15 + (Math.imul(v27, 10000) | 0) | 0;
+}
+
+function main() {
+  return ((objectFold() + intFold() | 0) + nested() | 0) + paired() | 0;
+}

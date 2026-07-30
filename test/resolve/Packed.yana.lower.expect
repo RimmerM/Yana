@@ -1,4 +1,79 @@
 
+tally<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 0, 8
+    %v_2 = add %v_1, 4: Ptr
+    %v_3 = load %v_2, 1: Long
+    %v_4 = cast 0: Long
+    %v_5 = and %v_4, 1: Long
+    %v_6 = shl %v_5, 3: Long
+    %v_7 = and %v_3, 18446744073709551607: Long
+    %v_8 = or %v_7, %v_6: Long
+    store %v_2, %v_8, 1
+    %v_9 = add %v_1, 4: Ptr
+    %v_10 = load %v_9, 1: Long
+    %v_11 = cast 2: Long
+    %v_12 = and %v_11, 7: Long
+    %v_13 = and %v_10, 18446744073709551608: Long
+    %v_14 = or %v_13, %v_12: Long
+    store %v_9, %v_14, 1
+    store %v_1, 7, 4
+    %e = alloca 8, 4: Ptr
+    store %e, 0, 8
+    copy %e, %v_1, 8
+    %v_15 = add %e, 4: Ptr
+    %v_16 = load %v_15, 1: Long
+    %v_17 = shr %v_16, 3: Long
+    %v_18 = and %v_17, 1: Long
+    %v_19 = cast %v_18: Int
+    %v_20 = add %e, 4: Ptr
+    %v_21 = bitcast %v_20: Long
+    %v_22 = or %v_21, 844424930131968: Long
+    %v_23 = bitcast %v_22: Ptr
+    call_complex flip, %v_23
+    %v_24 = add %e, 4: Ptr
+    %v_25 = load %v_24, 1: Long
+    %v_26 = and %v_25, 7: Long
+    %v_27 = cast %v_26: Int
+    %v_28 = add %e, 4: Ptr
+    call_complex tick, %v_28
+    %v_29 = loads %e, 4: Int
+    %v_30 = add %v_29, 1: Int
+    store %e, %v_30, 4
+    %v_31 = add %e, 4: Ptr
+    %v_32 = load %v_31, 1: Long
+    %v_33 = shr %v_32, 3: Long
+    %v_34 = and %v_33, 1: Long
+    %v_35 = cast %v_34: Int
+    je %v_35, b_36, b_37
+  }
+
+  b_36 {
+    jmp b_38
+  }
+
+  b_37 {
+    jmp b_38
+  }
+
+  b_38 {
+    %v_39 = phi [b_36, 1], [b_37, 0]: Int
+    %v_40 = add %e, 4: Ptr
+    %v_41 = load %v_40, 1: Long
+    %v_42 = and %v_41, 7: Long
+    %v_43 = cast %v_42: Int
+    %v_44 = cast %v_43: Int
+    %v_45 = cast %v_44: Int
+    %v_46 = imul %v_45, 10: Int
+    %v_47 = add %v_39, %v_46: Int
+    %v_48 = loads %e, 4: Int
+    %v_49 = imul %v_48, 100: Int
+    %v_50 = add %v_47, %v_49: Int
+    ret %v_50
+  }
+}
+
 nine<complex>(%a: Ptr, %b: Ptr, %c: Ptr, %d: Ptr, %e: Ptr, %f: Ptr, %g: Ptr, %h: Ptr, %i: Ptr) {
   b_0 {
     %v_1 = bitcast %a: Long
@@ -414,6 +489,77 @@ wide<complex>(): Int {
   }
 }
 
+kept<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 0, 8
+    %v_2 = add %v_1, 4: Ptr
+    %v_3 = load %v_2, 1: Long
+    %v_4 = cast 0: Long
+    %v_5 = and %v_4, 1: Long
+    %v_6 = shl %v_5, 3: Long
+    %v_7 = and %v_3, 18446744073709551607: Long
+    %v_8 = or %v_7, %v_6: Long
+    store %v_2, %v_8, 1
+    %v_9 = add %v_1, 4: Ptr
+    %v_10 = load %v_9, 1: Long
+    %v_11 = cast 1: Long
+    %v_12 = and %v_11, 7: Long
+    %v_13 = and %v_10, 18446744073709551608: Long
+    %v_14 = or %v_13, %v_12: Long
+    store %v_9, %v_14, 1
+    store %v_1, 2, 4
+    %e = alloca 8, 4: Ptr
+    store %e, 0, 8
+    copy %e, %v_1, 8
+    %v_15 = call_complex liveOf, %e: Ptr
+    %v_16 = bitcast %v_15: Long
+    %v_17 = and %v_16, 281474976710655: Long
+    %v_18 = bitcast %v_17: Ptr
+    %v_19 = shr %v_16, 48: Long
+    %v_20 = load %v_18, 1: Long
+    %v_21 = cast 1: Long
+    %v_22 = imm 1: Long
+    %v_23 = and %v_21, %v_22: Long
+    %v_24 = shl %v_23, %v_19: Long
+    %v_25 = shl %v_22, %v_19: Long
+    %v_26 = not %v_25: Long
+    %v_27 = and %v_20, %v_26: Long
+    %v_28 = or %v_27, %v_24: Long
+    store %v_18, %v_28, 1
+    %v_29 = add %e, 4: Ptr
+    %v_30 = load %v_29, 1: Long
+    %v_31 = shr %v_30, 3: Long
+    %v_32 = and %v_31, 1: Long
+    %v_33 = cast %v_32: Int
+    je %v_33, b_34, b_35
+  }
+
+  b_34 {
+    jmp b_36
+  }
+
+  b_35 {
+    jmp b_36
+  }
+
+  b_36 {
+    %v_37 = phi [b_34, 1], [b_35, 0]: Int
+    %v_38 = add %e, 4: Ptr
+    %v_39 = load %v_38, 1: Long
+    %v_40 = and %v_39, 7: Long
+    %v_41 = cast %v_40: Int
+    %v_42 = cast %v_41: Int
+    %v_43 = cast %v_42: Int
+    %v_44 = imul %v_43, 10: Int
+    %v_45 = add %v_37, %v_44: Int
+    %v_46 = loads %e, 4: Int
+    %v_47 = imul %v_46, 100: Int
+    %v_48 = add %v_45, %v_47: Int
+    ret %v_48
+  }
+}
+
 neighbours<complex>(): Int {
   b_0 {
     %v_1 = and 0, 4294967295: Long
@@ -716,6 +862,21 @@ direct<complex>(): Int {
   }
 }
 
+liveOf<complex>(%e: Ptr): Ptr {
+  b_0 {
+    %v_1 = add %e, 4: Ptr
+    %v_2 = load %v_1, 1: Long
+    %v_3 = shr %v_2, 3: Long
+    %v_4 = and %v_3, 1: Long
+    %v_5 = cast %v_4: Int
+    %v_6 = add %e, 4: Ptr
+    %v_7 = bitcast %v_6: Long
+    %v_8 = or %v_7, 844424930131968: Long
+    %v_9 = bitcast %v_8: Ptr
+    ret %v_9
+  }
+}
+
 bump<complex>(%x: Ptr) {
   b_0 {
     %v_1 = load %x, 4: Int
@@ -861,6 +1022,38 @@ threaded<complex>(): Int {
     %v_32 = cast %v_31: Int
     %v_33 = add %v_26, %v_32: Int
     ret %v_33
+  }
+}
+
+tick<complex>(%x: Ptr) {
+  b_0 {
+    %v_1 = bitcast %x: Long
+    %v_2 = and %v_1, 281474976710655: Long
+    %v_3 = bitcast %v_2: Ptr
+    %v_4 = shr %v_1, 48: Long
+    %v_5 = load %v_3, 1: Long
+    %v_6 = shr %v_5, %v_4: Long
+    %v_7 = and %v_6, 7: Long
+    %v_8 = cast %v_7: Int
+    %v_9 = cast %v_8: Int
+    %v_10 = add %v_9, 1: Int
+    %v_11 = and %v_10, 7: Int
+    %v_12 = cast %v_11: Int
+    %v_13 = bitcast %x: Long
+    %v_14 = and %v_13, 281474976710655: Long
+    %v_15 = bitcast %v_14: Ptr
+    %v_16 = shr %v_13, 48: Long
+    %v_17 = load %v_15, 1: Long
+    %v_18 = cast %v_12: Long
+    %v_19 = imm 7: Long
+    %v_20 = and %v_18, %v_19: Long
+    %v_21 = shl %v_20, %v_16: Long
+    %v_22 = shl %v_19, %v_16: Long
+    %v_23 = not %v_22: Long
+    %v_24 = and %v_17, %v_23: Long
+    %v_25 = or %v_24, %v_21: Long
+    store %v_15, %v_25, 1
+    ret 
   }
 }
 
@@ -1092,7 +1285,11 @@ main<complex>(): Int {
     %v_17 = add %v_15, %v_16: Int
     %v_18 = call_complex wide: Int
     %v_19 = add %v_17, %v_18: Int
-    ret %v_19
+    %v_20 = call_complex tally: Int
+    %v_21 = add %v_19, %v_20: Int
+    %v_22 = call_complex kept: Int
+    %v_23 = add %v_21, %v_22: Int
+    ret %v_23
   }
 }
 

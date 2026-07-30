@@ -88,7 +88,7 @@ function roundTrip() {
 }
 
 function coloured() {
-  return colourOf({ $tag: 0, r: 1, g: 2, b: 3, $p: null }) + colourOf({ $tag: 1, r: 0, g: 0, b: 0, $p: 4 }) | 0;
+  return colourOf({ $tag: 0, r: 1, g: 2, b: 3, $p: 0 }) + colourOf({ $tag: 1, r: 0, g: 0, b: 0, $p: 4 }) | 0;
 }
 
 function counted() {
@@ -96,13 +96,13 @@ function counted() {
 }
 
 function packedPayload() {
-  var v0 = { $tag: 0, $p: null };
+  var v0 = { $tag: 0, $p: 0 };
   var v3 = 0;
   v3 = v3 & 4294967294 | 1 & 1;
   v3 = v3 & ~(1 << 1) | (1 & 1) << 1;
   v0.$p = v3;
   var v9 = taggedOf(v0);
-  var v10 = { $tag: 1, $p: null };
+  var v10 = { $tag: 1, $p: 0 };
   var v13 = 0;
   v13 = v13 & 4294967294 | 0 & 1;
   v13 = v13 & ~(1 << 1) | (1 & 1) << 1;
@@ -133,16 +133,16 @@ function copied() {
 
 function maybeOf(m) {
   var v10;
-  if (m.$tag === 0) {
+  if (m === null) {
     v10 = 500;
   } else {
-    v10 = payloadOf(m.$p);
+    v10 = payloadOf(m);
   }
   return v10;
 }
 
 function folded() {
-  return (maybeOf({ $tag: 0, $p: null }) + maybeOf({ $tag: 1, $p: { $tag: 0, $p: 2 } }) | 0) + maybeOf({ $tag: 1, $p: { $tag: 1, $p: 3 } }) | 0;
+  return (maybeOf(null) + maybeOf({ $tag: 0, $p: 2 }) | 0) + maybeOf({ $tag: 1, $p: 3 }) | 0;
 }
 
 function wide() {

@@ -48,6 +48,13 @@ void printNiche(ReprPrint& print, const Niche& niche) {
         return;
     }
 
+    // One pattern and no word it is a pattern of, so there is no range and no offset to print - see
+    // NicheKind::Absent.
+    if(niche.isAbsent()) {
+        print.writer.writeString("absent"_v);
+        return;
+    }
+
     print.writer.writeString("at "_v);
     printNumber(print, niche.offset);
     print.writer.writeString(" width "_v);
@@ -91,6 +98,14 @@ void printRepr(ReprPrint& print, TypePtr type) {
         case DiscriminantKind::Niche:
             print.writer.writeString(", tag folded into constructor "_v);
             printNumber(print, repr.encoding.payloadConstructor);
+
+            // An absent niche has one pattern and no arithmetic over it, so there is no first pattern
+            // and no direction to run in - the other constructor simply is the host's absent value.
+            if(repr.encoding.niche.isAbsent()) {
+                print.writer.writeString("'s absence"_v);
+                break;
+            }
+
             print.writer.writeString("'s niche from "_v);
             printNumber(print, repr.encoding.firstPattern);
             print.writer.writeString(repr.encoding.ascending ? " up"_v : " down"_v);

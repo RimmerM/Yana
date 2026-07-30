@@ -200,8 +200,15 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
             case ProjectionKind::Discriminant: {
                 // An enum *is* its discriminant, so there is nothing to project out of it.
                 auto record = recordType(g, type);
-                if(expr && record && record->layout != RecordType::Enum) {
-                    *expr = field(g, *expr, g.tagField);
+                if(record && record->layout != RecordType::Enum) {
+                    // Neither is a folded record, for the stronger reason: its tag is not stored
+                    // anywhere at all. The place stays on the payload and the load and the store
+                    // intercept - see PlaceBits::foldedTag.
+                    if(g.repr.of(type).isNicheFolded()) {
+                        within.foldedTag = type;
+                    } else if(expr) {
+                        *expr = field(g, *expr, g.tagField);
+                    }
                 }
 
                 type = g.program.scalar.int_;
@@ -216,10 +223,19 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
                 /*
                  * Free, like the native offset it corresponds to: a tuple payload is flattened into
                  * the record's own object, so the constructor's fields are already properties of it.
-                 * Anything else is one property, since a bare payload has no field names to flatten.
+                 * Anything else is one property, since a bare payload has no field names to flatten -
+                 * and neither does a tuple payload the Repr made one number, which is one value and
+                 * therefore one property however many fields went into it.
+                 *
+                 * Free in the strongest sense for a folded record, which *is* its payload: there is
+                 * nothing anywhere to read, since what the walk has in hand already is the payload or
+                 * the pattern that says there is none. Native spends a payload offset of zero here for
+                 * exactly the same reason.
                  */
-                if(expr && record->layout == RecordType::Multi && content &&
-                   !isUnit(g.global, content) && g.global[content]->kind != Type::Tup) {
+                if(expr && !g.repr.of(type).isNicheFolded() &&
+                   record->layout == RecordType::Multi && content &&
+                   !isUnit(g.global, content) &&
+                   (g.global[content]->kind != Type::Tup || !isJsObject(g, content))) {
                     *expr = field(g, *expr, g.payloadField);
                 }
 
@@ -286,7 +302,25 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
                         }
                     }
 
-                    if(expr) *expr = field(g, *expr, fieldName(g, entry.name, projection.index));
+                    /*
+                     * A field of a record that stayed an object, which is a property - and, where this
+                     * target co-packed it, a bit range of one shared with its neighbours.
+                     *
+                     * The bit range *replaces* whatever the walk had accumulated rather than adding to
+                     * it, because descending into a property is descending into a different value. It
+                     * can only be empty here in any case: reaching an object-shaped tuple means
+                     * nothing before it was a bit range, since a scalarized record holds only narrow
+                     * fields and an object is not one.
+                     */
+                    auto property = fieldProperty(g, type, projection.index);
+                    if(expr) *expr = field(g, *expr, property.name);
+
+                    within = PlaceBits {};
+                    if(property.isPacked()) {
+                        within.offset = property.bitOffset;
+                        within.width = property.bitWidth;
+                    }
+
                     type = entry.type;
                 }
 
@@ -360,6 +394,105 @@ JsPtr<Expr> encodeBits(Gen& g, JsPtr<Expr> owner, PlaceBits bits, TypePtr, JsPtr
     return binary(g, BinaryOp::Or, binary(g, BinaryOp::And, owner, hole), value);
 }
 
+TypePtr foldedPayload(Gen& g, TypePtr record) {
+    auto& repr = g.repr.of(record);
+    auto value = recordType(g, record);
+    if(!value || !repr.isNicheFolded()) return nullptr;
+
+    return value->constructors.get(g.global, repr.encoding.payloadConstructor).content;
+}
+
+/*
+ * Reading a folded tag: which constructor this value is.
+ *
+ * Two shapes, from the two kinds of niche, and they are the same sentence about different things. An
+ * absent niche is `null`, so the test is `v === null` and there is nothing else it could be - `fits`
+ * admitted exactly one non-payload constructor. A pattern niche is a range the payload's own bits
+ * cannot leave, so the test is a comparison, and it is a comparison of a `number` because that is the
+ * only kind of value a pattern niche is ever donated by on this target - see ReprTable::hostNiche.
+ *
+ * Which makes this the same select native emits rather than a branch, and for the same reason: a
+ * folded `Maybe` is meant to be cheaper than the tag word it replaced and not merely smaller.
+ */
+JsPtr<Expr> decodeNicheTag(Gen& g, JsPtr<Expr> value, TypePtr record) {
+    auto& repr = g.repr.of(record);
+    auto& encoding = repr.encoding;
+    auto& niche = encoding.niche;
+
+    auto payloadIndex = U64(encoding.payloadConstructor);
+    auto payload = number(g, F64(payloadIndex));
+
+    if(niche.isAbsent()) {
+        auto other = number(g, F64(payloadIndex == 0 ? 1 : 0));
+        return ternary(g, binary(g, BinaryOp::Eq, value, nullValue(g)), other, payload);
+    }
+
+    /*
+     * The word is read up to three times below, so anything that is not already a name gets one.
+     * `useValue` hands back a variable for most places a scrutinee comes from, and the declaration is
+     * what keeps a property chain from being walked once per comparison.
+     */
+    auto kind = g.base[value]->kind;
+    if(kind != Expr::Var && kind != Expr::Number && g.body) {
+        value = declare(g, generatedName(g, "tag"_v, g.labelCounter++), value);
+    }
+
+    // `v >= validStart && v <= validEnd`, with the first half gone for the usual niche, whose valid
+    // range starts at zero. Ordinary number comparisons: every pattern this target folds into is a
+    // small integer, so there is nothing to do about wrapping.
+    JsPtr<Expr> inRange = binary(g, BinaryOp::Le, value, number(g, F64(niche.validEnd)));
+    if(niche.validStart) {
+        inRange = binary(g, BinaryOp::LogicalAnd,
+                         binary(g, BinaryOp::Ge, value, number(g, F64(niche.validStart))), inRange);
+    }
+
+    auto constructors = recordType(g, record)->constructors.size();
+
+    // Two constructors is the shape this exists for, and there the pattern carries no information
+    // beyond "not the payload one". No arithmetic, then: one of two constants.
+    if(constructors == 2) {
+        return ternary(g, inRange, payload, number(g, F64(payloadIndex == 0 ? 1 : 0)));
+    }
+
+    /*
+     * More than two, so which pattern it is decides which constructor it is. The patterns were handed
+     * out to the non-payload constructors in index order, so recovering the ordinal recovers the
+     * index - except that the payload constructor is missing from that sequence, which the last step
+     * puts back.
+     */
+    auto first = number(g, F64(encoding.firstPattern));
+    auto ordinal = encoding.ascending ? binary(g, BinaryOp::Sub, value, first)
+                                      : binary(g, BinaryOp::Sub, first, value);
+
+    auto name = generatedName(g, "ord"_v, g.labelCounter++);
+    auto bound = g.body ? declare(g, name, ordinal) : ordinal;
+
+    // `ordinal >= payloadConstructor` means this constructor was written after the payload one, so its
+    // index is one higher than its position in the pattern sequence.
+    auto shifted = binary(g, BinaryOp::Ge, bound, number(g, F64(payloadIndex)));
+    auto adjusted = ternary(g, shifted, binary(g, BinaryOp::Add, bound, number(g, 1)), bound);
+
+    return ternary(g, inRange, payload, adjusted);
+}
+
+/*
+ * Writing one, which for the payload constructor is writing nothing at all.
+ *
+ * That is not an optimization but the definition: the payload constructor *is* the payload's own
+ * value, so the only thing that could make it identifiable is the payload being written, which the
+ * constructor's own field initializations do. Every other constructor has no payload to write, so its
+ * pattern is the whole value.
+ */
+void encodeNicheTag(Gen& g, JsPtr<Expr> target, TypePtr record, U64 constructor) {
+    auto& encoding = g.repr.of(record).encoding;
+    if(constructor == encoding.payloadConstructor) return;
+
+    auto pattern = encoding.niche.isAbsent() ? nullValue(g)
+                                             : number(g, F64(encoding.patternOf(U16(constructor))));
+
+    emitExpr(g, assign(g, target, pattern));
+}
+
 JsPtr<Expr> placeExpr(Gen& g, const Place& place, Size limit) {
     JsPtr<Expr> expr = nullptr;
     PlaceBits bits;
@@ -367,6 +500,7 @@ JsPtr<Expr> placeExpr(Gen& g, const Place& place, Size limit) {
 
     // Every reader wants the value rather than the word it sits in, so the decode is applied here and
     // the one caller that cannot use it - the store below - asks placeOwner instead.
+    if(bits.foldedTag) return decodeNicheTag(g, expr, bits.foldedTag);
     if(bits.valid()) return decodeBits(g, expr, bits, type);
     return expr;
 }

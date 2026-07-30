@@ -1,5 +1,10 @@
 "use strict";
 // ResolveTest
+function tick(x$o, x$k, x$s) {
+  x$o[x$k] = x$o[x$k] & ~(7 << x$s) | ((((x$o[x$k] >>> x$s & 7) >>> 0) + 1 >>> 0 & 7) >>> 0 & 7 & 7) << x$s;
+  return;
+}
+
 function bump(x) {
   x.$v = x.$v + 1 >>> 0;
   return;
@@ -241,6 +246,45 @@ function wide() {
   return v69 + v79 | 0;
 }
 
+function tally() {
+  var v32;
+  var v0 = { $p4: 0, count: 0 };
+  v0.$p4 = v0.$p4 & ~(1 << 3) | (0 & 1) << 3;
+  v0.$p4 = v0.$p4 & 4294967288 | 2 & 7;
+  v0.count = 7;
+  var e = v0;
+  flip(e, "$p4", 3);
+  tick(e, "$p4", 0);
+  e.count = e.count + 1 | 0;
+  if (e.$p4 >>> 3 & 1) {
+    v32 = 1;
+  } else {
+    v32 = 0;
+  }
+  return (v32 + (Math.imul((e.$p4 & 7) >>> 0 | 0, 10) | 0) | 0) + (Math.imul(e.count, 100) | 0) | 0;
+}
+
+function liveOf(e) {
+  return { $o: e, $k: "$p4", $s: 3 };
+}
+
+function kept() {
+  var v23;
+  var v0 = { $p4: 0, count: 0 };
+  v0.$p4 = v0.$p4 & ~(1 << 3) | (0 & 1) << 3;
+  v0.$p4 = v0.$p4 & 4294967288 | 1 & 7;
+  v0.count = 2;
+  var e = v0;
+  var v11 = liveOf(e);
+  v11.$o[v11.$k] = v11.$o[v11.$k] & ~(1 << v11.$s) | (1 & 1) << v11.$s;
+  if (e.$p4 >>> 3 & 1) {
+    v23 = 1;
+  } else {
+    v23 = 0;
+  }
+  return (v23 + (Math.imul((e.$p4 & 7) >>> 0 | 0, 10) | 0) | 0) + (Math.imul(e.count, 100) | 0) | 0;
+}
+
 function main() {
-  return ((((((((direct() + borrowed() | 0) + neighbours() | 0) + together() | 0) + unpacked() | 0) + loaned() | 0) + returned() | 0) + interleaved() | 0) + threaded() | 0) + wide() | 0;
+  return ((((((((((direct() + borrowed() | 0) + neighbours() | 0) + together() | 0) + unpacked() | 0) + loaned() | 0) + returned() | 0) + interleaved() | 0) + threaded() | 0) + wide() | 0) + tally() | 0) + kept() | 0;
 }

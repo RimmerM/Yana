@@ -178,6 +178,25 @@ fn folded() -> Int:
 
     return empty + both * 10 + one * 100
 
+-- A constructor whose payload is a tuple the Repr made one value, in a sum that cannot fold - two
+-- constructors carry a payload, so there is no single one for the record to *be*.
+--
+-- The payload has field names, so the flattening every other sum payload gets would give each of them
+-- storage of its own inside the record. There is nowhere to put them: `Both`'s content is one number
+-- and its two fields are bit ranges of it, so what the record holds is that number, exactly as it
+-- holds `Wide`'s `Int` - a payload with no field names to flatten and a payload with nowhere to
+-- flatten them into are the same case, and the second one only exists once something scalarizes.
+data Held = Both {a: Bool, b: Bool} | Wide(Int) | Neither
+
+fn heldValue(h: Held) -> Int = match h:
+    Both {a, b} -> (if a then 1 else 0) + (if b then 2 else 0)
+    Wide(n) -> n * 10
+    Neither -> 8
+
+fn held() -> Int =
+    heldValue(Both {a: True, b: False}) + heldValue(Wide(5)) * 100 +
+    heldValue(Neither) * 10000
+
 -- Every field of the reordered record, written and read back. A field that ended up at the wrong
 -- offset reads as another field's value or as zero, and the six of them are distinguishable.
 fn reordered() -> Int:
@@ -238,10 +257,12 @@ fn hostBorrowed() -> Int:
 -- swapped:   f = {F,T} = 2, g = {T,T} = 3, previous False    = 32
 -- owned:     1 + 2, two drops of two bytes                    = 3
 -- folded:     4 + 3 * 10 + 2 * 100                            = 234
+-- held:       1 + 50 * 100 + 8 * 10000                        = 85001
 -- reordered:  1 + 100 + 300 + 6000 + 400000 + 7000000         = 7406401
 -- pinned:     the same                                        = 7406401
 -- hostShaped: the same again                                  = 7406401
 -- hostBorrowed: a flipped off, b flipped on                   = 2
 fn main() -> Int =
     nested() + borrowed() + coPacked() + composed() + extracted() + reborrowed() +
-    swapped() + owned() + folded() + reordered() + pinned() + hostShaped() + hostBorrowed()
+    swapped() + owned() + folded() + held() + reordered() + pinned() + hostShaped() +
+    hostBorrowed()

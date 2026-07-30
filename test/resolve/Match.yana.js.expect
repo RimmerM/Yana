@@ -56,24 +56,24 @@ function nested(m) {
   var v36;
   B0: {
     B1: {
-      if (m.$tag === 1) {
-        if ((m.$p | 0) === 0) {
+      if (m <= 2) {
+        if ((m | 0) === 0) {
           v36 = 1;
           break B0;
         }
       }
     }
     B2: {
-      if (m.$tag === 1) {
-        if ((m.$p | 0) === 1) {
+      if (m <= 2) {
+        if ((m | 0) === 1) {
           v36 = 2;
           break B0;
         }
       }
     }
     B3: {
-      if (m.$tag === 1) {
-        if ((m.$p | 0) === 2) {
+      if (m <= 2) {
+        if ((m | 0) === 2) {
           v36 = 3;
           break B0;
         }
@@ -90,7 +90,7 @@ function pairValue(p) {
   B0: {
     B1: {
       if ((p & 3 | 0) === 0) {
-        if ((p >>> 2 & 1 ? 1 : 0) === 1) {
+        if (p >>> 2 & 1) {
           v42 = 1;
           break B0;
         }
@@ -98,7 +98,7 @@ function pairValue(p) {
     }
     B2: {
       if ((p & 3 | 0) === 0) {
-        if ((p >>> 2 & 1 ? 1 : 0) === 0) {
+        if (!(p >>> 2 & 1)) {
           v42 = 2;
           break B0;
         }
@@ -122,15 +122,15 @@ function firstOrRest(m) {
   var v21;
   B0: {
     B1: {
-      if (m.$tag === 1) {
-        if ((m.$p | 0) === 0) {
+      if (m <= 2) {
+        if ((m | 0) === 0) {
           v21 = 10;
           break B0;
         }
       }
     }
-    if (m.$tag === 1) {
-      v21 = colorValue(m.$p);
+    if (m <= 2) {
+      v21 = colorValue(m);
     } else {
       v21 = 0;
     }
@@ -153,7 +153,7 @@ function classify(value) {
 }
 
 function main() {
-  var v81 = (((((((((((colorValue(0) + colorValue(1) | 0) + colorValue(2) | 0) + shapeValue({ $tag: 1, width: 2, height: 3, $p: null }) | 0) + shapeValue({ $tag: 0, width: 0, height: 0, $p: 4 }) | 0) + area({ $tag: 0, width: 0, height: 0, $p: 20 }) | 0) + area({ $tag: 0, width: 0, height: 0, $p: 3 }) | 0) + area({ $tag: 1, width: 20, height: 2, $p: null }) | 0) + area({ $tag: 1, width: 3, height: 9, $p: null }) | 0) + nested({ $tag: 1, $p: 0 }) | 0) + nested({ $tag: 1, $p: 1 }) | 0) + nested({ $tag: 1, $p: 2 }) | 0) + nested({ $tag: 0, $p: null }) | 0;
+  var v81 = (((((((((((colorValue(0) + colorValue(1) | 0) + colorValue(2) | 0) + shapeValue({ $tag: 1, width: 2, height: 3, $p: 0 }) | 0) + shapeValue({ $tag: 0, width: 0, height: 0, $p: 4 }) | 0) + area({ $tag: 0, width: 0, height: 0, $p: 20 }) | 0) + area({ $tag: 0, width: 0, height: 0, $p: 3 }) | 0) + area({ $tag: 1, width: 20, height: 2, $p: 0 }) | 0) + area({ $tag: 1, width: 3, height: 9, $p: 0 }) | 0) + nested(0) | 0) + nested(1) | 0) + nested(2) | 0) + nested(3) | 0;
   var v82 = 0;
   v82 = v82 & 4294967292 | 0 & 3;
   v82 = v82 & ~(1 << 2) | (1 & 1) << 2;
@@ -177,5 +177,5 @@ function main() {
   var v117 = 0;
   v117 = v117 & 4294967292 | 2 & 3;
   v117 = v117 & ~(1 << 2) | (0 & 1) << 2;
-  return (((((((v116 + pairValue(v117) | 0) + firstOrRest({ $tag: 1, $p: 0 }) | 0) + firstOrRest({ $tag: 1, $p: 1 }) | 0) + firstOrRest({ $tag: 1, $p: 2 }) | 0) + firstOrRest({ $tag: 0, $p: null }) | 0) + classify(0) | 0) + classify(7) | 0) + classify(50) | 0;
+  return (((((((v116 + pairValue(v117) | 0) + firstOrRest(0) | 0) + firstOrRest(1) | 0) + firstOrRest(2) | 0) + firstOrRest(3) | 0) + classify(0) | 0) + classify(7) | 0) + classify(50) | 0;
 }

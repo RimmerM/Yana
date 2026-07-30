@@ -560,6 +560,59 @@ bool inlineBinding(Gen& g, StmtList& list, Size index, Names& names) {
     return true;
 }
 
+/*
+ * `(c ? A : B) === K` for three number literals, which is one comparison written as two.
+ *
+ * This is what reading a folded tag and matching on it comes out as, and it is worth folding here
+ * rather than at either end because neither end can. The decode produces a *constructor index* -
+ * `m === null ? 0 : 1` - because that is what a Discriminant load is defined to produce, and the
+ * match produces `=== 0` because that is what testing a constructor is; the two are written in
+ * different files against different instructions and are correct separately. Only their composition
+ * is redundant, and every folded `match` in a program contains one.
+ *
+ * Sound whatever the constants are, since the arms are literals: whichever of them equals `K` decides
+ * the answer. Where both or neither do, the answer no longer depends on the condition - and the
+ * condition may still have an effect, so that case is declined rather than folded to a constant.
+ */
+bool foldTernaryCompare(Gen& g, JsPtr<Expr>& slot) {
+    auto expr = g.base[slot];
+    if(expr->kind != Expr::Binary) return false;
+
+    auto& binary = *(BinaryExpr*)expr;
+    if(binary.op != BinaryOp::Eq && binary.op != BinaryOp::Ne) return false;
+
+    auto left = g.base[binary.lhs];
+    auto right = g.base[binary.rhs];
+    if(left->kind != Expr::Ternary || right->kind != Expr::Number) return false;
+
+    auto& choice = *(TernaryExpr*)left;
+    auto then = g.base[choice.then];
+    auto otherwise = g.base[choice.otherwise];
+    if(then->kind != Expr::Number || otherwise->kind != Expr::Number) return false;
+
+    auto against = ((NumberExpr*)right)->value;
+    auto matchesThen = ((NumberExpr*)then)->value == against;
+    auto matchesOtherwise = ((NumberExpr*)otherwise)->value == against;
+    if(matchesThen == matchesOtherwise) return false;
+
+    // `!=` is the same question with the answer the other way round, and one of the two negations
+    // cancels against the other.
+    auto negate = (binary.op == BinaryOp::Ne) != matchesOtherwise;
+    slot = negate ? asExpr(g, make<UnaryExpr>(g, UnaryOp::Not, choice.cond)) : choice.cond;
+    return true;
+}
+
+// Every expression of one statement, innermost first, so that a fold uncovering another is applied in
+// the same walk rather than in the next round.
+bool foldExprs(Gen& g, JsPtr<Expr>& slot) {
+    auto changed = false;
+    eachOperand(g, g.base[slot], [&](JsPtr<Expr>& operand, bool) {
+        changed = foldExprs(g, operand) || changed;
+    });
+
+    return foldTernaryCompare(g, slot) || changed;
+}
+
 bool optimizeList(Gen& g, StmtList& list, Names& names) {
     auto changed = false;
     Size index = 0;
@@ -567,6 +620,8 @@ bool optimizeList(Gen& g, StmtList& list, Names& names) {
     while(index < list.size()) {
         auto stmt = g.base[list.get(g.base, index)];
         eachBody(g, stmt, [&](StmtList& body) { changed = optimizeList(g, body, names) || changed; });
+
+        if(auto header = headerOf(g, stmt)) changed = foldExprs(g, *header) || changed;
 
         // Both rewrites shorten the list, so the same position is looked at again rather than the
         // next one - which is what collapses a chain of one-use bindings in a single walk.

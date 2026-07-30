@@ -189,6 +189,23 @@ JsPtr<Expr> propertyContents(Gen& g, TypePtr type, JsPtr<Expr> storage) {
 bool assignPlace(Gen& g, const Place& place, TypePtr type, JsPtr<Expr> value) {
     PlaceBits bits;
     auto owner = placeOwner(g, place, bits);
+
+    /*
+     * A folded tag, which is a store of one pattern or nothing at all.
+     *
+     * The constructor is always a literal: a record is constructed by naming one, and
+     * `place.discriminant = <computed>` is not something any front end can write. Asserted rather than
+     * fallen back from, for the same reason the native lowering asserts it - a runtime encode would be
+     * dead code that nothing could ever exercise or test.
+     */
+    if(bits.foldedTag) {
+        auto& written = *g.base[value];
+        assertTrue(written.kind == Expr::Number);
+
+        encodeNicheTag(g, owner, bits.foldedTag, U64(((NumberExpr&)written).value));
+        return true;
+    }
+
     if(!bits.valid()) return false;
 
     emitExpr(g, assign(g, owner, encodeBits(g, owner, bits, type, value)));
@@ -801,9 +818,11 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
             auto ownerType = placeType(g, place, atObject);
             if(!ownerType || g.global[ownerType]->kind != Type::Tup) return false;
 
-            auto entry = ((TupType*)g.global[ownerType])->fields.get(g.global, at.index);
+            // The property the walk would have projected, which for a co-packed field is the word it
+            // shares rather than a name of its own - and then the shift below is what says which bits
+            // of that word the reference means.
             owner = placeExpr(g, place, atObject);
-            keyExpr = asExpr(g, make<StringExpr>(g, fieldName(g, entry.name, at.index).text));
+            keyExpr = asExpr(g, make<StringExpr>(g, fieldProperty(g, ownerType, at.index).name.text));
         } else if(!rootWord()) {
             return false;
         }

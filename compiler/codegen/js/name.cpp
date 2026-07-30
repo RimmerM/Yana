@@ -204,6 +204,23 @@ Name literalName(Gen& g, StringView text) {
     return Name { internText(g, text) };
 }
 
+/*
+ * The property a run of co-packed fields shares, named after where in the record it sits.
+ *
+ * No field's own name would be right for it: `$p0` holds `version`, `flags` and `length` at once, and
+ * reading any of them is a shift and a mask of the one number. The offset is what makes it unique
+ * within a record - two packed words are two words at two offsets - and stable, since it is the same
+ * number the layout dump prints.
+ */
+Name packedWordName(Gen& g, U32 offset) {
+    char buffer[32];
+    buffer[0] = '$';
+    buffer[1] = 'p';
+
+    auto length = 2 + show(U64(offset), buffer + 2, sizeof(buffer) - 2);
+    return Name { internText(g, StringView { buffer, length }) };
+}
+
 Name fieldName(Gen& g, StringId name, U16 index) {
     if(name) {
         auto text = g.context.findName(name);

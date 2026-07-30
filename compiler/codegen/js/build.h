@@ -374,6 +374,9 @@ Name generatedName(Gen& g, StringView prefix, U32 index);
 Name valueName(Gen& g, Value& value);
 Name fieldName(Gen& g, StringId name, U16 index);
 
+// The property a run of co-packed fields shares - `$p0` for the word at offset zero. See name.cpp.
+Name packedWordName(Gen& g, U32 offset);
+
 // One part of a flattened narrow reference - `p$o`, `p$k`, `p$s` - named after the reference it
 // came from so the emitted source still says which one that was.
 Name refPartName(Gen& g, Value& value, StringView suffix);
@@ -390,6 +393,30 @@ bool isLong(Gen& g, TypePtr type);
 // Whether a value of this type is a host object - what `isMemoryType` is on native, asked of this
 // target instead. See type.cpp for the three places the two answers differ.
 bool isJsObject(Gen& g, TypePtr type);
+
+/*
+ * How one field of an object-shaped tuple is reached.
+ *
+ * Its own property, or - where this target co-packed it with its neighbours - a bit range of the word
+ * they share. Four places have to agree about this: what properties a value of the type has, what a
+ * place walk projects, what a copy duplicates, and what a reference to the field names. They agree by
+ * asking here rather than by each deciding from a field name, which is what a packed field no longer
+ * has one of.
+ *
+ * `leader` is true for exactly one field of each word - the one at bit zero - so that a walk listing a
+ * type's properties emits a shared word once rather than once per field it holds.
+ */
+struct FieldProperty {
+    Name name;
+    TypePtr type = nullptr;    // the field's own, or `Int` for a word several of them share
+    U8 bitOffset = 0;
+    U8 bitWidth = 0;           // zero where the field owns its property
+    bool leader = true;
+
+    bool isPacked() const { return bitWidth != 0; }
+};
+
+FieldProperty fieldProperty(Gen& g, TypePtr tuple, U16 index);
 
 /*
  * Whether a `&` of this type is the (object, property) pair Design.md's tier 2 becomes here.
@@ -507,6 +534,17 @@ struct PlaceBits {
      */
     JsPtr<Expr> shift = nullptr;
 
+    /*
+     * The record whose folded tag this place names, where it names one.
+     *
+     * A folded tag is not stored anywhere, so the place still resolves to the payload - which *is* the
+     * record - and the two ends intercept: reading is a comparison of that value against what its
+     * payload could legally be, and writing is a store of one impossible value or nothing at all. The
+     * same split native settled on, and the same one the bit range above is handled by, for the same
+     * reason: a place is a location and neither of these is one.
+     */
+    TypePtr foldedTag = nullptr;
+
     bool valid() const { return width != 0; }
 };
 
@@ -515,6 +553,14 @@ struct PlaceBits {
 // has to be converted in both directions.
 JsPtr<Expr> decodeBits(Gen& g, JsPtr<Expr> owner, PlaceBits bits, TypePtr type);
 JsPtr<Expr> encodeBits(Gen& g, JsPtr<Expr> owner, PlaceBits bits, TypePtr type, JsPtr<Expr> value);
+
+// The same two for a folded tag: which constructor a payload's own value is, and what writing one
+// constructor's tag over that payload comes to. See place.cpp.
+JsPtr<Expr> decodeNicheTag(Gen& g, JsPtr<Expr> value, TypePtr record);
+void encodeNicheTag(Gen& g, JsPtr<Expr> target, TypePtr record, U64 constructor);
+
+// The content of the constructor a folded record's payload belongs to - what the record *is*.
+TypePtr foldedPayload(Gen& g, TypePtr record);
 
 /*
  * The properties one value of this type has, in construction order.
@@ -539,10 +585,12 @@ void eachProperty(Gen& g, TypePtr type, F&& f) {
     if(value->kind == Type::Fun) return;
 
     if(value->kind == Type::Tup) {
-        U16 slot = 0;
-        for(auto entry: ((TupType*)value)->fields.contents(g.global)) {
-            f(fieldName(g, entry.name, slot), entry.type);
-            slot++;
+        auto count = ((TupType*)value)->fields.size();
+        for(U16 slot = 0; slot < count; slot++) {
+            // A co-packed run is one property, contributed by the field at bit zero of it. Skipping
+            // the others is what keeps the object's shape the *words* it has rather than the fields.
+            auto property = fieldProperty(g, type, slot);
+            if(property.leader) f(property.name, property.type);
         }
 
         return;
@@ -566,32 +614,41 @@ void eachProperty(Gen& g, TypePtr type, F&& f) {
     Array<StringId> seen;
     auto payload = false;
 
+    // What the shared payload property holds, where every constructor that uses it agrees. Null where
+    // two of them disagree, which is the only case a fresh slot cannot be given the right zero for.
+    TypePtr payloadType = nullptr;
+    auto payloadMixed = false;
+
     for(auto constructor: record->constructors.contents(g.global)) {
         auto content = constructor.content;
         if(!content || isUnit(g.global, content)) continue;
 
-        if(g.global[content]->kind != Type::Tup) {
+        // A payload with no field names to flatten, and a payload the Repr made one number, which has
+        // none to flatten *into* - it is one value, so it is one property, exactly as a bare one is.
+        if(g.global[content]->kind != Type::Tup || !isJsObject(g, content)) {
+            if(payload && payloadType != content) payloadMixed = true;
+            payloadType = content;
             payload = true;
             continue;
         }
 
-        U16 slot = 0;
-        for(auto entry: ((TupType*)g.global[content])->fields.contents(g.global)) {
-            auto name = fieldName(g, entry.name, slot);
-            slot++;
+        auto count = ((TupType*)g.global[content])->fields.size();
+        for(U16 slot = 0; slot < count; slot++) {
+            auto property = fieldProperty(g, content, slot);
+            if(!property.leader) continue;
 
             auto known = false;
-            for(auto existing: seen) if(existing == name.text) known = true;
+            for(auto existing: seen) if(existing == property.name.text) known = true;
             if(known) continue;
 
-            seen.push(name.text);
-            f(name, entry.type);
+            seen.push(property.name.text);
+            f(property.name, property.type);
         }
     }
 
     // A constructor whose content is not a tuple has no field names to flatten, so its payload is
     // one property of its own.
-    if(payload) f(g.payloadField, nullptr);
+    if(payload) f(g.payloadField, payloadMixed ? nullptr : payloadType);
 }
 
 /*

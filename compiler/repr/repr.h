@@ -48,6 +48,29 @@
 struct Module;
 
 /*
+ * What kind of thing a niche is made of.
+ *
+ * `Pattern` is what this file was written for and is still the only kind on a target whose values are
+ * machine words: a range of integers the scrutinee cannot hold, and every constructor outside the
+ * range is one of them.
+ *
+ * `Absent` is what a target whose values are *host* values has instead. A JS value is not a bit
+ * pattern, so the integer patterns the search finds are not what one leaves free - what it leaves free
+ * is `null`, which is one pattern, available on everything that is not itself nullable. That is why it
+ * carries no range: it is available or it is not, `fits` answers `count <= 1`, and `Maybe(T)` folds
+ * where `Maybe(Maybe(T))` and `Result(a, b)` decline.
+ *
+ * Both kinds feed one search, which is the property worth preserving. A scalarized record on JS is a
+ * `number` and donates a `Pattern` niche out of its spare bits exactly as a native one does, so
+ * `Maybe(OpenFlags)` folding into a spare bit while `Maybe(Person)` folds into `null` is two answers
+ * from one algorithm rather than two algorithms.
+ */
+enum class NicheKind : U8 {
+    Pattern,
+    Absent,
+};
+
+/*
  * A niche: the bit patterns one word of a representation can never legally hold.
  *
  * This is the whole of what makes discriminant folding a general algorithm rather than one
@@ -65,8 +88,8 @@ struct Module;
  *  - a `@bits(n)` integer in a wider word: `validEnd == 2^n - 1`, so everything above is free;
  *  - a bounded enum discriminant: `validEnd == constructorCount - 1`, likewise.
  *
- * `bytes == 0` means no niche. Where a target's values are host objects rather than words, `bytes`
- * is zero and `host` carries the answer instead - see HostNiche.
+ * `bytes == 0` means no niche. A target whose values are host values rather than words answers with
+ * `NicheKind::Absent` instead, for which none of the range below means anything - see that enum.
  */
 struct Niche {
     // Where the scrutinee word sits inside the representation that exposes this niche, and how wide
@@ -75,11 +98,15 @@ struct Niche {
     U32 offset = 0;
     U8 bytes = 0;
 
+    // `Absent` carries no range and no offset - it is the whole value that is or is not there.
+    NicheKind kind = NicheKind::Pattern;
+
     // The inclusive range of patterns a valid value can produce. Everything outside it is free.
     U64 validStart = 0;
     U64 validEnd = 0;
 
     bool exists() const { return bytes != 0; }
+    bool isAbsent() const { return kind == NicheKind::Absent; }
 
     // How many patterns are free below and above the valid range. Saturating, because a 64-bit word
     // whose valid range is empty has 2^64 free patterns and no count can hold that - and every
@@ -87,8 +114,14 @@ struct Niche {
     U64 freeBelow() const { return validStart; }
     U64 freeAbove() const;
 
-    // Whether this niche can distinguish `count` alternatives on top of the value itself.
-    bool fits(U64 count) const { return exists() && (freeBelow() >= count || freeAbove() >= count); }
+    // Whether this niche can distinguish `count` alternatives on top of the value itself. One, for
+    // `Absent`, which is exactly the `Nothing`/`Just` shape and is the whole of why `Maybe(T)` folds
+    // on a host target and `Result(a, b)` does not.
+    bool fits(U64 count) const {
+        if(!exists()) return false;
+        if(isAbsent()) return count <= 1;
+        return freeBelow() >= count || freeAbove() >= count;
+    }
 };
 
 /*
@@ -339,6 +372,24 @@ struct ReprTarget {
     bool packFields = false;
 
     /*
+     * A sum's tag as a few bits above its payload, rather than a word in front of it - see
+     * scalarizeSum.
+     *
+     * Separate from `packFields`, which it otherwise reads as a special case of, because it asks
+     * something of the target that co-packing does not: the payload and the tag have to share one
+     * word that a single load can reach, since that is what makes the tag a shift and a mask of
+     * something already in a register.
+     *
+     * Off for JS, where a payload is not a word. A record that stays an object there has one property
+     * per field, so "the bits above the payload" names nothing - and turning it on anyway would give
+     * every sum a Repr whose size and discriminant the backend contradicts, and a niche made of
+     * patterns of a word that does not exist. What JS wants from this shape is the *other* half -
+     * a sum whose payload is already one number becoming one number - and that is whole-record
+     * scalarization applied to sums rather than this.
+     */
+    bool bitTagSums = false;
+
+    /*
      * Representing a whole aggregate as one integer, rather than co-packing a run of fields inside
      * one that stays an aggregate.
      *
@@ -373,6 +424,26 @@ struct ReprTarget {
      * `Maybe(Id)` the `number | null` Design.md asks for rather than an object with a tag.
      */
     bool foldNiches = false;
+
+    /*
+     * Whether a value of this target that is not a number has `null` to spare.
+     *
+     * This is the JS half of the sentence above. A host value is not a bit pattern, so the ranges the
+     * search finds over a *word* mean nothing for one: a borrow's "pattern zero is unreachable" is a
+     * statement about an address, and there are no addresses here. What every non-nullable host value
+     * does leave free is `null`, and that is one pattern rather than a range - see NicheKind::Absent.
+     *
+     * So on a target that sets this, a representation keeps the niche the search found for it exactly
+     * when its value really is a number, which is `scalarBits != 0`, and takes `Absent` otherwise.
+     * That split is the whole of the flag, and it is what makes `Maybe(Flags)` one number with the tag
+     * in a spare bit while `Maybe(Person)` is `Person | null` - the two answers Design.md asks for,
+     * out of one search.
+     *
+     * A raw pointer is excluded: `null()` and `isNull` are ordinary Native intrinsics written against
+     * it, so claiming its absent value would break the allocator exactly the way claiming its zero
+     * would on native. Same exclusion, same reason, stated in the target's own terms.
+     */
+    bool absentNiche = false;
 };
 
 /*
@@ -463,6 +534,7 @@ private:
     U32 naturalBytes(U32 bits) const;
     Niche intNiche(const IntType& integer, U32 offset) const;
     Niche addressNiche(U32 offset) const;
+    void hostNiche(TypePtr type, Repr& into);
 
     /*
      * The entries, owned separately from the index.

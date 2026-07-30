@@ -6,7 +6,7 @@ Flags: size 1, align 1, stride 1, scalar of 2 bits, niche at 0 width 1, valid 0.
   .0 at 0 bits 0..0 of 1 bytes: Bool
   .1 at 0 bits 1..1 of 1 bytes: Bool
 
-Settings: size 8, align 4, stride 8, niche at 4 width 1, valid 0..3, free 0 below / 252 above
+Settings: size 8, align 4, stride 8, niche absent
   .0 at 4: Flags
   .1 at 0: U32
 
@@ -14,15 +14,15 @@ Two: size 1, align 1, stride 1, scalar of 4 bits, niche at 0 width 1, valid 0..1
   .0 at 0 bits 0..1 of 1 bytes: Flags
   .1 at 0 bits 2..3 of 1 bytes: Flags
 
-Inefficient: size 16, align 8, stride 16, niche at 12 width 1, valid 0..1, free 0 below / 254 above
-  .0 at 12: Bool
+Inefficient: size 16, align 8, stride 16, niche absent
+  .0 at 14 bits 8..8 of 2 bytes: Bool
   .1 at 0: U64
-  .2 at 13: U8
-  .3 at 14: @bits(4) Int
+  .2 at 12: U8
+  .3 at 14 bits 0..3 of 2 bytes: @bits(4) Int
   .4 at 8: U32
-  .5 at 15: @bits(4) Int
+  .5 at 14 bits 4..7 of 2 bytes: @bits(4) Int
 
-Pinned: size 32, align 8, stride 32, niche at 0 width 1, valid 0..1, free 0 below / 254 above
+Pinned: size 32, align 8, stride 32, niche absent
   .0 at 0: Bool
   .1 at 8: U64
   .2 at 16: U8
@@ -30,7 +30,7 @@ Pinned: size 32, align 8, stride 32, niche at 0 width 1, valid 0..1, free 0 belo
   .4 at 24: U32
   .5 at 28: @bits(4) Int
 
-HostShaped: size 32, align 8, stride 32, niche at 0 width 1, valid 0..1, free 0 below / 254 above
+HostShaped: size 32, align 8, stride 32, niche absent
   .0 at 0: Bool
   .1 at 8: U64
   .2 at 16: U8
@@ -38,7 +38,7 @@ HostShaped: size 32, align 8, stride 32, niche at 0 width 1, valid 0..1, free 0 
   .4 at 20: U32
   .5 at 24: @bits(4) Int
 
-HostFlags: size 2, align 1, stride 2, niche at 0 width 1, valid 0..1, free 0 below / 254 above
+HostFlags: size 2, align 1, stride 2, niche absent
   .0 at 0: Bool
   .1 at 1: Bool
 
@@ -46,8 +46,12 @@ Owned: size 1, align 1, stride 1, scalar of 2 bits, niche at 0 width 1, valid 0.
   .0 at 0 bits 0..0 of 1 bytes: Bool
   .1 at 0 bits 1..1 of 1 bytes: Bool
 
-Pair: size 2, align 1, stride 2, niche at 0 width 1, valid 0..3, free 0 below / 252 above
+Pair: size 2, align 1, stride 2, niche absent
   .0 at 0: Owned
   .1 at 1: Owned
 
-Maybe(Flags): size 8, align 4, stride 8, tag word at 0, payload at 4, niche none
+Held: size 8, align 4, stride 8, tag word at 0, payload at 4, niche absent
+
+Maybe(Flags): size 1, align 1, stride 1, tag folded into constructor 1's niche from 4 up, niche at 0 width 1, valid 0..4, free 0 below / 251 above
+  .0 at 0 bits 0..0 of 1 bytes: Bool
+  .1 at 0 bits 1..1 of 1 bytes: Bool

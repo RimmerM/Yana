@@ -352,6 +352,78 @@ fn folded() -> Int {
     ret %v31
 }
 
+fn heldValue(%h: Held) -> Int {
+  b0:
+    %v1 = load %h.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v25 = load %h.discriminant : Int
+    %v27 = cmp_eq %v25, 1 : Bool
+    je %v27, b10, b9
+
+  b2:
+    %v5 = load %h@Both : {a: Bool, b: Bool}
+    %a = load %h@Both.a : Bool
+    %b = load %h@Both.b : Bool
+    je %a, b3, b4
+
+  b3:
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v15 = phi [b3, 1], [b4, 0] : Int
+    je %b, b6, b7
+
+  b6:
+    jmp b8
+
+  b7:
+    jmp b8
+
+  b8:
+    %v23 = phi [b6, 2], [b7, 0] : Int
+    %v24 = add %v15, %v23 : Int
+    jmp b11
+
+  b9:
+    jmp b11
+
+  b10:
+    %n = load %h@Wide : Int
+    %v32 = mul %n, 10 : Int
+    jmp b11
+
+  b11:
+    %v37 = phi [b8, %v24], [b10, %v32], [b9, 8] : Int
+    ret %v37
+}
+
+fn held() -> Int {
+  b0:
+    %v0 = alloc : Held
+    init %local0.discriminant, 0
+    init %local0@Both.a, True
+    init %local0@Both.b, False
+    %v7 = call heldValue, %v0 : Int
+    %v8 = alloc : Held
+    init %local1.discriminant, 1
+    init %local1@Wide, 5
+    %v13 = call heldValue, %v8 : Int
+    %v16 = mul %v13, 100 : Int
+    %v17 = add %v7, %v16 : Int
+    %v18 = alloc : Held
+    init %local2.discriminant, 2
+    %v21 = call heldValue, %v18 : Int
+    %v24 = mul %v21, 10000 : Int
+    %v25 = add %v17, %v24 : Int
+    ret %v25
+}
+
 fn reordered() -> Int {
   b0:
     %v0 = alloc : Inefficient
@@ -615,15 +687,17 @@ fn main() -> Int {
     %v14 = add %v12, %v13 : Int
     %v15 = call folded : Int
     %v16 = add %v14, %v15 : Int
-    %v17 = call reordered : Int
+    %v17 = call held : Int
     %v18 = add %v16, %v17 : Int
-    %v19 = call pinned : Int
+    %v19 = call reordered : Int
     %v20 = add %v18, %v19 : Int
-    %v21 = call hostShaped : Int
+    %v21 = call pinned : Int
     %v22 = add %v20, %v21 : Int
-    %v23 = call hostBorrowed : Int
+    %v23 = call hostShaped : Int
     %v24 = add %v22, %v23 : Int
-    ret %v24
+    %v25 = call hostBorrowed : Int
+    %v26 = add %v24, %v25 : Int
+    ret %v26
 }
 
 fn Drop(Owned).drop(%value: Owned) -> () {

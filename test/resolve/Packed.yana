@@ -20,6 +20,18 @@ data Mixed {only: @bits(5) U32, wide: Int}
 -- arguments than the guard allows, so the call that takes all nine keeps its descriptors.
 data Nine {a: Bool, b: Bool, c: Bool, d: Bool, e: Bool, f: Bool, g: Bool, h: Bool, i: Bool}
 
+-- Co-packing inside a record that stays an aggregate, which is the case whole-record scalarization
+-- cannot reach: `count` fills its own storage, so the record is not one value however narrow the
+-- other two are - but `live` and `kind` still share a word rather than taking a whole one each.
+--
+-- The two targets do the same thing here for different reasons. Natively it is four bits of a byte
+-- instead of two bytes. On JS the object was already paid for and what packing removes is the rest
+-- of it: one property holding both fields, so a value of this type is one field slot smaller and
+-- every access to either is a shift and a mask of a load that was happening anyway.
+data Entry {live: Bool, kind: @bits(3) U32, count: Int}
+
+fn tick(&x: @bits(3) U32) = x = x + 1
+
 fn bump(&x: U32) = x = x + 1
 
 fn flip(&b: Bool) = b = !b
@@ -177,6 +189,36 @@ fn wide() -> Int:
 
     return (if s.a then 1 else 0) + (if s.e then 20 else 0) + (if s.i then 300 else 0)
 
+-- A borrow of a field that shares a word with a neighbour, inside a record that kept its aggregate
+-- form. This is the same tier 2 the scalar cases above assert, reached from the other direction: the
+-- reference names the *word* and the shift says which bits of it, so `flip` and `tick` are the same
+-- two compiled bodies that serve a whole local and a field of a scalarized record.
+--
+-- What it catches on JS in particular is a reference that named the field's own property. There is no
+-- such property once the field is packed - both of these live in one - so a descriptor built from the
+-- field name would read `undefined` and write a property nobody reads, and the answer rather than the
+-- shape is what says so.
+fn tally() -> Int:
+    let &e = Entry {live: False, kind: 2, count: 7}
+
+    flip(e.live)
+    tick(e.kind)
+    e.count = e.count + 1
+
+    return (if e.live then 1 else 0) + (e.kind :: Int) * 10 + e.count * 100
+
+-- The same word, reached through a reference that outlives the call producing it - the case a
+-- materialized temporary could not serve, now that the word is shared.
+fn liveOf(return &e: Entry) -> &Bool = e.live
+
+fn kept() -> Int:
+    let &e = Entry {live: False, kind: 1, count: 2}
+    let &flag = liveOf(e)
+
+    flag = True
+
+    return (if e.live then 1 else 0) + (e.kind :: Int) * 10 + e.count * 100
+
 -- 900000 + 20000 + 4000 = 924000
 -- 200 + 4 = 204
 -- 2000 + 300 = 2300
@@ -187,6 +229,8 @@ fn wide() -> Int:
 -- 0 + 2 = 2
 -- 1020 + 1 = 1021
 -- 1 + 20 + 300 = 321
+-- 1 + 30 + 800 = 831
+-- 1 + 10 + 200 = 211
 fn main() -> Int =
     direct() + borrowed() + neighbours() + together() + unpacked() + loaned() +
-    returned() + interleaved() + threaded() + wide()
+    returned() + interleaved() + threaded() + wide() + tally() + kept()

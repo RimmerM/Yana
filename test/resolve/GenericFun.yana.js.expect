@@ -40,13 +40,13 @@ function middle_Int(x, y, z) {
 }
 
 function wrap_Int(value) {
-  return { $tag: 1, $p: value };
+  return value;
 }
 
 function orElse_Int(value, fallback) {
   var v2;
-  if (value.$tag === 1) {
-    v2 = value.$p;
+  if (!(value === null)) {
+    v2 = value;
   } else {
     v2 = fallback;
   }
@@ -54,5 +54,5 @@ function orElse_Int(value, fallback) {
 }
 
 function empty_Int() {
-  return { $tag: 0, $p: null };
+  return null;
 }

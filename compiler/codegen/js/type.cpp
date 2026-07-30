@@ -87,7 +87,52 @@ bool isJsObject(Gen& g, TypePtr type) {
     auto& repr = g.repr.of(type);
     if(repr.opaque) return true;
 
+    /*
+     * A niche-folded record is its payload *and* the pattern that says it has none, so it is not a
+     * host object even where the payload is one: `Maybe(Person)` is `Person | null`.
+     *
+     * What that decides is how a reference to one is carried. An object is borrowed as itself, which
+     * works because writing through the reference writes properties of an object that stays the same
+     * object - and a `&Maybe(Person)` has to be able to make the binding `null`, which is replacing
+     * the value rather than writing into it. So it takes the box every non-object takes.
+     */
+    if(repr.isNicheFolded()) return false;
+
     return repr.scalarBits == 0;
+}
+
+/*
+ * Which property one field of an object-shaped tuple lives in, and where inside it.
+ *
+ * Two answers, and the second is what co-packing added: a field that owns its property is reached by
+ * name and read as a whole, and one that shares a word with its neighbours is a bit range of a
+ * property named after the word. Everything that has to know - the property list, the place walk, a
+ * copy, and the key a reference to the field carries - asks this, because a packed field no longer
+ * has a name of its own for them to agree by.
+ *
+ * Only meaningful for a tuple that is still an object. A tuple the Repr made one scalar has bit
+ * ranges too, but there is no property anywhere in it: the walk stops at the number and accumulates
+ * offsets, which it does before ever reaching here.
+ */
+FieldProperty fieldProperty(Gen& g, TypePtr type, U16 index) {
+    auto entry = ((TupType*)g.global[type])->fields.get(g.global, index);
+
+    if(auto placed = g.repr.fieldOf(type, index)) {
+        if(placed->isPacked()) {
+            FieldProperty property;
+            property.name = packedWordName(g, placed->offset);
+            property.type = g.program.scalar.int_;
+            property.bitOffset = placed->bitOffset;
+            property.bitWidth = placed->bitWidth;
+            property.leader = placed->bitOffset == 0;
+            return property;
+        }
+    }
+
+    FieldProperty property;
+    property.name = fieldName(g, entry.name, index);
+    property.type = entry.type;
+    return property;
 }
 
 bool isNewtype(Gen& g, TypePtr type, TypePtr& content) {
@@ -157,6 +202,17 @@ JsPtr<Expr> zeroValue(Gen& g, TypePtr type) {
     TypePtr content = nullptr;
     if(isNewtype(g, type, content)) return zeroValue(g, content);
 
+    /*
+     * A niche-folded record, which is its payload plus one pattern taken out of it. A fresh one is
+     * whatever the zero of that representation decodes as, which is the same answer native gets from
+     * zeroing the storage: `null` where the pattern is the host's absent value, and the payload's own
+     * zero where it is a number, since every pattern niche this target folds into starts its valid
+     * range at zero and therefore reads back as the payload constructor.
+     */
+    if(g.repr.of(type).isNicheFolded()) {
+        return g.repr.of(type).encoding.niche.isAbsent() ? nullValue(g) : number(g, 0);
+    }
+
     // A record the Repr made one scalar has no properties to pre-create - it is a `number`, and a
     // fresh one is zero. Every field of it is a bit range of that number, so the writes that fill it
     // are the read-modify-writes `encodePackedField` is on native rather than property assignments,
@@ -225,6 +281,19 @@ JsPtr<Expr> coerce(Gen& g, TypePtr type, JsPtr<Expr> value) {
  * both the fastest form and the one that keeps the type's hidden class.
  */
 JsPtr<Expr> cloneValue(Gen& g, TypePtr type, JsPtr<Expr> source, LocationId where) {
+    /*
+     * A niche-folded record is not an object, but it may still *hold* one - `Maybe(Person)` is a
+     * `Person` or a `null` - so it is asked before the shortcut below rather than falling into it.
+     * Duplicating it is duplicating the payload where there is one, and the test for that is the same
+     * comparison the tag decode is.
+     */
+    if(auto payload = foldedPayload(g, type)) {
+        if(!isJsObject(g, payload)) return source;
+
+        return ternary(g, binary(g, BinaryOp::Eq, source, nullValue(g)), nullValue(g),
+                       cloneValue(g, payload, source, where));
+    }
+
     // Anything that is not an object here is duplicated by being read - a number, a bigint, a
     // boolean, and a function value, whose copy is the same closure over the same environment
     // exactly as native's copy is the same two words over the same storage.

@@ -51,6 +51,7 @@ ReprTarget nativeReprTarget() {
     target.maxPackBits = 64;
     target.nullableRawPointers = true;
     target.packFields = true;
+    target.bitTagSums = true;
     target.scalarizeRecords = true;
     target.foldNiches = true;
     return target;
@@ -103,6 +104,35 @@ ReprTarget jsReprTarget() {
      * be borrowed - there is nowhere to put the conversion. See placeIsHostPinnedField.
      */
     target.scalarizeRecords = true;
+
+    /*
+     * On, and separately from the flag above because on this target they are different features.
+     *
+     * This is the case scalarization cannot reach: a record that holds a reference, or something
+     * else full-width, keeps its object and its narrow fields share one property rather than taking
+     * one each. Measured on exactly that shape - five narrow fields and one reference - a co-packed
+     * value is 44 bytes against 76, and the access cost is 9% on a read and 14% on a write because
+     * the two ALU ops ride on a load that was happening anyway. Once the working set leaves cache the
+     * sign flips outright and every access is 1.6x, since 1M records is 44 MB rather than 76.
+     *
+     * The original argument against it was that saving bytes "on a target with no cache line to save"
+     * bought nothing, which is false - JS runs on the same hardware - and it was carrying the
+     * conclusion. See Implementation-JS-Repr.md part 3.
+     */
+    target.packFields = true;
+
+    /*
+     * On, together, because on this target they are one feature.
+     *
+     * `foldNiches` was off here until `absentNiche` existed, and not because the lowering was missing
+     * but because the *niche* was the wrong one: folding would have found a borrow's unreachable
+     * address zero or the spare patterns of a packed word of an object, and neither is something a
+     * host value can be tested for. With `Absent` in the search, what a folded `Maybe` becomes is what
+     * Design.md asks for - `Maybe(Id)` is `number | null` and `Maybe(Person)` is `Person | null`, so a
+     * host API can hand one straight back and a JS reader sees the shape they would have written.
+     */
+    target.absentNiche = true;
+    target.foldNiches = true;
     return target;
 }
 
@@ -270,6 +300,105 @@ void ReprTable::compute(TypePtr type, Repr& into) {
             // computation answered for them too.
             break;
     }
+
+    if(target.absentNiche) hostNiche(type, into);
+}
+
+/*
+ * The niche a host value has, on a target where a value is not a word.
+ *
+ * Run over every representation after the search has produced whatever it produces, because the
+ * question is about the *value* rather than about how the layout was arrived at: a tuple that got a
+ * niche out of a packed word inside it and a borrow that got one out of an unreachable address both
+ * end up here, and neither of those patterns is a thing a host value can be compared against.
+ *
+ * So the rule is one line. A representation that really is a number keeps what the search found,
+ * because `v <= 15` is a comparison of a number and nothing else changes. Everything else takes
+ * `null`, which is the only pattern it has - and which a value that is *already* nullable does not
+ * have, since something is using it. That is `Maybe(Maybe(T))`, and it is the case this declines.
+ */
+void ReprTable::hostNiche(TypePtr type, Repr& into) {
+    auto value = global[type];
+
+    // Whether the host value really is a number or a bigint, which is the whole question: only for
+    // one of those does a range of integers describe anything the value can be compared against.
+    auto isNumber = false;
+
+    switch(value->kind) {
+        case Type::Int:
+            isNumber = true;
+            break;
+
+        case Type::Float:
+        case Type::Fun:
+        case Type::Borrow:
+            // A `number` with no spare patterns to speak of, a host function, and a reference. None
+            // of them has a range to be outside of, and each of them has `null`.
+            break;
+
+        case Type::Tup:
+            // One number where the Repr made it one, and an object otherwise. An object's spare bits
+            // are inside a property, and a property of it is not something the object itself can be
+            // compared against - so the niche a packed word republished is not the object's to give.
+            isNumber = into.scalarBits != 0;
+            break;
+
+        case Type::Record: {
+            auto record = (RecordType*)value;
+
+            // A newtype is its content, this answer included, and has already copied it.
+            if(record->layout == RecordType::Single) return;
+
+            // An enum is its discriminant, which is a number.
+            if(record->layout == RecordType::Enum) {
+                isNumber = true;
+                break;
+            }
+
+            /*
+             * A folded record is its payload with one pattern taken out of it, so it is a number
+             * exactly when the payload was - and the fold has already recorded which. A `Pattern` came
+             * out of a number, an `Absent` out of a host value.
+             */
+            if(into.isNicheFolded()) {
+                isNumber = !into.encoding.niche.isAbsent();
+                break;
+            }
+
+            break;
+        }
+
+        default:
+            // A raw pointer, whose absent value is spoken for - see `absentNiche`. Unit, Error and the
+            // kinds that are reserved but not constructible have no value to be absent in the first
+            // place, and answering `null` for one would hand out a niche over nothing.
+            into.niche = Niche {};
+            return;
+    }
+
+    /*
+     * A number keeps what the search found wherever that is good for anything at all, and `fits(1)` is
+     * the threshold because a pattern niche is at least as capable as an absent one everywhere else:
+     * `Maybe(Rank)` folding into pattern 3 stays a number a containing record can co-pack, where
+     * `Rank | null` would not be. A width with nothing spare - a full `Int`, a full `I64` - has only
+     * `null`, and that is what makes `Maybe(Int)` the `number | null` a JS reader would have written.
+     */
+    if(isNumber && into.niche.fits(1)) return;
+
+    // Spent. A folded record that took the absent pattern has no second one to give, which is what
+    // makes `Maybe(Maybe(T))` decline while `Maybe(Maybe(Rank))` folds twice.
+    if(!isNumber && into.isNicheFolded()) {
+        into.niche = Niche {};
+        return;
+    }
+
+    Niche niche;
+    niche.kind = NicheKind::Absent;
+
+    // Non-zero so that `exists` is true. There is no word and no width; whoever reads this compares
+    // against `null` and never asks how many bytes that took.
+    niche.bytes = 1;
+    into.niche = niche;
 }
 
 // The natural storage of an integer of `bits` logical width: the smallest power-of-two byte count
@@ -705,7 +834,7 @@ void ReprTable::computeRecord(RecordType& record, Repr& into) {
  * and the tag would then be at a shift the callee could not know.
  */
 bool ReprTable::scalarizeSum(RecordType& record, Repr& into, U32 payloadSize, U32 payloadAlign) {
-    if(!target.packFields) return false;
+    if(!target.bitTagSums) return false;
 
     auto constructors = record.constructors.size();
     if(!constructors || !payloadSize) return false;
@@ -801,6 +930,18 @@ bool ReprTable::foldNiche(RecordType& record, Repr& into) {
         auto& encoding = into.encoding;
         encoding.niche = content.niche;
         encoding.payloadConstructor = U16(constructor.index);
+
+        /*
+         * One pattern, and no arithmetic over it: the other constructor *is* the host's absent value,
+         * so there is nothing to number and nothing left over. `fits` allowed exactly one of them
+         * through, so this is always the two-constructor shape.
+         */
+        if(content.niche.isAbsent()) {
+            encoding.firstPattern = 0;
+            encoding.ascending = true;
+            into.niche = Niche {};
+            return true;
+        }
 
         // Prefer the patterns below the valid range, so that a `Maybe` over a non-null address gets
         // `Nothing == 0` and becomes a plain nullable pointer - the representation a C programmer

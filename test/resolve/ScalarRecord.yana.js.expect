@@ -194,43 +194,89 @@ function owned() {
 
 function tagOf(m) {
   var v10;
-  if (m.$tag === 0) {
+  if (!(m <= 3)) {
     v10 = 4;
   } else {
-    v10 = valueOf(m.$p);
+    v10 = valueOf(m);
   }
   return v10;
 }
 
 function folded() {
-  var empty = tagOf({ $tag: 0, $p: null });
-  var v4 = { $tag: 1, $p: null };
+  var empty = tagOf(4);
+  var v4 = 0;
   var v7 = 0;
   v7 = v7 & 4294967294 | 1 & 1;
   v7 = v7 & ~(1 << 1) | (1 & 1) << 1;
-  v4.$p = v7;
+  v4 = v7;
   var both = tagOf(v4);
-  var v14 = { $tag: 1, $p: null };
+  var v14 = 0;
   var v17 = 0;
   v17 = v17 & 4294967294 | 0 & 1;
   v17 = v17 & ~(1 << 1) | (1 & 1) << 1;
-  v14.$p = v17;
+  v14 = v17;
   var one = tagOf(v14);
   return (empty + (Math.imul(both, 10) | 0) | 0) + (Math.imul(one, 100) | 0) | 0;
 }
 
+function heldValue(h) {
+  var v15;
+  var v23;
+  var v37;
+  if (h.$tag === 0) {
+    var a = h.$p & 1;
+    var b = h.$p >>> 1 & 1;
+    if (a) {
+      v15 = 1;
+    } else {
+      v15 = 0;
+    }
+    if (b) {
+      v23 = 2;
+    } else {
+      v23 = 0;
+    }
+    v37 = v15 + v23 | 0;
+  } else {
+    if (h.$tag === 1) {
+      v37 = Math.imul(h.$p, 10) | 0;
+    } else {
+      v37 = 8;
+    }
+  }
+  return v37;
+}
+
+function held() {
+  var v0 = { $tag: 0, $p: null };
+  v0.$p = v0.$p & 4294967294 | 1 & 1;
+  v0.$p = v0.$p & ~(1 << 1) | (0 & 1) << 1;
+  var v7 = heldValue(v0);
+  var v13 = heldValue({ $tag: 1, $p: 5 });
+  var v17 = v7 + (Math.imul(v13, 100) | 0) | 0;
+  var v21 = heldValue({ $tag: 2, $p: null });
+  return v17 + (Math.imul(v21, 10000) | 0) | 0;
+}
+
 function reordered() {
   var v44;
-  var i = { a: 1, b: 9n, c: 3, d: 5, e: 40, f: 6 };
-  i.d = (((i.d | 0) + 1 | 0) & 15 | 0) << 28 >> 28;
-  bump(i, "f", 0);
+  var v0 = { b: 0n, c: 0, $p14: 0, e: 0 };
+  v0.$p14 = v0.$p14 & ~(1 << 8) | (1 & 1) << 8;
+  v0.b = 9n;
+  v0.c = 3;
+  v0.$p14 = v0.$p14 & 4294967280 | 5 & 15;
+  v0.e = 40;
+  v0.$p14 = v0.$p14 & ~(15 << 4) | (6 & 15) << 4;
+  var i = v0;
+  i.$p14 = i.$p14 & 4294967280 | (((i.$p14 & 15 | 0) + 1 | 0) & 15 | 0) << 28 >> 28 & 15;
+  bump(i, "$p14", 4);
   i.b = BigInt.asUintN(64, i.b + 1n);
-  if (i.a) {
+  if (i.$p14 >>> 8 & 1) {
     v44 = 1;
   } else {
     v44 = 0;
   }
-  return ((((v44 + (Math.imul(Number(i.b) | 0, 10) | 0) | 0) + (Math.imul(i.c | 0, 100) | 0) | 0) + (Math.imul(i.d | 0, 1000) | 0) | 0) + (Math.imul(i.e | 0, 10000) | 0) | 0) + (Math.imul(i.f | 0, 1000000) | 0) | 0;
+  return ((((v44 + (Math.imul(Number(i.b) | 0, 10) | 0) | 0) + (Math.imul(i.c | 0, 100) | 0) | 0) + (Math.imul(i.$p14 & 15 | 0, 1000) | 0) | 0) + (Math.imul(i.e | 0, 10000) | 0) | 0) + (Math.imul(i.$p14 >>> 4 & 15 | 0, 1000000) | 0) | 0;
 }
 
 function pinned() {
@@ -281,7 +327,7 @@ function hostBorrowed() {
 }
 
 function main() {
-  return (((((((((((nested() + borrowed() | 0) + coPacked() | 0) + composed() | 0) + extracted() | 0) + reborrowed() | 0) + swapped() | 0) + owned() | 0) + folded() | 0) + reordered() | 0) + pinned() | 0) + hostShaped() | 0) + hostBorrowed() | 0;
+  return ((((((((((((nested() + borrowed() | 0) + coPacked() | 0) + composed() | 0) + extracted() | 0) + reborrowed() | 0) + swapped() | 0) + owned() | 0) + folded() | 0) + held() | 0) + reordered() | 0) + pinned() | 0) + hostShaped() | 0) + hostBorrowed() | 0;
 }
 
 function Drop_Owned_drop(value) {

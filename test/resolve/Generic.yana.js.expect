@@ -1,17 +1,17 @@
 "use strict";
 // ResolveTest
 function justInt() {
-  return { $tag: 1, $p: 3 };
+  return 3;
 }
 
 function nothingInt() {
-  return { $tag: 0, $p: null };
+  return null;
 }
 
 function unwrap(value, fallback) {
   var v9;
-  if (value.$tag === 1) {
-    v9 = value.$p;
+  if (!(value === null)) {
+    v9 = value;
   } else {
     v9 = fallback;
   }
@@ -21,8 +21,8 @@ function unwrap(value, fallback) {
 function unwrapBool(value) {
   var v11;
   var v15;
-  if (value.$tag === 1) {
-    if (value.$p) {
+  if (value <= 1) {
+    if (value) {
       v11 = 1;
     } else {
       v11 = 0;
@@ -57,11 +57,7 @@ function unbox(value) {
 }
 
 function labelled() {
-  var v0 = { label: 0, contents: { $tag: 0, $p: null } };
-  var v2 = { $tag: 1, $p: 40 };
-  v0.label = 2;
-  v0.contents = v2;
-  return v0;
+  return { label: 2, contents: 40 };
 }
 
 function labelSum(value) {
@@ -69,13 +65,13 @@ function labelSum(value) {
 }
 
 function ascribedNothing() {
-  return unwrapBool({ $tag: 0, $p: null });
+  return unwrapBool(2);
 }
 
 function ascribedJust() {
-  return unwrapBool({ $tag: 1, $p: 1 });
+  return unwrapBool(1);
 }
 
 function main() {
-  return ((((((((ascribedNothing() + ascribedJust() | 0) + unwrap(justInt(), 100) | 0) + unwrap(nothingInt(), 5) | 0) + unwrapBool({ $tag: 1, $p: 1 }) | 0) + unwrapBool({ $tag: 0, $p: null }) | 0) + resultValue(okResult()) | 0) + resultValue(errResult()) | 0) + unbox(6) | 0) + labelSum(labelled()) | 0;
+  return ((((((((ascribedNothing() + ascribedJust() | 0) + unwrap(justInt(), 100) | 0) + unwrap(nothingInt(), 5) | 0) + unwrapBool(1) | 0) + unwrapBool(2) | 0) + resultValue(okResult()) | 0) + resultValue(errResult()) | 0) + unbox(6) | 0) + labelSum(labelled()) | 0;
 }

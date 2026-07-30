@@ -1,0 +1,80 @@
+import Native
+
+-- Discriminant folding where the niche is not a bit pattern - Implementation-JS-Repr.md part 2, and
+-- the half of Design.md's "Niches and automatic packing" that only exists once a second target does.
+--
+-- `Niche.yana` is the same feature asserted over native's niches, and it is asserted in the layout
+-- dump because the patterns it folds into are patterns of a word. This one is asserted by *running*,
+-- on both targets, because that is the only form the interesting property has: the two targets fold
+-- different types here, and every one of these functions has to return the same number anyway.
+--
+--  - `Maybe(Point)` folds on JS and not natively. A `Point` is a host object, which is never `null`,
+--    so `Maybe(Point)` is `Point | null`; natively a `Point` is two `Int`s that reach every pattern
+--    of their words, so there is nothing to fold into and the tag is a word in front.
+--  - `Maybe(Int)` likewise: a full-width integer has no spare pattern anywhere, and a host `number`
+--    still has `null`.
+--  - `Maybe(Maybe(Point))` folds on *neither*, and for the reason that makes an absent niche a
+--    different kind of thing rather than a small one: there is one `null`, the inner fold spent it,
+--    and a second fold has nothing left to take.
+--
+-- Patterns here are one level deep on purpose. Nested constructor patterns produce a CFG the JS
+-- backend cannot structure yet, which is a gap in that backend rather than anything about niches -
+-- see its README - and a fixture about folding should fail for reasons about folding.
+
+data Point {x: Int, y: Int}
+
+-- Nothing below is written against `Maybe`, which is the whole argument for a search: `Maybe` is
+-- Core's, it knows nothing about niches, and it folds through `null` here and through a spare bit
+-- pattern in `Niche.yana` with the same code on both sides.
+
+fn pointOr(m: Maybe(Point), fallback: Int) -> Int = match m:
+    Nothing -> fallback
+    Just(p) -> p.x * 10 + p.y
+
+fn intOr(m: Maybe(Int), fallback: Int) -> Int = match m:
+    Nothing -> fallback
+    Just(n) -> n
+
+fn depthOf(m: Maybe(Maybe(Point))) -> Int = match m:
+    Nothing -> 1
+    Just(inner) -> 2 + pointOr(inner, 0)
+
+-- A record over a folded value, which is where a fold that republished a pattern it had already spent
+-- would show up: both fields have to survive being stored next to each other.
+data Both {left: Maybe(Point), right: Maybe(Int)}
+
+fn pairValue(p: Both) -> Int = pointOr(p.left, 7) * 100 + intOr(p.right, 7)
+
+fn objectFold() -> Int:
+    let some = pointOr(Just(Point {x: 3, y: 4}), 9)
+    let none = pointOr(Nothing, 9)
+
+    return some + none * 1000
+
+-- `Just(0)` is the case worth writing down. On a target that folds this into `null`, the payload of a
+-- `Just` may be zero, and a decode written as truthiness rather than as a comparison against the
+-- absent value reads it as a `Nothing` - which is a wrong answer out of a representation of exactly
+-- the right shape, and is invisible in every other case.
+fn intFold() -> Int:
+    let zero = intOr(Just(0), 7)
+    let some = intOr(Just(5), 7)
+    let none = intOr(Nothing, 7)
+
+    return zero + some * 10 + none * 100
+
+fn nested() -> Int:
+    let outer = depthOf(Nothing)
+    let middle = depthOf(Just(Nothing))
+    let inner = depthOf(Just(Just(Point {x: 1, y: 2})))
+
+    return outer + middle * 10 + inner * 100
+
+fn paired() -> Int =
+    pairValue(Both {left: Just(Point {x: 2, y: 6}), right: Nothing}) +
+    pairValue(Both {left: Nothing, right: Just(3)}) * 10000
+
+-- objectFold: 34 + 9 * 1000                                  = 9034
+-- intFold:    0 + 5 * 10 + 7 * 100                           = 750
+-- nested:     1 + 2 * 10 + 14 * 100                          = 1421
+-- paired:     2600 + 7, then (700 + 3) * 10000               = 7032607
+fn main() -> Int = objectFold() + intFold() + nested() + paired()
