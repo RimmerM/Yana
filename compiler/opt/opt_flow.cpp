@@ -277,6 +277,33 @@ void computeContainment(OptContext& opt, Array<U8>& contained) {
     }
 }
 
+// The blocks control can actually get to. Needed because the analysis below starts from the
+// optimistic end, and a cycle nothing enters would otherwise convince itself that it holds whatever
+// it likes - there being no path into it to contradict the claim.
+void computeReachable(OptContext& opt, Array<U8>& reachable) {
+    auto count = opt.function->blocks.size();
+    for(Size i = 0; i < count; i++) reachable.push(0);
+    if(!count) return;
+
+    Array<U32> pending;
+    reachable[0] = 1;
+    pending.push(0);
+
+    while(pending.size()) {
+        auto index = pending.pop().unwrap();
+
+        for(auto successor: opt.local[opt.function->blocks.get(opt.local, index)]->outgoing) {
+            if(!successor) continue;
+
+            auto to = opt.local[successor]->index;
+            if(reachable[to]) continue;
+
+            reachable[to] = 1;
+            pending.push(to);
+        }
+    }
+}
+
 bool staysInFrame(OptContext& opt, Array<U8>& contained, const Place& place) {
     if(place.root != PlaceRoot::Local) return false;
     if(place.local >= contained.size() || !contained[place.local]) return false;

@@ -1,4 +1,17 @@
--- `&` parameters, and the compound assignments Core writes on top of them.
+{-
+   `&` parameters, and the compound assignments Core writes on top of them.
+
+   `.opt.expect` is here for what happens *after* the calls are inlined. A borrow whose only uses are
+   reads and writes through it is not a reference anything needs, and opt_borrow.cpp splices it out -
+   which is what takes `total`, `left` and `right` out of the boxes a managed target keeps a mutably
+   borrowed local in, and lets the whole of `main` except `here` fold to a constant.
+
+   `here` is the one that stays, and it is the assertion that matters as much as the others: `moveBy`
+   borrows a *field*, which is Design.md's tier 1 - a target may have packed it, so the borrow is a
+   temporary that has to be written back when the loan ends, and the loan ends at the call. Inlining
+   the call would take the write-back with it, so opt_inline.cpp declines a `&` argument with a path
+   and the object survives.
+-}
 
 fn bump(&counter: Int, by: Int) -> {}:
     counter = counter + by

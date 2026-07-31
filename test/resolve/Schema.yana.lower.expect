@@ -96,32 +96,17 @@ pairUp(Int, Bool)<complex>(%v_0: Ptr, %x: Int, %y: Int) {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex identity(Int), 1: Int
-    %v_2 = call_complex scale(Int), 2, 3: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex smallest(Int), 9, 4, 7: Int
-    %v_5 = add %v_3, %v_4: Int
-    %v_6 = call_complex bothEqual(Int, Bool), 1, 1, 1, 1: Int
-    je %v_6, b_7, b_8
+    %v_1 = call_complex smallest(Int), 9, 4, 7: Int
+    jmp b_2
   }
 
-  b_7 {
-    jmp b_9
+  b_2 {
+    jmp b_3
   }
 
-  b_8 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = phi [b_7, 5], [b_8, 0]: Int
-    %v_11 = add %v_5, %v_10: Int
-    %v_12 = alloca 8, 4: Ptr
-    call_complex pairUp(Int, Bool), %v_12, 20, 0
-    %v_13 = loads %v_12, 4: Int
-    %v_14 = add %v_11, %v_13: Int
-    %v_15 = add %v_14, 15: Int
-    ret %v_15
+  b_3 {
+    %v_4 = add %v_1, 49: Int
+    ret %v_4
   }
 }
 

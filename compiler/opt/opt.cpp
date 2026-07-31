@@ -89,6 +89,12 @@ void runRounds(OptContext& opt) {
         opt.changed = false;
 
         foldFunction(opt);
+
+        // Before the place passes rather than after them, because what it changes is which storage a
+        // place names: a read left rooted in a borrow is one `forwardPlaces` cannot match against the
+        // write that produced it, and one `computeContainment` refuses to call contained at all.
+        collapseBorrows(opt);
+
         forwardPlaces(opt);
         scalarizeLocals(opt);
 
@@ -97,6 +103,12 @@ void runRounds(OptContext& opt) {
         // apart. The removal that pays for this is the *next* round's - promotion leaves a local
         // whose whole use list is writes, which is the state `eliminateDeadLocal` removes it in.
         promotePlaces(opt);
+
+        // After the place passes rather than before them, because most constant conditions are made
+        // rather than written: a `Bool` inlining turned into a literal, a field forwarding answered
+        // from the write above it. Ahead of the loop pass so that neither it nor the dominance walk
+        // spends its time on blocks nothing reaches.
+        foldBranches(opt);
 
         // After forwarding rather than before it: a read the block-local pass already answered is
         // not a candidate, and one it could not answer is exactly what a loop keeps re-doing. Ahead

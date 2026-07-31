@@ -148,60 +148,62 @@ maybes<complex>(): Long {
     store %v_14, 1, 4
     %v_15 = add %v_14, 4: Ptr
     store %v_15, 2, 4
-    %v_16 = call_complex Eq(Maybe(a)).!=(Int), %v_12, %v_14: Int
-    je %v_16, b_17, b_18
-  }
-
-  b_17 {
-    %v_19 = add %v_11, 2: Long
-    jmp b_20
+    %v_16 = call_complex Eq(Maybe(a)).==(Int), %v_12, %v_14: Int
+    %v_17 = xor %v_16, 1: Int
+    je %v_17, b_18, b_19
   }
 
   b_18 {
-    jmp b_20
+    %v_20 = add %v_11, 2: Long
+    jmp b_21
   }
 
-  b_20 {
-    %v_21 = phi [b_17, %v_19], [b_18, %v_11]: Long
-    %v_22 = alloca 8, 4: Ptr
-    store %v_22, 0, 4
+  b_19 {
+    jmp b_21
+  }
+
+  b_21 {
+    %v_22 = phi [b_18, %v_20], [b_19, %v_11]: Long
     %v_23 = alloca 8, 4: Ptr
     store %v_23, 0, 4
-    %v_24 = call_complex Eq(Maybe(a)).==(Int), %v_22, %v_23: Int
-    je %v_24, b_25, b_26
-  }
-
-  b_25 {
-    %v_27 = add %v_21, 4: Long
-    jmp b_28
+    %v_24 = alloca 8, 4: Ptr
+    store %v_24, 0, 4
+    %v_25 = call_complex Eq(Maybe(a)).==(Int), %v_23, %v_24: Int
+    je %v_25, b_26, b_27
   }
 
   b_26 {
-    jmp b_28
+    %v_28 = add %v_22, 4: Long
+    jmp b_29
   }
 
-  b_28 {
-    %v_29 = phi [b_25, %v_27], [b_26, %v_21]: Long
-    %v_30 = alloca 1, 1: Ptr
-    store %v_30, 1, 1
+  b_27 {
+    jmp b_29
+  }
+
+  b_29 {
+    %v_30 = phi [b_26, %v_28], [b_27, %v_22]: Long
     %v_31 = alloca 1, 1: Ptr
-    store %v_31, 0, 1
-    %v_32 = call_complex Eq(Maybe(a)).!=(Bool), %v_30, %v_31: Int
-    je %v_32, b_33, b_34
+    store %v_31, 1, 1
+    %v_32 = alloca 1, 1: Ptr
+    store %v_32, 0, 1
+    %v_33 = call_complex Eq(Maybe(a)).==(Bool), %v_31, %v_32: Int
+    %v_34 = xor %v_33, 1: Int
+    je %v_34, b_35, b_36
   }
 
-  b_33 {
-    %v_35 = add %v_29, 8: Long
-    jmp b_36
-  }
-
-  b_34 {
-    jmp b_36
+  b_35 {
+    %v_37 = add %v_30, 8: Long
+    jmp b_38
   }
 
   b_36 {
-    %v_37 = phi [b_33, %v_35], [b_34, %v_29]: Long
-    ret %v_37
+    jmp b_38
+  }
+
+  b_38 {
+    %v_39 = phi [b_35, %v_37], [b_36, %v_30]: Long
+    ret %v_39
   }
 }
 

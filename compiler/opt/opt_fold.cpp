@@ -673,8 +673,8 @@ void foldFunction(OptContext& opt) {
             if(folded) replaceValue(opt, (ModulePtr<Value>)pointer, folded);
         }
 
-        // A branch on a constant is left alone: removing the edge is a CFG rewrite, and the phis,
-        // the dominance and the ownership passes' block-level facts all rest on the shape of the
-        // graph. It belongs with the branch folding that comes after place forwarding.
+        // A branch on a constant is left alone *here*: removing the edge is a CFG rewrite, and the
+        // phis, the dominance and the ownership passes' block-level facts all rest on the shape of
+        // the graph. opt_branch.cpp is that rewrite, and runs after place forwarding.
     }
 }

@@ -1,19 +1,7 @@
 
 copyIsIndependent<complex>(): Int {
   b_0 {
-    %duplicate = alloca 8, 4: Ptr
-    store %duplicate, 1, 4
-    %v_1 = add %duplicate, 4: Ptr
-    store %v_1, 2, 4
-    %v_2 = loads %duplicate, 4: Int
-    %v_3 = add %v_2, 1: Int
-    store %duplicate, %v_3, 4
-    %it$x = loads %duplicate, 4: Int
-    %v_4 = add %duplicate, 4: Ptr
-    %it$y = loads %v_4, 4: Int
-    %v_5 = add %it$x, %it$y: Int
-    %v_6 = add %v_5, 3: Int
-    ret %v_6
+    ret 7
   }
 }
 
@@ -39,30 +27,21 @@ onlyRead<complex>(): Int {
 
 mutableOnOneArm<complex>(%flag: Int): Int {
   b_0 {
-    %p = alloca 8, 4: Ptr
-    store %p, 1, 4
-    %v_1 = add %p, 4: Ptr
-    store %v_1, 2, 4
-    je %flag, b_2, b_3
+    je %flag, b_1, b_2
+  }
+
+  b_1 {
+    jmp b_3
   }
 
   b_2 {
-    %v_4 = loads %p, 4: Int
-    %v_5 = add %v_4, 1: Int
-    store %p, %v_5, 4
-    jmp b_6
+    jmp b_3
   }
 
   b_3 {
-    jmp b_6
-  }
-
-  b_6 {
-    %it$x = loads %p, 4: Int
-    %v_7 = add %p, 4: Ptr
-    %it$y = loads %v_7, 4: Int
-    %v_8 = add %it$x, %it$y: Int
-    ret %v_8
+    %v_4 = phi [b_1, 2], [b_2, 1]: Int
+    %v_5 = add %v_4, 2: Int
+    ret %v_5
   }
 }
 

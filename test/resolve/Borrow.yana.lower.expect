@@ -1,13 +1,4 @@
 
-*=(Int)<complex>(%target: Ptr, %amount: Int) {
-  b_0 {
-    %v_1 = loads %target, 4: Int
-    %v_2 = imul %v_1, %amount: Int
-    store %target, %v_2, 4
-    ret 
-  }
-}
-
 swap<complex>(%a: Ptr, %b: Ptr) {
   b_0 {
     %old = loads %a, 4: Int
@@ -47,36 +38,19 @@ moveBy<complex>(%p: Ptr, %dx: Int, %dy: Int) {
 
 main<complex>(): Int {
   b_0 {
-    %total = alloca 4, 4: Ptr
-    store %total, 0, 4
-    %v_1 = loads %total, 4: Int
-    %v_2 = add %v_1, 5: Int
-    store %total, %v_2, 4
-    call_complex +=(Int), %total, 3
-    call_complex *=(Int), %total, 2
     %here = alloca 8, 4: Ptr
     store %here, 10, 4
-    %v_3 = add %here, 4: Ptr
-    store %v_3, 20, 4
-    %v_4 = loads %here, 4: Int
+    %v_1 = add %here, 4: Ptr
+    store %v_1, 20, 4
     call_complex +=(Int), %here, 1
+    %v_2 = add %here, 4: Ptr
+    call_complex +=(Int), %v_2, 2
+    %v_3 = loads %here, 4: Int
+    %v_4 = add %v_3, 33: Int
     %v_5 = add %here, 4: Ptr
     %v_6 = loads %v_5, 4: Int
-    %v_7 = add %here, 4: Ptr
-    call_complex +=(Int), %v_7, 2
-    %v_8 = loads %total, 4: Int
-    %v_9 = loads %total, 4: Int
-    %v_10 = add %v_9, %v_8: Int
-    store %total, %v_10, 4
-    %v_11 = loads %total, 4: Int
-    %v_12 = sub 2, 1: Int
-    %v_13 = add %v_11, %v_12: Int
-    %v_14 = loads %here, 4: Int
-    %v_15 = add %v_13, %v_14: Int
-    %v_16 = add %here, 4: Ptr
-    %v_17 = loads %v_16, 4: Int
-    %v_18 = add %v_15, %v_17: Int
-    ret %v_18
+    %v_7 = add %v_4, %v_6: Int
+    ret %v_7
   }
 }
 

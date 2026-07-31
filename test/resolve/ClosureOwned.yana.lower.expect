@@ -212,15 +212,6 @@ drop$() -> Int<complex>(%value: Ptr) {
   }
 }
 
-+=(Int)<complex>(%target: Ptr, %amount: Int) {
-  b_0 {
-    %v_1 = loads %target, 4: Int
-    %v_2 = add %v_1, %amount: Int
-    store %target, %v_2, 4
-    ret 
-  }
-}
-
 makeSummer<complex>(%v_0: Ptr, %xs: Ptr) {
   b_1 {
     %v_2 = call_complex allocateHeap, 24: Ptr
@@ -344,31 +335,26 @@ allocateHeap<complex>(%size: Long): Ptr {
 
 total<complex>(%xs: Ptr): Int {
   b_0 {
-    %sum = alloca 4, 4: Ptr
-    store %sum, 0, 4
-    %i = alloca 4, 4: Ptr
-    store %i, 0, 4
     jmp b_1
   }
 
   b_1 {
-    %v_2 = loads %i, 4: Int
-    %v_3 = call_complex length(Int), %xs: Int
-    %v_4 = cmp_ilt %v_2, %v_3: Int
-    je %v_4, b_5, b_6
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = call_complex length(Int), %xs: Int
+    %v_8 = cmp_ilt %v_5, %v_7: Int
+    je %v_8, b_3, b_9
   }
 
-  b_6 {
-    %v_7 = loads %sum, 4: Int
-    ret %v_7
+  b_9 {
+    ret %v_2
   }
 
-  b_5 {
-    %v_8 = loads %i, 4: Int
-    %v_9 = call_complex get(Int), %xs, %v_8: Ptr
-    %v_10 = loads %v_9, 4: Int
-    call_complex +=(Int), %sum, %v_10
-    call_complex +=(Int), %i, 1
+  b_3 {
+    %v_10 = call_complex get(Int), %xs, %v_5: Ptr
+    %v_11 = loads %v_10, 4: Int
+    %v_4 = add %v_2, %v_11: Int
+    %v_6 = add %v_5, 1: Int
     jmp b_1
   }
 }

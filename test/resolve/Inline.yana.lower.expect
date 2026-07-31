@@ -36,9 +36,8 @@ measured<complex>(%v: Int): Int {
 
 mutated<complex>(%seed: Int): Int {
   b_0 {
-    %v_1 = imul %seed, 2: Int
-    %v_2 = imul %v_1, 2: Int
-    ret %v_2
+    %v_1 = imul %seed, 4: Int
+    ret %v_1
   }
 }
 
@@ -196,23 +195,20 @@ branching<complex>(%a: Int): Int {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = imul 7, 2: Int
-    %v_2 = imul %v_1, 2: Int
-    %v_3 = add %v_2, 69: Int
-    %v_4 = call_complex clamped, 50: Int
-    %v_5 = call_complex clamped, 150: Int
+    %v_1 = call_complex clamped, 50: Int
+    %v_2 = call_complex clamped, 150: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = add %v_3, 97: Int
+    %v_5 = call_complex countDown, 4: Int
     %v_6 = add %v_4, %v_5: Int
-    %v_7 = add %v_3, %v_6: Int
-    %v_8 = call_complex countDown, 4: Int
-    %v_9 = add %v_7, %v_8: Int
-    %v_10 = add %v_9, 13: Int
-    %v_11 = call_complex measured, 1: Int
-    %v_12 = call_complex measured, 2: Int
+    %v_7 = add %v_6, 13: Int
+    %v_8 = call_complex measured, 1: Int
+    %v_9 = call_complex measured, 2: Int
+    %v_10 = add %v_8, %v_9: Int
+    %v_11 = add %v_7, %v_10: Int
+    %v_12 = call_complex requested, 4: Int
     %v_13 = add %v_11, %v_12: Int
-    %v_14 = add %v_10, %v_13: Int
-    %v_15 = call_complex requested, 4: Int
-    %v_16 = add %v_14, %v_15: Int
-    ret %v_16
+    ret %v_13
   }
 }
 

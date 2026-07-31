@@ -1,31 +1,23 @@
 
 escaped<complex>(%a: Int): Int {
   b_0 {
-    %p = alloca 8, 4: Ptr
-    store %p, %a, 4
-    %v_1 = add %p, 4: Ptr
-    store %v_1, 1, 4
-    %v_2 = cmp_igt %a, 0: Int
-    je %v_2, b_3, b_4
+    %v_1 = cmp_igt %a, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = add %a, 1: Int
+    jmp b_5
   }
 
   b_3 {
-    %v_5 = loads %p, 4: Int
-    %v_6 = add %v_5, 1: Int
-    store %p, %v_6, 4
-    jmp b_7
+    jmp b_5
   }
 
-  b_4 {
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = loads %p, 4: Int
-    %v_9 = add %p, 4: Ptr
-    %v_10 = loads %v_9, 4: Int
-    %v_11 = add %v_8, %v_10: Int
-    ret %v_11
+  b_5 {
+    %v_6 = phi [b_2, %v_4], [b_3, %a]: Int
+    %v_7 = add %v_6, 1: Int
+    ret %v_7
   }
 }
 

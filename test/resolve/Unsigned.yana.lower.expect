@@ -15,11 +15,11 @@ remainder<complex>(%a: Long, %b: Long): Long {
 
 main<complex>(): Int {
   b_0 {
-    je 1, b_1, b_2
+    jmp b_1
   }
 
   b_1 {
-    jmp b_3
+    jmp b_2
   }
 
   b_2 {
@@ -27,23 +27,11 @@ main<complex>(): Int {
   }
 
   b_3 {
-    %quotientIsPositive = phi [b_1, 1], [b_2, 0]: Int
-    je 1, b_4, b_5
+    jmp b_4
   }
 
   b_4 {
-    jmp b_6
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    %signedStillSigned = phi [b_4, 10], [b_5, 0]: Int
-    %v_7 = add %quotientIsPositive, %signedStillSigned: Int
-    %v_8 = add %v_7, 2: Int
-    ret %v_8
+    ret 13
   }
 }
 

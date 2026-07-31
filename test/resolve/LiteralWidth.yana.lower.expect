@@ -244,37 +244,32 @@ main<complex>(): Int {
     %v_32 = call_complex castMatch, 1: Long
     %v_33 = call_complex checkW, %v_32, 34359738623, 32768: Int
     %v_34 = add %v_31, %v_33: Int
-    je 1, b_35, b_36
+    jmp b_35
   }
 
   b_35 {
-    jmp b_37
+    jmp b_36
   }
 
   b_36 {
-    jmp b_37
+    %v_37 = add %v_34, 65536: Int
+    %v_38 = call_complex narrowIf, 1, 4294967301: Int
+    %v_39 = cmp_eq %v_38, 5: Int
+    je %v_39, b_40, b_41
   }
 
-  b_37 {
-    %v_38 = phi [b_35, 65536], [b_36, 0]: Int
-    %v_39 = add %v_34, %v_38: Int
-    %v_40 = call_complex narrowIf, 1, 4294967301: Int
-    %v_41 = cmp_eq %v_40, 5: Int
-    je %v_41, b_42, b_43
+  b_40 {
+    jmp b_42
+  }
+
+  b_41 {
+    jmp b_42
   }
 
   b_42 {
-    jmp b_44
-  }
-
-  b_43 {
-    jmp b_44
-  }
-
-  b_44 {
-    %v_45 = phi [b_42, 131072], [b_43, 0]: Int
-    %v_46 = add %v_39, %v_45: Int
-    ret %v_46
+    %v_43 = phi [b_40, 131072], [b_41, 0]: Int
+    %v_44 = add %v_37, %v_43: Int
+    ret %v_44
   }
 }
 

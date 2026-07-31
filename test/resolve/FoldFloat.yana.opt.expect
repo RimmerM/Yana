@@ -35,17 +35,13 @@ fn divided() -> Int {
 
 fn compared() -> Int {
   b0:
-    je True, b1, b2
+    jmp b1
 
   b1:
-    jmp b3
+    jmp b2
 
   b2:
-    jmp b3
-
-  b3:
-    %v9 = phi [b1, 30], [b2, 0] : Int
-    ret %v9
+    ret 30
 }
 
 fn outOfRange() -> Int {

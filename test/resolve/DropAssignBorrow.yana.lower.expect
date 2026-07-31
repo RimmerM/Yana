@@ -330,10 +330,7 @@ makeBuffer<complex>(%v_0: Ptr, %size: Long) {
 
 main<complex>(): Long {
   b_0 {
-    %result = alloca 8, 8: Ptr
-    store %result, 0, 8
     %v_1 = call_complex whole: Long
-    call_complex +=(I64), %result, %v_1
     %v_2 = loads @liveBuffers, 8: Long
     %v_3 = cmp_neq %v_2, 0: Int
     je %v_3, b_4, b_5
@@ -349,39 +346,38 @@ main<complex>(): Long {
 
   b_6 {
     %v_7 = call_complex other: Long
-    call_complex +=(I64), %result, %v_7
-    %v_8 = loads @liveBuffers, 8: Long
-    %v_9 = cmp_neq %v_8, 0: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_10 {
-    ret 18446744073709551614
+    %v_8 = add %v_1, %v_7: Long
+    %v_9 = loads @liveBuffers, 8: Long
+    %v_10 = cmp_neq %v_9, 0: Int
+    je %v_10, b_11, b_12
   }
 
   b_11 {
-    jmp b_12
+    ret 18446744073709551614
   }
 
   b_12 {
-    %v_13 = call_complex field: Long
-    call_complex +=(I64), %result, %v_13
-    %v_14 = loads @liveBuffers, 8: Long
-    %v_15 = cmp_neq %v_14, 0: Int
-    je %v_15, b_16, b_17
+    jmp b_13
   }
 
-  b_16 {
-    ret 18446744073709551613
-  }
-
-  b_17 {
-    jmp b_18
+  b_13 {
+    %v_14 = call_complex field: Long
+    %v_15 = add %v_8, %v_14: Long
+    %v_16 = loads @liveBuffers, 8: Long
+    %v_17 = cmp_neq %v_16, 0: Int
+    je %v_17, b_18, b_19
   }
 
   b_18 {
-    %v_19 = loads %result, 8: Long
-    ret %v_19
+    ret 18446744073709551613
+  }
+
+  b_19 {
+    jmp b_20
+  }
+
+  b_20 {
+    ret %v_15
   }
 }
 

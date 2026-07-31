@@ -25,25 +25,11 @@ function direct() {
 }
 
 function borrowed() {
-  var v11 = { $v: 1 };
-  var v15 = v11;
-  v15.$v = v15.$v + 1 >>> 0;
-  var v20 = (v11.$v & 15) >>> 0 & 15;
-  var v24 = { $v: 3 };
-  var v28 = v24;
-  v28.$v = v28.$v + 1 >>> 0;
-  return (Math.imul(v20 | 0, 100) | 0) + ((v24.$v & 8191) >>> 0 & 8191 | 0) | 0;
+  return (Math.imul(2 & 15 | 0, 100) | 0) + (4 & 8191 | 0) | 0;
 }
 
 function neighbours() {
-  var v11 = { $v: 1 };
-  var v15 = v11;
-  v15.$v = v15.$v + 1 >>> 0;
-  var v20 = (v11.$v & 15) >>> 0 & 15;
-  var v25 = { $v: 100 };
-  var v29 = v25;
-  v29.$v = Math.imul(v29.$v, 3) >>> 0;
-  return (Math.imul(v20 | 0, 1000) | 0) + ((v25.$v & 8191) >>> 0 & 8191 | 0) | 0;
+  return (Math.imul(2 & 15 | 0, 1000) | 0) + (300 & 8191 | 0) | 0;
 }
 
 function together() {
@@ -66,10 +52,7 @@ function together() {
 }
 
 function unpacked() {
-  var v9 = { $v: 7 };
-  var v13 = v9;
-  v13.$v = v13.$v + 1 >>> 0;
-  return (Math.imul((v9.$v & 31) >>> 0 & 31 | 0, 10) | 0) + 5 | 0;
+  return (Math.imul(8 & 31 | 0, 10) | 0) + 5 | 0;
 }
 
 function pick(flag, a$o, a$k, a$s, b$o, b$k, b$s) {
@@ -155,8 +138,7 @@ function nudge(x$o, x$k, x$s) {
 }
 
 function nudgeTwice(x$o, x$k, x$s) {
-  x$o[x$k] = $b13u$set(x$o[x$k], x$s, (($b13u$get(x$o[x$k], x$s) >>> 0) + 1 >>> 0 & 8191) >>> 0 & 8191);
-  x$o[x$k] = $b13u$set(x$o[x$k], x$s, (($b13u$get(x$o[x$k], x$s) >>> 0) + 1 >>> 0 & 8191) >>> 0 & 8191);
+  x$o[x$k] = $b13u$set(x$o[x$k], x$s, ((((($b13u$get(x$o[x$k], x$s) >>> 0) + 1 >>> 0 & 8191) >>> 0 & 8191) >>> 0) + 1 >>> 0 & 8191) >>> 0 & 8191);
   return;
 }
 

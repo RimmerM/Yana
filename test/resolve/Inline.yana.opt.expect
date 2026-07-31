@@ -88,18 +88,8 @@ fn constructed(%a: Int) -> Int {
 
 fn mutated(%seed: Int) -> Int {
   b0:
-    %n = alloc : Int
-    init %n, %seed
-    %v4 = borrow_mut %n : &mut Int
-    %v11 = load [%v4] : Int
-    %v13 = mul %v11, 2 : Int
-    assign [%v4], %v13
-    %v7 = borrow_mut %n : &mut Int
-    %v15 = load [%v7] : Int
-    %v17 = mul %v15, 2 : Int
-    assign [%v7], %v17
-    %v9 = load %n : Int
-    ret %v9
+    %v17 = mul %seed, 4 : Int
+    ret %v17
 }
 
 fn measured(%v: Int) -> Int {
@@ -178,22 +168,10 @@ fn recursive() -> Int {
 
 fn main() -> Int {
   b0:
-    %n = alloc : Int
-    init %n, 7
-    %v56 = borrow_mut %n : &mut Int
-    %v57 = load [%v56] : Int
-    %v59 = mul %v57, 2 : Int
-    assign [%v56], %v59
-    %v62 = borrow_mut %n : &mut Int
-    %v63 = load [%v62] : Int
-    %v65 = mul %v63, 2 : Int
-    assign [%v62], %v65
-    %v67 = load %n : Int
-    %v10 = add %v67, 69 : Int
     %v68 = call clamped, 50 : Int
     %v71 = call clamped, 150 : Int
     %v72 = add %v68, %v71 : Int
-    %v13 = add %v10, %v72 : Int
+    %v13 = add %v72, 97 : Int
     %v73 = call countDown, 4 : Int
     %v15 = add %v13, %v73 : Int
     %v20 = add %v15, 13 : Int

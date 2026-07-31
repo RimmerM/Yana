@@ -494,10 +494,7 @@ Sink(Handle).sink<complex>(%to: Ptr, %from: Ptr) {
 
 main<complex>(): Long {
   b_0 {
-    %result = alloca 8, 8: Ptr
-    store %result, 0, 8
     %v_1 = call_complex direct: Long
-    call_complex +=(I64), %result, %v_1
     %v_2 = loads @sinkCalls, 8: Long
     %v_3 = cmp_neq %v_2, 1: Int
     je %v_3, b_4, b_5
@@ -513,192 +510,191 @@ main<complex>(): Long {
 
   b_6 {
     %v_7 = call_complex derived: Long
-    call_complex +=(I64), %result, %v_7
-    %v_8 = loads @sinkCalls, 8: Long
-    %v_9 = cmp_neq %v_8, 2: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_10 {
-    ret 18446744073709551614
+    %v_8 = add %v_1, %v_7: Long
+    %v_9 = loads @sinkCalls, 8: Long
+    %v_10 = cmp_neq %v_9, 2: Int
+    je %v_10, b_11, b_12
   }
 
   b_11 {
-    jmp b_12
+    ret 18446744073709551614
   }
 
   b_12 {
-    %v_13 = call_complex nested: Long
-    call_complex +=(I64), %result, %v_13
-    %v_14 = loads @sinkCalls, 8: Long
-    %v_15 = cmp_neq %v_14, 3: Int
-    je %v_15, b_16, b_17
+    jmp b_13
   }
 
-  b_16 {
-    ret 18446744073709551613
-  }
-
-  b_17 {
-    jmp b_18
+  b_13 {
+    %v_14 = call_complex nested: Long
+    %v_15 = add %v_8, %v_14: Long
+    %v_16 = loads @sinkCalls, 8: Long
+    %v_17 = cmp_neq %v_16, 3: Int
+    je %v_17, b_18, b_19
   }
 
   b_18 {
-    %v_19 = call_complex tagged, 1: Long
-    call_complex +=(I64), %result, %v_19
-    %v_20 = loads @sinkCalls, 8: Long
-    %v_21 = cmp_neq %v_20, 4: Int
-    je %v_21, b_22, b_23
+    ret 18446744073709551613
   }
 
-  b_22 {
+  b_19 {
+    jmp b_20
+  }
+
+  b_20 {
+    %v_21 = call_complex tagged, 1: Long
+    %v_22 = add %v_15, %v_21: Long
+    %v_23 = loads @sinkCalls, 8: Long
+    %v_24 = cmp_neq %v_23, 4: Int
+    je %v_24, b_25, b_26
+  }
+
+  b_25 {
     ret 18446744073709551612
   }
 
-  b_23 {
-    jmp b_24
+  b_26 {
+    jmp b_27
   }
 
-  b_24 {
-    %v_25 = call_complex tagged, 0: Long
-    call_complex +=(I64), %result, %v_25
-    %v_26 = loads @sinkCalls, 8: Long
-    %v_27 = cmp_neq %v_26, 4: Int
-    je %v_27, b_28, b_29
+  b_27 {
+    %v_28 = call_complex tagged, 0: Long
+    %v_29 = add %v_22, %v_28: Long
+    %v_30 = loads @sinkCalls, 8: Long
+    %v_31 = cmp_neq %v_30, 4: Int
+    je %v_31, b_32, b_33
   }
 
-  b_28 {
+  b_32 {
     ret 18446744073709551611
   }
 
-  b_29 {
-    jmp b_30
-  }
-
-  b_30 {
-    %handed = alloca 8, 8: Ptr
-    store %handed, 5, 8
-    %v_31 = call_complex consume, %handed: Long
-    call_complex +=(I64), %result, %v_31
-    %v_32 = loads @sinkCalls, 8: Long
-    %v_33 = cmp_neq %v_32, 4: Int
-    je %v_33, b_34, b_35
+  b_33 {
+    jmp b_34
   }
 
   b_34 {
+    %handed = alloca 8, 8: Ptr
+    store %handed, 5, 8
+    %v_35 = call_complex consume, %handed: Long
+    %v_36 = add %v_29, %v_35: Long
+    %v_37 = loads @sinkCalls, 8: Long
+    %v_38 = cmp_neq %v_37, 4: Int
+    je %v_38, b_39, b_40
+  }
+
+  b_39 {
     ret 18446744073709551610
   }
 
-  b_35 {
-    jmp b_36
-  }
-
-  b_36 {
-    %v_37 = alloca 8, 8: Ptr
-    store %v_37, 30, 8
-    %closed = alloca 16, 8: Ptr
-    call_complex captured, %closed, %v_37
-    %v_38 = loads @sinkCalls, 8: Long
-    %v_39 = cmp_neq %v_38, 5: Int
-    je %v_39, b_40, b_41
-  }
-
-  b_42 {
-    ret 18446744073709551609
+  b_40 {
+    jmp b_41
   }
 
   b_41 {
-    jmp b_43
+    %v_42 = alloca 8, 8: Ptr
+    store %v_42, 30, 8
+    %closed = alloca 16, 8: Ptr
+    call_complex captured, %closed, %v_42
+    %v_43 = loads @sinkCalls, 8: Long
+    %v_44 = cmp_neq %v_43, 5: Int
+    je %v_44, b_45, b_46
   }
 
-  b_43 {
-    %v_44 = add %closed, 8: Ptr
-    %v_45 = load %closed, 8: Ptr
-    %v_46 = load %v_44, 8: Ptr
-    %v_47 = call_complex %v_45, %v_46: Long
+  b_47 {
+    ret 18446744073709551609
+  }
+
+  b_46 {
+    jmp b_48
+  }
+
+  b_48 {
+    %v_49 = add %closed, 8: Ptr
+    %v_50 = load %closed, 8: Ptr
+    %v_51 = load %v_49, 8: Ptr
+    %v_52 = call_complex %v_50, %v_51: Long
     call_complex drop$() -> I64, %closed
     call_complex reclaim$() -> I64, %closed
-    call_complex +=(I64), %result, %v_47
+    %v_53 = add %v_36, %v_52: Long
     %pair = alloca 16, 8: Ptr
     store %pair, 60, 8
-    %v_48 = add %pair, 8: Ptr
-    store %v_48, 6, 8
+    %v_54 = add %pair, 8: Ptr
+    store %v_54, 6, 8
     %retagged = alloca 16, 8: Ptr
     call_complex retag, %retagged, %pair
-    %v_49 = loads @sinkCalls, 8: Long
-    %v_50 = cmp_neq %v_49, 6: Int
-    je %v_50, b_51, b_52
+    %v_55 = loads @sinkCalls, 8: Long
+    %v_56 = cmp_neq %v_55, 6: Int
+    je %v_56, b_57, b_58
   }
 
-  b_51 {
+  b_57 {
     ret 18446744073709551608
   }
 
-  b_52 {
-    jmp b_53
+  b_58 {
+    jmp b_59
   }
 
-  b_53 {
-    %v_54 = loads %retagged, 8: Long
-    %v_55 = add %retagged, 8: Ptr
-    %v_56 = loads %v_55, 8: Long
-    %v_57 = add %v_54, %v_56: Long
-    call_complex +=(I64), %result, %v_57
-    %v_58 = alloca 8, 8: Ptr
-    store %v_58, 70, 8
+  b_59 {
+    %v_60 = loads %retagged, 8: Long
+    %v_61 = add %retagged, 8: Ptr
+    %v_62 = loads %v_61, 8: Long
+    %v_63 = add %v_60, %v_62: Long
+    %v_64 = add %v_53, %v_63: Long
+    %v_65 = alloca 8, 8: Ptr
+    store %v_65, 70, 8
     %relocated = alloca 8, 8: Ptr
-    call_complex relocate(Handle), %relocated, %v_58
-    %v_59 = loads @sinkCalls, 8: Long
-    %v_60 = cmp_neq %v_59, 7: Int
-    je %v_60, b_61, b_62
+    call_complex relocate(Handle), %relocated, %v_65
+    %v_66 = loads @sinkCalls, 8: Long
+    %v_67 = cmp_neq %v_66, 7: Int
+    je %v_67, b_68, b_69
   }
 
-  b_61 {
+  b_68 {
     ret 18446744073709551607
   }
 
-  b_62 {
-    jmp b_63
-  }
-
-  b_63 {
-    %v_64 = loads %relocated, 8: Long
-    call_complex +=(I64), %result, %v_64
-    %v_65 = alloca 16, 8: Ptr
-    store %v_65, 80, 8
-    %v_66 = add %v_65, 8: Ptr
-    store %v_66, 8, 8
-    %relocatedPair = alloca 16, 8: Ptr
-    call_complex relocate(Pair), %relocatedPair, %v_65
-    %v_67 = loads @sinkCalls, 8: Long
-    %v_68 = cmp_neq %v_67, 8: Int
-    je %v_68, b_69, b_70
-  }
-
   b_69 {
-    ret 18446744073709551606
+    jmp b_70
   }
 
   b_70 {
-    jmp b_71
+    %v_71 = loads %relocated, 8: Long
+    %v_72 = add %v_64, %v_71: Long
+    %v_73 = alloca 16, 8: Ptr
+    store %v_73, 80, 8
+    %v_74 = add %v_73, 8: Ptr
+    store %v_74, 8, 8
+    %relocatedPair = alloca 16, 8: Ptr
+    call_complex relocate(Pair), %relocatedPair, %v_73
+    %v_75 = loads @sinkCalls, 8: Long
+    %v_76 = cmp_neq %v_75, 8: Int
+    je %v_76, b_77, b_78
   }
 
-  b_71 {
-    %v_72 = loads %relocatedPair, 8: Long
-    %v_73 = add %relocatedPair, 8: Ptr
-    %v_74 = loads %v_73, 8: Long
-    %v_75 = add %v_72, %v_74: Long
-    call_complex +=(I64), %result, %v_75
-    %v_76 = loads %result, 8: Long
-    %v_77 = loads @sinkCalls, 8: Long
-    %v_78 = add %v_76, %v_77: Long
-    ret %v_78
+  b_77 {
+    ret 18446744073709551606
   }
 
-  b_40 {
+  b_78 {
+    jmp b_79
+  }
+
+  b_79 {
+    %v_80 = loads %relocatedPair, 8: Long
+    %v_81 = add %relocatedPair, 8: Ptr
+    %v_82 = loads %v_81, 8: Long
+    %v_83 = add %v_80, %v_82: Long
+    %v_84 = add %v_72, %v_83: Long
+    %v_85 = loads @sinkCalls, 8: Long
+    %v_86 = add %v_84, %v_85: Long
+    ret %v_86
+  }
+
+  b_45 {
     call_complex drop$() -> I64, %closed
     call_complex reclaim$() -> I64, %closed
-    jmp b_42
+    jmp b_47
   }
 }
 

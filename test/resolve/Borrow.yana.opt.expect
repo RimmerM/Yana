@@ -1,0 +1,57 @@
+fn +=(Int)(%target: Int, %amount: Int) -> () {
+  b0:
+    %v2 = load %target : Int
+    %v3 = add %v2, %amount : Int
+    assign %target, %v3
+    ret
+}
+
+fn bump(%counter: Int, %by: Int) -> () {
+  b0:
+    %v2 = load %counter : Int
+    %v3 = add %v2, %by : Int
+    assign %counter, %v3
+    ret
+}
+
+fn swap(%a: Int, %b: Int) -> () {
+  b0:
+    %old = load %a : Int
+    %v3 = load %b : Int
+    assign %a, %v3
+    assign %b, %old
+    ret
+}
+
+fn moveBy(%p: Point, %dx: Int, %dy: Int) -> () {
+  b0:
+    %v5 = borrow_mut %p@Point.x : &mut Int
+    call +=(Int), %v5, %dx
+    %v9 = borrow_mut %p@Point.y : &mut Int
+    call +=(Int), %v9, %dy
+    ret
+}
+
+fn copyThroughBorrow(%target: Int, %amount: Int) -> () {
+  b0:
+    %v2 = load %target : Int
+    %v3 = add %v2, %amount : Int
+    assign %target, %v3
+    ret
+}
+
+fn main() -> Int {
+  b0:
+    %here = alloc : Point
+    init %here@Point.x, 10
+    init %here@Point.y, 20
+    %v71 = borrow_mut %here@Point.x : &mut Int
+    call +=(Int), %v71, 1
+    %v75 = borrow_mut %here@Point.y : &mut Int
+    call +=(Int), %v75, 2
+    %v50 = load %here@Point.x : Int
+    %v51 = add %v50, 33 : Int
+    %v53 = load %here@Point.y : Int
+    %v54 = add %v51, %v53 : Int
+    ret %v54
+}

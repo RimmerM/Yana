@@ -138,27 +138,19 @@ fn nested(%a: Int) -> Int {
 
 fn escaped(%a: Int) -> Int {
   b0:
-    %p = alloc : Point
-    init %p@Point.x, %a
-    init %p@Point.y, 1
     %v9 = cmp_gt %a, 0 : Bool
     je %v9, b1, b2
 
   b1:
-    %v12 = borrow_mut %p : &mut Point
-    %v22 = load [%v12] : Point
-    %v23 = load [%v12]@Point.x : Int
-    %v25 = add %v23, 1 : Int
-    assign [%v12]@Point.x, %v25
+    %v25 = add %a, 1 : Int
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v17 = load %p@Point.x : Int
-    %v19 = load %p@Point.y : Int
-    %v20 = add %v17, %v19 : Int
+    %v41 = phi [b1, %v25], [b2, %a] : Int
+    %v20 = add %v41, 1 : Int
     ret %v20
 }
 

@@ -256,29 +256,24 @@ main<complex>(): Int {
     %v_20 = add %v_18, %v_19: Int
     %v_21 = call_complex checkL, 16000000000000000000, 16000000000000000000, 512: Int
     %v_22 = add %v_20, %v_21: Int
-    je 1, b_23, b_24
+    jmp b_23
   }
 
   b_23 {
-    jmp b_25
+    jmp b_24
   }
 
   b_24 {
-    jmp b_25
-  }
-
-  b_25 {
-    %v_26 = phi [b_23, 1024], [b_24, 0]: Int
-    %v_27 = add %v_22, %v_26: Int
-    %v_28 = call_complex checkW, 4503599627370495, 4503599627370495, 2048: Int
+    %v_25 = add %v_22, 1024: Int
+    %v_26 = call_complex checkW, 4503599627370495, 4503599627370495, 2048: Int
+    %v_27 = add %v_25, %v_26: Int
+    %v_28 = call_complex checkU, 4, 4, 4096: Int
     %v_29 = add %v_27, %v_28: Int
-    %v_30 = call_complex checkU, 4, 4, 4096: Int
-    %v_31 = add %v_29, %v_30: Int
     %x = cast 18446744073709551612: Int
-    %v_32 = cast %x: Int
-    %v_33 = call_complex checkI, %v_32, 18446744073709551612, 8192: Int
-    %v_34 = add %v_31, %v_33: Int
-    ret %v_34
+    %v_30 = cast %x: Int
+    %v_31 = call_complex checkI, %v_30, 18446744073709551612, 8192: Int
+    %v_32 = add %v_29, %v_31: Int
+    ret %v_32
   }
 }
 

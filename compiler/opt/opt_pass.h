@@ -319,6 +319,10 @@ struct Loop {
 // out of the one containing it.
 void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops);
 
+// The blocks control can actually get to, indexed by block. A pass that reasons optimistically about
+// a cycle needs this, and so does one that deletes what nothing reaches.
+void computeReachable(OptContext& opt, Array<U8>& reachable);
+
 // Per local, whether a callee could reach its storage: indexed by local, and false for anything the
 // function handed an address of.
 void computeContainment(OptContext& opt, Array<U8>& contained);
@@ -357,6 +361,8 @@ bool samePlace(OptContext& opt, const Place& a, const Place& b);
 bool holdsLoadableValue(OptContext& opt, TypePtr type);
 
 void foldFunction(OptContext& opt);
+void foldBranches(OptContext& opt);
+void collapseBorrows(OptContext& opt);
 void forwardPlaces(OptContext& opt);
 void promotePlaces(OptContext& opt);
 void hoistLoopValues(OptContext& opt);

@@ -47,12 +47,7 @@ function constructed(a) {
 }
 
 function mutated(seed) {
-  var n = { $v: seed };
-  var v4 = n;
-  v4.$v = Math.imul(v4.$v, 2) | 0;
-  var v7 = n;
-  v7.$v = Math.imul(v7.$v, 2) | 0;
-  return n.$v;
+  return Math.imul(seed, 4) | 0;
 }
 
 function measured(v) {
@@ -80,10 +75,5 @@ function recursive() {
 }
 
 function main() {
-  var n = { $v: 7 };
-  var v56 = n;
-  v56.$v = Math.imul(v56.$v, 2) | 0;
-  var v62 = n;
-  v62.$v = Math.imul(v62.$v, 2) | 0;
-  return (((((n.$v + 69 | 0) + (clamped(50) + clamped(150) | 0) | 0) + countDown(4) | 0) + 13 | 0) + (measured(1) + measured(2) | 0) | 0) + requested(4) | 0;
+  return (((((clamped(50) + clamped(150) | 0) + 97 | 0) + countDown(4) | 0) + 13 | 0) + (measured(1) + measured(2) | 0) | 0) + requested(4) | 0;
 }

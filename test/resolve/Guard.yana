@@ -48,6 +48,19 @@ fn firstJust(a: Maybe(Int), b: Maybe(Int)) -> Int:
 -- `continue` from an alternative: the loop retries, and the binding is live for the rest of the
 -- body on the one path that reaches it. `c` decides how the loop is left, which is what makes
 -- the two exits distinguishable in the result.
+{-
+   `while True:` is where folding a constant branch stops being a peephole.
+
+   The exit test lives in the loop *header*, so `je True, body, exit` is what the resolver emits and
+   the header's immediate post-dominator is the block after the loop - which is exactly what
+   codegen/js takes for the loop's follow block. Fold the branch and leave the header behind, and its
+   post-dominator becomes the body: the structurizer emits a one-block loop and then meets the back
+   edge with nothing on its exit stack, which is an internal error rather than wrong code.
+
+   opt_branch.cpp splices the emptied header out for that reason, and what `.opt.expect` should show
+   is a loop whose header is the first block with something in it. This function is the one that said
+   so, by failing.
+-}
 fn retry(m: Maybe(Int), c: Color) -> Int:
     while True:
         let Just(v) = m | match:

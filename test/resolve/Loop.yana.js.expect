@@ -88,49 +88,47 @@ function written(count) {
 
 function withCall(seed, count) {
   var v5 = seed + 1 | 0;
-  var seen = { $v: 0 };
+  var seen = 0;
   var i = 0;
   var v24 = Math.imul(seed, v5) | 0;
   L0: for (;;) {
     if (i < count) {
-      var v19 = seen;
-      v19.$v = v19.$v + 1 | 0;
-      seen.$v = seen.$v + v24 | 0;
+      seen = (seen + 1 | 0) + v24 | 0;
       i = i + 1 | 0;
       continue L0;
     }
     break L0;
   }
-  return seen.$v;
+  return seen;
 }
 
 function fromCall(count) {
   var q = madePoint();
-  var seen = { $v: 0 };
+  var seen = 0;
   var i = 0;
+  var v18 = Math.imul(q.x, q.y) | 0;
   L0: for (;;) {
     if (i < count) {
-      var v13 = seen;
-      v13.$v = v13.$v + 1 | 0;
-      seen.$v = seen.$v + (Math.imul(q.x, q.y) | 0) | 0;
+      seen = (seen + 1 | 0) + v18 | 0;
       i = i + 1 | 0;
       continue L0;
     }
     break L0;
   }
-  return seen.$v;
+  return seen;
 }
 
 function escaping(count) {
-  var r = { x: 3, y: 4 };
+  var v49;
   var i = 0;
   var total = 0;
+  v49 = 3;
   L0: for (;;) {
     if (i < count) {
-      var v15 = r;
-      v15.x = v15.x + 1 | 0;
-      total = total + (Math.imul(r.x, r.y) | 0) | 0;
+      var v41 = v49 + 1 | 0;
+      total = total + (Math.imul(v41, 4) | 0) | 0;
       i = i + 1 | 0;
+      v49 = v41;
       continue L0;
     }
     break L0;

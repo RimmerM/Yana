@@ -1,0 +1,305 @@
+fn orZero(%m: Maybe(Int)) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    ret 0
+
+  b2:
+    %v = load %m@Just : Int
+    %v10 = add %v, 1 : Int
+    ret %v10
+}
+
+fn orZeroElse(%m: Maybe(Int)) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    ret 0
+
+  b2:
+    %v = load %m@Just : Int
+    %v10 = add %v, 2 : Int
+    ret %v10
+}
+
+fn describe(%m: Maybe(Color)) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    ret 0
+
+  b2:
+    %c = load %m@Just : Color
+    %v8 = cast %c : Int
+    %v10 = cmp_eq %v8, 0 : Bool
+    je %v10, b4, b3
+
+  b3:
+    %v15 = cmp_eq %v8, 1 : Bool
+    je %v15, b6, b5
+
+  b4:
+    jmp b7
+
+  b5:
+    jmp b7
+
+  b6:
+    jmp b7
+
+  b7:
+    %v22 = phi [b4, 1], [b6, 2], [b5, 3] : Int
+    ret %v22
+}
+
+fn onlyRed(%m: Maybe(Color)) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v10 = load %m.discriminant : Int
+    %v12 = cmp_eq %v10, 1 : Bool
+    je %v12, b5, b4
+
+  b2:
+    %v5 = load %m@Just : Color
+    %v6 = cast %v5 : Int
+    %v8 = cmp_eq %v6, 0 : Bool
+    je %v8, b3, b1
+
+  b3:
+    ret 10
+
+  b4:
+    %v21 = load %m.discriminant : Int
+    %v23 = cmp_eq %v21, 1 : Bool
+    je %v23, b8, b7
+
+  b5:
+    %v14 = load %m@Just : Color
+    %v15 = cast %v14 : Int
+    %v17 = cmp_eq %v15, 1 : Bool
+    je %v17, b6, b4
+
+  b6:
+    ret 20
+
+  b7:
+    ret 0
+
+  b8:
+    %v25 = load %m@Just : Color
+    %v26 = cast %v25 : Int
+    %v28 = cmp_eq %v26, 2 : Bool
+    je %v28, b9, b7
+
+  b9:
+    ret 30
+}
+
+fn scoped(%m: Maybe(Int)) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    ret 0
+
+  b2:
+    %v = load %m@Just : Int
+    %v10 = mul %v, 3 : Int
+    ret %v10
+}
+
+fn firstJust(%a: Maybe(Int), %b: Maybe(Int)) -> Int {
+  b0:
+    jmp b2
+
+  b1:
+    %v12 = load %b.discriminant : Int
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b5, b4
+
+  b2:
+    %v5 = load %a.discriminant : Int
+    %v7 = cmp_eq %v5, 1 : Bool
+    je %v7, b3, b1
+
+  b3:
+    %first = load %a@Just : Int
+    ret %first
+
+  b4:
+    ret 0
+
+  b5:
+    %second = load %b@Just : Int
+    ret %second
+}
+
+fn retry(%m: Maybe(Int), %c: Color) -> Int {
+  b0:
+    %v5 = load %m.discriminant : Int
+    %v7 = cmp_eq %v5, 1 : Bool
+    %v10 = cast %c : Int
+    %v12 = cmp_eq %v10, 0 : Bool
+    %v17 = cmp_eq %v10, 1 : Bool
+    jmp b2
+
+  b1:
+    ret 50
+
+  b2:
+    je %v7, b4, b3
+
+  b3:
+    je %v12, b1, b5
+
+  b4:
+    %v = load %m@Just : Int
+    %v24 = add %v, 1 : Int
+    ret %v24
+
+  b5:
+    je %v17, b6, b2
+
+  b6:
+    ret 100
+}
+
+fn scan(%c: Color) -> Int {
+  b0:
+    jmp b2
+
+  b1:
+    ret 9
+
+  b2:
+    %v4 = cast %c : Int
+    %v6 = cmp_eq %v4, 0 : Bool
+    je %v6, b1, b3
+
+  b3:
+    %v11 = cmp_eq %v4, 1 : Bool
+    je %v11, b5, b4
+
+  b4:
+    ret 8
+
+  b5:
+    ret 7
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = alloc : Maybe(Int)
+    init %local0.discriminant, 1
+    init %local0@Just, 1
+    %v5 = call orZero, %v0 : Int
+    %v6 = alloc : Maybe(Int)
+    init %local1.discriminant, 0
+    %v9 = call orZero, %v6 : Int
+    %v10 = add %v5, %v9 : Int
+    %v11 = alloc : Maybe(Int)
+    init %local2.discriminant, 1
+    init %local2@Just, 1
+    %v16 = call orZeroElse, %v11 : Int
+    %v17 = add %v10, %v16 : Int
+    %v18 = alloc : Maybe(Int)
+    init %local3.discriminant, 0
+    %v21 = call orZeroElse, %v18 : Int
+    %v22 = add %v17, %v21 : Int
+    %v23 = alloc : Maybe(Color)
+    init %local4.discriminant, 1
+    init %local4@Just, Red
+    %v28 = call describe, %v23 : Int
+    %v29 = add %v22, %v28 : Int
+    %v30 = alloc : Maybe(Color)
+    init %local5.discriminant, 1
+    init %local5@Just, Green
+    %v35 = call describe, %v30 : Int
+    %v36 = add %v29, %v35 : Int
+    %v37 = alloc : Maybe(Color)
+    init %local6.discriminant, 1
+    init %local6@Just, Blue
+    %v42 = call describe, %v37 : Int
+    %v43 = add %v36, %v42 : Int
+    %v44 = alloc : Maybe(Color)
+    init %local7.discriminant, 0
+    %v47 = call describe, %v44 : Int
+    %v48 = add %v43, %v47 : Int
+    %v49 = alloc : Maybe(Color)
+    init %local8.discriminant, 1
+    init %local8@Just, Red
+    %v54 = call onlyRed, %v49 : Int
+    %v55 = add %v48, %v54 : Int
+    %v56 = alloc : Maybe(Color)
+    init %local9.discriminant, 1
+    init %local9@Just, Green
+    %v61 = call onlyRed, %v56 : Int
+    %v62 = add %v55, %v61 : Int
+    %v63 = alloc : Maybe(Color)
+    init %local10.discriminant, 1
+    init %local10@Just, Blue
+    %v68 = call onlyRed, %v63 : Int
+    %v69 = add %v62, %v68 : Int
+    %v70 = alloc : Maybe(Color)
+    init %local11.discriminant, 0
+    %v73 = call onlyRed, %v70 : Int
+    %v74 = add %v69, %v73 : Int
+    %v75 = alloc : Maybe(Int)
+    init %local12.discriminant, 1
+    init %local12@Just, 4
+    %v80 = call scoped, %v75 : Int
+    %v81 = add %v74, %v80 : Int
+    %v82 = alloc : Maybe(Int)
+    init %local13.discriminant, 0
+    %v85 = call scoped, %v82 : Int
+    %v86 = add %v81, %v85 : Int
+    %v87 = alloc : Maybe(Int)
+    init %local14.discriminant, 0
+    %v90 = alloc : Maybe(Int)
+    init %local15.discriminant, 1
+    init %local15@Just, 7
+    %v95 = call firstJust, %v87, %v90 : Int
+    %v96 = add %v86, %v95 : Int
+    %v97 = alloc : Maybe(Int)
+    init %local16.discriminant, 1
+    init %local16@Just, 3
+    %v102 = alloc : Maybe(Int)
+    init %local17.discriminant, 0
+    %v105 = call firstJust, %v97, %v102 : Int
+    %v106 = add %v96, %v105 : Int
+    %v107 = alloc : Maybe(Int)
+    init %local18.discriminant, 1
+    init %local18@Just, 5
+    %v113 = call retry, %v107, Red : Int
+    %v114 = add %v106, %v113 : Int
+    %v115 = alloc : Maybe(Int)
+    init %local19.discriminant, 0
+    %v119 = call retry, %v115, Red : Int
+    %v120 = add %v114, %v119 : Int
+    %v121 = alloc : Maybe(Int)
+    init %local20.discriminant, 0
+    %v125 = call retry, %v121, Green : Int
+    %v126 = add %v120, %v125 : Int
+    %v128 = call scan, Red : Int
+    %v129 = add %v126, %v128 : Int
+    %v131 = call scan, Green : Int
+    %v132 = add %v129, %v131 : Int
+    %v134 = call scan, Blue : Int
+    %v135 = add %v132, %v134 : Int
+    ret %v135
+}

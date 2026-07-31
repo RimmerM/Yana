@@ -118,20 +118,15 @@ checkNotZero<complex>(): Int {
 
 checkCompare<complex>(): Int {
   b_0 {
-    je 1, b_1, b_2
+    jmp b_1
   }
 
   b_1 {
-    jmp b_3
+    jmp b_2
   }
 
   b_2 {
-    jmp b_3
-  }
-
-  b_3 {
-    %v_4 = phi [b_1, 65536], [b_2, 0]: Int
-    ret %v_4
+    ret 65536
   }
 }
 

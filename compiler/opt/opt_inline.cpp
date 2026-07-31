@@ -260,6 +260,23 @@ struct Inliner {
      * once: whether it can be inlined at all does not depend on who is calling, and only the budget
      * below does.
      */
+    // Whether any place in the body is rooted in this local, which is the difference between a slot
+    // that is storage and a slot that is only a name.
+    bool namesLocal(Block& body, U32 local) {
+        auto found = false;
+
+        auto visit = [&](Value& instruction) {
+            eachPlace(instruction, [&](const Place& place) {
+                if(place.root == PlaceRoot::Local && place.local == local) found = true;
+            });
+        };
+
+        for(auto pointer: body.instructions.contents(opt.local)) visit(*opt.local[pointer]);
+        if(body.terminator) visit(*opt.local[body.terminator]);
+
+        return found;
+    }
+
     Maybe<Candidate> describe(ModulePtr<Function> pointer) {
         auto callee = opt.local[pointer];
 
@@ -308,13 +325,30 @@ struct Inliner {
                 auto slot = callee->localAt(opt.local, local);
                 if(slot.value != (ModulePtr<Value>)argPointer) continue;
 
-                // A `&` parameter's slot is the caller's storage, which the rewrite below turns into
-                // a place rooted in the caller's borrow. Anything else with a slot is a memory-typed
-                // value parameter, which arrives as the caller's address and has no such rewrite.
-                if(!slot.borrowed) return Nothing();
+                // A `&` parameter's slot is the caller's storage, which the rewrite below turns
+                // into a place rooted in the caller's borrow.
+                if(slot.borrowed) {
+                    parameter.binding = Binding::Borrowed;
+                    parameter.local = local;
+                    break;
+                }
 
-                parameter.binding = Binding::Borrowed;
-                parameter.local = local;
+                /*
+                 * Any other parameter with a slot, and the question is whether the body ever reaches
+                 * the parameter *through* it.
+                 *
+                 * Where it does, the slot is the caller's address - a memory-typed value parameter -
+                 * and there is no rewrite here that would follow it, so the callee is declined.
+                 *
+                 * Where it does not, the slot is bookkeeping and the parameter is an ordinary SSA
+                 * value that `mapValue` already substitutes correctly. Telling the two apart matters
+                 * more than it sounds: a scalar value parameter gets a slot too, so assuming a slot
+                 * meant memory refused every function with one - which is most of Core's operators.
+                 * `+=(Int)` is four instructions over a mutable borrow, the single most rewarding
+                 * shape there is on a managed target, and it was being declined on its *second*
+                 * parameter for having storage nothing reads.
+                 */
+                if(namesLocal(*body, local)) return Nothing();
                 break;
             }
 

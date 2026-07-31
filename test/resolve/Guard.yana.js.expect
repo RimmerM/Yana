@@ -69,17 +69,14 @@ function scoped(m) {
 }
 
 function firstJust(a, b) {
-  B0: {
-    if (1) {
-      if (!(a === null)) {
-        return a;
-      }
-    }
-  }
-  if (!(b === null)) {
-    return b;
+  if (!(a === null)) {
+    return a;
   } else {
-    return 0;
+    if (!(b === null)) {
+      return b;
+    } else {
+      return 0;
+    }
   }
 }
 
@@ -89,42 +86,34 @@ function retry(m, c) {
   var v12 = v10 === 0;
   var v17 = v10 === 1;
   L0: for (;;) {
-    B1: {
-      if (1) {
-        if (v7) {
-          return m + 1 | 0;
+    if (v7) {
+      return m + 1 | 0;
+    } else {
+      if (v12) {
+        return 50;
+      } else {
+        if (v17) {
+          return 100;
         } else {
-          if (v12) {
-          } else {
-            if (v17) {
-              return 100;
-            } else {
-              continue L0;
-            }
-          }
+          continue L0;
         }
       }
     }
-    return 50;
     break L0;
   }
 }
 
 function scan(c) {
-  B0: {
-    if (1) {
-      var v4 = c | 0;
-      if (v4 === 0) {
-      } else {
-        if (v4 === 1) {
-          return 7;
-        } else {
-          return 8;
-        }
-      }
+  var v4 = c | 0;
+  if (v4 === 0) {
+    return 9;
+  } else {
+    if (v4 === 1) {
+      return 7;
+    } else {
+      return 8;
     }
   }
-  return 9;
 }
 
 function main() {

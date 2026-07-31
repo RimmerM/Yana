@@ -215,11 +215,11 @@ secondOf<complex>(%f: Ptr): Ptr {
 
 hostBorrowed<complex>(): Int {
   b_0 {
-    je 0, b_1, b_2
+    jmp b_1
   }
 
   b_1 {
-    jmp b_3
+    jmp b_2
   }
 
   b_2 {
@@ -227,22 +227,11 @@ hostBorrowed<complex>(): Int {
   }
 
   b_3 {
-    %v_4 = phi [b_1, 1], [b_2, 0]: Int
-    je 1, b_5, b_6
+    jmp b_4
   }
 
-  b_5 {
-    jmp b_7
-  }
-
-  b_6 {
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = phi [b_5, 2], [b_6, 0]: Int
-    %v_9 = add %v_4, %v_8: Int
-    ret %v_9
+  b_4 {
+    ret 2
   }
 }
 
@@ -415,28 +404,21 @@ hostShaped<complex>(): Int {
   b_0 {
     %v_1 = cast 6: Int
     %v_2 = cast 7: Int
-    je 1, b_3, b_4
+    jmp b_3
   }
 
   b_3 {
-    jmp b_5
+    jmp b_4
   }
 
   b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_3, 1], [b_4, 0]: Int
-    %v_7 = add %v_6, 400: Int
-    %v_8 = cast %v_1: Int
-    %v_9 = imul %v_8, 1000: Int
+    %v_5 = cast %v_1: Int
+    %v_6 = imul %v_5, 1000: Int
+    %v_7 = add %v_6, 400401: Int
+    %v_8 = cast %v_2: Int
+    %v_9 = imul %v_8, 1000000: Int
     %v_10 = add %v_7, %v_9: Int
-    %v_11 = add %v_10, 400000: Int
-    %v_12 = cast %v_2: Int
-    %v_13 = imul %v_12, 1000000: Int
-    %v_14 = add %v_11, %v_13: Int
-    ret %v_14
+    ret %v_10
   }
 }
 

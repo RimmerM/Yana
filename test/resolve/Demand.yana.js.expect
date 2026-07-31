@@ -14,19 +14,17 @@ function onlyRead() {
 }
 
 function mutableOnOneArm(flag) {
-  var p = { x: 1, y: 2 };
+  var v38;
   if (flag) {
-    var v10 = p;
-    v10.x = v10.x + 1 | 0;
+    v38 = 2;
+  } else {
+    v38 = 1;
   }
-  return read(p.x, p.y);
+  return read(v38, 2);
 }
 
 function copyIsIndependent() {
-  var duplicate = { x: 1, y: 2 };
-  var v13 = duplicate;
-  v13.x = v13.x + 1 | 0;
-  return read(1, 2) + read(duplicate.x, duplicate.y) | 0;
+  return read(1, 2) + read(2, 2) | 0;
 }
 
 function addressed() {

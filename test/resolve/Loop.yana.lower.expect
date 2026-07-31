@@ -182,35 +182,27 @@ bump<complex>(%n: Ptr) {
 
 escaping<complex>(%count: Int): Int {
   b_0 {
-    %r = alloca 8, 4: Ptr
-    store %r, 3, 4
-    %v_1 = add %r, 4: Ptr
-    store %v_1, 4, 4
-    jmp b_2
+    jmp b_1
   }
 
-  b_2 {
-    %v_3 = phi [b_0, 0], [b_4, %v_5]: Int
-    %v_6 = phi [b_0, 0], [b_4, %v_7]: Int
-    %v_8 = cmp_ilt %v_3, %count: Int
-    je %v_8, b_4, b_9
+  b_1 {
+    %v_2 = phi [b_0, 3], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = phi [b_0, 0], [b_3, %v_8]: Int
+    %v_9 = cmp_ilt %v_5, %count: Int
+    je %v_9, b_3, b_10
   }
 
-  b_9 {
-    ret %v_6
+  b_10 {
+    ret %v_7
   }
 
-  b_4 {
-    %v_10 = loads %r, 4: Int
-    %v_11 = add %v_10, 1: Int
-    store %r, %v_11, 4
-    %v_12 = loads %r, 4: Int
-    %v_13 = add %r, 4: Ptr
-    %v_14 = loads %v_13, 4: Int
-    %v_15 = imul %v_12, %v_14: Int
-    %v_7 = add %v_6, %v_15: Int
-    %v_5 = add %v_3, 1: Int
-    jmp b_2
+  b_3 {
+    %v_4 = add %v_2, 1: Int
+    %v_11 = imul %v_4, 4: Int
+    %v_8 = add %v_7, %v_11: Int
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
   }
 }
 
@@ -258,29 +250,29 @@ fromCall<complex>(%count: Int): Int {
   b_0 {
     %q = alloca 8, 4: Ptr
     call_complex madePoint, %q
-    jmp b_1
+    %v_1 = loads %q, 4: Int
+    %v_2 = add %q, 4: Ptr
+    %v_3 = loads %v_2, 4: Int
+    %v_4 = imul %v_1, %v_3: Int
+    jmp b_5
   }
 
-  b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
-    %v_7 = cmp_ilt %v_5, %count: Int
-    je %v_7, b_3, b_8
+  b_5 {
+    %v_6 = phi [b_0, 0], [b_7, %v_8]: Int
+    %v_9 = phi [b_0, 0], [b_7, %v_10]: Int
+    %v_11 = cmp_ilt %v_9, %count: Int
+    je %v_11, b_7, b_12
   }
 
-  b_8 {
-    ret %v_2
+  b_12 {
+    ret %v_6
   }
 
-  b_3 {
-    %v_9 = add %v_2, 1: Int
-    %v_10 = loads %q, 4: Int
-    %v_11 = add %q, 4: Ptr
-    %v_12 = loads %v_11, 4: Int
-    %v_13 = imul %v_10, %v_12: Int
-    %v_4 = add %v_9, %v_13: Int
-    %v_6 = add %v_5, 1: Int
-    jmp b_1
+  b_7 {
+    %v_13 = add %v_6, 1: Int
+    %v_8 = add %v_13, %v_4: Int
+    %v_10 = add %v_9, 1: Int
+    jmp b_5
   }
 }
 

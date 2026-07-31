@@ -96,23 +96,22 @@ empty(Int)<complex>(%v_0: Ptr) {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex identity(Int), 1: Int
-    %v_2 = add %v_1, 20: Int
-    %v_3 = call_complex twice(Int), 3: Int
-    %v_4 = add %v_2, %v_3: Int
-    %v_5 = call_complex smaller(Int), 9, 4: Int
-    %v_6 = add %v_4, %v_5: Int
-    %v_7 = call_complex middle(Int), 30, 8, 12: Int
-    %v_8 = add %v_6, %v_7: Int
-    %v_9 = alloca 8, 4: Ptr
-    call_complex wrap(Int), %v_9, 5
-    %v_10 = call_complex orElse(Int), %v_9, 0: Int
-    %v_11 = add %v_8, %v_10: Int
-    %v_12 = alloca 8, 4: Ptr
-    store %v_12, 0, 4
-    %v_13 = call_complex orElse(Int), %v_12, 7: Int
-    %v_14 = add %v_11, %v_13: Int
-    ret %v_14
+    %v_1 = call_complex smaller(Int), 9, 4: Int
+    %v_2 = add %v_1, 27: Int
+    %v_3 = call_complex smaller(Int), 30, 8: Int
+    %v_4 = call_complex smaller(Int), %v_3, 12: Int
+    %v_5 = add %v_2, %v_4: Int
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, 1, 4
+    %v_7 = add %v_6, 4: Ptr
+    store %v_7, 5, 4
+    %v_8 = call_complex orElse(Int), %v_6, 0: Int
+    %v_9 = add %v_5, %v_8: Int
+    %v_10 = alloca 8, 4: Ptr
+    store %v_10, 0, 4
+    %v_11 = call_complex orElse(Int), %v_10, 7: Int
+    %v_12 = add %v_9, %v_11: Int
+    ret %v_12
   }
 }
 

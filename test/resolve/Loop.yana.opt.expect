@@ -181,12 +181,9 @@ fn withCall(%seed: Int, %count: Int) -> Int {
     ret %v33
 
   b3:
-    %v19 = borrow_mut %seen : &mut Int
-    %v35 = load [%v19] : Int
-    %v37 = add %v35, 1 : Int
-    assign [%v19], %v37
-    %v21 = load %seen : Int
-    %v25 = add %v21, %v24 : Int
+    %v18 = load %seen : Int
+    %v37 = add %v18, 1 : Int
+    %v25 = add %v37, %v24 : Int
     assign %seen, %v25
     %v27 = load %i : Int
     %v30 = add %v27, 1 : Int
@@ -201,6 +198,9 @@ fn fromCall(%count: Int) -> Int {
     init %seen, 0
     %i = alloc : Int
     init %i, 0
+    %v16 = load %local0@Point.x : Int
+    %v17 = load %local0@Point.y : Int
+    %v18 = mul %v16, %v17 : Int
     jmp b1
 
   b1:
@@ -213,15 +213,9 @@ fn fromCall(%count: Int) -> Int {
     ret %v27
 
   b3:
-    %v13 = borrow_mut %seen : &mut Int
-    %v29 = load [%v13] : Int
-    %v31 = add %v29, 1 : Int
-    assign [%v13], %v31
-    %v15 = load %seen : Int
-    %v16 = load %local0@Point.x : Int
-    %v17 = load %local0@Point.y : Int
-    %v18 = mul %v16, %v17 : Int
-    %v19 = add %v15, %v18 : Int
+    %v12 = load %seen : Int
+    %v31 = add %v12, 1 : Int
+    %v19 = add %v31, %v18 : Int
     assign %seen, %v19
     %v21 = load %i : Int
     %v24 = add %v21, 1 : Int
@@ -231,9 +225,6 @@ fn fromCall(%count: Int) -> Int {
 
 fn escaping(%count: Int) -> Int {
   b0:
-    %r = alloc : Point
-    init %r@Point.x, 3
-    init %r@Point.y, 4
     %i = alloc : Int
     init %i, 0
     %total = alloc : Int
@@ -241,6 +232,7 @@ fn escaping(%count: Int) -> Int {
     jmp b1
 
   b1:
+    %v49 = phi [b0, 3], [b3, %v41] : Int
     %v11 = load %i : Int
     %v12 = cmp_lt %v11, %count : Bool
     je %v12, b3, b2
@@ -250,15 +242,9 @@ fn escaping(%count: Int) -> Int {
     ret %v31
 
   b3:
-    %v15 = borrow_mut %r : &mut Point
-    %v38 = load [%v15] : Point
-    %v39 = load [%v15]@Point.x : Int
-    %v41 = add %v39, 1 : Int
-    assign [%v15]@Point.x, %v41
+    %v41 = add %v49, 1 : Int
     %v17 = load %total : Int
-    %v19 = load %r@Point.x : Int
-    %v21 = load %r@Point.y : Int
-    %v22 = mul %v19, %v21 : Int
+    %v22 = mul %v41, 4 : Int
     %v23 = add %v17, %v22 : Int
     assign %total, %v23
     %v25 = load %i : Int
