@@ -37,24 +37,23 @@ heapClassOf<complex>(%total: Long): Long {
 
 mapMemory<complex>(%size: Long): Ptr {
   b_0 {
-    %v_1 = neg 1: Long
-    %result = syscall 9, 0, %size, 3, 34, %v_1, 0: Long
-    %v_2 = cmp_ilt %result, 0: Int
-    je %v_2, b_3, b_4
+    %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: Long
+    %v_1 = cmp_ilt %result, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = bitcast 0: Ptr
+    ret %v_4
   }
 
   b_3 {
-    %v_5 = bitcast 0: Ptr
-    ret %v_5
+    jmp b_5
   }
 
-  b_4 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = bitcast %result: Ptr
-    ret %v_7
+  b_5 {
+    %v_6 = bitcast %result: Ptr
+    ret %v_6
   }
 }
 
@@ -168,26 +167,26 @@ initHeap<complex>() {
     %region = call_complex mapMemory, 4194304: Ptr
     %v_1 = bitcast %region: Long
     %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 
+    %v_3 = imm 256: Long
+    je %v_2, b_4, b_5
   }
 
   b_4 {
-    jmp b_5
+    ret 
   }
 
   b_5 {
-    %table = imul 32, 8: Long
-    setpattern %region, %table, 0
-    %v_6 = bitcast %region: Ptr
-    store @heapFree, %v_6, 8
-    %v_7 = add %region, %table: Ptr
-    store @heapNext, %v_7, 8
-    %v_8 = add %region, 4194304: Ptr
-    store @heapLimit, %v_8, 8
+    jmp b_6
+  }
+
+  b_6 {
+    setpattern %region, %v_3, 0
+    %v_7 = bitcast %region: Ptr
+    store @heapFree, %v_7, 8
+    %v_8 = add %region, %v_3: Ptr
+    store @heapNext, %v_8, 8
+    %v_9 = add %region, 4194304: Ptr
+    store @heapLimit, %v_9, 8
     ret 
   }
 }
@@ -325,12 +324,11 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_34 {
-    %v_35 = add %block, %blockSize: Ptr
-    store @heapNext, %v_35, 8
-    %v_36 = bitcast %block: Ptr
-    store %v_36, %sizeClass, 8
-    %v_37 = add %block, 8: Ptr
-    ret %v_37
+    store @heapNext, %v_28, 8
+    %v_35 = bitcast %block: Ptr
+    store %v_35, %sizeClass, 8
+    %v_36 = add %block, 8: Ptr
+    ret %v_36
   }
 }
 
@@ -346,11 +344,10 @@ freeListHead<complex>(%sizeClass: Long): Ptr {
 
 makeBuffer<complex>(%v_0: Ptr, %size: Long) {
   b_1 {
-    %v_2 = loads @liveBuffers, 8: Long
     call_complex +=(I64), @liveBuffers, 1
-    %v_3 = call_complex allocateHeap, %size: Ptr
-    setpattern %v_3, %size, 0
-    store %v_0, %v_3, 8
+    %v_2 = call_complex allocateHeap, %size: Ptr
+    setpattern %v_2, %size, 0
+    store %v_0, %v_2, 8
     ret 
   }
 }
@@ -378,12 +375,10 @@ loop<complex>(): Long {
   }
 
   b_4 {
-    %v_8 = loads %total, 8: Long
-    %v_9 = call_complex firstByte, %buffer: Long
-    %v_10 = loads @liveBuffers, 8: Long
-    %v_11 = add %v_9, %v_10: Long
-    call_complex +=(I64), %total, %v_11
-    %v_12 = loads %i, 8: Long
+    %v_8 = call_complex firstByte, %buffer: Long
+    %v_9 = loads @liveBuffers, 8: Long
+    %v_10 = add %v_8, %v_9: Long
+    call_complex +=(I64), %total, %v_10
     call_complex +=(I64), %i, 1
     jmp b_1
   }
@@ -398,136 +393,122 @@ main<complex>(): Long {
   b_0 {
     %result = alloca 8, 8: Ptr
     store %result, 0, 8
-    %v_1 = loads %result, 8: Long
-    %v_2 = call_complex straightLine: Long
-    call_complex +=(I64), %result, %v_2
-    %v_3 = loads @liveBuffers, 8: Long
-    %v_4 = cmp_neq %v_3, 0: Int
-    je %v_4, b_5, b_6
+    %v_1 = call_complex straightLine: Long
+    call_complex +=(I64), %result, %v_1
+    %v_2 = loads @liveBuffers, 8: Long
+    %v_3 = cmp_neq %v_2, 0: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    ret 18446744073709551615
   }
 
   b_5 {
-    %v_7 = neg 1: Long
-    ret %v_7
+    jmp b_6
   }
 
   b_6 {
-    jmp b_8
+    %v_7 = call_complex derived: Long
+    call_complex +=(I64), %result, %v_7
+    %v_8 = loads @liveBuffers, 8: Long
+    %v_9 = cmp_neq %v_8, 0: Int
+    je %v_9, b_10, b_11
   }
 
-  b_8 {
-    %v_9 = loads %result, 8: Long
-    %v_10 = call_complex derived: Long
-    call_complex +=(I64), %result, %v_10
-    %v_11 = loads @liveBuffers, 8: Long
-    %v_12 = cmp_neq %v_11, 0: Int
-    je %v_12, b_13, b_14
+  b_10 {
+    ret 18446744073709551614
   }
 
-  b_13 {
-    %v_15 = neg 2: Long
-    ret %v_15
+  b_11 {
+    jmp b_12
   }
 
-  b_14 {
-    jmp b_16
+  b_12 {
+    %v_13 = call_complex branch, 1: Long
+    call_complex +=(I64), %result, %v_13
+    %v_14 = loads @liveBuffers, 8: Long
+    %v_15 = cmp_neq %v_14, 0: Int
+    je %v_15, b_16, b_17
   }
 
   b_16 {
-    %v_17 = loads %result, 8: Long
-    %v_18 = call_complex branch, 1: Long
-    call_complex +=(I64), %result, %v_18
-    %v_19 = loads @liveBuffers, 8: Long
-    %v_20 = cmp_neq %v_19, 0: Int
-    je %v_20, b_21, b_22
+    ret 18446744073709551613
   }
 
-  b_21 {
-    %v_23 = neg 3: Long
-    ret %v_23
+  b_17 {
+    jmp b_18
+  }
+
+  b_18 {
+    %v_19 = call_complex branch, 0: Long
+    call_complex +=(I64), %result, %v_19
+    %v_20 = loads @liveBuffers, 8: Long
+    %v_21 = cmp_neq %v_20, 0: Int
+    je %v_21, b_22, b_23
   }
 
   b_22 {
+    ret 18446744073709551612
+  }
+
+  b_23 {
     jmp b_24
   }
 
   b_24 {
-    %v_25 = loads %result, 8: Long
-    %v_26 = call_complex branch, 0: Long
-    call_complex +=(I64), %result, %v_26
-    %v_27 = loads @liveBuffers, 8: Long
-    %v_28 = cmp_neq %v_27, 0: Int
-    je %v_28, b_29, b_30
+    %v_25 = call_complex loop: Long
+    call_complex +=(I64), %result, %v_25
+    %v_26 = loads @liveBuffers, 8: Long
+    %v_27 = cmp_neq %v_26, 0: Int
+    je %v_27, b_28, b_29
+  }
+
+  b_28 {
+    ret 18446744073709551611
   }
 
   b_29 {
-    %v_31 = neg 4: Long
-    ret %v_31
+    jmp b_30
   }
 
   b_30 {
-    jmp b_32
+    %v_31 = call_complex rebound: Long
+    call_complex +=(I64), %result, %v_31
+    %v_32 = loads @liveBuffers, 8: Long
+    %v_33 = cmp_neq %v_32, 0: Int
+    je %v_33, b_34, b_35
   }
 
-  b_32 {
-    %v_33 = loads %result, 8: Long
-    %v_34 = call_complex loop: Long
-    call_complex +=(I64), %result, %v_34
-    %v_35 = loads @liveBuffers, 8: Long
-    %v_36 = cmp_neq %v_35, 0: Int
-    je %v_36, b_37, b_38
+  b_34 {
+    ret 18446744073709551610
   }
 
-  b_37 {
-    %v_39 = neg 5: Long
-    ret %v_39
+  b_35 {
+    jmp b_36
   }
 
-  b_38 {
-    jmp b_40
+  b_36 {
+    %handed = alloca 8, 8: Ptr
+    call_complex makeBuffer, %handed, 4
+    %v_37 = call_complex consume, %handed: Long
+    call_complex +=(I64), %result, %v_37
+    %v_38 = loads @liveBuffers, 8: Long
+    %v_39 = cmp_neq %v_38, 0: Int
+    je %v_39, b_40, b_41
   }
 
   b_40 {
-    %v_41 = loads %result, 8: Long
-    %v_42 = call_complex rebound: Long
-    call_complex +=(I64), %result, %v_42
-    %v_43 = loads @liveBuffers, 8: Long
-    %v_44 = cmp_neq %v_43, 0: Int
-    je %v_44, b_45, b_46
+    ret 18446744073709551609
   }
 
-  b_45 {
-    %v_47 = neg 6: Long
-    ret %v_47
+  b_41 {
+    jmp b_42
   }
 
-  b_46 {
-    jmp b_48
-  }
-
-  b_48 {
-    %handed = alloca 8, 8: Ptr
-    call_complex makeBuffer, %handed, 4
-    %v_49 = loads %result, 8: Long
-    %v_50 = call_complex consume, %handed: Long
-    call_complex +=(I64), %result, %v_50
-    %v_51 = loads @liveBuffers, 8: Long
-    %v_52 = cmp_neq %v_51, 0: Int
-    je %v_52, b_53, b_54
-  }
-
-  b_53 {
-    %v_55 = neg 7: Long
-    ret %v_55
-  }
-
-  b_54 {
-    jmp b_56
-  }
-
-  b_56 {
-    %v_57 = loads %result, 8: Long
-    ret %v_57
+  b_42 {
+    %v_43 = loads %result, 8: Long
+    ret %v_43
   }
 }
 
@@ -544,7 +525,6 @@ Drop(Buffer).drop<complex>(%value: Ptr) {
   b_0 {
     %v_1 = load %value, 8: Ptr
     call_complex freeHeap, %v_1
-    %v_2 = loads @liveBuffers, 8: Long
     call_complex -=(I64), @liveBuffers, 1
     ret 
   }

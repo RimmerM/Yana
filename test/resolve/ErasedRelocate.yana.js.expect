@@ -20,11 +20,11 @@ function relocate(genEnv, x) {
 function main() {
   var moved = relocate(genEnv$relocate_Handle, { value: 10n });
   if (sinkCalls !== 1n) {
-    return BigInt.asIntN(64, -1n);
+    return -1n;
   } else {
     var movedPair = relocate(genEnv$relocate_Pair, { left: { value: 20n }, right: 5n });
     if (sinkCalls !== 2n) {
-      return BigInt.asIntN(64, -2n);
+      return -2n;
     } else {
       return BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, moved.value + movedPair.left.value) + movedPair.right) + sinkCalls);
     }

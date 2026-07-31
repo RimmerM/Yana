@@ -34,24 +34,23 @@ heapClassOf<complex>(%total: Long): Long {
 
 mapMemory<complex>(%size: Long): Ptr {
   b_0 {
-    %v_1 = neg 1: Long
-    %result = syscall 9, 0, %size, 3, 34, %v_1, 0: Long
-    %v_2 = cmp_ilt %result, 0: Int
-    je %v_2, b_3, b_4
+    %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: Long
+    %v_1 = cmp_ilt %result, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = bitcast 0: Ptr
+    ret %v_4
   }
 
   b_3 {
-    %v_5 = bitcast 0: Ptr
-    ret %v_5
+    jmp b_5
   }
 
-  b_4 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = bitcast %result: Ptr
-    ret %v_7
+  b_5 {
+    %v_6 = bitcast %result: Ptr
+    ret %v_6
   }
 }
 
@@ -179,12 +178,11 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_34 {
-    %v_35 = add %block, %blockSize: Ptr
-    store @heapNext, %v_35, 8
-    %v_36 = bitcast %block: Ptr
-    store %v_36, %sizeClass, 8
-    %v_37 = add %block, 8: Ptr
-    ret %v_37
+    store @heapNext, %v_28, 8
+    %v_35 = bitcast %block: Ptr
+    store %v_35, %sizeClass, 8
+    %v_36 = add %block, 8: Ptr
+    ret %v_36
   }
 }
 
@@ -200,22 +198,12 @@ freeListHead<complex>(%sizeClass: Long): Ptr {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    store %v_1, 10, 8
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, 20, 8
     %p = call_complex allocateHeap, 16: Ptr
-    copy %p, %v_1, 16
-    %v_3 = loads %p, 8: Long
-    %v_4 = add %v_3, 2: Long
-    store %p, %v_4, 8
-    %v_5 = loads %p, 8: Long
-    %v_6 = add %p, 8: Ptr
-    %v_7 = loads %v_6, 8: Long
+    %v_1 = add %p, 8: Ptr
+    store %v_1, 20, 8
+    store %p, 12, 8
     call_complex freeHeap, %p
-    %v_8 = add %v_5, %v_7: Long
-    %v_9 = cast %v_8: Int
-    ret %v_9
+    ret 32
   }
 }
 
@@ -224,26 +212,26 @@ initHeap<complex>() {
     %region = call_complex mapMemory, 4194304: Ptr
     %v_1 = bitcast %region: Long
     %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 
+    %v_3 = imm 256: Long
+    je %v_2, b_4, b_5
   }
 
   b_4 {
-    jmp b_5
+    ret 
   }
 
   b_5 {
-    %table = imul 32, 8: Long
-    setpattern %region, %table, 0
-    %v_6 = bitcast %region: Ptr
-    store @heapFree, %v_6, 8
-    %v_7 = add %region, %table: Ptr
-    store @heapNext, %v_7, 8
-    %v_8 = add %region, 4194304: Ptr
-    store @heapLimit, %v_8, 8
+    jmp b_6
+  }
+
+  b_6 {
+    setpattern %region, %v_3, 0
+    %v_7 = bitcast %region: Ptr
+    store @heapFree, %v_7, 8
+    %v_8 = add %region, %v_3: Ptr
+    store @heapNext, %v_8, 8
+    %v_9 = add %region, 4194304: Ptr
+    store @heapLimit, %v_9, 8
     ret 
   }
 }

@@ -21,26 +21,25 @@ classify<complex>(%value: Int): Int {
   }
 
   b_2 {
-    %v_4 = neg 1: Int
-    jmp b_5
+    jmp b_4
   }
 
   b_3 {
-    %v_6 = cmp_eq %value, 0: Int
-    je %v_6, b_7, b_8
+    %v_5 = cmp_eq %value, 0: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    jmp b_4
   }
 
   b_7 {
-    jmp b_5
+    jmp b_4
   }
 
-  b_8 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_9 = phi [b_2, %v_4], [b_7, 0], [b_8, 1]: Int
-    ret %v_9
+  b_4 {
+    %v_8 = phi [b_2, 18446744073709551615], [b_6, 0], [b_7, 1]: Int
+    ret %v_8
   }
 }
 

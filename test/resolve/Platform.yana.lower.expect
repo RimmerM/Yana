@@ -23,10 +23,9 @@ backend<complex>(): Int {
   }
 }
 
-capacityOf<complex>(%s: Ptr): Int {
+capacityOf<complex>(%s$capacity: Int, %s$count: Int): Int {
   b_0 {
-    %v_1 = loads %s, 4: Int
-    ret %v_1
+    ret %s$capacity
   }
 }
 
@@ -35,11 +34,14 @@ main<complex>(): Int {
     %s = alloca 8, 4: Ptr
     call_complex emptyStorage, %s
     %v_1 = call_complex backend: Int
-    %v_2 = call_complex capacityOf, %s: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex shared, 4: Int
-    %v_5 = add %v_3, %v_4: Int
-    ret %v_5
+    %s$capacity = loads %s, 4: Int
+    %v_2 = add %s, 4: Ptr
+    %s$count = loads %v_2, 4: Int
+    %v_3 = call_complex capacityOf, %s$capacity, %s$count: Int
+    %v_4 = add %v_1, %v_3: Int
+    %v_5 = call_complex shared, 4: Int
+    %v_6 = add %v_4, %v_5: Int
+    ret %v_6
   }
 }
 

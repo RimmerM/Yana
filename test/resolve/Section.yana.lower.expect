@@ -69,13 +69,12 @@ sign<complex>(%x: Int): Int {
   }
 
   b_5 {
-    %v_8 = neg 1: Int
     jmp b_7
   }
 
   b_7 {
-    %v_9 = phi [b_2, 1], [b_5, %v_8], [b_6, 0]: Int
-    ret %v_9
+    %v_8 = phi [b_2, 1], [b_5, 18446744073709551615], [b_6, 0]: Int
+    ret %v_8
   }
 }
 
@@ -117,31 +116,27 @@ area<complex>(%s: Ptr): Int {
 
   b_17 {
     %v_19 = add %s, 4: Ptr
-    %v_20 = add %s, 4: Ptr
-    %w = loads %v_20, 4: Int
-    %v_21 = add %s, 8: Ptr
-    %v_22 = loads %v_21, 4: Int
+    %w = loads %v_19, 4: Int
     jmp b_13
   }
 
   b_16 {
-    %v_23 = add %s, 4: Ptr
-    %v_24 = add %s, 4: Ptr
-    %v_25 = loads %v_24, 4: Int
-    %v_26 = cmp_igt %v_25, 10: Int
-    je %v_26, b_27, b_17
+    %v_20 = add %s, 4: Ptr
+    %v_21 = loads %v_20, 4: Int
+    %v_22 = cmp_igt %v_21, 10: Int
+    je %v_22, b_23, b_17
   }
 
-  b_27 {
-    %v_28 = add %s, 8: Ptr
-    %h = loads %v_28, 4: Int
-    %v_29 = add %h, 10: Int
+  b_23 {
+    %v_24 = add %s, 8: Ptr
+    %h = loads %v_24, 4: Int
+    %v_25 = add %h, 10: Int
     jmp b_13
   }
 
   b_13 {
-    %v_30 = phi [b_12, 100], [b_7, %r], [b_27, %v_29], [b_17, %w]: Int
-    ret %v_30
+    %v_26 = phi [b_12, 100], [b_7, %r], [b_23, %v_25], [b_17, %w]: Int
+    ret %v_26
   }
 }
 
@@ -180,30 +175,31 @@ positiveOr<complex>(%x: Int, %fallback: Int): Int {
   }
 }
 
-firstIfEqual<complex>(%p: Ptr): Int {
+firstIfEqual<complex>(%p$0: Int, %p$1: Int): Int {
   b_0 {
-    %a = loads %p, 4: Int
+    %p = alloca 8, 4: Ptr
+    store %p, %p$0, 4
     %v_1 = add %p, 4: Ptr
-    %v_2 = loads %v_1, 4: Int
-    %v_3 = cmp_eq %v_2, %a: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    %a = loads %p, 4: Int
-    %v_6 = add %p, 4: Ptr
-    %b = loads %v_6, 4: Int
-    %v_7 = add %a, %b: Int
-    jmp b_8
+    store %v_1, %p$1, 4
+    %v_2 = cmp_eq %p$1, %p$0: Int
+    je %v_2, b_3, b_4
   }
 
   b_4 {
-    jmp b_8
+    %a = loads %p, 4: Int
+    %v_5 = add %p, 4: Ptr
+    %b = loads %v_5, 4: Int
+    %v_6 = add %a, %b: Int
+    jmp b_7
   }
 
-  b_8 {
-    %v_9 = phi [b_4, %a], [b_5, %v_7]: Int
-    ret %v_9
+  b_3 {
+    jmp b_7
+  }
+
+  b_7 {
+    %v_8 = phi [b_3, %p$0], [b_4, %v_6]: Int
+    ret %v_8
   }
 }
 
@@ -221,76 +217,63 @@ shadowing<complex>(%x: Int, %limit: Int): Int {
 main<complex>(): Int {
   b_0 {
     %v_1 = call_complex sign, 5: Int
-    %v_2 = neg 5: Int
-    %v_3 = call_complex sign, %v_2: Int
-    %v_4 = add %v_1, %v_3: Int
-    %v_5 = call_complex sign, 0: Int
-    %v_6 = add %v_4, %v_5: Int
-    %v_7 = call_complex clampedTo, 20, 10: Int
-    %v_8 = add %v_6, %v_7: Int
-    %v_9 = call_complex clampedTo, 10, 10: Int
-    %v_10 = add %v_8, %v_9: Int
-    %v_11 = call_complex clampedTo, 3, 10: Int
-    %v_12 = add %v_10, %v_11: Int
-    %v_13 = call_complex shadowing, 7, 100: Int
-    %v_14 = add %v_12, %v_13: Int
-    %v_15 = call_complex doubleIfPositive, 4: Int
-    %v_16 = add %v_14, %v_15: Int
-    %v_17 = neg 4: Int
-    %v_18 = call_complex doubleIfPositive, %v_17: Int
-    %v_19 = add %v_16, %v_18: Int
-    %v_20 = alloca 12, 4: Ptr
-    store %v_20, 0, 4
-    %v_21 = add %v_20, 4: Ptr
-    store %v_21, 20, 4
-    %v_22 = call_complex area, %v_20: Int
-    %v_23 = add %v_19, %v_22: Int
-    %v_24 = alloca 12, 4: Ptr
-    store %v_24, 0, 4
-    %v_25 = add %v_24, 4: Ptr
-    store %v_25, 3, 4
-    %v_26 = call_complex area, %v_24: Int
-    %v_27 = add %v_23, %v_26: Int
-    %v_28 = alloca 12, 4: Ptr
-    store %v_28, 1, 4
-    %v_29 = add %v_28, 4: Ptr
-    store %v_29, 20, 4
-    %v_30 = add %v_28, 8: Ptr
-    store %v_30, 2, 4
-    %v_31 = call_complex area, %v_28: Int
-    %v_32 = add %v_27, %v_31: Int
-    %v_33 = alloca 12, 4: Ptr
-    store %v_33, 1, 4
-    %v_34 = add %v_33, 4: Ptr
-    store %v_34, 3, 4
-    %v_35 = add %v_33, 8: Ptr
-    store %v_35, 9, 4
-    %v_36 = call_complex area, %v_33: Int
-    %v_37 = add %v_32, %v_36: Int
-    %v_38 = alloca 8, 4: Ptr
-    store %v_38, 6, 4
-    %v_39 = add %v_38, 4: Ptr
-    store %v_39, 6, 4
-    %v_40 = call_complex firstIfEqual, %v_38: Int
-    %v_41 = add %v_37, %v_40: Int
-    %v_42 = alloca 8, 4: Ptr
-    store %v_42, 1, 4
-    %v_43 = add %v_42, 4: Ptr
-    store %v_43, 2, 4
-    %v_44 = call_complex firstIfEqual, %v_42: Int
-    %v_45 = add %v_41, %v_44: Int
-    %v_46 = call_complex isNearTen, 11: Int
+    %v_2 = call_complex sign, 18446744073709551611: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = call_complex sign, 0: Int
+    %v_5 = add %v_3, %v_4: Int
+    %v_6 = call_complex clampedTo, 20, 10: Int
+    %v_7 = add %v_5, %v_6: Int
+    %v_8 = call_complex clampedTo, 10, 10: Int
+    %v_9 = add %v_7, %v_8: Int
+    %v_10 = call_complex clampedTo, 3, 10: Int
+    %v_11 = add %v_9, %v_10: Int
+    %v_12 = call_complex shadowing, 7, 100: Int
+    %v_13 = add %v_11, %v_12: Int
+    %v_14 = call_complex doubleIfPositive, 4: Int
+    %v_15 = add %v_13, %v_14: Int
+    %v_16 = call_complex doubleIfPositive, 18446744073709551612: Int
+    %v_17 = add %v_15, %v_16: Int
+    %v_18 = alloca 12, 4: Ptr
+    store %v_18, 0, 4
+    %v_19 = add %v_18, 4: Ptr
+    store %v_19, 20, 4
+    %v_20 = call_complex area, %v_18: Int
+    %v_21 = add %v_17, %v_20: Int
+    %v_22 = alloca 12, 4: Ptr
+    store %v_22, 0, 4
+    %v_23 = add %v_22, 4: Ptr
+    store %v_23, 3, 4
+    %v_24 = call_complex area, %v_22: Int
+    %v_25 = add %v_21, %v_24: Int
+    %v_26 = alloca 12, 4: Ptr
+    store %v_26, 1, 4
+    %v_27 = add %v_26, 4: Ptr
+    store %v_27, 20, 4
+    %v_28 = add %v_26, 8: Ptr
+    store %v_28, 2, 4
+    %v_29 = call_complex area, %v_26: Int
+    %v_30 = add %v_25, %v_29: Int
+    %v_31 = alloca 12, 4: Ptr
+    store %v_31, 1, 4
+    %v_32 = add %v_31, 4: Ptr
+    store %v_32, 3, 4
+    %v_33 = add %v_31, 8: Ptr
+    store %v_33, 9, 4
+    %v_34 = call_complex area, %v_31: Int
+    %v_35 = add %v_30, %v_34: Int
+    %v_36 = call_complex firstIfEqual, 6, 6: Int
+    %v_37 = add %v_35, %v_36: Int
+    %v_38 = call_complex firstIfEqual, 1, 2: Int
+    %v_39 = add %v_37, %v_38: Int
+    %v_40 = call_complex isNearTen, 11: Int
+    %v_41 = add %v_39, %v_40: Int
+    %v_42 = call_complex isNearTen, 50: Int
+    %v_43 = add %v_41, %v_42: Int
+    %v_44 = call_complex positiveOr, 9, 18446744073709551615: Int
+    %v_45 = add %v_43, %v_44: Int
+    %v_46 = call_complex positiveOr, 18446744073709551607, 18446744073709551615: Int
     %v_47 = add %v_45, %v_46: Int
-    %v_48 = call_complex isNearTen, 50: Int
-    %v_49 = add %v_47, %v_48: Int
-    %v_50 = neg 1: Int
-    %v_51 = call_complex positiveOr, 9, %v_50: Int
-    %v_52 = add %v_49, %v_51: Int
-    %v_53 = neg 9: Int
-    %v_54 = neg 1: Int
-    %v_55 = call_complex positiveOr, %v_53, %v_54: Int
-    %v_56 = add %v_52, %v_55: Int
-    ret %v_56
+    ret %v_47
   }
 }
 

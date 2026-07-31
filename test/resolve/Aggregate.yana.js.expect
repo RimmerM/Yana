@@ -1,7 +1,7 @@
 "use strict";
 // ResolveTest
-function sum(pair) {
-  return pair.x + pair.y | 0;
+function sum(pair$x, pair$y) {
+  return pair$x + pair$y | 0;
 }
 
 function makePair() {
@@ -32,8 +32,8 @@ function classify(value) {
   return v16;
 }
 
-function tupleValue(pair) {
-  return pair.f0 + pair.f1 | 0;
+function tupleValue(pair$0, pair$1) {
+  return pair$0 + pair$1 | 0;
 }
 
 function forwardRecord() {
@@ -75,5 +75,8 @@ function lt_add_gt(lhs, rhs) {
 }
 
 function main() {
-  return ((((((((sum(makePair()) + choiceValue({ $tag: 0, value: 0, extra: 0, $p: 4 }) | 0) + choiceValue({ $tag: 1, value: 2, extra: 3, $p: 0 }) | 0) + classify(7) | 0) + tupleValue({ f0: 4, f1: 5 }) | 0) + forwardRecord() | 0) + boolValue(0) | 0) + directionValue(1) | 0) + sum(selectedPair(1)) | 0) + lt_add_gt(1, 2) | 0;
+  var v0 = makePair();
+  var v35 = ((((((sum(v0.x, v0.y) + choiceValue({ $tag: 0, value: 0, extra: 0, $p: 4 }) | 0) + choiceValue({ $tag: 1, value: 2, extra: 3, $p: 0 }) | 0) + classify(7) | 0) + tupleValue(4, 5) | 0) + forwardRecord() | 0) + boolValue(0) | 0) + directionValue(1) | 0;
+  var v37 = selectedPair(1);
+  return (v35 + sum(v37.x, v37.y) | 0) + lt_add_gt(1, 2) | 0;
 }

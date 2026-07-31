@@ -40,21 +40,20 @@ fromBool<complex>(%value: Int): Int {
 
 fromLiteral<complex>(): Int {
   b_0 {
-    %v_1 = cmp_neq 1, 0: Int
-    je %v_1, b_2, b_3
+    je 1, b_1, b_2
+  }
+
+  b_1 {
+    jmp b_3
   }
 
   b_2 {
-    jmp b_4
+    jmp b_3
   }
 
   b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_2, 1], [b_3, 0]: Int
-    ret %v_5
+    %v_4 = phi [b_1, 1], [b_2, 0]: Int
+    ret %v_4
   }
 }
 

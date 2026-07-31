@@ -88,24 +88,23 @@ tagOf<complex>(%m: Ptr): Int {
   }
 
   b_19 {
-    %v_24 = load %m, 1: Int
     jmp b_13
   }
 
   b_18 {
-    %v_25 = load %m, 1: Int
-    %v_26 = cast %v_25: Int
-    %v_27 = cmp_eq %v_26, 1: Int
-    je %v_27, b_28, b_19
+    %v_24 = load %m, 1: Int
+    %v_25 = cast %v_24: Int
+    %v_26 = cmp_eq %v_25, 1: Int
+    je %v_26, b_27, b_19
   }
 
-  b_28 {
+  b_27 {
     jmp b_13
   }
 
   b_13 {
-    %v_29 = phi [b_5, 0], [b_23, 1], [b_28, 2], [b_19, 3]: Int
-    ret %v_29
+    %v_28 = phi [b_5, 0], [b_23, 1], [b_27, 2], [b_19, 3]: Int
+    ret %v_28
   }
 }
 

@@ -227,6 +227,33 @@ ModulePtr<Value> makeConstant(OptContext& opt, Value& at, TypePtr type, U64 valu
 // the order given and end up in that order in front of whatever was at `index`.
 void insertInstructions(OptContext& opt, Block& block, Size index, Array<Inst*>& instructions);
 
+/*
+ * The fields of an aggregate a pass is willing to take apart, and how a place names one.
+ *
+ * `constructor` is the `Downcast` a record's field path begins with - `%p@Point.x` is a downcast to
+ * `Point` followed by field `x` - and is absent for a bare tuple. Reproducing that exactly is the
+ * point of computing it in one place rather than at each use: a path a pass invents has to be one
+ * the backends already know how to walk.
+ */
+struct Fields {
+    TypePtr content = nullptr;
+    Maybe<U16> constructor;
+    Size count = 0;
+
+    bool exists() const { return content != nullptr; }
+};
+
+// The single-constructor shape of one type, or nothing where it has no such shape - a sum, an enum,
+// a scalar, an array.
+Fields fieldsOf(OptContext& opt, TypePtr type);
+
+TypePtr fieldType(OptContext& opt, const Fields& fields, Size index);
+StringId fieldName(OptContext& opt, const Fields& fields, Size index);
+
+// One field of an aggregate, as a place: the given root and path, then the constructor's downcast
+// where there is one, then the field.
+Place fieldPlace(OptContext& opt, Place base, const Fields& fields, U16 index);
+
 void foldFunction(OptContext& opt);
 void forwardPlaces(OptContext& opt);
 void scalarizeLocals(OptContext& opt);
@@ -236,3 +263,11 @@ void eliminateDeadValues(OptContext& opt);
 // The repr-lower step: packed field access becomes arithmetic over a storage unit. Answers whether
 // it rewrote anything, which is what decides whether the passes above are worth running again.
 bool expandPacking(OptContext& opt);
+
+/*
+ * The calling convention step: a record parameter becomes one parameter per field.
+ *
+ * Program-wide and run once, before any function is optimized, because it rewrites signatures and
+ * every caller of them - see opt_arg.cpp for why that cannot be done a function at a time.
+ */
+void flattenArguments(OptContext& opt);

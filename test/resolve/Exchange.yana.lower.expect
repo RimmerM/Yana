@@ -38,24 +38,23 @@ exchangeScalar<complex>(): Long {
 
 mapMemory<complex>(%size: Long): Ptr {
   b_0 {
-    %v_1 = neg 1: Long
-    %result = syscall 9, 0, %size, 3, 34, %v_1, 0: Long
-    %v_2 = cmp_ilt %result, 0: Int
-    je %v_2, b_3, b_4
+    %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: Long
+    %v_1 = cmp_ilt %result, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = bitcast 0: Ptr
+    ret %v_4
   }
 
   b_3 {
-    %v_5 = bitcast 0: Ptr
-    ret %v_5
+    jmp b_5
   }
 
-  b_4 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = bitcast %result: Ptr
-    ret %v_7
+  b_5 {
+    %v_6 = bitcast %result: Ptr
+    ret %v_6
   }
 }
 
@@ -144,14 +143,13 @@ swapDroppable<complex>(): Long {
 
 globalExchange<complex>(): Long {
   b_0 {
-    %v_1 = loads @counter, 8: Long
     %counter = global @counter: Ptr
     %old = loads %counter, 8: Long
     store %counter, 7, 8
-    %v_2 = imul %old, 10: Long
-    %v_3 = loads @counter, 8: Long
-    %v_4 = add %v_2, %v_3: Long
-    ret %v_4
+    %v_1 = imul %old, 10: Long
+    %v_2 = loads @counter, 8: Long
+    %v_3 = add %v_1, %v_2: Long
+    ret %v_3
   }
 }
 
@@ -177,26 +175,26 @@ initHeap<complex>() {
     %region = call_complex mapMemory, 4194304: Ptr
     %v_1 = bitcast %region: Long
     %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 
+    %v_3 = imm 256: Long
+    je %v_2, b_4, b_5
   }
 
   b_4 {
-    jmp b_5
+    ret 
   }
 
   b_5 {
-    %table = imul 32, 8: Long
-    setpattern %region, %table, 0
-    %v_6 = bitcast %region: Ptr
-    store @heapFree, %v_6, 8
-    %v_7 = add %region, %table: Ptr
-    store @heapNext, %v_7, 8
-    %v_8 = add %region, 4194304: Ptr
-    store @heapLimit, %v_8, 8
+    jmp b_6
+  }
+
+  b_6 {
+    setpattern %region, %v_3, 0
+    %v_7 = bitcast %region: Ptr
+    store @heapFree, %v_7, 8
+    %v_8 = add %region, %v_3: Ptr
+    store @heapNext, %v_8, 8
+    %v_9 = add %region, 4194304: Ptr
+    store @heapLimit, %v_9, 8
     ret 
   }
 }
@@ -348,12 +346,11 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_34 {
-    %v_35 = add %block, %blockSize: Ptr
-    store @heapNext, %v_35, 8
-    %v_36 = bitcast %block: Ptr
-    store %v_36, %sizeClass, 8
-    %v_37 = add %block, 8: Ptr
-    ret %v_37
+    store @heapNext, %v_28, 8
+    %v_35 = bitcast %block: Ptr
+    store %v_35, %sizeClass, 8
+    %v_36 = add %block, 8: Ptr
+    ret %v_36
   }
 }
 
@@ -369,11 +366,10 @@ freeListHead<complex>(%sizeClass: Long): Ptr {
 
 makeBuffer<complex>(%v_0: Ptr, %size: Long) {
   b_1 {
-    %v_2 = loads @liveBuffers, 8: Long
     call_complex +=(I64), @liveBuffers, 1
-    %v_3 = call_complex allocateHeap, %size: Ptr
-    setpattern %v_3, %size, 0
-    store %v_0, %v_3, 8
+    %v_2 = call_complex allocateHeap, %size: Ptr
+    setpattern %v_2, %size, 0
+    store %v_0, %v_2, 8
     ret 
   }
 }
@@ -390,10 +386,9 @@ swapThrough<complex>(%p: Ptr, %q: Ptr) {
 
 Sink(Handle).sink<complex>(%to: Ptr, %from: Ptr) {
   b_0 {
-    %v_1 = loads @sinkCalls, 8: Long
     call_complex +=(I64), @sinkCalls, 1
-    %v_2 = loads %from, 8: Long
-    store %to, %v_2, 8
+    %v_1 = loads %from, 8: Long
+    store %to, %v_1, 8
     ret 
   }
 }
@@ -406,165 +401,154 @@ main<complex>(): Long {
   }
 
   b_3 {
-    %v_5 = neg 1: Long
-    ret %v_5
+    ret 18446744073709551615
   }
 
   b_4 {
-    jmp b_6
+    jmp b_5
   }
 
-  b_6 {
-    %v_7 = call_complex exchangeScalar: Long
-    %v_8 = cmp_neq %v_7, 19: Int
-    je %v_8, b_9, b_10
+  b_5 {
+    %v_6 = call_complex exchangeScalar: Long
+    %v_7 = cmp_neq %v_6, 19: Int
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    ret 18446744073709551614
   }
 
   b_9 {
-    %v_11 = neg 2: Long
-    ret %v_11
+    jmp b_10
   }
 
   b_10 {
-    jmp b_12
+    %v_11 = call_complex globalExchange: Long
+    %v_12 = cmp_neq %v_11, 57: Int
+    je %v_12, b_13, b_14
   }
 
-  b_12 {
-    %v_13 = call_complex globalExchange: Long
-    %v_14 = cmp_neq %v_13, 57: Int
-    je %v_14, b_15, b_16
+  b_13 {
+    ret 18446744073709551613
+  }
+
+  b_14 {
+    jmp b_15
   }
 
   b_15 {
-    %v_17 = neg 3: Long
-    ret %v_17
-  }
-
-  b_16 {
-    jmp b_18
+    %v_16 = call_complex sinkSwap: Long
+    %v_17 = cmp_neq %v_16, 321: Int
+    je %v_17, b_18, b_19
   }
 
   b_18 {
-    %v_19 = call_complex sinkSwap: Long
-    %v_20 = cmp_neq %v_19, 321: Int
-    je %v_20, b_21, b_22
+    ret 18446744073709551612
   }
 
-  b_21 {
-    %v_23 = neg 4: Long
-    ret %v_23
+  b_19 {
+    jmp b_20
   }
 
-  b_22 {
-    jmp b_24
+  b_20 {
+    %v_21 = call_complex sinkExchange: Long
+    %v_22 = cmp_neq %v_21, 212: Int
+    je %v_22, b_23, b_24
+  }
+
+  b_23 {
+    ret 18446744073709551611
   }
 
   b_24 {
-    %v_25 = call_complex sinkExchange: Long
-    %v_26 = cmp_neq %v_25, 212: Int
-    je %v_26, b_27, b_28
+    jmp b_25
   }
 
-  b_27 {
-    %v_29 = neg 5: Long
-    ret %v_29
+  b_25 {
+    %v_26 = call_complex swapDroppable: Long
+    %v_27 = cmp_neq %v_26, 2: Int
+    je %v_27, b_28, b_29
   }
 
   b_28 {
+    ret 18446744073709551610
+  }
+
+  b_29 {
     jmp b_30
   }
 
   b_30 {
-    %v_31 = call_complex swapDroppable: Long
-    %v_32 = cmp_neq %v_31, 2: Int
+    %v_31 = loads @liveBuffers, 8: Long
+    %v_32 = cmp_neq %v_31, 0: Int
     je %v_32, b_33, b_34
   }
 
   b_33 {
-    %v_35 = neg 6: Long
-    ret %v_35
+    ret 18446744073709551609
   }
 
   b_34 {
-    jmp b_36
+    jmp b_35
   }
 
-  b_36 {
-    %v_37 = loads @liveBuffers, 8: Long
-    %v_38 = cmp_neq %v_37, 0: Int
-    je %v_38, b_39, b_40
+  b_35 {
+    %v_36 = call_complex exchangeDroppable: Long
+    %v_37 = cmp_neq %v_36, 2: Int
+    je %v_37, b_38, b_39
+  }
+
+  b_38 {
+    ret 18446744073709551608
   }
 
   b_39 {
-    %v_41 = neg 7: Long
-    ret %v_41
+    jmp b_40
   }
 
   b_40 {
-    jmp b_42
+    %v_41 = loads @liveBuffers, 8: Long
+    %v_42 = cmp_neq %v_41, 0: Int
+    je %v_42, b_43, b_44
   }
 
-  b_42 {
-    %v_43 = call_complex exchangeDroppable: Long
-    %v_44 = cmp_neq %v_43, 2: Int
-    je %v_44, b_45, b_46
+  b_43 {
+    ret 18446744073709551607
+  }
+
+  b_44 {
+    jmp b_45
   }
 
   b_45 {
-    %v_47 = neg 8: Long
-    ret %v_47
-  }
-
-  b_46 {
-    jmp b_48
+    %v_46 = call_complex borrowed: Long
+    %v_47 = cmp_neq %v_46, 2: Int
+    je %v_47, b_48, b_49
   }
 
   b_48 {
-    %v_49 = loads @liveBuffers, 8: Long
-    %v_50 = cmp_neq %v_49, 0: Int
-    je %v_50, b_51, b_52
+    ret 18446744073709551606
   }
 
-  b_51 {
-    %v_53 = neg 9: Long
-    ret %v_53
+  b_49 {
+    jmp b_50
   }
 
-  b_52 {
-    jmp b_54
+  b_50 {
+    %v_51 = loads @liveBuffers, 8: Long
+    %v_52 = cmp_neq %v_51, 0: Int
+    je %v_52, b_53, b_54
+  }
+
+  b_53 {
+    ret 18446744073709551605
   }
 
   b_54 {
-    %v_55 = call_complex borrowed: Long
-    %v_56 = cmp_neq %v_55, 2: Int
-    je %v_56, b_57, b_58
+    jmp b_55
   }
 
-  b_57 {
-    %v_59 = neg 10: Long
-    ret %v_59
-  }
-
-  b_58 {
-    jmp b_60
-  }
-
-  b_60 {
-    %v_61 = loads @liveBuffers, 8: Long
-    %v_62 = cmp_neq %v_61, 0: Int
-    je %v_62, b_63, b_64
-  }
-
-  b_63 {
-    %v_65 = neg 11: Long
-    ret %v_65
-  }
-
-  b_64 {
-    jmp b_66
-  }
-
-  b_66 {
+  b_55 {
     ret 1
   }
 }
@@ -606,7 +590,6 @@ Drop(Buffer).drop<complex>(%value: Ptr) {
   b_0 {
     %v_1 = load %value, 8: Ptr
     call_complex freeHeap, %v_1
-    %v_2 = loads @liveBuffers, 8: Long
     call_complex -=(I64), @liveBuffers, 1
     ret 
   }

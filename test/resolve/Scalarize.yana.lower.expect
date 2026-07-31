@@ -1,41 +1,20 @@
 
 readOnly<complex>(): Int {
   b_0 {
-    %v_1 = imm 3: Int
-    %v_2 = imm 4: Int
-    %v_3 = imul %v_1, %v_1: Int
-    %v_4 = imul %v_2, %v_2: Int
-    %v_5 = add %v_3, %v_4: Int
-    ret %v_5
+    ret 25
   }
 }
 
-distance<complex>(%it: Ptr): Int {
+distance<complex>(%it$x: Int, %it$y: Int): Int {
   b_0 {
-    %v_1 = loads %it, 4: Int
-    %v_2 = add %it, 4: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = add %v_1, %v_3: Int
-    ret %v_4
+    %v_1 = add %it$x, %it$y: Int
+    ret %v_1
   }
 }
 
 writable<complex>(): Int {
   b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 3, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 4, 4
-    %p = alloca 8, 4: Ptr
-    copy %p, %v_1, 8
-    %v_3 = loads %p, 4: Int
-    %v_4 = add %v_3, 1: Int
-    store %p, %v_4, 4
-    %v_5 = loads %p, 4: Int
-    %v_6 = add %p, 4: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = add %v_5, %v_7: Int
-    ret %v_8
+    ret 8
   }
 }
 
@@ -52,12 +31,8 @@ main<complex>(): Int {
 
 passedWhole<complex>(): Int {
   b_0 {
-    %p = alloca 8, 4: Ptr
-    store %p, 3, 4
-    %v_1 = add %p, 4: Ptr
-    store %v_1, 4, 4
-    %v_2 = call_complex distance, %p: Int
-    ret %v_2
+    %v_1 = call_complex distance, 3, 4: Int
+    ret %v_1
   }
 }
 

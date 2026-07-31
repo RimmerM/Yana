@@ -28,24 +28,23 @@ heapClassOf<complex>(%total: Long): Long {
 
 mapMemory<complex>(%size: Long): Ptr {
   b_0 {
-    %v_1 = neg 1: Long
-    %result = syscall 9, 0, %size, 3, 34, %v_1, 0: Long
-    %v_2 = cmp_ilt %result, 0: Int
-    je %v_2, b_3, b_4
+    %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: Long
+    %v_1 = cmp_ilt %result, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = bitcast 0: Ptr
+    ret %v_4
   }
 
   b_3 {
-    %v_5 = bitcast 0: Ptr
-    ret %v_5
+    jmp b_5
   }
 
-  b_4 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = bitcast %result: Ptr
-    ret %v_7
+  b_5 {
+    %v_6 = bitcast %result: Ptr
+    ret %v_6
   }
 }
 
@@ -181,22 +180,19 @@ unwrap<complex>(%e: Ptr): Long {
 
   b_4 {
     %v_5 = add %e, 8: Ptr
-    %v_6 = add %e, 8: Ptr
-    %v_7 = add %e, 8: Ptr
-    %v_8 = loads %v_7, 8: Long
-    jmp b_9
+    %v_6 = loads %v_5, 8: Long
+    jmp b_7
   }
 
   b_3 {
-    %v_10 = add %e, 8: Ptr
-    %v_11 = add %e, 8: Ptr
-    %v = loads %v_11, 8: Long
-    jmp b_9
+    %v_8 = add %e, 8: Ptr
+    %v = loads %v_8, 8: Long
+    jmp b_7
   }
 
-  b_9 {
-    %v_12 = phi [b_3, %v], [b_4, %v_8]: Long
-    ret %v_12
+  b_7 {
+    %v_9 = phi [b_3, %v], [b_4, %v_6]: Long
+    ret %v_9
   }
 }
 
@@ -212,26 +208,26 @@ initHeap<complex>() {
     %region = call_complex mapMemory, 4194304: Ptr
     %v_1 = bitcast %region: Long
     %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 
+    %v_3 = imm 256: Long
+    je %v_2, b_4, b_5
   }
 
   b_4 {
-    jmp b_5
+    ret 
   }
 
   b_5 {
-    %table = imul 32, 8: Long
-    setpattern %region, %table, 0
-    %v_6 = bitcast %region: Ptr
-    store @heapFree, %v_6, 8
-    %v_7 = add %region, %table: Ptr
-    store @heapNext, %v_7, 8
-    %v_8 = add %region, 4194304: Ptr
-    store @heapLimit, %v_8, 8
+    jmp b_6
+  }
+
+  b_6 {
+    setpattern %region, %v_3, 0
+    %v_7 = bitcast %region: Ptr
+    store @heapFree, %v_7, 8
+    %v_8 = add %region, %v_3: Ptr
+    store @heapNext, %v_8, 8
+    %v_9 = add %region, 4194304: Ptr
+    store @heapLimit, %v_9, 8
     ret 
   }
 }
@@ -486,12 +482,11 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_34 {
-    %v_35 = add %block, %blockSize: Ptr
-    store @heapNext, %v_35, 8
-    %v_36 = bitcast %block: Ptr
-    store %v_36, %sizeClass, 8
-    %v_37 = add %block, 8: Ptr
-    ret %v_37
+    store @heapNext, %v_28, 8
+    %v_35 = bitcast %block: Ptr
+    store %v_35, %sizeClass, 8
+    %v_36 = add %block, 8: Ptr
+    ret %v_36
   }
 }
 
@@ -507,10 +502,9 @@ freeListHead<complex>(%sizeClass: Long): Ptr {
 
 Sink(Handle).sink<complex>(%to: Ptr, %from: Ptr) {
   b_0 {
-    %v_1 = loads @sinkCalls, 8: Long
     call_complex +=(I64), @sinkCalls, 1
-    %v_2 = loads %from, 8: Long
-    store %to, %v_2, 8
+    %v_1 = loads %from, 8: Long
+    store %to, %v_1, 8
     ret 
   }
 }
@@ -519,229 +513,209 @@ main<complex>(): Long {
   b_0 {
     %result = alloca 8, 8: Ptr
     store %result, 0, 8
-    %v_1 = loads %result, 8: Long
-    %v_2 = call_complex direct: Long
-    call_complex +=(I64), %result, %v_2
-    %v_3 = loads @sinkCalls, 8: Long
-    %v_4 = cmp_neq %v_3, 1: Int
-    je %v_4, b_5, b_6
+    %v_1 = call_complex direct: Long
+    call_complex +=(I64), %result, %v_1
+    %v_2 = loads @sinkCalls, 8: Long
+    %v_3 = cmp_neq %v_2, 1: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    ret 18446744073709551615
   }
 
   b_5 {
-    %v_7 = neg 1: Long
-    ret %v_7
+    jmp b_6
   }
 
   b_6 {
-    jmp b_8
+    %v_7 = call_complex derived: Long
+    call_complex +=(I64), %result, %v_7
+    %v_8 = loads @sinkCalls, 8: Long
+    %v_9 = cmp_neq %v_8, 2: Int
+    je %v_9, b_10, b_11
   }
 
-  b_8 {
-    %v_9 = loads %result, 8: Long
-    %v_10 = call_complex derived: Long
-    call_complex +=(I64), %result, %v_10
-    %v_11 = loads @sinkCalls, 8: Long
-    %v_12 = cmp_neq %v_11, 2: Int
-    je %v_12, b_13, b_14
+  b_10 {
+    ret 18446744073709551614
   }
 
-  b_13 {
-    %v_15 = neg 2: Long
-    ret %v_15
+  b_11 {
+    jmp b_12
   }
 
-  b_14 {
-    jmp b_16
+  b_12 {
+    %v_13 = call_complex nested: Long
+    call_complex +=(I64), %result, %v_13
+    %v_14 = loads @sinkCalls, 8: Long
+    %v_15 = cmp_neq %v_14, 3: Int
+    je %v_15, b_16, b_17
   }
 
   b_16 {
-    %v_17 = loads %result, 8: Long
-    %v_18 = call_complex nested: Long
-    call_complex +=(I64), %result, %v_18
-    %v_19 = loads @sinkCalls, 8: Long
-    %v_20 = cmp_neq %v_19, 3: Int
-    je %v_20, b_21, b_22
+    ret 18446744073709551613
   }
 
-  b_21 {
-    %v_23 = neg 3: Long
-    ret %v_23
+  b_17 {
+    jmp b_18
+  }
+
+  b_18 {
+    %v_19 = call_complex tagged, 1: Long
+    call_complex +=(I64), %result, %v_19
+    %v_20 = loads @sinkCalls, 8: Long
+    %v_21 = cmp_neq %v_20, 4: Int
+    je %v_21, b_22, b_23
   }
 
   b_22 {
+    ret 18446744073709551612
+  }
+
+  b_23 {
     jmp b_24
   }
 
   b_24 {
-    %v_25 = loads %result, 8: Long
-    %v_26 = call_complex tagged, 1: Long
-    call_complex +=(I64), %result, %v_26
-    %v_27 = loads @sinkCalls, 8: Long
-    %v_28 = cmp_neq %v_27, 4: Int
-    je %v_28, b_29, b_30
+    %v_25 = call_complex tagged, 0: Long
+    call_complex +=(I64), %result, %v_25
+    %v_26 = loads @sinkCalls, 8: Long
+    %v_27 = cmp_neq %v_26, 4: Int
+    je %v_27, b_28, b_29
+  }
+
+  b_28 {
+    ret 18446744073709551611
   }
 
   b_29 {
-    %v_31 = neg 4: Long
-    ret %v_31
+    jmp b_30
   }
 
   b_30 {
-    jmp b_32
-  }
-
-  b_32 {
-    %v_33 = loads %result, 8: Long
-    %v_34 = call_complex tagged, 0: Long
-    call_complex +=(I64), %result, %v_34
-    %v_35 = loads @sinkCalls, 8: Long
-    %v_36 = cmp_neq %v_35, 4: Int
-    je %v_36, b_37, b_38
-  }
-
-  b_37 {
-    %v_39 = neg 5: Long
-    ret %v_39
-  }
-
-  b_38 {
-    jmp b_40
-  }
-
-  b_40 {
     %handed = alloca 8, 8: Ptr
     store %handed, 5, 8
-    %v_41 = loads %result, 8: Long
-    %v_42 = call_complex consume, %handed: Long
-    call_complex +=(I64), %result, %v_42
-    %v_43 = loads @sinkCalls, 8: Long
-    %v_44 = cmp_neq %v_43, 4: Int
-    je %v_44, b_45, b_46
+    %v_31 = call_complex consume, %handed: Long
+    call_complex +=(I64), %result, %v_31
+    %v_32 = loads @sinkCalls, 8: Long
+    %v_33 = cmp_neq %v_32, 4: Int
+    je %v_33, b_34, b_35
   }
 
-  b_45 {
-    %v_47 = neg 6: Long
-    ret %v_47
+  b_34 {
+    ret 18446744073709551610
   }
 
-  b_46 {
-    jmp b_48
+  b_35 {
+    jmp b_36
   }
 
-  b_48 {
-    %v_49 = alloca 8, 8: Ptr
-    store %v_49, 30, 8
+  b_36 {
+    %v_37 = alloca 8, 8: Ptr
+    store %v_37, 30, 8
     %closed = alloca 16, 8: Ptr
-    call_complex captured, %closed, %v_49
-    %v_50 = loads @sinkCalls, 8: Long
-    %v_51 = cmp_neq %v_50, 5: Int
-    je %v_51, b_52, b_53
+    call_complex captured, %closed, %v_37
+    %v_38 = loads @sinkCalls, 8: Long
+    %v_39 = cmp_neq %v_38, 5: Int
+    je %v_39, b_40, b_41
   }
 
-  b_54 {
-    %v_55 = neg 7: Long
-    ret %v_55
+  b_42 {
+    ret 18446744073709551609
   }
 
-  b_53 {
-    jmp b_56
+  b_41 {
+    jmp b_43
   }
 
-  b_56 {
-    %v_57 = loads %result, 8: Long
-    %v_58 = add %closed, 8: Ptr
-    %v_59 = load %closed, 8: Ptr
-    %v_60 = load %v_58, 8: Ptr
-    %v_61 = call_complex %v_59, %v_60: Long
+  b_43 {
+    %v_44 = add %closed, 8: Ptr
+    %v_45 = load %closed, 8: Ptr
+    %v_46 = load %v_44, 8: Ptr
+    %v_47 = call_complex %v_45, %v_46: Long
     call_complex drop$() -> I64, %closed
     call_complex reclaim$() -> I64, %closed
-    call_complex +=(I64), %result, %v_61
+    call_complex +=(I64), %result, %v_47
     %pair = alloca 16, 8: Ptr
     store %pair, 60, 8
-    %v_62 = add %pair, 8: Ptr
-    store %v_62, 6, 8
+    %v_48 = add %pair, 8: Ptr
+    store %v_48, 6, 8
     %retagged = alloca 16, 8: Ptr
     call_complex retag, %retagged, %pair
-    %v_63 = loads @sinkCalls, 8: Long
-    %v_64 = cmp_neq %v_63, 6: Int
-    je %v_64, b_65, b_66
+    %v_49 = loads @sinkCalls, 8: Long
+    %v_50 = cmp_neq %v_49, 6: Int
+    je %v_50, b_51, b_52
   }
 
-  b_65 {
-    %v_67 = neg 8: Long
-    ret %v_67
-  }
-
-  b_66 {
-    jmp b_68
-  }
-
-  b_68 {
-    %v_69 = loads %result, 8: Long
-    %v_70 = loads %retagged, 8: Long
-    %v_71 = add %retagged, 8: Ptr
-    %v_72 = loads %v_71, 8: Long
-    %v_73 = add %v_70, %v_72: Long
-    call_complex +=(I64), %result, %v_73
-    %v_74 = alloca 8, 8: Ptr
-    store %v_74, 70, 8
-    %relocated = alloca 8, 8: Ptr
-    call_complex relocate(Handle), %relocated, %v_74
-    %v_75 = loads @sinkCalls, 8: Long
-    %v_76 = cmp_neq %v_75, 7: Int
-    je %v_76, b_77, b_78
-  }
-
-  b_77 {
-    %v_79 = neg 9: Long
-    ret %v_79
-  }
-
-  b_78 {
-    jmp b_80
-  }
-
-  b_80 {
-    %v_81 = loads %result, 8: Long
-    %v_82 = loads %relocated, 8: Long
-    call_complex +=(I64), %result, %v_82
-    %v_83 = alloca 16, 8: Ptr
-    store %v_83, 80, 8
-    %v_84 = add %v_83, 8: Ptr
-    store %v_84, 8, 8
-    %relocatedPair = alloca 16, 8: Ptr
-    call_complex relocate(Pair), %relocatedPair, %v_83
-    %v_85 = loads @sinkCalls, 8: Long
-    %v_86 = cmp_neq %v_85, 8: Int
-    je %v_86, b_87, b_88
-  }
-
-  b_87 {
-    %v_89 = neg 10: Long
-    ret %v_89
-  }
-
-  b_88 {
-    jmp b_90
-  }
-
-  b_90 {
-    %v_91 = loads %result, 8: Long
-    %v_92 = loads %relocatedPair, 8: Long
-    %v_93 = add %relocatedPair, 8: Ptr
-    %v_94 = loads %v_93, 8: Long
-    %v_95 = add %v_92, %v_94: Long
-    call_complex +=(I64), %result, %v_95
-    %v_96 = loads %result, 8: Long
-    %v_97 = loads @sinkCalls, 8: Long
-    %v_98 = add %v_96, %v_97: Long
-    ret %v_98
+  b_51 {
+    ret 18446744073709551608
   }
 
   b_52 {
+    jmp b_53
+  }
+
+  b_53 {
+    %v_54 = loads %retagged, 8: Long
+    %v_55 = add %retagged, 8: Ptr
+    %v_56 = loads %v_55, 8: Long
+    %v_57 = add %v_54, %v_56: Long
+    call_complex +=(I64), %result, %v_57
+    %v_58 = alloca 8, 8: Ptr
+    store %v_58, 70, 8
+    %relocated = alloca 8, 8: Ptr
+    call_complex relocate(Handle), %relocated, %v_58
+    %v_59 = loads @sinkCalls, 8: Long
+    %v_60 = cmp_neq %v_59, 7: Int
+    je %v_60, b_61, b_62
+  }
+
+  b_61 {
+    ret 18446744073709551607
+  }
+
+  b_62 {
+    jmp b_63
+  }
+
+  b_63 {
+    %v_64 = loads %relocated, 8: Long
+    call_complex +=(I64), %result, %v_64
+    %v_65 = alloca 16, 8: Ptr
+    store %v_65, 80, 8
+    %v_66 = add %v_65, 8: Ptr
+    store %v_66, 8, 8
+    %relocatedPair = alloca 16, 8: Ptr
+    call_complex relocate(Pair), %relocatedPair, %v_65
+    %v_67 = loads @sinkCalls, 8: Long
+    %v_68 = cmp_neq %v_67, 8: Int
+    je %v_68, b_69, b_70
+  }
+
+  b_69 {
+    ret 18446744073709551606
+  }
+
+  b_70 {
+    jmp b_71
+  }
+
+  b_71 {
+    %v_72 = loads %relocatedPair, 8: Long
+    %v_73 = add %relocatedPair, 8: Ptr
+    %v_74 = loads %v_73, 8: Long
+    %v_75 = add %v_72, %v_74: Long
+    call_complex +=(I64), %result, %v_75
+    %v_76 = loads %result, 8: Long
+    %v_77 = loads @sinkCalls, 8: Long
+    %v_78 = add %v_76, %v_77: Long
+    ret %v_78
+  }
+
+  b_40 {
     call_complex drop$() -> I64, %closed
     call_complex reclaim$() -> I64, %closed
-    jmp b_54
+    jmp b_42
   }
 }
 

@@ -39,43 +39,27 @@ packedPayload<complex>(): Int {
     %v_6 = and %v_2, 18446744073709551359: Long
     %v_7 = or %v_6, %v_5: Long
     store %v_1, %v_7, 2
-    %v_8 = and 0, 255: Long
-    %v_9 = cast 1: Long
-    %v_10 = and %v_9, 1: Long
-    %v_11 = and %v_8, 18446744073709551614: Long
-    %v_12 = or %v_11, %v_10: Long
-    %v_13 = and %v_12, 255: Long
-    %v_14 = cast 1: Long
-    %v_15 = and %v_14, 1: Long
-    %v_16 = shl %v_15, 1: Long
-    %v_17 = and %v_13, 18446744073709551613: Long
-    %v_18 = or %v_17, %v_16: Long
-    store %v_1, %v_18, 1
-    %v_19 = call_complex taggedOf, %v_1: Int
-    %v_20 = alloca 2, 2: Ptr
-    store %v_20, 0, 2
-    %v_21 = load %v_20, 2: Long
-    %v_22 = cast 1: Long
-    %v_23 = and %v_22, 1: Long
-    %v_24 = shl %v_23, 8: Long
-    %v_25 = and %v_21, 18446744073709551359: Long
-    %v_26 = or %v_25, %v_24: Long
-    store %v_20, %v_26, 2
-    %v_27 = and 0, 255: Long
-    %v_28 = cast 0: Long
-    %v_29 = and %v_28, 1: Long
-    %v_30 = and %v_27, 18446744073709551614: Long
-    %v_31 = or %v_30, %v_29: Long
-    %v_32 = and %v_31, 255: Long
-    %v_33 = cast 1: Long
-    %v_34 = and %v_33, 1: Long
-    %v_35 = shl %v_34, 1: Long
-    %v_36 = and %v_32, 18446744073709551613: Long
-    %v_37 = or %v_36, %v_35: Long
-    store %v_20, %v_37, 1
-    %v_38 = call_complex taggedOf, %v_20: Int
-    %v_39 = add %v_19, %v_38: Int
-    ret %v_39
+    %v_8 = alloca 1, 1: Ptr
+    store %v_8, 0, 1
+    store %v_8, 3, 1
+    copy %v_1, %v_8, 1
+    %v_9 = call_complex taggedOf, %v_1: Int
+    %v_10 = alloca 2, 2: Ptr
+    store %v_10, 0, 2
+    %v_11 = load %v_10, 2: Long
+    %v_12 = cast 1: Long
+    %v_13 = and %v_12, 1: Long
+    %v_14 = shl %v_13, 8: Long
+    %v_15 = and %v_11, 18446744073709551359: Long
+    %v_16 = or %v_15, %v_14: Long
+    store %v_10, %v_16, 2
+    %v_17 = alloca 1, 1: Ptr
+    store %v_17, 0, 1
+    store %v_17, 2, 1
+    copy %v_10, %v_17, 1
+    %v_18 = call_complex taggedOf, %v_10: Int
+    %v_19 = add %v_9, %v_18: Int
+    ret %v_19
   }
 }
 
@@ -103,13 +87,11 @@ mutated<complex>(): Int {
   }
 
   b_14 {
-    %x = load %s, 1: Int
     call_complex bump, %s
     jmp b_15
   }
 
   b_13 {
-    %x = load %s, 1: Int
     call_complex bump, %s
     jmp b_15
   }
@@ -139,36 +121,28 @@ wide<complex>(): Int {
 
 copied<complex>(): Int {
   b_0 {
-    %v_1 = and 0, 255: Long
-    %v_2 = cast 1: Long
-    %v_3 = and %v_2, 1: Long
-    %v_4 = and %v_1, 18446744073709551614: Long
-    %v_5 = or %v_4, %v_3: Long
-    %v_6 = and %v_5, 255: Long
-    %v_7 = cast 0: Long
-    %v_8 = and %v_7, 1: Long
-    %v_9 = shl %v_8, 1: Long
-    %v_10 = and %v_6, 18446744073709551613: Long
-    %v_11 = or %v_10, %v_9: Long
+    %f = alloca 1, 1: Ptr
+    store %f, 0, 1
+    store %f, 1, 1
     %t = alloca 2, 2: Ptr
     store %t, 0, 2
-    %v_12 = load %t, 2: Long
-    %v_13 = cast 1: Long
-    %v_14 = and %v_13, 1: Long
-    %v_15 = shl %v_14, 8: Long
-    %v_16 = and %v_12, 18446744073709551359: Long
-    %v_17 = or %v_16, %v_15: Long
-    store %t, %v_17, 2
-    store %t, %v_11, 1
-    %v_18 = call_complex taggedOf, %t: Int
-    ret %v_18
+    %v_1 = load %t, 2: Long
+    %v_2 = cast 1: Long
+    %v_3 = and %v_2, 1: Long
+    %v_4 = shl %v_3, 8: Long
+    %v_5 = and %v_1, 18446744073709551359: Long
+    %v_6 = or %v_5, %v_4: Long
+    store %t, %v_6, 2
+    copy %t, %f, 1
+    %v_7 = call_complex taggedOf, %t: Int
+    ret %v_7
   }
 }
 
 flagsValue<complex>(%f: Ptr): Int {
   b_0 {
-    %v_1 = load %f, 1: Long
-    %v_2 = and %v_1, 1: Long
+    %v_1 = load %f, 1: Int
+    %v_2 = and %v_1, 1: Int
     %v_3 = cast %v_2: Int
     je %v_3, b_4, b_5
   }
@@ -183,9 +157,9 @@ flagsValue<complex>(%f: Ptr): Int {
 
   b_6 {
     %v_7 = phi [b_4, 1], [b_5, 0]: Int
-    %v_8 = load %f, 1: Long
-    %v_9 = shr %v_8, 1: Long
-    %v_10 = and %v_9, 1: Long
+    %v_8 = load %f, 1: Int
+    %v_9 = shr %v_8, 1: Int
+    %v_10 = and %v_9, 1: Int
     %v_11 = cast %v_10: Int
     je %v_11, b_12, b_13
   }

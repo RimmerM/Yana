@@ -1,24 +1,20 @@
 
 copyIsIndependent<complex>(): Int {
   b_0 {
-    %source = alloca 8, 4: Ptr
-    store %source, 1, 4
-    %v_1 = add %source, 4: Ptr
-    store %v_1, 2, 4
-    %v_2 = alloca 8, 4: Ptr
-    %v_3 = loads %source, 4: Int
-    %v_4 = add %source, 4: Ptr
-    %v_5 = loads %v_4, 4: Int
-    store %v_2, %v_3, 4
-    %v_6 = add %v_2, 4: Ptr
-    store %v_6, %v_5, 4
+    %v_1 = imm 1: Int
+    %v_2 = imm 2: Int
     %duplicate = alloca 8, 4: Ptr
-    copy %duplicate, %v_2, 8
+    store %duplicate, %v_1, 4
+    %v_3 = add %duplicate, 4: Ptr
+    store %v_3, %v_2, 4
     call_complex bump, %duplicate
-    %v_7 = call_complex read, %source: Int
-    %v_8 = call_complex read, %duplicate: Int
-    %v_9 = add %v_7, %v_8: Int
-    ret %v_9
+    %v_4 = call_complex read, %v_1, %v_2: Int
+    %it$x = loads %duplicate, 4: Int
+    %v_5 = add %duplicate, 4: Ptr
+    %it$y = loads %v_5, 4: Int
+    %v_6 = call_complex read, %it$x, %it$y: Int
+    %v_7 = add %v_4, %v_6: Int
+    ret %v_7
   }
 }
 
@@ -38,50 +34,46 @@ addressed<complex>(): Int {
 
 onlyRead<complex>(): Int {
   b_0 {
-    %p = alloca 8, 4: Ptr
-    store %p, 1, 4
-    %v_1 = add %p, 4: Ptr
-    store %v_1, 2, 4
-    %v_2 = call_complex read, %p: Int
-    %v_3 = call_complex read, %p: Int
-    %v_4 = add %v_2, %v_3: Int
-    ret %v_4
+    %v_1 = imm 1: Int
+    %v_2 = imm 2: Int
+    %v_3 = call_complex read, %v_1, %v_2: Int
+    %v_4 = call_complex read, %v_1, %v_2: Int
+    %v_5 = add %v_3, %v_4: Int
+    ret %v_5
   }
 }
 
 mutableOnOneArm<complex>(%flag: Int): Int {
   b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 1, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 2, 4
     %p = alloca 8, 4: Ptr
-    copy %p, %v_1, 8
-    je %flag, b_3, b_4
+    store %p, 1, 4
+    %v_1 = add %p, 4: Ptr
+    store %v_1, 2, 4
+    je %flag, b_2, b_3
+  }
+
+  b_2 {
+    call_complex bump, %p
+    jmp b_4
   }
 
   b_3 {
-    call_complex bump, %p
-    jmp b_5
+    jmp b_4
   }
 
   b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = call_complex read, %p: Int
+    %it$x = loads %p, 4: Int
+    %v_5 = add %p, 4: Ptr
+    %it$y = loads %v_5, 4: Int
+    %v_6 = call_complex read, %it$x, %it$y: Int
     ret %v_6
   }
 }
 
-read<complex>(%it: Ptr): Int {
+read<complex>(%it$x: Int, %it$y: Int): Int {
   b_0 {
-    %v_1 = loads %it, 4: Int
-    %v_2 = add %it, 4: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = add %v_1, %v_3: Int
-    ret %v_4
+    %v_1 = add %it$x, %it$y: Int
+    ret %v_1
   }
 }
 

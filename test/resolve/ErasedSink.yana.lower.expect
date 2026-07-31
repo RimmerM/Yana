@@ -295,12 +295,11 @@ thunk$Num(I64).-#1<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
 
 Sink(Handle).sink<complex>(%to: Ptr, %from: Ptr) {
   b_0 {
-    %v_1 = loads @sinkCalls, 8: Long
-    %v_2 = alloca 8, 8: Ptr
-    store %v_2, 1, 8
-    call_complex +=, @genEnv$+=(I64), @sinkCalls, %v_2
-    %v_3 = loads %from, 8: Long
-    store %to, %v_3, 8
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, 1, 8
+    call_complex +=, @genEnv$+=(I64), @sinkCalls, %v_1
+    %v_2 = loads %from, 8: Long
+    store %to, %v_2, 8
     ret 
   }
 }
@@ -334,59 +333,57 @@ main<complex>(): Long {
   }
 
   b_3 {
-    %v_5 = neg 1: Long
-    ret %v_5
+    ret 18446744073709551615
   }
 
   b_4 {
-    jmp b_6
+    jmp b_5
   }
 
-  b_6 {
+  b_5 {
     %p = alloca 16, 8: Ptr
     store %p, 20, 8
-    %v_7 = add %p, 8: Ptr
-    store %v_7, 5, 8
+    %v_6 = add %p, 8: Ptr
+    store %v_6, 5, 8
     %movedPair = alloca 16, 8: Ptr
     call_complex relocate, @genEnv$relocate(Pair), %movedPair, %p
-    %v_8 = loads @sinkCalls, 8: Long
-    %v_9 = cmp_neq %v_8, 2: Int
-    je %v_9, b_10, b_11
+    %v_7 = loads @sinkCalls, 8: Long
+    %v_8 = cmp_neq %v_7, 2: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    ret 18446744073709551614
   }
 
   b_10 {
-    %v_12 = neg 2: Long
-    ret %v_12
+    jmp b_11
   }
 
   b_11 {
-    jmp b_13
-  }
-
-  b_13 {
-    %v_14 = loads %moved, 8: Long
-    %v_15 = loads %movedPair, 8: Long
-    %v_16 = add %v_14, %v_15: Long
-    %v_17 = add %movedPair, 8: Ptr
-    %v_18 = loads %v_17, 8: Long
-    %v_19 = add %v_16, %v_18: Long
-    %v_20 = loads @sinkCalls, 8: Long
-    %v_21 = add %v_19, %v_20: Long
-    %v_22 = alloca 4, 4: Ptr
-    store %v_22, 19, 4
-    %v_23 = alloca 4, 4: Ptr
-    call_complex twice, @genEnv$twice(Int), %v_23, %v_22
-    %v_24 = loads %v_23, 4: Int
-    %v_25 = sext %v_24: Long
-    %v_26 = add %v_21, %v_25: Long
-    %v_27 = alloca 4, 4: Ptr
-    store %v_27, 4, 4
-    %v_28 = alloca 4, 4: Ptr
-    call_complex numeric, @genEnv$numeric(Int), %v_28, %v_27
-    %v_29 = loads %v_28, 4: Int
-    %v_30 = sext %v_29: Long
-    %v_31 = add %v_26, %v_30: Long
-    ret %v_31
+    %v_12 = loads %moved, 8: Long
+    %v_13 = loads %movedPair, 8: Long
+    %v_14 = add %v_12, %v_13: Long
+    %v_15 = add %movedPair, 8: Ptr
+    %v_16 = loads %v_15, 8: Long
+    %v_17 = add %v_14, %v_16: Long
+    %v_18 = loads @sinkCalls, 8: Long
+    %v_19 = add %v_17, %v_18: Long
+    %v_20 = alloca 4, 4: Ptr
+    store %v_20, 19, 4
+    %v_21 = alloca 4, 4: Ptr
+    call_complex twice, @genEnv$twice(Int), %v_21, %v_20
+    %v_22 = loads %v_21, 4: Int
+    %v_23 = sext %v_22: Long
+    %v_24 = add %v_19, %v_23: Long
+    %v_25 = alloca 4, 4: Ptr
+    store %v_25, 4, 4
+    %v_26 = alloca 4, 4: Ptr
+    call_complex numeric, @genEnv$numeric(Int), %v_26, %v_25
+    %v_27 = loads %v_26, 4: Int
+    %v_28 = sext %v_27: Long
+    %v_29 = add %v_24, %v_28: Long
+    ret %v_29
   }
 }
 

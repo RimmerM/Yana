@@ -1,82 +1,58 @@
 
-nameOf(Item)<complex>(%p: Ptr): Int {
+nameOf(Item)<complex>(%p$name: Int, %p$cost: Int): Int {
   b_0 {
-    %v_1 = loads %p, 4: Int
-    ret %v_1
+    ret %p$name
   }
 }
 
-labelled(Right)<complex>(%p: Ptr): Int {
+labelled(Right)<complex>(%p$tag: Int, %p$name: Int): Int {
   b_0 {
-    %v_1 = call_complex nameOf(Right), %p: Int
+    %v_1 = call_complex nameOf(Right), %p$tag, %p$name: Int
     %v_2 = imul %v_1, 100: Int
-    %v_3 = loads %p, 4: Int
-    %v_4 = add %v_2, %v_3: Int
-    ret %v_4
+    %v_3 = add %v_2, %p$tag: Int
+    ret %v_3
   }
 }
 
-nameOf(Person)<complex>(%p: Ptr): Int {
+nameOf(Person)<complex>(%p$name: Int, %p$age: Int): Int {
   b_0 {
-    %v_1 = loads %p, 4: Int
-    ret %v_1
+    ret %p$name
   }
 }
 
-nameOf(Right)<complex>(%p: Ptr): Int {
+nameOf(Right)<complex>(%p$tag: Int, %p$name: Int): Int {
   b_0 {
-    %v_1 = add %p, 4: Ptr
-    %v_2 = loads %v_1, 4: Int
-    ret %v_2
+    ret %p$name
   }
 }
 
-labelled(Left)<complex>(%p: Ptr): Int {
+labelled(Left)<complex>(%p$name: Int, %p$tag: Int): Int {
   b_0 {
-    %v_1 = call_complex nameOf(Left), %p: Int
+    %v_1 = call_complex nameOf(Left), %p$name, %p$tag: Int
     %v_2 = imul %v_1, 100: Int
-    %v_3 = add %p, 4: Ptr
-    %v_4 = loads %v_3, 4: Int
-    %v_5 = add %v_2, %v_4: Int
-    ret %v_5
+    %v_3 = add %v_2, %p$tag: Int
+    ret %v_3
   }
 }
 
-nameOf(Left)<complex>(%p: Ptr): Int {
+nameOf(Left)<complex>(%p$name: Int, %p$tag: Int): Int {
   b_0 {
-    %v_1 = loads %p, 4: Int
-    ret %v_1
+    ret %p$name
   }
 }
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 5, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 90, 4
-    %people = call_complex nameOf(Person), %v_1: Int
-    %v_3 = alloca 8, 4: Ptr
-    store %v_3, 2, 4
-    %v_4 = add %v_3, 4: Ptr
-    store %v_4, 7, 4
-    %items = call_complex nameOf(Item), %v_3: Int
-    %v_5 = alloca 8, 4: Ptr
-    store %v_5, 1, 4
-    %v_6 = add %v_5, 4: Ptr
-    store %v_6, 3, 4
-    %left = call_complex labelled(Left), %v_5: Int
-    %v_7 = alloca 8, 4: Ptr
-    store %v_7, 4, 4
-    %v_8 = add %v_7, 4: Ptr
-    store %v_8, 6, 4
-    %right = call_complex labelled(Right), %v_7: Int
-    %v_9 = imul %people, 1000: Int
-    %v_10 = imul %items, 100: Int
-    %v_11 = add %v_9, %v_10: Int
-    %v_12 = add %v_11, %left: Int
-    %v_13 = add %v_12, %right: Int
-    ret %v_13
+    %people = call_complex nameOf(Person), 5, 90: Int
+    %items = call_complex nameOf(Item), 2, 7: Int
+    %left = call_complex labelled(Left), 1, 3: Int
+    %right = call_complex labelled(Right), 4, 6: Int
+    %v_1 = imul %people, 1000: Int
+    %v_2 = imul %items, 100: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = add %v_3, %left: Int
+    %v_5 = add %v_4, %right: Int
+    ret %v_5
   }
 }
 

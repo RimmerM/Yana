@@ -39,27 +39,25 @@ present<complex>(%m: Ptr): Int {
   }
 
   b_3 {
-    %v_6 = add %m, 4: Ptr
-    %v_7 = loads %v_6, 4: Int
     jmp b_5
   }
 
   b_5 {
     %found = phi [b_3, 1], [b_4, 0]: Int
-    je %found, b_8, b_9
+    je %found, b_6, b_7
+  }
+
+  b_6 {
+    jmp b_8
+  }
+
+  b_7 {
+    jmp b_8
   }
 
   b_8 {
-    jmp b_10
-  }
-
-  b_9 {
-    jmp b_10
-  }
-
-  b_10 {
-    %v_11 = phi [b_8, 2], [b_9, 1]: Int
-    ret %v_11
+    %v_9 = phi [b_6, 2], [b_7, 1]: Int
+    ret %v_9
   }
 }
 
@@ -89,17 +87,16 @@ area<complex>(%s: Ptr): Int {
 
   b_7 {
     %v_12 = add %s, 4: Ptr
-    %v_13 = add %s, 4: Ptr
-    %w = loads %v_13, 4: Int
-    %v_14 = add %s, 8: Ptr
-    %h = loads %v_14, 4: Int
-    %v_15 = imul %w, %h: Int
+    %w = loads %v_12, 4: Int
+    %v_13 = add %s, 8: Ptr
+    %h = loads %v_13, 4: Int
+    %v_14 = imul %w, %h: Int
     jmp b_11
   }
 
   b_11 {
-    %v_16 = phi [b_3, %v_10], [b_7, %v_15], [b_8, 0]: Int
-    ret %v_16
+    %v_15 = phi [b_3, %v_10], [b_7, %v_14], [b_8, 0]: Int
+    ret %v_15
   }
 }
 
@@ -163,21 +160,20 @@ deep<complex>(%m: Ptr): Int {
 
   b_3 {
     %v_6 = add %m, 4: Ptr
-    %v_7 = add %m, 4: Ptr
-    %v_8 = loads %v_7, 4: Int
-    %v_9 = cmp_eq %v_8, 1: Int
-    je %v_9, b_10, b_4
+    %v_7 = loads %v_6, 4: Int
+    %v_8 = cmp_eq %v_7, 1: Int
+    je %v_8, b_9, b_4
   }
 
-  b_10 {
-    %v_11 = add %m, 8: Ptr
-    %v = loads %v_11, 4: Int
+  b_9 {
+    %v_10 = add %m, 8: Ptr
+    %v = loads %v_10, 4: Int
     jmp b_5
   }
 
   b_5 {
-    %v_12 = phi [b_10, %v], [b_4, 0]: Int
-    ret %v_12
+    %v_11 = phi [b_9, %v], [b_4, 0]: Int
+    ret %v_11
   }
 }
 

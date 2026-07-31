@@ -1,7 +1,7 @@
 "use strict";
 // ResolveTest
-function read(it) {
-  return it.x + it.y | 0;
+function read(it$x, it$y) {
+  return it$x + it$y | 0;
 }
 
 function bump(it) {
@@ -11,7 +11,7 @@ function bump(it) {
 
 function onlyRead() {
   var p = { x: 1, y: 2 };
-  return read(p) + read(p) | 0;
+  return read(1, 2) + read(p.x, p.y) | 0;
 }
 
 function mutableOnOneArm(flag) {
@@ -19,19 +19,14 @@ function mutableOnOneArm(flag) {
   if (flag) {
     bump(p);
   }
-  return read(p);
+  return read(p.x, p.y);
 }
 
 function copyIsIndependent() {
   var source = { x: 1, y: 2 };
-  var v5 = { x: 0, y: 0 };
-  var v6 = source.x;
-  var v7 = source.y;
-  v5.x = v6;
-  v5.y = v7;
-  var duplicate = v5;
+  var duplicate = { x: 1, y: 2 };
   bump(duplicate);
-  return read(source) + read(duplicate) | 0;
+  return read(source.x, source.y) + read(duplicate.x, duplicate.y) | 0;
 }
 
 function addressed() {

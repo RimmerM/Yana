@@ -1,9 +1,8 @@
 
 accumulate<complex>(%n: Int): Int {
   b_0 {
-    %v_1 = add 0, %n: Int
-    %v_2 = imul %v_1, 2: Int
-    ret %v_2
+    %v_1 = imul %n, 2: Int
+    ret %v_1
   }
 }
 
@@ -20,13 +19,11 @@ shared<complex>(%n: Int): Int {
   b_0 {
     %total = alloca 4, 4: Ptr
     store %total, 0, 4
-    %v_1 = loads %total, 4: Int
     call_complex addTo, %total, %n
-    %v_2 = loads %total, 4: Int
-    %v_3 = add %v_2, 1: Int
-    store %total, %v_3, 4
-    %v_4 = loads %total, 4: Int
-    ret %v_4
+    %v_1 = loads %total, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store %total, %v_2, 4
+    ret %v_2
   }
 }
 

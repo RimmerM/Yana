@@ -153,22 +153,21 @@ pointOr<complex>(%m: Ptr, %fallback: Int): Int {
 
   b_4 {
     %v_5 = add %m, 4: Ptr
-    %v_6 = add %m, 4: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = imul %v_7, 10: Int
-    %v_9 = add %m, 8: Ptr
-    %v_10 = loads %v_9, 4: Int
-    %v_11 = add %v_8, %v_10: Int
-    jmp b_12
+    %v_6 = loads %v_5, 4: Int
+    %v_7 = imul %v_6, 10: Int
+    %v_8 = add %m, 8: Ptr
+    %v_9 = loads %v_8, 4: Int
+    %v_10 = add %v_7, %v_9: Int
+    jmp b_11
   }
 
   b_3 {
-    jmp b_12
+    jmp b_11
   }
 
-  b_12 {
-    %v_13 = phi [b_3, %fallback], [b_4, %v_11]: Int
-    ret %v_13
+  b_11 {
+    %v_12 = phi [b_3, %fallback], [b_4, %v_10]: Int
+    ret %v_12
   }
 }
 

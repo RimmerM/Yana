@@ -99,6 +99,7 @@ set(RESOLVE_SOURCE_FILES
     opt/opt.h
     opt/opt_pass.h
     opt/opt.cpp
+    opt/opt_arg.cpp
     opt/opt_fold.cpp
     opt/opt_pack.cpp
     opt/opt_place.cpp

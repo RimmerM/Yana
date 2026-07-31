@@ -45,12 +45,12 @@ function fiveOf(f) {
 function flagsValue(f) {
   var v9;
   var v18;
-  if (f & 1) {
+  if ((f & 1) >>> 0 !== 0) {
     v9 = 1;
   } else {
     v9 = 0;
   }
-  if (f >>> 1 & 1) {
+  if ((f >>> 1 >>> 0 & 1) >>> 0 !== 0) {
     v18 = 2;
   } else {
     v18 = 0;
@@ -96,18 +96,7 @@ function counted() {
 }
 
 function packedPayload() {
-  var v0 = { $tag: 0, $p: 0 };
-  var v3 = 0;
-  v3 = v3 & 4294967294 | 1 & 1;
-  v3 = v3 & ~(1 << 1) | (1 & 1) << 1;
-  v0.$p = v3;
-  var v9 = taggedOf(v0);
-  var v10 = { $tag: 1, $p: 0 };
-  var v13 = 0;
-  v13 = v13 & 4294967294 | 0 & 1;
-  v13 = v13 & ~(1 << 1) | (1 & 1) << 1;
-  v10.$p = v13;
-  return v9 + taggedOf(v10) | 0;
+  return taggedOf({ $tag: 0, $p: 3 }) + taggedOf({ $tag: 1, $p: 2 }) | 0;
 }
 
 function mutated() {
@@ -125,10 +114,7 @@ function mutated() {
 }
 
 function copied() {
-  var f = 0;
-  f = f & 4294967294 | 1 & 1;
-  f = f & ~(1 << 1) | (0 & 1) << 1;
-  return taggedOf({ $tag: 1, $p: f });
+  return taggedOf({ $tag: 1, $p: 1 });
 }
 
 function maybeOf(m) {

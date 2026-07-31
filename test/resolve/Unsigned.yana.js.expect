@@ -15,15 +15,14 @@ function signedDivide(a, b) {
 function main() {
   var quotientIsPositive;
   var signedStillSigned;
-  var big = BigInt.asUintN(64, BigInt(0 - 2 | 0));
-  var half = divide(big, 2n);
-  var rest = remainder(big, 3n);
+  var half = divide(18446744073709551614n, 2n);
+  var rest = remainder(18446744073709551614n, 3n);
   if (half > 0n) {
     quotientIsPositive = 1;
   } else {
     quotientIsPositive = 0;
   }
-  if (signedDivide(BigInt.asIntN(64, 0n - 7n), 2n) === BigInt.asIntN(64, BigInt(0 - 3 | 0))) {
+  if (signedDivide(-7n, 2n) === -3n) {
     signedStillSigned = 10;
   } else {
     signedStillSigned = 0;

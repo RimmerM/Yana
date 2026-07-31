@@ -41,41 +41,44 @@ function checkI(actual, expected, weight) {
 }
 
 function addSmall(x) {
-  return (x >>> 0) + (x >>> 0) >>> 0;
+  var x$1 = x >>> 0;
+  return x$1 + x$1 >>> 0;
 }
 
 function addSmallNarrow(x) {
-  return ((x >>> 0) + (x >>> 0) >>> 0 & 15) >>> 0 & 15;
+  var x$1 = x >>> 0;
+  return (x$1 + x$1 >>> 0 & 15) >>> 0 & 15;
 }
 
 function mulWide20(x) {
-  return Math.imul(x >>> 0, x >>> 0) >>> 0;
+  var x$1 = x >>> 0;
+  return Math.imul(x$1, x$1) >>> 0;
 }
 
 function shiftAfterMul(x) {
-  return Math.imul(x >>> 0, x >>> 0) >>> 0 >>> 4 >>> 0;
+  var x$1 = x >>> 0;
+  return Math.imul(x$1, x$1) >>> 0 >>> 4 >>> 0;
 }
 
 function boxed(value) {
-  var b = 0;
-  b = b & 4294967280 | (value & 15) >>> 0 & 15 & 15;
-  return (b & 15) >>> 0;
+  return ((value & 15) >>> 0 & 15) >>> 0;
 }
 
 function mulForty(x) {
-  return $w53i$mul(x, x);
+  var x$1 = x;
+  return $w53i$mul(x$1, x$1);
 }
 
 function mulWrap() {
-  return $w53i$mul(4000000000, 4000000);
+  return -2014398509481984;
 }
 
 function shlWrap() {
-  return $w53i$shl(3, 52);
+  return -4503599627370496;
 }
 
 function negWrap() {
-  return $w53i$sub(0, $w53i$sub($w53i$sub(0, 4503599627370495), 1));
+  return -4503599627370496;
 }
 
 function mulLong(x) {
@@ -87,30 +90,26 @@ function dirtyHigh() {
 }
 
 function shrNegative() {
-  return $w53i$shr($w53i$sub(0, 1), 1);
+  return 4503599627370495;
 }
 
 function foldedStore() {
-  var b = 0;
-  b = b & 4294967280 | 4 & 15;
-  return (b & 15) >>> 0;
+  return 4;
 }
 
 function signedField(x) {
-  var b = 0;
-  b = b & 4294967280 | ((x << 28 | 0) >> 28 | 0) << 28 >> 28 & 15;
-  return b << 28 >> 28 | 0;
+  return ((x << 28 | 0) >> 28 | 0) << 28 >> 28 | 0;
 }
 
 function main() {
   var v86;
-  var v74 = ((((((((checkU(addSmall(12), 24, 1) + checkU(addSmallNarrow(12) >>> 0, 8, 2) | 0) + checkU(mulWide20(2000), 4000000, 4) | 0) + checkU(shiftAfterMul(12), 9, 8) | 0) + checkU(boxed(20), 4, 16) | 0) + checkW(mulForty(2097152), 4398046511104, 32) | 0) + checkW(mulWrap(), $w53i$sub(0, 2014398509481984), 64) | 0) + checkW(shlWrap(), $w53i$sub($w53i$sub(0, 4503599627370495), 1), 128) | 0) + checkW(negWrap(), $w53i$sub($w53i$sub(0, 4503599627370495), 1), 256) | 0) + checkL(mulLong(4000000000n), BigInt.asIntN(64, 0n - 2446744073709551616n), 512) | 0;
+  var v74 = ((((((((checkU(addSmall(12), 24, 1) + checkU(addSmallNarrow(12) >>> 0, 8, 2) | 0) + checkU(mulWide20(2000), 4000000, 4) | 0) + checkU(shiftAfterMul(12), 9, 8) | 0) + checkU(boxed(20), 4, 16) | 0) + checkW(mulForty(2097152), 4398046511104, 32) | 0) + checkW(mulWrap(), -2014398509481984, 64) | 0) + checkW(shlWrap(), -4503599627370496, 128) | 0) + checkW(negWrap(), -4503599627370496, 256) | 0) + checkL(mulLong(4000000000n), -2446744073709551616n, 512) | 0;
   if (dirtyHigh() === 44) {
     v86 = 1024;
   } else {
     v86 = 0;
   }
-  return (((v74 + v86 | 0) + checkW(shrNegative(), 4503599627370495, 2048) | 0) + checkU(foldedStore(), 4, 4096) | 0) + checkI(signedField(0 - 4 | 0), 0 - 4 | 0, 8192) | 0;
+  return (((v74 + v86 | 0) + checkW(shrNegative(), 4503599627370495, 2048) | 0) + checkU(foldedStore(), 4, 4096) | 0) + checkI(signedField(-4), -4, 8192) | 0;
 }
 
 function addU8(x, y) {
@@ -149,20 +148,6 @@ function $w53i$mul(a, b) {
   var m = (p >>> 16) + (q & 65535) + (r & 65535);
   var v = (Math.imul(ah, bl) + Math.imul(al, bh) + ((al >>> 16) * (bl >>> 16) + ((q >>> 16) + (r >>> 16))) + (m >>> 16) & 2097151) * 4294967296 + (((m & 65535) << 16 | p & 65535) >>> 0);
   return v >= 4503599627370496 ? v - 9007199254740992 : v;
-}
-
-function $w53i$shl(a, b) {
-  var s = b >= 32 ? (a >>> 0 << b - 32 & 2097151) * 4294967296 : ((($wi$hi(a) & 2097151) << b | a >>> 0 >>> 32 - b) & 2097151) * 4294967296 + (a >>> 0 << b >>> 0);
-  return b === 0 ? a : s >= 4503599627370496 ? s - 9007199254740992 : s;
-}
-
-function $w53i$sub(a, b) {
-  var v = a - b;
-  return v >= 4503599627370496 ? v - 9007199254740992 : v < -4503599627370496 ? v + 9007199254740992 : v;
-}
-
-function $w53i$shr(a, b) {
-  return b === 0 ? a : b >= 32 ? ($wi$hi(a) & 2097151) >>> b - 32 : (($wi$hi(a) & 2097151) >>> b) * 4294967296 + ((a >>> 0 >>> b | ($wi$hi(a) & 2097151) << 32 - b) >>> 0);
 }
 
 function $w53i$add(a, b) {

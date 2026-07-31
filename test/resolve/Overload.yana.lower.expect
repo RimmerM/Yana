@@ -34,12 +34,10 @@ maskGeneric(Int)<complex>(%x: Int, %y: Int): Int {
   }
 }
 
-and<complex>(%v_0: Ptr, %a: Ptr, %b: Ptr) {
+and<complex>(%v_0: Ptr, %a$bits: Int, %b$bits: Int) {
   b_1 {
-    %v_2 = loads %a, 4: Int
-    %v_3 = loads %b, 4: Int
-    %v_4 = and %v_2, %v_3: Int
-    store %v_0, %v_4, 4
+    %v_2 = and %a$bits, %b$bits: Int
+    store %v_0, %v_2, 4
     ret 
   }
 }
@@ -68,13 +66,9 @@ bothGeneric(Bool)<complex>(%x: Int, %y: Int): Int {
 combined<complex>(%a: Int, %b: Int): Int {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    store %v_1, %a, 4
-    %v_2 = alloca 4, 4: Ptr
-    store %v_2, %b, 4
-    %v_3 = alloca 4, 4: Ptr
-    call_complex and, %v_3, %v_1, %v_2
-    %v_4 = loads %v_3, 4: Int
-    ret %v_4
+    call_complex and, %v_1, %a, %b
+    %v_2 = loads %v_1, 4: Int
+    ret %v_2
   }
 }
 

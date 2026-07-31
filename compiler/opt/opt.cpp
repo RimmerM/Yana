@@ -275,6 +275,58 @@ void insertInstructions(OptContext& opt, Block& block, Size index, Array<Inst*>&
     opt.changed = true;
 }
 
+Fields fieldsOf(OptContext& opt, TypePtr type) {
+    if(!type) return {};
+
+    Fields fields;
+    auto content = type;
+
+    if(opt.global[type]->kind == Type::Record) {
+        auto record = (RecordType*)opt.global[type];
+
+        // A sum has more than one shape and only one of them is live, which is a question about the
+        // discriminant rather than about the path. An enum has no content at all.
+        if(record->layout != RecordType::Single || record->constructors.isEmpty()) return {};
+
+        fields.constructor = Just(U16(0));
+        content = record->constructors.get(opt.global, 0).content;
+    }
+
+    if(!content || opt.global[content]->kind != Type::Tup) return {};
+
+    fields.content = content;
+    fields.count = ((TupType*)opt.global[content])->fields.size();
+    return fields.count ? fields : Fields {};
+}
+
+TypePtr fieldType(OptContext& opt, const Fields& fields, Size index) {
+    return ((TupType*)opt.global[fields.content])->fields.get(opt.global, index).type;
+}
+
+StringId fieldName(OptContext& opt, const Fields& fields, Size index) {
+    return ((TupType*)opt.global[fields.content])->fields.get(opt.global, index).name;
+}
+
+Place fieldPlace(OptContext& opt, Place base, const Fields& fields, U16 index) {
+    Place result = base;
+
+    // A fresh list rather than the one `base` holds, since several of these are built from one base
+    // and a shared list would have every field appended to the same path.
+    result.projections = {};
+    for(Size i = 0; i < base.projections.size(); i++) {
+        result.projections.push(opt.program.arena, base.projections.get(opt.local, i));
+    }
+
+    if(auto constructor = fields.constructor) {
+        result.projections.push(opt.program.arena, Projection {
+            ProjectionKind::Downcast, constructor.unwrap(), nullptr
+        });
+    }
+
+    result.projections.push(opt.program.arena, Projection { ProjectionKind::Field, index, nullptr });
+    return result;
+}
+
 ModulePtr<Value> makeConstant(OptContext& opt, Value& at, TypePtr type, U64 value) {
     auto block = opt.local[at.block];
     auto constant = addConstant<ConstInt>(*opt.module, *opt.function, *block, at.source, type, value);
@@ -296,6 +348,11 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
 
     ReprTable repr(*program.types, target);
     OptContext opt { context, program, *program.types, *program.arena, repr };
+
+    // Before anything else, and over the whole program at once: it changes signatures, so it is the
+    // one thing here that a single function's optimization cannot contain. What it leaves behind -
+    // a record rebuilt in the callee, taken apart at the caller - is what the passes below remove.
+    flattenArguments(opt);
 
     for(auto module: program.modules) {
         opt.module = module;

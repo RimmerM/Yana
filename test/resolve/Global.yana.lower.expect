@@ -7,8 +7,7 @@
 
 fromNative<complex>(): Long {
   b_0 {
-    %v_1 = idiv 4194304, 32: Long
-    ret %v_1
+    ret 131072
   }
 }
 
@@ -17,15 +16,13 @@ mutableGlobal<complex>(): Long {
     %v_1 = loads @counter, 8: Long
     %v_2 = add %v_1, 5: Long
     store @counter, %v_2, 8
-    %v_3 = loads @counter, 8: Long
-    ret %v_3
+    ret %v_2
   }
 }
 
 integerConstants<complex>(): Long {
   b_0 {
-    %v_1 = idiv 4194304, 32: Long
-    ret %v_1
+    ret 131072
   }
 }
 
@@ -51,10 +48,9 @@ floatConstant<complex>(): Long {
 
 addressOfStorage<complex>(): Long {
   b_0 {
-    %v_1 = loads @slot, 8: Long
     store @slot, 7, 8
-    %v_2 = loads @slot, 8: Long
-    ret %v_2
+    %v_1 = loads @slot, 8: Long
+    ret %v_1
   }
 }
 

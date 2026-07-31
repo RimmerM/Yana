@@ -16,12 +16,14 @@ function oneMetre() {
   return FromInt_Metres_fromInt(1n);
 }
 
-function measure(distance) {
-  return distance.value;
+function measure(distance$value) {
+  return distance$value;
 }
 
-function isFive(distance) {
-  return Eq_Metres_eq_eq(distance, FromInt_Metres_fromInt(5n));
+function isFive(distance$value) {
+  var distance = { value: distance$value };
+  var v3 = FromInt_Metres_fromInt(5n);
+  return Eq_Metres_eq_eq(distance.value, v3.value);
 }
 
 function main() {
@@ -30,8 +32,8 @@ function main() {
   var v5 = inc_Float(1.5);
   var v11 = ((v2 + (Math.trunc(v5) | 0) | 0) + two_Int() | 0) + defaulted() | 0;
   var v12 = mixedLiterals();
-  var v22 = ((v11 + (Math.trunc(v12) | 0) | 0) + measure(oneMetre()) | 0) + measure(FromInt_Metres_fromInt(4n)) | 0;
-  if (isFive({ value: 5 })) {
+  var v22 = ((v11 + (Math.trunc(v12) | 0) | 0) + measure(oneMetre().value) | 0) + measure(FromInt_Metres_fromInt(4n).value) | 0;
+  if (isFive(5)) {
     v34 = 1;
   } else {
     v34 = 0;
@@ -43,12 +45,12 @@ function FromInt_Metres_fromInt(value) {
   return { value: Number(value) | 0 };
 }
 
-function Eq_Metres_eq_eq(lhs, rhs) {
-  return lhs.value === rhs.value;
+function Eq_Metres_eq_eq(lhs$value, rhs$value) {
+  return lhs$value === rhs$value;
 }
 
-function Eq_Metres_not_eq(lhs, rhs) {
-  return lhs.value !== rhs.value;
+function Eq_Metres_not_eq(lhs$value, rhs$value) {
+  return lhs$value !== rhs$value;
 }
 
 function inc_Long(x) {

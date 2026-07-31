@@ -47,18 +47,13 @@ function andCall(x) {
 }
 
 function main() {
-  return ((((((check(andLow(34359738375), 7, 1) + check(andHigh(34359738375), 34359738368, 2) | 0) + check(mix(34359738375, 1099511627775, 255), 248, 4) | 0) + check(flags(2199023255560, 4398046511109), 4398046511245, 8) | 0) + check(complement(34359738375), $w53i$sub(0, 34359738376), 16) | 0) + check(clearTop($w53i$sub(0, 1)), 4503599627370495, 32) | 0) + check(keepNegative(1048591), $w53i$sub(0, 1048577), 64) | 0) + check(andCall(34359738375), 34359738375, 128) | 0;
+  return ((((((check(andLow(34359738375), 7, 1) + check(andHigh(34359738375), 34359738368, 2) | 0) + check(mix(34359738375, 1099511627775, 255), 248, 4) | 0) + check(flags(2199023255560, 4398046511109), 4398046511245, 8) | 0) + check(complement(34359738375), -34359738376, 16) | 0) + check(clearTop(-1), 4503599627370495, 32) | 0) + check(keepNegative(1048591), -1048577, 64) | 0) + check(andCall(34359738375), 34359738375, 128) | 0;
 }
 
 // integers of 33 to 53 bits - see codegen/js/wide.cpp
 function $w53i$and(a, b) {
   var v = ($wi$hi(a) & $wi$hi(b) & 2097151) * 4294967296 + ((a & b) >>> 0);
   return v >= 4503599627370496 ? v - 9007199254740992 : v;
-}
-
-function $w53i$sub(a, b) {
-  var v = a - b;
-  return v >= 4503599627370496 ? v - 9007199254740992 : v < -4503599627370496 ? v + 9007199254740992 : v;
 }
 
 function $wi$hi(a) {

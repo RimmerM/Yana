@@ -1,104 +1,86 @@
 
-Describe(Metres).size<complex>(%value: Ptr): Int {
+Describe(Metres).size<complex>(%value$value: Int): Int {
   b_0 {
-    %v_1 = loads %value, 4: Int
-    ret %v_1
+    ret %value$value
   }
 }
 
 sameMetres<complex>(%a: Int, %b: Int): Int {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, %a, 4
-    %v_2 = alloca 4, 4: Ptr
-    store %v_2, %b, 4
-    %v_3 = call_complex Eq(Metres).==, %v_1, %v_2: Int
-    je %v_3, b_4, b_5
+    %v_1 = call_complex Eq(Metres).==, %a, %b: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    jmp b_4
   }
 
   b_4 {
-    jmp b_6
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = phi [b_4, 1], [b_5, 0]: Int
-    ret %v_7
+    %v_5 = phi [b_2, 1], [b_3, 0]: Int
+    ret %v_5
   }
 }
 
-Describe(Feet).doubled<complex>(%v_0: Ptr, %value: Ptr) {
+Describe(Feet).doubled<complex>(%v_0: Ptr, %value$value: Int) {
   b_1 {
-    %v_2 = loads %value, 4: Int
-    %v_3 = loads %value, 4: Int
-    %v_4 = add %v_2, %v_3: Int
-    store %v_0, %v_4, 4
+    %v_2 = add %value$value, %value$value: Int
+    store %v_0, %v_2, 4
     ret 
   }
 }
 
 feetSize<complex>(): Int {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, 5, 4
-    %v_2 = call_complex Describe(Feet).size, %v_1: Int
-    ret %v_2
+    %v_1 = call_complex Describe(Feet).size, 5: Int
+    ret %v_1
   }
 }
 
 metreSize<complex>(): Int {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, 7, 4
-    %v_2 = call_complex Describe(Metres).size, %v_1: Int
-    ret %v_2
+    %v_1 = call_complex Describe(Metres).size, 7: Int
+    ret %v_1
   }
 }
 
 doubledMetres<complex>(): Int {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    store %v_1, 3, 4
-    %v_2 = alloca 4, 4: Ptr
-    call_complex Describe(Metres).doubled, %v_2, %v_1
-    %v_3 = call_complex Describe(Metres).size, %v_2: Int
-    ret %v_3
+    call_complex Describe(Metres).doubled, %v_1, 3
+    %value$value = loads %v_1, 4: Int
+    %v_2 = call_complex Describe(Metres).size, %value$value: Int
+    ret %v_2
   }
 }
 
-Eq(Metres).!=<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+Eq(Metres).!=<complex>(%lhs$value: Int, %rhs$value: Int): Int {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_neq %v_1, %v_2: Int
-    ret %v_3
-  }
-}
-
-Eq(Metres).==<complex>(%lhs: Ptr, %rhs: Ptr): Int {
-  b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_eq %v_1, %v_2: Int
-    ret %v_3
-  }
-}
-
-Describe(Feet).size<complex>(%value: Ptr): Int {
-  b_0 {
-    %v_1 = loads %value, 4: Int
+    %v_1 = cmp_neq %lhs$value, %rhs$value: Int
     ret %v_1
   }
 }
 
-Describe(Metres).doubled<complex>(%v_0: Ptr, %value: Ptr) {
+Eq(Metres).==<complex>(%lhs$value: Int, %rhs$value: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %lhs$value, %rhs$value: Int
+    ret %v_1
+  }
+}
+
+Describe(Feet).size<complex>(%value$value: Int): Int {
+  b_0 {
+    ret %value$value
+  }
+}
+
+Describe(Metres).doubled<complex>(%v_0: Ptr, %value$value: Int) {
   b_1 {
-    %v_2 = loads %value, 4: Int
-    %v_3 = imul %v_2, 2: Int
-    store %v_0, %v_3, 4
+    %v_2 = imul %value$value, 2: Int
+    store %v_0, %v_2, 4
     ret 
   }
 }

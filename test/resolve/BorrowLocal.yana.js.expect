@@ -6,17 +6,15 @@ function addTo(target, amount) {
 }
 
 function accumulate(n) {
-  var total = 0;
-  total = total + n | 0;
-  total = Math.imul(total, 2) | 0;
-  return total;
+  return Math.imul(n, 2) | 0;
 }
 
 function shared(n) {
   var total = { $v: 0 };
   addTo(total, n);
-  total.$v = total.$v + 1 | 0;
-  return total.$v;
+  var v10 = total.$v + 1 | 0;
+  total.$v = v10;
+  return v10;
 }
 
 function main() {

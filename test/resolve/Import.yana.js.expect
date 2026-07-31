@@ -1,15 +1,17 @@
 "use strict";
 // ResolveTest
 function area1() {
-  return Area_Point_area({ x: 3, y: 4 });
+  return Area_Point_area(3, 4);
 }
 
 function viaFunction() {
-  return Area_Point_area(scale(origin(), 2));
+  var v0 = origin();
+  var v2 = scale(v0.x, v0.y, 2);
+  return Area_Point_area(v2.x, v2.y);
 }
 
 function area2() {
-  return Area_Point_area({ x: 2, y: 5 });
+  return Area_Point_area(2, 5);
 }
 
 function qualifiedConstructor() {
@@ -17,15 +19,15 @@ function qualifiedConstructor() {
 }
 
 function twoAreas() {
-  return totalArea_Point({ x: 1, y: 2 }, { x: 3, y: 3 });
+  return totalArea_Point(1, 2, 3, 3);
 }
 
 function squareAreas() {
-  return tripleArea_Square({ side: 2 });
+  return tripleArea_Square(2);
 }
 
 function styles() {
-  return styleValue({ filled: 0, weight: 1 }) + styleValue({ filled: 1, weight: 3 }) | 0;
+  return styleValue(0, 1) + styleValue(1, 3) | 0;
 }
 
 function labelValue() {
@@ -33,11 +35,13 @@ function labelValue() {
 }
 
 function main() {
-  return ((((((area1() + area2() | 0) + viaFunction() | 0) + Area_Point_area(qualifiedConstructor()) | 0) + twoAreas() | 0) + squareAreas() | 0) + styles() | 0) + labelValue() | 0;
+  var v4 = (area1() + area2() | 0) + viaFunction() | 0;
+  var v5 = qualifiedConstructor();
+  return ((((v4 + Area_Point_area(v5.x, v5.y) | 0) + twoAreas() | 0) + squareAreas() | 0) + styles() | 0) + labelValue() | 0;
 }
 
-function Area_Square_area(value) {
-  return Math.imul(value.side, value.side) | 0;
+function Area_Square_area(value$side) {
+  return Math.imul(value$side, value$side) | 0;
 }
 
 // Shapes
@@ -45,18 +49,19 @@ function origin() {
   return { x: 0, y: 0 };
 }
 
-function scale(value, by) {
+function scale(value$x, value$y, by) {
   var v2 = { x: 0, y: 0 };
-  var v4 = Math.imul(value.x, by) | 0;
-  var v6 = Math.imul(value.y, by) | 0;
+  var v4 = Math.imul(value$x, by) | 0;
+  var v6 = Math.imul(value$y, by) | 0;
   v2.x = v4;
   v2.y = v6;
   return v2;
 }
 
-function styleValue(it) {
+function styleValue(it$filled, it$weight) {
   var v9;
-  if (it.filled) {
+  var it = { filled: it$filled, weight: it$weight };
+  if (it$filled) {
     v9 = 10;
   } else {
     v9 = 0;
@@ -64,18 +69,19 @@ function styleValue(it) {
   return v9 + it.weight | 0;
 }
 
-function Area_Point_area(value) {
-  return Math.imul(value.x, value.y) | 0;
+function Area_Point_area(value$x, value$y) {
+  return Math.imul(value$x, value$y) | 0;
 }
 
-function totalArea_Point(one, other) {
-  return Area_Point_area(one) + Area_Point_area(other) | 0;
+function totalArea_Point(one$x, one$y, other$x, other$y) {
+  var other = { x: other$x, y: other$y };
+  return Area_Point_area(one$x, one$y) + Area_Point_area(other.x, other.y) | 0;
 }
 
-function tripleArea_Square(value) {
-  return totalArea_Square(value, value) + Area_Square_area(value) | 0;
+function tripleArea_Square(value$side) {
+  return totalArea_Square(value$side, value$side) + Area_Square_area({ side: value$side }.side) | 0;
 }
 
-function totalArea_Square(one, other) {
-  return Area_Square_area(one) + Area_Square_area(other) | 0;
+function totalArea_Square(one$side, other$side) {
+  return Area_Square_area(one$side) + Area_Square_area({ side: other$side }.side) | 0;
 }

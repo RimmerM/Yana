@@ -1,24 +1,10 @@
 
 readWrite<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = and 0, 255: Long
-    %v_3 = cast 1: Long
-    %v_4 = and %v_3, 1: Long
-    %v_5 = and %v_2, 18446744073709551614: Long
-    %v_6 = or %v_5, %v_4: Long
-    %v_7 = and %v_6, 255: Long
-    %v_8 = cast 1: Long
-    %v_9 = and %v_8, 1: Long
-    %v_10 = shl %v_9, 1: Long
-    %v_11 = and %v_7, 18446744073709551613: Long
-    %v_12 = or %v_11, %v_10: Long
-    %v_13 = and %v_12, 255: Long
-    %v_14 = cast 0: Long
-    %v_15 = and %v_14, 1: Long
-    %v_16 = shl %v_15, 2: Long
-    %v_17 = and %v_13, 18446744073709551611: Long
-    %v_18 = or %v_17, %v_16: Long
-    store %v_0, %v_18, 1
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
+    store %v_2, 3, 1
+    copy %v_0, %v_2, 1
     ret 
   }
 }
@@ -40,13 +26,10 @@ wrapped<complex>(%v_0: Ptr) {
   }
 }
 
-heldTag<complex>(%h: Ptr): Int {
+heldTag<complex>(%h$box$value: Int, %h$box$tag: Int): Int {
   b_0 {
-    %v_1 = add %h, 4: Ptr
-    %v_2 = loads %v_1, 4: Int
-    %v_3 = loads %h, 4: Int
-    %v_4 = add %v_2, %v_3: Int
-    ret %v_4
+    %v_1 = add %h$box$tag, %h$box$value: Int
+    ret %v_1
   }
 }
 
@@ -63,58 +46,73 @@ movedTemporary<complex>(%v_0: Ptr) {
   }
 }
 
-moveTo<complex>(%v_0: Ptr, %it: Ptr, %to: Ptr) {
+moveTo<complex>(%v_0: Ptr, %it$origin$x: Int, %it$origin$y: Int, %it$size$x: Int, %it$size$y: Int, %to$x: Int, %to$y: Int) {
   b_1 {
-    %v_2 = alloca 16, 4: Ptr
-    copy %v_2, %it, 16
-    copy %v_2, %to, 8
-    copy %v_0, %v_2, 16
+    %it = alloca 16, 4: Ptr
+    store %it, %it$origin$x, 4
+    %v_2 = add %it, 4: Ptr
+    store %v_2, %it$origin$y, 4
+    %v_3 = add %it, 8: Ptr
+    store %v_3, %it$size$x, 4
+    %v_4 = add %it, 12: Ptr
+    store %v_4, %it$size$y, 4
+    %to = alloca 8, 4: Ptr
+    store %to, %to$x, 4
+    %v_5 = add %to, 4: Ptr
+    store %v_5, %to$y, 4
+    %v_6 = alloca 16, 4: Ptr
+    copy %v_6, %it, 8
+    %v_7 = add %it, 8: Ptr
+    %v_8 = add %v_6, 8: Ptr
+    copy %v_8, %v_7, 8
+    copy %v_6, %to, 8
+    copy %v_0, %v_6, 16
     ret 
   }
 }
 
-translateX<complex>(%v_0: Ptr, %it: Ptr, %by: Int) {
+translateX<complex>(%v_0: Ptr, %it$origin$x: Int, %it$origin$y: Int, %it$size$x: Int, %it$size$y: Int, %by: Int) {
   b_1 {
-    %v_2 = alloca 16, 4: Ptr
-    copy %v_2, %it, 16
-    %v_3 = loads %it, 4: Int
-    %v_4 = add %v_3, %by: Int
-    store %v_2, %v_4, 4
-    copy %v_0, %v_2, 16
+    %it = alloca 16, 4: Ptr
+    store %it, %it$origin$x, 4
+    %v_2 = add %it, 4: Ptr
+    store %v_2, %it$origin$y, 4
+    %v_3 = add %it, 8: Ptr
+    store %v_3, %it$size$x, 4
+    %v_4 = add %it, 12: Ptr
+    store %v_4, %it$size$y, 4
+    %v_5 = alloca 16, 4: Ptr
+    copy %v_5, %it, 8
+    %v_6 = add %it, 8: Ptr
+    %v_7 = add %v_5, 8: Ptr
+    copy %v_7, %v_6, 8
+    %v_8 = add %it$origin$x, %by: Int
+    store %v_5, %v_8, 4
+    copy %v_0, %v_5, 16
     ret 
   }
 }
 
-movedTo<complex>(%v_0: Ptr, %it: Ptr, %to: Ptr) {
+movedTo<complex>(%v_0: Ptr, %it: Ptr, %to$x: Int, %to$y: Int) {
   b_1 {
-    %v_2 = alloca 16, 4: Ptr
-    copy %v_2, %it, 16
-    copy %v_2, %to, 8
-    copy %v_0, %v_2, 16
+    %to = alloca 8, 4: Ptr
+    store %to, %to$x, 4
+    %v_2 = add %to, 4: Ptr
+    store %v_2, %to$y, 4
+    %v_3 = alloca 16, 4: Ptr
+    copy %v_3, %it, 16
+    copy %v_3, %to, 8
+    copy %v_0, %v_3, 16
     ret 
   }
 }
 
 readOnly<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = and 0, 255: Long
-    %v_3 = cast 1: Long
-    %v_4 = and %v_3, 1: Long
-    %v_5 = and %v_2, 18446744073709551614: Long
-    %v_6 = or %v_5, %v_4: Long
-    %v_7 = and %v_6, 255: Long
-    %v_8 = cast 0: Long
-    %v_9 = and %v_8, 1: Long
-    %v_10 = shl %v_9, 1: Long
-    %v_11 = and %v_7, 18446744073709551613: Long
-    %v_12 = or %v_11, %v_10: Long
-    %v_13 = and %v_12, 255: Long
-    %v_14 = cast 0: Long
-    %v_15 = and %v_14, 1: Long
-    %v_16 = shl %v_15, 2: Long
-    %v_17 = and %v_13, 18446744073709551611: Long
-    %v_18 = or %v_17, %v_16: Long
-    store %v_0, %v_18, 1
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
+    store %v_2, 1, 1
+    copy %v_0, %v_2, 1
     ret 
   }
 }
@@ -155,38 +153,25 @@ held<complex>(%v_0: Ptr) {
 
 none<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = and 0, 255: Long
-    %v_3 = cast 0: Long
-    %v_4 = and %v_3, 1: Long
-    %v_5 = and %v_2, 18446744073709551614: Long
-    %v_6 = or %v_5, %v_4: Long
-    %v_7 = and %v_6, 255: Long
-    %v_8 = cast 0: Long
-    %v_9 = and %v_8, 1: Long
-    %v_10 = shl %v_9, 1: Long
-    %v_11 = and %v_7, 18446744073709551613: Long
-    %v_12 = or %v_11, %v_10: Long
-    %v_13 = and %v_12, 255: Long
-    %v_14 = cast 0: Long
-    %v_15 = and %v_14, 1: Long
-    %v_16 = shl %v_15, 2: Long
-    %v_17 = and %v_13, 18446744073709551611: Long
-    %v_18 = or %v_17, %v_16: Long
-    store %v_0, %v_18, 1
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
+    store %v_2, 0, 1
+    copy %v_0, %v_2, 1
     ret 
   }
 }
 
 withExec<complex>(%v_0: Ptr, %f: Ptr) {
   b_1 {
-    %v_2 = load %f, 1: Long
-    %v_3 = and %v_2, 255: Long
-    %v_4 = cast 1: Long
-    %v_5 = and %v_4, 1: Long
-    %v_6 = shl %v_5, 2: Long
-    %v_7 = and %v_3, 18446744073709551611: Long
-    %v_8 = or %v_7, %v_6: Long
-    store %v_0, %v_8, 1
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
+    store %v_2, 0, 1
+    copy %v_2, %f, 1
+    %v_3 = load %v_2, 1: Int
+    %v_4 = and %v_3, 18446744073709551611: Int
+    %v_5 = or %v_4, 4: Int
+    store %v_2, %v_5, 1
+    copy %v_0, %v_2, 1
     ret 
   }
 }
@@ -208,10 +193,11 @@ boxed<complex>(%v_0: Ptr, %p: Ptr) {
   }
 }
 
-withX<complex>(%v_0: Ptr, %v: Ptr, %x: Int) {
+withX<complex>(%v_0: Ptr, %v$x: Int, %v$y: Int, %x: Int) {
   b_1 {
     %v_2 = alloca 8, 4: Ptr
-    copy %v_2, %v, 8
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, %v$y, 4
     store %v_2, %x, 4
     copy %v_0, %v_2, 8
     ret 
@@ -289,14 +275,25 @@ flagValue<complex>(%f: Ptr): Int {
   }
 }
 
-corners<complex>(%v_0: Ptr, %it: Ptr) {
+corners<complex>(%v_0: Ptr, %it$origin$x: Int, %it$origin$y: Int, %it$size$x: Int, %it$size$y: Int) {
   b_1 {
-    %v_2 = alloca 16, 4: Ptr
-    copy %v_2, %it, 16
-    store %v_2, 100, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, 200, 4
-    copy %v_0, %v_2, 16
+    %it = alloca 16, 4: Ptr
+    store %it, %it$origin$x, 4
+    %v_2 = add %it, 4: Ptr
+    store %v_2, %it$origin$y, 4
+    %v_3 = add %it, 8: Ptr
+    store %v_3, %it$size$x, 4
+    %v_4 = add %it, 12: Ptr
+    store %v_4, %it$size$y, 4
+    %v_5 = alloca 16, 4: Ptr
+    copy %v_5, %it, 8
+    %v_6 = add %it, 8: Ptr
+    %v_7 = add %v_5, 8: Ptr
+    copy %v_7, %v_6, 8
+    store %v_5, 100, 4
+    %v_8 = add %v_5, 4: Ptr
+    store %v_8, 200, 4
+    copy %v_0, %v_5, 16
     ret 
   }
 }
@@ -324,17 +321,10 @@ unwrapped<complex>(%w: Ptr): Int {
   }
 }
 
-tupleUpdate<complex>(%t: Ptr): Int {
+tupleUpdate<complex>(%t$a: Int, %t$b: Int): Int {
   b_0 {
-    %u = alloca 8, 4: Ptr
-    copy %u, %t, 8
-    %v_1 = add %u, 4: Ptr
-    store %v_1, 9, 4
-    %v_2 = loads %u, 4: Int
-    %v_3 = add %u, 4: Ptr
-    %v_4 = loads %v_3, 4: Int
-    %v_5 = add %v_2, %v_4: Int
-    ret %v_5
+    %v_1 = add %t$a, 9: Int
+    ret %v_1
   }
 }
 
@@ -347,8 +337,8 @@ oCreat<complex>(%v_0: Ptr) {
 
 flagBits<complex>(%f: Ptr): Int {
   b_0 {
-    %v_1 = load %f, 1: Long
-    %v_2 = and %v_1, 1: Long
+    %v_1 = load %f, 1: Int
+    %v_2 = and %v_1, 1: Int
     %v_3 = cast %v_2: Int
     je %v_3, b_4, b_5
   }
@@ -363,9 +353,9 @@ flagBits<complex>(%f: Ptr): Int {
 
   b_6 {
     %v_7 = phi [b_4, 1], [b_5, 0]: Int
-    %v_8 = load %f, 1: Long
-    %v_9 = shr %v_8, 1: Long
-    %v_10 = and %v_9, 1: Long
+    %v_8 = load %f, 1: Int
+    %v_9 = shr %v_8, 1: Int
+    %v_10 = and %v_9, 1: Int
     %v_11 = cast %v_10: Int
     je %v_11, b_12, b_13
   }
@@ -381,9 +371,9 @@ flagBits<complex>(%f: Ptr): Int {
   b_14 {
     %v_15 = phi [b_12, 2], [b_13, 0]: Int
     %v_16 = add %v_7, %v_15: Int
-    %v_17 = load %f, 1: Long
-    %v_18 = shr %v_17, 2: Long
-    %v_19 = and %v_18, 1: Long
+    %v_17 = load %f, 1: Int
+    %v_18 = shr %v_17, 2: Int
+    %v_19 = and %v_18, 1: Int
     %v_20 = cast %v_19: Int
     je %v_20, b_21, b_22
   }
@@ -438,168 +428,182 @@ main<complex>(): Int {
     %v_9 = call_complex flagBits, %v_8: Int
     %v_10 = alloca 16, 4: Ptr
     call_complex makeRect, %v_10
-    %v_11 = alloca 8, 4: Ptr
-    store %v_11, 8, 4
-    %v_12 = add %v_11, 4: Ptr
-    store %v_12, 9, 4
-    %v_13 = alloca 16, 4: Ptr
-    copy %v_13, %v_10, 16
-    %v_14 = alloca 16, 4: Ptr
-    call_complex movedTo, %v_14, %v_13, %v_11
-    %v_15 = add %v_14, 4: Ptr
-    %v_16 = loads %v_15, 4: Int
-    %v_17 = add %v_9, %v_16: Int
+    %v_11 = alloca 16, 4: Ptr
+    copy %v_11, %v_10, 16
+    %v_12 = alloca 16, 4: Ptr
+    call_complex movedTo, %v_12, %v_11, 8, 9
+    %v_13 = add %v_12, 4: Ptr
+    %v_14 = loads %v_13, 4: Int
+    %v_15 = add %v_9, %v_14: Int
+    %v_16 = alloca 8, 4: Ptr
+    store %v_16, 41, 4
+    %v_17 = add %v_16, 4: Ptr
+    store %v_17, 0, 4
     %v_18 = alloca 8, 4: Ptr
-    store %v_18, 41, 4
-    %v_19 = add %v_18, 4: Ptr
-    store %v_19, 0, 4
-    %v_20 = alloca 8, 4: Ptr
-    copy %v_20, %v_18, 8
-    %v_21 = alloca 8, 4: Ptr
-    call_complex bumpX, %v_21, %v_20
-    %v_22 = loads %v_21, 4: Int
-    %v_23 = add %v_17, %v_22: Int
+    copy %v_18, %v_16, 8
+    %v_19 = alloca 8, 4: Ptr
+    call_complex bumpX, %v_19, %v_18
+    %v_20 = loads %v_19, 4: Int
+    %v_21 = add %v_15, %v_20: Int
+    %v_22 = alloca 16, 4: Ptr
+    call_complex makeRect, %v_22
+    %v_23 = alloca 16, 4: Ptr
+    copy %v_23, %v_22, 16
     %v_24 = alloca 16, 4: Ptr
-    call_complex makeRect, %v_24
-    %v_25 = alloca 16, 4: Ptr
-    copy %v_25, %v_24, 16
-    %v_26 = alloca 16, 4: Ptr
-    call_complex movedCorners, %v_26, %v_25
-    %v_27 = loads %v_26, 4: Int
-    %v_28 = add %v_23, %v_27: Int
+    call_complex movedCorners, %v_24, %v_23
+    %v_25 = loads %v_24, 4: Int
+    %v_26 = add %v_21, %v_25: Int
+    %v_27 = alloca 16, 4: Ptr
+    call_complex makeRect, %v_27
+    %v_28 = alloca 16, 4: Ptr
+    copy %v_28, %v_27, 16
     %v_29 = alloca 16, 4: Ptr
-    call_complex makeRect, %v_29
-    %v_30 = alloca 16, 4: Ptr
-    copy %v_30, %v_29, 16
-    %v_31 = alloca 16, 4: Ptr
-    call_complex movedCorners, %v_31, %v_30
-    %v_32 = add %v_31, 8: Ptr
-    %v_33 = add %v_31, 12: Ptr
-    %v_34 = loads %v_33, 4: Int
-    %v_35 = add %v_28, %v_34: Int
-    %v_36 = alloca 16, 4: Ptr
-    call_complex movedTemporary, %v_36
-    %v_37 = add %v_36, 4: Ptr
+    call_complex movedCorners, %v_29, %v_28
+    %v_30 = add %v_29, 12: Ptr
+    %v_31 = loads %v_30, 4: Int
+    %v_32 = add %v_26, %v_31: Int
+    %v_33 = alloca 16, 4: Ptr
+    call_complex movedTemporary, %v_33
+    %v_34 = add %v_33, 4: Ptr
+    %v_35 = loads %v_34, 4: Int
+    %v_36 = add %v_32, %v_35: Int
+    %v_37 = alloca 16, 4: Ptr
+    call_complex movedTemporary, %v_37
     %v_38 = loads %v_37, 4: Int
-    %v_39 = add %v_35, %v_38: Int
-    %v_40 = alloca 16, 4: Ptr
-    call_complex movedTemporary, %v_40
-    %v_41 = loads %v_40, 4: Int
-    %v_42 = add %v_39, %v_41: Int
+    %v_39 = add %v_36, %v_38: Int
+    %v_40 = alloca 8, 4: Ptr
+    store %v_40, 0, 4
+    %v_41 = add %v_40, 4: Ptr
+    store %v_41, 0, 4
+    %v_42 = alloca 8, 4: Ptr
+    copy %v_42, %v_40, 8
     %v_43 = alloca 8, 4: Ptr
-    store %v_43, 0, 4
-    %v_44 = add %v_43, 4: Ptr
-    store %v_44, 0, 4
-    %v_45 = alloca 8, 4: Ptr
-    copy %v_45, %v_43, 8
-    %v_46 = alloca 8, 4: Ptr
-    call_complex movedWithX, %v_46, %v_45, 6
-    %v_47 = loads %v_46, 4: Int
-    %moved = add %v_42, %v_47: Int
+    call_complex movedWithX, %v_43, %v_42, 6
+    %v_44 = loads %v_43, 4: Int
+    %moved = add %v_39, %v_44: Int
+    %v_45 = alloca 1, 1: Ptr
+    call_complex none, %v_45
+    %v_46 = call_complex flagBits, %v_45: Int
+    %v_47 = add %moved, %v_46: Int
     %v_48 = alloca 1, 1: Ptr
-    call_complex none, %v_48
+    call_complex readOnly, %v_48
     %v_49 = call_complex flagBits, %v_48: Int
-    %v_50 = add %moved, %v_49: Int
+    %v_50 = add %v_47, %v_49: Int
     %v_51 = alloca 1, 1: Ptr
-    call_complex readOnly, %v_51
-    %v_52 = call_complex flagBits, %v_51: Int
-    %v_53 = add %v_50, %v_52: Int
-    %v_54 = alloca 1, 1: Ptr
-    call_complex readWrite, %v_54
-    %v_55 = alloca 1, 1: Ptr
-    call_complex withExec, %v_55, %v_54
-    %v_56 = call_complex flagBits, %v_55: Int
-    %v_57 = add %v_53, %v_56: Int
+    call_complex readWrite, %v_51
+    %v_52 = alloca 1, 1: Ptr
+    call_complex withExec, %v_52, %v_51
+    %v_53 = call_complex flagBits, %v_52: Int
+    %v_54 = add %v_50, %v_53: Int
+    %it$origin$x = loads %rect, 4: Int
+    %v_55 = add %rect, 4: Ptr
+    %it$origin$y = loads %v_55, 4: Int
+    %v_56 = add %rect, 8: Ptr
+    %it$size$x = loads %v_56, 4: Int
+    %v_57 = add %rect, 12: Ptr
+    %it$size$y = loads %v_57, 4: Int
     %v_58 = alloca 16, 4: Ptr
-    call_complex translateX, %v_58, %rect, 5
+    call_complex translateX, %v_58, %it$origin$x, %it$origin$y, %it$size$x, %it$size$y, 5
     %v_59 = loads %v_58, 4: Int
-    %v_60 = add %v_57, %v_59: Int
-    %v_61 = alloca 8, 4: Ptr
-    store %v_61, 8, 4
-    %v_62 = add %v_61, 4: Ptr
-    store %v_62, 9, 4
-    %v_63 = alloca 16, 4: Ptr
-    call_complex moveTo, %v_63, %rect, %v_61
-    %v_64 = add %v_63, 4: Ptr
-    %v_65 = loads %v_64, 4: Int
-    %v_66 = add %v_60, %v_65: Int
-    %v_67 = alloca 8, 4: Ptr
-    store %v_67, 1, 4
-    %v_68 = add %v_67, 4: Ptr
-    store %v_68, 2, 4
-    %v_69 = call_complex tupleUpdate, %v_67: Int
-    %v_70 = add %v_66, %v_69: Int
-    %v_71 = alloca 16, 4: Ptr
-    call_complex corners, %v_71, %rect
-    %v_72 = loads %v_71, 4: Int
-    %v_73 = add %v_70, %v_72: Int
-    %v_74 = alloca 16, 4: Ptr
-    call_complex corners, %v_74, %rect
-    %v_75 = add %v_74, 4: Ptr
-    %v_76 = loads %v_75, 4: Int
-    %v_77 = add %v_73, %v_76: Int
-    %v_78 = alloca 16, 4: Ptr
-    call_complex deeper, %v_78
-    %v_79 = loads %v_78, 4: Int
-    %v_80 = add %v_77, %v_79: Int
-    %v_81 = alloca 16, 4: Ptr
-    call_complex deeper, %v_81
-    %v_82 = add %v_81, 8: Ptr
-    %v_83 = add %v_81, 12: Ptr
+    %v_60 = add %v_54, %v_59: Int
+    %it$origin$x = loads %rect, 4: Int
+    %v_61 = add %rect, 4: Ptr
+    %it$origin$y = loads %v_61, 4: Int
+    %v_62 = add %rect, 8: Ptr
+    %it$size$x = loads %v_62, 4: Int
+    %v_63 = add %rect, 12: Ptr
+    %it$size$y = loads %v_63, 4: Int
+    %v_64 = alloca 16, 4: Ptr
+    call_complex moveTo, %v_64, %it$origin$x, %it$origin$y, %it$size$x, %it$size$y, 8, 9
+    %v_65 = add %v_64, 4: Ptr
+    %v_66 = loads %v_65, 4: Int
+    %v_67 = add %v_60, %v_66: Int
+    %v_68 = call_complex tupleUpdate, 1, 2: Int
+    %v_69 = add %v_67, %v_68: Int
+    %it$origin$x = loads %rect, 4: Int
+    %v_70 = add %rect, 4: Ptr
+    %it$origin$y = loads %v_70, 4: Int
+    %v_71 = add %rect, 8: Ptr
+    %it$size$x = loads %v_71, 4: Int
+    %v_72 = add %rect, 12: Ptr
+    %it$size$y = loads %v_72, 4: Int
+    %v_73 = alloca 16, 4: Ptr
+    call_complex corners, %v_73, %it$origin$x, %it$origin$y, %it$size$x, %it$size$y
+    %v_74 = loads %v_73, 4: Int
+    %v_75 = add %v_69, %v_74: Int
+    %it$origin$x = loads %rect, 4: Int
+    %v_76 = add %rect, 4: Ptr
+    %it$origin$y = loads %v_76, 4: Int
+    %v_77 = add %rect, 8: Ptr
+    %it$size$x = loads %v_77, 4: Int
+    %v_78 = add %rect, 12: Ptr
+    %it$size$y = loads %v_78, 4: Int
+    %v_79 = alloca 16, 4: Ptr
+    call_complex corners, %v_79, %it$origin$x, %it$origin$y, %it$size$x, %it$size$y
+    %v_80 = add %v_79, 4: Ptr
+    %v_81 = loads %v_80, 4: Int
+    %v_82 = add %v_75, %v_81: Int
+    %v_83 = alloca 16, 4: Ptr
+    call_complex deeper, %v_83
     %v_84 = loads %v_83, 4: Int
-    %v_85 = add %v_80, %v_84: Int
+    %v_85 = add %v_82, %v_84: Int
     %v_86 = alloca 16, 4: Ptr
     call_complex deeper, %v_86
-    %v_87 = add %v_86, 4: Ptr
+    %v_87 = add %v_86, 12: Ptr
     %v_88 = loads %v_87, 4: Int
     %v_89 = add %v_85, %v_88: Int
-    %v_90 = alloca 8, 4: Ptr
-    store %v_90, 0, 4
+    %v_90 = alloca 16, 4: Ptr
+    call_complex deeper, %v_90
     %v_91 = add %v_90, 4: Ptr
-    store %v_91, 0, 4
-    %v_92 = alloca 8, 4: Ptr
-    call_complex withX, %v_92, %v_90, 6
-    %v_93 = loads %v_92, 4: Int
-    %v_94 = add %v_89, %v_93: Int
-    %v_95 = alloca 4, 4: Ptr
-    call_complex oCreat, %v_95
-    %v_96 = call_complex flagValue, %v_95: Int
-    %v_97 = add %v_94, %v_96: Int
-    %v_98 = alloca 4, 4: Ptr
-    call_complex wrapped, %v_98
-    %v_99 = call_complex unwrapped, %v_98: Int
-    %v_100 = add %v_97, %v_99: Int
-    %v_101 = call_complex directionValue, 1: Int
-    %v_102 = add %v_100, %v_101: Int
-    %v_103 = alloca 8, 4: Ptr
-    call_complex held, %v_103
-    %v_104 = call_complex heldTag, %v_103: Int
-    %scalars = add %v_102, %v_104: Int
-    %v_105 = alloca 8, 8: Ptr
-    call_complex nullHandle, %v_105
-    %v_106 = call_complex handleAddress, %v_105: Long
-    %v_107 = alloca 8, 8: Ptr
-    store %v_107, 11, 8
+    %v_92 = loads %v_91, 4: Int
+    %v_93 = add %v_89, %v_92: Int
+    %v_94 = alloca 8, 4: Ptr
+    call_complex withX, %v_94, 0, 0, 6
+    %v_95 = loads %v_94, 4: Int
+    %v_96 = add %v_93, %v_95: Int
+    %v_97 = alloca 4, 4: Ptr
+    call_complex oCreat, %v_97
+    %v_98 = call_complex flagValue, %v_97: Int
+    %v_99 = add %v_96, %v_98: Int
+    %v_100 = alloca 4, 4: Ptr
+    call_complex wrapped, %v_100
+    %v_101 = call_complex unwrapped, %v_100: Int
+    %v_102 = add %v_99, %v_101: Int
+    %v_103 = call_complex directionValue, 1: Int
+    %v_104 = add %v_102, %v_103: Int
+    %v_105 = alloca 8, 4: Ptr
+    call_complex held, %v_105
+    %h$box$value = loads %v_105, 4: Int
+    %v_106 = add %v_105, 4: Ptr
+    %h$box$tag = loads %v_106, 4: Int
+    %v_107 = call_complex heldTag, %h$box$value, %h$box$tag: Int
+    %scalars = add %v_104, %v_107: Int
     %v_108 = alloca 8, 8: Ptr
-    call_complex boxed, %v_108, %v_107
-    %v_109 = call_complex boxedValue, %v_108: Long
-    %v_110 = add %v_106, %v_109: Long
-    %v_111 = cast %v_110: Int
-    %v_112 = add %scalars, %v_111: Int
-    ret %v_112
+    call_complex nullHandle, %v_108
+    %v_109 = call_complex handleAddress, %v_108: Long
+    %v_110 = alloca 8, 8: Ptr
+    store %v_110, 11, 8
+    %v_111 = alloca 8, 8: Ptr
+    call_complex boxed, %v_111, %v_110
+    %v_112 = call_complex boxedValue, %v_111: Long
+    %v_113 = add %v_109, %v_112: Long
+    %v_114 = cast %v_113: Int
+    %v_115 = add %scalars, %v_114: Int
+    ret %v_115
   }
 }
 
 movedExec<complex>(%v_0: Ptr, %f: Ptr) {
   b_1 {
-    %v_2 = load %f, 1: Long
-    %v_3 = and %v_2, 255: Long
-    %v_4 = cast 1: Long
-    %v_5 = and %v_4, 1: Long
-    %v_6 = shl %v_5, 2: Long
-    %v_7 = and %v_3, 18446744073709551611: Long
-    %v_8 = or %v_7, %v_6: Long
-    store %v_0, %v_8, 1
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
+    store %v_2, 0, 1
+    copy %v_2, %f, 1
+    %v_3 = load %v_2, 1: Int
+    %v_4 = and %v_3, 18446744073709551611: Int
+    %v_5 = or %v_4, 4: Int
+    store %v_2, %v_5, 1
+    copy %v_0, %v_2, 1
     ret 
   }
 }

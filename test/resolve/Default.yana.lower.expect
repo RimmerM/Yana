@@ -1,10 +1,8 @@
 
-Ord(Metres).compare<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+Ord(Metres).compare<complex>(%lhs$value: Int, %rhs$value: Int): Int {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = call_complex Ord(Int).compare, %v_1, %v_2: Int
-    ret %v_3
+    %v_1 = call_complex Ord(Int).compare, %lhs$value, %rhs$value: Int
+    ret %v_1
   }
 }
 
@@ -34,125 +32,119 @@ Ord(Int).compare<complex>(%lhs: Int, %rhs: Int): Int {
 
 overridden<complex>(): Int {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, 1, 4
-    %v_2 = alloca 4, 4: Ptr
-    store %v_2, 2, 4
-    %v_3 = call_complex Eq(Feet).!=, %v_1, %v_2: Int
-    je %v_3, b_4, b_5
+    %v_1 = call_complex Eq(Feet).!=, 1, 2: Int
+    je %v_1, b_2, b_3
   }
 
-  b_4 {
+  b_2 {
     ret 64
   }
 
-  b_5 {
-    jmp b_6
+  b_3 {
+    jmp b_4
   }
 
-  b_6 {
+  b_4 {
     ret 0
   }
 }
 
 ordered<complex>(): Int {
   b_0 {
-    %a = alloca 4, 4: Ptr
-    store %a, 1, 4
-    %b = alloca 4, 4: Ptr
-    store %b, 2, 4
-    %v_1 = imm 0: Int
-    %v_2 = call_complex Eq.!=(Metres), %a, %b: Int
-    je %v_2, b_3, b_4
+    %v_1 = imm 1: Int
+    %v_2 = imm 2: Int
+    %v_3 = imm 0: Int
+    %v_4 = call_complex Eq.!=(Metres), %v_1, %v_2: Int
+    je %v_4, b_5, b_6
   }
 
-  b_3 {
-    %v_5 = add %v_1, 1: Int
-    jmp b_6
-  }
-
-  b_4 {
-    jmp b_6
+  b_5 {
+    %v_7 = add %v_3, 1: Int
+    jmp b_8
   }
 
   b_6 {
-    %v_7 = phi [b_3, %v_5], [b_4, %v_1]: Int
-    %v_8 = call_complex Ord.<(Metres), %a, %b: Int
-    je %v_8, b_9, b_10
+    jmp b_8
   }
 
-  b_9 {
-    %v_11 = add %v_7, 2: Int
-    jmp b_12
+  b_8 {
+    %v_9 = phi [b_5, %v_7], [b_6, %v_3]: Int
+    %v_10 = call_complex Ord.<(Metres), %v_1, %v_2: Int
+    je %v_10, b_11, b_12
   }
 
-  b_10 {
-    jmp b_12
+  b_11 {
+    %v_13 = add %v_9, 2: Int
+    jmp b_14
   }
 
   b_12 {
-    %v_13 = phi [b_9, %v_11], [b_10, %v_7]: Int
-    %v_14 = call_complex Ord.<=(Metres), %a, %b: Int
-    je %v_14, b_15, b_16
+    jmp b_14
   }
 
-  b_15 {
-    %v_17 = add %v_13, 4: Int
-    jmp b_18
+  b_14 {
+    %v_15 = phi [b_11, %v_13], [b_12, %v_9]: Int
+    %v_16 = call_complex Ord.<=(Metres), %v_1, %v_2: Int
+    je %v_16, b_17, b_18
   }
 
-  b_16 {
-    jmp b_18
+  b_17 {
+    %v_19 = add %v_15, 4: Int
+    jmp b_20
   }
 
   b_18 {
-    %v_19 = phi [b_15, %v_17], [b_16, %v_13]: Int
-    %v_20 = call_complex Ord.>(Metres), %b, %a: Int
-    je %v_20, b_21, b_22
+    jmp b_20
   }
 
-  b_21 {
-    %v_23 = add %v_19, 8: Int
-    jmp b_24
+  b_20 {
+    %v_21 = phi [b_17, %v_19], [b_18, %v_15]: Int
+    %v_22 = call_complex Ord.>(Metres), %v_2, %v_1: Int
+    je %v_22, b_23, b_24
   }
 
-  b_22 {
-    jmp b_24
+  b_23 {
+    %v_25 = add %v_21, 8: Int
+    jmp b_26
   }
 
   b_24 {
-    %v_25 = phi [b_21, %v_23], [b_22, %v_19]: Int
-    %v_26 = call_complex Ord.>=(Metres), %b, %a: Int
-    je %v_26, b_27, b_28
+    jmp b_26
   }
 
-  b_27 {
-    %v_29 = add %v_25, 16: Int
-    jmp b_30
+  b_26 {
+    %v_27 = phi [b_23, %v_25], [b_24, %v_21]: Int
+    %v_28 = call_complex Ord.>=(Metres), %v_2, %v_1: Int
+    je %v_28, b_29, b_30
   }
 
-  b_28 {
-    jmp b_30
+  b_29 {
+    %v_31 = add %v_27, 16: Int
+    jmp b_32
   }
 
   b_30 {
-    %v_31 = phi [b_27, %v_29], [b_28, %v_25]: Int
-    %v_32 = call_complex Ord.>=(Metres), %a, %a: Int
-    je %v_32, b_33, b_34
+    jmp b_32
   }
 
-  b_33 {
-    %v_35 = add %v_31, 32: Int
-    jmp b_36
+  b_32 {
+    %v_33 = phi [b_29, %v_31], [b_30, %v_27]: Int
+    %v_34 = call_complex Ord.>=(Metres), %v_1, %v_1: Int
+    je %v_34, b_35, b_36
   }
 
-  b_34 {
-    jmp b_36
+  b_35 {
+    %v_37 = add %v_33, 32: Int
+    jmp b_38
   }
 
   b_36 {
-    %v_37 = phi [b_33, %v_35], [b_34, %v_31]: Int
-    ret %v_37
+    jmp b_38
+  }
+
+  b_38 {
+    %v_39 = phi [b_35, %v_37], [b_36, %v_33]: Int
+    ret %v_39
   }
 }
 
@@ -165,61 +157,53 @@ Logic.&&(Flags)<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
   }
 }
 
-Eq(Feet).!=<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+Eq(Feet).!=<complex>(%lhs$value: Int, %rhs$value: Int): Int {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_neq %v_1, %v_2: Int
-    ret %v_3
+    %v_1 = cmp_neq %lhs$value, %rhs$value: Int
+    ret %v_1
   }
 }
 
-Eq(Box(a)).==(Int)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+Eq(Box(a)).==(Int)<complex>(%lhs$item: Int, %rhs$item: Int): Int {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_eq %v_1, %v_2: Int
-    ret %v_3
+    %v_1 = cmp_eq %lhs$item, %rhs$item: Int
+    ret %v_1
   }
 }
 
 Logic(Flags).and<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_1 {
-    %v_2 = load %lhs, 1: Long
-    %v_3 = and %v_2, 1: Long
-    %v_4 = cast %v_3: Int
-    %v_5 = load %rhs, 1: Long
-    %v_6 = and %v_5, 1: Long
-    %v_7 = cast %v_6: Int
-    %v_8 = and %v_4, %v_7: Int
-    %v_9 = load %lhs, 1: Long
-    %v_10 = shr %v_9, 1: Long
-    %v_11 = and %v_10, 1: Long
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
+    %v_3 = load %lhs, 1: Int
+    %v_4 = and %v_3, 1: Int
+    %v_5 = cast %v_4: Int
+    %v_6 = load %rhs, 1: Int
+    %v_7 = and %v_6, 1: Int
+    %v_8 = cast %v_7: Int
+    %v_9 = and %v_5, %v_8: Int
+    %v_10 = shr %v_3, 1: Int
+    %v_11 = and %v_10, 1: Int
     %v_12 = cast %v_11: Int
-    %v_13 = load %rhs, 1: Long
-    %v_14 = shr %v_13, 1: Long
-    %v_15 = and %v_14, 1: Long
-    %v_16 = cast %v_15: Int
-    %v_17 = and %v_12, %v_16: Int
-    %v_18 = and 0, 255: Long
-    %v_19 = cast %v_8: Long
-    %v_20 = and %v_19, 1: Long
-    %v_21 = and %v_18, 18446744073709551614: Long
-    %v_22 = or %v_21, %v_20: Long
-    %v_23 = and %v_22, 255: Long
-    %v_24 = cast %v_17: Long
-    %v_25 = and %v_24, 1: Long
-    %v_26 = shl %v_25, 1: Long
-    %v_27 = and %v_23, 18446744073709551613: Long
-    %v_28 = or %v_27, %v_26: Long
-    store %v_0, %v_28, 1
+    %v_13 = shr %v_6, 1: Int
+    %v_14 = and %v_13, 1: Int
+    %v_15 = cast %v_14: Int
+    %v_16 = and %v_12, %v_15: Int
+    %v_17 = cast %v_9: Int
+    %v_18 = cast %v_16: Int
+    %v_19 = and %v_18, 1: Int
+    %v_20 = shl %v_19, 1: Int
+    %v_21 = and %v_17, 1: Int
+    %v_22 = or %v_21, %v_20: Int
+    store %v_2, %v_22, 1
+    copy %v_0, %v_2, 1
     ret 
   }
 }
 
-Ord.>=(Metres)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+Ord.>=(Metres)<complex>(%lhs$value: Int, %rhs$value: Int): Int {
   b_0 {
-    %v_1 = call_complex Ord(Metres).compare, %lhs, %rhs: Int
+    %v_1 = call_complex Ord(Metres).compare, %lhs$value, %rhs$value: Int
     %v_2 = cmp_neq %v_1, 0: Int
     ret %v_2
   }
@@ -231,7 +215,9 @@ boxes<complex>(): Int {
     call_complex boxOf, %v_1, 1
     %v_2 = alloca 4, 4: Ptr
     call_complex boxOf, %v_2, 2
-    %v_3 = call_complex Eq.!=(Box(Int)), %v_1, %v_2: Int
+    %lhs$item = loads %v_1, 4: Int
+    %rhs$item = loads %v_2, 4: Int
+    %v_3 = call_complex Eq.!=(Box(Int)), %lhs$item, %rhs$item: Int
     je %v_3, b_4, b_5
   }
 
@@ -248,19 +234,17 @@ boxes<complex>(): Int {
   }
 }
 
-Num(Cents).*<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
+Num(Cents).*<complex>(%v_0: Ptr, %lhs$value: Int, %rhs$value: Int) {
   b_1 {
-    %v_2 = loads %lhs, 4: Int
-    %v_3 = loads %rhs, 4: Int
-    %v_4 = imul %v_2, %v_3: Int
-    store %v_0, %v_4, 4
+    %v_2 = imul %lhs$value, %rhs$value: Int
+    store %v_0, %v_2, 4
     ret 
   }
 }
 
-Eq.!=(Metres)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+Eq.!=(Metres)<complex>(%lhs$value: Int, %rhs$value: Int): Int {
   b_0 {
-    %v_1 = call_complex Eq(Metres).==, %lhs, %rhs: Int
+    %v_1 = call_complex Eq(Metres).==, %lhs$value, %rhs$value: Int
     %v_2 = xor %v_1, 1: Int
     ret %v_2
   }
@@ -268,46 +252,39 @@ Eq.!=(Metres)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
 
 described<complex>(): Int {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    store %v_1, 1024, 4
-    %v_2 = call_complex Describe.doubled(Metres), %v_1: Int
-    ret %v_2
+    %v_1 = call_complex Describe.doubled(Metres), 1024: Int
+    ret %v_1
   }
 }
 
-Num(Cents).-<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
+Num(Cents).-<complex>(%v_0: Ptr, %lhs$value: Int, %rhs$value: Int) {
   b_1 {
-    %v_2 = loads %lhs, 4: Int
-    %v_3 = loads %rhs, 4: Int
-    %v_4 = sub %v_2, %v_3: Int
-    store %v_0, %v_4, 4
+    %v_2 = sub %lhs$value, %rhs$value: Int
+    store %v_0, %v_2, 4
     ret 
   }
 }
 
 Logic(Flags).not<complex>(%v_0: Ptr, %value: Ptr) {
   b_1 {
-    %v_2 = load %value, 1: Long
-    %v_3 = and %v_2, 1: Long
-    %v_4 = cast %v_3: Int
-    %v_5 = xor %v_4, 1: Int
-    %v_6 = load %value, 1: Long
-    %v_7 = shr %v_6, 1: Long
-    %v_8 = and %v_7, 1: Long
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
+    %v_3 = load %value, 1: Int
+    %v_4 = and %v_3, 1: Int
+    %v_5 = cast %v_4: Int
+    %v_6 = xor %v_5, 1: Int
+    %v_7 = shr %v_3, 1: Int
+    %v_8 = and %v_7, 1: Int
     %v_9 = cast %v_8: Int
     %v_10 = xor %v_9, 1: Int
-    %v_11 = and 0, 255: Long
-    %v_12 = cast %v_5: Long
-    %v_13 = and %v_12, 1: Long
-    %v_14 = and %v_11, 18446744073709551614: Long
-    %v_15 = or %v_14, %v_13: Long
-    %v_16 = and %v_15, 255: Long
-    %v_17 = cast %v_10: Long
-    %v_18 = and %v_17, 1: Long
-    %v_19 = shl %v_18, 1: Long
-    %v_20 = and %v_16, 18446744073709551613: Long
-    %v_21 = or %v_20, %v_19: Long
-    store %v_0, %v_21, 1
+    %v_11 = cast %v_6: Int
+    %v_12 = cast %v_10: Int
+    %v_13 = and %v_12, 1: Int
+    %v_14 = shl %v_13, 1: Int
+    %v_15 = and %v_11, 1: Int
+    %v_16 = or %v_15, %v_14: Int
+    store %v_2, %v_16, 1
+    copy %v_0, %v_2, 1
     ret 
   }
 }
@@ -321,17 +298,17 @@ Logic.||(Flags)<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
   }
 }
 
-Eq.!=(Box(Int))<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+Eq.!=(Box(Int))<complex>(%lhs$item: Int, %rhs$item: Int): Int {
   b_0 {
-    %v_1 = call_complex Eq(Box(a)).==(Int), %lhs, %rhs: Int
+    %v_1 = call_complex Eq(Box(a)).==(Int), %lhs$item, %rhs$item: Int
     %v_2 = xor %v_1, 1: Int
     ret %v_2
   }
 }
 
-Ord.>(Metres)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+Ord.>(Metres)<complex>(%lhs$value: Int, %rhs$value: Int): Int {
   b_0 {
-    %v_1 = call_complex Ord(Metres).compare, %lhs, %rhs: Int
+    %v_1 = call_complex Ord(Metres).compare, %lhs$value, %rhs$value: Int
     %v_2 = cmp_eq %v_1, 2: Int
     ret %v_2
   }
@@ -345,44 +322,41 @@ FromInt(Cents).fromInt<complex>(%v_0: Ptr, %value: Long) {
   }
 }
 
-Ord.<=(Metres)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+Ord.<=(Metres)<complex>(%lhs$value: Int, %rhs$value: Int): Int {
   b_0 {
-    %v_1 = call_complex Ord(Metres).compare, %lhs, %rhs: Int
+    %v_1 = call_complex Ord(Metres).compare, %lhs$value, %rhs$value: Int
     %v_2 = cmp_neq %v_1, 2: Int
     ret %v_2
   }
 }
 
-Eq(Feet).==<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+Eq(Feet).==<complex>(%lhs$value: Int, %rhs$value: Int): Int {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_eq %v_1, %v_2: Int
-    ret %v_3
+    %v_1 = cmp_eq %lhs$value, %rhs$value: Int
+    ret %v_1
   }
 }
 
-Ord.<(Metres)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+Ord.<(Metres)<complex>(%lhs$value: Int, %rhs$value: Int): Int {
   b_0 {
-    %v_1 = call_complex Ord(Metres).compare, %lhs, %rhs: Int
+    %v_1 = call_complex Ord(Metres).compare, %lhs$value, %rhs$value: Int
     %v_2 = cmp_eq %v_1, 0: Int
     ret %v_2
   }
 }
 
-Describe.doubled(Metres)<complex>(%value: Ptr): Int {
+Describe.doubled(Metres)<complex>(%value$value: Int): Int {
   b_0 {
-    %v_1 = call_complex Describe(Metres).size, %value: Int
-    %v_2 = call_complex Describe(Metres).size, %value: Int
+    %v_1 = call_complex Describe(Metres).size, %value$value: Int
+    %v_2 = call_complex Describe(Metres).size, %value$value: Int
     %v_3 = add %v_1, %v_2: Int
     ret %v_3
   }
 }
 
-Describe(Metres).size<complex>(%value: Ptr): Int {
+Describe(Metres).size<complex>(%value$value: Int): Int {
   b_0 {
-    %v_1 = loads %value, 4: Int
-    ret %v_1
+    ret %value$value
   }
 }
 
@@ -395,106 +369,92 @@ Logic.!(Flags)<complex>(%v_0: Ptr, %value: Ptr) {
   }
 }
 
-Num(Cents)./<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
+Num(Cents)./<complex>(%v_0: Ptr, %lhs$value: Int, %rhs$value: Int) {
   b_1 {
-    %v_2 = loads %lhs, 4: Int
-    %v_3 = loads %rhs, 4: Int
-    %v_4 = idiv %v_2, %v_3: Int
-    store %v_0, %v_4, 4
+    %v_2 = idiv %lhs$value, %rhs$value: Int
+    store %v_0, %v_2, 4
     ret 
   }
 }
 
 Logic(Flags).or<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_1 {
-    %v_2 = load %lhs, 1: Long
-    %v_3 = and %v_2, 1: Long
-    %v_4 = cast %v_3: Int
-    %v_5 = load %rhs, 1: Long
-    %v_6 = and %v_5, 1: Long
-    %v_7 = cast %v_6: Int
-    %v_8 = or %v_4, %v_7: Int
-    %v_9 = load %lhs, 1: Long
-    %v_10 = shr %v_9, 1: Long
-    %v_11 = and %v_10, 1: Long
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
+    %v_3 = load %lhs, 1: Int
+    %v_4 = and %v_3, 1: Int
+    %v_5 = cast %v_4: Int
+    %v_6 = load %rhs, 1: Int
+    %v_7 = and %v_6, 1: Int
+    %v_8 = cast %v_7: Int
+    %v_9 = or %v_5, %v_8: Int
+    %v_10 = shr %v_3, 1: Int
+    %v_11 = and %v_10, 1: Int
     %v_12 = cast %v_11: Int
-    %v_13 = load %rhs, 1: Long
-    %v_14 = shr %v_13, 1: Long
-    %v_15 = and %v_14, 1: Long
-    %v_16 = cast %v_15: Int
-    %v_17 = or %v_12, %v_16: Int
-    %v_18 = and 0, 255: Long
-    %v_19 = cast %v_8: Long
-    %v_20 = and %v_19, 1: Long
-    %v_21 = and %v_18, 18446744073709551614: Long
-    %v_22 = or %v_21, %v_20: Long
-    %v_23 = and %v_22, 255: Long
-    %v_24 = cast %v_17: Long
-    %v_25 = and %v_24, 1: Long
-    %v_26 = shl %v_25, 1: Long
-    %v_27 = and %v_23, 18446744073709551613: Long
-    %v_28 = or %v_27, %v_26: Long
-    store %v_0, %v_28, 1
+    %v_13 = shr %v_6, 1: Int
+    %v_14 = and %v_13, 1: Int
+    %v_15 = cast %v_14: Int
+    %v_16 = or %v_12, %v_15: Int
+    %v_17 = cast %v_9: Int
+    %v_18 = cast %v_16: Int
+    %v_19 = and %v_18, 1: Int
+    %v_20 = shl %v_19, 1: Int
+    %v_21 = and %v_17, 1: Int
+    %v_22 = or %v_21, %v_20: Int
+    store %v_2, %v_22, 1
+    copy %v_0, %v_2, 1
     ret 
   }
 }
 
 Logic(Flags).xor<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_1 {
-    %v_2 = load %lhs, 1: Long
-    %v_3 = and %v_2, 1: Long
-    %v_4 = cast %v_3: Int
-    %v_5 = load %rhs, 1: Long
-    %v_6 = and %v_5, 1: Long
-    %v_7 = cast %v_6: Int
-    %v_8 = xor %v_4, %v_7: Int
-    %v_9 = load %lhs, 1: Long
-    %v_10 = shr %v_9, 1: Long
-    %v_11 = and %v_10, 1: Long
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
+    %v_3 = load %lhs, 1: Int
+    %v_4 = and %v_3, 1: Int
+    %v_5 = cast %v_4: Int
+    %v_6 = load %rhs, 1: Int
+    %v_7 = and %v_6, 1: Int
+    %v_8 = cast %v_7: Int
+    %v_9 = xor %v_5, %v_8: Int
+    %v_10 = shr %v_3, 1: Int
+    %v_11 = and %v_10, 1: Int
     %v_12 = cast %v_11: Int
-    %v_13 = load %rhs, 1: Long
-    %v_14 = shr %v_13, 1: Long
-    %v_15 = and %v_14, 1: Long
-    %v_16 = cast %v_15: Int
-    %v_17 = xor %v_12, %v_16: Int
-    %v_18 = and 0, 255: Long
-    %v_19 = cast %v_8: Long
-    %v_20 = and %v_19, 1: Long
-    %v_21 = and %v_18, 18446744073709551614: Long
-    %v_22 = or %v_21, %v_20: Long
-    %v_23 = and %v_22, 255: Long
-    %v_24 = cast %v_17: Long
-    %v_25 = and %v_24, 1: Long
-    %v_26 = shl %v_25, 1: Long
-    %v_27 = and %v_23, 18446744073709551613: Long
-    %v_28 = or %v_27, %v_26: Long
-    store %v_0, %v_28, 1
+    %v_13 = shr %v_6, 1: Int
+    %v_14 = and %v_13, 1: Int
+    %v_15 = cast %v_14: Int
+    %v_16 = xor %v_12, %v_15: Int
+    %v_17 = cast %v_9: Int
+    %v_18 = cast %v_16: Int
+    %v_19 = and %v_18, 1: Int
+    %v_20 = shl %v_19, 1: Int
+    %v_21 = and %v_17, 1: Int
+    %v_22 = or %v_21, %v_20: Int
+    store %v_2, %v_22, 1
+    copy %v_0, %v_2, 1
     ret 
   }
 }
 
 negated<complex>(): Int {
   b_0 {
-    %value = alloca 4, 4: Ptr
-    store %value, 7, 4
     %negative = alloca 4, 4: Ptr
-    call_complex Num.-(Cents), %negative, %value
-    %v_1 = alloca 4, 4: Ptr
-    %v_2 = neg 7: Int
-    store %v_1, %v_2, 4
-    %v_3 = call_complex Eq(Cents).==, %negative, %v_1: Int
-    je %v_3, b_4, b_5
+    call_complex Num.-(Cents), %negative, 7
+    %lhs$value = loads %negative, 4: Int
+    %v_1 = call_complex Eq(Cents).==, %lhs$value, 18446744073709551609: Int
+    je %v_1, b_2, b_3
   }
 
-  b_4 {
+  b_2 {
     ret 128
   }
 
-  b_5 {
-    jmp b_6
+  b_3 {
+    jmp b_4
   }
 
-  b_6 {
+  b_4 {
     ret 0
   }
 }
@@ -506,30 +466,24 @@ boxOf<complex>(%v_0: Ptr, %value: Int) {
   }
 }
 
-Eq(Cents).==<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+Eq(Cents).==<complex>(%lhs$value: Int, %rhs$value: Int): Int {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_eq %v_1, %v_2: Int
-    ret %v_3
+    %v_1 = cmp_eq %lhs$value, %rhs$value: Int
+    ret %v_1
   }
 }
 
-Eq(Metres).==<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+Eq(Metres).==<complex>(%lhs$value: Int, %rhs$value: Int): Int {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_eq %v_1, %v_2: Int
-    ret %v_3
+    %v_1 = cmp_eq %lhs$value, %rhs$value: Int
+    ret %v_1
   }
 }
 
-Num(Cents).+<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
+Num(Cents).+<complex>(%v_0: Ptr, %lhs$value: Int, %rhs$value: Int) {
   b_1 {
-    %v_2 = loads %lhs, 4: Int
-    %v_3 = loads %rhs, 4: Int
-    %v_4 = add %v_2, %v_3: Int
-    store %v_0, %v_4, 4
+    %v_2 = add %lhs$value, %rhs$value: Int
+    store %v_0, %v_2, 4
     ret 
   }
 }
@@ -538,125 +492,87 @@ flags<complex>(): Int {
   b_0 {
     %rw = alloca 1, 1: Ptr
     store %rw, 0, 1
-    %v_1 = load %rw, 1: Long
-    %v_2 = cast 1: Long
-    %v_3 = and %v_2, 1: Long
-    %v_4 = and %v_1, 18446744073709551614: Long
-    %v_5 = or %v_4, %v_3: Long
-    store %rw, %v_5, 1
-    %v_6 = load %rw, 1: Long
-    %v_7 = cast 1: Long
-    %v_8 = and %v_7, 1: Long
-    %v_9 = shl %v_8, 1: Long
-    %v_10 = and %v_6, 18446744073709551613: Long
-    %v_11 = or %v_10, %v_9: Long
-    store %rw, %v_11, 1
+    store %rw, 3, 1
     %r = alloca 1, 1: Ptr
     store %r, 0, 1
-    %v_12 = load %r, 1: Long
-    %v_13 = cast 1: Long
-    %v_14 = and %v_13, 1: Long
-    %v_15 = and %v_12, 18446744073709551614: Long
-    %v_16 = or %v_15, %v_14: Long
-    store %r, %v_16, 1
-    %v_17 = load %r, 1: Long
-    %v_18 = cast 0: Long
-    %v_19 = and %v_18, 1: Long
-    %v_20 = shl %v_19, 1: Long
-    %v_21 = and %v_17, 18446744073709551613: Long
-    %v_22 = or %v_21, %v_20: Long
-    store %r, %v_22, 1
+    store %r, 1, 1
     %inverted = alloca 1, 1: Ptr
     call_complex Logic.!(Flags), %inverted, %r
-    %v_23 = imm 0: Int
-    %v_24 = alloca 1, 1: Ptr
-    call_complex Logic.&&(Flags), %v_24, %rw, %r
-    %v_25 = call_complex Eq(Flags).==, %v_24, %r: Int
-    je %v_25, b_26, b_27
+    %v_1 = imm 0: Int
+    %v_2 = alloca 1, 1: Ptr
+    call_complex Logic.&&(Flags), %v_2, %rw, %r
+    %v_3 = call_complex Eq(Flags).==, %v_2, %r: Int
+    je %v_3, b_4, b_5
   }
 
-  b_26 {
-    %v_28 = add %v_23, 256: Int
-    jmp b_29
+  b_4 {
+    %v_6 = add %v_1, 256: Int
+    jmp b_7
   }
 
-  b_27 {
-    jmp b_29
+  b_5 {
+    jmp b_7
   }
 
-  b_29 {
-    %v_30 = phi [b_26, %v_28], [b_27, %v_23]: Int
-    %v_31 = alloca 1, 1: Ptr
-    call_complex Logic.||(Flags), %v_31, %r, %rw
-    %v_32 = call_complex Eq(Flags).==, %v_31, %rw: Int
-    je %v_32, b_33, b_34
+  b_7 {
+    %v_8 = phi [b_4, %v_6], [b_5, %v_1]: Int
+    %v_9 = alloca 1, 1: Ptr
+    call_complex Logic.||(Flags), %v_9, %r, %rw
+    %v_10 = call_complex Eq(Flags).==, %v_9, %rw: Int
+    je %v_10, b_11, b_12
   }
 
-  b_33 {
-    %v_35 = add %v_30, 512: Int
-    jmp b_36
+  b_11 {
+    %v_13 = add %v_8, 512: Int
+    jmp b_14
   }
 
-  b_34 {
-    jmp b_36
+  b_12 {
+    jmp b_14
   }
 
-  b_36 {
-    %v_37 = phi [b_33, %v_35], [b_34, %v_30]: Int
-    %v_38 = alloca 1, 1: Ptr
-    store %v_38, 0, 1
-    %v_39 = load %v_38, 1: Long
-    %v_40 = cast 0: Long
-    %v_41 = and %v_40, 1: Long
-    %v_42 = and %v_39, 18446744073709551614: Long
-    %v_43 = or %v_42, %v_41: Long
-    store %v_38, %v_43, 1
-    %v_44 = load %v_38, 1: Long
-    %v_45 = cast 1: Long
-    %v_46 = and %v_45, 1: Long
-    %v_47 = shl %v_46, 1: Long
-    %v_48 = and %v_44, 18446744073709551613: Long
-    %v_49 = or %v_48, %v_47: Long
-    store %v_38, %v_49, 1
-    %v_50 = call_complex Eq(Flags).==, %inverted, %v_38: Int
-    je %v_50, b_51, b_52
+  b_14 {
+    %v_15 = phi [b_11, %v_13], [b_12, %v_8]: Int
+    %v_16 = alloca 1, 1: Ptr
+    store %v_16, 0, 1
+    store %v_16, 2, 1
+    %v_17 = call_complex Eq(Flags).==, %inverted, %v_16: Int
+    je %v_17, b_18, b_19
   }
 
-  b_51 {
-    %v_53 = add %v_37, 1024: Int
-    jmp b_54
+  b_18 {
+    %v_20 = add %v_15, 1024: Int
+    jmp b_21
   }
 
-  b_52 {
-    jmp b_54
+  b_19 {
+    jmp b_21
   }
 
-  b_54 {
-    %v_55 = phi [b_51, %v_53], [b_52, %v_37]: Int
-    ret %v_55
+  b_21 {
+    %v_22 = phi [b_18, %v_20], [b_19, %v_15]: Int
+    ret %v_22
   }
 }
 
 Eq(Flags).==<complex>(%lhs: Ptr, %rhs: Ptr): Int {
   b_0 {
-    %v_1 = load %lhs, 1: Long
-    %v_2 = and %v_1, 1: Long
+    %v_1 = load %lhs, 1: Int
+    %v_2 = and %v_1, 1: Int
     %v_3 = cast %v_2: Int
-    %v_4 = load %rhs, 1: Long
-    %v_5 = and %v_4, 1: Long
+    %v_4 = load %rhs, 1: Int
+    %v_5 = and %v_4, 1: Int
     %v_6 = cast %v_5: Int
     %v_7 = cmp_eq %v_3, %v_6: Int
-    %v_8 = load %lhs, 1: Long
-    %v_9 = shr %v_8, 1: Long
-    %v_10 = and %v_9, 1: Long
-    %v_11 = cast %v_10: Int
-    %v_12 = load %rhs, 1: Long
-    %v_13 = shr %v_12, 1: Long
-    %v_14 = and %v_13, 1: Long
-    %v_15 = cast %v_14: Int
-    %v_16 = cmp_eq %v_11, %v_15: Int
-    %v_17 = and %v_7, %v_16: Int
-    ret %v_17
+    %v_8 = shr %v_1, 1: Int
+    %v_9 = and %v_8, 1: Int
+    %v_10 = cast %v_9: Int
+    %v_11 = shr %v_4, 1: Int
+    %v_12 = and %v_11, 1: Int
+    %v_13 = cast %v_12: Int
+    %v_14 = cmp_eq %v_10, %v_13: Int
+    %v_15 = and %v_7, %v_14: Int
+    ret %v_15
   }
 }
 
@@ -677,12 +593,13 @@ main<complex>(): Int {
   }
 }
 
-Num.-(Cents)<complex>(%v_0: Ptr, %value: Ptr) {
+Num.-(Cents)<complex>(%v_0: Ptr, %value$value: Int) {
   b_1 {
     %v_2 = alloca 4, 4: Ptr
     call_complex FromInt(Cents).fromInt, %v_2, 0
+    %lhs$value = loads %v_2, 4: Int
     %v_3 = alloca 4, 4: Ptr
-    call_complex Num(Cents).-, %v_3, %v_2, %value
+    call_complex Num(Cents).-, %v_3, %lhs$value, %value$value
     copy %v_0, %v_3, 4
     ret 
   }

@@ -12,28 +12,28 @@ function Ord_Int_compare(lhs, rhs) {
   }
 }
 
-function Eq_not_eq_Metres(lhs, rhs) {
-  return Eq_Metres_eq_eq(lhs, rhs) ^ 1;
+function Eq_not_eq_Metres(lhs$value, rhs$value) {
+  return Eq_Metres_eq_eq(lhs$value, rhs$value) ^ 1;
 }
 
-function Ord_lt_Metres(lhs, rhs) {
-  return Ord_Metres_compare(lhs, rhs) === 0;
+function Ord_lt_Metres(lhs$value, rhs$value) {
+  return Ord_Metres_compare(lhs$value, rhs$value) === 0;
 }
 
-function Ord_lt_eq_Metres(lhs, rhs) {
-  return Ord_Metres_compare(lhs, rhs) !== 2;
+function Ord_lt_eq_Metres(lhs$value, rhs$value) {
+  return Ord_Metres_compare(lhs$value, rhs$value) !== 2;
 }
 
-function Ord_gt_Metres(lhs, rhs) {
-  return Ord_Metres_compare(lhs, rhs) === 2;
+function Ord_gt_Metres(lhs$value, rhs$value) {
+  return Ord_Metres_compare(lhs$value, rhs$value) === 2;
 }
 
-function Ord_gt_eq_Metres(lhs, rhs) {
-  return Ord_Metres_compare(lhs, rhs) !== 0;
+function Ord_gt_eq_Metres(lhs$value, rhs$value) {
+  return Ord_Metres_compare(lhs$value, rhs$value) !== 0;
 }
 
-function Num_sub_Cents(value) {
-  return Num_Cents_sub(FromInt_Cents_fromInt(0n), value);
+function Num_sub_Cents(value$value) {
+  return Num_Cents_sub(FromInt_Cents_fromInt(0n).value, { value: value$value }.value);
 }
 
 function Logic_not_Flags(value) {
@@ -48,8 +48,8 @@ function Logic_or_or_Flags(lhs, rhs) {
   return Logic_Flags_or(lhs, rhs);
 }
 
-function Eq_not_eq_Box_Int(lhs, rhs) {
-  return Eq_Box_a_eq_eq_Int(lhs, rhs) ^ 1;
+function Eq_not_eq_Box_Int(lhs$item, rhs$item) {
+  return Eq_Box_a_eq_eq_Int(lhs$item, rhs$item) ^ 1;
 }
 
 // ResolveTest
@@ -57,29 +57,30 @@ function ordered() {
   var a = { value: 1 };
   var b = { value: 2 };
   var score = 0;
-  if (Eq_not_eq_Metres(a, b)) {
+  if (Eq_not_eq_Metres(1, 2)) {
     score = score + 1 | 0;
   }
-  if (Ord_lt_Metres(a, b)) {
+  if (Ord_lt_Metres(a.value, b.value)) {
     score = score + 2 | 0;
   }
-  if (Ord_lt_eq_Metres(a, b)) {
+  if (Ord_lt_eq_Metres(a.value, b.value)) {
     score = score + 4 | 0;
   }
-  if (Ord_gt_Metres(b, a)) {
+  if (Ord_gt_Metres(b.value, a.value)) {
     score = score + 8 | 0;
   }
-  if (Ord_gt_eq_Metres(b, a)) {
+  if (Ord_gt_eq_Metres(b.value, a.value)) {
     score = score + 16 | 0;
   }
-  if (Ord_gt_eq_Metres(a, a)) {
+  var lhs$value$4 = a.value;
+  if (Ord_gt_eq_Metres(lhs$value$4, lhs$value$4)) {
     score = score + 32 | 0;
   }
   return score;
 }
 
 function overridden() {
-  if (Eq_Feet_not_eq({ value: 1 }, { value: 2 })) {
+  if (Eq_Feet_not_eq(1, 2)) {
     return 64;
   } else {
     return 0;
@@ -87,7 +88,7 @@ function overridden() {
 }
 
 function negated() {
-  if (Eq_Cents_eq_eq(Num_sub_Cents({ value: 7 }), { value: -7 | 0 })) {
+  if (Eq_Cents_eq_eq(Num_sub_Cents(7).value, -7)) {
     return 128;
   } else {
     return 0;
@@ -95,12 +96,8 @@ function negated() {
 }
 
 function flags() {
-  var rw = 0;
-  rw = rw & 4294967294 | 1 & 1;
-  rw = rw & ~(1 << 1) | (1 & 1) << 1;
-  var r = 0;
-  r = r & 4294967294 | 1 & 1;
-  r = r & ~(1 << 1) | (0 & 1) << 1;
+  var rw = 3;
+  var r = 1;
   var inverted = Logic_not_Flags(r);
   var score = 0;
   if (Eq_Flags_eq_eq(Logic_and_and_Flags(rw, r), r)) {
@@ -109,17 +106,14 @@ function flags() {
   if (Eq_Flags_eq_eq(Logic_or_or_Flags(r, rw), rw)) {
     score = score + 512 | 0;
   }
-  var v35 = 0;
-  v35 = v35 & 4294967294 | 0 & 1;
-  v35 = v35 & ~(1 << 1) | (1 & 1) << 1;
-  if (Eq_Flags_eq_eq(inverted, v35)) {
+  if (Eq_Flags_eq_eq(inverted, 2)) {
     score = score + 1024 | 0;
   }
   return score;
 }
 
 function described() {
-  return Describe_doubled_Metres({ value: 1024 });
+  return Describe_doubled_Metres(1024);
 }
 
 function boxOf(value) {
@@ -127,7 +121,9 @@ function boxOf(value) {
 }
 
 function boxes() {
-  if (Eq_not_eq_Box_Int(boxOf(1), boxOf(2))) {
+  var v1 = boxOf(1);
+  var v3 = boxOf(2);
+  if (Eq_not_eq_Box_Int(v1.item, v3.item)) {
     return 4096;
   } else {
     return 0;
@@ -138,94 +134,95 @@ function main() {
   return ((((ordered() + overridden() | 0) + negated() | 0) + flags() | 0) + described() | 0) + boxes() | 0;
 }
 
-function Eq_Metres_eq_eq(lhs, rhs) {
-  return lhs.value === rhs.value;
+function Eq_Metres_eq_eq(lhs$value, rhs$value) {
+  return lhs$value === rhs$value;
 }
 
-function Ord_Metres_compare(lhs, rhs) {
-  return Ord_Int_compare(lhs.value, rhs.value);
+function Ord_Metres_compare(lhs$value, rhs$value) {
+  return Ord_Int_compare(lhs$value, rhs$value);
 }
 
-function Eq_Feet_eq_eq(lhs, rhs) {
-  return lhs.value === rhs.value;
+function Eq_Feet_eq_eq(lhs$value, rhs$value) {
+  return lhs$value === rhs$value;
 }
 
-function Eq_Feet_not_eq(lhs, rhs) {
-  return lhs.value !== rhs.value;
+function Eq_Feet_not_eq(lhs$value, rhs$value) {
+  return lhs$value !== rhs$value;
 }
 
 function FromInt_Cents_fromInt(value) {
   return { value: Number(value) | 0 };
 }
 
-function Eq_Cents_eq_eq(lhs, rhs) {
-  return lhs.value === rhs.value;
+function Eq_Cents_eq_eq(lhs$value, rhs$value) {
+  return lhs$value === rhs$value;
 }
 
-function Num_Cents_add(lhs, rhs) {
-  return { value: lhs.value + rhs.value | 0 };
+function Num_Cents_add(lhs$value, rhs$value) {
+  return { value: lhs$value + rhs$value | 0 };
 }
 
-function Num_Cents_sub(lhs, rhs) {
-  return { value: lhs.value - rhs.value | 0 };
+function Num_Cents_sub(lhs$value, rhs$value) {
+  return { value: lhs$value - rhs$value | 0 };
 }
 
-function Num_Cents_mul(lhs, rhs) {
-  return { value: Math.imul(lhs.value, rhs.value) | 0 };
+function Num_Cents_mul(lhs$value, rhs$value) {
+  return { value: Math.imul(lhs$value, rhs$value) | 0 };
 }
 
-function Num_Cents_div(lhs, rhs) {
-  return { value: lhs.value / rhs.value | 0 };
+function Num_Cents_div(lhs$value, rhs$value) {
+  return { value: lhs$value / rhs$value | 0 };
 }
 
 function Eq_Flags_eq_eq(lhs, rhs) {
-  return (lhs & 1) === (rhs & 1) & (lhs >>> 1 & 1) === (rhs >>> 1 & 1);
+  var v10 = lhs;
+  var v13 = (v10 & 1) >>> 0 !== 0;
+  var v14 = rhs;
+  return v13 === ((v14 & 1) >>> 0 !== 0) & (v10 >>> 1 >>> 0 & 1) >>> 0 !== 0 === ((v14 >>> 1 >>> 0 & 1) >>> 0 !== 0);
 }
 
 function Logic_Flags_and(lhs, rhs) {
   var v2 = 0;
-  var v5 = lhs & 1 & (rhs & 1);
-  var v8 = lhs >>> 1 & 1 & (rhs >>> 1 & 1);
-  v2 = v2 & 4294967294 | v5 & 1;
-  v2 = v2 & ~(1 << 1) | (v8 & 1) << 1;
+  var v12 = lhs;
+  var v15 = (v12 & 1) >>> 0 !== 0;
+  var v16 = rhs;
+  v2 = (((v15 & (v16 & 1) >>> 0 !== 0 ? 1 : 0) & 1) >>> 0 | (((v12 >>> 1 >>> 0 & 1) >>> 0 !== 0 & (v16 >>> 1 >>> 0 & 1) >>> 0 !== 0 ? 1 : 0) & 1) >>> 0 << 1 >>> 0) >>> 0;
   return v2;
 }
 
 function Logic_Flags_or(lhs, rhs) {
   var v2 = 0;
-  var v5 = lhs & 1 | rhs & 1;
-  var v8 = lhs >>> 1 & 1 | rhs >>> 1 & 1;
-  v2 = v2 & 4294967294 | v5 & 1;
-  v2 = v2 & ~(1 << 1) | (v8 & 1) << 1;
+  var v12 = lhs;
+  var v15 = (v12 & 1) >>> 0 !== 0;
+  var v16 = rhs;
+  v2 = (((v15 | (v16 & 1) >>> 0 !== 0 ? 1 : 0) & 1) >>> 0 | (((v12 >>> 1 >>> 0 & 1) >>> 0 !== 0 | (v16 >>> 1 >>> 0 & 1) >>> 0 !== 0 ? 1 : 0) & 1) >>> 0 << 1 >>> 0) >>> 0;
   return v2;
 }
 
 function Logic_Flags_xor(lhs, rhs) {
   var v2 = 0;
-  var v5 = lhs & 1 ^ rhs & 1;
-  var v8 = lhs >>> 1 & 1 ^ rhs >>> 1 & 1;
-  v2 = v2 & 4294967294 | v5 & 1;
-  v2 = v2 & ~(1 << 1) | (v8 & 1) << 1;
+  var v12 = lhs;
+  var v15 = (v12 & 1) >>> 0 !== 0;
+  var v16 = rhs;
+  v2 = (((v15 ^ (v16 & 1) >>> 0 !== 0 ? 1 : 0) & 1) >>> 0 | (((v12 >>> 1 >>> 0 & 1) >>> 0 !== 0 ^ (v16 >>> 1 >>> 0 & 1) >>> 0 !== 0 ? 1 : 0) & 1) >>> 0 << 1 >>> 0) >>> 0;
   return v2;
 }
 
 function Logic_Flags_not(value) {
   var v1 = 0;
-  var v4 = value & 1 ^ 1;
-  var v7 = value >>> 1 & 1 ^ 1;
-  v1 = v1 & 4294967294 | v4 & 1;
-  v1 = v1 & ~(1 << 1) | (v7 & 1) << 1;
+  var v11 = value;
+  v1 = ((((v11 & 1) >>> 0 !== 0 ^ 1 ? 1 : 0) & 1) >>> 0 | (((v11 >>> 1 >>> 0 & 1) >>> 0 !== 0 ^ 1 ? 1 : 0) & 1) >>> 0 << 1 >>> 0) >>> 0;
   return v1;
 }
 
-function Describe_Metres_size(value) {
-  return value.value;
+function Describe_Metres_size(value$value) {
+  return value$value;
 }
 
-function Describe_doubled_Metres(value) {
-  return Describe_Metres_size(value) + Describe_Metres_size(value) | 0;
+function Describe_doubled_Metres(value$value) {
+  return Describe_Metres_size(value$value) + Describe_Metres_size({ value: value$value }.value) | 0;
 }
 
-function Eq_Box_a_eq_eq_Int(lhs, rhs) {
-  return lhs.item === rhs.item;
+function Eq_Box_a_eq_eq_Int(lhs$item, rhs$item) {
+  return lhs$item === rhs$item;
 }
