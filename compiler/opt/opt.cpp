@@ -79,10 +79,7 @@ void rebuildUses(OptContext& opt) {
     });
 }
 
-void optimizeFunction(OptContext& opt, Function& function) {
-    opt.function = &function;
-    rebuildUses(opt);
-
+void runRounds(OptContext& opt) {
     for(Size round = 0; round < kMaxRounds; round++) {
         opt.changed = false;
 
@@ -94,6 +91,22 @@ void optimizeFunction(OptContext& opt, Function& function) {
 
         if(!opt.changed) break;
     }
+}
+
+/*
+ * Twice around, with the packing expansion in between.
+ *
+ * The order is the whole design. Above the expansion a place is structural, so two co-packed fields
+ * are two pieces of storage and the aggregate passes can take a record apart; below it they are one
+ * word, and what the second run has to work on is the arithmetic that says so. Running the same
+ * passes on both sides is what turns nine read-modify-writes of one word into one.
+ */
+void optimizeFunction(OptContext& opt, Function& function) {
+    opt.function = &function;
+    rebuildUses(opt);
+
+    runRounds(opt);
+    if(expandPacking(opt)) runRounds(opt);
 }
 
 }
@@ -211,10 +224,55 @@ Maybe<U64> constantValueOf(OptContext& opt, ModulePtr<Value> value) {
     auto constant = opt.local[value];
     if(constant->kind != Value::ConstInt) return Nothing();
 
+    /*
+     * A refinement's own facts where it has them, and the unrefined type's where `foldableInt`
+     * declined - which for a *constant* is not the disagreement it declined over.
+     *
+     * That refusal is about results: what width `x + 1` wraps at on a `@bits(3) U32` is a question
+     * the two targets answer differently, so nothing may fold one. Reading a literal is not that
+     * question. The resolver produced a value already in range, and every fold computes in the
+     * register the canonical type names - so this reads it there and the result is the same number
+     * either way.
+     */
     auto facts = foldableInt(opt, constant->type);
+    if(!facts) facts = foldableInt(opt, canonicalType(opt.global, constant->type));
     if(!facts) return Nothing();
 
     return Just(narrowToWidth(((ConstInt*)constant)->value, facts.unwrap()));
+}
+
+void insertInstructions(OptContext& opt, Block& block, Size index, Array<Inst*>& instructions) {
+    /*
+     * Registered through `Block::add` rather than written into the list directly, because `add` is
+     * what records every use - a use list a pass filled in by hand would be one more place for the
+     * two directions of the IR to disagree. It appends, so the list is rebuilt afterwards with the
+     * new instructions moved to where they were wanted.
+     */
+    auto existing = block.instructions.size();
+    for(auto instruction: instructions) block.add(*opt.module, instruction);
+
+    Array<ModulePtr<Inst>> ordered;
+    for(Size i = 0; i < existing; i++) {
+        if(i == index) {
+            for(auto j = existing; j < block.instructions.size(); j++) {
+                ordered.push(block.instructions.get(opt.local, j));
+            }
+        }
+
+        ordered.push(block.instructions.get(opt.local, i));
+    }
+
+    // An index at the end of the list, which nothing above would have reached.
+    if(index >= existing) {
+        for(auto j = existing; j < block.instructions.size(); j++) {
+            ordered.push(block.instructions.get(opt.local, j));
+        }
+    }
+
+    block.instructions.clear();
+    for(auto instruction: ordered) block.instructions.push(opt.program.arena, instruction);
+
+    opt.changed = true;
 }
 
 ModulePtr<Value> makeConstant(OptContext& opt, Value& at, TypePtr type, U64 value) {

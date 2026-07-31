@@ -223,8 +223,16 @@ Maybe<U64> constantValueOf(OptContext& opt, ModulePtr<Value> value);
 // A fresh integer constant of one type, belonging to the block the instruction it replaces did.
 ModulePtr<Value> makeConstant(OptContext& opt, Value& at, TypePtr type, U64 value);
 
+// Putting freshly built instructions into a block at one position, uses and all. They are added in
+// the order given and end up in that order in front of whatever was at `index`.
+void insertInstructions(OptContext& opt, Block& block, Size index, Array<Inst*>& instructions);
+
 void foldFunction(OptContext& opt);
 void forwardPlaces(OptContext& opt);
 void scalarizeLocals(OptContext& opt);
 void eliminateCommonValues(OptContext& opt);
 void eliminateDeadValues(OptContext& opt);
+
+// The repr-lower step: packed field access becomes arithmetic over a storage unit. Answers whether
+// it rewrote anything, which is what decides whether the passes above are worth running again.
+bool expandPacking(OptContext& opt);

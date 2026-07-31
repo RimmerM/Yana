@@ -506,6 +506,11 @@ static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, F
             assertTrue(field != nullptr);
             offset += field->offset;
             type = field->type;
+        } else if(projection.kind == ProjectionKind::Unit) {
+            // The word a packed field lives in, which is the address the path has already reached:
+            // a packed field's `offset` is its word's, so the Field in front of this one spent it.
+            // Nothing is added and the type is left alone - see unitBits, which is what reads the
+            // width back out at the load and the store.
         } else if(projection.kind == ProjectionKind::Deref) {
             // The pointer stored here becomes the address the rest of the path is relative to,
             // so everything accumulated so far has to be spent before it is loaded.
@@ -821,6 +826,26 @@ static LowerPtr<LowerValue> erasedStorage(LowerContext& lower, LowerBlock& block
  * `exists()` is false for every place that is not one, which is every place in a program with nothing
  * packed in it.
  */
+/*
+ * How wide the storage unit a place names is, for the places `compiler/opt` already took apart.
+ *
+ * Zero for every other place, which is every place in a build with the shared expansion off and
+ * every one this file still expands for itself - a reference-rooted access, or a word too wide for
+ * the seam the expansion stops at. See ProjectionKind::Unit.
+ *
+ * The width has to come from the projection rather than from the loaded type, because they are
+ * deliberately not the same number: the access is a `U32` in a register whatever the unit is, so a
+ * two-field byte is one byte of traffic and a `memoryWidth` of the type would read three bytes past
+ * it.
+ */
+static U32 unitBits(LowerContext& lower, const Place& place) {
+    auto projections = place.projections;
+    if(projections.isEmpty()) return 0;
+
+    auto last = projections.get(lower.local, projections.size() - 1);
+    return last.kind == ProjectionKind::Unit ? last.index : 0;
+}
+
 struct PackedAccess {
     U32 wordBytes = 0;
     U32 bitOffset = 0;
@@ -1807,6 +1832,18 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 return;
             }
 
+            // A whole storage unit, which the shared expansion asked for by name: the shift and the
+            // mask that used to follow are already instructions in front of this one, so all that is
+            // left here is the load they read.
+            if(auto bits = unitBits(lower, loadInst.place)) {
+                auto address = lowerPlace(lower, block, *function, loadInst.place);
+                lower.values.add(instValue, load(
+                    lower.lower, lower.to, block, lower.lower[address], bits / 8, false,
+                    lowerType(lower.global, instruction.type), instruction.name
+                )->created().ptr - lower.lower);
+                return;
+            }
+
             // A folded tag is not in memory to be loaded - see decodeNicheTag. The place still
             // lowers to the payload's address, since a folded record's payload begins where the
             // record does.
@@ -1926,6 +1963,16 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
 
             if(isScalarPlace(lower, init.place)) {
                 lower.scalars[init.place.local][scalarField(lower, init.place)] = mappedValue(lower, init.value);
+                return;
+            }
+
+            // The other half of the shared expansion: the merged word arrives already computed, so
+            // this is the store it was computed for. The unit's width rather than the value's, for
+            // the reason unitBits gives.
+            if(auto bits = unitBits(lower, init.place)) {
+                auto address = lowerPlace(lower, block, *function, init.place);
+                block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
+                    address, mappedValue(lower, init.value), bits / 8));
                 return;
             }
 

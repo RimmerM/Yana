@@ -7,9 +7,10 @@
  *
  *  - a load of a place something just wrote becomes the value it wrote;
  *  - a second load of a place nothing has written since becomes the first load;
- *  - a store of exactly the value a place is already known to hold goes away.
+ *  - a store of exactly the value a place is already known to hold goes away;
+ *  - a store nothing reads before the same place is written again goes away.
  *
- * The third is the one the read-modify-write chains need. A packed field's write is `read the word,
+ * The last two are the ones the read-modify-write chains need. A packed field's write is `read the word,
  * replace the field's bits, write it back`, and a record built out of literals is that chain once per
  * field over a word that started at a constant - so forwarding the read makes the arithmetic
  * foldable, folding it makes the write-back a store of what is already there, and the third rule is
@@ -48,6 +49,16 @@ namespace {
 struct Known {
     Place place;
     ModulePtr<Value> value = nullptr;
+
+    /*
+     * The store that put it there, while nothing has read it back.
+     *
+     * Null once something has, and null for a fact a *load* established - that is storage which
+     * already held the value, and there is no write to remove. Overwriting a place whose entry still
+     * names a store is what makes that store dead: nothing between the two could have seen it, or
+     * this would have been cleared.
+     */
+    ModulePtr<Inst> pending = nullptr;
 };
 
 struct Forwarder {
@@ -79,6 +90,17 @@ struct Forwarder {
                     if(left.index != right.index) return false;
                     break;
                 case ProjectionKind::Discriminant:
+                    break;
+                case ProjectionKind::Unit:
+                    /*
+                     * The word two co-packed fields became. Reached only where both paths agreed on
+                     * the field in front of it, which is the whole reason opt_pack.cpp canonicalizes
+                     * that index: `h.version` and `h.length` are two fields and one word, and it is
+                     * the *field* indices above that the rule below is entitled to separate.
+                     *
+                     * Two different unit widths at one position would be two readings of one place,
+                     * which nothing produces - so this compares nothing and lets the walk continue.
+                     */
                     break;
                 case ProjectionKind::Downcast:
                     /*
@@ -206,8 +228,48 @@ struct Forwarder {
         return nullptr;
     }
 
-    void remember(Place& place, ModulePtr<Value> value) {
-        known.push(Known { place, value });
+    // One entry per piece of storage, so that "what is known about this place" and "which store put
+    // it there" are one answer rather than the most recent of several.
+    void remember(Place& place, ModulePtr<Value> value, ModulePtr<Inst> pending) {
+        for(Size i = known.size(); i-- > 0;) {
+            if(sameStorage(known[i].place, place)) known.remove(i);
+        }
+
+        known.push(Known { place, value, pending });
+    }
+
+    // Everything this access may have seen, which is no longer a write nobody read. Reads are marked
+    // rather than forgotten: the *value* is still known, and it is only the store that stops being
+    // removable.
+    void markRead(Place& place) {
+        for(auto& entry: known) {
+            if(mayAlias(entry.place, place)) entry.pending = nullptr;
+        }
+    }
+
+    void markRead(Value& instruction) {
+        eachPlace(instruction, [&](const Place& place) { markRead(const_cast<Place&>(place)); });
+    }
+
+    /*
+     * The store that is about to be overwritten, if nothing has read it.
+     *
+     * Within one block and one place, which is what makes it sound without an availability analysis:
+     * the entry survives only while nothing aliasing it was read and nothing this pass cannot see
+     * ran, and the overwrite is total because `sameStorage` compares the whole path - including a
+     * unit projection's width, so half a word is never mistaken for all of it.
+     */
+    bool eliminateOverwritten(Place& place) {
+        for(Size i = known.size(); i-- > 0;) {
+            if(!sameStorage(known[i].place, place) || !known[i].pending) continue;
+
+            auto pending = known[i].pending;
+            known[i].pending = nullptr;
+            eraseInstruction(opt, pending);
+            return true;
+        }
+
+        return false;
     }
 
     void run(Block& block) {
@@ -220,14 +282,19 @@ struct Forwarder {
             switch(instruction->kind) {
                 case Value::LoadPlace: {
                     auto& load = (InstLoadPlace&)*instruction;
-                    if(!forwardable(load.type)) break;
 
-                    if(auto value = knownValue(load.place)) {
-                        replaceValue(opt, (ModulePtr<Value>)pointer, value);
-                        break;
+                    // A load that is answered from a value already in hand is not a read of
+                    // anything: it stops being an access at all, so the store it would have read
+                    // stays removable. That is the case every read-modify-write chain is made of.
+                    if(forwardable(load.type)) {
+                        if(auto value = knownValue(load.place)) {
+                            replaceValue(opt, (ModulePtr<Value>)pointer, value);
+                            break;
+                        }
                     }
 
-                    remember(load.place, (ModulePtr<Value>)pointer);
+                    markRead(load.place);
+                    if(forwardable(load.type)) remember(load.place, (ModulePtr<Value>)pointer, nullptr);
                     break;
                 }
                 case Value::Init:
@@ -253,12 +320,17 @@ struct Forwarder {
                         }
                     }
 
+                    // The store it replaces came out of the block in front of this one, so the walk
+                    // has to step back over the gap it left.
+                    if(forwardable(type) && eliminateOverwritten(store.place)) i--;
+
                     forgetAliasing(store.place);
-                    if(forwardable(type)) remember(store.place, store.value);
+                    if(forwardable(type)) remember(store.place, store.value, pointer);
                     break;
                 }
                 default:
                     if(clobbers(*instruction)) forget();
+                    else markRead(*instruction);
                     break;
             }
         }

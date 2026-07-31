@@ -159,6 +159,30 @@ enum class ProjectionKind: U8 {
      * call site specializes instead.
      */
     Property,
+
+    /*
+     * The storage unit a packed field lives in, read and written as a whole.
+     *
+     * The one projection no front end produces. `compiler/opt` appends it when it expands a packed
+     * field access into arithmetic - the prefix names the field, and this says "the word containing
+     * it" rather than "the bits of it" - and `index` is how wide that word is, in bits.
+     *
+     * It exists because the expansion happens above the fork while the word is a target decision. A
+     * `Place` cannot name a bit range and does not have to: every backend's place walk already
+     * produces the *containing word* for a packed field, because a packed field's `offset` is the
+     * word's and everything inside it sits at offset zero - so the address (or the property) each
+     * one arrives at is exactly what this asks for, and the shift and the mask that used to follow
+     * are ordinary instructions by the time the backend sees them.
+     *
+     * Two invariants the expansion maintains and everything downstream may rely on:
+     *
+     *  - it is only ever the *last* projection of a path, and the one before it is the packed field;
+     *  - two accesses to one word produce two *identical* paths, because the field index is
+     *    canonicalized to the lowest one sharing the storage. Without that, `h.version` and
+     *    `h.length` would expand to two paths that opt_place.cpp is entitled to say do not alias -
+     *    which is true of the fields and false of the word they became.
+     */
+    Unit,
 };
 
 struct Projection {

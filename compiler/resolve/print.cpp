@@ -113,6 +113,12 @@ static void printPlace(ResolvePrint& print, Function& function, const Place& pla
         } else if(projection.kind == ProjectionKind::Deref) {
             print.writer.writeString(".*"_v);
             type = pointeeType(print.global, type);
+        } else if(projection.kind == ProjectionKind::Unit) {
+            // `%h@Header.version:unit32` - the word the field was packed into, by the width that
+            // says how much of the storage the access covers. The field it follows is kept in the
+            // path rather than replaced by an offset, so a dump still says which word this is.
+            print.writer.writeString(":unit"_v);
+            writeUInt(print.writer, projection.index);
         } else {
             print.writer.writeString("[...]"_v);
         }

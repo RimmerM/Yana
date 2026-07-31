@@ -173,28 +173,7 @@ bool splitAggregateWrite(OptContext& opt, Block& block, Size index, InstInit& wr
         replacement.push(stored);
     }
 
-    /*
-     * Registered through `Block::add` rather than written into the list directly, because `add` is
-     * what records every use - a use list this pass filled in by hand would be one more place for
-     * the two directions to disagree. It appends, so the list is rebuilt afterwards with the new
-     * instructions where the write was.
-     */
-    auto existing = block.instructions.size();
-    for(auto instruction: replacement) block.add(*opt.module, instruction);
-
-    Array<ModulePtr<Inst>> ordered;
-    for(Size i = 0; i < existing; i++) {
-        if(i == index) {
-            for(auto j = existing; j < block.instructions.size(); j++) {
-                ordered.push(block.instructions.get(opt.local, j));
-            }
-        }
-
-        ordered.push(block.instructions.get(opt.local, i));
-    }
-
-    block.instructions.clear();
-    for(auto instruction: ordered) block.instructions.push(opt.program.arena, instruction);
+    insertInstructions(opt, block, index, replacement);
 
     // The write itself, now that what replaces it is in front of it.
     eraseInstruction(opt, (ModulePtr<Inst>)(&write - opt.local));

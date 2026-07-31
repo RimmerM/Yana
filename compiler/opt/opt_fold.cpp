@@ -228,20 +228,102 @@ struct Folder {
         }
     }
 
-    ModulePtr<Value> fold(Value& instruction) {
+    /*
+     * `(x op c1) op c2` becomes `x op (c1 op c2)`, for the operations where that is an identity.
+     *
+     * All five are associative *as modular arithmetic*, which is what the type says they are: the two
+     * instructions have the same type, so both wrap at the same width and the combined constant wraps
+     * with them. Nothing is required of `x` and nothing about how many readers the inner operation
+     * has - it stays where it is, and the dead-value pass takes it if this was the last one.
+     *
+     * Written as a rewrite in place rather than as a replacement value, because what changes is which
+     * two operands this instruction has rather than what it computes to. That is also why the use
+     * lists are edited by hand here: `Block::add` is what normally records them, and the instruction
+     * is already in its block.
+     *
+     * Not a general reassociation - nothing is reordered and no operation moves between blocks. It
+     * exists because the packing expansion produces exactly this shape: a word cleared field by
+     * field is one `and` against a literal per field, and nine of them are one mask.
+     */
+    bool reassociate(ModulePtr<Inst> pointer, InstBinary& instruction, const IntFacts& facts) {
+        switch(instruction.kind) {
+            case Value::Add: case Value::Mul:
+            case Value::And: case Value::Or: case Value::Xor:
+                break;
+            default:
+                return false;
+        }
+
+        auto outer = constantValueOf(opt, instruction.rhs);
+        if(!outer) return false;
+
+        auto left = opt.local[instruction.lhs];
+        if(left->kind != instruction.kind || left->type != instruction.type) return false;
+
+        auto& inner = (InstBinary&)*left;
+        auto middle = constantValueOf(opt, inner.rhs);
+        if(!middle) return false;
+
+        U64 combined = 0;
+        switch(instruction.kind) {
+            case Value::Add: combined = middle.unwrap() + outer.unwrap(); break;
+            case Value::Mul: combined = middle.unwrap() * outer.unwrap(); break;
+            case Value::And: combined = middle.unwrap() & outer.unwrap(); break;
+            case Value::Or:  combined = middle.unwrap() | outer.unwrap(); break;
+            default:         combined = middle.unwrap() ^ outer.unwrap(); break;
+        }
+
+        auto value = makeConstant(opt, instruction, instruction.type, narrowToWidth(combined, facts));
+
+        dropUse(opt, instruction.lhs, pointer);
+        instruction.lhs = inner.lhs;
+        opt.local[instruction.lhs]->uses.push(opt.program.arena, pointer);
+
+        dropUse(opt, instruction.rhs, pointer);
+        instruction.rhs = value;
+        opt.local[value]->uses.push(opt.program.arena, pointer);
+
+        opt.changed = true;
+        return true;
+    }
+
+    ModulePtr<Value> fold(ModulePtr<Inst> pointer, Value& instruction) {
         if(instruction.kind == Value::Cmp) return foldCompare((InstCmp&)instruction);
 
         auto facts = foldableInt(opt, instruction.type);
         if(!facts) return nullptr;
 
         switch(instruction.kind) {
+            case Value::Cast: {
+                /*
+                 * A conversion of a constant between two integer readings of it.
+                 *
+                 * Both directions are already decided by the two functions this calls, which is why
+                 * there is no case for widening: `constantValueOf` reads the source at its own width
+                 * and sign, so a signed one arrives sign-extended, and `narrowToWidth` cuts it back
+                 * to the target's. Anything that is not an integer at either end fails one of the
+                 * two and is left alone - a pointer, a float, a sum's payload.
+                 */
+                auto from = constantValueOf(opt, ((InstUnary&)instruction).from);
+                if(!from) return nullptr;
+
+                return constant(instruction, instruction.type,
+                                narrowToWidth(from.unwrap(), facts.unwrap()));
+            }
             case Value::Neg:
             case Value::Not:
                 return foldUnary((InstUnary&)instruction, facts.unwrap());
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
-            case Value::And: case Value::Or: case Value::Xor:
-                return foldBinary((InstBinary&)instruction, facts.unwrap());
+            case Value::And: case Value::Or: case Value::Xor: {
+                auto& binary = (InstBinary&)instruction;
+                if(auto folded = foldBinary(binary, facts.unwrap())) return folded;
+
+                // Only where nothing else applied, so that a foldable pair is folded rather than
+                // rearranged first. The rewrite leaves an instruction the next round may then fold.
+                reassociate(pointer, binary, facts.unwrap());
+                return nullptr;
+            }
             default:
                 return nullptr;
         }
@@ -260,7 +342,7 @@ void foldFunction(OptContext& opt) {
         // for the dead-value pass to collect - so a plain index walk sees each instruction once.
         for(Size i = 0; i < block->instructions.size(); i++) {
             auto pointer = block->instructions.get(opt.local, i);
-            auto folded = folder.fold(*opt.local[pointer]);
+            auto folded = folder.fold(pointer, *opt.local[pointer]);
             if(folded) replaceValue(opt, (ModulePtr<Value>)pointer, folded);
         }
 

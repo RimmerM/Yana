@@ -358,6 +358,19 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
             case ProjectionKind::Index:
                 if(expr) *expr = elementAt(g, *expr, useValue(g, projection.value));
                 break;
+            case ProjectionKind::Unit:
+                /*
+                 * The whole word rather than the field the walk just entered - see
+                 * ProjectionKind::Unit. The expression is already the right one, because a packed
+                 * field is a bit range *of* the value the walk is holding rather than a property of
+                 * it, so all this does is drop the range.
+                 *
+                 * Which turns the place back into a location, and that is the point: `bits.valid()`
+                 * is what the load and the store branch on, so both of them take the plain path and
+                 * the arithmetic the expansion emitted is what carries the shift and the mask.
+                 */
+                within = PlaceBits {};
+                break;
             default:
                 break;
         }
