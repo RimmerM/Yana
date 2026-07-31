@@ -137,6 +137,29 @@ inline void eachOperand(ModuleBase base, Value& instruction, F&& f) {
 }
 
 /*
+ * The storage roots one instruction names, as the values whose use lists record them.
+ *
+ * A place rooted in a *local* is a use of the `Alloc` that gave the local its storage - see
+ * `addPlaceUse` in resolve/block.cpp, which is what makes "every access to this local" answerable by
+ * walking one use list. That use has no operand slot holding it: the root is a local index, and the
+ * Alloc is reached through the function's local table.
+ *
+ * Which is why this is separate from `mapOperands` rather than part of it. A *rewrite* must not
+ * touch the root - pointing it somewhere else is not something a place can express - while a *use
+ * count* must, or an erased instruction leaves a reader the Alloc still believes in. Erasing the
+ * redundant store in opt_place.cpp is exactly that case.
+ */
+template<class F>
+inline void eachRootValue(OptContext& opt, Value& instruction, F&& f) {
+    eachPlace(instruction, [&](const Place& place) {
+        if(place.root != PlaceRoot::Local) return;
+        if(place.local >= opt.function->localCount()) return;
+
+        if(auto storage = opt.function->localAt(opt.local, place.local).value) f(storage);
+    });
+}
+
+/*
  * Whether this value is one the optimizer may compute again, or not compute at all.
  *
  * The list is short on purpose, and every kind left out of it is left out for a reason rather than
@@ -202,5 +225,6 @@ ModulePtr<Value> makeConstant(OptContext& opt, Value& at, TypePtr type, U64 valu
 
 void foldFunction(OptContext& opt);
 void forwardPlaces(OptContext& opt);
+void scalarizeLocals(OptContext& opt);
 void eliminateCommonValues(OptContext& opt);
 void eliminateDeadValues(OptContext& opt);

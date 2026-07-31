@@ -112,6 +112,16 @@ struct CompileSettings {
     /// amd64 backend is the fast one by construction and has no levels to choose between.
     U32 optimization = 2;
 
+    /// Whether the IR optimizer (compiler/opt) runs at all.
+    ///
+    /// Distinct from `optimization`, which is a level handed to LLVM: this one is a switch on our
+    /// own passes over the resolve IR, and it is off only to answer the question "did the optimizer
+    /// change what this program does". The fixture runner compiles every runnable fixture both ways
+    /// and compares the results on both targets, which is the same equivalence check
+    /// `Program::Specialization` gets and exists for the same reason - an optimization must not be
+    /// where a semantic decision quietly moved to.
+    bool optimizeIr = true;
+
     bool printModules = false; /// Debug flag: Print a list of modules found in the input.
     bool printAst = false;     /// Debug flag: Create .ast files for each source file.
     bool printIr = false;      /// Debug flag: Create .ir files for each source file.

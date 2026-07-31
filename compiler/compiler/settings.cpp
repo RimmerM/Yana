@@ -35,6 +35,7 @@ struct Flag {
         printModules,
         printAst,
         printIr,
+        noOptimize,
     };
 
     StringView name;
@@ -58,6 +59,7 @@ Flag flagTable[] = {
     { "print-modules"_v, 0, Flag::printModules },
     { "print-ast"_v, 0, Flag::printAst },
     { "print-ir"_v, 0, Flag::printIr },
+    { "no-opt"_v, 0, Flag::noOptimize },
 };
 
 StringView modeTable[] = {
@@ -452,6 +454,9 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 return true;
             case Flag::printIr:
                 settings.printIr = true;
+                return true;
+            case Flag::noOptimize:
+                settings.optimizeIr = false;
                 return true;
             default:
                 error = Tritium::format("Unhandled argument type %@. This is an internal error.", (Size)type);

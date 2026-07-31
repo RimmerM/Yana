@@ -179,6 +179,25 @@ void eliminateCommonValues(OptContext& opt) {
     eliminateInBlock(opt, dominance, 0, available);
 }
 
+/*
+ * A read whose result nothing reads.
+ *
+ * Reading a place has no effect, so removing one is only a question of whether it could have
+ * *failed*. A local or a global is storage the checker proved is there; a pointer or a borrow root
+ * is an address the program computed, and removing a load through one would remove a fault the
+ * program is entitled to take. So the first two go and the last two stay.
+ *
+ * These exist in quantity rather than as an oddity: the resolver emits a whole-aggregate load in
+ * front of every field access - `%v9 = load %e : Entry` before `%v10 = load %e@Entry.live` - and
+ * nothing has ever read one.
+ */
+static bool isDeadRead(OptContext& opt, Value& instruction) {
+    if(instruction.kind != Value::LoadPlace) return false;
+
+    auto& place = ((InstLoadPlace&)instruction).place;
+    return place.root == PlaceRoot::Local || place.root == PlaceRoot::Global;
+}
+
 void eliminateDeadValues(OptContext& opt) {
     /*
      * To a fixed point within this pass rather than across the driver's rounds, because the shape it
@@ -199,7 +218,8 @@ void eliminateDeadValues(OptContext& opt) {
                 auto pointer = block->instructions.get(opt.local, i);
                 auto instruction = opt.local[pointer];
 
-                if(!isPureValue(*instruction) || instruction->uses.isNotEmpty()) continue;
+                if(instruction->uses.isNotEmpty()) continue;
+                if(!isPureValue(*instruction) && !isDeadRead(opt, *instruction)) continue;
 
                 eraseInstruction(opt, pointer);
                 changed = true;

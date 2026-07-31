@@ -17,14 +17,78 @@ namespace {
 // rather than a hang.
 constexpr Size kMaxRounds = 8;
 
+/*
+ * Every value of one function, in no particular order: the parameters, the phis, the instructions
+ * and each block's terminator.
+ *
+ * Constants are not among them and cannot be - one belongs to no block and is reached only through
+ * whatever names it - so a caller that needs those too finds them by walking operands.
+ */
+template<class F>
+void eachFunctionValue(OptContext& opt, F&& f) {
+    for(auto arg: opt.function->args.contents(opt.local)) f((ModulePtr<Value>)arg);
+
+    for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
+        auto block = opt.local[blockPointer];
+
+        for(auto phi: block->phis.contents(opt.local)) f((ModulePtr<Value>)phi);
+        for(auto instruction: block->instructions.contents(opt.local)) f((ModulePtr<Value>)instruction);
+        if(block->terminator) f((ModulePtr<Value>)block->terminator);
+    }
+}
+
+/*
+ * Recomputing every use list from the instructions that exist.
+ *
+ * Necessary rather than tidy, and the reason is a real gap: `Block::add` is what records a use, and
+ * the drop pass does not go through it. `insertBlockDrops` and `splitEdge` in analyze_drop.cpp build
+ * an `InstDrop` with `createInst` and push it straight into the block, so a drop is an instruction
+ * that names a local and is in no use list - and a pass that asked "who touches this local" would be
+ * told "only these writes" about storage that is also released.
+ *
+ * That was a crash rather than a subtlety: the dead-local rule below removed a heap allocation whose
+ * `drop ... release` was still there, and the call to free it was left naming a value that no longer
+ * existed. Repairing the lists once here is better than teaching each pass to distrust them, and it
+ * also fixes the narrower version of the same gap - an overwrite drop's place may carry an index
+ * value, which nothing had recorded a use of either.
+ *
+ * Two passes, because a list may only be cleared before anything is pushed into it.
+ */
+void rebuildUses(OptContext& opt) {
+    auto forget = [&](ModulePtr<Value> value) {
+        if(value) opt.local[value]->uses.clear();
+    };
+
+    eachFunctionValue(opt, [&](ModulePtr<Value> value) {
+        forget(value);
+
+        // Constants and arguments reached only from here, which is why this clears operands as well
+        // as definitions rather than only the latter.
+        eachOperand(opt.local, *opt.local[value], forget);
+        eachRootValue(opt, *opt.local[value], forget);
+    });
+
+    eachFunctionValue(opt, [&](ModulePtr<Value> value) {
+        auto user = (ModulePtr<Inst>)value;
+        auto record = [&](ModulePtr<Value> operand) {
+            opt.local[operand]->uses.push(opt.program.arena, user);
+        };
+
+        eachOperand(opt.local, *opt.local[value], record);
+        eachRootValue(opt, *opt.local[value], record);
+    });
+}
+
 void optimizeFunction(OptContext& opt, Function& function) {
     opt.function = &function;
+    rebuildUses(opt);
 
     for(Size round = 0; round < kMaxRounds; round++) {
         opt.changed = false;
 
         foldFunction(opt);
         forwardPlaces(opt);
+        scalarizeLocals(opt);
         eliminateCommonValues(opt);
         eliminateDeadValues(opt);
 
@@ -77,6 +141,13 @@ void eraseInstruction(OptContext& opt, ModulePtr<Inst> instruction) {
 
     eachOperand(opt.local, *value, [&](ModulePtr<Value> operand) {
         dropUse(opt, operand, instruction);
+    });
+
+    // The storage a place is rooted in, which `eachOperand` deliberately does not yield - see
+    // eachRootValue. Missing it leaves the Alloc believing in a reader that is no longer in any
+    // block, which is invisible until a pass asks the Alloc who reads it.
+    eachRootValue(opt, *value, [&](ModulePtr<Value> storage) {
+        dropUse(opt, storage, instruction);
     });
 
     auto block = opt.local[value->block];
@@ -159,6 +230,11 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
     // by luck.
     if(program.optimized) return;
     program.optimized = true;
+
+    // `-no-opt`, and the second half of the fixture runner's equivalence check. Marked as optimized
+    // on the way past anyway, so that "this program has been through the stage" stays one question
+    // with one answer rather than depending on what the stage decided to do.
+    if(!context.settings.optimizeIr) return;
 
     ReprTable repr(*program.types, target);
     OptContext opt { context, program, *program.types, *program.arena, repr };
