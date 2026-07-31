@@ -266,9 +266,29 @@ Maybe<U64> constantValueOf(OptContext& opt, ModulePtr<Value> value) {
      */
     auto facts = foldableInt(opt, constant->type);
     if(!facts) facts = foldableInt(opt, canonicalType(opt.global, constant->type));
-    if(!facts) return Nothing();
+    if(facts) return Just(narrowToWidth(((ConstInt*)constant)->value, facts.unwrap()));
 
-    return Just(narrowToWidth(((ConstInt*)constant)->value, facts.unwrap()));
+    /*
+     * And a payload-free record, which *is* its constructor index - see `layoutRecord` in
+     * repr/repr.cpp, where an enum's whole representation is a discriminant of however many bits its
+     * constructor count needs.
+     *
+     * Read without any width at all, which is why this is here rather than an entry in `foldableInt`.
+     * An index is a small non-negative number in every register that could hold it, so there is
+     * nothing for a width to decide and nothing the two targets could disagree about; what
+     * `foldableInt` would have to answer instead - which register an enum's *arithmetic* happens in
+     * - is a repr question, and no arithmetic is typed at an enum in the first place. `Bool` is not
+     * reached here: it has its own entry above, because a `Bool` is an operand of `xor` and does
+     * need the width.
+     *
+     * What this is for is a `cast` of one to an integer, which is how `Ordering` leaves a `compare`
+     * that folded: `cast EQ : Int` was the one link left unfolded in `Instance.yana` between the
+     * comparison identity above and the `== 1` that reads its answer.
+     */
+    auto type = opt.global[constant->type];
+    if(type->kind != Type::Record || ((RecordType*)type)->layout != RecordType::Enum) return Nothing();
+
+    return Just(((ConstInt*)constant)->value);
 }
 
 Maybe<FloatType::Width> foldableFloat(OptContext& opt, TypePtr type) {

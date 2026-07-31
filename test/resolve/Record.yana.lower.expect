@@ -545,36 +545,20 @@ main<complex>(): Int {
     store %v_74, 7, 4
     %v_75 = call_complex unwrapped, %v_74: Int
     %v_76 = add %v_73, %v_75: Int
-    %v_77 = cast 1: Int
-    %v_78 = cmp_eq %v_77, 0: Int
-    je %v_78, b_79, b_80
-  }
-
-  b_80 {
-    jmp b_81
-  }
-
-  b_79 {
-    jmp b_81
-  }
-
-  b_81 {
-    %v_82 = phi [b_79, 1], [b_80, 2]: Int
-    %v_83 = add %v_76, %v_82: Int
-    %scalars = add %v_83, 12: Int
-    %v_84 = alloca 8, 8: Ptr
-    %v_85 = bitcast 0: Ptr
-    store %v_84, %v_85, 8
-    %v_86 = call_complex handleAddress, %v_84: Long
-    %v_87 = alloca 8, 8: Ptr
-    store %v_87, 11, 8
-    %v_88 = alloca 8, 8: Ptr
-    store %v_88, %v_87, 8
-    %v_89 = call_complex boxedValue, %v_88: Long
-    %v_90 = add %v_86, %v_89: Long
-    %v_91 = cast %v_90: Int
-    %v_92 = add %scalars, %v_91: Int
-    ret %v_92
+    %scalars = add %v_76, 14: Int
+    %v_77 = alloca 8, 8: Ptr
+    %v_78 = bitcast 0: Ptr
+    store %v_77, %v_78, 8
+    %v_79 = call_complex handleAddress, %v_77: Long
+    %v_80 = alloca 8, 8: Ptr
+    store %v_80, 11, 8
+    %v_81 = alloca 8, 8: Ptr
+    store %v_81, %v_80, 8
+    %v_82 = call_complex boxedValue, %v_81: Long
+    %v_83 = add %v_79, %v_82: Long
+    %v_84 = cast %v_83: Int
+    %v_85 = add %scalars, %v_84: Int
+    ret %v_85
   }
 }
 

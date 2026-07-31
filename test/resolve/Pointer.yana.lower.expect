@@ -143,65 +143,39 @@ compareAddresses<complex>(): Long {
 
   b_6 {
     %v_8 = add %v_3, 1: Long
-    jmp b_9
+    jmp b_7
   }
 
   b_7 {
-    jmp b_9
+    %v_9 = phi [b_0, %v_3], [b_6, %v_8]: Long
+    %v_10 = add %v_9, 2: Long
+    %v_11 = bitcast 0: Ptr
+    %v_12 = bitcast %v_11: Long
+    %v_13 = cmp_eq %v_12, 0: Int
+    je %v_13, b_14, b_15
   }
 
-  b_9 {
-    %v_10 = phi [b_6, %v_8], [b_7, %v_3]: Long
-    %v_11 = cmp_eq %node, %node: Int
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
-    %v_14 = add %v_10, 2: Long
-    jmp b_15
-  }
-
-  b_13 {
+  b_14 {
+    %v_16 = add %v_10, 4: Long
     jmp b_15
   }
 
   b_15 {
-    %v_16 = phi [b_12, %v_14], [b_13, %v_10]: Long
-    %v_17 = bitcast 0: Ptr
-    %v_18 = bitcast %v_17: Long
+    %v_17 = phi [b_7, %v_10], [b_14, %v_16]: Long
+    %v_18 = bitcast %node: Long
     %v_19 = cmp_eq %v_18, 0: Int
-    je %v_19, b_20, b_21
-  }
-
-  b_20 {
-    %v_22 = add %v_16, 4: Long
-    jmp b_23
+    %v_20 = xor %v_19, 1: Int
+    je %v_20, b_21, b_22
   }
 
   b_21 {
-    jmp b_23
+    %v_23 = add %v_17, 8: Long
+    jmp b_22
   }
 
-  b_23 {
-    %v_24 = phi [b_20, %v_22], [b_21, %v_16]: Long
-    %v_25 = bitcast %node: Long
-    %v_26 = cmp_eq %v_25, 0: Int
-    %v_27 = xor %v_26, 1: Int
-    je %v_27, b_28, b_29
-  }
-
-  b_28 {
-    %v_30 = add %v_24, 8: Long
-    jmp b_31
-  }
-
-  b_29 {
-    jmp b_31
-  }
-
-  b_31 {
-    %v_32 = phi [b_28, %v_30], [b_29, %v_24]: Long
-    ret %v_32
+  b_22 {
+    %v_24 = phi [b_15, %v_17], [b_21, %v_23]: Long
+    ret %v_24
   }
 }
 

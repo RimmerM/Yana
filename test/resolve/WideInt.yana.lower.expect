@@ -99,22 +99,7 @@ checkXor<complex>(): Int {
 
 checkNotZero<complex>(): Int {
   b_0 {
-    %v_1 = not 0: Long
-    %v_2 = cmp_eq %v_1, 18446744073709551615: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_3, 8], [b_4, 0]: Int
-    ret %v_6
+    ret 8
   }
 }
 
@@ -138,22 +123,7 @@ checkShlFar<complex>(): Int {
 
 checkNot<complex>(): Int {
   b_0 {
-    %v_1 = not 34359738375: Long
-    %v_2 = cmp_eq %v_1, 18446744039349813240: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_3, 16], [b_4, 0]: Int
-    ret %v_6
+    ret 16
   }
 }
 
@@ -165,40 +135,7 @@ checkShl<complex>(): Int {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = not 0: Long
-    %v_2 = cmp_eq %v_1, 18446744073709551615: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_3, 8], [b_4, 0]: Int
-    %v_7 = add %v_6, 7: Int
-    %v_8 = not 34359738375: Long
-    %v_9 = cmp_eq %v_8, 18446744039349813240: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_11 {
-    jmp b_12
-  }
-
-  b_10 {
-    jmp b_12
-  }
-
-  b_12 {
-    %v_13 = phi [b_10, 16], [b_11, 0]: Int
-    %v_14 = add %v_7, %v_13: Int
-    %v_15 = add %v_14, 262112: Int
-    ret %v_15
+    ret 262143
   }
 }
 

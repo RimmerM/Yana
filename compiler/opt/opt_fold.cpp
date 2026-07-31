@@ -15,12 +15,12 @@
  *  2. **Where the targets could disagree about the operation itself, it is not folded.** Every case
  *     is named at the point it is declined, and there are now five: `@bits` refinement *arithmetic*,
  *     whose width the two spell differently; a shift by a distance the type cannot hold, where
- *     each target masks the count its own way; `not` on a type narrower than its register, which
- *     native does not wrap and JS does; a float-to-integer conversion of a value the integer type
- *     cannot hold, where one target produces the integer indefinite value and the other wraps; and a
- *     conversion with a `Bool` at either end, which on JS is a comparison against zero rather than a
- *     truncation. The point of declining rather than choosing is that this pass must not be the thing
- *     that decides which target is right.
+ *     each target masks the count its own way; `not` on an *unsigned* type narrower than its
+ *     register, which native does not wrap and JS does; a float-to-integer conversion of a value the
+ *     integer type cannot hold, where one target produces the integer indefinite value and the other
+ *     wraps; and a conversion with a `Bool` at either end, which on JS is a comparison against zero
+ *     rather than a truncation. The point of declining rather than choosing is that this pass must
+ *     not be the thing that decides which target is right.
  *
  *     The first of those is about arithmetic and nothing else, which is worth saying because two
  *     things here do read a refinement: `constantValueOf` on the way in and `conversionFacts` on the
@@ -127,12 +127,34 @@ struct Folder {
         return false;
     }
 
+    // Which way one of the six orderings answers about a value and itself.
+    bool compareReflexive(CompareOp op) {
+        return op == CompareOp::Eq || op == CompareOp::Ge || op == CompareOp::Le;
+    }
+
     // A comparison of two constants. Kept apart from the arithmetic because its *result* type is
     // Bool while everything it decides is a question about the operand type.
     ModulePtr<Value> foldCompare(InstCmp& instruction) {
         auto operandType = opt.local[instruction.lhs]->type;
+        auto isFloat = foldableFloat(opt, operandType);
 
-        if(foldableFloat(opt, operandType)) {
+        /*
+         * The same SSA value on both sides, answered ahead of the type gate.
+         *
+         * An ordering is reflexive whatever the operands are made of, so this needs neither a width
+         * nor a signedness - which is the point of doing it here rather than in the integer path
+         * below. A *pointer* is the case that pays: `compare` inlined against one operand twice is
+         * `cmp_eq %a, %a` and `cmp_gt %a, %a` over a `Ptr`, which `foldableInt` declines outright,
+         * and the two of them are six blocks and a three-way phi in `Instance.yana`.
+         *
+         * Floats are excluded, and for the one reason IEEE 754 gives: a NaN is not equal to itself,
+         * so none of the six is reflexive over the type as a whole.
+         */
+        if(!isFloat && sameOperand(instruction.lhs, instruction.rhs)) {
+            return constant(instruction, instruction.type, compareReflexive(instruction.cmp) ? 1 : 0);
+        }
+
+        if(isFloat) {
             auto left = constantFloatOf(opt, instruction.lhs);
             auto right = constantFloatOf(opt, instruction.rhs);
             if(!left || !right) return nullptr;
@@ -152,6 +174,15 @@ struct Folder {
         return constant(instruction, instruction.type, answer ? 1 : 0);
     }
 
+    /*
+     * The identities, each written once and against the *right* operand only.
+     *
+     * That is what `commute` below buys, and it is the reason the mirror images are gone rather than
+     * an accident of which ones anyone happened to write: a commutative operation with a constant on
+     * the left either has one on the right too - in which case `known` answers it - or is swapped,
+     * and the next round of the fixed point reads it here in the one form. Removing the seven mirrors
+     * changed nothing in any of the 82 fixtures, which is what a canonical form is supposed to mean.
+     */
     ModulePtr<Value> foldBinary(InstBinary& instruction, const IntFacts& facts) {
         U64 lhs = 0, rhs = 0;
         auto known = operands(instruction, lhs, rhs);
@@ -163,7 +194,6 @@ struct Folder {
             case Value::Add:
                 if(known) return wrap(lhs + rhs);
                 if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
-                if(isConstantValue(instruction.lhs, 0)) return instruction.rhs;
                 break;
             case Value::Sub:
                 if(known) return wrap(lhs - rhs);
@@ -173,8 +203,7 @@ struct Folder {
             case Value::Mul:
                 if(known) return wrap(lhs * rhs);
                 if(isConstantValue(instruction.rhs, 1)) return instruction.lhs;
-                if(isConstantValue(instruction.lhs, 1)) return instruction.rhs;
-                if(isConstantValue(instruction.rhs, 0) || isConstantValue(instruction.lhs, 0)) return zero();
+                if(isConstantValue(instruction.rhs, 0)) return zero();
                 break;
             case Value::Div:
                 if(known && rhs != 0) {
@@ -222,21 +251,18 @@ struct Folder {
                 break;
             case Value::And:
                 if(known) return wrap(lhs & rhs);
-                if(isConstantValue(instruction.rhs, 0) || isConstantValue(instruction.lhs, 0)) return zero();
+                if(isConstantValue(instruction.rhs, 0)) return zero();
                 if(sameOperand(instruction.lhs, instruction.rhs)) return instruction.lhs;
                 if(isConstantValue(instruction.rhs, narrowToWidth(~U64(0), facts))) return instruction.lhs;
-                if(isConstantValue(instruction.lhs, narrowToWidth(~U64(0), facts))) return instruction.rhs;
                 break;
             case Value::Or:
                 if(known) return wrap(lhs | rhs);
                 if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
-                if(isConstantValue(instruction.lhs, 0)) return instruction.rhs;
                 if(sameOperand(instruction.lhs, instruction.rhs)) return instruction.lhs;
                 break;
             case Value::Xor:
                 if(known) return wrap(lhs ^ rhs);
                 if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
-                if(isConstantValue(instruction.lhs, 0)) return instruction.rhs;
                 if(sameOperand(instruction.lhs, instruction.rhs)) return zero();
                 break;
             default:
@@ -255,15 +281,24 @@ struct Folder {
                 return constant(instruction, instruction.type, narrowToWidth(U64(0) - from.unwrap(), facts));
             case Value::Not:
                 /*
-                 * Only where the type fills its register.
+                 * Every type except an *unsigned* one narrower than its register.
                  *
                  * `not` is the one bitwise operation that takes an in-range operand out of range,
                  * and it is not in `wrapsAtDeclaredWidth` - so native leaves `~(0 :: U8)` as
                  * 0xFFFFFFFF in a 32-bit register while JS coerces it to 255. Which of those the
                  * language means is a real question, and answering it by quietly folding to one of
                  * them would settle it in the wrong place.
+                 *
+                 * A *signed* narrow type is not that question, and the reason is that complement
+                 * and sign extension commute: a value of one is held sign-extended - which is what
+                 * `truncateToWidth` leaves and what `narrowToWidth` reproduces - and flipping every
+                 * bit of `sext(v)` flips the replicated sign bits with the rest, which is `sext(~v)`.
+                 * So native's unwrapped `~` on the register already *is* the type's own value, and
+                 * it is the value JS reaches by masking the top half and re-signing. `WideInt` is
+                 * the case that makes this worth having: `not` is a leaf of every bitwise tree over
+                 * one, and declining it left a chain of literals as four instructions and a compare.
                  */
-                if(!facts.fillsRegister()) return nullptr;
+                if(!facts.fillsRegister() && !facts.isSigned) return nullptr;
                 return constant(instruction, instruction.type, narrowToWidth(~from.unwrap(), facts));
             default:
                 return nullptr;
@@ -271,29 +306,12 @@ struct Folder {
     }
 
     /*
-     * `(x op c1) op c2` becomes `x op (c1 op c2)`, for the operations where that is an identity.
-     *
-     * All five are associative *as modular arithmetic*, which is what the type says they are: the two
-     * instructions have the same type, so both wrap at the same width and the combined constant wraps
-     * with them. Nothing is required of `x` and nothing about how many readers the inner operation
-     * has - it stays where it is, and the dead-value pass takes it if this was the last one.
-     *
-     * Written as a rewrite in place rather than as a replacement value, because what changes is which
-     * two operands this instruction has rather than what it computes to. That is also why the use
-     * lists are edited by hand here: `Block::add` is what normally records them, and the instruction
-     * is already in its block.
-     *
-     * Not a general reassociation - nothing is reordered and no operation moves between blocks. It
-     * exists because the packing expansion produces exactly this shape: a word cleared field by
-     * field is one `and` against a literal per field, and nine of them are one mask.
-     */
-    /*
      * A commutative operation with its constant on the left, put on the right.
      *
-     * One canonical form so that three separate rules do not each need a mirror image of
-     * themselves: `reassociate` below reads `instruction.rhs` for the outer constant, the identities
-     * in `foldBinary` are written both ways round only because this did not exist, and CSE in
-     * opt_value.cpp unifies `1 + x` with `x + 1` for free once both are spelled the same.
+     * One canonical form, which is what lets three separate rules each be written once: `reassociate`
+     * below reads `instruction.rhs` for the outer constant, the identities in `foldBinary` above are
+     * written against the right operand alone, and CSE in opt_value.cpp unifies `1 + x` with `x + 1`
+     * for free once both are spelled the same.
      *
      * Only where the right operand is *not* also a constant, or this would swap a foldable pair back
      * and forth forever - the driver's round cap would turn that into a slow compile rather than a
@@ -322,6 +340,23 @@ struct Folder {
         return true;
     }
 
+    /*
+     * `(x op c1) op c2` becomes `x op (c1 op c2)`, for the operations where that is an identity.
+     *
+     * All five are associative *as modular arithmetic*, which is what the type says they are: the two
+     * instructions have the same type, so both wrap at the same width and the combined constant wraps
+     * with them. Nothing is required of `x` and nothing about how many readers the inner operation
+     * has - it stays where it is, and the dead-value pass takes it if this was the last one.
+     *
+     * Written as a rewrite in place rather than as a replacement value, because what changes is which
+     * two operands this instruction has rather than what it computes to. That is also why the use
+     * lists are edited by hand here: `Block::add` is what normally records them, and the instruction
+     * is already in its block.
+     *
+     * Not a general reassociation - nothing is reordered and no operation moves between blocks. It
+     * exists because the packing expansion produces exactly this shape: a word cleared field by
+     * field is one `and` against a literal per field, and nine of them are one mask.
+     */
     bool reassociate(ModulePtr<Inst> pointer, InstBinary& instruction, const IntFacts& facts) {
         switch(instruction.kind) {
             case Value::Add: case Value::Mul:

@@ -673,6 +673,103 @@ struct Inliner {
         return Just(::move(candidate));
     }
 
+    // A value the caller handed over as a literal, which is what every rule below means by a
+    // constant argument. Deliberately not `constantValueOf`: this asks whether the folder will have
+    // something to work with, not what the number is.
+    static bool isLiteral(const Value& value) {
+        switch(value.kind) {
+            case Value::ConstInt: case Value::ConstFloat: case Value::ConstDouble:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /*
+     * Whether one value in the callee is already settled by this call site: a literal, an argument
+     * the caller passed a literal for, or a computation over nothing else.
+     *
+     * The kinds admitted are the ones opt_fold.cpp can actually answer, which is why this is not
+     * `isPureValue` - a `Symbol` and a `TypeMetric` are pure and have no operands, so that predicate
+     * would call the address of a function "decided" and it is not a number anything folds against.
+     *
+     * `decided` is seeded with the arguments and then memoises the walk, which also closes the one
+     * cycle a value graph can have: a phi is not among the kinds below, so a value reached twice is
+     * a shared subexpression rather than a loop, and the entry written before the recursion is what
+     * makes a body that manages one answer `false` instead of not answering.
+     */
+    bool decidedAtCall(ModulePtr<Value> value, HashMap<U32, U8>& decided) {
+        if(!value) return false;
+        if(auto found = decided.getValue(U32(value))) return found.unwrap() != 0;
+
+        *decided.add(U32(value)).value = 0;
+
+        auto& instruction = *opt.local[value];
+        auto answer = false;
+
+        switch(instruction.kind) {
+            case Value::ConstInt: case Value::ConstFloat: case Value::ConstDouble:
+                answer = true;
+                break;
+            case Value::Cast: case Value::Neg: case Value::Not:
+            case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
+            case Value::Shl: case Value::Shr: case Value::Sar:
+            case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
+                answer = true;
+                eachOperand(opt.local, instruction, [&](ModulePtr<Value> operand) {
+                    if(!decidedAtCall(operand, decided)) answer = false;
+                });
+                break;
+            default:
+                break;
+        }
+
+        *decided.add(U32(value)).value = answer ? 1 : 0;
+        return answer;
+    }
+
+    /*
+     * Whether no branch in the callee survives this call site.
+     *
+     * This is the term `blockCost` was missing rather than a second opinion about it. What that cost
+     * prices is the graft: blocks spliced into a caller that the passes below then have to live with,
+     * and on a managed target one more join for codegen/js/flow.cpp to recover a structured form of.
+     * But a `je` whose condition the caller decided is not a join that survives - opt_branch.cpp
+     * turns it into a `jmp` on the very next round, deletes the arm nothing reaches and merges what
+     * is left - so where *every* branch is decided the graft leaves one block, and charging for the
+     * others is charging for blocks that are gone before anything can be asked about them.
+     *
+     * `Truth.yana` is what this is measured on, and it is the case where the two targets had come
+     * apart: `fromInt(7)` is two instructions in four blocks, which native inlined and JS refused,
+     * because 3 blocks at a managed `blockCost` of 3 is more than the whole base budget. So native
+     * folded `main` to one constant and JS emitted eight calls to functions whose arguments it
+     * already knew - bigger and slower, on the target that pays most for both.
+     *
+     * A callee with no branches at all answers true and is charged nothing, which is what it was
+     * already paying: it has one block, and a chain of `jmp`s is one block after `mergeBlocks`.
+     */
+    bool decidesEveryBranch(Candidate& candidate, InstCall& call) {
+        HashMap<U32, U8> decided;
+
+        for(Size i = 0; i < candidate.callee->args.size(); i++) {
+            auto argument = call.args.get(opt.local, i);
+            auto known = argument && isLiteral(*opt.local[argument]);
+
+            *decided.add(U32((ModulePtr<Value>)candidate.callee->args.get(opt.local, i))).value =
+                known ? 1 : 0;
+        }
+
+        for(auto blockPointer: candidate.blocks) {
+            auto block = opt.local[blockPointer];
+            if(!block->terminator) return false;
+            if(opt.local[block->terminator]->kind != Value::Je) continue;
+
+            if(!decidedAtCall(((InstJe&)*opt.local[block->terminator]).cond, decided)) return false;
+        }
+
+        return true;
+    }
+
     /*
      * Whether this call site is worth what the copy costs.
      *
@@ -693,15 +790,7 @@ struct Inliner {
 
         U32 constants = 0;
         for(auto argument: call.args.contents(opt.local)) {
-            if(!argument) continue;
-
-            switch(opt.local[argument]->kind) {
-                case Value::ConstInt: case Value::ConstFloat: case Value::ConstDouble:
-                    constants++;
-                    break;
-                default:
-                    break;
-            }
+            if(argument && isLiteral(*opt.local[argument])) constants++;
         }
 
         limit += I64(min(constants, policy.constantCap)) * policy.constantArgument;
@@ -713,8 +802,19 @@ struct Inliner {
         if(candidate.resultLocal != Candidate::kNone) limit += policy.memoryResult;
         if(candidate.callee->inlineHint) limit += policy.requested;
 
-        // What the graft costs, which the straight-line case does not pay because it performs none.
-        limit -= I64(candidate.blocks.size() - 1) * policy.blockCost;
+        /*
+         * What the graft costs, which the straight-line case does not pay because it performs none -
+         * and neither does one whose every branch this call site has already decided.
+         *
+         * The two cheap terms first so that the walk behind the third is only ever run where its
+         * answer could change something: a callee of one block is the common case and pays nothing
+         * either way, and `blockCost` is zero at `InlineLevel::Size`, where a body moves rather than
+         * being copied.
+         */
+        auto blocks = candidate.blocks.size();
+        if(blocks > 1 && policy.blockCost && decidesEveryBranch(candidate, call)) blocks = 1;
+
+        limit -= I64(blocks - 1) * policy.blockCost;
 
         return I64(candidate.size) <= limit;
     }
