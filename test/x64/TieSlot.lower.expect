@@ -1,0 +1,91 @@
+
+tiedResultAndSibling<complex>(%a: Int): Int {
+  b_0 {
+    %v0 = add %a, 2: Int
+    %v1 = add %a, 3: Int
+    %v2 = add %a, 4: Int
+    %v3 = add %a, 5: Int
+    %v4 = add %a, 6: Int
+    %v5 = add %a, 7: Int
+    %v6 = add %a, 8: Int
+    %v7 = add %a, 9: Int
+    %v8 = add %a, 10: Int
+    %v9 = add %a, 11: Int
+    %v10 = add %a, 12: Int
+    %v11 = add %a, 13: Int
+    %y = mul %a, 101: Int
+    %p0 = add %a, 40: Int
+    %p1 = add %a, 41: Int
+    %r = add %v0, %y: Int
+    %c0 = add %a, %v0: Int
+    %c1 = add %c0, %v1: Int
+    %c2 = add %c1, %v2: Int
+    %c3 = add %c2, %v3: Int
+    %c4 = add %c3, %v4: Int
+    %c5 = add %c4, %v5: Int
+    %c6 = add %c5, %v6: Int
+    %c7 = add %c6, %v7: Int
+    %c8 = add %c7, %v8: Int
+    %c9 = add %c8, %v9: Int
+    %c10 = add %c9, %v10: Int
+    %c11 = add %c10, %v11: Int
+    %c12 = add %c11, %p0: Int
+    %c13 = add %c12, %p1: Int
+    %c14 = add %c13, %r: Int
+    ret %c14
+  }
+}
+
+
+--- codegen: tiedResultAndSibling ---
+  prologue  => 535541544155415641574883ec10
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  add uses=[rcx, -] creates=[rcx] pre=[rdi->rcx]  => 488bcf83c102
+  imm uses=[] creates=[-]  => 
+  add uses=[rsi, -] creates=[rsi] pre=[rdi->rsi]  => 488bf783c603
+  imm uses=[] creates=[-]  => 
+  add uses=[r8, -] creates=[r8] pre=[rdi->r8]  => 4c8bc74183c004
+  imm uses=[] creates=[-]  => 
+  add uses=[r9, -] creates=[r9] pre=[rdi->r9]  => 4c8bcf4183c105
+  imm uses=[] creates=[-]  => 
+  add uses=[r10, -] creates=[r10] pre=[rdi->r10]  => 4c8bd74183c206
+  imm uses=[] creates=[-]  => 
+  add uses=[r11, -] creates=[r11] pre=[rdi->r11]  => 4c8bdf4183c307
+  imm uses=[] creates=[-]  => 
+  add uses=[rbx, -] creates=[rbx] pre=[rdi->rbx]  => 488bdf83c308
+  imm uses=[] creates=[-]  => 
+  add uses=[r12, -] creates=[r12] pre=[rdi->r12]  => 4c8be74183c409
+  imm uses=[] creates=[-]  => 
+  add uses=[r13, -] creates=[r13] pre=[rdi->r13]  => 4c8bef4183c50a
+  imm uses=[] creates=[-]  => 
+  add uses=[r14, -] creates=[r14] pre=[rdi->r14]  => 4c8bf74183c60b
+  imm uses=[] creates=[-]  => 
+  add uses=[rbp, -] creates=[rbp] pre=[rdi->rbp]  => 488bef83c50c
+  imm uses=[] creates=[-]  => 
+  add uses=[r15, -] creates=[r15] pre=[rdi->r15] post=[r15->stack:0]  => 4c8bff4183c70d44893c24
+  imm uses=[] creates=[remat:0]  => 
+  mul uses=[rax, r15] creates=[rax] pre=[rdi->rax, remat:0->r15] post=[rax->stack:1]  => 488bc741bf6500000041f7e789442404
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc783c028
+  imm uses=[] creates=[-]  => 
+  add uses=[rdx, -] creates=[rdx] pre=[rdi->rdx]  => 488bd783c229
+  add uses=[r15, stack:1] creates=[r15] pre=[rcx->r15] post=[r15->stack:2]  => 4c8bf944037c240444897c2408
+  add uses=[rdi, rcx] creates=[rdi]  => 01cf
+  add uses=[rdi, rsi] creates=[rdi]  => 01f7
+  add uses=[rdi, r8] creates=[rdi]  => 4401c7
+  add uses=[rdi, r9] creates=[rdi]  => 4401cf
+  add uses=[rdi, r10] creates=[rdi]  => 4401d7
+  add uses=[rdi, r11] creates=[rdi]  => 4401df
+  add uses=[rdi, rbx] creates=[rdi]  => 01df
+  add uses=[rdi, r12] creates=[rdi]  => 4401e7
+  add uses=[rdi, r13] creates=[rdi]  => 4401ef
+  add uses=[rdi, r14] creates=[rdi]  => 4401f7
+  add uses=[rdi, rbp] creates=[rdi]  => 01ef
+  add uses=[rdi, stack:0] creates=[rdi]  => 033c24
+  add uses=[rdi, rax] creates=[rdi]  => 01c7
+  add uses=[rdi, rdx] creates=[rdi]  => 01d7
+  add uses=[rdi, stack:2] creates=[rdi]  => 037c2408
+  ret uses=[rax] creates=[] pre=[rdi->rax]  => 488bc74883c410415f415e415d415c5d5bc3

@@ -278,6 +278,7 @@ struct PlacementScratch {
     Array<LiveId> occupants[kRegisterBankCount][kMaxRegistersPerBank];
     ArrayList<LiveId> tieConflicts;
     ArrayList<Range> slotOccupants;
+    ArrayList<LiveId> slotWebs;
     Array<ClobberSite> clobberSites;
 
     // Where the four walks get the instruction shape they each ask for per instruction. A pool
@@ -305,6 +306,7 @@ struct PlacementScratch {
         webs.reset(valueCount);
         tieConflicts.reset(valueCount);
         slotOccupants.reset(0);
+        slotWebs.reset(0);
         clobberSites.clear();
 
         for(auto& bank: occupants) {
@@ -393,6 +395,12 @@ struct Placer {
     // and a homeless one over the whole of its life, and the slot cannot tell the two apart.
     ArrayList<Range>& slotOccupants;
 
+    // Which webs those stretches belong to, which the ranges alone cannot say. Recycling a slot asks
+    // the same two questions taking a register does - see Placer::isFree - and the second of them,
+    // `tiesConflict`, is about a *pair of webs* and not about where either one lives. So the slot has
+    // to remember its occupants by name and not only the stretches they cover.
+    ArrayList<LiveId>& slotWebs;
+
     // Every instruction that writes registers behind its operands' backs, in index order - see
     // ClobberSite. Kept because a split is a decision about which of them a web has to dodge and
     // which it can step around.
@@ -441,7 +449,8 @@ struct Placer {
         base(base), fun(fun), live(live), machine(machine), constraints(constraints),
         scratch(scratch), shapes(scratch.shapes), frequency(frequency), out(out),
         webs(scratch.webs), occupants(scratch.occupants), tieConflicts(scratch.tieConflicts),
-        frame(out.frame), slotOccupants(scratch.slotOccupants), clobberSites(scratch.clobberSites),
+        frame(out.frame), slotOccupants(scratch.slotOccupants), slotWebs(scratch.slotWebs),
+        clobberSites(scratch.clobberSites),
         remats(out.remats), incomingArgs(out.incomingArgs), forcedHomeless(forcedHomeless),
         displacementRequests(out.displacementRequests), temporaries(temporaries)
     {
@@ -847,7 +856,7 @@ struct Placer {
             if(window.to > window.from + 1) requiresLegalizationTemps = true;
         }
 
-        auto slot = takeSlot(stackSlotClassFor(type), intervalOf(plan.windows));
+        auto slot = takeSlot(webId, stackSlotClassFor(type), intervalOf(plan.windows));
         return setSplit(webId, cls, MachineLocation::physical(reg), plan.windows, MachineLocation::stack(slot));
     }
 
@@ -905,18 +914,39 @@ struct Placer {
             return setHome(webId, cls, MachineLocation::remat(RematId(remats.size() - 1)));
         }
 
-        return setHome(webId, cls, MachineLocation::stack(takeSlot(stackSlotClassFor(type), interval)));
+        auto slot = takeSlot(webId, stackSlotClassFor(type), interval);
+        return setHome(webId, cls, MachineLocation::stack(slot));
+    }
+
+    // Whether anything already promised this slot is a web that may not share a location with
+    // `webId` - the destructive-encoding tie of isFree, asked of a frame slot. It is the same
+    // question and it has to be asked in the same two places, because a tie is a statement about two
+    // webs sharing *a location* and not about their sharing a register: the copy that puts operand
+    // zero where the result goes runs in front of the instruction whether that place is a register
+    // or a slot, and overwrites a sibling operand sitting there either way.
+    bool slotTiesConflict(StackSlotId slot, LiveId webId) const {
+        for(auto id: slotWebs[slot]) {
+            if(tiesConflict(webId, id)) return true;
+        }
+
+        return false;
     }
 
     // A slot in the frame for the stretches `ranges` covers, reusing one nothing is using over any of
     // them. Slots are recycled by exactly the rule registers are, so the frame ends up as large as
     // the peak number of simultaneously spilled webs rather than as large as their total - and a
     // split web's window, being a stretch and not a life, shares slots with whatever is dead there.
-    StackSlotId takeSlot(StackSlotClass slotClass, const LiveInterval& ranges) {
+    //
+    // "Exactly the rule registers are" includes the tie above, which is the half of that rule that
+    // interval overlap does not state: a tied result's life begins where its sibling operand's ends,
+    // so the two are always offered each other's storage and the ranges never object.
+    StackSlotId takeSlot(LiveId webId, StackSlotClass slotClass, const LiveInterval& ranges) {
         while(slotOccupants.size() < frame.slots.size()) slotOccupants.push();
+        while(slotWebs.size() < frame.slots.size()) slotWebs.push();
 
         auto claim = [&](StackSlotId slot) {
             mergeRanges(slotOccupants[slot], ranges.ranges, ranges.count, scratch.merged);
+            slotWebs[slot].push(webId);
             return slot;
         };
 
@@ -924,6 +954,7 @@ struct Placer {
             if(frame.slots[i].kind != StackSlotKind::Spill) continue;
             if(frame.slots[i].slotClass != slotClass) continue;
             if(intervalOf(slotOccupants[i]).overlaps(ranges)) continue;
+            if(slotTiesConflict(StackSlotId(i), webId)) continue;
 
             return claim(StackSlotId(i));
         }
@@ -937,6 +968,7 @@ struct Placer {
         });
 
         while(slotOccupants.size() <= slot) slotOccupants.push();
+        while(slotWebs.size() <= slot) slotWebs.push();
         return claim(slot);
     }
 };

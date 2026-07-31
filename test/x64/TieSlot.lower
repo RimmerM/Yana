@@ -1,0 +1,68 @@
+# A destructive result and a sibling operand of its instruction, both in the frame.
+#
+# `add` writes its result over operand zero, so legalization copies operand zero into the result's
+# location in front of the instruction. Any *other* operand sitting in that same location is read
+# after that copy has already overwritten it - which is why the placer keeps such a pair apart, and
+# why it cannot do so by comparing their lives: a tied result's interval begins exactly where the
+# operand it is written over ends, so the two never overlap and every interference test in the
+# allocator sees them as mergeable.
+#
+# Placement states that separately, as `tieConflicts`, and asks it wherever a location is handed
+# out. It used to ask in one of the two places - a register - and the frame recycled a slot on
+# interval overlap alone, so a pair that had been refused a shared register was handed a shared slot
+# instead. `%y` and `%r` below are that pair.
+#
+# Everything here is arranged so that both of them end up in the frame and so that `%y`'s slot is the
+# lowest-numbered one free where `%r` asks for one:
+#
+#   - `%v0`..`%v11` are live from their definitions to the very end, which holds every register for
+#     the whole function and leaves nothing for anything defined after them;
+#   - `%y` is a `mul`, whose fixed rax/rdx shape denies it the registers a longer-lived value left,
+#     so it is the first web to go to the frame and takes slot 0;
+#   - `%p0` and `%p1` are defined after it and are live across the `add`, so they hold the slots
+#     above `%y`'s and nothing below it is occupied;
+#   - `%r` is live from the `add` to the last instruction, so it goes to the frame too, and the only
+#     free slot when it asks is the one `%y` has just left.
+#
+# Without the tie check on the frame, `%r` takes `%y`'s slot and `verifyPlacement` reports `add: y is
+# read from stack:N, which its result is written over`.
+tiedResultAndSibling(%a: Int): Int {
+    {
+        %v0 = add %a, 2: Int
+        %v1 = add %a, 3: Int
+        %v2 = add %a, 4: Int
+        %v3 = add %a, 5: Int
+        %v4 = add %a, 6: Int
+        %v5 = add %a, 7: Int
+        %v6 = add %a, 8: Int
+        %v7 = add %a, 9: Int
+        %v8 = add %a, 10: Int
+        %v9 = add %a, 11: Int
+        %v10 = add %a, 12: Int
+        %v11 = add %a, 13: Int
+
+        %y = mul %a, 101: Int
+        %p0 = add %a, 40: Int
+        %p1 = add %a, 41: Int
+
+        # %y dies here and %r begins here, which is what makes their lives look shareable.
+        %r = add %v0, %y: Int
+
+        %c0 = add %a, %v0: Int
+        %c1 = add %c0, %v1: Int
+        %c2 = add %c1, %v2: Int
+        %c3 = add %c2, %v3: Int
+        %c4 = add %c3, %v4: Int
+        %c5 = add %c4, %v5: Int
+        %c6 = add %c5, %v6: Int
+        %c7 = add %c6, %v7: Int
+        %c8 = add %c7, %v8: Int
+        %c9 = add %c8, %v9: Int
+        %c10 = add %c9, %v10: Int
+        %c11 = add %c10, %v11: Int
+        %c12 = add %c11, %p0: Int
+        %c13 = add %c12, %p1: Int
+        %c14 = add %c13, %r: Int
+        ret %c14
+    }
+}
