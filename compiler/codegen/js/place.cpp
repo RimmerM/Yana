@@ -72,6 +72,20 @@ JsPtr<Expr> useValue(Gen& g, ModulePtr<Value> pointer) {
         return result;
     }
 
+    /*
+     * A value of unit type, which is nothing and is named by nothing.
+     *
+     * `define` binds no variable for one - there is nothing to hold - so anything that reads one
+     * arrives here having found no entry. That is not the failure below: it is the model working,
+     * and `null` is this target's spelling of a value with no representation. The positions where a
+     * unit *matters* leave it out before asking - a parameter that does not exist, a `return` with
+     * nothing to return - so what reaches here is a use in a position that will discard it anyway.
+     *
+     * Reached by a generic body specialized at `{}`: `match m: Just(inner) -> inner` binds a payload
+     * that occupies nothing, and the arm has to produce it.
+     */
+    if(isUnit(g.global, value.type)) return nullValue(g);
+
     g.context.diagnostics.error("internal error: a resolve value was used before it was generated"_v,
                                 value.source);
     return nullValue(g);

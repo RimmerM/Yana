@@ -265,6 +265,23 @@ static void checkTableTypes(LowerContext& lower) {
                tableSize(target, ClosureHeaderFields::kWordCount, ClosureHeaderFields::kCount));
 }
 
+/*
+ * Whether one parameter of a lowered signature exists at all.
+ *
+ * A unit value has no representation anywhere below resolve - lowerType has no answer for one and
+ * mapResult never maps one - so a parameter of unit type is neither passed nor received. That is
+ * not a corner case reserved for `fn f(x: {})`: a generic function specialized at `{}` grows one
+ * wherever its signature named a type variable, which is what a lens whose block produces nothing
+ * instantiates its continuation's result with. The caller and the callee have to leave the position
+ * out by the same rule, or every argument after it shifts by one.
+ *
+ * A `&` parameter is the exception, and it is not really one: what travels there is the address of
+ * the caller's storage rather than a value, and an address exists whatever it points at.
+ */
+static bool lowerArgExists(GlobalBase global, TypePtr type, bool mutableBorrow) {
+    return mutableBorrow || !isUnit(global, type);
+}
+
 static U32 memoryWidth(LowerContext& lower, TypePtr type) {
     auto size = typeSize(lower, type);
     assertTrue(size == 1 || size == 2 || size == 4 || size == 8);
@@ -362,6 +379,26 @@ static LowerPtr<LowerValue> sizeOfType(LowerContext& lower, LowerBlock& block, T
     }
 
     return immediate(lower, typeSize(lower, type));
+}
+
+/*
+ * Storage for one object, never of no size.
+ *
+ * A type whose fields all occupy nothing occupies nothing - a record of one unit field, which is
+ * what a closure over a unit-typed binding captures into. Its *address* is still taken, though, and
+ * a frame object of no size is not an address: the x64 placer has nothing to give one, and two of
+ * them would be the same pointer. So a zero-size allocation is one word, which nothing ever reads.
+ *
+ * Only where the size is a constant. A size read out of a type descriptor may be zero at run time
+ * for the same reason, and rounding it up there would be a branch on every allocation to buy the
+ * same nothing - the erased paths reaching it allocate a word of their own instead.
+ */
+static LowerPtr<LowerValue> storageSize(LowerContext& lower, LowerBlock& block, TypePtr type) {
+    if(auto descriptor = genTypeDesc(lower, block, type)) {
+        return descField(lower, block, descriptor, TypeDescFields::kSize);
+    }
+
+    return immediate(lower, max(typeSize(lower, type), 1u));
 }
 
 // The address of one compiler-built constant table.
@@ -1774,7 +1811,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 return;
             }
 
-            auto bytes = sizeOfType(lower, block, instruction.type);
+            auto bytes = storageSize(lower, block, instruction.type);
 
             if(allocation.storage == StorageClass::Heap) {
                 // Storage escape analysis proved the frame cannot hold, so it comes from the
@@ -1824,6 +1861,11 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
         }
         case Value::LoadPlace: {
             auto& loadInst = (InstLoadPlace&)instruction;
+
+            // Reading a field that holds nothing produces nothing, so the load is not emitted at
+            // all rather than emitted and left unmapped. `fn unbox(b: Box(a)) -> a = b.inner`
+            // specialized at `{}` is the everyday way to reach this.
+            if(isUnit(lower.global, instruction.type)) return;
 
             // Reading a field of a scalarized aggregate is naming the value that was written into
             // it, which is what makes the load disappear rather than become a cheaper load.
@@ -1960,6 +2002,17 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             // been emitted as its own InstDrop by the drop pass, so by the time lowering sees an
             // assignment there is nothing left in it but the write.
             auto& init = (InstInit&)instruction;
+
+            /*
+             * Writing a value that carries nothing writes nothing.
+             *
+             * The resolver skips this where it can see it - a field of unit type is never written -
+             * but it cannot see it through a type variable, and a specialization at `{}` is a clone
+             * of instructions decided before the substitution. `Empty {only: value}.only` is the
+             * shape: the constructor's content is `a`, and writing it is an Init the generic body
+             * had every reason to emit.
+             */
+            if(isUnit(lower.global, lower.local[init.value]->type)) return;
 
             if(isScalarPlace(lower, init.place)) {
                 lower.scalars[init.place.local][scalarField(lower, init.place)] = mappedValue(lower, init.value);
@@ -2290,7 +2343,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             auto address = lowerPlace(lower, block, *function, copied.place);
 
             if(isMemoryType(lower.global, instruction.type)) {
-                auto bytes = sizeOfType(lower, block, instruction.type);
+                auto bytes = storageSize(lower, block, instruction.type);
                 auto alignment = isGeneric(lower.global, instruction.type)
                     ? 16u : typeAlign(lower, instruction.type);
 
@@ -2686,15 +2739,35 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             LowerPtr<LowerValue> returnPlace = nullptr;
 
             if(memoryResult) {
-                auto bytes = sizeOfType(lower, block, instruction.type);
+                auto bytes = storageSize(lower, block, instruction.type);
                 auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
                     instruction.name, bytes, typeAlign(lower, instruction.type)));
 
                 returnPlace = allocation->created().ptr - lower.lower;
             }
 
+            /*
+             * The declared conventions come off the *type*, which is all a caller reaching a
+             * function through a value has - and is what makes the two sides agree about which
+             * positions exist without either consulting the other.
+             */
+            auto signature = (FunType*)lower.global[callInst.type];
+
             Array<LowerPtr<LowerValue>> arguments;
-            for(auto arg: callInst.args.contents(lower.local)) arguments.push(mappedValue(lower, arg));
+            Size dynIndex = 0;
+
+            for(auto arg: callInst.args.contents(lower.local)) {
+                auto declared = dynIndex < signature->args.size()
+                    ? signature->args.get(lower.global, dynIndex) : FunArg { lower.local[arg]->type };
+
+                dynIndex++;
+                if(!lowerArgExists(lower.global, declared.type,
+                                   declared.convention == ast::BindType::Ref)) {
+                    continue;
+                }
+
+                arguments.push(mappedValue(lower, arg));
+            }
 
             auto created = isUnit(lower.global, instruction.type) || memoryResult ? 0 : 1;
             auto used = arguments.size() + 1 + (env ? 1 : 0) + (memoryResult ? 1 : 0);
@@ -2733,7 +2806,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 // result type belongs to the caller's own type variables, which is the case
                 // Implementation-Generics.md part 8 calls "owned return: hidden uninitialized
                 // result pointer" - the caller provides it because only the caller knows where.
-                auto bytes = sizeOfType(lower, block, instruction.type);
+                auto bytes = storageSize(lower, block, instruction.type);
                 auto alignment = isGeneric(lower.global, instruction.type)
                     ? 16u : typeAlign(lower, instruction.type);
 
@@ -2741,8 +2814,28 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 returnPlace = allocation->created().ptr - lower.lower;
             }
 
+            // The positions this call actually passes, read off the callee's own parameters so
+            // that it agrees with what the callee's signature above received.
+            auto callee = lower.local[callInst.callee];
+            Array<LowerPtr<LowerValue>> passed;
+            Size callIndex = 0;
+
+            for(auto arg: callInst.args.contents(lower.local)) {
+                auto parameter = callIndex < callee->args.size()
+                    ? lower.local[callee->args.get(lower.local, callIndex)] : nullptr;
+
+                callIndex++;
+                auto declared = parameter ? parameter->type : lower.local[arg]->type;
+
+                if(!lowerArgExists(lower.global, declared, parameter && parameter->isMutableBorrow())) {
+                    continue;
+                }
+
+                passed.push(mappedValue(lower, arg));
+            }
+
             auto created = isUnit(lower.global, instruction.type) || memoryResult ? 0 : 1;
-            auto used = callInst.args.size() + 1 + (memoryResult ? 1 : 0);
+            auto used = passed.size() + 1 + (memoryResult ? 1 : 0);
 
             result = call(lower.lower, lower.to, block, created, used, lower.lower[target]->callType, [&](LowerInstCall* call) {
                 if(created) {
@@ -2754,9 +2847,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 Size index = 1;
                 if(memoryResult) call->used()[index++] = returnPlace;
 
-                for(auto arg: callInst.args.contents(lower.local)) {
-                    call->used()[index++] = mappedValue(lower, arg);
-                }
+                for(auto argument: passed) call->used()[index++] = argument;
             });
 
             if(memoryResult) {
@@ -2833,7 +2924,6 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             Size argIndex = 0;
 
             for(auto arg: callInst.args.contents(lower.local)) {
-                auto value = mappedValue(lower, arg);
                 auto concrete = lower.local[arg]->type;
 
                 auto parameter = argIndex < callee->args.size()
@@ -2847,6 +2937,33 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                  * condition exists to avoid.
                  */
                 auto byAddress = parameter && parameter->isMutableBorrow();
+                auto declared = parameter ? parameter->type : concrete;
+
+                argIndex++;
+
+                /*
+                 * Which positions exist is the *callee's* question here, and only here.
+                 *
+                 * The erased body was compiled against its own variables, so a parameter declared
+                 * as one of them is a position in the signature whatever this caller substituted -
+                 * including `{}`. Deciding by the concrete type instead would drop an argument the
+                 * callee is still reading, so the two rules genuinely differ: a declared unit is
+                 * absent, and a declared variable that happens to be unit here is present.
+                 */
+                if(!lowerArgExists(lower.global, declared, byAddress)) continue;
+
+                if(isUnit(lower.global, concrete)) {
+                    // Present, and carrying nothing. The callee takes the address and copies the
+                    // size its type descriptor gives, which is zero - so what it points at never
+                    // matters, only that it is an address at all. See storageSize.
+                    auto storage = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(
+                        0, storageSize(lower, block, concrete), 8));
+
+                    arguments.push(storage->created().ptr - lower.lower);
+                    continue;
+                }
+
+                auto value = mappedValue(lower, arg);
 
                 if(parameter && !byAddress && isGeneric(lower.global, parameter->type) &&
                    !isMemoryType(lower.global, concrete)) {
@@ -2854,7 +2971,6 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 }
 
                 arguments.push(value);
-                argIndex++;
             }
 
             /*
@@ -2868,8 +2984,11 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             LowerPtr<LowerValue> returnPlace = nullptr;
 
             if(erasedResult) {
-                auto bytes = sizeOfType(lower, block, instruction.type);
-                auto alignment = isGeneric(lower.global, instruction.type)
+                // The hidden result storage, which exists because the *callee's* signature said so:
+                // a body returning `a` writes through caller storage however small `a` turns out to
+                // be here, and `{}` is as small as it gets - see storageSize.
+                auto bytes = storageSize(lower, block, instruction.type);
+                auto alignment = isGeneric(lower.global, instruction.type) || isUnit(lower.global, instruction.type)
                     ? 16u : typeAlign(lower, instruction.type);
 
                 auto allocation = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(instruction.name, bytes, alignment));
@@ -2998,6 +3117,12 @@ static void lowerTerminator(LowerContext& lower, LowerBlock& block, ModulePtr<In
  */
 static LowerInstPhi* createPhi(LowerContext& lower, ModulePtr<InstPhi> pointer) {
     auto& phi = *lower.local[pointer];
+
+    // Alternatives that agree on producing nothing join to nothing. A phi of unit type has no
+    // lowered type to be built at and no input any block ever named, and every use of it is a use
+    // that leaves the position out - see lowerArgExists.
+    if(isUnit(lower.global, phi.type)) return nullptr;
+
     auto count = phi.inputs.size();
     auto storage = lower.to.arena.alloc(
         sizeof(LowerInstPhi) +
@@ -3014,6 +3139,8 @@ static LowerInstPhi* createPhi(LowerContext& lower, ModulePtr<InstPhi> pointer) 
 
 static void fillPhi(LowerContext& lower, LowerBlock& block, ModulePtr<InstPhi> pointer,
                     LowerInstPhi* result) {
+    if(!result) return;
+
     auto& phi = *lower.local[pointer];
 
     Size index = 0;
@@ -3240,6 +3367,12 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
 
         for(auto argPointer: function->args.contents(lower.local)) {
             auto arg = lower.local[argPointer];
+
+            // A parameter that carries nothing is not received - see lowerArgExists. Nothing maps
+            // it either, so a body that names it has to be reaching it through a form that already
+            // knows a unit value is not a value: a `ret` reads it off the return type, and every
+            // call leaves the position out.
+            if(!lowerArgExists(lower.global, arg->type, arg->isMutableBorrow())) continue;
 
             // A `&` parameter arrives as the address of the caller's storage whatever it holds, so
             // its lower type is a pointer even where the borrowed type is a register-sized scalar.

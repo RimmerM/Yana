@@ -803,8 +803,28 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
     auto content = constructor.content;
     auto contentPlace = project(root, ProjectionKind::Downcast, reference.index);
 
-    if(!content || isUnit(global, content)) {
+    if(!content) {
         if(args.size()) context.diagnostics.error("nullary constructor does not take arguments"_v, expr.source);
+    } else if(isUnit(global, content)) {
+        /*
+         * A constructor whose payload is unit, which is `Just(x)` at `a = {}` rather than anything
+         * anyone declares that way. There is nothing to write - the field occupies nothing - but the
+         * argument is still an expression the call site wrote, so it is resolved for what it does
+         * rather than dropped unparsed.
+         *
+         * Told apart from a genuinely nullary constructor above, because `Nothing()` is a mistake
+         * and `Just(unitValue())` is not.
+         */
+        if(args.size() > 1 || (args.size() == 1 && args[0].name)) {
+            context.diagnostics.error("constructor requires one positional argument"_v, expr.source);
+        } else if(args.size() == 1) {
+            auto value = inferredValues.isNotEmpty() ? inferredValues[0] : resolve(args[0].value, content);
+
+            if(value && !isUnit(global, valueType(value))) {
+                context.diagnostics.error("this constructor carries nothing here, so its argument must be `{}`"_v,
+                                          args[0].value.source);
+            }
+        }
     } else if(inferredValues.isNotEmpty()) {
         // The arguments were already resolved to infer the type; only the writes are left.
         if(global[content]->kind == Type::Tup && inferredValues.size() > 1) {

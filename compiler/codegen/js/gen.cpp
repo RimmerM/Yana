@@ -491,6 +491,14 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
             continue;
         }
 
+        // A parameter that carries nothing is not received - see declaredArgIsAbsent. Skipped
+        // before the name is bound, so that a body naming it fails loudly rather than reading a
+        // parameter the caller never passed.
+        if(declaredArgIsAbsent(g, arg->type, arg->convention)) {
+            index++;
+            continue;
+        }
+
         auto& into = closure ? closure->args : result->args;
 
         /*
@@ -829,6 +837,55 @@ bool callParameterIsFlatRef(Gen& g, Value& user, Size index) {
 
             auto arg = type->args.get(g.global, index);
             return refIsFlattened(g, arg.type, arg.convention);
+        }
+        default:
+            return false;
+    }
+}
+
+/*
+ * Whether one declared parameter is a position at all.
+ *
+ * A unit value has no representation on this target either - `define` emits what has an effect and
+ * names nothing - so a parameter of unit type is neither passed nor received. It is not a shape
+ * anyone writes: it is what a generic function's type variable becomes when the call site has
+ * nothing to hand over, which is the ordinary case for a callback's result.
+ *
+ * A `&` parameter is the exception. What travels there is a reference to the caller's storage, and
+ * a reference exists whatever it refers to.
+ */
+bool declaredArgIsAbsent(Gen& g, TypePtr type, ast::BindType convention) {
+    return convention != ast::BindType::Ref && isUnit(g.global, type);
+}
+
+// The same, read off whichever kind of call this is - and off the *declared* parameter rather than
+// off the argument, for the reason callParameterIsFlatRef gives: both sides have to leave the same
+// positions out or every argument after one shifts.
+bool callParameterIsAbsent(Gen& g, Value& user, Size index) {
+    auto fromFunction = [&](ModulePtr<Function> callee) {
+        if(!callee) return false;
+
+        auto function = g.local[callee];
+        if(index >= function->args.size()) return false;
+
+        auto arg = g.local[function->args.get(g.local, index)];
+        return declaredArgIsAbsent(g, arg->type, arg->convention);
+    };
+
+    switch(user.kind) {
+        case Value::Call:
+            return fromFunction(((InstCall&)user).callee);
+        case Value::GenCall:
+            return fromFunction(((InstGenCall&)user).callee);
+        case Value::CallDyn: {
+            auto signature = ((InstCallDyn&)user).signature;
+            if(!signature || g.global[signature]->kind != Type::Fun) return false;
+
+            auto type = (FunType*)g.global[signature];
+            if(index >= type->args.size()) return false;
+
+            auto arg = type->args.get(g.global, index);
+            return declaredArgIsAbsent(g, arg.type, arg.convention);
         }
         default:
             return false;

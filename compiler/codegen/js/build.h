@@ -629,6 +629,11 @@ bool narrowRefNeedsObject(Gen& g, ModulePtr<Value> reference);
 // the question above both decide a reference argument's arity from this, and they have to agree.
 bool callParameterIsFlatRef(Gen& g, Value& user, Size index);
 
+// Whether a declared parameter occupies a position at all - see the definition. A unit one does
+// not, which is what a generic function specialized at `{}` produces.
+bool declaredArgIsAbsent(Gen& g, TypePtr type, ast::BindType convention);
+bool callParameterIsAbsent(Gen& g, Value& user, Size index);
+
 // Whether this signature flattens its references at all - the arity guard, which is all-or-nothing
 // for a signature so that the caller and the callee reach it independently and agree.
 bool functionFlattensRefs(Gen& g, Function& function);

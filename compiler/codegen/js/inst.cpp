@@ -539,7 +539,10 @@ void genCall(Gen& g, ModulePtr<Value> pointer, InstCall& instruction) {
 
     Size index = 0;
     for(auto arg: instruction.args.contents(g.local)) {
-        pushArg(g, args, arg, callParameterIsFlatRef(g, instruction, index));
+        if(!callParameterIsAbsent(g, instruction, index)) {
+            pushArg(g, args, arg, callParameterIsFlatRef(g, instruction, index));
+        }
+
         index++;
     }
 
@@ -566,7 +569,10 @@ void genCallDyn(Gen& g, ModulePtr<Value> pointer, InstCallDyn& instruction) {
 
     Size index = 0;
     for(auto arg: instruction.args.contents(g.local)) {
-        pushArg(g, args, arg, callParameterIsFlatRef(g, instruction, index));
+        if(!callParameterIsAbsent(g, instruction, index)) {
+            pushArg(g, args, arg, callParameterIsFlatRef(g, instruction, index));
+        }
+
         index++;
     }
 
@@ -635,6 +641,23 @@ void genGenCall(Gen& g, ModulePtr<Value> pointer, InstGenCall& instruction) {
 
         auto parameter = argIndex < function->args.size()
             ? g.local[function->args.get(g.local, argIndex)] : nullptr;
+
+        /*
+         * Which positions exist is the *callee's* question, and the answer differs from the
+         * concrete one here: a parameter declared as a type variable is a position in the erased
+         * signature whatever this caller substituted, including `{}`. What travels for it is the
+         * box a reference always is, holding nothing.
+         */
+        if(parameter && declaredArgIsAbsent(g, parameter->type, parameter->convention)) {
+            argIndex++;
+            continue;
+        }
+
+        if(isUnit(g.global, concrete)) {
+            declared.push(boxOf(g, nullValue(g)));
+            argIndex++;
+            continue;
+        }
 
         // A narrow reference the callee declared narrow goes flat here too. One it declared generic
         // does not, and that is the case this list has always been about: an erased body holds a

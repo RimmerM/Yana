@@ -1,0 +1,335 @@
+table closure$ResolveTest.lambda$0 before ResolveTest.lambda$0 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn identity(%value: a) -> a {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    ret %value
+}
+
+fn unitValue() -> () {
+  b0:
+    ret
+}
+
+fn takesUnit(%x: ()) -> Int {
+  b0:
+    ret 1
+}
+
+fn between(%first: Int, %middle: a, %last: Int) -> Int {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %v5 = mul %first, 10 : Int
+    %v6 = add %v5, %last : Int
+    ret %v6
+}
+
+fn unbox(%b: Box(a)) -> a {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %v1 = load %b@Box.inner : a
+    ret %v1
+}
+
+fn boxTag(%b: Box(a)) -> Int {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %v1 = load %b@Box.tag : Int
+    ret %v1
+}
+
+fn isSomething(%m: Maybe(a)) -> Int {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v5 = load %m@Just : a
+    jmp b3
+
+  b3:
+    %v10 = phi [b2, 1], [b1, 0] : Int
+    ret %v10
+}
+
+fn firstOf(%pair: {slot: a, index: Int}) -> Int {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %v1 = load %pair.index : Int
+    ret %v1
+}
+
+fn applyTo(%f: (()) -> Int, %x: ()) -> Int {
+  b0:
+    %v2 = calldyn %f, %x : Int
+    ret %v2
+}
+
+fn callWith(%f: (a) -> Int, %value: a) -> Int {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %v2 = calldyn %f, %value : Int
+    ret %v2
+}
+
+fn capturing(%x: (), %n: Int) -> Int {
+  b0:
+    %v2 = alloc : {x: ()}
+    %v3 = addressof %local0 : %()
+    %f = alloc : (extra: Int) -> Int
+    %v5 = symbol ResolveTest.lambda$0 : %()
+    init %local1.code, %v5
+    init %local1.env, %v3
+    %v8 = calldyn %f, %n : Int
+    ret %v8
+}
+
+fn branching(%c: Bool) -> Int {
+  b0:
+    je %c, b1, b2
+
+  b1:
+    call unitValue
+    jmp b3
+
+  b2:
+    call unitValue
+    call identity(()), %v3
+    jmp b3
+
+  b3:
+    phi [b1, %v2], [b2, %v4]
+    %v8 = call takesUnit, %chosen : Int
+    ret %v8
+}
+
+fn matching(%m: Maybe(a), %fallback: a) -> a {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %v2 = load %m.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %inner = load %m@Just : a
+    jmp b3
+
+  b3:
+    %v9 = phi [b2, %inner], [b1, %fallback] : a
+    ret %v9
+}
+
+fn emptyRoundTrip(%value: a) -> a {
+  schema {
+    #0 type a
+    #1 type Empty(a)
+  }
+
+  b0:
+    %v1 = alloc : Empty(a)
+    init %local1@Empty, %value
+    %v3 = load %local1@Empty.only : a
+    ret %v3
+}
+
+fn main() -> Int {
+  b0:
+    call unitValue
+    call identity(()), %v0
+    call unitValue
+    %a = call takesUnit, %v2 : Int
+    call unitValue
+    %b = call between(()), 2, %v5, 3 : Int
+    call unitValue
+    %boxed = alloc : Box(())
+    init %local0@Box.tag, 4
+    %c = call boxTag(()), %boxed : Int
+    call unbox(()), %boxed
+    call unitValue
+    %v18 = alloc : Maybe(())
+    init %local1.discriminant, 1
+    %e = call isSomething(()), %v18 : Int
+    %v22 = alloc : Maybe(())
+    init %local2.discriminant, 0
+    %f = call isSomething(()), %v22 : Int
+    call unitValue
+    %v29 = alloc : {slot: (), index: Int}
+    init %local3.index, 5
+    %g = call firstOf(()), %v29 : Int
+    call identity(()), %d
+    %v33 = alloc : (()) -> Int
+    %v34 = symbol ResolveTest.lambda$1 : %()
+    init %local4.code, %v34
+    %v37 = cast 0 : %()
+    init %local4.env, %v37
+    call unitValue
+    %i = call applyTo, %v33, %v39 : Int
+    %v41 = alloc : (()) -> Int
+    %v42 = symbol ResolveTest.lambda$2 : %()
+    init %local5.code, %v42
+    %v45 = cast 0 : %()
+    init %local5.env, %v45
+    call unitValue
+    %j = call callWith(()), %v41, %v47 : Int
+    call unitValue
+    %k = call capturing, %v49, 8 : Int
+    %l = call branching, True : Int
+    call unitValue
+    call emptyRoundTrip(()), %v54
+    %m = call takesUnit, %v55 : Int
+    call unitValue
+    %v58 = alloc : Maybe(())
+    init %local6.discriminant, 1
+    call unitValue
+    call matching(()), %v58, %v61
+    %n = call takesUnit, %v62 : Int
+    %v64 = add %a, %b : Int
+    %v65 = add %v64, %c : Int
+    %v66 = add %v65, %e : Int
+    %v67 = add %v66, %f : Int
+    %v68 = add %v67, %g : Int
+    %v69 = add %v68, %i : Int
+    %v70 = add %v69, %j : Int
+    %v71 = add %v70, %k : Int
+    %v72 = add %v71, %l : Int
+    %v73 = add %v72, %m : Int
+    %v74 = add %v73, %n : Int
+    ret %v74
+}
+
+fn ResolveTest.lambda$0(%env: %{x: ()}, %extra: Int) -> Int {
+  b0:
+    %v2 = call takesUnit : Int
+    %v3 = add %v2, %extra : Int
+    ret %v3
+}
+
+fn identity(())(%value: ()) -> () {
+  b0:
+    ret %value
+}
+
+fn between(())(%first: Int, %middle: (), %last: Int) -> Int {
+  b0:
+    %v4 = mul %first, 10 : Int
+    %v5 = add %v4, %last : Int
+    ret %v5
+}
+
+fn boxTag(())(%b: Box(())) -> Int {
+  b0:
+    %v1 = load %b@Box.tag : Int
+    ret %v1
+}
+
+fn unbox(())(%b: Box(())) -> () {
+  b0:
+    load %b@Box.inner
+    ret %v1
+}
+
+fn isSomething(())(%m: Maybe(())) -> Int {
+  b0:
+    %v2 = load %m.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    load %m@Just
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, 1], [b1, 0] : Int
+    ret %v1
+}
+
+fn firstOf(())(%pair: {slot: (), index: Int}) -> Int {
+  b0:
+    %v1 = load %pair.index : Int
+    ret %v1
+}
+
+fn ResolveTest.lambda$1(%env: %{}, %x: ()) -> Int {
+  b0:
+    ret 6
+}
+
+fn ResolveTest.lambda$2(%env: %{}, %x: ()) -> Int {
+  b0:
+    ret 7
+}
+
+fn callWith(())(%f: (()) -> Int, %value: ()) -> Int {
+  b0:
+    %v2 = calldyn %f, %value : Int
+    ret %v2
+}
+
+fn emptyRoundTrip(())(%value: ()) -> () {
+  b0:
+    %v1 = alloc : Empty(())
+    init %local1@Empty, %value
+    load %local1@Empty.only
+    ret %v3
+}
+
+fn matching(())(%m: Maybe(()), %fallback: ()) -> () {
+  b0:
+    %v3 = load %m.discriminant : Int
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    load %m@Just
+    jmp b3
+
+  b3:
+    phi [b2, %inner], [b1, %fallback]
+    ret %v2
+}

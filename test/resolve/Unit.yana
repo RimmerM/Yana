@@ -1,0 +1,94 @@
+-- The unit type as a value, and as a generic type argument.
+--
+-- A unit value has no representation below resolve: it is not direct, it is not memory, and there
+-- is no lowered type for it. Everything here is about the two sides of that agreeing - a parameter
+-- of unit type is neither passed nor received, a field of unit type occupies nothing, and a load of
+-- one produces nothing.
+--
+-- Most of these are not written directly. `{}` is what a generic function's type variable becomes
+-- whenever the call site has nothing to hand over, which is the ordinary case for a callback's
+-- result: a lens whose block ends in a statement instantiates its continuation's result with it.
+
+fn identity(value: a) -> a = value
+
+fn unitValue() -> {} = {}
+
+-- Written directly, which is the same signature a specialization produces and has to lower the
+-- same way.
+fn takesUnit(x: {}) -> Int = 1
+
+-- A unit argument between two that carry something, which is what catches an argument list
+-- shifting by one rather than losing a value nobody reads.
+fn between(first: Int, middle: a, last: Int) -> Int = first * 10 + last
+
+data Box(a) {inner: a, tag: Int}
+
+fn unbox(b: Box(a)) -> a = b.inner
+
+fn boxTag(b: Box(a)) -> Int = b.tag
+
+-- Unit inside the types the standard library is written in terms of.
+fn isSomething(m: Maybe(a)) -> Int = match m:
+    Just(_) -> 1
+    Nothing -> 0
+
+fn firstOf(pair: {slot: a, index: Int}) -> Int = pair.index
+
+-- Through a function value, where the position that disappears is read off the *type* rather than
+-- off a callee anyone can see.
+fn applyTo(f: ({}) -> Int, x: {}) -> Int = f(x)
+
+-- A generic higher-order function, so the callback's parameter type is what the call site decides.
+fn callWith(f: (a) -> Int, value: a) -> Int = f(value)
+
+-- A closure over a unit-typed binding: the capture is one more binding of a name that holds
+-- nothing, so the environment gains a field that occupies nothing.
+fn capturing(x: {}, n: Int) -> Int:
+    let f = (extra: Int) -> takesUnit(x) + extra
+    return f(n)
+
+-- A branch whose arms produce nothing, which is a join with no phi rather than a phi of nothing.
+fn branching(c: Bool) -> Int:
+    let chosen = if c then unitValue() else identity(unitValue())
+    return takesUnit(chosen)
+
+-- Binding a payload that occupies nothing: `inner` names a value with no representation, and the
+-- arm that has none has to produce one anyway.
+fn matching(m: Maybe(a), fallback: a) -> a = match m:
+    Just(inner) -> inner
+    Nothing -> fallback
+
+-- A record every field of which occupies nothing still has an address, and two of them are two
+-- addresses - which is why zero-size storage is one word rather than none.
+data Empty(a) {only: a}
+
+fn emptyRoundTrip(value: a) -> a = Empty {only: value}.only
+
+fn main() -> Int:
+    -- A generic function whose result is unit: nothing is bound, and the call is still made.
+    let u = identity(unitValue())
+
+    let a = takesUnit(unitValue())
+    let b = between(2, unitValue(), 3)
+
+    let boxed = Box {inner: unitValue(), tag: 4}
+    let c = boxTag(boxed)
+    let d = unbox(boxed)
+
+    let e = isSomething(Just(unitValue()))
+    let f = isSomething(Nothing :: Maybe({}))
+
+    let g = firstOf({slot: unitValue(), index: 5})
+
+    -- A unit-typed binding read again, which is a load of nothing rather than a load of zero bytes.
+    let h = identity(d)
+
+    let i = applyTo((x: {}) -> 6, unitValue())
+    let j = callWith((x: {}) -> 7, unitValue())
+    let k = capturing(unitValue(), 8)
+    let l = branching(True)
+    let m = takesUnit(emptyRoundTrip(unitValue()))
+    let n = takesUnit(matching(Just(unitValue()), unitValue()))
+
+    -- 1 + 23 + 4 + 1 + 0 + 5 + 6 + 7 + 9 + 1 + 1 + 1 = 59
+    return a + b + c + e + f + g + i + j + k + l + m + n
