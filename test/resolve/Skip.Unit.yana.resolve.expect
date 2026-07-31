@@ -1,0 +1,297 @@
+let &log: Int = 0
+
+let &sideEffect: Int = 0
+
+table closure$ResolveTest.continuation$0 before ResolveTest.continuation$0 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$1 before ResolveTest.continuation$1 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn Try(Maybe(a), a, ()).toOutcome(())(%value: Maybe(())) -> Outcome((), ()) {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %v6 = alloc : Outcome((), ())
+    init %local2.discriminant, 1
+    jmp b3
+
+  b2:
+    load %value@Just
+    %v11 = alloc : Outcome((), ())
+    init %local1.discriminant, 0
+    init %local1@Proceed, %inner
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, %v11], [b1, %v6] : Outcome((), ())
+    ret %v1
+}
+
+fn findFirst(%n: Int, %body: (found: Int) -> a) -> Maybe(a) {
+  schema {
+    #0 type a
+    #1 type Maybe(a)
+  }
+
+  b0:
+    %v2 = load log : Int
+    %v5 = add %v2, 1 : Int
+    assign log, %v5
+    %v9 = cmp_gt %n, 0 : Bool
+    je %v9, b1, b2
+
+  b1:
+    %v13 = mul %n, 2 : Int
+    %carried = calldyn %body, %v13 : a
+    %v15 = load log : Int
+    %v18 = add %v15, 100 : Int
+    assign log, %v18
+    %v20 = alloc : Maybe(a)
+    init %local2.discriminant, 1
+    init %local2@Just, %carried
+    ret %v20
+
+  b2:
+    jmp b3
+
+  b3:
+    %v26 = alloc : Maybe(a)
+    init %local3.discriminant, 0
+    ret %v26
+}
+
+fn loopingOut(%n: Int) -> Int {
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    %seen = alloc : Int
+    init %seen, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : Int
+    %v11 = cmp_lt %v8, 5 : Bool
+    je %v11, b3, b2
+
+  b2:
+    %v38 = load %seen : Int
+    ret %v38
+
+  b3:
+    %v13 = load %i : Int
+    %v16 = add %v13, 1 : Int
+    assign %i, %v16
+    %v18 = load %i : Int
+    %v19 = sub %n, %v18 : Int
+    %v20 = alloc : {seen: &mut Int}
+    %v21 = borrow_mut %seen : &mut Int
+    init %local2.seen, %v21
+    %v23 = addressof %local2 : %()
+    %v24 = alloc : (found: Int) -> ()
+    %v25 = symbol ResolveTest.continuation$0 : %()
+    init %local3.code, %v25
+    init %local3.env, %v23
+    %v28 = call findFirst(()), %v19, %v24 : Maybe(())
+    %v29 = copy %local4 : Maybe(())
+    %v30 = call Try(Maybe(a), a, ()).toOutcome(()), %v29 : Outcome((), ())
+    %v31 = load %local6.discriminant : Int
+    %v33 = cmp_eq %v31, 1 : Bool
+    je %v33, b4, b5
+
+  b4:
+    jmp b2
+
+  b5:
+    jmp b6
+
+  b6:
+    jmp b1
+}
+
+fn statementTail(%n: Int) -> Int {
+  b0:
+    %seen = alloc : Int
+    init %seen, 0
+    %v6 = cmp_ne %n, 0 : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v8 = alloc : {seen: &mut Int}
+    %v9 = borrow_mut %seen : &mut Int
+    init %local1.seen, %v9
+    %v11 = addressof %local1 : %()
+    %v12 = alloc : (found: Int) -> ()
+    %v13 = symbol ResolveTest.continuation$1 : %()
+    init %local2.code, %v13
+    init %local2.env, %v11
+    %v16 = call findFirst(()), %n, %v12 : Maybe(())
+    %v17 = copy %local3 : Maybe(())
+    %v18 = call Try(Maybe(a), a, ()).toOutcome(()), %v17 : Outcome((), ())
+    %v19 = load %local5.discriminant : Int
+    %v21 = cmp_eq %v19, 1 : Bool
+    je %v21, b3, b4
+
+  b2:
+    jmp b6
+
+  b3:
+    %v25 = neg 1 : Int
+    assign %seen, %v25
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    jmp b6
+
+  b6:
+    %v31 = load %seen : Int
+    ret %v31
+}
+
+fn returningNothing(%n: Int) -> () {
+  b0:
+    %v1 = alloc : (found: Int) -> ()
+    %v2 = symbol ResolveTest.continuation$2 : %()
+    init %local0.code, %v2
+    %v5 = cast 0 : %()
+    init %local0.env, %v5
+    %v7 = call findFirst(()), %n, %v1 : Maybe(())
+    %v8 = copy %local1 : Maybe(())
+    %v9 = call Try(Maybe(a), a, ()).toOutcome(()), %v8 : Outcome((), ())
+    %v10 = load %local3.discriminant : Int
+    %v12 = cmp_eq %v10, 1 : Bool
+    je %v12, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn leavingWithNothing(%n: Int) -> () {
+  b0:
+    %v1 = alloc : (found: Int) -> ()
+    %v2 = symbol ResolveTest.continuation$3 : %()
+    init %local0.code, %v2
+    %v5 = cast 0 : %()
+    init %local0.env, %v5
+    %v7 = call findFirst(()), %n, %v1 : Maybe(())
+    %v8 = copy %local1 : Maybe(())
+    %v9 = call Try(Maybe(a), a, ()).toOutcome(()), %v8 : Outcome((), ())
+    %v10 = load %local3.discriminant : Int
+    %v12 = cmp_eq %v10, 1 : Bool
+    je %v12, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    ret
+}
+
+fn main() -> Int {
+  b0:
+    assign log, 0
+    assign sideEffect, 0
+    %a = call loopingOut, 3 : Int
+    %b = call statementTail, 5 : Int
+    %v10 = neg 1 : Int
+    %c = call statementTail, %v10 : Int
+    call returningNothing, 7
+    %v16 = neg 1 : Int
+    call returningNothing, %v16
+    call leavingWithNothing, 2
+    %v22 = neg 1 : Int
+    call leavingWithNothing, %v22
+    %v24 = add %a, %b : Int
+    %v25 = add %v24, %c : Int
+    %v26 = load sideEffect : Int
+    %v27 = add %v25, %v26 : Int
+    %v28 = load log : Int
+    %v29 = add %v27, %v28 : Int
+    ret %v29
+}
+
+fn ResolveTest.continuation$0(%env: %{seen: &mut Int}, %found: Int) -> () {
+  b0:
+    %v2 = load [%env].seen : &mut Int
+    %v3 = load [%env].seen : &mut Int
+    %v4 = load [%v3] : Int
+    %v5 = add %v4, %found : Int
+    assign [%v2], %v5
+    ret
+}
+
+fn findFirst(())(%n: Int, %body: (found: Int) -> ()) -> Maybe(()) {
+  b0:
+    %v2 = load log : Int
+    %v4 = add %v2, 1 : Int
+    assign log, %v4
+    %v7 = cmp_gt %n, 0 : Bool
+    je %v7, b1, b2
+
+  b1:
+    %v10 = mul %n, 2 : Int
+    calldyn %body, %v10
+    %v12 = load log : Int
+    %v14 = add %v12, 100 : Int
+    assign log, %v14
+    %v16 = alloc : Maybe(())
+    init %local2.discriminant, 1
+    init %local2@Just, %carried
+    ret %v16
+
+  b2:
+    jmp b3
+
+  b3:
+    %v22 = alloc : Maybe(())
+    init %local3.discriminant, 0
+    ret %v22
+}
+
+fn ResolveTest.continuation$1(%env: %{seen: &mut Int}, %found: Int) -> () {
+  b0:
+    %v2 = load [%env].seen : &mut Int
+    %v3 = load [%env].seen : &mut Int
+    %v4 = load [%v3] : Int
+    %v5 = add %v4, %found : Int
+    assign [%v2], %v5
+    ret
+}
+
+fn ResolveTest.continuation$2(%env: %{}, %found: Int) -> () {
+  b0:
+    %v2 = load sideEffect : Int
+    %v3 = add %v2, %found : Int
+    assign sideEffect, %v3
+    ret
+}
+
+fn ResolveTest.continuation$3(%env: %{}, %found: Int) -> () {
+  b0:
+    %v2 = load sideEffect : Int
+    %v5 = mul %found, 10 : Int
+    %v6 = add %v2, %v5 : Int
+    assign sideEffect, %v6
+    ret
+}

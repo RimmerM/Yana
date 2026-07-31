@@ -602,6 +602,18 @@ struct ExprResolver {
     bool resolveLensStatement(ast::ParseList<ast::Expr> block, Size index, bool used,
                               ModulePtr<Value>& result);
 
+    // What the call site does with the value the continuation produced, which is Analysis-Lens.md
+    // §5.1's three shapes and nothing else. Reached by both kinds of lens: a transparent one holds
+    // the call's own result, and a skipping one holds what came out of its wrapper.
+    ModulePtr<Value> finishLensCall(ModulePtr<Value> value, ContinuationShape& shape, bool used,
+                                    LocationId source);
+
+    // The `| else ->` beside a skipping lens call, resolved against what the skip carried - null for
+    // a carrier whose skip carries nothing, which is `Maybe`'s. Each arm that does not leave the
+    // block contributes to the join with the code the continuation ran.
+    void resolveSkipAlternatives(const ast::VarDecl& declaration, ModulePtr<Value> reason, bool used,
+                                 Array<BranchArm>& arms);
+
     // Which `iter fn` a `for` loop names, with the call it was written as. Null after reporting
     // which of phase 1's exclusions this loop's source reached - see expr_lens.cpp.
     ModulePtr<Function> findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call);
@@ -620,11 +632,14 @@ struct ExprResolver {
     void emitFunctionReturn(ModulePtr<Value> value, LocationId source);
 
     // The rest of a block, lifted into the function the lens calls. `declaration` is the `let` the
-    // call site wrote, or null for a bare statement. `loop` instead makes it a `for` loop's body,
-    // in which case `declaration`/`block`/`from` say nothing - see expr_lens.cpp.
+    // call site wrote, or null for a bare statement; `skipping` says its alternatives belong to the
+    // lens's skip rather than to the pattern, so the pattern is bound with nowhere to fail into.
+    // `loop` instead makes it a `for` loop's body, in which case `declaration`/`block`/`from` say
+    // nothing - see expr_lens.cpp.
     ModulePtr<Value> makeContinuation(Buffer<FunArg> params, const ast::VarDecl* declaration,
                                       ast::ParseList<ast::Expr> block, Size from, LocationId source,
-                                      ContinuationShape& shape, const ast::ForExpr* loop = nullptr);
+                                      ContinuationShape& shape, bool skipping = false,
+                                      const ast::ForExpr* loop = nullptr);
 
     // `Proceed(value)` or `Exit(value)` of a concrete `Outcome`, built directly rather than through
     // a written constructor: this is emitted code, and there is no source for it to come from.
@@ -746,8 +761,10 @@ struct ExprResolver {
 
     // One pattern bound to a value it has to cover, with nowhere to fail into. A `for` loop's
     // pattern is the shape of what the iterator hands over rather than a test of it: there is no
-    // `| else ->` on a loop, so a pattern that could fail would silently skip an element.
-    void bindIrrefutable(const ast::Pat& pattern, ModulePtr<Value> value);
+    // `| else ->` on a loop, so a pattern that could fail would silently skip an element. A skipping
+    // lens's `let` is the other such place - its alternatives are the skip's, not the pattern's - and
+    // `reason` is what the diagnostic says about which of the two this is.
+    void bindIrrefutable(const ast::Pat& pattern, ModulePtr<Value> value, StringView reason);
 
     // Emits the tests `pattern` needs and binds the names it introduces. A null `onFail` means
     // the pattern is already known to match every value that can reach it - either because it is

@@ -6,12 +6,25 @@
 -- Analysis-Lens.md's V1 - and each one names what it is waiting for.
 
 data Lock {held: Int}
+data Bag(a) {item: a}
 
 -- Reading the declaration.
 
--- A skipping lens - one whose result is not its continuation's - needs a `Try` instance relating
--- the two and a `| else ->` at every call site. That is V3.
-lens fn findFirst(x: Int, body: (Int) -> a) -> Maybe(a) = Just(body(x))
+-- A skipping lens - one whose result is not its continuation's - is checked against the `Try`
+-- instance that says which of its cases means the continuation ran. A result with no such instance
+-- is a wrapper nothing can read.
+lens fn opaqueWrapper(x: Int, body: (Int) -> a) -> Bag(a) = Bag {item: body(x)}
+
+-- An instance exists, and it proceeds with something other than what the continuation produced.
+-- The wrapper has to carry the continuation's own result or there is nothing for the call site's
+-- proceeding path to bind.
+lens fn wrongPayload(x: Int, body: (Int) -> a) -> Maybe(Int) = Just(x)
+
+-- A result that is itself a type variable is `?`'s shape: the instance cannot be selected from the
+-- signature and would have to travel with the call as a witness. (A lens whose result is the
+-- continuation's *own* variable is not this - that is the transparent case, and it is what `named`
+-- below is.)
+lens fn (Try(m, a, e)) fullyGeneric(x: Int, spare: m, body: (Int) -> a) -> m = spare
 
 -- A continuation that returns a concrete type is not a continuation: what it produces is whatever
 -- the rest of the caller's block produces, which no signature can name.
@@ -64,6 +77,41 @@ lens fn scope() -> {}:
 
 lens fn handing(x: Int) -> Int:
     yield x * 2
+
+lens fn maybeHanding(x: Int, body: (Int) -> a) -> Maybe(a):
+    if x > 0: return Just(body(x))
+    return Nothing
+
+lens fn maybeChecked(x: Int, body: (Int) -> a) -> Result(Int, a):
+    if x > 0: return Ok(body(x))
+    return Err(1)
+
+-- A skipping lens without alternatives is a call that may silently not continue into the block
+-- below it, which is the one thing the wrapper exists to make impossible.
+fn noAlternative(x: Int) -> Int:
+    let seen = maybeHanding(x)
+    return seen
+
+-- ... and a bare statement has nowhere to write them at all.
+fn noPlaceToPutThem(x: Int) -> Int:
+    maybeHanding(x)
+    return 0
+
+-- The alternatives of a skipping call say where the *skip* goes, so the pattern has nothing left to
+-- fail into and has to cover everything the lens hands over.
+fn refutablePattern(x: Int) -> Int:
+    let 3 = maybeHanding(x) | else -> return 0
+    return 1
+
+-- A `Maybe` skip carries nothing, so there is no pivot for a pattern to test.
+fn nothingToMatch(x: Int) -> Int:
+    let seen = maybeHanding(x) | match 0 -> return 0
+    return seen
+
+-- A skip that does carry something still has to be covered.
+fn uncovered(x: Int) -> Int:
+    let seen = maybeChecked(x) | match 1 -> return 0
+    return seen
 
 -- A lens call that is not a statement of a block has no rest-of-block to hand its values to.
 fn asSubexpression(x: Int) -> Int = handing(x) + 1

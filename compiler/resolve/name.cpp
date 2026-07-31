@@ -330,7 +330,8 @@ static bool instanceApplies(Module& module, ClassInstance& instance, Buffer<Type
 
         Size index = 0;
         for(auto pattern: instance.forTypes.contents(local)) {
-            if(canonicalType(global, pattern) != canonicalType(global, args[index++])) return false;
+            auto arg = args[index++];
+            if(arg && canonicalType(global, pattern) != canonicalType(global, arg)) return false;
         }
 
         return true;
@@ -342,7 +343,22 @@ static bool instanceApplies(Module& module, ClassInstance& instance, Buffer<Type
 
     Size index = 0;
     for(auto pattern: instance.forTypes.contents(local)) {
-        if(!matchType(global, pattern, args[index++], { bindings.pointer(), bindings.size() })) return false;
+        /*
+         * A null argument is a position the asker does not constrain, and it matches anything.
+         *
+         * That is `Try(m, a, e)`'s keying rule (Implementation-Semantics.md part 5) rather than a
+         * convenience: `m` decides the other two, so a caller holding only `m` asks with the other
+         * two empty and reads what the instance bound off the head afterwards. It stays sound
+         * because the loop below still rejects an instance whose own variables the match left open,
+         * so a position nothing constrained can only be one the *matched* positions already
+         * determined - `instance Try(Maybe(a), a, {})` selected for `Maybe(Int)` has `a` decided by
+         * its first argument, and one whose result type were free of its head would not apply here
+         * at all.
+         */
+        auto arg = args[index++];
+        if(!arg) continue;
+
+        if(!matchType(global, pattern, arg, { bindings.pointer(), bindings.size() })) return false;
     }
 
     // A variable of the head that the match left open cannot be chosen by anything later, so the

@@ -1,0 +1,79 @@
+-- A skipping lens whose continuation produces nothing, which is the shape a statement-tailed block
+-- and a loop body both have.
+--
+-- Separate from Skip.yana, and with no `.js.expect`, for a reason that is not about lenses: the
+-- carrier here is `Maybe({})`, and a record instantiated at the unit type does not survive the JS
+-- backend today. `fn wrap(x: a) -> Maybe(a) = Just(x)` used at `wrap({})` reaches the same internal
+-- error with no lens anywhere in it, so this fixture asserts the native answer and the JS half waits
+-- on that defect rather than on anything here.
+
+let &log = 0 :: Int
+
+lens fn findFirst(n: Int, body: (found: Int) -> a) -> Maybe(a):
+    log = log + 1
+
+    if n > 0:
+        let carried = body(n * 2)
+        log = log + 100
+        return Just(carried)
+
+    return Nothing
+
+-- `| else -> break` leaves a loop of the *enclosing* function rather than of the continuation: the
+-- alternative is written where the call is, so it is an ordinary `break` in the block it was written
+-- in. What crosses the lens is only the block below the call, and that block leaves nothing.
+fn loopingOut(n: Int) -> Int:
+    let &i = 0 :: Int
+    let &seen = 0 :: Int
+
+    while i < 5:
+        i = i + 1
+        let found = findFirst(n - i) | else -> break
+        seen = seen + found
+
+    return seen
+
+-- The same shape without a loop around it: the block below the call assigns and then ends, so it
+-- neither produces a value nor leaves, and the alternative does the same. Both sides of the join
+-- carry nothing, which is the case that costs the least and is representable the least well.
+fn statementTail(n: Int) -> Int:
+    let &seen = 0 :: Int
+
+    if n != 0:
+        let found = findFirst(n) | else -> seen = -1
+        seen = seen + found
+
+    return seen
+
+-- The other way unit reaches the join: the *enclosing function* returns nothing, so what the
+-- continuation hands back on a path that leaves is `{}` and there is no payload to project. The
+-- carrier is `Maybe({})` for that reason rather than because the block below produced nothing.
+let &sideEffect = 0 :: Int
+
+fn returningNothing(n: Int) -> {}:
+    let found = findFirst(n) | else -> return
+    sideEffect = sideEffect + found
+
+-- The same, with the block below leaving on every path rather than falling through. That is the
+-- shape whose continuation returns the enclosing function's result outright, so what the call site
+-- performs on the proceeding path is that return - of nothing.
+fn leavingWithNothing(n: Int) -> {}:
+    let found = findFirst(n) | else -> return
+    sideEffect = sideEffect + found * 10
+    return
+
+fn main() -> Int:
+    log = 0
+    sideEffect = 0
+
+    let a = loopingOut(3)      -- 4 + 2, then n - i = 0 stops it: 6,  log 203
+    let b = statementTail(5)   -- 10, log 304
+    let c = statementTail(-1)  -- -1, log 305
+
+    returningNothing(7)        -- sideEffect 14,  log 406
+    returningNothing(-1)       -- unchanged,      log 407
+    leavingWithNothing(2)      -- sideEffect 54,  log 508
+    leavingWithNothing(-1)     -- unchanged,      log 509
+
+    -- 6 + 10 - 1 = 15, plus sideEffect 54, plus log 509.
+    return a + b + c + sideEffect + log

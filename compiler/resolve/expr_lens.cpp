@@ -5,7 +5,7 @@
 #include "witness.h"
 
 /*
- * Lenses - Design.md's Lens functions, and Analysis-Lens.md's V1.
+ * Lenses - Design.md's Lens functions, and Analysis-Lens.md's V1 through V3.
  *
  * A lens is an ordinary function whose last parameter is a continuation and whose result is
  * whatever that continuation returns. Everything below is about the two ends of that sentence:
@@ -23,11 +23,13 @@
  * same conventions. A lens is not a second closure mechanism; it is a closure the caller did not
  * have to write.
  *
- * What is *not* here is the skipping half (Analysis-Lens.md's V3): a lens whose result type is not
- * its continuation's must carry a `Try` instance and its call site must carry `| else ->`. This
- * version reports that shape at the declaration rather than accepting it with the wrapper ignored,
- * because "the ability to skip is exactly the presence of a wrapper" only holds if a wrapper cannot
- * be silently dropped.
+ * A lens comes in two kinds, and the whole of the difference is one comparison of declared types
+ * (Analysis-Lens.md §7.1). A *transparent* lens returns what its continuation returns, so the call
+ * site needs nothing written and the continuation runs exactly once. A *skipping* one returns
+ * something else - a wrapper carrying a `Try` instance - so it may return without calling the
+ * continuation at all, and the call site says where that goes with `| else ->`. **The ability to
+ * skip is exactly the presence of a wrapper**: there is no form in which a call may fail to continue
+ * into the block below it without that fact appearing in both signatures and in the caller's text.
  */
 
 // The name the synthesized continuation parameter of a `yield`-form lens is printed under. A
@@ -72,6 +74,70 @@ static StringId continuationFunctionName(Module& module) {
  */
 static TypePtr stepType(Module& module, TypePtr carried, LocationId source) {
     return resolveOutcomeType(module, module.scalar.unit, carried, source);
+}
+
+/*
+ * The `Try` instance a skipping lens's result carries - Analysis-Lens.md §3.2, §7.1.
+ *
+ * `Try(m, a, e)` is keyed on `m` alone, so the two type arguments nothing constrains are asked for
+ * as nulls and read back off whichever instance matched. That is the load-bearing half of reading B:
+ * the resolver never has to relate a return type to a type *constructor* applied to a variable - the
+ * higher-kinded machinery Implementation-Generics.md part 7 fences off - because the question it
+ * actually needs answered is "which case of the wrapper means the continuation ran", and only an
+ * instance can answer that.
+ *
+ * Selected twice for one lens, and deliberately: once at the declaration, where `m` still mentions
+ * the lens's own variables and what is being checked is that the instance's `a` *is* the
+ * continuation's result; and once per call site, where `m` is concrete and what is wanted is the
+ * implementation to call.
+ */
+struct TrySelection {
+    ModulePtr<ClassInstance> instance = nullptr;
+    TypeList instanceArgs;
+
+    // The instance's own second and third arguments, under the bindings the head match made: what
+    // the carrier holds when the continuation ran, and what it holds when it did not.
+    TypePtr proceeds = nullptr;
+    TypePtr reason = nullptr;
+
+    U16 toOutcome = 0;
+
+    explicit operator bool() const { return instance != nullptr; }
+};
+
+static bool selectTry(Module& module, TypePtr carrier, LocationId source, TrySelection& out) {
+    auto typeClass = module.coreClasses.try_;
+    if(!typeClass) return false;
+
+    auto global = *module.types;
+    auto local = *module.arena;
+
+    TypePtr asked[] = { carrier, nullptr, nullptr };
+    auto match = matchInstance(module, typeClass, { asked, 3 });
+    if(!match) return false;
+
+    auto instance = local[match.instance];
+    if(instance->forTypes.size() != 3) return false;
+
+    out.instance = match.instance;
+    replaceContents(out.instanceArgs, match.args);
+
+    auto bindings = toBuffer(out.instanceArgs);
+    out.proceeds = substituteType(module, instance->forTypes.get(local, 1), bindings, source);
+    out.reason = substituteType(module, instance->forTypes.get(local, 2), bindings, source);
+
+    // Which slot `toOutcome` is, by name. The class is Core's, but its declaration order is a detail
+    // of the source rather than something this file may assume - the same rule the Outcome
+    // constructors above are found under.
+    auto name = Context::nameHash("toOutcome", 9);
+    for(auto fun: global[typeClass]->functions.contents(global)) {
+        if(fun.name == name) {
+            out.toOutcome = fun.index;
+            return out.proceeds && out.reason;
+        }
+    }
+
+    return false;
 }
 
 FunType* lensContinuationType(GlobalBase global, Function& function, ModuleBase local) {
@@ -162,10 +228,44 @@ void resolveLensSignature(Module& module, Function& function, GenEnv* env, ast::
         if(global[callback->result]->kind != Type::Gen) {
             context.diagnostics.error("a lens's continuation must return a type variable - it produces whatever the rest of the caller's block produces, which the lens cannot name"_v,
                                       last->source);
-        } else {
-            context.diagnostics.error("a skipping lens is not available yet - this one returns %@ rather than its continuation's %@, which needs the `Try` instance and the `| else ->` call site of Analysis-Lens.md's V3"_v,
+            function.funKind = ast::FunKind::Plain;
+            return;
+        }
+
+        /*
+         * The skipping half.
+         *
+         * What the wrapper has to supply is one fact the type itself does not carry: which of its
+         * cases means the continuation ran. `Try` is the only thing that answers it, so the check is
+         * "there is an instance for this result" plus "the value it proceeds with is what the
+         * continuation produces" - and the second is what stops a lens declared `-> Maybe(Int)` over
+         * a continuation returning `a` from compiling as though the two were related.
+         *
+         * Checked here, once, rather than at every call site. `Res` still mentions this function's
+         * own variables, which is exactly why it is checkable: `Maybe(a)` matched against
+         * `Try(Maybe(x), x, {})` binds `x` to the variable, and comparing what came back with the
+         * callback's result is an equality between two of this signature's own types.
+         */
+        TrySelection selection;
+        if(global[function.returnType]->kind == Type::Gen) {
+            // A result that is a bare variable is the fully generic carrier - `?`'s own shape. It
+            // needs the instance to travel with the call as a witness rather than be selected here,
+            // which is the erased path §10 still lists as open.
+            context.diagnostics.error("a skipping lens whose result is the type variable %@ is not available yet - the `Try` instance would have to travel with the call as a witness rather than be selected from the signature, which is the erased callback ABI"_v,
+                                      source, describeType(context, global, function.returnType));
+        } else if(!selectTry(module, function.returnType, source, selection)) {
+            context.diagnostics.error("this lens returns %@ rather than its continuation's %@, so it may skip the continuation - which needs an instance of `Try` for %@ saying which of its cases means the continuation ran"_v,
                                       source, describeType(context, global, function.returnType),
+                                      describeType(context, global, callback->result),
+                                      describeType(context, global, function.returnType));
+        } else if(selection.proceeds != callback->result) {
+            context.diagnostics.error("this lens returns %@, whose `Try` instance proceeds with %@ rather than with its continuation's %@ - a skipping lens's wrapper has to carry what its continuation produced"_v,
+                                      source, describeType(context, global, function.returnType),
+                                      describeType(context, global, selection.proceeds),
                                       describeType(context, global, callback->result));
+        } else {
+            function.skipping = true;
+            return;
         }
 
         function.funKind = ast::FunKind::Plain;
@@ -741,7 +841,7 @@ static ModulePtr<Value> finishLoopContinuation(Module& module, ExprResolver& out
 ModulePtr<Value> ExprResolver::makeContinuation(Buffer<FunArg> params, const ast::VarDecl* declaration,
                                                 ast::ParseList<ast::Expr> block, Size from,
                                                 LocationId source, ContinuationShape& shape,
-                                                const ast::ForExpr* loop) {
+                                                bool skipping, const ast::ForExpr* loop) {
     if(functionGen(global, function)) {
         /*
          * The same restriction a lambda in a generic body already carries, and for the same reason:
@@ -799,10 +899,16 @@ ModulePtr<Value> ExprResolver::makeContinuation(Buffer<FunArg> params, const ast
         ModulePtr<Value> pivot = nullptr;
 
         if(handed.size() == 0) {
-            context.diagnostics.error(loop
-                ? "this iterator hands over nothing, so the loop's pattern has nothing to bind - an `iter fn` a `for` loop names has to declare what it yields"_v
-                : "this lens hands over nothing, so there is nothing for `let` to bind - write the call as a statement of its own"_v,
-                pattern.source);
+            // `let _ = f(...)` is the exception, and the one shape that needs it is a *skipping*
+            // lens handing nothing over: `| else ->` only has a place to be written beside a `let`,
+            // so a `tryLock`-shaped call has no other way in. Nothing is bound either way - the
+            // wildcard names nothing - so the two cases differ only in whether it was asked for.
+            if(pattern.kind != ast::Pat::Any) {
+                context.diagnostics.error(loop
+                    ? "this iterator hands over nothing, so the loop's pattern has nothing to bind - an `iter fn` a `for` loop names has to declare what it yields"_v
+                    : "this lens hands over nothing, so there is nothing for `let` to bind - write the call as a statement of its own, or `let _ =` it if the alternatives are what the `let` is for"_v,
+                    pattern.source);
+            }
         } else if(handed.size() == 1) {
             pivot = handed[0];
         } else {
@@ -830,9 +936,18 @@ ModulePtr<Value> ExprResolver::makeContinuation(Buffer<FunArg> params, const ast
 
         // A loop has no `| else ->` to fail into and no way to say "skip this element", so its
         // pattern has to cover everything the iterator can yield - which is the same rule a `let`
-        // without alternatives already follows, said where there is nowhere to put them.
-        if(pivot && loop) body.bindIrrefutable(pattern, pivot);
-        else if(pivot) body.resolveBinding(*declaration, pivot);
+        // without alternatives already follows, said where there is nowhere to put them. A skipping
+        // lens's `let` has alternatives and they are spoken for: they say where the *skip* goes, not
+        // what to do about a pattern that did not match what was handed over.
+        if(pivot && loop) {
+            body.bindIrrefutable(pattern, pivot,
+                                 "a `for` loop has no alternative to take for an element it does not match"_v);
+        } else if(pivot && skipping) {
+            body.bindIrrefutable(pattern, pivot,
+                                 "the `| else ->` beside a skipping lens call says where the skip goes, so there is nothing left for a pattern that does not match what it handed over"_v);
+        } else if(pivot) {
+            body.resolveBinding(*declaration, pivot);
+        }
     }
 
     if(loop) {
@@ -995,16 +1110,37 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
     // and is what a call site reaches for when the rest of the block is not what it wants to run.
     if(arguments.size() != declaredArgs) return false;
 
+    result = nullptr;
+
+    /*
+     * A skipping lens says at the declaration that it may not continue, and the call site has to say
+     * where that goes. Both halves of "the ability to skip is exactly the presence of a wrapper" are
+     * checked here: a skipping call without alternatives is rejected, and - below - a transparent one
+     * never grows a join it did not need.
+     */
+    auto skipping = target->skipping;
+    if(skipping && !declaration) {
+        context.diagnostics.error("%@ may skip its continuation, so this call has to say where the skip goes - write it as `let pat = %@(...) | else -> ...`, which is the only position `| else ->` can be written in"_v,
+                                  source, context.findName(target->name), context.findName(target->name));
+        return true;
+    }
+
+    auto alternativeList = declaration ? declaration->alts : ast::ParseList<ast::Alt>();
+    if(skipping && alternativeList.contents(parse).size() == 0) {
+        context.diagnostics.error("%@ returns %@ rather than what its continuation returns, so it may not continue into the block below - this call needs `| else -> ...` saying what happens then"_v,
+                                  source, context.findName(target->name),
+                                  describeType(context, global, target->returnType));
+        return true;
+    }
+
     ValueList values;
     resolveHandedArguments(callee, arguments, values);
-
-    result = nullptr;
 
     Array<FunArg> params;
     if(!continuationSignature(*this, module, callee, toBuffer(values), source, params)) return true;
 
     ContinuationShape shape;
-    auto continuation = makeContinuation(toBuffer(params), declaration, block, index + 1, source, shape);
+    auto continuation = makeContinuation(toBuffer(params), declaration, block, index + 1, source, shape, skipping);
     if(!continuation) return true;
 
     values.push(continuation);
@@ -1014,26 +1150,96 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
 
     if(!call_ || !current) return true;
 
+    if(!skipping) {
+        result = finishLensCall(call_, shape, used, source);
+        return true;
+    }
+
     /*
-     * The join, per Analysis-Lens.md §5.1's third bullet.
+     * The skip join - Analysis-Lens.md §3.2's four steps, of which only the last two emit anything.
      *
-     * Nothing is emitted for a continuation that never leaves, which is the case the lowering has to
-     * be fast for. A continuation every path of which leaves produced the enclosing function's
-     * result, so the call site performs that return - which is what makes the `if` arm holding a
-     * lens call diverge rather than falling into the code after the `if`.
+     * `toOutcome` is the one call that turns "some wrapper the program named" into two cases this
+     * file can branch on. Everything downstream of it is the same `match` V1 already emits for the
+     * exit signal, and the two nest rather than interfering: the outer test asks whether the
+     * continuation ran at all, and the inner one - inside finishLensCall - asks whether it left the
+     * enclosing function when it did.
      */
-    if(!shape.exits) {
-        result = call_;
+    TrySelection selection;
+    if(!selectTry(module, valueType(call_), source, selection)) {
+        context.diagnostics.error("%@ returns %@ here, which has no `Try` instance to say whether its continuation ran"_v,
+                                  source, context.findName(target->name),
+                                  describeType(context, global, valueType(call_)));
         return true;
     }
 
-    if(!shape.fallsThrough) {
-        emitFunctionReturn(call_, source);
-        return true;
-    }
+    ModulePtr<Value> carried[] = { call_ };
+    auto outcome = emitInstanceCall(module, selection.instance, toBuffer(selection.instanceArgs),
+                                    selection.toOutcome, { carried, 1 }, source, nullptr, 0);
 
-    auto leaving = outcomeIsExit(call_, source);
+    if(!outcome || !current) return true;
+
+    auto leaving = outcomeIsExit(outcome, source);
     if(!leaving) return true;
+
+    auto skipBlock = addBlock();
+    auto proceedBlock = addBlock();
+
+    terminate(emit<InstJe>(source, 0, module.scalar.unit, leaving, skipBlock, proceedBlock));
+
+    /*
+     * The alternatives, and then the ordinary call site underneath them.
+     *
+     * The two arms join at the *block's* value rather than at the continuation's result, which is
+     * what lets an alternative be written at all: what the continuation returns is a type the call
+     * site chose (§5.1's three shapes, one of which is an `Outcome` no program can name), while what
+     * the block produces is the type the code below the call was already going to have.
+     */
+    Array<BranchArm> arms;
+
+    current = skipBlock;
+    resolveSkipAlternatives(*declaration, outcomePayload(outcome, false, source), used, arms);
+
+    current = proceedBlock;
+    result = finishLensCall(outcomePayload(outcome, true, source), shape, used, source);
+    if(current) arms.push(BranchArm { current, result, source });
+
+    result = finishBranches(arms, source, used);
+    return true;
+}
+
+/*
+ * What the call site does with the value the continuation produced - Analysis-Lens.md §5.1's third
+ * bullet, and the whole of a transparent lens's join.
+ *
+ * Nothing is emitted for a continuation that never leaves, which is the case the lowering has to be
+ * fast for. A continuation every path of which leaves produced the enclosing function's result, so
+ * the call site performs that return - which is what makes the `if` arm holding a lens call diverge
+ * rather than falling into the code after the `if`. Only a continuation that does both is wrapped,
+ * and only that one pays for a test.
+ *
+ * Shared with the skipping form, which reaches it holding the same value by a different route: what
+ * the continuation returned, unwrapped from the carrier the lens skipped through.
+ */
+ModulePtr<Value> ExprResolver::finishLensCall(ModulePtr<Value> value, ContinuationShape& shape, bool used,
+                                              LocationId source) {
+    if(!current) return nullptr;
+    if(!shape.exits) return value;
+
+    /*
+     * A null value here is not a failure. The skipping form reaches this holding a payload
+     * projection, and a payload of unit type is nothing to project - which is what a continuation
+     * whose result is `{}` produces, and an enclosing function returning nothing is exactly that.
+     * emitFunctionReturn wants nothing in that case either, so the two agree.
+     */
+    if(!shape.fallsThrough) {
+        emitFunctionReturn(value, source);
+        return nullptr;
+    }
+
+    // The wrapped shape, which is the only one that reads a discriminant. `value` is an `Outcome`
+    // here by construction, so it is never the unit the projection above can be absent for.
+    auto leaving = value ? outcomeIsExit(value, source) : nullptr;
+    if(!leaving) return nullptr;
 
     auto exitBlock = addBlock();
     auto proceedBlock = addBlock();
@@ -1041,12 +1247,12 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
     terminate(emit<InstJe>(source, 0, module.scalar.unit, leaving, exitBlock, proceedBlock));
 
     current = exitBlock;
-    emitFunctionReturn(outcomePayload(call_, false, source), source);
+    emitFunctionReturn(outcomePayload(value, false, source), source);
 
     current = proceedBlock;
-    result = used ? outcomePayload(call_, true, source) : nullptr;
-    return true;
+    return used ? outcomePayload(value, true, source) : nullptr;
 }
+
 
 /*
  * Which iterator a `for` loop names, or nothing after saying why this one cannot be named.
@@ -1143,7 +1349,7 @@ void ExprResolver::resolveFor(const ast::Expr& expr, const ast::ForExpr& loop) {
     if(!continuationSignature(*this, module, callee, toBuffer(values), source, params)) return;
 
     ContinuationShape shape;
-    auto continuation = makeContinuation(toBuffer(params), nullptr, {}, 0, source, shape, &loop);
+    auto continuation = makeContinuation(toBuffer(params), nullptr, {}, 0, source, shape, false, &loop);
     if(!continuation) return;
 
     values.push(continuation);

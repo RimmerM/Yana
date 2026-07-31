@@ -68,6 +68,51 @@ data Result(e, a) = Err(e) | Ok(a)
 -- far; the constructors are not named `Continue`/`Break` for that reason.
 data Outcome(a, e) = Proceed(a) | Exit(e)
 
+{-
+   What a carrier type says about its two paths - Implementation-Semantics.md part 5.
+
+   One class with two readers. `?` will use both halves: `toOutcome` to ask which path a value is on,
+   and `fromExit` to rebuild the carrier at the enclosing function's own return type. A *skipping*
+   lens's call site uses only the first, because where its skip goes is written at the call site
+   rather than derived from a signature - which is the one difference between the two, and the whole
+   of Analysis-Lens.md §3.3's argument for reading B.
+
+   `m` decides the other two parameters. An instance head is keyed on it alone and `a` and `e` are
+   read off whichever instance matched, because nothing at a use site constrains them: a lens
+   returning `Maybe(r)` says what its continuation produced and says nothing at all about what a skip
+   carries. That keying is what makes the check "is there an instance, and is its `a` the
+   continuation's result" rather than an inference problem.
+
+   Both operands are `->`. Asking which path a value is on is the last thing anyone does with it, so
+   consuming it costs nothing and is what keeps the class usable for a carrier whose payload is
+   owned - the alternative would borrow a wrapper in order to hand out what is inside it.
+-}
+class Try(m, a, e):
+  fn toOutcome(->value: m) -> Outcome(a, e)
+  fn fromExit(->reason: e) -> m
+
+-- `Nothing` carries no reason, so a skip through a `Maybe` reaches `| else -> ...` with nothing to
+-- bind. That is the common case and the one Design.md's `findChar` is written in.
+instance Try(Maybe(a), a, {}):
+  fn toOutcome(->value: Maybe(a)) -> Outcome(a, {}) = match value:
+      Just(inner) -> Proceed(inner)
+      Nothing -> Exit({})
+
+  fn fromExit(->reason: {}) -> Maybe(a) = Nothing
+
+instance Try(Result(e, a), a, e):
+  fn toOutcome(->value: Result(e, a)) -> Outcome(a, e) = match value:
+      Ok(inner) -> Proceed(inner)
+      Err(reason) -> Exit(reason)
+
+  fn fromExit(->reason: e) -> Result(e, a) = Err(reason)
+
+-- The identity instance, which is what makes `Outcome` itself a usable lens result: a lens that
+-- wants to report *why* it skipped and has no better type to say it in returns this one.
+instance Try(Outcome(a, e), a, e):
+  fn toOutcome(->value: Outcome(a, e)) -> Outcome(a, e) = value
+  fn fromExit(->reason: e) -> Outcome(a, e) = Exit(reason)
+
 class FromInt(a):
   fn fromInt(value: Long) -> a
 
@@ -611,6 +656,7 @@ void defineCore(Program& program) {
     program.coreClasses.widen = classNamed(*module, "Widen"_v);
     program.coreClasses.narrow = classNamed(*module, "Narrow"_v);
     program.coreClasses.truth = classNamed(*module, "Truth"_v);
+    program.coreClasses.try_ = classNamed(*module, "Try"_v);
     program.coreClasses.copy = classNamed(*module, "Copy"_v);
     program.coreClasses.sink = classNamed(*module, "Sink"_v);
     program.coreClasses.reclaim = classNamed(*module, "Reclaim"_v);

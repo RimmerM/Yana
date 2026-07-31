@@ -728,6 +728,11 @@ struct CoreClasses {
     GlobalPtr<TypeClass> narrow = nullptr;
     GlobalPtr<TypeClass> truth = nullptr;
 
+    // Which of a carrier type's two paths a value is on - Implementation-Semantics.md part 5. Known
+    // by name because a skipping lens's call site asks it about a type the *program* named, so there
+    // is no argument position for ordinary overload selection to find it from.
+    GlobalPtr<TypeClass> try_ = nullptr;
+
     // The ownership classes. They are known by name for the same reason the five above are:
     // `let ->z = x` and the end of a value's lifetime are language syntax, and what they compile
     // to is a lookup of these.

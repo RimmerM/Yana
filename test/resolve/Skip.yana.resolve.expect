@@ -1,0 +1,650 @@
+let &log: Int = 0
+
+table closure$ResolveTest.continuation$2 before ResolveTest.continuation$2 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$6 before ResolveTest.continuation$6 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+fn Try(Maybe(a), a, ()).toOutcome(Int)(%value: Maybe(Int)) -> Outcome(Int, ()) {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %v6 = alloc : Outcome(Int, ())
+    init %local2.discriminant, 1
+    jmp b3
+
+  b2:
+    %inner = load %value@Just : Int
+    %v11 = alloc : Outcome(Int, ())
+    init %local1.discriminant, 0
+    init %local1@Proceed, %inner
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, %v11], [b1, %v6] : Outcome(Int, ())
+    ret %v1
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn Try(Maybe(a), a, ()).toOutcome(Outcome((), Int))(%value: Maybe(Outcome((), Int))) -> Outcome(Outcome((), Int), ()) {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %v6 = alloc : Outcome(Outcome((), Int), ())
+    init %local2.discriminant, 1
+    jmp b3
+
+  b2:
+    %inner = load %value@Just : Outcome((), Int)
+    %v11 = alloc : Outcome(Outcome((), Int), ())
+    init %local1.discriminant, 0
+    init %local1@Proceed, %inner
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, %v11], [b1, %v6] : Outcome(Outcome((), Int), ())
+    ret %v1
+}
+
+fn Try(Result(e, a), a, e).toOutcome(Int, Int)(%value: Result(Int, Int)) -> Outcome(Int, Int) {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %reason = load %value@Err : Int
+    %v7 = alloc : Outcome(Int, Int)
+    init %local2.discriminant, 1
+    init %local2@Exit, %reason
+    jmp b3
+
+  b2:
+    %inner = load %value@Ok : Int
+    %v13 = alloc : Outcome(Int, Int)
+    init %local1.discriminant, 0
+    init %local1@Proceed, %inner
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, %v13], [b1, %v7] : Outcome(Int, Int)
+    ret %v1
+}
+
+fn findFirst(%n: Int, %body: (found: Int) -> a) -> Maybe(a) {
+  schema {
+    #0 type a
+    #1 type Maybe(a)
+  }
+
+  b0:
+    %v2 = load log : Int
+    %v5 = add %v2, 1 : Int
+    assign log, %v5
+    %v9 = cmp_gt %n, 0 : Bool
+    je %v9, b1, b2
+
+  b1:
+    %v13 = mul %n, 2 : Int
+    %carried = calldyn %body, %v13 : a
+    %v15 = load log : Int
+    %v18 = add %v15, 100 : Int
+    assign log, %v18
+    %v20 = alloc : Maybe(a)
+    init %local2.discriminant, 1
+    init %local2@Just, %carried
+    ret %v20
+
+  b2:
+    jmp b3
+
+  b3:
+    %v26 = alloc : Maybe(a)
+    init %local3.discriminant, 0
+    ret %v26
+}
+
+fn checked(%n: Int, %body: (value: Int) -> a) -> Result(Int, a) {
+  schema {
+    #0 type a
+    #1 type Result(Int, a)
+  }
+
+  b0:
+    %v4 = cmp_gt %n, 9 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = alloc : Result(Int, a)
+    init %local1.discriminant, 0
+    init %local1@Err, 1
+    ret %v6
+
+  b2:
+    jmp b3
+
+  b3:
+    %v15 = cmp_lt %n, 0 : Bool
+    je %v15, b4, b5
+
+  b4:
+    %v17 = alloc : Result(Int, a)
+    init %local2.discriminant, 0
+    init %local2@Err, 2
+    ret %v17
+
+  b5:
+    jmp b6
+
+  b6:
+    %v24 = alloc : Result(Int, a)
+    init %local3.discriminant, 1
+    %v27 = calldyn %body, %n : a
+    init %local3@Ok, %v27
+    ret %v24
+}
+
+fn attempt(%open: Bool, %body: () -> a) -> Maybe(a) {
+  schema {
+    #0 type a
+    #1 type Maybe(a)
+  }
+
+  b0:
+    %v3 = xor %open, True : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Maybe(a)
+    init %local1.discriminant, 0
+    ret %v5
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = load log : Int
+    %v13 = add %v10, 1000 : Int
+    assign log, %v13
+    %v15 = alloc : Maybe(a)
+    init %local2.discriminant, 1
+    %v18 = calldyn %body : a
+    init %local2@Just, %v18
+    ret %v15
+}
+
+fn always(%n: Int) -> Int {
+  b0:
+    %v1 = alloc : (found: Int) -> Int
+    %v2 = symbol ResolveTest.continuation$0 : %()
+    init %local0.code, %v2
+    %v5 = cast 0 : %()
+    init %local0.env, %v5
+    %v7 = call findFirst(Int), %n, %v1 : Maybe(Int)
+    %v8 = copy %local1 : Maybe(Int)
+    %v9 = call Try(Maybe(a), a, ()).toOutcome(Int), %v8 : Outcome(Int, ())
+    %v10 = load %local3.discriminant : Int
+    %v12 = cmp_eq %v10, 1 : Bool
+    je %v12, b1, b2
+
+  b1:
+    ret 0
+
+  b2:
+    %v16 = load %local3@Proceed : Int
+    ret %v16
+}
+
+fn valued(%n: Int) -> Int {
+  b0:
+    %v3 = cmp_lt %n, 100 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : (found: Int) -> Int
+    %v6 = symbol ResolveTest.continuation$1 : %()
+    init %local0.code, %v6
+    %v9 = cast 0 : %()
+    init %local0.env, %v9
+    %v11 = call findFirst(Int), %n, %v5 : Maybe(Int)
+    %v12 = copy %local1 : Maybe(Int)
+    %v13 = call Try(Maybe(a), a, ()).toOutcome(Int), %v12 : Outcome(Int, ())
+    %v14 = load %local3.discriminant : Int
+    %v16 = cmp_eq %v14, 1 : Bool
+    je %v16, b3, b4
+
+  b2:
+    jmp b6
+
+  b3:
+    jmp b5
+
+  b4:
+    %v19 = load %local3@Proceed : Int
+    jmp b5
+
+  b5:
+    %v23 = phi [b3, 7], [b4, %v19] : Int
+    jmp b6
+
+  b6:
+    %v27 = phi [b5, %v23], [b2, 0] : Int
+    ret %v27
+}
+
+fn mixed(%n: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v6 = cmp_ne %n, 0 : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v8 = alloc : {total: &mut Int}
+    %v9 = borrow_mut %total : &mut Int
+    init %local1.total, %v9
+    %v11 = addressof %local1 : %()
+    %v12 = alloc : (found: Int) -> Outcome((), Int)
+    %v13 = symbol ResolveTest.continuation$2 : %()
+    init %local2.code, %v13
+    init %local2.env, %v11
+    %v16 = call findFirst(Outcome((), Int)), %n, %v12 : Maybe(Outcome((), Int))
+    %v17 = copy %local3 : Maybe(Outcome((), Int))
+    %v18 = call Try(Maybe(a), a, ()).toOutcome(Outcome((), Int)), %v17 : Outcome(Outcome((), Int), ())
+    %v19 = load %local5.discriminant : Int
+    %v21 = cmp_eq %v19, 1 : Bool
+    je %v21, b3, b4
+
+  b2:
+    jmp b8
+
+  b3:
+    ret 5
+
+  b4:
+    %v25 = load %local5@Proceed : Outcome((), Int)
+    %v26 = load %local5@Proceed.discriminant : Int
+    %v28 = cmp_eq %v26, 1 : Bool
+    je %v28, b5, b6
+
+  b5:
+    %v30 = load %local5@Proceed@Exit : Int
+    ret %v30
+
+  b6:
+    jmp b7
+
+  b7:
+    jmp b8
+
+  b8:
+    %v35 = load %total : Int
+    %v38 = add %v35, 1 : Int
+    ret %v38
+}
+
+fn reasoned(%n: Int) -> Int {
+  b0:
+    %v1 = alloc : (found: Int) -> Int
+    %v2 = symbol ResolveTest.continuation$3 : %()
+    init %local0.code, %v2
+    %v5 = cast 0 : %()
+    init %local0.env, %v5
+    %v7 = call checked(Int), %n, %v1 : Result(Int, Int)
+    %v8 = copy %local1 : Result(Int, Int)
+    %v9 = call Try(Result(e, a), a, e).toOutcome(Int, Int), %v8 : Outcome(Int, Int)
+    %v10 = load %local3.discriminant : Int
+    %v12 = cmp_eq %v10, 1 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %code = load %local3@Exit : Int
+    %v17 = mul %code, 10 : Int
+    ret %v17
+
+  b2:
+    %v19 = load %local3@Proceed : Int
+    ret %v19
+}
+
+fn guarded(%open: Bool) -> Int {
+  b0:
+    %v1 = alloc : () -> Int
+    %v2 = symbol ResolveTest.continuation$4 : %()
+    init %local0.code, %v2
+    %v5 = cast 0 : %()
+    init %local0.env, %v5
+    %v7 = call attempt(Int), %open, %v1 : Maybe(Int)
+    %v8 = copy %local1 : Maybe(Int)
+    %v9 = call Try(Maybe(a), a, ()).toOutcome(Int), %v8 : Outcome(Int, ())
+    %v10 = load %local3.discriminant : Int
+    %v12 = cmp_eq %v10, 1 : Bool
+    je %v12, b1, b2
+
+  b1:
+    ret 0
+
+  b2:
+    %v16 = load %local3@Proceed : Int
+    ret %v16
+}
+
+fn doubled(%x: Int, %body: (value: Int) -> $r) -> $r {
+  schema {
+    #0 type $r
+  }
+
+  b0:
+    %v2 = load log : Int
+    %v5 = add %v2, 1 : Int
+    assign log, %v5
+    %v9 = mul %x, 2 : Int
+    %v10 = calldyn %body, %v9 : $r
+    %v11 = load log : Int
+    %v14 = add %v11, 10 : Int
+    assign log, %v14
+    ret %v10
+}
+
+fn nested(%n: Int) -> Int {
+  b0:
+    %v1 = alloc : (found: Int) -> Int
+    %v2 = symbol ResolveTest.continuation$5 : %()
+    init %local0.code, %v2
+    %v5 = cast 0 : %()
+    init %local0.env, %v5
+    %v7 = call doubled(Int), %n, %v1 : Int
+    ret %v7
+}
+
+fn written(%n: Int) -> Int {
+  b0:
+    %v1 = alloc : (found: Int) -> Int
+    %v2 = symbol ResolveTest.lambda$7 : %()
+    init %local0.code, %v2
+    %v5 = cast 0 : %()
+    init %local0.env, %v5
+    %v7 = call findFirst(Int), %n, %v1 : Maybe(Int)
+    %v8 = load %local1.discriminant : Int
+    %v10 = cmp_eq %v8, 1 : Bool
+    je %v10, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v = load %local1@Just : Int
+    jmp b3
+
+  b3:
+    %v16 = phi [b2, %v], [b1, 0] : Int
+    ret %v16
+}
+
+fn main() -> Int {
+  b0:
+    assign log, 0
+    %a = call always, 3 : Int
+    %v6 = neg 1 : Int
+    %b = call always, %v6 : Int
+    %c = call valued, 4 : Int
+    %v12 = neg 2 : Int
+    %d = call valued, %v12 : Int
+    %e = call mixed, 2 : Int
+    %v18 = neg 3 : Int
+    %f = call mixed, %v18 : Int
+    %g = call reasoned, 4 : Int
+    %h = call reasoned, 20 : Int
+    %v26 = neg 1 : Int
+    %i = call reasoned, %v26 : Int
+    %j = call guarded, True : Int
+    %k = call guarded, False : Int
+    %l = call written, 6 : Int
+    %m = call nested, 3 : Int
+    %v38 = neg 1 : Int
+    %n = call nested, %v38 : Int
+    %v40 = add %a, %b : Int
+    %v41 = add %v40, %c : Int
+    %v42 = add %v41, %d : Int
+    %v43 = add %v42, %e : Int
+    %v44 = add %v43, %f : Int
+    %v45 = add %v44, %g : Int
+    %v46 = add %v45, %h : Int
+    %v47 = add %v46, %i : Int
+    %v48 = add %v47, %j : Int
+    %v49 = add %v48, %k : Int
+    %v50 = add %v49, %l : Int
+    %v51 = add %v50, %m : Int
+    %v52 = add %v51, %n : Int
+    %v53 = load log : Int
+    %v54 = add %v52, %v53 : Int
+    ret %v54
+}
+
+fn ResolveTest.continuation$0(%env: %{}, %found: Int) -> Int {
+  b0:
+    %v4 = add %found, 1 : Int
+    ret %v4
+}
+
+fn findFirst(Int)(%n: Int, %body: (found: Int) -> Int) -> Maybe(Int) {
+  b0:
+    %v2 = load log : Int
+    %v4 = add %v2, 1 : Int
+    assign log, %v4
+    %v7 = cmp_gt %n, 0 : Bool
+    je %v7, b1, b2
+
+  b1:
+    %v10 = mul %n, 2 : Int
+    %carried = calldyn %body, %v10 : Int
+    %v12 = load log : Int
+    %v14 = add %v12, 100 : Int
+    assign log, %v14
+    %v16 = alloc : Maybe(Int)
+    init %local2.discriminant, 1
+    init %local2@Just, %carried
+    ret %v16
+
+  b2:
+    jmp b3
+
+  b3:
+    %v22 = alloc : Maybe(Int)
+    init %local3.discriminant, 0
+    ret %v22
+}
+
+fn ResolveTest.continuation$1(%env: %{}, %found: Int) -> Int {
+  b0:
+    %v4 = mul %found, 3 : Int
+    ret %v4
+}
+
+fn ResolveTest.continuation$2(%env: %{total: &mut Int}, %found: Int) -> Outcome((), Int) {
+  b0:
+    %v4 = cmp_gt %found, 100 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v16 = alloc : Outcome((), Int)
+    init %local1.discriminant, 1
+    init %local1@Exit, %found
+    ret %v16
+
+  b2:
+    jmp b3
+
+  b3:
+    %v7 = load [%env].total : &mut Int
+    %v8 = load [%env].total : &mut Int
+    %v9 = load [%v8] : Int
+    %v10 = add %v9, %found : Int
+    assign [%v7], %v10
+    %v12 = alloc : Outcome((), Int)
+    init %local0.discriminant, 0
+    ret %v12
+}
+
+fn findFirst(Outcome((), Int))(%n: Int, %body: (found: Int) -> Outcome((), Int)) -> Maybe(Outcome((), Int)) {
+  b0:
+    %v2 = load log : Int
+    %v4 = add %v2, 1 : Int
+    assign log, %v4
+    %v7 = cmp_gt %n, 0 : Bool
+    je %v7, b1, b2
+
+  b1:
+    %v10 = mul %n, 2 : Int
+    %carried = calldyn %body, %v10 : Outcome((), Int)
+    %v12 = load log : Int
+    %v14 = add %v12, 100 : Int
+    assign log, %v14
+    %v16 = alloc : Maybe(Outcome((), Int))
+    init %local2.discriminant, 1
+    init %local2@Just, %carried
+    ret %v16
+
+  b2:
+    jmp b3
+
+  b3:
+    %v22 = alloc : Maybe(Outcome((), Int))
+    init %local3.discriminant, 0
+    ret %v22
+}
+
+fn ResolveTest.continuation$3(%env: %{}, %value: Int) -> Int {
+  b0:
+    %v4 = add %value, 1 : Int
+    ret %v4
+}
+
+fn checked(Int)(%n: Int, %body: (found: Int) -> Int) -> Result(Int, Int) {
+  b0:
+    %v3 = cmp_gt %n, 9 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Result(Int, Int)
+    init %local1.discriminant, 0
+    init %local1@Err, 1
+    ret %v5
+
+  b2:
+    jmp b3
+
+  b3:
+    %v13 = cmp_lt %n, 0 : Bool
+    je %v13, b4, b5
+
+  b4:
+    %v15 = alloc : Result(Int, Int)
+    init %local2.discriminant, 0
+    init %local2@Err, 2
+    ret %v15
+
+  b5:
+    jmp b6
+
+  b6:
+    %v22 = alloc : Result(Int, Int)
+    init %local3.discriminant, 1
+    %v25 = calldyn %body, %n : Int
+    init %local3@Ok, %v25
+    ret %v22
+}
+
+fn ResolveTest.continuation$4(%env: %{}) -> Int {
+  b0:
+    ret 3
+}
+
+fn attempt(Int)(%open: Bool, %body: () -> Int) -> Maybe(Int) {
+  b0:
+    %v3 = xor %open, True : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Maybe(Int)
+    init %local1.discriminant, 0
+    ret %v5
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = load log : Int
+    %v12 = add %v10, 1000 : Int
+    assign log, %v12
+    %v14 = alloc : Maybe(Int)
+    init %local2.discriminant, 1
+    %v17 = calldyn %body : Int
+    init %local2@Just, %v17
+    ret %v14
+}
+
+fn ResolveTest.continuation$5(%env: %{}, %value: Int) -> Int {
+  b0:
+    %v2 = alloc : {d: Int}
+    init %local0.d, %value
+    %v4 = addressof %local0 : %()
+    %v5 = alloc : (found: Int) -> Int
+    %v6 = symbol ResolveTest.continuation$6 : %()
+    init %local1.code, %v6
+    init %local1.env, %v4
+    %v9 = call findFirst(Int), %value, %v5 : Maybe(Int)
+    %v10 = copy %local2 : Maybe(Int)
+    %v11 = call Try(Maybe(a), a, ()).toOutcome(Int), %v10 : Outcome(Int, ())
+    %v12 = load %local4.discriminant : Int
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b1, b2
+
+  b1:
+    ret 0
+
+  b2:
+    %v17 = load %local4@Proceed : Int
+    ret %v17
+}
+
+fn ResolveTest.continuation$6(%env: %{d: Int}, %found: Int) -> Int {
+  b0:
+    %v2 = load [%env].d : Int
+    %v3 = add %found, %v2 : Int
+    ret %v3
+}
+
+fn doubled(Int)(%x: Int, %body: (found: Int) -> Int) -> Int {
+  b0:
+    %v2 = load log : Int
+    %v4 = add %v2, 1 : Int
+    assign log, %v4
+    %v7 = mul %x, 2 : Int
+    %v8 = calldyn %body, %v7 : Int
+    %v9 = load log : Int
+    %v11 = add %v9, 10 : Int
+    assign log, %v11
+    ret %v8
+}
+
+fn ResolveTest.lambda$7(%env: %{}, %found: Int) -> Int {
+  b0:
+    %v4 = mul %found, 5 : Int
+    ret %v4
+}

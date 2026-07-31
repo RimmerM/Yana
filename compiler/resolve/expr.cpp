@@ -958,7 +958,8 @@ void ExprResolver::resolveCountedFor(const ast::Expr& expr, const ast::ForExpr& 
     auto bindingCount = bindings.size();
 
     current = bodyBlock;
-    bindIrrefutable(loop.pat, value);
+    bindIrrefutable(loop.pat, value,
+                    "a `for` loop has no alternative to take for an element it does not match"_v);
 
     loops.push(LoopTarget { nullptr, nullptr, &continues, &breaks });
     resolve(loop.body, nullptr, false);

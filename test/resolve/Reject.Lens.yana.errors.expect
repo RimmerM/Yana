@@ -1,18 +1,27 @@
-14:0: error: a skipping lens is not available yet - this one returns Maybe(a) rather than its continuation's a, which needs the `Try` instance and the `| else ->` call site of Analysis-Lens.md's V3
-18:28: error: a lens's continuation must return a type variable - it produces whatever the rest of the caller's block produces, which the lens cannot name
-21:25: error: a lens's continuation parameter cannot carry `&`, `->` or `return` - it is called, not stored, and its extent is the call
-29:0: error: a `lens fn` in `yield` form must `yield` - this one never hands anything over, so the call site's block below it would never run
-37:4: error: this path leaves a `lens fn` without yielding - the continuation would never run, so the block below the call site would be skipped
-42:4: error: a `lens fn` may contain only one `yield` in this version - the cleanup after it already runs on every path, so a second one would need the two results joined
-50:8: error: this `yield` can run twice - a `lens fn` hands over exactly once on every path that does not diverge
-55:4: error: `yield` is only available inside a `lens fn` or `iter fn` that declares what it hands over - one that named its continuation parameter calls it by name instead
-54:0: error: not all paths return a value
-58:4: error: `yield` is only available inside a `lens fn` or `iter fn` that declares what it hands over - one that named its continuation parameter calls it by name instead
-57:0: error: not all paths return a value
-69:36: error: handing is a lens, so this call needs the rest of a block to hand its values to - write it as a statement of its own or as the whole right-hand side of a `let`, or pass the continuation as a final argument
-73:8: error: this lens hands over nothing, so there is nothing for `let` to bind - write the call as a statement of its own
-81:8: error: `break` and `continue` cannot cross a lens call yet - the loop is in the function this block was split out of, and only `return` carries the exit signal past a lens
-88:12: error: scope is a lens, so it cannot be used as a function value yet - the block a lens call splits is decided where the call is written
-94:4: error: a lens call inside a generic function is not available yet - the lifted body would have to be specialized alongside its caller
-93:0: error: not all paths return a value
-46:0: error: this value may have been moved out of on some paths reaching here
+16:0: error: this lens returns Bag(a) rather than its continuation's a, so it may skip the continuation - which needs an instance of `Try` for Bag(a) saying which of its cases means the continuation ran
+21:0: error: this lens returns Maybe(Int), whose `Try` instance proceeds with Int rather than with its continuation's a - a skipping lens's wrapper has to carry what its continuation produced
+27:0: error: a skipping lens whose result is the type variable m is not available yet - the `Try` instance would have to travel with the call as a witness rather than be selected from the signature, which is the erased callback ABI
+31:28: error: a lens's continuation must return a type variable - it produces whatever the rest of the caller's block produces, which the lens cannot name
+34:25: error: a lens's continuation parameter cannot carry `&`, `->` or `return` - it is called, not stored, and its extent is the call
+42:0: error: a `lens fn` in `yield` form must `yield` - this one never hands anything over, so the call site's block below it would never run
+50:4: error: this path leaves a `lens fn` without yielding - the continuation would never run, so the block below the call site would be skipped
+55:4: error: a `lens fn` may contain only one `yield` in this version - the cleanup after it already runs on every path, so a second one would need the two results joined
+63:8: error: this `yield` can run twice - a `lens fn` hands over exactly once on every path that does not diverge
+68:4: error: `yield` is only available inside a `lens fn` or `iter fn` that declares what it hands over - one that named its continuation parameter calls it by name instead
+67:0: error: not all paths return a value
+71:4: error: `yield` is only available inside a `lens fn` or `iter fn` that declares what it hands over - one that named its continuation parameter calls it by name instead
+70:0: error: not all paths return a value
+92:15: error: maybeHanding returns Maybe(a) rather than what its continuation returns, so it may not continue into the block below - this call needs `| else -> ...` saying what happens then
+91:0: error: not all paths return a value
+97:4: error: maybeHanding may skip its continuation, so this call has to say where the skip goes - write it as `let pat = maybeHanding(...) | else -> ...`, which is the only position `| else ->` can be written in
+96:0: error: not all paths return a value
+103:8: error: this pattern can fail - it does not match _ - and the `| else ->` beside a skipping lens call says where the skip goes, so there is nothing left for a pattern that does not match what it handed over
+108:39: error: this lens's skip carries nothing to match, so `| else -> ...` is the only alternative it can have
+113:8: error: the alternatives of this lens call do not cover _ - a skip carrying it has nowhere to go
+117:36: error: handing is a lens, so this call needs the rest of a block to hand its values to - write it as a statement of its own or as the whole right-hand side of a `let`, or pass the continuation as a final argument
+121:8: error: this lens hands over nothing, so there is nothing for `let` to bind - write the call as a statement of its own, or `let _ =` it if the alternatives are what the `let` is for
+129:8: error: `break` and `continue` cannot cross a lens call yet - the loop is in the function this block was split out of, and only `return` carries the exit signal past a lens
+136:12: error: scope is a lens, so it cannot be used as a function value yet - the block a lens call splits is decided where the call is written
+142:4: error: a lens call inside a generic function is not available yet - the lifted body would have to be specialized alongside its caller
+141:0: error: not all paths return a value
+59:0: error: this value may have been moved out of on some paths reaching here

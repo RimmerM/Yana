@@ -1,0 +1,115 @@
+-- Skipping lenses - Design.md's Transparent and skipping lenses, Analysis-Lens.md's V3.
+--
+-- A lens whose result type is not its continuation's may return without calling the continuation at
+-- all. The rule is that the ability to skip is exactly the presence of a wrapper: it is in the
+-- signature, as the type the continuation's result is wrapped in, and it is at the call site, as the
+-- `| else ->` that wrapper makes mandatory. Neither half can be left out.
+
+let &log = 0 :: Int
+
+-- The `findChar` shape: what the lens hands over does not exist for every input, so the not-found
+-- path returns the wrapper's other case and the continuation never runs. `Maybe`'s `Try` instance
+-- skips with nothing carried, which is why `| else -> ...` is all a call site here can write.
+lens fn findFirst(n: Int, body: (found: Int) -> a) -> Maybe(a):
+    log = log + 1
+
+    if n > 0:
+        let carried = body(n * 2)
+        log = log + 100
+        return Just(carried)
+
+    return Nothing
+
+-- A carrier that says *why* it skipped. `Result`'s instance carries the error, so the alternatives
+-- match that error rather than the `Result`: the continuation did not run, so nothing of its shape
+-- exists here to match on.
+lens fn checked(n: Int, body: (value: Int) -> a) -> Result(Int, a):
+    if n > 9: return Err(1)
+    if n < 0: return Err(2)
+
+    return Ok(body(n))
+
+-- A skipping lens that hands nothing over, which is `tryLock`'s shape. `| else ->` has a place to be
+-- written only beside a `let`, so `let _ =` is how one is called - the wildcard binds nothing, and
+-- the declaration exists for its alternatives alone.
+lens fn attempt(open: Bool, body: () -> a) -> Maybe(a):
+    if !open: return Nothing
+
+    log = log + 1000
+    return Just(body())
+
+-- Every path of the block below leaves the enclosing function, so what the continuation returns is
+-- that function's own result and the alternative leaves too.
+fn always(n: Int) -> Int:
+    let found = findFirst(n) | else -> return 0
+    return found + 1
+
+-- The alternative produces a value instead of leaving, which is a rule the guard form does not have:
+-- there is no rest of the block for a binding to have to be live across, because the rest of the
+-- block *is* the continuation and on this path it did not run.
+fn valued(n: Int) -> Int = if n < 100:
+        let found = findFirst(n) | else -> 7
+        found * 3
+    else: 0
+
+-- The block below both falls through and leaves, which is the one shape the exit signal is wrapped
+-- for. The two joins then nest: the outer test asks whether the continuation ran at all, and the
+-- inner one whether it left the enclosing function when it did.
+fn mixed(n: Int) -> Int:
+    let &total = 0 :: Int
+
+    if n != 0:
+        let found = findFirst(n) | else -> return 5
+        if found > 100: return found
+        total = total + found
+
+    return total + 1
+
+-- The reason bound. A wildcard alternative would work here too; naming it is what a `Result`-shaped
+-- carrier is for.
+fn reasoned(n: Int) -> Int:
+    let value = checked(n) | match code -> return code * 10
+    return value + 1
+
+fn guarded(open: Bool) -> Int:
+    let _ = attempt(open) | else -> return 0
+    return 3
+
+lens fn doubled(x: Int) -> Int:
+    log = log + 1
+    yield x * 2
+    log = log + 10
+
+-- A skipping call inside a transparent lens's continuation. The alternative is an ordinary statement
+-- of the block it was written in, so its `return` is the exit signal of the frame *that* block was
+-- split out of - and `doubled`'s cleanup runs on the skip path exactly as it does on the other.
+fn nested(n: Int) -> Int:
+    let d = doubled(n)
+    let found = findFirst(d) | else -> return 0
+    return found + d
+
+-- The continuation written out at the call site is an ordinary call and stays one, wrapper and all:
+-- nothing is split, so nothing needs saying about where a skip goes.
+fn written(n: Int) -> Int = match findFirst(n, (found: Int) -> found * 5):
+    Just(v) -> v
+    Nothing -> 0
+
+fn main() -> Int:
+    log = 0
+    let a = always(3)        -- 7,   log 101
+    let b = always(-1)       -- 0,   log 102
+    let c = valued(4)        -- 24,  log 203
+    let d = valued(-2)       -- 7,   log 204
+    let e = mixed(2)         -- 5,   log 305
+    let f = mixed(-3)        -- 5,   log 306
+    let g = reasoned(4)      -- 5
+    let h = reasoned(20)     -- 10
+    let i = reasoned(-1)     -- 20
+    let j = guarded(True)    -- 3,   log 1306
+    let k = guarded(False)   -- 0
+    let l = written(6)       -- 60,  log 1407
+    let m = nested(3)        -- 18,  log 1519
+    let n = nested(-1)       -- 0,   log 1531
+
+    -- 164, plus log 1531.
+    return a + b + c + d + e + f + g + h + i + j + k + l + m + n + log

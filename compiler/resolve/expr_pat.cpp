@@ -903,15 +903,19 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
  *
  * A `for` loop's pattern names the shape of what the iterator hands over rather than testing it:
  * the grammar has no place to write alternatives on a loop, and a pattern that could fail would
- * have to mean "skip this element", which is a filter written where nothing says so. Reported and
- * then bound anyway, so that the loop body still reads against the names it was written with.
+ * have to mean "skip this element", which is a filter written where nothing says so. A skipping
+ * lens's `let` is the same situation reached differently - the `| else ->` beside it belongs to the
+ * skip - so both come through here and `reason` is what tells them apart in the diagnostic.
+ *
+ * Reported and then bound anyway, so that the code below still reads against the names it was
+ * written with.
  */
-void ExprResolver::bindIrrefutable(const ast::Pat& pattern, ModulePtr<Value> value) {
+void ExprResolver::bindIrrefutable(const ast::Pat& pattern, ModulePtr<Value> value, StringView reason) {
     PatternSpace space(*this, valueType(value));
 
     if(!space.add(pattern) && global[valueType(value)]->kind != Type::Error) {
-        context.diagnostics.error("this pattern can fail - it does not match %@ - and a `for` loop has no alternative to take for an element it does not match"_v,
-                                  pattern.source, space.gap());
+        context.diagnostics.error("this pattern can fail - it does not match %@ - and %@"_v,
+                                  pattern.source, space.gap(), reason);
     }
 
     resolvePattern(pattern, value, nullptr);
@@ -1016,4 +1020,95 @@ void ExprResolver::resolveBinding(const ast::VarDecl& declaration, ModulePtr<Val
 
     current = success;
     for(Size i = declared.size(); i > 0; i--) bindings.push(declared[i - 1]);
+}
+
+/*
+ * `| else -> ...` beside a skipping lens call - Design.md's Calling a lens, Analysis-Lens.md §3.2.
+ *
+ * The alternatives are a `match` over what the skip *carried*, not over what the lens hands its
+ * continuation: the continuation did not run, so there is nothing of that shape here to match. What
+ * a skip carries is the `Try` instance's third type - for a `Maybe` that is unit, so `| else -> ...`
+ * is the whole of what can be written, and for a `Result` it is the error itself rather than the
+ * `Result` around it, so `| match e -> ...` binds it.
+ *
+ * The rule resolveBinding above states as "an alternative has to leave the block" is deliberately
+ * *weaker* here. It exists there because the names the pattern bound have to be live for the rest of
+ * the block, so there must be one way to reach that code and the pattern must have matched on it.
+ * A lens skip has no rest of the block - the rest of the block *is* the continuation, and on this
+ * path it did not run - so an alternative may simply produce the value the block would have, and
+ * divergence is the common case of that rather than a separate requirement.
+ *
+ * A null `reason` is a skip that carries nothing, which is `Maybe`'s and the common one.
+ */
+void ExprResolver::resolveSkipAlternatives(const ast::VarDecl& declaration, ModulePtr<Value> reason,
+                                           bool used, Array<BranchArm>& arms) {
+    auto alternativeList = declaration.alts;
+    auto alternatives = alternativeList.contents(parse);
+
+    // Nothing carried is nothing to match, so the wildcard the grammar already writes for `| else ->`
+    // is the only alternative there can be. Said out loud rather than left to a `match` over a value
+    // that does not exist.
+    if(!reason) {
+        for(Size i = 0; i < alternatives.size() && current; i++) {
+            auto alternative = alternatives[i];
+
+            if(i > 0) {
+                context.diagnostics.warning("this alternative is unreachable - this lens's skip carries nothing, so the one before it already covers every way here"_v,
+                                            alternative.pat.source);
+                continue;
+            }
+
+            if(alternative.pat.kind != ast::Pat::Any) {
+                context.diagnostics.error("this lens's skip carries nothing to match, so `| else -> ...` is the only alternative it can have"_v,
+                                          alternative.pat.source);
+            }
+
+            auto value = resolve(alternative.expr, nullptr, used);
+            if(current) arms.push(BranchArm { current, value, alternative.expr.source });
+        }
+
+        return;
+    }
+
+    // As in resolveMatch and resolveBinding: the space keeps the patterns by address, so they are
+    // copied out of the parse list once rather than read per use.
+    Array<ast::Pat> patterns;
+    patterns.reserve(U32(alternatives.size()));
+    for(auto alternative: alternatives) patterns.push(alternative.pat);
+
+    PatternSpace space(*this, valueType(reason));
+    auto checkpoint = bindings.size();
+    auto covered = false;
+
+    for(Size i = 0; i < alternatives.size() && current; i++) {
+        auto& pattern = patterns[i];
+        auto body = alternatives[i].expr;
+
+        if(covered) {
+            context.diagnostics.warning("this alternative is unreachable - the ones before it already cover every value"_v,
+                                        pattern.source);
+            continue;
+        }
+
+        if(!space.useful(pattern)) {
+            context.diagnostics.warning("this alternative is unreachable - an earlier one already covers it"_v,
+                                        pattern.source);
+        }
+
+        covered = space.add(pattern);
+        auto next = covered ? ModulePtr<Block>(nullptr) : addBlock();
+
+        if(resolvePattern(pattern, reason, next) != PatternResult::Never) {
+            auto value = resolve(body, nullptr, used);
+            if(current) arms.push(BranchArm { current, value, body.source });
+        }
+
+        bindings.resize(checkpoint);
+        current = next;
+    }
+
+    if(!covered) {
+        context.diagnostics.error("the alternatives of this lens call do not cover %@ - a skip carrying it has nowhere to go"_v,
+                                  declaration.pat.source, space.gap());
+    }
 }

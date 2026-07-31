@@ -227,6 +227,18 @@ struct Function {
      */
     bool yieldForm = false;
 
+    /*
+     * Set for a *skipping* lens - Analysis-Lens.md §7.1, Design.md's Transparent and skipping
+     * lenses. Its result type is not its continuation's, so the continuation runs at most once and
+     * the call site has to say where the skip goes.
+     *
+     * Decided once, at the declaration, by the one comparison that tells the two apart, and recorded
+     * rather than recomputed because what the flag really stands for is the `Try` instance the
+     * signature was checked against. Never set together with `yieldForm`: the sugar has nowhere to
+     * write a wrapper, so the ergonomic form is the transparent one.
+     */
+    bool skipping = false;
+
     Intrinsic intrinsic = nullptr;
 
     // Set instead of `intrinsic` when the signature has a `@lazy` parameter - see DeferredIntrinsic.

@@ -163,6 +163,13 @@ struct InstanceMatch {
  * When two instances match, the more specific one wins - the one whose head the other's matches
  * and not the reverse - so a hand-written `Eq(%U8)` beats the blanket `Eq(Ptr(a))` rather than
  * being ambiguous with it.
+ *
+ * A null entry in `args` is a position the caller does not constrain: it matches any head, and what
+ * the selected instance put there is read back out of `forTypes` under the match's own bindings.
+ * That is how a class keyed on fewer parameters than it has is asked - `Try(m, a, e)`, where `m`
+ * decides the other two - and it is safe because an instance whose own variables the match left
+ * open is still rejected, so an unconstrained position can only hold what a constrained one already
+ * determined.
  */
 InstanceMatch matchInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
 

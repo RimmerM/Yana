@@ -1,0 +1,223 @@
+"use strict";
+var log = 0;
+const closure$ResolveTest_continuation$2 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$6 = [teardown$none, teardown$none];
+
+// Core
+function Try_Maybe_a_a_toOutcome_Int(value) {
+  var v1;
+  if (!(value === null)) {
+    v1 = value;
+  } else {
+    v1 = null;
+  }
+  return v1;
+}
+
+function teardown$none(value) {
+  return;
+}
+
+function Try_Maybe_a_a_toOutcome_Outcome_Int(value) {
+  var v1;
+  if (value.$tag === 1) {
+    v1 = { $tag: 0, $p: value.$p };
+  } else {
+    v1 = { $tag: 1, $p: null };
+  }
+  return v1;
+}
+
+function Try_Result_e_a_a_e_toOutcome_Int_Int(value) {
+  var v1;
+  if (value.$tag === 1) {
+    v1 = { $tag: 0, $p: value.$p };
+  } else {
+    v1 = { $tag: 1, $p: value.$p };
+  }
+  return v1;
+}
+
+// ResolveTest
+function always(n) {
+  var v9 = Try_Maybe_a_a_toOutcome_Int(findFirst_Int(n, ResolveTest_continuation$0));
+  if (v9 === null) {
+    return 0;
+  } else {
+    return v9;
+  }
+}
+
+function valued(n) {
+  var v23;
+  var v27;
+  if (n < 100) {
+    var v13 = Try_Maybe_a_a_toOutcome_Int(findFirst_Int(n, ResolveTest_continuation$1));
+    if (v13 === null) {
+      v23 = 7;
+    } else {
+      v23 = v13;
+    }
+    v27 = v23;
+  } else {
+    v27 = 0;
+  }
+  return v27;
+}
+
+function mixed(n) {
+  B0: {
+    var total = { $v: 0 };
+    if (n !== 0) {
+      var v16 = findFirst_Outcome_Int(n, ResolveTest_continuation$2$make({ total: total }));
+      var v18 = Try_Maybe_a_a_toOutcome_Outcome_Int({ $tag: v16.$tag, $p: v16.$p });
+      if (v18.$tag === 1) {
+        return 5;
+      } else {
+        if (!(v18.$p === null)) {
+          return v18.$p;
+        }
+      }
+    }
+  }
+  return total.$v + 1 | 0;
+}
+
+function reasoned(n) {
+  var v7 = checked_Int(n, ResolveTest_continuation$3);
+  var v9 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v7.$tag, $p: v7.$p });
+  if (v9.$tag === 1) {
+    return Math.imul(v9.$p, 10) | 0;
+  } else {
+    return v9.$p;
+  }
+}
+
+function guarded(open) {
+  var v9 = Try_Maybe_a_a_toOutcome_Int(attempt_Int(open, ResolveTest_continuation$4));
+  if (v9 === null) {
+    return 0;
+  } else {
+    return v9;
+  }
+}
+
+function nested(n) {
+  return doubled_Int(n, ResolveTest_continuation$5);
+}
+
+function written(n) {
+  var v16;
+  var v7 = findFirst_Int(n, ResolveTest_lambda$7);
+  if (!(v7 === null)) {
+    v16 = v7;
+  } else {
+    v16 = 0;
+  }
+  return v16;
+}
+
+function main() {
+  log = 0;
+  return (((((((((((((always(3) + always(-1) | 0) + valued(4) | 0) + valued(-2) | 0) + mixed(2) | 0) + mixed(-3) | 0) + reasoned(4) | 0) + reasoned(20) | 0) + reasoned(-1) | 0) + guarded(1) | 0) + guarded(0) | 0) + written(6) | 0) + nested(3) | 0) + nested(-1) | 0) + log | 0;
+}
+
+function ResolveTest_continuation$0(found) {
+  return found + 1 | 0;
+}
+
+function findFirst_Int(n, body) {
+  log = log + 1 | 0;
+  if (n > 0) {
+    var carried = body(Math.imul(n, 2) | 0);
+    log = log + 100 | 0;
+    return carried;
+  } else {
+    return null;
+  }
+}
+
+function ResolveTest_continuation$1(found) {
+  return Math.imul(found, 3) | 0;
+}
+
+function ResolveTest_continuation$2$make(env) {
+  return function(found) {
+    if (found > 100) {
+      return found;
+    } else {
+      var v7 = env.total;
+      v7.$v = v7.$v + found | 0;
+      return null;
+    }
+  };
+}
+
+function findFirst_Outcome_Int(n, body) {
+  log = log + 1 | 0;
+  if (n > 0) {
+    var carried = body(Math.imul(n, 2) | 0);
+    log = log + 100 | 0;
+    return { $tag: 1, $p: carried };
+  } else {
+    return { $tag: 0, $p: null };
+  }
+}
+
+function ResolveTest_continuation$3(value) {
+  return value + 1 | 0;
+}
+
+function checked_Int(n, body) {
+  if (n > 9) {
+    return { $tag: 0, $p: 1 };
+  } else {
+    if (n < 0) {
+      return { $tag: 0, $p: 2 };
+    } else {
+      var v22 = { $tag: 1, $p: 0 };
+      var v25 = body(n);
+      v22.$p = v25;
+      return v22;
+    }
+  }
+}
+
+function ResolveTest_continuation$4() {
+  return 3;
+}
+
+function attempt_Int(open, body) {
+  if (open ^ 1) {
+    return null;
+  } else {
+    log = log + 1000 | 0;
+    return body();
+  }
+}
+
+function ResolveTest_continuation$5(value) {
+  var v11 = Try_Maybe_a_a_toOutcome_Int(findFirst_Int(value, ResolveTest_continuation$6$make({ d: value })));
+  if (v11 === null) {
+    return 0;
+  } else {
+    return v11;
+  }
+}
+
+function ResolveTest_continuation$6$make(env) {
+  return function(found) {
+    return found + env.d | 0;
+  };
+}
+
+function doubled_Int(x, body) {
+  log = log + 1 | 0;
+  var v8 = body(Math.imul(x, 2) | 0);
+  log = log + 10 | 0;
+  return v8;
+}
+
+function ResolveTest_lambda$7(found) {
+  return Math.imul(found, 5) | 0;
+}
