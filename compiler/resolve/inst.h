@@ -321,14 +321,26 @@ struct Value {
  * `returnRoot` is the `return` marker: a declaration that a borrow in the result may be rooted in
  * this argument. What it means for the caller is in FunctionSummary; what it means here is that
  * the loan created for this argument lasts until the last use of the result.
+ *
+ * `lazyType` is the `@lazy` marker, and it is the one place where the parameter's *declared* type
+ * and the type of what arrives genuinely differ. What arrives is a nullary thunk over the caller's
+ * frame, so `type` is `() -> T` and every pass below resolve treats the parameter as the ordinary
+ * function value it is; `lazyType` is the `T` the signature declared, which is what selection,
+ * conversion and diagnostics read. Reading the parameter in the body calls the thunk - see
+ * ExprResolver::force.
  */
 struct Arg: Value {
     Arg(ModulePtr<Block> block, TypePtr type, U16 index):
         Value(Value::Arg, block, type), index(index) {}
 
     bool isMutableBorrow() const { return convention == ast::BindType::Ref; }
+    bool isLazy() const { return lazyType != nullptr; }
+
+    // The type this parameter has in the signature, which is `type` for all but a `@lazy` one.
+    TypePtr declaredType() const { return lazyType ? lazyType : type; }
 
     U16 index;
+    TypePtr lazyType = nullptr;
     ast::BindType convention = ast::BindType::Borrow;
     bool returnRoot = false;
 };

@@ -57,6 +57,7 @@ struct Parser: BasicParser<Lexer, Token> {
 
     ast::BindType parseBindType();
     bool parseReturnRoot();
+    bool parseLazy();
 
     ast::SimpleType parseSimpleType();
     ast::Type parseType();
@@ -166,4 +167,5 @@ struct Parser: BasicParser<Lexer, Token> {
     StringId downtoId;
     StringId stepId;
     StringId arraySizeId;
+    StringId lazyId;       // the one attribute with a meaning in parameter position - see parseLazy.
 };

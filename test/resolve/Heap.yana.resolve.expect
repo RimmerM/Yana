@@ -223,23 +223,19 @@ fn distinctBlocks() -> I64 {
     %second = call allocateHeap, 32 : %U8
     %v4 = cast %first : Long
     %v6 = cmp_eq %v4, 0 : Bool
-    %v7 = cast %second : Long
-    %v9 = cmp_eq %v7, 0 : Bool
-    %v10 = or %v6, %v9 : Bool
-    je %v10, b1, b2
+    je %v6, b2, b1
 
   b1:
-    ret 0
+    %v8 = cast %second : Long
+    %v10 = cmp_eq %v8, 0 : Bool
+    jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v15 = sub %second, %first : I64
-    %v16 = strideof U8 : I64
-    %v17 = div %v15, %v16 : I64
-    %v20 = cmp_lt %v17, 32 : Bool
-    je %v20, b4, b5
+    %v13 = phi [b1, %v10], [b2, %v6] : Bool
+    je %v13, b4, b5
 
   b4:
     ret 0
@@ -248,6 +244,19 @@ fn distinctBlocks() -> I64 {
     jmp b6
 
   b6:
+    %v18 = sub %second, %first : I64
+    %v19 = strideof U8 : I64
+    %v20 = div %v18, %v19 : I64
+    %v23 = cmp_lt %v20, 32 : Bool
+    je %v23, b7, b8
+
+  b7:
+    ret 0
+
+  b8:
+    jmp b9
+
+  b9:
     ret 1
 }
 
@@ -259,24 +268,33 @@ fn writeAndRead() -> I64 {
     %b = cast %v4 : %I64
     %v6 = cast %a : Long
     %v8 = cmp_eq %v6, 0 : Bool
-    %v9 = cast %b : Long
-    %v11 = cmp_eq %v9, 0 : Bool
-    %v12 = or %v8, %v11 : Bool
-    je %v12, b1, b2
+    je %v8, b2, b1
 
   b1:
-    ret 0
+    %v10 = cast %b : Long
+    %v12 = cmp_eq %v10, 0 : Bool
+    jmp b3
 
   b2:
     jmp b3
 
   b3:
+    %v15 = phi [b1, %v12], [b2, %v8] : Bool
+    je %v15, b4, b5
+
+  b4:
+    ret 0
+
+  b5:
+    jmp b6
+
+  b6:
     assign [%a], 40
     assign [%b], 2
-    %v21 = load [%a] : I64
-    %v22 = load [%b] : I64
-    %v23 = add %v21, %v22 : I64
-    ret %v23
+    %v24 = load [%a] : I64
+    %v25 = load [%b] : I64
+    %v26 = add %v24, %v25 : I64
+    ret %v26
 }
 
 fn reuseAfterFree() -> I64 {

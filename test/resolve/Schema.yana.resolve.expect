@@ -72,9 +72,18 @@ fn identity(%value: a) -> a {
 
   b0:
     %v4 = gencall Eq(a).==, %p, %q : Bool
-    %v5 = gencall Eq(b).==, %r, %s : Bool
-    %v6 = and %v4, %v5 : Bool
-    ret %v6
+    je %v4, b1, b2
+
+  b1:
+    %v6 = gencall Eq(b).==, %r, %s : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, %v6], [b2, %v4] : Bool
+    ret %v9
 }
 
 fn pairUp(%x: a, %y: b) -> Pair(a, b) {
@@ -204,10 +213,19 @@ fn smallest(Int)(%x: Int, %y: Int, %z: Int) -> Int {
 
 fn bothEqual(Int, Bool)(%p: Int, %q: Int, %r: Bool, %s: Bool) -> Bool {
   b0:
-    %v4 = cmp_eq %p, %q : Bool
-    %v5 = cmp_eq %r, %s : Bool
-    %v6 = and %v4, %v5 : Bool
-    ret %v6
+    %v5 = cmp_eq %p, %q : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = cmp_eq %r, %s : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v4 = phi [b1, %v7], [b2, %v5] : Bool
+    ret %v4
 }
 
 fn pairUp(Int, Bool)(%x: Int, %y: Bool) -> Pair(Int, Bool) {

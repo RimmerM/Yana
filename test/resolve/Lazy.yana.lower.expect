@@ -1,0 +1,450 @@
+@effects = [0, 0, 0, 0]
+
+orSkips<complex>(): Int {
+  b_0 {
+    ret 1
+  }
+}
+
+maskSkips<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.deferred$1, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = alloca 4, 4: Ptr
+    call_complex Logic(Mask).&&, %v_4, 0, %v_1
+    %v_5 = loads %v_4, 4: Int
+    ret %v_5
+  }
+}
+
+Logic(Mask).not<complex>(%v_0: Ptr, %value$bits: Int) {
+  b_1 {
+    %v_2 = xor %value$bits, 15: Int
+    store %v_0, %v_2, 4
+    ret 
+  }
+}
+
+ResolveTest.deferred$0<complex>(%env: Ptr): Int {
+  b_0 {
+    %v_1 = loads @effects, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @effects, %v_2, 4
+    ret 7
+  }
+}
+
+ResolveTest.deferred$4<complex>(%env: Ptr): Int {
+  b_0 {
+    %v_1 = loads @effects, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @effects, %v_2, 4
+    ret 7
+  }
+}
+
+orRuns<complex>(): Int {
+  b_0 {
+    %v_1 = loads @effects, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @effects, %v_2, 4
+    ret 1
+  }
+}
+
+once<complex>(%flag: Int, %value: Ptr): Int {
+  b_0 {
+    je %flag, b_1, b_2
+  }
+
+  b_1 {
+    %v_3 = add %value, 8: Ptr
+    %v_4 = load %value, 8: Ptr
+    %v_5 = load %v_3, 8: Ptr
+    %v_6 = call_complex %v_4, %v_5: Int
+    %v_7 = add %v_6, 1: Int
+    ret %v_7
+  }
+
+  b_2 {
+    jmp b_8
+  }
+
+  b_8 {
+    ret 0
+  }
+}
+
+maskRuns<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.deferred$2, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = alloca 4, 4: Ptr
+    call_complex Logic(Mask).&&, %v_4, 7, %v_1
+    %v_5 = loads %v_4, 4: Int
+    ret %v_5
+  }
+}
+
+ResolveTest.deferred$3<complex>(%env: Ptr): Int {
+  b_0 {
+    %v_1 = loads @effects, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @effects, %v_2, 4
+    ret 7
+  }
+}
+
+andRuns<complex>(): Int {
+  b_0 {
+    %v_1 = loads @effects, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @effects, %v_2, 4
+    ret 1
+  }
+}
+
+fallbackSkipped<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.deferred$0, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = call_complex ??(Int), %m, %v_1: Int
+    ret %v_4
+  }
+}
+
+bumpFalse<complex>(): Int {
+  b_0 {
+    %v_1 = loads @effects, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @effects, %v_2, 4
+    ret 0
+  }
+}
+
+Logic(Mask).&&<complex>(%v_0: Ptr, %lhs$bits: Int, %rhs: Ptr) {
+  b_1 {
+    %lhs = alloca 4, 4: Ptr
+    store %lhs, %lhs$bits, 4
+    %v_2 = cmp_eq %lhs$bits, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_4 {
+    %v_6 = add %rhs, 8: Ptr
+    %v_7 = load %rhs, 8: Ptr
+    %v_8 = load %v_6, 8: Ptr
+    %v_9 = alloca 4, 4: Ptr
+    call_complex %v_7, %v_9, %v_8
+    %lhs$bits = loads %lhs, 4: Int
+    %rhs$bits = loads %v_9, 4: Int
+    %v_10 = alloca 4, 4: Ptr
+    %v_11 = and %lhs$bits, %rhs$bits: Int
+    store %v_10, %v_11, 4
+    jmp b_5
+  }
+
+  b_5 {
+    %v_12 = phi [b_3, %lhs], [b_4, %v_10]: Ptr
+    copy %v_0, %v_12, 4
+    ret 
+  }
+}
+
+Logic(Mask).and<complex>(%v_0: Ptr, %lhs$bits: Int, %rhs$bits: Int) {
+  b_1 {
+    %v_2 = and %lhs$bits, %rhs$bits: Int
+    store %v_0, %v_2, 4
+    ret 
+  }
+}
+
+Logic(Mask).or<complex>(%v_0: Ptr, %lhs$bits: Int, %rhs$bits: Int) {
+  b_1 {
+    %v_2 = or %lhs$bits, %rhs$bits: Int
+    store %v_0, %v_2, 4
+    ret 
+  }
+}
+
+chained<complex>(): Int {
+  b_0 {
+    ret 0
+  }
+}
+
+bump<complex>(): Int {
+  b_0 {
+    %v_1 = loads @effects, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @effects, %v_2, 4
+    ret 1
+  }
+}
+
+??(Int)<complex>(%value: Ptr, %fallback: Ptr): Int {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = add %fallback, 8: Ptr
+    %v_6 = load %fallback, 8: Ptr
+    %v_7 = load %v_5, 8: Ptr
+    %v_8 = call_complex %v_6, %v_7: Int
+    jmp b_9
+  }
+
+  b_3 {
+    %v_10 = add %value, 4: Ptr
+    %inner = loads %v_10, 4: Int
+    jmp b_9
+  }
+
+  b_9 {
+    %v_11 = phi [b_3, %inner], [b_4, %v_8]: Int
+    ret %v_11
+  }
+}
+
+bumpValue<complex>(): Int {
+  b_0 {
+    %v_1 = loads @effects, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @effects, %v_2, 4
+    ret 7
+  }
+}
+
+ResolveTest.deferred$2<complex>(%v_0: Ptr, %env: Ptr) {
+  b_1 {
+    %v_2 = loads @effects, 4: Int
+    %v_3 = add %v_2, 1: Int
+    store @effects, %v_3, 4
+    store %v_0, 3, 4
+    ret 
+  }
+}
+
+bound<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = loads %m, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = add %m, 4: Ptr
+    %v_7 = loads %v_6, 4: Int
+    %v_8 = cmp_eq %v_7, 3: Int
+    je %v_8, b_9, b_4
+  }
+
+  b_9 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_10 = phi [b_9, 1], [b_4, 0]: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    jmp b_13
+  }
+
+  b_12 {
+    jmp b_13
+  }
+
+  b_13 {
+    %v_14 = phi [b_11, 1], [b_12, %v_10]: Int
+    ret %v_14
+  }
+}
+
+ResolveTest.deferred$1<complex>(%v_0: Ptr, %env: Ptr) {
+  b_1 {
+    %v_2 = loads @effects, 4: Int
+    %v_3 = add %v_2, 1: Int
+    store @effects, %v_3, 4
+    store %v_0, 3, 4
+    ret 
+  }
+}
+
+bumpMask<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = loads @effects, 4: Int
+    %v_3 = add %v_2, 1: Int
+    store @effects, %v_3, 4
+    store %v_0, 3, 4
+    ret 
+  }
+}
+
+andSkips<complex>(): Int {
+  b_0 {
+    ret 0
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = loads @effects, 4: Int
+    %v_2 = add %v_1, 2: Int
+    store @effects, %v_2, 4
+    %v_3 = imm 31: Int
+    %v_4 = alloca 8, 4: Ptr
+    store %v_4, 1, 4
+    %v_5 = add %v_4, 4: Ptr
+    store %v_5, 3, 4
+    %v_6 = call_complex bound, %v_4: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    %v_9 = add %v_3, 32: Int
+    jmp b_8
+  }
+
+  b_8 {
+    %v_10 = phi [b_0, %v_3], [b_7, %v_9]: Int
+    %v_11 = alloca 8, 4: Ptr
+    store %v_11, 1, 4
+    %v_12 = add %v_11, 4: Ptr
+    store %v_12, 4, 4
+    %v_13 = call_complex bound, %v_11: Int
+    %v_14 = xor %v_13, 1: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_15 {
+    %v_17 = add %v_10, 64: Int
+    jmp b_16
+  }
+
+  b_16 {
+    %v_18 = phi [b_8, %v_10], [b_15, %v_17]: Int
+    %v_19 = alloca 8, 4: Ptr
+    store %v_19, 1, 4
+    %v_20 = add %v_19, 4: Ptr
+    store %v_20, 5, 4
+    %v_21 = call_complex fallbackSkipped, %v_19: Int
+    %v_22 = cmp_eq %v_21, 5: Int
+    je %v_22, b_23, b_24
+  }
+
+  b_23 {
+    %v_25 = add %v_18, 128: Int
+    jmp b_24
+  }
+
+  b_24 {
+    %v_26 = phi [b_16, %v_18], [b_23, %v_25]: Int
+    %v_27 = alloca 8, 4: Ptr
+    store %v_27, 0, 4
+    %v_28 = call_complex fallbackSkipped, %v_27: Int
+    %v_29 = cmp_eq %v_28, 7: Int
+    je %v_29, b_30, b_31
+  }
+
+  b_30 {
+    %v_32 = add %v_26, 256: Int
+    jmp b_31
+  }
+
+  b_31 {
+    %v_33 = phi [b_24, %v_26], [b_30, %v_32]: Int
+    %v_34 = alloca 16, 8: Ptr
+    store %v_34, ResolveTest.deferred$3, 8
+    %v_35 = bitcast 0: Ptr
+    %v_36 = add %v_34, 8: Ptr
+    store %v_36, %v_35, 8
+    %v_37 = call_complex once, 0, %v_34: Int
+    %v_38 = cmp_eq %v_37, 0: Int
+    je %v_38, b_39, b_40
+  }
+
+  b_39 {
+    %v_41 = add %v_33, 512: Int
+    jmp b_40
+  }
+
+  b_40 {
+    %v_42 = phi [b_31, %v_33], [b_39, %v_41]: Int
+    %v_43 = alloca 16, 8: Ptr
+    store %v_43, ResolveTest.deferred$4, 8
+    %v_44 = bitcast 0: Ptr
+    %v_45 = add %v_43, 8: Ptr
+    store %v_45, %v_44, 8
+    %v_46 = call_complex once, 1, %v_43: Int
+    %v_47 = cmp_eq %v_46, 8: Int
+    je %v_47, b_48, b_49
+  }
+
+  b_48 {
+    %v_50 = add %v_42, 1024: Int
+    jmp b_49
+  }
+
+  b_49 {
+    %v_51 = phi [b_40, %v_42], [b_48, %v_50]: Int
+    %v_52 = call_complex maskSkips: Int
+    %v_53 = cmp_eq %v_52, 0: Int
+    je %v_53, b_54, b_55
+  }
+
+  b_54 {
+    %v_56 = add %v_51, 2048: Int
+    jmp b_55
+  }
+
+  b_55 {
+    %v_57 = phi [b_49, %v_51], [b_54, %v_56]: Int
+    %v_58 = call_complex maskRuns: Int
+    %v_59 = cmp_eq %v_58, 3: Int
+    je %v_59, b_60, b_61
+  }
+
+  b_60 {
+    %v_62 = add %v_57, 4096: Int
+    jmp b_61
+  }
+
+  b_61 {
+    %v_63 = phi [b_55, %v_57], [b_60, %v_62]: Int
+    %v_64 = imul %v_63, 100: Int
+    %v_65 = loads @effects, 4: Int
+    %v_66 = add %v_64, %v_65: Int
+    ret %v_66
+  }
+}
+
+Logic(Mask).xor<complex>(%v_0: Ptr, %lhs$bits: Int, %rhs$bits: Int) {
+  b_1 {
+    %v_2 = xor %lhs$bits, %rhs$bits: Int
+    store %v_0, %v_2, 4
+    ret 
+  }
+}
+

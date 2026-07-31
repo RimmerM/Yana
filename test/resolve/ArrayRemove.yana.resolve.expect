@@ -400,69 +400,78 @@ fn length(Buffer)(%self: Array(Buffer)) -> Int {
 
 fn remove(Buffer)(%self: Array(Buffer), %index: Int) -> () {
   b0:
-    %v3 = cmp_lt %index, 0 : Bool
-    %v4 = load %self : Array(Buffer)
-    %v5 = load %self@Array.length : Int
-    %v6 = cmp_ge %index, %v5 : Bool
-    %v7 = or %v3, %v6 : Bool
-    je %v7, b1, b2
+    %v4 = cmp_lt %index, 0 : Bool
+    je %v4, b2, b1
 
   b1:
-    ret
+    %v6 = load %self : Array(Buffer)
+    %v7 = load %self@Array.length : Int
+    %v8 = cmp_ge %index, %v7 : Bool
+    jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v11 = load %self : Array(Buffer)
-    %v12 = load %self@Array.items : %Buffer
-    %v13 = cast %index : I64
-    %v14 = strideof Buffer : I64
-    %v15 = mul %v13, %v14 : I64
-    %v16 = add %v12, %v15 : %Buffer
-    %v17 = load [%v16] : Buffer
-    %v18 = move %local1 : Buffer
-    %doomed = alloc : Buffer
-    init %local2, %v18
-    %v21 = load %self : Array(Buffer)
-    %v22 = load %self@Array.length : Int
-    %v23 = sub %v22, %index : Int
-    %rest = sub %v23, 1 : Int
-    %v27 = cmp_gt %rest, 0 : Bool
-    je %v27, b4, b5
+    %v2 = phi [b1, %v8], [b2, %v4] : Bool
+    je %v2, b4, b5
 
   b4:
-    %v29 = load %self : Array(Buffer)
-    %v30 = load %self@Array.items : %Buffer
-    %v31 = cast %index : I64
-    %v32 = strideof Buffer : I64
-    %v33 = mul %v31, %v32 : I64
-    %v34 = add %v30, %v33 : %Buffer
-    %v35 = cast %v34 : %U8
-    %v36 = load %self : Array(Buffer)
-    %v37 = load %self@Array.items : %Buffer
-    %v38 = cast %index : I64
-    %v39 = strideof Buffer : I64
-    %v40 = mul %v38, %v39 : I64
-    %v41 = add %v37, %v40 : %Buffer
-    %v43 = strideof Buffer : I64
-    %v44 = mul 1, %v43 : I64
-    %v45 = add %v41, %v44 : %Buffer
-    %v46 = cast %v45 : %U8
-    %v47 = load %self : Array(Buffer)
-    %v48 = load %self@Array.items : %Buffer
-    %v49 = call byteSpan(Buffer), %v48, %rest : I64
-    copymemory %v35, %v46, %v49
-    jmp b6
+    ret
 
   b5:
     jmp b6
 
   b6:
-    %v53 = load %self : Array(Buffer)
-    %v54 = load %self@Array.length : Int
-    %v56 = sub %v54, 1 : Int
-    assign %self@Array.length, %v56
+    %v14 = load %self : Array(Buffer)
+    %v15 = load %self@Array.items : %Buffer
+    %v16 = cast %index : I64
+    %v17 = strideof Buffer : I64
+    %v18 = mul %v16, %v17 : I64
+    %v19 = add %v15, %v18 : %Buffer
+    %v20 = load [%v19] : Buffer
+    %v21 = move %local1 : Buffer
+    %doomed = alloc : Buffer
+    init %local2, %v21
+    %v24 = load %self : Array(Buffer)
+    %v25 = load %self@Array.length : Int
+    %v26 = sub %v25, %index : Int
+    %rest = sub %v26, 1 : Int
+    %v30 = cmp_gt %rest, 0 : Bool
+    je %v30, b7, b8
+
+  b7:
+    %v32 = load %self : Array(Buffer)
+    %v33 = load %self@Array.items : %Buffer
+    %v34 = cast %index : I64
+    %v35 = strideof Buffer : I64
+    %v36 = mul %v34, %v35 : I64
+    %v37 = add %v33, %v36 : %Buffer
+    %v38 = cast %v37 : %U8
+    %v39 = load %self : Array(Buffer)
+    %v40 = load %self@Array.items : %Buffer
+    %v41 = cast %index : I64
+    %v42 = strideof Buffer : I64
+    %v43 = mul %v41, %v42 : I64
+    %v44 = add %v40, %v43 : %Buffer
+    %v46 = strideof Buffer : I64
+    %v47 = mul 1, %v46 : I64
+    %v48 = add %v44, %v47 : %Buffer
+    %v49 = cast %v48 : %U8
+    %v50 = load %self : Array(Buffer)
+    %v51 = load %self@Array.items : %Buffer
+    %v52 = call byteSpan(Buffer), %v51, %rest : I64
+    copymemory %v38, %v49, %v52
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v56 = load %self : Array(Buffer)
+    %v57 = load %self@Array.length : Int
+    %v59 = sub %v57, 1 : Int
+    assign %self@Array.length, %v59
     ret
 }
 

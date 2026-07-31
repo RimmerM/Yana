@@ -37,18 +37,19 @@ infixl 3 >
 infixl 3 >=
 infixl 3 <
 infixl 3 <=
-infixl 4 `xor`
-infixl 4 `or`
-infixl 5 `and`
-infixl 5 `shl`
-infixl 5 `shr`
-infixl 5 `sar`
-infixl 6 +
-infixl 6 -
-infixl 7 *
-infixl 7 /
-infixl 7 `rem`
-infixl 7 %
+infixl 4 ??
+infixl 5 `xor`
+infixl 5 `or`
+infixl 6 `and`
+infixl 6 `shl`
+infixl 6 `shr`
+infixl 6 `sar`
+infixl 7 +
+infixl 7 -
+infixl 8 *
+infixl 8 /
+infixl 8 `rem`
+infixl 8 %
 
 data Bool = False | True
 data Ordering = LT | EQ | GT
@@ -143,10 +144,24 @@ class (Num(a)) Integral(a):
 -- For a type that is not Bool the short-circuiting pair and the bitwise pair are the same
 -- operation, so `&&`, `||` and `!` default to `and`, `or` and `not` and an instance writes four
 -- functions instead of seven. Bool's own instance supplies all seven, which is where
--- short-circuiting lands when the evaluation order of `&&` becomes a rule.
+-- short-circuiting lands.
+--
+-- `@lazy` on the right operand is what makes short-circuiting a property of this declaration rather
+-- than of the compiler: the argument is not evaluated at the call site, and reading `rhs` inside an
+-- instance is what runs it. The defaults below force it exactly once, which is what the rule
+-- requires; `xor` takes both strictly and says so, because it genuinely needs both.
+--
+-- What it costs differs by how the call reaches it. Bool's instance is an intrinsic the resolver
+-- can see through, so `a && b` is a branch with the right operand emitted under it and no closure
+-- anywhere; a call that cannot be seen through - a user instance inheriting these defaults - is
+-- handed the nullary closure instead, and the default calls it exactly once.
+--
+-- What neither of them gives yet is a flow-sensitive binding: `if p is Just(v) && v > 0` does not
+-- see `v`, because `is` outside condition position discards what it bound before `&&` is even
+-- selected. Making that work is a change to the condition path rather than to `@lazy`.
 class Logic(a):
-  fn &&(lhs: a, rhs: a) -> a = and(lhs, rhs)
-  fn ||(lhs: a, rhs: a) -> a = or(lhs, rhs)
+  fn &&(lhs: a, @lazy rhs: a) -> a = and(lhs, rhs)
+  fn ||(lhs: a, @lazy rhs: a) -> a = or(lhs, rhs)
   fn and(lhs: a, rhs: a) -> a
   fn or(lhs: a, rhs: a) -> a
   fn xor(lhs: a, rhs: a) -> a
@@ -167,6 +182,17 @@ class Logic(a):
 -- truthiness needs to consume or write what it is asked about.
 class Truth(a):
   fn truthy(value: a) -> Bool
+
+-- The other operator `@lazy` exists for: a fallback that is only computed when there is nothing to
+-- fall back from. An ordinary generic function rather than anything the compiler knows about, which
+-- is the point - `??` is short-circuiting for the same reason `&&` is, and for no other.
+--
+-- Deliberately not a class function. There is one Maybe and one meaning, and a class would invite
+-- instances for Result and for pointers, where "is there a value here" and "did this succeed" stop
+-- being the same question - the same reason Truth is not instanced for Maybe.
+fn ??(value: Maybe(a), @lazy fallback: a) -> a = match value:
+    Just(inner) -> inner
+    Nothing -> fallback
 
 -- The ownership classes a type can join by writing an instance.
 --

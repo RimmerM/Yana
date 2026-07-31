@@ -145,23 +145,35 @@ isNearTen<complex>(%x: Int): Int {
     %v_1 = imm 10: Int
     %v_2 = sub %x, %v_1: Int
     %v_3 = cmp_ilt %v_2, 2: Int
-    %v_4 = sub %v_1, %x: Int
-    %v_5 = cmp_ilt %v_4, 2: Int
-    %v_6 = and %v_3, %v_5: Int
-    je %v_6, b_7, b_8
+    je %v_3, b_4, b_5
   }
 
-  b_8 {
-    jmp b_9
+  b_5 {
+    jmp b_6
   }
 
-  b_7 {
-    jmp b_9
+  b_4 {
+    %v_7 = sub %v_1, %x: Int
+    %v_8 = cmp_ilt %v_7, 2: Int
+    jmp b_6
   }
 
-  b_9 {
-    %v_10 = phi [b_7, 1], [b_8, 0]: Int
-    ret %v_10
+  b_6 {
+    %v_9 = phi [b_4, %v_8], [b_5, %v_3]: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    jmp b_12
+  }
+
+  b_10 {
+    jmp b_12
+  }
+
+  b_12 {
+    %v_13 = phi [b_10, 1], [b_11, 0]: Int
+    ret %v_13
   }
 }
 
@@ -246,8 +258,12 @@ main<complex>(): Int {
     %v_20 = add %v_18, %v_19: Int
     %v_21 = call_complex firstIfEqual, 1, 2: Int
     %v_22 = add %v_20, %v_21: Int
-    %v_23 = add %v_22, 9: Int
-    ret %v_23
+    %v_23 = call_complex isNearTen, 11: Int
+    %v_24 = add %v_22, %v_23: Int
+    %v_25 = call_complex isNearTen, 50: Int
+    %v_26 = add %v_24, %v_25: Int
+    %v_27 = add %v_26, 8: Int
+    ret %v_27
   }
 }
 
@@ -255,10 +271,22 @@ near<complex>(%a: Int, %b: Int): Int {
   b_0 {
     %v_1 = sub %a, %b: Int
     %v_2 = cmp_ilt %v_1, 2: Int
-    %v_3 = sub %b, %a: Int
-    %v_4 = cmp_ilt %v_3, 2: Int
-    %v_5 = and %v_2, %v_4: Int
-    ret %v_5
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = sub %b, %a: Int
+    %v_6 = cmp_ilt %v_5, 2: Int
+    jmp b_7
+  }
+
+  b_4 {
+    jmp b_7
+  }
+
+  b_7 {
+    %v_8 = phi [b_3, %v_6], [b_4, %v_2]: Int
+    ret %v_8
   }
 }
 

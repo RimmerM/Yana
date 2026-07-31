@@ -11,6 +11,7 @@ struct Expr;
 
 struct Program;
 struct ExprResolver;
+struct Deferred;
 struct OwnershipResults;
 struct AnalysisScratch;
 
@@ -136,6 +137,22 @@ struct FunctionSummary {
 using Intrinsic = ModulePtr<Value> (*)(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
                                        TypePtr type, LocationId source, StringId name);
 
+/*
+ * The same, for a function whose signature has a `@lazy` parameter.
+ *
+ * The difference is the whole of what short-circuiting is: an ordinary intrinsic is handed values
+ * that have already been computed, and this one is handed the argument itself and decides where -
+ * and whether - to run it. `args` is null at each deferred position and `deferred` is set there,
+ * and the expansion forces one by calling ExprResolver::force in whichever block it built for it.
+ *
+ * A function with one of these still has a real body, generated the ordinary way, which is what a
+ * call that cannot see through it reaches. That body forces its parameter by calling the thunk;
+ * this one emits a branch. The two have to agree, so they are written next to each other.
+ */
+using DeferredIntrinsic = ModulePtr<Value> (*)(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
+                                               Buffer<Deferred> deferred, TypePtr type, LocationId source,
+                                               StringId name);
+
 struct Function {
     Function(Module* module, StringId name): module(module), name(name) {}
 
@@ -189,6 +206,10 @@ struct Function {
     bool takesEnv = false;
 
     Intrinsic intrinsic = nullptr;
+
+    // Set instead of `intrinsic` when the signature has a `@lazy` parameter - see DeferredIntrinsic.
+    DeferredIntrinsic deferredIntrinsic = nullptr;
+
     U32 valueCounter = 0;
     bool resolving = false;
     bool used = false;
@@ -517,6 +538,20 @@ struct Program {
     // Numbers the lifted lambda bodies of the whole program, so that two of them are never printed
     // or linked under one name.
     U32 lambdaCounter = 0;
+
+    /*
+     * Every name some signature in the program declares a `@lazy` parameter for.
+     *
+     * A call site has to know which of its arguments to leave unevaluated *before* it resolves any
+     * of them, which is before it knows which overload it is calling - so the question is asked of
+     * the name rather than of the callee, at every call in the program. This is what keeps that
+     * from costing an overload-set walk each time: the set has three names in it for a program
+     * that only uses Core's, so the answer for everything else is one hash lookup.
+     *
+     * Registered by resolveSignature, which is the one route both a plain function and a class
+     * signature take.
+     */
+    HashSet<StringId> lazyNames;
 
     /*
      * Whether a concrete generic call site becomes a specialization or an erased call.

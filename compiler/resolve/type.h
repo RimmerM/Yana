@@ -304,6 +304,12 @@ struct FunArg {
     StringId name = 0;
     ast::BindType convention = ast::BindType::Borrow;
     bool returnRoot = false;
+
+    // The `@lazy` marker. `type` stays the argument's declared type for the same reason a `&`
+    // parameter's does - what travels is a nullary thunk over the caller's frame, and that is a
+    // fact about how this position is passed rather than about what it is. Part of the type's
+    // identity, so that strictness survives every abstraction boundary a call can cross.
+    bool lazy = false;
 };
 
 /*
@@ -757,6 +763,15 @@ TypePtr resolveBorrowType(Module& module, TypePtr to, bool mut);
 // The function type these arguments, result and kind name, interned on all three. Every argument's
 // convention and `return` marker is part of the key - see FunArg.
 TypePtr resolveFunType(Module& module, Buffer<FunArg> args, TypePtr result, ast::FunKind kind);
+
+// The type a `@lazy` argument travels as: the nullary thunk that produces the declared type. Not a
+// type source can write in that position - the signature says `T` - so it exists only between the
+// call site that builds one and the force that runs it.
+TypePtr resolveThunkType(Module& module, TypePtr result);
+
+// Whether a `@lazy` marker is valid on an argument of this convention, reporting what is wrong with
+// it when it is not. Shared by a declaration's signature and by a written function type.
+bool checkLazyArgument(Module& module, ast::BindType convention, bool returnRoot, LocationId source);
 
 // Whether a `return` marker is valid on an argument of this type, convention and position,
 // reporting what is wrong with it when it is not. Shared by a declaration's signature and by a

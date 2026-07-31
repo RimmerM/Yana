@@ -33,8 +33,17 @@ fn doubleSum(%a: Double, %b: Double) -> Double {
 
 fn both(%a: Bool, %b: Bool) -> Bool {
   b0:
-    %v2 = and %a, %b : Bool
-    ret %v2
+    je %a, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v5 = phi [b1, %b], [b2, %a] : Bool
+    ret %v5
 }
 
 fn main() -> Int {

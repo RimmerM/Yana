@@ -1,0 +1,136 @@
+let nowhere: %Int = 0
+
+fn guarded(%p: %Int) -> Int {
+  b0:
+    %v1 = cast %p : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    %v5 = xor %v3, True : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load [%p] : Int
+    %v10 = cmp_gt %v7, 0 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v13 = phi [b1, %v10], [b2, %v5] : Bool
+    je %v13, b4, b5
+
+  b4:
+    %v15 = load [%p] : Int
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v19 = phi [b4, %v15], [b5, 0] : Int
+    ret %v19
+}
+
+fn defaulted(%p: %Int) -> Int {
+  b0:
+    %v1 = cast %p : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v5 = load [%p] : Int
+    %v8 = cmp_eq %v5, 0 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b1, %v8], [b2, %v3] : Bool
+    je %v11, b4, b5
+
+  b4:
+    %v15 = neg 1 : Int
+    jmp b6
+
+  b5:
+    %v16 = load [%p] : Int
+    jmp b6
+
+  b6:
+    %v19 = phi [b4, %v15], [b5, %v16] : Int
+    ret %v19
+}
+
+fn main() -> Int {
+  b0:
+    %score = alloc : Int
+    init %score, 0
+    %v5 = cast 0 : %Int
+    %v6 = call guarded, %v5 : Int
+    %v9 = cmp_eq %v6, 0 : Bool
+    je %v9, b1, b2
+
+  b1:
+    %v11 = load %score : Int
+    %v14 = add %v11, 1 : Int
+    assign %score, %v14
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = cast 0 : %Int
+    %v20 = call defaulted, %v19 : Int
+    %v23 = neg 1 : Int
+    %v24 = cmp_eq %v20, %v23 : Bool
+    je %v24, b4, b5
+
+  b4:
+    %v26 = load %score : Int
+    %v29 = add %v26, 2 : Int
+    assign %score, %v29
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v34 = alloc : Int
+    init %local1, %slot
+    %p = addressof %local1 : %Int
+    %v37 = load [%p] : Int
+    %v40 = add %v37, 1 : Int
+    assign [%p], %v40
+    %v42 = call guarded, %p : Int
+    %v45 = cmp_eq %v42, 42 : Bool
+    je %v45, b7, b8
+
+  b7:
+    %v47 = load %score : Int
+    %v50 = add %v47, 4 : Int
+    assign %score, %v50
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v54 = call defaulted, %p : Int
+    %v57 = cmp_eq %v54, 42 : Bool
+    je %v57, b10, b11
+
+  b10:
+    %v59 = load %score : Int
+    %v62 = add %v59, 8 : Int
+    assign %score, %v62
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v66 = load %score : Int
+    ret %v66
+}

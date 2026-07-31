@@ -526,9 +526,10 @@ private:
         }
     }
 
-    // The return-root marker and the binding convention are written in source order, which is
-    // also the order they are parsed in: `return &value: T`.
-    void printArgConvention(bool returnRoot, BindType bind) {
+    // The markers and the binding convention are written in source order, which is also the order
+    // they are parsed in: `@lazy return &value: T`.
+    void printArgConvention(bool returnRoot, BindType bind, bool lazy = false) {
+        if(lazy) stream.writeString("@lazy "_v);
         if(returnRoot) stream.writeString("return "_v);
 
         switch(bind) {
@@ -549,7 +550,7 @@ private:
 
         auto contents = f->args.contents(base);
         for(auto a = contents.begin(); a != contents.end(); ++a) {
-            printArgConvention((*a).returnRoot, (*a).bind);
+            printArgConvention((*a).returnRoot, (*a).bind, (*a).lazy);
             write(stream, context.findName((*a).name));
 
             if((*a).type) {
@@ -599,7 +600,7 @@ private:
                 toStringIntro(i == args.back() && e.fun.ret == nullptr && e.fun.body == nullptr);
 
                 stream.writeString("Arg "_v);
-                printArgConvention(arg.returnRoot, arg.bind);
+                printArgConvention(arg.returnRoot, arg.bind, arg.lazy);
                 write(stream, context.findName(arg.name));
 
                 makeLevel();
@@ -953,7 +954,7 @@ private:
 
     void toString(const ArgDecl& arg) {
         stream.writeString("Arg "_v);
-        printArgConvention(arg.returnRoot, arg.bind);
+        printArgConvention(arg.returnRoot, arg.bind, arg.lazy);
 
         auto name = context.find(arg.name);
         if(name.textLength > 0) {

@@ -29,10 +29,15 @@ using Emit = ModulePtr<Value> (*)(ExprResolver&, Buffer<ModulePtr<Value>>, TypeP
 
 // One method of a generated instance: the name and arity it has in the class, and what it expands
 // to. Arity is part of the key because `Num` declares `-` twice.
+//
+// `deferred` replaces `emit` for a signature with a `@lazy` parameter - see DeferredIntrinsic. The
+// generated body uses it too, forcing through the thunk it was handed, so the body a call cannot
+// see through and the expansion a call can are the same source.
 struct IntrinsicMethod {
     StringView name;
     U16 arity;
-    Emit emit;
+    Emit emit = nullptr;
+    DeferredIntrinsic deferred = nullptr;
 };
 
 /*
@@ -74,6 +79,17 @@ ModulePtr<Value> emitIdentity(ExprResolver& resolver, Buffer<ModulePtr<Value>> a
 // an integer complement that would produce something outside the type.
 ModulePtr<Value> emitLogicalNot(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                 LocationId source, StringId resultName);
+
+// `&&` and `||` on a Bool: a branch over the right operand, and no call. This is where Design.md's
+// "short-circuiting is a property of the signature" stops costing anything - the signature declares
+// `@lazy`, and the instance that implements it for the one type conditions are written at can see
+// the argument and emit it under the test.
+ModulePtr<Value> emitLogicalAnd(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
+                                Buffer<Deferred> deferred, TypePtr type, LocationId source,
+                                StringId resultName);
+ModulePtr<Value> emitLogicalOr(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
+                               Buffer<Deferred> deferred, TypePtr type, LocationId source,
+                               StringId resultName);
 
 /*
  * Building instances and declarations.

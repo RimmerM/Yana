@@ -42,3 +42,15 @@ alias NamedSelector = (index: Int, return &objects: [Object]) -> &Object
 -- And in constraint position.
 fn (pick: (return &a) -> &b)
   m() = 0
+
+-- The `@lazy` marker, which is written outermost - before the return-root marker and the binding
+-- convention. It is a parameter position that carries an attribute, not an attribute list: `@lazy`
+-- is the only one a parameter can have.
+fn shortCircuit(lhs: Bool, @lazy rhs: Bool) -> Bool = lhs
+
+fn deferred(value: Maybe(Int), @lazy fallback: Int) -> Int = fallback
+
+-- And as part of a function type, named and unnamed, which is what makes strictness survive being
+-- reached through a value rather than by name.
+alias Logical = (Bool, @lazy Bool) -> Bool
+alias NamedLogical = (lhs: Bool, @lazy rhs: Bool) -> Bool

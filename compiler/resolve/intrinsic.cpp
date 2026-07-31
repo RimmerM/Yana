@@ -58,6 +58,56 @@ ModulePtr<Value> emitLogicalNot(ExprResolver& resolver, Buffer<ModulePtr<Value>>
 }
 
 /*
+ * The short-circuit, which is one shape read two ways.
+ *
+ * `&&` runs its right operand when the left holds and `||` when it does not, and that is the whole
+ * of the difference: both produce the *left* operand on the path that skipped, because `False && x`
+ * is that False and `True || x` is that True. So nothing is built for the skipped side - no
+ * constant, no second value, and no reason for the two emitters to be more than one.
+ *
+ * The right operand is emitted inside the branch rather than passed in, which is what `@lazy` buys
+ * here: `p != nil && p.load() > 0` dereferences only where the test held, and no closure, no call
+ * and no allocation appear anywhere in the result.
+ */
+static ModulePtr<Value> emitShortCircuit(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
+                                         Buffer<Deferred> deferred, TypePtr type, LocationId source,
+                                         bool runWhenTrue) {
+    auto lhs = args[0];
+    if(!lhs || deferred.length < 2) return nullptr;
+
+    auto unit = resolver.module.scalar.unit;
+    auto rest = resolver.addBlock();
+    auto skipped = resolver.addBlock();
+
+    resolver.terminate(resolver.emit<InstJe>(source, 0, unit, lhs,
+                                             runWhenTrue ? rest : skipped,
+                                             runWhenTrue ? skipped : rest));
+
+    Array<BranchArm> arms;
+
+    resolver.current = rest;
+    auto value = resolver.force(deferred[1], type, source);
+
+    // The right operand may itself have branched, and may not complete at all - it is the caller's
+    // code, spliced in here, with whatever control flow the caller put in it.
+    if(resolver.current) arms.push(BranchArm { resolver.current, value, source });
+
+    arms.push(BranchArm { skipped, lhs, source });
+
+    return resolver.finishBranches(arms, source, true);
+}
+
+ModulePtr<Value> emitLogicalAnd(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
+                                Buffer<Deferred> deferred, TypePtr type, LocationId source, StringId) {
+    return emitShortCircuit(resolver, args, deferred, type, source, true);
+}
+
+ModulePtr<Value> emitLogicalOr(ExprResolver& resolver, Buffer<ModulePtr<Value>> args,
+                               Buffer<Deferred> deferred, TypePtr type, LocationId source, StringId) {
+    return emitShortCircuit(resolver, args, deferred, type, source, false);
+}
+
+/*
  * Generating an instance function.
  */
 
@@ -70,14 +120,15 @@ GlobalPtr<TypeClass> classNamed(Module& module, StringView text) {
 // Emits `fn f(args...) = <emit>(args...)` as a real function, so the instance has something to
 // print, lower and eventually take the address of even though ordinary calls inline it.
 static ModulePtr<Function> generateInstanceFunction(Module& module, TypeClass& typeClass, Buffer<TypePtr> args,
-                                                    U16 index, Emit emit, GlobalPtr<GenEnv> gen) {
+                                                    U16 index, const IntrinsicMethod& method,
+                                                    GlobalPtr<GenEnv> gen) {
     ModuleBase local = *module.arena;
     GlobalBase global = *module.types;
 
     auto signature = local[typeClass.functions.get(global, index).fun];
-    auto method = typeClass.functions.get(global, index).name;
+    auto name = typeClass.functions.get(global, index).name;
 
-    auto function = addAnonymousFunction(module, instanceFunctionName(module, typeClass, args, method), kNullLocation);
+    auto function = addAnonymousFunction(module, instanceFunctionName(module, typeClass, args, name), kNullLocation);
     function->instanceOf = (TypeClass*)&typeClass - global;
     function->gen = gen;
     for(auto arg: args) function->instanceArgs.push(module.arena, arg);
@@ -90,6 +141,10 @@ static ModulePtr<Function> generateInstanceFunction(Module& module, TypeClass& t
                                         substituteType(module, declared->type, args, kNullLocation), kNullLocation);
         created->convention = declared->convention;
         created->returnRoot = declared->returnRoot;
+
+        if(declared->isLazy()) {
+            created->lazyType = substituteType(module, declared->lazyType, args, kNullLocation);
+        }
     }
 
     ExprResolver resolver(module.context, module, *function);
@@ -98,10 +153,36 @@ static ModulePtr<Function> generateInstanceFunction(Module& module, TypeClass& t
     auto& values = *held;
     for(auto arg: function->args.contents(local)) values.push((ModulePtr<Value>)arg);
 
-    auto result = emit(resolver, toBuffer(values), function->returnType, kNullLocation, 0);
-    resolver.terminate(resolver.emit<InstRet>(kNullLocation, 0, module.scalar.unit, result));
+    ModulePtr<Value> result = nullptr;
 
-    function->intrinsic = emit;
+    if(method.deferred) {
+        // The body a call that cannot see through this function reaches. Its `@lazy` parameter is
+        // the thunk the caller built, so it forces by calling it - the one form of the expansion
+        // that costs an indirect call, and the reason a real body exists at all.
+        SmallArray<Deferred, 4> pending;
+
+        for(Size i = 0; i < values.size(); i++) {
+            auto declared = local[function->args.get(local, i)];
+            Deferred entry;
+
+            if(declared->isLazy()) {
+                entry.thunk = values[i];
+                entry.type = declared->lazyType;
+                values[i] = nullptr;
+            }
+
+            pending.push(entry);
+        }
+
+        result = method.deferred(resolver, toBuffer(values), toBuffer(pending), function->returnType,
+                                 kNullLocation, 0);
+        function->deferredIntrinsic = method.deferred;
+    } else {
+        result = method.emit(resolver, toBuffer(values), function->returnType, kNullLocation, 0);
+        function->intrinsic = method.emit;
+    }
+
+    resolver.terminate(resolver.emit<InstRet>(kNullLocation, 0, module.scalar.unit, result));
     return function - local;
 }
 
@@ -175,7 +256,7 @@ void generateInstance(Module& module, GlobalPtr<TypeClass> classPointer, Buffer<
             if(instance->functions.get(local, i)) continue;
 
             instance->functions.set(local, i,
-                                    generateInstanceFunction(module, *typeClass, args, U16(i), method.emit, gen));
+                                    generateInstanceFunction(module, *typeClass, args, U16(i), method, gen));
             matched = true;
             break;
         }
@@ -266,8 +347,8 @@ void defineIntegral(Module& module, TypePtr type) {
 
 void defineLogic(Module& module, TypePtr type) {
     IntrinsicMethod methods[] = {
-        { "&&"_v, 2, emitBinary<Value::And> },
-        { "||"_v, 2, emitBinary<Value::Or> },
+        { "&&"_v, 2, nullptr, emitLogicalAnd },
+        { "||"_v, 2, nullptr, emitLogicalOr },
         { "and"_v, 2, emitBinary<Value::And> },
         { "or"_v, 2, emitBinary<Value::Or> },
         { "xor"_v, 2, emitBinary<Value::Xor> },

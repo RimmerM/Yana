@@ -1,0 +1,104 @@
+-- What `@lazy` will not accept, and why each one is a rule rather than an omission.
+--
+-- The first four are permanent: they follow from the argument being an expression the callee may
+-- never run, so there is no storage to borrow, nothing to consume, no default that could stand in
+-- for it, and nothing for a returned borrow to be rooted in. The rest are this version's boundary,
+-- and each one names what it is waiting for.
+
+-- A `&` parameter is a promise about storage the caller already has, and a `->` one takes that
+-- storage away. Neither exists until the expression has run.
+fn writeThrough(@lazy &target: Int) -> Int = target
+
+fn consume(@lazy ->value: Int) -> Int = value
+
+-- `return` says a borrow in the result may be rooted in this argument. An argument that may never
+-- be evaluated cannot root anything.
+fn rooted(@lazy return value: Int) -> Int = value
+
+-- At most once on any path. Both of these force twice on the same path, and the second is the one
+-- the rule exists for: reading a name twice is what a memoization slot would have made cheap, and
+-- there is deliberately no slot.
+fn twice(@lazy value: Int) -> Int = value + value
+
+fn twiceAcrossBlocks(flag: Bool, @lazy value: Int) -> Int:
+    let first = value
+
+    if flag:
+        return first + value
+
+    return first
+
+-- A loop body forces once per iteration, which is the second force from the second iteration on.
+fn inLoop(count: Int, @lazy value: Int) -> Int:
+    let &total = 0
+    let &i = 0
+
+    while i < count:
+        total = total + value
+        i = i + 1
+
+    return total
+
+-- Passing the parameter on to another `@lazy` parameter spends the same one evaluation, because the
+-- callee is now the one that may run it. Doing it twice, or doing it once and also reading it here,
+-- is the same mistake as reading it twice - and is the reason the rule is stated over *uses* rather
+-- than over the calls that force.
+fn forwardTwice(@lazy value: Int) -> Int = once(True, value) + once(False, value)
+
+fn forwardAndForce(@lazy value: Int) -> Int = value + once(True, value)
+
+-- A closure over it would hold the thunk rather than the value, which this version cannot own and
+-- could not check: the force would happen in a lifted body, where the enclosing function's
+-- at-most-once rule cannot see it. Handing the parameter *on* is the supported shape, and is not a
+-- capture - which is why the second of these is rejected and `outer` in LazyUser.yana is not.
+fn captured(@lazy value: Int) -> (() -> Int) = () -> value
+
+fn wrapped(@lazy value: Int) -> Int = once(True, value + 1)
+
+-- Reading the parameter is an effect, not a place: there is nothing to assign to.
+fn assigned(@lazy value: Int) -> Int:
+    value = 1
+    return value
+
+-- A thunk that consumed what it captured would still be holding it when the callee declined to run
+-- it, so the drop would have to be conditional. That is Analysis-Lens.md §4's thunk drop, and it is
+-- not built yet.
+data Owner {handle: Int}
+
+instance Drop(Owner):
+    fn drop(->value: Owner) -> {}:
+        released = released + 1
+
+let &released = 0 :: Int
+
+fn takeOwner(@lazy value: Owner) -> Int = value.handle
+
+fn capturesOwned() -> Int:
+    let owner = Owner {handle: 1}
+    return takeOwner(owner)
+
+-- `return` out of a deferred argument leaves the enclosing function through the callee's live
+-- frame, which is the exit signal - the same mechanism `break` out of a `for` body needs.
+fn exits(flag: Bool) -> Int:
+    let value = once(flag, return 1)
+    return value
+
+fn once(flag: Bool, @lazy value: Int) -> Int = if flag then value else 0
+
+-- An instance repeats the class's marker rather than choosing it. The call site decides what to
+-- evaluate from the class signature, before it knows which instance it reached, so an
+-- implementation that dropped the marker would be handed an argument nobody ran - and one that
+-- added a marker the class did not declare would be handed a value where it expected a thunk.
+data Mask {bits: Int}
+
+instance Logic(Mask):
+    fn &&(lhs: Mask, rhs: Mask) -> Mask = and(lhs, rhs)
+    fn xor(lhs: Mask, @lazy rhs: Mask) -> Mask = lhs
+    fn and(lhs: Mask, rhs: Mask) -> Mask = lhs
+    fn or(lhs: Mask, rhs: Mask) -> Mask = lhs
+    fn not(value: Mask) -> Mask = value
+
+-- A thunk inside a generic body would have to be specialized alongside its caller, for the reason
+-- a lambda there would. Only where the callee can be seen through - `&&` on a Bool - does no thunk
+-- exist to specialize.
+fn (Eq(a)) inGeneric(x: a, y: a) -> Int = once(x == y, 1)

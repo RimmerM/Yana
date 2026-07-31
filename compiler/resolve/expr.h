@@ -52,6 +52,11 @@ struct Binding {
     bool captureBorrow = false;
     U16 captureField = 0;
 
+    // A fifth: the name of a `@lazy` parameter, which holds the thunk the caller built rather than
+    // the value the signature declared. Reading it is what runs the caller's expression, so this
+    // is the one binding whose use is an effect - see ExprResolver::force.
+    bool lazy = false;
+
     bool isPlace() const { return captured || local != maxLimit<U32> || borrow != nullptr; }
     Place place() const { return borrow ? Place::inBorrow(borrow) : Place::inLocal(local); }
 };
@@ -103,6 +108,59 @@ struct LoopTarget {
     ModulePtr<Block> continueBlock;
     ModulePtr<Block> breakBlock;
 };
+
+/*
+ * Where a deferred right operand resumes from.
+ *
+ * `resolveBinary` flattens an infix chain into operands and operators before re-associating it, so
+ * the right operand of an operator is a *span* of those two lists rather than an AST node anyone
+ * could point at - `a && b + c` has no node for `b + c` at all. What is remembered is therefore the
+ * position precedence climbing would have continued from, which resolving it again from replays
+ * exactly the same sub-chain into whichever block the force happens in.
+ */
+struct DeferredChain {
+    SmallArray<const ast::Expr*, 8>* operands = nullptr;
+    SmallArray<StringId, 8>* operators = nullptr;
+    Size operandIndex = 0;
+    Size operatorIndex = 0;
+    U8 minimumPrecedence = 0;
+};
+
+/*
+ * A `@lazy` argument, between the call site that wrote it and the callee that asked for it.
+ *
+ * Exactly one of the four forms is set, and which one it is decides whether the program pays for a
+ * closure at all:
+ *
+ *  - `expr`, an argument of a written call, still unresolved;
+ *  - `chain`, the right operand of an infix chain - see DeferredChain;
+ *  - `thunk`, the nullary closure an opaque callee is handed, and what a body forcing its own
+ *    `@lazy` parameter holds;
+ *  - `value`, an argument that was already evaluated before anything knew the position was lazy.
+ *    Not a promise broken: it is only reached where a value is all there is, and forcing it is
+ *    reading what is already there.
+ *
+ * The first two are the whole point. A callee that can see the argument - an intrinsic, and
+ * therefore `&&` on a Bool - emits it into the block where it is needed, so short-circuiting is a
+ * branch and no closure, no call, and no allocation exist anywhere in the result.
+ */
+struct Deferred {
+    const ast::Expr* expr = nullptr;
+    const DeferredChain* chain = nullptr;
+    ModulePtr<Value> thunk = nullptr;
+    ModulePtr<Value> value = nullptr;
+
+    // The type the parameter declared, filled in once the callee is known.
+    TypePtr type = nullptr;
+
+    bool isSet() const { return expr || chain || thunk || value; }
+};
+
+// Whether position `index` of a call is a deferred argument. The list is parallel to the argument
+// list and may be shorter or empty, which is every call that has no `@lazy` parameter to fill.
+inline bool isDeferred(Buffer<Deferred> deferred, Size index) {
+    return index < deferred.length && deferred[index].isSet();
+}
 
 // What resolving one pattern proved about it. `Never` means the pattern cannot match this pivot
 // at all (a type error, already reported); `Always` means no test was emitted, so the following
@@ -162,7 +220,10 @@ struct ExprResolver {
      */
 
     ModulePtr<Value> find(StringId name);
-    Binding* findBinding(StringId name);
+    // `source` is where the name was written, for the one diagnostic a lookup can produce: a
+    // capture this version cannot make. Omitted by the callers that are asking whether a name is
+    // bound at all rather than reading it.
+    Binding* findBinding(StringId name, LocationId source = kNullLocation);
 
     // The storage one name refers to. For an ordinary binding this is Binding::place(); for a
     // capture it is a word of the environment, and for one taken by reference it is the storage
@@ -336,40 +397,75 @@ struct ExprResolver {
     ModulePtr<Value> resolvePrecedence(SmallArray<const ast::Expr*, 8>& operands, SmallArray<StringId, 8>& operators, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target = nullptr);
     ModulePtr<Value> resolveCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target, bool convertResult = true);
 
+    /*
+     * Deferred arguments (Design.md's Deferred arguments).
+     */
+
+    // Which parameters of the overload set this name reaches are `@lazy`, as a mask over argument
+    // positions. Asked of the name rather than of the callee because it has to be answered before
+    // any argument is evaluated, which is before selection has run - so every candidate of one
+    // (name, arity) has to agree, and one that does not is reported here rather than silently
+    // deciding by which overload happened to win.
+    U32 lazyArguments(StringId name, Size arity, LocationId source);
+
+    // Runs a deferred argument, here, in the block that is current now. This is the whole of what
+    // `@lazy` means; everything else is about getting the argument to the point that calls this.
+    ModulePtr<Value> force(const Deferred& deferred, TypePtr expected, LocationId source);
+
+    // The nullary closure a callee that cannot see the argument is handed. Null, after reporting,
+    // where the thunk would have to capture something this version cannot - see expr_fun.cpp.
+    ModulePtr<Value> makeThunk(const Deferred& deferred, TypePtr type, LocationId source);
+
+    // What a `@lazy` position holding an already-resolved value stands for. A value of the thunk
+    // type is one being *forwarded* - a witness entry passing its own parameter on, or one `@lazy`
+    // parameter handed to another - so forcing it is calling it; anything else was evaluated before
+    // the position was known to be lazy, and forcing it is reading what is already there.
+    Deferred deferredValue(ModulePtr<Value> value, TypePtr type);
+
     // A call whose callee is a value rather than a name - a binding of function type, or any
     // expression at all in callee position. Null when the call is not one of those.
     ModulePtr<Value> resolveIndirectCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target);
-    ModulePtr<Value> emitCall(StringId name, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0);
-    ModulePtr<Value> emitDirectCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0);
+    // `deferred` is parallel to `args` and holds the `@lazy` arguments, whose `args` entry is null.
+    // Empty for the calls that have none, which is all of them but a handful.
+    ModulePtr<Value> emitCall(StringId name, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, Buffer<Deferred> deferred = {});
+    ModulePtr<Value> emitDirectCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, Buffer<Deferred> deferred = {});
 
     // A call to a generic function: infers its type arguments from the call, then either
     // instantiates it or - when this body is itself generic and the arguments are not concrete
     // yet - defers the whole decision to the instantiation that will make them concrete.
     ModulePtr<Value> emitGenericCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, LocationId source,
-                                     TypePtr target, StringId resultName);
+                                     TypePtr target, StringId resultName, Buffer<Deferred> deferred = {});
 
     // A call that passes its callee a runtime environment instead of being specialized for these
     // types. Null when the environment cannot be built yet, which leaves the call site for the
     // specializing path.
     ModulePtr<Value> emitErasedCall(ModulePtr<Function> callee, Buffer<TypePtr> typeArgs,
-                                    Buffer<ModulePtr<Value>> args, LocationId source, StringId resultName);
+                                    Buffer<ModulePtr<Value>> args, LocationId source, StringId resultName,
+                                    Buffer<Deferred> deferred = {});
 
     // A generic intrinsic, generated for the types this call decided. Shared with generic.cpp,
     // which reaches the same intrinsics through an InstGenCall a specialization made concrete.
     ModulePtr<Value> expandIntrinsic(ModulePtr<Function> callee, Buffer<TypePtr> typeArgs,
-                                     Buffer<ModulePtr<Value>> args, LocationId source, StringId resultName);
+                                     Buffer<ModulePtr<Value>> args, LocationId source, StringId resultName,
+                                     Buffer<Deferred> deferred = {});
 
     // A class function whose instance cannot be chosen here, because the types it would be chosen
     // by are this function's own type variables. Records the requirement and emits InstGenCall.
     ModulePtr<Value> emitGenericDispatch(ClassMatch& match, Buffer<ModulePtr<Value>> args, LocationId source,
-                                         StringId resultName);
+                                         StringId resultName, Buffer<Deferred> deferred = {});
 
     bool bindPosition(TypePtr pattern, TypePtr actual, TypeList& bindings, bool widen);
-    bool matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<Value>> args, TypePtr target, ClassMatch& resolved);
+
+    // A deferred position has no type to match with: the argument has not been resolved, and
+    // resolving it to find out would evaluate it. It is therefore skipped, and the parameter type
+    // the other positions decided is what it is later resolved *against* - which is the same
+    // one-directional rule the rest of selection follows, applied to an argument that binds
+    // nothing rather than to one that binds a literal.
+    bool matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<Value>> args, TypePtr target, ClassMatch& resolved, Buffer<Deferred> deferred = {});
 
     // Whether a plain function can serve this call - the same question matchClassFun asks of a
     // class function, so that both halves of an overload set are judged by one rule.
-    bool matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, TypePtr target, LocationId source);
+    bool matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, TypePtr target, LocationId source, Buffer<Deferred> deferred = {});
 
     // Calls one implementation of a selected instance. A concrete instance's is an ordinary
     // function; a parametric one's is generic over the instance's own variables, so it is expanded
@@ -377,7 +473,8 @@ struct ExprResolver {
     // written in, which is what decides the instances its own requirements are proved against.
     ModulePtr<Value> emitInstanceCall(Module& site, ModulePtr<ClassInstance> instance, Buffer<TypePtr> instanceArgs,
                                       U16 index, Buffer<ModulePtr<Value>> args, LocationId source,
-                                      TypePtr target = nullptr, StringId resultName = 0);
+                                      TypePtr target = nullptr, StringId resultName = 0,
+                                      Buffer<Deferred> deferred = {});
 
     ModulePtr<ClassInstance> selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
                                             TypeList& instanceArgs);
@@ -408,7 +505,7 @@ struct ExprResolver {
 
     // The binding a lambda body named that belongs to an enclosing function, added to this body's
     // capture list the first time it is named. Null when no enclosing body has it either.
-    Binding* captureBinding(StringId name);
+    Binding* captureBinding(StringId name, LocationId source);
 
     /*
      * Storage and aggregates (expr_construct.cpp).
@@ -593,6 +690,11 @@ struct ExprResolver {
     // Set while resolving a lambda whose result type its body decides, which is what makes an
     // explicit `return` inside one something to report rather than something to convert.
     bool resultInferred = false;
+
+    // Set while resolving the body of a `@lazy` argument's thunk. A `return` there is the exit
+    // signal Analysis-Lens.md §5.1 describes - a non-local exit through the callee's live frame -
+    // and this version rejects it rather than letting it mean something accidental.
+    bool inThunk = false;
 };
 
 // Creates a function that is reached through something other than its own name - a class

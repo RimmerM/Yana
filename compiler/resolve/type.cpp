@@ -171,6 +171,7 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
             for(auto arg: function->args.contents(global)) {
                 substituted.push(FunArg {
                     substituteType(module, arg.type, args, source), arg.name, arg.convention, arg.returnRoot,
+                    arg.lazy,
                 });
             }
 
@@ -275,6 +276,7 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
                 auto concreteArg = concreteFun->args.get(global, i);
 
                 if(patternArg.convention != concreteArg.convention) return false;
+                if(patternArg.lazy != concreteArg.lazy) return false;
                 if(!matchType(global, patternArg.type, concreteArg.type, bindings)) return false;
             }
 
@@ -538,6 +540,7 @@ static TypePtr resolveFunTypeAst(Module& module, const ast::FunType& type, GenEn
         arg.type = resolveType(module, declared.type, env);
         arg.name = declared.name;
         arg.convention = declared.bind;
+        arg.lazy = declared.lazy && checkLazyArgument(module, declared.bind, declared.returnRoot, source);
 
         if(declared.returnRoot) {
             written++;
@@ -876,7 +879,7 @@ TypePtr resolveFunType(Module& module, Buffer<FunArg> args, TypePtr result, ast:
         for(Size i = 0; i < args.length; i++) {
             auto existing = candidate->args.get(base, i);
             if(existing.type != args[i].type || existing.convention != args[i].convention ||
-               existing.returnRoot != args[i].returnRoot) {
+               existing.returnRoot != args[i].returnRoot || existing.lazy != args[i].lazy) {
                 equal = false;
                 break;
             }
@@ -898,6 +901,35 @@ TypePtr resolveFunType(Module& module, Buffer<FunArg> args, TypePtr result, ast:
 
     module.program.funTypes.push(module.types, type - base);
     return (Type*)type - base;
+}
+
+TypePtr resolveThunkType(Module& module, TypePtr result) {
+    return resolveFunType(module, {}, result, ast::FunKind::Plain);
+}
+
+/*
+ * What may carry the `@lazy` marker.
+ *
+ * Both rules follow from the argument not being evaluated. A `&` or `->` parameter is a statement
+ * about storage the caller already has - one to write through, one to hand over - and there is no
+ * such storage until the expression runs, which the callee may decline to do. `return` says a
+ * borrow in the result may be rooted in the argument, and an argument that may never exist cannot
+ * root anything.
+ */
+bool checkLazyArgument(Module& module, ast::BindType convention, bool returnRoot, LocationId source) {
+    if(convention != ast::BindType::Borrow) {
+        module.context.diagnostics.error("`@lazy` cannot be combined with `&` or `->` - the argument is an expression the callee may never run, so there is no caller storage to borrow or to consume"_v,
+                                         source);
+        return false;
+    }
+
+    if(returnRoot) {
+        module.context.diagnostics.error("`@lazy` cannot be combined with `return` - an argument that may never be evaluated cannot be what a borrow in the result is rooted in"_v,
+                                         source);
+        return false;
+    }
+
+    return true;
 }
 
 /*
@@ -1768,6 +1800,7 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
 
             for(auto arg: function->args.contents(base)) {
                 if(index++) target << ", ";
+                if(arg.lazy) target << "@lazy ";
                 if(arg.returnRoot) target << "return ";
                 if(arg.convention == ast::BindType::Ref) target << '&';
                 else if(arg.convention == ast::BindType::Sink) target << "->";

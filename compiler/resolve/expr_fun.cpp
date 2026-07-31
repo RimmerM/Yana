@@ -61,6 +61,16 @@ static StringId lambdaName(Module& module) {
     return module.context.addQualifiedName(text.pointer(), text.size(), 1);
 }
 
+// The same, for the nullary thunk a `@lazy` argument becomes. Named apart from an ordinary lambda
+// so that a closure in the output can be read back to the thing in source that caused it.
+static StringId deferredName(Module& module) {
+    StringBuilder text;
+    text << module.context.findName(module.name) << ".deferred$";
+    show(module.program.lambdaCounter++, text);
+
+    return module.context.addQualifiedName(text.pointer(), text.size(), 1);
+}
+
 // The same, for the thunk that lets a named function be a function value.
 static StringId thunkName(Module& module, Function& callee) {
     StringBuilder text;
@@ -151,13 +161,33 @@ Place ExprResolver::placeOf(const Binding& binding, LocationId source) {
  * programs rather than accepting bad ones, and is the same direction every other approximation in
  * the resolver leans.
  */
-Binding* ExprResolver::captureBinding(StringId name) {
+Binding* ExprResolver::captureBinding(StringId name, LocationId source) {
     if(!enclosing || !envType) return nullptr;
 
     // Recursive on purpose: a lambda inside a lambda naming a binding two frames out captures it
     // through the one in between, which is this happening twice rather than a second mechanism.
-    auto outer = enclosing->findBinding(name);
+    auto outer = enclosing->findBinding(name, source);
     if(!outer) return nullptr;
+
+    /*
+     * A `@lazy` parameter of the enclosing function is not capturable.
+     *
+     * What the name holds is the thunk, so the capture would be a closure inside a closure - which
+     * this version cannot own (the environment would have to release it) and could not check (the
+     * force would happen in a lifted body, where the enclosing function's at-most-once rule cannot
+     * see it). Passing the parameter *on* is the supported shape and is not a capture at all; see
+     * makeThunk, which recognizes it before any body is resolved.
+     *
+     * The failed binding is recorded rather than left absent so that this is the only diagnostic:
+     * returning nothing would have the name reported a second time as an unknown one.
+     */
+    if(outer->lazy) {
+        context.diagnostics.error("%@ is a `@lazy` parameter of the enclosing function and cannot be captured - read it into a `let` first, and capture that"_v,
+                                  source, context.findName(name));
+
+        bindings.push(Binding { name, nullptr });
+        return &bindings[bindings.size() - 1];
+    }
 
     auto type = bindingType(*enclosing, *outer);
 
@@ -317,6 +347,17 @@ ModulePtr<Value> ExprResolver::functionValue(ModulePtr<Function> callee, Locatio
     Array<FunArg> args;
     for(auto argPointer: target->args.contents(local)) {
         auto declared = local[argPointer];
+
+        // A `@lazy` parameter is what the *call site* builds the thunk for, and a function value
+        // has no call site to build one at: the two words are all a caller holding one gets, and
+        // nothing in them says which argument was meant to stay unevaluated. Taking the address of
+        // such a function is what §7's erased callback ABI is for, and it is not here yet.
+        if(declared->isLazy()) {
+            context.diagnostics.error("%@ has a `@lazy` parameter, so it cannot be used as a function value yet - the thunk is built where the call is written"_v,
+                                      source, context.findName(target->name));
+            return nullptr;
+        }
+
         args.push(FunArg { declared->type, declared->name, declared->convention, declared->returnRoot });
     }
 
@@ -334,6 +375,14 @@ ModulePtr<Value> ExprResolver::emitDynamicCall(ModulePtr<Value> callable, Buffer
 
     if(signature->kind != ast::FunKind::Plain) {
         context.diagnostics.error("lens and iter function values are not available yet"_v, source);
+        return nullptr;
+    }
+
+    for(auto declared: signature->args.contents(global)) {
+        if(!declared.lazy) continue;
+
+        context.diagnostics.error("a function value with a `@lazy` parameter cannot be called yet - the thunk is built where the call is written, and this call site cannot see which parameter asked for one"_v,
+                                  source);
         return nullptr;
     }
 
@@ -475,6 +524,11 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
             context.diagnostics.error("a lambda argument cannot have a default value"_v, arg.source);
         }
 
+        if(arg.lazy) {
+            context.diagnostics.error("a lambda cannot declare a `@lazy` parameter yet - only a call to a named function or a class function builds the thunk"_v,
+                                      arg.source);
+        }
+
         auto declared = lambda->addArg(module, arg.name, argType, arg.source);
         declared->convention = arg.bind;
         declared->returnRoot = arg.returnRoot;
@@ -558,4 +612,152 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
     auto address = ref(emit<InstAddress>(source, 0, funValueFieldType(module, FunValueLayout::kEnv), place));
 
     return makeFunValue(type, lambda - local, address, source, 0);
+}
+
+/*
+ * Deferred arguments - Design.md's Deferred arguments, and Analysis-Lens.md §4.
+ *
+ * A `@lazy` argument shares this file's machinery and nothing else with a lens. It is a *downward*
+ * thunk: the callee calls it and returns from it, resuming where it was. It consumes no part of the
+ * caller's block, needs no continuation splitter, and is therefore an ordinary nullary closure over
+ * the caller's frame - which is why it lands here rather than waiting on any of the lens work.
+ *
+ * There is no memoization slot, and the reason is the at-most-once rule rather than an optimization:
+ * forcing twice is rejected (see checkLazyForcing in expr.cpp), so nothing can observe the
+ * difference between call-by-name and call-by-need and no cell has to exist to make that true.
+ */
+
+Deferred ExprResolver::deferredValue(ModulePtr<Value> value, TypePtr type) {
+    Deferred deferred;
+
+    if(value && type && valueType(value) == resolveThunkType(module, type)) deferred.thunk = value;
+    else deferred.value = value;
+
+    return deferred;
+}
+
+ModulePtr<Value> ExprResolver::force(const Deferred& deferred, TypePtr expected, LocationId source) {
+    // The two forms that cost nothing: the argument is still an expression, so it is emitted here,
+    // in the block the callee decided to run it in.
+    if(deferred.expr) return resolve(*deferred.expr, expected);
+
+    if(deferred.chain) {
+        auto& chain = *deferred.chain;
+        auto operandIndex = chain.operandIndex;
+        auto operatorIndex = chain.operatorIndex;
+
+        return resolvePrecedence(*chain.operands, *chain.operators, operandIndex, operatorIndex,
+                                 chain.minimumPrecedence, expected);
+    }
+
+    // The closure a callee that could not see the argument was handed. Calling it is the force, and
+    // this is the one place a `@lazy` parameter costs an indirect call.
+    if(deferred.thunk) {
+        auto result = emitDynamicCall(deferred.thunk, {}, source, 0);
+        return expected ? convert(result, expected, source) : result;
+    }
+
+    return expected ? convert(deferred.value, expected, source) : deferred.value;
+}
+
+/*
+ * The closure an opaque callee is handed.
+ *
+ * Two things it may not do yet, and both are stated as restrictions rather than discovered as
+ * miscompiles:
+ *
+ *  - it may not *consume* what it captures. An unforced thunk still holds whatever moved into it,
+ *    so the owner has to be dropped at the end of the call by a thunk-local teardown that runs only
+ *    if the thunk did not - which is Analysis-Lens.md §4's second option and is real work in the
+ *    drop pass. Until it exists, a capture that would be a sink is reported;
+ *  - it may not appear in a generic body, for the reason a lambda may not: the lifted function is a
+ *    separate declaration that cloning does not reach, so every specialization would share one body
+ *    built at whatever types the generic happened to name.
+ *
+ * Neither restricts the case this version exists for. `&&`, `||` and `??` on a concrete type reach
+ * an intrinsic that sees through the call, so no thunk is built at all.
+ */
+ModulePtr<Value> ExprResolver::makeThunk(const Deferred& deferred, TypePtr type, LocationId source) {
+    if(!deferred.isSet() || !type) return nullptr;
+
+    auto wanted = resolveThunkType(module, type);
+
+    // Already a thunk: a `@lazy` parameter passed straight on to another `@lazy` parameter, which
+    // is one closure rather than one wrapped in another.
+    if(deferred.thunk && valueType(deferred.thunk) == wanted) return deferred.thunk;
+
+    /*
+     * The same, before the argument has been resolved: `f(@lazy v)` where `v` is this function's own
+     * `@lazy` parameter.
+     *
+     * Handing on the thunk that already exists is not only the cheaper answer, it is the only
+     * available one - a second thunk would have to *capture* the first, and a closure is not
+     * something a thunk may capture (see below). It is also the correct one: the argument's one
+     * permitted evaluation moves to the callee along with it, which is what checkLazyForcing counts
+     * when it treats passing a `@lazy` parameter on as using it.
+     */
+    if(deferred.expr) {
+        auto& named = unwrapNested(*deferred.expr);
+
+        if(named.kind == ast::Expr::Var) {
+            auto binding = findBinding(named.var);
+            if(binding && binding->lazy && valueType(binding->value) == wanted) return binding->value;
+        }
+    }
+
+    if(functionGen(global, function)) {
+        context.diagnostics.error("a `@lazy` argument inside a generic function is not available yet unless the callee can be seen through - the thunk would have to be specialized alongside its caller"_v,
+                                  source);
+        return nullptr;
+    }
+
+    auto lambda = addAnonymousFunction(module, deferredName(module), source);
+    lambda->used = true;
+    lambda->takesEnv = true;
+    lambda->returnType = type;
+
+    auto envTuple = new (module.types) TupType;
+    envTuple->named = true;
+
+    auto envPointer = resolvePointerType(module, (Type*)envTuple - global);
+    auto envArgValue = lambda->addArg(module, context.addUnqualifiedName("env", 3), envPointer, source);
+
+    ExprResolver body(context, module, *lambda);
+    body.enclosing = this;
+    body.envArg = (ModulePtr<Value>)(envArgValue - local);
+    body.envType = envTuple;
+    body.inThunk = true;
+
+    auto result = body.force(deferred, type, source);
+
+    if(body.current) {
+        result = isUnit(global, type) ? nullptr : body.convert(result, type, source);
+        body.terminate(body.emit<InstRet>(source, 0, module.scalar.unit, result));
+    }
+
+    for(auto& capture: body.captures) {
+        if(capture.convention != ast::BindType::Sink) continue;
+
+        context.diagnostics.error("a `@lazy` argument cannot consume %@ yet - the callee may never run it, and the thunk would then still be holding what it moved in"_v,
+                                  source, context.findName(capture.name));
+        return nullptr;
+    }
+
+    auto funType = resolveThunkType(module, type);
+    if(body.captures.isEmpty()) return makeFunValue(funType, lambda - local, nullptr, source, 0);
+
+    auto envType = (Type*)envTuple - global;
+    checkTypeAcyclic(module, envType, source);
+
+    auto lambdaPointer = (ModulePtr<Function>)(lambda - local);
+    closureHeaderFor(module, lambdaPointer, envType, source);
+
+    auto storage = allocate(envType, source, 0, ast::BindType::Borrow, true);
+    ((InstAlloc*)local[storage])->closure = lambdaPointer;
+
+    auto place = placeFor(storage, source);
+    fillEnvironment(*this, body, place, source);
+
+    auto address = ref(emit<InstAddress>(source, 0, funValueFieldType(module, FunValueLayout::kEnv), place));
+    return makeFunValue(funType, lambda - local, address, source, 0);
 }

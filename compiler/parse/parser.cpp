@@ -18,6 +18,7 @@ Parser::Parser(Context& context, Lexer& lexer, StringId moduleName):
     downtoId = Context::nameHash("downto", 6);
     stepId = Context::nameHash("step", 4);
     arraySizeId = Context::nameHash("*", 1);
+    lazyId = Context::nameHash("lazy", 4);
 
     eat();
 }
@@ -1296,9 +1297,27 @@ bool Parser::parseReturnRoot() {
     return maybe(Token::kwReturn).isJust();
 }
 
+// `@lazy` is written outermost, before the `return` marker and the binding convention. It is the
+// one attribute with a meaning in parameter position, so an `@` here is either it or a mistake -
+// which is why this consumes the name rather than going through parseAttributes and leaving a list
+// nothing downstream would read.
+bool Parser::parseLazy() {
+    if(token.type != Token::opAt) return false;
+
+    eat();
+    if(token.type == Token::VarID && token.data.id == lazyId) {
+        eat();
+        return true;
+    }
+
+    error("`@lazy` is the only attribute a parameter can carry"_v);
+    return false;
+}
+
 void Parser::parseArg(ast::ParseList<ast::Arg>& list, bool requireType) {
     WithLocation location(*this);
 
+    auto lazy = parseLazy();
     auto returnRoot = parseReturnRoot();
     auto bind = parseBindType();
 
@@ -1324,6 +1343,7 @@ void Parser::parseArg(ast::ParseList<ast::Arg>& list, bool requireType) {
         .def = def,
         .bind = bind,
         .returnRoot = returnRoot,
+        .lazy = lazy,
     });
 }
 
@@ -1600,6 +1620,7 @@ void Parser::parseConstraints(ast::ConstraintList& list) {
 }
 
 void Parser::parseArgDecl(ast::ParseList<ast::ArgDecl>& list) {
+    auto lazy = parseLazy();
     auto returnRoot = parseReturnRoot();
     auto bind = parseBindType();
 
@@ -1612,7 +1633,7 @@ void Parser::parseArgDecl(ast::ParseList<ast::ArgDecl>& list) {
         eat();
 
         if(maybe(Token::opColon)) {
-            list.push(arena, ast::ArgDecl { parseType(), name, bind, returnRoot });
+            list.push(arena, ast::ArgDecl { parseType(), name, bind, returnRoot, lazy });
             return;
         }
 
@@ -1620,7 +1641,7 @@ void Parser::parseArgDecl(ast::ParseList<ast::ArgDecl>& list) {
         token = savedToken;
     }
 
-    list.push(arena, ast::ArgDecl { parseType(), 0, bind, returnRoot });
+    list.push(arena, ast::ArgDecl { parseType(), 0, bind, returnRoot, lazy });
 }
 
 void Parser::parseTypeArg(ast::ParseList<ast::ArgDecl>& list) {

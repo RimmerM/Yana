@@ -394,68 +394,77 @@ fn byteSpan(Int)(%from: %Int, %count: Int) -> I64 {
 
 fn remove(Int)(%self: Array(Int), %index: Int) -> () {
   b0:
-    %v3 = cmp_lt %index, 0 : Bool
-    %v4 = load %self : Array(Int)
-    %v5 = load %self@Array.length : Int
-    %v6 = cmp_ge %index, %v5 : Bool
-    %v7 = or %v3, %v6 : Bool
-    je %v7, b1, b2
+    %v4 = cmp_lt %index, 0 : Bool
+    je %v4, b2, b1
 
   b1:
-    ret
+    %v6 = load %self : Array(Int)
+    %v7 = load %self@Array.length : Int
+    %v8 = cmp_ge %index, %v7 : Bool
+    jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v11 = load %self : Array(Int)
-    %v12 = load %self@Array.items : %Int
-    %v13 = cast %index : I64
-    %v14 = strideof Int : I64
-    %v15 = mul %v13, %v14 : I64
-    %v16 = add %v12, %v15 : %Int
-    %v17 = load [%v16] : Int
-    %doomed = alloc : Int
-    init %local2, %v17
-    %v20 = load %self : Array(Int)
-    %v21 = load %self@Array.length : Int
-    %v22 = sub %v21, %index : Int
-    %rest = sub %v22, 1 : Int
-    %v26 = cmp_gt %rest, 0 : Bool
-    je %v26, b4, b5
+    %v2 = phi [b1, %v8], [b2, %v4] : Bool
+    je %v2, b4, b5
 
   b4:
-    %v28 = load %self : Array(Int)
-    %v29 = load %self@Array.items : %Int
-    %v30 = cast %index : I64
-    %v31 = strideof Int : I64
-    %v32 = mul %v30, %v31 : I64
-    %v33 = add %v29, %v32 : %Int
-    %v34 = cast %v33 : %U8
-    %v35 = load %self : Array(Int)
-    %v36 = load %self@Array.items : %Int
-    %v37 = cast %index : I64
-    %v38 = strideof Int : I64
-    %v39 = mul %v37, %v38 : I64
-    %v40 = add %v36, %v39 : %Int
-    %v42 = strideof Int : I64
-    %v43 = mul 1, %v42 : I64
-    %v44 = add %v40, %v43 : %Int
-    %v45 = cast %v44 : %U8
-    %v46 = load %self : Array(Int)
-    %v47 = load %self@Array.items : %Int
-    %v48 = call byteSpan(Int), %v47, %rest : I64
-    copymemory %v34, %v45, %v48
-    jmp b6
+    ret
 
   b5:
     jmp b6
 
   b6:
-    %v52 = load %self : Array(Int)
-    %v53 = load %self@Array.length : Int
-    %v55 = sub %v53, 1 : Int
-    assign %self@Array.length, %v55
+    %v14 = load %self : Array(Int)
+    %v15 = load %self@Array.items : %Int
+    %v16 = cast %index : I64
+    %v17 = strideof Int : I64
+    %v18 = mul %v16, %v17 : I64
+    %v19 = add %v15, %v18 : %Int
+    %v20 = load [%v19] : Int
+    %doomed = alloc : Int
+    init %local2, %v20
+    %v23 = load %self : Array(Int)
+    %v24 = load %self@Array.length : Int
+    %v25 = sub %v24, %index : Int
+    %rest = sub %v25, 1 : Int
+    %v29 = cmp_gt %rest, 0 : Bool
+    je %v29, b7, b8
+
+  b7:
+    %v31 = load %self : Array(Int)
+    %v32 = load %self@Array.items : %Int
+    %v33 = cast %index : I64
+    %v34 = strideof Int : I64
+    %v35 = mul %v33, %v34 : I64
+    %v36 = add %v32, %v35 : %Int
+    %v37 = cast %v36 : %U8
+    %v38 = load %self : Array(Int)
+    %v39 = load %self@Array.items : %Int
+    %v40 = cast %index : I64
+    %v41 = strideof Int : I64
+    %v42 = mul %v40, %v41 : I64
+    %v43 = add %v39, %v42 : %Int
+    %v45 = strideof Int : I64
+    %v46 = mul 1, %v45 : I64
+    %v47 = add %v43, %v46 : %Int
+    %v48 = cast %v47 : %U8
+    %v49 = load %self : Array(Int)
+    %v50 = load %self@Array.items : %Int
+    %v51 = call byteSpan(Int), %v50, %rest : I64
+    copymemory %v37, %v48, %v51
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v55 = load %self : Array(Int)
+    %v56 = load %self@Array.length : Int
+    %v58 = sub %v56, 1 : Int
+    assign %self@Array.length, %v58
     ret
 }
 

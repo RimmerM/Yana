@@ -334,6 +334,11 @@ struct Arg {
     // argument. All marked arguments of one signature form a single return-root group, and
     // the group is part of the function's type rather than of this declaration.
     bool returnRoot = false;
+
+    // Set by the `@lazy` marker: the argument is not evaluated at the call site, and reading the
+    // parameter inside the callee is what runs it. Part of the function's type, like the two
+    // markers above.
+    bool lazy = false;
 };
 
 struct FormatChunk {
@@ -371,6 +376,7 @@ struct ArgDecl {
     StringId name;
     BindType bind;
     bool returnRoot = false;  // See Arg::returnRoot; a function type carries the same marker.
+    bool lazy = false;        // See Arg::lazy; likewise.
 };
 
 struct MapArg {

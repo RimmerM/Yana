@@ -146,10 +146,19 @@ fn near(%a: Int, %b: Int) -> Bool {
   b0:
     %v2 = sub %a, %b : Int
     %v5 = cmp_lt %v2, 2 : Bool
-    %v6 = sub %b, %a : Int
-    %v9 = cmp_lt %v6, 2 : Bool
-    %v10 = and %v5, %v9 : Bool
-    ret %v10
+    je %v5, b1, b2
+
+  b1:
+    %v7 = sub %b, %a : Int
+    %v10 = cmp_lt %v7, 2 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v13 = phi [b1, %v10], [b2, %v5] : Bool
+    ret %v13
 }
 
 fn isNearTen(%x: Int) -> Int {

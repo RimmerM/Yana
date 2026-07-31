@@ -29,9 +29,21 @@ double<complex>(%n: Int): Int {
 bothEqual(Int, Bool)<complex>(%p: Int, %q: Int, %r: Int, %s: Int): Int {
   b_0 {
     %v_1 = cmp_eq %p, %q: Int
-    %v_2 = cmp_eq %r, %s: Int
-    %v_3 = and %v_1, %v_2: Int
-    ret %v_3
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = cmp_eq %r, %s: Int
+    jmp b_5
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_2, %v_4], [b_3, %v_1]: Int
+    ret %v_6
   }
 }
 

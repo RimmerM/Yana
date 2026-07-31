@@ -693,6 +693,7 @@ static void cloneBody(Clone& clone, Function& to) {
         auto created = to.addArg(clone.module, arg->name, cloneType(clone, arg->type), arg->source);
         created->convention = arg->convention;
         created->returnRoot = arg->returnRoot;
+        if(arg->lazyType) created->lazyType = cloneType(clone, arg->lazyType);
         clone.values.add((ModulePtr<Value>)argPointer, (ModulePtr<Value>)(created - local));
     }
 
@@ -882,7 +883,8 @@ static TypePtr signatureOf(Module& module, Function& function) {
     Array<FunArg> args;
     for(auto argPointer: function.args.contents(local)) {
         auto declared = local[argPointer];
-        args.push(FunArg { declared->type, declared->name, declared->convention, declared->returnRoot });
+        args.push(FunArg { declared->declaredType(), declared->name, declared->convention,
+                           declared->returnRoot, declared->isLazy() });
     }
 
     return resolveFunType(module, toBuffer(args), function.returnType, ast::FunKind::Plain);

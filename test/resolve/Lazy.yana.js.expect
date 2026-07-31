@@ -1,0 +1,186 @@
+"use strict";
+var effects = 0;
+
+// Core
+function q_q_Int(value, fallback) {
+  var v2;
+  if (!(value === null)) {
+    v2 = value;
+  } else {
+    v2 = fallback();
+  }
+  return v2;
+}
+
+// ResolveTest
+function bump() {
+  effects = effects + 1 | 0;
+  return 1;
+}
+
+function bumpFalse() {
+  effects = effects + 1 | 0;
+  return 0;
+}
+
+function bumpValue() {
+  effects = effects + 1 | 0;
+  return 7;
+}
+
+function andSkips() {
+  return 0;
+}
+
+function andRuns() {
+  return bump();
+}
+
+function orSkips() {
+  return 1;
+}
+
+function orRuns() {
+  return bump();
+}
+
+function chained() {
+  return 0;
+}
+
+function bound(m) {
+  var v13;
+  var v18;
+  B0: {
+    B1: {
+      if (!(m === null)) {
+        if (m === 3) {
+          v13 = 1;
+          break B0;
+        }
+      }
+    }
+    v13 = 0;
+  }
+  if (v13) {
+    v18 = 1;
+  } else {
+    v18 = v13;
+  }
+  return v18;
+}
+
+function fallbackSkipped(m) {
+  return q_q_Int(m, ResolveTest_deferred$0);
+}
+
+function bumpMask() {
+  effects = effects + 1 | 0;
+  return { bits: 3 };
+}
+
+function maskSkips() {
+  return Logic_Mask_and_and(0, ResolveTest_deferred$1).bits;
+}
+
+function maskRuns() {
+  return Logic_Mask_and_and(7, ResolveTest_deferred$2).bits;
+}
+
+function once(flag, value) {
+  if (flag) {
+    return value() + 1 | 0;
+  } else {
+    return 0;
+  }
+}
+
+function main() {
+  var score = 1;
+  if (bump()) {
+    score = score + 2 | 0;
+  }
+  score = score + 4 | 0;
+  if (bump()) {
+    score = score + 8 | 0;
+  }
+  score = score + 16 | 0;
+  if (bound(3)) {
+    score = score + 32 | 0;
+  }
+  if (bound(4) ^ 1) {
+    score = score + 64 | 0;
+  }
+  if (fallbackSkipped(5) === 5) {
+    score = score + 128 | 0;
+  }
+  if (fallbackSkipped(null) === 7) {
+    score = score + 256 | 0;
+  }
+  if (once(0, ResolveTest_deferred$3) === 0) {
+    score = score + 512 | 0;
+  }
+  if (once(1, ResolveTest_deferred$4) === 8) {
+    score = score + 1024 | 0;
+  }
+  if (maskSkips() === 0) {
+    score = score + 2048 | 0;
+  }
+  if (maskRuns() === 3) {
+    score = score + 4096 | 0;
+  }
+  return (Math.imul(score, 100) | 0) + effects | 0;
+}
+
+function Logic_Mask_and_and(lhs$bits, rhs) {
+  var v11;
+  var lhs = { bits: lhs$bits };
+  if (lhs$bits === 0) {
+    v11 = lhs;
+  } else {
+    var v7 = rhs();
+    v11 = { bits: lhs.bits & v7.bits | 0 };
+  }
+  return v11;
+}
+
+function Logic_Mask_and(lhs$bits, rhs$bits) {
+  return { bits: lhs$bits & rhs$bits | 0 };
+}
+
+function Logic_Mask_or(lhs$bits, rhs$bits) {
+  return { bits: lhs$bits | rhs$bits | 0 };
+}
+
+function Logic_Mask_xor(lhs$bits, rhs$bits) {
+  return { bits: lhs$bits ^ rhs$bits | 0 };
+}
+
+function Logic_Mask_not(value$bits) {
+  return { bits: value$bits ^ 15 | 0 };
+}
+
+function ResolveTest_deferred$0() {
+  effects = effects + 1 | 0;
+  return 7;
+}
+
+function ResolveTest_deferred$1() {
+  effects = effects + 1 | 0;
+  return { bits: 3 };
+}
+
+function ResolveTest_deferred$2() {
+  effects = effects + 1 | 0;
+  return { bits: 3 };
+}
+
+function ResolveTest_deferred$3() {
+  effects = effects + 1 | 0;
+  return 7;
+}
+
+function ResolveTest_deferred$4() {
+  effects = effects + 1 | 0;
+  return 7;
+}

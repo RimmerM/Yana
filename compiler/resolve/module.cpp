@@ -880,9 +880,27 @@ static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, 
         }
 
         auto type = resolveType(module, *module.parse[arg.type], env);
-        auto declared = function->addArg(module, arg.name, type, arg.source);
+        auto lazy = arg.lazy && checkLazyArgument(module, arg.bind, arg.returnRoot, arg.source);
+
+        // A `@lazy` parameter arrives as the thunk rather than as the value, so that is the type
+        // the parameter has; what the signature promised is kept beside it - see Arg::lazyType.
+        auto declared = function->addArg(module, arg.name, lazy ? resolveThunkType(module, type) : type,
+                                         arg.source);
         declared->convention = arg.bind;
         declared->returnRoot = arg.returnRoot;
+
+        if(lazy) {
+            declared->lazyType = type;
+
+            // What every call site of this name consults before it evaluates anything - see
+            // Program::lazyNames.
+            module.program.lazyNames.add(name);
+        }
+
+        if(lazy && arg.def) {
+            module.context.diagnostics.error("a `@lazy` parameter cannot have a default value - the default would be one more expression the call site did not write and the callee may not run"_v,
+                                             arg.source);
+        }
 
         // What may carry the marker is one rule shared with a written function type - see
         // checkReturnRoot, which is where it and its diagnostics live.
@@ -991,6 +1009,7 @@ static ModulePtr<Function> resolveClassDefault(Module& module, TypeClass& typeCl
         auto copied = function->addArg(module, arg->name, arg->type, arg->source);
         copied->convention = arg->convention;
         copied->returnRoot = arg->returnRoot;
+        copied->lazyType = arg->lazyType;
     }
 
     return function - *module.arena;
@@ -1484,15 +1503,38 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
             auto expectedType = substituteType(module, classArg->type, toBuffer(args), member.source);
             auto declared = declaredArgs[i];
 
+            // What the implementation writes is the *declared* type, which for a `@lazy` parameter
+            // is not the type the parameter has: the thunk is what arrives, and `T` is what the
+            // signature says. Both are needed here - one to check what was written, one to build
+            // the parameter with.
+            auto expectedDeclared = classArg->isLazy()
+                ? substituteType(module, classArg->lazyType, toBuffer(args), member.source)
+                : expectedType;
+
             if(declared.type) {
                 auto written = resolveType(module, *module.parse[declared.type], gen);
-                if(!sameType(written, expectedType)) {
+                if(!sameType(written, expectedDeclared)) {
                     module.context.diagnostics.error("argument %@ has type %@ here but %@ in class %@"_v, declared.source,
                                                      module.context.findName(declared.name),
                                                      describeType(module.context, *module.types, written),
-                                                     describeType(module.context, *module.types, expectedType),
+                                                     describeType(module.context, *module.types, expectedDeclared),
                                                      module.context.findName(className));
                 }
+            }
+
+            // Strictness is as much of the contract as the convention is, and for a sharper reason:
+            // the call site decides what to evaluate from the *class* signature, before it knows
+            // which instance it reached. An implementation that dropped the marker would be handed
+            // an argument nobody evaluated, and one that added a marker the class did not declare
+            // would be handed a value where it expected a thunk.
+            if(declared.lazy && !classArg->isLazy()) {
+                module.context.diagnostics.error("argument %@ is `@lazy` here but not in class %@ - which arguments are evaluated is fixed by the class signature, because a call site decides it before it knows which instance it reached"_v,
+                                                 declared.source, module.context.findName(declared.name),
+                                                 module.context.findName(className));
+            } else if(!declared.lazy && classArg->isLazy()) {
+                module.context.diagnostics.error("argument %@ is `@lazy` in class %@ and has to say so here too - the call site left it unevaluated, so this body would be handed a thunk it never runs"_v,
+                                                 declared.source, module.context.findName(declared.name),
+                                                 module.context.findName(className));
             }
 
             // The convention is as much of the contract as the type is: an instance whose `drop`
@@ -1510,6 +1552,7 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
                                             expectedType, declared.source);
             implArg->convention = classArg->convention;
             implArg->returnRoot = classArg->returnRoot;
+            if(classArg->isLazy()) implArg->lazyType = expectedDeclared;
         }
 
         if(member.fun.ret) {

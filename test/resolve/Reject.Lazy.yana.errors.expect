@@ -1,0 +1,16 @@
+10:16: error: `@lazy` cannot be combined with `&` or `->` - the argument is an expression the callee may never run, so there is no caller storage to borrow or to consume
+12:11: error: `@lazy` cannot be combined with `&` or `->` - the argument is an expression the callee may never run, so there is no caller storage to borrow or to consume
+16:10: error: `@lazy` cannot be combined with `return` - an argument that may never be evaluated cannot be what a borrow in the result is rooted in
+16:10: error: `return` on Int has nothing to root a borrow in - it arrives in a register, so the body sees a copy of its own; write `return &` when the caller's storage must be the root
+95:21: error: argument rhs is `@lazy` in class Logic and has to say so here too - the call site left it unevaluated, so this body would be handed a thunk it never runs
+96:22: error: argument rhs is `@lazy` here but not in class Logic - which arguments are evaluated is fixed by the class signature, because a call site decides it before it knows which instance it reached
+21:44: error: value is a `@lazy` parameter and may be used at most once on any path, but this path uses it again - passing it to another `@lazy` parameter counts, since the callee may be the one that runs it. Read it into a `let` and use that instead
+27:23: error: value is a `@lazy` parameter and may be used at most once on any path, but this path uses it again - passing it to another `@lazy` parameter counts, since the callee may be the one that runs it. Read it into a `let` and use that instead
+46:63: error: value is a `@lazy` parameter and may be used at most once on any path, but this path uses it again - passing it to another `@lazy` parameter counts, since the callee may be the one that runs it. Read it into a `let` and use that instead
+48:54: error: value is a `@lazy` parameter and may be used at most once on any path, but this path uses it again - passing it to another `@lazy` parameter counts, since the callee may be the one that runs it. Read it into a `let` and use that instead
+54:53: error: value is a `@lazy` parameter of the enclosing function and cannot be captured - read it into a `let` first, and capture that
+56:49: error: value is a `@lazy` parameter of the enclosing function and cannot be captured - read it into a `let` first, and capture that
+60:4: error: value is a `@lazy` parameter, which names an expression rather than storage - there is nothing to assign to
+78:11: error: a `@lazy` argument cannot consume owner yet - the callee may never run it, and the thunk would then still be holding what it moved in
+83:27: error: `return` inside a `@lazy` argument is not available yet - it would have to leave the function through the callee's frame, which needs the exit signal
+104:42: error: a `@lazy` argument inside a generic function is not available yet unless the callee can be seen through - the thunk would have to be specialized alongside its caller

@@ -7,7 +7,7 @@ void ExprResolver::terminate(Inst* inst) {
     current = nullptr;
 }
 
-Binding* ExprResolver::findBinding(StringId name) {
+Binding* ExprResolver::findBinding(StringId name, LocationId source) {
     for(Size i = bindings.size(); i > 0; i--) {
         if(bindings[i - 1].name == name) return &bindings[i - 1];
     }
@@ -15,7 +15,7 @@ Binding* ExprResolver::findBinding(StringId name) {
     // A name a lambda body does not bind itself may still belong to an enclosing one, and naming it
     // is what makes it a capture. Nothing is a capture until it is used, which is Design-Memory
     // §8's "there is no capture list" made literal.
-    return captureBinding(name);
+    return captureBinding(name, source);
 }
 
 ModulePtr<Value> ExprResolver::find(StringId name) {
@@ -790,6 +790,16 @@ void ExprResolver::resolveWhile(const ast::WhileExpr& loop) {
 }
 
 void ExprResolver::resolveReturn(const ast::Expr& expr) {
+    if(inThunk) {
+        // Returning from the enclosing function out of a `@lazy` argument is a non-local exit
+        // across the callee's live frame, which is Analysis-Lens.md §5.1's exit signal - the
+        // callee has cleanup that would have to run on the way past. Rejected rather than left to
+        // mean "return from the thunk", which is what it would otherwise silently become.
+        context.diagnostics.error("`return` inside a `@lazy` argument is not available yet - it would have to leave the function through the callee's frame, which needs the exit signal"_v,
+                                  expr.source);
+        return;
+    }
+
     if(resultInferred) {
         // Nothing has decided what this lambda returns yet, and `return` cannot be the thing that
         // decides it: a later `return` of a different type would have nothing to be checked
@@ -1000,7 +1010,13 @@ Maybe<Place> ExprResolver::resolvePlace(const ast::Expr& astExpr, bool through) 
 
     switch(expr.kind) {
         case ast::Expr::Var: {
-            if(auto binding = findBinding(expr.var)) {
+            if(auto binding = findBinding(expr.var, expr.source)) {
+                if(binding->lazy) {
+                    context.diagnostics.error("%@ is a `@lazy` parameter, which names an expression rather than storage - there is nothing to assign to"_v,
+                                              expr.source, context.findName(expr.var));
+                    return Nothing();
+                }
+
                 if(!binding->isPlace()) {
                     // An immutable binding still roots a place when what it holds is a reference:
                     // projecting into it names the storage the reference points at, which is not
@@ -1176,7 +1192,7 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             return result;
         }
         case ast::Expr::Var: {
-            auto binding = findBinding(expr.var);
+            auto binding = findBinding(expr.var, expr.source);
             if(!binding) {
                 if(auto found = findGlobal(module, expr.var, expr.source)) {
                     auto value = globalValue(found, expr.source);
@@ -1193,6 +1209,17 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
 
                 context.diagnostics.error("unknown scalar value %@"_v, expr.source, context.findName(expr.var));
                 return nullptr;
+            }
+
+            // Reading a `@lazy` parameter is what runs the argument the caller wrote, so this one
+            // name is an effect rather than a value that was already there. Once, on any path -
+            // checked over the whole body by checkLazyForcing below.
+            if(binding->lazy) {
+                Deferred deferred;
+                deferred.thunk = binding->value;
+
+                auto forced = force(deferred, nullptr, expr.source);
+                return forced && target ? convert(forced, target, expr.source, implicit) : forced;
             }
 
             // A mutable binding names storage, so what its name produces is whatever is in that
@@ -1350,6 +1377,15 @@ void bindFunctionArgs(ExprResolver& resolver, Module& module, Function& function
         auto value = (ModulePtr<Value>)argPointer;
         Binding binding { arg->name, value };
 
+        if(arg->isLazy()) {
+            // The name holds the thunk, not the value the signature declared, and reading it is
+            // what runs the caller's expression. No local and no place: there is nothing here to
+            // load from until the force has happened - see ExprResolver::force.
+            binding.lazy = true;
+            resolver.bindings.push(binding);
+            continue;
+        }
+
         if(arg->isMutableBorrow()) {
             // A `&` parameter names storage the caller owns. The argument arrived as the address
             // of it, so the parameter gets a local whose value *is* that address - which is
@@ -1365,6 +1401,88 @@ void bindFunctionArgs(ExprResolver& resolver, Module& module, Function& function
         }
 
         resolver.bindings.push(binding);
+    }
+}
+
+/*
+ * A `@lazy` parameter may be forced at most once on any path (Design.md's Deferred arguments).
+ *
+ * This is what makes the absence of a memoization slot a rule rather than an omission: forcing
+ * twice is rejected, so no program can tell call-by-name from call-by-need and no cell has to exist
+ * to make that true. It is also the whole of the linearity checking this version needs - the same
+ * shape linear types will want, stated over one parameter instead of over every owner.
+ *
+ * *Using* the parameter rather than calling it, because there are two ways to spend the one
+ * evaluation and only one of them is a call. Reading the name forces it here; passing it on to
+ * another `@lazy` parameter hands the evaluation to a callee that may spend it, and a body that did
+ * both would have evaluated the caller's argument twice. Every use is therefore counted, which is
+ * what the value's own use list already records.
+ *
+ * A forward fixpoint over "may already have been used", which is the only formulation that gets a
+ * loop right: using it once in a loop body is using it once per iteration, and that is the second
+ * use. Iterated because the block list is in RPO but a back edge still carries state backwards -
+ * one pass would clear a body that the second visit rejects.
+ */
+static void checkLazyForcing(Module& module, Function& function) {
+    auto local = *module.arena;
+    auto blocks = function.blocks.size();
+
+    for(auto argPointer: function.args.contents(local)) {
+        auto arg = local[argPointer];
+        if(!arg->isLazy()) continue;
+
+        auto uses = arg->uses;
+        if(uses.size() < 2) continue;
+
+        auto isUse = [&](ModulePtr<Inst> instruction) {
+            for(auto user: uses.contents(local)) {
+                if(user == instruction) return true;
+            }
+
+            return false;
+        };
+
+        // `exit[i]` is whether some path through block i has used it by the time it ends. Nothing
+        // else has to be remembered: a block's entry state is the union of its predecessors' exits,
+        // which is recomputed each visit.
+        Array<bool> exit;
+        for(Size i = 0; i < blocks; i++) exit.push(false);
+
+        auto reported = false;
+
+        for(auto changed = true; changed && !reported;) {
+            changed = false;
+
+            for(Size i = 0; i < blocks; i++) {
+                auto block = local[function.blocks.get(local, i)];
+
+                auto used = false;
+                for(auto incoming: block->incoming.contents(local)) {
+                    if(exit[local[incoming]->index]) used = true;
+                }
+
+                if(i == 0) used = false;
+
+                for(auto instPointer: block->instructions.contents(local)) {
+                    if(!isUse(instPointer)) continue;
+
+                    if(used) {
+                        module.context.diagnostics.error("%@ is a `@lazy` parameter and may be used at most once on any path, but this path uses it again - passing it to another `@lazy` parameter counts, since the callee may be the one that runs it. Read it into a `let` and use that instead"_v,
+                                                         local[instPointer]->source,
+                                                         module.context.findName(arg->name));
+                        reported = true;
+                        break;
+                    }
+
+                    used = true;
+                }
+
+                if(reported) break;
+                if(exit[i] != used) changed = true;
+
+                exit[i] = used;
+            }
+        }
     }
 }
 
@@ -1412,6 +1530,8 @@ bool resolveFunctionBody(Module& module, Function& function) {
             }
         }
     }
+
+    checkLazyForcing(module, function);
 
     function.ast = nullptr;
     function.resolving = false;

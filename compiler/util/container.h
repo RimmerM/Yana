@@ -644,6 +644,21 @@ struct EmbedContents {
         }
     }
 
+    /*
+     * The address of one element, rather than a copy of it.
+     *
+     * For the callers that need a handle that outlives the loop: a deferred call argument is
+     * remembered as a pointer into the parse arena and resolved much later, and the iterator's
+     * by-value result would be a dangling one. Only available where the list holds objects rather
+     * than tagged handles - a masked entry is computed by unmask() and is not what the list holds,
+     * which is the whole reason findWhere() above returns by value.
+     */
+    T* pointerAt(Size index) const {
+        static_assert(mask == 0, "a masked list's entries are not addressable - see unmask");
+        assertTrue(index < length);
+        return ptr + index;
+    }
+
 private:
     T* ptr;
     Size length;

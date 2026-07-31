@@ -1,3 +1,13 @@
+table closure$ResolveTest.deferred$0 before ResolveTest.deferred$0 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.deferred$1 before ResolveTest.deferred$1 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
 fn Ord(Int).compare(%lhs: Int, %rhs: Int) -> Ordering {
   b0:
     %v2 = cmp_eq %lhs, %rhs : Bool
@@ -65,16 +75,23 @@ fn Logic.!(Flags)(%value: Flags) -> Flags {
     ret %v1
 }
 
-fn Logic.&&(Flags)(%lhs: Flags, %rhs: Flags) -> Flags {
+fn Logic.&&(Flags)(%lhs: Flags, %rhs: () -> Flags) -> Flags {
   b0:
-    %v2 = call Logic(Flags).and, %lhs, %rhs : Flags
-    ret %v2
+    %v2 = calldyn %rhs : Flags
+    %v3 = call Logic(Flags).and, %lhs, %v2 : Flags
+    ret %v3
 }
 
-fn Logic.||(Flags)(%lhs: Flags, %rhs: Flags) -> Flags {
+fn teardown$none(%value: %()) -> () {
   b0:
-    %v2 = call Logic(Flags).or, %lhs, %rhs : Flags
-    ret %v2
+    ret
+}
+
+fn Logic.||(Flags)(%lhs: Flags, %rhs: () -> Flags) -> Flags {
+  b0:
+    %v2 = calldyn %rhs : Flags
+    %v3 = call Logic(Flags).or, %lhs, %v2 : Flags
+    ret %v3
 }
 
 fn Eq.!=(Box(Int))(%lhs: Box(Int), %rhs: Box(Int)) -> Bool {
@@ -238,52 +255,68 @@ fn flags() -> Int {
     %inverted = call Logic.!(Flags), %r : Flags
     %score = alloc : Int
     init %score, 0
-    %v15 = call Logic.&&(Flags), %rw, %r : Flags
-    %v16 = call Eq(Flags).==, %v15, %r : Bool
-    je %v16, b1, b2
+    %v15 = alloc : {r: Flags}
+    %r = copy %local1 : Flags
+    init %local4.r, %r
+    %v18 = addressof %local4 : %()
+    %v19 = alloc : () -> Flags
+    %v20 = symbol ResolveTest.deferred$0 : %()
+    init %local6.code, %v20
+    init %local6.env, %v18
+    %v23 = call Logic.&&(Flags), %rw, %v19 : Flags
+    %v24 = call Eq(Flags).==, %v23, %r : Bool
+    je %v24, b1, b2
 
   b1:
-    %v18 = load %score : Int
-    %v21 = add %v18, 256 : Int
-    assign %score, %v21
+    %v26 = load %score : Int
+    %v29 = add %v26, 256 : Int
+    assign %score, %v29
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v25 = call Logic.||(Flags), %r, %rw : Flags
-    %v26 = call Eq(Flags).==, %v25, %rw : Bool
-    je %v26, b4, b5
+    %v33 = alloc : {rw: Flags}
+    %rw = copy %local0 : Flags
+    init %local8.rw, %rw
+    %v36 = addressof %local8 : %()
+    %v37 = alloc : () -> Flags
+    %v38 = symbol ResolveTest.deferred$1 : %()
+    init %local10.code, %v38
+    init %local10.env, %v36
+    %v41 = call Logic.||(Flags), %r, %v37 : Flags
+    %v42 = call Eq(Flags).==, %v41, %rw : Bool
+    je %v42, b4, b5
 
   b4:
-    %v28 = load %score : Int
-    %v31 = add %v28, 512 : Int
-    assign %score, %v31
+    %v44 = load %score : Int
+    %v47 = add %v44, 512 : Int
+    assign %score, %v47
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v35 = alloc : Flags
-    init %local6@Flags.read, False
-    init %local6@Flags.write, True
-    %v40 = call Eq(Flags).==, %inverted, %v35 : Bool
-    je %v40, b7, b8
+    %v51 = alloc : Flags
+    init %local12@Flags.read, False
+    init %local12@Flags.write, True
+    %v56 = call Eq(Flags).==, %inverted, %v51 : Bool
+    je %v56, b7, b8
 
   b7:
-    %v42 = load %score : Int
-    %v45 = add %v42, 1024 : Int
-    assign %score, %v45
+    %v58 = load %score : Int
+    %v61 = add %v58, 1024 : Int
+    assign %score, %v61
     jmp b9
 
   b8:
     jmp b9
 
   b9:
-    %v49 = load %score : Int
-    ret %v49
+    %v65 = load %score : Int
+    ret %v65
 }
 
 fn described() -> Int {
@@ -427,24 +460,51 @@ fn Eq(Flags).==(%lhs: Flags, %rhs: Flags) -> Bool {
     %v2 = load %lhs@Flags.read : Bool
     %v3 = load %rhs@Flags.read : Bool
     %v4 = cmp_eq %v2, %v3 : Bool
-    %v5 = load %lhs@Flags.write : Bool
-    %v6 = load %rhs@Flags.write : Bool
-    %v7 = cmp_eq %v5, %v6 : Bool
-    %v8 = and %v4, %v7 : Bool
-    ret %v8
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load %lhs@Flags.write : Bool
+    %v7 = load %rhs@Flags.write : Bool
+    %v8 = cmp_eq %v6, %v7 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b1, %v8], [b2, %v4] : Bool
+    ret %v11
 }
 
 fn Logic(Flags).and(%lhs: Flags, %rhs: Flags) -> Flags {
   b0:
     %v2 = alloc : Flags
     %v3 = load %lhs@Flags.read : Bool
-    %v4 = load %rhs@Flags.read : Bool
-    %v5 = and %v3, %v4 : Bool
-    %v6 = load %lhs@Flags.write : Bool
-    %v7 = load %rhs@Flags.write : Bool
-    %v8 = and %v6, %v7 : Bool
-    init %local2@Flags.read, %v5
-    init %local2@Flags.write, %v8
+    je %v3, b1, b2
+
+  b1:
+    %v5 = load %rhs@Flags.read : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, %v5], [b2, %v3] : Bool
+    %v9 = load %lhs@Flags.write : Bool
+    je %v9, b4, b5
+
+  b4:
+    %v11 = load %rhs@Flags.write : Bool
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v14 = phi [b4, %v11], [b5, %v9] : Bool
+    init %local2@Flags.read, %v8
+    init %local2@Flags.write, %v14
     ret %v2
 }
 
@@ -452,13 +512,31 @@ fn Logic(Flags).or(%lhs: Flags, %rhs: Flags) -> Flags {
   b0:
     %v2 = alloc : Flags
     %v3 = load %lhs@Flags.read : Bool
-    %v4 = load %rhs@Flags.read : Bool
-    %v5 = or %v3, %v4 : Bool
-    %v6 = load %lhs@Flags.write : Bool
-    %v7 = load %rhs@Flags.write : Bool
-    %v8 = or %v6, %v7 : Bool
-    init %local2@Flags.read, %v5
-    init %local2@Flags.write, %v8
+    je %v3, b2, b1
+
+  b1:
+    %v5 = load %rhs@Flags.read : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, %v5], [b2, %v3] : Bool
+    %v9 = load %lhs@Flags.write : Bool
+    je %v9, b5, b4
+
+  b4:
+    %v11 = load %rhs@Flags.write : Bool
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v14 = phi [b4, %v11], [b5, %v9] : Bool
+    init %local2@Flags.read, %v8
+    init %local2@Flags.write, %v14
     ret %v2
 }
 
@@ -505,6 +583,18 @@ fn Describe(Metres).size(%value: Metres) -> Int {
     %v3 = load %rhs@Box.item : a
     %v4 = gencall Eq(a).==, %v2, %v3 : Bool
     ret %v4
+}
+
+fn ResolveTest.deferred$0(%env: %{r: Flags}) -> Flags {
+  b0:
+    %v1 = load [%env].r : Flags
+    ret %v1
+}
+
+fn ResolveTest.deferred$1(%env: %{rw: Flags}) -> Flags {
+  b0:
+    %v1 = load [%env].rw : Flags
+    ret %v1
 }
 
 fn Describe.doubled(Metres)(%value: Metres) -> Int {

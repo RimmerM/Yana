@@ -1,0 +1,266 @@
+"use strict";
+var effects = 0;
+const closure$ResolveTest_deferred$0 = [teardown$none, teardown$none];
+const closure$ResolveTest_deferred$1 = [teardown$none, teardown$none];
+
+// Core
+function teardown$none(value) {
+  return;
+}
+
+function q_q_Int(value, fallback) {
+  var v2;
+  if (!(value === null)) {
+    v2 = value;
+  } else {
+    v2 = fallback();
+  }
+  return v2;
+}
+
+// ResolveTest
+function bump(mark) {
+  effects = effects + mark | 0;
+  return mark;
+}
+
+function markPoint(mark) {
+  effects = effects + mark | 0;
+  return { x: 2, y: 3 };
+}
+
+function bumpTrue(mark) {
+  effects = effects + mark | 0;
+  return 1;
+}
+
+function nothingInt() {
+  return null;
+}
+
+function inner(flag, v) {
+  var v7;
+  if (flag) {
+    v7 = v();
+  } else {
+    v7 = 0;
+  }
+  return v7;
+}
+
+function outer(flag, v) {
+  return inner(flag, v);
+}
+
+function pick(which, a, b) {
+  var v11;
+  if (which === 0) {
+    v11 = a();
+  } else {
+    v11 = b();
+  }
+  return v11;
+}
+
+function pointOr(flag, p) {
+  var v8;
+  if (flag) {
+    v8 = p().x;
+  } else {
+    v8 = 0;
+  }
+  return v8;
+}
+
+function or_q(lhs, rhs) {
+  var v9;
+  if (lhs !== 0) {
+    v9 = lhs;
+  } else {
+    v9 = rhs();
+  }
+  return v9;
+}
+
+function beforeLoop(count, v) {
+  var total = v();
+  var i = 0;
+  L0: for (;;) {
+    if (i < count) {
+      total = total + 1 | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return total;
+}
+
+function capturing() {
+  return inner(1, ResolveTest_deferred$0$make({ n: 5 }));
+}
+
+function mutableCapture() {
+  return inner(1, ResolveTest_deferred$1$make({ n: { $v: 41 } }));
+}
+
+function main() {
+  var score = 0;
+  if (inner(0, ResolveTest_deferred$2) === 0) {
+    score = score + 1 | 0;
+  }
+  if (inner(1, ResolveTest_deferred$3) === 2) {
+    score = score + 2 | 0;
+  }
+  if (pick(0, ResolveTest_deferred$4, ResolveTest_deferred$5) === 4) {
+    score = score + 4 | 0;
+  }
+  if (orDefault_Int(1, ResolveTest_deferred$6) === 1) {
+    score = score + 8 | 0;
+  }
+  if (orDefault_Int(null, ResolveTest_deferred$7) === 32768) {
+    score = score + 16 | 0;
+  }
+  if (orDefault_Bool(0, ResolveTest_deferred$8) === 0) {
+    score = score + 32 | 0;
+  }
+  if (capturing() === 37) {
+    score = score + 64 | 0;
+  }
+  if (mutableCapture() === 82) {
+    score = score + 128 | 0;
+  }
+  if (or_q(7, ResolveTest_deferred$9) === 7) {
+    score = score + 256 | 0;
+  }
+  if (or_q(0, ResolveTest_deferred$10) === 640) {
+    score = score + 512 | 0;
+  }
+  if (pointOr(0, ResolveTest_deferred$11) === 0) {
+    score = score + 1024 | 0;
+  }
+  if (pointOr(1, ResolveTest_deferred$12) === 2) {
+    score = score + 2048 | 0;
+  }
+  if (inner(0, ResolveTest_deferred$13) === 0) {
+    score = score + 4096 | 0;
+  }
+  if (inner(1, ResolveTest_deferred$14) === 5) {
+    score = score + 8192 | 0;
+  }
+  if (beforeLoop(3, ResolveTest_deferred$16) === 16387) {
+    score = score + 16384 | 0;
+  }
+  if (effects === 51622) {
+    score = score + 32768 | 0;
+  }
+  return score;
+}
+
+function ResolveTest_deferred$0$make(env) {
+  return function() {
+    var v1 = env.n;
+    effects = effects + 32 | 0;
+    return v1 + 32 | 0;
+  };
+}
+
+function ResolveTest_deferred$1$make(env) {
+  return function() {
+    return Math.imul(env.n.$v, 2) | 0;
+  };
+}
+
+function ResolveTest_deferred$2() {
+  effects = effects + 1 | 0;
+  return 1;
+}
+
+function ResolveTest_deferred$3() {
+  effects = effects + 2 | 0;
+  return 2;
+}
+
+function ResolveTest_deferred$4() {
+  effects = effects + 4 | 0;
+  return 4;
+}
+
+function ResolveTest_deferred$5() {
+  effects = effects + 8 | 0;
+  return 8;
+}
+
+function orDefault_Int(m, fallback) {
+  var v2;
+  if (!(m === null)) {
+    v2 = m;
+  } else {
+    v2 = fallback();
+  }
+  return v2;
+}
+
+function ResolveTest_deferred$6() {
+  effects = effects + 16 | 0;
+  return 16;
+}
+
+function ResolveTest_deferred$7() {
+  effects = effects + 32768 | 0;
+  return 32768;
+}
+
+function orDefault_Bool(m, fallback) {
+  var v2;
+  if (m <= 1) {
+    v2 = m;
+  } else {
+    v2 = fallback();
+  }
+  return v2;
+}
+
+function ResolveTest_deferred$8() {
+  effects = effects + 65536 | 0;
+  return 1;
+}
+
+function ResolveTest_deferred$9() {
+  effects = effects + 64 | 0;
+  return 64;
+}
+
+function ResolveTest_deferred$10() {
+  effects = effects + 384 | 0;
+  return 640;
+}
+
+function ResolveTest_deferred$11() {
+  effects = effects + 1024 | 0;
+  return { x: 2, y: 3 };
+}
+
+function ResolveTest_deferred$12() {
+  effects = effects + 2048 | 0;
+  return { x: 2, y: 3 };
+}
+
+function ResolveTest_deferred$13() {
+  effects = effects + 4096 | 0;
+  return 1;
+}
+
+function ResolveTest_deferred$14() {
+  return q_q_Int(5, ResolveTest_deferred$15);
+}
+
+function ResolveTest_deferred$15() {
+  effects = effects + 8192 | 0;
+  return 8192;
+}
+
+function ResolveTest_deferred$16() {
+  effects = effects + 16384 | 0;
+  return 16384;
+}

@@ -1,0 +1,39 @@
+-- The guard `@lazy` exists for, and the reason it was built before any of the lens work.
+--
+-- Under strict evaluation `!isNull(p) && *p > 0` reads through a null pointer whenever the guard is
+-- what stopped it - a crash rather than a missing feature. The right operand is emitted inside the
+-- branch the left one produced, so the dereference is only reached where the test held.
+--
+-- Apart from amd64, because a raw pointer is not something the JS target has: `%Int` has no host
+-- representation, so nothing here would be emitted at all. Pointer.yana and Heap.yana are the same
+-- shape for the same reason. What is asserted here is only the pointer half - Lazy.yana holds the
+-- rest of the operators, on both targets.
+
+import Native
+
+let nowhere = 0 :: %Int
+
+fn guarded(p: %Int) -> Int = if !isNull(p) && *p > 0 then *p else 0
+
+-- The mirror of it: `||` runs its right operand only where the left did not hold, so the same
+-- dereference is guarded by asking the opposite question.
+fn defaulted(p: %Int) -> Int = if isNull(p) || *p == 0 then -1 else *p
+
+fn main() -> Int:
+    let &score = 0
+
+    -- The null pointer reaches neither dereference.
+    if guarded(nowhere) == 0: score = score + 1
+    if defaulted(nowhere) == -1: score = score + 2
+
+    -- And a real one reaches both, so the guards are guards rather than a way of never running the
+    -- right operand at all.
+    let slot = 41 :: Int
+    let p = addressOf(slot)
+
+    *p = *p + 1
+
+    if guarded(p) == 42: score = score + 4
+    if defaulted(p) == 42: score = score + 8
+
+    return score

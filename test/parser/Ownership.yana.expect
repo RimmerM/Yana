@@ -121,13 +121,47 @@ Module
 |   |   `-ConType Object
 |   `-BorrowType 
 |     `-ConType Object
-`-FunDecl m <implicit return> 
-  |-<constraints>
-  | `-FunctionConstraint pick
-  |   `-FunType 
-  |     |-Arg return &<anonymous>
-  |     | `-GenType a
-  |     `-BorrowType 
-  |       `-GenType b
-  `-Body
-    `-LitExpr 0
+|-FunDecl m <implicit return> 
+| |-<constraints>
+| | `-FunctionConstraint pick
+| |   `-FunType 
+| |     |-Arg return &<anonymous>
+| |     | `-GenType a
+| |     `-BorrowType 
+| |       `-GenType b
+| `-Body
+|   `-LitExpr 0
+|-FunDecl shortCircuit <implicit return> 
+| |-Arg lhs
+| | `-ConType Bool
+| |-Arg @lazy rhs
+| | `-ConType Bool
+| |-Result
+| | `-ConType Bool
+| `-Body
+|   `-VarExpr lhs
+|-FunDecl deferred <implicit return> 
+| |-Arg value
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-ConType Int
+| |-Arg @lazy fallback
+| | `-ConType Int
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-VarExpr fallback
+|-AliasDecl Logical 
+| `-FunType 
+|   |-Arg <anonymous>
+|   | `-ConType Bool
+|   |-Arg @lazy <anonymous>
+|   | `-ConType Bool
+|   `-ConType Bool
+`-AliasDecl NamedLogical 
+  `-FunType 
+    |-Arg lhs
+    | `-ConType Bool
+    |-Arg @lazy rhs
+    | `-ConType Bool
+    `-ConType Bool

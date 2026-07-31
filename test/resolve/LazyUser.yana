@@ -1,0 +1,120 @@
+-- User-declared `@lazy` parameters, past the one-liner.
+--
+-- Lazy.yana covers the operators Core builds on the mechanism. This covers the mechanism itself as
+-- something a user writes: several deferred parameters on one signature, one handed on to another,
+-- one that captures, one over a record, one on a generic function, one on an operator whose right
+-- operand is a whole sub-chain, and one forced before a loop that then runs.
+--
+-- `effects` is a bit set rather than a count, and each argument that could run owns a distinct bit.
+-- That makes the number at the end say *which* arguments ran rather than how many, which is the
+-- difference between this fixture proving what it claims and proving that two mistakes cancelled.
+
+infixl 2 |?
+
+let &effects = 0 :: Int
+
+fn bump(mark: Int) -> Int:
+    effects = effects + mark
+    return mark
+
+data Point {x: Int, y: Int}
+
+fn markPoint(mark: Int) -> Point:
+    effects = effects + mark
+    return Point {x: 2, y: 3}
+
+fn bumpTrue(mark: Int) -> Bool:
+    effects = effects + mark
+    return True
+
+fn nothingInt() -> Maybe(Int) = Nothing
+
+-- The base case the rest are written against.
+fn inner(flag: Bool, @lazy v: Int) -> Int = if flag then v else 0
+
+-- Handing a deferred argument on. `v` is not evaluated here and not wrapped again either: the thunk
+-- that already exists is what `inner` wants, so this is one closure and not one inside another. The
+-- one permitted evaluation travels with it, which is why using `v` a second time in this body would
+-- be rejected even though this body never runs it - see Reject.Lazy.yana.
+fn outer(flag: Bool, @lazy v: Int) -> Int = inner(flag, v)
+
+-- Two of them on one signature, exactly one of which is spent.
+fn pick(which: Int, @lazy a: Int, @lazy b: Int) -> Int = if which == 0 then a else b
+
+-- A generic one. The deferred position binds no type variable - resolving it to find out what type
+-- it has would evaluate it - so `a` is decided by the first argument, and the deferred one is
+-- resolved against what that decided.
+fn orDefault(m: Maybe(a), @lazy fallback: a) -> a = if m is Just(v) then v else fallback
+
+-- A record rather than a scalar, so the thunk returns through storage.
+fn pointOr(flag: Bool, @lazy p: Point) -> Int = if flag then p.x else 0
+
+-- A user-declared short-circuiting operator. Its right operand is a *span* of the flattened infix
+-- chain rather than one node - `bump(128) + bump(256) * 2` is what `|?` defers here - which is the
+-- case an argument of a written call never reaches.
+fn |?(lhs: Int, @lazy rhs: Int) -> Int = if lhs != 0 then lhs else rhs
+
+-- Forced once, before a loop that then runs. At most once is a statement about paths, and no path
+-- through this reaches the read twice.
+fn beforeLoop(count: Int, @lazy v: Int) -> Int:
+    let &total = v
+    let &i = 0
+
+    while i < count:
+        total = total + 1
+        i = i + 1
+
+    return total
+
+-- The thunk captures an immutable local by value, per Design-Memory §8's TrivialCopy rule.
+fn capturing() -> Int:
+    let n = 5
+    return inner(True, n + bump(32))
+
+-- And a mutable one by reference, which is the convention §8 requires for a binding that could be
+-- written. The thunk reads it when the callee runs it, not when it was built.
+fn mutableCapture() -> Int:
+    let &n = 1
+    n = n + 40
+
+    return inner(True, n * 2)
+
+fn main() -> Int:
+    let &score = 0
+
+    -- Handed on and never run, then handed on and run.
+    if outer(False, bump(1)) == 0: score = score + 1
+    if outer(True, bump(2)) == 2: score = score + 2
+
+    -- The chosen one runs and the other does not, on one call.
+    if pick(0, bump(4), bump(8)) == 4: score = score + 4
+
+    -- A generic callee: the fallback is skipped where there was something to unwrap, taken where
+    -- there was not, and the two calls are different specializations of one declaration.
+    if orDefault(Just(1), bump(16)) == 1: score = score + 8
+    if orDefault(nothingInt(), bump(32768)) == 32768: score = score + 16
+    if orDefault(Just(False), bumpTrue(65536)) == False: score = score + 32
+
+    if capturing() == 37: score = score + 64
+    if mutableCapture() == 82: score = score + 128
+
+    -- A user operator, skipped and then run with a multi-operand right side.
+    if (7 |? bump(64)) == 7: score = score + 256
+    if (0 |? bump(128) + bump(256) * 2) == 640: score = score + 512
+
+    -- A record-typed deferred argument.
+    if pointOr(False, markPoint(1024)) == 0: score = score + 1024
+    if pointOr(True, markPoint(2048)) == 2: score = score + 2048
+
+    -- Deferred arguments that are not simple expressions: one with a branch inside it, and one that
+    -- is itself a call with a deferred argument of its own.
+    if inner(False, if bump(4096) > 0 then 1 else 2) == 0: score = score + 4096
+    if inner(True, Just(5) ?? bump(8192)) == 5: score = score + 8192
+
+    if beforeLoop(3, bump(16384)) == 16387: score = score + 16384
+
+    -- Which arguments ran, as a bit set. Every bit that is clear here is an argument this file
+    -- claims was skipped, and every bit that is set is one it claims was evaluated exactly once.
+    if effects == 51622: score = score + 32768
+
+    return score
