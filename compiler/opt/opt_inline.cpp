@@ -297,7 +297,6 @@ struct Candidate {
  */
 void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
     Array<ModulePtr<Function>> nodes;
-    Array<Array<U32>> edges;
     HashMap<U32, U32> index;
 
     for(auto module: opt.program.modules) {
@@ -307,13 +306,23 @@ void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
 
             *entry.value = U32(nodes.size());
             nodes.push(pointer);
-            edges.push(Array<U32>());
         }
     }
+
+    /*
+     * The call graph, as one array of targets with a start offset per node rather than an array per
+     * node. The second walk visits the nodes in order, so a node's edges are the run between its
+     * own start and the next one's - which is the whole of what the array-per-node bought, at two
+     * allocations for the graph instead of one per function in the program.
+     */
+    Array<U32> edgeData;
+    Array<U32> edgeStart;
 
     // Second walk rather than one, because an edge can name a function the first walk has not
     // numbered yet - which is every forward reference and every call into another module.
     for(Size i = 0; i < nodes.size(); i++) {
+        edgeStart.push(U32(edgeData.size()));
+
         for(auto blockPointer: opt.local[nodes[i]]->blocks.contents(opt.local)) {
             for(auto instructionPointer: opt.local[blockPointer]->instructions.contents(opt.local)) {
                 auto& instruction = *opt.local[instructionPointer];
@@ -325,19 +334,31 @@ void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
                 if(!callee) continue;
 
                 auto found = index.getValue(U32(callee));
-                if(found) edges[i].push(found.unwrap());
+                if(found) edgeData.push(found.unwrap());
             }
         }
     }
 
+    edgeStart.push(U32(edgeData.size()));
+
+    auto edgeCount = [&](Size node) { return Size(edgeStart[node + 1] - edgeStart[node]); };
+    auto edgeAt = [&](Size node, Size which) { return edgeData[edgeStart[node] + which]; };
+
+    auto callsItself = [&](Size node) {
+        for(Size e = 0; e < edgeCount(node); e++) {
+            if(edgeAt(node, e) == U32(node)) return true;
+        }
+
+        return false;
+    };
+
     auto count = nodes.size();
     Array<U32> number, lowlink;
-    Array<U8> onStack;
+    ScratchSet onStack(opt.sets, count);
 
     for(Size i = 0; i < count; i++) {
         number.push(0);
         lowlink.push(0);
-        onStack.push(0);
     }
 
     /*
@@ -353,13 +374,17 @@ void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
     Array<U32> component;
     Array<U32> pending;
     Array<Size> next;
+
+    // Emptied per component rather than built per component, which for a program of five hundred
+    // functions is five hundred one-member components and five hundred allocations.
+    Array<U32> members;
     U32 counter = 1;
 
     for(Size root = 0; root < count; root++) {
         if(number[root]) continue;
 
         number[root] = lowlink[root] = counter++;
-        onStack[root] = 1;
+        onStack->set(root, true);
         component.push(U32(root));
         pending.push(U32(root));
         next.push(0);
@@ -367,16 +392,16 @@ void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
         while(pending.size()) {
             auto node = pending[pending.size() - 1];
 
-            if(next[next.size() - 1] < edges[node].size()) {
-                auto target = edges[node][next[next.size() - 1]++];
+            if(next[next.size() - 1] < edgeCount(node)) {
+                auto target = edgeAt(node, next[next.size() - 1]++);
 
                 if(!number[target]) {
                     number[target] = lowlink[target] = counter++;
-                    onStack[target] = 1;
+                    onStack->set(target, true);
                     component.push(target);
                     pending.push(target);
                     next.push(0);
-                } else if(onStack[target] && number[target] < lowlink[node]) {
+                } else if((*onStack)[target] && number[target] < lowlink[node]) {
                     lowlink[node] = number[target];
                 }
 
@@ -388,10 +413,10 @@ void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
 
             if(lowlink[node] == number[node]) {
                 // Everything pushed since this node was first reached is the component it heads.
-                Array<U32> members;
+                members.clear();
                 while(component.size()) {
                     auto member = component.pop().unwrap();
-                    onStack[member] = 0;
+                    onStack->set(member, false);
                     members.push(member);
 
                     if(member == node) break;
@@ -399,7 +424,7 @@ void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
 
                 // A one-member component is a cycle only through an edge to itself, which is the
                 // case the component numbering cannot report - a cycle of length one.
-                if(members.size() == 1 && !edges[node].containsValue(node)) continue;
+                if(members.size() == 1 && !callsItself(node)) continue;
 
                 for(auto member: members) recursive.add(U32(nodes[member]), true);
             }
@@ -493,14 +518,15 @@ struct Inliner {
      * and which of its two successors comes next.
      */
     void orderBlocks(Function& callee, Array<ModulePtr<Block>>& order) {
-        Array<U8> seen;
-        for(Size i = 0; i < callee.blocks.size(); i++) seen.push(0);
+        ScratchSet seen(opt.sets, callee.blocks.size());
 
-        Array<ModulePtr<Block>> postorder;
-        Array<ModulePtr<Block>> pending;
-        Array<Size> next;
+        // The walk's own three, emptied rather than built: this runs once per call site the
+        // inliner considers, and most of those it goes on to decline.
+        postorder.clear();
+        pending.clear();
+        next.clear();
 
-        seen[0] = 1;
+        seen->set(0, true);
         pending.push(callee.blocks.get(opt.local, 0));
         next.push(0);
 
@@ -513,9 +539,9 @@ struct Inliner {
                 if(!successor) continue;
 
                 auto target = opt.local[successor]->index;
-                if(seen[target]) continue;
+                if((*seen)[target]) continue;
 
-                seen[target] = 1;
+                seen->set(target, true);
                 pending.push(successor);
                 next.push(0);
                 continue;
@@ -528,6 +554,12 @@ struct Inliner {
 
         for(Size i = postorder.size(); i-- > 0;) order.push(postorder[i]);
     }
+
+    // Where orderBlocks works - see there. Members rather than locals because there is one call
+    // of it per call site examined, per round.
+    Array<ModulePtr<Block>> postorder;
+    Array<ModulePtr<Block>> pending;
+    Array<Size> next;
 
     Maybe<Candidate> describe(ModulePtr<Function> pointer) {
         auto callee = opt.local[pointer];

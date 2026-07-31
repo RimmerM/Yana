@@ -180,6 +180,17 @@ struct InstShape {
     Array<ArgLocation> uses;
     Array<ArgLocation> creates;
 
+    // Emptied rather than rebuilt. Every caller asks for this per instruction inside a walk of the
+    // function - four of the passes here do, some of them more than once per instruction - so one
+    // shape held across the walk is the difference between two allocations per instruction and none.
+    void clear() {
+        uses.clear();
+        creates.clear();
+        clobber = RegSet {};
+        convention = nullptr;
+        isReturn = false;
+    }
+
     // Registers the instruction writes behind its operands' backs.
     RegSet clobber;
 
@@ -193,7 +204,9 @@ struct InstShape {
     bool isReturn = false;
 };
 
-InstShape shapeOf(LowerBase base, const MachineFunction& machine, const Constraints& constraints, LowerFunction& fun, LowerInst* inst);
+// Fills `into`, which the caller owns and reuses - see InstShape::clear.
+void shapeOf(LowerBase base, const MachineFunction& machine, const Constraints& constraints,
+             LowerFunction& fun, LowerInst* inst, InstShape& into);
 
 // The fixed register operand `i` has to be in when the instruction executes, if any. A stack-passed
 // argument has no register and answers an invalid location here, so a caller that needs to tell the

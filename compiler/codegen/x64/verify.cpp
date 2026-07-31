@@ -309,7 +309,8 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
         auto block = base[offset];
 
         auto onInst = [&](LowerInst* inst) {
-            auto shape = shapeOf(base, machine, constraints, fun, inst);
+            InstShape shape;
+            shapeOf(base, machine, constraints, fun, inst, shape);
             auto mask = writtenRegisters(shape);
 
             if(!mask.isEmpty()) {
@@ -661,7 +662,8 @@ struct Verifier {
     }
 
     void checkInst(MachineState& state, LowerInst* inst, const InstRegs& instRegs, U32 index) {
-        auto shape = shapeOf(base, machine, constraints, fun, inst);
+        InstShape shape;
+        shapeOf(base, machine, constraints, fun, inst, shape);
         auto used = inst->used();
         auto created = inst->created();
         auto name = nameForInst(base, *inst);

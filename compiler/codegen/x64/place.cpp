@@ -249,6 +249,10 @@ struct Placer {
     const MachineFunction& machine;
     const Constraints& constraints;
 
+    // Where the four walks below get the instruction shape they each ask for per instruction. A
+    // pool rather than one shape, because two of them nest - see Scratch.
+    ScratchPool<InstShape> shapes;
+
     // How often each block runs relative to the function's entry - see FunctionFrequencyInfo. Every
     // decision here that trades one part of the function against another is weighed by it: what a
     // web costs if it is left homeless, and which of two competing phi copies is worth coalescing.
@@ -1007,7 +1011,9 @@ static void computeAvoidSets(Placer& a) {
         auto weight = a.weightOf(block);
 
         auto onInst = [&](LowerInst* inst, bool terminator) {
-            auto shape = shapeOf(a.base, a.machine, a.constraints, a.fun, inst);
+            Scratch<InstShape> held(a.shapes);
+            auto& shape = *held;
+            shapeOf(a.base, a.machine, a.constraints, a.fun, inst, shape);
             auto mask = writtenRegisters(shape);
             a.written |= mask;
 
@@ -1157,7 +1163,9 @@ static void computeSpillCosts(Placer& a) {
         auto weight = a.weightOf(block);
 
         auto onInst = [&](LowerInst* inst) {
-            auto shape = shapeOf(a.base, a.machine, a.constraints, a.fun, inst);
+            Scratch<InstShape> held(a.shapes);
+            auto& shape = *held;
+            shapeOf(a.base, a.machine, a.constraints, a.fun, inst, shape);
 
             // The one operand this instruction could leave in the frame, if any. A read-modify-write
             // form takes precedence: it makes both the read and the write free, where a memory
@@ -1232,7 +1240,9 @@ static MachineLocation copyHint(Placer& a, LowerInst* inst, U32 index) {
 }
 
 static void placeInst(Placer& a, LowerInst* inst, U32 index) {
-    auto shape = shapeOf(a.base, a.machine, a.constraints, a.fun, inst);
+    Scratch<InstShape> held(a.shapes);
+    auto& shape = *held;
+    shapeOf(a.base, a.machine, a.constraints, a.fun, inst, shape);
     auto used = inst->used();
     auto created = inst->created();
 
@@ -1398,7 +1408,9 @@ static void collectFrameObjects(Placer& a) {
             }
 
             if(inst->kind == LowerInst::Call) {
-                auto shape = shapeOf(a.base, a.machine, a.constraints, a.fun, inst);
+                Scratch<InstShape> held(a.shapes);
+            auto& shape = *held;
+            shapeOf(a.base, a.machine, a.constraints, a.fun, inst, shape);
                 auto& convention = *shape.convention;
 
                 if(convention.stackAlignment > a.frame.callAlignment) {

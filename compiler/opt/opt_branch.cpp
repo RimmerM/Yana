@@ -244,12 +244,12 @@ bool foldBranch(OptContext& opt, Block& block) {
 // The blocks nothing reaches, dropped from the function along with their edges into the ones that
 // survive. Answers whether anything went, since the block list has to be renumbered if so.
 bool removeUnreachableBlocks(OptContext& opt) {
-    Array<U8> reachable;
-    computeReachable(opt, reachable);
+    ScratchSet reachable(opt.sets, 0);
+    computeReachable(opt, *reachable);
 
     Array<ModulePtr<Block>> kept;
     for(auto pointer: opt.function->blocks.contents(opt.local)) {
-        if(reachable[opt.local[pointer]->index]) kept.push(pointer);
+        if((*reachable)[opt.local[pointer]->index]) kept.push(pointer);
     }
 
     if(kept.size() == opt.function->blocks.size()) return false;
@@ -260,7 +260,7 @@ bool removeUnreachableBlocks(OptContext& opt) {
 
         for(Size i = block->incoming.size(); i-- > 0;) {
             auto from = block->incoming.get(opt.local, i);
-            if(reachable[opt.local[from]->index]) continue;
+            if((*reachable)[opt.local[from]->index]) continue;
 
             block->incoming.remove(opt.local, i);
         }
@@ -270,7 +270,7 @@ bool removeUnreachableBlocks(OptContext& opt) {
 
             for(Size i = phi->inputs.size(); i-- > 0;) {
                 auto input = phi->inputs.get(opt.local, i);
-                if(reachable[opt.local[input.block]->index]) continue;
+                if((*reachable)[opt.local[input.block]->index]) continue;
 
                 phi->inputs.remove(opt.local, i);
             }

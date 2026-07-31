@@ -54,6 +54,12 @@ static Size positionInBlock(Analysis& analysis, Size blockIndex, U32 index) {
 static void placeDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops, Array<EdgeDrop>& edgeDrops) {
     auto count = analysis.localCount;
 
+    // Both are the program's buffers rather than this block's: the rows below are re-sized per
+    // block and the set is cleared per block, so a function with a hundred of them allocates for
+    // the longest one rather than for each. See AnalysisScratch.
+    auto& after = analysis.scratch.blockLiveness;
+    auto& live = analysis.scratch.work;
+
     for(Size b = 0; b < analysis.blockCount(); b++) {
         auto block = analysis.blockAt(b);
         auto range = analysis.blockRanges[b];
@@ -61,16 +67,16 @@ static void placeDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops
 
         // Liveness at each point inside the block, derived by replaying the backward walk. `after`
         // is the state over the gap following each instruction, which is where a drop goes.
-        Array<LocalSet> after;
-        auto live = analysis.liveOut[b];
+        after.reset(range.end - range.first, count);
+        live.copyFrom(analysis.liveOut[b]);
 
         for(Size i = range.end; i > range.first; i--) {
-            after.push(live);
+            after[range.end - i].copyFrom(live);
 
             auto& effects = analysis.effects[i - 1];
-            for(auto def: effects.defs) live[def] = 0;
-            for(auto use: effects.uses) live[use] = 1;
-            for(auto overwritten: effects.overwrites) live[overwritten] = 1;
+            for(auto def: effects.defs) live.set(def, false);
+            for(auto use: effects.uses) live.set(use, true);
+            for(auto overwritten: effects.overwrites) live.set(overwritten, true);
         }
 
         for(Size l = 0; l < count; l++) {

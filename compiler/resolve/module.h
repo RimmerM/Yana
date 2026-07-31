@@ -12,6 +12,7 @@ struct Expr;
 struct Program;
 struct ExprResolver;
 struct OwnershipResults;
+struct AnalysisScratch;
 
 /*
  * A named storage slot in a function.
@@ -547,6 +548,29 @@ struct Program {
     // stage - see analyze.h. Held behind a pointer because analyze.h is written against this
     // header rather than the other way round.
     Ptr<OwnershipResults> ownership;
+
+    /*
+     * The buffers those passes work in, which belong here rather than to one function's run.
+     *
+     * Every set and every row they use is reached from this and sized to the largest function seen
+     * so far, so the five hundredth function analyzed allocates nothing. Held as a raw pointer with
+     * an explicit teardown because what it contains is private to the passes; see analyze.h.
+     */
+    AnalysisScratch* analysisScratch = nullptr;
+
+    /*
+     * The lists resolution builds and throws away, kept for the length of the compilation.
+     *
+     * All three are borrowed by scope rather than declared where they are used, because all three
+     * are built once per lookup and there are tens of thousands of lookups: the candidates every
+     * instance match collects, the argument lists a constraint is substituted into, and the text an
+     * instance method's name is assembled in. Pools rather than single buffers because instance
+     * matching recurses while proving a head's own constraints. See Scratch.
+     */
+    ScratchPool<Array<ModulePtr<ClassInstance>>> instanceCandidates;
+    ScratchPool<Array<TypePtr>> typeLists;
+    ScratchPool<Array<ModulePtr<Value>>> valueLists;
+    ScratchPool<StringBuilder> names;
 
     /*
      * The runtime operations the compiler emits calls to on its own.

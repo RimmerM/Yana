@@ -39,15 +39,18 @@ void computeOwnership(Analysis& analysis) {
     auto count = analysis.localCount;
     auto blocks = analysis.blockCount();
 
-    Array<Array<OwnState>> entry;
-    Array<U8> reached;
+    // Both rows and the walk's own carrier are the program's storage rather than this function's
+    // - see AnalysisScratch. The walk assigns whole rows around, and each of those used to be an
+    // allocation per block popped off the worklist.
+    auto& entry = analysis.scratch.blockEntry;
+    auto& reached = analysis.scratch.work;
 
-    for(Size i = 0; i < blocks; i++) {
-        Array<OwnState> states;
-        for(Size l = 0; l < count; l++) states.push(OwnState::Uninitialized);
-        entry.push(::move(states));
-        reached.push(0);
-    }
+    entry.reset(blocks, count, OwnState::Uninitialized);
+    reached.reset(blocks);
+
+    // The row the walk carries between blocks, emptied per block popped rather than copied out of
+    // `entry` - see AnalysisScratch.
+    auto& states = analysis.scratch.walkState;
 
     // A parameter's slot arrives already holding the caller's value. It is not owned here - see
     // TrackedLocal::owned - but it is initialized, and saying so is what keeps a read of a
@@ -57,7 +60,7 @@ void computeOwnership(Analysis& analysis) {
         if(slot.value && analysis.local[slot.value]->kind == Value::Arg) entry[0][l] = OwnState::Owned;
     }
 
-    reached[0] = 1;
+    reached.set(0, true);
     Array<Size> worklist;
     worklist.push(0);
 
@@ -65,10 +68,12 @@ void computeOwnership(Analysis& analysis) {
         auto index = worklist.pop().unwrap();
         auto block = analysis.blockAt(index);
         auto range = analysis.blockRanges[index];
-        auto states = entry[index];
+
+        states.clear();
+        for(auto state: entry[index]) states.push(state);
 
         for(Size i = range.first; i < range.end; i++) {
-            analysis.stateBefore[i] = states;
+            analysis.stateBefore.copyInto(i, states);
             transferState(analysis, i, states);
         }
 
@@ -83,8 +88,8 @@ void computeOwnership(Analysis& analysis) {
             // which is the classic way to get a dataflow analysis that answers "it depends" to
             // every question.
             if(!reached[successorIndex]) {
-                entry[successorIndex] = states;
-                reached[successorIndex] = 1;
+                entry.copyInto(successorIndex, states);
+                reached.set(successorIndex, true);
                 updated = true;
             } else {
                 for(Size l = 0; l < count; l++) {

@@ -13,6 +13,28 @@
  * spending a header on preventing.
  */
 
+/*
+ * The dominator tree of one function - see opt_flow.cpp, which computes all three of these.
+ *
+ * `dominators[i][j]` is whether block `j` dominates block `i`, which includes `i` itself.
+ * `preorder` is a visit order in which a block precedes everything it dominates, and is what a pass
+ * that *moves* an instruction needs: laying candidates out in that order lays a definition out
+ * before the use that depends on it, with no dependency walk of its own.
+ */
+struct Dominance {
+    // One row per block, holding the blocks that dominate it. A list rather than an array of
+    // arrays so that the rows survive the function they were computed for - see computeDominance,
+    // which both of its callers reach once per round.
+    IndexSetList dominators;
+
+    Array<U32> immediate;
+    Array<Array<U32>> children;
+    Array<U32> preorder;
+    Array<ModulePtr<Block>> blocks;
+
+    static constexpr U32 kNone = maxLimit<U32>;
+};
+
 struct OptContext {
     Context& context;
     Program& program;
@@ -22,6 +44,17 @@ struct OptContext {
 
     Module* module = nullptr;
     Function* function = nullptr;
+
+    /*
+     * The buffers the passes work in, which belong to the stage rather than to one function.
+     *
+     * There is one OptContext per program and one call of each pass per function per round, so a
+     * set built inside a pass is built a few thousand times over a compilation and holds a handful
+     * of bits each time. `sets` hands out the per-pass ones by scope - see ScratchSet - and the
+     * dominator tree is named because two passes ask for it and neither wants the other's.
+     */
+    IndexSetPool sets;
+    Dominance dominance;
 
     // Set by any rewrite. The driver runs the passes to a fixed point over one function, because
     // folding exposes identities and identities expose more folding.
@@ -279,24 +312,9 @@ StringId fieldName(OptContext& opt, const Fields& fields, Size index);
 // where there is one, then the field.
 Place fieldPlace(OptContext& opt, Place base, const Fields& fields, U16 index);
 
-/*
- * The dominator tree of one function - see opt_flow.cpp, which computes all three of these.
- *
- * `dominators[i][j]` is whether block `j` dominates block `i`, which includes `i` itself.
- * `preorder` is a visit order in which a block precedes everything it dominates, and is what a pass
- * that *moves* an instruction needs: laying candidates out in that order lays a definition out
- * before the use that depends on it, with no dependency walk of its own.
- */
-struct Dominance {
-    Array<Array<U8>> dominators;
-    Array<U32> immediate;
-    Array<Array<U32>> children;
-    Array<U32> preorder;
-    Array<ModulePtr<Block>> blocks;
-
-    static constexpr U32 kNone = maxLimit<U32>;
-};
-
+// Fills `result` for the current function, reusing everything it already holds. Handed the
+// caller's structure rather than returning one because the caller's is `opt.dominance`, which
+// outlives every function.
 void computeDominance(OptContext& opt, Dominance& result);
 
 /*
@@ -309,7 +327,7 @@ void computeDominance(OptContext& opt, Dominance& result);
 struct Loop {
     U32 header = 0;
     U32 preheader = kNone;
-    Array<U8> contains;
+    IndexSet contains;
     Array<U32> blocks;
 
     static constexpr U32 kNone = maxLimit<U32>;
@@ -321,15 +339,15 @@ void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops);
 
 // The blocks control can actually get to, indexed by block. A pass that reasons optimistically about
 // a cycle needs this, and so does one that deletes what nothing reaches.
-void computeReachable(OptContext& opt, Array<U8>& reachable);
+void computeReachable(OptContext& opt, IndexSet& reachable);
 
 // Per local, whether a callee could reach its storage: indexed by local, and false for anything the
 // function handed an address of.
-void computeContainment(OptContext& opt, Array<U8>& contained);
+void computeContainment(OptContext& opt, IndexSet& contained);
 
 // Whether this place is storage inside a local a callee cannot reach - a contained root, and a path
 // that stays inside the allocation rather than leaving through a pointer, an element or a witness.
-bool staysInFrame(OptContext& opt, Array<U8>& contained, const Place& place);
+bool staysInFrame(OptContext& opt, const IndexSet& contained, const Place& place);
 
 // Recomputing every use list from the instructions that exist - see opt.cpp, which says why it is
 // necessary rather than tidy. Any pass that rewrites a function it did not arrive at through the

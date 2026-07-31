@@ -283,13 +283,17 @@ static InstanceMatch matchInstanceAt(Module& module, GlobalPtr<TypeClass> typeCl
         return InstanceMatch { structural, {} };
     }
 
-    Array<ModulePtr<ClassInstance>> candidates;
-    findInstances(module, typeClass, candidates);
+    Scratch<Array<ModulePtr<ClassInstance>>> candidates(module.program.instanceCandidates);
+    findInstances(module, typeClass, *candidates);
 
     InstanceMatch best;
 
-    for(auto candidate: candidates) {
-        Array<TypePtr> bindings;
+    // One list for every candidate rather than one each: all but the winning candidate's bindings
+    // are discarded, and the winner's are moved out - after which this is empty and grows once more.
+    Array<TypePtr> bindings;
+
+    for(auto candidate: *candidates) {
+        bindings.clear();
         if(!instanceApplies(module, *local[candidate], args, bindings, depth)) continue;
 
         // Overlap between two heads is resolved by specificity: a candidate wins only when the one

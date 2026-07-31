@@ -68,8 +68,8 @@ struct Candidate {
     Place place;
     TypePtr type = nullptr;
 
-    Array<U8> stores;    // whether the block writes the place at all
-    Array<U8> available; // whether every path into the block has written it
+    IndexSet stores;    // whether the block writes the place at all
+    IndexSet available; // whether every path into the block has written it
     Array<ModulePtr<Value>> entry;
     Array<ModulePtr<Value>> exit;
 };
@@ -116,7 +116,7 @@ Size candidateOf(OptContext& opt, Array<Candidate>& candidates, const Place& pla
  * one away is what lets opt_scalar.cpp remove the record. That is the whole point of the pass, and
  * the case this declines was never part of it.
  */
-void collectCandidates(OptContext& opt, Array<U8>& contained, Array<Candidate>& into) {
+void collectCandidates(OptContext& opt, const IndexSet& contained, Array<Candidate>& into) {
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         for(auto pointer: opt.local[blockPointer]->instructions.contents(opt.local)) {
             auto instruction = opt.local[pointer];
@@ -152,8 +152,7 @@ void collectCandidates(OptContext& opt, Array<U8>& contained, Array<Candidate>& 
  * notice if two of those ever disagreed.
  */
 bool surveyCandidate(OptContext& opt, Candidate& candidate) {
-    auto count = opt.function->blocks.size();
-    for(Size i = 0; i < count; i++) candidate.stores.push(0);
+    candidate.stores.reset(opt.function->blocks.size());
 
     auto usable = true;
 
@@ -182,7 +181,7 @@ bool surveyCandidate(OptContext& opt, Candidate& candidate) {
                     auto& store = (InstInit&)*instruction;
                     if(opt.local[store.value]->type != candidate.type) usable = false;
 
-                    candidate.stores[block->index] = 1;
+                    candidate.stores.set(block->index, true);
                     return;
                 }
 
@@ -236,14 +235,13 @@ bool surveyCandidate(OptContext& opt, Candidate& candidate) {
  * zero. That is the conservative answer and the convenient one: an alternative arriving over an edge
  * nothing takes is still an alternative the phi would have to name.
  */
-void computeAvailability(OptContext& opt, Candidate& candidate, Array<U8>& reachable) {
+void computeAvailability(OptContext& opt, Candidate& candidate, const IndexSet& reachable) {
     auto count = opt.function->blocks.size();
-    Array<U8> out;
 
-    for(Size i = 0; i < count; i++) {
-        candidate.available.push(0);
-        out.push(reachable[i]);
-    }
+    candidate.available.reset(count);
+
+    ScratchSet out(opt.sets, count);
+    out->copyFrom(reachable);
 
     auto changed = true;
     while(changed) {
@@ -255,19 +253,19 @@ void computeAvailability(OptContext& opt, Candidate& candidate, Array<U8>& reach
 
             auto incoming = block->incoming.contents(opt.local);
 
-            U8 in = incoming.size() != 0;
+            auto in = incoming.size() != 0;
             for(auto predecessor: incoming) {
-                if(!out[opt.local[predecessor]->index]) { in = 0; break; }
+                if(!(*out)[opt.local[predecessor]->index]) { in = false; break; }
             }
 
             if(candidate.available[block->index] != in) {
-                candidate.available[block->index] = in;
+                candidate.available.set(block->index, in);
                 changed = true;
             }
 
-            U8 leaves = in || candidate.stores[block->index];
-            if(out[block->index] != leaves) {
-                out[block->index] = leaves;
+            auto leaves = in || candidate.stores[block->index];
+            if((*out)[block->index] != leaves) {
+                out->set(block->index, leaves);
                 changed = true;
             }
         }
@@ -277,12 +275,12 @@ void computeAvailability(OptContext& opt, Candidate& candidate, Array<U8>& reach
 // Whether every read of the place follows something that wrote it. The one thing that can still
 // disqualify a place at this point, and it disqualifies it completely: a value cannot carry what was
 // never put in it.
-bool readsAreWritten(OptContext& opt, Candidate& candidate, Array<U8>& reachable) {
+bool readsAreWritten(OptContext& opt, Candidate& candidate, const IndexSet& reachable) {
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         auto block = opt.local[blockPointer];
         if(!reachable[block->index]) continue;
 
-        auto written = candidate.available[block->index];
+        U8 written = candidate.available[block->index];
 
         for(auto pointer: block->instructions.contents(opt.local)) {
             auto instruction = opt.local[pointer];
@@ -410,22 +408,22 @@ void removeTrivialPhis(OptContext& opt, Array<ModulePtr<InstPhi>>& phis) {
 void promotePlaces(OptContext& opt) {
     if(opt.function->blocks.isEmpty()) return;
 
-    Array<U8> contained;
-    computeContainment(opt, contained);
+    ScratchSet contained(opt.sets, 0);
+    computeContainment(opt, *contained);
 
-    Array<U8> reachable;
-    computeReachable(opt, reachable);
+    ScratchSet reachable(opt.sets, 0);
+    computeReachable(opt, *reachable);
 
     Array<Candidate> found;
-    collectCandidates(opt, contained, found);
+    collectCandidates(opt, *contained, found);
     if(found.isEmpty()) return;
 
     Array<Candidate> candidates;
     for(auto& candidate: found) {
         if(!surveyCandidate(opt, candidate)) continue;
 
-        computeAvailability(opt, candidate, reachable);
-        if(!readsAreWritten(opt, candidate, reachable)) continue;
+        computeAvailability(opt, candidate, *reachable);
+        if(!readsAreWritten(opt, candidate, *reachable)) continue;
 
         candidates.push(::move(candidate));
     }
@@ -466,7 +464,7 @@ void promotePlaces(OptContext& opt) {
     // reads alive, which is the right outcome for storage only dead code names.
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         auto block = opt.local[blockPointer];
-        if(reachable[block->index]) rewriteBlock(opt, *block, candidates);
+        if((*reachable)[block->index]) rewriteBlock(opt, *block, candidates);
     }
 
     // The alternatives, now that every block has said what it leaves the place holding. One per

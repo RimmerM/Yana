@@ -93,7 +93,9 @@ static ModulePtr<Function> generateInstanceFunction(Module& module, TypeClass& t
     }
 
     ExprResolver resolver(module.context, module, *function);
-    Array<ModulePtr<Value>> values;
+
+    Scratch<Array<ModulePtr<Value>>> held(module.program.valueLists);
+    auto& values = *held;
     for(auto arg: function->args.contents(local)) values.push((ModulePtr<Value>)arg);
 
     auto result = emit(resolver, toBuffer(values), function->returnType, kNullLocation, 0);

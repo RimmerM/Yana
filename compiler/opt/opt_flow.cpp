@@ -19,14 +19,30 @@ void computeDominance(OptContext& opt, Dominance& result) {
     auto& blocks = opt.function->blocks;
     auto count = blocks.size();
 
+    /*
+     * Emptied rather than built, on every field.
+     *
+     * `result` is `opt.dominance`, which the stage keeps for the length of the program: the rows,
+     * the child lists and the three index arrays all still hold the last function's storage, and
+     * `clear` on a Tritium array keeps the buffer it had. This is one of the two places the
+     * optimizer used to allocate per block per round.
+     */
+    result.dominators.reset(count, count);
+    result.blocks.clear();
+    result.immediate.clear();
+    result.preorder.clear();
+
+    while(result.children.size() < count) result.children.push(Array<U32>());
+    for(Size i = 0; i < count; i++) result.children[i].clear();
+
     for(Size i = 0; i < count; i++) {
         result.blocks.push(blocks.get(opt.local, i));
         result.immediate.push(Dominance::kNone);
-        result.children.push(Array<U32>());
 
-        Array<U8> row;
-        for(Size j = 0; j < count; j++) row.push(i == 0 ? U8(i == j) : U8(1));
-        result.dominators.push(::move(row));
+        // Everything dominates everything until the fixpoint says otherwise, except at the entry
+        // block, which only ever dominates itself.
+        if(i == 0) result.dominators[0].set(0, true);
+        else result.dominators[i].fill();
     }
 
     auto changed = true;
@@ -36,29 +52,26 @@ void computeDominance(OptContext& opt, Dominance& result) {
         for(Size i = 1; i < count; i++) {
             auto block = opt.local[result.blocks[i]];
 
-            Array<U8> next;
+            ScratchSet next(opt.sets, count);
             auto first = true;
 
             for(auto predecessor: block->incoming.contents(opt.local)) {
                 auto from = opt.local[predecessor]->index;
 
                 if(first) {
-                    for(Size j = 0; j < count; j++) next.push(result.dominators[from][j]);
+                    next->copyFrom(result.dominators[from]);
                     first = false;
                 } else {
-                    for(Size j = 0; j < count; j++) next[j] &= result.dominators[from][j];
+                    next->intersectWith(result.dominators[from]);
                 }
             }
 
             // A block nothing reaches is dominated by itself and nothing else, which keeps it out of
             // every scope below without needing a case of its own.
-            if(first) for(Size j = 0; j < count; j++) next.push(0);
-            next[i] = 1;
+            next->set(i, true);
 
-            for(Size j = 0; j < count; j++) {
-                if(result.dominators[i][j] == next[j]) continue;
-
-                result.dominators[i][j] = next[j];
+            if(!next->equals(result.dominators[i])) {
+                result.dominators[i].copyFrom(*next);
                 changed = true;
             }
         }
@@ -89,7 +102,7 @@ void computeDominance(OptContext& opt, Dominance& result) {
     // A visit order in which a block comes before everything it dominates, which is what a pass that
     // moves an instruction needs: two values with a dependency between them are in dominance order
     // by construction, so laying them out in this order lays the definition out before the use.
-    result.preorder.reserve(count);
+    result.preorder.reserve(U32(count));
     for(Size i = 0; i < count; i++) result.preorder.push(0);
 
     Array<U32> stack;
@@ -145,10 +158,8 @@ void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops) {
 
                 Loop fresh;
                 fresh.header = header;
-                fresh.contains.reserve(count);
-                for(Size j = 0; j < count; j++) fresh.contains.push(0);
-
-                fresh.contains[header] = 1;
+                fresh.contains.reset(count);
+                fresh.contains.set(header, true);
                 loops.push(::move(fresh));
             }
 
@@ -156,19 +167,15 @@ void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops) {
             // marked, so it needs no test of its own.
             auto& loop = loops[existing];
             Array<U32> pending;
-            if(!loop.contains[i]) {
-                loop.contains[i] = 1;
-                pending.push(U32(i));
-            }
+            if(loop.contains.add(i)) pending.push(U32(i));
 
             while(pending.size()) {
                 auto index = pending.pop().unwrap();
 
                 for(auto predecessor: opt.local[dominance.blocks[index]]->incoming.contents(opt.local)) {
                     auto from = opt.local[predecessor]->index;
-                    if(loop.contains[from]) continue;
+                    if(!loop.contains.add(from)) continue;
 
-                    loop.contains[from] = 1;
                     pending.push(from);
                 }
             }
@@ -238,8 +245,8 @@ void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops) {
  * Flow-insensitive on purpose: a local borrowed anywhere is treated as reachable everywhere, which
  * costs the forwarding before the borrow and needs no reasoning about where a loan ends.
  */
-void computeContainment(OptContext& opt, Array<U8>& contained) {
-    contained.clear();
+void computeContainment(OptContext& opt, IndexSet& contained) {
+    contained.reset(opt.function->localCount());
 
     for(U32 i = 0; i < opt.function->localCount(); i++) {
         auto slot = opt.function->localAt(opt.local, i);
@@ -273,20 +280,20 @@ void computeContainment(OptContext& opt, Array<U8>& contained) {
             }
         }
 
-        contained.push(U8(ok));
+        contained.set(i, ok);
     }
 }
 
 // The blocks control can actually get to. Needed because the analysis below starts from the
 // optimistic end, and a cycle nothing enters would otherwise convince itself that it holds whatever
 // it likes - there being no path into it to contradict the claim.
-void computeReachable(OptContext& opt, Array<U8>& reachable) {
+void computeReachable(OptContext& opt, IndexSet& reachable) {
     auto count = opt.function->blocks.size();
-    for(Size i = 0; i < count; i++) reachable.push(0);
+    reachable.reset(count);
     if(!count) return;
 
     Array<U32> pending;
-    reachable[0] = 1;
+    reachable.set(0, true);
     pending.push(0);
 
     while(pending.size()) {
@@ -296,17 +303,16 @@ void computeReachable(OptContext& opt, Array<U8>& reachable) {
             if(!successor) continue;
 
             auto to = opt.local[successor]->index;
-            if(reachable[to]) continue;
+            if(!reachable.add(to)) continue;
 
-            reachable[to] = 1;
             pending.push(to);
         }
     }
 }
 
-bool staysInFrame(OptContext& opt, Array<U8>& contained, const Place& place) {
+bool staysInFrame(OptContext& opt, const IndexSet& contained, const Place& place) {
     if(place.root != PlaceRoot::Local) return false;
-    if(place.local >= contained.size() || !contained[place.local]) return false;
+    if(!contained[place.local]) return false;
 
     // `get` is a read that the list spells as a mutation, which is why every walk of a projection
     // path in this directory casts the constness off rather than taking a copy of the path.

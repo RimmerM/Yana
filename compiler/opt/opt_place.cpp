@@ -182,7 +182,7 @@ struct Forwarder {
 
     // Per local, whether a callee could reach its storage - see `computeContainment`. Indexed by
     // local, and empty until one function has been walked.
-    Array<U8> contained;
+    IndexSet contained;
 
     void forget() { known.clear(); }
 

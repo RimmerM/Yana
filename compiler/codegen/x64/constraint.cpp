@@ -283,8 +283,9 @@ U32 argAreaBytes(const CallConvention& convention, const Array<ArgLocation>& arg
  * Instruction shapes. See the block comment on InstShape in gen.h.
  */
 
-InstShape shapeOf(LowerBase base, const MachineFunction& machine, const Constraints& constraints, LowerFunction& fun, LowerInst* inst) {
-    InstShape shape;
+void shapeOf(LowerBase base, const MachineFunction& machine, const Constraints& constraints,
+             LowerFunction& fun, LowerInst* inst, InstShape& shape) {
+    shape.clear();
 
     auto used = inst->used();
     auto created = inst->created();
@@ -299,7 +300,7 @@ InstShape shapeOf(LowerBase base, const MachineFunction& machine, const Constrai
             return base[used[i]]->type;
         }, shape.uses);
 
-        return shape;
+        return;
     }
 
     if(inst->kind == LowerInst::Call) {
@@ -321,7 +322,7 @@ InstShape shapeOf(LowerBase base, const MachineFunction& machine, const Constrai
         }, shape.creates);
 
         shape.clobber = shape.convention->clobber;
-        return shape;
+        return;
     }
 
     // Everything else takes its shape from the form selection chose for it. An operand beyond the
@@ -345,8 +346,6 @@ InstShape shapeOf(LowerBase base, const MachineFunction& machine, const Constrai
     for(Size i = 0; i < created.size(); i++) {
         shape.creates.push(isImplicit(&created[i]) ? ArgLocation {} : constraintFor(form.defs, i));
     }
-
-    return shape;
 }
 
 /*

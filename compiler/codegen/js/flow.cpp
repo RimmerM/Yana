@@ -38,13 +38,6 @@ void successorsOf(Gen& g, U32 block, U32* target, U32& count) {
     }
 }
 
-Array<bool> filled(Size count, bool value) {
-    Array<bool> set;
-    for(Size i = 0; i < count; i++) set.push(value);
-
-    return set;
-}
-
 /*
  * The dominance fixpoint, over whichever direction the caller walks in.
  *
@@ -59,12 +52,16 @@ Array<bool> filled(Size count, bool value) {
  * loop rather than a slow one.
  */
 template<class F>
-Array<Array<bool>> dominanceSets(Size count, U32 root, F&& neighbours) {
-    Array<Array<bool>> sets;
-    if(!count) return sets;
+void dominanceSets(IndexSetList& sets, IndexSet& next, Size count, U32 root, F&& neighbours) {
+    sets.reset(count, count);
+    if(!count) return;
 
-    for(Size i = 0; i < count; i++) sets.push(filled(count, U32(i) != root));
-    sets[root][root] = true;
+    for(Size i = 0; i < count; i++) {
+        if(U32(i) != root) sets[i].fill();
+    }
+
+    sets[root].reset(count);
+    sets[root].set(root, true);
 
     auto changed = true;
     while(changed) {
@@ -73,33 +70,32 @@ Array<Array<bool>> dominanceSets(Size count, U32 root, F&& neighbours) {
         for(Size i = 0; i < count; i++) {
             if(U32(i) == root) continue;
 
-            auto next = filled(count, true);
+            // A block nothing reaches is dominated by itself alone, which keeps it out of every
+            // other block's answer rather than poisoning the intersection with the full set - so
+            // this starts empty and the first neighbour is what fills it.
+            next.reset(count);
             auto any = false;
 
             neighbours(U32(i), [&](U32 neighbour) {
+                if(any) next.intersectWith(sets[neighbour]);
+                else next.copyFrom(sets[neighbour]);
+
                 any = true;
-                for(Size j = 0; j < count; j++) next[j] = next[j] && sets[neighbour][j];
             });
 
-            // A block nothing reaches is dominated by itself alone, which keeps it out of every
-            // other block's answer rather than poisoning the intersection with the full set.
-            if(!any) for(Size j = 0; j < count; j++) next[j] = false;
-            next[i] = true;
+            next.set(i, true);
 
-            for(Size j = 0; j < count; j++) {
-                if(next[j] == sets[i][j]) continue;
-                sets[i][j] = next[j];
-                changed = true;
-            }
+            if(next.equals(sets[i])) continue;
+
+            sets[i].copyFrom(next);
+            changed = true;
         }
     }
-
-    return sets;
 }
 
 // The immediate dominator is the closest one, and the closest is the one whose own set is largest:
 // it dominates everything that dominates this block except this block itself.
-U32 closestOf(Array<Array<bool>>& sets, Size block, U32 fallback) {
+U32 closestOf(IndexSetList& sets, Size block, U32 fallback) {
     auto count = sets.size();
     auto best = fallback;
     Size bestSize = 0;
@@ -123,7 +119,10 @@ void computePostDominators(Gen& g) {
     auto count = g.blocks.size();
     auto exit = U32(count);
 
-    auto sets = dominanceSets(count + 1, exit, [&](U32 block, auto&& yield) {
+    // Straight into where it is kept, and with the fixpoint's own scratch alongside it: both
+    // outlive the function being emitted, so the next one reuses the rows rather than building them.
+    auto& sets = g.postDominators;
+    dominanceSets(sets, g.flowScratch, count + 1, exit, [&](U32 block, auto&& yield) {
         U32 successors[2];
         U32 successorCount;
         successorsOf(g, block, successors, successorCount);
@@ -142,8 +141,6 @@ void computePostDominators(Gen& g) {
 
     g.ipdom.clear();
     for(Size i = 0; i < count; i++) g.ipdom.push(closestOf(sets, i, exit));
-
-    g.postDominators = ::move(sets);
 }
 
 // The same fixpoint the other way round, and the reason it is needed rather than a block-order
@@ -152,7 +149,8 @@ void computePostDominators(Gen& g) {
 void computeDominators(Gen& g) {
     auto count = g.blocks.size();
 
-    auto sets = dominanceSets(count, 0, [&](U32 block, auto&& yield) {
+    auto& sets = g.dominators;
+    dominanceSets(sets, g.flowScratch, count, 0, [&](U32 block, auto&& yield) {
         auto incoming = g.local[g.blocks[block]]->incoming;
 
         for(auto predecessor: incoming.contents(g.local)) {

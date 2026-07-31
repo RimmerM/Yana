@@ -230,7 +230,18 @@ struct Gen {
     // The CFG, in the function's own block order.
     Array<ModulePtr<Block>> blocks;
     HashMap<U32, U32> blockIndex;
-    Array<Array<bool>> postDominators;
+    /*
+     * Both dominance relations, and the set the fixpoint that builds them works in.
+     *
+     * Kept on the generator rather than returned by `dominanceSets`, because there is one of these
+     * per module and one call of that per function: the rows are re-sized to the next function's
+     * block count and the storage behind them is the previous function's. `dominators` is only read
+     * while it is being turned into `idom` and `loopHeader`, and is held for the same reason.
+     */
+    IndexSetList postDominators;
+    IndexSetList dominators;
+    IndexSet flowScratch;
+
     Array<U32> ipdom;
     Array<U32> idom;
     Array<bool> loopHeader;

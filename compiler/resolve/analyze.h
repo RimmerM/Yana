@@ -111,6 +111,11 @@ struct OwnershipResults {
     HashMap<U32, OwnershipResult> functions;
 };
 
+// Releases what Program::analysisScratch points at. Declared here and defined in analyze.cpp
+// because the buffers it holds are private to the passes, and module.cpp is what has to let go of
+// them - the same arrangement OwnershipResults has, for the same reason.
+void destroyAnalysisScratch(AnalysisScratch* scratch);
+
 /*
  * Runs every ownership pass over one function, reporting what it rejects and rewriting the body
  * with the drops it owes and the storage classes it chose. Returns false when something was

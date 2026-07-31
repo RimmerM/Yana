@@ -340,6 +340,9 @@ struct Legalizer {
     const Constraints& constraints;
     const Placement& placement;
 
+    // One instruction's shape, asked for per instruction and emptied rather than rebuilt.
+    ScratchPool<InstShape> shapes;
+
     // The scratch registers held back for this function, which this pass hands out from - see
     // TemporaryReserve. Held by value because the measuring pass runs against the widest one rather
     // than against whatever this function ended up with.
@@ -516,7 +519,9 @@ struct Legalizer {
 
         for(auto& used: tempsUsed) used = 0;
 
-        auto shape = shapeOf(base, machine, constraints, fun, inst);
+        Scratch<InstShape> held(shapes);
+        auto& shape = *held;
+        shapeOf(base, machine, constraints, fun, inst, shape);
         auto used = inst->used();
         auto created = inst->created();
 

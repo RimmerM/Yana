@@ -9,6 +9,58 @@
  */
 
 /*
+ * The program's buffers, made on first use and kept until it is destroyed.
+ *
+ * On the program rather than on the analysis because the analysis is the thing there are a thousand
+ * of: a compilation runs these passes twice over every function of Core, Native and Collections
+ * before it reaches one the source wrote, and what they need is the same shape every time. Sized to
+ * the largest function seen so far and never shrunk - see AnalysisScratch.
+ */
+static AnalysisScratch& scratchFor(Program& program) {
+    if(!program.analysisScratch) program.analysisScratch = new AnalysisScratch();
+    return *program.analysisScratch;
+}
+
+void destroyAnalysisScratch(AnalysisScratch* scratch) {
+    delete scratch;
+}
+
+Analysis::Analysis(Module& module, Function& function):
+    module(module), context(module.context), global(*module.types), local(*module.arena),
+    function(function), scratch(scratchFor(module.program)),
+    liveIn(scratch.liveIn), liveOut(scratch.liveOut), values(scratch.values),
+    contents(scratch.contents), outlives(scratch.outlives), escaped(scratch.escaped),
+    transferred(scratch.transferred), releasesStorage(scratch.releasesStorage),
+    stateBefore(scratch.stateBefore), order(scratch.order), blockRanges(scratch.blockRanges),
+    effects(scratch.effects), tracked(scratch.tracked), demand(scratch.demand) {
+
+    // Emptied here rather than by whichever pass fills each one, so that "this run starts with
+    // nothing" is one statement in one place - see AnalysisScratch for why they are not fresh.
+    order.clear();
+    blockRanges.clear();
+    tracked.clear();
+    demand.clear();
+}
+
+/*
+ * One of the pool's provenances, for the length of one expression.
+ *
+ * The depth is the whole of the bookkeeping: a borrow takes the set at the current depth and
+ * releasing it puts the depth back, so nesting works and nothing is ever handed to two holders at
+ * once. The pool grows to the deepest nesting any function reached and stops there.
+ */
+ScratchProvenance::ScratchProvenance(Analysis& analysis): scratch(analysis.scratch) {
+    if(scratch.borrowDepth == scratch.borrowed.size()) scratch.borrowed.push(new Provenance());
+
+    set = scratch.borrowed[scratch.borrowDepth++];
+    set->reset(analysis.localCount);
+}
+
+ScratchProvenance::~ScratchProvenance() {
+    scratch.borrowDepth--;
+}
+
+/*
  * One function, once.
  *
  * `reporting` is what separates the fixpoint's silent rounds from the one round whose diagnostics
@@ -73,7 +125,7 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
         });
     }
 
-    for(Size i = 0; i < analysis.instructionCount; i++) analysis.stateBefore.push(Array<OwnState>());
+    analysis.stateBefore.reset(analysis.instructionCount, 0, OwnState::Uninitialized);
 
     computeLiveness(analysis);
     computeOwnership(analysis);
@@ -228,9 +280,10 @@ static void settleSummaries(Program& program) {
      * in that order is the one that wakes the fewest callers a second time.
      */
     Array<Size> pending;
-    Array<U8> queued;
+    IndexSet queued;
+    queued.reset(work.size());
+    queued.fill();
 
-    for(Size i = 0; i < work.size(); i++) queued.push(1);
     for(Size i = work.size(); i > 0; i--) pending.push(i - 1);
 
     /*
@@ -246,7 +299,7 @@ static void settleSummaries(Program& program) {
 
     while(pending.isNotEmpty() && visits < budget) {
         auto index = pending.pop().unwrap();
-        queued[index] = 0;
+        queued.set(index, false);
 
         auto& item = work[index];
         OwnershipResult discarded;
@@ -263,7 +316,7 @@ static void settleSummaries(Program& program) {
         for(auto caller: woken.unwrap()) {
             if(queued[caller]) continue;
 
-            queued[caller] = 1;
+            queued.set(caller, true);
             pending.push(caller);
         }
     }

@@ -27,8 +27,9 @@ void computeDemand(Analysis& analysis) {
         switch(instruction.kind) {
             case Value::Assign: {
                 auto& write = (InstInit&)instruction;
-                auto roots = placeProvenance(analysis, write.place);
-                raiseDemand(analysis, roots, writable);
+                ScratchProvenance roots(analysis);
+                placeProvenance(analysis, write.place, *roots);
+                raiseDemand(analysis, *roots, writable);
 
                 /*
                  * Replacing indirect storage this owner holds is what a regrow is.
@@ -41,7 +42,7 @@ void computeDemand(Analysis& analysis) {
                  */
                 if(write.place.projections.isNotEmpty() &&
                    isPointer(analysis.global, analysis.local[write.value]->type)) {
-                    raiseDemand(analysis, roots, ReprRequirements { MutationDemand::ReadOnly, false, true });
+                    raiseDemand(analysis, *roots, ReprRequirements { MutationDemand::ReadOnly, false, true });
                 }
 
                 break;
@@ -49,17 +50,22 @@ void computeDemand(Analysis& analysis) {
 
             case Value::Borrow:
                 if(((InstBorrow&)instruction).mut) {
-                    raiseDemand(analysis, placeProvenance(analysis, ((InstBorrow&)instruction).place), writable);
+                    ScratchProvenance roots(analysis);
+                    placeProvenance(analysis, ((InstBorrow&)instruction).place, *roots);
+                    raiseDemand(analysis, *roots, writable);
                 }
 
                 break;
 
-            case Value::Address:
+            case Value::Address: {
                 // Design.md's Pointers section: the memory a raw pointer names is always mutable,
                 // so handing one out is both a write capability and a demand for storage to exist.
-                raiseDemand(analysis, placeProvenance(analysis, ((InstAddress&)instruction).place),
+                ScratchProvenance addressed(analysis);
+                placeProvenance(analysis, ((InstAddress&)instruction).place, *addressed);
+                raiseDemand(analysis, *addressed,
                             ReprRequirements { MutationDemand::Writable, true, false });
                 break;
+            }
 
             case Value::Call: {
                 auto& call = (InstCall&)instruction;
@@ -67,7 +73,7 @@ void computeDemand(Analysis& analysis) {
                 U16 index = 0;
 
                 for(auto arg: call.args.contents(analysis.local)) {
-                    auto roots = provenanceOf(analysis, arg);
+                    auto& roots = provenanceOf(analysis, arg);
 
                     if(!summary || index >= summary->args.size()) {
                         if(refersToStorage(analysis, analysis.local[arg]->type)) {

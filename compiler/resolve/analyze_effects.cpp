@@ -9,14 +9,6 @@
  * a question this file does not answer.
  */
 
-// A set with a slot per local, all clear. Every pass allocates one of these, which is why it lives
-// with the numbering rather than with whichever pass happened to want it first.
-LocalSet emptySet(Size count) {
-    LocalSet set;
-    for(Size i = 0; i < count; i++) set.push(0);
-    return set;
-}
-
 void numberFunction(Analysis& analysis) {
     for(Size i = 0; i < analysis.blockCount(); i++) {
         auto block = analysis.blockAt(i);
@@ -93,15 +85,16 @@ static void transferFrom(Analysis& analysis, Effects& effects, ModulePtr<Value> 
 
 static void deriveEffects(Analysis& analysis) {
     auto local = analysis.local;
+    analysis.effects.reset(analysis.order.size());
 
-    for(auto pointer: analysis.order) {
-        auto& instruction = *local[pointer];
-        Effects effects;
+    for(Size index = 0; index < analysis.order.size(); index++) {
+        auto& instruction = *local[analysis.order[index]];
+        auto& effects = analysis.effects[index];
 
         // A value that owns storage of its own defines the slot recording it. That covers the
         // aggregate results - a call's, a copy's - which are created already filled rather than
         // allocated and then written into.
-        auto produced = backingLocal(analysis, (ModulePtr<Value>)pointer);
+        auto produced = backingLocal(analysis, (ModulePtr<Value>)analysis.order[index]);
         if(produced != maxLimit<U32> && instruction.kind != Value::Arg) {
             // An allocation ends the slot's live range going backwards - nothing above it can be
             // reaching contents that did not exist - without making it owned, since it puts
@@ -271,7 +264,6 @@ static void deriveEffects(Analysis& analysis) {
                 break;
         }
 
-        analysis.effects.push(::move(effects));
     }
 }
 

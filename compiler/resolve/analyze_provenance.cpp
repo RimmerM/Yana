@@ -12,19 +12,8 @@
  * is optimistic rather than wrong - flowRound only ever adds.
  */
 
-Provenance emptyProvenance(Size count) {
-    return Provenance { emptySet(count), false, false };
-}
-
 bool joinProvenance(Provenance& target, const Provenance& source) {
-    auto changed = false;
-
-    for(Size i = 0; i < source.locals.size() && i < target.locals.size(); i++) {
-        if(source.locals[i] && !target.locals[i]) {
-            target.locals[i] = 1;
-            changed = true;
-        }
-    }
+    auto changed = target.locals.unionWith(source.locals);
 
     if(source.global && !target.global) { target.global = true; changed = true; }
     if(source.unknown && !target.unknown) { target.unknown = true; changed = true; }
@@ -48,17 +37,17 @@ bool refersToStorage(Analysis& analysis, TypePtr type) {
 
 // The roots a place names. A projection stays inside the storage its root names, so the path is
 // not walked - which is the same reason liveness is tracked per local.
-Provenance placeProvenance(Analysis& analysis, const Place& place) {
-    auto result = emptyProvenance(analysis.localCount);
+void placeProvenance(Analysis& analysis, const Place& place, Provenance& into) {
+    into.reset(analysis.localCount);
 
     switch(place.root) {
         case PlaceRoot::Local:
-            if(place.local < analysis.localCount) result.locals[place.local] = 1;
-            else result.unknown = true;
+            if(place.local < analysis.localCount) into.locals.set(place.local, true);
+            else into.unknown = true;
             break;
 
         case PlaceRoot::Global:
-            result.global = true;
+            into.global = true;
             break;
 
         case PlaceRoot::Pointer:
@@ -66,46 +55,43 @@ Provenance placeProvenance(Analysis& analysis, const Place& place) {
             // The place is the memory the pointer names, so its roots are the pointer's own. A
             // borrow answers the same way: how much was *proved* about the address is what separates
             // the two roots, and provenance is not one of the things it separates.
-            joinProvenance(result, provenanceOf(analysis, place.pointer));
+            joinProvenance(into, provenanceOf(analysis, place.pointer));
             break;
     }
-
-    return result;
 }
 
 // What reading out of a place produces: everything anything ever wrote into the roots it names.
-Provenance contentsOfPlace(Analysis& analysis, const Place& place) {
-    auto roots = placeProvenance(analysis, place);
-    auto result = emptyProvenance(analysis.localCount);
+void contentsOfPlace(Analysis& analysis, const Place& place, Provenance& into) {
+    ScratchProvenance roots(analysis);
+    placeProvenance(analysis, place, *roots);
+
+    into.reset(analysis.localCount);
 
     for(Size i = 0; i < analysis.localCount; i++) {
-        if(roots.locals[i]) joinProvenance(result, analysis.contents[i]);
+        if(roots->locals[i]) joinProvenance(into, analysis.contents[i]);
     }
 
-    if(roots.global || roots.unknown) result.unknown = true;
-    return result;
+    if(roots->global || roots->unknown) into.unknown = true;
 }
 
 // What a value contributes when it is written somewhere. An aggregate is copied byte for byte, so
 // what lands in the destination is what the source contained rather than the source itself.
-Provenance transferredProvenance(Analysis& analysis, ModulePtr<Value> value) {
-    if(!value) return emptyProvenance(analysis.localCount);
+void transferredProvenance(Analysis& analysis, ModulePtr<Value> value, Provenance& into) {
+    into.reset(analysis.localCount);
+    if(!value) return;
 
-    auto result = emptyProvenance(analysis.localCount);
     auto type = analysis.local[value]->type;
 
     if(isMemoryType(analysis.global, type)) {
-        auto roots = provenanceOf(analysis, value);
+        auto& roots = provenanceOf(analysis, value);
         for(Size i = 0; i < analysis.localCount; i++) {
-            if(roots.locals[i]) joinProvenance(result, analysis.contents[i]);
+            if(roots.locals[i]) joinProvenance(into, analysis.contents[i]);
         }
 
-        if(roots.global || roots.unknown) result.unknown = true;
+        if(roots.global || roots.unknown) into.unknown = true;
     } else if(refersToStorage(analysis, type)) {
-        joinProvenance(result, provenanceOf(analysis, value));
+        joinProvenance(into, provenanceOf(analysis, value));
     }
-
-    return result;
 }
 
 // The summary of a called function, or nothing when the callee is not one this pass can see.
@@ -119,31 +105,30 @@ FunctionSummary* summaryOf(Analysis& analysis, ModulePtr<Function> callee) {
 // What a call's result may refer to, composed from the callee's declared return-root group. A
 // borrow coming out of a call is related to every member of that group at once, which is
 // Design.md's deliberate conservatism: the callee may have returned any of them.
-static Provenance callResultProvenance(Analysis& analysis, ModulePtr<Function> callee,
-                                       ModuleList<ModulePtr<Value>, false>& args, TypePtr type) {
-    auto result = emptyProvenance(analysis.localCount);
-    if(!refersToStorage(analysis, type)) return result;
+static void callResultProvenance(Analysis& analysis, ModulePtr<Function> callee,
+                                 ModuleList<ModulePtr<Value>, false>& args, TypePtr type,
+                                 Provenance& into) {
+    into.reset(analysis.localCount);
+    if(!refersToStorage(analysis, type)) return;
 
     auto summary = summaryOf(analysis, callee);
     if(!summary) {
-        result.unknown = true;
-        return result;
+        into.unknown = true;
+        return;
     }
 
     if(summary->resultBound == StorageBound::Arguments) {
         U16 index = 0;
         for(auto arg: args.contents(analysis.local)) {
             if(summary->declaredRoots & (U64(1) << min(U16(63), index))) {
-                joinProvenance(result, provenanceOf(analysis, arg));
+                joinProvenance(into, provenanceOf(analysis, arg));
             }
 
             index++;
         }
     } else if(summary->resultBound != StorageBound::Frame) {
-        result.unknown = true;
+        into.unknown = true;
     }
-
-    return result;
 }
 
 /*
@@ -157,28 +142,26 @@ static Provenance callResultProvenance(Analysis& analysis, ModulePtr<Function> c
  * Null signature - a teardown the compiler calls through a descriptor - has no contract to read, and
  * a result that refers to storage is then storage this analysis cannot name.
  */
-static Provenance dynamicResultProvenance(Analysis& analysis, InstCallDyn& call) {
-    auto result = emptyProvenance(analysis.localCount);
-    if(!refersToStorage(analysis, call.type)) return result;
+static void dynamicResultProvenance(Analysis& analysis, InstCallDyn& call, Provenance& into) {
+    into.reset(analysis.localCount);
+    if(!refersToStorage(analysis, call.type)) return;
 
     auto signature = call.signature && analysis.global[call.signature]->kind == Type::Fun
         ? (FunType*)analysis.global[call.signature] : nullptr;
 
     if(!signature || !signature->returnRoots) {
-        result.unknown = true;
-        return result;
+        into.unknown = true;
+        return;
     }
 
     U16 index = 0;
     for(auto arg: call.args.contents(analysis.local)) {
         if(signature->returnRoots & (U64(1) << min(U16(63), index))) {
-            joinProvenance(result, provenanceOf(analysis, arg));
+            joinProvenance(into, provenanceOf(analysis, arg));
         }
 
         index++;
     }
-
-    return result;
 }
 
 // One round of the value fixpoint. Returns whether anything was added.
@@ -192,13 +175,17 @@ static bool flowRound(Analysis& analysis) {
         auto id = instruction.id;
         if(id >= analysis.values.size()) continue;
 
-        auto produced = emptyProvenance(analysis.localCount);
+        ScratchProvenance produced(analysis);
+
+        // What each case below composes its answer out of, borrowed once for the whole switch
+        // rather than per case - nothing here needs two of them at a time.
+        ScratchProvenance part(analysis);
 
         // A value that owns a slot refers to that slot and to nothing else, whatever produced it -
         // an allocation, a copy, a call whose aggregate result landed in one.
         auto backing = backingLocal(analysis, (ModulePtr<Value>)pointer);
         if(backing != maxLimit<U32>) {
-            produced.locals[backing] = 1;
+            produced->locals.set(backing, true);
         } else {
             switch(instruction.kind) {
                 case Value::LoadPlace: {
@@ -207,52 +194,59 @@ static bool flowRound(Analysis& analysis) {
                     // An aggregate is addressed rather than loaded, so the value *is* the place.
                     // A scalar or a pointer read out of storage is whatever was written there.
                     if(isMemoryType(analysis.global, instruction.type)) {
-                        joinProvenance(produced, placeProvenance(analysis, read.place));
+                        placeProvenance(analysis, read.place, *part);
+                        joinProvenance(*produced, *part);
                     } else if(refersToStorage(analysis, instruction.type)) {
-                        joinProvenance(produced, contentsOfPlace(analysis, read.place));
+                        contentsOfPlace(analysis, read.place, *part);
+                        joinProvenance(*produced, *part);
                     }
 
                     break;
                 }
 
                 case Value::Borrow:
-                    joinProvenance(produced, placeProvenance(analysis, ((InstBorrow&)instruction).place));
+                    placeProvenance(analysis, ((InstBorrow&)instruction).place, *part);
+                    joinProvenance(*produced, *part);
                     break;
 
                 case Value::Address:
-                    joinProvenance(produced, placeProvenance(analysis, ((InstAddress&)instruction).place));
+                    placeProvenance(analysis, ((InstAddress&)instruction).place, *part);
+                    joinProvenance(*produced, *part);
                     break;
 
                 case Value::Move:
-                    joinProvenance(produced, placeProvenance(analysis, ((InstMove&)instruction).place));
+                    placeProvenance(analysis, ((InstMove&)instruction).place, *part);
+                    joinProvenance(*produced, *part);
                     break;
 
                 // What came out of the place may refer to whatever the place did. Only reached for a
                 // scalar: an aggregate result has a slot of its own, which backingLocal answers with
                 // before this switch runs.
                 case Value::Exchange:
-                    joinProvenance(produced, placeProvenance(analysis, ((InstExchange&)instruction).place));
+                    placeProvenance(analysis, ((InstExchange&)instruction).place, *part);
+                    joinProvenance(*produced, *part);
                     break;
 
                 case Value::Cast:
                     // A cast of a pointer is the same address written differently, and asInt/asPtr
                     // are casts. Losing the root here is exactly how an escape would go unnoticed.
-                    joinProvenance(produced, provenanceOf(analysis, ((InstUnary&)instruction).from));
+                    joinProvenance(*produced, provenanceOf(analysis, ((InstUnary&)instruction).from));
                     break;
 
                 case Value::Add:
                 case Value::Sub:
                     // Pointer arithmetic stays inside whatever the pointer named.
                     if(refersToStorage(analysis, instruction.type)) {
-                        joinProvenance(produced, provenanceOf(analysis, ((InstBinary&)instruction).lhs));
-                        joinProvenance(produced, provenanceOf(analysis, ((InstBinary&)instruction).rhs));
+                        joinProvenance(*produced, provenanceOf(analysis, ((InstBinary&)instruction).lhs));
+                        joinProvenance(*produced, provenanceOf(analysis, ((InstBinary&)instruction).rhs));
                     }
 
                     break;
 
                 case Value::Call: {
                     auto& call = (InstCall&)instruction;
-                    joinProvenance(produced, callResultProvenance(analysis, call.callee, call.args, instruction.type));
+                    callResultProvenance(analysis, call.callee, call.args, instruction.type, *part);
+                    joinProvenance(*produced, *part);
                     break;
                 }
 
@@ -265,7 +259,8 @@ static bool flowRound(Analysis& analysis) {
                      * dynamicResultProvenance. Where it declares nothing, the result refers to
                      * storage this analysis cannot name, which is the answer Design-Memory §13 gives.
                      */
-                    joinProvenance(produced, dynamicResultProvenance(analysis, (InstCallDyn&)instruction));
+                    dynamicResultProvenance(analysis, (InstCallDyn&)instruction, *part);
+                    joinProvenance(*produced, *part);
                     break;
 
                 case Value::GenCall:
@@ -283,7 +278,7 @@ static bool flowRound(Analysis& analysis) {
                      */
                     if(refersToStorage(analysis, instruction.type)) {
                         for(auto arg: ((InstGenCall&)instruction).args.contents(local)) {
-                            joinProvenance(produced, provenanceOf(analysis, arg));
+                            joinProvenance(*produced, provenanceOf(analysis, arg));
                         }
                     }
 
@@ -292,12 +287,12 @@ static bool flowRound(Analysis& analysis) {
                 case Value::Native:
                     // copyMemory and setMemory produce nothing, and a syscall produces an integer.
                     // Neither hands back an address this analysis could have named.
-                    if(refersToStorage(analysis, instruction.type)) produced.unknown = true;
+                    if(refersToStorage(analysis, instruction.type)) produced->unknown = true;
                     break;
 
                 case Value::Phi:
                     for(auto input: ((InstPhi&)instruction).inputs.contents(local)) {
-                        joinProvenance(produced, provenanceOf(analysis, input.value));
+                        joinProvenance(*produced, provenanceOf(analysis, input.value));
                     }
 
                     break;
@@ -307,22 +302,26 @@ static bool flowRound(Analysis& analysis) {
             }
         }
 
-        changed = joinProvenance(analysis.values[id], produced) || changed;
+        changed = joinProvenance(analysis.values[id], *produced) || changed;
 
         // Writing into a place makes what was written reachable through that place's root.
         auto storeInto = [&](const Place& place, const Provenance& stored) {
-            auto roots = placeProvenance(analysis, place);
+            ScratchProvenance roots(analysis);
+            placeProvenance(analysis, place, *roots);
+
             for(Size l = 0; l < analysis.localCount; l++) {
-                if(roots.locals[l]) changed = joinProvenance(analysis.contents[l], stored) || changed;
+                if(roots->locals[l]) changed = joinProvenance(analysis.contents[l], stored) || changed;
             }
         };
 
         if(instruction.kind == Value::Init || instruction.kind == Value::Assign) {
             auto& write = (InstInit&)instruction;
-            storeInto(write.place, transferredProvenance(analysis, write.value));
+            transferredProvenance(analysis, write.value, *part);
+            storeInto(write.place, *part);
         } else if(instruction.kind == Value::Exchange) {
             auto& exchange = (InstExchange&)instruction;
-            storeInto(exchange.place, transferredProvenance(analysis, exchange.value));
+            transferredProvenance(analysis, exchange.value, *part);
+            storeInto(exchange.place, *part);
         } else if(instruction.kind == Value::Swap) {
             /*
              * Each place ends up holding what the other did. The sets are joined both ways rather
@@ -331,11 +330,14 @@ static bool flowRound(Analysis& analysis) {
              * to either, which is the answer escape analysis needs and the only one it can keep.
              */
             auto& swap = (InstSwap&)instruction;
-            auto both = contentsOfPlace(analysis, swap.a);
-            joinProvenance(both, contentsOfPlace(analysis, swap.b));
+            ScratchProvenance both(analysis);
 
-            storeInto(swap.a, both);
-            storeInto(swap.b, both);
+            contentsOfPlace(analysis, swap.a, *both);
+            contentsOfPlace(analysis, swap.b, *part);
+            joinProvenance(*both, *part);
+
+            storeInto(swap.a, *both);
+            storeInto(swap.b, *both);
         }
     }
 
@@ -345,13 +347,8 @@ static bool flowRound(Analysis& analysis) {
 void computeProvenance(Analysis& analysis) {
     analysis.valueCount = analysis.function.valueCounter;
 
-    for(Size i = 0; i < analysis.valueCount; i++) {
-        analysis.values.push(emptyProvenance(analysis.localCount));
-    }
-
-    for(Size i = 0; i < analysis.localCount; i++) {
-        analysis.contents.push(emptyProvenance(analysis.localCount));
-    }
+    analysis.values.reset(analysis.valueCount, analysis.localCount);
+    analysis.contents.reset(analysis.localCount, analysis.localCount);
 
     /*
      * What is inside a parameter is rooted in that parameter.
@@ -364,7 +361,7 @@ void computeProvenance(Analysis& analysis) {
      */
     for(Size l = 0; l < analysis.localCount; l++) {
         auto slot = analysis.function.localAt(analysis.local, U32(l));
-        if(slot.value && analysis.local[slot.value]->kind == Value::Arg) analysis.contents[l].locals[l] = 1;
+        if(slot.value && analysis.local[slot.value]->kind == Value::Arg) analysis.contents[l].locals.set(l, true);
     }
 
     // Bounded rather than unbounded: each round can only add, and the lattice is finite, so this

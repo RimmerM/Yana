@@ -43,7 +43,7 @@ namespace {
 struct Hoister {
     OptContext& opt;
     Dominance& dominance;
-    Array<U8>& contained;
+    const IndexSet& contained;
 
     // Whether anything in this loop writes storage a hoisted read could see, decided once per loop
     // rather than per candidate - see `scanEffects`.
@@ -291,17 +291,17 @@ struct Hoister {
 void hoistLoopValues(OptContext& opt) {
     if(opt.function->blocks.isEmpty()) return;
 
-    Dominance dominance;
+    auto& dominance = opt.dominance;
     computeDominance(opt, dominance);
 
     Array<Loop> loops;
     computeLoops(opt, dominance, loops);
     if(loops.isEmpty()) return;
 
-    Array<U8> contained;
-    computeContainment(opt, contained);
+    ScratchSet contained(opt.sets, 0);
+    computeContainment(opt, *contained);
 
-    Hoister hoister { opt, dominance, contained };
+    Hoister hoister { opt, dominance, *contained };
 
     // Innermost first, which `computeLoops` sorted for. A value hoisted out of an inner loop lands
     // in a block the outer one contains, so the outer loop's own walk - or the next driver round,

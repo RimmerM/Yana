@@ -39,8 +39,8 @@ struct Slot {
     LowerType type = LowerType::Int64;
 
     // Per block, indexed by LowerBlock::index.
-    Array<U8> stores;         // whether the block writes the slot at all
-    Array<U8> available;      // whether every path into the block has written it
+    IndexSet stores;          // whether the block writes the slot at all
+    IndexSet available;       // whether every path into the block has written it
     Array<LowerPtr<LowerValue>> entry;   // the phi carrying it in, where one was placed
     Array<LowerPtr<LowerValue>> exit;    // what it holds on the way out, or null
 };
@@ -220,12 +220,11 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
  */
 void computeAvailability(LowerBase base, LowerFunction& fun, Slot& slot) {
     auto count = fun.blocks.size();
-    Array<U8> out;
 
-    for(Size i = 0; i < count; i++) {
-        slot.available.push(0);
-        out.push(slot.stores[i]);
-    }
+    slot.available.reset(count);
+
+    IndexSet out;
+    out.copyFrom(slot.stores);
 
     auto changed = true;
     while(changed) {
@@ -235,21 +234,15 @@ void computeAvailability(LowerBase base, LowerFunction& fun, Slot& slot) {
             auto block = base[blockPtr];
             auto incoming = block->incoming.contents(base);
 
-            U8 in = incoming.size() != 0;
+            auto in = incoming.size() != 0;
             for(auto predPtr: incoming) {
-                if(!out[base[predPtr]->index]) { in = 0; break; }
+                if(!out[base[predPtr]->index]) { in = false; break; }
             }
 
-            if(in && !slot.available[block->index]) {
-                slot.available[block->index] = 1;
-                changed = true;
-            }
+            if(in && slot.available.add(block->index)) changed = true;
 
-            U8 exit = in || slot.stores[block->index];
-            if(exit && !out[block->index]) {
-                out[block->index] = 1;
-                changed = true;
-            }
+            auto exit = in || slot.stores[block->index];
+            if(exit && out.add(block->index)) changed = true;
         }
     }
 }
@@ -272,7 +265,7 @@ bool writes(HashMap<U32, U32>& index, LowerInst* inst, Size which) {
 // second is the only thing that can still disqualify a slot at this point, and it disqualifies it
 // completely: a register cannot hold what was never put in it.
 bool surveySlot(LowerBase base, LowerFunction& fun, HashMap<U32, U32>& index, Size which, Slot& slot) {
-    for(Size i = 0; i < fun.blocks.size(); i++) slot.stores.push(0);
+    slot.stores.reset(fun.blocks.size());
 
     for(auto blockPtr: fun.blocks.contents(base)) {
         auto block = base[blockPtr];
@@ -280,7 +273,7 @@ bool surveySlot(LowerBase base, LowerFunction& fun, HashMap<U32, U32>& index, Si
         for(auto instPtr: block->instructions.contents(base)) {
             if(!writes(index, base[instPtr], which)) continue;
 
-            slot.stores[block->index] = 1;
+            slot.stores.set(block->index, true);
             break;
         }
     }
@@ -289,7 +282,7 @@ bool surveySlot(LowerBase base, LowerFunction& fun, HashMap<U32, U32>& index, Si
 
     for(auto blockPtr: fun.blocks.contents(base)) {
         auto block = base[blockPtr];
-        auto written = slot.available[block->index];
+        U8 written = slot.available[block->index];
 
         for(auto instPtr: block->instructions.contents(base)) {
             auto inst = base[instPtr];

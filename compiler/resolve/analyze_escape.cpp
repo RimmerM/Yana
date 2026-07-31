@@ -26,18 +26,14 @@ static bool markEscaped(Analysis& analysis, const Provenance& roots, Escape kind
     for(Size l = 0; l < analysis.localCount; l++) {
         if(!roots.locals[l]) continue;
 
-        if(!analysis.escaped[l]) {
-            analysis.escaped[l] = 1;
-            analysis.outlives[l] = 1;
+        if(analysis.escaped.add(l)) {
+            analysis.outlives.set(l, true);
             changed = true;
         }
 
         // One root can be both, and being owned elsewhere is the stronger statement: a value handed
         // over is handed over however many other references to it were kept.
-        if(kind == Escape::Owned && !analysis.transferred[l]) {
-            analysis.transferred[l] = 1;
-            changed = true;
-        }
+        if(kind == Escape::Owned && analysis.transferred.add(l)) changed = true;
     }
 
     return changed;
@@ -87,32 +83,37 @@ static bool escapeRound(Analysis& analysis) {
                  * argument look like something that had to outlive its caller, and every value
                  * anyone ever borrowed from would land on the heap.
                  */
-                auto leaving = transferredProvenance(analysis, value);
+                ScratchProvenance leaving(analysis);
+                transferredProvenance(analysis, value, *leaving);
 
                 for(Size l = 0; l < analysis.localCount; l++) {
                     auto slot = analysis.function.localAt(analysis.local, U32(l));
-                    if(slot.value && analysis.local[slot.value]->kind == Value::Arg) leaving.locals[l] = 0;
+                    if(slot.value && analysis.local[slot.value]->kind == Value::Arg) {
+                        leaving->locals.set(l, false);
+                    }
                 }
 
-                changed = markEscaped(analysis, leaving, Escape::Owned) || changed;
+                changed = markEscaped(analysis, *leaving, Escape::Owned) || changed;
                 break;
             }
 
             case Value::Init:
             case Value::Assign: {
                 auto& write = (InstInit&)instruction;
-                auto roots = placeProvenance(analysis, write.place);
+                ScratchProvenance roots(analysis);
+                placeProvenance(analysis, write.place, *roots);
 
-                auto escaping = roots.global || roots.unknown;
+                auto escaping = roots->global || roots->unknown;
                 for(Size l = 0; l < analysis.localCount && !escaping; l++) {
-                    escaping = roots.locals[l] && analysis.outlives[l];
+                    escaping = roots->locals[l] && analysis.outlives[l];
                 }
 
                 // Owned rather than merely referenced: what was written is reachable through the
                 // root it was written into, and that root's teardown is what releases it.
                 if(escaping) {
-                    changed = markEscaped(analysis, transferredProvenance(analysis, write.value),
-                                          Escape::Owned) || changed;
+                    ScratchProvenance written(analysis);
+                    transferredProvenance(analysis, write.value, *written);
+                    changed = markEscaped(analysis, *written, Escape::Owned) || changed;
                 }
 
                 break;
@@ -128,8 +129,9 @@ static bool escapeRound(Analysis& analysis) {
                                     summary->args.get(analysis.local, index).retained;
 
                     if(retained) {
-                        changed = markEscaped(analysis, transferredProvenance(analysis, arg),
-                                              argumentEscape(analysis, arg)) || changed;
+                        ScratchProvenance leaving(analysis);
+                        transferredProvenance(analysis, arg, *leaving);
+                        changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg)) || changed;
                     }
 
                     index++;
@@ -150,8 +152,9 @@ static bool escapeRound(Analysis& analysis) {
                  */
                 auto& call = (InstCallDyn&)instruction;
                 for(auto arg: call.args.contents(analysis.local)) {
-                    changed = markEscaped(analysis, transferredProvenance(analysis, arg),
-                                          argumentEscape(analysis, arg)) || changed;
+                    ScratchProvenance leaving(analysis);
+                    transferredProvenance(analysis, arg, *leaving);
+                    changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg)) || changed;
                 }
 
                 break;
@@ -160,8 +163,9 @@ static bool escapeRound(Analysis& analysis) {
             case Value::GenCall:
                 // No summary to consult, so everything handed over is assumed kept.
                 for(auto arg: ((InstGenCall&)instruction).args.contents(analysis.local)) {
-                    changed = markEscaped(analysis, transferredProvenance(analysis, arg),
-                                          argumentEscape(analysis, arg)) || changed;
+                    ScratchProvenance leaving(analysis);
+                    transferredProvenance(analysis, arg, *leaving);
+                    changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg)) || changed;
                 }
 
                 break;
@@ -184,9 +188,9 @@ static bool escapeRound(Analysis& analysis) {
             // Owned, always: being reachable through a root that outlives the frame is being
             // part of what that root's teardown releases.
             if(analysis.contents[l].locals[m] && !(analysis.escaped[m] && analysis.transferred[m])) {
-                analysis.escaped[m] = 1;
-                analysis.outlives[m] = 1;
-                analysis.transferred[m] = 1;
+                analysis.escaped.set(m, true);
+                analysis.outlives.set(m, true);
+                analysis.transferred.set(m, true);
                 changed = true;
             }
         }
@@ -196,15 +200,15 @@ static bool escapeRound(Analysis& analysis) {
 }
 
 void computeOutliving(Analysis& analysis) {
-    analysis.outlives = emptySet(analysis.localCount);
-    analysis.escaped = emptySet(analysis.localCount);
-    analysis.transferred = emptySet(analysis.localCount);
+    analysis.outlives.reset(analysis.localCount);
+    analysis.escaped.reset(analysis.localCount);
+    analysis.transferred.reset(analysis.localCount);
 
     // A parameter's storage is the caller's and already outlives this frame. It is set in
     // `outlives` and not in `escaped`, because nothing here proved anything about it.
     for(Size l = 0; l < analysis.localCount; l++) {
         auto slot = analysis.function.localAt(analysis.local, U32(l));
-        if(slot.value && analysis.local[slot.value]->kind == Value::Arg) analysis.outlives[l] = 1;
+        if(slot.value && analysis.local[slot.value]->kind == Value::Arg) analysis.outlives.set(l, true);
     }
 
     for(Size round = 0; round <= analysis.localCount + 1; round++) {
@@ -225,7 +229,7 @@ void computeOutliving(Analysis& analysis) {
  * which the language already says nothing about - see the note at the end of analyze.cpp.
  */
 void selectStorage(Analysis& analysis, OwnershipResult& result) {
-    analysis.releasesStorage = emptySet(analysis.localCount);
+    analysis.releasesStorage.reset(analysis.localCount);
 
     for(Size i = 0; i < analysis.instructionCount; i++) {
         auto& instruction = *analysis.local[analysis.order[i]];
@@ -328,7 +332,7 @@ void selectStorage(Analysis& analysis, OwnershipResult& result) {
         // Heap storage this frame owns has to be handed back at the end of the value's life, which
         // is a reason to drop a local whose type has no drop of its own.
         if(storage == StorageClass::Heap && allocation.releasedHere) {
-            analysis.releasesStorage[allocation.local] = 1;
+            analysis.releasesStorage.set(allocation.local, true);
             analysis.tracked[allocation.local].droppable = true;
             if(allocation.local < result.locals.size()) result.locals[allocation.local].droppable = true;
         }

@@ -453,6 +453,23 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
             // were cloned long before this stage runs.
             if(function->signature || function->blocks.isEmpty()) continue;
 
+            /*
+             * And nothing outside the root module that the program cannot reach, which is the same
+             * filter `lowerProgram` and `js::genProgram` apply before emitting: a body neither
+             * backend will look at is one this stage can only spend time on.
+             *
+             * What that is worth is the whole of Core, Native and Collections. They are defined
+             * from source on every compilation - around 490 bodies - and a program reaches between
+             * one and thirty of them, so optimizing the rest was most of what this loop did.
+             *
+             * `used` is `resolveProgram`'s answer rather than a fresh one, and the two passes above
+             * can only shrink the reachable set: inlining removes calls, and a body copied into its
+             * caller names callees that were already reached through the callee. So the answer read
+             * here is a superset of the truth, which is the safe direction - the cost is optimizing
+             * a function that has since become unreachable, and never skipping one that is emitted.
+             */
+            if(!module->root && !function->used) continue;
+
             optimizeFunction(opt, *function);
         }
     }

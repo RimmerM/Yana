@@ -2,6 +2,311 @@
 
 #include "../compiler/context.h"
 
+/*
+ * A set of small indices, one bit each, whose storage outlives the set.
+ *
+ * The members are whatever the pass holding it is indexed by - a function's locals in the ownership
+ * analyses, its blocks in the optimizer's flow passes, its instructions in the range builder. Every
+ * one of those used to be an `Array<U8>` filled by pushing one zero at a time, and between them
+ * they were the largest single source of allocations in the compiler.
+ *
+ * `reset` is the only way to size one, and it keeps whatever buffer this instance already has
+ * whenever that buffer is big enough - so a set reused across functions allocates for the largest
+ * one it ever saw and never again. Nothing here shrinks: the high-water mark is the point.
+ *
+ * Move-only, deliberately. The sets used to be assigned around by value, and each of those was a
+ * hidden allocation; the operations that replaced them - `copyFrom`, `unionWith` - say what they do
+ * and write into storage that already exists.
+ *
+ * The bits past `size()` are always clear, which is what lets the set-wise operations work a byte
+ * at a time instead of an index at a time. `reset` zeroes them and `fill` masks them off again.
+ */
+struct IndexSet {
+    IndexSet() = default;
+    IndexSet(IndexSet&&) = default;
+    IndexSet(const IndexSet&) = delete;
+    IndexSet& operator = (const IndexSet&) = delete;
+
+    // Through the move constructor, because Tritium's BitSet has one of those and no assignment.
+    // Wanted by anything that sorts a structure holding a set - see the loop list in opt_flow.cpp.
+    IndexSet& operator = (IndexSet&& other) {
+        if(this == &other) return *this;
+
+        bits.~BitSet();
+        new (&bits) BitSet<>(::move(other.bits));
+
+        count = other.count;
+        other.count = 0;
+        return *this;
+    }
+
+    // Clears the set and makes room for `count` indices, reusing this instance's buffer where it
+    // already holds that many.
+    void reset(Size count) {
+        if(count) bits.resizeClear(count);
+        this->count = count;
+    }
+
+    Size size() const { return count; }
+
+    /*
+     * Reading past the end answers "not in the set" rather than asserting.
+     *
+     * `provenanceOf` hands back a shared empty set for a value it has no row for, and its callers
+     * loop over the function's locals rather than over the set - so an out-of-range read is a real
+     * shape in this code rather than a mistake, and it means the same thing the in-range answer
+     * would.
+     */
+    bool get(Size index) const { return index < count && bits.get(index); }
+    bool operator [] (Size index) const { return get(index); }
+
+    void set(Size index, bool value) {
+        assertTrue(index < count);
+        bits.set(index, value);
+    }
+
+    // Adds one local, reporting whether it was not already there.
+    bool add(Size index) {
+        if(get(index)) return false;
+        set(index, true);
+        return true;
+    }
+
+    // Adds everything in `source`, reporting whether that changed anything. Byte at a time: a
+    // function's locals fit in one or two of them, and every fixpoint here climbs from empty, so
+    // this is the only way any of them move.
+    bool unionWith(const IndexSet& source) {
+        auto changed = false;
+        auto from = source.bytes();
+        auto into = bytes();
+
+        for(Size i = 0; i < byteCount() && i < source.byteCount(); i++) {
+            auto added = from[i] & ~into[i];
+            if(!added) continue;
+
+            into[i] |= added;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    // Removes everything not in `source`, reporting whether that changed anything.
+    bool intersectWith(const IndexSet& source) {
+        auto changed = false;
+        auto from = source.bytes();
+        auto into = bytes();
+
+        for(Size i = 0; i < byteCount(); i++) {
+            auto kept = Byte(into[i] & (i < source.byteCount() ? from[i] : 0));
+            if(kept == into[i]) continue;
+
+            into[i] = kept;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    // Adds every index below `size()`. The bits past the end of the set stay clear, because the
+    // whole-byte operations above compare them - see the invariant in the header comment.
+    void fill() {
+        if(!count) return;
+
+        for(Size i = 0; i < byteCount(); i++) bytes()[i] = Byte(0xff);
+
+        if(auto tail = count % 8) bytes()[byteCount() - 1] = Byte((1u << tail) - 1);
+    }
+
+    void copyFrom(const IndexSet& source) {
+        reset(source.count);
+        for(Size i = 0; i < byteCount(); i++) bytes()[i] = source.bytes()[i];
+    }
+
+    bool equals(const IndexSet& other) const {
+        if(count != other.count) return false;
+
+        for(Size i = 0; i < byteCount(); i++) {
+            if(bytes()[i] != other.bytes()[i]) return false;
+        }
+
+        return true;
+    }
+
+private:
+    Size byteCount() const { return (count + 7) / 8; }
+
+    // BitSet::getBits() has no const form, and the set-wise operations above read one set while
+    // writing another. Casting here rather than at each of them keeps the constness of the
+    // arguments honest, which is what the callers care about.
+    Byte* bytes() const { return const_cast<BitSet<>&>(bits).getBits(); }
+
+    BitSet<> bits;
+    Size count = 0;
+};
+
+/*
+ * A list of such sets - liveness at each block, or the liveness at each point inside one.
+ *
+ * The rows outlive the list's contents for the same reason a single set outlives its contents:
+ * `reset` grows the list to the rows this function needs and re-sizes the ones already there,
+ * so a walk over a thousand functions allocates for the widest one rather than for each.
+ */
+struct IndexSetList {
+    void reset(Size rows, Size count) {
+        while(sets.size() < rows) sets.push(IndexSet());
+        for(Size i = 0; i < rows; i++) sets[i].reset(count);
+        used = rows;
+    }
+
+    IndexSet& operator [] (Size index) { assertTrue(index < used); return sets[index]; }
+    const IndexSet& operator [] (Size index) const { assertTrue(index < used); return sets[index]; }
+    Size size() const { return used; }
+
+private:
+    Array<IndexSet> sets;
+    Size used = 0;
+};
+
+
+/*
+ * The same borrow-by-scope arrangement for anything that can be emptied rather than freed.
+ *
+ * `T` needs a `clear()` that keeps the storage it grew into, which is what makes the pool worth
+ * having: the borrower gets the last borrower's buffers. Held by pointer so that growing the pool
+ * cannot move something a holder is using, and the depth is what lets borrows nest.
+ */
+template<class T>
+struct ScratchPool {
+    ~ScratchPool() {
+        for(auto item: items) delete item;
+    }
+
+    Array<T*> items;
+    Size depth = 0;
+};
+
+template<class T>
+struct Scratch {
+    explicit Scratch(ScratchPool<T>& pool): pool(pool) {
+        if(pool.depth == pool.items.size()) pool.items.push(new T());
+
+        item = pool.items[pool.depth++];
+        item->clear();
+    }
+
+    ~Scratch() { pool.depth--; }
+
+    Scratch(const Scratch&) = delete;
+    Scratch& operator = (const Scratch&) = delete;
+
+    T& operator * () const { return *item; }
+    T* operator -> () const { return item; }
+
+private:
+    ScratchPool<T>& pool;
+    T* item;
+};
+
+/*
+ * A pool of index sets, and one borrowed from it for the length of a scope.
+ *
+ * The same arrangement as the sets themselves, one level up: a pass that needs a set per call gets
+ * the one the last call used rather than a new one, and the pool grows to the deepest nesting any
+ * function reached. Held by pointer so that growing it cannot move a set something is holding.
+ */
+struct IndexSetPool {
+    ~IndexSetPool() {
+        for(auto set: sets) delete set;
+    }
+
+    Array<IndexSet*> sets;
+    Size depth = 0;
+};
+
+struct ScratchSet {
+    ScratchSet(IndexSetPool& pool, Size count): pool(pool) {
+        if(pool.depth == pool.sets.size()) pool.sets.push(new IndexSet());
+
+        set = pool.sets[pool.depth++];
+        set->reset(count);
+    }
+
+    ~ScratchSet() { pool.depth--; }
+
+    ScratchSet(const ScratchSet&) = delete;
+    ScratchSet& operator = (const ScratchSet&) = delete;
+
+    IndexSet& operator * () const { return *set; }
+    IndexSet* operator -> () const { return set; }
+
+private:
+    IndexSetPool& pool;
+    IndexSet* set;
+};
+
+/*
+ * The same arrangement for rows that are not sets: a list of arrays that keeps its rows.
+ *
+ * For the facts that need more than a bit each - the ownership lattice's four states - where the
+ * cost being avoided is the same one. `reset` empties each row rather than destroying it, and a
+ * Tritium array that has been cleared still holds the storage it grew into.
+ */
+/*
+ * A list of things that empty rather than free - anything with a `clear()` that keeps its storage.
+ *
+ * The same purpose as ArrayList for rows that are structs of arrays instead of one array: the
+ * per-instruction effects the ownership passes read, where a row destroyed and rebuilt is five
+ * allocations and a row emptied is none.
+ */
+template<class T>
+struct PooledList {
+    void reset(Size rows) {
+        while(entries.size() < rows) entries.push(T());
+        for(Size i = 0; i < rows; i++) entries[i].clear();
+        used = rows;
+    }
+
+    T& operator [] (Size index) { assertTrue(index < used); return entries[index]; }
+    const T& operator [] (Size index) const { assertTrue(index < used); return entries[index]; }
+    Size size() const { return used; }
+
+private:
+    Array<T> entries;
+    Size used = 0;
+};
+
+template<class T>
+struct ArrayList {
+    void reset(Size rows, Size count, const T& value) {
+        while(entries.size() < rows) entries.push(Array<T>());
+
+        for(Size i = 0; i < rows; i++) {
+            entries[i].clear();
+            for(Size j = 0; j < count; j++) entries[i].push(value);
+        }
+
+        used = rows;
+    }
+
+    // Replaces one row's contents without giving up its storage, which is what the two arrays the
+    // ownership walk carries between blocks are assigned through.
+    void copyInto(Size index, const Array<T>& source) {
+        auto& into = (*this)[index];
+        into.clear();
+
+        for(auto& value: source) into.push(value);
+    }
+
+    Array<T>& operator [] (Size index) { assertTrue(index < used); return entries[index]; }
+    const Array<T>& operator [] (Size index) const { assertTrue(index < used); return entries[index]; }
+    Size size() const { return used; }
+
+private:
+    Array<Array<T>> entries;
+    Size used = 0;
+};
+
 template<class T, Size mask>
 struct EmbedIterator {
     explicit EmbedIterator(T* p) : p(p) {}

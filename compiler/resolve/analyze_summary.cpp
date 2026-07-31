@@ -56,7 +56,8 @@ bool deriveSummary(Analysis& analysis) {
     // What every return path handed back, unioned. Provenance composition through a call already
     // happened when the call's own result got its provenance, so a function returning another
     // selector's result arrives here with that callee's roots already mapped through the operands.
-    auto returned = emptyProvenance(analysis.localCount);
+    ScratchProvenance returned(analysis);
+    ScratchProvenance leaving(analysis);
     auto returnsValue = false;
 
     for(Size i = 0; i < analysis.instructionCount; i++) {
@@ -67,14 +68,15 @@ bool deriveSummary(Analysis& analysis) {
         if(!value) continue;
 
         returnsValue = true;
-        joinProvenance(returned, transferredProvenance(analysis, value));
+        transferredProvenance(analysis, value, *leaving);
+        joinProvenance(*returned, *leaving);
     }
 
     U64 actual = 0;
-    auto invalid = returned.global || returned.unknown;
+    auto invalid = returned->global || returned->unknown;
 
     for(Size l = 0; l < analysis.localCount; l++) {
-        if(!returned.locals[l]) continue;
+        if(!returned->locals[l]) continue;
 
         auto slot = analysis.function.localAt(analysis.local, U32(l));
         auto arg = slot.value && analysis.local[slot.value]->kind == Value::Arg

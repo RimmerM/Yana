@@ -105,6 +105,7 @@ Program::Program(Context& context, Size typeMemory, Size irMemory):
 Program::~Program() {
     for(auto module: modules) delete module;
     for(auto ast: embeddedAsts) delete ast;
+    destroyAnalysisScratch(analysisScratch);
 }
 
 Module* Program::addModule(StringId name, ast::ParseBase parse) {
@@ -1279,7 +1280,9 @@ static void resolveClassSignatures(Module& module, TypeClass& typeClass) {
  */
 
 StringId instanceFunctionName(Module& module, TypeClass& typeClass, Buffer<TypePtr> args, StringId method) {
-    StringBuilder text;
+    Scratch<StringBuilder> held(module.program.names);
+    auto& text = *held;
+
     text << module.context.findName(typeClass.name) << '(';
     describeTypes(module.context, *module.types, args, text);
     text << ")." << module.context.findName(method);
@@ -1610,13 +1613,16 @@ static void checkSuperclasses(Module& module, ClassInstance& instance) {
     auto global = *module.types;
     auto typeClass = global[instance.typeClass];
 
-    Array<TypePtr> args;
+    Scratch<Array<TypePtr>> heldArgs(module.program.typeLists);
+    auto& args = *heldArgs;
     for(auto arg: instance.forTypes.contents(*module.arena)) args.push(arg);
 
     for(auto constraint: global[typeClass->gen]->classes.contents(global)) {
         if(!constraint.typeClass) continue;
 
-        Array<TypePtr> concrete;
+        Scratch<Array<TypePtr>> heldConcrete(module.program.typeLists);
+        auto& concrete = *heldConcrete;
+
         for(auto arg: constraint.args.contents(global)) {
             concrete.push(substituteType(module, arg, toBuffer(args), instance.source));
         }

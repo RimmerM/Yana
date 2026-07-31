@@ -15,9 +15,9 @@ void applyBackward(Analysis& analysis, Size first, Size end, LocalSet& live) {
         // Defs before uses: an instruction that both writes and reads a slot leaves it live above.
         // An overwrite is both at once - it ends the old value's range and is the point that range
         // has to reach - which is why it is applied on the reading side.
-        for(auto def: effects.defs) live[def] = 0;
-        for(auto use: effects.uses) live[use] = 1;
-        for(auto overwritten: effects.overwrites) live[overwritten] = 1;
+        for(auto def: effects.defs) live.set(def, false);
+        for(auto use: effects.uses) live.set(use, true);
+        for(auto overwritten: effects.overwrites) live.set(overwritten, true);
     }
 }
 
@@ -25,10 +25,12 @@ void computeLiveness(Analysis& analysis) {
     auto count = analysis.localCount;
     auto blocks = analysis.blockCount();
 
-    for(Size i = 0; i < blocks; i++) {
-        analysis.liveIn.push(emptySet(count));
-        analysis.liveOut.push(emptySet(count));
-    }
+    analysis.liveIn.reset(blocks, count);
+    analysis.liveOut.reset(blocks, count);
+
+    // The set one block's walk carries, cleared per block rather than built per block: this is the
+    // innermost thing the fixpoint does, and it used to be an allocation each time round.
+    auto& live = analysis.scratch.work;
 
     auto changed = true;
     while(changed) {
@@ -37,29 +39,25 @@ void computeLiveness(Analysis& analysis) {
         for(Size i = blocks; i > 0; i--) {
             auto index = i - 1;
             auto block = analysis.blockAt(index);
-            auto live = emptySet(count);
+            live.reset(count);
 
             for(auto successor: block->outgoing) {
                 if(!successor) continue;
-
-                auto& successorIn = analysis.liveIn[analysis.local[successor]->index];
-                for(Size l = 0; l < count; l++) live[l] |= successorIn[l];
+                live.unionWith(analysis.liveIn[analysis.local[successor]->index]);
             }
 
-            for(Size l = 0; l < count; l++) {
-                if(live[l] != analysis.liveOut[index][l]) changed = true;
+            if(!live.equals(analysis.liveOut[index])) {
+                analysis.liveOut[index].copyFrom(live);
+                changed = true;
             }
-
-            analysis.liveOut[index] = live;
 
             auto range = analysis.blockRanges[index];
             applyBackward(analysis, range.first, range.end, live);
 
-            for(Size l = 0; l < count; l++) {
-                if(live[l] != analysis.liveIn[index][l]) changed = true;
+            if(!live.equals(analysis.liveIn[index])) {
+                analysis.liveIn[index].copyFrom(live);
+                changed = true;
             }
-
-            analysis.liveIn[index] = live;
         }
     }
 }
@@ -75,9 +73,15 @@ void computeLiveness(Analysis& analysis) {
 void buildRanges(Analysis& analysis, OwnershipResult& result) {
     auto count = analysis.localCount;
 
+    // Both sets are over instruction indices rather than over locals, and both are cleared per
+    // local rather than built per local - the loop below is per local per block, and each of these
+    // used to be an allocation inside it.
+    auto& occupied = analysis.scratch.occupied;
+    auto& before = analysis.scratch.positions;
+    auto& live = analysis.scratch.work;
+
     for(Size l = 0; l < count; l++) {
-        Array<U8> occupied;
-        for(Size i = 0; i < analysis.instructionCount; i++) occupied.push(0);
+        occupied.reset(analysis.instructionCount);
 
         for(Size b = 0; b < analysis.blockCount(); b++) {
             auto range = analysis.blockRanges[b];
@@ -85,15 +89,15 @@ void buildRanges(Analysis& analysis, OwnershipResult& result) {
 
             // Replay the backward walk to recover liveness at each point inside the block, which
             // the fixpoint only kept at the two ends.
-            Array<U8> before;
-            auto live = analysis.liveOut[b];
+            before.reset(range.end - range.first);
+            live.copyFrom(analysis.liveOut[b]);
 
             for(Size i = range.end; i > range.first; i--) {
                 auto& effects = analysis.effects[i - 1];
-                for(auto def: effects.defs) live[def] = 0;
-                for(auto use: effects.uses) live[use] = 1;
-                for(auto overwritten: effects.overwrites) live[overwritten] = 1;
-                before.push(live[l]);
+                for(auto def: effects.defs) live.set(def, false);
+                for(auto use: effects.uses) live.set(use, true);
+                for(auto overwritten: effects.overwrites) live.set(overwritten, true);
+                before.set(range.end - i, live[l]);
             }
 
             for(Size i = range.first; i < range.end; i++) {
@@ -102,7 +106,7 @@ void buildRanges(Analysis& analysis, OwnershipResult& result) {
                 for(auto def: analysis.effects[i].defs) defines = defines || def == l;
                 for(auto init: analysis.effects[i].inits) defines = defines || init == l;
 
-                occupied[i] = liveBefore || defines;
+                occupied.set(i, liveBefore || defines);
             }
         }
 

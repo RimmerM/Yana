@@ -96,7 +96,9 @@ void eliminateInBlock(OptContext& opt, Dominance& dominance, U32 index,
 void eliminateCommonValues(OptContext& opt) {
     if(opt.function->blocks.isEmpty()) return;
 
-    Dominance dominance;
+    // The stage's, not this pass's: the loop pass asks for the same thing on the same function a
+    // few lines later, and neither wants the rows rebuilt.
+    auto& dominance = opt.dominance;
     computeDominance(opt, dominance);
 
     Array<ModulePtr<Inst>> available;
