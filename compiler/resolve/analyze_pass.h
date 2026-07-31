@@ -57,18 +57,33 @@ struct BlockRange {
 // What one instruction does to the locals it touches. `defs` and `uses` drive liveness, `moves`
 // drives the ownership lattice, and `overwrites` keeps a slot's old contents live up to the write
 // that replaces them - which is where the drop for those contents goes.
+/*
+ * Three of the five lists below are `ArrayF` rather than `SmallArray`, which is a claim and not a
+ * guess: a fixed array has no heap to spill to, and in a release build the overflow check compiles
+ * away, so the bound has to hold by construction.
+ *
+ * It does, and deriveEffects is the whole of why. Each of `defs`, `inits` and `overwrites` is pushed
+ * from one or two guarded sites in that one switch, at most once each per instruction, and nothing
+ * else writes them - `extendBorrowUses` adds only to `uses` and `attributePhiEdges` only to `uses`
+ * and `moves`. That last one is exactly why those two are not fixed: a terminator collects one entry
+ * per phi alternative on its outgoing edges, which the program decides rather than this file.
+ *
+ * A case added to that switch is the thing that would break this, and it breaks loudly: the bound is
+ * asserted in debug builds, which is what the fixture suite runs.
+ */
 struct Effects {
     // Writes that replace the whole slot, so nothing above them can still be reaching its old
-    // contents. These end a live range going backwards.
-    Array<U32> defs;
+    // contents. These end a live range going backwards. At most two: the value's own slot, and the
+    // place a whole-slot write names.
+    ArrayF<U32, 2> defs;
 
     // Writes that make a slot owned without replacing all of it - one field of an aggregate being
     // constructed. They are `uses` for liveness, because the rest of the slot survives them, and
     // this list only records the ownership half.
-    Array<U32> inits;
+    ArrayF<U32, 2> inits;
 
-    Array<U32> uses;
-    Array<U32> moves;
+    SmallArray<U32, 4> uses;
+    SmallArray<U32, 2> moves;
 
     /*
      * Slots a whole-slot `Assign` replaces the contents of.
@@ -79,7 +94,7 @@ struct Effects {
      * a few instructions later. It is deliberately not a `use` for the move check, because writing a
      * slot that was moved out of is how one is filled again rather than a use of what left it.
      */
-    Array<U32> overwrites;
+    ArrayF<U32, 1> overwrites;
 
     // Emptied rather than destroyed, because there is one of these per instruction and the list
     // holding them belongs to the program - see PooledList and AnalysisScratch.

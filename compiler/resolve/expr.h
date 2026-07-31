@@ -546,7 +546,7 @@ struct ExprResolver {
 
     // Scratch state for one body, deliberately not in the module arena: it is gone once the
     // function is resolved, and the arena is a bump allocator that never gives anything back.
-    Array<Binding> bindings;
+    SmallArray<Binding, 16> bindings;
     Array<LoopTarget> loops;
 
     /*

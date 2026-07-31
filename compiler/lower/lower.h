@@ -75,7 +75,9 @@ enum class LowerCallType {
 static constexpr LowerCallType kDefaultCallType = LowerCallType::Complex;
 
 using BlockIndex = I16;
-using BlockList = Array<BlockIndex>;
+// One entry per block. Thirty-two inline: that is a large function by the standards of what these
+// hold, and there are several of them per function - see SmallArray.
+using BlockList = SmallArray<BlockIndex, 32>;
 using LiveId = U16;
 
 static constexpr BlockIndex kNullBlock = maxLimit<BlockIndex>;
@@ -161,7 +163,7 @@ struct LoopInfo {
     BlockList parent;
 
     // How many loops each block is inside: the length of the chain the two lists above describe.
-    Array<U16> depth;
+    SmallArray<U16, 32> depth;
 
     bool isHeader(BlockIndex b) const { return header[b] == b; }
 

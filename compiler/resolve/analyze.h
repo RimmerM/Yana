@@ -92,25 +92,47 @@ struct TrackedLocal {
     bool escapes = false;
 };
 
+// Where one local's ranges are within `OwnershipResult::ranges`. Indexes rather than a Buffer,
+// which is the whole reason the result can hold its lists inline - see OwnershipResult.
+struct LiveRangeSpan {
+    U32 start = 0;
+    U32 count = 0;
+};
+
 /*
- * Deliberately ordinary arrays, not SmallArrays.
+ * What the ownership passes proved about one function, kept for as long as the program is.
  *
- * `rangesOf` hands out a Buffer pointing into `ranges`, and one of these is stored per function in a
- * table that rehashes as functions are added. A heap buffer survives being moved; an inline one is
- * part of the object and moves with it, so every Buffer taken before the move would be left pointing
- * at where the result used to be. Inline storage is for lists nobody takes the address of.
+ * The lists are indexed into rather than pointed into, and that is what lets them be inline. One of
+ * these is stored per function in a table that rehashes as functions are added, so the result moves
+ * - and an inline list moves with the object it is part of, where a heap one would have handed the
+ * same buffer over. An index means the same thing wherever the result ends up; a pointer taken
+ * before a rehash would not.
+ *
+ * The ranges are stored in the flat form the rest of the compiler uses for this shape: every local's
+ * ranges laid end to end, with `rangeStart` holding one offset per local plus a terminator, so
+ * local `l` owns `[rangeStart[l], rangeStart[l + 1])`. That is one U32 per local rather than the two
+ * a separate offset and count took, and one list rather than two.
  */
 struct OwnershipResult {
-    Array<TrackedLocal> locals;
+    SmallArray<TrackedLocal, 8> locals;
 
-    // Live ranges for local `i`, at [rangeOffsets[i], rangeOffsets[i] + rangeCounts[i]).
-    Array<LiveRange> ranges;
-    Array<U32> rangeOffsets;
-    Array<U32> rangeCounts;
+    // Every local's live ranges, end to end - see rangesOf.
+    SmallArray<LiveRange, 16> ranges;
 
-    Buffer<LiveRange> rangesOf(Size local) const {
-        auto pointer = const_cast<LiveRange*>(ranges.pointer());
-        return Buffer<LiveRange> { pointer + rangeOffsets[local], rangeCounts[local] };
+    // One offset per local, plus a terminator: `rangeStart.size()` is `locals.size() + 1` once
+    // buildRanges has run, and empty before it.
+    SmallArray<U32, 9> rangeStart;
+
+    LiveRangeSpan rangesOf(Size local) const {
+        if(local + 1 >= rangeStart.size()) return LiveRangeSpan {};
+
+        auto start = rangeStart[local];
+        return LiveRangeSpan { start, rangeStart[local + 1] - start };
+    }
+
+    const LiveRange& rangeAt(const LiveRangeSpan& span, Size i) const {
+        assertTrue(i < span.count);
+        return ranges[span.start + i];
     }
 };
 

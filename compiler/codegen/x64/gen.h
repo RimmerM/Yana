@@ -522,7 +522,7 @@ struct BlockRegs {
     // Inline for a block of up to sixteen instructions, which most of them are: this is built once
     // per block of every function, and an InstRegs is four words now that its lists are runs in the
     // arena - see commitSlice.
-    SmallArray<InstRegs, 16> insts;
+    SmallArray<InstRegs, 24> insts;
 };
 
 /*
@@ -714,7 +714,10 @@ struct WebAllocation {
     // Sorted and disjoint, and together covering the whole stretch between the web's first and last
     // live points - holes included, since a hole is a stretch the web is somewhere without needing
     // to be. Empty for a web that never needed a location at all.
-    Array<AllocationSegment> segments;
+    //
+    // Two inline. Almost every web has exactly one segment - `isSplit` is the exception - and there
+    // is one of these per value in the function.
+    SmallArray<AllocationSegment, 2> segments;
 
     // What a copy of this web is made of. On the web rather than derived from a member's type for
     // the same reason RegMove carries one: a bank does not say which instruction a transfer takes,

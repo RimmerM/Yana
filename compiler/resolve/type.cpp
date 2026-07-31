@@ -147,7 +147,7 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
         }
         case Type::Tup: {
             auto tuple = (TupType*)global[type];
-            Array<Field> fields;
+            SmallArray<Field, 8> fields;
 
             for(Size i = 0; i < tuple->fields.size(); i++) {
                 auto field = tuple->fields.get(global, i);

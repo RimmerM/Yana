@@ -292,7 +292,7 @@ void computeReachable(OptContext& opt, IndexSet& reachable) {
     reachable.reset(count);
     if(!count) return;
 
-    Array<U32> pending;
+    SmallArray<U32, 32> pending;
     reachable.set(0, true);
     pending.push(0);
 

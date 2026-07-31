@@ -247,7 +247,7 @@ bool removeUnreachableBlocks(OptContext& opt) {
     ScratchSet reachable(opt.sets, 0);
     computeReachable(opt, *reachable);
 
-    Array<ModulePtr<Block>> kept;
+    SmallArray<ModulePtr<Block>, 16> kept;
     for(auto pointer: opt.function->blocks.contents(opt.local)) {
         if((*reachable)[opt.local[pointer]->index]) kept.push(pointer);
     }

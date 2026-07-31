@@ -116,7 +116,7 @@ static constexpr U32 kFinished = 2;
 
 // An edge to a block still on the walk's own stack is one that closes a cycle, which is the whole of
 // what makes it a back edge. Blocks the entry cannot reach are never visited and belong to no loop.
-static void findBackEdges(LowerBase base, LowerBlock* b, Array<BackEdge>& out) {
+static void findBackEdges(LowerBase base, LowerBlock* b, SmallArray<BackEdge, 8>& out) {
     b->marker = kOnStack;
 
     for(auto s: b->outgoing) {
@@ -187,7 +187,7 @@ LoopInfo LowerFunction::buildLoops(LowerBase base) {
         info.depth.push(0);
     }
 
-    Array<BackEdge> backEdges;
+    SmallArray<BackEdge, 8> backEdges;
     findBackEdges(base, base[blocks.get(base, 0)], backEdges);
 
     // One loop per header, its body the union of the natural loops of every back edge to it.
@@ -534,7 +534,7 @@ struct RangeEntry {
 
 static constexpr U32 kNotSeen = maxLimit<U32>;
 
-static void addRange(Array<RangeEntry>& entries, LowerValue* v, U32 from, U32 to) {
+static void addRange(SmallArray<RangeEntry, 96>& entries, LowerValue* v, U32 from, U32 to) {
     if(v->flags & LowerValue::Implicit) return;
 
     auto id = v->liveId();
@@ -550,7 +550,7 @@ static void addRange(Array<RangeEntry>& entries, LowerValue* v, U32 from, U32 to
 // and nothing is copied twice. Within a value the entries are almost sorted already - blocks are
 // numbered in order - so the per-value pass is an insertion sort, which is the fastest thing there
 // is for the one or two ranges a typical value ends up with.
-static void packRanges(Liveness& live, Array<RangeEntry>& entries, Size valueCount) {
+static void packRanges(Liveness& live, SmallArray<RangeEntry, 96>& entries, Size valueCount) {
     SmallArray<U32, 64> start;
     SmallArray<U32, 64> cursor;
 
@@ -565,7 +565,7 @@ static void packRanges(Liveness& live, Array<RangeEntry>& entries, Size valueCou
         total += count;
     }
 
-    Array<Range> sorted;
+    SmallArray<Range, 96> sorted;
     for(U32 i = 0; i < total; i++) sorted.push(Range {});
     for(auto& e: entries) sorted[cursor[e.id]++] = e.range;
 
@@ -628,7 +628,7 @@ static void buildRanges(LowerBase base, LowerFunction& fun, Liveness& live) {
 
     live.instCount = index;
 
-    Array<RangeEntry> entries;
+    SmallArray<RangeEntry, 96> entries;
 
     // Where the block being walked defines a value and where it last reads it. Allocated once for
     // the function and reset per block through `touched`, so the cost follows the number of values

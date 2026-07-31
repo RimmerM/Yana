@@ -331,7 +331,7 @@ void insertInstructions(OptContext& opt, Block& block, Size index, InstList& ins
     auto existing = block.instructions.size();
     for(auto instruction: instructions) block.add(*opt.module, instruction);
 
-    SmallArray<ModulePtr<Inst>, 32> ordered;
+    SmallArray<ModulePtr<Inst>, 48> ordered;
     for(Size i = 0; i < existing; i++) {
         if(i == index) {
             for(auto j = existing; j < block.instructions.size(); j++) {

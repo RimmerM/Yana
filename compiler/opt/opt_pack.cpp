@@ -198,7 +198,7 @@ struct Expander {
     Array<Place> blocked;
 
     // The unit places whose storage the target zeroes when it allocates it - see zeroedAtAllocation.
-    Array<Place> zeroed;
+    SmallArray<Place, 8> zeroed;
 
     U64 lowMask(U32 bits) const { return bits >= 64 ? maxLimit<U64> : (U64(1) << bits) - 1; }
 

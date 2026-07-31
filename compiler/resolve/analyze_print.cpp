@@ -104,13 +104,14 @@ static void printFunctionOwnership(Net::Writer& writer, Context& context, Progra
         writer.writeString(" live"_v);
         auto ranges = result.rangesOf(l);
 
-        if(!ranges.length) writer.writeString(" never"_v);
+        if(!ranges.count) writer.writeString(" never"_v);
 
-        for(Size i = 0; i < ranges.length; i++) {
+        for(Size i = 0; i < ranges.count; i++) {
+            auto& range = result.rangeAt(ranges, i);
             writer.writeString(" ["_v);
-            writeIndex(writer, ranges[i].from);
+            writeIndex(writer, range.from);
             writer.writeString(", "_v);
-            writeIndex(writer, ranges[i].to);
+            writeIndex(writer, range.to);
             writer.writeByte(')');
         }
 

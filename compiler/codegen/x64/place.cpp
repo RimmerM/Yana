@@ -117,8 +117,10 @@ static LiveInterval intervalOf(const Ranges& ranges) {
  */
 struct WebInfo {
     // The union of the member intervals, kept sorted and disjoint so that the same overlap test
-    // works on a web as on a single value.
-    Array<Range> ranges;
+    // works on a web as on a single value. Inline for the two a value usually has: there is one of
+    // these per value in the function, and a row's first growth is the allocation the pool cannot
+    // save.
+    SmallArray<Range, 2> ranges;
 
     // Registers no member of the web may be given, because something writes them while one of them
     // is live.

@@ -73,6 +73,11 @@ void computeLiveness(Analysis& analysis) {
 void buildRanges(Analysis& analysis, OwnershipResult& result) {
     auto count = analysis.localCount;
 
+    // One offset per local plus a terminator, so that a local's ranges are the stretch between its
+    // own offset and the next - see OwnershipResult.
+    result.rangeStart.clear();
+    result.ranges.clear();
+
     // Both sets are over instruction indices rather than over locals, and both are cleared per
     // local rather than built per local - the loop below is per local per block, and each of these
     // used to be an allocation inside it.
@@ -110,8 +115,7 @@ void buildRanges(Analysis& analysis, OwnershipResult& result) {
             }
         }
 
-        result.rangeOffsets.push(U32(result.ranges.size()));
-        auto emitted = 0u;
+        result.rangeStart.push(U32(result.ranges.size()));
         auto open = maxLimit<U32>;
 
         for(Size i = 0; i <= analysis.instructionCount; i++) {
@@ -122,10 +126,10 @@ void buildRanges(Analysis& analysis, OwnershipResult& result) {
             } else if(!live && open != maxLimit<U32>) {
                 result.ranges.push(LiveRange { open, U32(i) });
                 open = maxLimit<U32>;
-                emitted++;
             }
         }
-
-        result.rangeCounts.push(emitted);
     }
+
+    // The terminator, which is what makes the last local's stretch readable like every other's.
+    result.rangeStart.push(U32(result.ranges.size()));
 }

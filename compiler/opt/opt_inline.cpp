@@ -250,7 +250,7 @@ struct Parameter {
 struct Candidate {
     ModulePtr<Function> pointer = nullptr;
     Function* callee = nullptr;
-    Array<Parameter> parameters;
+    SmallArray<Parameter, 8> parameters;
 
     /*
      * The callee's reachable blocks in reverse postorder, and the ones ending in `ret`.
@@ -264,7 +264,7 @@ struct Candidate {
      * one thing that costs is a phi alternative arriving from one, which is dropped with it - and
      * dropping it is correct rather than approximate, since there is no edge for it to arrive over.
      */
-    SmallArray<ModulePtr<Block>, 8> blocks;
+    SmallArray<ModulePtr<Block>, 12> blocks;
     SmallArray<ModulePtr<Block>, 4> returns;
 
     // The callee local holding what a memory-typed result is returned out of, and `kNone` where the
@@ -527,7 +527,7 @@ struct Inliner {
      * Iterative for the reason Tarjan above is, and it carries the same two-item frame: which block,
      * and which of its two successors comes next.
      */
-    void orderBlocks(Function& callee, SmallArray<ModulePtr<Block>, 8>& order) {
+    void orderBlocks(Function& callee, SmallArray<ModulePtr<Block>, 12>& order) {
         ScratchSet seen(opt.sets, callee.blocks.size());
 
         // The walk's own three, emptied rather than built: this runs once per call site the
@@ -1557,7 +1557,7 @@ struct Inliner {
      * opt_branch.cpp's job and it does it with the phi bookkeeping that belongs to it.
      */
     void reorderBlocks() {
-        SmallArray<ModulePtr<Block>, 8> order;
+        SmallArray<ModulePtr<Block>, 12> order;
         orderBlocks(*opt.function, order);
 
         for(auto pointer: opt.function->blocks.contents(opt.local)) {
@@ -1569,7 +1569,7 @@ struct Inliner {
 
     // A block's index is its position in this list, which is what every walk in opt_flow.cpp
     // assumes - so rewriting the list means renumbering with it.
-    void writeBlocks(SmallArray<ModulePtr<Block>, 8>& order) {
+    void writeBlocks(SmallArray<ModulePtr<Block>, 12>& order) {
         opt.function->blocks.clear();
 
         U16 index = 0;

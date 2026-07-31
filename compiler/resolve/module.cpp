@@ -1182,7 +1182,7 @@ static void collectCalls(ast::ParseBase parse, ast::Expr expr, Array<DefaultCall
 // Ranks one default, depth first, reporting the circle if its body leads back to a default that is
 // still being ranked. A default that takes part in one loses it, so that what follows is an
 // instance that has to write the function rather than a compiler that instantiates forever.
-static void rankDefault(Module& module, TypeClass& typeClass, Size index, Array<U8>& state) {
+static void rankDefault(Module& module, TypeClass& typeClass, Size index, SmallArray<U8, 8>& state) {
     auto global = *module.types;
     auto entry = typeClass.functions.get(global, index);
     if(state[index] || !entry.defaultFun) return;
@@ -1234,7 +1234,7 @@ static void rankDefault(Module& module, TypeClass& typeClass, Size index, Array<
 }
 
 static void checkDefaultRanks(Module& module, TypeClass& typeClass) {
-    Array<U8> state;
+    SmallArray<U8, 8> state;
     for(Size i = 0; i < typeClass.functions.size(); i++) state.push(0);
     for(Size i = 0; i < typeClass.functions.size(); i++) rankDefault(module, typeClass, i, state);
 }
