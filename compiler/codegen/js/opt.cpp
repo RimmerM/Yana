@@ -9,22 +9,25 @@
  * result is named before anything has read it, and how many readers it has is a fact about the rest
  * of the block.
  *
- * So the naming happens unconditionally and this pass takes it back. Two rewrites, both driven by
+ * So the naming happens unconditionally and this pass takes it back. Three rewrites, all driven by
  * use counts over one function:
  *
  *  - a `var` read exactly once and written never becomes its use, and one read by nothing at all
  *    goes away;
+ *  - `var a = b;` where `b` is a name goes away however many readers `a` has, since a name costs
+ *    nothing wherever it is put and nothing has to move to put it there;
  *  - `var v = {a: 0}; v.a = x;` becomes `var v = {a: x};`, and `var v = 0; v = x;` becomes
  *    `var v = x;`.
  *
- * The second is not cosmetic. Analysis-JS.md §2.3 makes construction order the JS equivalent of
+ * The third is not cosmetic. Analysis-JS.md §2.3 makes construction order the JS equivalent of
  * field offsets, and an object literal that already holds its values is one hidden-class transition
  * where the zero-then-fill form is one per property.
  *
  * Everything here is decided from the tree rather than from the IR, deliberately: the question is
- * what the emitted JS evaluates and in which order, and that is a property of the tree. Two things
- * are checked before anything moves - that a name is read once and assigned never, and that the
- * expressions the move crosses cannot see each other - and where either is unknown, nothing happens.
+ * what the emitted JS evaluates and in which order, and that is a property of the tree. Three things
+ * are checked before anything moves - that a name is read once and assigned never, that the source
+ * of a copy still holds what it held, and that the expressions the move crosses cannot see each
+ * other - and where any of them is unknown, nothing happens.
  */
 
 namespace js {
@@ -197,13 +200,41 @@ bool isEffectful(Expr* expr) {
     return expr->kind == Expr::Call && !((CallExpr*)expr)->pure;
 }
 
+/*
+ * The operands an *effect* walk visits, which is `eachOperand` minus one thing: the callee of a
+ * pure call.
+ *
+ * `Math.imul` is a property access in the tree and arithmetic in the emitted program, and that is
+ * the whole of what `CallExpr::pure` asserts - "they read nothing, write nothing". Counting the
+ * lookup as a read contradicts it, and does so where it matters most: the integer tower reaches for
+ * an intrinsic on almost every operation that is not a plain `+`, so `x = BigInt.asIntN(64, a + b)`
+ * had a read sitting in front of `b` and refused to take a call there. That is not a corner of the
+ * emitted code, it is most of it.
+ *
+ * Only the effect walks use this. Counting names, substituting into one and folding all still go
+ * through `eachOperand`, because what they ask about the callee has an answer - it is a name like
+ * any other - where an effect walk's question does not.
+ */
+template<class F>
+void eachEffectOperand(Gen& g, Expr* expr, F&& f) {
+    if(expr->kind == Expr::Call && ((CallExpr*)expr)->pure) {
+        auto& args = ((CallExpr*)expr)->args;
+        auto items = itemsOf(g, args);
+
+        for(Size i = 0; i < args.size(); i++) f(items[i], false);
+        return;
+    }
+
+    eachOperand(g, expr, forward<F>(f));
+}
+
 void addEffects(Gen& g, JsPtr<Expr> pointer, Effects& out) {
     auto expr = g.base[pointer];
 
     if(expr->kind == Expr::Field || expr->kind == Expr::Index) out.reads = true;
     if(isEffectful(expr)) out.writes = true;
 
-    eachOperand(g, expr, [&](JsPtr<Expr>& operand, bool) { addEffects(g, operand, out); });
+    eachEffectOperand(g, expr, [&](JsPtr<Expr>& operand, bool) { addEffects(g, operand, out); });
 }
 
 Effects effectsOf(Gen& g, JsPtr<Expr> pointer) {
@@ -354,7 +385,10 @@ void substitute(Gen& g, JsPtr<Expr>& slot, Substitution& s, bool conditional) {
         return;
     }
 
-    eachOperand(g, expr, [&](JsPtr<Expr>& operand, bool branch) {
+    // The same operand set the effect walk uses, and for the same reason: a use is never inside an
+    // intrinsic's own name, and walking into one would put a read in the prefix that the emitted
+    // program does not perform.
+    eachEffectOperand(g, expr, [&](JsPtr<Expr>& operand, bool branch) {
         substitute(g, operand, s, conditional || branch);
     });
 
@@ -410,7 +444,145 @@ bool substituteAfter(Gen& g, StmtList& list, Size from, Name name, JsPtr<Expr> v
 }
 
 /*
- * The two rewrites.
+ * Copy propagation.
+ *
+ * `var a = b;` is a second name for a value that already has one, and the rewrites above cannot take
+ * it: `inlineBinding` asks for a single use, and this is the shape that most often has several -
+ * a moved value read twice, a phi read on both sides of what follows it. The count is the wrong
+ * question here, because a *name* costs nothing wherever it is put and nothing moves: `b` is
+ * evaluated where `a` was, and what `a` was is `b`.
+ *
+ * So the only question is whether `b` still holds at the use what it held at the declaration, and it
+ * is a question about assignments rather than about calls. A local `var` is invisible to every
+ * callee - there is no way to reach one from outside the function that declares it - so nothing but
+ * this function's own text can change one, which is what makes the answer readable off the tree.
+ *
+ * Two cases, and the difference between them is how far the substitution reaches:
+ *
+ *  - **`b` is never assigned.** Then it denotes one value for the whole of the function and every
+ *    use of `a` becomes `b`, wherever in the structure it is - inside a branch, inside a loop body,
+ *    inside a closure. This is `isAtom`'s condition, without the single-use requirement it was
+ *    paired with, and it is the case that covers a parameter aliased by a `move`.
+ *
+ *  - **`b` is assigned somewhere.** Then the substitution stays in the declaration's own statement
+ *    list and stops at the first statement that could assign `b`, since control reaching a later
+ *    statement in one list has passed through every statement between. The statement holding the
+ *    use may assign `b` itself and still be taken, because an assignment's value is evaluated before
+ *    the write lands - `result = f(a) + g()` where `a` is `result` is the shape this is for, and it
+ *    is the shape a `+=` over a local comes out as.
+ *
+ * Nested bodies are declined outright in the second case rather than walked. A loop body reached a
+ * second time has run everything in it, so an assignment *after* the use is a barrier *before* it,
+ * and a closure runs at a time this cannot name at all. The counting pass is what makes declining
+ * cost nothing: a use it cannot reach leaves the declaration alone rather than half-rewritten.
+ */
+struct Copy {
+    Name from;
+    Name to;
+
+    // Whether `to` is assigned anywhere in the function, which is the whole of what decides how far
+    // this reaches - and, where it is false, means `stopped` can never be set.
+    bool guarded = false;
+
+    // The counting pass and the rewriting pass are the same walk, so that what it declines and what
+    // it would have rewritten cannot drift apart.
+    bool apply = false;
+
+    bool stopped = false;
+    U32 count = 0;
+};
+
+void propagateExpr(Gen& g, JsPtr<Expr>& slot, Copy& c) {
+    if(c.stopped) return;
+
+    auto expr = g.base[slot];
+
+    if(expr->kind == Expr::Var && ((VarExpr*)expr)->name.text == c.from.text) {
+        if(c.apply) slot = variable(g, c.to);
+        c.count++;
+        return;
+    }
+
+    eachOperand(g, expr, [&](JsPtr<Expr>& operand, bool) { propagateExpr(g, operand, c); });
+
+    // After the operands, because that is when the write lands: the value an assignment stores is
+    // evaluated first, so a use inside it is in front of this barrier rather than behind it.
+    if(!c.guarded || expr->kind != Expr::Assign) return;
+
+    auto target = g.base[((AssignExpr*)expr)->target];
+    if(target->kind == Expr::Var && ((VarExpr*)target)->name.text == c.to.text) c.stopped = true;
+}
+
+// Whether one statement contains an assignment to a name anywhere at all, bodies and closures
+// included - the question asked of a statement whose insides the guarded case will not walk.
+bool assignsName(Gen& g, JsPtr<Stmt> pointer, Name name);
+
+bool assignsIn(Gen& g, StmtList& list, Name name) {
+    for(auto pointer: list.contents(g.base)) {
+        if(assignsName(g, pointer, name)) return true;
+    }
+
+    return false;
+}
+
+bool assignsInExpr(Gen& g, JsPtr<Expr> pointer, Name name) {
+    auto expr = g.base[pointer];
+    auto found = false;
+
+    if(expr->kind == Expr::Assign) {
+        auto target = g.base[((AssignExpr*)expr)->target];
+        if(target->kind == Expr::Var && ((VarExpr*)target)->name.text == name.text) return true;
+    }
+
+    eachOperand(g, expr, [&](JsPtr<Expr>& operand, bool) {
+        if(!found) found = assignsInExpr(g, operand, name);
+    });
+
+    return found;
+}
+
+bool assignsName(Gen& g, JsPtr<Stmt> pointer, Name name) {
+    auto stmt = g.base[pointer];
+    if(auto header = headerOf(g, stmt)) {
+        if(assignsInExpr(g, *header, name)) return true;
+    }
+
+    auto found = false;
+    eachBody(g, stmt, [&](StmtList& body) { found = found || assignsIn(g, body, name); });
+
+    return found;
+}
+
+void propagateList(Gen& g, StmtList& list, Size from, Copy& c);
+
+void propagateStmt(Gen& g, JsPtr<Stmt> pointer, Copy& c) {
+    if(c.stopped) return;
+
+    auto stmt = g.base[pointer];
+    if(auto header = headerOf(g, stmt)) propagateExpr(g, *header, c);
+
+    /*
+     * The unguarded case walks everything, including the arms of an `if` and the bodies of the
+     * closures a factory returns: with nothing able to assign `to`, there is no order to respect.
+     * The guarded case walks none of it and asks one question instead - see the header comment for
+     * why a loop body and a closure are the two shapes an ordered walk cannot answer for.
+     */
+    if(!c.guarded) {
+        eachBody(g, stmt, [&](StmtList& body) { propagateList(g, body, 0, c); });
+        return;
+    }
+
+    if(assignsName(g, pointer, c.to)) c.stopped = true;
+}
+
+void propagateList(Gen& g, StmtList& list, Size from, Copy& c) {
+    for(Size i = from; i < list.size() && !c.stopped; i++) {
+        propagateStmt(g, list.get(g.base, i), c);
+    }
+}
+
+/*
+ * The rewrites.
  */
 
 /*
@@ -510,6 +682,44 @@ bool foldInitialValue(Gen& g, StmtList& list, Size index) {
 
     decl.value = value;
     list.remove(g.base, index + 1);
+    return true;
+}
+
+/*
+ * `var a = b;` -> every use of `a` becomes `b` - see the `Copy` walker above for what bounds it.
+ *
+ * The two passes are the same walk run twice, and the declaration is removed only where the first
+ * one reached every use the counts know about. That is what keeps this from leaving a binding whose
+ * readers have been split between two names, which is correct but larger than what it replaced.
+ */
+bool propagateCopy(Gen& g, StmtList& list, Size index, Names& names) {
+    auto declaration = g.base[list.get(g.base, index)];
+    if(declaration->kind != Stmt::Decl) return false;
+
+    auto& decl = *(DeclStmt*)declaration;
+    if(!decl.value || decl.constant) return false;
+    if(g.base[decl.value]->kind != Expr::Var) return false;
+
+    // A name this pass is going to remove has to be one nothing writes, for the same reason a phi
+    // is not a single use: the value at the use would not be the value at the declaration.
+    if(names.assigned.contains(decl.name.text)) return false;
+
+    auto source = ((VarExpr*)g.base[decl.value])->name;
+    if(source.text == decl.name.text) return false;
+
+    auto uses = names.useCount(decl.name);
+    if(!uses) return false;
+
+    Copy copy { decl.name, source, names.assigned.contains(source.text) };
+    propagateList(g, list, index + 1, copy);
+    if(copy.count != uses) return false;
+
+    copy.stopped = false;
+    copy.count = 0;
+    copy.apply = true;
+    propagateList(g, list, index + 1, copy);
+
+    list.remove(g.base, index);
     return true;
 }
 
@@ -666,6 +876,13 @@ bool optimizeList(Gen& g, StmtList& list, Names& names) {
         }
 
         if(removeDeadBinding(g, list, index, names)) {
+            changed = true;
+            continue;
+        }
+
+        // Before inlining rather than after it, because the two overlap on a single-use alias and
+        // this is the one that answers it without asking anything to move.
+        if(propagateCopy(g, list, index, names)) {
             changed = true;
             continue;
         }

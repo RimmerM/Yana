@@ -64,7 +64,7 @@ function bumpedHigh() {
 function marked() {
   var v = 0;
   v = v + ((5 & 1048575) - (v & 1048575));
-  v = $p20u$set(v, 2.3283064365386963E-10, 4294967296, -3 << 12 >> 12);
+  v = $p20u$set(v, 2.3283064365386963E-10, 4294967296, -3);
   return v;
 }
 
@@ -78,7 +78,7 @@ function tagged() {
 function retagged() {
   var x = 0;
   x = $p4u$set(x, 9.094947017729282E-13, 1099511627776, 9);
-  x = x + ($w40u$wrap($w40i$wrap(-2)) - $w40u$wrap(x));
+  x = x + ($w40u$wrap(-2) - $w40u$wrap(x));
   return x;
 }
 
@@ -157,11 +157,6 @@ function $w40u$wrap(a) {
   return v < 0 ? v + 1099511627776 : v;
 }
 
-function $w40i$wrap(a) {
-  var v = a % 1099511627776;
-  return v >= 549755813888 ? v - 1099511627776 : v < -549755813888 ? v + 1099511627776 : v;
-}
-
 function $w53i$shl(a, b) {
   var s = b >= 32 ? (a >>> 0 << b - 32 & 2097151) * 4294967296 : ((($wi$hi(a) & 2097151) << b | a >>> 0 >>> 32 - b) & 2097151) * 4294967296 + (a >>> 0 << b >>> 0);
   return b === 0 ? a : s >= 4503599627370496 ? s - 9007199254740992 : s;
@@ -170,6 +165,11 @@ function $w53i$shl(a, b) {
 function $w53i$sar(a, b) {
   var s = b >= 32 ? ($wi$hi(a) & 2097151) >>> b - 32 : (($wi$hi(a) & 2097151) >>> b) * 4294967296 + ((a >>> 0 >>> b | ($wi$hi(a) & 2097151) << 32 - b) >>> 0);
   return b === 0 ? a : a >= 0 ? s : s - 9007199254740992 / Math.pow(2, b);
+}
+
+function $w40i$wrap(a) {
+  var v = a % 1099511627776;
+  return v >= 549755813888 ? v - 1099511627776 : v < -549755813888 ? v + 1099511627776 : v;
 }
 
 function $wi$hi(a) {

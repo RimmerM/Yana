@@ -35,8 +35,7 @@ function rename(genEnv, p, to) {
 }
 
 function labelled(genEnv, p) {
-  var v1 = nameOf([0, genEnv[1], genEnv[2]], p);
-  var v4 = Math.imul(v1, 100) | 0;
+  var v4 = Math.imul(nameOf([0, genEnv[1], genEnv[2]], p), 100) | 0;
   var v5 = { $v: 0 };
   genEnv[3][2](p, v5);
   return v4 + v5.$v | 0;
@@ -49,16 +48,12 @@ function main() {
   rename(genEnv$rename_Person, subject, 8);
   var left = labelled(genEnv$labelled_Left, { name: 1, tag: 3 });
   var right = labelled(genEnv$labelled_Right, { tag: 4, name: 6 });
-  var v42 = (Math.imul(people, 1000) | 0) + (Math.imul(items, 100) | 0) | 0;
-  var v44 = nameOf(genEnv$nameOf_Person, subject);
-  return ((v42 + (Math.imul(v44, 10) | 0) | 0) + left | 0) + right | 0;
+  return ((((Math.imul(people, 1000) | 0) + (Math.imul(items, 100) | 0) | 0) + (Math.imul(nameOf(genEnv$nameOf_Person, subject), 10) | 0) | 0) + left | 0) + right | 0;
 }
 
 function moveInit$Person(to, from) {
-  var v3 = to;
-  var v4 = from;
-  v3.name = v4.name;
-  v3.age = v4.age;
+  to.name = from.name;
+  to.age = from.age;
   return;
 }
 
@@ -78,10 +73,8 @@ function set$Person_name(owner, value) {
 }
 
 function moveInit$Item(to, from) {
-  var v3 = to;
-  var v4 = from;
-  v3.name = v4.name;
-  v3.cost = v4.cost;
+  to.name = from.name;
+  to.cost = from.cost;
   return;
 }
 
@@ -96,10 +89,8 @@ function set$Item_name(owner, value) {
 }
 
 function moveInit$Left(to, from) {
-  var v3 = to;
-  var v4 = from;
-  v3.name = v4.name;
-  v3.tag = v4.tag;
+  to.name = from.name;
+  to.tag = from.tag;
   return;
 }
 
@@ -124,10 +115,8 @@ function set$Left_tag(owner, value) {
 }
 
 function moveInit$Right(to, from) {
-  var v3 = to;
-  var v4 = from;
-  v3.tag = v4.tag;
-  v3.name = v4.name;
+  to.tag = from.tag;
+  to.name = from.name;
   return;
 }
 

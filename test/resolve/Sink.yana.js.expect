@@ -51,9 +51,8 @@ function tagged(flag) {
   } else {
     e = { $tag: 0, n: 100n, h: { value: 0n } };
   }
-  var e$1 = e;
   var f = { $tag: 0, n: 0n, h: { value: 0n } };
-  moveInit$Either(f, e$1);
+  moveInit$Either(f, e);
   return unwrap(f);
 }
 
@@ -80,34 +79,23 @@ function main() {
   if (sinkCalls !== 1n) {
     return -1n;
   } else {
-    var v17 = result;
-    var v18 = derived();
-    result = BigInt.asIntN(64, v17 + v18);
+    result = BigInt.asIntN(64, result + derived());
     if (sinkCalls !== 2n) {
       return -2n;
     } else {
-      var v31 = result;
-      var v32 = nested();
-      result = BigInt.asIntN(64, v31 + v32);
+      result = BigInt.asIntN(64, result + nested());
       if (sinkCalls !== 3n) {
         return -3n;
       } else {
-        var v45 = result;
-        var v47 = tagged(1);
-        result = BigInt.asIntN(64, v45 + v47);
+        result = BigInt.asIntN(64, result + tagged(1));
         if (sinkCalls !== 4n) {
           return -4n;
         } else {
-          var v60 = result;
-          var v62 = tagged(0);
-          result = BigInt.asIntN(64, v60 + v62);
+          result = BigInt.asIntN(64, result + tagged(0));
           if (sinkCalls !== 4n) {
             return -5n;
           } else {
-            var handed = { value: 5n };
-            var v78 = result;
-            var v80 = consume(handed);
-            result = BigInt.asIntN(64, v78 + v80);
+            result = BigInt.asIntN(64, result + consume({ value: 5n }));
             if (sinkCalls !== 4n) {
               return -6n;
             } else {
@@ -116,10 +104,9 @@ function main() {
                 drop$_sub_gt_I64({ $v: closed });
                 return -7n;
               } else {
-                var v108 = result;
                 var v109 = closed();
                 drop$_sub_gt_I64({ $v: closed });
-                result = BigInt.asIntN(64, v108 + v109);
+                result = BigInt.asIntN(64, result + v109);
                 var retagged = retag({ left: { value: 60n }, right: 6n });
                 if (sinkCalls !== 6n) {
                   return -8n;
@@ -158,29 +145,23 @@ function Sink_Handle_sink(to, from) {
 }
 
 function moveInit$Pair(to, from) {
-  var v3 = to;
-  var v4 = from;
-  v3.left = { value: v4.left.value };
-  v3.right = v4.right;
+  to.left = { value: from.left.value };
+  to.right = from.right;
   Sink_Handle_sink(to.left, from.left);
   return;
 }
 
 function moveInit$Nest(to, from) {
-  var v3 = to;
-  var v4 = from;
-  v3.inner = { left: { value: v4.inner.left.value }, right: v4.inner.right };
-  v3.tag = v4.tag;
+  to.inner = { left: { value: from.inner.left.value }, right: from.inner.right };
+  to.tag = from.tag;
   moveInit$Pair(to.inner, from.inner);
   return;
 }
 
 function moveInit$Either(to, from) {
-  var v3 = to;
-  var v4 = from;
-  v3.$tag = v4.$tag;
-  v3.n = v4.n;
-  v3.h = { value: v4.h.value };
+  to.$tag = from.$tag;
+  to.n = from.n;
+  to.h = { value: from.h.value };
   if (from.$tag === 1) {
     Sink_Handle_sink(to.h, from.h);
   }

@@ -59,15 +59,11 @@ function heldOr(m, fallback) {
 }
 
 function pairValue(p) {
-  var v2 = tagOf(p.first);
-  return (Math.imul(v2, 10) | 0) + tagOf(p.second) | 0;
+  return (Math.imul(tagOf(p.first), 10) | 0) + tagOf(p.second) | 0;
 }
 
 function roundTrip() {
-  var a = tagOf(3);
-  var b = tagOf(0);
-  var c = tagOf(2);
-  return (a + (Math.imul(b, 10) | 0) | 0) + (Math.imul(c, 100) | 0) | 0;
+  return (tagOf(3) + (Math.imul(tagOf(0), 10) | 0) | 0) + (Math.imul(tagOf(2), 100) | 0) | 0;
 }
 
 function nested() {
@@ -79,8 +75,5 @@ function paired() {
 }
 
 function main() {
-  var a = tagOf(3);
-  var b = tagOf(0);
-  var c = tagOf(2);
-  return (((a + (Math.imul(b, 10) | 0) | 0) + (Math.imul(c, 100) | 0) | 0) + ((depthOf(4) + depthOf(3) | 0) + depthOf(1) | 0) | 0) + pairValue({ first: 2, second: 3 }) | 0;
+  return (((tagOf(3) + (Math.imul(tagOf(0), 10) | 0) | 0) + (Math.imul(tagOf(2), 100) | 0) | 0) + ((depthOf(4) + depthOf(3) | 0) + depthOf(1) | 0) | 0) + pairValue({ first: 2, second: 3 }) | 0;
 }

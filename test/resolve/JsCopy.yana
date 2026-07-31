@@ -1,0 +1,60 @@
+{-
+   Copy propagation in the JS backend, and the barrier that bounds it.
+
+   `var a = b;` in the emitted JavaScript is a second name for a value that already has one, and
+   codegen/js/opt.cpp removes it by rewriting every use of `a` to `b`. Whether that is sound is a
+   question about *assignments* to `b`: a local `var` is invisible to every callee, so nothing but
+   the emitted function's own text can change one, and where the text does the substitution has to
+   stop.
+
+   That barrier is the whole of what this fixture asserts, and it needs three things at once to be
+   reachable at all - which is why the shape below is as specific as it is. The local has to be
+   written from a call, so that the resolver's place forwarding cannot answer the read with the
+   value that was stored; the read has to be in a different block from the write, which is the
+   `@noinline` boundary plus the `if`; and the *use* of what was read has to come after a second
+   write to the same local. Take any one away and the copy either never appears or appears with
+   nothing able to invalidate it.
+
+   The assertion is `.run.expect` plus the optimizer-equivalence check beside it: a substitution
+   that read `acc` after something wrote it returns a different number rather than only different
+   text. Verified to bite by forcing the barrier off, where both calls to `barrier` answer one bump
+   too high - 707 and 606 against 607 and 506 - and `main` returns 612606707.
+-}
+
+@noinline
+fn seed() -> Int = 5
+
+@noinline
+fn next(n: Int) -> Int = n + 1
+
+-- The declining case. `held` is read before `acc` is bumped and used after, so the copy may not
+-- become a second read of `acc`.
+--                                        flag on: acc 6 held 6 -> 6 * 100 + 7            = 607
+--                                        flag off: acc 5 held 5 -> 5 * 100 + 6           = 506
+fn barrier(flag: Bool) -> Int:
+    let &acc = seed()
+
+    if flag:
+        acc = next(acc)
+
+    let held = acc
+    acc = next(acc)
+
+    return held * 100 + acc
+
+-- The same copy with nothing writing the source between it and its use, which is the case that is
+-- taken. The second read is what keeps the copy from being a single use, since that is the shape
+-- `inlineBinding` would have answered on its own.
+--                                                          acc 6, so 6 * 100 + 6 + 6     = 612
+fn taken(flag: Bool) -> Int:
+    let &acc = seed()
+
+    if flag:
+        acc = next(acc)
+
+    let held = acc
+
+    return held * 100 + held + acc
+
+fn main() -> Int:
+    return barrier(True) + barrier(False) * 1000 + taken(True) * 1000000

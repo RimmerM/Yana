@@ -38,10 +38,8 @@ function Sink_Handle_sink(to, from) {
 }
 
 function moveInit$Pair(to, from) {
-  var v3 = to;
-  var v4 = from;
-  v3.left = { value: v4.left.value };
-  v3.right = v4.right;
+  to.left = { value: from.left.value };
+  to.right = from.right;
   Sink_Handle_sink(to.left, from.left);
   return;
 }

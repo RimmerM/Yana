@@ -1,0 +1,74 @@
+fn seed() -> Int {
+  b0:
+    ret 5
+}
+
+fn next(%n: Int) -> Int {
+  b0:
+    %v3 = add %n, 1 : Int
+    ret %v3
+}
+
+fn barrier(%flag: Bool) -> Int {
+  b0:
+    %v1 = call seed : Int
+    %acc = alloc : Int
+    init %acc, %v1
+    je %flag, b1, b2
+
+  b1:
+    %v5 = load %acc : Int
+    %v6 = call next, %v5 : Int
+    assign %acc, %v6
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %held = load %acc : Int
+    %v11 = load %acc : Int
+    %v12 = call next, %v11 : Int
+    assign %acc, %v12
+    %v16 = mul %held, 100 : Int
+    %v17 = load %acc : Int
+    %v18 = add %v16, %v17 : Int
+    ret %v18
+}
+
+fn taken(%flag: Bool) -> Int {
+  b0:
+    %v1 = call seed : Int
+    %acc = alloc : Int
+    init %acc, %v1
+    je %flag, b1, b2
+
+  b1:
+    %v5 = load %acc : Int
+    %v6 = call next, %v5 : Int
+    assign %acc, %v6
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %held = load %acc : Int
+    %v13 = mul %held, 100 : Int
+    %v14 = add %v13, %held : Int
+    %v15 = load %acc : Int
+    %v16 = add %v14, %v15 : Int
+    ret %v16
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call barrier, True : Int
+    %v3 = call barrier, False : Int
+    %v6 = mul %v3, 1000 : Int
+    %v7 = add %v1, %v6 : Int
+    %v9 = call taken, True : Int
+    %v12 = mul %v9, 1000000 : Int
+    %v13 = add %v7, %v12 : Int
+    ret %v13
+}

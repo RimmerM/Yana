@@ -13,14 +13,21 @@
  *     value is. `makeFloatConstant` is the same rule for the two floating widths.
  *
  *  2. **Where the targets could disagree about the operation itself, it is not folded.** Every case
- *     is named at the point it is declined, and there are now five: a `@bits` refinement, whose
- *     arithmetic width the two spell differently; a shift by a distance the type cannot hold, where
+ *     is named at the point it is declined, and there are now five: `@bits` refinement *arithmetic*,
+ *     whose width the two spell differently; a shift by a distance the type cannot hold, where
  *     each target masks the count its own way; `not` on a type narrower than its register, which
  *     native does not wrap and JS does; a float-to-integer conversion of a value the integer type
  *     cannot hold, where one target produces the integer indefinite value and the other wraps; and a
  *     conversion with a `Bool` at either end, which on JS is a comparison against zero rather than a
  *     truncation. The point of declining rather than choosing is that this pass must not be the thing
  *     that decides which target is right.
+ *
+ *     The first of those is about arithmetic and nothing else, which is worth saying because two
+ *     things here do read a refinement: `constantValueOf` on the way in and `conversionFacts` on the
+ *     way out. What `x + 1` wraps at on a `@bits(3) U32` is a question the targets answer
+ *     differently; which bits a *conversion* keeps and what sits above them is one they already
+ *     answer the same way, and declining that one too would leave a field whose every input was a
+ *     literal reaching both backends as arithmetic.
  *
  * Division and remainder decline a zero divisor for the ordinary reason - the program is entitled to
  * whatever the machine does with it, and that is not a constant this pass may invent - and signed
@@ -376,6 +383,60 @@ struct Folder {
     }
 
     /*
+     * The same question with the sign attached, which is what converting a *constant* to a type
+     * needs: `narrowToWidth` decides the bits above `bits` from it.
+     *
+     * The refinement is admitted here for the reason `constantValueOf` admits one on the way in.
+     * `foldableInt` declines a refinement because the two targets disagree about what `x + 1` wraps
+     * at, and that is a question about arithmetic; which bits a conversion keeps and what is above
+     * them is not that question, and both targets already answer it the same way - `truncateToWidth`
+     * shifts a signed narrow value up and arithmetically back down, `constantValue` in
+     * codegen/js/place.cpp sign-extends a constant from the type's own `bits`, and `narrowToWidth`
+     * is the one stored form both of those read as the same number.
+     */
+    Maybe<IntFacts> conversionFacts(TypePtr type) {
+        if(auto facts = foldableInt(opt, type)) return facts;
+        if(!type || opt.global[type]->kind != Type::Int) return Nothing();
+
+        // Only the refinement is left: everything else foldableInt declined, it declined for a
+        // reason that is not about width, and re-deciding one of those here would be this pass
+        // holding two opinions about the same type.
+        auto integer = (IntType*)opt.global[type];
+        if(!integer->canonical) return Nothing();
+        if(integer->bits == 0 || integer->bits > 64) return Nothing();
+
+        return Just(IntFacts {
+            integer->bits, IntType::registerBits(integer->width), integer->isSigned
+        });
+    }
+
+    /*
+     * A conversion of a constant between two integer readings of it.
+     *
+     * Both directions are already decided by the two functions this calls, which is why there is no
+     * case for widening: `constantValueOf` reads the source at its own width and sign, so a signed
+     * one arrives sign-extended, and `narrowToWidth` cuts it back to the target's. Anything that is
+     * not an integer at either end fails one of the two and is left alone - a pointer, a float, a
+     * sum's payload.
+     *
+     * A conversion *to* a refinement is what makes this worth being its own function rather than a
+     * case in the switch below, which `foldableInt` gates. `p.d = p.d + 1` on a `@bits(4) Int` field
+     * is a widening, an add, a shift pair and a conversion back, and the last of those was the one
+     * link in the chain that did not fold - so a field whose every input was a literal still reached
+     * both backends as arithmetic, and `hostShaped` in `ScalarRecord.yana` multiplied two of them by
+     * a constant at runtime.
+     */
+    ModulePtr<Value> foldConstantCast(InstUnary& instruction) {
+        auto facts = conversionFacts(instruction.type);
+        if(!facts) return nullptr;
+
+        auto from = constantValueOf(opt, instruction.from);
+        if(!from) return nullptr;
+
+        return constant(instruction, instruction.type, narrowToWidth(from.unwrap(), facts.unwrap()));
+    }
+
+    /*
      * The two conversions that are not conversions.
      *
      * The first is a `cast` to the type its operand already has. Types are interned, so equal
@@ -595,20 +656,21 @@ struct Folder {
         if(instruction.kind == Value::Cmp) return foldCompare((InstCmp&)instruction);
 
         /*
-         * Ahead of the `foldableInt` test below rather than in the switch, because neither of these
-         * is arithmetic: a conversion to a `@bits` refinement is declined there for a reason that is
-         * about what `x + 1` wraps at, and a conversion that computes nothing has no width to wrap
-         * at in the first place.
+         * Every conversion is decided here rather than in the switch below, because none of them is
+         * arithmetic: a conversion to a `@bits` refinement is declined by `foldableInt` for a reason
+         * that is about what `x + 1` wraps at, and a conversion that computes nothing has no width
+         * to wrap at in the first place.
          */
         if(instruction.kind == Value::Cast) {
             auto& cast = (InstUnary&)instruction;
             if(opt.local[cast.from]->type == instruction.type) return cast.from;
 
-            // Before the chain collapse rather than after it, because the two answer different
+            // Before the chain collapse rather than after it, because the three answer different
             // questions about the same instruction and only one of them can apply: `conversionBits`
-            // declines a float at either end, so a conversion this folds is one that never reaches
-            // the collapse and the other way round.
+            // declines a float at either end, so a conversion the first two fold is one that never
+            // reaches the collapse and the other way round.
             if(auto folded = foldNumericCast(cast)) return folded;
+            if(auto folded = foldConstantCast(cast)) return folded;
 
             foldCast(pointer, cast);
         }
@@ -621,22 +683,6 @@ struct Folder {
         if(!facts) return nullptr;
 
         switch(instruction.kind) {
-            case Value::Cast: {
-                /*
-                 * A conversion of a constant between two integer readings of it.
-                 *
-                 * Both directions are already decided by the two functions this calls, which is why
-                 * there is no case for widening: `constantValueOf` reads the source at its own width
-                 * and sign, so a signed one arrives sign-extended, and `narrowToWidth` cuts it back
-                 * to the target's. Anything that is not an integer at either end fails one of the
-                 * two and is left alone - a pointer, a float, a sum's payload.
-                 */
-                auto from = constantValueOf(opt, ((InstUnary&)instruction).from);
-                if(!from) return nullptr;
-
-                return constant(instruction, instruction.type,
-                                narrowToWidth(from.unwrap(), facts.unwrap()));
-            }
             case Value::Neg:
             case Value::Not:
                 return foldUnary((InstUnary&)instruction, facts.unwrap());
