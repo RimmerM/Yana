@@ -1,0 +1,21 @@
+14:0: error: a skipping lens is not available yet - this one returns Maybe(a) rather than its continuation's a, which needs the `Try` instance and the `| else ->` call site of Analysis-Lens.md's V3
+18:28: error: a lens's continuation must return a type variable - it produces whatever the rest of the caller's block produces, which the lens cannot name
+21:25: error: a lens's continuation parameter cannot carry `&`, `->` or `return` - it is called, not stored, and its extent is the call
+24:0: error: iter functions are not available yet - a lens is the once-only case of the same shape and is, see Analysis-Lens.md's version split
+25:4: error: `yield` is only available inside a `lens fn` that declares what it hands over - one that named its continuation parameter calls it by name instead
+24:0: error: not all paths return a value
+30:0: error: a `lens fn` in `yield` form must `yield` - this one never hands anything over, so the call site's block below it would never run
+38:4: error: this path leaves a `lens fn` without yielding - the continuation would never run, so the block below the call site would be skipped
+43:4: error: a `lens fn` may contain only one `yield` in this version - the cleanup after it already runs on every path, so a second one would need the two results joined
+51:8: error: this `yield` can run twice - a `lens fn` hands over exactly once on every path that does not diverge
+56:4: error: `yield` is only available inside a `lens fn` that declares what it hands over - one that named its continuation parameter calls it by name instead
+55:0: error: not all paths return a value
+59:4: error: `yield` is only available inside a `lens fn` that declares what it hands over - one that named its continuation parameter calls it by name instead
+58:0: error: not all paths return a value
+70:36: error: handing is a lens, so this call needs the rest of a block to hand its values to - write it as a statement of its own or as the whole right-hand side of a `let`, or pass the continuation as a final argument
+74:8: error: this lens hands over nothing, so there is nothing for `let` to bind - write the call as a statement of its own
+82:8: error: `break` and `continue` cannot cross a lens call yet - the loop is in the function this block was split out of, and only `return` carries the exit signal so far
+89:12: error: scope is a lens, so it cannot be used as a function value yet - the block a lens call splits is decided where the call is written
+95:4: error: a lens call inside a generic function is not available yet - the continuation would have to be specialized alongside its caller
+94:0: error: not all paths return a value
+47:0: error: this value may have been moved out of on some paths reaching here

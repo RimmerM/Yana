@@ -164,6 +164,28 @@ Place ExprResolver::placeOf(const Binding& binding, LocationId source) {
 Binding* ExprResolver::captureBinding(StringId name, LocationId source) {
     if(!enclosing || !envType) return nullptr;
 
+    /*
+     * Already captured, once, and named again from a scope that did not exist the first time.
+     *
+     * Which capture a name is refers to the whole body - the environment gains its field when the
+     * body first names it and keeps it - but the *binding* recording that is pushed onto the
+     * ordinary scope stack, so an `if` arm or a `match` case that discovers the capture takes it
+     * away again when it ends. Without this the name is captured a second time, and the environment
+     * has two fields holding the same thing.
+     */
+    for(Size i = 0; i < captures.size(); i++) {
+        if(captures[i].name != name) continue;
+
+        Binding existing;
+        existing.name = name;
+        existing.captured = true;
+        existing.captureBorrow = captures[i].byReference;
+        existing.captureField = U16(i);
+
+        bindings.push(existing);
+        return &bindings[bindings.size() - 1];
+    }
+
     // Recursive on purpose: a lambda inside a lambda naming a binding two frames out captures it
     // through the one in between, which is this happening twice rather than a second mechanism.
     auto outer = enclosing->findBinding(name, source);
@@ -228,7 +250,7 @@ Binding* ExprResolver::captureBinding(StringId name, LocationId source) {
 // Writes one word into each field of the environment, in the enclosing frame, at the point the
 // closure is built. This is where a capture's convention becomes an instruction: a borrow, or the
 // copy-or-move sinkValue() already picks between by the source's ownership classification.
-static void fillEnvironment(ExprResolver& resolver, ExprResolver& body, Place place, LocationId source) {
+void fillEnvironment(ExprResolver& resolver, ExprResolver& body, Place place, LocationId source) {
     U16 index = 0;
 
     for(auto& capture: body.captures) {
@@ -331,6 +353,15 @@ static ModulePtr<Function> functionThunk(Module& module, ModulePtr<Function> cal
 
 ModulePtr<Value> ExprResolver::functionValue(ModulePtr<Function> callee, LocationId source) {
     auto target = local[callee];
+
+    // A lens reached as a value is a lens reached through the erased callback ABI: the two words
+    // say nothing about which argument is the continuation, so a call site holding one cannot split
+    // its block. That ABI is Implementation-Generics.md part 7's own open question.
+    if(target->funKind != ast::FunKind::Plain) {
+        context.diagnostics.error("%@ is a lens, so it cannot be used as a function value yet - the block a lens call splits is decided where the call is written"_v,
+                                  source, context.findName(target->name));
+        return nullptr;
+    }
 
     if(target->gen) {
         context.diagnostics.error("%@ is generic, and a generic function cannot be used as a function value yet - it would need a witness rather than an address"_v,

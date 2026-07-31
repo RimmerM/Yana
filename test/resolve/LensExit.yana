@@ -1,0 +1,77 @@
+-- Leaving through a lens - Design.md's Leaving through a lens, Analysis-Lens.md §5.1.
+--
+-- A continuation is the rest of the enclosing block, so a `return` in it leaves the enclosing
+-- *function*, past the lens's own frame - which runs whatever it has after its `yield` on the way.
+-- That is what makes a scoped-acquisition API correct on an early return with nothing written at
+-- either site, and it is the whole reason lenses are worth having.
+--
+-- Three shapes, and only the third of them costs anything. A continuation that never leaves is an
+-- ordinary function; one that always leaves returns the enclosing function's result outright; one
+-- that does both returns `Outcome(blockValue, functionResult)` and the call site tells the two
+-- apart.
+
+let &log = 0 :: Int
+
+lens fn scope() -> {}:
+    log = log + 1
+    yield {}
+    log = log + 100
+
+lens fn handing(x: Int) -> Int:
+    log = log + 1
+    yield x * 2
+    log = log + 100
+
+-- Every path of the continuation leaves, so nothing is wrapped: the lens returns what the block
+-- returned and the call site returns that.
+fn alwaysLeaves(x: Int) -> Int:
+    scope()
+    return x + 1
+
+-- Some paths leave and some do not, which is the one shape that needs the wrapper. The block's own
+-- value is what `plus` produces below the `if`.
+fn sometimesLeaves(x: Int) -> Int:
+    scope()
+
+    if x > 100:
+        return 0
+
+    return x + 2
+
+-- The mixed shape where the block genuinely falls through to code the lens call did not consume:
+-- the call is inside an `if` arm, so the arm ends when the lens does and `return 7` still runs.
+fn insideArm(x: Int) -> Int:
+    if x > 0:
+        scope()
+        if x > 100: return 0
+        log = log + 1000
+
+    return 7
+
+-- A `return` inside a continuation whose lens hands something over, so the exit crosses a value the
+-- block had bound.
+fn leavesWithValue(x: Int) -> Int:
+    let doubled = handing(x)
+    if doubled > 10: return doubled
+    return 0
+
+-- Nesting: the inner lens's continuation leaves, which travels out through both frames and runs
+-- both cleanups.
+fn twoDeep(x: Int) -> Int:
+    scope()
+    scope()
+    return x + 3
+
+fn main() -> Int:
+    log = 0
+    let a = alwaysLeaves(1)         -- 2,   log 101
+    let b = sometimesLeaves(5)      -- 7,   log 202
+    let c = sometimesLeaves(200)    -- 0,   log 303
+    let d = insideArm(3)            -- 7,   log 1404
+    let e = insideArm(-1)           -- 7,   log 1404
+    let f = leavesWithValue(9)      -- 18,  log 1505
+    let g = leavesWithValue(2)      -- 0,   log 1606
+    let h = twoDeep(4)              -- 7,   log 1808
+
+    -- 2 + 7 + 0 + 7 + 7 + 18 + 0 + 7 = 48, plus log 1808
+    return a + b + c + d + e + f + g + h + log

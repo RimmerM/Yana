@@ -1,0 +1,397 @@
+@log = [0, 0, 0, 0]
+
+ResolveTest.lambda$7<complex>(%env: Ptr, %n: Int): Int {
+  b_0 {
+    %v_1 = imul %n, 3: Int
+    ret %v_1
+  }
+}
+
+written<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.lambda$7, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = call_complex plusOne(Int), 4, %v_1: Int
+    ret %v_4
+  }
+}
+
+scope(Int)<complex>(%body: Ptr): Int {
+  b_0 {
+    %v_1 = loads @log, 4: Int
+    %v_2 = imul %v_1, 2: Int
+    store @log, %v_2, 4
+    %v_3 = add %body, 8: Ptr
+    %v_4 = load %body, 8: Ptr
+    %v_5 = load %v_3, 8: Ptr
+    %v_6 = call_complex %v_4, %v_5: Int
+    %v_7 = loads @log, 4: Int
+    %v_8 = add %v_7, 100: Int
+    store @log, %v_8, 4
+    ret %v_6
+  }
+}
+
+twiceOver(Int, Int)<complex>(%value: Int, %body: Ptr): Int {
+  b_0 {
+    %v_1 = loads @log, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @log, %v_2, 4
+    %v_3 = add %body, 8: Ptr
+    %v_4 = load %body, 8: Ptr
+    %v_5 = load %v_3, 8: Ptr
+    %v_6 = call_complex %v_4, %v_5, %value: Int
+    ret %v_6
+  }
+}
+
+logged(())<complex>(%body: Ptr) {
+  b_0 {
+    %v_1 = loads @log, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @log, %v_2, 4
+    %v_3 = add %body, 8: Ptr
+    %v_4 = load %body, 8: Ptr
+    %v_5 = load %v_3, 8: Ptr
+    call_complex %v_4, %v_5, %v_2
+    %v_6 = loads @log, 4: Int
+    %v_7 = add %v_6, 10: Int
+    store @log, %v_7, 4
+    ret 
+  }
+}
+
+ResolveTest.continuation$2<complex>(%env: Ptr, %n: Int): Int {
+  b_0 {
+    %v_1 = imul %n, 2: Int
+    ret %v_1
+  }
+}
+
+ResolveTest.continuation$6<complex>(%env: Ptr, %value: Int): Int {
+  b_0 {
+    ret %value
+  }
+}
+
+explicit<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.continuation$2, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = call_complex plusOne(Int), 9, %v_1: Int
+    ret %v_4
+  }
+}
+
+teardown$none<complex>(%value: Ptr) {
+  b_0 {
+    ret 
+  }
+}
+
+ResolveTest.continuation$8<complex>(%env: Ptr, %value: Int): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.continuation$9, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = call_complex plusOne(Int), %value, %v_1: Int
+    ret %v_4
+  }
+}
+
+twiceOver(Bool, Int)<complex>(%value: Int, %body: Ptr): Int {
+  b_0 {
+    %v_1 = loads @log, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @log, %v_2, 4
+    %v_3 = add %body, 8: Ptr
+    %v_4 = load %body, 8: Ptr
+    %v_5 = load %v_3, 8: Ptr
+    %v_6 = call_complex %v_4, %v_5, %value: Int
+    ret %v_6
+  }
+}
+
+@closure$ResolveTest.continuation$10 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$10<complex>(%env: Ptr, %value: Int) {
+  b_0 {
+    %v_1 = load %env, 8: Ptr
+    %v_2 = load %env, 8: Ptr
+    %v_3 = loads %v_1, 4: Int
+    %v_4 = add %v_3, %value: Int
+    store %v_1, %v_4, 4
+    ret 
+  }
+}
+
+inLoop<complex>(%n: Int): Int {
+  b_0 {
+    %total = alloca 4, 4: Ptr
+    store %total, 0, 4
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = cmp_ilt %v_2, %n: Int
+    je %v_5, b_3, b_6
+  }
+
+  b_6 {
+    %v_7 = loads %total, 4: Int
+    ret %v_7
+  }
+
+  b_3 {
+    %v_4 = add %v_2, 1: Int
+    %v_8 = alloca 8, 8: Ptr
+    store %v_8, %total, 8
+    %v_9 = alloca 16, 8: Ptr
+    store %v_9, ResolveTest.continuation$10, 8
+    %v_10 = add %v_9, 8: Ptr
+    store %v_10, %v_8, 8
+    call_complex logged(()), %v_9
+    jmp b_1
+  }
+}
+
+plusOne(Int)<complex>(%x: Int, %body: Ptr): Int {
+  b_0 {
+    %v_1 = add %x, 1: Int
+    %v_2 = add %body, 8: Ptr
+    %v_3 = load %body, 8: Ptr
+    %v_4 = load %v_2, 8: Ptr
+    %v_5 = call_complex %v_3, %v_4, %v_1: Int
+    ret %v_5
+  }
+}
+
+destructured<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.continuation$3, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = call_complex split(Int), 37, %v_1: Int
+    ret %v_4
+  }
+}
+
+cleanupRan<complex>(): Int {
+  b_0 {
+    %seen = call_complex bound: Int
+    %v_1 = loads @log, 4: Int
+    %v_2 = add %seen, %v_1: Int
+    ret %v_2
+  }
+}
+
+@closure$ResolveTest.continuation$5 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$5<complex>(%env: Ptr, %value: Int): Int {
+  b_0 {
+    je %value, b_1, b_2
+  }
+
+  b_1 {
+    %v_3 = loads %env, 4: Int
+    %v_4 = imul %v_3, 2: Int
+    jmp b_5
+  }
+
+  b_2 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_1, %v_4], [b_2, 0]: Int
+    ret %v_6
+  }
+}
+
+nested<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.continuation$8, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = call_complex logged(Int), %v_1: Int
+    ret %v_4
+  }
+}
+
+bumped(Int)<complex>(%c: Ptr, %body: Ptr): Int {
+  b_0 {
+    %v_1 = loads %c, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store %c, %v_2, 4
+    %v_3 = add %body, 8: Ptr
+    %v_4 = load %body, 8: Ptr
+    %v_5 = load %v_3, 8: Ptr
+    %v_6 = call_complex %v_4, %v_5, %v_2: Int
+    %v_7 = loads %c, 4: Int
+    %v_8 = add %v_7, 10: Int
+    store %c, %v_8, 4
+    ret %v_6
+  }
+}
+
+ResolveTest.continuation$9<complex>(%env: Ptr, %b: Int): Int {
+  b_0 {
+    ret %b
+  }
+}
+
+split(Int)<complex>(%x: Int, %body: Ptr): Int {
+  b_0 {
+    %v_1 = irem %x, 10: Int
+    %v_2 = idiv %x, 10: Int
+    %v_3 = add %body, 8: Ptr
+    %v_4 = load %body, 8: Ptr
+    %v_5 = load %v_3, 8: Ptr
+    %v_6 = call_complex %v_4, %v_5, %v_1, %v_2: Int
+    ret %v_6
+  }
+}
+
+statement<complex>(): Int {
+  b_0 {
+    store @log, 3, 4
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.continuation$1, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = call_complex scope(Int), %v_1: Int
+    ret %v_4
+  }
+}
+
+ResolveTest.continuation$3<complex>(%env: Ptr, %low: Int, %high: Int): Int {
+  b_0 {
+    %v_1 = imul %low, 100: Int
+    %v_2 = add %v_1, %high: Int
+    ret %v_2
+  }
+}
+
+ResolveTest.continuation$1<complex>(%env: Ptr): Int {
+  b_0 {
+    %v_1 = loads @log, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @log, %v_2, 4
+    ret %v_2
+  }
+}
+
+ResolveTest.continuation$0<complex>(%env: Ptr, %value: Int): Int {
+  b_0 {
+    ret %value
+  }
+}
+
+ResolveTest.continuation$4<complex>(%env: Ptr, %value: Int): Int {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %value, 4
+    %v_2 = alloca 16, 8: Ptr
+    store %v_2, ResolveTest.continuation$5, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = call_complex twiceOver(Bool, Int), 1, %v_2: Int
+    ret %v_4
+  }
+}
+
+generic<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.continuation$4, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = call_complex twiceOver(Int, Int), 4, %v_1: Int
+    ret %v_4
+  }
+}
+
+bound<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.continuation$0, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = call_complex logged(Int), %v_1: Int
+    ret %v_4
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    store @log, 0, 4
+    %seen = call_complex bound: Int
+    %v_1 = loads @log, 4: Int
+    %v_2 = add %seen, %v_1: Int
+    store @log, 0, 4
+    %b = call_complex statement: Int
+    %c = call_complex explicit: Int
+    %d = call_complex destructured: Int
+    %e = call_complex borrowed: Int
+    %j = call_complex generic: Int
+    %f = call_complex written: Int
+    store @log, 0, 4
+    %g = call_complex nested: Int
+    store @log, 0, 4
+    %h = call_complex inLoop, 3: Int
+    %v_3 = add %v_2, %b: Int
+    %v_4 = add %v_3, %c: Int
+    %v_5 = add %v_4, %d: Int
+    %v_6 = add %v_5, %e: Int
+    %v_7 = add %v_6, %f: Int
+    %v_8 = add %v_7, %g: Int
+    %v_9 = add %v_8, %h: Int
+    %v_10 = add %v_9, %j: Int
+    ret %v_10
+  }
+}
+
+borrowed<complex>(): Int {
+  b_0 {
+    %c = alloca 4, 4: Ptr
+    store %c, 5, 4
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, ResolveTest.continuation$6, 8
+    %v_2 = bitcast 0: Ptr
+    %v_3 = add %v_1, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = call_complex bumped(Int), %c, %v_1: Int
+    ret %v_4
+  }
+}
+
+logged(Int)<complex>(%body: Ptr): Int {
+  b_0 {
+    %v_1 = loads @log, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @log, %v_2, 4
+    %v_3 = add %body, 8: Ptr
+    %v_4 = load %body, 8: Ptr
+    %v_5 = load %v_3, 8: Ptr
+    %v_6 = call_complex %v_4, %v_5, %v_2: Int
+    %v_7 = loads @log, 4: Int
+    %v_8 = add %v_7, 10: Int
+    store @log, %v_8, 4
+    ret %v_6
+  }
+}
+

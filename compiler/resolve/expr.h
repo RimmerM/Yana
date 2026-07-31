@@ -162,6 +162,42 @@ inline bool isDeferred(Buffer<Deferred> deferred, Size index) {
     return index < deferred.length && deferred[index].isSet();
 }
 
+// One `yield` in a `lens fn` body: where it landed, and where it was written. The block is what the
+// exactly-once check is stated over and the source is what its diagnostics point at.
+struct LensYield {
+    ModulePtr<Block> block;
+    LocationId source;
+};
+
+/*
+ * One `return` inside a lens continuation, waiting for the shape of the continuation's result.
+ *
+ * A `return` there leaves the *enclosing* function rather than the lifted body it is written in, so
+ * what it compiles to depends on something not known while it is being resolved: whether any path
+ * of the continuation also finishes normally. The block is therefore left without a terminator and
+ * finished by finishContinuationExits once the whole body has been seen - see expr_lens.cpp.
+ */
+struct ContinuationExit {
+    ModulePtr<Block> block;
+    ModulePtr<Value> value;
+    LocationId source;
+};
+
+/*
+ * What a lifted continuation turned out to be, which is what the call site has to join against.
+ *
+ * The three combinations of the two flags are Analysis-Lens.md §5.1's three cases: a continuation
+ * that only finishes normally is an ordinary function and the exit signal costs nothing; one that
+ * only leaves returns the enclosing function's result outright; and one that does both returns
+ * `Outcome(value, exit)`, which is the only shape that pays for a discriminator.
+ */
+struct ContinuationShape {
+    TypePtr value = nullptr;
+    TypePtr outcome = nullptr;
+    bool fallsThrough = false;
+    bool exits = false;
+};
+
 // What resolving one pattern proved about it. `Never` means the pattern cannot match this pivot
 // at all (a type error, already reported); `Always` means no test was emitted, so the following
 // alternatives are unreachable; `Maybe` means a test was emitted and control may reach `onFail`.
@@ -508,6 +544,46 @@ struct ExprResolver {
     Binding* captureBinding(StringId name, LocationId source);
 
     /*
+     * Lenses (expr_lens.cpp).
+     */
+
+    // `yield e` - a call of the continuation parameter a `yield`-form lens did not have to write.
+    ModulePtr<Value> resolveYield(const ast::Expr& expr);
+
+    /*
+     * The call-site split: `f(as)` and the rest of the block become `f(as, K)`.
+     *
+     * `block`/`index` say which statement of which sequence the call is, since the continuation is
+     * the statements after it and no AST node stands for that span. False when the statement is not
+     * a lens call at all - which is every statement but the ones this exists for - and the block
+     * loop then resolves it as it always did.
+     */
+    bool resolveLensStatement(ast::ParseList<ast::Expr> block, Size index, bool used,
+                              ModulePtr<Value>& result);
+
+    // What a `return` in this body leaves: the enclosing function's result type, which for a lifted
+    // continuation is the type of the function it was split out of rather than its own.
+    TypePtr enclosingResultType() const { return inContinuation ? exitType : function.returnType; }
+
+    // Leaving the enclosing function with a value. An ordinary body returns; a continuation records
+    // the departure and has its block finished once the shape of its result is known.
+    void emitFunctionReturn(ModulePtr<Value> value, LocationId source);
+
+    // The rest of a block, lifted into the function the lens calls. `declaration` is the `let` the
+    // call site wrote, or null for a bare statement.
+    ModulePtr<Value> makeContinuation(Buffer<FunArg> params, const ast::VarDecl* declaration,
+                                      ast::ParseList<ast::Expr> block, Size from, LocationId source,
+                                      ContinuationShape& shape);
+
+    // `Proceed(value)` or `Exit(value)` of a concrete `Outcome`, built directly rather than through
+    // a written constructor: this is emitted code, and there is no source for it to come from.
+    ModulePtr<Value> makeOutcome(TypePtr type, bool proceed, ModulePtr<Value> value, LocationId source);
+
+    // The discriminant test and payload projection the call-site join needs, as a place. Shared by
+    // the two arms so that both read the same downcast.
+    ModulePtr<Value> outcomePayload(ModulePtr<Value> value, bool proceed, LocationId source);
+
+    /*
      * Storage and aggregates (expr_construct.cpp).
      */
 
@@ -695,6 +771,22 @@ struct ExprResolver {
     // signal Analysis-Lens.md §5.1 describes - a non-local exit through the callee's live frame -
     // and this version rejects it rather than letting it mean something accidental.
     bool inThunk = false;
+
+    /*
+     * The lens halves, all empty for an ordinary body.
+     *
+     * `yields` is where each `yield` landed, which is what the exactly-once check is stated over;
+     * `yieldResult` is the value the continuation produced, which is what a `yield`-form lens
+     * returns when it falls off the end of its cleanup.
+     */
+    Array<LensYield> yields;
+    ModulePtr<Value> yieldResult = nullptr;
+
+    // Set while resolving a lifted lens continuation. A `return` there leaves the function this one
+    // was split out of, so it is collected rather than emitted - see ContinuationExit.
+    bool inContinuation = false;
+    TypePtr exitType = nullptr;
+    Array<ContinuationExit> exits;
 };
 
 // Creates a function that is reached through something other than its own name - a class
@@ -745,3 +837,21 @@ bool needsBorrowTemporary(Module& module, Function& function, const Place& place
 // Names one binding per parameter, and storage for the ones that need it. `firstArg` skips the
 // leading closure environment of anything reached as a function value - see expr.cpp.
 void bindFunctionArgs(ExprResolver& resolver, Module& module, Function& function, Size firstArg);
+
+// Writes one word into each field of a lifted body's environment, in the frame that builds the
+// closure. Shared by a lambda and a lens continuation, which differ in what their body is and in
+// nothing else - see expr_fun.cpp.
+void fillEnvironment(ExprResolver& resolver, ExprResolver& body, Place place, LocationId source);
+
+// The continuation parameter of a lens, read off its last argument. Null for anything that is not
+// a lens, which is what a call site checks before trying to split its block.
+FunType* lensContinuationType(GlobalBase global, Function& function, ModuleBase local);
+
+// Core's `Outcome(value, exit)`, or null after reporting when Core has no such type.
+TypePtr resolveOutcomeType(Module& module, TypePtr value, TypePtr exit, LocationId source);
+
+// Terminates every block a `return` inside a continuation left open, now that the shape of what the
+// continuation returns is known. `outcome` is null when the continuation only ever leaves, in which
+// case the enclosing function's result travels unwrapped.
+void finishContinuationExits(Module& module, ExprResolver& body, TypePtr result, TypePtr outcome,
+                             LocationId source);

@@ -26,9 +26,26 @@ static void transferState(Analysis& analysis, Size index, Array<OwnState>& state
     // Moves before inits: `x = consume(x)` moves out of the slot and then fills it again, and the
     // state that survives is the second of the two.
     for(auto moved: effects.moves) states[moved] = OwnState::Moved;
-    for(auto init: effects.inits) states[init] = OwnState::Owned;
 
     auto& instruction = *analysis.local[analysis.order[index]];
+
+    /*
+     * Fresh storage owns nothing, and owns nothing *again* on the next pass through a loop.
+     *
+     * An allocation defines the slot without initializing it, so the two lists split as they do -
+     * but the state left behind by whatever the slot held before still has to go, or a slot
+     * allocated inside a loop body meets its own previous iteration's Moved on the back edge and
+     * joins to Maybe. That reads as "may have been moved out of" at the next use, which is a
+     * diagnostic about storage that did not exist yet. `let x = e` inside a `while` is the
+     * everyday case, and a closure built per iteration - a lambda, or the continuation of a lens
+     * call in a loop body - is the one that has no name to point at.
+     */
+    if(instruction.kind == Value::Alloc) {
+        for(auto def: effects.defs) states[def] = OwnState::Uninitialized;
+    }
+
+    for(auto init: effects.inits) states[init] = OwnState::Owned;
+
     if(instruction.kind == Value::Drop) {
         auto root = rootLocal(analysis, ((InstDrop&)instruction).place);
         if(root != maxLimit<U32>) states[root] = OwnState::Moved;

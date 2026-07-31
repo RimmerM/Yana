@@ -609,6 +609,20 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
         declared = overloads.isEmpty();
     }
 
+    /*
+     * A lens call that reaches here left its continuation out and is not a statement of a block.
+     *
+     * Nothing splits at this position - Analysis-Lens.md's V1 restriction is that the call is the
+     * whole right-hand side of a `let` or a statement of its own - so the arity is genuinely one
+     * short, and saying that is more use than "takes 3 arguments but was given 2".
+     */
+    if(direct && local[direct]->funKind == ast::FunKind::Lens &&
+       local[direct]->args.size() == callArgs.size() + 1) {
+        context.diagnostics.error("%@ is a lens, so this call needs the rest of a block to hand its values to - write it as a statement of its own or as the whole right-hand side of a `let`, or pass the continuation as a final argument"_v,
+                                  expr.source, context.findName(calleeExpr.var));
+        return nullptr;
+    }
+
     auto lazy = lazyArguments(calleeExpr.var, callArgs.size(), expr.source);
 
     ValueList values;

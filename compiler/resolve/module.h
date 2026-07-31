@@ -14,6 +14,7 @@ struct ExprResolver;
 struct Deferred;
 struct OwnershipResults;
 struct AnalysisScratch;
+struct LensYield;
 
 /*
  * A named storage slot in a function.
@@ -204,6 +205,27 @@ struct Function {
      * and the parameter is not passed at all.
      */
     bool takesEnv = false;
+
+    /*
+     * Design.md's Lens functions.
+     *
+     * `Lens` says the last parameter is the continuation and the result type is whatever that
+     * continuation returns, so a call site may leave the argument out and have the rest of its own
+     * block become it - see expr_lens.cpp. Nothing else about the function is special: it is an
+     * ordinary generic function over the continuation's result type, and calling it with the
+     * callback written out is an ordinary call.
+     */
+    ast::FunKind funKind = ast::FunKind::Plain;
+
+    /*
+     * Set for a lens written in the `yield` form, whose continuation parameter the signature
+     * synthesized rather than the author writing it - `lens fn f(as) -> P` is
+     * `lens fn f(as, body: (P) -> r) -> r`, with `yield e` a call of that parameter.
+     *
+     * What it decides in the body: `yield` is legal, falling off the end returns the value the
+     * `yield` produced rather than the last statement's, and the one-yield-per-path rule is checked.
+     */
+    bool yieldForm = false;
 
     Intrinsic intrinsic = nullptr;
 
@@ -621,6 +643,13 @@ struct Program {
 
     Module* core = nullptr;
 
+    // Core's `Outcome(a, e)`, and which of its two constructors is which. Looked up once rather
+    // than by name at each use for the reason the classes above are: the exit signal a continuation
+    // reports back with is compiler-emitted, so nothing in the source it is emitted into names it.
+    GlobalPtr<RecordType> outcomeType = nullptr;
+    U16 outcomeProceed = 0;
+    U16 outcomeExit = 1;
+
     // Where the array lives, and the generic declaration `[a]` resolves to. Both are null until
     // defineCollections has run, which is what keeps Core and Native - built before it - from
     // being handed an implicit import of a module that does not exist yet.
@@ -674,6 +703,21 @@ void checkModuleClasses(Module& module, ast::Module& ast);
 // generic function needs its body, which may belong to a module whose bodies have not been
 // reached in program order.
 bool resolveFunctionBody(Module& module, Function& function);
+
+/*
+ * The lens half of a signature - Design.md's two declaration forms, reduced to one.
+ *
+ * Called from resolveSignature once the written arguments exist, because which form the declaration
+ * is in is a question about the last of them. It either accepts the signature as it stands (the
+ * explicit-callback form) or adds the continuation parameter the `yield` form left out; a shape
+ * this version does not implement is reported here and the function reverts to an ordinary one, so
+ * that nothing downstream has to re-check what a lens is.
+ */
+void resolveLensSignature(Module& module, Function& function, GenEnv* env, ast::Decl& decl);
+
+// That a `yield`-form lens hands over exactly once on every path that does not diverge, checked
+// over the resolved body - see expr_lens.cpp.
+void checkLensYields(Module& module, Function& function, Buffer<LensYield> yields, LocationId source);
 
 // The printed name of one instance implementation: `Num(Int).+`. Instances are not addressable by
 // name in source, but every function reaching the backend needs a unique one - both the ones

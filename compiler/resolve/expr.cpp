@@ -808,19 +808,29 @@ void ExprResolver::resolveReturn(const ast::Expr& expr) {
                                   expr.source);
     }
 
-    ModulePtr<Value> value = nullptr;
-    if(expr.ret) value = resolve(*parse[expr.ret], function.returnType);
+    /*
+     * The function this `return` leaves, which is not always the one it is written in.
+     *
+     * Inside a lens continuation the block was split out of some enclosing function, and Design.md's
+     * Leaving through a lens says a `return` there leaves *that* function - past the lens's own
+     * frame, which runs its cleanup on the way. So the type it is checked against is the enclosing
+     * one's, and what the departure compiles to is decided later - see emitFunctionReturn.
+     */
+    auto declared = enclosingResultType();
 
-    if(isUnit(global, function.returnType)) {
+    ModulePtr<Value> value = nullptr;
+    if(expr.ret) value = resolve(*parse[expr.ret], declared);
+
+    if(isUnit(global, declared)) {
         if(value) context.diagnostics.error("unit function cannot return a value"_v, expr.source);
         value = nullptr;
     } else if(!value) {
         context.diagnostics.error("non-unit function must return a value"_v, expr.source);
     } else {
-        value = convert(value, function.returnType, expr.source);
+        value = convert(value, declared, expr.source);
     }
 
-    terminate(emit<InstRet>(expr.source, 0, module.scalar.unit, value));
+    emitFunctionReturn(value, expr.source);
 }
 
 ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarations, TypePtr target, bool used) {
@@ -1182,6 +1192,18 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
 
             for(Size i = 0; i < values.size() && current; i++) {
                 auto last = i + 1 == values.size();
+
+                /*
+                 * A lens call consumes the rest of this block, so it is the last thing the loop
+                 * does whatever position it was written in - see expr_lens.cpp. The value it
+                 * produces is the block's, because the statements after it are what produced it.
+                 */
+                ModulePtr<Value> lens = nullptr;
+                if(resolveLensStatement(expressions, i, used, lens)) {
+                    if(lens && target && current) lens = convert(lens, target, values[i].source, implicit);
+                    return lens;
+                }
+
                 result = resolve(values[i], last ? target : nullptr, used && last, last && implicit);
 
                 // Each element of a block is a statement of its own, which is the boundary a
@@ -1317,8 +1339,20 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
         case ast::Expr::Ret:
             resolveReturn(expr);
             return nullptr;
+        case ast::Expr::Yield:
+            return resolveYield(expr);
         case ast::Expr::Break:
         case ast::Expr::Continue: {
+            if(loops.isEmpty() && inContinuation) {
+                // The loop is in the function this continuation was split out of, so leaving it is
+                // the exit signal carrying a `break` rather than a `return` - Analysis-Lens.md
+                // §5.1's "break/continue are the loop-shaped instance of one mechanism". The
+                // mechanism is here; the loop-shaped instance of it arrives with `for` and `iter`.
+                context.diagnostics.error("`break` and `continue` cannot cross a lens call yet - the loop is in the function this block was split out of, and only `return` carries the exit signal so far"_v,
+                                          expr.source);
+                return nullptr;
+            }
+
             if(loops.isEmpty()) {
                 context.diagnostics.error(expr.kind == ast::Expr::Break ? "break outside a loop"_v : "continue outside a loop"_v, expr.source);
                 return nullptr;
@@ -1507,6 +1541,30 @@ bool resolveFunctionBody(Module& module, Function& function) {
     bindFunctionArgs(resolver, module, function, 0);
 
     auto errors = context.diagnostics.errorCount();
+
+    /*
+     * A `yield`-form lens returns what its continuation produced, not what its last statement did.
+     *
+     * Everything after the `yield` is cleanup - Design.md's `withLock` unlocks there - so the value
+     * that leaves is the one the `yield` handed back, and the body's own fall-through result is
+     * discarded. That is the whole of what the sugar does that the explicit form would have had to
+     * write out by hand.
+     */
+    if(function.yieldForm) {
+        resolver.resolve(*module.parse[decl.fun.body], nullptr, false);
+
+        if(resolver.current) {
+            resolver.terminate(resolver.emit<InstRet>(decl.source, 0, module.scalar.unit,
+                                                      resolver.yieldResult));
+        }
+
+        checkLensYields(module, function, toBuffer(resolver.yields), decl.source);
+        checkLazyForcing(module, function);
+
+        function.ast = nullptr;
+        function.resolving = false;
+        return errors == context.diagnostics.errorCount();
+    }
 
     if(decl.fun.implicitReturn) {
         // A unit function's body produces nothing that survives, so it is resolved with no

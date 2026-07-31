@@ -2946,22 +2946,34 @@ static void lowerTerminator(LowerContext& lower, LowerBlock& block, ModulePtr<In
             auto function = lower.local[functionPointer];
             auto memoryResult = isMemoryType(lower.global, function->returnType);
 
-            if(memoryResult && returnInst.value) {
+            /*
+             * A unit result carries nothing back, whatever the resolve IR named.
+             *
+             * A body that returns unit *concretely* is resolved with no operand at all, but one
+             * that returns a type variable is not: `fn identity(value: a) -> a` returns its
+             * argument, and the specialization at `a = {}` is a `ret` naming a value nothing below
+             * ever emitted - a unit value is not a value here. Read off the type rather than off
+             * the operand, so that both spellings of "returns nothing" reach the same instruction.
+             */
+            auto returned = isUnit(lower.global, function->returnType) ? ModulePtr<Value>(nullptr)
+                                                                       : returnInst.value;
+
+            if(memoryResult && returned) {
                 // The other place bytes are written into storage that did not hold them: the
                 // caller's hidden result slot. A returned move relocates into it by whatever rule
                 // its type relocates by, exactly as an initialization does.
                 auto target = lower.returnPlaces.getValue(functionPointer).unwrap();
-                auto source = mappedValue(lower, returnInst.value);
-                auto copyInst = relocate(lower, block, target, returnInst.value, source, function->returnType);
+                auto source = mappedValue(lower, returned);
+                auto copyInst = relocate(lower, block, target, returned, source, function->returnType);
                 copyInst->source = instruction.source;
             }
 
-            auto count = returnInst.value && !memoryResult ? 1 : 0;
+            auto count = returned && !memoryResult ? 1 : 0;
             auto storage = lower.to.arena.alloc(sizeof(LowerInstRet) + sizeof(LowerPtr<LowerValue>) * count);
             auto returnLower = new (storage) LowerInstRet;
             returnLower->usedCount = count;
 
-            if(count) returnLower->used()[0] = mappedValue(lower, returnInst.value);
+            if(count) returnLower->used()[0] = mappedValue(lower, returned);
             result = block.addInst(lower.lower, returnLower);
             break;
         }

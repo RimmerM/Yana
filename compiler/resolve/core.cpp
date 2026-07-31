@@ -1,5 +1,6 @@
 #include "core.h"
 #include "intrinsic.h"
+#include "name.h"
 #include "generic.h"
 #include "witness.h"
 #include "../parse/parser.h"
@@ -56,6 +57,16 @@ data Ordering = LT | EQ | GT
 
 data Maybe(a) = Nothing | Just(a)
 data Result(e, a) = Err(e) | Ok(a)
+
+-- What a continuation reports back to the lens that called it - Analysis-Lens.md §5.1's exit
+-- signal. `Proceed` is "the rest of the block finished normally, and here is its value"; `Exit`
+-- carries the enclosing function's return value past a frame that has cleanup still to run, so a
+-- `withLock` releases its lock on an early `return` from the block below it.
+--
+-- One type rather than three: `Step(r) = Next | Done(r)` is `Outcome({}, r)`, so the loop signal,
+-- the exit signal and a skipping lens's own result are all this. Only the exit signal uses it so
+-- far; the constructors are not named `Continue`/`Break` for that reason.
+data Outcome(a, e) = Proceed(a) | Exit(e)
 
 class FromInt(a):
   fn fromInt(value: Long) -> a
@@ -606,6 +617,21 @@ void defineCore(Program& program) {
     program.coreClasses.drop = classNamed(*module, "Drop"_v);
     program.coreClasses.trivialCopy = classNamed(*module, "TrivialCopy"_v);
     program.coreClasses.trivialSink = classNamed(*module, "TrivialSink"_v);
+
+    // The exit signal's carrier. Its constructors are found by name rather than assumed to be
+    // declared in this order, since the order is a detail of the source above and this is emitted
+    // code that has no declaration to read.
+    if(auto outcome = findType(*module, Context::nameHash("Outcome"_v), kNullLocation)) {
+        program.outcomeType = (RecordType*)(*program.types)[outcome] - *program.types;
+
+        if(auto proceed = findConstructor(*module, Context::nameHash("Proceed"_v), kNullLocation)) {
+            program.outcomeProceed = proceed.unwrap().index;
+        }
+
+        if(auto exit = findConstructor(*module, Context::nameHash("Exit"_v), kNullLocation)) {
+            program.outcomeExit = exit.unwrap().index;
+        }
+    }
 
     // Core's own instances exist only now, so its superclass checks and its `default`
     // declarations run here rather than as part of reading its source.

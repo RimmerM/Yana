@@ -74,6 +74,7 @@ set(RESOLVE_SOURCE_FILES
     resolve/expr_call.cpp
     resolve/expr_construct.cpp
     resolve/expr_fun.cpp
+    resolve/expr_lens.cpp
     resolve/expr_pat.cpp
     resolve/lower.h
     resolve/lower.cpp

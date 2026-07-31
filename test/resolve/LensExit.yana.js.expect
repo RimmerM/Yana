@@ -1,0 +1,114 @@
+"use strict";
+var log = 0;
+const closure$ResolveTest_continuation$0 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$1 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$2 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$5 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$4 = [teardown$none, teardown$none];
+
+// Core
+function teardown$none(value) {
+  return;
+}
+
+// ResolveTest
+function alwaysLeaves(x) {
+  return scope_Int(ResolveTest_continuation$0$make({ x: x }));
+}
+
+function sometimesLeaves(x) {
+  return scope_Int(ResolveTest_continuation$1$make({ x: x }));
+}
+
+function insideArm(x) {
+  B0: {
+    if (x > 0) {
+      var v12 = scope_Outcome_Int(ResolveTest_continuation$2$make({ x: x }));
+      if (!(v12 === null)) {
+        return v12;
+      }
+    }
+  }
+  return 7;
+}
+
+function leavesWithValue(x) {
+  return handing_Int(x, ResolveTest_continuation$3);
+}
+
+function twoDeep(x) {
+  return scope_Int(ResolveTest_continuation$4$make({ x: x }));
+}
+
+function main() {
+  log = 0;
+  return (((((((alwaysLeaves(1) + sometimesLeaves(5) | 0) + sometimesLeaves(200) | 0) + insideArm(3) | 0) + insideArm(-1) | 0) + leavesWithValue(9) | 0) + leavesWithValue(2) | 0) + twoDeep(4) | 0) + log | 0;
+}
+
+function ResolveTest_continuation$0$make(env) {
+  return function() {
+    return env.x + 1 | 0;
+  };
+}
+
+function scope_Int(body) {
+  log = log + 1 | 0;
+  var v5 = body();
+  log = log + 100 | 0;
+  return v5;
+}
+
+function ResolveTest_continuation$1$make(env) {
+  return function() {
+    if (env.x > 100) {
+      return 0;
+    } else {
+      return env.x + 2 | 0;
+    }
+  };
+}
+
+function ResolveTest_continuation$2$make(env) {
+  return function() {
+    if (env.x > 100) {
+      return 0;
+    } else {
+      log = log + 1000 | 0;
+      return null;
+    }
+  };
+}
+
+function scope_Outcome_Int(body) {
+  log = log + 1 | 0;
+  var v5 = body();
+  log = log + 100 | 0;
+  return v5;
+}
+
+function ResolveTest_continuation$3(value) {
+  if (value > 10) {
+    return value;
+  } else {
+    return 0;
+  }
+}
+
+function handing_Int(x, body) {
+  log = log + 1 | 0;
+  var v8 = body(Math.imul(x, 2) | 0);
+  log = log + 100 | 0;
+  return v8;
+}
+
+function ResolveTest_continuation$4$make(env) {
+  return function() {
+    return scope_Int(ResolveTest_continuation$5$make({ x: env.x }));
+  };
+}
+
+function ResolveTest_continuation$5$make(env) {
+  return function() {
+    return env.x + 3 | 0;
+  };
+}

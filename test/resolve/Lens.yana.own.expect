@@ -1,0 +1,174 @@
+fn teardown$none {
+  arg value readonly
+}
+
+fn bound {
+  %local0: (value: Int) -> Int droppable readonly live [0, 6)
+}
+
+fn cleanupRan {
+}
+
+fn statement {
+  %local0: () -> Int droppable readonly live [1, 7)
+}
+
+fn explicit {
+  %local0: (value: Int) -> Int droppable readonly live [0, 6)
+}
+
+fn destructured {
+  %local0: (low: Int, high: Int) -> Int droppable readonly live [0, 6)
+}
+
+fn generic {
+  %local0: (value: Int) -> Int droppable readonly live [0, 6)
+}
+
+fn borrowed {
+  %local0: Counter readonly live [0, 4)
+  %c: Counter writable live [2, 12)
+  %local2: (value: Int) -> Int droppable readonly live [5, 12)
+}
+
+fn written {
+  %local0: (value: Int) -> Int droppable readonly live [0, 6)
+}
+
+fn nested {
+  %local0: (value: Int) -> Int droppable readonly live [0, 6)
+}
+
+fn inLoop {
+  arg n readonly
+  %i: Int writable live [0, 8) [10, 23)
+  %total: Int writable live [2, 9) [10, 23)
+  %local2: {total: &mut Int} closure writable addressed live [13, 21)
+  %local3: (value: Int) -> () droppable readonly live [17, 22)
+}
+
+fn main {
+}
+
+fn ResolveTest.continuation$0 {
+  arg env readonly
+  arg value readonly
+}
+
+fn logged(Int) {
+  arg body readonly
+  %body: (value: Int) -> Int borrowed droppable readonly live [0, 5)
+  %local1: Int readonly live [4, 9)
+  %local2: Int readonly live never
+}
+
+fn ResolveTest.continuation$1 {
+  arg env readonly
+}
+
+fn scope(Int) {
+  arg body readonly
+  %body: () -> Int borrowed droppable readonly live [0, 4)
+  %local1: Int readonly live [3, 8)
+  %local2: Int readonly live never
+}
+
+fn ResolveTest.continuation$2 {
+  arg env readonly
+  arg n readonly
+}
+
+fn plusOne(Int) {
+  arg x readonly
+  arg body readonly
+  %body: (value: Int) -> Int borrowed droppable readonly live [0, 2)
+  %local1: Int readonly live [1, 3)
+  %local2: Int readonly live never
+}
+
+fn ResolveTest.continuation$3 {
+  arg env readonly
+  arg low readonly
+  arg high readonly
+  %local0: {low: Int, high: Int} readonly live [0, 5)
+}
+
+fn split(Int) {
+  arg x readonly
+  arg body readonly
+  %body: (low: Int, high: Int) -> Int borrowed droppable readonly live [0, 3)
+  %local1: Int readonly live [2, 4)
+  %local2: Int readonly live never
+}
+
+fn ResolveTest.continuation$4 {
+  arg env readonly
+  arg value readonly
+  %local0: {x: Int} closure writable addressed live [0, 7)
+  %local1: (value: Bool) -> Int droppable readonly live [3, 8)
+}
+
+fn ResolveTest.continuation$5 {
+  arg env readonly
+  arg value readonly
+}
+
+fn twiceOver(Bool, Int) {
+  arg value readonly
+  arg body readonly
+  %value: Bool borrowed readonly live [0, 4)
+  %body: (value: Bool) -> Int borrowed droppable readonly live [0, 4)
+  %local2: Int readonly live [3, 5)
+  %local3: Int readonly live never
+}
+
+fn twiceOver(Int, Int) {
+  arg value readonly
+  arg body readonly
+  %value: Int borrowed readonly live [0, 4)
+  %body: (value: Int) -> Int borrowed droppable readonly live [0, 4)
+  %local2: Int readonly live [3, 5)
+  %local3: Int readonly live never
+}
+
+fn ResolveTest.continuation$6 {
+  arg env readonly
+  arg value readonly
+}
+
+fn bumped(Int) {
+  arg c writable
+  arg body readonly
+  %c: Counter borrowed writable live [0, 11)
+  %body: (value: Int) -> Int borrowed droppable readonly live [0, 7)
+  %local2: Int readonly live [6, 12)
+  %local3: Int readonly live never
+}
+
+fn ResolveTest.lambda$7 {
+  arg env readonly
+  arg n readonly
+}
+
+fn ResolveTest.continuation$8 {
+  arg env readonly
+  arg value readonly
+  %local0: (value: Int) -> Int droppable readonly live [0, 6)
+}
+
+fn ResolveTest.continuation$9 {
+  arg env readonly
+  arg b readonly
+}
+
+fn ResolveTest.continuation$10 {
+  arg env readonly
+  arg value readonly
+}
+
+fn logged(()) {
+  arg body readonly
+  %body: (value: Int) -> () borrowed droppable readonly live [0, 5)
+  %local1: () readonly live [4, 9)
+  %local2: () readonly live never
+}

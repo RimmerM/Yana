@@ -1,0 +1,96 @@
+-- What a lens will not accept, and why each one is a rule rather than an omission.
+--
+-- The first group is permanent: the transparent/skipping split is what makes "the ability to skip
+-- is exactly the presence of a wrapper" checkable, and the exactly-once rule is what a call site
+-- relies on when it hands over the whole rest of its block. The rest are this version's boundary -
+-- Analysis-Lens.md's V1 - and each one names what it is waiting for.
+
+data Lock {held: Int}
+
+-- Reading the declaration.
+
+-- A skipping lens - one whose result is not its continuation's - needs a `Try` instance relating
+-- the two and a `| else ->` at every call site. That is V3.
+lens fn findFirst(x: Int, body: (Int) -> a) -> Maybe(a) = Just(body(x))
+
+-- A continuation that returns a concrete type is not a continuation: what it produces is whatever
+-- the rest of the caller's block produces, which no signature can name.
+lens fn fixedResult(x: Int, body: (Int) -> Int) -> Int = body(x)
+
+-- The continuation is called, not stored, so it carries no binding convention of its own.
+lens fn consumed(x: Int, ->body: (Int) -> a) -> a = body(x)
+
+-- `iter` is the resumable generalization, and it is V2.
+iter fn counting(limit: Int) -> Int:
+    yield limit
+
+-- The exactly-once rule.
+
+-- A `yield`-form lens that never yields would leave the call site's block unrun.
+lens fn silent(x: Int) -> Int:
+    let unused = x + 1
+
+-- One path yields and the other does not, so the call site's block runs on one of them only.
+lens fn oneBranch(x: Int) -> Int:
+    if x > 0:
+        yield x
+
+    return 0
+
+-- Twice on one path, which the single-`yield` restriction of this version reports first.
+lens fn twice(x: Int) -> Int:
+    yield x
+    yield x + 1
+
+-- A `yield` in a loop body hands over once per iteration, which is the same repeat said with one
+-- `yield` written.
+lens fn perStep(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+-- `yield` outside a lens, and inside a lens that named its continuation itself.
+fn notALens(x: Int) -> Int:
+    yield x
+
+lens fn named(x: Int, body: (Int) -> a) -> a:
+    yield x
+
+-- Reading the call site.
+
+lens fn scope() -> {}:
+    yield {}
+
+lens fn handing(x: Int) -> Int:
+    yield x * 2
+
+-- A lens call that is not a statement of a block has no rest-of-block to hand its values to.
+fn asSubexpression(x: Int) -> Int = handing(x) + 1
+
+-- A lens hands over nothing here, so there is nothing for `let` to bind.
+fn bindingNothing() -> Int:
+    let nothing = scope()
+    return 0
+
+-- Leaving a lens continuation by `break` is the loop-shaped instance of the exit signal, which
+-- arrives with `for` and `iter`.
+fn breakingOut(n: Int) -> Int:
+    while n > 0:
+        scope()
+        break
+
+    return n
+
+-- A lens value has no call site to split a block at, so it cannot be one of the two words a
+-- function value is.
+fn asValue() -> Int:
+    let f = scope
+    return 0
+
+-- A lens call inside a generic body would have to specialize its continuation alongside its caller,
+-- which is the same restriction a lambda there already carries.
+fn inGeneric(value: a) -> a:
+    scope()
+    return value
