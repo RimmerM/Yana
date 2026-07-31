@@ -37,9 +37,7 @@ mulWide20<complex>(%x: Int): Int {
 
 dirtyHigh<complex>(): Int {
   b_0 {
-    %v_1 = call_complex addU8, 200, 100: Int
-    %v_2 = cast %v_1: Int
-    ret %v_2
+    ret 44
   }
 }
 
@@ -235,62 +233,52 @@ shlWrap<complex>(): Long {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex addSmall, 12: Int
-    %v_2 = call_complex checkU, %v_1, 24, 1: Int
-    %v_3 = call_complex addSmallNarrow, 12: Int
-    %v_4 = cast %v_3: Int
-    %v_5 = call_complex checkU, %v_4, 8, 2: Int
-    %v_6 = add %v_2, %v_5: Int
-    %v_7 = call_complex mulWide20, 2000: Int
-    %v_8 = call_complex checkU, %v_7, 4000000, 4: Int
-    %v_9 = add %v_6, %v_8: Int
-    %v_10 = call_complex shiftAfterMul, 12: Int
-    %v_11 = call_complex checkU, %v_10, 9, 8: Int
+    %v_1 = call_complex checkU, 24, 24, 1: Int
+    %v_2 = cast 8: Int
+    %v_3 = cast %v_2: Int
+    %v_4 = call_complex checkU, %v_3, 8, 2: Int
+    %v_5 = add %v_1, %v_4: Int
+    %v_6 = call_complex checkU, 4000000, 4000000, 4: Int
+    %v_7 = add %v_5, %v_6: Int
+    %v_8 = call_complex checkU, 9, 9, 8: Int
+    %v_9 = add %v_7, %v_8: Int
+    %value = cast 4: Int
+    %v_10 = cast %value: Int
+    %v_11 = call_complex checkU, %v_10, 4, 16: Int
     %v_12 = add %v_9, %v_11: Int
-    %v_13 = call_complex boxed, 20: Int
-    %v_14 = call_complex checkU, %v_13, 4, 16: Int
-    %v_15 = add %v_12, %v_14: Int
-    %v_16 = call_complex mulForty, 2097152: Long
-    %v_17 = call_complex checkW, %v_16, 4398046511104, 32: Int
-    %v_18 = add %v_15, %v_17: Int
-    %v_19 = call_complex mulWrap: Long
-    %v_20 = call_complex checkW, %v_19, 18444729675200069632, 64: Int
-    %v_21 = add %v_18, %v_20: Int
-    %v_22 = call_complex shlWrap: Long
-    %v_23 = call_complex checkW, %v_22, 18442240474082181120, 128: Int
-    %v_24 = add %v_21, %v_23: Int
-    %v_25 = call_complex negWrap: Long
-    %v_26 = call_complex checkW, %v_25, 18442240474082181120, 256: Int
-    %v_27 = add %v_24, %v_26: Int
-    %v_28 = call_complex mulLong, 4000000000: Long
-    %v_29 = call_complex checkL, %v_28, 16000000000000000000, 512: Int
-    %v_30 = add %v_27, %v_29: Int
-    %v_31 = call_complex dirtyHigh: Int
-    %v_32 = cmp_eq %v_31, 44: Int
-    je %v_32, b_33, b_34
+    %v_13 = call_complex checkW, 4398046511104, 4398046511104, 32: Int
+    %v_14 = add %v_12, %v_13: Int
+    %v_15 = call_complex checkW, 18444729675200069632, 18444729675200069632, 64: Int
+    %v_16 = add %v_14, %v_15: Int
+    %v_17 = call_complex checkW, 18442240474082181120, 18442240474082181120, 128: Int
+    %v_18 = add %v_16, %v_17: Int
+    %v_19 = call_complex checkW, 18442240474082181120, 18442240474082181120, 256: Int
+    %v_20 = add %v_18, %v_19: Int
+    %v_21 = call_complex checkL, 16000000000000000000, 16000000000000000000, 512: Int
+    %v_22 = add %v_20, %v_21: Int
+    je 1, b_23, b_24
   }
 
-  b_33 {
-    jmp b_35
+  b_23 {
+    jmp b_25
   }
 
-  b_34 {
-    jmp b_35
+  b_24 {
+    jmp b_25
   }
 
-  b_35 {
-    %v_36 = phi [b_33, 1024], [b_34, 0]: Int
-    %v_37 = add %v_30, %v_36: Int
-    %v_38 = call_complex shrNegative: Long
-    %v_39 = call_complex checkW, %v_38, 4503599627370495, 2048: Int
-    %v_40 = add %v_37, %v_39: Int
-    %v_41 = call_complex foldedStore: Int
-    %v_42 = call_complex checkU, %v_41, 4, 4096: Int
-    %v_43 = add %v_40, %v_42: Int
-    %v_44 = call_complex signedField, 18446744073709551612: Int
-    %v_45 = call_complex checkI, %v_44, 18446744073709551612, 8192: Int
-    %v_46 = add %v_43, %v_45: Int
-    ret %v_46
+  b_25 {
+    %v_26 = phi [b_23, 1024], [b_24, 0]: Int
+    %v_27 = add %v_22, %v_26: Int
+    %v_28 = call_complex checkW, 4503599627370495, 4503599627370495, 2048: Int
+    %v_29 = add %v_27, %v_28: Int
+    %v_30 = call_complex checkU, 4, 4, 4096: Int
+    %v_31 = add %v_29, %v_30: Int
+    %x = cast 18446744073709551612: Int
+    %v_32 = cast %x: Int
+    %v_33 = call_complex checkI, %v_32, 18446744073709551612, 8192: Int
+    %v_34 = add %v_31, %v_33: Int
+    ret %v_34
   }
 }
 

@@ -1,4 +1,5 @@
 #include "opt_pass.h"
+#include "../resolve/expr.h"
 
 /*
  * Aggregates that stop being built.
@@ -42,12 +43,18 @@
  * That is also why this is safe where the analysis is conservative: a local written after being read
  * is not read-only and evaporates here anyway, since SSA renaming is what forwarding already did.
  *
- * ## What is deliberately not done
+ * ## Where the reads go
  *
- * A local read in a block other than the one that wrote it stays. Making that work means placing
- * phis, which is a real pass (see lower_promote.cpp for the shape of one) rather than a case of
- * this; until it exists such a local simply keeps its storage, which is the conservative answer and
- * not a wrong one.
+ * The rule above is the whole of this pass, and it says nothing about a local read anywhere - which
+ * is why on its own it removes almost nothing. Something has to make the reads stop existing first,
+ * and there are two passes that do: opt_place.cpp within a block, and opt_promote.cpp across them.
+ * The second is what needed phis and is the reason it is a pass of its own rather than a case of
+ * this one.
+ *
+ * That is worth stating because it is where the *ordering* in opt.cpp comes from. This pass runs
+ * before promotion because promotion works on one place per field and a record written whole is one
+ * place until `splitAggregateWrite` has taken it apart; and the removal that promotion earns is
+ * therefore the next round's rather than this one's.
  */
 
 namespace {
@@ -64,6 +71,74 @@ Maybe<U32> allocatedLocal(OptContext& opt, ModulePtr<Value> value) {
 }
 
 /*
+ * Whether the destination of an aggregate write is storage whose shape this stage knows.
+ *
+ * What the split needs of it is that appending a field to its path names that field of that storage.
+ * An empty path - a whole local - satisfies it because the allocation is the storage, and a `Field`
+ * satisfies it because a record's allocation covers all of its fields at once. `Deref` goes through a
+ * pointer, `Index` may be any element, and `Property` on JS is a write to a host object that expects
+ * the whole value rather than one field of it at a time, so none of those does.
+ *
+ * `Downcast` is the one that has to be asked about rather than answered, and it is where the first
+ * attempt at this was wrong.
+ *
+ * A downcast to the sole constructor of a single-constructor record is a step within one allocation:
+ * the constructor's storage *is* the record's storage on every target, which is why `fieldPlace`
+ * builds one in front of every field it names. A downcast into a **sum** is not, and cannot be made
+ * into one here: which storage a constructor's payload occupies is `compiler/repr`'s decision, and it
+ * is entitled to fold the payload into the whole value - `Maybe(Point)` is `Point | null` on JS, where
+ * the allocation for the `Maybe` is `null` and writing the payload's fields into it is writing
+ * properties onto nothing. `NicheHost.yana` is exactly that program and said so.
+ *
+ * Asking the *type* whether it has one constructor is a question about the declaration rather than
+ * about the layout, so it is one this stage may ask - see Analysis-Optimization.md §2(a). The answer
+ * being "sum" is what makes the write a representation decision this pass has to leave alone.
+ */
+bool splittableDestination(OptContext& opt, Array<U8>& contained, const Place& place) {
+    if(place.root != PlaceRoot::Local && place.root != PlaceRoot::Global) return false;
+
+    auto& projections = const_cast<Place&>(place).projections;
+
+    /*
+     * A whole-local destination is the shape every `let` has - construct in a temporary, copy into
+     * the binding - and splitting it is what this pass has always done, whatever becomes of the
+     * local afterwards.
+     *
+     * A destination *inside* something is a nested construction, and there the split only pays if
+     * the thing containing it is going to disappear too. Where it is not - a record handed to a
+     * call, one with a `Sink` - splitting replaces one write with one per field and nothing removes
+     * either, which costs twice: `codegen/js` can no longer emit the record as a single object
+     * literal, and `opt_pack.cpp` sees one write per field where it had one per storage unit and
+     * co-packs less. Both showed up as measured growth.
+     *
+     * Containment is the cheap form of "may yet disappear": a local whose address was handed to
+     * nothing is one `eliminateDeadLocal` can still remove once its reads are gone. It is the same
+     * question opt_promote.cpp asks and the same answer.
+     */
+    if(projections.isNotEmpty()) {
+        if(place.root != PlaceRoot::Local) return false;
+        if(place.local >= contained.size() || !contained[place.local]) return false;
+    }
+
+    for(Size i = 0; i < projections.size(); i++) {
+        switch(projections.get(opt.local, i).kind) {
+            case ProjectionKind::Field:
+                break;
+            case ProjectionKind::Downcast: {
+                auto owner = placeType(*opt.module, *opt.function, place, i);
+                if(!owner || opt.global[owner]->kind != Type::Record) return false;
+                if(((RecordType*)opt.global[owner])->layout != RecordType::Single) return false;
+                break;
+            }
+            default:
+                return false;
+        }
+    }
+
+    return true;
+}
+
+/*
  * Replacing a whole-aggregate write with one write per field.
  *
  * Only where the source is a local's own storage, because that is the only source whose fields are
@@ -75,6 +150,12 @@ Maybe<U32> allocatedLocal(OptContext& opt, ModulePtr<Value> value) {
  * exactly as the whole-value write relocated all of them, so the two differ only where relocating is
  * a call rather than the bytes - an authored `Sink`, or a member with one - and a type with either
  * needs a teardown by construction.
+ *
+ * The destination may be a field rather than a whole local, which is what takes a *nested* record
+ * apart: `Early {later: Later {value: 6}}` builds the inner record in a temporary and writes the
+ * whole of it into `later`, so the outer record survives until that write is one write per field of
+ * the inner one. The paths line up because an `Init`'s value has its place's type, so the fields
+ * being walked are the fields of the storage being written either way.
  */
 bool splitAggregateWrite(OptContext& opt, Block& block, Size index, InstInit& write) {
     auto type = opt.local[write.value]->type;
@@ -86,9 +167,27 @@ bool splitAggregateWrite(OptContext& opt, Block& block, Size index, InstInit& wr
     auto fields = fieldsOf(opt, type);
     if(!fields.exists()) return false;
 
-    // The destination has to name the whole of the same shape, which is what makes the field paths
-    // below line up. Anything else is a write of an aggregate into part of another one, and the
-    // types would have to be walked to say which part.
+    /*
+     * A nested write of a value the target co-packs, which is where splitting costs rather than pays.
+     *
+     * `Two {f: Flags {a, b}, g: Flags {a, b}}` writes a whole `Flags` into `t.f`, and a `Flags` whose
+     * two booleans share a storage unit is *one* read-modify-write of that unit. Split into `t.f.a`
+     * and `t.f.b` it is two, each of which reads the word back to preserve the bit it does not own -
+     * so the same program emitted twice the memory traffic. `ScalarRecord.yana` measured it as 448
+     * more bytes of JavaScript and nothing gained.
+     *
+     * Asked only of a nested destination, and deliberately. Splitting a *whole-local* write is what
+     * makes every `let p = Point {...}` disappear and is the reason this pass exists; whether it too
+     * should leave a packed aggregate whole is a real question with a different answer at stake, and
+     * it wants its own measurement rather than being changed on the way past.
+     */
+    if(write.place.projections.isNotEmpty()) {
+        for(U16 i = 0; i < U16(fields.count); i++) {
+            auto field = opt.repr.fieldOf(fields.content, i);
+            if(field && field->isPacked()) return false;
+        }
+    }
+
     auto destination = write.place;
 
     Array<Inst*> replacement;
@@ -170,6 +269,9 @@ bool eliminateDeadLocal(OptContext& opt, U32 index) {
 }
 
 void scalarizeLocals(OptContext& opt) {
+    Array<U8> contained;
+    computeContainment(opt, contained);
+
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         auto block = opt.local[blockPointer];
 
@@ -178,13 +280,21 @@ void scalarizeLocals(OptContext& opt) {
             auto instruction = opt.local[pointer];
             if(instruction->kind != Value::Init && instruction->kind != Value::Assign) continue;
 
-            // A whole-value write names the local with no path of its own; anything with a path is
-            // already a field write.
             auto& write = (InstInit&)*instruction;
-            if(write.place.projections.isNotEmpty()) continue;
+            if(!splittableDestination(opt, contained, write.place)) continue;
 
-            // The replacements land in front of the write and the write goes away, so the walk
-            // continues over them - each is a field write with a path, which the test above skips.
+            /*
+             * The replacements land in front of the write and the write goes away, so the walk
+             * continues over them - and that is what makes nesting work rather than needing a case:
+             * a field that is itself a record produces a write of one, which this reaches on a later
+             * iteration and splits again. It terminates because each step writes a strictly smaller
+             * type, and a record cannot contain itself by value.
+             *
+             * A write this cannot use is not a write it has to recognize. Every one of the reasons
+             * to decline is a property of the *value* being written - it is not a local's storage,
+             * its type has no fields, its type owes a teardown - so a scalar field write simply
+             * fails `fieldsOf` and costs a test.
+             */
             splitAggregateWrite(opt, *block, i, write);
         }
     }

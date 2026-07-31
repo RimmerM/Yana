@@ -38,9 +38,124 @@
  * ## What is deliberately not done
  *
  * Nothing crosses a block boundary. That needs an availability dataflow and a way to place the
- * result, and the chains this exists for are straight-line. Nothing crosses anything that may write
- * storage this pass cannot see either - see `clobbers`, whose default is to forget everything.
+ * result, which is opt_promote.cpp - and the chains *this* pass exists for are straight-line, so the
+ * two are worth keeping apart: this one asks nothing about the shape of the function and runs over
+ * anything, while that one needs a local a callee cannot reach before it may say a word.
+ *
+ * Nothing crosses anything that may write storage this pass cannot see either - see `clobbers`,
+ * whose default is to forget everything.
+ *
+ * The three questions about *storage* - do these two places overlap, are they the same one, is this
+ * a value a load answers with - are asked by both passes and answered here, because the reasoning
+ * behind each of them is the reasoning above.
  */
+
+bool pathsMayOverlap(OptContext& opt, const Place& first, const Place& second) {
+    // `get` is a read that the list spells as a mutation, which is why every walk of a projection
+    // path in this directory casts the constness off rather than taking a copy of the path.
+    auto& a = const_cast<Place&>(first).projections;
+    auto& b = const_cast<Place&>(second).projections;
+    auto count = min(a.size(), b.size());
+
+    for(Size i = 0; i < count; i++) {
+        auto left = a.get(opt.local, i);
+        auto right = b.get(opt.local, i);
+
+        if(left.kind != right.kind) return true;
+
+        switch(left.kind) {
+            case ProjectionKind::Field:
+            case ProjectionKind::Property:
+                // Two different fields of one aggregate are two different pieces of storage. That is
+                // true here even where the target co-packs them into one word, which is the whole
+                // reason this pass runs before the packing is expanded.
+                if(left.index != right.index) return false;
+                break;
+            case ProjectionKind::Discriminant:
+                break;
+            case ProjectionKind::Unit:
+                /*
+                 * The word two co-packed fields became. Reached only where both paths agreed on the
+                 * field in front of it, which is the whole reason opt_pack.cpp canonicalizes that
+                 * index: `h.version` and `h.length` are two fields and one word, and it is the
+                 * *field* indices above that the rule below is entitled to separate.
+                 *
+                 * Two different unit widths at one position would be two readings of one place,
+                 * which nothing produces - so this compares nothing and lets the walk continue.
+                 */
+                break;
+            case ProjectionKind::Downcast:
+                /*
+                 * Two constructors of one sum overlap: their payloads share the storage, and on both
+                 * targets deliberately so. Only one is live at a time, but "which one" is a fact
+                 * about the discriminant rather than about the path, so this declines to separate
+                 * them.
+                 */
+                if(left.index != right.index) return true;
+                break;
+            case ProjectionKind::Index: {
+                // Two constant indices are two elements; anything else may be the same one.
+                auto leftIndex = constantValueOf(opt, left.value);
+                auto rightIndex = constantValueOf(opt, right.value);
+                if(!leftIndex || !rightIndex) return true;
+                if(leftIndex.unwrap() != rightIndex.unwrap()) return false;
+                break;
+            }
+            case ProjectionKind::Deref:
+                // Through a pointer, and this pass knows nothing about what it points at.
+                return true;
+        }
+    }
+
+    return true;
+}
+
+bool placesMayAlias(OptContext& opt, const Place& a, const Place& b) {
+    // A raw pointer may name anything at all, and a borrow may name anything the borrow checker let
+    // it be taken of - which is a question about provenance rather than about the place, and one
+    // this pass does not ask. opt_promote.cpp does ask it, of a local it has already proved contained.
+    if(a.root == PlaceRoot::Pointer || b.root == PlaceRoot::Pointer) return true;
+    if(a.root == PlaceRoot::Borrow || b.root == PlaceRoot::Borrow) return true;
+
+    if(a.root != b.root) return false;
+    if(a.root == PlaceRoot::Local && a.local != b.local) return false;
+    if(a.root == PlaceRoot::Global && a.global != b.global) return false;
+
+    return pathsMayOverlap(opt, a, b);
+}
+
+bool samePlace(OptContext& opt, const Place& first, const Place& second) {
+    if(first.root != second.root) return false;
+    if(first.root == PlaceRoot::Local && first.local != second.local) return false;
+    if(first.root == PlaceRoot::Global && first.global != second.global) return false;
+    if(first.root == PlaceRoot::Pointer || first.root == PlaceRoot::Borrow) {
+        if(first.pointer != second.pointer) return false;
+    }
+
+    auto& a = const_cast<Place&>(first).projections;
+    auto& b = const_cast<Place&>(second).projections;
+    if(a.size() != b.size()) return false;
+
+    for(Size i = 0; i < a.size(); i++) {
+        auto left = a.get(opt.local, i);
+        auto right = b.get(opt.local, i);
+
+        if(left.kind != right.kind || left.index != right.index) return false;
+        if(!left.value && !right.value) continue;
+
+        if(left.value == right.value) continue;
+
+        auto leftIndex = constantValueOf(opt, left.value);
+        auto rightIndex = constantValueOf(opt, right.value);
+        if(!leftIndex || !rightIndex || leftIndex.unwrap() != rightIndex.unwrap()) return false;
+    }
+
+    return true;
+}
+
+bool holdsLoadableValue(OptContext& opt, TypePtr type) {
+    return type && !isUnit(opt.global, type) && !isMemoryType(opt.global, type);
+}
 
 namespace {
 
@@ -69,113 +184,6 @@ struct Forwarder {
     // local, and empty until one function has been walked.
     Array<U8> contained;
 
-    /*
-     * Whether two projection paths may reach the same storage.
-     *
-     * A prefix relation counts as overlap in both directions - writing `x` kills `x.a`, and writing
-     * `x.a` kills a read of `x` - which is what makes the walk stop at the first step that proves
-     * separation rather than needing the paths to be the same length.
-     */
-    bool pathsMayOverlap(Place& a, Place& b) {
-        auto count = min(a.projections.size(), b.projections.size());
-
-        for(Size i = 0; i < count; i++) {
-            auto left = a.projections.get(opt.local, i);
-            auto right = b.projections.get(opt.local, i);
-
-            if(left.kind != right.kind) return true;
-
-            switch(left.kind) {
-                case ProjectionKind::Field:
-                case ProjectionKind::Property:
-                    // Two different fields of one aggregate are two different pieces of storage.
-                    // That is true here even where the target co-packs them into one word, which is
-                    // the whole reason this pass runs before the packing is expanded.
-                    if(left.index != right.index) return false;
-                    break;
-                case ProjectionKind::Discriminant:
-                    break;
-                case ProjectionKind::Unit:
-                    /*
-                     * The word two co-packed fields became. Reached only where both paths agreed on
-                     * the field in front of it, which is the whole reason opt_pack.cpp canonicalizes
-                     * that index: `h.version` and `h.length` are two fields and one word, and it is
-                     * the *field* indices above that the rule below is entitled to separate.
-                     *
-                     * Two different unit widths at one position would be two readings of one place,
-                     * which nothing produces - so this compares nothing and lets the walk continue.
-                     */
-                    break;
-                case ProjectionKind::Downcast:
-                    /*
-                     * Two constructors of one sum overlap: their payloads share the storage, and on
-                     * both targets deliberately so. Only one is live at a time, but "which one" is a
-                     * fact about the discriminant rather than about the path, so this declines to
-                     * separate them.
-                     */
-                    if(left.index != right.index) return true;
-                    break;
-                case ProjectionKind::Index: {
-                    // Two constant indices are two elements; anything else may be the same one.
-                    auto leftIndex = constantValueOf(opt, left.value);
-                    auto rightIndex = constantValueOf(opt, right.value);
-                    if(!leftIndex || !rightIndex) return true;
-                    if(leftIndex.unwrap() != rightIndex.unwrap()) return false;
-                    break;
-                }
-                case ProjectionKind::Deref:
-                    // Through a pointer, and this pass knows nothing about what it points at.
-                    return true;
-            }
-        }
-
-        return true;
-    }
-
-    bool mayAlias(Place& a, Place& b) {
-        // A raw pointer may name anything at all, and a borrow may name anything the borrow checker
-        // let it be taken of - which is a question about provenance rather than about the place, and
-        // one this pass does not ask.
-        if(a.root == PlaceRoot::Pointer || b.root == PlaceRoot::Pointer) return true;
-        if(a.root == PlaceRoot::Borrow || b.root == PlaceRoot::Borrow) return true;
-
-        if(a.root != b.root) return false;
-        if(a.root == PlaceRoot::Local && a.local != b.local) return false;
-        if(a.root == PlaceRoot::Global && a.global != b.global) return false;
-
-        return pathsMayOverlap(a, b);
-    }
-
-    // The same storage rather than possibly the same: what a forward needs, as against what a kill
-    // needs. Equal roots and equal paths, with an index projection equal only where both are the
-    // same constant.
-    bool sameStorage(Place& a, Place& b) {
-        if(a.root != b.root) return false;
-        if(a.root == PlaceRoot::Local && a.local != b.local) return false;
-        if(a.root == PlaceRoot::Global && a.global != b.global) return false;
-        if(a.root == PlaceRoot::Pointer || a.root == PlaceRoot::Borrow) {
-            if(a.pointer != b.pointer) return false;
-        }
-
-        if(a.projections.size() != b.projections.size()) return false;
-
-        for(Size i = 0; i < a.projections.size(); i++) {
-            auto left = a.projections.get(opt.local, i);
-            auto right = b.projections.get(opt.local, i);
-
-            if(left.kind != right.kind || left.index != right.index) return false;
-            if(!left.value && !right.value) continue;
-
-            if(left.value == right.value) continue;
-
-            auto leftIndex = constantValueOf(opt, left.value);
-            auto rightIndex = constantValueOf(opt, right.value);
-            if(!leftIndex || !rightIndex || leftIndex.unwrap() != rightIndex.unwrap()) return false;
-        }
-
-        return true;
-    }
-
     void forget() { known.clear(); }
 
     // Everything an instruction this pass cannot see through may have written. Not everything: a
@@ -189,7 +197,7 @@ struct Forwarder {
 
     void forgetAliasing(Place& place) {
         for(Size i = known.size(); i-- > 0;) {
-            if(mayAlias(known[i].place, place)) known.remove(i);
+            if(placesMayAlias(opt, known[i].place, place)) known.remove(i);
         }
     }
 
@@ -226,16 +234,11 @@ struct Forwarder {
         }
     }
 
-    // Whether a value of this type is one whose *contents* a load answers with, rather than storage
-    // the load merely names. Forwarding one of the second kind would replace a place with a value
-    // that is not the same thing.
-    bool forwardable(TypePtr type) {
-        return type && !isUnit(opt.global, type) && !isMemoryType(opt.global, type);
-    }
+    bool forwardable(TypePtr type) { return holdsLoadableValue(opt, type); }
 
     ModulePtr<Value> knownValue(Place& place) {
         for(Size i = known.size(); i-- > 0;) {
-            if(sameStorage(known[i].place, place)) return known[i].value;
+            if(samePlace(opt, known[i].place, place)) return known[i].value;
         }
 
         return nullptr;
@@ -245,7 +248,7 @@ struct Forwarder {
     // it there" are one answer rather than the most recent of several.
     void remember(Place& place, ModulePtr<Value> value, ModulePtr<Inst> pending) {
         for(Size i = known.size(); i-- > 0;) {
-            if(sameStorage(known[i].place, place)) known.remove(i);
+            if(samePlace(opt, known[i].place, place)) known.remove(i);
         }
 
         known.push(Known { place, value, pending });
@@ -256,7 +259,7 @@ struct Forwarder {
     // removable.
     void markRead(Place& place) {
         for(auto& entry: known) {
-            if(mayAlias(entry.place, place)) entry.pending = nullptr;
+            if(placesMayAlias(opt, entry.place, place)) entry.pending = nullptr;
         }
     }
 
@@ -269,12 +272,12 @@ struct Forwarder {
      *
      * Within one block and one place, which is what makes it sound without an availability analysis:
      * the entry survives only while nothing aliasing it was read and nothing this pass cannot see
-     * ran, and the overwrite is total because `sameStorage` compares the whole path - including a
+     * ran, and the overwrite is total because `samePlace` compares the whole path - including a
      * unit projection's width, so half a word is never mistaken for all of it.
      */
     bool eliminateOverwritten(Place& place) {
         for(Size i = known.size(); i-- > 0;) {
-            if(!sameStorage(known[i].place, place) || !known[i].pending) continue;
+            if(!samePlace(opt, known[i].place, place) || !known[i].pending) continue;
 
             auto pending = known[i].pending;
             known[i].pending = nullptr;

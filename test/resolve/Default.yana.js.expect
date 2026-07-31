@@ -12,28 +12,8 @@ function Ord_Int_compare(lhs, rhs) {
   }
 }
 
-function Eq_not_eq_Metres(lhs$value, rhs$value) {
-  return Eq_Metres_eq_eq(lhs$value, rhs$value) ^ 1;
-}
-
-function Ord_lt_Metres(lhs$value, rhs$value) {
-  return Ord_Metres_compare(lhs$value, rhs$value) === 0;
-}
-
-function Ord_lt_eq_Metres(lhs$value, rhs$value) {
-  return Ord_Metres_compare(lhs$value, rhs$value) !== 2;
-}
-
-function Ord_gt_Metres(lhs$value, rhs$value) {
-  return Ord_Metres_compare(lhs$value, rhs$value) === 2;
-}
-
 function Ord_gt_eq_Metres(lhs$value, rhs$value) {
   return Ord_Metres_compare(lhs$value, rhs$value) !== 0;
-}
-
-function Num_sub_Cents(value$value) {
-  return Num_Cents_sub(FromInt_Cents_fromInt(0n).value, { value: value$value }.value);
 }
 
 function Logic_not_Flags(value) {
@@ -48,39 +28,32 @@ function Logic_or_or_Flags(lhs, rhs) {
   return Logic_Flags_or(lhs, rhs);
 }
 
-function Eq_not_eq_Box_Int(lhs$item, rhs$item) {
-  return Eq_Box_a_eq_eq_Int(lhs$item, rhs$item) ^ 1;
-}
-
 // ResolveTest
 function ordered() {
-  var a = { value: 1 };
-  var b = { value: 2 };
   var score = 0;
-  if (Eq_not_eq_Metres(1, 2)) {
+  if (1) {
     score = score + 1 | 0;
   }
-  if (Ord_lt_Metres(a.value, b.value)) {
+  if (Ord_Metres_compare(1, 2) === 0) {
     score = score + 2 | 0;
   }
-  if (Ord_lt_eq_Metres(a.value, b.value)) {
+  if (Ord_Metres_compare(1, 2) !== 2) {
     score = score + 4 | 0;
   }
-  if (Ord_gt_Metres(b.value, a.value)) {
+  if (Ord_Metres_compare(2, 1) === 2) {
     score = score + 8 | 0;
   }
-  if (Ord_gt_eq_Metres(b.value, a.value)) {
+  if (Ord_gt_eq_Metres(2, 1)) {
     score = score + 16 | 0;
   }
-  var lhs$value$4 = a.value;
-  if (Ord_gt_eq_Metres(lhs$value$4, lhs$value$4)) {
+  if (Ord_gt_eq_Metres(1, 1)) {
     score = score + 32 | 0;
   }
   return score;
 }
 
 function overridden() {
-  if (Eq_Feet_not_eq(1, 2)) {
+  if (1) {
     return 64;
   } else {
     return 0;
@@ -88,7 +61,7 @@ function overridden() {
 }
 
 function negated() {
-  if (Eq_Cents_eq_eq(Num_sub_Cents(7).value, -7)) {
+  if (1) {
     return 128;
   } else {
     return 0;
@@ -113,7 +86,7 @@ function flags() {
 }
 
 function described() {
-  return Describe_doubled_Metres(1024);
+  return 2048;
 }
 
 function boxOf(value) {
@@ -121,9 +94,7 @@ function boxOf(value) {
 }
 
 function boxes() {
-  var v1 = boxOf(1);
-  var v3 = boxOf(2);
-  if (Eq_not_eq_Box_Int(v1.item, v3.item)) {
+  if (1) {
     return 4096;
   } else {
     return 0;
@@ -131,7 +102,7 @@ function boxes() {
 }
 
 function main() {
-  return ((((ordered() + overridden() | 0) + negated() | 0) + flags() | 0) + described() | 0) + boxes() | 0;
+  return ((((ordered() + overridden() | 0) + negated() | 0) + flags() | 0) + 2048 | 0) + boxes() | 0;
 }
 
 function Eq_Metres_eq_eq(lhs$value, rhs$value) {
@@ -220,7 +191,7 @@ function Describe_Metres_size(value$value) {
 }
 
 function Describe_doubled_Metres(value$value) {
-  return Describe_Metres_size(value$value) + Describe_Metres_size({ value: value$value }.value) | 0;
+  return value$value + value$value | 0;
 }
 
 function Eq_Box_a_eq_eq_Int(lhs$item, rhs$item) {

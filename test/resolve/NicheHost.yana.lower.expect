@@ -9,7 +9,7 @@ depthOf<complex>(%m: Ptr): Int {
   b_4 {
     %v_5 = add %m, 4: Ptr
     %v_6 = call_complex pointOr, %v_5, 0: Int
-    %v_7 = add 2, %v_6: Int
+    %v_7 = add %v_6, 2: Int
     jmp b_8
   }
 
@@ -196,14 +196,43 @@ intFold<complex>(): Int {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex objectFold: Int
-    %v_2 = call_complex intFold: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex nested: Int
-    %v_5 = add %v_3, %v_4: Int
-    %v_6 = call_complex paired: Int
-    %v_7 = add %v_5, %v_6: Int
-    ret %v_7
+    %v_1 = alloca 12, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 3, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, 4, 4
+    %v_4 = add %v_1, 4: Ptr
+    copy %v_4, %v_2, 8
+    %some = call_complex pointOr, %v_1, 9: Int
+    %v_5 = alloca 12, 4: Ptr
+    store %v_5, 0, 4
+    %none = call_complex pointOr, %v_5, 9: Int
+    %v_6 = imul %none, 1000: Int
+    %v_7 = add %some, %v_6: Int
+    %v_8 = alloca 8, 4: Ptr
+    store %v_8, 1, 4
+    %v_9 = add %v_8, 4: Ptr
+    store %v_9, 0, 4
+    %zero = call_complex intOr, %v_8, 7: Int
+    %v_10 = alloca 8, 4: Ptr
+    store %v_10, 1, 4
+    %v_11 = add %v_10, 4: Ptr
+    store %v_11, 5, 4
+    %some = call_complex intOr, %v_10, 7: Int
+    %v_12 = alloca 8, 4: Ptr
+    store %v_12, 0, 4
+    %none = call_complex intOr, %v_12, 7: Int
+    %v_13 = imul %some, 10: Int
+    %v_14 = add %zero, %v_13: Int
+    %v_15 = imul %none, 100: Int
+    %v_16 = add %v_14, %v_15: Int
+    %v_17 = add %v_7, %v_16: Int
+    %v_18 = call_complex nested: Int
+    %v_19 = add %v_17, %v_18: Int
+    %v_20 = call_complex paired: Int
+    %v_21 = add %v_19, %v_20: Int
+    ret %v_21
   }
 }
 

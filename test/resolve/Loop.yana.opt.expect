@@ -6,6 +6,14 @@ fn origin() -> Point {
     ret %v0
 }
 
+fn madePoint() -> Point {
+  b0:
+    %v0 = alloc : Point
+    init %local0@Point.x, 3
+    init %local0@Point.y, 4
+    ret %v0
+}
+
 fn bump(%n: Int) -> () {
   b0:
     %v1 = load %n : Int
@@ -132,26 +140,21 @@ fn nested(%rows: Int, %columns: Int) -> Int {
 
 fn written(%count: Int) -> Int {
   b0:
-    %acc = alloc : Point
-    init %acc@Point.x, 3
-    init %acc@Point.y, 4
     %i = alloc : Int
     init %i, 0
     jmp b1
 
   b1:
+    %v37 = phi [b0, 3], [b3, %v15] : Int
     %v8 = load %i : Int
     %v9 = cmp_lt %v8, %count : Bool
     je %v9, b3, b2
 
   b2:
-    %v24 = load %acc@Point.x : Int
-    ret %v24
+    ret %v37
 
   b3:
-    %v12 = load %acc@Point.x : Int
-    %v15 = add %v12, 4 : Int
-    assign %acc@Point.x, %v15
+    %v15 = add %v37, 4 : Int
     %v17 = load %i : Int
     %v20 = add %v17, 1 : Int
     assign %i, %v20
@@ -160,14 +163,12 @@ fn written(%count: Int) -> Int {
 
 fn withCall(%seed: Int, %count: Int) -> Int {
   b0:
-    %q = alloc : Point
     %v5 = add %seed, 1 : Int
-    init %local0@Point.x, %seed
-    init %local0@Point.y, %v5
     %seen = alloc : Int
     init %seen, 0
     %i = alloc : Int
     init %i, 0
+    %v24 = mul %seed, %v5 : Int
     jmp b1
 
   b1:
@@ -185,9 +186,6 @@ fn withCall(%seed: Int, %count: Int) -> Int {
     %v37 = add %v35, 1 : Int
     assign [%v19], %v37
     %v21 = load %seen : Int
-    %v22 = load %local0@Point.x : Int
-    %v23 = load %local0@Point.y : Int
-    %v24 = mul %v22, %v23 : Int
     %v25 = add %v21, %v24 : Int
     assign %seen, %v25
     %v27 = load %i : Int
@@ -198,9 +196,7 @@ fn withCall(%seed: Int, %count: Int) -> Int {
 
 fn fromCall(%count: Int) -> Int {
   b0:
-    %v29 = alloc : Point
-    init %local0@Point.x, 3
-    init %local0@Point.y, 4
+    %q = call madePoint : Point
     %seen = alloc : Int
     init %seen, 0
     %i = alloc : Int
@@ -218,9 +214,9 @@ fn fromCall(%count: Int) -> Int {
 
   b3:
     %v13 = borrow_mut %seen : &mut Int
-    %v34 = load [%v13] : Int
-    %v36 = add %v34, 1 : Int
-    assign [%v13], %v36
+    %v29 = load [%v13] : Int
+    %v31 = add %v29, 1 : Int
+    assign [%v13], %v31
     %v15 = load %seen : Int
     %v16 = load %local0@Point.x : Int
     %v17 = load %local0@Point.y : Int

@@ -42,7 +42,7 @@ function depthOf(m) {
           }
         }
       }
-      v29 = 300 + tagOf(m) | 0;
+      v29 = tagOf(m) + 300 | 0;
     }
   }
   return v29;
@@ -79,5 +79,8 @@ function paired() {
 }
 
 function main() {
-  return (roundTrip() + nested() | 0) + paired() | 0;
+  var a = tagOf(3);
+  var b = tagOf(0);
+  var c = tagOf(2);
+  return (((a + (Math.imul(b, 10) | 0) | 0) + (Math.imul(c, 100) | 0) | 0) + ((depthOf(4) + depthOf(3) | 0) + depthOf(1) | 0) | 0) + pairValue({ first: 2, second: 3 }) | 0;
 }

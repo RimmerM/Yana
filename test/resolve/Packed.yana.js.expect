@@ -25,35 +25,25 @@ function direct() {
 }
 
 function borrowed() {
-  var h = 2162691;
   var v11 = { $v: 1 };
-  bump(v11);
-  var v91 = ((h & 4293984255) >>> 0 | (((v11.$v & 15) >>> 0 & 15) >>> 0 & 15) >>> 0 << 16 >>> 0) >>> 0;
-  h = v91;
-  var v24 = { $v: (v91 & 8191) >>> 0 >>> 0 };
-  bump(v24);
-  var v33 = (v24.$v & 8191) >>> 0 & 8191;
-  var v96 = h;
-  var v98 = v33 >>> 0;
-  var v102 = ((v96 & 4294959104) >>> 0 | (v98 & 8191) >>> 0) >>> 0;
-  h = v102;
-  return (Math.imul((v102 >>> 16 >>> 0 & 15) >>> 0 >>> 0 | 0, 100) | 0) + (v98 | 0) | 0;
+  var v15 = v11;
+  v15.$v = v15.$v + 1 >>> 0;
+  var v20 = (v11.$v & 15) >>> 0 & 15;
+  var v24 = { $v: 3 };
+  var v28 = v24;
+  v28.$v = v28.$v + 1 >>> 0;
+  return (Math.imul(v20 | 0, 100) | 0) + ((v24.$v & 8191) >>> 0 & 8191 | 0) | 0;
 }
 
 function neighbours() {
-  var h = 65636;
   var v11 = { $v: 1 };
-  bump(v11);
-  var v92 = ((h & 4293984255) >>> 0 | (((v11.$v & 15) >>> 0 & 15) >>> 0 & 15) >>> 0 << 16 >>> 0) >>> 0;
-  h = v92;
-  var v25 = { $v: (v92 & 8191) >>> 0 >>> 0 };
-  scale(v25, 3);
-  var v34 = (v25.$v & 8191) >>> 0 & 8191;
-  var v97 = h;
-  var v99 = v34 >>> 0;
-  var v103 = ((v97 & 4294959104) >>> 0 | (v99 & 8191) >>> 0) >>> 0;
-  h = v103;
-  return (Math.imul((v103 >>> 16 >>> 0 & 15) >>> 0 >>> 0 | 0, 1000) | 0) + (v99 | 0) | 0;
+  var v15 = v11;
+  v15.$v = v15.$v + 1 >>> 0;
+  var v20 = (v11.$v & 15) >>> 0 & 15;
+  var v25 = { $v: 100 };
+  var v29 = v25;
+  v29.$v = Math.imul(v29.$v, 3) >>> 0;
+  return (Math.imul(v20 | 0, 1000) | 0) + ((v25.$v & 8191) >>> 0 & 8191 | 0) | 0;
 }
 
 function together() {
@@ -76,12 +66,10 @@ function together() {
 }
 
 function unpacked() {
-  var m = { only: 7, wide: 5 };
   var v9 = { $v: 7 };
-  bump(v9);
-  var v18 = (v9.$v & 31) >>> 0 & 31;
-  m.only = v18;
-  return (Math.imul(v18 >>> 0 | 0, 10) | 0) + m.wide | 0;
+  var v13 = v9;
+  v13.$v = v13.$v + 1 >>> 0;
+  return (Math.imul((v9.$v & 31) >>> 0 & 31 | 0, 10) | 0) + 5 | 0;
 }
 
 function pick(flag, a$o, a$k, a$s, b$o, b$k, b$s) {
@@ -167,8 +155,8 @@ function nudge(x$o, x$k, x$s) {
 }
 
 function nudgeTwice(x$o, x$k, x$s) {
-  nudge(x$o, x$k, x$s);
-  nudge(x$o, x$k, x$s);
+  x$o[x$k] = $b13u$set(x$o[x$k], x$s, (($b13u$get(x$o[x$k], x$s) >>> 0) + 1 >>> 0 & 8191) >>> 0 & 8191);
+  x$o[x$k] = $b13u$set(x$o[x$k], x$s, (($b13u$get(x$o[x$k], x$s) >>> 0) + 1 >>> 0 & 8191) >>> 0 & 8191);
   return;
 }
 
@@ -176,7 +164,7 @@ function threaded() {
   var h = { $v: 2162788 };
   nudgeTwice(h, "$v", 1);
   var v60 = h.$v;
-  return (Math.imul((v60 & 8191) >>> 0 >>> 0 | 0, 10) | 0) + ((v60 >>> 16 >>> 0 & 15) >>> 0 >>> 0 | 0) | 0;
+  return (Math.imul((v60 & 8191) >>> 0 | 0, 10) | 0) + ((v60 >>> 16 >>> 0 & 15) >>> 0 | 0) | 0;
 }
 
 function nine(a, b, c, d, e, f, g, h, i) {
@@ -228,7 +216,7 @@ function tally() {
   } else {
     v32 = 0;
   }
-  return (v32 + (Math.imul((e.$p4 & 7) >>> 0 >>> 0 | 0, 10) | 0) | 0) + (Math.imul(e.count, 100) | 0) | 0;
+  return (v32 + (Math.imul((e.$p4 & 7) >>> 0 | 0, 10) | 0) | 0) + (Math.imul(e.count, 100) | 0) | 0;
 }
 
 function liveOf(e) {
@@ -245,11 +233,15 @@ function kept() {
   } else {
     v23 = 0;
   }
-  return (v23 + (Math.imul((e.$p4 & 7) >>> 0 >>> 0 | 0, 10) | 0) | 0) + (Math.imul(e.count, 100) | 0) | 0;
+  return (v23 + (Math.imul((e.$p4 & 7) >>> 0 | 0, 10) | 0) | 0) + (Math.imul(e.count, 100) | 0) | 0;
 }
 
 function main() {
-  return ((((((((((direct() + borrowed() | 0) + neighbours() | 0) + together() | 0) + unpacked() | 0) + loaned() | 0) + returned() | 0) + interleaved() | 0) + threaded() | 0) + wide() | 0) + tally() | 0) + kept() | 0;
+  var v14 = ((((((direct() + borrowed() | 0) + neighbours() | 0) + together() | 0) + unpacked() | 0) + loaned() | 0) + returned() | 0) + interleaved() | 0;
+  var h = { $v: 2162788 };
+  nudgeTwice(h, "$v", 1);
+  var v82 = h.$v;
+  return (((v14 + ((Math.imul((v82 & 8191) >>> 0 | 0, 10) | 0) + ((v82 >>> 16 >>> 0 & 15) >>> 0 | 0) | 0) | 0) + wide() | 0) + tally() | 0) + kept() | 0;
 }
 
 // bit ranges of a word wider than the host's operators - see codegen/js/place.cpp

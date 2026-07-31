@@ -1,0 +1,70 @@
+{-
+   Constant folding across the integer/floating boundary, and the two places it declines.
+
+   `.opt.expect` is the assertion, because what folding does is leave nothing behind: a function here
+   either returns one number by the time the optimizer is finished or it still contains the operation
+   this pass would not perform. The run value is asserted on both targets and against the unoptimized
+   build for the usual reason - a fold that picked the wrong answer is only visible as a number.
+-}
+
+-- Every direction of conversion, all of them exact. `2` reaches `wideningInt` as an `Int` and leaves
+-- as a `Double`; `narrowing` rounds a double to a float and back; `truncating` cuts toward zero,
+-- which for a negative value means *up* and is the half of the rule an implementation gets wrong.
+fn wideningInt() -> Double = 7 :: Double
+
+fn narrowing() -> Float = (2.5 :: Double) :: Float
+
+fn widening() -> Double = (2.5 :: Float) :: Double
+
+fn truncating() -> Int = (9.75 :: Double) :: Int
+
+fn truncatingNegative() -> Int = (-9.75 :: Double) :: Int
+
+-- Arithmetic first, conversion second, and the whole chain is one number. `Float` is the interesting
+-- width: natively this is single-precision throughout and on JS it is a double rounded by
+-- `Math.fround` at each step, and the two agree because rounding a double result to single is the
+-- same value as computing in single.
+fn arithmetic() -> Int = ((1.5 :: Float) * 4.0 + 3.0 - 1.0) :: Int
+
+fn divided() -> Int = ((45.0 :: Double) / 4.0) :: Int
+
+-- IEEE ordering over two constants, which is specified exactly and identical on both targets.
+fn compared() -> Int = if (2.5 :: Double) > 2.0 then 30 else 0
+
+{-
+   The first decline: a value the integer type cannot hold.
+
+   Truncating `1e30` is not a number any `Int` has, and that is exactly where the two targets stop
+   agreeing - natively the conversion produces the integer indefinite value, while `codegen/js` emits
+   `Math.trunc` followed by the coercion the type needs, which is modular. Folding it would be this
+   pass choosing which of them the language means.
+
+   So the conversion survives, and `main` asks only whether the target agrees with *itself*. What it
+   actually answers is the target's business until the language says otherwise, and a fixture that
+   pinned a number here would be settling that question by accident.
+-}
+@noinline
+fn outOfRange() -> Int = (1e30 :: Double) :: Int
+
+fn declined() -> Int = if outOfRange() == outOfRange() then 40 else 0
+
+{-
+   The second decline: a result neither emitter has a literal for.
+
+   `1 / 0` is an infinity rather than an error in floating arithmetic, and both targets produce one -
+   but a folded constant has to be *written*, and `Infinity` is not something either backend emits.
+   So the division stays and the infinity is produced at run time, where both agree about it.
+-}
+fn nonFinite() -> Int = if (1.0 :: Double) / 0.0 > 1000000.0 then 20 else 0
+
+fn main() -> Int =
+    (wideningInt() :: Int) +
+    (narrowing() :: Int) +
+    (widening() :: Int) +
+    truncating() +
+    truncatingNegative() +
+    arithmetic() +
+    divided() +
+    compared() +
+    declined() +
+    nonFinite()

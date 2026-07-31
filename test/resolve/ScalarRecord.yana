@@ -97,9 +97,16 @@ fn borrowed() -> Int:
 
     return valueOf(s.flags)
 
--- Two scalar records co-packed into one byte. `clear` gets a reference into the low two bits and
--- `setBoth` one into the high two, and neither may touch the other's - a shift that came out zero
--- would make the second call overwrite the first.
+{-
+   Two scalar records co-packed into one byte. `clear` gets a reference into the low two bits and
+   `setBoth` one into the high two, and neither may touch the other's - a shift that came out zero
+   would make the second call overwrite the first.
+
+   The construction is also what stops opt_scalar.cpp from splitting a *nested* aggregate write of a
+   packed value. A whole `Flags` written into `t.f` is one read-modify-write of the unit its two
+   booleans share; split into `t.f.a` and `t.f.b` it is two, each reading the word back to preserve
+   the bit it does not own. The expansion below is the assertion - two writes rather than four.
+-}
 fn coPacked() -> Int:
     let &t = Two {f: Flags {a: True, b: True}, g: Flags {a: False, b: False}}
 

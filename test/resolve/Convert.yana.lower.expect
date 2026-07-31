@@ -43,8 +43,7 @@ implicitReturn<complex>(%value: Int): Double {
 implicitArgument<complex>(%value: Int): Long {
   b_0 {
     %v_1 = sext %value: Long
-    %v_2 = call_complex takesLong, %v_1: Long
-    ret %v_2
+    ret %v_1
   }
 }
 
@@ -57,34 +56,13 @@ explicitNarrowing<complex>(%value: Double): Int {
 
 ascribed<complex>(): Int {
   b_0 {
-    %v_1 = ftoi 9.75: Int
-    ret %v_1
+    ret 9
   }
 }
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex widened, 3: Long
-    %v_2 = cast %v_1: Int
-    %v_3 = call_complex narrowed, 4: Int
-    %v_4 = add %v_2, %v_3: Int
-    %v_5 = call_complex toFloat, 5: Float
-    %v_6 = ftoi %v_5: Int
-    %v_7 = add %v_4, %v_6: Int
-    %v_8 = call_complex toDouble, 6: Double
-    %v_9 = ftoi %v_8: Int
-    %v_10 = add %v_7, %v_9: Int
-    %v_11 = call_complex ascribed: Int
-    %v_12 = add %v_10, %v_11: Int
-    %v_13 = call_complex implicitArgument, 7: Long
-    %v_14 = cast %v_13: Int
-    %v_15 = add %v_12, %v_14: Int
-    %v_16 = call_complex implicitReturn, 8: Double
-    %v_17 = ftoi %v_16: Int
-    %v_18 = add %v_15, %v_17: Int
-    %v_19 = call_complex explicitNarrowing, 9.5: Int
-    %v_20 = add %v_18, %v_19: Int
-    ret %v_20
+    ret 51
   }
 }
 

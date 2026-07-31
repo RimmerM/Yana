@@ -1,0 +1,532 @@
+fn tick(%x: @bits(3) U32) -> () {
+  b0:
+    %v1 = load %x : @bits(3) U32
+    %v3 = cast %v1 : U32
+    %v5 = add %v3, 1 : U32
+    %v7 = and %v5, 7 : U32
+    %v8 = cast %v7 : @bits(3) U32
+    assign %x, %v8
+    ret
+}
+
+fn bump(%x: U32) -> () {
+  b0:
+    %v1 = load %x : U32
+    %v4 = add %v1, 1 : U32
+    assign %x, %v4
+    ret
+}
+
+fn flip(%b: Bool) -> () {
+  b0:
+    %v1 = load %b : Bool
+    %v3 = xor %v1, True : Bool
+    assign %b, %v3
+    ret
+}
+
+fn scale(%x: U32, %by: U32) -> () {
+  b0:
+    %v2 = load %x : U32
+    %v3 = mul %v2, %by : U32
+    assign %x, %v3
+    ret
+}
+
+fn direct() -> Int {
+  b0:
+    ret 924000
+}
+
+fn borrowed() -> Int {
+  b0:
+    %v11 = alloc : U32
+    init %local2, 1
+    %v15 = borrow_mut %local2 : &mut U32
+    %v48 = load [%v15] : U32
+    %v50 = add %v48, 1 : U32
+    assign [%v15], %v50
+    %v17 = load %local2 : U32
+    %v19 = and %v17, 15 : U32
+    %v20 = cast %v19 : @bits(4) U32
+    %v24 = alloc : U32
+    init %local3, 3
+    %v28 = borrow_mut %local3 : &mut U32
+    %v52 = load [%v28] : U32
+    %v54 = add %v52, 1 : U32
+    assign [%v28], %v54
+    %v30 = load %local3 : U32
+    %v32 = and %v30, 8191 : U32
+    %v33 = cast %v32 : @bits(13) U32
+    %v38 = cast %v20 : Int
+    %v41 = mul %v38, 100 : Int
+    %v45 = cast %v33 : Int
+    %v46 = add %v41, %v45 : Int
+    ret %v46
+}
+
+fn neighbours() -> Int {
+  b0:
+    %v11 = alloc : U32
+    init %local2, 1
+    %v15 = borrow_mut %local2 : &mut U32
+    %v49 = load [%v15] : U32
+    %v51 = add %v49, 1 : U32
+    assign [%v15], %v51
+    %v17 = load %local2 : U32
+    %v19 = and %v17, 15 : U32
+    %v20 = cast %v19 : @bits(4) U32
+    %v25 = alloc : U32
+    init %local3, 100
+    %v29 = borrow_mut %local3 : &mut U32
+    %v53 = load [%v29] : U32
+    %v54 = mul %v53, 3 : U32
+    assign [%v29], %v54
+    %v31 = load %local3 : U32
+    %v33 = and %v31, 8191 : U32
+    %v34 = cast %v33 : @bits(13) U32
+    %v39 = cast %v20 : Int
+    %v42 = mul %v39, 1000 : Int
+    %v46 = cast %v34 : Int
+    %v47 = add %v42, %v46 : Int
+    ret %v47
+}
+
+fn together() -> Int {
+  b0:
+    %f = alloc : Flags
+    init %f@Flags.optionA:unit8, 0
+    %v9 = borrow_mut %f@Flags.optionA : &mut Bool
+    call flip, %v9
+    %v13 = borrow_mut %f@Flags.optionB : &mut Bool
+    call flip, %v13
+    %v71 = load %f@Flags.optionA:unit8 : U32
+    %v73 = and %v71, 1 : U32
+    %v74 = cast %v73 : Bool
+    je %v74, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v24 = phi [b1, 1], [b2, 0] : Int
+    %v75 = load %f@Flags.optionA:unit8 : U32
+    %v77 = shr %v75, 1 : U32
+    %v79 = and %v77, 1 : U32
+    %v80 = cast %v79 : Bool
+    je %v80, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v34 = phi [b4, 2], [b5, 0] : Int
+    %v35 = add %v24, %v34 : Int
+    ret %v35
+}
+
+fn unpacked() -> Int {
+  b0:
+    %v9 = alloc : U32
+    init %local2, 7
+    %v13 = borrow_mut %local2 : &mut U32
+    %v31 = load [%v13] : U32
+    %v33 = add %v31, 1 : U32
+    assign [%v13], %v33
+    %v15 = load %local2 : U32
+    %v17 = and %v15, 31 : U32
+    %v18 = cast %v17 : @bits(5) U32
+    %v23 = cast %v18 : Int
+    %v26 = mul %v23, 10 : Int
+    %v29 = add %v26, 5 : Int
+    ret %v29
+}
+
+fn pick(%flag: Bool, %a: Bool, %b: Bool) -> &mut Bool {
+  b0:
+    je %flag, b1, b2
+
+  b1:
+    %v5 = borrow_mut %a : &mut Bool
+    jmp b3
+
+  b2:
+    %v7 = borrow_mut %b : &mut Bool
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, %v5], [b2, %v7] : &mut Bool
+    ret %v10
+}
+
+fn loaned() -> Int {
+  b0:
+    %f = alloc : Flags
+    init %f@Flags.optionA:unit8, 3
+    %v12 = borrow_mut %f@Flags.optionA : &mut Bool
+    %v13 = borrow_mut %f@Flags.optionB : &mut Bool
+    %v14 = call pick, True, %v12, %v13 : &mut Bool
+    assign [%v14], False
+    %v73 = load %f@Flags.optionA:unit8 : U32
+    %v75 = and %v73, 1 : U32
+    %v76 = cast %v75 : Bool
+    je %v76, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v26 = phi [b1, 1], [b2, 0] : Int
+    %v77 = load %f@Flags.optionA:unit8 : U32
+    %v79 = shr %v77, 1 : U32
+    %v81 = and %v79, 1 : U32
+    %v82 = cast %v81 : Bool
+    je %v82, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v36 = phi [b4, 2], [b5, 0] : Int
+    %v37 = add %v26, %v36 : Int
+    ret %v37
+}
+
+fn optionOf(%f: Flags) -> &mut Bool {
+  b0:
+    %v3 = borrow_mut %f@Flags.optionA : &mut Bool
+    ret %v3
+}
+
+fn returned() -> Int {
+  b0:
+    %f = alloc : Flags
+    init %f@Flags.optionA:unit8, 2
+    %v8 = borrow_mut %f : &mut Flags
+    %v9 = call optionOf, %v8 : &mut Bool
+    assign [%v9], True
+    %v68 = load %f@Flags.optionA:unit8 : U32
+    %v70 = and %v68, 1 : U32
+    %v71 = cast %v70 : Bool
+    je %v71, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v21 = phi [b1, 1], [b2, 0] : Int
+    %v72 = load %f@Flags.optionA:unit8 : U32
+    %v74 = shr %v72, 1 : U32
+    %v76 = and %v74, 1 : U32
+    %v77 = cast %v76 : Bool
+    je %v77, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v31 = phi [b4, 2], [b5, 0] : Int
+    %v32 = add %v21, %v31 : Int
+    ret %v32
+}
+
+fn swapBools(%a: Bool, %b: Bool) -> () {
+  b0:
+    %t = load %a : Bool
+    %v3 = load %b : Bool
+    assign %a, %v3
+    assign %b, %t
+    ret
+}
+
+fn interleaved() -> Int {
+  b0:
+    %g = alloc : Flags
+    init %g@Flags.optionA:unit8, 1
+    %v11 = borrow_mut %g@Flags.optionA : &mut Bool
+    %v12 = borrow_mut %g@Flags.optionB : &mut Bool
+    call swapBools, %v11, %v12
+    %v70 = load %g@Flags.optionA:unit8 : U32
+    %v72 = and %v70, 1 : U32
+    %v73 = cast %v72 : Bool
+    je %v73, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v23 = phi [b1, 1], [b2, 0] : Int
+    %v74 = load %g@Flags.optionA:unit8 : U32
+    %v76 = shr %v74, 1 : U32
+    %v78 = and %v76, 1 : U32
+    %v79 = cast %v78 : Bool
+    je %v79, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v33 = phi [b4, 2], [b5, 0] : Int
+    %v34 = add %v23, %v33 : Int
+    ret %v34
+}
+
+fn nudge(%x: @bits(13) U32) -> () {
+  b0:
+    %v1 = load %x : @bits(13) U32
+    %v3 = cast %v1 : U32
+    %v5 = add %v3, 1 : U32
+    %v7 = and %v5, 8191 : U32
+    %v8 = cast %v7 : @bits(13) U32
+    assign %x, %v8
+    ret
+}
+
+fn nudgeTwice(%x: @bits(13) U32) -> () {
+  b0:
+    %v2 = borrow_mut %x : &mut @bits(13) U32
+    %v8 = load [%v2] : @bits(13) U32
+    %v9 = cast %v8 : U32
+    %v11 = add %v9, 1 : U32
+    %v13 = and %v11, 8191 : U32
+    %v14 = cast %v13 : @bits(13) U32
+    assign [%v2], %v14
+    %v5 = borrow_mut %x : &mut @bits(13) U32
+    %v16 = load [%v5] : @bits(13) U32
+    %v17 = cast %v16 : U32
+    %v19 = add %v17, 1 : U32
+    %v21 = and %v19, 8191 : U32
+    %v22 = cast %v21 : @bits(13) U32
+    assign [%v5], %v22
+    ret
+}
+
+fn threaded() -> Int {
+  b0:
+    %h = alloc : Header
+    init %h@Header.version:unit32, 2162788
+    %v11 = borrow_mut %h@Header.length : &mut @bits(13) U32
+    call nudgeTwice, %v11
+    %v60 = load %h@Header.version:unit32 : U32
+    %v62 = and %v60, 8191 : U32
+    %v16 = cast %v62 : Int
+    %v19 = mul %v16, 10 : Int
+    %v65 = shr %v60, 16 : U32
+    %v67 = and %v65, 15 : U32
+    %v23 = cast %v67 : Int
+    %v24 = add %v19, %v23 : Int
+    ret %v24
+}
+
+fn nine(%a: Bool, %b: Bool, %c: Bool, %d: Bool, %e: Bool, %f: Bool, %g: Bool, %h: Bool, %i: Bool) -> () {
+  b0:
+    assign %a, True
+    assign %b, True
+    assign %c, True
+    assign %d, True
+    assign %e, True
+    assign %f, True
+    assign %g, True
+    assign %h, True
+    assign %i, True
+    ret
+}
+
+fn wide() -> Int {
+  b0:
+    %s = alloc : Nine
+    init %s@Nine.a:unit16, 0
+    %v39 = borrow_mut %s@Nine.a : &mut Bool
+    %v40 = borrow_mut %s@Nine.b : &mut Bool
+    %v41 = borrow_mut %s@Nine.c : &mut Bool
+    %v42 = borrow_mut %s@Nine.d : &mut Bool
+    %v43 = borrow_mut %s@Nine.e : &mut Bool
+    %v44 = borrow_mut %s@Nine.f : &mut Bool
+    %v45 = borrow_mut %s@Nine.g : &mut Bool
+    %v46 = borrow_mut %s@Nine.h : &mut Bool
+    %v47 = borrow_mut %s@Nine.i : &mut Bool
+    call nine, %v39, %v40, %v41, %v42, %v43, %v44, %v45, %v46, %v47
+    %v269 = load %s@Nine.a:unit16 : U32
+    %v271 = and %v269, 1 : U32
+    %v272 = cast %v271 : Bool
+    je %v272, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v58 = phi [b1, 1], [b2, 0] : Int
+    %v273 = load %s@Nine.a:unit16 : U32
+    %v275 = shr %v273, 4 : U32
+    %v277 = and %v275, 1 : U32
+    %v278 = cast %v277 : Bool
+    je %v278, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v68 = phi [b4, 20], [b5, 0] : Int
+    %v69 = add %v58, %v68 : Int
+    %v279 = load %s@Nine.a:unit16 : U32
+    %v281 = shr %v279, 8 : U32
+    %v283 = and %v281, 1 : U32
+    %v284 = cast %v283 : Bool
+    je %v284, b7, b8
+
+  b7:
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v79 = phi [b7, 300], [b8, 0] : Int
+    %v80 = add %v69, %v79 : Int
+    ret %v80
+}
+
+fn tally() -> Int {
+  b0:
+    %e = alloc : Entry
+    init %e@Entry.live:unit8, 2
+    init %e@Entry.count, 7
+    %v11 = borrow_mut %e@Entry.live : &mut Bool
+    call flip, %v11
+    %v15 = borrow_mut %e@Entry.kind : &mut @bits(3) U32
+    call tick, %v15
+    %v18 = load %e@Entry.count : Int
+    %v21 = add %v18, 1 : Int
+    assign %e@Entry.count, %v21
+    %v81 = load %e@Entry.live:unit8 : U32
+    %v83 = shr %v81, 3 : U32
+    %v85 = and %v83, 1 : U32
+    %v86 = cast %v85 : Bool
+    je %v86, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v32 = phi [b1, 1], [b2, 0] : Int
+    %v87 = load %e@Entry.live:unit8 : U32
+    %v89 = and %v87, 7 : U32
+    %v36 = cast %v89 : Int
+    %v39 = mul %v36, 10 : Int
+    %v40 = add %v32, %v39 : Int
+    %v42 = load %e@Entry.count : Int
+    %v45 = mul %v42, 100 : Int
+    %v46 = add %v40, %v45 : Int
+    ret %v46
+}
+
+fn liveOf(%e: Entry) -> &mut Bool {
+  b0:
+    %v3 = borrow_mut %e@Entry.live : &mut Bool
+    ret %v3
+}
+
+fn kept() -> Int {
+  b0:
+    %e = alloc : Entry
+    init %e@Entry.live:unit8, 1
+    init %e@Entry.count, 2
+    %v10 = borrow_mut %e : &mut Entry
+    %v11 = call liveOf, %v10 : &mut Bool
+    assign [%v11], True
+    %v72 = load %e@Entry.live:unit8 : U32
+    %v74 = shr %v72, 3 : U32
+    %v76 = and %v74, 1 : U32
+    %v77 = cast %v76 : Bool
+    je %v77, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v23 = phi [b1, 1], [b2, 0] : Int
+    %v78 = load %e@Entry.live:unit8 : U32
+    %v80 = and %v78, 7 : U32
+    %v27 = cast %v80 : Int
+    %v30 = mul %v27, 10 : Int
+    %v31 = add %v23, %v30 : Int
+    %v33 = load %e@Entry.count : Int
+    %v36 = mul %v33, 100 : Int
+    %v37 = add %v31, %v36 : Int
+    ret %v37
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call direct : Int
+    %v1 = call borrowed : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call neighbours : Int
+    %v4 = add %v2, %v3 : Int
+    %v5 = call together : Int
+    %v6 = add %v4, %v5 : Int
+    %v7 = call unpacked : Int
+    %v8 = add %v6, %v7 : Int
+    %v9 = call loaned : Int
+    %v10 = add %v8, %v9 : Int
+    %v11 = call returned : Int
+    %v12 = add %v10, %v11 : Int
+    %v13 = call interleaved : Int
+    %v14 = add %v12, %v13 : Int
+    %h = alloc : Header
+    init %h@Header.version:unit32, 2162788
+    %v35 = borrow_mut %h@Header.length : &mut @bits(13) U32
+    call nudgeTwice, %v35
+    %v82 = load %h@Header.version:unit32 : U32
+    %v84 = and %v82, 8191 : U32
+    %v40 = cast %v84 : Int
+    %v42 = mul %v40, 10 : Int
+    %v87 = shr %v82, 16 : U32
+    %v89 = and %v87, 15 : U32
+    %v46 = cast %v89 : Int
+    %v47 = add %v42, %v46 : Int
+    %v16 = add %v14, %v47 : Int
+    %v17 = call wide : Int
+    %v18 = add %v16, %v17 : Int
+    %v19 = call tally : Int
+    %v20 = add %v18, %v19 : Int
+    %v21 = call kept : Int
+    %v22 = add %v20, %v21 : Int
+    ret %v22
+}

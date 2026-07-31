@@ -25,7 +25,7 @@ function depthOf(m) {
   if (m.$tag === 0) {
     v14 = 1;
   } else {
-    v14 = 2 + pointOr(m.$p, 0) | 0;
+    v14 = pointOr(m.$p, 0) + 2 | 0;
   }
   return v14;
 }
@@ -62,5 +62,11 @@ function paired() {
 }
 
 function main() {
-  return ((objectFold() + intFold() | 0) + nested() | 0) + paired() | 0;
+  var some = pointOr({ x: 3, y: 4 }, 9);
+  var none = pointOr(null, 9);
+  var v26 = some + (Math.imul(none, 1000) | 0) | 0;
+  var zero = intOr(0, 7);
+  var some$1 = intOr(5, 7);
+  var none$1 = intOr(null, 7);
+  return ((v26 + ((zero + (Math.imul(some$1, 10) | 0) | 0) + (Math.imul(none$1, 100) | 0) | 0) | 0) + nested() | 0) + paired() | 0;
 }

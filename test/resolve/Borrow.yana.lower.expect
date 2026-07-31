@@ -49,32 +49,34 @@ main<complex>(): Int {
   b_0 {
     %total = alloca 4, 4: Ptr
     store %total, 0, 4
-    call_complex bump, %total, 5
+    %v_1 = loads %total, 4: Int
+    %v_2 = add %v_1, 5: Int
+    store %total, %v_2, 4
     call_complex +=(Int), %total, 3
     call_complex *=(Int), %total, 2
-    %left = alloca 4, 4: Ptr
-    store %left, 1, 4
-    %right = alloca 4, 4: Ptr
-    store %right, 2, 4
-    call_complex swap, %left, %right
     %here = alloca 8, 4: Ptr
     store %here, 10, 4
-    %v_1 = add %here, 4: Ptr
-    store %v_1, 20, 4
-    call_complex moveBy, %here, 1, 2
-    %v_2 = loads %total, 4: Int
-    call_complex copyThroughBorrow, %total, %v_2
-    %v_3 = loads %total, 4: Int
-    %v_4 = loads %left, 4: Int
-    %v_5 = loads %right, 4: Int
-    %v_6 = sub %v_4, %v_5: Int
-    %v_7 = add %v_3, %v_6: Int
-    %v_8 = loads %here, 4: Int
-    %v_9 = add %v_7, %v_8: Int
-    %v_10 = add %here, 4: Ptr
-    %v_11 = loads %v_10, 4: Int
-    %v_12 = add %v_9, %v_11: Int
-    ret %v_12
+    %v_3 = add %here, 4: Ptr
+    store %v_3, 20, 4
+    %v_4 = loads %here, 4: Int
+    call_complex +=(Int), %here, 1
+    %v_5 = add %here, 4: Ptr
+    %v_6 = loads %v_5, 4: Int
+    %v_7 = add %here, 4: Ptr
+    call_complex +=(Int), %v_7, 2
+    %v_8 = loads %total, 4: Int
+    %v_9 = loads %total, 4: Int
+    %v_10 = add %v_9, %v_8: Int
+    store %total, %v_10, 4
+    %v_11 = loads %total, 4: Int
+    %v_12 = sub 2, 1: Int
+    %v_13 = add %v_11, %v_12: Int
+    %v_14 = loads %here, 4: Int
+    %v_15 = add %v_13, %v_14: Int
+    %v_16 = add %here, 4: Ptr
+    %v_17 = loads %v_16, 4: Int
+    %v_18 = add %v_15, %v_17: Int
+    ret %v_18
   }
 }
 

@@ -45,7 +45,6 @@ classify<complex>(%value: Int): Int {
 
 main<complex>(): Int {
   b_0 {
-    call_complex noop
     %value = call_complex choose, 2, 1: Int
     jmp b_1
   }
@@ -58,10 +57,9 @@ main<complex>(): Int {
     %v_4 = imul %value, 2: Int
     %v_5 = call_complex classify, 5: Int
     %v_6 = add %v_4, %v_5: Int
-    %v_7 = call_complex local, 0: Int
-    %v_8 = add %v_6, %v_7: Int
-    %v_9 = sub %v_8, 2: Int
-    ret %v_9
+    %v_7 = add %v_6, 2: Int
+    %v_8 = sub %v_7, 2: Int
+    ret %v_8
   }
 
   b_2 {
@@ -82,7 +80,7 @@ choose<complex>(%a: Int, %b: Int): Int {
   }
 
   b_2 {
-    %v_4 = call_complex add, %a, 1: Int
+    %v_4 = add %a, 1: Int
     jmp b_5
   }
 

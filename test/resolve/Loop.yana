@@ -15,6 +15,12 @@ data Point {x: Int, y: Int}
 
 fn origin() -> Point = Point {x: 3, y: 4}
 
+-- The same record, kept behind a real call. `origin` is small enough that the inliner takes it
+-- everywhere, which turns its result into an ordinary `alloc` in the caller - so a fixture about
+-- what happens to a local whose storage *is* a call's result has to say that it wants one.
+@noinline
+fn madePoint() -> Point = Point {x: 3, y: 4}
+
 fn bump(&n: Int) -> {}:
     n = n + 1
 
@@ -79,8 +85,9 @@ fn written(count: Int) -> Int:
     return acc.x
 
 -- A loop containing a call, over a record this frame built. The callee has no way to name `q`,
--- whose address was never handed out, so the reads of it leave the loop anyway; `seen` is borrowed
--- into the call and stays where it is.
+-- whose address was never handed out, so the reads of it leave the loop anyway - and since
+-- opt_promote.cpp has already answered them from the writes above the loop, what leaves is the
+-- multiply rather than two loads. `seen` is borrowed into the call and stays where it is.
 fn withCall(seed: Int, count: Int) -> Int:
     let q = Point {x: seed, y: seed + 1}
     let &seen = 0 :: Int
@@ -95,10 +102,11 @@ fn withCall(seed: Int, count: Int) -> Int:
 
 -- The same loop over a record that arrived as a call's *result*. The storage is this frame's and no
 -- callee can reach it either, but the local's allocation is the call rather than an `alloc` - so
--- containment declines it and the reads stay in the body. A missed hoist rather than a wrong one,
--- and recorded here so that closing it shows up as a change to this file.
+-- containment declines it, the reads are neither forwarded nor hoisted, and both loads stay in the
+-- body. A missed optimization rather than a wrong one, and recorded here so that closing it shows up
+-- as a change to this file.
 fn fromCall(count: Int) -> Int:
-    let q = origin()
+    let q = madePoint()
     let &seen = 0 :: Int
     let &i = 0 :: Int
 

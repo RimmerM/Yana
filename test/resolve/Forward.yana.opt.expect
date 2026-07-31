@@ -1,0 +1,181 @@
+fn widen(%p: Point) -> () {
+  b0:
+    %v2 = load %p@Point.x : Int
+    %v5 = add %v2, 1 : Int
+    assign %p@Point.x, %v5
+    ret
+}
+
+fn branched(%a: Int) -> Int {
+  b0:
+    %v4 = add %a, 1 : Int
+    %v9 = cmp_gt %a, 0 : Bool
+    je %v9, b1, b2
+
+  b1:
+    %v13 = add %a, %v4 : Int
+    ret %v13
+
+  b2:
+    jmp b3
+
+  b3:
+    ret %v4
+}
+
+fn partial(%a: Int) -> Int {
+  b0:
+    %v10 = cmp_gt %a, 0 : Bool
+    je %v10, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v37 = phi [b1, 30], [b2, 2] : Int
+    %v20 = add %v37, 1 : Int
+    ret %v20
+}
+
+fn merged(%a: Int) -> Int {
+  b0:
+    %v10 = cmp_gt %a, 0 : Bool
+    je %v10, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v44 = phi [b1, 10], [b2, 0] : Int
+    %v18 = cmp_gt %a, 5 : Bool
+    je %v18, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v56 = phi [b4, 20], [b5, %v44] : Int
+    %v28 = add %v56, 7 : Int
+    ret %v28
+}
+
+fn invariant(%count: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v13 = load %i : Int
+    %v14 = cmp_lt %v13, %count : Bool
+    je %v14, b3, b2
+
+  b2:
+    %v28 = load %total : Int
+    ret %v28
+
+  b3:
+    %v16 = load %total : Int
+    %v20 = add %v16, 12 : Int
+    assign %total, %v20
+    %v22 = load %i : Int
+    %v25 = add %v22, 1 : Int
+    assign %i, %v25
+    jmp b1
+}
+
+fn carried(%count: Int) -> Int {
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v36 = phi [b0, 0], [b3, %v19] : Int
+    %v12 = load %i : Int
+    %v13 = cmp_lt %v12, %count : Bool
+    je %v13, b3, b2
+
+  b2:
+    ret %v36
+
+  b3:
+    %v19 = add %v36, 5 : Int
+    %v21 = load %i : Int
+    %v24 = add %v21, 1 : Int
+    assign %i, %v24
+    jmp b1
+}
+
+fn nested(%a: Int) -> Int {
+  b0:
+    %v5 = add %a, 1 : Int
+    %v13 = cmp_gt %a, 0 : Bool
+    je %v13, b1, b2
+
+  b1:
+    %v19 = add %a, %v5 : Int
+    %v21 = add %v19, 5 : Int
+    ret %v21
+
+  b2:
+    jmp b3
+
+  b3:
+    ret 5
+}
+
+fn escaped(%a: Int) -> Int {
+  b0:
+    %p = alloc : Point
+    init %p@Point.x, %a
+    init %p@Point.y, 1
+    %v9 = cmp_gt %a, 0 : Bool
+    je %v9, b1, b2
+
+  b1:
+    %v12 = borrow_mut %p : &mut Point
+    %v22 = load [%v12] : Point
+    %v23 = load [%v12]@Point.x : Int
+    %v25 = add %v23, 1 : Int
+    assign [%v12]@Point.x, %v25
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v17 = load %p@Point.x : Int
+    %v19 = load %p@Point.y : Int
+    %v20 = add %v17, %v19 : Int
+    ret %v20
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call branched, 2 : Int
+    %v3 = call partial, 1 : Int
+    %v4 = add %v1, %v3 : Int
+    %v6 = call merged, 1 : Int
+    %v7 = add %v4, %v6 : Int
+    %v9 = call invariant, 3 : Int
+    %v10 = add %v7, %v9 : Int
+    %v12 = call carried, 4 : Int
+    %v13 = add %v10, %v12 : Int
+    %v15 = call nested, 2 : Int
+    %v16 = add %v13, %v15 : Int
+    %v18 = call escaped, 5 : Int
+    %v19 = add %v16, %v18 : Int
+    ret %v19
+}

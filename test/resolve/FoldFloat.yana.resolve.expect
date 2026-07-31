@@ -1,0 +1,129 @@
+fn wideningInt() -> Double {
+  b0:
+    ret 7
+}
+
+fn narrowing() -> Float {
+  b0:
+    %v1 = cast 2.5 : Float
+    ret %v1
+}
+
+fn widening() -> Double {
+  b0:
+    %v1 = cast 2.5 : Double
+    ret %v1
+}
+
+fn truncating() -> Int {
+  b0:
+    %v1 = cast 9.75 : Int
+    ret %v1
+}
+
+fn truncatingNegative() -> Int {
+  b0:
+    %v2 = neg 9.75 : Double
+    %v3 = cast %v2 : Int
+    ret %v3
+}
+
+fn arithmetic() -> Int {
+  b0:
+    %v3 = mul 1.5, 4 : Float
+    %v6 = add %v3, 3 : Float
+    %v9 = sub %v6, 1 : Float
+    %v10 = cast %v9 : Int
+    ret %v10
+}
+
+fn divided() -> Int {
+  b0:
+    %v3 = div 45, 4 : Double
+    %v4 = cast %v3 : Int
+    ret %v4
+}
+
+fn compared() -> Int {
+  b0:
+    %v3 = cmp_gt 2.5, 2 : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, 30], [b2, 0] : Int
+    ret %v9
+}
+
+fn outOfRange() -> Int {
+  b0:
+    %v1 = cast 1E30 : Int
+    ret %v1
+}
+
+fn declined() -> Int {
+  b0:
+    %v0 = call outOfRange : Int
+    %v1 = call outOfRange : Int
+    %v2 = cmp_eq %v0, %v1 : Bool
+    je %v2, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, 40], [b2, 0] : Int
+    ret %v8
+}
+
+fn nonFinite() -> Int {
+  b0:
+    %v3 = div 1, 0 : Double
+    %v6 = cmp_gt %v3, 1000000 : Bool
+    je %v6, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = phi [b1, 20], [b2, 0] : Int
+    ret %v12
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call wideningInt : Double
+    %v1 = cast %v0 : Int
+    %v2 = call narrowing : Float
+    %v3 = cast %v2 : Int
+    %v4 = add %v1, %v3 : Int
+    %v5 = call widening : Double
+    %v6 = cast %v5 : Int
+    %v7 = add %v4, %v6 : Int
+    %v8 = call truncating : Int
+    %v9 = add %v7, %v8 : Int
+    %v10 = call truncatingNegative : Int
+    %v11 = add %v9, %v10 : Int
+    %v12 = call arithmetic : Int
+    %v13 = add %v11, %v12 : Int
+    %v14 = call divided : Int
+    %v15 = add %v13, %v14 : Int
+    %v16 = call compared : Int
+    %v17 = add %v15, %v16 : Int
+    %v18 = call declined : Int
+    %v19 = add %v17, %v18 : Int
+    %v20 = call nonFinite : Int
+    %v21 = add %v19, %v20 : Int
+    ret %v21
+}

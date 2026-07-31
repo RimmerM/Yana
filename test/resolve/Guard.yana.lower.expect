@@ -57,47 +57,47 @@ orZeroElse<complex>(%m: Ptr): Int {
 
 retry<complex>(%m: Ptr, %c: Int): Int {
   b_0 {
-    jmp b_1
-  }
-
-  b_1 {
-    je 1, b_2, b_3
-  }
-
-  b_3 {
-    ret 50
-  }
-
-  b_2 {
-    %v_4 = loads %m, 4: Int
-    %v_5 = cmp_eq %v_4, 1: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    %v_8 = cast %c: Int
-    %v_9 = cmp_eq %v_8, 0: Int
-    je %v_9, b_10, b_11
+    %v_1 = loads %m, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    %v_3 = cast %c: Int
+    %v_4 = cmp_eq %v_3, 0: Int
+    %v_5 = cmp_eq %v_3, 1: Int
+    jmp b_6
   }
 
   b_6 {
-    %v_12 = add %m, 4: Ptr
-    %v = loads %v_12, 4: Int
-    %v_13 = add %v, 1: Int
-    ret %v_13
+    je 1, b_7, b_8
   }
 
-  b_11 {
-    %v_14 = cmp_eq %v_8, 1: Int
-    je %v_14, b_15, b_16
+  b_8 {
+    ret 50
+  }
+
+  b_7 {
+    je %v_2, b_9, b_10
   }
 
   b_10 {
-    jmp b_3
+    je %v_4, b_11, b_12
+  }
+
+  b_9 {
+    %v_13 = add %m, 4: Ptr
+    %v = loads %v_13, 4: Int
+    %v_14 = add %v, 1: Int
+    ret %v_14
+  }
+
+  b_12 {
+    je %v_5, b_15, b_16
+  }
+
+  b_11 {
+    jmp b_8
   }
 
   b_16 {
-    jmp b_1
+    jmp b_6
   }
 
   b_15 {

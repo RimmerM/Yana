@@ -42,8 +42,18 @@ walkList<complex>(): Long {
     %v_9 = load %v_8, 8: Ptr
     %v_10 = add %v_9, 8: Ptr
     store %v_10, %third, 8
-    %v_11 = call_complex total, %first: Long
-    ret %v_11
+    %v_11 = loads %first, 8: Long
+    %v_12 = add %first, 8: Ptr
+    %v_13 = load %v_12, 8: Ptr
+    %v_14 = loads %v_13, 8: Long
+    %v_15 = add %v_11, %v_14: Long
+    %v_16 = add %first, 8: Ptr
+    %v_17 = load %v_16, 8: Ptr
+    %v_18 = add %v_13, 8: Ptr
+    %v_19 = load %v_18, 8: Ptr
+    %v_20 = loads %v_19, 8: Long
+    %v_21 = add %v_15, %v_20: Long
+    ret %v_21
   }
 }
 
@@ -302,12 +312,14 @@ main<complex>(): Int {
     %v_11 = add %v_9, %v_10: Long
     %v_12 = call_complex blockOperations: Long
     %v_13 = add %v_11, %v_12: Long
-    %v_14 = call_complex sizes: Long
-    %v_15 = add %v_13, %v_14: Long
-    %v_16 = call_complex maybePointer: Long
-    %result = add %v_15, %v_16: Long
-    %v_17 = cast %result: Int
-    ret %v_17
+    %v_14 = imul 8, 100: Long
+    %v_15 = add %v_14, 10: Long
+    %v_16 = add %v_15, 2: Long
+    %v_17 = add %v_13, %v_16: Long
+    %v_18 = call_complex maybePointer: Long
+    %result = add %v_17, %v_18: Long
+    %v_19 = cast %result: Int
+    ret %v_19
   }
 }
 

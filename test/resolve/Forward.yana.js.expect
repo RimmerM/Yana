@@ -1,0 +1,93 @@
+"use strict";
+// ResolveTest
+function widen(p) {
+  p.x = p.x + 1 | 0;
+  return;
+}
+
+function branched(a) {
+  var v4 = a + 1 | 0;
+  if (a > 0) {
+    return a + v4 | 0;
+  } else {
+    return v4;
+  }
+}
+
+function partial(a) {
+  var v37;
+  if (a > 0) {
+    v37 = 30;
+  } else {
+    v37 = 2;
+  }
+  return v37 + 1 | 0;
+}
+
+function merged(a) {
+  var v44;
+  var v56;
+  if (a > 0) {
+    v44 = 10;
+  } else {
+    v44 = 0;
+  }
+  if (a > 5) {
+    v56 = 20;
+  } else {
+    v56 = v44;
+  }
+  return v56 + 7 | 0;
+}
+
+function invariant(count) {
+  var total = 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < count) {
+      total = total + 12 | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return total;
+}
+
+function carried(count) {
+  var v36;
+  var i = 0;
+  v36 = 0;
+  L0: for (;;) {
+    if (i < count) {
+      var v19 = v36 + 5 | 0;
+      i = i + 1 | 0;
+      v36 = v19;
+      continue L0;
+    }
+    break L0;
+  }
+  return v36;
+}
+
+function nested(a) {
+  var v5 = a + 1 | 0;
+  if (a > 0) {
+    return (a + v5 | 0) + 5 | 0;
+  } else {
+    return 5;
+  }
+}
+
+function escaped(a) {
+  var p = { x: a, y: 1 };
+  if (a > 0) {
+    var v12 = p;
+    v12.x = v12.x + 1 | 0;
+  }
+  return p.x + p.y | 0;
+}
+
+function main() {
+  return (((((branched(2) + partial(1) | 0) + merged(1) | 0) + invariant(3) | 0) + carried(4) | 0) + nested(2) | 0) + escaped(5) | 0;
+}

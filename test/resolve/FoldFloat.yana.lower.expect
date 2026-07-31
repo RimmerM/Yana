@@ -1,0 +1,124 @@
+
+arithmetic<complex>(): Int {
+  b_0 {
+    ret 8
+  }
+}
+
+nonFinite<complex>(): Int {
+  b_0 {
+    %v_1 = div 1, 0: Double
+    %v_2 = cmp_gt %v_1, 1000000: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_3, 20], [b_4, 0]: Int
+    ret %v_6
+  }
+}
+
+divided<complex>(): Int {
+  b_0 {
+    ret 11
+  }
+}
+
+widening<complex>(): Double {
+  b_0 {
+    ret 2.5
+  }
+}
+
+narrowing<complex>(): Float {
+  b_0 {
+    ret 2.5
+  }
+}
+
+truncatingNegative<complex>(): Int {
+  b_0 {
+    ret 18446744073709551607
+  }
+}
+
+truncating<complex>(): Int {
+  b_0 {
+    ret 9
+  }
+}
+
+compared<complex>(): Int {
+  b_0 {
+    je 1, b_1, b_2
+  }
+
+  b_1 {
+    jmp b_3
+  }
+
+  b_2 {
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = phi [b_1, 30], [b_2, 0]: Int
+    ret %v_4
+  }
+}
+
+declined<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex outOfRange: Int
+    %v_2 = call_complex outOfRange: Int
+    %v_3 = cmp_eq %v_1, %v_2: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_4 {
+    jmp b_6
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_4, 40], [b_5, 0]: Int
+    ret %v_7
+  }
+}
+
+wideningInt<complex>(): Double {
+  b_0 {
+    ret 7
+  }
+}
+
+outOfRange<complex>(): Int {
+  b_0 {
+    %v_1 = ftoi 1E30: Int
+    ret %v_1
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex compared: Int
+    %v_2 = add %v_1, 30: Int
+    %v_3 = call_complex declined: Int
+    %v_4 = add %v_2, %v_3: Int
+    %v_5 = call_complex nonFinite: Int
+    %v_6 = add %v_4, %v_5: Int
+    ret %v_6
+  }
+}
+

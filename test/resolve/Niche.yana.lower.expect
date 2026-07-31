@@ -25,7 +25,7 @@ depthOf<complex>(%m: Ptr): Int {
     %v_14 = alloca 1, 1: Ptr
     store %v_14, %o, 1
     %v_15 = call_complex tagOf, %v_14: Int
-    %v_16 = add 300, %v_15: Int
+    %v_16 = add %v_15, 300: Int
     jmp b_13
   }
 
@@ -194,12 +194,38 @@ nested<complex>(): Int {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex roundTrip: Int
-    %v_2 = call_complex nested: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex paired: Int
-    %v_5 = add %v_3, %v_4: Int
-    ret %v_5
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, 3, 1
+    %a = call_complex tagOf, %v_1: Int
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
+    %b = call_complex tagOf, %v_2: Int
+    %v_3 = alloca 1, 1: Ptr
+    store %v_3, 2, 1
+    %c = call_complex tagOf, %v_3: Int
+    %v_4 = imul %b, 10: Int
+    %v_5 = add %a, %v_4: Int
+    %v_6 = imul %c, 100: Int
+    %v_7 = add %v_5, %v_6: Int
+    %v_8 = alloca 1, 1: Ptr
+    store %v_8, 4, 1
+    %outer = call_complex depthOf, %v_8: Int
+    %v_9 = alloca 1, 1: Ptr
+    store %v_9, 3, 1
+    %middle = call_complex depthOf, %v_9: Int
+    %v_10 = alloca 1, 1: Ptr
+    store %v_10, 1, 1
+    %inner = call_complex depthOf, %v_10: Int
+    %v_11 = add %outer, %middle: Int
+    %v_12 = add %v_11, %inner: Int
+    %v_13 = add %v_7, %v_12: Int
+    %v_14 = alloca 2, 1: Ptr
+    store %v_14, 2, 1
+    %v_15 = add %v_14, 1: Ptr
+    store %v_15, 3, 1
+    %v_16 = call_complex pairValue, %v_14: Int
+    %v_17 = add %v_13, %v_16: Int
+    ret %v_17
   }
 }
 

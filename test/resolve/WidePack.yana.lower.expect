@@ -348,70 +348,55 @@ main<complex>(): Int {
     %v_66 = cast %v_65: Int
     %v_67 = call_complex check, %v_66, 5, 128: Int
     %v_68 = add %v_61, %v_67: Int
-    %v_69 = alloca 8, 8: Ptr
-    call_complex tagged, %v_69
-    %v_70 = load %v_69, 8: Long
-    %v_71 = shl %v_70, 24: Long
-    %v_72 = sar %v_71, 24: Long
-    %v_73 = sext %v_72: Long
-    %v_74 = cast %v_73: Long
-    %v_75 = call_complex checkW, %v_74, 549755813887, 256: Int
-    %v_76 = add %v_68, %v_75: Int
-    %v_77 = alloca 8, 8: Ptr
-    call_complex tagged, %v_77
-    %v_78 = load %v_77, 8: Long
-    %v_79 = shr %v_78, 40: Long
-    %v_80 = and %v_79, 15: Long
-    %v_81 = cast %v_80: Int
-    %v_82 = cast %v_81: Int
-    %v_83 = call_complex check, %v_82, 9, 512: Int
-    %v_84 = add %v_76, %v_83: Int
-    %v_85 = alloca 8, 8: Ptr
-    call_complex retagged, %v_85
-    %v_86 = load %v_85, 8: Long
-    %v_87 = shl %v_86, 24: Long
-    %v_88 = sar %v_87, 24: Long
-    %v_89 = sext %v_88: Long
-    %v_90 = cast %v_89: Long
-    %v_91 = call_complex checkW, %v_90, 18446744073709551614, 1024: Int
-    %v_92 = add %v_84, %v_91: Int
-    %v_93 = alloca 8, 8: Ptr
-    call_complex retagged, %v_93
-    %v_94 = load %v_93, 8: Long
-    %v_95 = shr %v_94, 40: Long
-    %v_96 = and %v_95, 15: Long
-    %v_97 = cast %v_96: Int
-    %v_98 = cast %v_97: Int
-    %v_99 = call_complex check, %v_98, 9, 2048: Int
-    %v_100 = add %v_92, %v_99: Int
-    %v_101 = alloca 8, 4: Ptr
-    call_complex boxed, %v_101
-    %v_102 = add %v_101, 4: Ptr
-    %v_103 = load %v_102, 4: Int
-    %v_104 = shr %v_103, 20: Int
-    %v_105 = and %v_104, 4095: Int
-    %v_106 = cast %v_105: Int
-    %v_107 = call_complex check, %v_106, 0, 4096: Int
-    %v_108 = add %v_100, %v_107: Int
-    %v_109 = alloca 8, 8: Ptr
-    call_complex stored, %v_109, 549755813887
-    %v_110 = load %v_109, 8: Long
-    %v_111 = shl %v_110, 24: Long
-    %v_112 = sar %v_111, 24: Long
-    %v_113 = sext %v_112: Long
-    %v_114 = cast %v_113: Long
-    %v_115 = call_complex checkW, %v_114, 549755813887, 8192: Int
-    %v_116 = add %v_108, %v_115: Int
-    %v_117 = alloca 8, 8: Ptr
-    call_complex stored, %v_117, 18446743523953737728
-    %v_118 = load %v_117, 8: Long
-    %v_119 = shl %v_118, 24: Long
-    %v_120 = sar %v_119, 24: Long
-    %v_121 = sext %v_120: Long
-    %v_122 = cast %v_121: Long
-    %v_123 = call_complex checkW, %v_122, 18446743523953737728, 16384: Int
-    %v_124 = add %v_116, %v_123: Int
-    ret %v_124
+    %v_69 = call_complex checkW, 549755813887, 549755813887, 256: Int
+    %v_70 = add %v_68, %v_69: Int
+    %v_71 = call_complex check, 9, 9, 512: Int
+    %v_72 = add %v_70, %v_71: Int
+    %v_73 = alloca 8, 8: Ptr
+    call_complex retagged, %v_73
+    %v_74 = load %v_73, 8: Long
+    %v_75 = shl %v_74, 24: Long
+    %v_76 = sar %v_75, 24: Long
+    %v_77 = sext %v_76: Long
+    %v_78 = cast %v_77: Long
+    %v_79 = call_complex checkW, %v_78, 18446744073709551614, 1024: Int
+    %v_80 = add %v_72, %v_79: Int
+    %v_81 = alloca 8, 8: Ptr
+    call_complex retagged, %v_81
+    %v_82 = load %v_81, 8: Long
+    %v_83 = shr %v_82, 40: Long
+    %v_84 = and %v_83, 15: Long
+    %v_85 = cast %v_84: Int
+    %v_86 = cast %v_85: Int
+    %v_87 = call_complex check, %v_86, 9, 2048: Int
+    %v_88 = add %v_80, %v_87: Int
+    %v_89 = alloca 8, 4: Ptr
+    call_complex boxed, %v_89
+    %v_90 = add %v_89, 4: Ptr
+    %v_91 = load %v_90, 4: Int
+    %v_92 = shr %v_91, 20: Int
+    %v_93 = and %v_92, 4095: Int
+    %v_94 = call_complex check, %v_93, 0, 4096: Int
+    %v_95 = add %v_88, %v_94: Int
+    %v_96 = alloca 8, 8: Ptr
+    call_complex stored, %v_96, 549755813887
+    %v_97 = load %v_96, 8: Long
+    %v_98 = shl %v_97, 24: Long
+    %v_99 = sar %v_98, 24: Long
+    %v_100 = sext %v_99: Long
+    %v_101 = cast %v_100: Long
+    %v_102 = call_complex checkW, %v_101, 549755813887, 8192: Int
+    %v_103 = add %v_95, %v_102: Int
+    %v_104 = alloca 8, 8: Ptr
+    call_complex stored, %v_104, 18446743523953737728
+    %v_105 = load %v_104, 8: Long
+    %v_106 = shl %v_105, 24: Long
+    %v_107 = sar %v_106, 24: Long
+    %v_108 = sext %v_107: Long
+    %v_109 = cast %v_108: Long
+    %v_110 = call_complex checkW, %v_109, 18446743523953737728, 16384: Int
+    %v_111 = add %v_103, %v_110: Int
+    ret %v_111
   }
 }
 

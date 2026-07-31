@@ -34,23 +34,20 @@ doubleSum<complex>(%a: Double, %b: Double): Double {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex both, 1, 0: Int
-    je %v_1, b_2, b_3
+    je 0, b_1, b_2
+  }
+
+  b_1 {
+    jmp b_3
   }
 
   b_2 {
-    jmp b_4
+    jmp b_3
   }
 
   b_3 {
-    %v_5 = call_complex widen, 7: Long
-    %v_6 = cast %v_5: Int
-    jmp b_4
-  }
-
-  b_4 {
-    %v_7 = phi [b_2, 0], [b_3, %v_6]: Int
-    ret %v_7
+    %v_4 = phi [b_1, 0], [b_2, 7]: Int
+    ret %v_4
   }
 }
 

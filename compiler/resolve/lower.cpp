@@ -2973,7 +2973,18 @@ static void lowerTerminator(LowerContext& lower, LowerBlock& block, ModulePtr<In
     result->source = instruction.source;
 }
 
-static void lowerPhi(LowerContext& lower, LowerBlock& block, ModulePtr<InstPhi> pointer) {
+/*
+ * A phi, in the two halves its alternatives force it into.
+ *
+ * `createPhi` builds it detached and registers its result, because an alternative arriving over a
+ * back edge is produced by a block this walk has not reached yet - and `mappedValue` is an assertion
+ * rather than a lazy lookup for everything that is not a constant. Registering the result first is
+ * also what lets the loop body use the phi it is producing an alternative for.
+ *
+ * `fillPhi` runs once the whole function is lowered, and `addInst` is deliberately part of it:
+ * adding an instruction is what records its uses, so the alternatives have to exist by then.
+ */
+static LowerInstPhi* createPhi(LowerContext& lower, ModulePtr<InstPhi> pointer) {
     auto& phi = *lower.local[pointer];
     auto count = phi.inputs.size();
     auto storage = lower.to.arena.alloc(
@@ -2985,6 +2996,14 @@ static void lowerPhi(LowerContext& lower, LowerBlock& block, ModulePtr<InstPhi> 
     result->source = phi.source;
     result->usedCount = count;
 
+    lower.values.add((ModulePtr<Value>)pointer, result->created().ptr - lower.lower);
+    return result;
+}
+
+static void fillPhi(LowerContext& lower, LowerBlock& block, ModulePtr<InstPhi> pointer,
+                    LowerInstPhi* result) {
+    auto& phi = *lower.local[pointer];
+
     Size index = 0;
     for(auto input: phi.inputs.contents(lower.local)) {
         result->used()[index] = mappedValue(lower, input.value);
@@ -2993,7 +3012,6 @@ static void lowerPhi(LowerContext& lower, LowerBlock& block, ModulePtr<InstPhi> 
     }
 
     block.addInst(lower.lower, result);
-    lower.values.add((ModulePtr<Value>)pointer, result->created().ptr - lower.lower);
 }
 
 // Lowering covers the whole program: a call from the root module into Core has to reach a
@@ -3230,13 +3248,18 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         lower.constantBlock = lower.lower[lower.blocks.getValue(function->blocks.get(lower.local, 0)).unwrap()];
         prepareScalars(lower, functionPointer, *function);
 
+        // Every phi in the function before any of them is filled in, so that an alternative coming
+        // back around a loop is a value this walk has already heard of by the time it is asked for.
+        Array<LowerInstPhi*> phis;
+        for(auto blockPointer: function->blocks.contents(lower.local)) {
+            for(auto phi: lower.local[blockPointer]->phis.contents(lower.local)) {
+                phis.push(createPhi(lower, phi));
+            }
+        }
+
         for(auto blockPointer: function->blocks.contents(lower.local)) {
             auto sourceBlock = lower.local[blockPointer];
             auto targetBlock = lower.lower[lower.blocks.getValue(blockPointer).unwrap()];
-
-            for(auto phi: sourceBlock->phis.contents(lower.local)) {
-                lowerPhi(lower, *targetBlock, phi);
-            }
 
             for(auto instruction: sourceBlock->instructions.contents(lower.local)) {
                 lowerInstruction(lower, *targetBlock, instruction);
@@ -3244,6 +3267,15 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
 
             if(sourceBlock->terminator) {
                 lowerTerminator(lower, *targetBlock, sourceBlock->terminator);
+            }
+        }
+
+        Size phiIndex = 0;
+        for(auto blockPointer: function->blocks.contents(lower.local)) {
+            auto targetBlock = lower.lower[lower.blocks.getValue(blockPointer).unwrap()];
+
+            for(auto phi: lower.local[blockPointer]->phis.contents(lower.local)) {
+                fillPhi(lower, *targetBlock, phi, phis[phiIndex++]);
             }
         }
 

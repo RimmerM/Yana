@@ -7,7 +7,7 @@ Describe(Metres).size<complex>(%value$value: Int): Int {
 
 sameMetres<complex>(%a: Int, %b: Int): Int {
   b_0 {
-    %v_1 = call_complex Eq(Metres).==, %a, %b: Int
+    %v_1 = cmp_eq %a, %b: Int
     je %v_1, b_2, b_3
   }
 
@@ -35,25 +35,19 @@ Describe(Feet).doubled<complex>(%v_0: Ptr, %value$value: Int) {
 
 feetSize<complex>(): Int {
   b_0 {
-    %v_1 = call_complex Describe(Feet).size, 5: Int
-    ret %v_1
+    ret 5
   }
 }
 
 metreSize<complex>(): Int {
   b_0 {
-    %v_1 = call_complex Describe(Metres).size, 7: Int
-    ret %v_1
+    ret 7
   }
 }
 
 doubledMetres<complex>(): Int {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    call_complex Describe(Metres).doubled, %v_1, 3
-    %value$value = loads %v_1, 4: Int
-    %v_2 = call_complex Describe(Metres).size, %value$value: Int
-    ret %v_2
+    ret 6
   }
 }
 
@@ -87,16 +81,11 @@ Describe(Metres).doubled<complex>(%v_0: Ptr, %value$value: Int) {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex metreSize: Int
-    %v_2 = call_complex feetSize: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex doubledMetres: Int
-    %v_5 = add %v_3, %v_4: Int
-    %v_6 = call_complex sameMetres, 4, 4: Int
-    %v_7 = add %v_5, %v_6: Int
-    %v_8 = call_complex sameMetres, 4, 5: Int
-    %v_9 = add %v_7, %v_8: Int
-    ret %v_9
+    %v_1 = call_complex sameMetres, 4, 4: Int
+    %v_2 = add %v_1, 18: Int
+    %v_3 = call_complex sameMetres, 4, 5: Int
+    %v_4 = add %v_2, %v_3: Int
+    ret %v_4
   }
 }
 

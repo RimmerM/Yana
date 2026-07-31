@@ -106,6 +106,7 @@ set(RESOLVE_SOURCE_FILES
     opt/opt_loop.cpp
     opt/opt_pack.cpp
     opt/opt_place.cpp
+    opt/opt_promote.cpp
     opt/opt_scalar.cpp
     opt/opt_value.cpp
 )

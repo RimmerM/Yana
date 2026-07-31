@@ -1,0 +1,124 @@
+{-
+   Cross-block place forwarding: a field read in one block answered by the write in another.
+
+   What every function here is really asserting is a *disappearance*. The reads go away in
+   opt_promote.cpp and then the record goes away in opt_scalar.cpp, so what `.opt.expect` should show
+   is an `alloc` that is not there and arithmetic over values that were never in storage - and
+   `.js.expect` beside it is where that is easiest to read, since a record on that target is an object
+   literal and its absence is unmistakable.
+
+   The numbers are asserted on both targets and against the unoptimized build because the ways this
+   goes wrong are ways that change one: a phi taking its alternative from the wrong edge, a read
+   answered by a write that does not reach it, a field whose value came from its neighbour.
+-}
+
+data Point {x: Int, y: Int}
+data Outer {inner: Point, tag: Int}
+
+fn widen(&p: Point) -> {}:
+    p.x = p.x + 1
+
+-- The plain case, and the one inlining leaves behind everywhere: a record built in one block and
+-- read in another. Nothing merges - the construction dominates both reads - so no phi survives and
+-- the whole record is arithmetic on `a`.
+fn branched(a: Int) -> Int:
+    let p = Point {x: a, y: a + 1}
+
+    if a > 0:
+        return p.x + p.y
+
+    return p.y
+
+-- A field written on one path and not the other, which is the case a phi exists for. `p.y` becomes
+-- a real merge of 30 and 2; `p.x` is written once above both arms and stays a value.
+fn partial(a: Int) -> Int:
+    let &p = Point {x: 1, y: 2}
+
+    if a > 0:
+        p.y = 30
+
+    return p.x + p.y
+
+-- Two merges of the same field in a row, which is what makes the phis a chain rather than a case:
+-- the second one's incoming value is the first one's result on one edge and its own write on the
+-- other. `p.y` is untouched throughout and has to survive as the constant it was given.
+fn merged(a: Int) -> Int:
+    let &p = Point {x: 0, y: 7}
+
+    if a > 0:
+        p.x = 10
+
+    if a > 5:
+        p.x = 20
+
+    return p.x + p.y
+
+{-
+   A record written before a loop and only read inside it.
+
+   This is the assertion behind `computeAvailability` solving from the optimistic end. Whether `p.x`
+   is available at the loop header depends on the back edge, and the back edge's answer depends on
+   the header - so from the pessimistic end that circle has nothing to break it and the answer
+   converges to "unwritten" for a field the loop merely reads, which is exactly the shape an inlined
+   constructor in front of a loop produces. Nothing here should be left in storage, and `p.x * p.y`
+   should be one constant.
+-}
+fn invariant(count: Int) -> Int:
+    let p = Point {x: 3, y: 4}
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < count:
+        total = total + p.x * p.y
+        i = i + 1
+
+    return total
+
+-- A field the loop writes, which is the phi the header carries around the back edge. `acc.y` is
+-- invariant and shares the record with it, so the two have to be told apart by their paths rather
+-- than by the local they are in.
+fn carried(count: Int) -> Int:
+    let &acc = Point {x: 0, y: 5}
+    let &i = 0 :: Int
+
+    while i < count:
+        acc.x = acc.x + acc.y
+        i = i + 1
+
+    return acc.x
+
+-- A nested record, read through in another block. The inner record is written into the outer one
+-- *whole*, so there is no field write to forward from until `splitAggregateWrite` has turned that
+-- into one write per field of the inner record - which it will only do because the outer local is
+-- contained and can therefore still disappear. Both records go, not just the outer one.
+fn nested(a: Int) -> Int:
+    let o = Outer {inner: Point {x: a, y: a + 1}, tag: 5}
+
+    if a > 0:
+        return o.inner.x + o.inner.y + o.tag
+
+    return o.tag
+
+-- The decline. `p` is borrowed mutably into a call, so its address left this frame and containment
+-- refuses it - which takes the whole local out of the pass, `p.y` included, even though nothing can
+-- have written that. Flow-insensitive on purpose: a local borrowed anywhere is reachable everywhere.
+fn escaped(a: Int) -> Int:
+    let &p = Point {x: a, y: 1}
+
+    if a > 0:
+        widen(p)
+
+    return p.x + p.y
+
+{-
+   What is deliberately *not* promoted: `total` and `i` above.
+
+   Both are whole locals of scalar type, and a place with no projections is declined - see
+   `collectCandidates`. Neither target keeps one in memory to begin with, so the only thing promoting
+   it would change is the shape of the emitted code, and on JS it changes it for the worse: a phi
+   there is a fresh variable plus a copy on every edge, where the local was one `var` updated in
+   place. The loops above are where that shows, and they are why the rule is worth having.
+-}
+
+fn main() -> Int =
+    branched(2) + partial(1) + merged(1) + invariant(3) + carried(4) + nested(2) + escaped(5)

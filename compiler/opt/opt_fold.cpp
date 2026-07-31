@@ -10,19 +10,26 @@
  *     narrow value sign-extended (`truncateToWidth`) and an unsigned one masked; JS reads a constant
  *     back by sign-extending from the type's own `bits` (`constantValue`). `narrowToWidth` produces
  *     the one form both of those accept, so a folded constant is not a third opinion about what the
- *     value is.
+ *     value is. `makeFloatConstant` is the same rule for the two floating widths.
  *
- *  2. **Where the targets could disagree about the operation itself, it is not folded.** That is
- *     three cases and they are named at the point they are declined: a `@bits` refinement, whose
+ *  2. **Where the targets could disagree about the operation itself, it is not folded.** Every case
+ *     is named at the point it is declined, and there are now five: a `@bits` refinement, whose
  *     arithmetic width the two spell differently; a shift by a distance the type cannot hold, where
- *     each target masks the count its own way; and `not` on a type narrower than its register,
- *     which native does not wrap and JS does. Each is a case the IR does not currently produce, and
- *     the point of declining rather than choosing is that this pass must not be the thing that
- *     decides which target is right.
+ *     each target masks the count its own way; `not` on a type narrower than its register, which
+ *     native does not wrap and JS does; a float-to-integer conversion of a value the integer type
+ *     cannot hold, where one target produces the integer indefinite value and the other wraps; and a
+ *     conversion with a `Bool` at either end, which on JS is a comparison against zero rather than a
+ *     truncation. The point of declining rather than choosing is that this pass must not be the thing
+ *     that decides which target is right.
  *
  * Division and remainder decline a zero divisor for the ordinary reason - the program is entitled to
  * whatever the machine does with it, and that is not a constant this pass may invent - and signed
  * division declines the one overflowing pair for the same reason.
+ *
+ * The floating side declines one more thing, and for a different reason: a NaN or an infinity is a
+ * value both targets have and *neither emitter can write*, so a fold that produced one would have
+ * nowhere to put it. That is a limit of the notation rather than a disagreement, and it is why
+ * `isFoldableFloat` guards the operands as well as the results.
  */
 
 namespace {
@@ -97,10 +104,38 @@ struct Folder {
         return false;
     }
 
+    // The same six orderings over doubles. IEEE 754 specifies each of them exactly and both targets
+    // use the hardware's, so unlike the integer case there is nothing here about width or sign - and
+    // nothing about NaN either, because a constant that is one is declined before it arrives.
+    bool compareFloat(CompareOp op, F64 lhs, F64 rhs) {
+        switch(op) {
+            case CompareOp::Eq: return lhs == rhs;
+            case CompareOp::Ne: return lhs != rhs;
+            case CompareOp::Gt: return lhs > rhs;
+            case CompareOp::Ge: return lhs >= rhs;
+            case CompareOp::Lt: return lhs < rhs;
+            case CompareOp::Le: return lhs <= rhs;
+        }
+
+        return false;
+    }
+
     // A comparison of two constants. Kept apart from the arithmetic because its *result* type is
     // Bool while everything it decides is a question about the operand type.
     ModulePtr<Value> foldCompare(InstCmp& instruction) {
-        auto facts = foldableInt(opt, opt.local[instruction.lhs]->type);
+        auto operandType = opt.local[instruction.lhs]->type;
+
+        if(foldableFloat(opt, operandType)) {
+            auto left = constantFloatOf(opt, instruction.lhs);
+            auto right = constantFloatOf(opt, instruction.rhs);
+            if(!left || !right) return nullptr;
+            if(!isFoldableFloat(left.unwrap()) || !isFoldableFloat(right.unwrap())) return nullptr;
+
+            auto answer = compareFloat(instruction.cmp, left.unwrap(), right.unwrap());
+            return constant(instruction, instruction.type, answer ? 1 : 0);
+        }
+
+        auto facts = foldableInt(opt, operandType);
         if(!facts) return nullptr;
 
         U64 lhs, rhs;
@@ -376,6 +411,186 @@ struct Folder {
         return true;
     }
 
+    /*
+     * A conversion with a floating type at one end or both.
+     *
+     * Three of the four directions need nothing said about them. Widening an integer, narrowing a
+     * double to a float and widening a float to a double are all exactly specified, both targets
+     * round to nearest, and the host does the same - so the fold is the C++ conversion and the
+     * result is stored at the target's width by `makeFloatConstant`.
+     *
+     * **Float to integer is the one that has to be bounded**, and it is the case Rule 2 of this file
+     * exists for. Both targets truncate toward zero, and both do something *different* with a value
+     * the integer type cannot hold: `cvttsd2si` produces the integer indefinite value, while JS
+     * emits `Math.trunc(v)` followed by the coercion the type needs, which is modular. So the fold
+     * is offered only where the truncated value fits, which is the range on which the two agree -
+     * the same shape as declining the one signed division whose quotient does not fit.
+     *
+     * `Bool` is excluded at both ends. A conversion *to* one is not a truncation on JS at all - it
+     * is `value !== 0`, so `2.5` becomes `true` where truncating to one bit would give `0` - and
+     * that is a disagreement about what the language means rather than about arithmetic, which this
+     * pass may not settle. Nothing produces such a conversion today; declining it costs a test.
+     */
+    ModulePtr<Value> foldNumericCast(InstUnary& instruction) {
+        auto sourceType = opt.local[instruction.from]->type;
+        auto fromFloat = foldableFloat(opt, sourceType);
+        auto toFloat = foldableFloat(opt, instruction.type);
+
+        if(!fromFloat && !toFloat) return nullptr;
+        if(sourceType == opt.program.scalar.bool_) return nullptr;
+        if(instruction.type == opt.program.scalar.bool_) return nullptr;
+
+        if(toFloat) {
+            if(auto source = constantFloatOf(opt, instruction.from)) {
+                if(!isFoldableFloat(source.unwrap())) return nullptr;
+                return makeFloatConstant(opt, instruction, instruction.type, source.unwrap());
+            }
+
+            // An integer source, read at its own width and sign - which is what decides whether the
+            // bits `constantValueOf` handed back denote a negative number.
+            auto facts = foldableInt(opt, sourceType);
+            if(!facts) return nullptr;
+
+            auto source = constantValueOf(opt, instruction.from);
+            if(!source) return nullptr;
+
+            auto value = facts.unwrap().isSigned ? F64(I64(source.unwrap())) : F64(source.unwrap());
+            return makeFloatConstant(opt, instruction, instruction.type, value);
+        }
+
+        auto facts = foldableInt(opt, instruction.type);
+        if(!facts) return nullptr;
+
+        auto source = constantFloatOf(opt, instruction.from);
+        if(!source || !isFoldableFloat(source.unwrap())) return nullptr;
+
+        /*
+         * In range for an `I64` first, so that the truncation itself is defined - and then in range
+         * for the type actually being converted to. Two steps rather than one because the bound for
+         * the second is an integer bound, and comparing a double against `2^63 - 1` is comparing it
+         * against `2^63`, which is a different question.
+         */
+        constexpr F64 kTwoPow63 = 9223372036854775808.0;
+        auto value = source.unwrap();
+        if(value < -kTwoPow63 || value >= kTwoPow63) return nullptr;
+
+        auto truncated = I64(value);
+        auto bits = facts.unwrap().bits;
+
+        if(facts.unwrap().isSigned) {
+            if(bits < 64) {
+                auto limit = I64(1) << (bits - 1);
+                if(truncated < -limit || truncated >= limit) return nullptr;
+            }
+        } else {
+            if(truncated < 0) return nullptr;
+            if(bits < 64 && U64(truncated) >= (U64(1) << bits)) return nullptr;
+        }
+
+        return constant(instruction, instruction.type, narrowToWidth(U64(truncated), facts.unwrap()));
+    }
+
+    /*
+     * Floating arithmetic over two constants.
+     *
+     * IEEE 754 specifies add, subtract, multiply and divide exactly, and both targets use the
+     * hardware's. `Double` is therefore the host's own `double` and there is nothing to say.
+     *
+     * `Float` is worth one sentence, because the two targets reach it differently and still agree:
+     * natively it is a single-precision instruction, while `codegen/js` computes in a double and
+     * rounds with `Math.fround`. Rounding a double result to single is the same value as computing
+     * in single throughout - for one operation, and because a double keeps 53 bits where twice a
+     * float's 24 plus two is 50 - so the two are the same number and the host's `float` arithmetic
+     * is a third spelling of it.
+     *
+     * A non-finite result is declined rather than folded: dividing by zero is the way to reach one,
+     * and neither emitter has a literal for an infinity or a NaN. `Rem` is left alone entirely,
+     * since what it means for floats is not a question this needs to have an opinion about.
+     */
+    // Whether one operand is exactly this value, for the two identities below.
+    bool isFloatValue(ModulePtr<Value> value, F64 wanted) {
+        auto found = constantFloatOf(opt, value);
+        return found && found.unwrap() == wanted;
+    }
+
+    ModulePtr<Value> foldFloatBinary(InstBinary& instruction) {
+        auto left = constantFloatOf(opt, instruction.lhs);
+        auto right = constantFloatOf(opt, instruction.rhs);
+
+        /*
+         * The two identities floating arithmetic actually has, and the reason the list is this short.
+         *
+         * `x * 1` and `x / 1` return their operand unchanged for *every* value: a NaN stays that NaN,
+         * an infinity keeps its sign, and `-0` stays negative. That is what an identity has to mean
+         * here, because the operand is a value this pass knows nothing about.
+         *
+         * The ones an integer reader would expect next are all wrong, and are worth naming so that
+         * nobody adds them later. `x + 0` is not `x`, because `-0 + 0` is `+0`. `x * 0` is not `0`,
+         * because `NaN * 0` is `NaN` and `-1 * 0` is `-0`. `x - x` is not `0`, because an infinity
+         * minus itself is `NaN`. Each of those is an identity over the reals and none of them is one
+         * over IEEE 754, which is what the type actually is.
+         */
+        if(!left || !right) {
+            if(isFloatValue(instruction.rhs, 1.0)) {
+                if(instruction.kind == Value::Mul || instruction.kind == Value::Div) {
+                    return instruction.lhs;
+                }
+            }
+
+            if(instruction.kind == Value::Mul && isFloatValue(instruction.lhs, 1.0)) {
+                return instruction.rhs;
+            }
+
+            return nullptr;
+        }
+
+        if(!isFoldableFloat(left.unwrap()) || !isFoldableFloat(right.unwrap())) return nullptr;
+
+        auto lhs = left.unwrap(), rhs = right.unwrap();
+        F64 result;
+
+        switch(instruction.kind) {
+            case Value::Add: result = lhs + rhs; break;
+            case Value::Sub: result = lhs - rhs; break;
+            case Value::Mul: result = lhs * rhs; break;
+            case Value::Div:
+                if(rhs == 0.0) return nullptr;
+                result = lhs / rhs;
+                break;
+            default:
+                return nullptr;
+        }
+
+        if(!isFoldableFloat(result)) return nullptr;
+        return makeFloatConstant(opt, instruction, instruction.type, result);
+    }
+
+    /*
+     * Everything this pass does with a floating *result*, which is what the integer path below can
+     * say nothing about: `foldableInt` declines the type outright and stops the walk.
+     *
+     * Negating zero is declined. `-0.0` is a value both targets have and neither emitter writes -
+     * `number` prints it as `0`, which is a different value the moment anything divides by it - so
+     * this is the one algebraic identity here that is about the *notation* rather than the
+     * arithmetic.
+     */
+    ModulePtr<Value> foldFloat(Value& instruction) {
+        if(!foldableFloat(opt, instruction.type)) return nullptr;
+
+        switch(instruction.kind) {
+            case Value::Neg: {
+                auto source = constantFloatOf(opt, ((InstUnary&)instruction).from);
+                if(!source || !isFoldableFloat(source.unwrap()) || source.unwrap() == 0.0) return nullptr;
+
+                return makeFloatConstant(opt, instruction, instruction.type, -source.unwrap());
+            }
+            case Value::Add: case Value::Sub: case Value::Mul: case Value::Div:
+                return foldFloatBinary((InstBinary&)instruction);
+            default:
+                return nullptr;
+        }
+    }
+
     ModulePtr<Value> fold(ModulePtr<Inst> pointer, Value& instruction) {
         if(instruction.kind == Value::Cmp) return foldCompare((InstCmp&)instruction);
 
@@ -389,8 +604,18 @@ struct Folder {
             auto& cast = (InstUnary&)instruction;
             if(opt.local[cast.from]->type == instruction.type) return cast.from;
 
+            // Before the chain collapse rather than after it, because the two answer different
+            // questions about the same instruction and only one of them can apply: `conversionBits`
+            // declines a float at either end, so a conversion this folds is one that never reaches
+            // the collapse and the other way round.
+            if(auto folded = foldNumericCast(cast)) return folded;
+
             foldCast(pointer, cast);
         }
+
+        // Ahead of the integer gate for the same reason the identity cast is: a floating result has
+        // no `IntFacts` and `foldableInt` would end the walk before the switch is reached.
+        if(auto folded = foldFloat(instruction)) return folded;
 
         auto facts = foldableInt(opt, instruction.type);
         if(!facts) return nullptr;

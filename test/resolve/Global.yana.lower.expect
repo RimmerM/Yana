@@ -28,21 +28,20 @@ integerConstants<complex>(): Long {
 
 floatConstant<complex>(): Long {
   b_0 {
-    %v_1 = cmp_gt 2.5, 2: Int
-    je %v_1, b_2, b_3
+    je 1, b_1, b_2
+  }
+
+  b_1 {
+    jmp b_3
   }
 
   b_2 {
-    jmp b_4
+    jmp b_3
   }
 
   b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_2, 1], [b_3, 0]: Long
-    ret %v_5
+    %v_4 = phi [b_1, 1], [b_2, 0]: Long
+    ret %v_4
   }
 }
 
@@ -78,21 +77,21 @@ pointerConstant<complex>(): Long {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex integerConstants: Long
-    %v_2 = call_complex floatConstant: Long
-    %v_3 = add %v_1, %v_2: Long
-    %v_4 = call_complex pointerConstant: Long
-    %v_5 = add %v_3, %v_4: Long
-    %v_6 = call_complex fromNative: Long
+    %v_1 = call_complex floatConstant: Long
+    %v_2 = add %v_1, 131072: Long
+    %v_3 = call_complex pointerConstant: Long
+    %v_4 = add %v_2, %v_3: Long
+    %v_5 = add %v_4, 131072: Long
+    %v_6 = call_complex addressOfConstant: Long
     %v_7 = add %v_5, %v_6: Long
-    %v_8 = call_complex addressOfConstant: Long
+    %v_8 = call_complex addressOfStorage: Long
     %v_9 = add %v_7, %v_8: Long
-    %v_10 = call_complex addressOfStorage: Long
-    %v_11 = add %v_9, %v_10: Long
-    %v_12 = call_complex mutableGlobal: Long
-    %total = add %v_11, %v_12: Long
-    %v_13 = cast %total: Int
-    ret %v_13
+    %v_10 = loads @counter, 8: Long
+    %v_11 = add %v_10, 5: Long
+    store @counter, %v_11, 8
+    %total = add %v_9, %v_11: Long
+    %v_12 = cast %total: Int
+    ret %v_12
   }
 }
 

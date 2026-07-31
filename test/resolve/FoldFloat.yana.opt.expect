@@ -1,0 +1,101 @@
+fn wideningInt() -> Double {
+  b0:
+    ret 7
+}
+
+fn narrowing() -> Float {
+  b0:
+    ret 2.5
+}
+
+fn widening() -> Double {
+  b0:
+    ret 2.5
+}
+
+fn truncating() -> Int {
+  b0:
+    ret 9
+}
+
+fn truncatingNegative() -> Int {
+  b0:
+    ret -9
+}
+
+fn arithmetic() -> Int {
+  b0:
+    ret 8
+}
+
+fn divided() -> Int {
+  b0:
+    ret 11
+}
+
+fn compared() -> Int {
+  b0:
+    je True, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, 30], [b2, 0] : Int
+    ret %v9
+}
+
+fn outOfRange() -> Int {
+  b0:
+    %v1 = cast 1E30 : Int
+    ret %v1
+}
+
+fn declined() -> Int {
+  b0:
+    %v0 = call outOfRange : Int
+    %v1 = call outOfRange : Int
+    %v2 = cmp_eq %v0, %v1 : Bool
+    je %v2, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, 40], [b2, 0] : Int
+    ret %v8
+}
+
+fn nonFinite() -> Int {
+  b0:
+    %v3 = div 1, 0 : Double
+    %v6 = cmp_gt %v3, 1000000 : Bool
+    je %v6, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = phi [b1, 20], [b2, 0] : Int
+    ret %v12
+}
+
+fn main() -> Int {
+  b0:
+    %v16 = call compared : Int
+    %v17 = add %v16, 30 : Int
+    %v18 = call declined : Int
+    %v19 = add %v17, %v18 : Int
+    %v20 = call nonFinite : Int
+    %v21 = add %v19, %v20 : Int
+    ret %v21
+}

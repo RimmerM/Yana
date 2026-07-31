@@ -15,7 +15,7 @@ function local(value) {
 function choose(a, b) {
   var v8;
   if (a > b) {
-    v8 = add(a, 1);
+    v8 = a + 1 | 0;
   } else {
     v8 = b;
   }
@@ -37,11 +37,10 @@ function classify(value) {
 }
 
 function main() {
-  noop();
   var value = choose(2, 1);
   if (0) {
     return 99;
   } else {
-    return (((Math.imul(value, 2) | 0) + classify(5) | 0) + local(0) | 0) - 2 | 0;
+    return (((Math.imul(value, 2) | 0) + classify(5) | 0) + 2 | 0) - 2 | 0;
   }
 }

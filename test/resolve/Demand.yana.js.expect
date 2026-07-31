@@ -10,23 +10,23 @@ function bump(it) {
 }
 
 function onlyRead() {
-  var p = { x: 1, y: 2 };
-  return read(1, 2) + read(p.x, p.y) | 0;
+  return read(1, 2) + read(1, 2) | 0;
 }
 
 function mutableOnOneArm(flag) {
   var p = { x: 1, y: 2 };
   if (flag) {
-    bump(p);
+    var v10 = p;
+    v10.x = v10.x + 1 | 0;
   }
   return read(p.x, p.y);
 }
 
 function copyIsIndependent() {
-  var source = { x: 1, y: 2 };
   var duplicate = { x: 1, y: 2 };
-  bump(duplicate);
-  return read(source.x, source.y) + read(duplicate.x, duplicate.y) | 0;
+  var v13 = duplicate;
+  v13.x = v13.x + 1 | 0;
+  return read(1, 2) + read(duplicate.x, duplicate.y) | 0;
 }
 
 function addressed() {
@@ -35,5 +35,5 @@ function addressed() {
 }
 
 function main() {
-  return ((onlyRead() + mutableOnOneArm(1) | 0) + copyIsIndependent() | 0) + addressed() | 0;
+  return (((read(1, 2) + read(1, 2) | 0) + mutableOnOneArm(1) | 0) + copyIsIndependent() | 0) + addressed() | 0;
 }

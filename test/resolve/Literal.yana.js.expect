@@ -5,15 +5,15 @@ function incLong() {
 }
 
 function defaulted() {
-  return 7 + (Math.trunc(2.5) | 0) | 0;
+  return 9;
 }
 
 function mixedLiterals() {
-  return Math.fround(1 + 2.5);
+  return 3.5;
 }
 
 function oneMetre() {
-  return FromInt_Metres_fromInt(1n);
+  return { value: 1 };
 }
 
 function measure(distance$value) {
@@ -21,24 +21,20 @@ function measure(distance$value) {
 }
 
 function isFive(distance$value) {
-  var distance = { value: distance$value };
-  var v3 = FromInt_Metres_fromInt(5n);
-  return Eq_Metres_eq_eq(distance.value, v3.value);
+  return distance$value === 5;
 }
 
 function main() {
   var v34;
   var v2 = inc_Int(10);
   var v5 = inc_Float(1.5);
-  var v11 = ((v2 + (Math.trunc(v5) | 0) | 0) + two_Int() | 0) + defaulted() | 0;
-  var v12 = mixedLiterals();
-  var v22 = ((v11 + (Math.trunc(v12) | 0) | 0) + measure(oneMetre().value) | 0) + measure(FromInt_Metres_fromInt(4n).value) | 0;
-  if (isFive(5)) {
+  var v22 = (v2 + (Math.trunc(v5) | 0) | 0) + 19 | 0;
+  if (1) {
     v34 = 1;
   } else {
     v34 = 0;
   }
-  return (v22 + v34 | 0) + (Number(incLong()) | 0) | 0;
+  return (v22 + v34 | 0) + (Number(inc_Long(40n)) | 0) | 0;
 }
 
 function FromInt_Metres_fromInt(value) {

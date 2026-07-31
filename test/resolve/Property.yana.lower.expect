@@ -7,10 +7,9 @@ nameOf(Item)<complex>(%p$name: Int, %p$cost: Int): Int {
 
 labelled(Right)<complex>(%p$tag: Int, %p$name: Int): Int {
   b_0 {
-    %v_1 = call_complex nameOf(Right), %p$tag, %p$name: Int
-    %v_2 = imul %v_1, 100: Int
-    %v_3 = add %v_2, %p$tag: Int
-    ret %v_3
+    %v_1 = imul %p$name, 100: Int
+    %v_2 = add %v_1, %p$tag: Int
+    ret %v_2
   }
 }
 
@@ -28,10 +27,9 @@ nameOf(Right)<complex>(%p$tag: Int, %p$name: Int): Int {
 
 labelled(Left)<complex>(%p$name: Int, %p$tag: Int): Int {
   b_0 {
-    %v_1 = call_complex nameOf(Left), %p$name, %p$tag: Int
-    %v_2 = imul %v_1, 100: Int
-    %v_3 = add %v_2, %p$tag: Int
-    ret %v_3
+    %v_1 = imul %p$name, 100: Int
+    %v_2 = add %v_1, %p$tag: Int
+    ret %v_2
   }
 }
 
@@ -43,16 +41,7 @@ nameOf(Left)<complex>(%p$name: Int, %p$tag: Int): Int {
 
 main<complex>(): Int {
   b_0 {
-    %people = call_complex nameOf(Person), 5, 90: Int
-    %items = call_complex nameOf(Item), 2, 7: Int
-    %left = call_complex labelled(Left), 1, 3: Int
-    %right = call_complex labelled(Right), 4, 6: Int
-    %v_1 = imul %people, 1000: Int
-    %v_2 = imul %items, 100: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = add %v_3, %left: Int
-    %v_5 = add %v_4, %right: Int
-    ret %v_5
+    ret 5907
   }
 }
 

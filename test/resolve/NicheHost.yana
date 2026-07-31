@@ -45,6 +45,15 @@ data Both {left: Maybe(Point), right: Maybe(Int)}
 
 fn pairValue(p: Both) -> Int = pointOr(p.left, 7) * 100 + intOr(p.right, 7)
 
+{-
+   `Just(Point {...})` is also what stops opt_scalar.cpp from splitting a write into a sum's payload.
+
+   The write is `init %m@Just, %point` - a whole `Point` into a downcast - and taking it apart into
+   `%m@Just@Point.x` and `%m@Just@Point.y` is only meaningful if the `Maybe` has storage those fields
+   live in. Here it does not: the fold makes the payload *be* the value, the allocation is `null`, and
+   the fields would be written onto nothing. So a downcast into a sum is left alone whatever the
+   target turns out to do with it - see `splittableDestination`, which this program is the reason for.
+-}
 fn objectFold() -> Int:
     let some = pointOr(Just(Point {x: 3, y: 4}), 9)
     let none = pointOr(Nothing, 9)

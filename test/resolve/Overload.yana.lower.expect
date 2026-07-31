@@ -65,72 +65,59 @@ bothGeneric(Bool)<complex>(%x: Int, %y: Int): Int {
 
 combined<complex>(%a: Int, %b: Int): Int {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
-    call_complex and, %v_1, %a, %b
-    %v_2 = loads %v_1, 4: Int
-    ret %v_2
+    %v_1 = and %a, %b: Int
+    ret %v_1
   }
 }
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex mask, 6, 3: Int
-    %v_2 = call_complex combined, 6, 3: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex maskQualified, 12, 10: Int
-    %v_5 = add %v_3, %v_4: Int
-    %v_6 = call_complex maskGeneric(Int), 5, 4: Int
-    %v_7 = add %v_5, %v_6: Int
-    %v_8 = call_complex negated, 1: Int
-    %v_9 = add %v_8, 10: Int
-    %v_10 = call_complex difference, %v_9, 2: Int
-    %v_11 = add %v_7, %v_10: Int
-    %v_12 = call_complex bothTrue, 1, 0: Int
-    je %v_12, b_13, b_14
+    %v_1 = call_complex maskGeneric(Int), 5, 4: Int
+    %v_2 = add %v_1, 19: Int
+    je 0, b_3, b_4
   }
 
-  b_13 {
-    jmp b_15
+  b_3 {
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_3, 100], [b_4, 0]: Int
+    %v_7 = add %v_2, %v_6: Int
+    je 1, b_8, b_9
+  }
+
+  b_8 {
+    jmp b_10
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = phi [b_8, 1000], [b_9, 0]: Int
+    %v_12 = add %v_7, %v_11: Int
+    %v_13 = call_complex bothGeneric(Bool), 1, 0: Int
+    je %v_13, b_14, b_15
   }
 
   b_14 {
-    jmp b_15
+    jmp b_16
   }
 
   b_15 {
-    %v_16 = phi [b_13, 100], [b_14, 0]: Int
-    %v_17 = add %v_11, %v_16: Int
-    %v_18 = call_complex bothQualified, 1, 1: Int
-    je %v_18, b_19, b_20
+    jmp b_16
   }
 
-  b_19 {
-    jmp b_21
-  }
-
-  b_20 {
-    jmp b_21
-  }
-
-  b_21 {
-    %v_22 = phi [b_19, 1000], [b_20, 0]: Int
-    %v_23 = add %v_17, %v_22: Int
-    %v_24 = call_complex bothGeneric(Bool), 1, 0: Int
-    je %v_24, b_25, b_26
-  }
-
-  b_25 {
-    jmp b_27
-  }
-
-  b_26 {
-    jmp b_27
-  }
-
-  b_27 {
-    %v_28 = phi [b_25, 10000], [b_26, 0]: Int
-    %v_29 = add %v_23, %v_28: Int
-    ret %v_29
+  b_16 {
+    %v_17 = phi [b_14, 10000], [b_15, 0]: Int
+    %v_18 = add %v_12, %v_17: Int
+    ret %v_18
   }
 }
 

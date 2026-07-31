@@ -37,7 +37,6 @@ main<complex>(): Int {
     %wrapped = alloca 8, 8: Ptr
     store %wrapped, 7, 8
     %v_1 = call_complex useWrapped, %wrapped: Long
-    %widened = cast %v_1: Long
     %v_2 = call_complex useFlags, %flags: Int
     je %v_2, b_3, b_4
   }
@@ -52,7 +51,7 @@ main<complex>(): Int {
 
   b_5 {
     %v_6 = phi [b_3, 1], [b_4, 0]: Int
-    %v_7 = cast %widened: Int
+    %v_7 = cast %v_1: Int
     %v_8 = add %v_6, %v_7: Int
     ret %v_8
   }

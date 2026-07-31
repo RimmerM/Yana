@@ -171,46 +171,36 @@ makePair<complex>(%v_0: Ptr) {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    call_complex makePair, %v_1
-    %pair$x = loads %v_1, 4: Int
+    %v_1 = alloca 12, 4: Ptr
+    store %v_1, 0, 4
     %v_2 = add %v_1, 4: Ptr
-    %pair$y = loads %v_2, 4: Int
-    %v_3 = call_complex sum, %pair$x, %pair$y: Int
-    %v_4 = alloca 12, 4: Ptr
-    store %v_4, 0, 4
-    %v_5 = add %v_4, 4: Ptr
-    store %v_5, 4, 4
-    %v_6 = call_complex choiceValue, %v_4: Int
-    %v_7 = add %v_3, %v_6: Int
-    %v_8 = alloca 12, 4: Ptr
-    store %v_8, 1, 4
-    %v_9 = add %v_8, 4: Ptr
-    store %v_9, 2, 4
-    %v_10 = add %v_8, 8: Ptr
-    store %v_10, 3, 4
-    %v_11 = call_complex choiceValue, %v_8: Int
-    %v_12 = add %v_7, %v_11: Int
-    %v_13 = call_complex classify, 7: Int
+    store %v_2, 4, 4
+    %v_3 = call_complex choiceValue, %v_1: Int
+    %v_4 = add %v_3, 5: Int
+    %v_5 = alloca 12, 4: Ptr
+    store %v_5, 1, 4
+    %v_6 = add %v_5, 4: Ptr
+    store %v_6, 2, 4
+    %v_7 = add %v_5, 8: Ptr
+    store %v_7, 3, 4
+    %v_8 = call_complex choiceValue, %v_5: Int
+    %v_9 = add %v_4, %v_8: Int
+    %v_10 = call_complex classify, 7: Int
+    %v_11 = add %v_9, %v_10: Int
+    %v_12 = add %v_11, 15: Int
+    %v_13 = call_complex boolValue, 0: Int
     %v_14 = add %v_12, %v_13: Int
-    %v_15 = call_complex tupleValue, 4, 5: Int
+    %v_15 = call_complex directionValue, 1: Int
     %v_16 = add %v_14, %v_15: Int
-    %v_17 = call_complex forwardRecord: Int
-    %v_18 = add %v_16, %v_17: Int
-    %v_19 = call_complex boolValue, 0: Int
-    %v_20 = add %v_18, %v_19: Int
-    %v_21 = call_complex directionValue, 1: Int
-    %v_22 = add %v_20, %v_21: Int
-    %v_23 = alloca 8, 4: Ptr
-    call_complex selectedPair, %v_23, 1
-    %pair$x = loads %v_23, 4: Int
-    %v_24 = add %v_23, 4: Ptr
-    %pair$y = loads %v_24, 4: Int
-    %v_25 = call_complex sum, %pair$x, %pair$y: Int
-    %v_26 = add %v_22, %v_25: Int
-    %v_27 = call_complex <+>, 1, 2: Int
-    %v_28 = add %v_26, %v_27: Int
-    ret %v_28
+    %v_17 = alloca 8, 4: Ptr
+    call_complex selectedPair, %v_17, 1
+    %pair$x = loads %v_17, 4: Int
+    %v_18 = add %v_17, 4: Ptr
+    %pair$y = loads %v_18, 4: Int
+    %v_19 = add %pair$x, %pair$y: Int
+    %v_20 = add %v_16, %v_19: Int
+    %v_21 = add %v_20, 3: Int
+    ret %v_21
   }
 }
 

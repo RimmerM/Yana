@@ -40,14 +40,27 @@ function copyThroughBorrow(target, amount) {
 
 function main() {
   var total = { $v: 0 };
-  bump(total, 5);
+  var v5 = total;
+  v5.$v = v5.$v + 5 | 0;
   add_eq_Int(total, 3);
   mul_eq_Int(total, 2);
   var left = { $v: 1 };
   var right = { $v: 2 };
-  swap(left, right);
+  var v25 = left;
+  var v26 = right;
+  var old = v25.$v;
+  v25.$v = v26.$v;
+  v26.$v = old;
   var here = { x: 10, y: 20 };
-  moveBy(here, 1, 2);
-  copyThroughBorrow(total, total.$v);
+  var v38 = here;
+  var v65 = { $v: v38.x };
+  add_eq_Int(v65, 1);
+  v38.x = v65.$v;
+  var v69 = { $v: v38.y };
+  add_eq_Int(v69, 2);
+  v38.y = v69.$v;
+  var v40 = total.$v;
+  var v42 = total;
+  v42.$v = v42.$v + v40 | 0;
   return ((total.$v + (left.$v - right.$v | 0) | 0) + here.x | 0) + here.y | 0;
 }

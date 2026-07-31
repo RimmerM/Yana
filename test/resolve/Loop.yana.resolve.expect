@@ -6,6 +6,14 @@ fn origin() -> Point {
     ret %v0
 }
 
+fn madePoint() -> Point {
+  b0:
+    %v0 = alloc : Point
+    init %local0@Point.x, 3
+    init %local0@Point.y, 4
+    ret %v0
+}
+
 fn bump(%n: Int) -> () {
   b0:
     %v1 = load %n : Int
@@ -214,7 +222,7 @@ fn withCall(%seed: Int, %count: Int) -> Int {
 
 fn fromCall(%count: Int) -> Int {
   b0:
-    %q = call origin : Point
+    %q = call madePoint : Point
     %seen = alloc : Int
     init %seen, 0
     %i = alloc : Int

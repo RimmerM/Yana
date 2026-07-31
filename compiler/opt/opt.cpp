@@ -92,6 +92,12 @@ void runRounds(OptContext& opt) {
         forwardPlaces(opt);
         scalarizeLocals(opt);
 
+        // After the scalarizer rather than before it: what promotion has to work on is one place per
+        // field, and a record written whole is one place until `splitAggregateWrite` has taken it
+        // apart. The removal that pays for this is the *next* round's - promotion leaves a local
+        // whose whole use list is writes, which is the state `eliminateDeadLocal` removes it in.
+        promotePlaces(opt);
+
         // After forwarding rather than before it: a read the block-local pass already answered is
         // not a candidate, and one it could not answer is exactly what a loop keeps re-doing. Ahead
         // of CSE for the same reason in the other direction - two hoisted copies of one computation
@@ -251,6 +257,36 @@ Maybe<U64> constantValueOf(OptContext& opt, ModulePtr<Value> value) {
     if(!facts) return Nothing();
 
     return Just(narrowToWidth(((ConstInt*)constant)->value, facts.unwrap()));
+}
+
+Maybe<FloatType::Width> foldableFloat(OptContext& opt, TypePtr type) {
+    if(!type || opt.global[type]->kind != Type::Float) return Nothing();
+    return Just(((FloatType*)opt.global[type])->width);
+}
+
+Maybe<F64> constantFloatOf(OptContext& opt, ModulePtr<Value> value) {
+    if(!value) return Nothing();
+
+    auto constant = opt.local[value];
+    if(constant->kind == Value::ConstFloat) return Just(F64(((ConstFloat*)constant)->value));
+    if(constant->kind == Value::ConstDouble) return Just(((ConstDouble*)constant)->value);
+
+    return Nothing();
+}
+
+ModulePtr<Value> makeFloatConstant(OptContext& opt, Value& at, TypePtr type, F64 value) {
+    auto width = foldableFloat(opt, type);
+    assertTrue(width.isJust());
+
+    auto block = opt.local[at.block];
+
+    // The narrowing is the conversion, so it happens here rather than being left to whoever reads
+    // the constant back: a `Float` holds an `F32` and `1.1` is not one of them.
+    Value* constant = width.unwrap() == FloatType::Float
+        ? (Value*)addConstant<ConstFloat>(*opt.module, *opt.function, *block, at.source, type, F32(value))
+        : (Value*)addConstant<ConstDouble>(*opt.module, *opt.function, *block, at.source, type, value);
+
+    return (ModulePtr<Value>)(constant - opt.local);
 }
 
 void insertInstructions(OptContext& opt, Block& block, Size index, Array<Inst*>& instructions) {

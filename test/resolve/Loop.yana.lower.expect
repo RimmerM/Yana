@@ -12,11 +12,8 @@ origin<complex>(%v_0: Ptr) {
 
 withCall<complex>(%seed: Int, %count: Int): Int {
   b_0 {
-    %q = alloca 8, 4: Ptr
     %v_1 = add %seed, 1: Int
-    store %q, %seed, 4
-    %v_2 = add %q, 4: Ptr
-    store %v_2, %v_1, 4
+    %v_2 = imul %seed, %v_1: Int
     jmp b_3
   }
 
@@ -33,11 +30,7 @@ withCall<complex>(%seed: Int, %count: Int): Int {
 
   b_5 {
     %v_11 = add %v_4, 1: Int
-    %v_12 = loads %q, 4: Int
-    %v_13 = add %q, 4: Ptr
-    %v_14 = loads %v_13, 4: Int
-    %v_15 = imul %v_12, %v_14: Int
-    %v_6 = add %v_11, %v_15: Int
+    %v_6 = add %v_11, %v_2: Int
     %v_8 = add %v_7, 1: Int
     jmp b_3
   }
@@ -63,6 +56,17 @@ straight<complex>(%count: Int): Int {
     %v_4 = add %v_2, 12: Int
     %v_6 = add %v_5, 1: Int
     jmp b_1
+  }
+}
+
+madePoint<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 3, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, 4, 4
+    copy %v_0, %v_2, 8
+    ret 
   }
 }
 
@@ -114,31 +118,24 @@ nested<complex>(%rows: Int, %columns: Int): Int {
 
 written<complex>(%count: Int): Int {
   b_0 {
-    %acc = alloca 8, 4: Ptr
-    store %acc, 3, 4
-    %v_1 = add %acc, 4: Ptr
-    %v_2 = imm 4: Int
-    store %v_1, %v_2, 4
-    jmp b_3
+    jmp b_1
   }
 
-  b_3 {
-    %v_4 = phi [b_0, 0], [b_5, %v_6]: Int
-    %v_7 = cmp_ilt %v_4, %count: Int
-    je %v_7, b_5, b_8
+  b_1 {
+    %v_2 = phi [b_0, 3], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = cmp_ilt %v_5, %count: Int
+    je %v_7, b_3, b_8
   }
 
   b_8 {
-    %v_9 = loads %acc, 4: Int
-    ret %v_9
+    ret %v_2
   }
 
-  b_5 {
-    %v_10 = loads %acc, 4: Int
-    %v_11 = add %v_10, %v_2: Int
-    store %acc, %v_11, 4
-    %v_6 = add %v_4, 1: Int
-    jmp b_3
+  b_3 {
+    %v_4 = add %v_2, 4: Int
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
   }
 }
 
@@ -259,33 +256,31 @@ conditional<complex>(%count: Int): Int {
 
 fromCall<complex>(%count: Int): Int {
   b_0 {
-    %v_1 = alloca 8, 4: Ptr
-    store %v_1, 3, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 4, 4
-    jmp b_3
+    %q = alloca 8, 4: Ptr
+    call_complex madePoint, %q
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = cmp_ilt %v_5, %count: Int
+    je %v_7, b_3, b_8
+  }
+
+  b_8 {
+    ret %v_2
   }
 
   b_3 {
-    %v_4 = phi [b_0, 0], [b_5, %v_6]: Int
-    %v_7 = phi [b_0, 0], [b_5, %v_8]: Int
-    %v_9 = cmp_ilt %v_7, %count: Int
-    je %v_9, b_5, b_10
-  }
-
-  b_10 {
-    ret %v_4
-  }
-
-  b_5 {
-    %v_11 = add %v_4, 1: Int
-    %v_12 = loads %v_1, 4: Int
-    %v_13 = add %v_1, 4: Ptr
-    %v_14 = loads %v_13, 4: Int
-    %v_15 = imul %v_12, %v_14: Int
-    %v_6 = add %v_11, %v_15: Int
-    %v_8 = add %v_7, 1: Int
-    jmp b_3
+    %v_9 = add %v_2, 1: Int
+    %v_10 = loads %q, 4: Int
+    %v_11 = add %q, 4: Ptr
+    %v_12 = loads %v_11, 4: Int
+    %v_13 = imul %v_10, %v_12: Int
+    %v_4 = add %v_9, %v_13: Int
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
   }
 }
 

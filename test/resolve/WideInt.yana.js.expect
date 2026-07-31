@@ -19,7 +19,7 @@ function check(actual, expected, weight) {
 }
 
 function checkAnd() {
-  return check($w53i$and(high(), mask()), 34359738375, 1);
+  return check(34359738375, 34359738375, 1);
 }
 
 function checkOr() {
@@ -84,7 +84,7 @@ function checkRem() {
 
 function checkCompare() {
   var v8;
-  if (high() < mask()) {
+  if (1) {
     v8 = 65536;
   } else {
     v8 = 0;
@@ -97,15 +97,10 @@ function checkLiteralChain() {
 }
 
 function main() {
-  return ((((((((((((((((checkAnd() + checkOr() | 0) + checkXor() | 0) + checkNotZero() | 0) + checkNot() | 0) + checkShl() | 0) + checkShr() | 0) + checkShlFar() | 0) + checkSarNegative() | 0) + checkSarPositive() | 0) + checkAddWrap() | 0) + checkSubWrap() | 0) + checkMul() | 0) + checkMulLimbs() | 0) + checkDiv() | 0) + checkRem() | 0) + checkCompare() | 0) + checkLiteralChain() | 0;
+  return ((((((((((((((((check(34359738375, 34359738375, 1) + check(34359738623, 34359738623, 2) | 0) + check(7, 7, 4) | 0) + check($w53i$not(0), -1, 8) | 0) + check($w53i$not(34359738375), -34359738376, 16) | 0) + check(1099512676352, 1099512676352, 32) | 0) + check(1048577, 1048577, 64) | 0) + check(25769803776, 25769803776, 128) | 0) + check(-64, -64, 256) | 0) + check(1048577, 1048577, 512) | 0) + check(-4503599627370496, -4503599627370496, 1024) | 0) + check(4503599627370495, 4503599627370495, 2048) | 0) + check(9449772114007, 9449772114007, 4096) | 0) + check(3000009000000, 3000009000000, 8192) | 0) + check(34359738, 34359738, 16384) | 0) + check(375, 375, 32768) | 0) + checkCompare() | 0) + check(34359738623, 34359738623, 131072) | 0;
 }
 
 // integers of 33 to 53 bits - see codegen/js/wide.cpp
-function $w53i$and(a, b) {
-  var v = ($wi$hi(a) & $wi$hi(b) & 2097151) * 4294967296 + ((a & b) >>> 0);
-  return v >= 4503599627370496 ? v - 9007199254740992 : v;
-}
-
 function $w53i$not(a) {
   var v = (~$wi$hi(a) & 2097151) * 4294967296 + (~a >>> 0);
   return v >= 4503599627370496 ? v - 9007199254740992 : v;

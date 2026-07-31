@@ -484,22 +484,176 @@ roundTrip<complex>(): Int {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex roundTrip: Int
-    %v_2 = call_complex coloured: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex counted: Int
-    %v_5 = add %v_3, %v_4: Int
-    %v_6 = call_complex packedPayload: Int
-    %v_7 = add %v_5, %v_6: Int
-    %v_8 = call_complex mutated: Int
-    %v_9 = add %v_7, %v_8: Int
-    %v_10 = call_complex copied: Int
-    %v_11 = add %v_9, %v_10: Int
-    %v_12 = call_complex folded: Int
-    %v_13 = add %v_11, %v_12: Int
-    %v_14 = call_complex wide: Int
-    %v_15 = add %v_13, %v_14: Int
-    ret %v_15
+    %v_1 = alloca 2, 2: Ptr
+    store %v_1, 0, 2
+    %v_2 = load %v_1, 2: Long
+    %v_3 = cast 0: Long
+    %v_4 = and %v_3, 1: Long
+    %v_5 = shl %v_4, 8: Long
+    %v_6 = and %v_2, 18446744073709551359: Long
+    %v_7 = or %v_6, %v_5: Long
+    store %v_1, %v_7, 2
+    store %v_1, 7, 1
+    %v_8 = call_complex payloadOf, %v_1: Int
+    %v_9 = alloca 2, 2: Ptr
+    store %v_9, 0, 2
+    %v_10 = load %v_9, 2: Long
+    %v_11 = cast 1: Long
+    %v_12 = and %v_11, 1: Long
+    %v_13 = shl %v_12, 8: Long
+    %v_14 = and %v_10, 18446744073709551359: Long
+    %v_15 = or %v_14, %v_13: Long
+    store %v_9, %v_15, 2
+    store %v_9, 9, 1
+    %v_16 = call_complex payloadOf, %v_9: Int
+    %v_17 = add %v_8, %v_16: Int
+    %v_18 = alloca 4, 4: Ptr
+    store %v_18, 0, 4
+    %v_19 = load %v_18, 4: Long
+    %v_20 = cast 0: Long
+    %v_21 = and %v_20, 1: Long
+    %v_22 = shl %v_21, 24: Long
+    %v_23 = and %v_19, 18446744073692774399: Long
+    %v_24 = or %v_23, %v_22: Long
+    store %v_18, %v_24, 4
+    store %v_18, 1, 1
+    %v_25 = add %v_18, 1: Ptr
+    store %v_25, 2, 1
+    %v_26 = add %v_18, 2: Ptr
+    store %v_26, 3, 1
+    %v_27 = call_complex colourOf, %v_18: Int
+    %v_28 = alloca 4, 4: Ptr
+    store %v_28, 0, 4
+    %v_29 = load %v_28, 4: Long
+    %v_30 = cast 1: Long
+    %v_31 = and %v_30, 1: Long
+    %v_32 = shl %v_31, 24: Long
+    %v_33 = and %v_29, 18446744073692774399: Long
+    %v_34 = or %v_33, %v_32: Long
+    store %v_28, %v_34, 4
+    store %v_28, 4, 1
+    %v_35 = call_complex colourOf, %v_28: Int
+    %v_36 = add %v_27, %v_35: Int
+    %v_37 = add %v_17, %v_36: Int
+    %v_38 = alloca 2, 2: Ptr
+    store %v_38, 0, 2
+    %v_39 = load %v_38, 2: Long
+    %v_40 = cast 0: Long
+    %v_41 = and %v_40, 7: Long
+    %v_42 = shl %v_41, 8: Long
+    %v_43 = and %v_39, 18446744073709549823: Long
+    %v_44 = or %v_43, %v_42: Long
+    store %v_38, %v_44, 2
+    store %v_38, 1, 1
+    %v_45 = call_complex fiveOf, %v_38: Int
+    %v_46 = alloca 2, 2: Ptr
+    store %v_46, 0, 2
+    %v_47 = load %v_46, 2: Long
+    %v_48 = cast 4: Long
+    %v_49 = and %v_48, 7: Long
+    %v_50 = shl %v_49, 8: Long
+    %v_51 = and %v_47, 18446744073709549823: Long
+    %v_52 = or %v_51, %v_50: Long
+    store %v_46, %v_52, 2
+    store %v_46, 1, 1
+    %v_53 = call_complex fiveOf, %v_46: Int
+    %v_54 = add %v_45, %v_53: Int
+    %v_55 = add %v_37, %v_54: Int
+    %v_56 = alloca 2, 2: Ptr
+    store %v_56, 0, 2
+    %v_57 = load %v_56, 2: Long
+    %v_58 = cast 0: Long
+    %v_59 = and %v_58, 1: Long
+    %v_60 = shl %v_59, 8: Long
+    %v_61 = and %v_57, 18446744073709551359: Long
+    %v_62 = or %v_61, %v_60: Long
+    store %v_56, %v_62, 2
+    %v_63 = alloca 1, 1: Ptr
+    store %v_63, 0, 1
+    store %v_63, 3, 1
+    copy %v_56, %v_63, 1
+    %v_64 = call_complex taggedOf, %v_56: Int
+    %v_65 = alloca 2, 2: Ptr
+    store %v_65, 0, 2
+    %v_66 = load %v_65, 2: Long
+    %v_67 = cast 1: Long
+    %v_68 = and %v_67, 1: Long
+    %v_69 = shl %v_68, 8: Long
+    %v_70 = and %v_66, 18446744073709551359: Long
+    %v_71 = or %v_70, %v_69: Long
+    store %v_65, %v_71, 2
+    %v_72 = alloca 1, 1: Ptr
+    store %v_72, 0, 1
+    store %v_72, 2, 1
+    copy %v_65, %v_72, 1
+    %v_73 = call_complex taggedOf, %v_65: Int
+    %v_74 = add %v_64, %v_73: Int
+    %v_75 = add %v_55, %v_74: Int
+    %v_76 = call_complex mutated: Int
+    %v_77 = add %v_75, %v_76: Int
+    %f = alloca 1, 1: Ptr
+    store %f, 0, 1
+    store %f, 1, 1
+    %t = alloca 2, 2: Ptr
+    store %t, 0, 2
+    %v_78 = load %t, 2: Long
+    %v_79 = cast 1: Long
+    %v_80 = and %v_79, 1: Long
+    %v_81 = shl %v_80, 8: Long
+    %v_82 = and %v_78, 18446744073709551359: Long
+    %v_83 = or %v_82, %v_81: Long
+    store %t, %v_83, 2
+    copy %t, %f, 1
+    %v_84 = call_complex taggedOf, %t: Int
+    %v_85 = add %v_77, %v_84: Int
+    %v_86 = alloca 2, 2: Ptr
+    store %v_86, 0, 2
+    store %v_86, 512, 2
+    %v_87 = call_complex maybeOf, %v_86: Int
+    %v_88 = alloca 2, 2: Ptr
+    store %v_88, 0, 2
+    %v_89 = alloca 2, 2: Ptr
+    store %v_89, 0, 2
+    %v_90 = load %v_89, 2: Long
+    %v_91 = cast 0: Long
+    %v_92 = and %v_91, 1: Long
+    %v_93 = shl %v_92, 8: Long
+    %v_94 = and %v_90, 18446744073709551359: Long
+    %v_95 = or %v_94, %v_93: Long
+    store %v_89, %v_95, 2
+    store %v_89, 2, 1
+    copy %v_88, %v_89, 2
+    %v_96 = call_complex maybeOf, %v_88: Int
+    %v_97 = add %v_87, %v_96: Int
+    %v_98 = alloca 2, 2: Ptr
+    store %v_98, 0, 2
+    %v_99 = alloca 2, 2: Ptr
+    store %v_99, 0, 2
+    %v_100 = load %v_99, 2: Long
+    %v_101 = cast 1: Long
+    %v_102 = and %v_101, 1: Long
+    %v_103 = shl %v_102, 8: Long
+    %v_104 = and %v_100, 18446744073709551359: Long
+    %v_105 = or %v_104, %v_103: Long
+    store %v_99, %v_105, 2
+    store %v_99, 3, 1
+    copy %v_98, %v_99, 2
+    %v_106 = call_complex maybeOf, %v_98: Int
+    %v_107 = add %v_97, %v_106: Int
+    %v_108 = add %v_85, %v_107: Int
+    %v_109 = alloca 8, 4: Ptr
+    store %v_109, 0, 4
+    %v_110 = add %v_109, 4: Ptr
+    store %v_110, 5, 4
+    %v_111 = call_complex widthOf, %v_109: Int
+    %v_112 = alloca 8, 4: Ptr
+    store %v_112, 1, 4
+    %v_113 = add %v_112, 4: Ptr
+    store %v_113, 6, 4
+    %v_114 = call_complex widthOf, %v_112: Int
+    %v_115 = add %v_111, %v_114: Int
+    %v_116 = add %v_108, %v_115: Int
+    ret %v_116
   }
 }
 

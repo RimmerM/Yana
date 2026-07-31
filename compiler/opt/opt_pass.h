@@ -223,6 +223,31 @@ Maybe<U64> constantValueOf(OptContext& opt, ModulePtr<Value> value);
 // A fresh integer constant of one type, belonging to the block the instruction it replaces did.
 ModulePtr<Value> makeConstant(OptContext& opt, Value& at, TypePtr type, U64 value);
 
+/*
+ * The floating counterparts, which need no equivalent of `IntFacts` because a float has none of the
+ * questions an integer has: there is no refinement, no register wider than the type, and the two
+ * widths are the two the hardware has. The width is the whole of what there is to know.
+ */
+Maybe<FloatType::Width> foldableFloat(OptContext& opt, TypePtr type);
+
+// The constant one operand is, read as a double. An `F32` widens to one exactly, so this is the
+// value at its own width either way and a caller never loses anything by being handed the wider one.
+Maybe<F64> constantFloatOf(OptContext& opt, ModulePtr<Value> value);
+
+// A fresh floating constant of one type, rounded to that type's own width on the way in - which for
+// `Float` is the same rounding `Math.fround` performs on JS and a `cvtsd2ss` performs natively.
+ModulePtr<Value> makeFloatConstant(OptContext& opt, Value& at, TypePtr type, F64 value);
+
+/*
+ * Whether a floating value is one both targets spell the same way, which is every one except the
+ * three the emitters have no literal for: a NaN, and the two infinities.
+ *
+ * Written as arithmetic rather than with `<cmath>` so that it needs no more of the host than the
+ * rest of this stage does - a NaN is the only value that differs from itself, and subtracting an
+ * infinity from itself is the only other way to reach one.
+ */
+inline bool isFoldableFloat(F64 value) { return value == value && value - value == 0.0; }
+
 // Putting freshly built instructions into a block at one position, uses and all. They are added in
 // the order given and end up in that order in front of whatever was at `index`.
 void insertInstructions(OptContext& opt, Block& block, Size index, Array<Inst*>& instructions);
@@ -312,8 +337,28 @@ void rebuildUses(OptContext& opt);
 // declaration at the site to read the rule from.
 void addressTaken(OptContext& opt, HashMap<U32, bool>& taken);
 
+/*
+ * The three questions about storage, answered in opt_place.cpp - see the file comment there, which
+ * is where the reasoning behind each of them lives.
+ *
+ * `pathsMayOverlap` compares two projection paths and takes a prefix relation as overlap in both
+ * directions, so writing `x` kills `x.a` and writing `x.a` kills a read of `x`. `placesMayAlias`
+ * adds the roots to that, and declines to say anything at all about a pointer or a borrow.
+ * `samePlace` is the stricter question a *forward* needs, as against the one a kill needs: the same
+ * storage rather than possibly the same.
+ */
+bool pathsMayOverlap(OptContext& opt, const Place& a, const Place& b);
+bool placesMayAlias(OptContext& opt, const Place& a, const Place& b);
+bool samePlace(OptContext& opt, const Place& a, const Place& b);
+
+// Whether a value of this type is one whose *contents* a load answers with, rather than storage the
+// load merely names. Forwarding one of the second kind would replace a place with a value that is
+// not the same thing.
+bool holdsLoadableValue(OptContext& opt, TypePtr type);
+
 void foldFunction(OptContext& opt);
 void forwardPlaces(OptContext& opt);
+void promotePlaces(OptContext& opt);
 void hoistLoopValues(OptContext& opt);
 void scalarizeLocals(OptContext& opt);
 void eliminateCommonValues(OptContext& opt);
