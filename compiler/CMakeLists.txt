@@ -89,6 +89,19 @@ set(RESOLVE_SOURCE_FILES
     repr/repr_print.cpp
     repr/table.h
     repr/table.cpp
+
+    # The optimizer - see Analysis-Optimization.md. A directory of its own on exactly the terms repr/
+    # is one: it runs over the resolve IR but sits on the *emitting* side of the layout wall, so it
+    # may include compiler/repr and nothing in compiler/resolve may include it. The separate
+    # directory is what makes an accidental include visible in review. It links in here because both
+    # of its callers - resolve/lower.cpp and codegen/js - are already on that side, and a library of
+    # its own would be circular with the resolve IR it rewrites.
+    opt/opt.h
+    opt/opt_pass.h
+    opt/opt.cpp
+    opt/opt_fold.cpp
+    opt/opt_place.cpp
+    opt/opt_value.cpp
 )
 
 add_library(YanaResolve ${RESOLVE_SOURCE_FILES})

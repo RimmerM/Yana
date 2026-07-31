@@ -1,0 +1,271 @@
+#include "opt_pass.h"
+
+/*
+ * Constant folding and the algebraic identities.
+ *
+ * Two rules govern everything here, and both are about the two targets agreeing rather than about
+ * arithmetic:
+ *
+ *  1. **A folded result is stored as the register would have held it.** Native leaves a signed
+ *     narrow value sign-extended (`truncateToWidth`) and an unsigned one masked; JS reads a constant
+ *     back by sign-extending from the type's own `bits` (`constantValue`). `narrowToWidth` produces
+ *     the one form both of those accept, so a folded constant is not a third opinion about what the
+ *     value is.
+ *
+ *  2. **Where the targets could disagree about the operation itself, it is not folded.** That is
+ *     three cases and they are named at the point they are declined: a `@bits` refinement, whose
+ *     arithmetic width the two spell differently; a shift by a distance the type cannot hold, where
+ *     each target masks the count its own way; and `not` on a type narrower than its register,
+ *     which native does not wrap and JS does. Each is a case the IR does not currently produce, and
+ *     the point of declining rather than choosing is that this pass must not be the thing that
+ *     decides which target is right.
+ *
+ * Division and remainder decline a zero divisor for the ordinary reason - the program is entitled to
+ * whatever the machine does with it, and that is not a constant this pass may invent - and signed
+ * division declines the one overflowing pair for the same reason.
+ */
+
+namespace {
+
+struct Folder {
+    OptContext& opt;
+
+    ModulePtr<Value> constant(Value& at, TypePtr type, U64 value) {
+        return makeConstant(opt, at, type, value);
+    }
+
+    // The two operands of a binary instruction as raw values at their own width, or nothing if
+    // either is not a constant.
+    bool operands(InstBinary& instruction, U64& lhs, U64& rhs) {
+        auto left = constantValueOf(opt, instruction.lhs);
+        if(!left) return false;
+
+        auto right = constantValueOf(opt, instruction.rhs);
+        if(!right) return false;
+
+        lhs = left.unwrap();
+        rhs = right.unwrap();
+        return true;
+    }
+
+    bool isConstantValue(ModulePtr<Value> value, U64 wanted) {
+        auto found = constantValueOf(opt, value);
+        return found && found.unwrap() == wanted;
+    }
+
+    /*
+     * Whether the two operands are the same SSA value, which is what makes `x - x` and `x ^ x` zero
+     * without either being a constant.
+     *
+     * Value identity is enough and purity is not required: this is SSA, so one value is one
+     * evaluation however expensive it was. `sub %v, %v` where `%v` is a call result is still zero,
+     * and the call still happens - what goes away is the subtraction, not its operand.
+     */
+    bool sameOperand(ModulePtr<Value> a, ModulePtr<Value> b) {
+        return a && a == b;
+    }
+
+    /*
+     * The comparison, at the operands' own signedness.
+     *
+     * The operand type rather than the result type, which is `Bool` and says nothing about how the
+     * two sides are ordered. A signed narrow value arrives here sign-extended to 64 bits by
+     * `narrowToWidth`, so comparing as I64 is comparing at the type's own width.
+     */
+    bool compare(CompareOp op, U64 lhs, U64 rhs, bool isSigned) {
+        if(isSigned) {
+            auto a = I64(lhs), b = I64(rhs);
+            switch(op) {
+                case CompareOp::Eq: return a == b;
+                case CompareOp::Ne: return a != b;
+                case CompareOp::Gt: return a > b;
+                case CompareOp::Ge: return a >= b;
+                case CompareOp::Lt: return a < b;
+                case CompareOp::Le: return a <= b;
+            }
+        }
+
+        switch(op) {
+            case CompareOp::Eq: return lhs == rhs;
+            case CompareOp::Ne: return lhs != rhs;
+            case CompareOp::Gt: return lhs > rhs;
+            case CompareOp::Ge: return lhs >= rhs;
+            case CompareOp::Lt: return lhs < rhs;
+            case CompareOp::Le: return lhs <= rhs;
+        }
+
+        return false;
+    }
+
+    // A comparison of two constants. Kept apart from the arithmetic because its *result* type is
+    // Bool while everything it decides is a question about the operand type.
+    ModulePtr<Value> foldCompare(InstCmp& instruction) {
+        auto facts = foldableInt(opt, opt.local[instruction.lhs]->type);
+        if(!facts) return nullptr;
+
+        U64 lhs, rhs;
+        if(!operands(instruction, lhs, rhs)) return nullptr;
+
+        auto answer = compare(instruction.cmp, lhs, rhs, facts.unwrap().isSigned);
+        return constant(instruction, instruction.type, answer ? 1 : 0);
+    }
+
+    ModulePtr<Value> foldBinary(InstBinary& instruction, const IntFacts& facts) {
+        U64 lhs = 0, rhs = 0;
+        auto known = operands(instruction, lhs, rhs);
+
+        auto wrap = [&](U64 value) { return constant(instruction, instruction.type, narrowToWidth(value, facts)); };
+        auto zero = [&] { return wrap(0); };
+
+        switch(instruction.kind) {
+            case Value::Add:
+                if(known) return wrap(lhs + rhs);
+                if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
+                if(isConstantValue(instruction.lhs, 0)) return instruction.rhs;
+                break;
+            case Value::Sub:
+                if(known) return wrap(lhs - rhs);
+                if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
+                if(sameOperand(instruction.lhs, instruction.rhs)) return zero();
+                break;
+            case Value::Mul:
+                if(known) return wrap(lhs * rhs);
+                if(isConstantValue(instruction.rhs, 1)) return instruction.lhs;
+                if(isConstantValue(instruction.lhs, 1)) return instruction.rhs;
+                if(isConstantValue(instruction.rhs, 0) || isConstantValue(instruction.lhs, 0)) return zero();
+                break;
+            case Value::Div:
+                if(known && rhs != 0) {
+                    if(facts.isSigned) {
+                        // The one pair whose quotient the type cannot hold. Left to the machine,
+                        // which is entitled to trap on it.
+                        if(!(I64(rhs) == -1 && I64(lhs) == minLimit<I64>)) return wrap(U64(I64(lhs) / I64(rhs)));
+                    } else {
+                        return wrap(lhs / rhs);
+                    }
+                }
+                if(isConstantValue(instruction.rhs, 1)) return instruction.lhs;
+                break;
+            case Value::Rem:
+                if(known && rhs != 0) {
+                    if(facts.isSigned) {
+                        if(!(I64(rhs) == -1 && I64(lhs) == minLimit<I64>)) return wrap(U64(I64(lhs) % I64(rhs)));
+                    } else {
+                        return wrap(lhs % rhs);
+                    }
+                }
+                break;
+            case Value::Shl:
+                // A distance the type itself can hold, which is the range every target's shift
+                // agrees on: past it, x86 masks the count to the register's width and JS masks it
+                // to five bits, and the two answers are the machine's rather than the language's.
+                if(known && rhs < facts.bits) return wrap(lhs << rhs);
+                if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
+                break;
+            case Value::Shr:
+                // Logical, so the operand is read as its storage rather than as its value: a signed
+                // narrow value is held sign-extended, and shifting that right brings the register's
+                // own sign bits down. The same masking `zeroExtendsShiftOperand` emits on native.
+                if(known && rhs < facts.bits) {
+                    auto mask = facts.bits >= 64 ? ~U64(0) : (U64(1) << facts.bits) - 1;
+                    return wrap((lhs & mask) >> rhs);
+                }
+                if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
+                break;
+            case Value::Sar:
+                if(known && rhs < facts.bits) {
+                    return wrap(facts.isSigned ? U64(I64(lhs) >> rhs) : lhs >> rhs);
+                }
+                if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
+                break;
+            case Value::And:
+                if(known) return wrap(lhs & rhs);
+                if(isConstantValue(instruction.rhs, 0) || isConstantValue(instruction.lhs, 0)) return zero();
+                if(sameOperand(instruction.lhs, instruction.rhs)) return instruction.lhs;
+                if(isConstantValue(instruction.rhs, narrowToWidth(~U64(0), facts))) return instruction.lhs;
+                if(isConstantValue(instruction.lhs, narrowToWidth(~U64(0), facts))) return instruction.rhs;
+                break;
+            case Value::Or:
+                if(known) return wrap(lhs | rhs);
+                if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
+                if(isConstantValue(instruction.lhs, 0)) return instruction.rhs;
+                if(sameOperand(instruction.lhs, instruction.rhs)) return instruction.lhs;
+                break;
+            case Value::Xor:
+                if(known) return wrap(lhs ^ rhs);
+                if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
+                if(isConstantValue(instruction.lhs, 0)) return instruction.rhs;
+                if(sameOperand(instruction.lhs, instruction.rhs)) return zero();
+                break;
+            default:
+                break;
+        }
+
+        return nullptr;
+    }
+
+    ModulePtr<Value> foldUnary(InstUnary& instruction, const IntFacts& facts) {
+        auto from = constantValueOf(opt, instruction.from);
+        if(!from) return nullptr;
+
+        switch(instruction.kind) {
+            case Value::Neg:
+                return constant(instruction, instruction.type, narrowToWidth(U64(0) - from.unwrap(), facts));
+            case Value::Not:
+                /*
+                 * Only where the type fills its register.
+                 *
+                 * `not` is the one bitwise operation that takes an in-range operand out of range,
+                 * and it is not in `wrapsAtDeclaredWidth` - so native leaves `~(0 :: U8)` as
+                 * 0xFFFFFFFF in a 32-bit register while JS coerces it to 255. Which of those the
+                 * language means is a real question, and answering it by quietly folding to one of
+                 * them would settle it in the wrong place.
+                 */
+                if(!facts.fillsRegister()) return nullptr;
+                return constant(instruction, instruction.type, narrowToWidth(~from.unwrap(), facts));
+            default:
+                return nullptr;
+        }
+    }
+
+    ModulePtr<Value> fold(Value& instruction) {
+        if(instruction.kind == Value::Cmp) return foldCompare((InstCmp&)instruction);
+
+        auto facts = foldableInt(opt, instruction.type);
+        if(!facts) return nullptr;
+
+        switch(instruction.kind) {
+            case Value::Neg:
+            case Value::Not:
+                return foldUnary((InstUnary&)instruction, facts.unwrap());
+            case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
+            case Value::Shl: case Value::Shr: case Value::Sar:
+            case Value::And: case Value::Or: case Value::Xor:
+                return foldBinary((InstBinary&)instruction, facts.unwrap());
+            default:
+                return nullptr;
+        }
+    }
+};
+
+}
+
+void foldFunction(OptContext& opt) {
+    Folder folder { opt };
+
+    for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
+        auto block = opt.local[blockPointer];
+
+        // Nothing is inserted into or removed from the list here - a replaced instruction is left
+        // for the dead-value pass to collect - so a plain index walk sees each instruction once.
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto pointer = block->instructions.get(opt.local, i);
+            auto folded = folder.fold(*opt.local[pointer]);
+            if(folded) replaceValue(opt, (ModulePtr<Value>)pointer, folded);
+        }
+
+        // A branch on a constant is left alone: removing the edge is a CFG rewrite, and the phis,
+        // the dominance and the ownership passes' block-level facts all rest on the shape of the
+        // graph. It belongs with the branch folding that comes after place forwarding.
+    }
+}

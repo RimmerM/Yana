@@ -3,6 +3,7 @@
 #include "generic.h"
 #include "witness.h"
 #include "../repr/table.h"
+#include "../opt/opt.h"
 #include "../lower/lower_builder.h"
 #include "../lower/lower_promote.h"
 
@@ -2951,6 +2952,11 @@ static void lowerPhi(LowerContext& lower, LowerBlock& block, ModulePtr<InstPhi> 
 // Lowering covers the whole program: a call from the root module into Core has to reach a
 // LowerFunction, and the two live in the same arena precisely so that it can.
 Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
+    // The optimizer, against this target - see compiler/opt. Here rather than in the driver because
+    // this function is what every native consumer reaches for, the fixture runner included, and an
+    // optimization the tests do not see is one the tests do not check.
+    optimizeProgram(context, program, nativeReprTarget());
+
     auto result = Ptr<LowerModule>(new LowerModule(8 * 1024 * 1024));
     ReprTable repr(*program.types, nativeReprTarget());
 

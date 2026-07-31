@@ -1,4 +1,5 @@
 #include "build.h"
+#include "../../opt/opt.h"
 
 /*
  * resolve IR -> JavaScript.
@@ -902,6 +903,12 @@ bool narrowRefNeedsObject(Gen& g, ModulePtr<Value> reference) {
 }
 
 Ptr<File> genProgram(Context& context, Program& program) {
+    // The optimizer, against this target - see compiler/opt. The native path makes the same call
+    // with its own target at the top of lowerProgram, and neither program has been through the
+    // other's: `@platform` selects declarations during resolution, so a JS build and a native build
+    // are two resolved programs and this rewrites one of them.
+    optimizeProgram(context, program, jsReprTarget());
+
     auto file = Ptr<File>(new File(8 * 1024 * 1024));
 
     ReprTable repr(*program.types, jsReprTarget());

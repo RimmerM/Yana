@@ -515,6 +515,17 @@ struct Program {
 
     Specialization specialization = Specialization::Always;
 
+    /*
+     * Whether the optimizer has run over this program - see compiler/opt.
+     *
+     * One target consumes one resolved program, because `@platform` selects declarations during
+     * resolution and a JS build and a native build therefore do not share one. The optimizer
+     * rewrites the program in place against the target that asked for it, so this says out loud
+     * that a second target's request would be answered with the first target's IR, rather than
+     * leaving the two to be the same by luck.
+     */
+    bool optimized = false;
+
     // What the ownership passes found, per function, kept for printing rather than for any later
     // stage - see analyze.h. Held behind a pointer because analyze.h is written against this
     // header rather than the other way round.

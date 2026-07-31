@@ -857,6 +857,16 @@ bool isConstant(const Value& value);
 static constexpr Size kMaxPlaces = 2;
 Size instructionPlaces(const Value& instruction, Place* target);
 
+/*
+ * The same list, as storage a transform may write back into.
+ *
+ * `instructionPlaces` answers with copies, which is what every *reader* wants and what a rewrite
+ * cannot use - a pass replacing the value a projection indexes by has to reach the projection the
+ * instruction actually holds. Kept beside the reader rather than in the pass that needed it first,
+ * so that an instruction added to the IR gains both answers in one place or neither.
+ */
+Size instructionPlaceSlots(Value& instruction, Place** target);
+
 // The same, for a caller that would only have written the loop.
 template<class F>
 inline void eachPlace(const Value& instruction, F&& f) {
