@@ -181,8 +181,8 @@ fn withCall(%seed: Int, %count: Int) -> Int {
     ret %v33
 
   b3:
-    %v18 = load %seen : Int
-    %v37 = add %v18, 1 : Int
+    %v35 = load %seen : Int
+    %v37 = add %v35, 1 : Int
     %v25 = add %v37, %v24 : Int
     assign %seen, %v25
     %v27 = load %i : Int
@@ -213,8 +213,8 @@ fn fromCall(%count: Int) -> Int {
     ret %v27
 
   b3:
-    %v12 = load %seen : Int
-    %v31 = add %v12, 1 : Int
+    %v29 = load %seen : Int
+    %v31 = add %v29, 1 : Int
     %v19 = add %v31, %v18 : Int
     assign %seen, %v19
     %v21 = load %i : Int
@@ -304,13 +304,13 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v91 = phi [b2, 3], [b5, %v74] : Int
+    %v88 = phi [b2, 3], [b5, %v71] : Int
     %v64 = load %i : Int
     %v65 = cmp_lt %v64, 3 : Bool
     je %v65, b5, b4
 
   b4:
-    %v11 = add %v8, %v91 : Int
+    %v11 = add %v8, %v88 : Int
     %v14 = call withCall, 3, 2 : Int
     %v15 = add %v11, %v14 : Int
     %v17 = call fromCall, 2 : Int
@@ -322,10 +322,10 @@ fn main() -> Int {
     ret %v23
 
   b5:
-    %v74 = add %v91, 4 : Int
-    %v76 = load %i : Int
-    %v78 = add %v76, 1 : Int
-    assign %i, %v78
+    %v71 = add %v88, 4 : Int
+    %v73 = load %i : Int
+    %v75 = add %v73, 1 : Int
+    assign %i, %v75
     jmp b3
 
   b6:

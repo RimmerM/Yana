@@ -386,34 +386,31 @@ main<complex>(): Int {
     %v_4 = call_complex measured, 2: Int
     %v_5 = add %v_3, %v_4: Int
     %v_6 = add %v_2, %v_5: Int
-    %v_7 = call_complex requested, 4: Int
-    %v_8 = add %v_6, %v_7: Int
-    %v_9 = call_complex grading: Int
-    %v_10 = add %v_8, %v_9: Int
-    jmp b_11
+    %v_7 = add %v_6, 219: Int
+    jmp b_8
   }
 
-  b_11 {
-    %v_12 = phi [b_0, 1], [b_13, %v_14]: Int
-    %v_15 = phi [b_0, 0], [b_13, %v_16]: Int
-    %v_17 = cmp_ilt %v_12, 20: Int
-    je %v_17, b_13, b_18
+  b_8 {
+    %v_9 = phi [b_0, 1], [b_10, %v_11]: Int
+    %v_12 = phi [b_0, 0], [b_10, %v_13]: Int
+    %v_14 = cmp_ilt %v_9, 20: Int
+    je %v_14, b_10, b_15
   }
 
-  b_18 {
-    %v_19 = add %v_10, %v_15: Int
-    %v_20 = add %v_19, 18: Int
-    %v_21 = call_complex evenLength, 6: Int
-    %v_22 = call_complex oddLength, 6: Int
-    %v_23 = add %v_21, %v_22: Int
-    %v_24 = add %v_20, %v_23: Int
-    ret %v_24
+  b_15 {
+    %v_16 = add %v_7, %v_12: Int
+    %v_17 = add %v_16, 18: Int
+    %v_18 = call_complex evenLength, 6: Int
+    %v_19 = call_complex oddLength, 6: Int
+    %v_20 = add %v_18, %v_19: Int
+    %v_21 = add %v_17, %v_20: Int
+    ret %v_21
   }
 
-  b_13 {
-    %v_14 = add %v_12, %v_12: Int
-    %v_16 = add %v_15, 1: Int
-    jmp b_11
+  b_10 {
+    %v_11 = add %v_9, %v_9: Int
+    %v_13 = add %v_12, 1: Int
+    jmp b_8
   }
 }
 

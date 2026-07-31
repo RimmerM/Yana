@@ -334,16 +334,13 @@ fn recursive() -> Int {
 
 fn main() -> Int {
   b0:
-    %v94 = call countDown, 4 : Int
-    %v20 = add %v94, 260 : Int
-    %v112 = call measured, 1 : Int
-    %v114 = call measured, 2 : Int
-    %v116 = add %v112, %v114 : Int
-    %v22 = add %v20, %v116 : Int
-    %v24 = call requested, 4 : Int
-    %v25 = add %v22, %v24 : Int
-    %v26 = call grading : Int
-    %v27 = add %v25, %v26 : Int
+    %v82 = call countDown, 4 : Int
+    %v20 = add %v82, 260 : Int
+    %v100 = call measured, 1 : Int
+    %v102 = call measured, 2 : Int
+    %v104 = add %v100, %v102 : Int
+    %v22 = add %v20, %v104 : Int
+    %v27 = add %v22, 219 : Int
     %value = alloc : Int
     init %value, 1
     %steps = alloc : Int
@@ -351,26 +348,26 @@ fn main() -> Int {
     jmp b1
 
   b1:
-    %v124 = load %value : Int
-    %v126 = cmp_lt %v124, 20 : Bool
-    je %v126, b3, b2
+    %v148 = load %value : Int
+    %v150 = cmp_lt %v148, 20 : Bool
+    je %v150, b3, b2
 
   b2:
-    %v128 = load %steps : Int
-    %v29 = add %v27, %v128 : Int
+    %v152 = load %steps : Int
+    %v29 = add %v27, %v152 : Int
     %v31 = add %v29, 18 : Int
-    %v151 = call evenLength, 6 : Int
-    %v153 = call oddLength, 6 : Int
-    %v155 = add %v151, %v153 : Int
-    %v33 = add %v31, %v155 : Int
+    %v164 = call evenLength, 6 : Int
+    %v166 = call oddLength, 6 : Int
+    %v168 = add %v164, %v166 : Int
+    %v33 = add %v31, %v168 : Int
     ret %v33
 
   b3:
-    %v130 = load %value : Int
-    %v132 = add %v130, %v130 : Int
-    assign %value, %v132
-    %v134 = load %steps : Int
-    %v136 = add %v134, 1 : Int
-    assign %steps, %v136
+    %v154 = load %value : Int
+    %v156 = add %v154, %v154 : Int
+    assign %value, %v156
+    %v158 = load %steps : Int
+    %v160 = add %v158, 1 : Int
+    assign %steps, %v160
     jmp b1
 }

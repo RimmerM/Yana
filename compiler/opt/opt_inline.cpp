@@ -411,6 +411,13 @@ void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
     }
 }
 
+/*
+ * A cap on the folding below, on the same terms as every other round limit here: each pass strictly
+ * removes something, so the loop ends on its own and this is what turns a future pass that oscillates
+ * into a slow compile rather than a hang.
+ */
+constexpr Size kMaxSettleRounds = 4;
+
 struct Inliner {
     OptContext& opt;
     InlinePolicy policy;
@@ -1584,7 +1591,45 @@ struct Inliner {
             reorderBlocks();
         }
 
+        if(inlined) settle(function);
         return inlined;
+    }
+
+    /*
+     * The folding half of the driver's rounds, run on a function this pass has just changed.
+     *
+     * **The size a call site is judged against is the callee as it is now**, and until this existed
+     * that was the callee as inlining had left it rather than as anything would ever emit it.
+     * `grading()` in `Inline.yana` is `graded(5) + graded(50) + graded(500)`: round one splices three
+     * copies of a two-branch body into it, which is sixteen blocks, and round two then measured
+     * `main`'s one call to it against *that* - past `maxBlocks` before any budget was even consulted.
+     * What the emitted function actually is, once the caller's literals have folded through those
+     * branches, is `ret 6`. So the call was refused on the strength of a size that existed only
+     * between two passes, and `grading()` stayed a call on both targets to a function returning a
+     * constant.
+     *
+     * This is not the optimizer running early. It is the three passes that answer "what did the last
+     * round of inlining actually leave here", which is a question this pass is asking on every call
+     * site and was previously answering with a body no backend would ever see. Everything else in the
+     * driver - the place passes, the loop pass, CSE - is left where it is, because none of them
+     * changes the *size* of what a caller would be copying.
+     *
+     * Per function and only where something was inlined, so a program whose every call site was
+     * refused pays nothing for this.
+     */
+    void settle(Function& function) {
+        opt.function = &function;
+        rebuildUses(opt);
+
+        for(Size round = 0; round < kMaxSettleRounds; round++) {
+            opt.changed = false;
+
+            foldFunction(opt);
+            foldBranches(opt);
+            eliminateDeadValues(opt);
+
+            if(!opt.changed) break;
+        }
     }
 };
 
