@@ -393,12 +393,48 @@ main<complex>(): Int {
     %v_73 = call_complex present, %v_72: Int
     %v_74 = imul %v_73, 128: Int
     %v_75 = add %v_71, %v_74: Int
-    %v_76 = call_complex viaCall, 128: Int
-    %v_77 = add %v_75, %v_76: Int
-    %v_78 = call_complex viaCall, 0: Int
-    %v_79 = imul %v_78, 100: Int
-    %v_80 = add %v_77, %v_79: Int
-    ret %v_80
+    %v_76 = alloca 8, 4: Ptr
+    call_complex wrap, %v_76, 128
+    %v_77 = loads %v_76, 4: Int
+    %v_78 = cmp_eq %v_77, 1: Int
+    je %v_78, b_79, b_80
+  }
+
+  b_80 {
+    jmp b_81
+  }
+
+  b_79 {
+    %v_82 = add %v_76, 4: Ptr
+    %v = loads %v_82, 4: Int
+    jmp b_81
+  }
+
+  b_81 {
+    %v_83 = phi [b_79, %v], [b_80, 0]: Int
+    %v_84 = add %v_75, %v_83: Int
+    %v_85 = alloca 8, 4: Ptr
+    call_complex wrap, %v_85, 0
+    %v_86 = loads %v_85, 4: Int
+    %v_87 = cmp_eq %v_86, 1: Int
+    je %v_87, b_88, b_89
+  }
+
+  b_89 {
+    jmp b_90
+  }
+
+  b_88 {
+    %v_91 = add %v_85, 4: Ptr
+    %v = loads %v_91, 4: Int
+    jmp b_90
+  }
+
+  b_90 {
+    %v_92 = phi [b_88, %v], [b_89, 0]: Int
+    %v_93 = imul %v_92, 100: Int
+    %v_94 = add %v_84, %v_93: Int
+    ret %v_94
   }
 }
 

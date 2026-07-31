@@ -5,6 +5,35 @@ constants<complex>(): Int {
   }
 }
 
+graded<complex>(%score: Int): Int {
+  b_0 {
+    %v_1 = cmp_ilt %score, 10: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    %v_5 = cmp_ilt %score, 100: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    jmp b_4
+  }
+
+  b_7 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_8 = phi [b_2, 1], [b_6, 2], [b_7, 3]: Int
+    ret %v_8
+  }
+}
+
 countDown<complex>(%n: Int): Int {
   b_0 {
     %v_1 = cmp_ile %n, 0: Int
@@ -79,6 +108,50 @@ constructed<complex>(%a: Int): Int {
   }
 }
 
+stepped<complex>(): Int {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 1], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = cmp_ilt %v_2, 20: Int
+    je %v_7, b_3, b_8
+  }
+
+  b_8 {
+    ret %v_5
+  }
+
+  b_3 {
+    %v_4 = add %v_2, %v_2: Int
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
+  }
+}
+
+onceBranching<complex>(%a: Int): Int {
+  b_0 {
+    %v_1 = cmp_igt %a, 3: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = imul %a, 2: Int
+    ret %v_4
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = add %a, 1: Int
+    ret %v_6
+  }
+}
+
 recursive<complex>(): Int {
   b_0 {
     %v_1 = call_complex countDown, 4: Int
@@ -92,6 +165,48 @@ pinned<complex>(): Int {
     %v_2 = call_complex measured, 2: Int
     %v_3 = add %v_1, %v_2: Int
     ret %v_3
+  }
+}
+
+evenLength<complex>(%n: Int): Int {
+  b_0 {
+    %v_1 = cmp_ile %n, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    ret 1
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = sub %n, 1: Int
+    %v_6 = call_complex oddLength, %v_5: Int
+    ret %v_6
+  }
+}
+
+oddLength<complex>(%n: Int): Int {
+  b_0 {
+    %v_1 = cmp_ile %n, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    ret 0
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = sub %n, 1: Int
+    %v_6 = call_complex evenLength, %v_5: Int
+    ret %v_6
   }
 }
 
@@ -114,11 +229,55 @@ unknowns<complex>(%a: Int, %b: Int): Int {
   }
 }
 
+grading<complex>(): Int {
+  b_0 {
+    ret 6
+  }
+}
+
 scaled<complex>(%v: Int, %by: Int): Int {
   b_0 {
     %v_1 = imul %v, %by: Int
     %v_2 = add %v_1, 1: Int
     ret %v_2
+  }
+}
+
+stepsTo<complex>(%limit: Int): Int {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 1], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = cmp_ilt %v_2, %limit: Int
+    je %v_7, b_3, b_8
+  }
+
+  b_8 {
+    ret %v_5
+  }
+
+  b_3 {
+    %v_4 = add %v_2, %v_2: Int
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
+  }
+}
+
+alternating<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex evenLength, 6: Int
+    %v_2 = call_complex oddLength, 6: Int
+    %v_3 = add %v_1, %v_2: Int
+    ret %v_3
+  }
+}
+
+soleBranch<complex>(): Int {
+  b_0 {
+    ret 18
   }
 }
 
@@ -185,30 +344,76 @@ clamped<complex>(%v: Int): Int {
 
 branching<complex>(%a: Int): Int {
   b_0 {
-    %v_1 = call_complex clamped, %a: Int
-    %v_2 = imul %a, 3: Int
-    %v_3 = call_complex clamped, %v_2: Int
-    %v_4 = add %v_1, %v_3: Int
-    ret %v_4
+    %v_1 = cmp_igt %a, 100: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = phi [b_3, %a], [b_2, 100]: Int
+    %v_6 = imul %a, 3: Int
+    %v_7 = cmp_igt %v_6, 100: Int
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_8 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = phi [b_9, %v_6], [b_8, 100]: Int
+    %v_12 = add %v_5, %v_11: Int
+    ret %v_12
   }
 }
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex clamped, 50: Int
-    %v_2 = call_complex clamped, 150: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = add %v_3, 97: Int
-    %v_5 = call_complex countDown, 4: Int
-    %v_6 = add %v_4, %v_5: Int
-    %v_7 = add %v_6, 13: Int
-    %v_8 = call_complex measured, 1: Int
-    %v_9 = call_complex measured, 2: Int
+    %v_1 = call_complex countDown, 4: Int
+    %v_2 = add %v_1, 260: Int
+    %v_3 = call_complex measured, 1: Int
+    %v_4 = call_complex measured, 2: Int
+    %v_5 = add %v_3, %v_4: Int
+    %v_6 = add %v_2, %v_5: Int
+    %v_7 = call_complex requested, 4: Int
+    %v_8 = add %v_6, %v_7: Int
+    %v_9 = call_complex grading: Int
     %v_10 = add %v_8, %v_9: Int
-    %v_11 = add %v_7, %v_10: Int
-    %v_12 = call_complex requested, 4: Int
-    %v_13 = add %v_11, %v_12: Int
-    ret %v_13
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = phi [b_0, 1], [b_13, %v_14]: Int
+    %v_15 = phi [b_0, 0], [b_13, %v_16]: Int
+    %v_17 = cmp_ilt %v_12, 20: Int
+    je %v_17, b_13, b_18
+  }
+
+  b_18 {
+    %v_19 = add %v_10, %v_15: Int
+    %v_20 = add %v_19, 18: Int
+    %v_21 = call_complex evenLength, 6: Int
+    %v_22 = call_complex oddLength, 6: Int
+    %v_23 = add %v_21, %v_22: Int
+    %v_24 = add %v_20, %v_23: Int
+    ret %v_24
+  }
+
+  b_13 {
+    %v_14 = add %v_12, %v_12: Int
+    %v_16 = add %v_15, 1: Int
+    jmp b_11
   }
 }
 

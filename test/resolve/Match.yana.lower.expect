@@ -191,38 +191,61 @@ firstOrRest<complex>(%m: Ptr): Int {
     je %v_4, b_5, b_6
   }
 
-  b_6 {
-    %v_7 = load %m, 1: Long
-    %v_8 = cmp_le %v_7, 2: Int
-    %v_9 = select 1, 0, %v_8: Int
-    %v_10 = cmp_eq %v_9, 1: Int
-    je %v_10, b_11, b_12
+  b_5 {
+    %v_7 = load %m, 1: Int
+    %v_8 = cast %v_7: Int
+    %v_9 = cmp_eq %v_8, 0: Int
+    je %v_9, b_10, b_6
   }
 
-  b_5 {
-    %v_13 = load %m, 1: Int
-    %v_14 = cast %v_13: Int
-    %v_15 = cmp_eq %v_14, 0: Int
-    je %v_15, b_16, b_6
+  b_6 {
+    %v_11 = load %m, 1: Long
+    %v_12 = cmp_le %v_11, 2: Int
+    %v_13 = select 1, 0, %v_12: Int
+    %v_14 = cmp_eq %v_13, 1: Int
+    je %v_14, b_15, b_16
   }
 
   b_16 {
     jmp b_17
   }
 
-  b_12 {
+  b_15 {
+    %rest = load %m, 1: Int
+    %v_18 = cast %rest: Int
+    %v_19 = cmp_eq %v_18, 0: Int
+    je %v_19, b_20, b_21
+  }
+
+  b_21 {
+    %v_22 = cmp_eq %v_18, 1: Int
+    je %v_22, b_23, b_24
+  }
+
+  b_24 {
+    jmp b_25
+  }
+
+  b_23 {
+    jmp b_25
+  }
+
+  b_20 {
+    jmp b_25
+  }
+
+  b_25 {
+    %v_26 = phi [b_20, 1], [b_23, 2], [b_24, 3]: Int
     jmp b_17
   }
 
-  b_11 {
-    %rest = load %m, 1: Int
-    %v_18 = call_complex colorValue, %rest: Int
+  b_10 {
     jmp b_17
   }
 
   b_17 {
-    %v_19 = phi [b_16, 10], [b_11, %v_18], [b_12, 0]: Int
-    ret %v_19
+    %v_27 = phi [b_10, 10], [b_25, %v_26], [b_16, 0]: Int
+    ret %v_27
   }
 }
 
@@ -325,137 +348,201 @@ nested<complex>(%m: Ptr): Int {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex colorValue, 0: Int
-    %v_2 = call_complex colorValue, 1: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex colorValue, 2: Int
-    %v_5 = add %v_3, %v_4: Int
-    %v_6 = alloca 12, 4: Ptr
-    store %v_6, 1, 4
-    %v_7 = add %v_6, 4: Ptr
-    store %v_7, 2, 4
-    %v_8 = add %v_6, 8: Ptr
-    store %v_8, 3, 4
-    %v_9 = call_complex shapeValue, %v_6: Int
-    %v_10 = add %v_5, %v_9: Int
-    %v_11 = alloca 12, 4: Ptr
-    store %v_11, 0, 4
-    %v_12 = add %v_11, 4: Ptr
-    store %v_12, 4, 4
-    %v_13 = call_complex shapeValue, %v_11: Int
-    %v_14 = add %v_10, %v_13: Int
-    %v_15 = alloca 12, 4: Ptr
-    store %v_15, 0, 4
-    %v_16 = add %v_15, 4: Ptr
-    store %v_16, 20, 4
-    %v_17 = call_complex area, %v_15: Int
-    %v_18 = add %v_14, %v_17: Int
-    %v_19 = alloca 12, 4: Ptr
-    store %v_19, 0, 4
-    %v_20 = add %v_19, 4: Ptr
-    store %v_20, 3, 4
-    %v_21 = call_complex area, %v_19: Int
-    %v_22 = add %v_18, %v_21: Int
-    %v_23 = alloca 12, 4: Ptr
-    store %v_23, 1, 4
-    %v_24 = add %v_23, 4: Ptr
-    store %v_24, 20, 4
-    %v_25 = add %v_23, 8: Ptr
-    store %v_25, 2, 4
-    %v_26 = call_complex area, %v_23: Int
-    %v_27 = add %v_22, %v_26: Int
-    %v_28 = alloca 12, 4: Ptr
-    store %v_28, 1, 4
-    %v_29 = add %v_28, 4: Ptr
-    store %v_29, 3, 4
-    %v_30 = add %v_28, 8: Ptr
-    store %v_30, 9, 4
-    %v_31 = call_complex area, %v_28: Int
-    %v_32 = add %v_27, %v_31: Int
-    %v_33 = alloca 1, 1: Ptr
-    store %v_33, 0, 1
-    %v_34 = call_complex nested, %v_33: Int
-    %v_35 = add %v_32, %v_34: Int
-    %v_36 = alloca 1, 1: Ptr
-    store %v_36, 1, 1
-    %v_37 = call_complex nested, %v_36: Int
-    %v_38 = add %v_35, %v_37: Int
-    %v_39 = alloca 1, 1: Ptr
-    store %v_39, 2, 1
-    %v_40 = call_complex nested, %v_39: Int
-    %v_41 = add %v_38, %v_40: Int
-    %v_42 = alloca 1, 1: Ptr
-    store %v_42, 3, 1
-    %v_43 = call_complex nested, %v_42: Int
-    %v_44 = add %v_41, %v_43: Int
-    %v_45 = alloca 1, 1: Ptr
-    store %v_45, 0, 1
-    %v_46 = cast 0: Int
-    %v_47 = and %v_46, 3: Int
-    %v_48 = or %v_47, 4: Int
-    store %v_45, %v_48, 1
-    %v_49 = call_complex pairValue, %v_45: Int
-    %v_50 = add %v_44, %v_49: Int
-    %v_51 = alloca 1, 1: Ptr
-    store %v_51, 0, 1
-    %v_52 = cast 0: Int
-    %v_53 = and %v_52, 3: Int
-    store %v_51, %v_53, 1
-    %v_54 = call_complex pairValue, %v_51: Int
-    %v_55 = add %v_50, %v_54: Int
-    %v_56 = alloca 1, 1: Ptr
-    store %v_56, 0, 1
-    %v_57 = cast 1: Int
-    %v_58 = and %v_57, 3: Int
-    %v_59 = or %v_58, 4: Int
-    store %v_56, %v_59, 1
-    %v_60 = call_complex pairValue, %v_56: Int
-    %v_61 = add %v_55, %v_60: Int
-    %v_62 = alloca 1, 1: Ptr
-    store %v_62, 0, 1
-    %v_63 = cast 1: Int
-    %v_64 = and %v_63, 3: Int
-    store %v_62, %v_64, 1
-    %v_65 = call_complex pairValue, %v_62: Int
-    %v_66 = add %v_61, %v_65: Int
-    %v_67 = alloca 1, 1: Ptr
-    store %v_67, 0, 1
-    %v_68 = cast 2: Int
-    %v_69 = and %v_68, 3: Int
-    %v_70 = or %v_69, 4: Int
-    store %v_67, %v_70, 1
-    %v_71 = call_complex pairValue, %v_67: Int
-    %v_72 = add %v_66, %v_71: Int
-    %v_73 = alloca 1, 1: Ptr
-    store %v_73, 0, 1
-    %v_74 = cast 2: Int
-    %v_75 = and %v_74, 3: Int
-    store %v_73, %v_75, 1
-    %v_76 = call_complex pairValue, %v_73: Int
-    %v_77 = add %v_72, %v_76: Int
-    %v_78 = alloca 1, 1: Ptr
-    store %v_78, 0, 1
-    %v_79 = call_complex firstOrRest, %v_78: Int
-    %v_80 = add %v_77, %v_79: Int
-    %v_81 = alloca 1, 1: Ptr
-    store %v_81, 1, 1
-    %v_82 = call_complex firstOrRest, %v_81: Int
-    %v_83 = add %v_80, %v_82: Int
-    %v_84 = alloca 1, 1: Ptr
-    store %v_84, 2, 1
-    %v_85 = call_complex firstOrRest, %v_84: Int
-    %v_86 = add %v_83, %v_85: Int
-    %v_87 = alloca 1, 1: Ptr
-    store %v_87, 3, 1
-    %v_88 = call_complex firstOrRest, %v_87: Int
-    %v_89 = add %v_86, %v_88: Int
-    %v_90 = call_complex classify, 0: Int
-    %v_91 = add %v_89, %v_90: Int
-    %v_92 = call_complex classify, 7: Int
-    %v_93 = add %v_91, %v_92: Int
-    %v_94 = call_complex classify, 50: Int
-    %v_95 = add %v_93, %v_94: Int
-    ret %v_95
+    %v_1 = cast 0: Int
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = cmp_eq %v_1, 1: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    jmp b_8
+  }
+
+  b_6 {
+    jmp b_8
+  }
+
+  b_3 {
+    jmp b_8
+  }
+
+  b_8 {
+    %v_9 = phi [b_3, 1], [b_6, 2], [b_7, 3]: Int
+    %v_10 = cast 1: Int
+    %v_11 = cmp_eq %v_10, 0: Int
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    %v_14 = cmp_eq %v_10, 1: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_16 {
+    jmp b_17
+  }
+
+  b_15 {
+    jmp b_17
+  }
+
+  b_12 {
+    jmp b_17
+  }
+
+  b_17 {
+    %v_18 = phi [b_12, 1], [b_15, 2], [b_16, 3]: Int
+    %v_19 = add %v_9, %v_18: Int
+    %v_20 = cast 2: Int
+    %v_21 = cmp_eq %v_20, 0: Int
+    je %v_21, b_22, b_23
+  }
+
+  b_23 {
+    %v_24 = cmp_eq %v_20, 1: Int
+    je %v_24, b_25, b_26
+  }
+
+  b_26 {
+    jmp b_27
+  }
+
+  b_25 {
+    jmp b_27
+  }
+
+  b_22 {
+    jmp b_27
+  }
+
+  b_27 {
+    %v_28 = phi [b_22, 1], [b_25, 2], [b_26, 3]: Int
+    %v_29 = add %v_19, %v_28: Int
+    %v_30 = alloca 12, 4: Ptr
+    store %v_30, 1, 4
+    %v_31 = add %v_30, 4: Ptr
+    store %v_31, 2, 4
+    %v_32 = add %v_30, 8: Ptr
+    store %v_32, 3, 4
+    %v_33 = call_complex shapeValue, %v_30: Int
+    %v_34 = add %v_29, %v_33: Int
+    %v_35 = alloca 12, 4: Ptr
+    store %v_35, 0, 4
+    %v_36 = add %v_35, 4: Ptr
+    store %v_36, 4, 4
+    %v_37 = call_complex shapeValue, %v_35: Int
+    %v_38 = add %v_34, %v_37: Int
+    %v_39 = alloca 12, 4: Ptr
+    store %v_39, 0, 4
+    %v_40 = add %v_39, 4: Ptr
+    store %v_40, 20, 4
+    %v_41 = call_complex area, %v_39: Int
+    %v_42 = add %v_38, %v_41: Int
+    %v_43 = alloca 12, 4: Ptr
+    store %v_43, 0, 4
+    %v_44 = add %v_43, 4: Ptr
+    store %v_44, 3, 4
+    %v_45 = call_complex area, %v_43: Int
+    %v_46 = add %v_42, %v_45: Int
+    %v_47 = alloca 12, 4: Ptr
+    store %v_47, 1, 4
+    %v_48 = add %v_47, 4: Ptr
+    store %v_48, 20, 4
+    %v_49 = add %v_47, 8: Ptr
+    store %v_49, 2, 4
+    %v_50 = call_complex area, %v_47: Int
+    %v_51 = add %v_46, %v_50: Int
+    %v_52 = alloca 12, 4: Ptr
+    store %v_52, 1, 4
+    %v_53 = add %v_52, 4: Ptr
+    store %v_53, 3, 4
+    %v_54 = add %v_52, 8: Ptr
+    store %v_54, 9, 4
+    %v_55 = call_complex area, %v_52: Int
+    %v_56 = add %v_51, %v_55: Int
+    %v_57 = alloca 1, 1: Ptr
+    store %v_57, 0, 1
+    %v_58 = call_complex nested, %v_57: Int
+    %v_59 = add %v_56, %v_58: Int
+    %v_60 = alloca 1, 1: Ptr
+    store %v_60, 1, 1
+    %v_61 = call_complex nested, %v_60: Int
+    %v_62 = add %v_59, %v_61: Int
+    %v_63 = alloca 1, 1: Ptr
+    store %v_63, 2, 1
+    %v_64 = call_complex nested, %v_63: Int
+    %v_65 = add %v_62, %v_64: Int
+    %v_66 = alloca 1, 1: Ptr
+    store %v_66, 3, 1
+    %v_67 = call_complex nested, %v_66: Int
+    %v_68 = add %v_65, %v_67: Int
+    %v_69 = alloca 1, 1: Ptr
+    store %v_69, 0, 1
+    %v_70 = cast 0: Int
+    %v_71 = and %v_70, 3: Int
+    %v_72 = or %v_71, 4: Int
+    store %v_69, %v_72, 1
+    %v_73 = call_complex pairValue, %v_69: Int
+    %v_74 = add %v_68, %v_73: Int
+    %v_75 = alloca 1, 1: Ptr
+    store %v_75, 0, 1
+    %v_76 = cast 0: Int
+    %v_77 = and %v_76, 3: Int
+    store %v_75, %v_77, 1
+    %v_78 = call_complex pairValue, %v_75: Int
+    %v_79 = add %v_74, %v_78: Int
+    %v_80 = alloca 1, 1: Ptr
+    store %v_80, 0, 1
+    %v_81 = cast 1: Int
+    %v_82 = and %v_81, 3: Int
+    %v_83 = or %v_82, 4: Int
+    store %v_80, %v_83, 1
+    %v_84 = call_complex pairValue, %v_80: Int
+    %v_85 = add %v_79, %v_84: Int
+    %v_86 = alloca 1, 1: Ptr
+    store %v_86, 0, 1
+    %v_87 = cast 1: Int
+    %v_88 = and %v_87, 3: Int
+    store %v_86, %v_88, 1
+    %v_89 = call_complex pairValue, %v_86: Int
+    %v_90 = add %v_85, %v_89: Int
+    %v_91 = alloca 1, 1: Ptr
+    store %v_91, 0, 1
+    %v_92 = cast 2: Int
+    %v_93 = and %v_92, 3: Int
+    %v_94 = or %v_93, 4: Int
+    store %v_91, %v_94, 1
+    %v_95 = call_complex pairValue, %v_91: Int
+    %v_96 = add %v_90, %v_95: Int
+    %v_97 = alloca 1, 1: Ptr
+    store %v_97, 0, 1
+    %v_98 = cast 2: Int
+    %v_99 = and %v_98, 3: Int
+    store %v_97, %v_99, 1
+    %v_100 = call_complex pairValue, %v_97: Int
+    %v_101 = add %v_96, %v_100: Int
+    %v_102 = alloca 1, 1: Ptr
+    store %v_102, 0, 1
+    %v_103 = call_complex firstOrRest, %v_102: Int
+    %v_104 = add %v_101, %v_103: Int
+    %v_105 = alloca 1, 1: Ptr
+    store %v_105, 1, 1
+    %v_106 = call_complex firstOrRest, %v_105: Int
+    %v_107 = add %v_104, %v_106: Int
+    %v_108 = alloca 1, 1: Ptr
+    store %v_108, 2, 1
+    %v_109 = call_complex firstOrRest, %v_108: Int
+    %v_110 = add %v_107, %v_109: Int
+    %v_111 = alloca 1, 1: Ptr
+    store %v_111, 3, 1
+    %v_112 = call_complex firstOrRest, %v_111: Int
+    %v_113 = add %v_110, %v_112: Int
+    %v_114 = add %v_113, 3: Int
+    ret %v_114
   }
 }
 

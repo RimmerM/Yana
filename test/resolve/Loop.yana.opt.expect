@@ -282,13 +282,35 @@ fn never() -> Int {
 
 fn main() -> Int {
   b0:
-    %v1 = call straight, 3 : Int
+    %total = alloc : Int
+    init %total, 0
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v37 = load %i : Int
+    %v38 = cmp_lt %v37, 3 : Bool
+    je %v38, b6, b2
+
+  b2:
+    %v40 = load %total : Int
     %v3 = call conditional, 4 : Int
-    %v4 = add %v1, %v3 : Int
+    %v4 = add %v40, %v3 : Int
     %v7 = call nested, 2, 3 : Int
     %v8 = add %v4, %v7 : Int
-    %v10 = call written, 3 : Int
-    %v11 = add %v8, %v10 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b3
+
+  b3:
+    %v91 = phi [b2, 3], [b5, %v74] : Int
+    %v64 = load %i : Int
+    %v65 = cmp_lt %v64, 3 : Bool
+    je %v65, b5, b4
+
+  b4:
+    %v11 = add %v8, %v91 : Int
     %v14 = call withCall, 3, 2 : Int
     %v15 = add %v11, %v14 : Int
     %v17 = call fromCall, 2 : Int
@@ -298,4 +320,20 @@ fn main() -> Int {
     %v22 = call never : Int
     %v23 = add %v21, %v22 : Int
     ret %v23
+
+  b5:
+    %v74 = add %v91, 4 : Int
+    %v76 = load %i : Int
+    %v78 = add %v76, 1 : Int
+    assign %i, %v78
+    jmp b3
+
+  b6:
+    %v42 = load %total : Int
+    %v46 = add %v42, 12 : Int
+    assign %total, %v46
+    %v48 = load %i : Int
+    %v50 = add %v48, 1 : Int
+    assign %i, %v50
+    jmp b1
 }

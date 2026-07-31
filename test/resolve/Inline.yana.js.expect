@@ -25,11 +25,63 @@ function clamped(v) {
   }
 }
 
+function graded(score) {
+  var v15;
+  if (score < 10) {
+    v15 = 1;
+  } else {
+    if (score < 100) {
+      v15 = 2;
+    } else {
+      v15 = 3;
+    }
+  }
+  return v15;
+}
+
+function stepsTo(limit) {
+  var value = 1;
+  var steps = 0;
+  L0: for (;;) {
+    if (value < limit) {
+      value = value + value | 0;
+      steps = steps + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return steps;
+}
+
+function onceBranching(a) {
+  if (a > 3) {
+    return Math.imul(a, 2) | 0;
+  } else {
+    return a + 1 | 0;
+  }
+}
+
 function countDown(n) {
   if (n <= 0) {
     return 0;
   } else {
     return n + countDown(n - 1 | 0) | 0;
+  }
+}
+
+function evenLength(n) {
+  if (n <= 0) {
+    return 1;
+  } else {
+    return oddLength(n - 1 | 0);
+  }
+}
+
+function oddLength(n) {
+  if (n <= 0) {
+    return 0;
+  } else {
+    return evenLength(n - 1 | 0);
   }
 }
 
@@ -62,6 +114,32 @@ function branching(a) {
   return clamped(a) + clamped(Math.imul(a, 3) | 0) | 0;
 }
 
+function grading() {
+  return (graded(5) + graded(50) | 0) + graded(500) | 0;
+}
+
+function stepped() {
+  var value = 1;
+  var steps = 0;
+  L0: for (;;) {
+    if (value < 20) {
+      value = value + value | 0;
+      steps = steps + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return steps;
+}
+
+function soleBranch() {
+  return 18;
+}
+
+function alternating() {
+  return evenLength(6) + oddLength(6) | 0;
+}
+
 function pinned() {
   return measured(1) + measured(2) | 0;
 }
@@ -75,5 +153,5 @@ function recursive() {
 }
 
 function main() {
-  return (((((clamped(50) + clamped(150) | 0) + 97 | 0) + countDown(4) | 0) + 13 | 0) + (measured(1) + measured(2) | 0) | 0) + requested(4) | 0;
+  return (((((((((clamped(50) + clamped(150) | 0) + 97 | 0) + countDown(4) | 0) + 13 | 0) + (measured(1) + measured(2) | 0) | 0) + requested(4) | 0) + ((graded(5) + graded(50) | 0) + graded(500) | 0) | 0) + stepped() | 0) + 18 | 0) + (evenLength(6) + oddLength(6) | 0) | 0;
 }

@@ -53,6 +53,74 @@ fn clamped(%v: Int) -> Int {
     ret %v
 }
 
+fn graded(%score: Int) -> Int {
+  b0:
+    %v3 = cmp_lt %score, 10 : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b5
+
+  b2:
+    %v8 = cmp_lt %score, 100 : Bool
+    je %v8, b3, b4
+
+  b3:
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v15 = phi [b1, 1], [b3, 2], [b4, 3] : Int
+    ret %v15
+}
+
+fn stepsTo(%limit: Int) -> Int {
+  b0:
+    %value = alloc : Int
+    init %value, 1
+    %steps = alloc : Int
+    init %steps, 0
+    jmp b1
+
+  b1:
+    %v8 = load %value : Int
+    %v9 = cmp_lt %v8, %limit : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v21 = load %steps : Int
+    ret %v21
+
+  b3:
+    %v11 = load %value : Int
+    %v12 = load %value : Int
+    %v13 = add %v11, %v12 : Int
+    assign %value, %v13
+    %v15 = load %steps : Int
+    %v18 = add %v15, 1 : Int
+    assign %steps, %v18
+    jmp b1
+}
+
+fn onceBranching(%a: Int) -> Int {
+  b0:
+    %v3 = cmp_gt %a, 3 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v7 = mul %a, 2 : Int
+    ret %v7
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = add %a, 1 : Int
+    ret %v12
+}
+
 fn countDown(%n: Int) -> Int {
   b0:
     %v3 = cmp_le %n, 0 : Bool
@@ -69,6 +137,40 @@ fn countDown(%n: Int) -> Int {
     %v11 = call countDown, %v10 : Int
     %v12 = add %n, %v11 : Int
     ret %v12
+}
+
+fn evenLength(%n: Int) -> Int {
+  b0:
+    %v3 = cmp_le %n, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret 1
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = sub %n, 1 : Int
+    %v11 = call oddLength, %v10 : Int
+    ret %v11
+}
+
+fn oddLength(%n: Int) -> Int {
+  b0:
+    %v3 = cmp_le %n, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret 0
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = sub %n, 1 : Int
+    %v11 = call evenLength, %v10 : Int
+    ret %v11
 }
 
 fn constants() -> Int {
@@ -143,6 +245,36 @@ fn branching(%a: Int) -> Int {
     ret %v6
 }
 
+fn grading() -> Int {
+  b0:
+    %v1 = call graded, 5 : Int
+    %v3 = call graded, 50 : Int
+    %v4 = add %v1, %v3 : Int
+    %v6 = call graded, 500 : Int
+    %v7 = add %v4, %v6 : Int
+    ret %v7
+}
+
+fn stepped() -> Int {
+  b0:
+    %v1 = call stepsTo, 20 : Int
+    ret %v1
+}
+
+fn soleBranch() -> Int {
+  b0:
+    %v1 = call onceBranching, 9 : Int
+    ret %v1
+}
+
+fn alternating() -> Int {
+  b0:
+    %v1 = call evenLength, 6 : Int
+    %v3 = call oddLength, 6 : Int
+    %v4 = add %v1, %v3 : Int
+    ret %v4
+}
+
 fn pinned() -> Int {
   b0:
     %v1 = call measured, 1 : Int
@@ -184,5 +316,13 @@ fn main() -> Int {
     %v22 = add %v20, %v21 : Int
     %v24 = call requested, 4 : Int
     %v25 = add %v22, %v24 : Int
-    ret %v25
+    %v26 = call grading : Int
+    %v27 = add %v25, %v26 : Int
+    %v28 = call stepped : Int
+    %v29 = add %v27, %v28 : Int
+    %v30 = call soleBranch : Int
+    %v31 = add %v29, %v30 : Int
+    %v32 = call alternating : Int
+    %v33 = add %v31, %v32 : Int
+    ret %v33
 }

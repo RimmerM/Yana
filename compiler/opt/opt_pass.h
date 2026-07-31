@@ -360,6 +360,26 @@ bool samePlace(OptContext& opt, const Place& a, const Place& b);
 // not the same thing.
 bool holdsLoadableValue(OptContext& opt, TypePtr type);
 
+/*
+ * A successor's record of where one edge arrived from, pointed at a different block: its predecessor
+ * entry and every phi alternative that named the old one. Both halves, because a phi is a value the
+ * *predecessors* produce and an alternative left naming a block the edge no longer leaves from is an
+ * input no backend can find a copy for.
+ *
+ * Every match rather than the first, since a `je` with both arms at one block leaves two of each.
+ */
+void retargetEdge(OptContext& opt, Block* target, ModulePtr<Block> from, ModulePtr<Block> to);
+
+/*
+ * A block whose one predecessor ends by jumping straight to it, folded back into that predecessor -
+ * see opt_branch.cpp, which is where the rule and its guards live.
+ *
+ * Exposed because two passes produce the shape and neither can clean up after the other. Inlining
+ * makes it by cutting a caller's block in two around a call it then grafts a body into; folding
+ * makes it by deleting an arm and leaving the join with one way in. Answers whether anything moved.
+ */
+bool mergeBlocks(OptContext& opt);
+
 void foldFunction(OptContext& opt);
 void foldBranches(OptContext& opt);
 void collapseBorrows(OptContext& opt);

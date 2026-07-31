@@ -35,12 +35,6 @@ fn divided() -> Int {
 
 fn compared() -> Int {
   b0:
-    jmp b1
-
-  b1:
-    jmp b2
-
-  b2:
     ret 30
 }
 
@@ -87,11 +81,32 @@ fn nonFinite() -> Int {
 
 fn main() -> Int {
   b0:
-    %v16 = call compared : Int
-    %v17 = add %v16, 30 : Int
-    %v18 = call declined : Int
-    %v19 = add %v17, %v18 : Int
-    %v20 = call nonFinite : Int
-    %v21 = add %v19, %v20 : Int
+    %v56 = call outOfRange : Int
+    %v57 = call outOfRange : Int
+    %v58 = cmp_eq %v56, %v57 : Bool
+    je %v58, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v55 = phi [b2, 40], [b1, 0] : Int
+    %v19 = add %v55, 60 : Int
+    %v68 = div 1, 0 : Double
+    %v70 = cmp_gt %v68, 1000000 : Bool
+    je %v70, b5, b4
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v65 = phi [b5, 20], [b4, 0] : Int
+    %v21 = add %v19, %v65 : Int
     ret %v21
 }

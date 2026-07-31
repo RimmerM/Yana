@@ -7,7 +7,7 @@
  * an instruction computes, which is why opt_fold.cpp left it alone: dominance, the natural loops,
  * every phi's alternatives and the ownership passes' block-level facts all rest on the graph, and a
  * pass that edits an edge without editing all four leaves an IR that prints correctly and walks
- * wrongly. So it is here, it does the whole job, and it does it in three steps.
+ * wrongly. So it is here, it does the whole job, and it does it in four steps.
  *
  *  1. **`je` on a constant becomes `jmp`.** The untaken successor loses one incoming edge, and every
  *     phi in it loses the alternative that arrived over that edge.
@@ -48,10 +48,18 @@
  * So the two steps belong together. A fold that leaves the block behind has moved a loop's exit test
  * out of its header without moving the header, and there is no third pass that would put that right.
  *
- * Blocks are not merged more generally. A target that still has phis is left alone as well, because
- * redirecting an edge around a block means every phi in the target needs one alternative per
- * predecessor of the block that went away - and where a predecessor could already reach the target
- * directly, the two alternatives it would then have are not required to agree.
+ * A target that still has phis is left alone as well, because redirecting an edge *around* a block
+ * means every phi in the target needs one alternative per predecessor of the block that went away -
+ * and where a predecessor could already reach the target directly, the two alternatives it would
+ * then have are not required to agree.
+ *
+ * ## The join a deleted arm leaves, which is the other half
+ *
+ * `mergeBlocks` is the fourth step and the one shared with opt_inline.cpp - see the comment on
+ * `mergeInto`. Deleting an arm leaves the join it fed with one way in, which is a block boundary
+ * with nothing on either side of it, and the block-local passes below stop at every one of those.
+ * It runs after `collapseSinglePhis` rather than beside the splice above, because a join keeps its
+ * phis until that step has answered them and a block with phis is one the merge declines.
  */
 
 namespace {
@@ -127,6 +135,70 @@ bool spliceEmptyBlock(OptContext& opt, ModulePtr<Block> pointer) {
 
     // The block's own edge into the target, and its predecessors, both of which are now nobody's.
     removeEdge(opt, target, pointer);
+    while(block->incoming.size()) block->incoming.remove(opt.local, block->incoming.size() - 1);
+
+    opt.changed = true;
+    return true;
+}
+
+/*
+ * A block with one predecessor, folded back into it - the inverse of an edge split, and the one CFG
+ * cleanup in this directory that removes a *join* rather than an arm.
+ *
+ * Two passes make the shape and neither is in a position to clean up after the other. Inlining cuts
+ * the caller's block in two at the call and grafts a body into the gap, which leaves the second half
+ * with one way in wherever the callee has one `ret`; folding deletes an arm, which leaves the join
+ * it fed with one predecessor and a phi that `collapseSinglePhis` then answers.
+ *
+ * Leaving them costs more than tidiness. The passes that forward a read to the write above it are
+ * *block-local*, so a body arriving in four blocks where it could have arrived in two is a body half
+ * of whose stores stop being answerable - and on a managed target every extra block is one more join
+ * for codegen/js/flow.cpp to find a structured form of.
+ *
+ * Three guards, and each one is a case this must not touch:
+ *
+ *  - the predecessor has to end in a plain `jmp`. A `je` cannot absorb anything, since the block
+ *    would then have instructions after its own terminator;
+ *  - the target has to have exactly one predecessor, and it has to be this one. That is what makes
+ *    the concatenation unconditional rather than a guess about which way control came;
+ *  - the target must have no phis. With one predecessor a phi is its one alternative, but saying so
+ *    is `collapseSinglePhis`' rule and there is no reason to keep a second copy of it here.
+ *
+ * A loop is safe by construction rather than by a check: a header has a back edge, so it has two
+ * predecessors, so it is never a target.
+ */
+bool mergeInto(OptContext& opt, Block& into, ModulePtr<Block> pointer) {
+    auto block = opt.local[pointer];
+    auto intoPointer = (ModulePtr<Block>)(&into - opt.local);
+
+    if(pointer == intoPointer || block->index == 0) return false;
+    if(block->phis.isNotEmpty() || !block->terminator) return false;
+    if(block->incoming.size() != 1 || block->incoming.get(opt.local, 0) != intoPointer) return false;
+
+    for(auto instructionPointer: block->instructions.contents(opt.local)) {
+        opt.local[instructionPointer]->block = intoPointer;
+        into.instructions.push(opt.program.arena, instructionPointer);
+    }
+
+    block->instructions.clear();
+
+    // The jump that was here simply stops being anything: a terminator has no operands and nothing
+    // reads one, so there is no use to drop and nobody to tell.
+    into.terminator = block->terminator;
+    opt.local[block->terminator]->block = intoPointer;
+
+    into.outgoing[0] = block->outgoing[0];
+    into.outgoing[1] = block->outgoing[1];
+    block->terminator = nullptr;
+    block->outgoing[0] = nullptr;
+    block->outgoing[1] = nullptr;
+
+    for(auto successor: into.outgoing) {
+        if(!successor) continue;
+
+        retargetEdge(opt, opt.local[successor], pointer, intoPointer);
+    }
+
     while(block->incoming.size()) block->incoming.remove(opt.local, block->incoming.size() - 1);
 
     opt.changed = true;
@@ -253,6 +325,58 @@ void collapseSinglePhis(OptContext& opt) {
 
 }
 
+void retargetEdge(OptContext& opt, Block* target, ModulePtr<Block> from, ModulePtr<Block> to) {
+    for(Size i = 0; i < target->incoming.size(); i++) {
+        if(target->incoming.get(opt.local, i) != from) continue;
+
+        target->incoming.set(opt.local, i, to);
+    }
+
+    for(auto phiPointer: target->phis.contents(opt.local)) {
+        auto phi = opt.local[phiPointer];
+
+        for(Size i = 0; i < phi->inputs.size(); i++) {
+            auto input = phi->inputs.get(opt.local, i);
+            if(input.block != from) continue;
+
+            input.block = to;
+            phi->inputs.set(opt.local, i, input);
+        }
+    }
+}
+
+bool mergeBlocks(OptContext& opt) {
+    auto merged = false;
+
+    // Over a snapshot, since the walk below reads the list while `removeUnreachableBlocks` rewrites
+    // it - and a merged block is one of the ones that goes.
+    Array<ModulePtr<Block>> blocks;
+    for(auto pointer: opt.function->blocks.contents(opt.local)) blocks.push(pointer);
+
+    for(auto pointer: blocks) {
+        auto block = opt.local[pointer];
+
+        // Repeatedly, because absorbing one block leaves this one ending in *that* block's jump -
+        // which is how a chain of them collapses in one visit rather than one per round.
+        while(block->terminator && opt.local[block->terminator]->kind == Value::Jmp) {
+            if(!mergeInto(opt, *block, ((InstJmp&)*opt.local[block->terminator]).target)) break;
+
+            merged = true;
+        }
+    }
+
+    if(!merged) return false;
+
+    // What a merge leaves is a block with no terminator and no way in, which is exactly what the
+    // reachability sweep already removes - and it renumbers, which the block list needs either way.
+    removeUnreachableBlocks(opt);
+
+    // An instruction in a block that no longer exists is still in the use list of everything it
+    // read. Rebuilding is the repair, and it is the same one the driver performs once per function.
+    rebuildUses(opt);
+    return true;
+}
+
 void foldBranches(OptContext& opt) {
     auto folded = false;
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
@@ -270,6 +394,14 @@ void foldBranches(OptContext& opt) {
 
     removeUnreachableBlocks(opt);
     collapseSinglePhis(opt);
+
+    /*
+     * And the joins the deletion left with one way in, which is the step that could not have run any
+     * earlier: a join keeps its phis until `collapseSinglePhis` has answered them, and a block with
+     * phis is one `mergeInto` declines. So the arm that went away is what makes the merge possible,
+     * and the merge is what keeps a folded diamond from leaving four blocks where one would do.
+     */
+    mergeBlocks(opt);
 
     // What the deletion left behind: an instruction in a block that no longer exists is still in the
     // use list of everything it read. Rebuilding is the repair, and it is the same one the driver

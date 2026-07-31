@@ -125,26 +125,23 @@ fn scoped(%m: Maybe(Int)) -> Int {
 
 fn firstJust(%a: Maybe(Int), %b: Maybe(Int)) -> Int {
   b0:
-    jmp b2
+    %v5 = load %a.discriminant : Int
+    %v7 = cmp_eq %v5, 1 : Bool
+    je %v7, b2, b1
 
   b1:
     %v12 = load %b.discriminant : Int
     %v14 = cmp_eq %v12, 1 : Bool
-    je %v14, b5, b4
+    je %v14, b4, b3
 
   b2:
-    %v5 = load %a.discriminant : Int
-    %v7 = cmp_eq %v5, 1 : Bool
-    je %v7, b3, b1
-
-  b3:
     %first = load %a@Just : Int
     ret %first
 
-  b4:
+  b3:
     ret 0
 
-  b5:
+  b4:
     %second = load %b@Just : Int
     ret %second
 }
@@ -181,24 +178,21 @@ fn retry(%m: Maybe(Int), %c: Color) -> Int {
 
 fn scan(%c: Color) -> Int {
   b0:
-    jmp b2
+    %v4 = cast %c : Int
+    %v6 = cmp_eq %v4, 0 : Bool
+    je %v6, b1, b2
 
   b1:
     ret 9
 
   b2:
-    %v4 = cast %c : Int
-    %v6 = cmp_eq %v4, 0 : Bool
-    je %v6, b1, b3
+    %v11 = cmp_eq %v4, 1 : Bool
+    je %v11, b4, b3
 
   b3:
-    %v11 = cmp_eq %v4, 1 : Bool
-    je %v11, b5, b4
-
-  b4:
     ret 8
 
-  b5:
+  b4:
     ret 7
 }
 

@@ -156,18 +156,48 @@ fn escaped(%a: Int) -> Int {
 
 fn main() -> Int {
   b0:
-    %v1 = call branched, 2 : Int
-    %v3 = call partial, 1 : Int
-    %v4 = add %v1, %v3 : Int
-    %v6 = call merged, 1 : Int
-    %v7 = add %v4, %v6 : Int
-    %v9 = call invariant, 3 : Int
-    %v10 = add %v7, %v9 : Int
-    %v12 = call carried, 4 : Int
-    %v13 = add %v10, %v12 : Int
-    %v15 = call nested, 2 : Int
-    %v16 = add %v13, %v15 : Int
-    %v18 = call escaped, 5 : Int
-    %v19 = add %v16, %v18 : Int
+    %total = alloc : Int
+    init %total, 0
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v96 = load %i : Int
+    %v97 = cmp_lt %v96, 3 : Bool
+    je %v97, b6, b2
+
+  b2:
+    %v99 = load %total : Int
+    %v10 = add %v99, 53 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b3
+
+  b3:
+    %v336 = phi [b2, 0], [b5, %v133] : Int
+    %v123 = load %i : Int
+    %v124 = cmp_lt %v123, 4 : Bool
+    je %v124, b5, b4
+
+  b4:
+    %v13 = add %v10, %v336 : Int
+    %v19 = add %v13, 17 : Int
     ret %v19
+
+  b5:
+    %v133 = add %v336, 5 : Int
+    %v135 = load %i : Int
+    %v137 = add %v135, 1 : Int
+    assign %i, %v137
+    jmp b3
+
+  b6:
+    %v101 = load %total : Int
+    %v105 = add %v101, 12 : Int
+    assign %total, %v105
+    %v107 = load %i : Int
+    %v109 = add %v107, 1 : Int
+    assign %i, %v109
+    jmp b1
 }

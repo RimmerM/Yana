@@ -1,50 +1,43 @@
 
 checkAnd<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 34359738375, 34359738375, 1: Int
-    ret %v_1
+    ret 1
   }
 }
 
 checkSubWrap<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 4503599627370495, 4503599627370495, 2048: Int
-    ret %v_1
+    ret 2048
   }
 }
 
 checkOr<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 34359738623, 34359738623, 2: Int
-    ret %v_1
+    ret 2
   }
 }
 
 checkSarNegative<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 18446744073709551552, 18446744073709551552, 256: Int
-    ret %v_1
+    ret 256
   }
 }
 
 checkRem<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 375, 375, 32768: Int
-    ret %v_1
+    ret 32768
   }
 }
 
 checkLiteralChain<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 34359738623, 34359738623, 131072: Int
-    ret %v_1
+    ret 131072
   }
 }
 
 checkDiv<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 34359738, 34359738, 16384: Int
-    ret %v_1
+    ret 16384
   }
 }
 
@@ -76,15 +69,13 @@ check<complex>(%actual: Long, %expected: Long, %weight: Int): Int {
 
 checkAddWrap<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 18442240474082181120, 18442240474082181120, 1024: Int
-    ret %v_1
+    ret 1024
   }
 }
 
 checkMul<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 9449772114007, 9449772114007, 4096: Int
-    ret %v_1
+    ret 4096
   }
 }
 
@@ -96,116 +87,124 @@ high<complex>(): Long {
 
 checkMulLimbs<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 3000009000000, 3000009000000, 8192: Int
-    ret %v_1
+    ret 8192
   }
 }
 
 checkXor<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 7, 7, 4: Int
-    ret %v_1
+    ret 4
   }
 }
 
 checkNotZero<complex>(): Int {
   b_0 {
     %v_1 = not 0: Long
-    %v_2 = call_complex check, %v_1, 18446744073709551615, 8: Int
-    ret %v_2
+    %v_2 = cmp_eq %v_1, 18446744073709551615: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_3, 8], [b_4, 0]: Int
+    ret %v_6
   }
 }
 
 checkCompare<complex>(): Int {
   b_0 {
-    jmp b_1
-  }
-
-  b_1 {
-    jmp b_2
-  }
-
-  b_2 {
     ret 65536
   }
 }
 
 checkShr<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 1048577, 1048577, 64: Int
-    ret %v_1
+    ret 64
   }
 }
 
 checkShlFar<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 25769803776, 25769803776, 128: Int
-    ret %v_1
+    ret 128
   }
 }
 
 checkNot<complex>(): Int {
   b_0 {
     %v_1 = not 34359738375: Long
-    %v_2 = call_complex check, %v_1, 18446744039349813240, 16: Int
-    ret %v_2
+    %v_2 = cmp_eq %v_1, 18446744039349813240: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_3, 16], [b_4, 0]: Int
+    ret %v_6
   }
 }
 
 checkShl<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 1099512676352, 1099512676352, 32: Int
-    ret %v_1
+    ret 32
   }
 }
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 34359738375, 34359738375, 1: Int
-    %v_2 = call_complex check, 34359738623, 34359738623, 2: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex check, 7, 7, 4: Int
-    %v_5 = add %v_3, %v_4: Int
-    %v_6 = not 0: Long
-    %v_7 = call_complex check, %v_6, 18446744073709551615, 8: Int
-    %v_8 = add %v_5, %v_7: Int
-    %v_9 = not 34359738375: Long
-    %v_10 = call_complex check, %v_9, 18446744039349813240, 16: Int
-    %v_11 = add %v_8, %v_10: Int
-    %v_12 = call_complex check, 1099512676352, 1099512676352, 32: Int
-    %v_13 = add %v_11, %v_12: Int
-    %v_14 = call_complex check, 1048577, 1048577, 64: Int
-    %v_15 = add %v_13, %v_14: Int
-    %v_16 = call_complex check, 25769803776, 25769803776, 128: Int
-    %v_17 = add %v_15, %v_16: Int
-    %v_18 = call_complex check, 18446744073709551552, 18446744073709551552, 256: Int
-    %v_19 = add %v_17, %v_18: Int
-    %v_20 = call_complex check, 1048577, 1048577, 512: Int
-    %v_21 = add %v_19, %v_20: Int
-    %v_22 = call_complex check, 18442240474082181120, 18442240474082181120, 1024: Int
-    %v_23 = add %v_21, %v_22: Int
-    %v_24 = call_complex check, 4503599627370495, 4503599627370495, 2048: Int
-    %v_25 = add %v_23, %v_24: Int
-    %v_26 = call_complex check, 9449772114007, 9449772114007, 4096: Int
-    %v_27 = add %v_25, %v_26: Int
-    %v_28 = call_complex check, 3000009000000, 3000009000000, 8192: Int
-    %v_29 = add %v_27, %v_28: Int
-    %v_30 = call_complex check, 34359738, 34359738, 16384: Int
-    %v_31 = add %v_29, %v_30: Int
-    %v_32 = call_complex check, 375, 375, 32768: Int
-    %v_33 = add %v_31, %v_32: Int
-    %v_34 = call_complex checkCompare: Int
-    %v_35 = add %v_33, %v_34: Int
-    %v_36 = call_complex check, 34359738623, 34359738623, 131072: Int
-    %v_37 = add %v_35, %v_36: Int
-    ret %v_37
+    %v_1 = not 0: Long
+    %v_2 = cmp_eq %v_1, 18446744073709551615: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_3, 8], [b_4, 0]: Int
+    %v_7 = add %v_6, 7: Int
+    %v_8 = not 34359738375: Long
+    %v_9 = cmp_eq %v_8, 18446744039349813240: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    jmp b_12
+  }
+
+  b_10 {
+    jmp b_12
+  }
+
+  b_12 {
+    %v_13 = phi [b_10, 16], [b_11, 0]: Int
+    %v_14 = add %v_7, %v_13: Int
+    %v_15 = add %v_14, 262112: Int
+    ret %v_15
   }
 }
 
 checkSarPositive<complex>(): Int {
   b_0 {
-    %v_1 = call_complex check, 1048577, 1048577, 512: Int
-    ret %v_1
+    ret 512
   }
 }
 

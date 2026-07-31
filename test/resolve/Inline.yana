@@ -1,13 +1,19 @@
 {-
-   Inlining, and the four things it must decline.
+   Inlining: the two shapes of splice, and the things each of them must decline.
 
    `.opt.expect` is the assertion that matters here, because what inlining does is mostly invisible
    in a result: every function below returns the same number whether or not its callees were spliced
-   into it. What the dump says is *which* calls are still there.
+   into it. What the dump says is *which* calls are still there, and - for the callees with control
+   flow in them - what the caller's block graph looks like once their blocks are in it.
 
    The numbers are still asserted, on both targets and against the unoptimized build, because the
    ways inlining goes wrong are ways that change one - a write through a borrow that lands in the
-   wrong storage, a local two slots disagree about, an argument substituted into the wrong parameter.
+   wrong storage, a local two slots disagree about, an argument substituted into the wrong parameter,
+   a phi whose alternative names the block the edge used to arrive from rather than the one it does.
+
+   The dump is the native target's. The managed budget prices a block much higher - see policyFor -
+   so some of the branching callees below are inlined there and left as calls on JS, which is a
+   decision rather than a discrepancy: what both targets have to agree on is the number.
 -}
 
 data Point {x: Int, y: Int}
@@ -32,19 +38,61 @@ fn onlyCaller(a: Int, b: Int, c: Int) -> Int:
     let q = makePoint(b, c)
     return p.x * q.y + p.y * q.x + a + b + c
 
--- Branches, so it is not straight-line and this pass declines it whatever it would be worth. The
--- follow-on that grafts control flow is what would take it.
+-- Two `return`s, which is the graft in its smallest form: the caller's block is cut in two at the
+-- call, the diamond goes in the gap, and the two `ret`s become two edges into a phi at the join.
+-- Called with a literal from `main`, where the `je` then folds and the whole of it is a number.
 fn clamped(v: Int) -> Int:
     if v > 100:
         return 100
     return v
 
--- Recursive. Refused outright rather than by the round budget, which is what keeps a self-call from
--- being copied into itself once per round.
+-- A phi the *callee* wrote, which is the one thing block order does not put right on its own: the
+-- join reads a value each arm produced, so the copy of that phi has to exist before the copy of
+-- anything naming it - and the alternatives have to name the cloned arms rather than the originals.
+fn graded(score: Int) -> Int = if:
+    score < 10 -> 1
+    score < 100 -> 2
+    else -> 3
+
+-- A loop, which is the other thing the graft has to get right: the back edge leads to a block the
+-- walk has already cloned, so every block has to exist before any terminator names one.
+fn stepsTo(limit: Int) -> Int:
+    let &value = 1 :: Int
+    let &steps = 0 :: Int
+
+    while value < limit:
+        value = value + value
+        steps = steps + 1
+
+    return steps
+
+-- Branching and called exactly once in the whole program, which is the combination that clears even
+-- the managed budget: the body moves rather than being copied, so the blocks it brings cost nothing
+-- the call was not already costing.
+fn onceBranching(a: Int) -> Int:
+    if a > 3:
+        return a * 2
+    return a + 1
+
+-- Recursive. Refused because the call graph has it in a cycle, which is what keeps a body that calls
+-- itself from being copied into a caller *with the call still in it* - that is unrolling, and it has
+-- no cost model here.
 fn countDown(n: Int) -> Int:
     if n <= 0:
         return 0
     return n + countDown(n - 1)
+
+-- The same rule from the side that needs a call graph to see it. Neither of these calls itself, so
+-- nothing about either body says recursive; what says it is that the two are one component.
+fn evenLength(n: Int) -> Int:
+    if n <= 0:
+        return 1
+    return oddLength(n - 1)
+
+fn oddLength(n: Int) -> Int:
+    if n <= 0:
+        return 0
+    return evenLength(n - 1)
 
 -- Constant arguments, which is the case worth inlining on every target: what it buys is not the call
 -- but the folding that follows, and the whole of this should be one number by the time it is emitted.
@@ -77,8 +125,21 @@ fn measured(v: Int) -> Int = v + 1
 @inline
 fn worthIt(a: Int, b: Int) -> Int = ((a + b) * 2 + (a - b) * 3 + a * 5 + b * 7) * 2 + a - b
 
--- The declined pair, kept as calls.
+-- Two grafts into one caller, the second of them into the block the first one's continuation became.
+-- That is the case the walk has to reach without waiting for another round, since the second call is
+-- no longer in the block it started in by the time the first one is done with it.
 fn branching(a: Int) -> Int = clamped(a) + clamped(a * 3)
+
+-- Three call sites and a constant at each, which is what the constant bonus is for: what is bought
+-- is not the call but the fold that follows it, and here that fold answers the whole diamond.
+fn grading() -> Int = graded(5) + graded(50) + graded(500)
+
+fn stepped() -> Int = stepsTo(20)
+
+fn soleBranch() -> Int = onceBranching(9)
+
+-- The mutual pair, kept as calls at every site.
+fn alternating() -> Int = evenLength(6) + oddLength(6)
 
 fn pinned() -> Int = measured(1) + measured(2)
 
@@ -88,4 +149,5 @@ fn recursive() -> Int = countDown(4)
 
 fn main() -> Int =
     constants() + unknowns(2, 3) + constructed(5) + mutated(7) + branching(50) + recursive() +
-    onlyCaller(1, 2, 3) + pinned() + requested(4)
+    onlyCaller(1, 2, 3) + pinned() + requested(4) + grading() + stepped() + soleBranch() +
+    alternating()

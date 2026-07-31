@@ -3,16 +3,23 @@
 /*
  * Inlining: a call replaced by a copy of what it would have done.
  *
- * The first one, and deliberately the narrow half of the problem. What it does is *straight-line*
- * callees - one block ending in a `ret` - spliced into the caller's block where the call was. That
- * is not a simplification of the general case so much as a different, much smaller one: there is no
- * control flow to graft, no block to split, no phi to build for a result several `ret`s agree on,
- * and no successor's phi inputs to rename. The whole of it is a value map and a local map.
+ * There are two shapes of that copy here and the difference between them is the whole of what makes
+ * the second one harder than the first.
  *
- * It is also where the wins are. The callees worth inlining first are the ones with nothing in them
- * - an accessor, a constructor, an operator, a one-line mutator through a `&` - and every one of
- * those is a single block. What is left out is a callee with a branch in it, which is the follow-on
- * and needs the CFG surgery this does not do.
+ *  - A **straight-line** callee - one block ending in a `ret` - is spliced into the caller's block
+ *    where the call was. There is no control flow to graft, no block to split, no phi to build for a
+ *    result several `ret`s agree on, and no successor's phi inputs to rename. The whole of it is a
+ *    value map and a local map;
+ *  - a callee with **control flow** needs all four. The caller's block is cut in two at the call, the
+ *    callee's blocks are cloned into the gap, each of its `ret`s becomes a jump to the second half,
+ *    and where more than one of them returns a value the second half opens with a phi over them.
+ *
+ * The first is where most of the wins are and it stays the fast path, because what it leaves behind
+ * is one block rather than five: the callee's `alloc` lands in the caller's own block, which is where
+ * the block-local passes after this one can still see it. The second exists because a great many
+ * bodies worth inlining are not straight-line - anything with an `if` in it - and because a `@lazy`
+ * argument is a body the caller wrote, spliced into a callee that asked for it, with whatever control
+ * flow the caller happened to put there.
  *
  * ## What it is for, which is not "removing the call"
  *
@@ -26,7 +33,9 @@
  *    answers - so the borrow, and often the local behind it, go away with it;
  *  - a callee called with constants folds against them, and the dead-value pass collects whatever
  *    that made unreachable. This is the one that pays on every target, because it is the only way a
- *    constant crosses a call boundary in this compiler at all.
+ *    constant crosses a call boundary in this compiler at all. With control flow in the picture it
+ *    is also how a branch folds: a predicate the caller passed as a literal turns the callee's `je`
+ *    into a `jmp`, and opt_branch.cpp then deletes the arm that stopped being reachable.
  *
  * Which is why this runs program-wide before any function is optimized, in the same place and for
  * the same reason `flattenArguments` does: what it leaves behind is work for the passes after it.
@@ -39,7 +48,7 @@
  *    where the program cannot grow - a callee with exactly one call site in the program, which takes
  *    a body away rather than copying one - and `Speed` raises every budget.
  *  - **the target family**, which changes the *shape* of the answer rather than its size. See
- *    `policyFor` for the two rules that differ and the reasoning behind each.
+ *    `policyFor` for the three rules that differ and the reasoning behind each.
  *
  * Every bonus is a budget increase rather than a decision, so they compose: a callee taking a
  * mutable borrow *and* called with a constant *and* called once gets all three, and one that is
@@ -60,8 +69,14 @@
  * storage, so the callee's places are rooted in a local this frame does not have - which is the one
  * case that needs a place root the callee never wrote and is worth doing separately.
  *
- * A recursive call is declined by the round budget rather than by a cycle check: a self-call is
- * refused outright, and a mutual pair simply stops being inlined when the rounds run out.
+ * A **recursive** callee is declined outright, and that is a rule the straight-line half never had
+ * to state: a body that calls itself almost always branches on something first, so refusing branches
+ * refused recursion as a side effect. It does not any more. Copying a recursive body into a caller
+ * copies the recursive call with it, and the copy is *unrolling* rather than inlining - a different
+ * transformation, with a cost model this table does not have and a growth rate the round budget
+ * bounds only by accident. So the call graph's cycles are found once and every function in one is
+ * refused, which covers a self-call and a mutual pair with the same rule. What remains bounded by
+ * the round budget is only the honest case: a chain of callees each of which calls the next.
  */
 
 namespace {
@@ -97,6 +112,19 @@ struct InlinePolicy {
     U32 manyPenalty = 0;
 
     /*
+     * Subtracted per block past the first, and the ceiling on how many of them there may be.
+     *
+     * What this prices is not the instructions - those are already in `size` - but what the *graft*
+     * costs the passes downstream. A callee spliced as one block leaves its `alloc` where the
+     * caller's own block-local passes can see it; one spliced as five blocks leaves the same `alloc`
+     * behind a branch, where forwarding and scalarization stop answering. So a branching callee has
+     * to be worth more than a straight-line one of the same size, and `maxBlocks` is the point past
+     * which no bonus makes it worth anything - a hard cap for the same reason `ceiling` is one.
+     */
+    U32 blockCost = 0;
+    U32 maxBlocks = 0;
+
+    /*
      * `@inline` on the declaration - see readInlineAttribute in resolve/module.cpp.
      *
      * A budget term like every other, which is the whole of what makes it an honest hint: it says
@@ -118,8 +146,8 @@ struct InlinePolicy {
 /*
  * The table, by level and by target family.
  *
- * Two rules differ between the families and both come from the same fact - that a managed host does
- * not have an optimizing backend under it, and does have a collector:
+ * Three rules differ between the families and all three come from the same fact - that a managed
+ * host does not have an optimizing backend under it, and does have a collector:
  *
  *  - **a managed target pays much more for an allocation**, so `mutableBorrow` and `memoryResult`
  *    are large there and small natively. On JS a record that stays a record is an object with a
@@ -131,7 +159,11 @@ struct InlinePolicy {
  *    budget of its own that a function grown past it stops qualifying for - so inlining a large
  *    callee into six call sites can lose twice, once in bytes and once by pushing each caller out of
  *    the host's own budget. That is the user-visible half of "avoid inlining large functions that
- *    are called multiple times".
+ *    are called multiple times";
+ *  - **a managed target pays much more for a block**, so `blockCost` is larger there. Natively a
+ *    block is a label and a jump. On JS it is not even that: codegen/js/flow.cpp has to *recover* an
+ *    `if` or a `for(;;)` from the graph, and every block spliced into a caller is one more join for
+ *    that recovery to find a structured form of.
  *
  * What does *not* differ is the constant-argument bonus and the sole-call-site bonus, because
  * neither is about the machine. A callee folded against its arguments is smaller after inlining
@@ -147,7 +179,8 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
 
         case InlineLevel::Size:
             // Nothing but the case that cannot grow the program, which is why the base budget is
-            // zero: a callee qualifies here only through `soleCallSite`.
+            // zero: a callee qualifies here only through `soleCallSite`. `blockCost` is zero for the
+            // same reason - a body that moves rather than being copied costs no blocks either.
             policy.budget = 0;
             policy.soleCallSite = 10;
             policy.constantArgument = 0;
@@ -156,6 +189,8 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.repeatedPenalty = 0;
             policy.manyCallSites = 2;
             policy.manyPenalty = 0;
+            policy.blockCost = 0;
+            policy.maxBlocks = 8;
             policy.requested = 24;
             policy.ceiling = 24;
             break;
@@ -169,6 +204,8 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.repeatedPenalty = managed ? 3 : 1;
             policy.manyCallSites = managed ? 4 : 8;
             policy.manyPenalty = managed ? 6 : 2;
+            policy.blockCost = managed ? 3 : 1;
+            policy.maxBlocks = 8;
             policy.requested = 32;
             policy.ceiling = managed ? 40 : 48;
             break;
@@ -182,6 +219,8 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.repeatedPenalty = managed ? 2 : 0;
             policy.manyCallSites = managed ? 8 : 16;
             policy.manyPenalty = managed ? 4 : 1;
+            policy.blockCost = managed ? 2 : 1;
+            policy.maxBlocks = 16;
             policy.requested = 64;
             policy.ceiling = managed ? 80 : 120;
             break;
@@ -211,8 +250,22 @@ struct Parameter {
 struct Candidate {
     ModulePtr<Function> pointer = nullptr;
     Function* callee = nullptr;
-    Block* body = nullptr;
     Array<Parameter> parameters;
+
+    /*
+     * The callee's reachable blocks in reverse postorder, and the ones ending in `ret`.
+     *
+     * The order is what the clone below rests on: a non-phi operand is dominated by its definition,
+     * so a walk in this order reaches every definition before the use that names it and the value
+     * map is complete by the time it is asked. A phi is the exception SSA makes to that, and is why
+     * phis are created ahead of everything else rather than in place.
+     *
+     * Unreachable blocks are left out rather than cloned into unreachable copies of themselves. The
+     * one thing that costs is a phi alternative arriving from one, which is dropped with it - and
+     * dropping it is correct rather than approximate, since there is no edge for it to arrive over.
+     */
+    Array<ModulePtr<Block>> blocks;
+    Array<ModulePtr<Block>> returns;
 
     // The callee local holding what a memory-typed result is returned out of, and `kNone` where the
     // result is a register value or nothing at all.
@@ -220,13 +273,149 @@ struct Candidate {
 
     U32 size = 0;
 
+    bool isStraightLine() const { return blocks.size() == 1; }
+
     static constexpr U32 kNone = maxLimit<U32>;
 };
+
+/*
+ * Which functions can reach themselves through a chain of calls, found once for the whole program.
+ *
+ * Tarjan's algorithm rather than a reachability closure, because the question is exactly "is this
+ * function in a cycle" and a strongly connected component is exactly a cycle: a component with more
+ * than one member is a mutual recursion, and a self-edge is the one-member case the component
+ * numbering cannot tell from an ordinary function on its own.
+ *
+ * Computed before the rounds and not recomputed between them, which is sound rather than a shortcut:
+ * inlining copies a callee's calls into its caller, so a caller gains edges - but only edges to
+ * things it could already reach through the call that went away. No cycle is created and none is
+ * destroyed, so the answer is the same on every round.
+ *
+ * `GenCall` is an edge here and is not a call this pass will ever clone. That is deliberate: what
+ * the graph is for is deciding whether a *body* is recursive, and a body that reaches itself only
+ * through a class dispatch is as recursive as one that does not.
+ */
+void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
+    Array<ModulePtr<Function>> nodes;
+    Array<Array<U32>> edges;
+    HashMap<U32, U32> index;
+
+    for(auto module: opt.program.modules) {
+        for(auto pointer: module->functionOrder.contents(opt.local)) {
+            auto entry = index.add(U32(pointer));
+            if(entry.existed) continue;
+
+            *entry.value = U32(nodes.size());
+            nodes.push(pointer);
+            edges.push(Array<U32>());
+        }
+    }
+
+    // Second walk rather than one, because an edge can name a function the first walk has not
+    // numbered yet - which is every forward reference and every call into another module.
+    for(Size i = 0; i < nodes.size(); i++) {
+        for(auto blockPointer: opt.local[nodes[i]]->blocks.contents(opt.local)) {
+            for(auto instructionPointer: opt.local[blockPointer]->instructions.contents(opt.local)) {
+                auto& instruction = *opt.local[instructionPointer];
+
+                ModulePtr<Function> callee = nullptr;
+                if(instruction.kind == Value::Call) callee = ((InstCall&)instruction).callee;
+                else if(instruction.kind == Value::GenCall) callee = ((InstGenCall&)instruction).callee;
+
+                if(!callee) continue;
+
+                auto found = index.getValue(U32(callee));
+                if(found) edges[i].push(found.unwrap());
+            }
+        }
+    }
+
+    auto count = nodes.size();
+    Array<U32> number, lowlink;
+    Array<U8> onStack;
+
+    for(Size i = 0; i < count; i++) {
+        number.push(0);
+        lowlink.push(0);
+        onStack.push(0);
+    }
+
+    /*
+     * Explicit stacks rather than recursion: a call chain in a large program is deeper than this
+     * process's own stack is willing to be, and the walk needs no more of a frame than the node and
+     * how far through its edges it got.
+     *
+     * `component` is the one that decides the answer, and membership is read off it as each
+     * component is popped rather than off the finished numbering. The numbering does not answer it:
+     * a member reached through a second back edge keeps *that* edge's number rather than its
+     * component head's, so two members of one cycle can end up carrying two different lowlinks.
+     */
+    Array<U32> component;
+    Array<U32> pending;
+    Array<Size> next;
+    U32 counter = 1;
+
+    for(Size root = 0; root < count; root++) {
+        if(number[root]) continue;
+
+        number[root] = lowlink[root] = counter++;
+        onStack[root] = 1;
+        component.push(U32(root));
+        pending.push(U32(root));
+        next.push(0);
+
+        while(pending.size()) {
+            auto node = pending[pending.size() - 1];
+
+            if(next[next.size() - 1] < edges[node].size()) {
+                auto target = edges[node][next[next.size() - 1]++];
+
+                if(!number[target]) {
+                    number[target] = lowlink[target] = counter++;
+                    onStack[target] = 1;
+                    component.push(target);
+                    pending.push(target);
+                    next.push(0);
+                } else if(onStack[target] && number[target] < lowlink[node]) {
+                    lowlink[node] = number[target];
+                }
+
+                continue;
+            }
+
+            pending.pop();
+            next.pop();
+
+            if(lowlink[node] == number[node]) {
+                // Everything pushed since this node was first reached is the component it heads.
+                Array<U32> members;
+                while(component.size()) {
+                    auto member = component.pop().unwrap();
+                    onStack[member] = 0;
+                    members.push(member);
+
+                    if(member == node) break;
+                }
+
+                // A one-member component is a cycle only through an edge to itself, which is the
+                // case the component numbering cannot report - a cycle of length one.
+                if(members.size() == 1 && !edges[node].containsValue(node)) continue;
+
+                for(auto member: members) recursive.add(U32(nodes[member]), true);
+            }
+
+            if(pending.size() && lowlink[node] < lowlink[pending[pending.size() - 1]]) {
+                lowlink[pending[pending.size() - 1]] = lowlink[node];
+            }
+        }
+    }
+}
 
 struct Inliner {
     OptContext& opt;
     InlinePolicy policy;
     HashMap<U32, bool> taken;
+    HashMap<U32, bool> recursive;
     HashMap<U32, U32> callSites;
 
     /*
@@ -253,6 +442,14 @@ struct Inliner {
         }
     }
 
+    // The three ways a block can end that this pass knows how to graft. Everything else - a block
+    // with no terminator at all, which the resolver only leaves behind on an error path - declines
+    // the whole callee, since a body with a way out this does not reproduce is one whose copy would
+    // simply fall off the end.
+    bool clonableTerminator(Value::Kind kind) {
+        return kind == Value::Ret || kind == Value::Jmp || kind == Value::Je;
+    }
+
     /*
      * One callee, checked once and described for every call site of it.
      *
@@ -262,7 +459,7 @@ struct Inliner {
      */
     // Whether any place in the body is rooted in this local, which is the difference between a slot
     // that is storage and a slot that is only a name.
-    bool namesLocal(Block& body, U32 local) {
+    bool namesLocal(Candidate& candidate, U32 local) {
         auto found = false;
 
         auto visit = [&](Value& instruction) {
@@ -271,10 +468,58 @@ struct Inliner {
             });
         };
 
-        for(auto pointer: body.instructions.contents(opt.local)) visit(*opt.local[pointer]);
-        if(body.terminator) visit(*opt.local[body.terminator]);
+        for(auto blockPointer: candidate.blocks) {
+            auto block = opt.local[blockPointer];
+
+            for(auto pointer: block->instructions.contents(opt.local)) visit(*opt.local[pointer]);
+            if(block->terminator) visit(*opt.local[block->terminator]);
+        }
 
         return found;
+    }
+
+    /*
+     * The callee's reachable blocks, in reverse postorder - see `Candidate::blocks` for why that is
+     * the order and not the block list's own.
+     *
+     * Iterative for the reason Tarjan above is, and it carries the same two-item frame: which block,
+     * and which of its two successors comes next.
+     */
+    void orderBlocks(Function& callee, Array<ModulePtr<Block>>& order) {
+        Array<U8> seen;
+        for(Size i = 0; i < callee.blocks.size(); i++) seen.push(0);
+
+        Array<ModulePtr<Block>> postorder;
+        Array<ModulePtr<Block>> pending;
+        Array<Size> next;
+
+        seen[0] = 1;
+        pending.push(callee.blocks.get(opt.local, 0));
+        next.push(0);
+
+        while(pending.size()) {
+            auto pointer = pending[pending.size() - 1];
+            auto block = opt.local[pointer];
+
+            if(next[next.size() - 1] < 2) {
+                auto successor = block->outgoing[next[next.size() - 1]++];
+                if(!successor) continue;
+
+                auto target = opt.local[successor]->index;
+                if(seen[target]) continue;
+
+                seen[target] = 1;
+                pending.push(successor);
+                next.push(0);
+                continue;
+            }
+
+            postorder.push(pointer);
+            pending.pop();
+            next.pop();
+        }
+
+        for(Size i = postorder.size(); i-- > 0;) order.push(postorder[i]);
     }
 
     Maybe<Candidate> describe(ModulePtr<Function> pointer) {
@@ -285,24 +530,52 @@ struct Inliner {
         if(callee->noInline) return Nothing();
 
         if(callee->signature || callee->intrinsic || callee->gen || callee->takesEnv) return Nothing();
-        if(callee->blocks.size() != 1) return Nothing();
+        if(callee->blocks.isEmpty()) return Nothing();
         if(taken.get(U32(pointer))) return Nothing();
 
-        auto body = opt.local[callee->blocks.get(opt.local, 0)];
-        if(body->phis.isNotEmpty() || !body->terminator) return Nothing();
-        if(opt.local[body->terminator]->kind != Value::Ret) return Nothing();
+        // A body that can reach itself, which is unrolling rather than inlining - see the header.
+        if(recursive.get(U32(pointer))) return Nothing();
 
         Candidate candidate;
         candidate.pointer = pointer;
         candidate.callee = callee;
-        candidate.body = body;
+        orderBlocks(*callee, candidate.blocks);
 
-        for(auto instructionPointer: body->instructions.contents(opt.local)) {
-            auto& instruction = *opt.local[instructionPointer];
-            if(!clonableKind(instruction.kind)) return Nothing();
+        if(candidate.blocks.size() > policy.maxBlocks) return Nothing();
 
-            candidate.size++;
+        /*
+         * The entry block has to be one the caller's own block can *become*, since that is what the
+         * graft does with it: what was in front of the call stays in front of the body. A phi there,
+         * or an edge back into it, would mean the entry is a join - and a join cannot be the tail of
+         * a block that already has instructions in it. Nothing the resolver emits is one, because a
+         * loop's test is always a block of its own.
+         */
+        auto entry = opt.local[candidate.blocks[0]];
+        if(entry->phis.isNotEmpty() || entry->incoming.isNotEmpty()) return Nothing();
+
+        for(auto blockPointer: candidate.blocks) {
+            auto block = opt.local[blockPointer];
+            if(!block->terminator) return Nothing();
+
+            auto kind = opt.local[block->terminator]->kind;
+            if(!clonableTerminator(kind)) return Nothing();
+            if(kind == Value::Ret) candidate.returns.push(blockPointer);
+
+            for(auto instructionPointer: block->instructions.contents(opt.local)) {
+                auto& instruction = *opt.local[instructionPointer];
+                if(!clonableKind(instruction.kind)) return Nothing();
+
+                candidate.size++;
+            }
+
+            // A phi is an instruction the caller pays for like any other, and on a managed target it
+            // is a variable and an assignment on every edge into the join.
+            candidate.size += U32(block->phis.size());
         }
+
+        // A callee that never returns. The continuation would be unreachable and the call's result
+        // would have nothing to be, which is a correct program and not one worth building here.
+        if(candidate.returns.isEmpty()) return Nothing();
 
         /*
          * Which parameter each local belongs to, which is the map the parameter walk below needs and
@@ -348,7 +621,7 @@ struct Inliner {
                  * shape there is on a managed target, and it was being declined on its *second*
                  * parameter for having storage nothing reads.
                  */
-                if(namesLocal(*body, local)) return Nothing();
+                if(namesLocal(candidate, local)) return Nothing();
                 break;
             }
 
@@ -361,9 +634,17 @@ struct Inliner {
             if(slot.type && needsTeardown(*opt.module, slot.type)) return Nothing();
         }
 
-        auto& ret = (InstRet&)*opt.local[body->terminator];
+        auto& first = (InstRet&)*opt.local[opt.local[candidate.returns[0]]->terminator];
+        auto returnsValue = first.value != nullptr;
 
-        if(ret.value) {
+        for(auto blockPointer: candidate.returns) {
+            auto& ret = (InstRet&)*opt.local[opt.local[blockPointer]->terminator];
+
+            // Some paths returning a value and others returning none is not a shape the phi below
+            // has an answer for, and not one a well-typed body produces either.
+            if((ret.value != nullptr) != returnsValue) return Nothing();
+            if(!ret.value) continue;
+
             auto type = opt.local[ret.value]->type;
             if(type && needsTeardown(*opt.module, type)) return Nothing();
 
@@ -372,8 +653,15 @@ struct Inliner {
              * register, and the caller allocated that storage for the call. So the callee's local
              * has to *become* the caller's, which needs the returned value to be an allocation this
              * body made - a returned parameter or global has no such correspondence.
+             *
+             * And it needs there to be exactly one of them. Two `ret`s of two allocations are two
+             * callee locals that would both have to be the caller's one slot, and a slot holds the
+             * single value its storage came from - so the phi that answers this for a register
+             * result has no counterpart here. A callee shaped that way is left as a call.
              */
             if(type && isMemoryType(opt.global, type)) {
+                if(candidate.returns.size() != 1) return Nothing();
+
                 auto returned = opt.local[ret.value];
                 if(returned->kind != Value::Alloc) return Nothing();
 
@@ -425,6 +713,9 @@ struct Inliner {
         if(candidate.resultLocal != Candidate::kNone) limit += policy.memoryResult;
         if(candidate.callee->inlineHint) limit += policy.requested;
 
+        // What the graft costs, which the straight-line case does not pay because it performs none.
+        limit -= I64(candidate.blocks.size() - 1) * policy.blockCost;
+
         return I64(candidate.size) <= limit;
     }
 
@@ -434,15 +725,31 @@ struct Inliner {
      * One arena holds the whole program - `OptContext::local` is the program's, not a module's - so
      * a type, a constant, a global and a function pointer are the same handle in the caller as in
      * the callee, and none of them needs translating. What does need translating is exactly three
-     * things: a value defined in the body, a block (there is only one, and it disappears), and a
-     * local index, which a `Place` carries by number.
+     * things: a value defined in the body, a block, and a local index, which a `Place` carries by
+     * number.
      */
     struct Clone {
         HashMap<U32, U32> values;
+        HashMap<U32, U32> blocks;
         Array<U32> locals;
         Array<Inst*> emitted;
         Block* into = nullptr;
     };
+
+    // One callee block as it is being built in the caller: created before anything is cloned, so
+    // that a branch to it has something to name, and filled in afterwards.
+    struct ClonedBlock {
+        ModulePtr<Block> from = nullptr;
+        Block* to = nullptr;
+        Array<Inst*> phis;
+        Array<Inst*> instructions;
+        Inst* terminator = nullptr;
+    };
+
+    ModulePtr<Block> mapBlock(Clone& clone, ModulePtr<Block> block) {
+        auto found = clone.blocks.getValue(U32(block));
+        return found ? ModulePtr<Block>(found.unwrap()) : nullptr;
+    }
 
     /*
      * One operand, against the caller.
@@ -480,7 +787,7 @@ struct Inliner {
                 break;
             case Value::ConstDouble:
                 copy = addConstant<ConstDouble>(module, function, *clone.into, constant.source,
-                                               constant.type, ((ConstDouble&)constant).value);
+                                                constant.type, ((ConstDouble&)constant).value);
                 break;
             default:
                 return value;
@@ -632,6 +939,289 @@ struct Inliner {
     }
 
     /*
+     * A terminator, against the caller - which for a `ret` is the whole of what the graft is.
+     *
+     * A `ret` becomes a jump to the block holding whatever followed the call. That is the same
+     * statement the straight-line case makes by not emitting anything at all: control arrives at
+     * what came after the call, and the value the caller was going to read is whatever the `ret`
+     * named. Here it is an edge rather than an absence, and the phi at the other end is what makes
+     * several of them one value.
+     */
+    Inst* cloneTerminator(Clone& clone, Candidate& candidate, InstCall& call, Block& into,
+                          Value& terminator, ModulePtr<Block> continuation) {
+        auto& module = *opt.module;
+        auto& function = *opt.function;
+        auto source = terminator.source;
+        auto type = terminator.type;
+
+        switch(terminator.kind) {
+            case Value::Ret:
+                return (Inst*)createInst<InstJmp>(module, function, into, source, 0, type,
+                                                  continuation);
+            case Value::Jmp:
+                return (Inst*)createInst<InstJmp>(module, function, into, source, 0, type,
+                                                  mapBlock(clone, ((InstJmp&)terminator).target));
+            case Value::Je: {
+                auto& branch = (InstJe&)terminator;
+                return (Inst*)createInst<InstJe>(module, function, into, source, 0, type,
+                                                 mapValue(clone, candidate, call, branch.cond),
+                                                 mapBlock(clone, branch.thenBlock),
+                                                 mapBlock(clone, branch.elseBlock));
+            }
+            default:
+                return nullptr;
+        }
+    }
+
+    /*
+     * The caller's block, cut in two at the call.
+     *
+     * What was in front of the call stays where it is, because that is where the callee's body is
+     * about to go. Everything behind it - the remaining instructions, the terminator, and with the
+     * terminator every edge the block owned - moves to a fresh block that the callee's returns will
+     * jump to.
+     *
+     * The two halves of an edge have to move together. A successor records where an edge came from
+     * twice, once in its predecessor list and once per phi alternative, and both now name a block
+     * the edge no longer leaves from - so both are repointed here rather than left for the phi
+     * fill-in below, which would only reach the ones the callee happened to write.
+     */
+    Block* splitBlock(Block& block, Size index) {
+        auto& module = *opt.module;
+        auto pointer = (ModulePtr<Block>)(&block - opt.local);
+
+        auto continuation = opt.function->addBlock(module, block.name);
+        auto continuationPointer = (ModulePtr<Block>)(continuation - opt.local);
+        continuation->source = block.source;
+
+        Array<ModulePtr<Inst>> moved;
+        for(Size i = index + 1; i < block.instructions.size(); i++) {
+            moved.push(block.instructions.get(opt.local, i));
+        }
+
+        for(Size i = block.instructions.size(); i-- > index + 1;) {
+            block.instructions.remove(opt.local, i);
+        }
+
+        for(auto instruction: moved) {
+            opt.local[instruction]->block = continuationPointer;
+            continuation->instructions.push(opt.program.arena, instruction);
+        }
+
+        continuation->terminator = block.terminator;
+        if(block.terminator) opt.local[block.terminator]->block = continuationPointer;
+
+        continuation->outgoing[0] = block.outgoing[0];
+        continuation->outgoing[1] = block.outgoing[1];
+        block.terminator = nullptr;
+        block.outgoing[0] = nullptr;
+        block.outgoing[1] = nullptr;
+
+        for(auto successor: continuation->outgoing) {
+            if(!successor) continue;
+
+            retargetEdge(opt, opt.local[successor], pointer, continuationPointer);
+        }
+
+        return continuation;
+    }
+
+    /*
+     * What gives each new local its storage, before anything rooted in one is added to a block.
+     *
+     * From the callee's own slot rather than from the instruction kind, which is what makes this
+     * complete: an `Alloc` is the common case, but a `Copy` of an aggregate and a `Call` returning
+     * one each own a local too, and a slot left holding null is storage that later looks to every
+     * pass like a local nothing allocated. Order matters as well - `addPlaceUse` reads the slot to
+     * record a use, and it runs when an instruction reaches its block.
+     */
+    void bindLocals(Clone& clone, Candidate& candidate) {
+        for(U32 local = 0; local < candidate.callee->localCount(); local++) {
+            auto index = clone.locals[local];
+            if(index == maxLimit<U32>) continue;
+
+            auto source = candidate.callee->localAt(opt.local, local).value;
+            if(!source) continue;
+
+            auto mapped = clone.values.getValue(U32(source));
+            if(!mapped) continue;
+
+            auto slot = opt.function->localAt(opt.local, index);
+            slot.value = ModulePtr<Value>(mapped.unwrap());
+            opt.function->locals.set(opt.local, index, slot);
+        }
+    }
+
+    /*
+     * The straight-line splice: one block's worth of instructions, in front of the call.
+     *
+     * Answers the value the call becomes, or null where the callee returned nothing. Nothing about
+     * the caller's control flow changes, which is the whole reason this case is kept apart from the
+     * one below rather than expressed as an instance of it.
+     */
+    Maybe<ModulePtr<Value>> spliceStraightLine(Clone& clone, Candidate& candidate, InstCall& call,
+                                               Block& block, Size index) {
+        auto body = opt.local[candidate.blocks[0]];
+
+        for(auto instructionPointer: body->instructions.contents(opt.local)) {
+            auto& instruction = *opt.local[instructionPointer];
+            auto cloned = cloneInstruction(clone, candidate, call, block, instruction);
+            if(!cloned) return Nothing();
+
+            *clone.values.add(U32(instructionPointer)).value = U32(cloned - opt.local);
+            clone.emitted.push(cloned);
+        }
+
+        bindLocals(clone, candidate);
+        insertInstructions(opt, block, index, clone.emitted);
+
+        auto& ret = (InstRet&)*opt.local[body->terminator];
+        return Just(ret.value ? mapValue(clone, candidate, call, ret.value) : nullptr);
+    }
+
+    /*
+     * The graft: the callee's blocks, cloned into the gap the split left.
+     *
+     * The order below is the part that is not obvious, and every step of it is a thing that has to
+     * exist before the step after it can name it:
+     *
+     *  1. **the blocks**, so that a branch has a target and the caller's own block is the entry;
+     *  2. **the phis**, empty, so that a value defined further round a loop is already something the
+     *     map can answer with - the one case reverse postorder does not cover on its own;
+     *  3. **the instructions and terminators**, in that order, which is where every operand is
+     *     translated;
+     *  4. **the phi inputs**, once every value they could name exists;
+     *  5. **the locals**, which have to hold their storage before an instruction rooted in one is
+     *     added to a block, since that is when the use is recorded;
+     *  6. **the block contents**, added at last - `Block::add` is what records a use and an edge, so
+     *     nothing before this point is visible to a walk of the IR.
+     *
+     * Answers the value the call becomes: the one `ret`'s value where there is one such block, and
+     * otherwise a phi in the continuation over all of them.
+     */
+    Maybe<ModulePtr<Value>> spliceControlFlow(Clone& clone, Candidate& candidate, InstCall& call,
+                                              Block& block, Size index) {
+        auto& module = *opt.module;
+        auto& function = *opt.function;
+
+        auto continuation = splitBlock(block, index);
+        auto continuationPointer = (ModulePtr<Block>)(continuation - opt.local);
+
+        Array<ClonedBlock> cloned;
+        for(Size i = 0; i < candidate.blocks.size(); i++) {
+            ClonedBlock entry;
+            entry.from = candidate.blocks[i];
+
+            // The caller's own block is the callee's entry, which is what keeps the straight-line
+            // prefix of a branching callee in the block the passes after this one can see it in.
+            entry.to = i == 0 ? &block
+                              : function.addBlock(module, opt.local[candidate.blocks[i]]->name);
+            entry.to->source = opt.local[candidate.blocks[i]]->source;
+
+            *clone.blocks.add(U32(candidate.blocks[i])).value = U32((ModulePtr<Block>)(entry.to - opt.local));
+            cloned.push(::move(entry));
+        }
+
+        for(auto& target: cloned) {
+            for(auto phiPointer: opt.local[target.from]->phis.contents(opt.local)) {
+                auto& phi = *opt.local[phiPointer];
+                auto copy = createInst<InstPhi>(module, function, *target.to, phi.source, phi.name,
+                                                phi.type);
+
+                *clone.values.add(U32(phiPointer)).value = U32((ModulePtr<Value>)(copy - opt.local));
+                target.phis.push((Inst*)copy);
+            }
+        }
+
+        for(auto& target: cloned) {
+            auto from = opt.local[target.from];
+
+            for(auto instructionPointer: from->instructions.contents(opt.local)) {
+                auto& instruction = *opt.local[instructionPointer];
+                auto copy = cloneInstruction(clone, candidate, call, *target.to, instruction);
+
+                /*
+                 * Asserted rather than declined, which the straight-line case can afford not to be.
+                 *
+                 * By this point the caller's block has already been cut in two, so there is no
+                 * "leave it alone" left to return to - backing out would mean putting the halves
+                 * back together. It cannot happen either: `describe` checked every instruction
+                 * against `clonableKind` and every terminator against `clonableTerminator` before
+                 * the call site was considered, so a null here is a kind admitted by one of those
+                 * lists and missing from the switch that copies it.
+                 */
+                assertTrue(copy != nullptr);
+
+                *clone.values.add(U32(instructionPointer)).value = U32(copy - opt.local);
+                target.instructions.push(copy);
+            }
+
+            target.terminator = cloneTerminator(clone, candidate, call, *target.to,
+                                                *opt.local[from->terminator], continuationPointer);
+            assertTrue(target.terminator != nullptr);
+        }
+
+        for(auto& target: cloned) {
+            auto from = opt.local[target.from];
+            Size i = 0;
+
+            for(auto phiPointer: from->phis.contents(opt.local)) {
+                auto& phi = *opt.local[phiPointer];
+                auto copy = (InstPhi*)target.phis[i++];
+
+                for(auto input: phi.inputs.contents(opt.local)) {
+                    // An alternative arriving from a block nothing reaches is dropped with the block
+                    // - there is no edge for it to arrive over, so the copy has one fewer input and
+                    // one fewer predecessor to match it.
+                    auto source = mapBlock(clone, input.block);
+                    if(!source) continue;
+
+                    copy->inputs.push(opt.program.arena, PhiInput {
+                        source, mapValue(clone, candidate, call, input.value)
+                    });
+                }
+            }
+        }
+
+        bindLocals(clone, candidate);
+
+        for(auto& target: cloned) {
+            for(auto phi: target.phis) target.to->add(module, phi);
+            for(auto instruction: target.instructions) target.to->add(module, instruction);
+            target.to->add(module, target.terminator);
+        }
+
+        /*
+         * And what the call becomes.
+         *
+         * One returning block dominates the continuation on its own, so its value is simply the
+         * answer. Several do not - that is the definition of a join - and the phi is what says so.
+         * It is built after the terminators rather than with them because its inputs are the blocks
+         * those terminators created the edges from.
+         */
+        Array<PhiInput> results;
+        for(auto blockPointer: candidate.returns) {
+            auto& ret = (InstRet&)*opt.local[opt.local[blockPointer]->terminator];
+            if(!ret.value) continue;
+
+            results.push(PhiInput { mapBlock(clone, blockPointer),
+                                    mapValue(clone, candidate, call, ret.value) });
+        }
+
+        if(results.isEmpty()) return Just(ModulePtr<Value>(nullptr));
+        if(results.size() == 1) return Just(results[0].value);
+
+        // Typed from the call rather than from one of the values it merges: the call's type is the
+        // callee's declared result, which is the one thing every `ret` in it already agreed on.
+        auto phi = createInst<InstPhi>(module, function, *continuation, call.source, call.name,
+                                       call.type);
+        for(auto& input: results) phi->inputs.push(opt.program.arena, input);
+
+        continuation->add(module, phi);
+        return Just((ModulePtr<Value>)((Value*)phi - opt.local));
+    }
+
+    /*
      * One call, replaced.
      *
      * The caller's local table grows by the callee's locals, minus the `&` parameters' - those name
@@ -639,7 +1229,7 @@ struct Inliner {
      * A memory-typed result reuses the slot the call already had rather than adding one, which is
      * what keeps the caller's existing places rooted in it pointing at the same storage.
      */
-    bool inlineCall(Block& block, Size index, ModulePtr<Inst> pointer) {
+    bool inlineCall(Block& block, Size index, ModulePtr<Inst> pointer, bool& grafted) {
         auto& call = (InstCall&)*opt.local[pointer];
         if(!call.callee) return false;
         if(call.callee == (ModulePtr<Function>)(opt.function - opt.local)) return false;
@@ -704,6 +1294,11 @@ struct Inliner {
             resultSlots.push(local);
         }
 
+        // A slot holds the one value its storage came from, and a phi over several `ret`s is not
+        // one - see the memory-result reasoning in `describe`, which is the same argument from the
+        // callee's side. A call whose result is storage the caller named is left alone here.
+        if(resultSlots.isNotEmpty() && candidate.returns.size() > 1) return false;
+
         auto resultSlot = resultSlots.size() ? resultSlots[0] : call.local;
 
         for(U32 local = 0; local < candidate.callee->localCount(); local++) {
@@ -739,43 +1334,14 @@ struct Inliner {
             *clone.values.add(U32(argPointer)).value = U32(call.args.get(opt.local, i));
         }
 
-        for(auto instructionPointer: candidate.body->instructions.contents(opt.local)) {
-            auto& instruction = *opt.local[instructionPointer];
-            auto cloned = cloneInstruction(clone, candidate, call, block, instruction);
-            if(!cloned) return false;
+        auto spliced = candidate.isStraightLine()
+            ? spliceStraightLine(clone, candidate, call, block, index)
+            : spliceControlFlow(clone, candidate, call, block, index);
 
-            *clone.values.add(U32(instructionPointer)).value = U32(cloned - opt.local);
-            clone.emitted.push(cloned);
-        }
+        if(!spliced) return false;
+        if(!candidate.isStraightLine()) grafted = true;
 
-        /*
-         * What gives each new local its storage, before anything rooted in one is added to a block.
-         *
-         * From the callee's own slot rather than from the instruction kind, which is what makes this
-         * complete: an `Alloc` is the common case, but a `Copy` of an aggregate and a `Call`
-         * returning one each own a local too, and a slot left holding null is storage that later
-         * looks to every pass like a local nothing allocated. Order matters as well - `addPlaceUse`
-         * reads the slot to record a use, and `insertInstructions` below is what runs it.
-         */
-        for(U32 local = 0; local < candidate.callee->localCount(); local++) {
-            auto index = clone.locals[local];
-            if(index == maxLimit<U32>) continue;
-
-            auto source = candidate.callee->localAt(opt.local, local).value;
-            if(!source) continue;
-
-            auto mapped = clone.values.getValue(U32(source));
-            if(!mapped) continue;
-
-            auto slot = opt.function->localAt(opt.local, index);
-            slot.value = ModulePtr<Value>(mapped.unwrap());
-            opt.function->locals.set(opt.local, index, slot);
-        }
-
-        insertInstructions(opt, block, index, clone.emitted);
-
-        auto& ret = (InstRet&)*opt.local[candidate.body->terminator];
-        auto result = ret.value ? mapValue(clone, candidate, call, ret.value) : nullptr;
+        auto result = spliced.unwrap();
 
         if(result && opt.local[pointer]->uses.isNotEmpty()) {
             replaceValue(opt, (ModulePtr<Value>)pointer, result);
@@ -806,6 +1372,46 @@ struct Inliner {
         return true;
     }
 
+    /*
+     * The caller's blocks, put back into an order in which every definition precedes the uses of it.
+     *
+     * A graft appends: the half of the caller's block that followed the call becomes a new block at
+     * the end of the list, and the callee's own blocks land behind it - which puts the continuation,
+     * and the phi in it that merges the returns, in front of the blocks that define what it merges.
+     *
+     * That is not a cosmetic ordering. `lowerProgram` walks a function's blocks in list order and
+     * asserts that every operand it meets has already been lowered - phis excepted, which is why a
+     * loop works there at all - so an out-of-order block list is `resolve value was used before it
+     * was lowered` rather than a differently-shaped dump. Reverse postorder is exactly the property
+     * it wants: a block precedes everything it dominates, and a non-phi use is dominated by its
+     * definition.
+     *
+     * Whatever the walk does not reach is kept, at the end. Deleting unreachable blocks is
+     * opt_branch.cpp's job and it does it with the phi bookkeeping that belongs to it.
+     */
+    void reorderBlocks() {
+        Array<ModulePtr<Block>> order;
+        orderBlocks(*opt.function, order);
+
+        for(auto pointer: opt.function->blocks.contents(opt.local)) {
+            if(!order.containsValue(pointer)) order.push(pointer);
+        }
+
+        writeBlocks(order);
+    }
+
+    // A block's index is its position in this list, which is what every walk in opt_flow.cpp
+    // assumes - so rewriting the list means renumbering with it.
+    void writeBlocks(Array<ModulePtr<Block>>& order) {
+        opt.function->blocks.clear();
+
+        U16 index = 0;
+        for(auto pointer: order) {
+            opt.function->blocks.push(opt.program.arena, pointer);
+            opt.local[pointer]->index = index++;
+        }
+    }
+
     // How many times each function in the program is named by a `Call`. Recomputed per round, since
     // inlining is exactly the thing that changes it.
     void countCallSites() {
@@ -834,9 +1440,16 @@ struct Inliner {
         rebuildUses(opt);
 
         auto inlined = false;
+        auto grafted = false;
 
-        for(auto blockPointer: function.blocks.contents(opt.local)) {
-            auto block = opt.local[blockPointer];
+        /*
+         * By index rather than over a snapshot of the block list, because a graft appends to it: the
+         * half of the caller's block that followed the call is a new block, and the rest of the
+         * caller - including the next call - is in it. Reading the size each step is what lets a
+         * chain of branching calls collapse in one walk instead of one per round.
+         */
+        for(Size b = 0; b < function.blocks.size(); b++) {
+            auto block = opt.local[function.blocks.get(opt.local, b)];
 
             /*
              * Forwards, and re-reading the size each step, because the splice inserts the callee's
@@ -853,9 +1466,22 @@ struct Inliner {
                     continue;
                 }
 
-                if(inlineCall(*block, i, pointer)) inlined = true;
+                if(inlineCall(*block, i, pointer, grafted)) inlined = true;
                 else i++;
             }
+        }
+
+        /*
+         * And the cleanup the graft owes, only where one happened.
+         *
+         * A `jmp` chain this pass did not create is one the resolver emitted and both backends
+         * already deal with, so there is no reason to normalize a function nothing was spliced into.
+         * The merge runs first: it is what decides which blocks there are, and the reordering is
+         * about what order the ones that remain are in.
+         */
+        if(grafted) {
+            mergeBlocks(opt);
+            reorderBlocks();
         }
 
         return inlined;
@@ -863,8 +1489,9 @@ struct Inliner {
 };
 
 // A cap on the cascade rather than a termination proof, on the same terms as the driver's own round
-// limit: a chain of callees each of which calls the next collapses a level per round, and a mutual
-// recursion that would otherwise grow for ever stops here.
+// limit: a chain of callees each of which calls the next collapses a level per round. Recursion is
+// no longer among the things this bounds - see the header - so what is left for it to bound is a
+// call depth deeper than three, which stops being inlined rather than going wrong.
 constexpr Size kMaxInlineRounds = 3;
 
 }
@@ -878,7 +1505,7 @@ void inlineCalls(OptContext& opt) {
 
     Inliner inliner { opt, policy };
     addressTaken(opt, inliner.taken);
-
+    findRecursion(opt, inliner.recursive);
 
     for(Size round = 0; round < kMaxInlineRounds; round++) {
         inliner.countCallSites();
@@ -897,6 +1524,4 @@ void inlineCalls(OptContext& opt) {
 
         if(!inlined) break;
     }
-
-
 }

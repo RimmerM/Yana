@@ -66,10 +66,14 @@ main<complex>(): Int {
     %v_2 = call_complex barrier, 0: Int
     %v_3 = imul %v_2, 1000: Int
     %v_4 = add %v_1, %v_3: Int
-    %v_5 = call_complex taken, 1: Int
-    %v_6 = imul %v_5, 1000000: Int
-    %v_7 = add %v_4, %v_6: Int
-    ret %v_7
+    %v_5 = call_complex seed: Int
+    %v_6 = call_complex next, %v_5: Int
+    %v_7 = imul %v_6, 100: Int
+    %v_8 = add %v_7, %v_6: Int
+    %v_9 = add %v_8, %v_6: Int
+    %v_10 = imul %v_9, 1000000: Int
+    %v_11 = add %v_4, %v_10: Int
+    ret %v_11
   }
 }
 

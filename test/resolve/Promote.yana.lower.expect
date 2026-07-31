@@ -95,12 +95,28 @@ borrowed<complex>(): Int {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex counted, 5: Int
-    %v_2 = call_complex flagged, 1: Int
-    %v_3 = imul %v_2, 10: Int
-    %v_4 = add %v_1, %v_3: Int
-    %v_5 = add %v_4, 16074: Int
-    ret %v_5
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = cmp_ilt %v_5, 5: Int
+    je %v_7, b_3, b_8
+  }
+
+  b_8 {
+    %v_9 = call_complex flagged, 1: Int
+    %v_10 = imul %v_9, 10: Int
+    %v_11 = add %v_2, %v_10: Int
+    %v_12 = add %v_11, 16074: Int
+    ret %v_12
+  }
+
+  b_3 {
+    %v_4 = add %v_2, %v_5: Int
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
   }
 }
 

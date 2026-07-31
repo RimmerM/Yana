@@ -185,22 +185,32 @@ main<complex>(): Int {
     store %v_7, 3, 4
     %v_8 = call_complex choiceValue, %v_5: Int
     %v_9 = add %v_4, %v_8: Int
-    %v_10 = call_complex classify, 7: Int
-    %v_11 = add %v_9, %v_10: Int
-    %v_12 = add %v_11, 15: Int
-    %v_13 = call_complex boolValue, 0: Int
-    %v_14 = add %v_12, %v_13: Int
-    %v_15 = call_complex directionValue, 1: Int
-    %v_16 = add %v_14, %v_15: Int
-    %v_17 = alloca 8, 4: Ptr
-    call_complex selectedPair, %v_17, 1
-    %pair$x = loads %v_17, 4: Int
-    %v_18 = add %v_17, 4: Ptr
-    %pair$y = loads %v_18, 4: Int
-    %v_19 = add %pair$x, %pair$y: Int
-    %v_20 = add %v_16, %v_19: Int
-    %v_21 = add %v_20, 3: Int
-    ret %v_21
+    %v_10 = add %v_9, 17: Int
+    %v_11 = cast 1: Int
+    %v_12 = cmp_eq %v_11, 0: Int
+    je %v_12, b_13, b_14
+  }
+
+  b_14 {
+    jmp b_15
+  }
+
+  b_13 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = phi [b_13, 1], [b_14, 2]: Int
+    %v_17 = add %v_10, %v_16: Int
+    %v_18 = alloca 8, 4: Ptr
+    call_complex selectedPair, %v_18, 1
+    %pair$x = loads %v_18, 4: Int
+    %v_19 = add %v_18, 4: Ptr
+    %pair$y = loads %v_19, 4: Int
+    %v_20 = add %pair$x, %pair$y: Int
+    %v_21 = add %v_17, %v_20: Int
+    %v_22 = add %v_21, 3: Int
+    ret %v_22
   }
 }
 

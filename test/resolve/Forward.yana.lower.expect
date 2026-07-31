@@ -178,20 +178,44 @@ merged<complex>(%a: Int): Int {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex branched, 2: Int
-    %v_2 = call_complex partial, 1: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex merged, 1: Int
-    %v_5 = add %v_3, %v_4: Int
-    %v_6 = call_complex invariant, 3: Int
-    %v_7 = add %v_5, %v_6: Int
-    %v_8 = call_complex carried, 4: Int
-    %v_9 = add %v_7, %v_8: Int
-    %v_10 = call_complex nested, 2: Int
-    %v_11 = add %v_9, %v_10: Int
-    %v_12 = call_complex escaped, 5: Int
-    %v_13 = add %v_11, %v_12: Int
-    ret %v_13
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = cmp_ilt %v_5, 3: Int
+    je %v_7, b_3, b_8
+  }
+
+  b_8 {
+    %v_9 = add %v_2, 53: Int
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = phi [b_8, 0], [b_12, %v_13]: Int
+    %v_14 = phi [b_8, 0], [b_12, %v_15]: Int
+    %v_16 = cmp_ilt %v_14, 4: Int
+    je %v_16, b_12, b_17
+  }
+
+  b_17 {
+    %v_18 = add %v_9, %v_11: Int
+    %v_19 = add %v_18, 17: Int
+    ret %v_19
+  }
+
+  b_12 {
+    %v_13 = add %v_11, 5: Int
+    %v_15 = add %v_14, 1: Int
+    jmp b_10
+  }
+
+  b_3 {
+    %v_4 = add %v_2, 12: Int
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
   }
 }
 

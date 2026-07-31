@@ -285,116 +285,282 @@ main<complex>(): Int {
     store %v_1, %v_12, 8
     %v_13 = call_complex readB, %v_1: Int
     %v_14 = cast %v_13: Int
-    %v_15 = call_complex check, %v_14, 999999, 1: Int
-    %v_16 = alloca 8, 8: Ptr
-    call_complex writeHigh, %v_16
-    %v_17 = load %v_16, 8: Long
-    %v_18 = shr %v_17, 32: Long
-    %v_19 = and %v_18, 1048575: Long
-    %v_20 = cast %v_19: Int
-    %v_21 = cast %v_20: Int
-    %v_22 = call_complex check, %v_21, 1048575, 2: Int
-    %v_23 = add %v_15, %v_22: Int
-    %v_24 = alloca 8, 8: Ptr
-    call_complex writeHigh, %v_24
-    %v_25 = load %v_24, 8: Long
-    %v_26 = and %v_25, 1048575: Long
-    %v_27 = cast %v_26: Int
-    %v_28 = cast %v_27: Int
-    %v_29 = call_complex check, %v_28, 1000, 4: Int
-    %v_30 = add %v_23, %v_29: Int
-    %v_31 = alloca 8, 8: Ptr
-    call_complex writeLow, %v_31
-    %v_32 = load %v_31, 8: Long
-    %v_33 = shr %v_32, 32: Long
+    %v_15 = cmp_eq %v_14, 999999: Int
+    je %v_15, b_16, b_17
+  }
+
+  b_17 {
+    jmp b_18
+  }
+
+  b_16 {
+    jmp b_18
+  }
+
+  b_18 {
+    %v_19 = phi [b_16, 1], [b_17, 0]: Int
+    %v_20 = alloca 8, 8: Ptr
+    call_complex writeHigh, %v_20
+    %v_21 = load %v_20, 8: Long
+    %v_22 = shr %v_21, 32: Long
+    %v_23 = and %v_22, 1048575: Long
+    %v_24 = cast %v_23: Int
+    %v_25 = cast %v_24: Int
+    %v_26 = cmp_eq %v_25, 1048575: Int
+    je %v_26, b_27, b_28
+  }
+
+  b_28 {
+    jmp b_29
+  }
+
+  b_27 {
+    jmp b_29
+  }
+
+  b_29 {
+    %v_30 = phi [b_27, 2], [b_28, 0]: Int
+    %v_31 = add %v_19, %v_30: Int
+    %v_32 = alloca 8, 8: Ptr
+    call_complex writeHigh, %v_32
+    %v_33 = load %v_32, 8: Long
     %v_34 = and %v_33, 1048575: Long
     %v_35 = cast %v_34: Int
     %v_36 = cast %v_35: Int
-    %v_37 = call_complex check, %v_36, 999999, 8: Int
-    %v_38 = add %v_30, %v_37: Int
-    %v_39 = alloca 8, 8: Ptr
-    call_complex bumpedHigh, %v_39
-    %v_40 = load %v_39, 8: Long
-    %v_41 = shr %v_40, 32: Long
-    %v_42 = and %v_41, 1048575: Long
-    %v_43 = cast %v_42: Int
-    %v_44 = cast %v_43: Int
-    %v_45 = call_complex check, %v_44, 1000000, 16: Int
-    %v_46 = add %v_38, %v_45: Int
-    %v_47 = alloca 8, 8: Ptr
-    call_complex bumpedHigh, %v_47
-    %v_48 = load %v_47, 8: Long
-    %v_49 = and %v_48, 1048575: Long
-    %v_50 = cast %v_49: Int
-    %v_51 = cast %v_50: Int
-    %v_52 = call_complex check, %v_51, 1000, 32: Int
-    %v_53 = add %v_46, %v_52: Int
-    %v_54 = alloca 8, 8: Ptr
-    call_complex marked, %v_54
-    %v_55 = load %v_54, 8: Long
-    %v_56 = shl %v_55, 12: Long
-    %v_57 = sar %v_56, 44: Long
-    %v_58 = sext %v_57: Int
+    %v_37 = cmp_eq %v_36, 1000: Int
+    je %v_37, b_38, b_39
+  }
+
+  b_39 {
+    jmp b_40
+  }
+
+  b_38 {
+    jmp b_40
+  }
+
+  b_40 {
+    %v_41 = phi [b_38, 4], [b_39, 0]: Int
+    %v_42 = add %v_31, %v_41: Int
+    %v_43 = alloca 8, 8: Ptr
+    call_complex writeLow, %v_43
+    %v_44 = load %v_43, 8: Long
+    %v_45 = shr %v_44, 32: Long
+    %v_46 = and %v_45, 1048575: Long
+    %v_47 = cast %v_46: Int
+    %v_48 = cast %v_47: Int
+    %v_49 = cmp_eq %v_48, 999999: Int
+    je %v_49, b_50, b_51
+  }
+
+  b_51 {
+    jmp b_52
+  }
+
+  b_50 {
+    jmp b_52
+  }
+
+  b_52 {
+    %v_53 = phi [b_50, 8], [b_51, 0]: Int
+    %v_54 = add %v_42, %v_53: Int
+    %v_55 = alloca 8, 8: Ptr
+    call_complex bumpedHigh, %v_55
+    %v_56 = load %v_55, 8: Long
+    %v_57 = shr %v_56, 32: Long
+    %v_58 = and %v_57, 1048575: Long
     %v_59 = cast %v_58: Int
-    %v_60 = call_complex checkI, %v_59, 18446744073709551613, 64: Int
-    %v_61 = add %v_53, %v_60: Int
-    %v_62 = alloca 8, 8: Ptr
-    call_complex marked, %v_62
-    %v_63 = load %v_62, 8: Long
-    %v_64 = and %v_63, 1048575: Long
-    %v_65 = cast %v_64: Int
-    %v_66 = cast %v_65: Int
-    %v_67 = call_complex check, %v_66, 5, 128: Int
-    %v_68 = add %v_61, %v_67: Int
-    %v_69 = call_complex checkW, 549755813887, 549755813887, 256: Int
-    %v_70 = add %v_68, %v_69: Int
-    %v_71 = call_complex check, 9, 9, 512: Int
-    %v_72 = add %v_70, %v_71: Int
-    %v_73 = alloca 8, 8: Ptr
-    call_complex retagged, %v_73
-    %v_74 = load %v_73, 8: Long
-    %v_75 = shl %v_74, 24: Long
-    %v_76 = sar %v_75, 24: Long
-    %v_77 = sext %v_76: Long
-    %v_78 = cast %v_77: Long
-    %v_79 = call_complex checkW, %v_78, 18446744073709551614, 1024: Int
-    %v_80 = add %v_72, %v_79: Int
-    %v_81 = alloca 8, 8: Ptr
-    call_complex retagged, %v_81
-    %v_82 = load %v_81, 8: Long
-    %v_83 = shr %v_82, 40: Long
-    %v_84 = and %v_83, 15: Long
-    %v_85 = cast %v_84: Int
-    %v_86 = cast %v_85: Int
-    %v_87 = call_complex check, %v_86, 9, 2048: Int
-    %v_88 = add %v_80, %v_87: Int
-    %v_89 = alloca 8, 4: Ptr
-    call_complex boxed, %v_89
-    %v_90 = add %v_89, 4: Ptr
-    %v_91 = load %v_90, 4: Int
-    %v_92 = shr %v_91, 20: Int
-    %v_93 = and %v_92, 4095: Int
-    %v_94 = call_complex check, %v_93, 0, 4096: Int
-    %v_95 = add %v_88, %v_94: Int
-    %v_96 = alloca 8, 8: Ptr
-    call_complex stored, %v_96, 549755813887
-    %v_97 = load %v_96, 8: Long
-    %v_98 = shl %v_97, 24: Long
-    %v_99 = sar %v_98, 24: Long
-    %v_100 = sext %v_99: Long
-    %v_101 = cast %v_100: Long
-    %v_102 = call_complex checkW, %v_101, 549755813887, 8192: Int
-    %v_103 = add %v_95, %v_102: Int
-    %v_104 = alloca 8, 8: Ptr
-    call_complex stored, %v_104, 18446743523953737728
-    %v_105 = load %v_104, 8: Long
-    %v_106 = shl %v_105, 24: Long
-    %v_107 = sar %v_106, 24: Long
-    %v_108 = sext %v_107: Long
-    %v_109 = cast %v_108: Long
-    %v_110 = call_complex checkW, %v_109, 18446743523953737728, 16384: Int
-    %v_111 = add %v_103, %v_110: Int
-    ret %v_111
+    %v_60 = cast %v_59: Int
+    %v_61 = cmp_eq %v_60, 1000000: Int
+    je %v_61, b_62, b_63
+  }
+
+  b_63 {
+    jmp b_64
+  }
+
+  b_62 {
+    jmp b_64
+  }
+
+  b_64 {
+    %v_65 = phi [b_62, 16], [b_63, 0]: Int
+    %v_66 = add %v_54, %v_65: Int
+    %v_67 = alloca 8, 8: Ptr
+    call_complex bumpedHigh, %v_67
+    %v_68 = load %v_67, 8: Long
+    %v_69 = and %v_68, 1048575: Long
+    %v_70 = cast %v_69: Int
+    %v_71 = cast %v_70: Int
+    %v_72 = cmp_eq %v_71, 1000: Int
+    je %v_72, b_73, b_74
+  }
+
+  b_74 {
+    jmp b_75
+  }
+
+  b_73 {
+    jmp b_75
+  }
+
+  b_75 {
+    %v_76 = phi [b_73, 32], [b_74, 0]: Int
+    %v_77 = add %v_66, %v_76: Int
+    %v_78 = alloca 8, 8: Ptr
+    call_complex marked, %v_78
+    %v_79 = load %v_78, 8: Long
+    %v_80 = shl %v_79, 12: Long
+    %v_81 = sar %v_80, 44: Long
+    %v_82 = sext %v_81: Int
+    %v_83 = cast %v_82: Int
+    %v_84 = cmp_eq %v_83, 18446744073709551613: Int
+    je %v_84, b_85, b_86
+  }
+
+  b_86 {
+    jmp b_87
+  }
+
+  b_85 {
+    jmp b_87
+  }
+
+  b_87 {
+    %v_88 = phi [b_85, 64], [b_86, 0]: Int
+    %v_89 = add %v_77, %v_88: Int
+    %v_90 = alloca 8, 8: Ptr
+    call_complex marked, %v_90
+    %v_91 = load %v_90, 8: Long
+    %v_92 = and %v_91, 1048575: Long
+    %v_93 = cast %v_92: Int
+    %v_94 = cast %v_93: Int
+    %v_95 = cmp_eq %v_94, 5: Int
+    je %v_95, b_96, b_97
+  }
+
+  b_97 {
+    jmp b_98
+  }
+
+  b_96 {
+    jmp b_98
+  }
+
+  b_98 {
+    %v_99 = phi [b_96, 128], [b_97, 0]: Int
+    %v_100 = add %v_89, %v_99: Int
+    %v_101 = add %v_100, 768: Int
+    %v_102 = alloca 8, 8: Ptr
+    call_complex retagged, %v_102
+    %v_103 = load %v_102, 8: Long
+    %v_104 = shl %v_103, 24: Long
+    %v_105 = sar %v_104, 24: Long
+    %v_106 = sext %v_105: Long
+    %v_107 = cast %v_106: Long
+    %v_108 = cmp_eq %v_107, 18446744073709551614: Int
+    je %v_108, b_109, b_110
+  }
+
+  b_110 {
+    jmp b_111
+  }
+
+  b_109 {
+    jmp b_111
+  }
+
+  b_111 {
+    %v_112 = phi [b_109, 1024], [b_110, 0]: Int
+    %v_113 = add %v_101, %v_112: Int
+    %v_114 = alloca 8, 8: Ptr
+    call_complex retagged, %v_114
+    %v_115 = load %v_114, 8: Long
+    %v_116 = shr %v_115, 40: Long
+    %v_117 = and %v_116, 15: Long
+    %v_118 = cast %v_117: Int
+    %v_119 = cast %v_118: Int
+    %v_120 = cmp_eq %v_119, 9: Int
+    je %v_120, b_121, b_122
+  }
+
+  b_122 {
+    jmp b_123
+  }
+
+  b_121 {
+    jmp b_123
+  }
+
+  b_123 {
+    %v_124 = phi [b_121, 2048], [b_122, 0]: Int
+    %v_125 = add %v_113, %v_124: Int
+    %v_126 = alloca 8, 4: Ptr
+    call_complex boxed, %v_126
+    %v_127 = add %v_126, 4: Ptr
+    %v_128 = load %v_127, 4: Int
+    %v_129 = shr %v_128, 20: Int
+    %v_130 = and %v_129, 4095: Int
+    %v_131 = cmp_eq %v_130, 0: Int
+    je %v_131, b_132, b_133
+  }
+
+  b_133 {
+    jmp b_134
+  }
+
+  b_132 {
+    jmp b_134
+  }
+
+  b_134 {
+    %v_135 = phi [b_132, 4096], [b_133, 0]: Int
+    %v_136 = add %v_125, %v_135: Int
+    %v_137 = alloca 8, 8: Ptr
+    call_complex stored, %v_137, 549755813887
+    %v_138 = load %v_137, 8: Long
+    %v_139 = shl %v_138, 24: Long
+    %v_140 = sar %v_139, 24: Long
+    %v_141 = sext %v_140: Long
+    %v_142 = cast %v_141: Long
+    %v_143 = cmp_eq %v_142, 549755813887: Int
+    je %v_143, b_144, b_145
+  }
+
+  b_145 {
+    jmp b_146
+  }
+
+  b_144 {
+    jmp b_146
+  }
+
+  b_146 {
+    %v_147 = phi [b_144, 8192], [b_145, 0]: Int
+    %v_148 = add %v_136, %v_147: Int
+    %v_149 = alloca 8, 8: Ptr
+    call_complex stored, %v_149, 18446743523953737728
+    %v_150 = load %v_149, 8: Long
+    %v_151 = shl %v_150, 24: Long
+    %v_152 = sar %v_151, 24: Long
+    %v_153 = sext %v_152: Long
+    %v_154 = cast %v_153: Long
+    %v_155 = cmp_eq %v_154, 18446743523953737728: Int
+    je %v_155, b_156, b_157
+  }
+
+  b_157 {
+    jmp b_158
+  }
+
+  b_156 {
+    jmp b_158
+  }
+
+  b_158 {
+    %v_159 = phi [b_156, 16384], [b_157, 0]: Int
+    %v_160 = add %v_148, %v_159: Int
+    ret %v_160
   }
 }
 

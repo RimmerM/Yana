@@ -236,30 +236,6 @@ nested<complex>(): Long {
   }
 }
 
-Ord(%a).compare(I64)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
-  b_0 {
-    %v_1 = cmp_eq %lhs, %rhs: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    ret 1
-  }
-
-  b_3 {
-    %v_4 = cmp_gt %lhs, %rhs: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    ret 2
-  }
-
-  b_6 {
-    ret 0
-  }
-}
-
 none<complex>(%v_0: Ptr) {
   b_1 {
     %v_2 = alloca 8, 4: Ptr
@@ -377,44 +353,51 @@ pointers<complex>(): Long {
     store %v_1, 0, 8
     %v_2 = alloca 8, 8: Ptr
     store %v_2, 0, 8
-    %low = call_complex smaller(%I64), %v_1, %v_2: Ptr
-    %high = call_complex smaller(%I64), %v_2, %v_1: Ptr
-    %v_3 = imm 0: Long
-    %v_4 = cmp_le %low, %high: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = add %v_3, 1: Long
-    jmp b_8
+    %v_3 = cmp_lt %v_1, %v_2: Int
+    %v_4 = imm 0: Long
+    je %v_3, b_5, b_6
   }
 
   b_6 {
-    jmp b_8
+    jmp b_7
   }
 
-  b_8 {
-    %v_9 = phi [b_5, %v_7], [b_6, %v_3]: Long
-    %v_10 = call_complex smaller(%I64), %v_1, %v_2: Ptr
-    %v_11 = cmp_eq %v_10, %low: Int
-    je %v_11, b_12, b_13
+  b_5 {
+    jmp b_7
+  }
+
+  b_7 {
+    %v_8 = phi [b_5, %v_1], [b_6, %v_2]: Ptr
+    %v_9 = cmp_lt %v_2, %v_1: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    jmp b_12
+  }
+
+  b_10 {
+    jmp b_12
   }
 
   b_12 {
-    %v_14 = add %v_9, 2: Long
-    jmp b_15
+    %v_13 = phi [b_10, %v_2], [b_11, %v_1]: Ptr
+    %v_14 = cmp_le %v_8, %v_13: Int
+    je %v_14, b_15, b_16
   }
 
-  b_13 {
-    jmp b_15
+  b_16 {
+    jmp b_17
   }
 
   b_15 {
-    %v_16 = phi [b_12, %v_14], [b_13, %v_9]: Long
-    %v_17 = call_complex Ord(%a).compare(I64), %v_1, %v_1: Int
-    %v_18 = cast %v_17: Int
-    %v_19 = cmp_eq %v_18, 1: Int
-    je %v_19, b_20, b_21
+    %v_18 = add %v_4, 1: Long
+    jmp b_17
+  }
+
+  b_17 {
+    %v_19 = phi [b_16, %v_4], [b_15, %v_18]: Long
+    je %v_3, b_20, b_21
   }
 
   b_21 {
@@ -422,13 +405,66 @@ pointers<complex>(): Long {
   }
 
   b_20 {
-    %v_23 = add %v_16, 4: Long
     jmp b_22
   }
 
   b_22 {
-    %v_24 = phi [b_21, %v_16], [b_20, %v_23]: Long
-    ret %v_24
+    %v_23 = phi [b_20, %v_1], [b_21, %v_2]: Ptr
+    %v_24 = cmp_eq %v_23, %v_8: Int
+    je %v_24, b_25, b_26
+  }
+
+  b_26 {
+    jmp b_27
+  }
+
+  b_25 {
+    %v_28 = add %v_19, 2: Long
+    jmp b_27
+  }
+
+  b_27 {
+    %v_29 = phi [b_26, %v_19], [b_25, %v_28]: Long
+    %v_30 = cmp_eq %v_1, %v_1: Int
+    je %v_30, b_31, b_32
+  }
+
+  b_32 {
+    %v_33 = cmp_gt %v_1, %v_1: Int
+    je %v_33, b_34, b_35
+  }
+
+  b_35 {
+    jmp b_36
+  }
+
+  b_34 {
+    jmp b_36
+  }
+
+  b_31 {
+    jmp b_36
+  }
+
+  b_36 {
+    %v_37 = phi [b_35, 0], [b_34, 2], [b_31, 1]: Int
+    %v_38 = cast %v_37: Int
+    %v_39 = cmp_eq %v_38, 1: Int
+    je %v_39, b_40, b_41
+  }
+
+  b_41 {
+    jmp b_42
+  }
+
+  b_40 {
+    %v_43 = add %v_29, 4: Long
+    jmp b_42
+  }
+
+  b_42 {
+    %v_44 = phi [b_41, %v_29], [b_40, %v_43]: Long
+    ret %v_44
   }
 }
 
