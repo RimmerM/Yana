@@ -1,0 +1,114 @@
+"use strict";
+var log = 0;
+var sideEffect = 0;
+const closure$ResolveTest_continuation$0 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$1 = [teardown$none, teardown$none];
+
+// Core
+function teardown$none(value) {
+  return;
+}
+
+function Try_Maybe_a_a_toOutcome(value) {
+  var v1;
+  if (value.$tag === 1) {
+    v1 = { $tag: 0 };
+  } else {
+    v1 = { $tag: 1 };
+  }
+  return v1;
+}
+
+// ResolveTest
+function loopingOut(n) {
+  var i = 0;
+  var seen = { $v: 0 };
+  L0: for (;;) {
+    if (i < 5) {
+      var v16 = i + 1 | 0;
+      i = v16;
+      if (Try_Maybe_a_a_toOutcome({ $tag: findFirst(n - v16 | 0, ResolveTest_continuation$0$make({ seen: seen })).$tag }).$tag === 1) {
+      } else {
+        continue L0;
+      }
+    }
+    break L0;
+  }
+  return seen.$v;
+}
+
+function statementTail(n) {
+  var seen = { $v: 0 };
+  if (n !== 0) {
+    if (Try_Maybe_a_a_toOutcome({ $tag: findFirst(n, ResolveTest_continuation$1$make({ seen: seen })).$tag }).$tag === 1) {
+      seen.$v = -1;
+    }
+  }
+  return seen.$v;
+}
+
+function returningNothing(n) {
+  if (Try_Maybe_a_a_toOutcome({ $tag: findFirst(n, ResolveTest_continuation$2).$tag }).$tag === 1) {
+    return;
+  } else {
+    return;
+  }
+}
+
+function leavingWithNothing(n) {
+  if (Try_Maybe_a_a_toOutcome({ $tag: findFirst(n, ResolveTest_continuation$3).$tag }).$tag === 1) {
+    return;
+  } else {
+    return;
+  }
+}
+
+function main() {
+  log = 0;
+  sideEffect = 0;
+  var a = loopingOut(3);
+  var b = statementTail(5);
+  var c = statementTail(-1);
+  returningNothing(7);
+  returningNothing(-1);
+  leavingWithNothing(2);
+  leavingWithNothing(-1);
+  return (((a + b | 0) + c | 0) + sideEffect | 0) + log | 0;
+}
+
+function ResolveTest_continuation$0$make(env) {
+  return function(found) {
+    var v2 = env.seen;
+    v2.$v = v2.$v + found | 0;
+    return;
+  };
+}
+
+function findFirst(n, body) {
+  log = log + 1 | 0;
+  if (n > 0) {
+    body(Math.imul(n, 2) | 0);
+    log = log + 100 | 0;
+    return { $tag: 1 };
+  } else {
+    return { $tag: 0 };
+  }
+}
+
+function ResolveTest_continuation$1$make(env) {
+  return function(found) {
+    var v2 = env.seen;
+    v2.$v = v2.$v + found | 0;
+    return;
+  };
+}
+
+function ResolveTest_continuation$2(found) {
+  sideEffect = sideEffect + found | 0;
+  return;
+}
+
+function ResolveTest_continuation$3(found) {
+  sideEffect = sideEffect + (Math.imul(found, 10) | 0) | 0;
+  return;
+}

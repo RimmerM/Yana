@@ -1,11 +1,11 @@
 -- A skipping lens whose continuation produces nothing, which is the shape a statement-tailed block
 -- and a loop body both have.
 --
--- Separate from Skip.yana, and with no `.js.expect`, for a reason that is not about lenses: the
--- carrier here is `Maybe({})`, and a record instantiated at the unit type does not survive the JS
--- backend today. `fn wrap(x: a) -> Maybe(a) = Just(x)` used at `wrap({})` reaches the same internal
--- error with no lens anywhere in it, so this fixture asserts the native answer and the JS half waits
--- on that defect rather than on anything here.
+-- Separate from Skip.yana because the carrier here is `Maybe({})`, which is where a record
+-- instantiated at the unit type used to stop being a record on JS: the `Just` payload contributes no
+-- property, so the write of it landed on the record itself and replaced the whole value with
+-- `null`. `fn wrap(x: a) -> Maybe(a) = Just(x)` used at a `{}` reaches that with no lens anywhere in
+-- it, and Unit.yana holds that shape - this asserts the lens that produces it.
 
 let &log = 0 :: Int
 

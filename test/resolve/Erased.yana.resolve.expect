@@ -9,6 +9,23 @@ table typeDesc$Int {
   .7 teardown$none
 }
 
+table typeDesc$() {
+  .0 ()
+  .1 sizeof ()
+  .2 alignof ()
+  .3 strideof ()
+  .4 131
+  .5 teardown$none
+  .6 teardown$none
+  .7 teardown$none
+}
+
+table genEnv$pick(Int, ()) {
+  .0 0
+  .1 typeDesc$Int
+  .2 typeDesc$()
+}
+
 table genEnv$identity(Int) {
   .0 0
   .1 typeDesc$Int
@@ -101,6 +118,11 @@ table genEnv$increment(Int) {
   .0 0
   .1 typeDesc$Int
   .2 witness$Num(Int)
+}
+
+table genEnv$nothingForwarded(Int) {
+  .0 0
+  .1 typeDesc$Int
 }
 
 fn Ord(Int).compare(%lhs: Int, %rhs: Int) -> Ordering {
@@ -211,6 +233,24 @@ fn pick(%flag: Bool, %x: a, %y: b) -> b {
     ret %v2
 }
 
+fn carriesNothing() -> Int {
+  b0:
+    alloc
+    %v4 = gencall env genEnv$pick(Int, ()) pick(Int, ()), True, %v2, 3 : Int
+    ret %v4
+}
+
+fn nothingForwarded(%z: b) -> b {
+  schema {
+    #0 type b
+  }
+
+  b0:
+    alloc
+    %v3 = gencall pick(b, ()), False, %v2, %z : b
+    ret %v3
+}
+
 fn main() -> Int {
   b0:
     %one = gencall env genEnv$identity(Int) identity(Int), 1 : Int
@@ -226,7 +266,11 @@ fn main() -> Int {
     %v32 = add %v24, %v31 : Int
     %v35 = gencall env genEnv$increment(Int) increment(Int), 19 : Int
     %v36 = add %v32, %v35 : Int
-    ret %v36
+    %v37 = call carriesNothing : Int
+    %v38 = add %v36, %v37 : Int
+    %v41 = gencall env genEnv$nothingForwarded(Int) nothingForwarded(Int), 7 : Int
+    %v42 = add %v38, %v41 : Int
+    ret %v42
 }
 
 fn moveInit$Int(%to: %Int, %from: %Int) -> () {

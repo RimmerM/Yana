@@ -109,8 +109,8 @@ takesUnit<complex>(): Int {
 @closure$ResolveTest.lambda$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ResolveTest.lambda$0<complex>(%env: Ptr, %extra: Int): Int {
   b_0 {
-    %v_1 = call_complex takesUnit: Int
-    %v_2 = add %v_1, %extra: Int
+    %v_1 = alloca 1, 1: Ptr
+    %v_2 = add %extra, 1: Int
     ret %v_2
   }
 }
@@ -119,6 +119,13 @@ firstOf(())<complex>(%pair: Ptr): Int {
   b_0 {
     %v_1 = loads %pair, 4: Int
     ret %v_1
+  }
+}
+
+wrap(())<complex>(%v_0: Ptr) {
+  b_1 {
+    store %v_0, 1, 4
+    ret 
   }
 }
 
@@ -198,15 +205,26 @@ main<complex>(): Int {
     %v_10 = alloca 4, 4: Ptr
     store %v_10, 1, 4
     call_complex matching(()), %v_10
-    %v_11 = add %c, 24: Int
-    %v_12 = add %v_11, %e: Int
-    %v_13 = add %v_12, %f: Int
-    %v_14 = add %v_13, %g: Int
-    %v_15 = add %v_14, %i: Int
-    %v_16 = add %v_15, %j: Int
-    %v_17 = add %v_16, %k: Int
-    %v_18 = add %v_17, 3: Int
-    ret %v_18
+    %v_11 = alloca 4, 4: Ptr
+    store %v_11, 1, 4
+    %o = call_complex isSomething(()), %v_11: Int
+    %v_12 = alloca 1, 1: Ptr
+    %v_13 = alloca 4, 4: Ptr
+    store %v_13, 1, 4
+    %p = call_complex isSomething(()), %v_13: Int
+    %v_14 = alloca 1, 1: Ptr
+    %v_15 = add %c, 24: Int
+    %v_16 = add %v_15, %e: Int
+    %v_17 = add %v_16, %f: Int
+    %v_18 = add %v_17, %g: Int
+    %v_19 = add %v_18, %i: Int
+    %v_20 = add %v_19, %j: Int
+    %v_21 = add %v_20, %k: Int
+    %v_22 = add %v_21, 3: Int
+    %v_23 = add %v_22, %o: Int
+    %v_24 = add %v_23, %p: Int
+    %v_25 = add %v_24, 23: Int
+    ret %v_25
   }
 }
 

@@ -1,5 +1,7 @@
 "use strict";
 const typeDesc$Int = [64, 4, 4, 4, 131, moveInit$Int, teardown$none, teardown$none];
+const typeDesc$ = [48, 0, 1, 0, 131, teardown$none, teardown$none, teardown$none];
+const genEnv$pick_Int = [0, typeDesc$Int, typeDesc$];
 const genEnv$identity_Int = [0, typeDesc$Int];
 const genEnv$firstOf_Int = [0, typeDesc$Int];
 const typeDesc$Bool = [412, 1, 1, 1, 131, moveInit$Bool, teardown$none, teardown$none];
@@ -12,6 +14,7 @@ const witness$Eq_Int = [3040, 131073, 0, typeDesc$Int, thunk$Eq_Int_eq_eq_0, thu
 const genEnv$smaller_Int = [0, typeDesc$Int, witness$Ord_Int];
 const genEnv$middle_Int = [0, typeDesc$Int, witness$Ord_Int];
 const genEnv$increment_Int = [0, typeDesc$Int, witness$Num_Int];
+const genEnv$nothingForwarded_Int = [0, typeDesc$Int];
 witness$Num_Int[9] = witness$FromInt_Int;
 witness$Ord_Int[9] = witness$Eq_Int;
 
@@ -62,8 +65,16 @@ function increment(genEnv, x) {
   return out2;
 }
 
+function carriesNothing() {
+  return pick(genEnv$pick_Int, 1, { $v: null }, { $v: 3 }).$v;
+}
+
+function nothingForwarded(genEnv, z) {
+  return pick([0, genEnv[1], typeDesc$], 0, { $v: null }, z);
+}
+
 function main() {
-  return (((((identity(genEnv$identity_Int, { $v: 1 }).$v + firstOf(genEnv$firstOf_Int, { $v: 2 }, { $v: 99 }).$v | 0) + pick(genEnv$pick_Int_Bool, 1, { $v: 0 }, { $v: 3 }).$v | 0) + twice(genEnv$twice_Int, { $v: 5 }).$v | 0) + smaller(genEnv$smaller_Int, { $v: 30 }, { $v: 8 }).$v | 0) + middle(genEnv$middle_Int, { $v: 60 }, { $v: 12 }, { $v: 40 }).$v | 0) + increment(genEnv$increment_Int, { $v: 19 }).$v | 0;
+  return (((((((identity(genEnv$identity_Int, { $v: 1 }).$v + firstOf(genEnv$firstOf_Int, { $v: 2 }, { $v: 99 }).$v | 0) + pick(genEnv$pick_Int_Bool, 1, { $v: 0 }, { $v: 3 }).$v | 0) + twice(genEnv$twice_Int, { $v: 5 }).$v | 0) + smaller(genEnv$smaller_Int, { $v: 30 }, { $v: 8 }).$v | 0) + middle(genEnv$middle_Int, { $v: 60 }, { $v: 12 }, { $v: 40 }).$v | 0) + increment(genEnv$increment_Int, { $v: 19 }).$v | 0) + carriesNothing() | 0) + nothingForwarded(genEnv$nothingForwarded_Int, { $v: 7 }).$v | 0;
 }
 
 function moveInit$Int(to, from) {

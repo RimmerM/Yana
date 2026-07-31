@@ -32,6 +32,13 @@ fn isSomething(m: Maybe(a)) -> Int = match m:
     Just(_) -> 1
     Nothing -> 0
 
+-- A record *built* by a generic body at the unit type, which is not the same as one written at it.
+-- `Just(x)` is an Init of a constructor whose content is `a`, and the resolver has every reason to
+-- emit it: it cannot see through the variable, so only the specialization knows the payload occupies
+-- nothing. Writing it anyway is a store with no property to land on, and on JS that is a store over
+-- the record itself - which is how a `Maybe({})` stopped being one.
+fn wrap(x: a) -> Maybe(a) = Just(x)
+
 fn firstOf(pair: {slot: a, index: Int}) -> Int = pair.index
 
 -- Through a function value, where the position that disappears is read off the *type* rather than
@@ -89,6 +96,18 @@ fn main() -> Int:
     let l = branching(True)
     let m = takesUnit(emptyRoundTrip(unitValue()))
     let n = takesUnit(matching(Just(unitValue()), unitValue()))
+    let o = isSomething(wrap(unitValue()))
 
-    -- 1 + 23 + 4 + 1 + 0 + 5 + 6 + 7 + 9 + 1 + 1 + 1 = 59
-    return a + b + c + e + f + g + i + j + k + l + m + n
+    -- The literal in argument position, which is not the same as a call that returns one. `{}`
+    -- resolves to no value - that is how a value carrying nothing is spelled here - and an argument
+    -- that resolved to no value is otherwise the resolver saying it already reported on it. Reading
+    -- the second as the first made every one of these resolve to nothing at all, silently, because a
+    -- guard whose whole purpose is that the diagnostic was already written has none of its own to
+    -- give. `p` is the generic case, which is the one that was broken; `q` is a literal between two
+    -- arguments that do carry something, which is where a lost value would show up as an answer
+    -- rather than as an error.
+    let p = isSomething(wrap({}))
+    let q = between(2, {}, 3)
+
+    -- 1 + 23 + 4 + 1 + 0 + 5 + 6 + 7 + 9 + 1 + 1 + 1 + 1 + 1 + 23 = 84
+    return a + b + c + e + f + g + i + j + k + l + m + n + o + p + q

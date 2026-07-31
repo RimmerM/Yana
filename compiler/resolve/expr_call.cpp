@@ -632,6 +632,11 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     ValueList values;
     Array<Deferred> deferred;
 
+    // The positions that resolved to a value carrying nothing, rather than to no value - see the
+    // guard in emitCall. A bitmask on the same terms as `lazy`, and cut off at the same 32: an
+    // argument past that is left to the older reading, which is what it had before.
+    U32 nothing = 0;
+
     auto written = callArgs.contents(parse);
 
     for(Size index = 0; index < written.size(); index++) {
@@ -656,13 +661,25 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
 
         auto expected = declared ? local[local[direct]->args.get(local, index)]->declaredType()
                                  : TypePtr(nullptr);
-        values.push(resolve(arg->value, expected));
+
+        // An argument that resolved to nothing did so for one of two reasons, and the difference is
+        // only visible from here: either the resolver reported on it, or the expression genuinely
+        // produces no value - `{}`, or a call whose result type is `{}`. The same before-and-after
+        // count `resolvePattern`'s callers and `witness.cpp` use to ask exactly this question.
+        auto errors = context.diagnostics.errorCount();
+        auto value = resolve(arg->value, expected);
+
+        if(!value && index < 32 && errors == context.diagnostics.errorCount()) {
+            nothing |= U32(1) << index;
+        }
+
+        values.push(value);
     }
 
     auto pending = lazy ? toBuffer(deferred) : Buffer<Deferred>{};
 
     auto result = declared ? emitDirectCall(direct, toBuffer(values), expr.source, target, 0, pending)
-                           : emitCall(calleeExpr.var, toBuffer(values), expr.source, target, 0, pending);
+                           : emitCall(calleeExpr.var, toBuffer(values), expr.source, target, 0, pending, nothing);
 
     return convertResult && target ? convert(result, target, expr.source) : result;
 }
@@ -778,7 +795,29 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
     function_->used = true;
     auto call = create<InstCall>(source, resultName, function_->returnType, callee);
 
-    for(auto value: converted) {
+    /*
+     * The argument list stays positional, whatever any one argument turned out to be.
+     *
+     * Lowering pairs this list with the callee's parameters by index and decides there which
+     * positions survive - a declared unit is left out, a declared *variable* that is unit here is
+     * not, since the erased body it was compiled from still reads a position for it. Both of those
+     * need the entry to be here to be counted, so a hole punched at argument `i` does not drop
+     * argument `i`: it drops argument `i + 1`, and every one after it.
+     *
+     * A value carrying nothing is spelled as no value at all, so `f(2, {}, 3)` is exactly that hole.
+     * It gets storage instead - which is what lowering makes for the erased case anyway, of the zero
+     * bytes the type occupies - so that the position exists and carries its type. `unitValue()` in
+     * the same argument reaches here as an ordinary value and always did, which is why only the
+     * literal ever shifted a list.
+     */
+    for(Size i = 0; i < converted.size(); i++) {
+        auto value = converted[i];
+
+        if(!value && i < function_->args.size() &&
+           isUnit(global, local[function_->args.get(local, i)]->declaredType())) {
+            value = allocate(module.scalar.unit, source);
+        }
+
         if(value) call->args.push(module.arena, value);
     }
 
@@ -797,11 +836,27 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
     return result;
 }
 
-ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target, StringId resultName, Buffer<Deferred> deferred) {
+ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target, StringId resultName, Buffer<Deferred> deferred, U32 nothing) {
+    /*
+     * Three things are spelled as a null argument, and only one of them is a reason to stop.
+     *
+     * A failed argument is: something has reported on it already, and matching an overload set
+     * against a type nobody worked out would report a second, worse diagnostic about a call the
+     * author may not have got wrong. A deferred position is null on purpose - it is not a value yet.
+     * And a value of unit type is null because that is how this resolver spells a value that carries
+     * nothing, which `valueType` already answers `{}` for and which every overload rule below
+     * therefore handles without knowing it was null.
+     *
+     * The third used to be caught here as the first, which made `f({})` resolve to nothing at all
+     * for any generic `f` - silently, since the whole point of this guard is that the diagnostic was
+     * already written. Which positions are that third kind is the call site's knowledge, not this
+     * one's, so it arrives in `nothing`.
+     */
     for(Size i = 0; i < args.length; i++) {
-        // A deferred position is null on purpose, and is the one kind of null that is not an
-        // argument something already reported on.
-        if(!args[i] && !isDeferred(deferred, i)) return nullptr;
+        if(args[i] || isDeferred(deferred, i)) continue;
+        if(i < 32 && (nothing & (U32(1) << i))) continue;
+
+        return nullptr;
     }
 
     ClassFunList candidates;
@@ -1184,7 +1239,19 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
         }
 
         auto declared = local[generic->args.get(local, i)]->declaredType();
-        converted.push(convert(args[i], substituteType(module, declared, toBuffer(bindings), source), source));
+        auto wanted = substituteType(module, declared, toBuffer(bindings), source);
+        auto value = convert(args[i], wanted, source);
+
+        /*
+         * The same positional rule emitDirectCall keeps, and the erased form needs it for a second
+         * reason on top of the shift: lowering reads the *concrete* type off this argument to size
+         * the storage it hands over, so an argument that is not here has no type to read. A
+         * position declared as a type variable exists whatever it was substituted with - `{}`
+         * included - which is exactly the case that arrives with nothing to put in it.
+         */
+        if(!value && isUnit(global, wanted)) value = allocate(module.scalar.unit, source);
+
+        converted.push(value);
     }
 
     auto undecided = bindings.contains([&](TypePtr binding) { return isGeneric(global, binding); });

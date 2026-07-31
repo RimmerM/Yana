@@ -504,7 +504,11 @@ struct ExprResolver {
     ModulePtr<Value> resolveIndirectCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target);
     // `deferred` is parallel to `args` and holds the `@lazy` arguments, whose `args` entry is null.
     // Empty for the calls that have none, which is all of them but a handful.
-    ModulePtr<Value> emitCall(StringId name, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, Buffer<Deferred> deferred = {});
+    //
+    // `nothing` is a bitmask of the positions whose null `args` entry is a value that carries
+    // nothing rather than one that failed to resolve - see the note on the guard in emitCall. Zero
+    // for every synthesized call, whose arguments are values this resolver just produced.
+    ModulePtr<Value> emitCall(StringId name, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, Buffer<Deferred> deferred = {}, U32 nothing = 0);
     ModulePtr<Value> emitDirectCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, Buffer<Deferred> deferred = {});
 
     // A call to a generic function: infers its type arguments from the call, then either

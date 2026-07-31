@@ -1,11 +1,14 @@
 @genEnv$increment(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @typeDesc$Int = [64, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 131, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$pick(Int, ()) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @typeDesc$Bool = [156, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 131, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @witness$FromInt(Int) = [88, 9, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$nothingForwarded(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$() = [48, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 131, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$smaller(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@genEnv$middle(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$pick(Int, Bool) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @witness$Num(Int) = [232, 15, 0, 0, 1, 0, 5, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$middle(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$identity(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$firstOf(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$twice(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -139,6 +142,47 @@ thunk$Ord(Int).<#0<complex>(%lhs: Ptr, %rhs: Ptr): Int {
 
 teardown$none<complex>(%value: Ptr) {
   b_0 {
+    ret 
+  }
+}
+
+carriesNothing<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    %v_2 = alloca 1, 8: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 3, 4
+    %v_4 = alloca 4, 4: Ptr
+    call_complex pick, @genEnv$pick(Int, ()), %v_4, 1, %v_2, %v_3
+    %v_5 = loads %v_4, 4: Int
+    ret %v_5
+  }
+}
+
+nothingForwarded<complex>(%genEnv: Ptr, %v_0: Ptr, %z: Ptr) {
+  b_1 {
+    %v_2 = alloca 1, 1: Ptr
+    %v_3 = alloca 24, 8: Ptr
+    %v_4 = add %genEnv, 8: Ptr
+    %v_5 = load %v_4, 8: Ptr
+    %v_6 = add %v_3, 8: Ptr
+    store %v_6, %v_5, 8
+    %v_7 = add %v_3, 16: Ptr
+    store %v_7, @typeDesc$(), 8
+    %v_8 = alloca 1, 8: Ptr
+    %v_9 = add %genEnv, 8: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    %v_11 = add %v_10, 4: Ptr
+    %v_12 = load %v_11, 4: Int
+    %v_13 = cast %v_12: Long
+    %v_14 = alloca %v_13, 16: Ptr
+    call_complex pick, %v_3, %v_14, 0, %v_8, %z
+    %v_15 = add %genEnv, 8: Ptr
+    %v_16 = load %v_15, 8: Ptr
+    %v_17 = add %v_16, 4: Ptr
+    %v_18 = load %v_17, 4: Int
+    %v_19 = cast %v_18: Long
+    copy %v_0, %v_14, %v_19
     ret 
   }
 }
@@ -388,7 +432,15 @@ main<complex>(): Int {
     call_complex increment, @genEnv$increment(Int), %v_24, %v_23
     %v_25 = loads %v_24, 4: Int
     %v_26 = add %v_22, %v_25: Int
-    ret %v_26
+    %v_27 = call_complex carriesNothing: Int
+    %v_28 = add %v_26, %v_27: Int
+    %v_29 = alloca 4, 4: Ptr
+    store %v_29, 7, 4
+    %v_30 = alloca 4, 4: Ptr
+    call_complex nothingForwarded, @genEnv$nothingForwarded(Int), %v_30, %v_29
+    %v_31 = loads %v_30, 4: Int
+    %v_32 = add %v_28, %v_31: Int
+    ret %v_32
   }
 }
 

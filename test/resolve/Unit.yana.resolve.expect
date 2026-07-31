@@ -80,6 +80,19 @@ fn isSomething(%m: Maybe(a)) -> Int {
     ret %v10
 }
 
+fn wrap(%x: a) -> Maybe(a) {
+  schema {
+    #0 type a
+    #1 type Maybe(a)
+  }
+
+  b0:
+    %v1 = alloc : Maybe(a)
+    init %local1.discriminant, 1
+    init %local1@Just, %x
+    ret %v1
+}
+
 fn firstOf(%pair: {slot: a, index: Int}) -> Int {
   schema {
     #0 type a
@@ -223,25 +236,37 @@ fn main() -> Int {
     call unitValue
     call matching(()), %v58, %v61
     %n = call takesUnit, %v62 : Int
-    %v64 = add %a, %b : Int
-    %v65 = add %v64, %c : Int
-    %v66 = add %v65, %e : Int
-    %v67 = add %v66, %f : Int
-    %v68 = add %v67, %g : Int
-    %v69 = add %v68, %i : Int
-    %v70 = add %v69, %j : Int
-    %v71 = add %v70, %k : Int
-    %v72 = add %v71, %l : Int
-    %v73 = add %v72, %m : Int
-    %v74 = add %v73, %n : Int
-    ret %v74
+    call unitValue
+    %v65 = call wrap(()), %v64 : Maybe(())
+    %o = call isSomething(()), %v65 : Int
+    alloc
+    %v68 = call wrap(()), %v67 : Maybe(())
+    %p = call isSomething(()), %v68 : Int
+    alloc
+    %q = call between(()), 2, %v73, 3 : Int
+    %v76 = add %a, %b : Int
+    %v77 = add %v76, %c : Int
+    %v78 = add %v77, %e : Int
+    %v79 = add %v78, %f : Int
+    %v80 = add %v79, %g : Int
+    %v81 = add %v80, %i : Int
+    %v82 = add %v81, %j : Int
+    %v83 = add %v82, %k : Int
+    %v84 = add %v83, %l : Int
+    %v85 = add %v84, %m : Int
+    %v86 = add %v85, %n : Int
+    %v87 = add %v86, %o : Int
+    %v88 = add %v87, %p : Int
+    %v89 = add %v88, %q : Int
+    ret %v89
 }
 
 fn ResolveTest.lambda$0(%env: %{x: ()}, %extra: Int) -> Int {
   b0:
-    %v2 = call takesUnit : Int
-    %v3 = add %v2, %extra : Int
-    ret %v3
+    alloc
+    %v2 = call takesUnit, %v3 : Int
+    %v4 = add %v2, %extra : Int
+    ret %v4
 }
 
 fn identity(())(%value: ()) -> () {
@@ -332,4 +357,12 @@ fn matching(())(%m: Maybe(()), %fallback: ()) -> () {
   b3:
     phi [b2, %inner], [b1, %fallback]
     ret %v2
+}
+
+fn wrap(())(%x: ()) -> Maybe(()) {
+  b0:
+    %v1 = alloc : Maybe(())
+    init %local1.discriminant, 1
+    init %local1@Just, %x
+    ret %v1
 }

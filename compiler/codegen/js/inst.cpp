@@ -1184,6 +1184,23 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             // One statement for both. Whatever the old value's drop needed was emitted as its own
             // InstDrop by the drop pass, so an assignment here is only the write.
             auto& init = (InstInit&)instruction;
+
+            /*
+             * Writing a value that carries nothing writes nothing - the same rule the native
+             * lowering applies, and needed here for the same reason: the resolver skips the write
+             * where it can see the type, but a specialization at `{}` clones instructions decided
+             * before the substitution, so `init %local@Just, %carried` survives with `%carried`
+             * holding nothing.
+             *
+             * It has to be skipped rather than emitted, because the place is not a property here.
+             * A constructor whose content is unit contributes none (see eachProperty), so the
+             * Downcast projection stays on the record itself - and writing `useValue`'s `null`
+             * through that would replace the whole value with nothing rather than fill a field of
+             * it. `fn wrap(x: a) -> Maybe(a) = Just(x)` at `wrap({})` is the shortest way to reach
+             * it, with no lens anywhere in it.
+             */
+            if(isUnit(g.global, g.local[init.value]->type)) break;
+
             if(genFunValueWord(g, instruction, init)) break;
 
             /*

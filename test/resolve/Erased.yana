@@ -38,6 +38,19 @@ fn middle(x: a, y: a, z: a) -> a = smaller(smaller(x, y), z)
 -- witness already names, which is the load the schema below does not have to carry a number for.
 fn (Num(a)) increment(x: a) -> a = x + 1
 
+-- A `{}` in a position the callee declared as a variable, which is the case where the two rules for
+-- "does this argument exist" disagree. The callee was compiled once, against `a`, so the position is
+-- in its signature whatever the caller substituted - it is passed, as the address of the zero bytes
+-- `{}` occupies. `3` after it is what makes that worth asserting rather than merely observing: a
+-- position dropped for carrying nothing would hand `3` to `x` and leave `y` with nothing at all.
+fn carriesNothing() -> Int = pick(True, {}, 3)
+
+-- The same one level in, where the call cannot be specialized even in principle: `a` is `{}` from
+-- the literal while `b` is still this body's variable, so it leaves as a deferred generic call. That
+-- is the form whose lowering reads the concrete type off the argument to size what it hands over,
+-- which an argument that is not there has none of.
+fn nothingForwarded(z: b) -> b = pick(False, {}, z)
+
 fn main() -> Int:
     let one = identity(1)
     let two = firstOf(2, 99)
@@ -47,4 +60,6 @@ fn main() -> Int:
         twice(5) +
         smaller(30, 8) +
         middle(60, 12, 40) +
-        increment(19)
+        increment(19) +
+        carriesNothing() +
+        nothingForwarded(7)
