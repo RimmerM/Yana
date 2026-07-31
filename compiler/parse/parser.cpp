@@ -709,14 +709,19 @@ ast::Expr Parser::parseLeftExpr(const WithLocation& location) {
         expect(Token::kwIn, "expected 'in'"_v);
 
         WithLocation fromLocation(*this);
-        auto from = parseSelExpr(fromLocation);
+        auto from = parseChainExpr(fromLocation);
 
         ast::ParsePtr<ast::Expr> step = nullptr, to = nullptr;
         bool reverse = false;
+        bool inclusive = false;
         bool hasTo = false;
 
         if(token.type == Token::opDotDot) {
             eat();
+            hasTo = true;
+        } else if(token.type == Token::opDotDotEq) {
+            eat();
+            inclusive = true;
             hasTo = true;
         } else if(token.type == Token::VarID && token.data.id == downtoId) {
             eat();
@@ -726,16 +731,16 @@ ast::Expr Parser::parseLeftExpr(const WithLocation& location) {
 
         if(hasTo) {
             WithLocation toLocation(*this);
-            to = heap(parseSelExpr(toLocation));
+            to = heap(parseChainExpr(toLocation));
         }
 
         if(maybeVar(stepId)) {
             WithLocation stepLocation(*this);
-            step = heap(parseSelExpr(stepLocation));
+            step = heap(parseChainExpr(stepLocation));
         }
 
         auto body = parseBlock(false);
-        return makeExpr(For, forLoop, heap(ast::ForExpr { pat, from, body, to, step, reverse }), location);
+        return makeExpr(For, forLoop, heap(ast::ForExpr { pat, from, body, to, step, reverse, inclusive }), location);
     } else if(maybe(Token::kwReturn)) {
         Maybe<ast::Expr> body;
         if(token.type != Token::EndOfStmt && token.type != Token::EndOfBlock) body = Just(parseExpr());
@@ -996,6 +1001,28 @@ ast::Expr Parser::parseBaseExpr() {
     } else {
         return parseSelExpr(location);
     }
+}
+
+/*
+ * The three slots of a `for` header.
+ *
+ * A `for` is the one form with keywords *after* an expression - `..`, `downto`, `step` and the
+ * closing `:` - so what it takes has to stop before them. That is one property, and it is narrower
+ * than `selexpr`: no **top-level infix operator**. A suffix chain has that property, because every
+ * one of its suffixes is closed by its own bracket or takes exactly one name, so none of them can
+ * reach past the expression to eat a following `..` or `step`.
+ *
+ * So `for x in upTo(n):` and `for i in 0 .. xs.length():` parse, and `for i in a + 1 .. b` still
+ * needs its parentheses. That is a readability rule as much as a parsing one: nothing between the
+ * keywords of a header may be an operator chain, so where each slot ends is clear to a reader
+ * without knowing any fixity.
+ *
+ * Not `parseSelExpr` itself, which would change what `a.b(c)` means: the field position after `.`
+ * is a `selexpr`, and widening it there would read the call as part of the field name rather than
+ * as applied to the field.
+ */
+ast::Expr Parser::parseChainExpr(const WithLocation& location) {
+    return parseChain(parseSelExpr(location), location);
 }
 
 ast::Expr Parser::parseSelExpr(const WithLocation& location) {
@@ -1419,9 +1446,15 @@ ast::Pat Parser::parsePattern() {
         pat = Just(parseLeftPattern());
     }
 
-    if(allowRange && maybe(Token::opDotDot)) {
+    if(allowRange && (token.type == Token::opDotDot || token.type == Token::opDotDotEq)) {
+        // The same two spellings a `for` header uses, and they mean the same thing here: `..`
+        // excludes the upper bound and `..=` includes it. A pattern over a saturated type wants the
+        // second - `0..=255` on a `U8` is the whole of it, and `0..256` is not writable at all.
+        auto inclusive = token.type == Token::opDotDotEq;
+        eat();
+
         auto to = parseLeftPattern();
-        return ast::Pat { .range = { heap(pat.unwrap()), heap(to) }, .source = context.addLocation(location), .kind = ast::Pat::Range };
+        return ast::Pat { .range = { heap(pat.unwrap()), heap(to), inclusive }, .source = context.addLocation(location), .kind = ast::Pat::Range };
     }
 
     return pat.unwrap();

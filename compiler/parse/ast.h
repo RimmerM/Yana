@@ -198,9 +198,13 @@ struct Pat {
             ParsePtr<Pat> pats;
         } con;
 
+        // `a..b` matches the half-open interval and `a..=b` the closed one, the same two spellings
+        // a `for` header uses. Either bound may be absent (`_..b`, `a.._`), which makes the range
+        // one-sided rather than open at that end.
         struct {
             ParsePtr<Pat> from;
             ParsePtr<Pat> to;
+            bool inclusive;
         } range;
 
         // An operator section: the matched value is the operator's left operand and `bound` is
@@ -460,12 +464,22 @@ struct AssignExpr {
     Expr value;
 };
 
+/*
+ * `for pat in from [(`..`|`..=`|`downto`) to] [step s]: body`.
+ *
+ * With no `to`, the loop consumes an iterator and `reverse`/`inclusive` say nothing. With one, it
+ * counts over an interval, and the two flags say which interval: `..` and `downto` both name the
+ * half-open `[low, high)` and differ only in the direction they walk it, so `0..n` and `n downto 0`
+ * cover the same values. `..=` closes the upper end; there is no descending form of that, since the
+ * bound `downto` excludes is the one written first - see Design.md's Expressions.
+ */
 struct ForExpr {
     Pat pat;
     Expr from;
     Expr body;
     ParsePtr<Expr> to, step;
     bool reverse;
+    bool inclusive;
 };
 
 struct WhileExpr {

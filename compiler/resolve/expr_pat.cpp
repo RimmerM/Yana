@@ -714,8 +714,14 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
             }
 
             if(to) {
+                // `a..b` is half-open and `a..=b` is closed, the same two spellings a `for` header
+                // uses. A one-sided `a.._` has no upper test at all, so its spelling says nothing
+                // and either is accepted.
+                auto upperOp = pattern.range.inclusive ? Context::nameHash("<=", 2)
+                                                       : Context::nameHash("<", 1);
+
                 ModulePtr<Value> args[] = { pivot, to };
-                auto upper = emitCall(Context::nameHash("<=", 2), { args, 2 }, pattern.source, module.scalar.bool_);
+                auto upper = emitCall(upperOp, { args, 2 }, pattern.source, module.scalar.bool_);
 
                 if(condition) {
                     ModulePtr<Value> both[] = { condition, upper };
@@ -890,6 +896,25 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
     }
 
     return finishBranches(arms, expr.source, used);
+}
+
+/*
+ * A pattern with nowhere to fail into.
+ *
+ * A `for` loop's pattern names the shape of what the iterator hands over rather than testing it:
+ * the grammar has no place to write alternatives on a loop, and a pattern that could fail would
+ * have to mean "skip this element", which is a filter written where nothing says so. Reported and
+ * then bound anyway, so that the loop body still reads against the names it was written with.
+ */
+void ExprResolver::bindIrrefutable(const ast::Pat& pattern, ModulePtr<Value> value) {
+    PatternSpace space(*this, valueType(value));
+
+    if(!space.add(pattern) && global[valueType(value)]->kind != Type::Error) {
+        context.diagnostics.error("this pattern can fail - it does not match %@ - and a `for` loop has no alternative to take for an element it does not match"_v,
+                                  pattern.source, space.gap());
+    }
+
+    resolvePattern(pattern, value, nullptr);
 }
 
 /*

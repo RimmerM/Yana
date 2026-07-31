@@ -1,0 +1,309 @@
+-- Counted `for` loops - Design.md's Expressions.
+--
+-- Three spellings, one interval, two directions. An interval is always `[low, high)`:
+--
+--   `a .. b`     walks it upward, excluding `b`;
+--   `a ..= b`    closes the upper end, for a bound that is a real member;
+--   `a downto b` walks the same `[b, a)` downward, so `n downto 0` is `0 .. n` reversed exactly.
+--
+-- `downto` excluding the bound written first is what makes reversing a loop a one-token edit
+-- instead of an arithmetic one, and is why none of these underflows on an unsigned counter.
+
+fn sum(n: Int) -> Int:
+    let &total = 0 :: Int
+
+    for i in 0 .. n:
+        total = total + i
+
+    return total
+
+-- The closed form. `0 ..= n` runs one more time than `0 .. n`.
+fn sumInclusive(n: Int) -> Int:
+    let &total = 0 :: Int
+
+    for i in 0 ..= n:
+        total = total + i
+
+    return total
+
+-- An empty interval runs the body no times, and says so without any arithmetic below its start -
+-- which is the whole reason the upper bound is the excluded one.
+fn empty() -> Int:
+    let &total = 7 :: Int
+
+    for i in 0 .. 0:
+        total = total + 100
+
+    for i in 5 .. 3:
+        total = total + 100
+
+    for i in 5 ..= 3:
+        total = total + 100
+
+    for i in 0 downto 0:
+        total = total + 100
+
+    return total
+
+-- The reversal property, asserted rather than described: the two loops visit the same values, so
+-- the digits they accumulate differ only in order.
+fn ascending(n: Int) -> Int:
+    let &seen = 0 :: Int
+
+    for i in 0 .. n:
+        seen = seen * 10 + i
+
+    return seen
+
+fn descending(n: Int) -> Int:
+    let &seen = 0 :: Int
+
+    for i in n downto 0:
+        seen = seen * 10 + i
+
+    return seen
+
+-- A stride, in both directions. `n downto 0 step s` starts a step below `n`, so it is the exact
+-- reverse of `0 .. n step s` whenever the span is a multiple of the step.
+fn strideUp(n: Int) -> Int:
+    let &seen = 0 :: Int
+
+    for i in 0 .. n step 2:
+        seen = seen * 10 + i
+
+    return seen
+
+fn strideDown(n: Int) -> Int:
+    let &seen = 0 :: Int
+
+    for i in n downto 0 step 2:
+        seen = seen * 10 + i
+
+    return seen
+
+-- The counter's type comes from the two bounds together: a literal takes the other side's type
+-- rather than defaulting, so a loop over an unsigned length counts in unsigned.
+fn unsignedTop() -> Int:
+    let limit = 255 :: U8
+    let &count = 0 :: Int
+
+    -- The bound is the last value of the type, so the half-open form cannot name the end of it and
+    -- the closed one can. Neither may step past the top of `U8` on the way out.
+    for i in 0 ..= limit:
+        count = count + 1
+
+    return count
+
+fn unsignedEmpty() -> Int:
+    let zero = 0 :: U8
+    let &count = 0 :: Int
+
+    -- `0 .. 0` on an unsigned counter, which under an inclusive `..` would have been `0 .. -1`.
+    for i in zero .. zero:
+        count = count + 1
+
+    return count
+
+-- `break` and `continue` are the ordinary loop forms here - a counted `for` has real blocks, so
+-- neither needs the step signal an iterator's body reports in.
+fn broken(n: Int) -> Int:
+    let &total = 0 :: Int
+
+    for i in 0 .. n:
+        if i > 5:
+            break
+
+        total = total + i
+
+    return total
+
+fn skipped(n: Int) -> Int:
+    let &total = 0 :: Int
+
+    for i in 0 .. n:
+        if i % 2 == 0:
+            continue
+
+        total = total + i
+
+    return total
+
+-- `continue` goes to the step rather than to the test, which is what makes it terminate.
+fn everySkipped(n: Int) -> Int:
+    let &count = 0 :: Int
+
+    for i in 0 .. n:
+        count = count + 1
+        continue
+
+    return count
+
+-- A `return` out of a counted loop is an ordinary return: no frame between here and the caller.
+fn firstOver(n: Int, bound: Int) -> Int:
+    for i in 0 .. n:
+        if i > bound:
+            return i
+
+    return -1
+
+-- Nesting, and a loop whose bounds are calls rather than names.
+fn low() -> Int = 1
+fn high() -> Int = 4
+
+fn grid() -> Int:
+    let &total = 0 :: Int
+
+    for r in low() .. high():
+        for c in 0 .. r:
+            total = total + r * 10 + c
+
+    return total
+
+-- Split in two, and neither half inlined into the other: fourteen counted loops in one frame put
+-- enough simultaneously-live values in front of the x64 register allocator that its own placement
+-- verifier rejects the result. The IR is valid and the JS target runs it correctly, so the split is
+-- about the backend rather than about anything here - see the note in Design.md's open questions.
+@noinline
+fn walked() -> Int =
+    sum(5) +                -- 0+1+2+3+4 = 10
+    sumInclusive(5) +       -- 0..5 = 15
+    empty() +               -- 7
+    ascending(4) +          -- 0,1,2,3 -> 123
+    descending(4) +         -- 3,2,1,0 -> 3210
+    strideUp(9) +           -- 0,2,4,6,8 -> 2468
+    strideDown(10)          -- 8,6,4,2,0 -> 86420
+
+@noinline
+fn stopped() -> Int =
+    unsignedTop() +         -- 256
+    unsignedEmpty() +       -- 0
+    broken(20) +            -- 0+1+2+3+4+5 = 15
+    skipped(8) +            -- 1+3+5+7 = 16
+    everySkipped(6) +       -- 6
+    firstOver(10, 6) +      -- 7
+    grid()                  -- r=1: 10; r=2: 20+21; r=3: 30+31+32 = 10+41+93 = 144
+
+fn main() -> Int:
+    let &total = 0 :: Int
+
+    for i in 0 .. 3:
+        total = total + i
+
+    for i in 0 .. 5:
+        total = total + i
+
+    for i in 0 .. 7:
+        total = total + i
+
+    for i in 0 .. 9:
+        total = total + i
+
+    for i in 0 .. 11:
+        total = total + i
+
+    for i in 0 .. 13:
+        total = total + i
+
+    for i in 0 .. 15:
+        total = total + i
+
+    for i in 0 .. 17:
+        total = total + i
+
+    for i in 0 .. 19:
+        total = total + i
+
+    for i in 0 .. 21:
+        total = total + i
+
+    for i in 0 .. 23:
+        total = total + i
+
+    for i in 0 .. 25:
+        total = total + i
+
+    for i in 0 .. 27:
+        total = total + i
+
+    for i in 0 .. 29:
+        total = total + i
+
+    for i in 0 .. 31:
+        total = total + i
+
+    for i in 0 .. 33:
+        total = total + i
+
+    for i in 0 .. 35:
+        total = total + i
+
+    for i in 0 .. 37:
+        total = total + i
+
+    for i in 0 .. 39:
+        total = total + i
+
+    for i in 0 .. 41:
+        total = total + i
+
+    for i in 0 .. 43:
+        total = total + i
+
+    for i in 0 .. 45:
+        total = total + i
+
+    for i in 0 .. 47:
+        total = total + i
+
+    for i in 0 .. 49:
+        total = total + i
+
+    for i in 0 .. 51:
+        total = total + i
+
+    for i in 0 .. 53:
+        total = total + i
+
+    for i in 0 .. 55:
+        total = total + i
+
+    for i in 0 .. 57:
+        total = total + i
+
+    for i in 0 .. 59:
+        total = total + i
+
+    for i in 0 .. 61:
+        total = total + i
+
+    for i in 0 .. 63:
+        total = total + i
+
+    for i in 0 .. 65:
+        total = total + i
+
+    for i in 0 .. 67:
+        total = total + i
+
+    for i in 0 .. 69:
+        total = total + i
+
+    for i in 0 .. 71:
+        total = total + i
+
+    for i in 0 .. 73:
+        total = total + i
+
+    for i in 0 .. 75:
+        total = total + i
+
+    for i in 0 .. 77:
+        total = total + i
+
+    for i in 0 .. 79:
+        total = total + i
+
+    for i in 0 .. 81:
+        total = total + i
+
+    return total

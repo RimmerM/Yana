@@ -361,6 +361,10 @@ private:
             stream.writeString(" <reverse>"_v);
         }
 
+        if(f->inclusive) {
+            stream.writeString(" <inclusive>"_v);
+        }
+
         makeLevel();
         toString(f->pat, false);
         toString(f->from, false);
@@ -1073,6 +1077,7 @@ private:
             }
             case Pat::Range: {
                 stream.writeString("RangePat "_v);
+                if(pat.range.inclusive) stream.writeString("<inclusive> "_v);
 
                 makeLevel();
                 toString(*base[pat.range.from], false);

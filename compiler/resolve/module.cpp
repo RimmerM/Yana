@@ -855,12 +855,7 @@ static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, 
     auto function = anonymous ? addAnonymousFunction(module, name, decl.source)
                               : module.addFunction(name, decl.source);
 
-    if(decl.fun.kind == ast::FunKind::Iter) {
-        module.context.diagnostics.error("iter functions are not available yet - a lens is the once-only case of the same shape and is, see Analysis-Lens.md's version split"_v,
-                                         decl.source);
-    } else if(decl.fun.kind == ast::FunKind::Lens) {
-        function->funKind = ast::FunKind::Lens;
-    }
+    function->funKind = decl.fun.kind;
 
     function->returnType = decl.fun.ret ? resolveType(module, *module.parse[decl.fun.ret], env)
                                         : module.scalar.unit;
@@ -922,10 +917,10 @@ static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, 
     }
 
     // Before the return-root check below, because it is what decides what this function returns: a
-    // lens returns its continuation's result, which is never a borrow, and the values it hands over
-    // are bounded by that continuation rather than by a return edge - Implementation-Lens.md part
-    // 2's "a lens callback is exempt".
-    if(function->funKind == ast::FunKind::Lens) resolveLensSignature(module, *function, env, decl);
+    // lens returns its continuation's result and an iterator the step signal, neither of which is a
+    // borrow, and the values either hands over are bounded by that continuation rather than by a
+    // return edge - Implementation-Lens.md part 2's "a lens callback is exempt".
+    if(function->funKind != ast::FunKind::Plain) resolveLensSignature(module, *function, env, decl);
 
     /*
      * What makes a returned borrow exclusive.

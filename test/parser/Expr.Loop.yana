@@ -42,3 +42,21 @@ fn p():
     if x > 100:
       break
     f(x)
+
+-- for, an iterator call as the source. A call needs no parentheses of its own: no suffix of a
+-- chain can reach past the expression to eat the `..`, `step` or `:` that ends the slot.
+fn q() = for x in upTo(n) -> f(x)
+
+-- ... including one with no arguments, and one reached as a method.
+fn r():
+  for x in ticks():
+    f(x)
+
+fn s() = for x in xs.items() -> f(x)
+
+-- The same in the range slots, mixed with a subscript and a field.
+fn t() = for i in bounds.low..xs.length() step counts[0] -> f(i)
+
+-- An operator chain is still not a slot, and still needs its parentheses - which is what keeps
+-- where each slot ends readable without knowing any fixity.
+fn u() = for i in (a + 1)..(b * 2) -> f(i)

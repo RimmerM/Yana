@@ -1,0 +1,1141 @@
+let &log: Int = 0
+
+let &visited: Int = 0
+
+table closure$ResolveTest.continuation$0 before ResolveTest.continuation$0 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$1 before ResolveTest.continuation$1 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$2 before ResolveTest.continuation$2 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$3 before ResolveTest.continuation$3 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$4 before ResolveTest.continuation$4 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$6 before ResolveTest.continuation$6 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$5 before ResolveTest.continuation$5 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$7 before ResolveTest.continuation$7 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$8 before ResolveTest.continuation$8 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$9 before ResolveTest.continuation$9 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$10 before ResolveTest.continuation$10 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$11 before ResolveTest.continuation$11 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$13 before ResolveTest.continuation$13 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$12 before ResolveTest.continuation$12 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$15 before ResolveTest.continuation$15 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$14 before ResolveTest.continuation$14 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn upTo(%limit: Int, %body: (value: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+  schema {
+    #0 type $r
+    #1 type Outcome((), $r)
+  }
+
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v6 = load %i : Int
+    %v7 = cmp_lt %v6, %limit : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v22 = alloc : Outcome((), $r)
+    init %local3.discriminant, 0
+    ret %v22
+
+  b3:
+    %v9 = load %i : Int
+    %v10 = calldyn %body, %v9 : Outcome((), $r)
+    %v11 = load %local2.discriminant : Int
+    %v13 = cmp_eq %v11, 1 : Bool
+    je %v13, b4, b5
+
+  b4:
+    ret %v10
+
+  b5:
+    %v16 = load %i : Int
+    %v19 = add %v16, 1 : Int
+    assign %i, %v19
+    jmp b1
+}
+
+fn corners(%n: Int, %body: (value: {x: Int, y: Int}) -> Outcome((), $r)) -> Outcome((), $r) {
+  schema {
+    #0 type $r
+    #1 type Outcome((), $r)
+  }
+
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v6 = load %i : Int
+    %v7 = cmp_lt %v6, %n : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v29 = alloc : Outcome((), $r)
+    init %local4.discriminant, 0
+    ret %v29
+
+  b3:
+    %v9 = alloc : {x: Int, y: Int}
+    %v10 = load %i : Int
+    %v11 = load %i : Int
+    %v14 = mul %v11, 2 : Int
+    init %local2.x, %v10
+    init %local2.y, %v14
+    %v17 = calldyn %body, %v9 : Outcome((), $r)
+    %v18 = load %local3.discriminant : Int
+    %v20 = cmp_eq %v18, 1 : Bool
+    je %v20, b4, b5
+
+  b4:
+    ret %v17
+
+  b5:
+    %v23 = load %i : Int
+    %v26 = add %v23, 1 : Int
+    assign %i, %v26
+    jmp b1
+}
+
+fn twice(%value: a, %body: (value: a) -> Outcome((), $r)) -> Outcome((), $r) {
+  schema {
+    #0 type a
+    #1 type $r
+    #2 type Outcome((), $r)
+  }
+
+  b0:
+    %v2 = calldyn %body, %value : Outcome((), $r)
+    %v3 = load %local2.discriminant : Int
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b1, b2
+
+  b1:
+    ret %v2
+
+  b2:
+    %v8 = calldyn %body, %value : Outcome((), $r)
+    %v9 = load %local3.discriminant : Int
+    %v11 = cmp_eq %v9, 1 : Bool
+    je %v11, b3, b4
+
+  b3:
+    ret %v8
+
+  b4:
+    %v14 = alloc : Outcome((), $r)
+    init %local4.discriminant, 0
+    ret %v14
+}
+
+fn sum(%n: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v4 = alloc : {total: &mut Int}
+    %v5 = borrow_mut %total : &mut Int
+    init %local1.total, %v5
+    %v7 = addressof %local1 : %()
+    %v8 = alloc : (value: Int) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$0 : %()
+    init %local2.code, %v9
+    init %local2.env, %v7
+    %v12 = call upTo(()), %n, %v8 : Outcome((), ())
+    %v13 = load %total : Int
+    ret %v13
+}
+
+fn odds(%n: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v4 = alloc : {total: &mut Int}
+    %v5 = borrow_mut %total : &mut Int
+    init %local1.total, %v5
+    %v7 = addressof %local1 : %()
+    %v8 = alloc : (value: Int) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$1 : %()
+    init %local2.code, %v9
+    init %local2.env, %v7
+    %v12 = call upTo(()), %n, %v8 : Outcome((), ())
+    %v13 = load %total : Int
+    ret %v13
+}
+
+fn upToFive(%n: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v4 = alloc : {total: &mut Int}
+    %v5 = borrow_mut %total : &mut Int
+    init %local1.total, %v5
+    %v7 = addressof %local1 : %()
+    %v8 = alloc : (value: Int) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$2 : %()
+    init %local2.code, %v9
+    init %local2.env, %v7
+    %v12 = call upTo(()), %n, %v8 : Outcome((), ())
+    %v13 = load %total : Int
+    ret %v13
+}
+
+fn firstOver(%n: Int, %bound: Int) -> Int {
+  b0:
+    %v2 = alloc : {bound: Int}
+    init %local0.bound, %bound
+    %v4 = addressof %local0 : %()
+    %v5 = alloc : (value: Int) -> Outcome((), Int)
+    %v6 = symbol ResolveTest.continuation$3 : %()
+    init %local1.code, %v6
+    init %local1.env, %v4
+    %v9 = call upTo(Int), %n, %v5 : Outcome((), Int)
+    %v10 = load %local2.discriminant : Int
+    %v12 = cmp_eq %v10, 1 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v14 = load %local2@Exit : Int
+    ret %v14
+
+  b2:
+    %v18 = neg 1 : Int
+    ret %v18
+}
+
+fn firstOverOrCount(%n: Int, %bound: Int) -> Int {
+  b0:
+    %seen = alloc : Int
+    init %seen, 0
+    %v5 = alloc : {bound: Int, seen: &mut Int}
+    init %local1.bound, %bound
+    %v7 = borrow_mut %seen : &mut Int
+    init %local1.seen, %v7
+    %v9 = addressof %local1 : %()
+    %v10 = alloc : (value: Int) -> Outcome((), Outcome((), Int))
+    %v11 = symbol ResolveTest.continuation$4 : %()
+    init %local2.code, %v11
+    init %local2.env, %v9
+    %v14 = call upTo(Outcome((), Int)), %n, %v10 : Outcome((), Outcome((), Int))
+    %v15 = load %local3.discriminant : Int
+    %v17 = cmp_eq %v15, 1 : Bool
+    je %v17, b1, b2
+
+  b1:
+    %v19 = load %local3@Exit : Outcome((), Int)
+    %v20 = load %local3@Exit.discriminant : Int
+    %v22 = cmp_eq %v20, 1 : Bool
+    je %v22, b3, b4
+
+  b2:
+    jmp b5
+
+  b3:
+    %v24 = load %local3@Exit@Exit : Int
+    ret %v24
+
+  b4:
+    jmp b5
+
+  b5:
+    %v28 = load %seen : Int
+    ret %v28
+}
+
+fn grid(%rows: Int, %columns: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v5 = alloc : {columns: Int, total: &mut Int}
+    init %local1.columns, %columns
+    %v7 = borrow_mut %total : &mut Int
+    init %local1.total, %v7
+    %v9 = addressof %local1 : %()
+    %v10 = alloc : (value: Int) -> Outcome((), ())
+    %v11 = symbol ResolveTest.continuation$5 : %()
+    init %local2.code, %v11
+    init %local2.env, %v9
+    %v14 = call upTo(()), %rows, %v10 : Outcome((), ())
+    %v15 = load %total : Int
+    ret %v15
+}
+
+fn corners_(%n: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v4 = alloc : {total: &mut Int}
+    %v5 = borrow_mut %total : &mut Int
+    init %local1.total, %v5
+    %v7 = addressof %local1 : %()
+    %v8 = alloc : (value: {x: Int, y: Int}) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$7 : %()
+    init %local2.code, %v9
+    init %local2.env, %v7
+    %v12 = call corners(()), %n, %v8 : Outcome((), ())
+    %v13 = load %total : Int
+    ret %v13
+}
+
+fn generic() -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v5 = alloc : {total: &mut Int}
+    %v6 = borrow_mut %total : &mut Int
+    init %local1.total, %v6
+    %v8 = addressof %local1 : %()
+    %v9 = alloc : (value: Int) -> Outcome((), ())
+    %v10 = symbol ResolveTest.continuation$8 : %()
+    init %local2.code, %v10
+    init %local2.env, %v8
+    %v13 = call twice(Int, ()), 7, %v9 : Outcome((), ())
+    %v15 = alloc : {total: &mut Int}
+    %v16 = borrow_mut %total : &mut Int
+    init %local4.total, %v16
+    %v18 = addressof %local4 : %()
+    %v19 = alloc : (value: Bool) -> Outcome((), ())
+    %v20 = symbol ResolveTest.continuation$9 : %()
+    init %local5.code, %v20
+    init %local5.env, %v18
+    %v23 = call twice(Bool, ()), True, %v19 : Outcome((), ())
+    %v24 = load %total : Int
+    ret %v24
+}
+
+fn firstOddOver(%n: Int, %bound: Int) -> Int {
+  b0:
+    %v2 = alloc : {bound: Int}
+    init %local0.bound, %bound
+    %v4 = addressof %local0 : %()
+    %v5 = alloc : (value: Int) -> Outcome((), Int)
+    %v6 = symbol ResolveTest.continuation$10 : %()
+    init %local1.code, %v6
+    init %local1.env, %v4
+    %v9 = call upTo(Int), %n, %v5 : Outcome((), Int)
+    %v10 = load %local2.discriminant : Int
+    %v12 = cmp_eq %v10, 1 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v14 = load %local2@Exit : Int
+    ret %v14
+
+  b2:
+    %v18 = neg 1 : Int
+    ret %v18
+}
+
+fn firstPairOver(%n: Int, %bound: Int) -> Pair {
+  b0:
+    %v2 = alloc : {bound: Int}
+    init %local0.bound, %bound
+    %v4 = addressof %local0 : %()
+    %v5 = alloc : (value: Int) -> Outcome((), Pair)
+    %v6 = symbol ResolveTest.continuation$11 : %()
+    init %local1.code, %v6
+    init %local1.env, %v4
+    %v9 = call upTo(Pair), %n, %v5 : Outcome((), Pair)
+    %v10 = load %local2.discriminant : Int
+    %v12 = cmp_eq %v10, 1 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v14 = load %local2@Exit : Pair
+    ret %v14
+
+  b2:
+    %v16 = alloc : Pair
+    %v19 = neg 1 : Int
+    %v22 = neg 1 : Int
+    init %local3@Pair.a, %v19
+    init %local3@Pair.b, %v22
+    ret %v16
+}
+
+fn counted(%body: (value: Int) -> $r) -> $r {
+  schema {
+    #0 type $r
+  }
+
+  b0:
+    %v1 = load log : Int
+    %v4 = add %v1, 1 : Int
+    assign log, %v4
+    %v6 = load log : Int
+    %v7 = calldyn %body, %v6 : $r
+    %v8 = load log : Int
+    %v11 = add %v8, 10 : Int
+    assign log, %v11
+    ret %v7
+}
+
+fn withLens(%n: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v4 = alloc : {total: &mut Int}
+    %v5 = borrow_mut %total : &mut Int
+    init %local1.total, %v5
+    %v7 = addressof %local1 : %()
+    %v8 = alloc : (value: Int) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$12 : %()
+    init %local2.code, %v9
+    init %local2.env, %v7
+    %v12 = call upTo(()), %n, %v8 : Outcome((), ())
+    %v13 = load %total : Int
+    ret %v13
+}
+
+fn loopInLens(%n: Int) -> Int {
+  b0:
+    %v1 = alloc : {n: Int}
+    init %local0.n, %n
+    %v3 = addressof %local0 : %()
+    %v4 = alloc : (value: Int) -> Int
+    %v5 = symbol ResolveTest.continuation$14 : %()
+    init %local1.code, %v5
+    init %local1.env, %v3
+    %v8 = call counted(Int), %v4 : Int
+    ret %v8
+}
+
+fn stopAt(%n: Int) -> () {
+  b0:
+    %v1 = alloc : (value: Int) -> Outcome((), ())
+    %v2 = symbol ResolveTest.continuation$16 : %()
+    init %local0.code, %v2
+    %v5 = cast 0 : %()
+    init %local0.env, %v5
+    %v7 = call upTo(()), %n, %v1 : Outcome((), ())
+    %v8 = load %local1.discriminant : Int
+    %v10 = cmp_eq %v8, 1 : Bool
+    je %v10, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    ret
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call sum, 5 : Int
+    %v3 = call odds, 6 : Int
+    %v4 = add %v1, %v3 : Int
+    %v6 = call upToFive, 20 : Int
+    %v7 = add %v4, %v6 : Int
+    %v10 = call firstOver, 10, 6 : Int
+    %v11 = add %v7, %v10 : Int
+    %v14 = call firstOverOrCount, 10, 20 : Int
+    %v15 = add %v11, %v14 : Int
+    %v18 = call grid, 3, 2 : Int
+    %v19 = add %v15, %v18 : Int
+    %v21 = call corners_, 3 : Int
+    %v22 = add %v19, %v21 : Int
+    %v23 = call generic : Int
+    %v24 = add %v22, %v23 : Int
+    %v27 = call firstOddOver, 10, 4 : Int
+    %v28 = add %v24, %v27 : Int
+    %v31 = call firstPairOver, 10, 6 : Pair
+    %v32 = load %local0@Pair.b : Int
+    %v33 = add %v28, %v32 : Int
+    %v35 = call withLens, 3 : Int
+    %v36 = add %v33, %v35 : Int
+    %v38 = call loopInLens, 5 : Int
+    %v39 = add %v36, %v38 : Int
+    %v40 = call stopped : Int
+    %v41 = add %v39, %v40 : Int
+    ret %v41
+}
+
+fn stopped() -> Int {
+  b0:
+    assign visited, 0
+    call stopAt, 10
+    %v4 = load visited : Int
+    ret %v4
+}
+
+fn ResolveTest.continuation$0(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+  b0:
+    %v2 = load [%env].total : &mut Int
+    %v3 = load [%env].total : &mut Int
+    %v4 = load [%v3] : Int
+    %v5 = add %v4, %value : Int
+    assign [%v2], %v5
+    %v7 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v7
+}
+
+fn upTo(())(%limit: Int, %body: (value: Int) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v6 = load %i : Int
+    %v7 = cmp_lt %v6, %limit : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v9 = alloc : Outcome((), ())
+    init %local3.discriminant, 0
+    ret %v9
+
+  b3:
+    %v13 = load %i : Int
+    %v14 = calldyn %body, %v13 : Outcome((), ())
+    %v15 = load %local2.discriminant : Int
+    %v17 = cmp_eq %v15, 1 : Bool
+    je %v17, b4, b5
+
+  b4:
+    ret %v14
+
+  b5:
+    %v20 = load %i : Int
+    %v22 = add %v20, 1 : Int
+    assign %i, %v22
+    jmp b1
+}
+
+fn ResolveTest.continuation$1(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+  b0:
+    %v4 = rem %value, 2 : Int
+    %v7 = cmp_eq %v4, 0 : Bool
+    je %v7, b1, b2
+
+  b1:
+    %v19 = alloc : Outcome((), ())
+    init %local1.discriminant, 0
+    ret %v19
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = load [%env].total : &mut Int
+    %v11 = load [%env].total : &mut Int
+    %v12 = load [%v11] : Int
+    %v13 = add %v12, %value : Int
+    assign [%v10], %v13
+    %v15 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v15
+}
+
+fn ResolveTest.continuation$2(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+  b0:
+    %v4 = cmp_gt %value, 5 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v16 = alloc : Outcome((), ())
+    init %local1.discriminant, 1
+    ret %v16
+
+  b2:
+    jmp b3
+
+  b3:
+    %v7 = load [%env].total : &mut Int
+    %v8 = load [%env].total : &mut Int
+    %v9 = load [%v8] : Int
+    %v10 = add %v9, %value : Int
+    assign [%v7], %v10
+    %v12 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v12
+}
+
+fn ResolveTest.continuation$3(%env: %{bound: Int}, %value: Int) -> Outcome((), Int) {
+  b0:
+    %v2 = load [%env].bound : Int
+    %v3 = cmp_gt %value, %v2 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v10 = alloc : Outcome((), Int)
+    init %local1.discriminant, 1
+    init %local1@Exit, %value
+    ret %v10
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = alloc : Outcome((), Int)
+    init %local0.discriminant, 0
+    ret %v6
+}
+
+fn upTo(Int)(%limit: Int, %body: (value: Int) -> Outcome((), Int)) -> Outcome((), Int) {
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v6 = load %i : Int
+    %v7 = cmp_lt %v6, %limit : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v9 = alloc : Outcome((), Int)
+    init %local3.discriminant, 0
+    ret %v9
+
+  b3:
+    %v13 = load %i : Int
+    %v14 = calldyn %body, %v13 : Outcome((), Int)
+    %v15 = load %local2.discriminant : Int
+    %v17 = cmp_eq %v15, 1 : Bool
+    je %v17, b4, b5
+
+  b4:
+    ret %v14
+
+  b5:
+    %v20 = load %i : Int
+    %v22 = add %v20, 1 : Int
+    assign %i, %v22
+    jmp b1
+}
+
+fn ResolveTest.continuation$4(%env: %{bound: Int, seen: &mut Int}, %value: Int) -> Outcome((), Outcome((), Int)) {
+  b0:
+    %v2 = load [%env].bound : Int
+    %v3 = cmp_gt %value, %v2 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v7 = mul %value, 100 : Int
+    %v33 = alloc : Outcome((), Int)
+    init %local3.discriminant, 1
+    init %local3@Exit, %v7
+    %v37 = alloc : Outcome((), Outcome((), Int))
+    init %local4.discriminant, 1
+    init %local4@Exit, %v33
+    ret %v37
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = cmp_eq %value, 4 : Bool
+    je %v11, b4, b5
+
+  b4:
+    %v25 = alloc : Outcome((), Int)
+    init %local1.discriminant, 0
+    %v28 = alloc : Outcome((), Outcome((), Int))
+    init %local2.discriminant, 1
+    init %local2@Exit, %v25
+    ret %v28
+
+  b5:
+    jmp b6
+
+  b6:
+    %v14 = load [%env].seen : &mut Int
+    %v15 = load [%env].seen : &mut Int
+    %v16 = load [%v15] : Int
+    %v19 = add %v16, 1 : Int
+    assign [%v14], %v19
+    %v21 = alloc : Outcome((), Outcome((), Int))
+    init %local0.discriminant, 0
+    ret %v21
+}
+
+fn upTo(Outcome((), Int))(%limit: Int, %body: (value: Int) -> Outcome((), Outcome((), Int))) -> Outcome((), Outcome((), Int)) {
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v6 = load %i : Int
+    %v7 = cmp_lt %v6, %limit : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v9 = alloc : Outcome((), Outcome((), Int))
+    init %local3.discriminant, 0
+    ret %v9
+
+  b3:
+    %v13 = load %i : Int
+    %v14 = calldyn %body, %v13 : Outcome((), Outcome((), Int))
+    %v15 = load %local2.discriminant : Int
+    %v17 = cmp_eq %v15, 1 : Bool
+    je %v17, b4, b5
+
+  b4:
+    ret %v14
+
+  b5:
+    %v20 = load %i : Int
+    %v22 = add %v20, 1 : Int
+    assign %i, %v22
+    jmp b1
+}
+
+fn ResolveTest.continuation$5(%env: %{columns: Int, total: &mut Int}, %value: Int) -> Outcome((), ()) {
+  b0:
+    %v2 = load [%env].columns : Int
+    %v3 = alloc : {total: &mut Int, r: Int}
+    %v4 = load [%env].total : &mut Int
+    %v5 = borrow_mut [%v4] : &mut Int
+    init %local0.total, %v5
+    init %local0.r, %value
+    %v8 = addressof %local0 : %()
+    %v9 = alloc : (value: Int) -> Outcome((), ())
+    %v10 = symbol ResolveTest.continuation$6 : %()
+    init %local1.code, %v10
+    init %local1.env, %v8
+    %v13 = call upTo(()), %v2, %v9 : Outcome((), ())
+    %v14 = alloc : Outcome((), ())
+    init %local3.discriminant, 0
+    ret %v14
+}
+
+fn ResolveTest.continuation$6(%env: %{total: &mut Int, r: Int}, %value: Int) -> Outcome((), ()) {
+  b0:
+    %v2 = load [%env].total : &mut Int
+    %v3 = load [%env].total : &mut Int
+    %v4 = load [%v3] : Int
+    %v5 = load [%env].r : Int
+    %v8 = mul %v5, 10 : Int
+    %v9 = add %v4, %v8 : Int
+    %v10 = add %v9, %value : Int
+    assign [%v2], %v10
+    %v12 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v12
+}
+
+fn ResolveTest.continuation$7(%env: %{total: &mut Int}, %value: {x: Int, y: Int}) -> Outcome((), ()) {
+  b0:
+    %x = load %value.x : Int
+    %y = load %value.y : Int
+    %v4 = load [%env].total : &mut Int
+    %v5 = load [%env].total : &mut Int
+    %v6 = load [%v5] : Int
+    %v7 = add %v6, %x : Int
+    %v8 = add %v7, %y : Int
+    assign [%v4], %v8
+    %v10 = alloc : Outcome((), ())
+    init %local1.discriminant, 0
+    ret %v10
+}
+
+fn corners(())(%n: Int, %body: (value: {x: Int, y: Int}) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v6 = load %i : Int
+    %v7 = cmp_lt %v6, %n : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v9 = alloc : Outcome((), ())
+    init %local4.discriminant, 0
+    ret %v9
+
+  b3:
+    %v13 = alloc : {x: Int, y: Int}
+    %v14 = load %i : Int
+    %v15 = load %i : Int
+    %v17 = mul %v15, 2 : Int
+    init %local2.x, %v14
+    init %local2.y, %v17
+    %v20 = calldyn %body, %v13 : Outcome((), ())
+    %v21 = load %local3.discriminant : Int
+    %v23 = cmp_eq %v21, 1 : Bool
+    je %v23, b4, b5
+
+  b4:
+    ret %v20
+
+  b5:
+    %v26 = load %i : Int
+    %v28 = add %v26, 1 : Int
+    assign %i, %v28
+    jmp b1
+}
+
+fn ResolveTest.continuation$8(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+  b0:
+    %v2 = load [%env].total : &mut Int
+    %v3 = load [%env].total : &mut Int
+    %v4 = load [%v3] : Int
+    %v5 = add %v4, %value : Int
+    assign [%v2], %v5
+    %v7 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v7
+}
+
+fn twice(Int, ())(%value: Int, %body: (value: Int) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %v2 = calldyn %body, %value : Outcome((), ())
+    %v3 = load %local2.discriminant : Int
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b1, b2
+
+  b1:
+    ret %v2
+
+  b2:
+    %v8 = calldyn %body, %value : Outcome((), ())
+    %v9 = load %local3.discriminant : Int
+    %v11 = cmp_eq %v9, 1 : Bool
+    je %v11, b3, b4
+
+  b3:
+    ret %v8
+
+  b4:
+    %v14 = alloc : Outcome((), ())
+    init %local4.discriminant, 0
+    ret %v14
+}
+
+fn ResolveTest.continuation$9(%env: %{total: &mut Int}, %value: Bool) -> Outcome((), ()) {
+  b0:
+    je %value, b1, b2
+
+  b1:
+    %v3 = load [%env].total : &mut Int
+    %v4 = load [%env].total : &mut Int
+    %v5 = load [%v4] : Int
+    %v8 = add %v5, 1 : Int
+    assign [%v3], %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v12
+}
+
+fn twice(Bool, ())(%value: Bool, %body: (value: Bool) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %v2 = calldyn %body, %value : Outcome((), ())
+    %v3 = load %local2.discriminant : Int
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b1, b2
+
+  b1:
+    ret %v2
+
+  b2:
+    %v8 = calldyn %body, %value : Outcome((), ())
+    %v9 = load %local3.discriminant : Int
+    %v11 = cmp_eq %v9, 1 : Bool
+    je %v11, b3, b4
+
+  b3:
+    ret %v8
+
+  b4:
+    %v14 = alloc : Outcome((), ())
+    init %local4.discriminant, 0
+    ret %v14
+}
+
+fn ResolveTest.continuation$10(%env: %{bound: Int}, %value: Int) -> Outcome((), Int) {
+  b0:
+    %v4 = rem %value, 2 : Int
+    %v7 = cmp_eq %v4, 0 : Bool
+    je %v7, b1, b2
+
+  b1:
+    %v18 = alloc : Outcome((), Int)
+    init %local1.discriminant, 0
+    ret %v18
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = load [%env].bound : Int
+    %v11 = cmp_gt %value, %v10 : Bool
+    je %v11, b4, b5
+
+  b4:
+    %v22 = alloc : Outcome((), Int)
+    init %local2.discriminant, 1
+    init %local2@Exit, %value
+    ret %v22
+
+  b5:
+    jmp b6
+
+  b6:
+    %v14 = alloc : Outcome((), Int)
+    init %local0.discriminant, 0
+    ret %v14
+}
+
+fn ResolveTest.continuation$11(%env: %{bound: Int}, %value: Int) -> Outcome((), Pair) {
+  b0:
+    %v2 = load [%env].bound : Int
+    %v3 = cmp_gt %value, %v2 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Pair
+    %v8 = mul %value, 2 : Int
+    init %local0@Pair.a, %value
+    init %local0@Pair.b, %v8
+    %v16 = alloc : Outcome((), Pair)
+    init %local2.discriminant, 1
+    init %local2@Exit, %v5
+    ret %v16
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = alloc : Outcome((), Pair)
+    init %local1.discriminant, 0
+    ret %v12
+}
+
+fn upTo(Pair)(%limit: Int, %body: (value: Int) -> Outcome((), Pair)) -> Outcome((), Pair) {
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v6 = load %i : Int
+    %v7 = cmp_lt %v6, %limit : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v9 = alloc : Outcome((), Pair)
+    init %local3.discriminant, 0
+    ret %v9
+
+  b3:
+    %v13 = load %i : Int
+    %v14 = calldyn %body, %v13 : Outcome((), Pair)
+    %v15 = load %local2.discriminant : Int
+    %v17 = cmp_eq %v15, 1 : Bool
+    je %v17, b4, b5
+
+  b4:
+    ret %v14
+
+  b5:
+    %v20 = load %i : Int
+    %v22 = add %v20, 1 : Int
+    assign %i, %v22
+    jmp b1
+}
+
+fn ResolveTest.continuation$12(%env: %{total: &mut Int}, %value: Int) -> Outcome((), ()) {
+  b0:
+    %v2 = alloc : {total: &mut Int, x: Int}
+    %v3 = load [%env].total : &mut Int
+    %v4 = borrow_mut [%v3] : &mut Int
+    init %local0.total, %v4
+    init %local0.x, %value
+    %v7 = addressof %local0 : %()
+    %v8 = alloc : (value: Int) -> ()
+    %v9 = symbol ResolveTest.continuation$13 : %()
+    init %local1.code, %v9
+    init %local1.env, %v7
+    call counted(()), %v8
+    %v13 = alloc : Outcome((), ())
+    init %local2.discriminant, 0
+    ret %v13
+}
+
+fn ResolveTest.continuation$13(%env: %{total: &mut Int, x: Int}, %value: Int) -> () {
+  b0:
+    %v2 = load [%env].total : &mut Int
+    %v3 = load [%env].total : &mut Int
+    %v4 = load [%v3] : Int
+    %v5 = add %v4, %value : Int
+    %v6 = load [%env].x : Int
+    %v7 = add %v5, %v6 : Int
+    assign [%v2], %v7
+    ret
+}
+
+fn counted(())(%body: (value: Int) -> ()) -> () {
+  b0:
+    %v1 = load log : Int
+    %v3 = add %v1, 1 : Int
+    assign log, %v3
+    %v5 = load log : Int
+    calldyn %body, %v5
+    %v7 = load log : Int
+    %v9 = add %v7, 10 : Int
+    assign log, %v9
+    ret %v6
+}
+
+fn ResolveTest.continuation$14(%env: %{n: Int}, %value: Int) -> Int {
+  b0:
+    %v2 = load [%env].n : Int
+    %v3 = alloc : {base: Int}
+    init %local0.base, %value
+    %v5 = addressof %local0 : %()
+    %v6 = alloc : (value: Int) -> Outcome((), Int)
+    %v7 = symbol ResolveTest.continuation$15 : %()
+    init %local1.code, %v7
+    init %local1.env, %v5
+    %v10 = call upTo(Int), %v2, %v6 : Outcome((), Int)
+    %v11 = load %local2.discriminant : Int
+    %v13 = cmp_eq %v11, 1 : Bool
+    je %v13, b1, b2
+
+  b1:
+    %v15 = load %local2@Exit : Int
+    ret %v15
+
+  b2:
+    ret %value
+}
+
+fn ResolveTest.continuation$15(%env: %{base: Int}, %value: Int) -> Outcome((), Int) {
+  b0:
+    %v4 = cmp_eq %value, 2 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load [%env].base : Int
+    %v9 = mul %v6, 1000 : Int
+    %v10 = add %v9, %value : Int
+    %v16 = alloc : Outcome((), Int)
+    init %local1.discriminant, 1
+    init %local1@Exit, %v10
+    ret %v16
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = alloc : Outcome((), Int)
+    init %local0.discriminant, 0
+    ret %v12
+}
+
+fn counted(Int)(%body: (value: Int) -> Int) -> Int {
+  b0:
+    %v1 = load log : Int
+    %v3 = add %v1, 1 : Int
+    assign log, %v3
+    %v5 = load log : Int
+    %v6 = calldyn %body, %v5 : Int
+    %v7 = load log : Int
+    %v9 = add %v7, 10 : Int
+    assign log, %v9
+    ret %v6
+}
+
+fn ResolveTest.continuation$16(%env: %{}, %value: Int) -> Outcome((), ()) {
+  b0:
+    %v4 = cmp_eq %value, 3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v14 = alloc : Outcome((), ())
+    init %local1.discriminant, 1
+    ret %v14
+
+  b2:
+    jmp b3
+
+  b3:
+    %v7 = load visited : Int
+    %v8 = add %v7, %value : Int
+    assign visited, %v8
+    %v10 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v10
+}

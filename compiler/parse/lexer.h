@@ -77,7 +77,8 @@ struct Token {
 
         /* Reserved operators */
         opDot,
-        opDotDot,
+        opDotDot,   // .. - a range excluding its upper bound
+        opDotDotEq, // ..= - a range including it
         opColon,
         opColonColon,
         opEquals,

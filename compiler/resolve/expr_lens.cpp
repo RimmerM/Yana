@@ -57,8 +57,25 @@ static StringId continuationFunctionName(Module& module) {
     return module.context.addQualifiedName(text.pointer(), text.size(), 1);
 }
 
+/*
+ * The step signal an iterator and its consumer exchange - Analysis-Lens.md §7.3.
+ *
+ * `Outcome({}, r)` in both directions, which is what makes `yield` a pass-through rather than a
+ * rebuild: the continuation returns `Proceed({})` to ask for the next element and `Exit(v)` to stop
+ * carrying `v`, and the iterator's own result is that same value - `Proceed({})` when its body ran
+ * to completion, and whatever a step handed back when one stopped it.
+ *
+ * §7.3 writes the iterator's own result as `Maybe(r)`, which is the same two cases named differently.
+ * One type rather than two means the propagation at a `yield` is `return` of the value it was just
+ * given, with nothing unwrapped and rewrapped - and `r` is a variable there, so a rebuild would need
+ * the payload's witness in a body that has no reason to want one.
+ */
+static TypePtr stepType(Module& module, TypePtr carried, LocationId source) {
+    return resolveOutcomeType(module, module.scalar.unit, carried, source);
+}
+
 FunType* lensContinuationType(GlobalBase global, Function& function, ModuleBase local) {
-    if(function.funKind != ast::FunKind::Lens || function.args.size() == 0) return nullptr;
+    if(function.funKind == ast::FunKind::Plain || function.args.size() == 0) return nullptr;
 
     auto last = local[function.args.get(local, function.args.size() - 1)];
     if(global[last->type]->kind != Type::Fun) return nullptr;
@@ -77,15 +94,23 @@ FunType* lensContinuationType(GlobalBase global, Function& function, ModuleBase 
  * result *is* the callback's result. Analysis-Lens.md §7.1 is what that sentence comes from, and
  * the reason it is checkable at all is that the callback's result is a type variable of this
  * function's own context rather than anything inferred.
+ *
+ * An `iter fn` desugars in the same place and to the same shape, with both of its types fixed by
+ * the construct rather than declared by the author (§7.3): the continuation returns the step signal
+ * and so does the iterator, which is what makes `break` and `continue` mean one thing in every
+ * loop. Only the `yield` form of it exists in this version - see below.
  */
 void resolveLensSignature(Module& module, Function& function, GenEnv* env, ast::Decl& decl) {
     auto& context = module.context;
     auto global = *module.types;
     auto local = *module.arena;
     auto source = decl.source;
+    auto iterator = function.funKind == ast::FunKind::Iter;
+    auto kindName = iterator ? "an iterator"_v : "a lens"_v;
 
     if(!env) {
-        context.diagnostics.error("a lens needs a generic context for its continuation's result type"_v, source);
+        context.diagnostics.error("%@ needs a generic context for its continuation's result type"_v,
+                                  source, kindName);
         function.funKind = ast::FunKind::Plain;
         return;
     }
@@ -94,6 +119,20 @@ void resolveLensSignature(Module& module, Function& function, GenEnv* env, ast::
     if(function.args.size()) {
         auto last = local[function.args.get(local, function.args.size() - 1)];
         explicitForm = !last->isLazy() && global[last->declaredType()]->kind == Type::Fun;
+    }
+
+    /*
+     * An `iter fn` that wrote its continuation out has written the step signal by hand, and the two
+     * halves of it - what `Proceed` means to the loop below and what the payload of an `Exit` is -
+     * are decided by the `for` desugaring rather than by the declaration. Accepting the shape would
+     * mean checking a written type against one this file constructs, and the diagnostic for getting
+     * it wrong would be about a type the author never meant to name.
+     */
+    if(iterator && explicitForm) {
+        context.diagnostics.error("an `iter fn` declares what it hands over and uses `yield` in this version - the explicit continuation form would have to write the step signal out, and what its cases mean is decided by the `for` loop rather than by this declaration"_v,
+                                  source);
+        function.funKind = ast::FunKind::Plain;
+        return;
     }
 
     if(explicitForm) {
@@ -146,12 +185,30 @@ void resolveLensSignature(Module& module, Function& function, GenEnv* env, ast::
 
     auto variable = genVariable(module, *env, continuationResultName(context));
     if(!variable) {
-        context.diagnostics.error("a lens needs an open generic context for its continuation's result type"_v, source);
+        context.diagnostics.error("%@ needs an open generic context for its continuation's result type"_v,
+                                  source, kindName);
         function.funKind = ast::FunKind::Plain;
         return;
     }
 
-    auto result = (TypePtr)((Type*)global[variable] - global);
+    auto carried = (TypePtr)((Type*)global[variable] - global);
+
+    /*
+     * What the continuation returns, which is the whole of the difference between the two kinds.
+     *
+     * A lens's continuation runs once, so its result travels out of the lens unexamined and the
+     * variable itself is the type. An iterator's runs repeatedly and has to be able to say *stop*,
+     * so the same variable travels inside the step signal - and the iterator returns that signal
+     * rather than the variable, since a body that ran to completion has no carried value at all.
+     */
+    auto result = carried;
+    if(iterator) {
+        result = stepType(module, carried, source);
+        if(!result) {
+            function.funKind = ast::FunKind::Plain;
+            return;
+        }
+    }
 
     Array<FunArg> callbackArgs;
     if(!isUnit(global, handed)) {
@@ -173,11 +230,24 @@ void resolveLensSignature(Module& module, Function& function, GenEnv* env, ast::
  * over the blocks these land in.
  */
 ModulePtr<Value> ExprResolver::resolveYield(const ast::Expr& expr) {
-    if(function.funKind != ast::FunKind::Lens || !function.yieldForm) {
-        context.diagnostics.error("`yield` is only available inside a `lens fn` that declares what it hands over - one that named its continuation parameter calls it by name instead"_v,
+    /*
+     * The function this `yield` hands over for is the one it is written in, and no other.
+     *
+     * That is a restriction as much as a rule. `iter fn evens(n): for x in upTo(n): yield x` -
+     * one iterator written over another, which is the shape every adaptor has - writes its `yield`
+     * inside a *lifted* loop body, so the parameter it calls would be a capture. What blocks it is
+     * not the capture: it is that a `for` loop cannot appear in an `iter fn` body at all, because
+     * an iterator is generic in what its consumer returns and a lifted body inside a generic
+     * function needs specializing alongside it. See makeContinuation.
+     */
+    if(function.funKind == ast::FunKind::Plain || !function.yieldForm) {
+        context.diagnostics.error("`yield` is only available inside a `lens fn` or `iter fn` that declares what it hands over - one that named its continuation parameter calls it by name instead"_v,
                                   expr.source);
         return nullptr;
     }
+
+    auto iterator = function.funKind == ast::FunKind::Iter;
+    auto kindName = iterator ? "this iterator"_v : "this lens"_v;
 
     auto continuation = (ModulePtr<Value>)function.args.get(local, function.args.size() - 1);
     auto callback = (FunType*)global[valueType(continuation)];
@@ -188,8 +258,8 @@ ModulePtr<Value> ExprResolver::resolveYield(const ast::Expr& expr) {
         auto value = expr.ret ? resolve(*parse[expr.ret], handed) : nullptr;
 
         if(!value) {
-            context.diagnostics.error("this lens hands over %@, so `yield` needs a value"_v, expr.source,
-                                      describeType(context, global, handed));
+            context.diagnostics.error("%@ hands over %@, so `yield` needs a value"_v, expr.source,
+                                      kindName, describeType(context, global, handed));
             return nullptr;
         }
 
@@ -199,8 +269,8 @@ ModulePtr<Value> ExprResolver::resolveYield(const ast::Expr& expr) {
         // is nothing to pass. Resolved anyway, so that a value with an effect in it still runs.
         auto value = resolve(*parse[expr.ret], nullptr, false);
         if(value && !isUnit(global, valueType(value))) {
-            context.diagnostics.error("this lens hands over nothing, so `yield` cannot carry a value"_v,
-                                      expr.source);
+            context.diagnostics.error("%@ hands over nothing, so `yield` cannot carry a value"_v,
+                                      expr.source, kindName);
         }
     }
 
@@ -209,7 +279,40 @@ ModulePtr<Value> ExprResolver::resolveYield(const ast::Expr& expr) {
     auto result = emitDynamicCall(continuation, toBuffer(args), expr.source, 0);
     yieldResult = result;
 
-    return result;
+    if(!iterator || !result || !current) return result;
+
+    /*
+     * The iterator half: what came back says whether to carry on.
+     *
+     * `Proceed` is the loop asking for the next element, and is the fall-through here. `Exit` is the
+     * loop leaving - a `break`, or a `return` travelling out of the enclosing function - and the
+     * iterator's answer to it is to return that same value, unexamined: it is the consumer's, the
+     * type it lives in is a variable of this function's context, and every frame between here and
+     * the call site passes it along by an ordinary return.
+     *
+     * What this version does *not* do is run whatever the body has after the loop the `yield` is in.
+     * Design.md's "an iterator's own cleanup after its last `yield` runs when a loop breaks out of
+     * it" holds for cleanup written as a lens - `withFile(f)` splits the rest of this body into a
+     * continuation, and a `return` from inside it is V1's exit signal, which runs the lens's own
+     * cleanup on the way past. Trailing statements of the iterator's own body are skipped, which is
+     * this version's boundary and is why a lens is the shape to reach for.
+     */
+    auto leaving = outcomeIsExit(result, expr.source);
+    if(!leaving) return nullptr;
+
+    auto stopped = addBlock();
+    auto next = addBlock();
+
+    terminate(emit<InstJe>(expr.source, 0, module.scalar.unit, leaving, stopped, next));
+
+    current = stopped;
+    emitFunctionReturn(result, expr.source);
+
+    current = next;
+
+    // An iterator hands over a value and produces nothing: `let x = yield e` would be binding the
+    // step signal, which is the consumer's business rather than the body's.
+    return nullptr;
 }
 
 /*
@@ -225,6 +328,21 @@ void checkLensYields(Module& module, Function& function, Buffer<LensYield> yield
     auto& context = module.context;
     auto local = *module.arena;
     auto blocks = function.blocks.size();
+
+    /*
+     * An iterator hands over any number of times, so none of the rule below applies to it. Not even
+     * the zero case: a legitimately empty iterator exists - a filter that accepted nothing is one -
+     * so a body with no `yield` in it is worth saying out loud and is not worth rejecting, which is
+     * what settles Implementation-Lens.md part 2's open call.
+     */
+    if(function.funKind == ast::FunKind::Iter) {
+        if(yields.length == 0) {
+            context.diagnostics.warning("this `iter fn` never yields, so every `for` loop over it runs its body no times"_v,
+                                        source);
+        }
+
+        return;
+    }
 
     if(yields.length == 0) {
         context.diagnostics.error("a `lens fn` in `yield` form must `yield` - this one never hands anything over, so the call site's block below it would never run"_v,
@@ -352,6 +470,32 @@ ModulePtr<Value> ExprResolver::makeOutcome(TypePtr type, bool proceed, ModulePtr
     return storage;
 }
 
+/*
+ * Whether an `Outcome` is the leaving case, as a `Bool`.
+ *
+ * The one discriminant test the exit signal costs, in the one shape that pays for it. Written
+ * against the record's layout rather than as a `match`, because this is emitted code: there is no
+ * pattern for `resolvePattern` to read and no source position for a failed one to point at.
+ */
+ModulePtr<Value> ExprResolver::outcomeIsExit(ModulePtr<Value> value, LocationId source) {
+    auto record = (RecordType*)global[valueType(value)];
+    ModulePtr<Value> discriminant = nullptr;
+
+    if(record->layout == RecordType::Enum) {
+        discriminant = ref(emit<InstUnary>(source, 0, module.scalar.int_, Value::Cast, value));
+    } else {
+        discriminant = load(project(placeFor(value, source), ProjectionKind::Discriminant, 0), source);
+    }
+
+    ModulePtr<Value> compared[] = {
+        discriminant,
+        makeInt(source, module.scalar.int_, module.program.outcomeExit),
+    };
+
+    auto leaving = emitCall(Context::nameHash("==", 2), { compared, 2 }, source, module.scalar.bool_);
+    return leaving ? convert(leaving, module.scalar.bool_, source) : nullptr;
+}
+
 ModulePtr<Value> ExprResolver::outcomePayload(ModulePtr<Value> value, bool proceed, LocationId source) {
     auto type = valueType(value);
     auto record = (RecordType*)global[type];
@@ -463,19 +607,160 @@ static bool continuationSignature(ExprResolver& resolver, Module& module, Module
 }
 
 /*
- * The rest of the block, lifted.
+ * The lifted body, made into the function value the callee is handed.
+ *
+ * Shared by both kinds of continuation, and identical to what expr_fun.cpp does for a written
+ * lambda: a body that named nothing outside itself is a bare code pointer, and one that did gets an
+ * environment filled in the frame that builds it. `outer` is that frame - the continuation's
+ * captures are its locals, which is what makes the common case a borrow of the stack rather than an
+ * allocation.
+ */
+static ModulePtr<Value> closeContinuation(Module& module, ExprResolver& outer, ExprResolver& body,
+                                          Function* lifted, Buffer<FunArg> params, TupType* envTuple,
+                                          LocationId source) {
+    auto global = outer.global;
+    auto local = outer.local;
+
+    Array<FunArg> signature;
+    for(auto& param: params) signature.push(param);
+
+    auto type = resolveFunType(module, toBuffer(signature), lifted->returnType, ast::FunKind::Plain);
+
+    auto envType = (Type*)envTuple - global;
+    checkTypeAcyclic(module, envType, source);
+
+    if(body.captures.isEmpty()) return outer.makeFunValue(type, lifted - local, nullptr, source, 0);
+
+    auto liftedPointer = (ModulePtr<Function>)(lifted - local);
+    closureHeaderFor(module, liftedPointer, envType, source);
+
+    auto storage = outer.allocate(envType, source, 0, ast::BindType::Borrow, true);
+    ((InstAlloc*)local[storage])->closure = liftedPointer;
+
+    auto place = outer.placeFor(storage, source);
+    fillEnvironment(outer, body, place, source);
+
+    auto address = outer.ref(outer.emit<InstAddress>(source, 0, funValueFieldType(module, FunValueLayout::kEnv), place));
+    return outer.makeFunValue(type, lifted - local, address, source, 0);
+}
+
+/*
+ * What one trip through a `for` body reports back - Analysis-Lens.md §7.3's step signal.
+ *
+ * Every way out of the body is a `return` of an `Outcome({}, carried)`: falling off the end and
+ * `continue` are `Proceed({})`, which is the loop asking for the next element, and `break` and
+ * `return` are `Exit`. What `carried` is depends on which of those the body actually uses, and the
+ * three answers are the same economy V1 made at a lens call site - the signal costs what the body
+ * asks for and nothing more:
+ *
+ *  - a body that never leaves the enclosing function carries `{}`, so `Exit` means `break` and the
+ *    call site emits no test at all: a loop that broke and a loop that ran out both continue below;
+ *  - one that returns but never breaks carries the enclosing function's result outright, so `Exit`
+ *    means "return this" and the call site is one discriminant test;
+ *  - only one that does both needs the two told apart, and that is the one nested `Outcome`.
+ */
+static ModulePtr<Value> finishLoopContinuation(Module& module, ExprResolver& outer, ExprResolver& body,
+                                               Function* lifted, Buffer<FunArg> params, TupType* envTuple,
+                                               LocationId source, ContinuationShape& shape) {
+    auto global = outer.global;
+
+    shape.fallsThrough = body.current != nullptr;
+    shape.exits = body.exits.size() != 0;
+    shape.value = module.scalar.unit;
+
+    for(auto& exit: body.loopExits) {
+        if(exit.isBreak) shape.breaks = true;
+    }
+
+    auto carried = module.scalar.unit;
+    if(shape.exits) {
+        carried = shape.breaks ? resolveOutcomeType(module, module.scalar.unit, outer.enclosingResultType(), source)
+                               : outer.enclosingResultType();
+    }
+
+    if(!carried) return nullptr;
+
+    auto step = stepType(module, carried, source);
+    if(!step) return nullptr;
+
+    lifted->returnType = step;
+    shape.carried = carried;
+    shape.outcome = step;
+
+    if(body.current) {
+        body.terminate(body.emit<InstRet>(source, 0, module.scalar.unit,
+                                          body.makeOutcome(step, true, nullptr, source)));
+    }
+
+    for(auto& exit: body.loopExits) {
+        body.current = exit.block;
+
+        ModulePtr<Value> value = nullptr;
+        if(!exit.isBreak) {
+            // `continue` is the next element asked for early, which is what the end of the body
+            // says anyway - so it is the same value, produced from a different block.
+            value = body.makeOutcome(step, true, nullptr, exit.source);
+        } else {
+            auto payload = shape.exits ? body.makeOutcome(carried, true, nullptr, exit.source) : nullptr;
+            value = body.makeOutcome(step, false, payload, exit.source);
+        }
+
+        body.terminate(body.emit<InstRet>(exit.source, 0, module.scalar.unit, value));
+    }
+
+    for(auto& exit: body.exits) {
+        body.current = exit.block;
+
+        auto value = exit.value;
+        if(shape.breaks) value = body.makeOutcome(carried, false, value, exit.source);
+        else if(value && !isUnit(global, carried)) value = body.convert(value, carried, exit.source);
+
+        body.terminate(body.emit<InstRet>(exit.source, 0, module.scalar.unit,
+                                          body.makeOutcome(step, false, value, exit.source)));
+    }
+
+    body.current = nullptr;
+    return closeContinuation(module, outer, body, lifted, params, envTuple, source);
+}
+
+/*
+ * The rest of the block, lifted - or, for a `for` loop, the loop's body.
  *
  * A near-copy of resolveFun's second half, and deliberately so: a continuation is a lambda whose
  * body is a span of statements rather than an expression, and everything else about it - the
  * environment, the discovered captures, their conventions - is the same question answered by the
  * same code. What it adds is the three exit shapes, which is Analysis-Lens.md §5.1 made concrete.
+ *
+ * `loop` is what makes it the second kind. The two differ in three places and nowhere else: what
+ * names the handed values (a `let`'s pattern with its alternatives, or the loop's own pattern), what
+ * the body is (the statements after the call, or the loop body written once and run per element),
+ * and what the result says (the exit signal's three shapes, or §7.3's step signal). That is a small
+ * enough delta to be one function, which is also the claim Implementation-Lens.md part 6 makes about
+ * phase 1 as a whole.
  */
 ModulePtr<Value> ExprResolver::makeContinuation(Buffer<FunArg> params, const ast::VarDecl* declaration,
                                                 ast::ParseList<ast::Expr> block, Size from,
-                                                LocationId source, ContinuationShape& shape) {
+                                                LocationId source, ContinuationShape& shape,
+                                                const ast::ForExpr* loop) {
     if(functionGen(global, function)) {
-        context.diagnostics.error("a lens call inside a generic function is not available yet - the continuation would have to be specialized alongside its caller"_v,
-                                  source);
+        /*
+         * The same restriction a lambda in a generic body already carries, and for the same reason:
+         * the lifted body names the enclosing function's type variables, so specializing the caller
+         * would have to specialize it too, and a function *value* that is still generic needs the
+         * witness Implementation-Generics.md keeps behind its fence.
+         *
+         * Worth naming for a lens or an iterator, because one of those is generic without looking
+         * it: the variable is the one its own continuation returns. That is what stops an adaptor -
+         * an `iter fn` whose body is a `for` over another - from being writable in this version.
+         */
+        auto kindName = function.funKind == ast::FunKind::Iter ? "an `iter fn` is generic in what the loop body below it returns, so its own body is a generic body"_v
+                      : function.funKind == ast::FunKind::Lens ? "a `lens fn` is generic in what its continuation returns, so its own body is a generic body"_v
+                      : "the lifted body would have to be specialized alongside its caller"_v;
+
+        context.diagnostics.error(loop
+            ? "a `for` loop over an iterator inside a generic function is not available yet - %@"_v
+            : "a lens call inside a generic function is not available yet - %@"_v,
+            source, kindName);
         return nullptr;
     }
 
@@ -502,24 +787,30 @@ ModulePtr<Value> ExprResolver::makeContinuation(Buffer<FunArg> params, const ast
     body.envType = envTuple;
     body.exitType = enclosingResultType();
     body.inContinuation = true;
+    body.inLoopBody = loop != nullptr;
 
     bindFunctionArgs(body, module, *lifted, 1);
 
-    // The names the call site wrote for what the lens hands over. One parameter binds the pattern
+    // The names the call site wrote for what is handed over. One parameter binds the pattern
     // directly; several are gathered into the record the pattern was written against, which is what
-    // makes `let {before, hit, after} = ...` mean what it reads as.
-    if(declaration) {
+    // makes `let {before, hit, after} = ...` and `for {key, value} in ...` mean what they read as.
+    if(declaration || loop) {
+        auto& pattern = loop ? loop->pat : declaration->pat;
+        ModulePtr<Value> pivot = nullptr;
+
         if(handed.size() == 0) {
-            context.diagnostics.error("this lens hands over nothing, so there is nothing for `let` to bind - write the call as a statement of its own"_v,
-                                      declaration->pat.source);
+            context.diagnostics.error(loop
+                ? "this iterator hands over nothing, so the loop's pattern has nothing to bind - an `iter fn` a `for` loop names has to declare what it yields"_v
+                : "this lens hands over nothing, so there is nothing for `let` to bind - write the call as a statement of its own"_v,
+                pattern.source);
         } else if(handed.size() == 1) {
-            body.resolveBinding(*declaration, handed[0]);
+            pivot = handed[0];
         } else {
             Array<Field> fields;
             for(Size i = 0; i < params.length; i++) {
                 if(!params[i].name) {
-                    context.diagnostics.error("this lens hands over several values and does not name them, so `let` cannot destructure them - name the continuation's parameters"_v,
-                                              declaration->pat.source);
+                    context.diagnostics.error("this hands over several values and does not name them, so the pattern cannot destructure them - name the continuation's parameters"_v,
+                                              pattern.source);
                     return nullptr;
                 }
 
@@ -534,8 +825,19 @@ ModulePtr<Value> ExprResolver::makeContinuation(Buffer<FunArg> params, const ast
                 body.initialize(body.project(place, ProjectionKind::Field, U16(i)), handed[i], source);
             }
 
-            body.resolveBinding(*declaration, storage);
+            pivot = storage;
         }
+
+        // A loop has no `| else ->` to fail into and no way to say "skip this element", so its
+        // pattern has to cover everything the iterator can yield - which is the same rule a `let`
+        // without alternatives already follows, said where there is nowhere to put them.
+        if(pivot && loop) body.bindIrrefutable(pattern, pivot);
+        else if(pivot) body.resolveBinding(*declaration, pivot);
+    }
+
+    if(loop) {
+        body.resolve(loop->body, nullptr, false);
+        return finishLoopContinuation(module, *this, body, lifted, params, envTuple, source, shape);
     }
 
     ModulePtr<Value> result = nullptr;
@@ -595,27 +897,7 @@ ModulePtr<Value> ExprResolver::makeContinuation(Buffer<FunArg> params, const ast
         finishContinuationExits(module, body, outcome, outcome, source);
     }
 
-    Array<FunArg> signature;
-    for(auto& param: params) signature.push(param);
-
-    auto type = resolveFunType(module, toBuffer(signature), lifted->returnType, ast::FunKind::Plain);
-
-    auto envType = (Type*)envTuple - global;
-    checkTypeAcyclic(module, envType, source);
-
-    if(body.captures.isEmpty()) return makeFunValue(type, lifted - local, nullptr, source, 0);
-
-    auto liftedPointer = (ModulePtr<Function>)(lifted - local);
-    closureHeaderFor(module, liftedPointer, envType, source);
-
-    auto storage = allocate(envType, source, 0, ast::BindType::Borrow, true);
-    ((InstAlloc*)local[storage])->closure = liftedPointer;
-
-    auto place = placeFor(storage, source);
-    fillEnvironment(*this, body, place, source);
-
-    auto address = ref(emit<InstAddress>(source, 0, funValueFieldType(module, FunValueLayout::kEnv), place));
-    return makeFunValue(type, lifted - local, address, source, 0);
+    return closeContinuation(module, *this, body, lifted, params, envTuple, source);
 }
 
 void ExprResolver::emitFunctionReturn(ModulePtr<Value> value, LocationId source) {
@@ -630,6 +912,35 @@ void ExprResolver::emitFunctionReturn(ModulePtr<Value> value, LocationId source)
 
     terminate(emit<InstRet>(source, 0, module.scalar.unit,
                             isUnit(global, function.returnType) ? nullptr : value));
+}
+
+/*
+ * The arguments a lens or iterator call actually wrote, resolved.
+ *
+ * Pushed down only where the parameter's type says something: a generic position is what the
+ * argument is being resolved to decide, so there is nothing to push.
+ *
+ * Settled here, which an ordinary call does not do. The continuation's parameter types come out of
+ * these arguments and the whole body below is resolved against them, so a literal still deciding
+ * what it is would have that body written against a type that then changed - making the call a
+ * statement boundary for its arguments in the same way `let` is for its initializer.
+ */
+void ExprResolver::resolveHandedArguments(ModulePtr<Function> callee, ast::ParseList<ast::TupArg> arguments,
+                                          ValueList& values) {
+    auto target = local[callee];
+    Size position = 0;
+
+    for(auto arg: arguments.contents(parse)) {
+        if(arg.name) {
+            context.diagnostics.error("named call arguments are not available yet"_v, arg.value.source);
+        }
+
+        auto expected = local[target->args.get(local, position)]->declaredType();
+        auto value = resolve(arg.value, isGeneric(global, expected) ? nullptr : expected);
+
+        values.push(isGeneric(global, expected) ? settle(value, arg.value.source) : value);
+        position++;
+    }
 }
 
 /*
@@ -685,29 +996,7 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
     if(arguments.size() != declaredArgs) return false;
 
     ValueList values;
-    Size position = 0;
-
-    for(auto arg: arguments.contents(parse)) {
-        if(arg.name) {
-            context.diagnostics.error("named call arguments are not available yet"_v, arg.value.source);
-        }
-
-        /*
-         * Pushed down only where the parameter's type says something: a generic position is what
-         * the argument is being resolved to decide, so there is nothing to push.
-         *
-         * Settled here, which an ordinary call does not do. The continuation's parameter types come
-         * out of these arguments and the whole block below is resolved against them, so a literal
-         * still deciding what it is would have the block written against a type that then changed -
-         * making the lens call a statement boundary for its arguments in the same way `let` is for
-         * its initializer.
-         */
-        auto expected = local[target->args.get(local, position)]->declaredType();
-        auto value = resolve(arg.value, isGeneric(global, expected) ? nullptr : expected);
-
-        values.push(isGeneric(global, expected) ? settle(value, arg.value.source) : value);
-        position++;
-    }
+    resolveHandedArguments(callee, arguments, values);
 
     result = nullptr;
 
@@ -743,28 +1032,13 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
         return true;
     }
 
-    auto record = (RecordType*)global[valueType(call_)];
-    ModulePtr<Value> discriminant = nullptr;
-
-    if(record->layout == RecordType::Enum) {
-        discriminant = ref(emit<InstUnary>(source, 0, module.scalar.int_, Value::Cast, call_));
-    } else {
-        discriminant = load(project(placeFor(call_, source), ProjectionKind::Discriminant, 0), source);
-    }
-
-    ModulePtr<Value> compared[] = {
-        discriminant,
-        makeInt(source, module.scalar.int_, module.program.outcomeExit),
-    };
-
-    auto leaving = emitCall(Context::nameHash("==", 2), { compared, 2 }, source, module.scalar.bool_);
+    auto leaving = outcomeIsExit(call_, source);
     if(!leaving) return true;
 
     auto exitBlock = addBlock();
     auto proceedBlock = addBlock();
 
-    terminate(emit<InstJe>(source, 0, module.scalar.unit, convert(leaving, module.scalar.bool_, source),
-                           exitBlock, proceedBlock));
+    terminate(emit<InstJe>(source, 0, module.scalar.unit, leaving, exitBlock, proceedBlock));
 
     current = exitBlock;
     emitFunctionReturn(outcomePayload(call_, false, source), source);
@@ -772,4 +1046,161 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
     current = proceedBlock;
     result = used ? outcomePayload(call_, true, source) : nullptr;
     return true;
+}
+
+/*
+ * Which iterator a `for` loop names, or nothing after saying why this one cannot be named.
+ *
+ * The rule is V1's, one level up: the callee is a *named* `iter fn` and the loop's source is a call
+ * of it with its written arguments. Everything else is one of Implementation-Lens.md part 6's phase
+ * 1 exclusions, and each is reported with the reason attached rather than as "not a call" - those
+ * rejections are the evidence base a phase 2 strategy gets chosen from, so a message that does not
+ * say which shape was reached is a message that teaches nothing.
+ */
+ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call) {
+    auto& source = unwrapNested(loop.from);
+
+    if(source.kind != ast::Expr::App) {
+        // A binding, a field, a subscript: something already built, being stepped rather than run.
+        // That is external iteration whichever way it is reached, and phase 2 is what it waits on.
+        context.diagnostics.error("`for` iterates a call of a named `iter fn` in this version - a value that is already an iterator would have to be stepped by the loop rather than run by it, which is external iteration"_v,
+                                  loop.from.source);
+        return nullptr;
+    }
+
+    auto& application = *parse[source.app];
+    auto& calleeExpr = unwrapNested(application.callee);
+
+    if(calleeExpr.kind != ast::Expr::Var || findBinding(calleeExpr.var)) {
+        // `xs.filter(p).map(f)` lands here, since the callee of the outer call is not a name: an
+        // adaptor takes the iterator it wraps as an argument, and passing one needs the erased
+        // callback ABI - a function value says nothing about which of its arguments is the
+        // continuation, so nothing at the call site can split a block against it.
+        context.diagnostics.error("a `for` loop reaches its iterator by name in this version - an iterator passed or returned as a value, which is what an adaptor chain like `xs.filter(p).map(f)` is made of, needs the erased callback ABI"_v,
+                                  loop.from.source);
+        return nullptr;
+    }
+
+    auto callee = findFunction(module, calleeExpr.var, source.source);
+    if(!callee) return nullptr;
+
+    auto target = local[callee];
+    if(target->funKind != ast::FunKind::Iter) {
+        context.diagnostics.error("%@ is not an `iter fn`, so a `for` loop has nothing to be the body of - a collection is iterated by an `iter fn` over it rather than directly"_v,
+                                  loop.from.source, context.findName(target->name));
+        return nullptr;
+    }
+
+    if(application.args.size() != target->args.size() - 1) {
+        context.diagnostics.error("%@ takes %@ arguments before the loop body, but this call was given %@"_v,
+                                  loop.from.source, context.findName(target->name),
+                                  U32(target->args.size() - 1), U32(application.args.size()));
+        return nullptr;
+    }
+
+    call = &application;
+    return callee;
+}
+
+/*
+ * `for pat in f(as): body` - Design.md's Iterators, Analysis-Lens.md §7.3.
+ *
+ * The same rewrite a lens call site performs, with the continuation spelled by the loop rather than
+ * found: `pat` names what the iterator hands over and the loop body is what runs per element, in
+ * place of "the pattern of the `let`" and "everything left in this block". Nothing here suspends
+ * anything - the iterator's frame stays live for the whole loop and each `yield` is a call out and
+ * an ordinary return back in, which is what makes phase 1 a delta on V1's lowering rather than a
+ * second mechanism.
+ *
+ * What follows the call is the same join, reading the step signal the body chose: see
+ * finishLoopContinuation for why there are three shapes of it and which one costs anything.
+ */
+void ExprResolver::resolveFor(const ast::Expr& expr, const ast::ForExpr& loop) {
+    // `for i in 0 .. n` counts over an interval and shares nothing with the iterator form but its
+    // spelling: no continuation is lifted and no `iter fn` is named. See resolveCountedFor.
+    if(loop.to) {
+        resolveCountedFor(expr, loop);
+        return;
+    }
+
+    if(loop.step) {
+        context.diagnostics.error("`step` belongs to a counted `for` and needs the interval it steps over - write `a .. b step n`, or drop it to iterate what the call yields one at a time"_v,
+                                  expr.source);
+        return;
+    }
+
+    const ast::AppExpr* application = nullptr;
+    auto callee = findLoopIterator(loop, application);
+    if(!callee) return;
+
+    auto target = local[callee];
+    auto source = expr.source;
+
+    ValueList values;
+    resolveHandedArguments(callee, application->args, values);
+
+    Array<FunArg> params;
+    if(!continuationSignature(*this, module, callee, toBuffer(values), source, params)) return;
+
+    ContinuationShape shape;
+    auto continuation = makeContinuation(toBuffer(params), nullptr, {}, 0, source, shape, &loop);
+    if(!continuation) return;
+
+    values.push(continuation);
+
+    auto call_ = target->gen ? emitGenericCall(callee, toBuffer(values), source, nullptr, 0)
+                             : emitDirectCall(callee, toBuffer(values), source, nullptr, 0);
+
+    if(!call_ || !current) return;
+
+    /*
+     * A loop whose body never leaves the enclosing function has nothing to report: a `break` and a
+     * completed iterator both continue below, so the step signal is consumed by the iterator alone
+     * and the call site reads none of it.
+     */
+    if(!shape.exits) return;
+
+    auto leaving = outcomeIsExit(call_, source);
+    if(!leaving) return;
+
+    auto exitBlock = addBlock();
+    auto completedBlock = addBlock();
+
+    terminate(emit<InstJe>(source, 0, module.scalar.unit, leaving, exitBlock, completedBlock));
+
+    current = exitBlock;
+    auto carried = outcomePayload(call_, false, source);
+
+    if(!shape.breaks) {
+        emitFunctionReturn(carried, source);
+        current = completedBlock;
+        return;
+    }
+
+    /*
+     * The body both broke and returned, so what came out has to be told apart. `Exit` inside is the
+     * enclosing function's result and leaves; `Proceed` is a `break`, which lands where the loop
+     * running out lands - so the two of them join, and the join block is created last so that the
+     * block list stays in the reverse postorder resolve/lower.cpp walks it in.
+     */
+    auto inner = outcomeIsExit(carried, source);
+    if(!inner) return;
+
+    auto returnBlock = addBlock();
+    auto brokeBlock = addBlock();
+
+    terminate(emit<InstJe>(source, 0, module.scalar.unit, inner, returnBlock, brokeBlock));
+
+    current = returnBlock;
+    emitFunctionReturn(outcomePayload(carried, false, source), source);
+
+    auto afterBlock = addBlock();
+
+    current = brokeBlock;
+    terminate(emit<InstJmp>(source, 0, module.scalar.unit, afterBlock));
+
+    current = completedBlock;
+    terminate(emit<InstJmp>(source, 0, module.scalar.unit, afterBlock));
+
+    current = afterBlock;
 }

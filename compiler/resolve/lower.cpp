@@ -2747,17 +2747,28 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             }
 
             /*
-             * The declared conventions come off the *type*, which is all a caller reaching a
-             * function through a value has - and is what makes the two sides agree about which
-             * positions exist without either consulting the other.
+             * The declared conventions come off the callee's *function type*, which is all a caller
+             * reaching a function through a value has - and is what makes the two sides agree about
+             * which positions exist without either consulting the other.
+             *
+             * `signature` and not `type`: the instruction's own type is what the call *produces*,
+             * and reading a result type as a signature is only harmless while every result happens
+             * to be a scalar whose bytes read back as an empty argument list. A continuation
+             * returning an `Outcome` is not, which is how this was found.
+             *
+             * Null for the one caller that has no signature to give - a teardown reached through a
+             * witness slot (analyze_teardown.cpp) - which falls back to each argument's own type,
+             * the same answer the position-past-the-end case already produced.
              */
-            auto signature = (FunType*)lower.global[callInst.type];
+            auto signatureType = callInst.signature;
+            auto signature = signatureType && lower.global[signatureType]->kind == Type::Fun
+                           ? (FunType*)lower.global[signatureType] : nullptr;
 
             Array<LowerPtr<LowerValue>> arguments;
             Size dynIndex = 0;
 
             for(auto arg: callInst.args.contents(lower.local)) {
-                auto declared = dynIndex < signature->args.size()
+                auto declared = signature && dynIndex < signature->args.size()
                     ? signature->args.get(lower.global, dynIndex) : FunArg { lower.local[arg]->type };
 
                 dynIndex++;

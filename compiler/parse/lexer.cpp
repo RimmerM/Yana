@@ -288,6 +288,7 @@ StringId Lexer::parseStringLiteral() {
 void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allowKeywords) {
     bool sym1 = (m - p >= 2) && isSymbol(p[1]);
     bool sym2 = (m - p >= 3) && isSymbol(p[2]);
+    bool sym3 = (m - p >= 4) && isSymbol(p[3]);
 
     token.type = Token::VarSym;
 
@@ -346,6 +347,12 @@ void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allo
             // This is the reserved arrow-right operator.
             token.type = Token::opArrowR;
         }
+    } else if(!sym3) {
+        // Check for various reserved operators of length 3.
+        if(*p == '.' && p[1] == '.' && p[2] == '=') {
+            // This is the reserved DotDotEq operator - `..` including its upper bound.
+            token.type = Token::opDotDotEq;
+        }
     }
 
     if(token.type == Token::VarSym) {
@@ -369,8 +376,17 @@ void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allo
         *start = s;
         *length = count;
     } else {
-        // Skip to the next token.
-        if(sym1) p += 2;
+        /*
+         * Skip to the next token. A reserved operator's length is the length of the symbol *run* it
+         * was recognized in, which is what the branch above already selected on - so the test has to
+         * be the same conjunction it used, not `sym2` alone.
+         *
+         * `sym2` on its own says only that the third character is a symbol, which it may well be
+         * across a gap: in `= %Y` the run is the single `=`, and `p[2]` is the `%` of the next
+         * token. Advancing by three there swallows a token whole and the parse silently loses it.
+         */
+        if(sym1 && sym2) p += 3;
+        else if(sym1) p += 2;
         else p++;
     }
 }

@@ -1,0 +1,712 @@
+fn sum(%n: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v7 = alloc : Int
+    init %local1, 0
+    jmp b1
+
+  b1:
+    %i = load %local1 : Int
+    %v11 = cmp_lt %i, %n : Bool
+    je %v11, b2, b5
+
+  b2:
+    %v12 = load %total : Int
+    %v13 = add %v12, %i : Int
+    assign %total, %v13
+    jmp b3
+
+  b3:
+    %v15 = load %local1 : Int
+    %v16 = sub %n, %v15 : Int
+    %v17 = cmp_le %v16, 1 : Bool
+    je %v17, b5, b4
+
+  b4:
+    %v19 = add %v15, 1 : Int
+    assign %local1, %v19
+    jmp b1
+
+  b5:
+    %v24 = load %total : Int
+    ret %v24
+}
+
+fn sumInclusive(%n: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v7 = alloc : Int
+    init %local1, 0
+    jmp b1
+
+  b1:
+    %i = load %local1 : Int
+    %v11 = cmp_le %i, %n : Bool
+    je %v11, b2, b5
+
+  b2:
+    %v12 = load %total : Int
+    %v13 = add %v12, %i : Int
+    assign %total, %v13
+    jmp b3
+
+  b3:
+    %v15 = load %local1 : Int
+    %v16 = sub %n, %v15 : Int
+    %v17 = cmp_lt %v16, 1 : Bool
+    je %v17, b5, b4
+
+  b4:
+    %v19 = add %v15, 1 : Int
+    assign %local1, %v19
+    jmp b1
+
+  b5:
+    %v24 = load %total : Int
+    ret %v24
+}
+
+fn empty() -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 7
+    %v8 = alloc : Int
+    init %local1, 0
+    jmp b1
+
+  b1:
+    %i = load %local1 : Int
+    %v12 = cmp_lt %i, 0 : Bool
+    je %v12, b2, b5
+
+  b2:
+    %v13 = load %total : Int
+    %v16 = add %v13, 100 : Int
+    assign %total, %v16
+    jmp b3
+
+  b3:
+    %v18 = load %local1 : Int
+    %v19 = sub 0, %v18 : Int
+    %v20 = cmp_le %v19, 1 : Bool
+    je %v20, b5, b4
+
+  b4:
+    %v22 = add %v18, 1 : Int
+    assign %local1, %v22
+    jmp b1
+
+  b5:
+    %v32 = alloc : Int
+    init %local2, 5
+    jmp b6
+
+  b6:
+    %i = load %local2 : Int
+    %v36 = cmp_lt %i, 3 : Bool
+    je %v36, b7, b10
+
+  b7:
+    %v37 = load %total : Int
+    %v40 = add %v37, 100 : Int
+    assign %total, %v40
+    jmp b8
+
+  b8:
+    %v42 = load %local2 : Int
+    %v43 = sub 3, %v42 : Int
+    %v44 = cmp_le %v43, 1 : Bool
+    je %v44, b10, b9
+
+  b9:
+    %v46 = add %v42, 1 : Int
+    assign %local2, %v46
+    jmp b6
+
+  b10:
+    %v56 = alloc : Int
+    init %local3, 5
+    jmp b11
+
+  b11:
+    %i = load %local3 : Int
+    %v60 = cmp_le %i, 3 : Bool
+    je %v60, b12, b15
+
+  b12:
+    %v61 = load %total : Int
+    %v64 = add %v61, 100 : Int
+    assign %total, %v64
+    jmp b13
+
+  b13:
+    %v66 = load %local3 : Int
+    %v67 = sub 3, %v66 : Int
+    %v68 = cmp_lt %v67, 1 : Bool
+    je %v68, b15, b14
+
+  b14:
+    %v70 = add %v66, 1 : Int
+    assign %local3, %v70
+    jmp b11
+
+  b15:
+    %v80 = cmp_gt 0, 0 : Bool
+    je %v80, b16, b22
+
+  b16:
+    %v81 = sub 0, 0 : Int
+    %v82 = cmp_ge %v81, 1 : Bool
+    je %v82, b17, b22
+
+  b17:
+    %v83 = sub 0, 1 : Int
+    %v84 = alloc : Int
+    init %local4, %v83
+    jmp b18
+
+  b18:
+    %i = load %local4 : Int
+    %v88 = cmp_ge %i, 0 : Bool
+    je %v88, b19, b22
+
+  b19:
+    %v89 = load %total : Int
+    %v92 = add %v89, 100 : Int
+    assign %total, %v92
+    jmp b20
+
+  b20:
+    %v94 = load %local4 : Int
+    %v95 = sub %v94, 0 : Int
+    %v96 = cmp_lt %v95, 1 : Bool
+    je %v96, b22, b21
+
+  b21:
+    %v98 = sub %v94, 1 : Int
+    assign %local4, %v98
+    jmp b18
+
+  b22:
+    %v105 = load %total : Int
+    ret %v105
+}
+
+fn ascending(%n: Int) -> Int {
+  b0:
+    %seen = alloc : Int
+    init %seen, 0
+    %v7 = alloc : Int
+    init %local1, 0
+    jmp b1
+
+  b1:
+    %i = load %local1 : Int
+    %v11 = cmp_lt %i, %n : Bool
+    je %v11, b2, b5
+
+  b2:
+    %v12 = load %seen : Int
+    %v15 = mul %v12, 10 : Int
+    %v16 = add %v15, %i : Int
+    assign %seen, %v16
+    jmp b3
+
+  b3:
+    %v18 = load %local1 : Int
+    %v19 = sub %n, %v18 : Int
+    %v20 = cmp_le %v19, 1 : Bool
+    je %v20, b5, b4
+
+  b4:
+    %v22 = add %v18, 1 : Int
+    assign %local1, %v22
+    jmp b1
+
+  b5:
+    %v27 = load %seen : Int
+    ret %v27
+}
+
+fn descending(%n: Int) -> Int {
+  b0:
+    %seen = alloc : Int
+    init %seen, 0
+    %v7 = cmp_gt %n, 0 : Bool
+    je %v7, b1, b7
+
+  b1:
+    %v8 = sub %n, 0 : Int
+    %v9 = cmp_ge %v8, 1 : Bool
+    je %v9, b2, b7
+
+  b2:
+    %v10 = sub %n, 1 : Int
+    %v11 = alloc : Int
+    init %local1, %v10
+    jmp b3
+
+  b3:
+    %i = load %local1 : Int
+    %v15 = cmp_ge %i, 0 : Bool
+    je %v15, b4, b7
+
+  b4:
+    %v16 = load %seen : Int
+    %v19 = mul %v16, 10 : Int
+    %v20 = add %v19, %i : Int
+    assign %seen, %v20
+    jmp b5
+
+  b5:
+    %v22 = load %local1 : Int
+    %v23 = sub %v22, 0 : Int
+    %v24 = cmp_lt %v23, 1 : Bool
+    je %v24, b7, b6
+
+  b6:
+    %v26 = sub %v22, 1 : Int
+    assign %local1, %v26
+    jmp b3
+
+  b7:
+    %v33 = load %seen : Int
+    ret %v33
+}
+
+fn strideUp(%n: Int) -> Int {
+  b0:
+    %seen = alloc : Int
+    init %seen, 0
+    %v7 = alloc : Int
+    init %local1, 0
+    jmp b1
+
+  b1:
+    %i = load %local1 : Int
+    %v11 = cmp_lt %i, %n : Bool
+    je %v11, b2, b5
+
+  b2:
+    %v12 = load %seen : Int
+    %v15 = mul %v12, 10 : Int
+    %v16 = add %v15, %i : Int
+    assign %seen, %v16
+    jmp b3
+
+  b3:
+    %v18 = load %local1 : Int
+    %v19 = sub %n, %v18 : Int
+    %v20 = cmp_le %v19, 2 : Bool
+    je %v20, b5, b4
+
+  b4:
+    %v22 = add %v18, 2 : Int
+    assign %local1, %v22
+    jmp b1
+
+  b5:
+    %v27 = load %seen : Int
+    ret %v27
+}
+
+fn strideDown(%n: Int) -> Int {
+  b0:
+    %seen = alloc : Int
+    init %seen, 0
+    %v7 = cmp_gt %n, 0 : Bool
+    je %v7, b1, b7
+
+  b1:
+    %v8 = sub %n, 0 : Int
+    %v9 = cmp_ge %v8, 2 : Bool
+    je %v9, b2, b7
+
+  b2:
+    %v10 = sub %n, 2 : Int
+    %v11 = alloc : Int
+    init %local1, %v10
+    jmp b3
+
+  b3:
+    %i = load %local1 : Int
+    %v15 = cmp_ge %i, 0 : Bool
+    je %v15, b4, b7
+
+  b4:
+    %v16 = load %seen : Int
+    %v19 = mul %v16, 10 : Int
+    %v20 = add %v19, %i : Int
+    assign %seen, %v20
+    jmp b5
+
+  b5:
+    %v22 = load %local1 : Int
+    %v23 = sub %v22, 0 : Int
+    %v24 = cmp_lt %v23, 2 : Bool
+    je %v24, b7, b6
+
+  b6:
+    %v26 = sub %v22, 2 : Int
+    assign %local1, %v26
+    jmp b3
+
+  b7:
+    %v33 = load %seen : Int
+    ret %v33
+}
+
+fn unsignedTop() -> Int {
+  b0:
+    %count = alloc : Int
+    init %count, 0
+    %v7 = alloc : U8
+    init %local1, 0
+    jmp b1
+
+  b1:
+    %i = load %local1 : U8
+    %v11 = cmp_le %i, %limit : Bool
+    je %v11, b2, b5
+
+  b2:
+    %v12 = load %count : Int
+    %v15 = add %v12, 1 : Int
+    assign %count, %v15
+    jmp b3
+
+  b3:
+    %v17 = load %local1 : U8
+    %v18 = sub %limit, %v17 : U8
+    %v19 = cmp_lt %v18, 1 : Bool
+    je %v19, b5, b4
+
+  b4:
+    %v21 = add %v17, 1 : U8
+    assign %local1, %v21
+    jmp b1
+
+  b5:
+    %v26 = load %count : Int
+    ret %v26
+}
+
+fn unsignedEmpty() -> Int {
+  b0:
+    %count = alloc : Int
+    init %count, 0
+    %v5 = alloc : U8
+    init %local1, %zero
+    jmp b1
+
+  b1:
+    %i = load %local1 : U8
+    %v9 = cmp_lt %i, %zero : Bool
+    je %v9, b2, b5
+
+  b2:
+    %v10 = load %count : Int
+    %v13 = add %v10, 1 : Int
+    assign %count, %v13
+    jmp b3
+
+  b3:
+    %v15 = load %local1 : U8
+    %v16 = sub %zero, %v15 : U8
+    %v17 = cmp_le %v16, 1 : Bool
+    je %v17, b5, b4
+
+  b4:
+    %v19 = add %v15, 1 : U8
+    assign %local1, %v19
+    jmp b1
+
+  b5:
+    %v24 = load %count : Int
+    ret %v24
+}
+
+fn broken(%n: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v7 = alloc : Int
+    init %local1, 0
+    jmp b1
+
+  b1:
+    %i = load %local1 : Int
+    %v11 = cmp_lt %i, %n : Bool
+    je %v11, b2, b8
+
+  b2:
+    %v14 = cmp_gt %i, 5 : Bool
+    je %v14, b3, b4
+
+  b3:
+    jmp b8
+
+  b4:
+    jmp b5
+
+  b5:
+    %v17 = load %total : Int
+    %v18 = add %v17, %i : Int
+    assign %total, %v18
+    jmp b6
+
+  b6:
+    %v20 = load %local1 : Int
+    %v21 = sub %n, %v20 : Int
+    %v22 = cmp_le %v21, 1 : Bool
+    je %v22, b8, b7
+
+  b7:
+    %v24 = add %v20, 1 : Int
+    assign %local1, %v24
+    jmp b1
+
+  b8:
+    %v30 = load %total : Int
+    ret %v30
+}
+
+fn skipped(%n: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v7 = alloc : Int
+    init %local1, 0
+    jmp b1
+
+  b1:
+    %i = load %local1 : Int
+    %v11 = cmp_lt %i, %n : Bool
+    je %v11, b2, b8
+
+  b2:
+    %v14 = rem %i, 2 : Int
+    %v17 = cmp_eq %v14, 0 : Bool
+    je %v17, b3, b4
+
+  b3:
+    jmp b6
+
+  b4:
+    jmp b5
+
+  b5:
+    %v20 = load %total : Int
+    %v21 = add %v20, %i : Int
+    assign %total, %v21
+    jmp b6
+
+  b6:
+    %v23 = load %local1 : Int
+    %v24 = sub %n, %v23 : Int
+    %v25 = cmp_le %v24, 1 : Bool
+    je %v25, b8, b7
+
+  b7:
+    %v27 = add %v23, 1 : Int
+    assign %local1, %v27
+    jmp b1
+
+  b8:
+    %v33 = load %total : Int
+    ret %v33
+}
+
+fn everySkipped(%n: Int) -> Int {
+  b0:
+    %count = alloc : Int
+    init %count, 0
+    %v7 = alloc : Int
+    init %local1, 0
+    jmp b1
+
+  b1:
+    %i = load %local1 : Int
+    %v11 = cmp_lt %i, %n : Bool
+    je %v11, b2, b5
+
+  b2:
+    %v12 = load %count : Int
+    %v15 = add %v12, 1 : Int
+    assign %count, %v15
+    jmp b3
+
+  b3:
+    %v17 = load %local1 : Int
+    %v18 = sub %n, %v17 : Int
+    %v19 = cmp_le %v18, 1 : Bool
+    je %v19, b5, b4
+
+  b4:
+    %v21 = add %v17, 1 : Int
+    assign %local1, %v21
+    jmp b1
+
+  b5:
+    %v26 = load %count : Int
+    ret %v26
+}
+
+fn firstOver(%n: Int, %bound: Int) -> Int {
+  b0:
+    %v5 = alloc : Int
+    init %local0, 0
+    jmp b1
+
+  b1:
+    %i = load %local0 : Int
+    %v9 = cmp_lt %i, %n : Bool
+    je %v9, b2, b8
+
+  b2:
+    %v10 = cmp_gt %i, %bound : Bool
+    je %v10, b3, b4
+
+  b3:
+    ret %i
+
+  b4:
+    jmp b5
+
+  b5:
+    jmp b6
+
+  b6:
+    %v14 = load %local0 : Int
+    %v15 = sub %n, %v14 : Int
+    %v16 = cmp_le %v15, 1 : Bool
+    je %v16, b8, b7
+
+  b7:
+    %v18 = add %v14, 1 : Int
+    assign %local0, %v18
+    jmp b1
+
+  b8:
+    %v25 = neg 1 : Int
+    ret %v25
+}
+
+fn low() -> Int {
+  b0:
+    ret 1
+}
+
+fn high() -> Int {
+  b0:
+    ret 4
+}
+
+fn grid() -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %v3 = call low : Int
+    %v4 = call high : Int
+    %v6 = alloc : Int
+    init %local1, %v3
+    jmp b1
+
+  b1:
+    %r = load %local1 : Int
+    %v10 = cmp_lt %r, %v4 : Bool
+    je %v10, b2, b10
+
+  b2:
+    %v14 = alloc : Int
+    init %local2, 0
+    jmp b3
+
+  b3:
+    %c = load %local2 : Int
+    %v18 = cmp_lt %c, %r : Bool
+    je %v18, b4, b7
+
+  b4:
+    %v19 = load %total : Int
+    %v22 = mul %r, 10 : Int
+    %v23 = add %v19, %v22 : Int
+    %v24 = add %v23, %c : Int
+    assign %total, %v24
+    jmp b5
+
+  b5:
+    %v26 = load %local2 : Int
+    %v27 = sub %r, %v26 : Int
+    %v28 = cmp_le %v27, 1 : Bool
+    je %v28, b7, b6
+
+  b6:
+    %v30 = add %v26, 1 : Int
+    assign %local2, %v30
+    jmp b3
+
+  b7:
+    jmp b8
+
+  b8:
+    %v35 = load %local1 : Int
+    %v36 = sub %v4, %v35 : Int
+    %v37 = cmp_le %v36, 1 : Bool
+    je %v37, b10, b9
+
+  b9:
+    %v39 = add %v35, 1 : Int
+    assign %local1, %v39
+    jmp b1
+
+  b10:
+    %v44 = load %total : Int
+    ret %v44
+}
+
+fn walked() -> Int {
+  b0:
+    %v1 = call sum, 5 : Int
+    %v3 = call sumInclusive, 5 : Int
+    %v4 = add %v1, %v3 : Int
+    %v5 = call empty : Int
+    %v6 = add %v4, %v5 : Int
+    %v8 = call ascending, 4 : Int
+    %v9 = add %v6, %v8 : Int
+    %v11 = call descending, 4 : Int
+    %v12 = add %v9, %v11 : Int
+    %v14 = call strideUp, 9 : Int
+    %v15 = add %v12, %v14 : Int
+    %v17 = call strideDown, 10 : Int
+    %v18 = add %v15, %v17 : Int
+    ret %v18
+}
+
+fn stopped() -> Int {
+  b0:
+    %v0 = call unsignedTop : Int
+    %v1 = call unsignedEmpty : Int
+    %v2 = add %v0, %v1 : Int
+    %v4 = call broken, 20 : Int
+    %v5 = add %v2, %v4 : Int
+    %v7 = call skipped, 8 : Int
+    %v8 = add %v5, %v7 : Int
+    %v10 = call everySkipped, 6 : Int
+    %v11 = add %v8, %v10 : Int
+    %v14 = call firstOver, 10, 6 : Int
+    %v15 = add %v11, %v14 : Int
+    %v16 = call grid : Int
+    %v17 = add %v15, %v16 : Int
+    ret %v17
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call walked : Int
+    %v1 = call stopped : Int
+    %v2 = add %v0, %v1 : Int
+    ret %v2
+}

@@ -789,6 +789,250 @@ void ExprResolver::resolveWhile(const ast::WhileExpr& loop) {
     current = exitBlock;
 }
 
+/*
+ * `for pat in a .. b [step s]: body`, and its `..=` and `downto` spellings - Design.md's
+ * Expressions.
+ *
+ * A counted loop, and nothing to do with the iterator form beside it: no continuation is lifted and
+ * nothing is handed over. What the three spellings decide is one interval and one direction:
+ *
+ *  - `a .. b`  walks `[a, b)` upward   - the half-open interval, which is the one that composes;
+ *  - `a ..= b` walks `[a, b]` upward   - for a bound that is a real member, `0 ..= 255` on a `U8`;
+ *  - `a downto b` walks `[b, a)` *downward*, so `n downto 0` is `0 .. n` reversed exactly.
+ *
+ * `downto` excluding the bound written first is the one surprising part, and it is what makes
+ * reversing a loop a one-token edit rather than an arithmetic one. The alternative - both ends
+ * inclusive, as in Pascal - makes the reversal of `0 .. n` read `n - 1 downto 0`, and on an unsigned
+ * counter with `n == 0` that subtraction wraps to the top of the type and the loop runs forever.
+ * The rule to remember is that an interval is always `[low, high)` and the two forms differ only in
+ * which end they start from.
+ *
+ * Every test below is written so that no bound can overflow, which is the whole reason the loop is
+ * built here rather than desugared into source. The distance to the far end is what decides whether
+ * to step again - `to - i` and `i - to` are computed on the side of the comparison that has already
+ * been proved non-negative - so a counter that ends at the top of its type stops rather than
+ * wrapping past it.
+ */
+void ExprResolver::resolveCountedFor(const ast::Expr& expr, const ast::ForExpr& loop) {
+    auto source = expr.source;
+    auto ascending = !loop.reverse;
+
+    /*
+     * The counter's type, decided by the two bounds together.
+     *
+     * Both are resolved without a target, because neither is more authoritative than the other:
+     * `for i in 0 .. xs.length` has the literal take the length's type, and `for i in first .. 10`
+     * has it the other way round. Two literals settle to their own default, which is what an
+     * ordinary `let` of one would do.
+     */
+    auto fromValue = resolve(loop.from, nullptr);
+    auto toValue = resolve(*parse[loop.to], nullptr);
+    if(!fromValue || !toValue) return;
+
+    auto fromLiteral = isLiteral(global, valueType(fromValue));
+    auto toLiteral = isLiteral(global, valueType(toValue));
+
+    if(fromLiteral && !toLiteral) {
+        fromValue = convert(fromValue, valueType(toValue), loop.from.source);
+    } else if(toLiteral && !fromLiteral) {
+        toValue = convert(toValue, valueType(fromValue), parse[loop.to]->source);
+    } else {
+        fromValue = settle(fromValue, loop.from.source);
+        toValue = convert(settle(toValue, parse[loop.to]->source), valueType(fromValue),
+                          parse[loop.to]->source);
+    }
+
+    if(!fromValue || !toValue) return;
+    auto counterType = valueType(fromValue);
+
+    // The step, at the counter's type. A step of zero would never reach the far end, and a written
+    // one is worth rejecting where it can be seen rather than leaving as a loop that does not stop.
+    if(loop.step && ast::isLiteral(*parse[loop.step]) && parse[loop.step]->lit.i() == 0) {
+        context.diagnostics.error("a `for` step of zero never reaches the end of its range"_v,
+                                  parse[loop.step]->source);
+        return;
+    }
+
+    auto stepValue = loop.step ? resolve(*parse[loop.step], counterType) : makeInt(source, counterType, 1);
+    if(!stepValue) return;
+
+    stepValue = convert(stepValue, counterType, source);
+
+    /*
+     * The blocks, created in the order the block list has to hold them.
+     *
+     * That order is the whole of why this is built by hand: `resolve/lower.cpp` walks blocks in list
+     * order and requires every operand to have been lowered already, and `compiler/opt`'s inliner
+     * splices and re-lays lists assuming the same. So the loop is laid out
+     *
+     *     [guards] condition  body...  advance  step  exit
+     *
+     * which is a reverse postorder: every edge runs forward down that list except the one back edge
+     * from the step to the condition. The condition is the loop header and the only way into the
+     * cycle, which is also what keeps the loop reducible for the passes that read dominance.
+     *
+     * The cost is that `exit` does not exist while the body is being resolved, so a `break` cannot
+     * jump to it and neither can a guard that decides the loop runs no times. Both are collected and
+     * terminated at the end instead - see LoopTarget, and finishContinuationExits for the same
+     * pattern applied to a `return` inside a lifted continuation.
+     */
+    struct PendingBranch {
+        ModulePtr<Block> block;
+        ModulePtr<Value> condition;
+        ModulePtr<Block> taken;
+    };
+
+    Array<PendingBranch> pending;
+    Array<ModulePtr<Block>> breaks;
+    Array<ModulePtr<Block>> continues;
+
+    ModulePtr<Block> ordered = nullptr;
+    ModulePtr<Block> reachable = nullptr;
+
+    if(!ascending) {
+        ordered = addBlock();
+        reachable = addBlock();
+    }
+
+    auto conditionBlock = addBlock();
+    auto bodyBlock = addBlock();
+
+    /*
+     * A descending loop needs what an ascending one gets from its own condition: that the interval
+     * is non-empty, and that it holds at least one step. Both are checked before the counter is
+     * built, because the counter starts one step below the bound written first and that subtraction
+     * has to be known not to wrap.
+     */
+    auto initial = fromValue;
+    if(!ascending) {
+        ModulePtr<Value> above[] = { fromValue, toValue };
+        auto isAbove = emitCall(Context::nameHash(">", 1), { above, 2 }, source, module.scalar.bool_);
+        if(!isAbove) return;
+
+        pending.push(PendingBranch { current, convert(isAbove, module.scalar.bool_, source), ordered });
+
+        current = ordered;
+        ModulePtr<Value> span[] = { fromValue, toValue };
+        auto distance = emitCall(Context::nameHash("-", 1), { span, 2 }, source, counterType);
+        if(!distance) return;
+
+        ModulePtr<Value> fits[] = { distance, stepValue };
+        auto hasStep = emitCall(Context::nameHash(">=", 2), { fits, 2 }, source, module.scalar.bool_);
+        if(!hasStep) return;
+
+        pending.push(PendingBranch { current, convert(hasStep, module.scalar.bool_, source), reachable });
+
+        current = reachable;
+
+        ModulePtr<Value> back[] = { fromValue, stepValue };
+        initial = emitCall(Context::nameHash("-", 1), { back, 2 }, source, counterType);
+        if(!initial) return;
+    }
+
+    auto counter = allocate(counterType, source, 0, ast::BindType::Ref);
+    initialize(placeFor(counter, source), convert(initial, counterType, source), source);
+    terminate(emit<InstJmp>(source, 0, module.scalar.unit, conditionBlock));
+
+    /*
+     * The test that says whether this iteration runs at all.
+     *
+     * Ascending, it is the interval's own upper bound and is what makes an empty range run zero
+     * times. Descending, the guards above already proved it, and it is emitted anyway so that the
+     * cycle has one header rather than being entered at its body.
+     */
+    current = conditionBlock;
+    auto value = load(placeFor(counter, source), source);
+
+    auto compare = !ascending ? Context::nameHash(">=", 2)
+                 : loop.inclusive ? Context::nameHash("<=", 2)
+                 : Context::nameHash("<", 1);
+
+    ModulePtr<Value> bound[] = { value, toValue };
+    auto more = emitCall(compare, { bound, 2 }, source, module.scalar.bool_);
+    if(!more) return;
+
+    pending.push(PendingBranch { conditionBlock, convert(more, module.scalar.bool_, source), bodyBlock });
+
+    // The body, with the counter bound. Scoped to the body the way a `while`'s bindings are: the
+    // loop may run zero times, so the name does not dominate the code after it.
+    auto bindingCount = bindings.size();
+
+    current = bodyBlock;
+    bindIrrefutable(loop.pat, value);
+
+    loops.push(LoopTarget { nullptr, nullptr, &continues, &breaks });
+    resolve(loop.body, nullptr, false);
+    loops.pop();
+
+    bindings.resize(bindingCount);
+
+    auto tail = current;
+
+    auto advanceBlock = addBlock();
+    auto stepBlock = addBlock();
+    auto exitBlock = addBlock();
+
+    /*
+     * The step, guarded by how far the counter still has to go.
+     *
+     * `to - i` ascending and `i - to` descending, each on the side the condition above has already
+     * proved is the larger - so neither subtraction wraps, and comparing the distance against the
+     * step is what stops a counter whose next value would leave the type rather than the range.
+     * A closed range stops when the distance is *below* a step, a half-open one when it is at most
+     * one, which is the whole of the difference between `..` and `..=` in the emitted code.
+     */
+    current = advanceBlock;
+    auto atStep = load(placeFor(counter, source), source);
+
+    ModulePtr<Value> remaining[] = { ascending ? toValue : atStep, ascending ? atStep : toValue };
+    auto distance = emitCall(Context::nameHash("-", 1), { remaining, 2 }, source, counterType);
+    if(!distance) return;
+
+    auto exhausted = (ascending && !loop.inclusive) ? Context::nameHash("<=", 2)
+                                                    : Context::nameHash("<", 1);
+
+    ModulePtr<Value> left[] = { distance, stepValue };
+    auto done = emitCall(exhausted, { left, 2 }, source, module.scalar.bool_);
+    if(!done) return;
+
+    terminate(emit<InstJe>(source, 0, module.scalar.unit, convert(done, module.scalar.bool_, source),
+                           exitBlock, stepBlock));
+
+    current = stepBlock;
+    ModulePtr<Value> moved[] = { atStep, stepValue };
+    auto next = emitCall(ascending ? Context::nameHash("+", 1) : Context::nameHash("-", 1),
+                         { moved, 2 }, source, counterType);
+    if(!next) return;
+
+    assign(placeFor(counter, source), convert(next, counterType, source), source);
+    terminate(emit<InstJmp>(source, 0, module.scalar.unit, conditionBlock));
+
+    // Everything that was waiting for a block that did not exist yet. Each branch falls through to
+    // the exit when its condition does not hold, which is one shape for the two guards and the
+    // loop's own test alike.
+    for(auto& branch: pending) {
+        current = branch.block;
+        terminate(emit<InstJe>(source, 0, module.scalar.unit, branch.condition, branch.taken, exitBlock));
+    }
+
+    for(auto block: continues) {
+        current = block;
+        terminate(emit<InstJmp>(source, 0, module.scalar.unit, advanceBlock));
+    }
+
+    for(auto block: breaks) {
+        current = block;
+        terminate(emit<InstJmp>(source, 0, module.scalar.unit, exitBlock));
+    }
+
+    if(tail) {
+        current = tail;
+        terminate(emit<InstJmp>(loop.body.source, 0, module.scalar.unit, advanceBlock));
+    }
+
+    current = exitBlock;
+}
+
 void ExprResolver::resolveReturn(const ast::Expr& expr) {
     if(inThunk) {
         // Returning from the enclosing function out of a `@lazy` argument is a non-local exit
@@ -796,6 +1040,15 @@ void ExprResolver::resolveReturn(const ast::Expr& expr) {
         // callee has cleanup that would have to run on the way past. Rejected rather than left to
         // mean "return from the thunk", which is what it would otherwise silently become.
         context.diagnostics.error("`return` inside a `@lazy` argument is not available yet - it would have to leave the function through the callee's frame, which needs the exit signal"_v,
+                                  expr.source);
+        return;
+    }
+
+    if(function.funKind == ast::FunKind::Iter) {
+        // An iterator ends by running out of values, and what it hands back then is the step signal
+        // rather than anything the body has a name for. A `return` in it would have to produce that
+        // signal, which is not a type the declaration wrote or the author could.
+        context.diagnostics.error("an `iter fn` ends by running out of values rather than by `return` - what it produces is the loop's own signal, which is not something the body names"_v,
                                   expr.source);
         return;
     }
@@ -1273,6 +1526,9 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
         case ast::Expr::While:
             resolveWhile(*parse[expr.whileLoop]);
             return nullptr;
+        case ast::Expr::For:
+            resolveFor(expr, *parse[expr.forLoop]);
+            return nullptr;
         case ast::Expr::Coerce: {
             auto& coerce = *parse[expr.coerce];
 
@@ -1343,12 +1599,35 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             return resolveYield(expr);
         case ast::Expr::Break:
         case ast::Expr::Continue: {
+            /*
+             * A `for` loop's body is lifted, so the loop these leave is not one this function has a
+             * block for: it is the call in the enclosing frame, and leaving it is a value returned
+             * to the iterator - Analysis-Lens.md §7.3's step signal. Which value depends on what
+             * the rest of this body does, so the block is left open the way a `return` here is and
+             * finished once that is known.
+             *
+             * Before the `inContinuation` case below, because a `for` body is both: what makes a
+             * `break` here mean this loop rather than one further out is that a `for` *is* the
+             * nearest enclosing loop of anything written in it.
+             */
+            if(loops.isEmpty() && inLoopBody) {
+                if(expr.kind == ast::Expr::Break && expr.breakValue) {
+                    context.diagnostics.error("a `for` loop does not produce a value in this version, so `break` cannot carry one - the loop's own value is what the iterator's result would have to hold, which is Analysis-Lens.md's V3"_v,
+                                              expr.source);
+                }
+
+                loopExits.push(ContinuationLoopExit { current, expr.kind == ast::Expr::Break, expr.source });
+                current = nullptr;
+                return nullptr;
+            }
+
             if(loops.isEmpty() && inContinuation) {
                 // The loop is in the function this continuation was split out of, so leaving it is
                 // the exit signal carrying a `break` rather than a `return` - Analysis-Lens.md
-                // §5.1's "break/continue are the loop-shaped instance of one mechanism". The
-                // mechanism is here; the loop-shaped instance of it arrives with `for` and `iter`.
-                context.diagnostics.error("`break` and `continue` cannot cross a lens call yet - the loop is in the function this block was split out of, and only `return` carries the exit signal so far"_v,
+                // §5.1's "break/continue are the loop-shaped instance of one mechanism". A `for`
+                // body is the case that mechanism now covers; a lens continuation is not, since the
+                // lens between here and the loop has no step signal to report the departure in.
+                context.diagnostics.error("`break` and `continue` cannot cross a lens call yet - the loop is in the function this block was split out of, and only `return` carries the exit signal past a lens"_v,
                                           expr.source);
                 return nullptr;
             }
@@ -1363,6 +1642,15 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             }
 
             auto& loop = loops[loops.size() - 1];
+
+            // A counted `for` has not built the block this leaves to yet - see LoopTarget. The
+            // block is left open and resolveCountedFor comes back for it.
+            if(auto deferred = expr.kind == ast::Expr::Break ? loop.deferredBreak : loop.deferredContinue) {
+                deferred->push(current);
+                current = nullptr;
+                return nullptr;
+            }
+
             auto targetBlock = expr.kind == ast::Expr::Break ? loop.breakBlock : loop.continueBlock;
             terminate(emit<InstJmp>(expr.source, 0, module.scalar.unit, targetBlock));
 
@@ -1554,8 +1842,14 @@ bool resolveFunctionBody(Module& module, Function& function) {
         resolver.resolve(*module.parse[decl.fun.body], nullptr, false);
 
         if(resolver.current) {
-            resolver.terminate(resolver.emit<InstRet>(decl.source, 0, module.scalar.unit,
-                                                      resolver.yieldResult));
+            // An iterator falling off the end ran to completion, which is the step signal's
+            // `Proceed` - there is no carried value, because nothing stopped it. A lens instead
+            // returns what its one `yield` handed back, since everything after that is cleanup.
+            auto result = function.funKind == ast::FunKind::Iter
+                        ? resolver.makeOutcome(function.returnType, true, nullptr, decl.source)
+                        : resolver.yieldResult;
+
+            resolver.terminate(resolver.emit<InstRet>(decl.source, 0, module.scalar.unit, result));
         }
 
         checkLensYields(module, function, toBuffer(resolver.yields), decl.source);

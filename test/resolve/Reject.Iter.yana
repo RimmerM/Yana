@@ -1,0 +1,147 @@
+-- What an iterator and a `for` loop will not accept, and why each one is a rule rather than an
+-- omission.
+--
+-- The first group is permanent: a loop has no place to write an alternative, and an iterator has no
+-- name for the signal it returns. The rest are this version's boundary - Analysis-Lens.md's V2 -
+-- and each one names what it is waiting for. Implementation-Lens.md part 6 asks for exactly that:
+-- phase 1's rejections are the evidence a phase 2 strategy gets chosen from, so a message that does
+-- not say which shape was reached teaches nothing.
+
+data Point {x: Int, y: Int}
+
+iter fn upTo(limit: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < limit:
+        yield i
+        i = i + 1
+
+iter fn shapes(n: Int) -> Maybe(Int):
+    yield Just(n)
+
+iter fn ticks(n: Int) -> {}:
+    yield {}
+
+fn plain(x: Int) -> Int = x + 1
+
+-- Reading the declaration.
+
+-- The explicit continuation form would have to write the step signal out, and what its two cases
+-- mean is decided by the `for` loop rather than by the declaration.
+iter fn written(x: Int, body: (Int) -> a) -> a = body(x)
+
+-- An iterator ends by running out of values. What it returns then is the loop's own signal, which
+-- is not a type the body has a name for.
+iter fn returning(x: Int) -> Int:
+    yield x
+    return x
+
+-- Reading the loop.
+
+-- `step` belongs to a counted `for`, which is the form with an interval to step over. An iterator
+-- yields one element at a time and has nothing for a stride to skip.
+fn stepped(n: Int) -> Int:
+    let &total = 0 :: Int
+
+    for x in upTo(n) step 2:
+        total = total + x
+
+    return total
+
+-- A counted loop that never reaches its end.
+fn zeroStep(n: Int) -> Int:
+    let &total = 0 :: Int
+
+    for i in 0 .. n step 0:
+        total = total + i
+
+    return total
+
+-- A value that is already an iterator would have to be stepped by the loop rather than run by it,
+-- which is external iteration and phase 2.
+fn stored(n: Int) -> Int:
+    let it = upTo(n)
+
+    for x in it:
+        return x
+
+    return 0
+
+-- The same, reached through a name that is not a call at all.
+fn overCollection(xs: [Int]) -> Int:
+    for x in xs:
+        return x
+
+    return 0
+
+-- An adaptor chain: the callee of the outer call is not a name, so the iterator it wraps travels as
+-- a value - which is the erased callback ABI.
+fn chained(n: Int) -> Int:
+    for x in upTo(n).twice():
+        return x
+
+    return 0
+
+-- Not an iterator at all.
+fn notAnIterator(n: Int) -> Int:
+    for x in plain(n):
+        return x
+
+    return 0
+
+-- One argument short of what the iterator declared, which is not the lens call site's "the block is
+-- the missing argument": a loop always supplies the body.
+fn wrongArity(n: Int) -> Int:
+    for x in upTo():
+        return x
+
+    return 0
+
+-- A pattern that can fail has nowhere to fail into: a loop carries no alternatives, so this would
+-- have to mean "skip the elements that do not match", which is a filter written where nothing says
+-- one is there.
+fn refutable(n: Int) -> Int:
+    for Just(v) in shapes(n):
+        return v
+
+    return 0
+
+-- An iterator that hands over nothing gives the loop's pattern nothing to bind.
+fn nothingHanded(n: Int) -> Int:
+    for x in ticks(n):
+        return 1
+
+    return 0
+
+-- A loop does not produce a value in this version, so `break` cannot carry one.
+fn breakValue(n: Int) -> Int:
+    for x in upTo(n):
+        break x
+
+    return 0
+
+-- An `iter fn` is generic in what the loop body below it returns, so its own body is a generic body
+-- and a lifted one inside it would have to be specialized alongside it. That is what stops an
+-- adaptor - an `iter fn` whose body is a `for` over another - from being writable here.
+iter fn evens(limit: Int) -> Int:
+    for x in upTo(limit):
+        yield x
+
+-- `break` out of a lens continuation is still the one shape the exit signal does not carry: the
+-- lens between the `break` and its loop has no step signal to report the departure in.
+lens fn scope() -> {}:
+    yield {}
+
+fn breakThroughLens(n: Int) -> Int:
+    for x in upTo(n):
+        scope()
+        break
+
+    return 0
+
+-- A `for` loop inside a generic function, which is the same restriction a lambda there carries.
+fn inGeneric(value: a, n: Int) -> a:
+    for x in upTo(n):
+        return value
+
+    return value

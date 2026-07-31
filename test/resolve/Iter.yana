@@ -1,0 +1,215 @@
+-- Iterators, phase 1 - Design.md's Iterators, Analysis-Lens.md's V2.
+--
+-- An iterator is a lens whose continuation runs any number of times. Nothing is suspended: the
+-- iterator's frame stays live for the whole loop, its locals are ordinary locals, and each `yield`
+-- is a call out to the loop body and an ordinary return back in. What comes back is the step signal
+-- - keep going, or stop and carry this out - which is the same `Outcome` a lens's exit signal uses.
+--
+-- The source of a `for` is a suffix chain - a name with calls, fields and subscripts on it - so an
+-- iterator call needs no parentheses of its own. Only a top-level operator does.
+
+-- The plain shape. `i` is a stack slot nobody has to save or restore, which is the whole of why
+-- phase 1 needs no suspension mechanism.
+iter fn upTo(limit: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < limit:
+        yield i
+        i = i + 1
+
+-- An iterator handing over several values at once, which the loop's pattern destructures the same
+-- way a `let` destructures what a lens hands over.
+iter fn corners(n: Int) -> {x: Int, y: Int}:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield {x: i, y: i * 2}
+        i = i + 1
+
+-- Two `yield`s, which an iterator may have and a lens may not: the one-per-path rule is a lens's,
+-- and an iterator's whole point is handing over again.
+iter fn twice(value: a) -> a:
+    yield value
+    yield value
+
+-- The body only reads. Nothing is carried out, so the call site emits no test at all.
+fn sum(n: Int) -> Int:
+    let &total = 0 :: Int
+
+    for x in upTo(n):
+        total = total + x
+
+    return total
+
+-- `continue` skips the rest of one trip, which is the same value the end of the body produces from
+-- a different block.
+fn odds(n: Int) -> Int:
+    let &total = 0 :: Int
+
+    for x in upTo(n):
+        if x % 2 == 0:
+            continue
+
+        total = total + x
+
+    return total
+
+-- `break` ends the loop. Still nothing to carry out - a loop that broke and one that ran out both
+-- continue below - so this call site emits no test either.
+fn upToFive(n: Int) -> Int:
+    let &total = 0 :: Int
+
+    for x in upTo(n):
+        if x > 5:
+            break
+
+        total = total + x
+
+    return total
+
+-- A `return` out of a loop body leaves the enclosing function through the iterator's frame. The
+-- step signal carries the result, and the call site performs the return.
+fn firstOver(n: Int, bound: Int) -> Int:
+    for x in upTo(n):
+        if x > bound:
+            return x
+
+    return -1
+
+-- Both, which is the one shape that needs the two told apart: `Exit` of the outer signal means the
+-- loop stopped, and `Exit` of what it carries means the function is leaving.
+fn firstOverOrCount(n: Int, bound: Int) -> Int:
+    let &seen = 0 :: Int
+
+    for x in upTo(n):
+        if x > bound:
+            return x * 100
+
+        if x == 4:
+            break
+
+        seen = seen + 1
+
+    return seen
+
+-- Nesting: the inner loop finishes before the outer one's next step, so both frames are live at
+-- once and neither needs the other suspended. This is phase 1's "one *active* iterator per stack",
+-- which is not the same as one iterator at a time.
+fn grid(rows: Int, columns: Int) -> Int:
+    let &total = 0 :: Int
+
+    for r in upTo(rows):
+        for c in upTo(columns):
+            total = total + r * 10 + c
+
+    return total
+
+-- A pattern that destructures what was handed over.
+fn corners_(n: Int) -> Int:
+    let &total = 0 :: Int
+
+    for {x, y} in corners(n):
+        total = total + x + y
+
+    return total
+
+fn generic() -> Int:
+    let &total = 0 :: Int
+
+    for v in twice(7):
+        total = total + v
+
+    for b in twice(True):
+        if b:
+            total = total + 1
+
+    return total
+
+-- `continue` and `return` in the same body. `continue` is still the ordinary "next element", so what
+-- has to be told apart is only leaving from not leaving - the same one test `firstOver` pays for.
+fn firstOddOver(n: Int, bound: Int) -> Int:
+    for x in upTo(n):
+        if x % 2 == 0:
+            continue
+
+        if x > bound:
+            return x
+
+    return -1
+
+-- The value carried out of a loop is a record, so what the step signal holds is a memory type and
+-- the call site's return reads it out of the payload rather than out of a register.
+data Pair {a: Int, b: Int}
+
+fn firstPairOver(n: Int, bound: Int) -> Pair:
+    for x in upTo(n):
+        if x > bound:
+            return Pair {a: x, b: x * 2}
+
+    return Pair {a: -1, b: -1}
+
+-- A lens call inside a loop body. The continuation is the rest of *that* body, so the lens's frame
+-- ends with each iteration and its cleanup runs once per pass - and the `for` above it is unaffected,
+-- since what the lens splits is a block of the lifted body rather than the loop.
+let &log = 0 :: Int
+
+lens fn counted() -> Int:
+    log = log + 1
+    yield log
+    log = log + 10
+
+fn withLens(n: Int) -> Int:
+    let &total = 0 :: Int
+
+    for x in upTo(n):
+        let seen = counted()
+        total = total + seen + x
+
+    return total
+
+-- The other nesting: a `for` loop inside a lens's continuation. The loop body's `return` leaves the
+-- function the *lens* was called in, so the departure travels out through the loop's step signal and
+-- then through the lens's own exit signal, running the cleanup on the way.
+fn loopInLens(n: Int) -> Int:
+    let base = counted()
+
+    for x in upTo(n):
+        if x == 2:
+            return base * 1000 + x
+
+    return base
+
+-- A loop leaving a function that returns nothing. The step signal's `Exit` then carries a unit, so
+-- it has no payload anywhere and the call site's return produces nothing - which is the case a unit
+-- type argument is most likely to be got wrong in, since it has no representation below resolve.
+-- Its own accumulator rather than `log`, so that this says nothing about the order the operands of
+-- `main`'s sum are evaluated in.
+let &visited = 0 :: Int
+
+fn stopAt(n: Int) -> {}:
+    for x in upTo(n):
+        if x == 3:
+            return
+
+        visited = visited + x
+
+fn main() -> Int =
+    sum(5) +                    -- 0+1+2+3+4 = 10
+    odds(6) +                   -- 1+3+5 = 9
+    upToFive(20) +              -- 0..5 = 15
+    firstOver(10, 6) +          -- 7
+    firstOverOrCount(10, 20) +  -- never over, breaks at 4: seen = 4
+    grid(3, 2) +                -- (0+1) + (10+11) + (20+21) = 63
+    corners_(3) +               -- (0+0)+(1+2)+(2+4) = 9
+    generic() +                 -- 7+7+1+1 = 16
+    firstOddOver(10, 4) +       -- 5
+    firstPairOver(10, 6).b +    -- 7 * 2 = 14
+    withLens(3) +               -- (1+0) + (12+1) + (23+2) = 39
+    loopInLens(5) +             -- log is 33 after withLens, so base is 34: 34 * 1000 + 2 = 34002
+    stopped()                   -- 0+1+2 = 3
+
+-- `stopAt` returns nothing, so what it did is read out of the counter it wrote.
+fn stopped() -> Int:
+    visited = 0
+    stopAt(10)
+    return visited

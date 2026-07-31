@@ -104,9 +104,21 @@ inline void adopt(ClassMatch& into, const ClassMatch& from) {
     replaceContents(into.instanceArgs, from.instanceArgs);
 }
 
+/*
+ * Where `break` and `continue` go.
+ *
+ * A `while` has both blocks before its body and jumps to them outright. A counted `for` does not:
+ * its step and its exit are created *after* the body, so that the block list stays in the reverse
+ * postorder `resolve/lower.cpp` walks it in and `compiler/opt` rebuilds it in. The sites are
+ * collected instead and terminated once the blocks they leave to exist, which is what
+ * ContinuationExit already does for a `return` inside a lifted continuation.
+ */
 struct LoopTarget {
     ModulePtr<Block> continueBlock;
     ModulePtr<Block> breakBlock;
+
+    Array<ModulePtr<Block>>* deferredContinue = nullptr;
+    Array<ModulePtr<Block>>* deferredBreak = nullptr;
 };
 
 /*
@@ -184,18 +196,38 @@ struct ContinuationExit {
 };
 
 /*
+ * One `break` or `continue` inside a `for` loop's lifted body, waiting for the same thing.
+ *
+ * The loop it leaves is in the function this body was split out of, so it is a value returned to
+ * the iterator rather than a jump - and which value depends on whether any *other* path of the same
+ * body also returns from the enclosing function, which is not known while it is being resolved. The
+ * block is left without a terminator for exactly the reason ContinuationExit's is.
+ */
+struct ContinuationLoopExit {
+    ModulePtr<Block> block;
+    bool isBreak = false;
+    LocationId source;
+};
+
+/*
  * What a lifted continuation turned out to be, which is what the call site has to join against.
  *
  * The three combinations of the two flags are Analysis-Lens.md §5.1's three cases: a continuation
  * that only finishes normally is an ordinary function and the exit signal costs nothing; one that
  * only leaves returns the enclosing function's result outright; and one that does both returns
  * `Outcome(value, exit)`, which is the only shape that pays for a discriminator.
+ *
+ * A `for` loop's body reads the same three cases against §7.3's step signal instead: `breaks` is
+ * what makes the third of them necessary there, since a loop that only ever breaks needs nothing
+ * told apart, and `carried` is what an `Exit` of the signal holds once it is.
  */
 struct ContinuationShape {
     TypePtr value = nullptr;
     TypePtr outcome = nullptr;
+    TypePtr carried = nullptr;
     bool fallsThrough = false;
     bool exits = false;
+    bool breaks = false;
 };
 
 // What resolving one pattern proved about it. `Never` means the pattern cannot match this pivot
@@ -414,6 +446,15 @@ struct ExprResolver {
     ModulePtr<Value> resolveIf(const ast::Expr& expr, const ast::IfExpr& branch, TypePtr target, bool used, bool implicit = true);
     ModulePtr<Value> resolveMultiIf(const ast::Expr& expr, ast::ParseList<ast::IfCase> cases, TypePtr target, bool used, bool implicit = true);
     void resolveWhile(const ast::WhileExpr& loop);
+
+    // `for pat in f(as): body` - the iterator form. Produces nothing: a loop is a statement in this
+    // version, since a value of its own is what a `break` carrying one would decide - see
+    // expr_lens.cpp.
+    void resolveFor(const ast::Expr& expr, const ast::ForExpr& loop);
+
+    // `for pat in a .. b step s: body` and its `..=`/`downto` spellings - a counted loop over an
+    // interval, which shares nothing with the iterator form but the keyword. See expr.cpp.
+    void resolveCountedFor(const ast::Expr& expr, const ast::ForExpr& loop);
     ModulePtr<Value> resolveDecl(ast::ParseList<ast::VarDecl> declarations, TypePtr target, bool used);
     void resolveReturn(const ast::Expr& expr);
 
@@ -561,6 +602,15 @@ struct ExprResolver {
     bool resolveLensStatement(ast::ParseList<ast::Expr> block, Size index, bool used,
                               ModulePtr<Value>& result);
 
+    // Which `iter fn` a `for` loop names, with the call it was written as. Null after reporting
+    // which of phase 1's exclusions this loop's source reached - see expr_lens.cpp.
+    ModulePtr<Function> findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call);
+
+    // The arguments written before the continuation, resolved and settled. Shared by both call
+    // sites, which differ in what they do with the rest of the block and in nothing before it.
+    void resolveHandedArguments(ModulePtr<Function> callee, ast::ParseList<ast::TupArg> arguments,
+                                ValueList& values);
+
     // What a `return` in this body leaves: the enclosing function's result type, which for a lifted
     // continuation is the type of the function it was split out of rather than its own.
     TypePtr enclosingResultType() const { return inContinuation ? exitType : function.returnType; }
@@ -570,14 +620,19 @@ struct ExprResolver {
     void emitFunctionReturn(ModulePtr<Value> value, LocationId source);
 
     // The rest of a block, lifted into the function the lens calls. `declaration` is the `let` the
-    // call site wrote, or null for a bare statement.
+    // call site wrote, or null for a bare statement. `loop` instead makes it a `for` loop's body,
+    // in which case `declaration`/`block`/`from` say nothing - see expr_lens.cpp.
     ModulePtr<Value> makeContinuation(Buffer<FunArg> params, const ast::VarDecl* declaration,
                                       ast::ParseList<ast::Expr> block, Size from, LocationId source,
-                                      ContinuationShape& shape);
+                                      ContinuationShape& shape, const ast::ForExpr* loop = nullptr);
 
     // `Proceed(value)` or `Exit(value)` of a concrete `Outcome`, built directly rather than through
     // a written constructor: this is emitted code, and there is no source for it to come from.
     ModulePtr<Value> makeOutcome(TypePtr type, bool proceed, ModulePtr<Value> value, LocationId source);
+
+    // Whether an `Outcome` holds its leaving case, as a `Bool`. The one test the exit and step
+    // signals cost, in the one shape of each that pays for it.
+    ModulePtr<Value> outcomeIsExit(ModulePtr<Value> value, LocationId source);
 
     // The discriminant test and payload projection the call-site join needs, as a place. Shared by
     // the two arms so that both read the same downcast.
@@ -689,6 +744,11 @@ struct ExprResolver {
     // evaluating its initializer, which is resolveDecl's half.
     void resolveBinding(const ast::VarDecl& declaration, ModulePtr<Value> value);
 
+    // One pattern bound to a value it has to cover, with nowhere to fail into. A `for` loop's
+    // pattern is the shape of what the iterator hands over rather than a test of it: there is no
+    // `| else ->` on a loop, so a pattern that could fail would silently skip an element.
+    void bindIrrefutable(const ast::Pat& pattern, ModulePtr<Value> value);
+
     // Emits the tests `pattern` needs and binds the names it introduces. A null `onFail` means
     // the pattern is already known to match every value that can reach it - either because it is
     // irrefutable, or because the alternatives before it ruled everything else out - so no test
@@ -787,6 +847,12 @@ struct ExprResolver {
     bool inContinuation = false;
     TypePtr exitType = nullptr;
     Array<ContinuationExit> exits;
+
+    // Set while resolving a `for` loop's lifted body, which is a continuation *and* a loop body: the
+    // nearest enclosing loop of a `break` written here is the `for` itself, and leaving it is the
+    // step signal rather than a jump to a block this function has.
+    bool inLoopBody = false;
+    Array<ContinuationLoopExit> loopExits;
 };
 
 // Creates a function that is reached through something other than its own name - a class

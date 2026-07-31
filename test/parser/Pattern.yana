@@ -13,9 +13,12 @@ match x:
   Int {x: 0, y: Int {a: b, c: d }} -> 0
   Int { True, False } -> 0
 
--- RangePat. A negative bound is a literal like any other, on either end.
+-- RangePat. `..` excludes its upper bound and `..=` includes it, the same two spellings a `for`
+-- header uses. A negative bound is a literal like any other, on either end.
 match x:
   0..100 -> 0
+  0..=100 -> 0
+  'a'..='z' -> 0
   True..False -> 0
   {a, B}..{c, D} -> 0
   "a".."z" -> 0

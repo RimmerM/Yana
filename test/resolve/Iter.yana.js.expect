@@ -1,0 +1,445 @@
+"use strict";
+var log = 0;
+var visited = 0;
+const closure$ResolveTest_continuation$0 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$1 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$2 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$3 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$4 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$6 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$5 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$7 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$8 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$9 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$10 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$11 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$13 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$12 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$15 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$14 = [teardown$none, teardown$none];
+
+// Core
+function teardown$none(value) {
+  return;
+}
+
+// ResolveTest
+function sum(n) {
+  var total = { $v: 0 };
+  var v12 = upTo(n, ResolveTest_continuation$0$make({ total: total }));
+  return total.$v;
+}
+
+function odds(n) {
+  var total = { $v: 0 };
+  var v12 = upTo(n, ResolveTest_continuation$1$make({ total: total }));
+  return total.$v;
+}
+
+function upToFive(n) {
+  var total = { $v: 0 };
+  var v12 = upTo(n, ResolveTest_continuation$2$make({ total: total }));
+  return total.$v;
+}
+
+function firstOver(n, bound) {
+  var v9 = upTo_Int(n, ResolveTest_continuation$3$make({ bound: bound }));
+  if (!(v9 === null)) {
+    return v9;
+  } else {
+    return -1;
+  }
+}
+
+function firstOverOrCount(n, bound) {
+  B0: {
+    var seen = { $v: 0 };
+    var v14 = upTo_Outcome_Int(n, ResolveTest_continuation$4$make({ bound: bound, seen: seen }));
+    if (v14.$tag === 1) {
+      if (!(v14.$p === null)) {
+        return v14.$p;
+      }
+    }
+  }
+  return seen.$v;
+}
+
+function grid(rows, columns) {
+  var total = { $v: 0 };
+  var v14 = upTo(rows, ResolveTest_continuation$5$make({ columns: columns, total: total }));
+  return total.$v;
+}
+
+function corners(n) {
+  var total = { $v: 0 };
+  var v12 = corners$1(n, ResolveTest_continuation$7$make({ total: total }));
+  return total.$v;
+}
+
+function generic() {
+  var total = { $v: 0 };
+  var v13 = twice_Int(7, ResolveTest_continuation$8$make({ total: total }));
+  var v23 = twice_Bool(1, ResolveTest_continuation$9$make({ total: total }));
+  return total.$v;
+}
+
+function firstOddOver(n, bound) {
+  var v9 = upTo_Int(n, ResolveTest_continuation$10$make({ bound: bound }));
+  if (!(v9 === null)) {
+    return v9;
+  } else {
+    return -1;
+  }
+}
+
+function firstPairOver(n, bound) {
+  var v9 = upTo_Pair(n, ResolveTest_continuation$11$make({ bound: bound }));
+  if (!(v9 === null)) {
+    return v9;
+  } else {
+    return { a: -1, b: -1 };
+  }
+}
+
+function withLens(n) {
+  var total = { $v: 0 };
+  var v12 = upTo(n, ResolveTest_continuation$12$make({ total: total }));
+  return total.$v;
+}
+
+function loopInLens(n) {
+  return counted_Int(ResolveTest_continuation$14$make({ n: n }));
+}
+
+function stopAt(n) {
+  if (upTo(n, ResolveTest_continuation$16).$tag === 1) {
+    return;
+  } else {
+    return;
+  }
+}
+
+function main() {
+  var v39 = ((((((((((sum(5) + odds(6) | 0) + upToFive(20) | 0) + firstOver(10, 6) | 0) + firstOverOrCount(10, 20) | 0) + grid(3, 2) | 0) + corners(3) | 0) + generic() | 0) + firstOddOver(10, 4) | 0) + firstPairOver(10, 6).b | 0) + withLens(3) | 0) + loopInLens(5) | 0;
+  visited = 0;
+  stopAt(10);
+  return v39 + visited | 0;
+}
+
+function stopped() {
+  visited = 0;
+  stopAt(10);
+  return visited;
+}
+
+function ResolveTest_continuation$0$make(env) {
+  return function(value) {
+    var v2 = env.total;
+    v2.$v = v2.$v + value | 0;
+    return { $tag: 0 };
+  };
+}
+
+function upTo(limit, body) {
+  var i = 0;
+  L0: for (;;) {
+    if (i < limit) {
+      var v14 = body(i);
+      if (v14.$tag === 1) {
+        return v14;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return { $tag: 0 };
+    }
+    break L0;
+  }
+}
+
+function ResolveTest_continuation$1$make(env) {
+  return function(value) {
+    if ((value % 2 | 0) === 0) {
+      return { $tag: 0 };
+    } else {
+      var v10 = env.total;
+      v10.$v = v10.$v + value | 0;
+      return { $tag: 0 };
+    }
+  };
+}
+
+function ResolveTest_continuation$2$make(env) {
+  return function(value) {
+    if (value > 5) {
+      return { $tag: 1 };
+    } else {
+      var v7 = env.total;
+      v7.$v = v7.$v + value | 0;
+      return { $tag: 0 };
+    }
+  };
+}
+
+function ResolveTest_continuation$3$make(env) {
+  return function(value) {
+    if (value > env.bound) {
+      return value;
+    } else {
+      return null;
+    }
+  };
+}
+
+function upTo_Int(limit, body) {
+  var i = 0;
+  L0: for (;;) {
+    if (i < limit) {
+      var v14 = body(i);
+      if (!(v14 === null)) {
+        return v14;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return null;
+    }
+    break L0;
+  }
+}
+
+function ResolveTest_continuation$4$make(env) {
+  return function(value) {
+    if (value > env.bound) {
+      return { $tag: 1, $p: Math.imul(value, 100) | 0 };
+    } else {
+      if (value === 4) {
+        return { $tag: 1, $p: null };
+      } else {
+        var v14 = env.seen;
+        v14.$v = v14.$v + 1 | 0;
+        return { $tag: 0, $p: null };
+      }
+    }
+  };
+}
+
+function upTo_Outcome_Int(limit, body) {
+  var i = 0;
+  L0: for (;;) {
+    if (i < limit) {
+      var v14 = body(i);
+      if (v14.$tag === 1) {
+        return v14;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return { $tag: 0, $p: null };
+    }
+    break L0;
+  }
+}
+
+function ResolveTest_continuation$5$make(env) {
+  return function(value) {
+    var v13 = upTo(env.columns, ResolveTest_continuation$6$make({ total: env.total, r: value }));
+    return { $tag: 0 };
+  };
+}
+
+function ResolveTest_continuation$6$make(env) {
+  return function(value) {
+    var v2 = env.total;
+    v2.$v = (v2.$v + (Math.imul(env.r, 10) | 0) | 0) + value | 0;
+    return { $tag: 0 };
+  };
+}
+
+function ResolveTest_continuation$7$make(env) {
+  return function(value) {
+    var x = value.x;
+    var y = value.y;
+    var v4 = env.total;
+    v4.$v = (v4.$v + x | 0) + y | 0;
+    return { $tag: 0 };
+  };
+}
+
+function corners$1(n, body) {
+  var i = 0;
+  L0: for (;;) {
+    if (i < n) {
+      var v13 = { x: 0, y: 0 };
+      var v17 = Math.imul(i, 2) | 0;
+      v13.x = i;
+      v13.y = v17;
+      var v20 = body(v13);
+      if (v20.$tag === 1) {
+        return v20;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return { $tag: 0 };
+    }
+    break L0;
+  }
+}
+
+function ResolveTest_continuation$8$make(env) {
+  return function(value) {
+    var v2 = env.total;
+    v2.$v = v2.$v + value | 0;
+    return { $tag: 0 };
+  };
+}
+
+function twice_Int(value, body) {
+  var v2 = body(value);
+  if (v2.$tag === 1) {
+    return v2;
+  } else {
+    var v8 = body(value);
+    if (v8.$tag === 1) {
+      return v8;
+    } else {
+      return { $tag: 0 };
+    }
+  }
+}
+
+function ResolveTest_continuation$9$make(env) {
+  return function(value) {
+    if (value) {
+      var v3 = env.total;
+      v3.$v = v3.$v + 1 | 0;
+    }
+    return { $tag: 0 };
+  };
+}
+
+function twice_Bool(value, body) {
+  var v2 = body(value);
+  if (v2.$tag === 1) {
+    return v2;
+  } else {
+    var v8 = body(value);
+    if (v8.$tag === 1) {
+      return v8;
+    } else {
+      return { $tag: 0 };
+    }
+  }
+}
+
+function ResolveTest_continuation$10$make(env) {
+  return function(value) {
+    if ((value % 2 | 0) === 0) {
+      return null;
+    } else {
+      if (value > env.bound) {
+        return value;
+      } else {
+        return null;
+      }
+    }
+  };
+}
+
+function ResolveTest_continuation$11$make(env) {
+  return function(value) {
+    if (value > env.bound) {
+      var v5 = { a: 0, b: 0 };
+      var v8 = Math.imul(value, 2) | 0;
+      v5.a = value;
+      v5.b = v8;
+      return v5;
+    } else {
+      return null;
+    }
+  };
+}
+
+function upTo_Pair(limit, body) {
+  var i = 0;
+  L0: for (;;) {
+    if (i < limit) {
+      var v14 = body(i);
+      if (!(v14 === null)) {
+        return v14;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return null;
+    }
+    break L0;
+  }
+}
+
+function ResolveTest_continuation$12$make(env) {
+  return function(value) {
+    counted(ResolveTest_continuation$13$make({ total: env.total, x: value }));
+    return { $tag: 0 };
+  };
+}
+
+function ResolveTest_continuation$13$make(env) {
+  return function(value) {
+    var v2 = env.total;
+    v2.$v = (v2.$v + value | 0) + env.x | 0;
+    return;
+  };
+}
+
+function counted(body) {
+  var v3 = log + 1 | 0;
+  log = v3;
+  body(v3);
+  log = log + 10 | 0;
+  return;
+}
+
+function ResolveTest_continuation$14$make(env) {
+  return function(value) {
+    var v10 = upTo_Int(env.n, ResolveTest_continuation$15$make({ base: value }));
+    if (!(v10 === null)) {
+      return v10;
+    } else {
+      return value;
+    }
+  };
+}
+
+function ResolveTest_continuation$15$make(env) {
+  return function(value) {
+    if (value === 2) {
+      return (Math.imul(env.base, 1000) | 0) + value | 0;
+    } else {
+      return null;
+    }
+  };
+}
+
+function counted_Int(body) {
+  var v3 = log + 1 | 0;
+  log = v3;
+  var v6 = body(v3);
+  log = log + 10 | 0;
+  return v6;
+}
+
+function ResolveTest_continuation$16(value) {
+  if (value === 3) {
+    return { $tag: 1 };
+  } else {
+    visited = visited + value | 0;
+    return { $tag: 0 };
+  }
+}

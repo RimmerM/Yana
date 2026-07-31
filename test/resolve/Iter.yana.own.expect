@@ -1,0 +1,326 @@
+fn teardown$none {
+  arg value readonly
+}
+
+fn sum {
+  arg n readonly
+  %total: Int writable live [0, 12)
+  %local1: {total: &mut Int} closure writable addressed live [2, 10)
+  %local2: (value: Int) -> Outcome((), ()) droppable readonly live [6, 11)
+  %local3: Outcome((), ()) readonly live [10, 11)
+}
+
+fn odds {
+  arg n readonly
+  %total: Int writable live [0, 12)
+  %local1: {total: &mut Int} closure writable addressed live [2, 10)
+  %local2: (value: Int) -> Outcome((), ()) droppable readonly live [6, 11)
+  %local3: Outcome((), ()) readonly live [10, 11)
+}
+
+fn upToFive {
+  arg n readonly
+  %total: Int writable live [0, 12)
+  %local1: {total: &mut Int} closure writable addressed live [2, 10)
+  %local2: (value: Int) -> Outcome((), ()) droppable readonly live [6, 11)
+  %local3: Outcome((), ()) readonly live [10, 11)
+}
+
+fn firstOver {
+  arg n readonly
+  arg bound readonly
+  %local0: {bound: Int} closure writable addressed live [0, 7)
+  %local1: (value: Int) -> Outcome((), Int) droppable readonly live [3, 8)
+  %local2: Outcome((), Int) readonly live [7, 12)
+}
+
+fn firstOverOrCount {
+  arg n readonly
+  arg bound readonly
+  %seen: Int writable live [0, 20) [22, 24)
+  %local1: {bound: Int, seen: &mut Int} closure writable addressed live [2, 11)
+  %local2: (value: Int) -> Outcome((), Outcome((), Int)) droppable readonly live [7, 12)
+  %local3: Outcome((), Outcome((), Int)) readonly live [11, 19) [20, 21)
+}
+
+fn grid {
+  arg rows readonly
+  arg columns readonly
+  %total: Int writable live [0, 13)
+  %local1: {columns: Int, total: &mut Int} closure writable addressed live [2, 11)
+  %local2: (value: Int) -> Outcome((), ()) droppable readonly live [7, 12)
+  %local3: Outcome((), ()) readonly live [11, 12)
+}
+
+fn corners_ {
+  arg n readonly
+  %total: Int writable live [0, 12)
+  %local1: {total: &mut Int} closure writable addressed live [2, 10)
+  %local2: (value: {x: Int, y: Int}) -> Outcome((), ()) droppable readonly live [6, 11)
+  %local3: Outcome((), ()) readonly live [10, 11)
+}
+
+fn generic {
+  %total: Int writable live [0, 21)
+  %local1: {total: &mut Int} closure writable addressed live [2, 10)
+  %local2: (value: Int) -> Outcome((), ()) droppable readonly live [6, 11)
+  %local3: Outcome((), ()) readonly live [10, 11)
+  %local4: {total: &mut Int} closure writable addressed live [11, 19)
+  %local5: (value: Bool) -> Outcome((), ()) droppable readonly live [15, 20)
+  %local6: Outcome((), ()) readonly live [19, 20)
+}
+
+fn firstOddOver {
+  arg n readonly
+  arg bound readonly
+  %local0: {bound: Int} closure writable addressed live [0, 7)
+  %local1: (value: Int) -> Outcome((), Int) droppable readonly live [3, 8)
+  %local2: Outcome((), Int) readonly live [7, 12)
+}
+
+fn firstPairOver {
+  arg n readonly
+  arg bound readonly
+  %local0: {bound: Int} closure writable addressed live [0, 7)
+  %local1: (value: Int) -> Outcome((), Pair) droppable readonly live [3, 8)
+  %local2: Outcome((), Pair) readonly live [7, 13)
+  %local3: Pair readonly live [13, 19)
+}
+
+fn withLens {
+  arg n readonly
+  %total: Int writable live [0, 12)
+  %local1: {total: &mut Int} closure writable addressed live [2, 10)
+  %local2: (value: Int) -> Outcome((), ()) droppable readonly live [6, 11)
+  %local3: Outcome((), ()) readonly live [10, 11)
+}
+
+fn loopInLens {
+  arg n readonly
+  %local0: {n: Int} closure writable addressed live [0, 7)
+  %local1: (value: Int) -> Int droppable readonly live [3, 8)
+}
+
+fn stopAt {
+  arg n readonly
+  %local0: (value: Int) -> Outcome((), ()) droppable readonly live [0, 6)
+  %local1: Outcome((), ()) readonly live [5, 7)
+}
+
+fn main {
+  %local0: Pair readonly live [17, 19)
+}
+
+fn stopped {
+}
+
+fn ResolveTest.continuation$0 {
+  arg env readonly
+  arg value readonly
+  %local0: Outcome((), ()) readonly live [5, 8)
+}
+
+fn upTo(()) {
+  arg limit readonly
+  arg body readonly
+  %body: (value: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 6) [9, 14) [15, 19)
+  %i: Int writable live [0, 6) [9, 14) [15, 19)
+  %local2: Outcome((), ()) readonly live [10, 15)
+  %local3: Outcome((), ()) readonly live [6, 9)
+  %local4: Outcome((), ()) readonly live never
+}
+
+fn ResolveTest.continuation$1 {
+  arg env readonly
+  arg value readonly
+  %local0: Outcome((), ()) readonly live [12, 15)
+  %local1: Outcome((), ()) readonly live [3, 6)
+}
+
+fn ResolveTest.continuation$2 {
+  arg env readonly
+  arg value readonly
+  %local0: Outcome((), ()) readonly live [11, 14)
+  %local1: Outcome((), ()) readonly live [2, 5)
+}
+
+fn ResolveTest.continuation$3 {
+  arg env readonly
+  arg value readonly
+  %local0: Outcome((), Int) readonly live [8, 11)
+  %local1: Outcome((), Int) readonly live [3, 7)
+}
+
+fn upTo(Int) {
+  arg limit readonly
+  arg body readonly
+  %body: (value: Int) -> Outcome((), Int) borrowed droppable readonly live [0, 6) [9, 14) [15, 19)
+  %i: Int writable live [0, 6) [9, 14) [15, 19)
+  %local2: Outcome((), Int) readonly live [10, 15)
+  %local3: Outcome((), Int) readonly live [6, 9)
+  %local4: Outcome((), Int) readonly live never
+}
+
+fn ResolveTest.continuation$4 {
+  arg env readonly
+  arg value readonly
+  %local0: Outcome((), Outcome((), Int)) readonly live [26, 29)
+  %local1: Outcome((), Int) readonly live [14, 19)
+  %local2: Outcome((), Outcome((), Int)) readonly live [16, 20)
+  %local3: Outcome((), Int) readonly live [4, 10)
+  %local4: Outcome((), Outcome((), Int)) readonly live [7, 11)
+}
+
+fn upTo(Outcome((), Int)) {
+  arg limit readonly
+  arg body readonly
+  %body: (value: Int) -> Outcome((), Outcome((), Int)) borrowed droppable readonly live [0, 6) [9, 14) [15, 19)
+  %i: Int writable live [0, 6) [9, 14) [15, 19)
+  %local2: Outcome((), Outcome((), Int)) readonly live [10, 15)
+  %local3: Outcome((), Outcome((), Int)) readonly live [6, 9)
+  %local4: Outcome((), Outcome((), Int)) readonly live never
+}
+
+fn ResolveTest.continuation$5 {
+  arg env readonly
+  arg value readonly
+  %local0: {total: &mut Int, r: Int} closure writable addressed live [1, 11)
+  %local1: (value: Int) -> Outcome((), ()) droppable readonly live [7, 12)
+  %local2: Outcome((), ()) readonly live [11, 12)
+  %local3: Outcome((), ()) readonly live [12, 15)
+}
+
+fn ResolveTest.continuation$6 {
+  arg env readonly
+  arg value readonly
+  %local0: Outcome((), ()) readonly live [8, 11)
+}
+
+fn ResolveTest.continuation$7 {
+  arg env readonly
+  arg value readonly
+  %value: {x: Int, y: Int} borrowed readonly live [0, 2)
+  %local1: Outcome((), ()) readonly live [8, 11)
+}
+
+fn corners(()) {
+  arg n readonly
+  arg body readonly
+  %body: (value: {x: Int, y: Int}) -> Outcome((), ()) borrowed droppable readonly live [0, 6) [9, 19) [20, 24)
+  %i: Int writable live [0, 6) [9, 19) [20, 24)
+  %local2: {x: Int, y: Int} unknown live [9, 16)
+  %local3: Outcome((), ()) readonly live [15, 20)
+  %local4: Outcome((), ()) readonly live [6, 9)
+  %local5: Outcome((), ()) readonly live never
+}
+
+fn ResolveTest.continuation$8 {
+  arg env readonly
+  arg value readonly
+  %local0: Outcome((), ()) readonly live [5, 8)
+}
+
+fn twice(Int, ()) {
+  arg value readonly
+  arg body readonly
+  %value: Int borrowed readonly live [0, 4) [5, 6)
+  %body: (value: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 4) [5, 6)
+  %local2: Outcome((), ()) readonly live [0, 5)
+  %local3: Outcome((), ()) readonly live [5, 10)
+  %local4: Outcome((), ()) readonly live [10, 13)
+  %local5: Outcome((), ()) readonly live never
+  %local6: Outcome((), ()) readonly live never
+}
+
+fn ResolveTest.continuation$9 {
+  arg env readonly
+  arg value readonly
+  %local0: Outcome((), ()) readonly live [8, 11)
+}
+
+fn twice(Bool, ()) {
+  arg value readonly
+  arg body readonly
+  %value: Bool borrowed readonly live [0, 4) [5, 6)
+  %body: (value: Bool) -> Outcome((), ()) borrowed droppable readonly live [0, 4) [5, 6)
+  %local2: Outcome((), ()) readonly live [0, 5)
+  %local3: Outcome((), ()) readonly live [5, 10)
+  %local4: Outcome((), ()) readonly live [10, 13)
+  %local5: Outcome((), ()) readonly live never
+  %local6: Outcome((), ()) readonly live never
+}
+
+fn ResolveTest.continuation$10 {
+  arg env readonly
+  arg value readonly
+  %local0: Outcome((), Int) readonly live [15, 18)
+  %local1: Outcome((), Int) readonly live [3, 6)
+  %local2: Outcome((), Int) readonly live [10, 14)
+}
+
+fn ResolveTest.continuation$11 {
+  arg env readonly
+  arg value readonly
+  %local0: Pair readonly live [3, 10)
+  %local1: Outcome((), Pair) readonly live [12, 15)
+  %local2: Outcome((), Pair) readonly live [7, 11)
+}
+
+fn upTo(Pair) {
+  arg limit readonly
+  arg body readonly
+  %body: (value: Int) -> Outcome((), Pair) borrowed droppable readonly live [0, 6) [9, 14) [15, 19)
+  %i: Int writable live [0, 6) [9, 14) [15, 19)
+  %local2: Outcome((), Pair) readonly live [10, 15)
+  %local3: Outcome((), Pair) readonly live [6, 9)
+  %local4: Outcome((), Pair) readonly live never
+}
+
+fn ResolveTest.continuation$12 {
+  arg env readonly
+  arg value readonly
+  %local0: {total: &mut Int, x: Int} closure writable addressed live [0, 10)
+  %local1: (value: Int) -> () droppable readonly live [6, 11)
+  %local2: Outcome((), ()) readonly live [11, 14)
+}
+
+fn ResolveTest.continuation$13 {
+  arg env readonly
+  arg value readonly
+}
+
+fn counted(()) {
+  arg body readonly
+  %body: (value: Int) -> () borrowed droppable readonly live [0, 5)
+  %local1: () readonly live [4, 9)
+  %local2: () readonly live never
+}
+
+fn ResolveTest.continuation$14 {
+  arg env readonly
+  arg value readonly
+  %local0: {base: Int} closure writable addressed live [1, 8)
+  %local1: (value: Int) -> Outcome((), Int) droppable readonly live [4, 9)
+  %local2: Outcome((), Int) readonly live [8, 13)
+}
+
+fn ResolveTest.continuation$15 {
+  arg env readonly
+  arg value readonly
+  %local0: Outcome((), Int) readonly live [10, 13)
+  %local1: Outcome((), Int) readonly live [5, 9)
+}
+
+fn counted(Int) {
+  arg body readonly
+  %body: (value: Int) -> Int borrowed droppable readonly live [0, 5)
+  %local1: Int readonly live [4, 9)
+  %local2: Int readonly live never
+}
+
+fn ResolveTest.continuation$16 {
+  arg env readonly
+  arg value readonly
+  %local0: Outcome((), ()) readonly live [9, 12)
+  %local1: Outcome((), ()) readonly live [2, 5)
+}

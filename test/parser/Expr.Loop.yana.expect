@@ -102,25 +102,96 @@ Module
 |   `-WhileExpr
 |     |-VarExpr a
 |     `-ContinueExpr
-`-FunDecl p
+|-FunDecl p
+| `-Body
+|   `-ForExpr
+|     |-VarPat x
+|     |-VarExpr xs
+|     `-MultiExpr 
+|       |-IfExpr 
+|       | |-InfixExpr 
+|       | | |-VarExpr <
+|       | | |-VarExpr x
+|       | | `-LitExpr 0
+|       | `-ContinueExpr
+|       |-IfExpr 
+|       | |-InfixExpr 
+|       | | |-VarExpr >
+|       | | |-VarExpr x
+|       | | `-LitExpr 100
+|       | `-BreakExpr 
+|       `-AppExpr 
+|         |-VarExpr f
+|         `-Field <anonymous>
+|           `-VarExpr x
+|-FunDecl q <implicit return> 
+| `-Body
+|   `-ForExpr
+|     |-VarPat x
+|     |-AppExpr 
+|     | |-VarExpr upTo
+|     | `-Field <anonymous>
+|     |   `-VarExpr n
+|     `-AppExpr 
+|       |-VarExpr f
+|       `-Field <anonymous>
+|         `-VarExpr x
+|-FunDecl r
+| `-Body
+|   `-ForExpr
+|     |-VarPat x
+|     |-AppExpr 
+|     | `-VarExpr ticks
+|     `-AppExpr 
+|       |-VarExpr f
+|       `-Field <anonymous>
+|         `-VarExpr x
+|-FunDecl s <implicit return> 
+| `-Body
+|   `-ForExpr
+|     |-VarPat x
+|     |-AppExpr 
+|     | `-FieldExpr 
+|     |   |-VarExpr items
+|     |   `-VarExpr xs
+|     `-AppExpr 
+|       |-VarExpr f
+|       `-Field <anonymous>
+|         `-VarExpr x
+|-FunDecl t <implicit return> 
+| `-Body
+|   `-ForExpr
+|     |-VarPat i
+|     |-FieldExpr 
+|     | |-VarExpr low
+|     | `-VarExpr bounds
+|     |-AppExpr 
+|     | `-FieldExpr 
+|     |   |-VarExpr length
+|     |   `-VarExpr xs
+|     |-SubExpr 
+|     | |-VarExpr counts
+|     | `-Field <anonymous>
+|     |   `-LitExpr 0
+|     `-AppExpr 
+|       |-VarExpr f
+|       `-Field <anonymous>
+|         `-VarExpr i
+`-FunDecl u <implicit return> 
   `-Body
     `-ForExpr
-      |-VarPat x
-      |-VarExpr xs
-      `-MultiExpr 
-        |-IfExpr 
-        | |-InfixExpr 
-        | | |-VarExpr <
-        | | |-VarExpr x
-        | | `-LitExpr 0
-        | `-ContinueExpr
-        |-IfExpr 
-        | |-InfixExpr 
-        | | |-VarExpr >
-        | | |-VarExpr x
-        | | `-LitExpr 100
-        | `-BreakExpr 
-        `-AppExpr 
-          |-VarExpr f
-          `-Field <anonymous>
-            `-VarExpr x
+      |-VarPat i
+      |-NestedExpr 
+      | `-InfixExpr 
+      |   |-VarExpr +
+      |   |-VarExpr a
+      |   `-LitExpr 1
+      |-NestedExpr 
+      | `-InfixExpr 
+      |   |-VarExpr *
+      |   |-VarExpr b
+      |   `-LitExpr 2
+      `-AppExpr 
+        |-VarExpr f
+        `-Field <anonymous>
+          `-VarExpr i
