@@ -1,0 +1,319 @@
+fn origin() -> Point {
+  b0:
+    %v0 = alloc : Point
+    init %local0@Point.x, 3
+    init %local0@Point.y, 4
+    ret %v0
+}
+
+fn bump(%n: Int) -> () {
+  b0:
+    %v1 = load %n : Int
+    %v4 = add %v1, 1 : Int
+    assign %n, %v4
+    ret
+}
+
+fn widen(%p: Point) -> () {
+  b0:
+    %v2 = load %p@Point.x : Int
+    %v5 = add %v2, 1 : Int
+    assign %p@Point.x, %v5
+    ret
+}
+
+fn straight(%count: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v9 = load %i : Int
+    %v10 = cmp_lt %v9, %count : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v24 = load %total : Int
+    ret %v24
+
+  b3:
+    %v12 = load %total : Int
+    %v16 = add %v12, 12 : Int
+    assign %total, %v16
+    %v18 = load %i : Int
+    %v21 = add %v18, 1 : Int
+    assign %i, %v21
+    jmp b1
+}
+
+fn conditional(%count: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v9 = load %i : Int
+    %v10 = cmp_lt %v9, %count : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v31 = load %total : Int
+    ret %v31
+
+  b3:
+    %v12 = load %i : Int
+    %v15 = cmp_gt %v12, 1 : Bool
+    je %v15, b4, b5
+
+  b4:
+    %v17 = load %total : Int
+    %v21 = add %v17, 12 : Int
+    assign %total, %v21
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v25 = load %i : Int
+    %v28 = add %v25, 1 : Int
+    assign %i, %v28
+    jmp b1
+}
+
+fn nested(%rows: Int, %columns: Int) -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    %row = alloc : Int
+    init %row, 0
+    jmp b1
+
+  b1:
+    %v10 = load %row : Int
+    %v11 = cmp_lt %v10, %rows : Bool
+    je %v11, b3, b2
+
+  b2:
+    %v38 = load %total : Int
+    ret %v38
+
+  b3:
+    %column = alloc : Int
+    init %column, 0
+    jmp b4
+
+  b4:
+    %v17 = load %column : Int
+    %v18 = cmp_lt %v17, %columns : Bool
+    je %v18, b6, b5
+
+  b5:
+    %v32 = load %row : Int
+    %v35 = add %v32, 1 : Int
+    assign %row, %v35
+    jmp b1
+
+  b6:
+    %v20 = load %total : Int
+    %v24 = add %v20, 7 : Int
+    assign %total, %v24
+    %v26 = load %column : Int
+    %v29 = add %v26, 1 : Int
+    assign %column, %v29
+    jmp b4
+}
+
+fn written(%count: Int) -> Int {
+  b0:
+    %acc = alloc : Point
+    init %acc@Point.x, 3
+    init %acc@Point.y, 4
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : Int
+    %v9 = cmp_lt %v8, %count : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v24 = load %acc@Point.x : Int
+    ret %v24
+
+  b3:
+    %v12 = load %acc@Point.x : Int
+    %v15 = add %v12, 4 : Int
+    assign %acc@Point.x, %v15
+    %v17 = load %i : Int
+    %v20 = add %v17, 1 : Int
+    assign %i, %v20
+    jmp b1
+}
+
+fn withCall(%seed: Int, %count: Int) -> Int {
+  b0:
+    %q = alloc : Point
+    %v5 = add %seed, 1 : Int
+    init %local0@Point.x, %seed
+    init %local0@Point.y, %v5
+    %seen = alloc : Int
+    init %seen, 0
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v15 = load %i : Int
+    %v16 = cmp_lt %v15, %count : Bool
+    je %v16, b3, b2
+
+  b2:
+    %v33 = load %seen : Int
+    ret %v33
+
+  b3:
+    %v19 = borrow_mut %seen : &mut Int
+    %v35 = load [%v19] : Int
+    %v37 = add %v35, 1 : Int
+    assign [%v19], %v37
+    %v21 = load %seen : Int
+    %v22 = load %local0@Point.x : Int
+    %v23 = load %local0@Point.y : Int
+    %v24 = mul %v22, %v23 : Int
+    %v25 = add %v21, %v24 : Int
+    assign %seen, %v25
+    %v27 = load %i : Int
+    %v30 = add %v27, 1 : Int
+    assign %i, %v30
+    jmp b1
+}
+
+fn fromCall(%count: Int) -> Int {
+  b0:
+    %v29 = alloc : Point
+    init %local0@Point.x, 3
+    init %local0@Point.y, 4
+    %seen = alloc : Int
+    init %seen, 0
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v9 = load %i : Int
+    %v10 = cmp_lt %v9, %count : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v27 = load %seen : Int
+    ret %v27
+
+  b3:
+    %v13 = borrow_mut %seen : &mut Int
+    %v34 = load [%v13] : Int
+    %v36 = add %v34, 1 : Int
+    assign [%v13], %v36
+    %v15 = load %seen : Int
+    %v16 = load %local0@Point.x : Int
+    %v17 = load %local0@Point.y : Int
+    %v18 = mul %v16, %v17 : Int
+    %v19 = add %v15, %v18 : Int
+    assign %seen, %v19
+    %v21 = load %i : Int
+    %v24 = add %v21, 1 : Int
+    assign %i, %v24
+    jmp b1
+}
+
+fn escaping(%count: Int) -> Int {
+  b0:
+    %r = alloc : Point
+    init %r@Point.x, 3
+    init %r@Point.y, 4
+    %i = alloc : Int
+    init %i, 0
+    %total = alloc : Int
+    init %total, 0
+    jmp b1
+
+  b1:
+    %v11 = load %i : Int
+    %v12 = cmp_lt %v11, %count : Bool
+    je %v12, b3, b2
+
+  b2:
+    %v31 = load %total : Int
+    ret %v31
+
+  b3:
+    %v15 = borrow_mut %r : &mut Point
+    %v38 = load [%v15] : Point
+    %v39 = load [%v15]@Point.x : Int
+    %v41 = add %v39, 1 : Int
+    assign [%v15]@Point.x, %v41
+    %v17 = load %total : Int
+    %v19 = load %r@Point.x : Int
+    %v21 = load %r@Point.y : Int
+    %v22 = mul %v19, %v21 : Int
+    %v23 = add %v17, %v22 : Int
+    assign %total, %v23
+    %v25 = load %i : Int
+    %v28 = add %v25, 1 : Int
+    assign %i, %v28
+    jmp b1
+}
+
+fn never() -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 7
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : Int
+    %v11 = cmp_gt %v8, 0 : Bool
+    je %v11, b3, b2
+
+  b2:
+    %v25 = load %total : Int
+    ret %v25
+
+  b3:
+    %v13 = load %total : Int
+    %v17 = add %v13, 12 : Int
+    assign %total, %v17
+    %v19 = load %i : Int
+    %v22 = sub %v19, 1 : Int
+    assign %i, %v22
+    jmp b1
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call straight, 3 : Int
+    %v3 = call conditional, 4 : Int
+    %v4 = add %v1, %v3 : Int
+    %v7 = call nested, 2, 3 : Int
+    %v8 = add %v4, %v7 : Int
+    %v10 = call written, 3 : Int
+    %v11 = add %v8, %v10 : Int
+    %v14 = call withCall, 3, 2 : Int
+    %v15 = add %v11, %v14 : Int
+    %v17 = call fromCall, 2 : Int
+    %v18 = add %v15, %v17 : Int
+    %v20 = call escaping, 2 : Int
+    %v21 = add %v18, %v20 : Int
+    %v22 = call never : Int
+    %v23 = add %v21, %v22 : Int
+    ret %v23
+}

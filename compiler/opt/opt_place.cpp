@@ -65,6 +65,10 @@ struct Forwarder {
     OptContext& opt;
     Array<Known> known;
 
+    // Per local, whether a callee could reach its storage - see `computeContainment`. Indexed by
+    // local, and empty until one function has been walked.
+    Array<U8> contained;
+
     /*
      * Whether two projection paths may reach the same storage.
      *
@@ -173,6 +177,15 @@ struct Forwarder {
     }
 
     void forget() { known.clear(); }
+
+    // Everything an instruction this pass cannot see through may have written. Not everything: a
+    // local whose address was never handed out is storage no callee has a way to name, and keeping
+    // it is what lets a record built out of parameters survive the call in front of the read of it.
+    void forgetExposed() {
+        for(Size i = known.size(); i-- > 0;) {
+            if(!staysInFrame(opt, contained, known[i].place)) known.remove(i);
+        }
+    }
 
     void forgetAliasing(Place& place) {
         for(Size i = known.size(); i-- > 0;) {
@@ -329,8 +342,23 @@ struct Forwarder {
                     break;
                 }
                 default:
-                    if(clobbers(*instruction)) forget();
-                    else markRead(*instruction);
+                    if(clobbers(*instruction)) {
+                        forgetExposed();
+
+                        /*
+                         * And the places the instruction names itself, which `forgetExposed` is
+                         * exactly the wrong rule for: a `Move` out of a contained local, or a
+                         * `Swap` of two of them, writes storage a callee could not have reached and
+                         * this pass still has to forget. Conservative on a read - a place slot here
+                         * is not known to be written - and it costs nothing, since an instruction
+                         * that got this far is one the pass declined to model anyway.
+                         */
+                        eachPlace(*instruction, [&](const Place& place) {
+                            forgetAliasing(const_cast<Place&>(place));
+                        });
+                    } else {
+                        markRead(*instruction);
+                    }
                     break;
             }
         }
@@ -341,6 +369,7 @@ struct Forwarder {
 
 void forwardPlaces(OptContext& opt) {
     Forwarder forwarder { opt };
+    computeContainment(opt, forwarder.contained);
 
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         forwarder.run(*opt.local[blockPointer]);

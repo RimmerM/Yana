@@ -520,6 +520,71 @@ static void declareNewtype(Module& module, ast::Decl& decl) {
  * of a header. `@layout(js)` is the same: a pinned record's field of an unpinned record type gets a
  * real property, but what sits in that property may well be a `number`.
  */
+/*
+ * `@inline` and `@noinline`, read off a declaration onto the function it declares.
+ *
+ * The two are deliberately not one attribute with a direction, because they are not the same kind of
+ * statement. `@noinline` is a *directive* the compiler can always carry out - declining to inline is
+ * always possible - so compiler/opt honours it with no exception and no diagnostic. `@inline` is a
+ * *hint*: it raises the budget the callee is weighed against, and a callee compiler/opt declines
+ * structurally is still declined. Design.md documents that asymmetry, and the reason it is written
+ * down rather than left to be discovered is that the alternative reading - "@inline means it will be
+ * inlined" - is one the pass cannot honour today for a callee with control flow in it.
+ *
+ * `@inline(always)` is the spelling that *would* be the directive, and it is reported rather than
+ * accepted: the pass that could keep that promise is the one that grafts a callee's blocks into its
+ * caller, and until it exists, accepting the word `always` would be the attribute lying. Reserving
+ * it here is what keeps the bare form free to mean "hint" for good.
+ *
+ * Both on one declaration is a contradiction rather than a precedence question, so it is reported
+ * and neither applies.
+ */
+static void readInlineAttribute(Module& module, const ast::Decl& decl, Function& function) {
+    auto attributes = decl.attributes;
+    if(attributes.isEmpty()) return;
+
+    auto& context = module.context;
+    auto inlineName = context.addUnqualifiedName("inline", 6);
+    auto noInlineName = context.addUnqualifiedName("noinline", 8);
+    auto always = context.addUnqualifiedName("always", 6);
+
+    for(auto attribute: attributes.contents(module.parse)) {
+        if(attribute.name == noInlineName) {
+            if(attribute.args.isNotEmpty()) {
+                context.diagnostics.error("`@noinline` takes no arguments"_v, attribute.source);
+                continue;
+            }
+
+            function.noInline = true;
+            continue;
+        }
+
+        if(attribute.name != inlineName) continue;
+
+        if(attribute.args.isEmpty()) {
+            function.inlineHint = true;
+            continue;
+        }
+
+        auto argument = attribute.args.get(module.parse, 0).value;
+
+        if(attribute.args.size() == 1 && argument.kind == ast::Expr::Var && argument.var == always) {
+            context.diagnostics.error("`@inline(always)` is not implemented yet - `@inline` on its own asks the optimizer to try harder, and is a hint rather than a guarantee"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        context.diagnostics.error("`@inline` takes no arguments"_v, attribute.source);
+    }
+
+    if(function.inlineHint && function.noInline) {
+        context.diagnostics.error("`@inline` and `@noinline` say opposite things about the same function"_v,
+                                  decl.source);
+        function.inlineHint = false;
+        function.noInline = false;
+    }
+}
+
 static TypeLayout readLayoutAttribute(Module& module, const ast::Decl& decl) {
     auto attributes = decl.attributes;
     if(attributes.isEmpty()) return TypeLayout::Auto;
@@ -918,6 +983,7 @@ static ModulePtr<Function> resolveClassDefault(Module& module, TypeClass& typeCl
     function->gen = env - global;
     function->returnType = signature.returnType;
     function->ast = pointer;
+    readInlineAttribute(module, member, *function);
 
     for(auto argPointer: signature.args.contents(*module.arena)) {
         auto arg = (*module.arena)[argPointer];
@@ -1455,6 +1521,7 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
         }
 
         function->ast = memberPointer;
+        readInlineAttribute(module, member, *function);
         instance->functions.set(*module.arena, index, function - *module.arena);
     }
 
@@ -1671,6 +1738,7 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
 
         auto function = resolveSignature(module, decl, (*module.types)[env], decl.fun.name, false);
         function->ast = pointer;
+        readInlineAttribute(module, decl, *function);
 
         auto& context = *(*module.types)[env];
 
@@ -1886,7 +1954,7 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
     }
 }
 
-static void markProgramReachable(Program& program) {
+void markProgramReachable(Program& program) {
     ModuleBase local = *program.arena;
     Array<ModulePtr<Function>> pending;
 

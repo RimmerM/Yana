@@ -1,0 +1,141 @@
+{-
+   Loop-invariant code motion, and the four cases where it must decline.
+
+   Every function here returns a number `main` folds together, so the assertion that matters is
+   `.run.expect` on both targets plus the optimizer-equivalence check the driver runs beside it: a
+   hoist that moved something it should not have changes an answer rather than only the IR text.
+   `.opt.expect` is what says *where* the instructions ended up.
+
+   The records come out of `origin()` rather than out of a parameter on purpose. A record *parameter*
+   is flattened into one parameter per field by opt_arg.cpp long before this pass runs, so a fixture
+   written against one would have no field reads left to hoist and would assert nothing.
+-}
+
+data Point {x: Int, y: Int}
+
+fn origin() -> Point = Point {x: 3, y: 4}
+
+fn bump(&n: Int) -> {}:
+    n = n + 1
+
+fn widen(&p: Point) -> {}:
+    p.x = p.x + 1
+
+-- The plain case: `q.x * q.y` is read from a local the body only ever reads, so both loads and the
+-- multiply belong in front of the loop. `i` and `total` are the two things that may not move.
+fn straight(count: Int) -> Int:
+    let q = origin()
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < count:
+        total = total + q.x * q.y
+        i = i + 1
+
+    return total
+
+-- The same read inside a branch that does not run every iteration. Hoisting past a conditional is
+-- the interesting half: the preheader dominates the whole loop, so the value is available there
+-- whether or not the arm is ever taken.
+fn conditional(count: Int) -> Int:
+    let q = origin()
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < count:
+        if i > 1:
+            total = total + q.x * q.y
+        i = i + 1
+
+    return total
+
+-- Two loops, one inside the other. `q.x + q.y` is invariant in both, so it has to leave the inner
+-- loop and then leave the outer one - which is what the innermost-first ordering buys, since the
+-- block it lands in the first time is inside the loop it leaves the second time.
+fn nested(rows: Int, columns: Int) -> Int:
+    let q = origin()
+    let &total = 0 :: Int
+    let &row = 0 :: Int
+
+    while row < rows:
+        let &column = 0 :: Int
+        while column < columns:
+            total = total + (q.x + q.y)
+            column = column + 1
+        row = row + 1
+
+    return total
+
+-- A read the loop writes. `acc.x` is assigned in the body, so neither the load nor the arithmetic
+-- over it may leave - and `acc.y`, which shares the record and not the field, still may.
+fn written(count: Int) -> Int:
+    let &acc = origin()
+    let &i = 0 :: Int
+
+    while i < count:
+        acc.x = acc.x + acc.y
+        i = i + 1
+
+    return acc.x
+
+-- A loop containing a call, over a record this frame built. The callee has no way to name `q`,
+-- whose address was never handed out, so the reads of it leave the loop anyway; `seen` is borrowed
+-- into the call and stays where it is.
+fn withCall(seed: Int, count: Int) -> Int:
+    let q = Point {x: seed, y: seed + 1}
+    let &seen = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < count:
+        bump(seen)
+        seen = seen + q.x * q.y
+        i = i + 1
+
+    return seen
+
+-- The same loop over a record that arrived as a call's *result*. The storage is this frame's and no
+-- callee can reach it either, but the local's allocation is the call rather than an `alloc` - so
+-- containment declines it and the reads stay in the body. A missed hoist rather than a wrong one,
+-- and recorded here so that closing it shows up as a change to this file.
+fn fromCall(count: Int) -> Int:
+    let q = origin()
+    let &seen = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < count:
+        bump(seen)
+        seen = seen + q.x * q.y
+        i = i + 1
+
+    return seen
+
+-- The same loop over a record the call *can* reach. `r` is borrowed mutably by `widen`, so nothing
+-- read out of it is invariant and every load stays in the body.
+fn escaping(count: Int) -> Int:
+    let &r = origin()
+    let &i = 0 :: Int
+    let &total = 0 :: Int
+
+    while i < count:
+        widen(r)
+        total = total + r.x * r.y
+        i = i + 1
+
+    return total
+
+-- The loop that runs zero times. Hoisting a read out of it makes that read happen where it did not
+-- before, which is why only storage the checker proved exists may be hoisted at all.
+fn never() -> Int:
+    let q = origin()
+    let &total = 7 :: Int
+    let &i = 0 :: Int
+
+    while i > 0:
+        total = total + q.x * q.y
+        i = i - 1
+
+    return total
+
+fn main() -> Int =
+    straight(3) + conditional(4) + nested(2, 3) + written(3) + withCall(3, 2) + fromCall(2) +
+    escaping(2) + never()

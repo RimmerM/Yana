@@ -45,6 +45,7 @@ U64 NicheEncoding::patternOf(U16 constructor) const {
 
 ReprTarget nativeReprTarget() {
     ReprTarget target;
+    target.family = TargetFamily::Native;
     target.pointerSize = 8;
     target.pointerAlign = 8;
     target.integerBits = 64;
@@ -71,6 +72,7 @@ ReprTarget nativeReprTarget() {
  */
 ReprTarget jsReprTarget() {
     ReprTarget target;
+    target.family = TargetFamily::Managed;
     target.pointerSize = 8;
     target.pointerAlign = 8;
     target.integerBits = 53;

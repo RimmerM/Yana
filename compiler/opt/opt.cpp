@@ -54,6 +54,9 @@ void eachFunctionValue(OptContext& opt, F&& f) {
  *
  * Two passes, because a list may only be cleared before anything is pushed into it.
  */
+
+}
+
 void rebuildUses(OptContext& opt) {
     auto forget = [&](ModulePtr<Value> value) {
         if(value) opt.local[value]->uses.clear();
@@ -79,6 +82,8 @@ void rebuildUses(OptContext& opt) {
     });
 }
 
+namespace {
+
 void runRounds(OptContext& opt) {
     for(Size round = 0; round < kMaxRounds; round++) {
         opt.changed = false;
@@ -86,6 +91,13 @@ void runRounds(OptContext& opt) {
         foldFunction(opt);
         forwardPlaces(opt);
         scalarizeLocals(opt);
+
+        // After forwarding rather than before it: a read the block-local pass already answered is
+        // not a candidate, and one it could not answer is exactly what a loop keeps re-doing. Ahead
+        // of CSE for the same reason in the other direction - two hoisted copies of one computation
+        // land in the preheader together, where the dominator walk unifies them.
+        hoistLoopValues(opt);
+
         eliminateCommonValues(opt);
         eliminateDeadValues(opt);
 
@@ -354,6 +366,13 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
     // a record rebuilt in the callee, taken apart at the caller - is what the passes below remove.
     flattenArguments(opt);
 
+    // Also program-wide, also before any function is optimized, and after flattening rather than
+    // before it: a signature this stage is going to rewrite should be rewritten once, in the callee,
+    // rather than once per copy of the callee. What inlining leaves behind is again work for the
+    // passes below - a constructor's `alloc` in its caller's own block, which opt_scalar.cpp
+    // removes, and arguments that are now constants, which opt_fold.cpp propagates.
+    inlineCalls(opt);
+
     for(auto module: program.modules) {
         opt.module = module;
 
@@ -369,4 +388,18 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
             optimizeFunction(opt, *function);
         }
     }
+
+    /*
+     * And which functions the program can still reach, which this stage is entitled to have changed.
+     *
+     * `resolveProgram` answered it once and inlining is what makes the answer stale: the `Call` that
+     * named a callee is gone, and where it was the only one the body has no reason to be emitted.
+     * Without this the inliner is pure growth - the callee copied into its caller *and* the callee -
+     * which is what the measurement said before this line existed.
+     *
+     * Dead value elimination is the other producer: removing an unread `Symbol` removes the only
+     * reference to a function reached by address. So this is at the end of the stage rather than at
+     * the end of the pass that first needed it.
+     */
+    markProgramReachable(program);
 }

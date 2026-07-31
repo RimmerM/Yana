@@ -1,0 +1,89 @@
+"use strict";
+// ResolveTest
+function scaled(v, by) {
+  return (Math.imul(v, by) | 0) + 1 | 0;
+}
+
+function makePoint(x, y) {
+  return { x: x, y: y };
+}
+
+function twice(n) {
+  n.$v = Math.imul(n.$v, 2) | 0;
+  return;
+}
+
+function onlyCaller(a, b, c) {
+  return ((((Math.imul(a, c) | 0) + (Math.imul(b, b) | 0) | 0) + a | 0) + b | 0) + c | 0;
+}
+
+function clamped(v) {
+  if (v > 100) {
+    return 100;
+  } else {
+    return v;
+  }
+}
+
+function countDown(n) {
+  if (n <= 0) {
+    return 0;
+  } else {
+    return n + countDown(n - 1 | 0) | 0;
+  }
+}
+
+function constants() {
+  return 44;
+}
+
+function unknowns(a, b) {
+  var v6 = Math.imul(a, b) | 0;
+  return (v6 + 1 | 0) + (v6 + 1 | 0) | 0;
+}
+
+function constructed(a) {
+  return a + (a + 1 | 0) | 0;
+}
+
+function mutated(seed) {
+  var n = { $v: seed };
+  var v4 = n;
+  v4.$v = Math.imul(v4.$v, 2) | 0;
+  var v7 = n;
+  v7.$v = Math.imul(v7.$v, 2) | 0;
+  return n.$v;
+}
+
+function measured(v) {
+  return v + 1 | 0;
+}
+
+function worthIt(a, b) {
+  return ((Math.imul((((Math.imul(a + b | 0, 2) | 0) + (Math.imul(a - b | 0, 3) | 0) | 0) + (Math.imul(a, 5) | 0) | 0) + (Math.imul(b, 7) | 0) | 0, 2) | 0) + a | 0) - b | 0;
+}
+
+function branching(a) {
+  return clamped(a) + clamped(Math.imul(a, 3) | 0) | 0;
+}
+
+function pinned() {
+  return measured(1) + measured(2) | 0;
+}
+
+function requested(a) {
+  return (((Math.imul((((Math.imul(a + 2 | 0, 2) | 0) + (Math.imul(a - 2 | 0, 3) | 0) | 0) + (Math.imul(a, 5) | 0) | 0) + 14 | 0, 2) | 0) + a | 0) - 2 | 0) + (((Math.imul((((Math.imul(a + 3 | 0, 2) | 0) + (Math.imul(3 - a | 0, 3) | 0) | 0) + 15 | 0) + (Math.imul(a, 7) | 0) | 0, 2) | 0) + 3 | 0) - a | 0) | 0;
+}
+
+function recursive() {
+  return countDown(4);
+}
+
+function main() {
+  var n = { $v: 7 };
+  var v56 = n;
+  v56.$v = Math.imul(v56.$v, 2) | 0;
+  var v62 = n;
+  v62.$v = Math.imul(v62.$v, 2) | 0;
+  return (((((n.$v + 69 | 0) + (clamped(50) + clamped(150) | 0) | 0) + countDown(4) | 0) + 13 | 0) + (measured(1) + measured(2) | 0) | 0) + requested(4) | 0;
+}

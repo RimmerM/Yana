@@ -755,6 +755,31 @@ static bool runTest(const String& path, StringView source, bool generate) {
         pass = runLlvmPass(path, llvmPath, context, diagnostics, *lowered, generate) && pass;
     }
 
+    /*
+     * The resolve IR *after* compiler/opt has rewritten it, opt-in per fixture.
+     *
+     * `lowerProgram` calls `optimizeProgram`, which rewrites `*module` in place, so the same
+     * printer that produced `.resolve.expect` above now prints the optimized form - the two files
+     * side by side are the pass's before and after. Generated after lowering for exactly that
+     * reason, and native rather than JS because this is the program lowering consumed.
+     *
+     * Opt-in because most fixtures are not about the optimizer: a fixture asserting a drop
+     * placement would gain a second copy of its IR that moves whenever any pass changes, which is
+     * the churn §7.5 of Analysis-Optimization.md warns about rather than an assertion.
+     */
+    auto optPath = path + String(".opt.expect");
+    if(fileExists(optPath)) {
+        if(generate) {
+            writeText(optPath, [&](Net::Writer& writer) {
+                printProgram(writer, context, *module);
+            });
+        }
+
+        Net::Writer optWriter(16384);
+        printProgram(optWriter, context, *module);
+        pass = compareText(optPath, optWriter.getBuffered()) && pass;
+    }
+
     Maybe<I64> nativeRan;
 
     if(auto expected = expectedRun) {

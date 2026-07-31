@@ -245,6 +245,41 @@ struct Folder {
      * exists because the packing expansion produces exactly this shape: a word cleared field by
      * field is one `and` against a literal per field, and nine of them are one mask.
      */
+    /*
+     * A commutative operation with its constant on the left, put on the right.
+     *
+     * One canonical form so that three separate rules do not each need a mirror image of
+     * themselves: `reassociate` below reads `instruction.rhs` for the outer constant, the identities
+     * in `foldBinary` are written both ways round only because this did not exist, and CSE in
+     * opt_value.cpp unifies `1 + x` with `x + 1` for free once both are spelled the same.
+     *
+     * Only where the right operand is *not* also a constant, or this would swap a foldable pair back
+     * and forth forever - the driver's round cap would turn that into a slow compile rather than a
+     * hang, which is not a reason to write it.
+     *
+     * The operand set is unchanged, so no use list moves: both values still have exactly one entry
+     * for this instruction, which is what makes swapping two fields the whole of the rewrite.
+     */
+    bool commute(InstBinary& instruction) {
+        switch(instruction.kind) {
+            case Value::Add: case Value::Mul:
+            case Value::And: case Value::Or: case Value::Xor:
+                break;
+            default:
+                return false;
+        }
+
+        if(!constantValueOf(opt, instruction.lhs)) return false;
+        if(constantValueOf(opt, instruction.rhs)) return false;
+
+        auto lhs = instruction.lhs;
+        instruction.lhs = instruction.rhs;
+        instruction.rhs = lhs;
+
+        opt.changed = true;
+        return true;
+    }
+
     bool reassociate(ModulePtr<Inst> pointer, InstBinary& instruction, const IntFacts& facts) {
         switch(instruction.kind) {
             case Value::Add: case Value::Mul:
@@ -287,8 +322,75 @@ struct Folder {
         return true;
     }
 
+    /*
+     * How many bits a conversion of an integer keeps, refinements included.
+     *
+     * Deliberately not `foldableInt`, which declines a `@bits` refinement because the two targets
+     * spell its *arithmetic* width differently. A conversion asks a narrower question - which bits
+     * survive - and both targets answer that one with the type's own `bits`, since a store to a
+     * refined field masks to exactly that many on either side. `Bool` is one bit for the same
+     * reason `foldableInt` says so.
+     */
+    Maybe<U16> conversionBits(TypePtr type) {
+        if(!type) return Nothing();
+        if(type == opt.program.scalar.bool_) return Just(U16(1));
+        if(opt.global[type]->kind != Type::Int) return Nothing();
+
+        auto bits = ((IntType*)opt.global[type])->bits;
+        return bits == 0 || bits > 64 ? Nothing() : Just(bits);
+    }
+
+    /*
+     * The two conversions that are not conversions.
+     *
+     * The first is a `cast` to the type its operand already has. Types are interned, so equal
+     * pointers are the same type and there is nothing between the two readings of the value to
+     * compute - which is exactly what the packing expansion leaves behind, since it puts a `Cast`
+     * at each end of an expanded access and one end is often already the storage unit's own type.
+     *
+     * The second is a pair of conversions where the middle one is no narrower than the last. Every
+     * integer conversion here keeps the low `bits` of its operand and decides the rest from the
+     * result type alone, so where the intermediate keeps at least as many bits as the result does,
+     * the bits the result is built from are the source's own. Signedness needs no case for the same
+     * reason: it decides what is above those bits, and the outer conversion decides that either way.
+     *
+     * Nothing is required of the inner conversion's other readers. It stays where it is and the
+     * dead-value pass collects it if this was the last one.
+     */
+    bool foldCast(ModulePtr<Inst> pointer, InstUnary& instruction) {
+        auto inner = opt.local[instruction.from];
+        if(inner->kind != Value::Cast) return false;
+
+        auto middle = conversionBits(inner->type);
+        auto result = conversionBits(instruction.type);
+        if(!middle || !result || middle.unwrap() < result.unwrap()) return false;
+
+        auto source = ((InstUnary&)*inner).from;
+        if(!conversionBits(opt.local[source]->type)) return false;
+
+        dropUse(opt, instruction.from, pointer);
+        instruction.from = source;
+        opt.local[source]->uses.push(opt.program.arena, pointer);
+
+        opt.changed = true;
+        return true;
+    }
+
     ModulePtr<Value> fold(ModulePtr<Inst> pointer, Value& instruction) {
         if(instruction.kind == Value::Cmp) return foldCompare((InstCmp&)instruction);
+
+        /*
+         * Ahead of the `foldableInt` test below rather than in the switch, because neither of these
+         * is arithmetic: a conversion to a `@bits` refinement is declined there for a reason that is
+         * about what `x + 1` wraps at, and a conversion that computes nothing has no width to wrap
+         * at in the first place.
+         */
+        if(instruction.kind == Value::Cast) {
+            auto& cast = (InstUnary&)instruction;
+            if(opt.local[cast.from]->type == instruction.type) return cast.from;
+
+            foldCast(pointer, cast);
+        }
 
         auto facts = foldableInt(opt, instruction.type);
         if(!facts) return nullptr;
@@ -320,8 +422,8 @@ struct Folder {
                 if(auto folded = foldBinary(binary, facts.unwrap())) return folded;
 
                 // Only where nothing else applied, so that a foldable pair is folded rather than
-                // rearranged first. The rewrite leaves an instruction the next round may then fold.
-                reassociate(pointer, binary, facts.unwrap());
+                // rearranged first. Each rewrite leaves an instruction the next round may fold.
+                if(!commute(binary)) reassociate(pointer, binary, facts.unwrap());
                 return nullptr;
             }
             default:

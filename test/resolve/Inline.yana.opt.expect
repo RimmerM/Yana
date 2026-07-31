@@ -1,0 +1,207 @@
+fn scaled(%v: Int, %by: Int) -> Int {
+  b0:
+    %v2 = mul %v, %by : Int
+    %v5 = add %v2, 1 : Int
+    ret %v5
+}
+
+fn makePoint(%x: Int, %y: Int) -> Point {
+  b0:
+    %v2 = alloc : Point
+    init %local0@Point.x, %x
+    init %local0@Point.y, %y
+    ret %v2
+}
+
+fn twice(%n: Int) -> () {
+  b0:
+    %v1 = load %n : Int
+    %v4 = mul %v1, 2 : Int
+    assign %n, %v4
+    ret
+}
+
+fn onlyCaller(%a: Int, %b: Int, %c: Int) -> Int {
+  b0:
+    %v7 = mul %a, %c : Int
+    %v10 = mul %b, %b : Int
+    %v11 = add %v7, %v10 : Int
+    %v12 = add %v11, %a : Int
+    %v13 = add %v12, %b : Int
+    %v14 = add %v13, %c : Int
+    ret %v14
+}
+
+fn clamped(%v: Int) -> Int {
+  b0:
+    %v3 = cmp_gt %v, 100 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret 100
+
+  b2:
+    jmp b3
+
+  b3:
+    ret %v
+}
+
+fn countDown(%n: Int) -> Int {
+  b0:
+    %v3 = cmp_le %n, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret 0
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = sub %n, 1 : Int
+    %v11 = call countDown, %v10 : Int
+    %v12 = add %n, %v11 : Int
+    ret %v12
+}
+
+fn constants() -> Int {
+  b0:
+    ret 44
+}
+
+fn unknowns(%a: Int, %b: Int) -> Int {
+  b0:
+    %v6 = mul %a, %b : Int
+    %v8 = add %v6, 1 : Int
+    %v11 = add %v6, 1 : Int
+    %v4 = add %v8, %v11 : Int
+    ret %v4
+}
+
+fn constructed(%a: Int) -> Int {
+  b0:
+    %v3 = add %a, 1 : Int
+    %v7 = add %a, %v3 : Int
+    ret %v7
+}
+
+fn mutated(%seed: Int) -> Int {
+  b0:
+    %n = alloc : Int
+    init %n, %seed
+    %v4 = borrow_mut %n : &mut Int
+    %v11 = load [%v4] : Int
+    %v13 = mul %v11, 2 : Int
+    assign [%v4], %v13
+    %v7 = borrow_mut %n : &mut Int
+    %v15 = load [%v7] : Int
+    %v17 = mul %v15, 2 : Int
+    assign [%v7], %v17
+    %v9 = load %n : Int
+    ret %v9
+}
+
+fn measured(%v: Int) -> Int {
+  b0:
+    %v3 = add %v, 1 : Int
+    ret %v3
+}
+
+fn worthIt(%a: Int, %b: Int) -> Int {
+  b0:
+    %v2 = add %a, %b : Int
+    %v5 = mul %v2, 2 : Int
+    %v6 = sub %a, %b : Int
+    %v9 = mul %v6, 3 : Int
+    %v10 = add %v5, %v9 : Int
+    %v13 = mul %a, 5 : Int
+    %v14 = add %v10, %v13 : Int
+    %v17 = mul %b, 7 : Int
+    %v18 = add %v14, %v17 : Int
+    %v21 = mul %v18, 2 : Int
+    %v22 = add %v21, %a : Int
+    %v23 = sub %v22, %b : Int
+    ret %v23
+}
+
+fn branching(%a: Int) -> Int {
+  b0:
+    %v1 = call clamped, %a : Int
+    %v4 = mul %a, 3 : Int
+    %v5 = call clamped, %v4 : Int
+    %v6 = add %v1, %v5 : Int
+    ret %v6
+}
+
+fn pinned() -> Int {
+  b0:
+    %v1 = call measured, 1 : Int
+    %v3 = call measured, 2 : Int
+    %v4 = add %v1, %v3 : Int
+    ret %v4
+}
+
+fn requested(%a: Int) -> Int {
+  b0:
+    %v7 = add %a, 2 : Int
+    %v9 = mul %v7, 2 : Int
+    %v10 = sub %a, 2 : Int
+    %v12 = mul %v10, 3 : Int
+    %v13 = add %v9, %v12 : Int
+    %v15 = mul %a, 5 : Int
+    %v16 = add %v13, %v15 : Int
+    %v19 = add %v16, 14 : Int
+    %v21 = mul %v19, 2 : Int
+    %v22 = add %v21, %a : Int
+    %v23 = sub %v22, 2 : Int
+    %v24 = add %a, 3 : Int
+    %v26 = mul %v24, 2 : Int
+    %v27 = sub 3, %a : Int
+    %v29 = mul %v27, 3 : Int
+    %v30 = add %v26, %v29 : Int
+    %v33 = add %v30, 15 : Int
+    %v35 = mul %a, 7 : Int
+    %v36 = add %v33, %v35 : Int
+    %v38 = mul %v36, 2 : Int
+    %v39 = add %v38, 3 : Int
+    %v40 = sub %v39, %a : Int
+    %v5 = add %v23, %v40 : Int
+    ret %v5
+}
+
+fn recursive() -> Int {
+  b0:
+    %v1 = call countDown, 4 : Int
+    ret %v1
+}
+
+fn main() -> Int {
+  b0:
+    %n = alloc : Int
+    init %n, 7
+    %v56 = borrow_mut %n : &mut Int
+    %v57 = load [%v56] : Int
+    %v59 = mul %v57, 2 : Int
+    assign [%v56], %v59
+    %v62 = borrow_mut %n : &mut Int
+    %v63 = load [%v62] : Int
+    %v65 = mul %v63, 2 : Int
+    assign [%v62], %v65
+    %v67 = load %n : Int
+    %v10 = add %v67, 69 : Int
+    %v68 = call clamped, 50 : Int
+    %v71 = call clamped, 150 : Int
+    %v72 = add %v68, %v71 : Int
+    %v13 = add %v10, %v72 : Int
+    %v73 = call countDown, 4 : Int
+    %v15 = add %v13, %v73 : Int
+    %v20 = add %v15, 13 : Int
+    %v91 = call measured, 1 : Int
+    %v93 = call measured, 2 : Int
+    %v95 = add %v91, %v93 : Int
+    %v22 = add %v20, %v95 : Int
+    %v24 = call requested, 4 : Int
+    %v25 = add %v22, %v24 : Int
+    ret %v25
+}

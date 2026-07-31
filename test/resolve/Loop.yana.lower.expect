@@ -1,0 +1,312 @@
+
+origin<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 3, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, 4, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+withCall<complex>(%seed: Int, %count: Int): Int {
+  b_0 {
+    %q = alloca 8, 4: Ptr
+    %v_1 = add %seed, 1: Int
+    store %q, %seed, 4
+    %v_2 = add %q, 4: Ptr
+    store %v_2, %v_1, 4
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = phi [b_0, 0], [b_5, %v_6]: Int
+    %v_7 = phi [b_0, 0], [b_5, %v_8]: Int
+    %v_9 = cmp_ilt %v_7, %count: Int
+    je %v_9, b_5, b_10
+  }
+
+  b_10 {
+    ret %v_4
+  }
+
+  b_5 {
+    %v_11 = add %v_4, 1: Int
+    %v_12 = loads %q, 4: Int
+    %v_13 = add %q, 4: Ptr
+    %v_14 = loads %v_13, 4: Int
+    %v_15 = imul %v_12, %v_14: Int
+    %v_6 = add %v_11, %v_15: Int
+    %v_8 = add %v_7, 1: Int
+    jmp b_3
+  }
+}
+
+straight<complex>(%count: Int): Int {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = cmp_ilt %v_5, %count: Int
+    je %v_7, b_3, b_8
+  }
+
+  b_8 {
+    ret %v_2
+  }
+
+  b_3 {
+    %v_4 = add %v_2, 12: Int
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
+  }
+}
+
+nested<complex>(%rows: Int, %columns: Int): Int {
+  b_0 {
+    %total = alloca 4, 4: Ptr
+    store %total, 0, 4
+    %row = alloca 4, 4: Ptr
+    store %row, 0, 4
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = loads %row, 4: Int
+    %v_3 = cmp_ilt %v_2, %rows: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = loads %total, 4: Int
+    ret %v_6
+  }
+
+  b_4 {
+    jmp b_7
+  }
+
+  b_7 {
+    %v_8 = phi [b_4, 0], [b_9, %v_10]: Int
+    %v_11 = cmp_ilt %v_8, %columns: Int
+    je %v_11, b_9, b_12
+  }
+
+  b_12 {
+    %v_13 = loads %row, 4: Int
+    %v_14 = add %v_13, 1: Int
+    store %row, %v_14, 4
+    jmp b_1
+  }
+
+  b_9 {
+    %v_15 = loads %total, 4: Int
+    %v_16 = add %v_15, 7: Int
+    store %total, %v_16, 4
+    %v_10 = add %v_8, 1: Int
+    jmp b_7
+  }
+}
+
+written<complex>(%count: Int): Int {
+  b_0 {
+    %acc = alloca 8, 4: Ptr
+    store %acc, 3, 4
+    %v_1 = add %acc, 4: Ptr
+    %v_2 = imm 4: Int
+    store %v_1, %v_2, 4
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = phi [b_0, 0], [b_5, %v_6]: Int
+    %v_7 = cmp_ilt %v_4, %count: Int
+    je %v_7, b_5, b_8
+  }
+
+  b_8 {
+    %v_9 = loads %acc, 4: Int
+    ret %v_9
+  }
+
+  b_5 {
+    %v_10 = loads %acc, 4: Int
+    %v_11 = add %v_10, %v_2: Int
+    store %acc, %v_11, 4
+    %v_6 = add %v_4, 1: Int
+    jmp b_3
+  }
+}
+
+never<complex>(): Int {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 7], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = cmp_igt %v_5, 0: Int
+    je %v_7, b_3, b_8
+  }
+
+  b_8 {
+    ret %v_2
+  }
+
+  b_3 {
+    %v_4 = add %v_2, 12: Int
+    %v_6 = sub %v_5, 1: Int
+    jmp b_1
+  }
+}
+
+widen<complex>(%p: Ptr) {
+  b_0 {
+    %v_1 = loads %p, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store %p, %v_2, 4
+    ret 
+  }
+}
+
+bump<complex>(%n: Ptr) {
+  b_0 {
+    %v_1 = loads %n, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store %n, %v_2, 4
+    ret 
+  }
+}
+
+escaping<complex>(%count: Int): Int {
+  b_0 {
+    %r = alloca 8, 4: Ptr
+    store %r, 3, 4
+    %v_1 = add %r, 4: Ptr
+    store %v_1, 4, 4
+    jmp b_2
+  }
+
+  b_2 {
+    %v_3 = phi [b_0, 0], [b_4, %v_5]: Int
+    %v_6 = phi [b_0, 0], [b_4, %v_7]: Int
+    %v_8 = cmp_ilt %v_3, %count: Int
+    je %v_8, b_4, b_9
+  }
+
+  b_9 {
+    ret %v_6
+  }
+
+  b_4 {
+    %v_10 = loads %r, 4: Int
+    %v_11 = add %v_10, 1: Int
+    store %r, %v_11, 4
+    %v_12 = loads %r, 4: Int
+    %v_13 = add %r, 4: Ptr
+    %v_14 = loads %v_13, 4: Int
+    %v_15 = imul %v_12, %v_14: Int
+    %v_7 = add %v_6, %v_15: Int
+    %v_5 = add %v_3, 1: Int
+    jmp b_2
+  }
+}
+
+conditional<complex>(%count: Int): Int {
+  b_0 {
+    %total = alloca 4, 4: Ptr
+    store %total, 0, 4
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = cmp_ilt %v_2, %count: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    %v_8 = loads %total, 4: Int
+    ret %v_8
+  }
+
+  b_6 {
+    %v_9 = cmp_igt %v_2, 1: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_10 {
+    %v_12 = loads %total, 4: Int
+    %v_13 = add %v_12, 12: Int
+    store %total, %v_13, 4
+    jmp b_3
+  }
+
+  b_11 {
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = add %v_2, 1: Int
+    jmp b_1
+  }
+}
+
+fromCall<complex>(%count: Int): Int {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 3, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 4, 4
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = phi [b_0, 0], [b_5, %v_6]: Int
+    %v_7 = phi [b_0, 0], [b_5, %v_8]: Int
+    %v_9 = cmp_ilt %v_7, %count: Int
+    je %v_9, b_5, b_10
+  }
+
+  b_10 {
+    ret %v_4
+  }
+
+  b_5 {
+    %v_11 = add %v_4, 1: Int
+    %v_12 = loads %v_1, 4: Int
+    %v_13 = add %v_1, 4: Ptr
+    %v_14 = loads %v_13, 4: Int
+    %v_15 = imul %v_12, %v_14: Int
+    %v_6 = add %v_11, %v_15: Int
+    %v_8 = add %v_7, 1: Int
+    jmp b_3
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex straight, 3: Int
+    %v_2 = call_complex conditional, 4: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = call_complex nested, 2, 3: Int
+    %v_5 = add %v_3, %v_4: Int
+    %v_6 = call_complex written, 3: Int
+    %v_7 = add %v_5, %v_6: Int
+    %v_8 = call_complex withCall, 3, 2: Int
+    %v_9 = add %v_7, %v_8: Int
+    %v_10 = call_complex fromCall, 2: Int
+    %v_11 = add %v_9, %v_10: Int
+    %v_12 = call_complex escaping, 2: Int
+    %v_13 = add %v_11, %v_12: Int
+    %v_14 = call_complex never: Int
+    %v_15 = add %v_13, %v_14: Int
+    ret %v_15
+  }
+}
+

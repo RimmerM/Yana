@@ -1,0 +1,218 @@
+
+constants<complex>(): Int {
+  b_0 {
+    ret 44
+  }
+}
+
+countDown<complex>(%n: Int): Int {
+  b_0 {
+    %v_1 = cmp_ile %n, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    ret 0
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = sub %n, 1: Int
+    %v_6 = call_complex countDown, %v_5: Int
+    %v_7 = add %n, %v_6: Int
+    ret %v_7
+  }
+}
+
+measured<complex>(%v: Int): Int {
+  b_0 {
+    %v_1 = add %v, 1: Int
+    ret %v_1
+  }
+}
+
+mutated<complex>(%seed: Int): Int {
+  b_0 {
+    %v_1 = imul %seed, 2: Int
+    %v_2 = imul %v_1, 2: Int
+    ret %v_2
+  }
+}
+
+worthIt<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %v_1 = add %a, %b: Int
+    %v_2 = imul %v_1, 2: Int
+    %v_3 = sub %a, %b: Int
+    %v_4 = imul %v_3, 3: Int
+    %v_5 = add %v_2, %v_4: Int
+    %v_6 = imul %a, 5: Int
+    %v_7 = add %v_5, %v_6: Int
+    %v_8 = imul %b, 7: Int
+    %v_9 = add %v_7, %v_8: Int
+    %v_10 = imul %v_9, 2: Int
+    %v_11 = add %v_10, %a: Int
+    %v_12 = sub %v_11, %b: Int
+    ret %v_12
+  }
+}
+
+onlyCaller<complex>(%a: Int, %b: Int, %c: Int): Int {
+  b_0 {
+    %v_1 = imul %a, %c: Int
+    %v_2 = imul %b, %b: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = add %v_3, %a: Int
+    %v_5 = add %v_4, %b: Int
+    %v_6 = add %v_5, %c: Int
+    ret %v_6
+  }
+}
+
+constructed<complex>(%a: Int): Int {
+  b_0 {
+    %v_1 = add %a, 1: Int
+    %v_2 = add %a, %v_1: Int
+    ret %v_2
+  }
+}
+
+recursive<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex countDown, 4: Int
+    ret %v_1
+  }
+}
+
+pinned<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex measured, 1: Int
+    %v_2 = call_complex measured, 2: Int
+    %v_3 = add %v_1, %v_2: Int
+    ret %v_3
+  }
+}
+
+twice<complex>(%n: Ptr) {
+  b_0 {
+    %v_1 = loads %n, 4: Int
+    %v_2 = imul %v_1, 2: Int
+    store %n, %v_2, 4
+    ret 
+  }
+}
+
+unknowns<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %v_1 = imul %a, %b: Int
+    %v_2 = add %v_1, 1: Int
+    %v_3 = add %v_1, 1: Int
+    %v_4 = add %v_2, %v_3: Int
+    ret %v_4
+  }
+}
+
+scaled<complex>(%v: Int, %by: Int): Int {
+  b_0 {
+    %v_1 = imul %v, %by: Int
+    %v_2 = add %v_1, 1: Int
+    ret %v_2
+  }
+}
+
+requested<complex>(%a: Int): Int {
+  b_0 {
+    %v_1 = imm 2: Int
+    %v_2 = add %a, %v_1: Int
+    %v_3 = imul %v_2, 2: Int
+    %v_4 = sub %a, %v_1: Int
+    %v_5 = imul %v_4, 3: Int
+    %v_6 = add %v_3, %v_5: Int
+    %v_7 = imul %a, 5: Int
+    %v_8 = add %v_6, %v_7: Int
+    %v_9 = add %v_8, 14: Int
+    %v_10 = imul %v_9, 2: Int
+    %v_11 = add %v_10, %a: Int
+    %v_12 = sub %v_11, %v_1: Int
+    %v_13 = imm 3: Int
+    %v_14 = add %a, %v_13: Int
+    %v_15 = imul %v_14, 2: Int
+    %v_16 = sub %v_13, %a: Int
+    %v_17 = imul %v_16, 3: Int
+    %v_18 = add %v_15, %v_17: Int
+    %v_19 = add %v_18, 15: Int
+    %v_20 = imul %a, 7: Int
+    %v_21 = add %v_19, %v_20: Int
+    %v_22 = imul %v_21, 2: Int
+    %v_23 = add %v_22, %v_13: Int
+    %v_24 = sub %v_23, %a: Int
+    %v_25 = add %v_12, %v_24: Int
+    ret %v_25
+  }
+}
+
+makePoint<complex>(%v_0: Ptr, %x: Int, %y: Int) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, %x, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, %y, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+clamped<complex>(%v: Int): Int {
+  b_0 {
+    %v_1 = cmp_igt %v, 100: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    ret 100
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    ret %v
+  }
+}
+
+branching<complex>(%a: Int): Int {
+  b_0 {
+    %v_1 = call_complex clamped, %a: Int
+    %v_2 = imul %a, 3: Int
+    %v_3 = call_complex clamped, %v_2: Int
+    %v_4 = add %v_1, %v_3: Int
+    ret %v_4
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = imul 7, 2: Int
+    %v_2 = imul %v_1, 2: Int
+    %v_3 = add %v_2, 69: Int
+    %v_4 = call_complex clamped, 50: Int
+    %v_5 = call_complex clamped, 150: Int
+    %v_6 = add %v_4, %v_5: Int
+    %v_7 = add %v_3, %v_6: Int
+    %v_8 = call_complex countDown, 4: Int
+    %v_9 = add %v_7, %v_8: Int
+    %v_10 = add %v_9, 13: Int
+    %v_11 = call_complex measured, 1: Int
+    %v_12 = call_complex measured, 2: Int
+    %v_13 = add %v_11, %v_12: Int
+    %v_14 = add %v_10, %v_13: Int
+    %v_15 = call_complex requested, 4: Int
+    %v_16 = add %v_14, %v_15: Int
+    ret %v_16
+  }
+}
+

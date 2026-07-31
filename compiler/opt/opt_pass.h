@@ -254,8 +254,67 @@ StringId fieldName(OptContext& opt, const Fields& fields, Size index);
 // where there is one, then the field.
 Place fieldPlace(OptContext& opt, Place base, const Fields& fields, U16 index);
 
+/*
+ * The dominator tree of one function - see opt_flow.cpp, which computes all three of these.
+ *
+ * `dominators[i][j]` is whether block `j` dominates block `i`, which includes `i` itself.
+ * `preorder` is a visit order in which a block precedes everything it dominates, and is what a pass
+ * that *moves* an instruction needs: laying candidates out in that order lays a definition out
+ * before the use that depends on it, with no dependency walk of its own.
+ */
+struct Dominance {
+    Array<Array<U8>> dominators;
+    Array<U32> immediate;
+    Array<Array<U32>> children;
+    Array<U32> preorder;
+    Array<ModulePtr<Block>> blocks;
+
+    static constexpr U32 kNone = maxLimit<U32>;
+};
+
+void computeDominance(OptContext& opt, Dominance& result);
+
+/*
+ * One natural loop: the header every iteration passes through, the blocks that reach the back edge,
+ * and the single block outside that leads into it.
+ *
+ * `preheader` is `kNone` where there is no such block, and a loop with none is one nothing may be
+ * hoisted out of - there is nowhere to put it that runs exactly once per entry.
+ */
+struct Loop {
+    U32 header = 0;
+    U32 preheader = kNone;
+    Array<U8> contains;
+    Array<U32> blocks;
+
+    static constexpr U32 kNone = maxLimit<U32>;
+};
+
+// Innermost first, so a value hoisted out of an inner loop lands where the next round can hoist it
+// out of the one containing it.
+void computeLoops(OptContext& opt, Dominance& dominance, Array<Loop>& loops);
+
+// Per local, whether a callee could reach its storage: indexed by local, and false for anything the
+// function handed an address of.
+void computeContainment(OptContext& opt, Array<U8>& contained);
+
+// Whether this place is storage inside a local a callee cannot reach - a contained root, and a path
+// that stays inside the allocation rather than leaving through a pointer, an element or a witness.
+bool staysInFrame(OptContext& opt, Array<U8>& contained, const Place& place);
+
+// Recomputing every use list from the instructions that exist - see opt.cpp, which says why it is
+// necessary rather than tidy. Any pass that rewrites a function it did not arrive at through the
+// driver has to do this first.
+void rebuildUses(OptContext& opt);
+
+// Every function the program can reach other than by naming it in a `Call` or a `GenCall` - see
+// opt_arg.cpp. A call site cannot be rewritten on behalf of one of these, because there is no
+// declaration at the site to read the rule from.
+void addressTaken(OptContext& opt, HashMap<U32, bool>& taken);
+
 void foldFunction(OptContext& opt);
 void forwardPlaces(OptContext& opt);
+void hoistLoopValues(OptContext& opt);
 void scalarizeLocals(OptContext& opt);
 void eliminateCommonValues(OptContext& opt);
 void eliminateDeadValues(OptContext& opt);
@@ -271,3 +330,11 @@ bool expandPacking(OptContext& opt);
  * every caller of them - see opt_arg.cpp for why that cannot be done a function at a time.
  */
 void flattenArguments(OptContext& opt);
+
+/*
+ * The inlining step: a call to a straight-line callee becomes a copy of its body.
+ *
+ * Program-wide and run once alongside `flattenArguments`, and before any function is optimized,
+ * because what it is for is giving the passes below something to see - see opt_inline.cpp.
+ */
+void inlineCalls(OptContext& opt);

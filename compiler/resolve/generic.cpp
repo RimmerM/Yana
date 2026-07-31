@@ -1057,6 +1057,13 @@ ModulePtr<Function> instantiateFunction(Module& from, ModulePtr<Function> pointe
     specialized->returnType = substituteType(owner, generic->returnType, args, source);
     specialized->used = true;
 
+    // `@inline` and `@noinline` are properties of the declaration, so every specialization of it has
+    // them. A specialization has no declaration of its own to read them off, and it is exactly the
+    // form the optimizer sees - so forgetting them here would mean the attributes worked on a
+    // concrete function and silently did nothing on a generic one.
+    specialized->inlineHint = generic->inlineHint;
+    specialized->noInline = generic->noInline;
+
     /*
      * A specialization of a class implementation is still that implementation.
      *

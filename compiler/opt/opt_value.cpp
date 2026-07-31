@@ -8,95 +8,10 @@
  * node, and everything still in scope dominates the instruction being looked at. Dead-value
  * elimination needs no such thing and is here because it is what the other two leave work for.
  *
- * Dominance is the textbook set fixpoint rather than the near-linear algorithm, on the same grounds
- * codegen/js/flow.cpp gives for its copy: a function's blocks are counted in tens, and being
- * obviously correct matters more than being fast when the failure mode is a value used where it has
- * not been computed.
+ * The dominator tree itself is in opt_flow.cpp, which the loop pass shares.
  */
 
 namespace {
-
-struct Dominance {
-    // Per block, a byte per block: whether that one dominates this one.
-    Array<Array<U8>> dominators;
-    Array<U32> immediate;
-    Array<Array<U32>> children;
-    Array<ModulePtr<Block>> blocks;
-
-    static constexpr U32 kNone = maxLimit<U32>;
-};
-
-void computeDominance(OptContext& opt, Dominance& result) {
-    auto& blocks = opt.function->blocks;
-    auto count = blocks.size();
-
-    for(Size i = 0; i < count; i++) {
-        result.blocks.push(blocks.get(opt.local, i));
-        result.immediate.push(Dominance::kNone);
-        result.children.push(Array<U32>());
-
-        Array<U8> row;
-        for(Size j = 0; j < count; j++) row.push(i == 0 ? U8(i == j) : U8(1));
-        result.dominators.push(::move(row));
-    }
-
-    auto changed = true;
-    while(changed) {
-        changed = false;
-
-        for(Size i = 1; i < count; i++) {
-            auto block = opt.local[result.blocks[i]];
-
-            Array<U8> next;
-            auto first = true;
-
-            for(auto predecessor: block->incoming.contents(opt.local)) {
-                auto from = opt.local[predecessor]->index;
-
-                if(first) {
-                    for(Size j = 0; j < count; j++) next.push(result.dominators[from][j]);
-                    first = false;
-                } else {
-                    for(Size j = 0; j < count; j++) next[j] &= result.dominators[from][j];
-                }
-            }
-
-            // A block nothing reaches is dominated by itself and nothing else, which keeps it out of
-            // every scope below without needing a case of its own.
-            if(first) for(Size j = 0; j < count; j++) next.push(0);
-            next[i] = 1;
-
-            for(Size j = 0; j < count; j++) {
-                if(result.dominators[i][j] == next[j]) continue;
-
-                result.dominators[i][j] = next[j];
-                changed = true;
-            }
-        }
-    }
-
-    // The immediate dominator is the one strict dominator that every other strict dominator also
-    // dominates, which is the same as the one with the most dominators of its own.
-    for(Size i = 1; i < count; i++) {
-        auto best = Dominance::kNone;
-        Size bestCount = 0;
-
-        for(Size j = 0; j < count; j++) {
-            if(i == j || !result.dominators[i][j]) continue;
-
-            Size own = 0;
-            for(Size k = 0; k < count; k++) own += result.dominators[j][k];
-
-            if(best != Dominance::kNone && own <= bestCount) continue;
-
-            best = U32(j);
-            bestCount = own;
-        }
-
-        result.immediate[i] = best;
-        if(best != Dominance::kNone) result.children[best].push(U32(i));
-    }
-}
 
 /*
  * Whether two pure instructions compute the same thing.
@@ -115,9 +30,18 @@ bool sameComputation(OptContext& opt, Value& a, Value& b) {
     switch(a.kind) {
         case Value::Cast: case Value::Neg: case Value::Not:
             return ((InstUnary&)a).from == ((InstUnary&)b).from;
-        case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
-        case Value::Shl: case Value::Shr: case Value::Sar:
+        // Commutative, so the operands are compared as a pair rather than in order. The folder
+        // already moves a constant to the right, which settles the common case before this is
+        // asked; this is what catches `x + y` against a `y + x` neither of whose operands is one.
+        case Value::Add: case Value::Mul:
         case Value::And: case Value::Or: case Value::Xor:
+            if(((InstBinary&)a).lhs == ((InstBinary&)b).rhs &&
+               ((InstBinary&)a).rhs == ((InstBinary&)b).lhs) {
+                return true;
+            }
+            [[fallthrough]];
+        case Value::Sub: case Value::Div: case Value::Rem:
+        case Value::Shl: case Value::Shr: case Value::Sar:
             return ((InstBinary&)a).lhs == ((InstBinary&)b).lhs &&
                    ((InstBinary&)a).rhs == ((InstBinary&)b).rhs;
         case Value::Cmp:

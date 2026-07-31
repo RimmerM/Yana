@@ -214,7 +214,13 @@ bool collectLeaves(OptContext& opt, Plan& plan, TypePtr type, StringId name,
  *
  * `allocateHeap` and `freeHeap` are in for the same reason the walk names them: lowering emits calls
  * to them that no instruction in this IR mentions, so their signatures are not this pass's to move.
+ *
+ * Shared with opt_inline.cpp, which asks the same question for the same reason: a function reached
+ * through an address is one no call site can be rewritten on behalf of.
  */
+
+}
+
 void addressTaken(OptContext& opt, HashMap<U32, bool>& taken) {
     auto hold = [&](ModulePtr<Function> function) {
         if(function) *taken.add(U32(function)).value = true;
@@ -257,6 +263,8 @@ void addressTaken(OptContext& opt, HashMap<U32, bool>& taken) {
         }
     }
 }
+
+namespace {
 
 // Whether anything about the function itself rules it out - see the header comment for what each of
 // these is and why an address rather than a name is the thing they have in common.

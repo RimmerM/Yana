@@ -93,6 +93,28 @@ enum class FramePointerMode {
     Needed,  /// Only functions that cannot address their frame objects through the stack pointer.
 };
 
+/*
+ * How hard compiler/opt tries to inline, which is the one decision in that stage that trades size
+ * for speed rather than being a straight win.
+ *
+ * Its own knob rather than a reading of `optimization` below, because that one is a level handed to
+ * LLVM and says nothing about the IR stage - and because the interesting axis here is the same one
+ * `-Os` and `-Ofast` name in Clang. Every other pass in compiler/opt makes a program smaller and
+ * faster at once and has nothing to ask about.
+ *
+ * `Size` is not "off": inlining a callee with exactly one call site in the whole program removes a
+ * call, a frame and a body, so it is a size win at every level and is what `Size` still does. It
+ * also still honours `@inline`, because that is a statement by the author rather than a guess by the
+ * compiler, and this knob is about how far the guessing goes. `None` is the one that ignores
+ * everything, which is what makes it the switch to reach for when bisecting a bad inline.
+ */
+enum class InlineLevel: U8 {
+    None,     /// No inlining at all. What a bisection of a miscompile switches off first.
+    Size,     /// Only where inlining cannot grow the program: a callee with one call site.
+    Balanced, /// The default. Small callees anywhere, larger ones where the call site pays for it.
+    Speed,    /// Larger budgets and smaller penalties for a callee called from several places.
+};
+
 struct CompileSettings {
     Array<Tritium::String> compileObjects;
     Array<Tritium::String> rootObjects;
@@ -121,6 +143,10 @@ struct CompileSettings {
     /// `Program::Specialization` gets and exists for the same reason - an optimization must not be
     /// where a semantic decision quietly moved to.
     bool optimizeIr = true;
+
+    /// How aggressively compiler/opt inlines - see InlineLevel. Read only when `optimizeIr` is on,
+    /// since the whole stage is off otherwise.
+    InlineLevel inlining = InlineLevel::Balanced;
 
     bool printModules = false; /// Debug flag: Print a list of modules found in the input.
     bool printAst = false;     /// Debug flag: Create .ast files for each source file.

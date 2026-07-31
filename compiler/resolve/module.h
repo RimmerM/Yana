@@ -203,6 +203,23 @@ struct Function {
     // instantiating forever.
     bool instantiating = false;
 
+    /*
+     * `@inline` and `@noinline`, as written on the declaration - see readInlineAttribute.
+     *
+     * Two different kinds of thing, which is why they are two flags rather than one enum. `noInline`
+     * is a *directive*: not inlining is always possible, so the optimizer honours it without
+     * exception. `inlineHint` is a *hint*: it raises the budget compiler/opt weighs the callee
+     * against, and a callee the pass declines structurally is still declined. Design.md says so
+     * where the attributes are documented, because an attribute that silently means less than it
+     * says is worse than one that does nothing.
+     *
+     * On the declaration rather than at the call site, on the same terms as `@platform` and the
+     * argument flattening rule: a property read from the declaration is one two separate
+     * compilations agree about without seeing each other.
+     */
+    bool inlineHint = false;
+    bool noInline = false;
+
     // A class function's declared signature. It has arguments and a return type but no body and
     // never will: it exists so that selection has something to match against, and is the one
     // kind of Function that must not reach printing or lowering.
@@ -561,6 +578,20 @@ struct Program {
 // Resolves `root` and everything it imports, with Core built and implicitly imported first.
 // `specialization` decides what a concrete generic call site becomes; both answers have to produce
 // the same observable behaviour, which is what the fixtures compare.
+/*
+ * Which functions and tables the program can still reach from its root, recomputed.
+ *
+ * Run once at the end of resolution and again at the end of compiler/opt, because that stage is
+ * where a reference stops existing: inlining a callee removes the `Call` that named it, and dead
+ * value elimination can remove the `Symbol` that held one. Without a second walk the body is still
+ * emitted, so inlining would be pure growth - a copy of the callee at the call site *and* the callee.
+ *
+ * Idempotent by construction: every `used` flag is reset from the module's root-ness before the walk
+ * starts, so this answers the same question about whatever the program is now rather than adding to
+ * what it answered before.
+ */
+void markProgramReachable(Program& program);
+
 Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider* provider = nullptr,
                             Program::Specialization specialization = Program::Specialization::Always);
 

@@ -1,0 +1,23 @@
+-- The four ways of writing the inlining attributes that the resolver refuses.
+
+-- `@inline(always)` is the spelling a *guarantee* would have, and there is no pass behind it yet:
+-- the one that could keep the promise is the one that grafts a callee's blocks into its caller. It
+-- is reported rather than read as the bare form, so that the bare form stays free to mean "hint".
+@inline(always)
+fn promised(x: Int) -> Int = x + 1
+
+-- Anything else in the parentheses is the same refusal without the reservation behind it.
+@inline(sometimes)
+fn guessed(x: Int) -> Int = x + 2
+
+-- `@noinline` is a directive with nothing to qualify.
+@noinline(never)
+fn qualified(x: Int) -> Int = x + 3
+
+-- The two together are a contradiction rather than a precedence question, so neither applies and
+-- the function is left to the ordinary heuristics.
+@inline
+@noinline
+fn undecided(x: Int) -> Int = x + 4
+
+fn main() -> Int = promised(1) + guessed(2) + qualified(3) + undecided(4)

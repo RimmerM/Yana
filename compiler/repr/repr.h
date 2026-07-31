@@ -284,7 +284,29 @@ inline bool isNarrowRepr(const Repr& repr) {
  * graph, niche first, discriminant word as the fallback - one implementation with two answers rather
  * than two implementations that have to be kept saying the same thing.
  */
+/*
+ * Which family of machine a target is, for the one decision that depends on the family rather than
+ * on any number in the table below.
+ *
+ * That decision is inlining, in compiler/opt: what an aggregate *costs* when it is not held in a
+ * register differs in kind rather than in degree between the two. Natively it is bytes at an
+ * address the frame already has, so removing a construction saves stores; on a managed host it is
+ * an allocation, a hidden class and work for a collector, which is why opt_inline.cpp is willing to
+ * inline a larger callee there to make one go away. Code size cuts the other way for the same
+ * reason - the host has its own inlining budget and a big function spends it.
+ *
+ * A field rather than a reading of `CompileMode`, so that the rule stays "a target is chosen by
+ * whoever emits" - see opt.h. The optimizer is handed a target and asks it, exactly as it asks it
+ * for every layout question.
+ */
+enum class TargetFamily: U8 {
+    Native,  /// Machine code. An aggregate is bytes, and the code below this is an optimizing backend.
+    Managed, /// A host runtime. An aggregate is a collected object, and emitted code is source text.
+};
+
 struct ReprTarget {
+    TargetFamily family = TargetFamily::Native;
+
     // The width and alignment of an address. JS has no addresses, and answers with what its own
     // reference values cost so that a size computed over a pointer-shaped field is not zero.
     U32 pointerSize = 8;

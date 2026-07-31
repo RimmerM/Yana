@@ -26,6 +26,7 @@ struct Flag {
         arch,
         format,
         framePointer,
+        inlining,
         optimization,
 
         /*
@@ -55,11 +56,20 @@ Flag flagTable[] = {
     { "format"_v, 1, Flag::format },
     { "frame-pointer"_v, 1, Flag::framePointer },
     { "opt"_v, 1, Flag::optimization },
+    { "inline"_v, 1, Flag::inlining },
 
     { "print-modules"_v, 0, Flag::printModules },
     { "print-ast"_v, 0, Flag::printAst },
     { "print-ir"_v, 0, Flag::printIr },
     { "no-opt"_v, 0, Flag::noOptimize },
+};
+
+// InlineLevel, in declaration order.
+StringView inlineTable[] = {
+    "none"_v,     // None
+    "size"_v,     // Size
+    "balanced"_v, // Balanced
+    "speed"_v,    // Speed
 };
 
 StringView modeTable[] = {
@@ -433,6 +443,14 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     return true;
                 } else {
                     error = "Unrecognized frame pointer mode. Valid modes are: all|non-leaf|needed.";
+                    return false;
+                }
+            case Flag::inlining:
+                if(auto level = matchString(inlineTable, sizeof(inlineTable) / sizeof(StringView), value)) {
+                    settings.inlining = (InlineLevel)level.unwrap();
+                    return true;
+                } else {
+                    error = "Unrecognized inlining level. Valid levels are: none|size|balanced|speed.";
                     return false;
                 }
             case Flag::optimization: {

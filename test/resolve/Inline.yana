@@ -1,0 +1,91 @@
+{-
+   Inlining, and the four things it must decline.
+
+   `.opt.expect` is the assertion that matters here, because what inlining does is mostly invisible
+   in a result: every function below returns the same number whether or not its callees were spliced
+   into it. What the dump says is *which* calls are still there.
+
+   The numbers are still asserted, on both targets and against the unoptimized build, because the
+   ways inlining goes wrong are ways that change one - a write through a borrow that lands in the
+   wrong storage, a local two slots disagree about, an argument substituted into the wrong parameter.
+-}
+
+data Point {x: Int, y: Int}
+
+-- Small, straight-line, and called from several places: inlined everywhere at the default level.
+fn scaled(v: Int, by: Int) -> Int = v * by + 1
+
+-- A constructor. Inlining it puts the `alloc` in the caller's own block, which is what lets the
+-- record stop being built at all - on a managed target that is an object that never exists.
+fn makePoint(x: Int, y: Int) -> Point = Point {x: x, y: y}
+
+-- A mutator through a mutable borrow of a whole local, which is the borrow shape inlining may cross:
+-- there is nothing above it for a target to have packed it into, so the storage handed over is the
+-- storage itself rather than a temporary that has to be written back when the loan ends.
+fn twice(&n: Int) -> {}:
+    n = n * 2
+
+-- Called once in the whole program, and larger than the base budget. It is inlined anyway, because
+-- doing so takes the body away rather than copying it.
+fn onlyCaller(a: Int, b: Int, c: Int) -> Int:
+    let p = makePoint(a, b)
+    let q = makePoint(b, c)
+    return p.x * q.y + p.y * q.x + a + b + c
+
+-- Branches, so it is not straight-line and this pass declines it whatever it would be worth. The
+-- follow-on that grafts control flow is what would take it.
+fn clamped(v: Int) -> Int:
+    if v > 100:
+        return 100
+    return v
+
+-- Recursive. Refused outright rather than by the round budget, which is what keeps a self-call from
+-- being copied into itself once per round.
+fn countDown(n: Int) -> Int:
+    if n <= 0:
+        return 0
+    return n + countDown(n - 1)
+
+-- Constant arguments, which is the case worth inlining on every target: what it buys is not the call
+-- but the folding that follows, and the whole of this should be one number by the time it is emitted.
+fn constants() -> Int = scaled(3, 4) + scaled(5, 6)
+
+-- The same callee with arguments nothing knows. The call goes away and the arithmetic stays.
+fn unknowns(a: Int, b: Int) -> Int = scaled(a, b) + scaled(b, a)
+
+-- A record built by a callee and read by the caller. Both the call and the record should be gone.
+fn constructed(a: Int) -> Int:
+    let p = makePoint(a, a + 1)
+    return p.x + p.y
+
+-- A borrow of a whole local handed to a mutator, twice.
+fn mutated(seed: Int) -> Int:
+    let &n = seed
+    twice(n)
+    twice(n)
+    return n
+
+-- Small, straight-line, and called with a constant: everything about it says inline, and `@noinline`
+-- is the one input none of that outvotes. This is the attribute a benchmark pins a call boundary
+-- with, and the one to reach for when bisecting a bad inline to a single function.
+@noinline
+fn measured(v: Int) -> Int = v + 1
+
+-- Well past the base budget and called from two places, so the heuristics decline it. `@inline` is
+-- the author saying the payoff is not visible in the body - here it is not, since nothing about
+-- these six operations says the caller folds them away.
+@inline
+fn worthIt(a: Int, b: Int) -> Int = ((a + b) * 2 + (a - b) * 3 + a * 5 + b * 7) * 2 + a - b
+
+-- The declined pair, kept as calls.
+fn branching(a: Int) -> Int = clamped(a) + clamped(a * 3)
+
+fn pinned() -> Int = measured(1) + measured(2)
+
+fn requested(a: Int) -> Int = worthIt(a, 2) + worthIt(3, a)
+
+fn recursive() -> Int = countDown(4)
+
+fn main() -> Int =
+    constants() + unknowns(2, 3) + constructed(5) + mutated(7) + branching(50) + recursive() +
+    onlyCaller(1, 2, 3) + pinned() + requested(4)
