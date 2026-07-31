@@ -621,7 +621,7 @@ struct Verifier {
     // Runs a sequenced parallel copy. A step whose source holds nothing is reported here rather
     // than at the eventual read, because a copy out of an empty register means the allocator
     // believes a value is somewhere it is not, and the register it names is the useful detail.
-    void applyMoves(MachineState& state, const Array<RegMove>& moves, LowerInst* inst) {
+    void applyMoves(MachineState& state, SmallBuffer<RegMove> moves, LowerInst* inst) {
         for(auto& m: moves) {
             if(m.from == m.to) continue;
 

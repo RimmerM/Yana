@@ -178,7 +178,7 @@ struct Known {
 
 struct Forwarder {
     OptContext& opt;
-    Array<Known> known;
+    SmallArray<Known, 16> known;
 
     // Per local, whether a callee could reach its storage - see `computeContainment`. Indexed by
     // local, and empty until one function has been walked.

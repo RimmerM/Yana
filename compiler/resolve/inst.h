@@ -20,6 +20,17 @@ struct Value;
 struct Global;
 
 /*
+ * A list of operand values: the arguments of one call, the fields of one construction, the
+ * alternatives of one phi.
+ *
+ * Eight inline. Argument lists are two or three in almost everything, and a function of more than
+ * eight arguments is one whose single allocation here is not what makes it expensive. The resolver
+ * builds one of these per call site it resolves, and a call site's arguments are themselves calls,
+ * so these nest as deeply as the expression does.
+ */
+using ValueList = SmallArray<ModulePtr<Value>, 8>;
+
+/*
  * Where an owned value's storage comes from (Implementation-IR.md part 3).
  *
  * `Inline` is storage inside its parent, `Stack` is the frame, `Region` is an arena, and `Heap` is

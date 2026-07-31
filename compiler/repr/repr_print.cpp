@@ -179,7 +179,7 @@ void printReprs(Net::Writer& writer, Context& context, Program& program, const R
      * would churn whenever an unrelated declaration changed a name. A TypePtr is a region offset, so
      * sorting by it is declaration order, which is the order the source is written in.
      */
-    Array<TypePtr> records;
+    TypeList records;
 
     auto collect = [&](TypePtr type) {
         if(!type || global[type]->kind != Type::Record || isGeneric(global, type)) return;

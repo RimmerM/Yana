@@ -64,8 +64,13 @@
 
 // Merges `b` into `a`, keeping the result sorted and disjoint. Both are already sorted, so this is
 // one merge walk with adjacent ranges folded together.
-static void mergeRanges(Array<Range>& a, const Range* b, Size count) {
-    Array<Range> out;
+//
+// The merge cannot run in place - it reads `a` while writing the result - so it runs through a
+// buffer the caller lends it and copies back, which is what keeps a range list that has already
+// been grown from being replaced by a fresh one on every merge.
+template<class Ranges>
+static void mergeRanges(Ranges& a, const Range* b, Size count, Array<Range>& out) {
+    out.clear();
     Size i = 0, j = 0;
 
     auto append = [&](Range range) {
@@ -85,10 +90,12 @@ static void mergeRanges(Array<Range>& a, const Range* b, Size count) {
     while(i < a.size()) append(a[i++]);
     while(j < count) append(b[j++]);
 
-    a = ::move(out);
+    a.clear();
+    for(auto& range: out) a.push(range);
 }
 
-static LiveInterval intervalOf(const Array<Range>& ranges) {
+template<class Ranges>
+static LiveInterval intervalOf(const Ranges& ranges) {
     return LiveInterval { ranges.pointer(), U32(ranges.size()) };
 }
 
@@ -142,6 +149,18 @@ struct WebInfo {
     // What losing its register would actually cost this web, which is whichever of the two homeless
     // states it would then choose. This is the number one web is weighed against another by.
     U32 homelessCost() const { return canRemat && rematCost < spillCost ? rematCost : spillCost; }
+
+    // Empties the web for the next function without giving up the range list it grew - see
+    // PlacementScratch. Everything a web knows is derived from the function being placed, so an
+    // emptied one is the state the constructor used to produce.
+    void clear() {
+        ranges.clear();
+        avoid = RegSet();
+        avoidFixed = RegSet();
+        spillCost = 0;
+        rematCost = 0;
+        canRemat = false;
+    }
 };
 
 // One clobbering instruction, remembered so that values whose ranges cross it can be kept out of
@@ -242,6 +261,60 @@ static void buildOrder(const CallConvention& convention, RegisterBankId bank, U1
     outCount = count;
 }
 
+/*
+ * Everything a placement pass works in, held across the functions being placed rather than built
+ * per function - see RegScratch in gen.h.
+ *
+ * Every buffer here is O(values) or O(registers) in size and empty again by the time the next
+ * function starts, and there are eleven of them plus a list per value; building them per pass is
+ * where a small module's compilation was spending most of its allocations. The one rule is that
+ * nothing in here may carry meaning across a call: `reset` empties all of it, and a pass that read
+ * something it had not written this time would be reading the previous function.
+ */
+struct PlacementScratch {
+    PooledList<WebInfo> webs;
+    Array<LiveId> occupants[kRegisterBankCount][kMaxRegistersPerBank];
+    ArrayList<LiveId> tieConflicts;
+    ArrayList<Range> slotOccupants;
+    Array<ClobberSite> clobberSites;
+
+    // Where the four walks get the instruction shape they each ask for per instruction. A pool
+    // rather than one shape, because two of them nest - see Scratch.
+    ScratchPool<InstShape> shapes;
+
+    // buildWebs: the union-find parents, the conflicts while they are still stated over values, and
+    // the block order the merges are attempted in.
+    Array<LiveId> parent;
+    ArrayList<LiveId> valueTies;
+    Array<Size> blockOrder;
+
+    // computeSpillCosts: how many values each web holds.
+    Array<U16> members;
+
+    // The buffer mergeRanges merges through, and the clobber sites planSplit found a web crossing.
+    Array<Range> merged;
+    Array<Size> crossed;
+
+    // planSplit: the windows of the register being priced, and of the cheapest one it has seen.
+    Array<Range> windows;
+    Array<Range> bestWindows;
+
+    void reset(Size valueCount) {
+        webs.reset(valueCount);
+        tieConflicts.reset(valueCount);
+        slotOccupants.reset(0);
+        clobberSites.clear();
+
+        for(auto& bank: occupants) {
+            for(auto& reg: bank) reg.clear();
+        }
+    }
+};
+
+void destroyPlacementScratch(PlacementScratch* scratch) {
+    delete scratch;
+}
+
 struct Placer {
     LowerBase base;
     LowerFunction& fun;
@@ -249,9 +322,11 @@ struct Placer {
     const MachineFunction& machine;
     const Constraints& constraints;
 
+    PlacementScratch& scratch;
+
     // Where the four walks below get the instruction shape they each ask for per instruction. A
     // pool rather than one shape, because two of them nest - see Scratch.
-    ScratchPool<InstShape> shapes;
+    ScratchPool<InstShape>& shapes;
 
     // How often each block runs relative to the function's entry - see FunctionFrequencyInfo. Every
     // decision here that trades one part of the function against another is weighed by it: what a
@@ -262,19 +337,21 @@ struct Placer {
 
     // The result, built as the walk goes rather than copied out at the end - which is what lets the
     // operand rule below ask where a sibling operand will be read from while placement is still
-    // running, against exactly the structure legalization will read afterwards.
-    Placement out;
+    // running, against exactly the structure legalization will read afterwards. The caller's, so
+    // that a second pass over the same function - and the next function after it - writes into the
+    // buffers the first one grew.
+    Placement& out;
 
     // What placement needs to know about each web and nothing downstream does: its merged interval,
     // what it has to stay out of, and what it would cost to leave homeless. Indexed alike with
     // `out.webs`, so a web id names both. Which web each value belongs to is `out.webOf`, which is
     // union-find while the webs are being built and a direct index once they are.
-    Array<WebInfo> webs;
+    PooledList<WebInfo>& webs;
 
     // Everything already placed in each register. A list rather than a single occupant because
     // intervals have holes: several webs can share one register over the function as long as no two
     // of them are ever live at the same point.
-    Array<LiveId> occupants[kRegisterBankCount][kMaxRegistersPerBank];
+    Array<LiveId> (&occupants)[kRegisterBankCount][kMaxRegistersPerBank];
 
     // The pairs of webs that may not share a register for a reason interval overlap does not state -
     // see collectTieConflicts. Indexed by web id, holding web ids, and symmetric: whichever of the
@@ -284,7 +361,7 @@ struct Placer {
     // both questions is the point: a destructive result and a sibling operand of its instruction may
     // no more share a register than share a web, and a rule that only refused the merge left the
     // register sharing to be discovered by whichever of the two happened to be placed second.
-    Array<Array<LiveId>> tieConflicts;
+    ArrayList<LiveId>& tieConflicts;
 
     // The registers a value can be handed, held once rather than rebuilt at every assignment.
     RegSet allocatable = allocatableRegs();
@@ -302,40 +379,42 @@ struct Placer {
 
     // Everything the function needs stack space for. Filled in as the reasons appear - an argument
     // the caller left on the stack, an alloca, a web that could not be given a register - and handed
-    // to frame layout, which is what turns any of it into an address.
-    FrameObjects frame;
+    // to frame layout, which is what turns any of it into an address. Written straight into the
+    // result, as are the four below: they are the placement's, not the placer's, and copying them
+    // out at the end would be one buffer handed over and another thrown away.
+    FrameObjects& frame;
 
     // What each spill slot has already been promised to, so that a slot can be reused whenever the
     // stretches do not overlap - the same rule that lets two webs share a register, and what keeps
     // the frame as small as the peak of simultaneously spilled values rather than as large as their
     // total. Ranges rather than webs, because a split web occupies its slot over its windows alone
     // and a homeless one over the whole of its life, and the slot cannot tell the two apart.
-    Array<Array<Range>> slotOccupants;
+    ArrayList<Range>& slotOccupants;
 
     // Every instruction that writes registers behind its operands' backs, in index order - see
     // ClobberSite. Kept because a split is a decision about which of them a web has to dodge and
     // which it can step around.
-    Array<ClobberSite> clobberSites;
+    Array<ClobberSite>& clobberSites;
 
     // The recipes for the webs that live nowhere at all - see Remat in gen.h. A web's home names
     // its position here.
-    Array<Remat> remats;
+    Array<Remat>& remats;
 
     // Where each argument arrived, in argument order - see Placement::incomingArgs.
-    Array<MachineLocation> incomingArgs;
+    Array<MachineLocation>& incomingArgs;
 
     // Webs this pass has to leave homeless whatever it would otherwise have done, because a previous
     // pass found something that wanted their register more. *Homeless* rather than spilled: which of
     // the two homeless states such a web takes is still its own choice, and a cheap constant takes a
     // recipe rather than a slot. Indexed by web id; see the displacement comment on `assign` and the
     // loop in allocateRegisters.
-    const Array<bool>& forcedHomeless;
+    const IndexSet& forcedHomeless;
 
     // Webs *this* pass would rather have displaced than the one it displaced instead. Placement is
     // one walk in the order legalization will later read it, so a web already placed has already
     // been offered to everything that could have taken its register from it - the request is carried
     // out to allocateRegisters and applied to the next pass.
-    Array<LiveId> displacementRequests;
+    Array<LiveId>& displacementRequests;
 
     // Set when legalizing this placement could need scratch registers - see the field of the same
     // name on Placement for the two things that set it. The first pass over a function reserves
@@ -355,9 +434,14 @@ struct Placer {
 
     Placer(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
         const Constraints& constraints, const FunctionFrequencyInfo& frequency, bool framePointer,
-        const TemporaryReserve& temporaries, const Array<bool>& forcedHomeless):
+        const TemporaryReserve& temporaries, const IndexSet& forcedHomeless,
+        PlacementScratch& scratch, Placement& out):
         base(base), fun(fun), live(live), machine(machine), constraints(constraints),
-        frequency(frequency), forcedHomeless(forcedHomeless), temporaries(temporaries)
+        scratch(scratch), shapes(scratch.shapes), frequency(frequency), out(out),
+        webs(scratch.webs), occupants(scratch.occupants), tieConflicts(scratch.tieConflicts),
+        frame(out.frame), slotOccupants(scratch.slotOccupants), clobberSites(scratch.clobberSites),
+        remats(out.remats), incomingArgs(out.incomingArgs), forcedHomeless(forcedHomeless),
+        displacementRequests(out.displacementRequests), temporaries(temporaries)
     {
         // Whatever is held back - the scratch registers, and rbp in a function that establishes a
         // frame pointer - is not available to hand out as a home.
@@ -370,16 +454,20 @@ struct Placer {
             buildOrder(convention, RegisterBankId(bank), order[bank], orderCount[bank]);
         }
 
-        for(Size i = 0; i < live.valueMap.size(); i++) {
-            out.webOf.push(LiveId(i));
-            out.webs.push(WebAllocation {});
-            tieConflicts.push();
+        // Both sides emptied together: the result and the placer's own tables are indexed alike by
+        // web id, so one of them left holding a previous function's rows would be read as this
+        // function's answer.
+        auto valueCount = live.valueMap.size();
+        out.clear();
+        out.webs.reset(valueCount);
+        scratch.reset(valueCount);
 
-            WebInfo web;
+        for(Size i = 0; i < valueCount; i++) {
+            out.webOf.push(LiveId(i));
+
+            auto& web = webs[i];
             auto interval = live.getInterval(LiveId(i));
             for(U32 r = 0; r < interval.count; r++) web.ranges.push(interval.ranges[r]);
-
-            webs.push(::move(web));
         }
     }
 
@@ -685,7 +773,9 @@ struct Placer {
 
         // Every clobber site the web outlives, and the registers written by the ones no window may
         // cover - which are simply more registers the web has to avoid, exactly as before.
-        Array<Size> crossed;
+        auto& crossed = scratch.crossed;
+        crossed.clear();
+
         auto blocked = info.avoidFixed | extraAvoid;
 
         for(Size i = 0; i < clobberSites.size(); i++) {
@@ -699,13 +789,19 @@ struct Placer {
 
         auto best = kNoRegister;
         U32 bestCost = 0;
-        Array<Range> bestWindows;
+        // The windows of the register being priced and of the cheapest one so far. Two buffers
+        // rather than one per candidate: this runs the whole allocation order for every web that
+        // could not simply be given a register, so a homeless web in a large function used to cost
+        // an allocation per register in its bank.
+        auto& windows = scratch.windows;
+        auto& bestWindows = scratch.bestWindows;
+        bestWindows.clear();
 
         for(Size k = 0; k < orderCount[bank]; k++) {
             auto i = order[bank][k];
             if(!usable(i, blocked)) continue;
 
-            Array<Range> windows;
+            windows.clear();
             U32 cost = 0;
             windowsFor(PhysicalReg { bank, U16(i) }, crossed, windows, cost);
 
@@ -715,7 +811,9 @@ struct Placer {
             if(best == kNoRegister || cost < bestCost) {
                 best = i;
                 bestCost = cost;
-                bestWindows = ::move(windows);
+
+                bestWindows.clear();
+                for(auto& window: windows) bestWindows.push(window);
             }
         }
 
@@ -723,7 +821,9 @@ struct Placer {
 
         out_.reg = best;
         out_.cost = bestCost;
-        out_.windows = ::move(bestWindows);
+
+        out_.windows.clear();
+        for(auto& window: bestWindows) out_.windows.push(window);
         return true;
     }
 
@@ -814,7 +914,7 @@ struct Placer {
         while(slotOccupants.size() < frame.slots.size()) slotOccupants.push();
 
         auto claim = [&](StackSlotId slot) {
-            mergeRanges(slotOccupants[slot], ranges.ranges, ranges.count);
+            mergeRanges(slotOccupants[slot], ranges.ranges, ranges.count, scratch.merged);
             return slot;
         };
 
@@ -847,7 +947,7 @@ struct Placer {
 // buildWebs and Placer::isFree. Indexed by web representative while the webs are being built, and
 // merged onto the representative exactly as the ranges are, so a web carries everything merged into
 // it; rewritten in terms of web ids once they are, since that is what everything afterwards asks in.
-using TieConflicts = Array<Array<LiveId>>;
+using TieConflicts = ArrayList<LiveId>;
 
 // A destructive encoding's result and the *other* operands of its instruction. The result is written
 // over operand zero by a copy emitted in front of the instruction, so any sibling operand sharing the
@@ -869,7 +969,7 @@ using TieConflicts = Array<Array<LiveId>>;
 // of the tie; and neither is an operand that *is* operand zero (`sub %a, %a`), where the copy in
 // front of the instruction is an identity and overwrites nothing.
 static void collectTieConflicts(Placer& a, TieConflicts& out) {
-    for(Size i = 0; i < a.out.webOf.size(); i++) out.push();
+    out.reset(a.out.webOf.size());
 
     auto onInst = [&](LowerInst* inst) {
         if(a.machine.formOf(inst).tiedResult() != 0) return;
@@ -899,7 +999,8 @@ static void collectTieConflicts(Placer& a, TieConflicts& out) {
 static void buildWebs(Placer& a) {
     // Union-find over values, with the web's merged interval kept on the representative so that the
     // interference test is against everything already merged into it rather than against one member.
-    Array<LiveId> parent;
+    auto& parent = a.scratch.parent;
+    parent.clear();
     for(Size i = 0; i < a.out.webOf.size(); i++) parent.push(LiveId(i));
 
     auto find = [&](LiveId id) {
@@ -911,7 +1012,7 @@ static void buildWebs(Placer& a) {
         return id;
     };
 
-    TieConflicts tieConflicts;
+    auto& tieConflicts = a.scratch.valueTies;
     collectTieConflicts(a, tieConflicts);
 
     auto tiesConflict = [&](LiveId left, LiveId right) {
@@ -938,7 +1039,8 @@ static void buildWebs(Placer& a) {
         return a.frequency.frequencyOf(a.base[blockList[position]]->index);
     };
 
-    Array<Size> blockOrder;
+    auto& blockOrder = a.scratch.blockOrder;
+    blockOrder.clear();
     for(Size i = 0; i < blockList.size(); i++) blockOrder.push(i);
 
     for(Size i = 1; i < blockOrder.size(); i++) {
@@ -977,7 +1079,8 @@ static void buildWebs(Placer& a) {
                 // And the one thing that does not follow from it - see collectTieConflicts.
                 if(tiesConflict(left, right)) continue;
 
-                mergeRanges(a.webs[left].ranges, a.webs[right].ranges.pointer(), a.webs[right].ranges.size());
+                mergeRanges(a.webs[left].ranges, a.webs[right].ranges.pointer(), a.webs[right].ranges.size(),
+                    a.scratch.merged);
                 a.webs[right].ranges.clear();
 
                 for(auto id: tieConflicts[right]) tieConflicts[left].push(id);
@@ -1057,7 +1160,8 @@ static void computeAvoidSets(Placer& a) {
 
     // The other half: a clobber a web merely outlives. This is the part a split can buy back, and
     // the only part - which is why it lands in `avoid` alone and not in `avoidFixed`.
-    for(auto& web: a.webs) {
+    for(Size i = 0; i < a.webs.size(); i++) {
+        auto& web = a.webs[i];
         auto interval = web.interval();
         if(interval.isEmpty()) continue;
 
@@ -1144,7 +1248,8 @@ static bool recipeFor(Placer& a, LowerValue* v, Remat& out) {
 static void computeSpillCosts(Placer& a) {
     // A recipe reproduces one definition, so only a web that has one can have a recipe. A web with
     // several members is several definitions of a single location, and no one of them describes it.
-    Array<U16> members;
+    auto& members = a.scratch.members;
+    members.clear();
     for(Size i = 0; i < a.webs.size(); i++) members.push(0);
     for(auto web: a.out.webOf) members[web]++;
 
@@ -1426,11 +1531,15 @@ static void collectFrameObjects(Placer& a) {
     }
 }
 
-Placement computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
+void computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
     const Constraints& constraints, const FunctionFrequencyInfo& frequency, bool framePointer,
-    const TemporaryReserve& temporaries, const Array<bool>& forcedHomeless)
+    const TemporaryReserve& temporaries, const IndexSet& forcedHomeless, RegScratch& scratch,
+    Placement& out)
 {
-    Placer a(base, fun, live, machine, constraints, frequency, framePointer, temporaries, forcedHomeless);
+    if(!scratch.placement) scratch.placement = new PlacementScratch();
+
+    Placer a(base, fun, live, machine, constraints, frequency, framePointer, temporaries, forcedHomeless,
+        *scratch.placement, out);
     collectFrameObjects(a);
 
     // Webs before avoid sets: a clobber that one member has to dodge is one the whole web has to
@@ -1471,12 +1580,8 @@ Placement computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, c
 
     assertTrue(index == live.instCount); // the walk here and buildRanges' numbering must agree
 
-    auto result = ::move(a.out);
-    result.frame = ::move(a.frame);
-    result.remats = ::move(a.remats);
-    result.incomingArgs = ::move(a.incomingArgs);
-    result.writtenPhysical = a.written;
-    result.requiresLegalizationTemps = a.requiresLegalizationTemps;
-    result.displacementRequests = ::move(a.displacementRequests);
-    return result;
+    // Everything else was written straight into `out` as the walk went; these two are the placer's
+    // running totals, and are only the answer once it has finished.
+    out.writtenPhysical = a.written;
+    out.requiresLegalizationTemps = a.requiresLegalizationTemps;
 }

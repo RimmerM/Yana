@@ -61,7 +61,7 @@ void computeOwnership(Analysis& analysis) {
     }
 
     reached.set(0, true);
-    Array<Size> worklist;
+    SmallArray<Size, 32> worklist;
     worklist.push(0);
 
     while(worklist.size()) {

@@ -264,8 +264,8 @@ struct Candidate {
      * one thing that costs is a phi alternative arriving from one, which is dropped with it - and
      * dropping it is correct rather than approximate, since there is no edge for it to arrive over.
      */
-    Array<ModulePtr<Block>> blocks;
-    Array<ModulePtr<Block>> returns;
+    SmallArray<ModulePtr<Block>, 8> blocks;
+    SmallArray<ModulePtr<Block>, 4> returns;
 
     // The callee local holding what a memory-typed result is returned out of, and `kNone` where the
     // result is a register value or nothing at all.
@@ -298,6 +298,16 @@ struct Candidate {
 void findRecursion(OptContext& opt, HashMap<U32, bool>& recursive) {
     Array<ModulePtr<Function>> nodes;
     HashMap<U32, U32> index;
+
+    // Sized before the walk rather than grown into. Both tables end up holding one entry per
+    // function in the program, and a hash map reached by doubling from empty rehashes its way there
+    // - which for a program with a prelude is a dozen allocations and a dozen full rehashes.
+    Size functionCount = 0;
+    for(auto module: opt.program.modules) functionCount += module->functionOrder.size();
+
+    index.reserve(functionCount);
+    recursive.reserve(functionCount);
+    nodes.reserve(U32(functionCount));
 
     for(auto module: opt.program.modules) {
         for(auto pointer: module->functionOrder.contents(opt.local)) {
@@ -517,7 +527,7 @@ struct Inliner {
      * Iterative for the reason Tarjan above is, and it carries the same two-item frame: which block,
      * and which of its two successors comes next.
      */
-    void orderBlocks(Function& callee, Array<ModulePtr<Block>>& order) {
+    void orderBlocks(Function& callee, SmallArray<ModulePtr<Block>, 8>& order) {
         ScratchSet seen(opt.sets, callee.blocks.size());
 
         // The walk's own three, emptied rather than built: this runs once per call site the
@@ -788,7 +798,8 @@ struct Inliner {
      * already paying: it has one block, and a chain of `jmp`s is one block after `mergeBlocks`.
      */
     bool decidesEveryBranch(Candidate& candidate, InstCall& call) {
-        HashMap<U32, U8> decided;
+        auto& decided = decidedScratch;
+        decided.reset();
 
         for(Size i = 0; i < candidate.callee->args.size(); i++) {
             auto argument = call.args.get(opt.local, i);
@@ -871,17 +882,33 @@ struct Inliner {
         HashMap<U32, U32> values;
         HashMap<U32, U32> blocks;
         Array<U32> locals;
-        Array<Inst*> emitted;
+        InstList emitted;
         Block* into = nullptr;
+
+        // Emptied rather than rebuilt: one of these is used per call site inlined, and every table
+        // in it is the same shape each time - see HashMap::reset.
+        void clear() {
+            values.reset();
+            blocks.reset();
+            locals.clear();
+            emitted.clear();
+            into = nullptr;
+        }
     };
+
+    // The two tables the passes above reuse rather than build: what one clone translates, and which
+    // of a candidate's branches its arguments decide. Both are per call site considered, which is
+    // the frequency this pass runs at.
+    Clone cloneScratch;
+    HashMap<U32, U8> decidedScratch;
 
     // One callee block as it is being built in the caller: created before anything is cloned, so
     // that a branch to it has something to name, and filled in afterwards.
     struct ClonedBlock {
         ModulePtr<Block> from = nullptr;
         Block* to = nullptr;
-        Array<Inst*> phis;
-        Array<Inst*> instructions;
+        InstList phis;
+        InstList instructions;
         Inst* terminator = nullptr;
     };
 
@@ -1411,7 +1438,8 @@ struct Inliner {
 
         if(!worthInlining(candidate, call)) return false;
 
-        Clone clone;
+        auto& clone = cloneScratch;
+        clone.clear();
         clone.into = &block;
         auto& module = *opt.module;
 
@@ -1529,7 +1557,7 @@ struct Inliner {
      * opt_branch.cpp's job and it does it with the phi bookkeeping that belongs to it.
      */
     void reorderBlocks() {
-        Array<ModulePtr<Block>> order;
+        SmallArray<ModulePtr<Block>, 8> order;
         orderBlocks(*opt.function, order);
 
         for(auto pointer: opt.function->blocks.contents(opt.local)) {
@@ -1541,7 +1569,7 @@ struct Inliner {
 
     // A block's index is its position in this list, which is what every walk in opt_flow.cpp
     // assumes - so rewriting the list means renumbering with it.
-    void writeBlocks(Array<ModulePtr<Block>>& order) {
+    void writeBlocks(SmallArray<ModulePtr<Block>, 8>& order) {
         opt.function->blocks.clear();
 
         U16 index = 0;

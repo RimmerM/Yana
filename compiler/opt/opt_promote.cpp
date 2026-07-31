@@ -70,8 +70,8 @@ struct Candidate {
 
     IndexSet stores;    // whether the block writes the place at all
     IndexSet available; // whether every path into the block has written it
-    Array<ModulePtr<Value>> entry;
-    Array<ModulePtr<Value>> exit;
+    ValueList entry;
+    ValueList exit;
 };
 
 bool isWrite(const Value& instruction) {
@@ -306,7 +306,7 @@ bool readsAreWritten(OptContext& opt, Candidate& candidate, const IndexSet& reac
  * instruction it removes is a load whose readers have all been pointed elsewhere.
  */
 void rewriteBlock(OptContext& opt, Block& block, Array<Candidate>& candidates) {
-    Array<ModulePtr<Value>> current;
+    ValueList current;
     for(auto& candidate: candidates) current.push(candidate.entry[block.index]);
 
     for(Size i = 0; i < block.instructions.size(); i++) {

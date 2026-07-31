@@ -36,7 +36,7 @@ static void completeInstance(Module& module, RecordType& instance) {
     auto declaration = (RecordType*)global[instance.instanceOf];
     if(!declaration->definitionReady || instance.definitionReady) return;
 
-    Array<TypePtr> args;
+    TypeList args;
     for(auto arg: instance.instanceArgs.contents(global)) args.push(arg);
 
     for(Size i = 0; i < declaration->constructors.size(); i++) {
@@ -138,7 +138,7 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
             auto record = (RecordType*)global[type];
             if(!record->instanceOf) return type;
 
-            Array<TypePtr> substituted;
+            TypeList substituted;
             for(auto arg: record->instanceArgs.contents(global)) {
                 substituted.push(substituteType(module, arg, args, source));
             }
@@ -603,7 +603,7 @@ static TypePtr resolveApp(Module& module, const ast::AppType& app, GenEnv* env, 
         return errorType(module, source, "only a named type can be applied to type arguments"_v);
     }
 
-    Array<TypePtr> args;
+    TypeList args;
     auto appArgs = app.args;
     for(auto arg: appArgs.contents(module.parse)) args.push(resolveType(module, arg, env));
 
@@ -992,7 +992,7 @@ TupType* resolveTupleType(Module& module, Buffer<Field> requested, LocationId so
  * handle has a size independent of its target", and the back edge this finds is exactly the edge
  * automatic indirection will later box.
  */
-static bool checkAcyclic(Module& module, TypePtr type, Array<TypePtr>& stack, LocationId source) {
+static bool checkAcyclic(Module& module, TypePtr type, TypeList& stack, LocationId source) {
     if(!type) return true;
 
     auto base = *module.types;
@@ -1035,7 +1035,7 @@ static bool checkAcyclic(Module& module, TypePtr type, Array<TypePtr>& stack, Lo
 bool checkTypeAcyclic(Module& module, TypePtr type, LocationId source) {
     if(!type || isGeneric(*module.types, type)) return true;
 
-    Array<TypePtr> stack;
+    TypeList stack;
     return checkAcyclic(module, type, stack, source);
 }
 

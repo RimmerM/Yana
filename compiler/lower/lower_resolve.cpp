@@ -607,7 +607,7 @@ bool resolveLowerModule(LowerResolve& resolve, LowerBase moduleBase, RegionBase<
     auto warningCount = resolve.diag.warningCount();
 
     for(auto offset: module.functions) {
-        resolve.knownLocals.clear();
+        resolve.knownLocals.reset();
         resolve.pending.clear();
 
         auto f = moduleBase[offset];

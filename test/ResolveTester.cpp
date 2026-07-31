@@ -172,11 +172,21 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
     auto base = *module.arena;
     AsmModule assembly;
 
+    // One of each across the whole module: the allocator writes into them rather than building its
+    // own, so allocating a module costs the largest function's storage instead of the sum of every
+    // function's. The records each function's `registers` points into are consumed by genFunction
+    // before the next one is allocated, so the arena holding them is emptied in step - see
+    // RegScratch::resetRecords.
+    RegScratch scratch;
+    FunctionRegs registers;
+
     for(auto functionPointer: module.functions) {
         auto function = base[functionPointer];
         MachineFunction machine;
         transformFunction(context, base, *function, machine);
-        auto registers = allocateRegisters(context, base, *function, machine);
+
+        scratch.resetRecords();
+        allocateRegisters(context, base, *function, machine, scratch, registers);
         genFunction(context, base, assembly, *function, machine, registers);
     }
 

@@ -164,8 +164,7 @@ void computeDominators(Gen& g) {
 
     // A back edge is an edge whose target dominates its source, which is the definition rather than
     // an approximation of one - and it is what makes the loop headers here exactly the loops.
-    g.loopHeader.clear();
-    for(Size i = 0; i < count; i++) g.loopHeader.push(false);
+    g.loopHeader.reset(count);
 
     for(Size i = 0; i < count; i++) {
         U32 successors[2];
@@ -174,7 +173,7 @@ void computeDominators(Gen& g) {
 
         for(U32 s = 0; s < successorCount; s++) {
             auto target = successors[s];
-            if(target != kNoBlock && sets[i][target]) g.loopHeader[target] = true;
+            if(target != kNoBlock && sets[i][target]) g.loopHeader.set(target, true);
         }
     }
 }
@@ -415,8 +414,7 @@ void emitTerminator(Gen& g, U32 block, U32& next, U32 stopAt, bool& done) {
 
 void prepareCfg(Gen& g, Function& function) {
     g.blocks.clear();
-    g.blockIndex.clear();
-    g.emitted.clear();
+    g.blockIndex.reset();
     g.exits.clear();
 
     for(auto blockPointer: function.blocks.contents(g.local)) {
@@ -427,7 +425,7 @@ void prepareCfg(Gen& g, Function& function) {
     computePostDominators(g);
     computeDominators(g);
 
-    for(Size i = 0; i < g.blocks.size(); i++) g.emitted.push(false);
+    g.emitted.reset(g.blocks.size());
 }
 
 void emitChain(Gen& g, U32 block, U32 stopAt) {
@@ -488,7 +486,7 @@ void emitChain(Gen& g, U32 block, U32 stopAt) {
             return;
         }
 
-        g.emitted[block] = true;
+        g.emitted.set(block, true);
 
         for(auto instruction: g.local[g.blocks[block]]->instructions.contents(g.local)) {
             genInstruction(g, instruction);

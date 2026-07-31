@@ -406,7 +406,7 @@ static bool widens(GlobalBase global, TypePtr from, TypePtr to) {
     return target->bits > source->bits;
 }
 
-static void defineIntegerTypes(Module& module, Array<TypePtr>& types) {
+static void defineIntegerTypes(Module& module, TypeList& types) {
     struct Width { StringView name; U16 bits; bool isSigned; };
     static const Width widths[] = {
         { "I8"_v, 8, true },   { "U8"_v, 8, false },
@@ -440,7 +440,7 @@ static void defineIntegerTypes(Module& module, Array<TypePtr>& types) {
     for(auto& width: widths) types.push(addInteger(module, width.name, width.bits, width.isSigned));
 }
 
-static void defineIntegerInstances(Module& module, Array<TypePtr>& types) {
+static void defineIntegerInstances(Module& module, TypeList& types) {
     GlobalBase global = *module.types;
 
     // FromInt first, because Num declares it as a superclass: `1` has to mean something for a
@@ -502,7 +502,7 @@ void defineCore(Program& program) {
     program.scalar.double_ = addPrimitive(program, *module, "Double"_v, new (program.types) FloatType(FloatType::Double));
 
     // Before the source is read, so that Core's own declarations may name a width.
-    Array<TypePtr> widthTypes;
+    TypeList widthTypes;
     defineIntegerTypes(*module, widthTypes);
 
     resolveModuleDecls(*module, *ast, nullptr);

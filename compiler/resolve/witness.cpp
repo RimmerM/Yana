@@ -555,27 +555,31 @@ static ModulePtr<Function> erasedThunkFor(Module& module, GlobalPtr<TypeClass> t
     }
 
     Array<Arg*> parameters;
-    Array<bool> byAddress;
+
+    // One bit per parameter: whether the erased signature passes it by address. Sized before the
+    // walk because the class function's arity is what it is, and set as each one is classified.
+    IndexSet byAddress;
+    byAddress.reset(signature->args.size());
 
     for(auto argPointer: signature->args.contents(local)) {
         auto declared = local[argPointer]->type;
         auto concrete = substituteType(module, declared, classArgs, source);
         auto erased = isGeneric(global, declared);
 
-        byAddress.push(erased);
+        byAddress.set(parameters.size(), erased);
         parameters.push(function->addArg(module, local[argPointer]->name,
                                          erased ? resolvePointerType(module, concrete) : concrete, source));
     }
 
     ExprResolver resolver(context, module, *function);
-    Array<ModulePtr<Value>> args;
+    ValueList args;
 
     for(Size i = 0; i < parameters.size(); i++) {
         auto value = (ModulePtr<Value>)(parameters[i] - local);
         args.push(byAddress[i] ? resolver.load(Place::atPointer(value), source) : value);
     }
 
-    Array<TypePtr> instanceArgs;
+    TypeList instanceArgs;
     for(auto arg: match.args) instanceArgs.push(arg);
 
     auto errors = context.diagnostics.errorCount();
@@ -641,7 +645,7 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
     // a class whose default implementation calls another method of the same class. The entry is
     // built whole and then pushed: generating a thunk can push another witness, and a reference into
     // a list that reallocates under it would be writing into freed storage.
-    InternedWitness interned { typeClass, Array<TypePtr>(), pointer };
+    InternedWitness interned { typeClass, TypeList(), pointer };
     for(auto arg: args) interned.args.push(arg);
 
     auto entry = program.classWitnesses.size();
@@ -689,7 +693,7 @@ ModulePtr<Global> classWitnessFor(Module& module, GlobalPtr<TypeClass> typeClass
         auto slot = superIndex++;
         if(!constraint.typeClass) continue;
 
-        Array<TypePtr> concrete;
+        TypeList concrete;
         for(auto arg: constraint.args.contents(global)) {
             concrete.push(substituteType(module, arg, args, source));
         }
@@ -953,7 +957,7 @@ static bool fillEnvironment(Module& module, Function& caller, InstGenCall& call,
                 entry.constant = typeDescFor(module, expressed, call.source);
             }
         } else if(slot.kind == GenSlotKind::Class) {
-            Array<TypePtr> expressed;
+            TypeList expressed;
             auto anyGeneric = false;
 
             for(auto arg: slot.args.contents(global)) {
@@ -1070,7 +1074,7 @@ bool prepareGenericCalls(Program& program) {
                     auto& call = (InstGenCall&)inst;
                     if(call.env) continue;
 
-                    Array<TypePtr> typeArgs;
+                    TypeList typeArgs;
                     for(auto arg: call.typeArgs.contents(local)) typeArgs.push(arg);
 
                     if(call.typeClass) {
@@ -1236,7 +1240,7 @@ ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<T
     // Registered before the slots are filled, since building one of them can ask for an environment
     // again - a witness whose implementation is itself generic. Built whole and then pushed, so that
     // a nested request growing the list cannot leave a reference into freed storage.
-    InternedEnv interned { callee, Array<TypePtr>(), pointer };
+    InternedEnv interned { callee, TypeList(), pointer };
     for(auto arg: args) interned.args.push(arg);
 
     auto entry = program.genEnvs.size();
@@ -1265,7 +1269,7 @@ ModulePtr<Global> genEnvFor(Module& module, ModulePtr<Function> callee, Buffer<T
             }
 
             case GenSlotKind::Class: {
-                Array<TypePtr> concrete;
+                TypeList concrete;
                 for(auto arg: slot.args.contents(global)) {
                     concrete.push(substituteType(module, arg, args, source));
                 }

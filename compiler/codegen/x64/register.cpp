@@ -38,10 +38,56 @@
 // complete, correct placement whether or not another one would have been better.
 static constexpr Size kMaxDisplacements = 16;
 
-FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const MachineFunction& machine) {
+/*
+ * The record arena - see RecordArena in gen.h.
+ */
+
+void* RecordArena::alloc(Size bytes) {
+    // Rounded so that whatever lands next is aligned as well as this did. Everything committed here
+    // is a run of a fixed-size record, and the word is the widest field any of them has.
+    bytes = (bytes + 7) & ~Size(7);
+
+    // Past the end of the chunk being filled, so move on to the next. A chunk an earlier function
+    // grew is taken over whole rather than freed, so only a module wider than any before it makes
+    // this list longer.
+    if(chunk >= chunks.size() || used + bytes > sizes[chunk]) {
+        if(chunk < chunks.size()) chunk++;
+        used = 0;
+
+        // A request no chunk would hold gets one of its own. That cannot happen for a record, but
+        // it is what keeps the rule from being "the caller has to know the chunk size".
+        auto want = bytes > kChunkBytes ? bytes : kChunkBytes;
+
+        if(chunk == chunks.size()) {
+            chunks.push((Byte*)Tritium::hAlloc(want));
+            sizes.push(want);
+        } else if(sizes[chunk] < bytes) {
+            Tritium::hFree(chunks[chunk]);
+            chunks[chunk] = (Byte*)Tritium::hAlloc(want);
+            sizes[chunk] = want;
+        }
+    }
+
+    auto out = chunks[chunk] + used;
+    used += bytes;
+    return out;
+}
+
+RecordArena::~RecordArena() {
+    for(auto chunk: chunks) Tritium::hFree(chunk);
+}
+
+void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const MachineFunction& machine,
+    RegScratch& scratch, FunctionRegs& result)
+{
     auto& constraints = targetConstraints();
     auto& convention = constraints.getConvention(fun.callType);
     auto live = fun.buildLiveness(base);
+
+    // Emptied rather than replaced, here and in the two passes below: what the previous function
+    // left is the storage this one is about to ask for, and the allocation of a module is a few
+    // thousand of these buffers if each function builds its own.
+    result.clear();
 
     // How often each block runs relative to the entry, which is what every cost the placement weighs
     // is stated in. Computed once here rather than inside each pass: it is a function of the CFG and
@@ -54,10 +100,13 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun,
     // and a frame addressed through rbp are each individually correct.
     auto framePointer = functionNeedsFramePointer(ctx, base, fun);
 
-    Array<bool> forcedHomeless;
-    for(Size i = 0; i < live->valueMap.size(); i++) forcedHomeless.push(false);
+    auto& forcedHomeless = scratch.forcedHomeless;
+    forcedHomeless.reset(live->valueMap.size());
 
-    Placement placement;
+    // The placement is written into the result rather than assigned to it, so a second pass over
+    // this function - and the next function after it - reuses everything the first one grew. Nothing
+    // reads it between passes: each one restates the whole of it.
+    auto& placement = result.placement;
     Size displacements = 0;
 
     // Nothing held back to begin with, which is the answer for a function that fitted in its
@@ -65,8 +114,8 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun,
     TemporaryReserve temporaries;
 
     for(;;) {
-        placement = computePlacement(base, fun, *live, machine, constraints, frequency, framePointer,
-            temporaries, forcedHomeless);
+        computePlacement(base, fun, *live, machine, constraints, frequency, framePointer,
+            temporaries, forcedHomeless, scratch, placement);
         bool again = false;
 
         // A web with no register has to be brought into a scratch one at the instructions that cannot
@@ -78,14 +127,14 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun,
         // puts things, so the next measurement is a different question and not a correction of this
         // one. Taking the larger of the two can over-reserve slightly and can never under-reserve.
         if(placement.requiresLegalizationTemps) {
-            auto demand = measureTemporaryReserve(base, fun, machine, constraints, placement);
+            auto demand = measureTemporaryReserve(base, fun, machine, constraints, placement, scratch);
             if(temporaries.growTo(demand)) again = true;
         }
 
         for(auto id: placement.displacementRequests) {
             if(forcedHomeless[id] || displacements >= kMaxDisplacements) continue;
 
-            forcedHomeless[id] = true;
+            forcedHomeless.set(id, true);
             displacements++;
             again = true;
         }
@@ -103,19 +152,16 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun,
     // eventually read it.
     assertTrue(verifyPlacement(ctx, base, fun, *live, machine, constraints, placement, framePointer));
 
-    auto legalized = legalizeFunction(base, fun, machine, constraints, placement, temporaries);
-
-    FunctionRegs result;
+    legalizeFunction(base, fun, machine, constraints, placement, temporaries, scratch, result.legalized);
 
     // Which of the registers the function writes its caller expects to get back untouched. Both
     // halves count: the ones placement handed to webs or found instructions clobbering, and the
     // scratch registers legalization used. The prologue saves exactly these and the epilogue
     // restores them; a function that never left its convention's clobber set saves nothing.
-    result.usedCalleeSaved = (placement.writtenPhysical | legalized.writtenPhysical) & convention.calleeSaved;
+    result.usedCalleeSaved =
+        (placement.writtenPhysical | result.legalized.writtenPhysical) & convention.calleeSaved;
     result.framePointer = framePointer;
     result.temporaries = temporaries;
-    result.placement = ::move(placement);
-    result.legalized = ::move(legalized);
 
     // The register model still describes one bank whose moves and encodings do not exist - every
     // `kmov` is VEX-encoded, and see the note on `reg` in gen.cpp. A location in it reaching
@@ -125,5 +171,4 @@ FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun,
     assertTrue(result.usedCalleeSaved.banks[BankMask] == 0); // no encoder preserves a mask register
 
     assertTrue(verifyAllocation(ctx, base, fun, *live, machine, constraints, result));
-    return result;
 }

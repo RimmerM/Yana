@@ -283,7 +283,16 @@ inline bool isFoldableFloat(F64 value) { return value == value && value - value 
 
 // Putting freshly built instructions into a block at one position, uses and all. They are added in
 // the order given and end up in that order in front of whatever was at `index`.
-void insertInstructions(OptContext& opt, Block& block, Size index, Array<Inst*>& instructions);
+/*
+ * A short run of instructions being built before it is spliced into a block: what one packed store
+ * expands into, what materializing an argument takes, what an inlined body emits per instruction.
+ *
+ * Eight inline. These are expansions of a single instruction, so the count is decided by the widest
+ * expansion in the pass rather than by anything about the program being compiled.
+ */
+using InstList = SmallArray<Inst*, 8>;
+
+void insertInstructions(OptContext& opt, Block& block, Size index, InstList& instructions);
 
 /*
  * The fields of an aggregate a pass is willing to take apart, and how a place names one.

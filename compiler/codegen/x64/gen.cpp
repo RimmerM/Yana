@@ -589,7 +589,7 @@ static void genRemat(AsmModule& to, const FrameLayout& frame, const Remat& r, Ma
 // A load or store is exactly as wide as the slot it touches. Slots are packed by width, so a 4-byte
 // value sits 4 bytes from its neighbour and a 64-bit move would take the neighbour with it. A 32-bit
 // write also zeroes the rest of the register, which is what a 32-bit value wants anyway.
-static void genMoves(AsmModule& to, const FrameLayout& frame, const FrameObjects& objects, const Array<Remat>& remats, const Array<RegMove>& moves) {
+static void genMoves(AsmModule& to, const FrameLayout& frame, const FrameObjects& objects, const Array<Remat>& remats, SmallBuffer<RegMove> moves) {
     for(auto& m: moves) {
         if(m.from == m.to) continue;
 

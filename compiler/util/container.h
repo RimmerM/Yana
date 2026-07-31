@@ -3,6 +3,96 @@
 #include "../compiler/context.h"
 
 /*
+ * An array that starts inside itself.
+ *
+ * `SmallArray<T, N>` keeps its first N entries in the object, and moves to the heap only if it
+ * outgrows them. That is the shape almost every working list in this compiler actually has: the
+ * operands of an instruction, the successors of a block, the arguments of a call, the registers a
+ * form constrains. Each of them is two or three entries in every program anyone writes, and each of
+ * them was a heap allocation - so an ordinary function used to cost hundreds of them, all of the
+ * same handful of sizes, and none of them alive for more than a few hundred instructions.
+ *
+ * `N` is a guess, and it is meant to be: it says "this many is what real code has". Getting it wrong
+ * costs nothing but the case it was already paying - one allocation, at the point the list outgrows
+ * the guess - so it should be set to cover the ordinary program rather than the largest imaginable
+ * one. Everything past N behaves exactly like an ordinary Array.
+ *
+ * Not swappable, which is the one thing to know about it. Tritium's array moves by exchanging
+ * buffers where the allocator allows it, and a buffer inside the object cannot be exchanged - so
+ * moving one of these moves the elements. That is a memcpy for the trivial types these hold, and it
+ * is why `hasSwap` is false rather than an oversight.
+ *
+ * And the consequence: ArrayT's assignment operator *appends* when the allocator cannot swap, which
+ * is true of every non-swapping allocator it has (fixed, arena). That is a trap rather than a
+ * quirk - `worklist = remaining` reads as "replace" and produces a list that never shrinks - so
+ * SmallArray deletes assignment outright and `replaceContents` is the way to say it.
+ *
+ * The other rule: nothing may hold the address of an entry across a move. The storage is inside the
+ * object while it fits, so moving the object moves the entries with it, where an ordinary array
+ * would have handed over the same buffer. A list whose contents are pointed into from elsewhere -
+ * OwnershipResult's ranges, say - stays an ordinary Array.
+ */
+template<class T, U32 N, class Allocator = Tritium::HeapAllocator>
+struct SmallArrayAllocator {
+    static constexpr bool hasSwap = false;
+    void swap(SmallArrayAllocator&) {}
+
+    // The old buffer stays readable until `free` is called on it, which is what ArrayT's growth
+    // relies on: it takes the pointer, allocates, copies across, and then frees.
+    void alloc(U32 size) {
+        heap = (T*)Allocator::alloc(size * sizeof(T));
+        heapLength = size;
+    }
+
+    // The inline buffer is part of the object and is never handed back.
+    void free(T* p) {
+        if(p != (T*)data) Allocator::free(p);
+    }
+
+    void destroy() {
+        if(heap) Allocator::free(heap);
+        heap = nullptr;
+        heapLength = 0;
+    }
+
+    T* pointer() { return heap ? heap : (T*)data; }
+    const T* pointer() const { return heap ? heap : (const T*)data; }
+
+    U32 space() const { return heap ? heapLength : N; }
+    U32 probeSpace(U32 needed) const { return space(); }
+
+private:
+    T* heap = nullptr;
+    U32 heapLength = 0;
+    Uninitialized<T> data[N];
+};
+
+// An array of `T` that holds its first `N` entries inline - see SmallArrayAllocator. A type of its
+// own rather than an alias so that assignment can be deleted; everything else is ArrayT's.
+template<class T, U32 N>
+struct SmallArray: ArrayT<T, SmallArrayAllocator<T, N>> {
+    using Base = ArrayT<T, SmallArrayAllocator<T, N>>;
+    using Base::Base;
+
+    SmallArray() = default;
+    SmallArray(SmallArray&&) = default;
+    SmallArray(const SmallArray&) = default;
+
+    // Both deleted: the inherited one appends rather than replaces. Say `replaceContents`.
+    SmallArray& operator = (const SmallArray&) = delete;
+    SmallArray& operator = (SmallArray&&) = delete;
+};
+
+// Gives one list another's contents. What `into = from` would be if assigning a SmallArray did what
+// it looks like; see the note above. It also keeps whatever storage `into` had, which is what the
+// pooled lists want anyway.
+template<class To, class From>
+void replaceContents(To& into, const From& from) {
+    into.clear();
+    for(auto& value: from) into.push(value);
+}
+
+/*
  * A set of small indices, one bit each, whose storage outlives the set.
  *
  * The members are whatever the pass holding it is indexed by - a function's locals in the ownership
@@ -20,31 +110,54 @@
  *
  * The bits past `size()` are always clear, which is what lets the set-wise operations work a byte
  * at a time instead of an index at a time. `reset` zeroes them and `fill` masks them off again.
+ *
+ * The first `kInlineBits` live in the set itself, for the same reason SmallArray's entries do: a
+ * function with fewer locals, blocks or instructions than that - which is nearly every function
+ * anyone writes - never reaches the heap at all, and a set used once and dropped costs nothing.
+ * Past it the storage is heap and the inline words go unused, which is the price of one allocation
+ * for a function large enough not to notice it.
  */
 struct IndexSet {
+    // Four words. A function of more than 256 locals or blocks is not one this bound is deciding
+    // anything about; the point is that eight of them, which is the ordinary case, is free.
+    static constexpr Size kInlineBits = 256;
+    static constexpr Size kInlineBytes = kInlineBits / 8;
+
     IndexSet() = default;
-    IndexSet(IndexSet&&) = default;
     IndexSet(const IndexSet&) = delete;
     IndexSet& operator = (const IndexSet&) = delete;
 
-    // Through the move constructor, because Tritium's BitSet has one of those and no assignment.
+    IndexSet(IndexSet&& other) { take(other); }
+
     // Wanted by anything that sorts a structure holding a set - see the loop list in opt_flow.cpp.
     IndexSet& operator = (IndexSet&& other) {
         if(this == &other) return *this;
 
-        bits.~BitSet();
-        new (&bits) BitSet<>(::move(other.bits));
-
-        count = other.count;
-        other.count = 0;
+        if(heap) Tritium::hFree(heap);
+        take(other);
         return *this;
+    }
+
+    ~IndexSet() {
+        if(heap) Tritium::hFree(heap);
     }
 
     // Clears the set and makes room for `count` indices, reusing this instance's buffer where it
     // already holds that many.
     void reset(Size count) {
-        if(count) bits.resizeClear(count);
+        auto needed = (count + 7) / 8;
+
+        if(needed > capacity()) {
+            if(heap) Tritium::hFree(heap);
+
+            heap = (Byte*)Tritium::hAlloc(needed);
+            heapBytes = needed;
+        }
+
         this->count = count;
+
+        auto p = bytes();
+        for(Size i = 0; i < needed; i++) p[i] = 0;
     }
 
     Size size() const { return count; }
@@ -57,12 +170,18 @@ struct IndexSet {
      * shape in this code rather than a mistake, and it means the same thing the in-range answer
      * would.
      */
-    bool get(Size index) const { return index < count && bits.get(index); }
+    bool get(Size index) const {
+        return index < count && (bytes()[index / 8] & (1u << (index % 8))) != 0;
+    }
+
     bool operator [] (Size index) const { return get(index); }
 
     void set(Size index, bool value) {
         assertTrue(index < count);
-        bits.set(index, value);
+        auto mask = Byte(1u << (index % 8));
+
+        if(value) bytes()[index / 8] |= mask;
+        else bytes()[index / 8] &= Byte(~mask);
     }
 
     // Adds one local, reporting whether it was not already there.
@@ -135,14 +254,33 @@ struct IndexSet {
 
 private:
     Size byteCount() const { return (count + 7) / 8; }
+    Size capacity() const { return heap ? heapBytes : kInlineBytes; }
 
-    // BitSet::getBits() has no const form, and the set-wise operations above read one set while
-    // writing another. Casting here rather than at each of them keeps the constness of the
+    // The set-wise operations above read one set while writing another, so the read side has to be
+    // callable on a const set. Casting here rather than at each of them keeps the constness of the
     // arguments honest, which is what the callers care about.
-    Byte* bytes() const { return const_cast<BitSet<>&>(bits).getBits(); }
+    Byte* bytes() const { return heap ? heap : const_cast<Byte*>(inlineBytes); }
 
-    BitSet<> bits;
+    // Takes over `other`'s storage, leaving it empty. The inline bytes cannot be stolen, so they are
+    // copied - which is a fixed few words and no allocation either way.
+    void take(IndexSet& other) {
+        heap = other.heap;
+        heapBytes = other.heapBytes;
+        count = other.count;
+
+        if(!heap) {
+            for(Size i = 0; i < kInlineBytes; i++) inlineBytes[i] = other.inlineBytes[i];
+        }
+
+        other.heap = nullptr;
+        other.heapBytes = 0;
+        other.count = 0;
+    }
+
+    Byte* heap = nullptr;
+    Size heapBytes = 0;
     Size count = 0;
+    Byte inlineBytes[kInlineBytes] = {};
 };
 
 /*
@@ -276,34 +414,59 @@ private:
     Size used = 0;
 };
 
-template<class T>
+/*
+ * The rows are SmallArrays, which is what stops the *first* use of each from allocating.
+ *
+ * Emptying a row keeps whatever it grew into, so a list reused across functions settles - but a row
+ * index no function had reached before is a fresh row, and with an ordinary array that is one
+ * allocation each. A list indexed by instruction therefore paid one allocation per instruction of
+ * the largest function it ever saw. Inline rows make that free for the ordinary width, which for
+ * the two lists this holds - the ownership state of each local, the webs one web conflicts with -
+ * is a handful of entries.
+ */
+template<class T, U32 N = 8>
 struct ArrayList {
-    void reset(Size rows, Size count, const T& value) {
-        while(entries.size() < rows) entries.push(Array<T>());
+    using Row = SmallArray<T, N>;
 
+    void reset(Size rows, Size count, const T& value) {
+        reset(rows);
         for(Size i = 0; i < rows; i++) {
-            entries[i].clear();
             for(Size j = 0; j < count; j++) entries[i].push(value);
         }
+    }
+
+    // Rows that start empty rather than filled, for the lists that are grown into rather than
+    // indexed from the start - the conflicts and occupants placement collects per web.
+    void reset(Size rows) {
+        while(entries.size() < rows) entries.push(Row());
+        for(Size i = 0; i < rows; i++) entries[i].clear();
 
         used = rows;
     }
 
-    // Replaces one row's contents without giving up its storage, which is what the two arrays the
-    // ownership walk carries between blocks are assigned through.
-    void copyInto(Size index, const Array<T>& source) {
-        auto& into = (*this)[index];
-        into.clear();
+    // One more row than the last reset left, keeping whatever storage that row already had. Rows
+    // appear one at a time where the count is discovered rather than known - a frame slot exists
+    // because a web was put in it - and a row past `used` is one an earlier function grew.
+    Row& push() {
+        if(entries.size() == used) entries.push(Row());
+        else entries[used].clear();
 
-        for(auto& value: source) into.push(value);
+        return entries[used++];
     }
 
-    Array<T>& operator [] (Size index) { assertTrue(index < used); return entries[index]; }
-    const Array<T>& operator [] (Size index) const { assertTrue(index < used); return entries[index]; }
+    // Replaces one row's contents without giving up its storage, which is what the two arrays the
+    // ownership walk carries between blocks are assigned through.
+    template<class Source>
+    void copyInto(Size index, const Source& source) {
+        replaceContents((*this)[index], source);
+    }
+
+    Row& operator [] (Size index) { assertTrue(index < used); return entries[index]; }
+    const Row& operator [] (Size index) const { assertTrue(index < used); return entries[index]; }
     Size size() const { return used; }
 
 private:
-    Array<Array<T>> entries;
+    Array<Row> entries;
     Size used = 0;
 };
 
@@ -455,19 +618,19 @@ struct EmbedContents {
         return Nothing();
     }
 
+    /*
+     * By value, and it has to be.
+     *
+     * The iterator yields a `T` rather than a `T&`: for a list with a tag bit in its entries,
+     * `operator*` strips the mask, so the thing the caller wants is a value this computes and not
+     * anything the list actually holds. A `Maybe<T&>` here therefore referred to the loop variable,
+     * which is dead by the time the caller reads it - and since the entries are region handles, the
+     * caller then indexed the region with whatever had been left on the stack.
+     */
     template<class Predicate>
-    Maybe<T&> findWhere(Predicate&& p) {
+    Maybe<T> findWhere(Predicate&& p) const {
         for(auto v: *this) {
-            if(p(v)) return Maybe<T&>(v);
-        }
-
-        return Nothing();
-    }
-
-    template<class Predicate>
-    Maybe<const T&> findWhere(Predicate&& p) const {
-        for(auto v: *this) {
-            if(p(v)) return Maybe<const T&>(v);
+            if(p(v)) return Just(v);
         }
 
         return Nothing();

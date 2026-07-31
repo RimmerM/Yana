@@ -101,7 +101,7 @@ void parserTest(const String& path, StringView content) {
     });
 
     auto size = file.size();
-    Ptr<char> buffer { (char*)hAlloc(size) };
+    Ptr<char, HeapDeleter> buffer { (char*)hAlloc(size) };
     file.read({ (Byte*)buffer.get(), size });
 
     auto string = writer.getBuffered();
@@ -171,7 +171,7 @@ void testParser(bool generate) {
         auto file = result.moveUnwrapOk();
         auto size = file.size();
 
-        Ptr<char> buffer { (char*)hAlloc(size) };
+        Ptr<char, HeapDeleter> buffer { (char*)hAlloc(size) };
         file.read({ (Byte*)buffer.get(), size });
 
         if(generate) {

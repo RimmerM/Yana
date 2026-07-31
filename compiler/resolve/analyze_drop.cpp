@@ -12,18 +12,6 @@
  * reading of those facts or the facts themselves.
  */
 
-// One drop the pass decided to insert. `before` is a linear index: the drop goes immediately
-// before that instruction, which is always a real position because a terminator never defines or
-// last-uses a local itself.
-struct PendingDrop {
-    U32 local = 0;
-    U32 before = 0;
-
-    // Set for a drop that releases what a write is about to replace, in which case the place comes
-    // from the write rather than from the local - see makeOverwriteDrop.
-    ModulePtr<Inst> overwrite = nullptr;
-};
-
 // One drop that belongs on a CFG edge rather than inside a block - the branch case, where a value
 // is live down one arm and dead down the other.
 struct EdgeDrop {
@@ -31,6 +19,11 @@ struct EdgeDrop {
     Size fromBlock = 0;
     Size toBlock = 0;
 };
+
+// The drops each block needs, and the ones that belong on an edge rather than in a block. Both are
+// short in every body that has any at all - a function that drops eight things on one edge is not
+// one this bound decides anything about.
+using EdgeDropList = SmallArray<EdgeDrop, 8>;
 
 /*
  * The first rule: a value's lifetime ends where nothing reaches it any more, which is a fact about
@@ -51,7 +44,7 @@ static Size positionInBlock(Analysis& analysis, Size blockIndex, U32 index) {
     return min(position, block->instructions.size());
 }
 
-static void placeDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops, Array<EdgeDrop>& edgeDrops) {
+static void placeDrops(Analysis& analysis, DropList& blockDrops, EdgeDropList& edgeDrops) {
     auto count = analysis.localCount;
 
     // Both are the program's buffers rather than this block's: the rows below are re-sized per
@@ -181,7 +174,7 @@ static void placeDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops
  * pointer names is outside the ownership model by definition and nothing here can say what is in
  * it. That is the unsafety Native is named for rather than a case missing from this pass.
  */
-static void placeOverwriteDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops) {
+static void placeOverwriteDrops(Analysis& analysis, DropList& blockDrops) {
     for(Size b = 0; b < analysis.blockCount(); b++) {
         auto range = analysis.blockRanges[b];
 
@@ -435,7 +428,7 @@ static InstDrop* makeOverwriteDrop(Analysis& analysis, Block& block, ModulePtr<I
     return drop;
 }
 
-static void insertBlockDrops(Analysis& analysis, Array<Array<PendingDrop>>& blockDrops) {
+static void insertBlockDrops(Analysis& analysis, DropList& blockDrops) {
     for(Size b = 0; b < analysis.blockCount(); b++) {
         if(blockDrops[b].isEmpty()) continue;
 
@@ -538,12 +531,12 @@ static void splitEdge(Analysis& analysis, Size fromIndex, Size toIndex, Array<U3
     }
 }
 
-static void insertEdgeDrops(Analysis& analysis, Array<EdgeDrop>& edgeDrops) {
+static void insertEdgeDrops(Analysis& analysis, EdgeDropList& edgeDrops) {
     // Grouped per edge, so one split block carries every drop that edge owes rather than one per.
     while(edgeDrops.size()) {
         auto first = edgeDrops[0];
         Array<U32> locals;
-        Array<EdgeDrop> remaining;
+        EdgeDropList remaining;
 
         for(auto& drop: edgeDrops) {
             if(drop.fromBlock == first.fromBlock && drop.toBlock == first.toBlock) locals.push(drop.local);
@@ -551,7 +544,10 @@ static void insertEdgeDrops(Analysis& analysis, Array<EdgeDrop>& edgeDrops) {
         }
 
         splitEdge(analysis, first.fromBlock, first.toBlock, locals);
-        edgeDrops = ::move(remaining);
+
+        // Replaced rather than assigned - see SmallArray. Assigning one of these appends, and a
+        // worklist that never shrinks is a loop that never ends.
+        replaceContents(edgeDrops, remaining);
     }
 }
 
@@ -563,10 +559,12 @@ static void insertEdgeDrops(Analysis& analysis, Array<EdgeDrop>& edgeDrops) {
  * would be derived from a lifetime the pass could not settle.
  */
 void insertDrops(Analysis& analysis) {
-    Array<Array<PendingDrop>> blockDrops;
-    for(Size b = 0; b < analysis.blockCount(); b++) blockDrops.push(Array<PendingDrop>());
+    // One row per block, each holding the few drops that block ends up needing. The scratch's, so
+    // a body analysed after another writes into the rows that one grew - see AnalysisScratch.
+    auto& blockDrops = analysis.scratch.blockDrops;
+    blockDrops.reset(analysis.blockCount());
 
-    Array<EdgeDrop> edgeDrops;
+    EdgeDropList edgeDrops;
     placeDrops(analysis, blockDrops, edgeDrops);
     placeOverwriteDrops(analysis, blockDrops);
     if(!analysis.ok) return;

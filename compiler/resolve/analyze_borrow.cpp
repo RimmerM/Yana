@@ -82,8 +82,8 @@ static U32 lastUseOf(Analysis& analysis, ModulePtr<Inst> pointer) {
     auto found = analysis.indexOf.get(U32(pointer));
     auto last = found ? found.unwrap() : 0;
 
-    Array<ModulePtr<Value>> pending;
-    Array<ModulePtr<Value>> seen;
+    ValueList pending;
+    ValueList seen;
     pending.push((ModulePtr<Value>)pointer);
 
     while(pending.size()) {

@@ -92,6 +92,14 @@ struct TrackedLocal {
     bool escapes = false;
 };
 
+/*
+ * Deliberately ordinary arrays, not SmallArrays.
+ *
+ * `rangesOf` hands out a Buffer pointing into `ranges`, and one of these is stored per function in a
+ * table that rehashes as functions are added. A heap buffer survives being moved; an inline one is
+ * part of the object and moves with it, so every Buffer taken before the move would be left pointing
+ * at where the result used to be. Inline storage is for lists nobody takes the address of.
+ */
 struct OwnershipResult {
     Array<TrackedLocal> locals;
 

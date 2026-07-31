@@ -275,7 +275,7 @@ static ModulePtr<Function> functionThunk(Module& module, ModulePtr<Function> cal
     function->addArg(module, module.context.addUnqualifiedName("env", 3),
                      funValueFieldType(module, FunValueLayout::kEnv), source);
 
-    Array<ModulePtr<Value>> args;
+    ValueList args;
     for(auto argPointer: target->args.contents(*module.arena)) {
         auto declared = (*module.arena)[argPointer];
         auto forwarded = function->addArg(module, declared->name, declared->type, source);
@@ -354,7 +354,7 @@ ModulePtr<Value> ExprResolver::emitDynamicCall(ModulePtr<Value> callable, Buffer
      */
     auto packed = packedMark();
 
-    Array<ModulePtr<Value>> converted;
+    ValueList converted;
     for(Size i = 0; i < args.length; i++) {
         auto declared = signature->args.get(global, i);
 

@@ -264,13 +264,12 @@ bool borrowStaysHere(Gen& g, Value& user, ModulePtr<Value> borrow) {
  * to reach back and box the local both of them name.
  */
 void prepareLocals(Gen& g, Function& function) {
-    g.boxed.clear();
-    g.aliasBorrows.clear();
-    for(Size i = 0; i < function.localCount(); i++) g.boxed.push(false);
+    g.aliasBorrows.reset();
+    g.boxed.reset(function.localCount());
 
     // Every value that is a name for one local's storage, and which local that is.
     HashMap<U32, U32> aliases;
-    Array<ModulePtr<Value>> pending;
+    ValueList pending;
 
     auto consider = [&](ModulePtr<Value> value, const Place& place) {
         auto projections = place.projections;
@@ -297,7 +296,7 @@ void prepareLocals(Gen& g, Function& function) {
         if(place.local >= function.localCount()) return;
 
         auto type = function.localAt(g.local, place.local).type;
-        if(type && !isJsObject(g, type)) g.boxed[place.local] = true;
+        if(type && !isJsObject(g, type)) g.boxed.set(place.local, true);
     };
 
     eachInstruction(g, function, [&](Value& instruction) {
@@ -324,7 +323,7 @@ void prepareLocals(Gen& g, Function& function) {
             auto& user = *g.local[userPointer];
 
             if(!borrowStaysHere(g, user, borrow)) {
-                g.boxed[local] = true;
+                g.boxed.set(local, true);
                 continue;
             }
 
@@ -342,7 +341,7 @@ void prepareLocals(Gen& g, Function& function) {
     for(Size i = 0; i < function.localCount(); i++) {
         auto slot = function.localAt(g.local, i);
         if(!slot.borrowed || !slot.type) continue;
-        if(!isJsObject(g, slot.type)) g.boxed[i] = true;
+        if(!isJsObject(g, slot.type)) g.boxed.set(i, true);
     }
 
     /*
@@ -356,7 +355,7 @@ void prepareLocals(Gen& g, Function& function) {
      */
     for(auto entry: aliases.entries()) {
         auto slot = function.localAt(g.local, entry.value);
-        if(slot.type && !isJsObject(g, slot.type)) g.boxed[entry.value] = true;
+        if(slot.type && !isJsObject(g, slot.type)) g.boxed.set(entry.value, true);
     }
 
     for(auto entry: aliases.entries()) {
@@ -448,11 +447,13 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
 
     g.function = &function;
     g.functionPointer = pointer;
-    g.values.clear();
-    g.phis.clear();
-    g.localNames.clear();
+    // Emptied rather than released: one Gen serves a whole module, so each of these settles at the
+    // widest function it has seen - see HashMap::reset.
+    g.values.reset();
+    g.phis.reset();
+    g.localNames.reset();
     g.writebacks.clear();
-    g.pendingCode.clear();
+    g.pendingCode.reset();
     g.labelCounter = 0;
     g.genEnv = nullptr;
     g.genContext = functionGen(g.global, function);

@@ -971,12 +971,12 @@ static ModulePtr<Function> resolveClassDefault(Module& module, TypeClass& typeCl
     };
 
     for(auto constraint: classEnv->classes.contents(global)) {
-        Array<TypePtr> args;
+        TypeList args;
         for(auto arg: constraint.args.contents(global)) args.push(arg);
         addConstraint(constraint.typeClass, constraint.name, constraint.source, toBuffer(args));
     }
 
-    Array<TypePtr> own;
+    TypeList own;
     for(auto variable: classEnv->types.contents(global)) own.push((Type*)global[variable] - global);
     addConstraint((TypeClass*)&typeClass - global, typeClass.name, member.source, toBuffer(own));
 
@@ -1335,7 +1335,7 @@ static bool mentionsVariable(GlobalBase global, TypePtr type, U16 index) {
 static void resolveInstance(Module& module, ast::Decl& decl) {
     auto& type = decl.instance.type;
     StringId className = 0;
-    Array<TypePtr> args;
+    TypeList args;
 
     // The constraints are read first, since they name the variables the head is written over -
     // and a constraint may name one the head does not, which is what the check below reports.
@@ -1613,14 +1613,14 @@ static void checkSuperclasses(Module& module, ClassInstance& instance) {
     auto global = *module.types;
     auto typeClass = global[instance.typeClass];
 
-    Scratch<Array<TypePtr>> heldArgs(module.program.typeLists);
+    Scratch<TypeList> heldArgs(module.program.typeLists);
     auto& args = *heldArgs;
     for(auto arg: instance.forTypes.contents(*module.arena)) args.push(arg);
 
     for(auto constraint: global[typeClass->gen]->classes.contents(global)) {
         if(!constraint.typeClass) continue;
 
-        Scratch<Array<TypePtr>> heldConcrete(module.program.typeLists);
+        Scratch<TypeList> heldConcrete(module.program.typeLists);
         auto& concrete = *heldConcrete;
 
         for(auto arg: constraint.args.contents(global)) {

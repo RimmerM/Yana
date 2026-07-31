@@ -218,7 +218,7 @@ struct Gen {
     HashMap<U32, U32> pendingCode;
 
     // Which locals are stored as a one-property box, by local index. See gen.cpp's file comment.
-    Array<bool> boxed;
+    IndexSet boxed;
 
     // The borrow and address values that are a second *name* for the storage they were taken of
     // rather than a box holding it - see prepareLocals. A place rooted in one of these reaches the
@@ -244,8 +244,8 @@ struct Gen {
 
     Array<U32> ipdom;
     Array<U32> idom;
-    Array<bool> loopHeader;
-    Array<bool> emitted;
+    IndexSet loopHeader;
+    IndexSet emitted;
 
     // The constructs currently open that control can leave through - see emitChain.
     Array<Exit> exits;

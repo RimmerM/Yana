@@ -578,7 +578,7 @@ bool ExprResolver::fillTuple(Place place, TupType& tuple, ast::ParseList<ast::Tu
                              GlobalList<FieldDefault>* defaults, LocationId source) {
     auto args = astArgs.contents(parse);
 
-    Array<ModulePtr<Value>> values;
+    ValueList values;
     values.reserve(tuple.fields.size());
     for(Size i = 0; i < tuple.fields.size(); i++) values.push(nullptr);
 
@@ -658,7 +658,7 @@ ModulePtr<Value> ExprResolver::resolveTuple(const ast::Expr& expr, ast::ParseLis
     if(astArgs.isEmpty()) return nullptr;
 
     TupType* tuple = nullptr;
-    Array<ModulePtr<Value>> inferredValues;
+    ValueList inferredValues;
 
     // With no expected type the tuple's own type is whatever its arguments turn out to be, so
     // they are resolved first and the type interned from their results.
@@ -705,7 +705,7 @@ ModulePtr<Value> ExprResolver::resolveTuple(const ast::Expr& expr, ast::ParseLis
  * would emit them twice.
  */
 TypePtr ExprResolver::constructedType(ConstructorRef reference, ast::ParseList<ast::TupArg> args, TypePtr target,
-                                      Array<ModulePtr<Value>>& resolved, LocationId source) {
+                                      ValueList& resolved, LocationId source) {
     auto declaration = global[reference.record];
     auto env = declaration->gen ? global[declaration->gen] : nullptr;
     if(!env || env->types.isEmpty()) return (Type*)declaration - global;
@@ -715,7 +715,7 @@ TypePtr ExprResolver::constructedType(ConstructorRef reference, ast::ParseList<a
         return target;
     }
 
-    Array<TypePtr> bindings;
+    TypeList bindings;
     for(Size i = 0; i < env->types.size(); i++) bindings.push(nullptr);
 
     auto content = declaration->constructors.get(global, reference.index).content;
@@ -770,7 +770,7 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
     }
 
     auto reference = found.unwrap();
-    Array<ModulePtr<Value>> inferredValues;
+    ValueList inferredValues;
     auto recordType = constructedType(reference, construct.args, target, inferredValues, expr.source);
     if(global[recordType]->kind != Type::Record) return nullptr;
 
@@ -1116,7 +1116,7 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
     // are converted to it.
     auto element = arrayElement(module, global, target);
 
-    Array<ModulePtr<Value>> values;
+    ValueList values;
     for(auto item: items.contents(parse)) {
         auto value = resolve(item, element);
         if(!element && value) element = settleType(valueType(value));

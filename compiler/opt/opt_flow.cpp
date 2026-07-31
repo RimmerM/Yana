@@ -105,7 +105,7 @@ void computeDominance(OptContext& opt, Dominance& result) {
     result.preorder.reserve(U32(count));
     for(Size i = 0; i < count; i++) result.preorder.push(0);
 
-    Array<U32> stack;
+    SmallArray<U32, 32> stack;
     if(count) stack.push(0);
 
     U32 next = 0;

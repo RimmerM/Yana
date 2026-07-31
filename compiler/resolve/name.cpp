@@ -135,7 +135,7 @@ Maybe<U8> findPrecedence(Module& module, StringId name) {
 // once: two classes may both declare `show`, and only the argument and result types decide which
 // was meant. Collecting all of them and letting selection reject the ones that do not fit is the
 // difference between an ambiguity error and an overload.
-void findClassFunctions(Module& module, StringId name, LocationId source, Array<ClassFunRef>& target) {
+void findClassFunctions(Module& module, StringId name, LocationId source, ClassFunList& target) {
     auto global = *module.types;
 
     auto collect = [&](Module& in, NameRef reference) {
@@ -229,7 +229,7 @@ void findInstances(Module& module, GlobalPtr<TypeClass> typeClass, Array<ModuleP
 static const U32 kProofDepth = 8;
 
 static bool instanceApplies(Module& module, ClassInstance& instance, Buffer<TypePtr> args,
-                            Array<TypePtr>& bindings, U32 depth);
+                            TypeList& bindings, U32 depth);
 
 /*
  * The two classes nobody writes an instance of.
@@ -289,8 +289,9 @@ static InstanceMatch matchInstanceAt(Module& module, GlobalPtr<TypeClass> typeCl
     InstanceMatch best;
 
     // One list for every candidate rather than one each: all but the winning candidate's bindings
-    // are discarded, and the winner's are moved out - after which this is empty and grows once more.
-    Array<TypePtr> bindings;
+    // are discarded, and the winner's are copied out. A TypeList, so the ordinary case where a class
+    // has one or two variables never reaches the heap at all.
+    TypeList bindings;
 
     for(auto candidate: *candidates) {
         bindings.clear();
@@ -305,14 +306,14 @@ static InstanceMatch matchInstanceAt(Module& module, GlobalPtr<TypeClass> typeCl
         if(best && !instanceCovers(module, *local[best.instance], *local[candidate])) continue;
 
         best.instance = candidate;
-        best.args = ::move(bindings);
+        replaceContents(best.args, bindings);
     }
 
     return best;
 }
 
 static bool instanceApplies(Module& module, ClassInstance& instance, Buffer<TypePtr> args,
-                            Array<TypePtr>& bindings, U32 depth) {
+                            TypeList& bindings, U32 depth) {
     auto global = *module.types;
     auto local = *module.arena;
     auto env = instance.gen ? global[instance.gen] : nullptr;
@@ -356,7 +357,7 @@ static bool instanceApplies(Module& module, ClassInstance& instance, Buffer<Type
     for(auto constraint: env->classes.contents(global)) {
         if(!constraint.typeClass) continue;
 
-        Array<TypePtr> concrete;
+        TypeList concrete;
         for(auto arg: constraint.args.contents(global)) {
             concrete.push(substituteType(module, arg, toBuffer(bindings), instance.source));
         }
@@ -381,7 +382,7 @@ bool instanceCovers(Module& module, ClassInstance& pattern, ClassInstance& other
     auto local = *module.arena;
     if(pattern.forTypes.size() != other.forTypes.size()) return false;
 
-    Array<TypePtr> bindings;
+    TypeList bindings;
     if(pattern.gen) {
         for(Size i = 0; i < global[pattern.gen]->types.size(); i++) bindings.push(nullptr);
     }

@@ -361,7 +361,7 @@ ModulePtr<Value> ExprResolver::emitConversion(GlobalPtr<TypeClass> typeClass, St
                                               ModulePtr<Value> value, TypePtr target, LocationId source) {
     if(!typeClass) return nullptr;
 
-    Array<ClassFunRef> candidates;
+    ClassFunList candidates;
     findClassFunctions(module, method, source, candidates);
 
     for(auto& candidate: candidates) {

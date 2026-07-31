@@ -128,7 +128,11 @@ Maybe<U8> findPrecedence(Module& module, StringId name);
 
 // Every class function reachable under this name, across every visible module. A name may
 // belong to more than one class, so selection has to see all of them and decide by type.
-void findClassFunctions(Module& module, StringId name, LocationId source, Array<ClassFunRef>& target);
+// The class functions one name refers to. Four inline: an overload set larger than that is a name
+// several classes each declare, which is rare enough that its one allocation says nothing.
+using ClassFunList = SmallArray<ClassFunRef, 4>;
+
+void findClassFunctions(Module& module, StringId name, LocationId source, ClassFunList& target);
 
 // Every instance of `typeClass` visible from this module, in declaration order.
 void findInstances(Module& module, GlobalPtr<TypeClass> typeClass, Array<ModulePtr<ClassInstance>>& target);
@@ -138,7 +142,7 @@ void findInstances(Module& module, GlobalPtr<TypeClass> typeClass, Array<ModuleP
 // implementation of that instance has to be specialized for before it can be called.
 struct InstanceMatch {
     ModulePtr<ClassInstance> instance = nullptr;
-    Array<TypePtr> args;
+    TypeList args;
 
     explicit operator bool() const { return instance != nullptr; }
 };

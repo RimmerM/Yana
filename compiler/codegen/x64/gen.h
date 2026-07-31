@@ -424,13 +424,79 @@ struct RegMove {
 // from (gen.cpp), so the sequencer cannot ask for an exchange no encoder has.
 bool classHasExchange(RegisterClassId regClass);
 
+/*
+ * Where the instruction records live: a bump allocator over chunks that are kept rather than freed.
+ *
+ * Not `Arena` from context.h, for two reasons that both matter at this size. Its chunk is four
+ * megabytes, which is three orders of magnitude more than a module's records, and it hands back
+ * whatever offset the last allocation ended on - fine for the AST nodes it was written for, whose
+ * sizes are all multiples of the word, and not for a run of `n` operands. This rounds every
+ * allocation up so the next one is aligned, and `reset` rewinds instead of freeing, so the second
+ * function of a module writes into the chunk the first one grew.
+ */
+struct RecordArena {
+    RecordArena() = default;
+    RecordArena(const RecordArena&) = delete;
+    RecordArena& operator = (const RecordArena&) = delete;
+    ~RecordArena();
+
+    void* alloc(Size bytes);
+
+    // Hands every chunk back to the next writer. Whatever was allocated before is still in memory
+    // and is about to be overwritten, so this invalidates every record handed out since the last
+    // one - see RegScratch::resetRecords.
+    void reset() {
+        chunk = 0;
+        used = 0;
+    }
+
+private:
+    // Large enough that a function of any ordinary size takes one chunk, small enough that holding
+    // one per allocation is nothing. A request larger than this gets a chunk of its own.
+    static constexpr Size kChunkBytes = 64 * 1024;
+
+    Array<Byte*> chunks;
+    Array<Size> sizes;
+    Size chunk = 0; // the chunk being filled
+    Size used = 0;  // bytes of it spent
+};
+
+/*
+ * The instruction records are runs in the arena, named by `SmallBuffer`.
+ *
+ * Tritium already has the type this wants: a pointer and a length, with the storage owned by
+ * somebody else - which is exactly what a run in the arena is. SmallBuffer is the packed form,
+ * holding both in one word by putting the length in the top sixteen bits of the pointer, and an
+ * instruction's operand list is a handful of entries, so the four lists of a record cost four words
+ * between them instead of eight.
+ *
+ * As four separate arrays this was four allocations per instruction, each a header and a rounded-up
+ * buffer around three operands. Now it is a bump of the arena pointer, and an InstRegs is something
+ * that can be copied and moved without touching memory at all.
+ *
+ * The storage is the scratch's, not the record's, so a record is valid for as long as the scratch
+ * that produced it is - see RegScratch.
+ */
+
+// Copies `from` into `arena` as a run. The one place a record's list is created: everything that
+// builds one grows an ordinary array first and commits it here, since a run in an arena cannot grow.
+template<class T>
+SmallBuffer<T> commitSlice(RecordArena& arena, const Array<T>& from) {
+    if(from.isEmpty()) return SmallBuffer<T> {};
+
+    auto items = (T*)arena.alloc(from.size() * sizeof(T));
+    for(Size i = 0; i < from.size(); i++) new (items + i) T(from[i]);
+
+    return SmallBuffer<T> { items, from.size() };
+}
+
 // Resolved locations - physical registers, or frame slots where the encoding has a memory form -
 // for a single instruction. `uses`/`creates` are parallel to that instruction's `used()`/`created()`
 // buffers, in the same order, and name where the encoder will find (or put) each operand *at this
 // instruction*, which is not necessarily where the value lives the rest of the time.
 struct InstRegs {
-    Array<ResolvedOperand> uses;
-    Array<ResolvedOperand> creates;
+    SmallBuffer<ResolvedOperand> uses;
+    SmallBuffer<ResolvedOperand> creates;
 
     // The one memory address this instruction references, for the forms whose encoding has an
     // address field. At most one: a ModRM byte addresses one thing, and a frame slot - the other
@@ -443,17 +509,20 @@ struct InstRegs {
     // registers into the places this instruction requires (fixed-register constraints, or the
     // destination of a destructive two-address encoding), and carry values into a successor's phi
     // registers at a terminator. Already sequenced - emit them in order.
-    Array<RegMove> moves;
+    SmallBuffer<RegMove> moves;
 
     // Moves emitted immediately after the instruction, carrying a result out of the fixed register
     // the encoding had to write it to and into its home.
-    Array<RegMove> postMoves;
+    SmallBuffer<RegMove> postMoves;
 };
 
 // Register assignments for every instruction in one block, in the order:
 // block->instructions (in order), followed by exactly one entry for block->terminator.
 struct BlockRegs {
-    Array<InstRegs> insts;
+    // Inline for a block of up to sixteen instructions, which most of them are: this is built once
+    // per block of every function, and an InstRegs is four words now that its lists are runs in the
+    // arena - see commitSlice.
+    SmallArray<InstRegs, 16> insts;
 };
 
 /*
@@ -538,6 +607,14 @@ struct FrameObjects {
     }
 
     bool isEmpty() const { return slots.isEmpty(); }
+
+    void clear() {
+        slots.clear();
+        references.reset();
+        hasDynamicAlloca = false;
+        argAreaSize = 0;
+        callAlignment = 8;
+    }
 };
 
 /*
@@ -668,14 +745,26 @@ struct WebAllocation {
     }
 
     bool isSplit() const { return segments.size() > 1; }
+
+    // Empties the web without giving up the storage its segment list grew into - see
+    // Placement::clear. A web starts unplaced, which is what an empty segment list means.
+    void clear() {
+        segments.clear();
+        regClass = ClassGpr64;
+    }
 };
 
 struct Placement {
     // Which web each value belongs to, indexed by the dense LiveId buildLiveness assigns, and the
     // webs themselves. A web is named by the LiveId of its representative, so the two are indexed
     // alike and a value's location is one lookup away.
+    //
+    // The webs are a PooledList rather than an Array because a placement is written into rather than
+    // returned: `clear` empties each web's segment list instead of destroying it, so placing a
+    // second function - or the same function a second time, which is what a displacement costs -
+    // reuses the storage the first one grew. See allocateRegisters.
     Array<LiveId> webOf;
-    Array<WebAllocation> webs;
+    PooledList<WebAllocation> webs;
 
     // Everything the function needs stack space for - see FrameObjects.
     FrameObjects frame;
@@ -738,6 +827,19 @@ struct Placement {
     MachineLocation homeOf(LiveId id) const {
         return id < webOf.size() ? webs[webOf[id]].home() : MachineLocation::invalid();
     }
+
+    // Empties the placement for the next function, keeping every buffer it grew into. `webs` is
+    // sized by its owner rather than here, since the value count is the first thing placement knows
+    // and emptying a list it is about to resize would be work done twice.
+    void clear() {
+        webOf.clear();
+        frame.clear();
+        remats.clear();
+        incomingArgs.clear();
+        displacementRequests.clear();
+        writtenPhysical = RegSet();
+        requiresLegalizationTemps = false;
+    }
 };
 
 // The instruction records legalization produced: one InstRegs per instruction and terminator of
@@ -749,6 +851,11 @@ struct LegalizedFunction {
     // an instruction will need - that is the question legalization answers - so the two halves of
     // "what does this function write" are added together once both have run.
     RegSet writtenPhysical;
+
+    void clear() {
+        blocks.reset();
+        writtenPhysical = RegSet();
+    }
 };
 
 // The whole allocation of one function: where every value lives, and what each instruction does
@@ -776,6 +883,16 @@ struct FunctionRegs {
     // ones no web was offered, and a reader of the result that assumed a fixed set would disagree
     // with the pass that chose it.
     TemporaryReserve temporaries;
+
+    // Empties the whole allocation for the next function, keeping every buffer - see
+    // allocateRegisters.
+    void clear() {
+        placement.clear();
+        legalized.clear();
+        usedCalleeSaved = RegSet();
+        framePointer = false;
+        temporaries = TemporaryReserve();
+    }
 };
 
 /*
@@ -1141,26 +1258,85 @@ void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, Machine
  * "where must it be at this instruction", and neither answers the other's question.
  */
 
-// One complete placement of a function. `framePointer` and `temporaries` are what is held back from
-// every web - rbp when the frame is addressed through it, and the scratch registers legalization is
-// going to need - and `forcedHomeless` names the webs a previous pass asked to be left homeless.
-// `frequency` is what every decision that trades one part of the function against another is weighed
-// by; it depends on the CFG alone, so one is computed per allocation rather than per pass.
-Placement computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
+/*
+ * The working storage the two passes share, owned by whoever is allocating a series of functions.
+ *
+ * Everything in here is per-function state that gets thrown away, and every one of those buffers is
+ * O(values) or O(instructions) in size: one list of conflicting webs per value, one list of
+ * occupants per register, one operand record per instruction. Allocating them per function meant a
+ * few thousand mallocs to compile a handful of small modules, all of them handing back a buffer the
+ * next function immediately asked for again.
+ *
+ * So the caller holds one of these across the whole module and hands it to each call. The pass
+ * structures are held by pointer because their contents are private to place.cpp and legalize.cpp;
+ * they are created on first use and released by the destructor.
+ */
+struct PlacementScratch;
+struct LegalizeScratch;
+
+void destroyPlacementScratch(PlacementScratch* scratch);
+void destroyLegalizeScratch(LegalizeScratch* scratch);
+
+struct RegScratch {
+    RegScratch() = default;
+    RegScratch(const RegScratch&) = delete;
+    RegScratch& operator = (const RegScratch&) = delete;
+
+    ~RegScratch() {
+        destroyPlacementScratch(placement);
+        destroyLegalizeScratch(legalize);
+    }
+
+    PlacementScratch* placement = nullptr;
+    LegalizeScratch* legalize = nullptr;
+
+    /*
+     * Where the instruction records live - see commitSlice.
+     *
+     * This one is *not* emptied between functions, because unlike everything else here it is not
+     * scratch: a FunctionRegs points into it, so an allocation stays readable for as long as this
+     * scratch does. That is what lets a caller hold on to the records of every function in a module
+     * - which the codegen trace does, since it prints them only once the whole module is emitted.
+     *
+     * A caller that consumes each function before allocating the next may call `resetRecords`
+     * between them and keep the arena at one function's worth. It invalidates every record already
+     * handed out, which is why it is the caller's to call and not this file's.
+     */
+    RecordArena records;
+
+    void resetRecords() { records.reset(); }
+
+    // The webs a placement pass has to leave homeless whatever it would otherwise have done, one
+    // entry per value - see Placement::displacementRequests. Held here rather than in the placer
+    // because it is the one piece of state that survives *between* passes over a function.
+    IndexSet forcedHomeless;
+};
+
+// One complete placement of a function, written into `out` - which is emptied first, so a placement
+// that has already been used for another function hands this one its buffers.
+//
+// `framePointer` and `temporaries` are what is held back from every web - rbp when the frame is
+// addressed through it, and the scratch registers legalization is going to need - and
+// `forcedHomeless` names the webs a previous pass asked to be left homeless. `frequency` is what
+// every decision that trades one part of the function against another is weighed by; it depends on
+// the CFG alone, so one is computed per allocation rather than per pass.
+void computePlacement(LowerBase base, LowerFunction& fun, Liveness& live, const MachineFunction& machine,
     const Constraints& constraints, const FunctionFrequencyInfo& frequency, bool framePointer,
-    const TemporaryReserve& temporaries, const Array<bool>& forcedHomeless);
+    const TemporaryReserve& temporaries, const IndexSet& forcedHomeless, RegScratch& scratch,
+    Placement& out);
 
 // Resolves every instruction against a completed placement, handing out scratch registers from
 // `temporaries` - which has to be one measureTemporaryReserve produced for this same placement.
-LegalizedFunction legalizeFunction(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
-    const Constraints& constraints, const Placement& placement, const TemporaryReserve& temporaries);
+void legalizeFunction(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
+    const Constraints& constraints, const Placement& placement, const TemporaryReserve& temporaries,
+    RegScratch& scratch, LegalizedFunction& out);
 
 // How many scratch registers legalizing this placement will need, by bank and by pool. Answered by
 // legalizing it and recording what was asked for, rather than by a second rule that mirrors the
 // first: the two would be a pair of answers to one question, and the one that is wrong is the one
 // that leaves an instruction with nowhere to bring a spilled operand.
 TemporaryReserve measureTemporaryReserve(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
-    const Constraints& constraints, const Placement& placement);
+    const Constraints& constraints, const Placement& placement, RegScratch& scratch);
 
 // Where the encoder reads one operand, which is the question legalization exists to answer. It is
 // declared here because placement asks it too: a destructive result must not be placed in a
@@ -1179,7 +1355,11 @@ struct UseSite {
 UseSite useSiteOf(LowerBase base, const MachineFunction& machine, const Placement& placement,
     LowerInst* inst, const InstShape& shape, Size i, U32 index, MachineLocation destructiveReg, bool memoryDest);
 
-FunctionRegs allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const MachineFunction& machine);
+// Allocates `fun` into `result`, which is emptied first: a FunctionRegs that has already described
+// another function hands this one every buffer it grew, which is what makes allocating a module
+// cost the largest function's storage rather than the sum of them all.
+void allocateRegisters(Context& ctx, LowerBase base, LowerFunction& fun, const MachineFunction& machine,
+    RegScratch& scratch, FunctionRegs& result);
 
 // Checks the selected forms against the function they were selected for: that every instruction has
 // one, that it belongs to the opcode the instruction was selected into, that it describes no more

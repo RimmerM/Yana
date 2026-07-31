@@ -104,14 +104,24 @@ struct Leaf {
 };
 
 struct Plan {
-    Array<Projection> paths;
-    Array<Leaf> leaves;
+    SmallArray<Projection, 8> paths;
+    SmallArray<Leaf, 8> leaves;
 
     // Per argument, in declaration order. A count of zero is a parameter that stays as it is.
-    Array<U32> start;
-    Array<U32> count;
+    SmallArray<U32, 8> start;
+    SmallArray<U32, 8> count;
 
     bool any = false;
+
+    // Emptied rather than replaced, which is what a plan reused across functions wants anyway - see
+    // SmallArray on why `plan = Plan {}` is not the way to say this.
+    void clear() {
+        paths.clear();
+        leaves.clear();
+        start.clear();
+        count.clear();
+        any = false;
+    }
 };
 
 // The place one leaf names, relative to whatever place holds the record.
@@ -319,7 +329,7 @@ bool argumentCanFlatten(OptContext& opt, Function& function, Size index) {
  */
 bool planFor(OptContext& opt, ModulePtr<Function> pointer, Function& function,
              HashMap<U32, bool>& taken, Plan& plan) {
-    plan = Plan {};
+    plan.clear();
     if(!functionCanFlatten(opt, pointer, function, taken)) return false;
 
     Size arity = 0;
@@ -362,7 +372,7 @@ bool planFor(OptContext& opt, ModulePtr<Function> pointer, Function& function,
     }
 
     if(!plan.any || arity > kMaxFlatArity) {
-        plan = Plan {};
+        plan.clear();
         return false;
     }
 
@@ -401,7 +411,7 @@ Maybe<Place> storageOf(OptContext& opt, ModulePtr<Value> value) {
  * or some local's storage. It is here because the callee has already been flattened by the time a
  * caller finds out, so "decline this argument" is not one of the answers a call site may give.
  */
-Place materialize(OptContext& opt, Block& block, Array<Inst*>& into, Value& at, ModulePtr<Value> value) {
+Place materialize(OptContext& opt, Block& block, InstList& into, Value& at, ModulePtr<Value> value) {
     auto type = opt.local[value]->type;
 
     auto allocation = createInst<InstAlloc>(*opt.module, *opt.function, block, at.source, 0, type,
@@ -436,8 +446,8 @@ Size rewriteCall(OptContext& opt, HashMap<U32, bool>& taken, Block& block, Size 
     // erased shape with hidden storage in front - and the positions would not line up.
     if(args.size() != plan.count.size()) return 0;
 
-    Array<Inst*> loads;
-    Array<ModulePtr<Value>> replacement;
+    InstList loads;
+    ValueList replacement;
 
     for(Size i = 0; i < args.size(); i++) {
         auto value = args.get(opt.local, i);
@@ -521,13 +531,13 @@ void flattenSignature(OptContext& opt, Function& function, const Plan& plan) {
     auto entry = opt.local[entryPointer];
 
     Array<ModulePtr<Arg>> arguments;
-    Array<Inst*> prologue;
+    InstList prologue;
 
     // The parameters that stop existing, and the allocations that stand in for them. A record
     // parameter is not only a place root: it is a *value* of an aggregate type, which is what a call
     // handing the whole record on names, and an `Alloc`'s result means exactly the same thing.
-    Array<ModulePtr<Value>> retired;
-    Array<ModulePtr<Value>> standIn;
+    ValueList retired;
+    ValueList standIn;
 
     for(Size i = 0; i < function.args.size(); i++) {
         auto argPointer = function.args.get(opt.local, i);

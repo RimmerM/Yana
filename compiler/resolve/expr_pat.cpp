@@ -75,7 +75,7 @@ struct PatternHead {
 // step builds a whole new matrix from the previous one and a row is never edited in place. A
 // null cell is a wildcard.
 struct PatternMatrix {
-    Array<TypePtr> types;
+    TypeList types;
     Array<const ast::Pat*> cells;
     Size rows = 0;
 

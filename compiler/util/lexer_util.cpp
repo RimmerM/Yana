@@ -65,7 +65,7 @@ NumericLiteral parseNumericLiteral(const char*& p, const char* m) {
     NumericLiteral lit { .i = 0, .isInteger = true };
 
     // Parse the type of this literal.
-    if(m - p >= 3 && p[1] == 'b' || p[1] == 'B') {
+    if(m - p >= 3 && (p[1] == 'b' || p[1] == 'B')) {
         if(isBit(p[2])) {
             // This is a binary literal.
             p += 2;
@@ -73,7 +73,7 @@ NumericLiteral parseNumericLiteral(const char*& p, const char* m) {
         } else {
             lit.i = parseIntLiteral<10>(p, m, parseDigit);
         }
-    } else if(m - p >= 3 && p[1] == 'o' || p[1] == 'O') {
+    } else if(m - p >= 3 && (p[1] == 'o' || p[1] == 'O')) {
         if(isOctit(p[2])) {
             // This is an octal literal.
             p += 2;
@@ -81,7 +81,7 @@ NumericLiteral parseNumericLiteral(const char*& p, const char* m) {
         } else {
             lit.i = parseIntLiteral<10>(p, m, parseDigit);
         }
-    } else if(m - p >= 3 && p[1] == 'x' || p[1] == 'X') {
+    } else if(m - p >= 3 && (p[1] == 'x' || p[1] == 'X')) {
         if(isHexit(p[2])) {
             // This is a hexadecimal literal.
             p += 2;

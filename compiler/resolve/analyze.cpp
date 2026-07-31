@@ -32,7 +32,8 @@ Analysis::Analysis(Module& module, Function& function):
     contents(scratch.contents), outlives(scratch.outlives), escaped(scratch.escaped),
     transferred(scratch.transferred), releasesStorage(scratch.releasesStorage),
     stateBefore(scratch.stateBefore), order(scratch.order), blockRanges(scratch.blockRanges),
-    effects(scratch.effects), tracked(scratch.tracked), demand(scratch.demand) {
+    effects(scratch.effects), tracked(scratch.tracked), demand(scratch.demand),
+    indexOf(scratch.indexOf) {
 
     // Emptied here rather than by whichever pass fills each one, so that "this run starts with
     // nothing" is one statement in one place - see AnalysisScratch for why they are not fresh.
@@ -40,6 +41,7 @@ Analysis::Analysis(Module& module, Function& function):
     blockRanges.clear();
     tracked.clear();
     demand.clear();
+    indexOf.reset();
 }
 
 /*
@@ -150,7 +152,7 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
     checkMaterializedBorrows(analysis);
     checkClosureEnvironments(analysis);
 
-    result.locals = analysis.tracked;
+    replaceContents(result.locals, analysis.tracked);
     for(Size l = 0; l < analysis.localCount; l++) {
         result.locals[l].requirements = analysis.demand[l];
         result.locals[l].escapes = analysis.escaped[l] != 0;

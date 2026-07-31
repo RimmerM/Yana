@@ -83,10 +83,21 @@ struct Capture {
 struct ClassMatch {
     GlobalPtr<TypeClass> typeClass = nullptr;
     ModulePtr<ClassInstance> instance = nullptr;
-    Array<TypePtr> args;
-    Array<TypePtr> instanceArgs;
+    TypeList args;
+    TypeList instanceArgs;
     U16 index = 0;
 };
+
+// Gives `into` everything `from` matched. Not assignment: the two lists are TypeLists, whose
+// assignment is deleted precisely so that this reads as the replacement it is - see SmallArray.
+inline void adopt(ClassMatch& into, const ClassMatch& from) {
+    into.typeClass = from.typeClass;
+    into.instance = from.instance;
+    into.index = from.index;
+
+    replaceContents(into.args, from.args);
+    replaceContents(into.instanceArgs, from.instanceArgs);
+}
 
 struct LoopTarget {
     ModulePtr<Block> continueBlock;
@@ -322,7 +333,7 @@ struct ExprResolver {
 
     ModulePtr<Value> resolveBinary(const ast::Expr& expr, const ast::InfixExpr& binary, TypePtr target, bool convertResult = true);
     ModulePtr<Value> resolvePrefix(const ast::Expr& expr, const ast::PrefixExpr& prefix, TypePtr target, bool convertResult = true);
-    ModulePtr<Value> resolvePrecedence(Array<const ast::Expr*>& operands, Array<StringId>& operators, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target = nullptr);
+    ModulePtr<Value> resolvePrecedence(SmallArray<const ast::Expr*, 8>& operands, SmallArray<StringId, 8>& operators, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target = nullptr);
     ModulePtr<Value> resolveCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target, bool convertResult = true);
 
     // A call whose callee is a value rather than a name - a binding of function type, or any
@@ -353,7 +364,7 @@ struct ExprResolver {
     ModulePtr<Value> emitGenericDispatch(ClassMatch& match, Buffer<ModulePtr<Value>> args, LocationId source,
                                          StringId resultName);
 
-    bool bindPosition(TypePtr pattern, TypePtr actual, Array<TypePtr>& bindings, bool widen);
+    bool bindPosition(TypePtr pattern, TypePtr actual, TypeList& bindings, bool widen);
     bool matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<Value>> args, TypePtr target, ClassMatch& resolved);
 
     // Whether a plain function can serve this call - the same question matchClassFun asks of a
@@ -369,7 +380,7 @@ struct ExprResolver {
                                       TypePtr target = nullptr, StringId resultName = 0);
 
     ModulePtr<ClassInstance> selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
-                                            Array<TypePtr>& instanceArgs);
+                                            TypeList& instanceArgs);
 
     /*
      * Function values and closures (expr_fun.cpp).
@@ -475,7 +486,7 @@ struct ExprResolver {
     ModulePtr<Value> resolveTuple(const ast::Expr& expr, ast::ParseList<ast::TupArg> args, TypePtr target);
     ModulePtr<Value> resolveTupUpdate(const ast::Expr& expr, const ast::TupUpdateExpr& update, TypePtr target);
     ModulePtr<Value> resolveConstruct(const ast::Expr& expr, const ast::ConExpr& construct, TypePtr target);
-    TypePtr constructedType(ConstructorRef reference, ast::ParseList<ast::TupArg> args, TypePtr target, Array<ModulePtr<Value>>& resolved, LocationId source);
+    TypePtr constructedType(ConstructorRef reference, ast::ParseList<ast::TupArg> args, TypePtr target, ValueList& resolved, LocationId source);
     ModulePtr<Value> resolveField(const ast::Expr& expr, const ast::FieldExpr& field);
 
     // The place of one named field of `place`, following the downcast a single-constructor

@@ -248,7 +248,7 @@ struct Expander {
      * word read as a mask that could be dropped, and a `Bool` field came back holding its
      * neighbour's bit. The suite caught it; homogeneous operands are what stops it recurring.
      */
-    ModulePtr<Value> convert(Block& block, LocationId source, StringId name, Array<Inst*>& into,
+    ModulePtr<Value> convert(Block& block, LocationId source, StringId name, InstList& into,
                              ModulePtr<Value> value, TypePtr to) {
         if(opt.local[value]->type == to) return value;
 
@@ -408,7 +408,7 @@ struct Expander {
             for(Size i = 0; i < block->instructions.size(); i++) {
                 if(block->instructions.get(opt.local, i) != (ModulePtr<Inst>)storage) continue;
 
-                Array<Inst*> written;
+                InstList written;
                 written.push(createInst<InstInit>(
                     *opt.module, *opt.function, *block, opt.local[storage]->source, 0,
                     opt.program.scalar.unit, place,
@@ -435,7 +435,7 @@ struct Expander {
      * The last operation carries the field's type, so the value that comes out is named the same
      * thing the load that used to produce it was.
      */
-    ModulePtr<Value> decode(Block& block, LocationId source, StringId name, Array<Inst*>& into,
+    ModulePtr<Value> decode(Block& block, LocationId source, StringId name, InstList& into,
                             ModulePtr<Value> word, const PackedAccess& access, TypePtr type) {
         auto value = word;
         auto isSigned = opt.global[type]->kind == Type::Int && ((IntType*)opt.global[type])->isSigned;
@@ -472,7 +472,7 @@ struct Expander {
      * not replace it. A signed value arrives sign-extended and its high bits are ones exactly when
      * they must not be stored, which is the other reason the mask is not optional.
      */
-    ModulePtr<Value> encode(Block& block, LocationId source, Array<Inst*>& into,
+    ModulePtr<Value> encode(Block& block, LocationId source, InstList& into,
                             ModulePtr<Value> word, const PackedAccess& access,
                             ModulePtr<Value> value) {
         auto mask = lowMask(access.bitWidth);
@@ -512,7 +512,7 @@ struct Expander {
         if(isBlocked(place)) return false;
         if(zeroedAtAllocation(load.place)) publishZero(place);
 
-        Array<Inst*> replacement;
+        InstList replacement;
         auto word = loadUnit(block, load.source, place);
         replacement.push(word);
 
@@ -538,7 +538,7 @@ struct Expander {
         if(isBlocked(place)) return false;
         if(zeroedAtAllocation(store.place)) publishZero(place);
 
-        Array<Inst*> replacement;
+        InstList replacement;
         auto word = loadUnit(block, store.source, place);
         replacement.push(word);
 

@@ -46,7 +46,7 @@
 
 // Whether some other transfer still to be emitted overwrites the source of transfer `i` - which is
 // what makes `i` part of a cycle rather than something merely blocked by one.
-static bool writesSource(const Array<RegMove>& pending, const Array<bool>& done, Size i) {
+static bool writesSource(const Array<RegMove>& pending, const IndexSet& done, Size i) {
     for(Size j = 0; j < pending.size(); j++) {
         if(j == i || done[j]) continue;
         if(pending[j].to == pending[i].from) return true;
@@ -94,9 +94,11 @@ struct MoveTemps {
 // A transfer with a slot at both ends - two spilled webs feeding the same phi - is expanded
 // afterwards, since x86 has no memory-to-memory move. So is one out of a recipe and into a slot,
 // for the same reason: the value has to exist in a register before anything can store it.
-static void sequenceMoves(MoveTemps& temps, Array<RegMove>& pending, Array<RegMove>& out) {
-    Array<bool> done;
-    for(Size i = 0; i < pending.size(); i++) done.push(pending[i].from == pending[i].to);
+static void sequenceMoves(MoveTemps& temps, Array<RegMove>& pending, Array<RegMove>& out,
+    IndexSet& done)
+{
+    done.reset(pending.size());
+    for(Size i = 0; i < pending.size(); i++) done.set(i, pending[i].from == pending[i].to);
 
     auto begin = out.size();
 
@@ -119,7 +121,7 @@ static void sequenceMoves(MoveTemps& temps, Array<RegMove>& pending, Array<RegMo
             }
 
             out.push(pending[i]);
-            done[i] = true;
+            done.set(i, true);
             progress = true;
         }
 
@@ -137,7 +139,7 @@ static void sequenceMoves(MoveTemps& temps, Array<RegMove>& pending, Array<RegMo
             }
 
             auto& move = pending[i];
-            done[i] = true;
+            done.set(i, true);
 
             MachineLocation reads;
 
@@ -213,7 +215,9 @@ struct SegmentTransition {
 };
 
 static void collectTransitions(const Placement& placement, Array<SegmentTransition>& out) {
-    for(auto& web: placement.webs) {
+    for(Size w = 0; w < placement.webs.size(); w++) {
+        auto& web = placement.webs[w];
+
         for(Size i = 1; i < web.segments.size(); i++) {
             auto& previous = web.segments[i - 1];
             auto& segment = web.segments[i];
@@ -333,6 +337,68 @@ static MachineAddress computedAddress(LowerInstX86Address& addr, const Array<Res
  * The walk.
  */
 
+/*
+ * The instruction record under construction: the same four lists an InstRegs holds, as arrays that
+ * can be grown into. An instruction's operand count is known in advance but its copies are not - a
+ * transfer appears because an operand turned out to be somewhere the encoding cannot read it - so
+ * the record is built here and committed to the arena once its lengths are final.
+ */
+struct PendingRegs {
+    Array<ResolvedOperand> uses;
+    Array<ResolvedOperand> creates;
+
+    MachineAddress address;
+    bool hasAddress = false;
+
+    Array<RegMove> moves;
+    Array<RegMove> postMoves;
+
+    void clear() {
+        uses.clear();
+        creates.clear();
+        address = MachineAddress();
+        hasAddress = false;
+        moves.clear();
+        postMoves.clear();
+    }
+};
+
+/*
+ * Everything legalization works in, held across the functions being allocated - see RegScratch.
+ *
+ * All of it is per-instruction or per-block state, which is the reason it is here: a buffer built
+ * once per instruction is built tens of thousands of times to compile a small module, and every one
+ * of them was a pair of allocations that the next instruction asked straight back for.
+ */
+struct LegalizeScratch {
+    // One instruction's shape, asked for per instruction and emptied rather than rebuilt.
+    ScratchPool<InstShape> shapes;
+
+    // The copies that cross a split web's segment boundaries, in instruction order.
+    Array<SegmentTransition> transitions;
+
+    // Where each folded address resolved to - see Legalizer::addresses.
+    HashMap<LowerInst*, MachineAddress> addresses;
+
+    // The record being built, and the two parallel copies feeding it.
+    PendingRegs regs;
+    Array<RegMove> pending;
+    Array<RegMove> pendingPost;
+
+    // The copies at the two places that are not an instruction's own: the entry, and a block's
+    // outgoing phi transfers. Both are sequenced into the terminator's record.
+    Array<RegMove> entryMoves;
+    Array<RegMove> phiMoves;
+
+    // Which of the transfers sequenceMoves has already emitted. One buffer serves the whole pass:
+    // sequencing a parallel copy never sequences another.
+    IndexSet done;
+};
+
+void destroyLegalizeScratch(LegalizeScratch* scratch) {
+    delete scratch;
+}
+
 struct Legalizer {
     LowerBase base;
     LowerFunction& fun;
@@ -340,8 +406,14 @@ struct Legalizer {
     const Constraints& constraints;
     const Placement& placement;
 
+    LegalizeScratch& scratch;
+
+    // Where the instruction records are written - see commitSlice. Not rewound here: what this pass
+    // produces is exactly what outlives it.
+    RecordArena& records;
+
     // One instruction's shape, asked for per instruction and emptied rather than rebuilt.
-    ScratchPool<InstShape> shapes;
+    ScratchPool<InstShape>& shapes;
 
     // The scratch registers held back for this function, which this pass hands out from - see
     // TemporaryReserve. Held by value because the measuring pass runs against the widest one rather
@@ -362,8 +434,8 @@ struct Legalizer {
 
     // The address each folded X86Address resolved to, so that the access it belongs to can name it
     // rather than reconstructing it. Keyed by instruction because an address is placed immediately
-    // in front of its user and resolved just before it.
-    HashMap<LowerInst*, MachineAddress> addresses;
+    // in front of its user and resolved just before it. The scratch's, emptied per function.
+    HashMap<LowerInst*, MachineAddress>& addresses;
 
     // Scratch registers handed out within the instruction currently being resolved, reset for each
     // one. A value whose home is a frame slot cannot be read by an encoder, so it is brought into
@@ -373,15 +445,36 @@ struct Legalizer {
     // The copies that cross a split web's segment boundaries, in instruction order, and how far the
     // walk has read into them. One cursor serves the function because the walk visits every
     // instruction index once and in order.
-    Array<SegmentTransition> transitions;
+    Array<SegmentTransition>& transitions;
     Size transitionCursor = 0;
 
     Legalizer(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
-        const Constraints& constraints, const Placement& placement, const TemporaryReserve& reserve):
+        const Constraints& constraints, const Placement& placement, const TemporaryReserve& reserve,
+        RegScratch& regScratch):
         base(base), fun(fun), machine(machine), constraints(constraints), placement(placement),
-        reserve(reserve)
+        scratch(*regScratch.legalize), records(regScratch.records), shapes(regScratch.legalize->shapes),
+        reserve(reserve), addresses(regScratch.legalize->addresses),
+        transitions(regScratch.legalize->transitions)
     {
+        addresses.reset();
+        transitions.clear();
         collectTransitions(placement, transitions);
+    }
+
+    // The record just resolved, copied into the arena at the length it turned out to be. Everything
+    // the walk builds is in one set of buffers, so this has to be called before the next instruction
+    // is resolved over them.
+    InstRegs commit() {
+        auto& regs = scratch.regs;
+
+        return InstRegs {
+            commitSlice(records, regs.uses),
+            commitSlice(records, regs.creates),
+            regs.address,
+            regs.hasAddress,
+            commitSlice(records, regs.moves),
+            commitSlice(records, regs.postMoves),
+        };
     }
 
     // The boundaries this instruction carries, added to the parallel copy on the side each falls.
@@ -453,7 +546,7 @@ struct Legalizer {
 
     // The one memory address this instruction references, if its encoding has an address field at
     // all - see the block comment above.
-    void resolveAddress(LowerInst* inst, InstRegs& out) {
+    void resolveAddress(LowerInst* inst, PendingRegs& out) {
         auto set = [&](MachineAddress address) {
             out.address = address;
             out.hasAddress = true;
@@ -506,16 +599,22 @@ struct Legalizer {
         }
     }
 
-    InstRegs resolveInst(LowerInst* inst, U32 index) {
-        InstRegs out;
+    // Resolves one instruction into `scratch.regs`, ready for `commit`. It writes rather than
+    // returns because the terminator's record takes one more set of copies after this has run - the
+    // phi transfers on its outgoing edges - and a record already committed to the arena cannot grow.
+    void resolveInst(LowerInst* inst, U32 index) {
+        auto& out = scratch.regs;
+        out.clear();
 
         // The two parallel copies this instruction needs: the transfers that put its operands where
         // it reads them, and the ones that carry its results from where it writes them to their
         // homes. Both are *simultaneous* sets rather than sequences - an instruction with two
         // results in fixed registers can perfectly well have the first one's home be the second
         // one's register - so both are sequenced before they are emitted.
-        Array<RegMove> pending;
-        Array<RegMove> pendingPost;
+        auto& pending = scratch.pending;
+        auto& pendingPost = scratch.pendingPost;
+        pending.clear();
+        pendingPost.clear();
 
         for(auto& used: tempsUsed) used = 0;
 
@@ -633,9 +732,8 @@ struct Legalizer {
 
         resolveAddress(inst, out);
         auto temps = moveTemps();
-        sequenceMoves(temps, pending, out.moves);
-        sequenceMoves(temps, pendingPost, out.postMoves);
-        return out;
+        sequenceMoves(temps, pending, out.moves, scratch.done);
+        sequenceMoves(temps, pendingPost, out.postMoves, scratch.done);
     }
 
     // The copies carrying this block's outgoing values into a successor's phi locations. A phi that
@@ -688,8 +786,8 @@ struct Legalizer {
 // costs in scratch registers - see measureTemporaryReserve. The two are the same pass because a
 // separate rule for the demand would be a second answer to one question, and the one that is wrong
 // is the one that leaves an instruction with nowhere to bring a spilled operand.
-static LegalizedFunction runLegalizer(Legalizer& l, LowerBase base, LowerFunction& fun) {
-    LegalizedFunction result;
+static void runLegalizer(Legalizer& l, LowerBase base, LowerFunction& fun, LegalizedFunction& result) {
+    result.clear();
 
     // The entry copies are emitted at index 0 below, which is only the first thing the function
     // executes because the implicit entry block holds no instructions - LowerFunction's constructor
@@ -698,7 +796,8 @@ static LegalizedFunction runLegalizer(Legalizer& l, LowerBase base, LowerFunctio
     // instead.
     assertTrue(base[fun.blocks.get(base, 0)]->instructions.isEmpty());
 
-    Array<RegMove> entryMoves;
+    auto& entryMoves = l.scratch.entryMoves;
+    entryMoves.clear();
     l.resolveArgs(entryMoves);
 
     U32 index = 0;
@@ -708,18 +807,24 @@ static LegalizedFunction runLegalizer(Legalizer& l, LowerBase base, LowerFunctio
         BlockRegs blockRegs;
 
         for(auto i: block->instructions.contents(base)) {
-            blockRegs.insts.push(l.resolveInst(base[i], index));
+            l.resolveInst(base[i], index);
+
+            // The measuring pass reads nothing but the scratch registers it was made to ask for, so
+            // it stops here rather than committing a record nothing will look at.
+            if(!l.measuring) blockRegs.insts.push(l.commit());
             index++;
         }
 
         assertTrue(block->terminator != nullptr);
-        auto terminatorRegs = l.resolveInst(base[block->terminator], index);
+        l.resolveInst(base[block->terminator], index);
 
         // Phi copies run after whatever the terminator itself needs, and after the entry copies in
         // the entry block - a phi may be fed by an argument, which has to have reached its home
         // first. transformFunction guarantees that a block reaching any phi has a single successor,
         // so these copies cannot execute on a path that bypasses the phis.
-        Array<RegMove> pending;
+        auto& pending = l.scratch.phiMoves;
+        pending.clear();
+
         for(auto successor: block->outgoing) {
             if(!successor) continue;
 
@@ -728,36 +833,45 @@ static LegalizedFunction runLegalizer(Legalizer& l, LowerBase base, LowerFunctio
         }
 
         auto temps = l.moveTemps();
-        if(index == 0) sequenceMoves(temps, entryMoves, terminatorRegs.moves);
-        sequenceMoves(temps, pending, terminatorRegs.moves);
+        auto& terminatorMoves = l.scratch.regs.moves;
+        if(index == 0) sequenceMoves(temps, entryMoves, terminatorMoves, l.scratch.done);
+        sequenceMoves(temps, pending, terminatorMoves, l.scratch.done);
 
-        blockRegs.insts.push(::move(terminatorRegs));
+        if(!l.measuring) blockRegs.insts.push(l.commit());
         index++;
 
-        result.blocks.add(block, ::move(blockRegs));
+        if(!l.measuring) result.blocks.add(block, ::move(blockRegs));
     }
 
     result.writtenPhysical = l.written;
-    return result;
 }
 
-LegalizedFunction legalizeFunction(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
-    const Constraints& constraints, const Placement& placement, const TemporaryReserve& temporaries)
+void legalizeFunction(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
+    const Constraints& constraints, const Placement& placement, const TemporaryReserve& temporaries,
+    RegScratch& scratch, LegalizedFunction& out)
 {
-    Legalizer l(base, fun, machine, constraints, placement, temporaries);
-    return runLegalizer(l, base, fun);
+    if(!scratch.legalize) scratch.legalize = new LegalizeScratch();
+
+    Legalizer l(base, fun, machine, constraints, placement, temporaries, scratch);
+    runLegalizer(l, base, fun, out);
 }
 
 TemporaryReserve measureTemporaryReserve(LowerBase base, LowerFunction& fun, const MachineFunction& machine,
-    const Constraints& constraints, const Placement& placement)
+    const Constraints& constraints, const Placement& placement, RegScratch& scratch)
 {
+    if(!scratch.legalize) scratch.legalize = new LegalizeScratch();
+
     // Measured against the widest pools rather than against nothing, so that every temporary this
     // walk hands out is a register of its own: two of them naming one register would look like a copy
     // cycle the real pass does not have, and would be measured as a demand for a scratch register
     // nothing needs. The records this produces are discarded - only the counts are read.
-    Legalizer l(base, fun, machine, constraints, placement, TemporaryReserve::widest());
+    Legalizer l(base, fun, machine, constraints, placement, TemporaryReserve::widest(), scratch);
     l.measuring = true;
 
-    runLegalizer(l, base, fun);
+    // Nothing keeps what this produces, so it produces nothing: `measuring` stops the walk from
+    // building an instruction record it is only going to throw away, and the scratch registers - the
+    // one thing being measured - are handed out either way.
+    LegalizedFunction discarded;
+    runLegalizer(l, base, fun, discarded);
     return l.used;
 }

@@ -62,7 +62,7 @@ bool sameComputation(OptContext& opt, Value& a, Value& b) {
 // One walk of the dominator tree, carrying the expressions computed on the path from the entry to
 // the block being visited. Recursive because the depth is the tree's rather than the function's.
 void eliminateInBlock(OptContext& opt, Dominance& dominance, U32 index,
-                      Array<ModulePtr<Inst>>& available) {
+                      SmallArray<ModulePtr<Inst>, 32>& available) {
     auto scope = available.size();
     auto block = opt.local[dominance.blocks[index]];
 
@@ -101,7 +101,7 @@ void eliminateCommonValues(OptContext& opt) {
     auto& dominance = opt.dominance;
     computeDominance(opt, dominance);
 
-    Array<ModulePtr<Inst>> available;
+    SmallArray<ModulePtr<Inst>, 32> available;
     eliminateInBlock(opt, dominance, 0, available);
 }
 

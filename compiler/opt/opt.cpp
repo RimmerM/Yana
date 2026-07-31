@@ -321,7 +321,7 @@ ModulePtr<Value> makeFloatConstant(OptContext& opt, Value& at, TypePtr type, F64
     return (ModulePtr<Value>)(constant - opt.local);
 }
 
-void insertInstructions(OptContext& opt, Block& block, Size index, Array<Inst*>& instructions) {
+void insertInstructions(OptContext& opt, Block& block, Size index, InstList& instructions) {
     /*
      * Registered through `Block::add` rather than written into the list directly, because `add` is
      * what records every use - a use list a pass filled in by hand would be one more place for the
@@ -331,7 +331,7 @@ void insertInstructions(OptContext& opt, Block& block, Size index, Array<Inst*>&
     auto existing = block.instructions.size();
     for(auto instruction: instructions) block.add(*opt.module, instruction);
 
-    Array<ModulePtr<Inst>> ordered;
+    SmallArray<ModulePtr<Inst>, 32> ordered;
     for(Size i = 0; i < existing; i++) {
         if(i == index) {
             for(auto j = existing; j < block.instructions.size(); j++) {

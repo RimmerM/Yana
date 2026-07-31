@@ -190,7 +190,7 @@ bool splitAggregateWrite(OptContext& opt, Block& block, Size index, InstInit& wr
 
     auto destination = write.place;
 
-    Array<Inst*> replacement;
+    InstList replacement;
     for(U16 i = 0; i < U16(fields.count); i++) {
         auto member = fieldType(opt, fields, i);
 
@@ -237,7 +237,7 @@ bool eliminateDeadLocal(OptContext& opt, U32 index) {
     // rather than the absence of an instruction.
     if(needsTeardown(*opt.module, slot.type)) return false;
 
-    Array<ModulePtr<Inst>> writes;
+    SmallArray<ModulePtr<Inst>, 8> writes;
 
     for(auto user: opt.local[slot.value]->uses.contents(opt.local)) {
         auto& instruction = *opt.local[user];

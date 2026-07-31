@@ -59,7 +59,7 @@ static String describeQualified(Context& context, GlobalBase global, StringId na
 // the top level only: unifying the positions bound to one class variable to their common Widen
 // supertype is how `1 + 2.5` reaches Num(Float) without the class machinery having to know
 // anything about numbers below the outermost type.
-bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, Array<TypePtr>& bindings, bool widen) {
+bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, TypeList& bindings, bool widen) {
     if(!pattern || !actual) return false;
 
     if(global[pattern]->kind == Type::Gen) {
@@ -124,9 +124,9 @@ bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, Array<TypePtr>&
 // The instance of `typeClass` that serves `args`, and what selecting it bound its own type
 // variables to.
 ModulePtr<ClassInstance> ExprResolver::selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
-                                                      Array<TypePtr>& instanceArgs) {
+                                                      TypeList& instanceArgs) {
     auto match = matchInstance(module, typeClass, args);
-    instanceArgs = ::move(match.args);
+    replaceContents(instanceArgs, match.args);
     return match.instance;
 }
 
@@ -142,7 +142,7 @@ ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassIns
     // `Eq(Ptr(a))` selected at `a = Int` - and not the head's own bindings. Reading the class types
     // back off the head is what makes a concrete and a parametric instance the same case here.
     if(implementation == global[local[instance]->typeClass]->functions.get(global, index).defaultFun) {
-        Array<TypePtr> classArgs;
+        TypeList classArgs;
         for(auto type: local[instance]->forTypes.contents(local)) {
             classArgs.push(substituteType(module, type, instanceArgs, source));
         }
@@ -159,7 +159,7 @@ ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassIns
     // A parametric one's is written against the head's variables, so the types the head bound are
     // what makes it a function about something. An intrinsic has no body to specialize and is
     // generated here for those types, exactly as a generic intrinsic is at an ordinary call site.
-    Array<ModulePtr<Value>> converted;
+    ValueList converted;
     for(Size i = 0; i < args.length; i++) {
         auto declared = local[local[implementation]->args.get(local, i)]->type;
         converted.push(convert(args[i], substituteType(module, declared, instanceArgs, source), source));
@@ -186,7 +186,7 @@ bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<
     if(!signature || signature->args.size() != args.length) return false;
 
     auto env = global[typeClass->gen];
-    Array<TypePtr> bindings;
+    TypeList bindings;
     for(Size i = 0; i < env->types.size(); i++) bindings.push(nullptr);
 
     for(Size i = 0; i < args.length; i++) {
@@ -200,7 +200,7 @@ bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<
     // an instance but cannot re-pick one the arguments already determined. A literal argument
     // determines nothing, so a binding it made is still open in this sense.
     if(target) {
-        Array<TypePtr> withTarget = bindings;
+        TypeList withTarget = bindings;
 
         if(bindPosition(signature->returnType, target, withTarget, false)) {
             for(Size i = 0; i < bindings.size(); i++) {
@@ -221,7 +221,7 @@ bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<
     resolved.typeClass = reference.typeClass;
     resolved.index = reference.index;
     resolved.instance = selectInstance(reference.typeClass, toBuffer(bindings), resolved.instanceArgs);
-    resolved.args = bindings;
+    replaceContents(resolved.args, bindings);
 
     return true;
 }
@@ -237,7 +237,7 @@ bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Va
     // A generic function fits when its type arguments can all be inferred here, by the same
     // one-directional rule the classes use.
     if(auto env = functionGen(global, *callable)) {
-        Array<TypePtr> bindings;
+        TypeList bindings;
         for(Size i = 0; i < env->types.size(); i++) bindings.push(nullptr);
 
         for(Size i = 0; i < args.length; i++) {
@@ -246,7 +246,7 @@ bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Va
         }
 
         if(target) {
-            Array<TypePtr> withTarget = bindings;
+            TypeList withTarget = bindings;
 
             if(bindPosition(callable->returnType, target, withTarget, false)) {
                 for(Size i = 0; i < bindings.size(); i++) {
@@ -294,7 +294,7 @@ bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Va
  * is bidirectional checking, which this resolver deliberately does not do (it binds one-way and
  * positionally), and it is the same wall the property-constraint inference hit.
  */
-ModulePtr<Value> ExprResolver::resolvePrecedence(Array<const ast::Expr*>& operands, Array<StringId>& operators, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target) {
+ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>& operands, SmallArray<StringId, 8>& operators, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target) {
     auto lhsExpr = operands[operandIndex++];
     auto lhs = resolve(*lhsExpr);
 
@@ -313,8 +313,8 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(Array<const ast::Expr*>& operan
 }
 
 ModulePtr<Value> ExprResolver::resolveBinary(const ast::Expr& expr, const ast::InfixExpr& binary, TypePtr target, bool convertResult) {
-    Array<const ast::Expr*> operands;
-    Array<StringId> operators;
+    SmallArray<const ast::Expr*, 8> operands;
+    SmallArray<StringId, 8> operators;
     auto node = &binary;
 
     // The parser nests infix expressions to the right without regard for precedence, so the
@@ -416,7 +416,7 @@ ModulePtr<Value> ExprResolver::resolveIndirectCall(const ast::Expr& expr, const 
     }
 
     auto signature = (FunType*)global[valueType(callable)];
-    Array<ModulePtr<Value>> values;
+    ValueList values;
     Size index = 0;
 
     // A function value's parameter types are known before its arguments are resolved, exactly as a
@@ -462,12 +462,12 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     auto declared = direct && !local[direct]->gen && local[direct]->args.size() == callArgs.size();
 
     if(declared) {
-        Array<ClassFunRef> overloads;
+        ClassFunList overloads;
         findClassFunctions(module, calleeExpr.var, expr.source, overloads);
         declared = overloads.isEmpty();
     }
 
-    Array<ModulePtr<Value>> values;
+    ValueList values;
     Size index = 0;
 
     for(auto arg: callArgs.contents(parse)) {
@@ -506,7 +506,7 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
     // Every argument's convention is applied here, which is the one place a call knows both what
     // the callee asked for and what the caller produced. A `&` becomes a mutable borrow of the
     // argument's storage; everything else is the ordinary value path.
-    Array<ModulePtr<Value>> converted;
+    ValueList converted;
     for(Size i = 0; i < args.length; i++) {
         auto declared = local[function_->args.get(local, i)];
 
@@ -577,7 +577,7 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
         if(!arg) return nullptr;
     }
 
-    Array<ClassFunRef> candidates;
+    ClassFunList candidates;
     findClassFunctions(module, callName, source, candidates);
 
     auto direct = findFunction(module, callName, source);
@@ -619,10 +619,10 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
     // Matches on this function's own type variables. Which class a call is, and with which type
     // arguments, is still decided here and once; only the instance has to wait until the types
     // become concrete.
-    Array<ClassMatch> deferred;
+    SmallArray<ClassMatch, 4> deferred;
 
     // Every class that turned out to apply, kept only so an ambiguity can name them all.
-    Array<GlobalPtr<TypeClass>> applicable;
+    SmallArray<GlobalPtr<TypeClass>, 4> applicable;
 
     for(auto& candidate: candidates) {
         ClassMatch match;
@@ -635,10 +635,10 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
             deferred.push(::move(match));
         } else if(match.instance) {
             applicable.push(match.typeClass);
-            if(!selectedCount) selected = ::move(match);
+            if(!selectedCount) adopt(selected, match);
             selectedCount++;
         } else {
-            if(!withoutInstanceCount) withoutInstance = ::move(match);
+            if(!withoutInstanceCount) adopt(withoutInstance, match);
             withoutInstanceCount++;
         }
     }
@@ -690,7 +690,7 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
                                       context.findName(global[withoutInstance.typeClass]->name),
                                       types.view(), context.findName(callName));
         } else {
-            Array<TypePtr> given;
+            TypeList given;
             for(auto arg: args) given.push(valueType(arg));
             describeTypes(context, global, toBuffer(given), types);
 
@@ -783,7 +783,7 @@ ModulePtr<Value> ExprResolver::emitErasedCall(ModulePtr<Function> callee, Buffer
      */
     auto packed = packedMark();
 
-    Array<ModulePtr<Value>> converted;
+    ValueList converted;
     for(Size i = 0; i < args.length; i++) {
         auto declared = local[generic->args.get(local, i)];
         auto expected = substituteType(module, declared->type, typeArgs, source);
@@ -860,7 +860,7 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
         return emitDirectCall(callee, args, source, target, resultName);
     }
 
-    Array<TypePtr> bindings;
+    TypeList bindings;
     for(Size i = 0; i < calleeEnv->types.size(); i++) bindings.push(nullptr);
 
     // The same one-directional rule the classes use: the arguments decide, and the expected
@@ -878,7 +878,7 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
     }
 
     if(target) {
-        Array<TypePtr> withTarget = bindings;
+        TypeList withTarget = bindings;
 
         if(bindPosition(generic->returnType, target, withTarget, false)) {
             for(Size i = 0; i < bindings.size(); i++) {
@@ -899,7 +899,7 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
         return nullptr;
     }
 
-    Array<ModulePtr<Value>> converted;
+    ValueList converted;
     for(Size i = 0; i < args.length; i++) {
         auto declared = local[generic->args.get(local, i)]->type;
         converted.push(convert(args[i], substituteType(module, declared, toBuffer(bindings), source), source));
@@ -948,7 +948,7 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
     for(auto constraint: calleeEnv->classes.contents(global)) {
         if(!constraint.typeClass) continue;
 
-        Array<TypePtr> forwarded;
+        TypeList forwarded;
         for(auto argument: constraint.args.contents(global)) {
             forwarded.push(substituteType(module, argument, toBuffer(bindings), source));
         }

@@ -135,7 +135,7 @@ static void writeRegName(Net::Writer& w, MachineLocation at) {
 // Where each operand ended up. An operand that occupies no location at all - an immediate the
 // encoding carries, an address folded into a ModRM byte - prints as "-", which is what its invalid
 // location says.
-static void writeRegList(Net::Writer& w, const Array<ResolvedOperand>& regs) {
+static void writeRegList(Net::Writer& w, SmallBuffer<ResolvedOperand> regs) {
     w.writeByte('[');
     for(Size i = 0; i < regs.size(); i++) {
         if(i > 0) w.writeString(", "_v);
@@ -165,7 +165,7 @@ static void onEmitInst(void* ctx, LowerInst* inst, const InstRegs& regs, U32 sta
     });
 }
 
-static void writeMoveList(Net::Writer& w, StringView label, const Array<RegMove>& moves) {
+static void writeMoveList(Net::Writer& w, StringView label, SmallBuffer<RegMove> moves) {
     Size shown = 0;
 
     for(auto& m: moves) {
@@ -198,12 +198,18 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
     // Sized up front - the number of functions is already known, so pushing never has to grow.
     Array<TraceContext> traces(U32(module.functions.size()));
 
+    // Not reset between functions, unlike the run tester's: a trace entry holds the instruction
+    // record it was emitted from, and those live in the scratch until the whole module has been
+    // printed - see RegScratch.
+    RegScratch scratch;
+    FunctionRegs regs;
+
     for(auto fo: module.functions) {
         auto fun = base[fo];
 
         MachineFunction machine;
         transformFunction(context, base, *fun, machine);
-        auto regs = allocateRegisters(context, base, *fun, machine);
+        allocateRegisters(context, base, *fun, machine, scratch, regs);
 
         traces.push();
         genFunction(context, base, asm_, *fun, machine, regs, &onEmitInst, &traces[traces.size() - 1]);

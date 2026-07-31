@@ -133,7 +133,7 @@ static void findBackEdges(LowerBase base, LowerBlock* b, Array<BackEdge>& out) {
 // One loop while its body is being collected, before the loops are ordered and the nesting read off.
 struct LoopBody {
     BlockIndex header = kNullBlock;
-    Array<bool> members;
+    IndexSet members;
     Size size = 0;
 };
 
@@ -146,7 +146,7 @@ static void addLatch(LowerBase base, LoopBody& loop, LowerBlock* latch) {
     auto visit = [&](LowerBlock* b) {
         if(loop.members[b->index]) return;
 
-        loop.members[b->index] = true;
+        loop.members.set(b->index, true);
         loop.size++;
         pending.push(b);
     };
@@ -202,9 +202,9 @@ LoopInfo LowerFunction::buildLoops(LowerBase base) {
         if(found == loops.size()) {
             LoopBody loop;
             loop.header = edge.header->index;
-            for(Size i = 0; i < blockList.size(); i++) loop.members.push(false);
+            loop.members.reset(blockList.size());
 
-            loop.members[loop.header] = true;
+            loop.members.set(loop.header, true);
             loop.size = 1;
             loops.push(::move(loop));
         }
@@ -551,8 +551,8 @@ static void addRange(Array<RangeEntry>& entries, LowerValue* v, U32 from, U32 to
 // numbered in order - so the per-value pass is an insertion sort, which is the fastest thing there
 // is for the one or two ranges a typical value ends up with.
 static void packRanges(Liveness& live, Array<RangeEntry>& entries, Size valueCount) {
-    Array<U32> start;
-    Array<U32> cursor;
+    SmallArray<U32, 64> start;
+    SmallArray<U32, 64> cursor;
 
     for(Size i = 0; i < valueCount; i++) { start.push(0); cursor.push(0); }
     for(auto& e: entries) start[e.id]++;
@@ -633,9 +633,9 @@ static void buildRanges(LowerBase base, LowerFunction& fun, Liveness& live) {
     // Where the block being walked defines a value and where it last reads it. Allocated once for
     // the function and reset per block through `touched`, so the cost follows the number of values
     // a block actually mentions rather than the number the function has.
-    Array<U32> definedAt;
-    Array<U32> lastUse;
-    Array<LiveId> touched;
+    SmallArray<U32, 64> definedAt;
+    SmallArray<U32, 64> lastUse;
+    SmallArray<LiveId, 32> touched;
 
     for(Size i = 0; i < valueCount; i++) { definedAt.push(kNotSeen); lastUse.push(kNotSeen); }
 

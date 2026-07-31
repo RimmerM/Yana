@@ -23,6 +23,17 @@ struct TypeClass;
 using TypePtr = GlobalPtr<Type>;
 
 /*
+ * A list of type arguments: what a generic call inferred, what a class's variables were bound to,
+ * what an instance head resolved its own variables to.
+ *
+ * Four inline, which is a guess about programs rather than about the language - there is no limit on
+ * how many variables a declaration may have, and `Result(a, b)` is already at the wide end of what
+ * anyone writes. Overload resolution builds one of these per candidate it tries and per position it
+ * tries them at, so this is the list the resolver allocates more of than any other.
+ */
+using TypeList = SmallArray<TypePtr, 4>;
+
+/*
  * How one half of a teardown is supplied.
  *
  * `None` is nothing at all, `Derived` is the glue the compiler writes - recurse into each member,

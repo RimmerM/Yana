@@ -306,7 +306,7 @@ inline bool isAddressCell(TableCell kind) {
  */
 struct InternedEnv {
     ModulePtr<Function> callee;
-    Array<TypePtr> args;
+    TypeList args;
     ModulePtr<Global> env;
 };
 
@@ -314,7 +314,7 @@ struct InternedEnv {
 // what decides both the instance and every thunk in it. See classWitnessFor.
 struct InternedWitness {
     GlobalPtr<TypeClass> typeClass;
-    Array<TypePtr> args;
+    TypeList args;
     ModulePtr<Global> witness;
 };
 
@@ -568,8 +568,8 @@ struct Program {
      * matching recurses while proving a head's own constraints. See Scratch.
      */
     ScratchPool<Array<ModulePtr<ClassInstance>>> instanceCandidates;
-    ScratchPool<Array<TypePtr>> typeLists;
-    ScratchPool<Array<ModulePtr<Value>>> valueLists;
+    ScratchPool<TypeList> typeLists;
+    ScratchPool<ValueList> valueLists;
     ScratchPool<StringBuilder> names;
 
     /*

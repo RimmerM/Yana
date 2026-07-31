@@ -150,6 +150,23 @@ private:
  * module, so that nothing here is a global and a second compilation in one process shares nothing
  * with the first.
  */
+// One drop the drop pass decided to insert. `before` is a linear index: the drop goes immediately
+// before that instruction, which is always a real position because a terminator never defines or
+// last-uses a local itself. Here rather than in analyze_drop.cpp because the scratch holds a list of
+// them - see AnalysisScratch::blockDrops.
+struct PendingDrop {
+    U32 local = 0;
+    U32 before = 0;
+
+    // Set for a drop that releases what a write is about to replace, in which case the place comes
+    // from the write rather than from the local - see makeOverwriteDrop.
+    ModulePtr<Inst> overwrite = nullptr;
+};
+
+// The drops each block needs, one row per block. Four inline: a block that drops more than that is
+// not one this bound decides anything about.
+using DropList = ArrayList<PendingDrop, 4>;
+
 struct AnalysisScratch {
     ~AnalysisScratch() {
         for(auto set: borrowed) delete set;
@@ -199,6 +216,13 @@ struct AnalysisScratch {
     PooledList<Effects> effects;
     Array<TrackedLocal> tracked;
     Array<ReprRequirements> demand;
+    HashMap<U32, U32> indexOf;
+
+    // Where the drops each block needs are collected - see insertDrops. One row per block, which is
+    // the shape ArrayList exists for; here rather than in the pass because a list built per function
+    // is a list allocated per function.
+    DropList blockDrops;
+
 
     /*
      * The temporaries, handed out by ScratchProvenance.
@@ -259,8 +283,9 @@ struct Analysis {
     Array<TrackedLocal>& tracked;
 
     // Where each instruction sits in the numbering, so that a value's use list can be turned into
-    // an extent without rescanning.
-    HashMap<U32, U32> indexOf;
+    // an extent without rescanning. The scratch's, like the rest: one entry per instruction, emptied
+    // and refilled per function - see HashMap::reset.
+    HashMap<U32, U32>& indexOf;
 
     LocalSetList& liveIn;
     LocalSetList& liveOut;

@@ -56,7 +56,7 @@ static bool superclassPath(Module& module, GlobalPtr<TypeClass> have, Buffer<Typ
 
         // A superclass is written in its own class's variables, so it is expressed in the types
         // this requirement was declared with before being asked about.
-        Array<TypePtr> substituted;
+        TypeList substituted;
         for(auto arg: superclass.args.contents(global)) {
             substituted.push(substituteType(module, arg, haveArgs, superclass.source));
         }
@@ -81,7 +81,7 @@ bool provesClass(Module& module, const GenEnv& env, GlobalPtr<TypeClass> typeCla
     Array<U32> steps;
 
     for(auto constraint: classes.contents(global)) {
-        Array<TypePtr> have;
+        TypeList have;
         for(auto arg: constraint.args.contents(global)) have.push(arg);
 
         steps.clear();
@@ -106,7 +106,7 @@ U16 genWitnessPath(Module& module, GenEnv& env, GlobalPtr<TypeClass> typeClass, 
     for(auto slot: schema.slots.contents(global)) {
         if(slot.kind != GenSlotKind::Class) continue;
 
-        Array<TypePtr> have;
+        TypeList have;
         for(auto arg: slot.args.contents(global)) have.push(arg);
 
         supers.clear();
@@ -358,10 +358,10 @@ static Place clonePlace(Clone& clone, const Place& place) {
 // types, or the callee's specialization. An intrinsic implementation expands here exactly as it
 // would at an ordinary call site, so a specialized `x + x` is an `add` rather than a call.
 static void cloneGenCall(Clone& clone, InstGenCall& call) {
-    Array<TypePtr> typeArgs;
+    TypeList typeArgs;
     for(auto arg: call.typeArgs.contents(clone.local)) typeArgs.push(cloneType(clone, arg));
 
-    Array<ModulePtr<Value>> args;
+    ValueList args;
     for(auto arg: call.args.contents(clone.local)) args.push(cloneValue(clone, arg));
 
     ModulePtr<Function> callee = nullptr;
@@ -610,7 +610,7 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
         }
         case Value::Call: {
             auto& call = (InstCall&)inst;
-            Array<ModulePtr<Value>> args;
+            ValueList args;
             for(auto arg: call.args.contents(clone.local)) args.push(cloneValue(clone, arg));
 
             auto value = resolver.emitDirectCall(call.callee, toBuffer(args), inst.source, nullptr, inst.name);
@@ -720,15 +720,13 @@ static void cloneBody(Clone& clone, Function& to) {
      * Implementation-Generics.md's first invariant intact: the body's decisions are preserved
      * exactly, and only their representation is adapted.
      */
-    Array<bool> materialized;
-    Array<bool> addressed;
-    for(Size i = 0; i < from.localCount(); i++) {
-        materialized.push(false);
-        addressed.push(false);
-    }
+    IndexSet materialized;
+    IndexSet addressed;
+    materialized.reset(from.localCount());
+    addressed.reset(from.localCount());
 
     auto note = [&](const Place& place) {
-        if(place.root == PlaceRoot::Local && place.local < addressed.size()) addressed[place.local] = true;
+        if(place.root == PlaceRoot::Local && place.local < addressed.size()) addressed.set(place.local, true);
     };
 
     for(auto blockPointer: from.blocks.contents(local)) {
@@ -755,7 +753,7 @@ static void cloneBody(Clone& clone, Function& to) {
         auto allocation = clone.resolver.emit<InstAlloc>(clone.source, target.name, target.type, U32(i));
         target.value = clone.resolver.ref(allocation);
         to.locals.set(local, i, target);
-        materialized[i] = true;
+        materialized.set(i, true);
 
         clone.resolver.initialize(Place::inLocal(U32(i)), argument, clone.source);
     }
@@ -913,7 +911,7 @@ static bool proveRequirements(Module& from, Function& generic, GenEnv& env, Buff
     for(auto constraint: env.classes.contents(global)) {
         if(!constraint.typeClass) continue;
 
-        Array<TypePtr> concrete;
+        TypeList concrete;
         for(auto arg: constraint.args.contents(global)) {
             concrete.push(substituteType(from, arg, args, source));
         }
