@@ -40,7 +40,26 @@ ModulePtr<Function> teardownFor(Module& module, TypePtr type, Teardown half, Loc
 
     if(kind == TeardownKind::Authored) {
         auto typeClass = half == Teardown::Drop ? module.coreClasses.drop : module.coreClasses.reclaim;
-        return instanceImplementation(module, typeClass, type, source);
+        if(auto authored = instanceImplementation(module, typeClass, type, source)) return authored;
+
+        /*
+         * A container's one traversal, standing in for the drop half it was not written as -
+         * Implementation-Containers.md §13.
+         *
+         * The author wrote a walk over the live elements and called it a `Reclaim`; ownershipOf
+         * decided that for these element types the walk also has effects, and there is no second
+         * body to run for that. So the same one runs, and lowering emits it once when both halves
+         * name it - see the InstDrop case there.
+         *
+         * Only in this direction. A `Drop` is never elidable, so borrowing one to serve the reclaim
+         * half would make it elidable in a region, which is the one thing the split exists to
+         * prevent.
+         */
+        if(half == Teardown::Drop) {
+            return instanceImplementation(module, module.coreClasses.reclaim, type, source);
+        }
+
+        return nullptr;
     }
 
     if(kind == TeardownKind::Derived) return teardownGlueFor(module, type, half, source);
@@ -319,6 +338,12 @@ bool checkReclaimShape(Module& module, Function& function) {
     auto permitted = [&](ModulePtr<Function> callee) {
         if(!callee) return true;
         if(callee == program.freeHeap || callee == program.allocateHeap) return true;
+
+        // A run's placement switch, which is storage release written once instead of copied into
+        // every container built on one - see Program::releaseRun. A specialization of it stands in
+        // for it, on the same terms as a specialized teardown below.
+        if(callee == program.releaseRun) return true;
+        if(local[callee]->specializationOf == program.releaseRun) return true;
 
         auto target = local[callee];
 

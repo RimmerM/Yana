@@ -222,6 +222,13 @@ static U32 typeAlign(LowerContext& lower, TypePtr type) {
     return lower.repr.alignOf(type);
 }
 
+// What indexing homogeneous storage advances by, which is not always the size - see Repr. A run of
+// `n` slots is `n` strides, never `n` sizes: the trailing padding of one element is what the next
+// one's alignment needs, so measuring in sizes would overlap them.
+static U32 typeStride(LowerContext& lower, TypePtr type) {
+    return lower.repr.strideOf(type);
+}
+
 /*
  * The two descriptions of a compiler-built table, checked against each other rather than believed.
  *
@@ -399,6 +406,44 @@ static LowerPtr<LowerValue> storageSize(LowerContext& lower, LowerBlock& block, 
     }
 
     return immediate(lower, max(typeSize(lower, type), 1u));
+}
+
+/*
+ * What one slot of a run costs - the same question storageSize asks, in strides.
+ *
+ * Never rounded up to a word. A run of a zero-size element is a run of nothing, and that is the
+ * right answer rather than the degenerate one storageSize avoids: the run's *address* still exists,
+ * because the heap and the frame both hand back a real pointer for a request of no bytes, and
+ * nothing indexes into slots there is no way to tell apart. Rounding here would multiply the
+ * padding by the count instead.
+ */
+static LowerPtr<LowerValue> strideSize(LowerContext& lower, LowerBlock& block, TypePtr type) {
+    if(auto descriptor = genTypeDesc(lower, block, type)) {
+        return descField(lower, block, descriptor, TypeDescFields::kStride);
+    }
+
+    return immediate(lower, typeStride(lower, type));
+}
+
+// `count * stride`, folded where both are immediates - which is every run whose length the literal
+// wrote down. The multiply survives only for a run whose size the program computes.
+static LowerPtr<LowerValue> scaleBy(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> stride,
+                                    LowerPtr<LowerValue> count) {
+    auto isImmediate = [&](LowerPtr<LowerValue> value) {
+        return lower.lower[value]->inst()->kind == LowerInst::Imm;
+    };
+
+    // Never nothing, for the reason storageSize is never nothing: a run of no slots still has an
+    // address, and a frame object of no size is not one. `[] :: [Int]` is the everyday way to ask
+    // for one, and the word it gets is never indexed into.
+    if(isImmediate(stride) && isImmediate(count)) {
+        return immediate(lower, max(((LowerImm*)lower.lower[count]->inst())->i *
+                                    ((LowerImm*)lower.lower[stride]->inst())->i, U64(1)));
+    }
+
+    auto product = binary<LowerInst::Mul>(lower.lower, lower.to, block, lower.lower[stride],
+                                          lower.lower[count], LowerType::Int64, 0);
+    return product->created().ptr - lower.lower;
 }
 
 // The address of one compiler-built constant table.
@@ -1833,7 +1878,28 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 return;
             }
 
-            auto bytes = storageSize(lower, block, instruction.type);
+            /*
+             * How much storage, and how much of it needs zeroing.
+             *
+             * A run of `n` slots is `n` strides rather than one size - see InstAlloc::extent. The
+             * count is a value rather than a number, so this is a multiply that constant-folds to
+             * the single immediate every other allocation gets whenever `n` is known here, which for
+             * a literal's run it always is.
+             */
+            auto slotBytes = allocation.extent ? strideSize(lower, block, instruction.type)
+                                               : storageSize(lower, block, instruction.type);
+            auto bytes = slotBytes;
+            auto zeroed = lower.repr.hasPaddedWord(instruction.type) ? lower.repr.sizeOf(instruction.type) : 0u;
+
+            if(allocation.extent) {
+                bytes = scaleBy(lower, block, slotBytes, mappedValue(lower, allocation.extent));
+
+                // A niche in the *element* would need every slot zeroed rather than the first, which
+                // is a loop rather than a store. Nothing produces one yet - a run's slots are
+                // uninitialized by contract and written whole - so this reports rather than emitting
+                // a zeroing that covers one element out of n.
+                assertTrue(!zeroed);
+            }
 
             if(allocation.storage == StorageClass::Heap) {
                 // Storage escape analysis proved the frame cannot hold, so it comes from the
@@ -1852,9 +1918,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 result->source = instruction.source;
 
                 auto heap = result->created().ptr - lower.lower;
-                if(lower.repr.hasPaddedWord(instruction.type)) {
-                    zeroStorage(lower, block, heap, lower.repr.sizeOf(instruction.type));
-                }
+                if(zeroed) zeroStorage(lower, block, heap, zeroed);
 
                 lower.values.add(instValue, heap);
                 return;
@@ -1874,10 +1938,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             // A niche made of bits no field writes needs them to start out zero. Asked of the type
             // rather than of the allocation, so a generic body - whose type has no layout here - never
             // reaches it.
-            if(lower.repr.hasPaddedWord(instruction.type)) {
-                zeroStorage(lower, block, result->created().ptr - lower.lower,
-                            lower.repr.sizeOf(instruction.type));
-            }
+            if(zeroed) zeroStorage(lower, block, result->created().ptr - lower.lower, zeroed);
 
             break;
         }
@@ -2460,7 +2521,21 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             };
 
             step(dropped.drop);
-            step(dropped.reclaim);
+
+            /*
+             * One traversal may serve both halves - Implementation-Containers.md §13.
+             *
+             * A container writes a single walk over its live elements, and which halves it supplies
+             * is computed from the element types: `Array(Buffer)` has both, because the walk both
+             * releases the run and runs each buffer's `Drop`. Running it twice would free the run
+             * twice, so the second call is what is dropped rather than the second half.
+             *
+             * Which of them is elidable is unaffected. A region discharges the reclaim half in bulk
+             * and leaves the drop half to run at last use, and this is the case where both are
+             * present - so what runs there is one call, the drop's, and the release inside it does
+             * nothing because the run's tag says the region owns the storage.
+             */
+            if(dropped.reclaim != dropped.drop) step(dropped.reclaim);
 
             // Handing back this allocation is the last thing that happens to it, after both halves
             // have finished reading it.

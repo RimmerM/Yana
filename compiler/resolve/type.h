@@ -862,6 +862,51 @@ TypePtr applyReturnRootMutability(Module& module, TypePtr result, bool allRootsM
 // that `Maybe(Int)` names one type no matter how many places write it.
 TypePtr instantiateRecord(Module& module, GlobalPtr<RecordType> record, Buffer<TypePtr> args, LocationId source);
 
+/*
+ * The three container questions the resolver asks by type rather than by name.
+ *
+ * `arrayElement` and `sliceElement` are what an `Array(T)` and a `Flat(T)` hold, or null for
+ * anything else. `sliceOf` is the slice a borrow of a container becomes - `Array(T)` and `Flat(T)`
+ * both answer `Flat(T)`, since a borrow of a slice is that slice - and null for every type that is
+ * not one, which is what makes it usable as a test as well as a conversion.
+ */
+// What a parameter's written type means, which is not always what the same syntax means in a type
+// position: `[T]` in a binding is a slice. See the definition for which positions keep the owner.
+// Shared by a declaration's signature and by a written function type, so that a contract means the
+// same thing in both places.
+TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType bind, GenEnv* env);
+
+TypePtr arrayElement(Module& module, TypePtr type);
+TypePtr sliceElement(Module& module, TypePtr type);
+TypePtr sliceOf(Module& module, TypePtr type);
+
+/*
+ * Whether a value of this type names storage it does not own.
+ *
+ * `&T` and the slice a borrow of a container *is* (Implementation-Containers.md §4), which are the
+ * same thing said twice: a slice is a borrow whose representation happens to be a record, so every
+ * rule about a reference outliving what it refers to has to ask this rather than isBorrow. Returning
+ * one, capturing one in an escaping closure, and storing one past the loan that made it are all the
+ * same mistake, and all three were invisible while the question was about the type's *kind*.
+ *
+ * A raw pointer is deliberately not one. `%T` carries no lifetime by construction - that is what
+ * makes Native the unchecked module - so including it here would report on the one type whose whole
+ * purpose is to be outside this analysis.
+ */
+bool isBorrowLike(Module& module, TypePtr type);
+
+/*
+ * The same question about a type's members, which is what a *result* has to be judged by.
+ *
+ * `data Cursor {items: &[Int], at: Int}` returned from a function hands a reference to the caller as
+ * surely as `&[Int]` does, so the return-root contract has to cover it: the signature must say which
+ * argument the reference inside it came from, or there is nothing the caller can be checked against.
+ *
+ * Bounded rather than exhaustive, on the same terms ownershipIn's walk is - a type reachable from
+ * itself is finite in the answers it can give and the bound is what makes that true of the walk.
+ */
+bool containsBorrowLike(Module& module, TypePtr type);
+
 // Fills in the constructors of every instantiation that was created before the declaration it
 // came from had been read. Runs once per module after its data declarations are complete.
 void completePendingInstances(Module& module);

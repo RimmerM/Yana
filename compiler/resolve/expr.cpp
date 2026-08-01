@@ -536,6 +536,84 @@ ModulePtr<Value> ExprResolver::convertRefinement(ModulePtr<Value> value, TypePtr
     return ref(emit<InstUnary>(source, local[value]->name, target, Value::Cast, masked));
 }
 
+/*
+ * Borrowing a container - Implementation-Containers.md §4.
+ *
+ * `f(xs)` where `f` said `[T]` hands over a `{base, length}` descriptor rather than the array, and
+ * the two instructions in front of that are the whole of what makes it sound:
+ *
+ *  - an **InstBorrow of the array's own place**, which is the loan. Without it the last thing this
+ *    frame does with `xs` is read its run pointer, so the drop pass is entitled to release the run
+ *    *before* the call that is about to read through it. With it, the borrow checker sees an extent
+ *    covering the call and rejects a conflicting write inside it, which is the ordinary rule rather
+ *    than one about arrays.
+ *  - the descriptor built into a temporary, read through the borrow. What travels is a copy of the
+ *    run's base address and the array's length, so the callee cannot grow it and never learns where
+ *    the owner is - which is exactly the capability `[T]` names.
+ *
+ * A slice source needs neither: a `Flat(T)` is already the descriptor, and a borrow of one is
+ * itself (see sliceOf). The residual gap is that the descriptor holds a `%T`, which is outside the
+ * ownership graph - so a slice *stored* past the loan is not caught. That is Native's documented
+ * seam and not a new one; see analyze.cpp's note on places rooted in a raw pointer.
+ */
+ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from, TypePtr target,
+                                            LocationId source, bool mut) {
+    auto element = sliceElement(module, target);
+    if(!element || !arrayElement(module, from)) return nullptr;
+
+    auto place = findPlace(value);
+    if(!place) {
+        context.diagnostics.error("cannot borrow this array - a slice must name storage, and this is a value with none"_v,
+                                  source);
+        return nullptr;
+    }
+
+    if(mut && !isWritablePlace(place.unwrap())) {
+        context.diagnostics.error("cannot borrow this array mutably - it does not name storage that may be written"_v,
+                                  source);
+        return nullptr;
+    }
+
+    auto borrowed = borrowPlace(place.unwrap(), resolveBorrowType(module, from, mut), source);
+    if(!borrowed) return nullptr;
+
+    auto array = Place::inBorrow(borrowed);
+    auto items = projectField(array, context.addUnqualifiedName("run", 3), source, source);
+    auto length = projectField(array, context.addUnqualifiedName("length", 6), source, source);
+    if(!items || !length) return nullptr;
+
+    auto base = projectField(items.unwrap(), context.addUnqualifiedName("items", 5), source, source);
+    if(!base) return nullptr;
+
+    // Writable exactly when the borrow was, because that is what a `&` slice argument needs to
+    // borrow the temporary back out of - and nothing else ever writes a descriptor.
+    auto storage = allocate(target, source, local[value]->name,
+                            mut ? ast::BindType::Ref : ast::BindType::Borrow);
+    auto descriptor = placeFor(storage, source);
+    auto slice = project(descriptor, ProjectionKind::Downcast, 0);
+
+    /*
+     * What this descriptor is a view of, so that liveness reads it as one - see Local::viewOf.
+     *
+     * Without it the array's last use is the read above, and the drop pass is entitled to release
+     * the run before the call this descriptor was built for. With it, the array is live wherever the
+     * slice is, which is conservative in the safe direction: a slice never outlives its array, and a
+     * slice that dies early only keeps the array a little longer than it had to.
+     */
+    auto borrowedPlace = place.unwrap();
+
+    if(borrowedPlace.root == PlaceRoot::Local && borrowedPlace.local < function.localCount()) {
+        auto entry = function.localAt(local, descriptor.local);
+        entry.viewOf = borrowedPlace.local;
+        function.locals.set(local, descriptor.local, entry);
+    }
+
+    initialize(project(slice, ProjectionKind::Field, 0), load(base.unwrap(), source), source);
+    initialize(project(slice, ProjectionKind::Field, 1), load(length.unwrap(), source), source);
+
+    return storage;
+}
+
 ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, LocationId source, bool implicit) {
     if(!value || !target) return value;
 
@@ -548,6 +626,7 @@ ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, L
     if(sameType(from, target)) return value;
     if(global[from]->kind == Type::Error || global[target]->kind == Type::Error) return value;
     if(auto refined = convertRefinement(value, from, target, source)) return refined;
+    if(auto sliced = convertSlice(value, from, target, source)) return sliced;
 
     // A borrow converts to and from exactly one thing - the type it refers to - so when either side
     // is one, that is the whole of the decision and there is no widening path to fall through to.
@@ -606,6 +685,12 @@ bool ExprResolver::convertible(ModulePtr<Value> value, TypePtr target, LocationI
     }
 
     if(isBorrow(global, from)) return sameType(((BorrowType*)global[from])->to, target);
+
+    // An owned container fits a `[T]` parameter, which is what makes `sum(xs)` select an overload
+    // declared over the slice - see convertSlice.
+    if(auto element = sliceElement(module, target)) {
+        if(arrayElement(module, from) == element) return true;
+    }
 
     // A `@bits` refinement converts to and from what it refines without an instance - see
     // convertRefinement. Overload selection has to agree with convert() about that, or a candidate

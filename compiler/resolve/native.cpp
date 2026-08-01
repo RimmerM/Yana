@@ -199,6 +199,143 @@ fn freeHeap(allocation: %U8) -> {}:
 
     store(cast(allocation) :: Ptr(%U8), freeListHead(sizeClass))
     setFreeListHead(sizeClass, allocation)
+
+{-
+   Runs of slots - Implementation-Containers.md §2.
+-}
+
+{-
+   How many bytes `count` elements occupy.
+
+   Written as a pointer difference rather than with `sizeOf`, because what is wanted is the size of
+   a *type* and pointer arithmetic already scales by exactly that - `from` is never read, only
+   measured against. Counts are `Int` and byte quantities are `I64`, which is the split the two
+   sides of this function have: an index is a number of elements the program wrote, and a size is
+   what the allocator and the block operations take.
+-}
+fn byteSpan(from: %a, count: Int) -> I64 =
+    difference(cast(from) :: %U8, cast(from + count) :: %U8)
+
+{-
+   An owned, uninitialized run of slots, plus where it came from.
+
+   Three words and no policy. It does not know which of its slots hold values, it cannot be pushed
+   to, and it will not grow on its own - which is the whole point: occupancy is a private matter for
+   whichever container is built on top of it, so a count, a bitmap, a sentinel and a free list are
+   all equally expressible and none of them is in the primitive.
+
+   `placed` is the storage class the compiler chose, as a number - see InstAlloc::storageFlag. It is
+   the only thing here the program did not write, and it exists so that `Reclaim` below is a switch
+   rather than a guess: the same three words describe a run inlined into its owner, one on the frame,
+   one in a region and one from the allocator, and only the last of those is anyone's to hand back.
+-}
+data Run(a) {items: %a, capacity: Int, placed: Int}
+
+-- The four storage classes, in the order `StorageClass` declares them. Written out rather than
+-- tested against a boolean because the switch below has four arms and only one of them frees: a
+-- region-placed run reaching the same `Reclaim` a heap-placed one gets has to do nothing, and
+-- "not the heap" is what makes that one comparison instead of two.
+let runInline = 0 :: Int
+let runStack = 1 :: Int
+let runRegion = 2 :: Int
+let runHeap = 3 :: Int
+
+-- A run with room for nothing, which allocates nothing. Every container's empty value starts here.
+fn emptyRun() -> Run(a) = Run {items: null(), capacity: 0, placed: runInline}
+
+{-
+   A run of `capacity` slots, placed by the compiler.
+
+   An intrinsic, because this is the one operation the language has no way to say about itself: what
+   it expands to is an ordinary allocation with a count beside it (InstAlloc::extent), so where the
+   slots live is decided by the same escape analysis that places every other allocation and the tag
+   it writes into `placed` is that decision made readable.
+-}
+fn newRun(capacity: Int) -> Run(a)
+
+fn capacity(self: Run(a)) -> Int = self.capacity
+
+-- Where the slots start. A container indexes off this; nothing here says how many of them hold
+-- anything, because a run does not know.
+fn slots(self: Run(a)) -> %a = self.items
+
+{-
+   Room for `wanted` slots, relocating if there is not.
+
+   `&self` is what makes relocation safe with no new rule: a mutable borrow of the run conflicts with
+   any live borrow into it, so the checker already rejects holding an element borrow across one of
+   these. False means the allocator refused and the run is exactly as it was.
+
+   The whole of the old capacity is copied rather than the live prefix, because a run does not know
+   which of its slots are live - that is what §2 means by having no notion of occupancy. It costs a
+   constant factor on a growth that is amortized anyway, and it is what keeps the primitive from
+   needing a count it would then have to be told about.
+-}
+fn resize(&self: Run(a), wanted: Int) -> Bool:
+    if wanted <= self.capacity then return True
+
+    let fresh = cast(allocateHeap(byteSpan(self.items, wanted))) :: %a
+    if isNull(fresh) then return False
+
+    if self.capacity > 0:
+        copyMemory(cast(fresh) :: %U8, cast(self.items) :: %U8, byteSpan(self.items, self.capacity))
+
+    if self.placed == runHeap then freeHeap(cast(self.items) :: %U8)
+
+    self.items = fresh
+    self.capacity = wanted
+    self.placed = runHeap
+
+    return True
+
+{-
+   The placement switch - Implementation-Storage.md §5.
+
+   Written as a plain function taking the run by borrow as well as as the instance below, because a
+   container built on runs has to be able to release its own without owning it out of itself: moving
+   a field out of the value an authored `Reclaim` was handed is a partial move, and duplicating this
+   comparison in every such container is the thing worth avoiding. It is storage release and nothing
+   else, which is what makes it a permitted call inside an authored `Reclaim` - see
+   checkReclaimShape.
+
+   `Inline`, `Stack` and `Region` release nothing: the owner's own bytes, the frame returning, and
+   the region closing are what hand those back. Only the allocator's is this function's to give
+   back, and when the tag is a constant the escape analysis patched - which it is everywhere the
+   run was not built inside a generic body - the comparison folds and this whole function with it.
+
+   A `Reclaim` and not a `Drop`, which is what keeps a container built on runs region-placeable: a
+   region discharges every `Reclaim` inside it in bulk, and handing storage back is exactly the kind
+   of thing that may happen in bulk at a point the author did not choose.
+-}
+fn releaseRun(self: Run(a)) -> {}:
+    if self.placed == runHeap then freeHeap(cast(self.items) :: %U8)
+
+instance Reclaim(Run(a)):
+    fn reclaim(->value: Run(a)) -> {} = releaseRun(value)
+
+{-
+   The representations - Implementation-Containers.md §3.
+
+   A container author needs access to a run's contents, and a single raw pointer cannot serve: a
+   narrow-element run has no element address, and a run whose count was packed into its owner has no
+   self-contained descriptor to point at. So the shapes are named types, each with a coherent
+   operation set, and an author dispatches on the representation rather than testing for it - a
+   UTF-8 decoder takes a `Flat(U8)`, a bitset scan will take a `Bits(Bool)`.
+
+   `Flat(a)` is also what a borrow of `[a]` *is*. That is not two facts: §4's slice Repr and this
+   surface are the same shape named twice, which is the whole reason the borrow of a container never
+   dispatches. `Bits(a)` is the narrow-element form and waits on §11's fractional stride.
+
+   It owns nothing. Every field is a copy of something whose lifetime belongs to whoever the slice
+   was taken from, which is what makes it TrivialCopy and what the borrow at the point it was made
+   is responsible for.
+-}
+data Flat(a) {items: %a, length: Int}
+
+-- The element address a `Flat` is defined by. Absent on `Bits` when that lands, deliberately: a
+-- narrow element has no address, and the partiality is what keeps `sizeOf` and pointer arithmetic
+-- off the fractional-stride path.
+fn values(self: Flat(a)) -> %a = self.items
 )NATIVE";
 
 /*
@@ -358,6 +495,31 @@ static ModulePtr<Value> emitDifference(ExprResolver& resolver, Buffer<ModulePtr<
     return resolver.ref(resolver.emit<InstBinary>(source, name, type, Value::Div, bytes, scale));
 }
 
+/*
+ * `newRun(n)` - Implementation-Containers.md §2.
+ *
+ * An intrinsic rather than a function, because what it expands to is an allocation with a count and
+ * the language has no spelling for one. It is the *only* thing here that is compiler magic: every
+ * other operation on a run - the empty one, the capacity, the address of the slots, growth, and the
+ * placement switch its `Reclaim` is - is written in the language above, over this and over the
+ * allocator.
+ *
+ * The result type is what says which element it is a run of. Nothing in the argument list does, and
+ * nothing needs to: `newRun()` at a `Run(Buffer)` is the same call at a `Run(U8)` with a different
+ * stride, which is exactly the shape a generic intrinsic has.
+ */
+static ModulePtr<Value> emitNewRun(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                   LocationId source, StringId) {
+    ModulePtr<Value> items = nullptr;
+    auto run = resolver.buildRun(type, args[0], source, items);
+
+    if(!run) {
+        resolver.context.diagnostics.error("internal: newRun's result is not a run of slots"_v, source);
+    }
+
+    return run;
+}
+
 template<NativeOp op>
 static ModulePtr<Value> emitNativeOp(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                      LocationId source, StringId name) {
@@ -429,6 +591,8 @@ static void attachPointerIntrinsics(Module& module) {
     attachIntrinsic(module, "-"_v, emitPointerOffset<Value::Sub>);
     attachIntrinsic(module, "difference"_v, emitDifference);
 
+    attachIntrinsic(module, "newRun"_v, emitNewRun);
+
     attachIntrinsic(module, "copyMemory"_v, emitNativeOp<NativeOp::CopyMemory>);
     attachIntrinsic(module, "setMemory"_v, emitNativeOp<NativeOp::SetMemory>);
 
@@ -455,6 +619,7 @@ void defineNative(Program& program) {
     auto nativeAst = parseEmbedded(context, kNativeSource, "Native"_v);
     auto native = program.addModule(nativeAst->name, *nativeAst->region);
     program.embeddedAsts.push(nativeAst);
+    program.native = native;
 
     // The types have to exist before the signatures that name them are read, and the instances
     // before any body that uses one - which is the same order Core is built in. Core has to be
@@ -488,4 +653,16 @@ void defineNative(Program& program) {
 
     program.allocateHeap = findNative("allocateHeap", 12);
     program.freeHeap = findNative("freeHeap", 8);
+    program.releaseRun = findNative("releaseRun", 10);
+
+    // And the run and the slice, for the same reason - see Program::runType and Program::sliceType.
+    auto named = [&](const char* text, Size length) -> GlobalPtr<RecordType> {
+        auto found = native->namedTypes.get(context.addQualifiedName(text, length, 1));
+        if(!found) return nullptr;
+
+        return (RecordType*)(*program.types)[found.unwrap()] - *program.types;
+    };
+
+    program.runType = named("Run", 3);
+    program.sliceType = named("Flat", 4);
 }

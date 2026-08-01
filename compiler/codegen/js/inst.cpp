@@ -1142,6 +1142,20 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             auto boxed = allocation.local < g.boxed.size() && g.boxed[allocation.local];
 
             /*
+             * A run of slots has no JS form yet.
+             *
+             * Implementation-Containers.md §14 gives this target a host array or a `TypedArray`
+             * rather than a run of storage, and reaching it needs the JS FFI its prerequisites name.
+             * Reporting is what keeps that gap visible: silently emitting the one-object form here
+             * would produce a container of capacity one that indexes off the end of itself.
+             */
+            if(allocation.extent) {
+                g.context.diagnostics.error("a run of slots has no representation on the JS target yet - it needs the host array of Implementation-Containers.md §14"_v,
+                                            instruction.source);
+                break;
+            }
+
+            /*
              * A function value has no zero worth writing: it is a host function, and the closure
              * that fills the slot is built by the environment word rather than by this - see
              * genFunValueWord. The binding still has to exist, because the two writes that follow

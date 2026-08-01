@@ -1,0 +1,1155 @@
+let &heapNext: %U8 = 0
+
+let &heapLimit: %U8 = 0
+
+let &heapFree: %%U8 = 0
+
+let &liveHandles: I64 = 0
+
+let &releases: I64 = 0
+
+fn +=(I64)(%target: I64, %amount: I64) -> () {
+  b0:
+    %v2 = load %target : I64
+    %v3 = add %v2, %amount : I64
+    assign %target, %v3
+    ret
+}
+
+fn -=(I64)(%target: I64, %amount: I64) -> () {
+  b0:
+    %v2 = load %target : I64
+    %v3 = sub %v2, %amount : I64
+    assign %target, %v3
+    ret
+}
+
+fn initHeap() -> () {
+  b0:
+    %region = call mapMemory, 4194304 : %U8
+    %v2 = cast %region : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %table = mul 32, 8 : I64
+    setmemory %region, 0, %table
+    %v14 = cast %region : %%U8
+    assign heapFree, %v14
+    %v16 = strideof U8 : I64
+    %v17 = mul %table, %v16 : I64
+    %v18 = add %region, %v17 : %U8
+    assign heapNext, %v18
+    %v21 = strideof U8 : I64
+    %v22 = mul 4194304, %v21 : I64
+    %v23 = add %region, %v22 : %U8
+    assign heapLimit, %v23
+    ret
+}
+
+fn heapClassOf(%total: I64) -> I64 {
+  b0:
+    %size = alloc : I64
+    init %size, 16
+    %sizeClass = alloc : I64
+    init %sizeClass, 0
+    jmp b1
+
+  b1:
+    %v8 = load %size : I64
+    %v9 = cmp_lt %v8, %total : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v21 = load %sizeClass : I64
+    ret %v21
+
+  b3:
+    %v11 = load %size : I64
+    %v12 = load %size : I64
+    %v13 = add %v11, %v12 : I64
+    assign %size, %v13
+    %v15 = load %sizeClass : I64
+    %v18 = add %v15, 1 : I64
+    assign %sizeClass, %v18
+    jmp b1
+}
+
+fn heapBlockSize(%sizeClass: I64) -> I64 {
+  b0:
+    %v2 = shl 16, %sizeClass : I64
+    ret %v2
+}
+
+fn freeListHead(%sizeClass: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : I64
+    %v3 = mul %sizeClass, %v2 : I64
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : I64
+    %v4 = mul %sizeClass, %v3 : I64
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn allocateHeap(%size: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = cast %v1 : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    call initHeap
+    %v7 = load heapFree : %%U8
+    %v8 = cast %v7 : Long
+    %v10 = cmp_eq %v8, 0 : Bool
+    je %v10, b3, b4
+
+  b2:
+    jmp b6
+
+  b3:
+    %v13 = cast 0 : %U8
+    ret %v13
+
+  b4:
+    jmp b5
+
+  b5:
+    jmp b6
+
+  b6:
+    %v20 = add %size, 8 : I64
+    %sizeClass = call heapClassOf, %v20 : I64
+    %v23 = cmp_ge %sizeClass, 32 : Bool
+    je %v23, b7, b8
+
+  b7:
+    %v26 = cast 0 : %U8
+    ret %v26
+
+  b8:
+    jmp b9
+
+  b9:
+    %reused = call freeListHead, %sizeClass : %U8
+    %v30 = cast %reused : Long
+    %v32 = cmp_eq %v30, 0 : Bool
+    %v34 = xor %v32, True : Bool
+    je %v34, b10, b11
+
+  b10:
+    %v36 = cast %reused : %%U8
+    %v37 = load [%v36] : %U8
+    call setFreeListHead, %sizeClass, %v37
+    ret %reused
+
+  b11:
+    jmp b12
+
+  b12:
+    %block = load heapNext : %U8
+    %blockSize = call heapBlockSize, %sizeClass : I64
+    %v43 = strideof U8 : I64
+    %v44 = mul %blockSize, %v43 : I64
+    %v45 = add %block, %v44 : %U8
+    %v46 = load heapLimit : %U8
+    %v47 = cmp_gt %v45, %v46 : Bool
+    je %v47, b13, b14
+
+  b13:
+    %v50 = cast 0 : %U8
+    ret %v50
+
+  b14:
+    jmp b15
+
+  b15:
+    %v53 = strideof U8 : I64
+    %v54 = mul %blockSize, %v53 : I64
+    %v55 = add %block, %v54 : %U8
+    assign heapNext, %v55
+    %v57 = cast %block : %I64
+    assign [%v57], %sizeClass
+    %v61 = strideof U8 : I64
+    %v62 = mul 8, %v61 : I64
+    %v63 = add %block, %v62 : %U8
+    ret %v63
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = cast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : I64
+    %v10 = mul 8, %v9 : I64
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = cast %v11 : %I64
+    %sizeClass = load [%v12] : I64
+    %v14 = cast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn emptyRun(Handle)() -> Run(Handle) {
+  b0:
+    %v0 = alloc : Run(Handle)
+    %v2 = cast 0 : %Handle
+    init %local0@Run.items, %v2
+    init %local0@Run.capacity, 0
+    init %local0@Run.placed, 0
+    ret %v0
+}
+
+fn resize(Handle)(%self: Run(Handle), %wanted: Int) -> Bool {
+  b0:
+    %v2 = load %self : Run(Handle)
+    %v3 = load %self@Run.capacity : Int
+    %v4 = cmp_le %wanted, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret True
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = load %self : Run(Handle)
+    %v10 = load %self@Run.items : %Handle
+    %v11 = call byteSpan(Handle), %v10, %wanted : I64
+    %v12 = call allocateHeap, %v11 : %U8
+    %fresh = cast %v12 : %Handle
+    %v14 = cast %fresh : Long
+    %v16 = cmp_eq %v14, 0 : Bool
+    je %v16, b4, b5
+
+  b4:
+    ret False
+
+  b5:
+    jmp b6
+
+  b6:
+    %v21 = load %self : Run(Handle)
+    %v22 = load %self@Run.capacity : Int
+    %v24 = cmp_gt %v22, 0 : Bool
+    je %v24, b7, b8
+
+  b7:
+    %v26 = cast %fresh : %U8
+    %v27 = load %self : Run(Handle)
+    %v28 = load %self@Run.items : %Handle
+    %v29 = cast %v28 : %U8
+    %v30 = load %self : Run(Handle)
+    %v31 = load %self@Run.items : %Handle
+    %v32 = load %self : Run(Handle)
+    %v33 = load %self@Run.capacity : Int
+    %v34 = call byteSpan(Handle), %v31, %v33 : I64
+    copymemory %v26, %v29, %v34
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v38 = load %self : Run(Handle)
+    %v39 = load %self@Run.placed : Int
+    %v41 = cmp_eq %v39, 3 : Bool
+    je %v41, b10, b11
+
+  b10:
+    %v43 = load %self : Run(Handle)
+    %v44 = load %self@Run.items : %Handle
+    %v45 = cast %v44 : %U8
+    call freeHeap, %v45
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    assign %self@Run.items, %fresh
+    assign %self@Run.capacity, %wanted
+    assign %self@Run.placed, 3
+    ret True
+}
+
+fn byteSpan(Handle)(%from: %Handle, %count: Int) -> I64 {
+  b0:
+    %v2 = cast %from : %U8
+    %v3 = cast %count : I64
+    %v4 = strideof Handle : I64
+    %v5 = mul %v3, %v4 : I64
+    %v6 = add %from, %v5 : %Handle
+    %v7 = cast %v6 : %U8
+    %v8 = sub %v7, %v2 : I64
+    %v9 = strideof U8 : I64
+    %v10 = div %v8, %v9 : I64
+    ret %v10
+}
+
+fn emptyRun(Int)() -> Run(Int) {
+  b0:
+    %v0 = alloc : Run(Int)
+    %v2 = cast 0 : %Int
+    init %local0@Run.items, %v2
+    init %local0@Run.capacity, 0
+    init %local0@Run.placed, 0
+    ret %v0
+}
+
+fn resize(Int)(%self: Run(Int), %wanted: Int) -> Bool {
+  b0:
+    %v2 = load %self : Run(Int)
+    %v3 = load %self@Run.capacity : Int
+    %v4 = cmp_le %wanted, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret True
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = load %self : Run(Int)
+    %v10 = load %self@Run.items : %Int
+    %v11 = call byteSpan(Int), %v10, %wanted : I64
+    %v12 = call allocateHeap, %v11 : %U8
+    %fresh = cast %v12 : %Int
+    %v14 = cast %fresh : Long
+    %v16 = cmp_eq %v14, 0 : Bool
+    je %v16, b4, b5
+
+  b4:
+    ret False
+
+  b5:
+    jmp b6
+
+  b6:
+    %v21 = load %self : Run(Int)
+    %v22 = load %self@Run.capacity : Int
+    %v24 = cmp_gt %v22, 0 : Bool
+    je %v24, b7, b8
+
+  b7:
+    %v26 = cast %fresh : %U8
+    %v27 = load %self : Run(Int)
+    %v28 = load %self@Run.items : %Int
+    %v29 = cast %v28 : %U8
+    %v30 = load %self : Run(Int)
+    %v31 = load %self@Run.items : %Int
+    %v32 = load %self : Run(Int)
+    %v33 = load %self@Run.capacity : Int
+    %v34 = call byteSpan(Int), %v31, %v33 : I64
+    copymemory %v26, %v29, %v34
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v38 = load %self : Run(Int)
+    %v39 = load %self@Run.placed : Int
+    %v41 = cmp_eq %v39, 3 : Bool
+    je %v41, b10, b11
+
+  b10:
+    %v43 = load %self : Run(Int)
+    %v44 = load %self@Run.items : %Int
+    %v45 = cast %v44 : %U8
+    call freeHeap, %v45
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    assign %self@Run.items, %fresh
+    assign %self@Run.capacity, %wanted
+    assign %self@Run.placed, 3
+    ret True
+}
+
+fn byteSpan(Int)(%from: %Int, %count: Int) -> I64 {
+  b0:
+    %v2 = cast %from : %U8
+    %v3 = cast %count : I64
+    %v4 = strideof Int : I64
+    %v5 = mul %v3, %v4 : I64
+    %v6 = add %from, %v5 : %Int
+    %v7 = cast %v6 : %U8
+    %v8 = sub %v7, %v2 : I64
+    %v9 = strideof U8 : I64
+    %v10 = div %v8, %v9 : I64
+    ret %v10
+}
+
+fn releaseRun(Handle)(%self: Run(Handle)) -> () {
+  b0:
+    %v1 = load %self@Run.placed : Int
+    %v3 = cmp_eq %v1, 3 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = load %self@Run.items : %Handle
+    %v6 = cast %v5 : %U8
+    call freeHeap, %v6
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn releaseRun(Int)(%self: Run(Int)) -> () {
+  b0:
+    %v1 = load %self@Run.placed : Int
+    %v3 = cmp_eq %v1, 3 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = load %self@Run.items : %Int
+    %v6 = cast %v5 : %U8
+    call freeHeap, %v6
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn mapMemory(%size: I64) -> %U8 {
+  b0:
+    %v7 = neg 1 : I64
+    %result = syscall 9, 0, %size, 3, 34, %v7, 0 : I64
+    %v12 = cmp_lt %result, 0 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v15 = cast 0 : %U8
+    ret %v15
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = cast %result : %U8
+    ret %v18
+}
+
+fn get(Handle)(%self: Flat(Handle), %index: Int) -> &Handle {
+  b0:
+    %v2 = load %self@Flat.items : %Handle
+    %v3 = cast %index : I64
+    %v4 = strideof Handle : I64
+    %v5 = mul %v3, %v4 : I64
+    %v6 = add %v2, %v5 : %Handle
+    %v7 = borrow [%v6] : &Handle
+    ret %v7
+}
+
+fn emptyArray(Handle)() -> Array(Handle) {
+  b0:
+    %v0 = alloc : Array(Handle)
+    %v1 = call emptyRun(Handle) : Run(Handle)
+    init %local0@Array.run, %v1
+    init %local0@Array.length, 0
+    ret %v0
+}
+
+fn push(Handle)(%self: Array(Handle), %item: Handle) -> () {
+  b0:
+    %v2 = load %self : Array(Handle)
+    %v3 = load %self : Array(Handle)
+    %v4 = load %self@Array.length : Int
+    %v6 = add %v4, 1 : Int
+    %v7 = borrow_mut %self : &mut Array(Handle)
+    call reserve(Handle), %v7, %v6
+    %v9 = load %self : Array(Handle)
+    %v10 = load %self@Array.length : Int
+    %v11 = load %self : Array(Handle)
+    %v12 = load %self@Array.run : Run(Handle)
+    %v13 = load %self@Array.run@Run.capacity : Int
+    %v14 = cmp_ge %v10, %v13 : Bool
+    je %v14, b4, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = load %self : Array(Handle)
+    %v19 = load %self@Array.run : Run(Handle)
+    %v20 = load %self@Array.run@Run.items : %Handle
+    %v21 = load %self : Array(Handle)
+    %v22 = load %self@Array.length : Int
+    %v23 = cast %v22 : I64
+    %v24 = strideof Handle : I64
+    %v25 = mul %v23, %v24 : I64
+    %v26 = add %v20, %v25 : %Handle
+    assign [%v26], %item
+    %v28 = load %self : Array(Handle)
+    %v29 = load %self@Array.length : Int
+    %v31 = add %v29, 1 : Int
+    assign %self@Array.length, %v31
+    ret
+
+  b4:
+    drop %item via Drop(Handle).drop
+    jmp b1
+}
+
+fn reserve(Handle)(%self: Array(Handle), %wanted: Int) -> () {
+  b0:
+    %v2 = load %self : Array(Handle)
+    %v3 = load %self@Array.run : Run(Handle)
+    %v4 = load %self@Array.run@Run.capacity : Int
+    %v5 = cmp_le %wanted, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = load %self : Array(Handle)
+    %v10 = load %self@Array.run : Run(Handle)
+    %v11 = load %self@Array.run@Run.capacity : Int
+    %v12 = load %self : Array(Handle)
+    %v13 = load %self@Array.run : Run(Handle)
+    %v14 = load %self@Array.run@Run.capacity : Int
+    %v15 = add %v11, %v14 : Int
+    %wide = alloc : Int
+    init %wide, %v15
+    %v18 = load %wide : Int
+    %v19 = cmp_lt %v18, %wanted : Bool
+    je %v19, b4, b5
+
+  b4:
+    assign %wide, %wanted
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v24 = load %wide : Int
+    %v26 = cmp_lt %v24, 4 : Bool
+    je %v26, b7, b8
+
+  b7:
+    assign %wide, 4
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v32 = load %self : Array(Handle)
+    %v33 = load %self@Array.run : Run(Handle)
+    %v34 = load %wide : Int
+    %v35 = borrow_mut %self@Array.run : &mut Run(Handle)
+    %v36 = call resize(Handle), %v35, %v34 : Bool
+    ret
+}
+
+fn remove(Handle)(%self: Array(Handle), %index: Int) -> () {
+  b0:
+    %v4 = cmp_lt %index, 0 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %v6 = load %self : Array(Handle)
+    %v7 = load %self@Array.length : Int
+    %v8 = cmp_ge %index, %v7 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %v8], [b2, %v4] : Bool
+    je %v2, b4, b5
+
+  b4:
+    ret
+
+  b5:
+    jmp b6
+
+  b6:
+    %v14 = load %self : Array(Handle)
+    %v15 = load %self@Array.run : Run(Handle)
+    %v16 = load %self@Array.run@Run.items : %Handle
+    %v17 = cast %index : I64
+    %v18 = strideof Handle : I64
+    %v19 = mul %v17, %v18 : I64
+    %v20 = add %v16, %v19 : %Handle
+    %v21 = load [%v20] : Handle
+    %v22 = move %local1 : Handle
+    %doomed = alloc : Handle
+    init %local2, %v22
+    drop %local2 via Drop(Handle).drop
+    %v25 = load %self : Array(Handle)
+    %v26 = load %self@Array.length : Int
+    %v27 = sub %v26, %index : Int
+    %rest = sub %v27, 1 : Int
+    %v31 = cmp_gt %rest, 0 : Bool
+    je %v31, b7, b8
+
+  b7:
+    %v33 = load %self : Array(Handle)
+    %v34 = load %self@Array.run : Run(Handle)
+    %v35 = load %self@Array.run@Run.items : %Handle
+    %v36 = cast %index : I64
+    %v37 = strideof Handle : I64
+    %v38 = mul %v36, %v37 : I64
+    %v39 = add %v35, %v38 : %Handle
+    %v40 = cast %v39 : %U8
+    %v41 = load %self : Array(Handle)
+    %v42 = load %self@Array.run : Run(Handle)
+    %v43 = load %self@Array.run@Run.items : %Handle
+    %v44 = cast %index : I64
+    %v45 = strideof Handle : I64
+    %v46 = mul %v44, %v45 : I64
+    %v47 = add %v43, %v46 : %Handle
+    %v49 = strideof Handle : I64
+    %v50 = mul 1, %v49 : I64
+    %v51 = add %v47, %v50 : %Handle
+    %v52 = cast %v51 : %U8
+    %v53 = load %self : Array(Handle)
+    %v54 = load %self@Array.run : Run(Handle)
+    %v55 = load %self@Array.run@Run.items : %Handle
+    %v56 = call byteSpan(Handle), %v55, %rest : I64
+    copymemory %v40, %v52, %v56
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v60 = load %self : Array(Handle)
+    %v61 = load %self@Array.length : Int
+    %v63 = sub %v61, 1 : Int
+    assign %self@Array.length, %v63
+    ret
+}
+
+fn emptyArray(Int)() -> Array(Int) {
+  b0:
+    %v0 = alloc : Array(Int)
+    %v1 = call emptyRun(Int) : Run(Int)
+    init %local0@Array.run, %v1
+    init %local0@Array.length, 0
+    ret %v0
+}
+
+fn push(Int)(%self: Array(Int), %item: Int) -> () {
+  b0:
+    %v2 = load %self : Array(Int)
+    %v3 = load %self : Array(Int)
+    %v4 = load %self@Array.length : Int
+    %v6 = add %v4, 1 : Int
+    %v7 = borrow_mut %self : &mut Array(Int)
+    call reserve(Int), %v7, %v6
+    %v9 = load %self : Array(Int)
+    %v10 = load %self@Array.length : Int
+    %v11 = load %self : Array(Int)
+    %v12 = load %self@Array.run : Run(Int)
+    %v13 = load %self@Array.run@Run.capacity : Int
+    %v14 = cmp_ge %v10, %v13 : Bool
+    je %v14, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = load %self : Array(Int)
+    %v19 = load %self@Array.run : Run(Int)
+    %v20 = load %self@Array.run@Run.items : %Int
+    %v21 = load %self : Array(Int)
+    %v22 = load %self@Array.length : Int
+    %v23 = cast %v22 : I64
+    %v24 = strideof Int : I64
+    %v25 = mul %v23, %v24 : I64
+    %v26 = add %v20, %v25 : %Int
+    assign [%v26], %item
+    %v28 = load %self : Array(Int)
+    %v29 = load %self@Array.length : Int
+    %v31 = add %v29, 1 : Int
+    assign %self@Array.length, %v31
+    ret
+}
+
+fn reserve(Int)(%self: Array(Int), %wanted: Int) -> () {
+  b0:
+    %v2 = load %self : Array(Int)
+    %v3 = load %self@Array.run : Run(Int)
+    %v4 = load %self@Array.run@Run.capacity : Int
+    %v5 = cmp_le %wanted, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = load %self : Array(Int)
+    %v10 = load %self@Array.run : Run(Int)
+    %v11 = load %self@Array.run@Run.capacity : Int
+    %v12 = load %self : Array(Int)
+    %v13 = load %self@Array.run : Run(Int)
+    %v14 = load %self@Array.run@Run.capacity : Int
+    %v15 = add %v11, %v14 : Int
+    %wide = alloc : Int
+    init %wide, %v15
+    %v18 = load %wide : Int
+    %v19 = cmp_lt %v18, %wanted : Bool
+    je %v19, b4, b5
+
+  b4:
+    assign %wide, %wanted
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v24 = load %wide : Int
+    %v26 = cmp_lt %v24, 4 : Bool
+    je %v26, b7, b8
+
+  b7:
+    assign %wide, 4
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v32 = load %self : Array(Int)
+    %v33 = load %self@Array.run : Run(Int)
+    %v34 = load %wide : Int
+    %v35 = borrow_mut %self@Array.run : &mut Run(Int)
+    %v36 = call resize(Int), %v35, %v34 : Bool
+    ret
+}
+
+fn length(Int)(%self: Flat(Int)) -> Int {
+  b0:
+    %v1 = load %self@Flat.length : Int
+    ret %v1
+}
+
+fn Reclaim(Array(a)).reclaim(Handle)(%value: Array(Handle)) -> () {
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v5 = load %i : Int
+    %v6 = load %value@Array.length : Int
+    %v7 = cmp_lt %v5, %v6 : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v9 = load %value@Array.run : Run(Handle)
+    call releaseRun(Handle), %v9
+    ret
+
+  b3:
+    %v12 = load %value@Array.run : Run(Handle)
+    %v13 = load %value@Array.run@Run.items : %Handle
+    %v14 = load %i : Int
+    %v15 = cast %v14 : I64
+    %v16 = strideof Handle : I64
+    %v17 = mul %v15, %v16 : I64
+    %v18 = add %v13, %v17 : %Handle
+    %v19 = load [%v18] : Handle
+    %v20 = move %local2 : Handle
+    %doomed = alloc : Handle
+    init %local3, %v20
+    drop %local3 via Drop(Handle).drop
+    %v23 = load %i : Int
+    %v25 = add %v23, 1 : Int
+    assign %i, %v25
+    jmp b1
+}
+
+fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
+  b0:
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v5 = load %i : Int
+    %v6 = load %value@Array.length : Int
+    %v7 = cmp_lt %v5, %v6 : Bool
+    je %v7, b3, b2
+
+  b2:
+    %v9 = load %value@Array.run : Run(Int)
+    call releaseRun(Int), %v9
+    ret
+
+  b3:
+    %v12 = load %value@Array.run : Run(Int)
+    %v13 = load %value@Array.run@Run.items : %Int
+    %v14 = load %i : Int
+    %v15 = cast %v14 : I64
+    %v16 = strideof Int : I64
+    %v17 = mul %v15, %v16 : I64
+    %v18 = add %v13, %v17 : %Int
+    %v19 = load [%v18] : Int
+    %doomed = alloc : Int
+    init %local3, %v19
+    %v22 = load %i : Int
+    %v24 = add %v22, 1 : Int
+    assign %i, %v24
+    jmp b1
+}
+
+fn openHandle(%mark: I64) -> Handle {
+  b0:
+    %v1 = load liveHandles : I64
+    %v4 = borrow_mut liveHandles : &mut I64
+    call +=(I64), %v4, 1
+    %handle = alloc : Handle
+    %v8 = call allocateHeap, 16 : %U8
+    init %local0@Handle.slot, %v8
+    %v10 = load %local0@Handle.slot : %U8
+    %v11 = cast %v10 : %I64
+    assign [%v11], %mark
+    ret %handle
+}
+
+fn marker(%it: Handle) -> I64 {
+  b0:
+    %v1 = load %it@Handle.slot : %U8
+    %v2 = cast %v1 : %I64
+    %v3 = load [%v2] : I64
+    ret %v3
+}
+
+fn buildLiteral() -> I64 {
+  b0:
+    %v1 = call openHandle, 1 : Handle
+    %v3 = call openHandle, 2 : Handle
+    %v6 = alloc *2 : Handle
+    %v7 = addressof %local2 : %Handle
+    %v9 = alloc : Run(Handle)
+    init %local3@Run.items, %v7
+    init %local3@Run.capacity, 2
+    init %local3@Run.placed, 1
+    %v14 = strideof Handle : Long
+    %v15 = mul 0, %v14 : Long
+    %v16 = add %v7, %v15 : %Handle
+    init [%v16], %v1
+    %v19 = strideof Handle : Long
+    %v20 = mul 1, %v19 : Long
+    %v21 = add %v7, %v20 : %Handle
+    init [%v21], %v3
+    %handles = alloc : Array(Handle)
+    init %local4@Array.run, %v9
+    init %local4@Array.length, 2
+    %v27 = borrow %local4 : &Array(Handle)
+    %handles = alloc : Flat(Handle)
+    %v29 = load [%v27]@Array.run@Run.items : %Handle
+    init %handles@Flat.items, %v29
+    %v31 = load [%v27]@Array.length : Int
+    init %handles@Flat.length, %v31
+    %v34 = borrow %handles : &Flat(Handle)
+    %v35 = call get(Handle), %v34, 0 : &Handle
+    %v36 = load [%v35] : Handle
+    %v37 = call marker, %v36 : I64
+    %v39 = borrow %local4 : &Array(Handle)
+    %handles = alloc : Flat(Handle)
+    %v41 = load [%v39]@Array.run@Run.items : %Handle
+    init %handles@Flat.items, %v41
+    %v43 = load [%v39]@Array.length : Int
+    init %handles@Flat.length, %v43
+    %v46 = borrow %handles : &Flat(Handle)
+    %v47 = call get(Handle), %v46, 1 : &Handle
+    %v48 = load [%v47] : Handle
+    %v49 = call marker, %v48 : I64
+    drop %local4 via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    %v50 = add %v37, %v49 : I64
+    ret %v50
+}
+
+fn buildPushed() -> I64 {
+  b0:
+    %v0 = call emptyArray(Handle) : Array(Handle)
+    %handles = alloc : Array(Handle)
+    init %handles, %v0
+    %v3 = load %handles : Array(Handle)
+    %v5 = call openHandle, 3 : Handle
+    %v6 = borrow_mut %handles : &mut Array(Handle)
+    %v7 = move %local2 : Handle
+    call push(Handle), %v6, %v7
+    %v9 = load %handles : Array(Handle)
+    %v11 = call openHandle, 4 : Handle
+    %v12 = borrow_mut %handles : &mut Array(Handle)
+    %v13 = move %local3 : Handle
+    call push(Handle), %v12, %v13
+    %v15 = load %handles : Array(Handle)
+    %v17 = borrow %handles : &Array(Handle)
+    %v18 = alloc : Flat(Handle)
+    %v19 = load [%v17]@Array.run@Run.items : %Handle
+    init %local4@Flat.items, %v19
+    %v21 = load [%v17]@Array.length : Int
+    init %local4@Flat.length, %v21
+    %v24 = borrow %local4 : &Flat(Handle)
+    %v25 = call get(Handle), %v24, 0 : &Handle
+    %v26 = load [%v25] : Handle
+    %v27 = call marker, %v26 : I64
+    %v28 = load %handles : Array(Handle)
+    %v30 = borrow %handles : &Array(Handle)
+    %v31 = alloc : Flat(Handle)
+    %v32 = load [%v30]@Array.run@Run.items : %Handle
+    init %local5@Flat.items, %v32
+    %v34 = load [%v30]@Array.length : Int
+    init %local5@Flat.length, %v34
+    %v37 = borrow %local5 : &Flat(Handle)
+    %v38 = call get(Handle), %v37, 1 : &Handle
+    %v39 = load [%v38] : Handle
+    %v40 = call marker, %v39 : I64
+    drop %handles via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    %v41 = add %v27, %v40 : I64
+    ret %v41
+}
+
+fn main() -> I64 {
+  b0:
+    %v0 = call buildLiteral : I64
+    %v3 = cmp_ne %v0, 3 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v7 = neg 1 : I64
+    ret %v7
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = load liveHandles : I64
+    %v13 = cmp_ne %v10, 0 : Bool
+    je %v13, b4, b5
+
+  b4:
+    %v17 = neg 2 : I64
+    ret %v17
+
+  b5:
+    jmp b6
+
+  b6:
+    %v20 = load releases : I64
+    %v23 = cmp_ne %v20, 2 : Bool
+    je %v23, b7, b8
+
+  b7:
+    %v27 = neg 3 : I64
+    ret %v27
+
+  b8:
+    jmp b9
+
+  b9:
+    %v30 = call buildPushed : I64
+    %v33 = cmp_ne %v30, 7 : Bool
+    je %v33, b10, b11
+
+  b10:
+    %v37 = neg 4 : I64
+    ret %v37
+
+  b11:
+    jmp b12
+
+  b12:
+    %v40 = load liveHandles : I64
+    %v43 = cmp_ne %v40, 0 : Bool
+    je %v43, b13, b14
+
+  b13:
+    %v47 = neg 5 : I64
+    ret %v47
+
+  b14:
+    jmp b15
+
+  b15:
+    %v50 = load releases : I64
+    %v53 = cmp_ne %v50, 4 : Bool
+    je %v53, b16, b17
+
+  b16:
+    %v57 = neg 6 : I64
+    ret %v57
+
+  b17:
+    jmp b18
+
+  b18:
+    %v60 = call emptyArray(Handle) : Array(Handle)
+    %rest = alloc : Array(Handle)
+    init %rest, %v60
+    %v63 = load %rest : Array(Handle)
+    %v65 = call openHandle, 5 : Handle
+    %v66 = borrow_mut %rest : &mut Array(Handle)
+    %v67 = move %local2 : Handle
+    call push(Handle), %v66, %v67
+    %v69 = load %rest : Array(Handle)
+    %v71 = call openHandle, 6 : Handle
+    %v72 = borrow_mut %rest : &mut Array(Handle)
+    %v73 = move %local3 : Handle
+    call push(Handle), %v72, %v73
+    %v75 = load %rest : Array(Handle)
+    %v78 = borrow_mut %rest : &mut Array(Handle)
+    call remove(Handle), %v78, 0
+    %v80 = load liveHandles : I64
+    %v83 = cmp_ne %v80, 1 : Bool
+    je %v83, b31, b20
+
+  b19:
+    %v87 = neg 7 : I64
+    ret %v87
+
+  b20:
+    jmp b21
+
+  b21:
+    %v90 = load releases : I64
+    %v93 = cmp_ne %v90, 5 : Bool
+    je %v93, b32, b23
+
+  b22:
+    %v97 = neg 8 : I64
+    ret %v97
+
+  b23:
+    jmp b24
+
+  b24:
+    %v100 = load %rest : Array(Handle)
+    %v102 = borrow %rest : &Array(Handle)
+    %v103 = alloc : Flat(Handle)
+    %v104 = load [%v102]@Array.run@Run.items : %Handle
+    init %local4@Flat.items, %v104
+    %v106 = load [%v102]@Array.length : Int
+    init %local4@Flat.length, %v106
+    %v109 = borrow %local4 : &Flat(Handle)
+    %v110 = call get(Handle), %v109, 0 : &Handle
+    %v111 = load [%v110] : Handle
+    %v112 = call marker, %v111 : I64
+    drop %rest via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    %v115 = cmp_ne %v112, 6 : Bool
+    je %v115, b25, b26
+
+  b25:
+    %v119 = neg 9 : I64
+    ret %v119
+
+  b26:
+    jmp b27
+
+  b27:
+    %v122 = call emptyArray(Int) : Array(Int)
+    %plain = alloc : Array(Int)
+    init %plain, %v122
+    %v125 = load %plain : Array(Int)
+    %v128 = borrow_mut %plain : &mut Array(Int)
+    call push(Int), %v128, 10
+    %v130 = load %plain : Array(Int)
+    %v133 = borrow_mut %plain : &mut Array(Int)
+    call push(Int), %v133, 20
+    %v135 = load %plain : Array(Int)
+    %v136 = borrow %plain : &Array(Int)
+    %v137 = alloc : Flat(Int)
+    %v138 = load [%v136]@Array.run@Run.items : %Int
+    init %local7@Flat.items, %v138
+    %v140 = load [%v136]@Array.length : Int
+    init %local7@Flat.length, %v140
+    %v142 = call length(Int), %v137 : Int
+    drop %plain reclaim Reclaim(Array(a)).reclaim(Int)
+    %v145 = cmp_ne %v142, 2 : Bool
+    je %v145, b28, b29
+
+  b28:
+    %v149 = neg 10 : I64
+    ret %v149
+
+  b29:
+    jmp b30
+
+  b30:
+    ret 1
+
+  b31:
+    drop %rest via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    jmp b19
+
+  b32:
+    drop %rest via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    jmp b22
+}
+
+fn Drop(Handle).drop(%value: Handle) -> () {
+  b0:
+    %v1 = load %value@Handle.slot : %U8
+    call freeHeap, %v1
+    %v3 = load liveHandles : I64
+    %v6 = borrow_mut liveHandles : &mut I64
+    call -=(I64), %v6, 1
+    %v8 = load releases : I64
+    %v11 = borrow_mut releases : &mut I64
+    call +=(I64), %v11, 1
+    ret
+}

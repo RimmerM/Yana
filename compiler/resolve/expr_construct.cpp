@@ -26,6 +26,84 @@ ModulePtr<Value> ExprResolver::allocate(TypePtr type, LocationId source, StringI
     return result;
 }
 
+ModulePtr<Value> ExprResolver::allocateRun(TypePtr type, ModulePtr<Value> extent, LocationId source) {
+    if(auto env = functionGen(global, function)) requireTypeSlot(module, *env, type);
+
+    auto allocation = emit<InstAlloc>(source, 0, type, maxLimit<U32>, extent);
+    auto result = ref(allocation);
+
+    allocation->local = function.addLocal(module, type, 0, result, ast::BindType::Ref, false, false);
+    return result;
+}
+
+ModulePtr<Value> ExprResolver::offsetPointer(ModulePtr<Value> base, TypePtr element,
+                                             ModulePtr<Value> index, LocationId source) {
+    auto word = module.scalar.long_;
+    auto scale = ref(emit<InstTypeMetric>(source, 0, word, element, TypeMetricKind::Stride));
+    auto offset = ref(emit<InstBinary>(source, 0, word, Value::Mul, index, scale));
+
+    return ref(emit<InstBinary>(source, 0, valueType(base), Value::Add, base, offset));
+}
+
+/*
+ * Building a `Run(a)` - Implementation-Containers.md §2.
+ *
+ * Three writes and an allocation with a count beside it. What makes the run *placed* rather than
+ * always heap-allocated is that the allocation is an ordinary one: escape analysis reaches it
+ * through the same loop it reaches a record's storage through, and the tag it patches is the
+ * constant written into `placed` here. So a literal whose array never leaves its frame gets a frame
+ * run and a `Reclaim` that folds to nothing, with nothing in this function saying either.
+ *
+ * The count is widened to a machine word for the allocation and kept as written for the field: a
+ * capacity is a number of elements the program can read back, and a byte count is what the
+ * allocator takes. Folded rather than cast when it is a literal, because a cast is not a constant
+ * and the placement rule for a run of unknown length is the heap - see InstAlloc::extent.
+ */
+ModulePtr<Value> ExprResolver::buildRun(TypePtr runType, ModulePtr<Value> count, LocationId source,
+                                        ModulePtr<Value>& items) {
+    items = nullptr;
+
+    if(!runType || global[runType]->kind != Type::Record) return nullptr;
+    auto record = (RecordType*)global[runType];
+
+    if(record->instanceOf != module.program.runType || record->instanceArgs.size() != 1) return nullptr;
+    if(record->constructors.isEmpty()) return nullptr;
+
+    auto element = record->instanceArgs.get(global, 0);
+    auto content = record->constructors.get(global, 0).content;
+    if(!content || global[content]->kind != Type::Tup) return nullptr;
+
+    auto fields = (TupType*)global[content];
+    if(fields->fields.size() != 3) return nullptr;
+
+    auto pointerField = fields->fields.get(global, 0).type;
+    auto countField = fields->fields.get(global, 1).type;
+    auto tagField = fields->fields.get(global, 2).type;
+
+    auto word = module.scalar.long_;
+    auto extent = local[count]->kind == Value::ConstInt
+        ? makeInt(source, word, ((ConstInt*)local[count])->value)
+        : ref(emit<InstUnary>(source, 0, word, Value::Cast, count));
+
+    auto slots = allocateRun(element, extent, source);
+    items = ref(emit<InstAddress>(source, 0, pointerField, placeFor(slots, source)));
+
+    // What the escape analysis writes its answer into. It starts at `Inline`, which is the arm that
+    // releases nothing - so a run that never reaches selectStorage, in a generic body say, is still
+    // right rather than freeing storage it did not allocate.
+    auto placed = constant<ConstInt>(source, tagField, U64(StorageClass::Inline));
+    ((InstAlloc*)local[slots])->storageFlag = placed;
+
+    auto storage = allocate(runType, source, 0);
+    auto place = project(placeFor(storage, source), ProjectionKind::Downcast, 0);
+
+    initialize(project(place, ProjectionKind::Field, 0), items, source);
+    initialize(project(place, ProjectionKind::Field, 1), convert(count, countField, source), source);
+    initialize(project(place, ProjectionKind::Field, 2), placed, source);
+
+    return storage;
+}
+
 // The place a value came out of, or nothing where it came out of no storage at all. A value loaded
 // out of a place is addressed through that same place again rather than through a copy, so that a
 // field of a field resolves to one projection path rather than to a chain of temporaries.
@@ -478,6 +556,29 @@ ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr ex
      * a value with no storage behind it, and there would be nothing for the commit to write to.
      */
     auto held = valueType(value);
+
+    /*
+     * A mutable slice of an owned array - Implementation-Containers.md §4.1.
+     *
+     * `sort(&xs)` where `sort` said `&xs: [T]` is the one other conversion a `&` argument allows,
+     * and it is allowed for the same reason the `@bits` one below is: the temporary is not a
+     * workaround, it is the representation. What the callee gets is `{base, length}` with write
+     * access, so it may reorder and overwrite the elements and may not grow them - which is exactly
+     * the capability a mutable slice names.
+     *
+     * No write-back is queued, and that is the difference from the packed case. Everything the
+     * callee writes goes through the base pointer into the owner's own run; the descriptor it was
+     * handed is a copy that nothing reads again, and copying it back would write the array's own
+     * length and run pointer over themselves.
+     */
+    if(sliceElement(module, expected) && arrayElement(module, held)) {
+        auto slice = convertSlice(value, held, expected, source, true);
+        if(!slice) return nullptr;
+
+        return borrowPlace(placeFor(slice, source), resolveBorrowType(module, expected, true),
+                           source, loaned);
+    }
+
     auto refined = held && expected && global[held]->kind == Type::Int &&
                    global[expected]->kind == Type::Int &&
                    canonicalType(global, held) == canonicalType(global, expected);
@@ -1232,28 +1333,17 @@ ModulePtr<Value> ExprResolver::resolveField(const ast::Expr& expr, const ast::Fi
 /*
  * Array literals and subscripts.
  *
- * `[1, 2, 3]` is not a primitive: it builds a Collections `Array(T)`, whose elements live in a
- * buffer this expression allocates. The buffer is an ordinary allocation and therefore an ordinary
- * subject of storage-class selection - it stays on the frame when the array provably does not
- * outlive it, and goes to the heap when it does, with `onHeap` recording which so that the array's
- * `Drop` knows whether it has anything to free.
+ * `[1, 2, 3]` is not a primitive: it builds a Collections `Array(T)` over a `Run(T)` of exactly as
+ * many slots as the literal has elements. The run is an ordinary allocation and therefore an
+ * ordinary subject of storage-class selection - it stays on the frame when the array provably does
+ * not outlive it, and goes to the heap when it does, with the run's own tag recording which so that
+ * its `Reclaim` knows whether it has anything to free.
  *
- * The buffer's type is an anonymous tuple of n fields rather than a fixed-size array type, because
- * that is a type the compiler already has: it has a Repr, its fields have offsets, and a field
- * projection into it is the projection the rest of the resolver already builds. What it costs is
- * that a literal with a thousand elements is a tuple with a thousand fields, which is a real limit
- * and the reason `[T *n]` will want to be a type of its own eventually.
+ * The run used to be an anonymous tuple of n fields, on the grounds that a tuple is a type the
+ * compiler already had a layout and a projection for. What that cost was a literal of a thousand
+ * elements becoming a type with a thousand fields; a run is one allocation with a count, so the
+ * literal's size is now a number rather than a type.
  */
-
-// The element type of an `Array(T)`, or null for anything else.
-static TypePtr arrayElement(Module& module, GlobalBase global, TypePtr type) {
-    if(!type || global[type]->kind != Type::Record) return nullptr;
-
-    auto record = (RecordType*)global[type];
-    if(record->instanceOf != module.program.arrayType || record->instanceArgs.size() != 1) return nullptr;
-
-    return record->instanceArgs.get(global, 0);
-}
 
 ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseList<ast::Expr> items,
                                             TypePtr target) {
@@ -1267,7 +1357,7 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
     // The expected type decides the element type where there is one, so that `[] :: [Int]` and a
     // literal in an argument position both work; otherwise the first element decides and the rest
     // are converted to it.
-    auto element = arrayElement(module, global, target);
+    auto element = arrayElement(module, target);
 
     ValueList values;
     for(auto item: items.contents(parse)) {
@@ -1285,15 +1375,17 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
     if(global[arrayType]->kind != Type::Record) return nullptr;
 
     /*
-     * An element whose lifetime ends in something is one this array would have to drop, and
-     * dropping the elements means walking the buffer at run time - which needs the element's drop
-     * to be reachable from a generic body, and that is Milestone 7's. Rejected rather than leaked.
+     * An element whose lifetime ends in something used to be rejected here, because walking the run
+     * at teardown needed the element's drop to be reachable and nothing supplied one.
+     * Implementation-Containers.md §13 is what supplies it: `Reclaim(Array(a))` is a traversal over
+     * the live elements, and whether that traversal has effects is computed from the element type.
+     * So `[openFile("a"), openFile("b")]` is an ordinary literal now, and there is nothing left here
+     * to check.
+     *
+     * It stays for an *unspecialized* generic body, where there is no element type to reach a
+     * teardown for - that is Implementation-Generics.md's `TypeDesc::drop`, and the rejection lives
+     * where the erased path is chosen rather than at every literal.
      */
-    if(needsTeardown(module, element)) {
-        context.diagnostics.error("an array of %@ is not available yet - its elements have a teardown, and releasing them needs the erased generic model"_v,
-                                  source, describeType(context, global, element));
-        return nullptr;
-    }
 
     auto record = (RecordType*)global[arrayType];
     if(record->constructors.isEmpty()) return nullptr;
@@ -1302,55 +1394,43 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
     if(!content || global[content]->kind != Type::Tup) return nullptr;
 
     auto fields = (TupType*)global[content];
-    if(fields->fields.size() < 4) return nullptr;
-    auto pointerField = fields->fields.get(global, 0).type;
+    if(fields->fields.size() != 2) return nullptr;
+    auto runField = fields->fields.get(global, 0).type;
     auto countField = fields->fields.get(global, 1).type;
-    auto flagField = fields->fields.get(global, 3).type;
 
-    // The buffer, and the elements written into it.
-    ModulePtr<Value> buffer = nullptr;
-    ModulePtr<Value> items_ = nullptr;
+    // The run, sized at exactly the literal's length: a literal is Implementation-Containers.md
+    // §12's first allocation strategy - immutable extent, constant, no spare capacity to pay for.
+    auto count = makeInt(source, countField, values.size());
+    ModulePtr<Value> slots = nullptr;
+    auto run = buildRun(runField, count, source, slots);
 
-    if(values.isNotEmpty()) {
-        Array<Field> layout;
-        for(Size i = 0; i < values.size(); i++) layout.push(Field { element, 0 });
-
-        /*
-         * Pinned, because this tuple is not a record: it is `values.size()` elements of one type,
-         * about to be read as an array is - at a stride. A layout free to reorder or co-pack them
-         * would put two `Bool` elements in one byte and leave the indexing reading half of each.
-         */
-        auto bufferType = (Type*)resolveTupleType(module, toBuffer(layout), source, TypeLayout::C) - global;
-        buffer = allocate(bufferType, source);
-        auto bufferPlace = placeFor(buffer, source);
-
-        for(Size i = 0; i < values.size(); i++) {
-            auto value = convert(values[i], element, source);
-            if(value) initialize(project(bufferPlace, ProjectionKind::Field, U16(i)), value, source);
-        }
-
-        // The address of the first element, typed as a pointer to one rather than to the buffer:
-        // what the array holds is where its elements start, and the buffer is only how they got
-        // somewhere. Nothing about the address changes, which is why this is not a cast.
-        items_ = ref(emit<InstAddress>(source, 0, pointerField, bufferPlace));
-    } else {
-        items_ = constantBits(pointerField, 0, source);
+    if(!run) {
+        context.diagnostics.error("internal: the array's first field is not a run of slots"_v, source);
+        return nullptr;
     }
 
-    // The flag the storage decision is written into, once it has been made. It starts as "not the
-    // heap" because that is what the analysis answers unless it proves otherwise, and because a
-    // literal that never reaches selectStorage - inside a generic body, say - is then still right.
-    auto onHeap = constant<ConstInt>(source, flagField, 0);
-    if(buffer) ((InstAlloc*)local[buffer])->storageFlag = onHeap;
+    /*
+     * The elements, written through the run's own address rather than into a field of it.
+     *
+     * A run has no fields to project - it is `n` slots at a stride, and how wide a stride is belongs
+     * to the target - so each element is stored at a computed address, which is exactly what
+     * `store(items + i, x)` in Collections does and what `xs[i]` will compile to. `initialize`
+     * rather than `assign`, because the slot held nothing: there is no previous value here for an
+     * assignment to owe a drop for.
+     */
+    for(Size i = 0; i < values.size(); i++) {
+        auto value = convert(values[i], element, source);
+        if(!value) continue;
+
+        auto index = makeInt(source, module.scalar.long_, i);
+        initialize(Place::atPointer(offsetPointer(slots, element, index, source)), value, source);
+    }
 
     auto storage = allocate(arrayType, source, 0);
     auto place = project(placeFor(storage, source), ProjectionKind::Downcast, 0);
-    auto count = makeInt(source, countField, values.size());
 
-    initialize(project(place, ProjectionKind::Field, 0), items_, source);
+    initialize(project(place, ProjectionKind::Field, 0), run, source);
     initialize(project(place, ProjectionKind::Field, 1), count, source);
-    initialize(project(place, ProjectionKind::Field, 2), count, source);
-    initialize(project(place, ProjectionKind::Field, 3), onHeap, source);
 
     return storage;
 }
@@ -1377,14 +1457,44 @@ ModulePtr<Value> ExprResolver::resolveSubscript(const ast::Expr& expr, const ast
     auto target = resolve(subscript.callee);
     if(!target) return nullptr;
 
-    if(!arrayElement(module, global, valueType(target))) {
+    // The owner and the borrow of one both index, and the two are one call: `get` and `getMut` are
+    // declared over the slice, so an owner reaches them through the ordinary conversion.
+    auto held = valueType(target);
+
+    if(!arrayElement(module, held) && !sliceElement(module, held)) {
         context.diagnostics.error("cannot index %@ - only an array may be subscripted"_v, source,
-                                  describeType(context, global, valueType(target)));
+                                  describeType(context, global, held));
         return nullptr;
     }
 
-    ModulePtr<Value> index = nullptr;
-    for(auto arg: args.contents(parse)) index = resolve(arg.value);
+    const ast::Expr* written = nullptr;
+    for(auto arg: args.contents(parse)) written = &arg.value;
+
+    /*
+     * `xs[a..b]` - a subslice, which is a value rather than a place.
+     *
+     * So it is rejected in assignment position rather than silently producing a borrow of a
+     * temporary: `xs[a..b] = ys` would write into a descriptor this expression built and nothing
+     * would reach the array. Copying a range into another is a named operation when it exists.
+     */
+    if(written && written->kind == ast::Expr::Range) {
+        auto& range = *parse[written->range];
+
+        if(mutable_) {
+            context.diagnostics.error("a range of an array cannot be assigned to - `xs[a..b]` produces a slice, which is a value naming someone else's storage"_v,
+                                      source);
+            return nullptr;
+        }
+
+        auto from = resolve(range.from, module.scalar.int_);
+        auto to = resolve(range.to, module.scalar.int_);
+        if(!from || !to) return nullptr;
+
+        ModulePtr<Value> bounds[] = { target, from, to };
+        return emitCall(context.addUnqualifiedName("slice", 5), { bounds, 3 }, source);
+    }
+
+    auto index = written ? resolve(*written) : nullptr;
     if(!index) return nullptr;
 
     ModulePtr<Value> values[] = { target, index };

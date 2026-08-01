@@ -198,6 +198,25 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
+fn releaseRun(Int)(%self: Run(Int)) -> () {
+  b0:
+    %v1 = load %self@Run.placed : Int
+    %v3 = cmp_eq %v1, 3 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = load %self@Run.items : %Int
+    %v6 = cast %v5 : %U8
+    call freeHeap, %v6
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
 fn mapMemory(%size: I64) -> %U8 {
   b0:
     %v7 = neg 1 : I64
@@ -217,28 +236,44 @@ fn mapMemory(%size: I64) -> %U8 {
     ret %v18
 }
 
-fn length(Int)(%self: Array(Int)) -> Int {
+fn length(Int)(%self: Flat(Int)) -> Int {
   b0:
-    %v1 = load %self@Array.length : Int
+    %v1 = load %self@Flat.length : Int
     ret %v1
 }
 
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   b0:
-    %v1 = load %value@Array.onHeap : Bool
-    je %v1, b1, b2
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
 
   b1:
-    %v3 = load %value@Array.items : %Int
-    %v4 = cast %v3 : %U8
-    call freeHeap, %v4
-    jmp b3
+    %v5 = load %i : Int
+    %v6 = load %value@Array.length : Int
+    %v7 = cmp_lt %v5, %v6 : Bool
+    je %v7, b3, b2
 
   b2:
-    jmp b3
+    %v9 = load %value@Array.run : Run(Int)
+    call releaseRun(Int), %v9
+    ret
 
   b3:
-    ret
+    %v12 = load %value@Array.run : Run(Int)
+    %v13 = load %value@Array.run@Run.items : %Int
+    %v14 = load %i : Int
+    %v15 = cast %v14 : I64
+    %v16 = strideof Int : I64
+    %v17 = mul %v15, %v16 : I64
+    %v18 = add %v13, %v17 : %Int
+    %v19 = load [%v18] : Int
+    %doomed = alloc : Int
+    init %local3, %v19
+    %v22 = load %i : Int
+    %v24 = add %v22, 1 : Int
+    assign %i, %v24
+    jmp b1
 }
 
 fn double(%x: Int) -> Int {
@@ -281,26 +316,43 @@ fn twiceGeneric(%f: (a) -> a, %x: a) -> a {
 
 fn consume(%xs: Array(Int)) -> Int {
   b0:
-    %v1 = call length(Int), %xs : Int
+    %v1 = borrow %xs : &Array(Int)
+    %xs = alloc : Flat(Int)
+    %v3 = load [%v1]@Array.run@Run.items : %Int
+    init %xs@Flat.items, %v3
+    %v5 = load [%v1]@Array.length : Int
+    init %xs@Flat.length, %v5
+    %v7 = call length(Int), %xs : Int
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
-    ret %v1
+    ret %v7
 }
 
 fn run(%f: (->Array(Int)) -> Int) -> Int {
   b0:
-    %v4 = alloc heap escaping : {Int, Int, Int}
-    init %local1.0, 1
-    init %local1.1, 2
-    init %local1.2, 3
-    %v8 = addressof %local1 : %Int
-    %v10 = alloc : Array(Int)
-    init %local2@Array.items, %v8
-    init %local2@Array.length, 3
-    init %local2@Array.capacity, 3
-    init %local2@Array.onHeap, True
-    %v16 = move %local2 : Array(Int)
-    %v17 = calldyn %f, %v16 : Int
-    ret %v17
+    %v6 = alloc *3 heap escaping : Int
+    %v7 = addressof %local1 : %Int
+    %v9 = alloc : Run(Int)
+    init %local2@Run.items, %v7
+    init %local2@Run.capacity, 3
+    init %local2@Run.placed, 3
+    %v14 = strideof Int : Long
+    %v15 = mul 0, %v14 : Long
+    %v16 = add %v7, %v15 : %Int
+    init [%v16], 1
+    %v19 = strideof Int : Long
+    %v20 = mul 1, %v19 : Long
+    %v21 = add %v7, %v20 : %Int
+    init [%v21], 2
+    %v24 = strideof Int : Long
+    %v25 = mul 2, %v24 : Long
+    %v26 = add %v7, %v25 : %Int
+    init [%v26], 3
+    %v28 = alloc : Array(Int)
+    init %local3@Array.run, %v9
+    init %local3@Array.length, 3
+    %v31 = move %local3 : Array(Int)
+    %v32 = calldyn %f, %v31 : Int
+    ret %v32
 }
 
 fn runStep(%s: Step, %x: Int) -> Int {

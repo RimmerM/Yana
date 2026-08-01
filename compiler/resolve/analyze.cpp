@@ -150,6 +150,7 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
     checkBorrows(analysis);
     checkReturnRoots(analysis);
     checkMaterializedBorrows(analysis);
+    checkEscapingViews(analysis);
     checkClosureEnvironments(analysis);
 
     replaceContents(result.locals, analysis.tracked);
@@ -345,31 +346,56 @@ bool runProgramOwnership(Program& program) {
 
     settleSummaries(program);
 
-    // And once more for real, over every function including the ones the silent phase never had to
-    // wake twice: what a body reports and what drops it gets are decided against settled summaries.
-    for(auto module: program.modules) {
-        // Specializations and teardown glue are appended while this runs, so the list is walked by
-        // index - the same reason resolveModuleBodies does.
-        for(Size i = 0; i < module->functionOrder.size(); i++) {
-            auto pointer = module->functionOrder.get(base, i);
-            auto function = base[pointer];
+    /*
+     * And once more for real, over every function including the ones the silent phase never had to
+     * wake twice: what a body reports and what drops it gets are decided against settled summaries.
+     *
+     * Analyzing a body *generates* functions - a teardown's glue, and the specialization of an
+     * authored instance method it calls - and they land in the module the instance came from, which
+     * is usually not the module being walked. Collections' `Reclaim(Array(a))` specialized at the
+     * root module's element type is the case that matters: appended to Collections, which this walk
+     * had already finished, so it went out with no drops in it and an array of elements with a
+     * teardown released the run and leaked the elements.
+     *
+     * So the sweep repeats until no module grew. Each round is over what the previous one added, and
+     * the number of rounds is the depth of the teardown graph rather than anything about the program
+     * - a container of containers is two.
+     */
+    Array<Size> analyzed;
+    for(Size i = 0; i < program.modules.size(); i++) analyzed.push(0);
 
-            if(function->instanceOf == program.coreClasses.reclaim) {
-                success = checkReclaimShape(*module, *function) && success;
+    for(auto growing = true; growing;) {
+        growing = false;
+
+        for(Size m = 0; m < program.modules.size(); m++) {
+            auto module = program.modules[m];
+
+            // By index, because the list grows underneath this loop as well - the same reason
+            // resolveModuleBodies does it.
+            for(Size i = analyzed[m]; i < module->functionOrder.size(); i++) {
+                auto pointer = module->functionOrder.get(base, i);
+                auto function = base[pointer];
+
+                if(function->instanceOf == program.coreClasses.reclaim) {
+                    success = checkReclaimShape(*module, *function) && success;
+                }
+
+                if(!ownershipApplies(*function)) continue;
+
+                OwnershipResult result;
+                auto ok = analyzeFunction(*module, *function, result, true, true, nullptr);
+                success = success && ok;
+
+                // add() hands back uninitialized storage, so the result is constructed into it
+                // rather than assigned - assigning would run the destructor of whatever the slot
+                // happened to contain, which for a struct of Arrays means freeing garbage pointers.
+                if(ok && !function->gen) {
+                    new (program.ownership->functions.add(U32(pointer)).value) OwnershipResult(::move(result));
+                }
             }
 
-            if(!ownershipApplies(*function)) continue;
-
-            OwnershipResult result;
-            auto ok = analyzeFunction(*module, *function, result, true, true, nullptr);
-            success = success && ok;
-
-            // add() hands back uninitialized storage, so the result is constructed into it rather
-            // than assigned - assigning would run the destructor of whatever the slot happened to
-            // contain, which for a struct of Arrays means freeing garbage pointers.
-            if(ok && !function->gen) {
-                new (program.ownership->functions.add(U32(pointer)).value) OwnershipResult(::move(result));
-            }
+            if(analyzed[m] != module->functionOrder.size()) growing = true;
+            analyzed[m] = module->functionOrder.size();
         }
     }
 

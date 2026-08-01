@@ -1,0 +1,48 @@
+{-
+   A slice may not outlive what it is a view of - Implementation-Containers.md §4.
+
+   The descriptor is `{base, length}` and the base is a raw pointer, so nothing about a slice's
+   *fields* says it refers to anything: `%T` carries no lifetime, which is exactly what makes Native
+   the unchecked module. What carries it instead is that a slice is a borrow - the same one `&T` is,
+   with a representation that happens to be a record - so the three rules below are the three that
+   already applied to `&T` and now ask about the type's capability rather than its kind.
+-}
+
+data Cursor {items: &[Int], at: Int}
+
+-- Returning a view of this frame's own array. The array is released when this function returns, and
+-- the caller would be handed a descriptor pointing into freed storage.
+fn escapeDirect() -> &[Int]:
+    let xs = [1, 2, 3]
+    return xs
+
+-- The same thing with a record in front of it. Storing a slice does not launder it: what escapes is
+-- still a view of `xs`, and `data Cursor {items: &[Int]}` is exactly the shape that makes it easy to
+-- write by accident.
+fn escapeStored() -> Cursor:
+    let xs = [1, 2, 3]
+    return Cursor {items: xs, at: 0}
+
+-- A view of an argument is fine to *make* and not to hand back unannounced: the signature is the
+-- contract, so the caller has to be told which argument the result is rooted in. `return xs` is the
+-- fix, and it is the same fix a `&Int` result needs.
+fn escapeUndeclared(xs: [Int]) -> &[Int] = slice(xs, 0, 1)
+
+-- A closure that outlives the frame that built it cannot hold a reference into it, and a captured
+-- slice is a captured reference however the capture convention was chosen. Design-Memory §8's rule,
+-- reaching a type it was not written for.
+fn escapeCaptured(xs: [Int]) -> () -> Int = () -> length(xs)
+
+{-
+   And a *record* holding a slice is held to the same contract, because handing one back hands the
+   caller a reference whatever is wrapped around it. `return xs` is the fix here too.
+
+   Only the group half of the check applies to a result that merely contains a reference. Whether the
+   roots are the caller's is asked of a result that *is* one, because provenance is field-insensitive
+   and a record holding an owned array alongside the slice has local roots that are not a mistake -
+   see checkReturnRoots. What that leaves uncovered is a record holding a view of *this* frame's
+   array, which is escapeStored above and is checkEscapingViews' to catch.
+-}
+fn wrapUndeclared(xs: [Int]) -> Cursor = Cursor {items: xs, at: 0}
+
+fn main() -> Int = 0

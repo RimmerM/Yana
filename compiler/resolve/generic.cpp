@@ -459,9 +459,26 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
     Value* result = nullptr;
 
     switch(inst.kind) {
-        case Value::Alloc:
-            result = resolver.emit<InstAlloc>(inst.source, inst.name, type, ((InstAlloc&)inst).local);
+        case Value::Alloc: {
+            auto& source = (InstAlloc&)inst;
+            auto allocation = resolver.emit<InstAlloc>(inst.source, inst.name, type, source.local);
+
+            /*
+             * The count and the storage tag come across; the storage *class* does not.
+             *
+             * Where a run lives is decided per body by the escape analysis, and a specialization is a
+             * body of its own - so it gets its own answer. What it needs from the original is that
+             * there was a tag to patch at all, because a clone that lost it would leave its own
+             * constant reading `Inline` while the allocation went to the heap, and the `Reclaim`
+             * switch would then hand nothing back. The constant itself is cloned fresh, so the two
+             * bodies patch two different values.
+             */
+            if(source.extent) allocation->extent = cloneValue(clone, source.extent);
+            if(source.storageFlag) allocation->storageFlag = cloneValue(clone, source.storageFlag);
+
+            result = allocation;
             break;
+        }
         case Value::LoadPlace:
             result = resolver.emit<InstLoadPlace>(inst.source, inst.name, type,
                                                   clonePlace(clone, ((InstLoadPlace&)inst).place));
@@ -737,10 +754,16 @@ static void cloneBody(Clone& clone, Function& to) {
     // instruction that produced it has been cloned.
     for(Size i = 0; i < from.localCount(); i++) {
         auto slot = from.localAt(local, U32(i));
-        to.locals.push(clone.module.arena, Local {
+        // The two fields addLocal does not build positionally come across by assignment, which is
+        // also how they were set on the original - see Local.
+        auto copied = Local {
             cloneType(clone, slot.type), slot.name, nullptr, slot.convention, slot.storage, slot.borrowed,
             slot.closureEnv,
-        });
+        };
+
+        copied.materialized = slot.materialized;
+        copied.viewOf = slot.viewOf;
+        to.locals.push(clone.module.arena, copied);
     }
 
     /*

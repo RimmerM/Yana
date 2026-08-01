@@ -92,8 +92,19 @@ bool deriveSummary(Analysis& analysis) {
     if(invalid) bound = StorageBound::Escapes;
     else if(actual) bound = StorageBound::Arguments;
 
-    auto borrowed = isBorrow(analysis.global, function.returnType);
-    auto mutableResult = borrowed &&
+    /*
+     * A slice counts, and so does a record holding one - see containsBorrowLike.
+     *
+     * A slice is what a borrow of a container *is*, so a function handing one back is held to the
+     * same return-root contract as one handing back a `&T`. And storing it in a record does not
+     * launder it: `-> Cursor` where `Cursor` holds a `&[Int]` gives the caller a reference to
+     * something, and which argument that something came from is exactly what a signature is for.
+     */
+    auto borrowed = containsBorrowLike(analysis.module, function.returnType);
+
+    // Exclusivity is still a property of the borrow *type*, and a slice has none: §4.1 makes a
+    // mutable slice a `&` binding of one rather than a second type, so there is nothing here to read.
+    auto mutableResult = isBorrow(analysis.global, function.returnType) &&
         ((BorrowType*)analysis.global[function.returnType])->mut;
 
     // Everything reaching here is about the *result*, so a function that returns nothing keeps the

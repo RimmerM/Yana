@@ -114,16 +114,37 @@ static U32 lastUseOf(Analysis& analysis, ModulePtr<Inst> pointer) {
             auto derivedFrom = (instruction.kind == Value::Address || instruction.kind == Value::Borrow) &&
                                firstPlace(instruction, carrier);
 
+            /*
+             * A raw pointer read out of borrowed storage is live for as long as whatever holds it.
+             *
+             * Implementation-Containers.md §4: borrowing `[T]` copies the run's base address and the
+             * length into a descriptor, and hands *that* over. The borrow's own last use is the read
+             * - so without this the loan would end before the call that is about to index through
+             * the address it produced, and the drop pass would be entitled to release the run first.
+             *
+             * Narrow on purpose. Only a *pointer* read through the borrow extends it, because only a
+             * pointer still names the storage after the read; an `Int` copied out of a borrowed
+             * record is a value with no relationship to where it came from, and following that would
+             * keep every field read's owner borrowed to the end of the function.
+             */
+            auto aliases = instruction.kind == Value::LoadPlace &&
+                           isPointer(analysis.global, instruction.type);
+
+            if(aliases) pending.push((ModulePtr<Value>)user);
+
             if(storedInto || derivedFrom) {
                 auto root = rootLocal(analysis, carrier);
 
                 if(root != maxLimit<U32>) {
                     auto slot = analysis.function.localAt(analysis.local, root);
 
-                    // Into an environment, or into the function value the environment ends up in.
-                    if(storedInto && (slot.closureEnv || isFunction(analysis.global, slot.type)) && slot.value) {
-                        pending.push(slot.value);
-                    }
+                    // Into an environment, or into the function value the environment ends up in -
+                    // and into anything at all when what is written is one of the aliasing pointers
+                    // above, which is how the slice descriptor carries the loan to its call site.
+                    auto carries = slot.closureEnv || isFunction(analysis.global, slot.type) ||
+                                   isPointer(analysis.global, analysis.local[value]->type);
+
+                    if(storedInto && carries && slot.value) pending.push(slot.value);
 
                     // Out of an environment: the address is what the function value holds.
                     if(derivedFrom && slot.closureEnv) pending.push((ModulePtr<Value>)user);
@@ -328,9 +349,21 @@ void checkReturnRoots(Analysis& analysis) {
 
     auto source = function.source;
 
-    // A borrow rooted in a local, a global, or a sunk parameter has no caller-side root that could
-    // keep it alive, which is a different mistake from being rooted in the wrong argument.
-    if(summary.invalidRoot) {
+    /*
+     * A borrow rooted in a local, a global, or a sunk parameter has no caller-side root that could
+     * keep it alive, which is a different mistake from being rooted in the wrong argument.
+     *
+     * Asked only of a result that *is* a reference, while the group check below is asked of one that
+     * merely contains one. The asymmetry is provenance being field-insensitive: a record holding both
+     * an owned array and a slice has local roots for the array, and they are not a mistake - the
+     * array goes with the result. Reporting on them would reject `data Mixed {view: &[Int], owned:
+     * [Int]}` for the half that is doing nothing wrong.
+     *
+     * Nothing is lost by that. The case it would have caught - a record holding a view of *this*
+     * frame's container - is checkEscapingViews', which asks about the descriptor's own slot and so
+     * is not confused by what else the record contains.
+     */
+    if(summary.invalidRoot && isBorrowLike(analysis.module, function.returnType)) {
         report(analysis,
                "a borrow returned from this function is rooted in storage the caller does not own - it must come from an argument marked `return`"_v,
                source);
@@ -379,6 +412,42 @@ void checkReturnRoots(Analysis& analysis) {
  * likes - see NarrowRef in resolve/lower.cpp. What is reported here is a conversion with nowhere to
  * happen, and the fix is in the signature.
  */
+/*
+ * A slice may not outlive the container it is a view of - Implementation-Containers.md §4.
+ *
+ * The descriptor holds a `%T` into the run, and a raw pointer is outside the ownership model by
+ * construction, so nothing about the *fields* of a slice says it refers to anything. What says so is
+ * Local::viewOf, written where the descriptor was built out of an owned array, and this is the check
+ * that spends it: the slice escaped this frame while the array it points into is this frame's, so
+ * the frame is about to run that array's teardown and free the run underneath it.
+ *
+ * Precise rather than provenance-shaped, deliberately. Asking "does the returned value contain a
+ * borrow" would have to go through the containment relation, which is field-insensitive - so a
+ * record holding both an owned array and a slice would be rejected for the owned half. This asks
+ * about the slice's own slot and nothing else, and a slice's slot is only ever a view when this
+ * frame made it one.
+ *
+ * A slice that came *in* as a parameter has no `viewOf` and is not reported here: what it refers to
+ * is the caller's, and whether the caller may hand it on is the caller's own return-root check.
+ */
+void checkEscapingViews(Analysis& analysis) {
+    for(Size l = 0; l < analysis.localCount; l++) {
+        auto slot = analysis.function.localAt(analysis.local, U32(l));
+        if(slot.viewOf == maxLimit<U32> || !analysis.escaped[l]) continue;
+
+        auto viewed = analysis.function.localAt(analysis.local, slot.viewOf);
+        auto source = slot.value ? analysis.local[slot.value]->source : analysis.function.source;
+
+        if(viewed.name) {
+            report(analysis, "this borrow of %@ outlives the frame that owns it - a slice is a view into the container's storage, and the container is released when this function returns"_v,
+                   source, analysis.context.findName(viewed.name));
+        } else {
+            report(analysis, "this borrow of an array outlives the frame that owns it - a slice is a view into the container's storage, and the container is released when this function returns"_v,
+                   source);
+        }
+    }
+}
+
 void checkMaterializedBorrows(Analysis& analysis) {
     for(Size l = 0; l < analysis.localCount; l++) {
         auto slot = analysis.function.localAt(analysis.local, U32(l));
@@ -402,11 +471,21 @@ void checkClosureEnvironments(Analysis& analysis) {
         auto source = slot.value ? analysis.local[slot.value]->source : analysis.function.source;
 
         for(auto field: ((TupType*)global[slot.type])->fields.contents(global)) {
-            if(!isBorrow(global, field.type)) continue;
-
-            report(analysis, "this closure outlives the frame that built it, so it cannot capture %@ by reference - the enclosing binding is %@, and a capture of mutable storage is always by reference (Design-Memory §8)"_v,
-                   source, analysis.context.findName(field.name),
-                   ((BorrowType*)global[field.type])->mut ? "mutable"_v : "borrowed from somewhere else"_v);
+            /*
+             * A captured slice is a captured reference - see isBorrowLike - and it is reported
+             * separately because the two have nothing to say to each other. A `&T` capture is about
+             * the *convention* the capture was made under, which is what the enclosing binding's
+             * mutability decided; a slice is a reference whatever convention it travelled by, since
+             * copying the descriptor copies the address inside it.
+             */
+            if(isBorrow(global, field.type)) {
+                report(analysis, "this closure outlives the frame that built it, so it cannot capture %@ by reference - the enclosing binding is %@, and a capture of mutable storage is always by reference (Design-Memory §8)"_v,
+                       source, analysis.context.findName(field.name),
+                       ((BorrowType*)global[field.type])->mut ? "mutable"_v : "borrowed from somewhere else"_v);
+            } else if(isBorrowLike(analysis.module, field.type)) {
+                report(analysis, "this closure outlives the frame that built it, so it cannot capture %@ - it is a slice, which is a view into a container someone else owns, and copying the descriptor copies the address inside it (Design-Memory §8)"_v,
+                       source, analysis.context.findName(field.name));
+            }
         }
     }
 }

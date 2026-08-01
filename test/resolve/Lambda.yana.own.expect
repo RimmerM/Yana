@@ -30,13 +30,26 @@ fn freeHeap {
   arg allocation readonly
 }
 
+fn releaseRun(Int) {
+  arg self readonly
+  %self: Run(Int) borrowed droppable readonly live [0, 4)
+}
+
 fn mapMemory {
   arg size readonly
 }
 
 fn length(Int) {
   arg self readonly
-  %self: Array(Int) borrowed droppable readonly live [0, 1)
+  %self: Flat(Int) borrowed readonly live [0, 1)
+}
+
+fn Reclaim(Array(a)).reclaim(Int) {
+  arg value readonly
+  %value: Array(Int) borrowed droppable readonly live [0, 9) [10, 24)
+  %i: Int writable live [0, 7) [10, 24)
+  %local2: Int readonly live [17, 20)
+  %local3: Int readonly live [18, 20)
 }
 
 fn double {
@@ -64,14 +77,16 @@ fn twice {
 
 fn consume {
   arg xs readonly
-  %xs: Array(Int) droppable readonly live [0, 1)
+  %xs: Array(Int) droppable readonly live [0, 7)
+  %xs: Flat(Int) readonly live [1, 7)
 }
 
 fn run {
   arg f readonly
-  %f: (->Array(Int)) -> Int borrowed droppable readonly live [0, 12)
-  %local1: {Int, Int, Int} writable addressed escapes heap live [0, 7)
-  %local2: Array(Int) droppable unknown live [5, 11)
+  %f: (->Array(Int)) -> Int borrowed droppable readonly live [0, 23)
+  %local1: Int writable addressed escapes heap live [0, 17)
+  %local2: Run(Int) droppable readonly live [2, 20)
+  %local3: Array(Int) droppable unknown live [18, 22)
 }
 
 fn runStep {

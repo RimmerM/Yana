@@ -707,78 +707,60 @@ import Native
 {-
    A growable array.
 
-   Three numbers and a pointer, which is the ordinary shape: where the elements are, how many there
-   are, and how many there is room for. The fourth field is the one the language's own storage
-   decisions put there - `onHeap` says whether the buffer came from the allocator, which is what
-   the drop has to know and what nothing else can tell by looking at an address.
+   A run of slots and how many of them hold values. That split is the whole of
+   Implementation-Containers.md §1: what a run *is* - where it came from, how much room it has, what
+   releasing it means - belongs to `Run(a)`, and what this type adds is the one thing a run
+   deliberately does not have, which is a notion of which slots are live.
 
-   An array literal's buffer starts as storage the compiler placed, on the frame when it proved the
-   array does not outlive it. Growing past that buffer moves the elements to the heap and says so,
-   so the two cases differ at run time by one bit and not by two types.
+   So there is no storage decision in this module at all. An array literal's run starts as storage
+   the compiler placed, on the frame when it proved the array does not outlive it; growing past it
+   moves the slots to the heap; and which of those happened is recorded in the run's own tag and
+   read by the run's own `Reclaim`. This array's teardown is therefore *derived* - recurse into the
+   members - and nothing here is written about it.
 -}
-data Array(a) {items: %a, length: Int, capacity: Int, onHeap: Bool}
-
-{-
-   How many bytes `count` elements occupy.
-
-   Written as a pointer difference rather than with `sizeOf`, because what is wanted is the size of
-   a *type* and pointer arithmetic already scales by exactly that - `from` is never read, only
-   measured against. Counts are `Int` and byte quantities are `I64`, which is the split the two
-   sides of this function have: an index is a number of elements the program wrote, and a size is
-   what the allocator and the block operations take.
--}
-fn byteSpan(from: %a, count: Int) -> I64 =
-    difference(cast(from) :: %U8, cast(from + count) :: %U8)
+data Array(a) {run: Run(a), length: Int}
 
 -- An array with room for nothing. The first push allocates.
-fn emptyArray() -> Array(a) = Array {items: null(), length: 0, capacity: 0, onHeap: False}
+fn emptyArray() -> Array(a) = Array {run: emptyRun(), length: 0}
 
-fn length(self: Array(a)) -> Int = self.length
-fn capacity(self: Array(a)) -> Int = self.capacity
-
-{-
-   Element `index`, as a borrow of storage the caller owns.
-
-   This is what the `return` marker is for: the result points into the array's buffer, so the array
-   has to stay borrowed for as long as the result is live, and saying so in the signature is what
-   lets a caller be checked without seeing this body.
--}
-fn get(return self: Array(a), index: Int) -> &a = borrow(self.items + index)
-fn getMut(return &self: Array(a), index: Int) -> &a = borrowMut(self.items + index)
-
+fn capacity(self: Array(a)) -> Int = self.run.capacity
 
 {-
    Room for `wanted` elements.
 
-   The buffer moves to the heap the first time it has to grow, whatever it was before: a literal's
-   frame-placed buffer is not the allocator's to free, which is what `onHeap` records and why the
-   old one is released only when it was heap storage to begin with.
+   Growth policy and nothing else - doubling, with a floor - because relocation is the run's. The
+   `&` on `resize`'s own `self` is what makes that safe with no rule of this module's own: a mutable
+   borrow of the run conflicts with any live borrow into it, so a caller holding an element borrow
+   across a push is rejected by the ordinary check rather than by anything written here.
 -}
 fn reserve(&self: Array(a), wanted: Int) -> {}:
-    if wanted <= self.capacity then return
+    if wanted <= self.run.capacity then return
 
-    let &wide = self.capacity + self.capacity :: Int
+    let &wide = self.run.capacity + self.run.capacity :: Int
     if wide < wanted then wide = wanted
     if wide < 4 then wide = 4
 
-    let fresh = cast(allocateHeap(byteSpan(self.items, wide))) :: %a
-    if isNull(fresh) then return
+    resize(self.run, wide)
 
-    copyMemory(cast(fresh) :: %U8, cast(self.items) :: %U8, byteSpan(self.items, self.length))
-    if self.onHeap then freeHeap(cast(self.items) :: %U8)
+{-
+   Appends an element.
 
-    self.items = fresh
-    self.capacity = wide
-    self.onHeap = True
+   `->item` and not `item`, because the array *takes* it: what the store writes into the run is a
+   live value the caller no longer owns, and a borrowed parameter would leave the caller's own drop
+   to release something the array is still holding. The write is what transfers it - a store through
+   a raw pointer is an assignment the ownership pass reads as a hand-over - so nothing is released
+   at the end of this body on the path that stored.
 
-fn push(&self: Array(a), item: a) -> {}:
+   And on the path that did not, it is. A failed reserve leaves the array as it was rather than
+   writing past the end of it, and the element it was given dies here rather than being leaked or
+   handed back. There is no way to report the failure yet; `Result` is the eventual answer and needs
+   the array first.
+-}
+fn push(&self: Array(a), ->item: a) -> {}:
     reserve(self, self.length + 1)
+    if self.length >= self.run.capacity then return
 
-    -- A failed reserve leaves the array as it was rather than writing past the end of it. There is
-    -- no way to report the failure yet; `Result` is the eventual answer and needs the array first.
-    if self.length >= self.capacity then return
-
-    store(self.items + self.length, item)
+    store(self.run.items + self.length, item)
     self.length = self.length + 1
 
 {-
@@ -798,25 +780,92 @@ fn push(&self: Array(a), item: a) -> {}:
    a live value at that address to take. Design-Memory's checked world cannot state that, which is
    why the collection is the thing written against Native rather than the caller.
 -}
+{-
+   The slice - Implementation-Containers.md §4.
+
+   What a `[a]` parameter receives, and where reading an element lives. `length`, `get` and `getMut`
+   are declared over the *slice* and not over the owner, which is not an omission: reading is
+   structural, so the operation that reads should ask for the borrow, and an owner reaches it by the
+   ordinary conversion at the call - see convertSlice. §5's `Chunked` is this rule generalized to
+   containers that are not contiguous.
+
+   `getMut` takes `&self` and `get` does not, which is the whole of §4.1's split: a `&` binding is a
+   mutable slice, so its elements may be written and its length may not, and an immutable one is
+   rejected at `xs[i] = v` by the ordinary rule about writing through a borrow. Growth is not here at
+   all - it is nominal, and `push` says `Array(a)`.
+
+   The `return` marker is what keeps the result checked. It says the borrow points into whatever the
+   slice was made from, so the loan taken where the descriptor was built covers the last use of the
+   element - which is how `xs[i]` on an owned array keeps that array borrowed without this signature
+   mentioning arrays at all.
+-}
+fn length(self: Flat(a)) -> Int = self.length
+fn get(return self: Flat(a), index: Int) -> &a = borrow(self.items + index)
+fn getMut(return &self: Flat(a), index: Int) -> &a = borrowMut(self.items + index)
+
+{-
+   `xs[from..to]`, as an ordinary function.
+
+   Half-open, clamped rather than checked: an out-of-range bound produces a shorter slice instead of
+   a trap, which is the same tier as the missing bounds check on `get` and goes the same way when
+   `checkBounds` (§15) lands.
+
+   `return self` for the same reason `get` has one: the result points into whatever `self` points
+   into, so the loan taken where that descriptor was built has to cover the subslice as well. A slice
+   is a borrow whose representation is a record, and the marker is what makes the checker treat it as
+   one - without it this function is rejected for handing back a view of its own argument.
+-}
+fn slice(return self: Flat(a), from: Int, to: Int) -> Flat(a):
+    let &start = from :: Int
+    if start < 0 then start = 0
+    if start > self.length then start = self.length
+
+    let &end = to :: Int
+    if end < start then end = start
+    if end > self.length then end = self.length
+
+    return Flat {items: self.items + start, length: end - start}
+
 fn remove(&self: Array(a), index: Int) -> {}:
     if index < 0 || index >= self.length then return
 
-    let ->doomed = *(self.items + index)
+    let ->doomed = *(self.run.items + index)
 
     let rest = self.length - index - 1
     if rest > 0:
-        copyMemory(cast(self.items + index) :: %U8, cast(self.items + index + 1) :: %U8,
-                   byteSpan(self.items, rest))
+        copyMemory(cast(self.run.items + index) :: %U8, cast(self.run.items + index + 1) :: %U8,
+                   byteSpan(self.run.items, rest))
 
     self.length = self.length - 1
 
--- Handing the buffer back is storage release and nothing else, so this is a `Reclaim` rather than
--- a `Drop` - which is what keeps an array of elements that have no effect of their own
--- region-placeable (Design-Memory §4). An array whose *elements* have a `Drop` gets one derived
--- from them, and running it is the erased loop the generic model supplies.
+{-
+   The teardown - Implementation-Containers.md §13.
+
+   One traversal over the live elements, and the release of the run. That is the whole of what a
+   container has to write, and it is deliberately written once rather than twice: which *halves* of
+   Design-Memory §4's split this supplies is computed from the element type, not declared here. An
+   `Array(Int)` has nothing to run at each element, so this is a reclaim and folds to the release; an
+   `Array(Connection)` has, so the same body is also the array's `Drop` and the array stops being
+   region-eligible - which is the answer that keeps a connection's teardown from being discharged in
+   bulk at a point the program never chose.
+
+   `let ->doomed` is how a body says "hand me this element, owned": the binding owes its release and
+   never reads it, which is exactly what should happen to a value with nowhere to go. It is the same
+   line `remove` uses for the one element it takes out.
+
+   The move is out of a raw pointer, which is unchecked by construction and correct here for the
+   reason the loop bound establishes: every index below `length` names a live element. That is what
+   `Run(a)` having no notion of occupancy buys - the count is this type's, and so is this walk.
+-}
 instance Reclaim(Array(a)):
     fn reclaim(->value: Array(a)) -> {}:
-        if value.onHeap then freeHeap(cast(value.items) :: %U8)
+        let &i = 0 :: Int
+
+        while i < value.length:
+            let ->doomed = *(value.run.items + i)
+            i = i + 1
+
+        releaseRun(value.run)
 )COLLECTIONS";
 
 void defineCollections(Program& program) {

@@ -36,9 +36,31 @@ U32 rootLocal(Analysis& analysis, const Place& place) {
     return place.local < analysis.localCount ? place.local : maxLimit<U32>;
 }
 
+/*
+ * One slot read, and everything that slot is a view of - see Local::viewOf.
+ *
+ * A slice is live storage that belongs to somebody else, so reading it reads the array it was taken
+ * from. Walking the chain rather than one step covers a subslice of a slice; the depth bound is
+ * against a cycle a rewrite could introduce, since nothing in the resolver builds one.
+ */
+static void useSlot(Analysis& analysis, Effects& effects, U32 root) {
+    for(auto depth = 0; root != maxLimit<U32> && depth < 8; depth++) {
+        effects.uses.push(root);
+        root = analysis.function.localAt(analysis.local, root).viewOf;
+    }
+}
+
+static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> value);
+
+// The local a place names, and - when it names one through a borrow - whatever that borrow was
+// taken of. `*(get(xs, i))` reads `xs`, and the chain from the read back to it is the same one
+// useValue walks.
 static void useRoot(Analysis& analysis, Effects& effects, const Place& place) {
-    auto root = rootLocal(analysis, place);
-    if(root != maxLimit<U32>) effects.uses.push(root);
+    useSlot(analysis, effects, rootLocal(analysis, place));
+
+    if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
+        useValue(analysis, effects, place.pointer);
+    }
 }
 
 // The local a value is the contents of, or none. An aggregate that lives in storage is named by
@@ -58,8 +80,80 @@ U32 backingLocal(Analysis& analysis, ModulePtr<Value> value) {
 // the IR as the value that produced them rather than as a load, so without this an owned record
 // passed to a call would look dead at the point it was created.
 static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> value) {
-    auto root = backingLocal(analysis, value);
-    if(root != maxLimit<U32>) effects.uses.push(root);
+    useSlot(analysis, effects, backingLocal(analysis, value));
+
+    /*
+     * Using a borrow is using what it borrows.
+     *
+     * `f(&xs)` reads `xs` at the call and not only where the borrow was created, which is the whole
+     * of what a borrow *is* - and without saying so, a local whose last mention is the borrow
+     * instruction looks dead one instruction later, so the drop pass is entitled to release it while
+     * the callee still holds the address.
+     *
+     * Two steps, and the second is why one is not enough. A borrow may be taken of a borrow - what
+     * convertBorrow's weakening of a mutable one produces - and a call may hand one *back*, which is
+     * exactly what the `return` marker declares. `xs[i]` is both at once: a borrow of the array, a
+     * call to `get` that returns a borrow rooted in it, and then a read of the element. The array is
+     * read at that last point, and the marker is the only thing that says so.
+     *
+     * This is the same walk lastUseOf makes for exclusivity, over the same two rules. It is not
+     * shared because the two answer different questions - that one is per borrow and produces an
+     * extent, this one is per use and produces a set - and folding them together would make the
+     * borrow checker's extent depend on the liveness it is not allowed to consult.
+     */
+    SmallArray<ModulePtr<Value>, 8> pending;
+    pending.push(value);
+
+    for(Size i = 0; i < pending.size() && i < 32; i++) {
+        auto current = pending[i];
+        if(!current) continue;
+
+        auto& produced = *analysis.local[current];
+
+        if(produced.kind == Value::Borrow || produced.kind == Value::Address) {
+            Place place;
+            if(!firstPlace(produced, place)) continue;
+
+            // The shallow half of useRoot, deliberately: the deep half is this loop, and calling it
+            // here would make the two mutually recursive with no bound but the shape of the body.
+            useSlot(analysis, effects, rootLocal(analysis, place));
+
+            if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
+                pending.push(place.pointer);
+            }
+        } else if(produced.kind == Value::LoadPlace && isMemoryType(analysis.global, produced.type)) {
+            /*
+             * A loaded aggregate *is* its place rather than a copy of it - findPlace answers with
+             * the place a LoadPlace named, which is what keeps a field of a field one projection
+             * path. So using the value is using the storage, for as long as the value is used.
+             *
+             * Memory types only. A scalar read out of a place is a copy in a register with no
+             * relationship to where it came from, and following that would keep the owner of every
+             * field anyone ever read live to the end of the function.
+             */
+            auto& place = ((InstLoadPlace&)produced).place;
+            useSlot(analysis, effects, rootLocal(analysis, place));
+
+            if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
+                pending.push(place.pointer);
+            }
+        } else if(produced.kind == Value::Call) {
+            auto& call = (InstCall&)produced;
+            auto summary = summaryOf(analysis, call.callee);
+            if(!summary || !summary->declaredRoots) continue;
+
+            U16 position = 0;
+
+            for(auto arg: call.args.contents(analysis.local)) {
+                if(summary->declaredRoots & rootBit(position)) {
+                    useSlot(analysis, effects, backingLocal(analysis, arg));
+                    pending.push(arg);
+                }
+
+                position++;
+            }
+        }
+    }
 }
 
 /*
@@ -77,7 +171,9 @@ static void transferFrom(Analysis& analysis, Effects& effects, ModulePtr<Value> 
     auto root = backingLocal(analysis, value);
     if(root == maxLimit<U32>) return;
 
-    effects.uses.push(root);
+    // Through the view chain, like every other read: writing a slice into a record reads the array
+    // the slice is a view of, so the array stays live to that point. See Local::viewOf.
+    useSlot(analysis, effects, root);
 
     auto type = analysis.function.localAt(analysis.local, root).type;
     if(needsTeardown(analysis.module, type)) effects.moves.push(root);
@@ -107,6 +203,10 @@ static void deriveEffects(Analysis& analysis) {
             case Value::Alloc:
                 // Allocating creates storage and puts nothing in it. What makes a slot owned is
                 // the Init that follows, which is why `let x = e` is two instructions.
+                //
+                // A run's length is read here, though, and saying so is what keeps whatever computed
+                // it live up to this point - see InstAlloc::extent.
+                useValue(analysis, effects, ((InstAlloc&)instruction).extent);
                 break;
 
             case Value::LoadPlace:

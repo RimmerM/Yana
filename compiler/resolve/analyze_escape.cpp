@@ -57,6 +57,27 @@ static Escape argumentEscape(Analysis& analysis, ModulePtr<Value> arg) {
     return isMemoryType(analysis.global, analysis.local[arg]->type) ? Escape::Owned : Escape::Referenced;
 }
 
+/*
+ * What one *argument* hands over.
+ *
+ * transferredProvenance answers what a value contributes, and for an aggregate that is what it
+ * contained rather than the slot it sat in - the aggregate is copied, so the slot stays behind. A
+ * slice is a borrow whose representation is a record (isBorrowLike), and copying it copies the
+ * address inside it, so a callee that retains one retains a view of this frame's container. The
+ * descriptor's own slot is what carries Local::viewOf, so it has to be in the set or
+ * checkEscapingViews never sees the view leave.
+ *
+ * Arguments only. A returned descriptor is bounded by the return-root check instead, and marking its
+ * slot here would put every subslice's storage on the heap for nothing.
+ */
+static void handedOver(Analysis& analysis, ModulePtr<Value> arg, Provenance& into) {
+    transferredProvenance(analysis, arg, into);
+
+    if(arg && isBorrowLike(analysis.module, analysis.local[arg]->type)) {
+        joinProvenance(into, provenanceOf(analysis, arg));
+    }
+}
+
 // One round of seeds. Separate from the closure below only so that both can be repeated together:
 // a store into a root that a later instruction turns out to hand away is an escape too, and one
 // pass in instruction order would miss it.
@@ -130,7 +151,7 @@ static bool escapeRound(Analysis& analysis) {
 
                     if(retained) {
                         ScratchProvenance leaving(analysis);
-                        transferredProvenance(analysis, arg, *leaving);
+                        handedOver(analysis, arg, *leaving);
                         changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg)) || changed;
                     }
 
@@ -153,7 +174,7 @@ static bool escapeRound(Analysis& analysis) {
                 auto& call = (InstCallDyn&)instruction;
                 for(auto arg: call.args.contents(analysis.local)) {
                     ScratchProvenance leaving(analysis);
-                    transferredProvenance(analysis, arg, *leaving);
+                    handedOver(analysis, arg, *leaving);
                     changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg)) || changed;
                 }
 
@@ -164,7 +185,7 @@ static bool escapeRound(Analysis& analysis) {
                 // No summary to consult, so everything handed over is assumed kept.
                 for(auto arg: ((InstGenCall&)instruction).args.contents(analysis.local)) {
                     ScratchProvenance leaving(analysis);
-                    transferredProvenance(analysis, arg, *leaving);
+                    handedOver(analysis, arg, *leaving);
                     changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg)) || changed;
                 }
 
@@ -253,6 +274,20 @@ void selectStorage(Analysis& analysis, OwnershipResult& result) {
         if(allocation.ownedElsewhere) storage = StorageClass::Heap;
 
         /*
+         * A run whose length this pass cannot read is on the heap whatever it proved.
+         *
+         * The frame answer for one is a dynamic alloca, and a dynamic alloca is not released until
+         * the frame returns - so a run allocated in a loop would add to the frame once per
+         * iteration. Implementation-Containers.md §12's third strategy is exactly that allocation
+         * with the placement rule that makes it safe ("selected only when the site is not inside a
+         * loop"), and it is deferred; until it lands the conservative answer is the one that cannot
+         * overflow a stack. A literal's run has a constant length and is unaffected.
+         */
+        if(allocation.extent && analysis.local[allocation.extent]->kind != Value::ConstInt) {
+            storage = StorageClass::Heap;
+        }
+
+        /*
          * A closure environment is decided the same way as anything else, and released differently.
          *
          * The decision is the same because the question is: an environment is reachable from the
@@ -331,9 +366,11 @@ void selectStorage(Analysis& analysis, OwnershipResult& result) {
                                   !allocation.ownedElsewhere;
         allocation.storage = storage;
 
-        // The flag the program reads at run time, where something asked for one.
+        // The tag the program reads at run time, where something asked for one. It is the storage
+        // class itself rather than "is it the heap", because a `Reclaim` handed a run has four cases
+        // to tell apart and only one of them frees - see InstAlloc::storageFlag.
         if(allocation.storageFlag && analysis.local[allocation.storageFlag]->kind == Value::ConstInt) {
-            ((ConstInt*)analysis.local[allocation.storageFlag])->value = storage == StorageClass::Heap;
+            ((ConstInt*)analysis.local[allocation.storageFlag])->value = U64(storage);
         }
 
         // Heap storage this frame owns has to be handed back at the end of the value's life, which
@@ -348,9 +385,10 @@ void selectStorage(Analysis& analysis, OwnershipResult& result) {
             analysis.local[analysis.module.program.allocateHeap]->used = true;
         }
 
-        analysis.function.locals.set(analysis.local, allocation.local,
-                                     Local { slot.type, slot.name, slot.value, slot.convention,
-                                             storage, slot.borrowed, slot.closureEnv });
+        // Only the storage class changes here, so the slot is written back with everything else it
+        // held - including the two fields that are set by assignment rather than positionally.
+        slot.storage = storage;
+        analysis.function.locals.set(analysis.local, allocation.local, slot);
 
         if(allocation.local < result.locals.size()) result.locals[allocation.local].storage = storage;
     }

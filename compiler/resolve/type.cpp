@@ -136,6 +136,69 @@ TypePtr instantiateRecord(Module& module, GlobalPtr<RecordType> pointer, Buffer<
     return (Type*)instance - global;
 }
 
+// One instantiation's argument, when it is an instantiation of `of` at all.
+static TypePtr instanceArgument(Module& module, GlobalPtr<RecordType> of, TypePtr type) {
+    auto global = *module.types;
+    if(!of || !type || global[type]->kind != Type::Record) return nullptr;
+
+    auto record = (RecordType*)global[type];
+    if(record->instanceOf != of || record->instanceArgs.size() != 1) return nullptr;
+
+    return record->instanceArgs.get(global, 0);
+}
+
+TypePtr arrayElement(Module& module, TypePtr type) {
+    return instanceArgument(module, module.program.arrayType, type);
+}
+
+TypePtr sliceElement(Module& module, TypePtr type) {
+    return instanceArgument(module, module.program.sliceType, type);
+}
+
+TypePtr sliceOf(Module& module, TypePtr type) {
+    if(!module.program.sliceType) return nullptr;
+
+    // A borrow of a slice is that slice: `Flat(T)` owns nothing, so there is nothing for a second
+    // level of borrowing to describe and no conversion to perform.
+    if(sliceElement(module, type)) return type;
+
+    auto element = arrayElement(module, type);
+    if(!element) return nullptr;
+
+    return instantiateRecord(module, module.program.sliceType, { &element, 1 }, kNullLocation);
+}
+
+bool isBorrowLike(Module& module, TypePtr type) {
+    return isBorrow(*module.types, type) || sliceElement(module, type) != nullptr;
+}
+
+static bool containsBorrowLikeAt(Module& module, TypePtr type, U32 depth) {
+    if(!type || !depth) return false;
+    if(isBorrowLike(module, type)) return true;
+
+    auto base = *module.types;
+    auto value = base[type];
+
+    // A raw pointer is not descended into and neither is what it points at - `%T` is where this
+    // analysis stops by construction. An owned container therefore does not contain a reference:
+    // `Array(T)` holds a `Run(T)` holds a `%T`, and nothing on that path is a borrow.
+    if(value->kind == Type::Tup) {
+        for(auto field: ((TupType*)value)->fields.contents(base)) {
+            if(containsBorrowLikeAt(module, field.type, depth - 1)) return true;
+        }
+    } else if(value->kind == Type::Record && ((RecordType*)value)->layout != RecordType::Enum) {
+        for(auto constructor: ((RecordType*)value)->constructors.contents(base)) {
+            if(containsBorrowLikeAt(module, constructor.content, depth - 1)) return true;
+        }
+    }
+
+    return false;
+}
+
+bool containsBorrowLike(Module& module, TypePtr type) {
+    return containsBorrowLikeAt(module, type, 8);
+}
+
 TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, LocationId source) {
     auto global = *module.types;
     if(!type || !isGeneric(global, type)) return type;
@@ -553,6 +616,35 @@ static TypePtr resolveTupleAst(Module& module, const ast::Type& type, GenEnv* en
  * has to know what the callee does to each argument, and this is the only place it can find out.
  * The same validity rules apply as to a declaration, so both go through checkReturnRoot.
  */
+/*
+ * What a parameter's written type means, which is not always what the same syntax means elsewhere.
+ *
+ * `[T]` in a *binding* position is a slice - Implementation-Containers.md §4. The default binding
+ * convention is an immutable borrow and `&` makes it a mutable one, and what a borrow of a
+ * contiguous container *is* is a `{base, length}` descriptor rather than an address of the owner.
+ * That is the one fixed and universal thing in the container design: a borrow of `[T]` has one
+ * concrete representation and never dispatches, which is what makes "no polymorphic calls by
+ * default" true by construction.
+ *
+ * Three positions deliberately keep the owner:
+ *
+ *  - `->xs: [T]`, which consumes the container rather than looking at it;
+ *  - a field, a `::` ascription and a return type, which are *type* positions and have no
+ *    convention to read - `data F {xs: [T]}` owns an array, and `data F {xs: &[T]}` is how a stored
+ *    slice is spelled (see resolveType's Borrow case);
+ *  - `xs: Array(T)` written out, which is how Collections' own operations name the growable type.
+ *    Growth is nominal, because only the growable type can grow: `push` says `Array(T)` and `sort`
+ *    says `[T]`, and the difference between them is exactly this function.
+ */
+TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType bind, GenEnv* env) {
+    auto type = resolveType(module, written, env);
+    if(bind == ast::BindType::Sink) return type;
+    if(written.kind != ast::Type::Arr || written.arr.length) return type;
+
+    auto slice = sliceOf(module, type);
+    return slice ? slice : type;
+}
+
 static TypePtr resolveFunTypeAst(Module& module, const ast::FunType& type, GenEnv* env, LocationId source) {
     auto parseBase = module.parse;
     Array<FunArg> args;
@@ -565,7 +657,7 @@ static TypePtr resolveFunTypeAst(Module& module, const ast::FunType& type, GenEn
 
     for(auto declared: declaredArgs.contents(parseBase)) {
         FunArg arg;
-        arg.type = resolveType(module, declared.type, env);
+        arg.type = bindingType(module, declared.type, declared.bind, env);
         arg.name = declared.name;
         arg.convention = declared.bind;
         arg.lazy = declared.lazy && checkLazyArgument(module, declared.bind, declared.returnRoot, source);
@@ -850,11 +942,29 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
             auto element = resolveType(module, *module.parse[type.arr.type], env);
             return instantiateRecord(module, module.program.arrayType, { &element, 1 }, type.source);
         }
-        case ast::Type::Borrow:
+        case ast::Type::Borrow: {
+            auto to = resolveType(module, *module.parse[type.to], env);
+
+            /*
+             * `&[T]` is a slice - Implementation-Containers.md §4.2.
+             *
+             * A field has only a type, so this is the spelling a *stored* borrow of a container has,
+             * and what is stored is the descriptor rather than an address of the owner. It is the
+             * shape zero-copy parsing is written in - Design-Memory §5.3's
+             * `data Parser {input: &String, pos: Int}` with an array in it - and it is tracked by
+             * ordinary last-use liveness with no lifetime parameter on the record.
+             *
+             * There is deliberately no spelling for a stored *mutable* slice: a field has no
+             * return-root group to confer exclusivity, which is the existing borrow model's rule
+             * rather than anything about arrays.
+             */
+            if(auto slice = sliceOf(module, to)) return slice;
+
             // Immutable until the signature it belongs to says otherwise: what makes a returned
             // borrow exclusive is the return-root group being entirely `return &`, which is not
             // known until every argument of the declaration has been read.
-            return resolveBorrowType(module, resolveType(module, *module.parse[type.to], env), false);
+            return resolveBorrowType(module, to, false);
+        }
         case ast::Type::Fun:
             return resolveFunTypeAst(module, *module.parse[type.fun], env, type.source);
         default:
@@ -1606,7 +1716,34 @@ Ownership ownershipOf(Module& module, TypePtr type) {
     // generic declaration is skipped: `Maybe(a)` is not a type anything can have an instance for,
     // and asking would match the instance of whatever `a` last resolved to.
     if(!value->generic) {
-        if(hasInstance(module, module.coreClasses.reclaim, type)) result.reclaim = TeardownKind::Authored;
+        if(hasInstance(module, module.coreClasses.reclaim, type)) {
+            result.reclaim = TeardownKind::Authored;
+
+            /*
+             * A container's teardown is computed from its elements - Implementation-Containers.md
+             * §13.
+             *
+             * An authored `Reclaim` over a *parametric* head is a container's one traversal over its
+             * live elements, and the author is trusted about "I call nothing else" - which
+             * checkReclaimShape verifies - and never about "my members are effect-free", which is
+             * this. Whether that traversal has effects is decided by whether the type arguments have
+             * a `Drop`, so `Array(Int)`'s is a reclaim and nothing more while `Array(Buffer)`'s is
+             * also a drop, and the two differ in region eligibility rather than in code.
+             *
+             * Not derivable structurally, and that is the whole reason this rule exists: the run's
+             * members are a raw pointer and two counts, so a fold over them says a container of
+             * connections has no teardown. Which slots hold values is private to the container, and
+             * the only thing the compiler can see about them is the type they are of.
+             */
+            if(value->kind == Type::Record) {
+                for(auto arg: ((RecordType*)value)->instanceArgs.contents(base)) {
+                    if(ownershipOf(module, arg).drop != TeardownKind::None) {
+                        result.drop = TeardownKind::Authored;
+                    }
+                }
+            }
+        }
+
         if(hasInstance(module, module.coreClasses.drop, type)) result.drop = TeardownKind::Authored;
         if(hasInstance(module, module.coreClasses.copy, type)) result.authoredCopy = true;
 

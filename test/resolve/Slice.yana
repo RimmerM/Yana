@@ -1,0 +1,91 @@
+{-
+   Borrowing `[T]` - Implementation-Containers.md §4.
+
+   A `[T]` parameter is not the array. What arrives is the slice its borrow *is* - a base address and
+   a length - so nothing about the call dispatches, the callee cannot grow what it was given, and the
+   array itself never leaves the frame that owns it. `Array(T)` written out is the other half of the
+   same rule: growth is nominal, and `push` is the operation that says so.
+-}
+
+fn total(xs: [Int]) -> Int:
+    let &sum = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < length(xs):
+        sum = sum + xs[i]
+        i = i + 1
+
+    return sum
+
+-- A mutable slice: the elements may be written and the length may not. Same descriptor, borrowed
+-- mutably, which is why this needs no second type and no coercion.
+fn double(&xs: [Int]) -> {}:
+    let &i = 0 :: Int
+
+    -- Read out first: the mutable borrow the assignment target creates is exclusive while it is
+    -- live, and a read of the same element on the right of it is the two-phase borrow the checker
+    -- does not have yet. Nothing about slices - `h.a = h.a + 1` on a record says the same.
+    while i < length(xs):
+        let value = xs[i]
+        xs[i] = value + value
+        i = i + 1
+
+-- A slice of a slice, and the whole point of the representation: no allocation, no copy, and the
+-- result is the same type the parameter had.
+fn middle(xs: [Int]) -> Int = total(xs[1..3])
+
+{-
+   A stored slice - §4.2.
+
+   `&[T]` in *type* position is a slice, because a field has only a type and `&` on a type resolves
+   immutable. `[T]` in the same position would be an owned array, which is the other half of the same
+   table: a field's default is ownership, and a binding's is a borrow.
+
+   This is the shape zero-copy parsing is written in - Design-Memory §5.3's
+   `data Parser {input: &String, pos: Int}` with an array in it - and it needs no lifetime parameter
+   on the record, because ordinary last-use liveness is what keeps the source alive.
+-}
+data Cursor {items: &[Int], at: Int}
+
+fn atCursor(c: Cursor) -> Int = c.items[c.at]
+
+fn sumFrom(xs: [Int], from: Int) -> Int:
+    let &c = Cursor {items: xs, at: from}
+    let &sum = 0 :: Int
+
+    while c.at < length(c.items):
+        sum = sum + atCursor(c)
+        c.at = c.at + 1
+
+    return sum
+
+{-
+   The array outlives every call that borrows it.
+
+   `total(xs)` reads the run through a raw pointer the descriptor holds, so what keeps the run alive
+   across the call is the loan the conversion took - see Local::viewOf. Nothing here can say so
+   directly; what this fixture asserts is the answer, which is wrong if the run was handed back
+   first.
+-}
+fn main() -> Int:
+    let &xs = [1, 2, 3, 4]
+
+    -- 1 + 2 + 3 + 4 = 10, through a slice of an owned array.
+    if total(xs) != 10 then return -1
+
+    -- Elements 1 and 2 of the array, so 2 + 3 = 5.
+    if middle(xs) != 5 then return -2
+
+    -- Writing through a mutable slice reaches the array, because the descriptor holds its address.
+    double(xs)
+    if total(xs) != 20 then return -3
+
+    -- Growth is not a slice operation, so it goes through the owner - and the slice taken
+    -- afterwards sees the new element.
+    push(xs, 5)
+    if length(xs) != 5 then return -4
+
+    -- A slice stored in a record, walked by index: 4 + 6 + 8 + 5 = 23 from position 1 on.
+    if sumFrom(xs, 1) != 23 then return -5
+
+    return total(xs)

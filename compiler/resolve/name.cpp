@@ -208,10 +208,23 @@ void findInstances(Module& module, GlobalPtr<TypeClass> typeClass, Array<ModuleP
         }
     };
 
-    // Instances are not named, so they are neither shadowed nor ambiguous: every one that is
-    // visible participates, and overlap between two of them is resolved by argument types.
-    collect(module);
-    for(auto& import: module.imports) collect(*import.module);
+    /*
+     * Every instance in the program, not only the ones this module imported.
+     *
+     * Instances are not named, so they are neither shadowed nor ambiguous: overlap between two of
+     * them is resolved by argument types, and there is nothing for an import to disambiguate. What
+     * an import decides is which *names* are reachable, which is untouched by this - `freeHeap` is
+     * still unavailable to a module that did not ask for Native.
+     *
+     * Coherence is not a nicety here, it is what the rest of the compiler already assumes.
+     * `ownershipOf` caches its answer on the *type*, and teardown glue is interned per type
+     * program-wide - so "does this type have a `Drop`" has to have one answer, and a module-relative
+     * search made it whichever module asked first. Both halves of Implementation-Containers.md's
+     * container work hit that: an array literal gives a module that never imported Native a `Run(a)`
+     * to reclaim, and `Array(Buffer)` is instantiated from inside Collections, where the program's
+     * own `instance Drop(Buffer)` was not visible and its buffers were therefore never released.
+     */
+    for(auto entry: module.program.modules) collect(*entry);
 }
 
 /*

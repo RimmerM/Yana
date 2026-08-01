@@ -186,6 +186,22 @@ static bool flowRound(Analysis& analysis) {
         auto backing = backingLocal(analysis, (ModulePtr<Value>)pointer);
         if(backing != maxLimit<U32>) {
             produced->locals.set(backing, true);
+
+            /*
+             * A borrow-like result also *contains* whatever the callee said it is rooted in.
+             *
+             * The slot is where the result landed, which is what the line above says and is the
+             * whole answer for an owned aggregate: a returned record is a handover, and it refers to
+             * nothing but the new storage it now occupies. A slice is not a handover - it is a
+             * reference of memory type (isBorrowLike) - so the callee's declared root group has to
+             * cross the call, and the slot having a backing local is exactly what stops the Call
+             * case below from being reached to do it.
+             */
+            if(instruction.kind == Value::Call && isBorrowLike(analysis.module, instruction.type)) {
+                auto& call = (InstCall&)instruction;
+                callResultProvenance(analysis, call.callee, call.args, instruction.type, *part);
+                changed = joinProvenance(analysis.contents[backing], *part) || changed;
+            }
         } else {
             switch(instruction.kind) {
                 case Value::LoadPlace: {
@@ -314,9 +330,29 @@ static bool flowRound(Analysis& analysis) {
             }
         };
 
+        /*
+         * A stored reference makes its owner refer to the reference's own slot as well.
+         *
+         * transferredProvenance answers what a value *contributes*, and for an aggregate that is
+         * what it contained rather than the slot it sat in - which is right, because writing a
+         * record copies it. A slice is a borrow whose representation is a record (isBorrowLike), and
+         * the descriptor's slot is what carries `Local::viewOf`, so without this edge
+         * `Cursor {items: xs}` reaches the run and never the descriptor and checkEscapingViews has
+         * nothing to see leaving.
+         *
+         * Only here, and not in transferredProvenance itself. A slice *returned* hands over a copy
+         * of two words, so what outlives is what those words point at and not the slot they were in
+         * - adding the slot there makes every subslice look rooted in its own frame.
+         */
+        auto storedReference = [&](ModulePtr<Value> value, Provenance& target) {
+            if(!value || !isBorrowLike(analysis.module, analysis.local[value]->type)) return;
+            joinProvenance(target, provenanceOf(analysis, value));
+        };
+
         if(instruction.kind == Value::Init || instruction.kind == Value::Assign) {
             auto& write = (InstInit&)instruction;
             transferredProvenance(analysis, write.value, *part);
+            storedReference(write.value, *part);
             storeInto(write.place, *part);
         } else if(instruction.kind == Value::Exchange) {
             auto& exchange = (InstExchange&)instruction;
@@ -361,7 +397,23 @@ void computeProvenance(Analysis& analysis) {
      */
     for(Size l = 0; l < analysis.localCount; l++) {
         auto slot = analysis.function.localAt(analysis.local, U32(l));
-        if(slot.value && analysis.local[slot.value]->kind == Value::Arg) analysis.contents[l].locals.set(l, true);
+        if(!slot.value || analysis.local[slot.value]->kind != Value::Arg) continue;
+
+        analysis.contents[l].locals.set(l, true);
+
+        /*
+         * And the parameter *value* refers to that slot.
+         *
+         * flowRound cannot say it: an Arg is not an instruction, so it is never visited and its slot
+         * in `values` stays empty. That was invisible while every memory-typed result was an owned
+         * one - a returned record is a handover, and a provenance of nothing is the right answer for
+         * it. It stopped being invisible with Implementation-Containers.md §4's slice, where
+         * `fn f(xs: [Int]) -> &[Int] = xs` hands back a *reference* of memory type: the value's
+         * provenance was empty, so deriveSummary saw no roots and the return-root check had nothing
+         * to object to.
+         */
+        auto id = analysis.local[slot.value]->id;
+        if(id < analysis.values.size()) analysis.values[id].locals.set(l, true);
     }
 
     // Bounded rather than unbounded: each round can only add, and the lattice is finite, so this

@@ -374,8 +374,27 @@ struct Inst: Value {
 };
 
 struct InstAlloc: Inst {
-    InstAlloc(ModulePtr<Block> block, TypePtr type, U32 local):
-        Inst(Value::Alloc, block, type), local(local) {}
+    InstAlloc(ModulePtr<Block> block, TypePtr type, U32 local, ModulePtr<Value> extent = nullptr):
+        Inst(Value::Alloc, block, type), extent(extent), local(local) {}
+
+    /*
+     * How many of `type` this allocates - Implementation-Containers.md §2's `Run(a)`.
+     *
+     * Null means one, which is every allocation a `let`, a construction or a closure environment
+     * makes. A run of slots is the same instruction with a count beside it, and that is deliberately
+     * all it is: a run is an *ordinary* allocation, so `selectStorage` places it with no new rule,
+     * the drop pass releases it with no new rule, and the only thing that changes downstream is the
+     * byte count lowering asks for - in strides rather than in sizes, since a run indexes.
+     *
+     * A count that is not a compile-time constant forces the heap. The frame answer for one would be
+     * a dynamic alloca, which is not released until the frame ends - so a run allocated inside a loop
+     * would grow the frame per iteration. That is Implementation-Containers.md §12's third strategy
+     * and it is deferred with its own placement rule; until then the conservative answer is the heap.
+     *
+     * Taken by the constructor rather than set afterwards, because Block::add is what records an
+     * operand's uses and it runs once, when the instruction reaches its block.
+     */
+    ModulePtr<Value> extent;
 
     U32 local;
 
@@ -408,9 +427,15 @@ struct InstAlloc: Inst {
     bool ownedElsewhere = false;
 
     /*
-     * A Bool constant recording where this allocation landed, for code that has to know at run
-     * time. The array's buffer is the case it exists for: its `Drop` frees the buffer only when it
-     * went to the heap, and whether it did is a decision made after the body was resolved.
+     * An integer constant recording where this allocation landed, for code that has to know at run
+     * time. A `Run(a)`'s tag is the case it exists for: `Reclaim(Run(a))` is the placement switch of
+     * Implementation-Storage.md §5, and which arm it takes is a decision made after the body was
+     * resolved.
+     *
+     * It holds the `StorageClass` itself rather than the "is it the heap" bit it used to, because
+     * the switch has four arms and only one of them frees: `Inline`, `Stack` and `Region` all
+     * release nothing, and telling them apart is what lets a region-placed run be handed to the same
+     * `Reclaim` a heap-placed one gets and have it do the right nothing.
      *
      * Null when nothing asked. selectStorage patches the constant, which is the one place a
      * decision these passes make becomes a value the program itself can read.

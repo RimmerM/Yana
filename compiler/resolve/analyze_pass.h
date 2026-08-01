@@ -459,6 +459,7 @@ void checkMoves(Analysis& analysis);
 void checkBorrows(Analysis& analysis);
 void checkReturnRoots(Analysis& analysis);
 void checkMaterializedBorrows(Analysis& analysis);
+void checkEscapingViews(Analysis& analysis);
 void checkClosureEnvironments(Analysis& analysis);
 
 /*

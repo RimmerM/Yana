@@ -62,6 +62,14 @@ static String describeQualified(Context& context, GlobalBase global, StringId na
 bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, TypeList& bindings, bool widen) {
     if(!pattern || !actual) return false;
 
+    // An owned container fits a `[T]` parameter, which is the conversion convertSlice performs -
+    // so matching is against the slice it becomes, and a `Flat(a)` pattern binds `a` to the array's
+    // element instead of failing outright. Argument direction only, for the reason the widening
+    // rule below is: what a call *produces* has not decided anything by needing a conversion.
+    if(widen && sliceElement(module, pattern) && arrayElement(module, actual)) {
+        actual = sliceOf(module, actual);
+    }
+
     if(global[pattern]->kind == Type::Gen) {
         auto index = ((GenType*)global[pattern])->index;
         if(index >= bindings.size()) return false;
@@ -659,8 +667,14 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
             continue;
         }
 
-        auto expected = declared ? local[local[direct]->args.get(local, index)]->declaredType()
-                                 : TypePtr(nullptr);
+        auto parameter = declared ? local[local[direct]->args.get(local, index)] : nullptr;
+
+        // A `&` parameter's type is deliberately not pushed down. What the argument has to produce
+        // is storage to borrow, not a value of the parameter's type - so converting here would build
+        // a temporary and then borrowArgument would be asked for a mutable borrow of something this
+        // expression owns rather than of what was written.
+        auto expected = parameter && !parameter->isMutableBorrow() ? parameter->declaredType()
+                                                                   : TypePtr(nullptr);
 
         // An argument that resolved to nothing did so for one of two reasons, and the difference is
         // only visible from here: either the resolver reported on it, or the expression genuinely
@@ -1238,9 +1252,18 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
             continue;
         }
 
-        auto declared = local[generic->args.get(local, i)]->declaredType();
-        auto wanted = substituteType(module, declared, toBuffer(bindings), source);
-        auto value = convert(args[i], wanted, source);
+        auto argument = local[generic->args.get(local, i)];
+        auto wanted = substituteType(module, argument->declaredType(), toBuffer(bindings), source);
+
+        /*
+         * A `&` parameter's argument is left exactly as it was written.
+         *
+         * What it is handed is a *borrow* of the caller's storage, and creating that is
+         * borrowArgument's - which happens once, in whichever call form this turns into. Converting
+         * first would build a read-only temporary and then ask for a mutable borrow of it, which is
+         * how `sort(&xs)` on an owned array reported that a `let &` binding was not mutable.
+         */
+        auto value = argument->isMutableBorrow() ? args[i] : convert(args[i], wanted, source);
 
         /*
          * The same positional rule emitDirectCall keeps, and the erased form needs it for a second

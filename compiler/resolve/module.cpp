@@ -877,7 +877,7 @@ static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, 
             continue;
         }
 
-        auto type = resolveType(module, *module.parse[arg.type], env);
+        auto type = bindingType(module, *module.parse[arg.type], arg.bind, env);
         auto lazy = arg.lazy && checkLazyArgument(module, arg.bind, arg.returnRoot, arg.source);
 
         // A `@lazy` parameter arrives as the thunk rather than as the value, so that is the type

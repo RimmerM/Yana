@@ -1,0 +1,46 @@
+import Native
+
+{-
+   The shape rule an authored `Reclaim` has to satisfy - Implementation-Containers.md §13.
+
+   A region discharges every `Reclaim` inside it in bulk, at a point the author did not choose, so a
+   `Reclaim` that ran an effect would run it somewhere the program never asked for. What is permitted
+   is control flow, arithmetic over its own metadata, reads of storage it owns, the compiler's
+   per-member teardown, and storage release - and no other call.
+
+   The author is trusted about "I call nothing else", which is a walk over the call graph and is what
+   these two are rejected by. The author is never trusted about "my members are effect-free", which
+   is computed from the element types instead.
+-}
+
+let &closes = 0 :: I64
+
+fn recordClose() -> {}:
+    closes += 1
+
+data Pool {slots: Run(I64), live: Int}
+
+-- Calling a function that is neither a teardown nor storage release. The message names what to write
+-- instead, because an effect at last use is exactly what a `Drop` is for.
+instance Reclaim(Pool):
+    fn reclaim(->value: Pool) -> {}:
+        recordClose()
+        releaseRun(value.slots)
+
+data Ledger {entries: Run(I64)}
+
+-- And a helper of the container's own, which does not help: the permitted set is a set of *callees*
+-- - the teardowns and the storage releases - so a name in front of the effect is one more call
+-- outside it rather than a way through.
+fn closeLedger(it: Ledger) -> {}:
+    recordClose()
+    releaseRun(it.entries)
+
+instance Reclaim(Ledger):
+    fn reclaim(->value: Ledger) -> {} = closeLedger(value)
+
+fn main() -> I64:
+    let pool = Pool {slots: emptyRun(), live: 0}
+    let ledger = Ledger {entries: emptyRun()}
+
+    return closes + 0

@@ -1,0 +1,89 @@
+import Native
+import Native.Linux
+
+{-
+   Teardown is the extension point - Implementation-Containers.md §13.
+
+   A container writes **one** traversal over its live elements and the compiler decides what that
+   traversal *is*: `Array(Int)` has nothing to run per element, so the walk is a `Reclaim` and
+   nothing more; `Array(Handle)` has, so the same body is also the array's `Drop`. Neither answer is
+   written down anywhere - both are computed from the element type, which is what makes
+   `Map(String, Connection)` expressible without a rule about maps.
+
+   What this fixture asserts is the observable half of that: elements are released exactly once, at
+   the point the container's own lifetime ends, and a container of elements that release nothing
+   still frees its run.
+-}
+
+let &liveHandles = 0 :: I64
+let &releases = 0 :: I64
+
+data Handle {slot: %U8}
+
+fn openHandle(mark: I64) -> Handle:
+    liveHandles += 1
+    let handle = Handle {slot: allocateHeap(16)}
+    store(cast(handle.slot) :: %I64, mark)
+
+    return handle
+
+instance Drop(Handle):
+    fn drop(->value: Handle) -> {}:
+        freeHeap(value.slot)
+        liveHandles -= 1
+        releases += 1
+
+fn marker(it: Handle) -> I64 = *(cast(it.slot) :: %I64)
+
+{-
+   An array literal of elements that have a teardown.
+
+   This used to be rejected outright - "an array of Handle is not available yet" - because releasing
+   the elements meant walking the run and nothing supplied the walk. The `Reclaim` Collections writes
+   is the walk, and this is the whole of what changed at the call site: nothing.
+-}
+fn buildLiteral() -> I64:
+    let handles = [openHandle(1), openHandle(2)]
+    return marker(handles[0]) + marker(handles[1])
+
+-- The same elements, pushed rather than written. `push` takes its element by `->`, so what the run
+-- holds is the caller's value and not a copy of it - which is what makes the count below 2 and not
+-- 4.
+fn buildPushed() -> I64:
+    let &handles = emptyArray() :: [Handle]
+    push(handles, openHandle(3))
+    push(handles, openHandle(4))
+
+    return marker(handles[0]) + marker(handles[1])
+
+fn main() -> I64:
+    -- 1 + 2, and both handles released when the array's lifetime ends inside buildLiteral.
+    if buildLiteral() != 3 then return -1
+    if liveHandles != 0 then return -2
+    if releases != 2 then return -3
+
+    -- 3 + 4, the same story through the growable path - where the run itself also moved to the
+    -- heap, so the reclaim half has something to hand back as well.
+    if buildPushed() != 7 then return -4
+    if liveHandles != 0 then return -5
+    if releases != 4 then return -6
+
+    -- An element taken out of the array is released by the `->` binding `remove` puts it in, and
+    -- not a second time by the array's own walk.
+    let &rest = emptyArray() :: [Handle]
+    push(rest, openHandle(5))
+    push(rest, openHandle(6))
+    remove(rest, 0)
+
+    if liveHandles != 1 then return -7
+    if releases != 5 then return -8
+    if marker(rest[0]) != 6 then return -9
+
+    -- And an array of elements with no teardown of their own still hands its run back, which is the
+    -- reclaim half running with an empty walk in front of it.
+    let &plain = emptyArray() :: [Int]
+    push(plain, 10)
+    push(plain, 20)
+    if length(plain) != 2 then return -10
+
+    return 1

@@ -282,6 +282,12 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
 
     switch(inst.kind) {
         case Value::Alloc:
+            // How many, when it is a run rather than one object - see InstAlloc::extent.
+            if(auto extent = ((InstAlloc&)inst).extent) {
+                print.writer.writeString(" *"_v);
+                printValue(print, *print.local[extent]);
+            }
+
             // Where the storage came from, when it is not the frame. Silence means the ordinary
             // case, so that only a decision worth reading takes up room in a fixture.
             if(((InstAlloc&)inst).storage == StorageClass::Heap) {

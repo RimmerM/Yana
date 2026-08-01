@@ -66,6 +66,11 @@ Inst* Block::add(Module& module, Inst* inst) {
         eachPlace(*inst, [&](const Place& place) { addPlaceUse(module, place, inst); });
 
         switch(inst->kind) {
+            // A run's length is an operand of the allocation - see InstAlloc::extent. Null for the
+            // allocation of one object, which is every other one.
+            case Value::Alloc:
+                addUse(module, ((InstAlloc*)inst)->extent, inst);
+                break;
             case Value::Init:
             case Value::Assign:
                 addUse(module, ((InstInit*)inst)->value, inst);

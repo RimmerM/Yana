@@ -344,6 +344,12 @@ struct ExprResolver {
     ModulePtr<Value> convertRefinement(ModulePtr<Value> value, TypePtr from, TypePtr target,
                                        LocationId source);
 
+    // An owned container to a borrow of one: the `{base, length}` descriptor of
+    // Implementation-Containers.md §4, taken behind a loan. Null when the target is not a slice, so
+    // that convert() falls through to the ordinary paths.
+    ModulePtr<Value> convertSlice(ModulePtr<Value> value, TypePtr from, TypePtr target, LocationId source,
+                                  bool mut = false);
+
     // Whether convert() would succeed implicitly, without reporting anything if it wouldn't.
     bool convertible(ModulePtr<Value> value, TypePtr target, LocationId source);
 
@@ -668,6 +674,24 @@ struct ExprResolver {
     // that owns it rather than by this frame - see Local::closureEnv.
     ModulePtr<Value> allocate(TypePtr type, LocationId source, StringId name = 0,
                               ast::BindType convention = ast::BindType::Borrow, bool closureEnv = false);
+
+    // Storage for `extent` values of one type, laid out at a stride - Implementation-Containers.md
+    // §2's `Run(a)`. The result is the run's local, whose address is what a run holds; nothing ever
+    // reads it as a value of `type`, and nothing initializes it, which is what keeps it out of the
+    // ownership graph until a container's own traversal puts it there.
+    ModulePtr<Value> allocateRun(TypePtr type, ModulePtr<Value> extent, LocationId source);
+
+    // Builds a `Run(a)` of `count` slots, and reports in `items` the address its slots start at.
+    // Shared by Native's `newRun` and by the array literal path, which are the only two places in
+    // the compiler that make one. Null, after reporting, when `runType` is not a `Run`.
+    ModulePtr<Value> buildRun(TypePtr runType, ModulePtr<Value> count, LocationId source,
+                              ModulePtr<Value>& items);
+
+    // `base + index`, at `element`'s stride - the same arithmetic Native's `p + n` emits, and it
+    // folds to a constant offset wherever the index is one.
+    ModulePtr<Value> offsetPointer(ModulePtr<Value> base, TypePtr element, ModulePtr<Value> index,
+                                   LocationId source);
+
     Maybe<Place> findPlace(ModulePtr<Value> value);
     Place placeFor(ModulePtr<Value> value, LocationId source);
     bool isWritablePlace(const Place& place);

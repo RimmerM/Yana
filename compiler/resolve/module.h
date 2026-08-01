@@ -58,10 +58,25 @@ struct Local {
      * that exists the ownership passes report it, and this is what tells them which locals to
      * report about.
      *
-     * Last in the struct, and staying there: Function::addLocal builds one of these positionally, so
-     * a field added in the middle silently shifts every one after it.
+     * Function::addLocal builds one of these positionally, so a field added in the middle silently
+     * shifts every one after it. Everything below is set afterwards rather than by that call, which
+     * is why it can be here at all.
      */
     bool materialized = false;
+
+    /*
+     * The local this one is a view of - Implementation-Containers.md §4's slice.
+     *
+     * A `{base, length}` descriptor built out of an array holds a raw pointer into that array's run,
+     * so it names storage without naming a local: liveness sees the array read once, where the
+     * descriptor was built, and would then be entitled to drop it before the call the descriptor was
+     * built *for*. Recording which local it is a view of makes a use of the view a use of the
+     * viewed, which is the one fact liveness was missing and the same one the borrow checker gets
+     * from following the pointer out of the borrow (see lastUseOf).
+     *
+     * maxLimit for everything that is not a view, which is every local but these.
+     */
+    U32 viewOf = maxLimit<U32>;
 };
 
 /*
@@ -653,6 +668,11 @@ struct Program {
     ModulePtr<Function> allocateHeap = nullptr;
     ModulePtr<Function> freeHeap = nullptr;
 
+    // Native's `releaseRun` - the placement switch of Implementation-Containers.md §2. Recorded for
+    // one reason: it is storage release, so an authored `Reclaim` is allowed to call it, and the
+    // shape check has to be able to recognize it without matching on a name.
+    ModulePtr<Function> releaseRun = nullptr;
+
     Module* core = nullptr;
 
     // Core's `Outcome(a, e)`, and which of its two constructors is which. Looked up once rather
@@ -667,6 +687,23 @@ struct Program {
     // being handed an implicit import of a module that does not exist yet.
     Module* collections = nullptr;
     GlobalPtr<RecordType> arrayType = nullptr;
+
+    // Native itself. Its *names* are private to whoever imports it, and its *instances* are not -
+    // see findInstances. A module that never wrote `import Native` still ends up owning a `Run(a)`
+    // the moment it writes an array literal, and what reclaiming one means cannot depend on whether
+    // the module that has to do it happened to name the module the type came from.
+    Module* native = nullptr;
+
+    // Native's `Run(a)` - the allocation primitive every container is built on
+    // (Implementation-Containers.md §2). Recorded for the same reason the array is: `newRun` is an
+    // intrinsic and an array literal builds a run directly, so both need the declaration without
+    // going through name resolution in whichever module happened to write the literal.
+    GlobalPtr<RecordType> runType = nullptr;
+
+    // Native's `Flat(a)` - what a borrow of `[a]` is (Implementation-Containers.md §4). Recorded
+    // because the resolver produces one wherever a signature writes `[T]` in a binding position,
+    // which is a decision about the *convention* and therefore cannot be made by resolveType alone.
+    GlobalPtr<RecordType> sliceType = nullptr;
 
     Module* root = nullptr;
 

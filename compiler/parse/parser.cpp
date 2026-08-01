@@ -783,7 +783,25 @@ ast::Expr Parser::parseChain(ast::Expr base, const WithLocation& startLocation) 
 
         brackets([&] {
             sepBy([&] {
-                parseTupArg(args);
+                /*
+                 * `xs[a..b]` - Implementation-Containers.md §4's subslice.
+                 *
+                 * One argument still, and the range is that argument: an index and a range are the
+                 * two things a subscript can be given, and telling them apart here rather than by
+                 * counting arguments is what keeps `xs[a, b]` an error instead of a second spelling
+                 * of the same thing.
+                 */
+                WithLocation rangeLocation(*this);
+                auto index = parseExpr();
+
+                if(maybe(Token::opDotDot)) {
+                    auto to = parseExpr();
+                    args.push(arena, ast::TupArg { 0, makeExpr(Range, range,
+                        heap(ast::RangeExpr { index, to, false }), rangeLocation) });
+                    return;
+                }
+
+                args.push(arena, ast::TupArg { 0, index });
             }, Token::Comma, Token::BracketR);
         });
 
