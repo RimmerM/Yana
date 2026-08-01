@@ -47,6 +47,40 @@ ModulePtr<Function> teardownFor(Module& module, TypePtr type, Teardown half, Loc
     return nullptr;
 }
 
+/*
+ * One member's teardown, projected off `base`.
+ *
+ * `boxed` is the whole of what an indirect edge changes here, and it changes two things. The
+ * *reclaim* half additionally hands the box back, whether or not the target had anything of its own
+ * to release - which is why a boxed field gives its owner a derived `Reclaim` unconditionally (see
+ * includeBoxedMember). The *drop* half is unchanged: whatever effect the target's last use runs, it
+ * runs through the pointer exactly as it would have run inline.
+ *
+ * `place` is the target rather than the pointer, because `project` follows the box - so the address
+ * an `InstDrop` computes for it is the box's own address, which is exactly what `releaseStorage`
+ * hands to `freeHeap`. The two answers coincide, and that is not a coincidence: releasing the
+ * storage a place occupies *is* releasing the box when the place is the box's contents.
+ */
+static void teardownMember(ExprResolver& resolver, Module& module, Place base, ProjectionKind kind,
+                           U16 index, TypePtr type, bool boxed, Teardown half, LocationId source) {
+    auto implementation = teardownFor(module, type, half, source);
+    auto teardown = teardownKind(ownershipOf(module, type), half);
+    auto releases = boxed && half == Teardown::Reclaim;
+
+    if(!implementation && !releases) return;
+
+    auto place = resolver.project(base, kind, index);
+    auto isDrop = half == Teardown::Drop;
+    auto drop = resolver.emit<InstDrop>(source, 0, module.scalar.unit, place,
+                                        isDrop ? teardown : TeardownKind::None,
+                                        isDrop ? TeardownKind::None : teardown);
+
+    if(isDrop) drop->drop = implementation;
+    else drop->reclaim = implementation;
+
+    drop->releaseStorage = releases;
+}
+
 // Emits one InstDrop for each member of `content` that has something to do for this half, projected
 // off `base`. Shared by the tuple case and by a record constructor's payload.
 static void teardownMembers(ExprResolver& resolver, Module& module, Place base, TypePtr content,
@@ -58,20 +92,8 @@ static void teardownMembers(ExprResolver& resolver, Module& module, Place base, 
     U16 index = 0;
 
     for(auto field: tuple->fields.contents(global)) {
-        auto implementation = teardownFor(module, field.type, half, source);
-        auto kind = teardownKind(ownershipOf(module, field.type), half);
-
-        if(implementation) {
-            auto place = resolver.project(base, ProjectionKind::Field, index);
-            auto isDrop = half == Teardown::Drop;
-            auto drop = resolver.emit<InstDrop>(source, 0, module.scalar.unit, place,
-                                                isDrop ? kind : TeardownKind::None,
-                                                isDrop ? TeardownKind::None : kind);
-
-            if(isDrop) drop->drop = implementation;
-            else drop->reclaim = implementation;
-        }
-
+        teardownMember(resolver, module, base, ProjectionKind::Field, index, field.type, field.boxed,
+                       half, source);
         index++;
     }
 }
@@ -204,9 +226,19 @@ static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardow
         auto record = (RecordType*)global[type];
 
         if(record->layout == RecordType::Single) {
-            auto content = record->constructors.get(global, 0).content;
-            teardownMembers(resolver, module, resolver.project(base, ProjectionKind::Downcast, 0),
-                            content, half, source);
+            auto constructor = record->constructors.get(global, 0);
+
+            // A boxed payload is one member rather than a list of them: what has to happen is the
+            // target's own teardown and then the release of the box, and both are one InstDrop on
+            // the place the Downcast reaches through the pointer.
+            if(constructor.boxed) {
+                teardownMember(resolver, module, base, ProjectionKind::Downcast, 0,
+                               constructor.content, true, half, source);
+            } else {
+                teardownMembers(resolver, module,
+                                resolver.project(base, ProjectionKind::Downcast, 0),
+                                constructor.content, half, source);
+            }
         } else if(record->layout == RecordType::Multi) {
             /*
              * Each constructor carries a different payload, so the glue reads the discriminant and
@@ -222,7 +254,12 @@ static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardow
 
             for(auto constructor: record->constructors.contents(global)) {
                 auto content = constructor.content;
-                if(!content || !contributes(module, content, half)) continue;
+                if(!content) continue;
+
+                // A boxed payload always contributes to the reclaim half even where its target has
+                // nothing to release, because the box itself has to be handed back.
+                auto releases = constructor.boxed && half == Teardown::Reclaim;
+                if(!releases && !contributes(module, content, half)) continue;
 
                 auto discriminant = resolver.load(
                     resolver.project(base, ProjectionKind::Discriminant, 0), source);
@@ -237,9 +274,16 @@ static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardow
                                                          resolver.ref(matches), drops, next));
 
                 resolver.current = drops;
-                teardownMembers(resolver, module, resolver.project(base, ProjectionKind::Downcast,
-                                                                   U16(constructor.index)),
-                                content, half, source);
+
+                if(constructor.boxed) {
+                    teardownMember(resolver, module, base, ProjectionKind::Downcast,
+                                   U16(constructor.index), content, true, half, source);
+                } else {
+                    teardownMembers(resolver, module,
+                                    resolver.project(base, ProjectionKind::Downcast,
+                                                     U16(constructor.index)),
+                                    content, half, source);
+                }
                 resolver.terminate(resolver.emit<InstJmp>(source, 0, module.scalar.unit, exit));
 
                 resolver.current = next;

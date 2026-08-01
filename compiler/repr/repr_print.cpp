@@ -154,6 +154,12 @@ void printRepr(ReprPrint& print, TypePtr type) {
         }
 
         print.writer.writeString(": "_v);
+
+        // The one thing about a field that its type does not say: the storage here is a pointer to
+        // one of these rather than one of these. A dump that left it out would print a recursive
+        // declaration as though it contained itself.
+        if(field.boxed) print.writer.writeString("@box "_v);
+
         printTypeName(print, field.type);
         print.writer.writeByte('\n');
     }

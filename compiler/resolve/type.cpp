@@ -51,6 +51,17 @@ static void completeInstance(Module& module, RecordType& instance) {
     instance.layout = declaration->layout;
     instance.pinned = declaration->pinned;
     instance.definitionReady = true;
+
+    /*
+     * An instantiation is the first point at which a generic declaration has a layout to be cyclic:
+     * `Tree(a)` is a shape, and it is `Tree(Int)` that contains a `Maybe(Tree(Int))` that contains a
+     * `Tree(Int)`. So the indirection is chosen here rather than on the declaration.
+     *
+     * Reaching this while some other declaration is still being defined is normal - the substitution
+     * above runs during the module's type phase - and such a walk finds nothing and remembers
+     * nothing. The declaration pass asks again once everything is resolved.
+     */
+    breakLayoutCycles(module, (Type*)&instance - global, kNullLocation);
 }
 
 void completePendingInstances(Module& module) {
@@ -151,7 +162,10 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
 
             for(Size i = 0; i < tuple->fields.size(); i++) {
                 auto field = tuple->fields.get(global, i);
-                fields.push(Field { substituteType(module, field.type, args, source), field.name });
+                // The indirection survives substitution: it is a property of the field rather than
+                // of what the field holds, exactly as the pinned layout below is.
+                fields.push(Field { substituteType(module, field.type, args, source), field.name,
+                                    field.boxed });
             }
 
             // The layout the tuple was pinned to survives substitution: `@layout(c)` on a generic
@@ -502,16 +516,30 @@ void requireTypeSlot(Module& module, GenEnv& env, TypePtr type) {
     invalidateGenSchema(env);
 }
 
+static bool readBoxAttribute(Module& module, const ast::Type& type);
+static bool hasAttribute(Module& module, ast::ParsePtr<ast::AttrList> attributes, const char* name, U32 length);
+
 static TypePtr resolveTupleAst(Module& module, const ast::Type& type, GenEnv* env) {
     auto parseBase = module.parse;
     Array<Field> fields;
     auto astFields = type.tup.fields;
 
     for(auto astField: astFields.contents(parseBase)) {
-        fields.push(Field {
-            resolveType(module, astField.type, env),
-            astField.name,
-        });
+        auto boxed = readBoxAttribute(module, astField.type);
+        auto declared = astField.type;
+
+        /*
+         * The attribute is spent here, so the type is resolved without it.
+         *
+         * That is the whole of why `@box` is not a type refinement the way `@bits` is: the field's
+         * declared type is what the field holds, and everything downstream - `f(cfg.cold)`, a
+         * pattern binding, a diagnostic - is entitled to see exactly what was written. Stripping
+         * the list rather than only the one attribute is safe because readBoxAttribute has already
+         * rejected the one combination that could have been in it.
+         */
+        if(hasAttribute(module, declared.attributes, "box", 3)) declared.attributes = nullptr;
+
+        fields.push(Field { resolveType(module, declared, env), astField.name, boxed });
     }
 
     return (Type*)resolveTupleType(module, toBuffer(fields), type.source) - *module.types;
@@ -660,9 +688,10 @@ static TypePtr resolveAlias(Module& module, TypeAlias& alias, Buffer<TypePtr> ar
  * The `@bits(n)` an attribute list carries, or zero.
  *
  * Everything else written as an attribute on a type is left alone rather than rejected, because the
- * grammar accepts `@name(args)` in this position for several features that do not exist yet
- * (`@layout(c)`, `@box`) and turning "not implemented" into "not allowed" here would have to be
- * undone by each of them.
+ * grammar accepts `@name(args)` in this position for features that do not exist yet and turning
+ * "not implemented" into "not allowed" here would have to be undone by each of them. `@box` is the
+ * one that has landed, and it is read by readBoxAttribute below rather than here, because it
+ * refines the *field* and not the type.
  */
 static bool readBitsAttribute(Module& module, ast::ParsePtr<ast::AttrList> attributes, LocationId source,
                               U32& bits) {
@@ -695,7 +724,84 @@ static bool readBitsAttribute(Module& module, ast::ParsePtr<ast::AttrList> attri
     return false;
 }
 
+/*
+ * `@box` on a field, which is a statement about the field's storage rather than about its type.
+ *
+ * It is read here, next to `@bits`, because the two are written in the same position and are the
+ * same shape of thing - a declaration-site annotation that changes a field's physical
+ * representation and that generic code sees straight through. What they differ in is the axis:
+ * `@bits` narrows the width and produces a distinct type, `@box` moves the storage out of line and
+ * produces a distinct *field*. So this one never reaches `resolveType`, and `cfg.cold` keeps
+ * whatever type was written after the attribute.
+ *
+ * Rejecting the pair is not tidiness. A `@bits` field lives inside a word shared with its
+ * neighbours and has no address of its own; a boxed one *is* an address. There is no representation
+ * that is both, so a program asking for both is asking for something that does not exist.
+ */
+static bool hasAttribute(Module& module, ast::ParsePtr<ast::AttrList> attributes, const char* name,
+                         U32 length) {
+    if(!attributes) return false;
+
+    auto parse = module.parse;
+    auto wanted = module.context.addUnqualifiedName(name, length);
+
+    for(auto attribute: parse[attributes]->contents(parse)) {
+        if(attribute.name == wanted) return true;
+    }
+
+    return false;
+}
+
+static bool readBoxAttribute(Module& module, const ast::Type& type) {
+    auto attributes = type.attributes;
+    if(!attributes) return false;
+
+    auto parse = module.parse;
+    auto box = module.context.addUnqualifiedName("box", 3);
+    auto bits = module.context.addUnqualifiedName("bits", 4);
+    auto boxed = false;
+    auto narrowed = false;
+
+    for(auto attribute: parse[attributes]->contents(parse)) {
+        if(attribute.name == bits) narrowed = true;
+        if(attribute.name != box) continue;
+
+        if(attribute.args.size()) {
+            module.context.diagnostics.error("`@box` takes no arguments"_v, attribute.source);
+            continue;
+        }
+
+        boxed = true;
+    }
+
+    if(boxed && narrowed) {
+        module.context.diagnostics.error("`@box` and `@bits` cannot both apply to one field - a narrowed field shares a word with its neighbours and has no address of its own, and a boxed field is one"_v,
+                                         type.source);
+        return false;
+    }
+
+    return boxed;
+}
+
 TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
+    /*
+     * Anything reaching here still carrying `@box` is one written somewhere a field is not, since
+     * resolveTupleAst strips the attribute off the fields it consumed.
+     *
+     * Reported rather than ignored because the two readings of `let x: @box T` are far apart and
+     * neither is this: it is either a boxed *local*, which is a real feature nothing implements yet,
+     * or a boxed type, which is precisely what an edge annotation exists not to be. Silently
+     * dropping it would compile a program to something other than what it says.
+     */
+    if(hasAttribute(module, type.attributes, "box", 3)) {
+        module.context.diagnostics.error("`@box` can only be written on a field of a record or tuple - it is a statement about where a field's storage lives, not a type"_v,
+                                         type.source);
+
+        auto plain = type;
+        plain.attributes = nullptr;
+        return resolveType(module, plain, env);
+    }
+
     U32 bits = 0;
     if(readBitsAttribute(module, type.attributes, type.source, bits)) {
         // Resolved without the attribute first, so that `@bits(4) UInt` narrows whatever `UInt`
@@ -973,8 +1079,29 @@ TypePtr applyReturnRootMutability(Module& module, TypePtr result, bool allRootsM
     return resolveBorrowType(module, ((BorrowType*)(*module.types)[result])->to, true);
 }
 
-TupType* resolveTupleType(Module& module, Buffer<Field> requested, LocationId source, TypeLayout layout) {
+TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId source, TypeLayout layout) {
     auto base = *module.types;
+
+    /*
+     * Normalized before anything is compared against it, because a box around nothing is nothing.
+     *
+     * A unit field occupies no storage, so there is nothing to allocate, nothing to point at and no
+     * address for anything to be stable at - and a write to one is elided, which would leave the
+     * pointer this field was going to hold whatever the frame contained while the derived teardown
+     * handed it to `freeHeap`. `@box ()` asks for indirect storage for a value that has none, and
+     * generic code substituting `a := ()` asks for it without meaning to.
+     *
+     * It happens *here* rather than at the creation below so that the flag never enters the interned
+     * identity: `{@box ()}` and `{()}` have to be one type, or `sameType` stops being pointer
+     * equality for two spellings of the same thing.
+     */
+    SmallArray<Field, 8> normalized;
+    for(auto field: fields) {
+        if(field.boxed && isUnit(base, field.type)) field.boxed = false;
+        normalized.push(field);
+    }
+
+    auto requested = toBuffer(normalized);
 
     for(auto tuplePointer: module.program.tupleTypes.contents(base)) {
         auto tuple = base[tuplePointer];
@@ -983,7 +1110,12 @@ TupType* resolveTupleType(Module& module, Buffer<Field> requested, LocationId so
         auto equal = true;
         for(Size i = 0; i < requested.length; i++) {
             auto existing = tuple->fields.get(base, i);
-            if(existing.type != requested[i].type || existing.name != requested[i].name) {
+
+            // `boxed` is part of the identity, not a decoration on it: `{@box Tree}` and `{Tree}`
+            // have different layouts, different ownership classes and different access paths, and
+            // the Repr cache is keyed on the type alone. See Field.
+            if(existing.type != requested[i].type || existing.name != requested[i].name ||
+               existing.boxed != requested[i].boxed) {
                 equal = false;
                 break;
             }
@@ -1004,25 +1136,209 @@ TupType* resolveTupleType(Module& module, Buffer<Field> requested, LocationId so
     tuple->named = named;
     tuple->layout = layout;
     module.program.tupleTypes.push(module.types, tuple - base);
-    if(!tuple->generic) checkTypeAcyclic(module, (Type*)tuple - base, source);
 
+    /*
+     * No cycle check here, deliberately.
+     *
+     * Interning happens while the declarations that would close a cycle are still being defined, so
+     * the answer at this point depends on how far through the module the walk has got: `data A {b:
+     * B}` / `data B {a: A}` sees nothing while B's content is null, and a third declaration naming
+     * the same interned tuple later sees the whole loop. Both are the same program.
+     *
+     * The question is asked once, against the declaration, after every content type in the module is
+     * resolved - see breakLayoutCycles and its callers - which is also the earliest point at which
+     * an indirection could be *inserted* rather than only reported.
+     */
+    (void)source;
     return tuple;
 }
 
 /*
- * The one layout question that is a *source* error, and therefore the one resolve keeps.
+ * Automatic indirection - Design.md's "Representation and layout" and doc/spec/repr.md.
  *
- * A type that reaches itself through inline containment has no finite value. That is true of every
- * target at once, so it is reported here - once, against the declaration - rather than rediscovered
- * by each code generator's layout pass and reported in two voices. Everything else about layout is
- * in compiler/repr/repr.h, whose recursion guard exists only so that a program which already
- * reported this can still finish emitting.
+ * A type whose layout is cyclic through *inline containment* cannot be laid out at all, so the
+ * compiler breaks the cycle with an indirection and nothing in the source names it. This is where
+ * the edge is chosen, and it is in resolve rather than in a backend for the reason the whole file
+ * is: which edge gets the pointer is a fact about the program, true of every target at once, and two
+ * code generators picking it separately could pick differently.
  *
- * The walk is the ordinary depth-first cycle search, and what it does *not* recurse through is the
- * whole content of the rule: a pointer, a borrow and a function value have a size independent of
- * what they name, so they break the cycle. That is Design-Memory §10.2's "a field whose type is a
- * handle has a size independent of its target", and the back edge this finds is exactly the edge
- * automatic indirection will later box.
+ * ## What is not an edge
+ *
+ * A field whose type is a *handle* has a size independent of its target, so it breaks the cycle
+ * before this ever sees it: a pointer, a borrow and a function value are the three the walk stops
+ * at, and an already-boxed field or constructor is a fourth - `@box` written by the programmer is
+ * the manual override on the cut below, and the compiler's own box is what a previous walk left.
+ *
+ * ## Where the cut lands
+ *
+ * At the back edge - the type reference naming a declaration that is already on the layout stack -
+ * *at whatever depth it appears inside generic arguments*. For
+ *
+ *     data Tree(a) = Branch {left: Maybe(Tree(a)), right: Maybe(Tree(a))} | Leaf(a)
+ *
+ * the reference to `Tree` inside `Tree`'s own body is that edge, and it is `Maybe(Tree)`'s `Just`
+ * payload rather than `Branch.left`. Cutting there is what produces a one-word child - the box is a
+ * non-null pointer, so `Nothing` folds into its null niche by the ordinary niche search - where
+ * cutting at `Branch.left` would make an *absent* child cost a heap-allocated `Maybe`.
+ *
+ * That is why there are two flags rather than one. `Field::boxed` is the edge inside a tuple, which
+ * is what `data List(a) = Nil | Cons {head: a, tail: List(a)}` needs; `Constructor::boxed` is the
+ * edge that *is* a constructor's whole payload, which is what `Just(a)` is and what a positional
+ * `data Loop = L(Loop)` is.
+ *
+ * ## Why the answer is uniform, and therefore not part of the type
+ *
+ * `Maybe(Tree)` has infinite inline size, so every `Maybe(Tree)` in the program - local, field,
+ * argument, generic instantiation - must be a pointer to a `Tree`. There is no context that could
+ * want it otherwise, so there is no variant and nothing for two contexts to disagree about. That is
+ * what makes it legal to leave out of the type: type identity exists to keep two things that
+ * *differ* from being confused, and these do not differ. `Maybe(Tree)` is one logical type with one
+ * Repr, and passing `node.left` to `fn f(m: Maybe(Tree))` needs no coercion.
+ *
+ * A *tuple* is rewritten rather than mutated, because tuples are interned structurally and `{Tree}`
+ * boxed has to be a different type from `{Tree}` unboxed. A *record* is mutated in place, because it
+ * is nominal: `Maybe(Tree)` is one instance and the only thing that could observe the change is
+ * `Maybe(Tree)` itself.
+ */
+
+// One walk's state. `incomplete` is what decides whether the answer may be remembered - see
+// RecordType::layoutBroken.
+struct LayoutWalk {
+    TypeList stack;
+    bool incomplete = false;
+};
+
+static TypePtr breakCycles(Module& module, TypePtr type, LayoutWalk& walk, LocationId source);
+
+// Whether this type is one the walk is currently inside, which is the whole definition of a back
+// edge: reaching it again means laying it out needs its own size.
+static bool onLayoutStack(LayoutWalk& walk, TypePtr type) {
+    for(auto entry: walk.stack) {
+        if(entry == type) return true;
+    }
+
+    return false;
+}
+
+// A tuple, with whichever of its fields turned out to be back edges boxed. Returns the interned
+// tuple to use in place of this one, which is this one where nothing changed.
+static TypePtr breakTupleCycles(Module& module, TupType& tuple, LayoutWalk& walk, LocationId source) {
+    auto base = *module.types;
+    auto self = (Type*)&tuple - base;
+
+    // A tuple cannot be its own back edge - reaching one means a record on the way round, and the
+    // record is where the cut belongs - but the guard keeps the recursion bounded regardless.
+    if(onLayoutStack(walk, self)) return self;
+
+    walk.stack.push(self);
+
+    Array<Field> fields;
+    auto changed = false;
+
+    for(auto field: tuple.fields.contents(base)) {
+        auto updated = field;
+
+        if(field.boxed) {
+            // Already an indirection, whether the programmer wrote `@box` or a previous walk did.
+            // Either way this edge is not part of any cycle.
+        } else if(onLayoutStack(walk, field.type)) {
+            updated.boxed = true;
+            changed = true;
+        } else {
+            auto rewritten = breakCycles(module, field.type, walk, source);
+            if(rewritten != field.type) {
+                updated.type = rewritten;
+                changed = true;
+            }
+        }
+
+        fields.push(updated);
+    }
+
+    walk.stack.pop();
+    if(!changed) return self;
+
+    // The pin travels with the fields: a `@layout(c)` tuple that needed an indirection is still a
+    // `@layout(c)` tuple, and a boxed field under that pin is a pointer member, which is exactly how
+    // a C struct with one is modelled.
+    return (Type*)resolveTupleType(module, toBuffer(fields), source, tuple.layout) - base;
+}
+
+static void breakRecordCycles(Module& module, RecordType& record, LayoutWalk& walk, LocationId source) {
+    auto base = *module.types;
+    auto self = (Type*)&record - base;
+
+    if(record.layoutBroken || onLayoutStack(walk, self)) return;
+    if(!record.definitionReady) walk.incomplete = true;
+
+    walk.stack.push(self);
+
+    for(Size i = 0; i < record.constructors.size(); i++) {
+        auto constructor = record.constructors.get(base, i);
+        if(!constructor.content || constructor.boxed) continue;
+
+        if(onLayoutStack(walk, constructor.content)) {
+            // The payload *is* the back edge - `Just(Tree)` inside `Tree`. There is no field to
+            // mark, so the constructor carries it.
+            constructor.boxed = true;
+            record.constructors.set(base, i, constructor);
+            continue;
+        }
+
+        auto rewritten = breakCycles(module, constructor.content, walk, source);
+        if(rewritten == constructor.content) continue;
+
+        constructor.content = rewritten;
+        record.constructors.set(base, i, constructor);
+    }
+
+    walk.stack.pop();
+
+    // Only where the walk saw the whole graph. A record reached while another declaration was still
+    // being defined has not been checked against that declaration, and remembering it would make the
+    // cut depend on which module-level phase happened to reach it first.
+    if(!walk.incomplete) record.layoutBroken = true;
+}
+
+static TypePtr breakCycles(Module& module, TypePtr type, LayoutWalk& walk, LocationId source) {
+    if(!type) return type;
+
+    auto base = *module.types;
+    auto value = base[type];
+
+    // Reaching a value through one of these costs a load rather than containment, so the layout of
+    // what is on the other side cannot make this one infinite.
+    if(value->kind == Type::Ptr || value->kind == Type::Borrow || value->kind == Type::Fun) {
+        return type;
+    }
+
+    if(value->kind == Type::Tup) return breakTupleCycles(module, *(TupType*)value, walk, source);
+
+    if(value->kind == Type::Record) {
+        breakRecordCycles(module, *(RecordType*)value, walk, source);
+        return type;
+    }
+
+    return type;
+}
+
+void breakLayoutCycles(Module& module, TypePtr type, LocationId source) {
+    // A generic declaration has no layout to be cyclic: `List(a)` is a shape rather than a type, and
+    // the indirection belongs to `List(Int)`, which is where the walk will find it.
+    if(!type || isGeneric(*module.types, type)) return;
+
+    LayoutWalk walk;
+    breakCycles(module, type, walk, source);
+}
+
+/*
+ * The backstop, and the one layout question that could still be a *source* error.
+ *
+ * Everything reachable is expected to have been broken by the walk above, so this reports what the
+ * walk could not fix rather than what the programmer wrote. It is kept because the alternative to a
+ * diagnostic here is an infinite recursion in whichever pass asks for a size next, and because the
+ * two walks share the definition of what an edge is - the same three handle kinds, plus a boxed
+ * field or constructor, which is a pointer the compiler or the programmer already inserted.
  */
 static bool checkAcyclic(Module& module, TypePtr type, TypeList& stack, LocationId source) {
     if(!type) return true;
@@ -1052,10 +1368,12 @@ static bool checkAcyclic(Module& module, TypePtr type, TypeList& stack, Location
 
     if(value->kind == Type::Tup) {
         for(auto field: ((TupType*)value)->fields.contents(base)) {
+            if(field.boxed) continue;
             ok = checkAcyclic(module, field.type, stack, source) && ok;
         }
     } else {
         for(auto constructor: ((RecordType*)value)->constructors.contents(base)) {
+            if(constructor.boxed) continue;
             ok = checkAcyclic(module, constructor.content, stack, source) && ok;
         }
     }
@@ -1140,7 +1458,42 @@ static bool hasInstance(Module& module, GlobalPtr<TypeClass> typeClass, TypePtr 
 // half of the same kind - which is the whole of "recurse into each field, then release this type's
 // own storage". The two halves are folded independently, which is the point of splitting them: a
 // member with only a `Reclaim` must not give its container a `Drop` and cost it region eligibility.
-static void includeMember(Module& module, TypePtr member, Ownership& target) {
+/*
+ * A boxed member - see Field::boxed.
+ *
+ * The three answers all change, and each of them is the box rather than what is in it:
+ *
+ *  - **TrivialCopy is lost.** A bitwise duplicate would copy the pointer and leave two owners of one
+ *    allocation. `Copy` is still writable by hand - allocate a new box, copy the target - so what
+ *    boxing does is demote TrivialCopy to Copy rather than remove copying, which is the one
+ *    non-transparent consequence of `@box` and the reason it is an API change.
+ *  - **TrivialSink is preserved, and sometimes gained.** Relocating the owner moves a pointer and
+ *    the target keeps its address, so a type that was self-referential - and therefore not
+ *    TrivialSink - can become one by boxing the self-referential edge. That is why the inner value's
+ *    answer is *not* folded in here.
+ *  - **Reclaim is always derived**, because the box itself has to be handed back even where its
+ *    target releases nothing. Drop follows the target: a box around something with no effect at last
+ *    use has none either.
+ */
+static void includeBoxedMember(Module& module, TypePtr member, Ownership& target) {
+    auto inner = ownershipOf(module, member);
+
+    target.trivialCopy = false;
+    target.reclaim = TeardownKind::Derived;
+
+    if(inner.drop != TeardownKind::None && target.drop == TeardownKind::None) {
+        target.drop = TeardownKind::Derived;
+    }
+}
+
+// Folds one member into an aggregate's classification. A member that is not trivial makes the whole
+// aggregate not trivial, and a member with either half of a teardown gives the aggregate a derived
+// half of the same kind - which is the whole of "recurse into each field, then release this type's
+// own storage". The two halves are folded independently, which is the point of splitting them: a
+// member with only a `Reclaim` must not give its container a `Drop` and cost it region eligibility.
+static void includeMember(Module& module, TypePtr member, Ownership& target, bool boxed = false) {
+    if(boxed) return includeBoxedMember(module, member, target);
+
     auto inner = ownershipOf(module, member);
 
     target.trivialCopy = target.trivialCopy && inner.trivialCopy;
@@ -1208,7 +1561,9 @@ Ownership ownershipOf(Module& module, TypePtr type) {
 
         case Type::Tup: {
             auto tuple = (TupType*)value;
-            for(auto field: tuple->fields.contents(base)) includeMember(module, field.type, result);
+            for(auto field: tuple->fields.contents(base)) {
+                includeMember(module, field.type, result, field.boxed);
+            }
             break;
         }
 
@@ -1219,7 +1574,8 @@ Ownership ownershipOf(Module& module, TypePtr type) {
             // types to fold and the scalar answer is already right.
             if(record->layout != RecordType::Enum) {
                 for(auto constructor: record->constructors.contents(base)) {
-                    if(constructor.content) includeMember(module, constructor.content, result);
+                    if(!constructor.content) continue;
+                    includeMember(module, constructor.content, result, constructor.boxed);
                 }
             }
 
@@ -1318,6 +1674,17 @@ static Ownership ownershipInAt(Module& module, GenEnv* env, TypePtr type, U32 de
             Ownership result;
             for(auto field: ((TupType*)value)->fields.contents(base)) {
                 auto inner = ownershipInAt(module, env, field.type, depth - 1);
+
+                // The boxed rules, stated the same way includeBoxedMember states them: the pointer
+                // is what is copied, moved and released, so TrivialCopy goes, TrivialSink stays, the
+                // reclaim is the box's own, and only the drop follows what is inside it.
+                if(field.boxed) {
+                    result.trivialCopy = false;
+                    result.reclaim = TeardownKind::Derived;
+                    if(inner.drop != TeardownKind::None) result.drop = TeardownKind::Derived;
+                    continue;
+                }
+
                 result.trivialCopy = result.trivialCopy && inner.trivialCopy;
                 result.trivialSink = result.trivialSink && inner.trivialSink;
                 if(inner.reclaim != TeardownKind::None) result.reclaim = TeardownKind::Derived;
@@ -1337,6 +1704,14 @@ static Ownership ownershipInAt(Module& module, GenEnv* env, TypePtr type, U32 de
                     if(!constructor.content) continue;
 
                     auto inner = ownershipInAt(module, env, constructor.content, depth - 1);
+
+                    if(constructor.boxed) {
+                        result.trivialCopy = false;
+                        result.reclaim = TeardownKind::Derived;
+                        if(inner.drop != TeardownKind::None) result.drop = TeardownKind::Derived;
+                        continue;
+                    }
+
                     result.trivialCopy = result.trivialCopy && inner.trivialCopy;
                     result.trivialSink = result.trivialSink && inner.trivialSink;
                     if(inner.reclaim != TeardownKind::None) result.reclaim = TeardownKind::Derived;
@@ -1492,9 +1867,15 @@ static bool scalarBits(GlobalBase base, TupType& tuple, U32 depth, PackedRun& ru
     // over a full-width payload - is a separate feature rather than this one.
     Array<U16> order;
     for(U16 i = 0; i < count; i++) {
-        auto type = tuple.fields.get(base, i).type;
-        if(!packableValue(base, type)) return false;
-        if(!valueWidthAt(base, type, depth + 1).isNarrow()) return false;
+        auto field = tuple.fields.get(base, i);
+
+        // A boxed field is a whole pointer, which is not narrow on any target this compiler emits
+        // for - so an aggregate holding one has no scalar form. Answering here rather than through
+        // `valueWidthAt` is also what keeps this walk finite over a recursive type: what is on the
+        // other side of a box has no bearing on the width of the thing holding it.
+        if(field.boxed) return false;
+        if(!packableValue(base, field.type)) return false;
+        if(!valueWidthAt(base, field.type, depth + 1).isNarrow()) return false;
 
         order.push(i);
     }
@@ -1563,6 +1944,10 @@ static ValueWidth valueWidthAt(GlobalBase base, TypePtr type, U32 depth) {
 
             auto constructors = record->constructors.contents(base);
             if(!constructors.size()) return {};
+
+            // A boxed payload makes the newtype a pointer, which is not narrow - and asking about
+            // its target would walk a recursive declaration forever.
+            if(constructors[0].boxed) return {};
 
             return valueWidthAt(base, constructors[0].content, depth + 1);
         }
@@ -1655,8 +2040,13 @@ bool packCandidate(GlobalBase base, TupType& tuple, U16 index) {
     if(index >= count) return false;
 
     auto narrowAt = [&](Size at) {
-        auto type = tuple.fields.get(base, at).type;
-        return packableValue(base, type) && valueWidth(base, type).isNarrow();
+        auto field = tuple.fields.get(base, at);
+
+        // A boxed field is a pointer with an address of its own, which is most of what boxing one is
+        // for. Co-packing it would take that address away, and there is nothing narrow about it to
+        // pack in the first place.
+        if(field.boxed) return false;
+        return packableValue(base, field.type) && valueWidth(base, field.type).isNarrow();
     };
 
     if(!narrowAt(index)) return false;
@@ -1781,6 +2171,11 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
                 auto field = tuple->fields.get(base, i);
 
                 if(field.name) target << context.findName(field.name) << ": ";
+
+                // Printed even where nothing in the source wrote it, because an automatic
+                // indirection is the difference between a type that has a layout and one that does
+                // not, and a diagnostic naming the two the same way would be unreadable.
+                if(field.boxed) target << "@box ";
                 describeType(context, base, field.type, target);
             }
 

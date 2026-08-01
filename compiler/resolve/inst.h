@@ -393,6 +393,21 @@ struct InstAlloc: Inst {
     bool releasedHere = true;
 
     /*
+     * The target of a boxed edge - `Field::boxed` or `Constructor::boxed`, whether written as `@box`
+     * or inserted as a recursive type's automatic indirection.
+     *
+     * Two consequences, and they are the two halves of "the aggregate owns this now". It is *not*
+     * released by this frame, because the aggregate's derived `Reclaim` hands it back; and it is
+     * placed out of line unconditionally rather than by what the escape analysis proved, because the
+     * teardown that frees it is interned per *type* and cannot ask where one particular value's box
+     * came from. A stack box under a heap-placed owner would be a frame address handed to `freeHeap`.
+     *
+     * This is the same handover an array literal's buffer makes, and it is a flag rather than a
+     * `storageFlag` because a box has no run-time choice to record.
+     */
+    bool ownedElsewhere = false;
+
+    /*
      * A Bool constant recording where this allocation landed, for code that has to know at run
      * time. The array's buffer is the case it exists for: its `Drop` frees the buffer only when it
      * went to the heap, and whether it did is a decision made after the body was resolved.

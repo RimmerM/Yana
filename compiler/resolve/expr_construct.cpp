@@ -106,7 +106,7 @@ Place ExprResolver::materialize(ModulePtr<Value> value, LocationId source) {
     return place;
 }
 
-Place ExprResolver::project(Place place, ProjectionKind kind, U16 index, ModulePtr<Value> value) {
+Place ExprResolver::projectStorage(Place place, ProjectionKind kind, U16 index, ModulePtr<Value> value) {
     Place result = place;
     result.projections = {};
 
@@ -116,6 +116,53 @@ Place ExprResolver::project(Place place, ProjectionKind kind, U16 index, ModuleP
 
     result.projections.push(module.arena, Projection { kind, index, value });
     return result;
+}
+
+/*
+ * Whether the step about to be taken crosses an indirection - `Field::boxed` or `Constructor::boxed`.
+ *
+ * Asked of the place's own type rather than passed in, because that is what makes this a choke
+ * point: every path the resolver builds goes through `project`, so a boxed edge cannot be reached by
+ * forgetting to follow it. The cost is one walk of a path that is a handful of steps long.
+ */
+bool ExprResolver::crossesBox(const Place& place, ProjectionKind kind, U16 index) {
+    if(kind != ProjectionKind::Field && kind != ProjectionKind::Downcast) return false;
+
+    auto owner = placeType(place);
+    if(!owner) return false;
+
+    auto value = global[owner];
+
+    if(kind == ProjectionKind::Downcast) {
+        if(value->kind != Type::Record) return false;
+
+        auto& record = *(RecordType*)value;
+        return index < record.constructors.size() && record.constructors.get(global, index).boxed;
+    }
+
+    if(value->kind != Type::Tup) return false;
+
+    auto& tuple = *(TupType*)value;
+    return index < tuple.fields.size() && tuple.fields.get(global, index).boxed;
+}
+
+/*
+ * One step of a path, following the box where the step crosses one.
+ *
+ * A boxed field's storage holds a `%T`, so `cfg.cold` is `Field(i)` *and* the `Deref` after it - and
+ * appending that Deref here rather than at each of the dozen places that build a field path is what
+ * keeps `@box` invisible to all of them. Reading, writing, borrowing, matching and tearing down a
+ * boxed field are then the same code as for an unboxed one, over a place that happens to have one
+ * more step in it.
+ *
+ * What must *not* follow the box is the handful of operations on the box itself - the allocation
+ * that creates it and the release that hands it back - and those call `projectStorage` instead.
+ */
+Place ExprResolver::project(Place place, ProjectionKind kind, U16 index, ModulePtr<Value> value) {
+    auto stepped = projectStorage(place, kind, index, value);
+    if(!crossesBox(place, kind, index)) return stepped;
+
+    return projectStorage(stepped, ProjectionKind::Deref, 0);
 }
 
 // The type of the storage a place's root names, before any projection.
@@ -192,7 +239,13 @@ TypePtr placeType(Module& module, Function& function, const Place& place, Size l
                 auto record = (RecordType*)global[type];
                 if(projection.index >= record->constructors.size()) return module.scalar.error;
 
-                type = record->constructors.get(global, projection.index).content;
+                auto constructor = record->constructors.get(global, projection.index);
+                type = constructor.content;
+
+                // A boxed payload is reached through the pointer that holds it, so what a Downcast
+                // *into* one names is the pointer and the Deref that follows names the payload. See
+                // Constructor::boxed, and ExprResolver::project, which appends that Deref.
+                if(constructor.boxed) type = resolvePointerType(module, type);
                 break;
             }
             case ProjectionKind::Field: {
@@ -213,7 +266,14 @@ TypePtr placeType(Module& module, Function& function, const Place& place, Size l
                 auto tuple = (TupType*)global[type];
                 if(projection.index >= tuple->fields.size()) return module.scalar.error;
 
-                type = tuple->fields.get(global, projection.index).type;
+                auto field = tuple->fields.get(global, projection.index);
+                type = field.type;
+
+                // Same for a boxed field: the storage at this offset is a `%T`, and the field's
+                // declared type is what the Deref after it produces. This is the one place the two
+                // readings of `Field::boxed` are reconciled, and everything downstream - the borrow
+                // checker, lowering, every backend's place walk - sees an ordinary pointer.
+                if(field.boxed) type = resolvePointerType(module, type);
                 break;
             }
             default:
@@ -302,12 +362,85 @@ void ExprResolver::assign(Place place, ModulePtr<Value> value, LocationId source
     write(place, value, source, Value::Assign);
 }
 
+/*
+ * The allocation an indirect edge needs, and where it comes from.
+ *
+ * "Construction allocates": `Cons {head: x, tail: rest}` performs an allocation nothing in the
+ * source names, because the field holds a pointer and something has to be on the other end of it.
+ * The storage is an ordinary `InstAlloc`, which is the point - it is therefore an ordinary subject
+ * of the storage rules, so the same construction inside a region will be a bump and the release will
+ * specialize away, with nothing here deciding anything about placement.
+ *
+ * `ownedElsewhere` is the one thing this asks of that machinery. The box belongs to the aggregate it
+ * was stored into rather than to the frame that built it, so the frame must neither free it at the
+ * end of the local's life - which would be a use-after-free the moment the aggregate outlived the
+ * frame - nor leave it on the stack, where the owner's teardown would hand a frame address to
+ * `freeHeap`. It is the same statement an array literal's buffer makes with `storageFlag`, minus the
+ * flag, because a box has no run-time choice to record: it is always out of line.
+ */
+void ExprResolver::createBox(Place pointer, TypePtr target, LocationId source) {
+    auto storage = allocate(target, source);
+    if(!storage) return;
+
+    ((InstAlloc*)local[storage])->ownedElsewhere = true;
+
+    auto address = ref(emit<InstAddress>(source, 0, resolvePointerType(module, target),
+                                         placeFor(storage, source)));
+    emit<InstInit>(source, 0, module.scalar.unit, pointer, address, Value::Init);
+}
+
+/*
+ * A path ending in the Deref that `project` appended for a boxed edge, cut back to the pointer.
+ *
+ * Nothing else can look like this by accident. `project` is the only producer of paths in the
+ * resolver, and the only Deref it appends on its own is the one that follows a box; a Deref a
+ * *program* wrote is a step off a `%T` the program is holding, whose previous step is not a boxed
+ * field. So the test is exact rather than a heuristic.
+ */
+Maybe<Place> ExprResolver::boxOf(const Place& place) {
+    auto projections = place.projections;
+    auto count = projections.size();
+    if(count < 2) return Nothing();
+
+    SmallArray<Projection, 8> steps;
+    for(auto projection: projections.contents(local)) steps.push(projection);
+
+    if(steps[count - 1].kind != ProjectionKind::Deref) return Nothing();
+
+    // The place the boxed step was taken from, and the place of the pointer it produced. Rebuilt by
+    // prefix length, since a Place holds its path as a list rather than as something sliceable.
+    auto prefixOf = [&](Size length) {
+        Place result = place;
+        result.projections = {};
+        for(Size i = 0; i < length; i++) result.projections.push(module.arena, steps[i]);
+        return result;
+    };
+
+    auto& boxed = steps[count - 2];
+    if(!crossesBox(prefixOf(count - 2), boxed.kind, boxed.index)) return Nothing();
+
+    return Just(prefixOf(count - 1));
+}
+
 void ExprResolver::write(Place place, ModulePtr<Value> value, LocationId source, Value::Kind kind) {
     if(isUnit(global, placeType(place))) return;
 
     if(!value) {
         context.diagnostics.error("cannot initialize aggregate field without a value"_v, source);
         return;
+    }
+
+    /*
+     * Initializing *through* a box is initializing the box as well.
+     *
+     * `Init` is the resolver saying this storage is fresh, and for a boxed field the storage on the
+     * far side of the pointer does not exist yet - so the allocation happens here, once, at the one
+     * place every construction goes through. An `Assign` never does: overwriting a live field writes
+     * through the box it already has, which is what keeps a boxed field's address stable while its
+     * value changes, and is most of the reason to write `@box` in the first place.
+     */
+    if(kind == Value::Init) {
+        if(auto box = boxOf(place)) createBox(box.unwrap(), placeType(place), source);
     }
 
     emit<InstInit>(source, 0, module.scalar.unit, place, value, kind);

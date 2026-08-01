@@ -92,10 +92,19 @@ static void printPlace(ResolvePrint& print, Function& function, const Place& pla
 
             print.writer.writeByte('?');
         } else if(projection.kind == ProjectionKind::Downcast) {
+            // A dump is asked about programs that did not resolve as well as ones that did, so a
+            // path whose type ran out is printed as an unknown step rather than followed.
+            if(!type || print.global[type]->kind != Type::Record) {
+                print.writer.writeString("@?"_v);
+                type = nullptr;
+                continue;
+            }
+
             auto record = (RecordType*)print.global[type];
+            auto constructor = record->constructors.get(print.global, projection.index);
             print.writer.writeByte('@');
-            print.writer.writeString(print.context.findName(record->constructors.get(print.global, projection.index).name));
-            type = record->constructors.get(print.global, projection.index).content;
+            print.writer.writeString(print.context.findName(constructor.name));
+            type = boxedStep(*print.program.core, constructor.content, constructor.boxed);
         } else if(projection.kind == ProjectionKind::Field && print.global[type]->kind == Type::Fun) {
             // `%f.code` - a function value's three words are reached like any other aggregate's
             // fields, so they are printed like them rather than as offsets.
@@ -103,13 +112,24 @@ static void printPlace(ResolvePrint& print, Function& function, const Place& pla
             print.writer.writeString(funValueFieldName(projection.index));
             type = funValueFieldType(*print.program.core, projection.index);
         } else if(projection.kind == ProjectionKind::Field) {
+            if(!type || print.global[type]->kind != Type::Tup ||
+               projection.index >= ((TupType*)print.global[type])->fields.size()) {
+                print.writer.writeString(".?"_v);
+                type = nullptr;
+                continue;
+            }
+
             auto tuple = (TupType*)print.global[type];
             auto field = tuple->fields.get(print.global, projection.index);
             print.writer.writeByte('.');
 
             if(field.name) print.writer.writeString(print.context.findName(field.name));
             else writeUInt(print.writer, projection.index);
-            type = field.type;
+
+            // The path printed for a boxed field is `.cold.*`, and the `.*` is a step off a `%T` -
+            // so the type this walk carries has to be that pointer, exactly as every other walk's
+            // does. See boxedStep.
+            type = boxedStep(*print.program.core, field.type, field.boxed);
         } else if(projection.kind == ProjectionKind::Deref) {
             print.writer.writeString(".*"_v);
             type = pointeeType(print.global, type);

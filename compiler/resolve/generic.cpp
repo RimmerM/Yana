@@ -286,6 +286,7 @@ static void resolveProperty(Clone& clone, Place& into, U16 slot, const Place& pl
     auto env = functionGen(global, clone.from);
     if(!env) return;
 
+
     auto& schema = genSchemaOf(clone.module, *env);
     TypePtr owner = nullptr;
     StringId field = 0;
@@ -308,7 +309,7 @@ static void resolveProperty(Clone& clone, Place& into, U16 slot, const Place& pl
         auto record = (RecordType*)global[concrete];
         if(record->layout != RecordType::Single || record->constructors.isEmpty()) return;
 
-        into.projections.push(clone.module.arena, Projection { ProjectionKind::Downcast, 0, nullptr });
+        into = clone.resolver.project(into, ProjectionKind::Downcast, 0);
         content = record->constructors.get(global, 0).content;
     }
 
@@ -318,7 +319,7 @@ static void resolveProperty(Clone& clone, Place& into, U16 slot, const Place& pl
     for(Size i = 0; i < tuple->fields.size(); i++) {
         if(tuple->fields.get(global, i).name != field) continue;
 
-        into.projections.push(clone.module.arena, Projection { ProjectionKind::Field, U16(i), nullptr });
+        into = clone.resolver.project(into, ProjectionKind::Field, U16(i));
         return;
     }
 
@@ -337,7 +338,28 @@ static Place clonePlace(Clone& clone, const Place& place) {
 
     auto projections = place.projections;
 
+    /*
+     * Whether the step just taken added a Deref of its own, so that the original's copy of that same
+     * Deref is not added twice.
+     *
+     * A generic body can hold a path into a type that was *already* concrete and already boxed - a
+     * `lens fn f(c: Config) -> a` is generic in its continuation and not in `Config` - and such a
+     * path arrives here with the Deref in it. The same path into a type that only becomes boxed once
+     * the arguments are known arrives without one. Both have to come out with exactly one.
+     */
+    auto followed = false;
+
     for(auto projection: projections.contents(clone.local)) {
+        // The Deref the previous step already supplied. Nothing else can be mistaken for it: a Deref
+        // a *program* wrote steps off a `%T` field, whose declared type is a pointer and which is
+        // therefore not boxed.
+        if(followed && projection.kind == ProjectionKind::Deref) {
+            followed = false;
+            continue;
+        }
+
+        followed = false;
+
         // A constrained field becomes the ordinary access it always described, now that the owner
         // is a type with a layout. This is the whole of the compile-time property half: after this
         // point the specialization is indistinguishable from a body someone wrote concretely.
@@ -346,9 +368,22 @@ static Place clonePlace(Clone& clone, const Place& place) {
             continue;
         }
 
-        result.projections.push(clone.module.arena, Projection {
-            projection.kind, projection.index, cloneValue(clone, projection.value),
-        });
+        /*
+         * Rebuilt through `project` rather than copied, so that an edge which is boxed in the
+         * *concrete* type gets the Deref that reaches through it.
+         *
+         * This is the one place automatic indirection meets specialization, and it has to be here
+         * rather than in the generic body. `Maybe(a)` has no layout and no box; `Maybe(Tree)` has
+         * both, because `Tree` is what closes the cycle. So a body written once over `Maybe(a)` has
+         * a bare Downcast in it and the specialization at `a = Tree` needs a Downcast and a load -
+         * and the substituted type is the first thing that knows. Nothing else has to change,
+         * because `project` is where that question is asked for source code too.
+         */
+        auto before = result.projections.size();
+        result = clone.resolver.project(result, projection.kind, projection.index,
+                                        cloneValue(clone, projection.value));
+
+        followed = result.projections.size() > before + 1;
     }
 
     return result;

@@ -1,0 +1,38 @@
+import Native
+
+-- The half of automatic indirection that no value can show: the box is *handed back*.
+--
+-- A recursive type's derived `Reclaim` recurses through the indirection and then releases the
+-- storage the indirection named. A version of it that recursed and never released would produce
+-- every number `Recursive.yana` asserts, and would leak one allocation per node - so the assertion
+-- has to be made against the allocator rather than against the program's own values.
+--
+-- Native only, deliberately: the heap this reads is `Native`'s bump allocator, and on the JS target
+-- there is nothing to reclaim - the host collector owns it, and `reclaim$` compiles to nothing. See
+-- Design-Memory's split of teardown into the half that is elidable and the half that never is.
+
+data List = Nil | Cons {head: Int, tail: List}
+
+fn sum(xs: List) -> Int = match xs:
+    Nil -> 0
+    Cons(c) -> c.head + sum(c.tail)
+
+fn buildAndDrop() -> Int:
+    let xs = Cons {head: 1, tail: Cons {head: 2, tail: Cons {head: 39, tail: Nil}}}
+    return sum(xs)
+
+fn main() -> Int:
+    -- Once first, so that the region is mapped and the size class these nodes fall into has been
+    -- reached at least once. Everything measured after this is reuse or growth.
+    let warm = buildAndDrop()
+
+    -- `allocateHeap` serves a request from the free list of its size class when one is there, and
+    -- only advances `heapNext` for a genuinely fresh block. So building the same three nodes again
+    -- moves this pointer exactly when the first three were not released.
+    let settled = heapNext
+    let again = buildAndDrop()
+
+    if !(heapNext == settled) then return -1
+    if again != warm then return -2
+
+    return again

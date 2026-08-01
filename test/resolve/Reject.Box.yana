@@ -1,0 +1,21 @@
+-- `@box` says where a *field's* storage lives, so the two ways of getting it wrong are asking for a
+-- representation that does not exist and writing it somewhere a field is not. Both are reported
+-- rather than ignored, because either one silently dropped would compile a program to something
+-- other than what it says.
+
+-- A narrowed field shares a word with its neighbours and has no address of its own; a boxed field
+-- *is* an address. There is no representation that is both.
+data Contradiction {a: @box @bits(4) Int, b: Bool}
+
+-- It takes no arguments. `@box(8)` reads as an alignment or a size and is neither.
+data WithArgument {value: @box(8) Int}
+
+-- Not a field. The two readings of this are a boxed *local*, which is a feature nothing implements
+-- yet, and a boxed type - which is precisely what an edge annotation exists not to be.
+fn boxedArgument(x: @box Int) -> Int = x
+
+fn boxedResult(x: Int) -> @box Int = x
+
+-- Inside a type argument, which is the viral spelling the whole design avoids: `Maybe(@box Tree)`
+-- would have to be a different type from `Maybe(Tree)`, and every use site would have to say so.
+data Viral {items: Maybe(@box Int)}

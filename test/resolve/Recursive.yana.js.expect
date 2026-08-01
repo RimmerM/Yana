@@ -1,0 +1,213 @@
+"use strict";
+var liveNodes = 0;
+
+// Core
+function add_eq_Int(target, amount) {
+  target.$v = target.$v + amount | 0;
+  return;
+}
+
+function sub_eq_Int(target, amount) {
+  target.$v = target.$v - amount | 0;
+  return;
+}
+
+// ResolveTest
+function sum(xs) {
+  var v13;
+  if (xs === null) {
+    v13 = 0;
+  } else {
+    v13 = xs.head + sum(xs.tail.$v) | 0;
+  }
+  return v13;
+}
+
+function total(t) {
+  var v16;
+  if (t.$tag === 0) {
+    v16 = t.$p;
+  } else {
+    v16 = (t.label + totalOf(t.left) | 0) + totalOf(t.right) | 0;
+  }
+  return v16;
+}
+
+function totalOf(m) {
+  var v10;
+  if (m === null) {
+    v10 = 0;
+  } else {
+    v10 = total(m);
+  }
+  return v10;
+}
+
+function leftOf(t) {
+  var v17;
+  if (t.$tag === 0) {
+    v17 = t.$p;
+  } else {
+    var v7 = t.left;
+    var v8 = { $tag: 0, left: null, right: null, label: 0, $p: 0 };
+    var v13 = unwrapOr_Tree(v7, v8);
+    drop$Tree(v8);
+    var v14 = total(v13);
+    drop$Tree(v13);
+    v17 = v14;
+  }
+  return v17;
+}
+
+function buildList() {
+  var xs = { head: 0, tail: null };
+  var v4 = { head: 0, tail: null };
+  var v8 = { head: 39, tail: { $v: { head: 0, tail: null } } };
+  v8.tail.$v = null;
+  v4.head = 2;
+  v4.tail = { $v: { head: 0, tail: null } };
+  v4.tail.$v = v8;
+  xs.head = 1;
+  xs.tail = { $v: { head: 0, tail: null } };
+  xs.tail.$v = v4;
+  var v30 = sum(xs);
+  drop$List({ $v: xs });
+  return v30;
+}
+
+function buildTree() {
+  var deep = { $tag: 1, left: null, right: null, label: 0, $p: 0 };
+  var v6 = null;
+  var v9 = { $tag: 0, left: null, right: null, label: 0, $p: 20 };
+  v6 = { $tag: 0, left: null, right: null, label: 0, $p: 0 };
+  v6 = v9;
+  deep.left = null;
+  deep.right = v6;
+  deep.label = 5;
+  var t = { $tag: 1, left: null, right: null, label: 0, $p: 0 };
+  var v25 = null;
+  var v28 = { $tag: 0, left: null, right: null, label: 0, $p: 10 };
+  v25 = { $tag: 0, left: null, right: null, label: 0, $p: 0 };
+  v25 = v28;
+  t.left = v25;
+  t.right = deep;
+  t.label = 7;
+  var v48 = total(t);
+  var v49 = leftOf(t);
+  drop$Tree(t);
+  return v48 + v49 | 0;
+}
+
+function track(id) {
+  var v4 = { $v: liveNodes };
+  add_eq_Int(v4, 1);
+  liveNodes = v4.$v;
+  return { id: id };
+}
+
+function idsOf(c) {
+  var v14;
+  if (c === null) {
+    v14 = 0;
+  } else {
+    v14 = c.payload.id + idsOf(c.rest.$v) | 0;
+  }
+  return v14;
+}
+
+function buildChain() {
+  var c = { payload: { id: 0 }, rest: null };
+  var v4 = track(4);
+  var v5 = { payload: { id: 0 }, rest: null };
+  var v9 = track(5);
+  v5.payload = v9;
+  v5.rest = { $v: { payload: { id: 0 }, rest: null } };
+  v5.rest.$v = null;
+  c.payload = v4;
+  c.rest = { $v: { payload: { id: 0 }, rest: null } };
+  c.rest.$v = v5;
+  var v23 = idsOf(c);
+  drop$Chain({ $v: c });
+  return v23;
+}
+
+function main() {
+  var values = buildList() + buildTree() | 0;
+  var chained = buildChain();
+  if (liveNodes !== 0) {
+    return -1;
+  } else {
+    return values + chained | 0;
+  }
+}
+
+function Drop_Tracked_drop(value) {
+  var v4 = { $v: liveNodes };
+  sub_eq_Int(v4, 1);
+  liveNodes = v4.$v;
+  return;
+}
+
+function unwrapOr_Tree(m, fallback) {
+  var v2;
+  if (m === null) {
+    v2 = fallback;
+  } else {
+    v2 = m;
+  }
+  return v2;
+}
+
+function drop$Tree(value) {
+  if (value.$tag === 1) {
+    drop$Maybe_Tree({ $v: value.left });
+    drop$Maybe_Tree({ $v: value.right });
+  }
+  return;
+}
+
+function drop$Maybe_Tree(value) {
+  if (!(value.$v === null)) {
+    drop$Tree(value.$v);
+  }
+  return;
+}
+
+function reclaim$Tree(value) {
+  if (value.$tag === 1) {
+  }
+  return;
+}
+
+function reclaim$Maybe_Tree(value) {
+  if (!(value.$v === null)) {
+  }
+  return;
+}
+
+function drop$List(value) {
+  if (!(value.$v === null)) {
+    drop$List({ $v: value.$v.tail.$v });
+  }
+  return;
+}
+
+function reclaim$List(value) {
+  if (!(value.$v === null)) {
+  }
+  return;
+}
+
+function drop$Chain(value) {
+  if (!(value.$v === null)) {
+    Drop_Tracked_drop(value.$v.payload);
+    drop$Chain({ $v: value.$v.rest.$v });
+  }
+  return;
+}
+
+function reclaim$Chain(value) {
+  if (!(value.$v === null)) {
+  }
+  return;
+}

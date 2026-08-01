@@ -817,6 +817,10 @@ bool isNewtype(Gen& g, TypePtr type, TypePtr& content);
 // already present - see type.cpp.
 JsPtr<Expr> zeroValue(Gen& g, TypePtr type);
 
+// What a fresh *allocation* of this type holds, which differs from its zero only for a niche-folded
+// record whose payload is an object - the one shape a construction has to be able to write into.
+JsPtr<Expr> freshStorage(Gen& g, TypePtr type);
+
 // A one-property box: what a reference to something that is not an object has to be.
 JsPtr<Expr> boxOf(Gen& g, JsPtr<Expr> value);
 

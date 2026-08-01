@@ -533,8 +533,12 @@ static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, F
             type = lower.from.scalar.int_;
         } else if(projection.kind == ProjectionKind::Downcast) {
             auto record = (RecordType*)lower.global[type];
+            auto constructor = record->constructors.get(lower.global, projection.index);
             offset += lower.repr.of(type).payloadOffset;
-            type = record->constructors.get(lower.global, projection.index).content;
+
+            // A boxed payload sits at that offset as a pointer, and the Deref after this is what
+            // loads through it. See boxedStep, which every place walk shares.
+            type = boxedStep(*lower.from.core, constructor.content, constructor.boxed);
         } else if(projection.kind == ProjectionKind::Field && lower.global[type]->kind == Type::Fun) {
             offset += FunValueLayout::offsetOf(projection.index);
             type = funValueFieldType(*lower.from.core, projection.index);
@@ -542,7 +546,7 @@ static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, F
             auto field = lower.repr.fieldOf(type, projection.index);
             assertTrue(field != nullptr);
             offset += field->offset;
-            type = field->type;
+            type = boxedStep(*lower.from.core, field->type, field->boxed);
         } else if(projection.kind == ProjectionKind::Unit) {
             // The word a packed field lives in, which is the address the path has already reached:
             // a packed field's `offset` is its word's, so the Field in front of this one spent it.
@@ -607,13 +611,14 @@ static TypePtr placeOwnerType(LowerContext& lower, Function& function, const Pla
         if(projection.kind == ProjectionKind::Discriminant) {
             type = lower.from.scalar.int_;
         } else if(projection.kind == ProjectionKind::Downcast) {
-            type = ((RecordType*)lower.global[type])->constructors.get(lower.global, projection.index).content;
+            auto constructor = ((RecordType*)lower.global[type])->constructors.get(lower.global, projection.index);
+            type = boxedStep(*lower.from.core, constructor.content, constructor.boxed);
         } else if(projection.kind == ProjectionKind::Field && lower.global[type]->kind == Type::Fun) {
             type = funValueFieldType(*lower.from.core, projection.index);
         } else if(projection.kind == ProjectionKind::Field) {
             auto field = lower.repr.fieldOf(type, projection.index);
             if(!field) return nullptr;
-            type = field->type;
+            type = boxedStep(*lower.from.core, field->type, field->boxed);
         } else if(projection.kind == ProjectionKind::Deref) {
             type = pointeeType(lower.global, type);
         } else {
@@ -923,6 +928,11 @@ static PackedAccess packedAccess(LowerContext& lower, Function& function, const 
                 auto field = lower.repr.fieldOf(type, projection.index);
                 if(!field) return {};
 
+                // A boxed field is a whole pointer, so it is neither inside a packed word nor the
+                // start of one. `packCandidate` already declines it; declining here keeps that a
+                // fact this walk states rather than one it assumes.
+                if(field->boxed && access.exists()) return {};
+
                 if(access.exists()) {
                     /*
                      * Already inside a bit range, so this field's placement is relative to it. An
@@ -942,16 +952,19 @@ static PackedAccess packedAccess(LowerContext& lower, Function& function, const 
                     access.bitWidth = field->bitWidth;
                 }
 
-                type = field->type;
+                type = boxedStep(*lower.from.core, field->type, field->boxed);
                 break;
             }
-            case ProjectionKind::Downcast:
+            case ProjectionKind::Downcast: {
                 // A payload inside a bit range can only be a single-constructor record's, whose
                 // payload begins where the record does. Anything else has a tag of its own and is
                 // not a scalar - see valueWidth.
                 if(access.exists() && lower.repr.of(type).payloadOffset) return {};
-                type = ((RecordType*)lower.global[type])->constructors.get(lower.global, projection.index).content;
+
+                auto constructor = ((RecordType*)lower.global[type])->constructors.get(lower.global, projection.index);
+                type = boxedStep(*lower.from.core, constructor.content, constructor.boxed);
                 break;
+            }
             case ProjectionKind::Discriminant:
                 // A payload-free sum *is* its discriminant, so this names the same bits under
                 // another type and moves nothing. A *bit-tagged* sum's tag is at a placement of its
@@ -1291,6 +1304,10 @@ static NarrowRefAccess narrowRefAccess(LowerContext& lower, Function& function, 
                 auto field = lower.repr.fieldOf(access.type, projection.index);
                 if(!field) return {};
 
+                // A pointer is not a bit range, and what is on the other side of it is reached by a
+                // load rather than by a shift - so a path crossing a box leaves this shape entirely.
+                if(field->boxed) return {};
+
                 access.bitOffset += field->bitOffset;
                 access.bitWidth = field->isPacked()
                     ? field->bitWidth
@@ -1300,11 +1317,16 @@ static NarrowRefAccess narrowRefAccess(LowerContext& lower, Function& function, 
                 access.type = field->type;
                 break;
             }
-            case ProjectionKind::Downcast:
+            case ProjectionKind::Downcast: {
                 if(lower.repr.of(access.type).payloadOffset) return {};
-                access.type = ((RecordType*)lower.global[access.type])
-                    ->constructors.get(lower.global, projection.index).content;
+
+                auto constructor = ((RecordType*)lower.global[access.type])
+                    ->constructors.get(lower.global, projection.index);
+                if(constructor.boxed) return {};
+
+                access.type = constructor.content;
                 break;
+            }
             case ProjectionKind::Discriminant:
                 // As in packedAccess: a bit-tagged sum is never behind a narrow reference, and this
                 // is where that stops being something to remember.

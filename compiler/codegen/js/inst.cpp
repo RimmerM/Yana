@@ -1154,7 +1154,7 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
                 break;
             }
 
-            auto initial = zeroValue(g, instruction.type);
+            auto initial = freshStorage(g, instruction.type);
             if(boxed) initial = boxOf(g, initial);
 
             define(g, value, initial);

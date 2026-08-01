@@ -716,7 +716,24 @@ struct ExprResolver {
     ModulePtr<Value> rootSink(ModulePtr<Value> value, LocationId source);
 
     Place materialize(ModulePtr<Value> value, LocationId source);
+
+    // One step of a path. Where the step crosses an indirection - a `@box` field, or the automatic
+    // one a recursive type gets - the box is followed, so that everything above this is written as
+    // though the field were held inline. See the implementation in expr_construct.cpp.
     Place project(Place place, ProjectionKind kind, U16 index, ModulePtr<Value> value = nullptr);
+
+    // The same step, stopping *at* the box rather than following it: the place of the pointer
+    // itself. Only the two operations on a box - creating it and releasing it - want this.
+    Place projectStorage(Place place, ProjectionKind kind, U16 index, ModulePtr<Value> value = nullptr);
+    bool crossesBox(const Place& place, ProjectionKind kind, U16 index);
+
+    // The pointer a path's final Deref followed, where that Deref is one `project` appended for a
+    // box. Nothing, for every other path - including one whose last step is a Deref a program wrote.
+    Maybe<Place> boxOf(const Place& place);
+
+    // Allocates the target of a boxed edge and stores its address in `pointer`. Emitted by the
+    // initialization of a boxed field, which is the only thing that creates one.
+    void createBox(Place pointer, TypePtr target, LocationId source);
     TypePtr placeRootType(const Place& place);
     TypePtr placeType(const Place& place);
     ModulePtr<Value> load(Place place, LocationId source, StringId name = 0);

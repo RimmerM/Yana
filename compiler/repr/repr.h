@@ -147,6 +147,18 @@ struct FieldRepr {
     U8 bitOffset = 0;
     U8 bitWidth = 0;
 
+    /*
+     * The storage here is an owning pointer to a `type` rather than a `type` - `Field::boxed`, from
+     * either a written `@box` or the compiler's automatic indirection.
+     *
+     * Carried into the Repr rather than looked up again because a Repr is handed out on its own: a
+     * niche-folded record and a newtype both *copy* their content's field list, so by the time
+     * anything reads this list there is no tuple left to ask. What reads it is every walk that would
+     * otherwise recurse into `type` - which for a recursive declaration is the regress the box exists
+     * to cut.
+     */
+    bool boxed = false;
+
     bool isPacked() const { return bitWidth != 0; }
 
     bool sharesStorageWith(const FieldRepr& other) const {
@@ -479,7 +491,7 @@ struct ReprTarget {
  * ladder selects on, and a table that had to grow a key later would have every caller to update.
  */
 struct ReprTable {
-    ReprTable(GlobalBase global, const ReprTarget& target): global(global), target(target) {}
+    ReprTable(GlobalBase global, const ReprTarget& target);
     ~ReprTable();
 
     ReprTable(const ReprTable&) = delete;
@@ -542,7 +554,28 @@ struct ReprTable {
     GlobalBase global;
     ReprTarget target;
 
+    /*
+     * What an owning indirection occupies in whatever holds it.
+     *
+     * A `@box` field and a boxed constructor payload (`Field::boxed`, `Constructor::boxed`) are the
+     * same thing physically: one non-null pointer, whatever is on the other end of it. So there is
+     * one of these per table rather than one per boxed edge, and the target is what decides how wide
+     * a pointer is.
+     *
+     * The niche is the load-bearing half. The box is never null - it is written at construction and
+     * released at teardown, and nothing can observe it in between - so pattern zero is free, and that
+     * is what makes `Maybe(Tree)` one word with `Nothing == 0` by the ordinary niche search, with
+     * nothing written against `Maybe`.
+     */
+    Repr indirection;
+
 private:
+    // The representation of one member of an aggregate: the member's own, or the box, where the edge
+    // to it is an indirection. Every layout question about a boxed edge is a question about the
+    // pointer, which is the whole point of a box - what is on the other end has no bearing on the
+    // size of what holds it.
+    const Repr& memberOf(TypePtr type, bool boxed) { return boxed ? indirection : of(type); }
+
     void compute(TypePtr type, Repr& into);
     void computeTuple(TupType& tuple, Repr& into);
     bool scalarizeTuple(TupType& tuple, Repr& into);

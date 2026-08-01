@@ -271,6 +271,14 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
                 }
 
                 type = content;
+
+                // A boxed payload holds a reference to its content rather than the content, so what
+                // the walk has now is a `%content` and the Deref that follows is what reaches the
+                // value. Same statement placeType makes in resolve - see Constructor::boxed.
+                if(record->constructors.get(g.global, projection.index).boxed) {
+                    type = resolvePointerType(*g.program.core, type);
+                }
+
                 break;
             }
             case ProjectionKind::Field: {
@@ -359,7 +367,10 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
                         within.word = property.wordBits;
                     }
 
-                    type = entry.type;
+                    // Likewise for a boxed field: the property holds a reference. A boxed field is
+                    // never packed and never inside a scalarized record, so this is the only one of
+                    // the branches above it can reach - see packCandidate and scalarBits.
+                    type = entry.boxed ? resolvePointerType(*g.program.core, entry.type) : entry.type;
                 }
 
                 break;

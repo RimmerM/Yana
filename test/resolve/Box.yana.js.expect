@@ -1,0 +1,90 @@
+"use strict";
+const closure$ResolveTest_continuation$0 = [teardown$none, teardown$none];
+
+// Core
+function add_eq_Int(target, amount) {
+  target.$v = target.$v + amount | 0;
+  return;
+}
+
+function teardown$none(value) {
+  return;
+}
+
+// ResolveTest
+function levelOf(d$count, d$level) {
+  return d$level;
+}
+
+function raise(d) {
+  var v5 = { $v: d.count };
+  add_eq_Int(v5, 1);
+  d.count = v5.$v;
+  return;
+}
+
+function mutated() {
+  var v0 = { hot: 0, cold: { count: 0, level: 0 } };
+  var v2 = { count: 1, level: 20 };
+  v0.hot = 3;
+  v0.cold = { count: 0, level: 0 };
+  v0.cold = v2;
+  raise(v0.cold);
+  var v23 = v0.cold.level + 1 | 0;
+  v0.cold.level = v23;
+  return ((Math.imul(v0.hot, 1000) | 0) + (Math.imul(v0.cold.count, 100) | 0) | 0) + v23 | 0;
+}
+
+function pinnedValue() {
+  var p = { tag: 0, detail: { count: 0, level: 0 } };
+  var v2 = { count: 2, level: 3 };
+  p.tag = 5;
+  p.detail = { count: 0, level: 0 };
+  p.detail = v2;
+  return ((Math.imul(p.tag, 100) | 0) + (Math.imul(p.detail.count, 10) | 0) | 0) + p.detail.level | 0;
+}
+
+function throughLens() {
+  var v0 = { hot: 0, cold: { count: 0, level: 0 } };
+  var v2 = { count: 6, level: 40 };
+  v0.hot = 3;
+  v0.cold = { count: 0, level: 0 };
+  v0.cold = v2;
+  return levelIn_Int(v0, ResolveTest_continuation$0$make({ c: v0 }));
+}
+
+function countOf(h) {
+  return h.n;
+}
+
+function main() {
+  var m = mutated();
+  if (m !== 3221) {
+    return -2;
+  } else {
+    var l = throughLens();
+    if (l !== 46) {
+      return -3;
+    } else {
+      return (m + l | 0) + pinnedValue() | 0;
+    }
+  }
+}
+
+function ResolveTest_continuation$0$make(env) {
+  return function(value) {
+    return value + env.c.cold.count | 0;
+  };
+}
+
+function levelIn_Int(c, body) {
+  return body(c.cold.level);
+}
+
+function reclaim$Config(value) {
+  return;
+}
+
+function reclaim$Pinned(value) {
+  return;
+}

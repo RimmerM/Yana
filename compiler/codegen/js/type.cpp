@@ -267,6 +267,42 @@ JsPtr<Expr> zeroValue(Gen& g, TypePtr type) {
     return asExpr(g, object);
 }
 
+/*
+ * What an *allocation* of this type starts as, which is not always its zero.
+ *
+ * The two differ for exactly one shape, and it is the shape that has no storage to be zeroed: a
+ * niche-folded record whose payload is a host object. Its zero is `null` - that is what the absent
+ * pattern decodes as, and what a nested field of one should hold - but a construction fills such a
+ * record by *writing the payload's properties*, and `null` has none. Natively the same construction
+ * writes into zeroed bytes, which are there whichever constructor ends up in them.
+ *
+ * So a fresh one is the payload's own zero, and the absent reading is still reachable because it is
+ * never written into the value: encoding the tag of a payload-free constructor replaces the whole
+ * binding with `null`. `Nothing` is `null`, `Just` has an object to be built in, and a `Maybe(Point)`
+ * sitting in a *field* still starts as `null` because that goes through zeroValue.
+ *
+ * A boxed payload is excluded: it is one reference, so there are no properties to pre-create and the
+ * construction writes the reference itself.
+ */
+JsPtr<Expr> freshStorage(Gen& g, TypePtr type) {
+    if(!type || !isMemoryType(g.global, type) || g.global[type]->kind != Type::Record) {
+        return zeroValue(g, type);
+    }
+
+    auto& repr = g.repr.of(type);
+    if(!repr.isNicheFolded() || !repr.encoding.niche.isAbsent()) return zeroValue(g, type);
+
+    auto& record = *(RecordType*)g.global[type];
+    if(repr.encoding.payloadConstructor >= record.constructors.size()) return zeroValue(g, type);
+
+    auto payload = record.constructors.get(g.global, repr.encoding.payloadConstructor);
+    if(!payload.content || payload.boxed || !isJsObject(g, payload.content)) {
+        return zeroValue(g, type);
+    }
+
+    return zeroValue(g, payload.content);
+}
+
 JsPtr<Expr> boxOf(Gen& g, JsPtr<Expr> value) {
     auto object = make<ObjectExpr>(g);
     object->properties.push(g.file.arena, Property { g.boxField, value });

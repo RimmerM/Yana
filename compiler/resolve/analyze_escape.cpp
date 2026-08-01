@@ -246,6 +246,12 @@ void selectStorage(Analysis& analysis, OwnershipResult& result) {
         auto slot = analysis.function.localAt(analysis.local, allocation.local);
         if(slot.storage == StorageClass::Heap) storage = StorageClass::Heap;
 
+        // The target of a box, which is out of line whatever this pass proved. What frees it is the
+        // owner's derived `Reclaim`, which is interned per type and so has one answer for every
+        // value of that type - and that answer has to be right for the value that outlived a frame.
+        // See InstAlloc::ownedElsewhere.
+        if(allocation.ownedElsewhere) storage = StorageClass::Heap;
+
         /*
          * A closure environment is decided the same way as anything else, and released differently.
          *
@@ -321,7 +327,8 @@ void selectStorage(Analysis& analysis, OwnershipResult& result) {
          * found: `storageFlag` exists so that another value's `Drop` can free this storage, and that
          * `Drop` is the one release it gets.
          */
-        allocation.releasedHere = !analysis.transferred[allocation.local] && !allocation.storageFlag;
+        allocation.releasedHere = !analysis.transferred[allocation.local] && !allocation.storageFlag &&
+                                  !allocation.ownedElsewhere;
         allocation.storage = storage;
 
         // The flag the program reads at run time, where something asked for one.

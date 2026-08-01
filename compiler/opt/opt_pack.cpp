@@ -157,15 +157,22 @@ PackedAccess packedAccessOf(OptContext& opt, const Place& place) {
                     access.canonical = canonicalFieldOf(opt, owner, projection.index, *field);
                 }
 
-                type = field->type;
+                // A boxed field is a whole pointer: never inside a packed word, and never the word
+                // itself. The same guard lower.cpp's copy of this walk carries, for the same reason.
+                if(field->boxed && access.exists()) return {};
+
+                type = boxedStep(*opt.program.core, field->type, field->boxed);
                 break;
             }
-            case ProjectionKind::Downcast:
+            case ProjectionKind::Downcast: {
                 // A payload inside a bit range can only be a single-constructor record's, whose
                 // payload begins where the record does.
                 if(access.exists() && opt.repr.of(type).payloadOffset) return {};
-                type = ((RecordType*)opt.global[type])->constructors.get(opt.global, projection.index).content;
+
+                auto constructor = ((RecordType*)opt.global[type])->constructors.get(opt.global, projection.index);
+                type = boxedStep(*opt.program.core, constructor.content, constructor.boxed);
                 break;
+            }
             case ProjectionKind::Discriminant:
                 if(opt.repr.of(type).isBitTagged()) return {};
                 type = opt.program.scalar.int_;

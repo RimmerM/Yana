@@ -1,0 +1,79 @@
+import Native
+
+-- `@box` - the per-field, opt-in counterpart of automatic indirection, and doc/spec/repr.md's
+-- second half.
+--
+-- The annotation is on the *edge* rather than on the value, which is the whole of what makes it
+-- usable: `cfg.cold` is a `Diagnostics` and nothing at a use site spells the wrapper. What changes
+-- is the enclosing declaration's layout and its ownership classes, and every one of those is
+-- asserted below rather than in the layout dump alone, because a boxed field that was read as
+-- though it were inline produces a number rather than a diagnostic.
+--
+-- `Box.Storage.yana` is the native-only half: that the storage really is out of line, which is a
+-- statement about addresses and so has nothing to say on a target that has none.
+
+data Diagnostics {count: Int, level: Int}
+
+-- One pointer and one `Int`. `Diagnostics` is eight bytes and would have been inline; boxing it is
+-- the declaration saying it is cold, which is a decision the compiler is not entitled to make.
+data Config {hot: Int, cold: @box Diagnostics}
+
+-- The field's declared type is unchanged, so an ordinary borrow of an ordinary `Diagnostics` is
+-- what a use site passes. No coercion anywhere, and no second specialization of `levelOf`.
+fn levelOf(d: Diagnostics) -> Int = d.level
+
+fn raise(&d: Diagnostics) -> {}:
+    d.count += 1
+
+-- A boxed field is *more* addressable than the property contract promises: `modify` borrows the
+-- target and writes through it, where a `@bits` field would have to materialize and write back. So
+-- the address handed to `raise` is the box's own and the write lands in it.
+fn mutated() -> Int:
+    let &c = Config {hot: 3, cold: Diagnostics {count: 1, level: 20}}
+    raise(c.cold)
+    c.cold.level = c.cold.level + 1
+
+    return c.hot * 1000 + c.cold.count * 100 + levelOf(c.cold)
+
+-- `@box` under `@layout(c)`, which is legal and useful: a boxed field is a pointer, which is how a
+-- C struct with a pointer member is modelled. The pin keeps declaration order and stops the
+-- compiler reordering the two, and the box is unaffected by either.
+@layout(c)
+data Pinned {tag: Int, detail: @box Diagnostics}
+
+fn pinnedValue() -> Int:
+    let p = Pinned {tag: 5, detail: Diagnostics {count: 2, level: 3}}
+    return p.tag * 100 + p.detail.count * 10 + p.detail.level
+
+-- A path into a boxed field from inside a *generic* body, which is the case that catches the
+-- indirection being added twice. This lens is generic in its continuation and not in `Config`, so
+-- the box is already there when the body is written; a specialization that re-derived it would
+-- dereference the target as though it were a second pointer.
+lens fn levelIn(c: Config) -> Int:
+    yield c.cold.level
+
+fn throughLens() -> Int:
+    let &c = Config {hot: 3, cold: Diagnostics {count: 6, level: 40}}
+    let v = levelIn(c)
+    return v + c.cold.count
+
+-- A box around nothing is nothing. A unit field occupies no storage, so there is nothing to
+-- allocate, nothing to point at and no address to keep stable - and the write that would have
+-- filled the pointer is elided, which would leave the derived teardown freeing whatever the frame
+-- happened to contain. The flag is dropped before the tuple is interned, so `Holder({})` is one
+-- `Int` and `{@box ()}` and `{()}` stay one type rather than two spellings of it.
+--
+-- Written as a *generic* declaration because that is the route that reaches it without asking:
+-- nobody writes `@box ()`, and `Holder(a)` at `a := ()` gets it for free.
+data Holder(a) {v: @box a, n: Int}
+
+fn countOf(h: Holder({})) -> Int = h.n
+
+fn main() -> Int:
+    let m = mutated()
+    if m != 3221 then return -2
+
+    let l = throughLens()
+    if l != 46 then return -3
+
+    return m + l + pinnedValue()

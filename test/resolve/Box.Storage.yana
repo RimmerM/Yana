@@ -1,0 +1,45 @@
+import Native
+
+-- The half of `@box` that is a statement about addresses, and therefore native only.
+--
+-- Everything in `Box.yana` would still pass with the annotation ignored: the values round-trip, the
+-- writes land, and `@layout(c)` pins the order either way. What could not pass is this - the target
+-- of a boxed field is an allocation of its own, so its address is not inside the record that owns
+-- it. `cold` sits at offset zero, so an inline field would have exactly the record's own address.
+--
+-- Nothing here is asserted on JS because there is nothing to assert: a host value has no address,
+-- and a `@box` field of an object-shaped type is the object reference the target already was.
+
+data Diagnostics {count: Int, level: Int}
+data Config {hot: Int, cold: @box Diagnostics}
+
+fn levelOf(d: Diagnostics) -> Int = d.level
+
+fn outOfLine() -> Int:
+    let c = Config {hot: 1, cold: Diagnostics {count: 7, level: 8}}
+    let owner = cast(addressOf(c)) :: %U8
+    let target = cast(addressOf(c.cold)) :: %U8
+
+    if !(target < owner) then
+        if target < owner + sizeOf(c) then return -1
+
+    return levelOf(c.cold)
+
+-- And that assigning the *whole* field writes through the box it already has rather than allocating
+-- a new one. That is what "the address stays stable while the value changes" means, and it is most
+-- of why a field would be boxed for a reason other than a cycle.
+fn writesThrough() -> Int:
+    let &c = Config {hot: 3, cold: Diagnostics {count: 1, level: 20}}
+    let before = addressOf(c.cold)
+
+    c.cold = Diagnostics {count: 9, level: 30}
+    let after = addressOf(c.cold)
+
+    if !(before == after) then return -1
+    return c.cold.count * 10 + c.cold.level
+
+fn main() -> Int:
+    let o = outOfLine()
+    if o != 8 then return -2
+
+    return o + writesThrough()

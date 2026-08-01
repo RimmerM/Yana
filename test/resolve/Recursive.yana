@@ -1,0 +1,101 @@
+import Native
+
+-- Automatic indirection - Design.md's "Representation and layout" and doc/spec/repr.md.
+--
+-- A type whose layout is cyclic through inline containment cannot be laid out at all, so the
+-- compiler breaks the cycle with a pointer and nothing in the source names it. What that has to buy
+-- is asserted three ways here, because the layout dump alone would not catch any of them: the value
+-- has to round-trip, the box has to be *released*, and a generic function specialized at one of
+-- these types has to reach through the same indirection its concrete caller does.
+--
+-- `.repr.expect` says where the pointers landed. The numbers below say the programs still mean what
+-- they say.
+
+data List = Nil | Cons {head: Int, tail: List}
+
+-- The cut lands on `Cons.tail`, which is the only edge in the cycle, so `Nil` folds into the null
+-- niche of that pointer and a `List` is one word of tail plus one of head.
+fn sum(xs: List) -> Int = match xs:
+    Nil -> 0
+    Cons(c) -> c.head + sum(c.tail)
+
+-- The case the cut is interesting for.
+--
+-- The back edge is the reference to `Tree` inside `Tree`'s own body, and it appears *inside a
+-- generic argument* - so the indirection lands on `Maybe(Tree)`'s `Just` payload rather than on
+-- `Branch.left`. That is what makes a child one word: the box is a non-null pointer, `Nothing` folds
+-- into its zero, and an absent child costs nothing at all. Cutting at `Branch.left` instead would
+-- have been correct and would have made every absent child a heap-allocated `Maybe`.
+data Tree = Leaf(Int) | Branch {left: Maybe(Tree), right: Maybe(Tree), label: Int}
+
+fn total(t: Tree) -> Int = match t:
+    Leaf(v) -> v
+    Branch(b) -> b.label + totalOf(b.left) + totalOf(b.right)
+
+fn totalOf(m: Maybe(Tree)) -> Int = match m:
+    Nothing -> 0
+    Just(t) -> total(t)
+
+-- A generic function instantiated at a boxed type.
+--
+-- `Maybe(a)` has no layout and no indirection; `Maybe(Tree)` has both, because `Tree` is what closes
+-- the cycle. So the body below is written once against a bare payload and the specialization at
+-- `a = Tree` has to reach through a pointer - which is the one place automatic indirection and
+-- specialization meet. Got wrong, this returns garbage rather than failing to compile.
+fn unwrapOr(m: Maybe(a), fallback: a) -> a = match m:
+    Nothing -> fallback
+    Just(v) -> v
+
+fn leftOf(t: Tree) -> Int = match t:
+    Leaf(v) -> v
+    Branch(b) -> total(unwrapOr(b.left, Leaf(0)))
+
+fn buildList() -> Int:
+    let xs = Cons {head: 1, tail: Cons {head: 2, tail: Cons {head: 39, tail: Nil}}}
+    return sum(xs)
+
+fn buildTree() -> Int:
+    let deep = Branch {left: Nothing :: Maybe(Tree), right: Just(Leaf(20) :: Tree), label: 5}
+    let t = Branch {left: Just(Leaf(10) :: Tree), right: Just(deep), label: 7}
+    return total(t) + leftOf(t)
+
+-- That the teardown *reaches* every node, which is the half the values above cannot show.
+--
+-- A boxed field's derived `Reclaim` recurses through the pointer and then hands the box back, so a
+-- node whose drop never ran and a box that was never freed look identical in every number this file
+-- would otherwise print. An authored `Drop` on the payload turns the first into a counter, and
+-- `Recursive.Reclaim.yana` asserts the second on the allocator itself.
+
+let &liveNodes = 0 :: Int
+
+data Tracked {id: Int}
+
+fn track(id: Int) -> Tracked:
+    liveNodes += 1
+    return Tracked {id: id}
+
+instance Drop(Tracked):
+    fn drop(->value: Tracked) -> {}:
+        liveNodes -= 1
+
+data Chain = End | Link {payload: Tracked, rest: Chain}
+
+fn idsOf(c: Chain) -> Int = match c:
+    End -> 0
+    Link(l) -> l.payload.id + idsOf(l.rest)
+
+fn buildChain() -> Int:
+    let c = Link {payload: track(4), rest: Link {payload: track(5), rest: End}}
+    return idsOf(c)
+
+fn main() -> Int:
+    let values = buildList() + buildTree()
+
+    -- Read after the chain's last use, so the drops the boxes carry have all run by now. A teardown
+    -- that stopped at the first node leaves this at one.
+    let chained = buildChain()
+    if liveNodes != 0 then return -1
+
+    -- 42 from the list, 52 from the tree - 42 walked and 10 through the generic - and 9 from
+    -- the chain.
+    return values + chained

@@ -1761,11 +1761,20 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
         auto newtype = decl.kind == ast::Decl::Alias && decl.qualified;
         if(decl.kind != ast::Decl::Data && !newtype) continue;
 
-        // Every content type in the module is resolved by now, which is the earliest point a
-        // containment cycle can be seen at all - a record may name one declared further down.
+        /*
+         * Every content type in the module is resolved by now, which is the earliest point a
+         * containment cycle can be seen at all - a record may name one declared further down.
+         *
+         * In *declaration order*, which is what makes mutual recursion deterministic: laying out `A`
+         * first makes `B`'s reference to `A` the back edge, so reordering two declarations does
+         * change which of them holds the pointer. That is the honest cost of not asking, and a
+         * programmer wanting the other cut writes `@box` on the field.
+         */
         auto record = declaredRecord(module, newtype ? decl.alias.type.name : decl.data.type.name);
         if(record && !record->generic) {
-            checkTypeAcyclic(module, (Type*)record - *module.types, decl.source);
+            auto type = (Type*)record - *module.types;
+            breakLayoutCycles(module, type, decl.source);
+            checkTypeAcyclic(module, type, decl.source);
         }
     }
 

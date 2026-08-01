@@ -149,6 +149,30 @@ ReprTarget jsReprTarget() {
     return target;
 }
 
+ReprTable::ReprTable(GlobalBase global, const ReprTarget& target): global(global), target(target) {
+    // The one representation this table knows before it is asked anything: an owning indirection is
+    // a pointer, on every target and for every boxed edge. See ReprTable::indirection.
+    indirection.size = target.pointerSize;
+    indirection.align = target.pointerAlign;
+    indirection.stride = target.pointerSize;
+
+    /*
+     * A target whose values are host values has no addresses to have a zero, and what a reference
+     * there leaves free is `null` - the same split `hostNiche` makes for everything else, stated
+     * here because a box is not a type and never goes through that walk.
+     *
+     * Either way the box has *a* niche, which is what matters: the discriminant of a sum wrapping
+     * one folds into it, so `Maybe(Tree)` costs a pointer on native and `Tree | null` on JS.
+     */
+    if(target.absentNiche) {
+        indirection.niche = Niche {};
+        indirection.niche.kind = NicheKind::Absent;
+        indirection.niche.bytes = 1;
+    } else {
+        indirection.niche = addressNiche(0);
+    }
+}
+
 ReprTable::~ReprTable() {
     for(auto entry: reprs) delete entry;
 }
@@ -220,6 +244,11 @@ bool ReprTable::hasPaddedWord(TypePtr type, U32 depth) {
      * preserves everything outside the field, so the bits above the run are whatever was there.
      */
     for(auto& field: repr.fields) {
+        // A boxed field is a whole pointer with nothing spare in it, and what is on the other end is
+        // storage of its own whose own allocation answers this question. Stopping here is also what
+        // keeps the walk finite over a recursive type, whose fields reach back to it.
+        if(field.boxed) continue;
+
         if(field.isPacked()) {
             // The packed fields of one word, gathered by asking how far up the word anything reaches.
             U32 used = 0;
@@ -243,6 +272,10 @@ bool ReprTable::hasPaddedWord(TypePtr type, U32 depth) {
     auto value = global[type];
     if(value->kind == Type::Record) {
         for(auto constructor: ((RecordType*)value)->constructors.contents(global)) {
+            // A boxed payload is a pointer here and its target's own storage there, which is where
+            // the question belongs. Same rule as the boxed field above, same two reasons.
+            if(constructor.boxed) continue;
+
             auto content = constructor.content;
             if(content && content != type && hasPaddedWord(content, depth + 1)) return true;
         }
@@ -481,7 +514,11 @@ void ReprTable::computeTuple(TupType& tuple, Repr& into) {
 
         auto index = walk[at];
         auto field = tuple.fields.get(global, index);
-        auto& member = of(field.type);
+
+        // A boxed field occupies a pointer, whatever is on the other end of it. That is what lets a
+        // recursive type be laid out at all, and it is why nothing here recurses into `field.type`
+        // for one - doing so is exactly the infinite regress the box exists to cut.
+        auto& member = memberOf(field.type, field.boxed);
         auto memberSize = member.size;
         auto memberAlign = member.align;
 
@@ -492,7 +529,7 @@ void ReprTable::computeTuple(TupType& tuple, Repr& into) {
          * load of the value's own width at its own address, which on this byte order is the low end of
          * the unit and is what the narrow-reference ABI already assumes.
          */
-        if(tuple.layout == TypeLayout::C) {
+        if(tuple.layout == TypeLayout::C && !field.boxed) {
             if(auto unit = declaredUnitBits(global, field.type) / 8) {
                 memberSize = max(memberSize, unit);
                 memberAlign = max(memberAlign, unit);
@@ -501,6 +538,7 @@ void ReprTable::computeTuple(TupType& tuple, Repr& into) {
 
         FieldRepr placed;
         placed.type = field.type;
+        placed.boxed = field.boxed;
         placed.wordBytes = U8(memberSize > 255 ? 0 : memberSize);
 
         size = alignTo(size, memberAlign);
@@ -556,6 +594,10 @@ bool ReprTable::packableHere(TypePtr type, U32 depth) {
         case Type::Tup: {
             auto& tuple = *(TupType*)value;
             for(auto field: tuple.fields.contents(global)) {
+                // A boxed field is a pointer, which is not a value this or any target moves in and
+                // out of a shared word. `scalarBits` in resolve declines the same aggregate for the
+                // same reason, so this is a second line of the same answer rather than a new rule.
+                if(field.boxed) return false;
                 if(!packableHere(field.type, depth + 1)) return false;
             }
 
@@ -569,7 +611,10 @@ bool ReprTable::packableHere(TypePtr type, U32 depth) {
             if(record.layout == RecordType::Enum) return true;
             if(record.layout != RecordType::Single || record.constructors.isEmpty()) return false;
 
-            return packableHere(record.constructors.get(global, 0).content, depth + 1);
+            auto constructor = record.constructors.get(global, 0);
+            if(constructor.boxed) return false;
+
+            return packableHere(constructor.content, depth + 1);
         }
         default:
             return false;
@@ -655,11 +700,13 @@ void ReprTable::placementOrder(TupType& tuple, Array<U16>& into) {
     // declaration that way, and it is one fewer thing that changes when a field is added.
     for(Size i = 1; i < into.size(); i++) {
         auto index = into[i];
-        auto& member = of(tuple.fields.get(global, index).type);
+        auto entry = tuple.fields.get(global, index);
+        auto& member = memberOf(entry.type, entry.boxed);
         auto at = i;
 
         while(at > 0) {
-            auto& previous = of(tuple.fields.get(global, into[at - 1]).type);
+            auto previousField = tuple.fields.get(global, into[at - 1]);
+            auto& previous = memberOf(previousField.type, previousField.boxed);
             if(previous.align > member.align) break;
             if(previous.align == member.align && previous.size >= member.size) break;
 
@@ -781,14 +828,20 @@ void ReprTable::computeRecord(RecordType& record, Repr& into) {
         auto content = constructors.size() ? constructors[0].content : nullptr;
         if(!content) return;
 
-        // A newtype is its content, niche included - which is what makes a niche declared once on
-        // one type benefit every wrapper over it without the wrapper knowing.
-        auto& inner = of(content);
+        /*
+         * A newtype is its content, niche included - which is what makes a niche declared once on
+         * one type benefit every wrapper over it without the wrapper knowing.
+         *
+         * Where the payload is boxed, the newtype is the *box*: one pointer, whose niche is the box's
+         * and whose field list is empty, because the content's fields are on the other side of an
+         * indirection rather than inside this value. `data Loop = L(Loop)` is one word by this line.
+         */
+        auto& inner = memberOf(content, constructors[0].boxed);
         into.size = inner.size;
         into.align = inner.align;
         into.scalarBits = inner.scalarBits;
         into.niche = inner.niche;
-        copyFields(inner.fields, into.fields);
+        if(!constructors[0].boxed) copyFields(inner.fields, into.fields);
         into.payloadOffset = 0;
         return;
     }
@@ -799,7 +852,7 @@ void ReprTable::computeRecord(RecordType& record, Repr& into) {
     for(auto constructor: constructors) {
         if(!constructor.content || isUnit(global, constructor.content)) continue;
 
-        auto& content = of(constructor.content);
+        auto& content = memberOf(constructor.content, constructor.boxed);
         payloadSize = max(payloadSize, content.size);
         payloadAlign = max(payloadAlign, content.align);
     }
@@ -961,7 +1014,10 @@ bool ReprTable::foldNiche(RecordType& record, Repr& into) {
     for(auto constructor: constructors) {
         if(!constructor.content || isUnit(global, constructor.content)) continue;
 
-        auto& content = of(constructor.content);
+        // A boxed payload donates the box's niche, not its target's: what the record holds is the
+        // pointer. This is the line that makes `Maybe(Tree)` a plain nullable pointer, with nothing
+        // written against `Maybe` and no case for recursion anywhere in the search.
+        auto& content = memberOf(constructor.content, constructor.boxed);
         if(!content.niche.fits(others)) continue;
 
         // Every other constructor has to fit *inside* this payload, since the folded record is
@@ -977,7 +1033,7 @@ bool ReprTable::foldNiche(RecordType& record, Repr& into) {
 
         into.size = content.size;
         into.align = content.align;
-        copyFields(content.fields, into.fields);
+        if(!constructor.boxed) copyFields(content.fields, into.fields);
         into.discriminant = DiscriminantKind::Niche;
         into.payloadOffset = 0;
 

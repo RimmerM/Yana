@@ -368,11 +368,32 @@ Fields fieldsOf(OptContext& opt, TypePtr type) {
         // discriminant rather than about the path. An enum has no content at all.
         if(record->layout != RecordType::Single || record->constructors.isEmpty()) return {};
 
+        auto constructor = record->constructors.get(opt.global, 0);
+
+        // A boxed payload is one pointer the owner owns rather than a shape to be taken apart. See
+        // the boxed-field case below, which is the same statement one level down.
+        if(constructor.boxed) return {};
+
         fields.constructor = Just(U16(0));
-        content = record->constructors.get(opt.global, 0).content;
+        content = constructor.content;
     }
 
     if(!content || opt.global[content]->kind != Type::Tup) return {};
+
+    /*
+     * An aggregate with a boxed edge is not split into its fields.
+     *
+     * Everything built on this - argument splitting, aggregate scalarization - replaces one value by
+     * its members and each member by an ordinary place. A boxed field's member is *not* an ordinary
+     * place: reaching it is a load through a pointer the owner allocated and will free, so splitting
+     * one would pass the box about as a value and leave two answers about who releases it.
+     *
+     * Declining costs the optimization on a type that has a box in it and nothing else. See
+     * Field::boxed.
+     */
+    for(auto field: ((TupType*)opt.global[content])->fields.contents(opt.global)) {
+        if(field.boxed) return {};
+    }
 
     fields.content = content;
     fields.count = ((TupType*)opt.global[content])->fields.size();

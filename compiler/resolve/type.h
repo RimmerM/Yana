@@ -377,11 +377,40 @@ struct LiteralType: Type {
     U32 index;
 };
 
-// One field of a tuple: what it is and what it is called. Where it *sits* is a Repr answer and
-// lives in the code generator's table - see FieldRepr in compiler/repr/repr.h.
+/*
+ * One field of a tuple: what it is, what it is called, and whether it is reached through an
+ * indirection. Where it *sits* is a Repr answer and lives in the code generator's table - see
+ * FieldRepr in compiler/repr/repr.h.
+ *
+ * ## `boxed`
+ *
+ * The field's storage is an owning non-null pointer to a `type`, rather than a `type`. Two features
+ * produce one - Design.md's "Representation and layout" keeps them apart on purpose:
+ *
+ *  - **automatic indirection**, written by `breakLayoutCycles` at the back edge of a layout cycle,
+ *    because a type that reaches itself by inline containment has no finite size and *every*
+ *    occurrence of it must therefore be a pointer. Nobody chose it, so nothing in the source names
+ *    it and it is not part of the type;
+ *  - **`@box`**, which the programmer writes on a field whose storage should be out of line for
+ *    reasons having nothing to do with cycles.
+ *
+ * Both are per *declaration* and uniform across every value of the enclosing type, which is what
+ * makes it legal for them to change the ownership classification (a boxed field costs `TrivialCopy`)
+ * while an inferred Repr variant may not.
+ *
+ * **The field's type is unchanged.** `cfg.cold` on a `@box Diagnostics` is a `Diagnostics`, and
+ * `f(cfg.cold)` against `fn f(d: Diagnostics)` is an ordinary borrow of the box target. What the
+ * flag changes is the *place*: a Field projection onto a boxed field produces a `%type`, and the
+ * resolver appends a Deref - see `boxedField` and `projectField` in expr.h.
+ *
+ * It is part of the tuple's interned identity for the same reason `TypeLayout` is: content tuples
+ * are interned structurally and the Repr cache is keyed on the type, so `{Tree}` boxed and `{Tree}`
+ * unboxed have to be two types or one of them gets the other's layout.
+ */
 struct Field {
     TypePtr type = nullptr;
     StringId name = 0;
+    bool boxed = false;
 };
 
 /*
@@ -450,6 +479,21 @@ struct Constructor {
     StringId name = 0;
     TypePtr content = nullptr;
     U32 index = 0;
+
+    /*
+     * The payload is reached through an owning non-null pointer - the same statement `Field::boxed`
+     * makes, for the one edge that is not a field.
+     *
+     * A constructor written `Just(a)` carries its payload directly rather than as a one-field tuple,
+     * so when a layout cycle's back edge lands on such a payload there is no `Field` to mark. That
+     * is not a corner case: it is exactly what `Maybe(Tree)` is, and cutting there rather than at
+     * `Branch.left` is what makes a child one word instead of a pointer to a heap-allocated `Maybe`.
+     *
+     * Set only by `breakLayoutCycles`, and only on a *record instance* or a non-generic declaration -
+     * never on a generic declaration, whose layout is not a thing that exists. `Maybe(Tree)` has it
+     * and `Maybe(Int)` does not, which is sound because the two are different types.
+     */
+    bool boxed = false;
 
     // Only the fields that were given one, in field order; most constructors have none. Read from
     // the declaration rather than from an instantiation of it, since an instantiation can be
@@ -680,6 +724,18 @@ struct RecordType: Type {
     bool pinned = false;
     bool qualified = false;
     bool definitionReady = false;
+
+    /*
+     * Set once `breakLayoutCycles` has walked this record with everything reachable from it already
+     * defined, which is what makes the cut it chooses a function of declaration order rather than of
+     * which declaration the walk happened to start at.
+     *
+     * Without it, `data A {b: B}` / `data B {a: Maybe(A)}` is cut once starting from `A` and cut a
+     * *second* time starting from `B` - both correct, and two indirections where one was needed. The
+     * flag is deliberately not set when the walk met a record that was still being defined, since
+     * such a walk has not seen the cycle it is meant to find.
+     */
+    bool layoutBroken = false;
 };
 
 struct ConstructorRef {
@@ -762,6 +818,21 @@ TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId sourc
 // The raw pointer type to `to`, interned per target type.
 TypePtr resolvePointerType(Module& module, TypePtr to);
 
+/*
+ * The type one step of a place path arrives at, where the edge it crossed is a box.
+ *
+ * `Field::boxed` and `Constructor::boxed` mean the storage at that step holds a `%T`, and `project`
+ * appends the Deref that turns it back into a `T`. Every walk over a path - the resolver's, the
+ * native and JS place walks, the optimizer's alias analysis - has to agree about that, because one
+ * that missed it would add the next offset to a pointer instead of loading through it.
+ *
+ * So the rule is written once and each walk calls it with whatever it already read out of the field
+ * or the constructor.
+ */
+inline TypePtr boxedStep(Module& module, TypePtr type, bool boxed) {
+    return boxed && type ? resolvePointerType(module, type) : type;
+}
+
 // The borrow type `&to`, interned per target type and mutability.
 TypePtr resolveBorrowType(Module& module, TypePtr to, bool mut);
 
@@ -812,16 +883,28 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
 void computeRecordLayout(GlobalBase base, RecordType& record);
 
 /*
+ * Automatic indirection: boxes the back edge of every inline-containment cycle reachable from this
+ * type, so that a recursive declaration has a layout at all.
+ *
+ * The one layout question that stays in resolve, and it stays because its answer is a fact about the
+ * program rather than about a machine - true of every target at once, and two code generators
+ * choosing the edge separately could choose differently. What it produces is `Field::boxed` and
+ * `Constructor::boxed`; nothing in the source names either, and neither is part of the type. See the
+ * comment on the implementation for where the cut lands and why that is uniform.
+ *
+ * Asked once per declaration, after every content type in the module is resolved, and once per
+ * record instantiation as it completes.
+ */
+void breakLayoutCycles(Module& module, TypePtr type, LocationId source);
+
+/*
  * Whether this type's inline containment is acyclic, reporting when it is not.
  *
- * The one layout-shaped check that stays in resolve, and it stays because it is the only one whose
- * answer is a *source* error. A type that contains itself without an indirection has no finite
- * value, which is true of every target at once - so it is reported here, once, against the
- * declaration, rather than discovered separately by each code generator's layout pass and reported
- * twice in two voices.
- *
- * This is also the hook Design-Memory §10's automatic indirection will land on: the back edge this
- * walk finds is exactly the edge that gets the compiler-inserted box.
+ * The backstop behind breakLayoutCycles rather than the primary check: a cycle surviving the walk
+ * above is one nothing knows how to break, and the alternative to reporting it is an unbounded
+ * recursion in whichever pass asks for a size next. Both walks agree on what an edge is - a pointer,
+ * a borrow, a function value and a boxed field or constructor all have a size independent of what
+ * they name.
  */
 bool checkTypeAcyclic(Module& module, TypePtr type, LocationId source);
 

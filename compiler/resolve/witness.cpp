@@ -204,6 +204,10 @@ static bool hasSinkingMember(Module& module, TypePtr content) {
     if(!content || global[content]->kind != Type::Tup) return false;
 
     for(auto field: ((TupType*)global[content])->fields.contents(global)) {
+        // A boxed member relocates as its pointer, whatever relocating its *target* would have
+        // taken: the target does not move, so nothing it said about its own address stops applying.
+        // This is what lets a self-referential type become TrivialSink by boxing the edge.
+        if(field.boxed) continue;
         if(!ownershipOf(module, field.type).trivialSink) return true;
     }
 
@@ -226,6 +230,10 @@ static void sinkMembers(ExprResolver& resolver, Module& module, Place to, Place 
     U16 index = 0;
 
     for(auto field: ((TupType*)global[content])->fields.contents(global)) {
+        // Skipped for the reason hasSinkingMember gives: the block copy above already moved the
+        // pointer, and the target it names has not moved at all.
+        if(field.boxed) { index++; continue; }
+
         if(auto implementation = sinkFor(module, field.type, source)) {
             auto toMember = resolver.addressOf(resolver.project(to, ProjectionKind::Field, index), source, 0);
             auto fromMember = resolver.addressOf(resolver.project(from, ProjectionKind::Field, index), source, 0);
@@ -470,16 +478,24 @@ static bool lowerablePlace(Module& module, Function& owner, const Place& place) 
             case ProjectionKind::Discriminant:
                 type = module.scalar.int_;
                 break;
-            case ProjectionKind::Downcast:
-                type = ((RecordType*)global[type])->constructors.get(global, projection.index).content;
+            case ProjectionKind::Downcast: {
+                auto constructor = ((RecordType*)global[type])->constructors.get(global, projection.index);
+                type = boxedStep(module, constructor.content, constructor.boxed);
                 break;
+            }
             case ProjectionKind::Field:
                 // A function value's two words are at fixed offsets whatever the body's type
                 // arguments turn out to be, so it is projected into like any other aggregate and
                 // needs no composite descriptor to do it.
-                type = global[type]->kind == Type::Fun
-                    ? funValueFieldType(module, projection.index)
-                    : ((TupType*)global[type])->fields.get(global, projection.index).type;
+                if(global[type]->kind == Type::Fun) {
+                    type = funValueFieldType(module, projection.index);
+                    break;
+                }
+
+                {
+                    auto field = ((TupType*)global[type])->fields.get(global, projection.index);
+                    type = boxedStep(module, field.type, field.boxed);
+                }
 
                 break;
             case ProjectionKind::Deref:
