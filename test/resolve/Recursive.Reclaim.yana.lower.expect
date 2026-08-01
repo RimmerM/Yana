@@ -238,29 +238,29 @@ allocateHeap<complex>(%size: Long): Ptr {
 
 buildAndDrop<complex>(): Int {
   b_0 {
-    %xs = alloca 16, 8: Ptr
-    %v_1 = alloca 16, 8: Ptr
-    %v_2 = alloca 16, 8: Ptr
-    %v_3 = alloca 16, 8: Ptr
+    %xs = alloca 12, 8: Ptr
+    %v_1 = alloca 12, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
+    %v_3 = alloca 12, 8: Ptr
     store %v_3, 0, 8
     %v_4 = add %v_2, 8: Ptr
     store %v_4, 39, 4
-    %v_5 = call_complex allocateHeap, 16: Ptr
+    %v_5 = call_complex allocateHeap, 12: Ptr
     store %v_2, %v_5, 8
     %v_6 = load %v_2, 8: Ptr
-    copy %v_6, %v_3, 16
+    copy %v_6, %v_3, 12
     %v_7 = add %v_1, 8: Ptr
     store %v_7, 2, 4
-    %v_8 = call_complex allocateHeap, 16: Ptr
+    %v_8 = call_complex allocateHeap, 12: Ptr
     store %v_1, %v_8, 8
     %v_9 = load %v_1, 8: Ptr
-    copy %v_9, %v_2, 16
+    copy %v_9, %v_2, 12
     %v_10 = add %xs, 8: Ptr
     store %v_10, 1, 4
-    %v_11 = call_complex allocateHeap, 16: Ptr
+    %v_11 = call_complex allocateHeap, 12: Ptr
     store %xs, %v_11, 8
     %v_12 = load %xs, 8: Ptr
-    copy %v_12, %v_1, 16
+    copy %v_12, %v_1, 12
     %v_13 = call_complex sum, %xs: Int
     call_complex drop$List, %xs
     call_complex reclaim$List, %xs

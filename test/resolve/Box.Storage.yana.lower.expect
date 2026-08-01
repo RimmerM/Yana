@@ -4,7 +4,7 @@
 
 writesThrough<complex>(): Int {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
+    %v_1 = alloca 12, 8: Ptr
     %v_2 = alloca 8, 4: Ptr
     store %v_2, 1, 4
     %v_3 = add %v_2, 4: Ptr
@@ -15,8 +15,8 @@ writesThrough<complex>(): Int {
     store %v_1, %v_5, 8
     %v_6 = load %v_1, 8: Ptr
     copy %v_6, %v_2, 8
-    %c = alloca 16, 8: Ptr
-    copy %c, %v_1, 16
+    %c = alloca 12, 8: Ptr
+    copy %c, %v_1, 12
     %v_7 = load %c, 8: Ptr
     %v_8 = alloca 8, 4: Ptr
     store %v_8, 9, 4
@@ -126,7 +126,7 @@ freeHeap<complex>(%allocation: Ptr) {
 
 outOfLine<complex>(): Int {
   b_0 {
-    %c = alloca 16, 8: Ptr
+    %c = alloca 12, 8: Ptr
     %v_1 = alloca 8, 4: Ptr
     store %v_1, 7, 4
     %v_2 = add %v_1, 4: Ptr
@@ -146,7 +146,7 @@ outOfLine<complex>(): Int {
   }
 
   b_9 {
-    %v_11 = add %owner, 16: Ptr
+    %v_11 = add %owner, 12: Ptr
     %v_12 = cmp_lt %target, %v_11: Int
     je %v_12, b_13, b_14
   }

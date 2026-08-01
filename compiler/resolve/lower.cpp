@@ -1049,6 +1049,11 @@ static U64 lowMask(U32 bits) {
  * Two shapes rather than one. An unsigned field shifts down and masks; a signed one shifts *up*
  * until its sign bit is the word's and then shifts arithmetically back down, which sign-extends and
  * masks in the same two instructions rather than needing a third.
+ *
+ * The mask covers the bits *above* the range, so a field ending where its word does has none: the
+ * load is unsigned at `wordBytes`, so everything above the word is already zero and the shift that
+ * brought the field down took the rest with it. Same condition as `decode` in opt/opt_pack.cpp, which
+ * handles every access this one does not.
  */
 static LowerPtr<LowerValue> decodePackedBits(LowerContext& lower, LowerBlock& block,
                                              LowerPtr<LowerValue> word, const PackedAccess& field,
@@ -1074,6 +1079,8 @@ static LowerPtr<LowerValue> decodePackedBits(LowerContext& lower, LowerBlock& bl
         value = binary<LowerInst::Shr>(lower.lower, lower.to, block, lower.lower[value],
                                        lower.lower[shift], LowerType::Int64, 0)->created().ptr - lower.lower;
     }
+
+    if(field.bitOffset + field.bitWidth >= U32(field.wordBytes) * 8) return value;
 
     auto mask = immediate(lower, lowMask(field.bitWidth));
     return binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[value],

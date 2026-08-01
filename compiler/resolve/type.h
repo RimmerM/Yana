@@ -863,12 +863,18 @@ TypePtr applyReturnRootMutability(Module& module, TypePtr result, bool allRootsM
 TypePtr instantiateRecord(Module& module, GlobalPtr<RecordType> record, Buffer<TypePtr> args, LocationId source);
 
 /*
- * The three container questions the resolver asks by type rather than by name.
+ * The four container questions the resolver asks by type rather than by name.
  *
  * `arrayElement` and `sliceElement` are what an `Array(T)` and a `Flat(T)` hold, or null for
  * anything else. `sliceOf` is the slice a borrow of a container becomes - `Array(T)` and `Flat(T)`
  * both answer `Flat(T)`, since a borrow of a slice is that slice - and null for every type that is
  * not one, which is what makes it usable as a test as well as a conversion.
+ *
+ * `sliceLengthType` is the declared type of a slice descriptor's second field, asked because
+ * `convertSlice` builds one out of an *owner's* count and the two are not the same type: an owner's
+ * is narrow and unsigned so that it packs (§10.2), a descriptor's is an `Int` because `Flat` is a
+ * type programs are written against. They were one type by accident until one of them moved, and
+ * reading the declaration is what keeps the next move from being silent.
  */
 // What a parameter's written type means, which is not always what the same syntax means in a type
 // position: `[T]` in a binding is a slice. See the definition for which positions keep the owner.
@@ -878,6 +884,7 @@ TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType bind
 
 TypePtr arrayElement(Module& module, TypePtr type);
 TypePtr sliceElement(Module& module, TypePtr type);
+TypePtr sliceLengthType(Module& module, TypePtr type);
 TypePtr sliceOf(Module& module, TypePtr type);
 
 /*

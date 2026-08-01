@@ -33,7 +33,7 @@ fn freeHeap {
 fn resize(Int) {
   arg self writable addressed resizable
   arg wanted readonly
-  %self: Run(Int) borrowed droppable writable addressed resizable live [0, 4) [5, 14) [15, 45)
+  %self: Run(Int) borrowed droppable writable addressed resizable live [0, 6) [7, 10) [11, 20) [21, 52)
 }
 
 fn byteSpan(Int) {
@@ -43,7 +43,7 @@ fn byteSpan(Int) {
 
 fn releaseRun(Int) {
   arg self readonly
-  %self: Run(Int) borrowed droppable readonly live [0, 4)
+  %self: Run(Int) borrowed droppable readonly live [0, 6)
 }
 
 fn mapMemory {
@@ -72,38 +72,38 @@ fn getMut(Int) {
 fn push(Int) {
   arg self writable addressed resizable
   arg item readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 13) [14, 29)
-  %item: Int readonly live [0, 13) [14, 25)
+  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 15) [16, 30)
+  %item: Int readonly live [0, 15) [16, 25)
 }
 
 fn reserve(Int) {
   arg self writable addressed resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 5) [6, 33)
-  %wide: Int writable live [14, 31)
+  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 7) [8, 29)
+  %wide: Int writable live [10, 27)
 }
 
 fn remove(Int) {
   arg self writable addressed
   arg index readonly
-  %self: Array(Int) borrowed droppable writable addressed live [0, 9) [10, 57)
-  %local1: Int readonly live [18, 21)
-  %local2: Int readonly live [19, 21)
+  %self: Array(Int) borrowed droppable writable addressed live [0, 6) [7, 61)
+  %local1: Int readonly live [15, 18)
+  %local2: Int readonly live [16, 18)
 }
 
 fn Reclaim(Array(a)).reclaim(Int) {
   arg value readonly
-  %value: Array(Int) borrowed droppable readonly live [0, 9) [10, 24)
-  %i: Int writable live [0, 7) [10, 24)
-  %local2: Int readonly live [17, 20)
-  %local3: Int readonly live [18, 20)
+  %value: Array(Int) borrowed droppable readonly live [0, 11) [12, 26)
+  %i: Int writable live [3, 9) [12, 26)
+  %local2: Int readonly live [19, 22)
+  %local3: Int readonly live [20, 22)
 }
 
 fn sum {
   arg xs readonly
-  %xs: Flat(Int) borrowed readonly live [0, 9) [11, 22)
-  %total: Int writable live [0, 10) [11, 22)
-  %i: Int writable live [2, 9) [11, 22)
+  %xs: Flat(Int) borrowed readonly live [0, 10) [12, 24)
+  %total: Int writable live [0, 11) [12, 24)
+  %i: Int writable live [2, 10) [12, 24)
 }
 
 fn make {
@@ -114,18 +114,18 @@ fn make {
 }
 
 fn escaping {
-  %local0: Array(Int) droppable readonly live [0, 29)
-  %xs: Flat(Int) readonly live [2, 10)
-  %xs: Flat(Int) readonly live [11, 19)
-  %xs: Flat(Int) readonly live [21, 29)
+  %local0: Array(Int) droppable readonly live [0, 35)
+  %xs: Flat(Int) readonly live [2, 12)
+  %xs: Flat(Int) readonly live [13, 23)
+  %xs: Flat(Int) readonly live [25, 35)
 }
 
 fn main {
   %local0: Int writable addressed live [0, 17)
   %local1: Run(Int) droppable readonly live [2, 20)
   %local2: Array(Int) droppable readonly live [18, 23)
-  %small: Array(Int) droppable writable addressed resizable live [21, 58)
-  %local4: Flat(Int) writable live [25, 32)
-  %local5: Flat(Int) readonly live [44, 50)
-  %local6: Flat(Int) readonly live [52, 58)
+  %small: Array(Int) droppable writable addressed resizable live [21, 71)
+  %local4: Flat(Int) writable live [25, 34)
+  %local5: Flat(Int) readonly live [53, 61)
+  %local6: Flat(Int) readonly live [63, 71)
 }

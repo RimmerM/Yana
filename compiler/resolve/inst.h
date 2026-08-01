@@ -427,15 +427,16 @@ struct InstAlloc: Inst {
     bool ownedElsewhere = false;
 
     /*
-     * An integer constant recording where this allocation landed, for code that has to know at run
-     * time. A `Run(a)`'s tag is the case it exists for: `Reclaim(Run(a))` is the placement switch of
-     * Implementation-Storage.md §5, and which arm it takes is a decision made after the body was
-     * resolved.
+     * An integer constant recording whether this allocation's storage is the allocator's, for code
+     * that has to know at run time. A `Run(a)`'s flag is the case it exists for: `Reclaim(Run(a))` is
+     * the placement test of Implementation-Storage.md §5, and which way it goes is a decision made
+     * after the body was resolved.
      *
-     * It holds the `StorageClass` itself rather than the "is it the heap" bit it used to, because
-     * the switch has four arms and only one of them frees: `Inline`, `Stack` and `Region` all
-     * release nothing, and telling them apart is what lets a region-placed run be handed to the same
-     * `Reclaim` a heap-placed one gets and have it do the right nothing.
+     * One bit and not the `StorageClass` itself, which it briefly held. Four arms only matter to
+     * whoever can act differently on them, and nobody can: `Inline`, `Stack` and `Region` release
+     * nothing, for three reasons that belong to the owner, the frame and the region rather than to
+     * the value. What the second bit cost was a bit of every container's count word - see `HeapFlag`
+     * in native.cpp, and Implementation-Containers.md §10.2.
      *
      * Null when nothing asked. selectStorage patches the constant, which is the one place a
      * decision these passes make becomes a value the program itself can read.

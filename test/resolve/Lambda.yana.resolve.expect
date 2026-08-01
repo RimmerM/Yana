@@ -200,14 +200,16 @@ fn freeHeap(%allocation: %U8) -> () {
 
 fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
-    %v1 = load %self@Run.placed : Int
-    %v3 = cmp_eq %v1, 3 : Bool
-    je %v3, b1, b2
+    %v1 = load %self@Run.ownsHeap : @bits(1) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
 
   b1:
-    %v5 = load %self@Run.items : %Int
-    %v6 = cast %v5 : %U8
-    call freeHeap, %v6
+    %v7 = load %self@Run.items : %Int
+    %v8 = cast %v7 : %U8
+    call freeHeap, %v8
     jmp b3
 
   b2:
@@ -236,43 +238,45 @@ fn mapMemory(%size: I64) -> %U8 {
     ret %v18
 }
 
-fn length(Int)(%self: Flat(Int)) -> Int {
+fn length(Int)(%self: Flat(Int)) -> I64 {
   b0:
-    %v1 = load %self@Flat.length : Int
+    %v1 = load %self@Flat.length : I64
     ret %v1
 }
 
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   b0:
+    %v1 = load %value@Array.length : @bits(31) U32
+    %v2 = cast %v1 : U32
+    %count = cast %v2 : Int
     %i = alloc : Int
     init %i, 0
     jmp b1
 
   b1:
-    %v5 = load %i : Int
-    %v6 = load %value@Array.length : Int
-    %v7 = cmp_lt %v5, %v6 : Bool
-    je %v7, b3, b2
+    %v8 = load %i : Int
+    %v9 = cmp_lt %v8, %count : Bool
+    je %v9, b3, b2
 
   b2:
-    %v9 = load %value@Array.run : Run(Int)
-    call releaseRun(Int), %v9
+    %v11 = load %value@Array.run : Run(Int)
+    call releaseRun(Int), %v11
     ret
 
   b3:
-    %v12 = load %value@Array.run : Run(Int)
-    %v13 = load %value@Array.run@Run.items : %Int
-    %v14 = load %i : Int
-    %v15 = cast %v14 : I64
-    %v16 = strideof Int : I64
-    %v17 = mul %v15, %v16 : I64
-    %v18 = add %v13, %v17 : %Int
-    %v19 = load [%v18] : Int
+    %v14 = load %value@Array.run : Run(Int)
+    %v15 = load %value@Array.run@Run.items : %Int
+    %v16 = load %i : Int
+    %v17 = cast %v16 : I64
+    %v18 = strideof Int : I64
+    %v19 = mul %v17, %v18 : I64
+    %v20 = add %v15, %v19 : %Int
+    %v21 = load [%v20] : Int
     %doomed = alloc : Int
-    init %local3, %v19
-    %v22 = load %i : Int
-    %v24 = add %v22, 1 : Int
-    assign %i, %v24
+    init %local3, %v21
+    %v24 = load %i : Int
+    %v26 = add %v24, 1 : Int
+    assign %i, %v26
     jmp b1
 }
 
@@ -320,11 +324,14 @@ fn consume(%xs: Array(Int)) -> Int {
     %xs = alloc : Flat(Int)
     %v3 = load [%v1]@Array.run@Run.items : %Int
     init %xs@Flat.items, %v3
-    %v5 = load [%v1]@Array.length : Int
-    init %xs@Flat.length, %v5
-    %v7 = call length(Int), %xs : Int
+    %v5 = load [%v1]@Array.length : @bits(31) U32
+    %v6 = cast %v5 : U32
+    %v7 = cast %v6 : I64
+    init %xs@Flat.length, %v7
+    %v9 = call length(Int), %xs : I64
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
-    ret %v7
+    %v10 = cast %v9 : Int
+    ret %v10
 }
 
 fn run(%f: (->Array(Int)) -> Int) -> Int {
@@ -334,7 +341,7 @@ fn run(%f: (->Array(Int)) -> Int) -> Int {
     %v9 = alloc : Run(Int)
     init %local2@Run.items, %v7
     init %local2@Run.capacity, 3
-    init %local2@Run.placed, 3
+    init %local2@Run.ownsHeap, 1
     %v14 = strideof Int : Long
     %v15 = mul 0, %v14 : Long
     %v16 = add %v7, %v15 : %Int

@@ -81,6 +81,33 @@ bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, TypeList& bindi
 
         if(bindings[index] == actual) return true;
 
+        /*
+         * A `@bits` refinement and the type it refines are one type here.
+         *
+         * [repr.md](doc/spec/repr.md#bit-width-refinements) says it outright - *"`@bits(n)` is
+         * Repr-only: it never participates in typeclass dispatch"*, and *"everything that dispatches
+         * (instance selection, literal defaulting, overload resolution) canonicalizes first"* - and
+         * `matchType` is the half that was built: an instance head canonicalizes both sides, so
+         * `instance Num(U64)` answers `Num(@bits(53) U64)` and nobody writes an instance per width.
+         *
+         * This is the other half, and without it the rule held only while every position of a call
+         * agreed on the *same* refinement. `x == y` on a `@bits(2) U32` and a `U32` bound `a` twice
+         * to two types, found no common `Widen` between them - there is no instance for a refinement,
+         * since widening one is structural rather than a conversion anyone declared - and reported
+         * "no class function == accepts (@bits(2) U32, U32)" for an operator the spec says is the
+         * plain `U32` one. Two refinements of one type failed the same way.
+         *
+         * The variable takes the *canonical* type, which is what makes the arguments converge:
+         * widening a refinement to its base is free (see convertRefinement), and it is what a load of
+         * a packed field already produces - repr.md's "load always widens". So the operation happens
+         * at the natural width, as it does everywhere else, and only a store narrows again.
+         */
+        if(auto canonical = canonicalType(global, bindings[index]);
+           canonical == canonicalType(global, actual)) {
+            bindings[index] = canonical;
+            return true;
+        }
+
         // A literal has no type yet, so meeting one is not a conflict. It takes whatever the
         // other position decided if its class allows; two literals become one variable carrying
         // both their classes, which is what leaves `1 + 2.5` a single question to answer.

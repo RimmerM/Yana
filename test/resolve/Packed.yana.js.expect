@@ -218,12 +218,16 @@ function kept() {
   return (v23 + (Math.imul((e.$p4 & 7) >>> 0 | 0, 10) | 0) | 0) + (Math.imul(e.count, 100) | 0) | 0;
 }
 
+function dispatch() {
+  return 80;
+}
+
 function main() {
   var v14 = ((((((direct() + borrowed() | 0) + neighbours() | 0) + together() | 0) + unpacked() | 0) + loaned() | 0) + returned() | 0) + interleaved() | 0;
   var h = { $v: 2162788 };
   nudgeTwice(h, "$v", 1);
-  var v82 = h.$v;
-  return (((v14 + ((Math.imul((v82 & 8191) >>> 0 | 0, 10) | 0) + ((v82 >>> 16 >>> 0 & 15) >>> 0 | 0) | 0) | 0) + wide() | 0) + tally() | 0) + kept() | 0;
+  var v84 = h.$v;
+  return ((((v14 + ((Math.imul((v84 & 8191) >>> 0 | 0, 10) | 0) + ((v84 >>> 16 >>> 0 & 15) >>> 0 | 0) | 0) | 0) + wide() | 0) + tally() | 0) + kept() | 0) + dispatch() | 0;
 }
 
 // bit ranges of a word wider than the host's operators - see codegen/js/place.cpp

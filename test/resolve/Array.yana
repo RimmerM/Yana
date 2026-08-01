@@ -34,5 +34,15 @@ fn main() -> Int:
     push(small, 5)
     remove(small, 1)
 
+    -- An index outside the array removes nothing, in both directions. The negative one is the case
+    -- the unsigned length exists for: it arrives at `Count` as a number above every length there is,
+    -- so `index >= length` rejects it and there is no second comparison anywhere.
+    remove(small, 99)
+    remove(small, 0 - 1)
+
+    -- `Array(a)` is two words - an address, a thirty-one-bit capacity, one bit saying whether the
+    -- storage is the allocator's, and a thirty-one-bit length, with the bit packed beside the
+    -- capacity and the length in the run's tail padding. TailPad.yana is where that is asserted as a
+    -- number, since it is the fixture that imports `Native` and can say `sizeOf`.
     -- 10 + 3 + 4 + 5 = 22, from four elements after the removal, and 24 from the heap-placed one.
     return sum(small) + length(small) + escaping() :: Int

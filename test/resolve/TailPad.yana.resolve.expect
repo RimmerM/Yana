@@ -1,0 +1,1079 @@
+let &heapNext: %U8 = 0
+
+let &heapLimit: %U8 = 0
+
+let &heapFree: %%U8 = 0
+
+fn initHeap() -> () {
+  b0:
+    %region = call mapMemory, 4194304 : %U8
+    %v2 = cast %region : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %table = mul 32, 8 : I64
+    setmemory %region, 0, %table
+    %v14 = cast %region : %%U8
+    assign heapFree, %v14
+    %v16 = strideof U8 : I64
+    %v17 = mul %table, %v16 : I64
+    %v18 = add %region, %v17 : %U8
+    assign heapNext, %v18
+    %v21 = strideof U8 : I64
+    %v22 = mul 4194304, %v21 : I64
+    %v23 = add %region, %v22 : %U8
+    assign heapLimit, %v23
+    ret
+}
+
+fn heapClassOf(%total: I64) -> I64 {
+  b0:
+    %size = alloc : I64
+    init %size, 16
+    %sizeClass = alloc : I64
+    init %sizeClass, 0
+    jmp b1
+
+  b1:
+    %v8 = load %size : I64
+    %v9 = cmp_lt %v8, %total : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v21 = load %sizeClass : I64
+    ret %v21
+
+  b3:
+    %v11 = load %size : I64
+    %v12 = load %size : I64
+    %v13 = add %v11, %v12 : I64
+    assign %size, %v13
+    %v15 = load %sizeClass : I64
+    %v18 = add %v15, 1 : I64
+    assign %sizeClass, %v18
+    jmp b1
+}
+
+fn heapBlockSize(%sizeClass: I64) -> I64 {
+  b0:
+    %v2 = shl 16, %sizeClass : I64
+    ret %v2
+}
+
+fn freeListHead(%sizeClass: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : I64
+    %v3 = mul %sizeClass, %v2 : I64
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : I64
+    %v4 = mul %sizeClass, %v3 : I64
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn allocateHeap(%size: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = cast %v1 : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    call initHeap
+    %v7 = load heapFree : %%U8
+    %v8 = cast %v7 : Long
+    %v10 = cmp_eq %v8, 0 : Bool
+    je %v10, b3, b4
+
+  b2:
+    jmp b6
+
+  b3:
+    %v13 = cast 0 : %U8
+    ret %v13
+
+  b4:
+    jmp b5
+
+  b5:
+    jmp b6
+
+  b6:
+    %v20 = add %size, 8 : I64
+    %sizeClass = call heapClassOf, %v20 : I64
+    %v23 = cmp_ge %sizeClass, 32 : Bool
+    je %v23, b7, b8
+
+  b7:
+    %v26 = cast 0 : %U8
+    ret %v26
+
+  b8:
+    jmp b9
+
+  b9:
+    %reused = call freeListHead, %sizeClass : %U8
+    %v30 = cast %reused : Long
+    %v32 = cmp_eq %v30, 0 : Bool
+    %v34 = xor %v32, True : Bool
+    je %v34, b10, b11
+
+  b10:
+    %v36 = cast %reused : %%U8
+    %v37 = load [%v36] : %U8
+    call setFreeListHead, %sizeClass, %v37
+    ret %reused
+
+  b11:
+    jmp b12
+
+  b12:
+    %block = load heapNext : %U8
+    %blockSize = call heapBlockSize, %sizeClass : I64
+    %v43 = strideof U8 : I64
+    %v44 = mul %blockSize, %v43 : I64
+    %v45 = add %block, %v44 : %U8
+    %v46 = load heapLimit : %U8
+    %v47 = cmp_gt %v45, %v46 : Bool
+    je %v47, b13, b14
+
+  b13:
+    %v50 = cast 0 : %U8
+    ret %v50
+
+  b14:
+    jmp b15
+
+  b15:
+    %v53 = strideof U8 : I64
+    %v54 = mul %blockSize, %v53 : I64
+    %v55 = add %block, %v54 : %U8
+    assign heapNext, %v55
+    %v57 = cast %block : %I64
+    assign [%v57], %sizeClass
+    %v61 = strideof U8 : I64
+    %v62 = mul 8, %v61 : I64
+    %v63 = add %block, %v62 : %U8
+    ret %v63
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = cast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : I64
+    %v10 = mul 8, %v9 : I64
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = cast %v11 : %I64
+    %sizeClass = load [%v12] : I64
+    %v14 = cast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn emptyRun(Pad)() -> Run(Pad) {
+  b0:
+    %v0 = alloc : Run(Pad)
+    %v2 = cast 0 : %Pad
+    init %local0@Run.items, %v2
+    init %local0@Run.capacity, 0
+    init %local0@Run.ownsHeap, 0
+    ret %v0
+}
+
+fn resize(Pad)(%self: Run(Pad), %wanted: Int) -> Bool {
+  b0:
+    %v2 = load %self : Run(Pad)
+    %v3 = load %self@Run.capacity : @bits(31) U32
+    %v4 = cast %v3 : U32
+    %room = cast %v4 : Int
+    %v6 = cmp_le %wanted, %room : Bool
+    je %v6, b1, b2
+
+  b1:
+    ret True
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = cmp_gt %wanted, 2147483647 : Bool
+    je %v12, b4, b5
+
+  b4:
+    ret False
+
+  b5:
+    jmp b6
+
+  b6:
+    %v17 = load %self : Run(Pad)
+    %v18 = load %self@Run.items : %Pad
+    %v19 = call byteSpan(Pad), %v18, %wanted : I64
+    %v20 = call allocateHeap, %v19 : %U8
+    %fresh = cast %v20 : %Pad
+    %v22 = cast %fresh : Long
+    %v24 = cmp_eq %v22, 0 : Bool
+    je %v24, b7, b8
+
+  b7:
+    ret False
+
+  b8:
+    jmp b9
+
+  b9:
+    %v30 = cmp_gt %room, 0 : Bool
+    je %v30, b10, b11
+
+  b10:
+    %v32 = cast %fresh : %U8
+    %v33 = load %self : Run(Pad)
+    %v34 = load %self@Run.items : %Pad
+    %v35 = cast %v34 : %U8
+    %v36 = load %self : Run(Pad)
+    %v37 = load %self@Run.items : %Pad
+    %v38 = call byteSpan(Pad), %v37, %room : I64
+    copymemory %v32, %v35, %v38
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v42 = load %self : Run(Pad)
+    %v43 = load %self@Run.ownsHeap : @bits(1) U32
+    %v44 = cast %v43 : U32
+    %v46 = cast 1 : U32
+    %v47 = cmp_eq %v44, %v46 : Bool
+    je %v47, b13, b14
+
+  b13:
+    %v49 = load %self : Run(Pad)
+    %v50 = load %self@Run.items : %Pad
+    %v51 = cast %v50 : %U8
+    call freeHeap, %v51
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    assign %self@Run.items, %fresh
+    %v56 = cast %wanted : U32
+    %v58 = and %v56, 2147483647 : U32
+    %v59 = cast %v58 : @bits(31) U32
+    assign %self@Run.capacity, %v59
+    assign %self@Run.ownsHeap, 1
+    ret True
+}
+
+fn byteSpan(Pad)(%from: %Pad, %count: Int) -> I64 {
+  b0:
+    %v2 = cast %from : %U8
+    %v3 = cast %count : I64
+    %v4 = strideof Pad : I64
+    %v5 = mul %v3, %v4 : I64
+    %v6 = add %from, %v5 : %Pad
+    %v7 = cast %v6 : %U8
+    %v8 = sub %v7, %v2 : I64
+    %v9 = strideof U8 : I64
+    %v10 = div %v8, %v9 : I64
+    ret %v10
+}
+
+fn emptyRun(Outer)() -> Run(Outer) {
+  b0:
+    %v0 = alloc : Run(Outer)
+    %v2 = cast 0 : %Outer
+    init %local0@Run.items, %v2
+    init %local0@Run.capacity, 0
+    init %local0@Run.ownsHeap, 0
+    ret %v0
+}
+
+fn resize(Outer)(%self: Run(Outer), %wanted: Int) -> Bool {
+  b0:
+    %v2 = load %self : Run(Outer)
+    %v3 = load %self@Run.capacity : @bits(31) U32
+    %v4 = cast %v3 : U32
+    %room = cast %v4 : Int
+    %v6 = cmp_le %wanted, %room : Bool
+    je %v6, b1, b2
+
+  b1:
+    ret True
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = cmp_gt %wanted, 2147483647 : Bool
+    je %v12, b4, b5
+
+  b4:
+    ret False
+
+  b5:
+    jmp b6
+
+  b6:
+    %v17 = load %self : Run(Outer)
+    %v18 = load %self@Run.items : %Outer
+    %v19 = call byteSpan(Outer), %v18, %wanted : I64
+    %v20 = call allocateHeap, %v19 : %U8
+    %fresh = cast %v20 : %Outer
+    %v22 = cast %fresh : Long
+    %v24 = cmp_eq %v22, 0 : Bool
+    je %v24, b7, b8
+
+  b7:
+    ret False
+
+  b8:
+    jmp b9
+
+  b9:
+    %v30 = cmp_gt %room, 0 : Bool
+    je %v30, b10, b11
+
+  b10:
+    %v32 = cast %fresh : %U8
+    %v33 = load %self : Run(Outer)
+    %v34 = load %self@Run.items : %Outer
+    %v35 = cast %v34 : %U8
+    %v36 = load %self : Run(Outer)
+    %v37 = load %self@Run.items : %Outer
+    %v38 = call byteSpan(Outer), %v37, %room : I64
+    copymemory %v32, %v35, %v38
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v42 = load %self : Run(Outer)
+    %v43 = load %self@Run.ownsHeap : @bits(1) U32
+    %v44 = cast %v43 : U32
+    %v46 = cast 1 : U32
+    %v47 = cmp_eq %v44, %v46 : Bool
+    je %v47, b13, b14
+
+  b13:
+    %v49 = load %self : Run(Outer)
+    %v50 = load %self@Run.items : %Outer
+    %v51 = cast %v50 : %U8
+    call freeHeap, %v51
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    assign %self@Run.items, %fresh
+    %v56 = cast %wanted : U32
+    %v58 = and %v56, 2147483647 : U32
+    %v59 = cast %v58 : @bits(31) U32
+    assign %self@Run.capacity, %v59
+    assign %self@Run.ownsHeap, 1
+    ret True
+}
+
+fn byteSpan(Outer)(%from: %Outer, %count: Int) -> I64 {
+  b0:
+    %v2 = cast %from : %U8
+    %v3 = cast %count : I64
+    %v4 = strideof Outer : I64
+    %v5 = mul %v3, %v4 : I64
+    %v6 = add %from, %v5 : %Outer
+    %v7 = cast %v6 : %U8
+    %v8 = sub %v7, %v2 : I64
+    %v9 = strideof U8 : I64
+    %v10 = div %v8, %v9 : I64
+    ret %v10
+}
+
+fn releaseRun(Outer)(%self: Run(Outer)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(1) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %Outer
+    %v8 = cast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn releaseRun(Pad)(%self: Run(Pad)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(1) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %Pad
+    %v8 = cast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn mapMemory(%size: I64) -> %U8 {
+  b0:
+    %v7 = neg 1 : I64
+    %result = syscall 9, 0, %size, 3, 34, %v7, 0 : I64
+    %v12 = cmp_lt %result, 0 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v15 = cast 0 : %U8
+    ret %v15
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = cast %result : %U8
+    ret %v18
+}
+
+fn emptyArray(Pad)() -> Array(Pad) {
+  b0:
+    %v0 = alloc : Array(Pad)
+    %v1 = call emptyRun(Pad) : Run(Pad)
+    init %local0@Array.run, %v1
+    init %local0@Array.length, 0
+    ret %v0
+}
+
+fn push(Pad)(%self: Array(Pad), %item: Pad) -> () {
+  b0:
+    %v2 = load %self : Array(Pad)
+    %v3 = load %self@Array.length : @bits(31) U32
+    %v4 = cast %v3 : U32
+    %count = cast %v4 : Int
+    %v6 = load %self : Array(Pad)
+    %v8 = add %count, 1 : Int
+    %v9 = borrow_mut %self : &mut Array(Pad)
+    call reserve(Pad), %v9, %v8
+    %v11 = load %self : Array(Pad)
+    %v12 = load %self@Array.run : Run(Pad)
+    %v13 = load %self@Array.run@Run.capacity : @bits(31) U32
+    %v14 = cast %v13 : U32
+    %v15 = cast %v14 : Int
+    %v16 = cmp_ge %count, %v15 : Bool
+    je %v16, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v20 = load %self : Array(Pad)
+    %v21 = load %self@Array.run : Run(Pad)
+    %v22 = load %self@Array.run@Run.items : %Pad
+    %v23 = cast %count : I64
+    %v24 = strideof Pad : I64
+    %v25 = mul %v23, %v24 : I64
+    %v26 = add %v22, %v25 : %Pad
+    assign [%v26], %item
+    %v29 = add %count, 1 : Int
+    %v30 = cast %v29 : U32
+    %v32 = and %v30, 2147483647 : U32
+    %v33 = cast %v32 : @bits(31) U32
+    assign %self@Array.length, %v33
+    ret
+}
+
+fn reserve(Pad)(%self: Array(Pad), %wanted: Int) -> () {
+  b0:
+    %v2 = load %self : Array(Pad)
+    %v3 = load %self@Array.run : Run(Pad)
+    %v4 = load %self@Array.run@Run.capacity : @bits(31) U32
+    %v5 = cast %v4 : U32
+    %room = cast %v5 : Int
+    %v7 = cmp_le %wanted, %room : Bool
+    je %v7, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = add %room, %room : Int
+    %wide = alloc : Int
+    init %wide, %v11
+    %v14 = load %wide : Int
+    %v15 = cmp_lt %v14, %wanted : Bool
+    je %v15, b4, b5
+
+  b4:
+    assign %wide, %wanted
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v20 = load %wide : Int
+    %v22 = cmp_lt %v20, 4 : Bool
+    je %v22, b7, b8
+
+  b7:
+    assign %wide, 4
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v28 = load %self : Array(Pad)
+    %v29 = load %self@Array.run : Run(Pad)
+    %v30 = load %wide : Int
+    %v31 = borrow_mut %self@Array.run : &mut Run(Pad)
+    %v32 = call resize(Pad), %v31, %v30 : Bool
+    ret
+}
+
+fn get(Pad)(%self: Flat(Pad), %index: I64) -> &Pad {
+  b0:
+    %v2 = load %self@Flat.items : %Pad
+    %v3 = strideof Pad : I64
+    %v4 = mul %index, %v3 : I64
+    %v5 = add %v2, %v4 : %Pad
+    %v6 = borrow [%v5] : &Pad
+    ret %v6
+}
+
+fn emptyArray(Outer)() -> Array(Outer) {
+  b0:
+    %v0 = alloc : Array(Outer)
+    %v1 = call emptyRun(Outer) : Run(Outer)
+    init %local0@Array.run, %v1
+    init %local0@Array.length, 0
+    ret %v0
+}
+
+fn push(Outer)(%self: Array(Outer), %item: Outer) -> () {
+  b0:
+    %v2 = load %self : Array(Outer)
+    %v3 = load %self@Array.length : @bits(31) U32
+    %v4 = cast %v3 : U32
+    %count = cast %v4 : Int
+    %v6 = load %self : Array(Outer)
+    %v8 = add %count, 1 : Int
+    %v9 = borrow_mut %self : &mut Array(Outer)
+    call reserve(Outer), %v9, %v8
+    %v11 = load %self : Array(Outer)
+    %v12 = load %self@Array.run : Run(Outer)
+    %v13 = load %self@Array.run@Run.capacity : @bits(31) U32
+    %v14 = cast %v13 : U32
+    %v15 = cast %v14 : Int
+    %v16 = cmp_ge %count, %v15 : Bool
+    je %v16, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v20 = load %self : Array(Outer)
+    %v21 = load %self@Array.run : Run(Outer)
+    %v22 = load %self@Array.run@Run.items : %Outer
+    %v23 = cast %count : I64
+    %v24 = strideof Outer : I64
+    %v25 = mul %v23, %v24 : I64
+    %v26 = add %v22, %v25 : %Outer
+    assign [%v26], %item
+    %v29 = add %count, 1 : Int
+    %v30 = cast %v29 : U32
+    %v32 = and %v30, 2147483647 : U32
+    %v33 = cast %v32 : @bits(31) U32
+    assign %self@Array.length, %v33
+    ret
+}
+
+fn reserve(Outer)(%self: Array(Outer), %wanted: Int) -> () {
+  b0:
+    %v2 = load %self : Array(Outer)
+    %v3 = load %self@Array.run : Run(Outer)
+    %v4 = load %self@Array.run@Run.capacity : @bits(31) U32
+    %v5 = cast %v4 : U32
+    %room = cast %v5 : Int
+    %v7 = cmp_le %wanted, %room : Bool
+    je %v7, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = add %room, %room : Int
+    %wide = alloc : Int
+    init %wide, %v11
+    %v14 = load %wide : Int
+    %v15 = cmp_lt %v14, %wanted : Bool
+    je %v15, b4, b5
+
+  b4:
+    assign %wide, %wanted
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v20 = load %wide : Int
+    %v22 = cmp_lt %v20, 4 : Bool
+    je %v22, b7, b8
+
+  b7:
+    assign %wide, 4
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v28 = load %self : Array(Outer)
+    %v29 = load %self@Array.run : Run(Outer)
+    %v30 = load %wide : Int
+    %v31 = borrow_mut %self@Array.run : &mut Run(Outer)
+    %v32 = call resize(Outer), %v31, %v30 : Bool
+    ret
+}
+
+fn get(Outer)(%self: Flat(Outer), %index: I64) -> &Outer {
+  b0:
+    %v2 = load %self@Flat.items : %Outer
+    %v3 = strideof Outer : I64
+    %v4 = mul %index, %v3 : I64
+    %v5 = add %v2, %v4 : %Outer
+    %v6 = borrow [%v5] : &Outer
+    ret %v6
+}
+
+fn Reclaim(Array(a)).reclaim(Outer)(%value: Array(Outer)) -> () {
+  b0:
+    %v1 = load %value@Array.length : @bits(31) U32
+    %v2 = cast %v1 : U32
+    %count = cast %v2 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : Int
+    %v9 = cmp_lt %v8, %count : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v11 = load %value@Array.run : Run(Outer)
+    call releaseRun(Outer), %v11
+    ret
+
+  b3:
+    %v14 = load %value@Array.run : Run(Outer)
+    %v15 = load %value@Array.run@Run.items : %Outer
+    %v16 = load %i : Int
+    %v17 = cast %v16 : I64
+    %v18 = strideof Outer : I64
+    %v19 = mul %v17, %v18 : I64
+    %v20 = add %v15, %v19 : %Outer
+    %v21 = load [%v20] : Outer
+    %v22 = move %local2 : Outer
+    %doomed = alloc : Outer
+    init %local3, %v22
+    %v25 = load %i : Int
+    %v27 = add %v25, 1 : Int
+    assign %i, %v27
+    jmp b1
+}
+
+fn Reclaim(Array(a)).reclaim(Pad)(%value: Array(Pad)) -> () {
+  b0:
+    %v1 = load %value@Array.length : @bits(31) U32
+    %v2 = cast %v1 : U32
+    %count = cast %v2 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : Int
+    %v9 = cmp_lt %v8, %count : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v11 = load %value@Array.run : Run(Pad)
+    call releaseRun(Pad), %v11
+    ret
+
+  b3:
+    %v14 = load %value@Array.run : Run(Pad)
+    %v15 = load %value@Array.run@Run.items : %Pad
+    %v16 = load %i : Int
+    %v17 = cast %v16 : I64
+    %v18 = strideof Pad : I64
+    %v19 = mul %v17, %v18 : I64
+    %v20 = add %v15, %v19 : %Pad
+    %v21 = load [%v20] : Pad
+    %v22 = move %local2 : Pad
+    %doomed = alloc : Pad
+    init %local3, %v22
+    %v25 = load %i : Int
+    %v27 = add %v25, 1 : Int
+    assign %i, %v27
+    jmp b1
+}
+
+fn pad(%n: U32) -> Pad {
+  b0:
+    %v1 = alloc : Pad
+    %v3 = cast 0 : %U8
+    init %local0@Pad.p, %v3
+    init %local0@Pad.n, %n
+    ret %v1
+}
+
+fn main() -> I64 {
+  b0:
+    %v0 = alloc : Outer
+    %v2 = call pad, 1 : Pad
+    init %local0@Outer.inner, %v2
+    init %local0@Outer.tail, 77
+    %o = alloc : Outer
+    init %o, %v0
+    %v9 = call pad, 2 : Pad
+    assign %o@Outer.inner, %v9
+    %v11 = load %o : Outer
+    %v12 = load %o@Outer.tail : U32
+    %v15 = cmp_ne %v12, 77 : Bool
+    je %v15, b1, b2
+
+  b1:
+    %v19 = neg 1 : I64
+    ret %v19
+
+  b2:
+    jmp b3
+
+  b3:
+    %v22 = load %o : Outer
+    %v23 = load %o@Outer.inner : Pad
+    %v24 = load %o@Outer.inner@Pad.n : U32
+    %v27 = cmp_ne %v24, 2 : Bool
+    je %v27, b4, b5
+
+  b4:
+    %v31 = neg 2 : I64
+    ret %v31
+
+  b5:
+    jmp b6
+
+  b6:
+    %v34 = call emptyArray(Pad) : Array(Pad)
+    %xs = alloc : Array(Pad)
+    init %xs, %v34
+    %v37 = load %xs : Array(Pad)
+    %v39 = call pad, 10 : Pad
+    %v40 = borrow_mut %xs : &mut Array(Pad)
+    %v41 = copy %local6 : Pad
+    call push(Pad), %v40, %v41
+    %v43 = load %xs : Array(Pad)
+    %v45 = call pad, 20 : Pad
+    %v46 = borrow_mut %xs : &mut Array(Pad)
+    %v47 = copy %local8 : Pad
+    call push(Pad), %v46, %v47
+    %v49 = load %xs : Array(Pad)
+    %v51 = call pad, 30 : Pad
+    %v52 = borrow_mut %xs : &mut Array(Pad)
+    %v53 = copy %local10 : Pad
+    call push(Pad), %v52, %v53
+    %v55 = load %xs : Array(Pad)
+    %v57 = borrow %xs : &Array(Pad)
+    %v58 = alloc : Flat(Pad)
+    %v59 = load [%v57]@Array.run@Run.items : %Pad
+    init %local12@Flat.items, %v59
+    %v61 = load [%v57]@Array.length : @bits(31) U32
+    %v62 = cast %v61 : U32
+    %v63 = cast %v62 : I64
+    init %local12@Flat.length, %v63
+    %v66 = borrow %local12 : &Flat(Pad)
+    %v67 = call get(Pad), %v66, 0 : &Pad
+    %v68 = load [%v67] : Pad
+    %v69 = load [%v67]@Pad.n : U32
+    %v72 = cmp_ne %v69, 10 : Bool
+    je %v72, b28, b8
+
+  b7:
+    %v76 = neg 3 : I64
+    ret %v76
+
+  b8:
+    jmp b9
+
+  b9:
+    %v79 = load %xs : Array(Pad)
+    %v81 = borrow %xs : &Array(Pad)
+    %v82 = alloc : Flat(Pad)
+    %v83 = load [%v81]@Array.run@Run.items : %Pad
+    init %local13@Flat.items, %v83
+    %v85 = load [%v81]@Array.length : @bits(31) U32
+    %v86 = cast %v85 : U32
+    %v87 = cast %v86 : I64
+    init %local13@Flat.length, %v87
+    %v90 = borrow %local13 : &Flat(Pad)
+    %v91 = call get(Pad), %v90, 1 : &Pad
+    %v92 = load [%v91] : Pad
+    %v93 = load [%v91]@Pad.n : U32
+    %v96 = cmp_ne %v93, 20 : Bool
+    je %v96, b29, b11
+
+  b10:
+    %v100 = neg 4 : I64
+    ret %v100
+
+  b11:
+    jmp b12
+
+  b12:
+    %v103 = load %xs : Array(Pad)
+    %v105 = borrow %xs : &Array(Pad)
+    %v106 = alloc : Flat(Pad)
+    %v107 = load [%v105]@Array.run@Run.items : %Pad
+    init %local14@Flat.items, %v107
+    %v109 = load [%v105]@Array.length : @bits(31) U32
+    %v110 = cast %v109 : U32
+    %v111 = cast %v110 : I64
+    init %local14@Flat.length, %v111
+    %v114 = borrow %local14 : &Flat(Pad)
+    %v115 = call get(Pad), %v114, 2 : &Pad
+    %v116 = load [%v115] : Pad
+    %v117 = load [%v115]@Pad.n : U32
+    %v120 = cmp_ne %v117, 30 : Bool
+    je %v120, b30, b14
+
+  b13:
+    %v124 = neg 5 : I64
+    ret %v124
+
+  b14:
+    jmp b15
+
+  b15:
+    %v127 = call emptyArray(Outer) : Array(Outer)
+    %ys = alloc : Array(Outer)
+    init %ys, %v127
+    %v130 = load %ys : Array(Outer)
+    %v131 = alloc : Outer
+    %v133 = call pad, 5 : Pad
+    init %local17@Outer.inner, %v133
+    init %local17@Outer.tail, 6
+    %v137 = borrow_mut %ys : &mut Array(Outer)
+    %v138 = copy %local17 : Outer
+    call push(Outer), %v137, %v138
+    %v140 = load %ys : Array(Outer)
+    %v141 = alloc : Outer
+    %v143 = call pad, 7 : Pad
+    init %local20@Outer.inner, %v143
+    init %local20@Outer.tail, 8
+    %v147 = borrow_mut %ys : &mut Array(Outer)
+    %v148 = copy %local20 : Outer
+    call push(Outer), %v147, %v148
+    %v150 = load %ys : Array(Outer)
+    %v152 = borrow %ys : &Array(Outer)
+    %v153 = alloc : Flat(Outer)
+    %v154 = load [%v152]@Array.run@Run.items : %Outer
+    init %local23@Flat.items, %v154
+    %v156 = load [%v152]@Array.length : @bits(31) U32
+    %v157 = cast %v156 : U32
+    %v158 = cast %v157 : I64
+    init %local23@Flat.length, %v158
+    %v161 = borrow %local23 : &Flat(Outer)
+    %v162 = call get(Outer), %v161, 0 : &Outer
+    %v163 = load [%v162] : Outer
+    %v164 = load [%v162]@Outer.inner : Pad
+    %v165 = load [%v162]@Outer.inner@Pad.n : U32
+    %v168 = cmp_ne %v165, 5 : Bool
+    je %v168, b31, b17
+
+  b16:
+    %v172 = neg 6 : I64
+    ret %v172
+
+  b17:
+    jmp b18
+
+  b18:
+    %v175 = load %ys : Array(Outer)
+    %v177 = borrow %ys : &Array(Outer)
+    %v178 = alloc : Flat(Outer)
+    %v179 = load [%v177]@Array.run@Run.items : %Outer
+    init %local24@Flat.items, %v179
+    %v181 = load [%v177]@Array.length : @bits(31) U32
+    %v182 = cast %v181 : U32
+    %v183 = cast %v182 : I64
+    init %local24@Flat.length, %v183
+    %v186 = borrow %local24 : &Flat(Outer)
+    %v187 = call get(Outer), %v186, 0 : &Outer
+    %v188 = load [%v187] : Outer
+    %v189 = load [%v187]@Outer.tail : U32
+    %v192 = cmp_ne %v189, 6 : Bool
+    je %v192, b32, b20
+
+  b19:
+    %v196 = neg 7 : I64
+    ret %v196
+
+  b20:
+    jmp b21
+
+  b21:
+    %v199 = load %ys : Array(Outer)
+    %v201 = borrow %ys : &Array(Outer)
+    %v202 = alloc : Flat(Outer)
+    %v203 = load [%v201]@Array.run@Run.items : %Outer
+    init %local25@Flat.items, %v203
+    %v205 = load [%v201]@Array.length : @bits(31) U32
+    %v206 = cast %v205 : U32
+    %v207 = cast %v206 : I64
+    init %local25@Flat.length, %v207
+    %v210 = borrow %local25 : &Flat(Outer)
+    %v211 = call get(Outer), %v210, 1 : &Outer
+    %v212 = load [%v211] : Outer
+    %v213 = load [%v211]@Outer.inner : Pad
+    %v214 = load [%v211]@Outer.inner@Pad.n : U32
+    %v217 = cmp_ne %v214, 7 : Bool
+    je %v217, b33, b23
+
+  b22:
+    %v221 = neg 8 : I64
+    ret %v221
+
+  b23:
+    jmp b24
+
+  b24:
+    %v224 = load %ys : Array(Outer)
+    %v226 = borrow %ys : &Array(Outer)
+    %v227 = alloc : Flat(Outer)
+    %v228 = load [%v226]@Array.run@Run.items : %Outer
+    init %local26@Flat.items, %v228
+    %v230 = load [%v226]@Array.length : @bits(31) U32
+    %v231 = cast %v230 : U32
+    %v232 = cast %v231 : I64
+    init %local26@Flat.length, %v232
+    %v235 = borrow %local26 : &Flat(Outer)
+    %v236 = call get(Outer), %v235, 1 : &Outer
+    %v237 = load [%v236] : Outer
+    %v238 = load [%v236]@Outer.tail : U32
+    drop %ys reclaim Reclaim(Array(a)).reclaim(Outer)
+    %v241 = cmp_ne %v238, 8 : Bool
+    je %v241, b34, b26
+
+  b25:
+    %v245 = neg 9 : I64
+    ret %v245
+
+  b26:
+    jmp b27
+
+  b27:
+    %v248 = load %o : Outer
+    %v249 = sizeof Outer : I64
+    %v252 = mul %v249, 10000 : I64
+    %v254 = call pad, 0 : Pad
+    %v255 = sizeof Pad : I64
+    %v258 = mul %v255, 100 : I64
+    %v259 = add %v252, %v258 : I64
+    %v260 = load %xs : Array(Pad)
+    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
+    %v261 = sizeof Array(Pad) : I64
+    %v262 = add %v259, %v261 : I64
+    ret %v262
+
+  b28:
+    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
+    jmp b7
+
+  b29:
+    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
+    jmp b10
+
+  b30:
+    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
+    jmp b13
+
+  b31:
+    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
+    drop %ys reclaim Reclaim(Array(a)).reclaim(Outer)
+    jmp b16
+
+  b32:
+    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
+    drop %ys reclaim Reclaim(Array(a)).reclaim(Outer)
+    jmp b19
+
+  b33:
+    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
+    drop %ys reclaim Reclaim(Array(a)).reclaim(Outer)
+    jmp b22
+
+  b34:
+    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
+    jmp b25
+}

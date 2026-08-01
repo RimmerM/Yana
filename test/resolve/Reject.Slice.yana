@@ -31,7 +31,7 @@ fn escapeUndeclared(xs: [Int]) -> &[Int] = slice(xs, 0, 1)
 -- A closure that outlives the frame that built it cannot hold a reference into it, and a captured
 -- slice is a captured reference however the capture convention was chosen. Design-Memory §8's rule,
 -- reaching a type it was not written for.
-fn escapeCaptured(xs: [Int]) -> () -> Int = () -> length(xs)
+fn escapeCaptured(xs: [Int]) -> () -> Int = () -> length(xs) :: Int
 
 {-
    And a *record* holding a slice is held to the same contract, because handing one back hands the

@@ -220,6 +220,20 @@ struct NicheEncoding {
  * being built would have to be invalidated and nothing is arranged to notice.
  */
 struct Repr {
+    /*
+     * Where the last field ends, which is *not* rounded up to the alignment.
+     *
+     * The two used to be one number and separating them is what lets a container fit in two words:
+     * a record's trailing padding belongs to whoever contains it, so a parent places its next field
+     * at the child's `size` and lands inside what the child would have wasted.
+     * `data Array(a) {run: Run(a), length: Count}` is sixteen bytes by this line where it was
+     * twenty-four - see Implementation-Containers.md §10.3, and `test/resolve/TailPad.yana` for the
+     * two properties that would break if any use of one of these numbers were really a use of the
+     * other.
+     *
+     * So this is what a whole-value copy moves and what a single value occupies. What a *second* one
+     * beside it starts at is `stride`.
+     */
     U32 size = 0;
     U32 align = 1;
 
@@ -241,8 +255,9 @@ struct Repr {
      */
     U32 scalarBits = 0;
 
-    // What indexing homogeneous storage advances by. `alignUp(size, align)` for everything today,
-    // and explicit because a packed element or a target ABI may choose otherwise.
+    // What indexing homogeneous storage advances by: `alignUp(size, align)`, which is larger than
+    // `size` for a record whose last field leaves padding. Explicit rather than computed because a
+    // packed element or a target ABI may choose otherwise.
     U32 stride = 0;
 
     // The niche this representation exposes to whatever contains it, if any.

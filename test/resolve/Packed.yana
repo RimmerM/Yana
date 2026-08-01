@@ -219,6 +219,46 @@ fn kept() -> Int:
 
     return (if e.live then 1 else 0) + (e.kind :: Int) * 10 + e.count * 100
 
+{-
+   `@bits` is invisible to dispatch, including when only *one* operand carries it.
+
+   [repr.md](../../doc/spec/repr.md#bit-width-refinements) makes this a rule rather than a
+   convenience: *"`@bits(n)` is Repr-only: it never participates in typeclass dispatch"*, and
+   *"everything that dispatches (instance selection, literal defaulting, overload resolution)
+   canonicalizes first"*. `matchType` is the half that answers `Num(@bits(53) U64)` with
+   `instance Num(U64)`; this is the half where a *call* binds one class variable from two positions
+   that do not carry the same refinement, and it held only while they happened to agree.
+
+   The three shapes below are the three that were rejected. Each reported "no class function ==
+   accepts (@bits(2) U32, U32)" or the equivalent for `+`, for an operator the spec says is the plain
+   `U32` one - and a program could only get past it by ascribing every packed field at every use.
+
+   The answers matter as much as the acceptance, because the natural-width rule is what decides them:
+   `a + 3` on a two-bit field holding 3 is **6**, not 6 masked back to 2. Arithmetic happens at the
+   type's own width and only a *store* narrows, so the last line is where the mask reappears.
+-}
+fn dispatch() -> Int:
+    let &h = Entry {live: True, kind: 5, count: 0}
+
+    -- A refinement against its unrefined type, both ways round, and against a second refinement of
+    -- the same type. `count` is an `Int` neighbour sharing nothing, so a wrong answer here is the
+    -- word being read at the wrong width rather than the comparison picking a strange instance.
+    if h.kind != (5 :: U32) then return 0
+    if (5 :: U32) != h.kind then return 0
+
+    -- Ordering as well as equality, since they are different classes reaching the same rule.
+    if !(h.kind < (100 :: U32)) then return 0
+    if !(h.kind >= (5 :: U32)) then return 0
+    if h.kind > (5 :: U32) then return 0
+
+    -- At the natural width: 5 + 3 is 8, which does not fit three bits and is not truncated here.
+    let wide = h.kind + (3 :: U32)
+
+    -- And narrowed on the way back into the field: 8 in three bits is 0.
+    h.kind = wide
+    return (wide :: Int) * 10 + (h.kind :: Int)
+
+-- 8 * 10 + 0 = 80
 -- 900000 + 20000 + 4000 = 924000
 -- 200 + 4 = 204
 -- 2000 + 300 = 2300
@@ -233,4 +273,4 @@ fn kept() -> Int:
 -- 1 + 10 + 200 = 211
 fn main() -> Int =
     direct() + borrowed() + neighbours() + together() + unpacked() + loaned() +
-    returned() + interleaved() + threaded() + wide() + tally() + kept()
+    returned() + interleaved() + threaded() + wide() + tally() + kept() + dispatch()

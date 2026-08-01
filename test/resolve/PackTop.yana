@@ -1,0 +1,119 @@
+-- Reading a packed field that ends where its word does.
+--
+-- The mask a packed read emits is for the bits *above* the range, so a field at the top of its word
+-- needs none: the word is loaded unsigned at exactly its own width, and the shift that brought the
+-- field to zero already pushed everything above it out. `decode` in `opt/opt_pack.cpp` and
+-- `decodePackedBits` in `resolve/lower.cpp` both used to ask whether the field was narrower than its
+-- word, which is a different question and answered yes for every top field in every program.
+--
+-- What makes this worth a fixture rather than a golden diff is that the rule is a *removal*: an
+-- `and` that is the identity looks exactly like one that is not, so the way it goes wrong is a field
+-- that reads back with its neighbours still in it. Each record below therefore has a full-width
+-- neighbour under the top field, so a missing shift or an over-wide read shows up as a wrong number
+-- rather than as a zero that happened to match.
+--
+-- **Both decoders, deliberately.** The expansion in `compiler/opt` only rewrites a place rooted in
+-- local or global storage (`rootedHere`), so an *array element* - rooted in a pointer - falls through
+-- to `resolve/lower.cpp` instead. Each record below is therefore read out of both, because a fixture
+-- using only one would pass with the other decoder arbitrarily wrong - which was checked by breaking
+-- each of them in turn and confirming this file fails.
+--
+-- The storage-rooted half borrows each local once, and that is not incidental: a local record
+-- nothing ever takes a reference to is scalarized and promoted, so its fields end up in registers and
+-- there is no packed word left to decode at all. `pin` is what keeps the storage, and `@noinline` is
+-- what keeps `pin`.
+
+import Native
+
+-- A one-byte word, a two-byte word, and a four-byte word, each with its last field at the top.
+data B1 {lo: @bits(6) U32, hi: @bits(2) U32}
+data B2 {lo: @bits(12) U32, hi: @bits(4) U32}
+data B4 {lo: @bits(31) U32, hi: @bits(1) U32}
+
+-- A field that does *not* reach the top, where the mask is still load-bearing: `mid` has `spare`
+-- above it, so dropping the `and` here would read four bits and answer with six.
+data Gap {lo: @bits(10) U32, mid: @bits(4) U32, spare: @bits(2) U32}
+
+-- Signed, at the top. This one never masked - it shifts up and back down arithmetically - and it is
+-- here because the sign rebuild is what would break first if the shift ever stopped clearing.
+data Signed {lo: @bits(20) U32, hi: @bits(12) I32}
+
+-- Four of them rather than one generic `pin`, because a generic body would be specialized and the
+-- point is only that each record is borrowed somewhere the optimizer cannot see through.
+@noinline
+fn pin1(&v: B1) -> {} = v.lo = v.lo
+@noinline
+fn pin4(&v: B4) -> {} = v.lo = v.lo
+@noinline
+fn pinGap(&v: Gap) -> {} = v.lo = v.lo
+@noinline
+fn pinSigned(&v: Signed) -> {} = v.lo = v.lo
+
+fn main() -> I64:
+    let &a = emptyArray() :: [B1]
+    push(a, B1 {lo: 63, hi: 3})
+    push(a, B1 {lo: 1, hi: 1})
+    if a[0].hi != 3 then return -1
+    if a[0].lo != 63 then return -2
+    if a[1].hi != 1 then return -3
+    if a[1].lo != 1 then return -4
+
+    let &b = emptyArray() :: [B2]
+    push(b, B2 {lo: 4095, hi: 15})
+    if b[0].hi != 15 then return -5
+    if b[0].lo != 4095 then return -6
+
+    -- One bit at the top of a full word, which is `Run`'s own storage flag (§10.2) and the shape the
+    -- whole rule was noticed on: `(x >> 31) & 1` where the `and` cannot change anything.
+    let &c = emptyArray() :: [B4]
+    push(c, B4 {lo: 2147483647, hi: 1})
+    push(c, B4 {lo: 0, hi: 0})
+    if c[0].hi != 1 then return -7
+    if c[0].lo != 2147483647 then return -8
+    if c[1].hi != 0 then return -9
+
+    let &d = emptyArray() :: [Gap]
+    push(d, Gap {lo: 1023, mid: 15, spare: 3})
+    if d[0].mid != 15 then return -10
+    if d[0].lo != 1023 then return -11
+    if d[0].spare != 3 then return -12
+
+    -- Both ends of a signed range at the top of its word.
+    let &e = emptyArray() :: [Signed]
+    push(e, Signed {lo: 1048575, hi: 0 - 2048})
+    push(e, Signed {lo: 0, hi: 2047})
+    if e[0].hi != (0 - 2048 :: I32) then return -13
+    if e[1].hi != (2047 :: I32) then return -14
+    if e[0].lo != 1048575 then return -15
+
+    -- The same reads out of storage the expansion in `compiler/opt` reaches.
+    let &l1 = B1 {lo: 63, hi: 3}
+    pin1(l1)
+    if l1.hi != 3 then return -16
+    if l1.lo != 63 then return -17
+
+    let &l4 = B4 {lo: 2147483647, hi: 1}
+    pin4(l4)
+    if l4.hi != 1 then return -18
+    if l4.lo != 2147483647 then return -19
+
+    let &gg = Gap {lo: 1023, mid: 15, spare: 3}
+    pinGap(gg)
+    if gg.mid != 15 then return -20
+    if gg.lo != 1023 then return -21
+    if gg.spare != 3 then return -22
+
+    -- Written through as well as read, since a store has to put the field back where a read of a
+    -- neighbour will not see it.
+    gg.mid = 5
+    gg.spare = 1
+    if gg.mid != 5 then return -23
+    if gg.lo != 1023 then return -24
+    if gg.spare != 1 then return -25
+
+    let &gs = Signed {lo: 1048575, hi: 0 - 2048}
+    pinSigned(gs)
+    if gs.hi != (0 - 2048 :: I32) then return -26
+    if gs.lo != 1048575 then return -27
+
+    return 1

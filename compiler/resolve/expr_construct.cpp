@@ -50,9 +50,9 @@ ModulePtr<Value> ExprResolver::offsetPointer(ModulePtr<Value> base, TypePtr elem
  *
  * Three writes and an allocation with a count beside it. What makes the run *placed* rather than
  * always heap-allocated is that the allocation is an ordinary one: escape analysis reaches it
- * through the same loop it reaches a record's storage through, and the tag it patches is the
- * constant written into `placed` here. So a literal whose array never leaves its frame gets a frame
- * run and a `Reclaim` that folds to nothing, with nothing in this function saying either.
+ * through the same loop it reaches a record's storage through, and the flag it patches is the
+ * constant written into `ownsHeap` here. So a literal whose array never leaves its frame gets a
+ * frame run and a `Reclaim` that folds to nothing, with nothing in this function saying either.
  *
  * The count is widened to a machine word for the allocation and kept as written for the field: a
  * capacity is a number of elements the program can read back, and a byte count is what the
@@ -88,10 +88,11 @@ ModulePtr<Value> ExprResolver::buildRun(TypePtr runType, ModulePtr<Value> count,
     auto slots = allocateRun(element, extent, source);
     items = ref(emit<InstAddress>(source, 0, pointerField, placeFor(slots, source)));
 
-    // What the escape analysis writes its answer into. It starts at `Inline`, which is the arm that
-    // releases nothing - so a run that never reaches selectStorage, in a generic body say, is still
-    // right rather than freeing storage it did not allocate.
-    auto placed = constant<ConstInt>(source, tagField, U64(StorageClass::Inline));
+    // What the escape analysis writes its answer into - one bit, "is this run's storage the
+    // allocator's". It starts false, which is the arm that releases nothing, so a run that never
+    // reaches selectStorage - in a generic body, say - is still right rather than freeing storage it
+    // did not allocate.
+    auto placed = constant<ConstInt>(source, tagField, 0);
     ((InstAlloc*)local[slots])->storageFlag = placed;
 
     auto storage = allocate(runType, source, 0);

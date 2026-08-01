@@ -500,67 +500,66 @@ main<complex>(): Int {
     %v_127 = add %v_126, 4: Ptr
     %v_128 = load %v_127, 4: Int
     %v_129 = shr %v_128, 20: Int
-    %v_130 = and %v_129, 4095: Int
-    %v_131 = cmp_eq %v_130, 0: Int
-    je %v_131, b_132, b_133
-  }
-
-  b_133 {
-    jmp b_134
+    %v_130 = cmp_eq %v_129, 0: Int
+    je %v_130, b_131, b_132
   }
 
   b_132 {
-    jmp b_134
+    jmp b_133
   }
 
-  b_134 {
-    %v_135 = phi [b_132, 4096], [b_133, 0]: Int
-    %v_136 = add %v_125, %v_135: Int
-    %v_137 = alloca 8, 8: Ptr
-    call_complex stored, %v_137, 549755813887
-    %v_138 = load %v_137, 8: Long
-    %v_139 = shl %v_138, 24: Long
-    %v_140 = sar %v_139, 24: Long
-    %v_141 = sext %v_140: Long
-    %v_142 = cast %v_141: Long
-    %v_143 = cmp_eq %v_142, 549755813887: Int
-    je %v_143, b_144, b_145
+  b_131 {
+    jmp b_133
   }
 
-  b_145 {
-    jmp b_146
+  b_133 {
+    %v_134 = phi [b_131, 4096], [b_132, 0]: Int
+    %v_135 = add %v_125, %v_134: Int
+    %v_136 = alloca 8, 8: Ptr
+    call_complex stored, %v_136, 549755813887
+    %v_137 = load %v_136, 8: Long
+    %v_138 = shl %v_137, 24: Long
+    %v_139 = sar %v_138, 24: Long
+    %v_140 = sext %v_139: Long
+    %v_141 = cast %v_140: Long
+    %v_142 = cmp_eq %v_141, 549755813887: Int
+    je %v_142, b_143, b_144
   }
 
   b_144 {
-    jmp b_146
+    jmp b_145
   }
 
-  b_146 {
-    %v_147 = phi [b_144, 8192], [b_145, 0]: Int
-    %v_148 = add %v_136, %v_147: Int
-    %v_149 = alloca 8, 8: Ptr
-    call_complex stored, %v_149, 18446743523953737728
-    %v_150 = load %v_149, 8: Long
-    %v_151 = shl %v_150, 24: Long
-    %v_152 = sar %v_151, 24: Long
-    %v_153 = sext %v_152: Long
-    %v_154 = cast %v_153: Long
-    %v_155 = cmp_eq %v_154, 18446743523953737728: Int
-    je %v_155, b_156, b_157
+  b_143 {
+    jmp b_145
   }
 
-  b_157 {
-    jmp b_158
+  b_145 {
+    %v_146 = phi [b_143, 8192], [b_144, 0]: Int
+    %v_147 = add %v_135, %v_146: Int
+    %v_148 = alloca 8, 8: Ptr
+    call_complex stored, %v_148, 18446743523953737728
+    %v_149 = load %v_148, 8: Long
+    %v_150 = shl %v_149, 24: Long
+    %v_151 = sar %v_150, 24: Long
+    %v_152 = sext %v_151: Long
+    %v_153 = cast %v_152: Long
+    %v_154 = cmp_eq %v_153, 18446743523953737728: Int
+    je %v_154, b_155, b_156
   }
 
   b_156 {
-    jmp b_158
+    jmp b_157
   }
 
-  b_158 {
-    %v_159 = phi [b_156, 16384], [b_157, 0]: Int
-    %v_160 = add %v_148, %v_159: Int
-    ret %v_160
+  b_155 {
+    jmp b_157
+  }
+
+  b_157 {
+    %v_158 = phi [b_155, 16384], [b_156, 0]: Int
+    %v_159 = add %v_147, %v_158: Int
+    ret %v_159
   }
 }
 

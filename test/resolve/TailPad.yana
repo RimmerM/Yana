@@ -1,0 +1,54 @@
+-- Tail padding belongs to whoever contains the record, not to the record.
+--
+-- A record's *size* is where its last field ends; its *stride* is that rounded up to its alignment.
+-- The two were one number until this fixture, and separating them is what lets a field of a parent
+-- land in the padding a nested record would otherwise waste - which is how `Array(a)` fits two words
+-- (Implementation-Containers.md §10.2) rather than three.
+--
+-- The rule is only sound because the two numbers are already used for different things everywhere
+-- that matters: indexing homogeneous storage advances by the stride (`typeStride` in
+-- `resolve/lower.cpp`, and `InstAlloc::extent`'s `n` slots are `n` strides), while a whole-value copy
+-- and a parent's next offset use the size. So what this file asserts is exactly the two properties
+-- that would break if a use of one were really a use of the other.
+
+import Native
+
+-- Size 12, stride 16: a pointer at 0, a word at 8, four bytes over.
+data Pad {p: %U8, n: U32}
+
+-- `tail` lands at offset 12, inside what `Pad` alone would have rounded away. Sixteen bytes for
+-- three fields, where the rounded rule gave twenty.
+data Outer {inner: Pad, tail: U32}
+
+fn pad(n: U32) -> Pad = Pad {p: null(), n: n}
+
+fn main() -> I64:
+    -- Field independence. Writing the nested record *whole* copies its size and not its stride, so
+    -- the field living in its padding survives. Getting this backwards is a silent clobber.
+    let &o = Outer {inner: pad(1), tail: 77}
+    o.inner = pad(2)
+    if o.tail != 77 then return -1
+    if o.inner.n != 2 then return -2
+
+    -- Element independence, which is the other direction: a run of these advances by the stride, so
+    -- two neighbours do not overlap even though each is smaller than the step between them.
+    let &xs = emptyArray() :: [Pad]
+    push(xs, pad(10))
+    push(xs, pad(20))
+    push(xs, pad(30))
+    if xs[0].n != 10 then return -3
+    if xs[1].n != 20 then return -4
+    if xs[2].n != 30 then return -5
+
+    -- And of the packed one, where size and stride are equal again and nothing is spare.
+    let &ys = emptyArray() :: [Outer]
+    push(ys, Outer {inner: pad(5), tail: 6})
+    push(ys, Outer {inner: pad(7), tail: 8})
+    if ys[0].inner.n != 5 then return -6
+    if ys[0].tail != 6 then return -7
+    if ys[1].inner.n != 7 then return -8
+    if ys[1].tail != 8 then return -9
+
+    -- 16 for the outer, 12 for the inner, and the array's own two words - which is the number this
+    -- whole change was for.
+    return sizeOf(o) * 10000 + sizeOf(pad(0)) * 100 + sizeOf(xs)

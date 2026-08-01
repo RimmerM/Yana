@@ -155,6 +155,22 @@ TypePtr sliceElement(Module& module, TypePtr type) {
     return instanceArgument(module, module.program.sliceType, type);
 }
 
+TypePtr sliceLengthType(Module& module, TypePtr type) {
+    auto global = *module.types;
+    if(!sliceElement(module, type)) return nullptr;
+
+    auto record = (RecordType*)global[type];
+    if(record->constructors.isEmpty()) return nullptr;
+
+    auto content = record->constructors.get(global, 0).content;
+    if(!content || global[content]->kind != Type::Tup) return nullptr;
+
+    auto fields = (TupType*)global[content];
+    if(fields->fields.size() != 2) return nullptr;
+
+    return fields->fields.get(global, 1).type;
+}
+
 TypePtr sliceOf(Module& module, TypePtr type) {
     if(!module.program.sliceType) return nullptr;
 

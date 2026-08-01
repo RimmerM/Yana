@@ -19,7 +19,7 @@ fn twiceGeneric(f: (a) -> a, x: a) -> a = f(f(x))
 
 -- Conventions survive the abstraction boundary in both directions: `run` knows only the type, and
 -- the thunk that makes `consume` a value forwards the `->` so the array is consumed exactly once.
-fn consume(->xs: [Int]) -> Int = length(xs)
+fn consume(->xs: [Int]) -> Int = length(xs) :: Int
 
 fn run(f: (->[Int]) -> Int) -> Int = f([1, 2, 3])
 

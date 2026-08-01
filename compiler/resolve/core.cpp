@@ -587,6 +587,40 @@ void defineCore(Program& program) {
     TypeList widthTypes;
     defineIntegerTypes(*module, widthTypes);
 
+    /*
+     * `Size` - what an index and a length are carried at, which is the target's width rather than
+     * the language's. C's `size_t`, and it exists for the reason C's does.
+     *
+     * A **name for an existing primitive** and not a primitive of its own. A distinct type would
+     * need its own `Eq`, `Ord`, `Num`, `Integral` and both conversion ladders, and would then need
+     * converting to and from the very type it *is* on each target. What is wanted is the opposite -
+     * that `Size` be whichever primitive the target already computes indices in - so this binds a
+     * name and stops.
+     *
+     * Keyed on the target's word width and deliberately not on which backend is running. Those
+     * coincide today, and they are not the same question: a thirty-two-bit native target wants a
+     * thirty-two-bit `Size` for the same reason JS does, and writing the rule as "js or not" would
+     * have to be found and rewritten the day one exists rather than simply being true.
+     *
+     * **Signed**, unlike the counts an owner stores (see `Count` in native.cpp). Those are unsigned
+     * because it makes a bounds test one comparison; this one is signed because it is the type an
+     * `Int` index widens *into*, and a signed-to-unsigned ladder does not widen. The choice is
+     * between one free conversion at every subscript and one extra comparison in `checkBounds`, and
+     * the subscript is the hotter of the two by a long way.
+     *
+     * Sixty-four bits natively rather than `WideInt`'s fifty-three, which is the point of asking the
+     * target rather than picking the portable answer: `WideInt` is a *masked* 64-bit integer here,
+     * so every operation on one pays for a width that only JS needs. JS gets `Int`, where a host
+     * array's length is a `uint32` by specification and nothing wider can be described anyway.
+     *
+     * `I64` and not `Long`, which are two distinct primitives of one width here: `I64` is what
+     * `Native`'s pointer arithmetic takes, and an index exists to be added to an address. `Int` and
+     * not `I32` on the other side, for the mirror reason - `Int` is what a literal defaults to, and
+     * a same-width pair does not widen, so an `I32` `Size` would reject `xs[i]` for the ordinary `i`.
+     */
+    auto sizeType = isJsMode(context.settings.mode) ? program.scalar.int_ : coreType(*module, "I64"_v);
+    module->namedTypes.add(context.addQualifiedName("Size", 4, 1), sizeType);
+
     resolveModuleDecls(*module, *ast, nullptr);
 
     attachIntrinsic(*module, "swap"_v, emitSwap);
@@ -717,13 +751,20 @@ import Native
    moves the slots to the heap; and which of those happened is recorded in the run's own tag and
    read by the run's own `Reclaim`. This array's teardown is therefore *derived* - recurse into the
    members - and nothing here is written about it.
+
+   `length` is a `Count` and not an `Int` for the two reasons `Native` gives at that alias: an
+   unsigned bound turns every `index < 0 || index >= length` into one comparison, and thirty bits is
+   what leaves the capacity and the placement room in the same word once the layout can put them
+   there. The *interface* stays signed - `length()` answers an `Int`, `get` takes one - because the
+   language's literals and its arithmetic are signed and a container is not the place to start
+   arguing with that.
 -}
-data Array(a) {run: Run(a), length: Int}
+data Array(a) {run: Run(a), length: Count}
 
 -- An array with room for nothing. The first push allocates.
 fn emptyArray() -> Array(a) = Array {run: emptyRun(), length: 0}
 
-fn capacity(self: Array(a)) -> Int = self.run.capacity
+fn capacity(self: Array(a)) -> Int = self.run.capacity :: Int
 
 {-
    Room for `wanted` elements.
@@ -734,9 +775,10 @@ fn capacity(self: Array(a)) -> Int = self.run.capacity
    across a push is rejected by the ordinary check rather than by anything written here.
 -}
 fn reserve(&self: Array(a), wanted: Int) -> {}:
-    if wanted <= self.run.capacity then return
+    let room = self.run.capacity :: Int
+    if wanted <= room then return
 
-    let &wide = self.run.capacity + self.run.capacity :: Int
+    let &wide = room + room :: Int
     if wide < wanted then wide = wanted
     if wide < 4 then wide = 4
 
@@ -757,29 +799,13 @@ fn reserve(&self: Array(a), wanted: Int) -> {}:
    the array first.
 -}
 fn push(&self: Array(a), ->item: a) -> {}:
-    reserve(self, self.length + 1)
-    if self.length >= self.run.capacity then return
+    let count = self.length :: Int
+    reserve(self, count + 1)
+    if count >= (self.run.capacity :: Int) then return
 
-    store(self.run.items + self.length, item)
-    self.length = self.length + 1
+    store(self.run.items + count, item)
+    self.length = count + 1 :: Count
 
-{-
-   Removes element `index`, moving whatever followed it down over the gap.
-
-   The element is taken out before the gap is closed, rather than being left to the `copyMemory` that
-   writes over it. An assignment releases what it replaces, which is the rule that would have covered
-   this - but a block copy is not an assignment the compiler can see. It is Native moving bytes, and
-   bytes moving over a live value is exactly the operation that owes its own bookkeeping.
-
-   So `doomed` is where the element goes, and the binding is the whole of the fix: a `->` binding
-   owns what it holds, and what it holds is released when this returns. It is never read, which is
-   the point - the value has nowhere to go and being dropped is what should happen to it.
-
-   The move is out of a raw pointer, which is unchecked by construction and correct here for the
-   reason the bounds test above it establishes: `index` is inside the initialized prefix, so there is
-   a live value at that address to take. Design-Memory's checked world cannot state that, which is
-   why the collection is the thing written against Native rather than the caller.
--}
 {-
    The slice - Implementation-Containers.md §4.
 
@@ -799,9 +825,9 @@ fn push(&self: Array(a), ->item: a) -> {}:
    element - which is how `xs[i]` on an owned array keeps that array borrowed without this signature
    mentioning arrays at all.
 -}
-fn length(self: Flat(a)) -> Int = self.length
-fn get(return self: Flat(a), index: Int) -> &a = borrow(self.items + index)
-fn getMut(return &self: Flat(a), index: Int) -> &a = borrowMut(self.items + index)
+fn length(self: Flat(a)) -> Size = self.length
+fn get(return self: Flat(a), index: Size) -> &a = borrow(self.items + index)
+fn getMut(return &self: Flat(a), index: Size) -> &a = borrowMut(self.items + index)
 
 {-
    `xs[from..to]`, as an ordinary function.
@@ -815,28 +841,51 @@ fn getMut(return &self: Flat(a), index: Int) -> &a = borrowMut(self.items + inde
    is a borrow whose representation is a record, and the marker is what makes the checker treat it as
    one - without it this function is rejected for handing back a view of its own argument.
 -}
-fn slice(return self: Flat(a), from: Int, to: Int) -> Flat(a):
-    let &start = from :: Int
+fn slice(return self: Flat(a), from: Size, to: Size) -> Flat(a):
+    let &start = from :: Size
     if start < 0 then start = 0
     if start > self.length then start = self.length
 
-    let &end = to :: Int
+    let &end = to :: Size
     if end < start then end = start
     if end > self.length then end = self.length
 
     return Flat {items: self.items + start, length: end - start}
 
+{-
+   Removes element `index`, moving whatever followed it down over the gap.
+
+   The element is taken out before the gap is closed, rather than being left to the `copyMemory` that
+   writes over it. An assignment releases what it replaces, which is the rule that would have covered
+   this - but a block copy is not an assignment the compiler can see. It is Native moving bytes, and
+   bytes moving over a live value is exactly the operation that owes its own bookkeeping.
+
+   So `doomed` is where the element goes, and the binding is the whole of the fix: a `->` binding
+   owns what it holds, and what it holds is released when this returns. It is never read, which is
+   the point - the value has nowhere to go and being dropped is what should happen to it.
+
+   The move is out of a raw pointer, which is unchecked by construction and correct here for the
+   reason the bounds test above it establishes: `index` is inside the initialized prefix, so there is
+   a live value at that address to take. Design-Memory's checked world cannot state that, which is
+   why the collection is the thing written against Native rather than the caller.
+-}
 fn remove(&self: Array(a), index: Int) -> {}:
-    if index < 0 || index >= self.length then return
+    -- One comparison and not two. `index` reaches this type unsigned, so a negative one arrives as a
+    -- number above every length there is and fails the same test the too-large case fails - which is
+    -- the whole reason `Count` is unsigned, and the shape `checkBounds` (§15) will have.
+    --
+    -- The length needs no ascription of its own: a `@bits` refinement dispatches as the type it
+    -- refines, so this is the ordinary `U32` comparison.
+    if (index :: U32) >= self.length then return
 
     let ->doomed = *(self.run.items + index)
 
-    let rest = self.length - index - 1
+    let rest = (self.length :: Int) - index - 1
     if rest > 0:
         copyMemory(cast(self.run.items + index) :: %U8, cast(self.run.items + index + 1) :: %U8,
                    byteSpan(self.run.items, rest))
 
-    self.length = self.length - 1
+    self.length = (self.length :: Int) - 1 :: Count
 
 {-
    The teardown - Implementation-Containers.md §13.
@@ -859,9 +908,10 @@ fn remove(&self: Array(a), index: Int) -> {}:
 -}
 instance Reclaim(Array(a)):
     fn reclaim(->value: Array(a)) -> {}:
+        let count = value.length :: Int
         let &i = 0 :: Int
 
-        while i < value.length:
+        while i < count:
             let ->doomed = *(value.run.items + i)
             i = i + 1
 

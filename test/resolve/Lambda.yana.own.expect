@@ -32,7 +32,7 @@ fn freeHeap {
 
 fn releaseRun(Int) {
   arg self readonly
-  %self: Run(Int) borrowed droppable readonly live [0, 4)
+  %self: Run(Int) borrowed droppable readonly live [0, 6)
 }
 
 fn mapMemory {
@@ -46,10 +46,10 @@ fn length(Int) {
 
 fn Reclaim(Array(a)).reclaim(Int) {
   arg value readonly
-  %value: Array(Int) borrowed droppable readonly live [0, 9) [10, 24)
-  %i: Int writable live [0, 7) [10, 24)
-  %local2: Int readonly live [17, 20)
-  %local3: Int readonly live [18, 20)
+  %value: Array(Int) borrowed droppable readonly live [0, 11) [12, 26)
+  %i: Int writable live [3, 9) [12, 26)
+  %local2: Int readonly live [19, 22)
+  %local3: Int readonly live [20, 22)
 }
 
 fn double {
@@ -77,8 +77,8 @@ fn twice {
 
 fn consume {
   arg xs readonly
-  %xs: Array(Int) droppable readonly live [0, 7)
-  %xs: Flat(Int) readonly live [1, 7)
+  %xs: Array(Int) droppable readonly live [0, 9)
+  %xs: Flat(Int) readonly live [1, 9)
 }
 
 fn run {

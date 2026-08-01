@@ -608,8 +608,34 @@ ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from
         function.locals.set(local, descriptor.local, entry);
     }
 
+    /*
+     * The length, converted rather than copied across.
+     *
+     * The owner's count and the descriptor's are two fields of two types, and they only *happened* to
+     * be one type while both were `Int`. An owner's is now a `Count` - narrow and unsigned, so that
+     * it packs beside the run's placement flag (§10.2) - while a `Flat`'s is an `Int`, because `Flat`
+     * is `Native`'s public representation type and a refinement there would put a `::` in front of
+     * every comparison a decoder writes.
+     *
+     * Initializing one from the other without asking is what that difference costs if nobody asks:
+     * the value is right for any count either type can hold, so it works, and the IR is ill-typed and
+     * stays that way until one of the two widths moves. `sliceLengthType` is the question being asked
+     * out loud.
+     *
+     * **Explicit**, and it has to be explicit on one target rather than both: a `Count` widens into a
+     * native `Size` for free and *narrows* into a JS one, since `Size` is `WideInt` there and `Int`
+     * here (see the alias). Neither loses anything, and the bound is why - a `Count` is thirty-one
+     * bits, so every value one can hold is inside `Int`'s positive range by construction - but only
+     * the widening direction is a conversion the ladder performs on its own. This is the same `::`
+     * that `capacity` writes by hand in `Native`, at the one boundary the compiler builds rather than
+     * the program.
+     */
     initialize(project(slice, ProjectionKind::Field, 0), load(base.unwrap(), source), source);
-    initialize(project(slice, ProjectionKind::Field, 1), load(length.unwrap(), source), source);
+
+    auto count = load(length.unwrap(), source);
+    if(auto declared = sliceLengthType(module, target)) count = convert(count, declared, source, false);
+
+    initialize(project(slice, ProjectionKind::Field, 1), count, source);
 
     return storage;
 }

@@ -432,6 +432,11 @@ fn kept() -> Int {
     ret %v37
 }
 
+fn dispatch() -> Int {
+  b0:
+    ret 80
+}
+
 fn main() -> Int {
   b0:
     %v0 = call direct : Int
@@ -451,22 +456,24 @@ fn main() -> Int {
     %v14 = add %v12, %v13 : Int
     %h = alloc : Header
     init %h@Header.version:unit32, 2162788
-    %v35 = borrow_mut %h@Header.length : &mut @bits(13) U32
-    call nudgeTwice, %v35
-    %v82 = load %h@Header.version:unit32 : U32
-    %v84 = and %v82, 8191 : U32
-    %v40 = cast %v84 : Int
-    %v42 = mul %v40, 10 : Int
-    %v87 = shr %v82, 16 : U32
-    %v89 = and %v87, 15 : U32
-    %v46 = cast %v89 : Int
-    %v47 = add %v42, %v46 : Int
-    %v16 = add %v14, %v47 : Int
+    %v37 = borrow_mut %h@Header.length : &mut @bits(13) U32
+    call nudgeTwice, %v37
+    %v84 = load %h@Header.version:unit32 : U32
+    %v86 = and %v84, 8191 : U32
+    %v42 = cast %v86 : Int
+    %v44 = mul %v42, 10 : Int
+    %v89 = shr %v84, 16 : U32
+    %v91 = and %v89, 15 : U32
+    %v48 = cast %v91 : Int
+    %v49 = add %v44, %v48 : Int
+    %v16 = add %v14, %v49 : Int
     %v17 = call wide : Int
     %v18 = add %v16, %v17 : Int
     %v19 = call tally : Int
     %v20 = add %v18, %v19 : Int
     %v21 = call kept : Int
     %v22 = add %v20, %v21 : Int
-    ret %v22
+    %v23 = call dispatch : Int
+    %v24 = add %v22, %v23 : Int
+    ret %v24
 }

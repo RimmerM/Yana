@@ -366,11 +366,19 @@ void selectStorage(Analysis& analysis, OwnershipResult& result) {
                                   !allocation.ownedElsewhere;
         allocation.storage = storage;
 
-        // The tag the program reads at run time, where something asked for one. It is the storage
-        // class itself rather than "is it the heap", because a `Reclaim` handed a run has four cases
-        // to tell apart and only one of them frees - see InstAlloc::storageFlag.
+        /*
+         * The flag the program reads at run time, where something asked for one - see
+         * InstAlloc::storageFlag.
+         *
+         * "Is this the heap" and not the storage class itself, because that is the only thing anyone
+         * asks: a `Reclaim` handed a run has four cases to tell apart and three of them do nothing,
+         * for three reasons - the owner's own bytes, the frame returning, the region closing - that
+         * are none of the value's business. Recording the whole class cost two bits of every
+         * container's count word for a distinction nothing acts on, and taking the second bit back
+         * doubled what a container can hold. See `HeapFlag` in native.cpp.
+         */
         if(allocation.storageFlag && analysis.local[allocation.storageFlag]->kind == Value::ConstInt) {
-            ((ConstInt*)analysis.local[allocation.storageFlag])->value = U64(storage);
+            ((ConstInt*)analysis.local[allocation.storageFlag])->value = storage == StorageClass::Heap;
         }
 
         // Heap storage this frame owns has to be handed back at the end of the value's life, which

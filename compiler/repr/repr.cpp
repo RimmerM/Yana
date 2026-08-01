@@ -558,8 +558,9 @@ void ReprTable::computeTuple(TupType& tuple, Repr& into) {
         at++;
     }
 
-    into.size = alignTo(size, alignment);
+    into.size = size;
     into.align = alignment;
+    into.stride = alignTo(size, alignment);
 }
 
 /*

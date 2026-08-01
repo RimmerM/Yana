@@ -619,6 +619,98 @@ fn kept() -> Int {
     ret %v37
 }
 
+fn dispatch() -> Int {
+  b0:
+    %v0 = alloc : Entry
+    init %local0@Entry.live, True
+    init %local0@Entry.kind, 5
+    init %local0@Entry.count, 0
+    %h = alloc : Entry
+    init %h, %v0
+    %v9 = load %h : Entry
+    %v10 = load %h@Entry.kind : @bits(3) U32
+    %v12 = cast %v10 : U32
+    %v13 = cmp_ne %v12, 5 : Bool
+    je %v13, b1, b2
+
+  b1:
+    ret 0
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = load %h : Entry
+    %v20 = load %h@Entry.kind : @bits(3) U32
+    %v21 = cast %v20 : U32
+    %v22 = cmp_ne 5, %v21 : Bool
+    je %v22, b4, b5
+
+  b4:
+    ret 0
+
+  b5:
+    jmp b6
+
+  b6:
+    %v27 = load %h : Entry
+    %v28 = load %h@Entry.kind : @bits(3) U32
+    %v30 = cast %v28 : U32
+    %v31 = cmp_lt %v30, 100 : Bool
+    %v33 = xor %v31, True : Bool
+    je %v33, b7, b8
+
+  b7:
+    ret 0
+
+  b8:
+    jmp b9
+
+  b9:
+    %v38 = load %h : Entry
+    %v39 = load %h@Entry.kind : @bits(3) U32
+    %v41 = cast %v39 : U32
+    %v42 = cmp_ge %v41, 5 : Bool
+    %v44 = xor %v42, True : Bool
+    je %v44, b10, b11
+
+  b10:
+    ret 0
+
+  b11:
+    jmp b12
+
+  b12:
+    %v49 = load %h : Entry
+    %v50 = load %h@Entry.kind : @bits(3) U32
+    %v52 = cast %v50 : U32
+    %v53 = cmp_gt %v52, 5 : Bool
+    je %v53, b13, b14
+
+  b13:
+    ret 0
+
+  b14:
+    jmp b15
+
+  b15:
+    %v58 = load %h : Entry
+    %v59 = load %h@Entry.kind : @bits(3) U32
+    %v61 = cast %v59 : U32
+    %wide = add %v61, 3 : U32
+    %v64 = and %wide, 7 : U32
+    %wide = cast %v64 : @bits(3) U32
+    assign %h@Entry.kind, %wide
+    %v67 = cast %wide : Int
+    %v70 = mul %v67, 10 : Int
+    %v71 = load %h : Entry
+    %v72 = load %h@Entry.kind : @bits(3) U32
+    %v73 = cast %v72 : U32
+    %v74 = cast %v73 : Int
+    %v75 = add %v70, %v74 : Int
+    ret %v75
+}
+
 fn main() -> Int {
   b0:
     %v0 = call direct : Int
@@ -644,5 +736,7 @@ fn main() -> Int {
     %v20 = add %v18, %v19 : Int
     %v21 = call kept : Int
     %v22 = add %v20, %v21 : Int
-    ret %v22
+    %v23 = call dispatch : Int
+    %v24 = add %v22, %v23 : Int
+    ret %v24
 }

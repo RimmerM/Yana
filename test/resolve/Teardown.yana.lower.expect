@@ -39,7 +39,7 @@ mapMemory<complex>(%size: Long): Ptr {
 
 drop$Session<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = add %value, 16: Ptr
+    %v_1 = add %value, 12: Ptr
     call_complex Drop(Handle).drop, %v_1
     ret 
   }
@@ -47,7 +47,7 @@ drop$Session<complex>(%value: Ptr) {
 
 useSession<complex>(%s: Ptr): Int {
   b_0 {
-    %v_1 = add %s, 16: Ptr
+    %v_1 = add %s, 12: Ptr
     %v_2 = loads %v_1, 4: Int
     call_complex drop$Session, %s
     call_complex reclaim$Session, %s
@@ -210,11 +210,11 @@ makeBuffer<complex>(%v_0: Ptr, %count: Int) {
     %v_3 = sext %v_2: Long
     %v_4 = call_complex allocateHeap, %v_3: Ptr
     %cells = bitcast %v_4: Ptr
-    %v_5 = alloca 16, 8: Ptr
+    %v_5 = alloca 12, 8: Ptr
     store %v_5, %cells, 8
     %v_6 = add %v_5, 8: Ptr
     store %v_6, %count, 4
-    copy %v_0, %v_5, 16
+    copy %v_0, %v_5, 12
     ret 
   }
 }
@@ -233,14 +233,14 @@ Reclaim(Buffer).reclaim<complex>(%value: Ptr) {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = alloca 24, 8: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_1 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     call_complex makeBuffer, %v_2, 4
-    copy %v_1, %v_2, 16
-    %v_3 = add %v_1, 16: Ptr
+    copy %v_1, %v_2, 12
+    %v_3 = add %v_1, 12: Ptr
     store %v_3, 7, 4
-    %session = alloca 24, 8: Ptr
-    copy %session, %v_1, 24
+    %session = alloca 16, 8: Ptr
+    copy %session, %v_1, 16
     %used = call_complex useSession, %session: Int
     %v_4 = add %used, 35: Int
     %v_5 = loads @effects, 4: Int

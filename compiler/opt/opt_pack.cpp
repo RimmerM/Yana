@@ -439,6 +439,18 @@ struct Expander {
      * spelled arithmetically rather than as a shift pair because the intermediates are unsigned and
      * an arithmetic shift of one would bring down the wrong bits.
      *
+     * **The mask is only for the bits *above* the range.** A field that ends where its unit does has
+     * none, because the shift that brought it to zero pushed them all out - the word was loaded
+     * unsigned at exactly `unitBits`, so `x >> bitOffset` already has nothing but the field in it.
+     * Asking whether the field is narrower than its unit is the wrong question and emitted a mask
+     * that is the identity: the top field of every packed word paid an `and` for it, and the smaller
+     * the field the more obviously pointless - a one-bit flag at the top of a word decoded to
+     * `(x >> 31) & 1`.
+     *
+     * Only the folder could have removed it afterwards, and it cannot: `x & 1` is the identity only
+     * for an `x` whose range is known, which needs a known-bits pass. Not emitting it is the whole
+     * fix and it is one comparison.
+     *
      * The last operation carries the field's type, so the value that comes out is named the same
      * thing the load that used to produce it was.
      */
@@ -457,7 +469,10 @@ struct Expander {
         };
 
         if(access.bitOffset) value = binary(Value::Shr, value, access.bitOffset);
-        if(access.bitWidth < access.unitBits) value = binary(Value::And, value, lowMask(access.bitWidth));
+
+        if(access.bitOffset + access.bitWidth < access.unitBits) {
+            value = binary(Value::And, value, lowMask(access.bitWidth));
+        }
 
         if(isSigned) {
             // The range's own sign bit, moved out of the value and then subtracted back off - which

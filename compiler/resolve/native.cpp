@@ -205,6 +205,62 @@ fn freeHeap(allocation: %U8) -> {}:
 -}
 
 {-
+   How a stored count is represented, and why it is neither `Int` nor a whole word.
+
+   **Unsigned**, because a count has no negative values and the sign bit is the only thing signedness
+   buys it. What that is worth is not the extra bit: it is that `index >= length` on unsigned
+   operands is the *whole* bounds test, since a negative index converted to this type is a very large
+   one and fails the same comparison. Two tests become one everywhere a container checks an index,
+   which is the same trick every bounds check in every systems language uses and the reason JS
+   specifies `.length` as a `uint32` rather than as a number that happens not to go below zero.
+
+   **Thirty-one bits and not thirty-two**, because a capacity shares its word with the one bit below
+   and thirty-one is what is left. That bit is the whole of the difference between this cap and a
+   `U32`'s: 2147483647 elements is two gibibytes of `[U8]` and eight of `[Int]`, since the bound is on
+   the element count rather than on the byte size. A `resize` past it fails in the same way one the
+   allocator refused does, and lifting it properly means a wider count, which is a Repr variant
+   (Implementation-Containers.md §9) rather than a bit that can be found somewhere.
+
+   A plain `alias` and not `alias qualified`: this is a width, not a new type, and every `Int` that
+   reaches it should convert by writing `::` rather than by unwrapping a newtype.
+-}
+{-
+   How wide a *borrowed* container's length is, and why it is not `Count`.
+
+   `Count` below is what an owner *stores*, and §9's whole design is that an owner's representation
+   varies - per implementation, per target, per root. A **borrow** is the opposite: `Flat(a)` is the
+   single representation every `[T]` signature in every program shares, so whatever it can describe
+   is the ceiling for every container that will ever be passed as `[T]`. A thirty-one-bit borrow
+   would make the *universal* thing the limiting one, which inverts §1 - an owner could be as large
+   as it liked and simply never be borrowable, which is what a `LargeArray` would have run into.
+
+   So a slice's length is `Size`, Core's word-width index type - see the note where it is bound. The
+   cost natively is a sign-extension where an `Int` index meets a `Size` bound, and four bytes on a
+   *stored* slice; both are named in Implementation-Containers.md §4.4.
+-}
+
+alias Count = @bits(31) U32
+
+{-
+   Whether this run's storage is the allocator's, as the one bit that is actually asked for.
+
+   `InstAlloc::storageFlag` chooses between four storage classes and this used to record all four,
+   which cost two bits and left the capacity thirty. But nothing ever asks *which* class - `resize`
+   and `releaseRun` both ask "is this mine to hand back", and inline, frame and region storage answer
+   no for three different reasons that are none of a run's business. One bit answers the question
+   that is asked, and the bit it gives back doubles what a container can hold.
+
+   What is lost is a printed IR that named the class. The escape analysis still decides between four;
+   it writes the answer to this question rather than the decision itself.
+-}
+alias HeapFlag = @bits(1) U32
+
+-- The largest count either field can hold, as the number a caller is checked against rather than as
+-- a mask applied behind its back. `@bits` stores truncate silently, which is tolerable for an
+-- integer and corrupts a container for a length - Implementation-Containers.md §7.1.
+let maxCount = 2147483647 :: Int
+
+{-
    How many bytes `count` elements occupy.
 
    Written as a pointer difference rather than with `sizeOf`, because what is wanted is the size of
@@ -219,41 +275,47 @@ fn byteSpan(from: %a, count: Int) -> I64 =
 {-
    An owned, uninitialized run of slots, plus where it came from.
 
-   Three words and no policy. It does not know which of its slots hold values, it cannot be pushed
+   Two words and no policy. It does not know which of its slots hold values, it cannot be pushed
    to, and it will not grow on its own - which is the whole point: occupancy is a private matter for
    whichever container is built on top of it, so a count, a bitmap, a sentinel and a free list are
    all equally expressible and none of them is in the primitive.
 
-   `placed` is the storage class the compiler chose, as a number - see InstAlloc::storageFlag. It is
-   the only thing here the program did not write, and it exists so that `Reclaim` below is a switch
-   rather than a guess: the same three words describe a run inlined into its owner, one on the frame,
-   one in a region and one from the allocator, and only the last of those is anyone's to hand back.
--}
-data Run(a) {items: %a, capacity: Int, placed: Int}
+   `ownsHeap` is what the compiler decided about where these slots live, reduced to the one question
+   anyone asks of it - see InstAlloc::storageFlag and `HeapFlag`. It is the only thing here the
+   program did not write, and it exists so that `Reclaim` below is a test rather than a guess: the
+   same two words describe a run inlined into its owner, one on the frame, one in a region and one
+   from the allocator, and only the last of those is anyone's to hand back.
 
--- The four storage classes, in the order `StorageClass` declares them. Written out rather than
--- tested against a boolean because the switch below has four arms and only one of them frees: a
--- region-placed run reaching the same `Reclaim` a heap-placed one gets has to do nothing, and
--- "not the heap" is what makes that one comparison instead of two.
-let runInline = 0 :: Int
-let runStack = 1 :: Int
-let runRegion = 2 :: Int
-let runHeap = 3 :: Int
+   Two words and not three, because the capacity and that bit share one, and the bit is deliberately
+   at the *end* of the word rather than in the pointer. The low bits of `items` would have held it
+   and would have bought a thirty-second bit of count, at the price of a `%a` that is not an address:
+   `items + index` is the most frequent operation on this field, a low tag does not survive it at a
+   stride of one, and every run would have to be over-aligned to make room. See
+   Implementation-Containers.md §10.3.
+-}
+data Run(a) {items: %a, capacity: Count, ownsHeap: HeapFlag}
+
+-- The two answers, and there are two rather than four for the reason `HeapFlag` gives. `runBorrowed`
+-- covers inline, frame and region storage together: each is handed back by something that is not
+-- this run - the owner's own bytes, the frame returning, the region closing - and telling them apart
+-- would be a distinction nothing acts on.
+let runBorrowed = 0 :: HeapFlag
+let runFromHeap = 1 :: HeapFlag
 
 -- A run with room for nothing, which allocates nothing. Every container's empty value starts here.
-fn emptyRun() -> Run(a) = Run {items: null(), capacity: 0, placed: runInline}
+fn emptyRun() -> Run(a) = Run {items: null(), capacity: 0, ownsHeap: runBorrowed}
 
 {-
    A run of `capacity` slots, placed by the compiler.
 
    An intrinsic, because this is the one operation the language has no way to say about itself: what
    it expands to is an ordinary allocation with a count beside it (InstAlloc::extent), so where the
-   slots live is decided by the same escape analysis that places every other allocation and the tag
-   it writes into `placed` is that decision made readable.
+   slots live is decided by the same escape analysis that places every other allocation and the bit
+   it writes into `ownsHeap` is that decision reduced to what a run acts on.
 -}
 fn newRun(capacity: Int) -> Run(a)
 
-fn capacity(self: Run(a)) -> Int = self.capacity
+fn capacity(self: Run(a)) -> Int = self.capacity :: Int
 
 -- Where the slots start. A container indexes off this; nothing here says how many of them hold
 -- anything, because a run does not know.
@@ -270,26 +332,33 @@ fn slots(self: Run(a)) -> %a = self.items
    which of its slots are live - that is what §2 means by having no notion of occupancy. It costs a
    constant factor on a growth that is amortized anyway, and it is what keeps the primitive from
    needing a count it would then have to be told about.
+
+   A `wanted` past what `Count` can hold is refused rather than truncated, which is the same answer
+   an allocator that said no gets and for a better reason: storing it would leave a run whose
+   capacity field disagreed with the storage behind it, and every later `resize` would read the
+   masked number back and believe it.
 -}
 fn resize(&self: Run(a), wanted: Int) -> Bool:
-    if wanted <= self.capacity then return True
+    let room = self.capacity :: Int
+    if wanted <= room then return True
+    if wanted > maxCount then return False
 
     let fresh = cast(allocateHeap(byteSpan(self.items, wanted))) :: %a
     if isNull(fresh) then return False
 
-    if self.capacity > 0:
-        copyMemory(cast(fresh) :: %U8, cast(self.items) :: %U8, byteSpan(self.items, self.capacity))
+    if room > 0:
+        copyMemory(cast(fresh) :: %U8, cast(self.items) :: %U8, byteSpan(self.items, room))
 
-    if self.placed == runHeap then freeHeap(cast(self.items) :: %U8)
+    if self.ownsHeap == runFromHeap then freeHeap(cast(self.items) :: %U8)
 
     self.items = fresh
-    self.capacity = wanted
-    self.placed = runHeap
+    self.capacity = wanted :: Count
+    self.ownsHeap = runFromHeap
 
     return True
 
 {-
-   The placement switch - Implementation-Storage.md §5.
+   The placement test - Implementation-Storage.md §5.
 
    Written as a plain function taking the run by borrow as well as as the instance below, because a
    container built on runs has to be able to release its own without owning it out of itself: moving
@@ -298,17 +367,25 @@ fn resize(&self: Run(a), wanted: Int) -> Bool:
    else, which is what makes it a permitted call inside an authored `Reclaim` - see
    checkReclaimShape.
 
-   `Inline`, `Stack` and `Region` release nothing: the owner's own bytes, the frame returning, and
+   Inline, frame and region storage release nothing: the owner's own bytes, the frame returning, and
    the region closing are what hand those back. Only the allocator's is this function's to give
-   back, and when the tag is a constant the escape analysis patched - which it is everywhere the
-   run was not built inside a generic body - the comparison folds and this whole function with it.
+   back, which is why the three are one value here. When the bit is a constant the escape analysis
+   patched - which it is everywhere the run was not built inside a generic body - the comparison
+   folds and this whole function with it.
 
    A `Reclaim` and not a `Drop`, which is what keeps a container built on runs region-placeable: a
    region discharges every `Reclaim` inside it in bulk, and handing storage back is exactly the kind
    of thing that may happen in bulk at a point the author did not choose.
+
+   **This is one comparison and it is still a call at every site**, which is what
+   Implementation-Containers.md §13.2 is about rather than anything wrong here: a callee taking an
+   aggregate by the default convention is a memory-typed value parameter, and the inliner declines
+   every one of those (`namesLocal` in opt_inline.cpp's `describe`). Until it does not, splitting the
+   arm out or hinting the test is churn - the test cannot reach the frame where the tag is a constant
+   either way, and that frame is the only place it folds.
 -}
 fn releaseRun(self: Run(a)) -> {}:
-    if self.placed == runHeap then freeHeap(cast(self.items) :: %U8)
+    if self.ownsHeap == runFromHeap then freeHeap(cast(self.items) :: %U8)
 
 instance Reclaim(Run(a)):
     fn reclaim(->value: Run(a)) -> {} = releaseRun(value)
@@ -330,7 +407,7 @@ instance Reclaim(Run(a)):
    was taken from, which is what makes it TrivialCopy and what the borrow at the point it was made
    is responsible for.
 -}
-data Flat(a) {items: %a, length: Int}
+data Flat(a) {items: %a, length: Size}
 
 -- The element address a `Flat` is defined by. Absent on `Bits` when that lands, deliberately: a
 -- narrow element has no address, and the partiality is what keeps `sizeOf` and pointer arithmetic
