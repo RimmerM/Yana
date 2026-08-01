@@ -1,0 +1,133 @@
+fn initHeap() -> ()
+  suspends:   unknown (not inferred yet)
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+
+fn heapClassOf(total: I64) -> I64
+  suspends:   unknown (not inferred yet)
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+
+fn heapBlockSize(sizeClass: I64) -> I64
+  suspends:   unknown (not inferred yet)
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+
+fn freeListHead(sizeClass: I64) -> %U8
+  suspends:   unknown (not inferred yet)
+  ambients:   unknown (not implemented)
+  storage:    the result escapes the frame -> heap
+  mutates:    none
+  retains:    none
+  returns:    a borrow rooted in storage no caller can name
+  calls:      called at 2 sites
+  hint:       storage the result escapes the frame -> heap; returns a borrow rooted in storage no caller can name
+  hover:
+---
+- **storage**: the result escapes the frame -> heap
+- **returns**: a borrow rooted in storage no caller can name
+
+fn setFreeListHead(sizeClass: I64, block: %U8) -> ()
+  suspends:   unknown (not inferred yet)
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 2 sites
+
+fn allocateHeap(size: I64) -> %U8
+  suspends:   unknown (not inferred yet)
+  ambients:   unknown (not implemented)
+  storage:    the result escapes the frame -> heap
+  mutates:    none
+  retains:    none
+  returns:    a borrow rooted in storage no caller can name
+  calls:      called at 1 site
+  hint:       storage the result escapes the frame -> heap; returns a borrow rooted in storage no caller can name
+  hover:
+---
+- **storage**: the result escapes the frame -> heap
+- **returns**: a borrow rooted in storage no caller can name
+
+fn freeHeap(allocation: %U8) -> ()
+  suspends:   unknown (not inferred yet)
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 2 sites
+
+fn mapMemory(size: I64) -> %U8
+  suspends:   unknown (not inferred yet)
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+
+fn replace(&slot: Pair, ->with: Pair) -> ()
+  suspends:   unknown (not inferred yet)
+  ambients:   unknown (not implemented)
+  storage:    with: Pair escapes
+  mutates:    slot writable
+  retains:    with
+  calls:      called at 1 site
+  hint:       retains with
+  hover:
+---
+- **retains**: with
+
+fn borrowed(return p: Pair) -> &I64
+  suspends:   unknown (not inferred yet)
+  ambients:   unknown (not implemented)
+  storage:    the result's storage is the caller's, not this frame's
+  mutates:    none
+  retains:    none
+  returns:    a borrow rooted in p
+  calls:      called at 1 site
+
+fn placed() -> I64
+  suspends:   unknown (not inferred yet)
+  ambients:   unknown (not implemented)
+  storage:    p: Pair heap
+  mutates:    none
+  retains:    none
+  calls:      called at 1 site
+  hint:       storage p: Pair heap
+  hover:
+---
+- **storage**: p: Pair heap
+
+fn bump(&counter: I64) -> ()
+  suspends:   unknown (not inferred yet)
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    counter writable
+  retains:    none
+  calls:      called at 1 site
+
+fn identity(x: a) -> a
+  suspends:   unknown (not inferred yet)
+  ambients:   unknown (not implemented)
+  storage:    unknown for the locals (a generic body is analyzed through its specializations)
+              the result's storage is the caller's, not this frame's
+  mutates:    none
+  retains:    none
+  calls:      specialized at 2 of 2 call sites, 1 specialization
+
+fn main() -> Int
+  suspends:   unknown (not inferred yet)
+  ambients:   unknown (not implemented)
+  storage:    everything is frame-placed
+  mutates:    none
+  retains:    none
+  calls:      called at 0 sites

@@ -151,6 +151,27 @@ struct CompileSettings {
     bool printModules = false; /// Debug flag: Print a list of modules found in the input.
     bool printAst = false;     /// Debug flag: Create .ast files for each source file.
     bool printIr = false;      /// Debug flag: Create .ir files for each source file.
+
+    /*
+     * The `explain` query - Analysis-Ambient.md §7.3.
+     *
+     * A query rather than a compilation mode: it stops after resolution and the ownership passes,
+     * which is everything it reads, and emits nothing. It is not a `CompileMode` because those
+     * choose an *output format* and this one has no output to format - and because a mode would
+     * make `-mode exe -explain f` a contradiction rather than a sensible thing to ask.
+     *
+     * `@platform` still selects which declarations exist, so the answer is the answer *for the
+     * target the other flags name*. A JS build and a native build genuinely have different programs
+     * to explain, and this reports whichever one was asked for.
+     */
+    Tritium::String explainName;   /// The function to explain, or empty for no query.
+    Tritium::String explainModule; /// Restrict the query to one module, or empty for every module.
+
+    /// Explain every function in the program instead of one - the report Analysis-Ambient.md §7.5's
+    /// capability audit is a filter over.
+    bool explainAll = false;
+
+    bool explaining() const { return explainAll || explainName != ""; }
 };
 
 /// Parses the provided command line into a set of compiler options.

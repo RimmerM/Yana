@@ -68,6 +68,8 @@ set(RESOLVE_SOURCE_FILES
     resolve/analyze_print.cpp
     resolve/print.cpp
     resolve/print.h
+    resolve/explain.h
+    resolve/explain.cpp
     resolve/builder.h
     resolve/expr.cpp
     resolve/expr.h

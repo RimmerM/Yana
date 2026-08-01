@@ -1,0 +1,61 @@
+import Native
+
+{-
+   Analysis-Ambient.md §7.3's `explain` query, over a program written to have one of each answer.
+
+   What this fixture is for is not the analyses - the `.own.expect` files already assert those, and
+   this file computes nothing they do not. It is for the *report*: which rows appear, which of them
+   an editor is told are surprising, and what a hover therefore contains. That filter is the whole
+   feature, and it is exactly the kind of thing that is wrong without anything else failing.
+
+   So each function below is here to produce one row that is not the boring answer:
+
+     `replace`     an argument that outlives the call, which no signature says
+     `borrowed`    a result rooted in a parameter, which the signature does say
+     `placed`      a local that had to go to the heap
+     `identity`    a generic reached through specializations
+     `bump`        a `&` parameter, so that a *declared* mutation demand is visibly not surprising
+
+   `bump` and `borrowed` are as much the point as the other three. A report that flagged everything
+   would be a report nobody reads, so a fixture that only had surprising functions in it would not
+   be asserting the filter at all.
+-}
+
+data Pair {left: I64, right: I64}
+
+-- Retention: what the caller handed over is written into storage the caller also owns, so the loan
+-- cannot end at the call the way an ordinary borrow's does. Nothing in the signature says so.
+fn replace(&slot: Pair, ->with: Pair) -> {}:
+    slot = with
+
+-- A borrow in the result, rooted in a parameter the signature marked. Not surprising, deliberately:
+-- it is written down, and a report that flagged it would be flagging the signature.
+fn borrowed(return p: Pair) -> &I64 = p.left
+
+-- Storage. The annotation is what forces it here, but the interesting case is the one where escape
+-- analysis chooses the heap and nothing in the source says so; both produce this row.
+fn placed() -> I64:
+    let @heap &p = Pair {left: 10, right: 20}
+    p.left = p.left + 2
+    return p.left + p.right
+
+-- A declared mutation demand, for the contrast: the row appears and the hover does not, because `&`
+-- is the caller already having been told.
+fn bump(&counter: I64) -> {}:
+    counter += 1
+
+fn identity(x: a) -> a = x
+
+fn main() -> Int:
+    let &pair = Pair {left: 1, right: 2}
+    replace(pair, Pair {left: 3, right: 4})
+
+    let l = borrowed(pair)
+
+    let &count = 0 :: I64
+    bump(count)
+
+    let a = identity(3)
+    let b = identity(4)
+
+    return (l + placed() + count + a + b) :: Int

@@ -2,6 +2,7 @@
 #include "../parse/ast_print.h"
 #include "../resolve/module.h"
 #include "../resolve/print.h"
+#include "../resolve/explain.h"
 #include "../resolve/lower.h"
 #include "../lower/lower_print.h"
 #include "../lower/lower_validate.h"
@@ -143,6 +144,72 @@ static bool compileNative(Context& context, Program& program, const String& outp
 }
 
 /*
+ * The `explain` query - Analysis-Ambient.md §7.3.
+ *
+ * Nothing is emitted and nothing is written: the answer goes to stdout, because this is a question
+ * asked at a terminal rather than a build step. Everything it reads was produced by resolution and
+ * the ownership passes, both of which have already run by the time this is called.
+ *
+ * The call-site index is built once for the whole query even when one function is being explained,
+ * since "specialized at 3 of 11 call sites" is a fact about the program rather than about the
+ * function - see CallSiteIndex.
+ */
+static bool explainProgram(Context& context, Program& program) {
+    auto& settings = context.settings;
+
+    CallSiteIndex calls;
+    calls.build(program);
+
+    if(settings.explainAll) {
+        Net::Writer writer(16384);
+        printExplanations(writer, context, program);
+        auto buffered = writer.getBuffered();
+        print(StringView { (const char*)buffered.ptr, buffered.length });
+        return true;
+    }
+
+    auto moduleName = settings.explainModule == ""
+        ? StringId(0)
+        : context.addQualifiedName(settings.explainModule.text(), settings.explainModule.size());
+    auto name = context.addQualifiedName(settings.explainName.text(), settings.explainName.size());
+
+    Array<Function*> targets;
+    findExplainTargets(program, moduleName, name, targets);
+
+    if(targets.isEmpty()) {
+        if(settings.explainModule == "") {
+            println("Error: no function named %@ was found. Name the module with --module=<M> if it was not compiled.",
+                    settings.explainName);
+        } else {
+            println("Error: module %@ declares no function named %@.",
+                    settings.explainModule, settings.explainName);
+        }
+
+        return false;
+    }
+
+    // Every match rather than the first one, because a name is not a function: overloads and class
+    // instances share one, and picking one of them silently would answer a question nobody asked.
+    // Where there is more than one, each is said to come from somewhere - two identical signatures
+    // in two modules is exactly the case the query is being asked about.
+    StringBuilder text;
+    for(auto function: targets) {
+        if(text.size()) text.append("\n"_v);
+
+        if(targets.size() > 1 && function->module) {
+            text.append("-- in "_v);
+            text.append(context.findName(function->module->name));
+            text.append("\n"_v);
+        }
+
+        printExplanation(text, context, program, explainFunction(program, *function, &calls));
+    }
+
+    print(stringView(text));
+    return true;
+}
+
+/*
  * Choosing the root.
  *
  * A program has exactly one: it is the module whose `main` the process enters through, and the one
@@ -228,6 +295,10 @@ int main(int argc, const char** argv) {
     }
 
     if(!program || diagnostics.errorCount() > 0) return 1;
+
+    // Before the output directory is created, deliberately: a query produces no output, so it has
+    // no business leaving a directory behind.
+    if(context.settings.explaining()) return explainProgram(context, *program) ? 0 : 1;
 
     auto& outputDir = context.settings.outputDir;
     auto directoryResult = createDirectory(outputDir);

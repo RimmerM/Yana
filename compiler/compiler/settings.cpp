@@ -28,6 +28,8 @@ struct Flag {
         framePointer,
         inlining,
         optimization,
+        explain,
+        module,
 
         /*
          * Boolean flags.
@@ -37,6 +39,7 @@ struct Flag {
         printAst,
         printIr,
         noOptimize,
+        explainAll,
     };
 
     StringView name;
@@ -57,11 +60,14 @@ Flag flagTable[] = {
     { "frame-pointer"_v, 1, Flag::framePointer },
     { "opt"_v, 1, Flag::optimization },
     { "inline"_v, 1, Flag::inlining },
+    { "explain"_v, 1, Flag::explain },
+    { "module"_v, 1, Flag::module },
 
     { "print-modules"_v, 0, Flag::printModules },
     { "print-ast"_v, 0, Flag::printAst },
     { "print-ir"_v, 0, Flag::printIr },
     { "no-opt"_v, 0, Flag::noOptimize },
+    { "explain-all"_v, 0, Flag::explainAll },
 };
 
 // InlineLevel, in declaration order.
@@ -310,14 +316,37 @@ template<class F>
 void parseFlags(const char** argv, Size argc, String& error, F&& onFlag) {
     for(Size i = 0; i < argc; i++) {
         auto k = argv[i];
+
+        // One dash or two, and `--key=value` as well as `-key value`. Both forms are here because
+        // Analysis-Ambient.md §7.3 writes the query as `yana explain handle --module=Server` while
+        // every flag this driver already had is written the other way, and a documented invocation
+        // that the program rejects is worse than either convention.
+        if(k[0] == '-') k++;
         if(k[0] == '-') k++;
 
         bool found = false;
-        String key(k);
+        String inlineValue;
+        auto joined = false;
+
+        auto separator = k;
+        while(*separator && *separator != '=') separator++;
+
+        String key = *separator == '=' ? String(k, Size(separator - k)) : String(k);
+        if(*separator == '=') {
+            inlineValue = String(separator + 1);
+            joined = true;
+        }
 
         for(auto flag: flagTable) {
             if(key == Tritium::toString(flag.name)) {
-                if(argc - i <= flag.argCount) {
+                if(joined && !flag.argCount) {
+                    char buffer[256];
+                    auto size = Tritium::format(toBuffer(buffer), "Flag \"%@\" does not take a value", key);
+                    error = Tritium::ownedString(buffer, size);
+                    return;
+                }
+
+                if(!joined && argc - i <= flag.argCount) {
                     char buffer[256];
                     auto size = Tritium::format(toBuffer(buffer), "Not enough arguments to flag \"%@\"", key);
                     error = Tritium::ownedString(buffer, size);
@@ -325,7 +354,9 @@ void parseFlags(const char** argv, Size argc, String& error, F&& onFlag) {
                 }
 
                 String arg;
-                if(flag.argCount) {
+                if(joined) {
+                    arg = inlineValue;
+                } else if(flag.argCount) {
                     arg = String(argv[i + 1]);
                     i += flag.argCount;
                 }
@@ -351,13 +382,31 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
     CompileSettings settings;
     String error;
 
+    /*
+     * `yana explain <name> ...` - the form §7.3 specifies.
+     *
+     * A leading word rather than a flag, and the only one this driver has: everything else it does
+     * is *compile*, and a subcommand for the thing that does not compile is what tells a reader
+     * which of the two they are asking for. `-explain <name>` does the same thing for anyone who
+     * would rather write flags.
+     */
+    Size firstFlag = 1;
+    if(argc > 1 && String(argv[1]) == "explain") {
+        if(argc < 3 || argv[2][0] == '-') {
+            return Err(String("The explain query needs a function name: yana explain <name> [--module=<M>]"));
+        }
+
+        settings.explainName = String(argv[2]);
+        firstFlag = 3;
+    }
+
     bool hasMode = false;
     bool hasArch = false;
     bool hasTarget = false;
     bool hasFormat = false;
     bool hasExtensions = false;
 
-    parseFlags(argv + 1, argc - 1, error, [&](Flag::Type type, String&& value) -> bool {
+    parseFlags(argv + firstFlag, argc - firstFlag, error, [&](Flag::Type type, String&& value) -> bool {
         switch(type) {
             case Flag::add:
                 settings.compileObjects.push(move(value));
@@ -476,6 +525,15 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
             case Flag::noOptimize:
                 settings.optimizeIr = false;
                 return true;
+            case Flag::explain:
+                settings.explainName = move(value);
+                return true;
+            case Flag::module:
+                settings.explainModule = move(value);
+                return true;
+            case Flag::explainAll:
+                settings.explainAll = true;
+                return true;
             default:
                 error = Tritium::format("Unhandled argument type %@. This is an internal error.", (Size)type);
                 return false;
@@ -490,7 +548,10 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
         error = "No input objects provided. Add inputs with -add <path>.";
     }
 
-    if(!hasMode) {
+    // The explain query emits nothing, so there is no output format to ask for. It still *has* a
+    // mode, because `@platform` selects which declarations exist and the answer is therefore the
+    // answer for one target; the default is simply the one every other flag already defaults to.
+    if(!hasMode && !settings.explaining()) {
         error = "No compilation mode provided. Set the mode with -mode <lib|exe|shared|js|jslib|ir|llvm>.";
     }
 
