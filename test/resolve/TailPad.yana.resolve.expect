@@ -792,259 +792,257 @@ fn main() -> I64 {
   b0:
     %v0 = alloc : Outer
     %v2 = call pad, 1 : Pad
-    init %local0@Outer.inner, %v2
-    init %local0@Outer.tail, 77
-    %o = alloc : Outer
-    init %o, %v0
-    %v9 = call pad, 2 : Pad
-    assign %o@Outer.inner, %v9
-    %v11 = load %o : Outer
-    %v12 = load %o@Outer.tail : U32
-    %v15 = cmp_ne %v12, 77 : Bool
-    je %v15, b1, b2
+    init %o@Outer.inner, %v2
+    init %o@Outer.tail, 77
+    %v7 = call pad, 2 : Pad
+    assign %o@Outer.inner, %v7
+    %v9 = load %o : Outer
+    %v10 = load %o@Outer.tail : U32
+    %v13 = cmp_ne %v10, 77 : Bool
+    je %v13, b1, b2
 
   b1:
-    %v19 = neg 1 : I64
-    ret %v19
+    %v17 = neg 1 : I64
+    ret %v17
 
   b2:
     jmp b3
 
   b3:
-    %v22 = load %o : Outer
-    %v23 = load %o@Outer.inner : Pad
-    %v24 = load %o@Outer.inner@Pad.n : U32
-    %v27 = cmp_ne %v24, 2 : Bool
-    je %v27, b4, b5
+    %v20 = load %o : Outer
+    %v21 = load %o@Outer.inner : Pad
+    %v22 = load %o@Outer.inner@Pad.n : U32
+    %v25 = cmp_ne %v22, 2 : Bool
+    je %v25, b4, b5
 
   b4:
-    %v31 = neg 2 : I64
-    ret %v31
+    %v29 = neg 2 : I64
+    ret %v29
 
   b5:
     jmp b6
 
   b6:
-    %v34 = call emptyArray(Pad) : Array(Pad)
+    %v32 = call emptyArray(Pad) : Array(Pad)
     %xs = alloc : Array(Pad)
-    init %xs, %v34
-    %v37 = load %xs : Array(Pad)
-    %v39 = call pad, 10 : Pad
-    %v40 = borrow_mut %xs : &mut Array(Pad)
-    %v41 = copy %local6 : Pad
-    call push(Pad), %v40, %v41
-    %v43 = load %xs : Array(Pad)
-    %v45 = call pad, 20 : Pad
-    %v46 = borrow_mut %xs : &mut Array(Pad)
-    %v47 = copy %local8 : Pad
-    call push(Pad), %v46, %v47
-    %v49 = load %xs : Array(Pad)
-    %v51 = call pad, 30 : Pad
-    %v52 = borrow_mut %xs : &mut Array(Pad)
-    %v53 = copy %local10 : Pad
-    call push(Pad), %v52, %v53
-    %v55 = load %xs : Array(Pad)
-    %v57 = borrow %xs : &Array(Pad)
-    %v58 = alloc : Flat(Pad)
-    %v59 = load [%v57]@Array.run@Run.items : %Pad
-    init %local12@Flat.items, %v59
-    %v61 = load [%v57]@Array.length : @bits(31) U32
-    %v62 = cast %v61 : U32
-    %v63 = cast %v62 : I64
-    init %local12@Flat.length, %v63
-    %v66 = borrow %local12 : &Flat(Pad)
-    %v67 = call get(Pad), %v66, 0 : &Pad
-    %v68 = load [%v67] : Pad
-    %v69 = load [%v67]@Pad.n : U32
-    %v72 = cmp_ne %v69, 10 : Bool
-    je %v72, b28, b8
+    init %xs, %v32
+    %v35 = load %xs : Array(Pad)
+    %v37 = call pad, 10 : Pad
+    %v38 = borrow_mut %xs : &mut Array(Pad)
+    %v39 = copy %local5 : Pad
+    call push(Pad), %v38, %v39
+    %v41 = load %xs : Array(Pad)
+    %v43 = call pad, 20 : Pad
+    %v44 = borrow_mut %xs : &mut Array(Pad)
+    %v45 = copy %local7 : Pad
+    call push(Pad), %v44, %v45
+    %v47 = load %xs : Array(Pad)
+    %v49 = call pad, 30 : Pad
+    %v50 = borrow_mut %xs : &mut Array(Pad)
+    %v51 = copy %local9 : Pad
+    call push(Pad), %v50, %v51
+    %v53 = load %xs : Array(Pad)
+    %v55 = borrow %xs : &Array(Pad)
+    %v56 = alloc : Flat(Pad)
+    %v57 = load [%v55]@Array.run@Run.items : %Pad
+    init %local11@Flat.items, %v57
+    %v59 = load [%v55]@Array.length : @bits(31) U32
+    %v60 = cast %v59 : U32
+    %v61 = cast %v60 : I64
+    init %local11@Flat.length, %v61
+    %v64 = borrow %local11 : &Flat(Pad)
+    %v65 = call get(Pad), %v64, 0 : &Pad
+    %v66 = load [%v65] : Pad
+    %v67 = load [%v65]@Pad.n : U32
+    %v70 = cmp_ne %v67, 10 : Bool
+    je %v70, b28, b8
 
   b7:
-    %v76 = neg 3 : I64
-    ret %v76
+    %v74 = neg 3 : I64
+    ret %v74
 
   b8:
     jmp b9
 
   b9:
-    %v79 = load %xs : Array(Pad)
-    %v81 = borrow %xs : &Array(Pad)
-    %v82 = alloc : Flat(Pad)
-    %v83 = load [%v81]@Array.run@Run.items : %Pad
-    init %local13@Flat.items, %v83
-    %v85 = load [%v81]@Array.length : @bits(31) U32
-    %v86 = cast %v85 : U32
-    %v87 = cast %v86 : I64
-    init %local13@Flat.length, %v87
-    %v90 = borrow %local13 : &Flat(Pad)
-    %v91 = call get(Pad), %v90, 1 : &Pad
-    %v92 = load [%v91] : Pad
-    %v93 = load [%v91]@Pad.n : U32
-    %v96 = cmp_ne %v93, 20 : Bool
-    je %v96, b29, b11
+    %v77 = load %xs : Array(Pad)
+    %v79 = borrow %xs : &Array(Pad)
+    %v80 = alloc : Flat(Pad)
+    %v81 = load [%v79]@Array.run@Run.items : %Pad
+    init %local12@Flat.items, %v81
+    %v83 = load [%v79]@Array.length : @bits(31) U32
+    %v84 = cast %v83 : U32
+    %v85 = cast %v84 : I64
+    init %local12@Flat.length, %v85
+    %v88 = borrow %local12 : &Flat(Pad)
+    %v89 = call get(Pad), %v88, 1 : &Pad
+    %v90 = load [%v89] : Pad
+    %v91 = load [%v89]@Pad.n : U32
+    %v94 = cmp_ne %v91, 20 : Bool
+    je %v94, b29, b11
 
   b10:
-    %v100 = neg 4 : I64
-    ret %v100
+    %v98 = neg 4 : I64
+    ret %v98
 
   b11:
     jmp b12
 
   b12:
-    %v103 = load %xs : Array(Pad)
-    %v105 = borrow %xs : &Array(Pad)
-    %v106 = alloc : Flat(Pad)
-    %v107 = load [%v105]@Array.run@Run.items : %Pad
-    init %local14@Flat.items, %v107
-    %v109 = load [%v105]@Array.length : @bits(31) U32
-    %v110 = cast %v109 : U32
-    %v111 = cast %v110 : I64
-    init %local14@Flat.length, %v111
-    %v114 = borrow %local14 : &Flat(Pad)
-    %v115 = call get(Pad), %v114, 2 : &Pad
-    %v116 = load [%v115] : Pad
-    %v117 = load [%v115]@Pad.n : U32
-    %v120 = cmp_ne %v117, 30 : Bool
-    je %v120, b30, b14
+    %v101 = load %xs : Array(Pad)
+    %v103 = borrow %xs : &Array(Pad)
+    %v104 = alloc : Flat(Pad)
+    %v105 = load [%v103]@Array.run@Run.items : %Pad
+    init %local13@Flat.items, %v105
+    %v107 = load [%v103]@Array.length : @bits(31) U32
+    %v108 = cast %v107 : U32
+    %v109 = cast %v108 : I64
+    init %local13@Flat.length, %v109
+    %v112 = borrow %local13 : &Flat(Pad)
+    %v113 = call get(Pad), %v112, 2 : &Pad
+    %v114 = load [%v113] : Pad
+    %v115 = load [%v113]@Pad.n : U32
+    %v118 = cmp_ne %v115, 30 : Bool
+    je %v118, b30, b14
 
   b13:
-    %v124 = neg 5 : I64
-    ret %v124
+    %v122 = neg 5 : I64
+    ret %v122
 
   b14:
     jmp b15
 
   b15:
-    %v127 = call emptyArray(Outer) : Array(Outer)
+    %v125 = call emptyArray(Outer) : Array(Outer)
     %ys = alloc : Array(Outer)
-    init %ys, %v127
-    %v130 = load %ys : Array(Outer)
-    %v131 = alloc : Outer
-    %v133 = call pad, 5 : Pad
-    init %local17@Outer.inner, %v133
-    init %local17@Outer.tail, 6
-    %v137 = borrow_mut %ys : &mut Array(Outer)
-    %v138 = copy %local17 : Outer
-    call push(Outer), %v137, %v138
-    %v140 = load %ys : Array(Outer)
-    %v141 = alloc : Outer
-    %v143 = call pad, 7 : Pad
-    init %local20@Outer.inner, %v143
-    init %local20@Outer.tail, 8
-    %v147 = borrow_mut %ys : &mut Array(Outer)
-    %v148 = copy %local20 : Outer
-    call push(Outer), %v147, %v148
-    %v150 = load %ys : Array(Outer)
-    %v152 = borrow %ys : &Array(Outer)
-    %v153 = alloc : Flat(Outer)
-    %v154 = load [%v152]@Array.run@Run.items : %Outer
-    init %local23@Flat.items, %v154
-    %v156 = load [%v152]@Array.length : @bits(31) U32
-    %v157 = cast %v156 : U32
-    %v158 = cast %v157 : I64
-    init %local23@Flat.length, %v158
-    %v161 = borrow %local23 : &Flat(Outer)
-    %v162 = call get(Outer), %v161, 0 : &Outer
-    %v163 = load [%v162] : Outer
-    %v164 = load [%v162]@Outer.inner : Pad
-    %v165 = load [%v162]@Outer.inner@Pad.n : U32
-    %v168 = cmp_ne %v165, 5 : Bool
-    je %v168, b31, b17
+    init %ys, %v125
+    %v128 = load %ys : Array(Outer)
+    %v129 = alloc : Outer
+    %v131 = call pad, 5 : Pad
+    init %local16@Outer.inner, %v131
+    init %local16@Outer.tail, 6
+    %v135 = borrow_mut %ys : &mut Array(Outer)
+    %v136 = copy %local16 : Outer
+    call push(Outer), %v135, %v136
+    %v138 = load %ys : Array(Outer)
+    %v139 = alloc : Outer
+    %v141 = call pad, 7 : Pad
+    init %local19@Outer.inner, %v141
+    init %local19@Outer.tail, 8
+    %v145 = borrow_mut %ys : &mut Array(Outer)
+    %v146 = copy %local19 : Outer
+    call push(Outer), %v145, %v146
+    %v148 = load %ys : Array(Outer)
+    %v150 = borrow %ys : &Array(Outer)
+    %v151 = alloc : Flat(Outer)
+    %v152 = load [%v150]@Array.run@Run.items : %Outer
+    init %local22@Flat.items, %v152
+    %v154 = load [%v150]@Array.length : @bits(31) U32
+    %v155 = cast %v154 : U32
+    %v156 = cast %v155 : I64
+    init %local22@Flat.length, %v156
+    %v159 = borrow %local22 : &Flat(Outer)
+    %v160 = call get(Outer), %v159, 0 : &Outer
+    %v161 = load [%v160] : Outer
+    %v162 = load [%v160]@Outer.inner : Pad
+    %v163 = load [%v160]@Outer.inner@Pad.n : U32
+    %v166 = cmp_ne %v163, 5 : Bool
+    je %v166, b31, b17
 
   b16:
-    %v172 = neg 6 : I64
-    ret %v172
+    %v170 = neg 6 : I64
+    ret %v170
 
   b17:
     jmp b18
 
   b18:
-    %v175 = load %ys : Array(Outer)
-    %v177 = borrow %ys : &Array(Outer)
-    %v178 = alloc : Flat(Outer)
-    %v179 = load [%v177]@Array.run@Run.items : %Outer
-    init %local24@Flat.items, %v179
-    %v181 = load [%v177]@Array.length : @bits(31) U32
-    %v182 = cast %v181 : U32
-    %v183 = cast %v182 : I64
-    init %local24@Flat.length, %v183
-    %v186 = borrow %local24 : &Flat(Outer)
-    %v187 = call get(Outer), %v186, 0 : &Outer
-    %v188 = load [%v187] : Outer
-    %v189 = load [%v187]@Outer.tail : U32
-    %v192 = cmp_ne %v189, 6 : Bool
-    je %v192, b32, b20
+    %v173 = load %ys : Array(Outer)
+    %v175 = borrow %ys : &Array(Outer)
+    %v176 = alloc : Flat(Outer)
+    %v177 = load [%v175]@Array.run@Run.items : %Outer
+    init %local23@Flat.items, %v177
+    %v179 = load [%v175]@Array.length : @bits(31) U32
+    %v180 = cast %v179 : U32
+    %v181 = cast %v180 : I64
+    init %local23@Flat.length, %v181
+    %v184 = borrow %local23 : &Flat(Outer)
+    %v185 = call get(Outer), %v184, 0 : &Outer
+    %v186 = load [%v185] : Outer
+    %v187 = load [%v185]@Outer.tail : U32
+    %v190 = cmp_ne %v187, 6 : Bool
+    je %v190, b32, b20
 
   b19:
-    %v196 = neg 7 : I64
-    ret %v196
+    %v194 = neg 7 : I64
+    ret %v194
 
   b20:
     jmp b21
 
   b21:
-    %v199 = load %ys : Array(Outer)
-    %v201 = borrow %ys : &Array(Outer)
-    %v202 = alloc : Flat(Outer)
-    %v203 = load [%v201]@Array.run@Run.items : %Outer
-    init %local25@Flat.items, %v203
-    %v205 = load [%v201]@Array.length : @bits(31) U32
-    %v206 = cast %v205 : U32
-    %v207 = cast %v206 : I64
-    init %local25@Flat.length, %v207
-    %v210 = borrow %local25 : &Flat(Outer)
-    %v211 = call get(Outer), %v210, 1 : &Outer
-    %v212 = load [%v211] : Outer
-    %v213 = load [%v211]@Outer.inner : Pad
-    %v214 = load [%v211]@Outer.inner@Pad.n : U32
-    %v217 = cmp_ne %v214, 7 : Bool
-    je %v217, b33, b23
+    %v197 = load %ys : Array(Outer)
+    %v199 = borrow %ys : &Array(Outer)
+    %v200 = alloc : Flat(Outer)
+    %v201 = load [%v199]@Array.run@Run.items : %Outer
+    init %local24@Flat.items, %v201
+    %v203 = load [%v199]@Array.length : @bits(31) U32
+    %v204 = cast %v203 : U32
+    %v205 = cast %v204 : I64
+    init %local24@Flat.length, %v205
+    %v208 = borrow %local24 : &Flat(Outer)
+    %v209 = call get(Outer), %v208, 1 : &Outer
+    %v210 = load [%v209] : Outer
+    %v211 = load [%v209]@Outer.inner : Pad
+    %v212 = load [%v209]@Outer.inner@Pad.n : U32
+    %v215 = cmp_ne %v212, 7 : Bool
+    je %v215, b33, b23
 
   b22:
-    %v221 = neg 8 : I64
-    ret %v221
+    %v219 = neg 8 : I64
+    ret %v219
 
   b23:
     jmp b24
 
   b24:
-    %v224 = load %ys : Array(Outer)
-    %v226 = borrow %ys : &Array(Outer)
-    %v227 = alloc : Flat(Outer)
-    %v228 = load [%v226]@Array.run@Run.items : %Outer
-    init %local26@Flat.items, %v228
-    %v230 = load [%v226]@Array.length : @bits(31) U32
-    %v231 = cast %v230 : U32
-    %v232 = cast %v231 : I64
-    init %local26@Flat.length, %v232
-    %v235 = borrow %local26 : &Flat(Outer)
-    %v236 = call get(Outer), %v235, 1 : &Outer
-    %v237 = load [%v236] : Outer
-    %v238 = load [%v236]@Outer.tail : U32
+    %v222 = load %ys : Array(Outer)
+    %v224 = borrow %ys : &Array(Outer)
+    %v225 = alloc : Flat(Outer)
+    %v226 = load [%v224]@Array.run@Run.items : %Outer
+    init %local25@Flat.items, %v226
+    %v228 = load [%v224]@Array.length : @bits(31) U32
+    %v229 = cast %v228 : U32
+    %v230 = cast %v229 : I64
+    init %local25@Flat.length, %v230
+    %v233 = borrow %local25 : &Flat(Outer)
+    %v234 = call get(Outer), %v233, 1 : &Outer
+    %v235 = load [%v234] : Outer
+    %v236 = load [%v234]@Outer.tail : U32
     drop %ys reclaim Reclaim(Array(a)).reclaim(Outer)
-    %v241 = cmp_ne %v238, 8 : Bool
-    je %v241, b34, b26
+    %v239 = cmp_ne %v236, 8 : Bool
+    je %v239, b34, b26
 
   b25:
-    %v245 = neg 9 : I64
-    ret %v245
+    %v243 = neg 9 : I64
+    ret %v243
 
   b26:
     jmp b27
 
   b27:
-    %v248 = load %o : Outer
-    %v249 = sizeof Outer : I64
-    %v252 = mul %v249, 10000 : I64
-    %v254 = call pad, 0 : Pad
-    %v255 = sizeof Pad : I64
-    %v258 = mul %v255, 100 : I64
-    %v259 = add %v252, %v258 : I64
-    %v260 = load %xs : Array(Pad)
+    %v246 = load %o : Outer
+    %v247 = sizeof Outer : I64
+    %v250 = mul %v247, 10000 : I64
+    %v252 = call pad, 0 : Pad
+    %v253 = sizeof Pad : I64
+    %v256 = mul %v253, 100 : I64
+    %v257 = add %v250, %v256 : I64
+    %v258 = load %xs : Array(Pad)
     drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
-    %v261 = sizeof Array(Pad) : I64
-    %v262 = add %v259, %v261 : I64
-    ret %v262
+    %v259 = sizeof Array(Pad) : I64
+    %v260 = add %v257, %v259 : I64
+    ret %v260
 
   b28:
     drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)

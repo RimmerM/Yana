@@ -75,10 +75,7 @@ mutated<complex>(): Int {
     %v_7 = or %v_6, %v_5: Long
     store %v_1, %v_7, 2
     store %v_1, 41, 1
-    %s = alloca 2, 2: Ptr
-    store %s, 0, 2
-    copy %s, %v_1, 2
-    %v_8 = load %s, 2: Long
+    %v_8 = load %v_1, 2: Long
     %v_9 = shr %v_8, 8: Long
     %v_10 = and %v_9, 1: Long
     %v_11 = cast %v_10: Int
@@ -87,17 +84,17 @@ mutated<complex>(): Int {
   }
 
   b_14 {
-    call_complex bump, %s
+    call_complex bump, %v_1
     jmp b_15
   }
 
   b_13 {
-    call_complex bump, %s
+    call_complex bump, %v_1
     jmp b_15
   }
 
   b_15 {
-    %v_16 = call_complex payloadOf, %s: Int
+    %v_16 = call_complex payloadOf, %v_1: Int
     ret %v_16
   }
 }
@@ -599,10 +596,7 @@ main<complex>(): Int {
     %v_82 = or %v_81, %v_80: Long
     store %v_76, %v_82, 2
     store %v_76, 41, 1
-    %s = alloca 2, 2: Ptr
-    store %s, 0, 2
-    copy %s, %v_76, 2
-    %v_83 = load %s, 2: Long
+    %v_83 = load %v_76, 2: Long
     %v_84 = shr %v_83, 8: Long
     %v_85 = and %v_84, 1: Long
     %v_86 = cast %v_85: Int
@@ -611,17 +605,17 @@ main<complex>(): Int {
   }
 
   b_89 {
-    call_complex bump, %s
+    call_complex bump, %v_76
     jmp b_90
   }
 
   b_88 {
-    call_complex bump, %s
+    call_complex bump, %v_76
     jmp b_90
   }
 
   b_90 {
-    %v_91 = call_complex payloadOf, %s: Int
+    %v_91 = call_complex payloadOf, %v_76: Int
     %v_92 = add %v_75, %v_91: Int
     %f = alloca 1, 1: Ptr
     store %f, 0, 1

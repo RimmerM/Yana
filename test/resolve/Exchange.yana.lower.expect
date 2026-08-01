@@ -69,22 +69,22 @@ freeHeap<complex>(%allocation: Ptr) {
 
 sinkExchange<complex>(): Long {
   b_0 {
-    %slot = alloca 8, 8: Ptr
-    store %slot, 1, 8
-    store @sinkCalls, 0, 8
     %v_1 = alloca 8, 8: Ptr
-    store %v_1, 2, 8
+    store %v_1, 1, 8
+    store @sinkCalls, 0, 8
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, 2, 8
     %old = alloca 8, 8: Ptr
-    call_complex Sink(Handle).sink, %old, %slot
-    call_complex Sink(Handle).sink, %slot, %v_1
-    %v_2 = loads @sinkCalls, 8: Long
-    %v_3 = imul %v_2, 100: Long
-    %v_4 = loads %old, 8: Long
-    %v_5 = imul %v_4, 10: Long
-    %v_6 = add %v_3, %v_5: Long
-    %v_7 = loads %slot, 8: Long
-    %v_8 = add %v_6, %v_7: Long
-    ret %v_8
+    call_complex Sink(Handle).sink, %old, %v_1
+    call_complex Sink(Handle).sink, %v_1, %v_2
+    %v_3 = loads @sinkCalls, 8: Long
+    %v_4 = imul %v_3, 100: Long
+    %v_5 = loads %old, 8: Long
+    %v_6 = imul %v_5, 10: Long
+    %v_7 = add %v_4, %v_6: Long
+    %v_8 = loads %v_1, 8: Long
+    %v_9 = add %v_7, %v_8: Long
+    ret %v_9
   }
 }
 
@@ -92,24 +92,25 @@ swapDroppable<complex>(): Long {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
     call_complex makeBuffer, %v_1, 16
-    %x = alloca 8, 8: Ptr
-    copy %x, %v_1, 8
-    %v_2 = alloca 8, 8: Ptr
-    call_complex makeBuffer, %v_2, 32
-    %y = alloca 8, 8: Ptr
-    copy %y, %v_2, 8
+    %v_2 = load %v_1, 8: Ptr
     %v_3 = alloca 8, 8: Ptr
-    copy %v_3, %x, 8
-    copy %x, %y, 8
-    copy %y, %v_3, 8
-    %v_4 = loads @liveBuffers, 8: Long
-    %v_5 = call_complex firstByte, %x: Long
-    call_complex Drop(Buffer).drop, %x
-    %v_6 = add %v_4, %v_5: Long
-    %v_7 = call_complex firstByte, %y: Long
-    call_complex Drop(Buffer).drop, %y
-    %v_8 = add %v_6, %v_7: Long
-    ret %v_8
+    call_complex makeBuffer, %v_3, 32
+    %v_4 = load %v_3, 8: Ptr
+    %v_5 = alloca 8, 8: Ptr
+    store %v_5, %v_2, 8
+    %v_6 = load %v_5, 8: Ptr
+    %v_7 = loads @liveBuffers, 8: Long
+    %v_8 = load %v_4, 1: Int
+    %v_9 = cast %v_8: Long
+    call_complex freeHeap, %v_4
+    call_complex -=(I64), @liveBuffers, 1
+    %v_10 = add %v_7, %v_9: Long
+    %v_11 = load %v_6, 1: Int
+    %v_12 = cast %v_11: Long
+    call_complex freeHeap, %v_6
+    call_complex -=(I64), @liveBuffers, 1
+    %v_13 = add %v_10, %v_12: Long
+    ret %v_13
   }
 }
 
@@ -173,23 +174,23 @@ initHeap<complex>() {
 
 sinkSwap<complex>(): Long {
   b_0 {
-    %a = alloca 8, 8: Ptr
-    store %a, 1, 8
-    %b = alloca 8, 8: Ptr
-    store %b, 2, 8
-    store @sinkCalls, 0, 8
     %v_1 = alloca 8, 8: Ptr
-    call_complex Sink(Handle).sink, %v_1, %a
-    call_complex Sink(Handle).sink, %a, %b
-    call_complex Sink(Handle).sink, %b, %v_1
-    %v_2 = loads @sinkCalls, 8: Long
-    %v_3 = imul %v_2, 100: Long
-    %v_4 = loads %a, 8: Long
-    %v_5 = imul %v_4, 10: Long
-    %v_6 = add %v_3, %v_5: Long
-    %v_7 = loads %b, 8: Long
-    %v_8 = add %v_6, %v_7: Long
-    ret %v_8
+    store %v_1, 1, 8
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, 2, 8
+    store @sinkCalls, 0, 8
+    %v_3 = alloca 8, 8: Ptr
+    call_complex Sink(Handle).sink, %v_3, %v_1
+    call_complex Sink(Handle).sink, %v_1, %v_2
+    call_complex Sink(Handle).sink, %v_2, %v_3
+    %v_4 = loads @sinkCalls, 8: Long
+    %v_5 = imul %v_4, 100: Long
+    %v_6 = loads %v_1, 8: Long
+    %v_7 = imul %v_6, 10: Long
+    %v_8 = add %v_5, %v_7: Long
+    %v_9 = loads %v_2, 8: Long
+    %v_10 = add %v_8, %v_9: Long
+    ret %v_10
   }
 }
 
@@ -197,21 +198,22 @@ exchangeDroppable<complex>(): Long {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
     call_complex makeBuffer, %v_1, 16
-    %slot = alloca 8, 8: Ptr
-    copy %slot, %v_1, 8
-    %v_2 = alloca 8, 8: Ptr
-    call_complex makeBuffer, %v_2, 32
-    %old = alloca 8, 8: Ptr
-    copy %old, %slot, 8
-    copy %slot, %v_2, 8
+    %v_2 = load %v_1, 8: Ptr
+    %v_3 = alloca 8, 8: Ptr
+    call_complex makeBuffer, %v_3, 32
+    %v_4 = load %v_3, 8: Ptr
     %counted = loads @liveBuffers, 8: Long
-    %v_3 = call_complex firstByte, %old: Long
-    call_complex Drop(Buffer).drop, %old
-    %v_4 = add %counted, %v_3: Long
-    %v_5 = call_complex firstByte, %slot: Long
-    call_complex Drop(Buffer).drop, %slot
-    %v_6 = add %v_4, %v_5: Long
-    ret %v_6
+    %v_5 = load %v_2, 1: Int
+    %v_6 = cast %v_5: Long
+    call_complex freeHeap, %v_2
+    call_complex -=(I64), @liveBuffers, 1
+    %v_7 = add %counted, %v_6: Long
+    %v_8 = load %v_4, 1: Int
+    %v_9 = cast %v_8: Long
+    call_complex freeHeap, %v_4
+    call_complex -=(I64), @liveBuffers, 1
+    %v_10 = add %v_7, %v_9: Long
+    ret %v_10
   }
 }
 
@@ -534,15 +536,19 @@ borrowed<complex>(): Long {
     copy %y, %v_2, 8
     call_complex swapThrough, %x, %y
     %v_3 = loads @liveBuffers, 8: Long
-    %v_4 = call_complex firstByte, %x: Long
+    %v_4 = load %x, 8: Ptr
+    %v_5 = load %v_4, 1: Int
+    %v_6 = cast %v_5: Long
     call_complex Drop(Buffer).drop, %x
     call_complex freeHeap, %x
-    %v_5 = add %v_3, %v_4: Long
-    %v_6 = call_complex firstByte, %y: Long
+    %v_7 = add %v_3, %v_6: Long
+    %v_8 = load %y, 8: Ptr
+    %v_9 = load %v_8, 1: Int
+    %v_10 = cast %v_9: Long
     call_complex Drop(Buffer).drop, %y
     call_complex freeHeap, %y
-    %v_7 = add %v_5, %v_6: Long
-    ret %v_7
+    %v_11 = add %v_7, %v_10: Long
+    ret %v_11
   }
 }
 

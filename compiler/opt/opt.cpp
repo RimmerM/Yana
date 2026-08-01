@@ -11,11 +11,6 @@
 
 namespace {
 
-// A cap on the fixed point rather than a trusted termination proof. Every rewrite here strictly
-// reduces something - an operand becomes a constant, or an instruction goes away - so the loop
-// terminates on its own; the cap is what turns a future pass that oscillates into a slow compile
-// rather than a hang.
-constexpr Size kMaxRounds = 8;
 
 /*
  * Every value of one function, in no particular order: the parameters, the phis, the instructions
@@ -82,9 +77,13 @@ void rebuildUses(OptContext& opt) {
     });
 }
 
-namespace {
+// A cap on the fixed point rather than a trusted termination proof. Every rewrite here strictly
+// reduces something - an operand becomes a constant, or an instruction goes away - so the loop
+// terminates on its own; the cap is what turns a future pass that oscillates into a slow compile
+// rather than a hang.
+static constexpr Size kMaxRounds = 8;
 
-void runRounds(OptContext& opt) {
+void optimizeRounds(OptContext& opt) {
     for(Size round = 0; round < kMaxRounds; round++) {
         opt.changed = false;
 
@@ -103,6 +102,12 @@ void runRounds(OptContext& opt) {
         // apart. The removal that pays for this is the *next* round's - promotion leaves a local
         // whose whole use list is writes, which is the state `eliminateDeadLocal` removes it in.
         promotePlaces(opt);
+
+        // Immediately in front of the fold, because what it produces *is* a constant condition: a
+        // loop it decides does nothing is one whose exit test it writes down as false, and every
+        // consequence of that - the arm nothing reaches, the phi with one alternative left, the
+        // header merged back into the block above it - belongs to the pass below.
+        eliminateDeadLoops(opt);
 
         // After the place passes rather than before them, because most constant conditions are made
         // rather than written: a `Bool` inlining turned into a literal, a field forwarding answered
@@ -123,6 +128,8 @@ void runRounds(OptContext& opt) {
     }
 }
 
+namespace {
+
 /*
  * Twice around, with the packing expansion in between.
  *
@@ -135,8 +142,8 @@ void optimizeFunction(OptContext& opt, Function& function) {
     opt.function = &function;
     rebuildUses(opt);
 
-    runRounds(opt);
-    if(expandPacking(opt)) runRounds(opt);
+    optimizeRounds(opt);
+    if(expandPacking(opt)) optimizeRounds(opt);
 }
 
 }
@@ -353,6 +360,20 @@ void insertInstructions(OptContext& opt, Block& block, Size index, InstList& ins
     for(auto instruction: ordered) block.instructions.push(opt.program.arena, instruction);
 
     opt.changed = true;
+}
+
+Maybe<Place> storageOf(OptContext& opt, ModulePtr<Value> value) {
+    if(!value) return Nothing();
+
+    if(opt.local[value]->kind == Value::LoadPlace) {
+        return Just(((InstLoadPlace*)opt.local[value])->place);
+    }
+
+    for(U32 i = 0; i < opt.function->localCount(); i++) {
+        if(opt.function->localAt(opt.local, i).value == value) return Just(Place::inLocal(i));
+    }
+
+    return Nothing();
 }
 
 Fields fieldsOf(OptContext& opt, TypePtr type) {

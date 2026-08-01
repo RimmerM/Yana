@@ -253,31 +253,29 @@ fn packedPayload() -> Int {
 fn mutated() -> Int {
   b0:
     %v0 = alloc : Sum
-    init %local0.discriminant, 0
-    init %local0@A, 41
-    %s = alloc : Sum
-    init %s, %v0
-    %v7 = load %s : Sum
-    %v8 = load %s.discriminant : Int
-    %v10 = cmp_eq %v8, 0 : Bool
-    je %v10, b2, b1
+    init %s.discriminant, 0
+    init %s@A, 41
+    %v5 = load %s : Sum
+    %v6 = load %s.discriminant : Int
+    %v8 = cmp_eq %v6, 0 : Bool
+    je %v8, b2, b1
 
   b1:
     %x = load %s@B : U8
-    %v16 = borrow_mut %s@B : &mut U8
-    call bump, %v16
+    %v14 = borrow_mut %s@B : &mut U8
+    call bump, %v14
     jmp b3
 
   b2:
     %x = load %s@A : U8
-    %v13 = borrow_mut %s@A : &mut U8
-    call bump, %v13
+    %v11 = borrow_mut %s@A : &mut U8
+    call bump, %v11
     jmp b3
 
   b3:
-    %v20 = load %s : Sum
-    %v21 = call payloadOf, %v20 : Int
-    ret %v21
+    %v18 = load %s : Sum
+    %v19 = call payloadOf, %v18 : Int
+    ret %v19
 }
 
 fn copied() -> Int {

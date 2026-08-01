@@ -69,31 +69,6 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-releaseRun(Pad)<complex>(%self: Ptr) {
-  b_0 {
-    %v_1 = add %self, 8: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = shr %v_2, 31: Int
-    %v_4 = cmp_eq %v_3, 1: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = load %self, 8: Ptr
-    %v_8 = bitcast %v_7: Ptr
-    call_complex freeHeap, %v_8
-    jmp b_9
-  }
-
-  b_6 {
-    jmp b_9
-  }
-
-  b_9 {
-    ret 
-  }
-}
-
 byteSpan(Outer)<complex>(%from: Ptr, %count: Int): Long {
   b_0 {
     %v_1 = bitcast %from: Ptr
@@ -121,15 +96,33 @@ Reclaim(Array(a)).reclaim(Pad)<complex>(%value: Ptr) {
   }
 
   b_8 {
-    call_complex releaseRun(Pad), %value
+    %v_9 = add %value, 8: Ptr
+    %v_10 = load %v_9, 4: Int
+    %v_11 = shr %v_10, 31: Int
+    %v_12 = cmp_eq %v_11, 1: Int
+    je %v_12, b_13, b_14
+  }
+
+  b_14 {
+    jmp b_15
+  }
+
+  b_13 {
+    %v_16 = load %value, 8: Ptr
+    %v_17 = bitcast %v_16: Ptr
+    call_complex freeHeap, %v_17
+    jmp b_15
+  }
+
+  b_15 {
     ret 
   }
 
   b_5 {
-    %v_9 = load %value, 8: Ptr
-    %v_10 = sext %v_4: Long
-    %v_11 = imul %v_10, 16: Long
-    %v_12 = add %v_9, %v_11: Ptr
+    %v_18 = load %value, 8: Ptr
+    %v_19 = sext %v_4: Long
+    %v_20 = imul %v_19, 16: Long
+    %v_21 = add %v_18, %v_20: Ptr
     %v_6 = add %v_4, 1: Int
     jmp b_3
   }
@@ -398,15 +391,33 @@ Reclaim(Array(a)).reclaim(Outer)<complex>(%value: Ptr) {
   }
 
   b_8 {
-    call_complex releaseRun(Outer), %value
+    %v_9 = add %value, 8: Ptr
+    %v_10 = load %v_9, 4: Int
+    %v_11 = shr %v_10, 31: Int
+    %v_12 = cmp_eq %v_11, 1: Int
+    je %v_12, b_13, b_14
+  }
+
+  b_14 {
+    jmp b_15
+  }
+
+  b_13 {
+    %v_16 = load %value, 8: Ptr
+    %v_17 = bitcast %v_16: Ptr
+    call_complex freeHeap, %v_17
+    jmp b_15
+  }
+
+  b_15 {
     ret 
   }
 
   b_5 {
-    %v_9 = load %value, 8: Ptr
-    %v_10 = sext %v_4: Long
-    %v_11 = imul %v_10, 16: Long
-    %v_12 = add %v_9, %v_11: Ptr
+    %v_18 = load %value, 8: Ptr
+    %v_19 = sext %v_4: Long
+    %v_20 = imul %v_19, 16: Long
+    %v_21 = add %v_18, %v_20: Ptr
     %v_6 = add %v_4, 1: Int
     jmp b_3
   }
@@ -667,31 +678,6 @@ allocateHeap<complex>(%size: Long): Ptr {
   b_10 {
     %v_47 = bitcast 0: Ptr
     ret %v_47
-  }
-}
-
-releaseRun(Outer)<complex>(%self: Ptr) {
-  b_0 {
-    %v_1 = add %self, 8: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = shr %v_2, 31: Int
-    %v_4 = cmp_eq %v_3, 1: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = load %self, 8: Ptr
-    %v_8 = bitcast %v_7: Ptr
-    call_complex freeHeap, %v_8
-    jmp b_9
-  }
-
-  b_6 {
-    jmp b_9
-  }
-
-  b_9 {
-    ret 
   }
 }
 

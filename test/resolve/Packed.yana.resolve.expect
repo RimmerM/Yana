@@ -36,137 +36,217 @@ fn scale(%x: U32, %by: U32) -> () {
 fn direct() -> Int {
   b0:
     %v0 = alloc : Header
-    init %local0@Header.version, 1
-    init %local0@Header.flags, 2
-    init %local0@Header.length, 3
-    %h = alloc : Header
-    init %h, %v0
+    init %h@Header.version, 1
+    init %h@Header.flags, 2
+    init %h@Header.length, 3
     assign %h@Header.length, 4000
     assign %h@Header.version, 9
-    %v13 = load %h : Header
-    %v14 = load %h@Header.version : @bits(4) U32
-    %v15 = cast %v14 : U32
-    %v16 = cast %v15 : Int
-    %v19 = mul %v16, 100000 : Int
-    %v20 = load %h : Header
-    %v21 = load %h@Header.flags : @bits(3) U32
-    %v22 = cast %v21 : U32
-    %v23 = cast %v22 : Int
-    %v26 = mul %v23, 10000 : Int
-    %v27 = add %v19, %v26 : Int
-    %v28 = load %h : Header
-    %v29 = load %h@Header.length : @bits(13) U32
-    %v30 = cast %v29 : U32
-    %v31 = cast %v30 : Int
-    %v32 = add %v27, %v31 : Int
-    ret %v32
+    %v11 = load %h : Header
+    %v12 = load %h@Header.version : @bits(4) U32
+    %v13 = cast %v12 : U32
+    %v14 = cast %v13 : Int
+    %v17 = mul %v14, 100000 : Int
+    %v18 = load %h : Header
+    %v19 = load %h@Header.flags : @bits(3) U32
+    %v20 = cast %v19 : U32
+    %v21 = cast %v20 : Int
+    %v24 = mul %v21, 10000 : Int
+    %v25 = add %v17, %v24 : Int
+    %v26 = load %h : Header
+    %v27 = load %h@Header.length : @bits(13) U32
+    %v28 = cast %v27 : U32
+    %v29 = cast %v28 : Int
+    %v30 = add %v25, %v29 : Int
+    ret %v30
 }
 
 fn borrowed() -> Int {
   b0:
     %v0 = alloc : Header
-    init %local0@Header.version, 1
-    init %local0@Header.flags, 2
-    init %local0@Header.length, 3
-    %h = alloc : Header
-    init %h, %v0
-    %v9 = load %h : Header
+    init %h@Header.version, 1
+    init %h@Header.flags, 2
+    init %h@Header.length, 3
+    %v7 = load %h : Header
+    %v8 = load %h@Header.version : @bits(4) U32
+    %v9 = alloc : U32
     %v10 = load %h@Header.version : @bits(4) U32
-    %v11 = alloc : U32
-    %v12 = load %h@Header.version : @bits(4) U32
-    %v13 = cast %v12 : U32
-    init %local2, %v13
-    %v15 = borrow_mut %local2 : &mut U32
-    call bump, %v15
-    %v17 = load %local2 : U32
-    %v19 = and %v17, 15 : U32
-    %v20 = cast %v19 : @bits(4) U32
-    assign %h@Header.version, %v20
-    %v22 = load %h : Header
+    %v11 = cast %v10 : U32
+    init %local1, %v11
+    %v13 = borrow_mut %local1 : &mut U32
+    call bump, %v13
+    %v15 = load %local1 : U32
+    %v17 = and %v15, 15 : U32
+    %v18 = cast %v17 : @bits(4) U32
+    assign %h@Header.version, %v18
+    %v20 = load %h : Header
+    %v21 = load %h@Header.length : @bits(13) U32
+    %v22 = alloc : U32
     %v23 = load %h@Header.length : @bits(13) U32
-    %v24 = alloc : U32
-    %v25 = load %h@Header.length : @bits(13) U32
-    %v26 = cast %v25 : U32
-    init %local3, %v26
-    %v28 = borrow_mut %local3 : &mut U32
-    call bump, %v28
-    %v30 = load %local3 : U32
-    %v32 = and %v30, 8191 : U32
-    %v33 = cast %v32 : @bits(13) U32
-    assign %h@Header.length, %v33
-    %v35 = load %h : Header
-    %v36 = load %h@Header.version : @bits(4) U32
-    %v37 = cast %v36 : U32
-    %v38 = cast %v37 : Int
-    %v41 = mul %v38, 100 : Int
-    %v42 = load %h : Header
-    %v43 = load %h@Header.length : @bits(13) U32
-    %v44 = cast %v43 : U32
-    %v45 = cast %v44 : Int
-    %v46 = add %v41, %v45 : Int
-    ret %v46
+    %v24 = cast %v23 : U32
+    init %local2, %v24
+    %v26 = borrow_mut %local2 : &mut U32
+    call bump, %v26
+    %v28 = load %local2 : U32
+    %v30 = and %v28, 8191 : U32
+    %v31 = cast %v30 : @bits(13) U32
+    assign %h@Header.length, %v31
+    %v33 = load %h : Header
+    %v34 = load %h@Header.version : @bits(4) U32
+    %v35 = cast %v34 : U32
+    %v36 = cast %v35 : Int
+    %v39 = mul %v36, 100 : Int
+    %v40 = load %h : Header
+    %v41 = load %h@Header.length : @bits(13) U32
+    %v42 = cast %v41 : U32
+    %v43 = cast %v42 : Int
+    %v44 = add %v39, %v43 : Int
+    ret %v44
 }
 
 fn neighbours() -> Int {
   b0:
     %v0 = alloc : Header
-    init %local0@Header.version, 1
-    init %local0@Header.flags, 0
-    init %local0@Header.length, 100
-    %h = alloc : Header
-    init %h, %v0
-    %v9 = load %h : Header
+    init %h@Header.version, 1
+    init %h@Header.flags, 0
+    init %h@Header.length, 100
+    %v7 = load %h : Header
+    %v8 = load %h@Header.version : @bits(4) U32
+    %v9 = alloc : U32
     %v10 = load %h@Header.version : @bits(4) U32
-    %v11 = alloc : U32
-    %v12 = load %h@Header.version : @bits(4) U32
-    %v13 = cast %v12 : U32
-    init %local2, %v13
-    %v15 = borrow_mut %local2 : &mut U32
-    call bump, %v15
-    %v17 = load %local2 : U32
-    %v19 = and %v17, 15 : U32
-    %v20 = cast %v19 : @bits(4) U32
-    assign %h@Header.version, %v20
-    %v22 = load %h : Header
-    %v23 = load %h@Header.length : @bits(13) U32
-    %v25 = alloc : U32
-    %v26 = load %h@Header.length : @bits(13) U32
-    %v27 = cast %v26 : U32
-    init %local3, %v27
-    %v29 = borrow_mut %local3 : &mut U32
-    call scale, %v29, 3
-    %v31 = load %local3 : U32
-    %v33 = and %v31, 8191 : U32
-    %v34 = cast %v33 : @bits(13) U32
-    assign %h@Header.length, %v34
-    %v36 = load %h : Header
-    %v37 = load %h@Header.version : @bits(4) U32
-    %v38 = cast %v37 : U32
-    %v39 = cast %v38 : Int
-    %v42 = mul %v39, 1000 : Int
-    %v43 = load %h : Header
-    %v44 = load %h@Header.length : @bits(13) U32
-    %v45 = cast %v44 : U32
-    %v46 = cast %v45 : Int
-    %v47 = add %v42, %v46 : Int
-    ret %v47
+    %v11 = cast %v10 : U32
+    init %local1, %v11
+    %v13 = borrow_mut %local1 : &mut U32
+    call bump, %v13
+    %v15 = load %local1 : U32
+    %v17 = and %v15, 15 : U32
+    %v18 = cast %v17 : @bits(4) U32
+    assign %h@Header.version, %v18
+    %v20 = load %h : Header
+    %v21 = load %h@Header.length : @bits(13) U32
+    %v23 = alloc : U32
+    %v24 = load %h@Header.length : @bits(13) U32
+    %v25 = cast %v24 : U32
+    init %local2, %v25
+    %v27 = borrow_mut %local2 : &mut U32
+    call scale, %v27, 3
+    %v29 = load %local2 : U32
+    %v31 = and %v29, 8191 : U32
+    %v32 = cast %v31 : @bits(13) U32
+    assign %h@Header.length, %v32
+    %v34 = load %h : Header
+    %v35 = load %h@Header.version : @bits(4) U32
+    %v36 = cast %v35 : U32
+    %v37 = cast %v36 : Int
+    %v40 = mul %v37, 1000 : Int
+    %v41 = load %h : Header
+    %v42 = load %h@Header.length : @bits(13) U32
+    %v43 = cast %v42 : U32
+    %v44 = cast %v43 : Int
+    %v45 = add %v40, %v44 : Int
+    ret %v45
 }
 
 fn together() -> Int {
   b0:
     %v0 = alloc : Flags
-    init %local0@Flags.optionA, False
-    init %local0@Flags.optionB, False
-    %f = alloc : Flags
-    init %f, %v0
-    %v7 = load %f : Flags
-    %v8 = load %f@Flags.optionA : Bool
-    %v9 = borrow_mut %f@Flags.optionA : &mut Bool
-    call flip, %v9
-    %v11 = load %f : Flags
-    %v12 = load %f@Flags.optionB : Bool
-    %v13 = borrow_mut %f@Flags.optionB : &mut Bool
-    call flip, %v13
+    init %f@Flags.optionA, False
+    init %f@Flags.optionB, False
+    %v5 = load %f : Flags
+    %v6 = load %f@Flags.optionA : Bool
+    %v7 = borrow_mut %f@Flags.optionA : &mut Bool
+    call flip, %v7
+    %v9 = load %f : Flags
+    %v10 = load %f@Flags.optionB : Bool
+    %v11 = borrow_mut %f@Flags.optionB : &mut Bool
+    call flip, %v11
+    %v13 = load %f : Flags
+    %v14 = load %f@Flags.optionA : Bool
+    je %v14, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v22 = phi [b1, 1], [b2, 0] : Int
+    %v23 = load %f : Flags
+    %v24 = load %f@Flags.optionB : Bool
+    je %v24, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v32 = phi [b4, 2], [b5, 0] : Int
+    %v33 = add %v22, %v32 : Int
+    ret %v33
+}
+
+fn unpacked() -> Int {
+  b0:
+    %v0 = alloc : Mixed
+    init %m@Mixed.only, 7
+    init %m@Mixed.wide, 5
+    %v5 = load %m : Mixed
+    %v6 = load %m@Mixed.only : @bits(5) U32
+    %v7 = alloc : U32
+    %v8 = load %m@Mixed.only : @bits(5) U32
+    %v9 = cast %v8 : U32
+    init %local1, %v9
+    %v11 = borrow_mut %local1 : &mut U32
+    call bump, %v11
+    %v13 = load %local1 : U32
+    %v15 = and %v13, 31 : U32
+    %v16 = cast %v15 : @bits(5) U32
+    assign %m@Mixed.only, %v16
+    %v18 = load %m : Mixed
+    %v19 = load %m@Mixed.only : @bits(5) U32
+    %v20 = cast %v19 : U32
+    %v21 = cast %v20 : Int
+    %v24 = mul %v21, 10 : Int
+    %v25 = load %m : Mixed
+    %v26 = load %m@Mixed.wide : Int
+    %v27 = add %v24, %v26 : Int
+    ret %v27
+}
+
+fn pick(%flag: Bool, %a: Bool, %b: Bool) -> &mut Bool {
+  b0:
+    je %flag, b1, b2
+
+  b1:
+    %v4 = load %a : Bool
+    %v5 = borrow_mut %a : &mut Bool
+    jmp b3
+
+  b2:
+    %v6 = load %b : Bool
+    %v7 = borrow_mut %b : &mut Bool
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, %v5], [b2, %v7] : &mut Bool
+    ret %v10
+}
+
+fn loaned() -> Int {
+  b0:
+    %v0 = alloc : Flags
+    init %f@Flags.optionA, True
+    init %f@Flags.optionB, True
+    %v6 = load %f : Flags
+    %v7 = load %f@Flags.optionA : Bool
+    %v8 = load %f : Flags
+    %v9 = load %f@Flags.optionB : Bool
+    %v10 = borrow_mut %f@Flags.optionA : &mut Bool
+    %v11 = borrow_mut %f@Flags.optionB : &mut Bool
+    %v12 = call pick, True, %v10, %v11 : &mut Bool
+    assign [%v12], False
     %v15 = load %f : Flags
     %v16 = load %f@Flags.optionA : Bool
     je %v16, b1, b2
@@ -195,98 +275,6 @@ fn together() -> Int {
     ret %v35
 }
 
-fn unpacked() -> Int {
-  b0:
-    %v0 = alloc : Mixed
-    init %local0@Mixed.only, 7
-    init %local0@Mixed.wide, 5
-    %m = alloc : Mixed
-    init %m, %v0
-    %v7 = load %m : Mixed
-    %v8 = load %m@Mixed.only : @bits(5) U32
-    %v9 = alloc : U32
-    %v10 = load %m@Mixed.only : @bits(5) U32
-    %v11 = cast %v10 : U32
-    init %local2, %v11
-    %v13 = borrow_mut %local2 : &mut U32
-    call bump, %v13
-    %v15 = load %local2 : U32
-    %v17 = and %v15, 31 : U32
-    %v18 = cast %v17 : @bits(5) U32
-    assign %m@Mixed.only, %v18
-    %v20 = load %m : Mixed
-    %v21 = load %m@Mixed.only : @bits(5) U32
-    %v22 = cast %v21 : U32
-    %v23 = cast %v22 : Int
-    %v26 = mul %v23, 10 : Int
-    %v27 = load %m : Mixed
-    %v28 = load %m@Mixed.wide : Int
-    %v29 = add %v26, %v28 : Int
-    ret %v29
-}
-
-fn pick(%flag: Bool, %a: Bool, %b: Bool) -> &mut Bool {
-  b0:
-    je %flag, b1, b2
-
-  b1:
-    %v4 = load %a : Bool
-    %v5 = borrow_mut %a : &mut Bool
-    jmp b3
-
-  b2:
-    %v6 = load %b : Bool
-    %v7 = borrow_mut %b : &mut Bool
-    jmp b3
-
-  b3:
-    %v10 = phi [b1, %v5], [b2, %v7] : &mut Bool
-    ret %v10
-}
-
-fn loaned() -> Int {
-  b0:
-    %v0 = alloc : Flags
-    init %local0@Flags.optionA, True
-    init %local0@Flags.optionB, True
-    %f = alloc : Flags
-    init %f, %v0
-    %v8 = load %f : Flags
-    %v9 = load %f@Flags.optionA : Bool
-    %v10 = load %f : Flags
-    %v11 = load %f@Flags.optionB : Bool
-    %v12 = borrow_mut %f@Flags.optionA : &mut Bool
-    %v13 = borrow_mut %f@Flags.optionB : &mut Bool
-    %v14 = call pick, True, %v12, %v13 : &mut Bool
-    assign [%v14], False
-    %v17 = load %f : Flags
-    %v18 = load %f@Flags.optionA : Bool
-    je %v18, b1, b2
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v26 = phi [b1, 1], [b2, 0] : Int
-    %v27 = load %f : Flags
-    %v28 = load %f@Flags.optionB : Bool
-    je %v28, b4, b5
-
-  b4:
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %v36 = phi [b4, 2], [b5, 0] : Int
-    %v37 = add %v26, %v36 : Int
-    ret %v37
-}
-
 fn optionOf(%f: Flags) -> &mut Bool {
   b0:
     %v1 = load %f : Flags
@@ -298,17 +286,15 @@ fn optionOf(%f: Flags) -> &mut Bool {
 fn returned() -> Int {
   b0:
     %v0 = alloc : Flags
-    init %local0@Flags.optionA, False
-    init %local0@Flags.optionB, True
-    %f = alloc : Flags
-    init %f, %v0
-    %v7 = load %f : Flags
-    %v8 = borrow_mut %f : &mut Flags
-    %v9 = call optionOf, %v8 : &mut Bool
-    assign [%v9], True
-    %v12 = load %f : Flags
-    %v13 = load %f@Flags.optionA : Bool
-    je %v13, b1, b2
+    init %f@Flags.optionA, False
+    init %f@Flags.optionB, True
+    %v5 = load %f : Flags
+    %v6 = borrow_mut %f : &mut Flags
+    %v7 = call optionOf, %v6 : &mut Bool
+    assign [%v7], True
+    %v10 = load %f : Flags
+    %v11 = load %f@Flags.optionA : Bool
+    je %v11, b1, b2
 
   b1:
     jmp b3
@@ -317,10 +303,10 @@ fn returned() -> Int {
     jmp b3
 
   b3:
-    %v21 = phi [b1, 1], [b2, 0] : Int
-    %v22 = load %f : Flags
-    %v23 = load %f@Flags.optionB : Bool
-    je %v23, b4, b5
+    %v19 = phi [b1, 1], [b2, 0] : Int
+    %v20 = load %f : Flags
+    %v21 = load %f@Flags.optionB : Bool
+    je %v21, b4, b5
 
   b4:
     jmp b6
@@ -329,9 +315,9 @@ fn returned() -> Int {
     jmp b6
 
   b6:
-    %v31 = phi [b4, 2], [b5, 0] : Int
-    %v32 = add %v21, %v31 : Int
-    ret %v32
+    %v29 = phi [b4, 2], [b5, 0] : Int
+    %v30 = add %v19, %v29 : Int
+    ret %v30
 }
 
 fn swapBools(%a: Bool, %b: Bool) -> () {
@@ -346,20 +332,18 @@ fn swapBools(%a: Bool, %b: Bool) -> () {
 fn interleaved() -> Int {
   b0:
     %v0 = alloc : Flags
-    init %local0@Flags.optionA, True
-    init %local0@Flags.optionB, False
-    %g = alloc : Flags
-    init %g, %v0
+    init %g@Flags.optionA, True
+    init %g@Flags.optionB, False
+    %v5 = load %g : Flags
+    %v6 = load %g@Flags.optionA : Bool
     %v7 = load %g : Flags
-    %v8 = load %g@Flags.optionA : Bool
-    %v9 = load %g : Flags
-    %v10 = load %g@Flags.optionB : Bool
-    %v11 = borrow_mut %g@Flags.optionA : &mut Bool
-    %v12 = borrow_mut %g@Flags.optionB : &mut Bool
-    call swapBools, %v11, %v12
-    %v14 = load %g : Flags
-    %v15 = load %g@Flags.optionA : Bool
-    je %v15, b1, b2
+    %v8 = load %g@Flags.optionB : Bool
+    %v9 = borrow_mut %g@Flags.optionA : &mut Bool
+    %v10 = borrow_mut %g@Flags.optionB : &mut Bool
+    call swapBools, %v9, %v10
+    %v12 = load %g : Flags
+    %v13 = load %g@Flags.optionA : Bool
+    je %v13, b1, b2
 
   b1:
     jmp b3
@@ -368,10 +352,10 @@ fn interleaved() -> Int {
     jmp b3
 
   b3:
-    %v23 = phi [b1, 1], [b2, 0] : Int
-    %v24 = load %g : Flags
-    %v25 = load %g@Flags.optionB : Bool
-    je %v25, b4, b5
+    %v21 = phi [b1, 1], [b2, 0] : Int
+    %v22 = load %g : Flags
+    %v23 = load %g@Flags.optionB : Bool
+    je %v23, b4, b5
 
   b4:
     jmp b6
@@ -380,9 +364,9 @@ fn interleaved() -> Int {
     jmp b6
 
   b6:
-    %v33 = phi [b4, 2], [b5, 0] : Int
-    %v34 = add %v23, %v33 : Int
-    ret %v34
+    %v31 = phi [b4, 2], [b5, 0] : Int
+    %v32 = add %v21, %v31 : Int
+    ret %v32
 }
 
 fn nudge(%x: @bits(13) U32) -> () {
@@ -410,26 +394,24 @@ fn nudgeTwice(%x: @bits(13) U32) -> () {
 fn threaded() -> Int {
   b0:
     %v0 = alloc : Header
-    init %local0@Header.version, 1
-    init %local0@Header.flags, 2
-    init %local0@Header.length, 100
-    %h = alloc : Header
-    init %h, %v0
-    %v9 = load %h : Header
-    %v10 = load %h@Header.length : @bits(13) U32
-    %v11 = borrow_mut %h@Header.length : &mut @bits(13) U32
-    call nudgeTwice, %v11
-    %v13 = load %h : Header
-    %v14 = load %h@Header.length : @bits(13) U32
-    %v15 = cast %v14 : U32
-    %v16 = cast %v15 : Int
-    %v19 = mul %v16, 10 : Int
-    %v20 = load %h : Header
-    %v21 = load %h@Header.version : @bits(4) U32
-    %v22 = cast %v21 : U32
-    %v23 = cast %v22 : Int
-    %v24 = add %v19, %v23 : Int
-    ret %v24
+    init %h@Header.version, 1
+    init %h@Header.flags, 2
+    init %h@Header.length, 100
+    %v7 = load %h : Header
+    %v8 = load %h@Header.length : @bits(13) U32
+    %v9 = borrow_mut %h@Header.length : &mut @bits(13) U32
+    call nudgeTwice, %v9
+    %v11 = load %h : Header
+    %v12 = load %h@Header.length : @bits(13) U32
+    %v13 = cast %v12 : U32
+    %v14 = cast %v13 : Int
+    %v17 = mul %v14, 10 : Int
+    %v18 = load %h : Header
+    %v19 = load %h@Header.version : @bits(4) U32
+    %v20 = cast %v19 : U32
+    %v21 = cast %v20 : Int
+    %v22 = add %v17, %v21 : Int
+    ret %v22
 }
 
 fn nine(%a: Bool, %b: Bool, %c: Bool, %d: Bool, %e: Bool, %f: Bool, %g: Bool, %h: Bool, %i: Bool) -> () {
@@ -449,48 +431,46 @@ fn nine(%a: Bool, %b: Bool, %c: Bool, %d: Bool, %e: Bool, %f: Bool, %g: Bool, %h
 fn wide() -> Int {
   b0:
     %v0 = alloc : Nine
-    init %local0@Nine.a, False
-    init %local0@Nine.b, False
-    init %local0@Nine.c, False
-    init %local0@Nine.d, False
-    init %local0@Nine.e, False
-    init %local0@Nine.f, False
-    init %local0@Nine.g, False
-    init %local0@Nine.h, False
-    init %local0@Nine.i, False
-    %s = alloc : Nine
-    init %s, %v0
+    init %s@Nine.a, False
+    init %s@Nine.b, False
+    init %s@Nine.c, False
+    init %s@Nine.d, False
+    init %s@Nine.e, False
+    init %s@Nine.f, False
+    init %s@Nine.g, False
+    init %s@Nine.h, False
+    init %s@Nine.i, False
+    %v19 = load %s : Nine
+    %v20 = load %s@Nine.a : Bool
     %v21 = load %s : Nine
-    %v22 = load %s@Nine.a : Bool
+    %v22 = load %s@Nine.b : Bool
     %v23 = load %s : Nine
-    %v24 = load %s@Nine.b : Bool
+    %v24 = load %s@Nine.c : Bool
     %v25 = load %s : Nine
-    %v26 = load %s@Nine.c : Bool
+    %v26 = load %s@Nine.d : Bool
     %v27 = load %s : Nine
-    %v28 = load %s@Nine.d : Bool
+    %v28 = load %s@Nine.e : Bool
     %v29 = load %s : Nine
-    %v30 = load %s@Nine.e : Bool
+    %v30 = load %s@Nine.f : Bool
     %v31 = load %s : Nine
-    %v32 = load %s@Nine.f : Bool
+    %v32 = load %s@Nine.g : Bool
     %v33 = load %s : Nine
-    %v34 = load %s@Nine.g : Bool
+    %v34 = load %s@Nine.h : Bool
     %v35 = load %s : Nine
-    %v36 = load %s@Nine.h : Bool
-    %v37 = load %s : Nine
-    %v38 = load %s@Nine.i : Bool
-    %v39 = borrow_mut %s@Nine.a : &mut Bool
-    %v40 = borrow_mut %s@Nine.b : &mut Bool
-    %v41 = borrow_mut %s@Nine.c : &mut Bool
-    %v42 = borrow_mut %s@Nine.d : &mut Bool
-    %v43 = borrow_mut %s@Nine.e : &mut Bool
-    %v44 = borrow_mut %s@Nine.f : &mut Bool
-    %v45 = borrow_mut %s@Nine.g : &mut Bool
-    %v46 = borrow_mut %s@Nine.h : &mut Bool
-    %v47 = borrow_mut %s@Nine.i : &mut Bool
-    call nine, %v39, %v40, %v41, %v42, %v43, %v44, %v45, %v46, %v47
-    %v49 = load %s : Nine
-    %v50 = load %s@Nine.a : Bool
-    je %v50, b1, b2
+    %v36 = load %s@Nine.i : Bool
+    %v37 = borrow_mut %s@Nine.a : &mut Bool
+    %v38 = borrow_mut %s@Nine.b : &mut Bool
+    %v39 = borrow_mut %s@Nine.c : &mut Bool
+    %v40 = borrow_mut %s@Nine.d : &mut Bool
+    %v41 = borrow_mut %s@Nine.e : &mut Bool
+    %v42 = borrow_mut %s@Nine.f : &mut Bool
+    %v43 = borrow_mut %s@Nine.g : &mut Bool
+    %v44 = borrow_mut %s@Nine.h : &mut Bool
+    %v45 = borrow_mut %s@Nine.i : &mut Bool
+    call nine, %v37, %v38, %v39, %v40, %v41, %v42, %v43, %v44, %v45
+    %v47 = load %s : Nine
+    %v48 = load %s@Nine.a : Bool
+    je %v48, b1, b2
 
   b1:
     jmp b3
@@ -499,10 +479,10 @@ fn wide() -> Int {
     jmp b3
 
   b3:
-    %v58 = phi [b1, 1], [b2, 0] : Int
-    %v59 = load %s : Nine
-    %v60 = load %s@Nine.e : Bool
-    je %v60, b4, b5
+    %v56 = phi [b1, 1], [b2, 0] : Int
+    %v57 = load %s : Nine
+    %v58 = load %s@Nine.e : Bool
+    je %v58, b4, b5
 
   b4:
     jmp b6
@@ -511,11 +491,11 @@ fn wide() -> Int {
     jmp b6
 
   b6:
-    %v68 = phi [b4, 20], [b5, 0] : Int
-    %v69 = add %v58, %v68 : Int
-    %v70 = load %s : Nine
-    %v71 = load %s@Nine.i : Bool
-    je %v71, b7, b8
+    %v66 = phi [b4, 20], [b5, 0] : Int
+    %v67 = add %v56, %v66 : Int
+    %v68 = load %s : Nine
+    %v69 = load %s@Nine.i : Bool
+    je %v69, b7, b8
 
   b7:
     jmp b9
@@ -524,34 +504,32 @@ fn wide() -> Int {
     jmp b9
 
   b9:
-    %v79 = phi [b7, 300], [b8, 0] : Int
-    %v80 = add %v69, %v79 : Int
-    ret %v80
+    %v77 = phi [b7, 300], [b8, 0] : Int
+    %v78 = add %v67, %v77 : Int
+    ret %v78
 }
 
 fn tally() -> Int {
   b0:
     %v0 = alloc : Entry
-    init %local0@Entry.live, False
-    init %local0@Entry.kind, 2
-    init %local0@Entry.count, 7
-    %e = alloc : Entry
-    init %e, %v0
-    %v9 = load %e : Entry
-    %v10 = load %e@Entry.live : Bool
-    %v11 = borrow_mut %e@Entry.live : &mut Bool
-    call flip, %v11
-    %v13 = load %e : Entry
-    %v14 = load %e@Entry.kind : @bits(3) U32
-    %v15 = borrow_mut %e@Entry.kind : &mut @bits(3) U32
-    call tick, %v15
-    %v17 = load %e : Entry
-    %v18 = load %e@Entry.count : Int
-    %v21 = add %v18, 1 : Int
-    assign %e@Entry.count, %v21
-    %v23 = load %e : Entry
-    %v24 = load %e@Entry.live : Bool
-    je %v24, b1, b2
+    init %e@Entry.live, False
+    init %e@Entry.kind, 2
+    init %e@Entry.count, 7
+    %v7 = load %e : Entry
+    %v8 = load %e@Entry.live : Bool
+    %v9 = borrow_mut %e@Entry.live : &mut Bool
+    call flip, %v9
+    %v11 = load %e : Entry
+    %v12 = load %e@Entry.kind : @bits(3) U32
+    %v13 = borrow_mut %e@Entry.kind : &mut @bits(3) U32
+    call tick, %v13
+    %v15 = load %e : Entry
+    %v16 = load %e@Entry.count : Int
+    %v19 = add %v16, 1 : Int
+    assign %e@Entry.count, %v19
+    %v21 = load %e : Entry
+    %v22 = load %e@Entry.live : Bool
+    je %v22, b1, b2
 
   b1:
     jmp b3
@@ -560,18 +538,18 @@ fn tally() -> Int {
     jmp b3
 
   b3:
-    %v32 = phi [b1, 1], [b2, 0] : Int
-    %v33 = load %e : Entry
-    %v34 = load %e@Entry.kind : @bits(3) U32
-    %v35 = cast %v34 : U32
-    %v36 = cast %v35 : Int
-    %v39 = mul %v36, 10 : Int
-    %v40 = add %v32, %v39 : Int
-    %v41 = load %e : Entry
-    %v42 = load %e@Entry.count : Int
-    %v45 = mul %v42, 100 : Int
-    %v46 = add %v40, %v45 : Int
-    ret %v46
+    %v30 = phi [b1, 1], [b2, 0] : Int
+    %v31 = load %e : Entry
+    %v32 = load %e@Entry.kind : @bits(3) U32
+    %v33 = cast %v32 : U32
+    %v34 = cast %v33 : Int
+    %v37 = mul %v34, 10 : Int
+    %v38 = add %v30, %v37 : Int
+    %v39 = load %e : Entry
+    %v40 = load %e@Entry.count : Int
+    %v43 = mul %v40, 100 : Int
+    %v44 = add %v38, %v43 : Int
+    ret %v44
 }
 
 fn liveOf(%e: Entry) -> &mut Bool {
@@ -585,18 +563,16 @@ fn liveOf(%e: Entry) -> &mut Bool {
 fn kept() -> Int {
   b0:
     %v0 = alloc : Entry
-    init %local0@Entry.live, False
-    init %local0@Entry.kind, 1
-    init %local0@Entry.count, 2
-    %e = alloc : Entry
-    init %e, %v0
-    %v9 = load %e : Entry
-    %v10 = borrow_mut %e : &mut Entry
-    %v11 = call liveOf, %v10 : &mut Bool
-    assign [%v11], True
-    %v14 = load %e : Entry
-    %v15 = load %e@Entry.live : Bool
-    je %v15, b1, b2
+    init %e@Entry.live, False
+    init %e@Entry.kind, 1
+    init %e@Entry.count, 2
+    %v7 = load %e : Entry
+    %v8 = borrow_mut %e : &mut Entry
+    %v9 = call liveOf, %v8 : &mut Bool
+    assign [%v9], True
+    %v12 = load %e : Entry
+    %v13 = load %e@Entry.live : Bool
+    je %v13, b1, b2
 
   b1:
     jmp b3
@@ -605,33 +581,31 @@ fn kept() -> Int {
     jmp b3
 
   b3:
-    %v23 = phi [b1, 1], [b2, 0] : Int
-    %v24 = load %e : Entry
-    %v25 = load %e@Entry.kind : @bits(3) U32
-    %v26 = cast %v25 : U32
-    %v27 = cast %v26 : Int
-    %v30 = mul %v27, 10 : Int
-    %v31 = add %v23, %v30 : Int
-    %v32 = load %e : Entry
-    %v33 = load %e@Entry.count : Int
-    %v36 = mul %v33, 100 : Int
-    %v37 = add %v31, %v36 : Int
-    ret %v37
+    %v21 = phi [b1, 1], [b2, 0] : Int
+    %v22 = load %e : Entry
+    %v23 = load %e@Entry.kind : @bits(3) U32
+    %v24 = cast %v23 : U32
+    %v25 = cast %v24 : Int
+    %v28 = mul %v25, 10 : Int
+    %v29 = add %v21, %v28 : Int
+    %v30 = load %e : Entry
+    %v31 = load %e@Entry.count : Int
+    %v34 = mul %v31, 100 : Int
+    %v35 = add %v29, %v34 : Int
+    ret %v35
 }
 
 fn dispatch() -> Int {
   b0:
     %v0 = alloc : Entry
-    init %local0@Entry.live, True
-    init %local0@Entry.kind, 5
-    init %local0@Entry.count, 0
-    %h = alloc : Entry
-    init %h, %v0
-    %v9 = load %h : Entry
-    %v10 = load %h@Entry.kind : @bits(3) U32
-    %v12 = cast %v10 : U32
-    %v13 = cmp_ne %v12, 5 : Bool
-    je %v13, b1, b2
+    init %h@Entry.live, True
+    init %h@Entry.kind, 5
+    init %h@Entry.count, 0
+    %v7 = load %h : Entry
+    %v8 = load %h@Entry.kind : @bits(3) U32
+    %v10 = cast %v8 : U32
+    %v11 = cmp_ne %v10, 5 : Bool
+    je %v11, b1, b2
 
   b1:
     ret 0
@@ -640,11 +614,11 @@ fn dispatch() -> Int {
     jmp b3
 
   b3:
-    %v19 = load %h : Entry
-    %v20 = load %h@Entry.kind : @bits(3) U32
-    %v21 = cast %v20 : U32
-    %v22 = cmp_ne 5, %v21 : Bool
-    je %v22, b4, b5
+    %v17 = load %h : Entry
+    %v18 = load %h@Entry.kind : @bits(3) U32
+    %v19 = cast %v18 : U32
+    %v20 = cmp_ne 5, %v19 : Bool
+    je %v20, b4, b5
 
   b4:
     ret 0
@@ -653,12 +627,12 @@ fn dispatch() -> Int {
     jmp b6
 
   b6:
-    %v27 = load %h : Entry
-    %v28 = load %h@Entry.kind : @bits(3) U32
-    %v30 = cast %v28 : U32
-    %v31 = cmp_lt %v30, 100 : Bool
-    %v33 = xor %v31, True : Bool
-    je %v33, b7, b8
+    %v25 = load %h : Entry
+    %v26 = load %h@Entry.kind : @bits(3) U32
+    %v28 = cast %v26 : U32
+    %v29 = cmp_lt %v28, 100 : Bool
+    %v31 = xor %v29, True : Bool
+    je %v31, b7, b8
 
   b7:
     ret 0
@@ -667,12 +641,12 @@ fn dispatch() -> Int {
     jmp b9
 
   b9:
-    %v38 = load %h : Entry
-    %v39 = load %h@Entry.kind : @bits(3) U32
-    %v41 = cast %v39 : U32
-    %v42 = cmp_ge %v41, 5 : Bool
-    %v44 = xor %v42, True : Bool
-    je %v44, b10, b11
+    %v36 = load %h : Entry
+    %v37 = load %h@Entry.kind : @bits(3) U32
+    %v39 = cast %v37 : U32
+    %v40 = cmp_ge %v39, 5 : Bool
+    %v42 = xor %v40, True : Bool
+    je %v42, b10, b11
 
   b10:
     ret 0
@@ -681,11 +655,11 @@ fn dispatch() -> Int {
     jmp b12
 
   b12:
-    %v49 = load %h : Entry
-    %v50 = load %h@Entry.kind : @bits(3) U32
-    %v52 = cast %v50 : U32
-    %v53 = cmp_gt %v52, 5 : Bool
-    je %v53, b13, b14
+    %v47 = load %h : Entry
+    %v48 = load %h@Entry.kind : @bits(3) U32
+    %v50 = cast %v48 : U32
+    %v51 = cmp_gt %v50, 5 : Bool
+    je %v51, b13, b14
 
   b13:
     ret 0
@@ -694,21 +668,21 @@ fn dispatch() -> Int {
     jmp b15
 
   b15:
-    %v58 = load %h : Entry
-    %v59 = load %h@Entry.kind : @bits(3) U32
-    %v61 = cast %v59 : U32
-    %wide = add %v61, 3 : U32
-    %v64 = and %wide, 7 : U32
-    %wide = cast %v64 : @bits(3) U32
+    %v56 = load %h : Entry
+    %v57 = load %h@Entry.kind : @bits(3) U32
+    %v59 = cast %v57 : U32
+    %wide = add %v59, 3 : U32
+    %v62 = and %wide, 7 : U32
+    %wide = cast %v62 : @bits(3) U32
     assign %h@Entry.kind, %wide
-    %v67 = cast %wide : Int
-    %v70 = mul %v67, 10 : Int
-    %v71 = load %h : Entry
-    %v72 = load %h@Entry.kind : @bits(3) U32
-    %v73 = cast %v72 : U32
-    %v74 = cast %v73 : Int
-    %v75 = add %v70, %v74 : Int
-    ret %v75
+    %v65 = cast %wide : Int
+    %v68 = mul %v65, 10 : Int
+    %v69 = load %h : Entry
+    %v70 = load %h@Entry.kind : @bits(3) U32
+    %v71 = cast %v70 : U32
+    %v72 = cast %v71 : Int
+    %v73 = add %v68, %v72 : Int
+    ret %v73
 }
 
 fn main() -> Int {

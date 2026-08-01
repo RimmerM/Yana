@@ -1210,6 +1210,10 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
         auto mutable_ = decl.bind == ast::BindType::Ref;
         auto checkpoint = bindings.size();
 
+        // Where this frame's locals had got to before the initializer ran, which is what tells a
+        // temporary it built from storage the program already had a name for - see `adoptableLocal`.
+        auto fresh = U32(function.localCount());
+
         // A `let` is a statement boundary, so a literal the initializer left open is settled to
         // its default here: `let x = 1` binds an Int, and nothing later in the block can go back
         // and make it a Long.
@@ -1227,7 +1231,7 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
         if(isBorrow(global, valueType(value))) {
             bindBorrow(decl, value, mutable_);
         } else if(mutable_) {
-            bindMutable(decl, value);
+            bindMutable(decl, value, fresh);
         } else {
             resolveBinding(decl, value);
         }
@@ -1345,7 +1349,38 @@ void ExprResolver::bindBorrow(const ast::VarDecl& declaration, ModulePtr<Value> 
     bindings.push(binding);
 }
 
-void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value> value) {
+Maybe<U32> ExprResolver::adoptableLocal(ModulePtr<Value> value, U32 fresh) {
+    auto found = findPlace(value);
+    if(!found) return Nothing();
+
+    // A whole local and not a part of one. A field of something is storage whose owner outlives this
+    // binding, and there is nothing to take over.
+    auto place = found.unwrap();
+    if(place.root != PlaceRoot::Local || place.projections.isNotEmpty()) return Nothing();
+    if(place.local < fresh || place.local >= function.localCount()) return Nothing();
+
+    /*
+     * Storage this frame allocated, and only that. A `&` parameter's slot is the caller's, a closure
+     * environment is the function value's, and a materialized packed-field temporary stands for
+     * storage somewhere else - none of the three is a temporary to be taken over, and each of them
+     * is already recorded on the slot rather than having to be worked out.
+     */
+    auto slot = function.localAt(local, place.local);
+    if(!slot.value || local[slot.value]->kind != Value::Alloc) return Nothing();
+    if(slot.borrowed || slot.closureEnv || slot.materialized) return Nothing();
+    if(slot.type != valueType(value)) return Nothing();
+
+    // And nothing already answers to it. The index test above covers a name the program had before
+    // this declaration; this covers one the initializer itself introduced, which a `let ... in`
+    // inside it can do.
+    for(auto& binding: bindings) {
+        if(binding.local == place.local) return Nothing();
+    }
+
+    return Just(place.local);
+}
+
+void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value> value, U32 fresh) {
     if(declaration.pat.kind != ast::Pat::Var) {
         context.diagnostics.error("a mutable binding must be a single name"_v, declaration.pat.source);
         return;
@@ -1358,6 +1393,27 @@ void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value>
     }
 
     auto name = declaration.pat.var;
+
+    /*
+     * The temporary the initializer built, taken over rather than copied out of - see
+     * `adoptableLocal`, which is where the conditions and the reasoning live.
+     *
+     * Read-modify-write on the slot rather than a fresh `Local`, because a local carries more than
+     * the four fields this changes and the ones it does not name are set after `addLocal` rather
+     * than by it. What differs about a mutable binding's slot is its name and its convention.
+     */
+    if(auto adopted = adoptableLocal(value, fresh)) {
+        auto index = adopted.unwrap();
+        auto slot = function.localAt(local, index);
+
+        slot.name = name;
+        slot.convention = ast::BindType::Ref;
+        function.locals.set(local, index, slot);
+
+        bindings.push(Binding { name, slot.value, index });
+        return;
+    }
+
     auto type = valueType(value);
     auto storage = allocate(type, declaration.pat.source, name, ast::BindType::Ref);
     auto place = placeFor(storage, declaration.pat.source);

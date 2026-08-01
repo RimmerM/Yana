@@ -75,27 +75,25 @@ fn main() -> Int {
     %v26 = borrow_mut %right : &mut Int
     call swap, %v25, %v26
     %v28 = alloc : Point
-    init %local3@Point.x, 10
-    init %local3@Point.y, 20
-    %here = alloc : Point
-    init %here, %v28
-    %v35 = load %here : Point
-    %v38 = borrow_mut %here : &mut Point
-    call moveBy, %v38, 1, 2
-    %v40 = load %total : Int
-    %v41 = load %total : Int
-    %v42 = borrow_mut %total : &mut Int
-    call copyThroughBorrow, %v42, %v41
-    %v44 = load %total : Int
-    %v45 = load %left : Int
-    %v46 = load %right : Int
-    %v47 = sub %v45, %v46 : Int
-    %v48 = add %v44, %v47 : Int
-    %v49 = load %here : Point
-    %v50 = load %here@Point.x : Int
-    %v51 = add %v48, %v50 : Int
-    %v52 = load %here : Point
-    %v53 = load %here@Point.y : Int
-    %v54 = add %v51, %v53 : Int
-    ret %v54
+    init %here@Point.x, 10
+    init %here@Point.y, 20
+    %v33 = load %here : Point
+    %v36 = borrow_mut %here : &mut Point
+    call moveBy, %v36, 1, 2
+    %v38 = load %total : Int
+    %v39 = load %total : Int
+    %v40 = borrow_mut %total : &mut Int
+    call copyThroughBorrow, %v40, %v39
+    %v42 = load %total : Int
+    %v43 = load %left : Int
+    %v44 = load %right : Int
+    %v45 = sub %v43, %v44 : Int
+    %v46 = add %v42, %v45 : Int
+    %v47 = load %here : Point
+    %v48 = load %here@Point.x : Int
+    %v49 = add %v46, %v48 : Int
+    %v50 = load %here : Point
+    %v51 = load %here@Point.y : Int
+    %v52 = add %v49, %v51 : Int
+    ret %v52
 }

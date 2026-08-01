@@ -174,6 +174,18 @@ struct Known {
      * this would have been cleared.
      */
     ModulePtr<Inst> pending = nullptr;
+
+    /*
+     * Where the fact came from, for one inherited across an aggregate copy - see `inheritCopy`.
+     *
+     * The two places hold the same thing because a copy put it in both, so a write to *either* ends
+     * that and this is the half `place` does not cover. It matters on a managed target rather than
+     * natively, and there for a structural reason: `storeInto` in codegen/js writes an aggregate by
+     * assigning the reference, so the destination and the source are one object and a write through
+     * the source's name is a write to the destination's storage.
+     */
+    Place alias;
+    bool aliased = false;
 };
 
 struct Forwarder {
@@ -183,6 +195,10 @@ struct Forwarder {
     // Per local, whether a callee could reach its storage - see `computeContainment`. Indexed by
     // local, and empty until one function has been walked.
     IndexSet contained;
+
+    // Per local, whether nothing in this function ever computed its address - see `pointerSafe`,
+    // which is the only thing that reads it.
+    IndexSet unaddressed;
 
     void forget() { known.clear(); }
 
@@ -195,9 +211,65 @@ struct Forwarder {
         }
     }
 
+    /*
+     * Whether a *raw pointer* could be pointing into this place.
+     *
+     * `placesMayAlias` declines to say anything at all about a pointer root, so a write through one
+     * forgets the whole table - which is right for storage the program computed an address for and
+     * wrong for storage it did not. An address is computed by exactly two instructions, `Address` and
+     * `Borrow`, so a local whose allocation is used by neither has no pointer anywhere in the
+     * function that could name it.
+     *
+     * That is `unaddressed` rather than `contained`, and the difference is the clause that matters
+     * here: containment also refuses a local used as an *operand*, which being copied out of is. A
+     * copy reads the bytes and computes no address, so it says nothing about pointers - and the run
+     * behind every array literal is a local whose whole purpose is to be copied out of.
+     *
+     * It is what makes an array literal survive its own elements. `[10, 20, 30]` writes the run's
+     * fields, then the three elements through a raw pointer into the buffer, and only then assembles
+     * the array - so without this the placement tag is forgotten before anything is built out of it,
+     * and Implementation-Containers.md §13.2's fold never sees a constant.
+     *
+     * A *borrow* root is deliberately not covered. On a managed target an aggregate copy assigns the
+     * reference, so a borrow of something the local was copied *into* reaches the local's storage
+     * without ever having been a borrow of it - and the list above does not see that. Raw pointers
+     * have no such route, which is why the two roots part company here.
+     */
+    bool pointerSafe(const Place& place) {
+        if(place.root != PlaceRoot::Local) return false;
+        if(place.local >= unaddressed.size() || !unaddressed[place.local]) return false;
+
+        auto& projections = const_cast<Place&>(place).projections;
+        for(Size i = 0; i < projections.size(); i++) {
+            switch(projections.get(opt.local, i).kind) {
+                case ProjectionKind::Field:
+                case ProjectionKind::Downcast:
+                case ProjectionKind::Discriminant:
+                case ProjectionKind::Unit:
+                    break;
+                default:
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    // A write through a place, and everything it may have landed on.
     void forgetAliasing(Place& place) {
+        auto viaPointer = place.root == PlaceRoot::Pointer;
+
         for(Size i = known.size(); i-- > 0;) {
-            if(placesMayAlias(opt, known[i].place, place)) known.remove(i);
+            if(viaPointer && pointerSafe(known[i].place) &&
+               (!known[i].aliased || pointerSafe(known[i].alias))) {
+                continue;
+            }
+
+            if(placesMayAlias(opt, known[i].place, place)) {
+                known.remove(i);
+            } else if(known[i].aliased && placesMayAlias(opt, known[i].alias, place)) {
+                known.remove(i);
+            }
         }
     }
 
@@ -252,6 +324,126 @@ struct Forwarder {
         }
 
         known.push(Known { place, value, pending });
+    }
+
+    /*
+     * Where `place`'s path continues past `prefix`, or nothing where it does not begin with it.
+     *
+     * `samePlace`'s comparison stopped at the shorter of the two, which is the one question a
+     * *prefix* asks - so this is that function with its length test moved rather than a second
+     * opinion about when two projections are the same one.
+     */
+    Maybe<Size> pathBeyond(const Place& prefix, const Place& place) {
+        if(prefix.root != place.root) return Nothing();
+        if(prefix.root == PlaceRoot::Local && prefix.local != place.local) return Nothing();
+        if(prefix.root == PlaceRoot::Global && prefix.global != place.global) return Nothing();
+        if(prefix.root == PlaceRoot::Pointer || prefix.root == PlaceRoot::Borrow) {
+            if(prefix.pointer != place.pointer) return Nothing();
+        }
+
+        auto& a = const_cast<Place&>(prefix).projections;
+        auto& b = const_cast<Place&>(place).projections;
+        if(a.size() > b.size()) return Nothing();
+
+        for(Size i = 0; i < a.size(); i++) {
+            auto left = a.get(opt.local, i);
+            auto right = b.get(opt.local, i);
+
+            if(left.kind != right.kind || left.index != right.index) return Nothing();
+            if(left.value == right.value) continue;
+
+            auto leftIndex = constantValueOf(opt, left.value);
+            auto rightIndex = constantValueOf(opt, right.value);
+            if(!leftIndex || !rightIndex || leftIndex.unwrap() != rightIndex.unwrap()) return Nothing();
+        }
+
+        return Just(a.size());
+    }
+
+    // One place with another's path hung off the end of it.
+    Place extend(const Place& base, const Place& from, Size beyond) {
+        Place result;
+        result.root = base.root;
+        result.local = base.local;
+        result.global = base.global;
+        result.pointer = base.pointer;
+
+        auto& head = const_cast<Place&>(base).projections;
+        for(Size i = 0; i < head.size(); i++) {
+            result.projections.push(opt.program.arena, head.get(opt.local, i));
+        }
+
+        auto& tail = const_cast<Place&>(from).projections;
+        for(Size i = beyond; i < tail.size(); i++) {
+            result.projections.push(opt.program.arena, tail.get(opt.local, i));
+        }
+
+        return result;
+    }
+
+    /*
+     * What a whole-aggregate write copies along with the bytes.
+     *
+     * `let &xs = [1, 2, 3]` builds the run in one temporary, the array in a second, and copies the
+     * second into `xs` - so the placement tag escape analysis patched into the run's own allocation
+     * is two whole-value writes away from every read of `xs.run.capacity`, and none of the rules
+     * above connects them. The write is not forwardable (its value is storage rather than something a
+     * load answers with) and splitting it into one write per field is opt_scalar.cpp's rule, which
+     * declines here twice over - the type owes a teardown, and the field is packed.
+     *
+     * So neither side of the copy is rewritten and the *facts* cross it instead: everything known
+     * about a place inside the source is, immediately afterwards, equally true of the same path
+     * inside the destination. Implementation-Containers.md §13.2's third step is what wanted it, and
+     * a frame-placed array's teardown folding to nothing at all is what it buys.
+     *
+     * Three conditions, and each rules out one way of the copy not being a copy:
+     *
+     *  - **the value is not a `Move`.** Which of Design-Memory §4.1's two relocations a write
+     *    performs is decided by the value rather than by the type - see `relocate` in lower.cpp - and
+     *    only a move runs a `Sink`. Everything else is a block copy natively and a reference
+     *    assignment on JS, and the facts survive both;
+     *  - **the source is a place**, since otherwise there is nothing for the paths to be relative to;
+     *  - **nothing took the source local's address**, which is what lets the inherited entries
+     *    outlive a call. `unaddressed` is the same list `pointerSafe` reads, for a second
+     *    consequence of it: a callee is given storage by being passed it, being passed it is a
+     *    `Call` operand, and a `Call` operand is not one of the four kinds. So whatever else holds
+     *    this value holds it *through* one of these copies - and the destination's own containment,
+     *    which `forgetExposed` checks, is exactly the question of who those are.
+     *
+     * The entries carry the source place as `alias`, so that a later write through *it* ends them
+     * too. That is the half `place` cannot cover on a target where the two names are one object.
+     */
+    void inheritCopy(Place& destination, const Place& source) {
+        // Over a snapshot, because `remember` pushes onto the list this is reading.
+        SmallArray<Known, 8> inherited;
+
+        for(auto& entry: known) {
+            auto beyond = pathBeyond(source, entry.place);
+            if(!beyond) continue;
+
+            // The whole of the source, which is the value being copied rather than something inside
+            // it - and a memory type is never a value a load answers with, so there is nothing to
+            // inherit and `remember` would be recording the storage as its own contents.
+            if(beyond.unwrap() == entry.place.projections.size()) continue;
+
+            inherited.push(Known {
+                extend(destination, entry.place, beyond.unwrap()), entry.value, nullptr,
+                entry.place, true
+            });
+        }
+
+        for(auto& entry: inherited) remember(entry.place, entry.value, nullptr);
+
+        // The alias is set afterwards rather than through `remember`, which takes only what a store
+        // establishes. Matched by place, since that is what `remember` just keyed the entry on.
+        for(auto& entry: inherited) {
+            for(auto& stored: known) {
+                if(!samePlace(opt, stored.place, entry.place)) continue;
+
+                stored.alias = entry.alias;
+                stored.aliased = true;
+            }
+        }
     }
 
     // Everything this access may have seen, which is no longer a write nobody read. Reads are marked
@@ -342,6 +534,30 @@ struct Forwarder {
 
                     forgetAliasing(store.place);
                     if(forwardable(type)) remember(store.place, store.value, pointer);
+
+                    /*
+                     * And the aggregate case, which is a *read* of the source as well as a write of
+                     * the destination.
+                     *
+                     * The read half is not optional. A whole-value write reads every byte of what it
+                     * copies, and nothing above records that - so a store into the source that
+                     * nothing else read was removable by `eliminateOverwritten` even though this
+                     * copy had just read it. Marking it here is what makes the entries inherited
+                     * below rest on stores that are still there.
+                     */
+                    if(type && isMemoryType(opt.global, type)) {
+                        if(auto source = storageOf(opt, store.value)) {
+                            markRead(source.unwrap());
+
+                            if(opt.local[store.value]->kind != Value::Move &&
+                               source.unwrap().root == PlaceRoot::Local &&
+                               source.unwrap().local < unaddressed.size() &&
+                               unaddressed[source.unwrap().local]) {
+                                inheritCopy(store.place, source.unwrap());
+                            }
+                        }
+                    }
+
                     break;
                 }
                 default:
@@ -370,9 +586,47 @@ struct Forwarder {
 
 }
 
+/*
+ * Per local, whether anything in this function computed its address.
+ *
+ * `Address` and `Borrow` are the two instructions that do, so this is every other use being one of
+ * the four that read or write the storage in place. Deliberately *not* `computeContainment`, which
+ * asks a stronger question for a different consumer: it also refuses a local used as an *operand*,
+ * and being copied out of is one. A copy reads the bytes and computes no address.
+ *
+ * Two passes read it and the second is not about pointers at all - see `pointerSafe` and
+ * `inheritCopy`, which take two different consequences of the same list.
+ */
+static void computeUnaddressed(OptContext& opt, IndexSet& unaddressed) {
+    unaddressed.reset(opt.function->localCount());
+
+    for(U32 i = 0; i < opt.function->localCount(); i++) {
+        auto slot = opt.function->localAt(opt.local, i);
+        auto ok = slot.value && opt.local[slot.value]->kind == Value::Alloc &&
+                  !slot.borrowed && !slot.closureEnv;
+
+        if(ok) {
+            for(auto user: opt.local[slot.value]->uses.contents(opt.local)) {
+                switch(opt.local[user]->kind) {
+                    case Value::Init: case Value::Assign:
+                    case Value::LoadPlace: case Value::Copy:
+                        break;
+                    default:
+                        ok = false;
+                }
+
+                if(!ok) break;
+            }
+        }
+
+        unaddressed.set(i, ok);
+    }
+}
+
 void forwardPlaces(OptContext& opt) {
     Forwarder forwarder { opt };
     computeContainment(opt, forwarder.contained);
+    computeUnaddressed(opt, forwarder.unaddressed);
 
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         forwarder.run(*opt.local[blockPointer]);

@@ -615,28 +615,26 @@ fn sum(%xs: Flat(Int)) -> Int {
 
 fn make() -> Array(Int) {
   b0:
-    %v5 = alloc *3 heap escaping : Int
-    %v6 = addressof %local0 : %Int
-    %v8 = alloc : Run(Int)
-    init %local1@Run.items, %v6
-    init %local1@Run.capacity, 3
-    init %local1@Run.ownsHeap, 1
+    %v3 = alloc : Array(Int)
+    %v6 = alloc *3 heap escaping : Int
+    %v7 = addressof %local1 : %Int
+    init %local0@Array.run@Run.items, %v7
+    init %local0@Array.run@Run.capacity, 3
+    init %local0@Array.run@Run.ownsHeap, 1
     %v13 = strideof Int : Long
     %v14 = mul 0, %v13 : Long
-    %v15 = add %v6, %v14 : %Int
+    %v15 = add %v7, %v14 : %Int
     init [%v15], 7
     %v18 = strideof Int : Long
     %v19 = mul 1, %v18 : Long
-    %v20 = add %v6, %v19 : %Int
+    %v20 = add %v7, %v19 : %Int
     init [%v20], 8
     %v23 = strideof Int : Long
     %v24 = mul 2, %v23 : Long
-    %v25 = add %v6, %v24 : %Int
+    %v25 = add %v7, %v24 : %Int
     init [%v25], 9
-    %v27 = alloc : Array(Int)
-    init %local2@Array.run, %v8
-    init %local2@Array.length, 3
-    ret %v27
+    init %local0@Array.length, 3
+    ret %v3
 }
 
 fn escaping() -> Int {
@@ -683,83 +681,79 @@ fn escaping() -> Int {
 
 fn main() -> Int {
   b0:
-    %v5 = alloc *3 : Int
-    %v6 = addressof %local0 : %Int
-    %v8 = alloc : Run(Int)
-    init %local1@Run.items, %v6
-    init %local1@Run.capacity, 3
-    init %local1@Run.ownsHeap, 0
+    %v3 = alloc : Array(Int)
+    %v6 = alloc *3 : Int
+    %v7 = addressof %local1 : %Int
+    init %small@Array.run@Run.items, %v7
+    init %small@Array.run@Run.capacity, 3
+    init %small@Array.run@Run.ownsHeap, 0
     %v14 = strideof Int : Long
     %v15 = mul 0, %v14 : Long
-    %v16 = add %v6, %v15 : %Int
+    %v16 = add %v7, %v15 : %Int
     init [%v16], 1
     %v19 = strideof Int : Long
     %v20 = mul 1, %v19 : Long
-    %v21 = add %v6, %v20 : %Int
+    %v21 = add %v7, %v20 : %Int
     init [%v21], 2
     %v24 = strideof Int : Long
     %v25 = mul 2, %v24 : Long
-    %v26 = add %v6, %v25 : %Int
+    %v26 = add %v7, %v25 : %Int
     init [%v26], 3
-    %v28 = alloc : Array(Int)
-    init %local2@Array.run, %v8
-    init %local2@Array.length, 3
-    %small = alloc : Array(Int)
-    init %small, %v28
-    %v33 = load %small : Array(Int)
-    %v36 = borrow_mut %small : &mut Array(Int)
-    %v37 = alloc : Flat(Int)
-    %v38 = load [%v36]@Array.run@Run.items : %Int
-    init %local4@Flat.items, %v38
-    %v40 = load [%v36]@Array.length : @bits(31) U32
-    %v41 = cast %v40 : U32
-    %v42 = cast %v41 : I64
-    init %local4@Flat.length, %v42
-    %v44 = borrow_mut %local4 : &mut Flat(Int)
-    %v45 = call getMut(Int), %v44, 0 : &mut Int
-    assign [%v45], 10
-    %v48 = load %small : Array(Int)
-    %v51 = borrow_mut %small : &mut Array(Int)
-    call push(Int), %v51, 4
-    %v53 = load %small : Array(Int)
-    %v56 = borrow_mut %small : &mut Array(Int)
-    call push(Int), %v56, 5
-    %v58 = load %small : Array(Int)
-    %v61 = borrow_mut %small : &mut Array(Int)
-    %v62 = call remove(Int), %v61, 1 : Maybe(Int)
-    %v63 = load %small : Array(Int)
-    %v66 = borrow_mut %small : &mut Array(Int)
-    %v67 = call remove(Int), %v66, 99 : Maybe(Int)
-    %v68 = load %small : Array(Int)
-    %v73 = sub 0, 1 : Int
-    %v74 = borrow_mut %small : &mut Array(Int)
-    %v75 = call remove(Int), %v74, %v73 : Maybe(Int)
-    %v76 = load %small : Array(Int)
-    %v77 = borrow %small : &Array(Int)
-    %v78 = alloc : Flat(Int)
-    %v79 = load [%v77]@Array.run@Run.items : %Int
-    init %local8@Flat.items, %v79
-    %v81 = load [%v77]@Array.length : @bits(31) U32
-    %v82 = cast %v81 : U32
-    %v83 = cast %v82 : I64
-    init %local8@Flat.length, %v83
-    %v85 = call sum, %v78 : Int
-    %v86 = load %small : Array(Int)
-    %v87 = borrow %small : &Array(Int)
-    %v88 = alloc : Flat(Int)
-    %v89 = load [%v87]@Array.run@Run.items : %Int
-    init %local9@Flat.items, %v89
-    %v91 = load [%v87]@Array.length : @bits(31) U32
-    %v92 = cast %v91 : U32
-    %v93 = cast %v92 : I64
-    init %local9@Flat.length, %v93
-    %v95 = call length(Int), %v88 : I64
+    init %small@Array.length, 3
+    %v29 = load %small : Array(Int)
+    %v32 = borrow_mut %small : &mut Array(Int)
+    %v33 = alloc : Flat(Int)
+    %v34 = load [%v32]@Array.run@Run.items : %Int
+    init %local2@Flat.items, %v34
+    %v36 = load [%v32]@Array.length : @bits(31) U32
+    %v37 = cast %v36 : U32
+    %v38 = cast %v37 : I64
+    init %local2@Flat.length, %v38
+    %v40 = borrow_mut %local2 : &mut Flat(Int)
+    %v41 = call getMut(Int), %v40, 0 : &mut Int
+    assign [%v41], 10
+    %v44 = load %small : Array(Int)
+    %v47 = borrow_mut %small : &mut Array(Int)
+    call push(Int), %v47, 4
+    %v49 = load %small : Array(Int)
+    %v52 = borrow_mut %small : &mut Array(Int)
+    call push(Int), %v52, 5
+    %v54 = load %small : Array(Int)
+    %v57 = borrow_mut %small : &mut Array(Int)
+    %v58 = call remove(Int), %v57, 1 : Maybe(Int)
+    %v59 = load %small : Array(Int)
+    %v62 = borrow_mut %small : &mut Array(Int)
+    %v63 = call remove(Int), %v62, 99 : Maybe(Int)
+    %v64 = load %small : Array(Int)
+    %v69 = sub 0, 1 : Int
+    %v70 = borrow_mut %small : &mut Array(Int)
+    %v71 = call remove(Int), %v70, %v69 : Maybe(Int)
+    %v72 = load %small : Array(Int)
+    %v73 = borrow %small : &Array(Int)
+    %v74 = alloc : Flat(Int)
+    %v75 = load [%v73]@Array.run@Run.items : %Int
+    init %local6@Flat.items, %v75
+    %v77 = load [%v73]@Array.length : @bits(31) U32
+    %v78 = cast %v77 : U32
+    %v79 = cast %v78 : I64
+    init %local6@Flat.length, %v79
+    %v81 = call sum, %v74 : Int
+    %v82 = load %small : Array(Int)
+    %v83 = borrow %small : &Array(Int)
+    %v84 = alloc : Flat(Int)
+    %v85 = load [%v83]@Array.run@Run.items : %Int
+    init %local7@Flat.items, %v85
+    %v87 = load [%v83]@Array.length : @bits(31) U32
+    %v88 = cast %v87 : U32
+    %v89 = cast %v88 : I64
+    init %local7@Flat.length, %v89
+    %v91 = call length(Int), %v84 : I64
     drop %small reclaim Reclaim(Array(a)).reclaim(Int)
-    %v96 = cast %v85 : I64
-    %v97 = add %v96, %v95 : I64
-    %v98 = call escaping : Int
-    %v99 = cast %v98 : I64
-    %v100 = add %v97, %v99 : I64
-    %v101 = cast %v100 : Int
-    ret %v101
+    %v92 = cast %v81 : I64
+    %v93 = add %v92, %v91 : I64
+    %v94 = call escaping : Int
+    %v95 = cast %v94 : I64
+    %v96 = add %v93, %v95 : I64
+    %v97 = cast %v96 : Int
+    ret %v97
 }

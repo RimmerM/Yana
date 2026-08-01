@@ -335,28 +335,46 @@ tagged<complex>(%flag: Int): Long {
     je %flag, b_1, b_2
   }
 
-  b_1 {
+  b_2 {
     %v_3 = alloca 16, 8: Ptr
-    store %v_3, 1, 4
+    store %v_3, 0, 4
     %v_4 = add %v_3, 8: Ptr
-    store %v_4, 7, 8
+    store %v_4, 100, 8
     jmp b_5
   }
 
-  b_2 {
+  b_1 {
     %v_6 = alloca 16, 8: Ptr
-    store %v_6, 0, 4
+    store %v_6, 1, 4
     %v_7 = add %v_6, 8: Ptr
-    store %v_7, 100, 8
+    store %v_7, 7, 8
     jmp b_5
   }
 
   b_5 {
-    %e = phi [b_1, %v_3], [b_2, %v_6]: Ptr
+    %e = phi [b_1, %v_6], [b_2, %v_3]: Ptr
     %f = alloca 16, 8: Ptr
     call_complex moveInit$Either, %f, %e
-    %v_8 = call_complex unwrap, %f: Long
-    ret %v_8
+    %v_8 = loads %f, 4: Int
+    %v_9 = cmp_eq %v_8, 0: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    %v_12 = add %f, 8: Ptr
+    %v_13 = loads %v_12, 8: Long
+    jmp b_14
+  }
+
+  b_10 {
+    %v_15 = add %f, 8: Ptr
+    %v = loads %v_15, 8: Long
+    jmp b_14
+  }
+
+  b_14 {
+    %v_16 = phi [b_10, %v], [b_11, %v_13]: Long
+    ret %v_16
   }
 }
 

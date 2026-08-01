@@ -336,30 +336,28 @@ fn consume(%xs: Array(Int)) -> Int {
 
 fn run(%f: (->Array(Int)) -> Int) -> Int {
   b0:
-    %v6 = alloc *3 heap escaping : Int
-    %v7 = addressof %local1 : %Int
-    %v9 = alloc : Run(Int)
-    init %local2@Run.items, %v7
-    init %local2@Run.capacity, 3
-    init %local2@Run.ownsHeap, 1
+    %v4 = alloc : Array(Int)
+    %v7 = alloc *3 heap escaping : Int
+    %v8 = addressof %local2 : %Int
+    init %local1@Array.run@Run.items, %v8
+    init %local1@Array.run@Run.capacity, 3
+    init %local1@Array.run@Run.ownsHeap, 1
     %v14 = strideof Int : Long
     %v15 = mul 0, %v14 : Long
-    %v16 = add %v7, %v15 : %Int
+    %v16 = add %v8, %v15 : %Int
     init [%v16], 1
     %v19 = strideof Int : Long
     %v20 = mul 1, %v19 : Long
-    %v21 = add %v7, %v20 : %Int
+    %v21 = add %v8, %v20 : %Int
     init [%v21], 2
     %v24 = strideof Int : Long
     %v25 = mul 2, %v24 : Long
-    %v26 = add %v7, %v25 : %Int
+    %v26 = add %v8, %v25 : %Int
     init [%v26], 3
-    %v28 = alloc : Array(Int)
-    init %local3@Array.run, %v9
-    init %local3@Array.length, 3
-    %v31 = move %local3 : Array(Int)
-    %v32 = calldyn %f, %v31 : Int
-    ret %v32
+    init %local1@Array.length, 3
+    %v29 = move %local1 : Array(Int)
+    %v30 = calldyn %f, %v29 : Int
+    ret %v30
 }
 
 fn runStep(%s: Step, %x: Int) -> Int {

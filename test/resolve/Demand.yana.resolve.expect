@@ -29,25 +29,23 @@ fn onlyRead() -> Int {
 fn mutableOnOneArm(%flag: Bool) -> Int {
   b0:
     %v1 = alloc : Point
-    init %local0@Point.x, 1
-    init %local0@Point.y, 2
-    %p = alloc : Point
-    init %p, %v1
+    init %p@Point.x, 1
+    init %p@Point.y, 2
     je %flag, b1, b2
 
   b1:
-    %v9 = load %p : Point
-    %v10 = borrow_mut %p : &mut Point
-    call bump, %v10
+    %v7 = load %p : Point
+    %v8 = borrow_mut %p : &mut Point
+    call bump, %v8
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v14 = load %p : Point
-    %v15 = call read, %v14 : Int
-    ret %v15
+    %v12 = load %p : Point
+    %v13 = call read, %v12 : Int
+    ret %v13
 }
 
 fn copyIsIndependent() -> Int {
@@ -58,18 +56,16 @@ fn copyIsIndependent() -> Int {
     %v5 = alloc : Point
     %v6 = load %local0@Point.x : Int
     %v7 = load %local0@Point.y : Int
-    init %local1@Point.x, %v6
-    init %local1@Point.y, %v7
-    %duplicate = alloc : Point
-    init %duplicate, %v5
-    %v12 = load %duplicate : Point
-    %v13 = borrow_mut %duplicate : &mut Point
-    call bump, %v13
-    %v15 = call read, %source : Int
-    %v16 = load %duplicate : Point
-    %v17 = call read, %v16 : Int
-    %v18 = add %v15, %v17 : Int
-    ret %v18
+    init %duplicate@Point.x, %v6
+    init %duplicate@Point.y, %v7
+    %v10 = load %duplicate : Point
+    %v11 = borrow_mut %duplicate : &mut Point
+    call bump, %v11
+    %v13 = call read, %source : Int
+    %v14 = load %duplicate : Point
+    %v15 = call read, %v14 : Int
+    %v16 = add %v13, %v15 : Int
+    ret %v16
 }
 
 fn addressed() -> Int {

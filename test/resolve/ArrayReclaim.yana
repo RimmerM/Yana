@@ -1,0 +1,61 @@
+{-
+   What a teardown costs - Implementation-Containers.md §13.2.
+
+   `Reclaim(Array(Int))` is the cheapest teardown there is, an element type with nothing to run, and
+   it used to compile to a call containing an O(n) loop that does nothing, ending in a second call
+   containing a comparison. None of that shows up in a result, which is why this fixture asserts the
+   optimized resolve IR: the cost is entirely invisible in a number, which is how it went unnoticed.
+
+   Four things the `.opt.expect` beside this says, and what breaks each:
+
+   - **no loop.** `Int` has no teardown, so the walk over the elements reduces to a read nobody
+     reads, and `eliminateDeadLoops` removes what is left. Without it every array's last use is O(n)
+     in its length for no reason;
+   - **no call.** The reclaim is spliced in at the `drop` rather than called, which is what puts the
+     placement test in the frame that placed the run. `Reclaim(Array(a)).reclaim(Int)` does not
+     appear in this program at all - it was inlined at its only site and then stopped being reached;
+   - **`releaseRun` is not a call either**, which is the memory-typed value parameter: a reader of a
+     borrowed container used to be a call whatever its size, so a comparison cost a frame;
+   - **no teardown at all**, in `frameOnly` and `boundMutable` alike - no comparison, no `freeHeap`,
+     and no branch to hold them. That is the whole of §13.2 arriving, and it took three things: the
+     literal builds its run *into* the array's own field rather than into a temporary beside it
+     (`resolveArray`), the tag survives the element writes the literal performs through a raw
+     pointer (`pointerSafe`), and where a copy does stand in the way it is crossed as a *fact*
+     rather than rewritten (`inheritCopy`).
+
+   The three functions differ in exactly one thing each, so a regression names itself:
+
+   - `frameOnly` is the shortest path - construction straight into the binding, nothing between the
+     tag and the read of it;
+   - `boundMutable` is the mutable binding, which used to allocate a slot and copy the whole array
+     into it and now takes the temporary over - see `test/resolve/MutableBind.*` for the rule and
+     for the case it must not apply to. Its teardown folds the same way `frameOnly`'s does;
+   - `grown` keeps its comparison and is *supposed* to: `push` may have moved the elements to the
+     allocator, so which storage the run is in is a real run-time question.
+
+   All three are read-only after construction. A write through a borrow the callee handed back -
+   `xs[i] = v`, whose place is rooted in the `&mut` that `getMut` returned - still forgets everything
+   known, because a borrow can name storage a copy put somewhere else and `pointerSafe` deliberately
+   does not cover that root. So a *mutated* array's tag survives; that is the next thing to take, and
+   it wants the borrow-provenance answer rather than another special case.
+-}
+
+-- An array that never leaves the frame and never grows: its teardown is nothing at all.
+fn frameOnly() -> Int:
+    let xs = [10, 20, 30]
+    return xs[0] + xs[2] :: Int
+
+-- The same array, grown past its literal's capacity, where the walk is what goes and the test stays.
+fn grown() -> Int:
+    let &xs = [1, 2, 3]
+    push(xs, 4)
+    push(xs, 5)
+    return xs[0] + length(xs) :: Int
+
+-- A mutable binding, which now names the storage the literal was built in rather than a copy of it.
+-- Nothing writes it, so its teardown folds the same way.
+fn boundMutable() -> Int:
+    let &xs = [4, 5, 6]
+    return xs[1] :: Int
+
+fn main() -> Int = frameOnly() + grown() + boundMutable()

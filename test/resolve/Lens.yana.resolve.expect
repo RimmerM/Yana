@@ -172,18 +172,16 @@ fn generic() -> Int {
 fn borrowed() -> Int {
   b0:
     %v0 = alloc : Counter
-    init %local0@Counter.value, 5
-    %c = alloc : Counter
-    init %c, %v0
-    %v5 = load %c : Counter
-    %v6 = alloc : (value: Int) -> Int
-    %v7 = symbol ResolveTest.continuation$6 : %()
-    init %local2.code, %v7
-    %v10 = cast 0 : %()
-    init %local2.env, %v10
-    %v12 = borrow_mut %c : &mut Counter
-    %v13 = call bumped(Int), %v12, %v6 : Int
-    ret %v13
+    init %c@Counter.value, 5
+    %v3 = load %c : Counter
+    %v4 = alloc : (value: Int) -> Int
+    %v5 = symbol ResolveTest.continuation$6 : %()
+    init %local1.code, %v5
+    %v8 = cast 0 : %()
+    init %local1.env, %v8
+    %v10 = borrow_mut %c : &mut Counter
+    %v11 = call bumped(Int), %v10, %v4 : Int
+    ret %v11
 }
 
 fn written() -> Int {

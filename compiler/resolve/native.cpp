@@ -377,12 +377,17 @@ fn resize(&self: Run(a), wanted: Int) -> Bool:
    region discharges every `Reclaim` inside it in bulk, and handing storage back is exactly the kind
    of thing that may happen in bulk at a point the author did not choose.
 
-   **This is one comparison and it is still a call at every site**, which is what
-   Implementation-Containers.md §13.2 is about rather than anything wrong here: a callee taking an
-   aggregate by the default convention is a memory-typed value parameter, and the inliner declines
-   every one of those (`namesLocal` in opt_inline.cpp's `describe`). Until it does not, splitting the
-   arm out or hinting the test is churn - the test cannot reach the frame where the tag is a constant
-   either way, and that frame is the only place it folds.
+   **This is one comparison and it is no longer a call**, which is Implementation-Containers.md
+   §13.2's first step: a callee taking an aggregate by the default convention is a memory-typed value
+   parameter, and the inliner used to decline every one of those. It re-roots them at the caller's
+   own place now (`Binding::Memory` in opt_inline.cpp), so this test is spliced into whatever reads
+   it, and the teardown holding it is spliced into the `drop` that runs it.
+
+   And it *folds*, which §2 has claimed all along and which was not true until §13.2 landed: the tag
+   is a constant in the literal's own `Run` allocation and reaches the array through whole-aggregate
+   copies, so opt_place.cpp carries what is known across them rather than rewriting either side. A
+   frame-placed array's teardown is no instructions at all. What still tests at run time is an array
+   something wrote through a borrow, and a grown one - where the question is real.
 -}
 fn releaseRun(self: Run(a)) -> {}:
     if self.ownsHeap == runFromHeap then freeHeap(cast(self.items) :: %U8)

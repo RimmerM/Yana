@@ -398,33 +398,31 @@ fn main() -> Int {
     init %local1@Item.name, 2
     init %local1@Item.cost, 7
     %items = gencall env genEnv$nameOf(Item) nameOf(Item), %v6 : Int
-    %v12 = alloc : Person
-    init %local2@Person.name, 1
-    init %local2@Person.age, 2
-    %subject = alloc heap : Person
-    init %subject, %v12
-    %v19 = load %subject : Person
-    %v22 = borrow_mut %subject : &mut Person
-    gencall env genEnv$rename(Person) rename(Person), %v22, 8
-    %v24 = alloc : Left
-    init %local4@Left.name, 1
-    init %local4@Left.tag, 3
-    %left = gencall env genEnv$labelled(Left) labelled(Left), %v24 : Int
-    %v30 = alloc : Right
-    init %local5@Right.tag, 4
-    init %local5@Right.name, 6
-    %right = gencall env genEnv$labelled(Right) labelled(Right), %v30 : Int
-    %v38 = mul %people, 1000 : Int
-    %v41 = mul %items, 100 : Int
-    %v42 = add %v38, %v41 : Int
-    %v43 = load %subject : Person
-    %v44 = gencall env genEnv$nameOf(Person) nameOf(Person), %v43 : Int
+    %v12 = alloc heap : Person
+    init %subject@Person.name, 1
+    init %subject@Person.age, 2
+    %v17 = load %subject : Person
+    %v20 = borrow_mut %subject : &mut Person
+    gencall env genEnv$rename(Person) rename(Person), %v20, 8
+    %v22 = alloc : Left
+    init %local3@Left.name, 1
+    init %local3@Left.tag, 3
+    %left = gencall env genEnv$labelled(Left) labelled(Left), %v22 : Int
+    %v28 = alloc : Right
+    init %local4@Right.tag, 4
+    init %local4@Right.name, 6
+    %right = gencall env genEnv$labelled(Right) labelled(Right), %v28 : Int
+    %v36 = mul %people, 1000 : Int
+    %v39 = mul %items, 100 : Int
+    %v40 = add %v36, %v39 : Int
+    %v41 = load %subject : Person
+    %v42 = gencall env genEnv$nameOf(Person) nameOf(Person), %v41 : Int
     drop_derived %subject release
-    %v47 = mul %v44, 10 : Int
-    %v48 = add %v42, %v47 : Int
-    %v49 = add %v48, %left : Int
-    %v50 = add %v49, %right : Int
-    ret %v50
+    %v45 = mul %v42, 10 : Int
+    %v46 = add %v40, %v45 : Int
+    %v47 = add %v46, %left : Int
+    %v48 = add %v47, %right : Int
+    ret %v48
 }
 
 fn moveInit$Person(%to: %Person, %from: %Person) -> () {

@@ -3,16 +3,25 @@ const closure$ResolveTest_deferred$0 = [teardown$none, teardown$none];
 const closure$ResolveTest_deferred$1 = [teardown$none, teardown$none];
 
 // Core
-function Ord_gt_eq_Metres(lhs$value, rhs$value) {
-  return Ord_Metres_compare(lhs$value, rhs$value) !== 0;
-}
-
-function Logic_not_Flags(value) {
-  return Logic_Flags_not(value);
-}
-
 function Logic_and_and_Flags(lhs, rhs) {
-  return Logic_Flags_and(lhs, rhs());
+  var v5;
+  var v6;
+  var v2 = rhs();
+  var v7 = 0;
+  var v24 = (lhs & 1) >>> 0 !== 0;
+  if (v24) {
+    v5 = (v2 & 1) >>> 0 !== 0;
+  } else {
+    v5 = v24;
+  }
+  var v34 = (lhs >>> 1 >>> 0 & 1) >>> 0 !== 0;
+  if (v34) {
+    v6 = (v2 >>> 1 >>> 0 & 1) >>> 0 !== 0;
+  } else {
+    v6 = v34;
+  }
+  v7 = ((((v7 & 4294967294) >>> 0 | ((v5 ? 1 : 0) & 1) >>> 0) >>> 0 & 4294967293) >>> 0 | ((v6 ? 1 : 0) & 1) >>> 0 << 1 >>> 0) >>> 0;
+  return v7;
 }
 
 function teardown$none(value) {
@@ -20,25 +29,42 @@ function teardown$none(value) {
 }
 
 function Logic_or_or_Flags(lhs, rhs) {
-  return Logic_Flags_or(lhs, rhs());
+  var v5;
+  var v6;
+  var v2 = rhs();
+  var v7 = 0;
+  var v24 = (lhs & 1) >>> 0 !== 0;
+  if (v24) {
+    v5 = v24;
+  } else {
+    v5 = (v2 & 1) >>> 0 !== 0;
+  }
+  var v34 = (lhs >>> 1 >>> 0 & 1) >>> 0 !== 0;
+  if (v34) {
+    v6 = v34;
+  } else {
+    v6 = (v2 >>> 1 >>> 0 & 1) >>> 0 !== 0;
+  }
+  v7 = ((((v7 & 4294967294) >>> 0 | ((v5 ? 1 : 0) & 1) >>> 0) >>> 0 & 4294967293) >>> 0 | ((v6 ? 1 : 0) & 1) >>> 0 << 1 >>> 0) >>> 0;
+  return v7;
 }
 
 // ResolveTest
 function ordered() {
   var score = 1;
-  if (Ord_Metres_compare(1, 2) === 0) {
+  if (0 === 0) {
     score = score + 2 | 0;
   }
-  if (Ord_Metres_compare(1, 2) !== 2) {
+  if (0 !== 2) {
     score = score + 4 | 0;
   }
-  if (Ord_Metres_compare(2, 1) === 2) {
+  if (2 === 2) {
     score = score + 8 | 0;
   }
-  if (Ord_gt_eq_Metres(2, 1)) {
+  if (2 !== 0) {
     score = score + 16 | 0;
   }
-  if (Ord_gt_eq_Metres(1, 1)) {
+  if (1 !== 0) {
     score = score + 32 | 0;
   }
   return score;
@@ -55,7 +81,6 @@ function negated() {
 function flags() {
   var rw = 3;
   var r = 1;
-  var inverted = Logic_not_Flags(r);
   var score = 0;
   var v15 = { $v: 0 };
   v15.$v = v15.$v & 4294967292 | r & 3;
@@ -67,7 +92,7 @@ function flags() {
   if (Eq_Flags_eq_eq(Logic_or_or_Flags(r, ResolveTest_deferred$1$make({ $o: v33, $k: "$v", $s: 1 })), rw)) {
     score = score + 512 | 0;
   }
-  if (Eq_Flags_eq_eq(inverted, 2)) {
+  if (Eq_Flags_eq_eq(2, 2)) {
     score = score + 1024 | 0;
   }
   return score;
@@ -86,7 +111,7 @@ function boxes() {
 }
 
 function main() {
-  return ((((ordered() + overridden() | 0) + negated() | 0) + flags() | 0) + 2048 | 0) + boxes() | 0;
+  return ((ordered() + 192 | 0) + flags() | 0) + 6144 | 0;
 }
 
 function Eq_Metres_eq_eq(lhs$value, rhs$value) {

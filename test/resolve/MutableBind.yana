@@ -1,0 +1,39 @@
+{-
+   Which storage `let &x = ...` names.
+
+   A mutable binding used to allocate a slot and write the initializer into it, always. Where the
+   initializer *built* its value, that is a second allocation and a whole-value copy for storage
+   nothing else had a name for - so the binding takes the temporary over instead, which is what an
+   immutable binding has always done.
+
+   The elision is only sound because of the second function below, and that is the whole reason this
+   fixture is a pair rather than a shape assertion. Aliasing an existing local is harmless for a name
+   that cannot be written and a miscompile for one that can, and the difference is invisible in the
+   IR: `%b = alloc` followed by a copy and `%b` naming `%a` print as different programs but only one
+   of them is wrong, and only when something writes through the name afterwards.
+-}
+
+data Cell {v: Int}
+
+-- The initializer built its value here and nothing else names it, so the binding is that storage.
+fn adopted() -> Int:
+    let &c = Cell {v: 1}
+    c.v = 41
+    return c.v
+
+-- The initializer names storage the program already had, so the binding needs its own: writing
+-- through `b` may not reach `a`. 1 + 99 rather than 99 + 99.
+fn copied() -> Int:
+    let a = Cell {v: 1}
+    let &b = a
+    b.v = 99
+    return a.v + b.v
+
+-- And the same one level in: the value is a field of a fresh temporary rather than the whole of it,
+-- which is storage the record still owns and not a temporary to be taken over.
+fn field() -> Int:
+    let &inner = Cell {v: 7}.v
+    inner = inner + 1
+    return inner
+
+fn main() -> Int = adopted() + copied() + field()

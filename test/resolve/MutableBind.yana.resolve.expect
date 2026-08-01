@@ -1,0 +1,47 @@
+fn adopted() -> Int {
+  b0:
+    %v0 = alloc : Cell
+    init %c@Cell.v, 1
+    assign %c@Cell.v, 41
+    %v5 = load %c : Cell
+    %v6 = load %c@Cell.v : Int
+    ret %v6
+}
+
+fn copied() -> Int {
+  b0:
+    %a = alloc : Cell
+    init %local0@Cell.v, 1
+    %b = alloc : Cell
+    init %b, %a
+    assign %b@Cell.v, 99
+    %v7 = load %local0@Cell.v : Int
+    %v8 = load %b : Cell
+    %v9 = load %b@Cell.v : Int
+    %v10 = add %v7, %v9 : Int
+    ret %v10
+}
+
+fn field() -> Int {
+  b0:
+    %v0 = alloc : Cell
+    init %local0@Cell.v, 7
+    %v3 = load %local0@Cell.v : Int
+    %inner = alloc : Int
+    init %inner, %v3
+    %v6 = load %inner : Int
+    %v9 = add %v6, 1 : Int
+    assign %inner, %v9
+    %v11 = load %inner : Int
+    ret %v11
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call adopted : Int
+    %v1 = call copied : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call field : Int
+    %v4 = add %v2, %v3 : Int
+    ret %v4
+}

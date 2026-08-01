@@ -281,45 +281,43 @@ fn writesThrough() -> Int {
     %v2 = alloc : Diagnostics
     init %local1@Diagnostics.count, 1
     init %local1@Diagnostics.level, 20
-    init %local0@Config.hot, 3
+    init %c@Config.hot, 3
     %v8 = alloc heap escaping : Diagnostics
     %v9 = addressof %local2 : %Diagnostics
-    init %local0@Config.cold, %v9
-    init %local0@Config.cold.*, %v2
-    %c = alloc : Config
-    init %c, %v0
-    %v14 = load %c : Config
-    %v15 = load %c@Config.cold.* : Diagnostics
+    init %c@Config.cold, %v9
+    init %c@Config.cold.*, %v2
+    %v12 = load %c : Config
+    %v13 = load %c@Config.cold.* : Diagnostics
     %before = addressof %c@Config.cold.* : %Diagnostics
-    %v17 = alloc : Diagnostics
-    init %local4@Diagnostics.count, 9
-    init %local4@Diagnostics.level, 30
-    assign %c@Config.cold.*, %v17
-    %v23 = load %c : Config
-    %v24 = load %c@Config.cold.* : Diagnostics
+    %v15 = alloc : Diagnostics
+    init %local3@Diagnostics.count, 9
+    init %local3@Diagnostics.level, 30
+    assign %c@Config.cold.*, %v15
+    %v21 = load %c : Config
+    %v22 = load %c@Config.cold.* : Diagnostics
     %after = addressof %c@Config.cold.* : %Diagnostics
-    %v26 = cmp_eq %before, %after : Bool
-    %v28 = xor %v26, True : Bool
-    je %v28, b4, b2
+    %v24 = cmp_eq %before, %after : Bool
+    %v26 = xor %v24, True : Bool
+    je %v26, b4, b2
 
   b1:
-    %v32 = neg 1 : Int
-    ret %v32
+    %v30 = neg 1 : Int
+    ret %v30
 
   b2:
     jmp b3
 
   b3:
-    %v35 = load %c : Config
-    %v36 = load %c@Config.cold.* : Diagnostics
-    %v37 = load %c@Config.cold.*@Diagnostics.count : Int
-    %v40 = mul %v37, 10 : Int
-    %v41 = load %c : Config
-    %v42 = load %c@Config.cold.* : Diagnostics
-    %v43 = load %c@Config.cold.*@Diagnostics.level : Int
+    %v33 = load %c : Config
+    %v34 = load %c@Config.cold.* : Diagnostics
+    %v35 = load %c@Config.cold.*@Diagnostics.count : Int
+    %v38 = mul %v35, 10 : Int
+    %v39 = load %c : Config
+    %v40 = load %c@Config.cold.* : Diagnostics
+    %v41 = load %c@Config.cold.*@Diagnostics.level : Int
     drop_derived %c reclaim reclaim$Config
-    %v44 = add %v40, %v43 : Int
-    ret %v44
+    %v42 = add %v38, %v41 : Int
+    ret %v42
 
   b4:
     drop_derived %c reclaim reclaim$Config

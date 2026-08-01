@@ -85,9 +85,25 @@ pairValue<complex>(%p: Ptr): Int {
     %v_1 = call_complex pointOr, %p, 7: Int
     %v_2 = imul %v_1, 100: Int
     %v_3 = add %p, 12: Ptr
-    %v_4 = call_complex intOr, %v_3, 7: Int
-    %v_5 = add %v_2, %v_4: Int
-    ret %v_5
+    %v_4 = loads %v_3, 4: Int
+    %v_5 = cmp_eq %v_4, 0: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    %v_8 = add %p, 16: Ptr
+    %n = loads %v_8, 4: Int
+    jmp b_9
+  }
+
+  b_6 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_6, 7], [b_7, %n]: Int
+    %v_11 = add %v_2, %v_10: Int
+    ret %v_11
   }
 }
 
@@ -177,20 +193,48 @@ intFold<complex>(): Int {
     store %v_1, 1, 4
     %v_2 = add %v_1, 4: Ptr
     store %v_2, 0, 4
-    %zero = call_complex intOr, %v_1, 7: Int
-    %v_3 = alloca 8, 4: Ptr
-    store %v_3, 1, 4
-    %v_4 = add %v_3, 4: Ptr
-    store %v_4, 5, 4
-    %some = call_complex intOr, %v_3, 7: Int
-    %v_5 = alloca 8, 4: Ptr
-    store %v_5, 0, 4
-    %none = call_complex intOr, %v_5, 7: Int
-    %v_6 = imul %some, 10: Int
-    %v_7 = add %zero, %v_6: Int
-    %v_8 = imul %none, 100: Int
-    %v_9 = add %v_7, %v_8: Int
-    ret %v_9
+    %v_3 = loads %v_1, 4: Int
+    %v_4 = cmp_eq %v_3, 0: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = add %v_1, 4: Ptr
+    %n = loads %v_7, 4: Int
+    jmp b_8
+  }
+
+  b_5 {
+    jmp b_8
+  }
+
+  b_8 {
+    %v_9 = phi [b_5, 7], [b_6, %n]: Int
+    %v_10 = alloca 8, 4: Ptr
+    store %v_10, 1, 4
+    %v_11 = add %v_10, 4: Ptr
+    store %v_11, 5, 4
+    %v_12 = loads %v_10, 4: Int
+    %v_13 = cmp_eq %v_12, 0: Int
+    je %v_13, b_14, b_15
+  }
+
+  b_15 {
+    %v_16 = add %v_10, 4: Ptr
+    %n = loads %v_16, 4: Int
+    jmp b_17
+  }
+
+  b_14 {
+    jmp b_17
+  }
+
+  b_17 {
+    %v_18 = phi [b_14, 7], [b_15, %n]: Int
+    %v_19 = imul %v_18, 10: Int
+    %v_20 = add %v_9, %v_19: Int
+    %v_21 = add %v_20, 700: Int
+    ret %v_21
   }
 }
 
@@ -210,29 +254,13 @@ main<complex>(): Int {
     %none = call_complex pointOr, %v_5, 9: Int
     %v_6 = imul %none, 1000: Int
     %v_7 = add %some, %v_6: Int
-    %v_8 = alloca 8, 4: Ptr
-    store %v_8, 1, 4
-    %v_9 = add %v_8, 4: Ptr
-    store %v_9, 0, 4
-    %zero = call_complex intOr, %v_8, 7: Int
-    %v_10 = alloca 8, 4: Ptr
-    store %v_10, 1, 4
-    %v_11 = add %v_10, 4: Ptr
-    store %v_11, 5, 4
-    %some = call_complex intOr, %v_10, 7: Int
-    %v_12 = alloca 8, 4: Ptr
-    store %v_12, 0, 4
-    %none = call_complex intOr, %v_12, 7: Int
-    %v_13 = imul %some, 10: Int
-    %v_14 = add %zero, %v_13: Int
-    %v_15 = imul %none, 100: Int
-    %v_16 = add %v_14, %v_15: Int
-    %v_17 = add %v_7, %v_16: Int
-    %v_18 = call_complex nested: Int
-    %v_19 = add %v_17, %v_18: Int
-    %v_20 = call_complex paired: Int
-    %v_21 = add %v_19, %v_20: Int
-    ret %v_21
+    %v_8 = call_complex intFold: Int
+    %v_9 = add %v_7, %v_8: Int
+    %v_10 = call_complex nested: Int
+    %v_11 = add %v_9, %v_10: Int
+    %v_12 = call_complex paired: Int
+    %v_13 = add %v_11, %v_12: Int
+    ret %v_13
   }
 }
 

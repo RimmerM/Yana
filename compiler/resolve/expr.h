@@ -315,7 +315,28 @@ struct ExprResolver {
     // which is what lets an immutable binding holding a raw pointer root one - see resolvePlace.
     Maybe<Place> resolvePlace(const ast::Expr& expr, bool through = false);
     ModulePtr<Value> resolveAssign(const ast::Expr& expr, const ast::AssignExpr& assignment);
-    void bindMutable(const ast::VarDecl& declaration, ModulePtr<Value> value);
+    /*
+     * `fresh` is the local count taken before the initializer was resolved, which is the whole of
+     * what makes the elision in `adoptableLocal` safe - see there.
+     */
+    void bindMutable(const ast::VarDecl& declaration, ModulePtr<Value> value, U32 fresh);
+
+    /*
+     * The local a mutable binding may take over rather than copy out of, or nothing.
+     *
+     * A binding whose initializer produced storage *this declaration just made* has no reason to
+     * allocate a second slot and copy: the temporary has no other name, so letting the binding be
+     * that name is the same program with one allocation and one whole-value write taken out. It is
+     * what an immutable binding has always done - `resolveBinding` binds the construction's own
+     * storage - and the reason the mutable form could not simply do the same is that the two differ
+     * exactly where it matters: aliasing an existing local is harmless for a name that cannot be
+     * written and a miscompile for one that can, since `let &y = x` must not make `y = 5` write `x`.
+     *
+     * `fresh` is what tells the two apart, and it is a count rather than an analysis: a local whose
+     * index is below the mark existed before this initializer ran, so it is something the program
+     * already had a name for. Everything at or above it was made while building this value.
+     */
+    Maybe<U32> adoptableLocal(ModulePtr<Value> value, U32 fresh);
 
     // A name for a borrow someone else's storage backs, rather than for a slot of this frame.
     void bindBorrow(const ast::VarDecl& declaration, ModulePtr<Value> value, bool mutable_);
@@ -681,9 +702,19 @@ struct ExprResolver {
     // ownership graph until a container's own traversal puts it there.
     ModulePtr<Value> allocateRun(TypePtr type, ModulePtr<Value> extent, LocationId source);
 
-    // Builds a `Run(a)` of `count` slots, and reports in `items` the address its slots start at.
-    // Shared by Native's `newRun` and by the array literal path, which are the only two places in
-    // the compiler that make one. Null, after reporting, when `runType` is not a `Run`.
+    /*
+     * Builds a `Run(a)` of `count` slots *into* storage the caller already has, and reports in
+     * `items` the address its slots start at. `into` is the run's own place - the `Run` downcast is
+     * this function's to add, since the shape of a run is what it knows and the caller does not.
+     *
+     * Shared by Native's `newRun` and by the array literal path, which are the only two places in
+     * the compiler that make one. False, after reporting, when `runType` is not a `Run`.
+     */
+    bool buildRunInto(TypePtr runType, ModulePtr<Value> count, LocationId source,
+                      ModulePtr<Value>& items, const Place& into);
+
+    // The same into a fresh temporary, for a caller with nowhere in particular to put it. Null,
+    // after reporting, when `runType` is not a `Run`.
     ModulePtr<Value> buildRun(TypePtr runType, ModulePtr<Value> count, LocationId source,
                               ModulePtr<Value>& items);
 

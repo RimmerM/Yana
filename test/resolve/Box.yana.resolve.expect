@@ -256,36 +256,34 @@ fn mutated() -> Int {
     %v2 = alloc : Diagnostics
     init %local1@Diagnostics.count, 1
     init %local1@Diagnostics.level, 20
-    init %local0@Config.hot, 3
+    init %c@Config.hot, 3
     %v8 = alloc heap escaping : Diagnostics
     %v9 = addressof %local2 : %Diagnostics
-    init %local0@Config.cold, %v9
-    init %local0@Config.cold.*, %v2
-    %c = alloc : Config
-    init %c, %v0
-    %v14 = load %c : Config
-    %v15 = load %c@Config.cold.* : Diagnostics
-    %v16 = borrow_mut %c@Config.cold.* : &mut Diagnostics
-    call raise, %v16
-    %v18 = load %c : Config
-    %v19 = load %c@Config.cold.* : Diagnostics
-    %v20 = load %c@Config.cold.*@Diagnostics.level : Int
-    %v23 = add %v20, 1 : Int
-    assign %c@Config.cold.*@Diagnostics.level, %v23
-    %v25 = load %c : Config
-    %v26 = load %c@Config.hot : Int
-    %v29 = mul %v26, 1000 : Int
-    %v30 = load %c : Config
-    %v31 = load %c@Config.cold.* : Diagnostics
-    %v32 = load %c@Config.cold.*@Diagnostics.count : Int
-    %v35 = mul %v32, 100 : Int
-    %v36 = add %v29, %v35 : Int
-    %v37 = load %c : Config
-    %v38 = load %c@Config.cold.* : Diagnostics
-    %v39 = call levelOf, %v38 : Int
+    init %c@Config.cold, %v9
+    init %c@Config.cold.*, %v2
+    %v12 = load %c : Config
+    %v13 = load %c@Config.cold.* : Diagnostics
+    %v14 = borrow_mut %c@Config.cold.* : &mut Diagnostics
+    call raise, %v14
+    %v16 = load %c : Config
+    %v17 = load %c@Config.cold.* : Diagnostics
+    %v18 = load %c@Config.cold.*@Diagnostics.level : Int
+    %v21 = add %v18, 1 : Int
+    assign %c@Config.cold.*@Diagnostics.level, %v21
+    %v23 = load %c : Config
+    %v24 = load %c@Config.hot : Int
+    %v27 = mul %v24, 1000 : Int
+    %v28 = load %c : Config
+    %v29 = load %c@Config.cold.* : Diagnostics
+    %v30 = load %c@Config.cold.*@Diagnostics.count : Int
+    %v33 = mul %v30, 100 : Int
+    %v34 = add %v27, %v33 : Int
+    %v35 = load %c : Config
+    %v36 = load %c@Config.cold.* : Diagnostics
+    %v37 = call levelOf, %v36 : Int
     drop_derived %c reclaim reclaim$Config
-    %v40 = add %v36, %v39 : Int
-    ret %v40
+    %v38 = add %v34, %v37 : Int
+    ret %v38
 }
 
 fn pinnedValue() -> Int {
@@ -330,25 +328,23 @@ fn throughLens() -> Int {
     %v2 = alloc : Diagnostics
     init %local1@Diagnostics.count, 6
     init %local1@Diagnostics.level, 40
-    init %local0@Config.hot, 3
+    init %c@Config.hot, 3
     %v8 = alloc heap escaping : Diagnostics
     %v9 = addressof %local2 : %Diagnostics
-    init %local0@Config.cold, %v9
-    init %local0@Config.cold.*, %v2
-    %c = alloc : Config
-    init %c, %v0
-    %v14 = load %c : Config
-    %v15 = alloc : {c: &mut Config}
-    %v16 = borrow_mut %c : &mut Config
-    init %local4.c, %v16
-    %v18 = addressof %local4 : %()
-    %v19 = alloc : (value: Int) -> Int
-    %v20 = symbol ResolveTest.continuation$0 : %()
-    init %local5.code, %v20
-    init %local5.env, %v18
-    %v23 = call levelIn(Int), %v14, %v19 : Int
+    init %c@Config.cold, %v9
+    init %c@Config.cold.*, %v2
+    %v12 = load %c : Config
+    %v13 = alloc : {c: &mut Config}
+    %v14 = borrow_mut %c : &mut Config
+    init %local3.c, %v14
+    %v16 = addressof %local3 : %()
+    %v17 = alloc : (value: Int) -> Int
+    %v18 = symbol ResolveTest.continuation$0 : %()
+    init %local4.code, %v18
+    init %local4.env, %v16
+    %v21 = call levelIn(Int), %v12, %v17 : Int
     drop_derived %c reclaim reclaim$Config
-    ret %v23
+    ret %v21
 }
 
 fn countOf(%h: Holder(())) -> Int {

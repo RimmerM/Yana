@@ -5,9 +5,13 @@
 
 drop$Pair<complex>(%value: Ptr) {
   b_0 {
-    call_complex Drop(Buffer).drop, %value
-    %v_1 = add %value, 8: Ptr
-    call_complex Drop(Buffer).drop, %v_1
+    %v_1 = load %value, 8: Ptr
+    call_complex freeHeap, %v_1
+    call_complex -=(I64), @liveBuffers, 1
+    %v_2 = add %value, 8: Ptr
+    %v_3 = load %v_2, 8: Ptr
+    call_complex freeHeap, %v_3
+    call_complex -=(I64), @liveBuffers, 1
     ret 
   }
 }
@@ -45,10 +49,12 @@ derived<complex>(): Long {
     %v_3 = add %pair, 8: Ptr
     copy %v_3, %v_2, 8
     %counted = loads @liveBuffers, 8: Long
-    %v_4 = call_complex firstByte, %pair: Long
+    %v_4 = load %pair, 8: Ptr
+    %v_5 = load %v_4, 1: Int
+    %v_6 = cast %v_5: Long
     call_complex drop$Pair, %pair
-    %v_5 = add %counted, %v_4: Long
-    ret %v_5
+    %v_7 = add %counted, %v_6: Long
+    ret %v_7
   }
 }
 
@@ -59,13 +65,19 @@ straightLine<complex>(): Long {
     %b = alloca 8, 8: Ptr
     call_complex makeBuffer, %b, 64
     %counted = loads @liveBuffers, 8: Long
-    %v_1 = call_complex firstByte, %a: Long
-    call_complex Drop(Buffer).drop, %a
-    %v_2 = add %counted, %v_1: Long
-    %v_3 = call_complex firstByte, %b: Long
-    call_complex Drop(Buffer).drop, %b
-    %v_4 = add %v_2, %v_3: Long
-    ret %v_4
+    %v_1 = load %a, 8: Ptr
+    %v_2 = load %v_1, 1: Int
+    %v_3 = cast %v_2: Long
+    call_complex freeHeap, %v_1
+    call_complex -=(I64), @liveBuffers, 1
+    %v_4 = add %counted, %v_3: Long
+    %v_5 = load %b, 8: Ptr
+    %v_6 = load %v_5, 1: Int
+    %v_7 = cast %v_6: Long
+    call_complex freeHeap, %v_5
+    call_complex -=(I64), @liveBuffers, 1
+    %v_8 = add %v_4, %v_7: Long
+    ret %v_8
   }
 }
 
@@ -105,13 +117,14 @@ rebound<complex>(): Long {
   b_0 {
     %a = alloca 8, 8: Ptr
     call_complex makeBuffer, %a, 64
-    %b = alloca 8, 8: Ptr
-    copy %b, %a, 8
+    %v_1 = load %a, 8: Ptr
     %counted = loads @liveBuffers, 8: Long
-    %v_1 = call_complex firstByte, %b: Long
-    call_complex Drop(Buffer).drop, %b
-    %v_2 = add %counted, %v_1: Long
-    ret %v_2
+    %v_2 = load %v_1, 1: Int
+    %v_3 = cast %v_2: Long
+    call_complex freeHeap, %v_1
+    call_complex -=(I64), @liveBuffers, 1
+    %v_4 = add %counted, %v_3: Long
+    ret %v_4
   }
 }
 
@@ -127,10 +140,13 @@ rebound<complex>(): Long {
 consume<complex>(%it: Ptr): Long {
   b_0 {
     %counted = loads @liveBuffers, 8: Long
-    %v_1 = call_complex firstByte, %it: Long
-    call_complex Drop(Buffer).drop, %it
-    %v_2 = add %counted, %v_1: Long
-    ret %v_2
+    %v_1 = load %it, 8: Ptr
+    %v_2 = load %v_1, 1: Int
+    %v_3 = cast %v_2: Long
+    call_complex freeHeap, %v_1
+    call_complex -=(I64), @liveBuffers, 1
+    %v_4 = add %counted, %v_3: Long
+    ret %v_4
   }
 }
 
@@ -172,24 +188,29 @@ branch<complex>(%flag: Int): Long {
 
   b_1 {
     %counted = loads @liveBuffers, 8: Long
-    %v_3 = call_complex firstByte, %held: Long
-    call_complex Drop(Buffer).drop, %held
-    %v_4 = add %counted, %v_3: Long
-    ret %v_4
+    %v_3 = load %held, 8: Ptr
+    %v_4 = load %v_3, 1: Int
+    %v_5 = cast %v_4: Long
+    call_complex freeHeap, %v_3
+    call_complex -=(I64), @liveBuffers, 1
+    %v_6 = add %counted, %v_5: Long
+    ret %v_6
   }
 
-  b_5 {
-    jmp b_6
+  b_7 {
+    jmp b_8
   }
 
-  b_6 {
-    %v_7 = loads @liveBuffers, 8: Long
-    ret %v_7
+  b_8 {
+    %v_9 = loads @liveBuffers, 8: Long
+    ret %v_9
   }
 
   b_2 {
-    call_complex Drop(Buffer).drop, %held
-    jmp b_5
+    %v_10 = load %held, 8: Ptr
+    call_complex freeHeap, %v_10
+    call_complex -=(I64), @liveBuffers, 1
+    jmp b_7
   }
 }
 
@@ -316,32 +337,36 @@ loop<complex>(): Long {
   b_0 {
     %buffer = alloca 8, 8: Ptr
     call_complex makeBuffer, %buffer, 8
-    jmp b_1
-  }
-
-  b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Long
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Long
-    %v_7 = cmp_ilt %v_5, 3: Int
-    je %v_7, b_3, b_8
-  }
-
-  b_9 {
-    ret %v_2
+    %v_1 = load %buffer, 8: Ptr
+    %v_2 = loads @liveBuffers, 8: Long
+    jmp b_3
   }
 
   b_3 {
-    %v_10 = call_complex firstByte, %buffer: Long
-    %v_11 = loads @liveBuffers, 8: Long
-    %v_12 = add %v_10, %v_11: Long
-    %v_4 = add %v_2, %v_12: Long
-    %v_6 = add %v_5, 1: Long
-    jmp b_1
+    %v_4 = phi [b_0, 0], [b_5, %v_6]: Long
+    %v_7 = phi [b_0, 0], [b_5, %v_8]: Long
+    %v_9 = cmp_ilt %v_7, 3: Int
+    je %v_9, b_5, b_10
   }
 
-  b_8 {
-    call_complex Drop(Buffer).drop, %buffer
-    jmp b_9
+  b_11 {
+    ret %v_4
+  }
+
+  b_5 {
+    %v_12 = load %v_1, 1: Int
+    %v_13 = cast %v_12: Long
+    %v_14 = add %v_13, %v_2: Long
+    %v_6 = add %v_4, %v_14: Long
+    %v_8 = add %v_7, 1: Long
+    jmp b_3
+  }
+
+  b_10 {
+    %v_15 = load %buffer, 8: Ptr
+    call_complex freeHeap, %v_15
+    call_complex -=(I64), @liveBuffers, 1
+    jmp b_11
   }
 }
 

@@ -25,8 +25,8 @@ fn branched(%a: Int) -> Int {
 
 fn partial(%a: Int) -> Int {
   b0:
-    %v10 = cmp_gt %a, 0 : Bool
-    je %v10, b1, b2
+    %v8 = cmp_gt %a, 0 : Bool
+    je %v8, b1, b2
 
   b1:
     jmp b3
@@ -35,15 +35,15 @@ fn partial(%a: Int) -> Int {
     jmp b3
 
   b3:
-    %v37 = phi [b1, 30], [b2, 2] : Int
-    %v20 = add %v37, 1 : Int
-    ret %v20
+    %v25 = phi [b1, 30], [b2, 2] : Int
+    %v18 = add %v25, 1 : Int
+    ret %v18
 }
 
 fn merged(%a: Int) -> Int {
   b0:
-    %v10 = cmp_gt %a, 0 : Bool
-    je %v10, b1, b2
+    %v8 = cmp_gt %a, 0 : Bool
+    je %v8, b1, b2
 
   b1:
     jmp b3
@@ -52,9 +52,9 @@ fn merged(%a: Int) -> Int {
     jmp b3
 
   b3:
-    %v44 = phi [b1, 10], [b2, 0] : Int
-    %v18 = cmp_gt %a, 5 : Bool
-    je %v18, b4, b5
+    %v32 = phi [b1, 10], [b2, 0] : Int
+    %v16 = cmp_gt %a, 5 : Bool
+    je %v16, b4, b5
 
   b4:
     jmp b6
@@ -63,9 +63,9 @@ fn merged(%a: Int) -> Int {
     jmp b6
 
   b6:
-    %v56 = phi [b4, 20], [b5, %v44] : Int
-    %v28 = add %v56, 7 : Int
-    ret %v28
+    %v38 = phi [b4, 20], [b5, %v32] : Int
+    %v26 = add %v38, 7 : Int
+    ret %v26
 }
 
 fn invariant(%count: Int) -> Int {
@@ -102,19 +102,19 @@ fn carried(%count: Int) -> Int {
     jmp b1
 
   b1:
-    %v36 = phi [b0, 0], [b3, %v19] : Int
-    %v12 = load %i : Int
-    %v13 = cmp_lt %v12, %count : Bool
-    je %v13, b3, b2
+    %v28 = phi [b0, 0], [b3, %v17] : Int
+    %v10 = load %i : Int
+    %v11 = cmp_lt %v10, %count : Bool
+    je %v11, b3, b2
 
   b2:
-    ret %v36
+    ret %v28
 
   b3:
-    %v19 = add %v36, 5 : Int
-    %v21 = load %i : Int
-    %v24 = add %v21, 1 : Int
-    assign %i, %v24
+    %v17 = add %v28, 5 : Int
+    %v19 = load %i : Int
+    %v22 = add %v19, 1 : Int
+    assign %i, %v22
     jmp b1
 }
 
@@ -138,20 +138,20 @@ fn nested(%a: Int) -> Int {
 
 fn escaped(%a: Int) -> Int {
   b0:
-    %v9 = cmp_gt %a, 0 : Bool
-    je %v9, b1, b2
+    %v7 = cmp_gt %a, 0 : Bool
+    je %v7, b1, b2
 
   b1:
-    %v25 = add %a, 1 : Int
+    %v23 = add %a, 1 : Int
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v41 = phi [b1, %v25], [b2, %a] : Int
-    %v20 = add %v41, 1 : Int
-    ret %v20
+    %v29 = phi [b1, %v23], [b2, %a] : Int
+    %v18 = add %v29, 1 : Int
+    ret %v18
 }
 
 fn main() -> Int {
@@ -163,41 +163,41 @@ fn main() -> Int {
     jmp b1
 
   b1:
-    %v96 = load %i : Int
-    %v97 = cmp_lt %v96, 3 : Bool
-    je %v97, b6, b2
+    %v92 = load %i : Int
+    %v93 = cmp_lt %v92, 3 : Bool
+    je %v93, b6, b2
 
   b2:
-    %v99 = load %total : Int
-    %v10 = add %v99, 53 : Int
+    %v95 = load %total : Int
+    %v10 = add %v95, 53 : Int
     %i = alloc : Int
     init %i, 0
     jmp b3
 
   b3:
-    %v255 = phi [b2, 0], [b5, %v133] : Int
-    %v123 = load %i : Int
-    %v124 = cmp_lt %v123, 4 : Bool
-    je %v124, b5, b4
+    %v258 = phi [b2, 0], [b5, %v127] : Int
+    %v117 = load %i : Int
+    %v118 = cmp_lt %v117, 4 : Bool
+    je %v118, b5, b4
 
   b4:
-    %v13 = add %v10, %v255 : Int
+    %v13 = add %v10, %v258 : Int
     %v19 = add %v13, 17 : Int
     ret %v19
 
   b5:
-    %v133 = add %v255, 5 : Int
-    %v135 = load %i : Int
-    %v137 = add %v135, 1 : Int
-    assign %i, %v137
+    %v127 = add %v258, 5 : Int
+    %v129 = load %i : Int
+    %v131 = add %v129, 1 : Int
+    assign %i, %v131
     jmp b3
 
   b6:
-    %v101 = load %total : Int
-    %v105 = add %v101, 12 : Int
-    assign %total, %v105
-    %v107 = load %i : Int
-    %v109 = add %v107, 1 : Int
-    assign %i, %v109
+    %v97 = load %total : Int
+    %v101 = add %v97, 12 : Int
+    assign %total, %v101
+    %v103 = load %i : Int
+    %v105 = add %v103, 1 : Int
+    assign %i, %v105
     jmp b1
 }

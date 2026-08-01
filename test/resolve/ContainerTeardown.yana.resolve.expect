@@ -909,50 +909,48 @@ fn buildLiteral() -> I64 {
   b0:
     %v1 = call openHandle, 1 : Handle
     %v3 = call openHandle, 2 : Handle
-    %v6 = alloc *2 : Handle
-    %v7 = addressof %local2 : %Handle
-    %v9 = alloc : Run(Handle)
-    init %local3@Run.items, %v7
-    init %local3@Run.capacity, 2
-    init %local3@Run.ownsHeap, 0
+    %handles = alloc : Array(Handle)
+    %v7 = alloc *2 : Handle
+    %v8 = addressof %local3 : %Handle
+    init %local2@Array.run@Run.items, %v8
+    init %local2@Array.run@Run.capacity, 2
+    init %local2@Array.run@Run.ownsHeap, 0
     %v14 = strideof Handle : Long
     %v15 = mul 0, %v14 : Long
-    %v16 = add %v7, %v15 : %Handle
+    %v16 = add %v8, %v15 : %Handle
     init [%v16], %v1
     %v19 = strideof Handle : Long
     %v20 = mul 1, %v19 : Long
-    %v21 = add %v7, %v20 : %Handle
+    %v21 = add %v8, %v20 : %Handle
     init [%v21], %v3
-    %handles = alloc : Array(Handle)
-    init %local4@Array.run, %v9
-    init %local4@Array.length, 2
-    %v27 = borrow %local4 : &Array(Handle)
+    init %local2@Array.length, 2
+    %v25 = borrow %local2 : &Array(Handle)
     %handles = alloc : Flat(Handle)
-    %v29 = load [%v27]@Array.run@Run.items : %Handle
-    init %handles@Flat.items, %v29
-    %v31 = load [%v27]@Array.length : @bits(31) U32
-    %v32 = cast %v31 : U32
-    %v33 = cast %v32 : I64
-    init %handles@Flat.length, %v33
-    %v36 = borrow %handles : &Flat(Handle)
-    %v37 = call get(Handle), %v36, 0 : &Handle
-    %v38 = load [%v37] : Handle
-    %v39 = call marker, %v38 : I64
-    %v41 = borrow %local4 : &Array(Handle)
+    %v27 = load [%v25]@Array.run@Run.items : %Handle
+    init %handles@Flat.items, %v27
+    %v29 = load [%v25]@Array.length : @bits(31) U32
+    %v30 = cast %v29 : U32
+    %v31 = cast %v30 : I64
+    init %handles@Flat.length, %v31
+    %v34 = borrow %handles : &Flat(Handle)
+    %v35 = call get(Handle), %v34, 0 : &Handle
+    %v36 = load [%v35] : Handle
+    %v37 = call marker, %v36 : I64
+    %v39 = borrow %local2 : &Array(Handle)
     %handles = alloc : Flat(Handle)
-    %v43 = load [%v41]@Array.run@Run.items : %Handle
-    init %handles@Flat.items, %v43
-    %v45 = load [%v41]@Array.length : @bits(31) U32
-    %v46 = cast %v45 : U32
-    %v47 = cast %v46 : I64
-    init %handles@Flat.length, %v47
-    %v50 = borrow %handles : &Flat(Handle)
-    %v51 = call get(Handle), %v50, 1 : &Handle
-    %v52 = load [%v51] : Handle
-    %v53 = call marker, %v52 : I64
-    drop %local4 via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
-    %v54 = add %v39, %v53 : I64
-    ret %v54
+    %v41 = load [%v39]@Array.run@Run.items : %Handle
+    init %handles@Flat.items, %v41
+    %v43 = load [%v39]@Array.length : @bits(31) U32
+    %v44 = cast %v43 : U32
+    %v45 = cast %v44 : I64
+    init %handles@Flat.length, %v45
+    %v48 = borrow %handles : &Flat(Handle)
+    %v49 = call get(Handle), %v48, 1 : &Handle
+    %v50 = load [%v49] : Handle
+    %v51 = call marker, %v50 : I64
+    drop %local2 via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    %v52 = add %v37, %v51 : I64
+    ret %v52
 }
 
 fn buildPushed() -> I64 {

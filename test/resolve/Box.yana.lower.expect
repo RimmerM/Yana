@@ -15,16 +15,14 @@ throughLens<complex>(): Int {
     store %v_1, %v_5, 8
     %v_6 = load %v_1, 8: Ptr
     copy %v_6, %v_2, 8
-    %c = alloca 12, 8: Ptr
-    copy %c, %v_1, 12
     %v_7 = alloca 8, 8: Ptr
-    store %v_7, %c, 8
+    store %v_7, %v_1, 8
     %v_8 = alloca 16, 8: Ptr
     store %v_8, ResolveTest.continuation$0, 8
     %v_9 = add %v_8, 8: Ptr
     store %v_9, %v_7, 8
-    %v_10 = call_complex levelIn(Int), %c, %v_8: Int
-    call_complex reclaim$Config, %c
+    %v_10 = call_complex levelIn(Int), %v_1, %v_8: Int
+    call_complex reclaim$Config, %v_1
     ret %v_10
   }
 }
@@ -148,25 +146,23 @@ mutated<complex>(): Int {
     store %v_1, %v_5, 8
     %v_6 = load %v_1, 8: Ptr
     copy %v_6, %v_2, 8
-    %c = alloca 12, 8: Ptr
-    copy %c, %v_1, 12
-    %v_7 = load %c, 8: Ptr
+    %v_7 = load %v_1, 8: Ptr
     call_complex raise, %v_7
-    %v_8 = load %c, 8: Ptr
+    %v_8 = load %v_1, 8: Ptr
     %v_9 = add %v_8, 4: Ptr
     %v_10 = loads %v_9, 4: Int
     %v_11 = add %v_10, 1: Int
-    %v_12 = load %c, 8: Ptr
+    %v_12 = load %v_1, 8: Ptr
     %v_13 = add %v_12, 4: Ptr
     store %v_13, %v_11, 4
-    %v_14 = add %c, 8: Ptr
+    %v_14 = add %v_1, 8: Ptr
     %v_15 = loads %v_14, 4: Int
     %v_16 = imul %v_15, 1000: Int
-    %v_17 = load %c, 8: Ptr
+    %v_17 = load %v_1, 8: Ptr
     %v_18 = loads %v_17, 4: Int
     %v_19 = imul %v_18, 100: Int
     %v_20 = add %v_16, %v_19: Int
-    call_complex reclaim$Config, %c
+    call_complex reclaim$Config, %v_1
     %v_21 = add %v_20, %v_11: Int
     ret %v_21
   }

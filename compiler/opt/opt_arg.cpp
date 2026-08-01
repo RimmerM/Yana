@@ -380,27 +380,6 @@ bool planFor(OptContext& opt, ModulePtr<Function> pointer, Function& function,
 }
 
 /*
- * The place a value came out of, or nothing where it came out of no storage this function can name.
- *
- * The same two answers ExprResolver::findPlace gives, for the same reason: a value loaded out of a
- * place is addressed through that place again rather than through a copy, and every other value of
- * a memory type is some local's storage - an allocation, a call's result, an exchanged temporary.
- */
-Maybe<Place> storageOf(OptContext& opt, ModulePtr<Value> value) {
-    if(!value) return Nothing();
-
-    if(opt.local[value]->kind == Value::LoadPlace) {
-        return Just(((InstLoadPlace*)opt.local[value])->place);
-    }
-
-    for(U32 i = 0; i < opt.function->localCount(); i++) {
-        if(opt.function->localAt(opt.local, i).value == value) return Just(Place::inLocal(i));
-    }
-
-    return Nothing();
-}
-
-/*
  * A fresh local holding one value, for the arguments `storageOf` cannot name a place for.
  *
  * There is nothing to project out of a value of an aggregate type without storage to project from,

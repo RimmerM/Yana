@@ -39,8 +39,11 @@ mapMemory<complex>(%size: Long): Ptr {
 
 drop$Session<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = add %value, 12: Ptr
-    call_complex Drop(Handle).drop, %v_1
+    %v_1 = loads @effects, 4: Int
+    %v_2 = add %value, 12: Ptr
+    %v_3 = loads %v_2, 4: Int
+    %v_4 = add %v_1, %v_3: Int
+    store @effects, %v_4, 4
     ret 
   }
 }
@@ -199,7 +202,12 @@ allocateHeap<complex>(%size: Long): Ptr {
 
 reclaim$Session<complex>(%value: Ptr) {
   b_0 {
-    call_complex Reclaim(Buffer).reclaim, %value
+    %v_1 = loads @released, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @released, %v_2, 4
+    %v_3 = load %value, 8: Ptr
+    %v_4 = bitcast %v_3: Ptr
+    call_complex freeHeap, %v_4
     ret 
   }
 }

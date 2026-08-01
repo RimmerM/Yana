@@ -256,25 +256,31 @@ drop$Slot<complex>(%value: Ptr) {
 
   b_3 {
     %v_6 = add %value, 8: Ptr
-    call_complex Drop(Buffer).drop, %v_6
+    %v_7 = load %v_6, 8: Ptr
+    call_complex freeHeap, %v_7
+    call_complex -=(I64), @liveBuffers, 1
     jmp b_5
   }
 
   b_4 {
-    %v_7 = loads %value, 4: Int
-    %v_8 = cmp_eq %v_7, 2: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_9 {
-    %v_11 = add %value, 8: Ptr
-    call_complex Drop(Buffer).drop, %v_11
-    %v_12 = add %value, 16: Ptr
-    call_complex Drop(Buffer).drop, %v_12
-    jmp b_5
+    %v_8 = loads %value, 4: Int
+    %v_9 = cmp_eq %v_8, 2: Int
+    je %v_9, b_10, b_11
   }
 
   b_10 {
+    %v_12 = add %value, 8: Ptr
+    %v_13 = load %v_12, 8: Ptr
+    call_complex freeHeap, %v_13
+    call_complex -=(I64), @liveBuffers, 1
+    %v_14 = add %value, 16: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_15
+    call_complex -=(I64), @liveBuffers, 1
+    jmp b_5
+  }
+
+  b_11 {
     jmp b_5
   }
 }

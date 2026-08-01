@@ -47,41 +47,32 @@ function valueOf(f) {
 }
 
 function nested() {
-  var s = { flags: { flags: 1, count: 7 }.flags, count: 0 };
-  s.flags = ((s.flags & 4294967293) >>> 0 | 2) >>> 0;
-  s.count = 8;
-  return (Math.imul(valueOf(s.flags), 10) | 0) + 8 | 0;
+  return (Math.imul(valueOf({ flags: 3, count: 8 }.flags), 10) | 0) + 8 | 0;
 }
 
 function borrowed() {
-  var s = { flags: { flags: 0, count: 0 }.flags, count: 0 };
-  setBoth(s, "flags", 1);
-  flip(s, "flags", 1);
-  return valueOf(s.flags);
+  var v0 = { flags: 0, count: 0 };
+  setBoth(v0, "flags", 1);
+  flip(v0, "flags", 1);
+  return valueOf(v0.flags);
 }
 
 function coPacked() {
-  var v0 = 0;
-  v0 = v0 & 4294967292 | 3 & 3;
-  v0 = v0 & ~(3 << 2) | (0 & 3) << 2;
-  var t = { $v: 0 };
-  t.$v = t.$v & 4294967292 | v0 & 3 & 3;
-  t.$v = t.$v & ~(3 << 2) | (v0 >>> 2 & 3 & 3) << 2;
-  clear(t, "$v", 1);
-  setBoth(t, "$v", 4);
-  return valueOf(t.$v & 3) + (Math.imul(valueOf(t.$v >>> 2 & 3), 10) | 0) | 0;
+  var v0 = { $v: 0 };
+  v0.$v = v0.$v & 4294967292 | 3 & 3;
+  v0.$v = v0.$v & ~(3 << 2) | (0 & 3) << 2;
+  clear(v0, "$v", 1);
+  setBoth(v0, "$v", 4);
+  return valueOf(v0.$v & 3) + (Math.imul(valueOf(v0.$v >>> 2 & 3), 10) | 0) | 0;
 }
 
 function composed() {
   var v0 = 0;
   v0 = v0 & 4294967292 | 0 & 3;
   v0 = v0 & ~(3 << 2) | (0 & 3) << 2;
-  var t = 0;
-  t = t & 4294967292 | v0 & 3 & 3;
-  t = t & ~(3 << 2) | (v0 >>> 2 & 3 & 3) << 2;
-  t = t & 4294967294 | 1 & 1;
-  t = t & ~(1 << 3) | (1 & 1) << 3;
-  return valueOf(t & 3) + (Math.imul(valueOf(t >>> 2 & 3), 10) | 0) | 0;
+  v0 = v0 & 4294967294 | 1 & 1;
+  v0 = v0 & ~(1 << 3) | (1 & 1) << 3;
+  return valueOf(v0 & 3) + (Math.imul(valueOf(v0 >>> 2 & 3), 10) | 0) | 0;
 }
 
 function extracted() {
@@ -96,37 +87,31 @@ function secondOf(f$o, f$k, f$s) {
 }
 
 function reborrowed() {
-  var v0 = 0;
-  v0 = v0 & 4294967292 | 0 & 3;
-  v0 = v0 & ~(3 << 2) | (0 & 3) << 2;
-  var t = { $v: 0 };
-  t.$v = t.$v & 4294967292 | v0 & 3 & 3;
-  t.$v = t.$v & ~(3 << 2) | (v0 >>> 2 & 3 & 3) << 2;
-  var v18 = secondOf(t, "$v", 4);
-  v18.$o[v18.$k] = $b1u$set(v18.$o[v18.$k], v18.$s, 1);
-  return valueOf(t.$v & 3) + (Math.imul(valueOf(t.$v >>> 2 & 3), 10) | 0) | 0;
+  var v0 = { $v: 0 };
+  v0.$v = v0.$v & 4294967292 | 0 & 3;
+  v0.$v = v0.$v & ~(3 << 2) | (0 & 3) << 2;
+  var v16 = secondOf(v0, "$v", 4);
+  v16.$o[v16.$k] = $b1u$set(v16.$o[v16.$k], v16.$s, 1);
+  return valueOf(v0.$v & 3) + (Math.imul(valueOf(v0.$v >>> 2 & 3), 10) | 0) | 0;
 }
 
 function swapped() {
-  var v47;
-  var v0 = 0;
-  v0 = v0 & 4294967292 | 1 & 3;
-  v0 = v0 & ~(3 << 2) | (2 & 3) << 2;
-  var t = { $v: 0 };
-  t.$v = t.$v & 4294967292 | v0 & 3 & 3;
-  t.$v = t.$v & ~(3 << 2) | (v0 >>> 2 & 3 & 3) << 2;
-  var swap23 = $b1u$get(t.$v, 1);
-  t.$v = $b1u$set(t.$v, 1, $b1u$get(t.$v, 4));
-  t.$v = $b1u$set(t.$v, 4, swap23);
-  var previous$1 = $b1u$get(t.$v, 2);
-  t.$v = $b1u$set(t.$v, 2, 1);
-  var v39 = valueOf(t.$v & 3) + (Math.imul(valueOf(t.$v >>> 2 & 3), 10) | 0) | 0;
+  var v45;
+  var v0 = { $v: 0 };
+  v0.$v = v0.$v & 4294967292 | 1 & 3;
+  v0.$v = v0.$v & ~(3 << 2) | (2 & 3) << 2;
+  var swap21 = $b1u$get(v0.$v, 1);
+  v0.$v = $b1u$set(v0.$v, 1, $b1u$get(v0.$v, 4));
+  v0.$v = $b1u$set(v0.$v, 4, swap21);
+  var previous$1 = $b1u$get(v0.$v, 2);
+  v0.$v = $b1u$set(v0.$v, 2, 1);
+  var v37 = valueOf(v0.$v & 3) + (Math.imul(valueOf(v0.$v >>> 2 & 3), 10) | 0) | 0;
   if (previous$1) {
-    v47 = 100;
+    v45 = 100;
   } else {
-    v47 = 0;
+    v45 = 0;
   }
-  return v39 + v47 | 0;
+  return v37 + v45 | 0;
 }
 
 function makePair() {
@@ -189,31 +174,31 @@ function held() {
 }
 
 function reordered() {
-  var v46;
-  var i = { b: 9n, c: 3, $p14: 358, e: 40 };
-  bump(i, "$p14", 16);
-  i.b = BigInt.asUintN(64, i.b + 1n);
-  if ((i.$p14 >>> 8 >>> 0 & 1) >>> 0 !== 0) {
-    v46 = 1;
+  var v44;
+  var v0 = { b: 9n, c: 3, $p14: 358, e: 40 };
+  bump(v0, "$p14", 16);
+  v0.b = BigInt.asUintN(64, v0.b + 1n);
+  if ((v0.$p14 >>> 8 >>> 0 & 1) >>> 0 !== 0) {
+    v44 = 1;
   } else {
-    v46 = 0;
+    v44 = 0;
   }
-  var v60 = (v46 + (Math.imul(Number(i.b) | 0, 10) | 0) | 0) + (Math.imul(i.c | 0, 100) | 0) | 0;
-  var v152 = i.$p14;
-  return ((v60 + (Math.imul((((v152 & 15) >>> 0 ^ 8) >>> 0) - 8 >>> 0 | 0, 1000) | 0) | 0) + (Math.imul(i.e | 0, 10000) | 0) | 0) + (Math.imul((((v152 >>> 4 >>> 0 & 15) >>> 0 ^ 8) >>> 0) - 8 >>> 0 | 0, 1000000) | 0) | 0;
+  var v58 = (v44 + (Math.imul(Number(v0.b) | 0, 10) | 0) | 0) + (Math.imul(v0.c | 0, 100) | 0) | 0;
+  var v120 = v0.$p14;
+  return ((v58 + (Math.imul((((v120 & 15) >>> 0 ^ 8) >>> 0) - 8 >>> 0 | 0, 1000) | 0) | 0) + (Math.imul(v0.e | 0, 10000) | 0) | 0) + (Math.imul((((v120 >>> 4 >>> 0 & 15) >>> 0 ^ 8) >>> 0) - 8 >>> 0 | 0, 1000000) | 0) | 0;
 }
 
 function pinned() {
-  var v46;
-  var p = { a: 1, b: 9n, c: 3, d: 6, e: 40, f: 6 };
-  bump(p, "f", 1);
-  p.b = BigInt.asUintN(64, p.b + 1n);
-  if (p.a) {
-    v46 = 1;
+  var v44;
+  var v0 = { a: 1, b: 9n, c: 3, d: 6, e: 40, f: 6 };
+  bump(v0, "f", 1);
+  v0.b = BigInt.asUintN(64, v0.b + 1n);
+  if (v0.a) {
+    v44 = 1;
   } else {
-    v46 = 0;
+    v44 = 0;
   }
-  return ((((v46 + (Math.imul(Number(p.b) | 0, 10) | 0) | 0) + (Math.imul(p.c | 0, 100) | 0) | 0) + (Math.imul(p.d | 0, 1000) | 0) | 0) + (Math.imul(p.e | 0, 10000) | 0) | 0) + (Math.imul(p.f | 0, 1000000) | 0) | 0;
+  return ((((v44 + (Math.imul(Number(v0.b) | 0, 10) | 0) | 0) + (Math.imul(v0.c | 0, 100) | 0) | 0) + (Math.imul(v0.d | 0, 1000) | 0) | 0) + (Math.imul(v0.e | 0, 10000) | 0) | 0) + (Math.imul(v0.f | 0, 1000000) | 0) | 0;
 }
 
 function hostShaped() {
@@ -225,20 +210,26 @@ function hostBorrowed() {
 }
 
 function main() {
-  var v0 = nested();
-  var s = { flags: { flags: 0, count: 0 }.flags, count: 0 };
-  setBoth(s, "flags", 1);
-  flip(s, "flags", 1);
-  var v6 = ((v0 + valueOf(s.flags) | 0) + coPacked() | 0) + composed() | 0;
+  var v52 = (Math.imul(valueOf({ flags: 3, count: 8 }.flags), 10) | 0) + 8 | 0;
+  var v53 = { flags: 0, count: 0 };
+  setBoth(v53, "flags", 1);
+  flip(v53, "flags", 1);
+  var v4 = (v52 + valueOf(v53.flags) | 0) + coPacked() | 0;
+  var v74 = 0;
+  v74 = v74 & 4294967292 | 0 & 3;
+  v74 = v74 & ~(3 << 2) | (0 & 3) << 2;
+  v74 = v74 & 4294967294 | 1 & 1;
+  v74 = v74 & ~(1 << 3) | (1 & 1) << 3;
+  var v6 = v4 + (valueOf(v74 & 3) + (Math.imul(valueOf(v74 >>> 2 & 3), 10) | 0) | 0) | 0;
   var t = 0;
   t = t & 4294967292 | 1 & 3;
   t = t & ~(3 << 2) | (2 & 3) << 2;
   var v12 = ((v6 + ((Math.imul(valueOf(t >>> 2 & 3), 10) | 0) + valueOf(t & 3) | 0) | 0) + reborrowed() | 0) + swapped() | 0;
   makePair();
   var v16 = (v12 + (Number(dropped) | 0) | 0) + folded() | 0;
-  var v74 = { $tag: 0, $p: 0 };
-  v74.$p = (((v74.$p & 4294967294) >>> 0 | 1) >>> 0 & 4294967293) >>> 0;
-  return ((((v16 + ((heldValue(v74) + (Math.imul(heldValue({ $tag: 1, $p: 5 }), 100) | 0) | 0) + (Math.imul(heldValue({ $tag: 2, $p: null }), 10000) | 0) | 0) | 0) + reordered() | 0) + pinned() | 0) + hostShaped() | 0) + hostBorrowed() | 0;
+  var v123 = { $tag: 0, $p: 0 };
+  v123.$p = (((v123.$p & 4294967294) >>> 0 | 1) >>> 0 & 4294967293) >>> 0;
+  return ((((v16 + ((heldValue(v123) + (Math.imul(heldValue({ $tag: 1, $p: 5 }), 100) | 0) | 0) + (Math.imul(heldValue({ $tag: 2, $p: null }), 10000) | 0) | 0) | 0) + reordered() | 0) + pinned() | 0) + hostShaped() | 0) + hostBorrowed() | 0;
 }
 
 function Drop_Owned_drop(value) {
@@ -256,8 +247,26 @@ function Drop_Owned_drop(value) {
 }
 
 function drop$Pair(value) {
-  Drop_Owned_drop(value.x);
-  Drop_Owned_drop(value.y);
+  var v4;
+  var v16;
+  if (value.x & 1) {
+    v4 = 1;
+  } else {
+    v4 = 2;
+  }
+  var v10 = BigInt.asIntN(64, BigInt(v4));
+  var v11 = { $v: dropped };
+  add_eq_I64(v11, v10);
+  dropped = v11.$v;
+  if (value.y & 1) {
+    v16 = 1;
+  } else {
+    v16 = 2;
+  }
+  var v22 = BigInt.asIntN(64, BigInt(v16));
+  var v23 = { $v: dropped };
+  add_eq_I64(v23, v22);
+  dropped = v23.$v;
   return;
 }
 

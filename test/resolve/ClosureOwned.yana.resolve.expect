@@ -357,58 +357,54 @@ fn makeSummer(%xs: Array(Int)) -> () -> Int {
 
 fn main() -> Int {
   b0:
-    %v6 = alloc *4 heap escaping : Int
-    %v7 = addressof %local0 : %Int
-    %v9 = alloc : Run(Int)
-    init %local1@Run.items, %v7
-    init %local1@Run.capacity, 4
-    init %local1@Run.ownsHeap, 1
+    %v4 = alloc : Array(Int)
+    %v7 = alloc *4 heap escaping : Int
+    %v8 = addressof %local1 : %Int
+    init %local0@Array.run@Run.items, %v8
+    init %local0@Array.run@Run.capacity, 4
+    init %local0@Array.run@Run.ownsHeap, 1
     %v14 = strideof Int : Long
     %v15 = mul 0, %v14 : Long
-    %v16 = add %v7, %v15 : %Int
+    %v16 = add %v8, %v15 : %Int
     init [%v16], 1
     %v19 = strideof Int : Long
     %v20 = mul 1, %v19 : Long
-    %v21 = add %v7, %v20 : %Int
+    %v21 = add %v8, %v20 : %Int
     init [%v21], 2
     %v24 = strideof Int : Long
     %v25 = mul 2, %v24 : Long
-    %v26 = add %v7, %v25 : %Int
+    %v26 = add %v8, %v25 : %Int
     init [%v26], 3
     %v29 = strideof Int : Long
     %v30 = mul 3, %v29 : Long
-    %v31 = add %v7, %v30 : %Int
+    %v31 = add %v8, %v30 : %Int
     init [%v31], 4
-    %v33 = alloc : Array(Int)
-    init %local2@Array.run, %v9
-    init %local2@Array.length, 4
-    %v36 = move %local2 : Array(Int)
-    %first = call makeSummer, %v36 : () -> Int
-    %v42 = alloc *2 heap escaping : Int
-    %v43 = addressof %local4 : %Int
-    %v45 = alloc : Run(Int)
-    init %local5@Run.items, %v43
-    init %local5@Run.capacity, 2
-    init %local5@Run.ownsHeap, 1
-    %v50 = strideof Int : Long
-    %v51 = mul 0, %v50 : Long
-    %v52 = add %v43, %v51 : %Int
-    init [%v52], 10
-    %v55 = strideof Int : Long
-    %v56 = mul 1, %v55 : Long
-    %v57 = add %v43, %v56 : %Int
-    init [%v57], 20
-    %v59 = alloc : Array(Int)
-    init %local6@Array.run, %v45
-    init %local6@Array.length, 2
-    %v62 = move %local6 : Array(Int)
-    %second = call makeSummer, %v62 : () -> Int
-    %v64 = calldyn %first : Int
-    drop_derived %local3 via drop$() -> Int reclaim reclaim$() -> Int
-    %v65 = calldyn %second : Int
-    drop_derived %local7 via drop$() -> Int reclaim reclaim$() -> Int
-    %v66 = add %v64, %v65 : Int
-    ret %v66
+    init %local0@Array.length, 4
+    %v34 = move %local0 : Array(Int)
+    %first = call makeSummer, %v34 : () -> Int
+    %v38 = alloc : Array(Int)
+    %v41 = alloc *2 heap escaping : Int
+    %v42 = addressof %local4 : %Int
+    init %local3@Array.run@Run.items, %v42
+    init %local3@Array.run@Run.capacity, 2
+    init %local3@Array.run@Run.ownsHeap, 1
+    %v48 = strideof Int : Long
+    %v49 = mul 0, %v48 : Long
+    %v50 = add %v42, %v49 : %Int
+    init [%v50], 10
+    %v53 = strideof Int : Long
+    %v54 = mul 1, %v53 : Long
+    %v55 = add %v42, %v54 : %Int
+    init [%v55], 20
+    init %local3@Array.length, 2
+    %v58 = move %local3 : Array(Int)
+    %second = call makeSummer, %v58 : () -> Int
+    %v60 = calldyn %first : Int
+    drop_derived %local2 via drop$() -> Int reclaim reclaim$() -> Int
+    %v61 = calldyn %second : Int
+    drop_derived %local5 via drop$() -> Int reclaim reclaim$() -> Int
+    %v62 = add %v60, %v61 : Int
+    ret %v62
 }
 
 fn ResolveTest.lambda$0(%env: %{xs: Array(Int)}) -> Int {

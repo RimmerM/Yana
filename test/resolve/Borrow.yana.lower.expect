@@ -38,19 +38,19 @@ moveBy<complex>(%p: Ptr, %dx: Int, %dy: Int) {
 
 main<complex>(): Int {
   b_0 {
-    %here = alloca 8, 4: Ptr
-    store %here, 10, 4
-    %v_1 = add %here, 4: Ptr
-    store %v_1, 20, 4
-    call_complex +=(Int), %here, 1
-    %v_2 = add %here, 4: Ptr
-    call_complex +=(Int), %v_2, 2
-    %v_3 = loads %here, 4: Int
-    %v_4 = add %v_3, 33: Int
-    %v_5 = add %here, 4: Ptr
-    %v_6 = loads %v_5, 4: Int
-    %v_7 = add %v_4, %v_6: Int
-    ret %v_7
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 10, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 20, 4
+    call_complex +=(Int), %v_1, 1
+    %v_3 = add %v_1, 4: Ptr
+    call_complex +=(Int), %v_3, 2
+    %v_4 = loads %v_1, 4: Int
+    %v_5 = add %v_4, 33: Int
+    %v_6 = add %v_1, 4: Ptr
+    %v_7 = loads %v_6, 4: Int
+    %v_8 = add %v_5, %v_7: Int
+    ret %v_8
   }
 }
 

@@ -59,22 +59,22 @@ ModulePtr<Value> ExprResolver::offsetPointer(ModulePtr<Value> base, TypePtr elem
  * allocator takes. Folded rather than cast when it is a literal, because a cast is not a constant
  * and the placement rule for a run of unknown length is the heap - see InstAlloc::extent.
  */
-ModulePtr<Value> ExprResolver::buildRun(TypePtr runType, ModulePtr<Value> count, LocationId source,
-                                        ModulePtr<Value>& items) {
+bool ExprResolver::buildRunInto(TypePtr runType, ModulePtr<Value> count, LocationId source,
+                                ModulePtr<Value>& items, const Place& into) {
     items = nullptr;
 
-    if(!runType || global[runType]->kind != Type::Record) return nullptr;
+    if(!runType || global[runType]->kind != Type::Record) return false;
     auto record = (RecordType*)global[runType];
 
-    if(record->instanceOf != module.program.runType || record->instanceArgs.size() != 1) return nullptr;
-    if(record->constructors.isEmpty()) return nullptr;
+    if(record->instanceOf != module.program.runType || record->instanceArgs.size() != 1) return false;
+    if(record->constructors.isEmpty()) return false;
 
     auto element = record->instanceArgs.get(global, 0);
     auto content = record->constructors.get(global, 0).content;
-    if(!content || global[content]->kind != Type::Tup) return nullptr;
+    if(!content || global[content]->kind != Type::Tup) return false;
 
     auto fields = (TupType*)global[content];
-    if(fields->fields.size() != 3) return nullptr;
+    if(fields->fields.size() != 3) return false;
 
     auto pointerField = fields->fields.get(global, 0).type;
     auto countField = fields->fields.get(global, 1).type;
@@ -95,12 +95,21 @@ ModulePtr<Value> ExprResolver::buildRun(TypePtr runType, ModulePtr<Value> count,
     auto placed = constant<ConstInt>(source, tagField, 0);
     ((InstAlloc*)local[slots])->storageFlag = placed;
 
-    auto storage = allocate(runType, source, 0);
-    auto place = project(placeFor(storage, source), ProjectionKind::Downcast, 0);
+    auto place = project(into, ProjectionKind::Downcast, 0);
 
     initialize(project(place, ProjectionKind::Field, 0), items, source);
     initialize(project(place, ProjectionKind::Field, 1), convert(count, countField, source), source);
     initialize(project(place, ProjectionKind::Field, 2), placed, source);
+
+    return true;
+}
+
+ModulePtr<Value> ExprResolver::buildRun(TypePtr runType, ModulePtr<Value> count, LocationId source,
+                                        ModulePtr<Value>& items) {
+    if(!runType || global[runType]->kind != Type::Record) return nullptr;
+
+    auto storage = allocate(runType, source, 0);
+    if(!buildRunInto(runType, count, source, items, placeFor(storage, source))) return nullptr;
 
     return storage;
 }
@@ -1399,13 +1408,27 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
     auto runField = fields->fields.get(global, 0).type;
     auto countField = fields->fields.get(global, 1).type;
 
+    /*
+     * The array's storage first, and the run built *into* its field rather than beside it.
+     *
+     * A run in a temporary is a whole-aggregate copy away from the array that owns it, and nothing
+     * below this stage takes one apart: `splitAggregateWrite` declines a nested destination whose
+     * fields the target co-packs, which a run's capacity and placement bit are. So the copy survived
+     * to the backend, and with it the fact that the placement tag escape analysis patched was
+     * written somewhere other than where the teardown reads it.
+     *
+     * Constructing in place is the honest fix and it costs nothing here, because the caller of a
+     * literal always has somewhere to put it. Implementation-Containers.md §13.2 is what wanted it.
+     */
+    auto storage = allocate(arrayType, source, 0);
+    auto place = project(placeFor(storage, source), ProjectionKind::Downcast, 0);
+
     // The run, sized at exactly the literal's length: a literal is Implementation-Containers.md
     // §12's first allocation strategy - immutable extent, constant, no spare capacity to pay for.
     auto count = makeInt(source, countField, values.size());
     ModulePtr<Value> slots = nullptr;
-    auto run = buildRun(runField, count, source, slots);
 
-    if(!run) {
+    if(!buildRunInto(runField, count, source, slots, project(place, ProjectionKind::Field, 0))) {
         context.diagnostics.error("internal: the array's first field is not a run of slots"_v, source);
         return nullptr;
     }
@@ -1427,12 +1450,7 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
         initialize(Place::atPointer(offsetPointer(slots, element, index, source)), value, source);
     }
 
-    auto storage = allocate(arrayType, source, 0);
-    auto place = project(placeFor(storage, source), ProjectionKind::Downcast, 0);
-
-    initialize(project(place, ProjectionKind::Field, 0), run, source);
     initialize(project(place, ProjectionKind::Field, 1), count, source);
-
     return storage;
 }
 

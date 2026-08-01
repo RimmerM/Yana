@@ -295,6 +295,19 @@ using InstList = SmallArray<Inst*, 8>;
 void insertInstructions(OptContext& opt, Block& block, Size index, InstList& instructions);
 
 /*
+ * The place a value came out of, or nothing where it came out of no storage this function can name.
+ *
+ * The same two answers ExprResolver::findPlace gives, for the same reason: a value loaded out of a
+ * place is addressed through that place again rather than through a copy, and every other value of
+ * a memory type is some local's storage - an allocation, a call's result, an exchanged temporary.
+ *
+ * Two passes ask it and they ask it of the same thing - a memory-typed argument at a call site.
+ * opt_arg.cpp needs somewhere to project a field out of; opt_inline.cpp needs the root a callee's
+ * own places should be rebuilt against.
+ */
+Maybe<Place> storageOf(OptContext& opt, ModulePtr<Value> value);
+
+/*
  * The fields of an aggregate a pass is willing to take apart, and how a place names one.
  *
  * `constructor` is the `Downcast` a record's field path begins with - `%p@Point.x` is a downcast to
@@ -413,6 +426,17 @@ void collapseBorrows(OptContext& opt);
 void forwardPlaces(OptContext& opt);
 void promotePlaces(OptContext& opt);
 void hoistLoopValues(OptContext& opt);
+void eliminateDeadLoops(OptContext& opt);
+
+/*
+ * The driver's own fixed point over one function, exposed because the inliner needs it too.
+ *
+ * What a call site is judged against is the callee as it will be *emitted*, and answering that is
+ * running the passes on it - see `settle` in opt_inline.cpp, and Implementation-Containers.md §13.2
+ * for the case that made a chosen few of them not enough. Expects `rebuildUses` to have been called
+ * for the function it is about to work on, which is the one thing it does not do itself.
+ */
+void optimizeRounds(OptContext& opt);
 void scalarizeLocals(OptContext& opt);
 void eliminateCommonValues(OptContext& opt);
 void eliminateDeadValues(OptContext& opt);

@@ -1,6 +1,11 @@
 #include "opt_pass.h"
 
 /*
+ * The two things worth doing to a loop here: moving what does not change out of one, and removing
+ * one that does nothing at all.
+ *
+ * ---
+ *
  * Loop-invariant code motion: a computation whose answer cannot change between iterations is moved
  * to the block in front of the loop, where it happens once.
  *
@@ -307,4 +312,261 @@ void hoistLoopValues(OptContext& opt) {
     // in a block the outer one contains, so the outer loop's own walk - or the next driver round,
     // where the two are not nested directly - carries it the rest of the way out.
     for(auto& loop: loops) hoister.run(loop);
+}
+
+/*
+ * A loop that counts and does nothing else, removed.
+ *
+ * Implementation-Containers.md §13.2 is what this is for and it is worth stating as a cost rather
+ * than as a shape. `Reclaim(Array(a))` is one traversal over the live elements handing each to the
+ * compiler's per-member teardown, which is the whole of what a container author writes - and for an
+ * element type with nothing to run, the per-element work reduces to a read nobody reads. What is
+ * left is a loop that counts to the array's length, and it was being emitted at every last use of
+ * every `Array(Int)` in every program. The traversal is the right thing to have written; paying for
+ * it when the element type is `Int` is not.
+ *
+ * ## What has to be true, and which way of being wrong each rules out
+ *
+ * 1. **The loop is left by failing the header's test and by nothing else.** That is what makes "the
+ *    test is false" a complete description of removing it, which is the whole of the rewrite below.
+ * 2. **Nothing in it writes storage** except the one write that steps the counter, and nothing in it
+ *    calls anything. Reads are allowed and are the point - the element read is what the body is made
+ *    of - and so are the ownership instructions' absence: a `Drop`, a `Move` or an `Init` of anything
+ *    else is a decision the analyses took, and a loop containing one is not a loop that does nothing.
+ * 3. **No value it defines is read after it**, the counter included. Removing the loop leaves the
+ *    counter holding what it started with rather than the bound, so a reader outside would see a
+ *    different number - which is why the local's own use list is checked and not only the values'.
+ * 4. **It terminates**, and provably rather than by assumption. The shape admitted is the canonical
+ *    one: a counter stepping by exactly one against a bound the loop does not compute, under a
+ *    strict `<`. Then the counter never passes the bound, so it never wraps, so the iteration count
+ *    is the difference between the two and the loop ends whatever it started at. Nothing here rests
+ *    on a forward-progress rule, which the language has not got and would not want here.
+ *
+ * ## The read this removes that `eliminateDeadValues` would not
+ *
+ * A read through a raw pointer stays there - see `isDeadRead`, which declines one because the fault
+ * it may take is the program's to take. This removes it, because the question is not the same one:
+ * what is being decided is whether a *loop* with no effect may go, and the loop is where the address
+ * came from. `let ->doomed = *(items + i)` over a run the count says is live is exactly a read that
+ * cannot fault and that nothing here could prove cannot fault, and refusing the whole rule on its
+ * account would be refusing it in the one case it exists for. It is the only place in this directory
+ * that removes such a read, and it removes it only along with everything that computed its address.
+ *
+ * ## Why it is a constant rather than a deletion
+ *
+ * Nothing below deletes a block. What it knows is that the test is false the first time it is asked,
+ * so it writes that down - and the arm nothing then reaches, the phi left with one alternative, and
+ * the header folded back into the block above it are all opt_branch.cpp's, which already does that
+ * job for a `je` on a constant and does the phi bookkeeping that goes with it. Which is also why
+ * this runs immediately in front of `foldBranches` rather than beside the hoister.
+ */
+
+namespace {
+
+struct LoopKiller {
+    OptContext& opt;
+    Dominance& dominance;
+
+    bool inside(Loop& loop, U32 index) {
+        return index < loop.contains.size() && loop.contains[index];
+    }
+
+    // Where a value is computed, on the same terms `Hoister::definedIn` reads it: a constant belongs
+    // to no block whatever block it names, and an argument's block is the entry.
+    bool definedInside(Loop& loop, ModulePtr<Value> value) {
+        if(!value) return false;
+
+        auto& definition = *opt.local[value];
+        switch(definition.kind) {
+            case Value::ConstInt: case Value::ConstFloat: case Value::ConstDouble:
+            case Value::Arg:
+                return false;
+            default:
+                break;
+        }
+
+        if(!definition.block) return false;
+        return inside(loop, opt.local[definition.block]->index);
+    }
+
+    bool usedOutside(Loop& loop, ModulePtr<Value> value) {
+        auto& uses = opt.local[value]->uses;
+
+        for(Size i = 0; i < uses.size(); i++) {
+            auto block = opt.local[uses.get(opt.local, i)]->block;
+            if(!block || !inside(loop, opt.local[block]->index)) return true;
+        }
+
+        return false;
+    }
+
+    // A read of one particular place, performed inside the loop. `samePlace` rather than the aliasing
+    // question, because what this is establishing is that two instructions name the same counter.
+    bool readsPlace(Loop& loop, ModulePtr<Value> value, const Place& place) {
+        if(!definedInside(loop, value)) return false;
+        if(opt.local[value]->kind != Value::LoadPlace) return false;
+
+        return samePlace(opt, ((InstLoadPlace&)*opt.local[value]).place, place);
+    }
+
+    /*
+     * Whether the counter is the loop's alone.
+     *
+     * Every use of its storage is either inside the loop or a write, and the write is what put the
+     * starting value there. That one stays where it is - the local is then written and never read,
+     * which is the state opt_scalar.cpp removes it in - and it is the reason this asks about the
+     * local rather than only about the values the loop defines.
+     */
+    bool counterIsPrivate(Loop& loop, const Place& place) {
+        if(place.local >= opt.function->localCount()) return false;
+
+        auto storage = opt.function->localAt(opt.local, place.local).value;
+        if(!storage) return false;
+
+        auto& uses = opt.local[storage]->uses;
+        for(Size i = 0; i < uses.size(); i++) {
+            auto pointer = uses.get(opt.local, i);
+            auto user = opt.local[pointer];
+
+            if(user->block && inside(loop, opt.local[user->block]->index)) continue;
+            if(user->kind != Value::Init && user->kind != Value::Assign) return false;
+
+            // A write *of* the counter rather than one that merely mentions it, since both are one
+            // entry in the same list.
+            auto& write = (InstInit&)*user;
+            if(write.place.root != PlaceRoot::Local || write.place.local != place.local) return false;
+            if(write.place.projections.isNotEmpty()) return false;
+        }
+
+        return true;
+    }
+
+    // Condition 4: `i = i + 1` against `i < bound`, at a width this stage knows, with the bound
+    // outside the loop. See the header for why that is a termination proof rather than a guess.
+    bool stepsToTheBound(Loop& loop, InstInit& step, InstJe& branch) {
+        auto& place = step.place;
+
+        // A whole local. A place with a path in it is a field of something, and nothing here has an
+        // answer about what else reaches that something.
+        if(place.root != PlaceRoot::Local || place.projections.isNotEmpty()) return false;
+
+        auto added = opt.local[step.value];
+        if(added->kind != Value::Add) return false;
+
+        auto& sum = (InstBinary&)*added;
+        auto increment = constantValueOf(opt, sum.rhs);
+        if(!increment || increment.unwrap() != 1) return false;
+        if(!readsPlace(loop, sum.lhs, place)) return false;
+
+        if(!branch.cond || opt.local[branch.cond]->kind != Value::Cmp) return false;
+
+        auto& test = (InstCmp&)*opt.local[branch.cond];
+        if(test.cmp != CompareOp::Lt) return false;
+        if(!readsPlace(loop, test.lhs, place)) return false;
+        if(definedInside(loop, test.rhs)) return false;
+
+        /*
+         * And one width for all three, which is what the proof is stated in. `foldableInt` is the
+         * same admission this stage's arithmetic uses, so a refinement or a type it declines to
+         * compute in is a type this declines to reason about the wrapping of.
+         */
+        auto type = opt.local[test.lhs]->type;
+        if(!foldableInt(opt, type)) return false;
+        if(added->type != type || opt.local[sum.lhs]->type != type) return false;
+
+        return counterIsPrivate(loop, place);
+    }
+
+    bool isRemovable(Loop& loop) {
+        auto header = opt.local[dominance.blocks[loop.header]];
+        if(!header->terminator) return false;
+
+        auto terminator = opt.local[header->terminator];
+        if(terminator->kind != Value::Je) return false;
+
+        // Condition 1. The test continues the loop when it holds, which is the arrangement the `<`
+        // below is read against - the other spelling is an ordinary loop and simply not this rule's.
+        auto& branch = (InstJe&)*terminator;
+        if(!inside(loop, opt.local[branch.thenBlock]->index)) return false;
+        if(inside(loop, opt.local[branch.elseBlock]->index)) return false;
+
+        for(auto index: loop.blocks) {
+            if(index == loop.header) continue;
+
+            auto block = opt.local[dominance.blocks[index]];
+            if(!block->terminator) return false;
+            if(opt.local[block->terminator]->kind != Value::Jmp) return false;
+            if(!inside(loop, opt.local[((InstJmp&)*opt.local[block->terminator]).target]->index)) return false;
+        }
+
+        /*
+         * Conditions 2 and 3, in one walk.
+         *
+         * Every block in the loop is now on one path from the header back to it - each has a single
+         * successor and every one of them reaches the latch - so the counter's single write runs
+         * exactly once per iteration, which is what the step argument above assumes.
+         */
+        ModulePtr<Inst> step = nullptr;
+
+        for(auto index: loop.blocks) {
+            auto block = opt.local[dominance.blocks[index]];
+
+            for(Size i = 0; i < block->phis.size(); i++) {
+                if(usedOutside(loop, (ModulePtr<Value>)block->phis.get(opt.local, i))) return false;
+            }
+
+            for(Size i = 0; i < block->instructions.size(); i++) {
+                auto pointer = block->instructions.get(opt.local, i);
+                auto& instruction = *opt.local[pointer];
+
+                if(usedOutside(loop, (ModulePtr<Value>)pointer)) return false;
+                if(isPureValue(instruction) || instruction.kind == Value::LoadPlace) continue;
+
+                if(instruction.kind == Value::Assign && !step) {
+                    step = pointer;
+                    continue;
+                }
+
+                return false;
+            }
+        }
+
+        if(!step) return false;
+        return stepsToTheBound(loop, (InstInit&)*opt.local[step], branch);
+    }
+
+    void run(Loop& loop) {
+        if(!isRemovable(loop)) return;
+
+        auto header = opt.local[dominance.blocks[loop.header]];
+        auto terminator = header->terminator;
+        auto& branch = (InstJe&)*opt.local[terminator];
+
+        auto never = makeConstant(opt, *opt.local[terminator], opt.program.scalar.bool_, 0);
+
+        dropUse(opt, branch.cond, terminator);
+        branch.cond = never;
+        opt.local[never]->uses.push(opt.program.arena, terminator);
+
+        opt.changed = true;
+    }
+};
+
+}
+
+void eliminateDeadLoops(OptContext& opt) {
+    if(opt.function->blocks.isEmpty()) return;
+
+    auto& dominance = opt.dominance;
+    computeDominance(opt, dominance);
+
+    Array<Loop> loops;
+    computeLoops(opt, dominance, loops);
+    if(loops.isEmpty()) return;
+
+    LoopKiller killer { opt, dominance };
+
+    // Innermost first, for the reason the hoister wants it: an outer loop whose whole body was an
+    // inner one becomes removable itself, on the round after the inner one has gone.
+    for(auto& loop: loops) killer.run(loop);
 }

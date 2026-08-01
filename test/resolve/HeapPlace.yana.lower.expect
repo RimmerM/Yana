@@ -126,11 +126,11 @@ mapMemory<complex>(%size: Long): Ptr {
 
 main<complex>(): Int {
   b_0 {
-    %p = call_complex allocateHeap, 16: Ptr
-    %v_1 = add %p, 8: Ptr
-    store %v_1, 20, 8
-    store %p, 12, 8
-    call_complex freeHeap, %p
+    %v_1 = call_complex allocateHeap, 16: Ptr
+    %v_2 = add %v_1, 8: Ptr
+    store %v_2, 20, 8
+    store %v_1, 12, 8
+    call_complex freeHeap, %v_1
     ret 32
   }
 }

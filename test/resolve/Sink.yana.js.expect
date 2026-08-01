@@ -46,6 +46,7 @@ function unwrap(e) {
 
 function tagged(flag) {
   var e;
+  var v22;
   if (flag) {
     e = { $tag: 1, n: 0n, h: { value: 7n } };
   } else {
@@ -53,7 +54,12 @@ function tagged(flag) {
   }
   var f = { $tag: 0, n: 0n, h: { value: 0n } };
   moveInit$Either(f, e);
-  return unwrap(f);
+  if (f.$tag === 0) {
+    v22 = f.n;
+  } else {
+    v22 = f.h.value;
+  }
+  return v22;
 }
 
 function consume(it) {

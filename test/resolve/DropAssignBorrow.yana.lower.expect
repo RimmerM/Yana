@@ -25,16 +25,24 @@ whole<complex>(): Long {
     %v_3 = call_complex pick, %x, %y, 1: Ptr
     %v_4 = alloca 8, 8: Ptr
     call_complex makeBuffer, %v_4, 32
-    call_complex Drop(Buffer).drop, %v_3
+    %v_5 = load %v_3, 8: Ptr
+    call_complex freeHeap, %v_5
+    call_complex -=(I64), @liveBuffers, 1
     copy %v_3, %v_4, 8
     %counted = loads @liveBuffers, 8: Long
-    %v_5 = call_complex firstByte, %x: Long
-    call_complex Drop(Buffer).drop, %x
-    %v_6 = add %counted, %v_5: Long
-    %v_7 = call_complex firstByte, %y: Long
-    call_complex Drop(Buffer).drop, %y
-    %v_8 = add %v_6, %v_7: Long
-    ret %v_8
+    %v_6 = load %x, 8: Ptr
+    %v_7 = load %v_6, 1: Int
+    %v_8 = cast %v_7: Long
+    call_complex freeHeap, %v_6
+    call_complex -=(I64), @liveBuffers, 1
+    %v_9 = add %counted, %v_8: Long
+    %v_10 = load %y, 8: Ptr
+    %v_11 = load %v_10, 1: Int
+    %v_12 = cast %v_11: Long
+    call_complex freeHeap, %v_10
+    call_complex -=(I64), @liveBuffers, 1
+    %v_13 = add %v_9, %v_12: Long
+    ret %v_13
   }
 }
 
@@ -62,7 +70,9 @@ mapMemory<complex>(%size: Long): Ptr {
 
 drop$Holder<complex>(%value: Ptr) {
   b_0 {
-    call_complex Drop(Buffer).drop, %value
+    %v_1 = load %value, 8: Ptr
+    call_complex freeHeap, %v_1
+    call_complex -=(I64), @liveBuffers, 1
     ret 
   }
 }
@@ -216,21 +226,23 @@ field<complex>(): Long {
     copy %v_1, %v_2, 8
     %v_3 = add %v_1, 8: Ptr
     store %v_3, 3, 8
-    %owner = alloca 16, 8: Ptr
-    copy %owner, %v_1, 16
-    %v_4 = call_complex holderOf, %owner: Ptr
+    %v_4 = call_complex holderOf, %v_1: Ptr
     %v_5 = alloca 8, 8: Ptr
     call_complex makeBuffer, %v_5, 32
-    call_complex Drop(Buffer).drop, %v_4
+    %v_6 = load %v_4, 8: Ptr
+    call_complex freeHeap, %v_6
+    call_complex -=(I64), @liveBuffers, 1
     copy %v_4, %v_5, 8
     %counted = loads @liveBuffers, 8: Long
-    %v_6 = call_complex firstByte, %owner: Long
-    %v_7 = add %counted, %v_6: Long
-    %v_8 = add %owner, 8: Ptr
-    %v_9 = loads %v_8, 8: Long
-    call_complex drop$Holder, %owner
-    %v_10 = add %v_7, %v_9: Long
-    ret %v_10
+    %v_7 = load %v_1, 8: Ptr
+    %v_8 = load %v_7, 1: Int
+    %v_9 = cast %v_8: Long
+    %v_10 = add %counted, %v_9: Long
+    %v_11 = add %v_1, 8: Ptr
+    %v_12 = loads %v_11, 8: Long
+    call_complex drop$Holder, %v_1
+    %v_13 = add %v_10, %v_12: Long
+    ret %v_13
   }
 }
 
@@ -257,16 +269,24 @@ other<complex>(): Long {
     %v_3 = call_complex pick, %x, %y, 0: Ptr
     %v_4 = alloca 8, 8: Ptr
     call_complex makeBuffer, %v_4, 32
-    call_complex Drop(Buffer).drop, %v_3
+    %v_5 = load %v_3, 8: Ptr
+    call_complex freeHeap, %v_5
+    call_complex -=(I64), @liveBuffers, 1
     copy %v_3, %v_4, 8
     %counted = loads @liveBuffers, 8: Long
-    %v_5 = call_complex firstByte, %x: Long
-    call_complex Drop(Buffer).drop, %x
-    %v_6 = add %counted, %v_5: Long
-    %v_7 = call_complex firstByte, %y: Long
-    call_complex Drop(Buffer).drop, %y
-    %v_8 = add %v_6, %v_7: Long
-    ret %v_8
+    %v_6 = load %x, 8: Ptr
+    %v_7 = load %v_6, 1: Int
+    %v_8 = cast %v_7: Long
+    call_complex freeHeap, %v_6
+    call_complex -=(I64), @liveBuffers, 1
+    %v_9 = add %counted, %v_8: Long
+    %v_10 = load %y, 8: Ptr
+    %v_11 = load %v_10, 1: Int
+    %v_12 = cast %v_11: Long
+    call_complex freeHeap, %v_10
+    call_complex -=(I64), @liveBuffers, 1
+    %v_13 = add %v_9, %v_12: Long
+    ret %v_13
   }
 }
 

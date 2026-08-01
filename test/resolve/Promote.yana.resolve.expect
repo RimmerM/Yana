@@ -43,10 +43,8 @@ fn counted(%n: Int) -> Int {
 fn flagged(%x: Bool) -> Int {
   b0:
     %v1 = alloc : Flags
-    init %local0@Flags.a, %x
-    init %local0@Flags.b, False
-    %f = alloc : Flags
-    init %f, %v1
+    init %f@Flags.a, %x
+    init %f@Flags.b, False
     je %x, b1, b2
 
   b1:
@@ -57,9 +55,9 @@ fn flagged(%x: Bool) -> Int {
     jmp b3
 
   b3:
-    %v12 = load %f : Flags
-    %v13 = load %f@Flags.a : Bool
-    je %v13, b4, b5
+    %v10 = load %f : Flags
+    %v11 = load %f@Flags.a : Bool
+    je %v11, b4, b5
 
   b4:
     jmp b6
@@ -68,10 +66,10 @@ fn flagged(%x: Bool) -> Int {
     jmp b6
 
   b6:
-    %v21 = phi [b4, 1], [b5, 0] : Int
-    %v22 = load %f : Flags
-    %v23 = load %f@Flags.b : Bool
-    je %v23, b7, b8
+    %v19 = phi [b4, 1], [b5, 0] : Int
+    %v20 = load %f : Flags
+    %v21 = load %f@Flags.b : Bool
+    je %v21, b7, b8
 
   b7:
     jmp b9
@@ -80,9 +78,9 @@ fn flagged(%x: Bool) -> Int {
     jmp b9
 
   b9:
-    %v31 = phi [b7, 2], [b8, 0] : Int
-    %v32 = add %v21, %v31 : Int
-    ret %v32
+    %v29 = phi [b7, 2], [b8, 0] : Int
+    %v30 = add %v19, %v29 : Int
+    ret %v30
 }
 
 fn narrowed() -> Int {

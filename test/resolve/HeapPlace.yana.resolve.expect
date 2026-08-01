@@ -219,21 +219,19 @@ fn mapMemory(%size: I64) -> %U8 {
 
 fn main() -> Int {
   b0:
-    %v0 = alloc : Pair
-    init %local0@Pair.left, 10
-    init %local0@Pair.right, 20
-    %p = alloc heap : Pair
-    init %p, %v0
-    %v7 = load %p : Pair
-    %v8 = load %p@Pair.left : I64
-    %v11 = add %v8, 2 : I64
-    assign %p@Pair.left, %v11
+    %v0 = alloc heap : Pair
+    init %p@Pair.left, 10
+    init %p@Pair.right, 20
+    %v5 = load %p : Pair
+    %v6 = load %p@Pair.left : I64
+    %v9 = add %v6, 2 : I64
+    assign %p@Pair.left, %v9
+    %v11 = load %p : Pair
+    %v12 = load %p@Pair.left : I64
     %v13 = load %p : Pair
-    %v14 = load %p@Pair.left : I64
-    %v15 = load %p : Pair
-    %v16 = load %p@Pair.right : I64
+    %v14 = load %p@Pair.right : I64
     drop_derived %p release
-    %v17 = add %v14, %v16 : I64
-    %v18 = cast %v17 : Int
-    ret %v18
+    %v15 = add %v12, %v14 : I64
+    %v16 = cast %v15 : Int
+    ret %v16
 }

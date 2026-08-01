@@ -305,53 +305,47 @@ fn globalExchange() -> I64 {
 fn sinkSwap() -> I64 {
   b0:
     %v0 = alloc : Handle
-    init %local0@Handle.value, 1
-    %a = alloc : Handle
-    init %a, %v0
-    %v5 = alloc : Handle
-    init %local2@Handle.value, 2
-    %b = alloc : Handle
-    init %b, %v5
+    init %a@Handle.value, 1
+    %v3 = alloc : Handle
+    init %b@Handle.value, 2
     assign sinkCalls, 0
-    %v12 = load %a : Handle
-    %v13 = load %b : Handle
-    %v14 = borrow_mut %a : &mut Handle
-    %v15 = borrow_mut %b : &mut Handle
-    swap [%v14], [%v15] via Sink(Handle).sink
-    %v17 = load sinkCalls : I64
-    %v20 = mul %v17, 100 : I64
-    %v21 = load %a : Handle
-    %v22 = load %a@Handle.value : I64
-    %v25 = mul %v22, 10 : I64
-    %v26 = add %v20, %v25 : I64
-    %v27 = load %b : Handle
-    %v28 = load %b@Handle.value : I64
-    %v29 = add %v26, %v28 : I64
-    ret %v29
+    %v8 = load %a : Handle
+    %v9 = load %b : Handle
+    %v10 = borrow_mut %a : &mut Handle
+    %v11 = borrow_mut %b : &mut Handle
+    swap [%v10], [%v11] via Sink(Handle).sink
+    %v13 = load sinkCalls : I64
+    %v16 = mul %v13, 100 : I64
+    %v17 = load %a : Handle
+    %v18 = load %a@Handle.value : I64
+    %v21 = mul %v18, 10 : I64
+    %v22 = add %v16, %v21 : I64
+    %v23 = load %b : Handle
+    %v24 = load %b@Handle.value : I64
+    %v25 = add %v22, %v24 : I64
+    ret %v25
 }
 
 fn sinkExchange() -> I64 {
   b0:
     %v0 = alloc : Handle
-    init %local0@Handle.value, 1
-    %slot = alloc : Handle
-    init %slot, %v0
+    init %slot@Handle.value, 1
     assign sinkCalls, 0
-    %v7 = load %slot : Handle
-    %v8 = alloc : Handle
-    init %local2@Handle.value, 2
-    %v11 = borrow_mut %slot : &mut Handle
-    %v12 = move %local2 via Sink(Handle).sink : Handle
-    %old = exchange [%v11], %v12 via Sink(Handle).sink : Handle
-    %v14 = load sinkCalls : I64
-    %v17 = mul %v14, 100 : I64
-    %v18 = load %local3@Handle.value : I64
-    %v21 = mul %v18, 10 : I64
-    %v22 = add %v17, %v21 : I64
-    %v23 = load %slot : Handle
-    %v24 = load %slot@Handle.value : I64
-    %v25 = add %v22, %v24 : I64
-    ret %v25
+    %v5 = load %slot : Handle
+    %v6 = alloc : Handle
+    init %local1@Handle.value, 2
+    %v9 = borrow_mut %slot : &mut Handle
+    %v10 = move %local1 via Sink(Handle).sink : Handle
+    %old = exchange [%v9], %v10 via Sink(Handle).sink : Handle
+    %v12 = load sinkCalls : I64
+    %v15 = mul %v12, 100 : I64
+    %v16 = load %local2@Handle.value : I64
+    %v19 = mul %v16, 10 : I64
+    %v20 = add %v15, %v19 : I64
+    %v21 = load %slot : Handle
+    %v22 = load %slot@Handle.value : I64
+    %v23 = add %v20, %v22 : I64
+    ret %v23
 }
 
 fn swapDroppable() -> I64 {
