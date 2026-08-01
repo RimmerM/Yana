@@ -442,6 +442,26 @@ struct Legalizer {
     // one of these first - and taken back to the frame afterwards if the instruction wrote it.
     Size tempsUsed[kRegisterBankCount] = {};
 
+    /*
+     * The registers a folded address is already holding at the instruction that folds it.
+     *
+     * An X86Address emits nothing and is resolved at its own position, one instruction in front of
+     * the access that reads it - so its base and its index are *live into* that access, in whatever
+     * locations they were resolved to. When either of them came from a frame slot or a recipe, that
+     * location is a scratch register, and `tempsUsed` resetting per instruction would hand the very
+     * same one to an operand of the access. The address is then read through a register holding the
+     * value that was about to be stored into it.
+     *
+     * This is what that reset has to know about. The registers are excluded rather than the pool
+     * being offset, because what has to be avoided is a *register* - and a folded address whose
+     * operands are ordinary registers blocks nothing, since a web is never placed in the reserve.
+     *
+     * Kept as a set rather than as a count because the two operands may come from different pools:
+     * an index in a scratch register and a base in a real one is the common case, and skipping two
+     * positions for it would grow the reserve for nothing.
+     */
+    RegSet foldedAddressRegs;
+
     // The copies that cross a split web's segment boundaries, in instruction order, and how far the
     // walk has read into them. One cursor serves the function because the walk visits every
     // instruction index once and in order.
@@ -495,6 +515,14 @@ struct Legalizer {
     MachineLocation takeTemp(RegisterBankId bank) {
         auto index = tempsUsed[bank]++;
 
+        // Past anything the address this instruction folds is still holding - see
+        // foldedAddressRegs. The skipped positions are consumed rather than stepped over, so the
+        // measurement below reports the demand this instruction really has and the reserve grows to
+        // cover it on the next placement round.
+        while(index < kMaxOperandTemps && foldedAddressRegs.has(reserve.operandTemp(bank, index))) {
+            index = tempsUsed[bank]++;
+        }
+
         assertTrue(index < kMaxOperandTemps);                          // more than any form can want
         if(!measuring) assertTrue(index < reserve.operandTemps[bank]);  // ... than the reserve holds back
         if(index + 1 > used.operandTemps[bank]) used.operandTemps[bank] = U8(index + 1);
@@ -502,6 +530,28 @@ struct Legalizer {
         auto reg = reserve.operandTemp(bank, index);
         written.add(reg);
         return MachineLocation::physical(reg);
+    }
+
+    // The registers the address `inst` folds is already holding, or nothing where it folds none.
+    // Asked before any of this instruction's own temporaries are handed out, since that is the whole
+    // point - see foldedAddressRegs.
+    RegSet regsHeldByFoldedAddress(LowerInst* inst) {
+        RegSet held;
+
+        auto operand = machine.formOf(inst).addressOperand();
+        if(operand < 0) return held;
+
+        auto value = base[inst->used()[operand]];
+        if(!isMem(value)) return held;
+
+        auto found = addresses.getValue(value->inst());
+        if(!found) return held;
+
+        auto address = found.unwrap();
+        if(address.hasBase) held.add(PhysicalReg { BankGpr, U16(address.base) });
+        if(address.hasIndex) held.add(PhysicalReg { BankGpr, U16(address.index) });
+
+        return held;
     }
 
     // Where a value lives at the instruction numbered `index`, which by this point is settled:
@@ -617,6 +667,7 @@ struct Legalizer {
         pendingPost.clear();
 
         for(auto& used: tempsUsed) used = 0;
+        foldedAddressRegs = regsHeldByFoldedAddress(inst);
 
         Scratch<InstShape> held(shapes);
         auto& shape = *held;

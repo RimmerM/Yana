@@ -339,11 +339,14 @@ void ReprTable::compute(TypePtr type, Repr& into) {
         case Type::Record:
             computeRecord(*(RecordType*)value, into);
             break;
+        case Type::Array:
+            computeFixedArray(*(ArrayType*)value, into);
+            break;
         default:
             // Unit, Error, and the kinds that are reserved but not constructible yet - Ref,
-            // RegionPtr, Region, Array, Map. Reaching one of those with a value in hand is a
-            // compiler bug rather than a layout question, and zero is what the resolver's own
-            // computation answered for them too.
+            // RegionPtr, Region, Map. Reaching one of those with a value in hand is a compiler bug
+            // rather than a layout question, and zero is what the resolver's own computation
+            // answered for them too.
             break;
     }
 
@@ -413,6 +416,19 @@ void ReprTable::hostNiche(TypePtr type, Repr& into) {
 
             break;
         }
+
+        case Type::Array:
+            /*
+             * A fixed array is a host array here, so `null` really is a pattern it does not use -
+             * and it is deliberately not published. What a niche over a *container* would mean is
+             * that `Maybe([T *4])`'s absent case and its present one are told apart by the array
+             * object itself, which is a fold the elements can never disturb; the reason to decline is
+             * §6's other half. `[T *n]` borrows as a slice, and a slice is built from the container's
+             * own storage - so a folded `Maybe` would have to materialize the array before anything
+             * could take its address, at a call site that reads like an ordinary argument pass.
+             */
+            into.niche = Niche {};
+            return;
 
         default:
             // A raw pointer, whose absent value is spoken for - see `absentNiche`. Unit, Error and the
@@ -561,6 +577,37 @@ void ReprTable::computeTuple(TupType& tuple, Repr& into) {
     into.size = size;
     into.align = alignment;
     into.stride = alignTo(size, alignment);
+}
+
+/*
+ * `[T *n]` - Implementation-Containers.md §6.
+ *
+ * `n` elements at the element's own stride, and nothing else. No count is stored on any target, no
+ * per-element `FieldRepr` is emitted, and the elements are reached the way a `Run(a)`'s slots are -
+ * the base address plus a scaled index - which is what keeps a large one a number here rather than
+ * a field list as long as the array.
+ *
+ * **The stride and not the size**, which is the whole reason those became two numbers (§10.3): a
+ * record's trailing padding belongs to whoever contains it, and two *elements* of a run are exactly
+ * the case where nobody may land in it. `data P {a: I64, b: U8}` is nine bytes and sixteen apart, so
+ * `[P *4]` is sixty-four - and using `size` here would overlap `b` with the next element's `a`.
+ *
+ * The size of the whole is `n * stride` including the last element's own padding, rather than
+ * `(n-1) * stride + size`. A parent may not reuse the tail of a fixed array, because whether those
+ * bytes are the element's padding or the array's is a question `xs[n-1] = v` answers by writing
+ * `stride` bytes, and it answers it the same way whatever contains the array.
+ *
+ * No niche is republished. The first element's would be a correct one to lend - it is at offset zero
+ * and the array is not a sum - but only where `n` is non-zero, and lending it would make
+ * `Maybe([T *4])` fold into a pattern of `T` that `xs[0] = v` can write at will. A container's
+ * elements are exactly the bytes the program assigns to, so there are no spare patterns in them.
+ */
+void ReprTable::computeFixedArray(ArrayType& array, Repr& into) {
+    auto& element = of(array.content);
+
+    into.align = array.length ? element.align : 1;
+    into.size = element.stride * array.length;
+    into.stride = into.size;
 }
 
 /*

@@ -1323,6 +1323,8 @@ static bool mentionsVariable(GlobalBase global, TypePtr type, U16 index) {
             return ((GenType*)global[type])->index == index;
         case Type::Ptr:
             return mentionsVariable(global, ((PtrType*)global[type])->to, index);
+        case Type::Array:
+            return mentionsVariable(global, ((ArrayType*)global[type])->content, index);
         case Type::Tup: {
             auto tuple = (TupType*)global[type];
 

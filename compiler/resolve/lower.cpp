@@ -597,6 +597,37 @@ static LowerPtr<LowerValue> lowerPlace(LowerContext& lower, LowerBlock& block, F
             // a packed field's `offset` is its word's, so the Field in front of this one spent it.
             // Nothing is added and the type is left alone - see unitBits, which is what reads the
             // width back out at the load and the store.
+        } else if(projection.kind == ProjectionKind::Index) {
+            /*
+             * One element of a `[T *n]` - Implementation-Containers.md §6.
+             *
+             * The only projection whose step is a *value* rather than a constant, which is why it is
+             * the only one that cannot be accumulated into `offset`: the elements are `n` values at
+             * a stride and which one this is may not be known until it runs. So the constant part of
+             * the path is spent first, exactly as the Deref below spends it, and the scaled index is
+             * added to the address that produces.
+             *
+             * A constant index folds all the way back to a constant offset in `compiler/opt`, which
+             * is what makes an unrolled walk over a small array cost the same as a record's fields.
+             */
+            auto element = ((ArrayType*)lower.global[type])->content;
+            auto stride = lower.repr.of(element).stride;
+
+            auto from = addOffset(lower, block, address, offset);
+            auto index = mappedValue(lower, projection.value);
+            auto scale = immediate(lower, stride);
+
+            auto scaled = binary<LowerInst::Mul>(lower.lower, lower.to, block, lower.lower[index],
+                                                 lower.lower[scale], LowerType::Int64, 0)
+                ->created().ptr - lower.lower;
+
+            auto stepped = binary<LowerInst::Add>(lower.lower, lower.to, block, lower.lower[from],
+                                                  lower.lower[scaled], LowerType::Pointer, 0)
+                ->created().ptr - lower.lower;
+
+            address = stepped;
+            type = element;
+            offset = 0;
         } else if(projection.kind == ProjectionKind::Deref) {
             // The pointer stored here becomes the address the rest of the path is relative to,
             // so everything accumulated so far has to be spent before it is loaded.
@@ -664,6 +695,8 @@ static TypePtr placeOwnerType(LowerContext& lower, Function& function, const Pla
             auto field = lower.repr.fieldOf(type, projection.index);
             if(!field) return nullptr;
             type = boxedStep(*lower.from.core, field->type, field->boxed);
+        } else if(projection.kind == ProjectionKind::Index) {
+            type = ((ArrayType*)lower.global[type])->content;
         } else if(projection.kind == ProjectionKind::Deref) {
             type = pointeeType(lower.global, type);
         } else {

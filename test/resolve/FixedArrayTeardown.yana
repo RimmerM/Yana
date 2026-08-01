@@ -1,0 +1,79 @@
+{-
+   A fixed array's derived teardown - Implementation-Containers.md §6's "derived teardown over
+   exactly `n` members".
+
+   Exactly `n`, and that is what separates it from a growable container: `Array(a)` writes a
+   traversal because occupancy is its private business, and a `[T *n]` has no occupancy to have an
+   opinion about - every slot holds a value, so the walk is the compiler's and there is no count to
+   read.
+
+   Asserted as a counter rather than as IR, for the reason a drop fixture always has to be: a drop
+   that ran twice and a drop that never ran look the same in the bytes, and only a number read at a
+   point where the placement decides the answer tells them apart.
+-}
+
+import Native
+import Native.Linux
+
+let &liveHandles = 0 :: I64
+let &releases = 0 :: I64
+
+data Handle {slot: %U8}
+
+fn openHandle(mark: I64) -> Handle:
+    liveHandles += 1
+    let handle = Handle {slot: allocateHeap(16)}
+    store(cast(handle.slot) :: %I64, mark)
+
+    return handle
+
+instance Drop(Handle):
+    fn drop(->value: Handle) -> {}:
+        freeHeap(value.slot)
+        liveHandles -= 1
+        releases += 1
+
+fn marker(it: Handle) -> I64 = *(cast(it.slot) :: %I64)
+
+-- Two elements, released when the array's lifetime ends here and not at the caller.
+fn small() -> I64:
+    let hs = [openHandle(1), openHandle(2)] :: [Handle *2]
+    return marker(hs[0]) + marker(hs[1])
+
+{-
+   Above the unroll limit, where the walk is a counted loop rather than `n` copies of the drop.
+
+   Six and not four, deliberately: kFixedArrayUnrollLimit is four, so this is the first length whose
+   teardown is the *other* shape. Both shapes have to release exactly `n` elements, and a fixture
+   that only ever took one of them would leave the other untested - which is the only reason the
+   split is visible from here at all.
+-}
+fn large() -> I64:
+    let hs = [openHandle(1), openHandle(2), openHandle(3),
+              openHandle(4), openHandle(5), openHandle(6)] :: [Handle *6]
+
+    return marker(hs[0]) + marker(hs[5])
+
+-- Nested in a record, where the teardown reaches the elements through the field rather than through
+-- a local. Same walk, one projection further in.
+data Pair {handles: [Handle *2], tag: I64}
+
+fn nested() -> I64:
+    let p = Pair {handles: [openHandle(7), openHandle(8)], tag: 100}
+    return p.tag + marker(p.handles[1])
+
+fn main() -> I64:
+    let a = small()
+    if liveHandles != 0 then return -1
+    if releases != 2 then return -2
+
+    let b = large()
+    if liveHandles != 0 then return -3
+    if releases != 8 then return -4
+
+    let c = nested()
+    if liveHandles != 0 then return -5
+    if releases != 10 then return -6
+
+    -- 3 + 7 + 108 = 118, which is what says the elements were readable before they were released.
+    return a + b + c

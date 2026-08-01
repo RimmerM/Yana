@@ -130,6 +130,17 @@ static void printPlace(ResolvePrint& print, Function& function, const Place& pla
             // so the type this walk carries has to be that pointer, exactly as every other walk's
             // does. See boxedStep.
             type = boxedStep(*print.program.core, field.type, field.boxed);
+        } else if(projection.kind == ProjectionKind::Index) {
+            // `%xs[%i]` - one element of a `[T *n]`, by the value that selects it rather than by a
+            // position, since the elements have no names and the index need not be constant.
+            print.writer.writeByte('[');
+            if(projection.value) printValue(print, *print.local[projection.value]);
+            else print.writer.writeByte('?');
+            print.writer.writeByte(']');
+
+            type = type && print.global[type]->kind == Type::Array
+                ? ((ArrayType*)print.global[type])->content
+                : nullptr;
         } else if(projection.kind == ProjectionKind::Deref) {
             print.writer.writeString(".*"_v);
             type = pointeeType(print.global, type);

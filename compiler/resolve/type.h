@@ -288,6 +288,32 @@ struct BorrowType: Type {
 };
 
 /*
+ * `[T *n]` - the fixed array (Implementation-Containers.md §6).
+ *
+ * Exactly `n` elements at a stride and no count anywhere, on any target. Interned on the pair, so
+ * that the `[Int *4]` two signatures write is one TypePtr and sameType() stays pointer equality.
+ *
+ * It is a *type* and not a Repr refinement of `[T]`, which is the decision §6 turns on: the two
+ * differ in capability rather than in layout - a fixed array cannot grow - and a Repr variant may
+ * never change what a type can do (§9). So `Array(T)`'s instances do not serve it and nothing here
+ * is reached by conversion from one.
+ *
+ * There are no `fields` and no per-element projection, deliberately. `n` elements at a stride is
+ * exactly what a `Run(a)`'s slots are, and both are reached the same way - the base address plus a
+ * scaled index - which is what keeps a thousand-element literal a number rather than a type with a
+ * thousand fields. The consequence is that the *inline run's address is computed from the owner and
+ * never stored*: storing it would make the type self-referential and break `TrivialSink`, which is
+ * Implementation-Storage.md §3's trap and applies here verbatim.
+ */
+struct ArrayType: Type {
+    ArrayType(TypePtr content, U32 length):
+        Type(Type::Array), content(content), length(length) {}
+
+    TypePtr content;
+    U32 length;
+};
+
+/*
  * One argument of a function *type*.
  *
  * Implementation-IR.md part 3 is explicit that the convention and the `return` marker belong here
@@ -886,6 +912,39 @@ TypePtr arrayElement(Module& module, TypePtr type);
 TypePtr sliceElement(Module& module, TypePtr type);
 TypePtr sliceLengthType(Module& module, TypePtr type);
 TypePtr sliceOf(Module& module, TypePtr type);
+
+/*
+ * `[T *n]` - Implementation-Containers.md §6.
+ *
+ * `resolveFixedArrayType` interns one; `fixedElement` is what one holds, or null for anything that
+ * is not one, so that it reads as a test the way `arrayElement` does.
+ *
+ * `ownedElement` is either kind of *owner* - `Array(T)` or `[T *n]` - and it is the question every
+ * site that converts an owner to a slice actually asks. Deliberately not including `Flat(T)`: the
+ * two owners are what a borrow is *taken of*, and a caller that treats a slice as a third one ends
+ * up trying to borrow a descriptor out of itself.
+ */
+/*
+ * The longest `[T *n]` the compiler accepts.
+ *
+ * A bound on the *count* and not on the byte size, because the byte size is a target's answer and
+ * this type is a resolve-stage one: `[U8 *65536]` and `[Buffer *65536]` are the same declaration
+ * here and differ only in what some backend later multiplies by. Sixteen bits is far past anything
+ * §6's purpose - a small inline array that flattens into a record - and it keeps the derived
+ * teardown's unrolled/looped split a decision about *shape* rather than a guard against a length
+ * that would take a compiler down.
+ */
+constexpr U32 kMaxFixedArrayLength = 0xffff;
+
+TypePtr resolveFixedArrayType(Module& module, TypePtr content, U32 length, LocationId source);
+TypePtr fixedElement(Module& module, TypePtr type);
+TypePtr ownedElement(Module& module, TypePtr type);
+
+// Whether this is Collections' growable array - an instantiation of it, or the generic declaration
+// itself, which is what a signature written `Array(a)` resolves to. Asked where a diagnostic has to
+// tell a growable *parameter* apart from any other record, since only the operations that grow name
+// the type and a fixed array reaching one of them is §6's one rejection.
+bool isGrowableArray(Module& module, TypePtr type);
 
 /*
  * Whether a value of this type names storage it does not own.

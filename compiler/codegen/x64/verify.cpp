@@ -661,6 +661,53 @@ struct Verifier {
         }
     }
 
+    /*
+     * A folded addressing mode still holds what it was resolved to hold.
+     *
+     * An X86Address emits nothing and is resolved one instruction in front of the access that folds
+     * it, so its base and its index are live across the gap between the two - and everything in that
+     * gap is this instruction's own operand copies. The rest of this file checks *operands*, and a
+     * folded address is not one: the access reads it implicitly, so the loop below skips it and
+     * nothing was asking whether the registers it names still hold the right values by the time the
+     * encoder writes them into a ModRM byte.
+     *
+     * They did not, and the way they did not was silent: legalization hands scratch registers out
+     * per instruction, so an operand of the access could be given the very register the address was
+     * computed into. The symptom is a store through whatever was about to be stored. See
+     * `foldedAddressRegs` in legalize.cpp, which is the rule that keeps this true; this is the check
+     * that says so.
+     */
+    void checkFoldedAddress(MachineState& state, LowerInst* inst, const InstRegs& instRegs) {
+        if(!instRegs.hasAddress) return;
+
+        auto operand = machine.formOf(inst).addressOperand();
+        if(operand < 0) return;
+
+        auto value = base[inst->used()[operand]];
+        if(!isMem(value)) return;
+
+        auto address = value->inst();
+        auto parts = address->used();
+        auto name = nameForInst(base, *inst);
+        Size part = 0;
+
+        auto holds = [&](U8 reg, StringView role) {
+            if(part >= parts.size()) return;
+
+            auto held = base[parts[part++]];
+            auto at = MachineLocation::physical(PhysicalReg { BankGpr, U16(reg) });
+
+            if(state.get(at) != held->liveId()) {
+                fail("%@: %@: the folded address's %@ is read from %@, which holds %@ rather than %@",
+                    funName, name, role, locationName(at),
+                    nameOf(state.get(at)), nameOf(held));
+            }
+        };
+
+        if(instRegs.address.hasBase) holds(instRegs.address.base, "base"_v);
+        if(instRegs.address.hasIndex) holds(instRegs.address.index, "index"_v);
+    }
+
     void checkInst(MachineState& state, LowerInst* inst, const InstRegs& instRegs, U32 index) {
         InstShape shape;
         shapeOf(base, machine, constraints, fun, inst, shape);
@@ -686,6 +733,7 @@ struct Verifier {
         auto inPlace = takesInPlace(choice, readWriteAt, resultAt);
 
         applyMoves(state, instRegs.moves, inst);
+        checkFoldedAddress(state, inst, instRegs);
 
         for(Size i = 0; i < used.size(); i++) {
             auto v = base[used[i]];

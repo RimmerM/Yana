@@ -259,6 +259,22 @@ static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardow
 
     if(global[type]->kind == Type::Fun) {
         teardownFunValue(resolver, module, base, half, source);
+    } else if(global[type]->kind == Type::Array) {
+        /*
+         * `[T *n]` - Implementation-Containers.md §6's "derived teardown over exactly `n` members".
+         *
+         * Exactly `n` and not "however many are live", which is the whole of what separates this
+         * from a growable container: a fixed array has no count, so every slot holds a value and
+         * there is no prefix to stop at. That is why this is derived glue at all rather than an
+         * authored traversal - `Reclaim(Array(a))` exists because occupancy is Collections' private
+         * business, and here there is no occupancy to have an opinion about.
+         */
+        auto array = (ArrayType*)global[type];
+
+        resolver.eachFixedElement(base, array->content, array->length, source,
+                                  [&](Place element, ModulePtr<Value>) {
+            teardownPlace(resolver, module, element, array->content, false, half, source);
+        });
     } else if(global[type]->kind == Type::Tup) {
         teardownMembers(resolver, module, base, type, half, source);
     } else if(global[type]->kind == Type::Record) {

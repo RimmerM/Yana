@@ -723,6 +723,37 @@ struct ExprResolver {
     ModulePtr<Value> offsetPointer(ModulePtr<Value> base, TypePtr element, ModulePtr<Value> index,
                                    LocationId source);
 
+    // Where a `[T *n]`'s elements start, as a `%T` - Implementation-Containers.md §6. Computed from
+    // the owner's place and never stored, which is Implementation-Storage.md §3's `TrivialSink`
+    // trap: a fixed array holding its own base would survive a memcpy pointing at the old one.
+    ModulePtr<Value> fixedArrayBase(const Place& array, TypePtr element, LocationId source);
+
+    /*
+     * Runs `body(place, index)` at each element of a `[T *n]` whose storage is `array`.
+     *
+     * Unrolled below kFixedArrayUnrollLimit and a counted loop above it, which is one decision made
+     * in one place so that a teardown, a relocation and anything else walking a fixed array agree
+     * about the shape. Both hand the body a place rooted in a raw pointer rather than a projection,
+     * because there is no per-element projection to hand it - §6's elements are `n` values at a
+     * stride, exactly as a run's slots are.
+     *
+     * The place is a `ProjectionKind::Index` off the array rather than an address the walk computed,
+     * and that is load-bearing rather than tidy: a write through a raw pointer has no root, so the
+     * ownership passes never see the array initialized and never drop it. An Index stays inside the
+     * storage the root names, which is exactly what `rootLocal` asks for.
+     *
+     * `index` is the same value the place was built from - a constant in the unrolled shape and the
+     * loop counter in the other - which is what lets a body walking *two* arrays at once step the
+     * second one without knowing which shape it is inside.
+     *
+     * The loop is worth having at all because `n` is bounded by kMaxFixedArrayLength rather than by
+     * anything about the machine: sixty-five thousand unrolled calls is a compiler that appears to
+     * hang. The unrolled form is worth having because the case the type exists for is small, and a
+     * four-block loop around one drop is code the optimizer then has to prove things about.
+     */
+    template<class F>
+    void eachFixedElement(const Place& array, TypePtr element, U32 length, LocationId source, F&& body);
+
     Maybe<Place> findPlace(ModulePtr<Value> value);
     Place placeFor(ModulePtr<Value> value, LocationId source);
     bool isWritablePlace(const Place& place);
@@ -800,6 +831,11 @@ struct ExprResolver {
     // `[1, 2, 3]`, and `xs[i]` in either a reading or an assigning position. Both build calls into
     // Collections rather than anything the IR knows about - see expr_construct.cpp.
     ModulePtr<Value> resolveArray(const ast::Expr& expr, ast::ParseList<ast::Expr> items, TypePtr target);
+
+    // The same literal where the expected type is a `[T *n]` - Implementation-Containers.md §8.
+    // `target` is known to be one; the length is checked against it rather than inferred.
+    ModulePtr<Value> resolveFixedArray(const ast::Expr& expr, ast::ParseList<ast::Expr> items,
+                                       TypePtr target);
     ModulePtr<Value> resolveSubscript(const ast::Expr& expr, const ast::AppExpr& subscript, bool mutable_);
 
     ModulePtr<Value> resolveTuple(const ast::Expr& expr, ast::ParseList<ast::TupArg> args, TypePtr target);
@@ -948,6 +984,66 @@ struct ExprResolver {
     bool inLoopBody = false;
     Array<ContinuationLoopExit> loopExits;
 };
+
+/*
+ * Above this many elements a walk over a `[T *n]` is a loop rather than `n` copies of its body.
+ *
+ * Four, because that is where the two costs cross for the shape §6 exists for: a `[Point *4]`'s
+ * teardown unrolled is four calls, and looped it is four calls plus a counter, a comparison, a
+ * multiply and three extra blocks for every pass afterwards to walk. Above it the unrolled form is
+ * what gets expensive, and it gets expensive in the compiler rather than in the program.
+ */
+constexpr U32 kFixedArrayUnrollLimit = 4;
+
+template<class F>
+void ExprResolver::eachFixedElement(const Place& array, TypePtr element, U32 length,
+                                    LocationId source, F&& body) {
+    if(!length) return;
+
+    if(length <= kFixedArrayUnrollLimit) {
+        for(U32 i = 0; i < length; i++) {
+            auto index = makeInt(source, module.scalar.long_, i);
+            body(project(array, ProjectionKind::Index, 0, index), index);
+        }
+
+        return;
+    }
+
+    /*
+     * The counted form: `i = 0; while i < n: body(base + i); i = i + 1`.
+     *
+     * The counter is storage rather than a phi because that is what this stage produces - the
+     * resolver emits places and lets lowering promote them, which is exactly what `promoteStackSlots`
+     * then does to this one. Written the same way Collections' own element walk is, so that the two
+     * loops a container can have optimize identically.
+     */
+    auto word = module.scalar.long_;
+    auto counter = allocate(word, source, 0, ast::BindType::Ref);
+    auto counterPlace = placeFor(counter, source);
+    initialize(counterPlace, makeInt(source, word, 0), source);
+
+    auto test = addBlock();
+    auto step = addBlock();
+    auto exit = addBlock();
+
+    terminate(emit<InstJmp>(source, 0, module.scalar.unit, test));
+    current = test;
+
+    auto index = load(counterPlace, source);
+    auto limit = makeInt(source, word, length);
+    auto more = ref(emit<InstCmp>(source, 0, module.scalar.bool_, index, limit, CompareOp::Lt));
+    terminate(emit<InstJe>(source, 0, module.scalar.unit, more, step, exit));
+
+    current = step;
+    body(project(array, ProjectionKind::Index, 0, index), index);
+
+    auto one = makeInt(source, word, 1);
+    auto next = ref(emit<InstBinary>(source, 0, word, Value::Add, index, one));
+    assign(counterPlace, next, source);
+
+    terminate(emit<InstJmp>(source, 0, module.scalar.unit, test));
+    current = exit;
+}
 
 // Creates a function that is reached through something other than its own name - a class
 // instance's implementation - with a unique name for printing and lowering.

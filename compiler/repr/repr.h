@@ -598,6 +598,7 @@ private:
     Size packWord(TupType& tuple, Repr& into, Buffer<const U16> order, Size first, U32& size,
                   U32& alignment);
     void computeRecord(RecordType& record, Repr& into);
+    void computeFixedArray(ArrayType& array, Repr& into);
     bool foldNiche(RecordType& record, Repr& into);
     bool scalarizeSum(RecordType& record, Repr& into, U32 payloadSize, U32 payloadAlign);
 

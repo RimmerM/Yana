@@ -201,7 +201,16 @@ ModulePtr<Function> emptyTeardown(Module& module, LocationId source) {
 // glue for every member of every constructor of every record the question is asked about.
 static bool hasSinkingMember(Module& module, TypePtr content) {
     auto global = *module.types;
-    if(!content || global[content]->kind != Type::Tup) return false;
+    if(!content) return false;
+
+    // A fixed array's `n` members are one type, so one answer covers all of them - and an empty one
+    // has no member to ask about, whatever its element would have said.
+    if(global[content]->kind == Type::Array) {
+        auto array = (ArrayType*)global[content];
+        return array->length && !ownershipOf(module, array->content).trivialSink;
+    }
+
+    if(global[content]->kind != Type::Tup) return false;
 
     for(auto field: ((TupType*)global[content])->fields.contents(global)) {
         // A boxed member relocates as its pointer, whatever relocating its *target* would have
@@ -222,9 +231,49 @@ static bool hasSinkingMember(Module& module, TypePtr content) {
  * way - `fn sink(&to: a, ->from: a)` passes both of its conventions as addresses, and generated
  * glue takes two raw pointers.
  */
+// One call, given the two places the member occupies in the destination and the source.
+static void sinkMember(ExprResolver& resolver, Module& module, Place to, Place from,
+                       ModulePtr<Function> implementation, LocationId source) {
+    auto toMember = resolver.addressOf(to, source, 0);
+    auto fromMember = resolver.addressOf(from, source, 0);
+
+    auto call = resolver.create<InstCall>(source, 0, module.scalar.unit, implementation);
+    call->args.push(module.arena, toMember);
+    call->args.push(module.arena, fromMember);
+    resolver.append(call);
+}
+
+/*
+ * A fixed array's per-element half - Implementation-Containers.md §6.
+ *
+ * `n` elements at a stride, walked with the same helper the teardown uses so that the two agree
+ * about when a walk is unrolled and when it is a loop. The two bases are stepped together, which is
+ * why this cannot go through `eachFixedElement` twice: the loop it emits owns the counter, so the
+ * source's element has to be computed inside the same body as the destination's.
+ */
+static void sinkFixedElements(ExprResolver& resolver, Module& module, Place to, Place from,
+                              ArrayType& array, LocationId source) {
+    auto implementation = sinkFor(module, array.content, source);
+    if(!implementation) return;
+
+    // `to`'s side is what the walk hands out and `from`'s is the same element of the other array,
+    // which is what makes this one body under either shape the walk chooses.
+    resolver.eachFixedElement(to, array.content, array.length, source,
+                              [&](Place destination, ModulePtr<Value> index) {
+        sinkMember(resolver, module, destination,
+                   resolver.project(from, ProjectionKind::Index, 0, index), implementation, source);
+    });
+}
+
 static void sinkMembers(ExprResolver& resolver, Module& module, Place to, Place from,
                         TypePtr content, LocationId source) {
     auto global = *module.types;
+
+    if(content && global[content]->kind == Type::Array) {
+        sinkFixedElements(resolver, module, to, from, *(ArrayType*)global[content], source);
+        return;
+    }
+
     if(!content || global[content]->kind != Type::Tup) return;
 
     U16 index = 0;
@@ -235,13 +284,8 @@ static void sinkMembers(ExprResolver& resolver, Module& module, Place to, Place 
         if(field.boxed) { index++; continue; }
 
         if(auto implementation = sinkFor(module, field.type, source)) {
-            auto toMember = resolver.addressOf(resolver.project(to, ProjectionKind::Field, index), source, 0);
-            auto fromMember = resolver.addressOf(resolver.project(from, ProjectionKind::Field, index), source, 0);
-
-            auto call = resolver.create<InstCall>(source, 0, module.scalar.unit, implementation);
-            call->args.push(module.arena, toMember);
-            call->args.push(module.arena, fromMember);
-            resolver.append(call);
+            sinkMember(resolver, module, resolver.project(to, ProjectionKind::Field, index),
+                       resolver.project(from, ProjectionKind::Field, index), implementation, source);
         }
 
         index++;
@@ -298,10 +342,11 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
     /*
      * A type that relocates by neither rule and has no members to recurse into. Every kind that
      * reaches this is one ownershipOf classifies conservatively because it is not constructible yet
-     * - Ref, Region, Array, Map - and the conservative answer is worth keeping: emitting the block
-     * copy anyway would turn "adding one of these is a decision" into a silently wrong default.
+     * - Ref, Region, Map - and the conservative answer is worth keeping: emitting the block copy
+     * anyway would turn "adding one of these is a decision" into a silently wrong default.
      */
-    if(!ownership.trivialSink && !record && global[type]->kind != Type::Tup) {
+    if(!ownership.trivialSink && !record && global[type]->kind != Type::Tup &&
+       global[type]->kind != Type::Array) {
         module.context.diagnostics.error(
             "%@ cannot be relocated: it is not TrivialSink and has no Sink instance"_v, source,
             describeType(module.context, global, type));
@@ -502,7 +547,18 @@ static bool lowerablePlace(Module& module, Function& owner, const Place& place) 
                 type = pointeeType(global, type);
                 break;
             case ProjectionKind::Index:
-                return false;
+                /*
+                 * One element of a `[T *n]`, which an erased body *can* reach - the step is the
+                 * element's stride, and a stride is a TypeMetric the environment already carries.
+                 *
+                 * It used to return false unconditionally, which was right when nothing produced
+                 * one: declining a projection nothing emits costs nothing, and declining one that
+                 * `[T *n]` now emits everywhere would force a specialization at every call site that
+                 * touched a fixed array. The generic check above still catches the case that
+                 * genuinely has no layout here.
+                 */
+                type = ((ArrayType*)global[type])->content;
+                break;
         }
     }
 

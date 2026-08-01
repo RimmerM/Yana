@@ -597,8 +597,15 @@ static void expandUnsignedConversions(LowerBase base, LowerFunction& fun) {
  *
  * An X86Address emits no code and occupies no register of its own. It is placed immediately in front
  * of the access that reads it, and genLoad/genStore fold it into their ModRM byte. The adjacency is
- * required rather than incidental: the verifier checks an address's operand registers at the address
- * instruction rather than at its user, which is only sound while nothing can come between them.
+ * required rather than incidental: the address's base and index are live *into* the access, so
+ * anything that came between the two could overwrite them.
+ *
+ * One thing does come between them, and it was a live miscompile - the access's own operand copies.
+ * Legalization hands scratch registers out per instruction, so an operand of the access could be
+ * given the register the base had just been materialized into, and `xs[0] = 1` became a store
+ * through the number 1. `foldedAddressRegs` in legalize.cpp is the rule that keeps this true, and
+ * `checkFoldedAddress` in verify.cpp is the assertion that says so in a debug build - it was missing
+ * because the rest of that file checks *operands*, and a folded address is not one.
  *
  * A chain is only taken apart when every instruction in it exists solely to compute this address.
  * Folding half of one would leave the arithmetic behind *and* repeat it inside the address, so the

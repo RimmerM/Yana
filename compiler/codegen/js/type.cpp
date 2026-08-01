@@ -221,6 +221,29 @@ JsPtr<Expr> zeroValue(Gen& g, TypePtr type) {
             return nullValue(g);
         case Type::Tup:
             break;
+        case Type::Array: {
+            /*
+             * `[T *n]` is a host array of `n` zeroes - Implementation-Containers.md §6 and §14.
+             *
+             * Written out rather than left to the default, because a fixed array's whole promise is
+             * that it holds exactly `n` elements: an empty array here would be a container whose
+             * length is a lie on this target alone, and every read of it would answer `undefined`.
+             *
+             * What is *not* here is element access. §6's elements are reached the way a run's slots
+             * are - a base address plus a scaled index - and this target has no addresses, so a
+             * fixed array is written and copied here and cannot yet be indexed. That is the same gap
+             * `Run(a)` reports at its allocation, and it closes in the same change: §14's host-call
+             * node, which is where a container stops being storage and starts being a host value.
+             */
+            auto array = (ArrayType*)value;
+            auto elements = make<ArrayExpr>(g);
+
+            for(U32 i = 0; i < array->length; i++) {
+                elements->values.push(g.file.arena, zeroValue(g, array->content));
+            }
+
+            return asExpr(g, elements);
+        }
         case Type::Gen:
             /*
              * Storage for a value whose shape this body cannot see - Analysis-JS.md §3.4's target

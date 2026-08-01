@@ -1,0 +1,39 @@
+{-
+   What `[T *n]` refuses - Implementation-Containers.md §6.
+
+   Three rejections, and they are three different statements about the same decision. A fixed array
+   is a *type* rather than a Repr refinement of `[T]`, so it differs in capability: it holds exactly
+   the elements its type names, which makes growth impossible, the length a check rather than an
+   inference, and `n` something the compiler has to be able to read off the source.
+-}
+
+import Native
+
+-- **Never a growable argument.** Growth is nominal - only the operations that grow name `Array`,
+-- and the diagnostic says which capability was asked for rather than which types failed to unify.
+fn grow() -> {}:
+    let &xs = [1, 2, 3, 4] :: [Int *4]
+    push(xs, 5)
+
+-- **The length is a check.** `n` is in the type and the literal's length is syntax, so the two are
+-- compared. This is the whole of what "typing is resolve-stage" buys - nothing has to be solved for.
+fn short() -> {}:
+    let xs = [1, 2, 3] :: [Int *4]
+
+-- **And `n` is a literal.** A computed or generic length is const generics, which is a separate
+-- feature; the diagnostic names it rather than folding whatever the parser happened to produce.
+fn computed() -> {}:
+    let n = 4
+    let xs = [1] :: [Int *n]
+
+{-
+   A fixed array of itself has no finite size, and there is no edge to cut.
+
+   `breakLayoutCycles` inserts an indirection at the back edge of a record cycle; a fixed array has
+   none to insert one on - boxing the element would make `[Cell *4]` four pointers, which is a
+   different type from the one that was written. So this is reported instead of silently becoming
+   something else.
+-}
+data Cell {kids: [Cell *4]}
+
+fn main() -> Int = 0

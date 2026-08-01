@@ -1,0 +1,72 @@
+{-
+   A folded addressing mode survives the instruction that folds it.
+
+   x86 computes `base + index*scale + disp` as part of a memory access and charges nothing for it, so
+   the backend collapses that arithmetic into an `X86Address` placed immediately in front of the
+   access. The address emits no code of its own: what it leaves behind is its base and its index, in
+   whatever registers they were resolved into, and the access reads them out of its ModRM byte.
+
+   Between those two instructions sit the access's *own* operand copies - and legalization hands
+   scratch registers out per instruction. So a base that had to be materialized into a scratch
+   register could be handed to an operand of the very access that was about to read it, which
+   compiles `xs[0] = 1` into a store through the number 1.
+
+   Nothing smaller than this reproduces it, which is the whole difficulty: the bug needs enough
+   pressure that a base or an index has no register of its own, and every one of the calls below
+   contributes some. It is not about arrays - they are just the shortest way to write a body with
+   several addresses, several live values and a loop in it.
+
+   `test/resolve/FixedArray.yana` is where this was found, from the other side: a fixture that was
+   only ever about `[T *n]` crashed here instead.
+-}
+
+import Native
+
+fn total(xs: [Int]) -> Int:
+    let &sum = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < length(xs):
+        sum = sum + xs[i]
+        i = i + 1
+
+    return sum
+
+fn double(&xs: [Int]) -> {}:
+    let &i = 0 :: Int
+
+    while i < length(xs):
+        let value = xs[i]
+        xs[i] = value + value
+        i = i + 1
+
+fn oneSize() -> I64:
+    let xs = [1, 2, 3, 4]
+    return sizeOf(xs)
+
+data Quad {values: [Int], tag: Int}
+
+fn twoSize() -> I64:
+    let q = Quad {values: [1, 2, 3, 4], tag: 0}
+    return sizeOf(q) - sizeOf(q.tag)
+
+fn middle(xs: [Int]) -> Int = total(xs[1..3])
+
+fn main() -> Int:
+    -- An `Array(Int)` is two words, and a record holding one plus an `Int` is the same two plus four.
+    if oneSize() != 16 then return -1
+    if twoSize() != 16 then return -2
+
+    let &xs = [1, 2, 3, 4]
+
+    if total(xs) != 10 then return -3
+    if middle(xs) != 5 then return -4
+
+    double(xs)
+    if total(xs) != 20 then return -5
+
+    -- The literal that tips it over: one more array built in this frame, with everything above it
+    -- still live.
+    if total([7, 8]) != 15 then return -6
+
+    return total(xs)

@@ -66,7 +66,7 @@ bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, TypeList& bindi
     // so matching is against the slice it becomes, and a `Flat(a)` pattern binds `a` to the array's
     // element instead of failing outright. Argument direction only, for the reason the widening
     // rule below is: what a call *produces* has not decided anything by needing a conversion.
-    if(widen && sliceElement(module, pattern) && arrayElement(module, actual)) {
+    if(widen && sliceElement(module, pattern) && ownedElement(module, actual)) {
         actual = sliceOf(module, actual);
     }
 
@@ -1242,6 +1242,24 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
         auto declared = local[generic->args.get(local, i)]->declaredType();
 
         if(!bindPosition(declared, valueType(args[i]), bindings, true)) {
+            /*
+             * A fixed array where a growable one was asked for - Implementation-Containers.md §6's
+             * "it is never a growable argument. The diagnostic says so directly: a fixed array
+             * cannot be pushed to."
+             *
+             * Said here rather than left to the general message because the general message is
+             * true and useless: `[Int *4]` does not fit `Array(a)` for a reason that is the whole
+             * design - growth is nominal, so the operations that grow name the growable type - and
+             * a reader who has just watched `[Int *4]` pass to five other `[Int]` functions needs
+             * to be told which capability this one wanted instead of which types failed to unify.
+             */
+            if(fixedElement(module, valueType(args[i])) && isGrowableArray(module, declared)) {
+                context.diagnostics.error("%@ cannot be passed to %@, which asks for a growable array - a fixed array holds exactly the elements its type names and cannot grow. Only the operations that grow say `Array`; everything that reads says `[T]` and accepts this"_v,
+                                          source, describeType(context, global, valueType(args[i])),
+                                          context.findName(generic->name));
+                return nullptr;
+            }
+
             context.diagnostics.error("argument %@ of %@ is %@, which does not fit %@"_v, source, U32(i + 1),
                                       context.findName(generic->name),
                                       describeType(context, global, valueType(args[i])),

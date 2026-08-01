@@ -46,6 +46,23 @@ ModulePtr<Value> ExprResolver::offsetPointer(ModulePtr<Value> base, TypePtr elem
 }
 
 /*
+ * Where a `[T *n]`'s elements start - Implementation-Containers.md §6.
+ *
+ * Computed from the owner's place every time it is wanted, and this is the one thing about a fixed
+ * array that has to be said out loud: **the inline run's address is never stored**. Storing it would
+ * make the type self-referential, which breaks `TrivialSink` - a memcpy of the array would leave the
+ * copy's stored pointer aimed at the original's elements, and every write through it would land in
+ * the wrong value. Implementation-Storage.md §3 is where that trap is written down; this is the
+ * function that keeps it out.
+ *
+ * So a fixed array holds elements and nothing else, on every target, which is also what makes
+ * `sizeOf([[Int *4]])` exactly `4 * n * sizeOf(Int)`.
+ */
+ModulePtr<Value> ExprResolver::fixedArrayBase(const Place& array, TypePtr element, LocationId source) {
+    return ref(emit<InstAddress>(source, 0, resolvePointerType(module, element), array));
+}
+
+/*
  * Building a `Run(a)` - Implementation-Containers.md §2.
  *
  * Three writes and an allocation with a count beside it. What makes the run *placed* rather than
@@ -364,6 +381,17 @@ TypePtr placeType(Module& module, Function& function, const Place& place, Size l
                 if(field.boxed) type = resolvePointerType(module, type);
                 break;
             }
+            case ProjectionKind::Index: {
+                // One element of a `[T *n]` - Implementation-Containers.md §6. The index is a
+                // *value* rather than an index into a field list, because the elements are `n`
+                // values at a stride and there is no field list; what makes it a projection anyway
+                // is that it stays inside the storage the root names, which is the whole of what
+                // the ownership passes need from a place.
+                if(global[type]->kind != Type::Array) return module.scalar.error;
+
+                type = ((ArrayType*)global[type])->content;
+                break;
+            }
             default:
                 return module.scalar.error;
         }
@@ -581,7 +609,7 @@ ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr ex
      * handed is a copy that nothing reads again, and copying it back would write the array's own
      * length and run pointer over themselves.
      */
-    if(sliceElement(module, expected) && arrayElement(module, held)) {
+    if(sliceElement(module, expected) && ownedElement(module, held)) {
         auto slice = convertSlice(value, held, expected, source, true);
         if(!slice) return nullptr;
 
@@ -1353,11 +1381,64 @@ ModulePtr<Value> ExprResolver::resolveField(const ast::Expr& expr, const ast::Fi
  * compiler already had a layout and a projection for. What that cost was a literal of a thousand
  * elements becoming a type with a thousand fields; a run is one allocation with a count, so the
  * literal's size is now a number rather than a type.
+ *
+ * `[T *n]` is the other thing the same syntax builds, chosen by the expected type and by nothing
+ * else - Implementation-Containers.md §8. There is no conversion between the two in either
+ * direction: both borrow as the same slice, and fixed-owner to growable-owner allocates and copies,
+ * so it stays an explicit call.
  */
+
+/*
+ * A literal that is a `[T *n]` - Implementation-Containers.md §6 and §8.
+ *
+ * The length is a *check* rather than an inference, which is the whole of what "typing is
+ * resolve-stage" buys: `n` is in the type and the literal's length is syntax, so the two are
+ * compared and neither has to be solved for.
+ *
+ * The elements are written straight into the array's own storage. There is no run, no count and no
+ * second allocation - the storage *is* the elements - which is what makes this
+ * Implementation-Containers.md §12's first strategy with nothing left to eliminate.
+ */
+ModulePtr<Value> ExprResolver::resolveFixedArray(const ast::Expr& expr, ast::ParseList<ast::Expr> items,
+                                                 TypePtr target) {
+    auto source = expr.source;
+    auto array = (ArrayType*)global[target];
+    auto element = array->content;
+    auto written = U32(items.size());
+
+    if(written != array->length) {
+        context.diagnostics.error("this literal has %@ elements and %@ holds exactly %@"_v, source,
+                                  written, describeType(context, global, target), array->length);
+        return nullptr;
+    }
+
+    ValueList values;
+    for(auto item: items.contents(parse)) values.push(resolve(item, element));
+
+    auto storage = allocate(target, source, 0);
+    auto place = placeFor(storage, source);
+
+    for(Size i = 0; i < values.size(); i++) {
+        auto value = convert(values[i], element, source);
+        if(!value) continue;
+
+        auto index = makeInt(source, module.scalar.long_, i);
+        initialize(project(place, ProjectionKind::Index, 0, index), value, source);
+    }
+
+    return storage;
+}
 
 ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseList<ast::Expr> items,
                                             TypePtr target) {
     auto source = expr.source;
+
+    // A fixed array is chosen by the expected type alone, and before anything else, because it needs
+    // nothing from Collections: `[T *n]` is a type kind rather than a library record, so it is
+    // available in a module that could not name `Array` at all.
+    if(target && global[target]->kind == Type::Array) {
+        return resolveFixedArray(expr, items, target);
+    }
 
     if(!module.program.arrayType) {
         context.diagnostics.error("arrays are not available in this module"_v, source);
@@ -1480,7 +1561,7 @@ ModulePtr<Value> ExprResolver::resolveSubscript(const ast::Expr& expr, const ast
     // declared over the slice, so an owner reaches them through the ordinary conversion.
     auto held = valueType(target);
 
-    if(!arrayElement(module, held) && !sliceElement(module, held)) {
+    if(!ownedElement(module, held) && !sliceElement(module, held)) {
         context.diagnostics.error("cannot index %@ - only an array may be subscripted"_v, source,
                                   describeType(context, global, held));
         return nullptr;

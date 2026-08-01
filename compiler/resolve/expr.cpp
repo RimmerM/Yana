@@ -559,7 +559,14 @@ ModulePtr<Value> ExprResolver::convertRefinement(ModulePtr<Value> value, TypePtr
 ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from, TypePtr target,
                                             LocationId source, bool mut) {
     auto element = sliceElement(module, target);
-    if(!element || !arrayElement(module, from)) return nullptr;
+    auto fixed = fixedElement(module, from);
+    if(!element || (!fixed && !arrayElement(module, from))) return nullptr;
+
+    // Two containers, one descriptor. A `[T *n]` whose element type is not the slice's is not a
+    // borrow of it at all, which the growable side gets for free - `Array(T)` and `Flat(U)` never
+    // reach here because instantiateRecord already made them different types - and which this side
+    // has to say, since `[Int *4]` and `Flat(Long)` are two unrelated types the ladder is walking.
+    if(fixed && fixed != element) return nullptr;
 
     auto place = findPlace(value);
     if(!place) {
@@ -578,12 +585,31 @@ ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from
     if(!borrowed) return nullptr;
 
     auto array = Place::inBorrow(borrowed);
-    auto items = projectField(array, context.addUnqualifiedName("run", 3), source, source);
-    auto length = projectField(array, context.addUnqualifiedName("length", 6), source, source);
-    if(!items || !length) return nullptr;
 
-    auto base = projectField(items.unwrap(), context.addUnqualifiedName("items", 5), source, source);
-    if(!base) return nullptr;
+    /*
+     * Where the two halves of the descriptor come from, which is the whole of the difference between
+     * the two owners - Implementation-Containers.md §6.
+     *
+     * A growable array holds them: the run's base and the array's count are two fields, projected
+     * here and loaded below. A `[T *n]` *is* them: the base is the array's own storage and the
+     * length is in the type, so its arm reads nothing at run time at all - one address computation
+     * and one constant, against two loads.
+     *
+     * Left as places rather than loaded here so that the instructions stay in the order they were
+     * in before a second owner existed. The descriptor's storage comes first, then the reads that
+     * fill it, which is what a reader of the IR expects and what every fixture already says.
+     */
+    Maybe<Place> base = Nothing();
+    Maybe<Place> length = Nothing();
+
+    if(!fixed) {
+        auto items = projectField(array, context.addUnqualifiedName("run", 3), source, source);
+        length = projectField(array, context.addUnqualifiedName("length", 6), source, source);
+        if(!items || !length) return nullptr;
+
+        base = projectField(items.unwrap(), context.addUnqualifiedName("items", 5), source, source);
+        if(!base) return nullptr;
+    }
 
     // Writable exactly when the borrow was, because that is what a `&` slice argument needs to
     // borrow the temporary back out of - and nothing else ever writes a descriptor.
@@ -630,9 +656,13 @@ ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from
      * that `capacity` writes by hand in `Native`, at the one boundary the compiler builds rather than
      * the program.
      */
-    initialize(project(slice, ProjectionKind::Field, 0), load(base.unwrap(), source), source);
+    auto items = fixed ? fixedArrayBase(array, element, source) : load(base.unwrap(), source);
+    initialize(project(slice, ProjectionKind::Field, 0), items, source);
 
-    auto count = load(length.unwrap(), source);
+    auto count = fixed
+        ? makeInt(source, module.scalar.long_, ((ArrayType*)global[from])->length)
+        : load(length.unwrap(), source);
+
     if(auto declared = sliceLengthType(module, target)) count = convert(count, declared, source, false);
 
     initialize(project(slice, ProjectionKind::Field, 1), count, source);
@@ -715,7 +745,7 @@ bool ExprResolver::convertible(ModulePtr<Value> value, TypePtr target, LocationI
     // An owned container fits a `[T]` parameter, which is what makes `sum(xs)` select an overload
     // declared over the slice - see convertSlice.
     if(auto element = sliceElement(module, target)) {
-        if(arrayElement(module, from) == element) return true;
+        if(ownedElement(module, from) == element) return true;
     }
 
     // A `@bits` refinement converts to and from what it refines without an instance - see
@@ -1718,6 +1748,18 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
 
             if(coerce.target.kind == ast::Expr::Con) {
                 return resolveConstruct(coerce.target, *parse[coerce.target.con], type);
+            }
+
+            // An array literal, for the same reason - Implementation-Containers.md §8's "a literal
+            // reaches `[T]` and `[T *n]` by ordinary context typing". Which of the two it builds is
+            // decided by the expected type and by nothing else, so an ascription that arrived after
+            // the fact would have built the wrong container and then found no conversion between
+            // them - there is deliberately none, since fixed-owner to growable-owner allocates and
+            // copies. The result is still converted, because `[1, 2] :: [Int]` in an argument
+            // position may go on to become a slice.
+            if(coerce.target.kind == ast::Expr::Array) {
+                return convert(resolveArray(coerce.target, coerce.target.arr, type), type,
+                               expr.source, false);
             }
 
             // A lambda has no type of its own either: its argument types and its result are read

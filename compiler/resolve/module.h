@@ -544,6 +544,11 @@ struct Program {
     GlobalList<GlobalPtr<BorrowType>> borrowTypes;
     GlobalList<GlobalPtr<FunType>> funTypes;
 
+    // `[T *n]`, interned on the element type and the length together - Implementation-Containers.md
+    // §6. Nothing here is per-module: two modules writing `[Int *4]` name one type, which is what a
+    // signature agreeing across a module boundary needs.
+    GlobalList<GlobalPtr<ArrayType>> fixedArrayTypes;
+
     // Instantiations created before the declaration they came from had been read, waiting for
     // their constructor contents. Drained by completePendingInstances().
     Array<GlobalPtr<RecordType>> pendingInstances;

@@ -171,6 +171,30 @@ TypePtr sliceLengthType(Module& module, TypePtr type) {
     return fields->fields.get(global, 1).type;
 }
 
+TypePtr fixedElement(Module& module, TypePtr type) {
+    auto global = *module.types;
+    if(!type || global[type]->kind != Type::Array) return nullptr;
+
+    return ((ArrayType*)global[type])->content;
+}
+
+bool isGrowableArray(Module& module, TypePtr type) {
+    auto global = *module.types;
+    auto array = module.program.arrayType;
+    if(!array || !type || global[type]->kind != Type::Record) return false;
+
+    // The declaration as well as an instance of it, because this is asked of a *signature*: `push`
+    // says `Array(a)`, which is the generic declaration and has no `instanceOf` to compare.
+    auto record = (RecordType*)global[type];
+    return record->instanceOf == array || record == global[array];
+}
+
+TypePtr ownedElement(Module& module, TypePtr type) {
+    if(auto element = arrayElement(module, type)) return element;
+
+    return fixedElement(module, type);
+}
+
 TypePtr sliceOf(Module& module, TypePtr type) {
     if(!module.program.sliceType) return nullptr;
 
@@ -178,7 +202,12 @@ TypePtr sliceOf(Module& module, TypePtr type) {
     // level of borrowing to describe and no conversion to perform.
     if(sliceElement(module, type)) return type;
 
+    // A `[T *n]` borrows as the same descriptor a growable one does, which is
+    // Implementation-Containers.md §6's "as an immutable argument it produces a slice; as a
+    // mutable-element argument a mutable slice. Both free, no coercion, no specialization." The
+    // length is the type's own rather than a field read, and that is the whole of the difference.
     auto element = arrayElement(module, type);
+    if(!element) element = fixedElement(module, type);
     if(!element) return nullptr;
 
     return instantiateRecord(module, module.program.sliceType, { &element, 1 }, kNullLocation);
@@ -206,6 +235,11 @@ static bool containsBorrowLikeAt(Module& module, TypePtr type, U32 depth) {
         for(auto constructor: ((RecordType*)value)->constructors.contents(base)) {
             if(containsBorrowLikeAt(module, constructor.content, depth - 1)) return true;
         }
+    } else if(value->kind == Type::Array) {
+        // `[&T *4]` holds four references and is exactly as unable to outlive them as a record of
+        // four would be. Asked once because `n` copies of one answer is that answer.
+        auto array = (ArrayType*)value;
+        if(array->length) return containsBorrowLikeAt(module, array->content, depth - 1);
     }
 
     return false;
@@ -253,6 +287,14 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
         }
         case Type::Ptr:
             return resolvePointerType(module, substituteType(module, ((PtrType*)global[type])->to, args, source));
+        case Type::Array: {
+            // The length is not substituted because there is nothing it could be substituted *by*:
+            // `n` is a literal in every position that mentions it (§6), so a generic `[a *4]` is
+            // generic in exactly one place and the four travels through unchanged.
+            auto array = (ArrayType*)global[type];
+            return resolveFixedArrayType(module, substituteType(module, array->content, args, source),
+                                         array->length, source);
+        }
         case Type::Borrow: {
             auto borrow = (BorrowType*)global[type];
             return resolveBorrowType(module, substituteType(module, borrow->to, args, source), borrow->mut);
@@ -351,6 +393,17 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
 
             if(patternBorrow->mut != concreteBorrow->mut) return false;
             return matchType(global, patternBorrow->to, concreteBorrow->to, bindings);
+        }
+        case Type::Array: {
+            // The length is matched and never bound: there is no kind for it to be a variable of.
+            // §6 is explicit that `[T *n]` never appears in an instance head, so what this serves is
+            // a *member* signature mentioning one - `fn f(xs: [a *4])` inside an instance - where the
+            // element still has to bind and the four still has to agree.
+            auto patternArray = (ArrayType*)global[pattern];
+            auto concreteArray = (ArrayType*)global[concrete];
+
+            if(patternArray->length != concreteArray->length) return false;
+            return matchType(global, patternArray->content, concreteArray->content, bindings);
         }
         case Type::Fun: {
             auto patternFun = (FunType*)global[pattern];
@@ -651,11 +704,17 @@ static TypePtr resolveTupleAst(Module& module, const ast::Type& type, GenEnv* en
  *  - `xs: Array(T)` written out, which is how Collections' own operations name the growable type.
  *    Growth is nominal, because only the growable type can grow: `push` says `Array(T)` and `sort`
  *    says `[T]`, and the difference between them is exactly this function.
+ *
+ * `[T *n]` in a binding position goes the same way, which is §6's "as an immutable argument it
+ * produces a slice; as a mutable-element argument a mutable slice - both free, no coercion, no
+ * specialization". The one thing it is never is a *growable* argument: `push` says `Array(T)`, so a
+ * fixed array reaching it is rejected by the ordinary conversion rule with a diagnostic naming why -
+ * see convertType.
  */
 TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType bind, GenEnv* env) {
     auto type = resolveType(module, written, env);
     if(bind == ast::BindType::Sink) return type;
-    if(written.kind != ast::Type::Arr || written.arr.length) return type;
+    if(written.kind != ast::Type::Arr) return type;
 
     auto slice = sliceOf(module, type);
     return slice ? slice : type;
@@ -891,6 +950,40 @@ static bool readBoxAttribute(Module& module, const ast::Type& type) {
     return boxed;
 }
 
+/*
+ * The `n` of a written `[T *n]`, or nothing where it is not a number this stage can read.
+ *
+ * A literal and nothing else, which is Implementation-Containers.md §6's "typing is resolve-stage":
+ * because `n` is a literal in every position that mentions it, nothing needs to quantify over it -
+ * the resolver checks a literal's length against an expected `[T *n]` and `[T *n]` never appears in
+ * an instance head. A length that is a `let`, an expression or a type variable is const generics,
+ * which is a separate feature and is named in the diagnostic rather than silently accepted as
+ * whatever the parser happened to fold.
+ */
+static Maybe<U32> fixedArrayLength(Module& module, const ast::Expr& length) {
+    // The literal's own kind is encoded in the expression kind - see ast::Expr::Lit - so an integer
+    // literal is exactly `Lit + Literal::Int`, the same shape readBitsAttribute reads.
+    if(length.kind != ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
+        module.context.diagnostics.error("a fixed array's length must be an integer literal - a length that is computed or generic needs const generics, which does not exist yet"_v,
+                                         length.source);
+        return Nothing();
+    }
+
+    auto written = length.lit.i();
+    if(written < 0) {
+        module.context.diagnostics.error("a fixed array's length cannot be negative"_v, length.source);
+        return Nothing();
+    }
+
+    if(written > kMaxFixedArrayLength) {
+        module.context.diagnostics.error("a fixed array may hold at most %@ elements, and this one asks for %@"_v,
+                                         length.source, U32(kMaxFixedArrayLength), written);
+        return Nothing();
+    }
+
+    return Just(U32(written));
+}
+
 TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
     /*
      * Anything reaching here still carrying `@box` is one written somewhere a field is not, since
@@ -945,10 +1038,14 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
         case ast::Type::Arr: {
             // `[T]` is the growable array, which is an ordinary generic record declared in
             // Collections rather than a type kind: the grammar has a spelling for it, and what the
-            // spelling means is a library type. `[T *n]` - the fixed-size inline one - has no
-            // implementation behind it yet, so it is rejected rather than silently made growable.
+            // spelling means is a library type. `[T *n]` is the other way round - it is a kind of
+            // its own, because what it differs in is capability rather than layout (§6).
             if(type.arr.length) {
-                return errorType(module, type.source, "fixed-size arrays are not available yet"_v);
+                auto element = resolveType(module, *module.parse[type.arr.type], env);
+                auto length = fixedArrayLength(module, *module.parse[type.arr.length]);
+                if(!length) return module.scalar.error;
+
+                return resolveFixedArrayType(module, element, length.unwrap(), type.source);
             }
 
             if(!module.program.arrayType) {
@@ -1047,6 +1144,39 @@ TypePtr resolveBitsType(Module& module, TypePtr base_, U32 bits, LocationId sour
                                            original->isSigned, original->name, canonical);
 
     module.program.refinedIntTypes.push(module.types, type - base);
+    return (Type*)type - base;
+}
+
+/*
+ * `[T *n]` - Implementation-Containers.md §6.
+ *
+ * Interned on the pair the way a pointer is interned on its target, because the length is part of
+ * what the type *is* rather than something written about it: `[Int *3]` and `[Int *4]` differ in
+ * size, in teardown and in which literals they accept, and every one of those follows from `n`.
+ *
+ * A zero-length one is legal and is a value occupying nothing, which is what makes `[] :: [Int *0]`
+ * an ordinary literal rather than a case. What is refused is a length that will not fit the
+ * arithmetic every element access does - the check is against the count rather than against the
+ * byte size, since the latter is a target's answer and this type is not.
+ */
+TypePtr resolveFixedArrayType(Module& module, TypePtr content, U32 length, LocationId source) {
+    auto base = *module.types;
+    if(!content || base[content]->kind == Type::Error) return module.scalar.error;
+
+    // The bound is reported where the length was written - see fixedArrayLength - so what is left
+    // here is the backstop for a caller that built one without going through the surface syntax.
+    if(length > kMaxFixedArrayLength) return module.scalar.error;
+
+    for(auto array: module.program.fixedArrayTypes.contents(base)) {
+        if(base[array]->content == content && base[array]->length == length) {
+            return (Type*)base[array] - base;
+        }
+    }
+
+    auto type = new (module.types) ArrayType(content, length);
+    type->generic = isGeneric(base, content);
+
+    module.program.fixedArrayTypes.push(module.types, type - base);
     return (Type*)type - base;
 }
 
@@ -1445,6 +1575,24 @@ static TypePtr breakCycles(Module& module, TypePtr type, LayoutWalk& walk, Locat
         return type;
     }
 
+    /*
+     * A fixed array is walked through and never rewritten - Implementation-Containers.md §6.
+     *
+     * `[T *n]` has no indirection to insert. The elements are `n` of the type at a stride and the
+     * inline run's address is computed from the owner rather than stored, so there is no edge here
+     * that a pointer could be put on: boxing the element would make `[Tree *4]` four pointers, which
+     * is a different type from the one that was written, and it would do it silently.
+     *
+     * So this only descends, and a cycle that reaches back through one is left to checkAcyclic to
+     * report. That is the right split - `data T {kids: [T *4]}` has no finite size *whatever* the
+     * compiler does to it, so the honest answer is a diagnostic rather than a representation the
+     * program did not ask for.
+     */
+    if(value->kind == Type::Array) {
+        breakCycles(module, ((ArrayType*)value)->content, walk, source);
+        return type;
+    }
+
     return type;
 }
 
@@ -1478,7 +1626,9 @@ static bool checkAcyclic(Module& module, TypePtr type, TypeList& stack, Location
         return true;
     }
 
-    if(value->kind != Type::Tup && value->kind != Type::Record) return true;
+    if(value->kind != Type::Tup && value->kind != Type::Record && value->kind != Type::Array) {
+        return true;
+    }
 
     for(auto entry: stack) {
         if(entry != type) continue;
@@ -1497,6 +1647,14 @@ static bool checkAcyclic(Module& module, TypePtr type, TypeList& stack, Location
             if(field.boxed) continue;
             ok = checkAcyclic(module, field.type, stack, source) && ok;
         }
+    } else if(value->kind == Type::Array) {
+        // A containment edge like a field's, and the one the walk above deliberately declined to
+        // cut: `data T {kids: [T *4]}` is four of a type that contains four of itself, and there is
+        // no indirection to insert that would leave it the type that was written. An empty one
+        // contains nothing, so it is finite whatever its element is - which is what makes
+        // `data T {kids: [T *0]}` a legal, useless declaration rather than a diagnostic.
+        auto array = (ArrayType*)value;
+        if(array->length) ok = checkAcyclic(module, array->content, stack, source) && ok;
     } else {
         for(auto constructor: ((RecordType*)value)->constructors.contents(base)) {
             if(constructor.boxed) continue;
@@ -1693,6 +1851,26 @@ Ownership ownershipOf(Module& module, TypePtr type) {
             break;
         }
 
+        case Type::Array: {
+            /*
+             * `n` members of one type, folded once - Implementation-Containers.md §6's "TrivialCopy
+             * when `T` is; no indirect storage; derived teardown over exactly `n` members".
+             *
+             * Once and not `n` times, because every one of these folds is idempotent: `n` copies of
+             * one answer is that answer. What that buys is that `[Buffer *65535]` costs the same to
+             * classify as `[Buffer *1]`, which matters because ownership is asked of every type
+             * reachable from every declaration.
+             *
+             * An empty one is left alone deliberately. A `[Buffer *0]` occupies nothing and has no
+             * element to release, so folding `Buffer`'s teardown into it would give a value with no
+             * members a derived teardown over them - which is a loop that runs zero times on a good
+             * day and a walk off the end of a zero-size allocation on a bad one.
+             */
+            auto array = (ArrayType*)value;
+            if(array->length) includeMember(module, array->content, result);
+            break;
+        }
+
         case Type::Record: {
             auto record = (RecordType*)value;
 
@@ -1844,6 +2022,17 @@ static Ownership ownershipInAt(Module& module, GenEnv* env, TypePtr type, U32 de
                 if(inner.drop != TeardownKind::None) result.drop = TeardownKind::Derived;
             }
 
+            if(result.needsTeardown() || !result.trivialSink) result.trivialCopy = false;
+            return result;
+        }
+
+        case Type::Array: {
+            // `n` members of one type, folded once - the same rule ownershipOf states, asked in a
+            // context where the element may still be a variable the constraints say something about.
+            auto array = (ArrayType*)value;
+            if(!array->length) return Ownership {};
+
+            auto result = ownershipInAt(module, env, array->content, depth - 1);
             if(result.needsTeardown() || !result.trivialSink) result.trivialCopy = false;
             return result;
         }
@@ -2287,6 +2476,17 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
             target << '%';
             describeType(context, base, ((PtrType*)base[type])->to, target);
             return;
+        case Type::Array: {
+            // Printed the way it is written, length included, because the length is the whole of
+            // what two of these differ in and a diagnostic dropping it would name both `[Int *]`.
+            auto array = (ArrayType*)base[type];
+            target << '[';
+            describeType(context, base, array->content, target);
+            target << " *";
+            target.appendValue(array->length);
+            target << ']';
+            return;
+        }
         case Type::Borrow:
             // `&T` is how a borrow is written; `&mut T` is a printed form rather than a source one,
             // since what makes a returned borrow mutable is the group it is rooted in rather than
