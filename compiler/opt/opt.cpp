@@ -211,6 +211,15 @@ void eraseInstruction(OptContext& opt, ModulePtr<Inst> instruction) {
     opt.changed = true;
 }
 
+bool isConstructorIndex(OptContext& opt, TypePtr type) {
+    if(!type || type == opt.program.scalar.bool_) return false;
+
+    auto record = opt.global[type];
+    if(record->kind != Type::Record) return false;
+
+    return ((RecordType*)record)->layout == RecordType::Enum;
+}
+
 Maybe<IntFacts> foldableInt(OptContext& opt, TypePtr type) {
     if(!type) return Nothing();
 
@@ -292,8 +301,7 @@ Maybe<U64> constantValueOf(OptContext& opt, ModulePtr<Value> value) {
      * that folded: `cast EQ : Int` was the one link left unfolded in `Instance.yana` between the
      * comparison identity above and the `== 1` that reads its answer.
      */
-    auto type = opt.global[constant->type];
-    if(type->kind != Type::Record || ((RecordType*)type)->layout != RecordType::Enum) return Nothing();
+    if(!isConstructorIndex(opt, constant->type)) return Nothing();
 
     return Just(((ConstInt*)constant)->value);
 }

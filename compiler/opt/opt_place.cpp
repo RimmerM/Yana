@@ -1,4 +1,5 @@
 #include "opt_pass.h"
+#include "../resolve/expr.h"
 
 /*
  * Read/write combining over places.
@@ -50,6 +51,39 @@
  * behind each of them is the reasoning above.
  */
 
+/*
+ * Whether a sum's tag and its payload are two pieces of storage - the one case where two projections
+ * of *different* kinds at the same position separate rather than overlap.
+ *
+ * `Word` is the layout where they do: `layoutRecord` in repr/repr.cpp places a discriminant word in
+ * front of the payload and the payload at `payloadOffset` after it, so a write of one cannot reach
+ * the other. That is what makes `init %m.discriminant, 1` survive `init %m@Just, 40` - which the
+ * `Just(40)` in every constructor call is, and until this was here the discriminant was forgotten by
+ * the payload write immediately below it and every read of it stayed a load.
+ *
+ * `Niche` is the case this must *not* say yes to, and the reason the question is asked of the target
+ * rather than of the path: a niche-folded discriminant is a pattern of the payload's own storage,
+ * so the two really are one place and the payload write really is what publishes the tag. See
+ * `publishNiche`, which is that same fact read the other way round.
+ *
+ * `Bits` is excluded as well, though `layoutRecord` does place the tag past the widest payload. What
+ * is not established is that it stays there through the IR: opt_pack.cpp rewrites a packed field
+ * into a read-modify-write of the *word*, and a word-sized write reaches everything in it. A bit-
+ * tagged sum whose payload is co-packed with the tag would be that write, so this declines rather
+ * than resting on a rule the pass below it could break.
+ */
+static bool separateTagAndPayload(OptContext& opt, const Place& place, Size index,
+                                  ProjectionKind left, ProjectionKind right) {
+    auto pair = (left == ProjectionKind::Discriminant && right == ProjectionKind::Downcast) ||
+                (left == ProjectionKind::Downcast && right == ProjectionKind::Discriminant);
+    if(!pair || !opt.function) return false;
+
+    auto owner = placeType(*opt.module, *opt.function, place, index);
+    if(!owner) return false;
+
+    return opt.repr.of(owner).discriminant == DiscriminantKind::Word;
+}
+
 bool pathsMayOverlap(OptContext& opt, const Place& first, const Place& second) {
     // `get` is a read that the list spells as a mutation, which is why every walk of a projection
     // path in this directory casts the constness off rather than taking a copy of the path.
@@ -61,7 +95,11 @@ bool pathsMayOverlap(OptContext& opt, const Place& first, const Place& second) {
         auto left = a.get(opt.local, i);
         auto right = b.get(opt.local, i);
 
-        if(left.kind != right.kind) return true;
+        // Everything in front of this position was the same projection on both paths, so either
+        // place answers for the type this one is taken of.
+        if(left.kind != right.kind) {
+            return !separateTagAndPayload(opt, first, i, left.kind, right.kind);
+        }
 
         switch(left.kind) {
             case ProjectionKind::Field:
@@ -446,6 +484,156 @@ struct Forwarder {
         }
     }
 
+    /*
+     * The discriminant a payload write establishes, where the two are one piece of storage.
+     *
+     * `separateTagAndPayload` is the layout question and this is the same answer read from the other
+     * end. Under `Niche` the tag is not stored: one constructor keeps the payload untouched and every
+     * other is a pattern outside the payload type's valid range - so writing that constructor's
+     * payload *is* how the tag comes to say so, and the value written cannot fail to mean it because
+     * every inhabitant of the payload type is inside the range the patterns were taken from outside
+     * of.
+     *
+     * Which makes forgetting the discriminant here exactly half an answer. The write does end
+     * whatever the tag was known to be, and `forgetAliasing` is right to say so; what it cannot say
+     * is what the tag became, and without that a niche-folded sum built out of literals is a
+     * constructor call followed by a load of a discriminant nobody has to read. `Maybe(&T)` is a
+     * plain nullable pointer on every target and `Maybe(Int)` is one on JS, so this is the ordinary
+     * case there rather than a corner of it.
+     *
+     * Only a write of the *whole* payload, which is what the path ending in the downcast means. A
+     * write one level further in - a field of the payload - leaves storage this pass has no rule
+     * about, since the value that decides the constructor is then only partly written.
+     */
+    void publishNiche(Place& place, Value& at) {
+        auto& projections = place.projections;
+        if(projections.isEmpty()) return;
+
+        auto last = projections.get(opt.local, projections.size() - 1);
+        if(last.kind != ProjectionKind::Downcast || !opt.function) return;
+
+        auto owner = placeType(*opt.module, *opt.function, place, projections.size() - 1);
+        if(!owner) return;
+
+        auto& repr = opt.repr.of(owner);
+        if(!repr.isNicheFolded() || repr.encoding.payloadConstructor != last.index) return;
+
+        Place tag;
+        tag.root = place.root;
+        tag.local = place.local;
+        tag.global = place.global;
+        tag.pointer = place.pointer;
+
+        for(Size i = 0; i + 1 < projections.size(); i++) {
+            tag.projections.push(opt.program.arena, projections.get(opt.local, i));
+        }
+
+        tag.projections.push(opt.program.arena, Projection { ProjectionKind::Discriminant, 0 });
+
+        // A fact rather than a store: nothing wrote the tag, so there is no pending instruction for
+        // a later overwrite of it to remove.
+        remember(tag, makeConstant(opt, at, opt.program.scalar.int_, last.index), nullptr);
+    }
+
+    /*
+     * Whether a value of a memory type may be read out of one of two places holding it rather than
+     * the other.
+     *
+     * A load of a memory type does not answer with contents - there is no register that would hold
+     * them - so what it produces is the storage itself, and `forwardable` declines it for that
+     * reason. But two places that a copy has just made equal are two answers to the same question,
+     * and where the storage is only *read* it does not matter which of them a reader is handed.
+     *
+     * That is what removes a record built to be taken apart. `Labelled {label: 2, contents: Just(40)}`
+     * inlined into a caller that wants `contents` is a two-field aggregate written, one field read
+     * back and the rest discarded - which on a managed target is a whole object allocated for one
+     * property. Handing the reader the storage the field was copied *from* leaves the aggregate with
+     * nothing but writes, and `eliminateDeadLocal` takes it from there.
+     *
+     * The conditions are what keep "equal here" from being read as "equal there":
+     *
+     *  - **no teardown.** With one, which storage a reader was handed stops being invisible: a
+     *    `Move` out of it, a `Drop` of it, a `->` parameter consuming it are all decisions about
+     *    *that* storage, and this would be quietly moving them to the other one. The same gate
+     *    `eliminateDeadLocal` uses, for the same reason;
+     *  - **every use is a read**, checked against the instruction rather than inferred from the
+     *    type, since the list above is exactly the one that would be wrong;
+     *  - **every use is in this block, and nothing between here and the last of them writes either
+     *    place.** This is the condition the rest of the pass does not need: a *value* forwarded out
+     *    of a place is the contents, and stays the answer however the place changes afterwards,
+     *    while this hands over the place - so it has to hold until the last reader has read it, not
+     *    just until here. Natively the two are separate storage and a write to one diverges from the
+     *    other; on a managed target `storeInto` made them one object, and there they cannot.
+     */
+    bool readOnlyUse(Value& user, ModulePtr<Value> loaded) {
+        switch(user.kind) {
+            case Value::Call:
+            case Value::CallDyn:
+            case Value::GenCall:
+            case Value::Ret:
+                return true;
+
+            // A copy of it into somewhere else, which reads it - but not a write *through* it, which
+            // would be this value as the destination's root rather than as the source.
+            case Value::Init:
+            case Value::Assign:
+                return ((InstInit&)user).value == loaded;
+
+            default:
+                return false;
+        }
+    }
+
+    bool sharedStorageSurvives(Block& block, Size index, ModulePtr<Value> loaded,
+                               const Place& place, const Known& entry) {
+        auto remaining = opt.local[loaded]->uses.size();
+        if(!remaining) return false;
+
+        for(Size i = index + 1; i < block.instructions.size(); i++) {
+            auto pointer = block.instructions.get(opt.local, i);
+            auto instruction = opt.local[pointer];
+
+            bool uses = false;
+            eachOperand(opt.local, *instruction, [&](ModulePtr<Value> operand) {
+                if(operand == loaded) uses = true;
+            });
+
+            if(uses) {
+                if(!readOnlyUse(*instruction, loaded)) return false;
+                if(--remaining == 0) return true;
+            }
+
+            if(instruction->kind == Value::Init || instruction->kind == Value::Assign) {
+                auto& store = (InstInit&)*instruction;
+                if(placesMayAlias(opt, store.place, const_cast<Place&>(place))) return false;
+                if(placesMayAlias(opt, store.place, const_cast<Known&>(entry).alias)) return false;
+                continue;
+            }
+
+            if(clobbers(*instruction)) return false;
+        }
+
+        // A use in another block, which this walk cannot say anything about.
+        return false;
+    }
+
+    ModulePtr<Value> sharedStorage(Block& block, Size index, ModulePtr<Value> loaded, Place& place,
+                                   TypePtr type) {
+        if(!type || !isMemoryType(opt.global, type)) return nullptr;
+        if(needsTeardown(*opt.module, type)) return nullptr;
+
+        for(Size i = known.size(); i-- > 0;) {
+            auto& entry = known[i];
+            if(!entry.aliased || !entry.value || !samePlace(opt, entry.place, place)) continue;
+            if(opt.local[entry.value]->type != type) continue;
+            if(!sharedStorageSurvives(block, index, loaded, place, entry)) continue;
+
+            return entry.value;
+        }
+
+        return nullptr;
+    }
+
     // Everything this access may have seen, which is no longer a write nobody read. Reads are marked
     // rather than forgotten: the *value* is still known, and it is only the store that stops being
     // removable.
@@ -501,6 +689,17 @@ struct Forwarder {
                         }
                     }
 
+                    // And the memory case, which is answered with the other name for the storage
+                    // rather than with its contents - see `sharedStorage`.
+                    if(!forwardable(load.type)) {
+                        auto value = sharedStorage(block, i, (ModulePtr<Value>)pointer, load.place,
+                                                   load.type);
+                        if(value) {
+                            replaceValue(opt, (ModulePtr<Value>)pointer, value);
+                            break;
+                        }
+                    }
+
                     markRead(load.place);
                     if(forwardable(load.type)) remember(load.place, (ModulePtr<Value>)pointer, nullptr);
                     break;
@@ -534,6 +733,7 @@ struct Forwarder {
 
                     forgetAliasing(store.place);
                     if(forwardable(type)) remember(store.place, store.value, pointer);
+                    publishNiche(store.place, *instruction);
 
                     /*
                      * And the aggregate case, which is a *read* of the source as well as a write of
@@ -554,6 +754,18 @@ struct Forwarder {
                                source.unwrap().local < unaddressed.size() &&
                                unaddressed[source.unwrap().local]) {
                                 inheritCopy(store.place, source.unwrap());
+
+                                // And the whole of it, which `inheritCopy` deliberately skips: the
+                                // fact is not what the storage contains but that two names now
+                                // reach the same contents, which is what `sharedStorage` reads.
+                                remember(store.place, store.value, nullptr);
+
+                                for(auto& stored: known) {
+                                    if(!samePlace(opt, stored.place, store.place)) continue;
+
+                                    stored.alias = source.unwrap();
+                                    stored.aliased = true;
+                                }
                             }
                         }
                     }

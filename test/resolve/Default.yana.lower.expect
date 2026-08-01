@@ -140,63 +140,7 @@ overridden<complex>(): Int {
 
 ordered<complex>(): Int {
   b_0 {
-    %v_1 = imm 1: Int
-    %v_2 = cmp_eq 0, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    %v_5 = add %v_1, 2: Int
-    jmp b_4
-  }
-
-  b_4 {
-    %v_6 = phi [b_0, %v_1], [b_3, %v_5]: Int
-    %v_7 = cmp_neq 0, 2: Int
-    je %v_7, b_8, b_9
-  }
-
-  b_8 {
-    %v_10 = add %v_6, 4: Int
-    jmp b_9
-  }
-
-  b_9 {
-    %v_11 = phi [b_4, %v_6], [b_8, %v_10]: Int
-    %v_12 = cmp_eq 2, 2: Int
-    je %v_12, b_13, b_14
-  }
-
-  b_13 {
-    %v_15 = add %v_11, 8: Int
-    jmp b_14
-  }
-
-  b_14 {
-    %v_16 = phi [b_9, %v_11], [b_13, %v_15]: Int
-    %v_17 = cmp_neq 2, 0: Int
-    je %v_17, b_18, b_19
-  }
-
-  b_18 {
-    %v_20 = add %v_16, 16: Int
-    jmp b_19
-  }
-
-  b_19 {
-    %v_21 = phi [b_14, %v_16], [b_18, %v_20]: Int
-    %v_22 = cmp_neq 1, 0: Int
-    je %v_22, b_23, b_24
-  }
-
-  b_23 {
-    %v_25 = add %v_21, 32: Int
-    jmp b_24
-  }
-
-  b_24 {
-    %v_26 = phi [b_19, %v_21], [b_23, %v_25]: Int
-    ret %v_26
+    ret 63
   }
 }
 
@@ -662,12 +606,9 @@ Eq(Flags).==<complex>(%lhs: Ptr, %rhs: Ptr): Int {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex ordered: Int
-    %v_2 = add %v_1, 192: Int
-    %v_3 = call_complex flags: Int
-    %v_4 = add %v_2, %v_3: Int
-    %v_5 = add %v_4, 6144: Int
-    ret %v_5
+    %v_1 = call_complex flags: Int
+    %v_2 = add %v_1, 6399: Int
+    ret %v_2
   }
 }
 

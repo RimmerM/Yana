@@ -198,46 +198,11 @@ fn scan(%c: Color) -> Int {
 
 fn main() -> Int {
   b0:
-    %v0 = alloc : Maybe(Int)
-    init %local0.discriminant, 1
-    init %local0@Just, 1
-    %v137 = load %local0.discriminant : Int
-    %v139 = cmp_eq %v137, 1 : Bool
-    je %v139, b2, b1
-
-  b1:
-    jmp b3
-
-  b2:
-    %v = load %local0@Just : Int
-    %v144 = add %v, 1 : Int
-    jmp b3
-
-  b3:
-    %v147 = phi [b1, 0], [b2, %v144] : Int
-    %v11 = alloc : Maybe(Int)
-    init %local2.discriminant, 1
-    init %local2@Just, 1
-    %v159 = load %local2.discriminant : Int
-    %v161 = cmp_eq %v159, 1 : Bool
-    je %v161, b5, b4
-
-  b4:
-    jmp b6
-
-  b5:
-    %v = load %local2@Just : Int
-    %v166 = add %v, 2 : Int
-    jmp b6
-
-  b6:
-    %v169 = phi [b4, 0], [b5, %v166] : Int
-    %v17 = add %v147, %v169 : Int
     %v23 = alloc : Maybe(Color)
     init %local4.discriminant, 1
     init %local4@Just, Red
     %v28 = call describe, %v23 : Int
-    %v29 = add %v17, %v28 : Int
+    %v29 = add %v28, 5 : Int
     %v30 = alloc : Maybe(Color)
     init %local5.discriminant, 1
     init %local5@Just, Green
@@ -271,24 +236,7 @@ fn main() -> Int {
     init %local11.discriminant, 0
     %v73 = call onlyRed, %v70 : Int
     %v74 = add %v69, %v73 : Int
-    %v75 = alloc : Maybe(Int)
-    init %local12.discriminant, 1
-    init %local12@Just, 4
-    %v181 = load %local12.discriminant : Int
-    %v183 = cmp_eq %v181, 1 : Bool
-    je %v183, b8, b7
-
-  b7:
-    jmp b9
-
-  b8:
-    %v = load %local12@Just : Int
-    %v188 = mul %v, 3 : Int
-    jmp b9
-
-  b9:
-    %v191 = phi [b7, 0], [b8, %v188] : Int
-    %v81 = add %v74, %v191 : Int
+    %v81 = add %v74, 12 : Int
     %v87 = alloc : Maybe(Int)
     init %local14.discriminant, 0
     %v90 = alloc : Maybe(Int)

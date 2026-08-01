@@ -164,13 +164,30 @@ struct Folder {
             return constant(instruction, instruction.type, answer ? 1 : 0);
         }
 
+        /*
+         * The width the comparison happens at, or nothing where nothing may be decided.
+         *
+         * A payload-free enum is admitted without one, for the reason `constantValueOf` reads a
+         * constant of one without one: what such a value is, is a constructor index - a small
+         * non-negative number in every register that could hold it - so all six orderings answer the
+         * same however wide the target makes it and whichever signedness it picks. There is nothing
+         * for `IntFacts` to say and nothing the two targets could disagree about.
+         *
+         * `Ordering` is what wants it, and every default `Ord` writes is downstream. `a < b` on an
+         * instance that supplies only `compare` is `compare(a, b) == LT`, so a comparison of two
+         * constants inlines to `cmp_eq LT, LT` - two constructor constants at an enum type, which
+         * every rule above this one declines. Until this was here, all four of Ord's defaults left a
+         * live branch on a condition that was already decided: `Default.yana` emitted five of them
+         * in one function.
+         */
         auto facts = foldableInt(opt, operandType);
-        if(!facts) return nullptr;
+        if(!facts && !isConstructorIndex(opt, operandType)) return nullptr;
 
         U64 lhs, rhs;
         if(!operands(instruction, lhs, rhs)) return nullptr;
 
-        auto answer = compare(instruction.cmp, lhs, rhs, facts.unwrap().isSigned);
+        auto isSigned = facts && facts.unwrap().isSigned;
+        auto answer = compare(instruction.cmp, lhs, rhs, isSigned);
         return constant(instruction, instruction.type, answer ? 1 : 0);
     }
 

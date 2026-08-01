@@ -1,0 +1,64 @@
+"use strict";
+var released = 0;
+
+// Core
+function add_eq_Int(target, amount) {
+  target.$v = target.$v + amount | 0;
+  return;
+}
+
+// ResolveTest
+function unwrapOr(value, fallback) {
+  var v9;
+  if (!(value === null)) {
+    v9 = value;
+  } else {
+    v9 = fallback;
+  }
+  return v9;
+}
+
+function bump(value) {
+  return unwrapOr(value, 0) + 1 | 0;
+}
+
+function countOf(value) {
+  return value.value;
+}
+
+function taken() {
+  return unwrapOr(35, 0);
+}
+
+function replaced() {
+  return unwrapOr(36, 0);
+}
+
+function sunk() {
+  var o = { tag: 0, held: { value: 0 } };
+  var v2 = { value: 36 };
+  o.tag = 1;
+  o.held = v2;
+  drop$Owning(o);
+  return 36;
+}
+
+function guarded() {
+  return unwrapOr({ tag: 7, held: 35 }.held, unwrapOr(1, 0) + 1 | 0);
+}
+
+function main() {
+  return (((unwrapOr(35, 0) + unwrapOr(36, 0) | 0) + sunk() | 0) + unwrapOr({ tag: 7, held: 35 }.held, unwrapOr(1, 0) + 1 | 0) | 0) + released | 0;
+}
+
+function Drop_Counter_drop(value) {
+  var v4 = { $v: released };
+  add_eq_Int(v4, 1);
+  released = v4.$v;
+  return;
+}
+
+function drop$Owning(value) {
+  Drop_Counter_drop(value.held);
+  return;
+}

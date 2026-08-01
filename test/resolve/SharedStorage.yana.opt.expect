@@ -1,0 +1,100 @@
+let &released: Int = 0
+
+fn +=(Int)(%target: Int, %amount: Int) -> () {
+  b0:
+    %v2 = load %target : Int
+    %v3 = add %v2, %amount : Int
+    assign %target, %v3
+    ret
+}
+
+fn unwrapOr(%value: Maybe(Int), %fallback: Int) -> Int {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %inner = load %value@Just : Int
+    jmp b3
+
+  b3:
+    %v9 = phi [b2, %inner], [b1, %fallback] : Int
+    ret %v9
+}
+
+fn bump(%value: Maybe(Int)) -> Int {
+  b0:
+    %v8 = load %value.discriminant : Int
+    %v10 = cmp_eq %v8, 1 : Bool
+    je %v10, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %inner = load %value@Just : Int
+    jmp b3
+
+  b3:
+    %v7 = phi [b2, %inner], [b1, 0] : Int
+    %v5 = add %v7, 1 : Int
+    ret %v5
+}
+
+fn countOf(%value: Counter) -> Int {
+  b0:
+    %v1 = load %value@Counter.value : Int
+    ret %v1
+}
+
+fn taken() -> Int {
+  b0:
+    ret 35
+}
+
+fn replaced() -> Int {
+  b0:
+    ret 36
+}
+
+fn sunk() -> Int {
+  b0:
+    %o = alloc : Owning
+    %v2 = alloc : Counter
+    init %local1@Counter.value, 36
+    init %local0@Owning.tag, 1
+    init %local0@Owning.held, %v2
+    drop_derived %local0 via drop$Owning
+    ret 36
+}
+
+fn guarded() -> Int {
+  b0:
+    ret 35
+}
+
+fn main() -> Int {
+  b0:
+    %v3 = call sunk : Int
+    %v6 = add %v3, 106 : Int
+    %v7 = load released : Int
+    %v8 = add %v6, %v7 : Int
+    ret %v8
+}
+
+fn Drop(Counter).drop(%value: Counter) -> () {
+  b0:
+    %v4 = borrow_mut released : &mut Int
+    call +=(Int), %v4, 1
+    ret
+}
+
+fn drop$Owning(%value: %Owning) -> () {
+  b0:
+    drop [%value]@Owning.held via Drop(Counter).drop
+    ret
+}

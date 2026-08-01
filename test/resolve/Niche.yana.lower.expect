@@ -110,16 +110,15 @@ tagOf<complex>(%m: Ptr): Int {
 
 paired<complex>(): Int {
   b_0 {
-    %v_1 = alloca 2, 1: Ptr
+    %v_1 = alloca 1, 1: Ptr
     store %v_1, 2, 1
-    %v_2 = add %v_1, 1: Ptr
+    %v_2 = alloca 1, 1: Ptr
     store %v_2, 3, 1
     %v_3 = call_complex tagOf, %v_1: Int
     %v_4 = imul %v_3, 10: Int
-    %v_5 = add %v_1, 1: Ptr
-    %v_6 = call_complex tagOf, %v_5: Int
-    %v_7 = add %v_4, %v_6: Int
-    ret %v_7
+    %v_5 = call_complex tagOf, %v_2: Int
+    %v_6 = add %v_4, %v_5: Int
+    ret %v_6
   }
 }
 
@@ -223,17 +222,16 @@ main<complex>(): Int {
     %v_11 = add %outer, %middle: Int
     %v_12 = add %v_11, %inner: Int
     %v_13 = add %v_7, %v_12: Int
-    %v_14 = alloca 2, 1: Ptr
+    %v_14 = alloca 1, 1: Ptr
     store %v_14, 2, 1
-    %v_15 = add %v_14, 1: Ptr
+    %v_15 = alloca 1, 1: Ptr
     store %v_15, 3, 1
     %v_16 = call_complex tagOf, %v_14: Int
     %v_17 = imul %v_16, 10: Int
-    %v_18 = add %v_14, 1: Ptr
-    %v_19 = call_complex tagOf, %v_18: Int
-    %v_20 = add %v_17, %v_19: Int
-    %v_21 = add %v_13, %v_20: Int
-    ret %v_21
+    %v_18 = call_complex tagOf, %v_15: Int
+    %v_19 = add %v_17, %v_18: Int
+    %v_20 = add %v_13, %v_19: Int
+    ret %v_20
   }
 }
 

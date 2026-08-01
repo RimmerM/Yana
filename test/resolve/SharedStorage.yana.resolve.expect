@@ -1,0 +1,129 @@
+let &released: Int = 0
+
+fn +=(Int)(%target: Int, %amount: Int) -> () {
+  b0:
+    %v2 = load %target : Int
+    %v3 = add %v2, %amount : Int
+    assign %target, %v3
+    ret
+}
+
+fn unwrapOr(%value: Maybe(Int), %fallback: Int) -> Int {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %inner = load %value@Just : Int
+    jmp b3
+
+  b3:
+    %v9 = phi [b2, %inner], [b1, %fallback] : Int
+    ret %v9
+}
+
+fn bump(%value: Maybe(Int)) -> Int {
+  b0:
+    %v2 = call unwrapOr, %value, 0 : Int
+    %v5 = add %v2, 1 : Int
+    ret %v5
+}
+
+fn countOf(%value: Counter) -> Int {
+  b0:
+    %v1 = load %value@Counter.value : Int
+    ret %v1
+}
+
+fn taken() -> Int {
+  b0:
+    %b = alloc : Boxed
+    %v2 = alloc : Maybe(Int)
+    init %local1.discriminant, 1
+    init %local1@Just, 35
+    init %local0@Boxed.tag, 7
+    init %local0@Boxed.held, %v2
+    %v9 = load %local0@Boxed.held : Maybe(Int)
+    %v11 = call unwrapOr, %v9, 0 : Int
+    ret %v11
+}
+
+fn replaced() -> Int {
+  b0:
+    %v0 = alloc : Boxed
+    %v2 = alloc : Maybe(Int)
+    init %local1.discriminant, 1
+    init %local1@Just, 35
+    init %b@Boxed.tag, 7
+    init %b@Boxed.held, %v2
+    %v9 = alloc : Maybe(Int)
+    init %local2.discriminant, 1
+    init %local2@Just, 36
+    assign %b@Boxed.held, %v9
+    %v15 = load %b : Boxed
+    %v16 = load %b@Boxed.held : Maybe(Int)
+    %v18 = call unwrapOr, %v16, 0 : Int
+    ret %v18
+}
+
+fn sunk() -> Int {
+  b0:
+    %o = alloc : Owning
+    %v2 = alloc : Counter
+    init %local1@Counter.value, 36
+    init %local0@Owning.tag, 1
+    init %local0@Owning.held, %v2
+    %v7 = load %local0@Owning.held : Counter
+    %v8 = call countOf, %v7 : Int
+    drop_derived %local0 via drop$Owning
+    ret %v8
+}
+
+fn guarded() -> Int {
+  b0:
+    %b = alloc : Boxed
+    %v2 = alloc : Maybe(Int)
+    init %local1.discriminant, 1
+    init %local1@Just, 35
+    init %local0@Boxed.tag, 7
+    init %local0@Boxed.held, %v2
+    %v9 = load %local0@Boxed.held : Maybe(Int)
+    %v10 = alloc : Maybe(Int)
+    init %local2.discriminant, 1
+    init %local2@Just, 1
+    %v15 = call bump, %v10 : Int
+    %v16 = call unwrapOr, %v9, %v15 : Int
+    ret %v16
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call taken : Int
+    %v1 = call replaced : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call sunk : Int
+    %v4 = add %v2, %v3 : Int
+    %v5 = call guarded : Int
+    %v6 = add %v4, %v5 : Int
+    %v7 = load released : Int
+    %v8 = add %v6, %v7 : Int
+    ret %v8
+}
+
+fn Drop(Counter).drop(%value: Counter) -> () {
+  b0:
+    %v1 = load released : Int
+    %v4 = borrow_mut released : &mut Int
+    call +=(Int), %v4, 1
+    ret
+}
+
+fn drop$Owning(%value: %Owning) -> () {
+  b0:
+    drop [%value]@Owning.held via Drop(Counter).drop
+    ret
+}

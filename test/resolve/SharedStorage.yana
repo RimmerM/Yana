@@ -1,0 +1,76 @@
+{-
+   Which of two names for one value a reader is handed - opt_place.cpp's `sharedStorage`.
+
+   A load of a memory type does not answer with contents, so nothing forwards it: what it produces
+   is the storage, and a record built to be taken apart is therefore a record that gets built. On a
+   managed target that is an object allocated to read one property off. Where a copy has just made
+   two places equal, the reader can be handed the source instead, and the aggregate is left with
+   nothing but writes for `eliminateDeadLocal` to remove.
+
+   The rewrite is sound in exactly the window where the two stay equal, and that window is what this
+   fixture is about. Every function below reads a field back; they differ in what happens between
+   the copy and the read, and in three of the four the answer would be wrong if the substitution
+   were made anyway:
+
+   - `taken` is the case that pays. Nothing intervenes, so the record disappears;
+   - `replaced` overwrites the field itself before reading it, which ends the equality outright;
+   - `sunk` reads a field whose type owes a teardown, where *which* storage a reader was handed
+     stops being invisible - the drop that runs is a decision about one of them;
+   - `guarded` puts a call between the read and the use of what it produced. Every other rule in
+     this pass is about the window ending *here*, because a value forwarded out of a place is the
+     contents and stays the answer however the place changes afterwards. This one hands over the
+     place, so the window ends at the last reader - and a call is where the walk stops looking.
+
+   Read against `.run.expect` rather than a shape: substituting the wrong storage produces a program
+   that still type-checks, still runs and answers with the other field's value. The optimized and
+   unoptimized builds being compared with each other is what actually catches it - neither side of
+   that assertion is a file.
+-}
+
+let &released = 0 :: Int
+
+data Counter {value: Int}
+
+instance Drop(Counter):
+    fn drop(->value: Counter) -> {}:
+        released += 1
+
+data Boxed {tag: Int, held: Maybe(Int)}
+data Owning {tag: Int, held: Counter}
+
+-- Deliberately not inlined into its callers: what the rewrite has to remove is the record built to
+-- produce this argument, and a callee small enough to be spliced would remove it by other means.
+fn unwrapOr(value: Maybe(Int), fallback: Int) -> Int = match value:
+    Just(inner) -> inner
+    Nothing -> fallback
+
+fn bump(value: Maybe(Int)) -> Int = unwrapOr(value, 0) + 1
+
+fn countOf(value: Counter) -> Int = value.value
+
+-- One field read out of a two-field record, and the record never named again.
+fn taken() -> Int:
+    let b = Boxed {tag: 7, held: Just(35)}
+    return unwrapOr(b.held, 0)
+
+-- The same shape with the field overwritten in between, so the read must see the second value.
+fn replaced() -> Int:
+    let &b = Boxed {tag: 7, held: Just(35)}
+    b.held = Just(36)
+    return unwrapOr(b.held, 0)
+
+-- A field whose type owes a teardown, which is the gate rather than an accident of size.
+fn sunk() -> Int:
+    let o = Owning {tag: 1, held: Counter {value: 36}}
+    return countOf(o.held)
+
+-- A call between the *read* and the use of what it produced, which is the window the rewrite has to
+-- hold across rather than the one every other rule here asks about.
+fn guarded() -> Int:
+    let b = Boxed {tag: 7, held: Just(35)}
+    return unwrapOr(b.held, bump(Just(1)))
+
+-- `released` last, and it is the half a number can hide: the Counter is built in a temporary and
+-- copied into the record, so a reader handed the temporary instead would still answer 36 while the
+-- drop ran against the wrong storage.
+fn main() -> Int = taken() + replaced() + sunk() + guarded() + released

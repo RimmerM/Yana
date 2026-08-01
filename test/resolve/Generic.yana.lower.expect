@@ -165,79 +165,29 @@ main<complex>(): Int {
     store %j, 1, 1
     %v_2 = call_complex unwrapBool, %j: Int
     %v_3 = add %v_1, %v_2: Int
-    %v_4 = alloca 8, 4: Ptr
-    store %v_4, 1, 4
-    %v_5 = add %v_4, 4: Ptr
-    store %v_5, 3, 4
-    %v_6 = loads %v_4, 4: Int
-    %v_7 = cmp_eq %v_6, 1: Int
-    %v_8 = imm 2: Int
-    je %v_7, b_9, b_10
-  }
-
-  b_10 {
-    jmp b_11
-  }
-
-  b_9 {
-    %v_12 = add %v_4, 4: Ptr
-    %inner = loads %v_12, 4: Int
-    jmp b_11
-  }
-
-  b_11 {
-    %v_13 = phi [b_9, %inner], [b_10, 100]: Int
-    %v_14 = add %v_3, %v_13: Int
-    %v_15 = add %v_14, 5: Int
-    %v_16 = alloca 1, 1: Ptr
-    store %v_16, 1, 1
-    %v_17 = call_complex unwrapBool, %v_16: Int
-    %v_18 = add %v_15, %v_17: Int
-    %v_19 = alloca 1, 1: Ptr
-    store %v_19, 2, 1
-    %v_20 = call_complex unwrapBool, %v_19: Int
-    %v_21 = add %v_18, %v_20: Int
-    %v_22 = alloca 8, 4: Ptr
-    store %v_22, 1, 4
-    %v_23 = add %v_22, 4: Ptr
-    store %v_23, 11, 4
-    %v_24 = call_complex resultValue, %v_22: Int
-    %v_25 = add %v_21, %v_24: Int
-    %v_26 = alloca 8, 4: Ptr
-    store %v_26, 0, 4
-    %v_27 = add %v_26, 4: Ptr
-    store %v_27, 4, 4
-    %v_28 = call_complex resultValue, %v_26: Int
-    %v_29 = add %v_25, %v_28: Int
-    %v_30 = add %v_29, 6: Int
-    %v_31 = alloca 12, 4: Ptr
-    %v_32 = alloca 8, 4: Ptr
-    store %v_32, 1, 4
-    %v_33 = add %v_32, 4: Ptr
-    store %v_33, 40, 4
-    %v_34 = add %v_31, 8: Ptr
-    store %v_34, %v_8, 4
-    copy %v_31, %v_32, 8
-    %v_35 = loads %v_31, 4: Int
-    %v_36 = cmp_eq %v_35, 1: Int
-    je %v_36, b_37, b_38
-  }
-
-  b_38 {
-    jmp b_39
-  }
-
-  b_37 {
-    %v_40 = add %v_31, 4: Ptr
-    %inner = loads %v_40, 4: Int
-    jmp b_39
-  }
-
-  b_39 {
-    %v_41 = phi [b_37, %inner], [b_38, 0]: Int
-    %v_42 = add %v_41, %v_8: Int
-    %v_43 = add %v_30, %v_42: Int
-    ret %v_43
+    %v_4 = add %v_3, 8: Int
+    %v_5 = alloca 1, 1: Ptr
+    store %v_5, 1, 1
+    %v_6 = call_complex unwrapBool, %v_5: Int
+    %v_7 = add %v_4, %v_6: Int
+    %v_8 = alloca 1, 1: Ptr
+    store %v_8, 2, 1
+    %v_9 = call_complex unwrapBool, %v_8: Int
+    %v_10 = add %v_7, %v_9: Int
+    %v_11 = alloca 8, 4: Ptr
+    store %v_11, 1, 4
+    %v_12 = add %v_11, 4: Ptr
+    store %v_12, 11, 4
+    %v_13 = call_complex resultValue, %v_11: Int
+    %v_14 = add %v_10, %v_13: Int
+    %v_15 = alloca 8, 4: Ptr
+    store %v_15, 0, 4
+    %v_16 = add %v_15, 4: Ptr
+    store %v_16, 4, 4
+    %v_17 = call_complex resultValue, %v_15: Int
+    %v_18 = add %v_14, %v_17: Int
+    %v_19 = add %v_18, 48: Int
+    ret %v_19
   }
 }
 

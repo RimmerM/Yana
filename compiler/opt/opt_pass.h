@@ -244,6 +244,20 @@ struct IntFacts {
 
 Maybe<IntFacts> foldableInt(OptContext& opt, TypePtr type);
 
+/*
+ * Whether a type's whole representation is a constructor index - a sum whose every constructor
+ * carries nothing, which `layoutRecord` in repr/repr.cpp lays out as a discriminant and no payload.
+ *
+ * Deliberately not an entry in `foldableInt`: an index has no width to read it at, and no arithmetic
+ * is typed at one, so what that function would have to answer about it does not exist. What *is*
+ * true of it is enough for two folds - `constantValueOf` reads a constant of one, and `foldCompare`
+ * decides an ordering between two - and both of them are below.
+ *
+ * `Bool` is one of these by construction and is deliberately excluded, because it *does* have a
+ * width: it is an operand of `xor`, and `foldableInt` has its own entry for it.
+ */
+bool isConstructorIndex(OptContext& opt, TypePtr type);
+
 // A value read back at its own width: sign-extended to 64 bits for a signed type, zero-extended for
 // an unsigned one. This is the form every fold computes in and the form a folded constant is stored
 // in - see makeConstant.

@@ -35,21 +35,20 @@ heldTag<complex>(%h$box$value: Int, %h$box$tag: Int): Int {
 
 movedTemporary<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = alloca 16, 4: Ptr
+    %v_2 = alloca 8, 4: Ptr
     store %v_2, 1, 4
     %v_3 = add %v_2, 4: Ptr
     store %v_3, 2, 4
-    %v_4 = add %v_2, 8: Ptr
+    %v_4 = alloca 8, 4: Ptr
     store %v_4, 3, 4
-    %v_5 = add %v_2, 12: Ptr
+    %v_5 = add %v_4, 4: Ptr
     store %v_5, 4, 4
     %v_6 = alloca 16, 4: Ptr
     copy %v_6, %v_2, 8
-    %v_7 = add %v_2, 8: Ptr
-    %v_8 = add %v_6, 8: Ptr
-    copy %v_8, %v_7, 8
-    %v_9 = add %v_6, 4: Ptr
-    store %v_9, 5, 4
+    %v_7 = add %v_6, 8: Ptr
+    copy %v_7, %v_4, 8
+    %v_8 = add %v_6, 4: Ptr
+    store %v_8, 5, 4
     copy %v_0, %v_6, 16
     ret 
   }
@@ -260,22 +259,21 @@ movedCorners<complex>(%v_0: Ptr, %it: Ptr) {
 
 deeper<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = alloca 16, 4: Ptr
+    %v_2 = alloca 8, 4: Ptr
     store %v_2, 1, 4
     %v_3 = add %v_2, 4: Ptr
     store %v_3, 2, 4
-    %v_4 = add %v_2, 8: Ptr
+    %v_4 = alloca 8, 4: Ptr
     store %v_4, 3, 4
-    %v_5 = add %v_2, 12: Ptr
+    %v_5 = add %v_4, 4: Ptr
     store %v_5, 4, 4
     %v_6 = alloca 16, 4: Ptr
     copy %v_6, %v_2, 8
-    %v_7 = add %v_2, 8: Ptr
-    %v_8 = add %v_6, 8: Ptr
-    copy %v_8, %v_7, 8
+    %v_7 = add %v_6, 8: Ptr
+    copy %v_7, %v_4, 8
     store %v_6, 7, 4
-    %v_9 = add %v_6, 12: Ptr
-    store %v_9, 8, 4
+    %v_8 = add %v_6, 12: Ptr
+    store %v_8, 8, 4
     copy %v_0, %v_6, 16
     ret 
   }
@@ -513,28 +511,13 @@ main<complex>(): Int {
     store %v_49, 7, 1
     %v_50 = call_complex flagBits, %v_49: Int
     %v_51 = add %v_48, %v_50: Int
-    %v_52 = add %v_51, 325: Int
-    %v_53 = alloca 16, 4: Ptr
-    call_complex deeper, %v_53
-    %v_54 = loads %v_53, 4: Int
-    %v_55 = add %v_52, %v_54: Int
-    %v_56 = alloca 16, 4: Ptr
-    call_complex deeper, %v_56
-    %v_57 = add %v_56, 12: Ptr
-    %v_58 = loads %v_57, 4: Int
-    %v_59 = add %v_55, %v_58: Int
-    %v_60 = alloca 16, 4: Ptr
-    call_complex deeper, %v_60
-    %v_61 = add %v_60, 4: Ptr
-    %v_62 = loads %v_61, 4: Int
-    %v_63 = add %v_59, %v_62: Int
-    %scalars = add %v_63, 91: Int
-    %v_64 = bitcast 0: Ptr
-    %v_65 = bitcast %v_64: Long
-    %v_66 = add %v_65, 11: Long
-    %v_67 = cast %v_66: Int
-    %v_68 = add %scalars, %v_67: Int
-    ret %v_68
+    %scalars = add %v_51, 433: Int
+    %v_52 = bitcast 0: Ptr
+    %v_53 = bitcast %v_52: Long
+    %v_54 = add %v_53, 11: Long
+    %v_55 = cast %v_54: Int
+    %v_56 = add %scalars, %v_55: Int
+    ret %v_56
   }
 }
 
