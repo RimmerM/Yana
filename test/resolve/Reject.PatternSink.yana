@@ -1,0 +1,67 @@
+import Native
+
+-- Handing ownership on out of a value that was never moved out of anything.
+--
+-- Every departure point - a write into another place, a return, a phi input - takes a *value*, and
+-- the handover is recorded against whichever slot that value is the whole contents of. A projected
+-- load has no such slot: `p.left` and the `v` a `Held(v)` pattern binds are both a read over a path
+-- into storage somebody else still owns, so the handover used to find nothing to mark moved, the
+-- source was dropped at its last use, and whoever received the bytes dropped them again.
+--
+-- That is the same statement `->` makes with a projected place, and it is refused for the same
+-- reason. The only difference was that `->` said it out loud, so this is where the silent form has
+-- to be noticed. Each function below is one shape of it; the expectation beside this file is the
+-- whole of what it reports.
+
+data Buffer {bytes: %U8}
+
+instance Drop(Buffer):
+    fn drop(->value: Buffer) -> {}:
+        freeHeap(value.bytes)
+
+data Pair {left: Buffer, right: Buffer}
+data Box = Nil | Held(Buffer)
+
+-- Returning a field. The pair is still owned here and still dropped, so the caller receives storage
+-- that is about to be released - and the fix is a move the model does not have yet, which is why
+-- this reads as a partial move rather than as anything about the return.
+fn returnsField(->p: Pair) -> Buffer = p.left
+
+-- The same through a pattern, and the same silently: `v` refers to the payload, it does not take it.
+-- Here the move *is* representable - a record is a discriminant and one payload - so the diagnostic
+-- names the spelling that says so.
+fn returnsPayload(->b: Box) -> Buffer = match b:
+    Held(v) -> v
+    Nil -> Buffer {bytes: null()}
+
+-- Into another place rather than out of the frame. The field the pair now holds and the field it was
+-- read out of are two owners of one buffer.
+fn writesField(->p: Pair, ->q: Pair) -> Pair = Pair {left: p.left, right: q.right}
+
+-- Out of storage this frame only borrows, which is a different mistake: there is no `->` that would
+-- make it legal, because nothing here owns the thing to begin with.
+fn fromBorrow(b: Box) -> Buffer = match b:
+    Held(v) -> v
+    Nil -> Buffer {bytes: null()}
+
+-- `->` on something that is not a name. Taking the payload out and *then* asking a question about
+-- what came out leaves it moved on the path where the answer was no, with nothing to put it back.
+fn testsAfterTaking(->b: Box) -> Buffer = match b:
+    Held(->Buffer {bytes: _}) -> Buffer {bytes: null()}
+    Nil -> Buffer {bytes: null()}
+
+-- `&` in a pattern. Matching does not establish exclusive access, so there is nothing for the sigil
+-- to be true of.
+fn mutablePattern(->b: Box) -> {}:
+    match b:
+        Held(&v) -> {}
+        Nil -> {}
+
+-- A boxed payload. `Maybe(Tree)`'s indirection lands on `Just`, so taking the target out would leave
+-- the allocation with nothing to hand it back - the reclaim that would have is the one this move
+-- just told the compiler not to run.
+data Tree = Leaf(Int) | Branch {child: Maybe(Tree), label: Int}
+
+fn takesBoxed(->m: Maybe(Tree)) -> Tree = match m:
+    Just(->t) -> t
+    Nothing -> Leaf(0)

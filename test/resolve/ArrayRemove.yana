@@ -8,20 +8,14 @@ import Native.Linux
    compiler can see - so nothing about it says the element it writes over is over. `remove` now takes
    that element out into a `->` binding first, and the binding is what owes its release.
 
-   What this file asserts is what holds: the element leaves, the survivors keep their order, and the
-   length is right. What it does not assert is the count, because the drop does not run yet and the
-   reason has nothing to do with `remove`.
+   What this file asserts: the element leaves, the survivors keep their order, the length is right,
+   and the live count follows each of those - which is the half a golden diff cannot show, since a
+   release that never ran and one that ran twice produce the same instructions.
 
-   `Buffer` is not classified as droppable at all here - not in `remove`, and not in this module's own
-   `makeBuffer` either, which DropAssign.yana shows it is when no array is involved. Instantiating
-   `Array(Buffer)` asks for `Buffer`'s ownership from inside Collections, where `instance Drop(Buffer)`
-   is not visible, and `ownershipOf` caches its answer on the type - so the first asker decides it for
-   the whole program. That is the same wall `an array of %@ is not available yet` names, reached by a
-   different road: this array was built with `emptyArray` rather than as a literal, and only the
-   literal path carries that check.
-
-   So `liveBuffers` stays at 3 throughout. When the erased model lands, every `remove` below releases
-   one buffer and the final count is 0 - which is what the commented assertions are for.
+   The second half of the file is `remove` answering with what it took. Discarding that answer is
+   what every call in the first half does and is what "remove it" has always compiled to: the `Maybe`
+   has no name and no use, so the drop runs at the call. Naming it with `Just(->b)` moves the decision
+   to the caller, which is the whole of what lets a container hold a value nobody else may copy.
 -}
 
 let &liveBuffers = 0 :: I64
@@ -75,5 +69,37 @@ fn main() -> I64:
     remove(xs, 0)
     if length(xs) != 0 then return -10
     if liveBuffers != 0 then return -11
+
+    {-
+       The element handed back rather than released where it lay.
+
+       Every call above discards the answer, which is what "remove it" has always meant and still
+       compiles to: the `Maybe` is a value with no name and no use, so its last use is the call and
+       the drop runs there. Naming it with `->` is the other half - the caller decides when the
+       element's life ends, and that is the whole of what makes a container hold a linear type.
+    -}
+    push(xs, makeBuffer(7))
+    push(xs, makeBuffer(8))
+    if liveBuffers != 2 then return -12
+
+    -- `liveBuffers` first and `marker(b)` second, deliberately: the marker read is the arm's last
+    -- use of `b`, so reading the count after it would be reading it past the drop. Two alive here -
+    -- the one still in the array and the one this arm is holding.
+    let kept = match remove(xs, 0):
+        Just(->b) -> liveBuffers * 10 + marker(b)
+        Nothing -> 0 - 1
+
+    if kept != 27 then return -13
+
+    -- And one alive once the arm has finished, because the arm is where the element's last use was.
+    if liveBuffers != 1 then return -14
+    if length(xs) != 1 then return -15
+
+    -- An index outside the array answers `Nothing`, and takes nothing.
+    if remove(xs, 9) is Just(->_) then return -16
+    if liveBuffers != 1 then return -17
+
+    remove(xs, 0)
+    if liveBuffers != 0 then return -18
 
     return 1

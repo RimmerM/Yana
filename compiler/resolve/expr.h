@@ -827,6 +827,7 @@ struct ExprResolver {
 
     PatternResult branchPattern(ModulePtr<Value> condition, ModulePtr<Block> onFail, LocationId source);
     ModulePtr<Value> patternBound(const ast::Pat& pattern, TypePtr target);
+    ModulePtr<Value> bindPatternConvention(const ast::Pat& pattern, ModulePtr<Value> pivot);
 
     Context& context;
     Module& module;

@@ -233,7 +233,53 @@ static ModulePtr<Block> cloneBlock(Clone& clone, ModulePtr<Block> block) {
     return found ? ModulePtr<Block>(found.unwrap()) : nullptr;
 }
 
+/*
+ * Storage the substitution turned back into a value.
+ *
+ * A generic body reaches an `a` through an allocation, because that is all it can do without the
+ * size: `let ->g = h` allocates for the relocation, and every use of `g` is that allocation. Give
+ * `a` a scalar and the allocation is still needed - the places the body built point into it - but a
+ * *use* of it now has to be the contents rather than the address, because a scalar operand is a
+ * register and lowering has nowhere to put an address instead.
+ *
+ * This is the third of the reconciliations the clone performs, and the mirror of the other two. The
+ * parameter materialization further down hands storage back where the body needs a place; the Move
+ * and Copy cases drop it where the body only ever needed a value; and this one reads out of it where
+ * the body needed both. All three keep Implementation-Generics.md's first invariant: the decisions
+ * are preserved, and only their representation is adapted.
+ *
+ * Asked of the *original* type as well as the substituted one, which is what keeps it to the case it
+ * is for. A raw pointer's allocation was never a memory type in the generic body either, so it is
+ * not something the substitution changed and nothing here should touch it.
+ */
+static ModulePtr<Value> readIfMaterialized(Clone& clone, ModulePtr<Value> original, ModulePtr<Value> cloned) {
+    if(!cloned || !original) return cloned;
+
+    auto& produced = *clone.local[cloned];
+    if(produced.kind != Value::Alloc) return cloned;
+    if(isMemoryType(clone.global, produced.type)) return cloned;
+    if(!isMemoryType(clone.global, clone.local[original]->type)) return cloned;
+
+    auto place = Place::inLocal(((InstAlloc&)produced).local);
+    return clone.resolver.ref(clone.resolver.emit<InstLoadPlace>(produced.source, produced.name,
+                                                                 produced.type, place));
+}
+
+/*
+ * The clone of a value, as the thing itself rather than as an operand.
+ *
+ * Two callers want this rather than cloneValue, and both are asking which *instruction* the original
+ * became rather than what to read at a use: the local table, whose `value` field has to stay the
+ * allocation that backs the slot, and a place rooted in a pointer or a borrow. Reading through
+ * readIfMaterialized at either would replace the definition with a load of itself.
+ */
+static ModulePtr<Value> cloneDefinition(Clone& clone, ModulePtr<Value> value);
+
 static ModulePtr<Value> cloneValue(Clone& clone, ModulePtr<Value> value) {
+    return readIfMaterialized(clone, value, cloneDefinition(clone, value));
+}
+
+static ModulePtr<Value> cloneDefinition(Clone& clone, ModulePtr<Value> value) {
     if(!value) return nullptr;
 
     if(auto found = clone.values.getValue(value)) return ModulePtr<Value>(found.unwrap());
@@ -333,7 +379,7 @@ static Place clonePlace(Clone& clone, const Place& place) {
     // A local index and a global are the same in the clone; a pointer root is a value of the
     // body being cloned and has to be mapped like any other operand.
     if(place.root == PlaceRoot::Pointer || place.root == PlaceRoot::Borrow) {
-        result.pointer = cloneValue(clone, place.pointer);
+        result.pointer = cloneDefinition(clone, place.pointer);
     }
 
     auto projections = place.projections;
@@ -479,19 +525,56 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             result = allocation;
             break;
         }
+        /*
+         * The three instructions a substitution can empty out.
+         *
+         * A generic body reads, relocates and writes an `a` because an `a` is something; substituting
+         * unit takes the something away, and what is left has no bytes to touch and no value to be.
+         * The resolver never builds these for a concrete unit - `load` answers nothing and `write`
+         * emits nothing - so the clone has to reach the same shape rather than a load of no bytes and
+         * a store of no value, both of which lowering asserts on.
+         *
+         * Mapping the value to null rather than dropping the entry is what makes a *use* of it null
+         * too, which is how the emptiness reaches the `init` below and the `ret` at the end.
+         */
         case Value::LoadPlace:
+            if(isUnit(clone.global, type)) {
+                clone.values.add(pointer, ModulePtr<Value>(nullptr));
+                return;
+            }
+
             result = resolver.emit<InstLoadPlace>(inst.source, inst.name, type,
                                                   clonePlace(clone, ((InstLoadPlace&)inst).place));
             break;
         case Value::Init:
         case Value::Assign: {
             auto& init = (InstInit&)inst;
+            auto value = cloneValue(clone, init.value);
+
+            // Written as "the operand vanished" rather than as a question about the place, because
+            // that is the only way it can happen and it says which end the emptiness came from.
+            if(init.value && !value) return;
+
             result = resolver.emit<InstInit>(inst.source, inst.name, type, clonePlace(clone, init.place),
-                                             cloneValue(clone, init.value), inst.kind);
+                                             value, inst.kind);
             break;
         }
         case Value::Move: {
             auto& source = (InstMove&)inst;
+
+            /*
+             * A move of something that turned out to occupy nothing is nothing.
+             *
+             * The generic body relocated an `a` because an `a` is something it cannot see the size
+             * of; substituting unit takes the something away, and what is left has no storage to
+             * relocate and no lower value to be. `Just(->v)` over a `Maybe(())` is where this
+             * arrives - a concrete body never reaches sinkValue with a unit, because reading one out
+             * of a place produces no value in the first place.
+             */
+            if(isUnit(clone.global, type)) {
+                clone.values.add(pointer, ModulePtr<Value>(nullptr));
+                return;
+            }
 
             /*
              * A move of something that turned out to be register-sized is that value and nothing
@@ -846,9 +929,14 @@ static void cloneBody(Clone& clone, Function& to) {
             auto created = (InstPhi*)local[ModulePtr<Value>(clone.values.getValue(phiPointer).unwrap())];
 
             for(auto input: phi->inputs.contents(local)) {
-                created->inputs.push(clone.module.arena, PhiInput {
-                    cloneBlock(clone, input.block), cloneValue(clone, input.value),
-                });
+                // A phi's operand arrives on the edge, so anything cloning it has to emit into the
+                // predecessor rather than wherever the last block-clone happened to leave off. The
+                // only thing that emits here is readIfMaterialized, and a load in the wrong block is
+                // a value that does not dominate its use.
+                auto from = cloneBlock(clone, input.block);
+                clone.resolver.current = from;
+
+                created->inputs.push(clone.module.arena, PhiInput { from, cloneValue(clone, input.value) });
             }
 
             local[cloneBlock(clone, blockPointer)]->add(clone.module, created);
@@ -859,7 +947,7 @@ static void cloneBody(Clone& clone, Function& to) {
         if(materialized[i]) continue;
 
         auto slot = to.localAt(local, U32(i));
-        slot.value = cloneValue(clone, from.localAt(local, U32(i)).value);
+        slot.value = cloneDefinition(clone, from.localAt(local, U32(i)).value);
         to.locals.set(local, i, slot);
     }
 }

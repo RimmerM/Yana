@@ -44,19 +44,20 @@ function totalOf(m) {
 }
 
 function leftOf(t) {
-  var v17;
+  var v20;
+  var absent = { $tag: 0, left: null, right: null, label: 0, $p: 0 };
   if (t.$tag === 0) {
-    v17 = t.$p;
+    drop$Tree(absent);
+    v20 = t.$p;
   } else {
-    var v7 = t.left;
-    var v8 = { $tag: 0, left: null, right: null, label: 0, $p: 0 };
-    var v13 = unwrapOr_Tree(v7, v8);
-    drop$Tree(v8);
-    var v14 = total(v13);
-    drop$Tree(v13);
-    v17 = v14;
+    var v13 = { $v: t.left };
+    var v15 = unwrapOr_Tree(v13, absent);
+    t.left = v13.$v;
+    var v17 = total(v15);
+    drop$Tree(absent);
+    v20 = v17;
   }
-  return v17;
+  return v20;
 }
 
 function buildList() {
@@ -150,10 +151,10 @@ function Drop_Tracked_drop(value) {
 
 function unwrapOr_Tree(m, fallback) {
   var v2;
-  if (m === null) {
+  if (m.$v === null) {
     v2 = fallback;
   } else {
-    v2 = m;
+    v2 = m.$v;
   }
   return v2;
 }

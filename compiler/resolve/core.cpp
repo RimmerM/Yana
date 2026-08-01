@@ -95,15 +95,15 @@ class Try(m, a, e):
 -- bind. That is the common case and the one Design.md's `findChar` is written in.
 instance Try(Maybe(a), a, {}):
   fn toOutcome(->value: Maybe(a)) -> Outcome(a, {}) = match value:
-      Just(inner) -> Proceed(inner)
+      Just(->inner) -> Proceed(inner)
       Nothing -> Exit({})
 
   fn fromExit(->reason: {}) -> Maybe(a) = Nothing
 
 instance Try(Result(e, a), a, e):
   fn toOutcome(->value: Result(e, a)) -> Outcome(a, e) = match value:
-      Ok(inner) -> Proceed(inner)
-      Err(reason) -> Exit(reason)
+      Ok(->inner) -> Proceed(inner)
+      Err(->reason) -> Exit(reason)
 
   fn fromExit(->reason: e) -> Result(e, a) = Err(reason)
 
@@ -246,8 +246,13 @@ class Truth(a):
 -- Deliberately not a class function. There is one Maybe and one meaning, and a class would invite
 -- instances for Result and for pointers, where "is there a value here" and "did this succeed" stop
 -- being the same question - the same reason Truth is not instanced for Maybe.
-fn ??(value: Maybe(a), @lazy fallback: a) -> a = match value:
-    Just(inner) -> inner
+--
+-- `->` on the operand, for the reason `Try`'s two functions take one: what this answers *is* what
+-- was inside, so a borrowed operand would be handing out something it does not own. For a
+-- `Maybe(Int)` the sink is a copy and nothing changes at any call site; for a `Maybe(Buffer)` it is
+-- the difference between working and freeing the buffer twice.
+fn ??(->value: Maybe(a), @lazy fallback: a) -> a = match value:
+    Just(->inner) -> inner
     Nothing -> fallback
 
 -- The ownership classes a type can join by writing an instance.
@@ -853,30 +858,35 @@ fn slice(return self: Flat(a), from: Size, to: Size) -> Flat(a):
     return Flat {items: self.items + start, length: end - start}
 
 {-
-   Removes element `index`, moving whatever followed it down over the gap.
+   Removes element `index`, moving whatever followed it down over the gap, and answers what it took.
 
    The element is taken out before the gap is closed, rather than being left to the `copyMemory` that
    writes over it. An assignment releases what it replaces, which is the rule that would have covered
    this - but a block copy is not an assignment the compiler can see. It is Native moving bytes, and
    bytes moving over a live value is exactly the operation that owes its own bookkeeping.
 
-   So `doomed` is where the element goes, and the binding is the whole of the fix: a `->` binding
-   owns what it holds, and what it holds is released when this returns. It is never read, which is
-   the point - the value has nowhere to go and being dropped is what should happen to it.
+   So `doomed` is where the element goes, and a `->` binding owns what it holds.
+
+   Handing it *back* rather than dropping it here is what makes this usable for an element type the
+   caller has somewhere else to put - Implementation-Containers.md §13.3. A caller who does not want
+   it writes `remove(xs, i)` and discards the answer, which is the same program it always was: a
+   `Maybe` with no name and no use has its last use at the call, and the drop runs there. A caller who
+   does writes `Just(->item)` and decides for itself. Nothing in the container has to know which, and
+   that is the whole reason this is a return value rather than a second function.
 
    The move is out of a raw pointer, which is unchecked by construction and correct here for the
    reason the bounds test above it establishes: `index` is inside the initialized prefix, so there is
    a live value at that address to take. Design-Memory's checked world cannot state that, which is
    why the collection is the thing written against Native rather than the caller.
 -}
-fn remove(&self: Array(a), index: Int) -> {}:
+fn remove(&self: Array(a), index: Int) -> Maybe(a):
     -- One comparison and not two. `index` reaches this type unsigned, so a negative one arrives as a
     -- number above every length there is and fails the same test the too-large case fails - which is
     -- the whole reason `Count` is unsigned, and the shape `checkBounds` (§15) will have.
     --
     -- The length needs no ascription of its own: a `@bits` refinement dispatches as the type it
     -- refines, so this is the ordinary `U32` comparison.
-    if (index :: U32) >= self.length then return
+    if (index :: U32) >= self.length then return Nothing
 
     let ->doomed = *(self.run.items + index)
 
@@ -886,6 +896,7 @@ fn remove(&self: Array(a), index: Int) -> {}:
                    byteSpan(self.run.items, rest))
 
     self.length = (self.length :: Int) - 1 :: Count
+    return Just(doomed)
 
 {-
    The teardown - Implementation-Containers.md §13.

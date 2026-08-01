@@ -67,7 +67,7 @@ ModulePtr<Function> teardownFor(Module& module, TypePtr type, Teardown half, Loc
 }
 
 /*
- * One member's teardown, projected off `base`.
+ * One place's teardown.
  *
  * `boxed` is the whole of what an indirect edge changes here, and it changes two things. The
  * *reclaim* half additionally hands the box back, whether or not the target had anything of its own
@@ -80,15 +80,14 @@ ModulePtr<Function> teardownFor(Module& module, TypePtr type, Teardown half, Loc
  * hands to `freeHeap`. The two answers coincide, and that is not a coincidence: releasing the
  * storage a place occupies *is* releasing the box when the place is the box's contents.
  */
-static void teardownMember(ExprResolver& resolver, Module& module, Place base, ProjectionKind kind,
-                           U16 index, TypePtr type, bool boxed, Teardown half, LocationId source) {
+static void teardownPlace(ExprResolver& resolver, Module& module, Place place, TypePtr type,
+                          bool boxed, Teardown half, LocationId source) {
     auto implementation = teardownFor(module, type, half, source);
     auto teardown = teardownKind(ownershipOf(module, type), half);
     auto releases = boxed && half == Teardown::Reclaim;
 
     if(!implementation && !releases) return;
 
-    auto place = resolver.project(base, kind, index);
     auto isDrop = half == Teardown::Drop;
     auto drop = resolver.emit<InstDrop>(source, 0, module.scalar.unit, place,
                                         isDrop ? teardown : TeardownKind::None,
@@ -100,12 +99,33 @@ static void teardownMember(ExprResolver& resolver, Module& module, Place base, P
     drop->releaseStorage = releases;
 }
 
-// Emits one InstDrop for each member of `content` that has something to do for this half, projected
-// off `base`. Shared by the tuple case and by a record constructor's payload.
+// The same, for a member reached by one projection off `base`.
+static void teardownMember(ExprResolver& resolver, Module& module, Place base, ProjectionKind kind,
+                           U16 index, TypePtr type, bool boxed, Teardown half, LocationId source) {
+    teardownPlace(resolver, module, resolver.project(base, kind, index), type, boxed, half, source);
+}
+
+/*
+ * Emits one InstDrop for each member of `content` that has something to do for this half, projected
+ * off `base`. Shared by the tuple case and by a record constructor's payload.
+ *
+ * A payload is only a tuple when it was *written* as one. `Two {first: Buffer, second: Buffer}`
+ * declares a Tup and has fields to project; `Held(Buffer)` declares the `Buffer` itself, and the
+ * Downcast the caller already took is that member's whole place. Both spellings reach here, so the
+ * non-tuple one cannot be a case this walks past - it is the ordinary shape of every `Just(a)`,
+ * `Ok(a)` and `Some(H)` in the language, and skipping it leaks whatever the payload owned.
+ */
 static void teardownMembers(ExprResolver& resolver, Module& module, Place base, TypePtr content,
                             Teardown half, LocationId source) {
     auto global = *module.types;
-    if(!content || global[content]->kind != Type::Tup) return;
+    if(!content) return;
+
+    if(global[content]->kind != Type::Tup) {
+        // Never boxed: a boxed payload is handled by the caller as one member off the Downcast,
+        // because the release of the box belongs to the edge rather than to what is on its far side.
+        teardownPlace(resolver, module, base, content, false, half, source);
+        return;
+    }
 
     auto tuple = (TupType*)global[content];
     U16 index = 0;

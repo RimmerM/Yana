@@ -74,6 +74,7 @@ struct Parser: BasicParser<Lexer, Token> {
     ast::FieldPat parseFieldPat();
     ast::Pat parseLeftPattern();
     ast::Pat parsePattern();
+    ast::Pat parseBoundPattern();
 
     void parseAttribute(ast::AttrList& list);
     void parseAttributes(ast::AttrList& list, bool isInline);

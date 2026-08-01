@@ -112,6 +112,8 @@ andRuns<complex>(): Int {
 
 fallbackSkipped<complex>(%m: Ptr): Int {
   b_0 {
+    %m = alloca 8, 4: Ptr
+    copy %m, %m, 8
     %v_1 = alloca 16, 8: Ptr
     store %v_1, ResolveTest.deferred$0, 8
     %v_2 = bitcast 0: Ptr
@@ -212,13 +214,13 @@ bump<complex>(): Int {
 
   b_3 {
     %v_10 = add %value, 4: Ptr
-    %inner = loads %v_10, 4: Int
+    %v_11 = loads %v_10, 4: Int
     jmp b_9
   }
 
   b_9 {
-    %v_11 = phi [b_3, %inner], [b_4, %v_8]: Int
-    ret %v_11
+    %v_12 = phi [b_3, %v_11], [b_4, %v_8]: Int
+    ret %v_12
   }
 }
 

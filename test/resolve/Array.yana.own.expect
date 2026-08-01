@@ -86,9 +86,11 @@ fn reserve(Int) {
 fn remove(Int) {
   arg self writable addressed
   arg index readonly
-  %self: Array(Int) borrowed droppable writable addressed live [0, 6) [7, 61)
-  %local1: Int readonly live [15, 18)
-  %local2: Int readonly live [16, 18)
+  %self: Array(Int) borrowed droppable writable addressed live [0, 6) [9, 63)
+  %local1: Maybe(Int) readonly live [6, 9)
+  %local2: Int readonly live [17, 20)
+  %local3: Int readonly live [18, 66)
+  %local4: Maybe(Int) readonly live [63, 68)
 }
 
 fn Reclaim(Array(a)).reclaim(Int) {
@@ -126,6 +128,9 @@ fn main {
   %local2: Array(Int) droppable readonly live [18, 23)
   %small: Array(Int) droppable writable addressed resizable live [21, 71)
   %local4: Flat(Int) writable live [25, 34)
-  %local5: Flat(Int) readonly live [53, 61)
-  %local6: Flat(Int) readonly live [63, 71)
+  %local5: Maybe(Int) readonly live [43, 44)
+  %local6: Maybe(Int) readonly live [46, 47)
+  %local7: Maybe(Int) readonly live [50, 51)
+  %local8: Flat(Int) readonly live [53, 61)
+  %local9: Flat(Int) readonly live [63, 71)
 }

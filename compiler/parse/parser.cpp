@@ -1392,6 +1392,24 @@ void Parser::parseArg(ast::ParseList<ast::Arg>& list, bool requireType) {
     });
 }
 
+/*
+ * A sub-pattern, with the binding convention a parameter and a `let` are written with: `Just(->v)`
+ * takes the payload out and `Just(v)` refers to it where it lies.
+ *
+ * Read here rather than at the head of parsePattern, and that placement is the whole of the grammar
+ * question. An alternative's arrow is the same token, so `| -> 1` has to keep reading as the missing
+ * pattern it is; inside a constructor's parentheses or a record pattern's braces there is nothing
+ * else a leading `->` could be.
+ */
+ast::Pat Parser::parseBoundPattern() {
+    if(token.type != Token::opArrowR && token.type != Token::opAmp) return parsePattern();
+
+    auto bind = parseBindType();
+    auto pat = parsePattern();
+    pat.bind = bind;
+    return pat;
+}
+
 ast::FieldPat Parser::parseFieldPat() {
     WithLocation location(*this);
 
@@ -1402,13 +1420,13 @@ ast::FieldPat Parser::parseFieldPat() {
 
     if(auto data = maybe(Token::VarID)) {
         if(maybe(Token::opColon)) {
-            return ast::FieldPat { data.unwrap().id, heap(ast::Pat(parsePattern())) };
+            return ast::FieldPat { data.unwrap().id, heap(ast::Pat(parseBoundPattern())) };
         } else {
             auto varPat = ast::Pat { .var = data.unwrap().id, .source = context.addLocation(location), .kind = ast::Pat::Var };
             return ast::FieldPat { qualified ? data.unwrap().id : 0, heap(ast::Pat(varPat)) };
         }
     } else {
-        return ast::FieldPat { 0, heap(ast::Pat(parsePattern())) };
+        return ast::FieldPat { 0, heap(ast::Pat(parseBoundPattern())) };
     }
 }
 

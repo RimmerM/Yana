@@ -216,6 +216,18 @@ struct Pat {
     };
 
     StringId asVar;
+
+    /*
+     * How the names under this pattern reach what they name - the same three conventions a parameter
+     * and a `let` are written with, in the same place and with the same meaning.
+     *
+     * `Borrow` is the default and is what a pattern has always done: the name refers to the storage
+     * the pivot occupies, and the pivot keeps owning it. `Sink` is `Just(->v)`, which takes the
+     * payload out and leaves the pivot moved from - the only way to get an owned value out of a
+     * container of them, and the reason this field exists.
+     */
+    BindType bind = BindType::Borrow;
+
     LocationId source: 27;
     Kind kind: 5;
 };

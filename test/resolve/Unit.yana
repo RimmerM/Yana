@@ -23,7 +23,7 @@ fn between(first: Int, middle: a, last: Int) -> Int = first * 10 + last
 
 data Box(a) {inner: a, tag: Int}
 
-fn unbox(b: Box(a)) -> a = b.inner
+fn (TrivialCopy(a)) unbox(b: Box(a)) -> a = b.inner
 
 fn boxTag(b: Box(a)) -> Int = b.tag
 
@@ -61,15 +61,15 @@ fn branching(c: Bool) -> Int:
 
 -- Binding a payload that occupies nothing: `inner` names a value with no representation, and the
 -- arm that has none has to produce one anyway.
-fn matching(m: Maybe(a), fallback: a) -> a = match m:
-    Just(inner) -> inner
+fn matching(->m: Maybe(a), fallback: a) -> a = match m:
+    Just(->inner) -> inner
     Nothing -> fallback
 
 -- A record every field of which occupies nothing still has an address, and two of them are two
 -- addresses - which is why zero-size storage is one word rather than none.
 data Empty(a) {only: a}
 
-fn emptyRoundTrip(value: a) -> a = Empty {only: value}.only
+fn (TrivialCopy(a)) emptyRoundTrip(value: a) -> a = Empty {only: value}.only
 
 fn main() -> Int:
     -- A generic function whose result is unit: nothing is bound, and the call is still made.

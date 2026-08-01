@@ -17,7 +17,6 @@ unbox(())<complex>(%b: Ptr) {
 
 emptyRoundTrip(())<complex>() {
   b_0 {
-    %v_1 = alloca 1, 1: Ptr
     ret 
   }
 }
@@ -141,6 +140,7 @@ matching(())<complex>(%m: Ptr) {
   }
 
   b_3 {
+    %inner = alloca 1, 1: Ptr
     jmp b_5
   }
 
@@ -179,7 +179,6 @@ main<complex>(): Int {
     %boxed = alloca 4, 4: Ptr
     store %boxed, 4, 4
     %c = call_complex boxTag(()), %boxed: Int
-    call_complex unbox(()), %boxed
     %v_1 = alloca 4, 4: Ptr
     store %v_1, 1, 4
     %e = call_complex isSomething(()), %v_1: Int

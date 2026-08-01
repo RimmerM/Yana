@@ -539,11 +539,54 @@ ModulePtr<Value> ExprResolver::patternBound(const ast::Pat& pattern, TypePtr tar
     return nullptr;
 }
 
+/*
+ * `Just(->v)` - the payload taken out of the pivot rather than referred to where it lies.
+ *
+ * A pattern has always bound with the default convention, and the default convention is a borrow:
+ * the name refers to the pivot's own storage and the pivot goes on owning it. That is right for
+ * reading and wrong for the one thing a container of owned values exists to allow, which is getting
+ * one back out - so `->` is written on the name, where a parameter and a `let` already write it, and
+ * means what it means there.
+ *
+ * What it compiles to is an ordinary `InstMove` over the payload's place, which is what puts it in
+ * front of every rule the ownership model already has: the pivot reads as moved from afterwards, a
+ * second use of it is the use-after-move it is, and a pivot that is only borrowed is refused.
+ *
+ * **Only on a name or on `_`.** `Just(->Pair {a, 0})` would take the payload out and *then* ask
+ * whether the second field is zero, and on the path where it is not the value has already left a
+ * place nothing will put it back into. The restriction is what keeps a move off every path that can
+ * still fail, and it costs nothing a program wants: bind the payload and take it apart afterwards.
+ */
+ModulePtr<Value> ExprResolver::bindPatternConvention(const ast::Pat& pattern, ModulePtr<Value> pivot) {
+    if(pattern.bind == ast::BindType::Ref) {
+        context.diagnostics.error("a pattern cannot bind with `&` - matching does not establish the exclusive access that would need. Match on the value and write through the name that owns it"_v,
+                                  pattern.source);
+        return pivot;
+    }
+
+    if(pattern.kind != ast::Pat::Var && pattern.kind != ast::Pat::Any) {
+        context.diagnostics.error("`->` in a pattern has to be written on a name or on `_` - taking a value out and then testing what came out would leave it moved on the path where the test failed"_v,
+                                  pattern.source);
+        return pivot;
+    }
+
+    // Through rootSink like a `let ->`, and for its reason: what a move produces is a value, and a
+    // value has no address - so a name bound to one could not have a field read out of it, and the
+    // drop pass would have no slot to owe the drop to. `Held(->_)` is the case that makes the second
+    // half visible, since there the taken value is never named at all and dropping it *there* is the
+    // whole of what was asked for.
+    return rootSink(sinkValue(pivot, pattern.source), pattern.source);
+}
+
 PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Value> pivot, ModulePtr<Block> onFail,
                                            Size bindingBase) {
     // A null failure block says the caller has already proved this pattern matches. Everything
     // below then takes the value apart and binds it without asking any question about it.
     auto tested = onFail != nullptr;
+
+    // Before anything is bound, so that `v @ ->w` and the name itself refer to the same value, and
+    // before any test, so that a constructor's discriminant is still checked on the pivot.
+    if(pattern.bind != ast::BindType::Borrow) pivot = bindPatternConvention(pattern, pivot);
 
     // A name binds, always, shadowing whatever it shadows - that is what makes a pattern mean the
     // same thing wherever it is written. Binding the same name twice within one pattern is the

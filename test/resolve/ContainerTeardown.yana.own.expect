@@ -120,9 +120,11 @@ fn reserve(Handle) {
 fn remove(Handle) {
   arg self writable addressed
   arg index readonly
-  %self: Array(Handle) borrowed droppable writable addressed live [0, 6) [7, 62)
-  %local1: Handle droppable readonly live [15, 17)
+  %self: Array(Handle) borrowed droppable writable addressed live [0, 6) [9, 64)
+  %local1: Maybe(Handle) droppable readonly live [6, 9)
   %local2: Handle droppable readonly live [17, 19)
+  %local3: Handle droppable readonly live [19, 67)
+  %local4: Maybe(Handle) droppable readonly live [64, 68)
 }
 
 fn emptyArray(Int) {
@@ -201,13 +203,18 @@ fn main {
   %rest: Array(Handle) droppable writable addressed resizable live [37, 55) [57, 61) [63, 77)
   %local2: Handle droppable writable live [40, 43)
   %local3: Handle droppable writable live [45, 48)
-  %local4: Flat(Handle) readonly live [66, 77)
-  %local5: Array(Int) droppable readonly live [82, 85)
+  %local4: Maybe(Handle) droppable readonly live [51, 52)
+  %local5: Flat(Handle) readonly live [66, 77)
+  %local6: Array(Int) droppable readonly live [82, 85)
   %plain: Array(Int) droppable writable addressed resizable live [83, 101)
-  %local7: Flat(Int) readonly live [93, 101)
+  %local8: Flat(Int) readonly live [93, 101)
 }
 
 fn Drop(Handle).drop {
   arg value readonly
   %value: Handle borrowed droppable readonly live [0, 1)
+}
+
+fn drop$Maybe(Handle) {
+  arg value readonly
 }

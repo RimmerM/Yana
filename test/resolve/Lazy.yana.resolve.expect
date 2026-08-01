@@ -11,7 +11,11 @@ fn ??(Int)(%value: Maybe(Int), %fallback: () -> Int) -> Int {
     jmp b3
 
   b2:
-    %inner = load %value@Just : Int
+    %v9 = load %value@Just : Int
+    %v10 = move %value@Just : Int
+    %inner = alloc : Int
+    init %local1, %v10
+    %inner = load %local1 : Int
     jmp b3
 
   b3:
@@ -168,13 +172,14 @@ fn bound(%m: Maybe(Int)) -> Bool {
 
 fn fallbackSkipped(%m: Maybe(Int)) -> Int {
   b0:
-    %v1 = alloc : () -> Int
-    %v2 = symbol ResolveTest.deferred$0 : %()
-    init %local1.code, %v2
-    %v5 = cast 0 : %()
-    init %local1.env, %v5
-    %v7 = call ??(Int), %m, %v1 : Int
-    ret %v7
+    %m = copy %m : Maybe(Int)
+    %v2 = alloc : () -> Int
+    %v3 = symbol ResolveTest.deferred$0 : %()
+    init %local2.code, %v3
+    %v6 = cast 0 : %()
+    init %local2.env, %v6
+    %v8 = call ??(Int), %m, %v2 : Int
+    ret %v8
 }
 
 fn bumpMask() -> Mask {

@@ -25,14 +25,15 @@ fn Try(Maybe(a), a, ()).toOutcome(())(%value: Maybe(())) -> Outcome((), ()) {
 
   b1:
     %v6 = alloc : Outcome((), ())
-    init %local2.discriminant, 1
+    init %local3.discriminant, 1
     jmp b3
 
   b2:
-    load %value@Just
+    alloc
     %v11 = alloc : Outcome((), ())
-    init %local1.discriminant, 0
-    init %local1@Proceed, %inner
+    init %local2.discriminant, 0
+    load %local1
+    init %local2@Proceed, %inner
     jmp b3
 
   b3:

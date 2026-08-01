@@ -7,9 +7,16 @@ data Pair(a, b) {first: a, second: b}
 
 -- Two variables and two specializations from one body. `swap` never learns what `a` and `b` are:
 -- it is resolved once against its own variables and cloned for each pair it is called with.
-fn swap(value: Pair(a, b)) -> Pair(b, a) = Pair {first: value.second, second: value.first}
+--
+-- The constraints are what let the bodies read a field out and answer with it. An unconstrained
+-- variable owns something inside the body whatever a caller substitutes, so `value.first` would be
+-- handing on ownership of storage the parameter only borrows; `TrivialCopy` is what makes the read a
+-- copy, and it is asked of the *context* rather than of the type for exactly this reason. Taking the
+-- pair apart without it needs a move per field, which is the partial move the model does not have.
+fn (TrivialCopy(a), TrivialCopy(b)) swap(value: Pair(a, b)) -> Pair(b, a) =
+    Pair {first: value.second, second: value.first}
 
-fn leftOf(value: Pair(a, b)) -> a = value.first
+fn (TrivialCopy(a)) leftOf(value: Pair(a, b)) -> a = value.first
 
 -- A requirement the body needs and the signature never wrote. Resolving `x < y` records Ord(a)
 -- on this function's context, and instantiating it is what has to prove Ord(Int).
@@ -23,9 +30,10 @@ fn (Num(a)) twice(x: a) -> a = x + x
 -- requirement: whoever instantiates `middle` is the only one who can prove Ord.
 fn middle(x: a, y: a, z: a) -> a = smaller(smaller(x, y), z)
 
--- Generic functions over a Core generic type.
-fn orElse(value: Maybe(a), fallback: a) -> a = match value:
-    Just(inner) -> inner
+-- Generic functions over a Core generic type. `->` on both the parameter and the payload, which is
+-- what `??` in Core is written with and for the same reason: what this answers is what was inside.
+fn orElse(->value: Maybe(a), fallback: a) -> a = match value:
+    Just(->inner) -> inner
     Nothing -> fallback
 
 fn wrap(value: a) -> Maybe(a) = Just(value)

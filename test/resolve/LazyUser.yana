@@ -44,7 +44,7 @@ fn pick(which: Int, @lazy a: Int, @lazy b: Int) -> Int = if which == 0 then a el
 -- A generic one. The deferred position binds no type variable - resolving it to find out what type
 -- it has would evaluate it - so `a` is decided by the first argument, and the deferred one is
 -- resolved against what that decided.
-fn orDefault(m: Maybe(a), @lazy fallback: a) -> a = if m is Just(v) then v else fallback
+fn orDefault(->m: Maybe(a), @lazy fallback: a) -> a = if m is Just(->v) then v else fallback
 
 -- A record rather than a scalar, so the thunk returns through storage.
 fn pointOr(flag: Bool, @lazy p: Point) -> Int = if flag then p.x else 0

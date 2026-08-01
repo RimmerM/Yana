@@ -617,7 +617,7 @@ fn reserve(Handle)(%self: Array(Handle), %wanted: Int) -> () {
     ret
 }
 
-fn remove(Handle)(%self: Array(Handle), %index: Int) -> () {
+fn remove(Handle)(%self: Array(Handle), %index: Int) -> Maybe(Handle) {
   b0:
     %v2 = cast %index : U32
     %v3 = load %self : Array(Handle)
@@ -627,74 +627,78 @@ fn remove(Handle)(%self: Array(Handle), %index: Int) -> () {
     je %v6, b1, b2
 
   b1:
-    ret
+    %v8 = alloc : Maybe(Handle)
+    init %local1.discriminant, 0
+    ret %v8
 
   b2:
     jmp b3
 
   b3:
-    %v10 = load %self : Array(Handle)
-    %v11 = load %self@Array.run : Run(Handle)
-    %v12 = load %self@Array.run@Run.items : %Handle
-    %v13 = cast %index : I64
-    %v14 = strideof Handle : I64
-    %v15 = mul %v13, %v14 : I64
-    %v16 = add %v12, %v15 : %Handle
-    %v17 = load [%v16] : Handle
-    %v18 = move %local1 : Handle
+    %v13 = load %self : Array(Handle)
+    %v14 = load %self@Array.run : Run(Handle)
+    %v15 = load %self@Array.run@Run.items : %Handle
+    %v16 = cast %index : I64
+    %v17 = strideof Handle : I64
+    %v18 = mul %v16, %v17 : I64
+    %v19 = add %v15, %v18 : %Handle
+    %v20 = load [%v19] : Handle
+    %v21 = move %local2 : Handle
     %doomed = alloc : Handle
-    init %local2, %v18
-    drop %local2 via Drop(Handle).drop
-    %v21 = load %self : Array(Handle)
-    %v22 = load %self@Array.length : @bits(31) U32
-    %v23 = cast %v22 : U32
-    %v24 = cast %v23 : Int
-    %v25 = sub %v24, %index : Int
-    %rest = sub %v25, 1 : Int
-    %v29 = cmp_gt %rest, 0 : Bool
-    je %v29, b4, b5
+    init %local3, %v21
+    %v24 = load %self : Array(Handle)
+    %v25 = load %self@Array.length : @bits(31) U32
+    %v26 = cast %v25 : U32
+    %v27 = cast %v26 : Int
+    %v28 = sub %v27, %index : Int
+    %rest = sub %v28, 1 : Int
+    %v32 = cmp_gt %rest, 0 : Bool
+    je %v32, b4, b5
 
   b4:
-    %v31 = load %self : Array(Handle)
-    %v32 = load %self@Array.run : Run(Handle)
-    %v33 = load %self@Array.run@Run.items : %Handle
-    %v34 = cast %index : I64
-    %v35 = strideof Handle : I64
-    %v36 = mul %v34, %v35 : I64
-    %v37 = add %v33, %v36 : %Handle
-    %v38 = cast %v37 : %U8
-    %v39 = load %self : Array(Handle)
-    %v40 = load %self@Array.run : Run(Handle)
-    %v41 = load %self@Array.run@Run.items : %Handle
-    %v42 = cast %index : I64
-    %v43 = strideof Handle : I64
-    %v44 = mul %v42, %v43 : I64
-    %v45 = add %v41, %v44 : %Handle
-    %v47 = strideof Handle : I64
-    %v48 = mul 1, %v47 : I64
-    %v49 = add %v45, %v48 : %Handle
-    %v50 = cast %v49 : %U8
-    %v51 = load %self : Array(Handle)
-    %v52 = load %self@Array.run : Run(Handle)
-    %v53 = load %self@Array.run@Run.items : %Handle
-    %v54 = call byteSpan(Handle), %v53, %rest : I64
-    copymemory %v38, %v50, %v54
+    %v34 = load %self : Array(Handle)
+    %v35 = load %self@Array.run : Run(Handle)
+    %v36 = load %self@Array.run@Run.items : %Handle
+    %v37 = cast %index : I64
+    %v38 = strideof Handle : I64
+    %v39 = mul %v37, %v38 : I64
+    %v40 = add %v36, %v39 : %Handle
+    %v41 = cast %v40 : %U8
+    %v42 = load %self : Array(Handle)
+    %v43 = load %self@Array.run : Run(Handle)
+    %v44 = load %self@Array.run@Run.items : %Handle
+    %v45 = cast %index : I64
+    %v46 = strideof Handle : I64
+    %v47 = mul %v45, %v46 : I64
+    %v48 = add %v44, %v47 : %Handle
+    %v50 = strideof Handle : I64
+    %v51 = mul 1, %v50 : I64
+    %v52 = add %v48, %v51 : %Handle
+    %v53 = cast %v52 : %U8
+    %v54 = load %self : Array(Handle)
+    %v55 = load %self@Array.run : Run(Handle)
+    %v56 = load %self@Array.run@Run.items : %Handle
+    %v57 = call byteSpan(Handle), %v56, %rest : I64
+    copymemory %v41, %v53, %v57
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v58 = load %self : Array(Handle)
-    %v59 = load %self@Array.length : @bits(31) U32
-    %v60 = cast %v59 : U32
-    %v61 = cast %v60 : Int
-    %v63 = sub %v61, 1 : Int
-    %v64 = cast %v63 : U32
-    %v66 = and %v64, 2147483647 : U32
-    %v67 = cast %v66 : @bits(31) U32
-    assign %self@Array.length, %v67
-    ret
+    %v61 = load %self : Array(Handle)
+    %v62 = load %self@Array.length : @bits(31) U32
+    %v63 = cast %v62 : U32
+    %v64 = cast %v63 : Int
+    %v66 = sub %v64, 1 : Int
+    %v67 = cast %v66 : U32
+    %v69 = and %v67, 2147483647 : U32
+    %v70 = cast %v69 : @bits(31) U32
+    assign %self@Array.length, %v70
+    %v72 = alloc : Maybe(Handle)
+    init %local4.discriminant, 1
+    init %local4@Just, %doomed
+    ret %v72
 }
 
 fn emptyArray(Int)() -> Array(Int) {
@@ -1086,7 +1090,8 @@ fn main() -> I64 {
     call push(Handle), %v72, %v73
     %v75 = load %rest : Array(Handle)
     %v78 = borrow_mut %rest : &mut Array(Handle)
-    call remove(Handle), %v78, 0
+    %v79 = call remove(Handle), %v78, 0 : Maybe(Handle)
+    drop_derived %local4 via drop$Maybe(Handle)
     %v80 = load liveHandles : I64
     %v83 = cmp_ne %v80, 1 : Bool
     je %v83, b31, b20
@@ -1115,12 +1120,12 @@ fn main() -> I64 {
     %v102 = borrow %rest : &Array(Handle)
     %v103 = alloc : Flat(Handle)
     %v104 = load [%v102]@Array.run@Run.items : %Handle
-    init %local4@Flat.items, %v104
+    init %local5@Flat.items, %v104
     %v106 = load [%v102]@Array.length : @bits(31) U32
     %v107 = cast %v106 : U32
     %v108 = cast %v107 : I64
-    init %local4@Flat.length, %v108
-    %v111 = borrow %local4 : &Flat(Handle)
+    init %local5@Flat.length, %v108
+    %v111 = borrow %local5 : &Flat(Handle)
     %v112 = call get(Handle), %v111, 0 : &Handle
     %v113 = load [%v112] : Handle
     %v114 = call marker, %v113 : I64
@@ -1149,11 +1154,11 @@ fn main() -> I64 {
     %v138 = borrow %plain : &Array(Int)
     %v139 = alloc : Flat(Int)
     %v140 = load [%v138]@Array.run@Run.items : %Int
-    init %local7@Flat.items, %v140
+    init %local8@Flat.items, %v140
     %v142 = load [%v138]@Array.length : @bits(31) U32
     %v143 = cast %v142 : U32
     %v144 = cast %v143 : I64
-    init %local7@Flat.length, %v144
+    init %local8@Flat.length, %v144
     %v146 = call length(Int), %v139 : I64
     drop %plain reclaim Reclaim(Array(a)).reclaim(Int)
     %v149 = cmp_ne %v146, 2 : Bool
@@ -1189,4 +1194,21 @@ fn Drop(Handle).drop(%value: Handle) -> () {
     %v11 = borrow_mut releases : &mut I64
     call +=(I64), %v11, 1
     ret
+}
+
+fn drop$Maybe(Handle)(%value: %Maybe(Handle)) -> () {
+  b0:
+    %v1 = load [%value].discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b3
+
+  b1:
+    ret
+
+  b2:
+    drop [%value]@Just via Drop(Handle).drop
+    jmp b1
+
+  b3:
+    jmp b1
 }

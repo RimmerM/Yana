@@ -7,11 +7,13 @@ fn identity(%value: a) -> a {
     ret %value
 }
 
-fn swap(%value: Pair(a, b)) -> Pair(b, a) {
+(TrivialCopy(a), TrivialCopy(b)) fn swap(%value: Pair(a, b)) -> Pair(b, a) {
   schema {
-    #0 type b
-    #1 type a
+    #0 type a
+    #1 type b
     #2 type Pair(b, a)
+    #3 class TrivialCopy(a)
+    #4 class TrivialCopy(b)
   }
 
   b0:
@@ -23,10 +25,11 @@ fn swap(%value: Pair(a, b)) -> Pair(b, a) {
     ret %v1
 }
 
-fn leftOf(%value: Pair(a, b)) -> a {
+(TrivialCopy(a)) fn leftOf(%value: Pair(a, b)) -> a {
   schema {
     #0 type a
     #1 type b
+    #2 class TrivialCopy(a)
   }
 
   b0:
@@ -92,12 +95,15 @@ fn orElse(%value: Maybe(a), %fallback: a) -> a {
     jmp b3
 
   b2:
-    %inner = load %value@Just : a
+    %v6 = load %value@Just : a
+    %v7 = move %value@Just : a
+    %inner = alloc : a
+    init %local2, %v7
     jmp b3
 
   b3:
-    %v9 = phi [b2, %inner], [b1, %fallback] : a
-    ret %v9
+    %v12 = phi [b2, %inner], [b1, %fallback] : a
+    ret %v12
 }
 
 fn wrap(%value: a) -> Maybe(a) {
@@ -131,7 +137,7 @@ fn main() -> Int {
     %v6 = alloc : Pair(Bool, Int)
     init %local0@Pair.first, True
     init %local0@Pair.second, 20
-    %v9 = call swap(Int, Bool), %v6 : Pair(Int, Bool)
+    %v9 = call swap(Bool, Int), %v6 : Pair(Int, Bool)
     %v10 = call leftOf(Int, Bool), %v9 : Int
     %v11 = add %v2, %v10 : Int
     %v14 = call twice(Int), 3 : Int
@@ -141,12 +147,14 @@ fn main() -> Int {
     %v28 = call middle(Int), 30, 8, 12 : Int
     %v29 = add %v21, %v28 : Int
     %v32 = call wrap(Int), 5 : Maybe(Int)
-    %v35 = call orElse(Int), %v32, 0 : Int
-    %v36 = add %v29, %v35 : Int
-    %v37 = call empty(Int) : Maybe(Int)
-    %v40 = call orElse(Int), %v37, 7 : Int
-    %v41 = add %v36, %v40 : Int
-    ret %v41
+    %v35 = copy %local2 : Maybe(Int)
+    %v36 = call orElse(Int), %v35, 0 : Int
+    %v37 = add %v29, %v36 : Int
+    %v38 = call empty(Int) : Maybe(Int)
+    %v41 = copy %local4 : Maybe(Int)
+    %v42 = call orElse(Int), %v41, 7 : Int
+    %v43 = add %v37, %v42 : Int
+    ret %v43
 }
 
 fn identity(Int)(%value: Int) -> Int {
@@ -154,7 +162,7 @@ fn identity(Int)(%value: Int) -> Int {
     ret %value
 }
 
-fn swap(Int, Bool)(%value: Pair(Bool, Int)) -> Pair(Int, Bool) {
+fn swap(Bool, Int)(%value: Pair(Bool, Int)) -> Pair(Int, Bool) {
   b0:
     %v1 = alloc : Pair(Int, Bool)
     %v2 = load %value@Pair.second : Int
@@ -217,7 +225,11 @@ fn orElse(Int)(%value: Maybe(Int), %fallback: Int) -> Int {
     jmp b3
 
   b2:
-    %inner = load %value@Just : Int
+    %v8 = load %value@Just : Int
+    %v9 = move %value@Just : Int
+    %inner = alloc : Int
+    init %local2, %v9
+    %inner = load %local2 : Int
     jmp b3
 
   b3:

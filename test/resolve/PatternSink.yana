@@ -1,0 +1,104 @@
+-- Getting an owned value back out of the thing holding it.
+--
+-- A pattern has always bound with the default convention, and the default convention is a borrow:
+-- the name refers to the pivot's storage and the pivot goes on owning it. That is right for reading
+-- and it is the wrong answer for the one thing a container of owned values exists to allow, so `->`
+-- is written on the name - where a parameter and a `let` already write it - and means what it means
+-- there. `Just(->v)` is what `remove` handing an element back will be spelled with.
+--
+-- Two rules meet here and both are load-bearing:
+--
+--  - the payload of a constructor written with *parentheses* is the type itself rather than a tuple
+--    of one, which the derived teardown used to walk straight past - so `Held(makeBuffer())` leaked;
+--  - a move whose place is a lone `Downcast` empties the slot rather than half of it, because a
+--    record is a discriminant and one payload and the discriminant owns nothing.
+--
+-- What makes this a fixture rather than a golden diff is that neither rule is visible in the bytes:
+-- a drop that never ran and a drop that ran twice both produce an `InstDrop` that looks right. So
+-- every number below is a live-buffer count read at a point where the placement decides it.
+
+import Native
+import Native.Linux
+
+let &live = 0 :: I64
+
+data Buffer {bytes: %U8}
+
+fn makeBuffer() -> Buffer:
+    live += 1
+    return Buffer {bytes: allocateHeap(16)}
+
+instance Drop(Buffer):
+    fn drop(->value: Buffer) -> {}:
+        freeHeap(value.bytes)
+        live -= 1
+
+-- A parenthesised payload, which is the shape of every `Just(a)`, `Ok(a)` and `Some(H)` there is.
+-- The braced form beside it is what the teardown walk already handled, and it is here so that a
+-- change breaking one and not the other cannot pass.
+data Box = Nil | Held(Buffer) | Pair {left: Buffer, right: Buffer}
+
+-- `touch` is what gives a value a last use *after* the count is read. Without it the lifetime would
+-- end at the binding, every drop would run before the read, and every count below would be zero
+-- whether or not the placement was right.
+fn touch(it: Buffer) -> I64 = 0
+fn touchBox(it: Box) -> I64 = 0
+
+-- One buffer alive while the box holds it, and none once the box has gone.
+fn derived() -> I64:
+    let b = Held(makeBuffer())
+    let inside = live
+    return inside + touchBox(b)
+
+fn derivedBraced() -> I64:
+    let b = Pair {left: makeBuffer(), right: makeBuffer()}
+    let inside = live
+    return inside + touchBox(b)
+
+-- Borrowing the payload changes nothing about who owns it: the buffer is still alive here, and it
+-- is the box's last use that releases it.
+fn borrowed() -> I64:
+    let b = Held(makeBuffer())
+
+    return match b:
+        Held(v) -> live + touch(v)
+        Nil -> 0 - 1
+        Pair(p) -> 0 - 2
+
+-- Taking it out. The box is moved from afterwards, so nothing releases the buffer on the way out of
+-- this frame and the caller receives the only owner there is.
+fn taken() -> Buffer:
+    let b = Held(makeBuffer())
+
+    return match b:
+        Held(->v) -> v
+        Nil -> makeBuffer()
+        Pair(p) -> makeBuffer()
+
+-- `->` on `_` is a value taken out and dropped where it was taken, which is the one way to release a
+-- payload without naming it. Read on both sides of the match, because the interesting property is
+-- that the count *changed* here: a leak and a value that was never made both answer zero afterwards.
+fn discarded() -> I64:
+    let b = Held(makeBuffer())
+    let before = live
+
+    let arm = match b:
+        Held(->_) -> 0
+        Nil -> 0 - 1
+        Pair(p) -> 0 - 2
+
+    return before * 10 + live + arm
+
+fn main() -> I64:
+    let a = derived()          -- 1
+    let b = derivedBraced()    -- 2
+    let c = borrowed()         -- 1
+    let d = discarded()        -- 10: one before the arm consumed it, none after
+
+    -- The buffer this hands back is owned here now, so it is alive until `touch` and gone after.
+    let taken_ = taken()
+    let e = live + touch(taken_)  -- 1
+
+    -- Every count above was read while something still owned a buffer, so the only way this last one
+    -- is zero is if each of those owners released exactly what it held.
+    return a * 100000 + b * 10000 + c * 1000 + d * 10 + e + live

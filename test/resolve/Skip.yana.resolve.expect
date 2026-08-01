@@ -18,18 +18,22 @@ fn Try(Maybe(a), a, ()).toOutcome(Int)(%value: Maybe(Int)) -> Outcome(Int, ()) {
 
   b1:
     %v6 = alloc : Outcome(Int, ())
-    init %local2.discriminant, 1
+    init %local3.discriminant, 1
     jmp b3
 
   b2:
-    %inner = load %value@Just : Int
-    %v11 = alloc : Outcome(Int, ())
-    init %local1.discriminant, 0
-    init %local1@Proceed, %inner
+    %v10 = load %value@Just : Int
+    %v11 = move %value@Just : Int
+    %inner = alloc : Int
+    init %local1, %v11
+    %v14 = alloc : Outcome(Int, ())
+    init %local2.discriminant, 0
+    %inner = load %local1 : Int
+    init %local2@Proceed, %inner
     jmp b3
 
   b3:
-    %v1 = phi [b2, %v11], [b1, %v6] : Outcome(Int, ())
+    %v1 = phi [b2, %v14], [b1, %v6] : Outcome(Int, ())
     ret %v1
 }
 
@@ -46,18 +50,21 @@ fn Try(Maybe(a), a, ()).toOutcome(Outcome((), Int))(%value: Maybe(Outcome((), In
 
   b1:
     %v6 = alloc : Outcome(Outcome((), Int), ())
-    init %local2.discriminant, 1
+    init %local3.discriminant, 1
     jmp b3
 
   b2:
-    %inner = load %value@Just : Outcome((), Int)
-    %v11 = alloc : Outcome(Outcome((), Int), ())
-    init %local1.discriminant, 0
-    init %local1@Proceed, %inner
+    %v10 = load %value@Just : Outcome((), Int)
+    %v11 = move %value@Just : Outcome((), Int)
+    %inner = alloc : Outcome((), Int)
+    init %local1, %v11
+    %v14 = alloc : Outcome(Outcome((), Int), ())
+    init %local2.discriminant, 0
+    init %local2@Proceed, %inner
     jmp b3
 
   b3:
-    %v1 = phi [b2, %v11], [b1, %v6] : Outcome(Outcome((), Int), ())
+    %v1 = phi [b2, %v14], [b1, %v6] : Outcome(Outcome((), Int), ())
     ret %v1
 }
 
@@ -68,21 +75,29 @@ fn Try(Result(e, a), a, e).toOutcome(Int, Int)(%value: Result(Int, Int)) -> Outc
     je %v4, b2, b1
 
   b1:
-    %reason = load %value@Err : Int
-    %v7 = alloc : Outcome(Int, Int)
-    init %local2.discriminant, 1
-    init %local2@Exit, %reason
+    %v6 = load %value@Err : Int
+    %v7 = move %value@Err : Int
+    %reason = alloc : Int
+    init %local3, %v7
+    %v10 = alloc : Outcome(Int, Int)
+    init %local4.discriminant, 1
+    %reason = load %local3 : Int
+    init %local4@Exit, %reason
     jmp b3
 
   b2:
-    %inner = load %value@Ok : Int
-    %v13 = alloc : Outcome(Int, Int)
-    init %local1.discriminant, 0
-    init %local1@Proceed, %inner
+    %v16 = load %value@Ok : Int
+    %v17 = move %value@Ok : Int
+    %inner = alloc : Int
+    init %local1, %v17
+    %v20 = alloc : Outcome(Int, Int)
+    init %local2.discriminant, 0
+    %inner = load %local1 : Int
+    init %local2@Proceed, %inner
     jmp b3
 
   b3:
-    %v1 = phi [b2, %v13], [b1, %v7] : Outcome(Int, Int)
+    %v1 = phi [b2, %v20], [b1, %v10] : Outcome(Int, Int)
     ret %v1
 }
 

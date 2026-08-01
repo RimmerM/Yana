@@ -15,17 +15,17 @@ Try(Maybe(a), a, ()).toOutcome(Int)<complex>(%v_0: Ptr, %value: Ptr) {
 
   b_4 {
     %v_8 = add %value, 4: Ptr
-    %inner = loads %v_8, 4: Int
-    %v_9 = alloca 8, 4: Ptr
-    store %v_9, 0, 4
-    %v_10 = add %v_9, 4: Ptr
-    store %v_10, %inner, 4
+    %v_9 = loads %v_8, 4: Int
+    %v_10 = alloca 8, 4: Ptr
+    store %v_10, 0, 4
+    %v_11 = add %v_10, 4: Ptr
+    store %v_11, %v_9, 4
     jmp b_7
   }
 
   b_7 {
-    %v_11 = phi [b_4, %v_9], [b_5, %v_6]: Ptr
-    copy %v_0, %v_11, 8
+    %v_12 = phi [b_4, %v_10], [b_5, %v_6]: Ptr
+    copy %v_0, %v_12, 8
     ret 
   }
 }
@@ -151,10 +151,12 @@ Try(Maybe(a), a, ()).toOutcome(Outcome((), Int))<complex>(%v_0: Ptr, %value: Ptr
 
   b_4 {
     %v_8 = add %value, 4: Ptr
+    %inner = alloca 8, 4: Ptr
+    copy %inner, %v_8, 8
     %v_9 = alloca 12, 4: Ptr
     store %v_9, 0, 4
     %v_10 = add %v_9, 4: Ptr
-    copy %v_10, %v_8, 8
+    copy %v_10, %inner, 8
     jmp b_7
   }
 
@@ -365,27 +367,27 @@ Try(Result(e, a), a, e).toOutcome(Int, Int)<complex>(%v_0: Ptr, %value: Ptr) {
 
   b_5 {
     %v_6 = add %value, 4: Ptr
-    %reason = loads %v_6, 4: Int
-    %v_7 = alloca 8, 4: Ptr
-    store %v_7, 1, 4
-    %v_8 = add %v_7, 4: Ptr
-    store %v_8, %reason, 4
-    jmp b_9
+    %v_7 = loads %v_6, 4: Int
+    %v_8 = alloca 8, 4: Ptr
+    store %v_8, 1, 4
+    %v_9 = add %v_8, 4: Ptr
+    store %v_9, %v_7, 4
+    jmp b_10
   }
 
   b_4 {
-    %v_10 = add %value, 4: Ptr
-    %inner = loads %v_10, 4: Int
-    %v_11 = alloca 8, 4: Ptr
-    store %v_11, 0, 4
-    %v_12 = add %v_11, 4: Ptr
-    store %v_12, %inner, 4
-    jmp b_9
+    %v_11 = add %value, 4: Ptr
+    %v_12 = loads %v_11, 4: Int
+    %v_13 = alloca 8, 4: Ptr
+    store %v_13, 0, 4
+    %v_14 = add %v_13, 4: Ptr
+    store %v_14, %v_12, 4
+    jmp b_10
   }
 
-  b_9 {
-    %v_13 = phi [b_4, %v_11], [b_5, %v_7]: Ptr
-    copy %v_0, %v_13, 8
+  b_10 {
+    %v_15 = phi [b_4, %v_13], [b_5, %v_8]: Ptr
+    copy %v_0, %v_15, 8
     ret 
   }
 }

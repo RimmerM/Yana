@@ -42,13 +42,24 @@ fn totalOf(m: Maybe(Tree)) -> Int = match m:
 -- the cycle. So the body below is written once against a bare payload and the specialization at
 -- `a = Tree` has to reach through a pointer - which is the one place automatic indirection and
 -- specialization meet. Got wrong, this returns garbage rather than failing to compile.
-fn unwrapOr(m: Maybe(a), fallback: a) -> a = match m:
+-- It hands the payload back as a *borrow* rather than taking it, and for this type that is forced
+-- rather than stylistic: the indirection is on `Just`, so `Just(->v)` here would relocate the target
+-- out of the box and leave the allocation with nothing to hand it back - the reclaim that would have
+-- is the one the move just told the compiler not to run. See wholeMove in resolve/analyze_borrow.cpp.
+-- Reading through the pointer is what a fold over a recursive structure wants anyway, and the
+-- `return` roots are what say whose storage the answer lives in.
+fn unwrapOr(return m: Maybe(a), return fallback: a) -> &a = match m:
     Nothing -> fallback
     Just(v) -> v
 
-fn leftOf(t: Tree) -> Int = match t:
-    Leaf(v) -> v
-    Branch(b) -> total(unwrapOr(b.left, Leaf(0)))
+fn leftOf(t: Tree) -> Int:
+    -- Named rather than written into the call, so the borrow the fallback root hands back has
+    -- storage that outlives the call it came out of.
+    let absent = Leaf(0) :: Tree
+
+    return match t:
+        Leaf(v) -> v
+        Branch(b) -> total(unwrapOr(b.left, absent))
 
 fn buildList() -> Int:
     let xs = Cons {head: 1, tail: Cons {head: 2, tail: Cons {head: 39, tail: Nil}}}

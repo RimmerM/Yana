@@ -1,4 +1,5 @@
 #include "analyze_pass.h"
+#include "generic.h"
 
 /*
  * The four checks.
@@ -256,13 +257,123 @@ void checkBorrows(Analysis& analysis) {
 }
 
 /*
+ * Whether a move out of this place empties the slot rather than half of it.
+ *
+ * The empty path is the obvious one. The other is a lone `Downcast`, and it is not an exception to
+ * the rule so much as the case where the rule's premise does not hold: a record's storage is a
+ * discriminant and one payload, the discriminant owns nothing, and on the path a `Just(->v)` reached
+ * there is no second payload to be left behind. So the slot really is empty afterwards, and every
+ * later use of it is rejected and every drop of it skipped, which is what "moved" has to mean.
+ *
+ * Two steps do not qualify, and both matter. `Downcast` then `Field` is one member of a payload
+ * written with braces, which is a genuine partial move. `Downcast` then `Deref` is a boxed payload -
+ * `project` appends that `Deref` - and there the box is storage of its own: taking the target out
+ * leaves the allocation with nothing to free it, since the reclaim that would have is the one this
+ * move just told the compiler not to run.
+ */
+static bool wholeMove(Analysis& analysis, Place place) {
+    auto count = place.projections.size();
+    if(count == 0) return true;
+    if(count > 1) return false;
+
+    return place.projections.get(analysis.local, 0).kind == ProjectionKind::Downcast;
+}
+
+/*
+ * Ownership leaving the frame through a value that was never moved out of anything.
+ *
+ * The four points where ownership departs - a write into another place, an exchange, a return, and a
+ * phi input - all take a *value*, and transferFrom stops at whichever slot that value is the whole
+ * contents of. A projected load has no such slot: `p.first` and the `v` a `Held(v)` pattern binds are
+ * both a LoadPlace over a path into a slot somebody else still owns, so the handover finds nothing to
+ * mark moved, the source is dropped at its last use, and whoever received the bytes drops them too.
+ *
+ * That is the same statement `InstMove` makes with a projected place, and it is refused for the same
+ * reason - a slot half given away needs a drop flag per field, which the state lattice does not have.
+ * The only difference is that `->` says it out loud and this does not, so this is where it has to be
+ * noticed. Written as a check rather than as a move: turning these into InstMove would make the
+ * *accepted* programs depend on a rule that exists to reject, and a partial move is not something to
+ * start representing here.
+ *
+ * Only droppable types, on the same terms as transferFrom itself. Copying the bytes of something
+ * nobody is responsible for is a copy, and that is all `let x = p.count` has ever been.
+ */
+static void checkTransfer(Analysis& analysis, ModulePtr<Value> value, LocationId source) {
+    if(!value || analysis.local[value]->kind != Value::LoadPlace) return;
+
+    auto& place = ((InstLoadPlace*)analysis.local[value])->place;
+    if(place.projections.isEmpty()) return;
+
+    // A raw pointer's target is outside the ownership model - `%T` carries no owner - so `return *p`
+    // stays what Native needs it to be.
+    if(place.root == PlaceRoot::Pointer) return;
+
+    // Asked of the *context* rather than of the type, exactly as sinkValue asks it: an unconstrained
+    // `a` owns something inside the body whatever a caller substitutes, and a declared
+    // `TrivialCopy(a)` is what makes reading one out a copy. Without that agreement a generic
+    // accessor would be rejected here and then compile the copy anyway.
+    auto ownership = ownershipIn(analysis.module, functionGen(analysis.global, analysis.function),
+                                 analysis.local[value]->type);
+    if(!ownership.needsTeardown()) return;
+
+    auto root = rootLocal(analysis, place);
+    auto borrowed = place.root == PlaceRoot::Borrow ||
+                    (root != maxLimit<U32> && !analysis.tracked[root].owned);
+
+    if(borrowed || place.root == PlaceRoot::Global) {
+        report(analysis, "this hands ownership on out of storage this frame only borrows - take the whole value with `->` in the signature, or answer a borrow instead"_v,
+               source);
+        return;
+    }
+
+    // A payload the pivot is the only owner of: the move is representable, it just was not written.
+    // Pointing at the spelling is the whole value of separating this case out.
+    if(wholeMove(analysis, place)) {
+        report(analysis, "this hands ownership on out of a value that still owns it - write `->` on the name that binds it, as in `Just(->v)`, to take it out"_v,
+               source);
+        return;
+    }
+
+    report(analysis, "cannot move a part of a value out of it - move the whole value instead"_v, source);
+}
+
+// The value each of the four departure points hands over, or none for everything else.
+static ModulePtr<Value> transferredValue(Inst& instruction) {
+    switch(instruction.kind) {
+        case Value::Init:
+        case Value::Assign:
+            return ((InstInit&)instruction).value;
+        case Value::Exchange:
+            return ((InstExchange&)instruction).value;
+        case Value::Ret:
+            return ((InstRet&)instruction).value;
+        default:
+            return nullptr;
+    }
+}
+
+/*
  * Use after move, and the moves that cannot be represented at all.
  */
 void checkMoves(Analysis& analysis) {
+    // A phi input departs on the edge into the join rather than at the join, which is where
+    // attributePhiEdges puts its transfer. The diagnostic points at the phi, because the operand is
+    // a value with no instruction of its own to name.
+    for(Size b = 0; b < analysis.blockCount(); b++) {
+        for(auto phiPointer: analysis.blockAt(b)->phis.contents(analysis.local)) {
+            auto& phi = *analysis.local[phiPointer];
+            for(auto input: phi.inputs.contents(analysis.local)) {
+                checkTransfer(analysis, input.value, phi.source);
+            }
+        }
+    }
+
     for(Size i = 0; i < analysis.instructionCount; i++) {
         auto& instruction = *analysis.local[analysis.order[i]];
         auto& states = analysis.stateBefore[i];
         auto& effects = analysis.effects[i];
+
+        checkTransfer(analysis, transferredValue(instruction), instruction.source);
 
         if(instruction.kind == Value::Move) {
             auto& moved = (InstMove&)instruction;
@@ -270,7 +381,7 @@ void checkMoves(Analysis& analysis) {
             // A partial move would leave the slot half-owned, and every later drop of it would
             // have to know which half. That is a drop flag per field and a drop that runs over a
             // subset of members - real work, deferred deliberately rather than approximated.
-            if(moved.place.projections.isNotEmpty()) {
+            if(!wholeMove(analysis, moved.place)) {
                 report(analysis, "cannot move a part of a value out of it - move the whole value instead"_v,
                        instruction.source);
                 continue;

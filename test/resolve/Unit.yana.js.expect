@@ -34,16 +34,14 @@ function branching(c) {
 }
 
 function main() {
-  var boxed = { inner: null, tag: 4 };
-  var c = boxTag(boxed);
-  unbox(boxed);
+  var c = boxTag({ inner: null, tag: 4 });
   var e = isSomething({ $tag: 1 });
   var f = isSomething({ $tag: 0 });
   var g = firstOf({ slot: null, index: 5 });
   var i = applyTo(ResolveTest_lambda$1);
   var j = callWith(ResolveTest_lambda$2);
   var k = capturing(8);
-  matching({ $tag: 1 });
+  matching({ $tag: { $tag: 1 }.$tag });
   return ((((((((((c + 24 | 0) + e | 0) + f | 0) + g | 0) + i | 0) + j | 0) + k | 0) + 3 | 0) + isSomething({ $tag: 1 }) | 0) + isSomething({ $tag: 1 }) | 0) + 23 | 0;
 }
 

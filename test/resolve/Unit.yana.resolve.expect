@@ -38,9 +38,10 @@ fn between(%first: Int, %middle: a, %last: Int) -> Int {
     ret %v6
 }
 
-fn unbox(%b: Box(a)) -> a {
+(TrivialCopy(a)) fn unbox(%b: Box(a)) -> a {
   schema {
     #0 type a
+    #1 class TrivialCopy(a)
   }
 
   b0:
@@ -164,18 +165,22 @@ fn matching(%m: Maybe(a), %fallback: a) -> a {
     jmp b3
 
   b2:
-    %inner = load %m@Just : a
+    %v6 = load %m@Just : a
+    %v7 = move %m@Just : a
+    %inner = alloc : a
+    init %local2, %v7
     jmp b3
 
   b3:
-    %v9 = phi [b2, %inner], [b1, %fallback] : a
-    ret %v9
+    %v12 = phi [b2, %inner], [b1, %fallback] : a
+    ret %v12
 }
 
-fn emptyRoundTrip(%value: a) -> a {
+(TrivialCopy(a)) fn emptyRoundTrip(%value: a) -> a {
   schema {
     #0 type a
     #1 type Empty(a)
+    #2 class TrivialCopy(a)
   }
 
   b0:
@@ -234,31 +239,32 @@ fn main() -> Int {
     %v58 = alloc : Maybe(())
     init %local6.discriminant, 1
     call unitValue
-    call matching(()), %v58, %v61
-    %n = call takesUnit, %v62 : Int
+    %v62 = copy %local6 : Maybe(())
+    call matching(()), %v62, %v61
+    %n = call takesUnit, %v63 : Int
     call unitValue
-    %v65 = call wrap(()), %v64 : Maybe(())
-    %o = call isSomething(()), %v65 : Int
+    %v66 = call wrap(()), %v65 : Maybe(())
+    %o = call isSomething(()), %v66 : Int
     alloc
-    %v68 = call wrap(()), %v67 : Maybe(())
-    %p = call isSomething(()), %v68 : Int
+    %v69 = call wrap(()), %v68 : Maybe(())
+    %p = call isSomething(()), %v69 : Int
     alloc
-    %q = call between(()), 2, %v73, 3 : Int
-    %v76 = add %a, %b : Int
-    %v77 = add %v76, %c : Int
-    %v78 = add %v77, %e : Int
-    %v79 = add %v78, %f : Int
-    %v80 = add %v79, %g : Int
-    %v81 = add %v80, %i : Int
-    %v82 = add %v81, %j : Int
-    %v83 = add %v82, %k : Int
-    %v84 = add %v83, %l : Int
-    %v85 = add %v84, %m : Int
-    %v86 = add %v85, %n : Int
-    %v87 = add %v86, %o : Int
-    %v88 = add %v87, %p : Int
-    %v89 = add %v88, %q : Int
-    ret %v89
+    %q = call between(()), 2, %v74, 3 : Int
+    %v77 = add %a, %b : Int
+    %v78 = add %v77, %c : Int
+    %v79 = add %v78, %e : Int
+    %v80 = add %v79, %f : Int
+    %v81 = add %v80, %g : Int
+    %v82 = add %v81, %i : Int
+    %v83 = add %v82, %j : Int
+    %v84 = add %v83, %k : Int
+    %v85 = add %v84, %l : Int
+    %v86 = add %v85, %m : Int
+    %v87 = add %v86, %n : Int
+    %v88 = add %v87, %o : Int
+    %v89 = add %v88, %p : Int
+    %v90 = add %v89, %q : Int
+    ret %v90
 }
 
 fn ResolveTest.lambda$0(%env: %{x: ()}, %extra: Int) -> Int {
@@ -289,8 +295,7 @@ fn boxTag(())(%b: Box(())) -> Int {
 
 fn unbox(())(%b: Box(())) -> () {
   b0:
-    load %b@Box.inner
-    ret %v1
+    ret
 }
 
 fn isSomething(())(%m: Maybe(())) -> Int {
@@ -303,7 +308,6 @@ fn isSomething(())(%m: Maybe(())) -> Int {
     jmp b3
 
   b2:
-    load %m@Just
     jmp b3
 
   b3:
@@ -337,8 +341,7 @@ fn emptyRoundTrip(())(%value: ()) -> () {
   b0:
     %v1 = alloc : Empty(())
     init %local1@Empty, %value
-    load %local1@Empty.only
-    ret %v3
+    ret
 }
 
 fn matching(())(%m: Maybe(()), %fallback: ()) -> () {
@@ -351,7 +354,8 @@ fn matching(())(%m: Maybe(()), %fallback: ()) -> () {
     jmp b3
 
   b2:
-    load %m@Just
+    alloc
+    load %local2
     jmp b3
 
   b3:

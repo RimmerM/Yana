@@ -302,7 +302,7 @@ fn totalOf(%m: Maybe(Tree)) -> Int {
     ret %v10
 }
 
-fn unwrapOr(%m: Maybe(a), %fallback: a) -> a {
+fn unwrapOr(%m: Maybe(a), %fallback: a) -> &a {
   schema {
     #0 type a
   }
@@ -314,32 +314,36 @@ fn unwrapOr(%m: Maybe(a), %fallback: a) -> a {
 
   b1:
     %v = load %m@Just : a
+    %v8 = borrow %m@Just : &a
     jmp b3
 
   b2:
+    %v6 = borrow %fallback : &a
     jmp b3
 
   b3:
-    %v9 = phi [b2, %fallback], [b1, %v] : a
-    ret %v9
+    %v11 = phi [b2, %v6], [b1, %v8] : &a
+    ret %v11
 }
 
 fn leftOf(%t: Tree) -> Int {
   b0:
-    %v1 = load %t.discriminant : Int
-    %v3 = cmp_eq %v1, 0 : Bool
-    je %v3, b2, b1
+    %absent = alloc : Tree
+    init %local1.discriminant, 0
+    init %local1@Leaf, 0
+    %v6 = load %t.discriminant : Int
+    %v8 = cmp_eq %v6, 0 : Bool
+    je %v8, b4, b1
 
   b1:
     %b = load %t@Branch : {left: Maybe(Tree), right: Maybe(Tree), label: Int}
-    %v7 = load %t@Branch.left : Maybe(Tree)
-    %v8 = alloc : Tree
-    init %local1.discriminant, 0
-    init %local1@Leaf, 0
-    %v13 = call unwrapOr(Tree), %v7, %v8 : Tree
+    %v12 = load %t@Branch.left : Maybe(Tree)
+    %v13 = borrow %t@Branch.left : &Maybe(Tree)
+    %v14 = borrow %local1 : &Tree
+    %v15 = call unwrapOr(Tree), %v13, %v14 : &Tree
+    %v16 = load [%v15] : Tree
+    %v17 = call total, %v16 : Int
     drop_derived %local1 via drop$Tree reclaim reclaim$Tree
-    %v14 = call total, %v13 : Int
-    drop_derived %local2 via drop$Tree reclaim reclaim$Tree
     jmp b3
 
   b2:
@@ -347,8 +351,12 @@ fn leftOf(%t: Tree) -> Int {
     jmp b3
 
   b3:
-    %v17 = phi [b2, %v], [b1, %v14] : Int
-    ret %v17
+    %v20 = phi [b2, %v], [b1, %v17] : Int
+    ret %v20
+
+  b4:
+    drop_derived %local1 via drop$Tree reclaim reclaim$Tree
+    jmp b2
 }
 
 fn buildList() -> Int {
@@ -514,7 +522,7 @@ fn Drop(Tracked).drop(%value: Tracked) -> () {
     ret
 }
 
-fn unwrapOr(Tree)(%m: Maybe(Tree), %fallback: Tree) -> Tree {
+fn unwrapOr(Tree)(%m: Maybe(Tree), %fallback: Tree) -> &Tree {
   b0:
     %v3 = load %m.discriminant : Int
     %v5 = cmp_eq %v3, 0 : Bool
@@ -522,13 +530,15 @@ fn unwrapOr(Tree)(%m: Maybe(Tree), %fallback: Tree) -> Tree {
 
   b1:
     %v = load %m@Just.* : Tree
+    %v8 = borrow %m@Just.* : &Tree
     jmp b3
 
   b2:
+    %v10 = borrow %fallback : &Tree
     jmp b3
 
   b3:
-    %v2 = phi [b2, %fallback], [b1, %v] : Tree
+    %v2 = phi [b2, %v10], [b1, %v8] : &Tree
     ret %v2
 }
 
