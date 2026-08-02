@@ -1,0 +1,132 @@
+fn fromInstance() -> Int {
+  b0:
+    %x = call Elem(Int, Bool).head, 7 : Bool
+    je %x, b1, b2
+
+  b1:
+    ret 1
+
+  b2:
+    jmp b3
+
+  b3:
+    ret 0
+}
+
+fn fromOtherInstance() -> Int {
+  b0:
+    %v1 = call Elem(Bool, Int).head, True : Int
+    ret %v1
+}
+
+fn fromParametric() -> Int {
+  b0:
+    %w = alloc : Wrap(Int)
+    init %local0@Wrap, 5
+    %w = copy %local0 : Wrap(Int)
+    %inner = call Elem(Wrap(a), Wrap(a)).head(Int), %w : Wrap(Int)
+    %v6 = load %local2@Wrap.item : Int
+    ret %v6
+}
+
+(Elem(c, a)) fn first(%self: c) -> a {
+  schema {
+    #0 type c
+    #1 type a
+    #2 class Elem(c, a)
+  }
+
+  b0:
+    %v1 = gencall Elem(c, a).head, %self : a
+    ret %v1
+}
+
+(Elem(c, a)) fn discards(%self: c) -> Int {
+  schema {
+    #0 type c
+    #1 type a
+    #2 class Elem(c, a)
+  }
+
+  b0:
+    %x = gencall Elem(c, a).head, %self : a
+    ret 0
+}
+
+fn viaConstraint() -> Int {
+  b0:
+    %x = call first(Int, Bool), 7 : Bool
+    je %x, b1, b2
+
+  b1:
+    ret 1
+
+  b2:
+    jmp b3
+
+  b3:
+    ret 0
+}
+
+(Deep(c, a)) fn throughSuper(%self: c) -> Int {
+  schema {
+    #0 type c
+    #1 type a
+    #2 class Deep(c, a)
+  }
+
+  b0:
+    %x = gencall Elem(c, a).head, %self : a
+    ret 0
+}
+
+fn agreeingAscription() -> Bool {
+  b0:
+    %v2 = call Elem(Int, Bool).head, 7 : Bool
+    ret %v2
+}
+
+fn main() -> Int {
+  b0:
+    %a = call fromInstance : Int
+    %b = call fromOtherInstance : Int
+    %c = call viaConstraint : Int
+    %v3 = add %a, %b : Int
+    %v4 = add %v3, %c : Int
+    ret %v4
+}
+
+fn Elem(Int, Bool).head(%self: Int) -> Bool {
+  b0:
+    ret True
+}
+
+fn Elem(Bool, Int).head(%self: Bool) -> Int {
+  b0:
+    ret 7
+}
+
+fn Elem(Wrap(a), Wrap(a)).head(%self: Wrap(a)) -> Wrap(a) {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    ret %self
+}
+
+fn Deep(Int, Bool).deep(%self: Int) -> Bool {
+  b0:
+    ret True
+}
+
+fn Elem(Wrap(a), Wrap(a)).head(Int)(%self: Wrap(Int)) -> Wrap(Int) {
+  b0:
+    ret %self
+}
+
+fn first(Int, Bool)(%self: Int) -> Bool {
+  b0:
+    %v1 = call Elem(Int, Bool).head, %self : Bool
+    ret %v1
+}

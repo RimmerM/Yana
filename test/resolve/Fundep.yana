@@ -1,0 +1,85 @@
+-- Functional dependencies: `class C(a -> b)` says one `a` has one `b`.
+--
+-- The resolver binds type variables one-way and positionally, so a class parameter that appears
+-- only in a member's *result* is bound by nothing a caller writes. The arrow is the author's
+-- promise that it need not be: the deciding parameters select an instance, and the determined ones
+-- are read back off the head that matched.
+
+class Elem(c -> a):
+  fn head(->self: c) -> a
+
+instance Elem(Int, Bool):
+  fn head(->self: Int) -> Bool = True
+
+-- Two containers, two element types, no ambiguity: the instances disagree about what they
+-- determine only where they agree about what decides.
+instance Elem(Bool, Int):
+  fn head(->self: Bool) -> Int = 7
+
+{-
+   A parametric head, which is the shape §5's `Contiguous(Array(a) -> a)` has: what the dependency
+   answers is not a fixed type but whatever selecting the instance bound.
+-}
+data Wrap(a) {item: a}
+
+instance Elem(Wrap(a), Wrap(a)):
+  fn head(->self: Wrap(a)) -> Wrap(a) = self
+
+-- Nothing here says what `a` is. The argument decides `c`, the instance decides `a`.
+fn fromInstance() -> Int:
+    let x = head(7)
+    if x: return 1
+    return 0
+
+-- The other instance, from the same call written the same way.
+fn fromOtherInstance() -> Int = head(True)
+
+-- The determined type is the one selecting the parametric head *bound*, not the one it was written
+-- with: this call determines `Wrap(Int)`, and `Wrap(a)` is only how the instance said so.
+fn fromParametric() -> Int:
+    let w = Wrap { item: 5 }
+    let inner = head(w)
+    return inner.item
+
+{-
+   Inside a generic body there is no instance to read from: `c` is this function's own variable and
+   which container it will be is the caller's business. What answers is the constraint the signature
+   declared, which is where `a` got its name.
+-}
+fn (Elem(c, a)) first(->self: c) -> a = head(self)
+
+-- The same, with nothing expecting the call's result - so the return type cannot be what decides.
+fn (Elem(c, a)) discards(->self: c) -> Int:
+    let x = head(self)
+    return 0
+
+{-
+   And the caller of one. `first` binds `c` from its argument; `a` is a type variable no argument
+   mentions, and the instance `c` selects is what decides it. Without the dependency this is
+   "cannot infer type argument a of first here".
+-}
+fn viaConstraint() -> Int:
+    let x = first(7)
+    if x: return 1
+    return 0
+
+-- A superclass hop: `Deep` is declared, `Elem` is what the call needs, and the dependency travels
+-- with the superclass exactly as the requirement does.
+class (Elem(c, a)) Deep(c -> a):
+  fn deep(->self: c) -> a
+
+instance Deep(Int, Bool):
+  fn deep(->self: Int) -> Bool = True
+
+fn (Deep(c, a)) throughSuper(->self: c) -> Int:
+    let x = head(self)
+    return 0
+
+-- An expected type that agrees with the dependency selects the same instance it would have anyway.
+fn agreeingAscription() -> Bool = head(7) :: Bool
+
+fn main() -> Int:
+    let a = fromInstance()
+    let b = fromOtherInstance()
+    let c = viaConstraint()
+    return a + b + c

@@ -1,0 +1,37 @@
+-- What a functional dependency rejects. Each declaration below is the mistake its comment names.
+
+class Elem(c -> a):
+  fn head(->self: c) -> a
+
+instance Elem(Int, Bool):
+  fn head(->self: Int) -> Bool = True
+
+{-
+   The check the dependency exists for.
+
+   These two are not duplicates and neither head covers the other, so nothing else in the resolver
+   rejects them - and a call that leaves the determined position open would be answered by whichever
+   happened to be declared first. Reading a hole back off "whichever instance matched" only means
+   something because this is an error.
+-}
+instance Elem(Int, Int):
+  fn head(->self: Int) -> Int = self
+
+-- An arrow with nothing after it declares no dependency, and a head that means less than it looks
+-- like is worse than one that does not parse.
+class Empty(a ->):
+  fn nothing(self: a) -> Int
+
+-- Two arrows would be two dependencies, which the head has no room to record.
+class Twice(a -> b -> c):
+  fn two(self: a) -> b
+
+-- The determined parameter has no name here, and inventing one would be a constraint every caller
+-- has to satisfy that the author never wrote.
+fn undeclared(self: c) -> Int:
+    let x = head(self)
+    return 0
+
+-- An expected type cannot overrule the dependency: `Int` determines `Bool`, so there is no instance
+-- for the pair this asks for.
+fn disagreeingAscription() -> Int = head(7) :: Int

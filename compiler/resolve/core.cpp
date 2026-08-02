@@ -87,7 +87,7 @@ data Outcome(a, e) = Proceed(a) | Exit(e)
    consuming it costs nothing and is what keeps the class usable for a carrier whose payload is
    owned - the alternative would borrow a wrapper in order to hand out what is inside it.
 -}
-class Try(m, a, e):
+class Try(m -> a, e):
   fn toOutcome(->value: m) -> Outcome(a, e)
   fn fromExit(->reason: e) -> m
 

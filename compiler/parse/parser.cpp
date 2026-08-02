@@ -541,7 +541,7 @@ void Parser::parseTraitDecl(ast::DeclList& decls, ast::AttrList attributes, bool
         parseConstraints(constraints);
     }
 
-    auto type = parseSimpleType();
+    auto type = parseSimpleType(true);
     auto source = context.addLocation(location);
     ast::DeclList funs;
 
@@ -2099,9 +2099,19 @@ ast::Type Parser::parseArrayType(const WithLocation& location, ast::ParsePtr<ast
     return type ? type.unwrap() : makeType(Error, name, 0, location, attributes);
 }
 
-ast::SimpleType Parser::parseSimpleType() {
+/*
+ * A declaration head: the name, and the type variables it introduces.
+ *
+ * `allowDependency` is what separates a class head from a `data` or `alias` one. Only a class may
+ * write `->` between its parameters, because what the arrow declares is a promise about the set of
+ * instances - one `c` has one `a` - and neither of the other two has instances. Written anywhere
+ * else the arrow is simply not a separator, so `data Pair(a -> b)` stops at the `a` and reports the
+ * missing `)` rather than a rule nobody needs to know about.
+ */
+ast::SimpleType Parser::parseSimpleType(bool allowDependency) {
     auto name = expect(Token::ConID, "expected type name"_v).from({ .id = 0 }).id;
     ast::ParseList<StringId> kind;
+    U16 determined = 0;
 
     if(auto v = maybe(Token::VarID)) {
         kind.push(arena, v.unwrap().id);
@@ -2110,11 +2120,42 @@ ast::SimpleType Parser::parseSimpleType() {
             sepBy1([&] {
                 auto n = expect(Token::VarID, "expected an identifier"_v).from({ .id = 0 }).id;
                 if(n) kind.push(arena, n);
-            }, Token::Comma);
+            }, [&] {
+                if(allowDependency && token.type == Token::opArrowR) {
+                    auto split = U16(kind.size());
+                    eat();
+
+                    // An arrow with nothing after it is one mistake, and both the list production
+                    // ("expected an identifier") and the arity check in declareClass would report
+                    // it as a second one. Ending the list here, with `determined` left as it was,
+                    // is what keeps it to the message that names the rule.
+                    if(token.type != Token::VarID) {
+                        error("expected the parameters determined by the ones before the `->`"_v);
+                        return false;
+                    }
+
+                    // One arrow, so the parameters split in two rather than into a graph. A class
+                    // wanting `a -> b` and `b -> a` both is a declaration this cannot record, and
+                    // saying so here is better than recording the first and silently losing the
+                    // second.
+                    if(determined) {
+                        error("a class head may write only one `->`: the parameters before it determine every one after it"_v);
+                    } else {
+                        determined = split;
+                    }
+
+                    return true;
+                }
+
+                if(token.type != Token::Comma) return false;
+
+                eat();
+                return true;
+            });
         });
     }
 
-    return { name, kind };
+    return { name, kind, determined };
 }
 
 ast::Expr Parser::toLiteral(const Token::Payload& payload, Token::Type type, const WithLocation& source) {

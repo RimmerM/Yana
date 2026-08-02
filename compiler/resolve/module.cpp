@@ -841,6 +841,25 @@ static void declareClass(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Dec
                                          module.context.findName(decl.trait.type.name));
     }
 
+    /*
+     * The functional dependency, if the head wrote one.
+     *
+     * Both halves have to be non-empty. `Class(-> a)` would say that one instance serves the whole
+     * program, which is a different promise from "these decide those" and is not what this records;
+     * `Class(a ->)` says nothing at all. Neither is silently ignored, because a head that means
+     * less than it appears to is worse than one that does not parse.
+     */
+    if(auto determined = decl.trait.type.determined) {
+        auto arity = U16((*module.types)[env]->types.size());
+
+        if(determined >= arity) {
+            module.context.diagnostics.error("the `->` in class %@ leaves nothing after it - write the parameters the earlier ones determine, or drop the arrow"_v,
+                                             decl.source, module.context.findName(decl.trait.type.name));
+        } else {
+            typeClass->determined = determined;
+        }
+    }
+
     U16 index = 0;
     auto decls = decl.trait.decls;
 
@@ -1521,10 +1540,25 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
 
     for(auto other: existing) {
         auto& previous = *(*module.arena)[other];
-        if(!instanceCovers(module, previous, *instance) || !instanceCovers(module, *instance, previous)) continue;
 
-        module.context.diagnostics.error("duplicate instance of %@ for these types"_v, decl.source,
-                                         module.context.findName(className));
+        if(instanceCovers(module, previous, *instance) && instanceCovers(module, *instance, previous)) {
+            module.context.diagnostics.error("duplicate instance of %@ for these types"_v, decl.source,
+                                             module.context.findName(className));
+            return;
+        }
+
+        // The functional dependency the class declared. Two instances that agree on what determines
+        // and disagree on what is determined are not duplicates and neither covers the other, so
+        // this is the only thing that rejects them - and a call that leaves the determined position
+        // open would otherwise be answered by whichever was declared first.
+        if(!breaksDependency(module, previous, *instance)) continue;
+
+        StringBuilder determining;
+        auto prefix = Buffer<TypePtr> { args.pointer(), typeClass->determined };
+        describeTypes(module.context, *module.types, prefix, determining);
+
+        module.context.diagnostics.error("this instance of %@ disagrees with an existing one about what (%@) determines - the class head's `->` promises one answer, so the two cannot both hold"_v,
+                                         decl.source, module.context.findName(className), determining.view());
         return;
     }
 

@@ -525,6 +525,19 @@ inline bool isTerminating(const Expr& e) {
 struct SimpleType {
     StringId name;
     ParseList<StringId> kind;
+
+    /*
+     * Where a class head's `->` was written: the index of the first parameter the ones before it
+     * determine, and 0 for a head with no arrow.
+     *
+     * `class Contiguous(c -> a)` is a promise that one `c` has one `a`, which is what lets a call
+     * that binds only `c` read `a` back off the instance it selects. Zero is a safe sentinel
+     * because the first parameter can never be a determined one - something has to determine it.
+     *
+     * Only a class head may carry one. `data` and `alias` share this production and pass false for
+     * the arrow, since neither has instances for a dependency to be a promise about.
+     */
+    U16 determined = 0;
 };
 
 struct Con {

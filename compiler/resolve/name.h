@@ -219,3 +219,41 @@ ModulePtr<ClassInstance> findInstance(Module& module, GlobalPtr<TypeClass> typeC
 // for matches the head the other is. Two instances general in each other's terms are the same
 // instance written twice, which is what makes this the duplicate test as well as the tiebreak.
 bool instanceCovers(Module& module, ClassInstance& pattern, ClassInstance& other);
+
+/*
+ * Fills the class arguments a functional dependency determines, in place.
+ *
+ * `class Contiguous(c -> a)` says one `c` has one `a`, so a caller that bound only `c` asks the
+ * instance table with a hole where `a` goes and reads back what the head that matched put there.
+ * That is matchInstance's existing null-argument protocol, aimed by the declaration rather than by
+ * a hand-written caller - which is what `Try`'s lens lowering used to do on its own.
+ *
+ * A determined position that is *already* bound is passed through rather than re-asked, so an
+ * ascription that agrees with the dependency selects the same instance and one that disagrees
+ * selects none and reports itself as a missing instance.
+ *
+ * Answers nothing for a class with no dependency, for a determining position that is unbound or is
+ * still a type variable, and where no instance applies. The first two are not failures: a generic
+ * position is a body's own variable, which the enclosing signature's constraints answer instead.
+ *
+ * `bindGeneric` lifts that last restriction, for a caller asking what an instance *looks like*
+ * rather than which one to call - see the definition.
+ */
+InstanceMatch resolveDetermined(Module& module, GlobalPtr<TypeClass> typeClass, TypeList& args,
+                                bool bindGeneric = false);
+
+/*
+ * Whether two instances break their class's functional dependency: their determining positions can
+ * describe the same types, and their determined ones then disagree.
+ *
+ * This is what a declared dependency buys, and matchInstance's hole-filling is unsound without it.
+ * Two heads that disagree about a determined position are not duplicates and neither covers the
+ * other, so nothing else rejects them - and a selection with a hole would then answer with
+ * whichever of the two was declared first.
+ *
+ * Checked one way per ordering, because that is the only overlap `matchType` can see: a pair that
+ * overlaps without either head covering the other - `C(Pair(Int, a) -> x)` and `C(Pair(b, Bool) ->
+ * y)` - needs the unifier the resolver does not have, and is the same coherence gap
+ * matchInstanceAt's tiebreak already documents.
+ */
+bool breaksDependency(Module& module, ClassInstance& pattern, ClassInstance& other);

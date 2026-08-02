@@ -22,6 +22,157 @@ bool hasClassRequirement(GlobalBase global, const GenEnv& env, GlobalPtr<TypeCla
 }
 
 /*
+ * Substitution that leaves an undecided variable standing for itself.
+ *
+ * Handing substituteType a binding list with holes in it builds types *around* those holes - a null
+ * element inside a record's arguments - so a constraint cannot be examined until every variable in
+ * it is known. Which is exactly backwards for a dependency, whose whole job is to answer a
+ * constraint that is only partly known. Substituting an unbound variable by itself gives the
+ * constraint as written, and `isGeneric` on the result is then the question "was this decided".
+ */
+static void bindingsOrVariables(GlobalBase global, const GenEnv& env, Buffer<TypePtr> bindings, TypeList& target) {
+    auto types = env.types;
+    Size index = 0;
+
+    for(auto variable: types.contents(global)) {
+        auto binding = index < bindings.length ? bindings[index] : nullptr;
+        target.push(binding ? binding : TypePtr(variable));
+        index++;
+    }
+}
+
+// Whether these are the types a requirement decides by. Only the deciding positions are compared,
+// which is the whole point: the determined ones are what the caller is asking about.
+static bool decidesWith(Buffer<TypePtr> declared, U16 determined, Buffer<TypePtr> args) {
+    if(declared.length != args.length) return false;
+
+    for(U16 i = 0; i < determined; i++) {
+        if(args[i] && declared[i] != args[i]) return false;
+    }
+
+    return true;
+}
+
+bool findClassRequirement(Module& module, const GenEnv& env, GlobalPtr<TypeClass> typeClass,
+                          Buffer<TypePtr> args, TypeList& out) {
+    auto global = *module.types;
+    if(!typeClass || !global[typeClass]->determines()) return false;
+
+    auto determined = global[typeClass]->determined;
+    auto classes = env.classes;
+
+    for(auto constraint: classes.contents(global)) {
+        if(constraint.typeClass != typeClass) continue;
+
+        TypeList declared;
+        for(auto arg: constraint.args.contents(global)) declared.push(arg);
+
+        if(!decidesWith(toBuffer(declared), determined, args)) continue;
+
+        replaceContents(out, declared);
+        return true;
+    }
+
+    // A requirement the declared ones only imply. `Contiguous(c, a)` promises `Chunked(c, a)`
+    // through its superclass, and a body that calls `chunks` has to reach it without the author
+    // having written the superclass out - the same rule provesClass states for the ordinary case.
+    for(auto constraint: classes.contents(global)) {
+        if(!constraint.typeClass || constraint.typeClass == typeClass) continue;
+
+        auto declaringEnv = global[global[constraint.typeClass]->gen];
+        if(!declaringEnv || declaringEnv->types.size() != constraint.args.size()) continue;
+
+        TypeList declaredWith;
+        for(auto arg: constraint.args.contents(global)) declaredWith.push(arg);
+
+        for(auto superclass: declaringEnv->classes.contents(global)) {
+            if(superclass.typeClass != typeClass) continue;
+
+            // The superclass is written in its own class's variables, so it is expressed in the
+            // types the requirement was declared with before being compared.
+            TypeList expressed;
+            for(auto arg: superclass.args.contents(global)) {
+                expressed.push(substituteType(module, arg, toBuffer(declaredWith), constraint.source));
+            }
+
+            if(!decidesWith(toBuffer(expressed), determined, args)) continue;
+
+            replaceContents(out, expressed);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void fillDetermined(Module& module, GenEnv& env, TypeList& bindings, LocationId source) {
+    auto global = *module.types;
+
+    // A chain resolves in one call rather than in declaration order, so each round that changes
+    // anything is bounded by one more variable being decided.
+    for(Size round = 0; round <= env.classes.size(); round++) {
+        auto moved = false;
+
+        for(auto constraint: env.classes.contents(global)) {
+            auto typeClass = constraint.typeClass;
+            if(!typeClass || !global[typeClass]->determines()) continue;
+
+            auto determined = global[typeClass]->determined;
+            if(constraint.args.size() <= determined) continue;
+
+            TypeList safe;
+            bindingsOrVariables(global, env, toBuffer(bindings), safe);
+
+            TypeList concrete;
+            auto ready = true;
+            auto open = false;
+            Size index = 0;
+
+            for(auto arg: constraint.args.contents(global)) {
+                auto substituted = substituteType(module, arg, toBuffer(safe), source);
+                auto decided = substituted && !isGeneric(global, substituted);
+
+                if(index < determined) {
+                    // Nothing to look an instance up by until every deciding position is a real
+                    // type. A later round may still decide it.
+                    if(!decided) ready = false;
+                    concrete.push(substituted);
+                } else {
+                    if(!decided) open = true;
+                    concrete.push(decided ? substituted : nullptr);
+                }
+
+                index++;
+            }
+
+            if(!ready || !open) continue;
+            if(!resolveDetermined(module, typeClass, concrete)) continue;
+
+            /*
+             * What the instance answered, matched back against the constraint *as written*, which
+             * is what binds this function's own variables rather than the class's.
+             *
+             * Pattern-side, so a constraint naming a structure - `Contiguous(c, Pair(k, v))` -
+             * binds both of its variables from one answer, and a position the bindings already
+             * decided constrains rather than rebinds.
+             */
+            index = 0;
+            for(auto arg: constraint.args.contents(global)) {
+                if(index >= determined && concrete[index]) {
+                    if(matchType(global, arg, concrete[index], { bindings.pointer(), bindings.size() })) {
+                        moved = true;
+                    }
+                }
+
+                index++;
+            }
+        }
+
+        if(!moved) break;
+    }
+}
+
+/*
  * Whether `have(haveArgs)` proves `want(wantArgs)`, by walking `have` up its own superclasses, and
  * which superclasses were stepped through to get there.
  *

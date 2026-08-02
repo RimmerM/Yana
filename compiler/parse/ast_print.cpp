@@ -791,10 +791,16 @@ private:
         if(t.kind.isNotEmpty()) {
             stream.writeByte('(');
             auto k = t.kind.contents(base);
+            U16 index = 0;
 
             for(auto i = k.begin(); i != k.end(); ++i) {
+                // The functional dependency's arrow stands where a separator would, so it prints
+                // as one: `Contiguous(c -> a)` reads back as what was written.
+                if(index && index == t.determined) stream.writeString(" -> "_v);
+                else if(index) stream.writeString(", "_v);
+
                 write(stream, context.findName(*i));
-                if(i != k.back()) stream.writeString(", "_v);
+                index++;
             }
 
             stream.writeByte(')');

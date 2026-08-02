@@ -79,12 +79,16 @@ static TypePtr stepType(Module& module, TypePtr carried, LocationId source) {
 /*
  * The `Try` instance a skipping lens's result carries - Analysis-Lens.md §3.2, §7.1.
  *
- * `Try(m, a, e)` is keyed on `m` alone, so the two type arguments nothing constrains are asked for
- * as nulls and read back off whichever instance matched. That is the load-bearing half of reading B:
- * the resolver never has to relate a return type to a type *constructor* applied to a variable - the
- * higher-kinded machinery Implementation-Generics.md part 7 fences off - because the question it
- * actually needs answered is "which case of the wrapper means the continuation ran", and only an
- * instance can answer that.
+ * `class Try(m -> a, e)` is keyed on `m` alone, so the two type arguments nothing constrains are
+ * asked for as holes and read back off the instance that matched. That is the load-bearing half of
+ * reading B: the resolver never has to relate a return type to a type *constructor* applied to a
+ * variable - the higher-kinded machinery Implementation-Generics.md part 7 fences off - because the
+ * question it actually needs answered is "which case of the wrapper means the continuation ran", and
+ * only an instance can answer that.
+ *
+ * The keying is the class's declared functional dependency rather than a rule this file knows, so
+ * it is enforced where instances are written: two `Try` instances for one carrier that disagree
+ * about what it proceeds with are a rejected declaration.
  *
  * Selected twice for one lens, and deliberately: once at the declaration, where `m` still mentions
  * the lens's own variables and what is being checked is that the instance's `a` *is* the
@@ -112,19 +116,32 @@ static bool selectTry(Module& module, TypePtr carrier, LocationId source, TrySel
     auto global = *module.types;
     auto local = *module.arena;
 
-    TypePtr asked[] = { carrier, nullptr, nullptr };
-    auto match = matchInstance(module, typeClass, { asked, 3 });
-    if(!match) return false;
+    /*
+     * The dependency `class Try(m -> a, e)` declares does this: the two positions nothing here
+     * constrains are asked for as holes and answered off the instance `m` selects.
+     *
+     * This used to be written out by hand here, and was the compiler's one typeclass resolver that
+     * dispatched differently from every other. The rule is now the class's own, which means it is
+     * also checked where instances are declared - two `Try` instances for one carrier that disagree
+     * about what it proceeds with are rejected, where before they were both accepted and selection
+     * answered with whichever came first.
+     */
+    TypeList asked;
+    asked.push(carrier);
+    asked.push(nullptr);
+    asked.push(nullptr);
 
-    auto instance = local[match.instance];
-    if(instance->forTypes.size() != 3) return false;
+    // `bindGeneric`, because this is asked twice and the first time is at the declaration, where
+    // `m` is `Maybe(a)` over the lens's own variable and what is being checked is that the
+    // instance's `a` *is* the continuation's result.
+    auto match = resolveDetermined(module, typeClass, asked, true);
+    if(!match) return false;
 
     out.instance = match.instance;
     replaceContents(out.instanceArgs, match.args);
 
-    auto bindings = toBuffer(out.instanceArgs);
-    out.proceeds = substituteType(module, instance->forTypes.get(local, 1), bindings, source);
-    out.reason = substituteType(module, instance->forTypes.get(local, 2), bindings, source);
+    out.proceeds = asked[1];
+    out.reason = asked[2];
 
     // Which slot `toOutcome` is, by name. The class is Core's, but its declaration order is a detail
     // of the source rather than something this file may assume - the same rule the Outcome

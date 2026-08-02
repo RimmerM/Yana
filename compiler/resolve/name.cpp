@@ -443,6 +443,92 @@ bool instanceCovers(Module& module, ClassInstance& pattern, ClassInstance& other
     return true;
 }
 
+InstanceMatch resolveDetermined(Module& module, GlobalPtr<TypeClass> typeClass, TypeList& args,
+                                bool bindGeneric) {
+    auto global = *module.types;
+    auto local = *module.arena;
+    if(!typeClass || !global[typeClass]->determines()) return {};
+
+    auto determined = global[typeClass]->determined;
+    if(determined >= args.size()) return {};
+
+    for(U16 i = 0; i < determined; i++) {
+        if(!args[i]) return {};
+
+        /*
+         * A determining position that is still a type variable does not select an instance for a
+         * body being resolved, because a body's meaning is fixed by its own signature
+         * (Design-Memory §2.1): a blanket `instance Elem(x -> x)` would otherwise answer for the
+         * `c` of `fn (Elem(c, a)) f(self: c)` and commit the body to it, ignoring the instance a
+         * caller's actual type has. What answers there is the declared constraint.
+         *
+         * A caller checking the *shape* of the instance rather than picking an implementation asks
+         * with `bindGeneric` - which is a lens's declaration, where `Try(Maybe(a), ...)` has to
+         * match while `a` is still the lens's own variable, and the same instance is selected again
+         * per call site once it is not.
+         */
+        if(!bindGeneric && isGeneric(global, args[i])) return {};
+    }
+
+    TypeList asked;
+    for(Size i = 0; i < args.size(); i++) asked.push(i < determined ? args[i] : nullptr);
+
+    auto match = matchInstanceAt(module, typeClass, toBuffer(asked), kProofDepth);
+    if(!match) return {};
+
+    // What the head put in each determined position, under the bindings selecting it made -
+    // `instance Contiguous(Array(a) -> a)` selected for `Array(Int)` answers `Int` rather than `a`.
+    auto instance = local[match.instance];
+    if(instance->forTypes.size() != args.size()) return {};
+
+    for(Size i = determined; i < args.size(); i++) {
+        args[i] = substituteType(module, instance->forTypes.get(local, i), toBuffer(match.args), instance->source);
+    }
+
+    return match;
+}
+
+// One ordering of the dependency check: whether `pattern`'s determining positions cover `other`'s
+// while the two disagree about what they determine.
+static bool dependencyConflict(Module& module, ClassInstance& pattern, ClassInstance& other, U16 determined) {
+    auto global = *module.types;
+    auto local = *module.arena;
+
+    TypeList bindings;
+    if(pattern.gen) {
+        for(Size i = 0; i < global[pattern.gen]->types.size(); i++) bindings.push(nullptr);
+    }
+
+    for(U16 i = 0; i < determined; i++) {
+        if(!matchType(global, pattern.forTypes.get(local, i), other.forTypes.get(local, i),
+                      { bindings.pointer(), bindings.size() })) {
+            return false;
+        }
+    }
+
+    // The determining halves describe the same types, so the determined halves have to as well -
+    // under the bindings that match made, since `C([a] -> a)` promises its element is whatever the
+    // container's is rather than any fixed type.
+    for(Size i = determined; i < pattern.forTypes.size(); i++) {
+        auto promised = substituteType(module, pattern.forTypes.get(local, i), toBuffer(bindings), pattern.source);
+        if(!sameType(promised, other.forTypes.get(local, i))) return true;
+    }
+
+    return false;
+}
+
+bool breaksDependency(Module& module, ClassInstance& pattern, ClassInstance& other) {
+    auto typeClass = (*module.types)[pattern.typeClass];
+    if(!typeClass->determines()) return false;
+
+    auto determined = typeClass->determined;
+    if(pattern.forTypes.size() != other.forTypes.size()) return false;
+    if(determined >= pattern.forTypes.size()) return false;
+
+    return dependencyConflict(module, pattern, other, determined)
+        || dependencyConflict(module, other, pattern, determined);
+}
+
 InstanceMatch matchInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
     return matchInstanceAt(module, typeClass, args, kProofDepth);
 }

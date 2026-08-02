@@ -317,18 +317,74 @@ bool ExprResolver::matchClassFun(const ClassFunRef& reference, Buffer<ModulePtr<
         }
     }
 
-    // A class's type argument has to be a real type before an instance can be looked for, so a
-    // literal variable that no position decided takes its class's default here. The end of the
-    // statement is the outer boundary for that; a call that needs an instance is the inner one,
-    // and it is the one that comes first.
-    for(Size i = 0; i < bindings.size(); i++) {
+    /*
+     * A class's type argument has to be a real type before an instance can be looked for, so a
+     * literal variable that no position decided takes its class's default here. The end of the
+     * statement is the outer boundary for that; a call that needs an instance is the inner one,
+     * and it is the one that comes first.
+     *
+     * The determining positions of a functional dependency settle *before* the rest, because the
+     * instance they select is what decides the rest. Settling everything first would ask the table
+     * for a literal's type rather than its default and find nothing; filling first would leave the
+     * determined positions holding whatever a literal determiner happened to point at.
+     */
+    auto determined = typeClass->determines() ? Size(typeClass->determined) : bindings.size();
+
+    for(Size i = 0; i < determined; i++) {
+        bindings[i] = settleType(bindings[i]);
+        if(!bindings[i]) return false;
+    }
+
+    // `c` decides `a`, so a call that bound only `c` reads `a` off the instance rather than failing
+    // to infer it. The selected instance is kept: looking it up again below with the now-complete
+    // arguments would find the same one, and this way the search happens once.
+    ModulePtr<ClassInstance> fromDependency = nullptr;
+    auto open = false;
+
+    for(Size i = determined; i < bindings.size(); i++) {
+        if(!bindings[i]) open = true;
+    }
+
+    if(open) {
+        if(auto match = resolveDetermined(module, reference.typeClass, bindings)) {
+            fromDependency = match.instance;
+            replaceContents(resolved.instanceArgs, match.args);
+        } else if(auto env = functionGen(global, function)) {
+            /*
+             * Inside a generic body there is no instance to read the determined positions off:
+             * `c` is this function's own type variable and which container it will be is the
+             * caller's business. What answers instead is the requirement the signature declared,
+             * which already gave the determined position a name - the `a` of `fn (Contiguous(c,
+             * a)) first(self: c)`.
+             *
+             * Undeclared is deliberately not inferred. Recording `Contiguous(c, ?)` would mean
+             * inventing a variable for the body, which is one more thing every caller has to
+             * satisfy without the author having written it; the constraint has to be declared, and
+             * the diagnostic below says so.
+             */
+            TypeList declared;
+
+            if(findClassRequirement(module, *env, reference.typeClass, toBuffer(bindings), declared)) {
+                for(Size i = determined; i < bindings.size() && i < declared.size(); i++) {
+                    if(!bindings[i]) bindings[i] = declared[i];
+                }
+            } else if(typeClass->determines()) {
+                resolved.undeclaredDependency = true;
+            }
+        }
+    }
+
+    for(Size i = determined; i < bindings.size(); i++) {
         bindings[i] = settleType(bindings[i]);
         if(!bindings[i]) return false;
     }
 
     resolved.typeClass = reference.typeClass;
     resolved.index = reference.index;
-    resolved.instance = selectInstance(reference.typeClass, toBuffer(bindings), resolved.instanceArgs);
+    resolved.instance = fromDependency
+        ? fromDependency
+        : selectInstance(reference.typeClass, toBuffer(bindings), resolved.instanceArgs);
+
     replaceContents(resolved.args, bindings);
 
     return true;
@@ -364,6 +420,21 @@ bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Va
                 }
             }
         }
+
+        /*
+         * A variable this signature's constraints determine is inferred from them rather than from
+         * the call, so `fn (Contiguous(c, a)) sum(xs: c) -> a` fits a call that mentions only `c`.
+         *
+         * The settle has to come first, and only what is already decided can be settled: the
+         * dependency is answered by looking an instance up, and `sum([1, 2, 3])` binds the
+         * container to a *literal* type until something defaults it. There is no instance for one
+         * of those, so asking before settling finds nothing and infers nothing.
+         */
+        for(Size i = 0; i < bindings.size(); i++) {
+            if(bindings[i]) bindings[i] = settleType(bindings[i]);
+        }
+
+        fillDetermined(module, *env, bindings, source);
 
         for(Size i = 0; i < bindings.size(); i++) {
             if(!settleType(bindings[i])) return false;
@@ -1022,9 +1093,17 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
     // Every class that turned out to apply, kept only so an ambiguity can name them all.
     SmallArray<GlobalPtr<TypeClass>, 4> applicable;
 
+    // A candidate the signature fit and a functional dependency did not, kept so the failure can be
+    // reported as the missing constraint it is rather than as a call nothing accepts.
+    GlobalPtr<TypeClass> undeclared = nullptr;
+
     for(auto& candidate: candidates) {
         ClassMatch match;
-        if(!matchClassFun(candidate, args, target, match, deferred)) continue;
+
+        if(!matchClassFun(candidate, args, target, match, deferred)) {
+            if(match.undeclaredDependency && !undeclared) undeclared = candidate.typeClass;
+            continue;
+        }
 
         auto isUndecided = match.args.contains([&](TypePtr argument) { return isGeneric(global, argument); });
 
@@ -1085,6 +1164,18 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
         if(direct) return emitPlain();
 
         StringBuilder types;
+
+        // The signature fit and the dependency had nothing to answer with. Naming the constraint is
+        // the whole diagnostic: the call is right, and what is missing is the promise that gives
+        // the determined parameter a name in this body.
+        if(undeclared) {
+            context.diagnostics.error("%@ needs to know what %@ determines here, and this function does not require it - declare the constraint, as `fn (%@(...)) %@(...)`"_v,
+                                      source, context.findName(callName),
+                                      context.findName(global[undeclared]->name),
+                                      context.findName(global[undeclared]->name),
+                                      context.findName(function.name));
+            return nullptr;
+        }
 
         if(withoutInstanceCount) {
             describeTypes(context, global, toBuffer(withoutInstance.args), types);
@@ -1370,6 +1461,21 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
             }
         }
     }
+
+    /*
+     * After the target, because a functional dependency is a promise about the instances and the
+     * expected type is a wish about this one call. Where the two disagree, the instance wins and
+     * the conversion the target wanted is reported where it fails, rather than silently selecting
+     * an instance the dependency says does not serve these types.
+     *
+     * And after the settle of what is already decided, for the reason matchFunction gives: an
+     * instance is looked up by these types, and a literal has none until it takes its default.
+     */
+    for(Size i = 0; i < bindings.size(); i++) {
+        if(bindings[i]) bindings[i] = settleType(bindings[i]);
+    }
+
+    fillDetermined(module, *calleeEnv, bindings, source);
 
     for(Size i = 0; i < bindings.size(); i++) {
         // A specialization is made for concrete types, so a literal variable the call left open

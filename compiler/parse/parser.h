@@ -64,7 +64,7 @@ struct Parser: BasicParser<Lexer, Token> {
     bool parseReturnRoot();
     bool parseLazy();
 
-    ast::SimpleType parseSimpleType();
+    ast::SimpleType parseSimpleType(bool allowDependency = false);
     ast::Type parseType();
     ast::Type parseAType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes);
     ast::Type parseTupleType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes);

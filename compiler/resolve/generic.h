@@ -46,6 +46,35 @@ void requireClass(Module& module, Function& function, GlobalPtr<TypeClass> typeC
 // Whether `function` already declares (or has already inferred) this exact requirement.
 bool hasClassRequirement(GlobalBase global, const GenEnv& env, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
 
+/*
+ * The requirement of this context that decides `typeClass` here, matching only on the positions its
+ * functional dependency says are the deciding ones.
+ *
+ * What site C of the dependency needs: inside `fn (Contiguous(c, a)) first(self: c) -> a`, a call
+ * to `elements(self)` binds `c` and nothing else, and there is no instance to read `a` off because
+ * `c` is this body's own variable. What answers is the constraint the signature already wrote.
+ *
+ * Superclasses are walked, so a body constrained by `Contiguous(c, a)` can call `chunks` and have
+ * `Chunked`'s own determined parameter answered - which is also what makes the default body §5
+ * writes for `chunks` resolve, since a default carries its class as its own requirement.
+ */
+bool findClassRequirement(Module& module, const GenEnv& env, GlobalPtr<TypeClass> typeClass,
+                          Buffer<TypePtr> args, TypeList& out);
+
+/*
+ * Fills the type variables that this context's class requirements determine.
+ *
+ * The other half of a functional dependency, and the one that makes it usable: `fn (Contiguous(c,
+ * a)) sum(xs: c) -> a` binds `c` from its argument, and `a` is then decided by the instance `c`
+ * selects rather than by anything the caller wrote. Without this the call reports "cannot infer
+ * type argument a" and every constrained signature in the standard library is unusable.
+ *
+ * Repeated until nothing more moves, so a chain of dependencies - `Contiguous(c, a)` deciding `a`
+ * and `Elem(a, e)` then deciding `e` - resolves in one call rather than depending on the order the
+ * constraints were written in.
+ */
+void fillDetermined(Module& module, GenEnv& env, TypeList& bindings, LocationId source);
+
 // Whether the requirements in scope prove `typeClass(args)` - directly, or because one of them is
 // a class that declares it as a superclass. This is what makes `fn (Num(a)) inc(x: a) = x + 1`
 // compile as written: `Num(a)` is what the author declared, and `FromInt(a)` is what the literal

@@ -58,6 +58,27 @@ struct TypeClass {
     // as the class itself.
     TypePtr defaultType = nullptr;
     LocationId defaultSource = kNullLocation;
+
+    /*
+     * The functional dependency `class Contiguous(c -> a)` declared: the index of the first
+     * parameter the earlier ones determine, and 0 for a class that declared none.
+     *
+     * The resolver binds type variables one-way and positionally, so a parameter appearing only in
+     * a member's *result* - `fn elements(return self: c) -> [a]` - is bound by nothing a caller
+     * writes and every use of the class fails to infer it. What this records is the author's
+     * promise that it need not be inferred: `c` decides `a`, so a call that bound `c` may ask the
+     * instance table with a hole in `a`'s position and read back what the head bound.
+     *
+     * The promise is checked where instances are declared (see checkDependency), and that check is
+     * what makes reading the hole back meaningful rather than a race between two instances that
+     * disagree. It is deliberately not inferred from the member signatures: `Widen(a, b)` puts `b`
+     * in no argument position and is a relation on purpose - Core declares Widen(Int, Long),
+     * Widen(Int, Float) and Widen(Int, Double) - while Try's `e` appears in an argument of
+     * `fromExit` and is determined all the same.
+     */
+    U16 determined = 0;
+
+    bool determines() const { return determined != 0; }
 };
 
 struct ClassInstance {

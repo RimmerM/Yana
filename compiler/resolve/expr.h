@@ -100,6 +100,17 @@ struct ClassMatch {
     TypeList args;
     TypeList instanceArgs;
     U16 index = 0;
+
+    /*
+     * Set on a *failed* match whose only problem was a functional dependency nothing answered:
+     * the signature fits, the deciding positions are this body's own type variables, and no
+     * requirement of the enclosing function says what they determine.
+     *
+     * Kept apart from the match itself because it is a diagnostic and not a result - "no class
+     * function head accepts (c)" is true and useless, since what the author has to write is the
+     * constraint rather than a different call.
+     */
+    bool undeclaredDependency = false;
 };
 
 // Gives `into` everything `from` matched. Not assignment: the two lists are TypeLists, whose
