@@ -46,35 +46,49 @@ ast::Module* FileProvider::getModule(StringId name) {
     return entry ? parse(*entry) : nullptr;
 }
 
-ast::Module* FileProvider::parse(SourceEntry& entry) {
-    if(entry.ast) return entry.ast.get();
+bool FileProvider::loadText(SourceEntry& entry) {
+    if(entry.text) return true;
 
     auto opened = File::openFile(toString(entry.path), readAccess(), File::OpenExisting);
     if(opened.isErr()) {
         context->diagnostics.error("cannot open file %@: error %@"_v, nullptr,
                                    toString(entry.path), (U32)opened.unwrapErr());
-        return nullptr;
+        return false;
     }
 
     auto file = opened.moveUnwrapOk();
     auto size = file.size();
     Ptr<char, HeapDeleter> text { (char*)hAlloc(size) };
 
-    if(file.read({ (Byte*)text.get(), size }).isErr()) {
+    if(size && file.read({ (Byte*)text.get(), size }).isErr()) {
         context->diagnostics.error("cannot read file %@"_v, nullptr, toString(entry.path));
-        return nullptr;
+        return false;
     }
 
     // Kept for as long as the compilation runs: a diagnostic quotes the line it points at, and it
     // may be reported long after the module it is in was parsed.
     entry.text = ::move(text);
     entry.length = size;
+    return true;
+}
 
-    Lexer lexer(*context, context->diagnostics, StringView { entry.text.get(), size }, entry.name);
+ast::Module* FileProvider::parse(SourceEntry& entry) {
+    if(entry.ast) return entry.ast.get();
+    if(!loadText(entry)) return nullptr;
+
+    Lexer lexer(*context, context->diagnostics, StringView { entry.text.get(), entry.length }, entry.name);
     Parser parser(*context, lexer, entry.name);
     entry.ast = Ptr(new ast::Module(parser.parseModule()));
 
     return entry.ast.get();
+}
+
+void FileProvider::reset() {
+    for(auto& entry: moduleMap.entries) {
+        entry.ast = nullptr;
+        entry.text = nullptr;
+        entry.length = 0;
+    }
 }
 
 template<class... T>

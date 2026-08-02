@@ -50,7 +50,15 @@ LinearArena::LinearArena(LinearArena&& l) noexcept: base(l.base), p(l.p), max(l.
 
 void* LinearArena::alloc(Size size) {
     auto it = p;
-    if(it + size > max) return nullptr;
+    if(it + size > max) [[unlikely]] {
+        // Every caller dereferences what this returns, so a null here is a segfault somewhere else -
+        // in a batch compile, on an enormous program; in a language server, on the user's next
+        // keystroke, where it is reported as a plugin bug. A message naming the region and the size
+        // is a bug report; a segfault is a shrug. See Implementation-Tooling.md §4.2.
+        fatalError("Arena exhausted: %@ more bytes requested with %@ of %@ used. "
+                   "Raise the region size this arena was constructed with.",
+                   size, Size(p - base), Size(max - base));
+    }
 
     p += size;
     return it;

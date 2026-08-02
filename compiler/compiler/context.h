@@ -55,6 +55,10 @@ namespace Tritium {
     }
 }
 
+// The editor-facing side table - resolve/index.h. Declared rather than included, because it is
+// built out of the resolver's own handles and this header is below the resolver.
+struct SemanticIndex;
+
 enum class Assoc : U8 {
     Left,
     Right
@@ -189,6 +193,15 @@ struct Context {
     Diagnostics& diagnostics;
     CompileSettings settings;
 
+    /*
+     * Where name resolution's answers are kept, or null - Implementation-Tooling.md §1.1.
+     *
+     * **Null in a batch compile.** The driver never sets it, so every recording site is one
+     * predictable not-taken branch and nothing else; a language server sets it before resolving and
+     * drops it with the program, since what it holds are that program's own handles.
+     */
+    SemanticIndex* index = nullptr;
+
     void addOp(StringId op, U16 prec = 9, Assoc assoc = Assoc::Left);
     OpProperties findOp(StringId op);
 
@@ -224,6 +237,11 @@ struct Context {
     const Location* getLocation(LocationId id) {
         return locations.size() > id ? &locations[id] : nullptr;
     }
+
+    // Every location recorded so far, in creation order. Exposed for the position index
+    // (compiler/position.h), which is a partition of it by module and needs to walk the whole
+    // thing once; nothing else has a reason to look at it as an array.
+    const Array<Location>& allLocations() const { return locations; }
 
     Arena stringArena;
     Arena exprArena;

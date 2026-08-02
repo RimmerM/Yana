@@ -62,6 +62,21 @@ struct FileProvider: ModuleProvider, SourceProvider {
     // Reads and parses one entry, or answers what was parsed before.
     ast::Module* parse(SourceEntry& entry);
 
+    // Drops every parsed AST and every loaded buffer, so that the next compile starts from the
+    // files - or, for an overlay provider, from the editor's buffers.
+    //
+    // A batch compile never calls this. A server does, on every compile, and it has to: an AST
+    // holds LocationIds, which index one Context's location array in the order that context
+    // created them, so an AST parsed against one context means something else against the next.
+    // The text goes with it because an entry holds no record of where its text came from, which
+    // makes "reload everything" the only answer that cannot be stale.
+    void reset();
+
+    // Puts one entry's text where `parse` will find it. The base reads the file; the overlay
+    // provider answers from the editor's unsaved buffer instead - Implementation-Tooling.md §5.1.
+    // Returns false when the text cannot be obtained, having reported why.
+    virtual bool loadText(SourceEntry& entry);
+
     ModuleMap& moduleMap;
     Context* context = nullptr;
 };

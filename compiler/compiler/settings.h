@@ -120,6 +120,23 @@ struct CompileSettings {
     Array<Tritium::String> rootObjects;
     Tritium::String outputDir;
 
+    /*
+     * What the command line said for itself.
+     *
+     * A `yana.toml` fills in the rest - see compiler/project.h - and the two settings it can supply
+     * that have a usable default are the two that need this: a mode is always set to something, and
+     * an output directory is always some string, so "unset" is not visible in the value. Everything
+     * else the file can say is a list or a name that is empty when nothing said it.
+     */
+    bool explicitMode = false;
+    bool explicitOutput = false;
+
+    /// Where to look for a `yana.toml`, or empty to look upwards from the working directory.
+    /// `noProject` skips the search: a build that has been given every path it needs on the command
+    /// line should not change behaviour because of a file in a directory above it.
+    Tritium::String projectFile;
+    bool noProject = false;
+
     // Defaulted rather than left indeterminate: `@platform` reads it on every declaration, so a
     // driver that never set it would select declarations by whatever was on the stack.
     CompileMode mode = CompileMode::NativeExecutable;
@@ -176,4 +193,11 @@ struct CompileSettings {
 
 /// Parses the provided command line into a set of compiler options.
 /// If invalid arguments are provided, returns a human-readable error string.
+///
+/// What is *missing* is not checked here, because a `yana.toml` may still supply it - see
+/// checkSettings, which the driver calls once the project file has been applied.
 Result<CompileSettings, Tritium::String> parseCommandLine(const char** argv, Size argc);
+
+/// Checks that everything a compile needs was named by something - the command line, or the project
+/// file applied on top of it. Separate from parseCommandLine for that reason and no other.
+Result<void, Tritium::String> checkSettings(const CompileSettings& settings);

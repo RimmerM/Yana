@@ -1,5 +1,16 @@
 #include "diagnostics.h"
 
+void CollectDiagnostics::message(Level level, StringView text, const Location* where) {
+    Diagnostics::message(level, text, where);
+
+    messages.push(Diagnostic {
+        level,
+        Tritium::ownedString(text.ptr, text.length),
+        where ? *where : Location {},
+        where != nullptr,
+    });
+}
+
 void PrintDiagnostics::message(Level level, StringView text, const Location* where) {
     Diagnostics::message(level, text, where);
 

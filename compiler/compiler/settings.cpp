@@ -30,6 +30,7 @@ struct Flag {
         optimization,
         explain,
         module,
+        project,
 
         /*
          * Boolean flags.
@@ -40,6 +41,7 @@ struct Flag {
         printIr,
         noOptimize,
         explainAll,
+        noProject,
     };
 
     StringView name;
@@ -62,12 +64,14 @@ Flag flagTable[] = {
     { "inline"_v, 1, Flag::inlining },
     { "explain"_v, 1, Flag::explain },
     { "module"_v, 1, Flag::module },
+    { "project"_v, 1, Flag::project },
 
     { "print-modules"_v, 0, Flag::printModules },
     { "print-ast"_v, 0, Flag::printAst },
     { "print-ir"_v, 0, Flag::printIr },
     { "no-opt"_v, 0, Flag::noOptimize },
     { "explain-all"_v, 0, Flag::explainAll },
+    { "no-project"_v, 0, Flag::noProject },
 };
 
 // InlineLevel, in declaration order.
@@ -400,7 +404,6 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
         firstFlag = 3;
     }
 
-    bool hasMode = false;
     bool hasArch = false;
     bool hasTarget = false;
     bool hasFormat = false;
@@ -448,10 +451,17 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     return false;
                 } else {
                     settings.outputDir = move(value);
+                    settings.explicitOutput = true;
                     return true;
                 }
+            case Flag::project:
+                settings.projectFile = move(value);
+                return true;
+            case Flag::noProject:
+                settings.noProject = true;
+                return true;
             case Flag::mode:
-                hasMode = true;
+                settings.explicitMode = true;
                 if(auto mode = matchString(modeTable, sizeof(modeTable) / sizeof(StringView), value)) {
                     settings.mode = (CompileMode)mode.unwrap();
                     return true;
@@ -544,21 +554,27 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
         settings.outputDir = String(argv[0]);
     }
 
-    if(settings.compileObjects.size() == 0) {
-        error = "No input objects provided. Add inputs with -add <path>.";
-    }
-
-    // The explain query emits nothing, so there is no output format to ask for. It still *has* a
-    // mode, because `@platform` selects which declarations exist and the answer is therefore the
-    // answer for one target; the default is simply the one every other flag already defaults to.
-    if(!hasMode && !settings.explaining()) {
-        error = "No compilation mode provided. Set the mode with -mode <lib|exe|shared|js|jslib|ir|llvm>.";
-    }
-
     if(error != "") {
         return Err(error);
     }
 
     applyDefaults(settings, hasArch, hasTarget, hasFormat, hasExtensions);
     return Ok(move(settings));
+}
+
+Result<void, String> checkSettings(const CompileSettings& settings) {
+    if(settings.compileObjects.size() == 0) {
+        return Err(String("No input objects provided. Add inputs with -add <path>, "
+                          "or list them as `sources` in a yana.toml."));
+    }
+
+    // The explain query emits nothing, so there is no output format to ask for. It still *has* a
+    // mode, because `@platform` selects which declarations exist and the answer is therefore the
+    // answer for one target; the default is simply the one every other flag already defaults to.
+    if(!settings.explicitMode && !settings.explaining()) {
+        return Err(String("No compilation mode provided. Set the mode with "
+                          "-mode <lib|exe|shared|js|jslib|ir|llvm>, or as `target` in a yana.toml."));
+    }
+
+    return Ok();
 }

@@ -10,6 +10,7 @@
 #include "../codegen/js/gen.h"
 #include "settings.h"
 #include "source.h"
+#include "project.h"
 #include "Net/File.h"
 #include <File.h>
 
@@ -209,33 +210,6 @@ static bool explainProgram(Context& context, Program& program) {
     return true;
 }
 
-/*
- * Choosing the root.
- *
- * A program has exactly one: it is the module whose `main` the process enters through, and the one
- * whose functions are emitted whether or not anything calls them. Every other module in the source
- * tree is compiled because something imported it, which is why an unreferenced file in the tree is
- * not an error and not in the output either.
- */
-static SourceEntry* findRoot(ModuleMap& map, const CompileSettings& settings) {
-    if(settings.rootObjects.size() > 1) {
-        println("Error: a program has one root module. Provide one with -root <module>.");
-        return nullptr;
-    }
-
-    if(settings.rootObjects.size() == 1) {
-        auto root = map.find(settings.rootObjects[0]);
-        if(!root) println("Error: cannot find root module %@", settings.rootObjects[0]);
-        return root;
-    }
-
-    if(map.entries.size() == 1) return &map.entries[0];
-
-    println("Error: %@ modules were found and none was named as the root. Provide one with -root <module>.",
-            map.entries.size());
-    return nullptr;
-}
-
 int main(int argc, const char** argv) {
     // Parse the provided arguments into a settings structure.
     auto result = parseCommandLine(argv, argc);
@@ -246,6 +220,31 @@ int main(int argc, const char** argv) {
     }
 
     auto settings = result.moveUnwrapOk();
+
+    // The project file, if there is one, fills in what the flags did not say. It is read before
+    // anything is looked for on disk because it is what says where to look - and it is the same
+    // reader the language server uses, so an editor and a build cannot disagree about which files
+    // are in the program. Implementation-Tooling.md §5.2.
+    if(auto projectPath = locateProjectFile(settings)) {
+        auto project = readProjectFile(projectPath.unwrap());
+        if(project.isErr()) {
+            print("Project error: ");
+            println(stringView(project.unwrapErr()));
+            return 1;
+        }
+
+        applyProjectFile(settings, project.unwrapOk());
+    } else if(settings.projectFile != "" && !settings.noProject) {
+        println("Error: cannot find a project file at %@", settings.projectFile);
+        return 1;
+    }
+
+    auto settingsResult = checkSettings(settings);
+    if(settingsResult.isErr()) {
+        print("Argument error: ");
+        println(stringView(settingsResult.unwrapErr()));
+        return 1;
+    }
 
     // Walk the input directory tree to create a map with each module we could compile.
     ModuleMap moduleMap;
@@ -275,8 +274,13 @@ int main(int argc, const char** argv) {
     context.settings = ::move(settings);
     provider.prepare(context);
 
-    auto root = findRoot(moduleMap, context.settings);
-    if(!root) return 1;
+    String rootError;
+    auto root = findRootModule(moduleMap, context.settings, rootError);
+    if(!root) {
+        print("Error: ");
+        println(stringView(rootError));
+        return 1;
+    }
 
     auto rootAst = provider.parse(*root);
     if(!rootAst || diagnostics.errorCount() > 0) return 1;

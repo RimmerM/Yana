@@ -7,6 +7,8 @@ set(CORE_SOURCE_FILES
     compiler/settings.cpp
     compiler/diagnostics.h
     compiler/diagnostics.cpp
+    compiler/position.h
+    compiler/position.cpp
 
     util/lexer_util.h
     util/lexer_util.cpp
@@ -206,10 +208,19 @@ set(X64_SOURCE_FILES
 add_library(YanaX64 ${X64_SOURCE_FILES})
 target_link_libraries(YanaX64 PUBLIC YanaCore YanaLower)
 
+set(PROJECT_SOURCE_FILES
+    compiler/source.h
+    compiler/source.cpp
+    compiler/project.h
+    compiler/project.cpp
+    compiler/overlay.h
+    compiler/overlay.cpp
+)
+
+add_library(YanaProject ${PROJECT_SOURCE_FILES})
+target_link_libraries(YanaProject PUBLIC YanaCore YanaParse YanaResolve)
 set(DRIVER_SOURCE_FILES
     compiler/driver.cpp
-    compiler/source.cpp
-    compiler/source.h
 )
 
 add_executable(Yana ${DRIVER_SOURCE_FILES})
