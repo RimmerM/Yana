@@ -874,6 +874,61 @@ static void declareClass(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Dec
     }
 }
 
+/*
+ * What makes a returned borrow exclusive.
+ *
+ * `&T` in type position says a borrow and not which kind, because the answer is not a property
+ * of the result: Design.md's rule is that "a returned mutable borrow must be rooted in a
+ * `return &` mutable parameter", so the result is exclusive exactly when every member of the
+ * group it may be rooted in is. A mixed group yields the weaker capability, which is the same
+ * rule read the other way - an immutable result may be rooted in either kind.
+ *
+ * Split out of resolveSignature() because an inferred result reaches it a pass later, once the body
+ * has said what the type is - the rule is the same either way, only the timing differs.
+ */
+void applyReturnRoots(Module& module, Function& function, LocationId source) {
+    if(!isBorrow(*module.types, function.returnType)) return;
+
+    if(!function.returnRoots) {
+        if(!function.returnRootWritten) {
+            module.context.diagnostics.error("a function returning a borrow must mark the argument it is rooted in with `return`"_v,
+                                             source);
+        }
+    } else {
+        function.returnType = applyReturnRootMutability(module, function.returnType, function.returnRootsMutable);
+    }
+}
+
+TypePtr requireReturnType(Module& module, Function& function, LocationId source) {
+    if(function.returnType) return function.returnType;
+    if(!function.inferReturn) return function.returnType;
+
+    /*
+     * The body is already on the stack, so the type it is about to produce is the type being asked
+     * for. Only an explicit result type breaks the cycle, which is what this says.
+     *
+     * The error type rather than unit, and recorded rather than returned: recorded so that a second
+     * caller does not report the same cycle again, and the error type because unit is a type that
+     * type-checks. A recursive `fact` recorded as unit goes on to report that `*` does not accept
+     * `(Int, ())`, which is a second diagnostic about a signature the author never wrote.
+     */
+    if(function.resolving) {
+        module.context.diagnostics.error("%@ is recursive, so the `=` form cannot infer its result type from its body - write it out, as in `-> Int`"_v,
+                                         source, module.context.findName(function.name));
+        function.inferReturn = false;
+        function.returnType = module.scalar.error;
+        return function.returnType;
+    }
+
+    resolveFunctionBody(module, function);
+
+    // A body that resolved without producing one - it reported why, and the error type keeps that
+    // one diagnostic from turning into a null dereference in whatever asked.
+    if(!function.returnType) function.returnType = module.scalar.error;
+
+    return function.returnType;
+}
+
 // Resolves one function signature against a generic context, producing a body-less Function.
 static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringId name, bool anonymous) {
     auto function = anonymous ? addAnonymousFunction(module, name, decl.source)
@@ -881,8 +936,20 @@ static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, 
 
     function->funKind = decl.fun.kind;
 
-    function->returnType = decl.fun.ret ? resolveType(module, *module.parse[decl.fun.ret], env)
-                                        : module.scalar.unit;
+    /*
+     * An `=` function that wrote no result type has one anyway - the type of its body.
+     *
+     * Leaving it null and letting resolveFunctionBody() fill it in is what makes `fn sum(a, b) = a + b`
+     * return its sum instead of computing it and discarding it. Defaulting to unit is right only for
+     * the block form, where falling off the end really does produce nothing.
+     */
+    if(!decl.fun.ret && decl.fun.implicitReturn && decl.fun.kind == ast::FunKind::Plain) {
+        function->inferReturn = true;
+        function->returnType = nullptr;
+    } else {
+        function->returnType = decl.fun.ret ? resolveType(module, *module.parse[decl.fun.ret], env)
+                                            : module.scalar.unit;
+    }
 
     U16 index = 0;
     auto roots = 0u;
@@ -946,25 +1013,13 @@ static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, 
     // return edge - Implementation-Lens.md part 2's "a lens callback is exempt".
     if(function->funKind != ast::FunKind::Plain) resolveLensSignature(module, *function, env, decl);
 
-    /*
-     * What makes a returned borrow exclusive.
-     *
-     * `&T` in type position says a borrow and not which kind, because the answer is not a property
-     * of the result: Design.md's rule is that "a returned mutable borrow must be rooted in a
-     * `return &` mutable parameter", so the result is exclusive exactly when every member of the
-     * group it may be rooted in is. A mixed group yields the weaker capability, which is the same
-     * rule read the other way - an immutable result may be rooted in either kind.
-     */
-    if(isBorrow(*module.types, function->returnType)) {
-        if(!roots) {
-            if(!written) {
-                module.context.diagnostics.error("a function returning a borrow must mark the argument it is rooted in with `return`"_v,
-                                                 decl.source);
-            }
-        } else {
-            function->returnType = applyReturnRootMutability(module, function->returnType, allRootsMutable);
-        }
-    }
+    function->returnRoots = roots > 0;
+    function->returnRootWritten = written > 0;
+    function->returnRootsMutable = allRootsMutable;
+
+    // A function still waiting on its body has no result type to check yet. The same check runs
+    // from resolveFunctionBody() once there is one, off the three flags just recorded.
+    if(!function->inferReturn) applyReturnRoots(module, *function, decl.source);
 
     return function;
 }

@@ -60,9 +60,9 @@ instance Drop(Owned):
     fn drop(->value: Owned) -> {}:
         dropped += (if value.a then 1 else 2)
 
-fn flip(&x: Bool) = x = !x
+fn flip(&x: Bool): x = !x
 
-fn bump(&x: @bits(4) Int) = x = x + 1
+fn bump(&x: @bits(4) Int): x = x + 1
 
 -- A `&` of a whole scalar record, written through by field. The callee is compiled once against
 -- `&Flags` and has no idea whether its argument was a field of a byte, a field of a word, or a whole

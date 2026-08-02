@@ -19,7 +19,7 @@ fn (a.name: Int) nameOf(p: a) -> Int = p.name
 -- Writing one. `set` consumes what it is handed and releases what the field held, so the caller
 -- relocates the replacement into staging storage rather than lending it - which for an Int is a
 -- store, and for a type that owed something would be the one relocation it is allowed.
-fn (a.name: Int) rename(&p: a, to: Int) = p.name = to
+fn (a.name: Int) rename(&p: a, to: Int): p.name = to
 
 -- Two constraints on one variable, at different indices in each record. Nothing in the body depends
 -- on where either field is: both are witnesses, and which one each caller passed is the whole of the

@@ -30,13 +30,13 @@ data Nine {a: Bool, b: Bool, c: Bool, d: Bool, e: Bool, f: Bool, g: Bool, h: Boo
 -- every access to either is a shift and a mask of a load that was happening anyway.
 data Entry {live: Bool, kind: @bits(3) U32, count: Int}
 
-fn tick(&x: @bits(3) U32) = x = x + 1
+fn tick(&x: @bits(3) U32): x = x + 1
 
-fn bump(&x: U32) = x = x + 1
+fn bump(&x: U32): x = x + 1
 
-fn flip(&b: Bool) = b = !b
+fn flip(&b: Bool): b = !b
 
-fn scale(&x: U32, by: U32) = x = x * by
+fn scale(&x: U32, by: U32): x = x * by
 
 -- Reading and writing a packed field without borrowing it at all: shift and mask on the way out,
 -- read-modify-write on the way in.
@@ -142,7 +142,7 @@ fn interleaved() -> Int:
 -- Handed down two frames and written at the bottom, with nothing in between knowing the field is
 -- packed - `nudge` is compiled once and would serve an unpacked `@bits(13)` field, or a whole local
 -- of that type, with the same code and a shift of zero.
-fn nudge(&x: @bits(13) U32) = x = x + 1
+fn nudge(&x: @bits(13) U32): x = x + 1
 
 fn nudgeTwice(&x: @bits(13) U32):
     nudge(x)

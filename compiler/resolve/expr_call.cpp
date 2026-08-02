@@ -769,6 +769,11 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
                                               Buffer<Deferred> deferred) {
     auto function_ = local[callee];
 
+    // An `=` callee whose result type its body decides has to have decided it before this call can
+    // be given a type. Ordinarily it already has - resolveModuleBodies() settles them up front -
+    // but one inferring function calling another declared after it arrives here first.
+    requireReturnType(module, *function_, source);
+
     /*
      * The deferred arguments, in the callee's own terms.
      *
@@ -1089,7 +1094,18 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
                                       types.view(), context.findName(callName));
         } else {
             TypeList given;
-            for(auto arg: args) given.push(valueType(arg));
+            auto broken = false;
+            for(auto arg: args) {
+                auto type = valueType(arg);
+                if(global[type]->kind == Type::Error) broken = true;
+                given.push(type);
+            }
+
+            // An argument that is already an error has had its diagnostic. Reporting that no
+            // instance accepts it names the failure a second time, in terms of a type the author
+            // never wrote - see the `<error>` in "no class function * accepts (Int, <error>)".
+            if(broken) return nullptr;
+
             describeTypes(context, global, toBuffer(given), types);
 
             context.diagnostics.error("no class function %@ accepts (%@)"_v, source, context.findName(callName),

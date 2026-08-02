@@ -1,0 +1,82 @@
+
+origin<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 0, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, 0, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+answer<complex>(): Int {
+  b_0 {
+    ret 42
+  }
+}
+
+double<complex>(%x: Int): Int {
+  b_0 {
+    %v_1 = imul %x, 2: Int
+    ret %v_1
+  }
+}
+
+fact<complex>(%n: Int): Int {
+  b_0 {
+    %v_1 = cmp_ile %n, 1: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    jmp b_4
+  }
+
+  b_3 {
+    %v_5 = sub %n, 1: Int
+    %v_6 = call_complex fact, %v_5: Int
+    %v_7 = imul %n, %v_6: Int
+    jmp b_4
+  }
+
+  b_4 {
+    %v_8 = phi [b_2, 1], [b_3, %v_7]: Int
+    ret %v_8
+  }
+}
+
+annotated<complex>(%x: Int): Int {
+  b_0 {
+    %v_1 = add %x, 1: Int
+    ret %v_1
+  }
+}
+
+useLater<complex>(): Int {
+  b_0 {
+    ret 42
+  }
+}
+
+later<complex>(): Int {
+  b_0 {
+    ret 41
+  }
+}
+
+sum(Int)<complex>(%lhs: Int, %rhs: Int): Int {
+  b_0 {
+    %v_1 = add %lhs, %rhs: Int
+    ret %v_1
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex fact, 4: Int
+    %v_2 = add %v_1, 94: Int
+    ret %v_2
+  }
+}
+

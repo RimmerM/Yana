@@ -61,7 +61,7 @@ fn writeLow() -> Pair:
 -- form for all of them. That is what the `$s` part of a reference carries `2**shift` for rather than
 -- the shift: the callee needs the divisor, and computing it from a shift would be a `Math.pow` per
 -- access.
-fn nudge(&x: Field) = x = x + 1
+fn nudge(&x: Field): x = x + 1
 
 fn bumpedHigh() -> Pair:
     let &p = Pair {a: 1000, b: 999999}
@@ -125,7 +125,7 @@ fn stored(x: WideInt) -> Tagged:
 -- 2^32 would compare unequal to itself.
 data Boxed {k: U32, a: Field, b: @bits(12) U32}
 
-fn nudge12(&x: @bits(12) U32) = x = x + 1
+fn nudge12(&x: @bits(12) U32): x = x + 1
 
 fn boxed() -> Boxed:
     let &x = Boxed {k: 7, a: 1, b: 4095}

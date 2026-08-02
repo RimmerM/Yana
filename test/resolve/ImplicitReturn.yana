@@ -1,0 +1,35 @@
+-- The `=` form is the function's result, so a body with a value returns it. What the result type
+-- is when the declaration does not say: whatever the body produced.
+
+data Point {x: Int, y: Int}
+
+-- The concrete case. `-> Int` is not written and not needed.
+fn double(x: Int) = x * 2
+
+-- Generic, with the constraint the body turned out to need collected the same way a written
+-- signature's would be - the result type being inferred does not change what `+` requires.
+fn sum(lhs: a, rhs: a) = lhs + rhs
+
+-- An aggregate result, to show inference is not limited to scalars.
+fn origin() = Point {x: 0, y: 0}
+
+-- A literal body settles before it decides the result type, for the same reason a lambda's does:
+-- the type a caller sees has to be one it could have named.
+fn answer() = 42
+
+-- Inference does not depend on declaration order. `useLater` is resolved before `later` and calls
+-- it, so the result type it reads is one that has not been decided yet - requireReturnType()
+-- resolves the callee's body at this point rather than letting the answer depend on which function
+-- came first in the file.
+fn useLater() = later() + 1
+fn later() = 41
+
+-- Written out, which still checks the body against what was written rather than replacing it.
+fn annotated(x: Int) -> Int = x + 1
+
+-- Recursion needs the result type written, and having written it the `=` form is ordinary.
+fn fact(n: Int) -> Int = if n <= 1 then 1 else n * fact(n - 1)
+
+fn main() -> Int:
+    let p = origin()
+    return double(3) + sum(1, 2) + answer() + useLater() + annotated(0) + fact(4) + p.x

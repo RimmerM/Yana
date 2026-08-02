@@ -15,9 +15,9 @@ data Config {verbose: Bool, level: @bits(4) U32, name: Int}
 
 data Plain {verbose: Bool, level: @bits(4) U32}
 
-fn flip(&b: Bool) = b = !b
+fn flip(&b: Bool): b = !b
 
-fn bump(&x: @bits(4) U32) = x = x + 1
+fn bump(&x: @bits(4) U32): x = x + 1
 
 -- Both refused: a `Bool` and a `@bits` field are the two narrow shapes.
 fn borrowFlag() -> Int:

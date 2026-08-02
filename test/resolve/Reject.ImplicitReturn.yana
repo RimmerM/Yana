@@ -1,0 +1,21 @@
+-- The two ways the `=` form does not work out: a result type that cannot be inferred, and a body
+-- that has no result to return.
+
+-- Directly recursive. The body is what decides the result type, and the body is what is asking.
+fn fact(n: Int) = if n <= 1 then 1 else n * fact(n - 1)
+
+-- Mutually recursive, which is the same cycle with a step in it. Reported once, at the call that
+-- closes the cycle, rather than once per function in it.
+fn isEven(n: Int) = if n == 0 then True else isOdd(n - 1)
+fn isOdd(n: Int) = if n == 0 then False else isEven(n - 1)
+
+-- A body that produces nothing. `=` says the function is this expression, so this is the block
+-- form written with the wrong separator - it warns rather than erroring, since it does compile.
+fn bump(&x: Int) = x = x + 1
+
+-- The same body with the unit result written out is the author saying what the warning would, so
+-- it is left alone.
+fn bumpDeclared(&x: Int) -> {} = x = x + 1
+
+-- And the form the warning points at.
+fn bumpBlock(&x: Int): x = x + 1

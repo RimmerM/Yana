@@ -866,6 +866,10 @@ ModulePtr<Value> ExprResolver::finishBranches(Array<BranchArm>& arms, LocationId
             values = false;
         } else if(!resultType) {
             resultType = type;
+        } else if(global[type]->kind == Type::Error || global[resultType]->kind == Type::Error) {
+            // One arm is already broken and said so. What its type disagrees with is not a second
+            // fact about this expression.
+            resultType = module.scalar.error;
         } else if(!sameType(resultType, type)) {
             if(auto common = commonWiden(resultType, type)) {
                 resultType = common;
@@ -2185,15 +2189,55 @@ bool resolveFunctionBody(Module& module, Function& function) {
     }
 
     if(decl.fun.implicitReturn) {
-        // A unit function's body produces nothing that survives, so it is resolved with no
-        // expected type rather than against `()` - which is not a type a literal or a class
-        // function could have been asked to produce.
-        auto unit = isUnit(*module.types, function.returnType);
-        auto result = resolver.resolve(*module.parse[decl.fun.body], unit ? nullptr : function.returnType, !unit);
+        /*
+         * An `=` body is the function's result, so what is resolved here is a value and what
+         * follows it is a `ret` carrying that value.
+         *
+         * Three ways the result type is known. Written, in which case the body is checked against
+         * it. Inferred, in which case the body decides and `settle` runs first for the same reason
+         * it does for a lambda - a bare literal body must not leave a result type no caller could
+         * name. Or written as unit, where the body is resolved with no expected type, because `()`
+         * is not a type a literal or a class function could have been asked to produce.
+         */
+        auto infer = function.inferReturn;
+        auto unit = !infer && isUnit(*module.types, function.returnType);
+        auto expected = infer ? nullptr : function.returnType;
+        auto result = resolver.resolve(*module.parse[decl.fun.body], unit ? nullptr : expected, !unit);
 
         if(resolver.current) {
-            result = unit ? nullptr : resolver.convert(result, function.returnType, decl.source);
+            if(infer) {
+                result = resolver.settle(result, decl.source);
+                function.returnType = result ? resolver.valueType(result) : module.scalar.unit;
+                function.inferReturn = false;
+                applyReturnRoots(module, function, decl.source);
+
+                if(isUnit(*module.types, function.returnType)) result = nullptr;
+            } else {
+                result = unit ? nullptr : resolver.convert(result, function.returnType, decl.source);
+            }
+
             resolver.terminate(resolver.emit<InstRet>(decl.source, 0, module.scalar.unit, result));
+        } else if(infer) {
+            // Every path left through an explicit `return`, so nothing falls off the end for the
+            // type to be read off. Those returns were checked against null and reported there.
+            function.returnType = module.scalar.unit;
+            function.inferReturn = false;
+        }
+
+        /*
+         * An `=` function that produces nothing is written in the wrong form.
+         *
+         * The `=` form says "this function *is* this expression", so a body with no value is a
+         * statement wearing an expression's syntax - `fn bump(&x: Int) = x = x + 1` reads as though
+         * it returned something. The block form is how that is said, and it is what this points at.
+         *
+         * Only when the unit result was not written down: `-> ()` is the author saying the same
+         * thing the warning would, so repeating it back is noise.
+         */
+        if(!decl.fun.ret && isUnit(*module.types, function.returnType) && !function.instanceOf
+           && errors == context.diagnostics.errorCount()) {
+            context.diagnostics.warning("`%@` is written with `=` but its body produces no value, so it returns `()` - use the `:` block form for a function that runs statements rather than producing a result"_v,
+                                        decl.source, context.findName(function.name));
         }
     } else {
         resolver.resolve(*module.parse[decl.fun.body], nullptr, false);
@@ -2220,6 +2264,19 @@ bool resolveFunctionBody(Module& module, Function& function) {
 bool resolveModuleBodies(Module& module) {
     auto success = true;
     auto local = *module.arena;
+
+    /*
+     * The functions whose result type their own body decides, first.
+     *
+     * A call reads its callee's result type, so every one of these has to be known before any body
+     * that might call one is resolved - otherwise the answer would depend on declaration order.
+     * Doing them as their own pass makes the order they are settled in irrelevant: what remains is
+     * one inferring function calling another, which requireReturnType() resolves on demand.
+     */
+    for(Size i = 0; i < module.functionOrder.size(); i++) {
+        auto function = local[module.functionOrder.get(local, i)];
+        if(function->inferReturn) success = resolveFunctionBody(module, *function) && success;
+    }
 
     // Resolving one body adds specialized functions to the module, so the list is walked by index
     // rather than by iterator: a specialization created while resolving function 3 is reached

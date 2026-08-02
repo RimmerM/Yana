@@ -320,7 +320,7 @@ static ModulePtr<Function> functionThunk(Module& module, ModulePtr<Function> cal
     auto pointer = function - *module.arena;
     *program.functionThunks.add(U32(callee)).value = pointer;
 
-    function->returnType = target->returnType;
+    function->returnType = requireReturnType(module, *target, source);
     function->used = true;
     function->takesEnv = true;
     target->used = true;
@@ -394,7 +394,8 @@ ModulePtr<Value> ExprResolver::functionValue(ModulePtr<Function> callee, Locatio
         args.push(FunArg { declared->type, declared->name, declared->convention, declared->returnRoot });
     }
 
-    auto type = resolveFunType(module, toBuffer(args), target->returnType, ast::FunKind::Plain);
+    auto type = resolveFunType(module, toBuffer(args), requireReturnType(module, *target, source),
+                               ast::FunKind::Plain);
     auto thunk = functionThunk(module, callee, source);
     return makeFunValue(type, thunk, nullptr, source, 0);
 }

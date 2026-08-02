@@ -185,6 +185,25 @@ struct Function {
     StringId name;
     LocationId source = kNullLocation;
     TypePtr returnType = nullptr;
+
+    /*
+     * Set for an `=` function that declared no result type, whose `returnType` the body decides.
+     *
+     * It starts null rather than unit because unit is an answer, and an answer here would be wrong
+     * in the one way nothing downstream could detect: the body's value would be computed and then
+     * dropped at the `ret`. The type arrives when the body is resolved, which for a caller that
+     * needs it sooner is what requireReturnType() forces - see resolveFunctionBody().
+     *
+     * Only plain free functions ever set it. An instance member takes its result from the class
+     * signature and a lens from its continuation, so in both the type is known without the body.
+     */
+    bool inferReturn = false;
+
+    // What the returned-borrow rule needs, recorded by the signature pass so that an inferred
+    // result can be checked against it once the body has produced one - see applyReturnRoots().
+    bool returnRoots = false;
+    bool returnRootWritten = false;
+    bool returnRootsMutable = true;
     ModuleList<ModulePtr<Arg>, false> args;
     ModuleList<ModulePtr<Block>, false> blocks;
     ModuleList<Local, false> locals;
@@ -743,6 +762,23 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
 // generates class instances, and the classes are Core's.
 void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provider, bool importsResolved = false);
 bool resolveModuleBodies(Module& module);
+
+// The returned-borrow rule, applied once the result type is known - immediately for a written
+// result, a pass later for an inferred one.
+void applyReturnRoots(Module& module, Function& function, LocationId source);
+
+/*
+ * The result type of `function`, resolving its body first if that is what decides it.
+ *
+ * Every read of `Function::returnType` that may reach a caller-visible `=` function goes through
+ * here, because an inferred result is null until the body runs and a null would otherwise reach
+ * type construction as though it were a type.
+ *
+ * Recursion is the case with no answer: a function whose result type is what its own body produces
+ * has to have that body resolved to know it, and that body is the one asking. It is reported and
+ * broken with unit rather than left to recurse.
+ */
+TypePtr requireReturnType(Module& module, Function& function, LocationId source);
 
 // Makes every module one `import` names visible in this one, resolving each the first time it is
 // named. Exposed for the same reason resolveModuleDecls is.

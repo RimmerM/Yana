@@ -1,0 +1,91 @@
+fn double(%x: Int) -> Int {
+  b0:
+    %v3 = mul %x, 2 : Int
+    ret %v3
+}
+
+(Num(a)) fn sum(%lhs: a, %rhs: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
+  b0:
+    %v2 = gencall Num(a).+, %lhs, %rhs : a
+    ret %v2
+}
+
+fn origin() -> Point {
+  b0:
+    %v0 = alloc : Point
+    init %local0@Point.x, 0
+    init %local0@Point.y, 0
+    ret %v0
+}
+
+fn answer() -> Int {
+  b0:
+    ret 42
+}
+
+fn useLater() -> Int {
+  b0:
+    %v0 = call later : Int
+    %v3 = add %v0, 1 : Int
+    ret %v3
+}
+
+fn later() -> Int {
+  b0:
+    ret 41
+}
+
+fn annotated(%x: Int) -> Int {
+  b0:
+    %v3 = add %x, 1 : Int
+    ret %v3
+}
+
+fn fact(%n: Int) -> Int {
+  b0:
+    %v3 = cmp_le %n, 1 : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    %v8 = sub %n, 1 : Int
+    %v9 = call fact, %v8 : Int
+    %v10 = mul %n, %v9 : Int
+    jmp b3
+
+  b3:
+    %v13 = phi [b1, 1], [b2, %v10] : Int
+    ret %v13
+}
+
+fn main() -> Int {
+  b0:
+    %p = call origin : Point
+    %v2 = call double, 3 : Int
+    %v7 = call sum(Int), 1, 2 : Int
+    %v8 = add %v2, %v7 : Int
+    %v9 = call answer : Int
+    %v10 = add %v8, %v9 : Int
+    %v11 = call useLater : Int
+    %v12 = add %v10, %v11 : Int
+    %v14 = call annotated, 0 : Int
+    %v15 = add %v12, %v14 : Int
+    %v17 = call fact, 4 : Int
+    %v18 = add %v15, %v17 : Int
+    %v19 = load %local0@Point.x : Int
+    %v20 = add %v18, %v19 : Int
+    ret %v20
+}
+
+fn sum(Int)(%lhs: Int, %rhs: Int) -> Int {
+  b0:
+    %v2 = add %lhs, %rhs : Int
+    ret %v2
+}
