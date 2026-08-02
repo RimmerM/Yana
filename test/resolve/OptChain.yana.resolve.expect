@@ -1,0 +1,833 @@
+let &log: Int = 0
+
+let &dropped: Int = 0
+
+fn Try(Maybe(a), a, ()).toOutcome(Node)(%value: Maybe(Node)) -> Outcome(Node, ()) {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b4
+
+  b1:
+    %v6 = alloc : Outcome(Node, ())
+    init %local3.discriminant, 1
+    jmp b3
+
+  b2:
+    %v10 = load %value@Just : Node
+    %v11 = move %value@Just : Node
+    %inner = alloc : Node
+    init %local1, %v11
+    %v14 = alloc : Outcome(Node, ())
+    init %local2.discriminant, 0
+    init %local2@Proceed, %inner
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, %v14], [b1, %v6] : Outcome(Node, ())
+    ret %v1
+
+  b4:
+    drop_derived %value via drop$Maybe(Node)
+    jmp b1
+}
+
+fn Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int)(%value: Int) -> Maybe(Int) {
+  b0:
+    %v1 = alloc : Maybe(Int)
+    init %local1.discriminant, 1
+    init %local1@Just, %value
+    ret %v1
+}
+
+fn Try(Maybe(a), a, ()).fromExit(Int)(%reason: ()) -> Maybe(Int) {
+  b0:
+    %v1 = alloc : Maybe(Int)
+    init %local0.discriminant, 0
+    ret %v1
+}
+
+fn Try(Maybe(a), a, ()).toOutcome(Leaf)(%value: Maybe(Leaf)) -> Outcome(Leaf, ()) {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %v6 = alloc : Outcome(Leaf, ())
+    init %local3.discriminant, 1
+    jmp b3
+
+  b2:
+    %v10 = load %value@Just : Leaf
+    %v11 = move %value@Just : Leaf
+    %inner = alloc : Leaf
+    init %local1, %v11
+    %v14 = alloc : Outcome(Leaf, ())
+    init %local2.discriminant, 0
+    init %local2@Proceed, %inner
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, %v14], [b1, %v6] : Outcome(Leaf, ())
+    ret %v1
+}
+
+fn Try(Result(e, a), a, e).toOutcome(Int, Node)(%value: Result(Int, Node)) -> Outcome(Node, Int) {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %v6 = load %value@Err : Int
+    %v7 = move %value@Err : Int
+    %reason = alloc : Int
+    init %local3, %v7
+    %v10 = alloc : Outcome(Node, Int)
+    init %local4.discriminant, 1
+    %reason = load %local3 : Int
+    init %local4@Exit, %reason
+    jmp b3
+
+  b2:
+    %v16 = load %value@Ok : Node
+    %v17 = move %value@Ok : Node
+    %inner = alloc : Node
+    init %local1, %v17
+    %v20 = alloc : Outcome(Node, Int)
+    init %local2.discriminant, 0
+    init %local2@Proceed, %inner
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, %v20], [b1, %v10] : Outcome(Node, Int)
+    ret %v1
+}
+
+fn Rewrap(Result(e, a), b, Result(e, b)).rewrap(Int, Node, Int)(%value: Int) -> Result(Int, Int) {
+  b0:
+    %v1 = alloc : Result(Int, Int)
+    init %local1.discriminant, 1
+    init %local1@Ok, %value
+    ret %v1
+}
+
+fn Try(Result(e, a), a, e).fromExit(Int, Int)(%reason: Int) -> Result(Int, Int) {
+  b0:
+    %v1 = alloc : Result(Int, Int)
+    init %local1.discriminant, 0
+    init %local1@Err, %reason
+    ret %v1
+}
+
+fn Rewrap(Maybe(a), b, Maybe(b)).rewrap(Leaf, Int)(%value: Int) -> Maybe(Int) {
+  b0:
+    %v1 = alloc : Maybe(Int)
+    init %local1.discriminant, 1
+    init %local1@Just, %value
+    ret %v1
+}
+
+fn Try(Maybe(a), a, ()).toOutcome((Int) -> Int)(%value: Maybe((Int) -> Int)) -> Outcome((Int) -> Int, ()) {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b4
+
+  b1:
+    %v6 = alloc : Outcome((Int) -> Int, ())
+    init %local3.discriminant, 1
+    jmp b3
+
+  b2:
+    %v10 = load %value@Just : (Int) -> Int
+    %v11 = move %value@Just : (Int) -> Int
+    %inner = alloc : (Int) -> Int
+    init %local1, %v11
+    %v14 = alloc : Outcome((Int) -> Int, ())
+    init %local2.discriminant, 0
+    init %local2@Proceed, %inner
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, %v14], [b1, %v6] : Outcome((Int) -> Int, ())
+    ret %v1
+
+  b4:
+    drop_derived %value via drop$Maybe((Int) -> Int) reclaim reclaim$Maybe((Int) -> Int)
+    jmp b1
+}
+
+fn Rewrap(Maybe(a), b, Maybe(b)).rewrap((Int) -> Int, Int)(%value: Int) -> Maybe(Int) {
+  b0:
+    %v1 = alloc : Maybe(Int)
+    init %local1.discriminant, 1
+    init %local1@Just, %value
+    ret %v1
+}
+
+fn drop$Maybe(Node)(%value: %Maybe(Node)) -> () {
+  b0:
+    %v1 = load [%value].discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b3
+
+  b1:
+    ret
+
+  b2:
+    drop [%value]@Just via Drop(Node).drop
+    jmp b1
+
+  b3:
+    jmp b1
+}
+
+fn drop$Maybe((Int) -> Int)(%value: %Maybe((Int) -> Int)) -> () {
+  b0:
+    %v1 = load [%value].discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b3
+
+  b1:
+    ret
+
+  b2:
+    drop_derived [%value]@Just via drop$(Int) -> Int
+    jmp b1
+
+  b3:
+    jmp b1
+}
+
+fn drop$(Int) -> Int(%value: %(Int) -> Int) -> () {
+  b0:
+    %v1 = load [%value].env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load [%value].code : %()
+    %v7 = cast %v6 : Long
+    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v9 = sub %v7, %v8 : Long
+    %v10 = cast %v9 : %{drop: %(), reclaim: %()}
+    %v11 = load [%v10].drop : %()
+    calldyn %v11, %v1
+    jmp b2
+
+  b2:
+    ret
+}
+
+fn reclaim$Maybe((Int) -> Int)(%value: %Maybe((Int) -> Int)) -> () {
+  b0:
+    %v1 = load [%value].discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b3
+
+  b1:
+    ret
+
+  b2:
+    drop_derived [%value]@Just reclaim reclaim$(Int) -> Int
+    jmp b1
+
+  b3:
+    jmp b1
+}
+
+fn reclaim$(Int) -> Int(%value: %(Int) -> Int) -> () {
+  b0:
+    %v1 = load [%value].env : %()
+    %v3 = cast 0 : %()
+    %v4 = cmp_ne %v1, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load [%value].code : %()
+    %v7 = cast %v6 : Long
+    %v8 = sizeof {drop: %(), reclaim: %()} : Long
+    %v9 = sub %v7, %v8 : Long
+    %v10 = cast %v9 : %{drop: %(), reclaim: %()}
+    %v11 = load [%v10].reclaim : %()
+    calldyn %v11, %v1
+    jmp b2
+
+  b2:
+    ret
+}
+
+fn leafFor(%n: Int) -> Maybe(Leaf) {
+  b0:
+    %v3 = cmp_gt %n, 5 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Maybe(Leaf)
+    init %local0.discriminant, 1
+    %v8 = alloc : Leaf
+    %v11 = mul %n, 3 : Int
+    init %local1@Leaf.value, %v11
+    init %local0@Just, %v8
+    ret %v5
+
+  b2:
+    jmp b3
+
+  b3:
+    %v16 = alloc : Maybe(Leaf)
+    init %local2.discriminant, 0
+    ret %v16
+}
+
+fn node(%n: Int) -> Maybe(Node) {
+  b0:
+    %v1 = load log : Int
+    %v4 = add %v1, 1 : Int
+    assign log, %v4
+    %v8 = cmp_le %n, 0 : Bool
+    je %v8, b1, b2
+
+  b1:
+    %v10 = alloc : Maybe(Node)
+    init %local0.discriminant, 0
+    ret %v10
+
+  b2:
+    jmp b3
+
+  b3:
+    %v15 = alloc : Maybe(Node)
+    init %local1.discriminant, 1
+    %v18 = alloc : Node
+    %v19 = alloc : Inner
+    %v20 = alloc : Deep
+    %v23 = mul %n, 2 : Int
+    init %local4@Deep.value, %v23
+    init %local3@Inner.deep, %v20
+    %v26 = call leafFor, %n : Maybe(Leaf)
+    init %local2@Node.inner, %v19
+    init %local2@Node.leaf, %v26
+    init %local2@Node.id, %n
+    init %local1@Just, %v18
+    ret %v15
+}
+
+fn checked(%n: Int) -> Result(Int, Node) {
+  b0:
+    %v1 = load log : Int
+    %v4 = add %v1, 10 : Int
+    assign log, %v4
+    %v8 = cmp_le %n, 0 : Bool
+    je %v8, b1, b2
+
+  b1:
+    %v10 = alloc : Result(Int, Node)
+    init %local0.discriminant, 0
+    init %local0@Err, %n
+    ret %v10
+
+  b2:
+    jmp b3
+
+  b3:
+    %v16 = alloc : Result(Int, Node)
+    init %local1.discriminant, 1
+    %v19 = alloc : Node
+    %v20 = alloc : Inner
+    %v21 = alloc : Deep
+    %v24 = mul %n, 4 : Int
+    init %local4@Deep.value, %v24
+    init %local3@Inner.deep, %v21
+    %v27 = call leafFor, %n : Maybe(Leaf)
+    init %local2@Node.inner, %v20
+    init %local2@Node.leaf, %v27
+    init %local2@Node.id, %n
+    init %local1@Ok, %v19
+    ret %v16
+}
+
+fn tail(%n: Int) -> Maybe(Int) {
+  b0:
+    %v1 = call node, %n : Maybe(Node)
+    %v2 = move %local0 : Maybe(Node)
+    %v3 = call Try(Maybe(a), a, ()).toOutcome(Node), %v2 : Outcome(Node, ())
+    %v4 = load %local1.discriminant : Int
+    %v6 = cmp_eq %v4, 1 : Bool
+    je %v6, b4, b2
+
+  b1:
+    alloc
+    %v13 = call Try(Maybe(a), a, ()).fromExit(Int), %v14 : Maybe(Int)
+    jmp b3
+
+  b2:
+    %v8 = load %local1@Proceed : Node
+    %v9 = load %local1@Proceed@Node.inner : Inner
+    %v10 = load %local1@Proceed@Node.inner@Inner.deep : Deep
+    %v11 = load %local1@Proceed@Node.inner@Inner.deep@Deep.value : Int
+    drop_derived %local1 via drop$Outcome(Node, ())
+    %v12 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int), %v11 : Maybe(Int)
+    jmp b3
+
+  b3:
+    %v17 = phi [b2, %v12], [b1, %v13] : Maybe(Int)
+    ret %v17
+
+  b4:
+    drop_derived %local1 via drop$Outcome(Node, ())
+    jmp b1
+}
+
+fn twoChecks(%n: Int) -> Maybe(Int) {
+  b0:
+    %v1 = call node, %n : Maybe(Node)
+    %v2 = move %local0 : Maybe(Node)
+    %v3 = call Try(Maybe(a), a, ()).toOutcome(Node), %v2 : Outcome(Node, ())
+    %v4 = load %local1.discriminant : Int
+    %v6 = cmp_eq %v4, 1 : Bool
+    je %v6, b6, b2
+
+  b1:
+    alloc
+    %v19 = call Try(Maybe(a), a, ()).fromExit(Int), %v20 : Maybe(Int)
+    jmp b5
+
+  b2:
+    %v8 = load %local1@Proceed : Node
+    %v9 = load %local1@Proceed@Node.leaf : Maybe(Leaf)
+    %v10 = copy %local1@Proceed@Node.leaf : Maybe(Leaf)
+    drop_derived %local1 via drop$Outcome(Node, ())
+    %v11 = call Try(Maybe(a), a, ()).toOutcome(Leaf), %v10 : Outcome(Leaf, ())
+    %v12 = load %local3.discriminant : Int
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b3, b4
+
+  b3:
+    alloc
+    %v21 = call Try(Maybe(a), a, ()).fromExit(Int), %v22 : Maybe(Int)
+    jmp b5
+
+  b4:
+    %v16 = load %local3@Proceed : Leaf
+    %v17 = load %local3@Proceed@Leaf.value : Int
+    %v18 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int), %v17 : Maybe(Int)
+    jmp b5
+
+  b5:
+    %v26 = phi [b4, %v18], [b1, %v19], [b3, %v21] : Maybe(Int)
+    ret %v26
+
+  b6:
+    drop_derived %local1 via drop$Outcome(Node, ())
+    jmp b1
+}
+
+fn viaResult(%n: Int) -> Result(Int, Int) {
+  b0:
+    %v1 = call checked, %n : Result(Int, Node)
+    %v2 = move %local0 : Result(Int, Node)
+    %v3 = call Try(Result(e, a), a, e).toOutcome(Int, Node), %v2 : Outcome(Node, Int)
+    %v4 = load %local1.discriminant : Int
+    %v6 = cmp_eq %v4, 1 : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v8 = load %local1@Exit : Int
+    drop_derived %local1 via drop$Outcome(Node, Int)
+    %v12 = call Try(Result(e, a), a, e).fromExit(Int, Int), %v8 : Result(Int, Int)
+    jmp b3
+
+  b2:
+    %v9 = load %local1@Proceed : Node
+    %v10 = load %local1@Proceed@Node.id : Int
+    drop_derived %local1 via drop$Outcome(Node, Int)
+    %v11 = call Rewrap(Result(e, a), b, Result(e, b)).rewrap(Int, Node, Int), %v10 : Result(Int, Int)
+    jmp b3
+
+  b3:
+    %v15 = phi [b2, %v11], [b1, %v12] : Result(Int, Int)
+    ret %v15
+}
+
+fn pick(%a: Maybe(Int), %b: Maybe(Int)) -> Int {
+  b0:
+    %v3 = call unwrapOr, %a, 0 : Int
+    %v5 = call unwrapOr, %b, 0 : Int
+    %v8 = mul %v5, 100 : Int
+    %v9 = add %v3, %v8 : Int
+    ret %v9
+}
+
+fn inArgument(%a: Int, %b: Int) -> Int {
+  b0:
+    %v2 = call node, %a : Maybe(Node)
+    %v3 = move %local0 : Maybe(Node)
+    %v4 = call Try(Maybe(a), a, ()).toOutcome(Node), %v3 : Outcome(Node, ())
+    %v5 = load %local1.discriminant : Int
+    %v7 = cmp_eq %v5, 1 : Bool
+    je %v7, b7, b2
+
+  b1:
+    alloc
+    %v12 = call Try(Maybe(a), a, ()).fromExit(Int), %v13 : Maybe(Int)
+    jmp b3
+
+  b2:
+    %v9 = load %local1@Proceed : Node
+    %v10 = load %local1@Proceed@Node.id : Int
+    drop_derived %local1 via drop$Outcome(Node, ())
+    %v11 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int), %v10 : Maybe(Int)
+    jmp b3
+
+  b3:
+    %v16 = phi [b2, %v11], [b1, %v12] : Maybe(Int)
+    %v17 = call node, %b : Maybe(Node)
+    %v18 = move %local6 : Maybe(Node)
+    %v19 = call Try(Maybe(a), a, ()).toOutcome(Node), %v18 : Outcome(Node, ())
+    %v20 = load %local7.discriminant : Int
+    %v22 = cmp_eq %v20, 1 : Bool
+    je %v22, b8, b5
+
+  b4:
+    alloc
+    %v27 = call Try(Maybe(a), a, ()).fromExit(Int), %v28 : Maybe(Int)
+    jmp b6
+
+  b5:
+    %v24 = load %local7@Proceed : Node
+    %v25 = load %local7@Proceed@Node.id : Int
+    drop_derived %local7 via drop$Outcome(Node, ())
+    %v26 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int), %v25 : Maybe(Int)
+    jmp b6
+
+  b6:
+    %v31 = phi [b5, %v26], [b4, %v27] : Maybe(Int)
+    %v32 = call pick, %v16, %v31 : Int
+    ret %v32
+
+  b7:
+    drop_derived %local1 via drop$Outcome(Node, ())
+    jmp b1
+
+  b8:
+    drop_derived %local7 via drop$Outcome(Node, ())
+    jmp b4
+}
+
+fn both(%n: Int) -> Maybe(Int) {
+  b0:
+    %v1 = call node, %n : Maybe(Node)
+    %v2 = move %local0 : Maybe(Node)
+    %v3 = call Try(Maybe(a), a, ()).toOutcome(Node), %v2 : Outcome(Node, ())
+    %v4 = load %local1.discriminant : Int
+    %v6 = cmp_eq %v4, 1 : Bool
+    je %v6, b6, b2
+
+  b1:
+    alloc
+    %v8 = call Try(Maybe(a), a, ()).fromExit(Int), %v9 : Maybe(Int)
+    ret %v8
+
+  b2:
+    %found = load %local1@Proceed : Node
+    %v12 = load %local1@Proceed@Node.leaf : Maybe(Leaf)
+    %v13 = copy %local1@Proceed@Node.leaf : Maybe(Leaf)
+    drop_derived %local1 via drop$Outcome(Node, ())
+    %v14 = call Try(Maybe(a), a, ()).toOutcome(Leaf), %v13 : Outcome(Leaf, ())
+    %v15 = load %local5.discriminant : Int
+    %v17 = cmp_eq %v15, 1 : Bool
+    je %v17, b3, b4
+
+  b3:
+    alloc
+    %v22 = call Try(Maybe(a), a, ()).fromExit(Int), %v23 : Maybe(Int)
+    jmp b5
+
+  b4:
+    %v19 = load %local5@Proceed : Leaf
+    %v20 = load %local5@Proceed@Leaf.value : Int
+    %v21 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Leaf, Int), %v20 : Maybe(Int)
+    jmp b5
+
+  b5:
+    %v26 = phi [b4, %v21], [b3, %v22] : Maybe(Int)
+    ret %v26
+
+  b6:
+    drop_derived %local1 via drop$Outcome(Node, ())
+    jmp b1
+}
+
+fn parenthesized(%n: Int) -> Maybe(Int) {
+  b0:
+    %v1 = alloc : Maybe(Int)
+    init %local0.discriminant, 1
+    %v4 = call node, %n : Maybe(Node)
+    %v5 = move %local1 : Maybe(Node)
+    %v6 = call Try(Maybe(a), a, ()).toOutcome(Node), %v5 : Outcome(Node, ())
+    %v7 = load %local2.discriminant : Int
+    %v9 = cmp_eq %v7, 1 : Bool
+    je %v9, b3, b2
+
+  b1:
+    alloc
+    %v11 = call Try(Maybe(a), a, ()).fromExit(Int), %v12 : Maybe(Int)
+    ret %v11
+
+  b2:
+    %v14 = load %local2@Proceed : Node
+    %v15 = load %local2@Proceed@Node.id : Int
+    drop_derived %local2 via drop$Outcome(Node, ())
+    init %local0@Just, %v15
+    ret %v1
+
+  b3:
+    drop_derived %local2 via drop$Outcome(Node, ())
+    jmp b1
+}
+
+fn twice(%x: Int) -> Int {
+  b0:
+    %v3 = mul %x, 2 : Int
+    ret %v3
+}
+
+fn maybeFn(%n: Int) -> Maybe((Int) -> Int) {
+  b0:
+    %v3 = cmp_gt %n, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Maybe((Int) -> Int)
+    init %local0.discriminant, 1
+    %v8 = alloc : (Int) -> Int
+    %v9 = symbol funvalue$twice : %()
+    init %local1.code, %v9
+    %v12 = cast 0 : %()
+    init %local1.env, %v12
+    init %local0@Just, %v8
+    ret %v5
+
+  b2:
+    jmp b3
+
+  b3:
+    %v17 = alloc : Maybe((Int) -> Int)
+    init %local2.discriminant, 0
+    ret %v17
+}
+
+fn called(%n: Int) -> Maybe(Int) {
+  b0:
+    %v1 = call maybeFn, %n : Maybe((Int) -> Int)
+    %v2 = move %local0 : Maybe((Int) -> Int)
+    %v3 = call Try(Maybe(a), a, ()).toOutcome((Int) -> Int), %v2 : Outcome((Int) -> Int, ())
+    %v4 = load %local1.discriminant : Int
+    %v6 = cmp_eq %v4, 1 : Bool
+    je %v6, b4, b2
+
+  b1:
+    alloc
+    %v12 = call Try(Maybe(a), a, ()).fromExit(Int), %v13 : Maybe(Int)
+    jmp b3
+
+  b2:
+    %v8 = load %local1@Proceed : (Int) -> Int
+    %v10 = calldyn %v8, 21 : Int
+    drop_derived %local1 via drop$Outcome((Int) -> Int, ()) reclaim reclaim$Outcome((Int) -> Int, ())
+    %v11 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap((Int) -> Int, Int), %v10 : Maybe(Int)
+    jmp b3
+
+  b3:
+    %v16 = phi [b2, %v11], [b1, %v12] : Maybe(Int)
+    ret %v16
+
+  b4:
+    drop_derived %local1 via drop$Outcome((Int) -> Int, ()) reclaim reclaim$Outcome((Int) -> Int, ())
+    jmp b1
+}
+
+fn main() -> Int {
+  b0:
+    assign log, 0
+    assign dropped, 0
+    %v5 = call tail, 6 : Maybe(Int)
+    %a = call unwrapOr, %v5, 0 : Int
+    %v10 = neg 1 : Int
+    %v11 = call tail, %v10 : Maybe(Int)
+    %b = call unwrapOr, %v11, 0 : Int
+    %v15 = call twoChecks, 6 : Maybe(Int)
+    %c = call unwrapOr, %v15, 0 : Int
+    %v19 = call twoChecks, 3 : Maybe(Int)
+    %d = call unwrapOr, %v19, 0 : Int
+    %v24 = neg 1 : Int
+    %v25 = call twoChecks, %v24 : Maybe(Int)
+    %e = call unwrapOr, %v25, 0 : Int
+    %v29 = call viaResult, 4 : Result(Int, Int)
+    %f = call okOr, %v29, 0 : Int
+    %v34 = neg 2 : Int
+    %v35 = call viaResult, %v34 : Result(Int, Int)
+    %g = call okOr, %v35, 0 : Int
+    %h = call inArgument, 2, 7 : Int
+    %v42 = call both, 8 : Maybe(Int)
+    %i = call unwrapOr, %v42, 0 : Int
+    %v46 = call both, 2 : Maybe(Int)
+    %j = call unwrapOr, %v46, 0 : Int
+    %v51 = neg 1 : Int
+    %v52 = call both, %v51 : Maybe(Int)
+    %k = call unwrapOr, %v52, 0 : Int
+    %v56 = call parenthesized, 5 : Maybe(Int)
+    %l = call unwrapOr, %v56, 0 : Int
+    %v61 = neg 1 : Int
+    %v62 = call parenthesized, %v61 : Maybe(Int)
+    %m = call unwrapOr, %v62, 0 : Int
+    %v66 = call called, 1 : Maybe(Int)
+    %r = call unwrapOr, %v66, 0 : Int
+    %v71 = neg 1 : Int
+    %v72 = call called, %v71 : Maybe(Int)
+    %s = call unwrapOr, %v72, 0 : Int
+    %v75 = add %a, %b : Int
+    %v76 = add %v75, %c : Int
+    %v77 = add %v76, %d : Int
+    %v78 = add %v77, %e : Int
+    %v79 = add %v78, %f : Int
+    %v80 = add %v79, %g : Int
+    %v81 = add %v80, %h : Int
+    %v82 = add %v81, %i : Int
+    %v83 = add %v82, %j : Int
+    %v84 = add %v83, %k : Int
+    %v85 = add %v84, %l : Int
+    %v86 = add %v85, %m : Int
+    %v87 = add %v86, %r : Int
+    %sum = add %v87, %s : Int
+    %v89 = load dropped : Int
+    %v92 = mul %v89, 1000 : Int
+    %v93 = add %sum, %v92 : Int
+    %v94 = load log : Int
+    %v97 = mul %v94, 100000 : Int
+    %v98 = add %v93, %v97 : Int
+    ret %v98
+}
+
+fn unwrapOr(%m: Maybe(Int), %fallback: Int) -> Int {
+  b0:
+    %v2 = load %m.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v = load %m@Just : Int
+    jmp b3
+
+  b3:
+    %v9 = phi [b2, %v], [b1, %fallback] : Int
+    ret %v9
+}
+
+fn okOr(%r: Result(Int, Int), %fallback: Int) -> Int {
+  b0:
+    %v2 = load %r.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %v7 = load %r@Err : Int
+    jmp b3
+
+  b2:
+    %v = load %r@Ok : Int
+    jmp b3
+
+  b3:
+    %v10 = phi [b2, %v], [b1, %fallback] : Int
+    ret %v10
+}
+
+fn Drop(Node).drop(%value: Node) -> () {
+  b0:
+    %v1 = load dropped : Int
+    %v4 = add %v1, 1 : Int
+    assign dropped, %v4
+    ret
+}
+
+fn funvalue$twice(%env: %(), %x: Int) -> Int {
+  b0:
+    %v2 = call twice, %x : Int
+    ret %v2
+}
+
+fn drop$Outcome(Node, ())(%value: %Outcome(Node, ())) -> () {
+  b0:
+    %v1 = load [%value].discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b3
+
+  b1:
+    ret
+
+  b2:
+    drop [%value]@Proceed via Drop(Node).drop
+    jmp b1
+
+  b3:
+    jmp b1
+}
+
+fn drop$Outcome(Node, Int)(%value: %Outcome(Node, Int)) -> () {
+  b0:
+    %v1 = load [%value].discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b3
+
+  b1:
+    ret
+
+  b2:
+    drop [%value]@Proceed via Drop(Node).drop
+    jmp b1
+
+  b3:
+    jmp b1
+}
+
+fn drop$Outcome((Int) -> Int, ())(%value: %Outcome((Int) -> Int, ())) -> () {
+  b0:
+    %v1 = load [%value].discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b3
+
+  b1:
+    ret
+
+  b2:
+    drop_derived [%value]@Proceed via drop$(Int) -> Int
+    jmp b1
+
+  b3:
+    jmp b1
+}
+
+fn reclaim$Outcome((Int) -> Int, ())(%value: %Outcome((Int) -> Int, ())) -> () {
+  b0:
+    %v1 = load [%value].discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b3
+
+  b1:
+    ret
+
+  b2:
+    drop_derived [%value]@Proceed reclaim reclaim$(Int) -> Int
+    jmp b1
+
+  b3:
+    jmp b1
+}

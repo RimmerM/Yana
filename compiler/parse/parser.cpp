@@ -915,6 +915,51 @@ ast::Expr Parser::parseChain(ast::Expr base, const WithLocation& startLocation) 
         WithLocation location(*this);
         auto app = parseSelExpr(location);
         return parseChain(makeExpr(Field, field, heap(ast::FieldExpr { .target = base, .field = app }), startLocation), startLocation);
+    } else if(auto optional = maybeNode(Token::opQuestionDot)) {
+        /*
+         * `?.` - optional chaining, and a different operator from `?` rather than a spelling of it.
+         * `?` leaves the enclosing function; this skips the rest of *this chain* and produces the
+         * carrier's empty case, which is what every language with the spelling means by it.
+         *
+         * What is built is the *unwrapping* on its own, with the suffix after it left to the loop
+         * below - so `a?.b` is a field of an unwrap, `a?.[i]` a subscript of one and `a?.(x)` a
+         * call of one. Three spellings, one node, and nothing below the parser has to know which
+         * of them was written.
+         *
+         * The location is the `?.` itself. Everything this node can be wrong about is about the
+         * operator - a carrier with no `Try` instance, a skip that cannot be rebuilt - and a span
+         * covering the whole chain would point at the parts that are fine.
+         */
+        auto unwrapped = makeExpr(Unwrap, unwrap, heap(base), optional.unwrap().node);
+
+        // A bracket is the suffix, and the chain loop already reads both. Anything else is the
+        // field form, whose name is read here so that `a?.` with nothing after it is one error
+        // about a missing name rather than a chain that quietly ended.
+        if(token.type == Token::ParenL || token.type == Token::BracketL) {
+            return parseChain(unwrapped, startLocation);
+        }
+
+        WithLocation fieldLocation(*this);
+        auto app = parseSelExpr(fieldLocation);
+
+        return parseChain(makeExpr(Field, field, heap(ast::FieldExpr { .target = unwrapped, .field = app }),
+                                   startLocation), startLocation);
+    } else if(auto question = maybeNode(Token::opQuestion)) {
+        /*
+         * `x?` - Implementation-Semantics.md part 5's early exit.
+         *
+         * A suffix of the chain rather than a form of its own, so it binds tighter than every infix
+         * operator and looser than nothing: `parse(a)? + parse(b)?` unwraps each call and adds the
+         * two payloads, and `xs.get(i)?.name` reads a field of what came out. That is the same
+         * property the other three suffixes have - each is closed by its own token - which is what
+         * lets it be written in a `for` header too.
+         *
+         * The location is the `?` itself, not the chain it ends. Everything this operator can be
+         * wrong about is about the operator - a carrier with no `Try` instance, an enclosing
+         * signature that cannot be exited through - so pointing at the operand would name the one
+         * part of `parse(text)?` that is fine.
+         */
+        return parseChain(makeExpr(Try, tryValue, heap(base), question.unwrap().node), startLocation);
     } else {
         return base;
     }

@@ -1,0 +1,40 @@
+-- What `?.` will not accept.
+--
+-- The first one is the case worth having a message for: `?.` produces the carrier rather than what
+-- is inside it, which is exactly how it differs from `?`, and a reader who expects otherwise meets
+-- it here rather than three lines later.
+
+data Bag {item: Int}
+data Leaf {value: Int}
+data Node {leaf: Maybe(Leaf), cell: Result(Int, Leaf), id: Int}
+
+fn node(n: Int) -> Maybe(Node) = Nothing
+
+-- `?.` does not leave the enclosing function, so what a chain containing one produces is the
+-- wrapper. `?` is the operator that leaves, and `(node(n)?).id` is how this line is written.
+fn expectsUnwrapped(n: Int) -> Int = node(n)?.id
+
+-- Nothing says which of a plain record's cases means "carry on", because it has only one.
+fn noCarrier(b: Bag) -> Maybe(Int) = b?.item
+
+-- The field is read on what the carrier held, so a name that is not one of *its* fields is the
+-- error - not one about the carrier.
+fn noSuchField(n: Int) -> Maybe(Int) = node(n)?.missing
+
+-- Two `?.` in one chain over carriers that disagree about what a skip carries. The chain comes back
+-- in the first one's wrapper, so the second's reason has to reach that one's, and `Int` does not
+-- become `{}`.
+fn mixedReasons(n: Int) -> Maybe(Int) = node(n)?.cell?.value
+
+-- A carrier that says how to read itself and not how to rebuild itself around something else. `?`
+-- works on one of these and `?.` does not, which is the one asymmetry between the two classes.
+data Box(a) = Empty | Full(a)
+
+instance Try(Box(a), a, {}):
+  fn toOutcome(->value: Box(a)) -> Outcome(a, {}) = match value:
+      Full(->inner) -> Proceed(inner)
+      Empty -> Exit({})
+
+  fn fromExit(->reason: {}) -> Box(a) = Empty
+
+fn noRewrap(b: Box(Leaf)) -> Box(Int) = b?.value

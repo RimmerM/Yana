@@ -269,6 +269,45 @@ struct BranchArm {
     LocationId source;
 };
 
+/*
+ * One `?.` that skipped, waiting for the chain it is in to say what it should become.
+ *
+ * Left unterminated on purpose. What the skip produces is the *chain's* result type, which is not
+ * known until the rest of the chain has been resolved - so the block is recorded holding the raw
+ * reason the carrier exited with, and finished afterwards. The same shape finishContinuationExits
+ * uses, and for the same reason: appending to a finished block is what makes a CFG walk read one
+ * thing and lower another.
+ */
+struct OptionalSkip {
+    ModulePtr<Block> block = nullptr;
+    ModulePtr<Value> reason = nullptr;   // Null for a carrier whose exit carries nothing.
+    TypePtr reasonType = nullptr;
+    LocationId source = kNullLocation;
+};
+
+/*
+ * The optional chain currently being resolved - `a?.b.c(x)`.
+ *
+ * A `?.` skips **the rest of its chain**, not the rest of the function, which is what every
+ * language with the spelling means by it and what makes `a?.b.c` produce one wrapped value rather
+ * than leaving. So the extent of the skip is a syntactic span - from the `?.` to the end of the
+ * chain it is written in - and this is that span, made available to the `?.` nodes inside it.
+ *
+ * `spine` is the chain's nodes by address. Membership rather than a depth counter, because a chain
+ * node reached as an *argument* of one of these is a chain of its own: in `a?.b(c?.d)` the inner
+ * `?.` skips to the end of `c?.d` and has nothing to do with the outer one. Comparing addresses is
+ * what tells those two apart, and a counter cannot.
+ */
+struct OptionalChain {
+    SmallArray<const ast::Expr*, 8> spine;
+    SmallArray<OptionalSkip, 4> skips;
+
+    // The first `?.`'s operand type, which is the wrapper the whole chain comes back in -
+    // `Rewrap(carrier, whatever the chain produced)`. Later `?.`s in the same chain may carry a
+    // different one, and only their *reasons* have to meet, by the ordinary Widen step.
+    TypePtr carrier = nullptr;
+};
+
 // The type one name has, without emitting anything to find out. Deliberately separate from
 // placeOf(), which for a by-reference capture emits the load that reaches the storage.
 TypePtr bindingType(ExprResolver& resolver, const Binding& binding);
@@ -701,9 +740,55 @@ struct ExprResolver {
     void resolveHandedArguments(ModulePtr<Function> callee, ast::ParseList<ast::TupArg> arguments,
                                 ValueList& values);
 
+    /*
+     * `x?` - Implementation-Semantics.md part 5's early exit.
+     *
+     * Compiler-known rather than a library suffix operator, because its skip destination is the one
+     * destination no call site can name: the enclosing function's return edge, typed by the
+     * enclosing signature. The polymorphism is still the library's - `Try` is an ordinary class in
+     * Core and a carrier joins by writing an instance - and only where the skip goes is built in.
+     */
+    ModulePtr<Value> resolveTry(const ast::Expr& expr, TypePtr target, bool used, bool implicit);
+
+    /*
+     * `a?.b` - optional chaining, which is a different operator from `?` rather than a spelling of
+     * it. `?` leaves the enclosing function; this skips the rest of the chain and produces the
+     * carrier's empty case, so `row?.name.trim()` is a `Maybe(String)` and nothing departs.
+     *
+     * `resolveOptionalChain` owns the whole span: it is entered at the chain's *topmost* node, sets
+     * up the join, resolves the chain the ordinary way underneath, and rewraps what came out.
+     * `resolveUnwrap` is one `?.` inside that span - a branch, with the skip arm recorded and left
+     * for the join to finish, producing the payload for whatever suffix was written after it.
+     *
+     * Which suffix that is needs no case anywhere here: `a?.b`, `a?.[i]` and `a?.(x)` are a field,
+     * a subscript and a call *of an unwrap*, and each is resolved by the code that already resolves
+     * those. The whole of `?.`'s extra behaviour is in the one node underneath them.
+     */
+    ModulePtr<Value> resolveOptionalChain(const ast::Expr& expr, TypePtr target, bool used, bool implicit);
+    ModulePtr<Value> resolveUnwrap(const ast::Expr& expr);
+
+    // Whether this expression is a chain node that is part of the chain being resolved, rather than
+    // the top of one of its own. See OptionalChain::spine.
+    bool onOptionalSpine(const ast::Expr& expr) const {
+        return optionalChain && optionalChain->spine.contains([&](const ast::Expr* node) { return node == &expr; });
+    }
+
+    // Whether the chain this node tops contains a `?.` anywhere down its spine, which is what
+    // decides that a join has to be set up before any of it is resolved.
+    bool chainSkips(const ast::Expr& expr);
+
     // What a `return` in this body leaves: the enclosing function's result type, which for a lifted
     // continuation is the type of the function it was split out of rather than its own.
     TypePtr enclosingResultType() const { return inContinuation ? exitType : function.returnType; }
+
+    // The body a `return` here leaves, which is this one unless it is a lifted continuation - then
+    // it is the one the block was split out of, however many frames up that is. `enclosingResultType`
+    // is this function's result type, cached at the point the continuation was built.
+    const ExprResolver& enclosingBody() const {
+        auto resolver = this;
+        while(resolver->inContinuation && resolver->enclosing) resolver = resolver->enclosing;
+        return *resolver;
+    }
 
     // Leaving the enclosing function with a value. An ordinary body returns; a continuation records
     // the departure and has its block finished once the shape of its result is known.
@@ -1028,6 +1113,11 @@ struct ExprResolver {
     // was split out of, so it is collected rather than emitted - see ContinuationExit.
     bool inContinuation = false;
     TypePtr exitType = nullptr;
+
+    // The optional chain being resolved, or null outside one. Saved and restored around each chain
+    // rather than owned by the resolver, so that a chain written inside another one's arguments
+    // nests instead of joining it - see OptionalChain.
+    OptionalChain* optionalChain = nullptr;
     Array<ContinuationExit> exits;
 
     // Set while resolving a `for` loop's lifted body, which is a continuation *and* a loop body: the

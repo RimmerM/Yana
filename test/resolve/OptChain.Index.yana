@@ -1,0 +1,29 @@
+-- `a?.[i]` - the optional subscript, which is `?.`'s unwrapping with a subscript after it rather
+-- than a field. Its own fixture only because no fixture that emits JavaScript uses `Array` yet, and
+-- OptChain.yana does emit it.
+--
+-- Written `?.[` and not `?[` for the reason the spelling exists at all: `a?[i]` would read as the
+-- *other* operator - the one that leaves the enclosing function - and the two must not look alike.
+
+fn maybeArr(n: Int) -> Maybe(Array(Int)):
+    if n > 0: return Just([n, n * 2, n * 3])
+    return Nothing
+
+fn indexed(n: Int) -> Maybe(Int) = maybeArr(n)?.[1]
+
+-- The subscript is inside the skip like every other suffix, so nothing indexes anything when the
+-- carrier is empty - which is the whole property, since indexing an absent array is what a language
+-- without this operator would have had to say something about.
+fn sum(n: Int) -> Maybe(Int) = maybeArr(n)?.[0]
+
+fn unwrapOr(m: Maybe(Int), fallback: Int) -> Int = match m:
+    Just(v) -> v
+    Nothing -> fallback
+
+fn main() -> Int:
+    let a = unwrapOr(indexed(4), 0)     -- 8,  [4, 8, 12] indexed at 1
+    let b = unwrapOr(indexed(-1), 0)    -- 0
+    let c = unwrapOr(sum(5), 0)         -- 5,  [5, 10, 15] indexed at 0
+    let d = unwrapOr(sum(-1), 0)        -- 0
+
+    return a + b + c + d

@@ -1,0 +1,521 @@
+let &heapNext: %U8 = 0
+
+let &heapLimit: %U8 = 0
+
+let &heapFree: %%U8 = 0
+
+fn Try(Maybe(a), a, ()).toOutcome(Array(Int))(%value: Maybe(Array(Int))) -> Outcome(Array(Int), ()) {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b4
+
+  b1:
+    %v6 = alloc : Outcome(Array(Int), ())
+    init %local3.discriminant, 1
+    jmp b3
+
+  b2:
+    %v10 = load %value@Just : Array(Int)
+    %v11 = move %value@Just : Array(Int)
+    %inner = alloc : Array(Int)
+    init %local1, %v11
+    %v14 = alloc : Outcome(Array(Int), ())
+    init %local2.discriminant, 0
+    init %local2@Proceed, %inner
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, %v14], [b1, %v6] : Outcome(Array(Int), ())
+    ret %v1
+
+  b4:
+    drop_derived %value reclaim reclaim$Maybe(Array(Int))
+    jmp b1
+}
+
+fn Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int)(%value: Int) -> Maybe(Int) {
+  b0:
+    %v1 = alloc : Maybe(Int)
+    init %local1.discriminant, 1
+    init %local1@Just, %value
+    ret %v1
+}
+
+fn Try(Maybe(a), a, ()).fromExit(Int)(%reason: ()) -> Maybe(Int) {
+  b0:
+    %v1 = alloc : Maybe(Int)
+    init %local0.discriminant, 0
+    ret %v1
+}
+
+fn reclaim$Maybe(Array(Int))(%value: %Maybe(Array(Int))) -> () {
+  b0:
+    %v1 = load [%value].discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b3
+
+  b1:
+    ret
+
+  b2:
+    drop [%value]@Just reclaim Reclaim(Array(a)).reclaim(Int)
+    jmp b1
+
+  b3:
+    jmp b1
+}
+
+fn initHeap() -> () {
+  b0:
+    %region = call mapMemory, 4194304 : %U8
+    %v2 = cast %region : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %table = mul 32, 8 : I64
+    setmemory %region, 0, %table
+    %v14 = cast %region : %%U8
+    assign heapFree, %v14
+    %v16 = strideof U8 : I64
+    %v17 = mul %table, %v16 : I64
+    %v18 = add %region, %v17 : %U8
+    assign heapNext, %v18
+    %v21 = strideof U8 : I64
+    %v22 = mul 4194304, %v21 : I64
+    %v23 = add %region, %v22 : %U8
+    assign heapLimit, %v23
+    ret
+}
+
+fn heapClassOf(%total: I64) -> I64 {
+  b0:
+    %size = alloc : I64
+    init %size, 16
+    %sizeClass = alloc : I64
+    init %sizeClass, 0
+    jmp b1
+
+  b1:
+    %v8 = load %size : I64
+    %v9 = cmp_lt %v8, %total : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v21 = load %sizeClass : I64
+    ret %v21
+
+  b3:
+    %v11 = load %size : I64
+    %v12 = load %size : I64
+    %v13 = add %v11, %v12 : I64
+    assign %size, %v13
+    %v15 = load %sizeClass : I64
+    %v18 = add %v15, 1 : I64
+    assign %sizeClass, %v18
+    jmp b1
+}
+
+fn heapBlockSize(%sizeClass: I64) -> I64 {
+  b0:
+    %v2 = shl 16, %sizeClass : I64
+    ret %v2
+}
+
+fn freeListHead(%sizeClass: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : I64
+    %v3 = mul %sizeClass, %v2 : I64
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : I64
+    %v4 = mul %sizeClass, %v3 : I64
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn allocateHeap(%size: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = cast %v1 : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    call initHeap
+    %v7 = load heapFree : %%U8
+    %v8 = cast %v7 : Long
+    %v10 = cmp_eq %v8, 0 : Bool
+    je %v10, b3, b4
+
+  b2:
+    jmp b6
+
+  b3:
+    %v13 = cast 0 : %U8
+    ret %v13
+
+  b4:
+    jmp b5
+
+  b5:
+    jmp b6
+
+  b6:
+    %v20 = add %size, 8 : I64
+    %sizeClass = call heapClassOf, %v20 : I64
+    %v23 = cmp_ge %sizeClass, 32 : Bool
+    je %v23, b7, b8
+
+  b7:
+    %v26 = cast 0 : %U8
+    ret %v26
+
+  b8:
+    jmp b9
+
+  b9:
+    %reused = call freeListHead, %sizeClass : %U8
+    %v30 = cast %reused : Long
+    %v32 = cmp_eq %v30, 0 : Bool
+    %v34 = xor %v32, True : Bool
+    je %v34, b10, b11
+
+  b10:
+    %v36 = cast %reused : %%U8
+    %v37 = load [%v36] : %U8
+    call setFreeListHead, %sizeClass, %v37
+    ret %reused
+
+  b11:
+    jmp b12
+
+  b12:
+    %block = load heapNext : %U8
+    %blockSize = call heapBlockSize, %sizeClass : I64
+    %v43 = strideof U8 : I64
+    %v44 = mul %blockSize, %v43 : I64
+    %v45 = add %block, %v44 : %U8
+    %v46 = load heapLimit : %U8
+    %v47 = cmp_gt %v45, %v46 : Bool
+    je %v47, b13, b14
+
+  b13:
+    %v50 = cast 0 : %U8
+    ret %v50
+
+  b14:
+    jmp b15
+
+  b15:
+    %v53 = strideof U8 : I64
+    %v54 = mul %blockSize, %v53 : I64
+    %v55 = add %block, %v54 : %U8
+    assign heapNext, %v55
+    %v57 = cast %block : %I64
+    assign [%v57], %sizeClass
+    %v61 = strideof U8 : I64
+    %v62 = mul 8, %v61 : I64
+    %v63 = add %block, %v62 : %U8
+    ret %v63
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = cast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : I64
+    %v10 = mul 8, %v9 : I64
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = cast %v11 : %I64
+    %sizeClass = load [%v12] : I64
+    %v14 = cast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn releaseRun(Int)(%self: Run(Int)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(1) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %Int
+    %v8 = cast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn mapMemory(%size: I64) -> %U8 {
+  b0:
+    %v7 = neg 1 : I64
+    %result = syscall 9, 0, %size, 3, 34, %v7, 0 : I64
+    %v12 = cmp_lt %result, 0 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v15 = cast 0 : %U8
+    ret %v15
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = cast %result : %U8
+    ret %v18
+}
+
+fn get(Int)(%self: Flat(Int), %index: I64) -> &Int {
+  b0:
+    %v2 = load %self@Flat.items : %Int
+    %v3 = strideof Int : I64
+    %v4 = mul %index, %v3 : I64
+    %v5 = add %v2, %v4 : %Int
+    %v6 = borrow [%v5] : &Int
+    ret %v6
+}
+
+fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
+  b0:
+    %v1 = load %value@Array.length : @bits(31) U32
+    %v2 = cast %v1 : U32
+    %count = cast %v2 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : Int
+    %v9 = cmp_lt %v8, %count : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v11 = load %value@Array.run : Run(Int)
+    call releaseRun(Int), %v11
+    ret
+
+  b3:
+    %v14 = load %value@Array.run : Run(Int)
+    %v15 = load %value@Array.run@Run.items : %Int
+    %v16 = load %i : Int
+    %v17 = cast %v16 : I64
+    %v18 = strideof Int : I64
+    %v19 = mul %v17, %v18 : I64
+    %v20 = add %v15, %v19 : %Int
+    %v21 = load [%v20] : Int
+    %doomed = alloc : Int
+    init %local3, %v21
+    %v24 = load %i : Int
+    %v26 = add %v24, 1 : Int
+    assign %i, %v26
+    jmp b1
+}
+
+fn maybeArr(%n: Int) -> Maybe(Array(Int)) {
+  b0:
+    %v3 = cmp_gt %n, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Maybe(Array(Int))
+    init %local0.discriminant, 1
+    %v10 = mul %n, 2 : Int
+    %v13 = mul %n, 3 : Int
+    %v14 = alloc : Array(Int)
+    %v17 = alloc *3 heap escaping : Int
+    %v18 = addressof %local2 : %Int
+    init %local1@Array.run@Run.items, %v18
+    init %local1@Array.run@Run.capacity, 3
+    init %local1@Array.run@Run.ownsHeap, 1
+    %v24 = strideof Int : Long
+    %v25 = mul 0, %v24 : Long
+    %v26 = add %v18, %v25 : %Int
+    init [%v26], %n
+    %v29 = strideof Int : Long
+    %v30 = mul 1, %v29 : Long
+    %v31 = add %v18, %v30 : %Int
+    init [%v31], %v10
+    %v34 = strideof Int : Long
+    %v35 = mul 2, %v34 : Long
+    %v36 = add %v18, %v35 : %Int
+    init [%v36], %v13
+    init %local1@Array.length, 3
+    init %local0@Just, %v14
+    ret %v5
+
+  b2:
+    jmp b3
+
+  b3:
+    %v42 = alloc : Maybe(Array(Int))
+    init %local3.discriminant, 0
+    ret %v42
+}
+
+fn indexed(%n: Int) -> Maybe(Int) {
+  b0:
+    %v1 = call maybeArr, %n : Maybe(Array(Int))
+    %v2 = move %local0 : Maybe(Array(Int))
+    %v3 = call Try(Maybe(a), a, ()).toOutcome(Array(Int)), %v2 : Outcome(Array(Int), ())
+    %v4 = load %local1.discriminant : Int
+    %v6 = cmp_eq %v4, 1 : Bool
+    je %v6, b4, b2
+
+  b1:
+    alloc
+    %v23 = call Try(Maybe(a), a, ()).fromExit(Int), %v24 : Maybe(Int)
+    jmp b3
+
+  b2:
+    %v8 = load %local1@Proceed : Array(Int)
+    %v10 = borrow %local1@Proceed : &Array(Int)
+    %v11 = alloc : Flat(Int)
+    %v12 = load [%v10]@Array.run@Run.items : %Int
+    init %local2@Flat.items, %v12
+    %v14 = load [%v10]@Array.length : @bits(31) U32
+    %v15 = cast %v14 : U32
+    %v16 = cast %v15 : I64
+    init %local2@Flat.length, %v16
+    %v19 = borrow %local2 : &Flat(Int)
+    %v20 = call get(Int), %v19, 1 : &Int
+    %v21 = load [%v20] : Int
+    drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
+    %v22 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v21 : Maybe(Int)
+    jmp b3
+
+  b3:
+    %v27 = phi [b2, %v22], [b1, %v23] : Maybe(Int)
+    ret %v27
+
+  b4:
+    drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
+    jmp b1
+}
+
+fn sum(%n: Int) -> Maybe(Int) {
+  b0:
+    %v1 = call maybeArr, %n : Maybe(Array(Int))
+    %v2 = move %local0 : Maybe(Array(Int))
+    %v3 = call Try(Maybe(a), a, ()).toOutcome(Array(Int)), %v2 : Outcome(Array(Int), ())
+    %v4 = load %local1.discriminant : Int
+    %v6 = cmp_eq %v4, 1 : Bool
+    je %v6, b4, b2
+
+  b1:
+    alloc
+    %v23 = call Try(Maybe(a), a, ()).fromExit(Int), %v24 : Maybe(Int)
+    jmp b3
+
+  b2:
+    %v8 = load %local1@Proceed : Array(Int)
+    %v10 = borrow %local1@Proceed : &Array(Int)
+    %v11 = alloc : Flat(Int)
+    %v12 = load [%v10]@Array.run@Run.items : %Int
+    init %local2@Flat.items, %v12
+    %v14 = load [%v10]@Array.length : @bits(31) U32
+    %v15 = cast %v14 : U32
+    %v16 = cast %v15 : I64
+    init %local2@Flat.length, %v16
+    %v19 = borrow %local2 : &Flat(Int)
+    %v20 = call get(Int), %v19, 0 : &Int
+    %v21 = load [%v20] : Int
+    drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
+    %v22 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v21 : Maybe(Int)
+    jmp b3
+
+  b3:
+    %v27 = phi [b2, %v22], [b1, %v23] : Maybe(Int)
+    ret %v27
+
+  b4:
+    drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
+    jmp b1
+}
+
+fn unwrapOr(%m: Maybe(Int), %fallback: Int) -> Int {
+  b0:
+    %v2 = load %m.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v = load %m@Just : Int
+    jmp b3
+
+  b3:
+    %v9 = phi [b2, %v], [b1, %fallback] : Int
+    ret %v9
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call indexed, 4 : Maybe(Int)
+    %a = call unwrapOr, %v1, 0 : Int
+    %v6 = neg 1 : Int
+    %v7 = call indexed, %v6 : Maybe(Int)
+    %b = call unwrapOr, %v7, 0 : Int
+    %v11 = call sum, 5 : Maybe(Int)
+    %c = call unwrapOr, %v11, 0 : Int
+    %v16 = neg 1 : Int
+    %v17 = call sum, %v16 : Maybe(Int)
+    %d = call unwrapOr, %v17, 0 : Int
+    %v20 = add %a, %b : Int
+    %v21 = add %v20, %c : Int
+    %v22 = add %v21, %d : Int
+    ret %v22
+}
+
+fn reclaim$Outcome(Array(Int), ())(%value: %Outcome(Array(Int), ())) -> () {
+  b0:
+    %v1 = load [%value].discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b3
+
+  b1:
+    ret
+
+  b2:
+    drop [%value]@Proceed reclaim Reclaim(Array(a)).reclaim(Int)
+    jmp b1
+
+  b3:
+    jmp b1
+}

@@ -1,0 +1,59 @@
+-- What `?` will not accept - Implementation-Semantics.md part 5's own bullets.
+--
+-- Two of the four are about the *enclosing* signature rather than about the operand, which is what
+-- makes them worth writing down: `?`'s skip destination is the enclosing return edge, so a mistake
+-- there is a mistake about a line the reader is not looking at.
+
+data Bag(a) {item: a}
+
+fn source() -> Maybe(Int) = Just(1)
+fn checked() -> Result(Int, Int) = Ok(1)
+
+-- The operand has no `Try` instance, so nothing says which of its cases means "carry on". A record
+-- with one field is the sharpest version: it has exactly one case, and `?` still cannot read it.
+fn opaqueOperand() -> Maybe(Int):
+    let v = Bag {item: 1}?
+    return Just(v)
+
+-- A settled literal is the same failure with a type the author did not write, which is why the
+-- operand is settled before the instance is looked for - "Int has no Try instance" names something.
+fn literalOperand() -> Maybe(Int):
+    let v = 1?
+    return Just(v)
+
+-- Part 5's own words: `?` in a function returning `Int` is an error naming *that* type, not a
+-- failed overload resolution. Nothing is wrong with `source()` here.
+fn noWayOut() -> Int:
+    let v = source()?
+    return v
+
+-- The same rule where the enclosing result has an instance that does not fit: `Maybe`'s skip
+-- carries nothing, and no `Widen` turns nothing into a `Bool`. The fix is `| else ->` naming what
+-- to fail with, which is why the message says so rather than naming an instance to go and write.
+fn reasonMismatch() -> Result(Bool, Int):
+    let v = source()?
+    return Ok(v)
+
+-- A transparent lens returns *by* calling its continuation, so it has no return edge of its own for
+-- `?` to take. Its skipping sibling does, and Try.yana is where that one is written.
+lens fn transparent(n: Int, body: (Int) -> a) -> a:
+    let v = source()?
+    return body(v + n)
+
+-- An `iter fn` ends by running out of values rather than by returning, and what it produces is the
+-- loop's own signal - not a carrier `?` can rebuild. The same rule `return` there already follows.
+iter fn steps(n: Int) -> Int:
+    source()?
+
+    for i in 0 .. n:
+        yield i
+
+-- `?` needs the enclosing function's result type before it can resolve anything, and the `=` form
+-- decides its result *from* the body this is in. The same cycle a recursive `=` function reports,
+-- reached one step earlier.
+fn inferred(n: Int) = source()?
+
+-- A lambda whose result its body decides is the same cycle with a different name for the fix.
+fn inLambda(n: Int) -> Maybe(Int):
+    let f = (x: Int) -> source()?
+    return f(n)

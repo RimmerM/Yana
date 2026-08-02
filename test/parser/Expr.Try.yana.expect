@@ -1,0 +1,242 @@
+Module 
+|-FunDecl statement <implicit return> 
+| |-Arg text
+| | `-ConType String
+| `-Body
+|   `-DeclExpr 
+|     `-VarDecl v <borrow> 
+|       |-VarPat v
+|       `-TryExpr 
+|         `-AppExpr 
+|           |-VarExpr parse
+|           `-Field <anonymous>
+|             `-VarExpr text
+|-FunDecl operands <implicit return> 
+| |-Arg a
+| | `-ConType String
+| |-Arg b
+| | `-ConType String
+| `-Body
+|   `-InfixExpr 
+|     |-VarExpr +
+|     |-TryExpr 
+|     | `-AppExpr 
+|     |   |-VarExpr parse
+|     |   `-Field <anonymous>
+|     |     `-VarExpr a
+|     `-TryExpr 
+|       `-AppExpr 
+|         |-VarExpr parse
+|         `-Field <anonymous>
+|           `-VarExpr b
+|-FunDecl arguments <implicit return> 
+| |-Arg a
+| | `-ConType String
+| |-Arg b
+| | `-ConType String
+| `-Body
+|   `-AppExpr 
+|     |-VarExpr combine
+|     |-Field <anonymous>
+|     | `-TryExpr 
+|     |   `-AppExpr 
+|     |     |-VarExpr parse
+|     |     `-Field <anonymous>
+|     |       `-VarExpr a
+|     `-Field <anonymous>
+|       `-TryExpr 
+|         `-AppExpr 
+|           |-VarExpr parse
+|           `-Field <anonymous>
+|             `-VarExpr b
+|-FunDecl nested <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| |-Arg b
+| | `-ConType Int
+| `-Body
+|   `-TryExpr 
+|     `-NestedExpr 
+|       `-InfixExpr 
+|         |-VarExpr +
+|         |-AppExpr 
+|         | |-VarExpr lookup
+|         | `-Field <anonymous>
+|         |   `-VarExpr a
+|         `-AppExpr 
+|           |-VarExpr lookup
+|           `-Field <anonymous>
+|             `-VarExpr b
+|-FunDecl stacked <implicit return> 
+| |-Arg x
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-AppType 
+| |     |-ConType Maybe
+| |     `-ConType Int
+| `-Body
+|   `-TryExpr 
+|     `-NestedExpr 
+|       `-TryExpr 
+|         `-VarExpr x
+|-FunDecl chained <implicit return> 
+| |-Arg xs
+| | `-AppType 
+| |   |-ConType Array
+| |   `-ConType Row
+| `-Body
+|   `-FieldExpr 
+|     |-VarExpr name
+|     `-UnwrapExpr 
+|       `-AppExpr 
+|         |-FieldExpr 
+|         | |-VarExpr get
+|         | `-VarExpr xs
+|         `-Field <anonymous>
+|           `-LitExpr 0
+|-FunDecl deepChain <implicit return> 
+| |-Arg xs
+| | `-AppType 
+| |   |-ConType Array
+| |   `-ConType Row
+| `-Body
+|   `-AppExpr 
+|     `-FieldExpr 
+|       |-VarExpr length
+|       `-AppExpr 
+|         `-FieldExpr 
+|           |-VarExpr trim
+|           `-FieldExpr 
+|             |-VarExpr name
+|             `-UnwrapExpr 
+|               `-AppExpr 
+|                 |-FieldExpr 
+|                 | |-VarExpr get
+|                 | `-VarExpr xs
+|                 `-Field <anonymous>
+|                   `-LitExpr 0
+|-FunDecl twoChecks <implicit return> 
+| |-Arg xs
+| | `-AppType 
+| |   |-ConType Array
+| |   `-ConType Row
+| `-Body
+|   `-FieldExpr 
+|     |-VarExpr name
+|     `-UnwrapExpr 
+|       `-FieldExpr 
+|         |-VarExpr parent
+|         `-UnwrapExpr 
+|           `-AppExpr 
+|             |-FieldExpr 
+|             | |-VarExpr get
+|             | `-VarExpr xs
+|             `-Field <anonymous>
+|               `-LitExpr 0
+|-FunDecl indexed <implicit return> 
+| |-Arg rows
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-AppType 
+| |     |-ConType Array
+| |     `-ConType Row
+| `-Body
+|   `-FieldExpr 
+|     |-VarExpr name
+|     `-SubExpr 
+|       |-UnwrapExpr 
+|       | `-VarExpr rows
+|       `-Field <anonymous>
+|         `-LitExpr 0
+|-FunDecl invoked <implicit return> 
+| |-Arg f
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-FunType 
+| |     |-Arg <anonymous>
+| |     | `-ConType Int
+| |     `-ConType Int
+| |-Arg x
+| | `-ConType Int
+| `-Body
+|   `-AppExpr 
+|     |-UnwrapExpr 
+|     | `-VarExpr f
+|     `-Field <anonymous>
+|       `-VarExpr x
+|-FunDecl earlyThenIndex <implicit return> 
+| |-Arg rows
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-AppType 
+| |     |-ConType Array
+| |     `-ConType Row
+| `-Body
+|   `-FieldExpr 
+|     |-VarExpr name
+|     `-SubExpr 
+|       |-TryExpr 
+|       | `-VarExpr rows
+|       `-Field <anonymous>
+|         `-LitExpr 0
+|-FunDecl earlyThenCall <implicit return> 
+| |-Arg f
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-FunType 
+| |     |-Arg <anonymous>
+| |     | `-ConType Int
+| |     `-ConType Int
+| |-Arg x
+| | `-ConType Int
+| `-Body
+|   `-AppExpr 
+|     |-TryExpr 
+|     | `-VarExpr f
+|     `-Field <anonymous>
+|       `-VarExpr x
+|-FunDecl parenthesized <implicit return> 
+| |-Arg xs
+| | `-AppType 
+| |   |-ConType Array
+| |   `-ConType Row
+| `-Body
+|   `-FieldExpr 
+|     |-VarExpr name
+|     `-NestedExpr 
+|       `-TryExpr 
+|         `-AppExpr 
+|           |-FieldExpr 
+|           | |-VarExpr get
+|           | `-VarExpr xs
+|           `-Field <anonymous>
+|             `-LitExpr 0
+|-FunDecl methods <implicit return> 
+| |-Arg a
+| | `-ConType String
+| `-Body
+|   `-AppExpr 
+|     `-FieldExpr 
+|       |-VarExpr length
+|       `-AppExpr 
+|         `-FieldExpr 
+|           |-VarExpr trim
+|           `-NestedExpr 
+|             `-TryExpr 
+|               `-AppExpr 
+|                 |-VarExpr parse
+|                 `-Field <anonymous>
+|                   `-VarExpr a
+`-FunDecl coalesce <implicit return> 
+  |-Arg a
+  | `-AppType 
+  |   |-ConType Maybe
+  |   `-ConType Int
+  |-Arg b
+  | `-ConType Int
+  `-Body
+    `-InfixExpr 
+      |-VarExpr ??
+      |-VarExpr a
+      `-VarExpr b
+`-Fixity ?? infixl 3

@@ -1,0 +1,1328 @@
+@dropped = [0, 0, 0, 0]
+@log = [0, 0, 0, 0]
+
+drop$(Int) -> Int<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 8: Ptr
+    %v_3 = bitcast 0: Ptr
+    %v_4 = cmp_neq %v_2, %v_3: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Long
+    %v_9 = sub %v_8, 16: Long
+    %v_10 = bitcast %v_9: Ptr
+    %v_11 = load %v_10, 8: Ptr
+    call_complex %v_11, %v_2
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
+Try(Maybe(a), a, ()).toOutcome(Leaf)<complex>(%v_0: Ptr, %value: Ptr) {
+  b_1 {
+    %v_2 = loads %value, 4: Int
+    %v_3 = cmp_eq %v_2, 1: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, 1, 4
+    jmp b_7
+  }
+
+  b_4 {
+    %v_8 = add %value, 4: Ptr
+    %inner = alloca 4, 4: Ptr
+    copy %inner, %v_8, 4
+    %v_9 = alloca 8, 4: Ptr
+    store %v_9, 0, 4
+    %v_10 = add %v_9, 4: Ptr
+    copy %v_10, %inner, 4
+    jmp b_7
+  }
+
+  b_7 {
+    %v_11 = phi [b_4, %v_9], [b_5, %v_6]: Ptr
+    copy %v_0, %v_11, 8
+    ret 
+  }
+}
+
+Drop(Node).drop<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads @dropped, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @dropped, %v_2, 4
+    ret 
+  }
+}
+
+tail<complex>(%v_0: Ptr, %n: Int) {
+  b_1 {
+    %v_2 = alloca 20, 4: Ptr
+    call_complex node, %v_2, %n
+    %v_3 = alloca 20, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Node), %v_3, %v_2
+    %v_4 = loads %v_3, 4: Int
+    %v_5 = cmp_eq %v_4, 1: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_8 {
+    %v_9 = alloca 1, 1: Ptr
+    %v_10 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).fromExit(Int), %v_10
+    jmp b_11
+  }
+
+  b_7 {
+    %v_12 = add %v_3, 12: Ptr
+    %v_13 = loads %v_12, 4: Int
+    call_complex drop$Outcome(Node, ()), %v_3
+    %v_14 = alloca 8, 4: Ptr
+    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int), %v_14, %v_13
+    jmp b_11
+  }
+
+  b_11 {
+    %v_15 = phi [b_7, %v_14], [b_8, %v_10]: Ptr
+    copy %v_0, %v_15, 8
+    ret 
+  }
+
+  b_6 {
+    call_complex drop$Outcome(Node, ()), %v_3
+    jmp b_8
+  }
+}
+
+okOr<complex>(%r: Ptr, %fallback: Int): Int {
+  b_0 {
+    %v_1 = loads %r, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = add %r, 4: Ptr
+    %v = loads %v_6, 4: Int
+    jmp b_5
+  }
+
+  b_5 {
+    %v_7 = phi [b_3, %v], [b_4, %fallback]: Int
+    ret %v_7
+  }
+}
+
+Try(Maybe(a), a, ()).toOutcome((Int) -> Int)<complex>(%v_0: Ptr, %value: Ptr) {
+  b_1 {
+    %v_2 = loads %value, 4: Int
+    %v_3 = cmp_eq %v_2, 1: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_6 {
+    %v_7 = alloca 24, 8: Ptr
+    store %v_7, 1, 4
+    jmp b_8
+  }
+
+  b_4 {
+    %v_9 = add %value, 8: Ptr
+    %inner = alloca 16, 8: Ptr
+    copy %inner, %v_9, 16
+    %v_10 = alloca 24, 8: Ptr
+    store %v_10, 0, 4
+    %v_11 = add %v_10, 8: Ptr
+    copy %v_11, %inner, 16
+    jmp b_8
+  }
+
+  b_8 {
+    %v_12 = phi [b_4, %v_10], [b_6, %v_7]: Ptr
+    copy %v_0, %v_12, 24
+    ret 
+  }
+
+  b_5 {
+    call_complex drop$Maybe((Int) -> Int), %value
+    call_complex reclaim$Maybe((Int) -> Int), %value
+    jmp b_6
+  }
+}
+
+both<complex>(%v_0: Ptr, %n: Int) {
+  b_1 {
+    %v_2 = alloca 20, 4: Ptr
+    call_complex node, %v_2, %n
+    %v_3 = alloca 20, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Node), %v_3, %v_2
+    %v_4 = loads %v_3, 4: Int
+    %v_5 = cmp_eq %v_4, 1: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_8 {
+    %v_9 = alloca 1, 1: Ptr
+    %v_10 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).fromExit(Int), %v_10
+    copy %v_0, %v_10, 8
+    ret 
+  }
+
+  b_7 {
+    %v_11 = add %v_3, 4: Ptr
+    %v_12 = alloca 8, 4: Ptr
+    copy %v_12, %v_11, 8
+    call_complex drop$Outcome(Node, ()), %v_3
+    %v_13 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Leaf), %v_13, %v_12
+    %v_14 = loads %v_13, 4: Int
+    %v_15 = cmp_eq %v_14, 1: Int
+    je %v_15, b_16, b_17
+  }
+
+  b_16 {
+    %v_18 = alloca 1, 1: Ptr
+    %v_19 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).fromExit(Int), %v_19
+    jmp b_20
+  }
+
+  b_17 {
+    %v_21 = add %v_13, 4: Ptr
+    %v_22 = loads %v_21, 4: Int
+    %v_23 = alloca 8, 4: Ptr
+    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Leaf, Int), %v_23, %v_22
+    jmp b_20
+  }
+
+  b_20 {
+    %v_24 = phi [b_17, %v_23], [b_16, %v_19]: Ptr
+    copy %v_0, %v_24, 8
+    ret 
+  }
+
+  b_6 {
+    call_complex drop$Outcome(Node, ()), %v_3
+    jmp b_8
+  }
+}
+
+Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int)<complex>(%v_0: Ptr, %value: Int) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 1, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, %value, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+parenthesized<complex>(%v_0: Ptr, %n: Int) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 1, 4
+    %v_3 = alloca 20, 4: Ptr
+    call_complex node, %v_3, %n
+    %v_4 = alloca 20, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Node), %v_4, %v_3
+    %v_5 = loads %v_4, 4: Int
+    %v_6 = cmp_eq %v_5, 1: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_9 {
+    %v_10 = alloca 1, 1: Ptr
+    %v_11 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).fromExit(Int), %v_11
+    copy %v_0, %v_11, 8
+    ret 
+  }
+
+  b_8 {
+    %v_12 = add %v_4, 16: Ptr
+    %v_13 = loads %v_12, 4: Int
+    call_complex drop$Outcome(Node, ()), %v_4
+    %v_14 = add %v_2, 4: Ptr
+    store %v_14, %v_13, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+
+  b_7 {
+    call_complex drop$Outcome(Node, ()), %v_4
+    jmp b_9
+  }
+}
+
+leafFor<complex>(%v_0: Ptr, %n: Int) {
+  b_1 {
+    %v_2 = cmp_igt %n, 5: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = alloca 8, 4: Ptr
+    store %v_5, 1, 4
+    %v_6 = imul %n, 3: Int
+    %v_7 = add %v_5, 4: Ptr
+    store %v_7, %v_6, 4
+    copy %v_0, %v_5, 8
+    ret 
+  }
+
+  b_4 {
+    jmp b_8
+  }
+
+  b_8 {
+    %v_9 = alloca 8, 4: Ptr
+    store %v_9, 0, 4
+    copy %v_0, %v_9, 8
+    ret 
+  }
+}
+
+funvalue$twice<complex>(%env: Ptr, %x: Int): Int {
+  b_0 {
+    %v_1 = imul %x, 2: Int
+    ret %v_1
+  }
+}
+
+reclaim$Maybe((Int) -> Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_5 {
+    ret 
+  }
+
+  b_3 {
+    %v_6 = add %value, 8: Ptr
+    call_complex reclaim$(Int) -> Int, %v_6
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+}
+
+drop$Maybe(Node)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_5 {
+    ret 
+  }
+
+  b_3 {
+    %v_6 = add %value, 4: Ptr
+    call_complex Drop(Node).drop, %v_6
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+}
+
+twice<complex>(%x: Int): Int {
+  b_0 {
+    %v_1 = imul %x, 2: Int
+    ret %v_1
+  }
+}
+
+inArgument<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %v_1 = alloca 20, 4: Ptr
+    call_complex node, %v_1, %a
+    %v_2 = alloca 20, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Node), %v_2, %v_1
+    %v_3 = loads %v_2, 4: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = add %v_2, 16: Ptr
+    %v_8 = loads %v_7, 4: Int
+    call_complex drop$Outcome(Node, ()), %v_2
+    %v_9 = alloca 8, 4: Ptr
+    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int), %v_9, %v_8
+    jmp b_10
+  }
+
+  b_5 {
+    call_complex drop$Outcome(Node, ()), %v_2
+    %v_11 = alloca 1, 1: Ptr
+    %v_12 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).fromExit(Int), %v_12
+    jmp b_10
+  }
+
+  b_10 {
+    %v_13 = phi [b_6, %v_9], [b_5, %v_12]: Ptr
+    %v_14 = alloca 20, 4: Ptr
+    call_complex node, %v_14, %b
+    %v_15 = alloca 20, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Node), %v_15, %v_14
+    %v_16 = loads %v_15, 4: Int
+    %v_17 = cmp_eq %v_16, 1: Int
+    je %v_17, b_18, b_19
+  }
+
+  b_19 {
+    %v_20 = add %v_15, 16: Ptr
+    %v_21 = loads %v_20, 4: Int
+    call_complex drop$Outcome(Node, ()), %v_15
+    %v_22 = alloca 8, 4: Ptr
+    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int), %v_22, %v_21
+    jmp b_23
+  }
+
+  b_18 {
+    call_complex drop$Outcome(Node, ()), %v_15
+    %v_24 = alloca 1, 1: Ptr
+    %v_25 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).fromExit(Int), %v_25
+    jmp b_23
+  }
+
+  b_23 {
+    %v_26 = phi [b_19, %v_22], [b_18, %v_25]: Ptr
+    %v_27 = loads %v_13, 4: Int
+    %v_28 = cmp_eq %v_27, 1: Int
+    je %v_28, b_29, b_30
+  }
+
+  b_30 {
+    jmp b_31
+  }
+
+  b_29 {
+    %v_32 = add %v_13, 4: Ptr
+    %v = loads %v_32, 4: Int
+    jmp b_31
+  }
+
+  b_31 {
+    %v_33 = phi [b_29, %v], [b_30, 0]: Int
+    %v_34 = loads %v_26, 4: Int
+    %v_35 = cmp_eq %v_34, 1: Int
+    je %v_35, b_36, b_37
+  }
+
+  b_37 {
+    jmp b_38
+  }
+
+  b_36 {
+    %v_39 = add %v_26, 4: Ptr
+    %v = loads %v_39, 4: Int
+    jmp b_38
+  }
+
+  b_38 {
+    %v_40 = phi [b_36, %v], [b_37, 0]: Int
+    %v_41 = imul %v_40, 100: Int
+    %v_42 = add %v_33, %v_41: Int
+    ret %v_42
+  }
+}
+
+Try(Maybe(a), a, ()).fromExit(Int)<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 0, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+drop$Outcome(Node, ())<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_5 {
+    ret 
+  }
+
+  b_3 {
+    %v_6 = add %value, 4: Ptr
+    call_complex Drop(Node).drop, %v_6
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+}
+
+drop$Outcome((Int) -> Int, ())<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_5 {
+    ret 
+  }
+
+  b_3 {
+    %v_6 = add %value, 8: Ptr
+    call_complex drop$(Int) -> Int, %v_6
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+}
+
+Rewrap(Maybe(a), b, Maybe(b)).rewrap(Leaf, Int)<complex>(%v_0: Ptr, %value: Int) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 1, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, %value, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+pick<complex>(%a: Ptr, %b: Ptr): Int {
+  b_0 {
+    %v_1 = loads %a, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = add %a, 4: Ptr
+    %v = loads %v_6, 4: Int
+    jmp b_5
+  }
+
+  b_5 {
+    %v_7 = phi [b_3, %v], [b_4, 0]: Int
+    %v_8 = loads %b, 4: Int
+    %v_9 = cmp_eq %v_8, 1: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    jmp b_12
+  }
+
+  b_10 {
+    %v_13 = add %b, 4: Ptr
+    %v = loads %v_13, 4: Int
+    jmp b_12
+  }
+
+  b_12 {
+    %v_14 = phi [b_10, %v], [b_11, 0]: Int
+    %v_15 = imul %v_14, 100: Int
+    %v_16 = add %v_7, %v_15: Int
+    ret %v_16
+  }
+}
+
+checked<complex>(%v_0: Ptr, %n: Int) {
+  b_1 {
+    %v_2 = loads @log, 4: Int
+    %v_3 = add %v_2, 10: Int
+    store @log, %v_3, 4
+    %v_4 = cmp_ile %n, 0: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = alloca 20, 4: Ptr
+    store %v_7, 0, 4
+    %v_8 = add %v_7, 4: Ptr
+    store %v_8, %n, 4
+    copy %v_0, %v_7, 20
+    ret 
+  }
+
+  b_6 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = alloca 20, 4: Ptr
+    store %v_10, 1, 4
+    %v_11 = alloca 16, 4: Ptr
+    %v_12 = alloca 4, 4: Ptr
+    %v_13 = imul %n, 4: Int
+    store %v_12, %v_13, 4
+    %v_14 = alloca 8, 4: Ptr
+    call_complex leafFor, %v_14, %n
+    %v_15 = add %v_11, 8: Ptr
+    copy %v_15, %v_12, 4
+    copy %v_11, %v_14, 8
+    %v_16 = add %v_11, 12: Ptr
+    store %v_16, %n, 4
+    %v_17 = add %v_10, 4: Ptr
+    copy %v_17, %v_11, 16
+    copy %v_0, %v_10, 20
+    ret 
+  }
+}
+
+Try(Result(e, a), a, e).toOutcome(Int, Node)<complex>(%v_0: Ptr, %value: Ptr) {
+  b_1 {
+    %v_2 = loads %value, 4: Int
+    %v_3 = cmp_eq %v_2, 1: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = add %value, 4: Ptr
+    %v_7 = loads %v_6, 4: Int
+    %v_8 = alloca 20, 4: Ptr
+    store %v_8, 1, 4
+    %v_9 = add %v_8, 4: Ptr
+    store %v_9, %v_7, 4
+    jmp b_10
+  }
+
+  b_4 {
+    %v_11 = add %value, 4: Ptr
+    %inner = alloca 16, 4: Ptr
+    copy %inner, %v_11, 16
+    %v_12 = alloca 20, 4: Ptr
+    store %v_12, 0, 4
+    %v_13 = add %v_12, 4: Ptr
+    copy %v_13, %inner, 16
+    jmp b_10
+  }
+
+  b_10 {
+    %v_14 = phi [b_4, %v_12], [b_5, %v_8]: Ptr
+    copy %v_0, %v_14, 20
+    ret 
+  }
+}
+
+Rewrap(Result(e, a), b, Result(e, b)).rewrap(Int, Node, Int)<complex>(%v_0: Ptr, %value: Int) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 1, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, %value, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+reclaim$(Int) -> Int<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 8: Ptr
+    %v_3 = bitcast 0: Ptr
+    %v_4 = cmp_neq %v_2, %v_3: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    %v_8 = bitcast %v_7: Long
+    %v_9 = sub %v_8, 16: Long
+    %v_10 = bitcast %v_9: Ptr
+    %v_11 = add %v_10, 8: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    call_complex %v_12, %v_2
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
+drop$Outcome(Node, Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_5 {
+    ret 
+  }
+
+  b_3 {
+    %v_6 = add %value, 4: Ptr
+    call_complex Drop(Node).drop, %v_6
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+}
+
+twoChecks<complex>(%v_0: Ptr, %n: Int) {
+  b_1 {
+    %v_2 = alloca 20, 4: Ptr
+    call_complex node, %v_2, %n
+    %v_3 = alloca 20, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Node), %v_3, %v_2
+    %v_4 = loads %v_3, 4: Int
+    %v_5 = cmp_eq %v_4, 1: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_8 {
+    %v_9 = alloca 1, 1: Ptr
+    %v_10 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).fromExit(Int), %v_10
+    jmp b_11
+  }
+
+  b_7 {
+    %v_12 = add %v_3, 4: Ptr
+    %v_13 = alloca 8, 4: Ptr
+    copy %v_13, %v_12, 8
+    call_complex drop$Outcome(Node, ()), %v_3
+    %v_14 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Leaf), %v_14, %v_13
+    %v_15 = loads %v_14, 4: Int
+    %v_16 = cmp_eq %v_15, 1: Int
+    je %v_16, b_17, b_18
+  }
+
+  b_17 {
+    %v_19 = alloca 1, 1: Ptr
+    %v_20 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).fromExit(Int), %v_20
+    jmp b_11
+  }
+
+  b_18 {
+    %v_21 = add %v_14, 4: Ptr
+    %v_22 = loads %v_21, 4: Int
+    %v_23 = alloca 8, 4: Ptr
+    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int), %v_23, %v_22
+    jmp b_11
+  }
+
+  b_11 {
+    %v_24 = phi [b_18, %v_23], [b_8, %v_10], [b_17, %v_20]: Ptr
+    copy %v_0, %v_24, 8
+    ret 
+  }
+
+  b_6 {
+    call_complex drop$Outcome(Node, ()), %v_3
+    jmp b_8
+  }
+}
+
+reclaim$Outcome((Int) -> Int, ())<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_5 {
+    ret 
+  }
+
+  b_3 {
+    %v_6 = add %value, 8: Ptr
+    call_complex reclaim$(Int) -> Int, %v_6
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+}
+
+drop$Maybe((Int) -> Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = loads %value, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_5 {
+    ret 
+  }
+
+  b_3 {
+    %v_6 = add %value, 8: Ptr
+    call_complex drop$(Int) -> Int, %v_6
+    jmp b_5
+  }
+
+  b_4 {
+    jmp b_5
+  }
+}
+
+maybeFn<complex>(%v_0: Ptr, %n: Int) {
+  b_1 {
+    %v_2 = cmp_igt %n, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    %v_5 = alloca 24, 8: Ptr
+    store %v_5, 1, 4
+    %v_6 = alloca 16, 8: Ptr
+    store %v_6, funvalue$twice, 8
+    %v_7 = bitcast 0: Ptr
+    %v_8 = add %v_6, 8: Ptr
+    store %v_8, %v_7, 8
+    %v_9 = add %v_5, 8: Ptr
+    copy %v_9, %v_6, 16
+    copy %v_0, %v_5, 24
+    ret 
+  }
+
+  b_4 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = alloca 24, 8: Ptr
+    store %v_11, 0, 4
+    copy %v_0, %v_11, 24
+    ret 
+  }
+}
+
+called<complex>(%v_0: Ptr, %n: Int) {
+  b_1 {
+    %v_2 = alloca 24, 8: Ptr
+    call_complex maybeFn, %v_2, %n
+    %v_3 = alloca 24, 8: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome((Int) -> Int), %v_3, %v_2
+    %v_4 = loads %v_3, 4: Int
+    %v_5 = cmp_eq %v_4, 1: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_8 {
+    %v_9 = alloca 1, 1: Ptr
+    %v_10 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).fromExit(Int), %v_10
+    jmp b_11
+  }
+
+  b_7 {
+    %v_12 = add %v_3, 8: Ptr
+    %v_13 = add %v_12, 8: Ptr
+    %v_14 = load %v_12, 8: Ptr
+    %v_15 = load %v_13, 8: Ptr
+    %v_16 = call_complex %v_14, %v_15, 21: Int
+    call_complex drop$Outcome((Int) -> Int, ()), %v_3
+    call_complex reclaim$Outcome((Int) -> Int, ()), %v_3
+    %v_17 = alloca 8, 4: Ptr
+    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap((Int) -> Int, Int), %v_17, %v_16
+    jmp b_11
+  }
+
+  b_11 {
+    %v_18 = phi [b_7, %v_17], [b_8, %v_10]: Ptr
+    copy %v_0, %v_18, 8
+    ret 
+  }
+
+  b_6 {
+    call_complex drop$Outcome((Int) -> Int, ()), %v_3
+    call_complex reclaim$Outcome((Int) -> Int, ()), %v_3
+    jmp b_8
+  }
+}
+
+node<complex>(%v_0: Ptr, %n: Int) {
+  b_1 {
+    %v_2 = loads @log, 4: Int
+    %v_3 = add %v_2, 1: Int
+    store @log, %v_3, 4
+    %v_4 = cmp_ile %n, 0: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = alloca 20, 4: Ptr
+    store %v_7, 0, 4
+    copy %v_0, %v_7, 20
+    ret 
+  }
+
+  b_6 {
+    jmp b_8
+  }
+
+  b_8 {
+    %v_9 = alloca 20, 4: Ptr
+    store %v_9, 1, 4
+    %v_10 = alloca 16, 4: Ptr
+    %v_11 = alloca 4, 4: Ptr
+    %v_12 = imul %n, 2: Int
+    store %v_11, %v_12, 4
+    %v_13 = alloca 8, 4: Ptr
+    call_complex leafFor, %v_13, %n
+    %v_14 = add %v_10, 8: Ptr
+    copy %v_14, %v_11, 4
+    copy %v_10, %v_13, 8
+    %v_15 = add %v_10, 12: Ptr
+    store %v_15, %n, 4
+    %v_16 = add %v_9, 4: Ptr
+    copy %v_16, %v_10, 16
+    copy %v_0, %v_9, 20
+    ret 
+  }
+}
+
+Try(Maybe(a), a, ()).toOutcome(Node)<complex>(%v_0: Ptr, %value: Ptr) {
+  b_1 {
+    %v_2 = loads %value, 4: Int
+    %v_3 = cmp_eq %v_2, 1: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_6 {
+    %v_7 = alloca 20, 4: Ptr
+    store %v_7, 1, 4
+    jmp b_8
+  }
+
+  b_4 {
+    %v_9 = add %value, 4: Ptr
+    %inner = alloca 16, 4: Ptr
+    copy %inner, %v_9, 16
+    %v_10 = alloca 20, 4: Ptr
+    store %v_10, 0, 4
+    %v_11 = add %v_10, 4: Ptr
+    copy %v_11, %inner, 16
+    jmp b_8
+  }
+
+  b_8 {
+    %v_12 = phi [b_4, %v_10], [b_6, %v_7]: Ptr
+    copy %v_0, %v_12, 20
+    ret 
+  }
+
+  b_5 {
+    call_complex drop$Maybe(Node), %value
+    jmp b_6
+  }
+}
+
+Rewrap(Maybe(a), b, Maybe(b)).rewrap((Int) -> Int, Int)<complex>(%v_0: Ptr, %value: Int) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 1, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, %value, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+unwrapOr<complex>(%m: Ptr, %fallback: Int): Int {
+  b_0 {
+    %v_1 = loads %m, 4: Int
+    %v_2 = cmp_eq %v_1, 1: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_3 {
+    %v_6 = add %m, 4: Ptr
+    %v = loads %v_6, 4: Int
+    jmp b_5
+  }
+
+  b_5 {
+    %v_7 = phi [b_3, %v], [b_4, %fallback]: Int
+    ret %v_7
+  }
+}
+
+Try(Result(e, a), a, e).fromExit(Int, Int)<complex>(%v_0: Ptr, %reason: Int) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 0, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, %reason, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+viaResult<complex>(%v_0: Ptr, %n: Int) {
+  b_1 {
+    %v_2 = alloca 20, 4: Ptr
+    call_complex checked, %v_2, %n
+    %v_3 = alloca 20, 4: Ptr
+    call_complex Try(Result(e, a), a, e).toOutcome(Int, Node), %v_3, %v_2
+    %v_4 = loads %v_3, 4: Int
+    %v_5 = cmp_eq %v_4, 1: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    %v_8 = add %v_3, 4: Ptr
+    %v_9 = loads %v_8, 4: Int
+    call_complex drop$Outcome(Node, Int), %v_3
+    %v_10 = alloca 8, 4: Ptr
+    call_complex Try(Result(e, a), a, e).fromExit(Int, Int), %v_10, %v_9
+    jmp b_11
+  }
+
+  b_7 {
+    %v_12 = add %v_3, 16: Ptr
+    %v_13 = loads %v_12, 4: Int
+    call_complex drop$Outcome(Node, Int), %v_3
+    %v_14 = alloca 8, 4: Ptr
+    call_complex Rewrap(Result(e, a), b, Result(e, b)).rewrap(Int, Node, Int), %v_14, %v_13
+    jmp b_11
+  }
+
+  b_11 {
+    %v_15 = phi [b_7, %v_14], [b_6, %v_10]: Ptr
+    copy %v_0, %v_15, 8
+    ret 
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    store @log, 0, 4
+    store @dropped, 0, 4
+    %v_1 = alloca 8, 4: Ptr
+    call_complex tail, %v_1, 6
+    %v_2 = loads %v_1, 4: Int
+    %v_3 = cmp_eq %v_2, 1: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_4 {
+    %v_7 = add %v_1, 4: Ptr
+    %v = loads %v_7, 4: Int
+    jmp b_6
+  }
+
+  b_6 {
+    %v_8 = phi [b_4, %v], [b_5, 0]: Int
+    %v_9 = alloca 8, 4: Ptr
+    call_complex tail, %v_9, 18446744073709551615
+    %v_10 = loads %v_9, 4: Int
+    %v_11 = cmp_eq %v_10, 1: Int
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    jmp b_14
+  }
+
+  b_12 {
+    %v_15 = add %v_9, 4: Ptr
+    %v = loads %v_15, 4: Int
+    jmp b_14
+  }
+
+  b_14 {
+    %v_16 = phi [b_12, %v], [b_13, 0]: Int
+    %v_17 = alloca 8, 4: Ptr
+    call_complex twoChecks, %v_17, 6
+    %v_18 = loads %v_17, 4: Int
+    %v_19 = cmp_eq %v_18, 1: Int
+    je %v_19, b_20, b_21
+  }
+
+  b_21 {
+    jmp b_22
+  }
+
+  b_20 {
+    %v_23 = add %v_17, 4: Ptr
+    %v = loads %v_23, 4: Int
+    jmp b_22
+  }
+
+  b_22 {
+    %v_24 = phi [b_20, %v], [b_21, 0]: Int
+    %v_25 = alloca 8, 4: Ptr
+    call_complex twoChecks, %v_25, 3
+    %v_26 = loads %v_25, 4: Int
+    %v_27 = cmp_eq %v_26, 1: Int
+    je %v_27, b_28, b_29
+  }
+
+  b_29 {
+    jmp b_30
+  }
+
+  b_28 {
+    %v_31 = add %v_25, 4: Ptr
+    %v = loads %v_31, 4: Int
+    jmp b_30
+  }
+
+  b_30 {
+    %v_32 = phi [b_28, %v], [b_29, 0]: Int
+    %v_33 = alloca 8, 4: Ptr
+    call_complex twoChecks, %v_33, 18446744073709551615
+    %v_34 = loads %v_33, 4: Int
+    %v_35 = cmp_eq %v_34, 1: Int
+    je %v_35, b_36, b_37
+  }
+
+  b_37 {
+    jmp b_38
+  }
+
+  b_36 {
+    %v_39 = add %v_33, 4: Ptr
+    %v = loads %v_39, 4: Int
+    jmp b_38
+  }
+
+  b_38 {
+    %v_40 = phi [b_36, %v], [b_37, 0]: Int
+    %v_41 = alloca 8, 4: Ptr
+    call_complex viaResult, %v_41, 4
+    %v_42 = loads %v_41, 4: Int
+    %v_43 = cmp_eq %v_42, 1: Int
+    je %v_43, b_44, b_45
+  }
+
+  b_45 {
+    jmp b_46
+  }
+
+  b_44 {
+    %v_47 = add %v_41, 4: Ptr
+    %v = loads %v_47, 4: Int
+    jmp b_46
+  }
+
+  b_46 {
+    %v_48 = phi [b_44, %v], [b_45, 0]: Int
+    %v_49 = alloca 8, 4: Ptr
+    call_complex viaResult, %v_49, 18446744073709551614
+    %v_50 = loads %v_49, 4: Int
+    %v_51 = cmp_eq %v_50, 1: Int
+    je %v_51, b_52, b_53
+  }
+
+  b_53 {
+    jmp b_54
+  }
+
+  b_52 {
+    %v_55 = add %v_49, 4: Ptr
+    %v = loads %v_55, 4: Int
+    jmp b_54
+  }
+
+  b_54 {
+    %v_56 = phi [b_52, %v], [b_53, 0]: Int
+    %h = call_complex inArgument, 2, 7: Int
+    %v_57 = alloca 8, 4: Ptr
+    call_complex both, %v_57, 8
+    %v_58 = loads %v_57, 4: Int
+    %v_59 = cmp_eq %v_58, 1: Int
+    je %v_59, b_60, b_61
+  }
+
+  b_61 {
+    jmp b_62
+  }
+
+  b_60 {
+    %v_63 = add %v_57, 4: Ptr
+    %v = loads %v_63, 4: Int
+    jmp b_62
+  }
+
+  b_62 {
+    %v_64 = phi [b_60, %v], [b_61, 0]: Int
+    %v_65 = alloca 8, 4: Ptr
+    call_complex both, %v_65, 2
+    %v_66 = loads %v_65, 4: Int
+    %v_67 = cmp_eq %v_66, 1: Int
+    je %v_67, b_68, b_69
+  }
+
+  b_69 {
+    jmp b_70
+  }
+
+  b_68 {
+    %v_71 = add %v_65, 4: Ptr
+    %v = loads %v_71, 4: Int
+    jmp b_70
+  }
+
+  b_70 {
+    %v_72 = phi [b_68, %v], [b_69, 0]: Int
+    %v_73 = alloca 8, 4: Ptr
+    call_complex both, %v_73, 18446744073709551615
+    %v_74 = loads %v_73, 4: Int
+    %v_75 = cmp_eq %v_74, 1: Int
+    je %v_75, b_76, b_77
+  }
+
+  b_77 {
+    jmp b_78
+  }
+
+  b_76 {
+    %v_79 = add %v_73, 4: Ptr
+    %v = loads %v_79, 4: Int
+    jmp b_78
+  }
+
+  b_78 {
+    %v_80 = phi [b_76, %v], [b_77, 0]: Int
+    %v_81 = alloca 8, 4: Ptr
+    call_complex parenthesized, %v_81, 5
+    %v_82 = loads %v_81, 4: Int
+    %v_83 = cmp_eq %v_82, 1: Int
+    je %v_83, b_84, b_85
+  }
+
+  b_85 {
+    jmp b_86
+  }
+
+  b_84 {
+    %v_87 = add %v_81, 4: Ptr
+    %v = loads %v_87, 4: Int
+    jmp b_86
+  }
+
+  b_86 {
+    %v_88 = phi [b_84, %v], [b_85, 0]: Int
+    %v_89 = alloca 8, 4: Ptr
+    call_complex parenthesized, %v_89, 18446744073709551615
+    %v_90 = loads %v_89, 4: Int
+    %v_91 = cmp_eq %v_90, 1: Int
+    je %v_91, b_92, b_93
+  }
+
+  b_93 {
+    jmp b_94
+  }
+
+  b_92 {
+    %v_95 = add %v_89, 4: Ptr
+    %v = loads %v_95, 4: Int
+    jmp b_94
+  }
+
+  b_94 {
+    %v_96 = phi [b_92, %v], [b_93, 0]: Int
+    %v_97 = alloca 8, 4: Ptr
+    call_complex called, %v_97, 1
+    %v_98 = loads %v_97, 4: Int
+    %v_99 = cmp_eq %v_98, 1: Int
+    je %v_99, b_100, b_101
+  }
+
+  b_101 {
+    jmp b_102
+  }
+
+  b_100 {
+    %v_103 = add %v_97, 4: Ptr
+    %v = loads %v_103, 4: Int
+    jmp b_102
+  }
+
+  b_102 {
+    %v_104 = phi [b_100, %v], [b_101, 0]: Int
+    %v_105 = alloca 8, 4: Ptr
+    call_complex called, %v_105, 18446744073709551615
+    %v_106 = loads %v_105, 4: Int
+    %v_107 = cmp_eq %v_106, 1: Int
+    je %v_107, b_108, b_109
+  }
+
+  b_109 {
+    jmp b_110
+  }
+
+  b_108 {
+    %v_111 = add %v_105, 4: Ptr
+    %v = loads %v_111, 4: Int
+    jmp b_110
+  }
+
+  b_110 {
+    %v_112 = phi [b_108, %v], [b_109, 0]: Int
+    %v_113 = add %v_8, %v_16: Int
+    %v_114 = add %v_113, %v_24: Int
+    %v_115 = add %v_114, %v_32: Int
+    %v_116 = add %v_115, %v_40: Int
+    %v_117 = add %v_116, %v_48: Int
+    %v_118 = add %v_117, %v_56: Int
+    %v_119 = add %v_118, %h: Int
+    %v_120 = add %v_119, %v_64: Int
+    %v_121 = add %v_120, %v_72: Int
+    %v_122 = add %v_121, %v_80: Int
+    %v_123 = add %v_122, %v_88: Int
+    %v_124 = add %v_123, %v_96: Int
+    %v_125 = add %v_124, %v_104: Int
+    %sum = add %v_125, %v_112: Int
+    %v_126 = loads @dropped, 4: Int
+    %v_127 = imul %v_126, 1000: Int
+    %v_128 = add %sum, %v_127: Int
+    %v_129 = loads @log, 4: Int
+    %v_130 = imul %v_129, 100000: Int
+    %v_131 = add %v_128, %v_130: Int
+    ret %v_131
+  }
+}
+

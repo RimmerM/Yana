@@ -1292,6 +1292,14 @@ static void collectCalls(ast::ParseBase parse, ast::Expr expr, Array<DefaultCall
         case ast::Expr::Is:
             walk(parse[expr.is]->value);
             break;
+        case ast::Expr::Try:
+            // The `Try` calls `?` itself makes are Core's and are reached by class rather than by
+            // name, so there is no callee here to collect - only the operand's own calls.
+            walkPointer(expr.tryValue);
+            break;
+        case ast::Expr::Unwrap:
+            walkPointer(expr.unwrap);
+            break;
         default:
             // Error, Var, Continue and the literals call nothing. A bare name is not a call today:
             // function values are rejected by the resolver, so a class function's name can only

@@ -54,6 +54,8 @@ struct Printer {
             case Expr::Break: printBreakExpr(expr); break;
             case Expr::Continue: stream.writeString("ContinueExpr"_v); break;
             case Expr::Is: printIsExpr(expr); break;
+            case Expr::Try: printTryExpr(expr); break;
+            case Expr::Unwrap: printUnwrapExpr(expr); break;
         }
     }
 
@@ -490,6 +492,20 @@ private:
         makeLevel();
         toString(test->value, false);
         toString(test->pat, true);
+        removeLevel();
+    }
+
+    void printUnwrapExpr(Expr& e) {
+        stream.writeString("UnwrapExpr "_v);
+        makeLevel();
+        toString(*base[e.unwrap], true);
+        removeLevel();
+    }
+
+    void printTryExpr(Expr& e) {
+        stream.writeString("TryExpr "_v);
+        makeLevel();
+        toString(*base[e.tryValue], true);
         removeLevel();
     }
 

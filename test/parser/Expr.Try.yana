@@ -1,0 +1,56 @@
+-- `x?`, the early-exit suffix. A suffix of the chain, alongside a call, a subscript and a field,
+-- so what it applies to is whatever the chain built up to that point and never more.
+
+fn statement(text: String) = let v = parse(text)?
+
+-- Tighter than every infix operator, which is what makes this two unwrappings and one addition
+-- rather than one unwrapping of a sum.
+fn operands(a: String, b: String) = parse(a)? + parse(b)?
+
+-- Value position - the case the guard form cannot express, and the reason `?` has a syntax of its
+-- own rather than being spelled `| else -> return`.
+fn arguments(a: String, b: String) = combine(parse(a)?, parse(b)?)
+
+-- On a parenthesized expression, which is how it reaches something that is not a chain.
+fn nested(a: Int, b: Int) = (lookup(a) + lookup(b))?
+
+-- Stacked, for a carrier whose payload is itself one. Parenthesized for the reason below.
+fn stacked(x: Maybe(Maybe(Int))) = (x?)?
+
+{-
+   `?.` is its own lexeme, and its own operator.
+
+   A reserved operator is a whole symbol *run*, so `?.` would otherwise be one ordinary `VarSym` -
+   the rule that makes `<-` a lexeme rather than `<` and `-`. It is reserved instead, because the two
+   readings of `x?.name` mean different things and the commoner of them would otherwise be the one
+   nobody could write: `?.` skips to the end of the chain, and `(x?).name` leaves the function.
+
+   Both spellings are below. `??` is still an ordinary operator a program may declare, which is what
+   splitting a leading `?` off every run would have cost.
+-}
+fn chained(xs: Array(Row)) = xs.get(0)?.name
+
+fn deepChain(xs: Array(Row)) = xs.get(0)?.name.trim().length()
+
+fn twoChecks(xs: Array(Row)) = xs.get(0)?.parent?.name
+
+-- The optional subscript and the optional call. `?.` builds the unwrapping and what follows is an
+-- ordinary chain suffix, so all three spellings are one node with a different suffix on it.
+fn indexed(rows: Maybe(Array(Row))) = rows?.[0].name
+
+fn invoked(f: Maybe((Int) -> Int), x: Int) = f?.(x)
+
+-- Written `?[` and `?(`, these are the *other* operator followed by an ordinary suffix - the one
+-- that leaves the enclosing function. That is why the brackets go after the `?.`.
+fn earlyThenIndex(rows: Maybe(Array(Row))) = rows?[0].name
+
+fn earlyThenCall(f: Maybe((Int) -> Int), x: Int) = f?(x)
+
+-- The other operator, on the same shape. Parentheses end a chain, so this is `?` and then a field.
+fn parenthesized(xs: Array(Row)) = (xs.get(0)?).name
+
+fn methods(a: String) = (parse(a)?).trim().length()
+
+infixl 3 ??
+
+fn coalesce(a: Maybe(Int), b: Int) = a ?? b

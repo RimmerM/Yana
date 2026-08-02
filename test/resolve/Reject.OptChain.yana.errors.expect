@@ -1,0 +1,5 @@
+15:37: error: `?.` produces Maybe(Int) rather than Int - a chain containing it comes back wrapped, because the skip goes to the end of the chain and not out of this function. `?` is the operator that leaves, so write `(x?).field` if that is what was meant
+18:38: error: `?.` needs Bag to say which of its cases means "carry on", and it has no `Try` instance
+22:48: error: unknown field missing
+27:53: error: this `?.` skips carrying Int, and the chain it is in comes back carrying () - no `Widen` instance relates the two
+40:40: error: `?.` on Box(Leaf) has to put what the rest of this chain produced - Int - back into the same kind of wrapper, and there is no `Rewrap` instance saying which type that is

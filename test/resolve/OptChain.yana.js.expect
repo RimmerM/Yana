@@ -1,0 +1,346 @@
+"use strict";
+var log = 0;
+var dropped = 0;
+
+// Core
+function Try_Maybe_a_a_toOutcome_Node(value) {
+  var v1;
+  if (!(value === null)) {
+    v1 = value;
+  } else {
+    drop$Maybe_Node({ $v: value });
+    v1 = null;
+  }
+  return v1;
+}
+
+function Rewrap_Maybe_a_b_Maybe_b_rewrap_Node_Int(value) {
+  return value;
+}
+
+function Try_Maybe_a_a_fromExit_Int() {
+  return null;
+}
+
+function Try_Maybe_a_a_toOutcome_Leaf(value) {
+  var v1;
+  if (!(value === null)) {
+    v1 = value;
+  } else {
+    v1 = null;
+  }
+  return v1;
+}
+
+function Try_Result_e_a_a_e_toOutcome_Int_Node(value) {
+  var v1;
+  if (value.$tag === 1) {
+    v1 = { $tag: 0, $p: value.$p };
+  } else {
+    v1 = { $tag: 1, $p: value.$p };
+  }
+  return v1;
+}
+
+function Rewrap_Result_e_a_b_Result_e_b_rewrap_Int_Node_Int(value) {
+  return { $tag: 1, $p: value };
+}
+
+function Try_Result_e_a_a_e_fromExit_Int_Int(reason) {
+  return { $tag: 0, $p: reason };
+}
+
+function Rewrap_Maybe_a_b_Maybe_b_rewrap_Leaf_Int(value) {
+  return value;
+}
+
+function Try_Maybe_a_a_toOutcome_Int_sub_gt_Int(value) {
+  var v1;
+  if (!(value === null)) {
+    v1 = value;
+  } else {
+    drop$Maybe_Int_sub_gt_Int({ $v: value });
+    v1 = null;
+  }
+  return v1;
+}
+
+function Rewrap_Maybe_a_b_Maybe_b_rewrap_Int_sub_gt_Int_Int(value) {
+  return value;
+}
+
+function drop$Maybe_Node(value) {
+  if (!(value.$v === null)) {
+    Drop_Node_drop(value.$v);
+  }
+  return;
+}
+
+function drop$Maybe_Int_sub_gt_Int(value) {
+  if (!(value.$v === null)) {
+    drop$_Int_sub_gt_Int({ $v: value.$v });
+  }
+  return;
+}
+
+function drop$_Int_sub_gt_Int(value) {
+  var v1 = value.$v.$e;
+  if (v1 != null) {
+    value.$v.$h[0](v1);
+  }
+  return;
+}
+
+function reclaim$Maybe_Int_sub_gt_Int(value) {
+  if (!(value.$v === null)) {
+  }
+  return;
+}
+
+function reclaim$_Int_sub_gt_Int(value) {
+  var v1 = value.$v.$e;
+  if (v1 != null) {
+    value.$v.$h[8](v1);
+  }
+  return;
+}
+
+// ResolveTest
+function leafFor(n) {
+  if (n > 5) {
+    return { value: Math.imul(n, 3) | 0 };
+  } else {
+    return null;
+  }
+}
+
+function node(n) {
+  log = log + 1 | 0;
+  if (n <= 0) {
+    return null;
+  } else {
+    var v15 = { inner: { deep: { value: 0 } }, leaf: null, id: 0 };
+    var v18 = { inner: { deep: { value: 0 } }, leaf: null, id: 0 };
+    var v19 = { deep: { value: Math.imul(n, 2) | 0 } };
+    var v26 = leafFor(n);
+    v18.inner = v19;
+    v18.leaf = v26;
+    v18.id = n;
+    v15 = v18;
+    return v15;
+  }
+}
+
+function checked(n) {
+  log = log + 10 | 0;
+  if (n <= 0) {
+    return { $tag: 0, $p: n };
+  } else {
+    var v16 = { $tag: 1, $p: null };
+    var v19 = { inner: { deep: { value: 0 } }, leaf: null, id: 0 };
+    var v20 = { deep: { value: Math.imul(n, 4) | 0 } };
+    var v27 = leafFor(n);
+    v19.inner = v20;
+    v19.leaf = v27;
+    v19.id = n;
+    v16.$p = v19;
+    return v16;
+  }
+}
+
+function tail(n) {
+  var v17;
+  var v3 = Try_Maybe_a_a_toOutcome_Node(node(n));
+  if (v3 === null) {
+    drop$Outcome_Node({ $v: v3 });
+    v17 = Try_Maybe_a_a_fromExit_Int();
+  } else {
+    var v11 = v3.inner.deep.value;
+    drop$Outcome_Node({ $v: v3 });
+    v17 = Rewrap_Maybe_a_b_Maybe_b_rewrap_Node_Int(v11);
+  }
+  return v17;
+}
+
+function twoChecks(n) {
+  var v26;
+  var v3 = Try_Maybe_a_a_toOutcome_Node(node(n));
+  if (v3 === null) {
+    drop$Outcome_Node({ $v: v3 });
+    v26 = Try_Maybe_a_a_fromExit_Int();
+  } else {
+    var v10 = v3.leaf === null ? null : { value: v3.leaf.value };
+    drop$Outcome_Node({ $v: v3 });
+    var v11 = Try_Maybe_a_a_toOutcome_Leaf(v10);
+    if (v11 === null) {
+      v26 = Try_Maybe_a_a_fromExit_Int();
+    } else {
+      v26 = Rewrap_Maybe_a_b_Maybe_b_rewrap_Node_Int(v11.value);
+    }
+  }
+  return v26;
+}
+
+function viaResult(n) {
+  var v15;
+  var v3 = Try_Result_e_a_a_e_toOutcome_Int_Node(checked(n));
+  if (v3.$tag === 1) {
+    var v8 = v3.$p;
+    drop$Outcome_Node_Int(v3);
+    v15 = Try_Result_e_a_a_e_fromExit_Int_Int(v8);
+  } else {
+    var v10 = v3.$p.id;
+    drop$Outcome_Node_Int(v3);
+    v15 = Rewrap_Result_e_a_b_Result_e_b_rewrap_Int_Node_Int(v10);
+  }
+  return v15;
+}
+
+function pick(a, b) {
+  return unwrapOr(a, 0) + (Math.imul(unwrapOr(b, 0), 100) | 0) | 0;
+}
+
+function inArgument(a, b) {
+  var v16;
+  var v31;
+  var v4 = Try_Maybe_a_a_toOutcome_Node(node(a));
+  if (v4 === null) {
+    drop$Outcome_Node({ $v: v4 });
+    v16 = Try_Maybe_a_a_fromExit_Int();
+  } else {
+    var v10 = v4.id;
+    drop$Outcome_Node({ $v: v4 });
+    v16 = Rewrap_Maybe_a_b_Maybe_b_rewrap_Node_Int(v10);
+  }
+  var v19 = Try_Maybe_a_a_toOutcome_Node(node(b));
+  if (v19 === null) {
+    drop$Outcome_Node({ $v: v19 });
+    v31 = Try_Maybe_a_a_fromExit_Int();
+  } else {
+    var v25 = v19.id;
+    drop$Outcome_Node({ $v: v19 });
+    v31 = Rewrap_Maybe_a_b_Maybe_b_rewrap_Node_Int(v25);
+  }
+  return unwrapOr(v16, 0) + (Math.imul(unwrapOr(v31, 0), 100) | 0) | 0;
+}
+
+function both(n) {
+  var v26;
+  var v3 = Try_Maybe_a_a_toOutcome_Node(node(n));
+  if (v3 === null) {
+    drop$Outcome_Node({ $v: v3 });
+    return Try_Maybe_a_a_fromExit_Int();
+  } else {
+    var v13 = v3.leaf === null ? null : { value: v3.leaf.value };
+    drop$Outcome_Node({ $v: v3 });
+    var v14 = Try_Maybe_a_a_toOutcome_Leaf(v13);
+    if (v14 === null) {
+      v26 = Try_Maybe_a_a_fromExit_Int();
+    } else {
+      v26 = Rewrap_Maybe_a_b_Maybe_b_rewrap_Leaf_Int(v14.value);
+    }
+    return v26;
+  }
+}
+
+function parenthesized(n) {
+  var v1 = null;
+  var v6 = Try_Maybe_a_a_toOutcome_Node(node(n));
+  if (v6 === null) {
+    drop$Outcome_Node({ $v: v6 });
+    return Try_Maybe_a_a_fromExit_Int();
+  } else {
+    var v15 = v6.id;
+    drop$Outcome_Node({ $v: v6 });
+    v1 = v15;
+    return v1;
+  }
+}
+
+function twice(x) {
+  return Math.imul(x, 2) | 0;
+}
+
+function maybeFn(n) {
+  if (n > 0) {
+    return funvalue$twice;
+  } else {
+    return null;
+  }
+}
+
+function called(n) {
+  var v16;
+  var v3 = Try_Maybe_a_a_toOutcome_Int_sub_gt_Int(maybeFn(n));
+  if (v3 === null) {
+    drop$Outcome_Int_sub_gt_Int({ $v: v3 });
+    v16 = Try_Maybe_a_a_fromExit_Int();
+  } else {
+    var v10 = v3(21);
+    drop$Outcome_Int_sub_gt_Int({ $v: v3 });
+    v16 = Rewrap_Maybe_a_b_Maybe_b_rewrap_Int_sub_gt_Int_Int(v10);
+  }
+  return v16;
+}
+
+function main() {
+  log = 0;
+  dropped = 0;
+  return (((((((((((((((unwrapOr(tail(6), 0) + unwrapOr(tail(-1), 0) | 0) + unwrapOr(twoChecks(6), 0) | 0) + unwrapOr(twoChecks(3), 0) | 0) + unwrapOr(twoChecks(-1), 0) | 0) + okOr(viaResult(4), 0) | 0) + okOr(viaResult(-2), 0) | 0) + inArgument(2, 7) | 0) + unwrapOr(both(8), 0) | 0) + unwrapOr(both(2), 0) | 0) + unwrapOr(both(-1), 0) | 0) + unwrapOr(parenthesized(5), 0) | 0) + unwrapOr(parenthesized(-1), 0) | 0) + unwrapOr(called(1), 0) | 0) + unwrapOr(called(-1), 0) | 0) + (Math.imul(dropped, 1000) | 0) | 0) + (Math.imul(log, 100000) | 0) | 0;
+}
+
+function unwrapOr(m, fallback) {
+  var v9;
+  if (!(m === null)) {
+    v9 = m;
+  } else {
+    v9 = fallback;
+  }
+  return v9;
+}
+
+function okOr(r, fallback) {
+  var v10;
+  if (r.$tag === 1) {
+    v10 = r.$p;
+  } else {
+    v10 = fallback;
+  }
+  return v10;
+}
+
+function Drop_Node_drop(value) {
+  dropped = dropped + 1 | 0;
+  return;
+}
+
+function funvalue$twice(x) {
+  return Math.imul(x, 2) | 0;
+}
+
+function drop$Outcome_Node(value) {
+  if (!(value.$v === null)) {
+    Drop_Node_drop(value.$v);
+  }
+  return;
+}
+
+function drop$Outcome_Node_Int(value) {
+  if (value.$tag === 0) {
+    Drop_Node_drop(value.$p);
+  }
+  return;
+}
+
+function drop$Outcome_Int_sub_gt_Int(value) {
+  if (!(value.$v === null)) {
+    drop$_Int_sub_gt_Int({ $v: value.$v });
+  }
+  return;
+}
+
+function reclaim$Outcome_Int_sub_gt_Int(value) {
+  if (!(value.$v === null)) {
+  }
+  return;
+}

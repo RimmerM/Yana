@@ -113,6 +113,36 @@ instance Try(Outcome(a, e), a, e):
   fn toOutcome(->value: Outcome(a, e)) -> Outcome(a, e) = value
   fn fromExit(->reason: e) -> Outcome(a, e) = Exit(reason)
 
+{-
+   The same carrier, around a different payload - what `?.` needs and `Try` cannot say.
+
+   `Try` relates a carrier to what is inside it, which is the direction `?` reads. `?.` reads the
+   other way: it has a carrier `m` that came in and a value `b` that the rest of the chain produced,
+   and it needs the type that is `m`'s wrapper around `b`. `Maybe(Row)` and `String` give
+   `Maybe(String)`.
+
+   Three parameters keyed on the first two, rather than a type constructor applied to a variable.
+   That is deliberate and is the same trade `Try` makes: `m` applied to `b` would need the
+   higher-kinded machinery Implementation-Generics.md part 7 fences off, while an instance head
+   naming `Maybe(a)` and `Maybe(b)` in two positions is an ordinary one, and the dependency is what
+   turns "which type is that" into a lookup.
+
+   `rewrap` does not mention `m`, exactly as `Try.fromExit` does not mention `a`. Neither is callable
+   from source for that reason: what selects them is the shape the compiler already worked out, not
+   an argument list.
+-}
+class Rewrap(m, b -> n):
+  fn rewrap(->value: b) -> n
+
+instance Rewrap(Maybe(a), b, Maybe(b)):
+  fn rewrap(->value: b) -> Maybe(b) = Just(value)
+
+instance Rewrap(Result(e, a), b, Result(e, b)):
+  fn rewrap(->value: b) -> Result(e, b) = Ok(value)
+
+instance Rewrap(Outcome(a, e), b, Outcome(b, e)):
+  fn rewrap(->value: b) -> Outcome(b, e) = Proceed(value)
+
 class FromInt(a):
   fn fromInt(value: Long) -> a
 
@@ -696,6 +726,7 @@ void defineCore(Program& program) {
     program.coreClasses.narrow = classNamed(*module, "Narrow"_v);
     program.coreClasses.truth = classNamed(*module, "Truth"_v);
     program.coreClasses.try_ = classNamed(*module, "Try"_v);
+    program.coreClasses.rewrap = classNamed(*module, "Rewrap"_v);
     program.coreClasses.copy = classNamed(*module, "Copy"_v);
     program.coreClasses.sink = classNamed(*module, "Sink"_v);
     program.coreClasses.reclaim = classNamed(*module, "Reclaim"_v);

@@ -1462,6 +1462,11 @@ ModulePtr<Value> ExprResolver::resolveField(const ast::Expr& expr, const ast::Fi
     auto value = resolve(field.target);
     if(!value) return nullptr;
 
+    // Already broken, and whatever broke it said so. A field of an error is not a second fact about
+    // this expression - which is what a `?.` on a carrier with no `Try` instance produces, and what
+    // its one message would otherwise be followed by two more of.
+    if(global[valueType(value)]->kind == Type::Error) return value;
+
     // A reference is the root of the place its field lives in, rather than something that has to
     // be in a place of its own first. That is what lets `n.value` work on a `%Node` that came from
     // an argument or a call: there is no storage holding the pointer, and none is needed.
@@ -1663,9 +1668,12 @@ ModulePtr<Value> ExprResolver::resolveSubscript(const ast::Expr& expr, const ast
     auto target = resolve(subscript.callee);
     if(!target) return nullptr;
 
+    // Already broken, and said so - see resolveField.
+    auto held = valueType(target);
+    if(global[held]->kind == Type::Error) return target;
+
     // The owner and the borrow of one both index, and the two are one call: `get` and `getMut` are
     // declared over the slice, so an owner reaches them through the ordinary conversion.
-    auto held = valueType(target);
 
     if(!ownedElement(module, held) && !sliceElement(module, held)) {
         context.diagnostics.error("cannot index %@ - only an array may be subscripted"_v, source,

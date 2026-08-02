@@ -830,6 +830,11 @@ struct CoreClasses {
     // is no argument position for ordinary overload selection to find it from.
     GlobalPtr<TypeClass> try_ = nullptr;
 
+    // The same carrier around a different payload, which is what `?.` rebuilds a chain's result
+    // with. `Try` reads a carrier to what is inside it; this reads the other way, and is known by
+    // name for the same reason `Try` is - nothing in an argument list would find it.
+    GlobalPtr<TypeClass> rewrap = nullptr;
+
     // The ownership classes. They are known by name for the same reason the five above are:
     // `let ->z = x` and the end of a value's lifetime are language syntax, and what they compile
     // to is a lookup of these.

@@ -277,6 +277,10 @@ void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allo
             token.type = Token::opTilde;
         } else if(*p == '&') {
             token.type = Token::opAmp;
+        } else if(*p == '?') {
+            // Only a `?` alone: a run it is part of - `??`, `<?>` - is still an ordinary VarSym, the
+            // same rule every other entry in tokens.def is read under.
+            token.type = Token::opQuestion;
         }
     } else if(!sym2) {
         // Check for various reserved operators of length 2.
@@ -289,6 +293,12 @@ void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allo
         } else if(*p == '.' && p[1] == '.') {
             // This is the reserved DotDot operator.
             token.type = Token::opDotDot;
+        } else if(*p == '?' && p[1] == '.') {
+            // Optional chaining. Its own lexeme rather than `?` followed by `.`, because the two
+            // spellings mean different things: `x?.f` skips the rest of the chain, and `(x?).f`
+            // leaves the function. A run rule that made them the same token sequence would make
+            // the commoner of the two the one nobody can write.
+            token.type = Token::opQuestionDot;
         }  else if(*p == '<' && p[1] == '-') {
             // This is the reserved arrow-left operator.
             token.type = Token::opArrowL;

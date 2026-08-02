@@ -659,6 +659,10 @@ ModulePtr<Value> ExprResolver::resolveIndirectCall(const ast::Expr& expr, const 
         }
     } else {
         callable = resolve(callee);
+
+        // Already broken, and said so - see resolveField. Calling an error is not a second fact.
+        if(callable && global[valueType(callable)]->kind == Type::Error) return callable;
+
         if(!callable || !isFunction(global, valueType(callable))) {
             if(callable) {
                 context.diagnostics.error("this expression is not callable - it is %@"_v, callee.source,
@@ -1261,7 +1265,23 @@ ModulePtr<Value> ExprResolver::emitGenericDispatch(ClassMatch& match, Buffer<Mod
         }
 
         auto expected = substituteType(module, parameter->type, toBuffer(match.args), source);
-        call->args.push(module.arena, convert(args[i], expected, source));
+        auto value = convert(args[i], expected, source);
+
+        /*
+         * A value carrying nothing is spelled as no value at all, and this list is positional - so
+         * it gets storage rather than a hole, exactly as emitDirectCall gives one. The parameter is
+         * declared at a *variable* of the class's context, which the erased body reads a position
+         * for whatever that variable turned out to be here, so leaving the entry out would shift
+         * every argument after it and hand the callee the wrong ones.
+         *
+         * Reached by `Try.fromExit` on a carrier whose skip carries nothing - `Maybe`'s `e` is `{}`
+         * - which is the first call in the language to pass a unit through a class function's
+         * generic position. The crash it caused was in the ownership walk, which reads every
+         * argument's type and had no null to read.
+         */
+        if(!value && expected && isUnit(global, expected)) value = allocate(expected, source);
+
+        if(value) call->args.push(module.arena, value);
     }
 
     append(call);

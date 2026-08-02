@@ -1719,6 +1719,31 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
     if(!current) return nullptr;
     if(ast::isLiteral(expr)) return resolveLiteral(expr, target);
 
+    /*
+     * The top of a chain containing a `?.`, which is where the skip those need has to be set up.
+     *
+     * Ahead of the switch because the extent of a `?.`'s skip is the rest of *its chain*, and a
+     * chain is a spine of these four node kinds rather than one of them - `a?.b.c(x)` tops out at a
+     * call and `a?.b` at the `?.` itself. Entering here is what lets everything below resolve as the
+     * ordinary chain it is, with the `?.` nodes finding the join through `optionalChain`.
+     *
+     * `onOptionalSpine` is what stops this re-entering the chain it is already resolving, and what
+     * makes a chain written inside one's *arguments* its own - see OptionalChain.
+     */
+    switch(expr.kind) {
+        case ast::Expr::Field:
+        case ast::Expr::Unwrap:
+        case ast::Expr::App:
+        case ast::Expr::Sub:
+            if(!onOptionalSpine(expr) && chainSkips(expr)) {
+                return resolveOptionalChain(expr, target, used, implicit);
+            }
+
+            break;
+        default:
+            break;
+    }
+
     switch(expr.kind) {
         case ast::Expr::Error:
             sawParseError = true;
@@ -1818,6 +1843,8 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             return resolveMultiIf(expr, expr.multiIf, target, used, implicit);
         case ast::Expr::Is:
             return resolveIs(expr, *parse[expr.is], used);
+        case ast::Expr::Try:
+            return resolveTry(expr, target, used, implicit);
         case ast::Expr::Match:
             return resolveMatch(expr, *parse[expr.match], target, used, implicit);
         case ast::Expr::Decl:
@@ -1997,6 +2024,8 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             return resolveTupUpdate(expr, *parse[expr.tupUpdate], target);
         case ast::Expr::Field:
             return resolveField(expr, *parse[expr.field]);
+        case ast::Expr::Unwrap:
+            return resolveUnwrap(expr);
         case ast::Expr::Assign:
             return resolveAssign(expr, *parse[expr.assign]);
         case ast::Expr::Fun:

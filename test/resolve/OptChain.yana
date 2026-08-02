@@ -1,0 +1,127 @@
+-- `?.` - optional chaining.
+--
+-- A different operator from `?`, and the difference is the whole of it. `?` skips to the enclosing
+-- function's return edge; `?.` skips to the end of the chain it is written in, and produces the
+-- carrier's empty case there. So `row?.name.trim()` is a `Maybe(String)` and nothing departs, which
+-- is what every language with this spelling means by it.
+--
+-- The skip covers the *rest of the chain*, not one step: in `node(n)?.inner.deep.value` the two
+-- field reads after the `?.` are inside it, and none of them runs when the carrier is empty.
+
+let &log = 0 :: Int
+let &dropped = 0 :: Int
+
+data Deep {value: Int}
+data Inner {deep: Deep}
+data Leaf {value: Int}
+data Node {inner: Inner, leaf: Maybe(Leaf), id: Int}
+
+-- A carrier whose payload has to be released. The proceeding path reads fields *out* of the node
+-- and never consumes it, so the node is a temporary whose lifetime ends in the chain - and the
+-- skipping path never builds one at all. `dropped` is what says both of those happened.
+instance Drop(Node):
+    fn drop(->value: Node) -> {}:
+        dropped = dropped + 1
+
+fn leafFor(n: Int) -> Maybe(Leaf):
+    if n > 5: return Just(Leaf {value: n * 3})
+    return Nothing
+
+fn node(n: Int) -> Maybe(Node):
+    log = log + 1
+    if n <= 0: return Nothing
+    return Just(Node {inner: Inner {deep: Deep {value: n * 2}}, leaf: leafFor(n), id: n})
+
+fn checked(n: Int) -> Result(Int, Node):
+    log = log + 10
+    if n <= 0: return Err(n)
+    return Ok(Node {inner: Inner {deep: Deep {value: n * 4}}, leaf: leafFor(n), id: n})
+
+-- The whole tail of the chain is inside the skip. One `toOutcome`, one branch, two field reads on
+-- the proceeding side, and one wrapper put back on at the end.
+fn tail(n: Int) -> Maybe(Int) = node(n)?.inner.deep.value
+
+-- Two `?.` in one chain: two check points, one join, one wrapper. `Maybe(Int)` rather than
+-- `Maybe(Maybe(Int))` - the chain flattens because the second `?.` unwraps what the first read.
+fn twoChecks(n: Int) -> Maybe(Int) = node(n)?.leaf?.value
+
+-- A carrier that carries a reason keeps it: the skip rebuilds `Err` with what `checked` failed with.
+fn viaResult(n: Int) -> Result(Int, Int) = checked(n)?.id
+
+fn pick(a: Maybe(Int), b: Maybe(Int)) -> Int = unwrapOr(a, 0) + unwrapOr(b, 0) * 100
+
+-- A `?.` written inside another chain's argument is a chain of its own, with its own join. Two
+-- independent wrappers here, not one - which is what stops `a?.b(c?.d)` from meaning something the
+-- author did not write.
+fn inArgument(a: Int, b: Int) -> Int = pick(node(a)?.id, node(b)?.id)
+
+-- Both operators in one body, which is the comparison worth having. The `?` leaves `both` when
+-- there is no node; the `?.` does not leave anything when there is no leaf - it produces `Nothing`
+-- as the value of its own chain, and the `return` below still runs.
+fn both(n: Int) -> Maybe(Int):
+    let found = node(n)?
+    return found.leaf?.value
+
+-- Parentheses end a chain, so this is the `?` operator and a field of what it unwrapped - not `?.`.
+-- The two spellings stay available and stay different.
+fn parenthesized(n: Int) -> Maybe(Int) = Just((node(n)?).id)
+
+{-
+   `a?.[i]` and `f?.(x)` - the same unwrap with a different suffix after it.
+
+   `?.` builds the unwrapping alone and what follows is an ordinary chain suffix, so these three
+   spellings are one rule rather than three: a field, a subscript and a call *of an unwrap*. Written
+   `?.[` and `?.(` rather than `?[` and `?(` for the reason the spelling exists in the first place -
+   `a?[i]` would read as the other operator, which leaves the function, and the two must not look
+   alike.
+
+   The subscript is in OptChain.Index.yana rather than here, because no fixture that emits
+   JavaScript uses `Array` yet and this one does emit it.
+-}
+fn twice(x: Int) -> Int = x * 2
+
+fn maybeFn(n: Int) -> Maybe((Int) -> Int):
+    if n > 0: return Just(twice)
+    return Nothing
+
+fn called(n: Int) -> Maybe(Int) = maybeFn(n)?.(21)
+
+fn main() -> Int:
+    log = 0
+    dropped = 0
+
+    let a = unwrapOr(tail(6), 0)            -- 12
+    let b = unwrapOr(tail(-1), 0)           -- 0,  the chain skipped before any field was read
+    let c = unwrapOr(twoChecks(6), 0)       -- 18
+    let d = unwrapOr(twoChecks(3), 0)       -- 0,  the node exists and its leaf does not
+    let e = unwrapOr(twoChecks(-1), 0)      -- 0,  neither exists
+    let f = okOr(viaResult(4), 0)           -- 4
+    let g = okOr(viaResult(-2), 0)          -- 0,  Err(-2) rebuilt as Err(-2)
+    let h = inArgument(2, 7)                -- 702
+    let i = unwrapOr(both(8), 0)            -- 24
+    let j = unwrapOr(both(2), 0)            -- 0,  `?.` produced Nothing without leaving `both`
+    let k = unwrapOr(both(-1), 0)           -- 0,  `?` left `both`
+    let l = unwrapOr(parenthesized(5), 0)   -- 5
+    let m = unwrapOr(parenthesized(-1), 0)  -- 0
+
+    let r = unwrapOr(called(1), 0)          -- 42, twice(21)
+    let s = unwrapOr(called(-1), 0)         -- 0,  the call never runs
+
+    let sum = a + b + c + d + e + f + g + h + i + j + k + l + m + r + s
+
+    {-
+       Nine nodes were built and nine were released.
+
+       That is the assertion the `Drop` instance exists for, and it is one a fixture reading only IR
+       text cannot make: a node leaked on the skipping path and a node released twice on the
+       proceeding one are both invisible in the bytes.
+    -}
+    return sum + dropped * 1000 + log * 100000
+
+fn unwrapOr(m: Maybe(Int), fallback: Int) -> Int = match m:
+    Just(v) -> v
+    Nothing -> fallback
+
+fn okOr(r: Result(Int, Int), fallback: Int) -> Int = match r:
+    Ok(v) -> v
+    Err(_) -> fallback

@@ -1,0 +1,386 @@
+"use strict";
+var log = 0;
+var dropped = 0;
+
+// Core
+function Try_Maybe_a_a_toOutcome_Int(value) {
+  var v1;
+  if (!(value === null)) {
+    v1 = value;
+  } else {
+    v1 = null;
+  }
+  return v1;
+}
+
+function Try_Maybe_a_a_fromExit_Int() {
+  return null;
+}
+
+function Try_Maybe_a_a_toOutcome_Token(value) {
+  var v1;
+  if (!(value === null)) {
+    v1 = value;
+  } else {
+    drop$Maybe_Token({ $v: value });
+    v1 = null;
+  }
+  return v1;
+}
+
+function Try_Result_e_a_a_e_toOutcome_Int_Int(value) {
+  var v1;
+  if (value.$tag === 1) {
+    v1 = { $tag: 0, $p: value.$p };
+  } else {
+    v1 = { $tag: 1, $p: value.$p };
+  }
+  return v1;
+}
+
+function Try_Result_e_a_a_e_fromExit_Int_Int(reason) {
+  return { $tag: 0, $p: reason };
+}
+
+function Try_Result_e_a_a_e_fromExit_Int_Bool(reason) {
+  return { $tag: 0, $p: reason };
+}
+
+function drop$Maybe_Token(value) {
+  if (!(value.$v === null)) {
+    Drop_Token_drop(value.$v);
+  }
+  return;
+}
+
+// ResolveTest
+function parse(n) {
+  log = log + 1 | 0;
+  if (n > 0) {
+    return Math.imul(n, 2) | 0;
+  } else {
+    return null;
+  }
+}
+
+function checked(n) {
+  log = log + 10 | 0;
+  if (n > 9) {
+    return { $tag: 0, $p: 1 };
+  } else {
+    if (n < 0) {
+      return { $tag: 0, $p: 2 };
+    } else {
+      return { $tag: 1, $p: n };
+    }
+  }
+}
+
+function oneStep(n) {
+  var v3 = Try_Maybe_a_a_toOutcome_Int(parse(n));
+  if (v3 === null) {
+    return Try_Maybe_a_a_fromExit_Int();
+  } else {
+    return v3 + 1 | 0;
+  }
+}
+
+function twoSteps(n) {
+  var v3 = Try_Maybe_a_a_toOutcome_Int(parse(n));
+  if (v3 === null) {
+    return Try_Maybe_a_a_fromExit_Int();
+  } else {
+    var v17 = Try_Maybe_a_a_toOutcome_Int(parse(v3 - 10 | 0));
+    if (v17 === null) {
+      return Try_Maybe_a_a_fromExit_Int();
+    } else {
+      return v3 + v17 | 0;
+    }
+  }
+}
+
+function add(a, b) {
+  return a + b | 0;
+}
+
+function valuePosition(x, y) {
+  var v2 = null;
+  var v7 = Try_Maybe_a_a_toOutcome_Int(parse(x));
+  if (v7 === null) {
+    return Try_Maybe_a_a_fromExit_Int();
+  } else {
+    var v18 = Try_Maybe_a_a_toOutcome_Int(parse(y));
+    if (v18 === null) {
+      return Try_Maybe_a_a_fromExit_Int();
+    } else {
+      v2 = v7 + v18 | 0;
+      return v2;
+    }
+  }
+}
+
+function token(n) {
+  if (n > 0) {
+    return { id: n };
+  } else {
+    return null;
+  }
+}
+
+function combine(x, y) {
+  var v2 = x.id;
+  Drop_Token_drop(x);
+  var v3 = y.id;
+  Drop_Token_drop(y);
+  return v2 + v3 | 0;
+}
+
+function paired(a, b) {
+  var v2 = null;
+  var v7 = Try_Maybe_a_a_toOutcome_Token(token(a));
+  if (v7 === null) {
+    drop$Outcome_Token({ $v: v7 });
+    return Try_Maybe_a_a_fromExit_Int();
+  } else {
+    var v18 = Try_Maybe_a_a_toOutcome_Token(token(b));
+    if (v18 === null) {
+      drop$Outcome_Token({ $v: v7 });
+      drop$Outcome_Token({ $v: v18 });
+      return Try_Maybe_a_a_fromExit_Int();
+    } else {
+      v2 = combine(v7, v18);
+      return v2;
+    }
+  }
+}
+
+function operands(x, y) {
+  var v2 = null;
+  var v7 = Try_Maybe_a_a_toOutcome_Int(parse(x));
+  if (v7 === null) {
+    return Try_Maybe_a_a_fromExit_Int();
+  } else {
+    var v18 = Try_Maybe_a_a_toOutcome_Int(parse(y));
+    if (v18 === null) {
+      return Try_Maybe_a_a_fromExit_Int();
+    } else {
+      v2 = v7 + v18 | 0;
+      return v2;
+    }
+  }
+}
+
+function reasoned(n) {
+  var v1 = checked(n);
+  var v3 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v1.$tag, $p: v1.$p });
+  if (v3.$tag === 1) {
+    return Try_Result_e_a_a_e_fromExit_Int_Int(v3.$p);
+  } else {
+    return { $tag: 1, $p: v3.$p + 100 | 0 };
+  }
+}
+
+function viaHelper(n) {
+  var v1 = checked(n);
+  var v3 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v1.$tag, $p: v1.$p });
+  if (v3.$tag === 1) {
+    return Try_Result_e_a_a_e_fromExit_Int_Bool(v3.$p);
+  } else {
+    return { $tag: 1, $p: v3.$p > 5 };
+  }
+}
+
+function conditional(n) {
+  var v3 = Try_Maybe_a_a_toOutcome_Int(parse(n));
+  if (v3 === null) {
+    return Try_Maybe_a_a_fromExit_Int();
+  } else {
+    if (v3 > 10) {
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+}
+
+function looped(n) {
+  var total = 0;
+  var v9 = 0;
+  L0: for (;;) {
+    B1: {
+      var i = v9;
+      if (i < 3) {
+        var v14 = total;
+        var v18 = Try_Maybe_a_a_toOutcome_Int(parse(n - i | 0));
+        if (v18 === null) {
+          return Try_Maybe_a_a_fromExit_Int();
+        } else {
+          total = v14 + v18 | 0;
+          var v29 = v9;
+          if ((3 - v29 | 0) <= 1) {
+          } else {
+            v9 = v29 + 1 | 0;
+            continue L0;
+          }
+        }
+      }
+    }
+    return total;
+    break L0;
+  }
+}
+
+function throughLens(n) {
+  return doubled_Maybe_Int(n, ResolveTest_continuation$0);
+}
+
+function viaSkipping(n) {
+  var v9 = Try_Maybe_a_a_toOutcome_Int(firstPositive_Int(n, ResolveTest_continuation$1));
+  if (v9 === null) {
+    return 0;
+  } else {
+    return v9;
+  }
+}
+
+function main() {
+  var v120;
+  var v131;
+  var v143;
+  log = 0;
+  var a = oneStep(3);
+  var b = oneStep(-1);
+  var c = twoSteps(11);
+  var d = twoSteps(3);
+  var e = valuePosition(1, 2);
+  var f = valuePosition(1, -2);
+  var g = operands(2, 3);
+  var h = reasoned(4);
+  var i = reasoned(20);
+  var j = viaHelper(-1);
+  var k = conditional(6);
+  var l = looped(4);
+  var m = looped(1);
+  var n = throughLens(6);
+  var o = viaSkipping(5);
+  var p = viaSkipping(-5);
+  dropped = 0;
+  var q = paired(3, 4);
+  var afterBoth = dropped;
+  dropped = 0;
+  var r = paired(3, -1);
+  var afterExit = dropped;
+  dropped = 0;
+  var s = paired(-1, 4);
+  var v73 = ((unwrap(a) + unwrap(c) | 0) + unwrap(e) | 0) + unwrap(g) | 0;
+  if (h.$tag === 1) {
+    v120 = h.$p;
+  } else {
+    v120 = 0;
+  }
+  var sum = ((((((v73 + v120 | 0) + unwrap(k) | 0) + unwrap(l) | 0) + unwrap(n) | 0) + o | 0) + p | 0) + unwrap(q) | 0;
+  var v92 = ((empty(b) + empty(d) | 0) + empty(f) | 0) + empty(m) | 0;
+  if (i.$tag === 1) {
+    v131 = 0;
+  } else {
+    v131 = 1;
+  }
+  var v94 = v92 + v131 | 0;
+  if (j.$tag === 1) {
+    v143 = 0;
+  } else {
+    v143 = 1;
+  }
+  return ((((sum + (Math.imul(((v94 + v143 | 0) + empty(r) | 0) + empty(s) | 0, 1000) | 0) | 0) + (Math.imul(afterBoth, 100000) | 0) | 0) + (Math.imul(afterExit, 10000000) | 0) | 0) + (Math.imul(dropped, 1000000000) | 0) | 0) + log | 0;
+}
+
+function unwrap(m) {
+  var v9;
+  if (!(m === null)) {
+    v9 = m;
+  } else {
+    v9 = 0;
+  }
+  return v9;
+}
+
+function unwrapOk(r) {
+  var v10;
+  if (r.$tag === 1) {
+    v10 = r.$p;
+  } else {
+    v10 = 0;
+  }
+  return v10;
+}
+
+function empty(m) {
+  var v10;
+  if (!(m === null)) {
+    v10 = 0;
+  } else {
+    v10 = 1;
+  }
+  return v10;
+}
+
+function err(r) {
+  var v11;
+  if (r.$tag === 1) {
+    v11 = 0;
+  } else {
+    v11 = 1;
+  }
+  return v11;
+}
+
+function errBool(r) {
+  var v11;
+  if (r.$tag === 1) {
+    v11 = 0;
+  } else {
+    v11 = 1;
+  }
+  return v11;
+}
+
+function Drop_Token_drop(value) {
+  dropped = dropped + 1 | 0;
+  return;
+}
+
+function ResolveTest_continuation$0(value) {
+  var v7 = Try_Maybe_a_a_toOutcome_Int(parse(value - 8 | 0));
+  if (v7 === null) {
+    return Try_Maybe_a_a_fromExit_Int();
+  } else {
+    return v7 + value | 0;
+  }
+}
+
+function doubled_Maybe_Int(x, body) {
+  log = log + 1000 | 0;
+  var v8 = body(Math.imul(x, 2) | 0);
+  log = log + 10000 | 0;
+  return v8;
+}
+
+function ResolveTest_continuation$1(found) {
+  return found + 1 | 0;
+}
+
+function firstPositive_Int(n, body) {
+  var v5 = Try_Maybe_a_a_toOutcome_Int(parse(n));
+  if (v5 === null) {
+    return Try_Maybe_a_a_fromExit_Int();
+  } else {
+    return body(v5);
+  }
+}
+
+function drop$Outcome_Token(value) {
+  if (!(value.$v === null)) {
+    Drop_Token_drop(value.$v);
+  }
+  return;
+}

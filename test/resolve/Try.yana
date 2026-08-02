@@ -1,0 +1,196 @@
+-- The `?` suffix - Implementation-Semantics.md part 5.
+--
+-- `x?` is one match: `Proceed(v)` becomes the value the expression has, and `Exit(e)` returns
+-- `Try.fromExit(e)` from the enclosing function. What makes it worth its own syntax rather than a
+-- spelling of `| else -> return` is value position, and what makes it compiler-known is that its
+-- skip destination is the enclosing return edge - which nothing written at the call site names.
+
+let &log = 0 :: Int
+let &dropped = 0 :: Int
+
+fn parse(n: Int) -> Maybe(Int):
+    log = log + 1
+    if n > 0: return Just(n * 2)
+    return Nothing
+
+fn checked(n: Int) -> Result(Int, Int):
+    log = log + 10
+    if n > 9: return Err(1)
+    if n < 0: return Err(2)
+    return Ok(n)
+
+-- Statement position, which is the `tryResult` macro's shape: the success case binds and the
+-- failure case rebuilds this function's own `Maybe`.
+fn oneStep(n: Int) -> Maybe(Int):
+    let v = parse(n)?
+    return Just(v + 1)
+
+-- Two of them in sequence. The second never runs when the first exits, which is the whole point,
+-- and `log` is what says so.
+fn twoSteps(n: Int) -> Maybe(Int):
+    let a = parse(n)?
+    let b = parse(a - 10)?
+    return Just(a + b)
+
+{-
+   Value position - `f(parse(a)?, parse(b)?)`.
+
+   The part that is more than a `match` rewrite. On `b`'s exit `a`'s result is already evaluated and
+   owned, so the early return has to run the ordinary drop path for a temporary that was never
+   consumed. Nothing here says so: the temporary is a tracked local whose liveness ends at that
+   return, which is the same fact analyze_drop reads for every other early exit.
+-}
+fn add(a: Int, b: Int) -> Int = a + b
+
+fn valuePosition(x: Int, y: Int) -> Maybe(Int) = Just(add(parse(x)?, parse(y)?))
+
+{-
+   The same shape with a payload that has to be *released*, which is what makes the paragraph above
+   an assertion rather than a claim.
+
+   `Int` drops to nothing, so `valuePosition` would pass with the early return leaking whatever the
+   first `?` produced. A `Token` does not: `dropped` counts, and the count is read where the
+   placement decides it. Reading it after the last use of everything involved would pass just as
+   happily with the drop in the wrong place.
+-}
+data Token {id: Int}
+
+instance Drop(Token):
+    fn drop(->value: Token) -> {}:
+        dropped = dropped + 1
+
+fn token(n: Int) -> Maybe(Token):
+    if n > 0: return Just(Token {id: n})
+    return Nothing
+
+-- Both `->`, so what the tokens cost is charged to this frame rather than to `paired` - which is
+-- what makes the proceeding path's two drops and the exit path's one drop different numbers rather
+-- than the same one counted twice.
+fn combine(->x: Token, ->y: Token) -> Int = x.id + y.id
+
+fn paired(a: Int, b: Int) -> Maybe(Int) = Just(combine(token(a)?, token(b)?))
+
+-- Both operands of an operator, which is the same case reached through a different node: `?` is a
+-- suffix of the chain, so it binds tighter than the infix operator above it.
+fn operands(x: Int, y: Int) -> Maybe(Int) = Just(parse(x)? + parse(y)?)
+
+-- A carrier that carries a reason. `Result`'s instance exits with the error, and this function
+-- returns the same `Result`, so nothing is widened on the way out.
+fn reasoned(n: Int) -> Result(Int, Int):
+    let v = checked(n)?
+    return Ok(v + 100)
+
+-- The two carriers do not have to be the same type - only the two *reasons* have to be relatable,
+-- and here they are the same. This is the propagation `?` exists for: a helper's `Result` becomes
+-- this function's `Result` with the error passed straight through.
+fn viaHelper(n: Int) -> Result(Int, Bool):
+    let v = checked(n)?
+    return Ok(v > 5)
+
+-- `?` inside a condition, where the branch it emits is nested inside the one the `if` emits.
+fn conditional(n: Int) -> Maybe(Int):
+    if parse(n)? > 10: return Just(1)
+    return Just(0)
+
+-- Inside a loop body, where the return leaves the loop as well as the function.
+fn looped(n: Int) -> Maybe(Int):
+    let &total = 0 :: Int
+
+    for i in 0 .. 3:
+        total = total + parse(n - i)?
+
+    return Just(total)
+
+lens fn doubled(x: Int) -> Int:
+    log = log + 1000
+    yield x * 2
+    log = log + 10000
+
+-- `?` inside a lens continuation. The block below the call was lifted into a function of its own,
+-- so this `?` is written in one function and leaves another - the same frame a written `return`
+-- there leaves, with `doubled`'s cleanup running on the way out.
+fn throughLens(n: Int) -> Maybe(Int):
+    let d = doubled(n)
+    let v = parse(d - 8)?
+    return Just(v + d)
+
+-- A skipping lens's own body may use `?`, because its ordinary return edge already *is* the skip.
+lens fn firstPositive(n: Int, body: (found: Int) -> a) -> Maybe(a):
+    let v = parse(n)?
+    return Just(body(v))
+
+fn viaSkipping(n: Int) -> Int:
+    let found = firstPositive(n) | else -> return 0
+    return found + 1
+
+fn main() -> Int:
+    log = 0
+
+    let a = oneStep(3)              -- Just 7,  log 1
+    let b = oneStep(-1)             -- Nothing, log 2
+    let c = twoSteps(11)            -- Just 46, log 4
+    let d = twoSteps(3)             -- Nothing, log 6
+    let e = valuePosition(1, 2)     -- Just 6,  log 8
+    let f = valuePosition(1, -2)    -- Nothing, log 10
+    let g = operands(2, 3)          -- Just 10, log 12
+    let h = reasoned(4)             -- Ok 104,  log 22
+    let i = reasoned(20)            -- Err 1,   log 32
+    let j = viaHelper(-1)           -- Err 2,   log 42
+    let k = conditional(6)          -- Just 1,  log 43
+    let l = looped(4)               -- Just 18, log 46
+    let m = looped(1)               -- Nothing, log 48
+    let n = throughLens(6)          -- Just 20, log 11049
+    let o = viaSkipping(5)          -- 11,      log 11050
+    let p = viaSkipping(-5)         -- 0,       log 11051
+
+    {-
+       The three drop counts, read one call at a time.
+
+       Separately, because one running total cannot tell "the early return dropped the token it was
+       leaving behind" from "`combine` dropped one of the two it was handed". The middle one is what
+       this fixture exists for; the other two are what make it a comparison.
+    -}
+    dropped = 0
+    let q = paired(3, 4)            -- Just 7
+    let afterBoth = dropped         -- 2: `combine` owns both and releases them
+
+    dropped = 0
+    let r = paired(3, -1)           -- Nothing
+    let afterExit = dropped         -- 1: the first `?`'s token, owned and never consumed
+
+    dropped = 0
+    let s = paired(-1, 4)           -- Nothing
+    let afterEarly = dropped        -- 0: the first `?` exits before anything is built
+
+    -- 7 + 46 + 6 + 10 + 104 + 1 + 18 + 20 = 212 from the ones that proceeded, plus 11 and 0.
+    let sum = unwrap(a) + unwrap(c) + unwrap(e) + unwrap(g) + unwrapOk(h) +
+              unwrap(k) + unwrap(l) + unwrap(n) + o + p + unwrap(q)
+
+    -- Every failure counted once, so a path that silently produced a value would move this.
+    let failures = empty(b) + empty(d) + empty(f) + empty(m) + err(i) + errBool(j) +
+                   empty(r) + empty(s)
+
+    -- Distinct powers, so a drop that ran twice or never moves the answer in a way that names which
+    -- of the three paths moved it rather than cancelling against another.
+    return sum + failures * 1000 + afterBoth * 100000 + afterExit * 10000000 +
+           afterEarly * 1000000000 + log
+
+fn unwrap(m: Maybe(Int)) -> Int = match m:
+    Just(v) -> v
+    Nothing -> 0
+
+fn unwrapOk(r: Result(Int, Int)) -> Int = match r:
+    Ok(v) -> v
+    Err(_) -> 0
+
+fn empty(m: Maybe(Int)) -> Int = match m:
+    Just(_) -> 0
+    Nothing -> 1
+
+fn err(r: Result(Int, Int)) -> Int = match r:
+    Ok(_) -> 0
+    Err(_) -> 1
+
+fn errBool(r: Result(Int, Bool)) -> Int = match r:
+    Ok(_) -> 0
+    Err(_) -> 1

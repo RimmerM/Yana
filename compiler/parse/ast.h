@@ -290,6 +290,8 @@ struct Expr {
         Break,
         Continue,
         Is,
+        Try,
+        Unwrap,
         Lit, // Must be last; the literal type is (kind - Kind::Lit).
     };
 
@@ -323,6 +325,17 @@ struct Expr {
         ParsePtr<MatchExpr> match;
         ParsePtr<RangeExpr> range;
         ParsePtr<IsExpr> is;
+        ParsePtr<Expr> tryValue; // The operand of a `?` suffix.
+
+        /*
+         * The operand of a `?.` suffix - what it unwraps.
+         *
+         * The *unwrapping* alone, with no suffix of its own: `a?.b` is a field of one of these,
+         * `a?.[i]` a subscript of one and `a?.(x)` a call of one. That is what makes the three
+         * spellings one node and one rule, and it is why the suffix after `?.` needs no special
+         * case anywhere below the parser - a field of an unwrap is an ordinary field.
+         */
+        ParsePtr<Expr> unwrap;
     };
 
     LocationId source: 26;
