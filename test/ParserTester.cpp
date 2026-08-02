@@ -143,6 +143,45 @@ void generateParserTest(const String& path, StringView content) {
     }
 }
 
+/*
+ * Every prefix of a fixture, parsed - and nothing compared.
+ *
+ * A truncated file is a file the editor sees on every keystroke, and what a fixture cannot assert
+ * about one is that parsing it *finishes*. Two properties are checked here that nothing else can be:
+ * that the lexer always consumes what it reports (the assertion at the end of `Lexer::next`, which
+ * a non-advancing scanner trips immediately instead of hanging), and that no parser loop spins on a
+ * token it will not eat.
+ *
+ * This is deliberately not M7's truncation sweep, which appends a declaration after the cut and asks
+ * whether it survives. Nothing is appended here: the file *ends* mid-construct, which is the state
+ * that found an identifier at the end of the buffer leaving the lexer where it started - and which
+ * a sweep that always writes a trailing newline can never produce.
+ *
+ * Cheap enough to be part of the run: parsing is the only stage involved, so the whole fixture
+ * directory is a fraction of a second.
+ */
+static void truncationTest(const String& path, StringView content) {
+    print("Truncations of \"%@\"...", path);
+
+    for(Size length = 0; length <= content.length; length++) {
+        TestProvider provider;
+        provider.source = StringView { content.ptr, length };
+
+        // Collected rather than printed: a prefix of a program is broken almost by definition, and
+        // what is being asserted is that the parser reaches the end of it at all.
+        TestDiagnostics diagnostics(provider);
+        Context context(diagnostics);
+        provider.context = &context;
+
+        auto name = context.addUnqualifiedName("no_name", 7);
+        Lexer lexer(context, context.diagnostics, provider.source, name);
+        Parser parser(context, lexer, name);
+        parser.parseModule();
+    }
+
+    println(" %@ parsed.", content.length + 1);
+}
+
 void testParser(bool generate) {
     Array<String> tests;
 
@@ -178,16 +217,66 @@ void testParser(bool generate) {
             generateParserTest(test, { buffer.get(), size });
         } else {
             parserTest(test, { buffer.get(), size });
+            truncationTest(test, { buffer.get(), size });
         }
+    }
+}
+
+/*
+ * The same check over a wider corpus - `YanaParseTest sweep`.
+ *
+ * The fixtures in `parser/` are written to exercise the parser and are therefore small. The ones in
+ * `resolve/` are written to exercise everything after it, which makes them the longest and most
+ * varied Yana in the tree and the better corpus for a property that is about *positions*. Opt-in
+ * rather than part of the run only because of the size: it is the same work, an order of magnitude
+ * more of it.
+ */
+static void truncationSweep() {
+    Array<String> files;
+
+    auto collect = [&](const char* directory) {
+        listDirectory(String(directory), [&](const String& name, bool isDirectory) {
+            if(isDirectory) return;
+
+            if(auto p = findLastChar(stringView(name), '.')) {
+                String extension(p + 1, name.text() + name.size() - p - 1);
+                if(extension == "yana") files.push(String(directory) + String("/") + name);
+            }
+        });
+    };
+
+    collect("parser");
+    collect("resolve");
+    collect("lsp/complete/src");
+    collect("lsp/semantic/src");
+    collect("lsp/recover/src");
+
+    for(auto& file: files) {
+        auto result = File::openFile(file, readAccess());
+        if(result.isErr()) continue;
+
+        auto opened = result.moveUnwrapOk();
+        auto size = opened.size();
+        Ptr<char, HeapDeleter> buffer { (char*)hAlloc(size ? size : 1) };
+        if(size) opened.read({ (Byte*)buffer.get(), size });
+
+        truncationTest(file, { buffer.get(), size });
     }
 }
 
 int main(int argc, const char** argv) {
     bool generateExpects = false;
+    bool sweep = false;
 
     for(int i = 1; i < argc; i++) {
         auto arg = String(argv[i]);
         if(arg == "generate") generateExpects = true;
+        if(arg == "sweep") sweep = true;
+    }
+
+    if(sweep) {
+        truncationSweep();
+        return 0;
     }
 
     testParser(generateExpects);

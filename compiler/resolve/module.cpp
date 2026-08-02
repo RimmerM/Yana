@@ -2099,6 +2099,11 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
     // only the root module's signatures made resolvable.
     for(auto entry: program->modules) resolveModuleBodies(*entry);
 
+    // A completion request stops here - Implementation-Tooling.md §8.2. Ownership and the generic
+    // environments are the expensive half of a compile and they answer nothing completion asks, and
+    // the answer itself was recorded while the body holding the cursor was being resolved.
+    if(context.completion) return program;
+
     // The generic environments come before ownership, because filling them generates real
     // functions - the erased entry thunk of every class method a witness holds - and those need
     // drops inserted like any other body. They come after every body is resolved for the opposite

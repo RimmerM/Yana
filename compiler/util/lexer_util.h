@@ -113,6 +113,11 @@ bool isHexit(char c);
 // Checks if the provided character is valid as part of an identifier (VarID or ConID).
 bool isIdentifier(char c);
 
+// Checks if the provided character is a symbol in the language - what an operator is made of.
+// Here rather than in the lexer because the language server reads the same rule out of a document
+// the parser never saw: `--` starts a comment only when what follows it is not a symbol.
+bool isSymbol(char c);
+
 // Checks if the provided character is ASCII whitespace.
 bool isWhiteChar(char c);
 

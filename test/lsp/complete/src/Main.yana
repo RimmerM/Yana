@@ -1,0 +1,154 @@
+-- Completion, asked at the positions an editor asks it - Implementation-Tooling.md §8.
+--
+-- Each caret marks the byte the cursor is *before*, which is how an editor's caret sits at a
+-- column: a caret under the `l` of `scale` is a cursor that has typed `sca`. So this file is a
+-- program that compiles, and the half-written names completion has to work on are made by putting
+-- the cursor inside a finished one - which is also what a real request most often is, since a name
+-- is edited far more often than it is first typed.
+--
+-- Every marker is answered by a compile of its own with the cursor set, so nothing one marker does
+-- to the parse is visible to another.
+
+import Shapes
+import Hidden(hiddenPair)
+import qualified Util as U
+
+-- What follows a `.` is the receiver's fields and nothing else. The first caret is on the field
+-- name's first byte, which is a cursor that has typed the dot and nothing after it.
+fn corner(p: Point) -> Int:
+    let across = p.x
+--                 ^member
+    let down = p.y
+--                 ^memberTyped
+
+    return across + down
+
+-- The receiver is followed through a reference exactly as field selection follows one.
+fn shift(&p: Point) -> Int = p.y
+--                             ^memberBorrow
+
+-- The trigger character, and the one position where there is no token at the cursor to stand in
+-- for: a `.` typed with nothing after it yet. The parser reaches the end of the statement instead,
+-- and the sentinel goes at the cursor rather than over anything. This body does not parse, which is
+-- the point - it is the state every member completion passes through - and the declarations around
+-- it are unaffected, which is what M7 bought.
+fn typing(p: Point) -> Int:
+    p.
+--    ^dot
+    return p.x
+
+-- An expected type ranks the answer above everything that merely shares its prefix, and the
+-- expected type of an argument is the parameter it fills.
+fn pickInt(a: Int, b: Int) -> Int = if a > b then a else b
+
+fn main() -> Int:
+    let box = Square {side: 3}
+    let boxScale = 2
+    let boxed = scale(box, boxScale)
+--                  ^callee   ^argument
+
+    -- `shapeOrigin` produces what this ascription asked for and sorts above `Shape`, which shares
+    -- its prefix and nothing else.
+    let here = shapeOrigin() :: Point
+--                ^expected
+
+    -- The same for a constructor: `Nothing` is how the ascribed `Maybe` is written, and it carries
+    -- nothing, so choosing it finishes the expression.
+    let none = Nothing :: Maybe(Int)
+--                ^constructor
+
+    -- A constructor that does carry something takes the brackets its declaration was written with:
+    -- named fields are a record and a bare payload is an argument. The carets are on names that
+    -- nothing follows, because a constructor whose brackets are already there gets none added -
+    -- which is what `alreadyCalled` below is about.
+    let sq = Square {side: 4}
+    let just = 1
+
+    let shape = sq
+--                ^namedFields
+    let payload = just
+--                   ^payload
+
+    -- The caret inside a name that is already a call. The brackets are there, so completing must
+    -- not add a second pair - which is what the rest of the name after the caret is read for.
+    let twice = scaleTwice(box)
+--                   ^alreadyCalled
+
+    -- Reachable only under the alias it was imported as, so the item has to carry it.
+    let extra = U.qualOnly()
+--                     ^qualified
+
+    -- An include list decides whether a name exists here at all: `hiddenTwin` is next to
+    -- `hiddenPair` in its own module and is not offered.
+    let pair = hiddenPair()
+--                  ^included
+
+    -- A line with nothing on it, which is the state a body is in the moment a place to write is
+    -- opened. No production runs at the cursor, so the block itself has to notice - and what it
+    -- offers is the scope as it stands *here*, which does not include `tail` below.
+
+--  ^empty
+    let tail = pickInt(boxed, pair)
+    return here.x + extra + tail + twice + shape.side + payload + (none ?? 0)
+
+-- Inside the braces of a construction, where the fields of what is being *written* are the answer -
+-- §8.1's fourth kind. The two positions differ by one character of text and by what can be meant
+-- there: a name in front of a `:` can only be a field, and one with nothing after it is a field
+-- name half-typed or the value of a positional constructor, so the scope comes with it under the
+-- fields.
+--
+-- Their own declarations, on the same terms as `typing` above: neither body compiles, because a
+-- half-written field name is not a field, and a body that does not compile takes the rest of its
+-- own statements with it.
+fn writingField() -> Shape:
+    return Square {si}
+--                   ^field
+
+fn writingNamed() -> Shape:
+    return Square {sid: 5}
+--                    ^fieldName
+
+-- The same for a tuple, whose fields are known here because the position expects one. Without an
+-- expected type there is nothing to complete against - the tuple's type is about to be made out of
+-- what the author writes rather than known in advance.
+fn writingTuple() -> Int:
+    return shapeAt({x: 1, y})
+--                        ^tupleField
+
+-- A record whose type and whose constructor have the same name, which is every `data` with one
+-- constructor. One name is one item, so the order the tables are walked in decides which of the two
+-- it is - and in an expression the constructor is the only one of them that is a value, which is
+-- also the only one of them that knows to open braces.
+--
+-- Its own declaration, and the one below it too, for the reason the three above have one: a name
+-- with nothing after it is not a name, and the statements under it would go with it.
+fn naming() -> Point = Poin
+--                       ^recordName
+
+-- A constructor whose fields are not all required. `weight` has a default, so writing it is
+-- optional and a placeholder for it would be something to delete rather than something to fill in.
+fn tagging() -> Label = Labe
+--                        ^defaulted
+
+-- A constructor in a pattern - §8.1's fifth kind. What ranks first is the constructors of the
+-- *pivot*, which is what makes the answer about the value being matched rather than about every
+-- record in the program; the rest follow. A lowercase name in the same position is a binding the
+-- author is introducing, so nothing is offered for one.
+fn matching(s: Shape) -> Int = match s:
+    Squ -> 1
+--     ^pattern
+    _ -> 0
+
+-- An update path, which is field selection with a value on the end of it - so what it offers is
+-- what a `.` offers, one step at a time. The second caret is a segment nobody has typed yet, and
+-- the third is inside a *later* segment, where the answer is the fields of the one before it.
+fn moving(l: Line) -> Line = {l | fro: origin()}
+--                                   ^update
+
+fn moved(l: Line) -> Line = {l | }
+--                               ^updateEmpty
+
+fn nested(l: Line) -> Line = {l | .from.}
+--                                      ^updatePath
+
+fn origin() -> Point = Point {x: 0, y: 0}

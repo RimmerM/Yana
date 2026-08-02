@@ -134,6 +134,13 @@ StringId Context::addUnqualifiedName(const char* chars, Size count) {
     return addIdentifier(id);
 }
 
+// Interned rather than a bare hash, because a diagnostic or a dump that happens to reach it should
+// print something a reader can recognize instead of an empty name.
+StringId cursorName(Context& context) {
+    static const char name[] = "$cursor";
+    return context.addUnqualifiedName(name, sizeof(name) - 1);
+}
+
 StringId Context::addQualifiedName(const char* chars, Size count, Size segmentCount) {
     Identifier id;
 

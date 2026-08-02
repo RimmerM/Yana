@@ -1,57 +1,6 @@
 #include "lexer.h"
 #include "../util/lexer_util.h"
 
-// Checks if the provided character is a symbol in the language.
-static bool isSymbol(char c) {
-    // We use a small lookup table for this,
-    // since the number of branches would be ridiculous otherwise.
-    static const bool table[] = {
-        true, /* ! */
-        false, /* " */
-        true, /* # */
-        true, /* $ */
-        true, /* % */
-        true, /* & */
-        false, /* ' */
-        false, /* ( */
-        false, /* ) */
-        true, /* * */
-        true, /* + */
-        false, /* , */
-        true, /* - */
-        true, /* . */
-        true, /* / */
-        false, false, false, false, false, false, false, false, false, false, /* 0..9 */
-        true, /* : */
-        false, /* ; */
-        true, /* < */
-        true, /* = */
-        true, /* > */
-        true, /* ? */
-        true, /* @ */
-        false, false, false, false, false, false, false, false, false, false, /* A..Z */
-        false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false,
-        false, /* [ */
-        true, /* \ */
-        false, /* ] */
-        true, /* ^ */
-        false, /* _ */
-        false, /* ` */
-        false, false, false, false, false, false, false, false, false, false, /* a..z */
-        false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false,
-        false, /* { */
-        true, /* | */
-        false, /* } */
-        true /* ~ */
-    };
-
-    U32 index = (U32)c - '!';
-    if(index > 93) return false;
-    else return table[index];
-}
-
 // Checks if the provided character is a special character that cannot be used in identifiers.
 static bool isSpecial(char c) {
     // We use a small lookup table for this,
@@ -365,9 +314,13 @@ void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allo
 
         // Parse a symbol sequence.
         // Get the length of the sequence, we already know that the first one is a symbol.
+        //
+        // The test is on the incremented pointer, as it is in parseVariable: `p < m` before the
+        // increment is a test that the character *already read* is inside the buffer, so it read one
+        // byte past the end for a symbol run that ends the file.
         U32 count = 1;
         auto s = p;
-        while(p < m && isSymbol(*(++p))) count++;
+        while(++p < m && isSymbol(*p)) count++;
 
         // Check for a single minus operator - used for parser optimization.
         token.singleMinus = count == 1 && *s == '-';
@@ -402,11 +355,13 @@ void Lexer::parseQualifier(Token& token) {
     token.type = Token::ConID;
 
     while(true) {
-        while(m - p >= 2 && isIdentifier(*(++p))) {
+        // See parseVariable: `p` has to end one past the segment, and a look-ahead test leaves it
+        // on the last character when the segment runs to the end of the file.
+        while(++p < m && isIdentifier(*p)) {
             length++;
         }
 
-        if(*p == '.') {
+        if(p < m && *p == '.') {
             if(m - p < 2) break;
 
             bool u = isUpperCase(p[1]);
@@ -501,12 +456,18 @@ void Lexer::parseVariable(Token& token, const char** start, U32* length) {
         case 'f':
             if(c < m && *c == 'n') {c++; token.type = Token::kwFn;}
             else if(compareConstString(c, m, "oreign")) token.type = Token::kwForeign;
-            else if(*c == 'o' && c[1] == 'r') {c += 2; token.type = Token::kwFor;}
+            // `m - c >= 2` for the same reason every other two-character keyword here has it: an
+            // `f` at the end of the file leaves `c` at the end of the buffer, and reading `c[1]`
+            // there is two bytes past it. What it read was whatever the allocator left, so `f`
+            // became `for` whenever those bytes happened to say so.
+            else if(m - c >= 2 && *c == 'o' && c[1] == 'r') {c += 2; token.type = Token::kwFor;}
             break;
         case 'i':
             if(c < m && *c == 'f') {c++; token.type = Token::kwIf;}
             else if(compareConstString(c, m, "mport")) token.type = Token::kwImport;
-            else if(c < m && *c == 'n' && !isIdentifier(c[1])) {c++; token.type = Token::kwIn;}
+            // The end of the file ends the identifier, so an `in` that is the last thing in the
+            // file is the keyword - and `c[1]` is not there to be asked.
+            else if(c < m && *c == 'n' && (c + 1 >= m || !isIdentifier(c[1]))) {c++; token.type = Token::kwIn;}
             else if(compareConstString(c, m, "nfix")) {
                 if(c < m && *c == 'l') {c++; token.type = Token::kwInfixL;}
                 else if(c < m && *c == 'r') {c++; token.type = Token::kwInfixR;}
@@ -560,9 +521,15 @@ void Lexer::parseVariable(Token& token, const char** start, U32* length) {
     }
 
     // Read the identifier name.
+    //
+    // `++p < m` rather than a look-ahead test, so that `p` ends one past the identifier in every
+    // case including the one where the identifier is the last thing in the file. Testing whether
+    // there is a *next* character to look at left `p` on the final character there, and the lexer
+    // then produced that one character as another identifier, for ever - see the assertion at the
+    // end of next(), which is what that invariant is now written down as.
     U32 count = 1;
     auto s = p;
-    while(m - p >= 2 && isIdentifier(*(++p))) count++;
+    while(++p < m && isIdentifier(*p)) count++;
 
     *start = s;
     *length = count;
@@ -715,6 +682,25 @@ void Lexer::next(Token& token) {
     newItem = false;
     newItem:
     endLocation(token);
+
+    /*
+     * The one invariant the whole parser rests on: a token that stands for text consumes it.
+     *
+     * Everything above this loops on "read a token and do something with it", and none of those
+     * loops can make progress against a lexer that keeps returning the same token - a hang with no
+     * diagnostic, no memory growth and no way to tell from the outside what it is doing. It has
+     * happened: a look-ahead test that asked whether there was a *next* character left `p` on the
+     * final character of an identifier that ended the file, and the lexer then produced that one
+     * character as an identifier for ever.
+     *
+     * The four kinds that legitimately consume nothing are layout and string formatting, and none
+     * of them can repeat: `EndOfStmt` sets `newItem`, `EndOfBlock` is answered by the parser closing
+     * a level, and the two format markers flip `formatting`.
+     */
+    assertTrue(token.endOffset > token.startOffset ||
+               token.type == Token::EndOfFile || token.type == Token::EndOfBlock ||
+               token.type == Token::EndOfStmt || token.type == Token::StartOfFormat ||
+               token.type == Token::EndOfFormat);
 }
 
 void Lexer::startLocation(Token& token) {

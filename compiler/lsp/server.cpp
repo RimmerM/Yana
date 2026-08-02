@@ -196,23 +196,54 @@ void Server::handleRequest(const JsonValue& message, StringView method, const Js
     }
 
     /*
+     * Completion compiles for itself - the cursor sentinel is a parse-time decision - so it is
+     * dispatched ahead of the refresh below rather than made to pay for a compile it is about to
+     * replace. What it leaves behind is what `staleProgram()` answers for.
+     *
+     * The one thing it still needs a compile for is the *position*: a request names a document and
+     * a line, and turning that into a module and a byte offset goes through the module map and the
+     * context the last compile left. Completion as the first request after `didOpen` - a `.` typed
+     * inside the debounce, which is exactly when an editor asks - therefore found no context and
+     * answered null, having never reached the sentinel at all.
+     */
+    if(method == "textDocument/completion"_v) {
+        if(!session.context) {
+            refresh();
+            dirty = false;
+        }
+
+        onCompletion(message, id);
+        return;
+    }
+
+    /*
      * The compile has to have happened before any of these can answer.
      *
      * A client asks for hover the moment the mouse stops, which is routinely inside the debounce -
      * so the request runs the pending compile itself rather than answering out of a stale program
      * or out of none. It is the same work the debounce was about to do, done a little early.
+     *
+     * `staleProgram()` is the same condition arriving from the other direction: a completion request
+     * left the session holding a program with a sentinel in it, and one name there resolves to
+     * nothing. Recompiling is what a keystroke would have done anyway, and a completion request is
+     * followed by more typing.
      */
-    if(dirty) {
+    if(dirty || session.staleProgram()) {
         refresh();
         dirty = false;
     }
 
     if(method == "textDocument/definition"_v) onDefinition(message, id);
-    else if(method == "textDocument/typeDefinition"_v) onDefinition(message, id);
+    else if(method == "textDocument/typeDefinition"_v) onTypeDefinition(message, id);
     else if(method == "textDocument/declaration"_v) onDefinition(message, id);
     else if(method == "textDocument/hover"_v) onHover(message, id);
     else if(method == "textDocument/references"_v) onReferences(message, id);
     else if(method == "textDocument/semanticTokens/full"_v) onSemanticTokens(message, id);
+    else if(method == "textDocument/signatureHelp"_v) onSignatureHelp(message, id);
+    else if(method == "textDocument/inlayHint"_v) onInlayHint(message, id);
+    else if(method == "textDocument/documentHighlight"_v) onDocumentHighlight(message, id);
+    else if(method == "textDocument/documentSymbol"_v) onDocumentSymbol(message, id);
+    else if(method == "textDocument/foldingRange"_v) onFoldingRange(message, id);
     else {
         // Everything else is a later milestone. Answering "method not found" is what tells the
         // client to stop asking, which is better than a silence it waits out.
@@ -249,6 +280,16 @@ void Server::onInitialize(const JsonValue& message, const JsonValue* id) {
         }
     }
 
+    // Whether an item that takes arguments may insert them with the caret in the first one - §8.
+    // False unless the client says otherwise, which is the specification's default and the safe way
+    // round: a client that got a snippet it cannot expand would show the placeholder syntax as text.
+    completionSnippets = false;
+    if(auto completion = find(find(find(params, "capabilities"_v), "textDocument"_v), "completion"_v)) {
+        if(auto item = completion->find("completionItem"_v)) {
+            completionSnippets = find(item, "snippetSupport"_v)->asBool(false);
+        }
+    }
+
     MessageWriter out;
     out.startResponse(id);
     out.json.field("result"_v).startObject();
@@ -267,8 +308,40 @@ void Server::onInitialize(const JsonValue& message, const JsonValue* id) {
     // M6. Four features out of one side table - Implementation-Tooling.md §1.
     out.json.field("definitionProvider"_v).value(true);
     out.json.field("declarationProvider"_v).value(true);
+    out.json.field("typeDefinitionProvider"_v).value(true);
     out.json.field("hoverProvider"_v).value(true);
     out.json.field("referencesProvider"_v).value(true);
+
+    // §6's remaining editor-facing rows, none of which needed anything the compile does not
+    // already leave behind. The inlay hints are M9's other half - `explain` above a declaration,
+    // and the type of a binding nobody wrote one for.
+    out.json.field("inlayHintProvider"_v).value(true);
+    out.json.field("documentHighlightProvider"_v).value(true);
+    out.json.field("documentSymbolProvider"_v).value(true);
+    out.json.field("foldingRangeProvider"_v).value(true);
+
+    // M8 - Implementation-Tooling.md §8. `.` is the one trigger character: every other position
+    // starts with an identifier character, which a client asks about on its own.
+    out.json.field("completionProvider"_v).startObject();
+    out.json.field("triggerCharacters"_v).startArray();
+    out.json.arrayField().value("."_v);
+    out.json.endArray();
+    out.json.endObject();
+
+    // The brackets a call is written with are what open and separate its arguments, so they are
+    // what should bring the signature back - and `)` is what should take it away, which a client
+    // does for itself once it knows the call ended. `{` because a record is constructed with one
+    // and its fields are its arguments.
+    out.json.field("signatureHelpProvider"_v).startObject();
+    out.json.field("triggerCharacters"_v).startArray();
+    out.json.arrayField().value("("_v);
+    out.json.arrayField().value("{"_v);
+    out.json.arrayField().value(","_v);
+    out.json.endArray();
+    out.json.field("retriggerCharacters"_v).startArray();
+    out.json.arrayField().value(","_v);
+    out.json.endArray();
+    out.json.endObject();
 
     out.json.field("semanticTokensProvider"_v).startObject();
     out.json.field("legend"_v).startObject();
@@ -326,6 +399,14 @@ void Server::onInitialize(const JsonValue& message, const JsonValue* id) {
 
     logMessage(3, stringView(format("Yana: %@ modules from %@", session.moduleMap.entries.size(),
                                     session.projectPath)));
+
+    // What was negotiated, said out loud. Both of these change what an answer looks like rather
+    // than whether there is one - an item that inserts its brackets needs `snippetSupport`, and
+    // every range in every answer is counted in the encoding - so a client that declined one is
+    // indistinguishable from a server bug unless the log says which happened.
+    logMessage(3, stringView(format("Yana: positions in %@, completion snippets %@",
+                                    utf16Positions ? "utf-16" : "utf-8",
+                                    completionSnippets ? "on" : "off")));
     dirty = true;
 }
 
@@ -540,6 +621,81 @@ void Server::onReferences(const JsonValue& message, const JsonValue* id) {
     send(out);
 }
 
+void Server::onCompletion(const JsonValue& message, const JsonValue* id) {
+    auto params = message.find("params"_v);
+
+    StringId module = 0;
+    U32 offset = 0;
+    Document* document = nullptr;
+
+    MessageWriter out;
+    out.startResponse(id);
+    out.json.field("result"_v);
+
+    if(!params || !resolvePosition(*params, module, offset, document)) {
+        out.json.null();
+    } else {
+        // The open document's text, or nothing - which makes writeCompletion read the file the
+        // compile it is about to run loaded, since a view of that one taken now would not survive it.
+        writeCompletion(out.json, session, module, offset,
+                        document ? stringView(document->text) : StringView {}, completionSnippets,
+                        utf16Positions);
+    }
+
+    out.endObject();
+    send(out);
+}
+
+void Server::onSignatureHelp(const JsonValue& message, const JsonValue* id) {
+    auto params = message.find("params"_v);
+
+    StringId module = 0;
+    U32 offset = 0;
+    Document* document = nullptr;
+
+    MessageWriter out;
+    out.startResponse(id);
+    out.json.field("result"_v);
+
+    if(!params || !resolvePosition(*params, module, offset, document)) {
+        out.json.null();
+    } else if(document) {
+        writeSignatureHelp(out.json, session, module, offset, stringView(document->text));
+    } else {
+        writeSignatureHelp(out.json, session, module, offset, session.provider.getSource(module));
+    }
+
+    out.endObject();
+    send(out);
+}
+
+/*
+ * A whole-file request's document, which is the open buffer's text where there is one and the
+ * compiled file's otherwise. The line table comes with it: a request that answers in ranges needs
+ * one, and an open document already has it built.
+ */
+Server::FileRequest Server::resolveFile(const JsonValue& params) {
+    FileRequest request;
+
+    auto uri = documentUri(params);
+    auto path = uriToPath(uri);
+    auto entry = session.isOpen() ? session.findEntry(stringView(path)) : nullptr;
+    if(!entry || !entry->name) return request;
+
+    request.module = entry->name;
+    request.found = true;
+
+    if(auto document = documents.find(uri)) {
+        request.text = stringView(document->text);
+        request.lines.build(request.text);
+    } else {
+        request.text = session.provider.getSource(entry->name);
+        request.lines.build(request.text);
+    }
+
+    return request;
+}
+
 void Server::onSemanticTokens(const JsonValue& message, const JsonValue* id) {
     auto params = message.find("params"_v);
 
@@ -547,27 +703,138 @@ void Server::onSemanticTokens(const JsonValue& message, const JsonValue* id) {
     out.startResponse(id);
     out.json.field("result"_v);
 
-    auto uri = params ? documentUri(*params) : StringView {};
-    auto path = uriToPath(uri);
-    auto entry = session.isOpen() ? session.findEntry(stringView(path)) : nullptr;
+    auto file = params ? resolveFile(*params) : FileRequest {};
 
-    if(!entry || !entry->name || !session.context) {
+    if(!file.found || !session.context) {
         out.json.null();
+    } else {
+        writeSemanticTokens(out.json, session, file.module, file.text, file.lines, utf16Positions);
+    }
+
+    out.endObject();
+    send(out);
+}
+
+void Server::onTypeDefinition(const JsonValue& message, const JsonValue* id) {
+    auto params = message.find("params"_v);
+
+    StringId module = 0;
+    U32 offset = 0;
+    Document* document = nullptr;
+
+    MessageWriter out;
+    out.startResponse(id);
+    out.json.field("result"_v);
+
+    if(!params || !resolvePosition(*params, module, offset, document)) {
+        out.json.null();
+    } else {
+        LocationWriter locations(session, utf16Positions);
+        writeTypeDefinition(out.json, session, locations, module, offset);
+    }
+
+    out.endObject();
+    send(out);
+}
+
+void Server::onDocumentHighlight(const JsonValue& message, const JsonValue* id) {
+    auto params = message.find("params"_v);
+
+    StringId module = 0;
+    U32 offset = 0;
+    Document* document = nullptr;
+
+    MessageWriter out;
+    out.startResponse(id);
+    out.json.field("result"_v);
+
+    auto file = params ? resolveFile(*params) : FileRequest {};
+
+    if(!params || !file.found || !resolvePosition(*params, module, offset, document)) {
+        out.json.startArray().endArray();
+    } else {
+        writeDocumentHighlights(out.json, session, module, offset, file.text, file.lines, utf16Positions);
+    }
+
+    out.endObject();
+    send(out);
+}
+
+void Server::onDocumentSymbol(const JsonValue& message, const JsonValue* id) {
+    auto params = message.find("params"_v);
+
+    MessageWriter out;
+    out.startResponse(id);
+    out.json.field("result"_v);
+
+    auto file = params ? resolveFile(*params) : FileRequest {};
+
+    if(!file.found || !session.context) {
+        out.json.startArray().endArray();
+    } else {
+        LocationWriter locations(session, utf16Positions);
+        writeDocumentSymbols(out.json, session, locations, file.module);
+    }
+
+    out.endObject();
+    send(out);
+}
+
+void Server::onFoldingRange(const JsonValue& message, const JsonValue* id) {
+    auto params = message.find("params"_v);
+
+    MessageWriter out;
+    out.startResponse(id);
+    out.json.field("result"_v);
+
+    auto file = params ? resolveFile(*params) : FileRequest {};
+
+    if(!file.found) {
+        out.json.startArray().endArray();
+    } else {
+        // The one answer here that needs no compile at all - folding is the document's own
+        // indentation, which is exactly why it keeps working while the file does not parse.
+        writeFoldingRanges(out.json, file.text, file.lines);
+    }
+
+    out.endObject();
+    send(out);
+}
+
+void Server::onInlayHint(const JsonValue& message, const JsonValue* id) {
+    auto params = message.find("params"_v);
+
+    MessageWriter out;
+    out.startResponse(id);
+    out.json.field("result"_v);
+
+    auto file = params ? resolveFile(*params) : FileRequest {};
+
+    if(!file.found || !session.context) {
+        out.json.startArray().endArray();
         out.endObject();
         send(out);
         return;
     }
 
-    if(auto document = documents.find(uri)) {
-        writeSemanticTokens(out.json, session, entry->name, stringView(document->text), document->lines,
-                            utf16Positions);
-    } else {
-        auto text = session.provider.getSource(entry->name);
-        LineTable lines;
-        lines.build(text);
-        writeSemanticTokens(out.json, session, entry->name, text, lines, utf16Positions);
+    // The visible range, which is what the client asks about rather than the whole file. Absent
+    // from a client that asks for everything, and the whole document is then the range.
+    U32 from = 0;
+    U32 to = U32(file.text.length);
+
+    if(auto range = params->find("range"_v)) {
+        auto start = range->find("start"_v);
+        auto end = range->find("end"_v);
+
+        if(start && end) {
+            from = file.lines.offsetAt(file.text, U32(find(start, "line"_v)->asInt(0)),
+                                       U32(find(start, "character"_v)->asInt(0)), utf16Positions);
+            to = file.lines.offsetAt(file.text, U32(find(end, "line"_v)->asInt(0)),
+                                     U32(find(end, "character"_v)->asInt(0)), utf16Positions);
+        }
     }
 
+    writeInlayHints(out.json, session, file.module, file.text, file.lines, utf16Positions, from, to);
     out.endObject();
     send(out);
 }

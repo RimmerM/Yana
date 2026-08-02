@@ -23,3 +23,40 @@ fn main() -> Int:
     let s = Square {side: 3}
     return pick(total, area(s))
 --         ^pick       ^classfun2
+--              ^sigFirst
+--                     ^sigSecond
+--                          ^sigNested
+
+-- Signature help where there is no call, and where the callee is a name nothing declares. Both
+-- have to answer nothing rather than the nearest thing they can find. A declaration's own brackets
+-- read exactly like a call and are not one, which is what the keyword in front of the name says.
+fn quiet(n: Int) -> Int:
+--       ^sigOutside
+    return n + missingCallee(n)
+--                           ^sigUnknown
+
+-- Constructing a record is a call with arguments like any other, and its fields are its parameters
+-- - so the same overlay answers for it. The second caret is inside a bare tuple, which has no name
+-- in front of it and therefore no signature of its own: what a writer wants there is the call it is
+-- an argument of, which is what walking outwards from the innermost bracket finds.
+fn build() -> Int:
+    let s = Square {side: 3}
+--                        ^sigConstructor
+    let p = Point {x: 1, y: 2}
+--                       ^sigField
+    return sum({x: 4, y: 5}) + area(s) + p.x
+--                    ^sigTuple
+
+-- What `explain` found and the source does not say - M9. `keep` writes what it was handed into
+-- storage the caller also owns, so the loan cannot end at the call, and no part of the signature
+-- says so. `plain` is here for the same reason the fixture has unsurprising functions in it at all:
+-- a hover section that appeared under every declaration would be one nobody reads.
+data Slot {value: Int}
+
+fn keep(&slot: Slot, ->with: Slot) -> Int:
+--  ^explained
+    slot = with
+    return slot.value
+
+fn plain(n: Int) -> Int = n + 1
+-- ^unexplained

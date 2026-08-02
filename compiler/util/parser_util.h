@@ -106,6 +106,18 @@ struct BasicParser {
     }
 
     void eat() {
+        /*
+         * Where the text the parser has actually read reaches to, which is what the gap before the
+         * next token is measured from - see Parser::beforeCursorToken.
+         *
+         * Only tokens that stand for text. A layout token is zero-width and sits at the position of
+         * the token it precedes, so counting one would put the end of what has been read *after*
+         * the blank lines it was emitted for - and the gap those blank lines are would vanish. A
+         * token's own `whitespaceOffset` does not answer this either, for the same reason from the
+         * other side: the layout token consumed the whitespace, so the real token after one begins
+         * where it begins.
+         */
+        if(token.endOffset > token.startOffset) previousEnd = token.endOffset;
         lexer.next(token);
     }
 
@@ -293,6 +305,9 @@ struct BasicParser {
     Diagnostics& diag;
     Lexer& lexer;
     Token token;
+
+    // Where the last token the parser consumed ended - see eat().
+    U32 previousEnd = 0;
 
     // How many diagnostics this parse reports before it goes quiet - see canReport().
     U32 errorLimit = 50;

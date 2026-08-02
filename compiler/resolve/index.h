@@ -173,7 +173,20 @@ Symbol moduleSymbol(Module& target);
 /// One word for the kind, for hover and for the fixtures. Stable: the `.expect` files hold it.
 StringView symbolKindName(Symbol::Kind kind);
 
+/// Where one parameter sits within a printed signature. Byte offsets into what `describeSymbol`
+/// wrote, because that is the form the protocol's signature help wants: a client highlights the
+/// active parameter by slicing the label rather than by matching text against it.
+struct SignatureParameter {
+    U32 start = 0;
+    U32 end = 0;
+};
+
 /// The signature line an editor shows for a symbol - `fn map(f: (a) -> b, xs: [a]) -> [b]`, or the
 /// binding's own `let &count: Int`. Falls back to the kind and the name for a symbol whose shape
 /// there is nothing to print, which is what the three structural kinds are.
-void describeSymbol(Context& context, const Symbol& symbol, TypePtr type, StringBuilder& into);
+///
+/// `parameters`, when given, is filled with one entry per written parameter of a function or class
+/// function and left alone for every other kind. One printer for both surfaces: a signature help
+/// that built its own label would drift from the one hover shows for the same name.
+void describeSymbol(Context& context, const Symbol& symbol, TypePtr type, StringBuilder& into,
+                    Array<SignatureParameter>* parameters = nullptr);

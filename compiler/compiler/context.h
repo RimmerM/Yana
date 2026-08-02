@@ -55,9 +55,46 @@ namespace Tritium {
     }
 }
 
-// The editor-facing side table - resolve/index.h. Declared rather than included, because it is
-// built out of the resolver's own handles and this header is below the resolver.
+// The editor-facing side tables - resolve/index.h and resolve/complete.h. Declared rather than
+// included, because both are built out of the resolver's own handles and this header is below the
+// resolver.
 struct SemanticIndex;
+struct CompletionRequest;
+
+/*
+ * Where a completion request is asking about - Implementation-Tooling.md §8.2.
+ *
+ * Set before anything is parsed, and read by the parser: an identifier that contains `offset` is
+ * the name being typed, so the parser emits the cursor sentinel in its place and records here what
+ * it emitted. `module` is zero in every ordinary compile, which is what keeps the whole mechanism
+ * to one comparison per identifier token.
+ *
+ * The two halves are written by different stages and read by a third. The parser fills `sentinel`
+ * and `prefixStart`; the resolver fills the `CompletionRequest` it reaches through
+ * `Context::completion`; and the server puts the two together, since the *text* between
+ * `prefixStart` and `offset` is the partial name to filter by and only the server holds the text.
+ */
+struct Cursor {
+    StringId module = 0;
+    U32 offset = 0;
+
+    // The sentinel's node, so a caller can say where the answer applies, and where the partial name
+    // it stands in for begins. `prefixStart == offset` is a position with nothing typed yet.
+    LocationId sentinel = kNullLocation;
+    U32 prefixStart = 0;
+
+    bool isSet() const { return module != 0; }
+    bool wasParsed() const { return sentinel != kNullLocation; }
+};
+
+/*
+ * The name the cursor sentinel is written with.
+ *
+ * `$` is not an identifier character (`util/lexer_util.cpp`), so no name the lexer can produce
+ * collides with it - which is what lets the resolver recognize the sentinel by name rather than by
+ * carrying a flag through every expression that might hold one.
+ */
+StringId cursorName(struct Context& context);
 
 enum class Assoc : U8 {
     Left,
@@ -201,6 +238,16 @@ struct Context {
      * drops it with the program, since what it holds are that program's own handles.
      */
     SemanticIndex* index = nullptr;
+
+    /*
+     * The completion request this compile is answering, or none - Implementation-Tooling.md §8.
+     *
+     * `cursor` is what the parser reads and writes; `completion` is where the resolver puts what it
+     * captured when it reached the sentinel. Both are set together by a language server and by
+     * nothing else, so an ordinary compile parses and resolves exactly as it did before.
+     */
+    Cursor cursor;
+    CompletionRequest* completion = nullptr;
 
     void addOp(StringId op, U16 prec = 9, Assoc assoc = Assoc::Left);
     OpProperties findOp(StringId op);

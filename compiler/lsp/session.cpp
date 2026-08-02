@@ -53,7 +53,7 @@ Result<void, String> Session::rescan() {
     return Ok();
 }
 
-void Session::compile() {
+void Session::compile(CompletionRequest* completion, Cursor cursor) {
     // The order matters. The program holds arenas whose pointers are offsets into them, so it can
     // outlive neither the context nor the provider; and the ASTs hold LocationIds, which index one
     // context's location array in the order that context created them. So everything goes and
@@ -62,6 +62,7 @@ void Session::compile() {
     program = nullptr;
     context = nullptr;
     index = nullptr;
+    calls = nullptr;
     positions.clear();
 
     diagnostics.reset();
@@ -76,6 +77,14 @@ void Session::compile() {
     index = Ptr(new SemanticIndex());
     context->index = index.get();
 
+    // Before the parse, because the sentinel is what the parser puts where the cursor is - §8.2.
+    // The cursor's module is what makes it one module's concern: every other file in the project
+    // parses exactly as it does in an ordinary compile.
+    context->completion = completion;
+    context->cursor = cursor;
+
+    stale = completion != nullptr;
+
     provider.prepare(*context);
 
     String error;
@@ -89,6 +98,22 @@ void Session::compile() {
     if(!ast) return;
 
     program = resolveProgram(*context, *ast, &provider);
+}
+
+void Session::complete(StringId module, U32 offset, CompletionRequest& request, U32& prefixStart) {
+    Cursor cursor;
+    cursor.module = module;
+    cursor.offset = offset;
+
+    // The cursor with nothing found is a position where the parser reached no production at all -
+    // inside a string, inside a comment, in a declaration head. The prefix is then the cursor
+    // itself, so a caller that asks for the text between it and the cursor gets nothing, which is
+    // what an empty answer should look like.
+    prefixStart = offset;
+
+    compile(&request, cursor);
+
+    if(context && context->cursor.wasParsed()) prefixStart = context->cursor.prefixStart;
 }
 
 PositionIndex* Session::positionsOf(StringId module) {
@@ -145,6 +170,17 @@ const Symbol* Session::definitionAt(StringId module, U32 offset) {
     }
 
     return nullptr;
+}
+
+CallSiteIndex* Session::callSites() {
+    if(!program) return nullptr;
+
+    if(!calls) {
+        calls = Ptr(new CallSiteIndex());
+        calls->build(*program);
+    }
+
+    return calls.get();
 }
 
 StringView Session::pathOf(StringId module) {

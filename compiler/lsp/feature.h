@@ -106,6 +106,8 @@ void writeTokenLegend(Net::JsonWriter& json);
  */
 void writeDefinition(Net::JsonWriter& json, Session& session, LocationWriter& locations,
                      StringId module, U32 offset);
+void writeTypeDefinition(Net::JsonWriter& json, Session& session, LocationWriter& locations,
+                         StringId module, U32 offset);
 void writeHover(Net::JsonWriter& json, Session& session, LocationWriter& locations,
                 StringId module, U32 offset);
 void writeReferences(Net::JsonWriter& json, Session& session, LocationWriter& locations,
@@ -113,8 +115,87 @@ void writeReferences(Net::JsonWriter& json, Session& session, LocationWriter& lo
 void writeSemanticTokens(Net::JsonWriter& json, Session& session, StringId module,
                          StringView text, const LineTable& lines, bool utf16);
 
+/*
+ * Inlay hints - §6's row, and the half of M9 that is not hover.
+ *
+ * `from` and `to` are the byte range the client asked about, which is the visible part of the
+ * document plus a margin. Everything outside it is left out rather than sent and discarded.
+ */
+void writeInlayHints(Net::JsonWriter& json, Session& session, StringId module, StringView text,
+                     const LineTable& lines, bool utf16, U32 from, U32 to);
+
+/*
+ * Document highlights - §6's row: the `references` answer restricted to one file.
+ *
+ * A separate request from `references` because it is asked constantly - a client sends one whenever
+ * the caret stops moving - and answers with ranges in the current document only, so it needs no
+ * URIs and no line table for any other file.
+ */
+void writeDocumentHighlights(Net::JsonWriter& json, Session& session, StringId module, U32 offset,
+                             StringView text, const LineTable& lines, bool utf16);
+
+/*
+ * Document symbols - §6's row, out of the module's own declaration tables.
+ *
+ * The flat form rather than the hierarchical one: Yana's declarations do not nest, apart from a
+ * class's and an instance's functions, and those are named after what declares them anyway.
+ */
+void writeDocumentSymbols(Net::JsonWriter& json, Session& session, LocationWriter& locations,
+                          StringId module);
+
+/*
+ * Folding ranges - §6's row.
+ *
+ * From the document's own indentation rather than from the parser's `IndentLevel` stack, which is
+ * what §6 proposed. The reason is the one §8 gives for the cursor sentinel: this has to answer on
+ * text that is not a program, and a file mid-edit is exactly when its blocks are being written. The
+ * rule is the lexer's own - a line is a block header when the line under it is indented further -
+ * so the two agree wherever the file parses.
+ */
+void writeFoldingRanges(Net::JsonWriter& json, StringView text, const LineTable& lines);
+
+/*
+ * Completion - Implementation-Tooling.md §8.
+ *
+ * Unlike the four above, this one *compiles*: the cursor sentinel is a parse-time decision, so
+ * answering means re-resolving the program with the cursor set. The session is left stale
+ * afterwards - `Session::staleProgram()` - and the caller has to recompile before answering
+ * anything else out of it.
+ *
+ * `text` is the document as the client has it, which is what the partial name under the cursor is
+ * read out of. The compiler never sees that text; it reports where the name starts and the server
+ * holds the buffer.
+ *
+ * `snippets` is the client's own `snippetSupport`, which decides whether an item that takes
+ * arguments can insert them with the caret in the first one, and `utf16` the negotiated position
+ * encoding - an item carries the range it replaces, so it counts characters the way the client does.
+ */
+void writeCompletion(Net::JsonWriter& json, Session& session, StringId module, U32 offset,
+                     StringView text, bool snippets, bool utf16);
+
+/*
+ * Signature help - Implementation-Tooling.md §6's `signatureHelp` row.
+ *
+ * "The overload set at the enclosing call's LocationId, plus which argument the cursor is in", and
+ * both halves come from things that already exist: the position index says which call node the
+ * cursor is in, and `findFunction`/`findClassFunctions` are the same lookup a call site makes.
+ *
+ * Unlike completion this reads the ordinary compile - a call being typed still parses as a call,
+ * which is what M7's recovery bought - so it costs a lookup rather than a compile.
+ */
+void writeSignatureHelp(Net::JsonWriter& json, Session& session, StringId module, U32 offset,
+                        StringView text);
+
+/// The item kind the protocol numbers a symbol as. Exposed for the fixtures, which assert on the
+/// number a client would sort and icon by.
+U32 completionItemKind(Symbol::Kind kind);
+
 /// The hover text for whatever is at a position, as the markdown a client renders. Exposed on its
 /// own because the fixtures assert on it directly - see test/lsp.
 void describeAt(Session& session, StringId module, U32 offset, StringBuilder& into);
+
+/// The `explain` section a hover carries under the signature, or false and nothing written where
+/// every answer is the boring one - Implementation-Tooling.md M9. Exposed for the same reason.
+bool explainAt(Session& session, StringId module, U32 offset, StringBuilder& into);
 
 } // namespace lsp

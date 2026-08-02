@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "complete.h"
 #include "generic.h"
 #include "name.h"
 #include "index.h"
@@ -40,9 +41,7 @@ Binding* ExprResolver::findBinding(StringId name, LocationId source) {
  * index - which is only meaningful together with the enclosing function, and that is what `function`
  * is for.
  */
-void recordBinding(ExprResolver& resolver, const Binding& binding, LocationId source) {
-    if(!resolver.context.index) return;
-
+Symbol bindingSymbol(ExprResolver& resolver, const Binding& binding) {
     Symbol symbol;
     symbol.kind = Symbol::Kind::Local;
     symbol.module = &resolver.module;
@@ -59,7 +58,39 @@ void recordBinding(ExprResolver& resolver, const Binding& binding, LocationId so
         symbol.payload = ((Arg*)resolver.local[binding.value])->index;
     }
 
-    recordReference(resolver.context, source, symbol, bindingType(resolver, binding));
+    return symbol;
+}
+
+void recordBinding(ExprResolver& resolver, const Binding& binding, LocationId source) {
+    if(!resolver.context.index) return;
+    recordReference(resolver.context, source, bindingSymbol(resolver, binding), bindingType(resolver, binding));
+}
+
+/*
+ * The binding itself, as a definition rather than as a use - §1.2's `expr_pat.cpp` row.
+ *
+ * Recorded where the name is *introduced*, which the references cannot stand in for: a `let` whose
+ * name is never read afterwards is recorded nowhere at all otherwise, and it is exactly the one an
+ * editor is asked about while it is being written. It is also what makes find-references work from
+ * the declaration rather than only from a use.
+ */
+void recordBindingDefinition(ExprResolver& resolver, const Binding& binding) {
+    if(!resolver.context.index || binding.definition == kNullLocation) return;
+
+    auto symbol = bindingSymbol(resolver, binding);
+    recordDefinition(resolver.context, symbol);
+
+    /*
+     * And as an occurrence of itself, which is not redundant: a Symbol says which slot a name is
+     * and a Reference says what type it had there, and the type of a local is not reachable from
+     * the slot - an immutable binding names an SSA value rather than a frame slot at all. So a
+     * declaration nothing reads afterwards - which is exactly the one being written - would
+     * otherwise have no type recorded anywhere.
+     *
+     * The two surfaces that list occurrences leave it out where it would be a duplicate of the
+     * declaration they already write; see lsp/feature.cpp.
+     */
+    recordReference(resolver.context, binding.definition, symbol, bindingType(resolver, binding));
 }
 
 ModulePtr<Value> ExprResolver::find(StringId name) {
@@ -1422,6 +1453,7 @@ void ExprResolver::bindBorrow(const ast::VarDecl& declaration, ModulePtr<Value> 
     Binding binding { declaration.pat.var, value, maxLimit<U32>, value };
     binding.definition = declaration.pat.source;
     bindings.push(binding);
+    recordBindingDefinition(*this, binding);
 }
 
 Maybe<U32> ExprResolver::adoptableLocal(ModulePtr<Value> value, U32 fresh) {
@@ -1488,6 +1520,7 @@ void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value>
         Binding adoptedBinding { name, slot.value, index };
         adoptedBinding.definition = declaration.pat.source;
         bindings.push(adoptedBinding);
+        recordBindingDefinition(*this, adoptedBinding);
         return;
     }
 
@@ -1500,6 +1533,7 @@ void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value>
     Binding binding { name, storage, place.local };
     binding.definition = declaration.pat.source;
     bindings.push(binding);
+    recordBindingDefinition(*this, binding);
 }
 
 /*
@@ -1716,6 +1750,18 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             return result;
         }
         case ast::Expr::Var: {
+            /*
+             * The cursor sentinel in ordinary value position - Implementation-Tooling.md §8.2.
+             *
+             * Everything completion needs is already here: the scope stack, and the type this
+             * position was asked for. Ahead of the lookup because the sentinel names nothing, so
+             * the lookup's only possible outcome is the "unknown scalar value" report below.
+             */
+            if(isCursorSentinel(context, expr.var)) {
+                captureCompletion(*this, target, nullptr, false);
+                return nullptr;
+            }
+
             auto binding = findBinding(expr.var, expr.source);
             if(!binding) {
                 if(auto found = findGlobal(module, expr.var, expr.source)) {
@@ -1785,6 +1831,20 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             // body may name the variables that body is written over - `cast(p) :: %a` is how a
             // generic function says which of the two pointer types a reinterpretation produces.
             auto type = resolveType(module, coerce.type, functionGen(global, function));
+
+            /*
+             * The cursor sentinel takes the ascription as what this position asked for.
+             *
+             * Here rather than in the Var case below, because the fallback at the end of this
+             * function deliberately does *not* push the type into a plain name - `x :: U8` converts
+             * explicitly afterwards rather than resolving `x` against `U8`. An ascription on a name
+             * that has not been written yet is the one thing saying what belongs there, so it is
+             * exactly the type completion should rank by.
+             */
+            if(coerce.target.kind == ast::Expr::Var && isCursorSentinel(context, coerce.target.var)) {
+                captureCompletion(*this, type, nullptr, false);
+                return nullptr;
+            }
 
             // `::` is what supplies the expected type where nothing else does, so it is pushed
             // down into a literal (which has no type of its own), into a call (whose class
@@ -1967,6 +2027,7 @@ void bindFunctionArgs(ExprResolver& resolver, Module& module, Function& function
             // load from until the force has happened - see ExprResolver::force.
             binding.lazy = true;
             resolver.bindings.push(binding);
+            recordBindingDefinition(resolver, binding);
             continue;
         }
 
@@ -1985,6 +2046,7 @@ void bindFunctionArgs(ExprResolver& resolver, Module& module, Function& function
         }
 
         resolver.bindings.push(binding);
+        recordBindingDefinition(resolver, binding);
     }
 }
 

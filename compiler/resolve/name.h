@@ -118,6 +118,45 @@ Found<T> search(Context& context, Module& module, StringId name, LocationId sour
     return result;
 }
 
+/*
+ * One module a name written here could come from - the enumeration half of search().
+ *
+ * `import` is null for the module itself. `qualifier` is the local name a symbol from this module
+ * has to be written under, and is zero exactly when it may be written on its own: a `qualified`
+ * import contributes nothing to unqualified lookup, which is the same clause search() applies from
+ * the other side.
+ */
+struct VisibleModule {
+    Module* module = nullptr;
+    const Import* import = nullptr;
+    StringId qualifier = 0;
+};
+
+/*
+ * Every module in scope here, in search()'s own order.
+ *
+ * search() answers "what does this name mean"; completion needs "what names are there", which is
+ * this traversal with the match replaced by an enumeration - Implementation-Tooling.md §8.1. It
+ * lives beside search() and shares its rules for the reason §1 gives for the semantic index: two
+ * copies of Yana's visibility rules would agree on the easy cases and disagree on exactly the ones
+ * a programmer opens an editor for.
+ *
+ * `visit` is called as visit(const VisibleModule&) once per module, and the caller enumerates
+ * whichever of that module's tables it wants. The per-*name* half of visibility is not applied
+ * here, because only the caller knows which names it is about to offer - `Module::visible(import,
+ * name)` is that half and has to be asked of each one.
+ */
+template<class Visit>
+void forEachVisible(Context& context, Module& module, Visit&& visit) {
+    visit(VisibleModule { &module, nullptr, 0 });
+
+    for(auto& import: module.imports) {
+        if(!import.module) continue;
+
+        visit(VisibleModule { import.module, &import, import.qualified ? import.localName : StringId(0) });
+    }
+}
+
 TypePtr findType(Module& module, StringId name, LocationId source);
 Maybe<TypeAlias*> findAlias(Module& module, StringId name, LocationId source);
 Maybe<ConstructorRef> findConstructor(Module& module, StringId name, LocationId source);

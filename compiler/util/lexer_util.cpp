@@ -211,3 +211,54 @@ bool isWhiteChar(char c) {
     U32 index = (U32)c - 9;
     return index <= 4 || c == ' ';
 }
+
+// Checks if the provided character is a symbol in the language.
+bool isSymbol(char c) {
+    // We use a small lookup table for this,
+    // since the number of branches would be ridiculous otherwise.
+    static const bool table[] = {
+        true, /* ! */
+        false, /* " */
+        true, /* # */
+        true, /* $ */
+        true, /* % */
+        true, /* & */
+        false, /* ' */
+        false, /* ( */
+        false, /* ) */
+        true, /* * */
+        true, /* + */
+        false, /* , */
+        true, /* - */
+        true, /* . */
+        true, /* / */
+        false, false, false, false, false, false, false, false, false, false, /* 0..9 */
+        true, /* : */
+        false, /* ; */
+        true, /* < */
+        true, /* = */
+        true, /* > */
+        true, /* ? */
+        true, /* @ */
+        false, false, false, false, false, false, false, false, false, false, /* A..Z */
+        false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false,
+        false, /* [ */
+        true, /* \ */
+        false, /* ] */
+        true, /* ^ */
+        false, /* _ */
+        false, /* ` */
+        false, false, false, false, false, false, false, false, false, false, /* a..z */
+        false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false,
+        false, /* { */
+        true, /* | */
+        false, /* } */
+        true /* ~ */
+    };
+
+    U32 index = (U32)c - '!';
+    if(index > 93) return false;
+    else return table[index];
+}

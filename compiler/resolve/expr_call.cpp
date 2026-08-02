@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "complete.h"
 #include "witness.h"
 #include "generic.h"
 #include "name.h"
@@ -626,6 +627,20 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     // A binding of function type shadows a declaration of the same name, and an arbitrary callee
     // expression was never a name at all. Both are the indirect path.
     auto& calleeExpr = unwrapNested(call.callee);
+
+    /*
+     * The cursor sentinel in callee position - `f|(x)` - which is where an editor asks most often,
+     * since typing a name and then its arguments is the order a call is written in.
+     *
+     * The call's expected result type is what ranks the answer: a candidate that returns what this
+     * position wants is the one being reached for. Ahead of everything, because the arguments are
+     * resolved against a callee that does not exist and would each report.
+     */
+    if(calleeExpr.kind == ast::Expr::Var && isCursorSentinel(context, calleeExpr.var)) {
+        captureCompletion(*this, target, nullptr, false);
+        return nullptr;
+    }
+
     auto named = calleeExpr.kind == ast::Expr::Var && !findBinding(calleeExpr.var);
 
     if(!named) return resolveIndirectCall(expr, call, convertResult ? target : nullptr);

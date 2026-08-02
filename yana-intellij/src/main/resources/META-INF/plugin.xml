@@ -57,6 +57,14 @@
         <backspaceHandlerDelegate implementation="se.rimmer.yana.YanaBackspaceHandler"/>
 
         <!--
+          And Enter opens a level under a header that asked for one. There is no formatter to
+          derive an indent from - reformatting a layout-sensitive language by rules the compiler
+          does not share is how a working file stops compiling - so this is the extension point
+          that answers without one.
+        -->
+        <lineIndentProvider implementation="se.rimmer.yana.YanaLineIndentProvider"/>
+
+        <!--
           Running a Yana program - Implementation-Tooling.md §16. The configuration builds through
           the Yana driver and runs what it produced; the debug half waits for the DWARF line tables
           of M10, since a debugger over a binary with no line table stops nowhere.

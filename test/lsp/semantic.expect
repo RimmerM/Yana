@@ -1,6 +1,8 @@
 == diagnostics
 
-(none)
+error Main.yana:35:15: unknown function missingCallee
+error Main.yana:35:4: non-unit function must return a value
+error Main.yana:47:11: cannot convert {x: Int, y: Int} to Point
 
 == lsp/semantic/src/Main.yana
 
@@ -14,13 +16,15 @@ use at 7:36
   kind: argument
   definition: Main.yana:7:8..7:14 "a: Int"
   hover: argument a: Int
+  reference: Main.yana:7:8..7:14 "a: Int"
   reference: Main.yana:7:36..7:37 "a"
   reference: Main.yana:7:47..7:48 "a"
 
 local at 11:9
   kind: local
   definition: Main.yana:11:9..11:14 "total"
-  hover: local total
+  hover: local total: Int
+  reference: Main.yana:11:9..11:14 "total"
   reference: Main.yana:15:4..15:9 "total"
   reference: Main.yana:15:12..15:17 "total"
   reference: Main.yana:17:4..17:9 "total"
@@ -41,6 +45,7 @@ write at 15:4
   kind: local
   definition: Main.yana:11:9..11:14 "total"
   hover: local total: Int
+  reference: Main.yana:11:9..11:14 "total"
   reference: Main.yana:15:4..15:9 "total"
   reference: Main.yana:15:12..15:17 "total"
   reference: Main.yana:17:4..17:9 "total"
@@ -57,6 +62,7 @@ classfun at 15:20
          -- instance Area(Shape)
   reference: Main.yana:15:20..15:24 "area"
   reference: Main.yana:24:23..24:27 "area"
+  reference: Main.yana:47:31..47:35 "area"
   reference: Shapes.yana:17:37..17:41 "area"
 
 call at 17:20
@@ -72,12 +78,14 @@ con2 at 19:12
   hover: Point.Point({x: Int, y: Int})
          -- from Shapes
   reference: Main.yana:19:12..19:17 "Point"
+  reference: Main.yana:45:12..45:17 "Point"
 
 field at 21:22
   kind: field
   definition: Shapes.yana:7:0..7:10 "data Point"
   hover: field x: Int
   reference: Main.yana:21:22..21:23 "x"
+  reference: Main.yana:47:43..47:44 "x"
 
 pick at 24:11
   kind: function
@@ -93,13 +101,110 @@ classfun2 at 24:23
          -- instance Area(Shape)
   reference: Main.yana:15:20..15:24 "area"
   reference: Main.yana:24:23..24:27 "area"
+  reference: Main.yana:47:31..47:35 "area"
   reference: Shapes.yana:17:37..17:41 "area"
 
+sigFirst at 24:16
+  kind: local
+  definition: Main.yana:11:9..11:14 "total"
+  hover: local total: Int
+  reference: Main.yana:11:9..11:14 "total"
+  reference: Main.yana:15:4..15:9 "total"
+  reference: Main.yana:15:12..15:17 "total"
+  reference: Main.yana:17:4..17:9 "total"
+  reference: Main.yana:17:12..17:17 "total"
+  reference: Main.yana:21:4..21:9 "total"
+  reference: Main.yana:21:12..21:17 "total"
+  reference: Main.yana:24:16..24:21 "total"
+  signature: {"signatures":[{"label":"fn pick(a: Int, b: Int) -> Int","parameters":[{"label":[8,14]},{"label":[16,22]}]}],"activeSignature":0,"activeParameter":0}
+
+sigSecond at 24:23
+  kind: class function
+  definition: Shapes.yana:10:4..10:24 "fn area(s: a) -> Int"
+  hover: class fn area(s: a) -> Int -- declared by class Area
+         -- from Shapes
+         -- instance Area(Shape)
+  reference: Main.yana:15:20..15:24 "area"
+  reference: Main.yana:24:23..24:27 "area"
+  reference: Main.yana:47:31..47:35 "area"
+  reference: Shapes.yana:17:37..17:41 "area"
+  signature: {"signatures":[{"label":"fn pick(a: Int, b: Int) -> Int","parameters":[{"label":[8,14]},{"label":[16,22]}]}],"activeSignature":0,"activeParameter":1}
+
+sigNested at 24:28
+  kind: local
+  definition: Main.yana:23:8..23:9 "s"
+  hover: local s: Shape
+  reference: Main.yana:23:8..23:9 "s"
+  reference: Main.yana:24:28..24:29 "s"
+  signature: {"signatures":[{"label":"class fn area(s: a) -> Int -- declared by class Area","parameters":[{"label":[14,18]}]}],"activeSignature":0,"activeParameter":0}
+
+sigOutside at 33:9
+  kind: argument
+  definition: Main.yana:33:9..33:15 "n: Int"
+  hover: argument n: Int
+  reference: Main.yana:33:9..33:15 "n: Int"
+  reference: Main.yana:35:11..35:12 "n"
+  reference: Main.yana:35:29..35:30 "n"
+  signature: null
+
+sigUnknown at 35:29
+  kind: argument
+  definition: Main.yana:33:9..33:15 "n: Int"
+  hover: argument n: Int
+  reference: Main.yana:33:9..33:15 "n: Int"
+  reference: Main.yana:35:11..35:12 "n"
+  reference: Main.yana:35:29..35:30 "n"
+  signature: null
+
+sigConstructor at 43:26
+  nothing resolved here
+  signature: {"signatures":[{"label":"Shape.Square({side: Int})","parameters":[{"label":[14,23]}]}],"activeSignature":0,"activeParameter":0}
+
+sigField at 45:25
+  nothing resolved here
+  signature: {"signatures":[{"label":"Point.Point({x: Int, y: Int})","parameters":[{"label":[13,19]},{"label":[21,27]}]}],"activeSignature":0,"activeParameter":1}
+
+sigTuple at 47:22
+  nothing resolved here
+  signature: {"signatures":[{"label":"fn sum(p: Point) -> Int","parameters":[{"label":[7,15]}]}],"activeSignature":0,"activeParameter":0}
+
+explained at 56:4
+  kind: function
+  definition: Main.yana:56:0..56:41 "fn keep(&slot: Slot, ->with: Slot) -> Int"
+  hover: fn keep(&slot: Slot, ->with: Slot) -> Int
+  explain:
+           ---
+           - **retains**: with
+           
+
+unexplained at 61:3
+  kind: function
+  definition: Main.yana:61:0..61:23 "fn plain(n: Int) -> Int"
+  hover: fn plain(n: Int) -> Int
+
 -- semantic tokens
-{"data":[6,11,3,1,0,0,8,3,1,0,0,8,3,1,0,0,9,1,4,0,0,2,1,9,0,0,2,1,4,0,0,7,1,4,0,0,7,1,4,0,3,13,3,1,0,3,12,13,7,0,2,4,5,5,16,0,8,5,5,16,0,6,1,9,0,0,2,4,9,0,0,5,1,5,0,2,4,5,5,16,0,8,5,5,16,0,6,1,9,0,0,2,5,8,0,0,6,1,5,0,2,12,5,7,0,2,4,5,5,16,0,8,5,5,16,0,6,1,9,0,0,2,1,5,0,0,2,1,6,0,0,2,1,9,0,0,2,3,8,0,0,4,1,5,0,2,12,6,7,0,1,11,4,8,0,0,5,5,5,16,0,7,4,9,0,0,5,1,5,0]}
+{"data":[6,11,3,1,0,0,8,3,1,0,0,8,3,1,0,0,9,1,4,0,0,2,1,9,0,0,2,1,4,0,0,7,1,4,0,0,7,1,4,0,3,13,3,1,0,1,9,5,5,16,2,8,1,5,0,0,4,13,7,0,2,4,5,5,16,0,8,5,5,16,0,6,1,9,0,0,2,4,9,0,0,5,1,5,0,2,4,5,5,16,0,8,5,5,16,0,6,1,9,0,0,2,5,8,0,0,6,1,5,0,2,8,1,5,0,0,4,5,7,0,2,4,5,5,16,0,8,5,5,16,0,6,1,9,0,0,2,1,5,0,0,2,1,6,0,0,2,1,9,0,0,2,3,8,0,0,4,1,5,0,2,8,1,5,0,0,4,6,7,0,1,11,4,8,0,0,5,5,5,16,0,7,4,9,0,0,5,1,5,0,9,12,3,1,0,0,8,3,1,0,2,11,1,4,0,0,18,1,4,0,7,14,3,1,0,1,8,1,5,0,0,4,6,7,0,2,8,1,5,0,0,4,5,7,0,2,11,3,8,0,0,18,1,9,0,0,2,4,9,0,0,5,1,5,0,0,3,1,9,0,0,2,1,5,0,0,2,1,6,0,7,18,3,1,0,2,15,4,1,0,0,14,4,1,0,0,9,3,1,0,2,4,4,4,16,0,7,4,4,32,1,11,4,4,16,0,5,5,6,0,2,12,3,1,0,0,8,3,1,0,0,6,1,4,0,0,2,1,9,0]}
+
+-- inlay hints
+[{"position":{"line":55,"character":42},"label":"-- retains with","paddingLeft":true},{"position":{"line":10,"character":14},"label":": Int","kind":1},{"position":{"line":12,"character":9},"label":": Shape","kind":1},{"position":{"line":18,"character":9},"label":": Point","kind":1},{"position":{"line":22,"character":9},"label":": Shape","kind":1},{"position":{"line":42,"character":9},"label":": Shape","kind":1},{"position":{"line":44,"character":9},"label":": Point","kind":1}]
+
+-- folding ranges
+[{"startLine":9,"endLine":10},{"startLine":11,"endLine":12},{"startLine":13,"endLine":14},{"startLine":15,"endLine":16},{"startLine":17,"endLine":18},{"startLine":19,"endLine":20},{"startLine":21,"endLine":23},{"startLine":33,"endLine":34},{"startLine":41,"endLine":42},{"startLine":43,"endLine":44},{"startLine":45,"endLine":46},{"startLine":56,"endLine":58}]
+
+-- document symbols
+[{"name":"pick","detail":"fn pick(a: Int, b: Int) -> Int","kind":12,"range":{"start":{"line":6,"character":0},"end":{"line":6,"character":30}},"selectionRange":{"start":{"line":6,"character":0},"end":{"line":6,"character":30}}},{"name":"main","detail":"fn main() -> Int","kind":12,"range":{"start":{"line":9,"character":0},"end":{"line":9,"character":16}},"selectionRange":{"start":{"line":9,"character":0},"end":{"line":9,"character":16}}},{"name":"quiet","detail":"fn quiet(n: Int) -> Int","kind":12,"range":{"start":{"line":32,"character":0},"end":{"line":32,"character":23}},"selectionRange":{"start":{"line":32,"character":0},"end":{"line":32,"character":23}}},{"name":"build","detail":"fn build() -> Int","kind":12,"range":{"start":{"line":41,"character":0},"end":{"line":41,"character":17}},"selectionRange":{"start":{"line":41,"character":0},"end":{"line":41,"character":17}}},{"name":"Slot","detail":"data Slot","kind":23,"range":{"start":{"line":53,"character":0},"end":{"line":53,"character":9}},"selectionRange":{"start":{"line":53,"character":0},"end":{"line":53,"character":9}}},{"name":"Slot","detail":"Slot.Slot({value: Int})","kind":22,"range":{"start":{"line":53,"character":10},"end":{"line":53,"character":21}},"selectionRange":{"start":{"line":53,"character":10},"end":{"line":53,"character":21}}},{"name":"keep","detail":"fn keep(&slot: Slot, ->with: Slot) -> Int","kind":12,"range":{"start":{"line":55,"character":0},"end":{"line":55,"character":41}},"selectionRange":{"start":{"line":55,"character":0},"end":{"line":55,"character":41}}},{"name":"plain","detail":"fn plain(n: Int) -> Int","kind":12,"range":{"start":{"line":60,"character":0},"end":{"line":60,"character":23}},"selectionRange":{"start":{"line":60,"character":0},"end":{"line":60,"character":23}}}]
 
 == lsp/semantic/src/Shapes.yana
 
 -- semantic tokens
-{"data":[4,29,3,1,0,0,21,3,1,0,2,15,3,1,0,0,8,3,1,0,3,15,1,3,0,0,6,3,1,0,2,14,5,1,0,1,15,5,1,0,0,15,1,4,0,1,21,1,5,0,0,2,6,6,0,0,7,1,9,0,0,2,1,5,0,0,2,6,6,0,0,7,1,9,0,1,21,1,5,0,0,2,4,6,0,0,5,1,9,0,0,2,1,5,0,0,2,4,6,0,2,12,5,1,0,0,11,3,1,0,0,8,3,1,0,0,6,4,9,0,0,5,1,4,0,0,3,1,9,0,0,2,2,4,0,2,10,5,1,0,0,10,3,1,0,0,6,1,4,0,0,2,1,6,0,0,2,1,9,0,0,2,1,4,0,0,2,1,6,0]}
+{"data":[4,29,3,1,0,0,21,3,1,0,2,15,3,1,0,0,8,3,1,0,3,15,1,3,0,0,6,3,1,0,2,14,5,1,0,1,15,5,1,0,0,15,1,4,0,1,15,1,5,0,0,6,1,5,0,0,2,6,6,0,0,7,1,9,0,0,2,1,5,0,0,2,6,6,0,0,7,1,9,0,1,15,1,5,0,0,6,1,5,0,0,2,4,6,0,0,5,1,9,0,0,2,1,5,0,0,2,4,6,0,2,12,5,1,0,0,11,3,1,0,0,8,3,1,0,0,6,4,9,0,0,5,1,4,0,0,3,1,9,0,0,2,2,4,0,2,10,5,1,0,0,10,3,1,0,0,6,1,4,0,0,2,1,6,0,0,2,1,9,0,0,2,1,4,0,0,2,1,6,0]}
+
+-- inlay hints
+[{"position":{"line":13,"character":16},"label":": {radius: Int}","kind":1},{"position":{"line":14,"character":16},"label":": {side: Int}","kind":1}]
+
+-- folding ranges
+[{"startLine":8,"endLine":9},{"startLine":11,"endLine":14},{"startLine":12,"endLine":14}]
+
+-- document symbols
+[{"name":"Shape","detail":"data Shape","kind":23,"range":{"start":{"line":4,"character":0},"end":{"line":4,"character":10}},"selectionRange":{"start":{"line":4,"character":0},"end":{"line":4,"character":10}}},{"name":"Circle","detail":"Shape.Circle({radius: Int})","kind":22,"range":{"start":{"line":4,"character":13},"end":{"line":4,"character":33}},"selectionRange":{"start":{"line":4,"character":13},"end":{"line":4,"character":33}}},{"name":"Square","detail":"Shape.Square({side: Int})","kind":22,"range":{"start":{"line":4,"character":36},"end":{"line":4,"character":54}},"selectionRange":{"start":{"line":4,"character":36},"end":{"line":4,"character":54}}},{"name":"Point","detail":"data Point","kind":23,"range":{"start":{"line":6,"character":0},"end":{"line":6,"character":10}},"selectionRange":{"start":{"line":6,"character":0},"end":{"line":6,"character":10}}},{"name":"Point","detail":"Point.Point({x: Int, y: Int})","kind":22,"range":{"start":{"line":6,"character":11},"end":{"line":6,"character":26}},"selectionRange":{"start":{"line":6,"character":11},"end":{"line":6,"character":26}}},{"name":"Area","detail":"class Area","kind":11,"range":{"start":{"line":8,"character":0},"end":{"line":8,"character":13}},"selectionRange":{"start":{"line":8,"character":0},"end":{"line":8,"character":13}}},{"name":"area","detail":"class fn area(s: a) -> Int -- declared by class Area","kind":6,"range":{"start":{"line":9,"character":4},"end":{"line":9,"character":24}},"selectionRange":{"start":{"line":9,"character":4},"end":{"line":9,"character":24}}},{"name":"scale","detail":"fn scale(s: Shape, by: Int) -> Int","kind":12,"range":{"start":{"line":16,"character":0},"end":{"line":16,"character":34}},"selectionRange":{"start":{"line":16,"character":0},"end":{"line":16,"character":34}}},{"name":"sum","detail":"fn sum(p: Point) -> Int","kind":12,"range":{"start":{"line":18,"character":0},"end":{"line":18,"character":23}},"selectionRange":{"start":{"line":18,"character":0},"end":{"line":18,"character":23}}}]
 

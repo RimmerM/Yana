@@ -285,7 +285,11 @@ StringView symbolKindName(Symbol::Kind kind) {
 
 // `fn name(a: T, b: U) -> V`, from the resolved signature rather than from the source text. What
 // the compiler decided is the point: a parameter whose type was inferred prints as what it became.
-static void describeFunction(Context& context, Module& module, Function& function, StringBuilder& into) {
+//
+// `parameters` collects where each one landed, for signature help. Recorded here rather than
+// re-derived, because a range into a string is only meaningful to whoever wrote the string.
+static void describeFunction(Context& context, Module& module, Function& function, StringBuilder& into,
+                             Array<SignatureParameter>* parameters = nullptr) {
     auto global = *module.types;
     auto local = *module.arena;
 
@@ -299,6 +303,8 @@ static void describeFunction(Context& context, Module& module, Function& functio
         if(!first) into << ", ";
         first = false;
 
+        auto start = U32(into.size());
+
         if(arg->convention == ast::BindType::Ref) into << "&";
         else if(arg->convention == ast::BindType::Sink) into << "->";
 
@@ -308,19 +314,23 @@ static void describeFunction(Context& context, Module& module, Function& functio
         }
 
         describeType(context, global, arg->declaredType(), into);
+
+        if(parameters) parameters->push(SignatureParameter { start, U32(into.size()) });
     }
 
     into << ") -> ";
     describeType(context, global, function.returnType, into);
 }
 
-void describeSymbol(Context& context, const Symbol& symbol, TypePtr type, StringBuilder& into) {
+void describeSymbol(Context& context, const Symbol& symbol, TypePtr type, StringBuilder& into,
+                    Array<SignatureParameter>* parameters) {
     auto module = symbol.module;
 
     switch(symbol.kind) {
         case Symbol::Kind::Function: {
             if(!module) break;
-            describeFunction(context, *module, *(*module->arena)[ModulePtr<Function>(symbol.payload)], into);
+            describeFunction(context, *module, *(*module->arena)[ModulePtr<Function>(symbol.payload)], into,
+                             parameters);
             return;
         }
         case Symbol::Kind::ClassFun: {
@@ -333,7 +343,7 @@ void describeSymbol(Context& context, const Symbol& symbol, TypePtr type, String
             auto entry = typeClass->functions.get(global, symbol.index);
             if(!entry.fun) break;
 
-            describeFunction(context, *module, *(*module->arena)[entry.fun], into);
+            describeFunction(context, *module, *(*module->arena)[entry.fun], into, parameters);
             into << " -- declared by class ";
             into << context.findName(typeClass->name);
             return;
@@ -380,7 +390,43 @@ void describeSymbol(Context& context, const Symbol& symbol, TypePtr type, String
 
             if(constructor.content) {
                 into << "(";
-                describeType(context, global, constructor.content, into);
+
+                /*
+                 * A payload tuple is written out field by field rather than through describeType,
+                 * so that each field's range can be recorded - the text is the same either way,
+                 * and a range into it is only meaningful to whoever wrote the string.
+                 *
+                 * Constructing a record is a call with parameters exactly as a function is, which
+                 * is what signature help needs: `Square {side: 3}` has an argument the caret is in
+                 * just as `scale(s, 2)` does.
+                 */
+                auto content = global[constructor.content];
+                if(parameters && content->kind == Type::Tup) {
+                    auto tuple = (TupType*)content;
+                    into << "{";
+
+                    for(Size i = 0; i < tuple->fields.size(); i++) {
+                        auto field = tuple->fields.get(global, i);
+                        if(i) into << ", ";
+
+                        auto start = U32(into.size());
+                        if(field.name) into << context.findName(field.name) << ": ";
+                        if(field.boxed) into << "@box ";
+                        describeType(context, global, field.type, into);
+
+                        parameters->push(SignatureParameter { start, U32(into.size()) });
+                    }
+
+                    into << "}";
+                } else {
+                    auto start = U32(into.size());
+                    describeType(context, global, constructor.content, into);
+
+                    // A payload that is not a tuple is one argument, and it is the whole of what
+                    // was written - so the parameter is the type itself.
+                    if(parameters) parameters->push(SignatureParameter { start, U32(into.size()) });
+                }
+
                 into << ")";
             }
 

@@ -266,6 +266,14 @@ TypePtr bindingType(ExprResolver& resolver, const Binding& binding);
 // findBinding, which is the one funnel every read of a name in a body goes through.
 void recordBinding(ExprResolver& resolver, const Binding& binding, LocationId source);
 
+// Which of the three function-local kinds a binding is, and the slot it addresses. Shared by the
+// index and by completion, so a name offered and the same name hovered describe one thing.
+struct Symbol bindingSymbol(ExprResolver& resolver, const Binding& binding);
+
+// Records a binding as a *definition*, where it is introduced. See expr.cpp; a no-op in a batch
+// compile, like every other recording site.
+void recordBindingDefinition(ExprResolver& resolver, const Binding& binding);
+
 struct ExprResolver {
     ExprResolver(Context& context, Module& module, Function& function):
         context(context), module(module), function(function), parse(module.parse),
@@ -871,6 +879,11 @@ struct ExprResolver {
     ModulePtr<Value> resolveConstruct(const ast::Expr& expr, const ast::ConExpr& construct, TypePtr target);
     TypePtr constructedType(ConstructorRef reference, ast::ParseList<ast::TupArg> args, TypePtr target, ValueList& resolved, LocationId source);
     ModulePtr<Value> resolveField(const ast::Expr& expr, const ast::FieldExpr& field);
+
+    // Whether the cursor is in a field-name position of this construction, and the completion
+    // request was answered with its fields - Implementation-Tooling.md §8.1. False in every
+    // ordinary compile, where there is no request to answer.
+    bool captureConstructionFields(ast::ParseList<ast::TupArg> args, TypePtr owner, TypePtr content);
 
     // The place of one named field of `place`, following the downcast a single-constructor
     // record needs and the dereference a reference does. Shared by field reads and field

@@ -31,8 +31,18 @@ fn probe(s: Shape) -> Int:
 fn twice(s: Shape) -> Int = area(s) + area(s)
 --                          ^classfun
 
+-- A call whose arguments have not been typed yet, which is the state every call passes through and
+-- the one an argument overlay exists for. There is no node covering the cursor here at all - the
+-- bracket is where the parse stopped - so the answer comes from the text rather than from the
+-- index; before it did, this position answered nothing, which is to say the overlay never appeared
+-- while a call was being written.
+fn typing(s: Shape) -> Int:
+    return twice(
+--               ^sigTyping
+
 fn main() -> Int:
     let c = Shapes.Circle {radius: 4}
 --                 ^con
     return twice(c)
 --         ^call
+--               ^sigWritten

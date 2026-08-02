@@ -180,7 +180,10 @@ static void writeScenarios(Net::Writer& writer, const String& root, const String
     runScenario(writer, "unknown method"_v, [&](MemoryTransport& t) {
         t.send(stringView(initializeMessage(root)));
         t.barrier();
-        t.send("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/inlayHint\",\"params\":{}}"_v);
+        // Code lenses, which nothing here provides and which §6 does not plan. Whatever is used
+        // here has to be a method the server will *keep* not answering, or this scenario asserts a
+        // milestone rather than the refusal.
+        t.send("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/codeLens\",\"params\":{}}"_v);
     });
 
     runScenario(writer, "malformed json"_v, [&](MemoryTransport& t) {
@@ -224,6 +227,86 @@ static void writeScenarios(Net::Writer& writer, const String& root, const String
                                  "\"context\":{\"includeDeclaration\":true}}}", mainPath)));
         t.send(stringView(format("{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"textDocument/semanticTokens/full\","
                                  "\"params\":{\"textDocument\":{\"uri\":\"file://%@\"}}}", mainPath)));
+        t.barrier();
+    });
+
+    /*
+     * Completion, over the wire - M8.
+     *
+     * Worth a scenario of its own rather than a line in the one above, because it is the one
+     * request that *compiles* to answer: it runs ahead of the debounce rather than after it, and it
+     * leaves the session holding a program built around a cursor. The request that follows it is
+     * what asserts the second half - a hover answered out of a session a completion just used has
+     * to be right, which it is only because the server recompiles first.
+     *
+     * The position is inside `doub`, which is a cursor that has typed four characters of a name the
+     * file already holds.
+     */
+    runScenario(writer, "completion, and a request after it"_v, [&](MemoryTransport& t) {
+        t.send(stringView(initializeMessage(root)));
+        t.send(stringView(didOpenMessage(mainPath, twoFunctions)));
+        t.barrier();
+
+        t.send(stringView(positionRequest("textDocument/completion"_v, 20, mainPath, 1, 24)));
+        t.send(stringView(positionRequest("textDocument/hover"_v, 21, mainPath, 1, 20)));
+        t.barrier();
+    });
+
+    /*
+     * Signature help inside `double(21)`, which is the position `ctrl+P` is pressed at, and a
+     * completion at the half-written `doub` beside it.
+     *
+     * The client declares `snippetSupport` here and nowhere else, so this is also what asserts the
+     * two halves of §8.3's insert text: the item carries the brackets and the caret goes in the
+     * first argument, and the earlier scenario - where the client declares nothing - carries none.
+     */
+    auto callAndPrefix = String("fn double(x: Int) -> Int = x + x\\nfn main() -> Int = double(21) + doub\\n");
+
+    runScenario(writer, "signature help"_v, [&](MemoryTransport& t) {
+        t.send(stringView(format("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":"
+                                 "{\"rootPath\":\"%@\",\"capabilities\":{\"textDocument\":{\"completion\":"
+                                 "{\"completionItem\":{\"snippetSupport\":true}}}}}}", root)));
+        t.send(stringView(didOpenMessage(mainPath, callAndPrefix)));
+        t.barrier();
+
+        t.send(stringView(positionRequest("textDocument/signatureHelp"_v, 30, mainPath, 1, 27)));
+        t.send(stringView(positionRequest("textDocument/completion"_v, 31, mainPath, 1, 36)));
+        t.barrier();
+    });
+
+    /*
+     * §6's remaining rows and M9's inlay hints, over the wire.
+     *
+     * The same argument as the M6 scenario above: what the answers *are* is asserted by the feature
+     * fixtures, and what this asserts is that a client asking for each of them gets a well-formed
+     * response - four whole-file requests and one position request, which are the two shapes the
+     * server has to route.
+     *
+     * `retains` is here because it is the one function in this file with something surprising to
+     * say, and an inlay hint answer with nothing in it would assert nothing about M9.
+     */
+    auto withHints = String("data Pair {left: Int, right: Int}\\n"
+                            "fn keep(&slot: Pair, ->with: Pair) -> Int:\\n"
+                            "    slot = with\\n"
+                            "    return slot.left\\n"
+                            "fn main() -> Int:\\n"
+                            "    let &p = Pair {left: 1, right: 2}\\n"
+                            "    return keep(p, Pair {left: 3, right: 4})\\n");
+
+    runScenario(writer, "hints, highlights, symbols and folding"_v, [&](MemoryTransport& t) {
+        t.send(stringView(initializeMessage(root)));
+        t.send(stringView(didOpenMessage(mainPath, withHints)));
+        t.barrier();
+
+        t.send(stringView(format("{\"jsonrpc\":\"2.0\",\"id\":40,\"method\":\"textDocument/inlayHint\",\"params\":"
+                                 "{\"textDocument\":{\"uri\":\"file://%@\"},\"range\":{\"start\":{\"line\":0,"
+                                 "\"character\":0},\"end\":{\"line\":7,\"character\":0}}}}", mainPath)));
+        t.send(stringView(positionRequest("textDocument/documentHighlight"_v, 41, mainPath, 5, 9)));
+        t.send(stringView(format("{\"jsonrpc\":\"2.0\",\"id\":42,\"method\":\"textDocument/documentSymbol\","
+                                 "\"params\":{\"textDocument\":{\"uri\":\"file://%@\"}}}", mainPath)));
+        t.send(stringView(format("{\"jsonrpc\":\"2.0\",\"id\":43,\"method\":\"textDocument/foldingRange\","
+                                 "\"params\":{\"textDocument\":{\"uri\":\"file://%@\"}}}", mainPath)));
+        t.send(stringView(positionRequest("textDocument/typeDefinition"_v, 44, mainPath, 6, 16)));
         t.barrier();
     });
 

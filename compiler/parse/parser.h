@@ -85,6 +85,92 @@ struct Parser: BasicParser<Lexer, Token> {
     ast::Expr toLiteral(const Token::Payload& payload, Token::Type type, const WithLocation& source);
     ast::Expr toLiteral(const WithLocation& source);
 
+    /*
+     * The cursor sentinel - Implementation-Tooling.md §8.2.
+     *
+     * Completion is the one feature that has to work on text that is not a program, and the
+     * mechanism for that is deliberately *not* a second parser: the ordinary productions run, and
+     * where one of them would read the name the cursor is in it reads a distinguished one instead.
+     * Everything downstream then sees an ordinary `Expr::Var` in an ordinary position, which is
+     * what makes the enclosing scope, the expected type and the receiver of a `.` all available
+     * without any of them being computed twice.
+     *
+     * `hasCursor` is false in every ordinary compile, so what this costs a batch parse is one
+     * predictable not-taken branch per identifier.
+     */
+    bool hasCursor = false;
+    U32 cursorOffset = 0;
+
+    // The name the sentinel is written with - see cursorName(). Zero when there is no cursor.
+    StringId cursorId = 0;
+
+    /*
+     * Whether the cursor is in the token about to be read.
+     *
+     * At either end counts: `foo|` is a name the author has finished typing a prefix of, and `|foo`
+     * is one they are about to type in front of. Both are positions a client asks for completion
+     * at, and both mean the same thing - this name is the one being written.
+     */
+    bool atCursorToken() const {
+        return hasCursor && cursorOffset >= token.startOffset && cursorOffset <= token.endOffset;
+    }
+
+    /*
+     * Whether the cursor is in the gap between the last token the parser read and the one it is
+     * about to, which means the thing that belongs at the cursor has not been typed at all - `xs.`
+     * at the end of a line, or an empty statement in a block.
+     *
+     * Against `previousEnd` rather than the token's own `whitespaceOffset`, because a layout token
+     * consumes the whitespace before it: after an `EndOfStmt` the next real token begins where it
+     * begins, and the blank line the cursor is on is behind both of them.
+     *
+     * Only consulted where a production has already failed or run out, since it is true of an
+     * enormous number of tokens: the gap reaches back over blank lines and comments alike.
+     */
+    bool beforeCursorToken() const {
+        return hasCursor && cursorOffset >= previousEnd && cursorOffset <= token.startOffset;
+    }
+
+    // Whether the sentinel has already been emitted. One per parse: a second would make the first
+    // answer unreachable, and the innermost production to notice the cursor is the right one.
+    bool cursorEmitted() const { return context.cursor.wasParsed(); }
+
+    // Whether the token about to be read is the name the cursor is in. Only a name: a cursor inside
+    // a literal or an operator is not a name being written, and standing in for one would replace
+    // text that means something with text that means nothing.
+    bool atCursorName() const {
+        return hasCursor && !cursorEmitted() && atCursorToken() &&
+               (token.type == Token::VarID || token.type == Token::ConID);
+    }
+
+    // Whether the cursor is at a position with nothing written at it yet.
+    bool atCursorGap() const { return hasCursor && !cursorEmitted() && beforeCursorToken(); }
+
+    /*
+     * The sentinel, in place of whatever the cursor is inside.
+     *
+     * `prefixStart` is where the partial name begins, which for a token the cursor is inside is
+     * that token's own start and for a position with nothing typed is the cursor itself. The server
+     * needs it to know what to filter by; nothing in the compiler does.
+     */
+    ast::Expr emitCursor(Location node, U32 prefixStart);
+
+    // The token the cursor is in, consumed and replaced by the sentinel.
+    ast::Expr eatCursorToken();
+
+    /*
+     * The same, as a *name* rather than as an expression.
+     *
+     * Three productions read an identifier directly instead of parsing an expression - a pattern's
+     * constructor, a field of a pattern, and a segment of an update path - and each of them holds a
+     * `StringId` where an expression would have held a node. The sentinel is the same name and the
+     * record of where it was is the same record; only what the caller does with it differs.
+     */
+    StringId eatCursorName();
+
+    // A position with nothing written at it: a zero-width node at the cursor, consuming nothing.
+    ast::Expr emitCursorHere();
+
     // True when the layout has already ended whatever the current token could have belonged to.
     // Nothing can be parsed here, and everything that opens an indentation block has to ask
     // before opening one - see withLevel().

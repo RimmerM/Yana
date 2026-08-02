@@ -127,7 +127,24 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
         });
     }
 
-    analysis.stateBefore.reset(analysis.instructionCount, 0, OwnState::Uninitialized);
+    /*
+     * One row per instruction, every row already the width of the frame.
+     *
+     * It was `reset(instructionCount, 0, ...)`, which leaves every row *empty* until the ownership
+     * walk fills it - and that walk only visits blocks it can reach. An unreachable block's
+     * instructions therefore kept an empty row, and every consumer indexes a row by local: the
+     * first use in one asserted `i < count` against a row of zero. A body with an unreachable block
+     * in it is what a *rejected* declaration leaves behind - `Circle(c)` matched against a pivot
+     * that no longer has a `Circle`, which is one keystroke inside a `data` line - so this is
+     * reachable from the editor on any keystroke and from the driver on any program that already
+     * failed.
+     *
+     * Filled rather than skipped, because `Uninitialized` is what an unreachable instruction's
+     * state *is*: nothing there owns anything, so no use-after-move is reported for code that never
+     * runs and no drop is inserted into it. The reachable rows are replaced wholesale by
+     * `copyInto`, so pre-filling costs them nothing.
+     */
+    analysis.stateBefore.reset(analysis.instructionCount, analysis.localCount, OwnState::Uninitialized);
 
     computeLiveness(analysis);
     computeOwnership(analysis);

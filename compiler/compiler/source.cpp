@@ -214,9 +214,23 @@ static void mapFile(ModuleMap& map, const String& root, const String& file) {
     id.segmentCount = segmentCount;
 
     if(segmentCount > 1) {
+        /*
+         * The two arrays are pointed at their storage *before* they are written, and the walk is
+         * bounded by the buffer it walks.
+         *
+         * Both were wrong, and both were invisible for the same reason: `id.segments[i]` was written
+         * through an uninitialized pointer that was assigned its buffer after the loop, and `max`
+         * bounded `p` - which walks `idBuffer` - by the end of `idStart`, which is a different
+         * allocation entirely. Whether either crashed depended on where the heap happened to be, so
+         * a module map with a nested directory in it segfaulted on about one run in four under ASLR
+         * and never once under a debugger. Every server start and every rescan builds one.
+         */
+        id.segments = indexBuffer;
+        id.segmentHashes = hashBuffer;
+
         // Calculate the offsets and hashes.
         auto p = idBuffer;
-        auto max = idStart + idLength;
+        auto max = idBuffer + idLength;
         for(U32 i = 0; i < segmentCount; i++) {
             id.segments[i] = (U32)(p - idBuffer);
 
@@ -234,9 +248,6 @@ static void mapFile(ModuleMap& map, const String& root, const String& file) {
             if(p < max && *p == '.') p++;
             id.segmentHashes[i] = hash.get();
         }
-
-        id.segments = indexBuffer;
-        id.segmentHashes = hashBuffer;
     } else {
         // Module names always start with an uppercase letter.
         idBuffer[0] = toUpper(idBuffer[0]);

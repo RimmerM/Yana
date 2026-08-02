@@ -270,6 +270,30 @@ static void writeSymbolLocation(Net::Writer& writer, lsp::Session& session, Loca
     writeQuoted(writer, text, start, end);
 }
 
+/*
+ * Signature help, for the markers that ask for it.
+ *
+ * Only the ones whose name starts with `sig`, because unlike the four answers above it is a question
+ * about a *call* rather than about a name: asking it of every marker would fill both existing
+ * fixtures with "not in a call" and say nothing. It rides along with the semantic pass rather than
+ * the completion one because it reads the ordinary compile - a call being typed still parses as a
+ * call, which is what M7's recovery bought.
+ */
+static void writeSignatureAnswer(Net::Writer& writer, lsp::Session& session, StringId module,
+                                 const Marker& marker, StringView text) {
+    if(marker.name.size() < 3 || compareMem(marker.name.text(), "sig", 3) != 0) return;
+
+    Net::Writer json(8192);
+    Net::JsonWriter out(json);
+    lsp::writeSignatureHelp(out, session, module, marker.offset, text);
+    json.flush();
+
+    auto produced = json.getBuffered();
+    writer.writeString("  signature: "_v);
+    writer.writeString(StringView { (const char*)produced.ptr, produced.length });
+    writer.writeString("\n"_v);
+}
+
 static void writeSemanticAnswers(Net::Writer& writer, lsp::Session& session, StringId module,
                                  StringView path, StringView text) {
     LineTable lines;
@@ -291,7 +315,14 @@ static void writeSemanticAnswers(Net::Writer& writer, lsp::Session& session, Str
         auto symbol = reference ? &reference->target : session.definitionAt(module, marker.offset);
 
         if(!symbol) {
-            writer.writeString("  nothing resolved here\n\n"_v);
+            writer.writeString("  nothing resolved here\n"_v);
+
+            // Before the `continue`, because a signature is a question about a *call* rather than
+            // about a name: the position inside `Square {` where an overlay is most wanted is one
+            // where nothing resolves, and asking only after something did is what would have hidden
+            // the whole feature.
+            writeSignatureAnswer(writer, session, module, marker, text);
+            writer.writeString("\n"_v);
             continue;
         }
 
@@ -312,6 +343,25 @@ static void writeSemanticAnswers(Net::Writer& writer, lsp::Session& session, Str
         }
         writer.writeString("\n"_v);
 
+        /*
+         * The `explain` section the hover carries under the signature - M9.
+         *
+         * Held here rather than only in `test/resolve/Explain.yana`'s dump because what that
+         * fixture asserts is the *printer* and what this one asserts is the *caller*: which symbol
+         * under a cursor produces a section at all. A cursor on a call gets the callee's, and a
+         * function with nothing surprising to say gets none, and neither of those is visible from
+         * the printer's side.
+         */
+        StringBuilder explanation;
+        if(lsp::explainAt(session, module, marker.offset, explanation)) {
+            writer.writeString("  explain:"_v);
+            for(Size i = 0; i < explanation.size(); i++) {
+                if(explanation[i] == '\n') writer.writeString("\n           "_v);
+                else writer.writeString(StringView { &explanation[i], 1 });
+            }
+            writer.writeString("\n"_v);
+        }
+
         if(session.index) {
             Array<const Reference*> occurrences;
             session.index->findOccurrences(*symbol, occurrences);
@@ -323,6 +373,7 @@ static void writeSemanticAnswers(Net::Writer& writer, lsp::Session& session, Str
             }
         }
 
+        writeSignatureAnswer(writer, session, module, marker, text);
         writer.writeString("\n"_v);
     }
 
@@ -339,6 +390,40 @@ static void writeSemanticAnswers(Net::Writer& writer, lsp::Session& session, Str
     auto produced = json.getBuffered();
     writer.writeString(StringView { (const char*)produced.ptr, produced.length });
     writer.writeString("\n\n"_v);
+
+    /*
+     * The three whole-file answers - Implementation-Tooling.md §6, and M9's inlay hints.
+     *
+     * Per file rather than per marker, because none of them is about a position: what a client asks
+     * for is everything the file has, and what can go wrong with each is an entry that is missing,
+     * duplicated or in the wrong place. That is a diff.
+     */
+    auto section = [&](StringView name, auto&& write) {
+        writer.writeString(name);
+        writer.writeString("\n"_v);
+
+        Net::Writer body(8192);
+        Net::JsonWriter value(body);
+        write(value);
+        body.flush();
+
+        auto written = body.getBuffered();
+        writer.writeString(StringView { (const char*)written.ptr, written.length });
+        writer.writeString("\n\n"_v);
+    };
+
+    section("-- inlay hints"_v, [&](Net::JsonWriter& value) {
+        lsp::writeInlayHints(value, session, module, text, lines, true, 0, U32(text.length));
+    });
+
+    section("-- folding ranges"_v, [&](Net::JsonWriter& value) {
+        lsp::writeFoldingRanges(value, text, lines);
+    });
+
+    section("-- document symbols"_v, [&](Net::JsonWriter& value) {
+        lsp::LocationWriter locations(session, true);
+        lsp::writeDocumentSymbols(value, session, locations, module);
+    });
 }
 
 // Everything the compile reported, which for a project that is mid-edit is most of what an editor
@@ -381,6 +466,371 @@ static void writeDiagnostics(Net::Writer& writer, lsp::Session& session) {
     }
 
     writer.writeString("\n"_v);
+}
+
+/*
+ * Completion - Implementation-Tooling.md §8.
+ *
+ * A pass of its own, and a fixture project of its own, because answering one *compiles*: the cursor
+ * sentinel goes in during the parse, so every marker is a whole compile with the cursor at that
+ * marker and nothing about one marker's parse is visible to another. That is also why it cannot
+ * share the semantic pass above, whose answers all come from one compile.
+ *
+ * What is compared is the protocol's own answer, written through the same function the server
+ * writes it with - so the item kinds, the ranking and the detail lines are asserted as a client
+ * would receive them rather than as an intermediate the server then reformats.
+ */
+
+// The most a marker prints. An unfiltered position offers every visible name in the program, which
+// for any program at all is most of Core - so what a fixture can usefully hold is the head of the
+// list, which is where the ranking decides what an editor shows first.
+static const U32 kMaxCompletionItems = 12;
+
+// Where the string starting at `i` ends, or `length` when it does not. Every scan here needs it:
+// an item's `insertText` is a snippet, so it holds the braces and commas that would otherwise look
+// like structure - `scale(${1:s}, ${2:by})` is one value and not three.
+static Size endOfString(StringView text, Size i) {
+    for(i++; i < text.length; i++) {
+        if(text.ptr[i] == '\\') { i++; continue; }
+        if(text.ptr[i] == '"') return i;
+    }
+
+    return text.length;
+}
+
+// One `"key": "value"` out of the item object, without a JSON parser: the driver writes the
+// response and reads it back, so what is here is a formatting question rather than a parsing one.
+static bool readField(StringView object, StringView key, StringView& into) {
+    for(Size i = 0; i < object.length; i++) {
+        if(object.ptr[i] != '"') continue;
+
+        auto keyEnd = endOfString(object, i);
+        auto matches = keyEnd - i - 1 == key.length &&
+                       compareMem(object.ptr + i + 1, key.ptr, key.length) == 0;
+
+        // A value is a string too, and skipping it whole is what keeps a key from being found
+        // inside one - `"detail":"fn key(...)"` must not answer a search for `key`.
+        if(!matches || keyEnd + 1 >= object.length || object.ptr[keyEnd + 1] != ':') {
+            i = keyEnd;
+            continue;
+        }
+
+        auto value = keyEnd + 2;
+        if(value >= object.length) return false;
+
+        if(object.ptr[value] != '"') {
+            auto end = value;
+            while(end < object.length && object.ptr[end] != ',' && object.ptr[end] != '}') end++;
+
+            into = StringView { object.ptr + value, end - value };
+            return true;
+        }
+
+        auto end = endOfString(object, value);
+        into = StringView { object.ptr + value + 1, end - value - 1 };
+        return true;
+    }
+
+    return false;
+}
+
+static void writeCompletionAnswers(Net::Writer& writer, const String& root, StringId module,
+                                   StringView path, StringView text) {
+    LineTable lines;
+    lines.build(text);
+
+    Array<Marker> markers;
+    findMarkers(text, lines, markers);
+
+    // A file with no markers contributes nothing. Unlike the semantic pass, which prints a section
+    // per module because the tokens of each are part of the answer, this pass has an answer only
+    // where a cursor was asked about.
+    if(markers.size() == 0) return;
+
+    char buffer[512];
+    auto length = format(toBuffer(buffer), toString("== %@\n\n"_v), path);
+    writer.writeString(StringView { buffer, length });
+
+    for(auto& marker: markers) {
+        length = format(toBuffer(buffer), toString("%@ at %@:%@\n"_v), marker.name, marker.line + 1,
+                        lines.utf16Column(text, marker.offset));
+        writer.writeString(StringView { buffer, length });
+
+        /*
+         * A session for each marker.
+         *
+         * One session would do - `complete` recompiles - but a fresh one is what makes each answer
+         * independent of the order the markers are written in, which is the property a fixture that
+         * is edited by hand needs most.
+         */
+        lsp::Session session;
+        auto opened = session.open(stringView(root));
+        if(opened.isErr()) {
+            writer.writeString("  cannot open the project\n\n"_v);
+            continue;
+        }
+
+        Net::Writer json(65536);
+        Net::JsonWriter out(json);
+        lsp::writeCompletion(out, session, module, marker.offset, text, true, true);
+        json.flush();
+
+        auto produced = json.getBuffered();
+        StringView answer { (const char*)produced.ptr, produced.length };
+
+        StringView incomplete;
+        readField(answer, "isIncomplete"_v, incomplete);
+        writer.writeString("  filtered: "_v);
+        writer.writeString(incomplete.length ? incomplete : "?"_v);
+        writer.writeString("\n"_v);
+
+        /*
+         * The items, one line each.
+         *
+         * From inside the `items` array rather than from the start, since the response is itself an
+         * object and would otherwise be read as the first item - which it silently was, giving one
+         * item per marker whose fields came from several. Object boundaries are found by counting
+         * depth and skipping strings whole, because a snippet's `${1:a}` is braces inside a value.
+         */
+        U32 shown = 0;
+        Size i = 0;
+        auto any = false;
+
+        for(Size at = 0; at + 8 < answer.length; at++) {
+            if(compareMem(answer.ptr + at, "\"items\":", 8) == 0) { i = at + 8; break; }
+        }
+
+        while(i < answer.length) {
+            if(answer.ptr[i] == '"') { i = endOfString(answer, i) + 1; continue; }
+            if(answer.ptr[i] != '{') { i++; continue; }
+
+            Size end = i;
+            U32 depth = 0;
+
+            for(; end < answer.length; end++) {
+                if(answer.ptr[end] == '"') { end = endOfString(answer, end); continue; }
+                if(answer.ptr[end] == '{') depth++;
+                else if(answer.ptr[end] == '}' && --depth == 0) break;
+            }
+
+            StringView object { answer.ptr + i, (end < answer.length ? end + 1 : answer.length) - i };
+            i = end + 1;
+
+            StringView label, kind, detail, sort, insert, format_;
+            if(!readField(object, "label"_v, label)) continue;
+
+            any = true;
+            if(shown == kMaxCompletionItems) {
+                writer.writeString("  ... more items follow\n"_v);
+                break;
+            }
+
+            shown++;
+            readField(object, "kind"_v, kind);
+            readField(object, "sortText"_v, sort);
+            readField(object, "detail"_v, detail);
+
+            length = format(toBuffer(buffer), toString("  %@ [kind %@, sort %@]"_v), label,
+                            kind.length ? kind : "?"_v, sort.length ? sort : "?"_v);
+            writer.writeString(StringView { buffer, length });
+
+            // What selecting the item types, where that is not just its name - the brackets are the
+            // half of the answer a label does not show.
+            if(readField(object, "insertText"_v, insert)) {
+                readField(object, "insertTextFormat"_v, format_);
+                length = format(toBuffer(buffer), toString(" inserts %@%@"_v),
+                                format_ == "2"_v ? "snippet "_v : ""_v, insert);
+                writer.writeString(StringView { buffer, length });
+            }
+
+            if(detail.length) {
+                writer.writeString(" -- "_v);
+                writer.writeString(detail);
+            }
+
+            writer.writeString("\n"_v);
+        }
+
+        if(!any) writer.writeString("  (no items)\n"_v);
+        writer.writeString("\n"_v);
+    }
+}
+
+static void runCompletionFixture(const String& root, const String& expectPath, bool generate) {
+    // One session to find out what the project holds. Every answer below builds its own.
+    lsp::Session session;
+
+    auto opened = session.open(stringView(root));
+    if(opened.isErr()) {
+        println("cannot open %@: %@", root, opened.unwrapErr());
+        return;
+    }
+
+    Array<SourceEntry*> entries;
+    for(auto& entry: session.moduleMap.entries) entries.push(&entry);
+
+    for(U32 i = 1; i < entries.size(); i++) {
+        auto entry = entries[i];
+        auto j = i;
+        while(j > 0 && entry->path < entries[j - 1]->path) {
+            entries[j] = entries[j - 1];
+            j--;
+        }
+
+        entries[j] = entry;
+    }
+
+    session.compile();
+
+    // The text is copied out before any completion compile runs: a compile drops the provider's
+    // buffers and reads them again, so a view of one taken beforehand does not survive it.
+    struct Fixture {
+        StringId module = 0;
+        String path;
+        String text;
+    };
+
+    Array<Fixture> fixtures;
+    for(auto entry: entries) {
+        if(!entry->name) continue;
+
+        auto text = session.provider.getSource(entry->name);
+        if(text.length == 0) continue;
+
+        fixtures.push(Fixture { entry->name, ownedString(entry->path.ptr, entry->path.length),
+                                ownedString(text.ptr, text.length) });
+    }
+
+    Net::Writer memory(65536);
+    for(auto& fixture: fixtures) {
+        writeCompletionAnswers(memory, root, fixture.module, stringView(fixture.path),
+                               stringView(fixture.text));
+    }
+
+    if(generate) {
+        logInfo("Generating expect file for test \"%@\"", expectPath);
+
+        try {
+            Net::FileStream file;
+            file.open(expectPath, writeAccess(), File::CreateAlways);
+
+            Net::Writer writer(Net::WriteStream(file), 65536);
+            auto produced = memory.getBuffered();
+            writer.writeString(StringView { (const char*)produced.ptr, produced.length });
+            writer.flush();
+        } catch(const Net::Exception& e) {
+            logError("Cannot create expect file for \"%@\": %@", expectPath, e.description);
+        }
+
+        return;
+    }
+
+    print("Running test \"%@\"... ", expectPath);
+
+    auto result = File::openFile(expectPath, readAccess());
+    if(result.isErr()) {
+        println("cannot open %@: error %@", expectPath, (U32)result.unwrapErr());
+        return;
+    }
+
+    auto file = result.moveUnwrapOk();
+    auto size = file.size();
+    Ptr<char, HeapDeleter> buffer { (char*)hAlloc(size ? size : 1) };
+    if(size) file.read({ (Byte*)buffer.get(), size });
+
+    auto produced = memory.getBuffered();
+    if(size == produced.length && compareMem(buffer.get(), produced.ptr, size) == 0) {
+        println("Pass.");
+    } else {
+        println("Fail. Got:");
+        print(StringView { (char*)produced.ptr, produced.length });
+        println("\n\nExpected:");
+        print(StringView { buffer.get(), size });
+        print("\n\n");
+    }
+}
+
+/*
+ * The completion sweep - the half of §8 a fixture cannot assert.
+ *
+ * A fixture holds a dozen positions somebody thought of. What it cannot say is that the cursor
+ * sentinel is safe at *every* position, and that is the property worth having: a request arrives
+ * wherever the caret happens to be - inside a string, in the middle of a type, on a comment, in a
+ * declaration head - and a language server that crashes on one of them is a plugin that dies while
+ * its user types. This is the same argument M7's truncation sweep made, and the same shape of
+ * answer.
+ *
+ * Opt-in (`YanaLspTest sweep`) rather than part of the run, because a completion request is a whole
+ * compile and there is one per byte. What it reports is a count per module: how many offsets were
+ * answered, and how many produced items - so a change that quietly stops answering anywhere shows
+ * up as a number rather than as silence.
+ */
+static void runCompletionSweep(const String& root) {
+    lsp::Session probe;
+
+    auto opened = probe.open(stringView(root));
+    if(opened.isErr()) {
+        println("cannot open %@: %@", root, opened.unwrapErr());
+        return;
+    }
+
+    probe.compile();
+
+    struct Fixture {
+        StringId module = 0;
+        String path;
+        String text;
+    };
+
+    Array<Fixture> fixtures;
+    for(auto& entry: probe.moduleMap.entries) {
+        if(!entry.name) continue;
+
+        auto text = probe.provider.getSource(entry.name);
+        if(text.length == 0) continue;
+
+        fixtures.push(Fixture { entry.name, ownedString(entry.path.ptr, entry.path.length),
+                                ownedString(text.ptr, text.length) });
+    }
+
+    for(auto& fixture: fixtures) {
+        U32 answered = 0, withItems = 0, largest = 0, signatures = 0;
+        auto text = stringView(fixture.text);
+
+        /*
+         * Signature help at every position, out of the one compile the probe already did.
+         *
+         * It reads the ordinary program rather than compiling for itself, so it is thousands of
+         * requests for the price of none - and it walks the same text scan the completion sweep
+         * cannot reach, which is the half of §6's signature row that is about *positions*.
+         */
+        for(U32 offset = 0; offset <= text.length; offset++) {
+            Net::Writer json(8192);
+            Net::JsonWriter out(json);
+            lsp::writeSignatureHelp(out, probe, fixture.module, offset, text);
+            json.flush();
+
+            if(json.getBuffered().length > 4) signatures++;
+        }
+
+        for(U32 offset = 0; offset <= text.length; offset++) {
+            lsp::Session session;
+            if(session.open(stringView(root)).isErr()) continue;
+
+            CompletionRequest request;
+            U32 prefixStart = offset;
+            session.complete(fixture.module, offset, request, prefixStart);
+
+            if(request.captured) answered++;
+            if(request.items.size()) withItems++;
+            if(request.items.size() > largest) largest = U32(request.items.size());
+        }
+
+        // The largest answer is worth reporting on its own: it is what the sort and the response
+        // are sized by, and it grows with the program rather than with the file.
+        println("%@: %@ of %@ offsets answered, %@ with items, largest %@, %@ signatures",
+                fixture.path, answered, text.length + 1, withItems, largest, signatures);
+    }
 }
 
 static void runSemanticFixture(const String& root, const String& expectPath, bool generate) {
@@ -467,8 +917,27 @@ static void runSemanticFixture(const String& root, const String& expectPath, boo
 
 int main(int argc, const char** argv) {
     auto generate = false;
+    auto sweep = false;
+    Array<String> sweepRoots;
+
     for(int i = 1; i < argc; i++) {
         if(String(argv[i]) == "generate") generate = true;
+        else if(String(argv[i]) == "sweep") sweep = true;
+        else if(sweep) sweepRoots.push(String(argv[i]));
+    }
+
+    // `sweep` with no roots takes the three fixture projects. A root named on the command line is
+    // how the sweep is pointed at a larger program, which is what it is for: the fixtures are small
+    // by design and the positions that break a parser are in files nobody wrote for a test.
+    if(sweep) {
+        if(sweepRoots.size() == 0) {
+            sweepRoots.push(String("lsp/complete"));
+            sweepRoots.push(String("lsp/recover"));
+            sweepRoots.push(String("lsp/semantic"));
+        }
+
+        for(auto& root: sweepRoots) runCompletionSweep(root);
+        return 0;
     }
 
     Array<String> tests;
@@ -488,6 +957,9 @@ int main(int argc, const char** argv) {
     // asserts is that the first's answers survive a broken declaration above them.
     runSemanticFixture(String("lsp/semantic"), String("lsp/semantic.expect"), generate);
     runSemanticFixture(String("lsp/recover"), String("lsp/recover.expect"), generate);
+
+    // Completion, which is a pass of its own because every marker is a compile of its own - §8.
+    runCompletionFixture(String("lsp/complete"), String("lsp/complete.expect"), generate);
 
     for(auto& test: tests) {
         auto result = File::openFile(test, readAccess());

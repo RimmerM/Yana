@@ -43,6 +43,8 @@ set(RESOLVE_SOURCE_FILES
     resolve/name.cpp
     resolve/index.h
     resolve/index.cpp
+    resolve/complete.h
+    resolve/complete.cpp
     resolve/class.h
     resolve/core.h
     resolve/core.cpp

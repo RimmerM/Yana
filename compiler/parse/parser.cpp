@@ -20,7 +20,47 @@ Parser::Parser(Context& context, Lexer& lexer, StringId moduleName):
     arraySizeId = Context::nameHash("*", 1);
     lazyId = Context::nameHash("lazy", 4);
 
+    // A completion request names one module and one byte of it; every other module in the program
+    // is parsed exactly as it always was. See Implementation-Tooling.md §8.2.
+    if(context.cursor.isSet() && context.cursor.module == moduleName) {
+        hasCursor = true;
+        cursorOffset = context.cursor.offset;
+        cursorId = cursorName(context);
+    }
+
     eat();
+}
+
+ast::Expr Parser::emitCursor(Location node, U32 prefixStart) {
+    auto expr = makeExpr(Var, var, cursorId, node);
+
+    context.cursor.sentinel = expr.source;
+    context.cursor.prefixStart = prefixStart;
+    return expr;
+}
+
+ast::Expr Parser::eatCursorToken() {
+    auto node = currentNode();
+    auto start = token.startOffset;
+
+    eat();
+    return emitCursor(node, start);
+}
+
+StringId Parser::eatCursorName() {
+    eatCursorToken();
+    return cursorId;
+}
+
+ast::Expr Parser::emitCursorHere() {
+    // The line and column are the following token's, since they exist for a diagnostic's caret line
+    // and the sentinel is never what a diagnostic points at. The offsets are what everything else
+    // reads, and both of those are the cursor.
+    auto node = currentNode();
+    node.sourceStart.offset = cursorOffset;
+    node.sourceEnd = node.sourceStart;
+
+    return emitCursor(node, cursorOffset);
 }
 
 ast::Module Parser::parseModule() {
@@ -649,9 +689,31 @@ ast::Expr Parser::parseExprSeq() {
     WithLocation location(*this);
     ast::ParseList<ast::Expr> exprs;
 
+    /*
+     * A statement the author has started nothing of - §8.2.
+     *
+     * An empty line produces no token at all: the lexer skips the whitespace and the layout token
+     * lands on whatever comes next, so no production runs at the cursor and no other site here can
+     * catch it. That is the state a body is in the moment a line is opened to write in, which makes
+     * it one of the positions completion is asked for most.
+     *
+     * Checked at each statement boundary rather than only at the end, because where in the block the
+     * cursor is decides what is in scope: a binding written *below* the empty line is not something
+     * a name there can refer to.
+     *
+     * Innermost first, since a nested block finishes before the one containing it - so the deepest
+     * scope that could hold the cursor claims it, and the outer ones then see it already emitted.
+     */
+    auto atEmptyStatement = [&] {
+        if(atCursorGap()) exprs.push(arena, emitCursorHere());
+    };
+
     sepBy1([&] {
+        atEmptyStatement();
         exprs.push(arena, parseTypedExpr());
     }, Token::EndOfStmt);
+
+    atEmptyStatement();
 
     if(exprs.size() > 1) {
         return makeExpr(Multi, multi, exprs, location);
@@ -937,6 +999,11 @@ ast::Expr Parser::parseIfExpr() {
 ast::Expr Parser::parseBaseExpr() {
     WithLocation location(*this);
 
+    // A `ConID` never reaches parseSelExpr - it is a constructor or a type here, not a selection -
+    // so the cursor in one has to be caught before that branch runs. §8.1's first kind is types and
+    // constructors as much as it is functions, and `Ma|` should offer `Maybe` and `Just` alike.
+    if(atCursorName()) return eatCursorToken();
+
     auto funKind = parseFunKind();
     auto hasParen = maybe(Token::ParenL).isJust();
 
@@ -1092,6 +1159,10 @@ ast::Expr Parser::parseChainExpr(const WithLocation& location) {
 }
 
 ast::Expr Parser::parseSelExpr(const WithLocation& location) {
+    // The name the cursor is in - §8.2. This is the field position of a `.` as well as the ordinary
+    // one, which is what makes `xs.le|` a member request rather than a scope request.
+    if(atCursorName()) return eatCursorToken();
+
     if(token.type >= Token::FirstLiteral && token.type <= Token::LastLiteral) {
         if(token.type == Token::String) {
             return parseStringExpr(location);
@@ -1104,7 +1175,21 @@ ast::Expr Parser::parseSelExpr(const WithLocation& location) {
         Maybe<ast::Expr> expr;
         parens([&] { expr = Just(parseExpr()); });
 
+        // `parens` reports and gives up without reading anything when the `(` is the last thing on
+        // the line - `f(` in the middle of being typed - so there is no inner expression to wrap.
+        // The error node stands for the one that has not been written; unwrapping here crashed the
+        // parser, and therefore the language server, on every keystroke that left a `(` open.
+        if(!expr) return makeExpr(Error, var, 0, location);
+
         return makeExpr(Nested, nested, heap(expr.unwrap()), location);
+    } else if(atCursorGap()) {
+        /*
+         * An expression the author has not started typing - `xs.` at the end of a line, or a bare
+         * `.` waiting for a field name. The sentinel rather than the error node, and no diagnostic:
+         * the cursor is where the text is *being* written, so what is missing there is not a mistake
+         * to report.
+         */
+        return emitCursorHere();
     } else {
         error("expected an expression"_v);
         return makeExpr(Error, var, 0, location);
@@ -1356,10 +1441,29 @@ void Parser::parseTupUpdateArg(ast::ParseList<ast::TupUpdateArg>& list) {
     WithLocation location(*this);
     ast::ParseList<StringId> path;
 
+    /*
+     * A segment of the path the cursor is in - `{v | ori|gin: p}` and `{v | .origin.x|: 1}`. The
+     * segment is a name rather than an expression here, so the sentinel is one too.
+     *
+     * The gap case is `{v | |}`, where the field has not been typed at all. `atCursorGap` is
+     * consulted only here, at the point a name was required and is not there, which is the
+     * condition its own comment asks for: it is true of a great many positions and means something
+     * only where a production has run out.
+     */
+    auto segment = [&]() -> StringId {
+        if(atCursorName() && token.type == Token::VarID) return eatCursorName();
+        if(atCursorGap()) {
+            emitCursorHere();
+            return cursorId;
+        }
+
+        auto field = expect(Token::VarID, "expected field name in update path"_v);
+        return field ? field.unwrap().id : StringId(0);
+    };
+
     if(maybe(Token::opDot)) {
         sepBy1([&] {
-            auto field = expect(Token::VarID, "expected field name in update path"_v);
-            if(field) path.push(arena, field.unwrap().id);
+            if(auto field = segment()) path.push(arena, field);
         }, Token::opDot);
 
         expect(Token::opColon, "expected ':' after update path"_v);
@@ -1368,6 +1472,18 @@ void Parser::parseTupUpdateArg(ast::ParseList<ast::TupUpdateArg>& list) {
     }
 
     auto shorthand = maybe(Token::opTilde).isJust();
+
+    if((atCursorName() && token.type == Token::VarID) || atCursorGap()) {
+        path.push(arena, segment());
+
+        // The replacement is whatever follows a `:`, and an `Error` node where the author has not
+        // got that far. Pushed either way, because the path is what the resolver walks to reach the
+        // cursor - an argument left out here is a cursor nothing ever reads.
+        auto value = maybe(Token::opColon) ? parseExpr() : makeExpr(Error, var, 0, location);
+        list.push(arena, ast::TupUpdateArg { path, value });
+        return;
+    }
+
     auto name = expect(Token::VarID, "expected the name of the field to update"_v);
     if(!name) return;
 
@@ -1516,6 +1632,18 @@ ast::Pat Parser::parsePattern() {
     auto allowRange = true;
     Maybe<ast::Pat> pat {};
 
+    /*
+     * The constructor the cursor is in - Implementation-Tooling.md §8.1's fifth kind.
+     *
+     * A `ConID` only. A lowercase name in pattern position is a *binding*, and the author is naming
+     * something new rather than choosing among things that exist, so there is nothing to offer for
+     * one - which is also why this is here rather than in parseLeftPattern, where the VarID is read.
+     */
+    if(atCursorName() && token.type == Token::ConID) {
+        auto name = eatCursorName();
+        return ast::Pat { .con = { name, nullptr }, .source = context.addLocation(location), .kind = ast::Pat::Con };
+    }
+
     if(auto con = maybe(Token::ConID)) {
         if(token.type == Token::ParenL) {
             ast::ParseList<ast::FieldPat> fields;
@@ -1609,6 +1737,11 @@ ast::Pat Parser::parseLeftPattern() {
     } else if(token.type == Token::ParenL) {
         Maybe<ast::Pat> pat;
         parens([&] { pat = Just(parsePattern()); });
+
+        // A `(` left open at the end of a statement - see the same guard in parseSelExpr. The error
+        // pattern is what M7 already made resolve to a wildcard that reports nothing further.
+        if(!pat) return ast::Pat { .source = context.addLocation(location), .kind = ast::Pat::Error };
+
         return pat.unwrap();
     } else if(auto con = maybe(Token::ConID)) {
         // lpat can only contain a single constructor name.

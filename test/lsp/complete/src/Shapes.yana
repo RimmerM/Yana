@@ -1,0 +1,33 @@
+-- The module the completion fixture's imported names come from. Two of the three imports in
+-- Main.yana are of this one, which is what makes an include list and a `qualified` alias
+-- observable: the same declaration has to appear under three different rules.
+
+data Shape = Circle {radius: Int} | Square {side: Int}
+
+data Point {x: Int, y: Int}
+
+class Area(a):
+    fn area(s: a) -> Int
+
+instance Area(Shape):
+    fn area(s: Shape) = match s:
+        Circle(c) -> c.radius * c.radius * 3
+        Square(q) -> q.side * q.side
+
+fn scale(s: Shape, by: Int) -> Int = area(s) * by
+
+fn scaleTwice(s: Shape) -> Int = scale(s, 2)
+
+fn shapeOrigin() -> Point = Point {x: 0, y: 0}
+
+-- A parameter whose type is a bare tuple, so that a literal written for it has field names to
+-- complete against - which is the only way a tuple has any, since nothing else says what its
+-- fields are called.
+fn shapeAt(at: {x: Int, y: Int}) -> Int = at.x + at.y
+
+-- A field with a declared default is not one the author has to write, so an item that inserts the
+-- brackets leaves it out - the same distinction a call makes between an argument and no argument.
+data Label {text: Int, weight: Int = 1}
+
+-- A record of records, so that an update path has more than one segment to walk.
+data Line {from: Point, to: Point}
