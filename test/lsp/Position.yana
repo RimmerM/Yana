@@ -1,0 +1,14 @@
+-- Markers are comments, so a fixture is a module that compiles. A comment left of the enclosing
+-- block would close it, since layout is significant - so markers inside a body are indented too.
+
+data Point {x: Int, y: Int}
+--   ^type  ^field
+
+fn distance(p: Point) -> Int = p.x + p.y
+--  ^name   ^arg        ^ret   ^field ^operand
+
+fn caller() -> Int:
+    let p = Point {x: 1, y: 2}
+    --  ^local  ^construct
+    return distance(p)
+    --     ^call    ^argument

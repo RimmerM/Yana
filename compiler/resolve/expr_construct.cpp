@@ -1,6 +1,7 @@
 #include "expr.h"
 #include "generic.h"
 #include "name.h"
+#include "index.h"
 #include "witness.h"
 
 /*
@@ -1035,7 +1036,9 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
         return nullptr;
     }
 
-    auto found = findConstructor(module, construct.type.name, expr.source);
+    // At the constructor *name* rather than at the whole construction, so that what the index
+    // records is the occurrence a cursor can be on - see resolve/index.h.
+    auto found = findConstructor(module, construct.type.name, construct.type.source);
     if(!found) {
         context.diagnostics.error("unknown constructor %@"_v, expr.source, context.findName(construct.type.name));
         return nullptr;
@@ -1323,6 +1326,11 @@ Maybe<Place> ExprResolver::projectField(Place place, StringId field, LocationId 
         return Just(project(place, ProjectionKind::Property, slot));
     }
 
+    // The declaration the field belongs to, kept across the downcast so that jumping to a field
+    // lands on the `data` line that declares it. A tuple has no declaration of its own.
+    auto owner = type;
+    auto ownerSource = kNullLocation;
+
     // A single-constructor record has no discriminant to test, so selecting a field out of one
     // is a downcast to its only constructor followed by an ordinary field projection.
     if(global[type]->kind == Type::Record) {
@@ -1332,6 +1340,7 @@ Maybe<Place> ExprResolver::projectField(Place place, StringId field, LocationId 
             return Nothing();
         }
 
+        ownerSource = global[record->base(global)]->source;
         place = project(place, ProjectionKind::Downcast, 0);
         type = record->constructors.get(global, 0).content;
     }
@@ -1344,6 +1353,19 @@ Maybe<Place> ExprResolver::projectField(Place place, StringId field, LocationId 
     auto tuple = (TupType*)global[type];
     for(Size i = 0; i < tuple->fields.size(); i++) {
         if(tuple->fields.get(global, i).name == field) {
+            /*
+             * §1.2's field choke point: the declaring type and the index within it, which together
+             * are what makes two `length` fields two symbols.
+             *
+             * Only for a field the program *wrote*. A desugaring reaches into a type the source
+             * never named - an array literal projects `run` and `items` out of the array it just
+             * built - and it says so by handing the enclosing expression's location for both, since
+             * there is no name of its own to point at.
+             */
+            if(fieldSource != source) recordReference(context, fieldSource,
+                            fieldSymbol(module, owner, U16(i), field, ownerSource),
+                            tuple->fields.get(global, i).type);
+
             return Just(project(place, ProjectionKind::Field, U16(i)));
         }
     }

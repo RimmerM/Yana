@@ -41,6 +41,8 @@ set(RESOLVE_SOURCE_FILES
     resolve/module.cpp
     resolve/name.h
     resolve/name.cpp
+    resolve/index.h
+    resolve/index.cpp
     resolve/class.h
     resolve/core.h
     resolve/core.cpp
@@ -224,8 +226,29 @@ set(DRIVER_SOURCE_FILES
 )
 
 add_executable(Yana ${DRIVER_SOURCE_FILES})
-target_link_libraries(Yana PUBLIC YanaCore YanaParse YanaResolve YanaLower YanaX64 YanaLLVM YanaJS)
+target_link_libraries(Yana PUBLIC YanaCore YanaParse YanaResolve YanaProject YanaLower YanaLLVM YanaJS)
 
 if(APPLE)
     target_link_libraries(Yana ncurses)
 endif()
+
+set(LSP_SOURCE_FILES
+    lsp/json.h
+    lsp/json.cpp
+    lsp/protocol.h
+    lsp/protocol.cpp
+    lsp/document.h
+    lsp/document.cpp
+    lsp/session.h
+    lsp/session.cpp
+    lsp/feature.h
+    lsp/feature.cpp
+    lsp/server.h
+    lsp/server.cpp
+)
+add_library(YanaLspCore ${LSP_SOURCE_FILES})
+target_link_libraries(YanaLspCore PUBLIC YanaCore YanaParse YanaResolve YanaProject)
+
+add_executable(YanaLsp lsp/main.cpp)
+set_target_properties(YanaLsp PROPERTIES OUTPUT_NAME yana-lsp)
+target_link_libraries(YanaLsp PUBLIC YanaLspCore)

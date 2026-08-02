@@ -2,6 +2,7 @@
 #include "generic.h"
 #include "module.h"
 #include "name.h"
+#include "index.h"
 
 static TypePtr errorType(Module& module, LocationId source, StringView message) {
     module.context.diagnostics.error(message, source);
@@ -449,12 +450,13 @@ static GlobalPtr<GenType> findGen(GlobalBase global, GenEnv* env, StringId name)
     return nullptr;
 }
 
-GlobalPtr<GenType> genVariable(Module& module, GenEnv& env, StringId name) {
+GlobalPtr<GenType> genVariable(Module& module, GenEnv& env, StringId name, LocationId source) {
     auto global = *module.types;
     if(auto existing = findGen(global, &env, name)) return existing;
     if(!env.open) return nullptr;
 
     auto type = new (module.types) GenType(&env - global, name, U16(env.types.size()));
+    type->source = source;
     auto pointer = type - global;
     env.types.push(module.types, pointer);
     invalidateGenSchema(env);
@@ -1020,12 +1022,17 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
         case ast::Type::Con:
             return resolveNamed(module, type.name, type.source);
         case ast::Type::Gen: {
-            auto found = env ? genVariable(module, *env, type.name) : nullptr;
+            auto found = env ? genVariable(module, *env, type.name, type.source) : nullptr;
             if(!found) {
                 module.context.diagnostics.error("unknown type variable %@ - it is not declared in this context"_v,
                                                  type.source, module.context.findName(type.name));
                 return module.scalar.error;
             }
+
+            // `a` in a signature jumps to its binder, which is wherever the context first named
+            // it - §1.2's type variable choke point.
+            recordReference(module.context, type.source, typeVarSymbol(module, found),
+                            (Type*)(*module.types)[found] - *module.types);
 
             return (Type*)(*module.types)[found] - *module.types;
         }

@@ -38,59 +38,16 @@ struct Token {
         VarSym,
         ConSym,
 
-        /* Keywords */
-        kwAlias,
-        kwAtData,
-        kwBreak,
-        kwClass,
-        kwContinue,
-        kwData,
-        kwDefault,
-        kwDeriving,
-        kwDo,
-        kwElse,
-        kwFor,
-        kwForeign,
-        kwFn,
-        kwIf,
-        kwImport,
-        kwIn,
-        kwInfixL,
-        kwInfixR,
-        kwPrefixR,
-        kwSuffixL,
-        kwInstance,
-        kwIs,
-        kwIter,
-        kwLens,
-        kwLet,
-        kwMatch,
-        kwModule,
-        kwNewType,
-        kwPub,
-        kwReturn,
-        kwThen,
-        kwWhere,
-        kwWhile,
-        kwYield,
-        kw_,
-
-        /* Reserved operators */
-        opDot,
-        opDotDot,   // .. - a range excluding its upper bound
-        opDotDotEq, // ..= - a range including it
-        opColon,
-        opColonColon,
-        opEquals,
-        opBackSlash,
-        opBar,
-        opArrowL, // <-
-        opArrowR, // ->
-        opAt,
-        opDollar,
-        opTilde,
-        opArrowD, // =>
-        opAmp,
+        /*
+         * Keywords and reserved operators.
+         *
+         * Built from parse/tokens.def, which the JetBrains plugin's lexer is also built from -
+         * see Implementation-Tooling.md §9. Adding a keyword here alone would leave the editor
+         * colouring it as an identifier, which is exactly the drift one list prevents.
+         */
+#define YANA_KEYWORD(name, text) name,
+#define YANA_RESERVED_OP(name, text) name,
+#include "tokens.def"
     };
 
     // The token position including any whitespace preceding it.

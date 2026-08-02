@@ -1,0 +1,17 @@
+-- Positions are byte offsets everywhere inside the compiler and UTF-16 code units on the way out,
+-- because that is what an LSP client means by `character` unless it says otherwise. The two agree
+-- on ASCII and on nothing else, so each marker below sits after a character that is neither: `å`
+-- is two bytes and one code unit, and the emoji is four bytes and a surrogate pair. A caret is
+-- counted in code units too, which is why the last one sits one column right of what it points at:
+-- the emoji is one column wide on screen and two units wide to a client.
+
+data Label {text: String, tag: Int}
+
+fn plain() -> Label = Label {text: "ab", tag: 1}
+--                                       ^tag
+
+fn twoByte() -> Label = Label {text: "åb", tag: 2}
+--                                         ^tag
+
+fn fourByte() -> Label = Label {text: "🙂b", tag: 3}
+--                                           ^tag

@@ -506,6 +506,11 @@ struct Constructor {
     TypePtr content = nullptr;
     U32 index = 0;
 
+    // Where the constructor was written, for the editor to jump to - resolve/index.h. Null for
+    // every constructor Core and Native generate rather than parse, which is what makes it a
+    // declaration nothing can navigate to rather than a missing one.
+    LocationId source = kNullLocation;
+
     /*
      * The payload is reached through an owning non-null pointer - the same statement `Field::boxed`
      * makes, for the one edge that is not a field.
@@ -544,6 +549,10 @@ struct GenType: Type {
     GlobalPtr<GenEnv> env;
     StringId name;
     U16 index;
+
+    // Where the variable was first written, which is its binder: a function declares its variables
+    // by using them, so the first occurrence is the declaration. See genVariable.
+    LocationId source = kNullLocation;
 };
 
 // One `Class(a, b)` requirement of a context. `args` are the context's own types (or concrete
@@ -713,7 +722,9 @@ void requireTypeSlot(Module& module, GenEnv& env, TypePtr type);
 
 // The type variable of `env` called `name`, adding it if the context is open. Null when the
 // context is closed and has no such variable.
-GlobalPtr<GenType> genVariable(Module& module, GenEnv& env, StringId name);
+// `source` is where this occurrence was written, and it is recorded as the variable's binder when
+// this is the occurrence that creates it - see GenType::source.
+GlobalPtr<GenType> genVariable(Module& module, GenEnv& env, StringId name, LocationId source = kNullLocation);
 
 struct RecordType: Type {
     enum Layout: U8 {
@@ -733,6 +744,10 @@ struct RecordType: Type {
 
     GlobalList<Constructor> constructors;
     StringId name;
+
+    // Where the declaration was written. Carried on the declaration only: an instantiation reads
+    // it through base(), since `Maybe(Int)` is not something anything jumps to.
+    LocationId source = kNullLocation;
 
     // Set on a generic declaration: its type variables, and the instantiations made from it.
     GlobalPtr<GenEnv> gen = nullptr;

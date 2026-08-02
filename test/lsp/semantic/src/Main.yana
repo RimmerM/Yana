@@ -1,0 +1,25 @@
+-- The semantic index, asked the questions an editor asks. Each caret in a comment marks the
+-- character above it, and the driver answers definition, hover and references for every one of
+-- them - see LspTester.cpp.
+
+import Shapes
+
+fn pick(a: Int, b: Int) -> Int = if a > b then a else b
+-- ^decl                            ^use
+
+fn main() -> Int:
+    let &total = 0
+--       ^local
+    let c = Shapes.Circle {radius: 4}
+--                 ^con
+    total = total + area(c)
+--  ^write          ^classfun
+    total = total + scale(c, 2)
+--                  ^call
+    let p = Point {x: 1, y: 2}
+--          ^con2
+    total = total + p.x + sum(p)
+--                    ^field
+    let s = Square {side: 3}
+    return pick(total, area(s))
+--         ^pick       ^classfun2

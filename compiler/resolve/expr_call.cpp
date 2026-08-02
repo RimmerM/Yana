@@ -2,6 +2,7 @@
 #include "witness.h"
 #include "generic.h"
 #include "name.h"
+#include "index.h"
 
 /*
  * Calls, operators, and typeclass instance selection.
@@ -418,11 +419,12 @@ static void skipPrecedence(Module& module, SmallArray<StringId, 8>& operators, S
     }
 }
 
-ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>& operands, SmallArray<StringId, 8>& operators, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target) {
+ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>& operands, SmallArray<StringId, 8>& operators, SmallArray<LocationId, 8>& operatorSources, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target) {
     auto lhsExpr = operands[operandIndex++];
     auto lhs = resolve(*lhsExpr);
 
     while(operatorIndex < operators.size() && operatorPrecedence(module, operators[operatorIndex]) >= minimumPrecedence) {
+        auto opSource = operatorSources[operatorIndex];
         auto op = operators[operatorIndex++];
         auto precedence = operatorPrecedence(module, op);
 
@@ -434,7 +436,7 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>
          * to find it. Nothing declares one, and Design.md's uses are all second-position, so it is
          * reported rather than supported.
          */
-        auto lazy = lazyArguments(op, 2, lhsExpr->source);
+        auto lazy = lazyArguments(op, 2, opSource);
 
         if(lazy & 1) {
             context.diagnostics.error("the left operand of %@ is declared `@lazy`, which an infix operator cannot be - it is evaluated before the operator is read"_v,
@@ -449,6 +451,7 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>
         if(lazy & 2) {
             chain.operands = &operands;
             chain.operators = &operators;
+            chain.operatorSources = &operatorSources;
             chain.operandIndex = operandIndex;
             chain.operatorIndex = operatorIndex;
             chain.minimumPrecedence = U8(precedence + 1);
@@ -456,15 +459,15 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>
 
             skipPrecedence(module, operators, operandIndex, operatorIndex, U8(precedence + 1));
         } else {
-            rhs = resolvePrecedence(operands, operators, operandIndex, operatorIndex, precedence + 1);
+            rhs = resolvePrecedence(operands, operators, operatorSources, operandIndex, operatorIndex, precedence + 1);
             if(!rhs) return nullptr;
         }
 
         if(!lhs) return nullptr;
 
         ModulePtr<Value> args[] = { lhs, rhs };
-        lhs = emitCall(op, { args, 2 }, lhsExpr->source, target, 0, lazy ? Buffer<Deferred>{ deferred, 2 }
-                                                                        : Buffer<Deferred>{});
+        lhs = emitCall(op, { args, 2 }, lhsExpr->source, target, 0,
+                       lazy ? Buffer<Deferred>{ deferred, 2 } : Buffer<Deferred>{}, 0, opSource);
     }
 
     return lhs;
@@ -473,6 +476,7 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(SmallArray<const ast::Expr*, 8>
 ModulePtr<Value> ExprResolver::resolveBinary(const ast::Expr& expr, const ast::InfixExpr& binary, TypePtr target, bool convertResult) {
     SmallArray<const ast::Expr*, 8> operands;
     SmallArray<StringId, 8> operators;
+    SmallArray<LocationId, 8> operatorSources;
     auto node = &binary;
 
     // The parser nests infix expressions to the right without regard for precedence, so the
@@ -490,6 +494,7 @@ ModulePtr<Value> ExprResolver::resolveBinary(const ast::Expr& expr, const ast::I
 
         operands.push(&node->lhs);
         operators.push(node->op.var);
+        operatorSources.push(node->op.source);
 
         if(node->rhs.kind != ast::Expr::Infix) {
             operands.push(&node->rhs);
@@ -508,7 +513,7 @@ ModulePtr<Value> ExprResolver::resolveBinary(const ast::Expr& expr, const ast::I
     // The target goes into the chain as well as being applied to its result. Where the operators
     // could honour it the conversion afterwards is then the identity; where they could not - a
     // concrete operand decided the instance - it is the conversion that was always emitted.
-    auto result = resolvePrecedence(operands, operators, operandIndex, operatorIndex, 0, target);
+    auto result = resolvePrecedence(operands, operators, operatorSources, operandIndex, operatorIndex, 0, target);
     if(result && target) result = convert(result, target, expr.source, convertResult);
     return result;
 }
@@ -520,7 +525,7 @@ ModulePtr<Value> ExprResolver::resolvePrefix(const ast::Expr& expr, const ast::P
         return nullptr;
     }
 
-    auto lazy = lazyArguments(prefix.op.var, 1, expr.source);
+    auto lazy = lazyArguments(prefix.op.var, 1, prefix.op.source);
 
     Deferred deferred[1];
     ModulePtr<Value> value = nullptr;
@@ -539,7 +544,7 @@ ModulePtr<Value> ExprResolver::resolvePrefix(const ast::Expr& expr, const ast::P
 
     ModulePtr<Value> args[] = { value };
     auto result = emitCall(prefix.op.var, { args, 1 }, expr.source, target, 0,
-                           lazy ? Buffer<Deferred>{ deferred, 1 } : Buffer<Deferred>{});
+                           lazy ? Buffer<Deferred>{ deferred, 1 } : Buffer<Deferred>{}, 0, prefix.op.source);
 
     return convertResult && target ? convert(result, target, expr.source) : result;
 }
@@ -634,13 +639,21 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     // Only when the plain function is the whole overload set, though: R5 lets the class half serve
     // a call the plain function does not fit, and pushing its parameter types into the arguments
     // would report the mismatch before selection ever got the chance to look elsewhere.
-    auto direct = findFunction(module, calleeExpr.var, expr.source);
+    /*
+     * Looked up at the *callee's* location rather than the call's.
+     *
+     * It is where the name is written, so it is both the better place for an ambiguity diagnostic
+     * to point and the only location the index should hold this answer against - see
+     * resolve/index.h. Recording it against the whole call would make find-references report the
+     * call and the name as two hits on the same name.
+     */
+    auto direct = findFunction(module, calleeExpr.var, calleeExpr.source);
     auto callArgs = call.args;
     auto declared = direct && !local[direct]->gen && local[direct]->args.size() == callArgs.size();
 
     if(declared) {
         ClassFunList overloads;
-        findClassFunctions(module, calleeExpr.var, expr.source, overloads);
+        findClassFunctions(module, calleeExpr.var, calleeExpr.source, overloads);
         declared = overloads.isEmpty();
     }
 
@@ -662,7 +675,7 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
         return nullptr;
     }
 
-    auto lazy = lazyArguments(calleeExpr.var, callArgs.size(), expr.source);
+    auto lazy = lazyArguments(calleeExpr.var, callArgs.size(), calleeExpr.source);
 
     ValueList values;
     Array<Deferred> deferred;
@@ -719,8 +732,15 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
 
     auto pending = lazy ? toBuffer(deferred) : Buffer<Deferred>{};
 
+    if(declared) {
+        // The whole overload set was one plain function, so the decision was made above rather than
+        // in emitCall - and §1.2 says to record where the decision is.
+        recordReference(context, calleeExpr.source, functionSymbol(module, direct));
+    }
+
     auto result = declared ? emitDirectCall(direct, toBuffer(values), expr.source, target, 0, pending)
-                           : emitCall(calleeExpr.var, toBuffer(values), expr.source, target, 0, pending, nothing);
+                           : emitCall(calleeExpr.var, toBuffer(values), expr.source, target, 0, pending, nothing,
+                                      calleeExpr.source);
 
     return convertResult && target ? convert(result, target, expr.source) : result;
 }
@@ -877,7 +897,35 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
     return result;
 }
 
-ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target, StringId resultName, Buffer<Deferred> deferred, U32 nothing) {
+/*
+ * The selected class function, and the instance that served it.
+ *
+ * §1.2's second rule made concrete: this is the point of *decision*, so the reference recorded here
+ * is the one an editor shows. `findClassFunctions` collected four candidates and recorded none of
+ * them, because a call site showing all four would be showing something the program does not mean.
+ *
+ * The instance is the answer §1.2 calls the one hover most wants - which `Ord` served this
+ * `compare` - and it is null exactly when the types that would decide are still variables here.
+ */
+static void recordClassFunReference(ExprResolver& resolver, LocationId source, ClassMatch& match,
+                                    ModulePtr<ClassInstance> instance) {
+    if(!resolver.context.index || source == kNullLocation || !match.typeClass) return;
+
+    auto symbol = classFunSymbol(resolver.module, match.typeClass, match.index);
+
+    // The result type at this occurrence, in the caller's terms rather than the class's.
+    TypePtr type = nullptr;
+    auto entry = resolver.global[match.typeClass]->functions.get(resolver.global, match.index);
+
+    if(entry.fun) {
+        type = substituteType(resolver.module, resolver.local[entry.fun]->returnType,
+                              toBuffer(match.args), source);
+    }
+
+    recordReference(resolver.context, source, symbol, type, instance);
+}
+
+ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target, StringId resultName, Buffer<Deferred> deferred, U32 nothing, LocationId nameSource) {
     /*
      * Three things are spelled as a null argument, and only one of them is a reason to stop.
      *
@@ -900,15 +948,22 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
         return nullptr;
     }
 
-    ClassFunList candidates;
-    findClassFunctions(module, callName, source, candidates);
+    // The name's own location where the call site knew one, so that what the index records lands
+    // on the name - see resolveCall. A synthesized call has none, and then the enclosing
+    // expression is the only location there is.
+    auto lookupSource = nameSource != kNullLocation ? nameSource : source;
 
-    auto direct = findFunction(module, callName, source);
+    ClassFunList candidates;
+    findClassFunctions(module, callName, lookupSource, candidates);
+
+    auto direct = findFunction(module, callName, lookupSource);
 
     // Committing to the plain function, once it is the candidate the call is being served by. Its
     // arity is checked here rather than in matchFunction because a mismatch has to be reported as
     // itself: "takes two arguments" says more than the list of types the class half accepts.
     auto emitPlain = [&]() -> ModulePtr<Value> {
+        recordReference(context, nameSource, functionSymbol(module, direct));
+
         if(local[direct]->args.size() != args.length) {
             context.diagnostics.error("%@ takes %@ arguments but was given %@"_v, source, context.findName(callName),
                                       U32(local[direct]->args.size()), U32(args.length));
@@ -988,6 +1043,11 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
             return nullptr;
         }
 
+        // Selected, but not yet decided *which instance* - the types are still this body's own
+        // variables. The class function is the answer either way, and the instance is left null,
+        // which is what §1.3 means by recording the generic answer.
+        recordClassFunReference(*this, nameSource, undecided[chosen], nullptr);
+
         return emitGenericDispatch(undecided[chosen], args, source, resultName, deferred);
     }
 
@@ -1029,6 +1089,8 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
                                   context.findName(global[selected.typeClass]->name), context.findName(callName));
         return nullptr;
     }
+
+    recordClassFunReference(*this, nameSource, selected, selected.instance);
 
     return emitInstanceCall(module, selected.instance, toBuffer(selected.instanceArgs), selected.index,
                             args, source, target, resultName, deferred);

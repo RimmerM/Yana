@@ -1,5 +1,6 @@
 #include "expr.h"
 #include "name.h"
+#include "index.h"
 
 /*
  * Patterns, `match`, and the refutable half of `let`.
@@ -599,7 +600,9 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
             return;
         }
 
-        bindings.push(Binding { name, pivot });
+        Binding binding { name, pivot };
+        binding.definition = pattern.source;
+        bindings.push(binding);
     };
 
     if(pattern.asVar) bind(pattern.asVar);

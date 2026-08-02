@@ -24,13 +24,13 @@ struct BasicParser {
                 .sourceModule = parser.moduleName,
                 .sourceStart = {
                     .offset = startOffset,
-                    .line = U16(startLine),
-                    .column = U16(startColumn),
+                    .line = startLine,
+                    .column = startColumn,
                 },
                 .sourceEnd = {
                     .offset = parser.token.whitespaceOffset,
-                    .line = U16(parser.token.whitespaceLine),
-                    .column = U16(parser.token.whitespaceColumn),
+                    .line = parser.token.whitespaceLine,
+                    .column = parser.token.whitespaceColumn,
                 },
             };
         }
@@ -66,13 +66,13 @@ struct BasicParser {
             .sourceModule = moduleName,
             .sourceStart = {
                 .offset = token.startOffset,
-                .line = U16(token.startLine),
-                .column = U16(token.startColumn),
+                .line = token.startLine,
+                .column = token.startColumn,
             },
             .sourceEnd = {
                 .offset = token.endOffset,
-                .line = U16(token.endLine),
-                .column = U16(token.endColumn),
+                .line = token.endLine,
+                .column = token.endColumn,
             },
         };
     }

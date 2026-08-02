@@ -1,0 +1,80 @@
+== lifecycle
+Content-Length: 578
+
+{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"positionEncoding":"utf-8","textDocumentSync":{"openClose":true,"change":2,"save":{"includeText":false}},"definitionProvider":true,"declarationProvider":true,"hoverProvider":true,"referencesProvider":true,"semanticTokensProvider":{"legend":{"tokenTypes":["namespace","type","class","typeParameter","parameter","variable","property","enumMember","function","method"],"tokenModifiers":["declaration","definition","readonly","static","borrowed","sunk","heapPlaced"]},"full":true}},"serverInfo":{"name":"yana-lsp","version":"0.1"}}}Content-Length: 121
+
+{"jsonrpc":"2.0","method":"window/logMessage","params":{"type":3,"message":"Yana: 1 modules from lsp/project/yana.toml"}}Content-Length: 38
+
+{"jsonrpc":"2.0","id":2,"result":null}
+exit 0
+
+== request before initialize
+Content-Length: 96
+
+{"jsonrpc":"2.0","id":1,"error":{"code":-32002,"message":"the server has not been initialized"}}
+exit 1
+
+== unknown method
+Content-Length: 578
+
+{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"positionEncoding":"utf-8","textDocumentSync":{"openClose":true,"change":2,"save":{"includeText":false}},"definitionProvider":true,"declarationProvider":true,"hoverProvider":true,"referencesProvider":true,"semanticTokensProvider":{"legend":{"tokenTypes":["namespace","type","class","typeParameter","parameter","variable","property","enumMember","function","method"],"tokenModifiers":["declaration","definition","readonly","static","borrowed","sunk","heapPlaced"]},"full":true}},"serverInfo":{"name":"yana-lsp","version":"0.1"}}}Content-Length: 121
+
+{"jsonrpc":"2.0","method":"window/logMessage","params":{"type":3,"message":"Yana: 1 modules from lsp/project/yana.toml"}}Content-Length: 83
+
+{"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"textDocument/inlayHint"}}
+exit 1
+
+== malformed json
+Content-Length: 92
+
+{"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"Read operation out of bounds"}}
+exit 1
+
+== an error appears
+Content-Length: 578
+
+{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"positionEncoding":"utf-8","textDocumentSync":{"openClose":true,"change":2,"save":{"includeText":false}},"definitionProvider":true,"declarationProvider":true,"hoverProvider":true,"referencesProvider":true,"semanticTokensProvider":{"legend":{"tokenTypes":["namespace","type","class","typeParameter","parameter","variable","property","enumMember","function","method"],"tokenModifiers":["declaration","definition","readonly","static","borrowed","sunk","heapPlaced"]},"full":true}},"serverInfo":{"name":"yana-lsp","version":"0.1"}}}Content-Length: 121
+
+{"jsonrpc":"2.0","method":"window/logMessage","params":{"type":3,"message":"Yana: 1 modules from lsp/project/yana.toml"}}Content-Length: 276
+
+{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"Main.yana","diagnostics":[{"range":{"start":{"line":0,"character":19},"end":{"line":0,"character":33}},"severity":1,"source":"yana","message":"unknown function missingName"}]}}
+exit 1
+
+== an error is fixed
+Content-Length: 578
+
+{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"positionEncoding":"utf-8","textDocumentSync":{"openClose":true,"change":2,"save":{"includeText":false}},"definitionProvider":true,"declarationProvider":true,"hoverProvider":true,"referencesProvider":true,"semanticTokensProvider":{"legend":{"tokenTypes":["namespace","type","class","typeParameter","parameter","variable","property","enumMember","function","method"],"tokenModifiers":["declaration","definition","readonly","static","borrowed","sunk","heapPlaced"]},"full":true}},"serverInfo":{"name":"yana-lsp","version":"0.1"}}}Content-Length: 121
+
+{"jsonrpc":"2.0","method":"window/logMessage","params":{"type":3,"message":"Yana: 1 modules from lsp/project/yana.toml"}}Content-Length: 276
+
+{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"Main.yana","diagnostics":[{"range":{"start":{"line":0,"character":19},"end":{"line":0,"character":33}},"severity":1,"source":"yana","message":"unknown function missingName"}]}}Content-Length: 129
+
+{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"Main.yana","diagnostics":[]}}
+exit 1
+
+== definition, hover, references and tokens
+Content-Length: 578
+
+{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"positionEncoding":"utf-8","textDocumentSync":{"openClose":true,"change":2,"save":{"includeText":false}},"definitionProvider":true,"declarationProvider":true,"hoverProvider":true,"referencesProvider":true,"semanticTokensProvider":{"legend":{"tokenTypes":["namespace","type","class","typeParameter","parameter","variable","property","enumMember","function","method"],"tokenModifiers":["declaration","definition","readonly","static","borrowed","sunk","heapPlaced"]},"full":true}},"serverInfo":{"name":"yana-lsp","version":"0.1"}}}Content-Length: 121
+
+{"jsonrpc":"2.0","method":"window/logMessage","params":{"type":3,"message":"Yana: 1 modules from lsp/project/yana.toml"}}Content-Length: 152
+
+{"jsonrpc":"2.0","id":10,"result":{"uri":"Main.yana","range":{"start":{"line":0,"character":0},"end":{"line":0,"character":24}}}}Content-Length: 192
+
+{"jsonrpc":"2.0","id":11,"result":{"contents":{"kind":"markdown","value":"```yana\nfn double(x: Int) -> Int\n```"},"range":{"start":{"line":1,"character":19},"end":{"line":1,"character":25}}}}Content-Length: 273
+
+{"jsonrpc":"2.0","id":12,"result":[{"uri":"Main.yana","range":{"start":{"line":0,"character":0},"end":{"line":0,"character":24}}},{"uri":"Main.yana","range":{"start":{"line":1,"character":19},"end":{"line":1,"character":25}}}]}Content-Length: 117
+
+{"jsonrpc":"2.0","id":13,"result":{"data":[0,13,3,1,0,0,8,3,1,0,0,6,1,4,0,0,2,1,9,0,0,2,1,4,0,1,13,3,1,0,0,6,6,8,0]}}
+exit 1
+
+== a cancelled request
+Content-Length: 578
+
+{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"positionEncoding":"utf-8","textDocumentSync":{"openClose":true,"change":2,"save":{"includeText":false}},"definitionProvider":true,"declarationProvider":true,"hoverProvider":true,"referencesProvider":true,"semanticTokensProvider":{"legend":{"tokenTypes":["namespace","type","class","typeParameter","parameter","variable","property","enumMember","function","method"],"tokenModifiers":["declaration","definition","readonly","static","borrowed","sunk","heapPlaced"]},"full":true}},"serverInfo":{"name":"yana-lsp","version":"0.1"}}}Content-Length: 121
+
+{"jsonrpc":"2.0","method":"window/logMessage","params":{"type":3,"message":"Yana: 1 modules from lsp/project/yana.toml"}}Content-Length: 70
+
+{"jsonrpc":"2.0","id":7,"error":{"code":-32800,"message":"cancelled"}}
+exit 1
+

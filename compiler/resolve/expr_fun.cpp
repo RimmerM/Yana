@@ -2,6 +2,7 @@
 #include "analyze.h"
 #include "generic.h"
 #include "name.h"
+#include "index.h"
 #include "witness.h"
 
 /*
@@ -78,9 +79,7 @@ static StringId thunkName(Module& module, Function& callee) {
     return module.context.addQualifiedName(text.pointer(), text.size(), 1);
 }
 
-// The type one name has, without emitting anything to find out. Deliberately separate from
-// placeOf(), which for a by-reference capture emits the load that reaches the storage.
-static TypePtr bindingType(ExprResolver& resolver, const Binding& binding) {
+TypePtr bindingType(ExprResolver& resolver, const Binding& binding) {
     auto global = resolver.global;
 
     if(binding.captured) {
@@ -181,6 +180,7 @@ Binding* ExprResolver::captureBinding(StringId name, LocationId source) {
         existing.captured = true;
         existing.captureBorrow = captures[i].byReference;
         existing.captureField = U16(i);
+        existing.definition = captures[i].definition;
 
         bindings.push(existing);
         return &bindings[bindings.size() - 1];
@@ -216,6 +216,7 @@ Binding* ExprResolver::captureBinding(StringId name, LocationId source) {
     Capture capture;
     capture.name = name;
     capture.type = type;
+    capture.definition = outer->definition;
 
     if(writableBinding(*enclosing, *outer)) {
         capture.convention = ast::BindType::Ref;
@@ -242,6 +243,7 @@ Binding* ExprResolver::captureBinding(StringId name, LocationId source) {
     binding.captured = true;
     binding.captureBorrow = capture.byReference;
     binding.captureField = index;
+    binding.definition = capture.definition;
 
     bindings.push(binding);
     return &bindings[bindings.size() - 1];
@@ -677,8 +679,8 @@ ModulePtr<Value> ExprResolver::force(const Deferred& deferred, TypePtr expected,
         auto operandIndex = chain.operandIndex;
         auto operatorIndex = chain.operatorIndex;
 
-        return resolvePrecedence(*chain.operands, *chain.operators, operandIndex, operatorIndex,
-                                 chain.minimumPrecedence, expected);
+        return resolvePrecedence(*chain.operands, *chain.operators, *chain.operatorSources,
+                                 operandIndex, operatorIndex, chain.minimumPrecedence, expected);
     }
 
     // The closure a callee that could not see the argument was handed. Calling it is the force, and

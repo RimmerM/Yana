@@ -3,6 +3,7 @@
 #include "core.h"
 #include "expr.h"
 #include "generic.h"
+#include "index.h"
 #include "name.h"
 #include "native.h"
 #include "witness.h"
@@ -137,6 +138,11 @@ Function* Module::addFunction(StringId functionName, LocationId source) {
     function->source = source;
     *found.value = function - *arena;
     functionOrder.push(arena, function - *arena);
+
+    // §1.2's declaration walk, taken here rather than in it: every named function in the program
+    // arrives through this one call, including the ones a class instance and Core's own generated
+    // definitions make, so there is one place rather than four.
+    recordDefinition(context, functionSymbol(*this, function - *arena));
 
     function->addBlock(*this);
     return function;
@@ -448,6 +454,7 @@ static RecordType* declareRecordType(Module& module, ast::SimpleType& type, ast:
     }
 
     auto record = new (module.types) RecordType(type.name);
+    record->source = source;
     record->qualified = qualified;
     *found.value = (Type*)record - *module.types;
 
@@ -465,7 +472,11 @@ static RecordType* declareRecordType(Module& module, ast::SimpleType& type, ast:
 // module's flat constructor table.
 static void declareConstructor(Module& module, RecordType& record, StringId name, U32 index,
                                bool qualified, LocationId source) {
-    record.constructors.push(module.types, Constructor { name, nullptr, index });
+    Constructor constructor { name, nullptr, index };
+    constructor.source = source;
+    record.constructors.push(module.types, constructor);
+
+    recordDefinition(module.context, constructorSymbol(module, ConstructorRef { &record - *module.types, U16(index) }));
     if(qualified) return;
 
     auto inserted = module.constructors.add(name);
@@ -479,6 +490,8 @@ static void declareConstructor(Module& module, RecordType& record, StringId name
 static void declareRecord(Module& module, ast::Decl& decl) {
     auto record = declareRecordType(module, decl.data.type, decl.data.constraints, decl.qualified, decl.source);
     if(!record) return;
+
+    recordDefinition(module.context, typeSymbol(module, (Type*)record - *module.types));
 
     U32 index = 0;
     for(auto con: decl.data.cons.contents(module.parse)) {
@@ -714,6 +727,7 @@ static void declareAlias(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Dec
     if(variables.isNotEmpty()) alias.gen = prepareGenEnv(module, GenEnv::Alias, variables, {});
 
     *found.value = alias;
+    recordDefinition(module.context, aliasSymbol(module, alias));
 }
 
 /*
@@ -796,6 +810,7 @@ static void declareGlobal(Module& module, ast::Decl& decl) {
         }
 
         auto global_ = module.addGlobal(declaration.pat.var, declaration.pat.source);
+        recordDefinition(module.context, globalSymbol(module, global_ - *module.arena));
         global_->type = type;
         global_->initial = initial;
         global_->mut = declaration.bind == ast::BindType::Ref;
@@ -818,6 +833,8 @@ static void declareClass(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Dec
     typeClass->ast = pointer;
     typeClass->source = decl.source;
     *found.value = typeClass - *module.types;
+
+    recordDefinition(module.context, classSymbol(module, typeClass - *module.types));
 
     if((*module.types)[env]->types.isEmpty()) {
         module.context.diagnostics.error("class %@ must take at least one type argument"_v, decl.source,
@@ -846,6 +863,13 @@ static void declareClass(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Dec
 
         typeClass->functions.push(module.types, ClassFun { member.fun.name, nullptr, index, U16(member.fun.args.size()) });
         module.classFunctions.push(ClassFunRef { typeClass - *module.types, member.fun.name, index });
+
+        // The signature's own line rather than the class's, so that jumping to `show` lands on the
+        // declaration of `show` - see classFunSymbol, which prefers the signature when it exists.
+        auto entry = classFunSymbol(module, typeClass - *module.types, index);
+        entry.definition = member.source;
+        recordDefinition(module.context, entry);
+
         index++;
     }
 }
@@ -1900,6 +1924,11 @@ void resolveImports(Module& module, ast::Module& ast, ModuleProvider* provider) 
         entry.module = target;
         entry.localName = imported.localName ? imported.localName : imported.from;
         entry.qualified = imported.qualified;
+
+        // §1.2: an import line is navigable. The module has no location of its own - it is a file,
+        // not a declaration - so this is a reference whose target is jumped to by *path* rather
+        // than by position; the server turns the module name into a URI through the module map.
+        recordReference(module.context, imported.source, moduleSymbol(*target));
 
         for(auto symbol: imported.include.contents(module.parse)) entry.include.push(symbol);
         for(auto symbol: imported.exclude.contents(module.parse)) entry.exclude.push(symbol);

@@ -1,0 +1,78 @@
+/*
+ * The keywords and reserved operators of Yana, once.
+ *
+ * Two lexers read this: `parse/lexer.h` builds `Token::Type` from it, and the JetBrains plugin
+ * generates its keyword tables from it at build time (see yana-intellij/build.gradle.kts). They
+ * describe the same language and would otherwise diverge the first time a keyword is added -
+ * Implementation-Tooling.md §9. This file is the one list.
+ *
+ * The includer defines both macros before including this, and this file undefines them after, so
+ * an include that forgets one is a compile error rather than a silently empty expansion.
+ *
+ * The order is the order of `Token::Type`'s enumerators, and changing it changes their values.
+ * Nothing should depend on those values, but `FirstLiteral` and `LastLiteral` say that something
+ * once did, so the order is not free.
+ */
+
+YANA_KEYWORD(kwAlias,    "alias")
+YANA_KEYWORD(kwAtData,   "@data")
+YANA_KEYWORD(kwBreak,    "break")
+YANA_KEYWORD(kwClass,    "class")
+YANA_KEYWORD(kwContinue, "continue")
+YANA_KEYWORD(kwData,     "data")
+YANA_KEYWORD(kwDefault,  "default")
+YANA_KEYWORD(kwDeriving, "deriving")
+YANA_KEYWORD(kwDo,       "do")
+YANA_KEYWORD(kwElse,     "else")
+YANA_KEYWORD(kwFor,      "for")
+YANA_KEYWORD(kwForeign,  "foreign")
+YANA_KEYWORD(kwFn,       "fn")
+YANA_KEYWORD(kwIf,       "if")
+YANA_KEYWORD(kwImport,   "import")
+YANA_KEYWORD(kwIn,       "in")
+YANA_KEYWORD(kwInfixL,   "infixl")
+YANA_KEYWORD(kwInfixR,   "infixr")
+YANA_KEYWORD(kwPrefixR,  "prefixr")
+YANA_KEYWORD(kwSuffixL,  "suffixl")
+YANA_KEYWORD(kwInstance, "instance")
+YANA_KEYWORD(kwIs,       "is")
+YANA_KEYWORD(kwIter,     "iter")
+YANA_KEYWORD(kwLens,     "lens")
+YANA_KEYWORD(kwLet,      "let")
+YANA_KEYWORD(kwMatch,    "match")
+YANA_KEYWORD(kwModule,   "module")
+YANA_KEYWORD(kwNewType,  "newtype")
+YANA_KEYWORD(kwPub,      "pub")
+YANA_KEYWORD(kwReturn,   "return")
+YANA_KEYWORD(kwThen,     "then")
+YANA_KEYWORD(kwWhere,    "where")
+YANA_KEYWORD(kwWhile,    "while")
+YANA_KEYWORD(kwYield,    "yield")
+YANA_KEYWORD(kw_,        "_")
+
+/*
+ * The reserved operators.
+ *
+ * A symbol run that spells one of these exactly is that operator; anything else is a user-defined
+ * `VarSym` or, when it starts with a colon, a `ConSym`. So this is a table of whole lexemes rather
+ * than of prefixes, and both lexers classify a run by looking it up here.
+ */
+
+YANA_RESERVED_OP(opDot,        ".")
+YANA_RESERVED_OP(opDotDot,     "..")   // a range excluding its upper bound
+YANA_RESERVED_OP(opDotDotEq,   "..=")  // a range including it
+YANA_RESERVED_OP(opColon,      ":")
+YANA_RESERVED_OP(opColonColon, "::")
+YANA_RESERVED_OP(opEquals,     "=")
+YANA_RESERVED_OP(opBackSlash,  "\\")
+YANA_RESERVED_OP(opBar,        "|")
+YANA_RESERVED_OP(opArrowL,     "<-")
+YANA_RESERVED_OP(opArrowR,     "->")
+YANA_RESERVED_OP(opAt,         "@")
+YANA_RESERVED_OP(opDollar,     "$")
+YANA_RESERVED_OP(opTilde,      "~")
+YANA_RESERVED_OP(opArrowD,     "=>")
+YANA_RESERVED_OP(opAmp,        "&")
+
+#undef YANA_KEYWORD
+#undef YANA_RESERVED_OP

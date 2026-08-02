@@ -1,4 +1,5 @@
 #include "name.h"
+#include "index.h"
 
 /*
  * The typed wrappers over search().
@@ -36,6 +37,7 @@ TypePtr findType(Module& module, StringId name, LocationId source) {
         return type ? type.unwrap() : nullptr;
     });
 
+    if(found) recordReference(module.context, source, typeSymbol(*found.module, *found, name), *found);
     return found ? *found : nullptr;
 }
 
@@ -47,6 +49,7 @@ Maybe<TypeAlias*> findAlias(Module& module, StringId name, LocationId source) {
         return alias ? &alias.unwrap() : nullptr;
     });
 
+    if(found) recordReference(module.context, source, aliasSymbol(*found.module, **found));
     return found ? Just(*found) : Nothing();
 }
 
@@ -78,6 +81,10 @@ Maybe<ConstructorRef> findConstructor(Module& module, StringId name, LocationId 
         return {};
     });
 
+    if(found && (*found).record) {
+        recordReference(module.context, source, constructorSymbol(*found.module, *found));
+    }
+
     return found && (*found).record ? Just(*found) : Nothing();
 }
 
@@ -89,6 +96,8 @@ ModulePtr<Global> findGlobal(Module& module, StringId name, LocationId source) {
         return global_ ? global_.unwrap() : nullptr;
     });
 
+    if(found) recordReference(module.context, source, globalSymbol(module, *found),
+                              (*module.arena)[*found]->type);
     return found ? *found : nullptr;
 }
 
@@ -100,6 +109,13 @@ ModulePtr<Function> findFunction(Module& module, StringId name, LocationId sourc
         return function ? function.unwrap() : nullptr;
     });
 
+    /*
+     * Recorded here even though a call site may go on to select a class function instead - §1.2's
+     * "record at the point of decision" cuts the other way for the *candidate*, not for the answer.
+     * What makes it honest is that the selection records the reference it decided on at the same
+     * location, and a later answer replaces an earlier one: see SemanticIndex::addReference.
+     */
+    if(found) recordReference(module.context, source, functionSymbol(module, *found));
     return found ? *found : nullptr;
 }
 
@@ -111,6 +127,7 @@ GlobalPtr<TypeClass> findClass(Module& module, StringId name, LocationId source)
         return typeClass ? typeClass.unwrap() : nullptr;
     });
 
+    if(found) recordReference(module.context, source, classSymbol(module, *found));
     return found ? *found : nullptr;
 }
 

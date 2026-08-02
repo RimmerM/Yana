@@ -57,6 +57,11 @@ struct Binding {
     // is the one binding whose use is an effect - see ExprResolver::force.
     bool lazy = false;
 
+    // Where the name was introduced - the pattern, the parameter, or the `let`. Carried so that
+    // the editor can jump to it and so that two `x` in two scopes are two symbols: a slot index is
+    // not an identity, and a name is one only within the scope that bound it. See resolve/index.h.
+    LocationId definition = kNullLocation;
+
     bool isPlace() const { return captured || local != maxLimit<U32> || borrow != nullptr; }
     Place place() const { return borrow ? Place::inBorrow(borrow) : Place::inLocal(local); }
 };
@@ -77,6 +82,10 @@ struct Capture {
     TypePtr type = nullptr;
     ast::BindType convention = ast::BindType::Borrow;
     bool byReference = false;
+
+    // The enclosing binding's own declaration, carried through so that a capture navigates to what
+    // it captured rather than to the body that captured it.
+    LocationId definition = kNullLocation;
 };
 
 // One class function that fits a call, together with what its class's type variables had to be
@@ -133,6 +142,7 @@ struct LoopTarget {
 struct DeferredChain {
     SmallArray<const ast::Expr*, 8>* operands = nullptr;
     SmallArray<StringId, 8>* operators = nullptr;
+    SmallArray<LocationId, 8>* operatorSources = nullptr;
     Size operandIndex = 0;
     Size operatorIndex = 0;
     U8 minimumPrecedence = 0;
@@ -247,6 +257,14 @@ struct BranchArm {
     ModulePtr<Value> value;
     LocationId source;
 };
+
+// The type one name has, without emitting anything to find out. Deliberately separate from
+// placeOf(), which for a by-reference capture emits the load that reaches the storage.
+TypePtr bindingType(ExprResolver& resolver, const Binding& binding);
+
+// Records one occurrence of a local, an argument or a capture - see resolve/index.h. Called from
+// findBinding, which is the one funnel every read of a name in a body goes through.
+void recordBinding(ExprResolver& resolver, const Binding& binding, LocationId source);
 
 struct ExprResolver {
     ExprResolver(Context& context, Module& module, Function& function):
@@ -498,7 +516,9 @@ struct ExprResolver {
 
     ModulePtr<Value> resolveBinary(const ast::Expr& expr, const ast::InfixExpr& binary, TypePtr target, bool convertResult = true);
     ModulePtr<Value> resolvePrefix(const ast::Expr& expr, const ast::PrefixExpr& prefix, TypePtr target, bool convertResult = true);
-    ModulePtr<Value> resolvePrecedence(SmallArray<const ast::Expr*, 8>& operands, SmallArray<StringId, 8>& operators, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target = nullptr);
+    // `operatorSources` runs parallel to `operators`: an operator is a name the program wrote, so
+    // the index has to be able to point at it - see emitCall's `nameSource`.
+    ModulePtr<Value> resolvePrecedence(SmallArray<const ast::Expr*, 8>& operands, SmallArray<StringId, 8>& operators, SmallArray<LocationId, 8>& operatorSources, Size& operandIndex, Size& operatorIndex, U8 minimumPrecedence, TypePtr target = nullptr);
     ModulePtr<Value> resolveCall(const ast::Expr& expr, const ast::AppExpr& call, TypePtr target, bool convertResult = true);
 
     /*
@@ -535,7 +555,15 @@ struct ExprResolver {
     // `nothing` is a bitmask of the positions whose null `args` entry is a value that carries
     // nothing rather than one that failed to resolve - see the note on the guard in emitCall. Zero
     // for every synthesized call, whose arguments are values this resolver just produced.
-    ModulePtr<Value> emitCall(StringId name, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, Buffer<Deferred> deferred = {}, U32 nothing = 0);
+    /*
+     * `nameSource` is where the callee's *name* was written, which is not `source`: `source` is the
+     * whole call, and an editor asking about the name under the cursor needs the name.
+     *
+     * Null for every synthesized call - a pattern's `==`, an array literal's `slice` - and that is
+     * what keeps those out of the index: nothing in the source spelled them, so there is no
+     * occurrence to record. See resolve/index.h.
+     */
+    ModulePtr<Value> emitCall(StringId name, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, Buffer<Deferred> deferred = {}, U32 nothing = 0, LocationId nameSource = kNullLocation);
     ModulePtr<Value> emitDirectCall(ModulePtr<Function> callee, Buffer<ModulePtr<Value>> args, LocationId source, TypePtr target = nullptr, StringId resultName = 0, Buffer<Deferred> deferred = {});
 
     // A call to a generic function: infers its type arguments from the call, then either

@@ -117,8 +117,8 @@ Location Lexer::locationFrom(const Position& start) const {
 
     return {
         .sourceModule = moduleName,
-        .sourceStart = { .offset = start.offset, .line = U16(start.line), .column = U16(start.column) },
-        .sourceEnd = { .offset = end.offset, .line = U16(end.line), .column = U16(end.column) },
+        .sourceStart = { .offset = start.offset, .line = start.line, .column = start.column },
+        .sourceEnd = { .offset = end.offset, .line = end.line, .column = end.column },
     };
 }
 
@@ -195,7 +195,7 @@ void Lexer::skipWhitespace() {
                     // The comment runs to the end of the file, so the range starts at the opener
                     // and the reader is shown where the unterminated comment began.
                     auto location = locationFrom(commentStart);
-                    location.sourceEnd = { commentStart.offset + 2, U16(commentStart.line), U16(commentStart.column + 2) };
+                    location.sourceEnd = { commentStart.offset + 2, commentStart.line, commentStart.column + 2 };
                     diag.warning("Incorrectly nested comment: missing comment terminator(s)."_v, &location);
                 }
 

@@ -1,6 +1,7 @@
 #include "expr.h"
 #include "generic.h"
 #include "name.h"
+#include "index.h"
 
 void ExprResolver::terminate(Inst* inst) {
     assertTrue(isTerminator(*inst));
@@ -8,14 +9,57 @@ void ExprResolver::terminate(Inst* inst) {
 }
 
 Binding* ExprResolver::findBinding(StringId name, LocationId source) {
+    Binding* found = nullptr;
+
     for(Size i = bindings.size(); i > 0; i--) {
-        if(bindings[i - 1].name == name) return &bindings[i - 1];
+        if(bindings[i - 1].name == name) {
+            found = &bindings[i - 1];
+            break;
+        }
     }
 
     // A name a lambda body does not bind itself may still belong to an enclosing one, and naming it
     // is what makes it a capture. Nothing is a capture until it is used, which is Design-Memory
     // §8's "there is no capture list" made literal.
-    return captureBinding(name, source);
+    if(!found) found = captureBinding(name, source);
+
+    // §1.2's function-local choke point. A null source is a caller asking whether the name is bound
+    // at all rather than reading it - resolveCall does exactly that to tell a call of a binding from
+    // a call of a declaration - and an occurrence nobody wrote is not one to record.
+    if(found && source != kNullLocation) recordBinding(*this, *found, source);
+
+    return found;
+}
+
+/*
+ * One binding, as the index records it.
+ *
+ * Which of the three local kinds it is comes off the binding rather than being carried on it: a
+ * capture says so, and an ordinary binding whose value is the parameter itself is an argument. The
+ * payload is the slot the kind addresses - the local index, the environment field, or the argument
+ * index - which is only meaningful together with the enclosing function, and that is what `function`
+ * is for.
+ */
+void recordBinding(ExprResolver& resolver, const Binding& binding, LocationId source) {
+    if(!resolver.context.index) return;
+
+    Symbol symbol;
+    symbol.kind = Symbol::Kind::Local;
+    symbol.module = &resolver.module;
+    symbol.function = &resolver.function - resolver.local;
+    symbol.name = binding.name;
+    symbol.definition = binding.definition;
+    symbol.payload = binding.local;
+
+    if(binding.captured) {
+        symbol.kind = Symbol::Kind::Capture;
+        symbol.payload = binding.captureField;
+    } else if(binding.value && resolver.local[binding.value]->kind == Value::Arg) {
+        symbol.kind = Symbol::Kind::Arg;
+        symbol.payload = ((Arg*)resolver.local[binding.value])->index;
+    }
+
+    recordReference(resolver.context, source, symbol, bindingType(resolver, binding));
 }
 
 ModulePtr<Value> ExprResolver::find(StringId name) {
@@ -1376,6 +1420,7 @@ void ExprResolver::bindBorrow(const ast::VarDecl& declaration, ModulePtr<Value> 
     }
 
     Binding binding { declaration.pat.var, value, maxLimit<U32>, value };
+    binding.definition = declaration.pat.source;
     bindings.push(binding);
 }
 
@@ -1440,7 +1485,9 @@ void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value>
         slot.convention = ast::BindType::Ref;
         function.locals.set(local, index, slot);
 
-        bindings.push(Binding { name, slot.value, index });
+        Binding adoptedBinding { name, slot.value, index };
+        adoptedBinding.definition = declaration.pat.source;
+        bindings.push(adoptedBinding);
         return;
     }
 
@@ -1449,7 +1496,10 @@ void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value>
     auto place = placeFor(storage, declaration.pat.source);
 
     initialize(place, value, declaration.pat.source);
-    bindings.push(Binding { name, storage, place.local });
+
+    Binding binding { name, storage, place.local };
+    binding.definition = declaration.pat.source;
+    bindings.push(binding);
 }
 
 /*
@@ -1908,6 +1958,7 @@ void bindFunctionArgs(ExprResolver& resolver, Module& module, Function& function
         auto arg = (*module.arena)[argPointer];
         auto value = (ModulePtr<Value>)argPointer;
         Binding binding { arg->name, value };
+        binding.definition = arg->source;
 
         if(arg->isLazy()) {
             // The name holds the thunk, not the value the signature declared, and reading it is

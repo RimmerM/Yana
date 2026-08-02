@@ -1,0 +1,62 @@
+-- 32 locations, not in source order
+
+type at 4:5 (offset 201)
+  innermost: 4:0..4:10 "data Point"
+  enclosing: 4:0..4:10 "data Point"
+
+field at 4:12 (offset 208)
+  innermost: 4:11..4:26 "{x: Int, y: Int"
+  enclosing: 4:11..4:26 "{x: Int, y: Int"
+
+name at 7:4 (offset 248)
+  innermost: 7:0..7:28 "fn distance(p: Point) -> Int"
+  enclosing: 7:0..7:28 "fn distance(p: Point) -> Int"
+
+arg at 7:12 (offset 256)
+  innermost: 7:12..7:20 "p: Point"
+  enclosing: 7:12..7:20 "p: Point"
+  enclosing: 7:0..7:28 "fn distance(p: Point) -> Int"
+
+ret at 7:24 (offset 268)
+  innermost: 7:0..7:28 "fn distance(p: Point) -> Int"
+  enclosing: 7:0..7:28 "fn distance(p: Point) -> Int"
+
+field at 7:31 (offset 275)
+  innermost: 7:31..7:32 "p"
+  enclosing: 7:31..7:32 "p"
+  enclosing: 7:31..7:34 "p.x"
+  enclosing: 7:31..7:40 "p.x + p.y"
+
+operand at 7:38 (offset 282)
+  innermost: 7:37..7:40 "p.y"
+  enclosing: 7:37..7:40 "p.y"
+  enclosing: 7:31..7:40 "p.x + p.y"
+
+local at 11:8 (offset 361)
+  innermost: 11:8..11:9 "p"
+  enclosing: 11:8..11:9 "p"
+  enclosing: 11:4..11:30 "let p = Point {x: 1, y: 2}"
+  enclosing: 11:4..13:22 "let p = Point {x: 1, y: 2}\n    --  ^local  ^construct\n    return distance(p)"
+
+construct at 11:16 (offset 369)
+  innermost: 11:12..11:17 "Point"
+  enclosing: 11:12..11:17 "Point"
+  enclosing: 11:12..11:30 "Point {x: 1, y: 2}"
+  enclosing: 11:12..11:30 "Point {x: 1, y: 2}"
+  enclosing: 11:4..11:30 "let p = Point {x: 1, y: 2}"
+  enclosing: 11:4..13:22 "let p = Point {x: 1, y: 2}\n    --  ^local  ^construct\n    return distance(p)"
+
+call at 13:11 (offset 422)
+  innermost: 13:11..13:19 "distance"
+  enclosing: 13:11..13:19 "distance"
+  enclosing: 13:11..13:22 "distance(p)"
+  enclosing: 13:4..13:22 "return distance(p)"
+  enclosing: 11:4..13:22 "let p = Point {x: 1, y: 2}\n    --  ^local  ^construct\n    return distance(p)"
+
+argument at 13:20 (offset 431)
+  innermost: 13:20..13:21 "p"
+  enclosing: 13:20..13:21 "p"
+  enclosing: 13:11..13:22 "distance(p)"
+  enclosing: 13:4..13:22 "return distance(p)"
+  enclosing: 11:4..13:22 "let p = Point {x: 1, y: 2}\n    --  ^local  ^construct\n    return distance(p)"
+
