@@ -551,6 +551,11 @@ struct Decl {
     union {
         Expr stmt;
 
+        // Kind::Error. The name of the declaration that did not parse, where one was read before
+        // the parser gave up, and 0 where none was. A half-written declaration is still the one
+        // the cursor is in, and an editor that can name it can complete inside it.
+        StringId errorName;
+
         struct {
             SimpleType type;
             Type target;

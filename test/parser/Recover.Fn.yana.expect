@@ -1,0 +1,76 @@
+error 20:0 [636..636]: expected function name
+
+Module 
+|-DataDecl Shape 
+| |-Constructor Circle
+| | `-TupType 
+| |   `-Field radius
+| |     `-ConType Float
+| `-Constructor Square
+|   `-TupType 
+|     `-Field side
+|       `-ConType Float
+|-TraitDecl Area (a)
+| `-FunDecl area
+|   |-Arg value
+|   | `-GenType a
+|   `-Result
+|     `-ConType Float
+|-InstanceDecl 
+| |-AppType 
+| | |-ConType Area
+| | `-ConType Shape
+| `-FunDecl area <implicit return> 
+|   |-Arg value
+|   `-Body
+|     `-MatchExpr 
+|       |-VarExpr value
+|       |-Alt
+|       | |-ConPat Circle
+|       | | `-VarPat r
+|       | `-InfixExpr 
+|       |   |-VarExpr *
+|       |   |-VarExpr r
+|       |   `-VarExpr r
+|       `-Alt
+|         |-ConPat Square
+|         | `-VarPat s
+|         `-InfixExpr 
+|           |-VarExpr *
+|           |-VarExpr s
+|           `-VarExpr s
+|-<parse error>
+|-FunDecl describe
+| |-Arg s
+| | `-ConType Shape
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-MultiExpr 
+|     |-DeclExpr 
+|     | `-VarDecl a <borrow> 
+|     |   |-VarPat a
+|     |   `-AppExpr 
+|     |     |-VarExpr area
+|     |     `-Field <anonymous>
+|     |       `-VarExpr s
+|     `-IfExpr 
+|       |-InfixExpr 
+|       | |-VarExpr >
+|       | |-VarExpr a
+|       | `-LitExpr 10
+|       |-RetExpr 
+|       | `-LitExpr 1
+|       `-RetExpr 
+|         `-LitExpr 0
+`-FunDecl main <implicit return> 
+  |-Result
+  | `-ConType Int
+  `-Body
+    `-AppExpr 
+      |-VarExpr describe
+      `-Field <anonymous>
+        `-ConExpr 
+          |-ConType Circle
+          `-Field <anonymous>
+            `-LitExpr 1

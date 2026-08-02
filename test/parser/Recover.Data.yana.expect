@@ -1,0 +1,38 @@
+error 7:0 [304..304]: expected '=' or '{' after type name
+error 9:0 [319..319]: expected constructor name
+error 11:0 [345..345]: expected constructor name
+
+Module 
+|-<parse error> Shape
+|-DataDecl Colour 
+| `-<invalid name>
+|-DataDecl Direction 
+| |-Constructor North
+| `-<invalid name>
+|-FunDecl describe
+| |-Arg s
+| | `-ConType Shape
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-MultiExpr 
+|     |-DeclExpr 
+|     | `-VarDecl a <borrow> 
+|     |   |-VarPat a
+|     |   `-AppExpr 
+|     |     |-VarExpr area
+|     |     `-Field <anonymous>
+|     |       `-VarExpr s
+|     `-RetExpr 
+|       `-LitExpr 0
+`-FunDecl main <implicit return> 
+  |-Result
+  | `-ConType Int
+  `-Body
+    `-AppExpr 
+      |-VarExpr describe
+      `-Field <anonymous>
+        `-ConExpr 
+          |-ConType Circle
+          `-Field <anonymous>
+            `-LitExpr 1

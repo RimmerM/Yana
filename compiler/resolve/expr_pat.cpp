@@ -873,12 +873,12 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
     auto pivot = settle(resolve(match.pivot), match.pivot.source);
     if(!pivot) return nullptr;
 
+    // A match with no alternatives cannot be written - the parser needs the ':' and an indented
+    // block to have read a match at all - so this is only ever the shape a half-typed one is left
+    // in, and the parser has already said so. It resolves to nothing, quietly.
     auto alternativeList = match.alts;
     auto alternatives = alternativeList.contents(parse);
-    if(alternatives.size() == 0) {
-        context.diagnostics.error("match requires at least one alternative"_v, expr.source);
-        return nullptr;
-    }
+    if(alternatives.size() == 0) return nullptr;
 
     // Reading an alternative out of the parse list copies it, so the patterns are collected into
     // one array that outlives the space they are handed to - see PatternSpace::useful.

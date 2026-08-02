@@ -1,0 +1,38 @@
+-- The questions the semantic fixture asks, of a file that is halfway through being edited.
+--
+-- What M7 buys is that this file has answers at all: the declarations below a broken one still
+-- parse, so the index still holds them, and the resolver says nothing further about what the
+-- parser already reported. The diagnostics section at the top of the .expect is the second half of
+-- that - one message per mistake, and every one of them from the parser.
+
+import Shapes
+
+-- A function whose body has not been typed yet.
+fn halfWritten(s: Shape) -> Int:
+
+-- A `match` whose alternatives have not been typed yet. The pivot is still what an editor is asked
+-- about while they are being written.
+fn pending(s: Shape) -> Int = match s:
+--                                  ^pivot
+
+-- A declaration that got as far as its name.
+data Colour
+
+-- A binding whose `| match:` alternatives have not been typed yet. Without the poisoned
+-- alternative the parser writes in their place, the resolver would tell a half-typed line that its
+-- refutable pattern needs the alternatives that are being typed.
+fn probe(s: Shape) -> Int:
+    let Circle(c) = s | match:
+
+    return c.radius
+--         ^bound
+
+-- Everything after all of that still resolves.
+fn twice(s: Shape) -> Int = area(s) + area(s)
+--                          ^classfun
+
+fn main() -> Int:
+    let c = Shapes.Circle {radius: 4}
+--                 ^con
+    return twice(c)
+--         ^call

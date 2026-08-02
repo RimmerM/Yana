@@ -1,0 +1,59 @@
+-- A ':' with nothing indented under it - every construct that opens a block, left in the state it
+-- is in between typing the ':' and typing the first line of the body.
+--
+-- This is the one recovery that decides whether a file is usable while it is being edited. A block
+-- takes its level from its first token, so a block opened on a token that is already at or left of
+-- the enclosing level takes the *enclosing* level: every declaration below it is then read as more
+-- of the body, and the rest of the file stops existing. Each group here ends with declarations
+-- that have to survive.
+
+-- A function body.
+fn noBody() -> Int:
+
+fn afterNoBody() -> Int = 1
+
+-- A block nested one level in, whose next line has fallen back to the outer level.
+fn noInnerBody(a: Bool) -> Int:
+  if a:
+  2
+
+fn afterNoInnerBody() -> Int = 1
+
+-- A multi-way if.
+fn noCases(a: Int) -> Int:
+  if:
+
+fn afterNoCases() -> Int = 1
+
+-- A class body and an instance body.
+class Empty(a):
+
+instance Empty(Int):
+
+fn afterEmptyClass() -> Int = 1
+
+-- A `where` with no bindings under it.
+fn noWhere(a: Int) -> Int = b
+  where
+
+fn afterNoWhere() -> Int = 1
+
+-- A binding's `| match:` alternatives. The one alternative below is written by the parser, not by
+-- the file: an empty list is what a binding with no `|` at all has, and the resolver rightly tells
+-- that one that a refutable pattern needs alternatives. A poisoned alternative covers every value,
+-- so the declaration draws no report but the one above.
+fn noAlternatives(m: Maybe(Int)) -> Int:
+  let Just(v) = m | match:
+
+  return v
+
+fn afterNoAlternatives() -> Int = 1
+
+-- An attribute group with no declarations under it.
+@inline:
+
+fn afterEmptyGroup() -> Int = 1
+
+-- The last construct in the file, so that the block is missing because the file ends rather than
+-- because something else follows.
+fn atFileEnd() -> Int:

@@ -1,0 +1,108 @@
+error 13:0 [636..636]: expected an indented block after the ':'
+error 18:2 [791..791]: expected an indented block after the ':'
+error 26:0 [881..881]: expected the if cases, indented under the ':'
+error 31:0 [966..966]: expected the class functions, indented under the ':'
+error 33:0 [988..988]: expected the instance definitions, indented under the ':'
+error 39:0 [1100..1100]: expected the bindings, indented under the 'where'
+error 48:2 [1557..1557]: expected the match alternatives, indented under the ':'
+error 55:0 [1667..1667]: expected declarations under this attribute group
+error 60:0 [1856..1856]: expected an indented block after the ':'
+
+Module 
+|-FunDecl noBody
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-<parse error>
+|-FunDecl afterNoBody <implicit return> 
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-LitExpr 1
+|-FunDecl noInnerBody
+| |-Arg a
+| | `-ConType Bool
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-MultiExpr 
+|     |-IfExpr 
+|     | |-VarExpr a
+|     | `-<parse error>
+|     `-LitExpr 2
+|-FunDecl afterNoInnerBody <implicit return> 
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-LitExpr 1
+|-FunDecl noCases
+| |-Arg a
+| | `-ConType Int
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-MultiIfExpr 
+|-FunDecl afterNoCases <implicit return> 
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-LitExpr 1
+|-TraitDecl Empty (a)
+|-InstanceDecl 
+| `-AppType 
+|   |-ConType Empty
+|   `-ConType Int
+|-FunDecl afterEmptyClass <implicit return> 
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-LitExpr 1
+|-FunDecl noWhere <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-MultiExpr 
+|     |-VarExpr b
+|     `-DeclExpr 
+|-FunDecl afterNoWhere <implicit return> 
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-LitExpr 1
+|-FunDecl noAlternatives
+| |-Arg m
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-ConType Int
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-MultiExpr 
+|     |-DeclExpr 
+|     | `-VarDecl  <borrow> 
+|     |   |-ConPat Just
+|     |   | `-VarPat v
+|     |   |-VarExpr m
+|     |   `-Else
+|     |     `-Alt
+|     |       |-<parse error>
+|     |       `-<parse error>
+|     `-RetExpr 
+|       `-VarExpr v
+|-FunDecl afterNoAlternatives <implicit return> 
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-LitExpr 1
+|-FunDecl afterEmptyGroup <implicit return> 
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-LitExpr 1
+`-FunDecl atFileEnd
+  |-Result
+  | `-ConType Int
+  `-Body
+    `-<parse error>

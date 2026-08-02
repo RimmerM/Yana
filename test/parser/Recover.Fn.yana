@@ -1,0 +1,27 @@
+-- One realistic file, truncated after `fn` - the state it is in for as long as the name has not
+-- been typed yet. Every declaration below the truncation still has to parse: what the editor asks
+-- for while a function is being written is the rest of the file, not the half-written line.
+--
+-- The other truncation points of this same file are Recover.Args, Recover.Return, Recover.Match,
+-- Recover.Data and Recover.Block.
+
+data Shape = Circle {radius: Float} | Square {side: Float}
+
+class Area(a):
+  fn area(value: a) -> Float
+
+instance Area(Shape):
+  fn area(value) = match value:
+    Circle(r) -> r * r
+    Square(s) -> s * s
+
+fn
+
+fn describe(s: Shape) -> Int:
+  let a = area(s)
+  if a > 10.0:
+    return 1
+  else:
+    return 0
+
+fn main() -> Int = describe(Circle(1.0))

@@ -1,0 +1,19 @@
+-- The module the fixture's cross-module answers point into. Nothing here is exercised for its own
+-- sake: what it exists for is that a definition in another file is the case that is easy to get
+-- wrong and invisible in a single-file test.
+
+data Shape = Circle {radius: Int} | Square {side: Int}
+
+data Point {x: Int, y: Int}
+
+class Area(a):
+    fn area(s: a) -> Int
+
+instance Area(Shape):
+    fn area(s: Shape) = match s:
+        Circle(c) -> c.radius * c.radius * 3
+        Square(q) -> q.side * q.side
+
+fn scale(s: Shape, by: Int) -> Int = area(s) * by
+
+fn sum(p: Point) -> Int = p.x + p.y

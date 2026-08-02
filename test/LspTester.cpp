@@ -341,6 +341,48 @@ static void writeSemanticAnswers(Net::Writer& writer, lsp::Session& session, Str
     writer.writeString("\n\n"_v);
 }
 
+// Everything the compile reported, which for a project that is mid-edit is most of what an editor
+// shows. Held to a fixture for the same reason the answers are: a second diagnostic on one mistake
+// is a regression that nothing else in the suite would notice - Implementation-Tooling.md §3.2.
+static void writeDiagnostics(Net::Writer& writer, lsp::Session& session) {
+    writer.writeString("== diagnostics\n\n"_v);
+
+    if(session.diagnostics.messages.size() == 0) {
+        writer.writeString("(none)\n\n"_v);
+        return;
+    }
+
+    for(auto& message: session.diagnostics.messages) {
+        const char* kind;
+        switch(message.level) {
+            case Diagnostics::ErrorLevel: kind = "error"; break;
+            case Diagnostics::WarningLevel: kind = "warning"; break;
+            default: kind = "message";
+        }
+
+        char buffer[1024];
+        Size length;
+
+        if(message.hasLocation) {
+            auto path = session.pathOf(message.where.sourceModule);
+            auto name = path;
+            for(Size i = 0; i < path.length; i++) {
+                if(path.ptr[i] == '/' || path.ptr[i] == '\\') name = StringView { path.ptr + i + 1, path.length - i - 1 };
+            }
+
+            length = format(toBuffer(buffer), toString("%@ %@:%@:%@: %@\n"_v), kind,
+                            name.length ? name : "<builtin>"_v, message.where.sourceStart.line + 1,
+                            message.where.sourceStart.column, message.text);
+        } else {
+            length = format(toBuffer(buffer), toString("%@ <no location>: %@\n"_v), kind, message.text);
+        }
+
+        writer.writeString(StringView { buffer, length });
+    }
+
+    writer.writeString("\n"_v);
+}
+
 static void runSemanticFixture(const String& root, const String& expectPath, bool generate) {
     lsp::Session session;
 
@@ -369,6 +411,8 @@ static void runSemanticFixture(const String& root, const String& expectPath, boo
     }
 
     Net::Writer memory(65536);
+    writeDiagnostics(memory, session);
+
     for(auto entry: entries) {
         if(!entry->name) continue;
 
@@ -439,8 +483,11 @@ int main(int argc, const char** argv) {
 
     if(tests.size() == 0) println("no tests found");
 
-    // The whole-project pass, which is where everything past the position index is asserted.
+    // The whole-project pass, which is where everything past the position index is asserted. Twice:
+    // once over a project that compiles, and once over one that is mid-edit, since what the second
+    // asserts is that the first's answers survive a broken declaration above them.
     runSemanticFixture(String("lsp/semantic"), String("lsp/semantic.expect"), generate);
+    runSemanticFixture(String("lsp/recover"), String("lsp/recover.expect"), generate);
 
     for(auto& test: tests) {
         auto result = File::openFile(test, readAccess());

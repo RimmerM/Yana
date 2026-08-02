@@ -43,12 +43,40 @@ struct BasicParser {
 
     BasicParser(Diagnostics& diag, Lexer& lexer, StringId moduleName): moduleName(moduleName), diag(diag), lexer(lexer) {}
 
+    /*
+     * Whether this parse may still report. One mistake in a layout-sensitive language routinely
+     * costs a diagnostic per production that gave up on it, so a file that is broken enough to
+     * pass the limit is one where the next message tells the reader nothing the first fifty did
+     * not - and an editor that reparses on every keystroke pays for each of them twice, once to
+     * produce and once to render.
+     *
+     * Only the reporting stops. Recovery runs to the end of the file either way, because the AST
+     * after the limit is what the rest of the editor reads.
+     */
+    bool canReport() {
+        if(reportedErrors < errorLimit) {
+            reportedErrors++;
+            return true;
+        }
+
+        // The message that says why the others are missing is itself the last one reported.
+        if(reportedErrors == errorLimit) {
+            reportedErrors++;
+            auto where = currentNode();
+            diag.error("too many parse errors - the rest of this file is parsed without reporting"_v, &where);
+        }
+
+        return false;
+    }
+
     void error(StringView text, Location* node = nullptr) {
+        if(!canReport()) return;
         auto where = currentNode();
         diag.error(text, node ? node : &where);
     }
 
     void error(StringView text, LocationId location) {
+        if(!canReport()) return;
         diag.error(text, location);
     }
 
@@ -118,6 +146,55 @@ struct BasicParser {
     Maybe<Payload> expect(StringView errorText, F&& predicate) {
         auto r = maybe(forward<F>(predicate));
         if(!r) error(errorText);
+        return r;
+    }
+
+    /*
+     * Discards tokens until one the caller can resume at: any type in `until`, any token
+     * `alsoStop` accepts, or the end of the file, which is always a stop because nothing else is
+     * left. The stopping token is not consumed - it is the one the caller is meant to see - and
+     * its type is returned so the caller can tell which of its reasons for stopping applied.
+     *
+     * This is the discard half of error recovery. The other half is the caller's: what it puts in
+     * the AST in place of what it skipped, so that a position inside the skipped range still maps
+     * to the construct that contained it.
+     */
+    template<class F>
+    Type sync(Buffer<const Type> until, F&& alsoStop) {
+        while(token.type != Type::EndOfFile) {
+            for(auto type: until) {
+                if(token.type == type) return token.type;
+            }
+
+            if(alsoStop(token)) return token.type;
+            eat();
+        }
+
+        return token.type;
+    }
+
+    Type sync(Buffer<const Type> until) {
+        return sync(until, [](Token&) { return false; });
+    }
+
+    // `expect`, recovering: where `expect` leaves the offending token in place and makes it the
+    // caller's problem, this one discards up to the next synchronization point. Use it where what
+    // follows the missing token cannot be read as anything - `default` names a class and then says
+    // what it defaults to, and without the class neither half means anything - and not where the
+    // rest of the construct is still worth keeping. Discarding a declaration costs an editor the
+    // arguments and the body it would have completed against, which is worse than a cascade.
+    Maybe<Payload> expectSync(Type type, StringView errorText, Buffer<const Type> until) {
+        return expectSync(errorText, until, [&](Token& t) { return t.type == type; });
+    }
+
+    template<class F>
+    Maybe<Payload> expectSync(StringView errorText, Buffer<const Type> until, F&& predicate) {
+        auto r = maybe(forward<F>(predicate));
+        if(!r) {
+            error(errorText);
+            sync(until);
+        }
+
         return r;
     }
 
@@ -216,4 +293,8 @@ struct BasicParser {
     Diagnostics& diag;
     Lexer& lexer;
     Token token;
+
+    // How many diagnostics this parse reports before it goes quiet - see canReport().
+    U32 errorLimit = 50;
+    U32 reportedErrors = 0;
 };

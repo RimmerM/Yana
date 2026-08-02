@@ -1,0 +1,17 @@
+-- Recover.Fn's file, truncated after the return arrow, and once after the '=' that would open a
+-- body. Both leave a signature that is complete enough to say what the function is called and what
+-- it takes, which is what an editor needs to answer a question about the call below it.
+
+data Shape = Circle {radius: Float} | Square {side: Float}
+
+class Area(a):
+  fn area(value: a) ->
+
+instance Area(Shape):
+  fn area(value) = match value:
+    Circle(r) -> r * r
+    Square(s) -> s * s
+
+fn describe(s: Shape) -> Int =
+
+fn main() -> Int = describe(Circle(1.0))

@@ -1,19 +1,11 @@
 error 9:0 [335..335]: expected function body
 error 9:3 [338..339]: expected function name
-error 9:3 [338..339]: expected '('
-error 9:3 [338..339]: expected function body
-error 9:3 [338..339]: expected declaration end
 error 15:0 [463..463]: expected ')'
-error 15:0 [463..463]: expected function body
 error 18:0 [511..511]: expected '=' or '{' after type name
 error 21:0 [591..591]: expected '='
 error 21:0 [591..591]: expected a type
 error 24:0 [672..672]: expected ':' after instance declaration
-error 24:0 [672..672]: expected an expression
 error 24:8 [680..681]: expected a class name
-error 24:8 [680..681]: expected '='
-error 24:8 [680..681]: expected a type
-error 24:8 [680..681]: expected declaration end
 error 28:0 [773..773]: expected '='
 error 28:0 [773..773]: expected a type
 error 29:0 [779..779]: expected identifier
@@ -25,26 +17,23 @@ Module
 |-FunDecl noBody
 | `-Arg a
 |   `-ConType Int
-|-FunDecl 
+|-<parse error>
 |-FunDecl unclosed
 | `-Arg a
 |   |-ConType Int
 |   `-LitExpr 0
-|-<parse error>
+|-<parse error> NoCons
 |-AliasDecl NoTarget 
 | `-<parse error>
 |-InstanceDecl 
-| |-AppType 
-| | |-ConType NoBody
-| | `-ConType Int
-| |-StmtDecl
-| | `-<parse error>
-| `-DefaultDecl 
-|   `-<parse error>
+| `-AppType 
+|   |-ConType NoBody
+|   `-ConType Int
+|-<parse error>
 |-DefaultDecl FromInt
 | `-<parse error>
 |-<parse error>
-|-<parse error>
+|-<parse error> named
 |-StmtDecl
 | `-RetExpr 
 |   `-LitExpr 0

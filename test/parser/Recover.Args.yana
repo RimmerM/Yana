@@ -1,0 +1,17 @@
+-- Recover.Fn's file, truncated after the open paren of an argument list. The list is left open, so
+-- the declaration it belongs to is given up on at the end of its own statement rather than reading
+-- the ones below it as more arguments.
+
+data Shape = Circle {radius: Float} | Square {side: Float}
+
+class Area(a):
+  fn area(value: a) -> Float
+
+instance Area(Shape):
+  fn area(value) = match value:
+    Circle(r) -> r * r
+    Square(s) -> s * s
+
+fn describe(
+
+fn main() -> Int = describe(Circle(1.0))

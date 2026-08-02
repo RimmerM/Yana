@@ -85,13 +85,60 @@ struct Parser: BasicParser<Lexer, Token> {
     ast::Expr toLiteral(const Token::Payload& payload, Token::Type type, const WithLocation& source);
     ast::Expr toLiteral(const WithLocation& source);
 
+    // True when the layout has already ended whatever the current token could have belonged to.
+    // Nothing can be parsed here, and everything that opens an indentation block has to ask
+    // before opening one - see withLevel().
+    bool atBlockEnd() const {
+        return token.type == Token::EndOfStmt || token.type == Token::EndOfBlock || token.type == Token::EndOfFile;
+    }
+
+    /*
+     * Parses an indented block, and returns false without consuming anything when there is none.
+     *
+     * A block is indented further than the construct it belongs to, so its first token is never a
+     * layout token: a token at or left of the enclosing level is one the lexer has already turned
+     * into an EndOfStmt or an EndOfBlock. Opening a level there instead sets it to the *enclosing*
+     * level's column, and everything that follows - every remaining declaration in the file - is
+     * then read as more of this block. That is the state a half-written `fn f():` is in for as
+     * long as its body is an empty line, which is most of the time it is being written.
+     */
     template<class F>
-    void withLevel(F&& f) {
+    bool withLevel(F&& f) {
+        if(atBlockEnd()) return false;
+
         IndentLevel level{ token, lexer };
         f();
         level.end();
         if(token.type == Token::EndOfBlock) eat();
+        return true;
     }
+
+    // withLevel(), reporting `emptyError` when the block is missing. The location it points at is
+    // the layout token, which is where the block should have been written.
+    template<class F>
+    bool block(F&& f, StringView emptyError) {
+        if(withLevel(forward<F>(f))) return true;
+
+        error(emptyError);
+        return false;
+    }
+
+    /*
+     * Where the parser resumes after something it could not read, and the only synchronization set
+     * it needs.
+     *
+     * Yana's layout supplies the points for free: a token at or left of the level the broken
+     * construct started at is one the lexer has already turned into an EndOfStmt or an EndOfBlock.
+     * So stopping at those two stops exactly where Implementation-Tooling.md §3.1 asks, without a
+     * column comparison of our own - and §3.1's third clause, a declaration keyword at column 0,
+     * is unreachable at the root level for the same reason and is not implemented.
+     */
+    static Buffer<const Token::Type> stmtStops() {
+        static constexpr Token::Type stops[] = { Token::EndOfStmt, Token::EndOfBlock };
+        return { stops, 2 };
+    }
+
+    Token::Type syncStmt() { return sync(stmtStops()); }
 
     // Consumes the closing token of a construct, or reports `errorText` and skips ahead to it.
     // Returns false if the construct was left open - the caller should then give up on it rather
@@ -104,22 +151,35 @@ struct Parser: BasicParser<Lexer, Token> {
     // not the ones after it. Returns true if the closing token was found, and consumes it.
     bool skipToClose(Token::Type end);
 
-    // Like BasicParser::between, but recovers when the closing token is missing.
+    // Like BasicParser::between, but recovers when the closing token is missing. Returns false
+    // when the construct was left open, so that the caller can give up on it rather than read
+    // what follows as more of itself.
     template<class F>
-    void delimited(F&& f, Token::Type start, Token::Type end, StringView startError, StringView endError) {
+    bool delimited(F&& f, Token::Type start, Token::Type end, StringView startError, StringView endError) {
         if(token.type != start) {
             error(startError);
-            return;
+            return false;
         }
 
         eat();
+
+        // A delimiter left open at the end of a statement has no contents yet rather than empty
+        // ones. Asking the production inside for them reports a second thing missing on top of
+        // the closing token, which is one mistake described twice - `fn f(` is not also a
+        // parameter whose name is missing.
+        if(atBlockEnd()) {
+            error(endError);
+            return false;
+        }
+
         f();
-        expectClose(end, endError);
+        return expectClose(end, endError);
     }
 
     template<class F>
-    void maybeDelimited(F&& f, Token::Type start, Token::Type end, StringView startError, StringView endError) {
-        if(token.type == start) delimited(f, start, end, startError, endError);
+    bool maybeDelimited(F&& f, Token::Type start, Token::Type end, StringView startError, StringView endError) {
+        if(token.type != start) return true;
+        return delimited(f, start, end, startError, endError);
     }
 
     template<class F> auto parens(F&& f) {

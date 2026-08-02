@@ -1011,6 +1011,11 @@ struct ExprResolver {
     // step signal rather than a jump to a block this function has.
     bool inLoopBody = false;
     Array<ContinuationLoopExit> loopExits;
+
+    // Set when this body contained something the parser could not read. What such a body does not
+    // do - return a value, cover every case - is the same mistake seen from the other side, and
+    // the parser has already reported it once. See Implementation-Tooling.md §3.2.
+    bool sawParseError = false;
 };
 
 /*

@@ -1,0 +1,15 @@
+-- Recover.Fn's file, truncated inside a `data`: after the type name, after the '=', and after the
+-- bar that would separate two constructors. A declaration that gets no further than its name is
+-- kept as an error node carrying that name, so the type is still something the file declares.
+
+data Shape
+
+data Colour =
+
+data Direction = North |
+
+fn describe(s: Shape) -> Int:
+  let a = area(s)
+  return 0
+
+fn main() -> Int = describe(Circle(1.0))

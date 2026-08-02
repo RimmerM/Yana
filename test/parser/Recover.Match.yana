@@ -1,0 +1,16 @@
+-- Recover.Fn's file, truncated inside a match: once with no alternatives written yet, and once
+-- with a constructor pattern and no arrow. The pivot survives both, because it is the expression
+-- an editor is most likely to be asked about while the alternatives are still being typed.
+
+data Shape = Circle {radius: Float} | Square {side: Float}
+
+class Area(a):
+  fn area(value: a) -> Float
+
+instance Area(Shape):
+  fn area(value) = match value:
+
+fn half(s: Shape) -> Float = match s:
+  Circle
+
+fn main() -> Int = 0

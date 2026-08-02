@@ -1762,6 +1762,11 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
             case ast::Decl::Stmt:
                 // Deferred: a global's type may name a record declared after it.
                 break;
+            case ast::Decl::Error:
+                // The parser has already reported why this declaration is not one. Saying
+                // anything else about it puts a second diagnostic on one mistake, which for a
+                // file being edited is most of the file - Implementation-Tooling.md §3.2.
+                break;
             default:
                 module.context.diagnostics.error("this declaration is not available yet"_v, decl.source);
                 break;

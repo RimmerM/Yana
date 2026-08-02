@@ -1683,6 +1683,7 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
 
     switch(expr.kind) {
         case ast::Expr::Error:
+            sawParseError = true;
             return nullptr;
         case ast::Expr::Nested:
             return resolve(*parse[expr.nested], target, used, implicit);
@@ -2138,7 +2139,10 @@ bool resolveFunctionBody(Module& module, Function& function) {
         if(resolver.current) {
             if(isUnit(*module.types, function.returnType)) {
                 resolver.terminate(resolver.emit<InstRet>(decl.source, 0, module.scalar.unit, nullptr));
-            } else {
+            } else if(!resolver.sawParseError) {
+                // A body with a hole in it does not return a value because it is not finished,
+                // which the parser has already said. Saying it again puts a second mark on a
+                // function whose only problem is that it is halfway through being written.
                 context.diagnostics.error("not all paths return a value"_v, decl.source);
             }
         }

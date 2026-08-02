@@ -1,0 +1,44 @@
+error 13:0 [447..447]: expected the match alternatives, indented under the ':'
+error 16:0 [495..495]: expected ':'
+
+Module 
+|-DataDecl Shape 
+| |-Constructor Circle
+| | `-TupType 
+| |   `-Field radius
+| |     `-ConType Float
+| `-Constructor Square
+|   `-TupType 
+|     `-Field side
+|       `-ConType Float
+|-TraitDecl Area (a)
+| `-FunDecl area
+|   |-Arg value
+|   | `-GenType a
+|   `-Result
+|     `-ConType Float
+|-InstanceDecl 
+| |-AppType 
+| | |-ConType Area
+| | `-ConType Shape
+| `-FunDecl area <implicit return> 
+|   |-Arg value
+|   `-Body
+|     `-MatchExpr 
+|       `-VarExpr value
+|-FunDecl half <implicit return> 
+| |-Arg s
+| | `-ConType Shape
+| |-Result
+| | `-ConType Float
+| `-Body
+|   `-MatchExpr 
+|     |-VarExpr s
+|     `-Alt
+|       |-ConPat Circle
+|       `-<parse error>
+`-FunDecl main <implicit return> 
+  |-Result
+  | `-ConType Int
+  `-Body
+    `-LitExpr 0

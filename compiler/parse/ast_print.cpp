@@ -61,7 +61,7 @@ struct Printer {
         toString(&decl.attributes, "Decl"_v, [&] {
             if(decl.exported) stream.writeString("<pub> "_v);
             switch(decl.kind) {
-                case Decl::Error: stream.writeString("<parse error>"_v); break;
+                case Decl::Error: printErrorDecl(decl); break;
                 case Decl::Fun: printFunDecl(decl); break;
                 case Decl::Alias: printAliasDecl(decl); break;
                 case Decl::Data: printDataDecl(decl); break;
@@ -579,6 +579,16 @@ private:
         toString(alt.pat, false);
         toString(alt.expr, true);
         removeLevel();
+    }
+
+    // A declaration that did not parse, with the name it got as far as reading where there was one.
+    void printErrorDecl(Decl& e) {
+        stream.writeString("<parse error>"_v);
+
+        if(e.errorName) {
+            stream.writeByte(' ');
+            write(stream, context.findName(e.errorName));
+        }
     }
 
     void printFunDecl(Decl& e) {

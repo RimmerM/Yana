@@ -1,0 +1,53 @@
+error 17:0 [461..461]: expected ')'
+
+Module 
+|-DataDecl Shape 
+| |-Constructor Circle
+| | `-TupType 
+| |   `-Field radius
+| |     `-ConType Float
+| `-Constructor Square
+|   `-TupType 
+|     `-Field side
+|       `-ConType Float
+|-TraitDecl Area (a)
+| `-FunDecl area
+|   |-Arg value
+|   | `-GenType a
+|   `-Result
+|     `-ConType Float
+|-InstanceDecl 
+| |-AppType 
+| | |-ConType Area
+| | `-ConType Shape
+| `-FunDecl area <implicit return> 
+|   |-Arg value
+|   `-Body
+|     `-MatchExpr 
+|       |-VarExpr value
+|       |-Alt
+|       | |-ConPat Circle
+|       | | `-VarPat r
+|       | `-InfixExpr 
+|       |   |-VarExpr *
+|       |   |-VarExpr r
+|       |   `-VarExpr r
+|       `-Alt
+|         |-ConPat Square
+|         | `-VarPat s
+|         `-InfixExpr 
+|           |-VarExpr *
+|           |-VarExpr s
+|           `-VarExpr s
+|-FunDecl describe
+`-FunDecl main <implicit return> 
+  |-Result
+  | `-ConType Int
+  `-Body
+    `-AppExpr 
+      |-VarExpr describe
+      `-Field <anonymous>
+        `-ConExpr 
+          |-ConType Circle
+          `-Field <anonymous>
+            `-LitExpr 1

@@ -51,7 +51,7 @@ ast::Module Parser::parseModule() {
                 parseAttributes(attributes, false);
 
                 if(attributes.isNotEmpty() && maybe(Token::opColon)) {
-                    withLevel([&] {
+                    block([&] {
                         sepBy([&] {
                             ast::AttrList localAttributes;
                             if(attributes.isNotEmpty()) {
@@ -62,18 +62,19 @@ ast::Module Parser::parseModule() {
                             parseAttributes(localAttributes, false);
                             nextDecl(::move(localAttributes));
                         }, Token::EndOfStmt, Token::EndOfBlock);
-                    });
+                    }, "expected declarations under this attribute group"_v);
                 } else {
                     nextDecl(::move(attributes));
                 }
             }
 
-            if(token.type != Token::EndOfStmt && token.type != Token::EndOfFile && token.type != Token::EndOfBlock) {
-                // The previous declaration did not parse all tokens.
-                // Skip ahead until we are at the root level again, then continue parsing.
+            if(!atBlockEnd()) {
+                // The previous declaration did not parse all tokens. Skip ahead until we are at
+                // the root level again, then continue parsing: one broken declaration should not
+                // cost the file the forty that follow it.
                 error("expected declaration end"_v);
                 eat();
-                while(token.startColumn > 0) eat();
+                syncStmt();
             }
         }, Token::EndOfStmt, Token::EndOfFile);
     });
@@ -229,13 +230,29 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
         parseConstraints(constraints);
     }
 
-    auto name = expect("expected function name"_v, [&](Token& t) {
+    // Without a name there is nothing to declare, and every production after this one would
+    // report its own piece of what is missing - a `fn` on a line of its own is one keystroke, not
+    // a missing name and a missing argument list and a missing body. So this is the other place
+    // the recovering expect belongs: the rest of the line goes, and an error node holds the spot.
+    auto parsedName = expectSync("expected function name"_v, stmtStops(), [&](Token& t) {
         return t.type == Token::VarID || t.type == Token::VarSym;
-    }).from({ .id = 0 }).id;
+    });
 
+    if(!parsedName) {
+        decls.push(arena, ast::Decl {
+            .errorName = 0,
+            .attributes = ::move(attributes),
+            .source = context.addLocation(location),
+            .kind = ast::Decl::Error,
+            .exported = exported,
+        });
+        return;
+    }
+
+    auto name = parsedName.unwrap().id;
     ast::ParseList<ast::Arg> args;
 
-    parens([&] {
+    auto argsClosed = parens([&] {
         sepBy([&] {
             parseArg(args, false);
         }, Token::Comma, Token::ParenR);
@@ -302,7 +319,9 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
         body = heap(makeExpr(Match, match, heap(ast::MatchExpr { pivot.unwrap(), alts }), currentNode()));
     } else if(token.type == Token::opColon) {
         body = heap(parseBlock(true));
-    } else if(requireBody) {
+    } else if(requireBody && argsClosed) {
+        // An argument list that was left open already cost this declaration a diagnostic, and the
+        // body is missing because the signature is: reporting it too describes one mistake twice.
         error("expected function body"_v);
     }
 
@@ -348,6 +367,7 @@ void Parser::parseDataDecl(ast::DeclList& decls, ast::AttrList attributes, bool 
     } else {
         error("expected '=' or '{' after type name"_v);
         decls.push(arena, ast::Decl {
+            .errorName = type.name,
             .attributes = ::move(attributes),
             .source = source,
             .kind = ast::Decl::Error,
@@ -404,7 +424,23 @@ void Parser::parseDefaultDecl(ast::DeclList& decls, ast::AttrList attributes, bo
     WithLocation location(*this);
     expect(Token::kwDefault, "expected 'default'"_v);
 
-    auto className = expect(Token::ConID, "expected a class name"_v).from({ .id = 0 }).id;
+    // The whole declaration is `default Class = Type`, and without the class name none of what
+    // follows means anything on its own - a default is declared *for* a class. So this is one of
+    // the places the recovering expect is right: the rest is discarded rather than reported as a
+    // missing '=' and then a missing type.
+    auto name = expectSync(Token::ConID, "expected a class name"_v, stmtStops());
+    if(!name) {
+        decls.push(arena, ast::Decl {
+            .errorName = 0,
+            .attributes = ::move(attributes),
+            .source = context.addLocation(location),
+            .kind = ast::Decl::Error,
+            .exported = exported,
+        });
+        return;
+    }
+
+    auto className = name.unwrap().id;
     expect(Token::opEquals, "expected '='"_v);
     auto type = parseType();
 
@@ -473,11 +509,11 @@ void Parser::parseTraitDecl(ast::DeclList& decls, ast::AttrList attributes, bool
     // nothing to put in them. `class TrivialCopy(a)` is the case: what it asks of a type is a
     // property rather than an operation, so what an instance of it supplies is its own existence.
     if(maybe(Token::opColon)) {
-        withLevel([&] {
+        block([&] {
             sepBy([&] {
                 parseFunDecl(funs, {}, false, false);
             }, Token::EndOfStmt, Token::EndOfBlock);
-        });
+        }, "expected the class functions, indented under the ':'"_v);
     }
 
     decls.push(arena, ast::Decl {
@@ -502,7 +538,7 @@ void Parser::parseInstanceDecl(ast::DeclList& decls, ast::AttrList attributes, b
     }
 
     auto type = parseType();
-    expect(Token::opColon, "expected ':' after instance declaration"_v);
+    auto hasBody = expect(Token::opColon, "expected ':' after instance declaration"_v).isJust();
 
     ast::Decl decl {
         .instance = { .type = type, .constraints = constraints, .decls = {} },
@@ -512,11 +548,13 @@ void Parser::parseInstanceDecl(ast::DeclList& decls, ast::AttrList attributes, b
         .exported = exported,
     };
 
-    withLevel([&] {
-        return sepBy([&] {
-            parseDecl(decl.instance.decls, {}, false);
-        }, Token::EndOfStmt, Token::EndOfBlock);
-    });
+    if(hasBody) {
+        block([&] {
+            return sepBy([&] {
+                parseDecl(decl.instance.decls, {}, false);
+            }, Token::EndOfStmt, Token::EndOfBlock);
+        }, "expected the instance definitions, indented under the ':'"_v);
+    }
 
     decls.push(arena, decl);
 }
@@ -525,8 +563,9 @@ void Parser::parseAttrDecl(ast::DeclList& decls, ast::AttrList attributes, bool 
     WithLocation location(*this);
     expect(Token::kwAtData, "expected '@data'"_v);
 
-    auto pushError = [&] {
+    auto pushError = [&](StringId name) {
         decls.push(arena, ast::Decl {
+            .errorName = name,
             .attributes = ::move(attributes),
             .source = context.addLocation(location),
             .kind = ast::Decl::Error,
@@ -534,11 +573,11 @@ void Parser::parseAttrDecl(ast::DeclList& decls, ast::AttrList attributes, bool 
         });
     };
 
-    auto name = tryMaybe(expectVarOrCon("expected identifier"_v), { pushError(); return; }).id;
+    auto name = tryMaybe(expectVarOrCon("expected identifier"_v), { pushError(0); return; }).id;
 
     tryMaybe(expect("expected attribute type"_v, [&](Token& t) {
         return t.type == Token::ParenL || t.type == Token::BraceL || t.type == Token::BracketL;
-    }), { pushError(); return; });
+    }), { pushError(name); return; });
 
     auto type = parseType();
 
@@ -588,14 +627,18 @@ ast::Expr Parser::parseBlock(bool isFun) {
         return parseExpr();
     }
 
-    expect(Token::opColon, "expected ':'"_v);
+    // A block whose ':' is missing is not looked for at all. Reading one anyway would report the
+    // ':' and then the block, two messages for one mistake, and this is the shape a function whose
+    // signature is still being typed is in.
+    WithLocation location(*this);
+    if(!expect(Token::opColon, "expected ':'"_v)) return makeExpr(Error, var, 0, location);
+
     Maybe<ast::Expr> expr;
-
-    withLevel([&] {
+    block([&] {
         expr = Just(parseExprSeq());
-    });
+    }, "expected an indented block after the ':'"_v);
 
-    return expr.unwrap();
+    return expr ? expr.unwrap() : makeExpr(Error, var, 0, location);
 }
 
 ast::Expr Parser::parseExprSeq() {
@@ -819,15 +862,20 @@ ast::Expr Parser::parseMatchExpr(const WithLocation& location) {
     expect(Token::kwMatch, "expected 'match'"_v);
 
     auto pivot = parseExpr();
-    expect(Token::opColon, "expected ':' after match-expression"_v);
+    auto hasAlts = expect(Token::opColon, "expected ':' after match-expression"_v).isJust();
     Location source(location);
 
+    // A match with no alternatives is kept rather than replaced by an error node: the pivot is
+    // real, and an editor asked about it while the first alternative is still being typed should
+    // get the answer. Nothing downstream reports it again - see resolveMatch.
     ast::ParseList<ast::Alt> alts;
-    withLevel([&] {
-        sepBy1([&] {
-            parseAlt(alts);
-        }, Token::EndOfStmt);
-    });
+    if(hasAlts) {
+        block([&] {
+            sepBy1([&] {
+                parseAlt(alts);
+            }, Token::EndOfStmt);
+        }, "expected the match alternatives, indented under the ':'"_v);
+    }
 
     return makeExpr(Match, match, heap(ast::MatchExpr { pivot, alts }), source);
 }
@@ -841,7 +889,7 @@ ast::Expr Parser::parseIfExpr() {
         ast::ParseList<ast::IfCase> cases;
 
         // Multi-way if.
-        withLevel([&] {
+        block([&] {
             sepBy1([&] {
                 if(token.type == Token::kw_ || token.type == Token::kwElse) {
                     auto source = currentNode();
@@ -855,7 +903,7 @@ ast::Expr Parser::parseIfExpr() {
                 auto then = parseExpr();
                 cases.push(arena, ast::IfCase { .cond = cond.unwrap(), .then = then });
             }, Token::EndOfStmt);
-        });
+        }, "expected the if cases, indented under the ':'"_v);
 
         return makeExpr(MultiIf, multiIf, cases, location);
     } else {
@@ -1092,11 +1140,11 @@ ast::Expr Parser::parseVarDecl(const WithLocation& location, U32 line) {
         list.push(arena, parseDeclExpr());
     } else {
         // Parse one or more declarations, separated as statements.
-        withLevel([&] {
+        block([&] {
             sepBy1([&] {
                 list.push(arena, parseDeclExpr());
             }, Token::EndOfStmt);
-        });
+        }, "expected the bindings, indented under the 'where'"_v);
     }
 
     return makeExpr(Decl, decl, list, location);
@@ -1125,11 +1173,29 @@ ast::VarDecl Parser::parseDeclExpr() {
         if(auto node = maybeNode(Token::opBar)) {
             if(maybe(Token::kwMatch)) {
                 if(maybe(Token::opColon)) {
-                    withLevel([&] {
+                    auto parsed = block([&] {
                         sepBy1([&] {
                             parseAlt(alts);
                         }, Token::EndOfStmt);
-                    });
+                    }, "expected the match alternatives, indented under the ':'"_v);
+
+                    /*
+                     * An alternative list that has not been typed yet is one poisoned alternative
+                     * rather than none.
+                     *
+                     * None is what `let Just(x) = e` with no `|` at all looks like, and the
+                     * resolver rightly says a refutable pattern needs alternatives - which is the
+                     * one thing this declaration does not need to be told. An `Error` pattern
+                     * covers every value and resolves to `Never`, so it silences that report and
+                     * the two that would follow it without any of them learning about recovery.
+                     */
+                    if(!parsed) {
+                        auto source = node.unwrap().node;
+                        alts.push(arena, ast::Alt {
+                            .pat = { .source = context.addLocation(source), .kind = ast::Pat::Error },
+                            .expr = makeExpr(Error, var, 0, source),
+                        });
+                    }
                 } else {
                     parseAlt(alts);
                 }
