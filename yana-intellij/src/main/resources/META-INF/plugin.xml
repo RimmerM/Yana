@@ -1,0 +1,99 @@
+<idea-plugin>
+    <id>se.rimmer.yana</id>
+    <name>Yana</name>
+    <vendor email="me@rimmer.se">Rimmer</vendor>
+
+    <description><![CDATA[
+        Language support for <a href="https://github.com/rimmer/Yana">Yana</a>.
+        <ul>
+            <li>Syntax highlighting, brace matching and commenting, from a lexer built out of the
+                compiler's own keyword list.</li>
+            <li>Errors and warnings from <code>yana-lsp</code>, the language server built out of the
+                compiler's front end.</li>
+        </ul>
+        The lexical half works with no server installed; the server adds everything the compiler
+        knows that the text alone does not.
+    ]]></description>
+
+    <!--
+      Only the platform module, so the lexical half loads in any JetBrains IDE. The language server
+      needs the LSP API, which is present in the commercial IDEs and not in the community ones, so
+      it is registered from an optional configuration file that simply does not load without it.
+      Implementation-Tooling.md §9-10.
+    -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends optional="true" config-file="yana-lsp.xml">com.intellij.modules.ultimate</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType
+            name="Yana"
+            language="Yana"
+            extensions="yana"
+            implementationClass="se.rimmer.yana.YanaFileType"
+            fieldName="INSTANCE"/>
+
+        <!--
+          A flat parser - one node holding every token - so that a `.yana` buffer is a Yana file to
+          the platform rather than a plain-text one. Not the native PSI implementation §9 declines:
+          there is no grammar here and nothing to keep in step with the compiler. See the class.
+        -->
+        <lang.parserDefinition language="Yana" implementationClass="se.rimmer.yana.YanaParserDefinition"/>
+
+        <lang.syntaxHighlighterFactory
+            language="Yana"
+            implementationClass="se.rimmer.yana.highlight.YanaSyntaxHighlighterFactory"/>
+
+        <colorSettingsPage implementation="se.rimmer.yana.highlight.YanaColorSettingsPage"/>
+
+        <lang.braceMatcher language="Yana" implementationClass="se.rimmer.yana.YanaBraceMatcher"/>
+        <lang.commenter language="Yana" implementationClass="se.rimmer.yana.YanaCommenter"/>
+        <lang.quoteHandler language="Yana" implementationClass="se.rimmer.yana.YanaQuoteHandler"/>
+
+        <!--
+          Indentation is syntax in Yana, so backspace inside an indent goes back a level rather than
+          a space, and the level is a code style setting the author can change.
+        -->
+        <langCodeStyleSettingsProvider implementation="se.rimmer.yana.YanaCodeStyleSettingsProvider"/>
+        <backspaceHandlerDelegate implementation="se.rimmer.yana.YanaBackspaceHandler"/>
+
+        <!--
+          Running a Yana program - Implementation-Tooling.md §16. The configuration builds through
+          the Yana driver and runs what it produced; the debug half waits for the DWARF line tables
+          of M10, since a debugger over a binary with no line table stops nowhere.
+        -->
+        <configurationType implementation="se.rimmer.yana.run.YanaRunConfigurationType"/>
+
+        <!--
+          The build, as a before-run task. It cannot live in the run state: `startProcess` may be
+          called on the EDT and waiting on a subprocess there freezes the UI, which the platform
+          reports as a SEVERE. A before-run task runs on a background thread with a progress
+          indicator and shows up under "Before launch" where a user can turn it off.
+        -->
+        <stepsBeforeRunProvider implementation="se.rimmer.yana.run.YanaBuildBeforeRunTaskProvider"/>
+
+        <!--
+          "New Project | Yana" - §12. CLion's wizard offers CMake templates because every language it
+          knows is built by CMake; this one writes a `yana.toml` instead, which is what says what a
+          Yana program is, and deliberately generates no CMake to wrap the compiler in.
+
+          Registered twice, because there are two New Project dialogs and they read different
+          extension points. CLion shows `AbstractNewProjectDialog`, whose list is built from
+          `directoryProjectGenerator` - that is where "C++ Executable" comes from, and it is the one
+          a CLion user sees. The IDEA-style unified wizard is built from
+          `newProjectWizard.languageGenerator` instead. CLion's own bundled Rust support registers
+          both for exactly this reason; a plugin that registers only the wizard compiles, loads, logs
+          nothing, and is silently absent from the list.
+        -->
+        <directoryProjectGenerator implementation="se.rimmer.yana.project.YanaDirectoryProjectGenerator"/>
+        <newProjectWizard.languageGenerator implementation="se.rimmer.yana.project.YanaNewProjectWizard"/>
+
+        <applicationService serviceImplementation="se.rimmer.yana.settings.YanaSettings"/>
+        <applicationConfigurable
+            parentId="language"
+            instance="se.rimmer.yana.settings.YanaConfigurable"
+            id="se.rimmer.yana.settings"
+            displayName="Yana"/>
+
+        <notificationGroup id="Yana" displayType="BALLOON"/>
+    </extensions>
+</idea-plugin>
