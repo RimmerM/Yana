@@ -1016,9 +1016,11 @@ import Host
            fn length(self: Array(a)) -> Size = hostLength(self.items)
 
    One field load each, and the JS one had a second reason beyond the shared one: `hostLength` is an
-   `InstNative`, `Value::Native` is not in `clonableKind`, and so no call site could ever have seen
-   through `Length(Array(a)).length` however willing the inliner was made. `String`'s instances below
-   are ordinary functions and stay in source, because neither of those arguments is about them.
+   `InstNative`, and `Value::Native` was not in `clonableKind`, so no call site could ever have seen
+   through `Length(Array(a)).length` however willing the inliner was made. That half has since been
+   closed - a host node is clonable now - and what is left is the shared argument, which is enough on
+   its own. `String`'s instances below are ordinary functions and stay in source, because neither of
+   those arguments is about them.
 -}
 class Length(c):
   fn length(self: c) -> Size

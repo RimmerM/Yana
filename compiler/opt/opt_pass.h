@@ -2,6 +2,7 @@
 
 #include "opt.h"
 #include "../resolve/builder.h"
+#include "../resolve/place.h"
 
 /*
  * What the passes share: the state one function is optimized against, and the handful of IR

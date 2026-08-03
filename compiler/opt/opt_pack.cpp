@@ -86,18 +86,9 @@ struct PackedAccess {
     bool exists() const { return bitWidth != 0; }
 };
 
+// What a place is rooted in, over the shared walk - see resolve/place.h.
 TypePtr placeRootedType(OptContext& opt, const Place& place) {
-    if(place.root == PlaceRoot::Global) return opt.local[place.global]->type;
-
-    if(place.root == PlaceRoot::Pointer || place.root == PlaceRoot::Borrow) {
-        auto referenced = opt.local[place.pointer]->type;
-        return place.root == PlaceRoot::Borrow
-            ? ((BorrowType*)opt.global[referenced])->to
-            : pointeeType(opt.global, referenced);
-    }
-
-    if(place.local >= opt.function->localCount()) return nullptr;
-    return opt.function->localAt(opt.local, place.local).type;
+    return placeRootType(*opt.program.core, *opt.function, place);
 }
 
 // The lowest field of one aggregate whose storage is the same word as this one's. Both targets name
@@ -115,29 +106,32 @@ U16 canonicalFieldOf(OptContext& opt, TypePtr owner, U16 index, const FieldRepr&
 }
 
 PackedAccess packedAccessOf(OptContext& opt, const Place& place) {
-    auto type = placeRootedType(opt, place);
-    if(!type) return {};
-
     PackedAccess access;
-    auto projections = place.projections;
-    Size walked = 0;
+    auto declined = false;
+    auto type = placeRootedType(opt, place);
 
-    for(auto projection: projections.contents(opt.local)) {
-        walked++;
+    // The path, over the shared walk - see resolve/place.h. What is this one's own is the bit range
+    // and the cut; every placement question it asks is about `step.owner`.
+    walkPlace(*opt.program.core, *opt.function, place, [&](const PlaceStep& step) {
+        auto decline = [&]() {
+            declined = true;
+            return false;
+        };
 
-        switch(projection.kind) {
+        if(step.broken) return decline();
+        type = step.type;
+
+        switch(step.kind) {
             case ProjectionKind::Field: {
                 // A function value's words are laid out by FunValueLayout rather than by Repr, and
                 // are never packed.
-                if(opt.global[type]->kind == Type::Fun) {
-                    if(access.exists()) return {};
-                    type = funValueFieldType(*opt.program.core, projection.index);
+                if(opt.global[step.owner]->kind == Type::Fun) {
+                    if(access.exists()) return decline();
                     break;
                 }
 
-                auto owner = type;
-                auto field = opt.repr.fieldOf(type, projection.index);
-                if(!field) return {};
+                auto field = opt.repr.fieldOf(step.owner, step.index);
+                if(!field) return decline();
 
                 if(access.exists()) {
                     // Already inside a bit range, so this field's placement is relative to it. An
@@ -148,44 +142,42 @@ PackedAccess packedAccessOf(OptContext& opt, const Place& place) {
                         ? field->bitWidth
                         : valueWidth(opt.global, field->type).logical;
 
-                    if(!access.bitWidth) return {};
+                    if(!access.bitWidth) return decline();
                 } else if(field->isPacked()) {
                     access.unitBits = U32(field->wordBytes) * 8;
                     access.bitOffset = field->bitOffset;
                     access.bitWidth = field->bitWidth;
-                    access.cut = walked;
-                    access.canonical = canonicalFieldOf(opt, owner, projection.index, *field);
+                    access.cut = step.at + 1;
+                    access.canonical = canonicalFieldOf(opt, step.owner, step.index, *field);
                 }
 
                 // A boxed field is a whole pointer: never inside a packed word, and never the word
                 // itself. The same guard lower.cpp's copy of this walk carries, for the same reason.
-                if(field->boxed && access.exists()) return {};
-
-                type = boxedStep(*opt.program.core, field->type, field->boxed);
+                if(step.crossedBox && access.exists()) return decline();
                 break;
             }
-            case ProjectionKind::Downcast: {
+            case ProjectionKind::Downcast:
                 // A payload inside a bit range can only be a single-constructor record's, whose
                 // payload begins where the record does.
-                if(access.exists() && opt.repr.of(type).payloadOffset) return {};
+                if(access.exists() && opt.repr.of(step.owner).payloadOffset) return decline();
+                break;
 
-                auto constructor = ((RecordType*)opt.global[type])->constructors.get(opt.global, projection.index);
-                type = boxedStep(*opt.program.core, constructor.content, constructor.boxed);
-                break;
-            }
             case ProjectionKind::Discriminant:
-                if(opt.repr.of(type).isBitTagged()) return {};
-                type = opt.program.scalar.int_;
+                if(opt.repr.of(step.owner).isBitTagged()) return decline();
                 break;
+
             case ProjectionKind::Deref:
-                if(access.exists()) return {};
-                type = pointeeType(opt.global, type);
-                if(!type) return {};
+                if(access.exists()) return decline();
                 break;
+
             default:
-                return {};
+                return decline();
         }
-    }
+
+        return true;
+    });
+
+    if(declined) return {};
 
     access.type = type;
     return access;

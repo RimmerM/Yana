@@ -3,50 +3,8 @@ const closure$ResolveTest_deferred$0 = [teardown$none, teardown$none];
 const closure$ResolveTest_deferred$1 = [teardown$none, teardown$none];
 
 // Core
-function Logic_and_and_Flags(lhs, rhs) {
-  var v5;
-  var v6;
-  var v2 = rhs();
-  var v7 = 0;
-  var v24 = (lhs & 1) >>> 0 !== 0;
-  if (v24) {
-    v5 = (v2 & 1) >>> 0 !== 0;
-  } else {
-    v5 = v24;
-  }
-  var v34 = (lhs >>> 1 >>> 0 & 1) >>> 0 !== 0;
-  if (v34) {
-    v6 = (v2 >>> 1 >>> 0 & 1) >>> 0 !== 0;
-  } else {
-    v6 = v34;
-  }
-  v7 = ((((v7 & 4294967294) >>> 0 | ((v5 ? 1 : 0) & 1) >>> 0) >>> 0 & 4294967293) >>> 0 | ((v6 ? 1 : 0) & 1) >>> 0 << 1 >>> 0) >>> 0;
-  return v7;
-}
-
 function teardown$none(value) {
   return;
-}
-
-function Logic_or_or_Flags(lhs, rhs) {
-  var v5;
-  var v6;
-  var v2 = rhs();
-  var v7 = 0;
-  var v24 = (lhs & 1) >>> 0 !== 0;
-  if (v24) {
-    v5 = v24;
-  } else {
-    v5 = (v2 & 1) >>> 0 !== 0;
-  }
-  var v34 = (lhs >>> 1 >>> 0 & 1) >>> 0 !== 0;
-  if (v34) {
-    v6 = v34;
-  } else {
-    v6 = (v2 >>> 1 >>> 0 & 1) >>> 0 !== 0;
-  }
-  v7 = ((((v7 & 4294967294) >>> 0 | ((v5 ? 1 : 0) & 1) >>> 0) >>> 0 & 4294967293) >>> 0 | ((v6 ? 1 : 0) & 1) >>> 0 << 1 >>> 0) >>> 0;
-  return v7;
 }
 
 // ResolveTest
@@ -63,17 +21,51 @@ function negated() {
 }
 
 function flags() {
+  var v76;
+  var v77;
+  var v93;
+  var v94;
   var rw = 3;
   var r = 1;
   var score = 0;
   var v15 = { $v: 0 };
   v15.$v = v15.$v & 4294967292 | r & 3;
-  if (Eq_Flags_eq_eq(Logic_and_and_Flags(rw, ResolveTest_deferred$0$make({ $o: v15, $k: "$v", $s: 1 })), r)) {
+  var v78 = ResolveTest_deferred$0$make({ $o: v15, $k: "$v", $s: 1 })();
+  var v79 = 0;
+  var v169 = (rw & 1) >>> 0 !== 0;
+  if (v169) {
+    v76 = (v78 & 1) >>> 0 !== 0;
+  } else {
+    v76 = v169;
+  }
+  var v179 = (rw >>> 1 >>> 0 & 1) >>> 0 !== 0;
+  if (v179) {
+    v77 = (v78 >>> 1 >>> 0 & 1) >>> 0 !== 0;
+  } else {
+    v77 = v179;
+  }
+  v79 = ((((v79 & 4294967294) >>> 0 | ((v76 ? 1 : 0) & 1) >>> 0) >>> 0 & 4294967293) >>> 0 | ((v77 ? 1 : 0) & 1) >>> 0 << 1 >>> 0) >>> 0;
+  if (Eq_Flags_eq_eq(v79, r)) {
     score = score + 256 | 0;
   }
   var v33 = { $v: 0 };
   v33.$v = v33.$v & 4294967292 | rw & 3;
-  if (Eq_Flags_eq_eq(Logic_or_or_Flags(r, ResolveTest_deferred$1$make({ $o: v33, $k: "$v", $s: 1 })), rw)) {
+  var v95 = ResolveTest_deferred$1$make({ $o: v33, $k: "$v", $s: 1 })();
+  var v96 = 0;
+  var v207 = (r & 1) >>> 0 !== 0;
+  if (v207) {
+    v93 = v207;
+  } else {
+    v93 = (v95 & 1) >>> 0 !== 0;
+  }
+  var v217 = (r >>> 1 >>> 0 & 1) >>> 0 !== 0;
+  if (v217) {
+    v94 = v217;
+  } else {
+    v94 = (v95 >>> 1 >>> 0 & 1) >>> 0 !== 0;
+  }
+  v96 = ((((v96 & 4294967294) >>> 0 | ((v93 ? 1 : 0) & 1) >>> 0) >>> 0 & 4294967293) >>> 0 | ((v94 ? 1 : 0) & 1) >>> 0 << 1 >>> 0) >>> 0;
+  if (Eq_Flags_eq_eq(v96, rw)) {
     score = score + 512 | 0;
   }
   if (Eq_Flags_eq_eq(2, 2)) {

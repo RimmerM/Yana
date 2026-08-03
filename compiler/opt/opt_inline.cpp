@@ -110,6 +110,21 @@ struct InlinePolicy {
     U32 mutableBorrow = 0;
     U32 memoryResult = 0;
 
+    /*
+     * A result that is a *reference* to something the target does not hold as an object.
+     *
+     * The same allocation `memoryResult` prices, reached from the other side. On a managed target a
+     * reference to a non-object is an object of its own - `{$o, $k, $s}` naming the slot the value
+     * lives in - and returning one is the use that forces it to be built, since JS has no
+     * multi-value return. Splicing the call away leaves the callee's borrow in the caller's own
+     * body, where its every use is a place root and nothing is allocated at all.
+     *
+     * Zero natively, where a returned borrow is an address in a register and there was never
+     * anything to remove - which is the same shape `mutableBorrow` and `memoryResult` have and for
+     * the same reason.
+     */
+    U32 borrowResult = 0;
+
     // Subtracted where the callee is called from more than one place, and again where it is called
     // from many. What this prices is code growth, which is paid once per call site.
     U32 repeatedPenalty = 0;
@@ -191,6 +206,7 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.constantArgument = 0;
             policy.mutableBorrow = 0;
             policy.memoryResult = 0;
+            policy.borrowResult = 0;
             policy.repeatedPenalty = 0;
             policy.manyCallSites = 2;
             policy.manyPenalty = 0;
@@ -206,6 +222,7 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.constantArgument = 3;
             policy.mutableBorrow = managed ? 10 : 3;
             policy.memoryResult = managed ? 12 : 4;
+            policy.borrowResult = managed ? 12 : 0;
             policy.repeatedPenalty = managed ? 3 : 1;
             policy.manyCallSites = managed ? 4 : 8;
             policy.manyPenalty = managed ? 6 : 2;
@@ -221,6 +238,7 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.constantArgument = 5;
             policy.mutableBorrow = managed ? 16 : 6;
             policy.memoryResult = managed ? 20 : 8;
+            policy.borrowResult = managed ? 20 : 0;
             policy.repeatedPenalty = managed ? 2 : 0;
             policy.manyCallSites = managed ? 8 : 16;
             policy.manyPenalty = managed ? 4 : 1;
@@ -493,10 +511,21 @@ struct Inliner {
      * Whether cloning this instruction into another function is something this pass knows how to do.
      *
      * An allow-list rather than a deny-list, and the header comment says why the ownership four are
-     * out. The rest is what is left: computation, storage, reads, writes, borrows and direct calls.
-     * `Native`, `CallDyn` and `GenCall` are declined not because they are unsound but because each
-     * carries state - an intrinsic's arguments, a signature, a type argument list - that would have
-     * to be copied correctly and is not exercised by anything this currently inlines.
+     * out. The rest is what is left: computation, storage, reads, writes, borrows and calls.
+     *
+     * `Native` and `CallDyn` were declined not because they are unsound but because each carries
+     * state - an intrinsic's operation and arguments, a signature - that had to be copied correctly
+     * and was not exercised by anything this inlined. It is now: a host node's arguments are *uses*
+     * and it owns nothing (see resolve/host.cpp), so copying `op`, `method` and the argument list is
+     * the whole of it - and `length(xs)`, one `.length` read behind a permanent call, is what that
+     * makes reachable.
+     *
+     * `GenCall` stays out, and for a reason that is not "not exercised yet": `fill.forwarded`,
+     * `classSlot` and `classPath` are slot numbers in the *enclosing function's* generic
+     * environment, and the enclosing function is exactly what a graft changes. A copy of one into
+     * another body would read some other schema's slots, which is a miscompile rather than a
+     * missing feature. It only ever appears in a generic body, so what would have to be checked
+     * first is that both schemas agree.
      */
     bool clonableKind(Value::Kind kind) {
         switch(kind) {
@@ -506,7 +535,7 @@ struct Inliner {
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
-            case Value::Call:
+            case Value::Call: case Value::Native: case Value::CallDyn:
                 return true;
             default:
                 return false;
@@ -915,6 +944,32 @@ struct Inliner {
     }
 
     /*
+     * Whether the callee's result is a reference a managed target has to build an object for.
+     *
+     * Approximate on purpose, and in the cheap direction: what the target actually asks is
+     * `codegen/js/type.cpp`'s isJsObject, which this stage has no business importing - it is a
+     * question about one backend's representation and the Repr is the part of it that lives here.
+     * A pointee that is a memory type with an object layout is the case where the answer is "no
+     * object to remove", and it is the only one that has to be right; a case this gets wrong at
+     * worst declines a bonus.
+     */
+    bool returnsReifiedReference(Function& callee) {
+        auto returned = callee.returnType;
+        if(!returned || opt.global[returned]->kind != Type::Borrow) return false;
+
+        auto pointee = ((BorrowType*)opt.global[returned])->to;
+        if(!pointee || !isMemoryType(opt.global, pointee)) return true;
+
+        auto kind = opt.global[pointee]->kind;
+        if(kind == Type::Fun || kind == Type::String) return true;
+
+        auto& repr = opt.repr.of(pointee);
+        if(repr.opaque) return false;
+
+        return repr.scalarBits != 0 || repr.isNicheFolded();
+    }
+
+    /*
      * Whether this call site is worth what the copy costs.
      *
      * The budget is the callee's size against a limit built from what the *call* looks like, and
@@ -944,6 +999,10 @@ struct Inliner {
         }
 
         if(candidate.resultLocal != Candidate::kNone) limit += policy.memoryResult;
+        if(policy.borrowResult && returnsReifiedReference(*candidate.callee)) {
+            limit += policy.borrowResult;
+        }
+
         if(candidate.callee->inlineHint) limit += policy.requested;
 
         /*
@@ -1228,6 +1287,39 @@ struct Inliner {
                 }
 
                 cloned->local = inner.local == maxLimit<U32> ? maxLimit<U32> : clone.locals[inner.local];
+                return (Inst*)cloned;
+            }
+            case Value::Native: {
+                /*
+                 * A host node, which owns nothing: `op` and `method` are what to emit and the
+                 * argument list is uses, so there is no state here that means anything about the
+                 * function it sits in. It has no result local either - a host value is a value.
+                 */
+                auto& native = (InstNative&)instruction;
+                auto cloned = createInst<InstNative>(module, function, into, source, name, type,
+                                                     native.op, native.method);
+
+                for(auto argument: native.args.contents(opt.local)) {
+                    cloned->args.push(opt.program.arena, value(argument));
+                }
+
+                return (Inst*)cloned;
+            }
+            case Value::CallDyn: {
+                // The same as a direct call plus the two operands that stand in for the callee, and
+                // a signature - a global type, which is the same handle in either function.
+                auto& dynamic = (InstCallDyn&)instruction;
+                auto cloned = createInst<InstCallDyn>(module, function, into, source, name, type,
+                                                      value(dynamic.callable), value(dynamic.address),
+                                                      dynamic.signature);
+
+                for(auto argument: dynamic.args.contents(opt.local)) {
+                    cloned->args.push(opt.program.arena, value(argument));
+                }
+
+                cloned->handover = dynamic.handover;
+                cloned->local = dynamic.local == maxLimit<U32> ? maxLimit<U32>
+                                                              : clone.locals[dynamic.local];
                 return (Inst*)cloned;
             }
             default:
@@ -1547,8 +1639,9 @@ struct Inliner {
          * Design.md's tier 1: a mutable borrow of a *packed* field has no address to hand over, so
          * a target materializes the field into a temporary, passes that, and writes it back when the
          * loan ends - and the point the loan ends is the call. Splicing the call away takes the
-         * write-back with it, which is a value silently not stored: `flushWritebacks` in
-         * codegen/js/inst.cpp is that write-back, and it is keyed on the call node.
+         * write-back with it, which is a value silently not stored. `Local::materialized` and
+         * resolve/lower.cpp are that write-back; the JS target had a second one and no longer does,
+         * since a reference there names the slot rather than holding a copy of it - see refIsTriple.
          *
          * A borrow of a *whole local* is never that. There is nothing above it to be packed into, so
          * both targets hand over the storage itself - which is also the case worth inlining, since

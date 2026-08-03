@@ -18,28 +18,6 @@
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @string$0 = [110, 111, 32, 104, 111, 108, 101, 115, 32, 104, 101, 114, 101]
 
-mapMemory<complex>(%size: Long): Ptr {
-  b_0 {
-    %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: Long
-    %v_1 = cmp_ilt %result, 0: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    %v_4 = bitcast 0: Ptr
-    ret %v_4
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = bitcast %result: Ptr
-    ret %v_6
-  }
-}
-
 stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
   b_1 {
     %v_2 = alloca 16, 8: Ptr
@@ -614,57 +592,70 @@ printed<complex>(): Int {
     %v_18 = load %v_17, 4: Int
     %units = cast %v_18: Int
     %v_19 = sext %units: Long
-    %v_20 = call_complex writeFile, 1, %v_15, %v_19: Long
-    %v_21 = bitcast %v_10: Ptr
-    %v_22 = add %v_21, 8: Ptr
-    %v_23 = load %v_22, 4: Long
-    %v_24 = shr %v_23, 30: Long
-    %v_25 = cast %v_24: Int
+    %v_20 = bitcast %v_15: Long
+    %v_21 = syscall 1, 1, %v_20, %v_19: Long
+    %v_22 = bitcast %v_10: Ptr
+    %v_23 = add %v_22, 8: Ptr
+    %v_24 = load %v_23, 4: Long
+    %v_25 = shr %v_24, 30: Long
     %v_26 = cast %v_25: Int
-    %v_27 = cmp_eq %v_26, 1: Int
-    je %v_27, b_28, b_29
-  }
-
-  b_29 {
-    jmp b_30
-  }
-
-  b_28 {
-    %v_31 = load %v_21, 8: Ptr
-    call_complex freeHeap, %v_31
-    jmp b_30
+    %v_27 = cast %v_26: Int
+    %v_28 = cmp_eq %v_27, 1: Int
+    je %v_28, b_29, b_30
   }
 
   b_30 {
+    jmp b_31
+  }
+
+  b_29 {
+    %v_32 = load %v_22, 8: Ptr
+    call_complex freeHeap, %v_32
+    jmp b_31
+  }
+
+  b_31 {
     ret 0
   }
 }
 
 initHeap<complex>() {
   b_0 {
-    %region = call_complex mapMemory, 4194304: Ptr
-    %v_1 = bitcast %region: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    %v_3 = imm 256: Long
-    je %v_2, b_4, b_5
+    %result = syscall 9, 0, 4194304, 3, 34, 18446744073709551615, 0: Long
+    %v_1 = cmp_ilt %result, 0: Int
+    %v_2 = imm 256: Long
+    je %v_1, b_3, b_4
   }
 
   b_4 {
-    ret 
+    %v_5 = bitcast %result: Ptr
+    jmp b_6
   }
 
-  b_5 {
+  b_3 {
+    %v_7 = bitcast 0: Ptr
     jmp b_6
   }
 
   b_6 {
-    setpattern %region, %v_3, 0
-    %v_7 = bitcast %region: Ptr
-    store @heapFree, %v_7, 8
-    %v_8 = add %region, %v_3: Ptr
-    store @heapNext, %v_8, 8
-    %v_9 = add %region, 4194304: Ptr
-    store @heapLimit, %v_9, 8
+    %region = phi [b_4, %v_5], [b_3, %v_7]: Ptr
+    %v_8 = bitcast %region: Long
+    %v_9 = cmp_eq %v_8, 0: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    setpattern %region, %v_2, 0
+    %v_12 = bitcast %region: Ptr
+    store @heapFree, %v_12, 8
+    %v_13 = add %region, %v_2: Ptr
+    store @heapNext, %v_13, 8
+    %v_14 = add %region, 4194304: Ptr
+    store @heapLimit, %v_14, 8
+    ret 
+  }
+
+  b_10 {
     ret 
   }
 }
@@ -702,14 +693,6 @@ Length(String).length<complex>(%self: Ptr): Long {
     %units = cast %v_3: Int
     %v_4 = sext %units: Long
     ret %v_4
-  }
-}
-
-writeFile<complex>(%handle: Long, %from: Ptr, %count: Long): Long {
-  b_0 {
-    %v_1 = bitcast %from: Long
-    %v_2 = syscall 1, %handle, %v_1, %count: Long
-    ret %v_2
   }
 }
 

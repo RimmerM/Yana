@@ -1,5 +1,6 @@
 #include "print.h"
 #include "generic.h"
+#include "place.h"
 #include "witness.h"
 
 struct ResolvePrint {
@@ -30,24 +31,16 @@ static void printType(ResolvePrint& print, TypePtr pointer) {
 static void printValue(ResolvePrint& print, Value& value);
 
 static void printPlace(ResolvePrint& print, Function& function, const Place& place) {
-    auto type = print.program.scalar.error;
-
     if(place.root == PlaceRoot::Global) {
         // A global is written as its own name with no sigil, which is what distinguishes it on
         // sight from the locals and values that carry one.
-        auto global_ = print.local[place.global];
-        print.writer.writeString(print.context.findName(global_->name));
-        type = global_->type;
+        print.writer.writeString(print.context.findName(print.local[place.global]->name));
     } else if(place.root == PlaceRoot::Pointer || place.root == PlaceRoot::Borrow) {
         // `[%v3]` - the memory a pointer or a borrow names, as against the reference itself.
         auto& reference = *print.local[place.pointer];
         print.writer.writeByte('[');
         printValue(print, reference);
         print.writer.writeByte(']');
-
-        type = place.root == PlaceRoot::Borrow
-            ? ((BorrowType*)print.global[reference.type])->to
-            : pointeeType(print.global, reference.type);
     } else {
         auto known = place.local < function.localCount();
         auto root = known ? function.localAt(print.local, place.local) : Local {};
@@ -59,104 +52,105 @@ static void printPlace(ResolvePrint& print, Function& function, const Place& pla
             print.writer.writeString("local"_v);
             writeUInt(print.writer, place.local);
         }
-
-        if(known) type = root.type;
     }
 
-    auto projections = place.projections;
-
-    for(auto projection: projections.contents(print.local)) {
-        if(projection.kind == ProjectionKind::Discriminant) {
-            print.writer.writeString(".discriminant"_v);
-            type = print.program.scalar.int_;
-        } else if(projection.kind == ProjectionKind::Property) {
-            /*
-             * A constrained field, by the name the constraint gave it - `%p.name?`.
-             *
-             * The `?` is not decoration: this is the one projection whose position is not known, and
-             * a dump that printed it as `.name` would read as an ordinary field access and hide the
-             * only interesting thing about it. It disappears at specialization, so it appears in a
-             * generic body's dump and never in a specialization's.
-             */
-            auto env = functionGen(print.global, function);
-            auto& schema = genSchemaOf(*print.program.core, *env);
-
-            print.writer.writeByte('.');
-
-            for(auto slot: schema.slots.contents(print.global)) {
-                if(slot.kind != GenSlotKind::Property || slot.index != projection.index) continue;
-
-                print.writer.writeString(print.context.findName(slot.name));
-                type = slot.result;
-            }
-
-            print.writer.writeByte('?');
-        } else if(projection.kind == ProjectionKind::Downcast) {
-            // A dump is asked about programs that did not resolve as well as ones that did, so a
-            // path whose type ran out is printed as an unknown step rather than followed.
-            if(!type || print.global[type]->kind != Type::Record) {
-                print.writer.writeString("@?"_v);
-                type = nullptr;
-                continue;
-            }
-
-            auto record = (RecordType*)print.global[type];
-            auto constructor = record->constructors.get(print.global, projection.index);
-            print.writer.writeByte('@');
-            print.writer.writeString(print.context.findName(constructor.name));
-            type = boxedStep(*print.program.core, constructor.content, constructor.boxed);
-        } else if(projection.kind == ProjectionKind::Field && print.global[type]->kind == Type::Fun) {
-            // `%f.code` - a function value's three words are reached like any other aggregate's
-            // fields, so they are printed like them rather than as offsets.
-            print.writer.writeByte('.');
-            print.writer.writeString(funValueFieldName(projection.index));
-            type = funValueFieldType(*print.program.core, projection.index);
-        } else if(projection.kind == ProjectionKind::Field) {
-            if(!type || print.global[type]->kind != Type::Tup ||
-               projection.index >= ((TupType*)print.global[type])->fields.size()) {
-                print.writer.writeString(".?"_v);
-                type = nullptr;
-                continue;
-            }
-
-            auto tuple = (TupType*)print.global[type];
-            auto field = tuple->fields.get(print.global, projection.index);
-            print.writer.writeByte('.');
-
-            if(field.name) print.writer.writeString(print.context.findName(field.name));
-            else writeUInt(print.writer, projection.index);
-
-            // The path printed for a boxed field is `.cold.*`, and the `.*` is a step off a `%T` -
-            // so the type this walk carries has to be that pointer, exactly as every other walk's
-            // does. See boxedStep.
-            type = boxedStep(*print.program.core, field.type, field.boxed);
-        } else if(projection.kind == ProjectionKind::Index) {
-            // `%xs[%i]` - one element of a `[T *n]`, or one element on from a reference
-            // (Implementation-Containers.md §14.1), by the value that selects it rather than by a
-            // position: the elements have no names and the index need not be constant.
-            print.writer.writeByte('[');
-            if(projection.value) printValue(print, *print.local[projection.value]);
-            else print.writer.writeByte('?');
-            print.writer.writeByte(']');
-
-            // A fixed array steps *into* itself and everything else steps *along*, which is the same
-            // split the two place walks state.
-            if(type && print.global[type]->kind == Type::Array) {
-                type = ((ArrayType*)print.global[type])->content;
-            }
-        } else if(projection.kind == ProjectionKind::Deref) {
-            print.writer.writeString(".*"_v);
-            type = pointeeType(print.global, type);
-        } else if(projection.kind == ProjectionKind::Unit) {
-            // `%h@Header.version:unit32` - the word the field was packed into, by the width that
-            // says how much of the storage the access covers. The field it follows is kept in the
-            // path rather than replaced by an offset, so a dump still says which word this is.
-            print.writer.writeString(":unit"_v);
-            writeUInt(print.writer, projection.index);
-        } else {
-            print.writer.writeString("[...]"_v);
+    /*
+     * The path, walked once by the walk everything shares - see resolve/place.h. What is printed is
+     * the *name* of each step, which is the half a dump owns; the type each one arrives at is the
+     * half every other consumer wanted too, and carrying it here as well is what it used to mean to
+     * write this switch a fourteenth time.
+     */
+    walkPlace(*print.program.core, function, place, [&](const PlaceStep& step) {
+        // A dump is asked about programs that did not resolve as well as ones that did, so a path
+        // whose type ran out is printed as an unknown step rather than followed.
+        if(step.broken) {
+            print.writer.writeString(step.kind == ProjectionKind::Downcast ? "@?"_v : ".?"_v);
+            return false;
         }
-    }
+
+        switch(step.kind) {
+            case ProjectionKind::Discriminant:
+                print.writer.writeString(".discriminant"_v);
+                break;
+
+            case ProjectionKind::Property: {
+                /*
+                 * A constrained field, by the name the constraint gave it - `%p.name?`.
+                 *
+                 * The `?` is not decoration: this is the one projection whose position is not known,
+                 * and a dump that printed it as `.name` would read as an ordinary field access and
+                 * hide the only interesting thing about it. It disappears at specialization, so it
+                 * appears in a generic body's dump and never in a specialization's.
+                 */
+                auto env = functionGen(print.global, function);
+                auto& schema = genSchemaOf(*print.program.core, *env);
+
+                print.writer.writeByte('.');
+
+                for(auto slot: schema.slots.contents(print.global)) {
+                    if(slot.kind != GenSlotKind::Property || slot.index != step.index) continue;
+
+                    print.writer.writeString(print.context.findName(slot.name));
+                }
+
+                print.writer.writeByte('?');
+                break;
+            }
+
+            case ProjectionKind::Downcast: {
+                auto record = (RecordType*)print.global[step.owner];
+                auto constructor = record->constructors.get(print.global, step.index);
+                print.writer.writeByte('@');
+                print.writer.writeString(print.context.findName(constructor.name));
+                break;
+            }
+
+            case ProjectionKind::Field:
+                print.writer.writeByte('.');
+
+                // `%f.code` - a function value's three words are reached like any other aggregate's
+                // fields, so they are printed like them rather than as offsets.
+                if(print.global[step.owner]->kind == Type::Fun) {
+                    print.writer.writeString(funValueFieldName(step.index));
+                    break;
+                }
+
+                {
+                    auto tuple = (TupType*)print.global[step.owner];
+                    auto field = tuple->fields.get(print.global, step.index);
+
+                    if(field.name) print.writer.writeString(print.context.findName(field.name));
+                    else writeUInt(print.writer, step.index);
+                }
+
+                break;
+
+            case ProjectionKind::Index:
+                // `%xs[%i]` - one element of a `[T *n]`, or one element on from a reference
+                // (Implementation-Containers.md §14.1), by the value that selects it rather than by
+                // a position: the elements have no names and the index need not be constant.
+                print.writer.writeByte('[');
+                if(step.value) printValue(print, *print.local[step.value]);
+                else print.writer.writeByte('?');
+                print.writer.writeByte(']');
+                break;
+
+            case ProjectionKind::Deref:
+                print.writer.writeString(".*"_v);
+                break;
+
+            case ProjectionKind::Unit:
+                // `%h@Header.version:unit32` - the word the field was packed into, by the width that
+                // says how much of the storage the access covers. The field it follows is kept in
+                // the path rather than replaced by an offset, so a dump still says which word this
+                // is.
+                print.writer.writeString(":unit"_v);
+                writeUInt(print.writer, step.index);
+                break;
+        }
+
+        return true;
+    });
 }
 
 static void printValue(ResolvePrint& print, Value& value) {

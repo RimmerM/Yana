@@ -1,51 +1,40 @@
 "use strict";
 // Collections
-function stringUnit(self, index) {
-  return self.charCodeAt(index);
-}
-
 function newStringOfCapacity(capacity) {
   return "";
 }
 
-function pushUnit(self$o, self$k, self$s, unit) {
-  var v4 = self$o[self$k] + String.fromCharCode(unit);
-  self$o[self$k] = v4;
-  return;
-}
-
-function pushString(self$o, self$k, self$s, other) {
-  self$o[self$k] = self$o[self$k] + other;
-  return;
-}
-
 function showSigned(value, to$o, to$k, to$s) {
   if (value === 0n) {
-    pushUnit(to$o, to$k, to$s, 48);
+    var v91 = to$o[to$k] + String.fromCharCode(48);
+    to$o[to$k] = v91;
     return;
   } else {
     var remaining = value;
     if (value > 0n) {
       remaining = BigInt.asIntN(64, 0n - remaining);
     }
-    var digits = { $v: newStringOfCapacity(20) };
+    var digits = newStringOfCapacity(20);
     L0: for (;;) {
       if (remaining < 0n) {
-        pushUnit(digits, "$v", 1, (Number(BigInt.asIntN(64, 0n - BigInt.asIntN(64, remaining % 10n))) | 0) + 48 | 0);
+        digits = digits + String.fromCharCode((Number(BigInt.asIntN(64, 0n - BigInt.asIntN(64, remaining % 10n))) | 0) + 48 | 0);
         remaining = BigInt.asIntN(64, remaining / 10n);
         continue L0;
       }
       break L0;
     }
     if (value < 0n) {
-      pushUnit(to$o, to$k, to$s, 45);
+      var v99 = to$o[to$k] + String.fromCharCode(45);
+      to$o[to$k] = v99;
     }
-    var i = Length_String_length(digits.$v);
+    var i = digits.length;
     L1: for (;;) {
       if (i > 0) {
         var v79 = i - 1 | 0;
         i = v79;
-        pushUnit(to$o, to$k, to$s, stringUnit(digits.$v, v79));
+        var v102 = digits.charCodeAt(v79);
+        var v105 = to$o[to$k] + String.fromCharCode(v102);
+        to$o[to$k] = v105;
         continue L1;
       }
       break L1;
@@ -54,41 +43,37 @@ function showSigned(value, to$o, to$k, to$s) {
   }
 }
 
-function Length_String_length(self) {
-  return self.length;
-}
-
 // ResolveTest
 function shownBool(value) {
-  var sink = { $v: newStringOfCapacity(64) };
+  var sink = newStringOfCapacity(64);
   if (value) {
-    pushString(sink, "$v", 1, "True");
+    sink = sink + "True";
   } else {
-    pushString(sink, "$v", 1, "False");
+    sink = sink + "False";
   }
-  return Length_String_length(sink.$v);
+  return sink.length;
 }
 
 function shownInt(value) {
   var sink = { $v: newStringOfCapacity(64) };
   showSigned(BigInt.asIntN(64, BigInt(value)), sink, "$v", 1);
-  return Length_String_length(sink.$v);
+  return sink.$v.length;
 }
 
 function shownString(value) {
-  var sink = { $v: newStringOfCapacity(64) };
-  pushString(sink, "$v", 1, value);
-  return Length_String_length(sink.$v);
+  var sink = newStringOfCapacity(64);
+  sink = sink + value;
+  return sink.length;
 }
 
 function firstShownUnit(value) {
   var sink = { $v: newStringOfCapacity(64) };
   showSigned(BigInt.asIntN(64, BigInt(value)), sink, "$v", 1);
-  return stringUnit(sink.$v, 0);
+  return sink.$v.charCodeAt(0);
 }
 
 function stringBound(value) {
-  return Length_String_length(value);
+  return value.length;
 }
 
 function intBound(value) {
@@ -105,7 +90,7 @@ function boolText() {
   }
   var sink = { $v: newStringOfCapacity(64) };
   showSigned(0n, sink, "$v", 1);
-  if (stringUnit(sink.$v, 0) === 48) {
+  if (sink.$v.charCodeAt(0) === 48) {
     total = total + 1 | 0;
   }
   return total;
@@ -127,7 +112,7 @@ function integerText() {
   }
   var sink = { $v: newStringOfCapacity(64) };
   showSigned(-5n, sink, "$v", 1);
-  if (stringUnit(sink.$v, 0) === 45) {
+  if (sink.$v.charCodeAt(0) === 45) {
     total = total + 1 | 0;
   }
   return total;
@@ -135,15 +120,15 @@ function integerText() {
 
 function stringText() {
   var total = 0;
-  var sink = { $v: newStringOfCapacity(64) };
-  pushString(sink, "$v", 1, "hello");
-  if (Length_String_length(sink.$v) === 5) {
+  var sink = newStringOfCapacity(64);
+  sink = sink + "hello";
+  if (sink.length === 5) {
     total = total + 1 | 0;
   }
-  if (Length_String_length("hello") === 5) {
+  if ("hello".length === 5) {
     total = total + 1 | 0;
   }
-  if (Length_String_length("") === 0) {
+  if ("".length === 0) {
     total = total + 1 | 0;
   }
   return total;
@@ -157,9 +142,9 @@ function contractHolds() {
   if (shownInt(-2147483648) <= 11) {
     total = total + 1 | 0;
   }
-  var sink = { $v: newStringOfCapacity(64) };
-  pushString(sink, "$v", 1, "hello");
-  if (Length_String_length(sink.$v) <= Length_String_length("hello")) {
+  var sink = newStringOfCapacity(64);
+  sink = sink + "hello";
+  if (sink.length <= "hello".length) {
     total = total + 1 | 0;
   }
   return total;

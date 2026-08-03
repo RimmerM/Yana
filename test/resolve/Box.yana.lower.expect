@@ -2,6 +2,15 @@
 @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 
+reclaim$Pinned<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 8: Ptr
+    call_complex freeHeap, %v_2
+    ret 
+  }
+}
+
 throughLens<complex>(): Int {
   b_0 {
     %v_1 = alloca 12, 8: Ptr
@@ -24,28 +33,6 @@ throughLens<complex>(): Int {
     %v_10 = call_complex levelIn(Int), %v_1, %v_8: Int
     call_complex reclaim$Config, %v_1
     ret %v_10
-  }
-}
-
-mapMemory<complex>(%size: Long): Ptr {
-  b_0 {
-    %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: Long
-    %v_1 = cmp_ilt %result, 0: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    %v_4 = bitcast 0: Ptr
-    ret %v_4
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = bitcast %result: Ptr
-    ret %v_6
   }
 }
 
@@ -91,6 +78,22 @@ pinnedValue<complex>(): Int {
     call_complex reclaim$Pinned, %p
     %v_18 = add %v_13, %v_17: Int
     ret %v_18
+  }
+}
+
++=(Int)<complex>(%target: Ptr, %amount: Int) {
+  b_0 {
+    %v_1 = loads %target, 4: Int
+    %v_2 = add %v_1, %amount: Int
+    store %target, %v_2, 4
+    ret 
+  }
+}
+
+countOf<complex>(%h: Ptr): Int {
+  b_0 {
+    %v_1 = loads %h, 4: Int
+    ret %v_1
   }
 }
 
@@ -165,79 +168,6 @@ mutated<complex>(): Int {
     call_complex reclaim$Config, %v_1
     %v_21 = add %v_20, %v_11: Int
     ret %v_21
-  }
-}
-
-levelIn(Int)<complex>(%c: Ptr, %body: Ptr): Int {
-  b_0 {
-    %v_1 = load %c, 8: Ptr
-    %v_2 = add %v_1, 4: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = add %body, 8: Ptr
-    %v_5 = load %body, 8: Ptr
-    %v_6 = load %v_4, 8: Ptr
-    %v_7 = call_complex %v_5, %v_6, %v_3: Int
-    ret %v_7
-  }
-}
-
-teardown$none<complex>(%value: Ptr) {
-  b_0 {
-    ret 
-  }
-}
-
-initHeap<complex>() {
-  b_0 {
-    %region = call_complex mapMemory, 4194304: Ptr
-    %v_1 = bitcast %region: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    %v_3 = imm 256: Long
-    je %v_2, b_4, b_5
-  }
-
-  b_4 {
-    ret 
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    setpattern %region, %v_3, 0
-    %v_7 = bitcast %region: Ptr
-    store @heapFree, %v_7, 8
-    %v_8 = add %region, %v_3: Ptr
-    store @heapNext, %v_8, 8
-    %v_9 = add %region, 4194304: Ptr
-    store @heapLimit, %v_9, 8
-    ret 
-  }
-}
-
-reclaim$Pinned<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    call_complex freeHeap, %v_2
-    ret 
-  }
-}
-
-+=(Int)<complex>(%target: Ptr, %amount: Int) {
-  b_0 {
-    %v_1 = loads %target, 4: Int
-    %v_2 = add %v_1, %amount: Int
-    store %target, %v_2, 4
-    ret 
-  }
-}
-
-countOf<complex>(%h: Ptr): Int {
-  b_0 {
-    %v_1 = loads %h, 4: Int
-    ret %v_1
   }
 }
 
@@ -341,6 +271,19 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
+levelIn(Int)<complex>(%c: Ptr, %body: Ptr): Int {
+  b_0 {
+    %v_1 = load %c, 8: Ptr
+    %v_2 = add %v_1, 4: Ptr
+    %v_3 = loads %v_2, 4: Int
+    %v_4 = add %body, 8: Ptr
+    %v_5 = load %body, 8: Ptr
+    %v_6 = load %v_4, 8: Ptr
+    %v_7 = call_complex %v_5, %v_6, %v_3: Int
+    ret %v_7
+  }
+}
+
 @closure$ResolveTest.continuation$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 ResolveTest.continuation$0<complex>(%env: Ptr, %value: Int): Int {
   b_0 {
@@ -350,6 +293,12 @@ ResolveTest.continuation$0<complex>(%env: Ptr, %value: Int): Int {
     %v_4 = loads %v_3, 4: Int
     %v_5 = add %value, %v_4: Int
     ret %v_5
+  }
+}
+
+teardown$none<complex>(%value: Ptr) {
+  b_0 {
+    ret 
   }
 }
 
@@ -387,6 +336,47 @@ main<complex>(): Int {
     %v_10 = call_complex pinnedValue: Int
     %v_11 = add %v_9, %v_10: Int
     ret %v_11
+  }
+}
+
+initHeap<complex>() {
+  b_0 {
+    %result = syscall 9, 0, 4194304, 3, 34, 18446744073709551615, 0: Long
+    %v_1 = cmp_ilt %result, 0: Int
+    %v_2 = imm 256: Long
+    je %v_1, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = bitcast %result: Ptr
+    jmp b_6
+  }
+
+  b_3 {
+    %v_7 = bitcast 0: Ptr
+    jmp b_6
+  }
+
+  b_6 {
+    %region = phi [b_4, %v_5], [b_3, %v_7]: Ptr
+    %v_8 = bitcast %region: Long
+    %v_9 = cmp_eq %v_8, 0: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    setpattern %region, %v_2, 0
+    %v_12 = bitcast %region: Ptr
+    store @heapFree, %v_12, 8
+    %v_13 = add %region, %v_2: Ptr
+    store @heapNext, %v_13, 8
+    %v_14 = add %region, 4194304: Ptr
+    store @heapLimit, %v_14, 8
+    ret 
+  }
+
+  b_10 {
+    ret 
   }
 }
 

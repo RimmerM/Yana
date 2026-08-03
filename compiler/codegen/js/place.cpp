@@ -143,7 +143,7 @@ JsPtr<Expr> materializeRef(Gen& g, RefParts parts) {
  */
 namespace {
 
-TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = maxLimit<Size>,
+TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = maxLimit<Size>,
                   PlaceBits* bits = nullptr) {
     TypePtr type = nullptr;
     PlaceBits within;
@@ -173,7 +173,13 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
 
     if(place.root == PlaceRoot::Global) {
         type = g.local[place.global]->type;
-        if(expr) *expr = globalValue(g, place.global);
+
+        if(expr) {
+            // Read through the box where this one has it, which is what a reference to it names -
+            // see Gen::boxedGlobals.
+            *expr = globalValue(g, place.global);
+            if(g.boxedGlobals.contains(U32(place.global))) *expr = field(g, *expr, g.boxField);
+        }
     } else if(place.root == PlaceRoot::Pointer || place.root == PlaceRoot::Borrow) {
         // A borrow and a raw pointer are the same reference with different amounts of knowledge
         // behind them, and neither has a representation of its own here: it is the object it names,
@@ -198,15 +204,22 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
              * its parts are three variables and there is no object anywhere to ask `useValue` for.
              */
             /*
-             * A raw pointer is asked as though it were immutable, which keeps the two roots'
-             * answers where they were: a `%a` is not a borrow and carries no mutability, and what a
-             * non-indexed one names on this target is a box exactly as it always did. An *indexed*
-             * one is neither - it is the host array itself, and the projection below reaches into
-             * it - which is what `indexedRoot` takes out of both branches.
+             * A **borrow** and a raw **pointer** are the two reference forms this target has, and
+             * they are not the same form - see refIsTriple. A `&` names a slot and takes the
+             * triple; a `%a` is caller-provided storage and takes the box that stands in for an
+             * address, which is what the erased ABI hands a witness accessor and what a derived
+             * teardown's `%value` parameter receives.
+             *
+             * Not a mutability question and not a width question: both sides of a call read the
+             * *declaration*, and `&T` against `%T` is exactly what a declaration says.
+             *
+             * An *indexed* root is neither - it is the host array itself, and the projection below
+             * reaches into it - which is what `indexedRoot` takes out of both branches.
              */
-            auto mut = place.root == PlaceRoot::Borrow && ((BorrowType*)g.global[referenced])->mut;
+            auto triple = place.root == PlaceRoot::Borrow ? refIsTriple(g, type)
+                                                         : addressIsTriple(g, type);
 
-            if(!indexedRoot && refIsTriple(g, type, mut)) {
+            if(!indexedRoot && triple) {
                 auto parts = refPartsOf(g, place.pointer);
                 *expr = elementAt(g, parts.owner, parts.key);
 
@@ -220,10 +233,11 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
             } else {
                 *expr = useValue(g, place.pointer);
 
-                if(!indexedRoot && !isJsObject(g, type) && !g.aliasBorrows.contains(U32(place.pointer))) {
-                    // An alias is the storage under a second name, so there is no box to read
-                    // through - see prepareLocals. Everything else that is not an object arrived
-                    // as one.
+                // The box an address is, read through. An indexed root is the host array itself, an
+                // object is its own reference, and an alias is the storage under a second name -
+                // see prepareLocals - so none of the three has one.
+                if(!indexedRoot && !isJsObject(g, type) &&
+                   !g.aliasBorrows.contains(U32(place.pointer))) {
                     *expr = field(g, *expr, g.boxField);
                 }
             }
@@ -233,13 +247,16 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
         type = root.type;
 
         if(expr) {
-            // The slot behind a `&` parameter of narrow type holds one of those triples rather than
-            // storage of its own - and holds it as three variables where it arrived flattened, which
-            // is why this is asked before the value is.
-            // The triple is the *mutable* `&`'s form, which is the one `refIsFlattened` sends as
-            // three arguments. An immutable one arrives as a box or as the value itself, and both of
-            // those are read below.
-            if(root.borrowed && root.convention == ast::BindType::Ref && refIsTriple(g, type, true)) {
+            // The slot behind a `&` parameter of non-object type holds one of those triples rather
+            // than storage of its own - and holds it as three variables where it arrived flattened,
+            // which is why this is asked before the value is.
+            //
+            // `Ref` and not `borrowed` alone, because the two are not the same convention: a `&`
+            // the *program* wrote is a reference and takes the form refIsTriple decides, while a
+            // derived teardown's parameter is handed the box `referenceTo` makes and is borrowed
+            // without being one. Dropping this test compiled every derived `drop` to read `$o`/`$k`
+            // out of a `{$v: …}` its caller built.
+            if(root.borrowed && root.convention == ast::BindType::Ref && refIsTriple(g, type)) {
                 auto parts = refPartsOf(g, root.value);
                 *expr = elementAt(g, parts.owner, parts.key);
 
@@ -260,38 +277,41 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
         return nullptr;
     }
 
-    auto projections = place.projections;
-    Size walked = 0;
+    /*
+     * The path, over the walk every consumer of a `Place` shares - see resolve/place.h. What is this
+     * one's own is the property chain and the bit range; the type each step arrives at is not, and
+     * carrying it here as well is what used to make this a fourteenth copy of the same switch.
+     *
+     * `limit` stops before the trailing Property projection, which is how the *owner* of a
+     * constrained field is asked for: the field is reached by calling the witness with that owner
+     * rather than by naming a property of it. See propertySlotOf in inst.cpp.
+     */
+    ::walkPlace(*g.program.core, *g.function, place, [&](const PlaceStep& step) {
+        type = step.type;
+        if(step.broken) return false;
 
-    for(auto projection: projections.contents(g.local)) {
-        // `limit` stops before the trailing Property projection, which is how the *owner* of a
-        // constrained field is asked for: the field is reached by calling the witness with that
-        // owner rather than by naming a property of it. See propertySlotOf in inst.cpp.
-        if(walked++ >= limit) break;
-
-        switch(projection.kind) {
+        switch(step.kind) {
             case ProjectionKind::Discriminant: {
                 // An enum *is* its discriminant, so there is nothing to project out of it.
-                auto record = recordType(g, type);
+                auto record = recordType(g, step.owner);
                 if(record && record->layout != RecordType::Enum) {
                     // Neither is a folded record, for the stronger reason: its tag is not stored
                     // anywhere at all. The place stays on the payload and the load and the store
                     // intercept - see PlaceBits::foldedTag.
-                    if(g.repr.of(type).isNicheFolded()) {
-                        within.foldedTag = type;
+                    if(g.repr.of(step.owner).isNicheFolded()) {
+                        within.foldedTag = step.owner;
                     } else if(expr) {
                         *expr = field(g, *expr, g.tagField);
                     }
                 }
 
-                type = g.program.scalar.int_;
                 break;
             }
             case ProjectionKind::Downcast: {
-                auto record = recordType(g, type);
+                auto record = recordType(g, step.owner);
                 if(!record) break;
 
-                auto content = record->constructors.get(g.global, projection.index).content;
+                auto content = record->constructors.get(g.global, step.index).content;
 
                 /*
                  * Free, like the native offset it corresponds to: a tuple payload is flattened into
@@ -305,26 +325,17 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
                  * the pattern that says there is none. Native spends a payload offset of zero here for
                  * exactly the same reason.
                  */
-                if(expr && !g.repr.of(type).isNicheFolded() &&
+                if(expr && !g.repr.of(step.owner).isNicheFolded() &&
                    record->layout == RecordType::Multi && content &&
                    !isUnit(g.global, content) &&
                    (g.global[content]->kind != Type::Tup || !isJsObject(g, content))) {
                     *expr = field(g, *expr, g.payloadField);
                 }
 
-                type = content;
-
-                // A boxed payload holds a reference to its content rather than the content, so what
-                // the walk has now is a `%content` and the Deref that follows is what reaches the
-                // value. Same statement placeType makes in resolve - see Constructor::boxed.
-                if(record->constructors.get(g.global, projection.index).boxed) {
-                    type = resolvePointerType(*g.program.core, type);
-                }
-
                 break;
             }
             case ProjectionKind::Field: {
-                if(!type) break;
+                auto owner = step.owner;
 
                 /*
                  * A closure header is a compiler-built table here, exactly as it is bytes there, so
@@ -332,8 +343,8 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
                  * that is what makes it this table rather than an ordinary tuple that happens to
                  * have two addresses in it - see closureHeaderPlaceType.
                  */
-                if(type == g.headerType) {
-                    auto entry = g.repr.fieldOf(type, projection.index);
+                if(owner == g.headerType) {
+                    auto entry = g.repr.fieldOf(owner, step.index);
                     if(!entry) break;
                     if(expr) *expr = tableCell(g, *expr, entry->offset);
                     type = entry->type;
@@ -348,78 +359,68 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
                  * it from. The environment is what the closure closed over, and it is reachable at
                  * all only where something attached it - see genFunValueWord.
                  */
-                if(g.global[type]->kind == Type::Fun) {
-                    if(expr && projection.index == FunValueLayout::kEnv) {
+                if(g.global[owner]->kind == Type::Fun) {
+                    if(expr && step.index == FunValueLayout::kEnv) {
                         *expr = field(g, *expr, g.envField);
-                    } else if(expr && projection.index == FunValueLayout::kHeader) {
+                    } else if(expr && step.index == FunValueLayout::kHeader) {
                         *expr = field(g, *expr, g.headerField);
                     }
 
-                    type = funValueFieldType(*g.program.core, projection.index);
                     break;
                 }
 
-                if(g.global[type]->kind == Type::Tup) {
-                    auto entry = ((TupType*)g.global[type])->fields.get(g.global, projection.index);
+                auto entry = ((TupType*)g.global[owner])->fields.get(g.global, step.index);
 
-                    /*
-                     * A field of a record the Repr made one scalar. There is no property to descend
-                     * into - the owner *is* the value - so the walk stays where it is and accumulates
-                     * where inside that number this field sits.
-                     *
-                     * The accumulation is the part with teeth. `t.f.a` reaches here twice: once for
-                     * `f`, two bits at bit zero or two of `Two`, and once for `a`, one bit at bit
-                     * zero of `Flags`. Neither offset is written anywhere and only their sum names
-                     * the bit, which is why a walk that reported the last projection's offset would
-                     * read a neighbour and still produce a value of the right type.
-                     */
-                    if(!isJsObject(g, type)) {
-                        if(auto placed = g.repr.fieldOf(type, projection.index)) {
-                            // The *outermost* scalar is the word, so this is recorded on the way in
-                            // and left alone on the way further down: `t.f.a` lives in `t`'s number
-                            // however narrow `Flags` happens to be, and it is `t`'s width that says
-                            // whether the host's 32-bit operators can reach the bit.
-                            if(!within.width) within.word = g.repr.of(type).scalarBits;
+                /*
+                 * A field of a record the Repr made one scalar. There is no property to descend
+                 * into - the owner *is* the value - so the walk stays where it is and accumulates
+                 * where inside that number this field sits.
+                 *
+                 * The accumulation is the part with teeth. `t.f.a` reaches here twice: once for
+                 * `f`, two bits at bit zero or two of `Two`, and once for `a`, one bit at bit
+                 * zero of `Flags`. Neither offset is written anywhere and only their sum names
+                 * the bit, which is why a walk that reported the last projection's offset would
+                 * read a neighbour and still produce a value of the right type.
+                 */
+                if(!isJsObject(g, owner)) {
+                    if(auto placed = g.repr.fieldOf(owner, step.index)) {
+                        // The *outermost* scalar is the word, so this is recorded on the way in
+                        // and left alone on the way further down: `t.f.a` lives in `t`'s number
+                        // however narrow `Flags` happens to be, and it is `t`'s width that says
+                        // whether the host's 32-bit operators can reach the bit.
+                        if(!within.width) within.word = g.repr.of(owner).scalarBits;
 
-                            within.offset += placed->bitOffset;
-                            within.width = placed->bitWidth ? placed->bitWidth
-                                                            : g.repr.of(entry.type).scalarBits;
-                            type = entry.type;
-                            break;
-                        }
+                        within.offset += placed->bitOffset;
+                        within.width = placed->bitWidth ? placed->bitWidth
+                                                        : g.repr.of(entry.type).scalarBits;
+                        break;
                     }
+                }
 
-                    /*
-                     * A field of a record that stayed an object, which is a property - and, where this
-                     * target co-packed it, a bit range of one shared with its neighbours.
-                     *
-                     * The bit range *replaces* whatever the walk had accumulated rather than adding to
-                     * it, because descending into a property is descending into a different value. It
-                     * can only be empty here in any case: reaching an object-shaped tuple means
-                     * nothing before it was a bit range, since a scalarized record holds only narrow
-                     * fields and an object is not one.
-                     */
-                    auto property = fieldProperty(g, type, projection.index);
-                    if(expr) *expr = field(g, *expr, property.name);
+                /*
+                 * A field of a record that stayed an object, which is a property - and, where this
+                 * target co-packed it, a bit range of one shared with its neighbours.
+                 *
+                 * The bit range *replaces* whatever the walk had accumulated rather than adding to
+                 * it, because descending into a property is descending into a different value. It
+                 * can only be empty here in any case: reaching an object-shaped tuple means
+                 * nothing before it was a bit range, since a scalarized record holds only narrow
+                 * fields and an object is not one.
+                 */
+                auto property = fieldProperty(g, owner, step.index);
+                if(expr) *expr = field(g, *expr, property.name);
 
-                    within = PlaceBits {};
-                    if(property.isPacked()) {
-                        within.offset = property.bitOffset;
-                        within.width = property.bitWidth;
-                        within.word = property.wordBits;
-                    }
-
-                    // Likewise for a boxed field: the property holds a reference. A boxed field is
-                    // never packed and never inside a scalarized record, so this is the only one of
-                    // the branches above it can reach - see packCandidate and scalarBits.
-                    type = entry.boxed ? resolvePointerType(*g.program.core, entry.type) : entry.type;
+                within = PlaceBits {};
+                if(property.isPacked()) {
+                    within.offset = property.bitOffset;
+                    within.width = property.bitWidth;
+                    within.word = property.wordBits;
                 }
 
                 break;
             }
             case ProjectionKind::Deref:
                 // The reference stored here becomes what the rest of the path is relative to.
-                type = pointeeType(g.global, type);
                 if(expr && type && !isJsObject(g, type)) *expr = field(g, *expr, g.boxField);
                 break;
             case ProjectionKind::Index:
@@ -429,12 +430,11 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
                  * (Implementation-Containers.md §14.1). The native side spends a stride and an add
                  * here; there is nothing to spend one on.
                  *
-                 * The type follows the same rule resolve's own walk states: a `[T *n]` steps *into*
+                 * The type follows the same rule the shared walk states: a `[T *n]` steps *into*
                  * the array and everything else - a run of elements reached through a reference -
                  * steps *along* it and is already the element's type.
                  */
-                if(expr) *expr = elementAt(g, *expr, useValue(g, projection.value));
-                if(type && g.global[type]->kind == Type::Array) type = ((ArrayType*)g.global[type])->content;
+                if(expr) *expr = elementAt(g, *expr, useValue(g, step.value));
                 break;
             case ProjectionKind::Unit:
                 /*
@@ -449,10 +449,12 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
                  */
                 within = PlaceBits {};
                 break;
-            default:
+            case ProjectionKind::Property:
                 break;
         }
-    }
+
+        return true;
+    }, limit);
 
     if(bits) *bits = within;
     return type;
@@ -976,7 +978,7 @@ void encodeNicheTag(Gen& g, JsPtr<Expr> target, TypePtr record, U64 constructor)
 JsPtr<Expr> placeExpr(Gen& g, const Place& place, Size limit) {
     JsPtr<Expr> expr = nullptr;
     PlaceBits bits;
-    auto type = walkPlace(g, place, &expr, limit, &bits);
+    auto type = walkJsPlace(g, place, &expr, limit, &bits);
 
     // Every reader wants the value rather than the word it sits in, so the decode is applied here and
     // the one caller that cannot use it - the store below - asks placeOwner instead.
@@ -987,14 +989,14 @@ JsPtr<Expr> placeExpr(Gen& g, const Place& place, Size limit) {
 
 JsPtr<Expr> placeOwner(Gen& g, const Place& place, PlaceBits& bits, Size limit) {
     JsPtr<Expr> expr = nullptr;
-    walkPlace(g, place, &expr, limit, &bits);
+    walkJsPlace(g, place, &expr, limit, &bits);
     return expr;
 }
 
 // What a place holds. Most callers want one or the other rather than both, so this skips building
 // the chain rather than building one nobody reads.
 TypePtr placeType(Gen& g, const Place& place, Size limit) {
-    return walkPlace(g, place, nullptr, limit);
+    return walkJsPlace(g, place, nullptr, limit);
 }
 
 JsPtr<Expr> referenceTo(Gen& g, TypePtr type, JsPtr<Expr> value) {
@@ -1004,7 +1006,7 @@ JsPtr<Expr> referenceTo(Gen& g, TypePtr type, JsPtr<Expr> value) {
 
 JsPtr<Expr> referenceTo(Gen& g, const Place& place, Size limit) {
     JsPtr<Expr> expr = nullptr;
-    auto type = walkPlace(g, place, &expr, limit);
+    auto type = walkJsPlace(g, place, &expr, limit);
     return referenceTo(g, type, expr);
 }
 

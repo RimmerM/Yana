@@ -1,5 +1,5 @@
 "use strict";
-var dropped = 0n;
+var dropped = { $v: 0n };
 
 // Core
 function add_eq_I64(target$o, target$k, target$s, amount) {
@@ -118,7 +118,7 @@ function makePair() {
 
 function owned() {
   makePair();
-  return Number(dropped) | 0;
+  return Number(dropped.$v) | 0;
 }
 
 function tagOf(m) {
@@ -217,7 +217,7 @@ function main() {
   v74 = v74 & ~(1 << 3) | (1 & 1) << 3;
   var v12 = (((v4 + (valueOf(v74 & 3) + (Math.imul(valueOf(v74 >>> 2 & 3), 10) | 0) | 0) | 0) + ((Math.imul(valueOf(2), 10) | 0) + valueOf(1) | 0) | 0) + reborrowed() | 0) + swapped() | 0;
   makePair();
-  return ((((((v12 + (Number(dropped) | 0) | 0) + folded() | 0) + ((heldValue({ $tag: 0, $p: 1 }) + (Math.imul(heldValue({ $tag: 1, $p: 5 }), 100) | 0) | 0) + (Math.imul(heldValue({ $tag: 2, $p: null }), 10000) | 0) | 0) | 0) + reordered() | 0) + pinned() | 0) + hostShaped() | 0) + hostBorrowed() | 0;
+  return ((((((v12 + (Number(dropped.$v) | 0) | 0) + folded() | 0) + ((heldValue({ $tag: 0, $p: 1 }) + (Math.imul(heldValue({ $tag: 1, $p: 5 }), 100) | 0) | 0) + (Math.imul(heldValue({ $tag: 2, $p: null }), 10000) | 0) | 0) | 0) + reordered() | 0) + pinned() | 0) + hostShaped() | 0) + hostBorrowed() | 0;
 }
 
 function Drop_Owned_drop(value) {
@@ -227,10 +227,7 @@ function Drop_Owned_drop(value) {
   } else {
     v10 = 2;
   }
-  var v11 = BigInt.asIntN(64, BigInt(v10));
-  var v12 = { $v: dropped };
-  add_eq_I64(v12, "$v", 1, v11);
-  dropped = v12.$v;
+  add_eq_I64(dropped, "$v", 1, BigInt.asIntN(64, BigInt(v10)));
   return;
 }
 
@@ -242,19 +239,13 @@ function drop$Pair(value) {
   } else {
     v4 = 2;
   }
-  var v10 = BigInt.asIntN(64, BigInt(v4));
-  var v11 = { $v: dropped };
-  add_eq_I64(v11, "$v", 1, v10);
-  dropped = v11.$v;
+  add_eq_I64(dropped, "$v", 1, BigInt.asIntN(64, BigInt(v4)));
   if (value.y & 1) {
     v16 = 1;
   } else {
     v16 = 2;
   }
-  var v22 = BigInt.asIntN(64, BigInt(v16));
-  var v23 = { $v: dropped };
-  add_eq_I64(v23, "$v", 1, v22);
-  dropped = v23.$v;
+  add_eq_I64(dropped, "$v", 1, BigInt.asIntN(64, BigInt(v16)));
   return;
 }
 

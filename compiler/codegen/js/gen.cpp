@@ -469,7 +469,6 @@ void genFunction(Gen& g, ModulePtr<Function> pointer) {
     g.values.reset();
     g.phis.reset();
     g.localNames.reset();
-    g.writebacks.clear();
     g.pendingCode.reset();
     g.labelCounter = 0;
     g.genEnv = nullptr;
@@ -696,6 +695,10 @@ void genGlobal(Gen& g, ModulePtr<Global> pointer) {
         initial = zeroValue(g, global_.type);
     }
 
+    // And the box where something takes a reference to this one, which is the storage a `var` has
+    // no other way to offer - see Gen::boxedGlobals.
+    if(g.boxedGlobals.contains(U32(pointer))) initial = boxOf(g, initial);
+
     emit(g, make<DeclStmt>(g, name, initial, false));
 }
 
@@ -714,6 +717,36 @@ void genForwardCells(Gen& g) {
 
         emitExpr(g, assign(g, index(g, variable(g, patch.table), patch.cell),
                            globalValue(g, patch.target)));
+    }
+}
+
+/*
+ * Which globals are stored boxed - see Gen::boxedGlobals.
+ *
+ * A global that is referred to at all and is not a host object needs the box, on exactly the terms
+ * prepareLocals states for a local: a reference to something that is not an object has nowhere to
+ * point, and a global has no enclosing object to be reached through even when it is one.
+ *
+ * Asked of the whole program before anything is emitted, because a global crosses functions and the
+ * two sides cannot see each other. Read off `InstBorrow` and `InstAddress` alone: those are the only
+ * instructions that produce a reference, and an ordinary load or store of a global names the `var`
+ * whether or not it is boxed.
+ */
+void boxedGlobals(Gen& g) {
+    for(auto module: g.program.modules) {
+        for(auto pointer: module->functionOrder.contents(g.local)) {
+            if(!hasBody(g, module, pointer) || g.excluded.contains(U32(pointer))) continue;
+
+            eachInstruction(g, *g.local[pointer], [&](Value& instruction) {
+                const Place* place = nullptr;
+                if(instruction.kind == Value::Borrow) place = &((InstBorrow&)instruction).place;
+                else if(instruction.kind == Value::Address) place = &((InstAddress&)instruction).place;
+                if(!place || place->root != PlaceRoot::Global) return;
+
+                auto type = g.local[place->global]->type;
+                if(!isJsObject(g, type)) g.boxedGlobals.add(U32(place->global));
+            });
+        }
     }
 }
 
@@ -854,6 +887,57 @@ bool callParameterIsFlatRef(Gen& g, Value& user, Size index) {
 
             auto arg = type->args.get(g.global, index);
             return refIsFlattened(g, arg.type, arg.convention);
+        }
+        default:
+            return false;
+    }
+}
+
+/*
+ * Whether the declared parameter at one argument position takes a *value* rather than a reference.
+ *
+ * The resolver hands a **borrow** over for a by-value parameter of memory type - there is nothing to
+ * copy and the callee wants the storage - and on this target such a parameter arrives as the box
+ * prepareLocals reads it back through. That used to need no saying, because an immutable borrow *was*
+ * the box; once it became the triple the two stopped agreeing, and `unwrapOr(Tree)` read `$v` off a
+ * `{$o,$k,$s}` and got `undefined`.
+ *
+ * Decided from the declaration, like every other question about an argument position, so that the
+ * caller and the callee reach it separately and agree. `&` parameters are excluded because they are
+ * references on both sides; a reference *type* is excluded for the same reason.
+ */
+static bool declaredArgTakesValue(Gen& g, TypePtr type, ast::BindType convention) {
+    if(convention == ast::BindType::Ref || !type) return false;
+
+    auto kind = g.global[type]->kind;
+    return kind != Type::Borrow && kind != Type::Ptr && kind != Type::RegionPtr;
+}
+
+bool callParameterTakesValue(Gen& g, Value& user, Size index) {
+    auto fromFunction = [&](ModulePtr<Function> callee) {
+        if(!callee) return false;
+
+        auto function = g.local[callee];
+        if(index >= function->args.size()) return false;
+
+        auto arg = g.local[function->args.get(g.local, index)];
+        return declaredArgTakesValue(g, arg->type, arg->convention);
+    };
+
+    switch(user.kind) {
+        case Value::Call:
+            return fromFunction(((InstCall&)user).callee);
+        case Value::GenCall:
+            return fromFunction(((InstGenCall&)user).callee);
+        case Value::CallDyn: {
+            auto signature = ((InstCallDyn&)user).signature;
+            if(!signature || g.global[signature]->kind != Type::Fun) return false;
+
+            auto type = (FunType*)g.global[signature];
+            if(index >= type->args.size()) return false;
+
+            auto arg = type->args.get(g.global, index);
+            return declaredArgTakesValue(g, arg.type, arg.convention);
         }
         default:
             return false;
@@ -1003,6 +1087,7 @@ Ptr<File> genProgram(Context& context, Program& program) {
     if(program.root) g.headerType = closureHeaderPlaceType(*program.root);
 
     excludeFunctions(g);
+    boxedGlobals(g);
     nameProgram(g);
 
     g.body = &file->statements;

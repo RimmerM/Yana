@@ -474,34 +474,15 @@ ModulePtr<Function> sinkFor(Module& module, TypePtr type, LocationId source) {
  * projected one has a size independent of the arguments - would be an accident rather than a rule.
  */
 static bool lowerablePlace(Module& module, Function& owner, const Place& place) {
-    auto local = *module.arena;
     auto global = *module.types;
     auto projections = place.projections;
     if(projections.isEmpty()) return true;
 
-    TypePtr type = nullptr;
-
-    switch(place.root) {
-        case PlaceRoot::Local:
-            if(place.local >= owner.localCount()) return false;
-            type = owner.localAt(local, place.local).type;
-            break;
-        case PlaceRoot::Global:
-            type = local[place.global]->type;
-            break;
-        case PlaceRoot::Pointer:
-            type = pointeeType(global, local[place.pointer]->type);
-            break;
-        case PlaceRoot::Borrow:
-            type = ((BorrowType*)global[local[place.pointer]->type])->to;
-            break;
-    }
-
     auto count = projections.size();
-    Size walked = 0;
+    auto lowerable = true;
 
-    for(auto projection: projections.contents(local)) {
-        auto last = ++walked == count;
+    walkPlace(module, owner, place, [&](const PlaceStep& step) {
+        auto last = step.at + 1 == count;
 
         /*
          * A constrained field, which is the one projection whose owner is *meant* to be a type this
@@ -514,58 +495,30 @@ static bool lowerablePlace(Module& module, Function& owner, const Place& place) 
          * so a write through it would go nowhere. Such a body specializes, where the whole path
          * becomes ordinary field access.
          */
-        if(projection.kind == ProjectionKind::Property) return last;
-
-        if(!type) return false;
-        if(isGeneric(global, type)) return false;
-
-        switch(projection.kind) {
-            case ProjectionKind::Discriminant:
-                type = module.scalar.int_;
-                break;
-            case ProjectionKind::Downcast: {
-                auto constructor = ((RecordType*)global[type])->constructors.get(global, projection.index);
-                type = boxedStep(module, constructor.content, constructor.boxed);
-                break;
-            }
-            case ProjectionKind::Field:
-                // A function value's two words are at fixed offsets whatever the body's type
-                // arguments turn out to be, so it is projected into like any other aggregate and
-                // needs no composite descriptor to do it.
-                if(global[type]->kind == Type::Fun) {
-                    type = funValueFieldType(module, projection.index);
-                    break;
-                }
-
-                {
-                    auto field = ((TupType*)global[type])->fields.get(global, projection.index);
-                    type = boxedStep(module, field.type, field.boxed);
-                }
-
-                break;
-            case ProjectionKind::Deref:
-                type = pointeeType(global, type);
-                break;
-            case ProjectionKind::Index:
-                /*
-                 * One element of a `[T *n]`, which an erased body *can* reach - the step is the
-                 * element's stride, and a stride is a TypeMetric the environment already carries.
-                 *
-                 * It used to return false unconditionally, which was right when nothing produced
-                 * one: declining a projection nothing emits costs nothing, and declining one that
-                 * `[T *n]` now emits everywhere would force a specialization at every call site that
-                 * touched a fixed array. The generic check above still catches the case that
-                 * genuinely has no layout here.
-                 *
-                 * A host element steps *along* rather than in, so its type is already the element's -
-                 * the same split resolve's own place walk states.
-                 */
-                if(global[type]->kind == Type::Array) type = ((ArrayType*)global[type])->content;
-                break;
+        if(step.kind == ProjectionKind::Property) {
+            lowerable = last;
+            return false;
         }
-    }
 
-    return true;
+        /*
+         * Every other step is an offset read off the owner's declaration, so an owner this body
+         * cannot see the shape of has no offset to read.
+         *
+         * An `Index` is the exception the general rule already covers: one element of a `[T *n]` is
+         * reachable from an erased body, because the step is the element's stride and a stride is a
+         * TypeMetric the environment already carries. Declining it would force a specialization at
+         * every call site that touched a fixed array; the generic check here still catches the case
+         * that genuinely has no layout.
+         */
+        if(!step.owner || step.broken || isGeneric(global, step.owner)) {
+            lowerable = false;
+            return false;
+        }
+
+        return true;
+    });
+
+    return lowerable;
 }
 
 static bool lowerablePlaces(Module& module, Function& owner, const Value& inst) {

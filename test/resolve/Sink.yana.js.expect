@@ -1,5 +1,5 @@
 "use strict";
-var sinkCalls = 0n;
+var sinkCalls = { $v: 0n };
 const closure$ResolveTest_lambda$0 = [teardown$none, null];
 
 // Core
@@ -82,31 +82,31 @@ function retag(p) {
 
 function main() {
   var result = direct();
-  if (sinkCalls !== 1n) {
+  if (sinkCalls.$v !== 1n) {
     return -1n;
   } else {
     result = BigInt.asIntN(64, result + derived());
-    if (sinkCalls !== 2n) {
+    if (sinkCalls.$v !== 2n) {
       return -2n;
     } else {
       result = BigInt.asIntN(64, result + nested());
-      if (sinkCalls !== 3n) {
+      if (sinkCalls.$v !== 3n) {
         return -3n;
       } else {
         result = BigInt.asIntN(64, result + tagged(1));
-        if (sinkCalls !== 4n) {
+        if (sinkCalls.$v !== 4n) {
           return -4n;
         } else {
           result = BigInt.asIntN(64, result + tagged(0));
-          if (sinkCalls !== 4n) {
+          if (sinkCalls.$v !== 4n) {
             return -5n;
           } else {
             result = BigInt.asIntN(64, result + consume({ value: 5n }));
-            if (sinkCalls !== 4n) {
+            if (sinkCalls.$v !== 4n) {
               return -6n;
             } else {
               var closed = captured({ value: 30n });
-              if (sinkCalls !== 5n) {
+              if (sinkCalls.$v !== 5n) {
                 drop$_sub_gt_I64({ $v: closed });
                 return -7n;
               } else {
@@ -114,22 +114,22 @@ function main() {
                 drop$_sub_gt_I64({ $v: closed });
                 result = BigInt.asIntN(64, result + v109);
                 var retagged = retag({ left: { value: 60n }, right: 6n });
-                if (sinkCalls !== 6n) {
+                if (sinkCalls.$v !== 6n) {
                   return -8n;
                 } else {
                   result = BigInt.asIntN(64, result + BigInt.asIntN(64, retagged.left.value + retagged.right));
                   var relocated = relocate_Handle({ value: 70n });
-                  if (sinkCalls !== 7n) {
+                  if (sinkCalls.$v !== 7n) {
                     return -9n;
                   } else {
                     result = BigInt.asIntN(64, result + relocated.value);
                     var relocatedPair = relocate_Pair({ left: { value: 80n }, right: 8n });
-                    if (sinkCalls !== 8n) {
+                    if (sinkCalls.$v !== 8n) {
                       return -10n;
                     } else {
                       var v218 = BigInt.asIntN(64, result + BigInt.asIntN(64, relocatedPair.left.value + relocatedPair.right));
                       result = v218;
-                      return BigInt.asIntN(64, v218 + sinkCalls);
+                      return BigInt.asIntN(64, v218 + sinkCalls.$v);
                     }
                   }
                 }
@@ -143,9 +143,7 @@ function main() {
 }
 
 function Sink_Handle_sink(to, from) {
-  var v5 = { $v: sinkCalls };
-  add_eq_I64(v5, "$v", 1, 1n);
-  sinkCalls = v5.$v;
+  add_eq_I64(sinkCalls, "$v", 1, 1n);
   to.value = from.value;
   return;
 }

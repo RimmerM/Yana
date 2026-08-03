@@ -6,18 +6,25 @@ let &heapFree: %%U8 = 0
 
 fn initHeap() -> () {
   b0:
-    %region = call mapMemory, 4194304 : %U8
-    %v2 = cast %region : Long
-    %v4 = cmp_eq %v2, 0 : Bool
-    je %v4, b1, b2
+    %result = syscall 9, 0, 4194304, 3, 34, -1, 0 : I64
+    %v35 = cmp_lt %result, 0 : Bool
+    je %v35, b2, b1
 
   b1:
-    ret
+    %v38 = cast %result : %U8
+    jmp b3
 
   b2:
+    %v41 = cast 0 : %U8
     jmp b3
 
   b3:
+    %region = phi [b1, %v38], [b2, %v41] : %U8
+    %v2 = cast %region : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b5, b4
+
+  b4:
     setmemory %region, 0, 256
     %v14 = cast %region : %%U8
     assign heapFree, %v14
@@ -28,6 +35,9 @@ fn initHeap() -> () {
     %v22 = mul %v16, 4194304 : I64
     %v23 = add %region, %v22 : %U8
     assign heapLimit, %v23
+    ret
+
+  b5:
     ret
 }
 
@@ -261,24 +271,6 @@ fn byteSpan(Int)(%from: %Int, %count: Int) -> I64 {
     %v9 = strideof U8 : I64
     %v10 = div %v8, %v9 : I64
     ret %v10
-}
-
-fn mapMemory(%size: I64) -> %U8 {
-  b0:
-    %result = syscall 9, 0, %size, 3, 34, -1, 0 : I64
-    %v12 = cmp_lt %result, 0 : Bool
-    je %v12, b1, b2
-
-  b1:
-    %v15 = cast 0 : %U8
-    ret %v15
-
-  b2:
-    jmp b3
-
-  b3:
-    %v18 = cast %result : %U8
-    ret %v18
 }
 
 fn push(Int)(%self: Array(Int), %item: Int) -> () {

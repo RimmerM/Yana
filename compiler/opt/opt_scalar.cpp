@@ -120,22 +120,32 @@ bool splittableDestination(OptContext& opt, const IndexSet& contained, const Pla
         if(place.local >= contained.size() || !contained[place.local]) return false;
     }
 
-    for(Size i = 0; i < projections.size(); i++) {
-        switch(projections.get(opt.local, i).kind) {
-            case ProjectionKind::Field:
-                break;
-            case ProjectionKind::Downcast: {
-                auto owner = placeType(*opt.module, *opt.function, place, i);
-                if(!owner || opt.global[owner]->kind != Type::Record) return false;
-                if(((RecordType*)opt.global[owner])->layout != RecordType::Single) return false;
-                break;
-            }
-            default:
-                return false;
-        }
-    }
+    auto scalarizable = true;
 
-    return true;
+    // `step.owner` is the type the projection is taken of, which is what the walk already had in
+    // hand - see resolve/place.h. Asking `placeType` for each prefix answered the same thing and
+    // walked the path again to do it.
+    walkPlace(*opt.module, *opt.function, place, [&](const PlaceStep& step) {
+        auto decline = [&]() {
+            scalarizable = false;
+            return false;
+        };
+
+        if(step.broken) return decline();
+
+        switch(step.kind) {
+            case ProjectionKind::Field:
+                return true;
+            case ProjectionKind::Downcast:
+                if(!step.owner || opt.global[step.owner]->kind != Type::Record) return decline();
+                if(((RecordType*)opt.global[step.owner])->layout != RecordType::Single) return decline();
+                return true;
+            default:
+                return decline();
+        }
+    });
+
+    return scalarizable;
 }
 
 /*

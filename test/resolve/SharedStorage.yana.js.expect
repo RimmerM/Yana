@@ -1,5 +1,5 @@
 "use strict";
-var released = 0;
+var released = { $v: 0 };
 
 // Core
 function add_eq_Int(target$o, target$k, target$s, amount) {
@@ -48,13 +48,11 @@ function guarded() {
 }
 
 function main() {
-  return (((unwrapOr(35, 0) + unwrapOr(36, 0) | 0) + sunk() | 0) + unwrapOr({ tag: 7, held: 35 }.held, unwrapOr(1, 0) + 1 | 0) | 0) + released | 0;
+  return (((unwrapOr(35, 0) + unwrapOr(36, 0) | 0) + sunk() | 0) + unwrapOr({ tag: 7, held: 35 }.held, unwrapOr(1, 0) + 1 | 0) | 0) + released.$v | 0;
 }
 
 function Drop_Counter_drop(value) {
-  var v4 = { $v: released };
-  add_eq_Int(v4, "$v", 1, 1);
-  released = v4.$v;
+  add_eq_Int(released, "$v", 1, 1);
   return;
 }
 

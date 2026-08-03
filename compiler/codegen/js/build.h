@@ -2,6 +2,7 @@
 
 #include "gen.h"
 #include "../../resolve/generic.h"
+#include "../../resolve/place.h"
 #include "../../resolve/witness.h"
 #include "../../repr/table.h"
 
@@ -82,24 +83,6 @@ struct Forward {
 };
 
 /*
- * A borrow that had to be boxed at the point it was taken rather than at the storage it names.
- *
- * Only for a borrow of a *field* whose type is not an object - `&p.x` where `x` is an `Int`. The
- * box is a temporary, so the value written through it has to be copied back into the field once the
- * borrow's consumer is done with it, which is Design.md's materialize/write-back around a packed
- * field arrived at from the other direction.
- */
-struct Writeback {
-    ModulePtr<Value> borrow;
-    JsPtr<Expr> box;
-
-    // The place rather than an expression for it, because committing into a bit range is a
-    // read-modify-write and only `assignPlace` knows which places are locations.
-    Place target;
-    TypePtr type;
-};
-
-/*
  * The three parts of a narrow reference, however this one is being carried.
  *
  * A reference that arrived flat - a parameter, or a borrow whose every use passes it on - has each
@@ -141,6 +124,21 @@ struct Gen {
     HashMap<U32, Name> functionNames;
     HashMap<U32, Name> globalNames;
     HashSet<U32> emittedGlobals;
+
+    /*
+     * The globals stored as a one-property box, for the same reason a local is - see prepareLocals.
+     *
+     * A module-level global is a bare `var` and JS has no object to reach one through, so a
+     * reference to one had nothing to name and became a copy with a write-back after it. The box is
+     * what gives it a slot: `{$o: counter, $k: "$v"}` names the storage rather than a snapshot of
+     * it, and the reference works for as long as it lives instead of until the call that took it
+     * returns.
+     *
+     * Whole-program, and it has to be: a global is borrowed in one function and read in another, so
+     * both have to agree about the shape without seeing each other. Collected by boxedGlobals()
+     * before anything is emitted.
+     */
+    HashSet<U32> boxedGlobals;
     Array<Forward> forward;
     Name tableName;
 
@@ -224,8 +222,6 @@ struct Gen {
     // rather than a box holding it - see prepareLocals. A place rooted in one of these reaches the
     // storage directly, which is what makes a borrow that never leaves the function cost nothing.
     HashSet<U32> aliasBorrows;
-
-    Array<Writeback> writebacks;
 
     // The CFG, in the function's own block order.
     Array<ModulePtr<Block>> blocks;
@@ -614,34 +610,48 @@ inline bool refIsFlattened(Gen& g, TypePtr declaredType, ast::BindType conventio
 }
 
 /*
- * Whether a reference to this pointee is the `{$o, $k, $s}` triple rather than a box or the object
- * itself - and it is not the same question as "is the pointee narrow" any more.
+ * Whether a **borrow** of this pointee is the `{$o, $k, $s}` triple rather than the object itself.
  *
- * An object is its own reference on this target, so it is never either. What is left is every value
- * that is not one, and the two forms it can take differ in a property the *type* has to decide,
- * because the callee has only the pointee type:
+ * An object is its own reference on this target, so it is never the triple. Every other pointee is,
+ * unconditionally - and that "unconditionally" is the whole of the rule, because the alternative was
+ * a *copy*.
  *
- *  - a **box** - `{$v: value}` - is a cell that *is* the storage. Writes through it are seen by
- *    everybody holding the box, which is what makes it a sound reference to a whole local, and it is
- *    what an immutable reference to anything can always be, since nothing writes through one and a
- *    snapshot reads the same as the storage for as long as the loan lasts;
- *  - the **triple** names a slot inside something else - `r.$o[r.$k]` - and is the only form that
- *    can name a slot the reference did not create. A field of a record and an element of a host array
- *    are both that, and a box of one is a *copy*, so a write through it goes nowhere.
+ * The alternative was a **box** - `{$v: value}` - taken at the borrow rather than at the storage,
+ * and a box is a cell only where the borrow created the storage it names. A borrow of a field, an
+ * element or a global boxed a *snapshot*, so it needed a commit point, and Design.md's
+ * materialize/write-back is what stood there. A commit point is exactly what a reference must not
+ * need: it makes the form silently wrong for a reference that outlives the call which consumed it -
+ * a returned `&`, one stored in a record, one a callee kept - and this function's `mut` parameter was
+ * how the two forms were kept apart while both existed. Mutability is the wrong question, because
+ * `%a` is written through and carries none.
  *
- * So a mutable reference to a non-object is the triple, always. That is a widening of the rule this
- * target used to have - narrow values only - and Implementation-Containers.md §14 is what forced it:
- * `getMut(xs, i)` hands back a reference to `arr[i]`, which is a slot rather than a cell, and there
- * is no copy-plus-write-back for it because a returned reference has no commit point. It also fixes
- * `&mut p.x` for a wide `x`, which used to be a box written back at the end of the call that
- * consumed it and therefore silently wrong for a reference that outlived one.
+ * The triple names the slot instead - `r.$o[r.$k]`, plus the shift saying where inside that word the
+ * value starts - so it has no commit point at all and can name a slot the reference did not create.
+ * That is what a field of a record, an element of a host array and a whole (boxed) local all are.
  *
- * An immutable reference keeps the older split: the triple where the pointee is narrow, since a
- * narrow value is a bit range and reading one needs the shift either way, and the box otherwise.
+ * **A raw pointer is not this question.** `%a` on this target is the box, and it is not a copy
+ * there: the erased ABI hands a callee *storage it made* - a witness accessor's `%out`, a derived
+ * teardown's `%value`, an unknown-shape argument - and a box is exactly that storage. Which of the
+ * two a reference is, is read off the declaration by both sides, `&T` against `%T`, so neither has
+ * to re-derive it.
+ *
+ * The triple costs nothing the box was saving: both are one object, and neither is allocated where
+ * the borrow's uses let it stay flat - see refPartsOf and prepareLocals. What removes the allocation
+ * on the shape that matters is element access being an intrinsic, not this.
  */
-inline bool refIsTriple(Gen& g, TypePtr pointee, bool mut) {
-    if(isJsObject(g, pointee)) return false;
-    return mut || isNarrowValue(g.global, pointee);
+inline bool refIsTriple(Gen& g, TypePtr pointee) {
+    return !isJsObject(g, pointee);
+}
+
+/*
+ * The same question for a raw pointer, which keeps the older split.
+ *
+ * A narrow value is a bit range, so naming one needs the shift whatever else is true of it and the
+ * triple is the only form that carries one. Anything wider is the box, for the reason above: what a
+ * `%a` refers to here is storage its producer made rather than a slot inside something else.
+ */
+inline bool addressIsTriple(Gen& g, TypePtr pointee) {
+    return !isJsObject(g, pointee) && isNarrowValue(g.global, pointee);
 }
 
 
@@ -660,6 +670,11 @@ bool narrowRefNeedsObject(Gen& g, ModulePtr<Value> reference);
 // Whether the parameter at one argument position of a call takes its reference flat. The emitter and
 // the question above both decide a reference argument's arity from this, and they have to agree.
 bool callParameterIsFlatRef(Gen& g, Value& user, Size index);
+
+// Whether the parameter at one argument position was declared as a value rather than as a reference,
+// which is what decides whether a borrow handed over for it travels as itself or as the box the
+// callee reads a memory-typed value back through. See the definition.
+bool callParameterTakesValue(Gen& g, Value& user, Size index);
 
 // Whether a declared parameter occupies a position at all - see the definition. A unit one does
 // not, which is what a generic function specialized at `{}` produces.

@@ -248,6 +248,21 @@ struct Place {
     U32 local = 0;
     ModulePtr<Global> global = nullptr;
     ModulePtr<Value> pointer = nullptr;
+
+    /*
+     * The path, which is read directly only for what a path *is* - how long it is, which kind each
+     * step is, whether two of them agree.
+     *
+     * **Anything that carries a type along the path goes through `walkPlace` in resolve/place.h.**
+     * That walk is the only one that decides what a step arrives at, and the reason it exists is
+     * that a dozen consumers used to decide it separately and had to agree: `boxedStep` is a rule
+     * about `Field::boxed` that every one of them has to apply, and one that missed it did not fail
+     * to build - `pointeeType` answered null, the next Downcast read constructor zero of nothing,
+     * and the assertion fired somewhere in container.h.
+     *
+     * A new consumer that needs the owner type of a step, or the type a step produces, is asking for
+     * `PlaceStep` rather than for this.
+     */
     ModuleList<Projection, false> projections;
 };
 

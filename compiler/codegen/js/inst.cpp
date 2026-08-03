@@ -36,39 +36,6 @@ void define(Gen& g, ModulePtr<Value> pointer, JsPtr<Expr> value) {
 }
 
 /*
- * The write-back half of a borrow that had to be boxed at the borrow rather than at its storage.
- *
- * Run after the instruction that consumed the borrow, which is the point the loan ends: the callee
- * has finished writing through the box and the field it stood in for has to be told.
- */
-void flushWritebacks(Gen& g, Value& instruction) {
-    if(g.writebacks.isEmpty()) return;
-
-    ModuleList<ModulePtr<Value>, false>* args = nullptr;
-    switch(instruction.kind) {
-        case Value::Call: args = &((InstCall&)instruction).args; break;
-        case Value::CallDyn: args = &((InstCallDyn&)instruction).args; break;
-        case Value::GenCall: args = &((InstGenCall&)instruction).args; break;
-        default: return;
-    }
-
-    for(auto arg: args->contents(g.local)) {
-        for(Size i = 0; i < g.writebacks.size(); i++) {
-            if(g.writebacks[i].borrow != arg) continue;
-
-            auto entry = g.writebacks[i];
-            g.writebacks.remove(i);
-
-            auto committed = field(g, entry.box, g.boxField);
-            if(!assignPlace(g, entry.target, entry.type, committed)) {
-                emitExpr(g, assign(g, placeExpr(g, entry.target), committed));
-            }
-            break;
-        }
-    }
-}
-
-/*
  * Putting a value where it was not - Design-Memory §4.1's two relocations.
  *
  * Which of them applies was settled in the resolver: a TrivialSink value *is* its bytes, and on
@@ -578,13 +545,34 @@ void genDrop(Gen& g, InstDrop& instruction) {
  * and takes the object. Where the two agree - every specialized call - reading the parameter costs a
  * lookup and says the same thing.
  */
-void pushArg(Gen& g, Array<JsPtr<Expr>>& args, ModulePtr<Value> arg, bool flat) {
+void pushArg(Gen& g, Array<JsPtr<Expr>>& args, ModulePtr<Value> arg, bool flat, bool value) {
     if(arg && flat) {
         auto parts = refPartsOf(g, arg);
         args.push(parts.owner);
         args.push(parts.key);
         if(parts.scale) args.push(parts.scale);
         return;
+    }
+
+    /*
+     * A reference handed over where the callee declared a value - see callParameterTakesValue. What
+     * travels is the box the callee reads the value back through, and the reference is where the
+     * value comes from: `{$v: r.$o[r.$k]}`.
+     *
+     * A copy, and so it was before this target had the triple at all - the parameter is by value, so
+     * nothing is written through the box and nothing has to be committed back. Removing it needs the
+     * callee to take the reference, which is a convention change rather than a form choice.
+     */
+    if(arg && value) {
+        auto type = g.local[arg]->type;
+        if(type && g.global[type]->kind == Type::Borrow) {
+            auto pointee = ((BorrowType*)g.global[type])->to;
+            if(refIsTriple(g, pointee)) {
+                auto parts = refPartsOf(g, arg);
+                args.push(boxOf(g, elementAt(g, parts.owner, parts.key)));
+                return;
+            }
+        }
     }
 
     args.push(useValue(g, arg));
@@ -596,7 +584,8 @@ void genCall(Gen& g, ModulePtr<Value> pointer, InstCall& instruction) {
     Size index = 0;
     for(auto arg: instruction.args.contents(g.local)) {
         if(!callParameterIsAbsent(g, instruction, index)) {
-            pushArg(g, args, arg, callParameterIsFlatRef(g, instruction, index));
+            pushArg(g, args, arg, callParameterIsFlatRef(g, instruction, index),
+                    callParameterTakesValue(g, instruction, index));
         }
 
         index++;
@@ -626,7 +615,8 @@ void genCallDyn(Gen& g, ModulePtr<Value> pointer, InstCallDyn& instruction) {
     Size index = 0;
     for(auto arg: instruction.args.contents(g.local)) {
         if(!callParameterIsAbsent(g, instruction, index)) {
-            pushArg(g, args, arg, callParameterIsFlatRef(g, instruction, index));
+            pushArg(g, args, arg, callParameterIsFlatRef(g, instruction, index),
+                    callParameterTakesValue(g, instruction, index));
         }
 
         index++;
@@ -720,7 +710,7 @@ void genGenCall(Gen& g, ModulePtr<Value> pointer, InstGenCall& instruction) {
         // type variable and has neither the width to mask with nor the shift to apply.
         if(parameter && functionFlattensRefs(g, *function) &&
            refIsFlattened(g, parameter->type, parameter->convention)) {
-            pushArg(g, declared, arg, true);
+            pushArg(g, declared, arg, true, false);
             argIndex++;
             continue;
         }
@@ -838,35 +828,25 @@ bool genFunValueWord(Gen& g, Value& instruction, InstInit& init) {
 }
 
 /*
- * A borrow or an address, which is free except where what is named is not an object.
- *
- * Free for the reason §2.5 gives: the checker already proved nobody else holds the storage, so
- * handing over the object reference is what hand-written JS does anyway. A whole local that is not
- * an object is *stored* boxed - see prepareLocals - so the box is already there and this is still
- * free; a field is not, so one is made here and written back after the call that consumes it.
- */
-/*
  * A reference that names a slot - Design.md's tier 2, as this target spells it.
  *
  * Native carries an address plus the shift of the field within the word it names. There are no
  * addresses here, but a place already *is* an (object, property) pair, so the reference is that pair
  * reified plus the shift: `{$o: owner, $k: "field", $s: 1}`.
  *
- * The point of it is what it is not - a copy with a write-back. Those two are the box `genBorrow`
- * makes below, and they only work while the loan ends at the call that consumed them; this one has
- * no commit point at all, so a callee may keep it, return it through a `return` parameter, or store
- * it in a record that outlives the call, exactly as on native.
+ * The point of it is what it is not - a copy with a write-back. That was the box this target used to
+ * make for the immutable half, and it only worked while the loan ended at the call that consumed it;
+ * this one has no commit point at all, so a callee may keep it, return it through a `return`
+ * parameter, or store it in a record that outlives the call, exactly as on native.
  *
  * A whole local is the same shape: prepareLocals boxed it, so the pair is that box and `$v`.
  *
- * Which references take this form is `refIsTriple`, and it is every *mutable* one of a non-object
- * since Implementation-Containers.md §14 - a host array's element is a slot, and a box of one is a
- * copy. `mut` is therefore a parameter here rather than a property of the place: an `InstAddress`
- * produces a `%a` that carries no mutability and keeps the narrow-only rule.
+ * Which references take this form is `refIsTriple` for a borrow and `addressIsTriple` for a raw
+ * pointer - mutability is not a question in either, which is what removed the write-back.
  */
 static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, const Place& place,
-                         TypePtr type, bool mut) {
-    if(!refIsTriple(g, type, mut)) return false;
+                         TypePtr type, bool triple) {
+    if(!triple) return false;
 
     auto narrow = isNarrowValue(g.global, type);
     auto projections = place.projections;
@@ -896,149 +876,100 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
         }
     };
 
+    /*
+     * Whether the reference this place is rooted in is a triple already, which is what makes passing
+     * it on rather than taking it apart correct. A `%a` whose pointee is not narrow is the box that
+     * stands in for an address, and handing that on where a triple is wanted names the wrong thing.
+     */
+    auto rootIsTriple = [&](TypePtr referenced) {
+        if(!referenced) return false;
+        if(g.global[referenced]->kind == Type::Borrow) {
+            return refIsTriple(g, ((BorrowType*)g.global[referenced])->to);
+        }
+
+        return addressIsTriple(g, pointeeType(g.global, referenced));
+    };
+
     if(!count) {
-        if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
+        if((place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) &&
+           rootIsTriple(g.local[place.pointer]->type)) {
             reborrow(place.pointer);
             return true;
         }
 
         if(place.root == PlaceRoot::Local && place.local < g.function->localCount()) {
             auto slot = g.function->localAt(g.local, place.local);
-            if(slot.borrowed) {
+            if(slot.borrowed && slot.convention == ast::BindType::Ref && refIsTriple(g, slot.type)) {
                 reborrow(slot.value);
                 return true;
             }
         }
     }
 
+    /*
+     * The pair, read off the walk's own output rather than re-derived from the projections.
+     *
+     * `placeOwner` already produces the expression a read of this place would evaluate - `s.flags`,
+     * `xs[i]`, `box.$v`, `r.$o[r.$k]` - stopping at the word where the tail of the path is a bit
+     * range, and the bits it reports say where inside that word the value sits. Every one of those
+     * is `owner.key` or `owner[key]` in the tree, so taking the pair apart is reading two children
+     * of one node.
+     *
+     * Doing it this way is the point rather than a shortcut: the reference has to name the slot the
+     * *read* would have used, and a second walk that decided which projection was the last nameable
+     * step could disagree with the first - which is what it did, for a payload reached through a
+     * `Downcast` and for a whole boxed global. See Implementation-Simplification.md D, which is this
+     * argument applied to the other twelve walks.
+     */
     JsPtr<Expr> owner = nullptr;
     JsPtr<Expr> keyExpr = nullptr;
     PlaceBits bits;
 
-    // The word the reference names, when nothing on the path is an object: whatever the root is.
-    auto rootWord = [&]() -> bool {
-        if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
-            // Reborrowing through a reference: it already names the word, and the shift this body
-            // walked adds to the one it arrived with. That addition is what makes `&f.optionA` inside
-            // a callee reach the caller's bit rather than bit zero of something.
-            auto parts = refPartsOf(g, place.pointer);
-            owner = parts.owner;
-            keyExpr = parts.key;
-            return true;
-        }
+    PlaceBits walked;
+    auto word = placeOwner(g, place, walked);
 
-        if(place.root != PlaceRoot::Local || place.local >= g.function->localCount()) return false;
-
-        auto slot = g.function->localAt(g.local, place.local);
-        if(slot.borrowed && refIsTriple(g, slot.type, true)) {
-            auto parts = refPartsOf(g, slot.value);
-            owner = parts.owner;
-            keyExpr = parts.key;
-            return true;
-        }
-
-        // A local, which prepareLocals boxed precisely so that a reference to it has something to
-        // name - so the *box* is the owner. `placeExpr` would give its contents.
-        if(place.local >= g.boxed.size() || !g.boxed[place.local]) return false;
-
-        owner = useValue(g, slot.value);
-        keyExpr = asExpr(g, make<StringExpr>(g, g.boxField.text));
-        return true;
-    };
-
-    /*
-     * The last resort, and what makes this function total.
-     *
-     * Whether a reference is carried as a triple is decided from the *pointee type* by both sides of
-     * a call, and neither can see the other - so a caller that cannot name the slot still has to
-     * produce three arguments. A box is a slot: `{$v: value}` with `$v` as the key names it exactly,
-     * and the write-back is what puts the value back where it came from at the end of the loan.
-     *
-     * What it does not survive is a reference that outlives the call, which is the property the triple
-     * exists for - so this is for the places that have no slot to name at all. A module-level global
-     * is the one that occurs: it is a bare `var` here, and JS has no object to reach one through.
-     * Being a *copy*, it also holds the decoded value of a bit range rather than the word, which is
-     * why the range is dropped along with it.
-     */
-    auto boxedWord = [&]() {
-        auto box = declare(g, valueName(g, instruction), boxOf(g, placeExpr(g, place)));
-
-        g.writebacks.push(Writeback { value, box, place, type });
-        owner = box;
-        keyExpr = asExpr(g, make<StringExpr>(g, g.boxField.text));
-        bits = PlaceBits {};
-    };
-
-    if(!count) {
-        if(!rootWord()) boxedWord();
-    } else if(projections.get(g.local, count - 1).kind == ProjectionKind::Index) {
-        /*
-         * An element of a host array - Implementation-Containers.md §14.1.
-         *
-         * The one path whose last step is already `owner[key]` in the emitted text, so the reference
-         * is that pair with nothing computed: the array is the owner and the index is the key. It is
-         * also the case the widened rule exists for - an element is a slot rather than a cell, and a
-         * box of one is a copy nothing writes back.
-         *
-         * There is no bit range under it, on either half. An element occupies a slot of its own
-         * whatever its width, since a host array is not a packed word - §11's narrow packing is a
-         * `Uint32Array` and a Repr rather than bits inside an element.
-         */
-        owner = placeExpr(g, place, count - 1);
-        keyExpr = useValue(g, projections.get(g.local, count - 1).value);
-    } else if(projections.get(g.local, count - 1).kind != ProjectionKind::Field) {
-        // A path this walk has no property to name the end of - a Deref, a Discriminant. The box
-        // stands in, on the terms boxedWord states.
-        boxedWord();
+    if(!walked.foldedTag && word && g.base[word]->kind == Expr::Field) {
+        auto& access = (FieldExpr&)*g.base[word];
+        owner = access.object;
+        keyExpr = asExpr(g, make<StringExpr>(g, access.field.text));
+    } else if(!walked.foldedTag && word && g.base[word]->kind == Expr::Index) {
+        auto& access = (IndexExpr&)*g.base[word];
+        owner = access.array;
+        keyExpr = access.index;
     } else {
         /*
-         * The split point: the longest prefix of the path whose value is still an object, because
-         * that is the last thing with a property to name. Everything past it is inside one `number`
-         * and contributes a bit offset rather than a property.
+         * The last resort, and what makes this function total.
          *
-         * `&s.flags.a`, where `Settings` is an object and `flags` a scalarized `Flags`, is the case
-         * that makes this a search rather than "the last projection": the reference has to be
-         * `{$o: s, $k: "flags", $s: 0}`, so both remaining steps are offsets. Splitting at the last
-         * projection would name a property of a number.
+         * Whether a reference is carried as a triple is decided from the *pointee type* by both
+         * sides of a call, and neither can see the other - so a caller that cannot name the slot
+         * still has to produce the parts. A box is a slot: `{$v: value}` with `$v` as the key names
+         * it exactly.
+         *
+         * It is a *copy*, though: what it names is a cell this instruction created rather than the
+         * storage the place does, so a write through it reaches nobody. The write-back that used to
+         * follow is the form refIsTriple exists to remove - correct only while the loan ends at the
+         * call that consumed it, which nothing here can know - so this is reported instead.
+         *
+         * What reaches it is a place whose read is not a property access at all: a bare `var`. Every
+         * one of those is now storage something else boxed - prepareLocals for a local, genGlobal
+         * for a global - so this is a gap rather than a case.
          */
-        Size walkedTo = count;
-        while(walkedTo > 0 && !isJsObject(g, placeType(g, place, walkedTo - 1))) walkedTo--;
+        g.context.diagnostics.error("the JS target cannot make a reference to storage that is not reachable through an object - it needs the boxed storage of Implementation-Simplification.md B"_v,
+                                    instruction.source);
 
-        auto named = true;
-
-        if(walkedTo > 0) {
-            auto atObject = walkedTo - 1;
-            auto at = projections.get(g.local, atObject);
-            auto ownerType = placeType(g, place, atObject);
-
-            if(at.kind != ProjectionKind::Field || !ownerType ||
-               g.global[ownerType]->kind != Type::Tup) {
-                boxedWord();
-                named = false;
-            } else {
-                // The property the walk would have projected, which for a co-packed field is the word
-                // it shares rather than a name of its own - and then the shift below is what says
-                // which bits of that word the reference means.
-                owner = placeExpr(g, place, atObject);
-                keyExpr = asExpr(g, make<StringExpr>(g, fieldProperty(g, ownerType, at.index).name.text));
-            }
-        } else if(!rootWord()) {
-            boxedWord();
-            named = false;
-        }
-
-        // Everything from the word onwards, as bit offsets within it. `placeOwner` over the whole
-        // path accumulates exactly these, since a step into an object contributes none.
-        PlaceBits walked;
-        if(named) placeOwner(g, place, walked);
-        bits.offset = walked.offset;
-        bits.scale = walked.scale;
-
-        // Only where the pointee is one. A whole value occupies what it names, so there is no range
-        // to record and `bits.valid()` has to stay false - see refIsTriple, which now sends mutable
-        // references to wide values down this same path.
-        if(narrow) bits.width = narrowWidth(g, placeType(g, place));
+        auto box = declare(g, valueName(g, instruction), boxOf(g, placeExpr(g, place)));
+        owner = box;
+        keyExpr = asExpr(g, make<StringExpr>(g, g.boxField.text));
+        walked = PlaceBits {};
     }
+
+    bits.offset = walked.offset;
+    bits.scale = walked.scale;
+
+    // Only where the pointee is narrow. A whole value occupies what it names, so there is no range
+    // to record and `bits.valid()` has to stay false - see refIsTriple, which sends references to
+    // wide values down this same path.
+    if(narrow) bits.width = narrowWidth(g, type);
 
     /*
      * The three parts, as themselves where that is already safe and in a variable where it is not.
@@ -1091,35 +1022,36 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
     return true;
 }
 
-void genBorrow(Gen& g, ModulePtr<Value> value, Value& instruction, const Place& place, bool mut) {
+/*
+ * A borrow or an address, which is free except where what is named is not an object.
+ *
+ * Free for the reason §2.5 gives: the checker already proved nobody else holds the storage, so
+ * handing over the object reference is what hand-written JS does anyway. A borrow of anything that
+ * is not an object goes through genNarrowRef and names its slot; an address keeps the box that
+ * stands in for one, which is what the erased ABI reads through - see refIsTriple.
+ */
+void genBorrow(Gen& g, ModulePtr<Value> value, Value& instruction, const Place& place, bool address) {
     auto type = placeType(g, place);
-    auto projections = place.projections;
+    auto triple = address ? addressIsTriple(g, type) : refIsTriple(g, type);
 
-    if(genNarrowRef(g, value, instruction, place, type, mut)) return;
+    if(genNarrowRef(g, value, instruction, place, type, triple)) return;
 
     /*
      * An object, or a path that ends in one: the reference *is* the object, so this is a name and
-     * nothing else. A borrow prepareLocals proved never leaves this function is the same statement
-     * about a scalar - the emitted name of the storage, with no box between.
+     * nothing else. A local prepareLocals boxed is the same statement about a scalar - the box was
+     * made at the storage rather than here, so naming it is all an address of one is.
      *
      * An immutable borrow of a wide value is *not* elided into a snapshot here, and it was worth
-     * trying: nothing may write through one, so a copy reads the same, and it would remove the object
-     * this target allocates per `xs[i]`. What it needs is the callee's agreement - the box is also
-     * how a memory-typed *value* parameter arrives - and that is a per-parameter convention decided
-     * from the declaration, the way refIsFlattened is, rather than something a borrow can settle on
-     * its own. Implementation-Containers.md §14 records it as the read-side cost still outstanding.
+     * trying: nothing may write through one, so a copy reads the same. What it needs is the callee's
+     * agreement - a snapshot is not a reference, so both sides have to decide it from the
+     * declaration, the way refIsFlattened is - rather than something a borrow can settle on its own.
      */
     if(isJsObject(g, type) || g.aliasBorrows.contains(U32(value))) {
         define(g, value, placeExpr(g, place));
         return;
     }
 
-    /*
-     * A scalar named as a whole. Where that is a local, prepareLocals already stored it boxed, so
-     * the reference is the box and this instruction still emits nothing - which is what keeps
-     * §3.3's "a borrow costs nothing" true for the `&counter: Int` that appears in ordinary
-     * signatures. Re-borrowing something that is already a reference is the same statement.
-     */
+    auto projections = place.projections;
     if(projections.isEmpty()) {
         if(place.root == PlaceRoot::Local && place.local < g.function->localCount() &&
            place.local < g.boxed.size() && g.boxed[place.local]) {
@@ -1133,12 +1065,18 @@ void genBorrow(Gen& g, ModulePtr<Value> value, Value& instruction, const Place& 
         }
     }
 
-    // A scalar reached through a path - `&p.x`, or a module-level global. Nothing behind that
-    // storage is a reference already, so one is made here and written back once the loan ends.
-    auto box = declare(g, valueName(g, instruction), boxOf(g, placeExpr(g, place)));
-
-    g.values.add(U32(value), box);
-    g.writebacks.push(Writeback { value, box, place, type });
+    /*
+     * An address of storage that is not already a box, which is the one shape left with nothing to
+     * name: the box is made here and it is a *copy*, so a write through it reaches nobody.
+     *
+     * Reported rather than emitted, because the write-back that used to stand here was the form
+     * refIsTriple exists to remove - it is only correct while the loan ends at the call that
+     * consumed it, and nothing here can know that it does. Every address a program produces is of a
+     * whole local, which prepareLocals boxed, so this is a gap rather than a case.
+     */
+    g.context.diagnostics.error("the JS target cannot take the address of storage that is not a whole local yet - it needs the boxed storage of Implementation-Simplification.md B"_v,
+                                instruction.source);
+    define(g, value, boxOf(g, placeExpr(g, place)));
 }
 
 /*
@@ -1464,14 +1402,13 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             break;
         }
         case Value::Borrow:
-            // Whether the reference names a slot or holds a copy is decided by the borrow's own
-            // mutability - see refIsTriple. An `Address` produces a `%a`, which carries none, so it
-            // keeps the narrow-only rule the target has always had.
-            genBorrow(g, value, instruction, ((InstBorrow&)instruction).place,
-                      ((InstBorrow&)instruction).mut);
+            // Whether the reference names a slot or is the box that stands in for an address is
+            // decided by which of the two a `&T` and a `%T` are - see refIsTriple. The borrow's
+            // own mutability is not read at all, which is what removed the write-back.
+            genBorrow(g, value, instruction, ((InstBorrow&)instruction).place, false);
             break;
         case Value::Address:
-            genBorrow(g, value, instruction, ((InstAddress&)instruction).place, false);
+            genBorrow(g, value, instruction, ((InstAddress&)instruction).place, true);
             break;
         case Value::Move:
             // Nothing to emit beyond naming what moved: the object stays where it is, and what
@@ -1651,8 +1588,6 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
                                         instruction.source);
             break;
     }
-
-    flushWritebacks(g, instruction);
 }
 
 } // namespace js

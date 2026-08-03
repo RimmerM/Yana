@@ -1,7 +1,7 @@
 "use strict";
 // ResolveTest
 function xOf(p) {
-  return { $v: p.x };
+  return { $o: p, $k: "x", $s: 1 };
 }
 
 function larger(a$o, a$k, a$s, b$o, b$k, b$s) {
@@ -18,5 +18,5 @@ function main() {
   var v6 = xOf({ x: 10, y: 20 });
   var v17 = larger({ $v: 1 }, "$v", 1, { $v: 2 }, "$v", 1);
   v17.$o[v17.$k] = 40;
-  return v6.$v + 40 | 0;
+  return v6.$o[v6.$k] + 40 | 0;
 }

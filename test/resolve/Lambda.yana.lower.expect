@@ -51,28 +51,6 @@ drop$(Int) -> Int<complex>(%value: Ptr) {
   }
 }
 
-mapMemory<complex>(%size: Long): Ptr {
-  b_0 {
-    %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: Long
-    %v_1 = cmp_ilt %result, 0: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    %v_4 = bitcast 0: Ptr
-    ret %v_4
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = bitcast %result: Ptr
-    ret %v_6
-  }
-}
-
 ResolveTest.lambda$5<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = add %x, 10: Int
@@ -183,29 +161,41 @@ consume<complex>(%xs: Ptr): Int {
 
 initHeap<complex>() {
   b_0 {
-    %region = call_complex mapMemory, 4194304: Ptr
-    %v_1 = bitcast %region: Long
-    %v_2 = cmp_eq %v_1, 0: Int
-    %v_3 = imm 256: Long
-    je %v_2, b_4, b_5
+    %result = syscall 9, 0, 4194304, 3, 34, 18446744073709551615, 0: Long
+    %v_1 = cmp_ilt %result, 0: Int
+    %v_2 = imm 256: Long
+    je %v_1, b_3, b_4
   }
 
   b_4 {
-    ret 
+    %v_5 = bitcast %result: Ptr
+    jmp b_6
   }
 
-  b_5 {
+  b_3 {
+    %v_7 = bitcast 0: Ptr
     jmp b_6
   }
 
   b_6 {
-    setpattern %region, %v_3, 0
-    %v_7 = bitcast %region: Ptr
-    store @heapFree, %v_7, 8
-    %v_8 = add %region, %v_3: Ptr
-    store @heapNext, %v_8, 8
-    %v_9 = add %region, 4194304: Ptr
-    store @heapLimit, %v_9, 8
+    %region = phi [b_4, %v_5], [b_3, %v_7]: Ptr
+    %v_8 = bitcast %region: Long
+    %v_9 = cmp_eq %v_8, 0: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    setpattern %region, %v_2, 0
+    %v_12 = bitcast %region: Ptr
+    store @heapFree, %v_12, 8
+    %v_13 = add %region, %v_2: Ptr
+    store @heapNext, %v_13, 8
+    %v_14 = add %region, 4194304: Ptr
+    store @heapLimit, %v_14, 8
+    ret 
+  }
+
+  b_10 {
     ret 
   }
 }
@@ -478,40 +468,46 @@ main<complex>(): Int {
     %v_23 = add %step, 16: Ptr
     store %v_23, 2, 4
     copy %step, %v_20, 16
-    %h = call_complex runStep, %step, 6: Int
+    %v_24 = add %step, 8: Ptr
+    %v_25 = load %step, 8: Ptr
+    %v_26 = load %v_24, 8: Ptr
+    %v_27 = call_complex %v_25, %v_26, 6: Int
+    %v_28 = add %step, 16: Ptr
+    %v_29 = loads %v_28, 4: Int
+    %v_30 = imul %v_27, %v_29: Int
     call_complex drop$Step, %step
     call_complex reclaim$Step, %step
-    %v_24 = alloca 16, 8: Ptr
-    store %v_24, ResolveTest.lambda$5, 8
-    %v_25 = bitcast 0: Ptr
-    %v_26 = add %v_24, 8: Ptr
-    store %v_26, %v_25, 8
-    %i = call_complex twiceGeneric(Int), %v_24, 1: Int
-    %v_27 = alloca 16, 8: Ptr
-    store %v_27, funvalue$consume, 8
-    %v_28 = bitcast 0: Ptr
-    %v_29 = add %v_27, 8: Ptr
-    store %v_29, %v_28, 8
-    %j = call_complex run, %v_27: Int
+    %v_31 = alloca 16, 8: Ptr
+    store %v_31, ResolveTest.lambda$5, 8
+    %v_32 = bitcast 0: Ptr
+    %v_33 = add %v_31, 8: Ptr
+    store %v_33, %v_32, 8
+    %i = call_complex twiceGeneric(Int), %v_31, 1: Int
+    %v_34 = alloca 16, 8: Ptr
+    store %v_34, funvalue$consume, 8
+    %v_35 = bitcast 0: Ptr
+    %v_36 = add %v_34, 8: Ptr
+    store %v_36, %v_35, 8
+    %j = call_complex run, %v_34: Int
     %counter = call_complex allocateHeap, 4: Ptr
     store %counter, 100, 4
-    %v_30 = alloca 16, 8: Ptr
-    store %v_30, ResolveTest.lambda$6, 8
-    %v_31 = bitcast 0: Ptr
-    %v_32 = add %v_30, 8: Ptr
-    store %v_32, %v_31, 8
-    call_complex runOn, %v_30, %counter
-    %v_33 = add %a, %b: Int
-    %v_34 = add %v_33, %c: Int
-    %v_35 = add %v_34, %d: Int
-    %v_36 = add %v_35, %e: Int
-    %v_37 = add %v_36, %h: Int
-    %v_38 = add %v_37, %i: Int
-    %v_39 = add %v_38, %j: Int
-    %v_40 = loads %counter, 4: Int
+    %v_37 = alloca 16, 8: Ptr
+    store %v_37, ResolveTest.lambda$6, 8
+    %v_38 = bitcast 0: Ptr
+    %v_39 = add %v_37, 8: Ptr
+    store %v_39, %v_38, 8
+    call_complex runOn, %v_37, %counter
+    %v_40 = add %a, %b: Int
+    %v_41 = add %v_40, %c: Int
+    %v_42 = add %v_41, %d: Int
+    %v_43 = add %v_42, %e: Int
+    %v_44 = add %v_43, %v_30: Int
+    %v_45 = add %v_44, %i: Int
+    %v_46 = add %v_45, %j: Int
+    %v_47 = loads %counter, 4: Int
     call_complex freeHeap, %counter
-    %v_41 = add %v_39, %v_40: Int
-    ret %v_41
+    %v_48 = add %v_46, %v_47: Int
+    ret %v_48
   }
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "builder.h"
+#include "place.h"
 #include "../parse/ast.h"
 
 /*
@@ -1259,16 +1260,10 @@ void ExprResolver::eachFixedElement(const Place& array, TypePtr element, U32 len
 // instance's implementation - with a unique name for printing and lowering.
 Function* addAnonymousFunction(Module& module, StringId name, LocationId source);
 
-// What storage a place names, and what that storage holds after its projections are followed.
-// Free functions rather than only ExprResolver methods because the drop pass asks the same
-// question of a place it did not build, long after the resolver that built it is gone.
-TypePtr placeRootType(Module& module, Function& function, const Place& place);
-
-// `limit` stops the walk after that many projections, which is how the owner of a place's *last*
-// projection is asked for - the question packed-field borrowing needs, since whether a field may be
-// co-packed is a fact about the tuple it is in rather than about the field's own type.
-TypePtr placeType(Module& module, Function& function, const Place& place,
-                  Size limit = maxLimit<Size>);
+// What storage a place names, and what that storage holds after its projections are followed, are
+// both in resolve/place.h - the one walk every consumer of a Place shares. Free functions rather
+// than only ExprResolver methods because the drop pass asks the same question of a place it did not
+// build, long after the resolver that built it is gone.
 
 /*
  * Whether a place names a field a target may co-pack, and therefore one whose borrow needs

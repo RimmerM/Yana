@@ -49,7 +49,13 @@ function inner(flag, v) {
 }
 
 function outer(flag, v) {
-  return inner(flag, v);
+  var v4;
+  if (flag) {
+    v4 = v();
+  } else {
+    v4 = 0;
+  }
+  return v4;
 }
 
 function pick(which, a, b) {
@@ -97,22 +103,19 @@ function beforeLoop(count, v) {
 }
 
 function capturing() {
-  return inner(1, ResolveTest_deferred$0$make({ n: 5 }));
+  return ResolveTest_deferred$0$make({ n: 5 })();
 }
 
 function mutableCapture() {
-  return inner(1, ResolveTest_deferred$1$make({ n: { $o: { $v: 41 }, $k: "$v", $s: 1 } }));
+  return ResolveTest_deferred$1$make({ n: { $o: { $v: 41 }, $k: "$v", $s: 1 } })();
 }
 
 function main() {
-  var score = 0;
-  if (inner(0, ResolveTest_deferred$2) === 0) {
-    score = score + 1 | 0;
-  }
-  if (inner(1, ResolveTest_deferred$3) === 2) {
+  var score = 1;
+  if (ResolveTest_deferred$3() === 2) {
     score = score + 2 | 0;
   }
-  if (pick(0, ResolveTest_deferred$4, ResolveTest_deferred$5) === 4) {
+  if (ResolveTest_deferred$4() === 4) {
     score = score + 4 | 0;
   }
   if (orDefault_Int(1, ResolveTest_deferred$6) === 1) {
@@ -130,25 +133,29 @@ function main() {
   if (mutableCapture() === 82) {
     score = score + 128 | 0;
   }
-  if (or_q(7, ResolveTest_deferred$9) === 7) {
-    score = score + 256 | 0;
-  }
-  if (or_q(0, ResolveTest_deferred$10) === 640) {
+  score = score + 256 | 0;
+  if (ResolveTest_deferred$10() === 640) {
     score = score + 512 | 0;
   }
-  if (pointOr(0, ResolveTest_deferred$11) === 0) {
-    score = score + 1024 | 0;
-  }
-  if (pointOr(1, ResolveTest_deferred$12) === 2) {
+  score = score + 1024 | 0;
+  if (ResolveTest_deferred$12().x === 2) {
     score = score + 2048 | 0;
   }
-  if (inner(0, ResolveTest_deferred$13) === 0) {
-    score = score + 4096 | 0;
-  }
-  if (inner(1, ResolveTest_deferred$14) === 5) {
+  score = score + 4096 | 0;
+  if (ResolveTest_deferred$14() === 5) {
     score = score + 8192 | 0;
   }
-  if (beforeLoop(3, ResolveTest_deferred$16) === 16387) {
+  var total = ResolveTest_deferred$16();
+  var i = 0;
+  L0: for (;;) {
+    if (i < 3) {
+      total = total + 1 | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  if (total === 16387) {
     score = score + 16384 | 0;
   }
   if (effects === 51622) {

@@ -1,5 +1,5 @@
 "use strict";
-var liveNodes = 0;
+var liveNodes = { $v: 0 };
 
 // Core
 function add_eq_Int(target$o, target$k, target$s, amount) {
@@ -50,10 +50,7 @@ function leftOf(t) {
     drop$Tree(absent);
     v20 = t.$p;
   } else {
-    var v13 = { $v: t.left };
-    var v15 = unwrapOr_Tree(v13, absent);
-    t.left = v13.$v;
-    var v17 = total(v15);
+    var v17 = total(unwrapOr_Tree({ $v: t.left }, absent));
     drop$Tree(absent);
     v20 = v17;
   }
@@ -100,9 +97,7 @@ function buildTree() {
 }
 
 function track(id) {
-  var v4 = { $v: liveNodes };
-  add_eq_Int(v4, "$v", 1, 1);
-  liveNodes = v4.$v;
+  add_eq_Int(liveNodes, "$v", 1, 1);
   return { id: id };
 }
 
@@ -135,7 +130,7 @@ function buildChain() {
 function main() {
   var values = buildList() + buildTree() | 0;
   var chained = buildChain();
-  if (liveNodes !== 0) {
+  if (liveNodes.$v !== 0) {
     return -1;
   } else {
     return values + chained | 0;
@@ -143,9 +138,7 @@ function main() {
 }
 
 function Drop_Tracked_drop(value) {
-  var v4 = { $v: liveNodes };
-  sub_eq_Int(v4, "$v", 1, 1);
-  liveNodes = v4.$v;
+  sub_eq_Int(liveNodes, "$v", 1, 1);
   return;
 }
 
