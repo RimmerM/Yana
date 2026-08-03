@@ -180,10 +180,11 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
     // RegScratch::resetRecords.
     RegScratch scratch;
     FunctionRegs registers;
+    MachineFunction machine;
 
     for(auto functionPointer: module.functions) {
         auto function = base[functionPointer];
-        MachineFunction machine;
+        machine.reset();
         transformFunction(context, base, *function, machine);
 
         scratch.resetRecords();
@@ -846,12 +847,25 @@ static bool runTest(const String& path, StringView source, bool generate) {
 
 int main(int argc, const char** argv) {
     auto generate = argc > 1 && String(argv[1]) == "generate";
+
+    /*
+     * An argument that is not `generate` names the one fixture to run, by prefix.
+     *
+     * For when the suite cannot get far enough to reach the fixture in question: an assertion or a
+     * crash in an earlier one takes the whole run down, and "does *this* fixture pass" is then
+     * unanswerable without it. Matched as a prefix of the file name so that
+     * `YanaResolveTest Subscript` runs the whole family.
+     */
+    StringView only;
+    if(argc > 1 && !generate) only = stringView(String(argv[1]));
+
     Array<String> tests;
 
     listDirectory("resolve", [&](const String& name, bool directory) {
         if(directory) return;
         if(auto dot = findLastChar(stringView(name), '.')) {
             if(String(dot + 1, name.text() + name.size() - dot - 1) == "yana") {
+                if(only.length && !stringView(name).startsWith(only)) return;
                 tests.push(String("resolve/") + name);
             }
         }

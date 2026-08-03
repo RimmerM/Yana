@@ -671,7 +671,7 @@ bool ReprTable::packableHere(TypePtr type, U32 depth) {
 
 bool ReprTable::scalarizeTuple(TupType& tuple, Repr& into) {
     PackedRun run;
-    Array<U32> offsets;
+    PackOffsets offsets;
     if(!scalarLayout(global, tuple, run, &offsets)) return false;
 
     auto budget = min(target.maxPackBits, kMaxPackBits);
@@ -737,7 +737,7 @@ void ReprTable::placementOrder(TupType& tuple, Array<U16>& into) {
         return;
     }
 
-    Array<U16> packed;
+    PackOrder packed;
     for(U16 i = 0; i < count; i++) {
         if(target.packFields && packCandidate(global, tuple, i)) packed.push(i);
         else into.push(i);
@@ -804,7 +804,7 @@ Size ReprTable::packWord(TupType& tuple, Repr& into, Buffer<const U16> order, Si
     }
 
     auto budget = min(target.maxPackBits, kMaxPackBits);
-    Array<U32> offsets;
+    PackOffsets offsets;
     auto placed = packBits(global, tuple, toBuffer(run), budget, &offsets);
 
     auto used = placed.span;

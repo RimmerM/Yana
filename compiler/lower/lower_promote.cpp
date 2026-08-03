@@ -352,10 +352,12 @@ LowerInstPhi* makePhi(LowerModule& module, LowerBlock& block, LowerType type) {
  */
 void rewriteBlock(LowerBase base, LowerModule& module, LowerBlock& block, Array<Slot>& slots,
                   HashMap<U32, U32>& index) {
-    Array<LowerPtr<LowerValue>> current;
+    // Both inline, and both per block: the value each promoted slot holds on entry, and the
+    // instructions the rebuild below reads while writing the list it read them from.
+    SmallArray<LowerPtr<LowerValue>, 16> current;
     for(auto& slot: slots) current.push(slot.entry[block.index]);
 
-    Array<LowerPtr<LowerInst>> original;
+    SmallArray<LowerPtr<LowerInst>, 32> original;
     for(auto instPtr: block.instructions.contents(base)) original.push(instPtr);
 
     block.instructions.clear();
@@ -499,7 +501,9 @@ void removeDeadImmediates(LowerBase base, Region<LowerRegion>& arena, LowerFunct
         for(auto blockPtr: fun.blocks.contents(base)) {
             auto block = base[blockPtr];
 
-            Array<LowerPtr<LowerInst>> kept;
+            // Inline: one of these per block per round of a loop that runs until nothing changes,
+            // holding the instructions of one block.
+            SmallArray<LowerPtr<LowerInst>, 32> kept;
             auto dropped = false;
 
             for(auto instPtr: block->instructions.contents(base)) {

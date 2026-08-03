@@ -1,0 +1,72 @@
+{-
+   The index expression of a subscript, and how long it lives.
+
+   `resolveSubscript` has to look at the written operand twice - once to ask whether it is a range,
+   which decides between `xs[i]` and `xs[a..b]`, and once to resolve it - and the two questions are
+   asked at different points. Reading the operand out of the argument list with the ordinary
+   iterator gives a *copy*, because a parse list yields its entries by value; keeping the address of
+   that copy and reading it after the loop is reading a dead stack slot.
+
+   Nothing about that is visible in an unoptimized build, where the slot is still standing when the
+   second read happens. From `-O1` upwards the slot is reused and the second read finds whatever was
+   put there since - so the compiler decided "range or not" from garbage and then resolved garbage.
+
+   What this fixture is for is therefore the *pair* of forms and the alternation between them: each
+   subscript below has to be classified correctly while other subscripts of the other kind are being
+   resolved around it, and the answer is a number the run compares. Every arm is written so that
+   getting the classification wrong changes the result rather than only the diagnostics.
+-}
+
+import Native
+
+fn total(xs: [Int]) -> Int:
+    let &sum = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < length(xs):
+        sum = sum + xs[i]
+        i = i + 1
+
+    return sum
+
+-- An index and a range in one expression, so that one is resolved while the other is still being
+-- classified. `xs[0]` is 1; `xs[1..3]` is 2 + 3.
+fn mixed(xs: [Int]) -> Int = xs[0] + total(xs[1..3])
+
+-- The index is an expression rather than a literal, so resolving it is real work rather than a
+-- constant the resolver could have folded before anything looked at the operand.
+fn computed(xs: [Int], n: Int) -> Int = xs[n + 1] + xs[n * 2]
+
+-- A subscript whose index is itself a subscript. The inner one is resolved from inside the outer
+-- one's classification, which is the nesting that makes the lifetime question observable.
+fn nested(xs: [Int], idx: [Int]) -> Int = xs[idx[0]]
+
+-- Assignment position takes the other path through the same operand read - `mutable_` - so the
+-- classification has to be right there too. A range in this position is rejected, which
+-- Reject.Slice.yana already pins; this is the index form that must keep working beside it.
+fn writeAt(&xs: [Int], at: Int, v: Int) -> {}:
+    xs[at] = v
+
+fn main() -> Int:
+    let &xs = [1, 2, 3, 4, 5]
+    let &idx = [2, 0, 1]
+
+    -- 1 + (2 + 3) = 6
+    if mixed(xs) != 6 then return -1
+
+    -- n = 1: xs[2] + xs[2] = 3 + 3 = 6
+    if computed(xs, 1) != 6 then return -2
+
+    -- xs[idx[0]] = xs[2] = 3
+    if nested(xs, idx) != 3 then return -3
+
+    -- The whole array is 1 + 2 + 3 + 4 + 5 = 15.
+    if total(xs) != 15 then return -4
+
+    -- A range covering everything is the same sum, reached through the other form.
+    if total(xs[0..5]) != 15 then return -5
+
+    writeAt(xs, 0, 10)
+
+    -- 10 + 2 + 3 + 4 + 5 = 24
+    return total(xs)

@@ -9,10 +9,16 @@
 -- given a witness: it shares the enclosing function's generic context, and cloning a body clones
 -- the continuations it lifted. See Function::liftedFrom and cloneLiftedCallee.
 
--- The element iterator every adaptor below is written over. `TrivialCopy` because it hands the
--- element over by value: the container keeps its own, so an owning element would have to be
--- borrowed out, and a continuation parameter cannot carry a `return` marker.
-iter fn (TrivialCopy(a)) each(xs: [a]) -> a:
+-- The element iterator every adaptor below is written over.
+--
+-- It used to be constrained `TrivialCopy(a)`, on the reading that handing an element over is a copy
+-- and an owning element would therefore have to be borrowed out. It is borrowed out - a continuation
+-- parameter is declared with the default convention, so what `yield xs[i]` passes is a borrow whose
+-- extent is the call - and the thing that made that unusable was `Value::CallDyn` in analyze_escape
+-- assuming a function value keeps whatever it is handed. It does not for a `yield`; see
+-- InstCallDyn::handover and `IterAggregate.yana`. So the constraint is gone, and an element that
+-- owns something travels the chain with the container going on owning it.
+iter fn each(xs: [a]) -> a:
     let &i = 0 :: Int
     let n = length(xs) :: Int
 
@@ -33,18 +39,18 @@ iter fn (TrivialCopy(a)) each(xs: [a]) -> a:
    is captured by reference rather than sunk, because a continuation's extent is the enclosing call
    and this frame never owned it.
 -}
-iter fn (TrivialCopy(a)) mapped(xs: [a], f: (a) -> b) -> b:
+iter fn mapped(xs: [a], f: (a) -> b) -> b:
     for x in each(xs):
         yield f(x)
 
-iter fn (TrivialCopy(a)) filtered(xs: [a], keep: (a) -> Bool) -> a:
+iter fn filtered(xs: [a], keep: (a) -> Bool) -> a:
     for x in each(xs):
         if keep(x):
             yield x
 
 -- Three deep, which is the same rule applied twice: `over` lifts a body that loops over `filtered`,
 -- which lifts a body that loops over `each`.
-iter fn (TrivialCopy(a)) over(xs: [a], keep: (a) -> Bool, f: (a) -> a) -> a:
+iter fn over(xs: [a], keep: (a) -> Bool, f: (a) -> a) -> a:
     for x in filtered(xs, keep):
         yield f(x)
 
@@ -63,7 +69,7 @@ fn double(v: Int) -> Int = v * 2
    provides is worth covering on its own, and because the two together are what say the choice is
    the author's.
 -}
-fn (TrivialCopy(a)) collectMappedInto(&out: Array(b), xs: [a], f: (a) -> b) -> {}:
+fn collectMappedInto(&out: Array(b), xs: [a], f: (a) -> b) -> {}:
     for y in mapped(xs, f):
         push(out, y)
 

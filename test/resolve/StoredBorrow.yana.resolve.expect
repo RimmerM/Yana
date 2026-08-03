@@ -1,0 +1,86 @@
+fn takes(%v: &Int) -> Int {
+  b0:
+    ret 100
+}
+
+fn owns(%v: Int) -> Int {
+  b0:
+    ret 1
+}
+
+fn borrows(%v: &Int) -> Int {
+  b0:
+    ret 2
+}
+
+fn main() -> Int {
+  b0:
+    %x = alloc : Int
+    init %x, 7
+    %y = alloc : Int
+    init %y, 5
+    %p = alloc : Pair
+    %v7 = load %x : Int
+    %v8 = borrow %x : &Int
+    %v9 = load %y : Int
+    %v10 = borrow %y : &Int
+    init %local2@Pair.a, %v8
+    init %local2@Pair.b, %v10
+    %v13 = load %local2@Pair.a : &Int
+    %written = load [%v13] : Int
+    %v15 = load %local2@Pair.a : &Int
+    %v16 = load %local2@Pair.b : &Int
+    %v17 = load [%v15] : Int
+    %v18 = load [%v16] : Int
+    %summed = add %v17, %v18 : Int
+    %v20 = load %local2@Pair.a : &Int
+    %kept = call borrows, %v20 : Int
+    %v22 = load %local2@Pair.a : &Int
+    %v23 = load [%v22] : Int
+    %read = call owns, %v23 : Int
+    %v25 = alloc : Held
+    init %h@Held.n, 3
+    %q = alloc : Pair
+    %v29 = load %x : Int
+    %v30 = borrow %x : &Int
+    %v31 = load %y : Int
+    %v32 = borrow %y : &Int
+    init %local4@Pair.a, %v30
+    init %local4@Pair.b, %v32
+    %v35 = load %h : Held
+    %v36 = load %h : Held
+    %v37 = call Eq(Held).==, %v35, %v36 : Bool
+    je %v37, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %same = phi [b1, 1000], [b2, 0] : Int
+    %v46 = add %written, %summed : Int
+    %v47 = add %v46, %kept : Int
+    %v48 = add %v47, %read : Int
+    %v49 = add %v48, %same : Int
+    %v50 = load %local4@Pair.a : &Int
+    %v51 = call takes, %v50 : Int
+    %v52 = add %v49, %v51 : Int
+    ret %v52
+}
+
+fn Eq(Held).==(%lhs: Held, %rhs: Held) -> Bool {
+  b0:
+    %v2 = load %lhs@Held.n : Int
+    %v3 = load %rhs@Held.n : Int
+    %v4 = cmp_eq %v2, %v3 : Bool
+    ret %v4
+}
+
+fn Eq(Held).!=(%lhs: Held, %rhs: Held) -> Bool {
+  b0:
+    %v2 = call Eq(Held).==, %lhs, %rhs : Bool
+    %v4 = xor %v2, True : Bool
+    ret %v4
+}

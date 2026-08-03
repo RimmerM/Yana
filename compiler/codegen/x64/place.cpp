@@ -275,7 +275,10 @@ static void buildOrder(const CallConvention& convention, RegisterBankId bank, U1
  */
 struct PlacementScratch {
     PooledList<WebInfo> webs;
-    Array<LiveId> occupants[kRegisterBankCount][kMaxRegistersPerBank];
+    // Which webs are in each register. Inline rows: there are a fixed few hundred of these and
+    // each holds the handful of webs that shared one register, so pooling alone still left one
+    // allocation per row per function that first reached it.
+    SmallArray<LiveId, 8> occupants[kRegisterBankCount][kMaxRegistersPerBank];
     ArrayList<LiveId> tieConflicts;
     ArrayList<Range> slotOccupants;
     ArrayList<LiveId> slotWebs;
@@ -355,7 +358,7 @@ struct Placer {
     // Everything already placed in each register. A list rather than a single occupant because
     // intervals have holes: several webs can share one register over the function as long as no two
     // of them are ever live at the same point.
-    Array<LiveId> (&occupants)[kRegisterBankCount][kMaxRegistersPerBank];
+    SmallArray<LiveId, 8> (&occupants)[kRegisterBankCount][kMaxRegistersPerBank];
 
     // The pairs of webs that may not share a register for a reason interval overlap does not state -
     // see collectTieConflicts. Indexed by web id, holding web ids, and symmetric: whichever of the
@@ -536,8 +539,9 @@ struct Placer {
     // planSplit builds them from clobber sites the web is live *across*, so there is always a live
     // point on either side of each - which is what makes every odd segment a home segment and the
     // first and last of them home segments in particular.
+    template<class Windows>
     MachineLocation setSplit(LiveId webId, RegisterClassId cls, MachineLocation home,
-        const Array<Range>& windows, MachineLocation windowLocation)
+        const Windows& windows, MachineLocation windowLocation)
     {
         auto interval = webs[webId].interval();
         assertTrue(!interval.isEmpty() && !windows.isEmpty());
@@ -723,8 +727,13 @@ struct Placer {
 
     struct SplitPlan {
         Size reg = kNoRegister;
-        Array<Range> windows; // sorted, disjoint, and strictly inside the web's interval
-        U32 cost = 0;         // what the windows cost, in computeSpillCosts' units
+
+        // Sorted, disjoint, and strictly inside the web's interval. Inline, because one of these is
+        // built per web the allocator cannot place outright and a web is split around one or two
+        // calls; `bestWindows` next door is pooled for the same reason from the other direction.
+        SmallArray<Range, 4> windows;
+
+        U32 cost = 0; // what the windows cost, in computeSpillCosts' units
     };
 
     // Whether a window may cover this site at all. Two things say no. A terminator, because the copy

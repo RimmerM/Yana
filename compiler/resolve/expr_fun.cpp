@@ -430,7 +430,7 @@ ModulePtr<Value> ExprResolver::functionValue(ModulePtr<Function> callee, Locatio
         return nullptr;
     }
 
-    Array<FunArg> args;
+    SmallArray<FunArg, 8> args;
     for(auto argPointer: target->args.contents(local)) {
         auto declared = local[argPointer];
 
@@ -589,7 +589,7 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
     auto envPointer = resolvePointerType(module, (Type*)envTuple - global);
     auto envArgValue = lambda->addArg(module, context.addUnqualifiedName("env", 3), envPointer, source);
 
-    Array<FunArg> signature;
+    SmallArray<FunArg, 8> signature;
     U16 index = 0;
     auto allRootsMutable = true;
     auto roots = 0u;

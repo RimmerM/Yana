@@ -141,7 +141,7 @@ void rewriteReaders(OptContext& opt, ModulePtr<Inst> pointer, const Place& borro
 }
 
 void collapseBorrows(OptContext& opt) {
-    Array<ModulePtr<Inst>> collapsed;
+    SmallArray<ModulePtr<Inst>, 16> collapsed;
 
     /*
      * In instruction order, which is what makes a chain of borrows collapse in one pass: an outer

@@ -73,12 +73,24 @@ struct PatternHead {
     Kind kind = Wildcard;
 };
 
+/*
+ * The lists the coverage recursion works in, all inline.
+ *
+ * Every one of these is built, read once and dropped inside a recursion that runs per arm per
+ * column - so what decides their cost is how many are made rather than how big any of them gets,
+ * and the counts they hold are the arity of a constructor and the number of arms of a `match`. The
+ * bounds are set where an ordinary program stops rather than where the language does: a row past
+ * eight columns or a type past eight constructors reaches the heap exactly as it did before.
+ */
+using PatternRow = SmallArray<const ast::Pat*, 8>;
+using HeadList = SmallArray<PatternHead, 8>;
+
 // One step of the recursion. Rows are stored flat, `types.size()` cells to a row, because every
 // step builds a whole new matrix from the previous one and a row is never edited in place. A
 // null cell is a wildcard.
 struct PatternMatrix {
     TypeList types;
-    Array<const ast::Pat*> cells;
+    SmallArray<const ast::Pat*, 16> cells;
     Size rows = 0;
 
     Size columns() const { return types.size(); }
@@ -101,7 +113,7 @@ struct PatternSpace {
     // the head cache is keyed by. An alternative read out of a parse list is a copy, so the
     // callers below keep the ones they hand over.
     bool useful(const ast::Pat& pattern) {
-        Array<const ast::Pat*> row;
+        PatternRow row;
         row.push(&pattern);
         return useful(covered, row);
     }
@@ -223,7 +235,11 @@ private:
 
     // The sub-patterns `pattern` supplies to a head it matches. A null pattern is the wildcard
     // case, which supplies a wildcard for each of the head's own positions.
-    void expand(const PatternHead& head, TypePtr type, const ast::Pat* pattern, Array<const ast::Pat*>& target) {
+    //
+    // Templated on the list only because the two callers hold different ones - a single row, and
+    // the flat cells of a whole matrix - and neither wants the other's inline bound.
+    template<class Target>
+    void expand(const PatternHead& head, TypePtr type, const ast::Pat* pattern, Target& target) {
         auto count = arity(head, type);
 
         if(!pattern) {
@@ -252,7 +268,7 @@ private:
     }
 
     // Every distinct head appearing in the matrix's first column.
-    void collectHeads(const PatternMatrix& matrix, Array<PatternHead>& target) {
+    void collectHeads(const PatternMatrix& matrix, HeadList& target) {
         for(Size row = 0; row < matrix.rows; row++) {
             auto candidate = head(matrix.cell(row, 0), matrix.types[0]);
             if(candidate.kind == PatternHead::Wildcard) continue;
@@ -263,7 +279,7 @@ private:
     // Whether `heads` names every value the column's type can hold. Only a record and a tuple
     // have a signature that can be finished; an integer, a range or an opaque test leaves values
     // no pattern in the column named, so a wildcard is the only thing that covers them.
-    bool complete(const Array<PatternHead>& heads, TypePtr type) {
+    bool complete(const HeadList& heads, TypePtr type) {
         if(!type) return false;
 
         if(global[type]->kind == Type::Record) {
@@ -290,7 +306,7 @@ private:
     // The heads a complete column is taken apart by: the type's own constructors, rather than
     // whatever the column happens to hold, so that an opaque test sitting beside a complete set
     // of constructors does not add a case of its own.
-    void signature(TypePtr type, Array<PatternHead>& target) {
+    void signature(TypePtr type, HeadList& target) {
         if(global[type]->kind == Type::Record) {
             auto record = (RecordType*)global[type];
             for(Size i = 0; i < record->constructors.size(); i++) {
@@ -340,11 +356,11 @@ private:
         }
     }
 
-    static void tail(const Array<const ast::Pat*>& row, Array<const ast::Pat*>& target) {
+    static void tail(const PatternRow& row, PatternRow& target) {
         for(Size i = 1; i < row.size(); i++) target.push(row[i]);
     }
 
-    bool useful(const PatternMatrix& matrix, const Array<const ast::Pat*>& row) {
+    bool useful(const PatternMatrix& matrix, const PatternRow& row) {
         if(matrix.columns() == 0) return matrix.rows == 0;
 
         auto type = matrix.types[0];
@@ -354,27 +370,27 @@ private:
             PatternMatrix next;
             specialize(matrix, rowHead, next);
 
-            Array<const ast::Pat*> nextRow;
+            PatternRow nextRow;
             expand(rowHead, type, row[0], nextRow);
             tail(row, nextRow);
 
             return useful(next, nextRow);
         }
 
-        Array<PatternHead> heads;
+        HeadList heads;
         collectHeads(matrix, heads);
 
         // A wildcard against a column that already names every case is only useful through one
         // of those cases, so the question splits into one per constructor.
         if(complete(heads, type)) {
-            Array<PatternHead> cases;
+            HeadList cases;
             signature(type, cases);
 
             for(auto& candidate: cases) {
                 PatternMatrix next;
                 specialize(matrix, candidate, next);
 
-                Array<const ast::Pat*> nextRow;
+                PatternRow nextRow;
                 expand(candidate, type, nullptr, nextRow);
                 tail(row, nextRow);
 
@@ -387,7 +403,7 @@ private:
         PatternMatrix next;
         defaults(matrix, next);
 
-        Array<const ast::Pat*> nextRow;
+        PatternRow nextRow;
         tail(row, nextRow);
 
         return useful(next, nextRow);
@@ -399,11 +415,11 @@ private:
         if(matrix.columns() == 0) return matrix.rows == 0;
 
         auto type = matrix.types[0];
-        Array<PatternHead> heads;
+        HeadList heads;
         collectHeads(matrix, heads);
 
         if(complete(heads, type)) {
-            Array<PatternHead> cases;
+            HeadList cases;
             signature(type, cases);
 
             for(auto& candidate: cases) {
@@ -461,7 +477,7 @@ private:
     // A value of `type` that none of `heads` names. Reached only where the column is incomplete,
     // so a record always has a constructor left to point at; anything else can only be described
     // as "some other value".
-    String absent(const Array<PatternHead>& heads, TypePtr type) {
+    String absent(const HeadList& heads, TypePtr type) {
         if(type && global[type]->kind == Type::Record) {
             auto record = (RecordType*)global[type];
 
@@ -493,7 +509,7 @@ private:
     GlobalBase global;
 
     PatternMatrix covered;
-    Array<CachedHead> headCache;
+    SmallArray<CachedHead, 16> headCache;
 };
 
 /*
@@ -874,7 +890,7 @@ ModulePtr<Value> ExprResolver::resolveIs(const ast::Expr& expr, const ast::IsExp
     if(resolveCondition(expr, onFail) == PatternResult::Never) return nullptr;
     bindings.resize(bindingCount);
 
-    Array<BranchArm> arms;
+    BranchArmList arms;
     arms.push(BranchArm { current, makeInt(expr.source, module.scalar.bool_, 1), expr.source });
 
     current = onFail;
@@ -957,12 +973,27 @@ static bool decomposeMatch(ast::ParseBase parse, const ast::Expr& pivot,
 }
 
 ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::MatchExpr& match, TypePtr target, bool used, bool implicit) {
-    // A match with no alternatives cannot be written - the parser needs the ':' and an indented
-    // block to have read a match at all - so this is only ever the shape a half-typed one is left
-    // in, and the parser has already said so. It resolves to nothing, quietly.
     auto alternativeList = match.alts;
     auto alternatives = alternativeList.contents(parse);
-    if(alternatives.size() == 0) return nullptr;
+
+    /*
+     * A match with no alternatives cannot be written - the parser needs the ':' and an indented
+     * block to have read a match at all - so this is only ever the shape a half-typed one is left
+     * in, and the parser has already said so. It resolves to nothing, quietly.
+     *
+     * The pivot is still resolved before giving up, and that is the whole point of the case:
+     * `match s:` with the alternatives not typed yet is exactly when an editor asks what `s` is,
+     * and a reference is only recorded while the expression naming it is resolved. Returning
+     * without visiting the pivot left the half-written line with nothing to hover, nothing to go
+     * to, and no semantic token - see lsp/recover.expect, which asserts all three.
+     *
+     * As a plain pivot rather than through decomposeMatch below, because a decomposition is read
+     * out of the alternatives and there are none.
+     */
+    if(alternatives.size() == 0) {
+        settle(resolve(match.pivot), match.pivot.source);
+        return nullptr;
+    }
 
     auto decomposed = decomposeMatch(parse, match.pivot, alternativeList);
 
@@ -979,7 +1010,7 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
     ValueList elements;
 
     if(decomposed) {
-        Array<Field> fields;
+        SmallArray<Field, 8> fields;
 
         auto pivotFields = match.pivot.tup;
         for(auto arg: pivotFields.contents(parse)) {
@@ -1008,7 +1039,7 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
 
     PatternSpace space(*this, pivotType);
     auto bindingCount = bindings.size();
-    Array<BranchArm> arms;
+    BranchArmList arms;
     auto exhaustive = false;
     auto rejected = false;
 
@@ -1209,7 +1240,7 @@ void ExprResolver::resolveBinding(const ast::VarDecl& declaration, ModulePtr<Val
  * A null `reason` is a skip that carries nothing, which is `Maybe`'s and the common one.
  */
 void ExprResolver::resolveSkipAlternatives(const ast::VarDecl& declaration, ModulePtr<Value> reason,
-                                           bool used, Array<BranchArm>& arms) {
+                                           bool used, BranchArmList& arms) {
     auto alternativeList = declaration.alts;
     auto alternatives = alternativeList.contents(parse);
 

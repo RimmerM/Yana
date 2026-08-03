@@ -28,7 +28,13 @@ struct Dominance {
     IndexSetList dominators;
 
     Array<U32> immediate;
-    Array<Array<U32>> children;
+
+    // The dominator tree's edges, one row per block. An ArrayList rather than an array of arrays
+    // for the reason that container documents: a row is emptied rather than destroyed between
+    // functions, and a row index no earlier function reached starts inline instead of allocating.
+    // A block dominates a handful of others immediately, so eight covers the ordinary one.
+    ArrayList<U32, 8> children;
+
     Array<U32> preorder;
     Array<ModulePtr<Block>> blocks;
 
@@ -364,7 +370,31 @@ struct Loop {
     U32 header = 0;
     U32 preheader = kNone;
     IndexSet contains;
-    Array<U32> blocks;
+
+    // Inline: a loop in an ordinary function is a handful of blocks, and this list is rebuilt from
+    // `contains` every round of every pass that asks for the loops.
+    SmallArray<U32, 16> blocks;
+
+    Loop() = default;
+    Loop(Loop&&) = default;
+
+    /*
+     * Written out because the loop list is *sorted* - innermost first - and a sort assigns.
+     *
+     * Neither member can take the default: an IndexSet is move-only, and a SmallArray deletes
+     * assignment because the inherited one would append rather than replace. So the two are said
+     * here by their own names, which is also the only place the copy is: `contains` hands its
+     * storage over, and `blocks` is copied into whatever storage the destination already had.
+     */
+    Loop& operator = (Loop&& other) {
+        if(this == &other) return *this;
+
+        header = other.header;
+        preheader = other.preheader;
+        contains = ::move(other.contains);
+        replaceContents(blocks, other.blocks);
+        return *this;
+    }
 
     static constexpr U32 kNone = maxLimit<U32>;
 };

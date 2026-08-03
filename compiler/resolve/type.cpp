@@ -357,7 +357,7 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
         }
         case Type::Fun: {
             auto function = (FunType*)global[type];
-            Array<FunArg> substituted;
+            SmallArray<FunArg, 8> substituted;
 
             for(auto arg: function->args.contents(global)) {
                 substituted.push(FunArg {
@@ -710,7 +710,7 @@ static bool hasAttribute(Module& module, ast::ParsePtr<ast::AttrList> attributes
 
 static TypePtr resolveTupleAst(Module& module, const ast::Type& type, GenEnv* env) {
     auto parseBase = module.parse;
-    Array<Field> fields;
+    SmallArray<Field, 8> fields;
     auto astFields = type.tup.fields;
 
     for(auto astField: astFields.contents(parseBase)) {
@@ -779,7 +779,7 @@ TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType bind
 
 static TypePtr resolveFunTypeAst(Module& module, const ast::FunType& type, GenEnv* env, LocationId source) {
     auto parseBase = module.parse;
-    Array<FunArg> args;
+    SmallArray<FunArg, 8> args;
     auto allRootsMutable = true;
     auto roots = 0u;
     auto written = 0u;
@@ -1550,7 +1550,7 @@ static TypePtr breakTupleCycles(Module& module, TupType& tuple, LayoutWalk& walk
 
     walk.stack.push(self);
 
-    Array<Field> fields;
+    SmallArray<Field, 8> fields;
     auto changed = false;
 
     for(auto field: tuple.fields.contents(base)) {
@@ -2285,7 +2285,7 @@ static bool packableValue(GlobalBase base, TypePtr type) {
 
 // The bit offsets of every field of an aggregate that has a scalar form, or nothing where it has
 // none. Shared by `valueWidth`, which needs only the span, and by repr, which needs the offsets.
-static bool scalarBits(GlobalBase base, TupType& tuple, U32 depth, PackedRun& run, Array<U32>* offsets) {
+static bool scalarBits(GlobalBase base, TupType& tuple, U32 depth, PackedRun& run, PackOffsets* offsets) {
     // A pinned layout has no scalar form. Its whole purpose is that its fields sit where a C
     // compiler put them, and a scalar is the compiler choosing.
     if(tuple.layout != TypeLayout::Auto) return false;
@@ -2297,7 +2297,7 @@ static bool scalarBits(GlobalBase base, TupType& tuple, U32 depth, PackedRun& ru
     // field that fills its own storage is not one. That is what keeps `{a: U8, b: U8}` two bytes
     // rather than two bit-fields of a word, and it is why `data Small = A(U8) | B(U8)` - a tag bit
     // over a full-width payload - is a separate feature rather than this one.
-    Array<U16> order;
+    PackOrder order;
     for(U16 i = 0; i < count; i++) {
         auto field = tuple.fields.get(base, i);
 
@@ -2314,7 +2314,7 @@ static bool scalarBits(GlobalBase base, TupType& tuple, U32 depth, PackedRun& ru
 
     packOrder(base, tuple, order);
 
-    Array<U32> placed;
+    PackOffsets placed;
     run = packBits(base, tuple, toBuffer(order), kMaxPackBits, offsets ? &placed : nullptr);
 
     // A run too long for one word is not a scalar, and one that exactly fills its storage is not a
@@ -2423,7 +2423,7 @@ static U32 packUnitBits(GlobalBase base, TupType& tuple, TypePtr type, U32 bits)
 }
 
 PackedRun packBits(GlobalBase base, TupType& tuple, Buffer<const U16> order, U32 maxBits,
-                   Array<U32>* offsets) {
+                   PackOffsets* offsets) {
     PackedRun run;
 
     for(auto index: order) {
@@ -2447,7 +2447,7 @@ PackedRun packBits(GlobalBase base, TupType& tuple, Buffer<const U16> order, U32
     return run;
 }
 
-void packOrder(GlobalBase base, TupType& tuple, Array<U16>& into) {
+void packOrder(GlobalBase base, TupType& tuple, PackOrder& into) {
     if(tuple.layout != TypeLayout::Auto) return;
 
     // Insertion sort, descending by width and stable within one - the lists are a handful of fields
@@ -2515,7 +2515,7 @@ bool packCandidate(GlobalBase base, TupType& tuple, U16 index) {
 // The scalar form of an aggregate, for whoever is laying it out. The span and the offsets come from
 // the same placement `valueWidth` reported, which is what makes the mask a callee applies to a
 // reference to the whole aggregate the same width the fields were placed within.
-bool scalarLayout(GlobalBase base, TupType& tuple, PackedRun& run, Array<U32>* offsets) {
+bool scalarLayout(GlobalBase base, TupType& tuple, PackedRun& run, PackOffsets* offsets) {
     return scalarBits(base, tuple, 0, run, offsets);
 }
 

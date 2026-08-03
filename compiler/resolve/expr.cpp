@@ -835,7 +835,7 @@ bool ExprResolver::convertible(ModulePtr<Value> value, TypePtr target, LocationI
     return findInstance(module, module.coreClasses.widen, { args, 2 }) != nullptr;
 }
 
-ModulePtr<Value> ExprResolver::finishBranches(Array<BranchArm>& arms, LocationId source, bool used) {
+ModulePtr<Value> ExprResolver::finishBranches(BranchArmList& arms, LocationId source, bool used) {
     // Every arm that diverged - returned, or broke out of a loop - left no block behind. If none
     // of them did leave one, the expression as a whole never completes and there is no join.
     if(arms.isEmpty()) {
@@ -914,7 +914,7 @@ ModulePtr<Value> ExprResolver::resolveIf(const ast::Expr& expr, const ast::IfExp
     // takes them away again, exactly as the arms of a `match` scope what their patterns bind.
     if(resolveCondition(branch.cond, elseBlock) == PatternResult::Never) return nullptr;
 
-    Array<BranchArm> arms;
+    BranchArmList arms;
 
     auto thenValue = resolve(branch.then, target, used, implicit);
     if(current) arms.push(BranchArm { current, thenValue, branch.then.source });
@@ -942,7 +942,7 @@ ModulePtr<Value> ExprResolver::resolveMultiIf(const ast::Expr& expr, ast::ParseL
     if(contents.size() == 0) return nullptr;
 
     auto bindingCount = bindings.size();
-    Array<BranchArm> arms;
+    BranchArmList arms;
     auto hasElse = false;
 
     for(Size i = 0; i < contents.size() && current; i++) {

@@ -75,9 +75,12 @@ enum class LowerCallType {
 static constexpr LowerCallType kDefaultCallType = LowerCallType::Complex;
 
 using BlockIndex = I16;
-// One entry per block. Thirty-two inline: that is a large function by the standards of what these
-// hold, and there are several of them per function - see SmallArray.
-using BlockList = SmallArray<BlockIndex, 32>;
+// One entry per block, and several of these exist per function - the postorder, the dominator
+// table, the loop headers. Sixty-four inline rather than the thirty-two this started at, because
+// thirty-two turned out to be under the ordinary function rather than over it: a `match` over a sum
+// type is already a block per arm, and every function past the bound paid one allocation per list
+// per round of every analysis. See SmallArray on why the bound is a guess.
+using BlockList = SmallArray<BlockIndex, 64>;
 using LiveId = U16;
 
 static constexpr BlockIndex kNullBlock = maxLimit<BlockIndex>;
@@ -163,7 +166,8 @@ struct LoopInfo {
     BlockList parent;
 
     // How many loops each block is inside: the length of the chain the two lists above describe.
-    SmallArray<U16, 32> depth;
+    // Parallel to the two BlockLists above, so it carries the same bound.
+    SmallArray<U16, 64> depth;
 
     bool isHeader(BlockIndex b) const { return header[b] == b; }
 
@@ -192,10 +196,24 @@ struct EdgeWeights {
 // How often each block runs relative to the block the function is entered through. Absolute counts
 // are unnecessary and unavailable; every consumer compares one block against another.
 struct FunctionFrequencyInfo {
-    // Indexed by LowerBlock::index. A block the entry cannot reach has frequency zero.
-    Array<U64> relativeBlockFrequency;
+    // Indexed by LowerBlock::index. A block the entry cannot reach has frequency zero. Inline on
+    // the same terms as BlockList, which it is parallel to - one of these is built per function
+    // every time a pass asks what runs often.
+    SmallArray<U64, 64> relativeBlockFrequency;
 
     U64 frequencyOf(BlockIndex block) const { return relativeBlockFrequency[block]; }
+
+    FunctionFrequencyInfo() = default;
+    FunctionFrequencyInfo(FunctionFrequencyInfo&&) = default;
+
+    // Written out for the same reason Loop's is: the inherited assignment appends where the
+    // allocator cannot swap buffers, so a SmallArray deletes it and the replacement has to say
+    // which of the two it means. The printer assigns one of these into a variable that outlives
+    // the `if` that built it, which is the only caller.
+    FunctionFrequencyInfo& operator = (FunctionFrequencyInfo&& other) {
+        if(this != &other) replaceContents(relativeBlockFrequency, other.relativeBlockFrequency);
+        return *this;
+    }
 };
 
 // The entry block's frequency, and so the unit every other one is stated in: a block that runs

@@ -165,7 +165,7 @@ static void writeAnswers(Net::Writer& writer, Context& context, StringView text)
     }
 }
 
-static void runFixture(const String& path, StringView content, bool generate) {
+static bool runFixture(const String& path, StringView content, bool generate) {
     TestProvider provider;
     provider.source = content;
 
@@ -190,9 +190,10 @@ static void runFixture(const String& path, StringView content, bool generate) {
             writer.flush();
         } catch(const Net::Exception& e) {
             logError("Cannot create expect file for \"%@\": %@", path, e.description);
+            return false;
         }
 
-        return;
+        return true;
     }
 
     print("Running test \"%@\"... ", path);
@@ -204,7 +205,7 @@ static void runFixture(const String& path, StringView content, bool generate) {
     auto result = File::openFile(expectPath, readAccess());
     if(result.isErr()) {
         println("cannot open %@: error %@", expectPath, (U32)result.unwrapErr());
-        return;
+        return false;
     }
 
     auto file = result.moveUnwrapOk();
@@ -215,13 +216,15 @@ static void runFixture(const String& path, StringView content, bool generate) {
     auto produced = writer.getBuffered();
     if(size == produced.length && compareMem(buffer.get(), produced.ptr, size) == 0) {
         println("Pass.");
-    } else {
-        println("Fail. Got:");
-        print(StringView { (char*)produced.ptr, produced.length });
-        println("\n\nExpected:");
-        print(StringView { buffer.get(), size });
-        print("\n\n");
+        return true;
     }
+
+    println("Fail. Got:");
+    print(StringView { (char*)produced.ptr, produced.length });
+    println("\n\nExpected:");
+    print(StringView { buffer.get(), size });
+    print("\n\n");
+    return false;
 }
 
 
@@ -656,14 +659,14 @@ static void writeCompletionAnswers(Net::Writer& writer, const String& root, Stri
     }
 }
 
-static void runCompletionFixture(const String& root, const String& expectPath, bool generate) {
+static bool runCompletionFixture(const String& root, const String& expectPath, bool generate) {
     // One session to find out what the project holds. Every answer below builds its own.
     lsp::Session session;
 
     auto opened = session.open(stringView(root));
     if(opened.isErr()) {
         println("cannot open %@: %@", root, opened.unwrapErr());
-        return;
+        return false;
     }
 
     Array<SourceEntry*> entries;
@@ -720,9 +723,10 @@ static void runCompletionFixture(const String& root, const String& expectPath, b
             writer.flush();
         } catch(const Net::Exception& e) {
             logError("Cannot create expect file for \"%@\": %@", expectPath, e.description);
+            return false;
         }
 
-        return;
+        return true;
     }
 
     print("Running test \"%@\"... ", expectPath);
@@ -730,7 +734,7 @@ static void runCompletionFixture(const String& root, const String& expectPath, b
     auto result = File::openFile(expectPath, readAccess());
     if(result.isErr()) {
         println("cannot open %@: error %@", expectPath, (U32)result.unwrapErr());
-        return;
+        return false;
     }
 
     auto file = result.moveUnwrapOk();
@@ -741,13 +745,15 @@ static void runCompletionFixture(const String& root, const String& expectPath, b
     auto produced = memory.getBuffered();
     if(size == produced.length && compareMem(buffer.get(), produced.ptr, size) == 0) {
         println("Pass.");
-    } else {
-        println("Fail. Got:");
-        print(StringView { (char*)produced.ptr, produced.length });
-        println("\n\nExpected:");
-        print(StringView { buffer.get(), size });
-        print("\n\n");
+        return true;
     }
+
+    println("Fail. Got:");
+    print(StringView { (char*)produced.ptr, produced.length });
+    println("\n\nExpected:");
+    print(StringView { buffer.get(), size });
+    print("\n\n");
+    return false;
 }
 
 /*
@@ -765,13 +771,13 @@ static void runCompletionFixture(const String& root, const String& expectPath, b
  * answered, and how many produced items - so a change that quietly stops answering anywhere shows
  * up as a number rather than as silence.
  */
-static void runCompletionSweep(const String& root) {
+static bool runCompletionSweep(const String& root) {
     lsp::Session probe;
 
     auto opened = probe.open(stringView(root));
     if(opened.isErr()) {
         println("cannot open %@: %@", root, opened.unwrapErr());
-        return;
+        return false;
     }
 
     probe.compile();
@@ -831,15 +837,17 @@ static void runCompletionSweep(const String& root) {
         println("%@: %@ of %@ offsets answered, %@ with items, largest %@, %@ signatures",
                 fixture.path, answered, text.length + 1, withItems, largest, signatures);
     }
+
+    return true;
 }
 
-static void runSemanticFixture(const String& root, const String& expectPath, bool generate) {
+static bool runSemanticFixture(const String& root, const String& expectPath, bool generate) {
     lsp::Session session;
 
     auto opened = session.open(stringView(root));
     if(opened.isErr()) {
         println("cannot open %@: %@", root, opened.unwrapErr());
-        return;
+        return false;
     }
 
     session.compile();
@@ -885,9 +893,10 @@ static void runSemanticFixture(const String& root, const String& expectPath, boo
             writer.flush();
         } catch(const Net::Exception& e) {
             logError("Cannot create expect file for \"%@\": %@", expectPath, e.description);
+            return false;
         }
 
-        return;
+        return true;
     }
 
     print("Running test \"%@\"... ", expectPath);
@@ -895,7 +904,7 @@ static void runSemanticFixture(const String& root, const String& expectPath, boo
     auto result = File::openFile(expectPath, readAccess());
     if(result.isErr()) {
         println("cannot open %@: error %@", expectPath, (U32)result.unwrapErr());
-        return;
+        return false;
     }
 
     auto file = result.moveUnwrapOk();
@@ -912,7 +921,10 @@ static void runSemanticFixture(const String& root, const String& expectPath, boo
         println("\n\nExpected:");
         print(StringView { buffer.get(), size });
         print("\n\n");
+        return false;
     }
+
+    return true;
 }
 
 int main(int argc, const char** argv) {
@@ -936,8 +948,9 @@ int main(int argc, const char** argv) {
             sweepRoots.push(String("lsp/semantic"));
         }
 
-        for(auto& root: sweepRoots) runCompletionSweep(root);
-        return 0;
+        auto swept = true;
+        for(auto& root: sweepRoots) swept = runCompletionSweep(root) && swept;
+        return swept ? 0 : 1;
     }
 
     Array<String> tests;
@@ -950,21 +963,30 @@ int main(int argc, const char** argv) {
         }
     });
 
-    if(tests.size() == 0) println("no tests found");
+    // A driver that finds nothing to run has failed, whatever the fixtures would have said. This
+    // one is invoked from the tree it reads relative to, so an empty list means the wrong working
+    // directory far more often than it means the fixtures are gone.
+    if(tests.size() == 0) {
+        println("no tests found");
+        return 1;
+    }
+
+    auto pass = true;
 
     // The whole-project pass, which is where everything past the position index is asserted. Twice:
     // once over a project that compiles, and once over one that is mid-edit, since what the second
     // asserts is that the first's answers survive a broken declaration above them.
-    runSemanticFixture(String("lsp/semantic"), String("lsp/semantic.expect"), generate);
-    runSemanticFixture(String("lsp/recover"), String("lsp/recover.expect"), generate);
+    pass = runSemanticFixture(String("lsp/semantic"), String("lsp/semantic.expect"), generate) && pass;
+    pass = runSemanticFixture(String("lsp/recover"), String("lsp/recover.expect"), generate) && pass;
 
     // Completion, which is a pass of its own because every marker is a compile of its own - §8.
-    runCompletionFixture(String("lsp/complete"), String("lsp/complete.expect"), generate);
+    pass = runCompletionFixture(String("lsp/complete"), String("lsp/complete.expect"), generate) && pass;
 
     for(auto& test: tests) {
         auto result = File::openFile(test, readAccess());
         if(result.isErr()) {
             println("cannot open file %@: error %@", test, (U32)result.unwrapErr());
+            pass = false;
             continue;
         }
 
@@ -973,6 +995,13 @@ int main(int argc, const char** argv) {
         Ptr<char, HeapDeleter> buffer { (char*)hAlloc(size ? size : 1) };
         if(size) file.read({ (Byte*)buffer.get(), size });
 
-        runFixture(test, { buffer.get(), size }, generate);
+        pass = runFixture(test, { buffer.get(), size }, generate) && pass;
     }
+
+    // A summary line as well as the exit code. Every fixture here prints its whole answer on a
+    // mismatch, so a failure two thousand lines up is not something a person scrolling back finds -
+    // and "the goldens are green" was believed about this driver for long enough to let a real
+    // regression sit in `recover.expect`, because it exited 0 either way.
+    println(pass ? "\nAll LSP tests passed." : "\nSome LSP tests FAILED.");
+    return pass ? 0 : 1;
 }

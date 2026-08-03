@@ -830,7 +830,17 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
     auto lazy = lazyArguments(calleeExpr.var, callArgs.size(), calleeExpr.source);
 
     ValueList values;
-    Array<Deferred> deferred;
+
+    /*
+     * Parallel to `values`, and built only where there is a `@lazy` parameter to fill.
+     *
+     * Both halves of that matter. Inline, because a call has as many of these as it has arguments
+     * and that is two or three; and skipped entirely when `lazy` is zero, because `pending` below
+     * is empty in that case - so what this used to be was a list built for every call in the
+     * program and then not passed on. `@lazy` is rare enough that the ordinary call is the one
+     * worth being right about.
+     */
+    SmallArray<Deferred, 8> deferred;
 
     // The positions that resolved to a value carrying nothing, rather than to no value - see the
     // guard in emitCall. A bitmask on the same terms as `lazy`, and cut off at the same 32: an
@@ -848,7 +858,7 @@ ModulePtr<Value> ExprResolver::resolveCall(const ast::Expr& expr, const ast::App
             context.diagnostics.error("named call arguments are not available yet"_v, arg->value.source);
         }
 
-        deferred.push(Deferred());
+        if(lazy) deferred.push(Deferred());
 
         // A `@lazy` argument is left as written. Not even the expected type is pushed into it here:
         // it is resolved against the parameter type once the callee is known, which is where the
@@ -1124,6 +1134,68 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
     findClassFunctions(module, callName, lookupSource, candidates);
 
     auto direct = findFunction(module, callName, lookupSource);
+
+    /*
+     * A borrow is transparent for reading, and this is where that has to be said.
+     *
+     * `convert` already reads one through wherever a type is expected - `p.a :: Int` for a
+     * `&Int` field is a load and always was - so a borrow reaches an argument position untouched
+     * only when nothing there asked for a particular type. Dispatch is exactly that position: `p.a
+     * + p.b` binds `Num`'s variable to `&Int` and then looks for an instance of it, and nobody
+     * writes `instance Num(&Int)`.
+     *
+     * Written as a fallback rather than as a rule in the matcher, and the difference is what it
+     * cannot break. A parameter declared `&T` still takes a borrow, because the arguments are only
+     * rewritten when *nothing at all* accepts them as they stand - so every call that resolves
+     * today resolves the same way, and this only turns a diagnostic into a call. The alternative,
+     * teaching the matcher that `&T` also matches `T`, makes the two candidates overlap and needs a
+     * rule saying which wins.
+     *
+     * Reading through is a load, so what it produces is a value of the borrowed type: for a scalar
+     * a register, for an aggregate the address it already was. Whether the result may then be
+     * *stored* is not decided here - checkTransfer answers that, and answers it the same way for a
+     * borrow reached like this as for one written out.
+     */
+    SmallArray<ModulePtr<Value>, 8> readThrough;
+
+    auto borrowed = false;
+    for(auto arg: args) borrowed = borrowed || (arg && isBorrow(global, valueType(arg)));
+
+    if(borrowed) {
+        auto accepted = direct && matchFunction(direct, args, target, source, deferred);
+
+        /*
+         * Matching is not enough: it is what fails *after* it that this is for.
+         *
+         * `Num`'s signature fits `+` with its variable bound to `&Int` - a class function is
+         * declared over a variable, and a variable accepts anything - and the call dies at instance
+         * selection, because nobody writes `instance Num(&Int)`. So the test has to be the one the
+         * loop below makes: an instance was found, or the types are still this body's own variables
+         * and the instance is decided later.
+         */
+        for(auto& candidate: candidates) {
+            if(accepted) break;
+
+            ClassMatch attempt;
+            if(!matchClassFun(candidate, args, target, attempt, deferred)) continue;
+
+            accepted = attempt.instance ||
+                       attempt.args.contains([&](TypePtr argument) { return isGeneric(global, argument); });
+        }
+
+        if(!accepted) {
+            for(Size i = 0; i < args.length; i++) {
+                auto arg = args[i];
+                auto type = arg ? valueType(arg) : nullptr;
+
+                readThrough.push(type && isBorrow(global, type)
+                    ? convert(arg, ((BorrowType*)global[type])->to, source)
+                    : arg);
+            }
+
+            args = toBuffer(readThrough);
+        }
+    }
 
     // Committing to the plain function, once it is the candidate the call is being served by. Its
     // arity is checked here rather than in matchFunction because a mismatch has to be reported as

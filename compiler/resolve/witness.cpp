@@ -638,7 +638,7 @@ static ModulePtr<Function> erasedThunkFor(Module& module, GlobalPtr<TypeClass> t
         function->returnType = concreteResult;
     }
 
-    Array<Arg*> parameters;
+    SmallArray<Arg*, 8> parameters;
 
     // One bit per parameter: whether the erased signature passes it by address. Sized before the
     // walk because the class function's arity is what it is, and set as each one is classified.
@@ -1213,7 +1213,7 @@ bool prepareGenericCalls(Program& program) {
  * it lowerable is exactly the right answer while deciding whether it is.
  */
 static bool bodyLowerable(Module& module, ModulePtr<Function> function,
-                          Array<ModulePtr<Function>>& visited, U32 depth) {
+                          SmallArray<ModulePtr<Function>, 16>& visited, U32 depth) {
     auto local = *module.arena;
     auto global = *module.types;
     auto target = local[function];
@@ -1306,7 +1306,7 @@ static bool bodyLowerable(Module& module, ModulePtr<Function> function,
 }
 
 bool genericBodyLowerable(Module& module, ModulePtr<Function> function) {
-    Array<ModulePtr<Function>> visited;
+    SmallArray<ModulePtr<Function>, 16> visited;
     return bodyLowerable(module, function, visited, 16);
 }
 

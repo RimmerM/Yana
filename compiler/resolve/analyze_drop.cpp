@@ -433,13 +433,13 @@ static void insertBlockDrops(Analysis& analysis, DropList& blockDrops) {
         if(blockDrops[b].isEmpty()) continue;
 
         auto block = analysis.blockAt(b);
-        Array<ModulePtr<Inst>> existing;
+        SmallArray<ModulePtr<Inst>, 8> existing;
         for(auto instruction: block->instructions.contents(analysis.local)) existing.push(instruction);
 
         // Positions are computed against the original numbering, so they are resolved before
         // anything is inserted and applied in one pass afterwards.
-        Array<Size> positions;
-        Array<InstDrop*> instructions;
+        SmallArray<Size, 8> positions;
+        SmallArray<InstDrop*, 8> instructions;
 
         for(auto& pending: blockDrops[b]) {
             auto position = positionInBlock(analysis, b, pending.before);
@@ -475,7 +475,7 @@ static void insertBlockDrops(Analysis& analysis, DropList& blockDrops) {
  * Everything that names the old edge has to be redirected: the branch, both block graphs, and any
  * phi in the successor that reads a value from this predecessor.
  */
-static void splitEdge(Analysis& analysis, Size fromIndex, Size toIndex, Array<U32>& locals) {
+static void splitEdge(Analysis& analysis, Size fromIndex, Size toIndex, SmallArray<U32, 8>& locals) {
     auto& module = analysis.module;
     auto base = analysis.local;
     auto from = analysis.blockAt(fromIndex);
@@ -535,7 +535,7 @@ static void insertEdgeDrops(Analysis& analysis, EdgeDropList& edgeDrops) {
     // Grouped per edge, so one split block carries every drop that edge owes rather than one per.
     while(edgeDrops.size()) {
         auto first = edgeDrops[0];
-        Array<U32> locals;
+        SmallArray<U32, 8> locals;
         EdgeDropList remaining;
 
         for(auto& drop: edgeDrops) {

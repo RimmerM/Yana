@@ -1333,7 +1333,7 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
      * site chose (§5.1's three shapes, one of which is an `Outcome` no program can name), while what
      * the block produces is the type the code below the call was already going to have.
      */
-    Array<BranchArm> arms;
+    BranchArmList arms;
 
     current = skipBlock;
     resolveSkipAlternatives(*declaration, outcomePayload(outcome, false, source), used, arms);
@@ -2043,7 +2043,7 @@ ModulePtr<Value> ExprResolver::resolveOptionalChain(const ast::Expr& expr, TypeP
      * `current` is null when every path of the chain skipped, which a chain ending in a `return`
      * can do. The join then has only the skip arms, and no phi.
      */
-    Array<BranchArm> arms;
+    BranchArmList arms;
 
     if(current) {
         ModulePtr<Value> wrapped[] = { produced };

@@ -244,7 +244,7 @@ struct SummaryWork {
  * and never moves, and an InstGenCall has no callee to summarize until it is specialized - which is
  * why both are conservative at the call site instead of being edges here.
  */
-static void collectCallees(ModuleBase base, Function& function, Array<ModulePtr<Function>>& target) {
+static void collectCallees(ModuleBase base, Function& function, SmallArray<ModulePtr<Function>, 16>& target) {
     for(auto blockPointer: function.blocks.contents(base)) {
         for(auto instructionPointer: base[blockPointer]->instructions.contents(base)) {
             auto& instruction = *base[instructionPointer];
@@ -274,17 +274,23 @@ static void settleSummaries(Program& program) {
 
     // The reverse graph, which is what a worklist walks: who has to be woken when this function's
     // summary moves. Keyed by the callee's arena offset, holding indices into `work`.
-    HashMap<U32, Array<Size>> callers;
+    // The rows are inline: most functions are called from a handful of places, and a row is one
+    // allocation each otherwise. A SmallArray is safe as a map value here because its inline
+    // storage is not pointed at from inside itself - `pointer()` computes the answer from whether
+    // the heap buffer exists - so the map relocating a row on rehash relocates it correctly.
+    HashMap<U32, SmallArray<Size, 8>> callers;
 
     for(Size i = 0; i < work.size(); i++) {
-        Array<ModulePtr<Function>> callees;
+        // Inline, and rebuilt per function: what a function calls is a handful of names, and this
+        // loop runs once for every function in the program.
+        SmallArray<ModulePtr<Function>, 16> callees;
         collectCallees(base, *base[work[i].function], callees);
 
         for(auto callee: callees) {
             // add() hands back uninitialized storage for a key that was not there, so the list is
             // constructed into it rather than assigned - the same reason the results map below is.
             auto entry = callers.add(U32(callee));
-            if(!entry.existed) new (entry.value) Array<Size>();
+            if(!entry.existed) new (entry.value) SmallArray<Size, 8>();
 
             entry.value->push(i);
         }

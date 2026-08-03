@@ -258,6 +258,14 @@ struct Names {
     HashMap<U32, U32> uses;
     HashSet<U32> assigned;
 
+    // Empties both tables, keeping what they grew into. The counting loops below run this to a
+    // fixpoint and each round wants the counts from nothing - which used to mean a fresh pair of
+    // tables per round per function, and this is the same statement without the allocations.
+    void reset() {
+        uses.reset();
+        assigned.reset();
+    }
+
     U32 useCount(Name name) {
         auto found = uses.get(name.text);
         return found ? found.unwrap() : 0;
@@ -916,9 +924,11 @@ bool optimizeList(Gen& g, StmtList& list, Names& names) {
  * wide calls and never adds one.
  */
 void optimizeFunction(Gen& g, FunStmt& function) {
+    Names names;
+
     for(;;) {
         for(;;) {
-            Names names;
+            names.reset();
             countList(g, function.body, names);
 
             if(!optimizeList(g, function.body, names)) break;
@@ -951,8 +961,10 @@ void removeDeadHelpers(Gen& g) {
     for(auto& helper: g.wideHelperOrder) generated.add(helper.name.text);
     for(auto& helper: g.bitHelperOrder) generated.add(helper.name.text);
 
+    Names names;
+
     for(;;) {
-        Names names;
+        names.reset();
         countList(g, g.file.statements, names);
 
         auto changed = false;

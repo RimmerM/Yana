@@ -1754,8 +1754,17 @@ ModulePtr<Value> ExprResolver::resolveSubscript(const ast::Expr& expr, const ast
      * container from being one. The question below is asked of the class, after the one conversion
      * that still happens, and for the diagnostic alone.
      */
-    const ast::Expr* written = nullptr;
-    for(auto arg: args.contents(parse)) written = &arg.value;
+    /*
+     * By address rather than through the iterator - the same reason resolveCall says it.
+     *
+     * `contents()` yields each entry *by value*, because a list with a tag bit in its entries has to
+     * compute what it hands back. So `&arg.value` inside a `for(auto arg: ...)` is the address of
+     * the loop variable, and every read of it below happens after that variable is dead. It read
+     * the right thing at `-O0`, where nothing else had claimed the slot yet, and garbage from `-O1`
+     * upwards - see `pointerAt`, which exists for exactly this.
+     */
+    auto argList = args.contents(parse);
+    const ast::Expr* written = argList.size() ? &argList.pointerAt(0)->value : nullptr;
 
     /*
      * `xs[a..b]` - a subslice, which is a value rather than a place.

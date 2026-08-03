@@ -3,6 +3,14 @@
 #include "../compiler/context.h"
 
 /*
+ * The lists the compiler works in.
+ *
+ * README.md beside this file is the rule for choosing between them, what resetting rather than
+ * rebuilding means, the four traps that have already caught someone, and how to measure whether a
+ * change here did anything. Read it before adding a container or picking one.
+ */
+
+/*
  * An array that starts inside itself.
  *
  * `SmallArray<T, N>` keeps its first N entries in the object, and moves to the heap only if it
@@ -77,6 +85,17 @@ struct SmallArray: ArrayT<T, SmallArrayAllocator<T, N>> {
     SmallArray() = default;
     SmallArray(SmallArray&&) = default;
     SmallArray(const SmallArray&) = default;
+
+    /*
+     * Reserving room for `reserved` entries, and only reaching the heap if that is more than N.
+     *
+     * ArrayT's own count-taking constructor calls the allocator outright rather than going through
+     * reserveSpace, which for an ordinary array is the same thing and for this one is the whole
+     * difference: `SmallArray<T, 64> list(n)` allocated every time, for every n, and the inline
+     * buffer it was given was never once used. Written out here so that the obvious spelling means
+     * what it looks like.
+     */
+    explicit SmallArray(U32 reserved) { this->reserve(reserved); }
 
     // Both deleted: the inherited one appends rather than replaces. Say `replaceContents`.
     SmallArray& operator = (const SmallArray&) = delete;

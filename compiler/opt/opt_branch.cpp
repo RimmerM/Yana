@@ -350,7 +350,7 @@ bool mergeBlocks(OptContext& opt) {
 
     // Over a snapshot, since the walk below reads the list while `removeUnreachableBlocks` rewrites
     // it - and a merged block is one of the ones that goes.
-    Array<ModulePtr<Block>> blocks;
+    SmallArray<ModulePtr<Block>, 64> blocks;
     for(auto pointer: opt.function->blocks.contents(opt.local)) blocks.push(pointer);
 
     for(auto pointer: blocks) {

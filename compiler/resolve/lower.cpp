@@ -2616,7 +2616,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
         }
         case Value::Native: {
             auto& native = (InstNative&)instruction;
-            Array<LowerPtr<LowerValue>> args;
+            SmallArray<LowerPtr<LowerValue>, 8> args;
             for(auto arg: native.args.contents(lower.local)) args.push(mappedValue(lower, arg));
 
             switch(native.op) {
@@ -2901,7 +2901,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             auto signature = signatureType && lower.global[signatureType]->kind == Type::Fun
                            ? (FunType*)lower.global[signatureType] : nullptr;
 
-            Array<LowerPtr<LowerValue>> arguments;
+            SmallArray<LowerPtr<LowerValue>, 8> arguments;
             Size dynIndex = 0;
 
             for(auto arg: callInst.args.contents(lower.local)) {
@@ -2965,7 +2965,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             // The positions this call actually passes, read off the callee's own parameters so
             // that it agrees with what the callee's signature above received.
             auto callee = lower.local[callInst.callee];
-            Array<LowerPtr<LowerValue>> passed;
+            SmallArray<LowerPtr<LowerValue>, 8> passed;
             Size callIndex = 0;
 
             for(auto arg: callInst.args.contents(lower.local)) {
@@ -3068,7 +3068,7 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
                 return address;
             };
 
-            Array<LowerPtr<LowerValue>> arguments;
+            SmallArray<LowerPtr<LowerValue>, 8> arguments;
             Size argIndex = 0;
 
             for(auto arg: callInst.args.contents(lower.local)) {
@@ -3333,7 +3333,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
     struct RelocatedGlobal {
         ModulePtr<Global> source;
         LowerPtr<LowerGlobal> target;
-        Array<U32> offsets;
+        PackOffsets offsets;
     };
 
     Array<RelocatedGlobal> relocated;
@@ -3344,7 +3344,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         auto target = new (result->arena) LowerGlobal(source->name);
         target->mut = source->mut;
 
-        Array<U32> offsets;
+        PackOffsets offsets;
 
         if(source->isTable) {
             /*
@@ -3355,7 +3355,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
              * bytes little-endian and that five words are followed by three of them. The JS backend
              * reads the same slots and never produces bytes at all.
              */
-            Array<TableSlot> slots;
+            SmallArray<TableSlot, 8> slots;
             for(auto slot: source->table.contents(lower.local)) slots.push(slot);
 
             target->initialContents = materializeTable(result->arena, lower.repr,
@@ -3543,7 +3543,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
 
         // Every phi in the function before any of them is filled in, so that an alternative coming
         // back around a loop is a value this walk has already heard of by the time it is asked for.
-        Array<LowerInstPhi*> phis;
+        SmallArray<LowerInstPhi*, 16> phis;
         for(auto blockPointer: function->blocks.contents(lower.local)) {
             for(auto phi: lower.local[blockPointer]->phis.contents(lower.local)) {
                 phis.push(createPhi(lower, phi));

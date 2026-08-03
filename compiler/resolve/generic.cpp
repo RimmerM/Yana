@@ -1259,7 +1259,7 @@ static void describeFunctionConstraint(Context& context, GlobalBase global, cons
 static TypePtr signatureOf(Module& module, Function& function) {
     auto local = *module.arena;
 
-    Array<FunArg> args;
+    SmallArray<FunArg, 8> args;
     for(auto argPointer: function.args.contents(local)) {
         auto declared = local[argPointer];
         args.push(FunArg { declared->declaredType(), declared->name, declared->convention,

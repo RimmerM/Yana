@@ -36,7 +36,7 @@ U32 tableSize(const ReprTarget& target, U16 wordCount, U16 slotCount) {
     return layout.size();
 }
 
-U32 tableLayout(const ReprTarget& target, Buffer<const TableSlot> slots, Array<U32>& offsets) {
+U32 tableLayout(const ReprTarget& target, Buffer<const TableSlot> slots, PackOffsets& offsets) {
     offsets.clear();
 
     TableLayout layout(target);

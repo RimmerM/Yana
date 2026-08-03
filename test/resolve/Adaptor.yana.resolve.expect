@@ -930,13 +930,12 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     jmp b1
 }
 
-(TrivialCopy(a), Index(Flat(a), I64, a)) fn each(%xs: Flat(a), %body: (value: a) -> Outcome((), $r)) -> Outcome((), $r) {
+(Index(Flat(a), I64, a)) fn each(%xs: Flat(a), %body: (value: a) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type $r
     #2 type Outcome((), $r)
-    #3 class TrivialCopy(a)
-    #4 class Index(Flat(a), I64, a)
+    #3 class Index(Flat(a), I64, a)
   }
 
   b0:
@@ -976,17 +975,16 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     jmp b1
 }
 
-(TrivialCopy(a), Index(Flat(a), I64, a)) fn mapped(%xs: Flat(a), %f: (a) -> b, %body: (value: b) -> Outcome((), $r)) -> Outcome((), $r) {
+(Index(Flat(a), I64, a)) fn mapped(%xs: Flat(a), %f: (a) -> b, %body: (value: b) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
-    #0 type a
-    #1 type b
+    #0 type b
+    #1 type a
     #2 type $r
     #3 type Outcome((), Outcome((), $r))
     #4 type {body: &(value: b) -> Outcome((), $r), f: &(a) -> b}
     #5 type (value: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
-    #7 class TrivialCopy(a)
-    #8 class Index(Flat(a), I64, a)
+    #7 class Index(Flat(a), I64, a)
   }
 
   b0:
@@ -1015,7 +1013,7 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     ret %v20
 }
 
-(TrivialCopy(a), Index(Flat(a), I64, a)) fn filtered(%xs: Flat(a), %keep: (a) -> Bool, %body: (value: a) -> Outcome((), $r)) -> Outcome((), $r) {
+(Index(Flat(a), I64, a)) fn filtered(%xs: Flat(a), %keep: (a) -> Bool, %body: (value: a) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type $r
@@ -1023,8 +1021,7 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     #3 type {keep: &(a) -> Bool, body: &(value: a) -> Outcome((), $r)}
     #4 type (value: a) -> Outcome((), Outcome((), $r))
     #5 type Outcome((), $r)
-    #6 class TrivialCopy(a)
-    #7 class Index(Flat(a), I64, a)
+    #6 class Index(Flat(a), I64, a)
   }
 
   b0:
@@ -1053,7 +1050,7 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     ret %v20
 }
 
-(TrivialCopy(a), Index(Flat(a), I64, a)) fn over(%xs: Flat(a), %keep: (a) -> Bool, %f: (a) -> a, %body: (value: a) -> Outcome((), $r)) -> Outcome((), $r) {
+(Index(Flat(a), I64, a)) fn over(%xs: Flat(a), %keep: (a) -> Bool, %f: (a) -> a, %body: (value: a) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type $r
@@ -1061,8 +1058,7 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     #3 type {body: &(value: a) -> Outcome((), $r), f: &(a) -> a}
     #4 type (value: a) -> Outcome((), Outcome((), $r))
     #5 type Outcome((), $r)
-    #6 class TrivialCopy(a)
-    #7 class Index(Flat(a), I64, a)
+    #6 class Index(Flat(a), I64, a)
   }
 
   b0:
@@ -1103,14 +1099,13 @@ fn double(%v: Int) -> Int {
     ret %v3
 }
 
-(TrivialCopy(a), Index(Flat(a), I64, a)) fn collectMappedInto(%out: Array(b), %xs: Flat(a), %f: (a) -> b) -> () {
+(Index(Flat(a), I64, a)) fn collectMappedInto(%out: Array(b), %xs: Flat(a), %f: (a) -> b) -> () {
   schema {
-    #0 type a
-    #1 type b
+    #0 type b
+    #1 type a
     #2 type {out: &mut Array(b)}
     #3 type (value: b) -> Outcome((), ())
-    #4 class TrivialCopy(a)
-    #5 class Index(Flat(a), I64, a)
+    #4 class Index(Flat(a), I64, a)
   }
 
   b0:
@@ -1122,7 +1117,7 @@ fn double(%v: Int) -> Int {
     %v8 = symbol ResolveTest.continuation$3 : %()
     init %local4.code, %v8
     init %local4.env, %v6
-    %v11 = gencall mapped(a, b, ()), %xs, %f, %v7 : Outcome((), ())
+    %v11 = gencall mapped(b, a, ()), %xs, %f, %v7 : Outcome((), ())
     ret
 }
 
@@ -1416,17 +1411,16 @@ fn main() -> Int {
     ret %v222
 }
 
-(TrivialCopy(a), Index(Flat(a), I64, a)) fn ResolveTest.continuation$0(%env: %{body: &(value: b) -> Outcome((), $r), f: &(a) -> b}, %value: a) -> Outcome((), Outcome((), $r)) {
+(Index(Flat(a), I64, a)) fn ResolveTest.continuation$0(%env: %{body: &(value: b) -> Outcome((), $r), f: &(a) -> b}, %value: a) -> Outcome((), Outcome((), $r)) {
   schema {
-    #0 type a
-    #1 type b
+    #0 type b
+    #1 type a
     #2 type $r
     #3 type Outcome((), Outcome((), $r))
     #4 type {body: &(value: b) -> Outcome((), $r), f: &(a) -> b}
     #5 type (value: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
-    #7 class TrivialCopy(a)
-    #8 class Index(Flat(a), I64, a)
+    #7 class Index(Flat(a), I64, a)
   }
 
   b0:
@@ -1452,7 +1446,7 @@ fn main() -> Int {
     ret %v12
 }
 
-(TrivialCopy(a), Index(Flat(a), I64, a)) fn ResolveTest.continuation$1(%env: %{keep: &(a) -> Bool, body: &(value: a) -> Outcome((), $r)}, %value: a) -> Outcome((), Outcome((), $r)) {
+(Index(Flat(a), I64, a)) fn ResolveTest.continuation$1(%env: %{keep: &(a) -> Bool, body: &(value: a) -> Outcome((), $r)}, %value: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type $r
@@ -1460,8 +1454,7 @@ fn main() -> Int {
     #3 type {keep: &(a) -> Bool, body: &(value: a) -> Outcome((), $r)}
     #4 type (value: a) -> Outcome((), Outcome((), $r))
     #5 type Outcome((), $r)
-    #6 class TrivialCopy(a)
-    #7 class Index(Flat(a), I64, a)
+    #6 class Index(Flat(a), I64, a)
   }
 
   b0:
@@ -1496,7 +1489,7 @@ fn main() -> Int {
     ret %v15
 }
 
-(TrivialCopy(a), Index(Flat(a), I64, a)) fn ResolveTest.continuation$2(%env: %{body: &(value: a) -> Outcome((), $r), f: &(a) -> a}, %value: a) -> Outcome((), Outcome((), $r)) {
+(Index(Flat(a), I64, a)) fn ResolveTest.continuation$2(%env: %{body: &(value: a) -> Outcome((), $r), f: &(a) -> a}, %value: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type $r
@@ -1504,8 +1497,7 @@ fn main() -> Int {
     #3 type {body: &(value: a) -> Outcome((), $r), f: &(a) -> a}
     #4 type (value: a) -> Outcome((), Outcome((), $r))
     #5 type Outcome((), $r)
-    #6 class TrivialCopy(a)
-    #7 class Index(Flat(a), I64, a)
+    #6 class Index(Flat(a), I64, a)
   }
 
   b0:
@@ -1531,14 +1523,13 @@ fn main() -> Int {
     ret %v12
 }
 
-(TrivialCopy(a), Index(Flat(a), I64, a)) fn ResolveTest.continuation$3(%env: %{out: &mut Array(b)}, %value: b) -> Outcome((), ()) {
+(Index(Flat(a), I64, a)) fn ResolveTest.continuation$3(%env: %{out: &mut Array(b)}, %value: b) -> Outcome((), ()) {
   schema {
-    #0 type a
-    #1 type b
+    #0 type b
+    #1 type a
     #2 type {out: &mut Array(b)}
     #3 type (value: b) -> Outcome((), ())
-    #4 class TrivialCopy(a)
-    #5 class Index(Flat(a), I64, a)
+    #4 class Index(Flat(a), I64, a)
   }
 
   b0:

@@ -83,7 +83,7 @@ static ModulePtr<Value> emitShortCircuit(ExprResolver& resolver, Buffer<ModulePt
                                              runWhenTrue ? rest : skipped,
                                              runWhenTrue ? skipped : rest));
 
-    Array<BranchArm> arms;
+    BranchArmList arms;
 
     resolver.current = rest;
     auto value = resolver.force(deferred[1], type, source);

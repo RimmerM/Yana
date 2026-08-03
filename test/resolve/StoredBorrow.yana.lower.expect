@@ -1,0 +1,40 @@
+
+borrows<complex>(%v: Ptr): Int {
+  b_0 {
+    ret 2
+  }
+}
+
+Eq(Held).==<complex>(%lhs$n: Int, %rhs$n: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %lhs$n, %rhs$n: Int
+    ret %v_1
+  }
+}
+
+owns<complex>(%v: Int): Int {
+  b_0 {
+    ret 1
+  }
+}
+
+takes<complex>(%v: Ptr): Int {
+  b_0 {
+    ret 100
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    ret 1122
+  }
+}
+
+Eq(Held).!=<complex>(%lhs$n: Int, %rhs$n: Int): Int {
+  b_0 {
+    %v_1 = cmp_eq %lhs$n, %rhs$n: Int
+    %v_2 = xor %v_1, 1: Int
+    ret %v_2
+  }
+}
+

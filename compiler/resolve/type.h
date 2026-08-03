@@ -1260,8 +1260,18 @@ struct PackedRun {
  * the mask width a callee holding a reference to the whole aggregate will use. Two implementations of
  * it would be two mask widths.
  */
+/*
+ * The two lists the packing walk works in, both inline.
+ *
+ * An aggregate with more than sixteen narrow fields is not one this bound is deciding anything
+ * about; the point is that the ordinary record - a handful of fields, laid out once per declaration
+ * per target - never reaches the heap for either of them. See SmallArray.
+ */
+using PackOrder = SmallArray<U16, 16>;
+using PackOffsets = SmallArray<U32, 16>;
+
 PackedRun packBits(GlobalBase base, TupType& tuple, Buffer<const U16> order, U32 maxBits,
-                   Array<U32>* offsets);
+                   PackOffsets* offsets);
 
 /*
  * The storage unit a bit-field is allocated in under a pinned layout, or zero for anything that is not
@@ -1284,7 +1294,7 @@ U32 declaredUnitBits(GlobalBase base, TypePtr type);
  *
  * Declaration order under `C`, which is what pinning the layout means.
  */
-void packOrder(GlobalBase base, TupType& tuple, Array<U16>& into);
+void packOrder(GlobalBase base, TupType& tuple, PackOrder& into);
 
 /*
  * Whether the whole of an aggregate is one narrow scalar, and where its fields sit inside it.
@@ -1297,7 +1307,7 @@ void packOrder(GlobalBase base, TupType& tuple, Array<U16>& into);
  * rather than in the order the fields were placed, so that a caller needs to know nothing about the
  * ordering to use it.
  */
-bool scalarLayout(GlobalBase base, TupType& tuple, PackedRun& run, Array<U32>* offsets);
+bool scalarLayout(GlobalBase base, TupType& tuple, PackedRun& run, PackOffsets* offsets);
 
 /*
  * Whether a value of this type is narrow enough that a `&` of it carries a shift - Design.md's

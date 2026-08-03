@@ -1,0 +1,23 @@
+# Fixtures the benchmark does not compile, one name per line.
+#
+# This is not a list of things that are slow or uninteresting - it is the list of fixtures the
+# compiler does not currently get through, and it exists because the benchmark has no expectations
+# to fail against. The resolve driver stops at the first thing that does not hold together and
+# reports it; this driver hands whatever came out to the next pass, and a program whose lower IR is
+# already inconsistent takes the process down somewhere further along. Every name below is one the
+# resolve suite is reporting a failure for today.
+#
+# So: it should shrink to nothing, and the way to regenerate it is
+#
+#     ../build-bench/test/YanaResolveTest 2>&1 \
+#         | grep -oE "Fail \(resolve/[A-Za-z0-9._]+\.yana\)" \
+#         | sed -e 's|Fail (resolve/||' -e 's|)||' | sort -u
+#
+# and it must be regenerated before a benchmark comparison rather than after: a corpus that changed
+# between the two measurements is not a comparison. If the list is wrong in the direction of too
+# many names the benchmark is only smaller than it could be; wrong in the other direction and the
+# run stops partway with a segmentation fault and no output at all.
+#
+# It is currently empty, which is where it should stay. The fourteen names that were here were all
+# one bug - the dangling subscript operand fixed in resolveSubscript - and the benchmark compiles
+# the whole corpus again.

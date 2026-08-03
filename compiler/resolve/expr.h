@@ -269,6 +269,11 @@ struct BranchArm {
     LocationId source;
 };
 
+// Inline, because the arms of an `if` are two and the arms of the ordinary `match` are three, and
+// there is one of these list per branching expression in the program. The eight it holds cover a
+// `match` over a reasonably sized sum type; past that it grows like any other array.
+using BranchArmList = SmallArray<BranchArm, 8>;
+
 /*
  * One `?.` that skipped, waiting for the chain it is in to say what it should become.
  *
@@ -571,7 +576,7 @@ struct ExprResolver {
     // conversions belong here rather than where each arm was resolved, because the type they
     // convert to is only known once every arm has been seen, and a conversion has to be emitted
     // in the predecessor it flows from rather than after the join.
-    ModulePtr<Value> finishBranches(Array<BranchArm>& arms, LocationId source, bool used);
+    ModulePtr<Value> finishBranches(BranchArmList& arms, LocationId source, bool used);
 
     /*
      * Calls and operators (expr_call.cpp).
@@ -734,7 +739,7 @@ struct ExprResolver {
     // a carrier whose skip carries nothing, which is `Maybe`'s. Each arm that does not leave the
     // block contributes to the join with the code the continuation ran.
     void resolveSkipAlternatives(const ast::VarDecl& declaration, ModulePtr<Value> reason, bool used,
-                                 Array<BranchArm>& arms);
+                                 BranchArmList& arms);
 
     // Which `iter fn` a `for` loop names, with the call it was written as. Null after reporting
     // which of phase 1's exclusions this loop's source reached - see expr_lens.cpp.

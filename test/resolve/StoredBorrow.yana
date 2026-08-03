@@ -1,0 +1,64 @@
+{-
+   A borrow held in a field, and what reading it costs to write.
+
+   Most of this already worked and is here to say so, because the part that did not was easy to
+   mistake for the whole. `convert` has always known both directions - `convertBorrow` takes a
+   borrow of a place for `T -> &T` and emits a load for `&T -> T` - so anywhere a type is *expected*
+   a borrow is already transparent, and construction already borrows because the field's declared
+   type is what the argument is converted to. There is no `&x` spelling at a construction site for
+   the same reason there is no `->x` at a call: in this language the receiving end declares the
+   convention and the supplying end writes the value.
+
+   What did not work is dispatch, which is the one position where nothing expects a type. `p.a + p.b`
+   binds `Num`'s variable to `&Int` and then looks for an instance of it, and nobody writes
+   `instance Num(&Int)`. So the signature *fits* and the call dies afterwards, which is why the
+   fallback in emitCall tests for a selected instance rather than for a match.
+
+   The fallback only fires when nothing accepts the arguments as they stand, so `borrows` below -
+   which takes `&Int` and is handed one - still resolves to itself rather than to `owns`.
+-}
+
+data Pair {a: &Int, b: &Int}
+
+data Held {n: Int}
+
+instance Eq(Held):
+    fn ==(lhs: Held, rhs: Held) -> Bool = lhs.n == rhs.n
+    fn !=(lhs: Held, rhs: Held) -> Bool = !(lhs == rhs)
+
+-- Two functions of the same name, one over the borrow and one over what it borrows. The borrow one
+-- has to keep winning for an argument that is a borrow, or the fallback is rewriting calls that
+-- were already right.
+fn takes(v: &Int) -> Int = 100
+
+fn owns(v: Int) -> Int = 1
+
+fn borrows(v: &Int) -> Int = 2
+
+fn main() -> Int:
+    let &x = 7 :: Int
+    let &y = 5 :: Int
+
+    -- Construction: the field type says `&Int`, so the argument is borrowed rather than copied.
+    -- Nothing at this site says so, and nothing needs to.
+    let p = Pair {a: x, b: y}
+
+    -- Reading with a type expected, which always worked.
+    let written = p.a :: Int
+
+    -- Dispatch with nothing expecting a type, which is what the fallback is for: 12.
+    let summed = p.a + p.b
+
+    -- An argument that something *does* accept as a borrow is left alone.
+    let kept = borrows(p.a)
+
+    -- And one that nothing accepts as a borrow is read through: `owns` takes an `Int`.
+    let read = owns(p.a)
+
+    -- A class instance reached through a borrow, which is the `Eq` shape `Instance.yana` has.
+    let &h = Held {n: 3}
+    let q = Pair {a: x, b: y}
+    let same = if h == h then 1000 else 0
+
+    -- 7 + 12 + 2 + 1 + 1000 + 100 = 1122.
+    return written + summed + kept + read + same + takes(q.a)

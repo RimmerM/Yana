@@ -11,11 +11,34 @@ if(MSVC)
 else()
     set(CMAKE_CXX_FLAGS "-std=c++1z -msse4.2 -mfpmath=sse -fno-rtti")
     set(CMAKE_CXX_FLAGS_DEBUG "-g -D_DEBUG -DDEBUG")
+    # -O3 rather than -Ofast, because -Ofast is not free and buys nothing here.
+    #
+    # -Ofast is -O3 plus -ffast-math plus a handful of relaxations. For this compiler the
+    # relaxations are all cost and no benefit: -ffast-math turns off signed zeros and permits
+    # reassociation, which is a hazard for a program whose job includes folding its input's float
+    # constants exactly; -fallow-store-data-races lets the optimizer invent stores that are not in
+    # the source; and -Ofast additionally links crtfastmath.o, which sets flush-to-zero and
+    # denormals-are-zero in MXCSR before main - a process-wide FPU mode that would make a denormal
+    # literal fold to zero here and nowhere else. GCC's link spec matches -Ofast literally, so
+    # -fno-fast-math does not switch that last one off.
+    #
+    # Against that, the measured difference is nothing: -Ofast, -Ofast -fno-fast-math and -O3
+    # compile the fixture corpus within 0.2% of each other, which is run-to-run noise. This is
+    # pointer-chasing integer code with no float math of its own.
+    #
+    # This is not a hypothetical. -Ofast broke float literals for two years: external/tritium's own
+    # CMakeLists appends -Ofast to CMAKE_CXX_FLAGS_RELEASE, so `Tritium::readDouble` - which is what
+    # lexes every float in a Yana program - was compiled with -fno-signed-zeros, which let gcc fold
+    # `hasNegativeMantissa ? -0.0 : 0.0` down to the negative arm unconditionally. Every `0.0` in a
+    # source file became -0.0, so `1.0 / 0.0` folded to -Infinity. That is what FoldFloat.yana and
+    # Truth.yana were failing on in Release and nowhere else. Fixed in FloatRead.cpp by building the
+    # zero from its bit pattern; tritium still passes -Ofast to itself, so anything float-valued
+    # crossing that boundary is worth this much suspicion.
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        set(OPTIMIZE_FLAGS "-Ofast -flto -fno-stack-protector -ffunction-sections -fdata-sections")
+        set(OPTIMIZE_FLAGS "-O3 -flto -fno-stack-protector -ffunction-sections -fdata-sections")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto")
     else()
-        set(OPTIMIZE_FLAGS "-Ofast -flto -fno-stack-protector -ffunction-sections -fdata-sections -Wl,-flto,-s")
+        set(OPTIMIZE_FLAGS "-O3 -flto -fno-stack-protector -ffunction-sections -fdata-sections -Wl,-flto,-s")
     endif()
 endif()
 

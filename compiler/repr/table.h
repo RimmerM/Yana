@@ -62,7 +62,7 @@ U32 tableSize(const ReprTarget& target, U16 wordCount, U16 slotCount);
  * relocation at the right place. Those cells are left as zeroes in the bytes: until the module is
  * placed there is no address to write.
  */
-U32 tableLayout(const ReprTarget& target, Buffer<const TableSlot> slots, Array<U32>& offsets);
+U32 tableLayout(const ReprTarget& target, Buffer<const TableSlot> slots, PackOffsets& offsets);
 
 /*
  * The word cells, into storage the caller allocated and zeroed.
@@ -83,7 +83,7 @@ void writeTableWords(ReprTable& repr, Buffer<const TableSlot> slots, Buffer<cons
 // materialization and this is it.
 template<class Arena>
 ByteBuffer materializeTable(Arena& arena, ReprTable& repr, Buffer<const TableSlot> slots,
-                            Array<U32>& offsets) {
+                            PackOffsets& offsets) {
     auto size = tableLayout(repr.target, slots, offsets);
 
     ByteBuffer bytes((Byte*)arena.alloc(size), size);

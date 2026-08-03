@@ -237,7 +237,7 @@ static void splitEdge(LowerBase base, LowerFunction& fun, LowerBlock* pred, Size
 static void splitPhiEdges(LowerBase base, LowerFunction& fun) {
     // Snapshotted because splitting appends to the block list, and a freshly created split block
     // has a single successor and so can never itself need splitting.
-    Array<LowerPtr<LowerBlock>> original;
+    SmallArray<LowerPtr<LowerBlock>, 64> original;
     for(auto b: fun.blocks.contents(base)) original.push(b);
 
     for(auto offset: original) {
@@ -720,7 +720,7 @@ static bool matchScaled(LowerBase base, LowerValue* v, LowerInst* user, LowerVal
 // The caller decides what the peeled pattern becomes. An address every user reads as an address
 // becomes an X86Address folded into each of them; anything else becomes an X86Lea that computes it
 // into a register - see foldLeas.
-static bool peelAddress(LowerBase base, LowerValue* address, AddressPattern& out, Array<LowerInst*>& folded) {
+static bool peelAddress(LowerBase base, LowerValue* address, AddressPattern& out, SmallArray<LowerInst*, 8>& folded) {
     out.base = address;
 
     // The folded instruction that reads whatever `out.base` ended up being, which is what the
@@ -839,7 +839,7 @@ static bool peelAddress(LowerBase base, LowerValue* address, AddressPattern& out
     return folded.isNotEmpty();
 }
 
-static bool matchAddress(LowerBase base, LowerValue* address, AddressPattern& out, Array<LowerInst*>& folded) {
+static bool matchAddress(LowerBase base, LowerValue* address, AddressPattern& out, SmallArray<LowerInst*, 8>& folded) {
     if(!isOnlyUsedAsAddress(base, address)) return false;
 
     return peelAddress(base, address, out, folded);
@@ -876,11 +876,11 @@ static void foldAddresses(LowerBase base, LowerFunction& fun) {
             if(isMem(address)) continue;
 
             AddressPattern pattern;
-            Array<LowerInst*> folded;
+            SmallArray<LowerInst*, 8> folded;
             if(!matchAddress(base, address, pattern, folded)) continue;
 
             // Snapshotted: the loop below rewrites the very list it is reading.
-            Array<LowerInst*> users;
+            SmallArray<LowerInst*, 8> users;
             for(auto u: address->uses.contents(base)) users.push(base[u]);
 
             for(auto user: users) {
@@ -930,7 +930,7 @@ static void foldAddresses(LowerBase base, LowerFunction& fun) {
 // The base's use list still counts the instruction about to be folded away, so "used more than once"
 // is what "read somewhere else as well, and therefore copied before an `add` could overwrite it"
 // looks like from here.
-static bool isLeaProfitable(const AddressPattern& pattern, const Array<LowerInst*>& folded) {
+static bool isLeaProfitable(const AddressPattern& pattern, const SmallArray<LowerInst*, 8>& folded) {
     if(folded.size() > 1) return true;
 
     // An index-only address folded the multiply that produced it, so there is nothing left for an
@@ -963,7 +963,7 @@ static void foldLeas(LowerBase base, LowerFunction& fun) {
             if(!isPtr(result.type) || isImplicit(&result) || result.uses.isEmpty()) continue;
 
             AddressPattern pattern;
-            Array<LowerInst*> folded;
+            SmallArray<LowerInst*, 8> folded;
             if(!peelAddress(base, &result, pattern, folded)) continue;
             if(!isLeaProfitable(pattern, folded)) continue;
 
@@ -1060,7 +1060,8 @@ static void orderBlocks(LowerBase base, LowerFunction& fun) {
     // downstream is prepared to allocate registers for one.
     assertTrue(postorder.size() == fun.blocks.size());
 
-    Array<LowerPtr<LowerBlock>> ordered;
+    // Inline on the same terms as BlockList, which this is a permutation of.
+    SmallArray<LowerPtr<LowerBlock>, 64> ordered;
     for(Size i = postorder.size(); i > 0; i--) {
         ordered.push(fun.blocks.get(base, postorder[i - 1]));
     }

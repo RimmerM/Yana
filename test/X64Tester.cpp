@@ -203,11 +203,11 @@ static void printTrace(Net::Writer& writer, Context& context, LowerBase base, Lo
     // printed - see RegScratch.
     RegScratch scratch;
     FunctionRegs regs;
+    MachineFunction machine;
 
     for(auto fo: module.functions) {
         auto fun = base[fo];
-
-        MachineFunction machine;
+        machine.reset();
         transformFunction(context, base, *fun, machine);
         allocateRegisters(context, base, *fun, machine, scratch, regs);
 

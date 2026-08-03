@@ -693,7 +693,9 @@ static void defineRecord(Module& module, ast::Decl& decl) {
     auto record = declaredRecord(module, decl.data.type.name);
     if(!record) return;
 
-    Array<const ast::Type*> contents;
+    // Inline: a record's constructors are one for a struct and a handful for a sum, and one of
+    // these is built for every `data` declaration in every module the compile touches.
+    SmallArray<const ast::Type*, 8> contents;
     for(auto con: decl.data.cons.contents(module.parse)) {
         contents.push(con.content ? module.parse[con.content] : nullptr);
     }
@@ -1139,9 +1141,12 @@ struct DefaultCall {
     U16 arity = 0;
 };
 
-static void collectCalls(ast::ParseBase parse, ast::Expr expr, Array<DefaultCall>& target);
+// Inline: this is one syntactic walk per default body, and a default body calls a few names.
+using DefaultCallList = SmallArray<DefaultCall, 16>;
 
-static void collectCallee(ast::ParseBase parse, ast::Expr callee, U16 arity, Array<DefaultCall>& target) {
+static void collectCalls(ast::ParseBase parse, ast::Expr expr, DefaultCallList& target);
+
+static void collectCallee(ast::ParseBase parse, ast::Expr callee, U16 arity, DefaultCallList& target) {
     if(callee.kind == ast::Expr::Var) target.push(DefaultCall { callee.var, arity });
     else collectCalls(parse, callee, target);
 }
@@ -1155,7 +1160,7 @@ static void collectCallee(ast::ParseBase parse, ast::Expr callee, U16 arity, Arr
  * called it. Rejecting a declaration that would have worked is a cost; ranking one that hangs is
  * not a cost this check is allowed to have.
  */
-static void collectCalls(ast::ParseBase parse, ast::Expr expr, Array<DefaultCall>& target) {
+static void collectCalls(ast::ParseBase parse, ast::Expr expr, DefaultCallList& target) {
     auto walk = [&](ast::Expr child) { collectCalls(parse, child, target); };
     auto walkPointer = [&](ast::ParsePtr<ast::Expr> child) { if(child) walk(*parse[child]); };
     auto walkArgs = [&](ast::ParseList<ast::TupArg> args) {
@@ -1319,7 +1324,7 @@ static void rankDefault(Module& module, TypeClass& typeClass, Size index, SmallA
     state[index] = 1;
 
     auto& decl = *module.parse[(*module.arena)[entry.defaultFun]->ast];
-    Array<DefaultCall> calls;
+    DefaultCallList calls;
     if(decl.fun.body) collectCalls(module.parse, *module.parse[decl.fun.body], calls);
 
     U16 rank = 1;

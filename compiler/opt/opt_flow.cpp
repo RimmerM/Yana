@@ -32,8 +32,7 @@ void computeDominance(OptContext& opt, Dominance& result) {
     result.immediate.clear();
     result.preorder.clear();
 
-    while(result.children.size() < count) result.children.push(Array<U32>());
-    for(Size i = 0; i < count; i++) result.children[i].clear();
+    result.children.reset(count);
 
     for(Size i = 0; i < count; i++) {
         result.blocks.push(blocks.get(opt.local, i));

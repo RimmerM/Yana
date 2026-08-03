@@ -706,6 +706,18 @@ struct MachineInst {
 struct MachineFunction {
     HashMap<LowerInst*, MachineInst> insts;
 
+    /*
+     * Empties this one for the next function, keeping the table it grew into.
+     *
+     * The map is one entry per instruction, so building a fresh one per function is an allocation
+     * and a rehash per function - which is what a `MachineFunction` declared inside the loop over a
+     * module's functions costs. Every caller hoists one out of that loop and resets it here
+     * instead, on the same terms as the `RegScratch` and `FunctionRegs` beside it.
+     */
+    void reset() {
+        insts.reset();
+    }
+
     void select(LowerInst* inst, MachineOpcodeId opcode, MachineFormId form, Maybe<LowerCmp> condition) {
         insts.add(inst, MachineInst { inst, opcode, form, condition });
     }

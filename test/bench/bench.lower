@@ -1,0 +1,191 @@
+# Benchmark shapes, System V on both sides so the comparison is between the two register allocators
+# and nothing else. Every load is from a distinct address, so there is no common subexpression for a
+# mid-level pass to remove and neither compiler is being asked to do work the other is not.
+
+sink<sysv>(%x: Int): Int {
+    { ret %x }
+}
+
+# Eight pointers live across a call, each dereferenced four times afterwards. System V preserves six
+# registers, so two of the eight cannot stay in one for their whole life.
+acrossCall<sysv>(%n: Int, %p0: Ptr, %p1: Ptr, %p2: Ptr, %p3: Ptr, %p4: Ptr, %p5: Ptr, %p6: Ptr, %p7: Ptr): Long {
+    {
+        %r = call_sysv sink, %n: Int
+
+        %a0 = load %p0, 8: Long
+        %a1 = load %p1, 8: Long
+        %t0 = add %a0, %a1: Long
+        %a2 = load %p2, 8: Long
+        %t1 = add %t0, %a2: Long
+        %a3 = load %p3, 8: Long
+        %t2 = add %t1, %a3: Long
+        %a4 = load %p4, 8: Long
+        %t3 = add %t2, %a4: Long
+        %a5 = load %p5, 8: Long
+        %t4 = add %t3, %a5: Long
+        %a6 = load %p6, 8: Long
+        %t5 = add %t4, %a6: Long
+        %a7 = load %p7, 8: Long
+        %t6 = add %t5, %a7: Long
+
+        %b0 = load %p0, 8: Long
+        %t7 = add %t6, %b0: Long
+        %b1 = load %p1, 8: Long
+        %t8 = add %t7, %b1: Long
+        %b2 = load %p2, 8: Long
+        %t9 = add %t8, %b2: Long
+        %b3 = load %p3, 8: Long
+        %t10 = add %t9, %b3: Long
+        %b4 = load %p4, 8: Long
+        %t11 = add %t10, %b4: Long
+        %b5 = load %p5, 8: Long
+        %t12 = add %t11, %b5: Long
+        %b6 = load %p6, 8: Long
+        %t13 = add %t12, %b6: Long
+        %b7 = load %p7, 8: Long
+        %t14 = add %t13, %b7: Long
+
+        %c0 = load %p0, 8: Long
+        %t15 = add %t14, %c0: Long
+        %c1 = load %p1, 8: Long
+        %t16 = add %t15, %c1: Long
+        %c2 = load %p2, 8: Long
+        %t17 = add %t16, %c2: Long
+        %c3 = load %p3, 8: Long
+        %t18 = add %t17, %c3: Long
+        %c4 = load %p4, 8: Long
+        %t19 = add %t18, %c4: Long
+        %c5 = load %p5, 8: Long
+        %t20 = add %t19, %c5: Long
+        %c6 = load %p6, 8: Long
+        %t21 = add %t20, %c6: Long
+        %c7 = load %p7, 8: Long
+        %t22 = add %t21, %c7: Long
+
+        ret %t22
+    }
+}
+
+# The same pressure inside a loop, so the reads are worth eight times what the call is.
+loopCall<sysv>(%n: Int, %p0: Ptr, %p1: Ptr, %p2: Ptr, %p3: Ptr, %p4: Ptr, %p5: Ptr, %p6: Ptr, %p7: Ptr): Long {
+    entry {
+        %zero = cast 0: Long
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [body, %i2]: Long
+        %acc = phi [entry, %zero], [body, %acc2]: Long
+        je %n, exit, body
+    }
+
+    body {
+        %r = call_sysv sink, %n: Int
+
+        %a0 = load %p0, 8: Long
+        %a1 = load %p1, 8: Long
+        %t0 = add %a0, %a1: Long
+        %a2 = load %p2, 8: Long
+        %t1 = add %t0, %a2: Long
+        %a3 = load %p3, 8: Long
+        %t2 = add %t1, %a3: Long
+        %a4 = load %p4, 8: Long
+        %t3 = add %t2, %a4: Long
+        %a5 = load %p5, 8: Long
+        %t4 = add %t3, %a5: Long
+        %a6 = load %p6, 8: Long
+        %t5 = add %t4, %a6: Long
+        %a7 = load %p7, 8: Long
+        %t6 = add %t5, %a7: Long
+
+        %b0 = load %p0, 8: Long
+        %u0 = add %t6, %b0: Long
+        %b1 = load %p1, 8: Long
+        %u1 = add %u0, %b1: Long
+        %b2 = load %p2, 8: Long
+        %u2 = add %u1, %b2: Long
+        %b3 = load %p3, 8: Long
+        %u3 = add %u2, %b3: Long
+        %b4 = load %p4, 8: Long
+        %u4 = add %u3, %b4: Long
+        %b5 = load %p5, 8: Long
+        %u5 = add %u4, %b5: Long
+        %b6 = load %p6, 8: Long
+        %u6 = add %u5, %b6: Long
+        %b7 = load %p7, 8: Long
+        %u7 = add %u6, %b7: Long
+
+        %c0 = load %p0, 8: Long
+        %v0 = add %u7, %c0: Long
+        %c1 = load %p1, 8: Long
+        %v1 = add %v0, %c1: Long
+        %c2 = load %p2, 8: Long
+        %v2 = add %v1, %c2: Long
+        %c3 = load %p3, 8: Long
+        %v3 = add %v2, %c3: Long
+        %c4 = load %p4, 8: Long
+        %v4 = add %v3, %c4: Long
+        %c5 = load %p5, 8: Long
+        %v5 = add %v4, %c5: Long
+        %c6 = load %p6, 8: Long
+        %v6 = add %v5, %c6: Long
+        %c7 = load %p7, 8: Long
+        %v7 = add %v6, %c7: Long
+
+        %acc2 = add %acc, %v7: Long
+        %i2 = add %i, 1L: Long
+        jmp head
+    }
+
+    exit {
+        ret %acc
+    }
+}
+
+# A call on an arm the IR says is taken one time in a thousand, with the reads in the loop around it.
+coldCall<sysv>(%n: Int, %p0: Ptr, %p1: Ptr, %p2: Ptr, %p3: Ptr, %p4: Ptr, %p5: Ptr, %p6: Ptr, %p7: Ptr): Long {
+    entry {
+        %zero = cast 0: Long
+        jmp head
+    }
+
+    head {
+        %i = phi [entry, %zero], [rejoin, %i2]: Long
+        %acc = phi [entry, %zero], [rejoin, %acc2]: Long
+        je %n, exit, hot
+    }
+
+    hot {
+        %a0 = load %p0, 8: Long
+        %a1 = load %p1, 8: Long
+        %t0 = add %a0, %a1: Long
+        %a2 = load %p2, 8: Long
+        %t1 = add %t0, %a2: Long
+        %a3 = load %p3, 8: Long
+        %t2 = add %t1, %a3: Long
+        %a4 = load %p4, 8: Long
+        %t3 = add %t2, %a4: Long
+        %a5 = load %p5, 8: Long
+        %t4 = add %t3, %a5: Long
+        %a6 = load %p6, 8: Long
+        %t5 = add %t4, %a6: Long
+        %a7 = load %p7, 8: Long
+        %t6 = add %t5, %a7: Long
+        je %i, [rejoin, 999], [cold, 1]
+    }
+
+    cold {
+        %r = call_sysv sink, %n: Int
+        jmp rejoin
+    }
+
+    rejoin {
+        %acc2 = add %acc, %t6: Long
+        %i2 = add %i, 1L: Long
+        jmp head
+    }
+
+    exit {
+        ret %acc
+    }
+}

@@ -190,7 +190,7 @@ static U32 lastUseOf(Analysis& analysis, ModulePtr<Inst> pointer) {
 }
 
 void checkBorrows(Analysis& analysis) {
-    Array<LiveBorrow> borrows;
+    SmallArray<LiveBorrow, 8> borrows;
 
     for(Size i = 0; i < analysis.instructionCount; i++) {
         auto pointer = analysis.order[i];
