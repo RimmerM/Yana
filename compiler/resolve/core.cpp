@@ -999,15 +999,29 @@ import Host
    than an overload, so the name has to become a class for the two to coexist - which is exactly what
    happened to `xs[i]` when `Index` landed, and for the same reason.
 
-   The instances below are the same set `Index` has and are there for the same reason: instance
+   The container instances are the same set `Index` has and are there for the same reason: instance
    selection does not convert, so an `Array(a)` binds `Array(a)` and needs an instance of its own
    rather than reaching the slice's through the conversion a *call* would have performed.
+
+   **Generated rather than written, on the same terms `Index`'s are - see the note in `Native`.**
+   Written out they would read:
+
+       instance Length(Flat(a)):
+           fn length(self: Flat(a)) -> Size = self.length
+
+       @platform(native) instance Length(Array(a)):
+           fn length(self: Array(a)) -> Size = self.length :: Size
+
+       @platform(js) instance Length(Array(a)):
+           fn length(self: Array(a)) -> Size = hostLength(self.items)
+
+   One field load each, and the JS one had a second reason beyond the shared one: `hostLength` is an
+   `InstNative`, `Value::Native` is not in `clonableKind`, and so no call site could ever have seen
+   through `Length(Array(a)).length` however willing the inliner was made. `String`'s instances below
+   are ordinary functions and stay in source, because neither of those arguments is about them.
 -}
 class Length(c):
   fn length(self: c) -> Size
-
-instance Length(Flat(a)):
-  fn length(self: Flat(a)) -> Size = self.length
 
 {-
    `Chunked` and `Contiguous` - Implementation-Containers.md §5.
@@ -1067,15 +1081,6 @@ class (Chunked(c, a)) Contiguous(c -> a):
 instance Chunked(Array(a), a):
     iter fn chunks(self: Array(a)) -> Flat(a) = yield elements(self)
 
--- The owner's own count, which each target keeps in its own place: a field natively, the host
--- array's `length` on JS. Not reached through the slice, because instance selection binds the type
--- the caller wrote rather than one it could be converted to.
-@platform(native) instance Length(Array(a)):
-    fn length(self: Array(a)) -> Size = self.length :: Size
-
-@platform(js) instance Length(Array(a)):
-    fn length(self: Array(a)) -> Size = hostLength(self.items)
-
 instance Contiguous(Flat(a), a):
     fn elements(return self: Flat(a)) -> Flat(a) = self
 
@@ -1092,38 +1097,32 @@ instance Chunked(Flat(a), a):
    Instance selection does not convert - nothing about a class says which of its parameters may be
    widened on the way in - so an owner that is to be a `c` has to be one.
 
+   **Generated rather than written, on the same terms the slice's are - see the note in `Native`.**
+   Written out, the owner's pair and the two `Length` instances above would read:
+
+       @platform(native) instance Index(Array(a), Size, a):
+           fn get(return self: Array(a), index: Size) -> &a = borrow(self.run.items + index)
+           fn getMut(return &self: Array(a), index: Size) -> &a = borrowMut(self.run.items + index)
+
+       @platform(js) instance Index(Array(a), Size, a):
+           fn get(return self: Array(a), index: Size) -> &a = hostAt(self.items, index)
+           fn getMut(return &self: Array(a), index: Size) -> &a = hostAtMut(self.items, index)
+
    The bodies are the slice's, minus the descriptor. `self.run.items` is the base the slice would
    have copied, so this is one address computation rather than two loads and a temporary; the
    conversion was never buying anything at a subscript, and its absence is why `Array.yana`'s lowered
    form got shorter rather than longer when the class landed.
 
+   On JS `hostAt` is a place rather than an operation, which is why one line is the whole of it:
+   `arr[i]` is an lvalue in the host language exactly as `*(p + i)` is one here, so the borrow it
+   hands back writes through to the array's own storage and no copy, box or write-back stands between
+   them. That is what makes `xs[i] = v` on JS the same program it is natively rather than a read
+   followed by a store somebody had to remember to emit.
+
    The count is not consulted, which is the same tier the slice's accessor is on and goes the same
    way when `checkBounds` (Implementation-Containers.md §15) lands - in one place, since by then
    there is one place.
 -}
-@platform(native) instance Index(Array(a), Size, a):
-    fn get(return self: Array(a), index: Size) -> &a = borrow(self.run.items + index)
-    fn getMut(return &self: Array(a), index: Size) -> &a = borrowMut(self.run.items + index)
-
-{-
-   Subscripting on JS - Implementation-Containers.md §14.1.
-
-   `hostAt` is a place rather than an operation, which is why these two lines are the whole of it:
-   `arr[i]` is an lvalue in the host language exactly as `*(p + i)` is one here, so the borrow these
-   hand back writes through to the array's own storage and no copy, box or write-back stands between
-   them. That is what makes `xs[i] = v` on JS the same program it is natively rather than a read
-   followed by a store somebody had to remember to emit.
-
-   The slice's pair below is the same two lines plus the window's start, which is the one thing a
-   host slice carries that a native one folds into its base.
--}
-@platform(js) instance Index(Array(a), Size, a):
-    fn get(return self: Array(a), index: Size) -> &a = hostAt(self.items, index)
-    fn getMut(return &self: Array(a), index: Size) -> &a = hostAtMut(self.items, index)
-
-@platform(js) instance Index(Flat(a), Size, a):
-    fn get(return self: Flat(a), index: Size) -> &a = hostAt(self.items, self.offset + index)
-    fn getMut(return &self: Flat(a), index: Size) -> &a = hostAtMut(self.items, self.offset + index)
 
 {-
    `xs[from..to]`, as an ordinary function.
@@ -1722,6 +1721,10 @@ void defineCollections(Program& program) {
     program.newString = findCollection("newStringOfCapacity", 19);
     program.pushString = findCollection("pushString", 10);
     program.formatBound = findCollection("formatBound", 11);
+
+    // After `arrayType` above, and before this module's own bodies below - several of which
+    // subscript, and would reach an instance that does not exist yet.
+    defineContainerInstances(*module);
 
     resolveModuleBodies(*module);
 }

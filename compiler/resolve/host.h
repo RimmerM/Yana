@@ -37,3 +37,21 @@
  * targets rather than two different rules.
  */
 void defineHost(Program& program);
+
+/*
+ * The two host operations a built-in container's own intrinsic reaches.
+ *
+ * Collections' `Index(Array(a))` and `Length(Array(a))` are `hostAt` and `hostLength` in source, and
+ * an intrinsic instance (see attachInstanceIntrinsic) has to emit what those declarations emit. That
+ * is a fact about the host and not about containers, so it is said here once rather than in the two
+ * hooks - a second spelling of `.length` in another file is exactly the kind of agreement this plan
+ * exists to remove.
+ */
+struct ExprResolver;
+
+// `self[index]`, as the place it is - see the element note in host.cpp.
+Place hostElementPlace(ExprResolver& resolver, ModulePtr<Value> array, ModulePtr<Value> index);
+
+// `self.length`, at the result type the caller declares.
+ModulePtr<Value> emitHostLengthOf(ExprResolver& resolver, ModulePtr<Value> array, TypePtr type,
+                                  LocationId source, StringId name);

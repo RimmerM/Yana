@@ -300,17 +300,6 @@ fn mapMemory(%size: I64) -> %U8 {
     ret %v18
 }
 
-fn Index(Array(a), I64, a).get(Int)(%self: Array(Int), %index: I64) -> &Int {
-  b0:
-    %v2 = load %self@Array.run : Run(Int)
-    %v3 = load %self@Array.run@Run.items : %Int
-    %v4 = strideof Int : I64
-    %v5 = mul %index, %v4 : I64
-    %v6 = add %v3, %v5 : %Int
-    %v7 = borrow [%v6] : &Int
-    ret %v7
-}
-
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
@@ -399,21 +388,25 @@ fn indexed(%n: Int) -> Maybe(Int) {
 
   b1:
     alloc
-    %v15 = call Try(Maybe(a), a, ()).fromExit(Int), %v16 : Maybe(Int)
+    %v19 = call Try(Maybe(a), a, ()).fromExit(Int), %v20 : Maybe(Int)
     jmp b3
 
   b2:
     %v8 = load %local1@Proceed : Array(Int)
     %v11 = borrow %local1@Proceed : &Array(Int)
-    %v12 = call Index(Array(a), I64, a).get(Int), %v11, 1 : &Int
-    %v13 = load [%v12] : Int
+    %v12 = load [%v11]@Array.run@Run.items : %Int
+    %v13 = strideof Int : Long
+    %v14 = mul 1, %v13 : Long
+    %v15 = add %v12, %v14 : %Int
+    %v16 = borrow [%v15] : &Int
+    %v17 = load [%v16] : Int
     drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
-    %v14 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v13 : Maybe(Int)
+    %v18 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v17 : Maybe(Int)
     jmp b3
 
   b3:
-    %v19 = phi [b2, %v14], [b1, %v15] : Maybe(Int)
-    ret %v19
+    %v23 = phi [b2, %v18], [b1, %v19] : Maybe(Int)
+    ret %v23
 
   b4:
     drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
@@ -431,21 +424,25 @@ fn sum(%n: Int) -> Maybe(Int) {
 
   b1:
     alloc
-    %v15 = call Try(Maybe(a), a, ()).fromExit(Int), %v16 : Maybe(Int)
+    %v19 = call Try(Maybe(a), a, ()).fromExit(Int), %v20 : Maybe(Int)
     jmp b3
 
   b2:
     %v8 = load %local1@Proceed : Array(Int)
     %v11 = borrow %local1@Proceed : &Array(Int)
-    %v12 = call Index(Array(a), I64, a).get(Int), %v11, 0 : &Int
-    %v13 = load [%v12] : Int
+    %v12 = load [%v11]@Array.run@Run.items : %Int
+    %v13 = strideof Int : Long
+    %v14 = mul 0, %v13 : Long
+    %v15 = add %v12, %v14 : %Int
+    %v16 = borrow [%v15] : &Int
+    %v17 = load [%v16] : Int
     drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
-    %v14 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v13 : Maybe(Int)
+    %v18 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v17 : Maybe(Int)
     jmp b3
 
   b3:
-    %v19 = phi [b2, %v14], [b1, %v15] : Maybe(Int)
-    ret %v19
+    %v23 = phi [b2, %v18], [b1, %v19] : Maybe(Int)
+    ret %v23
 
   b4:
     drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())

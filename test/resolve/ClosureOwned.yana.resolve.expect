@@ -216,16 +216,6 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn Index(Flat(a), I64, a).get(Int)(%self: Flat(Int), %index: I64) -> &Int {
-  b0:
-    %v2 = load %self@Flat.items : %Int
-    %v3 = strideof Int : I64
-    %v4 = mul %index, %v3 : I64
-    %v5 = add %v2, %v4 : %Int
-    %v6 = borrow [%v5] : &Int
-    ret %v6
-}
-
 fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
     %v1 = load %self@Run.ownsHeap : @bits(2) U32
@@ -264,12 +254,6 @@ fn mapMemory(%size: I64) -> %U8 {
   b3:
     %v18 = cast %result : %U8
     ret %v18
-}
-
-fn Length(Flat(a)).length(Int)(%self: Flat(Int)) -> I64 {
-  b0:
-    %v1 = load %self@Flat.length : I64
-    ret %v1
 }
 
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
@@ -318,27 +302,31 @@ fn total(%xs: Flat(Int)) -> Int {
 
   b1:
     %v8 = load %i : Int
-    %v9 = call Length(Flat(a)).length(Int), %xs : I64
+    %v9 = load %xs@Flat.length : I64
     %v10 = cast %v8 : I64
     %v11 = cmp_lt %v10, %v9 : Bool
     je %v11, b3, b2
 
   b2:
-    %v27 = load %sum : Int
-    ret %v27
+    %v31 = load %sum : Int
+    ret %v31
 
   b3:
     %v13 = load %sum : Int
     %v14 = load %i : Int
     %v15 = cast %v14 : I64
     %v16 = borrow %xs : &Flat(Int)
-    %v17 = call Index(Flat(a), I64, a).get(Int), %v16, %v15 : &Int
-    %v18 = load [%v17] : Int
-    %v19 = borrow_mut %sum : &mut Int
-    call +=(Int), %v19, %v18
-    %v21 = load %i : Int
-    %v24 = borrow_mut %i : &mut Int
-    call +=(Int), %v24, 1
+    %v17 = load [%v16]@Flat.items : %Int
+    %v18 = strideof Int : Long
+    %v19 = mul %v15, %v18 : Long
+    %v20 = add %v17, %v19 : %Int
+    %v21 = borrow [%v20] : &Int
+    %v22 = load [%v21] : Int
+    %v23 = borrow_mut %sum : &mut Int
+    call +=(Int), %v23, %v22
+    %v25 = load %i : Int
+    %v28 = borrow_mut %i : &mut Int
+    call +=(Int), %v28, 1
     jmp b1
 }
 

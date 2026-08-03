@@ -1137,6 +1137,28 @@ static void cloneBody(Clone& clone, Function& to) {
         clone.resolver.initialize(Place::inLocal(U32(i)), argument, clone.source);
     }
 
+    /*
+     * A parameter's own slot, filled in before the body rather than with the rest of the table.
+     *
+     * Everything else waits for the instruction that produced it to be cloned, which is the only
+     * order that works for an allocation. A parameter has no such instruction - its value is the
+     * `Arg`, and every one of those exists already - and something being cloned may have to know
+     * *while* it is being cloned that the slot is where the parameter lives. An intrinsic expanded
+     * here is what does: it asks findPlace for its receiver, and an empty entry answers "this
+     * aggregate has no place", which makes it build storage of its own and store a value the frame
+     * only borrows into it.
+     */
+    for(Size i = 0; i < from.localCount(); i++) {
+        if(materialized[i]) continue;
+
+        auto slot = from.localAt(local, U32(i));
+        if(!slot.value || local[slot.value]->kind != Value::Arg) continue;
+
+        auto target = to.localAt(local, U32(i));
+        target.value = cloneDefinition(clone, slot.value);
+        to.locals.set(local, i, target);
+    }
+
     // Phi shells first: a phi is the one instruction whose operands need not dominate it, so
     // anything else may reference one before the block it lives in has been reached.
     for(auto blockPointer: from.blocks.contents(local)) {

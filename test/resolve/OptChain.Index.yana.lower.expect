@@ -70,15 +70,6 @@ Try(Maybe(a), a, ()).fromExit(Int)<complex>(%v_0: Ptr) {
   }
 }
 
-Index(Array(a), I64, a).get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 4: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
-  }
-}
-
 unwrapOr<complex>(%m: Ptr, %fallback: Int): Int {
   b_0 {
     %v_1 = loads %m, 4: Int
@@ -124,17 +115,18 @@ indexed<complex>(%v_0: Ptr, %n: Int) {
   }
 
   b_10 {
-    %v_15 = call_complex Index(Array(a), I64, a).get(Int), %v_3, 1: Ptr
-    %v_16 = loads %v_15, 4: Int
+    %v_15 = load %v_3, 8: Ptr
+    %v_16 = add %v_15, 4: Ptr
+    %v_17 = loads %v_16, 4: Int
     call_complex reclaim$Outcome(Array(Int), ()), %v_3
-    %v_17 = alloca 8, 4: Ptr
-    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v_17, %v_16
+    %v_18 = alloca 8, 4: Ptr
+    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v_18, %v_17
     jmp b_14
   }
 
   b_14 {
-    %v_18 = phi [b_10, %v_17], [b_11, %v_13]: Ptr
-    copy %v_0, %v_18, 8
+    %v_19 = phi [b_10, %v_18], [b_11, %v_13]: Ptr
+    copy %v_0, %v_19, 8
     ret 
   }
 
@@ -166,17 +158,18 @@ sum<complex>(%v_0: Ptr, %n: Int) {
   }
 
   b_10 {
-    %v_15 = call_complex Index(Array(a), I64, a).get(Int), %v_3, 0: Ptr
-    %v_16 = loads %v_15, 4: Int
+    %v_15 = load %v_3, 8: Ptr
+    %v_16 = add %v_15, 0: Ptr
+    %v_17 = loads %v_16, 4: Int
     call_complex reclaim$Outcome(Array(Int), ()), %v_3
-    %v_17 = alloca 8, 4: Ptr
-    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v_17, %v_16
+    %v_18 = alloca 8, 4: Ptr
+    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v_18, %v_17
     jmp b_14
   }
 
   b_14 {
-    %v_18 = phi [b_10, %v_17], [b_11, %v_13]: Ptr
-    copy %v_0, %v_18, 8
+    %v_19 = phi [b_10, %v_18], [b_11, %v_13]: Ptr
+    copy %v_0, %v_19, 8
     ret 
   }
 

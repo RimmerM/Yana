@@ -102,40 +102,32 @@ grown<complex>(): Int {
     store %v_16, 3, 4
     call_complex push(Int), %v_1, 4
     call_complex push(Int), %v_1, 5
-    %v_17 = call_complex Index(Array(a), I64, a).get(Int), %v_1, 0: Ptr
-    %v_18 = loads %v_17, 4: Int
-    %v_19 = add %v_1, 12: Ptr
-    %v_20 = load %v_19, 4: Int
-    %v_21 = cast %v_20: Int
-    %v_22 = cast %v_21: Long
-    %v_23 = add %v_1, 8: Ptr
-    %v_24 = load %v_23, 4: Int
-    %v_25 = shr %v_24, 30: Int
-    %v_26 = cmp_eq %v_25, 1: Int
-    je %v_26, b_27, b_28
+    %v_17 = load %v_1, 8: Ptr
+    %v_18 = add %v_17, 0: Ptr
+    %v_19 = loads %v_18, 4: Int
+    %v_20 = add %v_1, 12: Ptr
+    %v_21 = load %v_20, 4: Int
+    %v_22 = add %v_1, 8: Ptr
+    %v_23 = load %v_22, 4: Int
+    %v_24 = shr %v_23, 30: Int
+    %v_25 = cmp_eq %v_24, 1: Int
+    je %v_25, b_26, b_27
+  }
+
+  b_26 {
+    %v_28 = load %v_1, 8: Ptr
+    %v_29 = bitcast %v_28: Ptr
+    call_complex freeHeap, %v_29
+    jmp b_27
   }
 
   b_27 {
-    %v_29 = load %v_1, 8: Ptr
-    %v_30 = bitcast %v_29: Ptr
-    call_complex freeHeap, %v_30
-    jmp b_28
-  }
-
-  b_28 {
-    %v_31 = sext %v_18: Long
-    %v_32 = add %v_31, %v_22: Long
-    %v_33 = cast %v_32: Int
-    ret %v_33
-  }
-}
-
-Index(Array(a), I64, a).get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 4: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
+    %v_30 = cast %v_21: Int
+    %v_31 = cast %v_30: Long
+    %v_32 = sext %v_19: Long
+    %v_33 = add %v_32, %v_31: Long
+    %v_34 = cast %v_33: Int
+    ret %v_34
   }
 }
 
@@ -349,27 +341,13 @@ frameOnly<complex>(): Int {
     store %v_14, 30, 4
     %v_15 = add %xs, 12: Ptr
     store %v_15, 3, 4
-    %v_16 = call_complex Index(Array(a), I64, a).get(Int), %xs, 0: Ptr
+    %v_16 = add %v_3, 0: Ptr
     %v_17 = loads %v_16, 4: Int
-    %v_18 = call_complex Index(Array(a), I64, a).get(Int), %xs, 2: Ptr
-    %v_19 = loads %v_18, 4: Int
-    %v_20 = add %xs, 8: Ptr
-    %v_21 = load %v_20, 4: Int
-    %v_22 = shr %v_21, 30: Int
-    %v_23 = cmp_eq %v_22, 1: Int
-    je %v_23, b_24, b_25
-  }
-
-  b_24 {
-    %v_26 = load %xs, 8: Ptr
-    %v_27 = bitcast %v_26: Ptr
-    call_complex freeHeap, %v_27
-    jmp b_25
-  }
-
-  b_25 {
-    %v_28 = add %v_17, %v_19: Int
-    ret %v_28
+    %v_18 = imul %v_11, 2: Long
+    %v_19 = add %v_3, %v_18: Ptr
+    %v_20 = loads %v_19, 4: Int
+    %v_21 = add %v_17, %v_20: Int
+    ret %v_21
   }
 }
 
@@ -397,24 +375,8 @@ boundMutable<complex>(): Int {
     store %v_15, 6, 4
     %v_16 = add %v_1, 12: Ptr
     store %v_16, 3, 4
-    %v_17 = call_complex Index(Array(a), I64, a).get(Int), %v_1, 1: Ptr
-    %v_18 = loads %v_17, 4: Int
-    %v_19 = add %v_1, 8: Ptr
-    %v_20 = load %v_19, 4: Int
-    %v_21 = shr %v_20, 30: Int
-    %v_22 = cmp_eq %v_21, 1: Int
-    je %v_22, b_23, b_24
-  }
-
-  b_23 {
-    %v_25 = load %v_1, 8: Ptr
-    %v_26 = bitcast %v_25: Ptr
-    call_complex freeHeap, %v_26
-    jmp b_24
-  }
-
-  b_24 {
-    ret %v_18
+    %v_17 = loads %v_13, 4: Int
+    ret %v_17
   }
 }
 

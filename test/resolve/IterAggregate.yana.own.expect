@@ -16,38 +16,14 @@ fn freeHeap {
   arg allocation readonly
 }
 
-fn Index(Flat(a), I64, a).get(Point) {
-  arg self readonly return
-  arg index readonly
-  result arguments
-  %self: Flat(Point) borrowed readonly live [0, 1)
-}
-
-fn Index(Flat(a), I64, a).get(Int) {
-  arg self readonly return
-  arg index readonly
-  result arguments
-  %self: Flat(Int) borrowed readonly live [0, 1)
-}
-
 fn releaseRun(Point) {
   arg self readonly
-  %self: Run(Point) borrowed droppable readonly live [0, 6)
+  %self: Run(Point) borrowed droppable readonly live [0, 7)
 }
 
 fn releaseRun(Int) {
   arg self readonly
-  %self: Run(Int) borrowed droppable readonly live [0, 6)
-}
-
-fn Length(Flat(a)).length(Point) {
-  arg self readonly
-  %self: Flat(Point) borrowed readonly live [0, 1)
-}
-
-fn Length(Flat(a)).length(Int) {
-  arg self readonly
-  %self: Flat(Int) borrowed readonly live [0, 1)
+  %self: Run(Int) borrowed droppable readonly live [0, 7)
 }
 
 fn Reclaim(Array(a)).reclaim(Point) {
@@ -139,10 +115,10 @@ fn ResolveTest.continuation$2 {
 fn each(Point, ()) {
   arg xs unknown
   arg body readonly
-  %xs: Flat(Point) borrowed unknown live [0, 8) [11, 19) [20, 24)
-  %body: (value: Point) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 19) [20, 24)
-  %i: Int writable live [0, 8) [11, 19) [20, 24)
-  %local3: Outcome((), ()) readonly live [15, 20)
+  %xs: Flat(Point) borrowed unknown live [0, 8) [11, 24) [25, 29)
+  %body: (value: Point) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 24) [25, 29)
+  %i: Int writable live [0, 8) [11, 24) [25, 29)
+  %local3: Outcome((), ()) readonly live [20, 25)
   %local4: Outcome((), ()) readonly live [8, 11)
   %local5: Outcome((), ()) readonly live never
 }
@@ -187,10 +163,10 @@ fn ResolveTest.continuation$0(Point, ()) {
 fn each(Point, Outcome((), ())) {
   arg xs unknown
   arg body readonly
-  %xs: Flat(Point) borrowed unknown live [0, 8) [11, 19) [20, 24)
-  %body: (value: Point) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 8) [11, 19) [20, 24)
-  %i: Int writable live [0, 8) [11, 19) [20, 24)
-  %local3: Outcome((), Outcome((), ())) readonly live [15, 20)
+  %xs: Flat(Point) borrowed unknown live [0, 8) [11, 24) [25, 29)
+  %body: (value: Point) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 8) [11, 24) [25, 29)
+  %i: Int writable live [0, 8) [11, 24) [25, 29)
+  %local3: Outcome((), Outcome((), ())) readonly live [20, 25)
   %local4: Outcome((), Outcome((), ())) readonly live [8, 11)
   %local5: Outcome((), Outcome((), ())) readonly live never
 }
@@ -262,10 +238,10 @@ fn ResolveTest.continuation$0(Point, Outcome((), ())) {
 fn each(Point, Outcome((), Outcome((), ()))) {
   arg xs unknown
   arg body readonly
-  %xs: Flat(Point) borrowed unknown live [0, 8) [11, 19) [20, 24)
-  %body: (value: Point) -> Outcome((), Outcome((), Outcome((), ()))) borrowed droppable readonly live [0, 8) [11, 19) [20, 24)
-  %i: Int writable live [0, 8) [11, 19) [20, 24)
-  %local3: Outcome((), Outcome((), Outcome((), ()))) readonly live [15, 20)
+  %xs: Flat(Point) borrowed unknown live [0, 8) [11, 24) [25, 29)
+  %body: (value: Point) -> Outcome((), Outcome((), Outcome((), ()))) borrowed droppable readonly live [0, 8) [11, 24) [25, 29)
+  %i: Int writable live [0, 8) [11, 24) [25, 29)
+  %local3: Outcome((), Outcome((), Outcome((), ()))) readonly live [20, 25)
   %local4: Outcome((), Outcome((), Outcome((), ()))) readonly live [8, 11)
   %local5: Outcome((), Outcome((), Outcome((), ()))) readonly live never
 }
@@ -279,10 +255,10 @@ fn ResolveTest.continuation$5 {
 fn each(Int, ()) {
   arg xs readonly
   arg body readonly
-  %xs: Flat(Int) borrowed readonly live [0, 8) [11, 19) [20, 24)
-  %body: (value: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 19) [20, 24)
-  %i: Int writable live [0, 8) [11, 19) [20, 24)
-  %local3: Outcome((), ()) readonly live [15, 20)
+  %xs: Flat(Int) borrowed readonly live [0, 8) [11, 24) [25, 29)
+  %body: (value: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 24) [25, 29)
+  %i: Int writable live [0, 8) [11, 24) [25, 29)
+  %local3: Outcome((), ()) readonly live [20, 25)
   %local4: Outcome((), ()) readonly live [8, 11)
   %local5: Outcome((), ()) readonly live never
 }

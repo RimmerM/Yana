@@ -1,17 +1,5 @@
 "use strict";
 // Collections
-function Index_Flat_a_Int_a_get_Int(self, index) {
-  return { $v: self.items[self.offset + index | 0] };
-}
-
-function Index_Array_a_Int_a_get_Int(self, index) {
-  return { $v: self.items[index] };
-}
-
-function Index_Array_a_Int_a_getMut_Int(self, index) {
-  return { $o: self.items, $k: index, $s: 1 };
-}
-
 function push_Int(self, item) {
   var v3 = self.items;
   v3[v3.length] = item;
@@ -29,22 +17,17 @@ function remove_Int(self, index) {
   }
 }
 
-function Length_Array_a_length_Int(self) {
-  return self.items.length;
-}
-
 function Reclaim_Array_a_reclaim_Int(value) {
   return;
 }
 
 // ResolveTest
 function sum(xs$items, xs$length, xs$offset) {
-  var xs = { items: xs$items, length: xs$length, offset: xs$offset };
   var total = 0;
   var i = 0;
   L0: for (;;) {
-    if (i < xs.length) {
-      total = total + Index_Flat_a_Int_a_get_Int(xs, i).$v | 0;
+    if (i < xs$length) {
+      total = total + xs$items[xs$offset + i | 0] | 0;
       i = i + 1 | 0;
       continue L0;
     }
@@ -64,8 +47,8 @@ function make() {
 }
 
 function escaping() {
-  var xs = make();
-  return (Index_Array_a_Int_a_get_Int(xs, 0).$v + Index_Array_a_Int_a_get_Int(xs, 1).$v | 0) + Index_Array_a_Int_a_get_Int(xs, 2).$v | 0;
+  var v4 = make().items;
+  return (v4[0] + v4[1] | 0) + v4[2] | 0;
 }
 
 function main() {
@@ -75,13 +58,12 @@ function main() {
   v4[0] = 1;
   v4[1] = 2;
   v4[2] = 3;
-  var v17 = Index_Array_a_Int_a_getMut_Int(v3, 0);
-  v17.$o[v17.$k] = 10;
+  v3.items[0] = 10;
   push_Int(v3, 4);
   push_Int(v3, 5);
-  var v34 = remove_Int(v3, 1);
-  var v39 = remove_Int(v3, 99);
-  var v47 = remove_Int(v3, -1);
-  var v50 = v3.items;
-  return (sum(v50, v50.length, 0) + Length_Array_a_length_Int(v3) | 0) + escaping() | 0;
+  var v35 = remove_Int(v3, 1);
+  var v40 = remove_Int(v3, 99);
+  var v48 = remove_Int(v3, -1);
+  var v51 = v3.items;
+  return (sum(v51, v51.length, 0) + v3.items.length | 0) + escaping() | 0;
 }

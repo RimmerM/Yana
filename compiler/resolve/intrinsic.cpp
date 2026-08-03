@@ -1,5 +1,6 @@
 #include "intrinsic.h"
 #include "builder.h"
+#include "host.h"
 #include "name.h"
 
 /*
@@ -144,6 +145,24 @@ static ModulePtr<Function> generateInstanceFunction(Module& module, TypeClass& t
 
         if(declared->isLazy()) {
             created->lazyType = substituteType(module, declared->lazyType, args, kNullLocation);
+        }
+
+        /*
+         * A parameter that arrives as storage gets the slot naming it, exactly as an authored body's
+         * would - see bindFunctionArgs, whose two branches these are.
+         *
+         * No primitive needed one until `Index`: an operation over two `Int`s has its operands in
+         * registers, and the generated body never asked where they lived. An aggregate receiver has
+         * to be *addressed* - `self.items` is a projection off the parameter's place - and without a
+         * slot findPlace answers "this value has no place", which makes the emitter allocate storage
+         * of its own and store a value the frame only borrows into it.
+         */
+        if(created->isMutableBorrow()) {
+            function->addLocal(module, created->type, created->name, (ModulePtr<Value>)(created - local),
+                               ast::BindType::Ref, true);
+        } else if(isMemoryType(global, created->type)) {
+            function->addLocal(module, created->type, created->name, (ModulePtr<Value>)(created - local),
+                               created->convention);
         }
     }
 
@@ -380,4 +399,317 @@ void attachIntrinsic(Module& module, StringView name, Intrinsic intrinsic) {
     }
 
     (*module.arena)[found.unwrap()]->intrinsic = intrinsic;
+}
+
+/*
+ * The built-in containers' element and length accessors - Implementation-Simplification.md §2.
+ *
+ * `xs[i]` is the most common expression the language has, and until these were generated it cost a
+ * call and, on JS, a heap allocation per read. Not because anything about it is hard: each of these
+ * instances is one line over an operation that already emits exactly the right IR - an address
+ * computation and a borrow of the place it names - but because the *instance method* was an ordinary
+ * function, and the one thing that could have seen through it declines to. opt_inline.cpp refuses
+ * any callee with a `return` parameter, which is every accessor here.
+ *
+ * So they are generated, exactly as `Num(Int).+` is, and each emitter below is the whole definition
+ * of its instance. Every one of them could be written in Yana - the comment above each declaration
+ * in `Native` and `Collections` says what that would read like, and why it is not - and the reason
+ * they are not is the reason `Num(Int).+` is not: reaching them must cost nothing, and an intrinsic
+ * is the only form that costs nothing *without an optimizer having run*. A source body would have to
+ * be specialized per element type and then spliced per call site before it was free, so a build with
+ * `-no-opt` would pay for a call at every subscript in the program, and the shape of the emitted code
+ * would depend on a pass having run rather than on what was written.
+ *
+ * The generated body and the expansion are the same `Emit` - see generateInstanceFunction, and the
+ * note on `Emit` itself - so what a witness slot reaches and what a call site expands to cannot
+ * disagree. That is the property a hand-written hook beside a source body does not have.
+ *
+ * What is *not* generated is anything about the conventions. `return self` and `&self` are declared
+ * once, by `class Index`, and generateInstanceFunction copies them off that signature; what each one
+ * means at a call site is spent in receiverPlace below, since expandIntrinsic applies none of them.
+ *
+ * **No bounds check, on either target and in either direction.** That is what these instances have
+ * always done; whether a subscript should check is Implementation-Containers.md §15's decision and
+ * does not ride in on this one.
+ */
+
+namespace {
+
+/*
+ * The container this call was handed, as the place its fields are read out of.
+ *
+ * The argument conventions are applied here because expandIntrinsic applies none - it hands the
+ * emitter the values and lets the operation decide - and for these three instances the conventions
+ * are load-bearing in two different ways.
+ *
+ *   `Mutable` is `getMut`'s `&self`. It is what rejects `xs[0] = 1` on an immutable binding, and
+ *   what makes the write exclusive for as long as the element borrow lives.
+ *
+ *   `Loaned` is `get`'s `return self`. The borrow handed back names storage inside the container, so
+ *   the loan has to outlive the element - and this is the one thing that expanding the call would
+ *   otherwise throw away, because the address the element is read through is a *raw pointer* loaded
+ *   out of the container and a pointer root carries no provenance back to anything. Without it the
+ *   load of `run.items` was the last use of the array and the drop pass released the run between
+ *   that load and the read through it.
+ *
+ *   `Read` is `length`'s plain `self`, which promises nothing and needs no loan.
+ *
+ * A pointer and a borrow are the root itself rather than something that has to be in storage first,
+ * exactly as in resolveField - and a pointer receiver takes no loan for the reason emitDirectCall
+ * gives at its own `return` argument: a scalar was passed by value, so a borrow rooted in the
+ * caller's copy would be a borrow of the wrong thing.
+ */
+enum class Receiver: U8 { Read, Loaned, Mutable };
+
+template<Receiver mode>
+Maybe<Place> receiverPlace(ExprResolver& resolver, ModulePtr<Value> self, LocationId source) {
+    if(!self) return Nothing();
+    auto held = resolver.valueType(self);
+
+    if(mode == Receiver::Mutable) {
+        auto borrowed = resolver.borrowArgument(self, held, source, true);
+        return borrowed ? Just(Place::inBorrow(borrowed)) : Nothing();
+    }
+
+    if(isPointer(resolver.global, held)) return Just(Place::atPointer(self));
+    if(isBorrow(resolver.global, held)) return Just(Place::inBorrow(self));
+
+    auto place = resolver.findPlace(self);
+    if(!place) return Just(resolver.materialize(self, source));
+    if(mode == Receiver::Read) return place;
+
+    auto borrowed = resolver.borrowPlace(place.unwrap(), resolveBorrowType(resolver.module, held, false),
+                                         source, true);
+    return borrowed ? Just(Place::inBorrow(borrowed)) : Nothing();
+}
+
+// One field of a container, as a place. The owner's own storage rather than a copy of it, so `xs[i]`
+// reads the descriptor where it already is - which is also what roots the borrow in the array.
+Maybe<Place> containerField(ExprResolver& resolver, const Place& owner, StringView field,
+                            LocationId source) {
+    return resolver.projectField(owner, Context::nameHash(field), source, source);
+}
+
+template<Receiver mode>
+Maybe<Place> selfField(ExprResolver& resolver, ModulePtr<Value> self, StringView field, LocationId source) {
+    auto place = receiverPlace<mode>(resolver, self, source);
+    return place ? containerField(resolver, place.unwrap(), field, source) : Nothing();
+}
+
+template<Receiver mode>
+ModulePtr<Value> selfFieldValue(ExprResolver& resolver, ModulePtr<Value> self, StringView field,
+                                LocationId source) {
+    auto place = selfField<mode>(resolver, self, field, source);
+    return place ? resolver.load(place.unwrap(), source) : nullptr;
+}
+
+// `borrow(base + index)` - an element of a run, wherever the base pointer came from. The element
+// type is read off the pointer rather than off the instance's type arguments, for the reason
+// `elementType` in native.cpp is: it is the same answer and it needs no substitution to get it.
+ModulePtr<Value> borrowElement(ExprResolver& resolver, ModulePtr<Value> base, ModulePtr<Value> index,
+                               TypePtr type, LocationId source, StringId name, bool mut) {
+    if(!base || !index) return nullptr;
+
+    auto element = pointeeType(resolver.global, resolver.valueType(base));
+    auto address = resolver.offsetPointer(base, element, index, source);
+
+    return resolver.ref(resolver.emit<InstBorrow>(source, name, type, Place::atPointer(address), mut));
+}
+
+// `hostAt(items, index)` - the same element on a target with no addresses, which is a place there
+// too and not an operation. See the element note in host.cpp.
+ModulePtr<Value> borrowHostElement(ExprResolver& resolver, ModulePtr<Value> items, ModulePtr<Value> index,
+                                   TypePtr type, LocationId source, StringId name, bool mut) {
+    if(!items || !index) return nullptr;
+
+    return resolver.ref(resolver.emit<InstBorrow>(source, name, type,
+                                                  hostElementPlace(resolver, items, index), mut));
+}
+
+// `instance Index(%a, I64, a)` - `borrow(self + index)`. A pointer is its own base, so this is the
+// case the three below are the field loads of. `getMut` borrows the *variable holding the address*,
+// which is what a mutable subscript of a pointer has ever been able to mean.
+template<Receiver mode>
+ModulePtr<Value> emitPointerAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                               LocationId source, StringId name) {
+    auto base = args[0];
+
+    if(mode == Receiver::Mutable) {
+        auto place = receiverPlace<mode>(resolver, args[0], source);
+        if(!place) return nullptr;
+
+        base = resolver.load(place.unwrap(), source);
+    }
+
+    return borrowElement(resolver, base, args[1], type, source, name, mode == Receiver::Mutable);
+}
+
+// `instance Index(Flat(a), Size, a)` natively - `borrow(self.items + index)`.
+template<Receiver mode>
+ModulePtr<Value> emitSliceAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                             LocationId source, StringId name) {
+    return borrowElement(resolver, selfFieldValue<mode>(resolver, args[0], "items"_v, source), args[1],
+                         type, source, name, mode == Receiver::Mutable);
+}
+
+// `instance Index(Array(a), Size, a)` natively - `borrow(self.run.items + index)`. One address
+// computation and not two loads and a temporary, which is what the owner's own instance buys over
+// reaching the slice's through a conversion.
+template<Receiver mode>
+ModulePtr<Value> emitArrayAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                             LocationId source, StringId name) {
+    auto run = selfField<mode>(resolver, args[0], "run"_v, source);
+    if(!run) return nullptr;
+
+    auto items = containerField(resolver, run.unwrap(), "items"_v, source);
+    if(!items) return nullptr;
+
+    return borrowElement(resolver, resolver.load(items.unwrap(), source), args[1], type, source, name,
+                         mode == Receiver::Mutable);
+}
+
+// `instance Index(Flat(a), Size, a)` on JS - `hostAt(self.items, self.offset + index)`. The window's
+// start is the one thing a host slice carries that a native one folds into its base.
+template<Receiver mode>
+ModulePtr<Value> emitHostSliceAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                 LocationId source, StringId name) {
+    auto self = receiverPlace<mode>(resolver, args[0], source);
+    if(!self || !args[1]) return nullptr;
+
+    auto items = containerField(resolver, self.unwrap(), "items"_v, source);
+    auto offset = containerField(resolver, self.unwrap(), "offset"_v, source);
+    if(!items || !offset) return nullptr;
+
+    auto start = resolver.load(offset.unwrap(), source);
+    auto index = resolver.ref(resolver.emit<InstBinary>(source, 0, resolver.valueType(start),
+                                                        Value::Add, start, args[1]));
+
+    return borrowHostElement(resolver, resolver.load(items.unwrap(), source), index, type, source,
+                             name, mode == Receiver::Mutable);
+}
+
+// `instance Index(Array(a), Size, a)` on JS - `hostAt(self.items, index)`.
+template<Receiver mode>
+ModulePtr<Value> emitHostArrayAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                 LocationId source, StringId name) {
+    return borrowHostElement(resolver, selfFieldValue<mode>(resolver, args[0], "items"_v, source),
+                             args[1], type, source, name, mode == Receiver::Mutable);
+}
+
+// `instance Length(Flat(a))` - `self.length`, on both targets, and `instance Length(Array(a))`
+// natively - `self.length :: Size`. One emitter, because the ascription is what `convert` does with
+// a field that is already a `Size` as well: nothing.
+ModulePtr<Value> emitStoredLength(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                  LocationId source, StringId) {
+    auto length = selfFieldValue<Receiver::Read>(resolver, args[0], "length"_v, source);
+    if(!length) return nullptr;
+
+    // Explicitly, because a `Count` is narrower than a `Size` and the source says `::` for that
+    // reason. An implicit conversion would report the precision it is deliberately not losing.
+    return resolver.convert(length, type, source, false);
+}
+
+// `instance Length(Array(a))` on JS - `hostLength(self.items)`, which is the count because the host
+// array is the container.
+ModulePtr<Value> emitHostArrayLength(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                     LocationId source, StringId name) {
+    auto items = selfFieldValue<Receiver::Read>(resolver, args[0], "items"_v, source);
+    if(!items) return nullptr;
+
+    return emitHostLengthOf(resolver, items, type, source, name);
+}
+
+/*
+ * A head written over one type variable - `Flat(a)`, `Array(a)`, `%a`.
+ *
+ * The same context `definePointerInstances` builds for `Eq(Ptr(a))`, and the same one a source
+ * instance gets from prepareGenEnv: the variable is the instance's own, every generated function is
+ * generic over it, and selecting the instance is matching its head rather than comparing it.
+ */
+GlobalPtr<GenEnv> headEnvironment(Module& module) {
+    auto global = *module.types;
+    auto env = new (module.types) GenEnv(GenEnv::Instance);
+    auto pointer = env - global;
+
+    auto variable = new (module.types) GenType(pointer, module.context.addQualifiedName("a", 1, 1), 0);
+    env->types.push(module.types, variable - global);
+
+    return pointer;
+}
+
+TypePtr headVariable(Module& module, GlobalPtr<GenEnv> env) {
+    auto global = *module.types;
+    return (Type*)global[global[env]->types.get(global, 0)] - global;
+}
+
+/*
+ * `Index(c, k, v)` for one head, whose element is always the head's own variable - which is what the
+ * class's functional dependency says out loud.
+ *
+ * The key is a parameter and not `Size` for the one head where the two differ: a container is
+ * indexed by `Size`, which is `Int` on JS and `I64` natively, and a raw pointer is indexed by `I64`
+ * on both - because a pointer is Native's and a `%a` on a target with no addresses is not something
+ * a program indexes at all.
+ */
+void defineIndex(Module& module, TypePtr head, GlobalPtr<GenEnv> env, TypePtr key, TypePtr element,
+                 Emit get, Emit getMut) {
+    TypePtr args[] = { head, key, element };
+    IntrinsicMethod methods[] = { { "get"_v, 2, get }, { "getMut"_v, 2, getMut } };
+
+    generateInstance(module, classNamed(module, "Index"_v), { args, 3 }, { methods, 2 }, env);
+}
+
+void defineLength(Module& module, TypePtr head, GlobalPtr<GenEnv> env, Emit length) {
+    IntrinsicMethod methods[] = { { "length"_v, 1, length } };
+    generateInstance(module, classNamed(module, "Length"_v), { &head, 1 }, { methods, 1 }, env);
+}
+
+} // namespace
+
+void defineNativeIndexInstances(Module& native) {
+    auto js = isJsMode(native.context.settings.mode);
+
+    auto pointerEnv = headEnvironment(native);
+    auto pointee = headVariable(native, pointerEnv);
+    defineIndex(native, resolvePointerType(native, pointee), pointerEnv, native.scalar.long_, pointee,
+                emitPointerAt<Receiver::Loaned>, emitPointerAt<Receiver::Mutable>);
+
+    auto sliceEnv = headEnvironment(native);
+    auto element = headVariable(native, sliceEnv);
+    auto slice = instantiateRecord(native, native.program.sliceType, { &element, 1 }, kNullLocation);
+
+    // One instance and two bodies, where the source had two `@platform` declarations. What differs
+    // is only how an element is reached, which is the whole of what §14 says a host container is.
+    defineIndex(native, slice, sliceEnv, native.scalar.size, element,
+                js ? emitHostSliceAt<Receiver::Loaned> : emitSliceAt<Receiver::Loaned>,
+                js ? emitHostSliceAt<Receiver::Mutable> : emitSliceAt<Receiver::Mutable>);
+}
+
+void defineContainerInstances(Module& collections) {
+    auto js = isJsMode(collections.context.settings.mode);
+
+    auto arrayEnv = headEnvironment(collections);
+    auto element = headVariable(collections, arrayEnv);
+    auto array = instantiateRecord(collections, collections.program.arrayType, { &element, 1 }, kNullLocation);
+
+    defineIndex(collections, array, arrayEnv, collections.scalar.size, element,
+                js ? emitHostArrayAt<Receiver::Loaned> : emitArrayAt<Receiver::Loaned>,
+                js ? emitHostArrayAt<Receiver::Mutable> : emitArrayAt<Receiver::Mutable>);
+
+    // The owner's count and the slice's, each kept where that target keeps it: a field natively on
+    // both, and the host array's own `length` for the JS owner - which is why the owner needs an
+    // instance of its own rather than reaching the slice's, since selection does not convert.
+    auto sliceEnv = headEnvironment(collections);
+    auto sliceElement = headVariable(collections, sliceEnv);
+
+    defineLength(collections, instantiateRecord(collections, collections.program.sliceType,
+                                                { &sliceElement, 1 }, kNullLocation),
+                 sliceEnv, emitStoredLength);
+
+    auto ownerEnv = headEnvironment(collections);
+    auto ownerElement = headVariable(collections, ownerEnv);
+
+    defineLength(collections, instantiateRecord(collections, collections.program.arrayType,
+                                                { &ownerElement, 1 }, kNullLocation),
+                 ownerEnv, js ? emitHostArrayLength : emitStoredLength);
 }

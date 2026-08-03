@@ -128,3 +128,19 @@ void defineConversion(Module& module, StringView className, StringView method, T
 // generic intrinsic is written: the declaration says what it means to the type checker, and the
 // hook says what it generates. Reports if no such function was declared.
 void attachIntrinsic(Module& module, StringView name, Intrinsic intrinsic);
+
+/*
+ * The built-in containers' accessors - Implementation-Simplification.md §2.
+ *
+ * `Index` and `Length` over `Flat(a)`, `Array(a)` and a raw pointer, generated on exactly the terms
+ * `defineNum` and the rest are: the head is written here rather than in source, and each method is
+ * one machine operation. Why these and not the rest of a container's API is in intrinsic.cpp - the
+ * short of it is that a subscript has to be free with no optimizer having run, and a source body
+ * cannot be.
+ *
+ * Each is called once, on the module that owns the types, after its declarations are read - the
+ * records have to exist for a head to name them - and before any body is: a body of that same module
+ * may subscript, and an instance that does not exist yet is one the resolver reports.
+ */
+void defineNativeIndexInstances(Module& native);
+void defineContainerInstances(Module& collections);

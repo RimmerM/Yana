@@ -14,18 +14,10 @@ function sub_eq_Int(target$o, target$k, target$s, amount) {
 }
 
 // Collections
-function Index_Flat_a_Int_a_get_Handle(self, index) {
-  return self.items[self.offset + index | 0];
-}
-
 function push_Handle(self, item) {
   var v3 = self.items;
   v3[v3.length] = item;
   return;
-}
-
-function Index_Array_a_Int_a_getMut_Handle(self, index) {
-  return self.items[index];
 }
 
 function remove_Handle(self, index) {
@@ -90,12 +82,11 @@ function openHandle(id) {
 }
 
 function idsOf(xs$items, xs$length, xs$offset) {
-  var xs = { items: xs$items, length: xs$length, offset: xs$offset };
   var total = 0;
   var i = 0;
   L0: for (;;) {
-    if (i < xs.length) {
-      total = (Math.imul(total, 10) | 0) + Index_Flat_a_Int_a_get_Handle(xs, i).id | 0;
+    if (i < xs$length) {
+      total = (Math.imul(total, 10) | 0) + xs$items[xs$offset + i | 0].id | 0;
       i = i + 1 | 0;
       continue L0;
     }
@@ -113,13 +104,13 @@ function container() {
   v5[0] = v1;
   v5[1] = v3;
   push_Handle(v4, openHandle(3));
-  var v21 = Index_Array_a_Int_a_getMut_Handle(v4, 0);
-  var v23 = openHandle(4);
-  var v133 = { $v: live };
-  sub_eq_Int(v133, "$v", 1, 1);
-  live = v133.$v;
-  closed = closed + v21.id | 0;
-  v21.id = v23.id;
+  var v21 = v4.items;
+  var v24 = openHandle(4);
+  var v134 = { $v: live };
+  sub_eq_Int(v134, "$v", 1, 1);
+  live = v134.$v;
+  closed = closed + v21[0].id | 0;
+  v21[0] = v24;
   if (live !== 3) {
     Reclaim_Array_a_reclaim_Handle(v4);
     return -1;
@@ -129,29 +120,29 @@ function container() {
       return -2;
     } else {
       var score = 0;
-      var v52 = remove_Handle(v4, 1);
-      if (!(v52 === null)) {
-        var v61 = v52.id;
-        var v141 = { $v: live };
-        sub_eq_Int(v141, "$v", 1, 1);
-        live = v141.$v;
-        closed = closed + v61 | 0;
-        score = v61;
+      var v53 = remove_Handle(v4, 1);
+      if (!(v53 === null)) {
+        var v62 = v53.id;
+        var v142 = { $v: live };
+        sub_eq_Int(v142, "$v", 1, 1);
+        live = v142.$v;
+        closed = closed + v62 | 0;
+        score = v62;
         if (live !== 2) {
           Reclaim_Array_a_reclaim_Handle(v4);
           return -4;
         } else {
-          var v80 = v4.items;
-          var whole = idsOf(v80, v80.length, 0);
-          var v92 = v4.items;
-          var v102 = slice_Handle({ items: v92, length: v92.length, offset: 0 }, 1, 2);
-          var tail = idsOf(v102.items, v102.length, v102.offset);
+          var v81 = v4.items;
+          var whole = idsOf(v81, v81.length, 0);
+          var v93 = v4.items;
+          var v103 = slice_Handle({ items: v93, length: v93.length, offset: 0 }, 1, 2);
+          var tail = idsOf(v103.items, v103.length, v103.offset);
           Reclaim_Array_a_reclaim_Handle(v4);
           return ((Math.imul(score, 1000) | 0) + (Math.imul(whole, 10) | 0) | 0) + tail | 0;
         }
       } else {
         Reclaim_Array_a_reclaim_Handle(v4);
-        drop$Maybe_Handle({ $v: v52 });
+        drop$Maybe_Handle({ $v: v53 });
         return -3;
       }
     }

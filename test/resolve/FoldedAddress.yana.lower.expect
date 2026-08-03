@@ -87,23 +87,24 @@ double<complex>(%xs: Ptr) {
   b_1 {
     %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
     %v_5 = add %xs, 8: Ptr
-    %self$length = loads %v_5, 8: Long
-    %v_6 = sext %v_2: Long
-    %v_7 = cmp_ilt %v_6, %self$length: Int
-    je %v_7, b_3, b_8
+    %v_6 = loads %v_5, 8: Long
+    %v_7 = sext %v_2: Long
+    %v_8 = cmp_ilt %v_7, %v_6: Int
+    je %v_8, b_3, b_9
   }
 
-  b_8 {
+  b_9 {
     ret 
   }
 
   b_3 {
-    %v_9 = sext %v_2: Long
-    %v_10 = call_complex Index(Flat(a), I64, a).get(Int), %xs, %v_9: Ptr
-    %value = loads %v_10, 4: Int
-    %v_11 = call_complex Index(Flat(a), I64, a).getMut(Int), %xs, %v_9: Ptr
-    %v_12 = add %value, %value: Int
-    store %v_11, %v_12, 4
+    %v_10 = sext %v_2: Long
+    %v_11 = load %xs, 8: Ptr
+    %v_12 = imul %v_10, 4: Long
+    %v_13 = add %v_11, %v_12: Ptr
+    %value = loads %v_13, 4: Int
+    %v_14 = add %value, %value: Int
+    store %v_13, %v_14, 4
     %v_4 = add %v_2, 1: Int
     jmp b_1
   }
@@ -248,54 +249,31 @@ oneSize<complex>(): Long {
   }
 }
 
-Index(Flat(a), I64, a).get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 4: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
-  }
-}
-
 total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
   b_0 {
-    %xs = alloca 16, 8: Ptr
-    store %xs, %xs$items, 8
-    %v_1 = add %xs, 8: Ptr
-    store %v_1, %xs$length, 8
-    jmp b_2
+    jmp b_1
   }
 
-  b_2 {
-    %v_3 = phi [b_0, 0], [b_4, %v_5]: Int
-    %v_6 = phi [b_0, 0], [b_4, %v_7]: Int
-    %v_8 = add %xs, 8: Ptr
-    %self$length = loads %v_8, 8: Long
-    %v_9 = sext %v_6: Long
-    %v_10 = cmp_ilt %v_9, %self$length: Int
-    je %v_10, b_4, b_11
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = sext %v_5: Long
+    %v_8 = cmp_ilt %v_7, %xs$length: Int
+    je %v_8, b_3, b_9
   }
 
-  b_11 {
-    ret %v_3
+  b_9 {
+    ret %v_2
   }
 
-  b_4 {
-    %v_12 = sext %v_6: Long
-    %v_13 = call_complex Index(Flat(a), I64, a).get(Int), %xs, %v_12: Ptr
-    %v_14 = loads %v_13, 4: Int
-    %v_5 = add %v_3, %v_14: Int
-    %v_7 = add %v_6, 1: Int
-    jmp b_2
-  }
-}
-
-Index(Flat(a), I64, a).getMut(Int)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 4: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
+  b_3 {
+    %v_10 = sext %v_5: Long
+    %v_11 = imul %v_10, 4: Long
+    %v_12 = add %xs$items, %v_11: Ptr
+    %v_13 = loads %v_12, 4: Int
+    %v_4 = add %v_2, %v_13: Int
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
   }
 }
 
@@ -305,140 +283,121 @@ main<complex>(): Int {
     %v_2 = cmp_neq %v_1, 16: Int
     %v_3 = imm 4: Long
     %v_4 = imm 4: Long
-    je %v_2, b_5, b_6
-  }
-
-  b_6 {
-    %v_7 = call_complex twoSize: Long
-    %v_8 = cmp_neq %v_7, 16: Int
-    je %v_8, b_9, b_10
+    %v_5 = imm 4: Long
+    %v_6 = imm 4: Long
+    %v_7 = imm 4: Long
+    %v_8 = imm 2: Long
+    je %v_2, b_9, b_10
   }
 
   b_10 {
-    %v_11 = alloca 16, 8: Ptr
-    %v_12 = alloca 16, 4: Ptr
-    store %v_11, %v_12, 8
-    %v_13 = add %v_11, 8: Ptr
-    %v_14 = load %v_13, 4: Int
-    %v_15 = and %v_14, 18446744072635809792: Int
-    %v_16 = or %v_15, 4: Int
-    %v_17 = and %v_16, 18446744070488326143: Int
-    %v_18 = add %v_11, 8: Ptr
-    store %v_18, %v_17, 4
-    %v_19 = add %v_12, 0: Ptr
-    store %v_19, 1, 4
-    %v_20 = add %v_12, %v_3: Ptr
-    store %v_20, 2, 4
-    %v_21 = imul %v_3, 2: Long
-    %v_22 = add %v_12, %v_21: Ptr
-    store %v_22, 3, 4
-    %v_23 = imul %v_3, 3: Long
-    %v_24 = add %v_12, %v_23: Ptr
-    store %v_24, 4, 4
-    %v_25 = add %v_11, 12: Ptr
-    store %v_25, 4, 4
-    %v_26 = call_complex total, %v_12, %v_4: Int
-    %v_27 = cmp_neq %v_26, 10: Int
-    je %v_27, b_28, b_29
+    %v_11 = call_complex twoSize: Long
+    %v_12 = cmp_neq %v_11, 16: Int
+    je %v_12, b_13, b_14
   }
 
-  b_29 {
+  b_14 {
+    %v_15 = alloca 16, 8: Ptr
+    %v_16 = alloca 16, 4: Ptr
+    store %v_15, %v_16, 8
+    %v_17 = add %v_15, 8: Ptr
+    %v_18 = load %v_17, 4: Int
+    %v_19 = and %v_18, 18446744072635809792: Int
+    %v_20 = or %v_19, 4: Int
+    %v_21 = and %v_20, 18446744070488326143: Int
+    %v_22 = add %v_15, 8: Ptr
+    store %v_22, %v_21, 4
+    %v_23 = add %v_16, 0: Ptr
+    store %v_23, 1, 4
+    %v_24 = add %v_16, %v_5: Ptr
+    store %v_24, 2, 4
+    %v_25 = imul %v_5, 2: Long
+    %v_26 = add %v_16, %v_25: Ptr
+    store %v_26, 3, 4
+    %v_27 = imul %v_5, 3: Long
+    %v_28 = add %v_16, %v_27: Ptr
+    store %v_28, 4, 4
+    %v_29 = add %v_15, 12: Ptr
+    store %v_29, 4, 4
+    %v_30 = call_complex total, %v_16, %v_6: Int
+    %v_31 = cmp_neq %v_30, 10: Int
+    je %v_31, b_32, b_33
+  }
+
+  b_33 {
     %xs = alloca 16, 8: Ptr
-    store %xs, %v_12, 8
-    %v_30 = add %xs, 8: Ptr
-    store %v_30, %v_4, 8
-    %v_31 = alloca 16, 8: Ptr
-    call_complex slice(Int), %v_31, %xs, 1, 3
-    %xs$items = load %v_31, 8: Ptr
-    %v_32 = add %v_31, 8: Ptr
-    %xs$length = loads %v_32, 8: Long
-    %v_33 = call_complex total, %xs$items, %xs$length: Int
-    %v_34 = cmp_neq %v_33, 5: Int
-    je %v_34, b_35, b_36
+    store %xs, %v_16, 8
+    %v_34 = add %xs, 8: Ptr
+    store %v_34, %v_6, 8
+    %v_35 = alloca 16, 8: Ptr
+    call_complex slice(Int), %v_35, %xs, 1, 3
+    %xs$items = load %v_35, 8: Ptr
+    %v_36 = add %v_35, 8: Ptr
+    %xs$length = loads %v_36, 8: Long
+    %v_37 = call_complex total, %xs$items, %xs$length: Int
+    %v_38 = cmp_neq %v_37, 5: Int
+    je %v_38, b_39, b_40
   }
 
-  b_36 {
-    %v_37 = alloca 16, 8: Ptr
-    store %v_37, %v_12, 8
-    %v_38 = add %v_37, 8: Ptr
-    store %v_38, %v_4, 8
-    jmp b_39
-  }
-
-  b_39 {
-    %v_40 = phi [b_36, 0], [b_41, %v_42]: Int
-    %v_43 = add %v_37, 8: Ptr
-    %self$length = loads %v_43, 8: Long
-    %v_44 = sext %v_40: Long
-    %v_45 = cmp_ilt %v_44, %self$length: Int
-    je %v_45, b_41, b_46
+  b_40 {
+    %v_41 = alloca 16, 8: Ptr
+    store %v_41, %v_16, 8
+    %v_42 = add %v_41, 8: Ptr
+    store %v_42, %v_6, 8
+    call_complex double, %v_41
+    %v_43 = call_complex total, %v_16, %v_6: Int
+    %v_44 = cmp_neq %v_43, 20: Int
+    je %v_44, b_45, b_46
   }
 
   b_46 {
-    %v_47 = call_complex total, %v_12, %v_4: Int
-    %v_48 = cmp_neq %v_47, 20: Int
-    je %v_48, b_49, b_50
+    %v_47 = alloca 16, 8: Ptr
+    %v_48 = alloca 8, 4: Ptr
+    store %v_47, %v_48, 8
+    %v_49 = add %v_47, 8: Ptr
+    %v_50 = load %v_49, 4: Int
+    %v_51 = and %v_50, 18446744072635809792: Int
+    %v_52 = or %v_51, 2: Int
+    %v_53 = and %v_52, 18446744070488326143: Int
+    %v_54 = add %v_47, 8: Ptr
+    store %v_54, %v_53, 4
+    %v_55 = add %v_48, 0: Ptr
+    store %v_55, 7, 4
+    %v_56 = add %v_48, %v_5: Ptr
+    store %v_56, 8, 4
+    %v_57 = add %v_47, 12: Ptr
+    store %v_57, 2, 4
+    %v_58 = call_complex total, %v_48, 2: Int
+    %v_59 = cmp_neq %v_58, 15: Int
+    je %v_59, b_60, b_61
   }
 
-  b_50 {
-    %v_51 = alloca 16, 8: Ptr
-    %v_52 = alloca 8, 4: Ptr
-    store %v_51, %v_52, 8
-    %v_53 = add %v_51, 8: Ptr
-    %v_54 = load %v_53, 4: Int
-    %v_55 = and %v_54, 18446744072635809792: Int
-    %v_56 = or %v_55, 2: Int
-    %v_57 = and %v_56, 18446744070488326143: Int
-    %v_58 = add %v_51, 8: Ptr
-    store %v_58, %v_57, 4
-    %v_59 = add %v_52, 0: Ptr
-    store %v_59, 7, 4
-    %v_60 = add %v_52, %v_3: Ptr
-    store %v_60, 8, 4
-    %v_61 = add %v_51, 12: Ptr
-    store %v_61, 2, 4
-    %v_62 = call_complex total, %v_52, 2: Int
-    %v_63 = cmp_neq %v_62, 15: Int
-    je %v_63, b_64, b_65
+  b_61 {
+    %v_62 = call_complex total, %v_16, %v_6: Int
+    ret %v_62
   }
 
-  b_65 {
-    %v_66 = call_complex total, %v_12, %v_4: Int
-    ret %v_66
-  }
-
-  b_64 {
+  b_60 {
     ret 18446744073709551610
   }
 
-  b_49 {
+  b_45 {
     ret 18446744073709551611
   }
 
-  b_41 {
-    %v_67 = sext %v_40: Long
-    %v_68 = call_complex Index(Flat(a), I64, a).get(Int), %v_37, %v_67: Ptr
-    %value = loads %v_68, 4: Int
-    %v_69 = call_complex Index(Flat(a), I64, a).getMut(Int), %v_37, %v_67: Ptr
-    %v_70 = add %value, %value: Int
-    store %v_69, %v_70, 4
-    %v_42 = add %v_40, 1: Int
-    jmp b_39
-  }
-
-  b_35 {
+  b_39 {
     ret 18446744073709551612
   }
 
-  b_28 {
+  b_32 {
     ret 18446744073709551613
   }
 
-  b_9 {
+  b_13 {
     ret 18446744073709551614
   }
 
-  b_5 {
+  b_9 {
     ret 18446744073709551615
   }
 }

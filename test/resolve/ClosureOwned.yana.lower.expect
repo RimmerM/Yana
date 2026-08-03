@@ -279,15 +279,6 @@ closureRelease${xs: Array(Int)}<complex>(%env: Ptr) {
   }
 }
 
-Index(Flat(a), I64, a).get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 4: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
-  }
-}
-
 teardown$none<complex>(%value: Ptr) {
   b_0 {
     ret 
@@ -296,34 +287,29 @@ teardown$none<complex>(%value: Ptr) {
 
 total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
   b_0 {
-    %xs = alloca 16, 8: Ptr
-    store %xs, %xs$items, 8
-    %v_1 = add %xs, 8: Ptr
-    store %v_1, %xs$length, 8
-    jmp b_2
+    jmp b_1
   }
 
-  b_2 {
-    %v_3 = phi [b_0, 0], [b_4, %v_5]: Int
-    %v_6 = phi [b_0, 0], [b_4, %v_7]: Int
-    %v_8 = add %xs, 8: Ptr
-    %self$length = loads %v_8, 8: Long
-    %v_9 = sext %v_6: Long
-    %v_10 = cmp_ilt %v_9, %self$length: Int
-    je %v_10, b_4, b_11
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = sext %v_5: Long
+    %v_8 = cmp_ilt %v_7, %xs$length: Int
+    je %v_8, b_3, b_9
   }
 
-  b_11 {
-    ret %v_3
+  b_9 {
+    ret %v_2
   }
 
-  b_4 {
-    %v_12 = sext %v_6: Long
-    %v_13 = call_complex Index(Flat(a), I64, a).get(Int), %xs, %v_12: Ptr
-    %v_14 = loads %v_13, 4: Int
-    %v_5 = add %v_3, %v_14: Int
-    %v_7 = add %v_6, 1: Int
-    jmp b_2
+  b_3 {
+    %v_10 = sext %v_5: Long
+    %v_11 = imul %v_10, 4: Long
+    %v_12 = add %xs$items, %v_11: Ptr
+    %v_13 = loads %v_12, 4: Int
+    %v_4 = add %v_2, %v_13: Int
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
   }
 }
 

@@ -30,20 +30,6 @@ fn freeHeap {
   arg allocation readonly
 }
 
-fn Index(Flat(a), I64, a).get(Int) {
-  arg self readonly return
-  arg index readonly
-  result arguments
-  %self: Flat(Int) borrowed readonly live [0, 1)
-}
-
-fn Index(Flat(a), I64, a).getMut(Int) {
-  arg self writable return
-  arg index readonly
-  result arguments
-  %self: Flat(Int) borrowed writable live [0, 2)
-}
-
 fn resize(Int) {
   arg self writable addressed resizable
   arg wanted readonly
@@ -57,16 +43,11 @@ fn byteSpan(Int) {
 
 fn releaseRun(Int) {
   arg self readonly
-  %self: Run(Int) borrowed droppable readonly live [0, 6)
+  %self: Run(Int) borrowed droppable readonly live [0, 7)
 }
 
 fn mapMemory {
   arg size readonly
-}
-
-fn Length(Flat(a)).length(Int) {
-  arg self readonly
-  %self: Flat(Int) borrowed readonly live [0, 1)
 }
 
 fn slice(Int) {
@@ -74,7 +55,7 @@ fn slice(Int) {
   arg from readonly
   arg to readonly
   result arguments
-  %self: Flat(Int) borrowed readonly live [0, 36)
+  %self: Flat(Int) borrowed readonly live [0, 40)
   %start: I64 writable live [0, 42)
   %end: I64 writable live [16, 41)
   %local3: Flat(Int) readonly live [34, 46)
@@ -94,11 +75,6 @@ fn reserve(Int) {
   %wide: Int writable live [10, 27)
 }
 
-fn Length(Array(a)).length(Int) {
-  arg self readonly
-  %self: Array(Int) borrowed droppable readonly live [0, 1)
-}
-
 fn Reclaim(Array(a)).reclaim(Int) {
   arg value readonly
   %value: Array(Int) borrowed droppable readonly live [0, 11) [12, 26)
@@ -109,15 +85,15 @@ fn Reclaim(Array(a)).reclaim(Int) {
 
 fn total {
   arg xs readonly
-  %xs: Flat(Int) borrowed readonly live [0, 10) [12, 24)
-  %sum: Int writable live [0, 11) [12, 24)
-  %i: Int writable live [2, 10) [12, 24)
+  %xs: Flat(Int) borrowed readonly live [0, 10) [12, 28)
+  %sum: Int writable live [0, 11) [12, 28)
+  %i: Int writable live [2, 10) [12, 28)
 }
 
 fn double {
   arg xs writable
-  %xs: Flat(Int) borrowed writable live [0, 9) [10, 27)
-  %i: Int writable live [0, 9) [10, 27)
+  %xs: Flat(Int) borrowed writable live [0, 9) [10, 35)
+  %i: Int writable live [0, 9) [10, 35)
 }
 
 fn middle {
@@ -128,7 +104,7 @@ fn middle {
 
 fn atCursor {
   arg c readonly
-  %c: Cursor borrowed readonly live [0, 6)
+  %c: Cursor borrowed readonly live [0, 10)
 }
 
 fn sumFrom {
@@ -140,12 +116,12 @@ fn sumFrom {
 }
 
 fn main {
-  %xs: Array(Int) droppable writable addressed resizable live [0, 35) [37, 50) [52, 76) [78, 86) [88, 101) [103, 114)
+  %xs: Array(Int) droppable writable addressed resizable live [0, 35) [37, 50) [52, 76) [78, 88) [90, 103) [105, 116)
   %local1: Int writable addressed live [1, 21)
   %local2: Flat(Int) readonly live [25, 33)
   %local3: Flat(Int) readonly live [40, 48)
   %local4: Flat(Int) writable live [55, 64)
   %local5: Flat(Int) readonly live [66, 74)
-  %local6: Flat(Int) readonly live [91, 99)
-  %local7: Flat(Int) readonly live [106, 114)
+  %local6: Flat(Int) readonly live [93, 101)
+  %local7: Flat(Int) readonly live [108, 116)
 }

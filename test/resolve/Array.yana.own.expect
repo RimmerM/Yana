@@ -30,13 +30,6 @@ fn freeHeap {
   arg allocation readonly
 }
 
-fn Index(Flat(a), I64, a).get(Int) {
-  arg self readonly return
-  arg index readonly
-  result arguments
-  %self: Flat(Int) borrowed readonly live [0, 1)
-}
-
 fn resize(Int) {
   arg self writable addressed resizable
   arg wanted readonly
@@ -50,30 +43,11 @@ fn byteSpan(Int) {
 
 fn releaseRun(Int) {
   arg self readonly
-  %self: Run(Int) borrowed droppable readonly live [0, 6)
+  %self: Run(Int) borrowed droppable readonly live [0, 7)
 }
 
 fn mapMemory {
   arg size readonly
-}
-
-fn Length(Flat(a)).length(Int) {
-  arg self readonly
-  %self: Flat(Int) borrowed readonly live [0, 1)
-}
-
-fn Index(Array(a), I64, a).get(Int) {
-  arg self readonly return
-  arg index readonly
-  result arguments
-  %self: Array(Int) borrowed droppable readonly live [0, 2)
-}
-
-fn Index(Array(a), I64, a).getMut(Int) {
-  arg self writable return
-  arg index readonly
-  result arguments
-  %self: Array(Int) borrowed droppable writable live [0, 3)
 }
 
 fn push(Int) {
@@ -100,11 +74,6 @@ fn remove(Int) {
   %local4: Maybe(Int) readonly live [63, 68)
 }
 
-fn Length(Array(a)).length(Int) {
-  arg self readonly
-  %self: Array(Int) borrowed droppable readonly live [0, 1)
-}
-
 fn Reclaim(Array(a)).reclaim(Int) {
   arg value readonly
   %value: Array(Int) borrowed droppable readonly live [0, 11) [12, 26)
@@ -115,9 +84,9 @@ fn Reclaim(Array(a)).reclaim(Int) {
 
 fn sum {
   arg xs readonly
-  %xs: Flat(Int) borrowed readonly live [0, 10) [12, 24)
-  %total: Int writable live [0, 11) [12, 24)
-  %i: Int writable live [2, 10) [12, 24)
+  %xs: Flat(Int) borrowed readonly live [0, 10) [12, 28)
+  %total: Int writable live [0, 11) [12, 28)
+  %i: Int writable live [2, 10) [12, 28)
 }
 
 fn make {
@@ -127,14 +96,14 @@ fn make {
 }
 
 fn escaping {
-  %local0: Array(Int) droppable readonly live [0, 11)
+  %local0: Array(Int) droppable readonly live [0, 23)
 }
 
 fn main {
-  %small: Array(Int) droppable writable addressed resizable live [0, 51)
+  %small: Array(Int) droppable writable addressed resizable live [0, 55)
   %local1: Int writable addressed live [1, 17)
-  %local2: Maybe(Int) readonly live [31, 32)
-  %local3: Maybe(Int) readonly live [34, 35)
-  %local4: Maybe(Int) readonly live [38, 39)
-  %local5: Flat(Int) readonly live [41, 49)
+  %local2: Maybe(Int) readonly live [35, 36)
+  %local3: Maybe(Int) readonly live [38, 39)
+  %local4: Maybe(Int) readonly live [42, 43)
+  %local5: Flat(Int) readonly live [45, 53)
 }

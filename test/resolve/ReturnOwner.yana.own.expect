@@ -38,13 +38,6 @@ fn emptyRun(Int) {
   %local0: Run(Int) droppable readonly live [0, 6)
 }
 
-fn Index(Flat(a), I64, a).get(Int) {
-  arg self readonly return
-  arg index readonly
-  result arguments
-  %self: Flat(Int) borrowed readonly live [0, 1)
-}
-
 fn resize(Int) {
   arg self writable addressed resizable
   arg wanted readonly
@@ -58,7 +51,7 @@ fn byteSpan(Int) {
 
 fn releaseRun(Int) {
   arg self readonly
-  %self: Run(Int) borrowed droppable readonly live [0, 6)
+  %self: Run(Int) borrowed droppable readonly live [0, 7)
 }
 
 fn mapMemory {
@@ -69,11 +62,6 @@ fn emptyArray(Int) {
   %local0: Array(Int) droppable readonly live [0, 5)
   %local1: Run(Int) droppable readonly live [1, 3)
   %local2: Run(Int) droppable readonly live never
-}
-
-fn Length(Flat(a)).length(Int) {
-  arg self readonly
-  %self: Flat(Int) borrowed readonly live [0, 1)
 }
 
 fn push(Int) {
@@ -90,13 +78,6 @@ fn reserve(Int) {
   %wide: Int writable live [10, 27)
 }
 
-fn Index(Array(a), I64, a).get(Int) {
-  arg self readonly return
-  arg index readonly
-  result arguments
-  %self: Array(Int) borrowed droppable readonly live [0, 2)
-}
-
 fn Reclaim(Array(a)).reclaim(Int) {
   arg value readonly
   %value: Array(Int) borrowed droppable readonly live [0, 11) [12, 26)
@@ -111,10 +92,10 @@ fn double {
 
 fn collect {
   arg xs readonly
-  %xs: Flat(Int) borrowed readonly live [0, 11) [14, 26)
+  %xs: Flat(Int) borrowed readonly live [0, 11) [14, 30)
   %local1: Array(Int) droppable readonly live [0, 3)
-  %out: Array(Int) droppable writable addressed resizable live [1, 13) [14, 26)
-  %i: Int writable live [3, 11) [14, 26)
+  %out: Array(Int) droppable writable addressed resizable live [1, 13) [14, 30)
+  %i: Int writable live [3, 11) [14, 30)
 }
 
 fn collectFor {
@@ -135,21 +116,21 @@ fn wrap {
 }
 
 fn main {
-  %xs: Array(Int) droppable readonly live [0, 170) [172, 183)
+  %xs: Array(Int) droppable readonly live [0, 234) [236, 247)
   %local1: Int writable addressed live [1, 21)
   %local2: Flat(Int) readonly live [25, 33)
-  %local3: Array(Int) droppable readonly live [32, 49)
-  %total: Int writable live [51, 170) [172, 186) [188, 202)
-  %local5: Flat(Int) readonly live [55, 63)
-  %local6: Array(Int) droppable readonly live [62, 81)
-  %local7: (v: Int) -> Int droppable readonly live [85, 99)
-  %local8: Flat(Int) readonly live [91, 99)
-  %local9: Array(Int) droppable readonly live [98, 117)
-  %handed: Array(Int) droppable readonly live [120, 145)
-  %local11: Int writable addressed live [121, 141)
-  %local12: Array(Int) droppable readonly live [145, 164)
-  %local13: Flat(Int) readonly live [175, 183)
-  %local14: Cell droppable readonly live [182, 186) [188, 199)
+  %local3: Array(Int) droppable readonly live [32, 65)
+  %total: Int writable live [67, 234) [236, 250) [252, 274)
+  %local5: Flat(Int) readonly live [71, 79)
+  %local6: Array(Int) droppable readonly live [78, 113)
+  %local7: (v: Int) -> Int droppable readonly live [117, 131)
+  %local8: Flat(Int) readonly live [123, 131)
+  %local9: Array(Int) droppable readonly live [130, 165)
+  %handed: Array(Int) droppable readonly live [168, 193)
+  %local11: Int writable addressed live [169, 189)
+  %local12: Array(Int) droppable readonly live [193, 228)
+  %local13: Flat(Int) readonly live [239, 247)
+  %local14: Cell droppable readonly live [246, 250) [252, 271)
 }
 
 fn Drop(Cell).drop {
@@ -166,10 +147,10 @@ fn ResolveTest.continuation$1 {
 fn each(Int, ()) {
   arg xs readonly
   arg body readonly
-  %xs: Flat(Int) borrowed readonly live [0, 8) [11, 19) [20, 24)
-  %body: (value: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 19) [20, 24)
-  %i: Int writable live [0, 8) [11, 19) [20, 24)
-  %local3: Outcome((), ()) readonly live [15, 20)
+  %xs: Flat(Int) borrowed readonly live [0, 8) [11, 24) [25, 29)
+  %body: (value: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 24) [25, 29)
+  %i: Int writable live [0, 8) [11, 24) [25, 29)
+  %local3: Outcome((), ()) readonly live [20, 25)
   %local4: Outcome((), ()) readonly live [8, 11)
   %local5: Outcome((), ()) readonly live never
 }
@@ -229,10 +210,10 @@ fn ResolveTest.continuation$0(Int, Int, ()) {
 fn each(Int, Outcome((), ())) {
   arg xs readonly
   arg body readonly
-  %xs: Flat(Int) borrowed readonly live [0, 8) [11, 19) [20, 24)
-  %body: (value: Int) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 8) [11, 19) [20, 24)
-  %i: Int writable live [0, 8) [11, 19) [20, 24)
-  %local3: Outcome((), Outcome((), ())) readonly live [15, 20)
+  %xs: Flat(Int) borrowed readonly live [0, 8) [11, 24) [25, 29)
+  %body: (value: Int) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 8) [11, 24) [25, 29)
+  %i: Int writable live [0, 8) [11, 24) [25, 29)
+  %local3: Outcome((), Outcome((), ())) readonly live [20, 25)
   %local4: Outcome((), Outcome((), ())) readonly live [8, 11)
   %local5: Outcome((), Outcome((), ())) readonly live never
 }

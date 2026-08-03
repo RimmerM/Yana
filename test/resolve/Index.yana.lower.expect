@@ -1,29 +1,10 @@
 @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Index(%a, I64, a).getMut(Int)<complex>(%self: Ptr, %index: Long): Ptr {
+fromSlice<complex>(%xs$items: Ptr, %xs$length: Long): Int {
   b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 4: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
-  }
-}
-
-Index(Array(a), I64, a).get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 4: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
-  }
-}
-
-Index(Array(a), I64, a).getMut(Int)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 4: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
+    %v_1 = add %xs$items, 0: Ptr
+    %v_2 = loads %v_1, 4: Int
+    ret %v_2
   }
 }
 
@@ -56,105 +37,6 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_14 = add %v_13, %v_10: Ptr
     store %v_14, %allocation, 8
     ret 
-  }
-}
-
-fieldOfElement<complex>(%xs$items: Ptr, %xs$length: Long): Int {
-  b_0 {
-    %xs = alloca 16, 8: Ptr
-    store %xs, %xs$items, 8
-    %v_1 = add %xs, 8: Ptr
-    store %v_1, %xs$length, 8
-    %v_2 = call_complex Index(Flat(a), I64, a).get(Cell), %xs, 0: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = call_complex Index(Flat(a), I64, a).get(Cell), %xs, 1: Ptr
-    %v_5 = add %v_4, 4: Ptr
-    %v_6 = loads %v_5, 4: Int
-    %v_7 = add %v_3, %v_6: Int
-    ret %v_7
-  }
-}
-
-throughPointer<complex>(%xs: Ptr): Int {
-  b_0 {
-    %self$items = load %xs, 8: Ptr
-    %p = alloca 8, 8: Ptr
-    store %p, %self$items, 8
-    %v_1 = call_complex Index(%a, I64, a).getMut(Int), %p, 2: Ptr
-    store %v_1, 5, 4
-    %v_2 = load %p, 8: Ptr
-    %v_3 = call_complex Index(%a, I64, a).get(Int), %v_2, 2: Ptr
-    %v_4 = loads %v_3, 4: Int
-    ret %v_4
-  }
-}
-
-fromOwner<complex>(%xs: Ptr): Int {
-  b_0 {
-    %v_1 = call_complex Index(Array(a), I64, a).get(Int), %xs, 0: Ptr
-    %v_2 = loads %v_1, 4: Int
-    ret %v_2
-  }
-}
-
-viaConstraint<complex>(%xs: Ptr): Int {
-  b_0 {
-    %v_1 = call_complex sumOfTwo(Array(Int), I64, Int), %xs, 0, 1: Int
-    ret %v_1
-  }
-}
-
-sumOfTwo(Array(Int), I64, Int)<complex>(%xs: Ptr, %a: Long, %b: Long): Int {
-  b_0 {
-    %v_1 = call_complex Index(Array(a), I64, a).get(Int), %xs, %a: Ptr
-    %v_2 = loads %v_1, 4: Int
-    %v_3 = call_complex Index(Array(a), I64, a).get(Int), %xs, %b: Ptr
-    %v_4 = loads %v_3, 4: Int
-    %v_5 = add %v_2, %v_4: Int
-    ret %v_5
-  }
-}
-
-Index(%a, I64, a).get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = imul %index, 4: Long
-    %v_2 = add %self, %v_1: Ptr
-    ret %v_2
-  }
-}
-
-Index(Flat(a), I64, a).getMut(Cell)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 8: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
-  }
-}
-
-writeElement<complex>(%xs: Ptr) {
-  b_0 {
-    %v_1 = call_complex Index(Flat(a), I64, a).getMut(Cell), %xs, 0: Ptr
-    %v_2 = alloca 8, 4: Ptr
-    store %v_2, 7, 4
-    %v_3 = add %v_2, 4: Ptr
-    store %v_3, 8, 4
-    copy %v_1, %v_2, 8
-    %v_4 = call_complex Index(Flat(a), I64, a).getMut(Cell), %xs, 1: Ptr
-    store %v_4, 9, 4
-    ret 
-  }
-}
-
-fromSlice<complex>(%xs$items: Ptr, %xs$length: Long): Int {
-  b_0 {
-    %xs = alloca 16, 8: Ptr
-    store %xs, %xs$items, 8
-    %v_1 = add %xs, 8: Ptr
-    store %v_1, %xs$length, 8
-    %v_2 = call_complex Index(Flat(a), I64, a).get(Int), %xs, 0: Ptr
-    %v_3 = loads %v_2, 4: Int
-    ret %v_3
   }
 }
 
@@ -205,33 +87,68 @@ Reclaim(Array(a)).reclaim(Cell)<complex>(%value: Ptr) {
   }
 }
 
+fieldOfElement<complex>(%xs$items: Ptr, %xs$length: Long): Int {
+  b_0 {
+    %v_1 = add %xs$items, 0: Ptr
+    %v_2 = loads %v_1, 4: Int
+    %v_3 = add %xs$items, 8: Ptr
+    %v_4 = add %v_3, 4: Ptr
+    %v_5 = loads %v_4, 4: Int
+    %v_6 = add %v_2, %v_5: Int
+    ret %v_6
+  }
+}
+
+throughPointer<complex>(%xs: Ptr): Int {
+  b_0 {
+    %self$items = load %xs, 8: Ptr
+    %v_1 = imm 4: Long
+    %v_2 = imul %v_1, 2: Long
+    %v_3 = add %self$items, %v_2: Ptr
+    store %v_3, 5, 4
+    %v_4 = imul %v_1, 2: Long
+    %v_5 = add %self$items, %v_4: Ptr
+    %v_6 = loads %v_5, 4: Int
+    ret %v_6
+  }
+}
+
 fromFixed<complex>(%xs$items: Ptr, %xs$length: Long): Int {
   b_0 {
-    %xs = alloca 16, 8: Ptr
-    store %xs, %xs$items, 8
-    %v_1 = add %xs, 8: Ptr
-    store %v_1, %xs$length, 8
-    %v_2 = call_complex Index(Flat(a), I64, a).get(Int), %xs, 1: Ptr
+    %v_1 = add %xs$items, 4: Ptr
+    %v_2 = loads %v_1, 4: Int
+    ret %v_2
+  }
+}
+
+fromOwner<complex>(%xs: Ptr): Int {
+  b_0 {
+    %v_1 = load %xs, 8: Ptr
+    %v_2 = add %v_1, 0: Ptr
     %v_3 = loads %v_2, 4: Int
     ret %v_3
   }
 }
 
-Index(Flat(a), I64, a).get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
+viaConstraint<complex>(%xs: Ptr): Int {
   b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 4: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
+    %v_1 = call_complex sumOfTwo(Array(Int), I64, Int), %xs, 0, 1: Int
+    ret %v_1
   }
 }
 
-Index(Flat(a), I64, a).get(Cell)<complex>(%self: Ptr, %index: Long): Ptr {
+sumOfTwo(Array(Int), I64, Int)<complex>(%xs: Ptr, %a: Long, %b: Long): Int {
   b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 8: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
+    %v_1 = load %xs, 8: Ptr
+    %v_2 = imm 4: Long
+    %v_3 = imul %a, %v_2: Long
+    %v_4 = add %v_1, %v_3: Ptr
+    %v_5 = loads %v_4, 4: Int
+    %v_6 = imul %b, %v_2: Long
+    %v_7 = add %v_1, %v_6: Ptr
+    %v_8 = loads %v_7, 4: Int
+    %v_9 = add %v_5, %v_8: Int
+    ret %v_9
   }
 }
 
@@ -259,46 +176,44 @@ main<complex>(): Int {
     store %v_15, 30, 4
     %v_16 = add %v_1, 12: Ptr
     store %v_16, 3, 4
-    %v_17 = call_complex Index(Array(a), I64, a).getMut(Int), %v_1, 2: Ptr
-    store %v_17, 40, 4
-    %v_18 = alloca 8, 4: Ptr
-    store %v_18, 1, 4
-    %v_19 = add %v_18, 4: Ptr
-    store %v_19, 2, 4
-    %v_20 = alloca 8, 4: Ptr
-    store %v_20, 3, 4
-    %v_21 = add %v_20, 4: Ptr
-    store %v_21, 4, 4
-    %v_22 = alloca 16, 8: Ptr
-    %v_23 = imm 8: Long
-    %v_24 = imm 2: Long
-    %v_25 = alloca 16, 4: Ptr
-    store %v_22, %v_25, 8
-    %v_26 = add %v_22, 8: Ptr
-    %v_27 = load %v_26, 4: Int
-    %v_28 = and %v_27, 18446744072635809792: Int
-    %v_29 = or %v_28, 2: Int
-    %v_30 = and %v_29, 18446744070488326143: Int
-    %v_31 = add %v_22, 8: Ptr
-    store %v_31, %v_30, 4
-    %v_32 = add %v_25, 0: Ptr
-    copy %v_32, %v_18, 8
-    %v_33 = add %v_25, 8: Ptr
-    copy %v_33, %v_20, 8
-    %v_34 = add %v_22, 12: Ptr
-    store %v_34, 2, 4
-    %v_35 = alloca 16, 8: Ptr
-    %v_36 = load %v_22, 8: Ptr
-    store %v_35, %v_36, 8
-    %v_37 = add %v_35, 8: Ptr
-    store %v_37, 2, 8
-    %v_38 = call_complex Index(Flat(a), I64, a).getMut(Cell), %v_35, 0: Ptr
+    %v_17 = imul %v_12, 2: Long
+    %v_18 = add %v_4, %v_17: Ptr
+    store %v_18, 40, 4
+    %v_19 = alloca 8, 4: Ptr
+    store %v_19, 1, 4
+    %v_20 = add %v_19, 4: Ptr
+    store %v_20, 2, 4
+    %v_21 = alloca 8, 4: Ptr
+    store %v_21, 3, 4
+    %v_22 = add %v_21, 4: Ptr
+    store %v_22, 4, 4
+    %v_23 = alloca 16, 8: Ptr
+    %v_24 = imm 8: Long
+    %v_25 = imm 2: Long
+    %v_26 = alloca 16, 4: Ptr
+    store %v_23, %v_26, 8
+    %v_27 = add %v_23, 8: Ptr
+    %v_28 = load %v_27, 4: Int
+    %v_29 = and %v_28, 18446744072635809792: Int
+    %v_30 = or %v_29, 2: Int
+    %v_31 = and %v_30, 18446744070488326143: Int
+    %v_32 = add %v_23, 8: Ptr
+    store %v_32, %v_31, 4
+    %v_33 = add %v_26, 0: Ptr
+    copy %v_33, %v_19, 8
+    %v_34 = imm 8: Long
+    %v_35 = add %v_26, %v_34: Ptr
+    copy %v_35, %v_21, 8
+    %v_36 = add %v_23, 12: Ptr
+    store %v_36, 2, 4
+    %v_37 = load %v_23, 8: Ptr
+    %v_38 = add %v_37, 0: Ptr
     %v_39 = alloca 8, 4: Ptr
     store %v_39, 7, 4
     %v_40 = add %v_39, 4: Ptr
     store %v_40, 8, 4
     copy %v_38, %v_39, 8
-    %v_41 = call_complex Index(Flat(a), I64, a).getMut(Cell), %v_35, 1: Ptr
+    %v_41 = add %v_37, %v_34: Ptr
     store %v_41, 9, 4
     %v_42 = alloca 16, 8: Ptr
     %v_43 = imm 4: Long
@@ -321,83 +236,79 @@ main<complex>(): Int {
     store %v_55, 0, 4
     %v_56 = add %v_42, 12: Ptr
     store %v_56, 3, 4
-    %v_57 = call_complex Index(Array(a), I64, a).get(Int), %v_1, 0: Ptr
+    %v_57 = add %v_4, 0: Ptr
     %v_58 = loads %v_57, 4: Int
-    %v_59 = call_complex Index(Array(a), I64, a).get(Int), %v_1, 2: Ptr
-    %v_60 = loads %v_59, 4: Int
-    %v_61 = add %v_58, %v_60: Int
-    %v_62 = call_complex sumOfTwo(Array(Int), I64, Int), %v_1, 0, 1: Int
-    %v_63 = add %v_61, %v_62: Int
-    %v_64 = load %v_22, 8: Ptr
-    %v_65 = add %v_22, 12: Ptr
-    %v_66 = load %v_65, 4: Int
-    %v_67 = cast %v_66: Int
-    %v_68 = cast %v_67: Long
-    %xs = alloca 16, 8: Ptr
-    store %xs, %v_64, 8
-    %v_69 = add %xs, 8: Ptr
-    store %v_69, %v_68, 8
-    %v_70 = call_complex Index(Flat(a), I64, a).get(Cell), %xs, 0: Ptr
-    %v_71 = loads %v_70, 4: Int
-    %v_72 = call_complex Index(Flat(a), I64, a).get(Cell), %xs, 1: Ptr
-    %v_73 = add %v_72, 4: Ptr
-    %v_74 = loads %v_73, 4: Int
-    %v_75 = add %v_71, %v_74: Int
-    call_complex Reclaim(Array(a)).reclaim(Cell), %v_22
-    %v_76 = add %v_63, %v_75: Int
-    %p = alloca 8, 8: Ptr
-    store %p, %v_45, 8
-    %v_77 = call_complex Index(%a, I64, a).getMut(Int), %p, 2: Ptr
-    store %v_77, 5, 4
-    %v_78 = load %p, 8: Ptr
-    %v_79 = call_complex Index(%a, I64, a).get(Int), %v_78, 2: Ptr
-    %v_80 = loads %v_79, 4: Int
-    %v_81 = add %v_76, %v_80: Int
-    %v_82 = alloca 12, 4: Ptr
-    %v_83 = mul 0, 4: Long
-    %v_84 = add %v_82, %v_83: Ptr
-    store %v_84, 1, 4
-    %v_85 = mul 1, 4: Long
-    %v_86 = add %v_82, %v_85: Ptr
-    store %v_86, 2, 4
-    %v_87 = mul 2, 4: Long
-    %v_88 = add %v_82, %v_87: Ptr
-    store %v_88, 3, 4
-    %xs = alloca 16, 8: Ptr
-    store %xs, %v_82, 8
-    %v_89 = add %xs, 8: Ptr
-    store %v_89, 3, 8
-    %v_90 = call_complex Index(Flat(a), I64, a).get(Int), %xs, 1: Ptr
+    %v_59 = imul %v_12, 2: Long
+    %v_60 = add %v_4, %v_59: Ptr
+    %v_61 = loads %v_60, 4: Int
+    %v_62 = add %v_58, %v_61: Int
+    %v_63 = call_complex sumOfTwo(Array(Int), I64, Int), %v_1, 0, 1: Int
+    %v_64 = add %v_62, %v_63: Int
+    %v_65 = load %v_23, 8: Ptr
+    %v_66 = add %v_65, 0: Ptr
+    %v_67 = loads %v_66, 4: Int
+    %v_68 = add %v_65, %v_34: Ptr
+    %v_69 = add %v_68, 4: Ptr
+    %v_70 = loads %v_69, 4: Int
+    %v_71 = add %v_67, %v_70: Int
+    call_complex Reclaim(Array(a)).reclaim(Cell), %v_23
+    %v_72 = add %v_64, %v_71: Int
+    %v_73 = imul %v_12, 2: Long
+    %v_74 = add %v_45, %v_73: Ptr
+    store %v_74, 5, 4
+    %v_75 = imul %v_12, 2: Long
+    %v_76 = add %v_45, %v_75: Ptr
+    %v_77 = loads %v_76, 4: Int
+    %v_78 = add %v_72, %v_77: Int
+    %v_79 = alloca 12, 4: Ptr
+    %v_80 = mul 0, 4: Long
+    %v_81 = add %v_79, %v_80: Ptr
+    store %v_81, 1, 4
+    %v_82 = mul 1, 4: Long
+    %v_83 = add %v_79, %v_82: Ptr
+    store %v_83, 2, 4
+    %v_84 = mul 2, 4: Long
+    %v_85 = add %v_79, %v_84: Ptr
+    store %v_85, 3, 4
+    %v_86 = add %v_79, %v_12: Ptr
+    %v_87 = loads %v_86, 4: Int
+    %v_88 = add %v_78, %v_87: Int
+    %v_89 = load %v_1, 8: Ptr
+    %v_90 = add %v_89, 0: Ptr
     %v_91 = loads %v_90, 4: Int
-    %v_92 = add %v_81, %v_91: Int
-    %v_93 = load %v_1, 8: Ptr
-    %v_94 = add %v_1, 12: Ptr
-    %v_95 = load %v_94, 4: Int
-    %v_96 = cast %v_95: Int
-    %v_97 = cast %v_96: Long
-    %xs = alloca 16, 8: Ptr
-    store %xs, %v_93, 8
-    %v_98 = add %xs, 8: Ptr
-    store %v_98, %v_97, 8
-    %v_99 = call_complex Index(Flat(a), I64, a).get(Int), %xs, 0: Ptr
-    %v_100 = loads %v_99, 4: Int
-    %v_101 = add %v_1, 8: Ptr
-    %v_102 = load %v_101, 4: Int
-    %v_103 = shr %v_102, 30: Int
-    %v_104 = cmp_eq %v_103, 1: Int
-    je %v_104, b_105, b_106
+    %v_92 = add %v_1, 8: Ptr
+    %v_93 = load %v_92, 4: Int
+    %v_94 = shr %v_93, 30: Int
+    %v_95 = cmp_eq %v_94, 1: Int
+    je %v_95, b_96, b_97
   }
 
-  b_105 {
-    %v_107 = load %v_1, 8: Ptr
-    %v_108 = bitcast %v_107: Ptr
-    call_complex freeHeap, %v_108
-    jmp b_106
+  b_96 {
+    %v_98 = load %v_1, 8: Ptr
+    %v_99 = bitcast %v_98: Ptr
+    call_complex freeHeap, %v_99
+    jmp b_97
   }
 
-  b_106 {
-    %v_109 = add %v_92, %v_100: Int
-    ret %v_109
+  b_97 {
+    %v_100 = add %v_88, %v_91: Int
+    ret %v_100
+  }
+}
+
+writeElement<complex>(%xs: Ptr) {
+  b_0 {
+    %v_1 = load %xs, 8: Ptr
+    %v_2 = add %v_1, 0: Ptr
+    %v_3 = alloca 8, 4: Ptr
+    store %v_3, 7, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 8, 4
+    copy %v_2, %v_3, 8
+    %v_5 = load %xs, 8: Ptr
+    %v_6 = add %v_5, 8: Ptr
+    store %v_6, 9, 4
+    ret 
   }
 }
 

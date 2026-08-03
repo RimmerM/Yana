@@ -226,6 +226,21 @@ static ModulePtr<Value> emitHostAt(ExprResolver& resolver, Buffer<ModulePtr<Valu
     return resolver.ref(resolver.emit<InstBorrow>(source, name, type, hostElement(resolver, args), mut));
 }
 
+} // namespace
+
+Place hostElementPlace(ExprResolver& resolver, ModulePtr<Value> array, ModulePtr<Value> index) {
+    ModulePtr<Value> args[] = { array, index };
+    return hostElement(resolver, { args, 2 });
+}
+
+ModulePtr<Value> emitHostLengthOf(ExprResolver& resolver, ModulePtr<Value> array, TypePtr type,
+                                  LocationId source, StringId name) {
+    return emitHostMember<NativeOp::HostField, HostMember::Length>(resolver, { &array, 1 }, type,
+                                                                   source, name);
+}
+
+namespace {
+
 static ast::Module* parseHost(Context& context) {
     auto id = context.addQualifiedName("Host", 4);
     Lexer lexer(context, context.diagnostics, StringView { kHostSource, stringLength(kHostSource) }, id);

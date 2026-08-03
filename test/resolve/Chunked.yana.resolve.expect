@@ -258,16 +258,6 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn Index(Flat(a), I64, a).get(Int)(%self: Flat(Int), %index: I64) -> &Int {
-  b0:
-    %v2 = load %self@Flat.items : %Int
-    %v3 = strideof Int : I64
-    %v4 = mul %index, %v3 : I64
-    %v5 = add %v2, %v4 : %Int
-    %v6 = borrow [%v5] : &Int
-    ret %v6
-}
-
 fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
     %v1 = load %self@Run.ownsHeap : @bits(2) U32
@@ -308,27 +298,22 @@ fn mapMemory(%size: I64) -> %U8 {
     ret %v18
 }
 
-fn Length(Flat(a)).length(Int)(%self: Flat(Int)) -> I64 {
-  b0:
-    %v1 = load %self@Flat.length : I64
-    ret %v1
-}
-
 fn Chunked(Array(a), a).chunks(Int, ())(%self: Array(Int), %body: (value: Flat(Int)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v2 = call Contiguous(Array(a), a).elements(Int), %self : Flat(Int)
-    %v3 = calldyn %body, %v2 : Outcome((), ())
-    %v4 = load %local3.discriminant : Int
-    %v6 = cmp_eq %v4, 1 : Bool
-    je %v6, b1, b2
+    %v2 = borrow %self : &Array(Int)
+    %v3 = call Contiguous(Array(a), a).elements(Int), %v2 : Flat(Int)
+    %v4 = calldyn %body, %v3 : Outcome((), ())
+    %v5 = load %local3.discriminant : Int
+    %v7 = cmp_eq %v5, 1 : Bool
+    je %v7, b1, b2
 
   b1:
-    ret %v3
+    ret %v4
 
   b2:
-    %v9 = alloc : Outcome((), ())
+    %v10 = alloc : Outcome((), ())
     init %local4.discriminant, 0
-    ret %v9
+    ret %v10
 }
 
 fn Contiguous(Array(a), a).elements(Int)(%self: Array(Int)) -> Flat(Int) {
@@ -902,7 +887,7 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value: Int) -> Outcome((), ())) -> Outc
   b0:
     %i = alloc : Int
     init %i, 0
-    %v5 = call Length(Flat(a)).length(Int), %xs : I64
+    %v5 = load %xs@Flat.length : I64
     %n = cast %v5 : Int
     jmp b1
 
@@ -919,20 +904,25 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value: Int) -> Outcome((), ())) -> Outc
   b3:
     %v15 = load %i : Int
     %v16 = cast %v15 : I64
-    %v17 = call Index(Flat(a), I64, a).get(Int), %xs, %v16 : &Int
-    %v18 = load [%v17] : Int
-    %v19 = calldyn %body, %v18 : Outcome((), ())
-    %v20 = load %local3.discriminant : Int
-    %v22 = cmp_eq %v20, 1 : Bool
-    je %v22, b4, b5
+    %v17 = borrow %xs : &Flat(Int)
+    %v18 = load [%v17]@Flat.items : %Int
+    %v19 = strideof Int : Long
+    %v20 = mul %v16, %v19 : Long
+    %v21 = add %v18, %v20 : %Int
+    %v22 = borrow [%v21] : &Int
+    %v23 = load [%v22] : Int
+    %v24 = calldyn %body, %v23 : Outcome((), ())
+    %v25 = load %local3.discriminant : Int
+    %v27 = cmp_eq %v25, 1 : Bool
+    je %v27, b4, b5
 
   b4:
-    ret %v19
+    ret %v24
 
   b5:
-    %v25 = load %i : Int
-    %v27 = add %v25, 1 : Int
-    assign %i, %v27
+    %v30 = load %i : Int
+    %v32 = add %v30, 1 : Int
+    assign %i, %v32
     jmp b1
 }
 
@@ -1162,7 +1152,7 @@ fn each(Int, Int)(%xs: Flat(Int), %body: (value: Int) -> Outcome((), Int)) -> Ou
   b0:
     %i = alloc : Int
     init %i, 0
-    %v5 = call Length(Flat(a)).length(Int), %xs : I64
+    %v5 = load %xs@Flat.length : I64
     %n = cast %v5 : Int
     jmp b1
 
@@ -1179,20 +1169,25 @@ fn each(Int, Int)(%xs: Flat(Int), %body: (value: Int) -> Outcome((), Int)) -> Ou
   b3:
     %v15 = load %i : Int
     %v16 = cast %v15 : I64
-    %v17 = call Index(Flat(a), I64, a).get(Int), %xs, %v16 : &Int
-    %v18 = load [%v17] : Int
-    %v19 = calldyn %body, %v18 : Outcome((), Int)
-    %v20 = load %local3.discriminant : Int
-    %v22 = cmp_eq %v20, 1 : Bool
-    je %v22, b4, b5
+    %v17 = borrow %xs : &Flat(Int)
+    %v18 = load [%v17]@Flat.items : %Int
+    %v19 = strideof Int : Long
+    %v20 = mul %v16, %v19 : Long
+    %v21 = add %v18, %v20 : %Int
+    %v22 = borrow [%v21] : &Int
+    %v23 = load [%v22] : Int
+    %v24 = calldyn %body, %v23 : Outcome((), Int)
+    %v25 = load %local3.discriminant : Int
+    %v27 = cmp_eq %v25, 1 : Bool
+    je %v27, b4, b5
 
   b4:
-    ret %v19
+    ret %v24
 
   b5:
-    %v25 = load %i : Int
-    %v27 = add %v25, 1 : Int
-    assign %i, %v27
+    %v30 = load %i : Int
+    %v32 = add %v30, 1 : Int
+    assign %i, %v32
     jmp b1
 }
 
@@ -1310,7 +1305,7 @@ fn ResolveTest.continuation$10(%env: %{total: &mut Int}, %value: Int) -> Outcome
 
 fn count(Int)(%xs: Flat(Int)) -> Int {
   b0:
-    %v1 = call Length(Flat(a)).length(Int), %xs : I64
+    %v1 = load %xs@Flat.length : I64
     %v2 = cast %v1 : Int
     ret %v2
 }

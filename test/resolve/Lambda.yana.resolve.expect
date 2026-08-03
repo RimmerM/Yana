@@ -238,14 +238,6 @@ fn mapMemory(%size: I64) -> %U8 {
     ret %v18
 }
 
-fn Length(Array(a)).length(Int)(%self: Array(Int)) -> I64 {
-  b0:
-    %v1 = load %self@Array.length : @bits(30) U32
-    %v2 = cast %v1 : U32
-    %v3 = cast %v2 : I64
-    ret %v3
-}
-
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
@@ -322,10 +314,12 @@ fn twiceGeneric(%f: (a) -> a, %x: a) -> a {
 
 fn consume(%xs: Array(Int)) -> Int {
   b0:
-    %v1 = call Length(Array(a)).length(Int), %xs : I64
+    %v1 = load %xs@Array.length : @bits(30) U32
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
-    %v2 = cast %v1 : Int
-    ret %v2
+    %v2 = cast %v1 : U32
+    %v3 = cast %v2 : I64
+    %v4 = cast %v3 : Int
+    ret %v4
 }
 
 fn run(%f: (->Array(Int)) -> Int) -> Int {

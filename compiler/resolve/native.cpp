@@ -457,35 +457,49 @@ instance Reclaim(Run(a)):
 @platform(native) fn values(self: Flat(a)) -> %a = self.items
 
 {-
-   Subscripting a slice - Core's `Index`, and where `xs[i]` on an array ends up.
+   Subscripting a slice and a raw pointer - Core's `Index`, and where `xs[i]` on an array ends up.
+
+   **Generated rather than written, and this is what they would say if they were written:**
+
+       @platform(native) instance Index(Flat(a), Size, a):
+           fn get(return self: Flat(a), index: Size) -> &a = borrow(self.items + index)
+           fn getMut(return &self: Flat(a), index: Size) -> &a = borrowMut(self.items + index)
+
+       @platform(js) instance Index(Flat(a), Size, a):
+           fn get(return self: Flat(a), index: Size) -> &a = hostAt(self.items, self.offset + index)
+           fn getMut(return &self: Flat(a), index: Size) -> &a = hostAtMut(self.items, self.offset + index)
+
+       instance Index(%a, I64, a):
+           fn get(return self: %a, index: I64) -> &a = borrow(self + index)
+           fn getMut(return &self: %a, index: I64) -> &a = borrowMut(self + index)
+
+   Each of those is one address computation with nothing behind it, and every one of them is
+   expressible here - so leaving them in source is the default and the reason they are not is worth
+   stating. `xs[i]` is the most common expression the language has, and it has to cost nothing *with
+   no optimizer having run*: a source body would have to be specialized per element type and then
+   spliced at every subscript in the program before it was free, so a `-no-opt` build would pay for a
+   call at each one and the shape of the emitted code would depend on a pass rather than on what was
+   written. Nothing above the optimizer is allowed to depend on the optimizer, and the language's most
+   common operation is the last place to start. See defineNativeIndexInstances; the generated body and
+   the expansion a call site gets are the same emitter, so the two cannot disagree.
 
    Declared over the slice and not over the owner, which is not an omission: reading is structural,
    so the operation that reads asks for the borrow, and an owner reaches it by the ordinary
    conversion at the call - see convertSlice. That is what lets one instance serve `[a]`, `Array(a)`
-   and anything else a slice can be taken of.
+   and anything else a slice can be taken of. The class buys the *generic* case - `xs[i]` inside
+   `fn (Index(c, k, v)) first(xs: c)` - and costs the concrete one nothing.
 
-   The bodies are what they always were, and so is what they compile to: `borrow(self.items + index)`
-   is an address computation with no call and no witness behind it, because a concrete `xs[i]`
-   selects the instance at resolve time and calls the implementation directly. The class buys the
-   *generic* case - `xs[i]` inside `fn (Index(c, k, v)) first(xs: c)` - and costs the concrete one
-   nothing.
+   The pointer instance is Implementation-Containers.md §17's "two declarations and one deletion":
+   `heapFree[sizeClass]` was `store(heapFree + sizeClass, block)` because `resolveSubscript` rejected
+   anything that was not an array, and under the class route it is an instance like any other with
+   the unchecked-ness the pointer's rather than the subscript's.
+
+   None of this is what a *user's* container gets, deliberately. An authored `instance Index(Deque(a),
+   Int, a)` is an ordinary function dispatched to exactly as now, and what would make one of those
+   free is `@inline(always)` - a guarantee written on the declaration, paid for where it is asked for.
+   These six are the compiler's own types and are in every program, which is the whole of why they are
+   answered here instead.
 -}
-@platform(native) instance Index(Flat(a), Size, a):
-    fn get(return self: Flat(a), index: Size) -> &a = borrow(self.items + index)
-    fn getMut(return &self: Flat(a), index: Size) -> &a = borrowMut(self.items + index)
-
-{-
-   Subscripting a raw pointer - Implementation-Containers.md §17's "two declarations and one
-   deletion".
-
-   `heapFree[sizeClass]` was `store(heapFree + sizeClass, block)` because `resolveSubscript`
-   rejected anything that was not an array; under the class route it is an instance like any other,
-   and the unchecked-ness is the pointer's rather than the subscript's. No `return` marker: a
-   pointer is not rooted in anything the checker knows about, which is exactly what `%a` means.
--}
-instance Index(%a, I64, a):
-    fn get(return self: %a, index: I64) -> &a = borrow(self + index)
-    fn getMut(return &self: %a, index: I64) -> &a = borrowMut(self + index)
 
 {-
    What a `String` is on this target - Implementation-String.md part 2's growable row, and exactly
@@ -949,6 +963,10 @@ void defineNative(Program& program) {
 
     program.runType = named("Run", 3);
     program.sliceType = named("Flat", 4);
+
+    // After `sliceType`, which is what the head names, and before any body of this module is
+    // resolved - which happens once every module's declarations have been read.
+    defineNativeIndexInstances(*native);
 
     /*
      * What a native `String` occupies - see Type::String and `computeString`.

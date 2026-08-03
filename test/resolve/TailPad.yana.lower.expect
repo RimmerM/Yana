@@ -69,15 +69,6 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-Index(Array(a), I64, a).get(Outer)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 16: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
-  }
-}
-
 byteSpan(Outer)<complex>(%from: Ptr, %count: Int): Long {
   b_0 {
     %v_1 = bitcast %from: Ptr
@@ -824,15 +815,6 @@ push(Pad)<complex>(%self: Ptr, %item: Ptr) {
   }
 }
 
-Index(Array(a), I64, a).get(Pad)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 16: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
-  }
-}
-
 main<complex>(): Long {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
@@ -863,129 +845,139 @@ main<complex>(): Long {
     %v_13 = alloca 12, 8: Ptr
     copy %v_13, %v_10, 12
     call_complex push(Pad), %xs, %v_13
-    %v_14 = call_complex Index(Array(a), I64, a).get(Pad), %xs, 0: Ptr
-    %v_15 = add %v_14, 8: Ptr
-    %v_16 = load %v_15, 4: Int
-    %v_17 = cmp_neq %v_16, 10: Int
-    je %v_17, b_18, b_19
+    %v_14 = load %xs, 8: Ptr
+    %v_15 = add %v_14, 0: Ptr
+    %v_16 = add %v_15, 8: Ptr
+    %v_17 = load %v_16, 4: Int
+    %v_18 = cmp_neq %v_17, 10: Int
+    %v_19 = imm 16: Long
+    %v_20 = imm 16: Long
+    je %v_18, b_21, b_22
   }
 
-  b_19 {
-    %v_20 = call_complex Index(Array(a), I64, a).get(Pad), %xs, 1: Ptr
-    %v_21 = add %v_20, 8: Ptr
-    %v_22 = load %v_21, 4: Int
-    %v_23 = cmp_neq %v_22, 20: Int
-    je %v_23, b_24, b_25
+  b_22 {
+    %v_23 = load %xs, 8: Ptr
+    %v_24 = add %v_23, %v_19: Ptr
+    %v_25 = add %v_24, 8: Ptr
+    %v_26 = load %v_25, 4: Int
+    %v_27 = cmp_neq %v_26, 20: Int
+    je %v_27, b_28, b_29
   }
 
-  b_25 {
-    %v_26 = call_complex Index(Array(a), I64, a).get(Pad), %xs, 2: Ptr
-    %v_27 = add %v_26, 8: Ptr
-    %v_28 = load %v_27, 4: Int
-    %v_29 = cmp_neq %v_28, 30: Int
-    je %v_29, b_30, b_31
+  b_29 {
+    %v_30 = load %xs, 8: Ptr
+    %v_31 = imul %v_19, 2: Long
+    %v_32 = add %v_30, %v_31: Ptr
+    %v_33 = add %v_32, 8: Ptr
+    %v_34 = load %v_33, 4: Int
+    %v_35 = cmp_neq %v_34, 30: Int
+    je %v_35, b_36, b_37
   }
 
-  b_31 {
-    %v_32 = alloca 16, 8: Ptr
-    call_complex emptyArray(Outer), %v_32
-    %ys = alloca 16, 8: Ptr
-    copy %ys, %v_32, 16
-    %v_33 = alloca 16, 8: Ptr
-    %v_34 = bitcast 0: Ptr
-    store %v_33, %v_34, 8
-    %v_35 = add %v_33, 8: Ptr
-    store %v_35, 5, 4
-    %v_36 = add %v_33, 12: Ptr
-    store %v_36, 6, 4
-    %v_37 = alloca 16, 8: Ptr
-    copy %v_37, %v_33, 16
-    call_complex push(Outer), %ys, %v_37
+  b_37 {
     %v_38 = alloca 16, 8: Ptr
-    %v_39 = bitcast 0: Ptr
-    store %v_38, %v_39, 8
-    %v_40 = add %v_38, 8: Ptr
-    store %v_40, 7, 4
-    %v_41 = add %v_38, 12: Ptr
-    store %v_41, 8, 4
-    %v_42 = alloca 16, 8: Ptr
-    copy %v_42, %v_38, 16
-    call_complex push(Outer), %ys, %v_42
-    %v_43 = call_complex Index(Array(a), I64, a).get(Outer), %ys, 0: Ptr
-    %v_44 = add %v_43, 8: Ptr
-    %v_45 = load %v_44, 4: Int
-    %v_46 = cmp_neq %v_45, 5: Int
-    je %v_46, b_47, b_48
+    call_complex emptyArray(Outer), %v_38
+    %ys = alloca 16, 8: Ptr
+    copy %ys, %v_38, 16
+    %v_39 = alloca 16, 8: Ptr
+    %v_40 = bitcast 0: Ptr
+    store %v_39, %v_40, 8
+    %v_41 = add %v_39, 8: Ptr
+    store %v_41, 5, 4
+    %v_42 = add %v_39, 12: Ptr
+    store %v_42, 6, 4
+    %v_43 = alloca 16, 8: Ptr
+    copy %v_43, %v_39, 16
+    call_complex push(Outer), %ys, %v_43
+    %v_44 = alloca 16, 8: Ptr
+    %v_45 = bitcast 0: Ptr
+    store %v_44, %v_45, 8
+    %v_46 = add %v_44, 8: Ptr
+    store %v_46, 7, 4
+    %v_47 = add %v_44, 12: Ptr
+    store %v_47, 8, 4
+    %v_48 = alloca 16, 8: Ptr
+    copy %v_48, %v_44, 16
+    call_complex push(Outer), %ys, %v_48
+    %v_49 = load %ys, 8: Ptr
+    %v_50 = add %v_49, 0: Ptr
+    %v_51 = add %v_50, 8: Ptr
+    %v_52 = load %v_51, 4: Int
+    %v_53 = cmp_neq %v_52, 5: Int
+    je %v_53, b_54, b_55
   }
 
-  b_48 {
-    %v_49 = call_complex Index(Array(a), I64, a).get(Outer), %ys, 0: Ptr
-    %v_50 = add %v_49, 12: Ptr
-    %v_51 = load %v_50, 4: Int
-    %v_52 = cmp_neq %v_51, 6: Int
-    je %v_52, b_53, b_54
+  b_55 {
+    %v_56 = load %ys, 8: Ptr
+    %v_57 = add %v_56, 0: Ptr
+    %v_58 = add %v_57, 12: Ptr
+    %v_59 = load %v_58, 4: Int
+    %v_60 = cmp_neq %v_59, 6: Int
+    je %v_60, b_61, b_62
   }
 
-  b_54 {
-    %v_55 = call_complex Index(Array(a), I64, a).get(Outer), %ys, 1: Ptr
-    %v_56 = add %v_55, 8: Ptr
-    %v_57 = load %v_56, 4: Int
-    %v_58 = cmp_neq %v_57, 7: Int
-    je %v_58, b_59, b_60
+  b_62 {
+    %v_63 = load %ys, 8: Ptr
+    %v_64 = add %v_63, %v_20: Ptr
+    %v_65 = add %v_64, 8: Ptr
+    %v_66 = load %v_65, 4: Int
+    %v_67 = cmp_neq %v_66, 7: Int
+    je %v_67, b_68, b_69
   }
 
-  b_60 {
-    %v_61 = call_complex Index(Array(a), I64, a).get(Outer), %ys, 1: Ptr
-    %v_62 = add %v_61, 12: Ptr
-    %v_63 = load %v_62, 4: Int
+  b_69 {
+    %v_70 = load %ys, 8: Ptr
+    %v_71 = add %v_70, %v_20: Ptr
+    %v_72 = add %v_71, 12: Ptr
+    %v_73 = load %v_72, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Outer), %ys
-    %v_64 = cmp_neq %v_63, 8: Int
-    je %v_64, b_65, b_66
+    %v_74 = cmp_neq %v_73, 8: Int
+    je %v_74, b_75, b_76
   }
 
-  b_66 {
-    %v_67 = imul 16, 10000: Long
-    %v_68 = imul 12, 100: Long
-    %v_69 = add %v_67, %v_68: Long
+  b_76 {
+    %v_77 = imul 16, 10000: Long
+    %v_78 = imul 12, 100: Long
+    %v_79 = add %v_77, %v_78: Long
     call_complex Reclaim(Array(a)).reclaim(Pad), %xs
-    %v_70 = add %v_69, 16: Long
-    ret %v_70
+    %v_80 = add %v_79, 16: Long
+    ret %v_80
   }
 
-  b_18 {
+  b_21 {
     call_complex Reclaim(Array(a)).reclaim(Pad), %xs
     ret 18446744073709551613
   }
 
-  b_24 {
+  b_28 {
     call_complex Reclaim(Array(a)).reclaim(Pad), %xs
     ret 18446744073709551612
   }
 
-  b_30 {
+  b_36 {
     call_complex Reclaim(Array(a)).reclaim(Pad), %xs
     ret 18446744073709551611
   }
 
-  b_47 {
+  b_54 {
     call_complex Reclaim(Array(a)).reclaim(Pad), %xs
     call_complex Reclaim(Array(a)).reclaim(Outer), %ys
     ret 18446744073709551610
   }
 
-  b_53 {
+  b_61 {
     call_complex Reclaim(Array(a)).reclaim(Pad), %xs
     call_complex Reclaim(Array(a)).reclaim(Outer), %ys
     ret 18446744073709551609
   }
 
-  b_59 {
+  b_68 {
     call_complex Reclaim(Array(a)).reclaim(Pad), %xs
     call_complex Reclaim(Array(a)).reclaim(Outer), %ys
     ret 18446744073709551608
   }
 
-  b_65 {
+  b_75 {
     call_complex Reclaim(Array(a)).reclaim(Pad), %xs
     ret 18446744073709551607
   }

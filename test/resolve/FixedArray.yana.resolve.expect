@@ -45,37 +45,6 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn Index(Flat(a), I64, a).get(Int)(%self: Flat(Int), %index: I64) -> &Int {
-  b0:
-    %v2 = load %self@Flat.items : %Int
-    %v3 = strideof Int : I64
-    %v4 = mul %index, %v3 : I64
-    %v5 = add %v2, %v4 : %Int
-    %v6 = borrow [%v5] : &Int
-    ret %v6
-}
-
-fn Index(Flat(a), I64, a).getMut(Int)(%self: Flat(Int), %index: I64) -> &mut Int {
-  b0:
-    %v2 = load %self : Flat(Int)
-    %v3 = load %self@Flat.items : %Int
-    %v4 = strideof Int : I64
-    %v5 = mul %index, %v4 : I64
-    %v6 = add %v3, %v5 : %Int
-    %v7 = borrow_mut [%v6] : &mut Int
-    ret %v7
-}
-
-fn Index(Flat(a), I64, a).get(Pad)(%self: Flat(Pad), %index: I64) -> &Pad {
-  b0:
-    %v2 = load %self@Flat.items : %Pad
-    %v3 = strideof Pad : I64
-    %v4 = mul %index, %v3 : I64
-    %v5 = add %v2, %v4 : %Pad
-    %v6 = borrow [%v5] : &Pad
-    ret %v6
-}
-
 fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
     %v1 = load %self@Run.ownsHeap : @bits(2) U32
@@ -95,12 +64,6 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
 
   b3:
     ret
-}
-
-fn Length(Flat(a)).length(Int)(%self: Flat(Int)) -> I64 {
-  b0:
-    %v1 = load %self@Flat.length : I64
-    ret %v1
 }
 
 fn slice(Int)(%self: Flat(Int), %from: I64, %to: I64) -> Flat(Int) {
@@ -251,27 +214,31 @@ fn total(%xs: Flat(Int)) -> Int {
 
   b1:
     %v8 = load %i : Int
-    %v9 = call Length(Flat(a)).length(Int), %xs : I64
+    %v9 = load %xs@Flat.length : I64
     %v10 = cast %v8 : I64
     %v11 = cmp_lt %v10, %v9 : Bool
     je %v11, b3, b2
 
   b2:
-    %v27 = load %sum : Int
-    ret %v27
+    %v31 = load %sum : Int
+    ret %v31
 
   b3:
     %v13 = load %sum : Int
     %v14 = load %i : Int
     %v15 = cast %v14 : I64
     %v16 = borrow %xs : &Flat(Int)
-    %v17 = call Index(Flat(a), I64, a).get(Int), %v16, %v15 : &Int
-    %v18 = load [%v17] : Int
-    %v19 = add %v13, %v18 : Int
-    assign %sum, %v19
-    %v21 = load %i : Int
-    %v24 = add %v21, 1 : Int
-    assign %i, %v24
+    %v17 = load [%v16]@Flat.items : %Int
+    %v18 = strideof Int : Long
+    %v19 = mul %v15, %v18 : Long
+    %v20 = add %v17, %v19 : %Int
+    %v21 = borrow [%v20] : &Int
+    %v22 = load [%v21] : Int
+    %v23 = add %v13, %v22 : Int
+    assign %sum, %v23
+    %v25 = load %i : Int
+    %v28 = add %v25, 1 : Int
+    assign %i, %v28
     jmp b1
 }
 
@@ -284,7 +251,7 @@ fn double(%xs: Flat(Int)) -> () {
   b1:
     %v5 = load %i : Int
     %v6 = load %xs : Flat(Int)
-    %v7 = call Length(Flat(a)).length(Int), %v6 : I64
+    %v7 = load %xs@Flat.length : I64
     %v8 = cast %v5 : I64
     %v9 = cmp_lt %v8, %v7 : Bool
     je %v9, b3, b2
@@ -297,18 +264,26 @@ fn double(%xs: Flat(Int)) -> () {
     %v12 = load %i : Int
     %v13 = cast %v12 : I64
     %v14 = borrow %xs : &Flat(Int)
-    %v15 = call Index(Flat(a), I64, a).get(Int), %v14, %v13 : &Int
-    %value = load [%v15] : Int
-    %v17 = load %xs : Flat(Int)
-    %v18 = load %i : Int
-    %v19 = cast %v18 : I64
-    %v20 = borrow_mut %xs : &mut Flat(Int)
-    %v21 = call Index(Flat(a), I64, a).getMut(Int), %v20, %v19 : &mut Int
-    %v22 = add %value, %value : Int
-    assign [%v21], %v22
-    %v24 = load %i : Int
-    %v27 = add %v24, 1 : Int
-    assign %i, %v27
+    %v15 = load [%v14]@Flat.items : %Int
+    %v16 = strideof Int : Long
+    %v17 = mul %v13, %v16 : Long
+    %v18 = add %v15, %v17 : %Int
+    %v19 = borrow [%v18] : &Int
+    %value = load [%v19] : Int
+    %v21 = load %xs : Flat(Int)
+    %v22 = load %i : Int
+    %v23 = cast %v22 : I64
+    %v24 = borrow_mut %xs : &mut Flat(Int)
+    %v25 = load [%v24]@Flat.items : %Int
+    %v26 = strideof Int : Long
+    %v27 = mul %v23, %v26 : Long
+    %v28 = add %v25, %v27 : %Int
+    %v29 = borrow_mut [%v28] : &mut Int
+    %v30 = add %value, %value : Int
+    assign [%v29], %v30
+    %v32 = load %i : Int
+    %v35 = add %v32, 1 : Int
+    assign %i, %v35
     jmp b1
 }
 
@@ -370,34 +345,46 @@ fn padRead() -> I64 {
     %v29 = cast 3 : I64
     init %local4@Flat.length, %v29
     %v32 = borrow %local4 : &Flat(Pad)
-    %v33 = call Index(Flat(a), I64, a).get(Pad), %v32, 0 : &Pad
-    %v34 = load [%v33] : Pad
-    %v35 = load [%v33]@Pad.wide : I64
-    %v36 = load %ps : [Pad *3]
-    %v38 = borrow %ps : &[Pad *3]
-    %v39 = alloc : Flat(Pad)
-    %v40 = addressof [%v38] : %Pad
-    init %local5@Flat.items, %v40
-    %v43 = cast 3 : I64
-    init %local5@Flat.length, %v43
-    %v46 = borrow %local5 : &Flat(Pad)
-    %v47 = call Index(Flat(a), I64, a).get(Pad), %v46, 1 : &Pad
-    %v48 = load [%v47] : Pad
-    %v49 = load [%v47]@Pad.wide : I64
-    %v50 = add %v35, %v49 : I64
-    %v51 = load %ps : [Pad *3]
-    %v53 = borrow %ps : &[Pad *3]
-    %v54 = alloc : Flat(Pad)
-    %v55 = addressof [%v53] : %Pad
-    init %local6@Flat.items, %v55
-    %v58 = cast 3 : I64
-    init %local6@Flat.length, %v58
-    %v61 = borrow %local6 : &Flat(Pad)
-    %v62 = call Index(Flat(a), I64, a).get(Pad), %v61, 2 : &Pad
-    %v63 = load [%v62] : Pad
-    %v64 = load [%v62]@Pad.wide : I64
-    %v65 = add %v50, %v64 : I64
-    ret %v65
+    %v33 = load [%v32]@Flat.items : %Pad
+    %v34 = strideof Pad : Long
+    %v35 = mul 0, %v34 : Long
+    %v36 = add %v33, %v35 : %Pad
+    %v37 = borrow [%v36] : &Pad
+    %v38 = load [%v37] : Pad
+    %v39 = load [%v37]@Pad.wide : I64
+    %v40 = load %ps : [Pad *3]
+    %v42 = borrow %ps : &[Pad *3]
+    %v43 = alloc : Flat(Pad)
+    %v44 = addressof [%v42] : %Pad
+    init %local5@Flat.items, %v44
+    %v47 = cast 3 : I64
+    init %local5@Flat.length, %v47
+    %v50 = borrow %local5 : &Flat(Pad)
+    %v51 = load [%v50]@Flat.items : %Pad
+    %v52 = strideof Pad : Long
+    %v53 = mul 1, %v52 : Long
+    %v54 = add %v51, %v53 : %Pad
+    %v55 = borrow [%v54] : &Pad
+    %v56 = load [%v55] : Pad
+    %v57 = load [%v55]@Pad.wide : I64
+    %v58 = add %v39, %v57 : I64
+    %v59 = load %ps : [Pad *3]
+    %v61 = borrow %ps : &[Pad *3]
+    %v62 = alloc : Flat(Pad)
+    %v63 = addressof [%v61] : %Pad
+    init %local6@Flat.items, %v63
+    %v66 = cast 3 : I64
+    init %local6@Flat.length, %v66
+    %v69 = borrow %local6 : &Flat(Pad)
+    %v70 = load [%v69]@Flat.items : %Pad
+    %v71 = strideof Pad : Long
+    %v72 = mul 2, %v71 : Long
+    %v73 = add %v70, %v72 : %Pad
+    %v74 = borrow [%v73] : &Pad
+    %v75 = load [%v74] : Pad
+    %v76 = load [%v74]@Pad.wide : I64
+    %v77 = add %v58, %v76 : I64
+    ret %v77
 }
 
 fn emptySize() -> I64 {

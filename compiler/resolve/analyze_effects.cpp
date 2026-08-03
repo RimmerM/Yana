@@ -137,6 +137,49 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
             if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
                 pending.push(place.pointer);
             }
+        } else if(produced.kind == Value::LoadPlace && isPointer(analysis.global, produced.type)) {
+            /*
+             * The one scalar for which the paragraph above is not true - and the ownership model
+             * already has a name for it, since analyze_provenance's refersToStorage counts a raw
+             * pointer alongside an aggregate and a borrow.
+             *
+             * A container's elements are reached through exactly this shape: `xs[i]` loads
+             * `xs.run.items`, offsets it, and reads through the result. That used to be three
+             * instructions inside `Index(Array(a)).get`, where the `return self` marker on the
+             * callee's signature told the caller the result was rooted in the array; expanding the
+             * accessor at the call site (Implementation-Simplification.md §2) puts the load in the
+             * caller's own body, and without this the array is dead at that load and the drop pass
+             * releases the run between it and the read through it.
+             *
+             * Conservative in the one direction that is safe: it delays a drop and never moves one
+             * earlier. What it deliberately does not do is make a raw pointer *checked* - the target
+             * of a `%T` is still outside the ownership graph, and a pointer written into a field and
+             * read back somewhere else still refers to nothing this can compute.
+             */
+            auto& place = ((InstLoadPlace&)produced).place;
+            useSlot(analysis, effects, rootLocal(analysis, place));
+
+            if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
+                pending.push(place.pointer);
+            }
+        } else if((produced.kind == Value::Add || produced.kind == Value::Sub) &&
+                  isPointer(analysis.global, produced.type)) {
+            /*
+             * Offsetting a pointer does not change what it refers into, which is the other half of
+             * the rule above: an element address is the base plus a scaled index, and the base is
+             * what carries the root.
+             *
+             * Whichever operand is the pointer, rather than the left one. `p + n` is the only form
+             * the pointer intrinsics build, and reading it off the type instead of the position is
+             * both free and one fewer thing to keep in agreement with them.
+             */
+            auto& binary = (InstBinary&)produced;
+
+            for(auto operand: { binary.lhs, binary.rhs }) {
+                if(operand && isPointer(analysis.global, analysis.local[operand]->type)) {
+                    pending.push(operand);
+                }
+            }
         } else if(produced.kind == Value::Call) {
             auto& call = (InstCall&)produced;
             auto summary = summaryOf(analysis, call.callee);

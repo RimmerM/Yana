@@ -233,28 +233,25 @@ teardown$none<complex>(%value: Ptr) {
 
 each(Point, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
   b_1 {
-    %xs = alloca 16, 8: Ptr
-    store %xs, %xs$items, 8
-    %v_2 = add %xs, 8: Ptr
-    store %v_2, %xs$length, 8
     %n = cast %xs$length: Int
-    jmp b_3
+    jmp b_2
   }
 
-  b_3 {
-    %v_4 = phi [b_1, 0], [b_5, %v_6]: Int
-    %v_7 = cmp_ilt %v_4, %n: Int
-    je %v_7, b_8, b_9
+  b_2 {
+    %v_3 = phi [b_1, 0], [b_4, %v_5]: Int
+    %v_6 = cmp_ilt %v_3, %n: Int
+    je %v_6, b_7, b_8
   }
 
-  b_9 {
+  b_8 {
     store %v_0, 0, 4
     ret 
   }
 
-  b_8 {
-    %v_10 = sext %v_4: Long
-    %v_11 = call_complex Index(Flat(a), I64, a).get(Point), %xs, %v_10: Ptr
+  b_7 {
+    %v_9 = sext %v_3: Long
+    %v_10 = imul %v_9, 8: Long
+    %v_11 = add %xs$items, %v_10: Ptr
     %v_12 = add %body, 8: Ptr
     %v_13 = load %body, 8: Ptr
     %v_14 = load %v_12, 8: Ptr
@@ -262,7 +259,7 @@ each(Point, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr
     call_complex %v_13, %v_15, %v_14, %v_11
     %v_16 = loads %v_15, 4: Int
     %v_17 = cmp_eq %v_16, 1: Int
-    je %v_17, b_18, b_5
+    je %v_17, b_18, b_4
   }
 
   b_18 {
@@ -270,9 +267,9 @@ each(Point, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr
     ret 
   }
 
-  b_5 {
-    %v_6 = add %v_4, 1: Int
-    jmp b_3
+  b_4 {
+    %v_5 = add %v_3, 1: Int
+    jmp b_2
   }
 }
 
@@ -377,41 +374,29 @@ ResolveTest.continuation$5<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
   }
 }
 
-Index(Flat(a), I64, a).get(Point)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 8: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
-  }
-}
-
 each(Point, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
   b_1 {
-    %xs = alloca 16, 8: Ptr
-    store %xs, %xs$items, 8
-    %v_2 = add %xs, 8: Ptr
-    store %v_2, %xs$length, 8
     %n = cast %xs$length: Int
-    jmp b_3
+    jmp b_2
   }
 
-  b_3 {
-    %v_4 = phi [b_1, 0], [b_5, %v_6]: Int
-    %v_7 = cmp_ilt %v_4, %n: Int
-    je %v_7, b_8, b_9
-  }
-
-  b_9 {
-    %v_10 = alloca 8, 4: Ptr
-    store %v_10, 0, 4
-    copy %v_0, %v_10, 8
-    ret 
+  b_2 {
+    %v_3 = phi [b_1, 0], [b_4, %v_5]: Int
+    %v_6 = cmp_ilt %v_3, %n: Int
+    je %v_6, b_7, b_8
   }
 
   b_8 {
-    %v_11 = sext %v_4: Long
-    %v_12 = call_complex Index(Flat(a), I64, a).get(Point), %xs, %v_11: Ptr
+    %v_9 = alloca 8, 4: Ptr
+    store %v_9, 0, 4
+    copy %v_0, %v_9, 8
+    ret 
+  }
+
+  b_7 {
+    %v_10 = sext %v_3: Long
+    %v_11 = imul %v_10, 8: Long
+    %v_12 = add %xs$items, %v_11: Ptr
     %v_13 = add %body, 8: Ptr
     %v_14 = load %body, 8: Ptr
     %v_15 = load %v_13, 8: Ptr
@@ -419,7 +404,7 @@ each(Point, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Lon
     call_complex %v_14, %v_16, %v_15, %v_12
     %v_17 = loads %v_16, 4: Int
     %v_18 = cmp_eq %v_17, 1: Int
-    je %v_18, b_19, b_5
+    je %v_18, b_19, b_4
   }
 
   b_19 {
@@ -427,38 +412,35 @@ each(Point, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Lon
     ret 
   }
 
-  b_5 {
-    %v_6 = add %v_4, 1: Int
-    jmp b_3
+  b_4 {
+    %v_5 = add %v_3, 1: Int
+    jmp b_2
   }
 }
 
 each(Point, Outcome((), Outcome((), ())))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
   b_1 {
-    %xs = alloca 16, 8: Ptr
-    store %xs, %xs$items, 8
-    %v_2 = add %xs, 8: Ptr
-    store %v_2, %xs$length, 8
     %n = cast %xs$length: Int
-    jmp b_3
+    jmp b_2
   }
 
-  b_3 {
-    %v_4 = phi [b_1, 0], [b_5, %v_6]: Int
-    %v_7 = cmp_ilt %v_4, %n: Int
-    je %v_7, b_8, b_9
-  }
-
-  b_9 {
-    %v_10 = alloca 12, 4: Ptr
-    store %v_10, 0, 4
-    copy %v_0, %v_10, 12
-    ret 
+  b_2 {
+    %v_3 = phi [b_1, 0], [b_4, %v_5]: Int
+    %v_6 = cmp_ilt %v_3, %n: Int
+    je %v_6, b_7, b_8
   }
 
   b_8 {
-    %v_11 = sext %v_4: Long
-    %v_12 = call_complex Index(Flat(a), I64, a).get(Point), %xs, %v_11: Ptr
+    %v_9 = alloca 12, 4: Ptr
+    store %v_9, 0, 4
+    copy %v_0, %v_9, 12
+    ret 
+  }
+
+  b_7 {
+    %v_10 = sext %v_3: Long
+    %v_11 = imul %v_10, 8: Long
+    %v_12 = add %xs$items, %v_11: Ptr
     %v_13 = add %body, 8: Ptr
     %v_14 = load %body, 8: Ptr
     %v_15 = load %v_13, 8: Ptr
@@ -466,7 +448,7 @@ each(Point, Outcome((), Outcome((), ())))<complex>(%v_0: Ptr, %xs$items: Ptr, %x
     call_complex %v_14, %v_16, %v_15, %v_12
     %v_17 = loads %v_16, 4: Int
     %v_18 = cmp_eq %v_17, 1: Int
-    je %v_18, b_19, b_5
+    je %v_18, b_19, b_4
   }
 
   b_19 {
@@ -474,9 +456,9 @@ each(Point, Outcome((), Outcome((), ())))<complex>(%v_0: Ptr, %xs$items: Ptr, %x
     ret 
   }
 
-  b_5 {
-    %v_6 = add %v_4, 1: Int
-    jmp b_3
+  b_4 {
+    %v_5 = add %v_3, 1: Int
+    jmp b_2
   }
 }
 
@@ -557,15 +539,6 @@ ResolveTest.continuation$4<complex>(%v_0: Ptr, %env: Ptr, %value: Int) {
   }
 }
 
-Index(Flat(a), I64, a).get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 4: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
-  }
-}
-
 filtered(Point, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %keep: Ptr, %body: Ptr) {
   b_1 {
     %v_2 = alloca 16, 8: Ptr
@@ -599,28 +572,25 @@ filtered(Point, Outcome((), ()))<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length:
 
 each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) {
   b_1 {
-    %xs = alloca 16, 8: Ptr
-    store %xs, %xs$items, 8
-    %v_2 = add %xs, 8: Ptr
-    store %v_2, %xs$length, 8
     %n = cast %xs$length: Int
-    jmp b_3
+    jmp b_2
   }
 
-  b_3 {
-    %v_4 = phi [b_1, 0], [b_5, %v_6]: Int
-    %v_7 = cmp_ilt %v_4, %n: Int
-    je %v_7, b_8, b_9
+  b_2 {
+    %v_3 = phi [b_1, 0], [b_4, %v_5]: Int
+    %v_6 = cmp_ilt %v_3, %n: Int
+    je %v_6, b_7, b_8
   }
 
-  b_9 {
+  b_8 {
     store %v_0, 0, 4
     ret 
   }
 
-  b_8 {
-    %v_10 = sext %v_4: Long
-    %v_11 = call_complex Index(Flat(a), I64, a).get(Int), %xs, %v_10: Ptr
+  b_7 {
+    %v_9 = sext %v_3: Long
+    %v_10 = imul %v_9, 4: Long
+    %v_11 = add %xs$items, %v_10: Ptr
     %v_12 = loads %v_11, 4: Int
     %v_13 = add %body, 8: Ptr
     %v_14 = load %body, 8: Ptr
@@ -629,7 +599,7 @@ each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) 
     call_complex %v_14, %v_16, %v_15, %v_12
     %v_17 = loads %v_16, 4: Int
     %v_18 = cmp_eq %v_17, 1: Int
-    je %v_18, b_19, b_5
+    je %v_18, b_19, b_4
   }
 
   b_19 {
@@ -637,9 +607,9 @@ each(Int, ())<complex>(%v_0: Ptr, %xs$items: Ptr, %xs$length: Long, %body: Ptr) 
     ret 
   }
 
-  b_5 {
-    %v_6 = add %v_4, 1: Int
-    jmp b_3
+  b_4 {
+    %v_5 = add %v_3, 1: Int
+    jmp b_2
   }
 }
 

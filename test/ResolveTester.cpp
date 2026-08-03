@@ -419,9 +419,26 @@ static Maybe<I64> executeJsMain(const String& path, ByteBuffer emitted) {
         return Nothing();
     }
 
+    /*
+     * The *last* line, because a fixture is allowed to print.
+     *
+     * `main`'s value is the final line by construction - the driver appends the `console.log` that
+     * writes it - so anything before it is the program's own output. Parsing from the front instead
+     * made a fixture that called `print` report a JavaScript failure with no failure in it, which is
+     * the one thing `print` cannot be tested without doing.
+     */
+    auto start = buffer;
+    for(Size i = read; i > 0; i--) {
+        if(buffer[i - 1] != '\n' && buffer[i - 1] != '\r') continue;
+        if(i == read) continue;
+
+        start = buffer + i;
+        break;
+    }
+
     char* end = nullptr;
-    auto value = strtoll(buffer, &end, 10);
-    return end == buffer ? Nothing() : Just(I64(value));
+    auto value = strtoll(start, &end, 10);
+    return end == start ? Nothing() : Just(I64(value));
 }
 
 static bool runJsPass(const String& path, const String& jsPath, StringView source, bool generate,

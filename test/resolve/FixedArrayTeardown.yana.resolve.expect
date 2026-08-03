@@ -218,16 +218,6 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn Index(Flat(a), I64, a).get(Handle)(%self: Flat(Handle), %index: I64) -> &Handle {
-  b0:
-    %v2 = load %self@Flat.items : %Handle
-    %v3 = strideof Handle : I64
-    %v4 = mul %index, %v3 : I64
-    %v5 = add %v2, %v4 : %Handle
-    %v6 = borrow [%v5] : &Handle
-    ret %v6
-}
-
 fn mapMemory(%size: I64) -> %U8 {
   b0:
     %v7 = neg 1 : I64
@@ -283,22 +273,30 @@ fn small() -> I64 {
     %v15 = cast 2 : I64
     init %hs@Flat.length, %v15
     %v18 = borrow %hs : &Flat(Handle)
-    %v19 = call Index(Flat(a), I64, a).get(Handle), %v18, 0 : &Handle
-    %v20 = load [%v19] : Handle
-    %v21 = call marker, %v20 : I64
-    %v23 = borrow %local2 : &[Handle *2]
+    %v19 = load [%v18]@Flat.items : %Handle
+    %v20 = strideof Handle : Long
+    %v21 = mul 0, %v20 : Long
+    %v22 = add %v19, %v21 : %Handle
+    %v23 = borrow [%v22] : &Handle
+    %v24 = load [%v23] : Handle
+    %v25 = call marker, %v24 : I64
+    %v27 = borrow %local2 : &[Handle *2]
     %hs = alloc : Flat(Handle)
-    %v25 = addressof [%v23] : %Handle
-    init %hs@Flat.items, %v25
-    %v28 = cast 2 : I64
-    init %hs@Flat.length, %v28
-    %v31 = borrow %hs : &Flat(Handle)
-    %v32 = call Index(Flat(a), I64, a).get(Handle), %v31, 1 : &Handle
-    %v33 = load [%v32] : Handle
-    %v34 = call marker, %v33 : I64
+    %v29 = addressof [%v27] : %Handle
+    init %hs@Flat.items, %v29
+    %v32 = cast 2 : I64
+    init %hs@Flat.length, %v32
+    %v35 = borrow %hs : &Flat(Handle)
+    %v36 = load [%v35]@Flat.items : %Handle
+    %v37 = strideof Handle : Long
+    %v38 = mul 1, %v37 : Long
+    %v39 = add %v36, %v38 : %Handle
+    %v40 = borrow [%v39] : &Handle
+    %v41 = load [%v40] : Handle
+    %v42 = call marker, %v41 : I64
     drop_derived %local2 via drop$[Handle *2]
-    %v35 = add %v21, %v34 : I64
-    ret %v35
+    %v43 = add %v25, %v42 : I64
+    ret %v43
 }
 
 fn large() -> I64 {
@@ -323,22 +321,30 @@ fn large() -> I64 {
     %v31 = cast 6 : I64
     init %hs@Flat.length, %v31
     %v34 = borrow %hs : &Flat(Handle)
-    %v35 = call Index(Flat(a), I64, a).get(Handle), %v34, 0 : &Handle
-    %v36 = load [%v35] : Handle
-    %v37 = call marker, %v36 : I64
-    %v39 = borrow %local6 : &[Handle *6]
+    %v35 = load [%v34]@Flat.items : %Handle
+    %v36 = strideof Handle : Long
+    %v37 = mul 0, %v36 : Long
+    %v38 = add %v35, %v37 : %Handle
+    %v39 = borrow [%v38] : &Handle
+    %v40 = load [%v39] : Handle
+    %v41 = call marker, %v40 : I64
+    %v43 = borrow %local6 : &[Handle *6]
     %hs = alloc : Flat(Handle)
-    %v41 = addressof [%v39] : %Handle
-    init %hs@Flat.items, %v41
-    %v44 = cast 6 : I64
-    init %hs@Flat.length, %v44
-    %v47 = borrow %hs : &Flat(Handle)
-    %v48 = call Index(Flat(a), I64, a).get(Handle), %v47, 5 : &Handle
-    %v49 = load [%v48] : Handle
-    %v50 = call marker, %v49 : I64
+    %v45 = addressof [%v43] : %Handle
+    init %hs@Flat.items, %v45
+    %v48 = cast 6 : I64
+    init %hs@Flat.length, %v48
+    %v51 = borrow %hs : &Flat(Handle)
+    %v52 = load [%v51]@Flat.items : %Handle
+    %v53 = strideof Handle : Long
+    %v54 = mul 5, %v53 : Long
+    %v55 = add %v52, %v54 : %Handle
+    %v56 = borrow [%v55] : &Handle
+    %v57 = load [%v56] : Handle
+    %v58 = call marker, %v57 : I64
     drop_derived %local6 via drop$[Handle *6]
-    %v51 = add %v37, %v50 : I64
-    ret %v51
+    %v59 = add %v41, %v58 : I64
+    ret %v59
 }
 
 fn nested() -> I64 {
@@ -360,12 +366,16 @@ fn nested() -> I64 {
     %v21 = cast 2 : I64
     init %local4@Flat.length, %v21
     %v24 = borrow %local4 : &Flat(Handle)
-    %v25 = call Index(Flat(a), I64, a).get(Handle), %v24, 1 : &Handle
-    %v26 = load [%v25] : Handle
-    %v27 = call marker, %v26 : I64
+    %v25 = load [%v24]@Flat.items : %Handle
+    %v26 = strideof Handle : Long
+    %v27 = mul 1, %v26 : Long
+    %v28 = add %v25, %v27 : %Handle
+    %v29 = borrow [%v28] : &Handle
+    %v30 = load [%v29] : Handle
+    %v31 = call marker, %v30 : I64
     drop_derived %local0 via drop$Pair
-    %v28 = add %v13, %v27 : I64
-    ret %v28
+    %v32 = add %v13, %v31 : I64
+    ret %v32
 }
 
 fn main() -> I64 {

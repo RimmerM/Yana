@@ -46,13 +46,6 @@ fn freeHeap {
   arg allocation readonly
 }
 
-fn Index(Flat(a), I64, a).get(Handle) {
-  arg self readonly return
-  arg index readonly
-  result arguments
-  %self: Flat(Handle) borrowed readonly live [0, 1)
-}
-
 fn resize(Handle) {
   arg self writable addressed resizable
   arg wanted readonly
@@ -66,16 +59,11 @@ fn byteSpan(Handle) {
 
 fn releaseRun(Handle) {
   arg self readonly
-  %self: Run(Handle) borrowed droppable readonly live [0, 6)
+  %self: Run(Handle) borrowed droppable readonly live [0, 7)
 }
 
 fn mapMemory {
   arg size readonly
-}
-
-fn Length(Flat(a)).length(Handle) {
-  arg self readonly
-  %self: Flat(Handle) borrowed readonly live [0, 1)
 }
 
 fn push(Handle) {
@@ -90,13 +78,6 @@ fn reserve(Handle) {
   arg wanted readonly
   %self: Array(Handle) borrowed droppable writable addressed resizable live [0, 7) [8, 29)
   %wide: Int writable live [10, 27)
-}
-
-fn Index(Array(a), I64, a).getMut(Handle) {
-  arg self writable return
-  arg index readonly
-  result arguments
-  %self: Array(Handle) borrowed droppable writable live [0, 3)
 }
 
 fn remove(Handle) {
@@ -114,7 +95,7 @@ fn slice(Handle) {
   arg from readonly
   arg to readonly
   result arguments
-  %self: Flat(Handle) borrowed readonly live [0, 36)
+  %self: Flat(Handle) borrowed readonly live [0, 40)
   %start: I64 writable live [0, 42)
   %end: I64 writable live [16, 41)
   %local3: Flat(Handle) readonly live [34, 46)
@@ -135,24 +116,24 @@ fn openHandle {
 
 fn idsOf {
   arg xs readonly
-  %xs: Flat(Handle) borrowed readonly live [0, 9) [11, 24)
-  %total: Int writable live [0, 10) [11, 24)
-  %i: I64 writable live [2, 9) [11, 24)
+  %xs: Flat(Handle) borrowed readonly live [0, 9) [11, 28)
+  %total: Int writable live [0, 10) [11, 28)
+  %i: I64 writable live [2, 9) [11, 28)
 }
 
 fn container {
   %local0: Handle droppable readonly live [0, 12)
   %local1: Handle droppable readonly live [1, 16)
-  %xs: Array(Handle) droppable writable addressed resizable live [2, 30) [32, 36) [38, 47) [49, 59) [61, 84)
+  %xs: Array(Handle) droppable writable addressed resizable live [2, 34) [36, 40) [42, 51) [53, 63) [65, 88)
   %local3: Handle droppable writable addressed live [3, 15)
   %local4: Handle droppable writable live [18, 21)
-  %local5: Handle droppable readonly live [25, 27)
-  %score: Int writable live [39, 47) [49, 59) [61, 85)
-  %local7: Maybe(Handle) droppable readonly live [43, 47) [49, 51)
-  %local8: Handle droppable readonly live [51, 54)
-  %local9: Flat(Handle) readonly live [64, 72)
-  %local10: Flat(Handle) readonly live [74, 84)
-  %local11: Flat(Handle) readonly live [82, 84)
+  %local5: Handle droppable readonly live [29, 31)
+  %score: Int writable live [43, 51) [53, 63) [65, 89)
+  %local7: Maybe(Handle) droppable readonly live [47, 51) [53, 55)
+  %local8: Handle droppable readonly live [55, 58)
+  %local9: Flat(Handle) readonly live [68, 76)
+  %local10: Flat(Handle) readonly live [78, 88)
+  %local11: Flat(Handle) readonly live [86, 88)
 }
 
 fn main {

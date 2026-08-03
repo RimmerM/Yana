@@ -1,13 +1,5 @@
 "use strict";
 // Collections
-function Index_Flat_a_Int_a_get_Int(self, index) {
-  return { $v: self.items[self.offset + index | 0] };
-}
-
-function Index_Flat_a_Int_a_getMut_Int(self, index) {
-  return { $o: self.items, $k: self.offset + index | 0, $s: 1 };
-}
-
 function slice_Int(self, from, to) {
   var start = from;
   if (from < 0) {
@@ -33,10 +25,6 @@ function slice_Int(self, from, to) {
   return v39;
 }
 
-function Index_Flat_a_Int_a_get_Pad(self, index) {
-  return self.items[self.offset + index | 0];
-}
-
 function Reclaim_Array_a_reclaim_Int(value) {
   return;
 }
@@ -51,12 +39,11 @@ function nestedSize() {
 }
 
 function total(xs$items, xs$length, xs$offset) {
-  var xs = { items: xs$items, length: xs$length, offset: xs$offset };
   var sum = 0;
   var i = 0;
   L0: for (;;) {
-    if (i < xs.length) {
-      sum = sum + Index_Flat_a_Int_a_get_Int(xs, i).$v | 0;
+    if (i < xs$length) {
+      sum = sum + xs$items[xs$offset + i | 0] | 0;
       i = i + 1 | 0;
       continue L0;
     }
@@ -69,9 +56,10 @@ function double(xs) {
   var i = 0;
   L0: for (;;) {
     if (i < xs.length) {
-      var value = Index_Flat_a_Int_a_get_Int(xs, i).$v;
-      var v18 = Index_Flat_a_Int_a_getMut_Int(xs, i);
-      v18.$o[v18.$k] = value + value | 0;
+      var v14 = xs.offset + i | 0;
+      var v15 = xs.items;
+      var value = v15[v14];
+      v15[v14] = value + value | 0;
       i = i + 1 | 0;
       continue L0;
     }
@@ -101,7 +89,7 @@ function padRead() {
   v15[0] = v0;
   v15[1] = v5;
   v15[2] = v10;
-  return BigInt.asIntN(64, BigInt.asIntN(64, Index_Flat_a_Int_a_get_Pad({ items: v15, length: 3, offset: 0 }, 0).wide + Index_Flat_a_Int_a_get_Pad({ items: v15, length: 3, offset: 0 }, 1).wide) + Index_Flat_a_Int_a_get_Pad({ items: v15, length: 3, offset: 0 }, 2).wide);
+  return BigInt.asIntN(64, BigInt.asIntN(64, v15[0].wide + v15[1].wide) + v15[2].wide);
 }
 
 function emptySize() {
@@ -127,18 +115,7 @@ function main() {
         if (total(v231.items, v231.length, v231.offset) !== 5) {
           return -4;
         } else {
-          var v78 = { items: v24, length: 4, offset: 0 };
-          var i = 0;
-          L0: for (;;) {
-            if (i < v78.length) {
-              var value = Index_Flat_a_Int_a_get_Int(v78, i).$v;
-              var v252 = Index_Flat_a_Int_a_getMut_Int(v78, i);
-              v252.$o[v252.$k] = value + value | 0;
-              i = i + 1 | 0;
-              continue L0;
-            }
-            break L0;
-          }
+          double({ items: v24, length: 4, offset: 0 });
           if (total(v24, 4, 0) !== 20) {
             return -5;
           } else {
