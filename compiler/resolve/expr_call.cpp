@@ -68,8 +68,18 @@ bool ExprResolver::bindPosition(TypePtr pattern, TypePtr actual, TypeList& bindi
     // so matching is against the slice it becomes, and a `Flat(a)` pattern binds `a` to the array's
     // element instead of failing outright. Argument direction only, for the reason the widening
     // rule below is: what a call *produces* has not decided anything by needing a conversion.
-    if(widen && sliceElement(module, pattern) && ownedElement(module, actual)) {
-        actual = sliceOf(module, actual);
+    if(widen && sliceElement(module, pattern)) {
+        if(ownedElement(module, actual)) {
+            actual = sliceOf(module, actual);
+        } else if(auto element = contiguousElement(module, actual)) {
+            /*
+             * A container of the program's own, viewed as the slice its `Contiguous` instance
+             * promises - Implementation-Containers.md §5. The conversion is a call to `elements` and
+             * convert() emits it; what has to happen here is that `fn sum(xs: [a])` binds `a` at all,
+             * since a generic parameter never reaches convert() without first having been matched.
+             */
+            actual = instantiateRecord(module, module.program.sliceType, { &element, 1 }, kNullLocation);
+        }
     }
 
     if(global[pattern]->kind == Type::Gen) {
@@ -1084,8 +1094,8 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
  * The instance is the answer §1.2 calls the one hover most wants - which `Ord` served this
  * `compare` - and it is null exactly when the types that would decide are still variables here.
  */
-static void recordClassFunReference(ExprResolver& resolver, LocationId source, ClassMatch& match,
-                                    ModulePtr<ClassInstance> instance) {
+void recordClassFunReference(ExprResolver& resolver, LocationId source, ClassMatch& match,
+                             ModulePtr<ClassInstance> instance) {
     if(!resolver.context.index || source == kNullLocation || !match.typeClass) return;
 
     auto symbol = classFunSymbol(resolver.module, match.typeClass, match.index);
@@ -1360,6 +1370,31 @@ ModulePtr<Value> ExprResolver::emitCall(StringId callName, Buffer<ModulePtr<Valu
         return nullptr;
     }
 
+    /*
+     * A class member declared `iter fn` or `lens fn` is run rather than called.
+     *
+     * The signature is not desugared (see resolveSignature), so it fits an argument list with no
+     * continuation in it and would otherwise reach an implementation that has one - which is an
+     * arity mismatch reported against a parameter the author never wrote. What runs one is a `for`
+     * loop for an iterator and a call site with a block under it for a lens, and both reach the
+     * instance by their own route.
+     */
+    auto signature = local[global[selected.typeClass]->functions.get(global, selected.index).fun];
+
+    if(signature && signature->funKind == ast::FunKind::Iter) {
+        context.diagnostics.error("%@ is an `iter fn` of class %@, so it is run by a `for` loop rather than called - write `for x in %@(...)`"_v,
+                                  source, context.findName(callName),
+                                  context.findName(global[selected.typeClass]->name), context.findName(callName));
+        return nullptr;
+    }
+
+    if(signature && signature->funKind == ast::FunKind::Lens) {
+        context.diagnostics.error("%@ is a `lens fn` of class %@, and a class member declared as one has no call site yet - a lens call reaches its implementation by name, which a class function is not"_v,
+                                  source, context.findName(callName),
+                                  context.findName(global[selected.typeClass]->name));
+        return nullptr;
+    }
+
     recordClassFunReference(*this, nameSource, selected, selected.instance);
 
     return emitInstanceCall(module, selected.instance, toBuffer(selected.instanceArgs), selected.index,
@@ -1603,6 +1638,21 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
              */
             if(fixedElement(module, valueType(args[i])) && isGrowableArray(module, declared)) {
                 context.diagnostics.error("%@ cannot be passed to %@, which asks for a growable array - a fixed array holds exactly the elements its type names and cannot grow. Only the operations that grow say `Array`; everything that reads says `[T]` and accepts this"_v,
+                                          source, describeType(context, global, valueType(args[i])),
+                                          context.findName(generic->name));
+                return nullptr;
+            }
+
+            /*
+             * A `Chunked` container where a `[T]` was asked for - Implementation-Containers.md §5.
+             *
+             * Said here as well as in convert(), because the two positions fail in different places:
+             * a concrete `[Int]` parameter reaches the conversion and reports there, while a `[a]`
+             * one fails at the binding above and never has a slice type to convert to. The message
+             * is the same one because the mistake is, and what fixes it is the parameter.
+             */
+            if(sliceElement(module, declared) && chunkedElement(module, valueType(args[i]))) {
+                context.diagnostics.error("%@ is `Chunked` and not `Contiguous`, so it cannot be passed to %@, which asks for a slice - its elements are not one buffer, and flattening them would be a copy this position does not say it makes. A function that only reads elements should take `fn (Chunked(c, a)) f(xs: c)` instead, which this container satisfies"_v,
                                           source, describeType(context, global, valueType(args[i])),
                                           context.findName(generic->name));
                 return nullptr;

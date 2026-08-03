@@ -818,6 +818,7 @@ struct Inliner {
     static bool isLiteral(const Value& value) {
         switch(value.kind) {
             case Value::ConstInt: case Value::ConstFloat: case Value::ConstDouble:
+            case Value::ConstString:
                 return true;
             default:
                 return false;
@@ -848,6 +849,7 @@ struct Inliner {
 
         switch(instruction.kind) {
             case Value::ConstInt: case Value::ConstFloat: case Value::ConstDouble:
+            case Value::ConstString:
                 answer = true;
                 break;
             case Value::Cast: case Value::Neg: case Value::Not:
@@ -1047,6 +1049,10 @@ struct Inliner {
                 copy = addConstant<ConstDouble>(module, function, *clone.into, constant.source,
                                                 constant.type, ((ConstDouble&)constant).value);
                 break;
+            case Value::ConstString:
+                copy = addConstant<ConstString>(module, function, *clone.into, constant.source,
+                                                constant.type, ((ConstString&)constant).text);
+                break;
             default:
                 return value;
         }
@@ -1144,6 +1150,22 @@ struct Inliner {
                 cloned->releasedHere = alloc.releasedHere;
                 cloned->storageFlag = value(alloc.storageFlag);
                 cloned->closure = alloc.closure;
+
+                /*
+                 * How many slots, which is an *operand* and therefore has to be remapped -
+                 * InstAlloc::extent, and the one field of an allocation this had been dropping.
+                 *
+                 * Losing it turned a run of `n` into an allocation of one, which is a silent
+                 * miscompile rather than a diagnostic, and the reason nothing caught it is that
+                 * every run until now got its extent from an array literal - a `ConstInt`, which
+                 * constants-materialize per function and so survived being carried across by
+                 * accident. `newStringOfCapacity` is the first caller to pass a computed one, and
+                 * the symptom was a value the inlined body used and no body defined.
+                 *
+                 * `generic.cpp`'s clone has always carried it; this is the same line, in the pass
+                 * that had been missing it.
+                 */
+                cloned->extent = value(alloc.extent);
                 return (Inst*)cloned;
             }
             case Value::LoadPlace:

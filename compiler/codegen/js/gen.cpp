@@ -67,6 +67,11 @@ bool expressibleInJs(Gen& g, Function& function) {
     eachInstruction(g, function, [&](Value& instruction) {
         switch(instruction.kind) {
             case Value::Native:
+                // A host operation is *only* expressible here - Implementation-Containers.md §14.1.
+                // It reaches this target and no other, which is what `@platform(js)` on every
+                // declaration that produces one already guarantees.
+                if(isHostOp(((InstNative&)instruction).op)) break;
+
                 // A whole-value block copy is a shape this target can express - see
                 // blockCopyShape. A syscall, a fill, or a copy of anything else is not.
                 if(!blockCopyShape(g, (InstNative&)instruction)) expressible = false;
@@ -79,6 +84,16 @@ bool expressibleInJs(Gen& g, Function& function) {
                 // A *constant* address is the exception, and the only one that has a meaning here:
                 // the IR has no pointer immediate, so `null()` is the integer zero reinterpreted.
                 if(toPointer && !fromPointer && source.kind == Value::ConstInt) break;
+
+                /*
+                 * And a `[T *n]` becoming a `%T`, which is the one reinterpretation that moves
+                 * nothing on this target for a reason the *target* supplies rather than the IR:
+                 * a fixed array is a host array here (see zeroValue) and so is a run of elements,
+                 * so the two are the same value under two names. It is what lets a `[T *n]` be
+                 * borrowed as a `[T]` - Implementation-Containers.md §6's "not done here: the JS
+                 * half" - and it is emitted only by convertSliceJs.
+                 */
+                if(toPointer && source.type && g.global[source.type]->kind == Type::Array) break;
 
                 if(fromPointer != toPointer) expressible = false;
                 break;
@@ -336,8 +351,10 @@ void prepareLocals(Gen& g, Function& function) {
         }
     }
 
-    // A `&` parameter names storage the caller owns, so the box was made there and arrives as the
-    // argument. Nothing here allocates it and nothing here writes it back.
+    /*
+     * A `&` parameter names storage the caller owns, so the box was made there and arrives as the
+     * argument. Nothing here allocates it and nothing here writes it back.
+     */
     for(Size i = 0; i < function.localCount(); i++) {
         auto slot = function.localAt(g.local, i);
         if(!slot.borrowed || !slot.type) continue;

@@ -1,0 +1,194 @@
+"use strict";
+var live = 0;
+var closed = 0;
+
+// Core
+function add_eq_Int(target$o, target$k, target$s, amount) {
+  target$o[target$k] = target$o[target$k] + amount | 0;
+  return;
+}
+
+function sub_eq_Int(target$o, target$k, target$s, amount) {
+  target$o[target$k] = target$o[target$k] - amount | 0;
+  return;
+}
+
+// Collections
+function Index_Flat_a_Int_a_get_Handle(self, index) {
+  return self.items[self.offset + index | 0];
+}
+
+function push_Handle(self, item) {
+  var v3 = self.items;
+  v3[v3.length] = item;
+  return;
+}
+
+function Index_Array_a_Int_a_getMut_Handle(self, index) {
+  return self.items[index];
+}
+
+function remove_Handle(self, index) {
+  if (index >>> 0 >= self.items.length >>> 0) {
+    return null;
+  } else {
+    var doomed = self.items[index];
+    self.items.splice(index, 1);
+    return doomed;
+  }
+}
+
+function slice_Handle(self, from, to) {
+  var start = from;
+  if (from < 0) {
+    start = 0;
+  }
+  if (start > self.length) {
+    start = self.length;
+  }
+  var end = to;
+  if (to < start) {
+    end = start;
+  }
+  if (end > self.length) {
+    end = self.length;
+  }
+  var v39 = { items: null, length: 0, offset: 0 };
+  var v40 = self.items;
+  var v43 = end - start | 0;
+  var v46 = self.offset + start | 0;
+  v39.items = v40;
+  v39.length = v43;
+  v39.offset = v46;
+  return v39;
+}
+
+function Reclaim_Array_a_reclaim_Handle(value) {
+  var count = value.items.length;
+  var i = 0;
+  L0: for (;;) {
+    if (i < count) {
+      var doomed = value.items[i];
+      var v24 = { $v: live };
+      sub_eq_Int(v24, "$v", 1, 1);
+      live = v24.$v;
+      closed = closed + doomed.id | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return;
+}
+
+// ResolveTest
+function openHandle(id) {
+  var v4 = { $v: live };
+  add_eq_Int(v4, "$v", 1, 1);
+  live = v4.$v;
+  return { id: id };
+}
+
+function idsOf(xs$items, xs$length, xs$offset) {
+  var xs = { items: xs$items, length: xs$length, offset: xs$offset };
+  var total = 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < xs.length) {
+      total = (Math.imul(total, 10) | 0) + Index_Flat_a_Int_a_get_Handle(xs, i).id | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return total;
+}
+
+function container() {
+  var v1 = openHandle(1);
+  var v3 = openHandle(2);
+  var v4 = { items: null };
+  var v5 = [];
+  v4.items = v5;
+  v5[0] = v1;
+  v5[1] = v3;
+  push_Handle(v4, openHandle(3));
+  var v21 = Index_Array_a_Int_a_getMut_Handle(v4, 0);
+  var v23 = openHandle(4);
+  var v133 = { $v: live };
+  sub_eq_Int(v133, "$v", 1, 1);
+  live = v133.$v;
+  closed = closed + v21.id | 0;
+  v21.id = v23.id;
+  if (live !== 3) {
+    Reclaim_Array_a_reclaim_Handle(v4);
+    return -1;
+  } else {
+    if (closed !== 1) {
+      Reclaim_Array_a_reclaim_Handle(v4);
+      return -2;
+    } else {
+      var score = 0;
+      var v52 = remove_Handle(v4, 1);
+      if (!(v52 === null)) {
+        var v61 = v52.id;
+        var v141 = { $v: live };
+        sub_eq_Int(v141, "$v", 1, 1);
+        live = v141.$v;
+        closed = closed + v61 | 0;
+        score = v61;
+        if (live !== 2) {
+          Reclaim_Array_a_reclaim_Handle(v4);
+          return -4;
+        } else {
+          var v80 = v4.items;
+          var whole = idsOf(v80, v80.length, 0);
+          var v92 = v4.items;
+          var v102 = slice_Handle({ items: v92, length: v92.length, offset: 0 }, 1, 2);
+          var tail = idsOf(v102.items, v102.length, v102.offset);
+          Reclaim_Array_a_reclaim_Handle(v4);
+          return ((Math.imul(score, 1000) | 0) + (Math.imul(whole, 10) | 0) | 0) + tail | 0;
+        }
+      } else {
+        Reclaim_Array_a_reclaim_Handle(v4);
+        drop$Maybe_Handle({ $v: v52 });
+        return -3;
+      }
+    }
+  }
+}
+
+function main() {
+  var answer = container();
+  if (answer < 0) {
+    return answer;
+  } else {
+    if (live !== 0) {
+      return -5;
+    } else {
+      if (closed !== 10) {
+        return -6;
+      } else {
+        return answer;
+      }
+    }
+  }
+}
+
+function Drop_Handle_drop(value) {
+  var v4 = { $v: live };
+  sub_eq_Int(v4, "$v", 1, 1);
+  live = v4.$v;
+  closed = closed + value.id | 0;
+  return;
+}
+
+function drop$Maybe_Handle(value) {
+  if (!(value.$v === null)) {
+    var v10 = { $v: live };
+    sub_eq_Int(v10, "$v", 1, 1);
+    live = v10.$v;
+    closed = closed + value.$v.id | 0;
+  }
+  return;
+}

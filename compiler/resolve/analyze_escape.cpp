@@ -107,11 +107,18 @@ static bool escapeRound(Analysis& analysis) {
                 ScratchProvenance leaving(analysis);
                 transferredProvenance(analysis, value, *leaving);
 
+                /*
+                 * A slice's descriptor goes with it, and for the same reason it is reached through
+                 * Local::viewOf - Implementation-Containers.md §5's `elements`, whose whole body
+                 * builds a descriptor out of an argument and hands it back. The descriptor is a
+                 * local of this frame, so without this it is a root that is not a parameter's and
+                 * lands on the heap - two words allocated and never freed, per call, for storage
+                 * whose two words are copied out at the return anyway.
+                 */
                 for(Size l = 0; l < analysis.localCount; l++) {
-                    auto slot = analysis.function.localAt(analysis.local, U32(l));
-                    if(slot.value && analysis.local[slot.value]->kind == Value::Arg) {
-                        leaving->locals.set(l, false);
-                    }
+                    if(!isParameterSlot(analysis, viewedRoot(analysis, U32(l)))) continue;
+
+                    leaving->locals.set(l, false);
                 }
 
                 changed = markEscaped(analysis, *leaving, Escape::Owned) || changed;

@@ -131,16 +131,19 @@ static void printPlace(ResolvePrint& print, Function& function, const Place& pla
             // does. See boxedStep.
             type = boxedStep(*print.program.core, field.type, field.boxed);
         } else if(projection.kind == ProjectionKind::Index) {
-            // `%xs[%i]` - one element of a `[T *n]`, by the value that selects it rather than by a
-            // position, since the elements have no names and the index need not be constant.
+            // `%xs[%i]` - one element of a `[T *n]`, or one element on from a reference
+            // (Implementation-Containers.md §14.1), by the value that selects it rather than by a
+            // position: the elements have no names and the index need not be constant.
             print.writer.writeByte('[');
             if(projection.value) printValue(print, *print.local[projection.value]);
             else print.writer.writeByte('?');
             print.writer.writeByte(']');
 
-            type = type && print.global[type]->kind == Type::Array
-                ? ((ArrayType*)print.global[type])->content
-                : nullptr;
+            // A fixed array steps *into* itself and everything else steps *along*, which is the same
+            // split the two place walks state.
+            if(type && print.global[type]->kind == Type::Array) {
+                type = ((ArrayType*)print.global[type])->content;
+            }
         } else if(projection.kind == ProjectionKind::Deref) {
             print.writer.writeString(".*"_v);
             type = pointeeType(print.global, type);
@@ -192,6 +195,16 @@ static void printValue(ResolvePrint& print, Value& value) {
         case Value::ConstDouble:
             writeFloat(print.writer, ((ConstDouble&)value).value);
             return;
+        case Value::ConstString: {
+            // Quoted, and printed raw. A fixture's IR dump is read by a person, and a literal that
+            // came out of the lexer's escape decoding is more useful shown as its content than
+            // re-escaped into the form it was written in.
+            auto text = print.context.findName(((ConstString&)value).text);
+            print.writer.writeByte('"');
+            print.writer.writeString(StringView { text.text(), text.size() });
+            print.writer.writeByte('"');
+            return;
+        }
         default:
             print.writer.writeString("%v"_v);
             writeUInt(print.writer, value.id);
@@ -234,6 +247,9 @@ static StringView instructionName(Value& value, GlobalBase global) {
                 case NativeOp::CopyMemory: return "copymemory"_v;
                 case NativeOp::SetMemory: return "setmemory"_v;
                 case NativeOp::Syscall: return "syscall"_v;
+                case NativeOp::HostCall: return "hostcall"_v;
+                case NativeOp::HostField: return "hostfield"_v;
+                case NativeOp::HostArray: return "hostarray"_v;
             }
             break;
         case Value::Cast: return "cast"_v;
@@ -423,6 +439,14 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
         case Value::Native: {
             auto& native = (InstNative&)inst;
             Size index = 0;
+
+            // The host member, where there is one. It is what the operation *is* - two `hostcall`s
+            // differing only in their method are two different operations - so it prints in front of
+            // the arguments rather than as one of them.
+            if(native.method) {
+                print.writer.writeByte(' ');
+                print.writer.writeString(print.context.findName(native.method));
+            }
 
             for(auto arg: native.args.contents(print.local)) {
                 print.writer.writeString(index++ ? ", "_v : " "_v);

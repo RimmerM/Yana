@@ -2,13 +2,13 @@
 var liveNodes = 0;
 
 // Core
-function add_eq_Int(target, amount) {
-  target.$v = target.$v + amount | 0;
+function add_eq_Int(target$o, target$k, target$s, amount) {
+  target$o[target$k] = target$o[target$k] + amount | 0;
   return;
 }
 
-function sub_eq_Int(target, amount) {
-  target.$v = target.$v - amount | 0;
+function sub_eq_Int(target$o, target$k, target$s, amount) {
+  target$o[target$k] = target$o[target$k] - amount | 0;
   return;
 }
 
@@ -101,7 +101,7 @@ function buildTree() {
 
 function track(id) {
   var v4 = { $v: liveNodes };
-  add_eq_Int(v4, 1);
+  add_eq_Int(v4, "$v", 1, 1);
   liveNodes = v4.$v;
   return { id: id };
 }
@@ -144,7 +144,7 @@ function main() {
 
 function Drop_Tracked_drop(value) {
   var v4 = { $v: liveNodes };
-  sub_eq_Int(v4, 1);
+  sub_eq_Int(v4, "$v", 1, 1);
   liveNodes = v4.$v;
   return;
 }

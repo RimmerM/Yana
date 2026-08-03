@@ -125,6 +125,27 @@ bool rebindsOwnStorage(Gen& g, const Place& place) {
 }
 
 /*
+ * Whether writing this place writes *through* a reference rather than rebinding a name.
+ *
+ * A place with a path always writes through something - `p.x = v` is a property assignment whichever
+ * target it is on. A place with *no* path is the question: for a local it is the emitted `var`, and
+ * assigning to it is what an assignment means; for a borrow, a raw pointer, or the slot behind a `&`
+ * parameter, the emitted name holds someone else's storage and rebinding it changes nothing anybody
+ * else can see.
+ *
+ * Only object-shaped values need the distinction, which is why it is asked next to `isJsObject`: a
+ * scalar reached through a reference is the box or the triple, and both of those already name a slot.
+ */
+bool writesThroughReference(Gen& g, const Place& place) {
+    auto projections = place.projections;
+    if(projections.isNotEmpty()) return false;
+    if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) return true;
+    if(place.root != PlaceRoot::Local || place.local >= g.function->localCount()) return false;
+
+    return g.function->localAt(g.local, place.local).borrowed;
+}
+
+/*
  * A field of a type this body cannot see - Implementation-Generics.md part 5's `PropertyWitness`.
  *
  * The one projection this target cannot walk into a property chain, because there is no property to
@@ -241,7 +262,35 @@ void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value)
             return;
         }
 
-        emitExpr(g, assign(g, target, useValue(g, value)));
+        /*
+         * A whole aggregate written through a reference is a copy *into* the storage the reference
+         * names - which is what the native side's memcpy is, and what `v = other` here is not.
+         *
+         * The case is `xs[i] = value` where the element is a record: `getMut` hands back the element
+         * object itself, because a reference to an object is the object on this target, and
+         * rebinding the emitted name would leave the array holding the value that was there. It
+         * cannot arise for a scalar, whose reference is the box or the triple - both of those name a
+         * slot already - which is why this asks `isJsObject` first.
+         *
+         * Property by property and shallow, and not `cloneValue`: this is a *move*, so the source is
+         * dead afterwards and a nested aggregate has nobody left to alias with. `genBlockCopy` clones
+         * because both of its sides stay live.
+         */
+        auto written = useValue(g, value);
+
+        if(isJsObject(g, type) && writesThroughReference(g, place)) {
+            auto source = g.base[written]->kind == Expr::Var
+                ? written
+                : declare(g, generatedName(g, "moved"_v, produced.id), written);
+
+            eachProperty(g, type, [&](Name key, TypePtr) {
+                emitExpr(g, assign(g, field(g, target, key), field(g, source, key)));
+            });
+
+            return;
+        }
+
+        emitExpr(g, assign(g, target, written));
         return;
     }
 
@@ -396,6 +445,13 @@ void genCast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
     // A conversion between two references moves nothing: both are the same object, and what changed
     // is only what the program says is behind it.
     if(isPointer(g.global, from) && isPointer(g.global, to)) {
+        define(g, pointer, value);
+        return;
+    }
+
+    // A `[T *n]` and a `%T` are one host array under two names - see expressibleInJs, which is where
+    // the rule is argued. So this moves nothing either.
+    if(isPointer(g.global, to) && from && g.global[from]->kind == Type::Array) {
         define(g, pointer, value);
         return;
     }
@@ -790,11 +846,11 @@ bool genFunValueWord(Gen& g, Value& instruction, InstInit& init) {
  * free; a field is not, so one is made here and written back after the call that consumes it.
  */
 /*
- * A reference to a narrow value - Design.md's tier 2, as this target spells it.
+ * A reference that names a slot - Design.md's tier 2, as this target spells it.
  *
  * Native carries an address plus the shift of the field within the word it names. There are no
  * addresses here, but a place already *is* an (object, property) pair, so the reference is that pair
- * reified and needs no shift: `{$o: owner, $k: "field"}`.
+ * reified plus the shift: `{$o: owner, $k: "field", $s: 1}`.
  *
  * The point of it is what it is not - a copy with a write-back. Those two are the box `genBorrow`
  * makes below, and they only work while the loan ends at the call that consumed them; this one has
@@ -802,11 +858,17 @@ bool genFunValueWord(Gen& g, Value& instruction, InstInit& init) {
  * it in a record that outlives the call, exactly as on native.
  *
  * A whole local is the same shape: prepareLocals boxed it, so the pair is that box and `$v`.
+ *
+ * Which references take this form is `refIsTriple`, and it is every *mutable* one of a non-object
+ * since Implementation-Containers.md §14 - a host array's element is a slot, and a box of one is a
+ * copy. `mut` is therefore a parameter here rather than a property of the place: an `InstAddress`
+ * produces a `%a` that carries no mutability and keeps the narrow-only rule.
  */
 static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, const Place& place,
-                         TypePtr type) {
-    if(!isNarrowJsValue(g, type)) return false;
+                         TypePtr type, bool mut) {
+    if(!refIsTriple(g, type, mut)) return false;
 
+    auto narrow = isNarrowValue(g.global, type);
     auto projections = place.projections;
     auto count = projections.size();
 
@@ -815,10 +877,20 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
     // re-borrows from materializing one at each link.
     auto reborrow = [&](ModulePtr<Value> from) {
         if(auto flat = g.flatRefs.get(U32(from))) {
-            g.flatRefs.add(U32(value), flat.unwrap());
-            if(narrowRefNeedsObject(g, value)) {
-                define(g, value, materializeRef(g, flat.unwrap()));
-            }
+            /*
+             * Copied out before the table is written to, and it has to be.
+             *
+             * `HashMap::get` answers a reference *into* the table, and `add` may grow and rehash it -
+             * so passing `flat.unwrap()` straight to `add` hands it a reference to storage `add` has
+             * already released, and reading it again afterwards reads whatever the new table left
+             * behind. The symptom was an object literal with three uninitialized property values and
+             * a segfault in the peephole; the cause is not this file's rule about references at all,
+             * and what made it appear was simply crossing a growth threshold.
+             */
+            auto parts = flat.unwrap();
+
+            g.flatRefs.add(U32(value), parts);
+            if(narrowRefNeedsObject(g, value)) define(g, value, materializeRef(g, parts));
         } else {
             define(g, value, useValue(g, from));
         }
@@ -858,7 +930,7 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
         if(place.root != PlaceRoot::Local || place.local >= g.function->localCount()) return false;
 
         auto slot = g.function->localAt(g.local, place.local);
-        if(slot.borrowed && isNarrowJsValue(g, slot.type)) {
+        if(slot.borrowed && refIsTriple(g, slot.type, true)) {
             auto parts = refPartsOf(g, slot.value);
             owner = parts.owner;
             keyExpr = parts.key;
@@ -874,12 +946,51 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
         return true;
     };
 
-    if(!count) {
-        if(!rootWord()) return false;
-    } else {
-        auto last = projections.get(g.local, count - 1);
-        if(last.kind != ProjectionKind::Field) return false;
+    /*
+     * The last resort, and what makes this function total.
+     *
+     * Whether a reference is carried as a triple is decided from the *pointee type* by both sides of
+     * a call, and neither can see the other - so a caller that cannot name the slot still has to
+     * produce three arguments. A box is a slot: `{$v: value}` with `$v` as the key names it exactly,
+     * and the write-back is what puts the value back where it came from at the end of the loan.
+     *
+     * What it does not survive is a reference that outlives the call, which is the property the triple
+     * exists for - so this is for the places that have no slot to name at all. A module-level global
+     * is the one that occurs: it is a bare `var` here, and JS has no object to reach one through.
+     * Being a *copy*, it also holds the decoded value of a bit range rather than the word, which is
+     * why the range is dropped along with it.
+     */
+    auto boxedWord = [&]() {
+        auto box = declare(g, valueName(g, instruction), boxOf(g, placeExpr(g, place)));
 
+        g.writebacks.push(Writeback { value, box, place, type });
+        owner = box;
+        keyExpr = asExpr(g, make<StringExpr>(g, g.boxField.text));
+        bits = PlaceBits {};
+    };
+
+    if(!count) {
+        if(!rootWord()) boxedWord();
+    } else if(projections.get(g.local, count - 1).kind == ProjectionKind::Index) {
+        /*
+         * An element of a host array - Implementation-Containers.md §14.1.
+         *
+         * The one path whose last step is already `owner[key]` in the emitted text, so the reference
+         * is that pair with nothing computed: the array is the owner and the index is the key. It is
+         * also the case the widened rule exists for - an element is a slot rather than a cell, and a
+         * box of one is a copy nothing writes back.
+         *
+         * There is no bit range under it, on either half. An element occupies a slot of its own
+         * whatever its width, since a host array is not a packed word - §11's narrow packing is a
+         * `Uint32Array` and a Repr rather than bits inside an element.
+         */
+        owner = placeExpr(g, place, count - 1);
+        keyExpr = useValue(g, projections.get(g.local, count - 1).value);
+    } else if(projections.get(g.local, count - 1).kind != ProjectionKind::Field) {
+        // A path this walk has no property to name the end of - a Deref, a Discriminant. The box
+        // stands in, on the terms boxedWord states.
+        boxedWord();
+    } else {
         /*
          * The split point: the longest prefix of the path whose value is still an object, because
          * that is the last thing with a property to name. Everything past it is inside one `number`
@@ -893,30 +1004,40 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
         Size walkedTo = count;
         while(walkedTo > 0 && !isJsObject(g, placeType(g, place, walkedTo - 1))) walkedTo--;
 
+        auto named = true;
+
         if(walkedTo > 0) {
             auto atObject = walkedTo - 1;
             auto at = projections.get(g.local, atObject);
-            if(at.kind != ProjectionKind::Field) return false;
-
             auto ownerType = placeType(g, place, atObject);
-            if(!ownerType || g.global[ownerType]->kind != Type::Tup) return false;
 
-            // The property the walk would have projected, which for a co-packed field is the word it
-            // shares rather than a name of its own - and then the shift below is what says which bits
-            // of that word the reference means.
-            owner = placeExpr(g, place, atObject);
-            keyExpr = asExpr(g, make<StringExpr>(g, fieldProperty(g, ownerType, at.index).name.text));
+            if(at.kind != ProjectionKind::Field || !ownerType ||
+               g.global[ownerType]->kind != Type::Tup) {
+                boxedWord();
+                named = false;
+            } else {
+                // The property the walk would have projected, which for a co-packed field is the word
+                // it shares rather than a name of its own - and then the shift below is what says
+                // which bits of that word the reference means.
+                owner = placeExpr(g, place, atObject);
+                keyExpr = asExpr(g, make<StringExpr>(g, fieldProperty(g, ownerType, at.index).name.text));
+            }
         } else if(!rootWord()) {
-            return false;
+            boxedWord();
+            named = false;
         }
 
         // Everything from the word onwards, as bit offsets within it. `placeOwner` over the whole
         // path accumulates exactly these, since a step into an object contributes none.
         PlaceBits walked;
-        placeOwner(g, place, walked);
+        if(named) placeOwner(g, place, walked);
         bits.offset = walked.offset;
         bits.scale = walked.scale;
-        bits.width = narrowWidth(g, placeType(g, place));
+
+        // Only where the pointee is one. A whole value occupies what it names, so there is no range
+        // to record and `bits.valid()` has to stay false - see refIsTriple, which now sends mutable
+        // references to wide values down this same path.
+        if(narrow) bits.width = narrowWidth(g, placeType(g, place));
     }
 
     /*
@@ -970,15 +1091,24 @@ static bool genNarrowRef(Gen& g, ModulePtr<Value> value, Value& instruction, con
     return true;
 }
 
-void genBorrow(Gen& g, ModulePtr<Value> value, Value& instruction, const Place& place) {
+void genBorrow(Gen& g, ModulePtr<Value> value, Value& instruction, const Place& place, bool mut) {
     auto type = placeType(g, place);
     auto projections = place.projections;
 
-    if(genNarrowRef(g, value, instruction, place, type)) return;
+    if(genNarrowRef(g, value, instruction, place, type, mut)) return;
 
-    // An object, or a path that ends in one: the reference *is* the object, so this is a name and
-    // nothing else. A borrow prepareLocals proved never leaves this function is the same statement
-    // about a scalar - the emitted name of the storage, with no box between.
+    /*
+     * An object, or a path that ends in one: the reference *is* the object, so this is a name and
+     * nothing else. A borrow prepareLocals proved never leaves this function is the same statement
+     * about a scalar - the emitted name of the storage, with no box between.
+     *
+     * An immutable borrow of a wide value is *not* elided into a snapshot here, and it was worth
+     * trying: nothing may write through one, so a copy reads the same, and it would remove the object
+     * this target allocates per `xs[i]`. What it needs is the callee's agreement - the box is also
+     * how a memory-typed *value* parameter arrives - and that is a per-parameter convention decided
+     * from the declaration, the way refIsFlattened is, rather than something a borrow can settle on
+     * its own. Implementation-Containers.md §14 records it as the read-side cost still outstanding.
+     */
     if(isJsObject(g, type) || g.aliasBorrows.contains(U32(value))) {
         define(g, value, placeExpr(g, place));
         return;
@@ -1079,6 +1209,101 @@ void genExchange(Gen& g, ModulePtr<Value> value, Value& instruction, InstExchang
 // bytes are *inline*, so the copy makes an independent value of them. The member `Sink` calls that
 // follow this in the glue then run over storage that is this value's own, which is what they are
 // there to fix up.
+/*
+ * The host - Implementation-Containers.md §14.1.
+ *
+ * Three operations and no host knowledge: which member is called and what it is called on both arrive
+ * on the instruction, put there by a declaration in `Host` that says `.splice` in Yana. That is the property Analysis-JS.md §2.4 asks for when it rules host
+ * knowledge out of codegen - a container's implementation names the host and the backend names
+ * nothing.
+ *
+ * The receiver is `args[0]` for the two member forms. A `HostArray` and a `HostNew` have none: the
+ * first is a literal and the second names a global constructor, which is the one place a host
+ * *name* reaches the emitted text, and it reaches it from the same `method` field.
+ */
+void genHost(Gen& g, ModulePtr<Value> value, Value& instruction, InstNative& native) {
+    auto args = native.args;
+    auto member = [&]() -> Name {
+        return propertyName(g, stringView(g.context.findName(native.method)));
+    };
+
+    auto argsFrom = [&](Size first) {
+        Array<JsPtr<Expr>> list;
+        for(Size i = first; i < args.size(); i++) list.push(useValue(g, args.get(g.local, i)));
+        return list;
+    };
+
+    switch(native.op) {
+        case NativeOp::HostCall: {
+            auto receiver = useValue(g, args.get(g.local, 0));
+            auto rest = argsFrom(1);
+
+            define(g, value, callWith(g, field(g, receiver, member()), rest));
+            break;
+        }
+        case NativeOp::HostField:
+            define(g, value, field(g, useValue(g, args.get(g.local, 0)), member()));
+            break;
+        case NativeOp::HostArray: {
+            auto elements = make<ArrayExpr>(g);
+            for(auto arg: args.contents(g.local)) {
+                elements->values.push(g.file.arena, useValue(g, arg));
+            }
+
+            define(g, value, asExpr(g, elements));
+            break;
+        }
+        case NativeOp::HostBinary: {
+            /*
+             * `a <op> b`, where the operator is the host's own - see NativeOp::HostBinary.
+             *
+             * Matched on the *spelling* rather than on a second enum, because the spelling is already
+             * what `method` carries for the two member arms above and duplicating it as a code here
+             * would be two things to keep in step. The set is closed and small: `Host`'s declarations
+             * are the only producers, so an operator that is not in this table is a missing line
+             * there rather than something a program can reach.
+             */
+            static const struct { StringView text; BinaryOp op; } operators[] = {
+                { "+"_v, BinaryOp::Add },
+                { "==="_v, BinaryOp::Eq },
+                { "!=="_v, BinaryOp::Ne },
+                { "<"_v, BinaryOp::Lt },
+                { "<="_v, BinaryOp::Le },
+                { ">"_v, BinaryOp::Gt },
+                { ">="_v, BinaryOp::Ge },
+            };
+
+            auto text = stringView(g.context.findName(native.method));
+            auto left = useValue(g, args.get(g.local, 0));
+            auto right = useValue(g, args.get(g.local, 1));
+
+            for(auto& entry: operators) {
+                if(entry.text.length != text.length) continue;
+                if(compareMem(entry.text.ptr, text.ptr, text.length) != 0) continue;
+
+                define(g, value, binary(g, entry.op, left, right));
+                return;
+            }
+
+            g.context.diagnostics.error("internal error: unknown host operator in JS codegen"_v,
+                                        instruction.source);
+            break;
+        }
+        case NativeOp::HostGlobalCall: {
+            // `Global.method(args...)`, with the whole dotted path in `method` - see
+            // NativeOp::HostGlobalCall. Written out as a variable reference rather than looked up,
+            // because a host global is not in any scope this backend tracks and needs no
+            // disambiguation: it is the name the host already has.
+            auto text = stringView(g.context.findName(native.method));
+            auto arguments = argsFrom(0);
+            define(g, value, callWith(g, variable(g, literalName(g, text)), arguments));
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 void genBlockCopy(Gen& g, Value& instruction, InstNative& native) {
     auto shape = blockCopyShape(g, native);
 
@@ -1239,10 +1464,14 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             break;
         }
         case Value::Borrow:
-            genBorrow(g, value, instruction, ((InstBorrow&)instruction).place);
+            // Whether the reference names a slot or holds a copy is decided by the borrow's own
+            // mutability - see refIsTriple. An `Address` produces a `%a`, which carries none, so it
+            // keeps the narrow-only rule the target has always had.
+            genBorrow(g, value, instruction, ((InstBorrow&)instruction).place,
+                      ((InstBorrow&)instruction).mut);
             break;
         case Value::Address:
-            genBorrow(g, value, instruction, ((InstAddress&)instruction).place);
+            genBorrow(g, value, instruction, ((InstAddress&)instruction).place, false);
             break;
         case Value::Move:
             // Nothing to emit beyond naming what moved: the object stays where it is, and what
@@ -1373,7 +1602,17 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
                          : metric.metric == TypeMetricKind::Stride ? repr.stride
                          : repr.size;
 
-            define(g, value, coerce(g, instruction.type, number(g, F64(number_))));
+            /*
+             * As a literal of the metric's own representation, which for an `I64` is a `bigint`.
+             *
+             * `sizeOf` answers an `I64`, so a `number` here is a value of the wrong host type - and
+             * `coerce` does not rescue it: the reduction for a 64-bit type is `BigInt.asIntN`, which
+             * throws on a `number` rather than converting one. It went unnoticed while nothing that
+             * measured a type was compiled for this target; `FixedArray.yana`'s `sizeOf` is the first.
+             */
+            define(g, value, isLong(g, instruction.type)
+                ? bigInt(g, U64(number_), true)
+                : coerce(g, instruction.type, number(g, F64(number_))));
             break;
         }
         case Value::Symbol: {
@@ -1396,9 +1635,17 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
         case Value::GenCall:
             genGenCall(g, value, (InstGenCall&)instruction);
             break;
-        case Value::Native:
-            genBlockCopy(g, instruction, (InstNative&)instruction);
+        case Value::Native: {
+            auto& native = (InstNative&)instruction;
+
+            if(isHostOp(native.op)) {
+                genHost(g, value, instruction, native);
+            } else {
+                genBlockCopy(g, instruction, native);
+            }
+
             break;
+        }
         default:
             g.context.diagnostics.error("internal error: unexpected instruction in JS codegen"_v,
                                         instruction.source);

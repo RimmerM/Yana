@@ -78,7 +78,7 @@ fn Index(Flat(a), I64, a).get(Pad)(%self: Flat(Pad), %index: I64) -> &Pad {
 
 fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
-    %v1 = load %self@Run.ownsHeap : @bits(1) U32
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
     %v2 = cast %v1 : U32
     %v4 = cast 1 : U32
     %v5 = cmp_eq %v2, %v4 : Bool
@@ -97,7 +97,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     ret
 }
 
-fn length(Int)(%self: Flat(Int)) -> I64 {
+fn Length(Flat(a)).length(Int)(%self: Flat(Int)) -> I64 {
   b0:
     %v1 = load %self@Flat.length : I64
     ret %v1
@@ -179,7 +179,7 @@ fn slice(Int)(%self: Flat(Int), %from: I64, %to: I64) -> Flat(Int) {
 
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   b0:
-    %v1 = load %value@Array.length : @bits(31) U32
+    %v1 = load %value@Array.length : @bits(30) U32
     %v2 = cast %v1 : U32
     %count = cast %v2 : Int
     %i = alloc : Int
@@ -251,7 +251,7 @@ fn total(%xs: Flat(Int)) -> Int {
 
   b1:
     %v8 = load %i : Int
-    %v9 = call length(Int), %xs : I64
+    %v9 = call Length(Flat(a)).length(Int), %xs : I64
     %v10 = cast %v8 : I64
     %v11 = cmp_lt %v10, %v9 : Bool
     je %v11, b3, b2
@@ -284,7 +284,7 @@ fn double(%xs: Flat(Int)) -> () {
   b1:
     %v5 = load %i : Int
     %v6 = load %xs : Flat(Int)
-    %v7 = call length(Int), %v6 : I64
+    %v7 = call Length(Flat(a)).length(Int), %v6 : I64
     %v8 = cast %v5 : I64
     %v9 = cmp_lt %v8, %v7 : Bool
     je %v9, b3, b2
@@ -523,7 +523,7 @@ fn main() -> Int {
     %v121 = alloc : Flat(Int)
     %v122 = load [%v120]@Array.run@Run.items : %Int
     init %local7@Flat.items, %v122
-    %v124 = load [%v120]@Array.length : @bits(31) U32
+    %v124 = load [%v120]@Array.length : @bits(30) U32
     %v125 = cast %v124 : U32
     %v126 = cast %v125 : I64
     init %local7@Flat.length, %v126

@@ -616,8 +616,25 @@ void checkEscapingViews(Analysis& analysis) {
         auto slot = analysis.function.localAt(analysis.local, U32(l));
         if(slot.viewOf == maxLimit<U32> || !analysis.escaped[l]) continue;
 
-        auto viewed = analysis.function.localAt(analysis.local, slot.viewOf);
+        auto viewed = analysis.function.localAt(analysis.local, viewedRoot(analysis, slot.viewOf));
         auto source = slot.value ? analysis.local[slot.value]->source : analysis.function.source;
+
+        /*
+         * A view of a *parameter's* container is the return-root check's business, not this one's.
+         *
+         * What this check is about is a container this frame owns and is about to tear down; a
+         * parameter's is the caller's, outlives the call, and is exactly what
+         * `fn elements(return self: Array(a)) -> &[a]` hands a view of - Implementation-Containers.md
+         * §5. Whether *this* signature is allowed to hand it back is one question with one answer,
+         * and checkReturnRoots is where it is asked: deriveSummary walks the same `viewOf` chain, so
+         * a view of an argument the signature did not mark `return` is reported there and naming the
+         * argument. A sunk parameter is not exempt - the callee owns what it was given, so its
+         * teardown is this frame's like any other local's.
+         */
+        auto owner = viewed.value && analysis.local[viewed.value]->kind == Value::Arg
+            ? (Arg*)analysis.local[viewed.value] : nullptr;
+
+        if(owner && owner->convention != ast::BindType::Sink) continue;
 
         if(viewed.name) {
             report(analysis, "this borrow of %@ outlives the frame that owns it - a slice is a view into the container's storage, and the container is released when this function returns"_v,

@@ -78,7 +78,7 @@ bool deriveSummary(Analysis& analysis) {
     for(Size l = 0; l < analysis.localCount; l++) {
         if(!returned->locals[l]) continue;
 
-        auto slot = analysis.function.localAt(analysis.local, U32(l));
+        auto slot = analysis.function.localAt(analysis.local, viewedRoot(analysis, U32(l)));
         auto arg = slot.value && analysis.local[slot.value]->kind == Value::Arg
             ? (Arg*)analysis.local[slot.value] : nullptr;
 

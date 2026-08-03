@@ -1,0 +1,170 @@
+"use strict";
+// Collections
+function stringUnit(self, index) {
+  return self.charCodeAt(index);
+}
+
+function newStringOfCapacity(capacity) {
+  return "";
+}
+
+function pushUnit(self$o, self$k, self$s, unit) {
+  var v4 = self$o[self$k] + String.fromCharCode(unit);
+  self$o[self$k] = v4;
+  return;
+}
+
+function pushString(self$o, self$k, self$s, other) {
+  self$o[self$k] = self$o[self$k] + other;
+  return;
+}
+
+function showSigned(value, to$o, to$k, to$s) {
+  if (value === 0n) {
+    pushUnit(to$o, to$k, to$s, 48);
+    return;
+  } else {
+    var remaining = value;
+    if (value > 0n) {
+      remaining = BigInt.asIntN(64, 0n - remaining);
+    }
+    var digits = { $v: newStringOfCapacity(20) };
+    L0: for (;;) {
+      if (remaining < 0n) {
+        pushUnit(digits, "$v", 1, (Number(BigInt.asIntN(64, 0n - BigInt.asIntN(64, remaining % 10n))) | 0) + 48 | 0);
+        remaining = BigInt.asIntN(64, remaining / 10n);
+        continue L0;
+      }
+      break L0;
+    }
+    if (value < 0n) {
+      pushUnit(to$o, to$k, to$s, 45);
+    }
+    var i = Length_String_length(digits.$v);
+    L1: for (;;) {
+      if (i > 0) {
+        var v79 = i - 1 | 0;
+        i = v79;
+        pushUnit(to$o, to$k, to$s, stringUnit(digits.$v, v79));
+        continue L1;
+      }
+      break L1;
+    }
+    return;
+  }
+}
+
+function Length_String_length(self) {
+  return self.length;
+}
+
+// ResolveTest
+function shownBool(value) {
+  var sink = { $v: newStringOfCapacity(64) };
+  if (value) {
+    pushString(sink, "$v", 1, "True");
+  } else {
+    pushString(sink, "$v", 1, "False");
+  }
+  return Length_String_length(sink.$v);
+}
+
+function shownInt(value) {
+  var sink = { $v: newStringOfCapacity(64) };
+  showSigned(BigInt.asIntN(64, BigInt(value)), sink, "$v", 1);
+  return Length_String_length(sink.$v);
+}
+
+function shownString(value) {
+  var sink = { $v: newStringOfCapacity(64) };
+  pushString(sink, "$v", 1, value);
+  return Length_String_length(sink.$v);
+}
+
+function firstShownUnit(value) {
+  var sink = { $v: newStringOfCapacity(64) };
+  showSigned(BigInt.asIntN(64, BigInt(value)), sink, "$v", 1);
+  return stringUnit(sink.$v, 0);
+}
+
+function stringBound(value) {
+  return Length_String_length(value);
+}
+
+function intBound(value) {
+  return 11;
+}
+
+function boolText() {
+  var total = 0;
+  if (shownBool(1) === 4) {
+    total = total + 1 | 0;
+  }
+  if (shownBool(0) === 5) {
+    total = total + 1 | 0;
+  }
+  var sink = { $v: newStringOfCapacity(64) };
+  showSigned(0n, sink, "$v", 1);
+  if (stringUnit(sink.$v, 0) === 48) {
+    total = total + 1 | 0;
+  }
+  return total;
+}
+
+function integerText() {
+  var total = 0;
+  if (shownInt(0) === 1) {
+    total = total + 1 | 0;
+  }
+  if (shownInt(-5) === 2) {
+    total = total + 1 | 0;
+  }
+  if (shownInt(1234) === 4) {
+    total = total + 1 | 0;
+  }
+  if (shownInt(-2147483648) === 11) {
+    total = total + 1 | 0;
+  }
+  var sink = { $v: newStringOfCapacity(64) };
+  showSigned(-5n, sink, "$v", 1);
+  if (stringUnit(sink.$v, 0) === 45) {
+    total = total + 1 | 0;
+  }
+  return total;
+}
+
+function stringText() {
+  var total = 0;
+  var sink = { $v: newStringOfCapacity(64) };
+  pushString(sink, "$v", 1, "hello");
+  if (Length_String_length(sink.$v) === 5) {
+    total = total + 1 | 0;
+  }
+  if (Length_String_length("hello") === 5) {
+    total = total + 1 | 0;
+  }
+  if (Length_String_length("") === 0) {
+    total = total + 1 | 0;
+  }
+  return total;
+}
+
+function contractHolds() {
+  var total = 0;
+  if (shownInt(0) <= 11) {
+    total = total + 1 | 0;
+  }
+  if (shownInt(-2147483648) <= 11) {
+    total = total + 1 | 0;
+  }
+  var sink = { $v: newStringOfCapacity(64) };
+  pushString(sink, "$v", 1, "hello");
+  if (Length_String_length(sink.$v) <= Length_String_length("hello")) {
+    total = total + 1 | 0;
+  }
+  return total;
+}
+
+function main() {
+  return ((boolText() + integerText() | 0) + stringText() | 0) + contractHolds() | 0;
+}

@@ -101,6 +101,30 @@ void mapOperands(ModuleBase base, Value& instruction, F&& f) {
     for(Size i = 0; i < placeCount; i++) place(*places[i]);
 
     switch(instruction.kind) {
+        /*
+         * How many slots a run holds - InstAlloc::extent, which every pass here had been blind to.
+         *
+         * It is an operand in every sense that matters: `Block::add` records it as a use, and a
+         * rewrite that renumbers values has to renumber it. Leaving it out of this walk meant the
+         * dead-value pass saw the instruction computing it with no users and deleted it, and the
+         * allocation was then left naming a value no block defined - which lowering reports as
+         * "resolve value was used before it was lowered".
+         *
+         * The reason nothing caught it is that every run until now got its extent from an array
+         * literal, where the count is a `ConstInt`. A constant belongs to no block and is
+         * materialized per function on demand, so it cannot be deleted and needs no remapping - the
+         * hole was real from the day `extent` was added and unreachable until something passed a
+         * *computed* count. `newStringOfCapacity` is the first thing that does.
+         *
+         * `storageFlag` is deliberately not here for exactly that reason: it is always the constant
+         * the escape analysis patched, so it is never in a block and never at risk. Adding it would
+         * be describing a use that does not exist.
+         */
+        case Value::Alloc: {
+            auto& allocation = (InstAlloc&)instruction;
+            if(allocation.extent) allocation.extent = f(allocation.extent);
+            break;
+        }
         case Value::Init:
         case Value::Assign: {
             auto& init = (InstInit&)instruction;
@@ -210,6 +234,7 @@ inline void eachRootValue(OptContext& opt, Value& instruction, F&& f) {
 inline bool isPureValue(const Value& value) {
     switch(value.kind) {
         case Value::ConstInt: case Value::ConstFloat: case Value::ConstDouble:
+        case Value::ConstString:
         case Value::Cast: case Value::Neg: case Value::Not:
         case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
         case Value::Shl: case Value::Shr: case Value::Sar:

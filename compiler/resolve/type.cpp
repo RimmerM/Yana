@@ -154,6 +154,11 @@ TypePtr instantiateRecord(Module& module, GlobalPtr<RecordType> pointer, Buffer<
 
     for(auto existing: declaration->instances.contents(global)) {
         auto instance = (RecordType*)global[existing];
+
+        // A Repr refinement is a second instantiation at the same arguments (RecordType::canonical),
+        // so the plain one is the one without a refinement rather than the first one found.
+        if(instance->isRefined()) continue;
+
         auto equal = true;
 
         for(Size i = 0; i < args.length; i++) {
@@ -192,6 +197,97 @@ TypePtr instantiateRecord(Module& module, GlobalPtr<RecordType> pointer, Buffer<
     return (Type*)instance - global;
 }
 
+/*
+ * `@inline(i) @capacity(c) [T]` - Implementation-Containers.md §7.
+ *
+ * A second instantiation of the same declaration at the same arguments, differing only in what its
+ * Repr does with them. Interned beside the plain one on the declaration's own instance list, which
+ * is what makes two mentions of `@inline(4) @capacity(4) [Int]` in two modules one type - the same
+ * property `Array(Int)` has and for the same reason, since a layout that is part of a record field's
+ * ABI has to be a function of what was written and nothing else.
+ *
+ * The constructors are copied from the plain instantiation rather than substituted again, because
+ * they are the same constructors: a refinement changes no field's type. That is also what makes the
+ * *ownership* answer the same one - `ownershipOf` walks the members - so a refined array of handles
+ * has the same `Drop` the plain one does, which is §9's rule stated as an implementation fact.
+ */
+TypePtr refineContainerType(Module& module, TypePtr plain, U32 inlineSlots, U32 capacityBound,
+                            LocationId source) {
+    auto global = *module.types;
+    if(!plain || global[plain]->kind != Type::Record) return plain;
+
+    auto record = (RecordType*)global[plain];
+    auto pointer = record->instanceOf;
+    if(!pointer) return plain;
+
+    auto declaration = (RecordType*)global[pointer];
+
+    /*
+     * The plain instantiation's contents are what this one is built out of, so a refinement written
+     * before they exist has nothing to refine. That is only reachable from inside the module that
+     * declares the array, where a refinement would be circular anyway.
+     */
+    if(!record->definitionReady) {
+        module.context.diagnostics.error("`@inline`/`@capacity` cannot be written here - the container's own declaration is not complete yet"_v,
+                                         source);
+        return plain;
+    }
+
+    for(auto existing: declaration->instances.contents(global)) {
+        auto instance = (RecordType*)global[existing];
+        if(instance->canonical != record - global) continue;
+        if(instance->inlineSlots != inlineSlots || instance->capacityBound != capacityBound) continue;
+
+        return (Type*)instance - global;
+    }
+
+    auto instance = new (module.types) RecordType(declaration->name);
+    instance->instanceOf = pointer;
+    instance->qualified = declaration->qualified;
+    instance->generic = record->generic;
+    instance->canonical = record - global;
+    instance->inlineSlots = inlineSlots;
+    instance->capacityBound = capacityBound;
+
+    for(auto arg: record->instanceArgs.contents(global)) instance->instanceArgs.push(module.types, arg);
+
+    /*
+     * The constructors are the plain one's, with the content tuple re-interned carrying the
+     * refinement - see TupType::inlineSlots for why it has to be on the tuple as well.
+     *
+     * The *fields* are identical, which is what keeps every other answer about this type identical:
+     * `ownershipOf` walks members, `matchType` compares `instanceOf` and `instanceArgs`, and neither
+     * can tell the two tuples apart. What differs is the one thing a Repr refinement is allowed to
+     * differ in, which is where those fields sit.
+     */
+    for(Size i = 0; i < record->constructors.size(); i++) {
+        auto constructor = record->constructors.get(global, i);
+
+        if(constructor.content && global[constructor.content]->kind == Type::Tup) {
+            auto content = (TupType*)global[constructor.content];
+            SmallArray<Field, 4> fields;
+            for(auto field: content->fields.contents(global)) fields.push(field);
+
+            auto refinedContent = resolveTupleType(module, toBuffer(fields), source, content->layout,
+                                                   inlineSlots, capacityBound);
+            constructor.content = (Type*)refinedContent - global;
+        }
+
+        instance->constructors.push(module.types, constructor);
+    }
+
+    instance->layout = record->layout;
+    instance->pinned = record->pinned;
+    instance->definitionReady = record->definitionReady;
+    instance->layoutBroken = record->layoutBroken;
+
+    declaration->instances.push(module.types, instance - global);
+
+    // The plain instantiation may still be waiting for its declaration, in which case this one is
+    // waiting for the same thing and its copied constructor contents are the nulls it copied.
+    return (Type*)instance - global;
+}
+
 // One instantiation's argument, when it is an instantiation of `of` at all.
 static TypePtr instanceArgument(Module& module, GlobalPtr<RecordType> of, TypePtr type) {
     auto global = *module.types;
@@ -205,6 +301,20 @@ static TypePtr instanceArgument(Module& module, GlobalPtr<RecordType> of, TypePt
 
 TypePtr arrayElement(Module& module, TypePtr type) {
     return instanceArgument(module, module.program.arrayType, type);
+}
+
+RecordType* inlineRefinement(Module& module, TypePtr type) {
+    if(!arrayElement(module, type)) return nullptr;
+
+    auto record = (RecordType*)(*module.types)[type];
+    return record->inlineSlots ? record : nullptr;
+}
+
+TypePtr unrefined(GlobalBase base, TypePtr type) {
+    if(!type || base[type]->kind != Type::Record) return type;
+
+    auto canonical = ((RecordType*)base[type])->canonical;
+    return canonical ? (Type*)base[canonical] - base : type;
 }
 
 TypePtr sliceElement(Module& module, TypePtr type) {
@@ -221,8 +331,10 @@ TypePtr sliceLengthType(Module& module, TypePtr type) {
     auto content = record->constructors.get(global, 0).content;
     if(!content || global[content]->kind != Type::Tup) return nullptr;
 
+    // Two fields natively and three on JS, where a window carries where it starts as well as how
+    // long it is (§4.3). `length` is field one in both, which is why the third one is last.
     auto fields = (TupType*)global[content];
-    if(fields->fields.size() != 2) return nullptr;
+    if(fields->fields.size() < 2) return nullptr;
 
     return fields->fields.get(global, 1).type;
 }
@@ -267,6 +379,30 @@ TypePtr sliceOf(Module& module, TypePtr type) {
     if(!element) return nullptr;
 
     return instantiateRecord(module, module.program.sliceType, { &element, 1 }, kNullLocation);
+}
+
+// The determined half of a one-argument container class, or null when this type is not one of its
+// instances. See contiguousElement's comment in type.h for why the two native containers are refused
+// before the lookup rather than by it.
+static TypePtr containerElement(Module& module, GlobalPtr<TypeClass> typeClass, TypePtr type) {
+    if(!typeClass || !type) return nullptr;
+    if(isGeneric(*module.types, type)) return nullptr;
+    if(ownedElement(module, type) || sliceElement(module, type)) return nullptr;
+
+    TypeList asked;
+    asked.push(type);
+    asked.push(nullptr);
+
+    if(!resolveDetermined(module, typeClass, asked)) return nullptr;
+    return asked[1];
+}
+
+TypePtr contiguousElement(Module& module, TypePtr type) {
+    return containerElement(module, module.coreClasses.contiguous, type);
+}
+
+TypePtr chunkedElement(Module& module, TypePtr type) {
+    return containerElement(module, module.coreClasses.chunked, type);
 }
 
 bool isBorrowLike(Module& module, TypePtr type) {
@@ -917,17 +1053,20 @@ static TypePtr resolveAlias(Module& module, TypeAlias& alias, Buffer<TypePtr> ar
  * one that has landed, and it is read by readBoxAttribute below rather than here, because it
  * refines the *field* and not the type.
  */
-static bool readBitsAttribute(Module& module, ast::ParsePtr<ast::AttrList> attributes, LocationId source,
-                              U32& bits) {
+static bool readCountAttribute(Module& module, ast::ParsePtr<ast::AttrList> attributes, LocationId source,
+                               const char* name, U32 nameLength, U32& count) {
     if(!attributes) return false;
 
     auto parse = module.parse;
+    auto wanted = module.context.addUnqualifiedName(name, nameLength);
+
     for(auto attribute: module.parse[attributes]->contents(parse)) {
-        if(attribute.name != module.context.addUnqualifiedName("bits", 4)) continue;
+        if(attribute.name != wanted) continue;
 
         auto args = attribute.args;
         if(args.size() != 1) {
-            module.context.diagnostics.error("@bits takes one argument: the width in bits"_v, source);
+            module.context.diagnostics.error("@%@ takes one argument: a literal count"_v, source,
+                                             StringView { name, nameLength });
             return false;
         }
 
@@ -935,17 +1074,30 @@ static bool readBitsAttribute(Module& module, ast::ParsePtr<ast::AttrList> attri
         // integer literal is exactly `Lit + Literal::Int`.
         auto argument = args.get(parse, 0).value;
         if(argument.kind != ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
-            module.context.diagnostics.error("@bits takes a literal width"_v, attribute.source);
+            module.context.diagnostics.error("@%@ takes a literal count"_v, attribute.source,
+                                             StringView { name, nameLength });
+            return false;
+        }
+
+        auto written = argument.lit.i();
+        if(written < 0) {
+            module.context.diagnostics.error("@%@ cannot be negative"_v, attribute.source,
+                                             StringView { name, nameLength });
             return false;
         }
 
         // Reported separately from "there is no attribute" so that `@bits(0)` reaches the range
         // check rather than being read as an absent refinement.
-        bits = U32(argument.lit.i());
+        count = U32(written);
         return true;
     }
 
     return false;
+}
+
+static bool readBitsAttribute(Module& module, ast::ParsePtr<ast::AttrList> attributes, LocationId source,
+                              U32& bits) {
+    return readCountAttribute(module, attributes, source, "bits", 4, bits);
 }
 
 /*
@@ -1041,6 +1193,50 @@ static Maybe<U32> fixedArrayLength(Module& module, const ast::Expr& length) {
     return Just(U32(written));
 }
 
+/*
+ * Which row of Implementation-Containers.md §7.1 was written, and whether it is one that exists.
+ *
+ * Four rows, one built. `@inline(i) @capacity(i)` is the row that never spills: the inline storage is
+ * exactly `i * stride`, there is no capacity field because the capacity *is* `i`, and there is no
+ * spill pointer because there is no spill - which is why the build order names it first. The other
+ * three all share one missing piece, the discriminant that says whether the bytes currently hold
+ * elements or a pointer to them, so they are refused by name rather than laid out wrong.
+ *
+ * The refusal is a diagnostic and not a silent fallback to the plain array, because these are ABI
+ * annotations: a field whose layout quietly stopped being what was written is the one failure a Repr
+ * refinement must not have.
+ */
+static TypePtr resolveContainerRefinement(Module& module, TypePtr plain, bool hasInline, U32 inlineSlots,
+                                          bool hasCapacity, U32 capacityBound, LocationId source) {
+    if(!plain || (*module.types)[plain]->kind == Type::Error) return plain;
+
+    if(!arrayElement(module, plain)) {
+        module.context.diagnostics.error("`@inline` and `@capacity` refine a growable array - `[T]` - and this is %@"_v,
+                                         source, describeType(module.context, *module.types, plain));
+        return plain;
+    }
+
+    if(!hasInline || !hasCapacity || inlineSlots != capacityBound) {
+        module.context.diagnostics.error("only `@inline(n) @capacity(n)` is built - the rows that spill need a discriminant saying whether the inline bytes hold elements or a pointer to them, and that is Implementation-Containers.md §7.1's unbuilt half"_v,
+                                         source);
+        return plain;
+    }
+
+    if(!inlineSlots) {
+        module.context.diagnostics.error("`@inline(0) @capacity(0)` is an array that can hold nothing - write `[T]` for one that allocates, or a larger bound"_v,
+                                         source);
+        return plain;
+    }
+
+    if(inlineSlots > kMaxInlineSlots) {
+        module.context.diagnostics.error("`@inline` may hold at most %@ elements, and this one asks for %@ - past that the storage belongs in an allocation rather than inside its owner"_v,
+                                         source, U32(kMaxInlineSlots), inlineSlots);
+        return plain;
+    }
+
+    return refineContainerType(module, plain, inlineSlots, capacityBound, source);
+}
+
 TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
     /*
      * Anything reaching here still carrying `@box` is one written somewhere a field is not, since
@@ -1067,6 +1263,29 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
         auto plain = type;
         plain.attributes = nullptr;
         return resolveBitsType(module, resolveType(module, plain, env), bits, type.source);
+    }
+
+    /*
+     * `@inline(i) @capacity(c) [T]` - Implementation-Containers.md §7.
+     *
+     * Read together rather than one at a time, because the *pair* is what selects a layout: §7.1 is
+     * a table of four rows and which row this is depends on both numbers. The two are written as
+     * separate attributes because they are separate statements - one is about storage and one is
+     * about a bound - and either alone is a legal row of that table.
+     *
+     * The underlying type is resolved without them first, exactly as `@bits` does, so that the
+     * refinement applies to whatever `[T]` turned out to be rather than needing an arm per spelling.
+     */
+    U32 inlineSlots = 0;
+    U32 capacityBound = 0;
+    auto hasInline = readCountAttribute(module, type.attributes, type.source, "inline", 6, inlineSlots);
+    auto hasCapacity = readCountAttribute(module, type.attributes, type.source, "capacity", 8, capacityBound);
+
+    if(hasInline || hasCapacity) {
+        auto plain = type;
+        plain.attributes = nullptr;
+        return resolveContainerRefinement(module, resolveType(module, plain, env), hasInline, inlineSlots,
+                                          hasCapacity, capacityBound, type.source);
     }
 
     switch(type.kind) {
@@ -1397,7 +1616,8 @@ TypePtr applyReturnRootMutability(Module& module, TypePtr result, bool allRootsM
     return resolveBorrowType(module, ((BorrowType*)(*module.types)[result])->to, true);
 }
 
-TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId source, TypeLayout layout) {
+TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId source, TypeLayout layout,
+                          U32 inlineSlots, U32 capacityBound) {
     auto base = *module.types;
 
     /*
@@ -1424,6 +1644,7 @@ TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId sourc
     for(auto tuplePointer: module.program.tupleTypes.contents(base)) {
         auto tuple = base[tuplePointer];
         if(tuple->fields.size() != requested.length || tuple->layout != layout) continue;
+        if(tuple->inlineSlots != inlineSlots || tuple->capacityBound != capacityBound) continue;
 
         auto equal = true;
         for(Size i = 0; i < requested.length; i++) {
@@ -1453,6 +1674,8 @@ TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId sourc
 
     tuple->named = named;
     tuple->layout = layout;
+    tuple->inlineSlots = inlineSlots;
+    tuple->capacityBound = capacityBound;
     module.program.tupleTypes.push(module.types, tuple - base);
 
     /*
@@ -1886,6 +2109,33 @@ Ownership ownershipOf(Module& module, TypePtr type) {
             // A raw pointer is an address, and an address is TrivialCopy by Design.md's own list.
             // Whatever it points at is owned by something else - that is what makes `%T` unsafe
             // and what keeps it out of this analysis entirely.
+            break;
+
+        case Type::String:
+            /*
+             * Implementation-String.md part 2's table, as the two entries that are not the Repr.
+             *
+             * **Not TrivialCopy, on both targets**, which that part states and then spends a
+             * paragraph defending: a JS string really is free to duplicate - host strings are
+             * immutable and the collector owns them - and it stays out of the class anyway, because
+             * TrivialCopy is a resolve-stage fact that changes binding semantics and *"the same
+             * borrow/move/drop rules apply identically on the native and JS targets; only the
+             * codegen strategy differs"*. The JS backend is still free to notice that a move of one
+             * needs no invalidation, which is the same category of thing as a `Reclaim` compiling to
+             * nothing there.
+             *
+             * **TrivialSink**, because relocating a string is moving two words that do not refer to
+             * their own address - the bytes are somewhere else and do not care where the descriptor
+             * went. That is what lets a string be returned and stored without a call.
+             *
+             * The teardown is left at `None` here and supplied by the `instance Reclaim(String)`
+             * below this switch, which is the ordinary authored path rather than a case in the
+             * derived generator. That is deliberate: releasing a string is the *run's* placement
+             * switch and nothing else, so the one comparison already written as `releaseRun` is the
+             * whole of it, and a derived walk over a type with no members visible to resolve would
+             * have had to grow a special case to reach it.
+             */
+            result.trivialCopy = false;
             break;
 
         case Type::Borrow:
@@ -2566,6 +2816,11 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
             target << '%';
             describeType(context, base, ((PtrType*)base[type])->to, target);
             return;
+        case Type::String:
+            // One name on both targets, which is the whole of what making it a primitive buys a
+            // diagnostic: nothing a program reads ever says which of the two representations it is.
+            target << "String";
+            return;
         case Type::Array: {
             // Printed the way it is written, length included, because the length is the whole of
             // what two of these differ in and a diagnostic dropping it would name both `[Int *]`.
@@ -2653,6 +2908,29 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
         }
         case Type::Record: {
             auto record = (RecordType*)base[type];
+
+            /*
+             * A Repr refinement is printed, and it has to be - Implementation-Containers.md §7.
+             *
+             * `@inline(4) @capacity(4) [Int]` and `[Int]` are two types with one name, so leaving the
+             * refinement off would make a dump ambiguous and, worse, would give the two the same
+             * derived-teardown name: teardownGlueName is built out of this text, and two glue
+             * functions answering to one symbol is a link-time coin toss.
+             */
+            // appendValue rather than `<<` for the same reason `@bits` gives above: `<<` takes a
+            // character and would append the one with that code.
+            if(record->inlineSlots) {
+                target << "@inline(";
+                target.appendValue(record->inlineSlots);
+                target << ") ";
+            }
+
+            if(record->capacityBound) {
+                target << "@capacity(";
+                target.appendValue(record->capacityBound);
+                target << ") ";
+            }
+
             target << context.findName(record->name);
 
             if(record->instanceArgs.isNotEmpty()) {

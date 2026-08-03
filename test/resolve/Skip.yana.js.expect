@@ -69,7 +69,7 @@ function mixed(n) {
   B0: {
     var total = { $v: 0 };
     if (n !== 0) {
-      var v16 = findFirst_Outcome_Int(n, ResolveTest_continuation$2$make({ total: total }));
+      var v16 = findFirst_Outcome_Int(n, ResolveTest_continuation$2$make({ total: { $o: total, $k: "$v", $s: 1 } }));
       var v18 = Try_Maybe_a_a_toOutcome_Outcome_Int({ $tag: v16.$tag, $p: v16.$p });
       if (v18.$tag === 1) {
         return 5;
@@ -147,7 +147,7 @@ function ResolveTest_continuation$2$make(env) {
       return found;
     } else {
       var v7 = env.total;
-      v7.$v = v7.$v + found | 0;
+      v7.$o[v7.$k] = v7.$o[v7.$k] + found | 0;
       return null;
     }
   };

@@ -498,6 +498,28 @@ U32 rootLocal(Analysis& analysis, const Place& place);
  */
 U32 backingLocal(Analysis& analysis, ModulePtr<Value> value);
 
+/*
+ * The slot a view is ultimately a view of - see Local::viewOf.
+ *
+ * A slice's descriptor is a local of this frame whatever it describes, so a returned one looks
+ * rooted in the frame until this is walked: `elements(return self: Array(a)) -> &[a]` builds a
+ * descriptor out of `self` and hands it back, and what the caller has to keep alive is `self`.
+ *
+ * The chain rather than one step, because a subslice is a view of a view; the depth bound is against
+ * a cycle a rewrite could introduce, since nothing in the resolver builds one. Identical in shape to
+ * analyze_effects' useSlot, which spends the same edge on liveness.
+ */
+inline U32 viewedRoot(Analysis& analysis, U32 local) {
+    for(auto depth = 0; depth < 8; depth++) {
+        auto next = analysis.function.localAt(analysis.local, local).viewOf;
+        if(next == maxLimit<U32> || next >= analysis.localCount) break;
+
+        local = next;
+    }
+
+    return local;
+}
+
 // Whether this slot is a parameter's - storage the caller named, which arrives already holding a
 // value and already outlives the frame. Asked by five of the passes and by the summary.
 inline bool isParameterSlot(Analysis& analysis, Size local) {

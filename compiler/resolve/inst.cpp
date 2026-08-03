@@ -5,7 +5,8 @@ bool isTerminator(const Value& value) {
 }
 
 bool isConstant(const Value& value) {
-    return value.kind == Value::ConstInt || value.kind == Value::ConstFloat || value.kind == Value::ConstDouble;
+    return value.kind == Value::ConstInt || value.kind == Value::ConstFloat ||
+           value.kind == Value::ConstDouble || value.kind == Value::ConstString;
 }
 
 Size instructionPlaces(const Value& instruction, Place* target) {

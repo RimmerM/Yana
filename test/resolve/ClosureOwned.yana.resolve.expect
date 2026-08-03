@@ -228,7 +228,7 @@ fn Index(Flat(a), I64, a).get(Int)(%self: Flat(Int), %index: I64) -> &Int {
 
 fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
-    %v1 = load %self@Run.ownsHeap : @bits(1) U32
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
     %v2 = cast %v1 : U32
     %v4 = cast 1 : U32
     %v5 = cmp_eq %v2, %v4 : Bool
@@ -266,7 +266,7 @@ fn mapMemory(%size: I64) -> %U8 {
     ret %v18
 }
 
-fn length(Int)(%self: Flat(Int)) -> I64 {
+fn Length(Flat(a)).length(Int)(%self: Flat(Int)) -> I64 {
   b0:
     %v1 = load %self@Flat.length : I64
     ret %v1
@@ -274,7 +274,7 @@ fn length(Int)(%self: Flat(Int)) -> I64 {
 
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   b0:
-    %v1 = load %value@Array.length : @bits(31) U32
+    %v1 = load %value@Array.length : @bits(30) U32
     %v2 = cast %v1 : U32
     %count = cast %v2 : Int
     %i = alloc : Int
@@ -318,7 +318,7 @@ fn total(%xs: Flat(Int)) -> Int {
 
   b1:
     %v8 = load %i : Int
-    %v9 = call length(Int), %xs : I64
+    %v9 = call Length(Flat(a)).length(Int), %xs : I64
     %v10 = cast %v8 : I64
     %v11 = cmp_lt %v10, %v9 : Bool
     je %v11, b3, b2
@@ -414,7 +414,7 @@ fn ResolveTest.lambda$0(%env: %{xs: Array(Int)}) -> Int {
     %v3 = alloc : Flat(Int)
     %v4 = load [%v2]@Array.run@Run.items : %Int
     init %local0@Flat.items, %v4
-    %v6 = load [%v2]@Array.length : @bits(31) U32
+    %v6 = load [%v2]@Array.length : @bits(30) U32
     %v7 = cast %v6 : U32
     %v8 = cast %v7 : I64
     init %local0@Flat.length, %v8

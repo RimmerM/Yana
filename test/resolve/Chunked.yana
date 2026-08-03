@@ -1,0 +1,145 @@
+-- `Chunked` and `Contiguous` - Implementation-Containers.md §5.
+--
+-- Contiguity is the one-chunk case of a more general property. `Chunked` is what a function that
+-- only reads elements asks for: it accepts every container, and the push-style iterator lowering is
+-- what makes it free - a contiguous container yields one slice and fuses into the loop it compiles
+-- to today, while a chunked one becomes a nested loop whose inner loop runs at full contiguous
+-- speed. `Contiguous` is the stronger promise, about a buffer address, and it is what `[a]` means.
+--
+-- Both classes and both instances for `Array` live in Collections; what this fixture adds is a
+-- container of its own on each side of the line.
+
+-- The chunked half: three fixed-size chunks with a count of how many are in use, which is
+-- §13.1's worked example reduced to the part that iterates. Nothing here is contiguous - the
+-- elements live in three separate runs - and that is the whole point.
+data Chunks {a: [Int], b: [Int], c: [Int], used: Int}
+
+fn threeChunks(x: Int) -> Chunks =
+    Chunks {a: [x, x + 1], b: [x + 2, x + 3], c: [x + 4, x + 5], used: 3}
+
+{-
+   The instance, and the one thing to notice about it: `chunks` is an `iter fn`, so a class member
+   may be iterator-shaped and each `yield` hands over a *view* of one chunk. The class declares the
+   written shape - what an instance takes and what it hands over - and the continuation parameter is
+   synthesized here, in the implementation, which is where the `yield` is.
+
+   Three `yield`s rather than a loop over an array of chunks, because `[[Int]]` would need the
+   element teardown an array of arrays still waits on. The shape a caller sees is the same.
+-}
+instance Chunked(Chunks, Int):
+    iter fn chunks(self: Chunks) -> &[Int]:
+        yield self.a
+        if self.used > 1:
+            yield self.b
+        if self.used > 2:
+            yield self.c
+
+-- The contiguous half: a container of the program's own that promises a buffer address. One
+-- instance, one line, and it is what makes `total(ring)` below compile - `[Int]` is what `elements`
+-- answers, so passing this where a slice is expected is the ordinary conversion rather than a copy.
+data Ring {items: [Int]}
+
+instance Contiguous(Ring, Int):
+    fn elements(return self: Ring) -> &[Int] = elements(self.items)
+
+instance Chunked(Ring, Int):
+    iter fn chunks(self: Ring) -> &[Int] = yield elements(self)
+
+-- The element iterator every loop below goes through once it has a chunk. Written over `[a]`,
+-- which is what a chunk is.
+iter fn each(xs: [a]) -> a:
+    let &i = 0 :: Int
+    let n = length(xs) :: Int
+
+    while i < n:
+        yield xs[i]
+        i = i + 1
+
+{-
+   The nested loop, which is what `Chunked` is for.
+
+   `for chunk in chunks(xs)` reaches a class function by name and the instance decides which body
+   runs; after specialization there is no dispatch left in either loop - the outer one is a direct
+   call to the instance's `chunks` and the inner one is the same subscript loop a `[Int]` has always
+   compiled to.
+-}
+fn sumChunked(xs: Chunks) -> Int:
+    let &total = 0 :: Int
+
+    for chunk in chunks(xs):
+        for x in each(chunk):
+            total = total + x
+
+    return total
+
+-- The same loop over the contiguous container, which yields exactly one chunk. Written identically,
+-- which is the property §5 wants: the caller does not know or care how many chunks there were.
+fn sumContiguous(xs: Ring) -> Int:
+    let &total = 0 :: Int
+
+    for chunk in chunks(xs):
+        for x in each(chunk):
+            total = total + x
+
+    return total
+
+-- And over the library's own array, whose `Chunked` instance is Collections'.
+fn sumArray(xs: Array(Int)) -> Int:
+    let &total = 0 :: Int
+
+    for chunk in chunks(xs):
+        for x in each(chunk):
+            total = total + x
+
+    return total
+
+-- A contiguous container of the program's own, passed where `[Int]` was expected. No conversion is
+-- written and none is a copy: `elements` hands back a view rooted in the argument.
+fn total(xs: [Int]) -> Int:
+    let &sum = 0 :: Int
+
+    for x in each(xs):
+        sum = sum + x
+
+    return sum
+
+-- The same, through a signature written over a type variable, since the two bind differently: a
+-- concrete `[Int]` parameter reaches the conversion at the argument, and a `[a]` one has to bind `a`
+-- from the container before there is anything to convert.
+fn count(xs: [a]) -> Int = length(xs) :: Int
+
+-- A loop that leaves through both frames. The `return` travels out of the inner iterator's step
+-- signal and then out of the outer one's, which is the same path a nested `for` over two plain
+-- iterators takes - the class in front of the outer one changes nothing about it.
+fn firstOver(xs: Chunks, bound: Int) -> Int:
+    for chunk in chunks(xs):
+        for x in each(chunk):
+            if x > bound:
+                return x
+
+    return -1
+
+-- `break` in the inner loop ends that chunk and not the walk, which is what makes the two loops
+-- independent: the outer one goes on to the next chunk.
+fn firstOfEachChunk(xs: Chunks) -> Int:
+    let &total = 0 :: Int
+
+    for chunk in chunks(xs):
+        for x in each(chunk):
+            total = total + x
+            break
+
+    return total
+
+fn main() -> Int:
+    let cs = threeChunks(1)
+    let ring = Ring {items: [10, 20, 30]}
+    let arr = [4, 5, 6]
+
+    return sumChunked(cs) +          -- 1+2+3+4+5+6 = 21
+           sumContiguous(ring) +     -- 60
+           sumArray(arr) +           -- 15
+           total(ring) +             -- 60
+           count(ring) +             -- 3
+           firstOver(cs, 3) +        -- 4
+           firstOfEachChunk(cs)      -- 1 + 3 + 5 = 9

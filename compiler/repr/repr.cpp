@@ -342,6 +342,9 @@ void ReprTable::compute(TypePtr type, Repr& into) {
         case Type::Array:
             computeFixedArray(*(ArrayType*)value, into);
             break;
+        case Type::String:
+            computeString(type, into);
+            break;
         default:
             // Unit, Error, and the kinds that are reserved but not constructible yet - Ref,
             // RegionPtr, Region, Map. Reaching one of those with a value in hand is a compiler bug
@@ -505,6 +508,8 @@ Niche ReprTable::addressNiche(U32 offset) const {
 }
 
 void ReprTable::computeTuple(TupType& tuple, Repr& into) {
+    if(tuple.inlineSlots && computeInlineContainer(tuple, into)) return;
+
     U32 size = 0;
     U32 alignment = 1;
     auto count = tuple.fields.size();
@@ -608,6 +613,42 @@ void ReprTable::computeFixedArray(ArrayType& array, Repr& into) {
     into.align = array.length ? element.align : 1;
     into.size = element.stride * array.length;
     into.stride = into.size;
+}
+
+/*
+ * `String`, which is the one type whose representation the two targets do not merely lay out
+ * differently but disagree about the *shape* of - Implementation-String.md part 2's table.
+ *
+ * Natively it is `{run: Run(U8), length: Count}` and this delegates rather than writing that out:
+ * the count packs into the run's spare bits by Implementation-Containers.md §10.3's rule, so a string
+ * is two words for the same reason and by the same code that makes `Array(a)` two words. A
+ * hand-written sixteen would be a second copy of that decision, and the two would drift the first
+ * time §10.3 changed - with a symptom, a length read from where the library did not put it, that no
+ * size assertion catches.
+ *
+ * On JS the content is null and a string is one host value: the size is what a reference costs there,
+ * and there are no fields, so it lands in a plain variable and is boxed only by the rule every other
+ * non-object already follows. `scalarBits` stays zero on purpose even though the value is a single
+ * host slot - a string is not a *number*, so nothing may pack it into a word or compare it against a
+ * range, which is exactly what leaving it zero says. `hostNiche` reads the same fact and declines to
+ * publish `null` as a spare pattern for the same reason it declines for a fixed array: the niche
+ * would be over a container, and folding one costs more than it buys until `Maybe(String)` is
+ * measured.
+ */
+void ReprTable::computeString(TypePtr type, Repr& into) {
+    auto content = ((StringType*)global[type])->content;
+
+    if(!content) {
+        into.size = target.pointerSize;
+        into.align = target.pointerAlign;
+        into.stride = into.size;
+        return;
+    }
+
+    auto& native = of(content);
+    into.size = native.size;
+    into.align = native.align;
+    into.stride = native.stride;
 }
 
 /*
@@ -867,6 +908,65 @@ Size ReprTable::packWord(TupType& tuple, Repr& into, Buffer<const U16> order, Si
     }
 
     return last;
+}
+
+/*
+ * `@inline(n) @capacity(n) [T]` - Implementation-Containers.md §7.1's second row.
+ *
+ * The row that never spills, which is what makes it the one that needs nothing new below it: the
+ * slots are the container's own bytes, so there is no pointer to store, and the capacity *is* `n`, so
+ * there is no capacity to store either. What is left of `data Array(a) {run: Run(a), length: Count}`
+ * is the run's slots and the count - `n * stride` and a word - where the plain layout is two words
+ * plus an allocation somewhere else.
+ *
+ * The two fields keep their declared *types*, and that is deliberate rather than incidental. Nothing
+ * projects into this `run` at run time: every operation on a refined array goes through the plain
+ * descriptor `inlineArrayDescriptor` materializes (§7.2's tier 1), and the only thing the compiler
+ * asks of the run field directly is its address. So the field list here says where the two pieces are
+ * and no reader of it has to know that `Run(a)`'s own Repr describes a different sixteen bytes.
+ *
+ * **The count is a whole `Count` rather than §7.1's `ceil(log2(n+1))` bits**, and the reason is the
+ * load rather than the layout: a load's width comes from the field's *type*, so a field narrower than
+ * its type would read past itself. Narrowing it needs either a per-field width in the access path or
+ * a refined `Count` per bound, and neither is worth having before §10 puts this count in the parent's
+ * word anyway - which is where the bits were going to be spent.
+ */
+bool ReprTable::computeInlineContainer(TupType& tuple, Repr& into) {
+    if(tuple.fields.size() != 2) return false;
+
+    auto run = tuple.fields.get(global, 0).type;
+    if(!run || global[run]->kind != Type::Record) return false;
+
+    auto slotType = (RecordType*)global[run];
+    if(slotType->instanceArgs.size() != 1) return false;
+
+    // The stride and not the size, which is Implementation-Containers.md §6's rule and the same one
+    // `computeFixedArray` obeys: two elements of a tail-padded record must not overlap in what one of
+    // them would have wasted.
+    auto& element = of(slotType->instanceArgs.get(global, 0));
+    auto slots = element.stride * tuple.inlineSlots;
+
+    auto counted = of(tuple.fields.get(global, 1).type);
+    auto at = alignTo(slots, counted.align);
+
+    FieldRepr placedRun;
+    placedRun.type = run;
+    placedRun.offset = 0;
+    placedRun.wordBytes = U8(slots > 255 ? 0 : slots);
+
+    FieldRepr length;
+    length.type = tuple.fields.get(global, 1).type;
+    length.offset = at;
+    length.wordBytes = U8(counted.size > 255 ? 0 : counted.size);
+
+    into.fields.reserve(2);
+    into.fields.push(placedRun);
+    into.fields.push(length);
+
+    into.align = max(element.align, counted.align);
+    into.size = at + counted.size;
+    into.stride = alignTo(into.size, into.align);
+    return true;
 }
 
 void ReprTable::computeRecord(RecordType& record, Repr& into) {

@@ -116,11 +116,129 @@ bool ExprResolver::buildRunInto(TypePtr runType, ModulePtr<Value> count, Locatio
 
     auto place = project(into, ProjectionKind::Downcast, 0);
 
+    /*
+     * The capacity, narrowed rather than converted.
+     *
+     * `Count` is `@bits(30) U32` and the argument is an `Int`, which is not a widening in either
+     * direction - so the checked conversion refuses it, and rightly, for an ordinary assignment. It
+     * is not one here. This is the compiler building its own primitive out of an argument whose
+     * declared type is `Int` because that is what a length is written as everywhere else, and the
+     * narrowing is the whole point of the field rather than an accident of it.
+     *
+     * Every literal reached this before a Yana-level `newRun` existed, and a literal's count is a
+     * `ConstInt` - so `convert` folded it and checked its range, and the runtime case had simply
+     * never been built. It is now: `newStringOfCapacity` calls `newRun` with a computed length.
+     *
+     * The gap this leaves is stated rather than closed: a capacity past `maxCount` truncates here
+     * instead of trapping, which is Implementation-Containers.md §7.1's "enforced, not masked" not
+     * yet being true of this path. `resize` does refuse - it compares against `maxCount` before
+     * allocating - so growth is covered and only the initial request is not. Closing it needs the
+     * trap that §7.1 says waits on `Result`.
+     */
+    auto capacity = count;
+
+    if(local[count]->kind == Value::ConstInt) {
+        capacity = convert(count, countField, source);
+    } else {
+        // The two steps `n :: Count` is written as, rather than one cast straight to the refinement.
+        // `convertRefinement` is what puts a runtime value in a `@bits` type, and it only relates two
+        // refinements of *one* canonical type - so the width conversion has to happen first, at the
+        // unrefined type, exactly as the ascription does it.
+        auto canonical = canonicalType(global, countField);
+        auto widened = ref(emit<InstUnary>(source, 0, canonical, Value::Cast, count));
+        capacity = convertRefinement(widened, canonical, countField, source);
+    }
+
     initialize(project(place, ProjectionKind::Field, 0), items, source);
-    initialize(project(place, ProjectionKind::Field, 1), convert(count, countField, source), source);
+    initialize(project(place, ProjectionKind::Field, 1), capacity, source);
     initialize(project(place, ProjectionKind::Field, 2), placed, source);
 
     return true;
+}
+
+/*
+ * The plain `Array(a)` a refined one is passed as - Implementation-Containers.md §7.2's tier 1.
+ *
+ * Every function that takes an array was compiled once, against the plain layout, and that is the
+ * property §7.2 is protecting: a refinement is a layout choice made by whoever declared the storage,
+ * and it may not reach into the signature of anything that reads it. So the boundary is here. Three
+ * constants and one load produce a descriptor over the *same bytes* - the run's base is the address
+ * of the inline slots, its capacity is the bound, and its tag is `runFixed`, which is what makes the
+ * callee's `resize` refuse rather than relocate storage this descriptor does not own.
+ *
+ * That last point is the whole reason `runFixed` exists. Without it a `push` past the bound would
+ * allocate, write the new base into a temporary nobody reads again, and store the element into a
+ * block nothing frees - correct-looking IR with a silently lost element.
+ *
+ * `viewOf` is the same record `convertSlice` makes for a slice and for the same reason: the
+ * descriptor holds a pointer into the array's own storage, so the array has to be live wherever the
+ * descriptor is. `borrowed` is what keeps this frame from *dropping* it - the elements it names
+ * belong to the array, and running `Reclaim(Array(a))` on the descriptor as well would release every
+ * one of them twice.
+ *
+ * The count is copied in and, for a mutable use, copied back at the end of the loan by the same
+ * queue a packed field's borrow uses. Nothing else needs writing back: the elements are written
+ * through the base pointer into the array's own bytes, and the other two fields are constants the
+ * callee is unable to change.
+ */
+ModulePtr<Value> ExprResolver::inlineArrayDescriptor(const Place& array, TypePtr refinedType,
+                                                     LocationId source, bool mut) {
+    auto refined = inlineRefinement(module, refinedType);
+    if(!refined) return nullptr;
+
+    auto plain = unrefined(global, refinedType);
+    if(plain == refinedType) return nullptr;
+
+    auto element = refined->instanceArgs.get(global, 0);
+    auto content = refined->constructors.get(global, 0).content;
+    if(!content || global[content]->kind != Type::Tup) return nullptr;
+
+    auto fields = (TupType*)global[content];
+    if(fields->fields.size() != 2) return nullptr;
+
+    auto runType = fields->fields.get(global, 0).type;
+    auto countType = fields->fields.get(global, 1).type;
+    if(!runType || global[runType]->kind != Type::Record) return nullptr;
+
+    auto runContent = ((RecordType*)global[runType])->constructors.get(global, 0).content;
+    if(!runContent || global[runContent]->kind != Type::Tup) return nullptr;
+
+    auto runFields = (TupType*)global[runContent];
+    if(runFields->fields.size() != 3) return nullptr;
+
+    auto capacityField = runFields->fields.get(global, 1).type;
+    auto tagField = runFields->fields.get(global, 2).type;
+
+    auto storage = allocate(plain, source, 0, mut ? ast::BindType::Ref : ast::BindType::Borrow);
+    if(!storage) return nullptr;
+
+    auto descriptor = placeFor(storage, source);
+
+    auto entry = function.localAt(local, descriptor.local);
+    entry.borrowed = true;
+    if(array.root == PlaceRoot::Local && array.local < function.localCount()) entry.viewOf = array.local;
+    function.locals.set(local, descriptor.local, entry);
+
+    auto value = project(descriptor, ProjectionKind::Downcast, 0);
+    auto run = project(project(value, ProjectionKind::Field, 0), ProjectionKind::Downcast, 0);
+
+    auto held = project(array, ProjectionKind::Downcast, 0);
+    auto slots = project(held, ProjectionKind::Field, 0);
+    auto count = project(held, ProjectionKind::Field, 1);
+
+    initialize(project(run, ProjectionKind::Field, 0),
+               fixedArrayBase(slots, element, source), source);
+    initialize(project(run, ProjectionKind::Field, 1),
+               constant<ConstInt>(source, capacityField, refined->capacityBound), source);
+    initialize(project(run, ProjectionKind::Field, 2),
+               constant<ConstInt>(source, tagField, kRunFixed), source);
+
+    auto length = project(value, ProjectionKind::Field, 1);
+    initialize(length, load(count, source), source);
+
+    if(mut) packedBorrows.push(PackedBorrow { count, length, countType, source });
+
+    return storage;
 }
 
 ModulePtr<Value> ExprResolver::buildRun(TypePtr runType, ModulePtr<Value> count, LocationId source,
@@ -389,9 +507,20 @@ TypePtr placeType(Module& module, Function& function, const Place& place, Size l
                 // values at a stride and there is no field list; what makes it a projection anyway
                 // is that it stays inside the storage the root names, which is the whole of what
                 // the ownership passes need from a place.
-                if(global[type]->kind != Type::Array) return module.scalar.error;
+                if(global[type]->kind == Type::Array) {
+                    type = ((ArrayType*)global[type])->content;
+                    break;
+                }
 
-                type = ((ArrayType*)global[type])->content;
+                /*
+                 * `p[i]` - the element `i` on from a reference, which is what a pointer root already
+                 * produced the type of. Implementation-Containers.md §14.1 is what needs it: a host
+                 * array has no element *address* to add to, so its elements are reached by this
+                 * projection rather than by the arithmetic the native side folds into one.
+                 *
+                 * The type is therefore unchanged, and the two readings compose - a `[T *n]` steps
+                 * in, a run of `T`s steps along - which is what lets one place walk serve both.
+                 */
                 break;
             }
             default:
@@ -623,6 +752,11 @@ ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr ex
                    global[expected]->kind == Type::Int &&
                    canonicalType(global, held) == canonicalType(global, expected);
 
+    // And the container refinement, which is the same statement one type kind over: `push(&xs, 1)`
+    // where `xs` is `@inline(4) @capacity(4) [Int]` reaches a `&Array(Int)` parameter, and what it
+    // hands over is the descriptor borrowPlace builds rather than a conversion of the value.
+    refined = refined || (inlineRefinement(module, held) && unrefined(global, held) == expected);
+
     if(!sameType(held, expected) && !refined) {
         context.diagnostics.error("a `&` argument must have exactly type %@, but this is %@ - a conversion would borrow a temporary"_v,
                                   source, describeType(context, global, expected),
@@ -675,6 +809,24 @@ ModulePtr<Value> ExprResolver::borrowPlace(Place place, TypePtr borrowType, Loca
     }
 
     auto held = placeType(place);
+
+    /*
+     * A refined container reaching a signature written at the plain one - §7.2's tier 1 again, and
+     * the reason it is a case of its own rather than the conversion below.
+     *
+     * The generic path materializes by *loading* the place and converting the value, which for a
+     * `@bits` field is exactly right and here is exactly wrong: a refined array's bytes are its
+     * elements, so loading one and writing it into an `Array(a)`-shaped temporary would copy the
+     * first two words of the elements into a run descriptor. What is wanted is a descriptor *over*
+     * those bytes, which is what inlineArrayDescriptor builds, and the write-back it queues is the
+     * count rather than the whole value.
+     */
+    if(inlineRefinement(module, held) && unrefined(global, held) == wanted) {
+        auto descriptor = inlineArrayDescriptor(place, held, source, borrow->mut);
+        if(!descriptor) return nullptr;
+
+        return ref(emit<InstBorrow>(source, 0, borrowType, placeFor(descriptor, source), borrow->mut));
+    }
 
     /*
      * A `return` parameter declares that the loan outlives the call, and a temporary cannot serve
@@ -1608,7 +1760,10 @@ ModulePtr<Value> ExprResolver::resolveFixedArray(const ast::Expr& expr, ast::Par
         auto value = convert(values[i], element, source);
         if(!value) continue;
 
-        auto index = makeInt(source, module.scalar.long_, i);
+        // The target's index width rather than a machine word - `Size`, which is what an index is.
+        // On JS the two are not the same type at all: a `Long` there is a `bigint`, and `arr[3n]` is
+        // a *property* named "3" rather than element three.
+        auto index = makeInt(source, module.scalar.size, i);
         initialize(project(place, ProjectionKind::Index, 0, index), value, source);
     }
 
@@ -1648,8 +1803,28 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
         return nullptr;
     }
 
-    auto arrayType = instantiateRecord(module, module.program.arrayType, { &element, 1 }, source);
+    /*
+     * The refinement the expected type carried, kept rather than resolved away.
+     *
+     * `[1, 2] :: @inline(4) @capacity(4) [Int]` is the one way to *make* a refined array, which is
+     * §8's context typing applied to §7's rows: the storage is inside whatever holds it, so there is
+     * nowhere to build one and copy it from. Everything else about the literal is unchanged - the
+     * elements are written through the run's address either way, and only where that address comes
+     * from differs.
+     */
+    auto refined = inlineRefinement(module, target);
+
+    auto arrayType = refined
+        ? target
+        : instantiateRecord(module, module.program.arrayType, { &element, 1 }, source);
+
     if(global[arrayType]->kind != Type::Record) return nullptr;
+
+    if(refined && values.size() > refined->capacityBound) {
+        context.diagnostics.error("this array holds %@ elements and its type bounds it at %@ - `@capacity(n)` is a bound rather than a starting size"_v,
+                                  source, U32(values.size()), refined->capacityBound);
+        return nullptr;
+    }
 
     /*
      * An element whose lifetime ends in something used to be rejected here, because walking the run
@@ -1671,6 +1846,49 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
     if(!content || global[content]->kind != Type::Tup) return nullptr;
 
     auto fields = (TupType*)global[content];
+
+    /*
+     * The literal on JS - Implementation-Containers.md §14.
+     *
+     * `Array(a)` there is one field holding the host array, so what the native path spends an
+     * allocation, a capacity, a placement tag and a base address on is `[]` and nothing else. The
+     * elements are written the *same way* - through a place rooted in the array reference - and that
+     * is deliberate rather than incidental: `store(items + i, x)` and `arr[i] = x` are both an
+     * assignment through a pointer root, so the hand-over of each element is the same hand-over the
+     * ownership passes already read on the other target.
+     *
+     * They are not built into the literal node, which would have been the better emitted text.
+     * Passing an owned value as an *operand* is a use rather than a move, so `[a, b, c]` with the
+     * elements inside it would leave this frame still owning three values the array now holds and
+     * release each of them at the end of the block. The writes are what transfer them.
+     */
+    if(isJsMode(context.settings.mode)) {
+        if(refined) {
+            context.diagnostics.error("`@inline` and `@capacity` describe a layout, and this target has none - they are native-only"_v,
+                                      source);
+            return nullptr;
+        }
+
+        if(fields->fields.size() != 1) return nullptr;
+        auto itemsField = fields->fields.get(global, 0).type;
+
+        auto storage = allocate(arrayType, source, 0);
+        auto place = project(placeFor(storage, source), ProjectionKind::Downcast, 0);
+
+        auto items = ref(emit<InstNative>(source, 0, itemsField, NativeOp::HostArray));
+        initialize(project(place, ProjectionKind::Field, 0), items, source);
+
+        for(Size i = 0; i < values.size(); i++) {
+            auto value = convert(values[i], element, source);
+            if(!value) continue;
+
+            auto index = makeInt(source, module.scalar.size, i);
+            initialize(project(Place::atPointer(items), ProjectionKind::Index, 0, index), value, source);
+        }
+
+        return storage;
+    }
+
     if(fields->fields.size() != 2) return nullptr;
     auto runField = fields->fields.get(global, 0).type;
     auto countField = fields->fields.get(global, 1).type;
@@ -1695,7 +1913,15 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
     auto count = makeInt(source, countField, values.size());
     ModulePtr<Value> slots = nullptr;
 
-    if(!buildRunInto(runField, count, source, slots, project(place, ProjectionKind::Field, 0))) {
+    if(refined) {
+        /*
+         * A refined array's run is not built, because there is nothing to build: the slots are these
+         * bytes. So the base the elements are written through is the field's own address and there is
+         * no capacity, no placement tag and no allocation - which is the whole of what §7.1's second
+         * row removes, said in the one place that would otherwise have created them.
+         */
+        slots = fixedArrayBase(project(place, ProjectionKind::Field, 0), element, source);
+    } else if(!buildRunInto(runField, count, source, slots, project(place, ProjectionKind::Field, 0))) {
         context.diagnostics.error("internal: the array's first field is not a run of slots"_v, source);
         return nullptr;
     }

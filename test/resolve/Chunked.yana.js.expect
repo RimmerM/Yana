@@ -1,0 +1,369 @@
+"use strict";
+const closure$ResolveTest_continuation$1 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$0 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$3 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$2 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$5 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$4 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$6 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$8 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$7 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$10 = [teardown$none, teardown$none];
+const closure$ResolveTest_continuation$9 = [teardown$none, teardown$none];
+
+// Core
+function teardown$none(value) {
+  return;
+}
+
+// Collections
+function Index_Flat_a_Int_a_get_Int(self, index) {
+  return { $v: self.items[self.offset + index | 0] };
+}
+
+function Chunked_Array_a_a_chunks_Int(self, body) {
+  var v3 = body(Contiguous_Array_a_a_elements_Int(self));
+  if (v3.$tag === 1) {
+    return v3;
+  } else {
+    return { $tag: 0 };
+  }
+}
+
+function Contiguous_Array_a_a_elements_Int(self) {
+  var v2 = self.items.length;
+  var v4 = self.items;
+  return slice_Int({ items: v4, length: v4.length, offset: 0 }, 0, v2);
+}
+
+function slice_Int(self, from, to) {
+  var start = from;
+  if (from < 0) {
+    start = 0;
+  }
+  if (start > self.length) {
+    start = self.length;
+  }
+  var end = to;
+  if (to < start) {
+    end = start;
+  }
+  if (end > self.length) {
+    end = self.length;
+  }
+  var v39 = { items: null, length: 0, offset: 0 };
+  var v40 = self.items;
+  var v43 = end - start | 0;
+  var v46 = self.offset + start | 0;
+  v39.items = v40;
+  v39.length = v43;
+  v39.offset = v46;
+  return v39;
+}
+
+function Reclaim_Array_a_reclaim_Int(value) {
+  return;
+}
+
+// ResolveTest
+function threeChunks(x) {
+  var v1 = { a: { items: null }, b: { items: null }, c: { items: null }, used: 0 };
+  var v4 = x + 1 | 0;
+  var v5 = { items: null };
+  var v6 = [];
+  v5.items = v6;
+  v6[0] = x;
+  v6[1] = v4;
+  var v14 = x + 2 | 0;
+  var v17 = x + 3 | 0;
+  var v18 = { items: null };
+  var v19 = [];
+  v18.items = v19;
+  v19[0] = v14;
+  v19[1] = v17;
+  var v27 = x + 4 | 0;
+  var v30 = x + 5 | 0;
+  var v31 = { items: null };
+  var v32 = [];
+  v31.items = v32;
+  v32[0] = v27;
+  v32[1] = v30;
+  v1.a = v5;
+  v1.b = v18;
+  v1.c = v31;
+  v1.used = 3;
+  return v1;
+}
+
+function sumChunked(xs) {
+  var total$1 = { $v: 0 };
+  var v12 = Chunked_Chunks_Int_chunks(xs, ResolveTest_continuation$0$make({ total: { $o: total$1, $k: "$v", $s: 1 } }));
+  return total$1.$v;
+}
+
+function sumContiguous(xs) {
+  var total$1 = { $v: 0 };
+  var v12 = Chunked_Ring_Int_chunks(xs, ResolveTest_continuation$2$make({ total: { $o: total$1, $k: "$v", $s: 1 } }));
+  return total$1.$v;
+}
+
+function sumArray(xs) {
+  var total$1 = { $v: 0 };
+  var v12 = Chunked_Array_a_a_chunks_Int(xs, ResolveTest_continuation$4$make({ total: { $o: total$1, $k: "$v", $s: 1 } }));
+  return total$1.$v;
+}
+
+function total(xs$items, xs$length, xs$offset) {
+  var sum = { $v: 0 };
+  var v12 = each_Int(xs$items, xs$length, xs$offset, ResolveTest_continuation$6$make({ sum: { $o: sum, $k: "$v", $s: 1 } }));
+  return sum.$v;
+}
+
+function firstOver(xs, bound) {
+  var v9 = Chunked_Chunks_Int_chunks_Int(xs, ResolveTest_continuation$7$make({ bound: bound }));
+  if (!(v9 === null)) {
+    return v9;
+  } else {
+    return -1;
+  }
+}
+
+function firstOfEachChunk(xs) {
+  var total$1 = { $v: 0 };
+  var v12 = Chunked_Chunks_Int_chunks(xs, ResolveTest_continuation$9$make({ total: { $o: total$1, $k: "$v", $s: 1 } }));
+  return total$1.$v;
+}
+
+function main() {
+  var cs = threeChunks(1);
+  var ring = { items: { items: null } };
+  var v6 = { items: null };
+  var v7 = [];
+  v6.items = v7;
+  v7[0] = 10;
+  v7[1] = 20;
+  v7[2] = 30;
+  ring.items = v6;
+  var arr = { items: null };
+  var v20 = [];
+  arr.items = v20;
+  v20[0] = 4;
+  v20[1] = 5;
+  v20[2] = 6;
+  var v33 = (sumChunked(cs) + sumContiguous(ring) | 0) + sumArray(arr) | 0;
+  var v35 = Contiguous_Ring_Int_elements(ring);
+  return (((v33 + total(v35.items, v35.length, v35.offset) | 0) + Contiguous_Ring_Int_elements(ring).length | 0) + firstOver(cs, 3) | 0) + firstOfEachChunk(cs) | 0;
+}
+
+function Contiguous_Ring_Int_elements(self) {
+  return Contiguous_Array_a_a_elements_Int(self.items);
+}
+
+function ResolveTest_continuation$0$make(env) {
+  return function(value) {
+    var v7 = ResolveTest_continuation$1$make({ total: env.total });
+    var v11 = each_Int(value.items, value.length, value.offset, v7);
+    return { $tag: 0 };
+  };
+}
+
+function ResolveTest_continuation$1$make(env) {
+  return function(value) {
+    var v2 = env.total;
+    v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+    return { $tag: 0 };
+  };
+}
+
+function each_Int(xs$items, xs$length, xs$offset, body) {
+  var xs = { items: xs$items, length: xs$length, offset: xs$offset };
+  var i = 0;
+  L0: for (;;) {
+    if (i < xs$length) {
+      var v17 = body(Index_Flat_a_Int_a_get_Int(xs, i).$v);
+      if (v17.$tag === 1) {
+        return v17;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return { $tag: 0 };
+    }
+    break L0;
+  }
+}
+
+function Chunked_Chunks_Int_chunks(self, body) {
+  var v4 = self.a.items;
+  var v11 = body({ items: v4, length: v4.length, offset: 0 });
+  if (v11.$tag === 1) {
+    return v11;
+  } else {
+    B0: {
+      if (self.used > 1) {
+        var v23 = self.b.items;
+        var v30 = body({ items: v23, length: v23.length, offset: 0 });
+        if (v30.$tag === 1) {
+          return v30;
+        }
+      }
+    }
+    B1: {
+      if (self.used > 2) {
+        var v44 = self.c.items;
+        var v51 = body({ items: v44, length: v44.length, offset: 0 });
+        if (v51.$tag === 1) {
+          return v51;
+        }
+      }
+    }
+    return { $tag: 0 };
+  }
+}
+
+function ResolveTest_continuation$2$make(env) {
+  return function(value) {
+    var v7 = ResolveTest_continuation$3$make({ total: env.total });
+    var v11 = each_Int(value.items, value.length, value.offset, v7);
+    return { $tag: 0 };
+  };
+}
+
+function ResolveTest_continuation$3$make(env) {
+  return function(value) {
+    var v2 = env.total;
+    v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+    return { $tag: 0 };
+  };
+}
+
+function Chunked_Ring_Int_chunks(self, body) {
+  var v6 = body(Contiguous_Ring_Int_elements(self));
+  if (v6.$tag === 1) {
+    return v6;
+  } else {
+    return { $tag: 0 };
+  }
+}
+
+function ResolveTest_continuation$4$make(env) {
+  return function(value) {
+    var v7 = ResolveTest_continuation$5$make({ total: env.total });
+    var v11 = each_Int(value.items, value.length, value.offset, v7);
+    return { $tag: 0 };
+  };
+}
+
+function ResolveTest_continuation$5$make(env) {
+  return function(value) {
+    var v2 = env.total;
+    v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+    return { $tag: 0 };
+  };
+}
+
+function ResolveTest_continuation$6$make(env) {
+  return function(value) {
+    var v2 = env.sum;
+    v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+    return { $tag: 0 };
+  };
+}
+
+function ResolveTest_continuation$7$make(env) {
+  return function(value) {
+    var v6 = ResolveTest_continuation$8$make({ bound: env.bound });
+    var v10 = each_Int_Int(value.items, value.length, value.offset, v6);
+    if (!(v10 === null)) {
+      return v10;
+    } else {
+      return null;
+    }
+  };
+}
+
+function ResolveTest_continuation$8$make(env) {
+  return function(value) {
+    if (value > env.bound) {
+      return value;
+    } else {
+      return null;
+    }
+  };
+}
+
+function each_Int_Int(xs$items, xs$length, xs$offset, body) {
+  var xs = { items: xs$items, length: xs$length, offset: xs$offset };
+  var i = 0;
+  L0: for (;;) {
+    if (i < xs$length) {
+      var v17 = body(Index_Flat_a_Int_a_get_Int(xs, i).$v);
+      if (!(v17 === null)) {
+        return v17;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return null;
+    }
+    break L0;
+  }
+}
+
+function Chunked_Chunks_Int_chunks_Int(self, body) {
+  var v4 = self.a.items;
+  var v11 = body({ items: v4, length: v4.length, offset: 0 });
+  if (!(v11 === null)) {
+    return v11;
+  } else {
+    B0: {
+      if (self.used > 1) {
+        var v23 = self.b.items;
+        var v30 = body({ items: v23, length: v23.length, offset: 0 });
+        if (!(v30 === null)) {
+          return v30;
+        }
+      }
+    }
+    B1: {
+      if (self.used > 2) {
+        var v44 = self.c.items;
+        var v51 = body({ items: v44, length: v44.length, offset: 0 });
+        if (!(v51 === null)) {
+          return v51;
+        }
+      }
+    }
+    return null;
+  }
+}
+
+function ResolveTest_continuation$9$make(env) {
+  return function(value) {
+    var v7 = ResolveTest_continuation$10$make({ total: env.total });
+    var v11 = each_Int(value.items, value.length, value.offset, v7);
+    return { $tag: 0 };
+  };
+}
+
+function ResolveTest_continuation$10$make(env) {
+  return function(value) {
+    var v2 = env.total;
+    v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+    return { $tag: 1 };
+  };
+}
+
+function count_Int(xs$items, xs$length, xs$offset) {
+  return xs$length;
+}
+
+function reclaim$Chunks(value) {
+  return;
+}
+
+function reclaim$Ring(value) {
+  return;
+}

@@ -40,7 +40,7 @@ fn Index(Flat(a), I64, a).get(Int) {
 fn resize(Int) {
   arg self writable addressed resizable
   arg wanted readonly
-  %self: Run(Int) borrowed droppable writable addressed resizable live [0, 6) [7, 10) [11, 20) [21, 52)
+  %self: Run(Int) borrowed droppable writable addressed resizable live [0, 6) [7, 14) [15, 18) [19, 28) [29, 60)
 }
 
 fn byteSpan(Int) {
@@ -57,7 +57,7 @@ fn mapMemory {
   arg size readonly
 }
 
-fn length(Int) {
+fn Length(Flat(a)).length(Int) {
   arg self readonly
   %self: Flat(Int) borrowed readonly live [0, 1)
 }
@@ -100,6 +100,11 @@ fn remove(Int) {
   %local4: Maybe(Int) readonly live [63, 68)
 }
 
+fn Length(Array(a)).length(Int) {
+  arg self readonly
+  %self: Array(Int) borrowed droppable readonly live [0, 1)
+}
+
 fn Reclaim(Array(a)).reclaim(Int) {
   arg value readonly
   %value: Array(Int) borrowed droppable readonly live [0, 11) [12, 26)
@@ -126,11 +131,10 @@ fn escaping {
 }
 
 fn main {
-  %small: Array(Int) droppable writable addressed resizable live [0, 59)
+  %small: Array(Int) droppable writable addressed resizable live [0, 51)
   %local1: Int writable addressed live [1, 17)
   %local2: Maybe(Int) readonly live [31, 32)
   %local3: Maybe(Int) readonly live [34, 35)
   %local4: Maybe(Int) readonly live [38, 39)
   %local5: Flat(Int) readonly live [41, 49)
-  %local6: Flat(Int) readonly live [51, 59)
 }

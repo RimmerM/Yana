@@ -2,8 +2,8 @@
 var dropped = 0n;
 
 // Core
-function add_eq_I64(target, amount) {
-  target.$v = BigInt.asIntN(64, target.$v + amount);
+function add_eq_I64(target$o, target$k, target$s, amount) {
+  target$o[target$k] = BigInt.asIntN(64, target$o[target$k] + amount);
   return;
 }
 
@@ -229,7 +229,7 @@ function Drop_Owned_drop(value) {
   }
   var v11 = BigInt.asIntN(64, BigInt(v10));
   var v12 = { $v: dropped };
-  add_eq_I64(v12, v11);
+  add_eq_I64(v12, "$v", 1, v11);
   dropped = v12.$v;
   return;
 }
@@ -244,7 +244,7 @@ function drop$Pair(value) {
   }
   var v10 = BigInt.asIntN(64, BigInt(v4));
   var v11 = { $v: dropped };
-  add_eq_I64(v11, v10);
+  add_eq_I64(v11, "$v", 1, v10);
   dropped = v11.$v;
   if (value.y & 1) {
     v16 = 1;
@@ -253,7 +253,7 @@ function drop$Pair(value) {
   }
   var v22 = BigInt.asIntN(64, BigInt(v16));
   var v23 = { $v: dropped };
-  add_eq_I64(v23, v22);
+  add_eq_I64(v23, "$v", 1, v22);
   dropped = v23.$v;
   return;
 }

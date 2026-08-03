@@ -1,0 +1,96 @@
+{-
+   The container on both targets at once - Implementation-Containers.md §14.
+
+   `Array(a)` is a run of slots and a count natively and the host array on JS, and every function
+   over it has two bodies and one signature. What that is worth is only visible from a program that
+   names neither: this file imports nothing, says nothing about storage, and is compiled for both -
+   so the number it returns is the assertion that the two implementations are the same container.
+
+   Deliberately *not* an IR fixture's kind of assertion. A release that never ran and one that ran
+   twice produce the same instructions on either target, and the JS half has no free to get wrong at
+   all - the collector owns reclamation there (§14's "release: nothing"), and what a teardown still
+   has to do is walk the *elements*, because whether an element's lifetime ends in something is a
+   question about the element type rather than about who owns the bytes. `live` is what sees that,
+   and it is checked at four points rather than one so that an early release and a missing one are
+   different answers.
+
+   The element is a record with an authored `Drop` and no `Native` in sight, which is what lets this
+   file exist on a target that has no pointers.
+-}
+
+let &live = 0 :: Int
+let &closed = 0 :: Int
+
+data Handle {id: Int}
+
+fn openHandle(id: Int) -> Handle:
+    live += 1
+    return Handle {id: id}
+
+instance Drop(Handle):
+    fn drop(->value: Handle) -> {}:
+        live -= 1
+        closed = closed + value.id
+
+-- A slice parameter, so that the borrow is the one representation both targets share. Nothing here
+-- says which owner it came from.
+fn idsOf(xs: [Handle]) -> Int:
+    let &total = 0 :: Int
+    let &i = 0 :: Size
+
+    while i < length(xs):
+        total = total * 10 + xs[i].id
+        i = i + 1
+
+    return total
+
+{-
+   Building, growing, subscripting and taking one back out.
+
+   `push` past the literal's capacity relocates natively and is `.push` on JS; `remove` closes the
+   gap with a block move natively and with `.splice` on JS; and `Just(->taken)` is what makes the
+   removed element the caller's on both, which is §13.3 rather than anything about storage.
+-}
+fn container() -> Int:
+    let &xs = [openHandle(1), openHandle(2)]
+    push(xs, openHandle(3))
+
+    -- Writing through the subscript, which is the operation that needs a reference naming a slot
+    -- rather than a copy of one: the assignment releases the handle that was there.
+    xs[0] = openHandle(4)
+    if live != 3 then return -1
+    if closed != 1 then return -2
+
+    -- Taken out and named, so this frame owes its release rather than the array.
+    let &score = 0 :: Int
+    match remove(xs, 1):
+        Just(->taken):
+            score = taken.id
+        Nothing:
+            return -3
+
+    -- Two, not three: `taken` is this frame's and its last use is the line above, so it is released
+    -- there. That is the ordinary rule rather than anything about containers, and it is the same rule
+    -- on both targets - which is the point of checking it here.
+    if live != 2 then return -4
+
+    -- Two left - the one written over index zero and the one pushed. A whole-container borrow and a
+    -- window into it, which is where the JS slice's third component earns itself.
+    let whole = idsOf(xs)
+    let tail = idsOf(slice(xs, 1, 2))
+
+    return score * 1000 + whole * 10 + tail
+
+fn main() -> Int:
+    let answer = container()
+    if answer < 0 then return answer
+
+    -- Every element released exactly once, by the container's own traversal - the half no golden
+    -- diff can show, since a walk that ran twice and one that never ran are the same instructions.
+    if live != 0 then return -5
+
+    -- 1 from the subscript's assignment, 2 this frame released itself, and 4 and 3 from the
+    -- container's own traversal.
+    if closed != 10 then return -6
+
+    return answer

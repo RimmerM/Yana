@@ -556,8 +556,11 @@ static bool lowerablePlace(Module& module, Function& owner, const Place& place) 
                  * `[T *n]` now emits everywhere would force a specialization at every call site that
                  * touched a fixed array. The generic check above still catches the case that
                  * genuinely has no layout here.
+                 *
+                 * A host element steps *along* rather than in, so its type is already the element's -
+                 * the same split resolve's own place walk states.
                  */
-                type = ((ArrayType*)global[type])->content;
+                if(global[type]->kind == Type::Array) type = ((ArrayType*)global[type])->content;
                 break;
         }
     }

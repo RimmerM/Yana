@@ -4,18 +4,19 @@ function xOf(p) {
   return { $v: p.x };
 }
 
-function larger(a, b) {
+function larger(a$o, a$k, a$s, b$o, b$k, b$s) {
   var v12;
-  if (a.$v > b.$v) {
-    v12 = a;
+  if (a$o[a$k] > b$o[b$k]) {
+    v12 = { $o: a$o, $k: a$k, $s: a$s };
   } else {
-    v12 = b;
+    v12 = { $o: b$o, $k: b$k, $s: b$s };
   }
   return v12;
 }
 
 function main() {
   var v6 = xOf({ x: 10, y: 20 });
-  larger({ $v: 1 }, { $v: 2 }).$v = 40;
+  var v17 = larger({ $v: 1 }, "$v", 1, { $v: 2 }, "$v", 1);
+  v17.$o[v17.$k] = 40;
   return v6.$v + 40 | 0;
 }

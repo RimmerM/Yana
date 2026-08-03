@@ -257,6 +257,7 @@ struct Value {
         ConstInt,
         ConstFloat,
         ConstDouble,
+        ConstString,
         Alloc,
         LoadPlace,
         Init,
@@ -364,6 +365,27 @@ struct ConstDouble: Value {
         Value(Value::ConstDouble, block, type), value(value) {}
 
     F64 value;
+};
+
+/*
+ * A string constant - Implementation-String.md part 9, on the target where a string is a host value.
+ *
+ * **JS only, and that asymmetry is the point.** Natively a literal is bytes in the module's data
+ * plus the two words describing them, which is an ordinary global and an ordinary call to
+ * `stringLiteral` - nothing about it needs a value kind of its own. On JS there is no data section
+ * and no descriptor: a literal *is* a host string, and the only thing that can produce one is a
+ * constant in the emitted source. So this exists for the same reason `ConstDouble` does, and the
+ * native lowering reports reaching one as an internal error rather than growing a case for it.
+ *
+ * `text` is the interned decoded content, in UTF-8 as the lexer left it. The JS emitter re-encodes
+ * it as a source-level string literal, which is where the host takes over the UTF-16 half of
+ * part 2's table.
+ */
+struct ConstString: Value {
+    ConstString(ModulePtr<Block> block, TypePtr type, StringId text):
+        Value(Value::ConstString, block, type), text(text) {}
+
+    StringId text;
 };
 
 // Every instruction takes its block and its result type as its first two constructor arguments,
@@ -713,13 +735,81 @@ enum class NativeOp: U8 {
     // syscall(number, args...). The lower IR and the x64 backend already model this as a call with
     // its own convention, so the number is operand zero here exactly as it is there.
     Syscall,
+
+    /*
+     * The host - Implementation-Containers.md §14.1.
+     *
+     * The back half of an FFI without its front half: an operation whose meaning belongs to the
+     * JavaScript runtime rather than to the machine or to the language. They are here rather than in
+     * a `Value::Kind` of their own for the reason the three above them are - a fixed operation, a
+     * flat argument list, and a meaning nothing in the IR shares.
+     *
+     * A *general* node rather than one per container operation, so that `push`, `splice` and every
+     * host method after them cost one declaration each and nothing here. `method` is the member
+     * name; `args[0]` is the receiver for the two that have one.
+     *
+     * Native-only by construction on the other side: every declaration that produces one is
+     * `@platform(js)`, and `platformEnabled` runs during resolution, so a native build contains no
+     * name, no type and no instance that could reach one. The native lowering's arm is therefore an
+     * internal error rather than a translation.
+     *
+     * There is deliberately no `a[i]` node, which §14.1 expected there to be. A host element is a
+     * *place* - `ProjectionKind::Index` over a `HostArray(a)`, the same projection `[T *n]`
+     * introduced - and a place is an lvalue, so one form gives the read, the write and the borrow at
+     * once where an operation would have given only the read.
+     */
+    HostCall,   // args[0].method(args[1..])
+    HostField,  // args[0].method
+    HostArray,  // [args...]
+
+    /*
+     * `args[0] <operator> args[1]` - the host's own binary operators, for `String`.
+     *
+     * The three container operations above are all members, and a member is all a container needed.
+     * A string is not: concatenation and comparison are *operators* on this target, and the reason
+     * that matters is that the alternatives are each wrong in a way worth avoiding. `s.concat(t)` is
+     * a real method and would have fitted `HostCall`, but there is no method for `<` at all -
+     * `localeCompare` is locale-sensitive and therefore exactly the cross-engine disagreement
+     * Implementation-String.md part 6 refuses to accept from `Intl.Segmenter`. Writing the
+     * comparison as a `charCodeAt` loop instead is correct and portable and gives up the one
+     * property part 3 asks for, which is that a comparison cost what the host's own costs.
+     *
+     * So: `+` and the relational operators, whose meaning on two host strings is *already* the raw
+     * unit-wise one part 3 specifies. `method` carries the operator's spelling, exactly as it
+     * carries a member's name for the two above.
+     */
+    HostBinary,
+
+    /*
+     * `Global.method(args...)` - a call on something in the host's global scope rather than on a
+     * value the program is holding.
+     *
+     * `String.fromCharCode` is what needs it, and it is a genuinely different shape from `HostCall`:
+     * there is no receiver among the arguments, because the receiver is a name the emitted source
+     * writes literally. `method` is the whole dotted path, which keeps the emitter's arm to one line
+     * and keeps the *knowledge* - that the constructor is spelled `String` - in `Host`'s declarations
+     * where Analysis-JS.md §2.4 asks for it, rather than in the backend.
+     */
+    HostGlobalCall,
 };
 
+// Whether an operation's meaning belongs to the host rather than to the machine. The JS emitter
+// asks it to pick its arm; `expressibleInJs` asks it to let one through at all.
+inline bool isHostOp(NativeOp op) {
+    return op == NativeOp::HostCall || op == NativeOp::HostField || op == NativeOp::HostArray ||
+           op == NativeOp::HostBinary || op == NativeOp::HostGlobalCall;
+}
+
 struct InstNative: Inst {
-    InstNative(ModulePtr<Block> block, TypePtr type, NativeOp op):
-        Inst(Value::Native, block, type), op(op) {}
+    InstNative(ModulePtr<Block> block, TypePtr type, NativeOp op, StringId method = 0):
+        Inst(Value::Native, block, type), method(method), op(op) {}
 
     ModuleList<ModulePtr<Value>, false> args;
+
+    // The host member or constructor this names, for the four host operations and for nothing else.
+    // Unqualified, and the text of it is what the emitter prints - see hostMethodName.
+    StringId method;
+
     NativeOp op;
 };
 

@@ -1,0 +1,8 @@
+56:2: error: a class member declared `iter fn` cannot have a default body - the continuation it hands over to would be a type variable the class head does not declare, so write the body in each instance instead
+49:4: error: chunks is declared `iter fn` in class Chunked and has to say so here too
+35:0: error: Contiguous requires Chunked, and there is no instance of it for (Ring, Int)
+20:42: error: Chunks is `Chunked` and not `Contiguous`, so it cannot be passed as Flat(Int) - its elements are not one buffer, and flattening them would be a copy this position does not say it makes. A function that only reads elements should take `fn (Chunked(c, a)) f(xs: c)` instead, which this container satisfies
+20:36: error: Chunks is `Chunked` and not `Contiguous`, so it cannot be passed as Flat(Int) - its elements are not one buffer, and flattening them would be a copy this position does not say it makes. A function that only reads elements should take `fn (Chunked(c, a)) f(xs: c)` instead, which this container satisfies
+26:43: error: Chunks is `Chunked` and not `Contiguous`, so it cannot be passed to count, which asks for a slice - its elements are not one buffer, and flattening them would be a copy this position does not say it makes. A function that only reads elements should take `fn (Chunked(c, a)) f(xs: c)` instead, which this container satisfies
+41:4: error: chunks is an `iter fn` of class Chunked, so it is run by a `for` loop rather than called - write `for x in chunks(...)`
+49:4: warning: this `iter fn` never yields, so every `for` loop over it runs its body no times

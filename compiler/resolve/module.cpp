@@ -3,6 +3,7 @@
 #include "core.h"
 #include "expr.h"
 #include "generic.h"
+#include "host.h"
 #include "index.h"
 #include "name.h"
 #include "native.h"
@@ -950,8 +951,22 @@ TypePtr requireReturnType(Module& module, Function& function, LocationId source)
     return function.returnType;
 }
 
-// Resolves one function signature against a generic context, producing a body-less Function.
-static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringId name, bool anonymous) {
+/*
+ * Resolves one function signature against a generic context, producing a body-less Function.
+ *
+ * `classSignature` says this is a class member rather than something callable, and the whole of what
+ * it changes is that a `lens fn` or `iter fn` member is *not* desugared here - see
+ * Implementation-Containers.md §5, whose `Chunked` declares `iter fn chunks`.
+ *
+ * The desugaring introduces a type variable for the continuation's result, and a class member has
+ * nowhere to put one: a class's variables are its head's, instance selection binds them by index,
+ * and a member signature holding a variable the head does not declare would be a position no
+ * selection could ever fill. So what a class declares is the written shape - the arguments an
+ * instance takes and the type it hands over - and each implementation desugars against a context of
+ * its own, which is where the continuation belongs anyway since that is where the `yield` is.
+ */
+static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringId name, bool anonymous,
+                                  bool classSignature = false) {
     auto function = anonymous ? addAnonymousFunction(module, name, decl.source)
                               : module.addFunction(name, decl.source);
 
@@ -1032,7 +1047,9 @@ static Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, 
     // lens returns its continuation's result and an iterator the step signal, neither of which is a
     // borrow, and the values either hands over are bounded by that continuation rather than by a
     // return edge - Implementation-Lens.md part 2's "a lens callback is exempt".
-    if(function->funKind != ast::FunKind::Plain) resolveLensSignature(module, *function, env, decl);
+    if(function->funKind != ast::FunKind::Plain && !classSignature) {
+        resolveLensSignature(module, *function, env, decl);
+    }
 
     function->returnRoots = roots > 0;
     function->returnRootWritten = written > 0;
@@ -1395,13 +1412,30 @@ static void resolveClassSignatures(Module& module, TypeClass& typeClass) {
             module.context.diagnostics.error("a class function requires an explicit return type"_v, member.source);
         }
 
-        auto signature = resolveSignature(module, member, env, member.fun.name, true);
+        auto signature = resolveSignature(module, member, env, member.fun.name, true, true);
         signature->instanceOf = (TypeClass*)&typeClass - *module.types;
         signature->signature = true;
 
         auto stored = typeClass.functions.get(*module.types, index);
         stored.fun = signature - *module.arena;
-        if(member.fun.body) stored.defaultFun = resolveClassDefault(module, typeClass, member, pointer, *signature);
+
+        /*
+         * A default for a `lens fn` or `iter fn` member is not available.
+         *
+         * A default is a generic function over the *class's* variables, and the desugaring a lens or
+         * an iterator needs adds one the class does not have - so the body would be resolved against
+         * a continuation nothing in the class's context names. The instance is where such a body
+         * belongs, and it is one line there: Implementation-Containers.md §5's contiguous container
+         * writes `iter fn chunks(self: C) -> &[a] = yield elements(self)` in its `Chunked` instance.
+         */
+        if(member.fun.body && signature->funKind != ast::FunKind::Plain) {
+            module.context.diagnostics.error("a class member declared %@ cannot have a default body - the continuation it hands over to would be a type variable the class head does not declare, so write the body in each instance instead"_v,
+                                             member.source,
+                                             signature->funKind == ast::FunKind::Iter ? "`iter fn`"_v : "`lens fn`"_v);
+        } else if(member.fun.body) {
+            stored.defaultFun = resolveClassDefault(module, typeClass, member, pointer, *signature);
+        }
+
         typeClass.functions.set(*module.types, index, stored);
         index++;
     }
@@ -1712,6 +1746,50 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
                                                  describeType(module.context, *module.types, function->returnType),
                                                  module.context.findName(className));
             }
+        }
+
+        /*
+         * The desugaring of a `lens fn` or `iter fn` implementation - Implementation-Containers.md
+         * §5's `instance Chunked(Array(a), a)`.
+         *
+         * The class declared the written shape and stopped there (see resolveSignature), so this is
+         * where the continuation parameter is synthesized and where the result becomes the step
+         * signal. It needs a context of its own for the continuation's result variable: the
+         * instance's own is closed by now and is the one selection binds by index, and appending to
+         * it would give the head a position no selection fills.
+         *
+         * The instance's variables go in first and at their own indices, so the argument types
+         * already built over them keep meaning what they meant; the constraints come along for the
+         * same reason a class default carries its class's, which is that the body may call what the
+         * head requires. `$r` lands after them, and every call site infers it from the continuation
+         * it passes - which is exactly how a free-standing `iter fn` over one variable works.
+         */
+        if(signature->funKind != ast::FunKind::Plain) {
+            if(member.fun.kind != signature->funKind) {
+                module.context.diagnostics.error("%@ is declared %@ in class %@ and has to say so here too"_v,
+                                                 member.source, module.context.findName(member.fun.name),
+                                                 signature->funKind == ast::FunKind::Iter ? "`iter fn`"_v : "`lens fn`"_v,
+                                                 module.context.findName(className));
+            }
+
+            auto memberEnv = new (module.types) GenEnv(GenEnv::Function);
+            memberEnv->open = true;
+
+            for(auto variable: gen->types.contents(*module.types)) memberEnv->types.push(module.types, variable);
+
+            for(auto constraint: gen->classes.contents(*module.types)) {
+                ClassConstraint copied;
+                copied.typeClass = constraint.typeClass;
+                copied.name = constraint.name;
+                copied.source = constraint.source;
+                for(auto arg: constraint.args.contents(*module.types)) copied.args.push(module.types, arg);
+                memberEnv->classes.push(module.types, copied);
+            }
+
+            function->funKind = signature->funKind;
+            resolveLensSignature(module, *function, memberEnv, member);
+            memberEnv->open = false;
+            function->gen = memberEnv - *module.types;
         }
 
         function->ast = memberPointer;
@@ -2205,6 +2283,7 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
 
     defineCore(*program);
     defineNative(*program);
+    defineHost(*program);
     defineCollections(*program);
 
     auto module = program->addModule(root.name, *root.region);

@@ -38,6 +38,35 @@ ModulePtr<Function> teardownFor(Module& module, TypePtr type, Teardown half, Loc
     auto ownership = ownershipOf(module, type);
     auto kind = teardownKind(ownership, half);
 
+    /*
+     * A refined container's teardown is glue around the authored one - Implementation-Containers.md
+     * §7.2.
+     *
+     * The traversal is the right traversal: `Reclaim(Array(a))` walks the live prefix and releases
+     * the run, which is exactly what an `@inline(n)` array needs, and its release folds to nothing
+     * because the run's tag says the slots are not the allocator's. What it cannot do is *read* one,
+     * since it was compiled against the plain layout. So the glue is the same boundary every other
+     * use of a refined array crosses - build the descriptor, then drop through it - and it exists so
+     * that the boundary is crossed in one place rather than at every InstDrop that names this type.
+     *
+     * **The two halves have to answer with the same function wherever the plain type's do**, which
+     * is what the second line below is for. Lowering runs the reclaim half only when it names
+     * something other than the drop half (see the InstDrop case there), and a container's walk is one
+     * traversal serving both - so two glue functions wrapping one traversal would run it twice and
+     * release every element twice. That is invisible in the IR and invisible in a size assertion; it
+     * shows up as a drop counter going negative, which is what the fixture reads.
+     *
+     * The drop half is the one that carries it, for the reason teardownPlace gives at the same
+     * decision: it is the half a region does not discharge in bulk.
+     */
+    if(kind != TeardownKind::None && inlineRefinement(module, type)) {
+        auto plain = unrefined(*module.types, type);
+        auto plainDrop = teardownFor(module, plain, Teardown::Drop, source);
+        auto shared = plainDrop && plainDrop == teardownFor(module, plain, Teardown::Reclaim, source);
+
+        return teardownGlueFor(module, type, shared ? Teardown::Drop : half, source);
+    }
+
     if(kind == TeardownKind::Authored) {
         auto typeClass = half == Teardown::Drop ? module.coreClasses.drop : module.coreClasses.reclaim;
         if(auto authored = instanceImplementation(module, typeClass, type, source)) return authored;
@@ -85,6 +114,28 @@ static void teardownPlace(ExprResolver& resolver, Module& module, Place place, T
     auto implementation = teardownFor(module, type, half, source);
     auto teardown = teardownKind(ownershipOf(module, type), half);
     auto releases = boxed && half == Teardown::Reclaim;
+
+    /*
+     * One traversal serving both halves, a level down - Implementation-Containers.md §13.
+     *
+     * Lowering already declines to run the reclaim half of an InstDrop whose two halves name one
+     * function, which is what keeps `Array(Buffer)`'s single walk from freeing the run twice. That
+     * check cannot see across a *derived* teardown, though: a record holding one generates `drop$X`
+     * and `reclaim$X`, each with an InstDrop of its own naming that walk in its own half, and the two
+     * glue functions are different functions - so the InstDrop on the record runs both and the walk
+     * runs twice. A `data X {xs: [Handle]}` released every handle twice, and the fixture that found
+     * it is the container refinement's, which is the first thing to put one inside a record.
+     *
+     * Emitted in the *drop* half and skipped in the reclaim one, which is the same choice lowering
+     * makes for the flat case and for the same reason: a region discharging the reclaim half in bulk
+     * leaves the drop half to run at last use, and the release inside the walk does nothing there
+     * because the run's tag says the region owns the storage.
+     */
+    if(half == Teardown::Reclaim && implementation &&
+       implementation == teardownFor(module, type, Teardown::Drop, source)) {
+        implementation = nullptr;
+        teardown = TeardownKind::None;
+    }
 
     if(!implementation && !releases) return;
 
@@ -277,6 +328,23 @@ static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardow
         });
     } else if(global[type]->kind == Type::Tup) {
         teardownMembers(resolver, module, base, type, half, source);
+    } else if(inlineRefinement(module, type)) {
+        /*
+         * `@inline(n) @capacity(n) [T]` - Implementation-Containers.md §7.2.
+         *
+         * One descriptor and one InstDrop through it. What runs is Collections' own traversal over
+         * the live prefix, reached at the plain type, which is what keeps "a Repr variant may never
+         * change what a type can do" true of the teardown as well as of the interface.
+         *
+         * The descriptor is a view rather than a copy - `borrowed`, so this frame does not also
+         * release what it names - and the plain `Reclaim` it reaches is the one that owns the walk.
+         * Its `releaseRun` reads `runFixed` and hands nothing back, which is the correct answer and
+         * which folds away wherever the tag survives to the optimizer as the constant it is.
+         */
+        if(auto descriptor = resolver.inlineArrayDescriptor(base, type, source, false)) {
+            teardownPlace(resolver, module, resolver.placeFor(descriptor, source),
+                          unrefined(global, type), false, half, source);
+        }
     } else if(global[type]->kind == Type::Record) {
         auto record = (RecordType*)global[type];
 

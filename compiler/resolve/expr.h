@@ -124,6 +124,14 @@ inline void adopt(ClassMatch& into, const ClassMatch& from) {
     replaceContents(into.instanceArgs, from.instanceArgs);
 }
 
+struct ExprResolver;
+
+// What an editor shows for a class function's name, recorded at the point the call decided which
+// class and which instance answered it. Shared with the `for` loop's own selection, which reaches a
+// class iterator without going through resolveCall.
+void recordClassFunReference(ExprResolver& resolver, LocationId source, ClassMatch& match,
+                             ModulePtr<ClassInstance> instance);
+
 /*
  * Where `break` and `continue` go.
  *
@@ -452,6 +460,16 @@ struct ExprResolver {
     ModulePtr<Value> convertSlice(ModulePtr<Value> value, TypePtr from, TypePtr target, LocationId source,
                                   bool mut = false);
 
+    // The same conversion where a container is a host array rather than storage - see the definition
+    // and Implementation-Containers.md §14. Reached from convertSlice once the loan is taken, so
+    // that the two targets differ in what the descriptor holds and in nothing above it.
+    ModulePtr<Value> convertSliceJs(ModulePtr<Value> value, const Place& array, const Place& owner,
+                                    TypePtr from, TypePtr target, TypePtr element, TypePtr fixed,
+                                    LocationId source, bool mut);
+
+    // `arr.length`, as the one host property read it is.
+    ModulePtr<Value> hostArrayLength(ModulePtr<Value> items, LocationId source);
+
     // Whether convert() would succeed implicitly, without reporting anything if it wouldn't.
     bool convertible(ModulePtr<Value> value, TypePtr target, LocationId source);
 
@@ -538,6 +556,12 @@ struct ExprResolver {
     ModulePtr<Value> resolveLiteral(const ast::Expr& expr, TypePtr target);
     ModulePtr<Value> resolveInteger(LocationId source, TypePtr target, U64 value);
     ModulePtr<Value> resolveDecimal(LocationId source, TypePtr target, F64 value);
+
+    // A string literal, per target - see Implementation-String.md part 9 and ConstString.
+    ModulePtr<Value> resolveString(LocationId source, StringId text);
+
+    // `"a{x}b{y}c"` - Implementation-Storage.md part 8.
+    ModulePtr<Value> resolveFormat(const ast::Expr& expr);
     // Resolves a condition into a branch. On return, `current` is the block reached when the
     // condition holds - which is where an `is` test's bindings are live - and `onFail` is the
     // block reached when it does not. A caller that already has a block to fail into (a loop's
@@ -743,7 +767,9 @@ struct ExprResolver {
 
     // Which `iter fn` a `for` loop names, with the call it was written as. Null after reporting
     // which of phase 1's exclusions this loop's source reached - see expr_lens.cpp.
-    ModulePtr<Function> findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call);
+    ModulePtr<Function> findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call, ValueList& values);
+    ModulePtr<Function> findClassLoopIterator(ast::AppExpr& application, StringId name, LocationId source,
+                                              ValueList& values, bool& attempted);
 
     // The arguments written before the continuation, resolved and settled. Shared by both call
     // sites, which differ in what they do with the rest of the block and in nothing before it.
@@ -863,6 +889,17 @@ struct ExprResolver {
     // after reporting, when `runType` is not a `Run`.
     ModulePtr<Value> buildRun(TypePtr runType, ModulePtr<Value> count, LocationId source,
                               ModulePtr<Value>& items);
+
+    /*
+     * The plain `Array(a)` descriptor an `@inline(n) @capacity(n)` one is passed as -
+     * Implementation-Containers.md §7.2's tier 1.
+     *
+     * Three constants and a load over the same bytes, so that everything taking an array goes on
+     * being compiled once against the plain layout. `mut` queues the count's write-back on the same
+     * list a packed field's borrow uses; null where the type carries no refinement.
+     */
+    ModulePtr<Value> inlineArrayDescriptor(const Place& array, TypePtr refinedType, LocationId source,
+                                           bool mut);
 
     // `base + index`, at `element`'s stride - the same arithmetic Native's `p + n` emits, and it
     // folds to a constant offset wherever the index is one.
@@ -1173,7 +1210,7 @@ void ExprResolver::eachFixedElement(const Place& array, TypePtr element, U32 len
 
     if(length <= kFixedArrayUnrollLimit) {
         for(U32 i = 0; i < length; i++) {
-            auto index = makeInt(source, module.scalar.long_, i);
+            auto index = makeInt(source, module.scalar.size, i);
             body(project(array, ProjectionKind::Index, 0, index), index);
         }
 
@@ -1188,7 +1225,9 @@ void ExprResolver::eachFixedElement(const Place& array, TypePtr element, U32 len
      * then does to this one. Written the same way Collections' own element walk is, so that the two
      * loops a container can have optimize identically.
      */
-    auto word = module.scalar.long_;
+    // `Size` rather than a machine word: this counter is an index, and the two are the same type
+    // natively and different host types on JS - see the note at the unrolled form above.
+    auto word = module.scalar.size;
     auto counter = allocate(word, source, 0, ast::BindType::Ref);
     auto counterPlace = placeFor(counter, source);
     initialize(counterPlace, makeInt(source, word, 0), source);

@@ -175,6 +175,28 @@ void writeArgs(Format& f, JsList<Name, false>& args) {
     f.write(')');
 }
 
+/*
+ * Whether printing this expression starts with a `-`, which is a lexical question rather than a
+ * structural one - see the `Neg` case in writeExpr.
+ *
+ * A negative number literal and a negation are the two, and nothing else can begin with one: an
+ * operand that would be parenthesized starts with `(`, and every other leaf starts with a letter, a
+ * digit or a quote. A `bigint` is included because `-1n` is a literal there exactly as it is here.
+ */
+bool startsWithMinus(Format& f, JsPtr<Expr> pointer) {
+    auto expr = f.base[pointer];
+
+    switch(expr->kind) {
+        case Expr::Number: return ((NumberExpr*)expr)->value < 0;
+        case Expr::BigInt: {
+            auto value = (BigIntExpr*)expr;
+            return value->isSigned && I64(value->value) < 0;
+        }
+        case Expr::Unary: return ((UnaryExpr*)expr)->op == UnaryOp::Neg;
+        default: return false;
+    }
+}
+
 // `expr` where it binds at least as tightly as the position it goes into, and `(expr)` otherwise.
 void writeNested(Format& f, JsPtr<Expr> pointer, U8 required) {
     if(precedenceOf(f, pointer) < required) {
@@ -296,6 +318,22 @@ void writeExpr(Format& f, JsPtr<Expr> pointer) {
                 case UnaryOp::Not: f.write('!'); break;
                 case UnaryOp::BitNot: f.write('~'); break;
             }
+
+            /*
+             * A space between two `-` signs, because `--` is one token in JavaScript.
+             *
+             * `-(-2147483648)` is what negating `Int`'s most negative value is - the literal has no
+             * positive form, so the front end carries it as a negation of a negative constant - and
+             * printed without this it comes out as `--2147483648`, which the host parses as a prefix
+             * decrement and rejects at *parse* time. So the whole file fails to load rather than one
+             * expression misbehaving, which is why nothing caught it until a program contained the
+             * constant at all.
+             *
+             * A space rather than parentheses because it is the smaller output and the ambiguity is
+             * purely lexical: the precedence is already right, and `- -2147483648` is one token pair
+             * where `--2147483648` is another.
+             */
+            if(unary->op == UnaryOp::Neg && startsWithMinus(f, unary->value)) f.space();
 
             writeNested(f, unary->value, kUnaryPrecedence);
             break;

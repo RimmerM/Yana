@@ -1,0 +1,121 @@
+{-
+   String interpolation - Implementation-Storage.md part 8.
+
+   The claim being tested is that `"a{x}b"` produces the right text, on both targets, through the
+   same three steps whatever the holes turn out to be: the literal segments are a constant, each hole
+   contributes `showBound`, and the sum is one allocation's extent.
+
+   The three *strategies* are not separate code paths and so are not separately testable by shape
+   here - they are what the existing passes make of that one allocation, and which one a given site
+   gets is a placement decision. What is testable, and is what this file asserts, is that all three
+   produce the same string:
+
+    - a format whose every bound is a constant (`{n}` alone),
+    - one whose bound is a runtime value (`{s}`, a string, whose bound is its length),
+    - and one with several of each, where the sum is part constant and part computed.
+
+   Asserted by length and by unit reads rather than by comparing against a literal, because a
+   `String == String` over a formatted value would pass even if both sides were empty.
+-}
+
+-- A format with no holes at all, which is the degenerate case and the one where the sum is nothing
+-- but the constant.
+fn plain() -> Int = length("no holes here") :: Int
+
+-- One integer hole. Every bound is a constant, so the extent folds - strategy (a)'s shape.
+fn oneInt() -> Int:
+    let text = "n = {42}"
+    return length(text) :: Int          -- "n = 42"
+
+-- The same, read back unit by unit, so that a format producing the right *length* and the wrong
+-- text does not pass.
+fn oneIntText() -> Int:
+    let text = "n={7}!"
+    let &total = 0 :: Int
+
+    if (length(text) :: Int) != 4 then return 0
+    if stringUnit(text, 0) == 110 then total = total + 1        -- `n`
+    if stringUnit(text, 1) == 61 then total = total + 1         -- `=`
+    if stringUnit(text, 2) == 55 then total = total + 1         -- `7`
+    if stringUnit(text, 3) == 33 then total = total + 1         -- `!`
+
+    return total
+
+{-
+   A hole whose bound is a *runtime* value, which is the case that separates the strategies.
+
+   `showBound` for a string is its length, so the extent here is a constant plus a load rather than a
+   constant. The result has to be identical to the constant-bound case's, which is the property that
+   makes "the strategy is chosen from the extent's constant-ness, per site" safe.
+-}
+fn oneString() -> Int:
+    let inner = "world"
+    let text = "hello {inner}"
+    return length(text) :: Int          -- "hello world"
+
+-- Several holes of both kinds, so the sum is part constant and part computed, and the appends happen
+-- in written order rather than in the order the bounds were taken.
+fn mixed() -> Int:
+    let name = "ab"
+    let text = "{name}-{12}-{name}-{345}"
+    return length(text) :: Int          -- "ab-12-ab-345"
+
+-- A negative number in a hole, which is the one place the sign has to be appended before the digits
+-- rather than after them.
+fn negative() -> Int:
+    let text = "{-2147483648}"
+    return length(text) :: Int          -- eleven units, and the bound says eleven too
+
+-- A hole holding a `Bool`, whose two texts have different lengths against one bound. Formatting
+-- `True` into a buffer sized for `False` is the ordinary case of a bound being an upper bound.
+fn boolean() -> Int:
+    let text = "{True}/{False}"
+    return length(text) :: Int          -- "True/False"
+
+{-
+   A format inside a loop, run enough times that a leak or a double free would show.
+
+   Not an assertion about placement - which strategy a site gets is not visible from here - but about
+   the teardown being right whichever one it got: each iteration's string is dead at the end of it,
+   and on native its run is the allocator's, so a missing release grows the heap and a double release
+   corrupts it. Both crash rather than answering 300.
+-}
+fn inLoop() -> Int:
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < 100:
+        let text = "iteration {i}"
+        total = total + (length(text) :: Int)
+        i = i + 1
+
+    return total
+
+fn main() -> Int:
+    let &total = 0 :: Int
+
+    total = total + plain()          -- 13
+    total = total + oneInt()         -- 6
+    total = total + oneIntText()     -- 4
+    total = total + oneString()      -- 11
+    total = total + mixed()          -- 12
+    total = total + negative()       -- 11
+    total = total + boolean()        -- 10
+    total = total + inLoop()         -- 1190: ten of 11 units, ninety of 12
+    total = total + printed()        -- 0, and one line on stdout
+
+    return total
+
+{-
+   `print` - Implementation-Storage.md part 9, and the shape the whole scheme exists to make cheap.
+
+   Not asserted on its *output*, which a fixture has no channel for: what is checked is that the
+   whole path - measure, size, format, hand the units to the target's write - compiles and runs on
+   both targets without disturbing the number `main` answers. The text goes to stdout on native and
+   to `console.log` on JS, and the JS driver reads only the last line, so this deliberately prints
+   nothing containing a digit that could be mistaken for the result.
+-}
+fn printed() -> Int:
+    let name = "format"
+    print("[{name} ran {2} times]\n")
+    return 0

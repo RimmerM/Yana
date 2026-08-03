@@ -472,6 +472,21 @@ struct Global {
     bool isTable = false;
 
     /*
+     * The bytes of a string literal - Implementation-String.md part 9, and the second exception to
+     * "an initializer is a constant".
+     *
+     * A blob rather than a table, because there is nothing in it to describe: a table's slots exist
+     * so that a backend can decide how wide an address is and which end of it comes first, and a
+     * literal's bytes are already the encoding the target asked for. Resolve encodes the decoded
+     * scalar sequence into the target's native unit - UTF-8 here, since a JS build never makes one
+     * of these at all - and what a backend does with them is copy them.
+     *
+     * Non-empty is the flag, in the same way `isTable` is one for the other exception. When it is
+     * set it is the whole of the global's storage, and `type` and `initial` say nothing about it.
+     */
+    ByteBuffer literalBytes;
+
+    /*
      * Set when this table is not module-level storage at all, but the bytes immediately in front of
      * a function's entry point - a closure header. It is still a global in every other respect: it
      * has a name, it holds relocations, and a table naming it names it by that name.
@@ -527,6 +542,10 @@ struct Module {
     HashMap<StringId, TypeAlias> aliases;
     HashMap<StringId, ConstructorRef> constructors;
     HashMap<StringId, ModulePtr<Function>> functions;
+    // How many string literals this module has emitted a global for, which is what makes each of
+    // their names unique - see ExprResolver::resolveString.
+    U32 stringLiteralCount = 0;
+
     HashMap<StringId, ModulePtr<Global>> globals;
     HashMap<StringId, GlobalPtr<TypeClass>> classes;
     HashMap<StringId, U8> operatorPrecedence;
@@ -713,6 +732,22 @@ struct Program {
     // shape check has to be able to recognize it without matching on a name.
     ModulePtr<Function> releaseRun = nullptr;
 
+    /*
+     * Native's `stringLiteral` - the two words that describe a constant's bytes.
+     *
+     * A string literal is emitted by the resolver, which has a global's address and a byte count and
+     * no call site to resolve a name through, so this is here for the reason `allocateHeap` is. Null
+     * on JS, where a literal is a host string constant and there is nothing to construct.
+     */
+    ModulePtr<Function> stringLiteral = nullptr;
+
+    // Collections' `newStringOfCapacity`, `pushString` and `formatBound` - the three a format
+    // expression is assembled from. Here for the reason `stringLiteral` is: `"a{x}b"` is resolved
+    // by the compiler, and there is no written call for name resolution to start from.
+    ModulePtr<Function> newString = nullptr;
+    ModulePtr<Function> pushString = nullptr;
+    ModulePtr<Function> formatBound = nullptr;
+
     Module* core = nullptr;
 
     // Core's `Outcome(a, e)`, and which of its two constructors is which. Looked up once rather
@@ -733,6 +768,11 @@ struct Program {
     // the moment it writes an array literal, and what reclaiming one means cannot depend on whether
     // the module that has to do it happened to name the module the type came from.
     Module* native = nullptr;
+
+    // `Host` - the JS half's intrinsics (Implementation-Containers.md §14.1). Empty on a native
+    // build, since every declaration in it is `@platform(js)`. Recorded so that Collections can be
+    // handed an import of it without naming a module that may have read nothing.
+    Module* host = nullptr;
 
     // Native's `Run(a)` - the allocation primitive every container is built on
     // (Implementation-Containers.md §2). Recorded for the same reason the array is: `newRun` is an

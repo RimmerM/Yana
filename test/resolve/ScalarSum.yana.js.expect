@@ -78,8 +78,8 @@ function widthOf(w) {
   return v14;
 }
 
-function bump(x) {
-  x.$v = x.$v + 1 & 255;
+function bump(x$o, x$k, x$s) {
+  x$o[x$k] = x$o[x$k] + 1 & 255;
   return;
 }
 
@@ -102,7 +102,7 @@ function packedPayload() {
 function mutated() {
   var v0 = { $tag: 0, $p: 41 };
   var v11 = { $v: v0.$p };
-  bump(v11);
+  bump(v11, "$v", 1);
   v0.$p = v11.$v;
   return payloadOf(v0);
 }

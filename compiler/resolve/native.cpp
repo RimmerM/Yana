@@ -214,9 +214,9 @@ fn freeHeap(allocation: %U8) -> {}:
    which is the same trick every bounds check in every systems language uses and the reason JS
    specifies `.length` as a `uint32` rather than as a number that happens not to go below zero.
 
-   **Thirty-one bits and not thirty-two**, because a capacity shares its word with the one bit below
-   and thirty-one is what is left. That bit is the whole of the difference between this cap and a
-   `U32`'s: 2147483647 elements is two gibibytes of `[U8]` and eight of `[Int]`, since the bound is on
+   **Thirty bits and not thirty-two**, because a capacity shares its word with the two bits below
+   and thirty is what is left. Those bits are the whole of the difference between this cap and a
+   `U32`'s: 1073741823 elements is one gibibyte of `[U8]` and eight of `[Int]`, since the bound is on
    the element count rather than on the byte size. A `resize` past it fails in the same way one the
    allocator refused does, and lifting it properly means a wider count, which is a Repr variant
    (Implementation-Containers.md §9) rather than a bit that can be found somewhere.
@@ -239,26 +239,34 @@ fn freeHeap(allocation: %U8) -> {}:
    *stored* slice; both are named in Implementation-Containers.md §4.4.
 -}
 
-alias Count = @bits(31) U32
+alias Count = @bits(30) U32
 
 {-
-   Whether this run's storage is the allocator's, as the one bit that is actually asked for.
+   What releasing and growing this run mean, as the two questions that are actually asked.
 
    `InstAlloc::storageFlag` chooses between four storage classes and this used to record all four,
-   which cost two bits and left the capacity thirty. But nothing ever asks *which* class - `resize`
-   and `releaseRun` both ask "is this mine to hand back", and inline, frame and region storage answer
-   no for three different reasons that are none of a run's business. One bit answers the question
-   that is asked, and the bit it gives back doubles what a container can hold.
+   which cost two bits and told nobody anything: nothing ever asks *which* class - `releaseRun` asks
+   "is this mine to hand back", and inline, frame and region storage answer no for three different
+   reasons that are none of a run's business.
 
-   What is lost is a printed IR that named the class. The escape analysis still decides between four;
-   it writes the answer to this question rather than the decision itself.
+   What is asked, and what one bit could not say, is the *second* question. `resize` relocates by
+   replacing `items`, and a run whose slots are its owner's own bytes has no `items` to replace -
+   Implementation-Containers.md §7.1's `@inline(i) @capacity(i)` stores no pointer at all, so the
+   descriptor a borrow of one materializes is a temporary and a write into it would be a write into
+   nothing. `runFixed` is that fact, said once here rather than tested for at each of the three
+   sites that could relocate: such a run refuses to grow, which is also §7.1's "`@capacity(n)` is
+   enforced, not masked".
+
+   So two bits and thirty of capacity. What is lost is a printed IR that named the storage class.
+   The escape analysis still decides between four; it writes the answer to these questions rather
+   than the decision itself.
 -}
-alias HeapFlag = @bits(1) U32
+alias HeapFlag = @bits(2) U32
 
 -- The largest count either field can hold, as the number a caller is checked against rather than as
 -- a mask applied behind its back. `@bits` stores truncate silently, which is tolerable for an
 -- integer and corrupts a container for a length - Implementation-Containers.md §7.1.
-let maxCount = 2147483647 :: Int
+let maxCount = 1073741823 :: Int
 
 {-
    How many bytes `count` elements occupy.
@@ -295,12 +303,14 @@ fn byteSpan(from: %a, count: Int) -> I64 =
 -}
 data Run(a) {items: %a, capacity: Count, ownsHeap: HeapFlag}
 
--- The two answers, and there are two rather than four for the reason `HeapFlag` gives. `runBorrowed`
--- covers inline, frame and region storage together: each is handed back by something that is not
--- this run - the owner's own bytes, the frame returning, the region closing - and telling them apart
--- would be a distinction nothing acts on.
+-- The three answers, for the reason `HeapFlag` gives. `runBorrowed` covers frame and region storage
+-- together: each is handed back by something that is not this run - the frame returning, the region
+-- closing - and telling those two apart would be a distinction nothing acts on. `runFixed` is the
+-- one that is not about release at all: the slots are an owner's own bytes, so nothing hands them
+-- back *and* nothing may move them.
 let runBorrowed = 0 :: HeapFlag
 let runFromHeap = 1 :: HeapFlag
+let runFixed = 2 :: HeapFlag
 
 -- A run with room for nothing, which allocates nothing. Every container's empty value starts here.
 fn emptyRun() -> Run(a) = Run {items: null(), capacity: 0, ownsHeap: runBorrowed}
@@ -341,6 +351,16 @@ fn slots(self: Run(a)) -> %a = self.items
 fn resize(&self: Run(a), wanted: Int) -> Bool:
     let room = self.capacity :: Int
     if wanted <= room then return True
+
+    -- Refused one line before the allocator is asked, and for a different reason than a refusal from
+    -- it: there is nowhere to write the new base. A `runFixed` run's slots are its owner's own bytes
+    -- and the two words this body reads are a descriptor built for the call
+    -- (Implementation-Containers.md §7.2's tier-1 borrow), so relocating would leave the elements the
+    -- caller can still reach exactly where they were and this descriptor pointing at a block nothing
+    -- frees. That is what makes `@capacity(n)` a bound rather than a hint. The comparison folds
+    -- wherever the flag is a constant, which is everywhere the run was not built in a generic body.
+    if self.ownsHeap == runFixed then return False
+
     if wanted > maxCount then return False
 
     let fresh = cast(allocateHeap(byteSpan(self.items, wanted))) :: %a
@@ -412,12 +432,29 @@ instance Reclaim(Run(a)):
    was taken from, which is what makes it TrivialCopy and what the borrow at the point it was made
    is responsible for.
 -}
-data Flat(a) {items: %a, length: Size}
+{-
+   Two shapes, and the third field is what a target with no addresses costs -
+   Implementation-Containers.md §4.3 and §14.
+
+   Natively a window into a run is a *shifted base*: `items + start` is an address like any other, so
+   two words describe it. A host array cannot be shifted - `arr.slice(a, b)` copies and there is no
+   `subarray` outside the typed families - so a window there is the array plus where in it the window
+   begins, and §4.3's three-component slice is what that is. Nothing above the field list changes:
+   both are the one representation every `[T]` signature shares on its own target, both are
+   TrivialCopy, and both are built by the same `convertSlice`.
+
+   `offset` is last rather than second, and that is load-bearing rather than tidy: `items` and
+   `length` keep the positions the compiler reads them at, so the descriptor builder and
+   `sliceLengthType` are unchanged and only the field that exists on one target is conditional.
+-}
+@platform(native) data Flat(a) {items: %a, length: Size}
+@platform(js) data Flat(a) {items: %a, length: Size, offset: Size}
 
 -- The element address a `Flat` is defined by. Absent on `Bits` when that lands, deliberately: a
 -- narrow element has no address, and the partiality is what keeps `sizeOf` and pointer arithmetic
--- off the fractional-stride path.
-fn values(self: Flat(a)) -> %a = self.items
+-- off the fractional-stride path. Absent on JS for a stronger reason: `items` there is the whole
+-- host array rather than the window, so a caller given it would read past both ends.
+@platform(native) fn values(self: Flat(a)) -> %a = self.items
 
 {-
    Subscripting a slice - Core's `Index`, and where `xs[i]` on an array ends up.
@@ -433,7 +470,7 @@ fn values(self: Flat(a)) -> %a = self.items
    *generic* case - `xs[i]` inside `fn (Index(c, k, v)) first(xs: c)` - and costs the concrete one
    nothing.
 -}
-instance Index(Flat(a), Size, a):
+@platform(native) instance Index(Flat(a), Size, a):
     fn get(return self: Flat(a), index: Size) -> &a = borrow(self.items + index)
     fn getMut(return &self: Flat(a), index: Size) -> &a = borrowMut(self.items + index)
 
@@ -449,6 +486,90 @@ instance Index(Flat(a), Size, a):
 instance Index(%a, I64, a):
     fn get(return self: %a, index: I64) -> &a = borrow(self + index)
     fn getMut(return &self: %a, index: I64) -> &a = borrowMut(self + index)
+
+{-
+   What a `String` is on this target - Implementation-String.md part 2's growable row, and exactly
+   `Array(U8)`'s two words.
+
+   `String` is a primitive rather than a record (see Type::String), because on JS it is the host
+   string and a wrapper there would cost an allocation per string. That leaves the native half
+   needing somewhere to say what the bytes *are*, and this is it: the same run-plus-count a container
+   uses, so a string's capacity, its placement tag and its growth path are `Run`'s and not a second
+   implementation of them.
+
+   `length` is the count in native units - UTF-8 bytes here - which part 3 is careful to say is not a
+   portable number. It is the run's *live prefix*; `run.capacity` is what was allocated, and the two
+   differ for exactly the reason they differ in an array.
+
+   Reached only through `stringData` below. Nothing constructs one of these directly, and a program
+   cannot name it: it is in `Native`, so it is behind an import that already means "this is unsafe",
+   and every function that reads it is in Collections.
+-}
+@platform(native) data StringData {run: Run(U8), length: Count}
+
+{-
+   The two words of a string, as the record that describes them - Implementation-String.md part 2.
+
+   A **borrow in and a borrow out**, which is the whole of why this is sound. Returning a
+   `StringData` by value would hand back a second owner of one run and the frame would release it
+   twice; returning a borrow of one hands back a *view*, rooted in the string by the ordinary
+   `return` marker, so the borrow checker gives it the string's extent and nothing about ownership
+   moves. It is the same shape `values(self: Flat(a))` has and the same shape `convertSlice` builds,
+   and it costs nothing at run time: the two types occupy the same bytes with the same layout, by
+   construction, since `computeString` asks this record for the string's Repr.
+
+   `@platform(native)` and no JS twin. A host string has no run to hand out, so every function
+   written in terms of this one is native-only and its JS sibling is written against `Host` instead.
+-}
+@platform(native) fn stringData(return self: String) -> &StringData
+@platform(native) fn stringDataMut(return &self: String) -> &StringData
+
+{-
+   The other direction, and the only one that makes a string out of nothing.
+
+   Takes its argument by `->` and answers a value, because this *is* the handover: whoever built the
+   `StringData` owned the run, and after this the string owns it. A borrow would be wrong here in the
+   way a value is wrong in `stringData` above - there would be two owners rather than none.
+
+   No `Sink` runs and nothing is copied. The bytes are already in the right shape and the right
+   place; what changes is which type the compiler calls them, exactly as in the other direction.
+-}
+@platform(native) fn stringFromData(->value: StringData) -> String
+
+{-
+   What a string literal lowers to - Implementation-String.md part 9.
+
+   The bytes are a constant in the module's data and this is the two words that describe them. It is
+   an ordinary function rather than a compiler-built value because there is nothing compiler-specific
+   left once the bytes exist: resolve emits the global, takes its address, and calls this.
+
+   **`runBorrowed` is what makes a literal free, and it is also what makes it grow correctly.** The
+   run does not own its slots, so `releaseRun` hands nothing back and a literal costs no teardown at
+   all. And `resize` refuses only a `runFixed` run - a *borrowed* one it relocates, by allocating,
+   copying the old capacity and freeing nothing, since there was nothing of its own to free. That is
+   copy-on-write, and it falls out of Implementation-Containers.md §2's existing three answers rather
+   than needing a fourth: appending to a literal copies it to the heap once, and appending again does
+   not.
+
+   `capacity` is the byte length rather than zero, because the bytes really are there to be read -
+   this is what lets a literal be indexed and compared without the run ever being touched.
+-}
+{-
+   The standard output descriptor, as a function rather than as a number Collections would have to
+   know - Implementation-Storage.md part 9.
+
+   `writeFile` is `Native.Linux`'s, and that module is imported into this one by hand rather than
+   re-exported, so nothing above `Native` can name it. This is the one line that lets `print` be
+   written where the rest of the string API is, and it is here rather than there for the same reason
+   `mapMemory` is reached this way: which platform supplies the call is a fact about this module.
+-}
+fn writeStandardOutput(from: %U8, count: I64) -> I64 = writeFile(1, from, count)
+
+@platform(native) fn stringLiteral(bytes: %U8, length: Int) -> String =
+    stringFromData(StringData {
+        run: Run {items: bytes, capacity: length :: Count, ownsHeap: runBorrowed},
+        length: length :: Count
+    })
 )NATIVE";
 
 /*
@@ -554,6 +675,56 @@ template<bool mut>
 static ModulePtr<Value> emitBorrowAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                      LocationId source, StringId name) {
     return resolver.ref(resolver.emit<InstBorrow>(source, name, type, Place::atPointer(args[0]), mut));
+}
+
+/*
+ * `stringData(&s)` - the two words of a native string, as the record that describes them.
+ *
+ * A **retype and not a read**. The argument is a borrow of a `String` and the result is a borrow of
+ * `Native.StringData`, and `computeString` is what makes those the same bytes: a string's Repr *is*
+ * that record's, so the address is unchanged and there is nothing to emit but the change of type.
+ * That is the same instruction `cast(p: %a) -> %b` is, for the same reason, and it is why this is an
+ * intrinsic at all rather than a library function - there is no way to write "these two types occupy
+ * one place" in the language, and no reason for a program to be able to.
+ *
+ * The result is a borrow, which is what keeps ownership out of it. Handing back a `StringData` by
+ * value would make a second owner of one run and the frame would release it twice; a borrow is a
+ * view, and the `return self` in the declaration is what roots it in the string so the checker gives
+ * it the string's extent. Everything after that is the ordinary borrow rule and nothing about
+ * strings.
+ */
+template<bool mut>
+static ModulePtr<Value> emitStringData(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                       LocationId source, StringId name) {
+    return resolver.ref(resolver.emit<InstUnary>(source, name, type, Value::Cast, args[0]));
+}
+
+/*
+ * `stringFromData(d)` - the other direction, which is the one that makes a string out of nothing.
+ *
+ * **Storage and a copy, not a cast**, and the difference is not about strings at all. An intrinsic
+ * is expanded at the call site and hands back whatever value it built, where an ordinary call to a
+ * function returning an aggregate is given a local by the caller to write into - so an intrinsic
+ * whose result is a *memory type* has nowhere for that result to live, and a bare `Cast` of one
+ * produces a value every later use asks for and nothing ever lowered. That was the first version,
+ * and the symptom was exactly that: "resolve value was used before it was lowered".
+ *
+ * So this does what the call it stands in for would have done. The storage is a local of the
+ * result's type, and the argument is initialized into it - which for two types of identical Repr is
+ * a sixteen-byte copy the optimizer removes wherever the source was a temporary built for this call,
+ * which is every call site there is.
+ *
+ * The bytes are not reinterpreted so much as re-owned: whoever built the `StringData` owned the run,
+ * and after this the string does. That is why the declaration takes its argument by `->` - the
+ * handover is real, and writing it as a borrow would leave two owners of one run.
+ */
+static ModulePtr<Value> emitStringFromData(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                           LocationId source, StringId name) {
+    auto storage = resolver.allocate(type, source, name);
+    if(!storage) return nullptr;
+
+    resolver.initialize(resolver.placeFor(storage, source), args[0], source);
+    return storage;
 }
 
 /*
@@ -778,4 +949,37 @@ void defineNative(Program& program) {
 
     program.runType = named("Run", 3);
     program.sliceType = named("Flat", 4);
+
+    /*
+     * What a native `String` occupies - see Type::String and `computeString`.
+     *
+     * Set here rather than in `defineCore`, because the record naming it is declared above and Core
+     * is built first. Nothing asks a string for its layout before lowering, which is long after
+     * this. On JS the declaration is `@platform`-excluded, so `named` answers null and the string
+     * stays what it is there: one host value with nothing to lay out.
+     */
+    auto stringData = named("StringData", 10);
+    ((StringType*)(*program.types)[program.scalar.string_])->content =
+        stringData ? (Type*)(*program.types)[stringData] - *program.types : nullptr;
+    program.scalar.stringContent = ((StringType*)(*program.types)[program.scalar.string_])->content;
+
+    /*
+     * The two reinterpretations, which are the only compiler-supplied String operations: everything
+     * else about a native string is written in Yana over the record they hand back.
+     *
+     * Attached only where they were declared, exactly as `Host` attaches its own. Both are
+     * `@platform(native)`, so a JS build read neither declaration and there is nothing to hook -
+     * which `attachIntrinsic` reports as an internal error rather than skipping, and rightly, since
+     * a missing declaration is normally a typo.
+     */
+    if(stringData) {
+        attachIntrinsic(*native, "stringData"_v, emitStringData<false>);
+        attachIntrinsic(*native, "stringDataMut"_v, emitStringData<true>);
+        attachIntrinsic(*native, "stringFromData"_v, emitStringFromData);
+
+        // Recorded for the same reason `allocateHeap` is: a string literal is emitted by the
+        // resolver, which has a global's address and a length and no name resolution to reach a
+        // constructor through. See Program::stringLiteral.
+        program.stringLiteral = findNative("stringLiteral", 13);
+    }
 }

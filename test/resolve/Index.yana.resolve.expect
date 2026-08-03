@@ -103,7 +103,7 @@ fn Index(%a, I64, a).get(Int)(%self: %Int, %index: I64) -> &Int {
 
 fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
-    %v1 = load %self@Run.ownsHeap : @bits(1) U32
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
     %v2 = cast %v1 : U32
     %v4 = cast 1 : U32
     %v5 = cmp_eq %v2, %v4 : Bool
@@ -124,7 +124,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
 
 fn releaseRun(Cell)(%self: Run(Cell)) -> () {
   b0:
-    %v1 = load %self@Run.ownsHeap : @bits(1) U32
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
     %v2 = cast %v1 : U32
     %v4 = cast 1 : U32
     %v5 = cmp_eq %v2, %v4 : Bool
@@ -168,7 +168,7 @@ fn Index(Array(a), I64, a).getMut(Int)(%self: Array(Int), %index: I64) -> &mut I
 
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   b0:
-    %v1 = load %value@Array.length : @bits(31) U32
+    %v1 = load %value@Array.length : @bits(30) U32
     %v2 = cast %v1 : U32
     %count = cast %v2 : Int
     %i = alloc : Int
@@ -204,7 +204,7 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
 
 fn Reclaim(Array(a)).reclaim(Cell)(%value: Array(Cell)) -> () {
   b0:
-    %v1 = load %value@Array.length : @bits(31) U32
+    %v1 = load %value@Array.length : @bits(30) U32
     %v2 = cast %v1 : U32
     %count = cast %v2 : Int
     %i = alloc : Int
@@ -384,7 +384,7 @@ fn main() -> Int {
     %v68 = alloc : Flat(Cell)
     %v69 = load [%v67]@Array.run@Run.items : %Cell
     init %local6@Flat.items, %v69
-    %v71 = load [%v67]@Array.length : @bits(31) U32
+    %v71 = load [%v67]@Array.length : @bits(30) U32
     %v72 = cast %v71 : U32
     %v73 = cast %v72 : I64
     init %local6@Flat.length, %v73
@@ -424,7 +424,7 @@ fn main() -> Int {
     %v124 = alloc : Flat(Cell)
     %v125 = load [%v123]@Array.run@Run.items : %Cell
     init %local9@Flat.items, %v125
-    %v127 = load [%v123]@Array.length : @bits(31) U32
+    %v127 = load [%v123]@Array.length : @bits(30) U32
     %v128 = cast %v127 : U32
     %v129 = cast %v128 : I64
     init %local9@Flat.length, %v129
@@ -436,7 +436,7 @@ fn main() -> Int {
     %v135 = alloc : Flat(Int)
     %v136 = load [%v134]@Array.run@Run.items : %Int
     init %local10@Flat.items, %v136
-    %v138 = load [%v134]@Array.length : @bits(31) U32
+    %v138 = load [%v134]@Array.length : @bits(30) U32
     %v139 = cast %v138 : U32
     %v140 = cast %v139 : I64
     init %local10@Flat.length, %v140
@@ -461,7 +461,7 @@ fn main() -> Int {
     %v166 = alloc : Flat(Int)
     %v167 = load [%v165]@Array.run@Run.items : %Int
     init %local13@Flat.items, %v167
-    %v169 = load [%v165]@Array.length : @bits(31) U32
+    %v169 = load [%v165]@Array.length : @bits(30) U32
     %v170 = cast %v169 : U32
     %v171 = cast %v170 : I64
     init %local13@Flat.length, %v171

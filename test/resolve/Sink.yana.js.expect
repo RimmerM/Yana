@@ -7,8 +7,8 @@ function teardown$none(value) {
   return;
 }
 
-function add_eq_I64(target, amount) {
-  target.$v = BigInt.asIntN(64, target.$v + amount);
+function add_eq_I64(target$o, target$k, target$s, amount) {
+  target$o[target$k] = BigInt.asIntN(64, target$o[target$k] + amount);
   return;
 }
 
@@ -144,7 +144,7 @@ function main() {
 
 function Sink_Handle_sink(to, from) {
   var v5 = { $v: sinkCalls };
-  add_eq_I64(v5, 1n);
+  add_eq_I64(v5, "$v", 1, 1n);
   sinkCalls = v5.$v;
   to.value = from.value;
   return;

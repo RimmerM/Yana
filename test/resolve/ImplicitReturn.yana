@@ -6,9 +6,18 @@ data Point {x: Int, y: Int}
 -- The concrete case. `-> Int` is not written and not needed.
 fn double(x: Int) = x * 2
 
--- Generic, with the constraint the body turned out to need collected the same way a written
--- signature's would be - the result type being inferred does not change what `+` requires.
-fn sum(lhs: a, rhs: a) = lhs + rhs
+{-
+   Generic, with the constraint the body turned out to need collected the same way a written
+   signature's would be - the result type being inferred does not change what `+` requires.
+
+   `Num(a)` is written out rather than inferred, and that is a consequence of `+` being overloaded
+   across two classes: `Num` and `Append`, the latter being what `"a" + "b"` is
+   (Implementation-String.md part 8). A body using `+` on a *concrete* type still needs no
+   constraint - the operand type selects - but one whose operand is a variable has two classes that
+   would serve and nothing to choose between them, so it has to say which. That is what the
+   ambiguity diagnostic asks for by name.
+-}
+fn (Num(a)) sum(lhs: a, rhs: a) = lhs + rhs
 
 -- An aggregate result, to show inference is not limited to scalars.
 fn origin() = Point {x: 0, y: 0}

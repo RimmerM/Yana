@@ -56,6 +56,11 @@ JsPtr<Expr> constantValue(Gen& g, Value& value) {
             return number(g, F64(((ConstFloat&)value).value), false);
         case Value::ConstDouble:
             return number(g, ((ConstDouble&)value).value, false);
+        case Value::ConstString:
+            // A string literal is a host string constant here and nothing else - see ConstString.
+            // The escaping is `writeStringLiteral`'s, which is the same one every property name and
+            // program constant already goes through.
+            return asExpr(g, make<StringExpr>(g, ((ConstString&)value).text));
         default:
             return nullValue(g);
     }
@@ -143,6 +148,29 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
     TypePtr type = nullptr;
     PlaceBits within;
 
+    /*
+     * Whether this reference names a *run* of values rather than one.
+     *
+     * `Place::atPointer(p)` with no path is the single value `p` names, which on this target is the
+     * box that stands in for one where the value is not an object. The same root with an `Index` in
+     * front of it is element `i` of what `p` names - Implementation-Containers.md §14.1 - and there
+     * is no box anywhere in that: `p` is the host array and the index reaches into it.
+     *
+     * Read off the *path* rather than off the type, because the type is the element's either way.
+     * That is the same distinction native draws by adding a scaled offset to the address instead of
+     * loading through it.
+     *
+     * Asked of the whole path rather than of the prefix `limit` selects, because it is a fact about
+     * what the *root* names: a caller walking as far as the index alone - which is what builds the
+     * `$o` half of a reference to an element - still wants the array rather than a box of it.
+     */
+    auto indexedRoot = [&]() {
+        auto projections = place.projections;
+        if(!projections.size()) return false;
+
+        return projections.get(g.local, 0).kind == ProjectionKind::Index;
+    }();
+
     if(place.root == PlaceRoot::Global) {
         type = g.local[place.global]->type;
         if(expr) *expr = globalValue(g, place.global);
@@ -169,11 +197,22 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
              * Asked before the value itself, because a flattened reference *has* no single value -
              * its parts are three variables and there is no object anywhere to ask `useValue` for.
              */
-            if(isNarrowJsValue(g, type)) {
+            /*
+             * A raw pointer is asked as though it were immutable, which keeps the two roots'
+             * answers where they were: a `%a` is not a borrow and carries no mutability, and what a
+             * non-indexed one names on this target is a box exactly as it always did. An *indexed*
+             * one is neither - it is the host array itself, and the projection below reaches into
+             * it - which is what `indexedRoot` takes out of both branches.
+             */
+            auto mut = place.root == PlaceRoot::Borrow && ((BorrowType*)g.global[referenced])->mut;
+
+            if(!indexedRoot && refIsTriple(g, type, mut)) {
                 auto parts = refPartsOf(g, place.pointer);
                 *expr = elementAt(g, parts.owner, parts.key);
 
-                if(parts.scale) {
+                // Only a narrow pointee is a bit range. A whole value occupies what it names, so the
+                // scale it was handed is one and there is nothing to shift out of anything.
+                if(parts.scale && isNarrowValue(g.global, type)) {
                     within.scale = parts.scale;
                     within.width = narrowWidth(g, type);
                     within.word = maxWordBits(g);
@@ -181,7 +220,7 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
             } else {
                 *expr = useValue(g, place.pointer);
 
-                if(!isJsObject(g, type) && !g.aliasBorrows.contains(U32(place.pointer))) {
+                if(!indexedRoot && !isJsObject(g, type) && !g.aliasBorrows.contains(U32(place.pointer))) {
                     // An alias is the storage under a second name, so there is no box to read
                     // through - see prepareLocals. Everything else that is not an object arrived
                     // as one.
@@ -197,11 +236,14 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
             // The slot behind a `&` parameter of narrow type holds one of those triples rather than
             // storage of its own - and holds it as three variables where it arrived flattened, which
             // is why this is asked before the value is.
-            if(root.borrowed && isNarrowJsValue(g, type)) {
+            // The triple is the *mutable* `&`'s form, which is the one `refIsFlattened` sends as
+            // three arguments. An immutable one arrives as a box or as the value itself, and both of
+            // those are read below.
+            if(root.borrowed && root.convention == ast::BindType::Ref && refIsTriple(g, type, true)) {
                 auto parts = refPartsOf(g, root.value);
                 *expr = elementAt(g, parts.owner, parts.key);
 
-                if(parts.scale) {
+                if(parts.scale && isNarrowValue(g.global, type)) {
                     within.scale = parts.scale;
                     within.width = narrowWidth(g, type);
                     within.word = maxWordBits(g);
@@ -381,7 +423,18 @@ TypePtr walkPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = ma
                 if(expr && type && !isJsObject(g, type)) *expr = field(g, *expr, g.boxField);
                 break;
             case ProjectionKind::Index:
+                /*
+                 * `owner[i]` - and this target is the one where that is the *whole* of an element
+                 * access, since a host array is indexed rather than addressed
+                 * (Implementation-Containers.md §14.1). The native side spends a stride and an add
+                 * here; there is nothing to spend one on.
+                 *
+                 * The type follows the same rule resolve's own walk states: a `[T *n]` steps *into*
+                 * the array and everything else - a run of elements reached through a reference -
+                 * steps *along* it and is already the element's type.
+                 */
                 if(expr) *expr = elementAt(g, *expr, useValue(g, projection.value));
+                if(type && g.global[type]->kind == Type::Array) type = ((ArrayType*)g.global[type])->content;
                 break;
             case ProjectionKind::Unit:
                 /*

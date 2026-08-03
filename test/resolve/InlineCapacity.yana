@@ -1,0 +1,150 @@
+{-
+   `@inline(n) @capacity(n) [T]` - Implementation-Containers.md §7, and §9's `Inline(n)` rung.
+
+   The one row of §7.1 that never spills, which is why the build order names it first: the slots are
+   the container's own bytes, so there is no run pointer to store; the capacity *is* `n`, so there is
+   no capacity field either; and what is left of `data Array(a) {run: Run(a), length: Count}` is the
+   elements plus a count.
+
+   What makes it a *refinement* rather than a second container is that it satisfies everything the
+   plain array does - `length`, `xs[i]`, `push`, a `[T]` parameter, a teardown that releases the
+   elements - and reaches all of it through the same functions, compiled once against the plain
+   layout. §7.2's tier 1 is the boundary: a descriptor over the same bytes, whose `runFixed` tag is
+   what makes a `push` past the bound fail instead of relocating storage the descriptor does not own.
+-}
+
+import Native
+import Native.Linux
+
+alias Fixed4 = @inline(4) @capacity(4) [Int]
+
+-- The claim, as a number. Four `Int`s and a count, against a plain array's two words *plus* an
+-- allocation somewhere else. The count is a whole `Count` rather than §7.1's `ceil(log2(n+1))` bits,
+-- which is the half of that row this does not do - see the note in `computeInlineContainer`.
+fn inlineSize() -> I64:
+    let xs = [1, 2, 3, 4] :: Fixed4
+    return sizeOf(xs)
+
+fn plainSize() -> I64:
+    let xs = [1, 2, 3, 4] :: [Int]
+    return sizeOf(xs)
+
+-- It flattens into a record, which is the reason to want it: a parser's small buffer costs the
+-- record's own bytes and no allocation at all.
+data Buffer {items: @inline(4) @capacity(4) [Int], tag: Int}
+
+fn nestedSize() -> I64:
+    let b = Buffer {items: [1, 2], tag: 7}
+    return sizeOf(b) - sizeOf(b.tag)
+
+{-
+   Every `[T]` function accepts one, and neither of these knows anything about the refinement.
+
+   The conversion at the call is the same shape a `[T *n]`'s is - one address computation for the
+   base - plus the count, which is loaded because a refined array grows within its bound where a
+   fixed one cannot grow at all.
+-}
+fn total(xs: [Int]) -> Int:
+    let &sum = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < length(xs):
+        sum = sum + xs[i]
+        i = i + 1
+
+    return sum
+
+fn double(&xs: [Int]) -> {}:
+    let &i = 0 :: Int
+
+    while i < length(xs):
+        let value = xs[i]
+        xs[i] = value + value
+        i = i + 1
+
+{-
+   Elements whose lifetime ends in something - Implementation-Containers.md §13, through §7's
+   boundary.
+
+   This is the half a size assertion cannot reach and the half the refinement most easily gets wrong.
+   The walk that releases the elements is Collections' own `Reclaim(Array(a))`, compiled once against
+   the plain layout, so a refined array reaches it through a descriptor built by the generated glue -
+   and a descriptor built over the wrong bytes releases the wrong things, twice or never, with
+   correct-looking IR either way. What pins it is the counter.
+
+   `releaseRun` runs too and hands nothing back, because the tag the descriptor carries is `runFixed`
+   rather than `runFromHeap`. That is the same comparison a frame-placed plain array folds away, and
+   it is the reason this array never touches the allocator at all.
+-}
+let &liveHandles = 0 :: I64
+
+data Handle {slot: %U8}
+
+fn openHandle() -> Handle:
+    liveHandles += 1
+    return Handle {slot: allocateHeap(16)}
+
+instance Drop(Handle):
+    fn drop(->value: Handle) -> {}:
+        freeHeap(value.slot)
+        liveHandles -= 1
+
+-- Two elements built into the array's own bytes, released when its lifetime ends here rather than
+-- at the caller.
+fn holdHandles() -> I64:
+    let &hs = [openHandle(), openHandle()] :: @inline(2) @capacity(2) [Handle]
+    return length(hs)
+
+-- And inside a record, which is where the refinement is meant to be written: the field's teardown is
+-- the glue, reached from the record's own derived one.
+data Holder {hs: @inline(2) @capacity(2) [Handle], tag: Int}
+
+fn holdInRecord() -> Int:
+    let h = Holder {hs: [openHandle()], tag: 5}
+    return h.tag
+
+fn main() -> Int:
+    -- Four `Int`s and a count. `Int` is four bytes here, so sixteen plus the count's four.
+    if inlineSize() != 20 then return -1
+
+    -- The plain array is smaller *and* allocates; that is the trade, said as two numbers.
+    if plainSize() != 16 then return -2
+
+    -- The same twenty inside a record, with nothing between the elements and the count.
+    if nestedSize() != 20 then return -3
+
+    let &xs = [1, 2] :: Fixed4
+
+    -- Read through the descriptor, which is one address computation and one load.
+    if length(xs) != 2 then return -4
+    if total(xs) != 3 then return -5
+    if xs[0] != 1 then return -6
+
+    -- Grown within the bound. `push` is Collections' own, compiled once against the plain layout,
+    -- and the count it writes is copied back into the array at the end of the loan.
+    push(xs, 3)
+    push(xs, 4)
+    if length(xs) != 4 then return -7
+    if total(xs) != 10 then return -8
+
+    -- And refused past it. `resize` sees `runFixed` and answers False, so `push` leaves the array
+    -- exactly as it was rather than moving the elements to storage nothing frees.
+    push(xs, 5)
+    if length(xs) != 4 then return -9
+
+    -- Written through a mutable slice, which reaches the elements because the descriptor holds
+    -- their address and the array's storage *is* its elements.
+    double(xs)
+    if total(xs) != 20 then return -10
+
+    -- Two handles opened and two released, with nothing left over: the glue's descriptor names the
+    -- array's own bytes, so the walk reaches the elements that are there.
+    if holdHandles() != 2 then return -11
+    if liveHandles != 0 then return -12
+
+    -- The same through a record's derived teardown, which reaches the field's glue like any other
+    -- member's.
+    if holdInRecord() != 5 then return -13
+    if liveHandles != 0 then return -14
+
+    return total(xs)

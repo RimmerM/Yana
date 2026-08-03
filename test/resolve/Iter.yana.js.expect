@@ -26,19 +26,19 @@ function teardown$none(value) {
 // ResolveTest
 function sum(n) {
   var total = { $v: 0 };
-  var v12 = upTo(n, ResolveTest_continuation$0$make({ total: total }));
+  var v12 = upTo(n, ResolveTest_continuation$0$make({ total: { $o: total, $k: "$v", $s: 1 } }));
   return total.$v;
 }
 
 function odds(n) {
   var total = { $v: 0 };
-  var v12 = upTo(n, ResolveTest_continuation$1$make({ total: total }));
+  var v12 = upTo(n, ResolveTest_continuation$1$make({ total: { $o: total, $k: "$v", $s: 1 } }));
   return total.$v;
 }
 
 function upToFive(n) {
   var total = { $v: 0 };
-  var v12 = upTo(n, ResolveTest_continuation$2$make({ total: total }));
+  var v12 = upTo(n, ResolveTest_continuation$2$make({ total: { $o: total, $k: "$v", $s: 1 } }));
   return total.$v;
 }
 
@@ -54,7 +54,7 @@ function firstOver(n, bound) {
 function firstOverOrCount(n, bound) {
   B0: {
     var seen = { $v: 0 };
-    var v14 = upTo_Outcome_Int(n, ResolveTest_continuation$4$make({ bound: bound, seen: seen }));
+    var v14 = upTo_Outcome_Int(n, ResolveTest_continuation$4$make({ bound: bound, seen: { $o: seen, $k: "$v", $s: 1 } }));
     if (v14.$tag === 1) {
       if (!(v14.$p === null)) {
         return v14.$p;
@@ -66,20 +66,20 @@ function firstOverOrCount(n, bound) {
 
 function grid(rows, columns) {
   var total = { $v: 0 };
-  var v14 = upTo(rows, ResolveTest_continuation$5$make({ columns: columns, total: total }));
+  var v14 = upTo(rows, ResolveTest_continuation$5$make({ columns: columns, total: { $o: total, $k: "$v", $s: 1 } }));
   return total.$v;
 }
 
 function corners(n) {
   var total = { $v: 0 };
-  var v12 = corners$1(n, ResolveTest_continuation$7$make({ total: total }));
+  var v12 = corners$1(n, ResolveTest_continuation$7$make({ total: { $o: total, $k: "$v", $s: 1 } }));
   return total.$v;
 }
 
 function generic() {
   var total = { $v: 0 };
-  var v13 = twice_Int(7, ResolveTest_continuation$8$make({ total: total }));
-  var v23 = twice_Bool(1, ResolveTest_continuation$9$make({ total: total }));
+  var v13 = twice_Int(7, ResolveTest_continuation$8$make({ total: { $o: total, $k: "$v", $s: 1 } }));
+  var v23 = twice_Bool(1, ResolveTest_continuation$9$make({ total: { $o: total, $k: "$v", $s: 1 } }));
   return total.$v;
 }
 
@@ -103,7 +103,7 @@ function firstPairOver(n, bound) {
 
 function withLens(n) {
   var total = { $v: 0 };
-  var v12 = upTo(n, ResolveTest_continuation$12$make({ total: total }));
+  var v12 = upTo(n, ResolveTest_continuation$12$make({ total: { $o: total, $k: "$v", $s: 1 } }));
   return total.$v;
 }
 
@@ -135,7 +135,7 @@ function stopped() {
 function ResolveTest_continuation$0$make(env) {
   return function(value) {
     var v2 = env.total;
-    v2.$v = v2.$v + value | 0;
+    v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
     return { $tag: 0 };
   };
 }
@@ -164,7 +164,7 @@ function ResolveTest_continuation$1$make(env) {
       return { $tag: 0 };
     } else {
       var v10 = env.total;
-      v10.$v = v10.$v + value | 0;
+      v10.$o[v10.$k] = v10.$o[v10.$k] + value | 0;
       return { $tag: 0 };
     }
   };
@@ -176,7 +176,7 @@ function ResolveTest_continuation$2$make(env) {
       return { $tag: 1 };
     } else {
       var v7 = env.total;
-      v7.$v = v7.$v + value | 0;
+      v7.$o[v7.$k] = v7.$o[v7.$k] + value | 0;
       return { $tag: 0 };
     }
   };
@@ -219,7 +219,7 @@ function ResolveTest_continuation$4$make(env) {
         return { $tag: 1, $p: null };
       } else {
         var v14 = env.seen;
-        v14.$v = v14.$v + 1 | 0;
+        v14.$o[v14.$k] = v14.$o[v14.$k] + 1 | 0;
         return { $tag: 0, $p: null };
       }
     }
@@ -254,7 +254,7 @@ function ResolveTest_continuation$5$make(env) {
 function ResolveTest_continuation$6$make(env) {
   return function(value) {
     var v2 = env.total;
-    v2.$v = (v2.$v + (Math.imul(env.r, 10) | 0) | 0) + value | 0;
+    v2.$o[v2.$k] = (v2.$o[v2.$k] + (Math.imul(env.r, 10) | 0) | 0) + value | 0;
     return { $tag: 0 };
   };
 }
@@ -264,7 +264,7 @@ function ResolveTest_continuation$7$make(env) {
     var x = value.x;
     var y = value.y;
     var v4 = env.total;
-    v4.$v = (v4.$v + x | 0) + y | 0;
+    v4.$o[v4.$k] = (v4.$o[v4.$k] + x | 0) + y | 0;
     return { $tag: 0 };
   };
 }
@@ -294,7 +294,7 @@ function corners$1(n, body) {
 function ResolveTest_continuation$8$make(env) {
   return function(value) {
     var v2 = env.total;
-    v2.$v = v2.$v + value | 0;
+    v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
     return { $tag: 0 };
   };
 }
@@ -317,7 +317,7 @@ function ResolveTest_continuation$9$make(env) {
   return function(value) {
     if (value) {
       var v3 = env.total;
-      v3.$v = v3.$v + 1 | 0;
+      v3.$o[v3.$k] = v3.$o[v3.$k] + 1 | 0;
     }
     return { $tag: 0 };
   };
@@ -393,7 +393,7 @@ function ResolveTest_continuation$12$make(env) {
 function ResolveTest_continuation$13$make(env) {
   return function(value) {
     var v2 = env.total;
-    v2.$v = (v2.$v + value | 0) + env.x | 0;
+    v2.$o[v2.$k] = (v2.$o[v2.$k] + value | 0) + env.x | 0;
     return;
   };
 }

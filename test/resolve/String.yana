@@ -1,0 +1,88 @@
+{-
+   `String` on both targets at once - Implementation-String.md parts 2, 3, 8 and 9.
+
+   The same argument `HostArray.yana` makes, applied to the other container: this file names no
+   representation, imports nothing, and is compiled for both targets, so the number it returns is the
+   assertion that a run of UTF-8 bytes and a host string are the same type. Natively a literal is two
+   words over bytes in the module's data; on JS it is a host string constant, and nothing below can
+   tell which.
+
+   `length` is the one operation the two are *allowed* to disagree about - part 3 says so at length,
+   because it answers in each target's native unit - so every literal here is ASCII, where a UTF-8
+   byte count and a UTF-16 unit count are the same number. A fixture that asserted a shared number
+   for non-ASCII content would be asserting something part 3 explicitly does not promise.
+
+   Two spellings that document uses are deliberately not exercised, because they do not exist yet and
+   the reasons differ. `s.length` is field syntax and a string has no fields on either target, so the
+   call form is `length(s)` exactly as it is for every container here. `s[i]` needs an `Index`
+   instance, and `Index` hands back a *borrow* - which a string unit is not on JS, where it is a
+   number computed by `charCodeAt`. Core's own note on that class says it does not cover a container
+   whose elements are computed rather than stored; `stringUnit` is the accessor until the class that
+   does lands.
+-}
+
+-- A literal, read for its length. No allocation on either target: natively the run is borrowed over
+-- the constant, so its teardown is nothing at all.
+fn literalLength() -> Int = length("hello") :: Int
+
+-- One raw native unit - part 3. ASCII, so this is also the code point, and `a` is 97 on both.
+fn firstUnit() -> Int = stringUnit("abc", 0)
+
+-- The empty literal, which is the one length that cannot come out of a miscounted loop by accident.
+fn emptyLength() -> Int = length("") :: Int
+
+{-
+   Concatenation - part 8, and the first place a string's teardown actually runs.
+
+   The result owns its bytes where the two literals did not, so `joined`'s run is `runFromHeap` and
+   the frame frees it. That the answer is 5 rather than a crash is the assertion; that the free
+   happens exactly once is what `Reclaim(String)` being the run's own placement switch buys.
+-}
+fn concatLength() -> Int:
+    let joined = "ab" + "cde"
+    return length(joined) :: Int
+
+{-
+   Appending to a literal, which is where copy-on-write happens.
+
+   `start` holds a *borrowed* run over constant bytes. Growing it cannot write there, and `resize`
+   does not have to be told so: it relocates a borrowed run by allocating, copying, and freeing
+   nothing - because there was nothing of its own to free. So this is one allocation and no special
+   case, reached through Implementation-Containers.md §2's existing three answers rather than a
+   fourth one added for strings.
+-}
+fn appendToLiteral() -> Int:
+    let &start = "lit"
+    pushString(start, "eral")
+    return length(start) :: Int
+
+-- Equality is raw unit-wise on both targets, which part 3 argues is never a place they can disagree:
+-- encoding is an injective function of content.
+fn equalityHolds() -> Int:
+    let &total = 0 :: Int
+    if "abc" == "abc" then total = total + 1
+    if "abc" == "abd" then total = total + 100
+    if "ab" == "abc" then total = total + 100
+    return total
+
+-- Ordering is raw unit-wise lexicographic, again per part 3. All-ASCII, so this is also code-point
+-- order and the two targets agree for a second reason.
+fn orderingHolds() -> Int:
+    let &total = 0 :: Int
+    if "abc" < "abd" then total = total + 1
+    if "ab" < "abc" then total = total + 1
+    if "b" < "a" then total = total + 100
+    return total
+
+fn main() -> Int:
+    let &total = 0 :: Int
+
+    total = total + literalLength()      -- 5
+    total = total + firstUnit()          -- 97
+    total = total + emptyLength()        -- 0
+    total = total + concatLength()       -- 5
+    total = total + appendToLiteral()    -- 7
+    total = total + equalityHolds()      -- 1
+    total = total + orderingHolds()      -- 2
+
+    return total

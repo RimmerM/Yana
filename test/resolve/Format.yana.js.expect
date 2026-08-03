@@ -1,0 +1,188 @@
+"use strict";
+// Collections
+function stringUnit(self, index) {
+  return self.charCodeAt(index);
+}
+
+function newStringOfCapacity(capacity) {
+  return "";
+}
+
+function pushUnit(self$o, self$k, self$s, unit) {
+  var v4 = self$o[self$k] + String.fromCharCode(unit);
+  self$o[self$k] = v4;
+  return;
+}
+
+function pushString(self$o, self$k, self$s, other) {
+  self$o[self$k] = self$o[self$k] + other;
+  return;
+}
+
+function showSigned(value, to$o, to$k, to$s) {
+  if (value === 0n) {
+    pushUnit(to$o, to$k, to$s, 48);
+    return;
+  } else {
+    var remaining = value;
+    if (value > 0n) {
+      remaining = BigInt.asIntN(64, 0n - remaining);
+    }
+    var digits = { $v: newStringOfCapacity(20) };
+    L0: for (;;) {
+      if (remaining < 0n) {
+        pushUnit(digits, "$v", 1, (Number(BigInt.asIntN(64, 0n - BigInt.asIntN(64, remaining % 10n))) | 0) + 48 | 0);
+        remaining = BigInt.asIntN(64, remaining / 10n);
+        continue L0;
+      }
+      break L0;
+    }
+    if (value < 0n) {
+      pushUnit(to$o, to$k, to$s, 45);
+    }
+    var i = Length_String_length(digits.$v);
+    L1: for (;;) {
+      if (i > 0) {
+        var v79 = i - 1 | 0;
+        i = v79;
+        pushUnit(to$o, to$k, to$s, stringUnit(digits.$v, v79));
+        continue L1;
+      }
+      break L1;
+    }
+    return;
+  }
+}
+
+function formatBound(bound) {
+  var v9;
+  if (!(bound === null)) {
+    v9 = bound;
+  } else {
+    v9 = 0;
+  }
+  return v9;
+}
+
+function print(text) {
+  console.log(text);
+  return;
+}
+
+function Length_String_length(self) {
+  return self.length;
+}
+
+// ResolveTest
+function plain() {
+  return Length_String_length("no holes here");
+}
+
+function oneInt() {
+  var v7 = { $v: newStringOfCapacity(formatBound(11) + 4 | 0) };
+  pushString(v7, "$v", 1, "n = ");
+  showSigned(42n, v7, "$v", 1);
+  return Length_String_length(v7.$v);
+}
+
+function oneIntText() {
+  var v7 = { $v: newStringOfCapacity(formatBound(11) + 3 | 0) };
+  pushString(v7, "$v", 1, "n=");
+  showSigned(7n, v7, "$v", 1);
+  pushString(v7, "$v", 1, "!");
+  var text = v7.$v;
+  var total = 0;
+  if (Length_String_length(text) !== 4) {
+    return 0;
+  } else {
+    if (stringUnit(text, 0) === 110) {
+      total = total + 1 | 0;
+    }
+    if (stringUnit(text, 1) === 61) {
+      total = total + 1 | 0;
+    }
+    if (stringUnit(text, 2) === 55) {
+      total = total + 1 | 0;
+    }
+    if (stringUnit(text, 3) === 33) {
+      total = total + 1 | 0;
+    }
+    return total;
+  }
+}
+
+function oneString() {
+  var v6 = { $v: newStringOfCapacity(formatBound(Length_String_length("world")) + 6 | 0) };
+  pushString(v6, "$v", 1, "hello ");
+  pushString(v6, "$v", 1, "world");
+  return Length_String_length(v6.$v);
+}
+
+function mixed() {
+  var v19 = { $v: newStringOfCapacity((((formatBound(Length_String_length("ab")) + 3 | 0) + formatBound(11) | 0) + formatBound(Length_String_length("ab")) | 0) + formatBound(11) | 0) };
+  pushString(v19, "$v", 1, "ab");
+  pushString(v19, "$v", 1, "-");
+  showSigned(12n, v19, "$v", 1);
+  pushString(v19, "$v", 1, "-");
+  pushString(v19, "$v", 1, "ab");
+  pushString(v19, "$v", 1, "-");
+  showSigned(345n, v19, "$v", 1);
+  return Length_String_length(v19.$v);
+}
+
+function negative() {
+  var v8 = { $v: newStringOfCapacity(formatBound(11)) };
+  showSigned(-2147483648n, v8, "$v", 1);
+  return Length_String_length(v8.$v);
+}
+
+function boolean() {
+  var v10 = { $v: newStringOfCapacity((formatBound(5) + 1 | 0) + formatBound(5) | 0) };
+  pushString(v10, "$v", 1, "True");
+  pushString(v10, "$v", 1, "/");
+  pushString(v10, "$v", 1, "False");
+  return Length_String_length(v10.$v);
+}
+
+function inLoop() {
+  var total = 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < 100) {
+      var v18 = { $v: newStringOfCapacity(formatBound(11) + 10 | 0) };
+      pushString(v18, "$v", 1, "iteration ");
+      showSigned(BigInt.asIntN(64, BigInt(i)), v18, "$v", 1);
+      total = total + Length_String_length(v18.$v) | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return total;
+}
+
+function main() {
+  var v41 = Length_String_length("no holes here");
+  var v52 = { $v: newStringOfCapacity(formatBound(11) + 4 | 0) };
+  pushString(v52, "$v", 1, "n = ");
+  showSigned(42n, v52, "$v", 1);
+  var v13 = (v41 + Length_String_length(v52.$v) | 0) + oneIntText() | 0;
+  var v72 = { $v: newStringOfCapacity(formatBound(Length_String_length("world")) + 6 | 0) };
+  pushString(v72, "$v", 1, "hello ");
+  pushString(v72, "$v", 1, "world");
+  var v21 = (v13 + Length_String_length(v72.$v) | 0) + mixed() | 0;
+  var v88 = { $v: newStringOfCapacity(formatBound(11)) };
+  showSigned(-2147483648n, v88, "$v", 1);
+  return (((v21 + Length_String_length(v88.$v) | 0) + boolean() | 0) + inLoop() | 0) + printed() | 0;
+}
+
+function printed() {
+  var v11 = { $v: newStringOfCapacity((formatBound(Length_String_length("format")) + 14 | 0) + formatBound(11) | 0) };
+  pushString(v11, "$v", 1, "[");
+  pushString(v11, "$v", 1, "format");
+  pushString(v11, "$v", 1, " ran ");
+  showSigned(2n, v11, "$v", 1);
+  pushString(v11, "$v", 1, " times]\n");
+  print(v11.$v);
+  return 0;
+}

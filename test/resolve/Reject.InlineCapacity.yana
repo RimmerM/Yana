@@ -1,0 +1,36 @@
+{-
+   What `@inline` and `@capacity` refuse - Implementation-Containers.md §7.
+
+   Three of §7.1's four rows are not built, and the refusal is a diagnostic rather than a silent
+   fallback to the plain array. That is the point of the annotations being ABI: a field whose layout
+   quietly stopped being what was written is the one failure a Repr refinement must not have.
+-}
+
+import Native
+
+-- `@inline(i)` alone spills, and spilling needs the discriminant that says whether the inline bytes
+-- hold elements or a pointer to them.
+data Spilling {xs: @inline(4) [Int]}
+
+-- `@capacity(c)` alone is always external, which needs the same field to be a narrowed capacity
+-- rather than absent.
+data Bounded {xs: @capacity(15) [Int]}
+
+-- And the two together at different numbers, which is the row that has both a spill and a bound.
+data Small {xs: @inline(4) @capacity(15) [Int]}
+
+-- A refinement of something that is not a container. `@inline` is a statement about where a
+-- container's elements live, so a type with none has nothing for it to say.
+fn notAContainer(x: @inline(4) @capacity(4) Int) -> Int = x
+
+-- An array that can hold nothing is not a smaller array, it is a different mistake: `[T]` is what an
+-- array that allocates is spelled.
+data Empty {xs: @inline(0) @capacity(0) [Int]}
+
+-- `@capacity(n)` is a bound rather than a starting size, so a literal past it has nowhere to go. The
+-- push that would exceed it fails at run time; the literal that does is a resolve error, because the
+-- length is written down.
+fn tooLong() -> {}:
+    let xs = [1, 2, 3, 4, 5] :: @inline(4) @capacity(4) [Int]
+
+fn main() -> Int = 0

@@ -610,8 +610,40 @@ inline U32 maxWordBits(Gen& g) {
  * to write back through.
  */
 inline bool refIsFlattened(Gen& g, TypePtr declaredType, ast::BindType convention) {
-    return convention == ast::BindType::Ref && isNarrowJsValue(g, declaredType);
+    return convention == ast::BindType::Ref && !isJsObject(g, declaredType);
 }
+
+/*
+ * Whether a reference to this pointee is the `{$o, $k, $s}` triple rather than a box or the object
+ * itself - and it is not the same question as "is the pointee narrow" any more.
+ *
+ * An object is its own reference on this target, so it is never either. What is left is every value
+ * that is not one, and the two forms it can take differ in a property the *type* has to decide,
+ * because the callee has only the pointee type:
+ *
+ *  - a **box** - `{$v: value}` - is a cell that *is* the storage. Writes through it are seen by
+ *    everybody holding the box, which is what makes it a sound reference to a whole local, and it is
+ *    what an immutable reference to anything can always be, since nothing writes through one and a
+ *    snapshot reads the same as the storage for as long as the loan lasts;
+ *  - the **triple** names a slot inside something else - `r.$o[r.$k]` - and is the only form that
+ *    can name a slot the reference did not create. A field of a record and an element of a host array
+ *    are both that, and a box of one is a *copy*, so a write through it goes nowhere.
+ *
+ * So a mutable reference to a non-object is the triple, always. That is a widening of the rule this
+ * target used to have - narrow values only - and Implementation-Containers.md §14 is what forced it:
+ * `getMut(xs, i)` hands back a reference to `arr[i]`, which is a slot rather than a cell, and there
+ * is no copy-plus-write-back for it because a returned reference has no commit point. It also fixes
+ * `&mut p.x` for a wide `x`, which used to be a box written back at the end of the call that
+ * consumed it and therefore silently wrong for a reference that outlived one.
+ *
+ * An immutable reference keeps the older split: the triple where the pointee is narrow, since a
+ * narrow value is a bit range and reading one needs the shift either way, and the box otherwise.
+ */
+inline bool refIsTriple(Gen& g, TypePtr pointee, bool mut) {
+    if(isJsObject(g, pointee)) return false;
+    return mut || isNarrowValue(g.global, pointee);
+}
+
 
 // How many arguments a flattened reference occupies. Two where the target has no bit ranges in it and
 // the scale is provably one - see narrowRefCarriesScale.

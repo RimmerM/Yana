@@ -39,9 +39,9 @@ fn mapMemory {
   arg size readonly
 }
 
-fn length(Int) {
+fn Length(Array(a)).length(Int) {
   arg self readonly
-  %self: Flat(Int) borrowed readonly live [0, 1)
+  %self: Array(Int) borrowed droppable readonly live [0, 1)
 }
 
 fn Reclaim(Array(a)).reclaim(Int) {
@@ -77,8 +77,7 @@ fn twice {
 
 fn consume {
   arg xs readonly
-  %xs: Array(Int) droppable readonly live [0, 9)
-  %xs: Flat(Int) readonly live [1, 9)
+  %xs: Array(Int) droppable readonly live [0, 1)
 }
 
 fn run {

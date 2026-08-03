@@ -1,45 +1,37 @@
 "use strict";
 // Core
-function add_eq_Int(target, amount) {
-  target.$v = target.$v + amount | 0;
+function add_eq_Int(target$o, target$k, target$s, amount) {
+  target$o[target$k] = target$o[target$k] + amount | 0;
   return;
 }
 
 // ResolveTest
-function bump(counter, by) {
-  counter.$v = counter.$v + by | 0;
+function bump(counter$o, counter$k, counter$s, by) {
+  counter$o[counter$k] = counter$o[counter$k] + by | 0;
   return;
 }
 
-function swap(a, b) {
-  var old = a.$v;
-  a.$v = b.$v;
-  b.$v = old;
+function swap(a$o, a$k, a$s, b$o, b$k, b$s) {
+  var old = a$o[a$k];
+  a$o[a$k] = b$o[b$k];
+  b$o[b$k] = old;
   return;
 }
 
 function moveBy(p, dx, dy) {
-  var v5 = { $v: p.x };
-  add_eq_Int(v5, dx);
-  p.x = v5.$v;
-  var v9 = { $v: p.y };
-  add_eq_Int(v9, dy);
-  p.y = v9.$v;
+  add_eq_Int(p, "x", 1, dx);
+  add_eq_Int(p, "y", 1, dy);
   return;
 }
 
-function copyThroughBorrow(target, amount) {
-  target.$v = target.$v + amount | 0;
+function copyThroughBorrow(target$o, target$k, target$s, amount) {
+  target$o[target$k] = target$o[target$k] + amount | 0;
   return;
 }
 
 function main() {
   var v28 = { x: 10, y: 20 };
-  var v69 = { $v: v28.x };
-  add_eq_Int(v69, 1);
-  v28.x = v69.$v;
-  var v73 = { $v: v28.y };
-  add_eq_Int(v73, 2);
-  v28.y = v73.$v;
+  add_eq_Int(v28, "x", 1, 1);
+  add_eq_Int(v28, "y", 1, 2);
   return (v28.x + 33 | 0) + v28.y | 0;
 }

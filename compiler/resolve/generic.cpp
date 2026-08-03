@@ -449,6 +449,9 @@ static ModulePtr<Value> cloneDefinition(Clone& clone, ModulePtr<Value> value) {
         case Value::ConstDouble:
             result = clone.resolver.constant<ConstDouble>(source->source, type, ((ConstDouble*)source)->value);
             break;
+        case Value::ConstString:
+            result = clone.resolver.constant<ConstString>(source->source, type, ((ConstString*)source)->text);
+            break;
         default:
             // Everything else is created before anything can use it, so reaching this means the
             // body was not in the order the clone assumes - unless an earlier call in it already
@@ -928,7 +931,8 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
         }
         case Value::Native: {
             auto& native = (InstNative&)inst;
-            auto cloned = resolver.create<InstNative>(inst.source, inst.name, type, native.op);
+            auto cloned = resolver.create<InstNative>(inst.source, inst.name, type, native.op,
+                                                      native.method);
 
             for(auto arg: native.args.contents(clone.local)) {
                 cloned->args.push(clone.module.arena, cloneValue(clone, arg));
@@ -1470,17 +1474,17 @@ ModulePtr<Function> instantiateFunction(Module& from, ModulePtr<Function> pointe
     return specialized - local;
 }
 
-ModulePtr<Function> instanceImplementation(Module& module, GlobalPtr<TypeClass> typeClass, TypePtr type,
-                                           LocationId source) {
+ModulePtr<Function> instanceMember(Module& module, GlobalPtr<TypeClass> typeClass, TypePtr type,
+                                   U16 member, LocationId source) {
     TypePtr args[] = { type };
     auto match = matchInstance(module, typeClass, toBuffer(args));
     if(!match) return nullptr;
 
     auto local = *module.arena;
     auto instance = local[match.instance];
-    if(instance->functions.isEmpty()) return nullptr;
+    if(member >= instance->functions.size()) return nullptr;
 
-    auto implementation = instance->functions.get(local, 0);
+    auto implementation = instance->functions.get(local, member);
     if(!implementation) return nullptr;
 
     if(local[implementation]->gen) {
@@ -1490,4 +1494,11 @@ ModulePtr<Function> instanceImplementation(Module& module, GlobalPtr<TypeClass> 
 
     (*module.arena)[implementation]->used = true;
     return implementation;
+}
+
+// The first member, which is what a one-member class - `Reclaim`, `Drop` - is asked for. `Show` has
+// two and asks for them by index through the function above.
+ModulePtr<Function> instanceImplementation(Module& module, GlobalPtr<TypeClass> typeClass, TypePtr type,
+                                           LocationId source) {
+    return instanceMember(module, typeClass, type, 0, source);
 }

@@ -612,6 +612,87 @@ ModulePtr<Value> ExprResolver::convertRefinement(ModulePtr<Value> value, TypePtr
 }
 
 /*
+ * A host array's length, as the one instruction it is - `arr.length`.
+ *
+ * Built here rather than by calling `Host`'s `hostLength`, because this is compiler code and a call
+ * it would then have to inline is a worse way to say one property read. It is the same node the
+ * declaration expands to.
+ */
+ModulePtr<Value> ExprResolver::hostArrayLength(ModulePtr<Value> items, LocationId source) {
+    auto instruction = create<InstNative>(source, 0, module.scalar.size, NativeOp::HostField,
+                                          context.addUnqualifiedName("length", 6));
+
+    instruction->args.push(module.arena, items);
+    append(instruction);
+
+    return ref(instruction);
+}
+
+/*
+ * Borrowing a container on JS - Implementation-Containers.md §4.3 and §14.
+ *
+ * The same descriptor over the same three questions, and every one of them has a different answer
+ * because a host array is indexed rather than addressed:
+ *
+ *  - **the base** is the array itself rather than a computed address, so a window into it is the
+ *    whole array plus where the window starts. That is the third field, and it is the whole of what
+ *    §4.3's three-component slice is;
+ *  - **the length** is `arr.length` for a growable container, which is why there is no count field
+ *    on the JS `Array(a)` to read: the host already keeps one and keeping a second would be two
+ *    numbers that can disagree;
+ *  - **a `[T *n]`** is a host array too - `zeroValue` builds one of `n` elements - so its arm is the
+ *    array itself and a constant, which is the same shape the native arm has and for once the same
+ *    cost. This is the gap §6 recorded as "not done here: the JS half", and the reinterpretation is
+ *    what closes it: a fixed array and a run of elements are one host value, so the conversion
+ *    between their types moves nothing.
+ *
+ * The loan, the `viewOf` and the writability rule are the native path's, unchanged - none of them is
+ * about how the elements are reached.
+ */
+ModulePtr<Value> ExprResolver::convertSliceJs(ModulePtr<Value> value, const Place& array,
+                                              const Place& owner, TypePtr from, TypePtr target,
+                                              TypePtr element, TypePtr fixed, LocationId source,
+                                              bool mut) {
+    ModulePtr<Value> items = nullptr;
+    ModulePtr<Value> count = nullptr;
+
+    if(fixed) {
+        auto pointer = resolvePointerType(module, element);
+        items = ref(emit<InstUnary>(source, 0, pointer, Value::Cast, load(array, source)));
+        count = makeInt(source, module.scalar.size, ((ArrayType*)global[from])->length);
+    } else {
+        auto held = projectField(array, context.addUnqualifiedName("items", 5), source, source);
+        if(!held) return nullptr;
+
+        items = load(held.unwrap(), source);
+        count = hostArrayLength(items, source);
+    }
+
+    auto storage = allocate(target, source, local[value]->name,
+                            mut ? ast::BindType::Ref : ast::BindType::Borrow);
+    auto descriptor = placeFor(storage, source);
+    auto slice = project(descriptor, ProjectionKind::Downcast, 0);
+
+    if(owner.root == PlaceRoot::Local && owner.local < function.localCount()) {
+        auto entry = function.localAt(local, descriptor.local);
+        entry.viewOf = owner.local;
+        function.locals.set(local, descriptor.local, entry);
+    }
+
+    if(auto declared = sliceLengthType(module, target)) count = convert(count, declared, source, false);
+
+    initialize(project(slice, ProjectionKind::Field, 0), items, source);
+    initialize(project(slice, ProjectionKind::Field, 1), count, source);
+
+    // The window's start, which is zero for every conversion *from an owner*: a borrow of a whole
+    // container begins at its beginning. A sub-window is `slice`'s, and that is written in the
+    // language rather than here.
+    initialize(project(slice, ProjectionKind::Field, 2), makeInt(source, module.scalar.size, 0), source);
+
+    return storage;
+}
+
+/*
  * Borrowing a container - Implementation-Containers.md §4.
  *
  * `f(xs)` where `f` said `[T]` hands over a `{base, length}` descriptor rather than the array, and
@@ -637,6 +718,18 @@ ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from
     auto fixed = fixedElement(module, from);
     if(!element || (!fixed && !arrayElement(module, from))) return nullptr;
 
+    /*
+     * A third owner, and it borrows like the second - Implementation-Containers.md §7.
+     *
+     * An `@inline(n) @capacity(n)` array holds its slots the way a `[T *n]` does, so the base is an
+     * address computation rather than a load; what it does *not* share with the fixed array is the
+     * length, which is stored here because the array grows within its bound. So this arm is one half
+     * of each of the two below it, and no third descriptor shape exists - which is §1's whole point,
+     * that what varies is the owner and never the borrow.
+     */
+    auto inlineOwner = inlineRefinement(module, from);
+    if(inlineOwner && arrayElement(module, from) != element) return nullptr;
+
     // Two containers, one descriptor. A `[T *n]` whose element type is not the slice's is not a
     // borrow of it at all, which the growable side gets for free - `Array(T)` and `Flat(U)` never
     // reach here because instantiateRecord already made them different types - and which this side
@@ -661,6 +754,10 @@ ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from
 
     auto array = Place::inBorrow(borrowed);
 
+    if(isJsMode(context.settings.mode)) {
+        return convertSliceJs(value, array, place.unwrap(), from, target, element, fixed, source, mut);
+    }
+
     /*
      * Where the two halves of the descriptor come from, which is the whole of the difference between
      * the two owners - Implementation-Containers.md §6.
@@ -676,14 +773,21 @@ ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from
      */
     Maybe<Place> base = Nothing();
     Maybe<Place> length = Nothing();
+    Maybe<Place> slots = Nothing();
 
     if(!fixed) {
         auto items = projectField(array, context.addUnqualifiedName("run", 3), source, source);
         length = projectField(array, context.addUnqualifiedName("length", 6), source, source);
         if(!items || !length) return nullptr;
 
-        base = projectField(items.unwrap(), context.addUnqualifiedName("items", 5), source, source);
-        if(!base) return nullptr;
+        // The refined owner stops here: its run *is* the slots, so what the plain one loads out of a
+        // field is what this one takes the address of.
+        if(inlineOwner) {
+            slots = items;
+        } else {
+            base = projectField(items.unwrap(), context.addUnqualifiedName("items", 5), source, source);
+            if(!base) return nullptr;
+        }
     }
 
     // Writable exactly when the borrow was, because that is what a `&` slice argument needs to
@@ -731,7 +835,10 @@ ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from
      * that `capacity` writes by hand in `Native`, at the one boundary the compiler builds rather than
      * the program.
      */
-    auto items = fixed ? fixedArrayBase(array, element, source) : load(base.unwrap(), source);
+    auto items = fixed
+        ? fixedArrayBase(array, element, source)
+        : (inlineOwner ? fixedArrayBase(slots.unwrap(), element, source) : load(base.unwrap(), source));
+
     initialize(project(slice, ProjectionKind::Field, 0), items, source);
 
     auto count = fixed
@@ -757,7 +864,44 @@ ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, L
     if(sameType(from, target)) return value;
     if(global[from]->kind == Type::Error || global[target]->kind == Type::Error) return value;
     if(auto refined = convertRefinement(value, from, target, source)) return refined;
+
+    /*
+     * A refined container at a parameter written `Array(a)` - Implementation-Containers.md §7.2.
+     *
+     * Before the slice conversion, because both are available and this one is what the position
+     * asked for: `elements(xs)` takes `Array(a)` and would silently become `elements(slice(xs))` if
+     * the slice route won, which is a different overload rather than a different representation.
+     * Reading only, since a value argument has nothing to write back - a `&` one comes through
+     * borrowArgument instead, and that is the path that queues the count.
+     */
+    if(inlineRefinement(module, from) && unrefined(global, from) == target) {
+        if(auto place = findPlace(value)) {
+            if(auto descriptor = inlineArrayDescriptor(place.unwrap(), from, source, false)) return descriptor;
+        }
+    }
+
     if(auto sliced = convertSlice(value, from, target, source)) return sliced;
+
+    /*
+     * A container of the program's own, reaching `[T]` through its `Contiguous` instance -
+     * Implementation-Containers.md §5.
+     *
+     * `Contiguous` is the promise that this type has a buffer address, so `elements` is the whole of
+     * the conversion and there is nothing here to build: one call, whose result is a view rooted in
+     * the argument by the `return` marker the class declares. Which makes this the *only* implicit
+     * conversion into a slice a program can grant itself, and deliberately so - a `Chunked` container
+     * would need an O(n) copy to become one, and §5 refuses to hide one behind an argument position.
+     * See the diagnostic at the end of this function, which says that where it happens.
+     */
+    if(auto element = sliceElement(module, target)) {
+        auto contiguous = contiguousElement(module, from);
+
+        if(contiguous && sameType(contiguous, element)) {
+            auto converted = emitConversion(module.coreClasses.contiguous,
+                                            context.addUnqualifiedName("elements", 8), value, target, source);
+            if(converted) return converted;
+        }
+    }
 
     // A borrow converts to and from exactly one thing - the type it refers to - so when either side
     // is one, that is the whole of the decision and there is no widening path to fall through to.
@@ -783,6 +927,23 @@ ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, L
 
         context.diagnostics.error("implicit conversion from %@ to %@ would lose precision"_v, source,
                                   describeType(context, global, from), describeType(context, global, target));
+        return value;
+    }
+
+    /*
+     * The refusal §5 is built around: a container that is `Chunked` and not `Contiguous`, where a
+     * `[T]` was expected.
+     *
+     * `[T]` is an address and a length, and a chunked container has no single one of either - so
+     * making this work would mean copying every element into a fresh buffer at an argument position
+     * nobody wrote a call at. What the author changes is the parameter: a function that only reads
+     * elements should ask for `Chunked`, and then it accepts this container *and* every contiguous
+     * one, with no dispatch left after specialization.
+     */
+    if(sliceElement(module, target) && chunkedElement(module, from)) {
+        context.diagnostics.error("%@ is `Chunked` and not `Contiguous`, so it cannot be passed as %@ - its elements are not one buffer, and flattening them would be a copy this position does not say it makes. A function that only reads elements should take `fn (Chunked(c, a)) f(xs: c)` instead, which this container satisfies"_v,
+                                  source, describeType(context, global, from),
+                                  describeType(context, global, target));
         return value;
     }
 
@@ -818,9 +979,12 @@ bool ExprResolver::convertible(ModulePtr<Value> value, TypePtr target, LocationI
     if(isBorrow(global, from)) return sameType(((BorrowType*)global[from])->to, target);
 
     // An owned container fits a `[T]` parameter, which is what makes `sum(xs)` select an overload
-    // declared over the slice - see convertSlice.
+    // declared over the slice - see convertSlice. A container with a `Contiguous` instance fits the
+    // same position through the call convert() emits, and selection has to agree about that or a
+    // candidate taking `[T]` is rejected for an argument convert() would have accepted.
     if(auto element = sliceElement(module, target)) {
         if(ownedElement(module, from) == element) return true;
+        if(contiguousElement(module, from) == element) return true;
     }
 
     // A `@bits` refinement converts to and from what it refines without an instance - see
@@ -1699,6 +1863,292 @@ ModulePtr<Value> ExprResolver::resolveDecimal(LocationId source, TypePtr target,
     return target ? materializeLiteral(literal, target, source) : literal;
 }
 
+/*
+ * A string literal - Implementation-String.md part 9, which is the one point a `String` is authored
+ * rather than built up through the API.
+ *
+ * The two targets diverge completely here and share nothing but the decoded bytes, which is the
+ * honest shape of "one logical value, two Repr-driven encodings":
+ *
+ *  - **JS**: the literal is a host string, and the only thing that produces one is a constant in the
+ *    emitted source. One value kind, no storage, no descriptor - see ConstString.
+ *  - **native**: the bytes go into the module's data as an ordinary global, and the value is the two
+ *    words describing them. `runBorrowed` is what makes that free: the run does not own its slots,
+ *    so a literal costs no teardown, and `resize` relocates a borrowed run by copying rather than
+ *    refusing - which is copy-on-write, reached through Implementation-Containers.md §2's existing
+ *    answers rather than a fourth one.
+ *
+ * The lexer has already decoded every escape and interned the result as UTF-8, so there is no
+ * encoding work left here on either side. On native that is the target's native unit already; on JS
+ * the emitter re-encodes it into a source literal and the host owns the UTF-16 from there.
+ */
+ModulePtr<Value> ExprResolver::resolveString(LocationId source, StringId text) {
+    if(isJsMode(context.settings.mode)) {
+        return constant<ConstString>(source, module.scalar.string_, text);
+    }
+
+    auto content = context.findName(text);
+
+    if(!module.program.stringLiteral) {
+        context.diagnostics.error("internal: no string literal constructor for this target"_v, source);
+        return nullptr;
+    }
+
+    /*
+     * The bytes, as a global of their own.
+     *
+     * Named per literal rather than interned by content. Two identical literals therefore get two
+     * globals, which costs the bytes twice and is deliberately left alone: deduplicating them is a
+     * size optimization over a table keyed on content, and doing it here would mean a name that
+     * depends on the bytes - so a literal containing a quote or a newline would have to be escaped
+     * into an identifier, which is a decision better made once, later, in one place.
+     */
+    /*
+     * The bytes, as a global of their own, named by position rather than by content.
+     *
+     * The counter is what makes two literals two globals. Interning them by content instead would
+     * save the bytes of a repeated literal, and is deliberately not done here: the name would then
+     * have to be derived from the content, so a literal containing a quote or a newline would need
+     * escaping into an identifier - a decision worth making once, later, in one place, rather than
+     * as a side effect of emitting the first one.
+     */
+    StringBuilder name;
+    name << "string$";
+    name.appendValue(module.stringLiteralCount++);
+
+    auto size = content.size();
+    auto bytes = module.addGlobal(builtName(context, name), source);
+    bytes->type = module.scalar.string_;
+    bytes->literalBytes = ByteBuffer((Byte*)module.arena.alloc(size), size);
+    copy((const Byte*)content.text(), bytes->literalBytes.ptr, size);
+    bytes->used = true;
+
+    auto constructor = module.program.stringLiteral;
+    auto local = *module.arena;
+    local[constructor]->used = true;
+
+    // `stringLiteral` takes a `%U8`, and what it is handed is the address of a blob - so the
+    // pointee type comes from the callee's own signature rather than being built here. That keeps
+    // this correct if the unit ever stops being a byte, which is what part 2's table leaves open.
+    auto byteType = local[local[constructor]->args.get(local, 0)]->type;
+    auto address = ref(emit<InstSymbol>(source, 0, byteType, nullptr, bytes - local));
+    auto length = makeInt(source, module.scalar.int_, size);
+
+    auto call = create<InstCall>(source, 0, module.scalar.string_, constructor);
+    call->args.push(module.arena, address);
+    call->args.push(module.arena, length);
+    append(call);
+
+    return ref(call);
+}
+
+/*
+ * `"a{x}b{y}c"` - Implementation-Storage.md part 8.
+ *
+ * The parser already produced the chunks; what happens here is the document's three steps, and the
+ * design's whole trick is that they produce **one allocation whose extent is an ordinary value**
+ * rather than three code paths:
+ *
+ *  1. the literal segments are known now, so their total `L` is a constant;
+ *  2. each hole contributes `showBound(v)`, read through `formatBound` so that `Nothing` is zero;
+ *  3. `newStringOfCapacity(L + Σ)` , then the literals and the holes appended in order.
+ *
+ * The three strategies are what the *existing* passes then make of that one allocation, which is why
+ * none of them appears here:
+ *
+ *  **(a)** every bound is a constant `Just`, so the sum folds to a literal, the run's extent is a
+ *  constant, and escape analysis puts a non-escaping format on the frame with no allocator call
+ *  anywhere. This is the case the class's shape was designed for, and it needs the specializer to
+ *  inline `showBound` and the folder to reduce what is left - both of which run.
+ *
+ *  **(b)** the sum is a runtime value. The allocation is the same instruction with a computed
+ *  extent, and where it lives is `selectStorage`'s answer.
+ *
+ *  **(c)** some bound is `Nothing`. `formatBound` answers zero, so the seed covers the literals and
+ *  the bounds that *are* known, and the appends grow past it through `reserveString`. A format that
+ *  does not escape still starts on the frame and migrates only if it overflows.
+ *
+ * What is *not* here, and is part 8's own open question: the guarded `alloca`/heap pair strategy (b)
+ * asks for, with the not-in-a-loop rule. `selectStorage` gives a computed extent the conservative
+ * heap answer today - the same answer Implementation-Containers.md §12 records for every other
+ * container - so (b) is correct and pays for the heap where it could sometimes have used the frame.
+ * That is a placement decision shared with every container rather than something formatting can fix
+ * on its own, which is why it is left where the rest of §12 is.
+ */
+ModulePtr<Value> ExprResolver::resolveFormat(const ast::Expr& expr) {
+    auto& program = module.program;
+
+    if(!program.newString || !program.pushString || !program.formatBound || !program.coreClasses.show) {
+        context.diagnostics.error("internal: string formatting is unavailable in this build"_v, expr.source);
+        return nullptr;
+    }
+
+    struct Hole {
+        ModulePtr<Value> value = nullptr;
+        TypePtr type = nullptr;
+        StringId text = 0;
+        bool hasText = false;
+    };
+
+    SmallArray<Hole, 8> holes;
+    U64 literalUnits = 0;
+
+    /*
+     * Every hole resolved before anything is measured, and that ordering is the contract rather than
+     * convenience: the arguments run left to right exactly once, and both `showBound` and `show` then
+     * read the same value. Resolving a hole twice would run its expression twice.
+     */
+    auto chunks = expr.format;
+    for(auto chunk: chunks.contents(parse)) {
+        Hole hole;
+
+        if(chunk.string) {
+            hole.text = chunk.string;
+            hole.hasText = true;
+            literalUnits += context.findName(chunk.string).size();
+        }
+
+        if(chunk.format) {
+            hole.value = resolve(*parse[chunk.format], nullptr, true);
+            if(!hole.value) return nullptr;
+
+            hole.value = settle(hole.value, expr.source);
+            if(!hole.value) return nullptr;
+
+            hole.type = valueType(hole.value);
+        }
+
+        holes.push(hole);
+    }
+
+    // Step 3's constant half. Runtime bounds are added to it below, and where there are none this is
+    // the whole extent and folds straight into the allocation.
+    auto total = makeInt(expr.source, module.scalar.int_, literalUnits);
+
+    for(auto& hole: holes) {
+        if(!hole.value) continue;
+
+        auto bound = instanceMember(module, program.coreClasses.show, hole.type, 1, expr.source);
+        if(!bound) {
+            context.diagnostics.error("cannot format a value of type %@ - it has no instance of `Show`, so there is nothing that says what its text is"_v,
+                                      expr.source, describeType(context, global, hole.type));
+            return nullptr;
+        }
+
+        auto measure = create<InstCall>(expr.source, 0, (*module.arena)[bound]->returnType, bound);
+        measure->args.push(module.arena, hole.value);
+        append(measure);
+
+        auto units = create<InstCall>(expr.source, 0, module.scalar.int_, program.formatBound);
+        units->args.push(module.arena, ref(measure));
+        append(units);
+        (*module.arena)[program.formatBound]->used = true;
+
+        total = ref(emit<InstBinary>(expr.source, 0, module.scalar.int_, Value::Add, total, ref(units)));
+    }
+
+    // The sink. One allocation, whose extent is whatever the sum turned out to be - see above.
+    auto sizeType = (*module.arena)[(*module.arena)[program.newString]->args.get(*module.arena, 0)]->type;
+    auto extent = convert(total, sizeType, expr.source);
+    if(!extent) return nullptr;
+
+    (*module.arena)[program.newString]->used = true;
+    auto sink = create<InstCall>(expr.source, 0, module.scalar.string_, program.newString);
+    sink->args.push(module.arena, extent);
+    append(sink);
+
+    sink->local = function.addLocal(module, sink->type, 0, ref(sink));
+
+    /*
+     * The sink's own storage, which is exactly what `let &sink = newStringOfCapacity(n)` compiles to
+     * and is written out here for the same reason that line would have been.
+     *
+     * Two things need it, and borrowing the call's result directly satisfies neither. The appends
+     * take a `&`, and a borrow is writable only where the place it names is - a call result's local
+     * is not declared mutable. And on JS a `&` of a non-object is the `{$o, $k, $s}` triple
+     * (Implementation-Containers.md §14.1), which needs a *box* to point into: a host string is a
+     * primitive, so `sink[$k] = ...` against a bare one throws rather than writing. A `Ref`-convention
+     * allocation is what makes the backend produce that box, and it is why this is an allocation and
+     * an initialization rather than one instruction fewer.
+     *
+     * The copy is a temporary's, so the optimizer removes it wherever it can adopt the storage - the
+     * same path an array literal's run takes.
+     */
+    auto storage = allocate(module.scalar.string_, expr.source, 0, ast::BindType::Ref);
+    if(!storage) return nullptr;
+
+    initialize(placeFor(storage, expr.source), ref(sink), expr.source);
+    auto sinkValue = storage;
+
+    /*
+     * Appending, in written order. A `&` argument is a borrow of the sink's own storage, which is
+     * what lets every one of these write into the buffer that was just sized for them.
+     *
+     * `sinkFirst` is not a detail: `pushString(&self: String, other: String)` takes the sink first
+     * and `show(value: a, &to: String)` takes it second, and pushing the two in one order for both
+     * produced a call whose arguments were swapped. The types differ, so it was caught - by the lower
+     * IR validator rather than the resolver, because a `&` argument is an address at that level and
+     * both positions are addresses at this one.
+     */
+    auto appendTo = [&](ModulePtr<Function> callee, ModulePtr<Value> argument, bool sinkFirst) {
+        auto borrowed = borrowArgument(sinkValue, module.scalar.string_, expr.source, false);
+        if(!borrowed) return false;
+
+        (*module.arena)[callee]->used = true;
+        auto call = create<InstCall>(expr.source, 0, module.scalar.unit, callee);
+
+        if(sinkFirst) {
+            call->args.push(module.arena, borrowed);
+            call->args.push(module.arena, argument);
+        } else {
+            call->args.push(module.arena, argument);
+            call->args.push(module.arena, borrowed);
+        }
+
+        append(call);
+        return true;
+    };
+
+    /*
+     * The hole first and the literal second, which is the order the parser records rather than the
+     * order the two are written in.
+     *
+     * `parseStringExpr` opens with `{leading text, no expression}` and then pushes one chunk per
+     * hole holding *that hole's expression and the text following it*. So a chunk is "this value,
+     * then this text", and appending a chunk's text before its value renders `"n={7}!"` as `n=!7` -
+     * which is a wrong string of the right length, so a fixture that checked only `length` would
+     * have passed. `Format.yana` reads the units back for exactly this reason.
+     */
+    for(auto& hole: holes) {
+        if(hole.value) {
+            auto writer = instanceMember(module, program.coreClasses.show, hole.type, 0, expr.source);
+            if(!writer) {
+                context.diagnostics.error("cannot format a value of type %@ - it has no instance of `Show`, so there is nothing that says what its text is"_v,
+                                          expr.source, describeType(context, global, hole.type));
+                return nullptr;
+            }
+
+            if(!appendTo(writer, hole.value, false)) return nullptr;
+        }
+
+        if(hole.hasText) {
+            auto literal = resolveString(expr.source, hole.text);
+            if(!literal || !appendTo(program.pushString, literal, true)) return nullptr;
+        }
+    }
+
+    /*
+     * The finished string, read out of the storage it was built in.
+     *
+     * A *load* and not the allocation, and the difference is the whole of what a format expression
+     * produces: the sink is storage this frame owns and the format's value is the string in it. On
+     * JS that distinction is visible in the emitted source - the sink is a box, so handing the
+     * allocation on passes `{$v: ...}` where every reader wants `.$v` - and natively it is the
+     * difference between the address and the two words at it.
+     */
+    return load(placeFor(sinkValue, expr.source), expr.source);
+}
+
 ModulePtr<Value> ExprResolver::resolveLiteral(const ast::Expr& expr, TypePtr target) {
     switch(ast::Literal::Kind(expr.kind - ast::Expr::Lit)) {
         case ast::Literal::Int:
@@ -1707,6 +2157,8 @@ ModulePtr<Value> ExprResolver::resolveLiteral(const ast::Expr& expr, TypePtr tar
             return resolveDecimal(expr.source, target, F64(expr.lit.f));
         case ast::Literal::Double:
             return resolveDecimal(expr.source, target, expr.lit.d());
+        case ast::Literal::String:
+            return resolveString(expr.source, expr.lit.s);
         case ast::Literal::Bool:
             return makeInt(expr.source, module.scalar.bool_, expr.lit.b ? 1 : 0);
         default:
@@ -2010,6 +2462,8 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
         }
         case ast::Expr::Array:
             return resolveArray(expr, expr.arr, target);
+        case ast::Expr::Format:
+            return resolveFormat(expr);
         case ast::Expr::Sub: {
             // A subscript read produces a borrow of the element, which the position it appears in
             // then reads through - so the caller writes `xs[0] + 1` and never names the borrow.

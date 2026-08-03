@@ -1,0 +1,92 @@
+"use strict";
+// Collections
+function stringUnit(self, index) {
+  return self.charCodeAt(index);
+}
+
+function pushString(self$o, self$k, self$s, other) {
+  self$o[self$k] = self$o[self$k] + other;
+  return;
+}
+
+function Length_String_length(self) {
+  return self.length;
+}
+
+function Append_String_add(lhs, rhs) {
+  return lhs + rhs;
+}
+
+function Eq_String_eq_eq(self, other) {
+  return self === other;
+}
+
+function Ord_String_compare(self, other) {
+  if (self < other) {
+    return 0;
+  } else {
+    if (other < self) {
+      return 2;
+    } else {
+      return 1;
+    }
+  }
+}
+
+// ResolveTest
+function literalLength() {
+  return Length_String_length("hello");
+}
+
+function firstUnit() {
+  return stringUnit("abc", 0);
+}
+
+function emptyLength() {
+  return Length_String_length("");
+}
+
+function concatLength() {
+  return Length_String_length(Append_String_add("ab", "cde"));
+}
+
+function appendToLiteral() {
+  var start = { $v: "lit" };
+  pushString(start, "$v", 1, "eral");
+  return Length_String_length(start.$v);
+}
+
+function equalityHolds() {
+  var total = 0;
+  if (Eq_String_eq_eq("abc", "abc")) {
+    total = total + 1 | 0;
+  }
+  if (Eq_String_eq_eq("abc", "abd")) {
+    total = total + 100 | 0;
+  }
+  if (Eq_String_eq_eq("ab", "abc")) {
+    total = total + 100 | 0;
+  }
+  return total;
+}
+
+function orderingHolds() {
+  var total = 0;
+  if (Ord_String_compare("abc", "abd") === 0) {
+    total = total + 1 | 0;
+  }
+  if (Ord_String_compare("ab", "abc") === 0) {
+    total = total + 1 | 0;
+  }
+  if (Ord_String_compare("b", "a") === 0) {
+    total = total + 100 | 0;
+  }
+  return total;
+}
+
+function main() {
+  var v17 = ((Length_String_length("hello") + stringUnit("abc", 0) | 0) + Length_String_length("") | 0) + Length_String_length(Append_String_add("ab", "cde")) | 0;
+  var start = { $v: "lit" };
+  pushString(start, "$v", 1, "eral");
+  return ((v17 + Length_String_length(start.$v) | 0) + equalityHolds() | 0) + orderingHolds() | 0;
+}

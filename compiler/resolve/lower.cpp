@@ -1350,7 +1350,25 @@ static TypePtr narrowRefRoot(LowerContext& lower, Function& function, const Plac
     TypePtr referenced = nullptr;
 
     if(place.root == PlaceRoot::Borrow) {
-        referenced = ((BorrowType*)lower.global[lower.local[place.pointer]->type])->to;
+        /*
+         * The pointee, where the root really is a borrow.
+         *
+         * Checked rather than assumed, and the check is not defensive tidying: a place whose root is
+         * `PlaceRoot::Borrow` but whose pointer value is *not* typed `&T` reaches here, and casting
+         * one to `BorrowType` reads a `to` field out of unrelated bytes - a `TypePtr` made of
+         * whatever was there, and a segfault the moment anything asks for its Repr.
+         *
+         * That it can happen at all was found by a string format, whose sink is borrowed and written
+         * through several times; which producer builds the mismatched root was not chased further,
+         * because the answer here does not depend on it. A root that is not a borrow of a narrow
+         * pointee is not a narrow reference, which is the only thing this function is asking, so
+         * null is the correct answer rather than a fallback - and the alternative is reading a type
+         * out of bytes that are not one.
+         */
+        auto pointee = lower.local[place.pointer]->type;
+        if(!pointee || lower.global[pointee]->kind != Type::Borrow) return nullptr;
+
+        referenced = ((BorrowType*)lower.global[pointee])->to;
     } else if(place.root == PlaceRoot::Local && place.local < function.localCount()) {
         // The slot behind a `&` parameter, which holds the reference the caller passed rather than
         // storage of its own. Every other local *is* its storage and is not one of these.
@@ -2645,6 +2663,22 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
 
                     break;
                 }
+
+                case NativeOp::HostCall:
+                case NativeOp::HostField:
+                case NativeOp::HostArray:
+                    /*
+                     * Unreachable by construction - Implementation-Containers.md §14.1.
+                     *
+                     * Every declaration that produces one of these is `@platform(js)`, and
+                     * `platformEnabled` runs during resolution, so a native build has no name, no
+                     * type and no instance that could reach one. Reaching here means the platform
+                     * filter let a host declaration through, which is worth saying rather than
+                     * approximating.
+                     */
+                    lower.context.diagnostics.error("internal: a host operation reached the native lowering"_v,
+                                                    instruction.source);
+                    break;
             }
 
             break;
@@ -2654,16 +2688,27 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             auto from = mappedValue(lower, castInst.from);
             auto sourceType = lower.local[castInst.from]->type;
 
-            // A conversion involving a raw pointer moves no bits: both sides are one machine
-            // word, and what changes is only what the program says the word means.
-            if(isPointer(lower.global, sourceType) || isPointer(lower.global, instruction.type)) {
-                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstUnary(
-                    LowerInst::Bitcast, instruction.name, lowerType(lower.global, instruction.type), from));
-                break;
-            }
-
             auto sourceLower = lowerType(lower.global, sourceType);
             auto targetLower = lowerType(lower.global, instruction.type);
+
+            /*
+             * A conversion between two addresses moves no bits: both sides are one machine word, and
+             * what changes is only what the program says the word means.
+             *
+             * Asked of the *lowered* types rather than of `Type::Ptr` on either side, which is the
+             * same question one level down and a strictly wider one. A raw pointer, a borrow and a
+             * memory-typed value are all `LowerType::Pointer` here - they differ in what the checker
+             * knows about them and not in what the machine holds - so a cast between any two of them
+             * is a bitcast. The narrower test admitted only the first, which is all that existed
+             * until `stringData` reinterpreted a `String` as a borrow of the record describing it
+             * (Implementation-String.md part 2); that came out as a numeric conversion between two
+             * pointers, which the lower IR validator rejects and rightly.
+             */
+            if(sourceLower == LowerType::Pointer || targetLower == LowerType::Pointer) {
+                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstUnary(
+                    LowerInst::Bitcast, instruction.name, targetLower, from));
+                break;
+            }
 
             auto integerWiden = isInteger(lower.global, sourceType) &&
                                 isInteger(lower.global, instruction.type) &&
@@ -3360,6 +3405,13 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
 
             target->initialContents = materializeTable(result->arena, lower.repr,
                                                        toBuffer(slots), offsets);
+        } else if(source->literalBytes.length) {
+            // A string literal's bytes, copied rather than described - see Global::literalBytes.
+            // Resolve already encoded them into the target's native unit, so there is no layout
+            // question left for this stage to answer.
+            auto size = source->literalBytes.length;
+            target->initialContents = ByteBuffer((Byte*)result->arena.alloc(size), size);
+            copy(source->literalBytes.ptr, target->initialContents.ptr, size);
         } else {
             // A scalar starts as the bytes of its constant and an aggregate as zeroes, which
             // is the same statement in both cases: the global's Repr, filled from `initial`.

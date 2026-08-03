@@ -127,3 +127,8 @@ ModulePtr<Function> instantiateFunction(Module& from, ModulePtr<Function> generi
  */
 ModulePtr<Function> instanceImplementation(Module& module, GlobalPtr<TypeClass> typeClass, TypePtr type,
                                            LocationId source);
+
+// The same, for a class with more than one member: `Show` needs both `show` and `showBound`, and a
+// format expression selects them itself rather than through a call site.
+ModulePtr<Function> instanceMember(Module& module, GlobalPtr<TypeClass> typeClass, TypePtr type,
+                                   U16 member, LocationId source);

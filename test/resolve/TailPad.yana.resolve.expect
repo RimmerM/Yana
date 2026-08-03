@@ -211,7 +211,7 @@ fn emptyRun(Pad)() -> Run(Pad) {
 fn resize(Pad)(%self: Run(Pad), %wanted: Int) -> Bool {
   b0:
     %v2 = load %self : Run(Pad)
-    %v3 = load %self@Run.capacity : @bits(31) U32
+    %v3 = load %self@Run.capacity : @bits(30) U32
     %v4 = cast %v3 : U32
     %room = cast %v4 : Int
     %v6 = cmp_le %wanted, %room : Bool
@@ -224,8 +224,12 @@ fn resize(Pad)(%self: Run(Pad), %wanted: Int) -> Bool {
     jmp b3
 
   b3:
-    %v12 = cmp_gt %wanted, 2147483647 : Bool
-    je %v12, b4, b5
+    %v11 = load %self : Run(Pad)
+    %v12 = load %self@Run.ownsHeap : @bits(2) U32
+    %v13 = cast %v12 : U32
+    %v15 = cast 2 : U32
+    %v16 = cmp_eq %v13, %v15 : Bool
+    je %v16, b4, b5
 
   b4:
     ret False
@@ -234,14 +238,8 @@ fn resize(Pad)(%self: Run(Pad), %wanted: Int) -> Bool {
     jmp b6
 
   b6:
-    %v17 = load %self : Run(Pad)
-    %v18 = load %self@Run.items : %Pad
-    %v19 = call byteSpan(Pad), %v18, %wanted : I64
-    %v20 = call allocateHeap, %v19 : %U8
-    %fresh = cast %v20 : %Pad
-    %v22 = cast %fresh : Long
-    %v24 = cmp_eq %v22, 0 : Bool
-    je %v24, b7, b8
+    %v22 = cmp_gt %wanted, 1073741823 : Bool
+    je %v22, b7, b8
 
   b7:
     ret False
@@ -250,47 +248,63 @@ fn resize(Pad)(%self: Run(Pad), %wanted: Int) -> Bool {
     jmp b9
 
   b9:
-    %v30 = cmp_gt %room, 0 : Bool
-    je %v30, b10, b11
+    %v27 = load %self : Run(Pad)
+    %v28 = load %self@Run.items : %Pad
+    %v29 = call byteSpan(Pad), %v28, %wanted : I64
+    %v30 = call allocateHeap, %v29 : %U8
+    %fresh = cast %v30 : %Pad
+    %v32 = cast %fresh : Long
+    %v34 = cmp_eq %v32, 0 : Bool
+    je %v34, b10, b11
 
   b10:
-    %v32 = cast %fresh : %U8
-    %v33 = load %self : Run(Pad)
-    %v34 = load %self@Run.items : %Pad
-    %v35 = cast %v34 : %U8
-    %v36 = load %self : Run(Pad)
-    %v37 = load %self@Run.items : %Pad
-    %v38 = call byteSpan(Pad), %v37, %room : I64
-    copymemory %v32, %v35, %v38
-    jmp b12
+    ret False
 
   b11:
     jmp b12
 
   b12:
-    %v42 = load %self : Run(Pad)
-    %v43 = load %self@Run.ownsHeap : @bits(1) U32
-    %v44 = cast %v43 : U32
-    %v46 = cast 1 : U32
-    %v47 = cmp_eq %v44, %v46 : Bool
-    je %v47, b13, b14
+    %v40 = cmp_gt %room, 0 : Bool
+    je %v40, b13, b14
 
   b13:
-    %v49 = load %self : Run(Pad)
-    %v50 = load %self@Run.items : %Pad
-    %v51 = cast %v50 : %U8
-    call freeHeap, %v51
+    %v42 = cast %fresh : %U8
+    %v43 = load %self : Run(Pad)
+    %v44 = load %self@Run.items : %Pad
+    %v45 = cast %v44 : %U8
+    %v46 = load %self : Run(Pad)
+    %v47 = load %self@Run.items : %Pad
+    %v48 = call byteSpan(Pad), %v47, %room : I64
+    copymemory %v42, %v45, %v48
     jmp b15
 
   b14:
     jmp b15
 
   b15:
+    %v52 = load %self : Run(Pad)
+    %v53 = load %self@Run.ownsHeap : @bits(2) U32
+    %v54 = cast %v53 : U32
+    %v56 = cast 1 : U32
+    %v57 = cmp_eq %v54, %v56 : Bool
+    je %v57, b16, b17
+
+  b16:
+    %v59 = load %self : Run(Pad)
+    %v60 = load %self@Run.items : %Pad
+    %v61 = cast %v60 : %U8
+    call freeHeap, %v61
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
     assign %self@Run.items, %fresh
-    %v56 = cast %wanted : U32
-    %v58 = and %v56, 2147483647 : U32
-    %v59 = cast %v58 : @bits(31) U32
-    assign %self@Run.capacity, %v59
+    %v66 = cast %wanted : U32
+    %v68 = and %v66, 1073741823 : U32
+    %v69 = cast %v68 : @bits(30) U32
+    assign %self@Run.capacity, %v69
     assign %self@Run.ownsHeap, 1
     ret True
 }
@@ -322,7 +336,7 @@ fn emptyRun(Outer)() -> Run(Outer) {
 fn resize(Outer)(%self: Run(Outer), %wanted: Int) -> Bool {
   b0:
     %v2 = load %self : Run(Outer)
-    %v3 = load %self@Run.capacity : @bits(31) U32
+    %v3 = load %self@Run.capacity : @bits(30) U32
     %v4 = cast %v3 : U32
     %room = cast %v4 : Int
     %v6 = cmp_le %wanted, %room : Bool
@@ -335,8 +349,12 @@ fn resize(Outer)(%self: Run(Outer), %wanted: Int) -> Bool {
     jmp b3
 
   b3:
-    %v12 = cmp_gt %wanted, 2147483647 : Bool
-    je %v12, b4, b5
+    %v11 = load %self : Run(Outer)
+    %v12 = load %self@Run.ownsHeap : @bits(2) U32
+    %v13 = cast %v12 : U32
+    %v15 = cast 2 : U32
+    %v16 = cmp_eq %v13, %v15 : Bool
+    je %v16, b4, b5
 
   b4:
     ret False
@@ -345,14 +363,8 @@ fn resize(Outer)(%self: Run(Outer), %wanted: Int) -> Bool {
     jmp b6
 
   b6:
-    %v17 = load %self : Run(Outer)
-    %v18 = load %self@Run.items : %Outer
-    %v19 = call byteSpan(Outer), %v18, %wanted : I64
-    %v20 = call allocateHeap, %v19 : %U8
-    %fresh = cast %v20 : %Outer
-    %v22 = cast %fresh : Long
-    %v24 = cmp_eq %v22, 0 : Bool
-    je %v24, b7, b8
+    %v22 = cmp_gt %wanted, 1073741823 : Bool
+    je %v22, b7, b8
 
   b7:
     ret False
@@ -361,47 +373,63 @@ fn resize(Outer)(%self: Run(Outer), %wanted: Int) -> Bool {
     jmp b9
 
   b9:
-    %v30 = cmp_gt %room, 0 : Bool
-    je %v30, b10, b11
+    %v27 = load %self : Run(Outer)
+    %v28 = load %self@Run.items : %Outer
+    %v29 = call byteSpan(Outer), %v28, %wanted : I64
+    %v30 = call allocateHeap, %v29 : %U8
+    %fresh = cast %v30 : %Outer
+    %v32 = cast %fresh : Long
+    %v34 = cmp_eq %v32, 0 : Bool
+    je %v34, b10, b11
 
   b10:
-    %v32 = cast %fresh : %U8
-    %v33 = load %self : Run(Outer)
-    %v34 = load %self@Run.items : %Outer
-    %v35 = cast %v34 : %U8
-    %v36 = load %self : Run(Outer)
-    %v37 = load %self@Run.items : %Outer
-    %v38 = call byteSpan(Outer), %v37, %room : I64
-    copymemory %v32, %v35, %v38
-    jmp b12
+    ret False
 
   b11:
     jmp b12
 
   b12:
-    %v42 = load %self : Run(Outer)
-    %v43 = load %self@Run.ownsHeap : @bits(1) U32
-    %v44 = cast %v43 : U32
-    %v46 = cast 1 : U32
-    %v47 = cmp_eq %v44, %v46 : Bool
-    je %v47, b13, b14
+    %v40 = cmp_gt %room, 0 : Bool
+    je %v40, b13, b14
 
   b13:
-    %v49 = load %self : Run(Outer)
-    %v50 = load %self@Run.items : %Outer
-    %v51 = cast %v50 : %U8
-    call freeHeap, %v51
+    %v42 = cast %fresh : %U8
+    %v43 = load %self : Run(Outer)
+    %v44 = load %self@Run.items : %Outer
+    %v45 = cast %v44 : %U8
+    %v46 = load %self : Run(Outer)
+    %v47 = load %self@Run.items : %Outer
+    %v48 = call byteSpan(Outer), %v47, %room : I64
+    copymemory %v42, %v45, %v48
     jmp b15
 
   b14:
     jmp b15
 
   b15:
+    %v52 = load %self : Run(Outer)
+    %v53 = load %self@Run.ownsHeap : @bits(2) U32
+    %v54 = cast %v53 : U32
+    %v56 = cast 1 : U32
+    %v57 = cmp_eq %v54, %v56 : Bool
+    je %v57, b16, b17
+
+  b16:
+    %v59 = load %self : Run(Outer)
+    %v60 = load %self@Run.items : %Outer
+    %v61 = cast %v60 : %U8
+    call freeHeap, %v61
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
     assign %self@Run.items, %fresh
-    %v56 = cast %wanted : U32
-    %v58 = and %v56, 2147483647 : U32
-    %v59 = cast %v58 : @bits(31) U32
-    assign %self@Run.capacity, %v59
+    %v66 = cast %wanted : U32
+    %v68 = and %v66, 1073741823 : U32
+    %v69 = cast %v68 : @bits(30) U32
+    assign %self@Run.capacity, %v69
     assign %self@Run.ownsHeap, 1
     ret True
 }
@@ -422,7 +450,7 @@ fn byteSpan(Outer)(%from: %Outer, %count: Int) -> I64 {
 
 fn releaseRun(Outer)(%self: Run(Outer)) -> () {
   b0:
-    %v1 = load %self@Run.ownsHeap : @bits(1) U32
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
     %v2 = cast %v1 : U32
     %v4 = cast 1 : U32
     %v5 = cmp_eq %v2, %v4 : Bool
@@ -443,7 +471,7 @@ fn releaseRun(Outer)(%self: Run(Outer)) -> () {
 
 fn releaseRun(Pad)(%self: Run(Pad)) -> () {
   b0:
-    %v1 = load %self@Run.ownsHeap : @bits(1) U32
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
     %v2 = cast %v1 : U32
     %v4 = cast 1 : U32
     %v5 = cmp_eq %v2, %v4 : Bool
@@ -493,7 +521,7 @@ fn emptyArray(Pad)() -> Array(Pad) {
 fn push(Pad)(%self: Array(Pad), %item: Pad) -> () {
   b0:
     %v2 = load %self : Array(Pad)
-    %v3 = load %self@Array.length : @bits(31) U32
+    %v3 = load %self@Array.length : @bits(30) U32
     %v4 = cast %v3 : U32
     %count = cast %v4 : Int
     %v6 = load %self : Array(Pad)
@@ -502,7 +530,7 @@ fn push(Pad)(%self: Array(Pad), %item: Pad) -> () {
     call reserve(Pad), %v9, %v8
     %v11 = load %self : Array(Pad)
     %v12 = load %self@Array.run : Run(Pad)
-    %v13 = load %self@Array.run@Run.capacity : @bits(31) U32
+    %v13 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v14 = cast %v13 : U32
     %v15 = cast %v14 : Int
     %v16 = cmp_ge %count, %v15 : Bool
@@ -525,8 +553,8 @@ fn push(Pad)(%self: Array(Pad), %item: Pad) -> () {
     assign [%v26], %item
     %v29 = add %count, 1 : Int
     %v30 = cast %v29 : U32
-    %v32 = and %v30, 2147483647 : U32
-    %v33 = cast %v32 : @bits(31) U32
+    %v32 = and %v30, 1073741823 : U32
+    %v33 = cast %v32 : @bits(30) U32
     assign %self@Array.length, %v33
     ret
 }
@@ -535,7 +563,7 @@ fn reserve(Pad)(%self: Array(Pad), %wanted: Int) -> () {
   b0:
     %v2 = load %self : Array(Pad)
     %v3 = load %self@Array.run : Run(Pad)
-    %v4 = load %self@Array.run@Run.capacity : @bits(31) U32
+    %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v5 = cast %v4 : U32
     %room = cast %v5 : Int
     %v7 = cmp_le %wanted, %room : Bool
@@ -606,7 +634,7 @@ fn emptyArray(Outer)() -> Array(Outer) {
 fn push(Outer)(%self: Array(Outer), %item: Outer) -> () {
   b0:
     %v2 = load %self : Array(Outer)
-    %v3 = load %self@Array.length : @bits(31) U32
+    %v3 = load %self@Array.length : @bits(30) U32
     %v4 = cast %v3 : U32
     %count = cast %v4 : Int
     %v6 = load %self : Array(Outer)
@@ -615,7 +643,7 @@ fn push(Outer)(%self: Array(Outer), %item: Outer) -> () {
     call reserve(Outer), %v9, %v8
     %v11 = load %self : Array(Outer)
     %v12 = load %self@Array.run : Run(Outer)
-    %v13 = load %self@Array.run@Run.capacity : @bits(31) U32
+    %v13 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v14 = cast %v13 : U32
     %v15 = cast %v14 : Int
     %v16 = cmp_ge %count, %v15 : Bool
@@ -638,8 +666,8 @@ fn push(Outer)(%self: Array(Outer), %item: Outer) -> () {
     assign [%v26], %item
     %v29 = add %count, 1 : Int
     %v30 = cast %v29 : U32
-    %v32 = and %v30, 2147483647 : U32
-    %v33 = cast %v32 : @bits(31) U32
+    %v32 = and %v30, 1073741823 : U32
+    %v33 = cast %v32 : @bits(30) U32
     assign %self@Array.length, %v33
     ret
 }
@@ -648,7 +676,7 @@ fn reserve(Outer)(%self: Array(Outer), %wanted: Int) -> () {
   b0:
     %v2 = load %self : Array(Outer)
     %v3 = load %self@Array.run : Run(Outer)
-    %v4 = load %self@Array.run@Run.capacity : @bits(31) U32
+    %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v5 = cast %v4 : U32
     %room = cast %v5 : Int
     %v7 = cmp_le %wanted, %room : Bool
@@ -709,7 +737,7 @@ fn Index(Array(a), I64, a).get(Outer)(%self: Array(Outer), %index: I64) -> &Oute
 
 fn Reclaim(Array(a)).reclaim(Outer)(%value: Array(Outer)) -> () {
   b0:
-    %v1 = load %value@Array.length : @bits(31) U32
+    %v1 = load %value@Array.length : @bits(30) U32
     %v2 = cast %v1 : U32
     %count = cast %v2 : Int
     %i = alloc : Int
@@ -746,7 +774,7 @@ fn Reclaim(Array(a)).reclaim(Outer)(%value: Array(Outer)) -> () {
 
 fn Reclaim(Array(a)).reclaim(Pad)(%value: Array(Pad)) -> () {
   b0:
-    %v1 = load %value@Array.length : @bits(31) U32
+    %v1 = load %value@Array.length : @bits(30) U32
     %v2 = cast %v1 : U32
     %count = cast %v2 : Int
     %i = alloc : Int

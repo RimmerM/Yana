@@ -133,6 +133,25 @@ struct Type {
         Record,
         Gen,
         Literal,
+
+        /*
+         * `String` - Implementation-String.md part 1, and a primitive rather than a record.
+         *
+         * The surface language has one `String`; the two targets do not agree on what one *is*, and
+         * that disagreement is the reason this is a kind of its own instead of the
+         * `@platform`-split `data` declaration `Array(a)` gets. On JS a string is the host string
+         * value, so it has to sit in a plain variable and be boxed only by the rule every non-object
+         * already follows - a wrapper record there would make every string an object allocation and
+         * would put it in a *record* place for the ownership passes, which is the shape
+         * Implementation-Containers.md §14.1 records building for `HostArray(a)` and removing.
+         * Natively it is the two words `stringContent` names, which is exactly `Array(U8)`'s layout.
+         *
+         * So the logical type is one thing and the Repr is asked per target, which is the split
+         * Implementation-Repr.md already draws everywhere else. What is *not* per target is
+         * ownership: `String` is non-TrivialCopy on both, per Implementation-String.md part 2, even
+         * though a JS string is free to duplicate at the codegen level.
+         */
+        String,
     };
 
     explicit Type(Kind kind): kind(kind) {}
@@ -230,6 +249,26 @@ struct IntType: Type {
     U16 bits;
     Width width;
     bool isSigned;
+};
+
+/*
+ * `String`, and the type whose bytes it occupies on this target.
+ *
+ * There is exactly one of these in a program - `String` takes no arguments and is interned once by
+ * `defineCore` - so the content is a field on the type rather than a lookup through the Program.
+ * That is not just convenience: `ReprTable` holds a `GlobalBase` and a target and deliberately not a
+ * `Program`, because a layout must be a function of the type graph alone. A type that needs one more
+ * fact to be laid out has to carry it.
+ *
+ * `content` is `Native.StringData` - `{run: Run(U8), length: Count}` - on a native target, and null
+ * on JS, where a string is one host value and there is nothing to lay out. It is filled in after
+ * `Native` has been resolved rather than at construction, because the record it names is declared
+ * there and `defineCore` runs first. Nothing reads it until lowering, which is long after.
+ */
+struct StringType: Type {
+    StringType(): Type(Type::String) {}
+
+    TypePtr content = nullptr;
 };
 
 /*
@@ -480,6 +519,21 @@ struct TupType: Type {
 
     GlobalList<Field> fields;
     TypeLayout layout = TypeLayout::Auto;
+
+    /*
+     * A container refinement - Implementation-Containers.md §7 - carried here as well as on the
+     * record, and it *has to be* here for the same reason `@layout(c)` does.
+     *
+     * A field's offset is read off the *content tuple*, because that is what a Downcast reaches, and
+     * content tuples are interned structurally with the Repr cache keyed on the type. So a
+     * refinement recorded only on `RecordType` would leave two records with identical fields sharing
+     * one layout - which is precisely the bug it is here to prevent: the plain array's `run` is
+     * twelve bytes, the refined one's is `n * stride`, and the count that follows lands on top of an
+     * element if the tuple cannot tell the two apart.
+     */
+    U32 inlineSlots = 0;
+    U32 capacityBound = 0;
+
     bool named = false;
 };
 
@@ -757,6 +811,29 @@ struct RecordType: Type {
     GlobalPtr<RecordType> instanceOf = nullptr;
     GlobalList<TypePtr> instanceArgs;
 
+    /*
+     * A Repr refinement of a container - Implementation-Containers.md §7.
+     *
+     * `@inline(i)` is how many elements are stored inside the container itself and `@capacity(c)` is
+     * how many it may ever hold; zero in each is "unrefined", which is what every record that is not
+     * one of these is. A refined instantiation has the *same* constructors and the same field types
+     * as the plain one and differs only in what its Repr does with them, which is what §9's "a Repr
+     * variant may never change what a type can do" means concretely: it is a second instantiation of
+     * one declaration rather than a second declaration.
+     *
+     * `canonical` is the plain instantiation, and it is what makes the refinement invisible to
+     * dispatch without a single change to instance selection: `matchType`'s Record case compares
+     * `instanceOf` and `instanceArgs`, both of which a refinement leaves alone, so
+     * `instance Reclaim(Array(a))` answers a refined array already. What canonical is *for* is the
+     * conversion - a call taking `Array(a)` is compiled once, against the plain layout, so a refined
+     * argument reaches it through the descriptor `inlineArrayDescriptor` builds.
+     */
+    U32 inlineSlots = 0;
+    U32 capacityBound = 0;
+    GlobalPtr<RecordType> canonical = nullptr;
+
+    bool isRefined() const { return canonical != nullptr; }
+
     Layout layout = Multi;
 
     // Set by `@layout(c)`: the layout is the declaration's to decide and no target may improve on
@@ -811,6 +888,30 @@ struct ScalarTypes {
     TypePtr float_ = nullptr;
     TypePtr double_ = nullptr;
     TypePtr ordering = nullptr;
+
+    // `Size` - the target's own index width (Implementation-Containers.md §4.4). A name for one of
+    // the two above rather than a type of its own, recorded here because the compiler builds indices
+    // as well as reading them: a host element's index is a place's operand, and a `Long` one would
+    // emit a `bigint` where the host wants a number.
+    TypePtr size = nullptr;
+
+    // `String` itself, and the tuple its native Repr is computed from - see Type::String.
+    TypePtr string_ = nullptr;
+
+    /*
+     * `{Run(U8), Count}` - what a native `String` occupies, borrowed from the container that
+     * already occupies it.
+     *
+     * Delegating to a tuple rather than writing sixteen bytes into the Repr by hand is what keeps
+     * this honest: the count packs into the run's spare bits by Implementation-Containers.md §10.3's
+     * own rule, so a `String` is two words for the same reason and by the same code that makes
+     * `Array(a)` two words. Writing the layout out here would be a second implementation of §10.3
+     * that could drift from the first, and the symptom would be a string whose length field and the
+     * library's idea of where it lives disagreed.
+     *
+     * Null on JS, where a string is one host value and there is nothing to lay out.
+     */
+    TypePtr stringContent = nullptr;
 };
 
 // The five Core classes the resolver has to know by name rather than by lookup, because the
@@ -853,6 +954,24 @@ struct CoreClasses {
     // constrain a type variable by one and a body may then act on the fact. See ownershipOf.
     GlobalPtr<TypeClass> trivialCopy = nullptr;
     GlobalPtr<TypeClass> trivialSink = nullptr;
+
+    /*
+     * The two container classes - Implementation-Containers.md §5. Collections' rather than Core's,
+     * because a container is written over `Native` and Core cannot name it.
+     *
+     * `Contiguous` is known by name because it is what `[a]` *means*: a container that promises a
+     * buffer address may be passed where a slice is expected, and that conversion is looked for at
+     * an argument position with nothing to select it from. `Chunked` is known by name only so that
+     * the refusal can name it - a container that iterates but does not promise an address is
+     * rejected there, and what the author has to change is the parameter rather than the argument.
+     */
+    GlobalPtr<TypeClass> contiguous = nullptr;
+    GlobalPtr<TypeClass> chunked = nullptr;
+
+    // What `"a{x}b"` dispatches through - Implementation-Storage.md part 7. Known by name for the
+    // same reason `Try` is: a hole's `show` and `showBound` are selected by the compiler from the
+    // hole's type, and there is no written call for the ordinary overload set to start from.
+    GlobalPtr<TypeClass> show = nullptr;
 };
 
 /*
@@ -864,7 +983,8 @@ struct CoreClasses {
  */
 TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env = nullptr);
 TupType* resolveTupleType(Module& module, Buffer<Field> fields, LocationId source,
-                          TypeLayout layout = TypeLayout::Auto);
+                          TypeLayout layout = TypeLayout::Auto, U32 inlineSlots = 0,
+                          U32 capacityBound = 0);
 
 // The raw pointer type to `to`, interned per target type.
 TypePtr resolvePointerType(Module& module, TypePtr to);
@@ -939,6 +1059,23 @@ TypePtr sliceLengthType(Module& module, TypePtr type);
 TypePtr sliceOf(Module& module, TypePtr type);
 
 /*
+ * A container of somebody else's, and what it says it is - Implementation-Containers.md §5.
+ *
+ * `contiguousElement` is the element type of a `Contiguous` instance for this type, which is what
+ * makes a container written outside the library passable where `[T]` is expected: the conversion is
+ * a call to `elements`, and this is the question that finds it. `chunkedElement` is the same for
+ * `Chunked` and exists only so a refusal can name the class - a container that iterates and does not
+ * promise a buffer address is exactly the case §5 rules out, and the fix is the parameter rather
+ * than the argument.
+ *
+ * Both answer null for the two containers the compiler already knows the layout of, so `Array(T)`
+ * and `Flat(T)` keep reaching a slice through convertSlice rather than through a call: the instances
+ * exist for generic code and are not what the direct path should be spending.
+ */
+TypePtr contiguousElement(Module& module, TypePtr type);
+TypePtr chunkedElement(Module& module, TypePtr type);
+
+/*
  * `[T *n]` - Implementation-Containers.md §6.
  *
  * `resolveFixedArrayType` interns one; `fixedElement` is what one holds, or null for anything that
@@ -964,6 +1101,40 @@ constexpr U32 kMaxFixedArrayLength = 0xffff;
 TypePtr resolveFixedArrayType(Module& module, TypePtr content, U32 length, LocationId source);
 TypePtr fixedElement(Module& module, TypePtr type);
 TypePtr ownedElement(Module& module, TypePtr type);
+
+/*
+ * The `@inline(i)` / `@capacity(c)` family - Implementation-Containers.md §7.
+ *
+ * `refineContainerType` interns the refined instantiation; `inlineRefinement` is the question every
+ * other stage asks - "is this array one whose slots are its own bytes", answered as the refined
+ * record or null so that the caller has the counts without a second lookup.
+ *
+ * `unrefined` is what a *call* needs: every function taking `Array(a)` was compiled once against the
+ * plain layout, so a refined argument is converted into a descriptor over the plain one at the
+ * boundary. That is §7.2's tier-1 borrow, and it is the same mechanism a `@bits` field's `&` uses.
+ */
+/*
+ * The bound on `@inline(n)`, and it is the fixed array's for the same reason.
+ *
+ * `n` inline slots is `n` elements of storage inside whatever contains the array, so the number that
+ * would be unreasonable here is the number that would be unreasonable in `[T *n]` - and the derived
+ * teardown over the elements is the same walk, with the same unrolled/looped split.
+ */
+constexpr U32 kMaxInlineSlots = kMaxFixedArrayLength;
+
+/*
+ * `Native.runFixed`, which is the one value of `HeapFlag` the compiler writes rather than the escape
+ * analysis. The other two are `InstAlloc::storageFlag`'s answer to "is this storage the allocator's";
+ * this one is the answer to "may these slots be replaced", and only a descriptor built over an
+ * owner's own bytes says no. Kept beside the refinement helpers because that descriptor is the only
+ * thing that produces it - see ExprResolver::inlineArrayDescriptor.
+ */
+constexpr U64 kRunFixed = 2;
+
+TypePtr refineContainerType(Module& module, TypePtr plain, U32 inlineSlots, U32 capacityBound,
+                            LocationId source);
+RecordType* inlineRefinement(Module& module, TypePtr type);
+TypePtr unrefined(GlobalBase base, TypePtr type);
 
 // Whether this is Collections' growable array - an instantiation of it, or the generic declaration
 // itself, which is what a signature written `Array(a)` resolves to. Asked where a diagnostic has to

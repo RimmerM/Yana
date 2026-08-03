@@ -262,7 +262,7 @@ fn freeHeap(%allocation: %U8) -> () {
 
 fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
-    %v1 = load %self@Run.ownsHeap : @bits(1) U32
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
     %v2 = cast %v1 : U32
     %v4 = cast 1 : U32
     %v5 = cmp_eq %v2, %v4 : Bool
@@ -313,7 +313,7 @@ fn Index(Array(a), I64, a).get(Int)(%self: Array(Int), %index: I64) -> &Int {
 
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   b0:
-    %v1 = load %value@Array.length : @bits(31) U32
+    %v1 = load %value@Array.length : @bits(30) U32
     %v2 = cast %v1 : U32
     %count = cast %v2 : Int
     %i = alloc : Int

@@ -309,7 +309,7 @@ fn resize(%self: Run(a), %wanted: Int) -> Bool {
 
   b0:
     %v2 = load %self : Run(a)
-    %v3 = load %self@Run.capacity : @bits(31) U32
+    %v3 = load %self@Run.capacity : @bits(30) U32
     %v4 = cast %v3 : U32
     %room = cast %v4 : Int
     %v6 = cmp_le %wanted, %room : Bool
@@ -322,8 +322,12 @@ fn resize(%self: Run(a), %wanted: Int) -> Bool {
     jmp b3
 
   b3:
-    %v12 = cmp_gt %wanted, 2147483647 : Bool
-    je %v12, b4, b5
+    %v11 = load %self : Run(a)
+    %v12 = load %self@Run.ownsHeap : @bits(2) U32
+    %v14 = cast %v12 : U32
+    %v15 = cast 2 : U32
+    %v16 = cmp_eq %v14, %v15 : Bool
+    je %v16, b4, b5
 
   b4:
     ret False
@@ -332,12 +336,7 @@ fn resize(%self: Run(a), %wanted: Int) -> Bool {
     jmp b6
 
   b6:
-    %v17 = load %self : Run(a)
-    %v18 = load %self@Run.items : %a
-    %v19 = gencall byteSpan(a), %v18, %wanted : I64
-    %v20 = call allocateHeap, %v19 : %U8
-    %fresh = gencall cast(a, U8), %v20 : %a
-    %v22 = gencall isNull(a), %fresh : Bool
+    %v22 = cmp_gt %wanted, 1073741823 : Bool
     je %v22, b7, b8
 
   b7:
@@ -347,47 +346,62 @@ fn resize(%self: Run(a), %wanted: Int) -> Bool {
     jmp b9
 
   b9:
-    %v29 = cmp_gt %room, 0 : Bool
-    je %v29, b10, b11
+    %v27 = load %self : Run(a)
+    %v28 = load %self@Run.items : %a
+    %v29 = gencall byteSpan(a), %v28, %wanted : I64
+    %v30 = call allocateHeap, %v29 : %U8
+    %fresh = gencall cast(a, U8), %v30 : %a
+    %v32 = gencall isNull(a), %fresh : Bool
+    je %v32, b10, b11
 
   b10:
-    %v31 = gencall cast(U8, a), %fresh : %U8
-    %v32 = load %self : Run(a)
-    %v33 = load %self@Run.items : %a
-    %v34 = gencall cast(U8, a), %v33 : %U8
-    %v35 = load %self : Run(a)
-    %v36 = load %self@Run.items : %a
-    %v37 = gencall byteSpan(a), %v36, %room : I64
-    copymemory %v31, %v34, %v37
-    jmp b12
+    ret False
 
   b11:
     jmp b12
 
   b12:
-    %v41 = load %self : Run(a)
-    %v42 = load %self@Run.ownsHeap : @bits(1) U32
-    %v44 = cast %v42 : U32
-    %v45 = cast 1 : U32
-    %v46 = cmp_eq %v44, %v45 : Bool
-    je %v46, b13, b14
+    %v39 = cmp_gt %room, 0 : Bool
+    je %v39, b13, b14
 
   b13:
-    %v48 = load %self : Run(a)
-    %v49 = load %self@Run.items : %a
-    %v50 = gencall cast(U8, a), %v49 : %U8
-    call freeHeap, %v50
+    %v41 = gencall cast(U8, a), %fresh : %U8
+    %v42 = load %self : Run(a)
+    %v43 = load %self@Run.items : %a
+    %v44 = gencall cast(U8, a), %v43 : %U8
+    %v45 = load %self : Run(a)
+    %v46 = load %self@Run.items : %a
+    %v47 = gencall byteSpan(a), %v46, %room : I64
+    copymemory %v41, %v44, %v47
     jmp b15
 
   b14:
     jmp b15
 
   b15:
+    %v51 = load %self : Run(a)
+    %v52 = load %self@Run.ownsHeap : @bits(2) U32
+    %v54 = cast %v52 : U32
+    %v55 = cast 1 : U32
+    %v56 = cmp_eq %v54, %v55 : Bool
+    je %v56, b16, b17
+
+  b16:
+    %v58 = load %self : Run(a)
+    %v59 = load %self@Run.items : %a
+    %v60 = gencall cast(U8, a), %v59 : %U8
+    call freeHeap, %v60
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
     assign %self@Run.items, %fresh
-    %v55 = cast %wanted : U32
-    %v57 = and %v55, 2147483647 : U32
-    %v58 = cast %v57 : @bits(31) U32
-    assign %self@Run.capacity, %v58
+    %v65 = cast %wanted : U32
+    %v67 = and %v65, 1073741823 : U32
+    %v68 = cast %v67 : @bits(30) U32
+    assign %self@Run.capacity, %v68
     assign %self@Run.ownsHeap, 1
     ret True
 }
@@ -415,7 +429,7 @@ fn Index(Flat(a), I64, a).get(Int)(%self: Flat(Int), %index: I64) -> &Int {
 fn resize(Int)(%self: Run(Int), %wanted: Int) -> Bool {
   b0:
     %v2 = load %self : Run(Int)
-    %v3 = load %self@Run.capacity : @bits(31) U32
+    %v3 = load %self@Run.capacity : @bits(30) U32
     %v4 = cast %v3 : U32
     %room = cast %v4 : Int
     %v6 = cmp_le %wanted, %room : Bool
@@ -428,8 +442,12 @@ fn resize(Int)(%self: Run(Int), %wanted: Int) -> Bool {
     jmp b3
 
   b3:
-    %v12 = cmp_gt %wanted, 2147483647 : Bool
-    je %v12, b4, b5
+    %v11 = load %self : Run(Int)
+    %v12 = load %self@Run.ownsHeap : @bits(2) U32
+    %v13 = cast %v12 : U32
+    %v15 = cast 2 : U32
+    %v16 = cmp_eq %v13, %v15 : Bool
+    je %v16, b4, b5
 
   b4:
     ret False
@@ -438,14 +456,8 @@ fn resize(Int)(%self: Run(Int), %wanted: Int) -> Bool {
     jmp b6
 
   b6:
-    %v17 = load %self : Run(Int)
-    %v18 = load %self@Run.items : %Int
-    %v19 = call byteSpan(Int), %v18, %wanted : I64
-    %v20 = call allocateHeap, %v19 : %U8
-    %fresh = cast %v20 : %Int
-    %v22 = cast %fresh : Long
-    %v24 = cmp_eq %v22, 0 : Bool
-    je %v24, b7, b8
+    %v22 = cmp_gt %wanted, 1073741823 : Bool
+    je %v22, b7, b8
 
   b7:
     ret False
@@ -454,47 +466,63 @@ fn resize(Int)(%self: Run(Int), %wanted: Int) -> Bool {
     jmp b9
 
   b9:
-    %v30 = cmp_gt %room, 0 : Bool
-    je %v30, b10, b11
+    %v27 = load %self : Run(Int)
+    %v28 = load %self@Run.items : %Int
+    %v29 = call byteSpan(Int), %v28, %wanted : I64
+    %v30 = call allocateHeap, %v29 : %U8
+    %fresh = cast %v30 : %Int
+    %v32 = cast %fresh : Long
+    %v34 = cmp_eq %v32, 0 : Bool
+    je %v34, b10, b11
 
   b10:
-    %v32 = cast %fresh : %U8
-    %v33 = load %self : Run(Int)
-    %v34 = load %self@Run.items : %Int
-    %v35 = cast %v34 : %U8
-    %v36 = load %self : Run(Int)
-    %v37 = load %self@Run.items : %Int
-    %v38 = call byteSpan(Int), %v37, %room : I64
-    copymemory %v32, %v35, %v38
-    jmp b12
+    ret False
 
   b11:
     jmp b12
 
   b12:
-    %v42 = load %self : Run(Int)
-    %v43 = load %self@Run.ownsHeap : @bits(1) U32
-    %v44 = cast %v43 : U32
-    %v46 = cast 1 : U32
-    %v47 = cmp_eq %v44, %v46 : Bool
-    je %v47, b13, b14
+    %v40 = cmp_gt %room, 0 : Bool
+    je %v40, b13, b14
 
   b13:
-    %v49 = load %self : Run(Int)
-    %v50 = load %self@Run.items : %Int
-    %v51 = cast %v50 : %U8
-    call freeHeap, %v51
+    %v42 = cast %fresh : %U8
+    %v43 = load %self : Run(Int)
+    %v44 = load %self@Run.items : %Int
+    %v45 = cast %v44 : %U8
+    %v46 = load %self : Run(Int)
+    %v47 = load %self@Run.items : %Int
+    %v48 = call byteSpan(Int), %v47, %room : I64
+    copymemory %v42, %v45, %v48
     jmp b15
 
   b14:
     jmp b15
 
   b15:
+    %v52 = load %self : Run(Int)
+    %v53 = load %self@Run.ownsHeap : @bits(2) U32
+    %v54 = cast %v53 : U32
+    %v56 = cast 1 : U32
+    %v57 = cmp_eq %v54, %v56 : Bool
+    je %v57, b16, b17
+
+  b16:
+    %v59 = load %self : Run(Int)
+    %v60 = load %self@Run.items : %Int
+    %v61 = cast %v60 : %U8
+    call freeHeap, %v61
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
     assign %self@Run.items, %fresh
-    %v56 = cast %wanted : U32
-    %v58 = and %v56, 2147483647 : U32
-    %v59 = cast %v58 : @bits(31) U32
-    assign %self@Run.capacity, %v59
+    %v66 = cast %wanted : U32
+    %v68 = and %v66, 1073741823 : U32
+    %v69 = cast %v68 : @bits(30) U32
+    assign %self@Run.capacity, %v69
     assign %self@Run.ownsHeap, 1
     ret True
 }
@@ -515,7 +543,7 @@ fn byteSpan(Int)(%from: %Int, %count: Int) -> I64 {
 
 fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
-    %v1 = load %self@Run.ownsHeap : @bits(1) U32
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
     %v2 = cast %v1 : U32
     %v4 = cast 1 : U32
     %v5 = cmp_eq %v2, %v4 : Bool
@@ -575,7 +603,7 @@ fn reserve(%self: Array(a), %wanted: Int) -> () {
   b0:
     %v2 = load %self : Array(a)
     %v3 = load %self@Array.run : Run(a)
-    %v4 = load %self@Array.run@Run.capacity : @bits(31) U32
+    %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v5 = cast %v4 : U32
     %room = cast %v5 : Int
     %v7 = cmp_le %wanted, %room : Bool
@@ -629,7 +657,7 @@ fn push(%self: Array(a), %item: a) -> () {
 
   b0:
     %v2 = load %self : Array(a)
-    %v3 = load %self@Array.length : @bits(31) U32
+    %v3 = load %self@Array.length : @bits(30) U32
     %v4 = cast %v3 : U32
     %count = cast %v4 : Int
     %v6 = load %self : Array(a)
@@ -637,7 +665,7 @@ fn push(%self: Array(a), %item: a) -> () {
     gencall reserve(a), %v6, %v9
     %v11 = load %self : Array(a)
     %v12 = load %self@Array.run : Run(a)
-    %v13 = load %self@Array.run@Run.capacity : @bits(31) U32
+    %v13 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v14 = cast %v13 : U32
     %v15 = cast %v14 : Int
     %v16 = cmp_ge %count, %v15 : Bool
@@ -658,20 +686,10 @@ fn push(%self: Array(a), %item: a) -> () {
     gencall store(a), %v24, %item
     %v28 = add %count, 1 : Int
     %v29 = cast %v28 : U32
-    %v31 = and %v29, 2147483647 : U32
-    %v32 = cast %v31 : @bits(31) U32
+    %v31 = and %v29, 1073741823 : U32
+    %v32 = cast %v31 : @bits(30) U32
     assign %self@Array.length, %v32
     ret
-}
-
-fn length(%self: Flat(a)) -> I64 {
-  schema {
-    #0 type a
-  }
-
-  b0:
-    %v1 = load %self@Flat.length : I64
-    ret %v1
 }
 
 fn emptyArray(Int)() -> Array(Int) {
@@ -683,7 +701,7 @@ fn emptyArray(Int)() -> Array(Int) {
     ret %v0
 }
 
-fn length(Int)(%self: Flat(Int)) -> I64 {
+fn Length(Flat(a)).length(Int)(%self: Flat(Int)) -> I64 {
   b0:
     %v1 = load %self@Flat.length : I64
     ret %v1
@@ -692,7 +710,7 @@ fn length(Int)(%self: Flat(Int)) -> I64 {
 fn push(Int)(%self: Array(Int), %item: Int) -> () {
   b0:
     %v2 = load %self : Array(Int)
-    %v3 = load %self@Array.length : @bits(31) U32
+    %v3 = load %self@Array.length : @bits(30) U32
     %v4 = cast %v3 : U32
     %count = cast %v4 : Int
     %v6 = load %self : Array(Int)
@@ -701,7 +719,7 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     call reserve(Int), %v9, %v8
     %v11 = load %self : Array(Int)
     %v12 = load %self@Array.run : Run(Int)
-    %v13 = load %self@Array.run@Run.capacity : @bits(31) U32
+    %v13 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v14 = cast %v13 : U32
     %v15 = cast %v14 : Int
     %v16 = cmp_ge %count, %v15 : Bool
@@ -724,8 +742,8 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     assign [%v26], %item
     %v29 = add %count, 1 : Int
     %v30 = cast %v29 : U32
-    %v32 = and %v30, 2147483647 : U32
-    %v33 = cast %v32 : @bits(31) U32
+    %v32 = and %v30, 1073741823 : U32
+    %v33 = cast %v32 : @bits(30) U32
     assign %self@Array.length, %v33
     ret
 }
@@ -734,7 +752,7 @@ fn reserve(Int)(%self: Array(Int), %wanted: Int) -> () {
   b0:
     %v2 = load %self : Array(Int)
     %v3 = load %self@Array.run : Run(Int)
-    %v4 = load %self@Array.run@Run.capacity : @bits(31) U32
+    %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v5 = cast %v4 : U32
     %room = cast %v5 : Int
     %v7 = cmp_le %wanted, %room : Bool
@@ -795,7 +813,7 @@ fn Index(Array(a), I64, a).get(Int)(%self: Array(Int), %index: I64) -> &Int {
 
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
   b0:
-    %v1 = load %value@Array.length : @bits(31) U32
+    %v1 = load %value@Array.length : @bits(30) U32
     %v2 = cast %v1 : U32
     %count = cast %v2 : Int
     %i = alloc : Int
@@ -829,19 +847,20 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     jmp b1
 }
 
-(TrivialCopy(a), Index(Flat(a), I64, a)) fn each(%xs: Flat(a), %body: (value: a) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn each(%xs: Flat(a), %body: (value: a) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type $r
     #2 type Outcome((), $r)
     #3 class TrivialCopy(a)
-    #4 class Index(Flat(a), I64, a)
+    #4 class Length(Flat(a))
+    #5 class Index(Flat(a), I64, a)
   }
 
   b0:
     %i = alloc : Int
     init %i, 0
-    %v5 = gencall length(a), %xs : I64
+    %v5 = gencall Length(Flat(a)).length, %xs : I64
     %n = cast %v5 : Int
     jmp b1
 
@@ -875,7 +894,7 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     jmp b1
 }
 
-(TrivialCopy(a), Index(Flat(a), I64, a)) fn mapped(%xs: Flat(a), %f: (a) -> b, %body: (value: b) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn mapped(%xs: Flat(a), %f: (a) -> b, %body: (value: b) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type b
@@ -885,7 +904,8 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     #5 type (value: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
-    #8 class Index(Flat(a), I64, a)
+    #8 class Length(Flat(a))
+    #9 class Index(Flat(a), I64, a)
   }
 
   b0:
@@ -931,7 +951,7 @@ fn collect(%xs: Flat(Int)) -> Array(Int) {
 
   b1:
     %v8 = load %i : Int
-    %v9 = call length(Int), %xs : I64
+    %v9 = call Length(Flat(a)).length(Int), %xs : I64
     %v10 = cast %v8 : I64
     %v11 = cmp_lt %v10, %v9 : Bool
     je %v11, b3, b2
@@ -975,7 +995,7 @@ fn collectFor(%xs: Flat(Int)) -> Array(Int) {
     ret %v14
 }
 
-(TrivialCopy(a), Index(Flat(a), I64, a)) fn collectMapped(%xs: Flat(a), %f: (a) -> b) -> Array(b) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn collectMapped(%xs: Flat(a), %f: (a) -> b) -> Array(b) {
   schema {
     #0 type a
     #1 type b
@@ -983,7 +1003,8 @@ fn collectFor(%xs: Flat(Int)) -> Array(Int) {
     #3 type {out: &mut Array(b)}
     #4 type (value: b) -> Outcome((), ())
     #5 class TrivialCopy(a)
-    #6 class Index(Flat(a), I64, a)
+    #6 class Length(Flat(a))
+    #7 class Index(Flat(a), I64, a)
   }
 
   b0:
@@ -1056,7 +1077,7 @@ fn main() -> Int {
     %v37 = alloc : Flat(Int)
     %v38 = load [%v36]@Array.run@Run.items : %Int
     init %local2@Flat.items, %v38
-    %v40 = load [%v36]@Array.length : @bits(31) U32
+    %v40 = load [%v36]@Array.length : @bits(30) U32
     %v41 = cast %v40 : U32
     %v42 = cast %v41 : I64
     init %local2@Flat.length, %v42
@@ -1087,7 +1108,7 @@ fn main() -> Int {
     %v81 = alloc : Flat(Int)
     %v82 = load [%v80]@Array.run@Run.items : %Int
     init %local5@Flat.items, %v82
-    %v84 = load [%v80]@Array.length : @bits(31) U32
+    %v84 = load [%v80]@Array.length : @bits(30) U32
     %v85 = cast %v84 : U32
     %v86 = cast %v85 : I64
     init %local5@Flat.length, %v86
@@ -1124,7 +1145,7 @@ fn main() -> Int {
     %v132 = alloc : Flat(Int)
     %v133 = load [%v131]@Array.run@Run.items : %Int
     init %local8@Flat.items, %v133
-    %v135 = load [%v131]@Array.length : @bits(31) U32
+    %v135 = load [%v131]@Array.length : @bits(30) U32
     %v136 = cast %v135 : U32
     %v137 = cast %v136 : I64
     init %local8@Flat.length, %v137
@@ -1216,7 +1237,7 @@ fn main() -> Int {
     %v262 = alloc : Flat(Int)
     %v263 = load [%v261]@Array.run@Run.items : %Int
     init %local13@Flat.items, %v263
-    %v265 = load [%v261]@Array.length : @bits(31) U32
+    %v265 = load [%v261]@Array.length : @bits(30) U32
     %v266 = cast %v265 : U32
     %v267 = cast %v266 : I64
     init %local13@Flat.length, %v267
@@ -1267,7 +1288,7 @@ fn Drop(Cell).drop(%self: Cell) -> () {
     ret
 }
 
-(TrivialCopy(a), Index(Flat(a), I64, a)) fn ResolveTest.continuation$0(%env: %{body: &(value: b) -> Outcome((), $r), f: &(a) -> b}, %value: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn ResolveTest.continuation$0(%env: %{body: &(value: b) -> Outcome((), $r), f: &(a) -> b}, %value: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type b
@@ -1277,7 +1298,8 @@ fn Drop(Cell).drop(%self: Cell) -> () {
     #5 type (value: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
-    #8 class Index(Flat(a), I64, a)
+    #8 class Length(Flat(a))
+    #9 class Index(Flat(a), I64, a)
   }
 
   b0:
@@ -1318,7 +1340,7 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value: Int) -> Outcome((), ())) -> Outc
   b0:
     %i = alloc : Int
     init %i, 0
-    %v5 = call length(Int), %xs : I64
+    %v5 = call Length(Flat(a)).length(Int), %xs : I64
     %n = cast %v5 : Int
     jmp b1
 
@@ -1352,7 +1374,7 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value: Int) -> Outcome((), ())) -> Outc
     jmp b1
 }
 
-(TrivialCopy(a), Index(Flat(a), I64, a)) fn ResolveTest.continuation$2(%env: %{out: &mut Array(b)}, %value: b) -> Outcome((), ()) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn ResolveTest.continuation$2(%env: %{out: &mut Array(b)}, %value: b) -> Outcome((), ()) {
   schema {
     #0 type a
     #1 type b
@@ -1360,7 +1382,8 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value: Int) -> Outcome((), ())) -> Outc
     #3 type {out: &mut Array(b)}
     #4 type (value: b) -> Outcome((), ())
     #5 class TrivialCopy(a)
-    #6 class Index(Flat(a), I64, a)
+    #6 class Length(Flat(a))
+    #7 class Index(Flat(a), I64, a)
   }
 
   b0:
@@ -1463,7 +1486,7 @@ fn each(Int, Outcome((), ()))(%xs: Flat(Int), %body: (value: Int) -> Outcome((),
   b0:
     %i = alloc : Int
     init %i, 0
-    %v5 = call length(Int), %xs : I64
+    %v5 = call Length(Flat(a)).length(Int), %xs : I64
     %n = cast %v5 : Int
     jmp b1
 

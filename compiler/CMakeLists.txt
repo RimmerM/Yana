@@ -50,6 +50,8 @@ set(RESOLVE_SOURCE_FILES
     resolve/core.cpp
     resolve/native.h
     resolve/native.cpp
+    resolve/host.h
+    resolve/host.cpp
     resolve/intrinsic.h
     resolve/intrinsic.cpp
     resolve/type.h

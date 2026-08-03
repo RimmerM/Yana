@@ -114,6 +114,25 @@ bool isJsObject(Gen& g, TypePtr type) {
     if(!type || !isMemoryType(g.global, type)) return false;
     if(g.global[type]->kind == Type::Fun) return false;
 
+    /*
+     * A `String` is the host `string` *primitive* here, not an object -
+     * Implementation-String.md part 2's "zero wrapper".
+     *
+     * It reaches this function as a memory type, because `isDirectType` is deliberately
+     * target-independent and a native string is two words. That is the right answer for the
+     * calling convention and the wrong one for this question, which is about what the host value
+     * *is*: strings are immutable primitives there, so writing through a `&String` has to replace
+     * the binding rather than write a property of something that stays the same object. Exactly the
+     * reasoning the niche-folded case below gives, and exactly the reason `Type::Fun` is on the line
+     * above.
+     *
+     * Without this, `fn pushString(&self: String, other: String)` compiled to a function whose body
+     * was `return;` - the assignment wrote a local nothing read again, and the append was silently
+     * lost. `String.yana`'s `appendToLiteral` is what catches it, and it catches it by a number
+     * rather than by a diff for exactly that reason: the emitted JavaScript reads as if it works.
+     */
+    if(g.global[type]->kind == Type::String) return false;
+
     TypePtr content = nullptr;
     if(isNewtype(g, type, content)) return content && isJsObject(g, content);
 

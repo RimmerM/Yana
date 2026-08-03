@@ -1,0 +1,133 @@
+{-
+   `Show` and its bound - Implementation-Storage.md part 7.
+
+   Two separate claims, tested separately because they fail independently:
+
+    - `show` writes the right text. Asserted by formatting into a sink and reading the units back,
+      since a fixture's only output channel is a number.
+    - `showBound` is an *upper* bound on what `show` writes, which is the contract the whole sizing
+      scheme rests on. Asserted as `length(sink) <= bound` rather than against a constant: a bound
+      that is merely generous is legal, and one that is too small is the bug this exists to catch.
+
+   Everything here is written per type rather than once over a `Show(a)` constraint, and that is a
+   limitation rather than a style. A generic helper - `fn shown(value: a) -> Int` formatting into a
+   local sink - is rejected, because a `&` argument in a generic body does not name storage the
+   callee can write back to. It is the same fault Collections records where `Show(Maybe(a))` would
+   have been, seen from the caller's side instead of the instance's, and the two being one bug is
+   worth knowing: **`Show` is usable concretely and not yet usable generically.**
+
+   Run on both targets. Every literal is ASCII, for the reason `String.yana` gives - `length` answers
+   in each target's native unit and those coincide only there.
+-}
+
+-- One sink per instance this file can reach. A local `let &` is what a `&` parameter needs, so each
+-- of these is the same three lines with a different `show` in the middle.
+fn shownBool(value: Bool) -> Int:
+    let &sink = newStringOfCapacity(64 :: Size)
+    show(value, sink)
+    return length(sink) :: Int
+
+fn shownInt(value: Int) -> Int:
+    let &sink = newStringOfCapacity(64 :: Size)
+    show(value, sink)
+    return length(sink) :: Int
+
+fn shownString(value: String) -> Int:
+    let &sink = newStringOfCapacity(64 :: Size)
+    show(value, sink)
+    return length(sink) :: Int
+
+-- The first unit written, which distinguishes "True" from "False" and a sign from a digit without
+-- needing the whole text.
+fn firstShownUnit(value: Int) -> Int:
+    let &sink = newStringOfCapacity(64 :: Size)
+    show(value, sink)
+    return stringUnit(sink, 0)
+
+-- The bounds, or a sentinel for `Nothing`. `Nothing` is not a failure - it is the honest answer for
+-- a type where measuring costs what formatting costs - so it stays distinguishable from a number.
+fn stringBound(value: String) -> Int = match showBound(value):
+    Just(bound) -> bound
+    Nothing -> -1
+
+fn intBound(value: Int) -> Int = match showBound(value):
+    Just(bound) -> bound
+    Nothing -> -1
+
+{-
+   `Bool` - the simplest instance, and the one whose bound is the *longer* of two constants.
+
+   `showBound` answers 5 for both, which is what makes it an upper bound rather than a length:
+   formatting `True` writes four units into a buffer sized for five, and the unused unit is the price
+   of the bound being a constant that folds.
+-}
+fn boolText() -> Int:
+    let &total = 0 :: Int
+
+    if shownBool(True) == 4 then total = total + 1
+    if shownBool(False) == 5 then total = total + 1
+    if firstShownUnit(0) == 48 then total = total + 1      -- `0`
+
+    return total
+
+{-
+   The integer path, including the two values a naive implementation gets wrong.
+
+   Zero produces no digits by division, so an implementation looping while the value is non-zero
+   writes nothing at all for it. The most negative value has no positive counterpart, so one that
+   negates first prints that same number's digits forever. Neither failure raises anything - they
+   produce the wrong text - so both are checked by unit count, which catches either.
+-}
+fn integerText() -> Int:
+    let &total = 0 :: Int
+
+    if shownInt(0) == 1 then total = total + 1                     -- "0"
+    if shownInt(-5) == 2 then total = total + 1                    -- "-5"
+    if shownInt(1234) == 4 then total = total + 1                  -- "1234"
+    if shownInt(-2147483648) == 11 then total = total + 1          -- Int's most negative
+    if firstShownUnit(-5) == 45 then total = total + 1             -- the sign comes first
+
+    return total
+
+{-
+   `String` - the row where the bound is a *runtime* value rather than a constant.
+
+   This is the half of part 7's argument the missing `Maybe(a)` instance would have completed:
+   `Just(11)` for `Int` folds to a literal once the instance method is inlined and `Just(length(s))`
+   here does not, and neither instance had to say which it was. That is what the `Maybe(Int)` shape
+   buys, and it is why a format holding one string and three integers still sizes in one addition.
+-}
+fn stringText() -> Int:
+    let &total = 0 :: Int
+
+    if shownString("hello") == 5 then total = total + 1
+    if stringBound("hello") == 5 then total = total + 1
+    if stringBound("") == 0 then total = total + 1
+
+    return total
+
+{-
+   The contract itself: `show` writes at most `showBound` units when it is `Just`.
+
+   Checked rather than assumed, because everything downstream depends on it - the format primitive
+   sizes its buffer from these numbers and then appends without re-checking, so an instance that
+   understates its bound is a buffer overrun rather than a wrong string.
+-}
+fn contractHolds() -> Int:
+    let &total = 0 :: Int
+
+    if shownInt(0) <= intBound(0) then total = total + 1
+    if shownInt(-2147483648) <= intBound(-2147483648) then total = total + 1
+    if shownString("hello") <= stringBound("hello") then total = total + 1
+
+    return total
+
+fn main() -> Int:
+    let &total = 0 :: Int
+
+    total = total + boolText()        -- 3
+    total = total + integerText()     -- 5
+    total = total + stringText()      -- 3
+    total = total + contractHolds()   -- 3
+
+    return total

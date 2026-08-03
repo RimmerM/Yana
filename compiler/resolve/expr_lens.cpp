@@ -1402,7 +1402,93 @@ ModulePtr<Value> ExprResolver::finishLensCall(ModulePtr<Value> value, Continuati
  * rejections are the evidence base a phase 2 strategy gets chosen from, so a message that does not
  * say which shape was reached is a message that teaches nothing.
  */
-ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call) {
+/*
+ * The class half of it - Implementation-Containers.md §5.
+ *
+ * `for x in chunks(xs)` names a class function rather than a function, and what the loop needs is
+ * the implementation the instance supplies: an `iter fn` like any other, desugared where it was
+ * written, so everything below this point is unchanged. Only the arguments have to be resolved
+ * first, because they are what selects the instance - which is why this returns them rather than
+ * leaving the caller to resolve them a second time.
+ *
+ * Nothing is reported when no class function of the name fits; the plain-function diagnostic is the
+ * better one and the caller falls back to it.
+ */
+ModulePtr<Function> ExprResolver::findClassLoopIterator(ast::AppExpr& application, StringId name,
+                                                        LocationId source, ValueList& values, bool& attempted) {
+    ClassFunList candidates;
+    findClassFunctions(module, name, source, candidates);
+
+    // The written arity, since a class member is *not* desugared - it declares what an instance
+    // takes and what it hands over, and the continuation belongs to the implementation.
+    SmallArray<ClassFunRef, 4> iterators;
+
+    for(auto& candidate: candidates) {
+        auto signature = local[global[candidate.typeClass]->functions.get(global, candidate.index).fun];
+        if(!signature || signature->funKind != ast::FunKind::Iter) continue;
+        if(signature->args.size() != application.args.size()) continue;
+
+        iterators.push(candidate);
+    }
+
+    if(iterators.isEmpty()) return nullptr;
+    attempted = true;
+
+    /*
+     * Resolved against the first candidate's signature, and the conventions are what that decides.
+     * Two classes declaring one iterator name at one arity would have to agree about those to be
+     * callable by one syntax at all, so taking them from the first is the same answer any of them
+     * gives; which class it *is* is decided below, from the types these produce.
+     */
+    auto shape = local[global[iterators[0].typeClass]->functions.get(global, iterators[0].index).fun];
+    resolveHandedArguments(shape - local, application.args, values);
+
+    ClassMatch selected;
+    auto selectedCount = 0;
+
+    for(auto& candidate: iterators) {
+        ClassMatch match;
+        if(!matchClassFun(candidate, toBuffer(values), nullptr, match)) continue;
+        if(!match.instance) continue;
+
+        if(!selectedCount) adopt(selected, match);
+        selectedCount++;
+    }
+
+    if(!selectedCount) {
+        // The name is a class iterator and these arguments have no instance of it. Said here because
+        // the plain-function fallback has nothing to say - there is no plain `chunks` to complain
+        // about the arguments of.
+        StringBuilder types;
+        TypeList given;
+        for(auto value: values) given.push(valueType(value));
+        describeTypes(context, global, toBuffer(given), types);
+
+        context.diagnostics.error("no instance of %@ for (%@), required by the `for` loop's %@"_v, source,
+                                  context.findName(global[iterators[0].typeClass]->name), types.view(),
+                                  context.findName(name));
+        return nullptr;
+    }
+
+    if(selectedCount > 1) {
+        context.diagnostics.error("ambiguous iterator %@ - more than one class instance applies"_v, source,
+                                  context.findName(name));
+        return nullptr;
+    }
+
+    auto implementation = local[selected.instance]->functions.get(local, selected.index);
+    if(!implementation) {
+        context.diagnostics.error("instance of %@ does not implement %@"_v, source,
+                                  context.findName(global[selected.typeClass]->name), context.findName(name));
+        return nullptr;
+    }
+
+    recordClassFunReference(*this, source, selected, selected.instance);
+    return implementation;
+}
+
+ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, const ast::AppExpr*& call,
+                                                   ValueList& values) {
     auto& source = unwrapNested(loop.from);
 
     if(source.kind != ast::Expr::App) {
@@ -1427,7 +1513,29 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
     }
 
     auto callee = findFunction(module, calleeExpr.var, source.source);
-    if(!callee) return nullptr;
+
+    // A class function of the name answers when no plain function does, and when the one that does
+    // is not an iterator - the two halves of an overload set are one set here exactly as they are at
+    // an ordinary call.
+    if(!callee || local[callee]->funKind != ast::FunKind::Iter) {
+        auto attempted = false;
+        auto fromClass = findClassLoopIterator(application, calleeExpr.var, source.source, values, attempted);
+
+        if(fromClass) {
+            call = &application;
+            return fromClass;
+        }
+
+        // It was a class iterator and it did not work out, which has been said. Falling through to
+        // the plain-function diagnostics would say it again about a different candidate.
+        if(attempted) return nullptr;
+    }
+
+    if(!callee) {
+        context.diagnostics.error("unknown iterator %@ - a `for` loop names an `iter fn`, or a class function declared as one"_v,
+                                  loop.from.source, context.findName(calleeExpr.var));
+        return nullptr;
+    }
 
     auto target = local[callee];
     if(target->funKind != ast::FunKind::Iter) {
@@ -1442,6 +1550,8 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
                                   U32(target->args.size() - 1), U32(application.args.size()));
         return nullptr;
     }
+
+    resolveHandedArguments(callee, application.args, values);
 
     call = &application;
     return callee;
@@ -1475,14 +1585,16 @@ void ExprResolver::resolveFor(const ast::Expr& expr, const ast::ForExpr& loop) {
     }
 
     const ast::AppExpr* application = nullptr;
-    auto callee = findLoopIterator(loop, application);
+
+    // Filled by the lookup, because a class iterator is selected *from* its arguments and resolving
+    // them a second time would run whatever they do a second time too.
+    ValueList values;
+
+    auto callee = findLoopIterator(loop, application, values);
     if(!callee) return;
 
     auto target = local[callee];
     auto source = expr.source;
-
-    ValueList values;
-    resolveHandedArguments(callee, application->args, values);
 
     Array<FunArg> params;
     if(!continuationSignature(*this, module, callee, toBuffer(values), source, params)) return;

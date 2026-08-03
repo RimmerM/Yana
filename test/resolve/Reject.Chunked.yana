@@ -1,0 +1,58 @@
+-- The refusals §5 is built around - Implementation-Containers.md.
+
+data Chunks {a: [Int], b: [Int]}
+
+instance Chunked(Chunks, Int):
+    iter fn chunks(self: Chunks) -> &[Int]:
+        yield self.a
+        yield self.b
+
+-- A container that iterates and does not promise a buffer address, where `[Int]` was expected.
+-- Making this work would mean copying every element into a fresh buffer at an argument position
+-- nobody wrote a call at, so the diagnostic names `Chunked` as the parameter to ask for instead.
+--
+-- Reported twice, at the argument and at the call. That is what every failed conversion into a
+-- concrete parameter does here and is not this rule's: the parameter type is pushed down as the
+-- argument's expected type and then applied again once the callee is committed to, and both
+-- conversions report. `takesPoint(aBool)` doubles the same way.
+fn total(xs: [Int]) -> Int = length(xs) :: Int
+
+fn passChunked(cs: Chunks) -> Int = total(cs)
+
+-- The same refusal through a signature written over a type variable, where nothing binds `a` at all
+-- rather than the binding failing to convert.
+fn count(xs: [a]) -> Int = length(xs) :: Int
+
+fn passChunkedGeneric(cs: Chunks) -> Int = count(cs)
+
+{-
+   `Contiguous` without `Chunked` is not a container - the superclass is checked where the instance
+   is declared, and its whole job is that a signature written over `Chunked` accepts everything a
+   `[a]` one does. What is missing here is one line.
+-}
+data Ring {items: [Int]}
+
+instance Contiguous(Ring, Int):
+    fn elements(return self: Ring) -> &[Int] = elements(self.items)
+
+-- A class member declared `iter fn` is run by a `for` loop, so calling one as an ordinary function
+-- reaches a signature that has no continuation to be given.
+fn callDirectly(cs: Chunks) -> Int:
+    chunks(cs)
+    return 0
+
+-- The keyword is as much of the contract as the convention and the types are: what the call site
+-- desugars against is the class's shape, decided before it knows which instance it reached.
+data Pair {a: [Int]}
+
+instance Chunked(Pair, Int):
+    fn chunks(self: Pair) -> &[Int] = elements(self.a)
+
+{-
+   And a class cannot write such a body itself, which is why `Contiguous` has no `chunks` default:
+   the continuation it hands over to is a type variable, and a class's variables are its head's.
+-}
+class Walked(c -> a):
+  iter fn walk(self: c) -> &[a] = yield elements(self)
+
+fn main() -> Int = passChunked(Chunks {a: [1], b: [2]})

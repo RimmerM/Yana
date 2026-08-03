@@ -72,7 +72,7 @@ struct Hoister {
         auto& definition = *opt.local[value];
         switch(definition.kind) {
             case Value::ConstInt: case Value::ConstFloat: case Value::ConstDouble:
-            case Value::Arg:
+            case Value::ConstString: case Value::Arg:
                 return false;
             default:
                 break;
@@ -379,7 +379,7 @@ struct LoopKiller {
         auto& definition = *opt.local[value];
         switch(definition.kind) {
             case Value::ConstInt: case Value::ConstFloat: case Value::ConstDouble:
-            case Value::Arg:
+            case Value::ConstString: case Value::Arg:
                 return false;
             default:
                 break;
