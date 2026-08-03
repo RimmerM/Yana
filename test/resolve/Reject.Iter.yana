@@ -26,8 +26,9 @@ fn plain(x: Int) -> Int = x + 1
 
 -- Reading the declaration.
 
--- The explicit continuation form would have to write the step signal out, and what its two cases
--- mean is decided by the `for` loop rather than by the declaration.
+-- An `iter fn` is always the `yield` form, so a function-typed last parameter is an ordinary
+-- argument rather than a continuation. `body(x)` therefore hands an `Int` where this signature says
+-- it yields an `a`, and the declaration is reported for what it is: an iterator that never yields.
 iter fn written(x: Int, body: (Int) -> a) -> a = body(x)
 
 -- An iterator ends by running out of values. What it returns then is the loop's own signal, which
@@ -120,13 +121,6 @@ fn breakValue(n: Int) -> Int:
 
     return 0
 
--- An `iter fn` is generic in what the loop body below it returns, so its own body is a generic body
--- and a lifted one inside it would have to be specialized alongside it. That is what stops an
--- adaptor - an `iter fn` whose body is a `for` over another - from being writable here.
-iter fn evens(limit: Int) -> Int:
-    for x in upTo(limit):
-        yield x
-
 -- `break` out of a lens continuation is still the one shape the exit signal does not carry: the
 -- lens between the `break` and its loop has no step signal to report the departure in.
 lens fn scope() -> {}:
@@ -139,9 +133,11 @@ fn breakThroughLens(n: Int) -> Int:
 
     return 0
 
--- A `for` loop inside a generic function, which is the same restriction a lambda there carries.
-fn inGeneric(value: a, n: Int) -> a:
+-- A `for` loop in a generic body is legal now - see Adaptor.yana - so what is left to reject is the
+-- ordinary mistake inside one: `upTo` hands over an `Int` and this loop's body is written as though
+-- it handed over the function's own variable.
+fn inGeneric(->value: a, n: Int) -> a:
     for x in upTo(n):
-        return value
+        return x
 
     return value

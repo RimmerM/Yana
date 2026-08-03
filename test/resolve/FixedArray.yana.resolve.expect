@@ -45,6 +45,37 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
+fn Index(Flat(a), I64, a).get(Int)(%self: Flat(Int), %index: I64) -> &Int {
+  b0:
+    %v2 = load %self@Flat.items : %Int
+    %v3 = strideof Int : I64
+    %v4 = mul %index, %v3 : I64
+    %v5 = add %v2, %v4 : %Int
+    %v6 = borrow [%v5] : &Int
+    ret %v6
+}
+
+fn Index(Flat(a), I64, a).getMut(Int)(%self: Flat(Int), %index: I64) -> &mut Int {
+  b0:
+    %v2 = load %self : Flat(Int)
+    %v3 = load %self@Flat.items : %Int
+    %v4 = strideof Int : I64
+    %v5 = mul %index, %v4 : I64
+    %v6 = add %v3, %v5 : %Int
+    %v7 = borrow_mut [%v6] : &mut Int
+    ret %v7
+}
+
+fn Index(Flat(a), I64, a).get(Pad)(%self: Flat(Pad), %index: I64) -> &Pad {
+  b0:
+    %v2 = load %self@Flat.items : %Pad
+    %v3 = strideof Pad : I64
+    %v4 = mul %index, %v3 : I64
+    %v5 = add %v2, %v4 : %Pad
+    %v6 = borrow [%v5] : &Pad
+    ret %v6
+}
+
 fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
     %v1 = load %self@Run.ownsHeap : @bits(1) U32
@@ -70,27 +101,6 @@ fn length(Int)(%self: Flat(Int)) -> I64 {
   b0:
     %v1 = load %self@Flat.length : I64
     ret %v1
-}
-
-fn get(Int)(%self: Flat(Int), %index: I64) -> &Int {
-  b0:
-    %v2 = load %self@Flat.items : %Int
-    %v3 = strideof Int : I64
-    %v4 = mul %index, %v3 : I64
-    %v5 = add %v2, %v4 : %Int
-    %v6 = borrow [%v5] : &Int
-    ret %v6
-}
-
-fn getMut(Int)(%self: Flat(Int), %index: I64) -> &mut Int {
-  b0:
-    %v2 = load %self : Flat(Int)
-    %v3 = load %self@Flat.items : %Int
-    %v4 = strideof Int : I64
-    %v5 = mul %index, %v4 : I64
-    %v6 = add %v3, %v5 : %Int
-    %v7 = borrow_mut [%v6] : &mut Int
-    ret %v7
 }
 
 fn slice(Int)(%self: Flat(Int), %from: I64, %to: I64) -> Flat(Int) {
@@ -165,16 +175,6 @@ fn slice(Int)(%self: Flat(Int), %from: I64, %to: I64) -> Flat(Int) {
     init %local3@Flat.items, %v44
     init %local3@Flat.length, %v47
     ret %v39
-}
-
-fn get(Pad)(%self: Flat(Pad), %index: I64) -> &Pad {
-  b0:
-    %v2 = load %self@Flat.items : %Pad
-    %v3 = strideof Pad : I64
-    %v4 = mul %index, %v3 : I64
-    %v5 = add %v2, %v4 : %Pad
-    %v6 = borrow [%v5] : &Pad
-    ret %v6
 }
 
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
@@ -265,7 +265,7 @@ fn total(%xs: Flat(Int)) -> Int {
     %v14 = load %i : Int
     %v15 = cast %v14 : I64
     %v16 = borrow %xs : &Flat(Int)
-    %v17 = call get(Int), %v16, %v15 : &Int
+    %v17 = call Index(Flat(a), I64, a).get(Int), %v16, %v15 : &Int
     %v18 = load [%v17] : Int
     %v19 = add %v13, %v18 : Int
     assign %sum, %v19
@@ -297,13 +297,13 @@ fn double(%xs: Flat(Int)) -> () {
     %v12 = load %i : Int
     %v13 = cast %v12 : I64
     %v14 = borrow %xs : &Flat(Int)
-    %v15 = call get(Int), %v14, %v13 : &Int
+    %v15 = call Index(Flat(a), I64, a).get(Int), %v14, %v13 : &Int
     %value = load [%v15] : Int
     %v17 = load %xs : Flat(Int)
     %v18 = load %i : Int
     %v19 = cast %v18 : I64
     %v20 = borrow_mut %xs : &mut Flat(Int)
-    %v21 = call getMut(Int), %v20, %v19 : &mut Int
+    %v21 = call Index(Flat(a), I64, a).getMut(Int), %v20, %v19 : &mut Int
     %v22 = add %value, %value : Int
     assign [%v21], %v22
     %v24 = load %i : Int
@@ -370,7 +370,7 @@ fn padRead() -> I64 {
     %v29 = cast 3 : I64
     init %local4@Flat.length, %v29
     %v32 = borrow %local4 : &Flat(Pad)
-    %v33 = call get(Pad), %v32, 0 : &Pad
+    %v33 = call Index(Flat(a), I64, a).get(Pad), %v32, 0 : &Pad
     %v34 = load [%v33] : Pad
     %v35 = load [%v33]@Pad.wide : I64
     %v36 = load %ps : [Pad *3]
@@ -381,7 +381,7 @@ fn padRead() -> I64 {
     %v43 = cast 3 : I64
     init %local5@Flat.length, %v43
     %v46 = borrow %local5 : &Flat(Pad)
-    %v47 = call get(Pad), %v46, 1 : &Pad
+    %v47 = call Index(Flat(a), I64, a).get(Pad), %v46, 1 : &Pad
     %v48 = load [%v47] : Pad
     %v49 = load [%v47]@Pad.wide : I64
     %v50 = add %v35, %v49 : I64
@@ -393,7 +393,7 @@ fn padRead() -> I64 {
     %v58 = cast 3 : I64
     init %local6@Flat.length, %v58
     %v61 = borrow %local6 : &Flat(Pad)
-    %v62 = call get(Pad), %v61, 2 : &Pad
+    %v62 = call Index(Flat(a), I64, a).get(Pad), %v61, 2 : &Pad
     %v63 = load [%v62] : Pad
     %v64 = load [%v62]@Pad.wide : I64
     %v65 = add %v50, %v64 : I64

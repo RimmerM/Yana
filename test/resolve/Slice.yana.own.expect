@@ -30,6 +30,20 @@ fn freeHeap {
   arg allocation readonly
 }
 
+fn Index(Flat(a), I64, a).get(Int) {
+  arg self readonly return
+  arg index readonly
+  result arguments
+  %self: Flat(Int) borrowed readonly live [0, 1)
+}
+
+fn Index(Flat(a), I64, a).getMut(Int) {
+  arg self writable return
+  arg index readonly
+  result arguments
+  %self: Flat(Int) borrowed writable live [0, 2)
+}
+
 fn resize(Int) {
   arg self writable addressed resizable
   arg wanted readonly
@@ -53,20 +67,6 @@ fn mapMemory {
 fn length(Int) {
   arg self readonly
   %self: Flat(Int) borrowed readonly live [0, 1)
-}
-
-fn get(Int) {
-  arg self readonly return
-  arg index readonly
-  result arguments
-  %self: Flat(Int) borrowed readonly live [0, 1)
-}
-
-fn getMut(Int) {
-  arg self writable return
-  arg index readonly
-  result arguments
-  %self: Flat(Int) borrowed writable live [0, 2)
 }
 
 fn slice(Int) {

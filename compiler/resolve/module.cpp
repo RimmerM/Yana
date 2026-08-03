@@ -1684,6 +1684,22 @@ static void resolveInstance(Module& module, ast::Decl& decl) {
 
         if(member.fun.ret) {
             auto written = resolveType(module, *module.parse[member.fun.ret], gen);
+
+            /*
+             * A mutable borrow has no written form.
+             *
+             * `&mut T` is what the `return &` markers *produce* - applyReturnRoots promotes the
+             * declared `&T` once every root is mutable - and the grammar has no way to spell it. So
+             * an implementation of `fn getMut(return &self: c, index: k) -> &v` writes `-> &a`, and
+             * comparing that against the class's already-promoted `&mut a` would ask the author for
+             * a type no program can write. Promoting what was written by the class's own rule is
+             * what makes the two comparable; a member with no root, or a mixed group, is unaffected
+             * because applyReturnRootMutability is then the identity.
+             */
+            if(signature->returnRoots && signature->returnRootsMutable) {
+                written = applyReturnRootMutability(module, written, true);
+            }
+
             if(!sameType(written, function->returnType)) {
                 module.context.diagnostics.error("%@ returns %@ here but %@ in class %@"_v, member.source,
                                                  module.context.findName(member.fun.name),

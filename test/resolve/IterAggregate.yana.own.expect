@@ -1,0 +1,288 @@
+fn teardown$none {
+  arg value readonly
+}
+
+fn freeListHead {
+  arg sizeClass readonly
+  result escapes
+}
+
+fn setFreeListHead {
+  arg sizeClass readonly
+  arg block readonly
+}
+
+fn freeHeap {
+  arg allocation readonly
+}
+
+fn Index(Flat(a), I64, a).get(Point) {
+  arg self readonly return
+  arg index readonly
+  result arguments
+  %self: Flat(Point) borrowed readonly live [0, 1)
+}
+
+fn Index(Flat(a), I64, a).get(Int) {
+  arg self readonly return
+  arg index readonly
+  result arguments
+  %self: Flat(Int) borrowed readonly live [0, 1)
+}
+
+fn releaseRun(Point) {
+  arg self readonly
+  %self: Run(Point) borrowed droppable readonly live [0, 6)
+}
+
+fn releaseRun(Int) {
+  arg self readonly
+  %self: Run(Int) borrowed droppable readonly live [0, 6)
+}
+
+fn length(Point) {
+  arg self readonly
+  %self: Flat(Point) borrowed readonly live [0, 1)
+}
+
+fn length(Int) {
+  arg self readonly
+  %self: Flat(Int) borrowed readonly live [0, 1)
+}
+
+fn Reclaim(Array(a)).reclaim(Point) {
+  arg value readonly
+  %value: Array(Point) borrowed droppable readonly live [0, 11) [12, 27)
+  %i: Int writable live [3, 9) [12, 27)
+  %local2: Point readonly live [19, 21)
+  %local3: Point readonly live [21, 23)
+}
+
+fn Reclaim(Array(a)).reclaim(Int) {
+  arg value readonly
+  %value: Array(Int) borrowed droppable readonly live [0, 11) [12, 26)
+  %i: Int writable live [3, 9) [12, 26)
+  %local2: Int readonly live [19, 22)
+  %local3: Int readonly live [20, 22)
+}
+
+fn positiveX {
+  arg v readonly
+  %v: Point borrowed readonly live [0, 1)
+}
+
+fn yOf {
+  arg v readonly
+  %v: Point borrowed readonly live [0, 1)
+}
+
+fn direct {
+  arg ps unknown
+  %ps: Flat(Point) borrowed unknown live [0, 11)
+  %sum: Int writable live [0, 12)
+  %local2: {sum: &mut Int} closure writable addressed live [2, 10)
+  %local3: (value: Point) -> Outcome((), ()) droppable readonly live [6, 11)
+  %local4: Outcome((), ()) readonly live [10, 11)
+}
+
+fn oneLift {
+  arg ps unknown
+  %ps: Flat(Point) borrowed unknown live [0, 16)
+  %sum: Int writable live [0, 17)
+  %local2: (v: Point) -> Bool droppable readonly live [2, 16)
+  %local3: {sum: &mut Int} closure writable addressed live [7, 15)
+  %local4: (value: Point) -> Outcome((), ()) droppable readonly live [11, 16)
+  %local5: Outcome((), ()) readonly live [15, 16)
+}
+
+fn twoLifts {
+  arg ps unknown
+  %ps: Flat(Point) borrowed unknown live [0, 21)
+  %sum: Int writable live [0, 22)
+  %local2: (v: Point) -> Bool droppable readonly live [2, 21)
+  %local3: (v: Point) -> Int droppable readonly live [7, 21)
+  %local4: {sum: &mut Int} closure writable addressed live [12, 20)
+  %local5: (value: Int) -> Outcome((), ()) droppable readonly live [16, 21)
+  %local6: Outcome((), ()) readonly live [20, 21)
+}
+
+fn scalar {
+  arg ns readonly
+  %ns: Flat(Int) borrowed readonly live [0, 11)
+  %sum: Int writable live [0, 12)
+  %local2: {sum: &mut Int} closure writable addressed live [2, 10)
+  %local3: (value: Int) -> Outcome((), ()) droppable readonly live [6, 11)
+  %local4: Outcome((), ()) readonly live [10, 11)
+}
+
+fn main {
+  %local0: Point readonly live [0, 19)
+  %local1: Point readonly live [3, 23)
+  %local2: Point readonly live [6, 27)
+  %ps: Array(Point) droppable readonly live [9, 82)
+  %local4: Point writable addressed live [10, 26)
+  %ns: Array(Int) droppable readonly live [28, 93)
+  %local6: Int writable addressed live [29, 49)
+  %local7: Flat(Point) unknown live [53, 61)
+  %local8: Flat(Point) unknown live [63, 71)
+  %local9: Flat(Point) unknown live [74, 82)
+  %local10: Flat(Int) readonly live [85, 93)
+}
+
+fn ResolveTest.continuation$2 {
+  arg env readonly
+  arg value readonly
+  %value: Point borrowed readonly live [0, 4)
+  %local1: Outcome((), ()) readonly live [6, 9)
+}
+
+fn each(Point, ()) {
+  arg xs unknown
+  arg body readonly
+  %xs: Flat(Point) borrowed unknown live [0, 8) [11, 19) [20, 24)
+  %body: (value: Point) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 19) [20, 24)
+  %i: Int writable live [0, 8) [11, 19) [20, 24)
+  %local3: Outcome((), ()) readonly live [15, 20)
+  %local4: Outcome((), ()) readonly live [8, 11)
+  %local5: Outcome((), ()) readonly live never
+}
+
+fn funvalue$positiveX {
+  arg env readonly
+  arg v readonly
+  %v: Point borrowed readonly live [0, 1)
+}
+
+fn ResolveTest.continuation$3 {
+  arg env readonly
+  arg value readonly
+  %value: Point borrowed readonly live [0, 4)
+  %local1: Outcome((), ()) readonly live [6, 9)
+}
+
+fn filtered(Point, ()) {
+  arg xs unknown
+  arg keep readonly
+  arg body readonly
+  %xs: Flat(Point) borrowed unknown live [0, 11)
+  %keep: (v: Point) -> Bool borrowed droppable readonly live [0, 3)
+  %body: (value: Point) -> Outcome((), ()) borrowed droppable readonly live [0, 5)
+  %local3: {keep: &(v: Point) -> Bool, body: &(value: Point) -> Outcome((), ())} closure writable addressed live [0, 10)
+  %local4: (value: Point) -> Outcome((), Outcome((), ())) droppable readonly live [6, 11)
+  %local5: Outcome((), Outcome((), ())) readonly live [10, 15)
+  %local6: Outcome((), ()) readonly live [16, 19)
+  %local7: Outcome((), Outcome((), ())) readonly live never
+}
+
+fn ResolveTest.continuation$0(Point, ()) {
+  arg env readonly
+  arg value unknown retained
+  %value: Point borrowed unknown escapes live [0, 7)
+  %local1: Outcome((), ()) readonly live [6, 10) [11, 14)
+  %local2: Outcome((), Outcome((), ())) readonly live [16, 19)
+  %local3: Outcome((), Outcome((), ())) readonly live [11, 15)
+  %local4: Outcome((), ()) readonly live never
+}
+
+fn each(Point, Outcome((), ())) {
+  arg xs unknown
+  arg body readonly
+  %xs: Flat(Point) borrowed unknown live [0, 8) [11, 19) [20, 24)
+  %body: (value: Point) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 8) [11, 19) [20, 24)
+  %i: Int writable live [0, 8) [11, 19) [20, 24)
+  %local3: Outcome((), Outcome((), ())) readonly live [15, 20)
+  %local4: Outcome((), Outcome((), ())) readonly live [8, 11)
+  %local5: Outcome((), Outcome((), ())) readonly live never
+}
+
+fn funvalue$yOf {
+  arg env readonly
+  arg v readonly
+  %v: Point borrowed readonly live [0, 1)
+}
+
+fn ResolveTest.continuation$4 {
+  arg env readonly
+  arg value readonly
+  %local0: Outcome((), ()) readonly live [5, 8)
+}
+
+fn mapFiltered(Point, Int, ()) {
+  arg xs unknown
+  arg keep readonly
+  arg f readonly
+  arg body readonly
+  %xs: Flat(Point) borrowed unknown live [0, 11)
+  %keep: (v: Point) -> Bool borrowed droppable readonly live [0, 11)
+  %f: (v: Point) -> Int borrowed droppable readonly live [0, 5)
+  %body: (value: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 3)
+  %local4: {body: &(value: Int) -> Outcome((), ()), f: &(v: Point) -> Int} closure writable addressed live [0, 10)
+  %local5: (value: Point) -> Outcome((), Outcome((), ())) droppable readonly live [6, 11)
+  %local6: Outcome((), Outcome((), ())) readonly live [10, 15)
+  %local7: Outcome((), ()) readonly live [16, 19)
+  %local8: Outcome((), Outcome((), ())) readonly live never
+}
+
+fn ResolveTest.continuation$1(Point, Int, ()) {
+  arg env readonly
+  arg value unknown retained
+  %value: Point borrowed unknown escapes live [0, 5)
+  %local1: Int readonly live [4, 6)
+  %local2: Outcome((), ()) readonly live [5, 12)
+  %local3: Outcome((), Outcome((), ())) readonly live [13, 16)
+  %local4: Outcome((), Outcome((), ())) readonly live [9, 13)
+  %local5: Int readonly live never
+  %local6: Outcome((), ()) readonly live never
+}
+
+fn filtered(Point, Outcome((), ())) {
+  arg xs unknown
+  arg keep readonly
+  arg body readonly
+  %xs: Flat(Point) borrowed unknown live [0, 11)
+  %keep: (v: Point) -> Bool borrowed droppable readonly live [0, 3)
+  %body: (value: Point) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 5)
+  %local3: {keep: &(v: Point) -> Bool, body: &(value: Point) -> Outcome((), Outcome((), ()))} closure writable addressed live [0, 10)
+  %local4: (value: Point) -> Outcome((), Outcome((), Outcome((), ()))) droppable readonly live [6, 11)
+  %local5: Outcome((), Outcome((), Outcome((), ()))) readonly live [10, 15)
+  %local6: Outcome((), Outcome((), ())) readonly live [16, 19)
+  %local7: Outcome((), Outcome((), Outcome((), ()))) readonly live never
+}
+
+fn ResolveTest.continuation$0(Point, Outcome((), ())) {
+  arg env readonly
+  arg value unknown retained
+  %value: Point borrowed unknown escapes live [0, 7)
+  %local1: Outcome((), Outcome((), ())) readonly live [6, 10) [11, 14)
+  %local2: Outcome((), Outcome((), Outcome((), ()))) readonly live [16, 19)
+  %local3: Outcome((), Outcome((), Outcome((), ()))) readonly live [11, 15)
+  %local4: Outcome((), Outcome((), ())) readonly live never
+}
+
+fn each(Point, Outcome((), Outcome((), ()))) {
+  arg xs unknown
+  arg body readonly
+  %xs: Flat(Point) borrowed unknown live [0, 8) [11, 19) [20, 24)
+  %body: (value: Point) -> Outcome((), Outcome((), Outcome((), ()))) borrowed droppable readonly live [0, 8) [11, 19) [20, 24)
+  %i: Int writable live [0, 8) [11, 19) [20, 24)
+  %local3: Outcome((), Outcome((), Outcome((), ()))) readonly live [15, 20)
+  %local4: Outcome((), Outcome((), Outcome((), ()))) readonly live [8, 11)
+  %local5: Outcome((), Outcome((), Outcome((), ()))) readonly live never
+}
+
+fn ResolveTest.continuation$5 {
+  arg env readonly
+  arg value readonly
+  %local0: Outcome((), ()) readonly live [5, 8)
+}
+
+fn each(Int, ()) {
+  arg xs readonly
+  arg body readonly
+  %xs: Flat(Int) borrowed readonly live [0, 8) [11, 19) [20, 24)
+  %body: (value: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 19) [20, 24)
+  %i: Int writable live [0, 8) [11, 19) [20, 24)
+  %local3: Outcome((), ()) readonly live [15, 20)
+  %local4: Outcome((), ()) readonly live [8, 11)
+  %local5: Outcome((), ()) readonly live never
+}

@@ -44,6 +44,14 @@ import se.rimmer.yana.YanaTokenTypes;
   // length checks.
   private IElementType symbolRun() {
     String text = yytext().toString();
+
+    // The two `?` operators, each its own class - see YanaTokenTypes. `?` leaves the enclosing
+    // function and `?.` skips to the end of the chain, which is the difference worth seeing. A run
+    // that is neither of those exactly - `??`, `?:` - is an ordinary operator here as it is in the
+    // compiler's lexer.
+    if(text.equals("?")) return YanaTokenTypes.TRY;
+    if(text.equals("?.")) return YanaTokenTypes.OPTIONAL_CHAIN;
+
     if(YanaKeywords.RESERVED_OPERATORS.contains(text)) return YanaTokenTypes.RESERVED_OP;
     return text.charAt(0) == ':' ? YanaTokenTypes.CON_SYM : YanaTokenTypes.VAR_SYM;
   }

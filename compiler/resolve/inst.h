@@ -804,7 +804,8 @@ struct InstCall: Inst {
  * each argument's convention decides what is passed and what that does to the caller's storage, and
  * the declared `return` group decides what a borrow in the result may be rooted in and how long the
  * loans the arguments created have to live. What the type cannot state is retention, so this call is
- * assumed to keep a reference to everything it is handed - see the note at the end of analyze.cpp.
+ * assumed to keep a reference to everything it is handed - see the note at the end of analyze.cpp,
+ * and `handover` below for the one call where the language says otherwise.
  */
 struct InstCallDyn: Inst {
     InstCallDyn(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> callable,
@@ -816,6 +817,30 @@ struct InstCallDyn: Inst {
     TypePtr signature;
     ModuleList<ModulePtr<Value>, false> args;
     U32 local = maxLimit<U32>;
+
+    /*
+     * Set on the call a `yield` compiles to: this is a lens or iterator handing a value to its
+     * continuation, and nothing else sets it.
+     *
+     * It is what says the arguments are *not* retained, against the blanket assumption above. The
+     * warrant is the continuation parameter's declaration rather than any callee's body, which is
+     * why a flag on the instruction is enough and no summary is needed: resolveLensSignature
+     * synthesizes that parameter with the default convention and no `return` marker, and
+     * resolveLensSignature's explicit form rejects `&`, `->` and `return` on a written one - "it is
+     * called, not stored, and its extent is the call". So a value handed over is a borrow whose
+     * extent is bounded by this instruction, and the continuation body's own use of it is bounded
+     * by the ordinary borrow check exactly as any other borrowed parameter's is.
+     *
+     * Only the *arguments* are exempted, and only for retention. The callable is still a value like
+     * any other, and everything the call returns is read the way it always was.
+     *
+     * Without it, `iter fn each(xs: [a])` handing over `xs[i]` marks the slice escaped - an
+     * aggregate element travels as an address into the run, so what the argument carries is the
+     * container's own provenance - and that reaches the caller through the summary as "this borrow
+     * outlives the frame that owns it". A scalar element never showed it, because a register
+     * argument has no slot for the provenance to be attributed to.
+     */
+    bool handover = false;
 };
 
 /*

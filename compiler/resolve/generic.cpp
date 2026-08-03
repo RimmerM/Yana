@@ -649,6 +649,73 @@ static void cloneGenCall(Clone& clone, InstGenCall& call) {
     if(result) clone.values.add(pointer, result);
 }
 
+static void cloneBody(Clone& clone, Function& to);
+static StringId specializationName(Module& module, Function& generic, Buffer<TypePtr> args);
+
+/*
+ * The other half of a lifted continuation in a generic body - see Function::liftedFrom.
+ *
+ * A body lifted out of the function being cloned names that function's type variables, so it is
+ * cloned under the same bindings and the symbol referring to it is rewritten to the clone. Anything
+ * else - a named function, a lifted body belonging to somebody else - is shared as it always was.
+ *
+ * The cache is the lifted function's own specialization list, keyed by the same argument list a
+ * specialization is keyed by. That matters for more than repeat work: a continuation is referred to
+ * once by the symbol that makes it a function value and again by the closure link on its
+ * environment allocation, and the two have to name one function.
+ */
+static ModulePtr<Function> cloneLiftedCallee(Clone& clone, ModulePtr<Function> callee) {
+    auto local = clone.local;
+    if(!callee) return callee;
+
+    auto lifted = local[callee];
+    if(lifted->liftedFrom != (ModulePtr<Function>)(&clone.from - local)) return callee;
+
+    for(auto existing: lifted->specializations.contents(local)) {
+        if(sameTypes(local[existing]->genericArgs, local, clone.args)) return existing;
+    }
+
+    auto& module = clone.module;
+    auto specialized = addAnonymousFunction(module, specializationName(module, *lifted, clone.args),
+                                            lifted->source);
+
+    specialized->specializationOf = callee;
+    specialized->used = true;
+    specialized->takesEnv = lifted->takesEnv;
+    specialized->funKind = lifted->funKind;
+    specialized->yieldForm = lifted->yieldForm;
+    specialized->skipping = lifted->skipping;
+    specialized->inlineHint = lifted->inlineHint;
+    specialized->noInline = lifted->noInline;
+    specialized->returnType = substituteType(module, lifted->returnType, clone.args, clone.source);
+
+    for(auto arg: clone.args) specialized->genericArgs.push(module.arena, arg);
+
+    // Registered before the body is cloned, so a continuation that refers to itself - which a loop
+    // body does not, but a nested one may reach - finds this function rather than starting again.
+    lifted->specializations.push(module.arena, specialized - local);
+
+    Clone inner(module, clone.site, *lifted, *specialized, clone.args, clone.source);
+    cloneBody(inner, *specialized);
+    if(!inner.ok) clone.ok = false;
+
+    /*
+     * Its own header, because a closure header is emitted at the entry point it belongs to.
+     *
+     * Two specializations are two entry points, so sharing the original's would put one function's
+     * teardown in front of another's code - and the teardown is not the same one anyway: what it
+     * releases is the captured environment, whose type has just been substituted.
+     */
+    if(lifted->closureHeader && specialized->args.size()) {
+        auto envArg = local[specialized->args.get(local, 0)];
+        if(auto envType = pointeeType(clone.global, envArg->type)) {
+            closureHeaderFor(module, specialized - local, envType, lifted->source);
+        }
+    }
+
+    return specialized - local;
+}
+
 static void cloneInstruction(Clone& clone, Inst& inst) {
     auto pointer = (ModulePtr<Value>)(&inst - clone.local);
     auto type = cloneType(clone, inst.type);
@@ -672,6 +739,11 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
              */
             if(source.extent) allocation->extent = cloneValue(clone, source.extent);
             if(source.storageFlag) allocation->storageFlag = cloneValue(clone, source.storageFlag);
+
+            // A closure environment names the body it belongs to, so that the teardown reaches that
+            // body's header. A lifted body that was cloned above has its own header, and this is the
+            // link that has to follow it.
+            if(source.closure) allocation->closure = cloneLiftedCallee(clone, source.closure);
 
             result = allocation;
             break;
@@ -905,7 +977,13 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
         }
         case Value::Symbol: {
             auto& symbol = (InstSymbol&)inst;
-            result = resolver.emit<InstSymbol>(inst.source, inst.name, type, symbol.callee, symbol.global);
+
+            // The one symbol a specialization may not share: a continuation lifted out of *this*
+            // body names this body's type variables, so it gets a clone of its own under the same
+            // bindings. Everything else - a named function, a global, a lifted body of some other
+            // function - is the same symbol in every specialization.
+            result = resolver.emit<InstSymbol>(inst.source, inst.name, type,
+                                               cloneLiftedCallee(clone, symbol.callee), symbol.global);
             break;
         }
         case Value::CallDyn: {
@@ -923,6 +1001,10 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
                 call.callable ? cloneValue(clone, call.callable) : nullptr,
                 call.address ? cloneValue(clone, call.address) : nullptr,
                 cloneType(clone, call.signature));
+
+            // A clone of a `yield` is still a `yield`: which parameter the callee is was decided by
+            // the declaration, and substituting types does not reach it.
+            dynamic->handover = call.handover;
 
             for(auto arg: call.args.contents(clone.local)) {
                 dynamic->args.push(clone.module.arena, cloneValue(clone, arg));

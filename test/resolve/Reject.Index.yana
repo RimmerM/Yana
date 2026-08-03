@@ -1,0 +1,36 @@
+-- What `xs[i]` rejects now that it is a class - Core's `Index(c -> k, v)`.
+--
+-- The old rule was a type test: everything that was not an array was rejected before anything was
+-- resolved. The new one is instance selection, so the answers move: a type with no instance is
+-- rejected for not having one, and a *generic* container is rejected for a constraint the signature
+-- did not declare rather than for being the wrong shape.
+
+data Point = Point {x: Int, y: Int}
+
+-- A record is not a container, and the message says which fact is missing. Reported by
+-- resolveSubscript rather than by the overload set, whose own answer would name `get` - a function
+-- this program does not mention - and a literal variable with no written form.
+fn noInstance(p: Point) -> Int = p[0]
+
+fn scalarIndex(n: Int) -> Int = n[0]
+
+{-
+   A subscript inside a generic body, with no constraint saying what may be subscripted.
+
+   `c` is this function's own variable, so nothing here selects an instance, and the determined
+   positions have nowhere to come from. Undeclared is deliberately not inferred: recording
+   `Index(c, ?, ?)` would invent two variables the author never wrote and make every caller satisfy
+   them.
+-}
+fn undeclared(xs: c, i: k) -> v = xs[i]
+
+-- Writing through an immutable binding. `getMut` asks for `&self`, which is the whole of
+-- Implementation-Containers.md §4.1's split arriving as an ordinary rule about borrows.
+fn immutable(xs: Array(Int)) -> {}:
+    xs[0] = 1
+
+-- A range is a value naming someone else's storage, so there is nothing to assign into.
+fn rangeWrite(&xs: Array(Int), ys: [Int]) -> {}:
+    xs[0..2] = ys
+
+fn twoIndices(xs: Array(Int)) -> Int = xs[0, 1]

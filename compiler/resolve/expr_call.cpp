@@ -229,6 +229,72 @@ ModulePtr<ClassInstance> ExprResolver::selectInstance(GlobalPtr<TypeClass> typeC
     return match.instance;
 }
 
+/*
+ * Settling a call's type arguments, with the constraints' dependencies given the last word.
+ *
+ * Three steps rather than one, and the middle one is the whole reason this is a function. A
+ * binding a *literal* made is not an answer, it is a default waiting to be overridden:
+ * `fn (Index(c, k, v)) at(xs: c, i: k) -> v` called as `at(xs, 0)` binds `k` from the `0`, and
+ * settling that gives `Int` - so by the time the dependency is asked, `k` looks decided and the
+ * instance is never consulted. Which is backwards. `c` decides `k`, and a container whose key is
+ * `Size` should take the literal at `Size` rather than have no instance at `Int`.
+ *
+ * So the dependency is asked with those positions cleared, and what it answers wins. A position no
+ * instance decides keeps the default the settle already gave it, which is why the answer is merged
+ * back rather than assigned: a class that determines nothing is unaffected, and so is every call
+ * whose arguments were not literals.
+ *
+ * The settle still comes first for the *deciding* positions, and only what is already decided can
+ * be settled - the dependency is answered by looking an instance up, and `sum([1, 2, 3])` binds the
+ * container to a literal type until something defaults it. A deciding position is never one of the
+ * cleared ones: `Array(<literal>)` is a record and not itself a literal, which is what keeps the
+ * lookup answerable.
+ */
+void ExprResolver::settleWithDependencies(GenEnv& env, TypeList& bindings, LocationId source) {
+    /*
+     * Which variables a dependency could answer, and which one has to be decided before it can.
+     *
+     * A variable in a *determined* position is one the instance answers; a variable in a *deciding*
+     * position is one the lookup needs in hand. A variable in both - which a constraint like
+     * `Elem(c, Wrap(c))` would produce - is treated as deciding, because a lookup that cannot
+     * happen answers nothing at all.
+     */
+    U64 answerable = 0;
+    U64 decides = 0;
+
+    for(auto constraint: env.classes.contents(global)) {
+        auto typeClass = constraint.typeClass;
+        if(!typeClass || !global[typeClass]->determines()) continue;
+
+        Size index = 0;
+        for(auto arg: constraint.args.contents(global)) {
+            genVariablesIn(global, arg, index < global[typeClass]->determined ? decides : answerable);
+            index++;
+        }
+    }
+
+    SmallArray<bool, 8> defaulted;
+    for(Size i = 0; i < bindings.size(); i++) {
+        auto overridable = i < 64 && (answerable & (U64(1) << i)) && !(decides & (U64(1) << i));
+        defaulted.push(overridable && bindings[i] && isLiteral(global, bindings[i]));
+    }
+
+    for(Size i = 0; i < bindings.size(); i++) {
+        if(bindings[i]) bindings[i] = settleType(bindings[i]);
+    }
+
+    TypeList asked = bindings;
+    for(Size i = 0; i < asked.size(); i++) {
+        if(defaulted[i]) asked[i] = nullptr;
+    }
+
+    fillDetermined(module, env, asked, source);
+
+    for(Size i = 0; i < bindings.size(); i++) {
+        if(asked[i]) bindings[i] = asked[i];
+    }
+}
+
 ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassInstance> instance,
                                                 Buffer<TypePtr> instanceArgs, U16 index,
                                                 Buffer<ModulePtr<Value>> args, LocationId source,
@@ -430,11 +496,7 @@ bool ExprResolver::matchFunction(ModulePtr<Function> callee, Buffer<ModulePtr<Va
          * container to a *literal* type until something defaults it. There is no instance for one
          * of those, so asking before settling finds nothing and infers nothing.
          */
-        for(Size i = 0; i < bindings.size(); i++) {
-            if(bindings[i]) bindings[i] = settleType(bindings[i]);
-        }
-
-        fillDetermined(module, *env, bindings, source);
+        settleWithDependencies(*env, bindings, source);
 
         for(Size i = 0; i < bindings.size(); i++) {
             if(!settleType(bindings[i])) return false;
@@ -931,8 +993,18 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
          *
          * The mutable case already has one - `&` created it above - and this is deliberately the
          * immutable one only.
+         *
+         * And only for a parameter the callee receives by reference. A borrow and the thing
+         * borrowed are the same machine value for a memory type - both are an address - so
+         * substituting one for the other is free, which is what made this work without anyone
+         * having to say so. A scalar is passed by value, so the substitution would hand the callee
+         * the address of the caller's variable where it declared the value: `fn get(return self:
+         * %a, index: k)` was reached with `&%Int` and added the index to the wrong pointer. There
+         * is nothing to protect in that case either - the callee got a copy, and a borrow rooted in
+         * a copy is what the return-root check calls invalid - so no loan is the right answer as
+         * well as the working one.
          */
-        if(declared->returnRoot && value) {
+        if(declared->returnRoot && value && isMemoryType(global, declared->type)) {
             if(auto place = findPlace(value)) {
                 value = borrowPlace(place.unwrap(), resolveBorrowType(module, declared->type, false),
                                     source, true);
@@ -1491,11 +1563,7 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
      * And after the settle of what is already decided, for the reason matchFunction gives: an
      * instance is looked up by these types, and a literal has none until it takes its default.
      */
-    for(Size i = 0; i < bindings.size(); i++) {
-        if(bindings[i]) bindings[i] = settleType(bindings[i]);
-    }
-
-    fillDetermined(module, *calleeEnv, bindings, source);
+    settleWithDependencies(*calleeEnv, bindings, source);
 
     for(Size i = 0; i < bindings.size(); i++) {
         // A specialization is made for concrete types, so a literal variable the call left open

@@ -86,12 +86,16 @@ makeSummer<complex>(%v_0: Ptr, %xs: Ptr) {
   }
 }
 
-get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
+@closure$ResolveTest.lambda$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.lambda$0<complex>(%env: Ptr): Int {
   b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 4: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
+    %v_1 = load %env, 8: Ptr
+    %v_2 = add %env, 12: Ptr
+    %v_3 = load %v_2, 4: Int
+    %v_4 = cast %v_3: Int
+    %v_5 = cast %v_4: Long
+    %v_6 = call_complex total, %v_1, %v_5: Int
+    ret %v_6
   }
 }
 
@@ -124,19 +128,6 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_14 = add %v_13, %v_10: Ptr
     store %v_14, %allocation, 8
     ret 
-  }
-}
-
-@closure$ResolveTest.lambda$0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.lambda$0<complex>(%env: Ptr): Int {
-  b_0 {
-    %v_1 = load %env, 8: Ptr
-    %v_2 = add %env, 12: Ptr
-    %v_3 = load %v_2, 4: Int
-    %v_4 = cast %v_3: Int
-    %v_5 = cast %v_4: Long
-    %v_6 = call_complex total, %v_1, %v_5: Int
-    ret %v_6
   }
 }
 
@@ -288,6 +279,15 @@ closureRelease${xs: Array(Int)}<complex>(%env: Ptr) {
   }
 }
 
+Index(Flat(a), I64, a).get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
+  b_0 {
+    %v_1 = load %self, 8: Ptr
+    %v_2 = imul %index, 4: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    ret %v_3
+  }
+}
+
 teardown$none<complex>(%value: Ptr) {
   b_0 {
     ret 
@@ -319,7 +319,7 @@ total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
 
   b_4 {
     %v_12 = sext %v_6: Long
-    %v_13 = call_complex get(Int), %xs, %v_12: Ptr
+    %v_13 = call_complex Index(Flat(a), I64, a).get(Int), %xs, %v_12: Ptr
     %v_14 = loads %v_13, 4: Int
     %v_5 = add %v_3, %v_14: Int
     %v_7 = add %v_6, 1: Int

@@ -477,6 +477,11 @@ struct ExprResolver {
     // is about to be committed to - a class's type argument, a specialization's, a branch join.
     TypePtr settleType(TypePtr type);
 
+    // Settling a call's type arguments, with the constraints' dependencies given the last word over
+    // a binding a literal argument made. Every generic call goes through this rather than through
+    // fillDetermined directly - see the definition for why the order matters.
+    void settleWithDependencies(GenEnv& env, TypeList& bindings, LocationId source);
+
     // `value` built at the type its literal variable defaults to. Everything else passes through.
     ModulePtr<Value> settle(ModulePtr<Value> value, LocationId source);
 
@@ -785,6 +790,10 @@ struct ExprResolver {
     // it is the one the block was split out of, however many frames up that is. `enclosingResultType`
     // is this function's result type, cached at the point the continuation was built.
     const ExprResolver& enclosingBody() const {
+        return const_cast<ExprResolver*>(this)->enclosingBody();
+    }
+
+    ExprResolver& enclosingBody() {
         auto resolver = this;
         while(resolver->inContinuation && resolver->enclosing) resolver = resolver->enclosing;
         return *resolver;
@@ -928,6 +937,10 @@ struct ExprResolver {
     // value unchanged, decided by the source's ownership classification. See expr_construct.cpp.
     ModulePtr<Value> sinkValue(ModulePtr<Value> value, LocationId source);
 
+    // The value a `return` hands over, which is the move half of sinkValue and not its copy half.
+    // See expr_construct.cpp for why returning has to say so in the IR.
+    ModulePtr<Value> returnValue(ModulePtr<Value> value, LocationId source);
+
     // Storage for a moved value whose relocation is a call rather than its bytes. A no-op for
     // every other value, including a bitwise move - see expr_construct.cpp for which consumers of
     // a move need this and why the rest do not.
@@ -1028,6 +1041,12 @@ struct ExprResolver {
     // passes its own base down; the entry point above takes it from the scope it was called in.
     PatternResult resolvePattern(const ast::Pat& pattern, ModulePtr<Value> pivot, ModulePtr<Block> onFail,
                                  Size bindingBase);
+
+    // A tuple pattern matched against the elements themselves rather than against a tuple holding
+    // them - the decomposed pivot, see resolveMatch. `_` is accepted here too, since a pattern that
+    // looks at nothing needs no pivot of any shape.
+    PatternResult resolveDecomposed(const ast::Pat& pattern, Buffer<ModulePtr<Value>> elements,
+                                    ModulePtr<Block> onFail, Size bindingBase);
 
     PatternResult branchPattern(ModulePtr<Value> condition, ModulePtr<Block> onFail, LocationId source);
     ModulePtr<Value> patternBound(const ast::Pat& pattern, TypePtr target);

@@ -1,0 +1,97 @@
+{-
+   An iterator handing over an element that does not fit in a register.
+
+   `for p in each(points)` over an array of records used to be rejected outright:
+
+       this borrow of ps outlives the frame that owns it - a slice is a view into the
+       container's storage, and the container is released when this function returns
+
+   The identical iterator over `[Int]` compiled, which is the shape of the bug. Nothing about it was
+   ownership: a scalar element is handed over in a register and has no slot for a provenance to be
+   attributed to, while an aggregate travels as an address into the run - so what the `yield` passed
+   carried the *container's* provenance, and `Value::CallDyn` in analyze_escape assumed a function
+   value keeps everything it is handed.
+
+   It does, in general - there is no callee to have a summary, and a borrowed parameter can
+   genuinely escape a body, which is exactly what deriveSummary's `retained` records. A continuation
+   is the one callee where the language answers instead of the body: resolveLensSignature synthesizes
+   that parameter with the default convention and no `return` marker, and rejects `&`, `->` and
+   `return` on a written one - "it is called, not stored, and its extent is the call". So the value
+   handed over is a borrow bounded by the `yield`, and what the loop body does with it is bounded by
+   the ordinary borrow check the way any other borrowed parameter's use is.
+
+   The three functions differ in how the `yield` reaches its continuation, which is the part that
+   does not fall out of the fix by itself: `each` calls a parameter directly, `filtered` calls the
+   enclosing one from a lifted body - by capture, so the callable is a load from an environment and
+   the `Arg` is no longer recognizable - and `mapFiltered` does it two lifts deep with the handed
+   type changing on the way out. Marking the call at the `yield` rather than pattern-matching the
+   callable in the ownership pass is what makes all three one case.
+-}
+
+data Point {x: Int, y: Int}
+
+iter fn (TrivialCopy(a)) each(xs: [a]) -> a:
+    let &i = 0 :: Int
+    let n = length(xs) :: Int
+
+    while i < n:
+        yield xs[i]
+        i = i + 1
+
+iter fn (TrivialCopy(a)) filtered(xs: [a], keep: (a) -> Bool) -> a:
+    for x in each(xs):
+        if keep(x):
+            yield x
+
+iter fn (TrivialCopy(a)) mapFiltered(xs: [a], keep: (a) -> Bool, f: (a) -> b) -> b:
+    for x in filtered(xs, keep):
+        yield f(x)
+
+fn positiveX(v: Point) -> Bool = v.x > 0
+fn yOf(v: Point) -> Int = v.y
+
+-- No lift: the `yield` calls this function's own continuation parameter.
+fn direct(ps: [Point]) -> Int:
+    let &sum = 0 :: Int
+
+    for p in each(ps):
+        sum = sum + p.y
+
+    return sum
+
+-- One lift: the `yield` is inside a lifted loop body and reaches `filtered`'s continuation by
+-- capture.
+fn oneLift(ps: [Point]) -> Int:
+    let &sum = 0 :: Int
+
+    for p in filtered(ps, positiveX):
+        sum = sum + p.y
+
+    return sum
+
+-- Two lifts, and a record going in with a scalar coming out.
+fn twoLifts(ps: [Point]) -> Int:
+    let &sum = 0 :: Int
+
+    for i in mapFiltered(ps, positiveX, yOf):
+        sum = sum + i
+
+    return sum
+
+-- The scalar element that always worked, kept beside the others so that a change which fixes the
+-- aggregate case by breaking the register one cannot pass.
+fn scalar(ns: [Int]) -> Int:
+    let &sum = 0 :: Int
+
+    for n in each(ns):
+        sum = sum + n
+
+    return sum
+
+fn main() -> Int:
+    let &ps = [Point {x: 0, y: 0}, Point {x: 1, y: 2}, Point {x: 3, y: 5}]
+    let &ns = [1, 2, 3, 4]
+
+    -- 7 from every element's y, 7 from the two with x > 0 in each of the two adaptors, and 10 from
+    -- the scalar loop: 7 + 7 + 7 + 10 = 31.
+    return direct(ps) + oneLift(ps) + twoLifts(ps) + scalar(ns)

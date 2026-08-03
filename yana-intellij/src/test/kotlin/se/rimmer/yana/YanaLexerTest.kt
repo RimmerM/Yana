@@ -69,6 +69,28 @@ class YanaLexerTest : LexerTestCase() {
         YanaTokenTypes.VAR_ID to "d",
     )
 
+    /*
+     * The two `?` operators are different tokens, and a run that is neither is an ordinary operator.
+     *
+     * Worth pinning all three together: `?` leaves the enclosing function, `?.` skips to the end of
+     * the chain, and `??` is whatever a program declared it to be. Colouring any two of them alike
+     * would be showing the reader something the program does not mean.
+     */
+    fun testTheTwoQuestionOperatorsAreDistinct() = assertTokens(
+        "f(a)? + b?.c ?? d",
+        YanaTokenTypes.VAR_ID to "f",
+        YanaTokenTypes.PAREN_L to "(",
+        YanaTokenTypes.VAR_ID to "a",
+        YanaTokenTypes.PAREN_R to ")",
+        YanaTokenTypes.TRY to "?",
+        YanaTokenTypes.VAR_SYM to "+",
+        YanaTokenTypes.VAR_ID to "b",
+        YanaTokenTypes.OPTIONAL_CHAIN to "?.",
+        YanaTokenTypes.VAR_ID to "c",
+        YanaTokenTypes.VAR_SYM to "??",
+        YanaTokenTypes.VAR_ID to "d",
+    )
+
     // `-->` is a symbol run, so it is an operator someone may have defined - not a comment that
     // swallows the rest of the line, which is what a naive `--` rule would make it.
     fun testArrowIsNotAComment() = assertTokens(

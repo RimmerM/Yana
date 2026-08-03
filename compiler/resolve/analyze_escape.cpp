@@ -172,6 +172,27 @@ static bool escapeRound(Analysis& analysis) {
                  * for it precisely because nothing here can prove anything about them.
                  */
                 auto& call = (InstCallDyn&)instruction;
+
+                /*
+                 * Except a `yield`, where the language answers the question the type could not.
+                 *
+                 * A continuation parameter is declared with the default convention and no `return`
+                 * marker - synthesized that way for the `yield` form, and rejected outright
+                 * otherwise: "it is called, not stored, and its extent is the call". So the value
+                 * handed over is a borrow bounded by this instruction, and what the continuation
+                 * body does with it is bounded by the ordinary borrow check the way every other
+                 * borrowed parameter's use is. Nothing here has to know which continuation it is.
+                 *
+                 * This is a fact about the *declaration* rather than about a body, which is what
+                 * makes it statable without a summary - and why it does not generalize to a
+                 * function value that merely happens to declare a borrow. There, retention is a
+                 * body fact and a borrowed parameter can genuinely escape; see deriveSummary,
+                 * where `retained` is exactly `escaped[slot]`.
+                 *
+                 * See InstCallDyn::handover for what assuming otherwise cost.
+                 */
+                if(call.handover) break;
+
                 for(auto arg: call.args.contents(analysis.local)) {
                     ScratchProvenance leaving(analysis);
                     handedOver(analysis, arg, *leaving);
@@ -181,15 +202,42 @@ static bool escapeRound(Analysis& analysis) {
                 break;
             }
 
-            case Value::GenCall:
-                // No summary to consult, so everything handed over is assumed kept.
-                for(auto arg: ((InstGenCall&)instruction).args.contents(analysis.local)) {
-                    ScratchProvenance leaving(analysis);
-                    handedOver(analysis, arg, *leaving);
-                    changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg)) || changed;
+            case Value::GenCall: {
+                /*
+                 * An erased call is a different representation of the same call, so the callee's
+                 * summary means exactly what it means at a direct one: which parameters are
+                 * retained is a property of the body, and substituting types does not change it.
+                 *
+                 * There is a summary for a call to a generic *function*, whose body was resolved
+                 * before the call was deferred. A deferred *class* dispatch names the class
+                 * signature, which has no body - summaryOf answers null for it, and the walk falls
+                 * back to assuming everything is kept, which is what this case did for both.
+                 *
+                 * Consulting it is what lets an adaptor be written. `for x in upTo(n)` inside an
+                 * `iter fn` is a call to a function generic in what the loop body returns, so it is
+                 * this instruction rather than a Call - and assuming the continuation was kept made
+                 * the lifted body's environment escape, which then rejected its capture of the
+                 * enclosing continuation for outliving the frame.
+                 */
+                auto& call = (InstGenCall&)instruction;
+                auto summary = summaryOf(analysis, call.callee);
+                U16 index = 0;
+
+                for(auto arg: call.args.contents(analysis.local)) {
+                    auto retained = !summary || index >= summary->args.size() ||
+                                    summary->args.get(analysis.local, index).retained;
+
+                    if(retained) {
+                        ScratchProvenance leaving(analysis);
+                        handedOver(analysis, arg, *leaving);
+                        changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg)) || changed;
+                    }
+
+                    index++;
                 }
 
                 break;
+            }
 
             default:
                 break;

@@ -1,0 +1,403 @@
+@heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+
+Index(%a, I64, a).getMut(Int)<complex>(%self: Ptr, %index: Long): Ptr {
+  b_0 {
+    %v_1 = load %self, 8: Ptr
+    %v_2 = imul %index, 4: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    ret %v_3
+  }
+}
+
+Index(Array(a), I64, a).get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
+  b_0 {
+    %v_1 = load %self, 8: Ptr
+    %v_2 = imul %index, 4: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    ret %v_3
+  }
+}
+
+Index(Array(a), I64, a).getMut(Int)<complex>(%self: Ptr, %index: Long): Ptr {
+  b_0 {
+    %v_1 = load %self, 8: Ptr
+    %v_2 = imul %index, 4: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    ret %v_3
+  }
+}
+
+freeHeap<complex>(%allocation: Ptr) {
+  b_0 {
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %v_7 = bitcast %v_6: Ptr
+    %sizeClass = loads %v_7, 8: Long
+    %v_8 = bitcast %allocation: Ptr
+    %v_9 = load @heapFree, 8: Ptr
+    %v_10 = imul %sizeClass, 8: Long
+    %v_11 = add %v_9, %v_10: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    store %v_8, %v_12, 8
+    %v_13 = load @heapFree, 8: Ptr
+    %v_14 = add %v_13, %v_10: Ptr
+    store %v_14, %allocation, 8
+    ret 
+  }
+}
+
+fieldOfElement<complex>(%xs$items: Ptr, %xs$length: Long): Int {
+  b_0 {
+    %xs = alloca 16, 8: Ptr
+    store %xs, %xs$items, 8
+    %v_1 = add %xs, 8: Ptr
+    store %v_1, %xs$length, 8
+    %v_2 = call_complex Index(Flat(a), I64, a).get(Cell), %xs, 0: Ptr
+    %v_3 = loads %v_2, 4: Int
+    %v_4 = call_complex Index(Flat(a), I64, a).get(Cell), %xs, 1: Ptr
+    %v_5 = add %v_4, 4: Ptr
+    %v_6 = loads %v_5, 4: Int
+    %v_7 = add %v_3, %v_6: Int
+    ret %v_7
+  }
+}
+
+throughPointer<complex>(%xs: Ptr): Int {
+  b_0 {
+    %self$items = load %xs, 8: Ptr
+    %p = alloca 8, 8: Ptr
+    store %p, %self$items, 8
+    %v_1 = call_complex Index(%a, I64, a).getMut(Int), %p, 2: Ptr
+    store %v_1, 5, 4
+    %v_2 = load %p, 8: Ptr
+    %v_3 = call_complex Index(%a, I64, a).get(Int), %v_2, 2: Ptr
+    %v_4 = loads %v_3, 4: Int
+    ret %v_4
+  }
+}
+
+fromOwner<complex>(%xs: Ptr): Int {
+  b_0 {
+    %v_1 = call_complex Index(Array(a), I64, a).get(Int), %xs, 0: Ptr
+    %v_2 = loads %v_1, 4: Int
+    ret %v_2
+  }
+}
+
+viaConstraint<complex>(%xs: Ptr): Int {
+  b_0 {
+    %v_1 = call_complex sumOfTwo(Array(Int), I64, Int), %xs, 0, 1: Int
+    ret %v_1
+  }
+}
+
+sumOfTwo(Array(Int), I64, Int)<complex>(%xs: Ptr, %a: Long, %b: Long): Int {
+  b_0 {
+    %v_1 = call_complex Index(Array(a), I64, a).get(Int), %xs, %a: Ptr
+    %v_2 = loads %v_1, 4: Int
+    %v_3 = call_complex Index(Array(a), I64, a).get(Int), %xs, %b: Ptr
+    %v_4 = loads %v_3, 4: Int
+    %v_5 = add %v_2, %v_4: Int
+    ret %v_5
+  }
+}
+
+Index(%a, I64, a).get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
+  b_0 {
+    %v_1 = imul %index, 4: Long
+    %v_2 = add %self, %v_1: Ptr
+    ret %v_2
+  }
+}
+
+Index(Flat(a), I64, a).getMut(Cell)<complex>(%self: Ptr, %index: Long): Ptr {
+  b_0 {
+    %v_1 = load %self, 8: Ptr
+    %v_2 = imul %index, 8: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    ret %v_3
+  }
+}
+
+writeElement<complex>(%xs: Ptr) {
+  b_0 {
+    %v_1 = call_complex Index(Flat(a), I64, a).getMut(Cell), %xs, 0: Ptr
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 7, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, 8, 4
+    copy %v_1, %v_2, 8
+    %v_4 = call_complex Index(Flat(a), I64, a).getMut(Cell), %xs, 1: Ptr
+    store %v_4, 9, 4
+    ret 
+  }
+}
+
+fromSlice<complex>(%xs$items: Ptr, %xs$length: Long): Int {
+  b_0 {
+    %xs = alloca 16, 8: Ptr
+    store %xs, %xs$items, 8
+    %v_1 = add %xs, 8: Ptr
+    store %v_1, %xs$length, 8
+    %v_2 = call_complex Index(Flat(a), I64, a).get(Int), %xs, 0: Ptr
+    %v_3 = loads %v_2, 4: Int
+    ret %v_3
+  }
+}
+
+Reclaim(Array(a)).reclaim(Cell)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 12: Ptr
+    %v_2 = load %v_1, 4: Int
+    %count = cast %v_2: Int
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = phi [b_0, 0], [b_5, %v_6]: Int
+    %v_7 = cmp_ilt %v_4, %count: Int
+    je %v_7, b_5, b_8
+  }
+
+  b_8 {
+    %v_9 = add %value, 8: Ptr
+    %v_10 = load %v_9, 4: Int
+    %v_11 = shr %v_10, 31: Int
+    %v_12 = cmp_eq %v_11, 1: Int
+    je %v_12, b_13, b_14
+  }
+
+  b_14 {
+    jmp b_15
+  }
+
+  b_13 {
+    %v_16 = load %value, 8: Ptr
+    %v_17 = bitcast %v_16: Ptr
+    call_complex freeHeap, %v_17
+    jmp b_15
+  }
+
+  b_15 {
+    ret 
+  }
+
+  b_5 {
+    %v_18 = load %value, 8: Ptr
+    %v_19 = sext %v_4: Long
+    %v_20 = imul %v_19, 8: Long
+    %v_21 = add %v_18, %v_20: Ptr
+    %v_6 = add %v_4, 1: Int
+    jmp b_3
+  }
+}
+
+fromFixed<complex>(%xs$items: Ptr, %xs$length: Long): Int {
+  b_0 {
+    %xs = alloca 16, 8: Ptr
+    store %xs, %xs$items, 8
+    %v_1 = add %xs, 8: Ptr
+    store %v_1, %xs$length, 8
+    %v_2 = call_complex Index(Flat(a), I64, a).get(Int), %xs, 1: Ptr
+    %v_3 = loads %v_2, 4: Int
+    ret %v_3
+  }
+}
+
+Index(Flat(a), I64, a).get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
+  b_0 {
+    %v_1 = load %self, 8: Ptr
+    %v_2 = imul %index, 4: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    ret %v_3
+  }
+}
+
+Index(Flat(a), I64, a).get(Cell)<complex>(%self: Ptr, %index: Long): Ptr {
+  b_0 {
+    %v_1 = load %self, 8: Ptr
+    %v_2 = imul %index, 8: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    ret %v_3
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    %v_2 = imm 4: Long
+    %v_3 = imm 3: Long
+    %v_4 = alloca 12, 4: Ptr
+    store %v_1, %v_4, 8
+    %v_5 = add %v_1, 8: Ptr
+    %v_6 = load %v_5, 4: Int
+    %v_7 = and %v_6, 18446744071562067968: Int
+    %v_8 = or %v_7, 3: Int
+    %v_9 = and %v_8, 18446744071562067967: Int
+    %v_10 = add %v_1, 8: Ptr
+    store %v_10, %v_9, 4
+    %v_11 = add %v_4, 0: Ptr
+    store %v_11, 10, 4
+    %v_12 = imm 4: Long
+    %v_13 = add %v_4, %v_12: Ptr
+    store %v_13, 20, 4
+    %v_14 = imul %v_12, 2: Long
+    %v_15 = add %v_4, %v_14: Ptr
+    store %v_15, 30, 4
+    %v_16 = add %v_1, 12: Ptr
+    store %v_16, 3, 4
+    %v_17 = call_complex Index(Array(a), I64, a).getMut(Int), %v_1, 2: Ptr
+    store %v_17, 40, 4
+    %v_18 = alloca 8, 4: Ptr
+    store %v_18, 1, 4
+    %v_19 = add %v_18, 4: Ptr
+    store %v_19, 2, 4
+    %v_20 = alloca 8, 4: Ptr
+    store %v_20, 3, 4
+    %v_21 = add %v_20, 4: Ptr
+    store %v_21, 4, 4
+    %v_22 = alloca 16, 8: Ptr
+    %v_23 = imm 8: Long
+    %v_24 = imm 2: Long
+    %v_25 = alloca 16, 4: Ptr
+    store %v_22, %v_25, 8
+    %v_26 = add %v_22, 8: Ptr
+    %v_27 = load %v_26, 4: Int
+    %v_28 = and %v_27, 18446744071562067968: Int
+    %v_29 = or %v_28, 2: Int
+    %v_30 = and %v_29, 18446744071562067967: Int
+    %v_31 = add %v_22, 8: Ptr
+    store %v_31, %v_30, 4
+    %v_32 = add %v_25, 0: Ptr
+    copy %v_32, %v_18, 8
+    %v_33 = add %v_25, 8: Ptr
+    copy %v_33, %v_20, 8
+    %v_34 = add %v_22, 12: Ptr
+    store %v_34, 2, 4
+    %v_35 = alloca 16, 8: Ptr
+    %v_36 = load %v_22, 8: Ptr
+    store %v_35, %v_36, 8
+    %v_37 = add %v_35, 8: Ptr
+    store %v_37, 2, 8
+    %v_38 = call_complex Index(Flat(a), I64, a).getMut(Cell), %v_35, 0: Ptr
+    %v_39 = alloca 8, 4: Ptr
+    store %v_39, 7, 4
+    %v_40 = add %v_39, 4: Ptr
+    store %v_40, 8, 4
+    copy %v_38, %v_39, 8
+    %v_41 = call_complex Index(Flat(a), I64, a).getMut(Cell), %v_35, 1: Ptr
+    store %v_41, 9, 4
+    %v_42 = alloca 16, 8: Ptr
+    %v_43 = imm 4: Long
+    %v_44 = imm 3: Long
+    %v_45 = alloca 12, 4: Ptr
+    store %v_42, %v_45, 8
+    %v_46 = add %v_42, 8: Ptr
+    %v_47 = load %v_46, 4: Int
+    %v_48 = and %v_47, 18446744071562067968: Int
+    %v_49 = or %v_48, 3: Int
+    %v_50 = and %v_49, 18446744071562067967: Int
+    %v_51 = add %v_42, 8: Ptr
+    store %v_51, %v_50, 4
+    %v_52 = add %v_45, 0: Ptr
+    store %v_52, 0, 4
+    %v_53 = add %v_45, %v_12: Ptr
+    store %v_53, 0, 4
+    %v_54 = imul %v_12, 2: Long
+    %v_55 = add %v_45, %v_54: Ptr
+    store %v_55, 0, 4
+    %v_56 = add %v_42, 12: Ptr
+    store %v_56, 3, 4
+    %v_57 = call_complex Index(Array(a), I64, a).get(Int), %v_1, 0: Ptr
+    %v_58 = loads %v_57, 4: Int
+    %v_59 = call_complex Index(Array(a), I64, a).get(Int), %v_1, 2: Ptr
+    %v_60 = loads %v_59, 4: Int
+    %v_61 = add %v_58, %v_60: Int
+    %v_62 = call_complex sumOfTwo(Array(Int), I64, Int), %v_1, 0, 1: Int
+    %v_63 = add %v_61, %v_62: Int
+    %v_64 = load %v_22, 8: Ptr
+    %v_65 = add %v_22, 12: Ptr
+    %v_66 = load %v_65, 4: Int
+    %v_67 = cast %v_66: Int
+    %v_68 = cast %v_67: Long
+    %xs = alloca 16, 8: Ptr
+    store %xs, %v_64, 8
+    %v_69 = add %xs, 8: Ptr
+    store %v_69, %v_68, 8
+    %v_70 = call_complex Index(Flat(a), I64, a).get(Cell), %xs, 0: Ptr
+    %v_71 = loads %v_70, 4: Int
+    %v_72 = call_complex Index(Flat(a), I64, a).get(Cell), %xs, 1: Ptr
+    %v_73 = add %v_72, 4: Ptr
+    %v_74 = loads %v_73, 4: Int
+    %v_75 = add %v_71, %v_74: Int
+    call_complex Reclaim(Array(a)).reclaim(Cell), %v_22
+    %v_76 = add %v_63, %v_75: Int
+    %p = alloca 8, 8: Ptr
+    store %p, %v_45, 8
+    %v_77 = call_complex Index(%a, I64, a).getMut(Int), %p, 2: Ptr
+    store %v_77, 5, 4
+    %v_78 = load %p, 8: Ptr
+    %v_79 = call_complex Index(%a, I64, a).get(Int), %v_78, 2: Ptr
+    %v_80 = loads %v_79, 4: Int
+    %v_81 = add %v_76, %v_80: Int
+    %v_82 = alloca 12, 4: Ptr
+    %v_83 = mul 0, 4: Long
+    %v_84 = add %v_82, %v_83: Ptr
+    store %v_84, 1, 4
+    %v_85 = mul 1, 4: Long
+    %v_86 = add %v_82, %v_85: Ptr
+    store %v_86, 2, 4
+    %v_87 = mul 2, 4: Long
+    %v_88 = add %v_82, %v_87: Ptr
+    store %v_88, 3, 4
+    %xs = alloca 16, 8: Ptr
+    store %xs, %v_82, 8
+    %v_89 = add %xs, 8: Ptr
+    store %v_89, 3, 8
+    %v_90 = call_complex Index(Flat(a), I64, a).get(Int), %xs, 1: Ptr
+    %v_91 = loads %v_90, 4: Int
+    %v_92 = add %v_81, %v_91: Int
+    %v_93 = load %v_1, 8: Ptr
+    %v_94 = add %v_1, 12: Ptr
+    %v_95 = load %v_94, 4: Int
+    %v_96 = cast %v_95: Int
+    %v_97 = cast %v_96: Long
+    %xs = alloca 16, 8: Ptr
+    store %xs, %v_93, 8
+    %v_98 = add %xs, 8: Ptr
+    store %v_98, %v_97, 8
+    %v_99 = call_complex Index(Flat(a), I64, a).get(Int), %xs, 0: Ptr
+    %v_100 = loads %v_99, 4: Int
+    %v_101 = add %v_1, 8: Ptr
+    %v_102 = load %v_101, 4: Int
+    %v_103 = shr %v_102, 31: Int
+    %v_104 = cmp_eq %v_103, 1: Int
+    je %v_104, b_105, b_106
+  }
+
+  b_105 {
+    %v_107 = load %v_1, 8: Ptr
+    %v_108 = bitcast %v_107: Ptr
+    call_complex freeHeap, %v_108
+    jmp b_106
+  }
+
+  b_106 {
+    %v_109 = add %v_92, %v_100: Int
+    ret %v_109
+  }
+}
+

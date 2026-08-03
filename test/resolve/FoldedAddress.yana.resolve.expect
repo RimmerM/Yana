@@ -45,6 +45,27 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
+fn Index(Flat(a), I64, a).get(Int)(%self: Flat(Int), %index: I64) -> &Int {
+  b0:
+    %v2 = load %self@Flat.items : %Int
+    %v3 = strideof Int : I64
+    %v4 = mul %index, %v3 : I64
+    %v5 = add %v2, %v4 : %Int
+    %v6 = borrow [%v5] : &Int
+    ret %v6
+}
+
+fn Index(Flat(a), I64, a).getMut(Int)(%self: Flat(Int), %index: I64) -> &mut Int {
+  b0:
+    %v2 = load %self : Flat(Int)
+    %v3 = load %self@Flat.items : %Int
+    %v4 = strideof Int : I64
+    %v5 = mul %index, %v4 : I64
+    %v6 = add %v3, %v5 : %Int
+    %v7 = borrow_mut [%v6] : &mut Int
+    ret %v7
+}
+
 fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
     %v1 = load %self@Run.ownsHeap : @bits(1) U32
@@ -70,27 +91,6 @@ fn length(Int)(%self: Flat(Int)) -> I64 {
   b0:
     %v1 = load %self@Flat.length : I64
     ret %v1
-}
-
-fn get(Int)(%self: Flat(Int), %index: I64) -> &Int {
-  b0:
-    %v2 = load %self@Flat.items : %Int
-    %v3 = strideof Int : I64
-    %v4 = mul %index, %v3 : I64
-    %v5 = add %v2, %v4 : %Int
-    %v6 = borrow [%v5] : &Int
-    ret %v6
-}
-
-fn getMut(Int)(%self: Flat(Int), %index: I64) -> &mut Int {
-  b0:
-    %v2 = load %self : Flat(Int)
-    %v3 = load %self@Flat.items : %Int
-    %v4 = strideof Int : I64
-    %v5 = mul %index, %v4 : I64
-    %v6 = add %v3, %v5 : %Int
-    %v7 = borrow_mut [%v6] : &mut Int
-    ret %v7
 }
 
 fn slice(Int)(%self: Flat(Int), %from: I64, %to: I64) -> Flat(Int) {
@@ -227,7 +227,7 @@ fn total(%xs: Flat(Int)) -> Int {
     %v14 = load %i : Int
     %v15 = cast %v14 : I64
     %v16 = borrow %xs : &Flat(Int)
-    %v17 = call get(Int), %v16, %v15 : &Int
+    %v17 = call Index(Flat(a), I64, a).get(Int), %v16, %v15 : &Int
     %v18 = load [%v17] : Int
     %v19 = add %v13, %v18 : Int
     assign %sum, %v19
@@ -259,13 +259,13 @@ fn double(%xs: Flat(Int)) -> () {
     %v12 = load %i : Int
     %v13 = cast %v12 : I64
     %v14 = borrow %xs : &Flat(Int)
-    %v15 = call get(Int), %v14, %v13 : &Int
+    %v15 = call Index(Flat(a), I64, a).get(Int), %v14, %v13 : &Int
     %value = load [%v15] : Int
     %v17 = load %xs : Flat(Int)
     %v18 = load %i : Int
     %v19 = cast %v18 : I64
     %v20 = borrow_mut %xs : &mut Flat(Int)
-    %v21 = call getMut(Int), %v20, %v19 : &mut Int
+    %v21 = call Index(Flat(a), I64, a).getMut(Int), %v20, %v19 : &mut Int
     %v22 = add %value, %value : Int
     assign [%v21], %v22
     %v24 = load %i : Int

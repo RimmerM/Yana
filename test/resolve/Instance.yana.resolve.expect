@@ -221,61 +221,52 @@ fn main() -> Int {
 (Eq(a), Eq(Maybe(a))) fn Eq(Maybe(a)).==(%lhs: Maybe(a), %rhs: Maybe(a)) -> Bool {
   schema {
     #0 type a
-    #1 type {Maybe(a), Maybe(a)}
-    #2 class Eq(a)
-    #3 class Eq(Maybe(a))
+    #1 class Eq(a)
+    #2 class Eq(Maybe(a))
   }
 
   b0:
-    %v2 = alloc : {Maybe(a), Maybe(a)}
-    init %local2.0, %lhs
-    init %local2.1, %rhs
-    %v5 = load %local2.0 : Maybe(a)
-    %v6 = load %local2.0.discriminant : Int
-    %v8 = cmp_eq %v6, 1 : Bool
-    je %v8, b2, b1
+    %v2 = load %lhs.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
 
   b1:
-    %v18 = load %local2.0 : Maybe(a)
-    %v19 = load %local2.0.discriminant : Int
-    %v21 = cmp_eq %v19, 0 : Bool
-    je %v21, b5, b4
+    %v13 = load %lhs.discriminant : Int
+    %v15 = cmp_eq %v13, 0 : Bool
+    je %v15, b5, b4
 
   b2:
-    %x = load %local2.0@Just : a
-    %v11 = load %local2.1 : Maybe(a)
-    %v12 = load %local2.1.discriminant : Int
-    %v14 = cmp_eq %v12, 1 : Bool
-    je %v14, b3, b1
+    %x = load %lhs@Just : a
+    %v7 = load %rhs.discriminant : Int
+    %v9 = cmp_eq %v7, 1 : Bool
+    je %v9, b3, b1
 
   b3:
-    %y = load %local2.1@Just : a
-    %v17 = gencall Eq(a).==, %x, %y : Bool
+    %y = load %rhs@Just : a
+    %v12 = gencall Eq(a).==, %x, %y : Bool
     jmp b7
 
   b4:
     jmp b7
 
   b5:
-    %v23 = load %local2.1 : Maybe(a)
-    %v24 = load %local2.1.discriminant : Int
-    %v26 = cmp_eq %v24, 0 : Bool
-    je %v26, b6, b4
+    %v17 = load %rhs.discriminant : Int
+    %v19 = cmp_eq %v17, 0 : Bool
+    je %v19, b6, b4
 
   b6:
     jmp b7
 
   b7:
-    %v33 = phi [b3, %v17], [b6, True], [b4, False] : Bool
-    ret %v33
+    %v26 = phi [b3, %v12], [b6, True], [b4, False] : Bool
+    ret %v26
 }
 
 (Eq(a), Eq(Maybe(a))) fn Eq(Maybe(a)).!=(%lhs: Maybe(a), %rhs: Maybe(a)) -> Bool {
   schema {
     #0 type a
-    #1 type {Maybe(a), Maybe(a)}
-    #2 class Eq(a)
-    #3 class Eq(Maybe(a))
+    #1 class Eq(a)
+    #2 class Eq(Maybe(a))
   }
 
   b0:
@@ -286,46 +277,39 @@ fn main() -> Int {
 
 fn Eq(Maybe(a)).==(Int)(%lhs: Maybe(Int), %rhs: Maybe(Int)) -> Bool {
   b0:
-    %v3 = alloc : {Maybe(Int), Maybe(Int)}
-    init %local2.0, %lhs
-    init %local2.1, %rhs
-    %v6 = load %local2.0 : Maybe(Int)
-    %v7 = load %local2.0.discriminant : Int
-    %v9 = cmp_eq %v7, 1 : Bool
-    je %v9, b2, b1
+    %v3 = load %lhs.discriminant : Int
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
 
   b1:
-    %v11 = load %local2.0 : Maybe(Int)
-    %v12 = load %local2.0.discriminant : Int
-    %v14 = cmp_eq %v12, 0 : Bool
-    je %v14, b5, b4
+    %v7 = load %lhs.discriminant : Int
+    %v9 = cmp_eq %v7, 0 : Bool
+    je %v9, b5, b4
 
   b2:
-    %x = load %local2.0@Just : Int
-    %v17 = load %local2.1 : Maybe(Int)
-    %v18 = load %local2.1.discriminant : Int
-    %v20 = cmp_eq %v18, 1 : Bool
-    je %v20, b3, b1
+    %x = load %lhs@Just : Int
+    %v12 = load %rhs.discriminant : Int
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b3, b1
 
   b3:
-    %y = load %local2.1@Just : Int
-    %v23 = cmp_eq %x, %y : Bool
+    %y = load %rhs@Just : Int
+    %v17 = cmp_eq %x, %y : Bool
     jmp b7
 
   b4:
     jmp b7
 
   b5:
-    %v26 = load %local2.1 : Maybe(Int)
-    %v27 = load %local2.1.discriminant : Int
-    %v29 = cmp_eq %v27, 0 : Bool
-    je %v29, b6, b4
+    %v20 = load %rhs.discriminant : Int
+    %v22 = cmp_eq %v20, 0 : Bool
+    je %v22, b6, b4
 
   b6:
     jmp b7
 
   b7:
-    %v2 = phi [b3, %v23], [b6, True], [b4, False] : Bool
+    %v2 = phi [b3, %v17], [b6, True], [b4, False] : Bool
     ret %v2
 }
 
@@ -345,46 +329,39 @@ fn Eq(Maybe(a)).!=(Bool)(%lhs: Maybe(Bool), %rhs: Maybe(Bool)) -> Bool {
 
 fn Eq(Maybe(a)).==(Bool)(%lhs: Maybe(Bool), %rhs: Maybe(Bool)) -> Bool {
   b0:
-    %v3 = alloc : {Maybe(Bool), Maybe(Bool)}
-    init %local2.0, %lhs
-    init %local2.1, %rhs
-    %v6 = load %local2.0 : Maybe(Bool)
-    %v7 = load %local2.0.discriminant : Int
-    %v9 = cmp_eq %v7, 1 : Bool
-    je %v9, b2, b1
+    %v3 = load %lhs.discriminant : Int
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
 
   b1:
-    %v11 = load %local2.0 : Maybe(Bool)
-    %v12 = load %local2.0.discriminant : Int
-    %v14 = cmp_eq %v12, 0 : Bool
-    je %v14, b5, b4
+    %v7 = load %lhs.discriminant : Int
+    %v9 = cmp_eq %v7, 0 : Bool
+    je %v9, b5, b4
 
   b2:
-    %x = load %local2.0@Just : Bool
-    %v17 = load %local2.1 : Maybe(Bool)
-    %v18 = load %local2.1.discriminant : Int
-    %v20 = cmp_eq %v18, 1 : Bool
-    je %v20, b3, b1
+    %x = load %lhs@Just : Bool
+    %v12 = load %rhs.discriminant : Int
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b3, b1
 
   b3:
-    %y = load %local2.1@Just : Bool
-    %v23 = cmp_eq %x, %y : Bool
+    %y = load %rhs@Just : Bool
+    %v17 = cmp_eq %x, %y : Bool
     jmp b7
 
   b4:
     jmp b7
 
   b5:
-    %v26 = load %local2.1 : Maybe(Bool)
-    %v27 = load %local2.1.discriminant : Int
-    %v29 = cmp_eq %v27, 0 : Bool
-    je %v29, b6, b4
+    %v20 = load %rhs.discriminant : Int
+    %v22 = cmp_eq %v20, 0 : Bool
+    je %v22, b6, b4
 
   b6:
     jmp b7
 
   b7:
-    %v2 = phi [b3, %v23], [b6, True], [b4, False] : Bool
+    %v2 = phi [b3, %v17], [b6, True], [b4, False] : Bool
     ret %v2
 }
 
@@ -406,45 +383,38 @@ fn smaller(%I64)(%x: %I64, %y: %I64) -> %I64 {
 
 fn Eq(Maybe(a)).==(%I64)(%lhs: Maybe(%I64), %rhs: Maybe(%I64)) -> Bool {
   b0:
-    %v3 = alloc : {Maybe(%I64), Maybe(%I64)}
-    init %local2.0, %lhs
-    init %local2.1, %rhs
-    %v6 = load %local2.0 : Maybe(%I64)
-    %v7 = load %local2.0.discriminant : Int
-    %v9 = cmp_eq %v7, 1 : Bool
-    je %v9, b2, b1
+    %v3 = load %lhs.discriminant : Int
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
 
   b1:
-    %v11 = load %local2.0 : Maybe(%I64)
-    %v12 = load %local2.0.discriminant : Int
-    %v14 = cmp_eq %v12, 0 : Bool
-    je %v14, b5, b4
+    %v7 = load %lhs.discriminant : Int
+    %v9 = cmp_eq %v7, 0 : Bool
+    je %v9, b5, b4
 
   b2:
-    %x = load %local2.0@Just : %I64
-    %v17 = load %local2.1 : Maybe(%I64)
-    %v18 = load %local2.1.discriminant : Int
-    %v20 = cmp_eq %v18, 1 : Bool
-    je %v20, b3, b1
+    %x = load %lhs@Just : %I64
+    %v12 = load %rhs.discriminant : Int
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b3, b1
 
   b3:
-    %y = load %local2.1@Just : %I64
-    %v23 = cmp_eq %x, %y : Bool
+    %y = load %rhs@Just : %I64
+    %v17 = cmp_eq %x, %y : Bool
     jmp b7
 
   b4:
     jmp b7
 
   b5:
-    %v26 = load %local2.1 : Maybe(%I64)
-    %v27 = load %local2.1.discriminant : Int
-    %v29 = cmp_eq %v27, 0 : Bool
-    je %v29, b6, b4
+    %v20 = load %rhs.discriminant : Int
+    %v22 = cmp_eq %v20, 0 : Bool
+    je %v22, b6, b4
 
   b6:
     jmp b7
 
   b7:
-    %v2 = phi [b3, %v23], [b6, True], [b4, False] : Bool
+    %v2 = phi [b3, %v17], [b6, True], [b4, False] : Bool
     ret %v2
 }

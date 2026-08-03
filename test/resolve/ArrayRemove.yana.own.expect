@@ -105,11 +105,11 @@ fn remove(Buffer) {
   %local4: Maybe(Buffer) droppable readonly live [64, 68)
 }
 
-fn get(Buffer) {
+fn Index(Array(a), I64, a).get(Buffer) {
   arg self readonly return
   arg index readonly
   result arguments
-  %self: Flat(Buffer) borrowed readonly live [0, 1)
+  %self: Array(Buffer) borrowed droppable readonly live [0, 2)
 }
 
 fn Reclaim(Array(a)).reclaim(Buffer) {
@@ -133,31 +133,28 @@ fn marker {
 
 fn main {
   %local0: Array(Buffer) droppable readonly live [0, 3)
-  %xs: Array(Buffer) droppable writable addressed resizable live [1, 21) [23, 36) [38, 54) [56, 72) [74, 90) [92, 96) [98, 118) [120, 136) [138, 154) [156, 172) [174, 178) [180, 194) [196, 218) [220, 224) [226, 239) [241, 249) [255, 258) [260, 264)
+  %xs: Array(Buffer) droppable writable addressed resizable live [1, 21) [23, 36) [38, 54) [56, 64) [66, 74) [76, 80) [82, 102) [104, 120) [122, 130) [132, 148) [150, 154) [156, 170) [172, 194) [196, 200) [202, 215) [217, 225) [231, 234) [236, 240)
   %local2: Buffer droppable writable live [4, 7)
   %local3: Buffer droppable writable live [9, 12)
   %local4: Buffer droppable writable live [14, 17)
   %local5: Flat(Buffer) readonly live [26, 34)
   %local6: Maybe(Buffer) droppable readonly live [41, 42)
   %local7: Flat(Buffer) readonly live [44, 52)
-  %local8: Flat(Buffer) readonly live [59, 70)
-  %local9: Flat(Buffer) readonly live [77, 88)
-  %local10: Maybe(Buffer) droppable readonly live [101, 102)
-  %local11: Maybe(Buffer) droppable readonly live [105, 106)
-  %local12: Flat(Buffer) readonly live [108, 116)
-  %local13: Maybe(Buffer) droppable readonly live [123, 124)
-  %local14: Flat(Buffer) readonly live [126, 134)
-  %local15: Flat(Buffer) readonly live [141, 152)
-  %local16: Maybe(Buffer) droppable readonly live [159, 160)
-  %local17: Flat(Buffer) readonly live [162, 170)
-  %local18: Buffer droppable writable live [182, 185)
-  %local19: Buffer droppable writable live [187, 190)
-  %local20: Maybe(Buffer) droppable readonly live [199, 203) [206, 208)
-  %local21: Buffer droppable readonly live [208, 213)
-  %local22: Flat(Buffer) readonly live [229, 237)
-  %local23: Maybe(Buffer) droppable readonly live [244, 248) [249, 251)
-  %local24: Buffer droppable readonly live [251, 253)
-  %local25: Maybe(Buffer) droppable readonly live [263, 264)
+  %local8: Maybe(Buffer) droppable readonly live [85, 86)
+  %local9: Maybe(Buffer) droppable readonly live [89, 90)
+  %local10: Flat(Buffer) readonly live [92, 100)
+  %local11: Maybe(Buffer) droppable readonly live [107, 108)
+  %local12: Flat(Buffer) readonly live [110, 118)
+  %local13: Maybe(Buffer) droppable readonly live [135, 136)
+  %local14: Flat(Buffer) readonly live [138, 146)
+  %local15: Buffer droppable writable live [158, 161)
+  %local16: Buffer droppable writable live [163, 166)
+  %local17: Maybe(Buffer) droppable readonly live [175, 179) [182, 184)
+  %local18: Buffer droppable readonly live [184, 189)
+  %local19: Flat(Buffer) readonly live [205, 213)
+  %local20: Maybe(Buffer) droppable readonly live [220, 224) [225, 227)
+  %local21: Buffer droppable readonly live [227, 229)
+  %local22: Maybe(Buffer) droppable readonly live [239, 240)
 }
 
 fn Drop(Buffer).drop {

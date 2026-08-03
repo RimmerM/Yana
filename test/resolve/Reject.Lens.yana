@@ -24,7 +24,7 @@ lens fn wrongPayload(x: Int, body: (Int) -> a) -> Maybe(Int) = Just(x)
 -- signature and would have to travel with the call as a witness. (A lens whose result is the
 -- continuation's *own* variable is not this - that is the transparent case, and it is what `named`
 -- below is.)
-lens fn (Try(m, a, e)) fullyGeneric(x: Int, spare: m, body: (Int) -> a) -> m = spare
+lens fn (Try(m, a, e)) fullyGeneric(x: Int, ->spare: m, body: (Int) -> a) -> m = spare
 
 -- A continuation that returns a concrete type is not a continuation: what it produces is whatever
 -- the rest of the caller's block produces, which no signature can name.
@@ -136,8 +136,8 @@ fn asValue() -> Int:
     let f = scope
     return 0
 
--- A lens call inside a generic body would have to specialize its continuation alongside its caller,
--- which is the same restriction a lambda there already carries.
-fn inGeneric(value: a) -> a:
-    scope()
-    return value
+-- A lens call in a generic body is legal now - see Adaptor.yana. A *lambda* there still is not, and
+-- for the reason a continuation escapes: a lambda may outlive the frame it captured from.
+fn lambdaInGeneric(value: a) -> Int:
+    let f = () -> 1
+    return f()

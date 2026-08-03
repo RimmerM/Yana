@@ -10,16 +10,16 @@
 -- slot of the callee's schema - and pass it in a hidden leading position. What the body does: read
 -- the size it needs out of that environment instead of out of a type it cannot see.
 
-fn identity(value: a) -> a = value
+fn identity(->value: a) -> a = value
 
 -- A value of unknown size cannot come back in a register, so an owned generic result goes through
 -- storage the caller provides. Substituting `Int` does not change that - the body was compiled once
 -- - so the caller allocates, passes the address, and loads the value back out.
-fn firstOf(x: a, y: a) -> a = x
+fn firstOf(->x: a, y: a) -> a = x
 
 -- Two variables, two descriptor slots. The second argument's size is a different slot from the
 -- first's, which is what makes the numbering matter rather than being incidental.
-fn pick(flag: Bool, x: a, y: b) -> b = y
+fn pick(flag: Bool, x: a, ->y: b) -> b = y
 
 -- A class the body dispatches on. The instance is not chosen here and never can be: what runs is
 -- whatever method table the caller put in the environment, loaded at the slot the schema numbered.
@@ -27,7 +27,7 @@ fn (Num(a)) twice(x: a) -> a = x + x
 
 -- A requirement the signature never wrote. `<` records Ord(a) while the body is resolved, and the
 -- environment carries a witness for it exactly as if it had been declared.
-fn smaller(x: a, y: a) -> a = if x < y then x else y
+fn smaller(->x: a, ->y: a) -> a = if x < y then x else y
 
 -- One generic function calling another. `middle` cannot build `smaller`'s environment from concrete
 -- types - it has none - so it projects its own slots into the callee's, which is the forwarded case.

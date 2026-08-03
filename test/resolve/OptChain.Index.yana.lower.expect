@@ -70,6 +70,15 @@ Try(Maybe(a), a, ()).fromExit(Int)<complex>(%v_0: Ptr) {
   }
 }
 
+Index(Array(a), I64, a).get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
+  b_0 {
+    %v_1 = load %self, 8: Ptr
+    %v_2 = imul %index, 4: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    ret %v_3
+  }
+}
+
 unwrapOr<complex>(%m: Ptr, %fallback: Int): Int {
   b_0 {
     %v_1 = loads %m, 4: Int
@@ -115,26 +124,17 @@ indexed<complex>(%v_0: Ptr, %n: Int) {
   }
 
   b_10 {
-    %v_15 = alloca 16, 8: Ptr
-    %v_16 = load %v_3, 8: Ptr
-    store %v_15, %v_16, 8
-    %v_17 = add %v_3, 12: Ptr
-    %v_18 = load %v_17, 4: Int
-    %v_19 = cast %v_18: Int
-    %v_20 = cast %v_19: Long
-    %v_21 = add %v_15, 8: Ptr
-    store %v_21, %v_20, 8
-    %v_22 = call_complex get(Int), %v_15, 1: Ptr
-    %v_23 = loads %v_22, 4: Int
+    %v_15 = call_complex Index(Array(a), I64, a).get(Int), %v_3, 1: Ptr
+    %v_16 = loads %v_15, 4: Int
     call_complex reclaim$Outcome(Array(Int), ()), %v_3
-    %v_24 = alloca 8, 4: Ptr
-    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v_24, %v_23
+    %v_17 = alloca 8, 4: Ptr
+    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v_17, %v_16
     jmp b_14
   }
 
   b_14 {
-    %v_25 = phi [b_10, %v_24], [b_11, %v_13]: Ptr
-    copy %v_0, %v_25, 8
+    %v_18 = phi [b_10, %v_17], [b_11, %v_13]: Ptr
+    copy %v_0, %v_18, 8
     ret 
   }
 
@@ -144,12 +144,45 @@ indexed<complex>(%v_0: Ptr, %n: Int) {
   }
 }
 
-get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 4: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
+sum<complex>(%v_0: Ptr, %n: Int) {
+  b_1 {
+    %v_2 = alloca 16, 8: Ptr
+    call_complex maybeArr, %v_2, %n
+    %v_3 = alloca 16, 8: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(Array(Int)), %v_3, %v_2
+    %v_4 = add %v_3, 12: Ptr
+    %v_5 = load %v_4, 4: Long
+    %v_6 = cmp_le %v_5, 2147483647: Int
+    %v_7 = select 0, 1, %v_6: Int
+    %v_8 = cmp_eq %v_7, 1: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_11 {
+    %v_12 = alloca 1, 1: Ptr
+    %v_13 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).fromExit(Int), %v_13
+    jmp b_14
+  }
+
+  b_10 {
+    %v_15 = call_complex Index(Array(a), I64, a).get(Int), %v_3, 0: Ptr
+    %v_16 = loads %v_15, 4: Int
+    call_complex reclaim$Outcome(Array(Int), ()), %v_3
+    %v_17 = alloca 8, 4: Ptr
+    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v_17, %v_16
+    jmp b_14
+  }
+
+  b_14 {
+    %v_18 = phi [b_10, %v_17], [b_11, %v_13]: Ptr
+    copy %v_0, %v_18, 8
+    ret 
+  }
+
+  b_9 {
+    call_complex reclaim$Outcome(Array(Int), ()), %v_3
+    jmp b_11
   }
 }
 
@@ -193,57 +226,6 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_14 = add %v_13, %v_10: Ptr
     store %v_14, %allocation, 8
     ret 
-  }
-}
-
-sum<complex>(%v_0: Ptr, %n: Int) {
-  b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    call_complex maybeArr, %v_2, %n
-    %v_3 = alloca 16, 8: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(Array(Int)), %v_3, %v_2
-    %v_4 = add %v_3, 12: Ptr
-    %v_5 = load %v_4, 4: Long
-    %v_6 = cmp_le %v_5, 2147483647: Int
-    %v_7 = select 0, 1, %v_6: Int
-    %v_8 = cmp_eq %v_7, 1: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_11 {
-    %v_12 = alloca 1, 1: Ptr
-    %v_13 = alloca 8, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).fromExit(Int), %v_13
-    jmp b_14
-  }
-
-  b_10 {
-    %v_15 = alloca 16, 8: Ptr
-    %v_16 = load %v_3, 8: Ptr
-    store %v_15, %v_16, 8
-    %v_17 = add %v_3, 12: Ptr
-    %v_18 = load %v_17, 4: Int
-    %v_19 = cast %v_18: Int
-    %v_20 = cast %v_19: Long
-    %v_21 = add %v_15, 8: Ptr
-    store %v_21, %v_20, 8
-    %v_22 = call_complex get(Int), %v_15, 0: Ptr
-    %v_23 = loads %v_22, 4: Int
-    call_complex reclaim$Outcome(Array(Int), ()), %v_3
-    %v_24 = alloca 8, 4: Ptr
-    call_complex Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v_24, %v_23
-    jmp b_14
-  }
-
-  b_14 {
-    %v_25 = phi [b_10, %v_24], [b_11, %v_13]: Ptr
-    copy %v_0, %v_25, 8
-    ret 
-  }
-
-  b_9 {
-    call_complex reclaim$Outcome(Array(Int), ()), %v_3
-    jmp b_11
   }
 }
 

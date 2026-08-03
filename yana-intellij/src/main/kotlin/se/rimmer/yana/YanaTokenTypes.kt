@@ -24,6 +24,26 @@ object YanaTokenTypes {
     @JvmField val KEYWORD = YanaTokenType("KEYWORD")
     @JvmField val RESERVED_OP = YanaTokenType("RESERVED_OP")
 
+    /*
+     * `?` - the early-exit suffix, apart from the reserved operators it is one of.
+     *
+     * The one reserved operator that is control flow rather than notation. `x?` may return from the
+     * enclosing function, which is the same thing a `return` written out does and nothing any other
+     * operator does - and unlike a `return` it is one character wide at the end of a long line. A
+     * class of its own is what lets it be coloured as the departure it is.
+     */
+    @JvmField val TRY = YanaTokenType("TRY")
+
+    /*
+     * `?.` - optional chaining, which is a *different* operator from `?` and not a spelling of it.
+     *
+     * Its own class rather than sharing `TRY`, because the difference between them is the one thing
+     * a reader has to see: `?` leaves the enclosing function and `?.` skips to the end of the chain.
+     * Two operators that look alike and do different things are exactly the pair worth colouring
+     * apart.
+     */
+    @JvmField val OPTIONAL_CHAIN = YanaTokenType("OPTIONAL_CHAIN")
+
     @JvmField val VAR_ID = YanaTokenType("VAR_ID")
     @JvmField val CON_ID = YanaTokenType("CON_ID")
     @JvmField val VAR_SYM = YanaTokenType("VAR_SYM")

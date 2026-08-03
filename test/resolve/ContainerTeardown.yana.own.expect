@@ -90,11 +90,11 @@ fn mapMemory {
   arg size readonly
 }
 
-fn get(Handle) {
+fn Index(Array(a), I64, a).get(Handle) {
   arg self readonly return
   arg index readonly
   result arguments
-  %self: Flat(Handle) borrowed readonly live [0, 1)
+  %self: Array(Handle) borrowed droppable readonly live [0, 2)
 }
 
 fn emptyArray(Handle) {
@@ -182,31 +182,26 @@ fn marker {
 fn buildLiteral {
   %local0: Handle droppable readonly live [0, 12)
   %local1: Handle droppable readonly live [1, 16)
-  %local2: Array(Handle) droppable readonly live [2, 41)
+  %local2: Array(Handle) droppable readonly live [2, 25)
   %local3: Handle droppable writable addressed live [3, 15)
-  %handles: Flat(Handle) readonly live [18, 29)
-  %handles: Flat(Handle) readonly live [30, 41)
 }
 
 fn buildPushed {
   %local0: Array(Handle) droppable readonly live [0, 3)
-  %handles: Array(Handle) droppable writable addressed resizable live [1, 39)
+  %handles: Array(Handle) droppable writable addressed resizable live [1, 23)
   %local2: Handle droppable writable live [4, 7)
   %local3: Handle droppable writable live [9, 12)
-  %local4: Flat(Handle) readonly live [15, 26)
-  %local5: Flat(Handle) readonly live [28, 39)
 }
 
 fn main {
   %local0: Array(Handle) droppable readonly live [36, 39)
-  %rest: Array(Handle) droppable writable addressed resizable live [37, 55) [57, 61) [63, 77)
+  %rest: Array(Handle) droppable writable addressed resizable live [37, 55) [57, 61) [63, 69)
   %local2: Handle droppable writable live [40, 43)
   %local3: Handle droppable writable live [45, 48)
   %local4: Maybe(Handle) droppable readonly live [51, 52)
-  %local5: Flat(Handle) readonly live [66, 77)
-  %local6: Array(Int) droppable readonly live [82, 85)
-  %plain: Array(Int) droppable writable addressed resizable live [83, 101)
-  %local8: Flat(Int) readonly live [93, 101)
+  %local5: Array(Int) droppable readonly live [74, 77)
+  %plain: Array(Int) droppable writable addressed resizable live [75, 93)
+  %local7: Flat(Int) readonly live [85, 93)
 }
 
 fn Drop(Handle).drop {

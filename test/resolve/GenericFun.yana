@@ -1,7 +1,7 @@
 -- Generic functions: one resolved body, one specialization per set of type arguments.
 
 -- A type variable in the signature is what makes a function generic; nothing has to declare it.
-fn identity(value: a) -> a = value
+fn identity(->value: a) -> a = value
 
 data Pair(a, b) {first: a, second: b}
 
@@ -20,7 +20,7 @@ fn (TrivialCopy(a)) leftOf(value: Pair(a, b)) -> a = value.first
 
 -- A requirement the body needs and the signature never wrote. Resolving `x < y` records Ord(a)
 -- on this function's context, and instantiating it is what has to prove Ord(Int).
-fn smaller(x: a, y: a) -> a = if x < y then x else y
+fn smaller(->x: a, ->y: a) -> a = if x < y then x else y
 
 -- The same requirement written out (constraints follow the keyword: `fn (Num(a)) twice`). It
 -- means the same to the instantiation; what it adds is that the signature says so on its own.
@@ -32,11 +32,11 @@ fn middle(x: a, y: a, z: a) -> a = smaller(smaller(x, y), z)
 
 -- Generic functions over a Core generic type. `->` on both the parameter and the payload, which is
 -- what `??` in Core is written with and for the same reason: what this answers is what was inside.
-fn orElse(->value: Maybe(a), fallback: a) -> a = match value:
+fn orElse(->value: Maybe(a), ->fallback: a) -> a = match value:
     Just(->inner) -> inner
     Nothing -> fallback
 
-fn wrap(value: a) -> Maybe(a) = Just(value)
+fn wrap(->value: a) -> Maybe(a) = Just(value)
 
 -- Nothing in the call decides `a` here, so the expected type does - the same rule that picks a
 -- class instance by its result type picks a specialization by one.

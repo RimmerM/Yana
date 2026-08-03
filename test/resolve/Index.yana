@@ -1,0 +1,77 @@
+-- `xs[i]` as a class - Core's `Index(c -> k, v)`, Implementation-Containers.md §17.
+--
+-- Subscript used to be three hard-coded names dispatched through the ordinary overload set, which
+-- worked for every concrete container and for no generic one: inside `fn f(xs: c)` there is no
+-- overload set to key on, because `c` is a variable. The class answers that, and the functional
+-- dependency is what makes it selectable at all - nothing at `xs[i]` says what a key or an element
+-- is, so `c` has to decide both.
+
+import Native
+
+data Cell = Cell {value: Int, tag: Int}
+
+-- The owner and the borrow of one both index, through two instances rather than a conversion:
+-- selecting an instance does not widen its arguments, so an owner that is to be a `c` has to be one.
+fn fromOwner(xs: Array(Int)) -> Int = xs[0]
+
+fn fromSlice(xs: [Int]) -> Int = xs[0]
+
+-- A fixed array has no instance of its own - `[a *n]` is structural, so it cannot be an instance
+-- head - and reaches the class through its slice. That is the one conversion left.
+fn fromFixed(xs: [Int *3]) -> Int = xs[1]
+
+{-
+   An element that is an aggregate, read through the borrow `get` handed back.
+
+   The field is a projection off that borrow rather than off a copy of the element, which is the
+   same place the *write* below names. Reading one used to ask for storage a returned borrow never
+   has and report that the value had no address.
+-}
+fn fieldOfElement(xs: [Cell]) -> Int = xs[0].value + xs[1].tag
+
+fn writeElement(&xs: [Cell]) -> {}:
+    xs[0] = Cell {value: 7, tag: 8}
+    xs[1].value = 9
+
+{-
+   The case the class exists for: a subscript inside a generic body.
+
+   `c` is this function's own variable, so nothing here can name an overload set. What answers is
+   the constraint the signature declared - and `k` and `v` are read off it rather than inferred,
+   which is what the arrow in `class Index(c -> k, v)` promises.
+-}
+fn (Index(c, k, v), Num(v)) sumOfTwo(xs: c, a: k, b: k) -> v = xs[a] + xs[b]
+
+-- And a caller of one. The literal keys take the container's key type rather than their own
+-- default: `c` decides `k`, so the dependency answers before the literal settles.
+fn viaConstraint(xs: Array(Int)) -> Int = sumOfTwo(xs, 0, 1)
+
+-- A raw pointer indexes too, which the old type test rejected outright: `only an array may be
+-- subscripted` was a rule about arrays, and this is a rule about instances.
+{-
+   The write goes through `getMut`, and `&p` is what roots it: a pointer has no owner the checker
+   knows about, so what a mutable subscript borrows is the variable holding the address. Nothing
+   about that is checked against the storage - which is the point, and why this lives in `Native`.
+
+   The slice is what keeps it honest here. `values(xs)` is an address into whatever the caller's
+   array was, and the parameter's own loan covers the call - so the run outlives every use of `p`
+   for a reason the checker can state, rather than because the source happened to be written in the
+   right order.
+-}
+fn throughPointer(&xs: [Int]) -> Int:
+    let &p = values(xs)
+    p[2] = 5
+    return p[2]
+
+fn main() -> Int:
+    let &xs = [10, 20, 30]
+    xs[2] = 40
+
+    let &cells = [Cell {value: 1, tag: 2}, Cell {value: 3, tag: 4}]
+    writeElement(cells)
+
+    let &store = [0, 0, 0]
+
+    -- 10 + 40 + (10 + 20) + (7 + 4) + 5 + 2 + 10 = 108.
+    return fromOwner(xs) + xs[2] + sumOfTwo(xs, 0, 1) + fieldOfElement(cells) +
+           throughPointer(store) + fromFixed([1, 2, 3] :: [Int *3]) + fromSlice(xs)

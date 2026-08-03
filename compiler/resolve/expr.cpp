@@ -2245,7 +2245,8 @@ bool resolveFunctionBody(Module& module, Function& function) {
                 result = unit ? nullptr : resolver.convert(result, function.returnType, decl.source);
             }
 
-            resolver.terminate(resolver.emit<InstRet>(decl.source, 0, module.scalar.unit, result));
+            resolver.terminate(resolver.emit<InstRet>(decl.source, 0, module.scalar.unit,
+                                                      resolver.returnValue(result, decl.source)));
         } else if(infer) {
             // Every path left through an explicit `return`, so nothing falls off the end for the
             // type to be read off. Those returns were checked against null and reported there.

@@ -108,9 +108,17 @@ pairUp(Int, Bool)<complex>(%v_0: Ptr, %x: Int, %y: Int) {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex smallest(Int), 9, 4, 7: Int
-    %v_2 = add %v_1, 49: Int
-    ret %v_2
+    %v_1 = call_complex identity(Int), 1: Int
+    %v_2 = add %v_1, 8: Int
+    %v_3 = call_complex smallest(Int), 9, 4, 7: Int
+    %v_4 = add %v_2, %v_3: Int
+    %v_5 = add %v_4, 5: Int
+    %v_6 = alloca 5, 4: Ptr
+    call_complex pairUp(Int, Bool), %v_6, 20, 0
+    %v_7 = loads %v_6, 4: Int
+    %v_8 = add %v_5, %v_7: Int
+    %v_9 = add %v_8, 15: Int
+    ret %v_9
   }
 }
 

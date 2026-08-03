@@ -30,6 +30,13 @@ fn freeHeap {
   arg allocation readonly
 }
 
+fn Index(Flat(a), I64, a).get(Int) {
+  arg self readonly return
+  arg index readonly
+  result arguments
+  %self: Flat(Int) borrowed readonly live [0, 1)
+}
+
 fn resize(Int) {
   arg self writable addressed resizable
   arg wanted readonly
@@ -55,18 +62,18 @@ fn length(Int) {
   %self: Flat(Int) borrowed readonly live [0, 1)
 }
 
-fn get(Int) {
+fn Index(Array(a), I64, a).get(Int) {
   arg self readonly return
   arg index readonly
   result arguments
-  %self: Flat(Int) borrowed readonly live [0, 1)
+  %self: Array(Int) borrowed droppable readonly live [0, 2)
 }
 
-fn getMut(Int) {
+fn Index(Array(a), I64, a).getMut(Int) {
   arg self writable return
   arg index readonly
   result arguments
-  %self: Flat(Int) borrowed writable live [0, 2)
+  %self: Array(Int) borrowed droppable writable live [0, 3)
 }
 
 fn push(Int) {
@@ -115,19 +122,15 @@ fn make {
 }
 
 fn escaping {
-  %local0: Array(Int) droppable readonly live [0, 35)
-  %xs: Flat(Int) readonly live [2, 12)
-  %xs: Flat(Int) readonly live [13, 23)
-  %xs: Flat(Int) readonly live [25, 35)
+  %local0: Array(Int) droppable readonly live [0, 11)
 }
 
 fn main {
-  %small: Array(Int) droppable writable addressed resizable live [0, 67)
+  %small: Array(Int) droppable writable addressed resizable live [0, 59)
   %local1: Int writable addressed live [1, 17)
-  %local2: Flat(Int) writable live [21, 30)
-  %local3: Maybe(Int) readonly live [39, 40)
-  %local4: Maybe(Int) readonly live [42, 43)
-  %local5: Maybe(Int) readonly live [46, 47)
-  %local6: Flat(Int) readonly live [49, 57)
-  %local7: Flat(Int) readonly live [59, 67)
+  %local2: Maybe(Int) readonly live [31, 32)
+  %local3: Maybe(Int) readonly live [34, 35)
+  %local4: Maybe(Int) readonly live [38, 39)
+  %local5: Flat(Int) readonly live [41, 49)
+  %local6: Flat(Int) readonly live [51, 59)
 }

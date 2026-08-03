@@ -1,0 +1,51 @@
+fn sameMaybe {
+  arg lhs readonly
+  arg rhs readonly
+  %lhs: Maybe(Held) borrowed droppable readonly live [0, 4) [6, 12)
+  %rhs: Maybe(Held) borrowed droppable readonly live [0, 12) [14, 15)
+}
+
+fn ordered {
+  arg a readonly
+  arg b readonly
+  arg c readonly
+  %a: Maybe(Held) borrowed droppable readonly live [0, 14) [18, 23)
+  %b: Maybe(Held) borrowed droppable readonly live [0, 15) [18, 20)
+}
+
+fn labelled {
+  arg x readonly
+  arg y readonly
+  %local0: {first: Int, second: Int} readonly live [0, 8) [10, 13)
+}
+
+fn main {
+  %total: Int writable live [0, 36)
+  %local1: Held droppable readonly live [3, 8)
+  %local2: Maybe(Held) droppable readonly live [5, 15) [16, 23)
+  %local3: Held droppable readonly live [8, 13)
+  %local4: Maybe(Held) droppable readonly live [10, 15) [16, 23)
+}
+
+fn Drop(Held).drop {
+  arg self readonly
+  %self: Held borrowed droppable readonly live never
+}
+
+fn Eq(Held).== {
+  arg lhs readonly
+  arg rhs readonly
+  %lhs: Held borrowed droppable readonly live [0, 1)
+  %rhs: Held borrowed droppable readonly live [0, 2)
+}
+
+fn Eq(Held).!= {
+  arg lhs readonly
+  arg rhs readonly
+  %lhs: Held borrowed droppable readonly live [0, 1)
+  %rhs: Held borrowed droppable readonly live [0, 1)
+}
+
+fn drop$Maybe(Held) {
+  arg value readonly
+}

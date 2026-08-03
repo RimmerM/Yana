@@ -1,0 +1,84 @@
+{-
+   A tuple written as a match pivot is never built.
+
+   `match {lhs, rhs}` pairs two scrutinees so that one match can look at both, and the tuple exists
+   only to be taken apart by the very next thing that reads it. Building it anyway was a double
+   free: a tuple is contiguous storage, so its fields are *copied* in, and a copy of a value with a
+   teardown is a second owner of it. `Eq(Maybe(a))`'s `==` written this way answered four drops for
+   two objects - it consumed both operands it was only lent.
+
+   Nothing in matching was at fault. resolvePattern only sinks the pivot when the pattern *writes* a
+   convention, so `Just(x)` binds where the value lies and the pivot goes on owning it; the copy was
+   upstream, in resolving `{lhs, rhs}` as an ordinary tuple expression before it was ever a pivot.
+   So the fix is not to match through a borrow, it is not to build the tuple: the elements are
+   already values, and matching against them directly is the same tests with no storage in between.
+
+   The counter is what asserts it. A pivot that copies and a pivot that does not are identical in
+   the answers the match produces - the difference is only in how many times a teardown runs.
+-}
+
+let &drops = 0 :: Int
+
+data Held {n: Int}
+
+instance Drop(Held):
+    fn drop(->self: Held) -> {}:
+        drops = drops + 1
+
+instance Eq(Held):
+    fn ==(lhs: Held, rhs: Held) -> Bool = lhs.n == rhs.n
+    fn !=(lhs: Held, rhs: Held) -> Bool = !(lhs == rhs)
+
+-- Two borrowed operands, paired. Neither may be consumed.
+fn sameMaybe(lhs: Maybe(Held), rhs: Maybe(Held)) -> Bool = match {lhs, rhs}:
+    {Just(x), Just(y)} -> x == y
+    {Nothing, Nothing} -> True
+    _ -> False
+
+-- Three of them, and a nested pattern inside one position, so the decomposition is not only the
+-- one-level case.
+fn ordered(a: Maybe(Held), b: Maybe(Held), c: Int) -> Int = match {a, b, c}:
+    {Just(x), Just(y), 0} -> x.n + y.n
+    {Just(x), Nothing, n} -> x.n + n
+    _ -> 0
+
+{-
+   The two fallbacks, both in one function: the pivot names its fields, and an alternative binds the
+   pivot whole rather than taking it apart. Either one means the tuple has to exist - there is
+   nothing for `whole` to be bound to otherwise, and a named field pattern refers to field names an
+   unnamed literal does not have - so this match builds it exactly as it always did.
+
+   Written over `Int` on purpose. A built tuple of *borrowed* values with a teardown is what the
+   silent-handover check now rejects, which is the right answer for a pivot that is genuinely stored
+   and the reason the decomposition above is worth having.
+-}
+fn labelled(x: Int, y: Int) -> Int = match {first: x, second: y}:
+    {first: 0, second: 0} -> 100
+    whole -> whole.first + whole.second
+
+fn main() -> Int:
+    let &total = 0 :: Int
+
+    if True:
+        let a = Just(Held {n: 3})
+        let b = Just(Held {n: 4})
+
+        -- False: 3 and 4 differ. What matters is that asking did not consume either operand.
+        if sameMaybe(a, b) then total = total + 1000
+
+        total = total + ordered(a, b, 0)
+
+    {-
+       Both died at the end of the block above, once each.
+
+       Asserted as a total rather than as a zero after each call, because the drop belongs at the
+       *last use* of a value and each call above is one - a pivot that copied its operands would
+       have run their teardown inside the match too, and that is the difference this counts. Two is
+       right; four was the bug.
+    -}
+    total = total + drops * 10
+
+    total = total + labelled(2, 5)
+
+    -- 7 from `ordered`, 20 from the two drops, and 7 from `labelled`'s second alternative: 34.
+    return total

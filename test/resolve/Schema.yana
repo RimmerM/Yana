@@ -9,7 +9,7 @@
 -- uses, then class constraints, then property constraints, then function constraints.
 
 -- One variable, one slot.
-fn identity(value: a) -> a = value
+fn identity(->value: a) -> a = value
 
 -- Declared variables keep the order the signature introduced them in, and a requirement the body
 -- inferred lands in the same list as one the signature declared - they are the same entry by the
@@ -18,7 +18,7 @@ fn (Num(a)) scale(x: a, y: a) -> a = x * y + x
 
 -- A constraint the signature never wrote. `<` records Ord(a) on the context while the body is being
 -- resolved, which renumbers nothing before it: requirements are appended.
-fn smallest(x: a, y: a, z: a) -> a =
+fn smallest(->x: a, ->y: a, ->z: a) -> a =
     if x < y then (if x < z then x else z) else (if y < z then y else z)
 
 -- Two variables and two classes. `a` and `b` are numbered by first appearance across the
@@ -30,7 +30,7 @@ data Pair(a, b) {first: a, second: b}
 -- An applied type expression the body constructs gets a descriptor slot of its own, after the
 -- variables: the caller knows the concrete arguments and builds it once, rather than the callee
 -- applying a type constructor per use.
-fn pairUp(x: a, y: b) -> Pair(a, b) = Pair {first: x, second: y}
+fn pairUp(->x: a, ->y: b) -> Pair(a, b) = Pair {first: x, second: y}
 
 data Labelled {tag: Int, weight: Int}
 

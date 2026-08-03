@@ -1,0 +1,130 @@
+-- Nested iterators and lenses: a lifted body inside a generic one - Analysis-Lens.md's adaptors.
+--
+-- An `iter fn` is generic without looking it: the variable is the one its own continuation returns.
+-- So its body is a generic body, and a `for` loop or a lens call written there lifts a continuation
+-- that names that variable. That used to be rejected outright, which is what stopped an adaptor -
+-- an `iter fn` whose body is a `for` over another - from being writable at all.
+--
+-- What makes it work is that the lifted body is *specialized alongside its lifter* rather than
+-- given a witness: it shares the enclosing function's generic context, and cloning a body clones
+-- the continuations it lifted. See Function::liftedFrom and cloneLiftedCallee.
+
+-- The element iterator every adaptor below is written over. `TrivialCopy` because it hands the
+-- element over by value: the container keeps its own, so an owning element would have to be
+-- borrowed out, and a continuation parameter cannot carry a `return` marker.
+iter fn (TrivialCopy(a)) each(xs: [a]) -> a:
+    let &i = 0 :: Int
+    let n = length(xs) :: Int
+
+    while i < n:
+        yield xs[i]
+        i = i + 1
+
+{-
+   The two adaptors, and the shape they share.
+
+   `f` is the last written parameter and is a function - which is what an adaptor maps with, and not
+   a continuation. An `iter fn` has no explicit-continuation form to be confused with, since writing
+   one out would mean writing the step signal by hand, so the declaration is read as the `yield` form
+   whatever its last parameter happens to be.
+
+   The `yield` inside the loop hands over for *this* function, not for the lifted body it is written
+   in: what it calls is this function's own continuation parameter, reached by name and captured. It
+   is captured by reference rather than sunk, because a continuation's extent is the enclosing call
+   and this frame never owned it.
+-}
+iter fn (TrivialCopy(a)) mapped(xs: [a], f: (a) -> b) -> b:
+    for x in each(xs):
+        yield f(x)
+
+iter fn (TrivialCopy(a)) filtered(xs: [a], keep: (a) -> Bool) -> a:
+    for x in each(xs):
+        if keep(x):
+            yield x
+
+-- Three deep, which is the same rule applied twice: `over` lifts a body that loops over `filtered`,
+-- which lifts a body that loops over `each`.
+iter fn (TrivialCopy(a)) over(xs: [a], keep: (a) -> Bool, f: (a) -> a) -> a:
+    for x in filtered(xs, keep):
+        yield f(x)
+
+fn isBig(v: Int) -> Bool = v > 2
+
+fn double(v: Int) -> Int = v * 2
+
+{-
+   Materialization: the end of a chain, where the elements stop being a control-flow shape and
+   become storage.
+
+   Into a destination the caller owns rather than into one built here. That was a limitation once -
+   an `Array` built in a function and returned from it lost its elements, whatever loop filled it -
+   and it is not one any more: see `ReturnOwner.yana`, whose `collectMapped` is this function
+   building and returning its own array. This one stays as it is because a destination the caller
+   provides is worth covering on its own, and because the two together are what say the choice is
+   the author's.
+-}
+fn (TrivialCopy(a)) collectMappedInto(&out: Array(b), xs: [a], f: (a) -> b) -> {}:
+    for y in mapped(xs, f):
+        push(out, y)
+
+-- A `for` loop inside an ordinary generic function, which is the same lifting with nothing nested
+-- above it. `marker` is what makes this generic; nothing about the loop mentions it.
+fn countUp(limit: Int, marker: a) -> Int:
+    let &total = 0 :: Int
+
+    for x in each([1, 2, 3, 4]):
+        if x > limit:
+            continue
+
+        total = total + x
+
+    return total
+
+-- A `return` from inside a lifted body of a generic function, which travels out through the exit
+-- signal exactly as it does from a concrete one.
+fn firstOver(xs: [Int], bound: Int, marker: a) -> Int:
+    for x in mapped(xs, double):
+        if x > bound:
+            return x
+
+    return 0
+
+-- A lens call inside a generic body. The continuation captures `value`, a borrowed parameter of
+-- this function's own variable type - which a lifted body may take by reference for the same reason
+-- it may take the continuation that way, and a lambda may not.
+lens fn scope() -> {}:
+    yield {}
+
+fn throughLens(value: a, n: Int) -> Int:
+    scope()
+
+    let &total = 0 :: Int
+    for x in each([1, 2, 3]):
+        total = total + x + n
+
+    return total
+
+fn main() -> Int:
+    let &xs = [1, 2, 3, 4]
+
+    -- Four slots, emptied, so that the destination is one the caller owns and has room in.
+    let &out = [0, 0, 0, 0]
+    remove(out, 0)
+    remove(out, 0)
+    remove(out, 0)
+    remove(out, 0)
+
+    collectMappedInto(out, xs, double)
+
+    let &sum = 0 :: Int
+    for y in filtered(xs, isBig):
+        sum = sum + y
+
+    let &big = 0 :: Int
+    for z in over(xs, isBig, double):
+        big = big + z
+
+    -- 20 from the mapped collection, 7 from the filter, 14 from the three-deep chain, 6 from the
+    -- counted loop, 6 from the first mapped element over 4, and 9 from the body below the lens: 62.
+    return out[0] + out[1] + out[2] + out[3] + sum + big + countUp(3, True) +
+           firstOver(xs, 4, True) + throughLens(True, 1)

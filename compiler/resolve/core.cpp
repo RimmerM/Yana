@@ -143,6 +143,38 @@ instance Rewrap(Result(e, a), b, Result(e, b)):
 instance Rewrap(Outcome(a, e), b, Outcome(b, e)):
   fn rewrap(->value: b) -> Outcome(b, e) = Proceed(value)
 
+{-
+   `xs[i]` - Implementation-Containers.md §17, Analysis-Extensibility.md §3.
+
+   The container decides what a key is and what an element is, and one container decides both: `c`
+   determines `k` and `v`. That dependency is the whole reason this can be a class at all. Nothing
+   at `xs[i]` binds `v`, and an index literal binds `k` to a literal rather than to a type - so
+   without the arrow the instance could never be selected, which is what
+   Implementation-Containers.md §17 recorded as the blocker and what functional dependencies
+   removed.
+
+   Two functions and not three. `get`/`getMut` rather than `get`/`set`/`modify`, because an
+   assignment *through* a returned mutable borrow already is `modify` - `resolvePlace` roots the
+   write at the borrow `getMut` handed back - and a container, unlike a property, always has a
+   borrow to hand out. The `return` markers are what make that checked: the result points into
+   whatever `self` points into, so the container stays borrowed for as long as the element is, and
+   writing to the container while an element borrow is live is rejected by the ordinary rule
+   rather than by anything written here.
+
+   `get` takes `self` and `getMut` takes `&self`, which is Implementation-Containers.md §4.1's
+   split: reading needs no exclusivity and writing does, and `xs[i] = v` on an immutable binding is
+   rejected for that reason rather than by a second class.
+
+   What this class deliberately does *not* cover is a container whose elements are computed rather
+   than stored - there is nothing to point at, so there is no borrow to return. That is the case a
+   weaker parent class would serve, and it is not written yet: an `iter fn` already hands over
+   computed values without claiming they have a location, and until there are two containers that
+   want it, the right members of such a parent are guesswork. See Implementation-Containers.md §17.
+-}
+class Index(c -> k, v):
+  fn get(return self: c, index: k) -> &v
+  fn getMut(return &self: c, index: k) -> &v
+
 class FromInt(a):
   fn fromInt(value: Long) -> a
 
@@ -727,6 +759,7 @@ void defineCore(Program& program) {
     program.coreClasses.truth = classNamed(*module, "Truth"_v);
     program.coreClasses.try_ = classNamed(*module, "Try"_v);
     program.coreClasses.rewrap = classNamed(*module, "Rewrap"_v);
+    program.coreClasses.index = classNamed(*module, "Index"_v);
     program.coreClasses.copy = classNamed(*module, "Copy"_v);
     program.coreClasses.sink = classNamed(*module, "Sink"_v);
     program.coreClasses.reclaim = classNamed(*module, "Reclaim"_v);
@@ -845,25 +878,39 @@ fn push(&self: Array(a), ->item: a) -> {}:
 {-
    The slice - Implementation-Containers.md §4.
 
-   What a `[a]` parameter receives, and where reading an element lives. `length`, `get` and `getMut`
-   are declared over the *slice* and not over the owner, which is not an omission: reading is
-   structural, so the operation that reads should ask for the borrow, and an owner reaches it by the
-   ordinary conversion at the call - see convertSlice. §5's `Chunked` is this rule generalized to
-   containers that are not contiguous.
+   What a `[a]` parameter receives. `length` is declared over the *slice* and not over the owner,
+   which is not an omission: reading is structural, so the operation that reads should ask for the
+   borrow, and an owner reaches it by the ordinary conversion at the call - see convertSlice. §5's
+   `Chunked` is this rule generalized to containers that are not contiguous.
 
-   `getMut` takes `&self` and `get` does not, which is the whole of §4.1's split: a `&` binding is a
-   mutable slice, so its elements may be written and its length may not, and an immutable one is
-   rejected at `xs[i] = v` by the ordinary rule about writing through a borrow. Growth is not here at
-   all - it is nominal, and `push` says `Array(a)`.
-
-   The `return` marker is what keeps the result checked. It says the borrow points into whatever the
-   slice was made from, so the loan taken where the descriptor was built covers the last use of the
-   element - which is how `xs[i]` on an owned array keeps that array borrowed without this signature
-   mentioning arrays at all.
+   Reading an element lives one layer down, in `Native`'s `instance Index(Flat(a), Size, a)`, for
+   the same reason and by the same conversion. Growth is not here at all - it is nominal, and `push`
+   says `Array(a)`.
 -}
 fn length(self: Flat(a)) -> Size = self.length
-fn get(return self: Flat(a), index: Size) -> &a = borrow(self.items + index)
-fn getMut(return &self: Flat(a), index: Size) -> &a = borrowMut(self.items + index)
+
+{-
+   Subscripting the owner - Core's `Index`.
+
+   A second instance rather than the conversion alone, and the reason is generic code. `xs[i]`
+   written against a concrete `Array(a)` could go on reaching `Index(Flat(a), Size, a)` through
+   convertSlice, exactly as it always did; `fn (Index(c, k, v)) first(xs: c)` cannot, because an
+   instance is selected by the type `c` *binds to* and a caller passing an array binds `Array(a)`.
+   Instance selection does not convert - nothing about a class says which of its parameters may be
+   widened on the way in - so an owner that is to be a `c` has to be one.
+
+   The bodies are the slice's, minus the descriptor. `self.run.items` is the base the slice would
+   have copied, so this is one address computation rather than two loads and a temporary; the
+   conversion was never buying anything at a subscript, and its absence is why `Array.yana`'s lowered
+   form got shorter rather than longer when the class landed.
+
+   The count is not consulted, which is the same tier the slice's accessor is on and goes the same
+   way when `checkBounds` (Implementation-Containers.md §15) lands - in one place, since by then
+   there is one place.
+-}
+instance Index(Array(a), Size, a):
+    fn get(return self: Array(a), index: Size) -> &a = borrow(self.run.items + index)
+    fn getMut(return &self: Array(a), index: Size) -> &a = borrowMut(self.run.items + index)
 
 {-
    `xs[from..to]`, as an ordinary function.

@@ -563,14 +563,15 @@ fn remove(Buffer)(%self: Array(Buffer), %index: Int) -> Maybe(Buffer) {
     ret %v72
 }
 
-fn get(Buffer)(%self: Flat(Buffer), %index: I64) -> &Buffer {
+fn Index(Array(a), I64, a).get(Buffer)(%self: Array(Buffer), %index: I64) -> &Buffer {
   b0:
-    %v2 = load %self@Flat.items : %Buffer
-    %v3 = strideof Buffer : I64
-    %v4 = mul %index, %v3 : I64
-    %v5 = add %v2, %v4 : %Buffer
-    %v6 = borrow [%v5] : &Buffer
-    ret %v6
+    %v2 = load %self@Array.run : Run(Buffer)
+    %v3 = load %self@Array.run@Run.items : %Buffer
+    %v4 = strideof Buffer : I64
+    %v5 = mul %index, %v4 : I64
+    %v6 = add %v3, %v5 : %Buffer
+    %v7 = borrow [%v6] : &Buffer
+    ret %v7
 }
 
 fn Reclaim(Array(a)).reclaim(Buffer)(%value: Array(Buffer)) -> () {
@@ -714,317 +715,293 @@ fn main() -> I64 {
 
   b9:
     %v74 = load %xs : Array(Buffer)
-    %v76 = borrow %xs : &Array(Buffer)
-    %v77 = alloc : Flat(Buffer)
-    %v78 = load [%v76]@Array.run@Run.items : %Buffer
-    init %local8@Flat.items, %v78
-    %v80 = load [%v76]@Array.length : @bits(31) U32
-    %v81 = cast %v80 : U32
-    %v82 = cast %v81 : I64
-    init %local8@Flat.length, %v82
-    %v85 = borrow %local8 : &Flat(Buffer)
-    %v86 = call get(Buffer), %v85, 0 : &Buffer
-    %v87 = load [%v86] : Buffer
-    %v88 = call marker, %v87 : I64
-    %v91 = cmp_ne %v88, 1 : Bool
-    je %v91, b61, b11
+    %v77 = borrow %xs : &Array(Buffer)
+    %v78 = call Index(Array(a), I64, a).get(Buffer), %v77, 0 : &Buffer
+    %v79 = load [%v78] : Buffer
+    %v80 = call marker, %v79 : I64
+    %v83 = cmp_ne %v80, 1 : Bool
+    je %v83, b61, b11
 
   b10:
-    %v95 = neg 4 : I64
-    ret %v95
+    %v87 = neg 4 : I64
+    ret %v87
 
   b11:
     jmp b12
 
   b12:
-    %v98 = load %xs : Array(Buffer)
-    %v100 = borrow %xs : &Array(Buffer)
-    %v101 = alloc : Flat(Buffer)
-    %v102 = load [%v100]@Array.run@Run.items : %Buffer
-    init %local9@Flat.items, %v102
-    %v104 = load [%v100]@Array.length : @bits(31) U32
-    %v105 = cast %v104 : U32
-    %v106 = cast %v105 : I64
-    init %local9@Flat.length, %v106
-    %v109 = borrow %local9 : &Flat(Buffer)
-    %v110 = call get(Buffer), %v109, 1 : &Buffer
-    %v111 = load [%v110] : Buffer
-    %v112 = call marker, %v111 : I64
-    %v115 = cmp_ne %v112, 3 : Bool
-    je %v115, b62, b14
+    %v90 = load %xs : Array(Buffer)
+    %v93 = borrow %xs : &Array(Buffer)
+    %v94 = call Index(Array(a), I64, a).get(Buffer), %v93, 1 : &Buffer
+    %v95 = load [%v94] : Buffer
+    %v96 = call marker, %v95 : I64
+    %v99 = cmp_ne %v96, 3 : Bool
+    je %v99, b62, b14
 
   b13:
-    %v119 = neg 5 : I64
-    ret %v119
+    %v103 = neg 5 : I64
+    ret %v103
 
   b14:
     jmp b15
 
   b15:
-    %v122 = load liveBuffers : I64
-    %v125 = cmp_ne %v122, 2 : Bool
-    je %v125, b63, b17
+    %v106 = load liveBuffers : I64
+    %v109 = cmp_ne %v106, 2 : Bool
+    je %v109, b63, b17
 
   b16:
-    %v129 = neg 6 : I64
-    ret %v129
+    %v113 = neg 6 : I64
+    ret %v113
 
   b17:
     jmp b18
 
   b18:
-    %v132 = load %xs : Array(Buffer)
-    %v135 = borrow_mut %xs : &mut Array(Buffer)
-    %v136 = call remove(Buffer), %v135, 5 : Maybe(Buffer)
-    drop_derived %local10 via drop$Maybe(Buffer)
-    %v137 = load %xs : Array(Buffer)
-    %v142 = sub 0, 1 : Int
-    %v143 = borrow_mut %xs : &mut Array(Buffer)
-    %v144 = call remove(Buffer), %v143, %v142 : Maybe(Buffer)
-    drop_derived %local11 via drop$Maybe(Buffer)
-    %v145 = load %xs : Array(Buffer)
-    %v146 = borrow %xs : &Array(Buffer)
-    %v147 = alloc : Flat(Buffer)
-    %v148 = load [%v146]@Array.run@Run.items : %Buffer
-    init %local12@Flat.items, %v148
-    %v150 = load [%v146]@Array.length : @bits(31) U32
-    %v151 = cast %v150 : U32
-    %v152 = cast %v151 : I64
-    init %local12@Flat.length, %v152
-    %v154 = call length(Buffer), %v147 : I64
-    %v157 = cmp_ne %v154, 2 : Bool
-    je %v157, b64, b20
+    %v116 = load %xs : Array(Buffer)
+    %v119 = borrow_mut %xs : &mut Array(Buffer)
+    %v120 = call remove(Buffer), %v119, 5 : Maybe(Buffer)
+    drop_derived %local8 via drop$Maybe(Buffer)
+    %v121 = load %xs : Array(Buffer)
+    %v126 = sub 0, 1 : Int
+    %v127 = borrow_mut %xs : &mut Array(Buffer)
+    %v128 = call remove(Buffer), %v127, %v126 : Maybe(Buffer)
+    drop_derived %local9 via drop$Maybe(Buffer)
+    %v129 = load %xs : Array(Buffer)
+    %v130 = borrow %xs : &Array(Buffer)
+    %v131 = alloc : Flat(Buffer)
+    %v132 = load [%v130]@Array.run@Run.items : %Buffer
+    init %local10@Flat.items, %v132
+    %v134 = load [%v130]@Array.length : @bits(31) U32
+    %v135 = cast %v134 : U32
+    %v136 = cast %v135 : I64
+    init %local10@Flat.length, %v136
+    %v138 = call length(Buffer), %v131 : I64
+    %v141 = cmp_ne %v138, 2 : Bool
+    je %v141, b64, b20
 
   b19:
-    %v161 = neg 7 : I64
-    ret %v161
+    %v145 = neg 7 : I64
+    ret %v145
 
   b20:
     jmp b21
 
   b21:
-    %v164 = load %xs : Array(Buffer)
-    %v167 = borrow_mut %xs : &mut Array(Buffer)
-    %v168 = call remove(Buffer), %v167, 1 : Maybe(Buffer)
-    drop_derived %local13 via drop$Maybe(Buffer)
-    %v169 = load %xs : Array(Buffer)
-    %v170 = borrow %xs : &Array(Buffer)
-    %v171 = alloc : Flat(Buffer)
-    %v172 = load [%v170]@Array.run@Run.items : %Buffer
-    init %local14@Flat.items, %v172
-    %v174 = load [%v170]@Array.length : @bits(31) U32
-    %v175 = cast %v174 : U32
-    %v176 = cast %v175 : I64
-    init %local14@Flat.length, %v176
-    %v178 = call length(Buffer), %v171 : I64
-    %v181 = cmp_ne %v178, 1 : Bool
-    je %v181, b65, b23
+    %v148 = load %xs : Array(Buffer)
+    %v151 = borrow_mut %xs : &mut Array(Buffer)
+    %v152 = call remove(Buffer), %v151, 1 : Maybe(Buffer)
+    drop_derived %local11 via drop$Maybe(Buffer)
+    %v153 = load %xs : Array(Buffer)
+    %v154 = borrow %xs : &Array(Buffer)
+    %v155 = alloc : Flat(Buffer)
+    %v156 = load [%v154]@Array.run@Run.items : %Buffer
+    init %local12@Flat.items, %v156
+    %v158 = load [%v154]@Array.length : @bits(31) U32
+    %v159 = cast %v158 : U32
+    %v160 = cast %v159 : I64
+    init %local12@Flat.length, %v160
+    %v162 = call length(Buffer), %v155 : I64
+    %v165 = cmp_ne %v162, 1 : Bool
+    je %v165, b65, b23
 
   b22:
-    %v185 = neg 8 : I64
-    ret %v185
+    %v169 = neg 8 : I64
+    ret %v169
 
   b23:
     jmp b24
 
   b24:
-    %v188 = load %xs : Array(Buffer)
-    %v190 = borrow %xs : &Array(Buffer)
-    %v191 = alloc : Flat(Buffer)
-    %v192 = load [%v190]@Array.run@Run.items : %Buffer
-    init %local15@Flat.items, %v192
-    %v194 = load [%v190]@Array.length : @bits(31) U32
-    %v195 = cast %v194 : U32
-    %v196 = cast %v195 : I64
-    init %local15@Flat.length, %v196
-    %v199 = borrow %local15 : &Flat(Buffer)
-    %v200 = call get(Buffer), %v199, 0 : &Buffer
-    %v201 = load [%v200] : Buffer
-    %v202 = call marker, %v201 : I64
-    %v205 = cmp_ne %v202, 1 : Bool
-    je %v205, b66, b26
+    %v172 = load %xs : Array(Buffer)
+    %v175 = borrow %xs : &Array(Buffer)
+    %v176 = call Index(Array(a), I64, a).get(Buffer), %v175, 0 : &Buffer
+    %v177 = load [%v176] : Buffer
+    %v178 = call marker, %v177 : I64
+    %v181 = cmp_ne %v178, 1 : Bool
+    je %v181, b66, b26
 
   b25:
-    %v209 = neg 9 : I64
-    ret %v209
+    %v185 = neg 9 : I64
+    ret %v185
 
   b26:
     jmp b27
 
   b27:
-    %v212 = load %xs : Array(Buffer)
-    %v215 = borrow_mut %xs : &mut Array(Buffer)
-    %v216 = call remove(Buffer), %v215, 0 : Maybe(Buffer)
-    drop_derived %local16 via drop$Maybe(Buffer)
-    %v217 = load %xs : Array(Buffer)
-    %v218 = borrow %xs : &Array(Buffer)
-    %v219 = alloc : Flat(Buffer)
-    %v220 = load [%v218]@Array.run@Run.items : %Buffer
-    init %local17@Flat.items, %v220
-    %v222 = load [%v218]@Array.length : @bits(31) U32
-    %v223 = cast %v222 : U32
-    %v224 = cast %v223 : I64
-    init %local17@Flat.length, %v224
-    %v226 = call length(Buffer), %v219 : I64
-    %v229 = cmp_ne %v226, 0 : Bool
-    je %v229, b67, b29
+    %v188 = load %xs : Array(Buffer)
+    %v191 = borrow_mut %xs : &mut Array(Buffer)
+    %v192 = call remove(Buffer), %v191, 0 : Maybe(Buffer)
+    drop_derived %local13 via drop$Maybe(Buffer)
+    %v193 = load %xs : Array(Buffer)
+    %v194 = borrow %xs : &Array(Buffer)
+    %v195 = alloc : Flat(Buffer)
+    %v196 = load [%v194]@Array.run@Run.items : %Buffer
+    init %local14@Flat.items, %v196
+    %v198 = load [%v194]@Array.length : @bits(31) U32
+    %v199 = cast %v198 : U32
+    %v200 = cast %v199 : I64
+    init %local14@Flat.length, %v200
+    %v202 = call length(Buffer), %v195 : I64
+    %v205 = cmp_ne %v202, 0 : Bool
+    je %v205, b67, b29
 
   b28:
-    %v233 = neg 10 : I64
-    ret %v233
+    %v209 = neg 10 : I64
+    ret %v209
 
   b29:
     jmp b30
 
   b30:
-    %v236 = load liveBuffers : I64
-    %v239 = cmp_ne %v236, 0 : Bool
-    je %v239, b68, b32
+    %v212 = load liveBuffers : I64
+    %v215 = cmp_ne %v212, 0 : Bool
+    je %v215, b68, b32
 
   b31:
-    %v243 = neg 11 : I64
-    ret %v243
+    %v219 = neg 11 : I64
+    ret %v219
 
   b32:
     jmp b33
 
   b33:
-    %v246 = load %xs : Array(Buffer)
-    %v248 = call makeBuffer, 7 : Buffer
-    %v249 = borrow_mut %xs : &mut Array(Buffer)
-    %v250 = move %local18 : Buffer
-    call push(Buffer), %v249, %v250
-    %v252 = load %xs : Array(Buffer)
-    %v254 = call makeBuffer, 8 : Buffer
-    %v255 = borrow_mut %xs : &mut Array(Buffer)
-    %v256 = move %local19 : Buffer
-    call push(Buffer), %v255, %v256
-    %v258 = load liveBuffers : I64
-    %v261 = cmp_ne %v258, 2 : Bool
-    je %v261, b69, b35
+    %v222 = load %xs : Array(Buffer)
+    %v224 = call makeBuffer, 7 : Buffer
+    %v225 = borrow_mut %xs : &mut Array(Buffer)
+    %v226 = move %local15 : Buffer
+    call push(Buffer), %v225, %v226
+    %v228 = load %xs : Array(Buffer)
+    %v230 = call makeBuffer, 8 : Buffer
+    %v231 = borrow_mut %xs : &mut Array(Buffer)
+    %v232 = move %local16 : Buffer
+    call push(Buffer), %v231, %v232
+    %v234 = load liveBuffers : I64
+    %v237 = cmp_ne %v234, 2 : Bool
+    je %v237, b69, b35
 
   b34:
-    %v265 = neg 12 : I64
-    ret %v265
+    %v241 = neg 12 : I64
+    ret %v241
 
   b35:
     jmp b36
 
   b36:
-    %v268 = load %xs : Array(Buffer)
-    %v271 = borrow_mut %xs : &mut Array(Buffer)
-    %v272 = call remove(Buffer), %v271, 0 : Maybe(Buffer)
-    %v273 = load %local20.discriminant : Int
-    %v275 = cmp_eq %v273, 1 : Bool
-    je %v275, b38, b70
+    %v244 = load %xs : Array(Buffer)
+    %v247 = borrow_mut %xs : &mut Array(Buffer)
+    %v248 = call remove(Buffer), %v247, 0 : Maybe(Buffer)
+    %v249 = load %local17.discriminant : Int
+    %v251 = cmp_eq %v249, 1 : Bool
+    je %v251, b38, b70
 
   b37:
-    %v291 = sub 0, 1 : Int
-    %v293 = cast %v291 : I64
+    %v267 = sub 0, 1 : Int
+    %v269 = cast %v267 : I64
     jmp b39
 
   b38:
-    %v277 = load %local20@Just : Buffer
-    %v278 = move %local20@Just : Buffer
+    %v253 = load %local17@Just : Buffer
+    %v254 = move %local17@Just : Buffer
     %b = alloc : Buffer
-    init %local21, %v278
-    %v281 = load liveBuffers : I64
-    %v284 = mul %v281, 10 : I64
-    %v285 = call marker, %b : I64
-    drop %local21 via Drop(Buffer).drop
-    %v286 = add %v284, %v285 : I64
+    init %local18, %v254
+    %v257 = load liveBuffers : I64
+    %v260 = mul %v257, 10 : I64
+    %v261 = call marker, %b : I64
+    drop %local18 via Drop(Buffer).drop
+    %v262 = add %v260, %v261 : I64
     jmp b39
 
   b39:
-    %kept = phi [b38, %v286], [b37, %v293] : I64
-    %v298 = cmp_ne %kept, 27 : Bool
-    je %v298, b71, b41
+    %kept = phi [b38, %v262], [b37, %v269] : I64
+    %v274 = cmp_ne %kept, 27 : Bool
+    je %v274, b71, b41
 
   b40:
-    %v302 = neg 13 : I64
-    ret %v302
+    %v278 = neg 13 : I64
+    ret %v278
 
   b41:
     jmp b42
 
   b42:
-    %v305 = load liveBuffers : I64
-    %v308 = cmp_ne %v305, 1 : Bool
-    je %v308, b72, b44
+    %v281 = load liveBuffers : I64
+    %v284 = cmp_ne %v281, 1 : Bool
+    je %v284, b72, b44
 
   b43:
-    %v312 = neg 14 : I64
-    ret %v312
+    %v288 = neg 14 : I64
+    ret %v288
 
   b44:
     jmp b45
 
   b45:
-    %v315 = load %xs : Array(Buffer)
-    %v316 = borrow %xs : &Array(Buffer)
-    %v317 = alloc : Flat(Buffer)
-    %v318 = load [%v316]@Array.run@Run.items : %Buffer
-    init %local22@Flat.items, %v318
-    %v320 = load [%v316]@Array.length : @bits(31) U32
-    %v321 = cast %v320 : U32
-    %v322 = cast %v321 : I64
-    init %local22@Flat.length, %v322
-    %v324 = call length(Buffer), %v317 : I64
-    %v327 = cmp_ne %v324, 1 : Bool
-    je %v327, b73, b47
+    %v291 = load %xs : Array(Buffer)
+    %v292 = borrow %xs : &Array(Buffer)
+    %v293 = alloc : Flat(Buffer)
+    %v294 = load [%v292]@Array.run@Run.items : %Buffer
+    init %local19@Flat.items, %v294
+    %v296 = load [%v292]@Array.length : @bits(31) U32
+    %v297 = cast %v296 : U32
+    %v298 = cast %v297 : I64
+    init %local19@Flat.length, %v298
+    %v300 = call length(Buffer), %v293 : I64
+    %v303 = cmp_ne %v300, 1 : Bool
+    je %v303, b73, b47
 
   b46:
-    %v331 = neg 15 : I64
-    ret %v331
+    %v307 = neg 15 : I64
+    ret %v307
 
   b47:
     jmp b48
 
   b48:
-    %v334 = load %xs : Array(Buffer)
-    %v337 = borrow_mut %xs : &mut Array(Buffer)
-    %v338 = call remove(Buffer), %v337, 9 : Maybe(Buffer)
-    %v339 = load %local23.discriminant : Int
-    %v341 = cmp_eq %v339, 1 : Bool
-    je %v341, b74, b75
+    %v310 = load %xs : Array(Buffer)
+    %v313 = borrow_mut %xs : &mut Array(Buffer)
+    %v314 = call remove(Buffer), %v313, 9 : Maybe(Buffer)
+    %v315 = load %local20.discriminant : Int
+    %v317 = cmp_eq %v315, 1 : Bool
+    je %v317, b74, b75
 
   b49:
     jmp b51
 
   b50:
-    %v343 = load %local23@Just : Buffer
-    %v344 = move %local23@Just : Buffer
-    %v345 = alloc : Buffer
-    init %local24, %v344
-    drop %local24 via Drop(Buffer).drop
-    %v349 = neg 16 : I64
-    ret %v349
+    %v319 = load %local20@Just : Buffer
+    %v320 = move %local20@Just : Buffer
+    %v321 = alloc : Buffer
+    init %local21, %v320
+    drop %local21 via Drop(Buffer).drop
+    %v325 = neg 16 : I64
+    ret %v325
 
   b51:
-    %v352 = load liveBuffers : I64
-    %v355 = cmp_ne %v352, 1 : Bool
-    je %v355, b76, b53
+    %v328 = load liveBuffers : I64
+    %v331 = cmp_ne %v328, 1 : Bool
+    je %v331, b76, b53
 
   b52:
-    %v359 = neg 17 : I64
-    ret %v359
+    %v335 = neg 17 : I64
+    ret %v335
 
   b53:
     jmp b54
 
   b54:
-    %v362 = load %xs : Array(Buffer)
-    %v365 = borrow_mut %xs : &mut Array(Buffer)
-    %v366 = call remove(Buffer), %v365, 0 : Maybe(Buffer)
+    %v338 = load %xs : Array(Buffer)
+    %v341 = borrow_mut %xs : &mut Array(Buffer)
+    %v342 = call remove(Buffer), %v341, 0 : Maybe(Buffer)
     drop %xs via Reclaim(Array(a)).reclaim(Buffer) reclaim Reclaim(Array(a)).reclaim(Buffer)
-    drop_derived %local25 via drop$Maybe(Buffer)
-    %v367 = load liveBuffers : I64
-    %v370 = cmp_ne %v367, 0 : Bool
-    je %v370, b55, b56
+    drop_derived %local22 via drop$Maybe(Buffer)
+    %v343 = load liveBuffers : I64
+    %v346 = cmp_ne %v343, 0 : Bool
+    je %v346, b55, b56
 
   b55:
-    %v374 = neg 18 : I64
-    ret %v374
+    %v350 = neg 18 : I64
+    ret %v350
 
   b56:
     jmp b57
@@ -1081,7 +1058,7 @@ fn main() -> I64 {
     jmp b34
 
   b70:
-    drop_derived %local20 via drop$Maybe(Buffer)
+    drop_derived %local17 via drop$Maybe(Buffer)
     jmp b37
 
   b71:
@@ -1101,7 +1078,7 @@ fn main() -> I64 {
     jmp b50
 
   b75:
-    drop_derived %local23 via drop$Maybe(Buffer)
+    drop_derived %local20 via drop$Maybe(Buffer)
     jmp b49
 
   b76:

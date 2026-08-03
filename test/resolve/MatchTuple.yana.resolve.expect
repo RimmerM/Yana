@@ -1,0 +1,209 @@
+let &drops: Int = 0
+
+fn sameMaybe(%lhs: Maybe(Held), %rhs: Maybe(Held)) -> Bool {
+  b0:
+    %v2 = load %lhs.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %v13 = load %lhs.discriminant : Int
+    %v15 = cmp_eq %v13, 0 : Bool
+    je %v15, b5, b4
+
+  b2:
+    %x = load %lhs@Just : Held
+    %v7 = load %rhs.discriminant : Int
+    %v9 = cmp_eq %v7, 1 : Bool
+    je %v9, b3, b1
+
+  b3:
+    %y = load %rhs@Just : Held
+    %v12 = call Eq(Held).==, %x, %y : Bool
+    jmp b7
+
+  b4:
+    jmp b7
+
+  b5:
+    %v17 = load %rhs.discriminant : Int
+    %v19 = cmp_eq %v17, 0 : Bool
+    je %v19, b6, b4
+
+  b6:
+    jmp b7
+
+  b7:
+    %v26 = phi [b3, %v12], [b6, True], [b4, False] : Bool
+    ret %v26
+}
+
+fn ordered(%a: Maybe(Held), %b: Maybe(Held), %c: Int) -> Int {
+  b0:
+    %v3 = load %a.discriminant : Int
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
+
+  b1:
+    %v19 = load %a.discriminant : Int
+    %v21 = cmp_eq %v19, 1 : Bool
+    je %v21, b6, b5
+
+  b2:
+    %x = load %a@Just : Held
+    %v8 = load %b.discriminant : Int
+    %v10 = cmp_eq %v8, 1 : Bool
+    je %v10, b3, b1
+
+  b3:
+    %y = load %b@Just : Held
+    %v14 = cmp_eq %c, 0 : Bool
+    je %v14, b4, b1
+
+  b4:
+    %v16 = load %a@Just@Held.n : Int
+    %v17 = load %b@Just@Held.n : Int
+    %v18 = add %v16, %v17 : Int
+    jmp b8
+
+  b5:
+    jmp b8
+
+  b6:
+    %x = load %a@Just : Held
+    %v24 = load %b.discriminant : Int
+    %v26 = cmp_eq %v24, 0 : Bool
+    je %v26, b7, b5
+
+  b7:
+    %v28 = load %a@Just@Held.n : Int
+    %v29 = add %v28, %c : Int
+    jmp b8
+
+  b8:
+    %v34 = phi [b4, %v18], [b7, %v29], [b5, 0] : Int
+    ret %v34
+}
+
+fn labelled(%x: Int, %y: Int) -> Int {
+  b0:
+    %whole = alloc : {first: Int, second: Int}
+    init %local0.first, %x
+    init %local0.second, %y
+    %v5 = load %local0.first : Int
+    %v7 = cmp_eq %v5, 0 : Bool
+    je %v7, b2, b1
+
+  b1:
+    %v14 = load %local0.first : Int
+    %v15 = load %local0.second : Int
+    %v16 = add %v14, %v15 : Int
+    jmp b4
+
+  b2:
+    %v9 = load %local0.second : Int
+    %v11 = cmp_eq %v9, 0 : Bool
+    je %v11, b3, b1
+
+  b3:
+    jmp b4
+
+  b4:
+    %v19 = phi [b3, 100], [b1, %v16] : Int
+    ret %v19
+}
+
+fn main() -> Int {
+  b0:
+    %total = alloc : Int
+    init %total, 0
+    je True, b1, b2
+
+  b1:
+    %v5 = alloc : Held
+    init %local1@Held.n, 3
+    %a = alloc : Maybe(Held)
+    init %local2.discriminant, 1
+    init %local2@Just, %v5
+    %v12 = alloc : Held
+    init %local3@Held.n, 4
+    %b = alloc : Maybe(Held)
+    init %local4.discriminant, 1
+    init %local4@Just, %v12
+    %v19 = call sameMaybe, %a, %b : Bool
+    je %v19, b3, b4
+
+  b2:
+    jmp b6
+
+  b3:
+    %v21 = load %total : Int
+    %v24 = add %v21, 1000 : Int
+    assign %total, %v24
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v28 = load %total : Int
+    %v30 = call ordered, %a, %b, 0 : Int
+    drop_derived %local2 via drop$Maybe(Held)
+    drop_derived %local4 via drop$Maybe(Held)
+    %v31 = add %v28, %v30 : Int
+    assign %total, %v31
+    jmp b6
+
+  b6:
+    %v35 = load %total : Int
+    %v36 = load drops : Int
+    %v39 = mul %v36, 10 : Int
+    %v40 = add %v35, %v39 : Int
+    assign %total, %v40
+    %v42 = load %total : Int
+    %v45 = call labelled, 2, 5 : Int
+    %v46 = add %v42, %v45 : Int
+    assign %total, %v46
+    %v48 = load %total : Int
+    ret %v48
+}
+
+fn Drop(Held).drop(%self: Held) -> () {
+  b0:
+    %v1 = load drops : Int
+    %v4 = add %v1, 1 : Int
+    assign drops, %v4
+    ret
+}
+
+fn Eq(Held).==(%lhs: Held, %rhs: Held) -> Bool {
+  b0:
+    %v2 = load %lhs@Held.n : Int
+    %v3 = load %rhs@Held.n : Int
+    %v4 = cmp_eq %v2, %v3 : Bool
+    ret %v4
+}
+
+fn Eq(Held).!=(%lhs: Held, %rhs: Held) -> Bool {
+  b0:
+    %v2 = call Eq(Held).==, %lhs, %rhs : Bool
+    %v4 = xor %v2, True : Bool
+    ret %v4
+}
+
+fn drop$Maybe(Held)(%value: %Maybe(Held)) -> () {
+  b0:
+    %v1 = load [%value].discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b3
+
+  b1:
+    ret
+
+  b2:
+    drop [%value]@Just via Drop(Held).drop
+    jmp b1
+
+  b3:
+    jmp b1
+}

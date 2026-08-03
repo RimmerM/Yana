@@ -883,12 +883,80 @@ ModulePtr<Value> ExprResolver::resolveIs(const ast::Expr& expr, const ast::IsExp
     return finishBranches(arms, expr.source, used);
 }
 
-ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::MatchExpr& match, TypePtr target, bool used, bool implicit) {
-    // Every pattern is matched against the pivot's type, so a pivot that is a bare literal has to
-    // have settled on one before the first alternative is read.
-    auto pivot = settle(resolve(match.pivot), match.pivot.source);
-    if(!pivot) return nullptr;
+/*
+ * A tuple pattern matched against the elements themselves.
+ *
+ * The same walk the Tup case of resolvePattern makes, with the projection removed: there is no
+ * tuple to project out of, because the pivot was never built. Positional only - a named field
+ * refers to a tuple type this pivot does not have, and decomposeMatch declines those before
+ * anything reaches here.
+ */
+PatternResult ExprResolver::resolveDecomposed(const ast::Pat& pattern, Buffer<ModulePtr<Value>> elements,
+                                              ModulePtr<Block> onFail, Size bindingBase) {
+    if(pattern.kind == ast::Pat::Any) return PatternResult::Always;
 
+    auto overall = PatternResult::Always;
+    Size position = 0;
+
+    auto fieldList = pattern.tup;
+    for(auto fieldPattern: fieldList.contents(parse)) {
+        auto result = resolvePattern(*parse[fieldPattern.pat], elements[position], onFail, bindingBase);
+        position++;
+
+        if(result == PatternResult::Never) return result;
+        if(result == PatternResult::Maybe) overall = result;
+    }
+
+    return overall;
+}
+
+/*
+ * Whether a match over a tuple *literal* can skip building it.
+ *
+ * `match {lhs, rhs}` pairs two scrutinees and nothing more - the tuple exists to be taken apart by
+ * the very next thing that reads it. Building it anyway is what made `Eq(Maybe(a))`'s `==` consume
+ * both operands it was only lent: a tuple is contiguous storage, so its fields are *copied* in, and
+ * a copy of a value with a teardown is a second owner of it. The elements are already values here,
+ * and matching against them directly is the same tests with no storage in between.
+ *
+ * Every alternative has to be one this can serve, which is a positional tuple pattern of the right
+ * arity or `_`. A pattern that binds the whole pivot by name genuinely wants the tuple to exist, and
+ * a named field refers to field names an unnamed literal does not have; either sends the whole match
+ * back to building it, since the alternatives all read one pivot and it cannot be two shapes at once.
+ */
+static bool decomposeMatch(ast::ParseBase parse, const ast::Expr& pivot,
+                           ast::ParseList<ast::Alt> alternatives) {
+    if(pivot.kind != ast::Expr::Tup) return false;
+
+    auto pivotFields = pivot.tup;
+    if(pivotFields.isEmpty()) return false;
+
+    Size arity = 0;
+    for(auto arg: pivotFields.contents(parse)) {
+        if(arg.name) return false;
+        arity++;
+    }
+
+    for(auto alternative: alternatives.contents(parse)) {
+        auto pattern = alternative.pat;
+        if(pattern.kind == ast::Pat::Any) continue;
+        if(pattern.kind != ast::Pat::Tup) return false;
+        if(pattern.bind != ast::BindType::Borrow) return false;
+
+        Size fields = 0;
+        auto patternFields = pattern.tup;
+        for(auto fieldPattern: patternFields.contents(parse)) {
+            if(fieldPattern.field) return false;
+            fields++;
+        }
+
+        if(fields != arity) return false;
+    }
+
+    return true;
+}
+
+ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::MatchExpr& match, TypePtr target, bool used, bool implicit) {
     // A match with no alternatives cannot be written - the parser needs the ':' and an indented
     // block to have read a match at all - so this is only ever the shape a half-typed one is left
     // in, and the parser has already said so. It resolves to nothing, quietly.
@@ -896,13 +964,49 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
     auto alternatives = alternativeList.contents(parse);
     if(alternatives.size() == 0) return nullptr;
 
+    auto decomposed = decomposeMatch(parse, match.pivot, alternativeList);
+
+    /*
+     * The pivot, as a value or as the elements one would have held.
+     *
+     * The decomposed form still needs the tuple *type*, because exhaustiveness is stated over it -
+     * a tuple pattern covers a product of its fields' spaces, and PatternSpace has no other way to
+     * be told what the product is. Interning a type is free of any storage, which is the whole
+     * point: what is skipped is the allocation and the field copies, not the type.
+     */
+    ModulePtr<Value> pivot = nullptr;
+    TypePtr pivotType = nullptr;
+    ValueList elements;
+
+    if(decomposed) {
+        Array<Field> fields;
+
+        auto pivotFields = match.pivot.tup;
+        for(auto arg: pivotFields.contents(parse)) {
+            auto value = settle(resolve(arg.value), arg.value.source);
+            if(!value) return nullptr;
+
+            elements.push(value);
+            fields.push(Field { valueType(value), arg.name });
+        }
+
+        pivotType = (Type*)resolveTupleType(module, toBuffer(fields), match.pivot.source) - global;
+    } else {
+        // Every pattern is matched against the pivot's type, so a pivot that is a bare literal has
+        // to have settled on one before the first alternative is read.
+        pivot = settle(resolve(match.pivot), match.pivot.source);
+        if(!pivot) return nullptr;
+
+        pivotType = valueType(pivot);
+    }
+
     // Reading an alternative out of the parse list copies it, so the patterns are collected into
     // one array that outlives the space they are handed to - see PatternSpace::useful.
     Array<ast::Pat> patterns;
     patterns.reserve(U32(alternatives.size()));
     for(auto alternative: alternatives) patterns.push(alternative.pat);
 
-    PatternSpace space(*this, valueType(pivot));
+    PatternSpace space(*this, pivotType);
     auto bindingCount = bindings.size();
     Array<BranchArm> arms;
     auto exhaustive = false;
@@ -928,7 +1032,9 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
         // the pivot can hold, so this one matches whatever is left.
         exhaustive = space.add(pattern);
         auto failure = exhaustive ? ModulePtr<Block>(nullptr) : addBlock();
-        auto patternResult = resolvePattern(pattern, pivot, failure);
+        auto patternResult = decomposed
+            ? resolveDecomposed(pattern, toBuffer(elements), failure, bindings.size())
+            : resolvePattern(pattern, pivot, failure);
 
         if(patternResult == PatternResult::Never) {
             rejected = true;

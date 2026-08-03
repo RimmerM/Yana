@@ -1,0 +1,123 @@
+{-
+   An owner built in a function and handed back from it.
+
+   Design.md's Consumption lists returning beside `->` and destructuring, and this is the fixture
+   that holds the compiler to it. Returning a local used to be a *load* of its slot and nothing
+   else: the drop pass read that load as the slot's last use, placed the release before the value
+   was copied into the caller's storage, and the caller received an `Array` whose run had already
+   gone back to the allocator. It answered `[0, 0, 3, 4]` for four pushes, which is the free list's
+   own link written over the first two elements - the length was right and the last elements were
+   right, which is why it read as a growth bug for so long.
+
+   Two things had to be true for it to work, and each of the four functions below is here because it
+   reaches one of them differently:
+
+    - `return` has to say the transfer in the IR, which is an InstMove. See returnValue.
+    - `Array(a)` inside a *generic* body has to be classified with its authored `Reclaim` rather
+      than structurally. A run is a raw pointer and two counts, so the structural answer was
+      TrivialCopy - which made `->` duplicate it and `return` skip the move. See ownershipInAt.
+
+   The counter is what makes this behavioural rather than a reading of the IR text. `Reclaim` runs
+   once per array that dies, so an array released on the way out of the function that built it and
+   released again by its caller shows up here as a count and not only as a wrong element.
+-}
+
+let &reclaims = 0 :: Int
+
+data Cell {slots: Array(Int)}
+
+instance Drop(Cell):
+    fn drop(->self: Cell) -> {}:
+        reclaims = reclaims + 1
+
+iter fn (TrivialCopy(a)) each(xs: [a]) -> a:
+    let &i = 0 :: Int
+    let n = length(xs) :: Int
+
+    while i < n:
+        yield xs[i]
+        i = i + 1
+
+iter fn (TrivialCopy(a)) mapped(xs: [a], f: (a) -> b) -> b:
+    for x in each(xs):
+        yield f(x)
+
+fn double(v: Int) -> Int = v * 2
+
+-- The plain shape: a `while` loop in a concrete function. This is the one that answered
+-- `[0, 0, 3, 4]`, and it needs nothing but the move at the `return`.
+fn collect(xs: [Int]) -> Array(Int):
+    let &out = emptyArray() :: Array(Int)
+    let &i = 0 :: Int
+
+    while i < length(xs):
+        push(out, xs[i])
+        i = i + 1
+
+    return out
+
+-- The same array reached through a `for` over an iterator, so that the loop's continuation sits
+-- between the pushes and the `return` without changing where the transfer is.
+fn collectFor(xs: [Int]) -> Array(Int):
+    let &out = emptyArray() :: Array(Int)
+
+    for x in each(xs):
+        push(out, x)
+
+    return out
+
+-- Generic, which is the half ownershipInAt decides: `Array(b)` is the type of a local this body
+-- builds, and nothing concrete about it is available here. This is the shape Adaptor.yana had to
+-- work around by materializing into a destination the caller owned.
+fn (TrivialCopy(a)) collectMapped(xs: [a], f: (a) -> b) -> Array(b):
+    let &out = emptyArray() :: Array(b)
+
+    for y in mapped(xs, f):
+        push(out, y)
+
+    return out
+
+-- A `->` of a container in a generic body, and a returned one. The duplicate path left two owners
+-- of one run here, which is the same misclassification arriving at the other convention.
+fn (TrivialCopy(a)) roundTrip(->xs: Array(a)) -> Array(a):
+    let ->ys = xs
+    return ys
+
+-- The owner inside a record with a teardown of its own, returned. The move is of the whole `Cell`
+-- and the array goes with it, so the caller's drop is the only one that runs.
+fn wrap(xs: [Int]) -> Cell:
+    let c = Cell {slots: collect(xs)}
+    return c
+
+fn main() -> Int:
+    let &xs = [1, 2, 3, 4]
+
+    -- Weighted so that a lost element is a different number rather than a smaller one: the failure
+    -- being reported was zeros at the front, and a plain sum would hide which end they were at.
+    let a = collect(xs)
+    let &total = a[0] + a[1] * 2 + a[2] * 4 + a[3] * 8 :: Int
+
+    let b = collectFor(xs)
+    total = total + b[0] + b[1] * 2 + b[2] * 4 + b[3] * 8
+
+    let c = collectMapped(xs, double)
+    total = total + c[0] + c[1] * 2 + c[2] * 4 + c[3] * 8
+
+    let &handed = [5, 6, 7, 8]
+    let d = roundTrip(handed)
+    total = total + d[0] + d[1] * 2 + d[2] * 4 + d[3] * 8
+
+    -- Nothing has died yet, so a release on the way out of any of the four is already visible.
+    if reclaims != 0 then return 0 - 1
+
+    -- Before the reads below rather than after them, because the last one is `held`'s last use and
+    -- the drop the caller owes it belongs exactly there. What is being asserted is that `wrap` did
+    -- not already run it on the way out.
+    let held = wrap(xs)
+    if reclaims != 0 then return 0 - 2
+
+    total = total + held.slots[0] + held.slots[3]
+
+    -- 49 from the plain collect, 49 from the `for`, 98 from the doubled one, 5 + 12 + 28 + 64 = 109
+    -- from the round trip, and 1 + 4 = 5 out of the wrapped one: 310.
+    return total

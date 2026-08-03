@@ -60,15 +60,6 @@ drop$[Handle *6]<complex>(%value: Ptr) {
   }
 }
 
-get(Handle)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 8: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
-  }
-}
-
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
     %v_1 = bitcast %allocation: Long
@@ -118,7 +109,7 @@ small<complex>(): Long {
     store %hs, %hs, 8
     %v_7 = add %hs, 8: Ptr
     store %v_7, 2, 8
-    %v_8 = call_complex get(Handle), %hs, 0: Ptr
+    %v_8 = call_complex Index(Flat(a), I64, a).get(Handle), %hs, 0: Ptr
     %v_9 = load %v_8, 8: Ptr
     %v_10 = bitcast %v_9: Ptr
     %v_11 = loads %v_10, 8: Long
@@ -126,7 +117,7 @@ small<complex>(): Long {
     store %hs, %hs, 8
     %v_12 = add %hs, 8: Ptr
     store %v_12, 2, 8
-    %v_13 = call_complex get(Handle), %hs, 1: Ptr
+    %v_13 = call_complex Index(Flat(a), I64, a).get(Handle), %hs, 1: Ptr
     %v_14 = load %v_13, 8: Ptr
     %v_15 = bitcast %v_14: Ptr
     %v_16 = loads %v_15, 8: Long
@@ -173,7 +164,7 @@ large<complex>(): Long {
     store %hs, %hs, 8
     %v_19 = add %hs, 8: Ptr
     store %v_19, 6, 8
-    %v_20 = call_complex get(Handle), %hs, 0: Ptr
+    %v_20 = call_complex Index(Flat(a), I64, a).get(Handle), %hs, 0: Ptr
     %v_21 = load %v_20, 8: Ptr
     %v_22 = bitcast %v_21: Ptr
     %v_23 = loads %v_22, 8: Long
@@ -181,7 +172,7 @@ large<complex>(): Long {
     store %hs, %hs, 8
     %v_24 = add %hs, 8: Ptr
     store %v_24, 6, 8
-    %v_25 = call_complex get(Handle), %hs, 5: Ptr
+    %v_25 = call_complex Index(Flat(a), I64, a).get(Handle), %hs, 5: Ptr
     %v_26 = load %v_25, 8: Ptr
     %v_27 = bitcast %v_26: Ptr
     %v_28 = loads %v_27, 8: Long
@@ -258,6 +249,15 @@ drop$[Handle *2]<complex>(%value: Ptr) {
   }
 }
 
+Index(Flat(a), I64, a).get(Handle)<complex>(%self: Ptr, %index: Long): Ptr {
+  b_0 {
+    %v_1 = load %self, 8: Ptr
+    %v_2 = imul %index, 8: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    ret %v_3
+  }
+}
+
 nested<complex>(): Long {
   b_0 {
     %p = alloca 24, 8: Ptr
@@ -280,7 +280,7 @@ nested<complex>(): Long {
     store %v_10, %p, 8
     %v_11 = add %v_10, 8: Ptr
     store %v_11, 2, 8
-    %v_12 = call_complex get(Handle), %v_10, 1: Ptr
+    %v_12 = call_complex Index(Flat(a), I64, a).get(Handle), %v_10, 1: Ptr
     %v_13 = load %v_12, 8: Ptr
     %v_14 = bitcast %v_13: Ptr
     %v_15 = loads %v_14, 8: Long

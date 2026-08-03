@@ -115,14 +115,20 @@ fn bump(&counter: I64) -> ()
   retains:    none
   calls:      called at 1 site
 
-fn identity(x: a) -> a
+fn identity(->x: a) -> a
   suspends:   unknown (not inferred yet)
   ambients:   unknown (not implemented)
   storage:    unknown for the locals (a generic body is analyzed through its specializations)
-              the result's storage is the caller's, not this frame's
+              the result escapes the frame -> heap
   mutates:    none
   retains:    none
+  returns:    a borrow rooted in storage no caller can name
   calls:      specialized at 2 of 2 call sites, 1 specialization
+  hint:       storage the result escapes the frame -> heap; returns a borrow rooted in storage no caller can name
+  hover:
+---
+- **storage**: the result escapes the frame -> heap
+- **returns**: a borrow rooted in storage no caller can name
 
 fn main() -> Int
   suspends:   unknown (not inferred yet)

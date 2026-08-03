@@ -48,6 +48,12 @@ class YanaColorSettingsPage : ColorSettingsPage {
         fn distance(&<borrowed>p</borrowed>: Point, -><sunk>q</sunk>: Point) -> Float =
             sqrt(toFloat(<borrowed>p</borrowed>.x - <sunk>q</sunk>.x) ^ 2.0 + 1.0e3)
 
+        fn find(xs: Array(Point)) -> Maybe(Int):
+            let first = xs.first()?
+            return Just(first.x)
+
+        fn nearest(xs: Array(Point)) -> Maybe(Int) = xs.first()?.origin.x
+
         fn main() -> Int:
             let name = "hello\n{p.x}"
             let c = 'a'
@@ -61,6 +67,8 @@ class YanaColorSettingsPage : ColorSettingsPage {
         private val DESCRIPTORS = arrayOf(
             AttributesDescriptor("Keyword", YanaColors.KEYWORD),
             AttributesDescriptor("Reserved operator", YanaColors.RESERVED_OP),
+            AttributesDescriptor("Early exit (?)", YanaColors.TRY),
+            AttributesDescriptor("Optional chaining (?.)", YanaColors.OPTIONAL_CHAIN),
             AttributesDescriptor("Identifiers//Variable (VarID)", YanaColors.VAR_ID),
             AttributesDescriptor("Identifiers//Constructor (ConID)", YanaColors.CON_ID),
             AttributesDescriptor("Operators//Variable (VarSym)", YanaColors.VAR_SYM),

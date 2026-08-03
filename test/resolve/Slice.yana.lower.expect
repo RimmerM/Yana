@@ -155,15 +155,6 @@ slice(Int)<complex>(%v_0: Ptr, %self: Ptr, %from: Long, %to: Long) {
   }
 }
 
-get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 4: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
-  }
-}
-
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
     %v_1 = bitcast %allocation: Long
@@ -205,7 +196,7 @@ atCursor<complex>(%c$items$items: Ptr, %c$items$length: Long, %c$at: Int): Int {
     %v_2 = add %c, 16: Ptr
     store %v_2, %c$at, 4
     %v_3 = sext %c$at: Long
-    %v_4 = call_complex get(Int), %c, %v_3: Ptr
+    %v_4 = call_complex Index(Flat(a), I64, a).get(Int), %c, %v_3: Ptr
     %v_5 = loads %v_4, 4: Int
     ret %v_5
   }
@@ -373,9 +364,9 @@ double<complex>(%xs: Ptr) {
 
   b_3 {
     %v_9 = sext %v_2: Long
-    %v_10 = call_complex get(Int), %xs, %v_9: Ptr
+    %v_10 = call_complex Index(Flat(a), I64, a).get(Int), %xs, %v_9: Ptr
     %value = loads %v_10, 4: Int
-    %v_11 = call_complex getMut(Int), %xs, %v_9: Ptr
+    %v_11 = call_complex Index(Flat(a), I64, a).getMut(Int), %xs, %v_9: Ptr
     %v_12 = add %value, %value: Int
     store %v_11, %v_12, 4
     %v_4 = add %v_2, 1: Int
@@ -477,7 +468,7 @@ sumFrom<complex>(%xs$items: Ptr, %xs$length: Long, %from: Int): Int {
     store %v_10, %xs$length, 8
     %v_11 = add %c, 16: Ptr
     store %v_11, %v_2, 4
-    %v_12 = call_complex get(Int), %c, %v_7: Ptr
+    %v_12 = call_complex Index(Flat(a), I64, a).get(Int), %c, %v_7: Ptr
     %v_13 = loads %v_12, 4: Int
     %v_6 = add %v_5, %v_13: Int
     %v_4 = add %v_2, 1: Int
@@ -585,6 +576,15 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 }
 
+Index(Flat(a), I64, a).get(Int)<complex>(%self: Ptr, %index: Long): Ptr {
+  b_0 {
+    %v_1 = load %self, 8: Ptr
+    %v_2 = imul %index, 4: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    ret %v_3
+  }
+}
+
 total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
   b_0 {
     %xs = alloca 16, 8: Ptr
@@ -610,11 +610,20 @@ total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
 
   b_4 {
     %v_12 = sext %v_6: Long
-    %v_13 = call_complex get(Int), %xs, %v_12: Ptr
+    %v_13 = call_complex Index(Flat(a), I64, a).get(Int), %xs, %v_12: Ptr
     %v_14 = loads %v_13, 4: Int
     %v_5 = add %v_3, %v_14: Int
     %v_7 = add %v_6, 1: Int
     jmp b_2
+  }
+}
+
+Index(Flat(a), I64, a).getMut(Int)<complex>(%self: Ptr, %index: Long): Ptr {
+  b_0 {
+    %v_1 = load %self, 8: Ptr
+    %v_2 = imul %index, 4: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    ret %v_3
   }
 }
 
@@ -785,7 +794,7 @@ main<complex>(): Int {
     store %v_104, %v_69, 8
     %v_105 = add %c, 16: Ptr
     store %v_105, %v_71, 4
-    %v_106 = call_complex get(Int), %c, %v_76: Ptr
+    %v_106 = call_complex Index(Flat(a), I64, a).get(Int), %c, %v_76: Ptr
     %v_107 = loads %v_106, 4: Int
     %v_75 = add %v_74, %v_107: Int
     %v_73 = add %v_71, 1: Int
@@ -832,9 +841,9 @@ main<complex>(): Int {
 
   b_43 {
     %v_124 = sext %v_42: Long
-    %v_125 = call_complex get(Int), %v_34, %v_124: Ptr
+    %v_125 = call_complex Index(Flat(a), I64, a).get(Int), %v_34, %v_124: Ptr
     %value = loads %v_125, 4: Int
-    %v_126 = call_complex getMut(Int), %v_34, %v_124: Ptr
+    %v_126 = call_complex Index(Flat(a), I64, a).getMut(Int), %v_34, %v_124: Ptr
     %v_127 = add %value, %value: Int
     store %v_126, %v_127, 4
     %v_44 = add %v_42, 1: Int
@@ -877,15 +886,6 @@ main<complex>(): Int {
 
   b_141 {
     ret 18446744073709551615
-  }
-}
-
-getMut(Int)<complex>(%self: Ptr, %index: Long): Ptr {
-  b_0 {
-    %v_1 = load %self, 8: Ptr
-    %v_2 = imul %index, 4: Long
-    %v_3 = add %v_1, %v_2: Ptr
-    ret %v_3
   }
 }
 

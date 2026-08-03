@@ -1,0 +1,61 @@
+{-
+   Writing a value with a teardown into another place copies its bytes, and both names then run it.
+
+   `b = a` compiled silently and answered *three* drops for two objects. `checkTransfer` was already
+   the place that noticed a silent handover, but it looked only at a *projected* load - the reading
+   being that transferFrom caught the rest, since it stops at "whichever slot the value is the whole
+   contents of". It does not: backingLocal matches a slot whose defining value *is* the operand,
+   which is true of a call result and false of a load. So the unprojected case fell between them.
+
+   There is no `->` to write on the right of an assignment - the marker goes on a binding - so the
+   diagnostic names the two operations that do exist rather than inventing a third. `b = ->a` does
+   not parse.
+
+   The borrowed source is the same double free reached without a load at all: an aggregate parameter
+   travels as its `Arg`, so `out = v` is `assign %out, %v` with no place for the check above to look
+   at. Storing it makes the caller and the destination both run its teardown, so a parameter that is
+   handed on has to be taken with `->`. Passing one *as an argument* is untouched - that re-borrows,
+   and an argument is not a departure point.
+
+   `fn identity(v: a) -> a = v` is the same statement in return position: the signature promises the
+   caller an `a` it may drop, out of storage the caller lent. The two honest spellings are `->v`,
+   which takes it, and a `return` marker with a borrow result, which promises only a view.
+-}
+
+data Held {n: Int}
+
+instance Drop(Held):
+    fn drop(->self: Held) -> {}:
+        n = n + self.n
+
+let &n = 0 :: Int
+
+fn assigned() -> {}:
+    let &a = Held {n: 1}
+    let &b = Held {n: 2}
+
+    b = a
+
+fn intoField() -> {}:
+    let &a = Held {n: 1}
+    let &pair = Pair {left: Held {n: 2}, right: 0}
+
+    pair.left = a
+
+data Pair {left: Held, right: Int}
+
+-- The borrowed source, written into the caller's storage.
+fn intoOutParam(v: Held, &out: Held) -> {}:
+    out = v
+
+-- The same, into a constructor payload rather than an existing place.
+fn intoPayload(v: Held) -> Maybe(Held) = Just(v)
+
+-- And in return position, which is the shape `identity` has.
+fn handedBack(v: Held) -> Held = v
+
+-- Passing a borrowed value *on* as an argument stays legal: it re-borrows rather than storing, and
+-- an argument is not one of the points ownership departs at.
+fn reads(v: Held) -> Int = v.n
+
+fn forwards(v: Held) -> Int = reads(v)

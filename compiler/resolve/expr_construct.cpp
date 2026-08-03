@@ -788,6 +788,69 @@ ModulePtr<Value> ExprResolver::sinkValue(ModulePtr<Value> value, LocationId sour
 }
 
 /*
+ * What `return` does to its value.
+ *
+ * Design.md's Consumption lists returning beside `->` and destructuring: the caller receives the
+ * value and this frame stops owning it. So the transfer has to be *in* the IR, and an InstMove is
+ * what puts it there. Without one, `return xs` is a load of the slot and nothing else, the drop
+ * pass reads that load as the slot's last use, and the release it places runs before the value is
+ * copied out - which handed the caller an `Array` whose run had already gone back to the allocator.
+ *
+ * Only the move half of sinkValue, and not its TrivialCopy half. A returned aggregate is written
+ * into storage the caller provided, so duplicating a copyable one into a temporary first would pay
+ * for a second copy of every returned record and leave the original to be dropped anyway - and a
+ * TrivialCopy value has nothing for that drop to release, which is what makes leaving it alone
+ * correct rather than merely cheaper.
+ *
+ * And only where the returned expression *read a place* - which is the whole of what distinguishes
+ * the broken case from the working one. A temporary is registered in Function::locals like anything
+ * else that lives in storage, so findPlace answers for a call result and an update expression too;
+ * moving out of one would be a relocation of a value nothing else can reach, and for a type with an
+ * authored `Sink` that is a second call the program never asked for. Reading the place is what
+ * leaves something behind for the drop pass to find, so it is also what needs the move.
+ *
+ * Two further cases are deliberately left as the plain load they were:
+ *
+ *  - A borrowed parameter. `fn identity(value: a) -> a = value` returns storage the caller owns
+ *    and keeps, so there is nothing here to hand over; moving would be the use-after-move
+ *    checkMoves says it is. Whether that signature should be rejected outright is the same
+ *    question as what `-> [T]` means in return position, and is not this one's to answer.
+ *  - A projection. `return v.field` would be a partial move, which is rejected outright until
+ *    there are drop flags per field - see Implementation-Containers.md's open questions. It has
+ *    the drop bug above for the same reason `return xs` did, and it needs that machinery first.
+ */
+ModulePtr<Value> ExprResolver::returnValue(ModulePtr<Value> value, LocationId source) {
+    if(!value) return nullptr;
+
+    // Asked of the context rather than of the type, for the reason sinkValue gives at the same
+    // question: an unconstrained `a` is non-TrivialCopy inside this body however a caller
+    // substitutes it, so a generic function returning one moves it and the erased path relocates.
+    auto ownership = ownershipIn(module, functionGen(global, function), valueType(value));
+    if(ownership.trivialCopy) return value;
+
+    if(local[value]->kind != Value::LoadPlace) return value;
+
+    auto place = findPlace(value);
+    if(!place) return value;
+
+    auto held = place.unwrap();
+    if(held.root != PlaceRoot::Local || held.projections.size() != 0) return value;
+    if(held.local >= function.localCount()) return value;
+
+    auto slot = function.localAt(local, held.local);
+    if(slot.borrowed || slot.closureEnv) return value;
+
+    // A `->` parameter is the one parameter this frame does own - the caller recorded the handover
+    // as an InstMove - so returning it is a hand-over in turn. Any other convention on a parameter
+    // slot names the caller's storage. A parameter is recognized the way every pass recognizes one:
+    // its slot is named by an Arg, exactly as an allocation's is named by its Alloc.
+    auto parameter = slot.value && local[slot.value]->kind == Value::Arg;
+    if(parameter && slot.convention != ast::BindType::Sink) return value;
+
+    return sinkValue(value, source);
+}
+
+/*
  * Storage for a `->` binding of an aggregate.
  *
  * Every other consumer of a move already has a destination to offer - a captured field, a
@@ -1472,8 +1535,20 @@ ModulePtr<Value> ExprResolver::resolveField(const ast::Expr& expr, const ast::Fi
     // an argument or a call: there is no storage holding the pointer, and none is needed.
     if(reportUnfollowedReference(valueType(value), field.target.source)) return nullptr;
 
-    auto root = isPointer(global, valueType(value)) ? Place::atPointer(value)
-                                                    : placeFor(value, field.target.source);
+    /*
+     * A borrow roots one the same way, which is what `xs[i].name` needs.
+     *
+     * `get` hands back `&a`, and the element it names is storage the container owns - so the field
+     * is a projection off that borrow rather than off a copy of the element. Without this the read
+     * side asked placeFor for storage a returned borrow never has, and reported that the value had
+     * no address; the *write* side already went this way, because resolvePlace's `Sub` case builds
+     * exactly this place. The two are now one answer, which is what keeps `xs[i].name` and
+     * `xs[i].name = v` naming the same bytes.
+     */
+    auto held = valueType(value);
+    auto root = isPointer(global, held) ? Place::atPointer(value)
+              : isBorrow(global, held)  ? Place::inBorrow(value)
+                                        : placeFor(value, field.target.source);
 
     auto place = projectField(root, field.field, expr.source);
     return place ? load(place.unwrap(), expr.source) : nullptr;
@@ -1661,7 +1736,7 @@ ModulePtr<Value> ExprResolver::resolveSubscript(const ast::Expr& expr, const ast
     auto args = subscript.args;
 
     if(args.size() != 1) {
-        context.diagnostics.error("an array subscript takes exactly one index"_v, source);
+        context.diagnostics.error("a subscript takes exactly one index or range"_v, source);
         return nullptr;
     }
 
@@ -1672,15 +1747,13 @@ ModulePtr<Value> ExprResolver::resolveSubscript(const ast::Expr& expr, const ast
     auto held = valueType(target);
     if(global[held]->kind == Type::Error) return target;
 
-    // The owner and the borrow of one both index, and the two are one call: `get` and `getMut` are
-    // declared over the slice, so an owner reaches them through the ordinary conversion.
-
-    if(!ownedElement(module, held) && !sliceElement(module, held)) {
-        context.diagnostics.error("cannot index %@ - only an array may be subscripted"_v, source,
-                                  describeType(context, global, held));
-        return nullptr;
-    }
-
+    /*
+     * There is no type *test* here - Implementation-Containers.md §17's "one deletion". What may be
+     * subscripted is what has an `Index` instance, and rejecting everything but an array in advance
+     * is what kept `heapFree[sizeClass]` from being a subscript at all and would keep every user
+     * container from being one. The question below is asked of the class, after the one conversion
+     * that still happens, and for the diagnostic alone.
+     */
     const ast::Expr* written = nullptr;
     for(auto arg: args.contents(parse)) written = &arg.value;
 
@@ -1711,7 +1784,54 @@ ModulePtr<Value> ExprResolver::resolveSubscript(const ast::Expr& expr, const ast
     auto index = written ? resolve(*written) : nullptr;
     if(!index) return nullptr;
 
-    ModulePtr<Value> values[] = { target, index };
+    /*
+     * A fixed array reaches the class through its slice, because it cannot be an instance head.
+     *
+     * `[T *n]` is a structural type rather than a named one, so `instance Index([a *n], ...)` is
+     * not a declaration anyone can write - and instance selection does not convert, since nothing
+     * about a class says which of its parameters may be widened on the way in. `Array(a)` and
+     * `Flat(a)` are both named and both have instances of their own; this is the one owner left,
+     * and one line is cheaper than teaching selection about conversions for it.
+     *
+     * `mutable_` decides which borrow the descriptor is built from, which is
+     * Implementation-Containers.md §4.1's split arriving one step earlier than it used to:
+     * `xs[i] = v` needs a writable place to take the slice of, and an immutable binding is rejected
+     * there rather than at `getMut`.
+     */
+    auto container = target;
+    if(fixedElement(module, held)) {
+        if(auto slice = sliceOf(module, held)) {
+            container = convertSlice(target, held, slice, source, mutable_);
+            if(!container) return nullptr;
+        }
+    }
+
+    /*
+     * Asked of the class, for the diagnostic alone.
+     *
+     * The overload set's own answer - "no class function get accepts (Point, ?18 (FromInt))" - names
+     * a function nobody wrote and a literal variable with no written form, which is a bad way to be
+     * told that a `Point` is not a container. Asked of the *converted* container, so a fixed array
+     * is judged as the slice it reaches the class through; and only of a concrete one, since inside
+     * a generic body `c` is a variable, the declared constraint is what answers, and matchClassFun
+     * has a better message for a body that declared none.
+     */
+    auto indexed = valueType(container);
+
+    if(auto indexClass = module.program.coreClasses.index) {
+        TypeList asked;
+        asked.push(indexed);
+        asked.push(nullptr);
+        asked.push(nullptr);
+
+        if(!isGeneric(global, indexed) && !resolveDetermined(module, indexClass, asked)) {
+            context.diagnostics.error("cannot index %@ - it has no instance of `Index`, so it says nothing about what a key or an element of it is"_v,
+                                      source, describeType(context, global, held));
+            return nullptr;
+        }
+    }
+
+    ModulePtr<Value> values[] = { container, index };
     auto name = context.addUnqualifiedName(mutable_ ? "getMut" : "get", mutable_ ? 6 : 3);
 
     return emitCall(name, { values, 2 }, source);

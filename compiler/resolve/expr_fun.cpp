@@ -138,6 +138,33 @@ static bool borrowedBinding(ExprResolver& resolver, const Binding& binding) {
     return false;
 }
 
+/*
+ * A parameter of the enclosing function that the enclosing function does not own.
+ *
+ * A borrowed parameter names the *caller's* storage. There is nothing in the enclosing frame to
+ * move, so a capture that fell through to the ownership classification below would be a sink -
+ * taking ownership of something this frame never had - which is what "cannot take ownership of
+ * borrowed storage" reports.
+ *
+ * Only asked of a *continuation* body, which is why it is not simply folded into borrowedBinding.
+ * A lambda may outlive the frame it captured from and a lifted continuation may not: it runs
+ * strictly inside the call that built it, exactly as Implementation-Lens.md's bounded-continuation
+ * contract says. So the two are not the same question, and a lambda over a borrowed parameter stays
+ * the rejection it was.
+ *
+ * Reached by an adaptor's `yield`, among other things: the continuation an `iter fn` was given is a
+ * borrowed parameter, and a `for` loop inside that body names it.
+ */
+static bool borrowedParameter(ExprResolver& resolver, const Binding& binding) {
+    if(!binding.value || resolver.local[binding.value]->kind != Value::Arg) return false;
+    if(((Arg*)resolver.local[binding.value])->convention != ast::BindType::Borrow) return false;
+
+    // And only where the argument has storage to point at. A scalar arrives in a register and gets
+    // no local, so there is nothing for a reference to refer to - and a copy of one is what the
+    // classification below decides anyway, correctly and for free.
+    return (bool)resolver.findPlace(binding.value);
+}
+
 Place ExprResolver::placeOf(const Binding& binding, LocationId source) {
     if(!binding.captured) return binding.place();
 
@@ -221,7 +248,8 @@ Binding* ExprResolver::captureBinding(StringId name, LocationId source) {
     if(writableBinding(*enclosing, *outer)) {
         capture.convention = ast::BindType::Ref;
         capture.byReference = true;
-    } else if(borrowedBinding(*enclosing, *outer)) {
+    } else if((inContinuation && borrowedParameter(*enclosing, *outer)) ||
+              borrowedBinding(*enclosing, *outer)) {
         capture.convention = ast::BindType::Borrow;
         capture.byReference = true;
     } else if(ownershipOf(module, type).trivialCopy) {
@@ -237,6 +265,18 @@ Binding* ExprResolver::captureBinding(StringId name, LocationId source) {
     auto index = U16(captures.size());
     captures.push(capture);
     envType->fields.push(module.types, Field { fieldType, name });
+
+    /*
+     * The flag an interned tuple gets from resolveTupleType, set by hand because this one is not
+     * interned: an environment's fields are discovered as the body names them, so the type exists
+     * before they do and nothing recomputes it afterwards.
+     *
+     * It is what substituteType tests before it walks anything, so a lifted body specialized
+     * alongside its caller - a `for` loop's continuation inside a generic function - would keep an
+     * environment typed over the caller's type variables while the fields written into it were the
+     * concrete ones. The allocation and the writes then disagree about how wide the environment is.
+     */
+    if(isGeneric(global, fieldType)) ((Type*)envType)->generic = true;
 
     Binding binding;
     binding.name = name;
@@ -260,15 +300,28 @@ void fillEnvironment(ExprResolver& resolver, ExprResolver& body, Place place, Lo
         auto outer = resolver.findBinding(capture.name);
         if(!outer) continue;
 
-        // An immutable binding is a name for an SSA value and nothing more, so there is no place to
-        // read and nothing to move out of: what goes into the environment is the value itself.
-        // Such a binding is never captured by reference, since it names no storage to refer to.
-        if(!outer->isPlace()) {
+        /*
+         * Where the capture is read from, which for one shape is not what the binding says.
+         *
+         * A binding whose name is an SSA value has no place, and what goes into the environment is
+         * the value itself. But a *parameter* of aggregate type is neither: bindFunctionArgs leaves
+         * `local` unset on it while still giving the function a slot for the argument, so the
+         * binding answers "not a place" and the storage exists anyway. findPlace is what finds it,
+         * and a by-reference capture of such a parameter - a lens's continuation, reached from an
+         * adaptor's lifted body - needs it: without it the capture is filled by sinking the
+         * argument, which is taking ownership of the caller's storage while the environment's field
+         * is a borrow.
+         */
+        auto storage = outer->isPlace() ? Just(resolver.placeOf(*outer, source))
+                     : capture.byReference ? resolver.findPlace(outer->value)
+                                           : Maybe<Place>(Nothing());
+
+        if(!storage) {
             resolver.initialize(field, resolver.sinkValue(outer->value, source), source);
             continue;
         }
 
-        auto from = resolver.placeOf(*outer, source);
+        auto from = storage.unwrap();
 
         if(capture.byReference) {
             auto mutable_ = capture.convention == ast::BindType::Ref;
@@ -605,7 +658,8 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
             result = body.convert(result, lambda->returnType, source);
         }
 
-        body.terminate(body.emit<InstRet>(source, 0, module.scalar.unit, result));
+        body.terminate(body.emit<InstRet>(source, 0, module.scalar.unit,
+                                          body.returnValue(result, source)));
     } else if(!lambda->returnType) {
         // Every path left through an explicit `return`, which resultInferred has already reported.
         lambda->returnType = module.scalar.unit;

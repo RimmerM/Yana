@@ -241,6 +241,22 @@ struct Function {
     bool takesEnv = false;
 
     /*
+     * The generic function whose body lifted this one - a lens or `for` continuation written inside
+     * a generic body.
+     *
+     * Such a lifted body names the enclosing function's type variables (a lens's continuation
+     * returns one, which is what makes an `iter fn` generic without looking it), so it cannot be
+     * emitted once and shared: it has to be specialized alongside whoever lifted it. `gen` is set to
+     * the *enclosing* function's context rather than to one of its own, which is what makes that
+     * possible - one binding list answers for both - and this records which function that context
+     * belongs to, so cloning a body knows which of the symbols it walks past is one of these.
+     *
+     * Null for every other function, including a lifted body in a concrete one: that has no
+     * variables in it and is shared by everyone.
+     */
+    ModulePtr<Function> liftedFrom = nullptr;
+
+    /*
      * Design.md's Lens functions.
      *
      * `Lens` says the last parameter is the continuation and the result type is whatever that

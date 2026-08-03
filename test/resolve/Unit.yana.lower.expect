@@ -166,6 +166,7 @@ branching<complex>(%c: Int): Int {
   }
 
   b_2 {
+    call_complex identity(())
     jmp b_3
   }
 
@@ -176,6 +177,8 @@ branching<complex>(%c: Int): Int {
 
 main<complex>(): Int {
   b_0 {
+    call_complex identity(())
+    call_complex identity(())
     %v_1 = alloca 16, 8: Ptr
     store %v_1, ResolveTest.lambda$1, 8
     %v_2 = bitcast 0: Ptr
@@ -192,13 +195,50 @@ main<complex>(): Int {
     %v_7 = alloca 4, 4: Ptr
     store %v_7, 1, 4
     call_complex matching(()), %v_7
-    %v_8 = alloca 1, 1: Ptr
-    %v_9 = alloca 1, 1: Ptr
-    %v_10 = add %i, 34: Int
-    %v_11 = add %v_10, %j: Int
-    %v_12 = add %v_11, %k: Int
-    %v_13 = add %v_12, 28: Int
-    ret %v_13
+    %v_8 = alloca 4, 4: Ptr
+    call_complex wrap(()), %v_8
+    %v_9 = loads %v_8, 4: Int
+    %v_10 = cmp_eq %v_9, 1: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_12 {
+    jmp b_13
+  }
+
+  b_11 {
+    jmp b_13
+  }
+
+  b_13 {
+    %v_14 = phi [b_11, 1], [b_12, 0]: Int
+    %v_15 = alloca 1, 1: Ptr
+    %v_16 = alloca 4, 4: Ptr
+    call_complex wrap(()), %v_16
+    %v_17 = loads %v_16, 4: Int
+    %v_18 = cmp_eq %v_17, 1: Int
+    je %v_18, b_19, b_20
+  }
+
+  b_20 {
+    jmp b_21
+  }
+
+  b_19 {
+    jmp b_21
+  }
+
+  b_21 {
+    %v_22 = phi [b_19, 1], [b_20, 0]: Int
+    %v_23 = alloca 1, 1: Ptr
+    %v_24 = add %i, 34: Int
+    %v_25 = add %v_24, %j: Int
+    %v_26 = add %v_25, %k: Int
+    %v_27 = add %v_26, 3: Int
+    %v_28 = add %v_27, %v_14: Int
+    %v_29 = add %v_28, %v_22: Int
+    %v_30 = add %v_29, 23: Int
+    ret %v_30
   }
 }
 

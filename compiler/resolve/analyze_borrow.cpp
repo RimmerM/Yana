@@ -297,12 +297,52 @@ static bool wholeMove(Analysis& analysis, Place place) {
  *
  * Only droppable types, on the same terms as transferFrom itself. Copying the bytes of something
  * nobody is responsible for is a copy, and that is all `let x = p.count` has ever been.
+ *
+ * The *unprojected* load was skipped here on the reading that transferFrom would have caught it -
+ * "whichever slot that value is the whole contents of". It does not: backingLocal matches a slot
+ * whose defining value *is* the operand, which is true of a call result or a construction and false
+ * of a load. So `b = a` for two owned `Held` locals read `a`, dropped `b`'s old contents, aliased
+ * `a`'s into `b`, and then dropped both names - three drops for two objects. `writeInto` is what
+ * says which departure points this applies to, and it is not all four: see the note at the call in
+ * checkMoves for why `ret` is left alone for now.
  */
-static void checkTransfer(Analysis& analysis, ModulePtr<Value> value, LocationId source) {
-    if(!value || analysis.local[value]->kind != Value::LoadPlace) return;
+static void checkTransfer(Analysis& analysis, ModulePtr<Value> value, LocationId source,
+                          bool writeInto) {
+    if(!value) return;
+
+    /*
+     * The same handover reached without a load at all.
+     *
+     * An aggregate parameter travels as its `Arg` rather than as a read of a place - the rule
+     * analyze_effects states as "aggregates travel through the IR as the value that produced them"
+     * - so `fn f(v: Held, &out: Held): out = v` is `assign %out, %v` with no LoadPlace anywhere,
+     * and everything below it misses the case. transferFrom does find the slot and marks it moved,
+     * which is right for a slot this frame owns and worse than useless for one it does not: the
+     * caller still owns what it lent, and the destination now owns it too.
+     *
+     * Restricted to slots this frame does not own, because the owned case *is* a move and is
+     * already right. Restricted to the departure points, which is what keeps it off the case that
+     * should stay legal: handing a borrowed value on as an *argument* re-borrows it - another
+     * immutable borrow, or the one mutable borrow forwarded - and an argument is not a departure
+     * point, so nothing here ever looks at one.
+     */
+    if(writeInto && analysis.local[value]->kind != Value::LoadPlace) {
+        auto held = backingLocal(analysis, value);
+        if(held == maxLimit<U32> || analysis.tracked[held].owned) return;
+
+        auto lent = ownershipIn(analysis.module, functionGen(analysis.global, analysis.function),
+                                analysis.local[value]->type);
+        if(!lent.needsTeardown()) return;
+
+        report(analysis, "this stores a value this frame only borrows, so the caller and this destination would both run its teardown - take it with `->` in the signature to own it here"_v,
+               source);
+        return;
+    }
+
+    if(analysis.local[value]->kind != Value::LoadPlace) return;
 
     auto& place = ((InstLoadPlace*)analysis.local[value])->place;
-    if(place.projections.isEmpty()) return;
+    if(place.projections.isEmpty() && !writeInto) return;
 
     // A raw pointer's target is outside the ownership model - `%T` carries no owner - so `return *p`
     // stays what Native needs it to be.
@@ -322,6 +362,24 @@ static void checkTransfer(Analysis& analysis, ModulePtr<Value> value, LocationId
 
     if(borrowed || place.root == PlaceRoot::Global) {
         report(analysis, "this hands ownership on out of storage this frame only borrows - take the whole value with `->` in the signature, or answer a borrow instead"_v,
+               source);
+        return;
+    }
+
+    /*
+     * The whole slot, written into another place. `b = a` and nothing else.
+     *
+     * Separated from the payload case below because the answer is different, and the difference is
+     * that there is no `->` to write here. `->` goes on a *binding* - `let ->b = a` - and a plain
+     * assignment has no binding to put it on: overwriting `b` has to release what `b` held and take
+     * what `a` held in one step, which is a move-assign the language does not spell. So the two
+     * things that do exist are what this names, and it does not invent a third.
+     *
+     * `Copy` is deliberately not suggested by name: it is authored per type and most droppable
+     * types do not have one, so naming it would send readers looking for something usually absent.
+     */
+    if(place.projections.isEmpty()) {
+        report(analysis, "this copies the bytes of a value with a teardown into another place, so both names would run it - bind it with `let ->` to move it instead, or use `swap` or `exchange` to write into a place that already holds one"_v,
                source);
         return;
     }
@@ -363,7 +421,7 @@ void checkMoves(Analysis& analysis) {
         for(auto phiPointer: analysis.blockAt(b)->phis.contents(analysis.local)) {
             auto& phi = *analysis.local[phiPointer];
             for(auto input: phi.inputs.contents(analysis.local)) {
-                checkTransfer(analysis, input.value, phi.source);
+                checkTransfer(analysis, input.value, phi.source, true);
             }
         }
     }
@@ -373,7 +431,19 @@ void checkMoves(Analysis& analysis) {
         auto& states = analysis.stateBefore[i];
         auto& effects = analysis.effects[i];
 
-        checkTransfer(analysis, transferredValue(instruction), instruction.source);
+        /*
+         * A `ret` counts, because returning a value of type `a` is a hand-over like any other.
+         *
+         * `fn identity(v: a) -> a = v` promises the caller an `a` it may drop, out of storage the
+         * caller lent and still owns. The two honest signatures are `->v`, which takes it, and a
+         * `return` marker with a borrow result - `fn identity(return v: a) -> &a` - which promises
+         * only a view. What could not stay is the third reading, where the same parameter is
+         * borrowed on the way in and owned on the way out.
+         *
+         * Returning a whole *owned* slot never reaches here: returnValue makes it an InstMove, and
+         * a move is the thing this check exists to ask for.
+         */
+        checkTransfer(analysis, transferredValue(instruction), instruction.source, true);
 
         if(instruction.kind == Value::Move) {
             auto& moved = (InstMove&)instruction;

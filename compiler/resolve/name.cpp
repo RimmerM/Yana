@@ -466,8 +466,17 @@ InstanceMatch resolveDetermined(Module& module, GlobalPtr<TypeClass> typeClass, 
          * with `bindGeneric` - which is a lens's declaration, where `Try(Maybe(a), ...)` has to
          * match while `a` is still the lens's own variable, and the same instance is selected again
          * per call site once it is not.
+         *
+         * The rule is about a *bare* variable, and only about one. `Array(a)` is generic and is
+         * nonetheless a container the author named: its head is `Array`, one instance answers for
+         * it, and what that instance determines - `Size` and `a` - is the same answer whatever `a`
+         * turns out to be. Refusing it would mean `fn (a) first(xs: Array(a)) -> a = xs[0]` had to
+         * declare `Index(Array(a), Size, a)` to index a type it wrote out in full, which is a
+         * constraint about nothing the signature left open. The blanket instance the paragraph
+         * above is guarding against still cannot answer here, because a bare `c` still cannot
+         * select.
          */
-        if(!bindGeneric && isGeneric(global, args[i])) return {};
+        if(!bindGeneric && global[args[i]]->kind == Type::Gen) return {};
     }
 
     TypeList asked;

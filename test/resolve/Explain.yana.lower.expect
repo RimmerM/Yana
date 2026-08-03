@@ -197,12 +197,18 @@ main<complex>(): Int {
     copy %v_5, %v_3, 16
     call_complex replace, %v_1, %v_5
     %v_6 = call_complex borrowed, %v_1: Ptr
+    %a = call_complex identity(Int), 3: Int
+    %b = call_complex identity(Int), 4: Int
     %v_7 = loads %v_6, 8: Long
     %v_8 = call_complex placed: Long
     %v_9 = add %v_7, %v_8: Long
-    %v_10 = add %v_9, 8: Long
-    %v_11 = cast %v_10: Int
-    ret %v_11
+    %v_10 = add %v_9, 1: Long
+    %v_11 = sext %a: Long
+    %v_12 = add %v_10, %v_11: Long
+    %v_13 = sext %b: Long
+    %v_14 = add %v_12, %v_13: Long
+    %v_15 = cast %v_14: Int
+    ret %v_15
   }
 }
 

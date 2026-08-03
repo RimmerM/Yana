@@ -612,11 +612,23 @@ static ModulePtr<Function> erasedThunkFor(Module& module, GlobalPtr<TypeClass> t
     function->returnType = module.scalar.unit;
     function->used = true;
 
-    // The result the caller allocated storage for, when the signature returns something whose size
-    // the caller could not know. Declared before the arguments so that the erased shape is the same
-    // one an unspecialized generic function has - hidden storage first, then what was written.
+    /*
+     * The result the caller allocated storage for, when the signature returns something whose size
+     * the caller could not know. Declared before the arguments so that the erased shape is the same
+     * one an unspecialized generic function has - hidden storage first, then what was written.
+     *
+     * `isMemoryType` and not `isGeneric`, and the two differ in both directions. A signature
+     * returning `&a` is generic and is nonetheless one pointer whatever `a` is; one returning a
+     * concrete record is not generic and is nonetheless too big to come back in a register. The
+     * call site's rule is the size one - lower.cpp reads `isMemoryType(callee->returnType)` off this
+     * same signature - so this has to be the same question or the two disagree about the shape.
+     *
+     * `Index.get` is where they first did. `-> &v` gave a thunk with a hidden result parameter and a
+     * call site that expected a returned pointer, so the arguments landed one position over and the
+     * borrow came back as whatever had been in the result register.
+     */
     auto concreteResult = substituteType(module, signature->returnType, classArgs, source);
-    auto erasedResult = isGeneric(global, signature->returnType);
+    auto erasedResult = isMemoryType(global, signature->returnType);
     Arg* resultArg = nullptr;
 
     if(erasedResult) {
@@ -1259,6 +1271,21 @@ static bool bodyLowerable(Module& module, ModulePtr<Function> function,
              * argument list - the same staging every other gap here uses.
              */
             if(inst.kind == Value::CallDyn && isGeneric(global, ((InstCallDyn&)inst).signature)) {
+                return false;
+            }
+
+            /*
+             * A continuation this body lifted out of itself - see Function::liftedFrom.
+             *
+             * It names this function's type variables and is specialized alongside it, which is the
+             * one thing the erased form cannot do: there is one body here, and the lifted one would
+             * have to be one body too, reading slots out of an environment nobody passes it. So a
+             * generic function containing a lens call or a `for` loop specializes, which is always
+             * available for a concrete argument list and is the same staging every other gap in this
+             * walk uses.
+             */
+            if(inst.kind == Value::Symbol && ((InstSymbol&)inst).callee &&
+               local[((InstSymbol&)inst).callee]->liftedFrom == function) {
                 return false;
             }
 

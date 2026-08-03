@@ -28,6 +28,27 @@ object YanaColors {
     val KEYWORD = key("YANA_KEYWORD", DefaultLanguageHighlighterColors.KEYWORD)
     val RESERVED_OP = key("YANA_RESERVED_OP", DefaultLanguageHighlighterColors.KEYWORD)
 
+    /*
+     * `?`, falling back to the keyword colour rather than to the operator one.
+     *
+     * `x?` is a conditional `return`, and a reader scanning a function for the places it can be
+     * left has to find it. Arithmetic-coloured, one character at the end of a call is exactly what
+     * the eye skips. The fallback is `KEYWORD` because that is what the departure it is closest to
+     * - `return` - is painted with, and a scheme that has never heard of this plugin then gets the
+     * right answer without configuring anything.
+     */
+    val TRY = key("YANA_TRY", DefaultLanguageHighlighterColors.KEYWORD)
+
+    /*
+     * `?.`, which falls back to the *operator* colour rather than the keyword one.
+     *
+     * Deliberately not the same as `TRY`. `?.` does not leave the function - it produces a value
+     * like any other operator does - so painting it as control flow would say the opposite of what
+     * it means. The two being different colours out of the box is the point: they look alike in
+     * text and are the pair most worth telling apart at a glance.
+     */
+    val OPTIONAL_CHAIN = key("YANA_OPTIONAL_CHAIN", DefaultLanguageHighlighterColors.OPERATION_SIGN)
+
     // A `VarID` and a `ConID` are lexically different things in Yana and mean different things -
     // `Just` and `maybe` are not interchangeable anywhere - so they are separable from the start.
     val VAR_ID = key("YANA_VAR_ID", DefaultLanguageHighlighterColors.IDENTIFIER)
@@ -63,6 +84,8 @@ class YanaSyntaxHighlighter : SyntaxHighlighterBase() {
         val key = when (tokenType) {
             YanaTokenTypes.KEYWORD -> YanaColors.KEYWORD
             YanaTokenTypes.RESERVED_OP -> YanaColors.RESERVED_OP
+            YanaTokenTypes.TRY -> YanaColors.TRY
+            YanaTokenTypes.OPTIONAL_CHAIN -> YanaColors.OPTIONAL_CHAIN
 
             YanaTokenTypes.VAR_ID -> YanaColors.VAR_ID
             YanaTokenTypes.CON_ID -> YanaColors.CON_ID

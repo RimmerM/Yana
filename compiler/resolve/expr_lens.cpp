@@ -211,24 +211,22 @@ void resolveLensSignature(Module& module, Function& function, GenEnv* env, ast::
         return;
     }
 
+    /*
+     * An `iter fn` is always the `yield` form, whatever its last parameter is.
+     *
+     * The explicit continuation form does not exist for one: writing it out would mean writing the
+     * step signal by hand, and the two halves of that - what `Proceed` means to the loop below and
+     * what the payload of an `Exit` is - are decided by the `for` desugaring rather than by the
+     * declaration. So there is nothing for the shape test below to tell apart, and running it
+     * anyway is what rejected `iter fn mapped(xs: [a], f: (a) -> b) -> b` for having a function as
+     * its last *written* parameter - which is not a continuation, it is what an adaptor maps with.
+     *
+     * A lens keeps the test, because for a lens the explicit form is a real declaration.
+     */
     auto explicitForm = false;
-    if(function.args.size()) {
+    if(!iterator && function.args.size()) {
         auto last = local[function.args.get(local, function.args.size() - 1)];
         explicitForm = !last->isLazy() && global[last->declaredType()]->kind == Type::Fun;
-    }
-
-    /*
-     * An `iter fn` that wrote its continuation out has written the step signal by hand, and the two
-     * halves of it - what `Proceed` means to the loop below and what the payload of an `Exit` is -
-     * are decided by the `for` desugaring rather than by the declaration. Accepting the shape would
-     * mean checking a written type against one this file constructs, and the diagnostic for getting
-     * it wrong would be about a type the author never meant to name.
-     */
-    if(iterator && explicitForm) {
-        context.diagnostics.error("an `iter fn` declares what it hands over and uses `yield` in this version - the explicit continuation form would have to write the step signal out, and what its cases mean is decided by the `for` loop rather than by this declaration"_v,
-                                  source);
-        function.funKind = ast::FunKind::Plain;
-        return;
     }
 
     if(explicitForm) {
@@ -361,25 +359,47 @@ void resolveLensSignature(Module& module, Function& function, GenEnv* env, ast::
  */
 ModulePtr<Value> ExprResolver::resolveYield(const ast::Expr& expr) {
     /*
-     * The function this `yield` hands over for is the one it is written in, and no other.
+     * The function this `yield` hands over for is the innermost enclosing lens or iterator, which
+     * is not always the one this body belongs to.
      *
-     * That is a restriction as much as a rule. `iter fn evens(n): for x in upTo(n): yield x` -
-     * one iterator written over another, which is the shape every adaptor has - writes its `yield`
-     * inside a *lifted* loop body, so the parameter it calls would be a capture. What blocks it is
-     * not the capture: it is that a `for` loop cannot appear in an `iter fn` body at all, because
-     * an iterator is generic in what its consumer returns and a lifted body inside a generic
-     * function needs specializing alongside it. See makeContinuation.
+     * `iter fn evens(n): for x in upTo(n): yield x` - one iterator written over another, which is
+     * the shape every adaptor has - writes its `yield` inside a *lifted* loop body, so the
+     * continuation it calls belongs to the function that body was lifted out of. `enclosingBody()`
+     * walks to it the same way `enclosingResultType()` does, and the parameter is reached by name:
+     * the synthesized one is called `body`, an ordinary binding of the enclosing scope, so naming
+     * it from here is an ordinary capture and the environment grows a word for it with no rule of
+     * this file's own.
      */
-    if(function.funKind == ast::FunKind::Plain || !function.yieldForm) {
+    auto& owner = enclosingBody().function;
+
+    if(owner.funKind == ast::FunKind::Plain || !owner.yieldForm) {
         context.diagnostics.error("`yield` is only available inside a `lens fn` or `iter fn` that declares what it hands over - one that named its continuation parameter calls it by name instead"_v,
                                   expr.source);
         return nullptr;
     }
 
-    auto iterator = function.funKind == ast::FunKind::Iter;
+    auto iterator = owner.funKind == ast::FunKind::Iter;
     auto kindName = iterator ? "this iterator"_v : "this lens"_v;
 
-    auto continuation = (ModulePtr<Value>)function.args.get(local, function.args.size() - 1);
+    ModulePtr<Value> continuation = nullptr;
+
+    if(&owner == &function) {
+        continuation = (ModulePtr<Value>)owner.args.get(local, owner.args.size() - 1);
+    } else if(auto binding = findBinding(continuationName(context), expr.source)) {
+        continuation = binding->isPlace() ? load(placeOf(*binding, expr.source), expr.source)
+                                          : binding->value;
+    }
+
+    if(!continuation) {
+        context.diagnostics.error("internal: this `yield` has no continuation to hand over to"_v, expr.source);
+        return nullptr;
+    }
+
+    if(global[valueType(continuation)]->kind != Type::Fun) {
+        context.diagnostics.error("internal: this `yield`'s continuation is not a function"_v, expr.source);
+        return nullptr;
+    }
+
     auto callback = (FunType*)global[valueType(continuation)];
 
     ValueList args;
@@ -404,9 +424,38 @@ ModulePtr<Value> ExprResolver::resolveYield(const ast::Expr& expr) {
         }
     }
 
-    yields.push(LensYield { current, expr.source });
+    /*
+     * Recorded on the body that hands over, which is not always the one this is written in.
+     *
+     * For an iterator all the record does is answer "did this ever yield", so a `yield` in a lifted
+     * loop body counts and there is nothing else to say. For a lens it also has to answer "on which
+     * path", and that question does not survive the split: the blocks are another function's, and
+     * the forward fixpoint in checkLensYields is stated over one function's block list. So an
+     * adaptor is an iterator's shape and not a lens's, and saying so here is better than accepting
+     * it and checking nothing.
+     */
+    if(&owner != &function) {
+        if(!iterator) {
+            context.diagnostics.error("a `lens fn` hands over exactly once on every path, so its `yield` cannot be inside a lifted body - this one is in a `for` loop or a lens call's continuation, where the paths belong to another function"_v,
+                                      expr.source);
+            return nullptr;
+        }
+
+        enclosingBody().yields.push(LensYield { current, expr.source });
+    } else {
+        yields.push(LensYield { current, expr.source });
+    }
 
     auto result = emitDynamicCall(continuation, toBuffer(args), expr.source, 0);
+
+    // Marked here rather than derived in the ownership passes, because this is the only place that
+    // knows the callee is a continuation. A lifted body reaches its enclosing one by capture, so
+    // the callable is a load from an environment there and the `Arg` it started as is no longer
+    // recognizable - see InstCallDyn::handover.
+    if(result && local[result]->kind == Value::CallDyn) {
+        ((InstCallDyn*)local[result])->handover = true;
+    }
+
     yieldResult = result;
 
     if(!iterator || !result || !current) return result;
@@ -633,7 +682,34 @@ ModulePtr<Value> ExprResolver::outcomePayload(ModulePtr<Value> value, bool proce
     auto content = record->constructors.get(global, index).content;
 
     if(!content || isUnit(global, content)) return nullptr;
-    return load(project(placeFor(value, source), ProjectionKind::Downcast, index), source);
+
+    auto place = project(placeFor(value, source), ProjectionKind::Downcast, index);
+
+    /*
+     * A payload whose type this body cannot see is taken out as a *move*.
+     *
+     * The signal is dead the moment the branch that examined it took its payload, so this is a
+     * handover rather than a read - and a projected *load* of an owning value is exactly what
+     * checkTransfer refuses: the handover would find no slot to mark moved, the wrapper would be
+     * dropped at its last use, and whoever received the bytes would drop them too.
+     *
+     * Only where the payload's type is a *variable*, which is the one case a load cannot serve. An
+     * unconstrained variable owns something whatever a caller substitutes, so the read the concrete
+     * readers below make - and which every fixture of `?`, of a skipping lens and of a loop's exit
+     * signal encodes - has no answer here. A `for` loop inside a generic body is what first asks:
+     * the carried value's type is that body's own variable.
+     */
+    auto ownership = ownershipIn(module, functionGen(global, function), content);
+
+    if(isGeneric(global, content) && !ownership.trivialCopy) {
+        auto moved = create<InstMove>(source, 0, content, place);
+        if(!ownership.trivialSink) moved->sink = sinkFor(module, content, source);
+
+        append(moved);
+        return ref(moved);
+    }
+
+    return load(place, source);
 }
 
 /*
@@ -701,31 +777,47 @@ static bool continuationSignature(ExprResolver& resolver, Module& module, Module
     }
 
     /*
-     * The slots the arguments left open, filled with the variables themselves.
+     * Which of the callee's variables this call left open, and then the slots filled with the
+     * variables themselves.
      *
      * At least one is always open - the continuation's own result is what the block below is about
      * to decide, and nothing above it can have - so an empty slot is the ordinary case rather than
-     * a failure. Substituting a variable for itself leaves the position generic, which is exactly
-     * the test below: a handed type that is still generic afterwards is one this call did not
-     * decide, and one that is concrete is decided whatever else was left open.
+     * a failure. What is *not* fine is a handed type that depends on one of them.
+     *
+     * The test is stated over the open positions rather than over the substituted result, and the
+     * difference is a generic caller. `iter fn mapped(xs: [a], f: (a) -> b)` looping over
+     * `each(xs)` decides `each`'s element type completely - it is `mapped`'s own `a` - and the
+     * result is generic all the same, because `a` is a variable here and stays one. Reading
+     * "generic" as "undecided" rejected every adaptor for the one property that makes it an
+     * adaptor.
      */
     auto env = functionGen(global, *target);
+    U64 open = 0;
+
     for(Size i = 0; i < bindings.size(); i++) {
-        if(bindings[i]) bindings[i] = resolver.settleType(bindings[i]);
-        else bindings[i] = (Type*)global[env->types.get(global, i)] - global;
+        if(bindings[i]) {
+            bindings[i] = resolver.settleType(bindings[i]);
+        } else {
+            if(i < 64) open |= U64(1) << i;
+            bindings[i] = (Type*)global[env->types.get(global, i)] - global;
+        }
     }
 
     for(auto declared: callback->args.contents(global)) {
         auto type = declared.type;
 
         if(isGeneric(global, type)) {
-            auto substituted = substituteType(module, type, toBuffer(bindings), source);
+            U64 mentioned = 0;
+            genVariablesIn(global, type, mentioned);
 
-            if(!substituted || isGeneric(global, substituted)) {
+            if(mentioned & open) {
                 module.context.diagnostics.error("this call does not decide what %@ hands over - write the continuation out as a final argument, or say what the type arguments are"_v,
                                                  source, module.context.findName(target->name));
                 return false;
             }
+
+            auto substituted = substituteType(module, type, toBuffer(bindings), source);
+            if(!substituted) return false;
 
             type = substituted;
         }
@@ -872,34 +964,46 @@ ModulePtr<Value> ExprResolver::makeContinuation(Buffer<FunArg> params, const ast
                                                 ast::ParseList<ast::Expr> block, Size from,
                                                 LocationId source, ContinuationShape& shape,
                                                 bool skipping, const ast::ForExpr* loop) {
-    if(functionGen(global, function)) {
-        /*
-         * The same restriction a lambda in a generic body already carries, and for the same reason:
-         * the lifted body names the enclosing function's type variables, so specializing the caller
-         * would have to specialize it too, and a function *value* that is still generic needs the
-         * witness Implementation-Generics.md keeps behind its fence.
-         *
-         * Worth naming for a lens or an iterator, because one of those is generic without looking
-         * it: the variable is the one its own continuation returns. That is what stops an adaptor -
-         * an `iter fn` whose body is a `for` over another - from being writable in this version.
-         */
-        auto kindName = function.funKind == ast::FunKind::Iter ? "an `iter fn` is generic in what the loop body below it returns, so its own body is a generic body"_v
-                      : function.funKind == ast::FunKind::Lens ? "a `lens fn` is generic in what its continuation returns, so its own body is a generic body"_v
-                      : "the lifted body would have to be specialized alongside its caller"_v;
-
-        context.diagnostics.error(loop
-            ? "a `for` loop over an iterator inside a generic function is not available yet - %@"_v
-            : "a lens call inside a generic function is not available yet - %@"_v,
-            source, kindName);
-        return nullptr;
-    }
-
     auto lifted = addAnonymousFunction(module, continuationFunctionName(module), source);
     lifted->used = true;
     lifted->takesEnv = true;
 
+    /*
+     * A continuation lifted out of a *generic* body is generic itself, and shares its lifter's
+     * context rather than getting one of its own.
+     *
+     * The body about to be resolved into it names the enclosing function's type variables - an
+     * `iter fn` is generic in what the loop body below it returns, so its own body is a generic
+     * body, which is why this used to be rejected outright and why an adaptor (an `iter fn` whose
+     * body is a `for` over another) could not be written. What it needs is not a witness: it is to
+     * be specialized alongside whoever lifted it, and sharing the context is what makes one binding
+     * list answer for both. See cloneLifted, which is the other half.
+     *
+     * `liftedFrom` is what tells the clone which symbols are these. Nothing else changes: the body
+     * below is resolved exactly as it is in a concrete function, and the call site is the same call.
+     */
+    if(functionGen(global, function)) {
+        lifted->gen = function.gen;
+        lifted->liftedFrom = (ModulePtr<Function>)(&function - local);
+    }
+
     auto envTuple = new (module.types) TupType;
     envTuple->named = true;
+
+    /*
+     * Generic before the pointer to it is interned, when the lifter is.
+     *
+     * An environment's fields are discovered as the body names them, so this type exists before any
+     * of them do - and `generic` is a *cached* fact that nothing recomputes. The pointer type below
+     * is interned from it immediately, and an interned `%Env` that recorded "not generic" is one
+     * substituteType walks past: the specialization would keep a parameter typed over the caller's
+     * variables while the environment it points at had been substituted, and the two would disagree
+     * about how wide it is.
+     *
+     * Set from the lifter rather than from the fields, because that is the question this answers -
+     * a continuation lifted out of a generic body is generic whether or not it captures anything.
+     */
+    if(functionGen(global, function)) ((Type*)envTuple)->generic = true;
 
     auto envPointer = resolvePointerType(module, (Type*)envTuple - global);
     auto envArgValue = lifted->addArg(module, context.addUnqualifiedName("env", 3), envPointer, source);
@@ -1046,6 +1150,11 @@ ModulePtr<Value> ExprResolver::makeContinuation(Buffer<FunArg> params, const ast
 }
 
 void ExprResolver::emitFunctionReturn(ModulePtr<Value> value, LocationId source) {
+    // Before the split below, because both halves hand the value to a caller: a continuation's exit
+    // carries it out through the enclosing function's frame, which consumes it just as a plain
+    // `ret` does. See returnValue.
+    value = returnValue(value, source);
+
     if(inContinuation) {
         // Left open on purpose: what this block ends with depends on whether any *other* path of
         // the same continuation finishes normally, which is not known until the whole body is

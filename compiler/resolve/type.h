@@ -835,6 +835,11 @@ struct CoreClasses {
     // name for the same reason `Try` is - nothing in an argument list would find it.
     GlobalPtr<TypeClass> rewrap = nullptr;
 
+    // What `xs[i]` dispatches through. Known by name only so that a type with no instance gets a
+    // diagnostic about subscripting rather than the overload set's answer about `get` - the call
+    // itself goes through the ordinary overload set like every other class function.
+    GlobalPtr<TypeClass> index = nullptr;
+
     // The ownership classes. They are known by name for the same reason the five above are:
     // `let ->z = x` and the end of a value's lifetime are language syntax, and what they compile
     // to is a lookup of these.
@@ -1106,6 +1111,10 @@ TypePtr pointeeType(GlobalBase base, TypePtr type);
 bool isFloat(GlobalBase base, TypePtr type);
 bool isNumeric(GlobalBase base, TypePtr type);
 bool isGeneric(GlobalBase base, TypePtr type);
+
+// Which of a context's variables `type` mentions, as a bit per index, or'ed into `mask`. Indices at
+// or above 64 are not reported; see the definition for why that is safe for its callers.
+void genVariablesIn(GlobalBase base, TypePtr type, U64& mask);
 /*
  * Whether a value of this type is carried as a copy in a register rather than as an address.
  *

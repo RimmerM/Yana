@@ -9,7 +9,7 @@
 -- whenever the call site has nothing to hand over, which is the ordinary case for a callback's
 -- result: a lens whose block ends in a statement instantiates its continuation's result with it.
 
-fn identity(value: a) -> a = value
+fn identity(->value: a) -> a = value
 
 fn unitValue() -> {} = {}
 
@@ -37,7 +37,7 @@ fn isSomething(m: Maybe(a)) -> Int = match m:
 -- emit it: it cannot see through the variable, so only the specialization knows the payload occupies
 -- nothing. Writing it anyway is a store with no property to land on, and on JS that is a store over
 -- the record itself - which is how a `Maybe({})` stopped being one.
-fn wrap(x: a) -> Maybe(a) = Just(x)
+fn wrap(->x: a) -> Maybe(a) = Just(x)
 
 fn firstOf(pair: {slot: a, index: Int}) -> Int = pair.index
 
@@ -61,7 +61,7 @@ fn branching(c: Bool) -> Int:
 
 -- Binding a payload that occupies nothing: `inner` names a value with no representation, and the
 -- arm that has none has to produce one anyway.
-fn matching(->m: Maybe(a), fallback: a) -> a = match m:
+fn matching(->m: Maybe(a), ->fallback: a) -> a = match m:
     Just(->inner) -> inner
     Nothing -> fallback
 

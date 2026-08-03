@@ -1,17 +1,19 @@
-31:0: error: an `iter fn` declares what it hands over and uses `yield` in this version - the explicit continuation form would have to write the step signal out, and what its cases mean is decided by the `for` loop rather than by this declaration
-37:4: error: an `iter fn` ends by running out of values rather than by `return` - what it produces is the loop's own signal, which is not something the body names
-46:4: error: `step` belongs to a counted `for` and needs the interval it steps over - write `a .. b step n`, or drop it to iterate what the call yields one at a time
-55:25: error: a `for` step of zero never reaches the end of its range
-63:13: error: upTo is an iterator, so this call has no body to hand its values to - write it as the source of a `for` loop, which is the only thing that supplies one
-65:13: error: `for` iterates a call of a named `iter fn` in this version - a value that is already an iterator would have to be stepped by the loop rather than run by it, which is external iteration
-72:13: error: `for` iterates a call of a named `iter fn` in this version - a value that is already an iterator would have to be stepped by the loop rather than run by it, which is external iteration
-80:13: error: a `for` loop reaches its iterator by name in this version - an iterator passed or returned as a value, which is what an adaptor chain like `xs.filter(p).map(f)` is made of, needs the erased callback ABI
-87:13: error: plain is not an `iter fn`, so a `for` loop has nothing to be the body of - a collection is iterated by an `iter fn` over it rather than directly
-95:13: error: upTo takes 1 arguments before the loop body, but this call was given 0
-104:8: error: this pattern can fail - it does not match Nothing - and a `for` loop has no alternative to take for an element it does not match
-111:8: error: this iterator hands over nothing, so the loop's pattern has nothing to bind - an `iter fn` a `for` loop names has to declare what it yields
-119:8: error: a `for` loop does not produce a value in this version, so `break` cannot carry one - the loop's own value is what the iterator's result would have to hold, which is Analysis-Lens.md's V3
-127:4: error: a `for` loop over an iterator inside a generic function is not available yet - an `iter fn` is generic in what the loop body below it returns, so its own body is a generic body
-126:0: warning: this `iter fn` never yields, so every `for` loop over it runs its body no times
-138:8: error: `break` and `continue` cannot cross a lens call yet - the loop is in the function this block was split out of, and only `return` carries the exit signal past a lens
-144:4: error: a `for` loop over an iterator inside a generic function is not available yet - the lifted body would have to be specialized alongside its caller
+32:54: error: cannot convert Int to a
+32:49: error: cannot convert Int to a
+32:0: warning: this `iter fn` never yields, so every `for` loop over it runs its body no times
+38:4: error: an `iter fn` ends by running out of values rather than by `return` - what it produces is the loop's own signal, which is not something the body names
+47:4: error: `step` belongs to a counted `for` and needs the interval it steps over - write `a .. b step n`, or drop it to iterate what the call yields one at a time
+56:25: error: a `for` step of zero never reaches the end of its range
+64:13: error: upTo is an iterator, so this call has no body to hand its values to - write it as the source of a `for` loop, which is the only thing that supplies one
+66:13: error: `for` iterates a call of a named `iter fn` in this version - a value that is already an iterator would have to be stepped by the loop rather than run by it, which is external iteration
+73:13: error: `for` iterates a call of a named `iter fn` in this version - a value that is already an iterator would have to be stepped by the loop rather than run by it, which is external iteration
+81:13: error: a `for` loop reaches its iterator by name in this version - an iterator passed or returned as a value, which is what an adaptor chain like `xs.filter(p).map(f)` is made of, needs the erased callback ABI
+88:13: error: plain is not an `iter fn`, so a `for` loop has nothing to be the body of - a collection is iterated by an `iter fn` over it rather than directly
+96:13: error: upTo takes 1 arguments before the loop body, but this call was given 0
+105:8: error: this pattern can fail - it does not match Nothing - and a `for` loop has no alternative to take for an element it does not match
+112:8: error: this iterator hands over nothing, so the loop's pattern has nothing to bind - an `iter fn` a `for` loop names has to declare what it yields
+120:8: error: a `for` loop does not produce a value in this version, so `break` cannot carry one - the loop's own value is what the iterator's result would have to hold, which is Analysis-Lens.md's V3
+132:8: error: `break` and `continue` cannot cross a lens call yet - the loop is in the function this block was split out of, and only `return` carries the exit signal past a lens
+141:15: error: cannot convert Int to a
+141:8: error: cannot convert Int to a
+141:8: error: cannot convert Int to a

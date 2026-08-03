@@ -25,6 +25,61 @@ bool isGeneric(GlobalBase base, TypePtr type) {
     return type && base[type]->generic;
 }
 
+/*
+ * Which of a context's variables this type mentions, as a bit per index.
+ *
+ * The same walk substituteType performs, answering "where would a substitution land" rather than
+ * performing one. `generic` is the cutoff and it is exact rather than conservative - it is set
+ * exactly when a variable is reachable inside the type - so a concrete argument costs one load.
+ *
+ * Sixty-four variables is the ceiling, which is the same one a return-root group has. A context
+ * wider than that gets its high variables reported as absent, which makes the callers of this
+ * conservative in the safe direction: a position is treated as not mentioning a variable, and the
+ * caller then leaves that variable alone.
+ */
+void genVariablesIn(GlobalBase base, TypePtr type, U64& mask) {
+    if(!isGeneric(base, type)) return;
+
+    switch(base[type]->kind) {
+        case Type::Gen: {
+            auto index = ((GenType*)base[type])->index;
+            if(index < 64) mask |= U64(1) << index;
+            break;
+        }
+        case Type::Record: {
+            auto record = (RecordType*)base[type];
+            if(!record->instanceOf) break;
+
+            for(auto arg: record->instanceArgs.contents(base)) genVariablesIn(base, arg, mask);
+            break;
+        }
+        case Type::Tup: {
+            auto tuple = (TupType*)base[type];
+            for(Size i = 0; i < tuple->fields.size(); i++) {
+                genVariablesIn(base, tuple->fields.get(base, i).type, mask);
+            }
+            break;
+        }
+        case Type::Ptr:
+            genVariablesIn(base, ((PtrType*)base[type])->to, mask);
+            break;
+        case Type::Array:
+            genVariablesIn(base, ((ArrayType*)base[type])->content, mask);
+            break;
+        case Type::Borrow:
+            genVariablesIn(base, ((BorrowType*)base[type])->to, mask);
+            break;
+        case Type::Fun: {
+            auto function = (FunType*)base[type];
+            for(auto arg: function->args.contents(base)) genVariablesIn(base, arg.type, mask);
+            genVariablesIn(base, function->result, mask);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 static bool anyGeneric(GlobalBase base, Buffer<TypePtr> types) {
     return types.contains([&](TypePtr type) { return isGeneric(base, type); });
 }
@@ -2068,9 +2123,37 @@ static Ownership ownershipInAt(Module& module, GenEnv* env, TypePtr type, U32 de
                 }
             }
 
-            // A generic instantiation cannot be asked for an authored instance - `Maybe(a)` is not
-            // a type anything writes one for - so the structural answer is the whole answer here,
-            // exactly as it is in ownershipOf.
+            /*
+             * An authored instance overrides the structural answer here too, and asking for one is
+             * what this used to skip.
+             *
+             * The reason it skipped was that `Maybe(a)` is not a type anything writes an instance
+             * for, and asking might match whatever `a` last resolved to. The first half is true and
+             * the second is not: findInstance matches the *arguments*, so `Cell(a)` does not reach
+             * an `instance Drop(Cell(Int))` - and an instance written over a parametric head is a
+             * type something does write one for. `Reclaim(Array(a))` is the whole of Core's
+             * container teardown.
+             *
+             * Skipping it made `Array(a)` inside a generic body structurally trivial - a raw pointer
+             * and two counts - so `let ->ys = xs` took sinkValue's duplicate path and left two
+             * owners of one run, and a returned one was released before it left. Both were invisible
+             * in a concrete body, where ownershipOf answers the same question with the instance in
+             * hand, which is why nothing caught it until an adaptor materialized into an array.
+             *
+             * The parametric-head reclaim's *drop* half is deliberately not derived from the type
+             * arguments the way ownershipOf derives it. In here an argument is a variable whose
+             * `Drop` the context decides, and asking would answer for the declaration's own
+             * variable instead. The conservative answer is the reclaim alone, which costs a
+             * generic body region eligibility it might have had and never costs it correctness.
+             */
+            if(hasInstance(module, module.coreClasses.reclaim, type)) result.reclaim = TeardownKind::Authored;
+            if(hasInstance(module, module.coreClasses.drop, type)) result.drop = TeardownKind::Authored;
+
+            if(hasInstance(module, module.coreClasses.sink, type)) {
+                result.authoredSink = true;
+                result.trivialSink = false;
+            }
+
             if(result.needsTeardown() || !result.trivialSink) result.trivialCopy = false;
             return result;
         }
