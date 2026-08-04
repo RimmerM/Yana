@@ -24,31 +24,6 @@ function remove_Handle(self, index) {
   }
 }
 
-function slice_Handle(self, from, to) {
-  var start = from;
-  if (from < 0) {
-    start = 0;
-  }
-  if (start > self.length) {
-    start = self.length;
-  }
-  var end = to;
-  if (to < start) {
-    end = start;
-  }
-  if (end > self.length) {
-    end = self.length;
-  }
-  var v39 = { items: null, length: 0, offset: 0 };
-  var v40 = self.items;
-  var v43 = end - start | 0;
-  var v46 = self.offset + start | 0;
-  v39.items = v40;
-  v39.length = v43;
-  v39.offset = v46;
-  return v39;
-}
-
 function Reclaim_Array_a_reclaim_Handle(value) {
   var count = value.length;
   var i = 0;
@@ -66,7 +41,7 @@ function Reclaim_Array_a_reclaim_Handle(value) {
 // ResolveTest
 function openHandle(id) {
   add_eq_Int(live, "$v", 1, 1);
-  return { id: id };
+  return id;
 }
 
 function idsOf(xs$items, xs$length, xs$offset) {
@@ -74,7 +49,7 @@ function idsOf(xs$items, xs$length, xs$offset) {
   var i = 0;
   L0: for (;;) {
     if (i < xs$length) {
-      total = (Math.imul(total, 10) | 0) + xs$items[xs$offset + i | 0].id | 0;
+      total = (Math.imul(total, 10) | 0) + xs$items[xs$offset + i | 0] | 0;
       i = i + 1 | 0;
       continue L0;
     }
@@ -85,15 +60,13 @@ function idsOf(xs$items, xs$length, xs$offset) {
 
 function container() {
   add_eq_Int(live, "$v", 1, 1);
-  var v153 = { id: 1 };
   add_eq_Int(live, "$v", 1, 1);
-  var v5 = [v153, { id: 2 }];
+  var v5 = [1, 2];
   add_eq_Int(live, "$v", 1, 1);
-  v5[v5.length] = { id: 3 };
+  v5[v5.length] = 3;
   add_eq_Int(live, "$v", 1, 1);
-  var v177 = { id: 4 };
   Drop_Handle_drop(v5[0]);
-  v5[0] = v177;
+  v5[0] = 4;
   if (live.$v !== 3) {
     Reclaim_Array_a_reclaim_Handle(v5);
     return -1;
@@ -105,16 +78,26 @@ function container() {
       var score = 0;
       var v53 = remove_Handle(v5, 1);
       if (!(v53 === null)) {
-        var v62 = v53.id;
         Drop_Handle_drop(v53);
-        score = v62;
+        score = v53;
         if (live.$v !== 2) {
           Reclaim_Array_a_reclaim_Handle(v5);
           return -4;
         } else {
           var whole = idsOf(v5, v5.length, 0);
-          var v103 = slice_Handle({ items: v5, length: v5.length, offset: 0 }, 1, 2);
-          var tail = idsOf(v103.items, v103.length, v103.offset);
+          var v94 = v5.length;
+          var start = 1;
+          if (1 > v94) {
+            start = v94;
+          }
+          var end = 2;
+          if (2 < start) {
+            end = start;
+          }
+          if (end > v94) {
+            end = v94;
+          }
+          var tail = idsOf(v5, end - start | 0, start);
           Reclaim_Array_a_reclaim_Handle(v5);
           return ((Math.imul(score, 1000) | 0) + (Math.imul(whole, 10) | 0) | 0) + tail | 0;
         }
@@ -148,7 +131,7 @@ function main() {
 
 function Drop_Handle_drop(value) {
   sub_eq_Int(live, "$v", 1, 1);
-  closed = closed + value.id | 0;
+  closed = closed + value | 0;
   return;
 }
 

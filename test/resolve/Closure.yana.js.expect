@@ -20,7 +20,7 @@ function applyUnit(f) {
 }
 
 function makeAdder(amount) {
-  return ResolveTest_lambda$0$make({ amount: amount });
+  return ResolveTest_lambda$0$make({ $v: amount });
 }
 
 function makeScaler(scale, offset) {
@@ -28,9 +28,9 @@ function makeScaler(scale, offset) {
 }
 
 function main() {
-  var v43 = ResolveTest_lambda$2$make({ base: 10 })(1);
+  var v43 = ResolveTest_lambda$2$make({ $v: 10 })(1);
   var total = { $v: 0 };
-  ResolveTest_lambda$3$make({ total: { $o: total, $k: "$v", $s: 1 } })();
+  ResolveTest_lambda$3$make({ $v: { $o: total, $k: "$v", $s: 1 } })();
   var add5 = makeAdder(5);
   var b = add5(20);
   drop$_Int_sub_gt_Int(add5);
@@ -42,7 +42,7 @@ function main() {
 
 function ResolveTest_lambda$0$make(env) {
   return function(x) {
-    return x + env.amount | 0;
+    return x + env.$v | 0;
   };
 }
 
@@ -54,13 +54,13 @@ function ResolveTest_lambda$1$make(env) {
 
 function ResolveTest_lambda$2$make(env) {
   return function(x) {
-    return x + env.base | 0;
+    return x + env.$v | 0;
   };
 }
 
 function ResolveTest_lambda$3$make(env) {
   return function() {
-    var v1 = env.total;
+    var v1 = env.$v;
     v1.$o[v1.$k] = v1.$o[v1.$k] + 7 | 0;
     return;
   };

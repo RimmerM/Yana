@@ -1502,6 +1502,14 @@ import Host
    release and no traversal to run - a string has no elements whose lifetimes could end in something,
    which is the one thing §14 says does *not* fold away for a container. That asymmetry is the whole
    of the difference, and it is why this is `@platform`-split rather than a body with a branch in it.
+
+   Implementation-Simplification.md §17 left open whether this should become `Array(U8)`'s derived
+   glue now that the bytes *are* an array. It should not, and the reason is what that glue contains:
+   a walk of every element, and then `releaseRun(value.run)`. At `U8` the walk provably does nothing
+   - a byte's move is a copy and its teardown is empty - so the optimized build would fold it back to
+   the line below, and the unoptimized build would run a loop over every byte of every string. The
+   line below is what the glue reduces to, written directly, and `String.yana.lower.expect` shows it
+   reaching the machine as the placement test and a `freeHeap` with no call left at all.
 -}
 @platform(native) instance Reclaim(String):
     fn reclaim(->value: String) -> {} = releaseRun(stringData(value).bytes.run)

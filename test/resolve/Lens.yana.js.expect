@@ -55,7 +55,7 @@ function inLoop(n) {
   L0: for (;;) {
     if (i < n) {
       i = i + 1 | 0;
-      var v20 = ResolveTest_continuation$10$make({ total: { $o: total, $k: "$v", $s: 1 } });
+      var v20 = ResolveTest_continuation$10$make({ $v: { $o: total, $k: "$v", $s: 1 } });
       var v30 = log + 1 | 0;
       log = v30;
       v20(v30);
@@ -127,7 +127,7 @@ function split_Int(x, body) {
 }
 
 function ResolveTest_continuation$4(value) {
-  var v6 = ResolveTest_continuation$5$make({ x: value });
+  var v6 = ResolveTest_continuation$5$make({ $v: value });
   log = log + 1 | 0;
   return v6(1);
 }
@@ -136,7 +136,7 @@ function ResolveTest_continuation$5$make(env) {
   return function(value) {
     var v10;
     if (value) {
-      v10 = Math.imul(env.x, 2) | 0;
+      v10 = Math.imul(env.$v, 2) | 0;
     } else {
       v10 = 0;
     }
@@ -158,11 +158,11 @@ function ResolveTest_continuation$6(value) {
   return value;
 }
 
-function bumped_Int(c, body) {
-  var v5 = c.value + 1 | 0;
-  c.value = v5;
+function bumped_Int(c$o, c$k, c$s, body) {
+  var v5 = c$o[c$k] + 1 | 0;
+  c$o[c$k] = v5;
   var v9 = body(v5);
-  c.value = c.value + 10 | 0;
+  c$o[c$k] = c$o[c$k] + 10 | 0;
   return v9;
 }
 
@@ -180,7 +180,7 @@ function ResolveTest_continuation$9(b) {
 
 function ResolveTest_continuation$10$make(env) {
   return function(value) {
-    var v2 = env.total;
+    var v2 = env.$v;
     v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
     return;
   };

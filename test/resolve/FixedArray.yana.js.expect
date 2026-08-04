@@ -1,37 +1,11 @@
 "use strict";
-// Collections
-function slice_Int(self, from, to) {
-  var start = from;
-  if (from < 0) {
-    start = 0;
-  }
-  if (start > self.length) {
-    start = self.length;
-  }
-  var end = to;
-  if (to < start) {
-    end = start;
-  }
-  if (end > self.length) {
-    end = self.length;
-  }
-  var v39 = { items: null, length: 0, offset: 0 };
-  var v40 = self.items;
-  var v43 = end - start | 0;
-  var v46 = self.offset + start | 0;
-  v39.items = v40;
-  v39.length = v43;
-  v39.offset = v46;
-  return v39;
-}
-
 // ResolveTest
 function fixedSize() {
   return 16n;
 }
 
 function nestedSize() {
-  return BigInt.asIntN(64, 20n - 4n);
+  return 16n;
 }
 
 function total(xs$items, xs$length, xs$offset) {
@@ -65,8 +39,18 @@ function double(xs) {
 }
 
 function middle(xs$items, xs$length, xs$offset) {
-  var v4 = slice_Int({ items: xs$items, length: xs$length, offset: xs$offset }, 1, 3);
-  return total(v4.items, v4.length, v4.offset);
+  var start = 1;
+  if (1 > xs$length) {
+    start = xs$length;
+  }
+  var end = 3;
+  if (3 < start) {
+    end = start;
+  }
+  if (end > xs$length) {
+    end = xs$length;
+  }
+  return total(xs$items, end - start | 0, xs$offset + start | 0);
 }
 
 function pairSum(p$items, p$length, p$offset) {
@@ -93,46 +77,29 @@ function emptySize() {
 }
 
 function main() {
-  if (16n !== 16n) {
-    return -1;
+  var v24 = [0, 0, 0, 0];
+  v24[0] = 1;
+  v24[1] = 2;
+  v24[2] = 3;
+  v24[3] = 4;
+  if (total(v24, 4, 0) !== 10) {
+    return -3;
   } else {
-    if (BigInt.asIntN(64, 20n - 4n) !== 16n) {
-      return -2;
+    if (middle(v24, 4, 0) !== 5) {
+      return -4;
     } else {
-      var v24 = [0, 0, 0, 0];
-      v24[0] = 1;
-      v24[1] = 2;
-      v24[2] = 3;
-      v24[3] = 4;
-      if (total(v24, 4, 0) !== 10) {
-        return -3;
+      double({ items: v24, length: 4, offset: 0 });
+      if (total(v24, 4, 0) !== 20) {
+        return -5;
       } else {
-        var v231 = slice_Int({ items: v24, length: 4, offset: 0 }, 1, 3);
-        if (total(v231.items, v231.length, v231.offset) !== 5) {
-          return -4;
+        var v108 = [7, 8];
+        if (total(v108, v108.length, 0) !== 15) {
+          return -6;
         } else {
-          double({ items: v24, length: 4, offset: 0 });
-          if (total(v24, 4, 0) !== 20) {
-            return -5;
+          if (padRead() !== 60n) {
+            return -8;
           } else {
-            var v108 = [7, 8];
-            if (total(v108, v108.length, 0) !== 15) {
-              return -6;
-            } else {
-              if (48n !== 48n) {
-                return -7;
-              } else {
-                if (padRead() !== 60n) {
-                  return -8;
-                } else {
-                  if (0n !== 0n) {
-                    return -9;
-                  } else {
-                    return total(v24, 4, 0);
-                  }
-                }
-              }
-            }
+            return total(v24, 4, 0);
           }
         }
       }

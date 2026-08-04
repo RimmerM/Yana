@@ -1,0 +1,70 @@
+{-
+   An element read answered by the element write above it, when the two are not next to each other.
+
+   Implementation-Simplification.md §19. The array literal case was already folded on JS by a
+   peephole over the emitted tree (`foldConstantIndex`), which could only see a subscript of a
+   literal *expression* - so it answered `[10, 20, 30][0]` and nothing else, and it answered it on
+   one target.
+
+   The rule is a place rule and it is in `compiler/opt`, so what it needs is only that the write and
+   the read name the same storage. That is a question `opt_place` has always been able to ask about
+   a field and could not ask about an element, because an element address is `base + index * stride`
+   and the stride was not a number until a backend saw it.
+
+   Each function below removes one property from the shape the peephole needed:
+
+   - `spanned` puts a whole statement, a second array and a second write between the write and the
+     read, so neither is adjacent to a construction. Two arrays are two allocations and the pass is
+     entitled to say so - which is structure rather than provenance, and the only kind of
+     distinctness it claims. `xs[3]` is the boundary in the other direction and is *supposed* to
+     stay a load: the reads are ordered so that it sits past `ys`'s teardown call, and a call may
+     write through any pointer it can be handed;
+   - `overwritten` writes the same element twice, so the answer is the *second* value and reading
+     the literal's own would be wrong;
+   - `computed` spells the index as arithmetic rather than as a literal;
+   - `aliased` is the case that must **not** fold: the index is a parameter, so which element it
+     names is not known here and the write in front of it may be the one being read.
+-}
+
+-- Nothing here is adjacent: two arrays interleave, and a call sits between the write and the read.
+fn spanned() -> Int:
+    let &xs = [1, 2, 3, 4]
+    let &ys = [9, 9]
+
+    xs[1] = 20
+    ys[0] = 5
+
+    return xs[1] + ys[0] + xs[3]
+
+-- The same element twice. 7 is dead and 30 is the answer.
+fn overwritten() -> Int:
+    let &xs = [1, 2, 3]
+    xs[2] = 7
+    xs[2] = 30
+
+    return xs[2]
+
+-- A statically known index that is not written as one.
+fn computed() -> Int:
+    let &xs = [4, 5, 6]
+    let i = 1 :: Int
+
+    xs[i + 1] = 60
+
+    return xs[i + 1] + xs[i]
+
+{-
+   And the guard. `n` is not known here, so `xs[n]` may be the element written above it and may be
+   any other - both readings have to stay reachable, which means the load stays a load.
+
+   Written so that the two answers differ: with the write forgotten the result is 100 + 2, and with
+   it wrongly forwarded past an unknown index it would be 100 + 100.
+-}
+fn aliased(n: Int) -> Int:
+    let &xs = [1, 2, 3]
+    xs[0] = 100
+
+    return xs[0] + xs[n]
+
+-- 20 + 5 + 4 = 29, 30, 60 + 5 = 65, and 100 + 2 = 102.
+fn main() -> Int = spanned() + overwritten() + computed() + aliased(1)

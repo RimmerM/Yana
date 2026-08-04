@@ -15,15 +15,15 @@ function apply(f, x) {
 }
 
 function direct(base) {
-  return ResolveTest_lambda$0$make({ base: base })(1);
+  return ResolveTest_lambda$0$make({ $v: base })(1);
 }
 
 function either(pick, a, b) {
   var f;
   if (pick < 1) {
-    f = ResolveTest_lambda$1$make({ a: a });
+    f = ResolveTest_lambda$1$make({ $v: a });
   } else {
-    f = ResolveTest_lambda$2$make({ b: b });
+    f = ResolveTest_lambda$2$make({ $v: b });
   }
   var v30 = f(10);
   drop$_Int_sub_gt_Int(f);
@@ -31,7 +31,7 @@ function either(pick, a, b) {
 }
 
 function escaping(amount) {
-  return ResolveTest_lambda$3$make({ amount: amount });
+  return ResolveTest_lambda$3$make({ $v: amount });
 }
 
 function main() {
@@ -46,25 +46,25 @@ function main() {
 
 function ResolveTest_lambda$0$make(env) {
   return function(x) {
-    return x + env.base | 0;
+    return x + env.$v | 0;
   };
 }
 
 function ResolveTest_lambda$1$make(env) {
   return function(x) {
-    return x + env.a | 0;
+    return x + env.$v | 0;
   };
 }
 
 function ResolveTest_lambda$2$make(env) {
   return function(x) {
-    return Math.imul(x, env.b) | 0;
+    return Math.imul(x, env.$v) | 0;
   };
 }
 
 function ResolveTest_lambda$3$make(env) {
   return function(x) {
-    return x + env.amount | 0;
+    return x + env.$v | 0;
   };
 }
 

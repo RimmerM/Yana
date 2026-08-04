@@ -98,9 +98,34 @@ struct ArgSummary {
     // than two. Rejected on Sink arguments and on defaulted ones - see resolveSignature.
     bool returnRoot = false;
 
+    /*
+     * Whether anything in the body names this parameter's **own storage**, as opposed to reading
+     * values out of it.
+     *
+     * `returnRoot` is one answer to two questions, and the difference is what this separates. A
+     * `return` marker says the caller must keep the argument alive while the result lives, and it is
+     * true of both of these:
+     *
+     *     fn slice(return self: Flat(a), ...) -> Flat(a)   -- copies self.items *out*
+     *     fn whole(return self: Flat(a)) -> &Flat(a)       -- hands back self's storage
+     *
+     * For the first, a copy of the parameter is as good as the parameter: the pointer it hands back
+     * is the same number and still names the caller's buffer. For the second it is not - the result
+     * would name the copy, and the copy dies with the callee's frame.
+     *
+     * The distinction cannot be read off the provenance analysis, which deliberately conflates the
+     * two: `computeProvenance` seeds a parameter's contents with the parameter itself, because
+     * "reachable through" is the relation Design.md's return-root rule is stated over. So this is
+     * the narrower question asked separately - see deriveSummary.
+     *
+     * Conservative: it is set where such a value exists at all, without checking that it reaches a
+     * `ret`. What reads it is `opt_arg`, where the cost of over-reporting is one flattening declined.
+     */
+    bool namesStorage = false;
+
     bool operator==(const ArgSummary& other) const {
         return requirements == other.requirements && retained == other.retained &&
-               returnRoot == other.returnRoot;
+               returnRoot == other.returnRoot && namesStorage == other.namesStorage;
     }
 };
 

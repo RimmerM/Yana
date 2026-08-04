@@ -316,9 +316,9 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
                 /*
                  * Free, like the native offset it corresponds to: a tuple payload is flattened into
                  * the record's own object, so the constructor's fields are already properties of it.
-                 * Anything else is one property, since a bare payload has no field names to flatten -
-                 * and neither does a tuple payload the Repr made one number, which is one value and
-                 * therefore one property however many fields went into it.
+                 * Which payloads are flattened and which are one `$p` is `payloadIsOneProperty`,
+                 * shared with `eachProperty` - the two are one question, and this is the reader of
+                 * it rather than a second copy of the rule.
                  *
                  * Free in the strongest sense for a folded record, which *is* its payload: there is
                  * nothing anywhere to read, since what the walk has in hand already is the payload or
@@ -327,8 +327,7 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
                  */
                 if(expr && !g.repr.of(step.owner).isNicheFolded() &&
                    record->layout == RecordType::Multi && content &&
-                   !isUnit(g.global, content) &&
-                   (g.global[content]->kind != Type::Tup || !isJsObject(g, content))) {
+                   !isUnit(g.global, content) && payloadIsOneProperty(g, content)) {
                     *expr = field(g, *expr, g.payloadField);
                 }
 

@@ -139,6 +139,33 @@ struct Gen {
      * before anything is emitted.
      */
     HashSet<U32> boxedGlobals;
+
+    /*
+     * The one-field tuples that keep their wrapper - see isTransparentTuple, whose answer this
+     * overrides, and opaqueTuples() which fills it.
+     *
+     * Transparency removes an object, and `genBorrow` has one shape it cannot then name: the
+     * *address* of storage reached through a projection whose type is no longer an object. There is
+     * no slot to point at - the enclosing object's property holds a value rather than a reference -
+     * and the box that would stand in for one is a copy, which is exactly the form B removed. So
+     * those types keep the wrapper, and the wrapper is the slot.
+     *
+     * Whole-program, and it has to be, for the same reason `boxedGlobals` is: a type is constructed
+     * in one function and has its address taken in another, and a shape the two disagree about is a
+     * value written one way and read another.
+     *
+     * **Keyed on the tuple, never on the record that holds it.** `eachProperty` asks about the
+     * payload tuple and `zeroValue` about the record, so an exclusion keyed on the record makes one
+     * of them unwrap and the other not - a value constructed bare and zeroed as an object, which is
+     * a silent wrong answer rather than a diagnostic. The tuple is the thing that would lose the
+     * wrapper, so it is the thing that can be told not to.
+     *
+     * Conservative in one direction on purpose: a tuple is interned on its fields, so excluding one
+     * excludes every declaration with those fields. That costs a wrapper somewhere it was not needed
+     * and cannot cost correctness, which is the trade `boxedGlobals` makes as well.
+     */
+    HashSet<U32> opaqueTuples;
+
     Array<Forward> forward;
     Name tableName;
 
@@ -777,6 +804,17 @@ TypePtr foldedPayload(Gen& g, TypePtr record);
  */
 bool isNewtype(Gen& g, TypePtr type, TypePtr& content);
 
+/*
+ * Whether a constructor's payload is *one* property of the sum's object rather than its own fields
+ * spread across it - see type.cpp.
+ *
+ * Asked here and by the `Downcast` step of the place walk, and the whole point of it being one
+ * function is that those two are the same question: this decides which properties the storage has,
+ * and the walk decides how to reach one. Two answers is a value written into `$p` and read out of a
+ * field that was never created.
+ */
+bool payloadIsOneProperty(Gen& g, TypePtr content);
+
 template<class F>
 void eachProperty(Gen& g, TypePtr type, F&& f) {
     if(!type || isUnit(g.global, type)) return;
@@ -838,9 +876,9 @@ void eachProperty(Gen& g, TypePtr type, F&& f) {
         auto content = constructor.content;
         if(!content || isUnit(g.global, content)) continue;
 
-        // A payload with no field names to flatten, and a payload the Repr made one number, which has
-        // none to flatten *into* - it is one value, so it is one property, exactly as a bare one is.
-        if(g.global[content]->kind != Type::Tup || !isJsObject(g, content)) {
+        // A payload with no field names to flatten, one the Repr made a single number, and one that
+        // *is* its own single field. Each is one value, so each is one property.
+        if(payloadIsOneProperty(g, content)) {
             if(payload && payloadType != content) payloadMixed = true;
             payloadType = content;
             payload = true;
@@ -873,6 +911,10 @@ void eachProperty(Gen& g, TypePtr type, F&& f) {
  * constructor with no content at all, which the callers treat the same way they treat unit.
  */
 bool isNewtype(Gen& g, TypePtr type, TypePtr& content);
+
+// Which one-field tuple's transparency is why this type has no object of its own - the same walk
+// `isNewtype` performs, answering what to exclude rather than what the value is. See type.cpp.
+TypePtr transparentTupleOf(Gen& g, TypePtr type);
 
 // The value a freshly allocated slot of this type holds, with every property it will ever have
 // already present - see type.cpp.

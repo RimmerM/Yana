@@ -227,7 +227,13 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.manyCallSites = managed ? 4 : 8;
             policy.manyPenalty = managed ? 6 : 2;
             policy.blockCost = managed ? 3 : 1;
-            policy.maxBlocks = 8;
+
+            // Sixteen rather than eight, which is `Speed`'s own value. Eight was under the shape
+            // every container hands back: `slice` is four clamps and a descriptor, thirteen blocks,
+            // and the cap refused it before any bonus was weighed. Measured over the corpus, the
+            // pair of this and the memory-result term in `worthInlining` is 29 fewer lines of
+            // emitted JavaScript and 0.15% more lowered native.
+            policy.maxBlocks = 16;
             policy.requested = 32;
             policy.ceiling = managed ? 40 : 48;
             break;
@@ -1099,9 +1105,22 @@ struct Inliner {
          * answer could change something: a callee of one block is the common case and pays nothing
          * either way, and `blockCost` is zero at `InlineLevel::Size`, where a body moves rather than
          * being copied.
+         *
+         * **And not against a memory-typed result**, which is the case the charge was never about.
+         * What it prices is the graft leaving something the caller wanted to see *behind a branch*,
+         * where the caller's block-local passes stop answering. A callee handing back a memory type
+         * has exactly one return block - `describe` requires it, because a slot holds the single
+         * value its storage came from - so the allocation and every write into it land in one block,
+         * together with the caller's own uses of them after the splice. The branching above that is
+         * ordinary code the caller now contains, and `size` is already what prices ordinary code.
+         *
+         * This is what makes a container's `slice` inlinable. Its thirteen blocks are four clamps
+         * that all reconverge before the descriptor is built, so the object it returns is exactly
+         * what the caller takes apart - see Implementation-Simplification.md §21.
          */
         auto blocks = candidate.blocks.size();
         if(blocks > 1 && policy.blockCost && decidesEveryBranch(candidate)) blocks = 1;
+        if(blocks > 1 && policy.blockCost && candidate.resultLocal != Candidate::kNone) blocks = 1;
 
         limit -= I64(blocks - 1) * policy.blockCost;
 

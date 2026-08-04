@@ -76,15 +76,15 @@ function fallbackSkipped(m) {
 
 function bumpMask() {
   effects = effects + 1 | 0;
-  return { bits: 3 };
+  return 3;
 }
 
 function maskSkips() {
-  return Logic_Mask_and_and(0, ResolveTest_deferred$1).bits;
+  return Logic_Mask_and_and(0, ResolveTest_deferred$1);
 }
 
 function maskRuns() {
-  return Logic_Mask_and_and(7, ResolveTest_deferred$2).bits;
+  return Logic_Mask_and_and(7, ResolveTest_deferred$2);
 }
 
 function once(flag, value) {
@@ -121,10 +121,10 @@ function main() {
   if ((ResolveTest_deferred$4() + 1 | 0) === 8) {
     score = score + 1024 | 0;
   }
-  if (Logic_Mask_and_and(0, ResolveTest_deferred$1).bits === 0) {
+  if (Logic_Mask_and_and(0, ResolveTest_deferred$1) === 0) {
     score = score + 2048 | 0;
   }
-  if (Logic_Mask_and_and(7, ResolveTest_deferred$2).bits === 3) {
+  if (Logic_Mask_and_and(7, ResolveTest_deferred$2) === 3) {
     score = score + 4096 | 0;
   }
   return (Math.imul(score, 100) | 0) + effects | 0;
@@ -132,30 +132,28 @@ function main() {
 
 function Logic_Mask_and_and(lhs$bits, rhs) {
   var v11;
-  var lhs = { bits: lhs$bits };
   if (lhs$bits === 0) {
-    v11 = lhs;
+    v11 = lhs$bits;
   } else {
-    var v7 = rhs();
-    v11 = { bits: lhs.bits & v7.bits | 0 };
+    v11 = lhs$bits & rhs() | 0;
   }
   return v11;
 }
 
 function Logic_Mask_and(lhs$bits, rhs$bits) {
-  return { bits: lhs$bits & rhs$bits | 0 };
+  return lhs$bits & rhs$bits | 0;
 }
 
 function Logic_Mask_or(lhs$bits, rhs$bits) {
-  return { bits: lhs$bits | rhs$bits | 0 };
+  return lhs$bits | rhs$bits | 0;
 }
 
 function Logic_Mask_xor(lhs$bits, rhs$bits) {
-  return { bits: lhs$bits ^ rhs$bits | 0 };
+  return lhs$bits ^ rhs$bits | 0;
 }
 
 function Logic_Mask_not(value$bits) {
-  return { bits: value$bits ^ 15 | 0 };
+  return value$bits ^ 15 | 0;
 }
 
 function ResolveTest_deferred$0() {
@@ -165,12 +163,12 @@ function ResolveTest_deferred$0() {
 
 function ResolveTest_deferred$1() {
   effects = effects + 1 | 0;
-  return { bits: 3 };
+  return 3;
 }
 
 function ResolveTest_deferred$2() {
   effects = effects + 1 | 0;
-  return { bits: 3 };
+  return 3;
 }
 
 function ResolveTest_deferred$3() {

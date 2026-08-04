@@ -148,7 +148,202 @@ bool pathsMayOverlap(OptContext& opt, const Place& first, const Place& second) {
     return true;
 }
 
+/*
+ * A pointer value as a base and a constant byte displacement from it.
+ *
+ * `p + i` on a `%T` is `add p, i * strideof T`, so an element address is this shape and nothing
+ * else: one root, and arithmetic that either folds to a number or does not. The walk stops at the
+ * first operand that is not a constant and answers with whatever it stopped on, which makes the
+ * base an SSA value rather than an allocation - and value identity is the whole of what the two
+ * comparisons below need, since two names for one address are one value after CSE.
+ *
+ * This is the disambiguation the file header says belongs *below* the fork. It is here because the
+ * shape it needs arrived: `strideof` used to be an unfoldable question at this altitude, so an
+ * element address was opaque arithmetic and there was nothing to compare - see `foldMetric` in
+ * opt_fold.cpp, which is what made a stride a number one stage before either backend.
+ */
+struct AddressTerm {
+    ModulePtr<Value> base = nullptr;
+    I64 offset = 0;
+};
+
+static AddressTerm addressTerm(OptContext& opt, ModulePtr<Value> pointer) {
+    AddressTerm term { pointer, 0 };
+    if(!pointer) return term;
+
+    // A bound rather than a termination proof - operands in SSA cannot cycle, so this ends on its
+    // own. What the cap stops is a long chain costing more to walk than the fact is worth.
+    for(Size step = 0; step < 8; step++) {
+        auto& value = *opt.local[term.base];
+        if(value.kind != Value::Add && value.kind != Value::Sub) break;
+
+        // The result has to be the address, not an integer that later becomes one: a cast in
+        // between is a reinterpretation this pass has no rule for.
+        if(!isPointer(opt.global, value.type)) break;
+
+        auto& binary = (InstBinary&)value;
+
+        if(auto rhs = constantValueOf(opt, binary.rhs)) {
+            term.offset += value.kind == Value::Add ? I64(rhs.unwrap()) : -I64(rhs.unwrap());
+            term.base = binary.lhs;
+            continue;
+        }
+
+        // `k + p`, which only addition has - a constant minus a pointer is not an address.
+        if(value.kind != Value::Add) break;
+
+        auto lhs = constantValueOf(opt, binary.lhs);
+        if(!lhs) break;
+
+        term.offset += I64(lhs.unwrap());
+        term.base = binary.rhs;
+    }
+
+    return term;
+}
+
+// Whether two pointer values are the same address, which is either the same value or the same
+// displacement from one.
+static bool sameAddress(OptContext& opt, ModulePtr<Value> first, ModulePtr<Value> second) {
+    if(first && first == second) return true;
+
+    auto left = addressTerm(opt, first);
+    auto right = addressTerm(opt, second);
+
+    return left.base && left.base == right.base && left.offset == right.offset;
+}
+
+/*
+ * Whether a place rooted at a pointer stays inside the one value that pointer names.
+ *
+ * The displacement comparison below measures an access as the pointee type's own extent, and that
+ * is only the whole of what the place reaches while every projection lands *within* the pointee. A
+ * field, a downcast, a discriminant and a packed word all do. An `Index` does not - it is how a
+ * host element is a place (`hostElement` in resolve/host.cpp), and `[p][3]` is three elements past
+ * the extent this would have measured - and a `Deref` leaves the value entirely.
+ *
+ * Those two are not lost: they are compared by `pathsMayOverlap`, which already separates two
+ * constant indices, and reaching it is what the equal-displacement case below does.
+ */
+static bool insidePointee(OptContext& opt, const Place& place) {
+    auto& projections = const_cast<Place&>(place).projections;
+
+    for(Size i = 0; i < projections.size(); i++) {
+        switch(projections.get(opt.local, i).kind) {
+            case ProjectionKind::Field:
+            case ProjectionKind::Property:
+            case ProjectionKind::Downcast:
+            case ProjectionKind::Discriminant:
+            case ProjectionKind::Unit:
+                break;
+            default:
+                return false;
+        }
+    }
+
+    return true;
+}
+
+// How many bytes an access through this pointer touches, or zero where that is not a number this
+// target has - a generic pointee is measured out of a descriptor and an opaque one is not measured.
+static U32 accessExtent(OptContext& opt, ModulePtr<Value> pointer) {
+    if(!pointer) return 0;
+
+    auto type = pointeeType(opt.global, opt.local[pointer]->type);
+    if(!type || isGeneric(opt.global, type)) return 0;
+
+    auto& repr = opt.repr.of(type);
+    return repr.opaque ? 0 : repr.size;
+}
+
+/*
+ * Whether two address bases are storage that cannot be one piece.
+ *
+ * Deliberately not provenance, which this pass declines: each case below is a *structural*
+ * guarantee that two instructions made two things, and each is a fact some other rule in this file
+ * already rests on.
+ *
+ *  - the address of two different **locals**, which is `placesMayAlias`'s own rule for a `Local`
+ *    root reached one indirection later. Two slots are two pieces of storage, and taking the
+ *    address of each does not make them one;
+ *  - two different **allocations**, which `clobbers` already calls "storage that has just come into
+ *    existence with nothing in it" - so the second cannot be the first;
+ *  - two different **host array literals**, which is that same statement on the managed target: a
+ *    `[…]` evaluates to an array nothing else holds.
+ *
+ * Only ever between two of a kind. An `Alloc` and an `Address` may perfectly well be the same
+ * storage - the address of the slot the allocation filled is exactly that - and mixing them is the
+ * one way this could be read as saying more than it does.
+ */
+static bool basesSeparate(OptContext& opt, ModulePtr<Value> first, ModulePtr<Value> second) {
+    if(!first || !second || first == second) return false;
+
+    auto& left = *opt.local[first];
+    auto& right = *opt.local[second];
+    if(left.kind != right.kind) return false;
+
+    switch(left.kind) {
+        case Value::Address: {
+            auto& a = ((InstAddress&)left).place;
+            auto& b = ((InstAddress&)right).place;
+
+            return a.root == PlaceRoot::Local && b.root == PlaceRoot::Local && a.local != b.local;
+        }
+        case Value::Alloc:
+            return true;
+        case Value::Native:
+            return ((InstNative&)left).op == NativeOp::HostArray &&
+                   ((InstNative&)right).op == NativeOp::HostArray;
+        default:
+            return false;
+    }
+}
+
+/*
+ * Two pointer-rooted places that provably do not touch each other.
+ *
+ * Either two roots that are not one piece of storage, or one root and two byte ranges that do not
+ * meet. The second is the array literal's whole question: `[10, 20, 30]` writes three elements
+ * through one buffer pointer at three displacements, and without it each write forgets the two in
+ * front of it and no element is ever known.
+ *
+ * Two *unrelated* pointers are still not separated. Which of those name the same storage is
+ * provenance rather than shape - the question this pass has always declined, and the one
+ * opt_promote.cpp asks of a local it has already proved contained.
+ */
+static bool addressesSeparate(OptContext& opt, const Place& a, const Place& b) {
+    auto left = addressTerm(opt, a.pointer);
+    auto right = addressTerm(opt, b.pointer);
+
+    // Independent of the displacements and of the paths: no offset from one of these reaches the
+    // other, so neither place has to stay inside its pointee for this to hold.
+    if(basesSeparate(opt, left.base, right.base)) return true;
+
+    if(!insidePointee(opt, a) || !insidePointee(opt, b)) return false;
+    if(!left.base || left.base != right.base || left.offset == right.offset) return false;
+
+    auto leftExtent = accessExtent(opt, a.pointer);
+    auto rightExtent = accessExtent(opt, b.pointer);
+    if(!leftExtent || !rightExtent) return false;
+
+    return left.offset + I64(leftExtent) <= right.offset ||
+           right.offset + I64(rightExtent) <= left.offset;
+}
+
 bool placesMayAlias(OptContext& opt, const Place& a, const Place& b) {
+    /*
+     * Two raw pointers, which are separable exactly as far as arithmetic over one base goes - see
+     * `addressesSeparate`. Where they are the same address the paths decide, which is what makes
+     * two elements of one host array two pieces of storage: there the displacement is zero on both
+     * sides and the element is an `Index` projection.
+     */
+    if(a.root == PlaceRoot::Pointer && b.root == PlaceRoot::Pointer) {
+        if(addressesSeparate(opt, a, b)) return false;
+        if(sameAddress(opt, a.pointer, b.pointer)) return pathsMayOverlap(opt, a, b);
+
+        return true;
+    }
+
     // A raw pointer may name anything at all, and a borrow may name anything the borrow checker let
     // it be taken of - which is a question about provenance rather than about the place, and one
     // this pass does not ask. opt_promote.cpp does ask it, of a local it has already proved contained.
@@ -166,7 +361,12 @@ bool samePlace(OptContext& opt, const Place& first, const Place& second) {
     if(first.root != second.root) return false;
     if(first.root == PlaceRoot::Local && first.local != second.local) return false;
     if(first.root == PlaceRoot::Global && first.global != second.global) return false;
-    if(first.root == PlaceRoot::Pointer || first.root == PlaceRoot::Borrow) {
+    if(first.root == PlaceRoot::Pointer) {
+        // Two computations of one address, which is the same place however many times the program
+        // spelled it. `xs[0] = 10` and the read of `xs[0]` below it are two `add base, 0`s, and
+        // before this they were two pointers this pass had no way to call equal.
+        if(!sameAddress(opt, first.pointer, second.pointer)) return false;
+    } else if(first.root == PlaceRoot::Borrow) {
         if(first.pointer != second.pointer) return false;
     }
 
@@ -297,7 +497,24 @@ struct Forwarder {
     void forgetAliasing(Place& place) {
         auto viaPointer = place.root == PlaceRoot::Pointer;
 
+        /*
+         * The same rule read from the other end: a write to a local no pointer in this function can
+         * name cannot reach anything a pointer *does* name.
+         *
+         * `pointerSafe` says a raw pointer has no route to this storage, and that is one statement
+         * about two directions. Only one of them was being used, and the missing one costs exactly
+         * what the used one buys: `[10, 20, 30]` writes its elements through the buffer pointer and
+         * then writes the array's own `length`, and without this that last ordinary field write
+         * forgets all three elements one instruction before anything reads them.
+         */
+        auto safeTarget = !viaPointer && pointerSafe(place);
+
         for(Size i = known.size(); i-- > 0;) {
+            if(safeTarget && known[i].place.root == PlaceRoot::Pointer &&
+               (!known[i].aliased || known[i].alias.root == PlaceRoot::Pointer)) {
+                continue;
+            }
+
             if(viaPointer && pointerSafe(known[i].place) &&
                (!known[i].aliased || pointerSafe(known[i].alias))) {
                 continue;

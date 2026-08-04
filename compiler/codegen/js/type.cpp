@@ -212,22 +212,24 @@ FieldProperty fieldProperty(Gen& g, TypePtr type, U16 index) {
  * exactly the place Analysis-JS.md's contract is about - `data Array(a) {items: %a}` made every array
  * `{items: hostArray}` rather than the host array.
  *
- * Three exclusions, each of which is a case where the field is not the whole of the value:
+ * Four exclusions, each of which is a case where the field is not the whole of the value:
  *
  *  - a scalarized tuple, which is a `number` and has no property to remove;
  *  - a `@box`ed field, where the wrapper is the indirection rather than the value behind it;
  *  - a unit field, which contributes no property at all - so the object is already empty and the
- *    field has no value for the wrapper to *be*.
+ *    field has no value for the wrapper to *be*;
+ *  - a type whose **address is taken through a projection**, which then has no slot to name - see
+ *    `Gen::opaqueTuples`.
  *
- * ## Why only a raw pointer
+ * ## Why this is general, and was not
  *
- * Because that is the case where the field is *already* a host reference, so removing the wrapper
- * removes an object and changes nothing else about what the value is. Every other one-field tuple
- * was tried and each of them moves a second question: a wrapper over a `number` is a value where an
- * object was, so a `&` of it stops being the object and becomes the triple, and a local holding one
- * needs boxed storage it did not need before. Those are all *correct* forms and none of them is what
- * this is for - `Array(a)`'s wrapper is the one Analysis-JS.md's contract names, and it is the one
- * whose removal is free.
+ * It was restricted to a *raw pointer* field, on the argument that this is the case where the field
+ * is already a host reference - so removing the wrapper removes an object and changes nothing else
+ * about what the value is. The general form was measured then at twenty-five failing fixtures.
+ *
+ * Re-measured after B, I and J it was two, and with the two whole-program exclusions above it is
+ * none. Most of what stood in the way was never about wrappers: it was the reference forms B settled
+ * and the ownership instructions J discharged. See Implementation-Simplification.md §18 and §20.
  */
 static bool isTransparentTuple(Gen& g, TypePtr type, TypePtr& content) {
     if(!type || g.global[type]->kind != Type::Tup) return false;
@@ -240,11 +242,64 @@ static bool isTransparentTuple(Gen& g, TypePtr type, TypePtr& content) {
     auto& repr = g.repr.of(type);
     if(repr.opaque || repr.scalarBits != 0) return false;
 
+    // The whole-program answer, keyed on the *tuple* rather than on whatever holds it - see
+    // Gen::opaqueTuples for why that distinction is the one that goes silently wrong.
+    if(g.opaqueTuples.contains(U32(type))) return false;
+
     auto field = tuple.fields.get(g.global, 0);
-    if(field.boxed || !field.type || g.global[field.type]->kind != Type::Ptr) return false;
+    if(field.boxed || !field.type || isUnit(g.global, field.type)) return false;
 
     content = field.type;
     return true;
+}
+
+/*
+ * Whether a constructor's payload is one property of the sum's object rather than its own fields.
+ *
+ * Three shapes, and each of them is one *value* however it was declared, so each is one property:
+ *
+ *  - a payload that is not a tuple, which has no field names to flatten;
+ *  - a tuple the Repr made a single number, which has nothing to flatten *into*;
+ *  - a tuple that **is** its one field, which is the case this was missing. Transparency says the
+ *    tuple has no object of its own, so there are no properties of it to spread - and flattening it
+ *    anyway named a property nothing ever wrote. `Either = Plain {n} | Held {h: Handle}` built its
+ *    `Held` arm as a bare `Handle`: the payload write went to the record itself, so the value had no
+ *    `$tag` and every match on it read the wrong arm.
+ *
+ * The third case is why this is a function rather than a condition written twice. `isJsObject` of a
+ * transparent tuple answers about the *field* - which is the right answer to "is this value an
+ * object" and the wrong one to "does this value have properties of its own" - so the two readers
+ * asking it directly disagreed exactly where those two questions come apart.
+ */
+bool payloadIsOneProperty(Gen& g, TypePtr content) {
+    if(!content || g.global[content]->kind != Type::Tup) return true;
+
+    TypePtr inner = nullptr;
+    if(isNewtype(g, content, inner)) return true;
+
+    return !isJsObject(g, content);
+}
+
+/*
+ * The one-field tuple whose transparency is why this type has no object of its own, or null where
+ * there is no such tuple.
+ *
+ * `isNewtype` asks the same walk in the other direction: it answers *what* a value is, and this
+ * answers *which decision made it that*, which is the thing an exclusion has to be able to name.
+ * One level deep, because that is as far as `isNewtype` looks - a record is its single
+ * constructor's content, and that content either is the tuple or is not.
+ */
+TypePtr transparentTupleOf(Gen& g, TypePtr type) {
+    TypePtr content = nullptr;
+    if(isTransparentTuple(g, type, content)) return type;
+
+    auto record = recordType(g, type);
+    if(!record || record->layout != RecordType::Single || record->constructors.isEmpty()) {
+        return nullptr;
+    }
+
+    auto inner = record->constructors.get(g.global, 0).content;
+    return isTransparentTuple(g, inner, content) ? inner : nullptr;
 }
 
 bool isNewtype(Gen& g, TypePtr type, TypePtr& content) {
@@ -550,16 +605,35 @@ TypePtr blockCopyShape(Gen& g, InstNative& instruction) {
      */
     if(!to || to != from || isUnit(g.global, to)) return nullptr;
 
-    // The count is the *question* "how wide is `to`" rather than an answer folded during resolution,
-    // so this recognizes the question instead of recomputing the answer and comparing. That is
-    // strictly better: it matches whatever this target's Repr turns the metric into, where comparing
-    // against a number would stop matching the moment the two disagreed.
-    if(count->kind != Value::TypeMetric) return nullptr;
+    /*
+     * The count, which is "how wide is `to`" in either of the two forms that question now has.
+     *
+     * The unfolded one is the question itself, and matching it rather than recomputing an answer is
+     * what made this independent of what any Repr said. `compiler/opt` now folds a concrete metric
+     * (see `foldMetric` in opt_fold.cpp), so the same count also arrives as a number - and the
+     * number is trustworthy for the reason the metric was: it was produced by a `ReprTable` built
+     * for *this* target, on a program `@platform` already split per target, so it is this file's own
+     * Repr answer one stage earlier rather than a resolution-time guess about it.
+     *
+     * Both forms are accepted rather than one, because the optimizer is switchable: `-no-opt` and
+     * the fixture runner's equivalence check compile the same program with the fold off, and a
+     * recognizer that only knew the folded form would exclude this function from that half of the
+     * comparison.
+     */
+    if(count->kind == Value::TypeMetric) {
+        auto& metric = *(const InstTypeMetric*)count;
+        if(metric.metric != TypeMetricKind::Size || metric.of != to) return nullptr;
 
-    auto& metric = *(const InstTypeMetric*)count;
-    if(metric.metric != TypeMetricKind::Size || metric.of != to) return nullptr;
+        return to;
+    }
 
-    return to;
+    if(count->kind == Value::ConstInt && !isGeneric(g.global, to)) {
+        if(((ConstInt*)count)->value != U64(g.repr.of(to).size)) return nullptr;
+
+        return to;
+    }
+
+    return nullptr;
 }
 
 } // namespace js

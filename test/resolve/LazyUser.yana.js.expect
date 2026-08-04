@@ -103,11 +103,11 @@ function beforeLoop(count, v) {
 }
 
 function capturing() {
-  return ResolveTest_deferred$0$make({ n: 5 })();
+  return ResolveTest_deferred$0$make({ $v: 5 })();
 }
 
 function mutableCapture() {
-  return ResolveTest_deferred$1$make({ n: { $o: { $v: 41 }, $k: "$v", $s: 1 } })();
+  return ResolveTest_deferred$1$make({ $v: { $o: { $v: 41 }, $k: "$v", $s: 1 } })();
 }
 
 function main() {
@@ -166,7 +166,7 @@ function main() {
 
 function ResolveTest_deferred$0$make(env) {
   return function() {
-    var v1 = env.n;
+    var v1 = env.$v;
     effects = effects + 32 | 0;
     return v1 + 32 | 0;
   };
@@ -174,7 +174,7 @@ function ResolveTest_deferred$0$make(env) {
 
 function ResolveTest_deferred$1$make(env) {
   return function() {
-    var v1 = env.n;
+    var v1 = env.$v;
     return Math.imul(v1.$o[v1.$k], 2) | 0;
   };
 }

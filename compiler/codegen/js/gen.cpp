@@ -751,6 +751,58 @@ void boxedGlobals(Gen& g) {
 }
 
 /*
+ * Which one-field tuples keep their wrapper - see Gen::opaqueTuples.
+ *
+ * Transparency is what removes the object, and `genBorrow` has exactly one shape it cannot name
+ * afterwards: the address of storage reached *through a projection* whose type is no longer an
+ * object. A whole local has the slot `prepareLocals` boxed and a root that is already a pointer has
+ * itself, but a field of an object holds a *value*, so there is nothing for `%T` to point at and the
+ * box that would stand in for one is a copy - which is precisely the form B removed. `Sink.yana`'s
+ * `&p.left` is the case, and `ErasedRelocate.yana`'s `relocate(p)` is the same shape arriving
+ * through the erased ABI.
+ *
+ * So those types are told to keep the wrapper, and the wrapper is then the slot.
+ *
+ * Whole-program for `boxedGlobals`' reason: a type is constructed in one function and has its
+ * address taken in another, and the two cannot see each other. Read off `InstBorrow` and
+ * `InstAddress` alone, which are the only instructions that produce a reference.
+ *
+ * **One pass is enough, and that is a property rather than an assumption.** Excluding a tuple can
+ * only turn a type that was not an object into one, never the other way round - so a second round
+ * could find no case this one did not. What it *cannot* see is `aliasBorrows` and the boxed-local
+ * list, which are per-function and not built yet; both would only let a type back in, so not seeing
+ * them costs a wrapper and never a miscompile.
+ */
+void opaqueTuples(Gen& g) {
+    for(auto module: g.program.modules) {
+        for(auto pointer: module->functionOrder.contents(g.local)) {
+            if(!hasBody(g, module, pointer) || g.excluded.contains(U32(pointer))) continue;
+
+            // `placeType` walks the place against the function's own schema, so the walk has to be
+            // told which function it is in - the one piece of per-function state this needs.
+            g.function = g.local[pointer];
+
+            eachInstruction(g, *g.function, [&](Value& instruction) {
+                const Place* place = nullptr;
+                if(instruction.kind == Value::Borrow) place = &((InstBorrow&)instruction).place;
+                else if(instruction.kind == Value::Address) place = &((InstAddress&)instruction).place;
+
+                // A reference to a whole root is the case that already has an answer, whichever
+                // root it is - a boxed local, or a pointer that is its own slot.
+                if(!place || const_cast<Place*>(place)->projections.isEmpty()) return;
+
+                auto type = placeType(g, *place);
+                if(!type || isJsObject(g, type)) return;
+
+                if(auto tuple = transparentTupleOf(g, type)) g.opaqueTuples.add(U32(tuple));
+            });
+        }
+    }
+
+    g.function = nullptr;
+}
+
+/*
  * Naming, which happens before anything is generated and all of it at once: a function's very first
  * statement may name a global, a table holds the address of a function nothing has emitted yet, and
  * a local must not shadow either.
@@ -1087,6 +1139,12 @@ Ptr<File> genProgram(Context& context, Program& program) {
     if(program.root) g.headerType = closureHeaderPlaceType(*program.root);
 
     excludeFunctions(g);
+
+    // Ahead of `boxedGlobals`, which asks `isJsObject` - and what a type's shape is has to be
+    // settled before anything reads it, or two answers to one question is exactly the split
+    // Gen::opaqueTuples exists to prevent.
+    opaqueTuples(g);
+
     boxedGlobals(g);
     nameProgram(g);
 

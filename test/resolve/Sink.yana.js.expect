@@ -37,9 +37,9 @@ function nested() {
 function unwrap(e) {
   var v12;
   if (e.$tag === 0) {
-    v12 = e.n;
+    v12 = e.$p;
   } else {
-    v12 = e.h.value;
+    v12 = e.$p.value;
   }
   return v12;
 }
@@ -48,16 +48,16 @@ function tagged(flag) {
   var e;
   var v22;
   if (flag) {
-    e = { $tag: 1, n: 0n, h: { value: 7n } };
+    e = { $tag: 1, $p: { value: 7n } };
   } else {
-    e = { $tag: 0, n: 100n, h: { value: 0n } };
+    e = { $tag: 0, $p: 100n };
   }
-  var f = { $tag: 0, n: 0n, h: { value: 0n } };
+  var f = { $tag: 0, $p: null };
   moveInit$Either(f, e);
   if (f.$tag === 0) {
-    v22 = f.n;
+    v22 = f.$p;
   } else {
-    v22 = f.h.value;
+    v22 = f.$p.value;
   }
   return v22;
 }
@@ -67,8 +67,8 @@ function consume(it) {
 }
 
 function captured(h) {
-  var v1 = { h: { value: 0n } };
-  Sink_Handle_sink(v1.h, h);
+  var v1 = { value: 0n };
+  Sink_Handle_sink(v1, h);
   return ResolveTest_lambda$0$make(v1);
 }
 
@@ -173,17 +173,16 @@ function moveInit$Nest(to, from) {
 
 function moveInit$Either(to, from) {
   to.$tag = from.$tag;
-  to.n = from.n;
-  to.h = { value: from.h.value };
+  to.$p = from.$p;
   if (from.$tag === 1) {
-    Sink_Handle_sink(to.h, from.h);
+    Sink_Handle_sink(to.$p, from.$p);
   }
   return;
 }
 
 function ResolveTest_lambda$0$make(env) {
   return function() {
-    return env.h.value;
+    return env.value;
   };
 }
 

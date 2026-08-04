@@ -1,12 +1,11 @@
 
 nestedSize<complex>(): Long {
   b_0 {
-    %v_1 = sub 20, 4: Long
-    ret %v_1
+    ret 16
   }
 }
 
-slice(Int)<complex>(%v_0: Ptr, %self: Ptr, %from: Long, %to: Long) {
+slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long, %to: Long) {
   b_1 {
     %v_2 = cmp_ilt %from, 0: Int
     je %v_2, b_3, b_4
@@ -22,65 +21,56 @@ slice(Int)<complex>(%v_0: Ptr, %self: Ptr, %from: Long, %to: Long) {
 
   b_5 {
     %v_6 = phi [b_3, 0], [b_4, %from]: Long
-    %v_7 = add %self, 8: Ptr
-    %v_8 = loads %v_7, 8: Long
-    %v_9 = cmp_igt %v_6, %v_8: Int
-    je %v_9, b_10, b_11
+    %v_7 = cmp_igt %v_6, %self$length: Int
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    jmp b_10
+  }
+
+  b_9 {
+    jmp b_10
   }
 
   b_10 {
-    %v_12 = add %self, 8: Ptr
-    %v_13 = loads %v_12, 8: Long
-    jmp b_14
+    %v_11 = phi [b_8, %self$length], [b_9, %v_6]: Long
+    %v_12 = cmp_ilt %to, %v_11: Int
+    je %v_12, b_13, b_14
   }
 
-  b_11 {
-    jmp b_14
+  b_13 {
+    jmp b_15
   }
 
   b_14 {
-    %v_15 = phi [b_10, %v_13], [b_11, %v_6]: Long
-    %v_16 = cmp_ilt %to, %v_15: Int
-    je %v_16, b_17, b_18
+    jmp b_15
   }
 
-  b_17 {
-    jmp b_19
+  b_15 {
+    %v_16 = phi [b_13, %v_11], [b_14, %to]: Long
+    %v_17 = cmp_igt %v_16, %self$length: Int
+    je %v_17, b_18, b_19
   }
 
   b_18 {
-    jmp b_19
+    jmp b_20
   }
 
   b_19 {
-    %v_20 = phi [b_17, %v_15], [b_18, %to]: Long
-    %v_21 = add %self, 8: Ptr
-    %v_22 = loads %v_21, 8: Long
-    %v_23 = cmp_igt %v_20, %v_22: Int
-    je %v_23, b_24, b_25
+    jmp b_20
   }
 
-  b_24 {
-    %v_26 = add %self, 8: Ptr
-    %v_27 = loads %v_26, 8: Long
-    jmp b_28
-  }
-
-  b_25 {
-    jmp b_28
-  }
-
-  b_28 {
-    %v_29 = phi [b_24, %v_27], [b_25, %v_20]: Long
-    %v_30 = alloca 16, 8: Ptr
-    %v_31 = load %self, 8: Ptr
-    %v_32 = imul %v_15, 4: Long
-    %v_33 = add %v_31, %v_32: Ptr
-    %v_34 = sub %v_29, %v_15: Long
-    store %v_30, %v_33, 8
-    %v_35 = add %v_30, 8: Ptr
-    store %v_35, %v_34, 8
-    copy %v_0, %v_30, 16
+  b_20 {
+    %v_21 = phi [b_18, %self$length], [b_19, %v_16]: Long
+    %v_22 = alloca 16, 8: Ptr
+    %v_23 = imul %v_11, 4: Long
+    %v_24 = add %self$items, %v_23: Ptr
+    %v_25 = sub %v_21, %v_11: Long
+    store %v_22, %v_24, 8
+    %v_26 = add %v_22, 8: Ptr
+    store %v_26, %v_25, 8
+    copy %v_0, %v_22, 16
     ret 
   }
 }
@@ -109,8 +99,10 @@ double<complex>(%xs: Ptr) {
     %v_12 = imul %v_10, 4: Long
     %v_13 = add %v_11, %v_12: Ptr
     %value = loads %v_13, 4: Int
-    %v_14 = add %value, %value: Int
-    store %v_13, %v_14, 4
+    %v_14 = imul %v_10, 4: Long
+    %v_15 = add %v_11, %v_14: Ptr
+    %v_16 = add %value, %value: Int
+    store %v_15, %v_16, 4
     %v_4 = add %v_2, 1: Int
     jmp b_1
   }
@@ -123,7 +115,7 @@ middle<complex>(%xs$items: Ptr, %xs$length: Long): Int {
     %v_1 = add %xs, 8: Ptr
     store %v_1, %xs$length, 8
     %v_2 = alloca 16, 8: Ptr
-    call_complex slice(Int), %v_2, %xs, 1, 3
+    call_complex slice(Int), %v_2, %xs$items, %xs$length, 1, 3
     %xs$items = load %v_2, 8: Ptr
     %v_3 = add %v_2, 8: Ptr
     %xs$length = loads %v_3, 8: Long
@@ -188,141 +180,105 @@ padStride<complex>(): Long {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = cmp_neq 16, 16: Int
-    %v_2 = imm 4: Long
-    %v_3 = imm 2: Long
-    je %v_1, b_4, b_5
+    %v_1 = alloca 16, 4: Ptr
+    %v_2 = mul 0, 4: Long
+    %v_3 = add %v_1, %v_2: Ptr
+    store %v_3, 1, 4
+    %v_4 = mul 1, 4: Long
+    %v_5 = add %v_1, %v_4: Ptr
+    store %v_5, 2, 4
+    %v_6 = mul 2, 4: Long
+    %v_7 = add %v_1, %v_6: Ptr
+    store %v_7, 3, 4
+    %v_8 = mul 3, 4: Long
+    %v_9 = add %v_1, %v_8: Ptr
+    store %v_9, 4, 4
+    %v_10 = call_complex total, %v_1, 4: Int
+    %v_11 = cmp_neq %v_10, 10: Int
+    %v_12 = imm 4: Long
+    %v_13 = imm 4: Long
+    %v_14 = imm 2: Long
+    je %v_11, b_15, b_16
   }
 
-  b_5 {
-    %v_6 = sub 20, 4: Long
-    %v_7 = cmp_neq %v_6, 16: Int
-    je %v_7, b_8, b_9
-  }
-
-  b_9 {
-    %v_10 = alloca 16, 4: Ptr
-    %v_11 = mul 0, 4: Long
-    %v_12 = add %v_10, %v_11: Ptr
-    store %v_12, 1, 4
-    %v_13 = mul 1, 4: Long
-    %v_14 = add %v_10, %v_13: Ptr
-    store %v_14, 2, 4
-    %v_15 = mul 2, 4: Long
-    %v_16 = add %v_10, %v_15: Ptr
-    store %v_16, 3, 4
-    %v_17 = mul 3, 4: Long
-    %v_18 = add %v_10, %v_17: Ptr
-    store %v_18, 4, 4
-    %v_19 = call_complex total, %v_10, 4: Int
-    %v_20 = cmp_neq %v_19, 10: Int
-    je %v_20, b_21, b_22
-  }
-
-  b_22 {
+  b_16 {
     %xs = alloca 16, 8: Ptr
-    store %xs, %v_10, 8
-    %v_23 = add %xs, 8: Ptr
-    store %v_23, 4, 8
+    store %xs, %v_1, 8
+    %v_17 = add %xs, 8: Ptr
+    store %v_17, %v_12, 8
+    %v_18 = alloca 16, 8: Ptr
+    call_complex slice(Int), %v_18, %v_1, %v_12, 1, 3
+    %xs$items = load %v_18, 8: Ptr
+    %v_19 = add %v_18, 8: Ptr
+    %xs$length = loads %v_19, 8: Long
+    %v_20 = call_complex total, %xs$items, %xs$length: Int
+    %v_21 = cmp_neq %v_20, 5: Int
+    je %v_21, b_22, b_23
+  }
+
+  b_23 {
     %v_24 = alloca 16, 8: Ptr
-    call_complex slice(Int), %v_24, %xs, 1, 3
-    %xs$items = load %v_24, 8: Ptr
+    store %v_24, %v_1, 8
     %v_25 = add %v_24, 8: Ptr
-    %xs$length = loads %v_25, 8: Long
-    %v_26 = call_complex total, %xs$items, %xs$length: Int
-    %v_27 = cmp_neq %v_26, 5: Int
+    store %v_25, 4, 8
+    call_complex double, %v_24
+    %v_26 = call_complex total, %v_1, 4: Int
+    %v_27 = cmp_neq %v_26, 20: Int
     je %v_27, b_28, b_29
   }
 
   b_29 {
     %v_30 = alloca 16, 8: Ptr
-    store %v_30, %v_10, 8
-    %v_31 = add %v_30, 8: Ptr
-    store %v_31, 4, 8
-    call_complex double, %v_30
-    %v_32 = call_complex total, %v_10, 4: Int
-    %v_33 = cmp_neq %v_32, 20: Int
-    je %v_33, b_34, b_35
+    %v_31 = alloca 8, 4: Ptr
+    store %v_30, %v_31, 8
+    %v_32 = add %v_30, 8: Ptr
+    %v_33 = load %v_32, 4: Int
+    %v_34 = and %v_33, 18446744072635809792: Int
+    %v_35 = or %v_34, 2: Int
+    %v_36 = and %v_35, 18446744070488326143: Int
+    %v_37 = add %v_30, 8: Ptr
+    store %v_37, %v_36, 4
+    %v_38 = add %v_31, 0: Ptr
+    store %v_38, 7, 4
+    %v_39 = add %v_31, 4: Ptr
+    store %v_39, 8, 4
+    %v_40 = add %v_30, 12: Ptr
+    store %v_40, 2, 4
+    %v_41 = call_complex total, %v_31, 2: Int
+    %v_42 = cmp_neq %v_41, 15: Int
+    je %v_42, b_43, b_44
   }
 
-  b_35 {
-    %v_36 = alloca 16, 8: Ptr
-    %v_37 = alloca 8, 4: Ptr
-    store %v_36, %v_37, 8
-    %v_38 = add %v_36, 8: Ptr
-    %v_39 = load %v_38, 4: Int
-    %v_40 = and %v_39, 18446744072635809792: Int
-    %v_41 = or %v_40, 2: Int
-    %v_42 = and %v_41, 18446744070488326143: Int
-    %v_43 = add %v_36, 8: Ptr
-    store %v_43, %v_42, 4
-    %v_44 = add %v_37, 0: Ptr
-    store %v_44, 7, 4
-    %v_45 = add %v_37, 4: Ptr
-    store %v_45, 8, 4
-    %v_46 = add %v_36, 12: Ptr
-    store %v_46, 2, 4
-    %v_47 = call_complex total, %v_37, 2: Int
-    %v_48 = cmp_neq %v_47, 15: Int
-    je %v_48, b_49, b_50
+  b_44 {
+    %v_45 = call_complex padRead: Long
+    %v_46 = cmp_neq %v_45, 60: Int
+    je %v_46, b_47, b_48
   }
 
-  b_50 {
-    %v_51 = cmp_neq 48, 48: Int
-    je %v_51, b_52, b_53
-  }
-
-  b_53 {
-    %v_54 = call_complex padRead: Long
-    %v_55 = cmp_neq %v_54, 60: Int
-    je %v_55, b_56, b_57
-  }
-
-  b_57 {
+  b_48 {
     %none = alloca 1, 1: Ptr
-    %v_58 = cmp_neq 0, 0: Int
-    je %v_58, b_59, b_60
+    %v_49 = call_complex total, %v_1, 4: Int
+    ret %v_49
   }
 
-  b_60 {
-    %v_61 = call_complex total, %v_10, 4: Int
-    ret %v_61
-  }
-
-  b_59 {
-    ret 18446744073709551607
-  }
-
-  b_56 {
+  b_47 {
     ret 18446744073709551608
   }
 
-  b_52 {
-    ret 18446744073709551609
-  }
-
-  b_49 {
+  b_43 {
     ret 18446744073709551610
   }
 
-  b_34 {
+  b_28 {
     ret 18446744073709551611
   }
 
-  b_28 {
+  b_22 {
     ret 18446744073709551612
   }
 
-  b_21 {
+  b_15 {
     ret 18446744073709551613
-  }
-
-  b_8 {
-    ret 18446744073709551614
-  }
-
-  b_4 {
-    ret 18446744073709551615
   }
 }
 
@@ -352,15 +308,13 @@ padRead<complex>(): Long {
     copy %v_13, %v_5, 9
     %v_14 = add %v_7, 0: Ptr
     %v_15 = loads %v_14, 8: Long
-    %v_16 = imm 16: Long
-    %v_17 = add %v_7, %v_16: Ptr
-    %v_18 = loads %v_17, 8: Long
-    %v_19 = add %v_15, %v_18: Long
-    %v_20 = imul %v_16, 2: Long
-    %v_21 = add %v_7, %v_20: Ptr
-    %v_22 = loads %v_21, 8: Long
-    %v_23 = add %v_19, %v_22: Long
-    ret %v_23
+    %v_16 = add %v_7, 16: Ptr
+    %v_17 = loads %v_16, 8: Long
+    %v_18 = add %v_15, %v_17: Long
+    %v_19 = add %v_7, 32: Ptr
+    %v_20 = loads %v_19, 8: Long
+    %v_21 = add %v_18, %v_20: Long
+    ret %v_21
   }
 }
 

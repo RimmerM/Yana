@@ -14,12 +14,14 @@
  *
  * ## What is discharged, and what is not
  *
- * `Drop` is, into the calls it stands for. `Move` deliberately is **not**: it is the relocation
- * itself rather than a decision about one - `codegen/js` emits nothing for it but the name, and
- * reads its kind to alias where a load would deep-clone - so there is no lower form to turn it into.
- * It is admitted to `clonableKind` instead. `Swap` and `Exchange` are not discharged yet; they are
- * ordinary expansions with nothing in the way, and until they are done a body containing one is
- * declined exactly as it is today.
+ * `Drop` is, into the calls it stands for. `Swap` and `Exchange` are, into the relocations and
+ * writes `resolve/lower.cpp` already expanded them into - the code moves up, and moving it up is
+ * what lets a body containing one be inlined at all.
+ *
+ * `Move` deliberately is **not**: it is the relocation itself rather than a decision about one -
+ * `codegen/js` emits nothing for it but the name, and reads its kind to alias where a load would
+ * deep-clone - so there is no lower form to turn it into. It is admitted to `clonableKind` instead,
+ * which is also what lets the two expansions above be written in terms of it rather than past it.
  *
  * `Init`, `Assign`, `Borrow` and `Alloc` are not ownership instructions by the time this runs and
  * were never on the list - see §7's "deliberately not discharged".
@@ -32,9 +34,11 @@
  * postcondition is per callee, and `opt_inline`'s `describe` refuses `callee->gen` outright, so an
  * erased body is never in a candidate. What holds afterwards is:
  *
- *     a non-generic body contains no `Drop`
+ *     a non-generic body contains no `Drop`, `Swap` or `Exchange`
  *
- * and that is the statement `clonableKind` needs.
+ * and that is the statement `clonableKind` needs. The same bound applies to all three and for the
+ * same reason - each is asked of the *place's* type rather than of the function, because a generic
+ * body swaps concrete things too.
  *
  * ## Why this runs inside the optimized build rather than in front of both
  *
@@ -176,6 +180,148 @@ struct Discharge {
         return true;
     }
 
+    /*
+     * A relocation out of a place, as the `InstMove` it is.
+     *
+     * `Move` is not discharged and does not need to be - it is the lower form already, and J
+     * admitted it to `clonableKind` for that reason. So the two expansions below are written *in
+     * terms of* it rather than past it, which is also what keeps them one line each: whatever
+     * relocating this type costs, a move is where that cost is already written down, sink and all.
+     */
+    /*
+     * Whether a relocation of this type is expressible here at all.
+     *
+     * Two shapes are not, and both are cases `resolve/lower.cpp` handles with machinery that only
+     * exists one stage down:
+     *
+     *  - a type this target made **one number**. `InstMove` of a memory type means "the address of
+     *    the source", and a scalarized record has no address - lowering reads and writes it as bits
+     *    through `materializeScalar` and `narrowRefAccess` instead. Discharging one produced a move
+     *    of an address that was never there, and the backend followed it;
+     *  - an **opaque** type, which has no layout to relocate.
+     *
+     * Declining is free: what is left is the instruction that was already there, lowered exactly as
+     * it is today. What is lost is the inlining of a body containing one, which is the thing this
+     * pass buys and not something it owes.
+     */
+    bool relocatable(TypePtr content) {
+        if(!content || isGeneric(opt.global, content)) return false;
+
+        auto& repr = opt.repr.of(content);
+        return !repr.opaque && repr.scalarBits == 0;
+    }
+
+    ModulePtr<Value> relocate(Block& block, InstList& into, LocationId source, TypePtr content,
+                              const Place& from, ModulePtr<Function> sink) {
+        auto move = createInst<InstMove>(*opt.module, *opt.function, block, source, 0, content, from);
+        move->sink = sink;
+        if(sink) opt.local[sink]->used = true;
+
+        into.push(move);
+        return (ModulePtr<Value>)(move - opt.local);
+    }
+
+    void write(Block& block, InstList& into, LocationId source, const Place& to,
+               ModulePtr<Value> value, Value::Kind kind) {
+        into.push(createInst<InstInit>(*opt.module, *opt.function, block, source, 0,
+                                       opt.program.scalar.unit, to, value, kind));
+    }
+
+    /*
+     * `swap(a, b)` - three relocations through a temporary.
+     *
+     * The temporary is not removable and the reason is the operation: neither place may be written
+     * until both have been read, so something has to hold the first while the second is written over
+     * it. `resolve/lower.cpp` says exactly this and does exactly this; what moves up here is the
+     * shape, not the reasoning.
+     *
+     * The writes are `Assign` into `a` and `b` and `Init` into the temporary, which is the ordinary
+     * reading of both: the two places held values and the temporary is fresh. Neither owes a drop by
+     * now - the drop pass has been and gone, and a move is what emptied each place before it was
+     * written.
+     */
+    bool dischargeSwap(Block& block, Size index, InstSwap& swap) {
+        auto content = swap.content;
+        if(!relocatable(content)) return false;
+
+        auto source = swap.source;
+        InstList replacement;
+
+        auto temporary = createInst<InstAlloc>(*opt.module, *opt.function, block, source, 0, content,
+                                               maxLimit<U32>);
+        auto storage = (ModulePtr<Value>)(temporary - opt.local);
+        temporary->local = opt.function->addLocal(*opt.module, content, 0, storage);
+        replacement.push(temporary);
+
+        auto held = Place::inLocal(temporary->local);
+
+        write(block, replacement, source, held,
+              relocate(block, replacement, source, content, swap.a, swap.sink), Value::Init);
+        write(block, replacement, source, swap.a,
+              relocate(block, replacement, source, content, swap.b, swap.sink), Value::Assign);
+        write(block, replacement, source, swap.b,
+              relocate(block, replacement, source, content, held, swap.sink), Value::Assign);
+
+        insertInstructions(opt, block, index, replacement);
+        eraseInstruction(opt, (ModulePtr<Inst>)(&swap - opt.local));
+
+        opt.changed = true;
+        return true;
+    }
+
+    /*
+     * `exchange(place, value)` - one relocation out and one write in, with no temporary.
+     *
+     * What is coming in is already a value rather than a place, so there is nothing to save from
+     * being written over. A scalar result comes out in a register, so there the read is a plain load
+     * and there is no relocation to perform at all; a memory-typed one needs storage, and gets a
+     * fresh allocation exactly as the swap's temporary does.
+     *
+     * The slot is the resolver's own - `InstExchange::local` - and what changes is only which
+     * instruction owns it. That matters: a slot's `Local::value` has to be the instruction that
+     * *made* the storage, because lowering materializes a local through it. Pointing it at a load
+     * of the same slot asks lowering for a value it has not lowered yet, and leaving it pointing at
+     * the erased exchange leaves a slot naming an instruction that is no longer in any block. An
+     * `InstAlloc` over the same slot is neither, and `setLocalValue` is the one door that writes
+     * both halves of the pairing.
+     */
+    bool dischargeExchange(Block& block, Size index, InstExchange& exchange) {
+        auto content = exchange.type;
+        if(!relocatable(content)) return false;
+
+        auto source = exchange.source;
+        auto pointer = (ModulePtr<Inst>)(&exchange - opt.local);
+        InstList replacement;
+        ModulePtr<Value> old = nullptr;
+
+        if(exchange.local == maxLimit<U32>) {
+            auto loaded = createInst<InstLoadPlace>(*opt.module, *opt.function, block, source,
+                                                    exchange.name, content, exchange.place);
+            replacement.push(loaded);
+            old = (ModulePtr<Value>)(loaded - opt.local);
+        } else {
+            auto allocation = createInst<InstAlloc>(*opt.module, *opt.function, block, source,
+                                                    exchange.name, content, exchange.local);
+            old = (ModulePtr<Value>)(allocation - opt.local);
+            replacement.push(allocation);
+            opt.function->setLocalValue(opt.local, exchange.local, old);
+
+            write(block, replacement, source, Place::inLocal(exchange.local),
+                  relocate(block, replacement, source, content, exchange.place, exchange.sink),
+                  Value::Init);
+        }
+
+        // After the read, which is the whole of what the temporary in a swap exists to avoid needing.
+        write(block, replacement, source, exchange.place, exchange.value, Value::Assign);
+
+        insertInstructions(opt, block, index, replacement);
+        replaceValue(opt, (ModulePtr<Value>)pointer, old);
+        eraseInstruction(opt, pointer);
+
+        opt.changed = true;
+        return true;
+    }
+
     void run(Function& function) {
         opt.function = &function;
 
@@ -192,8 +338,19 @@ struct Discharge {
                 auto pointer = block->instructions.get(opt.local, i);
                 auto& instruction = *opt.local[pointer];
 
-                if(instruction.kind != Value::Drop) continue;
-                dischargeDrop(*block, i, (InstDrop&)instruction);
+                switch(instruction.kind) {
+                    case Value::Drop:
+                        dischargeDrop(*block, i, (InstDrop&)instruction);
+                        break;
+                    case Value::Swap:
+                        dischargeSwap(*block, i, (InstSwap&)instruction);
+                        break;
+                    case Value::Exchange:
+                        dischargeExchange(*block, i, (InstExchange&)instruction);
+                        break;
+                    default:
+                        break;
+                }
             }
         }
     }

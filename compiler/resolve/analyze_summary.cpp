@@ -22,6 +22,44 @@ bool deriveSummary(Analysis& analysis) {
         summary.args.push(analysis.module.arena, ArgSummary());
     }
 
+    /*
+     * Which slots have their own storage named by something, rather than only read out of.
+     *
+     * Four instructions produce a value that *is* a piece of storage rather than a copy of what was
+     * in it: a borrow, an address, a relocation, and a load whose type is a memory type - for which
+     * the value is the place, as `flowRound`'s own comment says. Everything else reads contents, and
+     * a copy of the contents is as good as the original wherever the original was a copy too.
+     *
+     * Rooted at a *local*, which is what makes this the question `opt_arg` needs. `borrow(self.items
+     * + i)` is rooted at a pointer, so it names the buffer the caller owns and not the parameter -
+     * which is exactly the case a rebuilt parameter leaves untouched.
+     *
+     * See ArgSummary::namesStorage.
+     */
+    IndexSet named;
+    named.reset(analysis.localCount);
+
+    for(Size i = 0; i < analysis.instructionCount; i++) {
+        auto& instruction = *analysis.local[analysis.order[i]];
+
+        switch(instruction.kind) {
+            case Value::Borrow:
+            case Value::Address:
+            case Value::Move:
+                break;
+            case Value::LoadPlace:
+                if(isMemoryType(analysis.global, instruction.type)) break;
+                continue;
+            default:
+                continue;
+        }
+
+        eachPlace(instruction, [&](const Place& place) {
+            auto root = rootLocal(analysis, place);
+            if(root != maxLimit<U32> && root < analysis.localCount) named.set(root, true);
+        });
+    }
+
     U16 index = 0;
     U64 declared = 0;
 
@@ -37,6 +75,7 @@ bool deriveSummary(Analysis& analysis) {
         if(slot != maxLimit<U32>) {
             updated.requirements = analysis.demand[slot];
             updated.retained = analysis.escaped[slot];
+            updated.namesStorage = slot < named.size() && named[slot];
         }
 
         // A `&` parameter is a declaration that the caller's storage must be writable, whatever

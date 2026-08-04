@@ -6,16 +6,15 @@ elementStride<complex>(): Long {
     store %node, 0, 8
     %v_2 = add %node, 8: Ptr
     store %v_2, %v_1, 8
-    %v_3 = imm 16: Long
-    %next = add %node, %v_3: Ptr
-    %v_4 = sub %next, %node: Long
-    %v_5 = idiv %v_4, %v_3: Long
-    %v_6 = imul %v_5, 100: Long
-    %v_7 = bitcast %node: Ptr
-    %v_8 = bitcast %next: Ptr
-    %v_9 = sub %v_8, %v_7: Long
-    %v_10 = add %v_6, %v_9: Long
-    ret %v_10
+    %next = add %node, 16: Ptr
+    %v_3 = sub %next, %node: Long
+    %v_4 = idiv %v_3, 16: Long
+    %v_5 = imul %v_4, 100: Long
+    %v_6 = bitcast %node: Ptr
+    %v_7 = bitcast %next: Ptr
+    %v_8 = sub %v_7, %v_6: Long
+    %v_9 = add %v_5, %v_8: Long
+    ret %v_9
   }
 }
 
@@ -107,23 +106,23 @@ pointerFields<complex>(): Long {
     store %second, 2, 8
     %v_4 = add %second, 8: Ptr
     store %v_4, %v_3, 8
-    store %first, 5, 8
-    %v_5 = add %first, 8: Ptr
-    store %v_5, %second, 8
-    %v_6 = loads %first, 8: Long
-    %v_7 = add %first, 8: Ptr
-    %v_8 = load %v_7, 8: Ptr
-    %v_9 = loads %second, 8: Long
-    %v_10 = add %v_6, %v_9: Long
-    %v_11 = add %first, 8: Ptr
-    %v_12 = load %v_11, 8: Ptr
-    store %v_12, %v_10, 8
-    %v_13 = loads %first, 8: Long
-    %v_14 = imul %v_13, 100: Long
+    %v_5 = imm 5: Long
+    store %first, %v_5, 8
+    %v_6 = add %first, 8: Ptr
+    store %v_6, %second, 8
+    %v_7 = loads %first, 8: Long
+    %v_8 = add %first, 8: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    %v_10 = loads %second, 8: Long
+    %v_11 = add %v_10, %v_5: Long
+    %v_12 = add %first, 8: Ptr
+    %v_13 = load %v_12, 8: Ptr
+    store %v_13, %v_11, 8
+    %v_14 = loads %first, 8: Long
     %v_15 = add %first, 8: Ptr
     %v_16 = load %v_15, 8: Ptr
     %v_17 = loads %v_16, 8: Long
-    %v_18 = add %v_14, %v_17: Long
+    %v_18 = add %v_17, 500: Long
     ret %v_18
   }
 }
@@ -208,15 +207,14 @@ blockOperations<complex>(): Long {
     store %v_4, %v_3, 8
     %v_5 = bitcast %target: Ptr
     %v_6 = bitcast %source: Ptr
-    %v_7 = imm 16: Long
-    copy %v_5, %v_6, %v_7
+    copy %v_5, %v_6, 16
     %copied = loads %target, 8: Long
-    %v_8 = bitcast %target: Ptr
-    setpattern %v_8, %v_7, 0
-    %v_9 = imul %copied, 10: Long
-    %v_10 = loads %target, 8: Long
-    %v_11 = add %v_9, %v_10: Long
-    ret %v_11
+    %v_7 = bitcast %target: Ptr
+    setpattern %v_7, 16, 0
+    %v_8 = imul %copied, 10: Long
+    %v_9 = loads %target, 8: Long
+    %v_10 = add %v_8, %v_9: Long
+    ret %v_10
   }
 }
 
@@ -257,10 +255,7 @@ total<complex>(%node: Ptr): Long {
 
 sizes<complex>(): Long {
   b_0 {
-    %v_1 = imul 8, 100: Long
-    %v_2 = add %v_1, 10: Long
-    %v_3 = add %v_2, 2: Long
-    ret %v_3
+    ret 812
   }
 }
 
@@ -286,14 +281,11 @@ main<complex>(): Int {
     %v_11 = add %v_9, %v_10: Long
     %v_12 = call_complex blockOperations: Long
     %v_13 = add %v_11, %v_12: Long
-    %v_14 = imul 8, 100: Long
-    %v_15 = add %v_14, 10: Long
-    %v_16 = add %v_15, 2: Long
-    %v_17 = add %v_13, %v_16: Long
-    %v_18 = call_complex maybePointer: Long
-    %result = add %v_17, %v_18: Long
-    %v_19 = cast %result: Int
-    ret %v_19
+    %v_14 = add %v_13, 812: Long
+    %v_15 = call_complex maybePointer: Long
+    %result = add %v_14, %v_15: Long
+    %v_16 = cast %result: Int
+    ret %v_16
   }
 }
 

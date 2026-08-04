@@ -69,7 +69,7 @@ function mixed(n) {
   B0: {
     var total = { $v: 0 };
     if (n !== 0) {
-      var v16 = findFirst_Outcome_Int(n, ResolveTest_continuation$2$make({ total: { $o: total, $k: "$v", $s: 1 } }));
+      var v16 = findFirst_Outcome_Int(n, ResolveTest_continuation$2$make({ $v: { $o: total, $k: "$v", $s: 1 } }));
       var v18 = Try_Maybe_a_a_toOutcome_Outcome_Int({ $tag: v16.$tag, $p: v16.$p });
       if (v18.$tag === 1) {
         return 5;
@@ -167,7 +167,7 @@ function ResolveTest_continuation$2$make(env) {
     if (found > 100) {
       return found;
     } else {
-      var v7 = env.total;
+      var v7 = env.$v;
       v7.$o[v7.$k] = v7.$o[v7.$k] + found | 0;
       return null;
     }
@@ -218,7 +218,7 @@ function attempt_Int(open, body) {
 }
 
 function ResolveTest_continuation$5(value) {
-  var v11 = Try_Maybe_a_a_toOutcome_Int(findFirst_Int(value, ResolveTest_continuation$6$make({ d: value })));
+  var v11 = Try_Maybe_a_a_toOutcome_Int(findFirst_Int(value, ResolveTest_continuation$6$make({ $v: value })));
   if (v11 === null) {
     return 0;
   } else {
@@ -228,7 +228,7 @@ function ResolveTest_continuation$5(value) {
 
 function ResolveTest_continuation$6$make(env) {
   return function(found) {
-    return found + env.d | 0;
+    return found + env.$v | 0;
   };
 }
 

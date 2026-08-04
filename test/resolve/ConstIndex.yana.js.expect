@@ -1,0 +1,35 @@
+"use strict";
+// ResolveTest
+function spanned() {
+  var v5 = [1, 2, 3, 4];
+  var v19 = [];
+  v19[1] = 9;
+  v5[1] = 20;
+  v19[0] = 5;
+  return v5[3] + 25 | 0;
+}
+
+function overwritten() {
+  return 30;
+}
+
+function computed() {
+  return 65;
+}
+
+function aliased(n) {
+  var v5 = [];
+  v5[1] = 2;
+  v5[2] = 3;
+  v5[0] = 100;
+  return v5[n] + 100 | 0;
+}
+
+function main() {
+  var v4 = (spanned() + overwritten() | 0) + computed() | 0;
+  var v10 = [];
+  v10[1] = 2;
+  v10[2] = 3;
+  v10[0] = 100;
+  return v4 + 102 | 0;
+}

@@ -704,8 +704,45 @@ struct Folder {
         }
     }
 
+    /*
+     * How wide a concrete type is on the target this program is being optimized for.
+     *
+     * `InstTypeMetric` exists so that layout travels in the IR rather than being decided during
+     * resolution, and its header says who is entitled to answer: *"the native path folds it against
+     * its own Repr table, and the JS path against its own"*. This stage is one of those paths -
+     * `optimizeProgram` takes a `ReprTarget` and builds the table for it, and a JS build and a
+     * native build never share a program - so folding it here is that same answer given one stage
+     * earlier, not a second opinion about it.
+     *
+     * Earlier is what it is for. Both backends already fold this, and folding it *there* is too
+     * late for everything that reads a constant: an element address is `base + index * strideof T`,
+     * and until the stride is a number that address is opaque arithmetic, so two accesses to one
+     * array cannot be told apart and nothing about an array literal is statically known. See
+     * `addressOffsetOf` in opt_place.cpp, which is the reader this exists for.
+     *
+     * Only a *concrete* type. A generic one has no number here at all - it is a load out of the
+     * caller's descriptor, which is `genSlot`'s answer and belongs to the stage that has one.
+     */
+    ModulePtr<Value> foldMetric(Value& instruction) {
+        auto& metric = (InstTypeMetric&)instruction;
+        if(!metric.of || isGeneric(opt.global, metric.of)) return nullptr;
+
+        auto& repr = opt.repr.of(metric.of);
+        auto number = metric.metric == TypeMetricKind::Align ? repr.align
+                    : metric.metric == TypeMetricKind::Stride ? repr.stride
+                    : repr.size;
+
+        // At the metric's own type rather than at a word, on rule 1 above: what a backend reads
+        // back out of the constant has to be what it would have written into the register.
+        auto facts = foldableInt(opt, instruction.type);
+        if(!facts) return nullptr;
+
+        return constant(instruction, instruction.type, narrowToWidth(U64(number), facts.unwrap()));
+    }
+
     ModulePtr<Value> fold(ModulePtr<Inst> pointer, Value& instruction) {
         if(instruction.kind == Value::Cmp) return foldCompare((InstCmp&)instruction);
+        if(instruction.kind == Value::TypeMetric) return foldMetric(instruction);
 
         /*
          * Every conversion is decided here rather than in the switch below, because none of them is

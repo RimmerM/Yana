@@ -300,12 +300,27 @@ bool argumentCanFlatten(OptContext& opt, Function& function, Size index) {
     auto arg = opt.local[function.args.get(opt.local, index)];
 
     if(arg->convention != ast::BindType::Borrow) return false;
-    if(arg->returnRoot) return false;
 
-    if(index < function.summary.args.size() &&
-       function.summary.args.get(opt.local, index).retained) {
-        return false;
-    }
+    if(index >= function.summary.args.size()) return false;
+    auto summary = function.summary.args.get(opt.local, index);
+
+    if(summary.retained) return false;
+
+    /*
+     * A `return` parameter, which is declined only where the result may name the parameter's own
+     * storage - see ArgSummary::namesStorage.
+     *
+     * The marker alone used to decline it, and that was one answer to two questions. What a rebuilt
+     * parameter breaks is a result *rooted in the parameter's storage*, because that storage is then
+     * the callee's frame; what it does not break is a result holding values copied out of it, since
+     * a copied pointer is the same address and still names whatever the caller owns.
+     *
+     * `slice(return self: Flat(a), from, to) -> Flat(a)` is the second, and it is the shape every
+     * container hands back: a descriptor built out of `self.items`, `self.offset` and two numbers.
+     * Declining it meant a `Flat` was allocated by the caller *to be passed*, taken apart by nobody,
+     * and rebuilt to be returned - Implementation-Simplification.md §16's first paragraph.
+     */
+    if(arg->returnRoot && summary.namesStorage) return false;
 
     auto type = arg->type;
     if(!isMemoryType(opt.global, type)) return false;
@@ -408,6 +423,31 @@ Place materialize(OptContext& opt, Block& block, InstList& into, Value& at, Modu
 }
 
 /*
+ * The storage an argument's fields are in.
+ *
+ * `storageOf` answers "which place is this value", and for every ordinary aggregate argument that is
+ * the whole of it: a memory-typed value *is* a place, so the argument is a `LoadPlace` and the place
+ * is the caller's own record.
+ *
+ * A `return` parameter's argument is the exception, and it is why this exists. The marker makes the
+ * loan outlive the call, so `borrowArgument` hands over an explicit `InstBorrow` rather than the
+ * loaded value - and that borrow has a slot of its own holding an *address*. `storageOf` finds that
+ * slot, which is a correct answer to the question it asks and the wrong storage to project record
+ * fields out of: it is one pointer wide and has no fields at all. Reading `Flat.items` and
+ * `Flat.length` out of it produced two loads at offset zero, so a slice's length arrived as its own
+ * base address.
+ *
+ * What the fields are in is the place the borrow *names*, which the instruction carries.
+ */
+Maybe<Place> argumentStorage(OptContext& opt, ModulePtr<Value> value) {
+    if(value && opt.local[value]->kind == Value::Borrow) {
+        return Just(((InstBorrow*)opt.local[value])->place);
+    }
+
+    return storageOf(opt, value);
+}
+
+/*
  * One call site, rewritten against its callee's plan.
  *
  * Answers how many instructions it put in front of the call, so that the walk over the block can
@@ -436,7 +476,7 @@ Size rewriteCall(OptContext& opt, HashMap<U32, bool>& taken, Block& block, Size 
             continue;
         }
 
-        auto base = storageOf(opt, value);
+        auto base = argumentStorage(opt, value);
         auto record = base ? base.unwrap() : materialize(opt, block, loads, call, value);
 
         for(Size j = 0; j < plan.count[i]; j++) {

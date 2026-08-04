@@ -718,6 +718,110 @@ bool foldArrayElements(Gen& g, StmtList& list, Size index) {
     return changed;
 }
 
+/*
+ * What is left of an expression whose value nothing wants.
+ *
+ * A statement position discards its expression, so everything in it that only *computes* is dead and
+ * what remains is whatever it does on the way. `upTo(n, body) === 1;` is the everyday case - the
+ * comparison was a branch's condition until the branch collapsed - and what the program still has to
+ * do is the call.
+ *
+ * Answers the replacement, or null to discard the statement outright.
+ *
+ * Two node kinds are deliberately left whole even though the operator itself is pure. A ternary and
+ * a short-circuit `&&`/`||` evaluate an operand *conditionally*, so keeping that operand alone would
+ * run it on paths that did not - which is the one thing no rewrite in this file may do, and the same
+ * rule `eachOperand`'s `conditional` flag exists for.
+ *
+ * And where more than one operand still does something, the node stays: JS can sequence two effects
+ * in one expression with a comma, and this tree has no comma - so the honest answer is to leave a
+ * shape it cannot spell rather than to pick one of the two.
+ */
+JsPtr<Expr> discardedExpr(Gen& g, JsPtr<Expr> pointer) {
+    if(effectsOf(g, pointer).inert()) return nullptr;
+
+    auto expr = g.base[pointer];
+    if(isEffectful(expr)) return pointer;
+
+    switch(expr->kind) {
+        case Expr::Field: case Expr::Index: case Expr::Unary: case Expr::Array: case Expr::Object:
+            break;
+        case Expr::Binary: {
+            auto op = ((BinaryExpr*)expr)->op;
+            if(op == BinaryOp::LogicalAnd || op == BinaryOp::LogicalOr) return pointer;
+            break;
+        }
+        default:
+            return pointer;
+    }
+
+    JsPtr<Expr> only = nullptr;
+    auto several = false;
+
+    eachOperand(g, expr, [&](JsPtr<Expr>& operand, bool) {
+        if(effectsOf(g, operand).inert()) return;
+        if(only) several = true;
+        only = operand;
+    });
+
+    if(several || !only) return pointer;
+    return discardedExpr(g, only);
+}
+
+// `f();` where nothing wants the value - see discardedExpr for what that leaves.
+bool foldDiscarded(Gen& g, StmtList& list, Size index) {
+    auto stmt = g.base[list.get(g.base, index)];
+    if(stmt->kind != Stmt::Expression) return false;
+
+    auto& expression = *(ExprStmt*)stmt;
+    auto kept = discardedExpr(g, expression.value);
+
+    if(!kept) {
+        list.remove(g.base, index);
+        return true;
+    }
+
+    if(kept == expression.value) return false;
+
+    expression.value = kept;
+    return true;
+}
+
+/*
+ * `if (c) {}` -> `c;`, and `if (c) {} else {}` with it.
+ *
+ * An `if` whose arms are both empty tests a condition and does nothing with the answer, so what is
+ * left of it is whatever evaluating the condition does. That is a statement where the condition has
+ * effects and nothing at all where it does not.
+ *
+ * It is not a shape anything emits on purpose. It is what the passes above *leave*: a branch whose
+ * arms were two `return`s of unit becomes two empty lists once flow.cpp has recovered the structure,
+ * and `Iter.yana`'s `stopAt` - a `for` loop whose body may stop early, called for its effects -
+ * reaches exactly that. Removing it here rather than in `flow.cpp` is the same division the rest of
+ * this file works under: the recovery builds one statement per edge, and which of them are worth
+ * keeping is a question about the tree it built.
+ *
+ * The condition is *not* descended into for closure bodies. A function expression inside a discarded
+ * condition is still evaluated where the condition is - `effectsOf` says whether that matters - and
+ * nothing here moves it anywhere.
+ */
+bool foldEmptyIf(Gen& g, StmtList& list, Size index) {
+    auto pointer = list.get(g.base, index);
+    auto stmt = g.base[pointer];
+    if(stmt->kind != Stmt::If) return false;
+
+    auto& branch = *(IfStmt*)stmt;
+    if(branch.then.isNotEmpty() || branch.otherwise.isNotEmpty()) return false;
+
+    if(effectsOf(g, branch.cond).inert()) {
+        list.remove(g.base, index);
+        return true;
+    }
+
+    list.set(g.base, index, asStmt(g, make<ExprStmt>(g, branch.cond)));
+    return true;
+}
+
 // Whether one statement has anything at all to do with a name - its own expression, every nested
 // body, and every closure reached from either. The conservative half of the sink below: a statement
 // a declaration moves past has to be one that cannot tell.
@@ -941,13 +1045,61 @@ bool foldTernaryCompare(Gen& g, JsPtr<Expr>& slot) {
 
 // Every expression of one statement, innermost first, so that a fold uncovering another is applied in
 // the same walk rather than in the next round.
+/*
+ * `[a, b, c][1]` -> `b`.
+ *
+ * A literal indexed by a literal, which is the shape an array whose whole purpose was one element
+ * collapses into once `foldArrayElements` has built the literal and the inliner has brought the
+ * index home. `ArrayReclaim.yana`'s `frameOnly` is the everyday case: a container built, read at a
+ * constant position, and never named again - and what this removes is the allocation, not the
+ * subscript.
+ *
+ * **Every other element has to be inert**, because they are what the rewrite deletes. Their
+ * evaluation is what an array literal is for; a call or an assignment among them is an effect the
+ * program asked for at a point this would erase. The selected element itself moves nowhere - the
+ * literal was evaluated exactly where the subscript is.
+ *
+ * A negative or out-of-range index is left alone. `[a, b][5]` is `undefined` in JS, which is not a
+ * value this compiler's types admit, so folding it would be inventing an answer for a program that
+ * cannot arise rather than simplifying one that can.
+ */
+bool foldConstantIndex(Gen& g, JsPtr<Expr>& slot) {
+    auto expr = g.base[slot];
+    if(expr->kind != Expr::Index) return false;
+
+    auto& index = *(IndexExpr*)expr;
+    auto array = g.base[index.array];
+    auto position = g.base[index.index];
+
+    if(array->kind != Expr::Array) return false;
+    if(position->kind != Expr::Number || !((NumberExpr*)position)->integral) return false;
+
+    auto& values = ((ArrayExpr*)array)->values;
+    auto at = ((NumberExpr*)position)->value;
+    if(at < 0 || at >= F64(values.size())) return false;
+
+    auto chosen = Size(at);
+    auto items = itemsOf(g, values);
+
+    for(Size i = 0; i < values.size(); i++) {
+        if(i == chosen) continue;
+        if(!effectsOf(g, items[i]).inert()) return false;
+    }
+
+    slot = items[chosen];
+    return true;
+}
+
 bool foldExprs(Gen& g, JsPtr<Expr>& slot) {
     auto changed = false;
     eachOperand(g, g.base[slot], [&](JsPtr<Expr>& operand, bool) {
         changed = foldExprs(g, operand) || changed;
     });
 
-    return foldTernaryCompare(g, slot) || changed;
+    // Both are shape rules over one node, so either may expose the other's shape - a folded ternary
+    // can become the index of a subscript, and a folded subscript can become a compared operand.
+    auto folded = foldConstantIndex(g, slot);
+    return foldTernaryCompare(g, slot) || folded || changed;
 }
 
 /*
@@ -997,6 +1149,14 @@ bool optimizeList(Gen& g, StmtList& list, Names& names) {
 
         // Both rewrites shorten the list, so the same position is looked at again rather than the
         // next one - which is what collapses a chain of one-use bindings in a single walk.
+        // Before the binding rules, because collapsing an `if` can leave the statement in front of
+        // it and the one behind it adjacent - which is what the two fold rules ask about. And the
+        // discard rule after it, since what an emptied `if` leaves behind is a discarded condition.
+        if(foldEmptyIf(g, list, index) || foldDiscarded(g, list, index)) {
+            changed = true;
+            continue;
+        }
+
         if(foldInitializers(g, list, index) || foldArrayElements(g, list, index) ||
            foldInitialValue(g, list, index)) {
             changed = true;

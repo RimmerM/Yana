@@ -60,7 +60,7 @@ function drop$_Int_sub_gt_Int(value) {
 // ResolveTest
 function leafFor(n) {
   if (n > 5) {
-    return { value: Math.imul(n, 3) | 0 };
+    return Math.imul(n, 3) | 0;
   } else {
     return null;
   }
@@ -71,8 +71,8 @@ function node(n) {
   if (n <= 0) {
     return null;
   } else {
-    var v18 = { inner: { deep: { value: 0 } }, leaf: null, id: 0 };
-    var v19 = { deep: { value: Math.imul(n, 2) | 0 } };
+    var v18 = { inner: 0, leaf: null, id: 0 };
+    var v19 = Math.imul(n, 2) | 0;
     var v26 = leafFor(n);
     v18.inner = v19;
     v18.leaf = v26;
@@ -87,8 +87,8 @@ function checked(n) {
     return { $tag: 0, $p: n };
   } else {
     var v16 = { $tag: 1, $p: null };
-    var v19 = { inner: { deep: { value: 0 } }, leaf: null, id: 0 };
-    var v20 = { deep: { value: Math.imul(n, 4) | 0 } };
+    var v19 = { inner: 0, leaf: null, id: 0 };
+    var v20 = Math.imul(n, 4) | 0;
     var v27 = leafFor(n);
     v19.inner = v20;
     v19.leaf = v27;
@@ -105,7 +105,7 @@ function tail(n) {
     drop$Outcome_Node(v3);
     v17 = null;
   } else {
-    var v11 = v3.inner.deep.value;
+    var v11 = v3.inner;
     drop$Outcome_Node(v3);
     v17 = v11;
   }
@@ -119,13 +119,13 @@ function twoChecks(n) {
     drop$Outcome_Node(v3);
     v26 = null;
   } else {
-    var v10 = v3.leaf === null ? null : { value: v3.leaf.value };
+    var v10 = v3.leaf;
     drop$Outcome_Node(v3);
     var v11 = Try_Maybe_a_a_toOutcome_Leaf(v10);
     if (v11 === null) {
       v26 = null;
     } else {
-      v26 = v11.value;
+      v26 = v11;
     }
   }
   return v26;
@@ -181,13 +181,13 @@ function both(n) {
     drop$Outcome_Node(v3);
     return null;
   } else {
-    var v13 = v3.leaf === null ? null : { value: v3.leaf.value };
+    var v13 = v3.leaf;
     drop$Outcome_Node(v3);
     var v14 = Try_Maybe_a_a_toOutcome_Leaf(v13);
     if (v14 === null) {
       v26 = null;
     } else {
-      v26 = v14.value;
+      v26 = v14;
     }
     return v26;
   }
@@ -290,7 +290,5 @@ function drop$Outcome_Int_sub_gt_Int(value) {
 }
 
 function reclaim$Outcome_Int_sub_gt_Int(value) {
-  if (!(value === null)) {
-  }
   return;
 }
