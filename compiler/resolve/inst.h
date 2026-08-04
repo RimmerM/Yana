@@ -301,6 +301,7 @@ struct Value {
         Or,
         Xor,
         Cmp,
+        Select,
         Symbol,
         Call,
         CallDyn,
@@ -874,6 +875,38 @@ struct InstCmp: InstBinary {
         InstBinary(block, type, Value::Cmp, lhs, rhs), cmp(cmp) {}
 
     CompareOp cmp;
+};
+
+/*
+ * One of two values, chosen by a condition, without a branch to choose it in.
+ *
+ * The one instruction in the resolve IR **no front end produces**. A conditional in the source is a
+ * `je` and a phi, which is the honest shape of it: the arms are statements, either of them may leave
+ * the block, and deciding that a diamond is cheap enough to compute both sides of is a *cost*
+ * question rather than a meaning one. `convertSelects` in compiler/opt is the only thing that builds
+ * one, and it builds it from exactly that shape - see opt_select.cpp for the rules.
+ *
+ * It is in the shared IR rather than in either backend for the reason the whole of compiler/opt is:
+ * both targets have the instruction already and neither can see the diamond by the time it could use
+ * one. Natively it is a `cmov` - `LowerInstSelect`, which the x64 selector will fold a comparison
+ * straight into the flags of. On JS it is `c ? a : b`, which is what lets an `if` and the assignments
+ * in its two arms collapse into one expression, and then into whatever reads it.
+ *
+ * `type` is the value's, and the two arms share it. The condition is the `Bool` the branch tested,
+ * which lowers to the same one-bit-in-a-register both targets already test with.
+ *
+ * **Both arms are evaluated.** That is what the instruction means, so every value it names has to be
+ * one that may be computed unconditionally - which is a constraint on the pass that creates it rather
+ * than on this, and is why nothing here records which arm was the original one.
+ */
+struct InstSelect: Inst {
+    InstSelect(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> cond,
+               ModulePtr<Value> whenTrue, ModulePtr<Value> whenFalse):
+        Inst(Value::Select, block, type), cond(cond), whenTrue(whenTrue), whenFalse(whenFalse) {}
+
+    ModulePtr<Value> cond;
+    ModulePtr<Value> whenTrue;
+    ModulePtr<Value> whenFalse;
 };
 
 /*

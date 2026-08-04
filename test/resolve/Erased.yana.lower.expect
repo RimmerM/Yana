@@ -88,29 +88,10 @@ thunk$Ord(Int).compare#4<complex>(%lhs: Ptr, %rhs: Ptr): Int {
     %v_1 = loads %lhs, 4: Int
     %v_2 = loads %rhs, 4: Int
     %v_3 = cmp_eq %v_1, %v_2: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    %v_6 = cmp_igt %v_1, %v_2: Int
-    je %v_6, b_7, b_8
-  }
-
-  b_8 {
-    jmp b_9
-  }
-
-  b_7 {
-    jmp b_9
-  }
-
-  b_4 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = phi [b_8, 0], [b_7, 2], [b_4, 1]: Int
-    ret %v_10
+    %v_4 = cmp_igt %v_1, %v_2: Int
+    %v_5 = select 2, 0, %v_4: Int
+    %v_6 = select 1, %v_5, %v_3: Int
+    ret %v_6
   }
 }
 

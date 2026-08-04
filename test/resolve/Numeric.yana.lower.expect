@@ -25,40 +25,16 @@ ascribedDouble<complex>(): Double {
 
 mixedIf<complex>(%c: Int, %a: Int, %b: Double): Double {
   b_0 {
-    je %c, b_1, b_2
-  }
-
-  b_1 {
-    %v_3 = itof %a: Double
-    jmp b_4
-  }
-
-  b_2 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v = phi [b_1, %v_3], [b_2, %b]: Double
+    %v_1 = itof %a: Double
+    %v = select %v_1, %b, %c: Double
     ret %v
   }
 }
 
 mixedMultiIf<complex>(%c: Int, %a: Int, %b: Long): Long {
   b_0 {
-    je %c, b_1, b_2
-  }
-
-  b_1 {
-    %v_3 = sext %a: Long
-    jmp b_4
-  }
-
-  b_2 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v = phi [b_1, %v_3], [b_2, %b]: Long
+    %v_1 = sext %a: Long
+    %v = select %v_1, %b, %c: Long
     ret %v
   }
 }
@@ -73,20 +49,8 @@ mixedMatch<complex>(%c: Int, %a: Int, %b: Float): Float {
   b_0 {
     %v_1 = cast %c: Int
     %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    %v_6 = itof %a: Float
-    jmp b_5
-  }
-
-  b_5 {
-    %v = phi [b_3, %v_6], [b_4, %b]: Float
+    %v_3 = itof %a: Float
+    %v = select %v_3, %b, %v_2: Float
     ret %v
   }
 }

@@ -141,11 +141,25 @@ static bool tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
         return true;
     }
 
+    auto result = &cmp->result - base;
+
     for(auto offset: uses.contents(base)) {
         auto use = base[offset];
 
         // If the result is used as an actual value, it needs to written to a register.
         if(use->kind != LowerInst::Je && use->kind != LowerInst::Select) return false;
+
+        /*
+         * And a select reads three operands where a branch reads one, so being *a* use of it is not
+         * being the condition of it. `a && b` if-converts to `select %c, %b, %c` - the comparison is
+         * the condition and the value the false arm produces - and folding that into the flags would
+         * leave the arm with no register to be read out of, which is what the selection verifier
+         * reports as "folds an operand that still needs a location".
+         */
+        if(use->kind == LowerInst::Select) {
+            auto& select = *(LowerInstSelect*)use;
+            if(select.lhs == result || select.rhs == result) return false;
+        }
 
         // Check if there is any instruction between the definition and use that could modify the flags.
         if(hasFlagsInterference(base, cmp, use, index)) return false;

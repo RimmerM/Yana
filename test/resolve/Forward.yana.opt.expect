@@ -26,45 +26,18 @@ fn branched(%a: Int) -> Int {
 fn partial(%a: Int) -> Int {
   b0:
     %v8 = cmp_gt %a, 0 : Bool
-    je %v8, b1, b2
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v25 = phi [b1, 30], [b2, 2] : Int
-    %v18 = add %v25, 1 : Int
+    %v26 = select %v8 ? 30 : 2 : Int
+    %v18 = add %v26, 1 : Int
     ret %v18
 }
 
 fn merged(%a: Int) -> Int {
   b0:
     %v8 = cmp_gt %a, 0 : Bool
-    je %v8, b1, b2
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v32 = phi [b1, 10], [b2, 0] : Int
+    %v40 = select %v8 ? 10 : 0 : Int
     %v16 = cmp_gt %a, 5 : Bool
-    je %v16, b4, b5
-
-  b4:
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %v38 = phi [b4, 20], [b5, %v32] : Int
-    %v26 = add %v38, 7 : Int
+    %v42 = select %v16 ? 20 : %v40 : Int
+    %v26 = add %v42, 7 : Int
     ret %v26
 }
 
@@ -139,18 +112,9 @@ fn nested(%a: Int) -> Int {
 fn escaped(%a: Int) -> Int {
   b0:
     %v7 = cmp_gt %a, 0 : Bool
-    je %v7, b1, b2
-
-  b1:
     %v23 = add %a, 1 : Int
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v29 = phi [b1, %v23], [b2, %a] : Int
-    %v18 = add %v29, 1 : Int
+    %v31 = select %v7 ? %v23 : %a : Int
+    %v18 = add %v31, 1 : Int
     ret %v18
 }
 
@@ -175,18 +139,18 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v258 = phi [b2, 0], [b5, %v127] : Int
+    %v255 = phi [b2, 0], [b5, %v127] : Int
     %v117 = load %i : Int
     %v118 = cmp_lt %v117, 4 : Bool
     je %v118, b5, b4
 
   b4:
-    %v13 = add %v10, %v258 : Int
+    %v13 = add %v10, %v255 : Int
     %v19 = add %v13, 17 : Int
     ret %v19
 
   b5:
-    %v127 = add %v258, 5 : Int
+    %v127 = add %v255, 5 : Int
     %v129 = load %i : Int
     %v131 = add %v129, 1 : Int
     assign %i, %v131

@@ -115,6 +115,18 @@ void optimizeRounds(OptContext& opt) {
         // spends its time on blocks nothing reaches.
         foldBranches(opt);
 
+        /*
+         * And the branches nothing folded, which are the ones that decide a value rather than a
+         * path. After the fold rather than beside it, because the two want the diamond in opposite
+         * states: a constant condition is a whole arm deleted, which is strictly better than a
+         * select of both, so what reaches here is what that pass could not answer.
+         *
+         * It leaves one block where there were four, which is why it is above the block-local passes
+         * rather than at the end of the round - a read and the write that answers it are only in one
+         * block once the join has been merged back.
+         */
+        convertSelects(opt);
+
         // After forwarding rather than before it: a read the block-local pass already answered is
         // not a candidate, and one it could not answer is exactly what a loop keeps re-doing. Ahead
         // of CSE for the same reason in the other direction - two hoisted copies of one computation

@@ -129,20 +129,8 @@ directionValue<complex>(%d: Int): Int {
   b_0 {
     %v_1 = cast %d: Int
     %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_3, 1], [b_4, 2]: Int
-    ret %v_6
+    %v_3 = select 1, 2, %v_2: Int
+    ret %v_3
   }
 }
 
@@ -356,56 +344,18 @@ flagBits<complex>(%f: Ptr): Int {
     %v_1 = load %f, 1: Int
     %v_2 = and %v_1, 1: Int
     %v_3 = cast %v_2: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_4 {
-    jmp b_6
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = phi [b_4, 1], [b_5, 0]: Int
-    %v_8 = load %f, 1: Int
-    %v_9 = shr %v_8, 1: Int
-    %v_10 = and %v_9, 1: Int
-    %v_11 = cast %v_10: Int
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
-    jmp b_14
-  }
-
-  b_13 {
-    jmp b_14
-  }
-
-  b_14 {
-    %v_15 = phi [b_12, 2], [b_13, 0]: Int
-    %v_16 = add %v_7, %v_15: Int
-    %v_17 = load %f, 1: Int
-    %v_18 = shr %v_17, 2: Int
-    %v_19 = and %v_18, 1: Int
-    %v_20 = cast %v_19: Int
-    je %v_20, b_21, b_22
-  }
-
-  b_21 {
-    jmp b_23
-  }
-
-  b_22 {
-    jmp b_23
-  }
-
-  b_23 {
-    %v_24 = phi [b_21, 4], [b_22, 0]: Int
-    %v_25 = add %v_16, %v_24: Int
-    ret %v_25
+    %v_4 = select 1, 0, %v_3: Int
+    %v_5 = shr %v_1, 1: Int
+    %v_6 = and %v_5, 1: Int
+    %v_7 = cast %v_6: Int
+    %v_8 = select 2, 0, %v_7: Int
+    %v_9 = add %v_4, %v_8: Int
+    %v_10 = shr %v_1, 2: Int
+    %v_11 = and %v_10, 1: Int
+    %v_12 = cast %v_11: Int
+    %v_13 = select 4, 0, %v_12: Int
+    %v_14 = add %v_9, %v_13: Int
+    ret %v_14
   }
 }
 

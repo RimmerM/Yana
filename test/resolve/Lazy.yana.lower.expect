@@ -267,20 +267,8 @@ bound<complex>(%m: Ptr): Int {
 
   b_5 {
     %v_10 = phi [b_9, 1], [b_4, 0]: Int
-    je %v_10, b_11, b_12
-  }
-
-  b_11 {
-    jmp b_13
-  }
-
-  b_12 {
-    jmp b_13
-  }
-
-  b_13 {
-    %v_14 = phi [b_11, 1], [b_12, %v_10]: Int
-    ret %v_14
+    %v_11 = select 1, %v_10, %v_10: Int
+    ret %v_11
   }
 }
 

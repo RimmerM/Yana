@@ -82,20 +82,8 @@ isSomething(())<complex>(%m: Ptr): Int {
   b_0 {
     %v_1 = loads %m, 1: Int
     %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_3, 1], [b_4, 0]: Int
-    ret %v_6
+    %v_3 = select 1, 0, %v_2: Int
+    ret %v_3
   }
 }
 

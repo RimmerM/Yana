@@ -1,0 +1,200 @@
+let &calls: Int = 0
+
+fn larger(%a: Int, %b: Int) -> Int {
+  b0:
+    %v2 = cmp_gt %a, %b : Bool
+    %v8 = select %v2 ? %a : %b : Int
+    ret %v8
+}
+
+fn sign(%value: Int) -> Int {
+  b0:
+    %v3 = cmp_lt %value, 0 : Bool
+    %v10 = cmp_eq %value, 0 : Bool
+    %v20 = select %v10 ? 0 : 1 : Int
+    %v22 = select %v3 ? -1 : %v20 : Int
+    ret %v22
+}
+
+fn either(%a: Int, %b: Int) -> Int {
+  b0:
+    %v4 = cmp_gt %a, 0 : Bool
+    %v8 = cmp_gt %b, 0 : Bool
+    %v19 = select %v4 ? %v4 : %v8 : Bool
+    %v21 = select %v19 ? 1 : 0 : Int
+    ret %v21
+}
+
+fn count() -> Bool {
+  b0:
+    %v0 = load calls : Int
+    %v3 = add %v0, 1 : Int
+    assign calls, %v3
+    ret True
+}
+
+fn skipped(%a: Int) -> Int {
+  b0:
+    %v3 = cmp_gt %a, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v16 = load calls : Int
+    %v18 = add %v16, 1 : Int
+    assign calls, %v18
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, True], [b2, %v3] : Bool
+    %v21 = select %v8 ? 1 : 0 : Int
+    ret %v21
+}
+
+fn effects() -> Int {
+  b0:
+    assign calls, 1
+    ret 6
+}
+
+fn same(%c: Int) -> Int {
+  b0:
+    ret 7
+}
+
+fn lowered() -> Float {
+  b0:
+    ret -3
+}
+
+fn magnitude(%value: Float) -> Float {
+  b0:
+    %v3 = cmp_gt %value, 0 : Bool
+    %v7 = sub 0, %value : Float
+    %v12 = select %v3 ? %value : %v7 : Float
+    ret %v12
+}
+
+fn positive() -> Int {
+  b0:
+    %v0 = call lowered : Float
+    %v14 = cmp_gt %v0, 0 : Bool
+    %v17 = sub 0, %v0 : Float
+    %v21 = select %v14 ? %v0 : %v17 : Float
+    %v4 = cmp_gt %v21, 2.5 : Bool
+    %v23 = select %v4 ? 5 : 0 : Int
+    ret %v23
+}
+
+fn smallest(%limit: Int) -> Int {
+  b0:
+    %best = alloc : Int
+    init %best, 100
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : Int
+    %v9 = cmp_lt %v8, %limit : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v32 = load %best : Int
+    ret %v32
+
+  b3:
+    %v12 = load %i : Int
+    %v15 = mul %v12, 3 : Int
+    %candidate = sub 40, %v15 : Int
+    %v18 = load %best : Int
+    %v19 = cmp_lt %candidate, %v18 : Bool
+    %v34 = select %v19 ? %candidate : %v18 : Int
+    assign %best, %v34
+    %v29 = add %v12, 1 : Int
+    assign %i, %v29
+    jmp b1
+}
+
+fn zero() -> Int {
+  b0:
+    ret 0
+}
+
+fn ratio(%value: Int, %divisor: Int) -> Int {
+  b0:
+    %v4 = cmp_ne %divisor, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = div %value, %divisor : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, %v6], [b2, 0] : Int
+    ret %v10
+}
+
+fn doubled(%value: Int) -> Int {
+  b0:
+    %v3 = mul %value, 2 : Int
+    ret %v3
+}
+
+fn guarded(%value: Int) -> Int {
+  b0:
+    %v3 = cmp_gt %value, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = call doubled, %value : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, %v5], [b2, 0] : Int
+    ret %v9
+}
+
+fn main() -> Int {
+  b0:
+    assign calls, 1
+    %v166 = call lowered : Float
+    %v168 = cmp_gt %v166, 0 : Bool
+    %v170 = sub 0, %v166 : Float
+    %v171 = select %v168 ? %v166 : %v170 : Float
+    %v173 = cmp_gt %v171, 2.5 : Bool
+    %v176 = select %v173 ? 5 : 0 : Int
+    %v51 = mul %v176, 256 : Int
+    %v52 = add %v51, 1310 : Int
+    %v54 = call smallest, 5 : Int
+    %v57 = mul %v54, 512 : Int
+    %v58 = add %v52, %v57 : Int
+    %v60 = call zero : Int
+    %v179 = cmp_ne %v60, 0 : Bool
+    je %v179, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v182 = div 10, %v60 : Int
+    jmp b3
+
+  b3:
+    %v177 = phi [b2, %v182], [b1, 0] : Int
+    %v64 = mul %v177, 1024 : Int
+    %v65 = add %v58, %v64 : Int
+    %v72 = add %v65, 10240 : Int
+    %v200 = call doubled, 3 : Int
+    %v77 = mul %v200, 4096 : Int
+    %v78 = add %v72, %v77 : Int
+    ret %v78
+}

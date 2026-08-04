@@ -7,20 +7,8 @@ longLiteral<complex>(): Long {
 
 both<complex>(%a: Int, %b: Int): Int {
   b_0 {
-    je %a, b_1, b_2
-  }
-
-  b_1 {
-    jmp b_3
-  }
-
-  b_2 {
-    jmp b_3
-  }
-
-  b_3 {
-    %v_4 = phi [b_1, %b], [b_2, %a]: Int
-    ret %v_4
+    %v_1 = select %b, %a, %a: Int
+    ret %v_1
   }
 }
 

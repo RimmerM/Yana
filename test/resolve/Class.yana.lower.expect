@@ -8,20 +8,8 @@ Describe(Metres).size<complex>(%value$value: Int): Int {
 sameMetres<complex>(%a: Int, %b: Int): Int {
   b_0 {
     %v_1 = cmp_eq %a, %b: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    jmp b_4
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_2, 1], [b_3, 0]: Int
-    ret %v_5
+    %v_2 = select 1, 0, %v_1: Int
+    ret %v_2
   }
 }
 

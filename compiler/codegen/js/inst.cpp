@@ -1521,6 +1521,24 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
             define(g, value, binary(g, op, lhs, rhs));
             break;
         }
+        case Value::Select: {
+            /*
+             * The branch that stopped being one - `c ? a : b`.
+             *
+             * The condition is the same expression the `if` would have tested, so nothing has to be
+             * done to make it a value: a `Bool` is the number 0 or 1 here, and both are what the
+             * host's own truthiness already says they are.
+             *
+             * No `coerce`, deliberately. A select produces one of two values of its own type, and
+             * both of them arrived through whatever already reduced them to that type's
+             * representation - so there is nothing left to narrow, and a mask here would be one
+             * `| 0` per conditional in the program saying so twice.
+             */
+            auto& select = (InstSelect&)instruction;
+            define(g, value, ternary(g, useValue(g, select.cond), useValue(g, select.whenTrue),
+                                     useValue(g, select.whenFalse)));
+            break;
+        }
         case Value::TypeMetric: {
             /*
              * How wide a type is *here*, which is not what the native target would have said.

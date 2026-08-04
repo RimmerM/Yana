@@ -154,20 +154,8 @@ errBool<complex>(%r: Ptr): Int {
   b_0 {
     %v_1 = loads %r, 4: Int
     %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_3, 0], [b_4, 1]: Int
-    ret %v_6
+    %v_3 = select 0, 1, %v_2: Int
+    ret %v_3
   }
 }
 
@@ -533,20 +521,8 @@ err<complex>(%r: Ptr): Int {
   b_0 {
     %v_1 = loads %r, 4: Int
     %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_3, 0], [b_4, 1]: Int
-    ret %v_6
+    %v_3 = select 0, 1, %v_2: Int
+    ret %v_3
   }
 }
 
@@ -663,20 +639,8 @@ empty<complex>(%m: Ptr): Int {
   b_0 {
     %v_1 = loads %m, 4: Int
     %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_3, 0], [b_4, 1]: Int
-    ret %v_6
+    %v_3 = select 0, 1, %v_2: Int
+    ret %v_3
   }
 }
 
@@ -1049,142 +1013,46 @@ main<complex>(): Int {
     %sum = add %v_23, %v_24: Int
     %v_25 = loads %b, 4: Int
     %v_26 = cmp_eq %v_25, 1: Int
-    je %v_26, b_27, b_28
-  }
-
-  b_28 {
-    jmp b_29
-  }
-
-  b_27 {
-    jmp b_29
-  }
-
-  b_29 {
-    %v_30 = phi [b_27, 0], [b_28, 1]: Int
-    %v_31 = loads %d, 4: Int
-    %v_32 = cmp_eq %v_31, 1: Int
-    je %v_32, b_33, b_34
-  }
-
-  b_34 {
-    jmp b_35
-  }
-
-  b_33 {
-    jmp b_35
-  }
-
-  b_35 {
-    %v_36 = phi [b_33, 0], [b_34, 1]: Int
-    %v_37 = add %v_30, %v_36: Int
-    %v_38 = loads %f, 4: Int
-    %v_39 = cmp_eq %v_38, 1: Int
-    je %v_39, b_40, b_41
-  }
-
-  b_41 {
-    jmp b_42
-  }
-
-  b_40 {
-    jmp b_42
-  }
-
-  b_42 {
-    %v_43 = phi [b_40, 0], [b_41, 1]: Int
-    %v_44 = add %v_37, %v_43: Int
-    %v_45 = loads %m, 4: Int
-    %v_46 = cmp_eq %v_45, 1: Int
-    je %v_46, b_47, b_48
-  }
-
-  b_48 {
-    jmp b_49
-  }
-
-  b_47 {
-    jmp b_49
-  }
-
-  b_49 {
-    %v_50 = phi [b_47, 0], [b_48, 1]: Int
-    %v_51 = add %v_44, %v_50: Int
-    %v_52 = loads %i, 4: Int
+    %v_27 = select 0, 1, %v_26: Int
+    %v_28 = loads %d, 4: Int
+    %v_29 = cmp_eq %v_28, 1: Int
+    %v_30 = select 0, 1, %v_29: Int
+    %v_31 = add %v_27, %v_30: Int
+    %v_32 = loads %f, 4: Int
+    %v_33 = cmp_eq %v_32, 1: Int
+    %v_34 = select 0, 1, %v_33: Int
+    %v_35 = add %v_31, %v_34: Int
+    %v_36 = loads %m, 4: Int
+    %v_37 = cmp_eq %v_36, 1: Int
+    %v_38 = select 0, 1, %v_37: Int
+    %v_39 = add %v_35, %v_38: Int
+    %v_40 = loads %i, 4: Int
+    %v_41 = cmp_eq %v_40, 1: Int
+    %v_42 = select 0, 1, %v_41: Int
+    %v_43 = add %v_39, %v_42: Int
+    %v_44 = loads %j, 4: Int
+    %v_45 = cmp_eq %v_44, 1: Int
+    %v_46 = select 0, 1, %v_45: Int
+    %v_47 = add %v_43, %v_46: Int
+    %v_48 = loads %r, 4: Int
+    %v_49 = cmp_eq %v_48, 1: Int
+    %v_50 = select 0, 1, %v_49: Int
+    %v_51 = add %v_47, %v_50: Int
+    %v_52 = loads %s, 4: Int
     %v_53 = cmp_eq %v_52, 1: Int
-    je %v_53, b_54, b_55
-  }
-
-  b_55 {
-    jmp b_56
-  }
-
-  b_54 {
-    jmp b_56
-  }
-
-  b_56 {
-    %v_57 = phi [b_54, 0], [b_55, 1]: Int
-    %v_58 = add %v_51, %v_57: Int
-    %v_59 = loads %j, 4: Int
-    %v_60 = cmp_eq %v_59, 1: Int
-    je %v_60, b_61, b_62
-  }
-
-  b_62 {
-    jmp b_63
-  }
-
-  b_61 {
-    jmp b_63
-  }
-
-  b_63 {
-    %v_64 = phi [b_61, 0], [b_62, 1]: Int
-    %v_65 = add %v_58, %v_64: Int
-    %v_66 = loads %r, 4: Int
-    %v_67 = cmp_eq %v_66, 1: Int
-    je %v_67, b_68, b_69
-  }
-
-  b_69 {
-    jmp b_70
-  }
-
-  b_68 {
-    jmp b_70
-  }
-
-  b_70 {
-    %v_71 = phi [b_68, 0], [b_69, 1]: Int
-    %v_72 = add %v_65, %v_71: Int
-    %v_73 = loads %s, 4: Int
-    %v_74 = cmp_eq %v_73, 1: Int
-    je %v_74, b_75, b_76
-  }
-
-  b_76 {
-    jmp b_77
-  }
-
-  b_75 {
-    jmp b_77
-  }
-
-  b_77 {
-    %v_78 = phi [b_75, 0], [b_76, 1]: Int
-    %failures = add %v_72, %v_78: Int
-    %v_79 = imul %failures, 1000: Int
-    %v_80 = add %sum, %v_79: Int
-    %v_81 = imul %afterBoth, 100000: Int
-    %v_82 = add %v_80, %v_81: Int
-    %v_83 = imul %afterExit, 10000000: Int
-    %v_84 = add %v_82, %v_83: Int
-    %v_85 = imul %afterEarly, 1000000000: Int
-    %v_86 = add %v_84, %v_85: Int
-    %v_87 = loads @log, 4: Int
-    %v_88 = add %v_86, %v_87: Int
-    ret %v_88
+    %v_54 = select 0, 1, %v_53: Int
+    %failures = add %v_51, %v_54: Int
+    %v_55 = imul %failures, 1000: Int
+    %v_56 = add %sum, %v_55: Int
+    %v_57 = imul %afterBoth, 100000: Int
+    %v_58 = add %v_56, %v_57: Int
+    %v_59 = imul %afterExit, 10000000: Int
+    %v_60 = add %v_58, %v_59: Int
+    %v_61 = imul %afterEarly, 1000000000: Int
+    %v_62 = add %v_60, %v_61: Int
+    %v_63 = loads @log, 4: Int
+    %v_64 = add %v_62, %v_63: Int
+    ret %v_64
   }
 }
 

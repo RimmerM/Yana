@@ -560,6 +560,10 @@ struct Inliner {
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
+            // A callee this stage already if-converted. `settle` runs the whole round on a callee
+            // before a site is judged against it, so a body reaching here can hold one - and a
+            // select is an ordinary pure computation with no decision copied along with it.
+            case Value::Select:
             case Value::Call: case Value::Native: case Value::CallDyn:
                 return true;
             default:
@@ -977,6 +981,10 @@ struct Inliner {
             case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
+            // A select of decided arms on a decided condition is decided, which is `foldSelect`'s
+            // rule read forwards: the site knows which arm survives, so a branch below it on the
+            // result is one that does not survive the call either.
+            case Value::Select:
                 answer = true;
                 eachOperand(opt.local, instruction, [&](ModulePtr<Value> operand) {
                     if(!decidedAtCall(operand, decided)) answer = false;
@@ -1378,6 +1386,12 @@ struct Inliner {
                 auto& unary = (InstUnary&)instruction;
                 return (Inst*)createInst<InstUnary>(module, function, into, source, name, type,
                                                     instruction.kind, value(unary.from));
+            }
+            case Value::Select: {
+                auto& select = (InstSelect&)instruction;
+                return (Inst*)createInst<InstSelect>(module, function, into, source, name, type,
+                                                     value(select.cond), value(select.whenTrue),
+                                                     value(select.whenFalse));
             }
             case Value::Cmp: {
                 auto& compare = (InstCmp&)instruction;

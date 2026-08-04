@@ -36,47 +36,11 @@ narrowed<complex>(): Int {
 
 flagged<complex>(%x: Int): Int {
   b_0 {
-    je %x, b_1, b_2
-  }
-
-  b_1 {
-    jmp b_3
-  }
-
-  b_2 {
-    jmp b_3
-  }
-
-  b_3 {
-    %v_4 = phi [b_1, 1], [b_2, 0]: Int
-    je %x, b_5, b_6
-  }
-
-  b_5 {
-    jmp b_7
-  }
-
-  b_6 {
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = phi [b_5, 1], [b_6, 0]: Int
-    je %v_4, b_9, b_10
-  }
-
-  b_9 {
-    jmp b_11
-  }
-
-  b_10 {
-    jmp b_11
-  }
-
-  b_11 {
-    %v_12 = phi [b_9, 2], [b_10, 0]: Int
-    %v_13 = add %v_8, %v_12: Int
-    ret %v_13
+    %v_1 = select 1, 0, %x: Int
+    %v_2 = select 1, 0, %x: Int
+    %v_3 = select 2, 0, %v_1: Int
+    %v_4 = add %v_2, %v_3: Int
+    ret %v_4
   }
 }
 

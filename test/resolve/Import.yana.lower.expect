@@ -40,21 +40,9 @@ viaFunction<complex>(): Int {
 
 styleValue<complex>(%it$filled: Int, %it$weight: Int): Int {
   b_0 {
-    je %it$filled, b_1, b_2
-  }
-
-  b_1 {
-    jmp b_3
-  }
-
-  b_2 {
-    jmp b_3
-  }
-
-  b_3 {
-    %v_4 = phi [b_1, 10], [b_2, 0]: Int
-    %v_5 = add %v_4, %it$weight: Int
-    ret %v_5
+    %v_1 = select 10, 0, %it$filled: Int
+    %v_2 = add %v_1, %it$weight: Int
+    ret %v_2
   }
 }
 

@@ -8,29 +8,10 @@ described<complex>(): Int {
 Ord(Metres).compare<complex>(%lhs$value: Int, %rhs$value: Int): Int {
   b_0 {
     %v_1 = cmp_eq %lhs$value, %rhs$value: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_3 {
-    %v_4 = cmp_igt %lhs$value, %rhs$value: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    jmp b_7
-  }
-
-  b_5 {
-    jmp b_7
-  }
-
-  b_2 {
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = phi [b_6, 0], [b_5, 2], [b_2, 1]: Int
-    ret %v_8
+    %v_2 = cmp_igt %lhs$value, %rhs$value: Int
+    %v_3 = select 2, 0, %v_2: Int
+    %v_4 = select 1, %v_3, %v_1: Int
+    ret %v_4
   }
 }
 

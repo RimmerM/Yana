@@ -50,24 +50,10 @@ fn clamped(%v: Int) -> Int {
 fn graded(%score: Int) -> Int {
   b0:
     %v3 = cmp_lt %score, 10 : Bool
-    je %v3, b1, b2
-
-  b1:
-    jmp b5
-
-  b2:
     %v8 = cmp_lt %score, 100 : Bool
-    je %v8, b3, b4
-
-  b3:
-    jmp b5
-
-  b4:
-    jmp b5
-
-  b5:
-    %v15 = phi [b1, 1], [b3, 2], [b4, 3] : Int
-    ret %v15
+    %v17 = select %v8 ? 2 : 3 : Int
+    %v19 = select %v3 ? 1 : %v17 : Int
+    ret %v19
 }
 
 fn stepsTo(%limit: Int) -> Int {
@@ -219,29 +205,11 @@ fn worthIt(%a: Int, %b: Int) -> Int {
 fn branching(%a: Int) -> Int {
   b0:
     %v9 = cmp_gt %a, 100 : Bool
-    je %v9, b2, b1
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v15 = phi [b1, %a], [b2, 100] : Int
+    %v24 = select %v9 ? 100 : %a : Int
     %v4 = mul %a, 3 : Int
     %v17 = cmp_gt %v4, 100 : Bool
-    je %v17, b5, b4
-
-  b4:
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %v23 = phi [b4, %v4], [b5, 100] : Int
-    %v6 = add %v15, %v23 : Int
+    %v26 = select %v17 ? 100 : %v4 : Int
+    %v6 = add %v24, %v26 : Int
     ret %v6
 }
 
@@ -334,12 +302,12 @@ fn recursive() -> Int {
 
 fn main() -> Int {
   b0:
-    %v65 = call countDown, 4 : Int
-    %v20 = add %v65, 260 : Int
-    %v73 = call measured, 1 : Int
-    %v75 = call measured, 2 : Int
-    %v77 = add %v73, %v75 : Int
-    %v22 = add %v20, %v77 : Int
+    %v58 = call countDown, 4 : Int
+    %v20 = add %v58, 260 : Int
+    %v66 = call measured, 1 : Int
+    %v68 = call measured, 2 : Int
+    %v70 = add %v66, %v68 : Int
+    %v22 = add %v20, %v70 : Int
     %v27 = add %v22, 219 : Int
     %value = alloc : Int
     init %value, 1
@@ -348,26 +316,26 @@ fn main() -> Int {
     jmp b1
 
   b1:
-    %v121 = load %value : Int
-    %v123 = cmp_lt %v121, 20 : Bool
-    je %v123, b3, b2
+    %v114 = load %value : Int
+    %v116 = cmp_lt %v114, 20 : Bool
+    je %v116, b3, b2
 
   b2:
-    %v125 = load %steps : Int
-    %v29 = add %v27, %v125 : Int
+    %v118 = load %steps : Int
+    %v29 = add %v27, %v118 : Int
     %v31 = add %v29, 18 : Int
-    %v136 = call evenLength, 6 : Int
-    %v138 = call oddLength, 6 : Int
-    %v140 = add %v136, %v138 : Int
-    %v33 = add %v31, %v140 : Int
+    %v129 = call evenLength, 6 : Int
+    %v131 = call oddLength, 6 : Int
+    %v133 = add %v129, %v131 : Int
+    %v33 = add %v31, %v133 : Int
     ret %v33
 
   b3:
-    %v127 = load %value : Int
-    %v128 = add %v127, %v127 : Int
-    assign %value, %v128
-    %v130 = load %steps : Int
-    %v132 = add %v130, 1 : Int
-    assign %steps, %v132
+    %v120 = load %value : Int
+    %v121 = add %v120, %v120 : Int
+    assign %value, %v121
+    %v123 = load %steps : Int
+    %v125 = add %v123, 1 : Int
+    assign %steps, %v125
     jmp b1
 }

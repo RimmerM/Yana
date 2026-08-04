@@ -1,0 +1,307 @@
+let &calls: Int = 0
+
+fn larger(%a: Int, %b: Int) -> Int {
+  b0:
+    %v2 = cmp_gt %a, %b : Bool
+    je %v2, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %a], [b2, %b] : Int
+    ret %v6
+}
+
+fn sign(%value: Int) -> Int {
+  b0:
+    %v3 = cmp_lt %value, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v7 = neg 1 : Int
+    jmp b5
+
+  b2:
+    %v10 = cmp_eq %value, 0 : Bool
+    je %v10, b3, b4
+
+  b3:
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v17 = phi [b1, %v7], [b3, 0], [b4, 1] : Int
+    ret %v17
+}
+
+fn either(%a: Int, %b: Int) -> Int {
+  b0:
+    %v4 = cmp_gt %a, 0 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %v8 = cmp_gt %b, 0 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b1, %v8], [b2, %v4] : Bool
+    je %v11, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v17 = phi [b4, 1], [b5, 0] : Int
+    ret %v17
+}
+
+fn count() -> Bool {
+  b0:
+    %v0 = load calls : Int
+    %v3 = add %v0, 1 : Int
+    assign calls, %v3
+    ret True
+}
+
+fn skipped(%a: Int) -> Int {
+  b0:
+    %v3 = cmp_gt %a, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = call count : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, %v5], [b2, %v3] : Bool
+    je %v8, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v14 = phi [b4, 1], [b5, 0] : Int
+    ret %v14
+}
+
+fn effects() -> Int {
+  b0:
+    assign calls, 0
+    %a = call skipped, 0 : Int
+    %b = call skipped, 1 : Int
+    %v8 = mul %b, 2 : Int
+    %v9 = add %a, %v8 : Int
+    %v10 = load calls : Int
+    %v13 = mul %v10, 4 : Int
+    %v14 = add %v9, %v13 : Int
+    ret %v14
+}
+
+fn same(%c: Int) -> Int {
+  b0:
+    %v3 = cmp_gt %c, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, 7], [b2, 7] : Int
+    ret %v9
+}
+
+fn lowered() -> Float {
+  b0:
+    %v4 = sub 0, 3 : Float
+    ret %v4
+}
+
+fn magnitude(%value: Float) -> Float {
+  b0:
+    %v3 = cmp_gt %value, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    %v7 = sub 0, %value : Float
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, %value], [b2, %v7] : Float
+    ret %v10
+}
+
+fn positive() -> Int {
+  b0:
+    %v0 = call lowered : Float
+    %v1 = call magnitude, %v0 : Float
+    %v4 = cmp_gt %v1, 2.5 : Bool
+    je %v4, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, 5], [b2, 0] : Int
+    ret %v10
+}
+
+fn smallest(%limit: Int) -> Int {
+  b0:
+    %best = alloc : Int
+    init %best, 100
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v8 = load %i : Int
+    %v9 = cmp_lt %v8, %limit : Bool
+    je %v9, b3, b2
+
+  b2:
+    %v32 = load %best : Int
+    ret %v32
+
+  b3:
+    %v12 = load %i : Int
+    %v15 = mul %v12, 3 : Int
+    %candidate = sub 40, %v15 : Int
+    %v18 = load %best : Int
+    %v19 = cmp_lt %candidate, %v18 : Bool
+    je %v19, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    %v21 = load %best : Int
+    jmp b6
+
+  b6:
+    %v24 = phi [b4, %candidate], [b5, %v21] : Int
+    assign %best, %v24
+    %v26 = load %i : Int
+    %v29 = add %v26, 1 : Int
+    assign %i, %v29
+    jmp b1
+}
+
+fn zero() -> Int {
+  b0:
+    ret 0
+}
+
+fn ratio(%value: Int, %divisor: Int) -> Int {
+  b0:
+    %v4 = cmp_ne %divisor, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = div %value, %divisor : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, %v6], [b2, 0] : Int
+    ret %v10
+}
+
+fn doubled(%value: Int) -> Int {
+  b0:
+    %v3 = mul %value, 2 : Int
+    ret %v3
+}
+
+fn guarded(%value: Int) -> Int {
+  b0:
+    %v3 = cmp_gt %value, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = call doubled, %value : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, %v5], [b2, 0] : Int
+    ret %v9
+}
+
+fn main() -> Int {
+  b0:
+    %v2 = call larger, 3, 8 : Int
+    %v5 = neg 5 : Int
+    %v6 = call sign, %v5 : Int
+    %v9 = mul %v6, 2 : Int
+    %v10 = add %v2, %v9 : Int
+    %v12 = call sign, 0 : Int
+    %v15 = mul %v12, 4 : Int
+    %v16 = add %v10, %v15 : Int
+    %v18 = call sign, 9 : Int
+    %v21 = mul %v18, 8 : Int
+    %v22 = add %v16, %v21 : Int
+    %v25 = call either, 0, 4 : Int
+    %v28 = mul %v25, 16 : Int
+    %v29 = add %v22, %v28 : Int
+    %v32 = call either, 0, 0 : Int
+    %v35 = mul %v32, 32 : Int
+    %v36 = add %v29, %v35 : Int
+    %v37 = call effects : Int
+    %v40 = mul %v37, 64 : Int
+    %v41 = add %v36, %v40 : Int
+    %v43 = call same, 1 : Int
+    %v46 = mul %v43, 128 : Int
+    %v47 = add %v41, %v46 : Int
+    %v48 = call positive : Int
+    %v51 = mul %v48, 256 : Int
+    %v52 = add %v47, %v51 : Int
+    %v54 = call smallest, 5 : Int
+    %v57 = mul %v54, 512 : Int
+    %v58 = add %v52, %v57 : Int
+    %v60 = call zero : Int
+    %v61 = call ratio, 10, %v60 : Int
+    %v64 = mul %v61, 1024 : Int
+    %v65 = add %v58, %v64 : Int
+    %v68 = call ratio, 10, 2 : Int
+    %v71 = mul %v68, 2048 : Int
+    %v72 = add %v65, %v71 : Int
+    %v74 = call guarded, 3 : Int
+    %v77 = mul %v74, 4096 : Int
+    %v78 = add %v72, %v77 : Int
+    %v81 = neg 1 : Int
+    %v82 = call guarded, %v81 : Int
+    %v85 = mul %v82, 8192 : Int
+    %v86 = add %v78, %v85 : Int
+    ret %v86
+}

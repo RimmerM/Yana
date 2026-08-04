@@ -122,6 +122,7 @@ set(RESOLVE_SOURCE_FILES
     opt/opt_place.cpp
     opt/opt_promote.cpp
     opt/opt_scalar.cpp
+    opt/opt_select.cpp
     opt/opt_value.cpp
 )
 

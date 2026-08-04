@@ -2,20 +2,8 @@
 checkL<complex>(%actual: Long, %expected: Long, %weight: Int): Int {
   b_0 {
     %v_1 = cmp_eq %actual, %expected: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    jmp b_4
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
-    ret %v_5
+    %v_2 = select %weight, 0, %v_1: Int
+    ret %v_2
   }
 }
 
@@ -67,21 +55,9 @@ adoptShl<complex>(): Long {
 
 narrowIf<complex>(%c: Int, %x: Long): Int {
   b_0 {
-    je %c, b_1, b_2
-  }
-
-  b_1 {
-    %v_3 = cast %x: Int
-    jmp b_4
-  }
-
-  b_2 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_1, %v_3], [b_2, 0]: Int
-    ret %v_5
+    %v_1 = cast %x: Int
+    %v_2 = select %v_1, 0, %c: Int
+    ret %v_2
   }
 }
 
@@ -93,20 +69,8 @@ adoptNegative<complex>(): Long {
 
 castIf<complex>(%c: Int): Long {
   b_0 {
-    je %c, b_1, b_2
-  }
-
-  b_1 {
-    jmp b_3
-  }
-
-  b_2 {
-    jmp b_3
-  }
-
-  b_3 {
-    %v_4 = phi [b_1, 34359738623], [b_2, 0]: Long
-    ret %v_4
+    %v_1 = select 34359738623, 0, %c: Long
+    ret %v_1
   }
 }
 
@@ -120,20 +84,8 @@ castMatch<complex>(%c: Int): Long {
   b_0 {
     %v_1 = cast %c: Int
     %v_2 = cmp_eq %v_1, 1: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_3, 34359738623], [b_4, 0]: Long
-    ret %v_6
+    %v_3 = select 34359738623, 0, %v_2: Long
+    ret %v_3
   }
 }
 
@@ -152,40 +104,16 @@ adoptOr<complex>(): Long {
 
 adoptIf<complex>(%flag: Int): Long {
   b_0 {
-    je %flag, b_1, b_2
-  }
-
-  b_1 {
-    jmp b_3
-  }
-
-  b_2 {
-    jmp b_3
-  }
-
-  b_3 {
-    %v_4 = phi [b_1, 34359738623], [b_2, 0]: Long
-    ret %v_4
+    %v_1 = select 34359738623, 0, %flag: Long
+    ret %v_1
   }
 }
 
 checkW<complex>(%actual: Long, %expected: Long, %weight: Int): Int {
   b_0 {
     %v_1 = cmp_eq %actual, %expected: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    jmp b_4
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
-    ret %v_5
+    %v_2 = select %weight, 0, %v_1: Int
+    ret %v_2
   }
 }
 

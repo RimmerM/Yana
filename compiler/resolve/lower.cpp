@@ -2856,6 +2856,27 @@ static void lowerInstruction(LowerContext& lower, LowerBlock& block, ModulePtr<I
             result = cmp(lower.lower, lower.to, block, lower.lower[lhs], lower.lower[rhs], lowerCmp(lower, compare), instruction.name);
             break;
         }
+        case Value::Select: {
+            /*
+             * The instruction the lower IR has had all along, reached at last from above it.
+             *
+             * `LowerInstSelect` takes its arms in the order the machine form reads them - the value
+             * for a condition that holds first - and its condition as an ordinary `Int32` value. A
+             * `Bool` is exactly that here (an enum record lowers to Int32), so nothing is needed to
+             * turn the branch's own test into a select's, and the x64 transform will fold the
+             * comparison that produced it back into the flags a `cmovcc` reads.
+             */
+            auto& select = (InstSelect&)instruction;
+            auto whenTrue = mappedValue(lower, select.whenTrue);
+            auto whenFalse = mappedValue(lower, select.whenFalse);
+            auto condition = mappedValue(lower, select.cond);
+
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstSelect(
+                instruction.name, whenTrue, whenFalse, condition,
+                lowerType(lower.global, instruction.type)));
+
+            break;
+        }
         case Value::Symbol: {
             // An address the loader supplies. The lower IR already has both forms, because a call
             // names its callee this way and a global load names its storage this way; what is new

@@ -56,34 +56,15 @@ fn together() -> Int {
     call flip, %v7
     %v11 = borrow_mut %f@Flags.optionB : &mut Bool
     call flip, %v11
-    %v53 = load %f@Flags.optionA:unit8 : U32
-    %v55 = and %v53, 1 : U32
-    %v56 = cast %v55 : Bool
-    je %v56, b1, b2
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v22 = phi [b1, 1], [b2, 0] : Int
     %v57 = load %f@Flags.optionA:unit8 : U32
-    %v59 = shr %v57, 1 : U32
-    %v61 = and %v59, 1 : U32
-    %v62 = cast %v61 : Bool
-    je %v62, b4, b5
-
-  b4:
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %v32 = phi [b4, 2], [b5, 0] : Int
-    %v33 = add %v22, %v32 : Int
+    %v59 = and %v57, 1 : U32
+    %v60 = cast %v59 : Bool
+    %v35 = select %v60 ? 1 : 0 : Int
+    %v63 = shr %v57, 1 : U32
+    %v65 = and %v63, 1 : U32
+    %v66 = cast %v65 : Bool
+    %v37 = select %v66 ? 2 : 0 : Int
+    %v33 = add %v35, %v37 : Int
     ret %v33
 }
 
@@ -117,34 +98,15 @@ fn loaned() -> Int {
     %v11 = borrow_mut %f@Flags.optionB : &mut Bool
     %v12 = call pick, True, %v10, %v11 : &mut Bool
     assign [%v12], False
-    %v55 = load %f@Flags.optionA:unit8 : U32
-    %v57 = and %v55, 1 : U32
-    %v58 = cast %v57 : Bool
-    je %v58, b1, b2
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v24 = phi [b1, 1], [b2, 0] : Int
     %v59 = load %f@Flags.optionA:unit8 : U32
-    %v61 = shr %v59, 1 : U32
-    %v63 = and %v61, 1 : U32
-    %v64 = cast %v63 : Bool
-    je %v64, b4, b5
-
-  b4:
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %v34 = phi [b4, 2], [b5, 0] : Int
-    %v35 = add %v24, %v34 : Int
+    %v61 = and %v59, 1 : U32
+    %v62 = cast %v61 : Bool
+    %v37 = select %v62 ? 1 : 0 : Int
+    %v65 = shr %v59, 1 : U32
+    %v67 = and %v65, 1 : U32
+    %v68 = cast %v67 : Bool
+    %v39 = select %v68 ? 2 : 0 : Int
+    %v35 = add %v37, %v39 : Int
     ret %v35
 }
 
@@ -175,34 +137,15 @@ fn interleaved() -> Int {
     %v9 = borrow_mut %g@Flags.optionA : &mut Bool
     %v10 = borrow_mut %g@Flags.optionB : &mut Bool
     call swapBools, %v9, %v10
-    %v52 = load %g@Flags.optionA:unit8 : U32
-    %v54 = and %v52, 1 : U32
-    %v55 = cast %v54 : Bool
-    je %v55, b1, b2
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v21 = phi [b1, 1], [b2, 0] : Int
     %v56 = load %g@Flags.optionA:unit8 : U32
-    %v58 = shr %v56, 1 : U32
-    %v60 = and %v58, 1 : U32
-    %v61 = cast %v60 : Bool
-    je %v61, b4, b5
-
-  b4:
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %v31 = phi [b4, 2], [b5, 0] : Int
-    %v32 = add %v21, %v31 : Int
+    %v58 = and %v56, 1 : U32
+    %v59 = cast %v58 : Bool
+    %v34 = select %v59 ? 1 : 0 : Int
+    %v62 = shr %v56, 1 : U32
+    %v64 = and %v62, 1 : U32
+    %v65 = cast %v64 : Bool
+    %v36 = select %v65 ? 2 : 0 : Int
+    %v32 = add %v34, %v36 : Int
     ret %v32
 }
 
@@ -277,49 +220,20 @@ fn wide() -> Int {
     %v44 = borrow_mut %s@Nine.h : &mut Bool
     %v45 = borrow_mut %s@Nine.i : &mut Bool
     call nine, %v37, %v38, %v39, %v40, %v41, %v42, %v43, %v44, %v45
-    %v168 = load %s@Nine.a:unit16 : U32
-    %v170 = and %v168, 1 : U32
-    %v171 = cast %v170 : Bool
-    je %v171, b1, b2
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v56 = phi [b1, 1], [b2, 0] : Int
-    %v172 = load %s@Nine.a:unit16 : U32
-    %v174 = shr %v172, 4 : U32
+    %v174 = load %s@Nine.a:unit16 : U32
     %v176 = and %v174, 1 : U32
     %v177 = cast %v176 : Bool
-    je %v177, b4, b5
-
-  b4:
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %v66 = phi [b4, 20], [b5, 0] : Int
-    %v67 = add %v56, %v66 : Int
-    %v178 = load %s@Nine.a:unit16 : U32
-    %v180 = shr %v178, 8 : U32
+    %v80 = select %v177 ? 1 : 0 : Int
+    %v180 = shr %v174, 4 : U32
     %v182 = and %v180, 1 : U32
     %v183 = cast %v182 : Bool
-    je %v183, b7, b8
-
-  b7:
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v77 = phi [b7, 300], [b8, 0] : Int
-    %v78 = add %v67, %v77 : Int
+    %v82 = select %v183 ? 20 : 0 : Int
+    %v67 = add %v80, %v82 : Int
+    %v186 = shr %v174, 8 : U32
+    %v188 = and %v186, 1 : U32
+    %v189 = cast %v188 : Bool
+    %v84 = select %v189 ? 300 : 0 : Int
+    %v78 = add %v67, %v84 : Int
     ret %v78
 }
 
@@ -335,27 +249,16 @@ fn tally() -> Int {
     %v16 = load %e@Entry.count : Int
     %v19 = add %v16, 1 : Int
     assign %e@Entry.count, %v19
-    %v64 = load %e@Entry.live:unit8 : U32
-    %v66 = shr %v64, 3 : U32
-    %v68 = and %v66, 1 : U32
-    %v69 = cast %v68 : Bool
-    je %v69, b1, b2
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v30 = phi [b1, 1], [b2, 0] : Int
-    %v70 = load %e@Entry.live:unit8 : U32
-    %v72 = and %v70, 7 : U32
-    %v34 = cast %v72 : Int
+    %v66 = load %e@Entry.live:unit8 : U32
+    %v68 = shr %v66, 3 : U32
+    %v70 = and %v68, 1 : U32
+    %v71 = cast %v70 : Bool
+    %v46 = select %v71 ? 1 : 0 : Int
+    %v74 = and %v66, 7 : U32
+    %v34 = cast %v74 : Int
     %v37 = mul %v34, 10 : Int
-    %v38 = add %v30, %v37 : Int
-    %v40 = load %e@Entry.count : Int
-    %v43 = mul %v40, 100 : Int
+    %v38 = add %v46, %v37 : Int
+    %v43 = mul %v19, 100 : Int
     %v44 = add %v38, %v43 : Int
     ret %v44
 }

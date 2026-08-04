@@ -1,33 +1,15 @@
 "use strict";
 // ResolveTest
 function check(actual, expected, weight) {
-  var v8;
-  if (actual === expected) {
-    v8 = weight;
-  } else {
-    v8 = 0;
-  }
-  return v8;
+  return actual === expected ? weight : 0;
 }
 
 function checkI(actual, expected, weight) {
-  var v8;
-  if (actual === expected) {
-    v8 = weight;
-  } else {
-    v8 = 0;
-  }
-  return v8;
+  return actual === expected ? weight : 0;
 }
 
 function checkW(actual, expected, weight) {
-  var v8;
-  if (actual === expected) {
-    v8 = weight;
-  } else {
-    v8 = 0;
-  }
-  return v8;
+  return actual === expected ? weight : 0;
 }
 
 function readB(p) {
@@ -102,38 +84,13 @@ function boxed() {
 }
 
 function main() {
-  var v124;
-  var v179;
-  var v186;
-  var v193;
-  var v44 = ((((check($p20u$get(writeHigh(), 2.3283064365386963E-10) >>> 0, 1048575, 2) + 1 | 0) + check((writeHigh() & 1048575) >>> 0, 1000, 4) | 0) + check($p20u$get(writeLow(), 2.3283064365386963E-10) >>> 0, 999999, 8) | 0) + check($p20u$get(bumpedHigh(), 2.3283064365386963E-10) >>> 0, 1000000, 16) | 0) + check((bumpedHigh() & 1048575) >>> 0, 1000, 32) | 0;
-  if (($p20i$get(marked(), 2.3283064365386963E-10) | 0) === -3) {
-    v124 = 64;
-  } else {
-    v124 = 0;
-  }
-  var v75 = ((v44 + v124 | 0) + check((marked() & 1048575) >>> 0, 5, 128) | 0) + 768 | 0;
+  var v75 = (((((((check($p20u$get(writeHigh(), 2.3283064365386963E-10) >>> 0, 1048575, 2) + 1 | 0) + check((writeHigh() & 1048575) >>> 0, 1000, 4) | 0) + check($p20u$get(writeLow(), 2.3283064365386963E-10) >>> 0, 999999, 8) | 0) + check($p20u$get(bumpedHigh(), 2.3283064365386963E-10) >>> 0, 1000000, 16) | 0) + check((bumpedHigh() & 1048575) >>> 0, 1000, 32) | 0) + (($p20i$get(marked(), 2.3283064365386963E-10) | 0) === -3 ? 64 : 0) | 0) + check((marked() & 1048575) >>> 0, 5, 128) | 0) + 768 | 0;
   var bits0 = retagged() % 1099511627776;
-  if ((bits0 >= 549755813888 ? bits0 - 1099511627776 : bits0) === -2) {
-    v179 = 1024;
-  } else {
-    v179 = 0;
-  }
-  var v99 = ((v75 + v179 | 0) + check($p4u$get(retagged(), 9.094947017729282E-13) >>> 0, 9, 2048) | 0) + check(boxed().$p4 >>> 20 >>> 0, 0, 4096) | 0;
+  var v99 = ((v75 + ((bits0 >= 549755813888 ? bits0 - 1099511627776 : bits0) === -2 ? 1024 : 0) | 0) + check($p4u$get(retagged(), 9.094947017729282E-13) >>> 0, 9, 2048) | 0) + check(boxed().$p4 >>> 20 >>> 0, 0, 4096) | 0;
   var bits1 = stored(549755813887) % 1099511627776;
-  if ((bits1 >= 549755813888 ? bits1 - 1099511627776 : bits1) === 549755813887) {
-    v186 = 8192;
-  } else {
-    v186 = 0;
-  }
-  var v107 = v99 + v186 | 0;
+  var v107 = v99 + ((bits1 >= 549755813888 ? bits1 - 1099511627776 : bits1) === 549755813887 ? 8192 : 0) | 0;
   var bits2 = stored(-549755813888) % 1099511627776;
-  if ((bits2 >= 549755813888 ? bits2 - 1099511627776 : bits2) === -549755813888) {
-    v193 = 16384;
-  } else {
-    v193 = 0;
-  }
-  return v107 + v193 | 0;
+  return v107 + ((bits2 >= 549755813888 ? bits2 - 1099511627776 : bits2) === -549755813888 ? 16384 : 0) | 0;
 }
 
 // bit ranges of a word wider than the host's operators - see codegen/js/place.cpp

@@ -740,8 +740,45 @@ struct Folder {
         return constant(instruction, instruction.type, narrowToWidth(U64(number), facts.unwrap()));
     }
 
+    /*
+     * The two answers a select has that need no arithmetic at all, and therefore no width to do it
+     * at - which is why this is above the integer gate with the comparison and the metric rather
+     * than in the switch below.
+     *
+     * A decided condition is the one that pays. If-conversion is what *creates* the shape: an arm
+     * inlining reduced to a constant becomes a select whose condition then folds, and without this
+     * the branch that opt_branch.cpp would have removed survives as a `cmov` on a known flag.
+     */
+    ModulePtr<Value> foldSelect(InstSelect& select) {
+        // Both arms the same value is the same value, whatever the condition did. This is the shape
+        // a diamond whose two sides computed one thing leaves - and unlike the phi it came from, it
+        // is one instruction, so saying so is a replacement rather than a CFG rewrite.
+        if(select.whenTrue == select.whenFalse) return select.whenTrue;
+
+        /*
+         * And two arms that are one *number*, which is what two arms producing the same literal
+         * leave: a constant belongs to no block and is materialized per use, so the phi's two
+         * alternatives were never the same value even where they were always the same answer.
+         *
+         * Integers only. Two floating constants that compare equal are not always interchangeable -
+         * `0.0` and `-0.0` are one comparison and two values - and choosing between them is not
+         * something a fold gets to do silently.
+         */
+        auto whenTrue = constantValueOf(opt, select.whenTrue);
+        if(whenTrue) {
+            auto whenFalse = constantValueOf(opt, select.whenFalse);
+            if(whenFalse && whenTrue.unwrap() == whenFalse.unwrap()) return select.whenTrue;
+        }
+
+        auto condition = constantValueOf(opt, select.cond);
+        if(!condition) return nullptr;
+
+        return condition.unwrap() ? select.whenTrue : select.whenFalse;
+    }
+
     ModulePtr<Value> fold(ModulePtr<Inst> pointer, Value& instruction) {
         if(instruction.kind == Value::Cmp) return foldCompare((InstCmp&)instruction);
+        if(instruction.kind == Value::Select) return foldSelect((InstSelect&)instruction);
         if(instruction.kind == Value::TypeMetric) return foldMetric(instruction);
 
         /*

@@ -103,6 +103,13 @@ Inst* Block::add(Module& module, Inst* inst) {
                 addUse(module, binary->rhs, inst);
                 break;
             }
+            case Value::Select: {
+                auto select = (InstSelect*)inst;
+                addUse(module, select->cond, inst);
+                addUse(module, select->whenTrue, inst);
+                addUse(module, select->whenFalse, inst);
+                break;
+            }
             case Value::Call:
                 for(auto arg: ((InstCall*)inst)->args.contents(base)) addUse(module, arg, inst);
                 break;

@@ -27,21 +27,9 @@ onlyRead<complex>(): Int {
 
 mutableOnOneArm<complex>(%flag: Int): Int {
   b_0 {
-    je %flag, b_1, b_2
-  }
-
-  b_1 {
-    jmp b_3
-  }
-
-  b_2 {
-    jmp b_3
-  }
-
-  b_3 {
-    %v_4 = phi [b_1, 2], [b_2, 1]: Int
-    %v_5 = add %v_4, 2: Int
-    ret %v_5
+    %v_1 = select 2, 1, %flag: Int
+    %v_2 = add %v_1, 2: Int
+    ret %v_2
   }
 }
 

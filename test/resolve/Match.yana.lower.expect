@@ -67,31 +67,12 @@ area<complex>(%s: Ptr): Int {
 classify<complex>(%value: Int): Int {
   b_0 {
     %v_1 = cmp_eq %value, 0: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_3 {
-    %v_4 = cmp_ige %value, 1: Int
-    %v_5 = cmp_ile %value, 10: Int
-    %v_6 = and %v_4, %v_5: Int
-    je %v_6, b_7, b_8
-  }
-
-  b_2 {
-    jmp b_9
-  }
-
-  b_8 {
-    jmp b_9
-  }
-
-  b_7 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = phi [b_2, 0], [b_7, 1], [b_8, 2]: Int
-    ret %v_10
+    %v_2 = cmp_ige %value, 1: Int
+    %v_3 = cmp_ile %value, 10: Int
+    %v_4 = and %v_2, %v_3: Int
+    %v_5 = select 1, 2, %v_4: Int
+    %v_6 = select 0, %v_5, %v_1: Int
+    ret %v_6
   }
 }
 
@@ -160,25 +141,13 @@ pairValue<complex>(%p: Ptr): Int {
     %v_38 = shr %v_37, 2: Int
     %v_39 = and %v_38, 1: Int
     %b = cast %v_39: Int
-    je %b, b_40, b_41
-  }
-
-  b_40 {
-    jmp b_42
-  }
-
-  b_41 {
-    jmp b_42
-  }
-
-  b_42 {
-    %v_43 = phi [b_40, 3], [b_41, 4]: Int
+    %v_40 = select 3, 4, %b: Int
     jmp b_22
   }
 
   b_22 {
-    %v_44 = phi [b_21, 1], [b_36, 2], [b_42, %v_43], [b_29, 5]: Int
-    ret %v_44
+    %v_41 = phi [b_21, 1], [b_36, 2], [b_28, %v_40], [b_29, 5]: Int
+    ret %v_41
   }
 }
 
@@ -214,28 +183,9 @@ firstOrRest<complex>(%m: Ptr): Int {
     %rest = load %m, 1: Int
     %v_18 = cast %rest: Int
     %v_19 = cmp_eq %v_18, 0: Int
-    je %v_19, b_20, b_21
-  }
-
-  b_21 {
-    %v_22 = cmp_eq %v_18, 1: Int
-    je %v_22, b_23, b_24
-  }
-
-  b_24 {
-    jmp b_25
-  }
-
-  b_23 {
-    jmp b_25
-  }
-
-  b_20 {
-    jmp b_25
-  }
-
-  b_25 {
-    %v_26 = phi [b_20, 1], [b_23, 2], [b_24, 3]: Int
+    %v_20 = cmp_eq %v_18, 1: Int
+    %v_21 = select 2, 3, %v_20: Int
+    %v_22 = select 1, %v_21, %v_19: Int
     jmp b_17
   }
 
@@ -244,8 +194,8 @@ firstOrRest<complex>(%m: Ptr): Int {
   }
 
   b_17 {
-    %v_27 = phi [b_10, 10], [b_25, %v_26], [b_16, 0]: Int
-    ret %v_27
+    %v_23 = phi [b_10, 10], [b_15, %v_22], [b_16, 0]: Int
+    ret %v_23
   }
 }
 
@@ -461,29 +411,10 @@ colorValue<complex>(%c: Int): Int {
   b_0 {
     %v_1 = cast %c: Int
     %v_2 = cmp_eq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    %v_5 = cmp_eq %v_1, 1: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_3 {
-    jmp b_8
-  }
-
-  b_7 {
-    jmp b_8
-  }
-
-  b_6 {
-    jmp b_8
-  }
-
-  b_8 {
-    %v_9 = phi [b_3, 1], [b_6, 2], [b_7, 3]: Int
-    ret %v_9
+    %v_3 = cmp_eq %v_1, 1: Int
+    %v_4 = select 2, 3, %v_3: Int
+    %v_5 = select 1, %v_4, %v_2: Int
+    ret %v_5
   }
 }
 

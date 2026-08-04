@@ -1,0 +1,224 @@
+@calls = [0, 0, 0, 0]
+
+guarded<complex>(%value: Int): Int {
+  b_0 {
+    %v_1 = cmp_igt %value, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = call_complex doubled, %value: Int
+    jmp b_5
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_2, %v_4], [b_3, 0]: Int
+    ret %v_6
+  }
+}
+
+count<complex>(): Int {
+  b_0 {
+    %v_1 = loads @calls, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @calls, %v_2, 4
+    ret 1
+  }
+}
+
+sign<complex>(%value: Int): Int {
+  b_0 {
+    %v_1 = cmp_ilt %value, 0: Int
+    %v_2 = cmp_eq %value, 0: Int
+    %v_3 = select 0, 1, %v_2: Int
+    %v_4 = select 18446744073709551615, %v_3, %v_1: Int
+    ret %v_4
+  }
+}
+
+effects<complex>(): Int {
+  b_0 {
+    store @calls, 1, 4
+    ret 6
+  }
+}
+
+doubled<complex>(%value: Int): Int {
+  b_0 {
+    %v_1 = imul %value, 2: Int
+    ret %v_1
+  }
+}
+
+either<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %v_1 = cmp_igt %a, 0: Int
+    %v_2 = cmp_igt %b, 0: Int
+    %v_3 = select %v_1, %v_2, %v_1: Int
+    %v_4 = select 1, 0, %v_3: Int
+    ret %v_4
+  }
+}
+
+ratio<complex>(%value: Int, %divisor: Int): Int {
+  b_0 {
+    %v_1 = cmp_neq %divisor, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = idiv %value, %divisor: Int
+    jmp b_5
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_2, %v_4], [b_3, 0]: Int
+    ret %v_6
+  }
+}
+
+lowered<complex>(): Float {
+  b_0 {
+    ret -3
+  }
+}
+
+smallest<complex>(%limit: Int): Int {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 100], [b_3, %v_4]: Int
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
+    %v_7 = cmp_ilt %v_5, %limit: Int
+    je %v_7, b_3, b_8
+  }
+
+  b_8 {
+    ret %v_2
+  }
+
+  b_3 {
+    %v_9 = imul %v_5, 3: Int
+    %candidate = sub 40, %v_9: Int
+    %v_10 = cmp_ilt %candidate, %v_2: Int
+    %v_4 = select %candidate, %v_2, %v_10: Int
+    %v_6 = add %v_5, 1: Int
+    jmp b_1
+  }
+}
+
+positive<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex lowered: Float
+    %v_2 = cmp_gt %v_1, 0: Int
+    %v_3 = sub 0, %v_1: Float
+    %v_4 = select %v_1, %v_3, %v_2: Float
+    %v_5 = cmp_gt %v_4, 2.5: Int
+    %v_6 = select 5, 0, %v_5: Int
+    ret %v_6
+  }
+}
+
+magnitude<complex>(%value: Float): Float {
+  b_0 {
+    %v_1 = cmp_gt %value, 0: Int
+    %v_2 = sub 0, %value: Float
+    %v_3 = select %value, %v_2, %v_1: Float
+    ret %v_3
+  }
+}
+
+zero<complex>(): Int {
+  b_0 {
+    ret 0
+  }
+}
+
+same<complex>(%c: Int): Int {
+  b_0 {
+    ret 7
+  }
+}
+
+skipped<complex>(%a: Int): Int {
+  b_0 {
+    %v_1 = cmp_igt %a, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = loads @calls, 4: Int
+    %v_5 = add %v_4, 1: Int
+    store @calls, %v_5, 4
+    jmp b_6
+  }
+
+  b_3 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_2, 1], [b_3, %v_1]: Int
+    %v_8 = select 1, 0, %v_7: Int
+    ret %v_8
+  }
+}
+
+larger<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    %v_1 = cmp_igt %a, %b: Int
+    %v_2 = select %a, %b, %v_1: Int
+    ret %v_2
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    store @calls, 1, 4
+    %v_1 = call_complex lowered: Float
+    %v_2 = cmp_gt %v_1, 0: Int
+    %v_3 = sub 0, %v_1: Float
+    %v_4 = select %v_1, %v_3, %v_2: Float
+    %v_5 = cmp_gt %v_4, 2.5: Int
+    %v_6 = select 5, 0, %v_5: Int
+    %v_7 = imul %v_6, 256: Int
+    %v_8 = add %v_7, 1310: Int
+    %v_9 = call_complex smallest, 5: Int
+    %v_10 = imul %v_9, 512: Int
+    %v_11 = add %v_8, %v_10: Int
+    %v_12 = call_complex zero: Int
+    %v_13 = cmp_neq %v_12, 0: Int
+    je %v_13, b_14, b_15
+  }
+
+  b_15 {
+    jmp b_16
+  }
+
+  b_14 {
+    %v_17 = idiv 10, %v_12: Int
+    jmp b_16
+  }
+
+  b_16 {
+    %v_18 = phi [b_14, %v_17], [b_15, 0]: Int
+    %v_19 = imul %v_18, 1024: Int
+    %v_20 = add %v_11, %v_19: Int
+    %v_21 = add %v_20, 10240: Int
+    %v_22 = call_complex doubled, 3: Int
+    %v_23 = imul %v_22, 4096: Int
+    %v_24 = add %v_21, %v_23: Int
+    ret %v_24
+  }
+}
+

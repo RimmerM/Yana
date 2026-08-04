@@ -48,6 +48,12 @@ bool sameComputation(OptContext& opt, Value& a, Value& b) {
             return ((InstCmp&)a).lhs == ((InstCmp&)b).lhs &&
                    ((InstCmp&)a).rhs == ((InstCmp&)b).rhs &&
                    ((InstCmp&)a).cmp == ((InstCmp&)b).cmp;
+        // Not commutative in any useful sense: swapping the arms is only the same instruction with
+        // the condition inverted, and there is no inversion to compare against here.
+        case Value::Select:
+            return ((InstSelect&)a).cond == ((InstSelect&)b).cond &&
+                   ((InstSelect&)a).whenTrue == ((InstSelect&)b).whenTrue &&
+                   ((InstSelect&)a).whenFalse == ((InstSelect&)b).whenFalse;
         case Value::TypeMetric:
             return ((InstTypeMetric&)a).of == ((InstTypeMetric&)b).of &&
                    ((InstTypeMetric&)a).metric == ((InstTypeMetric&)b).metric;

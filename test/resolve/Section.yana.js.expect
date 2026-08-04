@@ -1,31 +1,11 @@
 "use strict";
 // ResolveTest
 function sign(x) {
-  var v15;
-  if (x > 0) {
-    v15 = 1;
-  } else {
-    if (x < 0) {
-      v15 = -1;
-    } else {
-      v15 = 0;
-    }
-  }
-  return v15;
+  return x > 0 ? 1 : x < 0 ? -1 : 0;
 }
 
 function clampedTo(x, limit) {
-  var v10;
-  if (x > limit) {
-    v10 = limit;
-  } else {
-    if (x === limit) {
-      v10 = 0;
-    } else {
-      v10 = x;
-    }
-  }
-  return v10;
+  return x > limit ? limit : x === limit ? 0 : x;
 }
 
 function shadowing(x, limit) {
@@ -33,13 +13,7 @@ function shadowing(x, limit) {
 }
 
 function doubleIfPositive(x) {
-  var v9;
-  if (x > 0) {
-    v9 = Math.imul(x, 2) | 0;
-  } else {
-    v9 = x;
-  }
-  return v9;
+  return x > 0 ? Math.imul(x, 2) | 0 : x;
 }
 
 function area(s) {
@@ -71,41 +45,17 @@ function area(s) {
 }
 
 function firstIfEqual(p$0, p$1) {
-  var v10;
-  if (p$1 === p$0) {
-    v10 = p$0;
-  } else {
-    v10 = p$0 + p$1 | 0;
-  }
-  return v10;
+  return p$1 === p$0 ? p$0 : p$0 + p$1 | 0;
 }
 
 function near(a, b) {
-  var v13;
   var v5 = (a - b | 0) < 2;
-  if (v5) {
-    v13 = (b - a | 0) < 2;
-  } else {
-    v13 = v5;
-  }
-  return v13;
+  return v5 ? (b - a | 0) < 2 : v5;
 }
 
 function isNearTen(x) {
-  var v10;
-  var v8;
   var v13 = (x - 10 | 0) < 2;
-  if (v13) {
-    v10 = (10 - x | 0) < 2;
-  } else {
-    v10 = v13;
-  }
-  if (v10) {
-    v8 = 1;
-  } else {
-    v8 = 0;
-  }
-  return v8;
+  return (v13 ? (10 - x | 0) < 2 : v13) ? 1 : 0;
 }
 
 function positiveOr(x, fallback) {
@@ -117,5 +67,5 @@ function positiveOr(x, fallback) {
 }
 
 function main() {
-  return ((((((((area({ $tag: 0, width: 0, height: 0, $p: 20 }) + 25 | 0) + area({ $tag: 0, width: 0, height: 0, $p: 3 }) | 0) + area({ $tag: 1, width: 20, height: 2, $p: 0 }) | 0) + area({ $tag: 1, width: 3, height: 9, $p: 0 }) | 0) + firstIfEqual(6, 6) | 0) + firstIfEqual(1, 2) | 0) + isNearTen(11) | 0) + isNearTen(50) | 0) + 8 | 0;
+  return ((((((area({ $tag: 0, width: 0, height: 0, $p: 20 }) + 25 | 0) + area({ $tag: 0, width: 0, height: 0, $p: 3 }) | 0) + area({ $tag: 1, width: 20, height: 2, $p: 0 }) | 0) + area({ $tag: 1, width: 3, height: 9, $p: 0 }) | 0) + firstIfEqual(6, 6) | 0) + firstIfEqual(1, 2) | 0) + 9 | 0;
 }

@@ -45,20 +45,8 @@ pointerConstant<complex>(): Long {
     %v_1 = bitcast 0: Ptr
     %v_2 = bitcast %v_1: Long
     %v_3 = cmp_eq %v_2, 0: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_4 {
-    jmp b_6
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = phi [b_4, 10], [b_5, 0]: Long
-    ret %v_7
+    %v_4 = select 10, 0, %v_3: Long
+    ret %v_4
   }
 }
 
@@ -67,30 +55,18 @@ main<complex>(): Int {
     %v_1 = bitcast 0: Ptr
     %v_2 = bitcast %v_1: Long
     %v_3 = cmp_eq %v_2, 0: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_4 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = phi [b_4, 10], [b_5, 0]: Long
-    %v_8 = add %v_7, 262145: Long
-    %v_9 = call_complex addressOfConstant: Long
-    %v_10 = add %v_8, %v_9: Long
-    %v_11 = call_complex addressOfStorage: Long
-    %v_12 = add %v_10, %v_11: Long
-    %v_13 = loads @counter, 8: Long
-    %v_14 = add %v_13, 5: Long
-    store @counter, %v_14, 8
-    %total = add %v_12, %v_14: Long
-    %v_15 = cast %total: Int
-    ret %v_15
+    %v_4 = select 10, 0, %v_3: Long
+    %v_5 = add %v_4, 262145: Long
+    %v_6 = call_complex addressOfConstant: Long
+    %v_7 = add %v_5, %v_6: Long
+    %v_8 = call_complex addressOfStorage: Long
+    %v_9 = add %v_7, %v_8: Long
+    %v_10 = loads @counter, 8: Long
+    %v_11 = add %v_10, 5: Long
+    store @counter, %v_11, 8
+    %total = add %v_9, %v_11: Long
+    %v_12 = cast %total: Int
+    ret %v_12
   }
 }
 

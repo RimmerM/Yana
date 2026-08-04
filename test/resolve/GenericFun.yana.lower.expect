@@ -8,54 +8,18 @@ leftOf(Int, Bool)<complex>(%value$first: Int, %value$second: Int): Int {
 middle(Int)<complex>(%x: Int, %y: Int, %z: Int): Int {
   b_0 {
     %v_1 = cmp_ilt %x, %y: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_2 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_2, %x], [b_3, %y]: Int
-    %v_6 = cmp_ilt %v_5, %z: Int
-    je %v_6, b_7, b_8
-  }
-
-  b_8 {
-    jmp b_9
-  }
-
-  b_7 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = phi [b_7, %v_5], [b_8, %z]: Int
-    ret %v_10
+    %v_2 = select %x, %y, %v_1: Int
+    %v_3 = cmp_ilt %v_2, %z: Int
+    %v_4 = select %v_2, %z, %v_3: Int
+    ret %v_4
   }
 }
 
 smaller(Int)<complex>(%x: Int, %y: Int): Int {
   b_0 {
     %v_1 = cmp_ilt %x, %y: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    jmp b_4
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_2, %x], [b_3, %y]: Int
-    ret %v_5
+    %v_2 = select %x, %y, %v_1: Int
+    ret %v_2
   }
 }
 

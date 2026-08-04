@@ -49,34 +49,16 @@ fn declined() -> Int {
     %v0 = call outOfRange : Int
     %v1 = call outOfRange : Int
     %v2 = cmp_eq %v0, %v1 : Bool
-    je %v2, b1, b2
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v8 = phi [b1, 40], [b2, 0] : Int
-    ret %v8
+    %v10 = select %v2 ? 40 : 0 : Int
+    ret %v10
 }
 
 fn nonFinite() -> Int {
   b0:
     %v3 = div 1, 0 : Double
     %v6 = cmp_gt %v3, 1000000 : Bool
-    je %v6, b1, b2
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v12 = phi [b1, 20], [b2, 0] : Int
-    ret %v12
+    %v14 = select %v6 ? 20 : 0 : Int
+    ret %v14
 }
 
 fn main() -> Int {
@@ -84,29 +66,11 @@ fn main() -> Int {
     %v56 = call outOfRange : Int
     %v57 = call outOfRange : Int
     %v58 = cmp_eq %v56, %v57 : Bool
-    je %v58, b2, b1
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v55 = phi [b2, 40], [b1, 0] : Int
-    %v19 = add %v55, 60 : Int
+    %v99 = select %v58 ? 40 : 0 : Int
+    %v19 = add %v99, 60 : Int
     %v68 = div 1, 0 : Double
     %v70 = cmp_gt %v68, 1000000 : Bool
-    je %v70, b5, b4
-
-  b4:
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %v65 = phi [b5, 20], [b4, 0] : Int
-    %v21 = add %v19, %v65 : Int
+    %v101 = select %v70 ? 20 : 0 : Int
+    %v21 = add %v19, %v101 : Int
     ret %v21
 }

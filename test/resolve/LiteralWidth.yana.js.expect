@@ -1,23 +1,11 @@
 "use strict";
 // ResolveTest
 function checkW(actual, expected, weight) {
-  var v8;
-  if (actual === expected) {
-    v8 = weight;
-  } else {
-    v8 = 0;
-  }
-  return v8;
+  return actual === expected ? weight : 0;
 }
 
 function checkL(actual, expected, weight) {
-  var v8;
-  if (actual === expected) {
-    v8 = weight;
-  } else {
-    v8 = 0;
-  }
-  return v8;
+  return actual === expected ? weight : 0;
 }
 
 function adoptOr() {
@@ -57,13 +45,7 @@ function adoptNegative() {
 }
 
 function adoptIf(flag) {
-  var v10;
-  if (flag) {
-    v10 = 34359738623;
-  } else {
-    v10 = 0;
-  }
-  return v10;
+  return flag ? 34359738623 : 0;
 }
 
 function concreteWins(x) {
@@ -83,23 +65,11 @@ function castTwice() {
 }
 
 function castIf(c) {
-  var v10;
-  if (c) {
-    v10 = 34359738623;
-  } else {
-    v10 = 0;
-  }
-  return v10;
+  return c ? 34359738623 : 0;
 }
 
 function castMatch(c) {
-  var v13;
-  if (c) {
-    v13 = 34359738623;
-  } else {
-    v13 = 0;
-  }
-  return v13;
+  return c ? 34359738623 : 0;
 }
 
 function narrowParen(x) {
@@ -107,13 +77,7 @@ function narrowParen(x) {
 }
 
 function narrowIf(c, x) {
-  var v7;
-  if (c) {
-    v7 = Number(x) | 0;
-  } else {
-    v7 = 0;
-  }
-  return v7;
+  return c ? Number(x) | 0 : 0;
 }
 
 function main() {

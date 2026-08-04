@@ -210,29 +210,10 @@ describe<complex>(%m: Ptr): Int {
     %c = load %m, 1: Int
     %v_7 = cast %c: Int
     %v_8 = cmp_eq %v_7, 0: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_10 {
-    %v_11 = cmp_eq %v_7, 1: Int
-    je %v_11, b_12, b_13
-  }
-
-  b_9 {
-    jmp b_14
-  }
-
-  b_13 {
-    jmp b_14
-  }
-
-  b_12 {
-    jmp b_14
-  }
-
-  b_14 {
-    %v_15 = phi [b_9, 1], [b_12, 2], [b_13, 3]: Int
-    ret %v_15
+    %v_9 = cmp_eq %v_7, 1: Int
+    %v_10 = select 2, 3, %v_9: Int
+    %v_11 = select 1, %v_10, %v_8: Int
+    ret %v_11
   }
 }
 

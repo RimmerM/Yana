@@ -72,25 +72,13 @@ unwrapPointer<complex>(%value: Ptr): Long {
     %p = load %v_6, 8: Ptr
     %v_7 = bitcast %p: Long
     %v_8 = cmp_eq %v_7, 0: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_9 {
-    jmp b_11
-  }
-
-  b_10 {
-    jmp b_11
-  }
-
-  b_11 {
-    %v_12 = phi [b_9, 0], [b_10, 1]: Long
+    %v_9 = select 0, 1, %v_8: Long
     jmp b_5
   }
 
   b_5 {
-    %v_13 = phi [b_11, %v_12], [b_4, 0]: Long
-    ret %v_13
+    %v_10 = phi [b_3, %v_9], [b_4, 0]: Long
+    ret %v_10
   }
 }
 

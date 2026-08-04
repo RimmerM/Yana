@@ -25,33 +25,15 @@ function ascribedFloat() {
 }
 
 function mixedIf(c, a, b) {
-  var v;
-  if (c) {
-    v = a;
-  } else {
-    v = b;
-  }
-  return v;
+  return c ? a : b;
 }
 
 function mixedMultiIf(c, a, b) {
-  var v;
-  if (c) {
-    v = BigInt.asIntN(64, BigInt(a));
-  } else {
-    v = b;
-  }
-  return v;
+  return c ? BigInt.asIntN(64, BigInt(a)) : b;
 }
 
 function mixedMatch(c, a, b) {
-  var v;
-  if (c) {
-    v = Math.fround(a);
-  } else {
-    v = b;
-  }
-  return v;
+  return c ? Math.fround(a) : b;
 }
 
 function divergingArm(c, a) {

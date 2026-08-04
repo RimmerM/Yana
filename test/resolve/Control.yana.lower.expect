@@ -17,29 +17,10 @@ local<complex>(%value: Int): Int {
 classify<complex>(%value: Int): Int {
   b_0 {
     %v_1 = cmp_ilt %value, 0: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    jmp b_4
-  }
-
-  b_3 {
-    %v_5 = cmp_eq %value, 0: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_6 {
-    jmp b_4
-  }
-
-  b_7 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_8 = phi [b_2, 18446744073709551615], [b_6, 0], [b_7, 1]: Int
-    ret %v_8
+    %v_2 = cmp_eq %value, 0: Int
+    %v_3 = select 0, 1, %v_2: Int
+    %v_4 = select 18446744073709551615, %v_3, %v_1: Int
+    ret %v_4
   }
 }
 
@@ -58,21 +39,9 @@ noop<complex>() {
 choose<complex>(%a: Int, %b: Int): Int {
   b_0 {
     %v_1 = cmp_igt %a, %b: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    %v_4 = add %a, 1: Int
-    jmp b_5
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_2, %v_4], [b_3, %b]: Int
-    ret %v_6
+    %v_2 = add %a, 1: Int
+    %v_3 = select %v_2, %b, %v_1: Int
+    ret %v_3
   }
 }
 

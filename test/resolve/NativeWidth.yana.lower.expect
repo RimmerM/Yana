@@ -2,20 +2,8 @@
 checkL<complex>(%actual: Long, %expected: Long, %weight: Int): Int {
   b_0 {
     %v_1 = cmp_eq %actual, %expected: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    jmp b_4
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
-    ret %v_5
+    %v_2 = select %weight, 0, %v_1: Int
+    ret %v_2
   }
 }
 
@@ -82,20 +70,8 @@ signedField<complex>(%x: Int): Int {
 checkI<complex>(%actual: Int, %expected: Int, %weight: Int): Int {
   b_0 {
     %v_1 = cmp_eq %actual, %expected: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    jmp b_4
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
-    ret %v_5
+    %v_2 = select %weight, 0, %v_1: Int
+    ret %v_2
   }
 }
 
@@ -181,20 +157,8 @@ addWide<complex>(%x: Long, %y: Long): Long {
 checkW<complex>(%actual: Long, %expected: Long, %weight: Int): Int {
   b_0 {
     %v_1 = cmp_eq %actual, %expected: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    jmp b_4
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
-    ret %v_5
+    %v_2 = select %weight, 0, %v_1: Int
+    ret %v_2
   }
 }
 
@@ -208,20 +172,8 @@ mulLong<complex>(%x: Long): Long {
 checkU<complex>(%actual: Int, %expected: Int, %weight: Int): Int {
   b_0 {
     %v_1 = cmp_eq %actual, %expected: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    jmp b_4
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_2, %weight], [b_3, 0]: Int
-    ret %v_5
+    %v_2 = select %weight, 0, %v_1: Int
+    ret %v_2
   }
 }
 

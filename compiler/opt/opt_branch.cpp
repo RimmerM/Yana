@@ -241,8 +241,13 @@ bool foldBranch(OptContext& opt, Block& block) {
     return true;
 }
 
+}
+
 // The blocks nothing reaches, dropped from the function along with their edges into the ones that
 // survive. Answers whether anything went, since the block list has to be renumbered if so.
+//
+// Outside the anonymous namespace because it is the cleanup every CFG rewrite in this directory
+// owes: folding a branch strands an arm, and if-conversion splices two of them out at once.
 bool removeUnreachableBlocks(OptContext& opt) {
     ScratchSet reachable(opt.sets, 0);
     computeReachable(opt, *reachable);
@@ -290,6 +295,8 @@ bool removeUnreachableBlocks(OptContext& opt) {
     opt.changed = true;
     return true;
 }
+
+namespace {
 
 // A phi with one alternative left, which is what a folded branch leaves at every join it stranded an
 // arm of. Iterated, because a phi that reads another one collapses only after that one has.

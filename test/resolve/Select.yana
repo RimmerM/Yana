@@ -1,0 +1,102 @@
+{-
+   If-conversion: the branch that decides a value rather than a path becomes one `select`.
+
+   `.opt.expect` is what says which of these converted - a converted diamond is one straight-line
+   block where there were four - and `.lower.expect` and `.js.expect` are the two forms it becomes:
+   a `select` the x64 selector turns into a `cmov`, and a `? :` that collapses the `var` and the two
+   assignments an `if` statement needs on that target.
+
+   Half the functions here exist to *not* convert. Both arms of a select are evaluated, so an arm
+   holding anything that may not happen on a path that would not have reached it is one this must
+   leave alone - and unlike the shapes above, the way that shows up when it is wrong is not IR text:
+   `ratio(10, 0)` divides by zero, and `skipped` counts the calls `&&` is supposed to skip. Both are
+   in `main`'s answer, and the driver checks that answer against the same program compiled with the
+   optimizer switched off.
+-}
+
+-- The plain shape: two arms that produce a value and do nothing else.
+fn larger(a: Int, b: Int) -> Int = if a > b then a else b
+
+-- Nested, which converts one round at a time: the inner diamond becomes a select in the arm of the
+-- outer one, and that arm is then an arm holding one speculatable instruction.
+fn sign(value: Int) -> Int = if:
+    value < 0 -> -1
+    value == 0 -> 0
+    else -> 1
+
+-- `||` is a diamond whose second arm is the right operand, so a pure one converts - and short
+-- circuiting is not a promise about it: nothing observes whether `b > 0` was computed.
+fn either(a: Int, b: Int) -> Int = if a > 0 || b > 0 then 1 else 0
+
+let &calls = 0 :: Int
+
+fn count() -> Bool:
+    calls = calls + 1
+    return True
+
+-- The same operator over a right operand that *is* observable. A call is not speculatable, so the
+-- branch stays and `count()` runs exactly when `&&` says it does.
+fn skipped(a: Int) -> Int = if a > 0 && count() then 1 else 0
+
+fn effects() -> Int:
+    calls = 0
+    let a = skipped(0)
+    let b = skipped(1)
+    return a + b * 2 + calls * 4
+
+-- Two arms that are one value need no select at all. Written as the same literal twice rather than
+-- as one name, because that is the case with something to remove: a constant belongs to no block,
+-- so the two arms of the phi were two values holding one number.
+fn same(c: Int) -> Int = if c > 0 then 7 else 7
+
+-- A float selects through a form of its own on amd64 - there is no `cmov` for a vector register, so
+-- the machine form is a jump over a move - and through the same `? :` on the other target. The
+-- argument comes through `@noinline` so that one reaches a machine at all: folded, there is no
+-- select left to select a form for.
+@noinline
+fn lowered() -> Float = 0.0 - 3.0
+
+fn magnitude(value: Float) -> Float = if value > 0.0 then value else 0.0 - value
+
+fn positive() -> Int = if magnitude(lowered()) > 2.5 then 5 else 0
+
+-- The loop case, which is what a branchless form is worth having for.
+fn smallest(limit: Int) -> Int:
+    let &best = 100 :: Int
+    let &i = 0 :: Int
+
+    while i < limit:
+        let candidate = 40 - i * 3
+        best = if candidate < best then candidate else best
+        i = i + 1
+
+    return best
+
+-- A division is pure and may still not be speculated: it is the one arithmetic instruction that
+-- faults, and this is the shape whose whole purpose is that it never runs on the other path.
+--
+-- The divisor comes through `@noinline` so that the guard is asserted by *running* rather than by
+-- the IR text beside it. Written as a literal, `ratio(10, 0)` is folded at the call site and the
+-- division never reaches a machine either way - so a converted one would be caught only by this
+-- fixture's `.opt.expect`, and something that has to fold to be safe is not safe.
+@noinline
+fn zero() -> Int = 0
+
+fn ratio(value: Int, divisor: Int) -> Int = if divisor != 0 then value / divisor else 0
+
+@noinline
+fn doubled(value: Int) -> Int = value * 2
+
+-- And a call, which may do anything at all.
+fn guarded(value: Int) -> Int = if value > 0 then doubled(value) else 0
+
+fn main() -> Int =
+    larger(3, 8) +
+    sign(-5) * 2 + sign(0) * 4 + sign(9) * 8 +
+    either(0, 4) * 16 + either(0, 0) * 32 +
+    effects() * 64 +
+    same(1) * 128 +
+    positive() * 256 +
+    smallest(5) * 512 +
+    ratio(10, zero()) * 1024 + ratio(10, 2) * 2048 +
+    guarded(3) * 4096 + guarded(-1) * 8192

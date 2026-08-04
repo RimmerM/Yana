@@ -155,6 +155,13 @@ void mapOperands(ModuleBase base, Value& instruction, F&& f) {
             binary.rhs = f(binary.rhs);
             break;
         }
+        case Value::Select: {
+            auto& select = (InstSelect&)instruction;
+            select.cond = f(select.cond);
+            select.whenTrue = f(select.whenTrue);
+            select.whenFalse = f(select.whenFalse);
+            break;
+        }
         case Value::Call:
             list(((InstCall&)instruction).args);
             break;
@@ -240,6 +247,10 @@ inline bool isPureValue(const Value& value) {
         case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
         case Value::Shl: case Value::Shr: case Value::Sar:
         case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
+        // Pure because both of its operands are: a select is only ever built out of values that may
+        // be computed unconditionally, so there is nothing in one that recomputing could repeat and
+        // nothing that not computing it could skip. See convertSelects, which is where that holds.
+        case Value::Select:
         case Value::Symbol: case Value::TypeMetric:
             return true;
         default:
@@ -490,8 +501,26 @@ void retargetEdge(OptContext& opt, Block* target, ModulePtr<Block> from, ModuleP
  */
 bool mergeBlocks(OptContext& opt);
 
+/*
+ * The blocks nothing reaches, dropped along with their edges into the ones that survive - see
+ * opt_branch.cpp. Answers whether anything went, since the block list is renumbered when it does.
+ *
+ * Exposed for the same reason `mergeBlocks` is: it is the cleanup any CFG rewrite here owes, and
+ * there are now two of them - a folded branch strands an arm, and an if-conversion splices out both.
+ */
+bool removeUnreachableBlocks(OptContext& opt);
+
 void foldFunction(OptContext& opt);
 void foldBranches(OptContext& opt);
+
+/*
+ * If-conversion: a branch whose arms only produce a value becomes a `select` - see opt_select.cpp.
+ *
+ * A CFG rewrite like `foldBranches`, and after it for the same reason that one is after the folder:
+ * most of the diamonds worth converting are made rather than written, and an arm a constant
+ * condition already deleted is not one to convert.
+ */
+void convertSelects(OptContext& opt);
 void collapseBorrows(OptContext& opt);
 void forwardPlaces(OptContext& opt);
 void promotePlaces(OptContext& opt);

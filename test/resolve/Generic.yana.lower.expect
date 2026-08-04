@@ -93,25 +93,13 @@ unwrapBool<complex>(%value: Ptr): Int {
 
   b_5 {
     %inner = load %value, 1: Int
-    je %inner, b_8, b_9
-  }
-
-  b_8 {
-    jmp b_10
-  }
-
-  b_9 {
-    jmp b_10
-  }
-
-  b_10 {
-    %v_11 = phi [b_8, 1], [b_9, 0]: Int
+    %v_8 = select 1, 0, %inner: Int
     jmp b_7
   }
 
   b_7 {
-    %v_12 = phi [b_10, %v_11], [b_6, 2]: Int
-    ret %v_12
+    %v_9 = phi [b_5, %v_8], [b_6, 2]: Int
+    ret %v_9
   }
 }
 

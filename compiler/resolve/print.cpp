@@ -271,6 +271,7 @@ static StringView instructionName(Value& value, GlobalBase global) {
             }
             break;
         }
+        case Value::Select: return "select"_v;
         case Value::Symbol: return "symbol"_v;
         case Value::Call: return "call"_v;
         case Value::CallDyn: return "calldyn"_v;
@@ -473,6 +474,16 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             printValue(print, *print.local[binary.lhs]);
             print.writer.writeString(", "_v);
             printValue(print, *print.local[binary.rhs]);
+            break;
+        }
+        case Value::Select: {
+            auto& select = (InstSelect&)inst;
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[select.cond]);
+            print.writer.writeString(" ? "_v);
+            printValue(print, *print.local[select.whenTrue]);
+            print.writer.writeString(" : "_v);
+            printValue(print, *print.local[select.whenFalse]);
             break;
         }
         case Value::Symbol: {
